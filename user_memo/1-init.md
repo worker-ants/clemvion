@@ -3,6 +3,7 @@ no-code workflow 빌더 제품을 만드려고 합니다.
 # navigation
 다음 목록으로 구성됩니다.
 ```
+./
 ├── workflow list       # 워크플로우 목록
 ├── trigger list        # 워크플로우의 트리거 목록 (endpoint 관리)
 ├── schedule            # 워크플로우를 실행하는 cronjob 규칙
@@ -27,14 +28,19 @@ n8n과 같이 각각의 기능을 가진 node를 canvas에 drag&drop 하고, edg
 - loop
 - Variable declaration
 - Variable modification
-
-### flow
-- merge
 - split
 - map
-- foreach 
+- foreach
+- parallel
+- merge
+- background
+
+### flow
+- workflow
 
 ### AI
 - AI Agent
 - Text Classifier
 - Information Extractor
+
+먼저 위의 요구사항을 기준으로 문서를 작성해 주세요.
