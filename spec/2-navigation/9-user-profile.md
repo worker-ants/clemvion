@@ -138,17 +138,56 @@
 
 ## 5. 알림 설정
 
+### 5.1 알림 유형별 채널
+
+| 항목 | 기본 채널 | 사용자 변경 가능 |
+|------|-----------|-----------------|
+| 워크플로우 실행 실패 | 인앱 + 이메일 | O (채널별 on/off) |
+| 스케줄 실행 실패 | 인앱 + 이메일 | O |
+| Integration 만료 | 인앱 + 이메일 | O |
+| 마켓플레이스 업데이트 | 인앱 | O |
+| 팀 초대 | 인앱 + 이메일 | X (항상 발송) |
+
+### 5.2 알림 센터 (벨 아이콘 클릭 시)
+
+```
+┌──────────────────────────────┐
+│  Notifications          Mark all read │
+│  ─────────────────────────── │
+│  🔴 Workflow "Order Bot" failed       │
+│     2 minutes ago                      │
+│  ─────────────────────────── │
+│  🟡 Slack integration expired         │
+│     1 hour ago                         │
+│  ─────────────────────────── │
+│  🔵 Team Alpha invited you            │
+│     3 hours ago                        │
+│  ─────────────────────────── │
+│  View all notifications →            │
+└──────────────────────────────┘
+```
+
+| 기능 | 설명 |
+|------|------|
+| 미읽은 알림 수 | 벨 아이콘에 뱃지로 표시 (최대 99+) |
+| 알림 클릭 | 관련 리소스로 이동 (워크플로우, Integration 등) |
+| 전체 읽음 | "Mark all read" 버튼 |
+| 알림 목록 | 최근 알림 드롭다운 (최대 10개) + "View all" 링크 |
+| 전체 알림 페이지 | 필터(유형, 읽음/미읽음), 페이지네이션 |
+
+### 5.3 이메일 알림
+
 | 항목 | 설명 |
 |------|------|
-| 워크플로우 실행 실패 | 이메일/인앱 알림 |
-| 스케줄 실행 실패 | 이메일/인앱 알림 |
-| Integration 만료 | 이메일/인앱 알림 |
-| 마켓플레이스 업데이트 | 인앱 알림 |
-| 팀 초대 | 이메일 + 인앱 |
+| 즉시 발송 | 실행 실패, Integration 만료, 팀 초대 |
+| 일일 요약 | 하루 동안의 실패 요약 (설정 가능) |
+| 수신 거부 | 이메일 하단 unsubscribe 링크 |
 
 ---
 
 ## 6. API
+
+### 6.1 사용자/워크스페이스 API
 
 | 메서드 | 경로 | 설명 |
 |--------|------|------|
@@ -168,3 +207,14 @@
 | POST | /api/workspaces/:id/members/invite | 멤버 초대 |
 | PATCH | /api/workspaces/:id/members/:memberId | 역할 변경 |
 | DELETE | /api/workspaces/:id/members/:memberId | 멤버 제거 |
+
+### 6.2 알림 API
+
+| 메서드 | 경로 | 설명 |
+|--------|------|------|
+| GET | /api/notifications | 알림 목록 (쿼리: type, is_read, page, limit) |
+| GET | /api/notifications/unread-count | 미읽은 알림 수 |
+| PATCH | /api/notifications/:id/read | 알림 읽음 처리 |
+| POST | /api/notifications/mark-all-read | 전체 읽음 처리 |
+| GET | /api/notifications/settings | 알림 설정 조회 |
+| PATCH | /api/notifications/settings | 알림 설정 수정 |

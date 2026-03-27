@@ -23,7 +23,7 @@
 │  Personal                                               │
 │  ┌─────────────────────────────────────────────────────┐ │
 │  │ 🟢 GitHub - My Account      OAuth2    Connected  ⋮ │ │
-│  │ 🔴 Slack - Personal         OAuth2    Expired    ⋮ │ │
+│  │ 🟡 Slack - Personal         OAuth2    Expired    ⋮ │ │
 │  │ 🟢 HTTP - Custom API        API Key   Connected  ⋮ │ │
 │  └─────────────────────────────────────────────────────┘ │
 └─────────────────────────────────────────────────────────┘

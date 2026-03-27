@@ -105,29 +105,29 @@
 ## Phase 3: 보완 항목
 
 ### 6. Folder 엔티티 누락
-- [ ] **작업**: spec/1-data-model.md에 Folder 엔티티 추가
-  - id, workspace_id, name, parent_id(중첩 폴더), created_at, updated_at
+- [x] **작업**: spec/1-data-model.md에 Folder 엔티티(2.5) 추가 완료
+  - id, workspace_id, name, parent_id(중첩 폴더, 최대 5단계), sort_order
+  - 엔티티 관계 개요에도 반영, 인덱스 추가, 이후 엔티티 번호 재정렬(2.6~2.18)
 
 ### 9. 버전 관리와 자동 저장 관계
-- [ ] **논의**: 버전 생성 시점 기준 결정
-  - 자동 저장 = 최신 상태 유지 (버전 안 만듦)
-  - 수동 저장/실행 시 = 버전 스냅샷 생성
-  - 또는 일정 간격(예: 10분)마다 자동 버전 생성
-- [ ] **수정 대상 문서**:
-  - spec/3-workflow-editor/0-canvas.md — 자동 저장 섹션에 버전 정책 추가
+- [x] **적용**: 자동 저장 ≠ 버전 생성 정책으로 결정
+  - 자동 저장 = Workflow 테이블 직접 업데이트 (WorkflowVersion 생성 안 함)
+  - 수동 저장(Ctrl+S) / 실행 직전 = WorkflowVersion 스냅샷 생성
+  - spec/3-workflow-editor/0-canvas.md 섹션 8.1에 명시
 
 ### 11. 알림(Notification) 시스템
-- [ ] **작업**:
-  - spec/1-data-model.md — Notification 엔티티 추가
-  - spec/2-navigation/ — 알림 센터 UI spec 추가 (또는 레이아웃에 통합)
-  - spec/5-system/ — 알림 전송 서비스 설계
+- [x] **작업 완료**:
+  - spec/1-data-model.md — Notification 엔티티(2.19) 추가, 인덱스 추가
+  - spec/2-navigation/0-layout.md — 사이드바 하단에 알림 벨 아이콘 반영
+  - spec/2-navigation/9-user-profile.md — 알림 센터 UI spec, 이메일 알림 정책, 알림 API 추가
+  - 엔티티 관계 개요에 Notification 반영
 
 ### 12. 교차 참조 불일치 수정
-- [ ] spec/5-system/3-error-handling.md — `http_request` 노드 타입을 실제 존재하는 타입으로 변경
-- [ ] spec/2-navigation/4-integration.md — Expired 상태 아이콘 통일 (🟡로 통일)
-- [ ] spec/0-overview.md — 아키텍처 다이어그램에 Message Queue 추가
-- [ ] prd/3-node-system.md ND-CM-01 — 시작 노드 예외 규칙 명시 또는 Trigger 노드 정의
-- [ ] prd/0-overview.md — 노드 수를 Integration 노드 포함하여 업데이트
+- [x] spec/5-system/3-error-handling.md — `http_request` → `ai_agent`로 변경
+- [x] spec/2-navigation/4-integration.md — Expired 상태 아이콘 🔴 → 🟡 통일
+- [x] spec/0-overview.md — 아키텍처 다이어그램에 Message Queue + Workers 추가, Execution Engine 설명 보강
+- [x] prd/3-node-system.md ND-CM-01 — 시작 노드(트리거 직후)의 입력 포트 역할 명시
+- [ ] prd/0-overview.md — 노드 수 업데이트 → #1 Integration 노드 결정 후 처리 (TODO 주석 추가됨)
 
 ---
 
@@ -143,7 +143,7 @@
 | #7 Trigger↔Schedule | ⬜ 대기 | 사용자 논의 필요 |
 | #8 에러 출력 포트 | ⬜ 대기 | 사용자 논의 필요 |
 | #10 실행 엔진 | ⬜ 대기 | 사용자 논의 필요 |
-| #6 Folder 엔티티 | ⬜ 대기 | 바로 수정 가능 |
-| #9 버전/자동저장 | ⬜ 대기 | 사용자 논의 필요 |
-| #11 알림 시스템 | ⬜ 대기 | 사용자 논의 필요 |
-| #12 불일치 수정 | ⬜ 대기 | #1 결정 후 일괄 수정 |
+| #6 Folder 엔티티 | ✅ 완료 | spec/1-data-model.md |
+| #9 버전/자동저장 | ✅ 완료 | spec/3-workflow-editor/0-canvas.md |
+| #11 알림 시스템 | ✅ 완료 | data-model, layout, user-profile |
+| #12 불일치 수정 | ✅ 완료 | 노드 수만 #1 결정 후 처리 |
