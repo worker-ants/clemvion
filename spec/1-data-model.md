@@ -9,6 +9,7 @@
 ```
 User ──┬── Workspace (1:N)
        │       │
+       │       ├── Folder (1:N, 자기참조 parent_id)
        │       ├── Workflow (1:N)
        │       │       ├── Node (1:N)
        │       │       ├── Edge (1:N)
@@ -23,7 +24,9 @@ User ──┬── Workspace (1:N)
        │       │       └── Document (1:N)
        │       │
        │       ├── LLMConfig (1:N)
-       │       └── AuthConfig (1:N)
+       │       ├── AuthConfig (1:N)
+       │       ├── AuditLog (1:N)
+       │       └── Notification (1:N)
        │
        └── WorkspaceMember (N:M via join)
 ```
@@ -88,7 +91,23 @@ User ──┬── Workspace (1:N)
 | created_at | Timestamp | 생성 시각 |
 | updated_at | Timestamp | 수정 시각 |
 
-### 2.5 Node
+### 2.5 Folder
+
+| 필드 | 타입 | 설명 |
+|------|------|------|
+| id | UUID | PK |
+| workspace_id | UUID | FK → Workspace |
+| name | String | 폴더 이름 |
+| parent_id | UUID? | FK → Folder (중첩 폴더 지원) |
+| sort_order | Integer | 정렬 순서 (기본: 0) |
+| created_at | Timestamp | 생성 시각 |
+| updated_at | Timestamp | 수정 시각 |
+
+**제약 조건:**
+- `(workspace_id, parent_id, name)` UNIQUE — 같은 위치에 동일 이름 불가
+- 중첩 깊이 제한: 최대 5단계
+
+### 2.6 Node
 
 | 필드 | 타입 | 설명 |
 |------|------|------|
@@ -125,7 +144,7 @@ User ──┬── Workspace (1:N)
 | ai | text_classifier | 텍스트 분류 |
 | ai | information_extractor | 정보 추출 |
 
-### 2.6 Edge
+### 2.7 Edge
 
 | 필드 | 타입 | 설명 |
 |------|------|------|
@@ -143,7 +162,7 @@ User ──┬── Workspace (1:N)
 - 자기 자신으로의 연결 불가 (`source_node_id != target_node_id`)
 - source_node와 target_node는 같은 workflow_id에 속해야 함
 
-### 2.7 Trigger
+### 2.8 Trigger
 
 | 필드 | 타입 | 설명 |
 |------|------|------|
@@ -160,7 +179,7 @@ User ──┬── Workspace (1:N)
 | created_at | Timestamp | 생성 시각 |
 | updated_at | Timestamp | 수정 시각 |
 
-### 2.8 Schedule
+### 2.9 Schedule
 
 | 필드 | 타입 | 설명 |
 |------|------|------|
@@ -175,7 +194,7 @@ User ──┬── Workspace (1:N)
 | created_at | Timestamp | 생성 시각 |
 | updated_at | Timestamp | 수정 시각 |
 
-### 2.9 Integration
+### 2.10 Integration
 
 | 필드 | 타입 | 설명 |
 |------|------|------|
@@ -192,7 +211,7 @@ User ──┬── Workspace (1:N)
 | created_at | Timestamp | 생성 시각 |
 | updated_at | Timestamp | 수정 시각 |
 
-### 2.10 KnowledgeBase
+### 2.11 KnowledgeBase
 
 | 필드 | 타입 | 설명 |
 |------|------|------|
@@ -207,7 +226,7 @@ User ──┬── Workspace (1:N)
 | created_at | Timestamp | 생성 시각 |
 | updated_at | Timestamp | 수정 시각 |
 
-### 2.11 Document
+### 2.12 Document
 
 | 필드 | 타입 | 설명 |
 |------|------|------|
@@ -224,7 +243,7 @@ User ──┬── Workspace (1:N)
 | created_at | Timestamp | 생성 시각 |
 | updated_at | Timestamp | 수정 시각 |
 
-### 2.12 Execution
+### 2.13 Execution
 
 | 필드 | 타입 | 설명 |
 |------|------|------|
@@ -241,7 +260,7 @@ User ──┬── Workspace (1:N)
 | executed_by | UUID? | FK → User (수동 실행 시) |
 | execution_path | UUID[] | 실행된 노드 ID 순서 |
 
-### 2.13 NodeExecution
+### 2.14 NodeExecution
 
 | 필드 | 타입 | 설명 |
 |------|------|------|
@@ -257,7 +276,7 @@ User ──┬── Workspace (1:N)
 | error | JSONB? | 에러 정보 |
 | retry_count | Integer | 재시도 횟수 |
 
-### 2.14 WorkflowVersion
+### 2.15 WorkflowVersion
 
 | 필드 | 타입 | 설명 |
 |------|------|------|
@@ -269,7 +288,7 @@ User ──┬── Workspace (1:N)
 | created_by | UUID | FK → User |
 | created_at | Timestamp | 생성 시각 |
 
-### 2.15 LLMConfig
+### 2.16 LLMConfig
 
 | 필드 | 타입 | 설명 |
 |------|------|------|
@@ -285,7 +304,7 @@ User ──┬── Workspace (1:N)
 | created_at | Timestamp | 생성 시각 |
 | updated_at | Timestamp | 수정 시각 |
 
-### 2.16 AuthConfig
+### 2.17 AuthConfig
 
 | 필드 | 타입 | 설명 |
 |------|------|------|
@@ -300,7 +319,7 @@ User ──┬── Workspace (1:N)
 | created_at | Timestamp | 생성 시각 |
 | updated_at | Timestamp | 수정 시각 |
 
-### 2.17 AuditLog
+### 2.18 AuditLog
 
 | 필드 | 타입 | 설명 |
 |------|------|------|
@@ -313,6 +332,23 @@ User ──┬── Workspace (1:N)
 | details | JSONB | 변경 상세 |
 | ip_address | String | 요청 IP |
 | created_at | Timestamp | 발생 시각 |
+
+### 2.19 Notification
+
+| 필드 | 타입 | 설명 |
+|------|------|------|
+| id | UUID | PK |
+| workspace_id | UUID | FK → Workspace |
+| user_id | UUID | FK → User (수신자) |
+| type | Enum | execution_failed / schedule_failed / integration_expired / marketplace_update / team_invite |
+| title | String | 알림 제목 |
+| message | String | 알림 내용 |
+| resource_type | String? | 관련 리소스 유형 (workflow, integration 등) |
+| resource_id | UUID? | 관련 리소스 ID |
+| is_read | Boolean | 읽음 여부 (기본: false) |
+| channel | Enum | in_app / email / both |
+| email_sent_at | Timestamp? | 이메일 발송 시각 |
+| created_at | Timestamp | 생성 시각 |
 
 ---
 
@@ -333,3 +369,6 @@ User ──┬── Workspace (1:N)
 | Schedule | (next_run_at, is_active) | 스케줄러 다음 실행 대상 조회 |
 | AuditLog | (workspace_id, created_at DESC) | 감사 로그 조회 |
 | Integration | (workspace_id, service_type) | 서비스별 연동 조회 |
+| Folder | (workspace_id, parent_id) | 워크스페이스별 폴더 조회 |
+| Notification | (user_id, is_read, created_at DESC) | 사용자별 미읽은 알림 조회 |
+| Notification | (workspace_id, created_at DESC) | 워크스페이스별 알림 조회 |

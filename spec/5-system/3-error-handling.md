@@ -85,10 +85,10 @@
 {
   "error": {
     "code": "NODE_EXECUTION_FAILED",
-    "message": "Node 'HTTP Request' failed: Connection timeout",
+    "message": "Node 'AI Agent' failed: LLM connection timeout",
     "nodeId": "uuid-of-node",
-    "nodeName": "HTTP Request",
-    "nodeType": "http_request",
+    "nodeName": "AI Agent",
+    "nodeType": "ai_agent",
     "executionId": "uuid-of-execution",
     "stack": "...",
     "requestId": "req_abc123"
