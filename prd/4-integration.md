@@ -31,7 +31,9 @@
 | INT-AU-04 | 토큰 자동 갱신 (OAuth Refresh Token) | 필수 |
 | INT-AU-05 | 인증 정보 암호화 저장 | 필수 |
 
-### 2.3 지원 서비스 (MVP)
+### 2.3 지원 서비스
+
+> 워크플로우 내에서 Integration을 노드로 사용하는 방법은 [PRD 노드 시스템 §6 Integration 노드](./3-node-system.md#6-integration-노드-7종)를 참조한다.
 
 | ID | 요구사항 | 우선순위 |
 |----|----------|----------|

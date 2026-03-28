@@ -44,6 +44,15 @@
 | AI Agent | 1 | 1 | `out` |
 | Text Classifier | 1 | N (동적) | `class_0`, `class_1`, ..., (카테고리별) |
 | Information Extractor | 1 | 1 | `out` |
+| HTTP Request | 1 | 2 | `success`, `error` |
+| Database Query | 1 | 1 | `out` |
+| Slack | 1 | 1 | `out` |
+| Google Sheets | 1 | 1 | `out` |
+| GitHub | 1 | 1 | `out` |
+| Send Email | 1 | 1 | `out` |
+| Google Drive | 1 | 1 | `out` |
+| Transform | 1 | 1 | `out` |
+| Code | 1 | 1 | `out` |
 
 ### 1.4 포트 인터랙션
 

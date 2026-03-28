@@ -113,8 +113,8 @@ User ──┬── Workspace (1:N)
 |------|------|------|
 | id | UUID | PK |
 | workflow_id | UUID | FK → Workflow |
-| type | Enum | 노드 유형 (if_else, switch, loop, ..., ai_agent, text_classifier, information_extractor) |
-| category | Enum | logic / flow / ai |
+| type | Enum | 노드 유형 (if_else, switch, loop, ..., ai_agent, text_classifier, information_extractor, http_request, ..., transform, code) |
+| category | Enum | logic / flow / ai / integration / data |
 | label | String | 사용자 지정 노드 이름 |
 | position_x | Float | 캔버스 X 좌표 |
 | position_y | Float | 캔버스 Y 좌표 |
@@ -143,6 +143,15 @@ User ──┬── Workspace (1:N)
 | ai | ai_agent | AI Agent 실행 |
 | ai | text_classifier | 텍스트 분류 |
 | ai | information_extractor | 정보 추출 |
+| integration | http_request | 범용 HTTP 요청 |
+| integration | database_query | 데이터베이스 쿼리 |
+| integration | slack | Slack 메시지/채널 관리 |
+| integration | google_sheets | Google Sheets 읽기/쓰기 |
+| integration | github | GitHub Issue/PR 관리 |
+| integration | send_email | 이메일 발송 (SMTP) |
+| integration | google_drive | Google Drive 파일 관리 |
+| data | transform | 데이터 변환 (연산 체인) |
+| data | code | JavaScript 코드 실행 |
 
 ### 2.7 Edge
 
