@@ -1,6 +1,6 @@
 # Spec: 노드 시스템 설계 개요
 
-> 관련 문서: [PRD 노드 시스템](../../prd/3-node-system.md) · [Spec 노드 공통](../3-workflow-editor/1-node-common.md) · [Logic 노드](./1-logic-nodes.md) · [Flow 노드](./2-flow-nodes.md) · [AI 노드](./3-ai-nodes.md)
+> 관련 문서: [PRD 노드 시스템](../../prd/3-node-system.md) · [Spec 노드 공통](../3-workflow-editor/1-node-common.md) · [Logic 노드](./1-logic-nodes.md) · [Flow 노드](./2-flow-nodes.md) · [AI 노드](./3-ai-nodes.md) · [Integration 노드](./4-integration-nodes.md) · [Data 노드](./5-data-nodes.md)
 
 ---
 
@@ -17,7 +17,7 @@
 │  ┌─────────────────────────────────┐    │
 │  │         Node Definition         │    │
 │  │  - type: string                 │    │
-│  │  - category: logic|flow|ai      │    │
+│  │  - category: logic|flow|ai|integration|data │
 │  │  - icon: string                 │    │
 │  │  - color: string                │    │
 │  │  - inputPorts: PortDef[]        │    │
@@ -43,7 +43,7 @@
 | 속성 | 타입 | 설명 |
 |------|------|------|
 | type | String | 고유 식별자 (예: `if_else`, `ai_agent`) |
-| category | Enum | `logic` / `flow` / `ai` |
+| category | Enum | `logic` / `flow` / `ai` / `integration` / `data` |
 | displayName | String | UI 표시 이름 |
 | description | String | 노드 설명 |
 | icon | String | 아이콘 식별자 |
@@ -97,6 +97,25 @@
 | `text_classifier` | Text Classifier | 🏷️ | 1 | N | 카테고리 목록, 모델 |
 | `information_extractor` | Info Extractor | 🔍 | 1 | 1 | 출력 스키마, 모델 |
 
+### 2.4 Integration 노드 (7종)
+
+| type | 표시 이름 | 아이콘 | 입력 | 출력 | 키 설정 |
+|------|-----------|--------|------|------|---------|
+| `http_request` | HTTP Request | 🌐 | 1 | 2 (success/error) | method, url, headers, body, responseType |
+| `database_query` | Database Query | 🗄️ | 1 | 1 | integrationId, query, parameters, queryType |
+| `slack` | Slack | 💬 | 1 | 1 | integrationId, action, actionConfig |
+| `google_sheets` | Google Sheets | 📊 | 1 | 1 | integrationId, action, spreadsheetId, range |
+| `github` | GitHub | 🐙 | 1 | 1 | integrationId, action, owner, repo, actionConfig |
+| `send_email` | Send Email | 📧 | 1 | 1 | integrationId, to, subject, body, bodyType |
+| `google_drive` | Google Drive | 📁 | 1 | 1 | integrationId, action, folderId, fileId |
+
+### 2.5 Data 노드 (2종)
+
+| type | 표시 이름 | 아이콘 | 입력 | 출력 | 키 설정 |
+|------|-----------|--------|------|------|---------|
+| `transform` | Transform | 🔄 | 1 | 1 | operations (변환 체인) |
+| `code` | Code | 💻 | 1 | 1 | language, code |
+
 ---
 
 ## 3. 카테고리 시각 구분
@@ -106,7 +125,9 @@
 | Logic | `#3B82F6` (파랑) | 데이터 흐름 제어, 변수 관리 |
 | Flow | `#8B5CF6` (보라) | 워크플로우 간 연결 |
 | AI | `#10B981` (초록) | AI/LLM 기반 처리 |
-| Custom (마켓) | `#F59E0B` (주황) | 마켓플레이스 설치 노드 |
+| Integration | `#F97316` (주황) | 외부 서비스 연동 |
+| Data | `#06B6D4` (시안) | 데이터 변환, 코드 실행 |
+| Custom (마켓) | `#F59E0B` (앰버) | 마켓플레이스 설치 노드 |
 
 ---
 

@@ -1,6 +1,6 @@
 # PRD: 제품 개요
 
-> 관련 문서: [내비게이션](./1-navigation.md) · [워크플로우 에디터](./2-workflow-editor.md) · [노드 시스템](./3-node-system.md) · [통합/연동](./4-integration.md) · [비기능 요구사항](./5-non-functional.md) · [Spec 개요](../spec/0-overview.md)
+> 관련 문서: [내비게이션](./1-navigation.md) · [워크플로우 에디터](./2-workflow-editor.md) · [노드 시스템](./3-node-system.md) · [통합/연동](./4-integration.md) · [비기능 요구사항](./5-non-functional.md) · [Spec 개요](../spec/0-overview.md) · [Spec Integration 노드](../spec/4-nodes/4-integration-nodes.md) · [Spec Data 노드](../spec/4-nodes/5-data-nodes.md)
 
 ---
 
@@ -59,17 +59,35 @@
 
 ---
 
-## 6. 제품 범위 (MVP)
+## 6. 제품 범위 및 로드맵
 
-첫 번째 버전에 아래 모든 영역을 포함한다.
+제품은 3개 Phase로 나누어 점진적으로 출시한다.
+
+### 6.1 Phase 1 — 핵심 자동화
 
 | 영역 | 핵심 기능 |
 |------|-----------|
-| **내비게이션** | 워크플로우 목록, 트리거 목록, 스케줄, 통합, 지식 저장소, 설정, 통계, 마켓플레이스, 사용자 프로필 |
+| **내비게이션** | 워크플로우 목록, 트리거 목록, 스케줄, 통합, 설정(인증/LLM), 통계, 사용자 프로필 |
 | **워크플로우 에디터** | 캔버스 기반 노드 편집, 엣지 연결, 실행/디버깅 |
-| **노드 시스템** | Logic 노드 11종, Flow 노드 1종, AI 노드 3종 <!-- TODO: Integration 노드 추가 시 업데이트 필요 --> |
-| **통합/연동** | Third-party 서비스 연동, 마켓플레이스 |
+| **노드 시스템** | Logic 9종, Flow 1종, Integration 4종, Data 2종 (총 16종) |
+| **통합/연동** | HTTP Request, Database, Slack, Send Email 연동 |
 | **시스템** | 인증/인가, API, 에러 처리 |
+
+### 6.2 Phase 2 — AI & 협업
+
+| 영역 | 핵심 기능 |
+|------|-----------|
+| **노드 시스템** | AI 노드 3종 (AI Agent, Text Classifier, Information Extractor), Logic 2종 (Parallel, Background), Integration 3종 (Google Sheets, GitHub, Google Drive) |
+| **내비게이션** | 지식 저장소(Knowledge Base), 팀 관리 |
+| **시스템** | RBAC, 2FA, 팀 워크스페이스 |
+
+### 6.3 Phase 3 — 생태계
+
+| 영역 | 핵심 기능 |
+|------|-----------|
+| **마켓플레이스** | 워크플로우 템플릿, AI Agent 프리셋, Integration 플러그인, 커스텀 노드 |
+| **배포** | 셀프 호스팅 (Docker, Kubernetes) |
+| **확장** | 노드 플러그인 SDK, 커스텀 노드 개발/게시 |
 
 ---
 
@@ -101,7 +119,7 @@ prd/
 ├── 0-overview.md          ← 현재 문서
 ├── 1-navigation.md        — 내비게이션 구조 및 영역별 요구사항
 ├── 2-workflow-editor.md   — 워크플로우 에디터 핵심 요구사항
-├── 3-node-system.md       — 노드 시스템 요구사항 (Logic/Flow/AI)
+├── 3-node-system.md       — 노드 시스템 요구사항 (Logic/Flow/AI/Integration/Data)
 ├── 4-integration.md       — 통합/연동, 마켓플레이스, Knowledge Base 요구사항
 └── 5-non-functional.md    — 비기능 요구사항 (성능, 보안, 확장성)
 
@@ -111,5 +129,11 @@ spec/
 ├── 2-navigation/          — 내비게이션 화면별 상세 스펙
 ├── 3-workflow-editor/     — 에디터 상세 스펙
 ├── 4-nodes/               — 노드별 상세 스펙
+│   ├── 0-overview.md      — 노드 아키텍처/목록 개요
+│   ├── 1-logic-nodes.md   — Logic 노드 상세
+│   ├── 2-flow-nodes.md    — Flow 노드 상세
+│   ├── 3-ai-nodes.md      — AI 노드 상세
+│   ├── 4-integration-nodes.md — Integration 노드 상세
+│   └── 5-data-nodes.md    — Data 노드 상세
 └── 5-system/              — 시스템 공통 스펙
 ```
