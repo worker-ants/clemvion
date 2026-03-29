@@ -340,3 +340,32 @@ Webhook으로 수신한 데이터는 다음 구조로 워크플로우의 첫 번
 ### 11.7 Rate Limiting
 
 Webhook 수신은 워크스페이스 기준 **1000 req/min** 제한 (§7 참조). 초과 시 `429 Too Many Requests`.
+
+---
+
+## 12. 공통 API 패턴
+
+### 12.1 상태 토글 패턴
+
+리소스의 상태 필드를 토글(활성/비활성 등)할 때는 전용 엔드포인트를 만들지 않고, **PATCH 본문에 변경할 필드를 포함**하는 방식을 사용한다.
+
+```
+PATCH /api/{resource}/{id}
+Content-Type: application/json
+
+{ "is_active": false }
+```
+
+| 규칙 | 설명 |
+|------|------|
+| 패턴 | `PATCH /:id { field: value }` |
+| 전용 endpoint 불필요 | `POST /:id/activate`, `POST /:id/deactivate` 등의 전용 엔드포인트를 만들지 않음 |
+| 적용 대상 | `is_active` (Workflow, Trigger, Schedule), `is_disabled` (Node), `is_read` (Notification) 등 Boolean 토글 필드 |
+
+### 12.2 유니크 제약 범위
+
+| 필드 | 유니크 범위 | 설명 |
+|------|------------|------|
+| `Trigger.endpoint_path` | 워크스페이스 단위 | 동일 워크스페이스 내에서 중복 불가. 다른 워크스페이스와는 독립 |
+
+> 인덱스 정의: [데이터 모델 §3](../1-data-model.md#3-인덱스-전략) 참조

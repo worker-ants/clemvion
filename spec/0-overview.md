@@ -95,7 +95,44 @@
 - **PostgreSQL**: 주 데이터베이스 (워크플로우, 사용자, 설정 등)
 - **Redis**: 캐시, 실행 상태 Pub/Sub, 세션 관리
 - **Vector DB**: Knowledge Base 임베딩 저장/검색
-- **Object Storage**: 파일 업로드, Knowledge Base 원본 문서
+- **Object Storage**: S3 호환 스토리지 (AWS S3 / MinIO). 파일 업로드, Knowledge Base 원본 문서, PDF 생성물 등 저장
+
+### 2.7 Object Storage (S3 호환)
+
+| 항목 | 설명 |
+|------|------|
+| 호환성 | AWS S3 API 호환 (AWS S3, MinIO 등) |
+| SaaS | AWS S3 사용 |
+| 셀프 호스팅 | MinIO 기본 제공 (Docker Compose에 포함) |
+
+**버킷 구조:**
+
+```
+{bucket}/
+  {workspaceId}/
+    forms/          # Form 노드 파일 업로드
+      {executionId}/
+        {fileId}_{originalName}
+    exports/        # PDF 생성물 등 내보내기 파일
+      {executionId}/
+        {fileName}
+    knowledge-base/ # Knowledge Base 원본 문서
+      {kbId}/
+        {documentId}_{originalName}
+    avatars/        # 프로필 이미지
+      {userId}.{ext}
+```
+
+### 2.8 DB 마이그레이션 (Flyway)
+
+| 항목 | 설명 |
+|------|------|
+| 도구 | **Flyway** |
+| 버전 관리 | SQL 기반 마이그레이션 파일, `V{version}__{description}.sql` 네이밍 |
+| 롤백 지원 | 각 마이그레이션에 대응하는 undo 스크립트 작성 (`U{version}__{description}.sql`) |
+| CI/CD 연동 | 배포 파이프라인에서 `flyway migrate` 자동 실행. 마이그레이션 실패 시 배포 중단 |
+| 환경 분리 | dev/staging/production 환경별 설정 파일 분리 (`flyway-{env}.conf`) |
+| 기준선 | 최초 배포 시 `flyway baseline`으로 기준점 설정 |
 
 ---
 
@@ -161,6 +198,7 @@
 | [PRD 2: 에디터](../prd/2-workflow-editor.md) ED-SP-03, ED-SP-04 (표현식) | [Spec 5-system/5: 표현식 언어](./5-system/5-expression-language.md) |
 | [PRD 5: 비기능](../prd/5-non-functional.md) (실시간 통신) | [Spec 5-system/6: WebSocket 프로토콜](./5-system/6-websocket-protocol.md) |
 | [PRD 5: 비기능](../prd/5-non-functional.md) NF-SC-01 (인증 UI) | [Spec 2-navigation/10: 인증 UI 플로우](./2-navigation/10-auth-flow.md) |
+| (공통 UI) 에러 페이지 / 빈 상태 | [Spec 2-navigation/11: 에러/빈 상태 UI](./2-navigation/11-error-empty-states.md) |
 
 ---
 

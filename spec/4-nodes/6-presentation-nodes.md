@@ -275,6 +275,40 @@
 | submitLabel | String | ✗ | "Submit" | 제출 버튼 텍스트 |
 | timeout | Number? | ✗ | — | 대기 타임아웃 (초 단위, 미지정 시 무제한) |
 
+**파일 업로드 설정 (FormField.type = `file` 인 경우):**
+
+| 필드 | 타입 | 필수 | 기본값 | 설명 |
+|------|------|------|--------|------|
+| allowedMimeTypes | String[] | ✗ | 아래 참조 | 허용 MIME 타입 목록 |
+| maxFileSize | Number | ✗ | 10 | 단일 파일 최대 크기 (MB) |
+| maxTotalSize | Number | ✗ | 50 | 필드 내 전체 파일 합계 최대 크기 (MB) |
+| maxFiles | Number | ✗ | 5 | 필드당 최대 파일 수 |
+
+**allowedMimeTypes 기본값 (문서/이미지만 허용):**
+
+```json
+[
+  "image/jpeg", "image/png", "image/gif", "image/webp", "image/svg+xml",
+  "application/pdf",
+  "application/msword",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  "application/vnd.ms-excel",
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  "application/vnd.ms-powerpoint",
+  "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+  "text/plain", "text/csv"
+]
+```
+
+> 실행 파일(.exe, .sh 등), 스크립트(.js, .py 등), 아카이브(.zip, .tar.gz 등)는 기본 허용 목록에 포함되지 않는다. 필요 시 `allowedMimeTypes`를 명시적으로 확장한다.
+
+**타임아웃 후 재제출:**
+
+| 상태 | 재제출 가능 여부 |
+|------|-----------------|
+| `waiting_for_input` | 가능 — 타임아웃 전까지 폼을 반복 제출/수정할 수 있음 |
+| `cancelled` (타임아웃 후 전이) | 불가 — 실행이 종료되었으므로 새 실행을 시작해야 함 |
+
 **FormField 구조:**
 
 | 필드 | 타입 | 필수 | 설명 |
@@ -517,7 +551,8 @@ Handlebars 스타일 템플릿으로 입력 데이터를 바인딩하여 리치 
 ### 6.3 실행 로직
 
 1. 입력 데이터를 Handlebars 컨텍스트로 바인딩하여 HTML 렌더링
-2. Puppeteer/Playwright 기반 헤드리스 브라우저로 HTML→PDF 변환
+2. **Playwright** 기반 Chromium 헤드리스 브라우저로 HTML→PDF 변환
+   - `page.pdf()` API 사용
    - `pageSize`, `orientation`, `margin` 적용
    - `headerTemplate`, `footerTemplate` 적용
 3. 생성된 PDF를 Object Storage에 업로드
@@ -540,7 +575,16 @@ Handlebars 스타일 템플릿으로 입력 데이터를 바인딩하여 리치 
 |------|------|------|
 | PDF 렌더링 타임아웃 | 60초 | 기본 노드 타임아웃(30초)보다 긴 기본값 적용 |
 | 최대 파일 크기 | 50MB | 초과 시 `PDF_SIZE_EXCEEDED` 에러 |
-| 동시 렌더링 수 | Worker당 2 | Puppeteer 인스턴스 풀 관리 |
+| 동시 렌더링 수 | Worker당 2 | Playwright Chromium 인스턴스 풀 관리 |
+
+### 6.6 구현 참고사항
+
+| 항목 | 설명 |
+|------|------|
+| 렌더링 엔진 | **Playwright** (Chromium 헤드리스) |
+| PDF 생성 API | `page.pdf({ format, landscape, margin, headerTemplate, footerTemplate })` |
+| 페이지 사이즈/방향 | config의 `pageSize`, `orientation` 값을 `page.pdf()` 옵션으로 매핑 |
+| 브라우저 풀 | Worker 시작 시 Playwright Browser 인스턴스를 미리 생성하고 풀로 관리. 각 PDF 렌더링마다 새 Page를 열고 완료 후 닫음 |
 
 ### 6.5 설정 UI
 

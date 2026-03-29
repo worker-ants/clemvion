@@ -158,16 +158,16 @@
 | 3 | 컨테이너 데이터 전달 | ✅ 완료 | 리프 노드 정의·병합 규칙·중첩 스코프 체인 추가 |
 | 4 | 동적 포트 ID 안정성 | ✅ 완료 | UUID 기반 포트 ID 규칙 반영 (PortDef, Switch, 노드 공통) |
 | 5 | Phase 메뉴 처리 정책 | ✅ 완료 | 숨김 정책 PRD 반영, Authentication 최상위 승격, 레이아웃 메뉴 정리 |
-| 6 | 에러/빈 상태 UI | ⬜ 미착수 | |
-| 7 | 타입 변환 규칙 | ⬜ 미착수 | |
-| 8 | Split 출력 방식 | ⬜ 미착수 | |
-| 9 | ForEach collectResults | ⬜ 미착수 | |
-| 10 | Merge 타임아웃 | ⬜ 미착수 | |
-| 11 | Code $vars 동기화 | ⬜ 미착수 | |
-| 12 | Form 파일 업로드 | ⬜ 미착수 | |
-| 13 | PDF 렌더링 기술 | ⬜ 미착수 | |
-| 14 | API 패턴 통일 | ⬜ 미착수 | |
-| 15 | 인프라 세부사항 | ⬜ 미착수 | |
+| 6 | 에러/빈 상태 UI | ✅ 완료 | 에러 페이지 5종(401/403/404/500/네트워크) + 화면별 빈 상태 + 검색 결과 없음 스펙 신규 작성 |
+| 7 | 타입 변환 규칙 | ✅ 완료 | 느슨한 변환 기본 + strictComparison 토글 옵션. 표현식 언어·If/Else·Switch에 반영 |
+| 8 | Split 출력 방식 | ✅ 완료 | 일괄 배열 출력(B안) 반영. Split+ForEach 조합 패턴 예시 추가. 노드 공통 포트 설명 일치 |
+| 9 | ForEach collectResults | ✅ 완료 | skip 시 `{_skipped: true, error: {code, message}}` 에러 객체 삽입. 실행 엔진·로직 노드 양쪽 반영 |
+| 10 | Merge 타임아웃 | ✅ 완료 | timeout(기본 300초) + partialOnTimeout 옵션 추가 |
+| 11 | Code $vars 동기화 | ✅ 완료 | A안(Deep clone + 전체 교체) 채택. 원자적 반영·롤백 설계 근거 명시 |
+| 12 | Form 파일 업로드 | ✅ 완료 | 문서/이미지 MIME 기본 허용, maxFileSize/maxTotalSize/maxFiles 추가, 타임아웃 후 재제출 규칙 |
+| 13 | PDF 렌더링 기술 | ✅ 완료 | B안(Playwright) 채택. page.pdf() API, Chromium 풀 관리 명시 |
+| 14 | API 패턴 통일 | ✅ 완료 | PATCH 본문 토글 패턴, 워크스페이스 단위 유니크, Execution.error↔NodeExecution.error 관계 반영 |
+| 15 | 인프라 세부사항 | ✅ 완료 | Redis 키 네이밍 컨벤션, S3 호환 버킷 구조, Flyway 마이그레이션 전략 반영 |
 | 16 | 온보딩 플로우 | ⬜ 미착수 | |
 | 17 | Background 실패 | ⬜ 미착수 | |
 | 18 | Chart aggregation | ⬜ 미착수 | |
