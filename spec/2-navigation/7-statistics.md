@@ -1,6 +1,6 @@
 # Spec: 통계 화면
 
-> 관련 문서: [PRD 내비게이션](../../prd/1-navigation.md#38-statistics) · [Spec 레이아웃](./0-layout.md) · [데이터 모델 - Execution](../1-data-model.md#212-execution)
+> 관련 문서: [PRD 내비게이션](../../prd/1-navigation.md#38-statistics) · [Spec 레이아웃](./0-layout.md) · [데이터 모델 - Execution](../1-data-model.md#213-execution)
 
 ---
 

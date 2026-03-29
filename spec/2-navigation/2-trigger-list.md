@@ -1,6 +1,6 @@
 # Spec: 트리거 목록 화면
 
-> 관련 문서: [PRD 내비게이션](../../prd/1-navigation.md#32-trigger-list) · [Spec 레이아웃](./0-layout.md) · [데이터 모델 - Trigger](../1-data-model.md#27-trigger)
+> 관련 문서: [PRD 내비게이션](../../prd/1-navigation.md#32-trigger-list) · [Spec 레이아웃](./0-layout.md) · [데이터 모델 - Trigger](../1-data-model.md#28-trigger)
 
 ---
 
@@ -86,4 +86,4 @@
 | DELETE | /api/triggers/:id | 트리거 삭제 |
 
 > **참고**: 트리거 생성은 워크플로우 에디터에서 수행. 트리거 목록 화면에서는 관리(조회/수정/삭제)만 담당.
-> **참고**: Schedule 유형 트리거는 Trigger 화면에서 직접 생성할 수 없다. Schedule 화면에서만 생성 가능하며, 생성 시 자동으로 Trigger가 등록된다. ([스케줄 관리](./3-schedule.md#4-trigger-자동-생성-규칙) 참조)
+> **참고**: Schedule 유형 트리거는 Trigger 화면에서 직접 생성할 수 없다. Schedule 화면에서만 생성 가능하며, 생성 시 자동으로 Trigger가 등록된다. ([스케줄 관리](./3-schedule.md#3-trigger-자동-생성-규칙) 참조)
