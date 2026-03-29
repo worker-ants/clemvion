@@ -65,13 +65,19 @@
 
 ### 6.1 Phase 1 — 핵심 자동화
 
+**Phase 1 범위 원칙:**
+- **워크스페이스**: Phase 1은 **개인 워크스페이스(personal)만** 지원한다. 팀 워크스페이스(team), RBAC 기반 멤버 관리, 조직 레벨 Integration 공유는 모두 **Phase 2** 범위이다.
+- 데이터 모델에 `Workspace.type = personal | team`, `WorkspaceMember.role` 등 팀 관련 스키마가 포함되어 있으나, 이는 Phase 2 확장을 위한 사전 설계이며 **Phase 1에서는 개인 워크스페이스 고정**으로 동작한다.
+- Phase 1에서 회원가입 시 개인 워크스페이스가 자동 생성되며, 워크스페이스 전환/생성 UI는 Phase 2에서 활성화한다.
+- API의 `X-Workspace-Id` 헤더는 Phase 1에서도 사용하되, 사용자당 1개 워크스페이스만 존재하므로 서버가 자동 매핑한다.
+
 | 영역 | 핵심 기능 |
 |------|-----------|
 | **내비게이션** | 워크플로우 목록, 트리거 목록, 스케줄, 통합, 설정(인증/LLM), 통계, 사용자 프로필 |
 | **워크플로우 에디터** | 캔버스 기반 노드 편집, 엣지 연결, 실행/디버깅 |
 | **노드 시스템** | Logic 9종, Flow 1종, Integration 4종, Data 2종 (총 16종) |
 | **통합/연동** | HTTP Request, Database, Slack, Send Email 연동 |
-| **시스템** | 인증/인가, API, 에러 처리 |
+| **시스템** | 인증/인가(개인 워크스페이스), API, 에러 처리, 표현식 엔진, 실행 엔진 |
 
 ### 6.2 Phase 2 — AI & 협업
 
@@ -127,6 +133,7 @@ spec/
 ├── 0-overview.md          — 시스템 아키텍처 개요, PRD↔Spec 매핑
 ├── 1-data-model.md        — 핵심 엔티티 정의
 ├── 2-navigation/          — 내비게이션 화면별 상세 스펙
+│   └── 10-auth-flow.md    — 인증 UI 플로우 (로그인/가입/비밀번호 재설정)
 ├── 3-workflow-editor/     — 에디터 상세 스펙
 ├── 4-nodes/               — 노드별 상세 스펙
 │   ├── 0-overview.md      — 노드 아키텍처/목록 개요
@@ -136,4 +143,6 @@ spec/
 │   ├── 4-integration-nodes.md — Integration 노드 상세
 │   └── 5-data-nodes.md    — Data 노드 상세
 └── 5-system/              — 시스템 공통 스펙
+    ├── 5-expression-language.md — 표현식 언어 문법/함수/타입
+    └── 6-websocket-protocol.md  — WebSocket 채널/인증/재연결
 ```
