@@ -35,7 +35,7 @@
 | Loop (**컨테이너**) | 1 | 2 (+error) | `body` (반복 본문 → 내부 노드), `done` (완료 후) |
 | Variable Declaration | 1 | 1 | `out` |
 | Variable Modification | 1 | 1 | `out` |
-| Split | 1 | 1 | `out` (각 항목별 순차 출력) |
+| Split | 1 | 1 | `out` (분리된 항목을 배열로 일괄 출력) |
 | Map | 1 | 1 | `out` |
 | ForEach (**컨테이너**) | 1 | 2 (+error) | `body` (각 항목 처리 → 내부 노드), `done` (전체 완료) |
 | Parallel | 1 | N (동적) | `branch_0`, `branch_1`, ... |

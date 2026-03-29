@@ -102,17 +102,41 @@
 | Array | 순서 배열 | `[1, 2, 3]` |
 | Object | 키-값 맵 | `{ "a": 1, "b": 2 }` |
 
-### 3.2 타입 강제 변환 규칙
+### 3.2 타입 강제 변환 규칙 (기본 모드 — 느슨한 변환)
+
+기본적으로 표현식 평가 시 아래 느슨한(loose) 변환 규칙을 적용한다. Strict 모드에 대해서는 §3.2.1을 참조한다.
 
 | 연산 | 규칙 |
 |------|------|
 | `+` (String 포함) | 다른 피연산자를 String으로 변환 후 연결 |
 | `+` (Number + Number) | 산술 덧셈 |
 | `-` `*` `/` `%` | 양쪽을 Number로 변환. 변환 불가 시 에러 |
-| `==` `!=` | 타입이 다르면 항상 `false`/`true` (strict) |
-| `<` `>` `<=` `>=` | Number 비교. String끼리는 사전순 비교 |
+| `==` `!=` | 아래 세부 규칙 참조 |
+| `<` `>` `<=` `>=` | 아래 세부 규칙 참조 |
 | `&&` `\|\|` | Falsy 평가 (`false`, `null`, `0`, `""`, `[]` → falsy) |
 | `!` | Boolean 변환 후 부정 |
+
+**타입별 세부 변환 규칙:**
+
+| 변환 대상 | 규칙 |
+|-----------|------|
+| 문자열 ↔ 숫자 | 숫자 형식 문자열(예: `"42"`, `"3.14"`)은 숫자로 변환 후 비교. 변환 불가 시 문자열 비교(사전순) |
+| null / undefined | `eq`/`neq`에서만 비교 가능. `null == undefined` → `true`, `null == 0` → `false`. `gt`/`lt`/`gte`/`lte` 연산에서는 항상 `false` |
+| Boolean | `true` → `1` (Number) / `"true"` (String), `false` → `0` (Number) / `"false"` (String). 비교 시 숫자 변환 우선 |
+| 배열 / 객체 | `eq`/`neq`는 deep equality 비교. `gt`/`lt`/`gte`/`lte` 연산은 불가 → `EXPR_TYPE_ERROR` 에러 |
+| is_empty 판정 | `null`, `undefined`, `""` (빈 문자열), `[]` (빈 배열), `{}` (빈 객체) → 모두 empty. `0`, `false`는 empty가 아님 |
+
+#### 3.2.1 Strict 모드
+
+조건 노드(If/Else, Switch)의 config에서 `strictComparison: true`로 설정하면 strict 모드가 적용된다 (기본: `false`).
+
+| 항목 | 설명 |
+|------|------|
+| 동작 | 타입 자동 변환을 수행하지 않음. 피연산자 타입이 다르면 `eq` → `false`, `neq` → `true`, 그 외 비교 연산 → `false` |
+| 예시 | `"42" == 42` → strict 모드에서는 `false` (기본 모드에서는 `true`) |
+| 적용 범위 | `strictComparison`이 설정된 노드의 조건 평가에만 적용. 다른 노드의 표현식 평가에는 영향 없음 |
+
+> 참조: [Logic 노드 — If/Else, Switch](../4-nodes/1-logic-nodes.md)
 
 ### 3.3 Null 안전 접근
 
