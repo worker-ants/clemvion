@@ -113,8 +113,8 @@ User ──┬── Workspace (1:N)
 |------|------|------|
 | id | UUID | PK |
 | workflow_id | UUID | FK → Workflow |
-| type | Enum | 노드 유형 (if_else, switch, loop, ..., ai_agent, text_classifier, information_extractor, http_request, ..., transform, code) |
-| category | Enum | logic / flow / ai / integration / data |
+| type | Enum | 노드 유형 (if_else, switch, loop, ..., ai_agent, text_classifier, information_extractor, http_request, ..., transform, code, carousel, table, chart, form, template, pdf) |
+| category | Enum | logic / flow / ai / integration / data / presentation |
 | label | String | 사용자 지정 노드 이름 |
 | position_x | Float | 캔버스 X 좌표 |
 | position_y | Float | 캔버스 Y 좌표 |
@@ -159,6 +159,12 @@ User ──┬── Workspace (1:N)
 | integration | google_drive | Google Drive 파일 관리 |
 | data | transform | 데이터 변환 (연산 체인) |
 | data | code | JavaScript 코드 실행 |
+| presentation | carousel | 캐러셀(슬라이드) 시각화 |
+| presentation | table | 테이블 시각화 |
+| presentation | chart | 차트 시각화 |
+| presentation | form | 사용자 입력 폼 (Human-in-the-loop) |
+| presentation | template | 템플릿 기반 콘텐츠 생성 |
+| presentation | pdf | PDF 문서 생성 |
 
 ### 2.7 Edge
 
@@ -286,7 +292,7 @@ Schedule은 Trigger의 서브타입이다. 양쪽의 라이프사이클과 상�
 | id | UUID | PK |
 | workflow_id | UUID | FK → Workflow |
 | trigger_id | UUID? | FK → Trigger (트리거에 의한 실행 시) |
-| status | Enum | pending / running / completed / failed / cancelled |
+| status | Enum | pending / running / completed / failed / cancelled / waiting_for_input |
 | started_at | Timestamp | 실행 시작 시각 |
 | finished_at | Timestamp? | 실행 종료 시각 |
 | duration_ms | Integer? | 실행 소요 시간 |
@@ -303,7 +309,7 @@ Schedule은 Trigger의 서브타입이다. 양쪽의 라이프사이클과 상�
 | id | UUID | PK |
 | execution_id | UUID | FK → Execution |
 | node_id | UUID | FK → Node |
-| status | Enum | pending / running / completed / failed / skipped |
+| status | Enum | pending / running / completed / failed / skipped / waiting_for_input |
 | started_at | Timestamp | 실행 시작 시각 |
 | finished_at | Timestamp? | 실행 종료 시각 |
 | duration_ms | Integer? | 소요 시간 |

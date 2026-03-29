@@ -95,7 +95,22 @@
 └──────────────────────────────────────────────────┘
 ```
 
-### 3.4 실행 실패
+### 3.4 Form 노드 대기 상태
+
+Form 노드에 도달하여 사용자 입력을 대기 중인 경우:
+
+```
+┌──────────────────────────────────────────────────┐
+│  ⏸ Waiting for input at "Approval Form"          │
+│                            [Open Form] [■ Stop]   │
+└──────────────────────────────────────────────────┘
+```
+
+- 캔버스에서 Form 노드에 입력 대기 아이콘(⏸) 표시 + 핑크 테두리 펄스 애니메이션
+- [Open Form] 버튼 클릭 시 폼 모달 또는 새 탭으로 폼 UI 표시
+- 폼 제출 후 실행 자동 재개, 상태 바가 "▶ Running..." 으로 전환
+
+### 3.5 실행 실패
 
 ```
 ┌──────────────────────────────────────────────────┐
@@ -146,7 +161,20 @@
 └──────────────────────────────────┘
 ```
 
-### 5.2 실행 경로 표시
+### 5.2 Presentation 노드 결과 렌더링
+
+Presentation 노드의 실행 결과는 렌더링된 형태로 표시된다:
+
+| 노드 유형 | 결과 렌더링 |
+|-----------|------------|
+| Carousel | 슬라이드 형태로 카드 렌더링, 좌/우 탐색 |
+| Table | 테이블 형태로 렌더링, 컬럼 헤더 + 행 데이터 표시 |
+| Chart | SVG 차트 렌더링, 인터랙티브 호버 |
+| Template | outputFormat에 따라 HTML 렌더링 또는 Markdown/텍스트 표시 |
+| PDF | 썸네일 미리보기 + [다운로드] 버튼 + [새 탭에서 열기] 링크 |
+| Form | 제출된 데이터를 키-값 형태로 표시 |
+
+### 5.3 실행 경로 표시
 
 - 실행된 노드와 엣지를 하이라이트
 - 미실행 노드/엣지는 흐릿하게 표시
@@ -216,6 +244,7 @@
 | `node.failed` | executionId, nodeId, error | 노드 실패 |
 | `execution.completed` | executionId, status, duration | 실행 완료 |
 | `execution.paused` | executionId, nodeId | 브레이크포인트 도달 |
+| `execution.waiting_for_input` | executionId, nodeId, formConfig | Form 노드에서 사용자 입력 대기 |
 
 ### 8.2 WebSocket 명령 (클라이언트 → 서버)
 
@@ -225,6 +254,7 @@
 | `execution.stop` | executionId, force? | 실행 중단 |
 | `execution.continue` | executionId | 브레이크포인트 후 계속 |
 | `execution.step` | executionId | 한 노드만 실행 |
+| `execution.submit_form` | executionId, nodeId, formData | Form 노드에 사용자 입력 제출 |
 
 ---
 

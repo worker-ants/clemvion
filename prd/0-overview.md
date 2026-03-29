@@ -1,6 +1,6 @@
 # PRD: 제품 개요
 
-> 관련 문서: [내비게이션](./1-navigation.md) · [워크플로우 에디터](./2-workflow-editor.md) · [노드 시스템](./3-node-system.md) · [통합/연동](./4-integration.md) · [비기능 요구사항](./5-non-functional.md) · [Spec 개요](../spec/0-overview.md) · [Spec Integration 노드](../spec/4-nodes/4-integration-nodes.md) · [Spec Data 노드](../spec/4-nodes/5-data-nodes.md)
+> 관련 문서: [내비게이션](./1-navigation.md) · [워크플로우 에디터](./2-workflow-editor.md) · [노드 시스템](./3-node-system.md) · [통합/연동](./4-integration.md) · [비기능 요구사항](./5-non-functional.md) · [Spec 개요](../spec/0-overview.md) · [Spec Integration 노드](../spec/4-nodes/4-integration-nodes.md) · [Spec Data 노드](../spec/4-nodes/5-data-nodes.md) · [Spec Presentation 노드](../spec/4-nodes/6-presentation-nodes.md)
 
 ---
 
@@ -75,7 +75,7 @@
 |------|-----------|
 | **내비게이션** | 워크플로우 목록, 트리거 목록, 스케줄, 통합, 설정(인증/LLM), 통계, 사용자 프로필 |
 | **워크플로우 에디터** | 캔버스 기반 노드 편집, 엣지 연결, 실행/디버깅 |
-| **노드 시스템** | Logic 9종, Flow 1종, Integration 4종, Data 2종 (총 16종) |
+| **노드 시스템** | Logic 9종, Flow 1종, Integration 4종, Data 2종, Presentation 6종 (총 22종) |
 | **통합/연동** | HTTP Request, Database, Slack, Send Email 연동 |
 | **시스템** | 인증/인가(개인 워크스페이스), API, 에러 처리, 표현식 엔진, 실행 엔진 |
 
@@ -125,7 +125,7 @@ prd/
 ├── 0-overview.md          ← 현재 문서
 ├── 1-navigation.md        — 내비게이션 구조 및 영역별 요구사항
 ├── 2-workflow-editor.md   — 워크플로우 에디터 핵심 요구사항
-├── 3-node-system.md       — 노드 시스템 요구사항 (Logic/Flow/AI/Integration/Data)
+├── 3-node-system.md       — 노드 시스템 요구사항 (Logic/Flow/AI/Integration/Data/Presentation)
 ├── 4-integration.md       — 통합/연동, 마켓플레이스, Knowledge Base 요구사항
 └── 5-non-functional.md    — 비기능 요구사항 (성능, 보안, 확장성)
 
@@ -141,7 +141,8 @@ spec/
 │   ├── 2-flow-nodes.md    — Flow 노드 상세
 │   ├── 3-ai-nodes.md      — AI 노드 상세
 │   ├── 4-integration-nodes.md — Integration 노드 상세
-│   └── 5-data-nodes.md    — Data 노드 상세
+│   ├── 5-data-nodes.md    — Data 노드 상세
+│   └── 6-presentation-nodes.md — Presentation 노드 상세
 └── 5-system/              — 시스템 공통 스펙
     ├── 5-expression-language.md — 표현식 언어 문법/함수/타입
     └── 6-websocket-protocol.md  — WebSocket 채널/인증/재연결

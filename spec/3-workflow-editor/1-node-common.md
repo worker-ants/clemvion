@@ -54,6 +54,12 @@
 | Google Drive | 1 | 1 | `out` |
 | Transform | 1 | 1 | `out` |
 | Code | 1 | 1 | `out` |
+| Carousel | 1 | 1 | `out` |
+| Table | 1 | 1 | `out` |
+| Chart | 1 | 1 | `out` |
+| Form | 1 | 1 | `out` |
+| Template | 1 | 1 | `out` |
+| PDF | 1 | 1 | `out` |
 | **(조건부) error** | — | +1 | `error` — 에러 처리 정책이 "Route to Error Port"인 노드에 동적 추가. 빨간 원, 노드 우하단 |
 
 ### 1.4 포트 인터랙션

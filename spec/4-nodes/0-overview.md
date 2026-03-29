@@ -1,6 +1,6 @@
 # Spec: 노드 시스템 설계 개요
 
-> 관련 문서: [PRD 노드 시스템](../../prd/3-node-system.md) · [Spec 노드 공통](../3-workflow-editor/1-node-common.md) · [Logic 노드](./1-logic-nodes.md) · [Flow 노드](./2-flow-nodes.md) · [AI 노드](./3-ai-nodes.md) · [Integration 노드](./4-integration-nodes.md) · [Data 노드](./5-data-nodes.md)
+> 관련 문서: [PRD 노드 시스템](../../prd/3-node-system.md) · [Spec 노드 공통](../3-workflow-editor/1-node-common.md) · [Logic 노드](./1-logic-nodes.md) · [Flow 노드](./2-flow-nodes.md) · [AI 노드](./3-ai-nodes.md) · [Integration 노드](./4-integration-nodes.md) · [Data 노드](./5-data-nodes.md) · [Presentation 노드](./6-presentation-nodes.md)
 
 ---
 
@@ -17,7 +17,7 @@
 │  ┌─────────────────────────────────┐    │
 │  │         Node Definition         │    │
 │  │  - type: string                 │    │
-│  │  - category: logic|flow|ai|integration|data │
+│  │  - category: logic|flow|ai|integration|data|presentation │
 │  │  - icon: string                 │    │
 │  │  - color: string                │    │
 │  │  - inputPorts: PortDef[]        │    │
@@ -43,7 +43,7 @@
 | 속성 | 타입 | 설명 |
 |------|------|------|
 | type | String | 고유 식별자 (예: `if_else`, `ai_agent`) |
-| category | Enum | `logic` / `flow` / `ai` / `integration` / `data` |
+| category | Enum | `logic` / `flow` / `ai` / `integration` / `data` / `presentation` |
 | displayName | String | UI 표시 이름 |
 | description | String | 노드 설명 |
 | icon | String | 아이콘 식별자 |
@@ -116,6 +116,17 @@
 | `transform` | Transform | 🔄 | 1 | 1 | operations (변환 체인) |
 | `code` | Code | 💻 | 1 | 1 | language, code |
 
+### 2.6 Presentation 노드 (6종)
+
+| type | 표시 이름 | 아이콘 | 입력 | 출력 | 키 설정 |
+|------|-----------|--------|------|------|---------|
+| `carousel` | Carousel | 🎠 | 1 | 1 | titleField, descriptionField, imageField, layout |
+| `table` | Table | 📋 | 1 | 1 | columns, pagination, pageSize, sortBy |
+| `chart` | Chart | 📊 | 1 | 1 | chartType, dataField, xAxis, yAxis, groupBy |
+| `form` | Form | 📝 | 1 | 1 | fields, title, submitLabel, timeout |
+| `template` | Template | 📄 | 1 | 1 | template, outputFormat, helpers |
+| `pdf` | PDF | 📑 | 1 | 1 | template, pageSize, orientation, fileName |
+
 ---
 
 ## 3. 카테고리 시각 구분
@@ -127,6 +138,7 @@
 | AI | `#10B981` (초록) | AI/LLM 기반 처리 |
 | Integration | `#F97316` (주황) | 외부 서비스 연동 |
 | Data | `#06B6D4` (시안) | 데이터 변환, 코드 실행 |
+| Presentation | `#EC4899` (핑크) | 시각적 콘텐츠 생성, 사용자 입력 |
 | Custom (마켓) | `#F59E0B` (앰버) | 마켓플레이스 설치 노드 |
 
 ---
