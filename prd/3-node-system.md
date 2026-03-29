@@ -1,12 +1,12 @@
 # PRD: 노드 시스템
 
-> 관련 문서: [제품 개요](./0-overview.md) · [워크플로우 에디터](./2-workflow-editor.md) · [Spec 노드 개요](../spec/4-nodes/0-overview.md) · [Spec Logic 노드](../spec/4-nodes/1-logic-nodes.md) · [Spec Flow 노드](../spec/4-nodes/2-flow-nodes.md) · [Spec AI 노드](../spec/4-nodes/3-ai-nodes.md) · [Spec Integration 노드](../spec/4-nodes/4-integration-nodes.md) · [Spec Data 노드](../spec/4-nodes/5-data-nodes.md)
+> 관련 문서: [제품 개요](./0-overview.md) · [워크플로우 에디터](./2-workflow-editor.md) · [Spec 노드 개요](../spec/4-nodes/0-overview.md) · [Spec Logic 노드](../spec/4-nodes/1-logic-nodes.md) · [Spec Flow 노드](../spec/4-nodes/2-flow-nodes.md) · [Spec AI 노드](../spec/4-nodes/3-ai-nodes.md) · [Spec Integration 노드](../spec/4-nodes/4-integration-nodes.md) · [Spec Data 노드](../spec/4-nodes/5-data-nodes.md) · [Spec Presentation 노드](../spec/4-nodes/6-presentation-nodes.md)
 
 ---
 
 ## 1. 개요
 
-노드는 워크플로우의 기본 구성 단위이다. 각 노드는 특정 기능을 수행하며, 입력 포트로 데이터를 받아 처리한 후 출력 포트로 결과를 전달한다. 노드는 **Logic**, **Flow**, **AI**, **Integration**, **Data** 다섯 가지 카테고리로 분류된다.
+노드는 워크플로우의 기본 구성 단위이다. 각 노드는 특정 기능을 수행하며, 입력 포트로 데이터를 받아 처리한 후 출력 포트로 결과를 전달한다. 노드는 **Logic**, **Flow**, **AI**, **Integration**, **Data**, **Presentation** 여섯 가지 카테고리로 분류된다.
 
 ---
 
@@ -294,10 +294,78 @@
 
 ---
 
-## 8. 노드 확장성
+## 8. Presentation 노드 (6종)
+
+워크플로우 실행 결과를 시각적으로 구조화하는 노드이다. (1) 다운스트림 노드로 렌더링된 콘텐츠를 전달하고 (2) 실행 결과 뷰어에서 시각적으로 확인할 수 있는 이중 목적을 가진다.
+
+### 8.1 Carousel
+
+| ID | 요구사항 | 우선순위 | Phase |
+|----|----------|----------|-------|
+| ND-CL-01 | 입력 배열 데이터를 캐러셀(슬라이드) 형태로 구조화 | 필수 | 1 |
+| ND-CL-02 | 제목, 설명, 이미지 필드를 매핑하여 슬라이드 생성 | 필수 | 1 |
+| ND-CL-03 | 레이아웃 선택 (card/image/minimal) | 필수 | 1 |
+| ND-CL-04 | 최대 슬라이드 수 제한 설정 | 필수 | 1 |
+| ND-CL-05 | 구조화된 JSON + 렌더링된 HTML 출력 | 필수 | 1 |
+
+### 8.2 Table
+
+| ID | 요구사항 | 우선순위 | Phase |
+|----|----------|----------|-------|
+| ND-TB-01 | 입력 배열 데이터를 테이블 형태로 구조화 | 필수 | 1 |
+| ND-TB-02 | 컬럼 정의 (필드, 라벨, 너비, 정렬 가능 여부, 포맷) | 필수 | 1 |
+| ND-TB-03 | 페이지네이션 지원 | 필수 | 1 |
+| ND-TB-04 | 정렬 설정 (기본 정렬 컬럼, 정렬 순서) | 필수 | 1 |
+| ND-TB-05 | 구조화된 JSON + 렌더링된 HTML 출력 | 필수 | 1 |
+
+### 8.3 Chart
+
+| ID | 요구사항 | 우선순위 | Phase |
+|----|----------|----------|-------|
+| ND-CH-01 | 바, 라인, 파이, 도넛, 영역 차트 유형 지원 | 필수 | 1 |
+| ND-CH-02 | X축/Y축 필드 매핑 및 집계(sum/count/avg/min/max) | 필수 | 1 |
+| ND-CH-03 | 그룹화(groupBy)를 통한 다중 시리즈 지원 | 필수 | 1 |
+| ND-CH-04 | 차트 제목, 커스텀 색상 설정 | 권장 | 1 |
+| ND-CH-05 | 구조화된 JSON + SVG 렌더링 출력 | 필수 | 1 |
+
+### 8.4 Form (Human-in-the-loop)
+
+| ID | 요구사항 | 우선순위 | Phase |
+|----|----------|----------|-------|
+| ND-FM-01 | 워크플로우 실행 중 사용자 입력을 받기 위해 실행 일시 정지 | 필수 | 1 |
+| ND-FM-02 | 다양한 입력 필드 타입 지원 (text, number, email, textarea, select, checkbox, radio, date, file) | 필수 | 1 |
+| ND-FM-03 | 필드별 유효성 검증 규칙 설정 (필수, 최소/최대 길이, 패턴 등) | 필수 | 1 |
+| ND-FM-04 | 폼 제출 시 실행 재개, 제출된 데이터를 출력으로 전달 | 필수 | 1 |
+| ND-FM-05 | 대기 타임아웃 설정 (초 단위, 미지정 시 무제한) | 필수 | 1 |
+| ND-FM-06 | WebSocket 이벤트를 통한 실행 엔진 연동 (waiting_for_input 상태) | 필수 | 1 |
+| ND-FM-07 | 폼 제목, 설명, 제출 버튼 텍스트 커스터마이징 | 필수 | 1 |
+
+### 8.5 Template
+
+| ID | 요구사항 | 우선순위 | Phase |
+|----|----------|----------|-------|
+| ND-TP-01 | Handlebars 스타일 템플릿으로 입력 데이터 바인딩 | 필수 | 1 |
+| ND-TP-02 | 출력 포맷 선택 (html/markdown/text) | 필수 | 1 |
+| ND-TP-03 | 내장 Handlebars 헬퍼 제공 (if, each, formatDate, formatNumber 등) | 필수 | 1 |
+| ND-TP-04 | 렌더링된 콘텐츠를 출력으로 전달 | 필수 | 1 |
+
+### 8.6 PDF
+
+| ID | 요구사항 | 우선순위 | Phase |
+|----|----------|----------|-------|
+| ND-PD-01 | HTML 템플릿에 데이터 바인딩 후 PDF 렌더링 | 필수 | 1 |
+| ND-PD-02 | 페이지 크기(A4/Letter/A3), 방향(portrait/landscape) 설정 | 필수 | 1 |
+| ND-PD-03 | 페이지 여백, 머리글/바닥글 템플릿 설정 | 필수 | 1 |
+| ND-PD-04 | 생성된 PDF를 Object Storage에 저장, 다운로드 URL 출력 | 필수 | 1 |
+| ND-PD-05 | 파일명 동적 지정 (표현식 지원) | 필수 | 1 |
+
+---
+
+## 9. 노드 확장성
 
 | ID | 요구사항 | 우선순위 | Phase |
 |----|----------|----------|-------|
 | ND-EX-01 | 마켓플레이스를 통한 커스텀 노드 설치 | 필수 | 3 |
 | ND-EX-02 | 노드 플러그인 표준 인터페이스 정의 | 필수 | 3 |
 | ND-EX-03 | 개발자가 커스텀 노드를 생성/게시할 수 있는 SDK 또는 가이드 제공 | 필수 | 3 |
+

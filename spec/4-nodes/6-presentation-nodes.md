@@ -1,0 +1,581 @@
+# Spec: Presentation 노드
+
+> 관련 문서: [PRD Presentation 노드](../../prd/3-node-system.md#8-presentation-노드-6종) · [Spec 노드 개요](./0-overview.md) · [Spec 노드 공통](../3-workflow-editor/1-node-common.md) · [Spec 실행 엔진](../5-system/4-execution-engine.md)
+
+---
+
+## 1. Carousel
+
+입력 배열 데이터를 캐러셀(슬라이드) 형태로 구조화하여 시각적으로 렌더링한다. 다운스트림 노드에 구조화된 데이터를 전달하고, 실행 결과 뷰어에서 슬라이드 형태로 확인할 수 있다.
+
+### 1.1 Config
+
+| 필드 | 타입 | 필수 | 기본값 | 설명 |
+|------|------|------|--------|------|
+| titleField | String | ✓ | — | 각 슬라이드의 제목으로 사용할 입력 데이터 필드 경로 |
+| descriptionField | String | ✓ | — | 각 슬라이드의 설명으로 사용할 입력 데이터 필드 경로 |
+| imageField | String? | ✗ | — | 이미지 URL 필드 경로 (지정 시 이미지 슬라이드) |
+| maxItems | Number | ✗ | 10 | 최대 슬라이드 수 (1~100) |
+| layout | Enum | ✗ | card | `card` / `image` / `minimal` |
+
+### 1.2 포트 정의
+
+| 포트 | 방향 | 식별자 | 설명 |
+|------|------|--------|------|
+| Input | 입력 | `in` | 배열 데이터 입력 |
+| Output | 출력 | `out` | 캐러셀 구조 데이터 출력 |
+
+### 1.3 실행 로직
+
+1. 입력 데이터에서 배열 추출 (최상위가 배열이 아닌 경우 배열 필드 자동 탐색)
+2. `maxItems`까지 항목 제한
+3. 각 항목에서 `titleField`, `descriptionField`, `imageField`를 매핑하여 슬라이드 구조 생성
+4. `layout`에 따른 HTML 렌더링 생성
+5. 구조화된 JSON + 렌더링된 HTML을 출력 포트로 전달
+
+**출력 형식:**
+
+```json
+{
+  "type": "carousel",
+  "items": [
+    {
+      "title": "...",
+      "description": "...",
+      "image": "..."
+    }
+  ],
+  "rendered": "<html>..."
+}
+```
+
+### 1.4 설정 UI
+
+```
+┌──────────────────────────────┐
+│  Carousel Settings                   │
+│  ────────────────────────────── │
+│  Layout: [card ▼]                    │
+│                                      │
+│  Title Field:       [name________]   │
+│  Description Field: [summary_____]   │
+│  Image Field:       [thumbnail___]   │
+│                                      │
+│  Max Items:         [10_]            │
+│                                      │
+│  ─── Preview ───────────────────── │
+│  ┌──────┐ ┌──────┐ ┌──────┐        │
+│  │Card 1│ │Card 2│ │Card 3│ ...    │
+│  └──────┘ └──────┘ └──────┘        │
+└──────────────────────────────┘
+```
+
+- 필드 경로 입력 시 이전 노드 출력 스키마 기반 자동완성 지원
+- 하단 Preview: 마지막 실행 데이터 기준으로 캐러셀 미리보기
+
+---
+
+## 2. Table
+
+입력 배열 데이터를 테이블 형태로 구조화하여 렌더링한다. 컬럼 정의, 정렬, 페이지네이션을 지원한다.
+
+### 2.1 Config
+
+| 필드 | 타입 | 필수 | 기본값 | 설명 |
+|------|------|------|--------|------|
+| columns | ColumnDef[] | ✓ | [] | 컬럼 정의 배열 |
+| pagination | Boolean | ✗ | true | 페이지네이션 활성화 여부 |
+| pageSize | Number | ✗ | 20 | 페이지당 행 수 (1~200) |
+| sortBy | String? | ✗ | — | 기본 정렬 컬럼 필드명 |
+| sortOrder | Enum | ✗ | asc | `asc` / `desc` |
+
+**ColumnDef 구조:**
+
+| 필드 | 타입 | 필수 | 설명 |
+|------|------|------|------|
+| field | String | ✓ | 데이터 필드 경로 |
+| label | String | ✓ | 컬럼 헤더 표시 이름 |
+| width | String? | ✗ | 컬럼 너비 (예: "200px", "30%") |
+| sortable | Boolean? | ✗ | 정렬 가능 여부 (기본: false) |
+| format | String? | ✗ | 포맷 문자열 (날짜, 숫자 포맷팅) |
+
+### 2.2 포트 정의
+
+| 포트 | 방향 | 식별자 | 설명 |
+|------|------|--------|------|
+| Input | 입력 | `in` | 배열 데이터 입력 |
+| Output | 출력 | `out` | 테이블 구조 데이터 출력 |
+
+### 2.3 실행 로직
+
+1. 입력 데이터에서 배열 추출
+2. `columns` 정의에 따라 각 행에서 필드 매핑
+3. `format` 지정된 컬럼에 포맷팅 적용 (날짜/숫자)
+4. `sortBy`/`sortOrder`에 따라 정렬
+5. HTML 테이블 렌더링 생성 (페이지네이션 메타데이터 포함)
+6. 구조화된 JSON + 렌더링된 HTML을 출력 포트로 전달
+
+**출력 형식:**
+
+```json
+{
+  "type": "table",
+  "columns": [
+    { "field": "name", "label": "이름", "width": "200px" }
+  ],
+  "rows": [
+    { "name": "Kim", "email": "kim@example.com" }
+  ],
+  "rendered": "<html>..."
+}
+```
+
+### 2.4 설정 UI
+
+```
+┌──────────────────────────────┐
+│  Table Settings                      │
+│  ────────────────────────────── │
+│  Columns:                            │
+│  ┌────────────────────────────────┐  │
+│  │ Field       Label     Width    │  │
+│  │ [name____] [이름___] [200px]   │  │
+│  │ [email___] [이메일__] [auto_]  │  │
+│  │ [score___] [점수___] [100px]   │  │
+│  │             [+ Add Column]     │  │
+│  └────────────────────────────────┘  │
+│                                      │
+│  ☑ Enable Pagination                 │
+│  Page Size: [20_]                    │
+│                                      │
+│  Sort By:    [score ▼]               │
+│  Sort Order: [desc ▼]               │
+│                                      │
+│  ─── Preview ───────────────────── │
+│  ┌──────┬────────┬──────┐           │
+│  │ 이름 │ 이메일 │ 점수 │           │
+│  ├──────┼────────┼──────┤           │
+│  │ Kim  │ k@...  │  95  │           │
+│  └──────┴────────┴──────┘           │
+└──────────────────────────────┘
+```
+
+- 컬럼 행을 드래그로 순서 변경 가능
+- `+ Add Column` 버튼으로 컬럼 추가
+- 각 컬럼 행에 삭제 버튼 (`[✕]`)
+- 필드 경로 자동완성 지원
+
+---
+
+## 3. Chart
+
+입력 데이터를 바, 라인, 파이 등 데이터 시각화 차트로 생성한다. SVG 기반 렌더링을 제공한다.
+
+### 3.1 Config
+
+| 필드 | 타입 | 필수 | 기본값 | 설명 |
+|------|------|------|--------|------|
+| chartType | Enum | ✓ | bar | `bar` / `line` / `pie` / `donut` / `area` |
+| dataField | String | ✓ | — | 데이터 배열 필드 경로 |
+| xAxis | AxisDef | ✓ | — | X축 정의 |
+| yAxis | AxisDef | ✓ | — | Y축 정의 |
+| groupBy | String? | ✗ | — | 그룹화 필드 (다중 시리즈) |
+| title | String? | ✗ | — | 차트 제목 |
+| colors | String[]? | ✗ | — | 커스텀 색상 배열 (미지정 시 기본 팔레트) |
+
+**AxisDef 구조:**
+
+| 필드 | 타입 | 필수 | 설명 |
+|------|------|------|------|
+| field | String | ✓ | 데이터 필드 경로 |
+| label | String? | ✗ | 축 라벨 |
+| aggregation | Enum? | ✗ | `sum` / `count` / `avg` / `min` / `max` (Y축 전용) |
+
+### 3.2 포트 정의
+
+| 포트 | 방향 | 식별자 | 설명 |
+|------|------|--------|------|
+| Input | 입력 | `in` | 데이터 입력 |
+| Output | 출력 | `out` | 차트 구조 데이터 출력 |
+
+### 3.3 실행 로직
+
+1. 입력 데이터에서 `dataField` 경로로 배열 추출
+2. `xAxis.field`로 카테고리/라벨 추출
+3. `yAxis.field` + `yAxis.aggregation`으로 값 산출
+4. `groupBy` 지정 시 시리즈별 데이터 그룹화
+5. `chartType`에 따른 SVG 차트 렌더링
+6. 차트 설정 JSON + SVG 문자열을 출력 포트로 전달
+
+**출력 형식:**
+
+```json
+{
+  "type": "chart",
+  "chartType": "bar",
+  "config": {
+    "xAxis": { "field": "month", "label": "월" },
+    "yAxis": { "field": "revenue", "label": "매출", "aggregation": "sum" },
+    "data": [ ... ]
+  },
+  "rendered": "<svg>...</svg>"
+}
+```
+
+### 3.4 설정 UI
+
+```
+┌──────────────────────────────┐
+│  Chart Settings                      │
+│  ────────────────────────────── │
+│  Chart Type: [bar ▼]                 │
+│  Title:      [Monthly Revenue___]    │
+│                                      │
+│  Data Field: [sales________]         │
+│                                      │
+│  X Axis                              │
+│    Field: [month_____]               │
+│    Label: [월________]               │
+│                                      │
+│  Y Axis                              │
+│    Field:       [revenue_____]       │
+│    Label:       [매출________]       │
+│    Aggregation: [sum ▼]              │
+│                                      │
+│  Group By: [region_____] (선택)      │
+│                                      │
+│  Colors: [#3B82F6] [#10B981] [+]     │
+│                                      │
+│  ─── Preview ───────────────────── │
+│    ▐█▌                               │
+│    ▐█▌ ▐█▌                           │
+│    ▐█▌ ▐█▌ ▐█▌                       │
+│    ─────────────                     │
+│    Jan  Feb  Mar                     │
+└──────────────────────────────┘
+```
+
+- Chart Type 선택 시 설정 폼이 차트 유형에 맞게 조정 (pie/donut: xAxis 대신 labelField/valueField)
+- 필드 경로 자동완성 지원
+- 하단 Preview: 마지막 실행 데이터 기준 차트 미리보기
+
+---
+
+## 4. Form (Human-in-the-loop)
+
+워크플로우 실행 중간에 사용자 입력을 받는 Human-in-the-loop 노드. 실행을 일시 정지하고, 폼 UI를 통해 사용자 입력을 수집한 뒤 실행을 재개한다.
+
+### 4.1 Config
+
+| 필드 | 타입 | 필수 | 기본값 | 설명 |
+|------|------|------|--------|------|
+| fields | FormField[] | ✓ | [] | 폼 필드 정의 배열 |
+| title | String | ✓ | — | 폼 제목 |
+| description | String? | ✗ | — | 폼 설명 (Markdown 지원) |
+| submitLabel | String | ✗ | "Submit" | 제출 버튼 텍스트 |
+| timeout | Number? | ✗ | — | 대기 타임아웃 (초 단위, 미지정 시 무제한) |
+
+**FormField 구조:**
+
+| 필드 | 타입 | 필수 | 설명 |
+|------|------|------|------|
+| name | String | ✓ | 필드 식별자 (출력 데이터의 키) |
+| type | Enum | ✓ | `text` / `number` / `email` / `textarea` / `select` / `checkbox` / `radio` / `date` / `file` |
+| label | String | ✓ | 필드 라벨 |
+| required | Boolean? | ✗ | 필수 입력 여부 (기본: false) |
+| options | Option[]? | ✗ | select/radio/checkbox용 선택지 (`{ label, value }`) |
+| defaultValue | Any? | ✗ | 기본값 |
+| validation | ValidationRule? | ✗ | 유효성 검증 규칙 |
+
+**ValidationRule 구조:**
+
+| 필드 | 타입 | 설명 |
+|------|------|------|
+| minLength | Number? | 최소 길이 (text, textarea) |
+| maxLength | Number? | 최대 길이 (text, textarea) |
+| min | Number? | 최솟값 (number) |
+| max | Number? | 최댓값 (number) |
+| pattern | String? | 정규표현식 패턴 |
+| message | String? | 유효성 실패 시 에러 메시지 |
+
+### 4.2 포트 정의
+
+| 포트 | 방향 | 식별자 | 설명 |
+|------|------|--------|------|
+| Input | 입력 | `in` | 입력 데이터 (폼 기본값 등에 활용 가능) |
+| Output | 출력 | `out` | 사용자가 제출한 폼 데이터 |
+
+### 4.3 실행 로직
+
+1. Form 노드에 도달하면 실행 일시 정지
+   - `NodeExecution.status` = `waiting_for_input`
+   - `Execution.status` = `waiting_for_input`
+2. 폼 URL 생성 및 WebSocket 이벤트 발행 (`execution.waiting_for_input`)
+3. 클라이언트에서 폼 UI 렌더링 (제목, 설명, 필드 목록)
+4. 사용자가 폼을 제출하면:
+   - 클라이언트 → 서버: `execution.submit_form` 이벤트
+   - 서버에서 유효성 검증 수행
+   - 검증 실패 시 에러 응답 → 폼 재표시
+   - 검증 성공 시 실행 재개
+5. 제출된 데이터를 출력 포트로 전달
+6. `timeout` 지정 시 타임아웃 초과 → `FORM_TIMEOUT` 에러 → 에러 처리 정책에 따라 처리
+
+**출력 형식:**
+
+```json
+{
+  "type": "form",
+  "submittedData": {
+    "approval": "approved",
+    "comment": "Looks good"
+  },
+  "submittedAt": "2026-03-29T10:30:00Z",
+  "submittedBy": "user-uuid"
+}
+```
+
+### 4.4 실행 엔진 연동
+
+Form 노드는 기존 브레이크포인트 메커니즘과 유사하게 실행을 일시 정지한다. 차이점은 다음과 같다:
+
+| 항목 | 브레이크포인트 | Form 노드 |
+|------|---------------|-----------|
+| 트리거 | 개발자 설정 | 노드 자체의 동작 |
+| 상태 | `Execution.status` 변경 없음 (디버그 용도) | `Execution.status` = `waiting_for_input` |
+| 재개 조건 | Continue/Step Over 버튼 | 폼 제출 |
+| 데이터 주입 | 없음 | 폼 데이터가 노드 출력으로 전달 |
+| 프로덕션 | 브레이크포인트 무시 | 정상 동작 |
+
+> **실행 엔진 상태 머신 변경**: [Spec 실행 엔진](../5-system/4-execution-engine.md) 참조. `waiting_for_input` 상태가 Execution 및 NodeExecution 상태 머신에 추가된다.
+
+### 4.5 설정 UI
+
+```
+┌──────────────────────────────┐
+│  Form Settings                       │
+│  ────────────────────────────── │
+│  Title:       [Approval Request__]   │
+│  Description: [Please review...__]   │
+│  Submit Label:[Submit__]             │
+│  Timeout:     [_____] seconds        │
+│                                      │
+│  ─── Fields ────────────────────── │
+│  1. [text ▼]                         │
+│     Name:  [approval_____]           │
+│     Label: [승인 여부_____]          │
+│     ☑ Required          [✕] [↕]     │
+│  ────────────────────────────── │
+│  2. [textarea ▼]                     │
+│     Name:  [comment______]           │
+│     Label: [코멘트_______]           │
+│     ☐ Required          [✕] [↕]     │
+│  ────────────────────────────── │
+│  [+ Add Field]                       │
+│                                      │
+│  ─── Form Preview ─────────────── │
+│  ┌────────────────────────────────┐  │
+│  │ Approval Request               │  │
+│  │ Please review...               │  │
+│  │                                │  │
+│  │ 승인 여부 *                    │  │
+│  │ [________________]             │  │
+│  │                                │  │
+│  │ 코멘트                         │  │
+│  │ [________________]             │  │
+│  │               [Submit]         │  │
+│  └────────────────────────────────┘  │
+└──────────────────────────────┘
+```
+
+- 필드를 카드 형태로 표시, 드래그로 순서 변경 (`[↕]`), 삭제 (`[✕]`)
+- 필드 type 변경 시 해당 타입 전용 옵션 표시 (select/radio → 선택지 편집기)
+- 하단 Form Preview: 설정한 필드 구성으로 실제 폼 미리보기
+
+---
+
+## 5. Template
+
+Handlebars 스타일 템플릿으로 입력 데이터를 바인딩하여 리치 텍스트/HTML/Markdown 콘텐츠를 생성한다.
+
+### 5.1 Config
+
+| 필드 | 타입 | 필수 | 기본값 | 설명 |
+|------|------|------|--------|------|
+| template | String | ✓ | — | Handlebars 문법 템플릿 문자열 |
+| outputFormat | Enum | ✗ | html | `html` / `markdown` / `text` |
+| helpers | Boolean | ✗ | true | 내장 Handlebars 헬퍼 활성화 |
+
+**내장 헬퍼:**
+
+| 헬퍼 | 설명 | 예시 |
+|------|------|------|
+| `{{#if}}` | 조건부 렌더링 | `{{#if user.active}}...{{/if}}` |
+| `{{#each}}` | 배열 반복 | `{{#each items}}...{{/each}}` |
+| `{{#unless}}` | 부정 조건 | `{{#unless error}}...{{/unless}}` |
+| `{{formatDate}}` | 날짜 포맷팅 | `{{formatDate createdAt "YYYY-MM-DD"}}` |
+| `{{formatNumber}}` | 숫자 포맷팅 | `{{formatNumber price "0,0.00"}}` |
+| `{{truncate}}` | 문자열 자르기 | `{{truncate description 100}}` |
+| `{{uppercase}}` | 대문자 변환 | `{{uppercase status}}` |
+| `{{lowercase}}` | 소문자 변환 | `{{lowercase tag}}` |
+| `{{json}}` | JSON 문자열화 | `{{json data}}` |
+
+### 5.2 포트 정의
+
+| 포트 | 방향 | 식별자 | 설명 |
+|------|------|--------|------|
+| Input | 입력 | `in` | 템플릿 컨텍스트 데이터 |
+| Output | 출력 | `out` | 렌더링된 콘텐츠 |
+
+### 5.3 실행 로직
+
+1. 입력 데이터를 Handlebars 컨텍스트로 바인딩
+2. `helpers` 활성화 시 내장 헬퍼 등록
+3. 템플릿 컴파일 및 렌더링
+4. `outputFormat`에 따른 후처리 (HTML 새니타이징, Markdown→HTML 변환 등)
+5. 렌더링 결과를 출력 포트로 전달
+
+**출력 형식:**
+
+```json
+{
+  "type": "template",
+  "format": "html",
+  "content": "<h1>Monthly Report</h1><p>Total: 1,234</p>..."
+}
+```
+
+### 5.4 설정 UI
+
+```
+┌──────────────────────────────┐
+│  Template Settings                   │
+│  ────────────────────────────── │
+│  Output Format: [html ▼]            │
+│  ☑ Enable Built-in Helpers           │
+│  ────────────────────────────── │
+│  Template:                           │
+│  ┌──────────────────────────────┐│
+│  │ 1│ <h1>{{title}}</h1>            ││
+│  │ 2│ <p>Generated: {{formatDate .. ││
+│  │ 3│                                ││
+│  │ 4│ {{#each items}}               ││
+│  │ 5│   <div class="item">         ││
+│  │ 6│     <h2>{{this.name}}</h2>    ││
+│  │ 7│     <p>{{this.desc}}</p>      ││
+│  │ 8│   </div>                      ││
+│  │ 9│ {{/each}}                     ││
+│  └──────────────────────────────┘│
+│                                      │
+│  ─── Rendered Preview ──────────── │
+│  ┌──────────────────────────────┐│
+│  │ Monthly Report                    ││
+│  │ Generated: 2026-03-29            ││
+│  │                                   ││
+│  │ Item A                            ││
+│  │ Description of item A            ││
+│  └──────────────────────────────┘│
+└──────────────────────────────┘
+```
+
+- 코드 에디터: Handlebars 구문 강조, `{{` 입력 시 입력 데이터 필드 자동완성
+- 하단 Rendered Preview: 마지막 실행 데이터 기준 렌더링 결과 미리보기
+
+---
+
+## 6. PDF
+
+데이터를 HTML 템플릿에 바인딩하여 PDF 문서로 렌더링한다. 생성된 PDF는 Object Storage에 저장되고 다운로드 URL이 출력된다.
+
+### 6.1 Config
+
+| 필드 | 타입 | 필수 | 기본값 | 설명 |
+|------|------|------|--------|------|
+| template | String | ✓ | — | HTML 템플릿 (Handlebars 문법 지원) |
+| pageSize | Enum | ✗ | A4 | `A4` / `Letter` / `A3` |
+| orientation | Enum | ✗ | portrait | `portrait` / `landscape` |
+| margin | Object | ✗ | `{ top: "20mm", right: "15mm", bottom: "20mm", left: "15mm" }` | 페이지 여백 |
+| headerTemplate | String? | ✗ | — | 머리글 HTML 템플릿 |
+| footerTemplate | String? | ✗ | — | 바닥글 HTML 템플릿 (페이지 번호 등) |
+| fileName | String | ✗ | "document.pdf" | 출력 파일명 (표현식 가능, 예: `report_{{date}}.pdf`) |
+
+**margin 구조:**
+
+| 필드 | 타입 | 기본값 | 설명 |
+|------|------|--------|------|
+| top | String | "20mm" | 상단 여백 |
+| right | String | "15mm" | 우측 여백 |
+| bottom | String | "20mm" | 하단 여백 |
+| left | String | "15mm" | 좌측 여백 |
+
+### 6.2 포트 정의
+
+| 포트 | 방향 | 식별자 | 설명 |
+|------|------|--------|------|
+| Input | 입력 | `in` | 템플릿 컨텍스트 데이터 |
+| Output | 출력 | `out` | PDF 파일 정보 |
+
+### 6.3 실행 로직
+
+1. 입력 데이터를 Handlebars 컨텍스트로 바인딩하여 HTML 렌더링
+2. Puppeteer/Playwright 기반 헤드리스 브라우저로 HTML→PDF 변환
+   - `pageSize`, `orientation`, `margin` 적용
+   - `headerTemplate`, `footerTemplate` 적용
+3. 생성된 PDF를 Object Storage에 업로드
+4. 파일 메타데이터(URL, 크기 등)를 출력 포트로 전달
+
+**출력 형식:**
+
+```json
+{
+  "type": "pdf",
+  "fileName": "report_2026-03.pdf",
+  "fileSize": 245760,
+  "url": "https://storage.example.com/files/uuid/report_2026-03.pdf"
+}
+```
+
+### 6.4 리소스 제한
+
+| 항목 | 제한 | 설명 |
+|------|------|------|
+| PDF 렌더링 타임아웃 | 60초 | 기본 노드 타임아웃(30초)보다 긴 기본값 적용 |
+| 최대 파일 크기 | 50MB | 초과 시 `PDF_SIZE_EXCEEDED` 에러 |
+| 동시 렌더링 수 | Worker당 2 | Puppeteer 인스턴스 풀 관리 |
+
+### 6.5 설정 UI
+
+```
+┌──────────────────────────────┐
+│  PDF Settings                        │
+│  ────────────────────────────── │
+│  File Name: [report_{{date}}.pdf]    │
+│  Page Size: [A4 ▼]                   │
+│  Orientation: [portrait ▼]           │
+│                                      │
+│  Margin:                             │
+│  Top:[20mm] Right:[15mm]             │
+│  Bottom:[20mm] Left:[15mm]           │
+│  ────────────────────────────── │
+│  Template (HTML):                    │
+│  ┌──────────────────────────────┐│
+│  │ 1│ <h1>{{title}}</h1>            ││
+│  │ 2│ <table>                        ││
+│  │ 3│ {{#each rows}}                ││
+│  │ 4│   <tr><td>{{this.name}}</td>  ││
+│  │ 5│       <td>{{this.value}}</td> ││
+│  │ 6│   </tr>                        ││
+│  │ 7│ {{/each}}                     ││
+│  │ 8│ </table>                       ││
+│  └──────────────────────────────┘│
+│                                      │
+│  ▶ Header Template (선택)            │
+│  ▶ Footer Template (선택)            │
+│                                      │
+│  ─── Preview ───────────────────── │
+│  [📄 PDF Preview]  (새 탭에서 열기)  │
+└──────────────────────────────┘
+```
+
+- HTML 템플릿 에디터: Handlebars + HTML 구문 강조
+- Header/Footer 템플릿: 접을 수 있는(collapsible) 섹션
+- Preview: 마지막 실행의 PDF를 새 탭에서 미리보기, 또는 썸네일 표시
