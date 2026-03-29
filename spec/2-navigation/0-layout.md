@@ -20,14 +20,13 @@
 │ │            │                                              │ │
 │ │  Nav Menu  │                                              │ │
 │ │  --------  │                                              │ │
+│ │  Dashboard │                                              │ │
 │ │  Workflows │                                              │ │
 │ │  Triggers  │                                              │ │
 │ │  Schedule  │                                              │ │
 │ │  Integ.    │                                              │ │
-│ │  KB        │                                              │ │
-│ │  Config ▸  │                                              │ │
+│ │  Auth      │                                              │ │
 │ │  Stats     │                                              │ │
-│ │  Market    │                                              │ │
 │ │            │                                              │ │
 │ │  --------  │                                              │ │
 │ │  ┌──────┐  │                                              │ │
@@ -46,32 +45,34 @@
 
 | 영역 | 위치 | 내용 |
 |------|------|------|
-| 로고 | 상단 | 제품 로고. 클릭 시 워크플로우 목록(홈)으로 이동 |
+| 로고 | 상단 | 제품 로고. 클릭 시 대시보드(홈, `/dashboard`)로 이동 |
 | 메인 메뉴 | 중앙 | 내비게이션 항목 목록 |
-| Config 서브메뉴 | 메인 메뉴 내 | Config 클릭 시 Authentication, LLM 하위 메뉴 펼침 |
 | 사용자 영역 | 하단 | 아바타 + 사용자 이름 |
 
 ### 2.2 메뉴 항목
 
-| 순서 | 항목 | 아이콘 | 경로 |
-|------|------|--------|------|
-| 1 | Workflows | 플로우차트 아이콘 | /workflows |
-| 2 | Triggers | 번개 아이콘 | /triggers |
-| 3 | Schedule | 달력 아이콘 | /schedules |
-| 4 | Integration | 퍼즐 아이콘 | /integrations |
-| 5 | Knowledge Base | 책 아이콘 | /knowledge-base |
-| 6 | Config | 톱니바퀴 아이콘 | — (서브메뉴 토글) |
-| 6-1 | └ Authentication | 자물쇠 아이콘 | /config/authentication |
-| 6-2 | └ LLM | AI 아이콘 | /config/llm |
-| 7 | Statistics | 차트 아이콘 | /statistics |
-| 8 | Marketplace | 쇼핑백 아이콘 | /marketplace |
+| 순서 | 항목 | 아이콘 | 경로 | 비고 |
+|------|------|--------|------|------|
+| 1 | Dashboard | 홈 아이콘 | /dashboard | |
+| 2 | Workflows | 플로우차트 아이콘 | /workflows | |
+| 3 | Triggers | 번개 아이콘 | /triggers | |
+| 4 | Schedule | 달력 아이콘 | /schedules | |
+| 5 | Integration | 퍼즐 아이콘 | /integrations | |
+| 6 | Authentication | 자물쇠 아이콘 | /authentication | |
+| 7 | Statistics | 차트 아이콘 | /statistics | |
+
+<!-- Phase 2 이후 메뉴 복원 규칙:
+- Knowledge Base: Phase 2에서 AI 노드와 함께 추가. Authentication 아래, Statistics 위에 배치.
+- Config > LLM: Phase 2에서 AI 노드와 함께 추가. Authentication과 묶어 Config 서브메뉴로 재구성하거나 별도 최상위 메뉴로 배치.
+- Marketplace: Phase 3에서 추가. Statistics 아래에 배치.
+-->
 
 ### 2.3 사이드바 동작
 
 | 동작 | 설명 |
 |------|------|
 | 활성 메뉴 표시 | 현재 페이지에 해당하는 메뉴 항목 하이라이트 (배경색 또는 좌측 indicator) |
-| Config 접기/펼치기 | Config 클릭 시 하위 메뉴 토글. 화살표 아이콘으로 상태 표시 |
+| ~~Config 접기/펼치기~~ | ~~Config 클릭 시 하위 메뉴 토글~~ — Phase 1에서는 Config 서브메뉴 구조 없음. Phase 2 이후 Config 그룹 복원 시 적용 |
 | 사이드바 축소 | 아이콘만 표시하는 축소 모드 지원 (토글 버튼 또는 자동) |
 | 워크플로우 에디터 모드 | 에디터 진입 시 사이드바를 자동 축소하거나 숨길 수 있음 |
 | 툴팁 | 축소 모드에서 메뉴 아이콘 호버 시 메뉴 이름 툴팁 |

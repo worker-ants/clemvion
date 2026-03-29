@@ -70,10 +70,11 @@
 - 데이터 모델에 `Workspace.type = personal | team`, `WorkspaceMember.role` 등 팀 관련 스키마가 포함되어 있으나, 이는 Phase 2 확장을 위한 사전 설계이며 **Phase 1에서는 개인 워크스페이스 고정**으로 동작한다.
 - Phase 1에서 회원가입 시 개인 워크스페이스가 자동 생성되며, 워크스페이스 전환/생성 UI는 Phase 2에서 활성화한다.
 - API의 `X-Workspace-Id` 헤더는 Phase 1에서도 사용하되, 사용자당 1개 워크스페이스만 존재하므로 서버가 자동 매핑한다.
+- Phase 1에서 제공하지 않는 기능(Knowledge Base, Marketplace, Config > LLM)은 사이드바에서 숨긴다. Phase 2/3에서 해당 기능 구현 시 메뉴를 복원한다.
 
 | 영역 | 핵심 기능 |
 |------|-----------|
-| **내비게이션** | 워크플로우 목록, 트리거 목록, 스케줄, 통합, 설정(인증/LLM), 통계, 사용자 프로필 |
+| **내비게이션** | 대시보드, 워크플로우 목록, 트리거 목록, 스케줄, 통합, 인증 설정, 통계, 사용자 프로필 |
 | **워크플로우 에디터** | 캔버스 기반 노드 편집, 엣지 연결, 실행/디버깅 |
 | **노드 시스템** | Logic 9종, Flow 1종, Integration 4종, Data 2종, Presentation 6종 (총 22종) |
 | **통합/연동** | HTTP Request, Database, Slack, Send Email 연동 |

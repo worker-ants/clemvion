@@ -101,7 +101,7 @@
 ```
 
 - 이메일 인증 링크 클릭 → `GET /api/auth/verify-email?token={token}`
-- 인증 성공 → 자동 로그인 + 개인 워크스페이스 생성 + 워크플로우 목록으로 리다이렉트
+- 인증 성공 → 자동 로그인 + 개인 워크스페이스 생성 + 대시보드(`/dashboard`)로 리다이렉트
 - 인증 토큰 유효기간: 24시간
 - 재발송: 60초 쿨다운
 
@@ -139,7 +139,7 @@
 ```
 1. 입력 검증 (이메일 형식, 비밀번호 비어있지 않음)
 2. POST /api/auth/login { email, password }
-3. 2FA 미설정 → JWT 발급 → 워크플로우 목록으로 리다이렉트
+3. 2FA 미설정 → JWT 발급 → 대시보드(`/dashboard`)로 리다이렉트
 4. 2FA 설정됨 → 2FA 입력 화면으로 이동 (임시 토큰 포함)
 5. 로그인 실패 → "Invalid email or password" 에러 (구체적 이유 미노출)
 6. 5회 실패 → 계정 10분 잠금 + "Account locked. Try again in 10 minutes."
@@ -300,7 +300,7 @@
 | 서버 오류 | `{frontend_url}/auth/callback?error=server_error` |
 
 프론트엔드의 `/auth/callback` 페이지:
-- `success=true` → 워크플로우 목록으로 리다이렉트
+- `success=true` → 대시보드(`/dashboard`)로 리다이렉트
 - `error=*` → 에러 메시지 표시 + "다시 시도" 버튼 + 로그인 화면 링크
 
 ---
@@ -341,7 +341,7 @@
 ### 7.2 로그인 후 리다이렉트
 
 - 로그인 성공 시 `redirect` 파라미터가 있으면 해당 URL로 이동
-- 없으면 기본: `/workflows` (워크플로우 목록)
+- 없으면 기본: `/dashboard` (대시보드)
 
 ### 7.3 로그아웃
 
