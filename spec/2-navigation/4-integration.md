@@ -1,6 +1,6 @@
 # Spec: 통합 관리 화면
 
-> 관련 문서: [PRD 내비게이션](../../prd/1-navigation.md#34-integration) · [PRD 통합/연동](../../prd/4-integration.md) · [Spec 레이아웃](./0-layout.md) · [데이터 모델 - Integration](../1-data-model.md#29-integration)
+> 관련 문서: [PRD 내비게이션](../../prd/1-navigation.md#34-integration) · [PRD 통합/연동](../../prd/4-integration.md) · [Spec 레이아웃](./0-layout.md) · [데이터 모델 - Integration](../1-data-model.md#210-integration)
 
 ---
 

@@ -1,6 +1,6 @@
 # Spec: 설정 (인증, LLM) 화면
 
-> 관련 문서: [PRD 내비게이션](../../prd/1-navigation.md#36-config--authentication) · [PRD 내비게이션](../../prd/1-navigation.md#37-config--llm) · [Spec 레이아웃](./0-layout.md) · [데이터 모델 - AuthConfig](../1-data-model.md#216-authconfig) · [데이터 모델 - LLMConfig](../1-data-model.md#215-llmconfig)
+> 관련 문서: [PRD 내비게이션](../../prd/1-navigation.md#36-config--authentication) · [PRD 내비게이션](../../prd/1-navigation.md#37-config--llm) · [Spec 레이아웃](./0-layout.md) · [데이터 모델 - AuthConfig](../1-data-model.md#217-authconfig) · [데이터 모델 - LLMConfig](../1-data-model.md#216-llmconfig)
 
 ---
 
