@@ -156,6 +156,7 @@
 | [PRD 4: 통합/연동](../prd/4-integration.md) INT-*, KB-*, MP-* | Spec 2-navigation 해당 화면 + [Spec 1: 데이터 모델](./1-data-model.md) |
 | [PRD 5: 비기능](../prd/5-non-functional.md) NF-SC-* | [Spec 5-system/1: 인증/인가](./5-system/1-auth.md) |
 | [PRD 5: 비기능](../prd/5-non-functional.md) NF-* | [Spec 5-system/2: API 규칙](./5-system/2-api-convention.md), [Spec 5-system/3: 에러 처리](./5-system/3-error-handling.md) |
+| (아키텍처) 실행 엔진 상세 | [Spec 5-system/4: 실행 엔진](./5-system/4-execution-engine.md) |
 
 ---
 

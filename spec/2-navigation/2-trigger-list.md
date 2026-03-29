@@ -18,8 +18,8 @@
 │  │ ● order-webhook          Webhook    Active          │ │
 │  │   → Order Processing     POST /hooks/order  📋  ⋮  │ │
 │  ├─────────────────────────────────────────────────────┤ │
-│  │ ● daily-report           Schedule   Active          │ │
-│  │   → Daily Report Gen     0 9 * * *           ⋮     │ │
+│  │ ● daily-report  [Schedule] Schedule   Active          │ │
+│  │   → Daily Report Gen     0 9 * * *  Next: 09:00 ⋮  │ │
 │  ├─────────────────────────────────────────────────────┤ │
 │  │ ○ manual-test            Manual     Inactive        │ │
 │  │   → Test Workflow                             ⋮     │ │
@@ -40,6 +40,7 @@
 | 유형 뱃지 | Webhook / Schedule / Manual |
 | 연결된 워크플로우 | "→ 워크플로우 이름" 형태로 표시. 클릭 시 해당 에디터로 이동 |
 | 상세 정보 | Webhook: HTTP 메서드 + 경로, Schedule: Cron 표현식 |
+| Schedule 태그 | Schedule 유형 트리거에 `[Schedule]` 태그 표시 + Cron 표현식 + 다음 실행 시각 |
 | URL 복사 버튼(📋) | Webhook 트리거에만 표시. 전체 URL을 클립보드에 복사 |
 | 더보기(⋮) | 수정, 활성/비활성 토글, 호출 이력, 삭제 |
 
@@ -58,7 +59,7 @@
 |------|------|
 | 기본 정보 | 이름, 유형, 상태, 연결된 워크플로우 |
 | Webhook 상세 | 전체 URL, HTTP 메서드, 인증 방식, Content-Type |
-| Schedule 상세 | Cron 표현식, 타임존, 다음 실행 예정 시각 |
+| Schedule 상세 | Cron 표현식 (읽기 전용), 타임존, 다음 실행 예정 시각. "스케줄 관리에서 편집" 링크 → Schedule 화면으로 이동 |
 | 최근 호출 이력 | 최근 10건의 호출 시각, 상태(성공/실패), 응답 코드 |
 | 인증 설정 | 연결된 AuthConfig 정보 |
 
@@ -85,3 +86,4 @@
 | DELETE | /api/triggers/:id | 트리거 삭제 |
 
 > **참고**: 트리거 생성은 워크플로우 에디터에서 수행. 트리거 목록 화면에서는 관리(조회/수정/삭제)만 담당.
+> **참고**: Schedule 유형 트리거는 Trigger 화면에서 직접 생성할 수 없다. Schedule 화면에서만 생성 가능하며, 생성 시 자동으로 Trigger가 등록된다. ([스케줄 관리](./3-schedule.md#4-trigger-자동-생성-규칙) 참조)
