@@ -204,6 +204,8 @@
 
 ## 8. 실행 엔진 통신
 
+> **상세 프로토콜**: 채널 구독, 인증, heartbeat, 재연결, 메시지 스키마 등은 [WebSocket 프로토콜 상세](../5-system/6-websocket-protocol.md) 참조.
+
 ### 8.1 WebSocket 이벤트 (클라이언트 ← 서버)
 
 | 이벤트 | 데이터 | 설명 |

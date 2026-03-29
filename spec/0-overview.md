@@ -157,6 +157,9 @@
 | [PRD 5: 비기능](../prd/5-non-functional.md) NF-SC-* | [Spec 5-system/1: 인증/인가](./5-system/1-auth.md) |
 | [PRD 5: 비기능](../prd/5-non-functional.md) NF-* | [Spec 5-system/2: API 규칙](./5-system/2-api-convention.md), [Spec 5-system/3: 에러 처리](./5-system/3-error-handling.md) |
 | (아키텍처) 실행 엔진 상세 | [Spec 5-system/4: 실행 엔진](./5-system/4-execution-engine.md) |
+| [PRD 2: 에디터](../prd/2-workflow-editor.md) ED-SP-03, ED-SP-04 (표현식) | [Spec 5-system/5: 표현식 언어](./5-system/5-expression-language.md) |
+| [PRD 5: 비기능](../prd/5-non-functional.md) (실시간 통신) | [Spec 5-system/6: WebSocket 프로토콜](./5-system/6-websocket-protocol.md) |
+| [PRD 5: 비기능](../prd/5-non-functional.md) NF-SC-01 (인증 UI) | [Spec 2-navigation/10: 인증 UI 플로우](./2-navigation/10-auth-flow.md) |
 
 ---
 

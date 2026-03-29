@@ -162,15 +162,73 @@ JavaScript 코드를 작성하여 자유로운 데이터 처리를 수행한다.
 
 ### 2.7 샌드박싱
 
-노드 실행 샌드박싱 정책(spec/4-nodes/0-overview.md §5)을 동일하게 적용한다:
+노드 실행 샌드박싱 정책(spec/4-nodes/0-overview.md §5)을 동일하게 적용한다.
 
-| 항목 | 제한 |
+#### 2.7.1 격리 방식
+
+Code 노드의 JavaScript 실행은 **V8 Isolate (vm2/isolated-vm)** 기반으로 격리한다.
+
+| 방식 | 설명 |
 |------|------|
-| 타임아웃 | 기본 30초 (노드 설정에서 변경 가능) |
-| 메모리 | 최대 128MB |
-| 네트워크 | 차단 (외부 호출은 Integration 노드 사용) |
-| 파일 시스템 | 접근 불가 |
-| 모듈 | require/import 불가, 내장 유틸리티만 사용 |
+| **Phase 1: V8 Isolate** | `isolated-vm` 라이브러리를 사용하여 별도의 V8 Isolate 내에서 코드를 실행. 메인 프로세스와 메모리 공간이 완전히 분리됨 |
+| Phase 2 이후 (선택): Docker 기반 | 대규모 배포 시 컨테이너 격리로 전환 가능. Phase 1에서는 불필요 |
+
+> **선택 근거**: V8 Isolate는 별도 프로세스/컨테이너 오버헤드 없이 수 밀리초 내에 격리 환경을 생성할 수 있다. Code 노드는 데이터 변환 목적이므로 네트워크/파일 접근이 불필요하며, V8 Isolate로 충분한 격리 수준을 제공한다.
+
+#### 2.7.2 리소스 제한
+
+| 항목 | 제한 | 설명 |
+|------|------|------|
+| 타임아웃 | 기본 30초 (노드 설정에서 1~120초 범위 내 변경 가능) | `isolate.compileScript` + `script.run`에 timeout 옵션 적용 |
+| 메모리 | 최대 128MB | `new ivm.Isolate({ memoryLimit: 128 })` |
+| 네트워크 | 완전 차단 | `fetch`, `XMLHttpRequest`, `WebSocket` 등 네트워크 API 미주입 |
+| 파일 시스템 | 접근 불가 | `fs`, `path`, `child_process` 등 Node.js 모듈 미주입 |
+| 모듈 | require/import 불가 | 모듈 로더 미제공. 내장 유틸리티만 전역 객체로 주입 |
+| 전역 객체 | 제한된 전역만 허용 | 아래 허용/차단 목록 참조 |
+
+#### 2.7.3 허용/차단 API 목록
+
+**허용 (전역 주입):**
+
+| API | 설명 |
+|-----|------|
+| `$input`, `$vars`, `$execution`, `$node` | 실행 컨텍스트 객체 (읽기 전용 프록시로 주입) |
+| `$helpers` | 내장 유틸리티 (§2.4 참조) |
+| `console.log`, `console.warn`, `console.error` | 디버그 로그 (실행 로그에 기록, 최대 100줄) |
+| `JSON.parse`, `JSON.stringify` | JSON 처리 |
+| `Array`, `Object`, `String`, `Number`, `Boolean`, `Date`, `RegExp`, `Map`, `Set` | 기본 JavaScript 내장 객체 |
+| `Math`, `parseInt`, `parseFloat`, `isNaN`, `isFinite` | 수학/파싱 |
+| `encodeURIComponent`, `decodeURIComponent` | URI 인코딩 |
+| `Promise`, `async/await` | 비동기 처리 (내부 연산용) |
+| `setTimeout` (제한적) | 최대 5초, Isolate 타임아웃 내에서만 동작 |
+
+**차단 (주입하지 않음):**
+
+| API | 이유 |
+|-----|------|
+| `require`, `import` | 외부 모듈 로드 방지 |
+| `fetch`, `XMLHttpRequest`, `WebSocket` | 네트워크 접근 차단 |
+| `fs`, `path`, `os`, `child_process` 등 Node.js 모듈 | 시스템 접근 차단 |
+| `eval`, `Function` 생성자 | 동적 코드 실행 추가 방지 |
+| `process`, `global` (Node.js) | 런타임 환경 접근 차단 |
+| `Proxy`, `Reflect` (사용자 코드 내) | 샌드박스 탈출 방지 |
+
+#### 2.7.4 에러 처리
+
+| 에러 유형 | 동작 |
+|-----------|------|
+| 타임아웃 | `EXECUTION_TIMEOUT` 에러 + "Code execution timed out after {n} seconds" |
+| 메모리 초과 | `EXECUTION_MEMORY_EXCEEDED` 에러 + "Code exceeded memory limit (128MB)" |
+| 런타임 에러 | `CODE_RUNTIME_ERROR` 에러 + 스택 트레이스 (Isolate 내부 라인 번호 매핑) |
+| 구문 에러 | `CODE_SYNTAX_ERROR` 에러 + 에러 위치 (line:column) |
+
+#### 2.7.5 `$vars` 쓰기 처리
+
+`$vars`는 읽기/쓰기 가능하지만, 변경은 Isolate 내부 복제본에서 이루어지며 실행 완료 후 메인 컨텍스트로 동기화된다:
+
+1. 실행 전: `$vars` 데이터를 Isolate로 복사 (deep clone)
+2. 실행 중: Isolate 내에서 자유롭게 수정
+3. 실행 후: 변경된 `$vars`를 메인 컨텍스트의 실행 변수 저장소에 반영
 
 ### 2.8 설정 UI — 코드 에디터
 

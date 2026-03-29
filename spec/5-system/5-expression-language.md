@@ -1,0 +1,347 @@
+# Spec: 표현식 언어 (Expression Language)
+
+> 관련 문서: [Spec 노드 공통 §3](../3-workflow-editor/1-node-common.md#3-표현식-시스템) · [PRD 워크플로우 에디터](../../prd/2-workflow-editor.md#5-노드-설정-패널) · [Spec 실행 엔진](./4-execution-engine.md)
+
+---
+
+## 1. 개요
+
+표현식(Expression)은 노드 설정 필드에서 동적 값을 참조하고 간단한 연산을 수행하기 위한 **읽기 전용 인라인 언어**이다. 복잡한 데이터 변환은 Transform/Code 노드에서 처리하며, 표현식은 **참조 + 경량 연산**에 집중한다.
+
+### 1.1 설계 원칙
+
+| 원칙 | 설명 |
+|------|------|
+| 읽기 전용 | 외부 상태 변경 불가. 부수 효과(side-effect) 없음 |
+| 결정적 | 동일 입력 → 동일 출력 (난수/시간 함수는 실행 시점 고정) |
+| 안전 | 무한 루프/재귀 불가. 최대 평가 깊이 제한 |
+| 경량 | 100ms 이내 평가 완료 목표 |
+
+---
+
+## 2. 문법 (Grammar)
+
+### 2.1 기본 구조
+
+표현식은 이중 중괄호로 감싼다. 문자열 필드 내에서 텍스트와 혼용 가능하다.
+
+```
+정적 텍스트 {{ expression }} 후속 텍스트
+```
+
+- 필드 값 전체가 표현식인 경우: `{{ $input.count + 1 }}`
+- 문자열 보간(interpolation): `Hello, {{ $input.name }}!`
+- 중첩 중괄호 이스케이프: `\{\{` → 리터럴 `{{`
+
+### 2.2 BNF 문법
+
+```bnf
+<template>       ::= (<text> | <interpolation>)*
+<interpolation>  ::= "{{" <ws> <expression> <ws> "}}"
+<text>           ::= (<any-char> - "{{" - "}}")+
+
+<expression>     ::= <ternary>
+<ternary>        ::= <or> ("?" <expression> ":" <expression>)?
+<or>             ::= <and> ("||" <and>)*
+<and>            ::= <equality> ("&&" <equality>)*
+<equality>       ::= <comparison> (("==" | "!=") <comparison>)*
+<comparison>     ::= <addition> (("<" | ">" | "<=" | ">=") <addition>)*
+<addition>       ::= <multiplication> (("+" | "-") <multiplication>)*
+<multiplication> ::= <unary> (("*" | "/" | "%") <unary>)*
+<unary>          ::= ("!" | "-") <unary> | <postfix>
+<postfix>        ::= <primary> (<member-access> | <call> | <index>)*
+
+<member-access>  ::= "." <identifier>
+<call>           ::= "(" <arg-list>? ")"
+<index>          ::= "[" <expression> "]"
+<arg-list>       ::= <expression> ("," <expression>)*
+
+<primary>        ::= <number> | <string> | <boolean> | <null>
+                   | <identifier> | <array-literal> | <object-literal>
+                   | "(" <expression> ")"
+
+<array-literal>  ::= "[" (<expression> ("," <expression>)*)? "]"
+<object-literal> ::= "{" (<key-value> ("," <key-value>)*)? "}"
+<key-value>      ::= (<string> | <identifier>) ":" <expression>
+
+<identifier>     ::= "$" <name> | <name>
+<name>           ::= [a-zA-Z_] [a-zA-Z0-9_]*
+<number>         ::= [0-9]+ ("." [0-9]+)?
+<string>         ::= '"' <string-char>* '"' | "'" <string-char>* "'"
+<boolean>        ::= "true" | "false"
+<null>           ::= "null"
+<ws>             ::= [ \t\n\r]*
+```
+
+### 2.3 연산자 우선순위 (높은 순)
+
+| 순위 | 연산자 | 결합 방향 | 설명 |
+|------|--------|-----------|------|
+| 1 | `.` `[]` `()` | 좌 | 멤버 접근, 인덱스, 함수 호출 |
+| 2 | `!` `-` (단항) | 우 | 논리 부정, 음수 |
+| 3 | `*` `/` `%` | 좌 | 곱셈, 나눗셈, 나머지 |
+| 4 | `+` `-` | 좌 | 덧셈, 뺄셈, 문자열 연결 |
+| 5 | `<` `>` `<=` `>=` | 좌 | 비교 |
+| 6 | `==` `!=` | 좌 | 동등 비교 (느슨하지 않음, strict) |
+| 7 | `&&` | 좌 | 논리 AND (단축 평가) |
+| 8 | `\|\|` | 좌 | 논리 OR (단축 평가) |
+| 9 | `? :` | 우 | 삼항 조건 |
+
+---
+
+## 3. 타입 시스템
+
+### 3.1 지원 타입
+
+| 타입 | 설명 | 리터럴 예시 |
+|------|------|-------------|
+| String | 문자열 | `"hello"`, `'world'` |
+| Number | 64비트 부동소수점 | `42`, `3.14`, `-1` |
+| Boolean | 참/거짓 | `true`, `false` |
+| Null | 없는 값 | `null` |
+| Array | 순서 배열 | `[1, 2, 3]` |
+| Object | 키-값 맵 | `{ "a": 1, "b": 2 }` |
+
+### 3.2 타입 강제 변환 규칙
+
+| 연산 | 규칙 |
+|------|------|
+| `+` (String 포함) | 다른 피연산자를 String으로 변환 후 연결 |
+| `+` (Number + Number) | 산술 덧셈 |
+| `-` `*` `/` `%` | 양쪽을 Number로 변환. 변환 불가 시 에러 |
+| `==` `!=` | 타입이 다르면 항상 `false`/`true` (strict) |
+| `<` `>` `<=` `>=` | Number 비교. String끼리는 사전순 비교 |
+| `&&` `\|\|` | Falsy 평가 (`false`, `null`, `0`, `""`, `[]` → falsy) |
+| `!` | Boolean 변환 후 부정 |
+
+### 3.3 Null 안전 접근
+
+- `$input.user.name`: `$input.user`가 null이면 → **에러 발생**
+- 안전 접근이 필요한 경우 삼항 연산 사용: `{{ $input.user ? $input.user.name : "unknown" }}`
+- `??` (nullish coalescing)은 지원하지 않음 (Phase 1). `||`로 대체 가능
+
+---
+
+## 4. 내장 참조 변수
+
+### 4.1 변수 목록
+
+| 참조 | 타입 | 설명 | 예시 |
+|------|------|------|------|
+| `$input` | Object | 직전 연결 노드의 출력 데이터 | `{{ $input.email }}` |
+| `$node["이름"]` | Object | 특정 노드의 출력. `.output`으로 접근 | `{{ $node["Fetch User"].output.id }}` |
+| `$var` | Object | 워크플로우 선언 변수 | `{{ $var.counter }}` |
+| `$execution` | Object | 현재 실행 컨텍스트 | `{{ $execution.id }}` |
+| `$now` | String | 현재 타임스탬프 (ISO 8601) | `{{ $now }}` |
+| `$today` | String | 오늘 날짜 (YYYY-MM-DD) | `{{ $today }}` |
+| `$env` | Object | 환경 변수 (셀프 호스팅) | `{{ $env.API_URL }}` |
+| `$loop` | Object | Loop 노드 내부 컨텍스트 | `{{ $loop.index }}` |
+| `$item` | Object/Any | ForEach 현재 항목 | `{{ $item.name }}` |
+| `$itemIndex` | Number | ForEach 현재 인덱스 | `{{ $itemIndex }}` |
+| `$trigger` | Object | 트리거 데이터 (webhook payload 등) | `{{ $trigger.body.event }}` |
+
+### 4.2 `$execution` 속성
+
+| 속성 | 타입 | 설명 |
+|------|------|------|
+| `id` | String | 실행 UUID |
+| `startedAt` | String | 실행 시작 시각 (ISO 8601) |
+| `mode` | String | 실행 모드 (`manual`, `webhook`, `schedule`) |
+| `workflowId` | String | 워크플로우 UUID |
+
+### 4.3 `$loop` 속성
+
+| 속성 | 타입 | 설명 |
+|------|------|------|
+| `index` | Number | 현재 반복 인덱스 (0-based) |
+| `iteration` | Number | 현재 반복 횟수 (1-based) |
+| `isFirst` | Boolean | 첫 번째 반복 여부 |
+| `isLast` | Boolean | 마지막 반복 여부 |
+
+---
+
+## 5. 내장 함수
+
+### 5.1 문자열 함수
+
+| 함수 | 시그니처 | 설명 | 예시 |
+|------|----------|------|------|
+| `length` | `length(str) → Number` | 문자열 길이 | `{{ length($input.name) }}` |
+| `uppercase` | `uppercase(str) → String` | 대문자 변환 | `{{ uppercase("hello") }}` → `"HELLO"` |
+| `lowercase` | `lowercase(str) → String` | 소문자 변환 | `{{ lowercase("Hello") }}` → `"hello"` |
+| `trim` | `trim(str) → String` | 앞뒤 공백 제거 | `{{ trim("  hi  ") }}` → `"hi"` |
+| `contains` | `contains(str, sub) → Boolean` | 부분 문자열 포함 여부 | `{{ contains($input.email, "@") }}` |
+| `startsWith` | `startsWith(str, prefix) → Boolean` | 접두사 일치 | `{{ startsWith($input.url, "https") }}` |
+| `endsWith` | `endsWith(str, suffix) → Boolean` | 접미사 일치 | `{{ endsWith($input.file, ".pdf") }}` |
+| `replace` | `replace(str, search, replacement) → String` | 첫 번째 일치 치환 | `{{ replace($input.text, "old", "new") }}` |
+| `replaceAll` | `replaceAll(str, search, replacement) → String` | 전체 일치 치환 | `{{ replaceAll($input.csv, ",", ";") }}` |
+| `split` | `split(str, separator) → Array` | 문자열 분할 | `{{ split("a,b,c", ",") }}` → `["a","b","c"]` |
+| `join` | `join(arr, separator) → String` | 배열 결합 | `{{ join(["a","b"], "-") }}` → `"a-b"` |
+| `substring` | `substring(str, start, end?) → String` | 부분 문자열 | `{{ substring($input.code, 0, 3) }}` |
+| `padStart` | `padStart(str, length, char?) → String` | 좌측 패딩 | `{{ padStart("5", 3, "0") }}` → `"005"` |
+| `padEnd` | `padEnd(str, length, char?) → String` | 우측 패딩 | — |
+
+### 5.2 숫자 함수
+
+| 함수 | 시그니처 | 설명 |
+|------|----------|------|
+| `round` | `round(num, decimals?) → Number` | 반올림 |
+| `ceil` | `ceil(num) → Number` | 올림 |
+| `floor` | `floor(num) → Number` | 내림 |
+| `abs` | `abs(num) → Number` | 절대값 |
+| `min` | `min(a, b, ...) → Number` | 최솟값 |
+| `max` | `max(a, b, ...) → Number` | 최댓값 |
+| `parseInt` | `parseInt(str) → Number` | 정수 변환 |
+| `parseFloat` | `parseFloat(str) → Number` | 실수 변환 |
+| `toFixed` | `toFixed(num, digits) → String` | 소수점 자릿수 고정 |
+| `random` | `random() → Number` | 0~1 난수 (실행 시점 고정) |
+
+### 5.3 날짜/시간 함수
+
+| 함수 | 시그니처 | 설명 |
+|------|----------|------|
+| `formatDate` | `formatDate(dateStr, pattern) → String` | 날짜 포매팅 |
+| `parseDate` | `parseDate(str, pattern?) → String` | 문자열→ISO 8601 파싱 |
+| `addTime` | `addTime(dateStr, amount, unit) → String` | 시간 더하기 |
+| `subtractTime` | `subtractTime(dateStr, amount, unit) → String` | 시간 빼기 |
+| `diffTime` | `diffTime(date1, date2, unit) → Number` | 두 날짜 차이 |
+| `now` | `now() → String` | 현재 시각 (ISO 8601) |
+| `today` | `today() → String` | 오늘 날짜 (YYYY-MM-DD) |
+
+**날짜 포맷 패턴 (dayjs 호환):**
+
+| 토큰 | 설명 | 예시 |
+|------|------|------|
+| `YYYY` | 4자리 연도 | 2026 |
+| `MM` | 2자리 월 | 03 |
+| `DD` | 2자리 일 | 29 |
+| `HH` | 24시간 시 | 14 |
+| `mm` | 분 | 30 |
+| `ss` | 초 | 05 |
+| `ddd` | 요일 약어 | Mon |
+
+**시간 단위:** `years`, `months`, `days`, `hours`, `minutes`, `seconds`
+
+### 5.4 배열 함수
+
+| 함수 | 시그니처 | 설명 |
+|------|----------|------|
+| `length` | `length(arr) → Number` | 배열 길이 (문자열과 오버로드) |
+| `first` | `first(arr) → Any` | 첫 번째 요소 |
+| `last` | `last(arr) → Any` | 마지막 요소 |
+| `includes` | `includes(arr, value) → Boolean` | 요소 포함 여부 |
+| `reverse` | `reverse(arr) → Array` | 역순 배열 (원본 불변) |
+| `flatten` | `flatten(arr) → Array` | 1단계 평탄화 |
+| `unique` | `unique(arr) → Array` | 중복 제거 |
+| `compact` | `compact(arr) → Array` | null/undefined 제거 |
+| `slice` | `slice(arr, start, end?) → Array` | 부분 배열 |
+| `concat` | `concat(arr1, arr2) → Array` | 배열 합치기 |
+
+### 5.5 객체 함수
+
+| 함수 | 시그니처 | 설명 |
+|------|----------|------|
+| `keys` | `keys(obj) → Array` | 키 목록 |
+| `values` | `values(obj) → Array` | 값 목록 |
+| `entries` | `entries(obj) → Array` | [key, value] 쌍 배열 |
+| `hasKey` | `hasKey(obj, key) → Boolean` | 키 존재 여부 |
+| `merge` | `merge(obj1, obj2) → Object` | 객체 병합 (obj2 우선) |
+| `pick` | `pick(obj, keys) → Object` | 지정 키만 추출 |
+| `omit` | `omit(obj, keys) → Object` | 지정 키 제외 |
+
+### 5.6 타입 변환 함수
+
+| 함수 | 시그니처 | 설명 |
+|------|----------|------|
+| `toString` | `toString(value) → String` | 문자열 변환 |
+| `toNumber` | `toNumber(value) → Number` | 숫자 변환 (실패 시 에러) |
+| `toBoolean` | `toBoolean(value) → Boolean` | 불리언 변환 |
+| `toJSON` | `toJSON(value) → String` | JSON 문자열화 |
+| `fromJSON` | `fromJSON(str) → Any` | JSON 파싱 |
+| `typeOf` | `typeOf(value) → String` | 타입 이름 반환 |
+| `isEmpty` | `isEmpty(value) → Boolean` | 빈 값 판정 (null, "", [], {}) |
+| `isNull` | `isNull(value) → Boolean` | null 여부 |
+
+---
+
+## 6. 에러 처리
+
+### 6.1 표현식 에러 유형
+
+| 에러 코드 | 설명 | 예시 |
+|-----------|------|------|
+| `EXPR_SYNTAX_ERROR` | 문법 오류 | `{{ $input. }}` (불완전한 멤버 접근) |
+| `EXPR_REFERENCE_ERROR` | 존재하지 않는 참조 | `{{ $input.nonExistent.field }}` (null 접근) |
+| `EXPR_TYPE_ERROR` | 타입 불일치 연산 | `{{ "hello" - 1 }}` |
+| `EXPR_FUNCTION_ERROR` | 함수 호출 오류 | `{{ unknownFn() }}` |
+| `EXPR_TIMEOUT` | 평가 시간 초과 | 복잡한 중첩 표현식 |
+| `EXPR_DEPTH_EXCEEDED` | 중첩 깊이 초과 | 100단계 이상 중첩 |
+
+### 6.2 에러 동작
+
+| 맥락 | 동작 |
+|------|------|
+| **노드 설정 필드** | 표현식 에러 → 해당 노드 실행 실패 → 노드 에러 처리 정책 적용 |
+| **에디터 미리보기** | 빨간 밑줄 + 인라인 에러 메시지 (실행 차단 안 함) |
+| **If/Else 조건** | 조건 평가 에러 → 노드 실행 실패 (false가 아님) |
+
+### 6.3 평가 제한
+
+| 항목 | 제한 |
+|------|------|
+| 최대 평가 시간 | 100ms |
+| 최대 중첩 깊이 | 100 |
+| 최대 표현식 길이 | 10,000 자 |
+| 최대 문자열 결과 크기 | 1MB |
+
+---
+
+## 7. 자동완성 (에디터 지원)
+
+### 7.1 트리거 조건
+
+| 트리거 | 동작 |
+|--------|------|
+| `{{` 입력 | 최상위 참조 변수 목록 표시 (`$input`, `$var`, `$node`, ...) |
+| `$input.` 입력 | 직전 노드 출력 스키마 기반 필드 목록 |
+| `$node["` 입력 | 현재 워크플로우의 노드 이름 목록 |
+| `$var.` 입력 | 워크플로우에서 선언된 변수 목록 |
+| 함수 이름 일부 입력 | 매칭되는 내장 함수 목록 + 시그니처 |
+
+### 7.2 자동완성 데이터 소스
+
+| 소스 | 생성 시점 |
+|------|-----------|
+| 노드 출력 스키마 | 마지막 실행 결과에서 추론. 미실행 시 노드 유형의 기본 스키마 사용 |
+| 변수 목록 | 워크플로우 내 Variable Declaration 노드에서 추출 |
+| 노드 목록 | 현재 워크플로우의 모든 노드 라벨 |
+| 함수 목록 | 내장 함수 레지스트리 (정적) |
+
+---
+
+## 8. 구현 전략
+
+### 8.1 파서/평가기 구조
+
+```
+소스 문자열 → Tokenizer → Token[] → Parser → AST → Evaluator → 결과 값
+```
+
+| 단계 | 설명 |
+|------|------|
+| Tokenizer | 문자열을 토큰(숫자, 문자열, 연산자, 식별자 등)으로 분해 |
+| Parser | 토큰 배열을 AST(Abstract Syntax Tree)로 변환. 재귀 하강 파서 |
+| Evaluator | AST를 순회하며 컨텍스트 바인딩으로 값을 계산 |
+
+### 8.2 프론트엔드/백엔드 공유
+
+- 파서/평가기는 **JavaScript/TypeScript**로 구현하여 프론트엔드(에디터 미리보기)와 백엔드(실행 엔진) 양쪽에서 사용
+- npm 패키지로 분리하여 공유 (`@project/expression-engine`)
+
+### 8.3 보안 고려사항
+
+| 위협 | 대응 |
+|------|------|
+| 코드 인젝션 | `eval` 사용 금지. 자체 파서/평가기만 사용 |
+| DoS (복잡한 표현식) | 평가 시간 제한 (100ms) + 중첩 깊이 제한 (100) |
+| 데이터 유출 | `$env`는 셀프 호스팅에서만 허용 목록 기반 노출 |
