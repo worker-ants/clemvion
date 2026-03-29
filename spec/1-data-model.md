@@ -121,8 +121,15 @@ User ──┬── Workspace (1:N)
 | config | JSONB | 노드별 설정 값 |
 | is_disabled | Boolean | 비활성 여부 |
 | description | String? | 메모/설명 |
+| container_id | UUID? | FK → Node. 컨테이너 노드(Loop/ForEach/Background) 내부에 배치된 경우 |
+| tool_owner_id | UUID? | FK → Node. AI Agent의 Tool Area에 등록된 경우 |
 | created_at | Timestamp | 생성 시각 |
 | updated_at | Timestamp | 수정 시각 |
+
+**제약 조건:**
+- `container_id`와 `tool_owner_id`는 동시에 값을 가질 수 없음 (CHECK 제약)
+- `container_id`가 참조하는 노드의 type은 `loop`, `foreach`, `background` 중 하나여야 함
+- `tool_owner_id`가 참조하는 노드의 type은 `ai_agent`여야 함
 
 **Node.type 전체 목록:**
 
@@ -163,6 +170,7 @@ User ──┬── Workspace (1:N)
 | source_port | String | 출력 포트 식별자 (예: "true", "false", "default", "out_0") |
 | target_node_id | UUID | FK → Node (입력 노드) |
 | target_port | String | 입력 포트 식별자 (기본: "in") |
+| type | Enum | 엣지 유형: `data` (기본) / `error` (에러 포트 엣지) |
 | condition | JSONB? | 엣지 조건 (조건부 라우팅용) |
 | created_at | Timestamp | 생성 시각 |
 
@@ -202,6 +210,25 @@ User ──┬── Workspace (1:N)
 | last_run_at | Timestamp? | 마지막 실행 시각 |
 | created_at | Timestamp | 생성 시각 |
 | updated_at | Timestamp | 수정 시각 |
+
+### 2.9.1 Trigger ↔ Schedule 동기화 규칙
+
+Schedule은 Trigger의 서브타입이다. 양쪽의 라이프사이클과 상태는 동기화된다.
+
+| 이벤트 | 동작 |
+|--------|------|
+| Schedule 생성 | Trigger 자동 생성 (type=`schedule`, 동일 이름, 동일 워크플로우, is_active 동기화) |
+| Schedule 이름 변경 | 연결된 Trigger 이름도 동기화 |
+| Schedule is_active 변경 | 연결된 Trigger is_active도 동기화 (역방향도 동일) |
+| Schedule 삭제 | 연결된 Trigger cascade 삭제 |
+| Trigger(type=schedule) 삭제 | 연결된 Schedule cascade 삭제 |
+| Trigger(type=schedule) 직접 생성 | 금지 — Schedule 화면에서만 생성 가능 |
+
+**제약 조건:**
+- Schedule.trigger_id는 NOT NULL — 반드시 Trigger와 1:1 매핑
+- Trigger(type=schedule)는 반드시 1개의 Schedule을 가짐
+
+---
 
 ### 2.10 Integration
 
@@ -368,7 +395,10 @@ User ──┬── Workspace (1:N)
 | Workflow | (workspace_id, is_active) | 워크스페이스별 활성 워크플로우 조회 |
 | Workflow | (workspace_id, name) | 이름 검색 |
 | Node | (workflow_id) | 워크플로우별 노드 조회 |
+| Node | (container_id) | 컨테이너별 자식 노드 조회 |
+| Node | (tool_owner_id) | AI Agent별 Tool Area 노드 조회 |
 | Edge | (workflow_id) | 워크플로우별 엣지 조회 |
+| Edge | (workflow_id, type) | 워크플로우별 엣지 유형 조회 |
 | Edge | (source_node_id) | 노드별 아웃바운드 엣지 |
 | Execution | (workflow_id, started_at DESC) | 워크플로우별 실행 이력 |
 | Execution | (status) | 상태별 실행 조회 |

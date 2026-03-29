@@ -23,7 +23,8 @@ LLM 기반 AI Agent를 실행. 프롬프트, RAG, Tool Use를 지원.
 | knowledgeBases | UUID[] | 참조할 Knowledge Base ID 목록 |
 | ragTopK | Integer | RAG 검색 결과 수 (기본: 5) |
 | ragThreshold | Float | RAG 유사도 임계값 (기본: 0.7) |
-| tools | ToolDef[] | 사용 가능한 도구 목록 |
+| toolNodeIds | UUID[] | Tool Area에 등록된 도구 노드 ID 목록 (Tool Area에서 자동 관리) |
+| toolOverrides | ToolOverride[] | 도구별 이름/설명 오버라이드 (선택) |
 | maxToolCalls | Integer | 최대 도구 호출 횟수 (기본: 10) |
 | conversationHistory | Enum | `none` / `last_n` / `full` |
 | historyCount | Integer? | last_n 시 보관 대화 수 |
@@ -58,10 +59,18 @@ LLM 기반 AI Agent를 실행. 프롬프트, RAG, Tool Use를 지원.
 │  [+ Add Knowledge Base]                  │
 │  📚 Customer FAQ        Top-K: 5         │
 │                                          │
-│  ── Tools ──                             │
-│  [+ Add Tool]                            │
-│  🔧 Create Ticket (→ Node "Ticket API") │
-│  🔧 Search DB (→ Node "DB Query")       │
+│  ── Tool Area ──                         │
+│  ℹ️ 캔버스의 Tool Area에 노드를 드래그   │
+│    하여 도구를 등록하세요.               │
+│  ┌──────────────────────────────────────┐│
+│  │ 🌐 HTTP Request "Ticket API"        ││
+│  │    이름: [Create Ticket___]          ││
+│  │    설명: [티켓 생성 API 호출___]     ││
+│  ├──────────────────────────────────────┤│
+│  │ 🗄️ DB Query "Search DB"             ││
+│  │    이름: [Search DB_________]        ││
+│  │    설명: [데이터베이스 검색__]       ││
+│  └──────────────────────────────────────┘│
 │                                          │
 │  ── Conversation History ──              │
 │  Mode: [Last N ▼]  Count: [10]          │
@@ -72,15 +81,22 @@ LLM 기반 AI Agent를 실행. 프롬프트, RAG, Tool Use를 지원.
 - 입력: `in` (1개)
 - 출력: `out` (1개)
 
-### Tool 정의 (ToolDef)
+### Tool Area 연동
+
+도구 관리는 캔버스의 [Tool Area](../3-workflow-editor/0-canvas.md#11-ai-agent-tool-area)에서 수행한다. 노드를 Tool Area에 드래그하여 등록하면 `toolNodeIds`에 자동 추가된다.
+
+**도구 이름/설명 파생 규칙:**
+- 기본: Tool 노드의 `label`(이름)과 `description`(설명)에서 파생
+- 오버라이드 가능: `toolOverrides`에서 도구별 이름/설명을 커스텀 설정
+
+**ToolOverride 구조:**
 
 | 필드 | 타입 | 설명 |
 |------|------|------|
-| name | String | 도구 이름 (LLM에게 표시) |
-| description | String | 도구 설명 |
-| parameters | JSONSchema | 도구 파라미터 스키마 |
-| targetNodeId | UUID | 도구 호출 시 실행할 노드 ID |
-| inputMapping | MappingDef[] | 도구 파라미터 → 대상 노드 입력 매핑 |
+| nodeId | UUID | Tool Area에 등록된 노드 ID |
+| toolName | String? | LLM에게 표시할 도구 이름 (미설정 시 노드 label 사용) |
+| toolDescription | String? | LLM에게 표시할 도구 설명 (미설정 시 노드 description 사용) |
+| inputMapping | MappingDef[]? | 도구 파라미터 → 노드 입력 매핑 (미설정 시 자동 매핑) |
 
 ### 실행 로직
 1. Knowledge Base가 설정된 경우:
@@ -88,7 +104,7 @@ LLM 기반 AI Agent를 실행. 프롬프트, RAG, Tool Use를 지원.
    b. 검색 결과를 컨텍스트에 추가
 2. systemPrompt + 컨텍스트 + userPrompt로 LLM 호출
 3. LLM이 도구 호출을 요청하면:
-   a. targetNodeId의 노드를 실행
+   a. Tool Area에서 해당 도구 노드를 on-demand로 독립 실행
    b. 실행 결과를 LLM에 전달
    c. maxToolCalls 초과 전까지 반복
 4. 최종 응답을 출력 형식에 맞게 변환

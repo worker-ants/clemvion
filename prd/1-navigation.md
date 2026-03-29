@@ -56,6 +56,8 @@
 | NAV-TR-04 | Webhook 트리거의 URL 복사 기능 | 필수 | 1 |
 | NAV-TR-05 | 트리거 활성/비활성 제어 | 필수 | 1 |
 | NAV-TR-06 | 트리거별 최근 호출 이력 요약 | 권장 | 1 |
+| NAV-TR-07 | Schedule 유형 트리거에 `[Schedule]` 태그, Cron 표현식, 다음 실행 시각 표시 | 필수 | 1 |
+| NAV-TR-08 | Schedule 유형 트리거는 Trigger 화면에서 직접 생성 불가 — Schedule 화면에서만 생성 | 필수 | 1 |
 
 ### 3.3 Schedule (스케줄)
 
@@ -68,6 +70,8 @@
 | NAV-SC-05 | 스케줄 활성/비활성 토글 | 필수 | 1 |
 | NAV-SC-06 | 타임존 설정 | 필수 | 1 |
 | NAV-SC-07 | 캘린더 뷰로 스케줄 시각화 | 권장 | 1 |
+| NAV-SC-08 | Schedule 생성 시 Trigger(type=schedule) 자동 생성. 이름/활성 상태 양방향 동기화. 삭제 시 cascade | 필수 | 1 |
+| NAV-SC-09 | Schedule ↔ Trigger 간 상호 네비게이션 링크 ("트리거에서 보기", "스케줄 관리에서 편집") | 필수 | 1 |
 
 ### 3.4 Integration (통합)
 

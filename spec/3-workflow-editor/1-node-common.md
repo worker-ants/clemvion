@@ -24,6 +24,7 @@
 | 식별자 | 노드 유형에 따라 다름 (아래 표) |
 | 다중 연결 | 하나의 출력 포트에서 여러 엣지 연결 가능 (데이터 복제 전달) |
 | 라벨 | 포트별 이름 표시 (예: "True", "False", "Case 1") |
+| **error 포트** | 에러 처리 정책이 "Route to Error Port"인 경우 동적 생성. 빨간 원(●) 아이콘, 노드 우하단 위치 |
 
 ### 1.3 노드별 포트 구성
 
@@ -31,15 +32,15 @@
 |-----------|------|------|-----------------|
 | If/Else | 1 | 2 | `true`, `false` |
 | Switch | 1 | N (동적) | `case_0`, `case_1`, ..., `default` |
-| Loop | 1 | 2 | `body` (반복 본문), `done` (완료 후) |
+| Loop (**컨테이너**) | 1 | 2 (+error) | `body` (반복 본문 → 내부 노드), `done` (완료 후) |
 | Variable Declaration | 1 | 1 | `out` |
 | Variable Modification | 1 | 1 | `out` |
 | Split | 1 | 1 | `out` (각 항목별 순차 출력) |
 | Map | 1 | 1 | `out` |
-| ForEach | 1 | 2 | `body` (각 항목 처리), `done` (전체 완료) |
+| ForEach (**컨테이너**) | 1 | 2 (+error) | `body` (각 항목 처리 → 내부 노드), `done` (전체 완료) |
 | Parallel | 1 | N (동적) | `branch_0`, `branch_1`, ... |
 | Merge | N (동적) | 1 | `out` |
-| Background | 1 | 2 | `main` (즉시 진행), `background` (백그라운드 본문) |
+| Background (**컨테이너**) | 1 | 2 (+error) | `main` (즉시 진행), `background` (백그라운드 본문 → 내부 노드) |
 | Workflow | 1 | 1 | `out` |
 | AI Agent | 1 | 1 | `out` |
 | Text Classifier | 1 | N (동적) | `class_0`, `class_1`, ..., (카테고리별) |
@@ -53,6 +54,7 @@
 | Google Drive | 1 | 1 | `out` |
 | Transform | 1 | 1 | `out` |
 | Code | 1 | 1 | `out` |
+| **(조건부) error** | — | +1 | `error` — 에러 처리 정책이 "Route to Error Port"인 노드에 동적 추가. 빨간 원, 노드 우하단 |
 
 ### 1.4 포트 인터랙션
 
@@ -119,6 +121,7 @@
 | **Skip Node** | 에러 발생 시 이 노드를 건너뛰고 다음 노드로 진행. 출력: null |
 | **Use Default Output** | 에러 발생 시 미리 설정한 기본 출력 값 사용 |
 | **Retry** | 재시도 (최대 재시도 횟수, 재시도 간격 설정) |
+| **Route to Error Port** | 에러 발생 시 에러 데이터를 `error` 포트로 전달. 선택 시 노드에 error 포트가 동적 생성됨. error 포트에 연결된 노드가 없으면 Stop Workflow 폴백. ([에러 처리 상세](../5-system/3-error-handling.md#32-route-to-error-port-상세) 참조) |
 
 ---
 
@@ -182,3 +185,4 @@
 | 1:N 분기 | 출력 데이터가 복제되어 각 연결된 노드에 동일하게 전달 |
 | N:1 합류 | 여러 입력이 도착하면 Merge 노드의 전략에 따라 처리 |
 | 조건부 분기 | If/Else, Switch 등은 조건에 맞는 출력 포트로만 데이터 전달 |
+| 에러 라우팅 | 에러 정책이 "Route to Error Port"인 노드에서 에러 발생 시 에러 데이터를 `error` 포트로 전달. 에러 엣지(빨간 점선)로 연결된 다음 노드가 에러 데이터를 입력으로 실행 |

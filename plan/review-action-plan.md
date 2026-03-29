@@ -138,11 +138,11 @@
 | #1 Integration 노드 | ✅ 완료 | 하이브리드 전략 (범용 2종 + 서비스 특화 5종 = 7종). PRD/Spec 반영 완료 |
 | #2 MVP 범위 | ✅ 완료 | 3-Phase 구분 (핵심 자동화 → AI & 협업 → 생태계). 모든 PRD에 Phase 컬럼 추가 |
 | #5 변환/코드 노드 | ✅ 완료 | Data 카테고리 신설 (Transform, Code 2종). PRD/Spec 반영 완료 |
-| #3 서브그래프 동작 | ⬜ 대기 | 사용자 논의 필요 |
-| #4 Tool Use 구조 | ⬜ 대기 | 사용자 논의 필요 |
-| #7 Trigger↔Schedule | ⬜ 대기 | 사용자 논의 필요 |
-| #8 에러 출력 포트 | ⬜ 대기 | 사용자 논의 필요 |
-| #10 실행 엔진 | ⬜ 대기 | 사용자 논의 필요 |
+| #3 서브그래프 동작 | ✅ 완료 | 컨테이너 노드 방식. Loop/ForEach/Background를 확장 가능 그룹 박스로 렌더링 |
+| #4 Tool Use 구조 | ✅ 완료 | 도구 팔레트 방식. AI Agent 옆 Tool Area에 노드 드래그 등록. 데이터 흐름 그래프와 분리 |
+| #7 Trigger↔Schedule | ✅ 완료 | Schedule은 Trigger 서브타입. Schedule 생성 시 Trigger 자동 생성. 양방향 동기화 |
+| #8 에러 출력 포트 | ✅ 완료 | 선택적 에러 포트. 에러 정책에 "Route to Error Port" 추가. 선택 시 error 포트 동적 생성 |
+| #10 실행 엔진 | ✅ 완료 | 신규 spec/5-system/4-execution-engine.md. 상태 머신, 그래프 순회, Worker 모델, 장애 복구 |
 | #6 Folder 엔티티 | ✅ 완료 | spec/1-data-model.md |
 | #9 버전/자동저장 | ✅ 완료 | spec/3-workflow-editor/0-canvas.md |
 | #11 알림 시스템 | ✅ 완료 | data-model, layout, user-profile |

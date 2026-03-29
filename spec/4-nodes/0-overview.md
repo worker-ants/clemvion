@@ -59,7 +59,7 @@
 |------|------|------|
 | id | String | 포트 식별자 (예: `in`, `true`, `case_0`) |
 | label | String | UI 표시 이름 |
-| type | Enum | `data` / `control` |
+| type | Enum | `data` / `control` / `error` |
 | dynamic | Boolean | 동적 추가/제거 가능 여부 |
 | required | Boolean | 연결 필수 여부 |
 
@@ -73,15 +73,15 @@
 |------|-----------|--------|------|------|---------|
 | `if_else` | If/Else | 🔀 | 1 | 2 (true/false) | 조건식 |
 | `switch` | Switch | 🔀 | 1 | N+1 (cases+default) | 케이스 목록 |
-| `loop` | Loop | 🔄 | 1 | 2 (body/done) | 반복 횟수, break 조건 |
+| `loop` | Loop | 🔄 **컨테이너** | 1 | 2 (body/done) | 반복 횟수, break 조건 |
 | `variable_declaration` | Variable | 📝 | 1 | 1 | 변수명, 타입, 초기값 |
 | `variable_modification` | Set Variable | ✏️ | 1 | 1 | 대상 변수, 새 값 |
 | `split` | Split | ✂️ | 1 | 1 | 분리 대상 필드 |
 | `map` | Map | 🗺️ | 1 | 1 | 변환 표현식 |
-| `foreach` | ForEach | 🔁 | 1 | 2 (body/done) | 대상 배열, 에러 정책 |
+| `foreach` | ForEach | 🔁 **컨테이너** | 1 | 2 (body/done) | 대상 배열, 에러 정책 |
 | `parallel` | Parallel | ⚡ | 1 | N | 분기 수 |
 | `merge` | Merge | 🔗 | N | 1 | 병합 전략 |
-| `background` | Background | 🌙 | 1 | 2 (main/bg) | 알림 설정 |
+| `background` | Background | 🌙 **컨테이너** | 1 | 2 (main/bg) | 알림 설정 |
 
 ### 2.2 Flow 노드 (1종)
 

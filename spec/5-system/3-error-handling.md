@@ -50,6 +50,7 @@
 | `INVALID_EXPRESSION` | 표현식 평가 실패 |
 | `VARIABLE_NOT_FOUND` | 참조된 변수 없음 |
 | `TYPE_MISMATCH` | 데이터 타입 불일치 |
+| `ERROR_PORT_FALLBACK` | 에러 포트로 라우팅 시도했으나 연결된 엣지 없음 → Stop Workflow 폴백 |
 
 ---
 
@@ -122,12 +123,50 @@
                 │   → 출력 = 미리 설정된 기본값
                 │   → 다음 노드는 기본값으로 실행
                 │
-                └─ Retry
-                    → 재시도 (maxRetries, retryInterval)
-                    → 모든 재시도 실패 시 Stop Workflow
+                ├─ Retry
+                │   → 재시도 (maxRetries, retryInterval)
+                │   → 모든 재시도 실패 시 Stop Workflow
+                │
+                └─ Route to Error Port
+                    → 에러 데이터를 error 포트로 전달
+                    → 연결된 다음 노드가 에러 데이터를 입력으로 실행
+                    → error 포트에 엣지가 없으면 Stop Workflow 폴백
 ```
 
-### 3.2 Retry 설정
+### 3.2 Route to Error Port 상세
+
+에러 포트로 전달되는 데이터 구조:
+
+```json
+{
+  "error": {
+    "code": "NODE_EXECUTION_FAILED",
+    "message": "LLM connection timeout",
+    "nodeId": "uuid-of-failed-node",
+    "nodeType": "ai_agent",
+    "timestamp": "2026-03-29T12:00:00.000Z",
+    "details": { ... },
+    "originalInput": { ... }
+  }
+}
+```
+
+| 필드 | 타입 | 설명 |
+|------|------|------|
+| code | String | 에러 코드 (§1.4 참조) |
+| message | String | 사람이 읽을 수 있는 에러 메시지 |
+| nodeId | UUID | 에러가 발생한 노드 ID |
+| nodeType | String | 에러가 발생한 노드 타입 |
+| timestamp | Timestamp | 에러 발생 시각 |
+| details | Object? | 에러 상세 정보 (스택 트레이스 등) |
+| originalInput | Object | 에러 발생 노드에 전달되었던 원본 입력 데이터 |
+
+**동작 규칙:**
+- error 포트에 엣지가 연결되어 있으면 → 에러 데이터를 해당 엣지로 전달, 다음 노드 실행
+- error 포트에 엣지가 없으면 → `ERROR_PORT_FALLBACK` 에러 로깅 후 Stop Workflow 폴백
+- NodeExecution.status는 `failed`로 기록하되, Execution은 계속 진행
+
+### 3.3 Retry 설정
 
 | 필드 | 타입 | 기본값 | 설명 |
 |------|------|--------|------|
