@@ -63,6 +63,10 @@
 | dynamic | Boolean | 동적 추가/제거 가능 여부 |
 | required | Boolean | 연결 필수 여부 |
 
+**포트 ID 생성 규칙:**
+- 정적 포트: 노드 정의에서 고정 문자열 (`in`, `out`, `true`, `false`, `body`, `done` 등)
+- 동적 포트: 생성 시 **UUID v4**를 할당한다. 포트 이름 변경, 재정렬, 다른 포트 삭제 등 편집 작업에도 **기존 포트 ID는 불변**이다. 이를 통해 포트에 연결된 엣지가 편집 이후에도 유지된다.
+
 ---
 
 ## 2. 노드 전체 목록
@@ -175,6 +179,8 @@ my-custom-node/
 ```
 
 ### 4.3 실행 인터페이스
+
+빌트인 노드와 커스텀 플러그인 노드 모두 동일한 핸들러 인터페이스를 사용한다. 상세 계약(validate → execute → 출력 정규화 라이프사이클, 레지스트리 패턴, 리트라이 정책)은 [실행 엔진 §5. 노드 핸들러 계약](../5-system/4-execution-engine.md#5-노드-핸들러-계약)을 참조한다.
 
 ```
 execute(input: JSON, config: JSON, context: ExecutionContext) → JSON

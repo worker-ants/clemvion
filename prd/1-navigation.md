@@ -14,20 +14,22 @@
 
 ```
 사이드바
-├── Workflow List         # 워크플로우 목록
-├── Trigger List          # 트리거(엔드포인트) 목록
-├── Schedule              # Cron Job 스케줄 관리
-├── Integration           # Third-party 연동 관리
-├── Knowledge Base        # RAG 지식 저장소 관리
-├── Config
-│   ├── Authentication    # 외부 인증 방식 설정
-│   └── LLM               # AI Agent용 LLM 설정
-├── Statistics            # 실행 통계
-└── Marketplace           # 마켓플레이스
+├── Dashboard             # 대시보드 (홈)                    — Phase 1
+├── Workflow List         # 워크플로우 목록                   — Phase 1
+├── Trigger List          # 트리거(엔드포인트) 목록           — Phase 1
+├── Schedule              # Cron Job 스케줄 관리              — Phase 1
+├── Integration           # Third-party 연동 관리             — Phase 1
+├── Authentication        # 외부 인증 방식 설정 (최상위 메뉴) — Phase 1
+├── Statistics            # 실행 통계                         — Phase 1
+├── Knowledge Base        # RAG 지식 저장소 관리              — Phase 2 (숨김)
+├── LLM                   # AI Agent용 LLM 설정               — Phase 2 (숨김)
+└── Marketplace           # 마켓플레이스                       — Phase 3 (숨김)
 
 하단 영역
 └── User Profile          # 사용자 이름, 설정, 로그아웃
 ```
+
+> **Phase별 메뉴 가시성**: Phase 1에서는 Knowledge Base, LLM, Marketplace 메뉴를 사이드바에서 숨긴다. 각 기능이 구현되는 Phase에서 메뉴를 복원한다.
 
 ---
 
@@ -96,7 +98,9 @@
 | NAV-KB-05 | 벡터 임베딩 상태 표시 (처리 중/완료/오류) | 필수 | 2 |
 | NAV-KB-06 | AI Agent 노드에서 참조할 Knowledge Base 선택 가능 | 필수 | 2 |
 
-### 3.6 Config — Authentication (인증 설정)
+### 3.6 Authentication (인증 설정)
+
+> Phase 1에서 Authentication은 Config 서브메뉴가 아닌 **최상위 메뉴**로 노출된다 (경로: `/authentication`). Phase 2에서 LLM 설정이 추가되면 Config 그룹으로 재구성할 수 있다.
 
 | ID | 요구사항 | 우선순위 | Phase |
 |----|----------|----------|-------|
@@ -107,7 +111,7 @@
 | NAV-CA-05 | IP Whitelist 설정 | 권장 | 1 |
 | NAV-CA-06 | 인증 방식별 사용량/호출 이력 조회 | 권장 | 1 |
 
-### 3.7 Config — LLM (LLM 설정)
+### 3.7 Config — LLM (LLM 설정) — Phase 2
 
 | ID | 요구사항 | 우선순위 | Phase |
 |----|----------|----------|-------|
