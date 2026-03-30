@@ -1,4 +1,5 @@
 import { IsOptional, IsIn, IsUUID } from 'class-validator';
+import { Transform } from 'class-transformer';
 import { PaginationQueryDto } from '../../../common/dto/pagination.dto';
 
 export class QueryExecutionDto extends PaginationQueryDto {
@@ -15,5 +16,6 @@ export class QueryExecutionDto extends PaginationQueryDto {
 
   @IsOptional()
   @IsUUID()
-  workflowId?: string;
+  @Transform(({ value }: { value: unknown }) => (value === '' ? null : value))
+  workflowId?: string | null;
 }

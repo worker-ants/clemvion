@@ -1,4 +1,5 @@
 import { IsOptional, IsString, IsIn, IsUUID } from 'class-validator';
+import { Transform } from 'class-transformer';
 import { PaginationQueryDto } from '../../../common/dto/pagination.dto';
 
 export class QueryWorkflowDto extends PaginationQueryDto {
@@ -12,5 +13,6 @@ export class QueryWorkflowDto extends PaginationQueryDto {
 
   @IsOptional()
   @IsUUID()
-  folderId?: string;
+  @Transform(({ value }: { value: unknown }) => (value === '' ? null : value))
+  folderId?: string | null;
 }

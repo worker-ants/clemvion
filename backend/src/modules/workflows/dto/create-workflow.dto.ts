@@ -6,6 +6,7 @@ import {
   IsUUID,
   MaxLength,
 } from 'class-validator';
+import { Transform } from 'class-transformer';
 
 export class CreateWorkflowDto {
   @IsString()
@@ -27,5 +28,6 @@ export class CreateWorkflowDto {
 
   @IsOptional()
   @IsUUID()
-  folderId?: string;
+  @Transform(({ value }: { value: unknown }) => (value === '' ? null : value))
+  folderId?: string | null;
 }

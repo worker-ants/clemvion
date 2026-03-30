@@ -9,7 +9,9 @@ export class SendEmailHandler implements NodeHandler {
     const errors: string[] = [];
 
     if (!config.to || !Array.isArray(config.to) || config.to.length === 0) {
-      errors.push('to is required and must be a non-empty array of email addresses');
+      errors.push(
+        'to is required and must be a non-empty array of email addresses',
+      );
     }
 
     if (!config.subject || typeof config.subject !== 'string') {

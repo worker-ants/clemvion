@@ -47,7 +47,11 @@ describe('TransformHandler', () => {
     it('should rename a field', async () => {
       const result = await handler.execute(
         { oldName: 'value' },
-        { operations: [{ type: 'rename_field', from: 'oldName', to: 'newName' }] },
+        {
+          operations: [
+            { type: 'rename_field', from: 'oldName', to: 'newName' },
+          ],
+        },
         context,
       );
       expect(result).toEqual({ newName: 'value' });
@@ -56,7 +60,11 @@ describe('TransformHandler', () => {
     it('should not modify data when source field does not exist', async () => {
       const result = await handler.execute(
         { other: 'value' },
-        { operations: [{ type: 'rename_field', from: 'missing', to: 'newName' }] },
+        {
+          operations: [
+            { type: 'rename_field', from: 'missing', to: 'newName' },
+          ],
+        },
         context,
       );
       expect(result).toEqual({ other: 'value' });
@@ -98,7 +106,11 @@ describe('TransformHandler', () => {
     it('should convert to string', async () => {
       const result = (await handler.execute(
         { num: 42 },
-        { operations: [{ type: 'type_convert', field: 'num', targetType: 'string' }] },
+        {
+          operations: [
+            { type: 'type_convert', field: 'num', targetType: 'string' },
+          ],
+        },
         context,
       )) as Record<string, unknown>;
       expect(result.num).toBe('42');
@@ -107,7 +119,11 @@ describe('TransformHandler', () => {
     it('should convert to number', async () => {
       const result = (await handler.execute(
         { str: '42' },
-        { operations: [{ type: 'type_convert', field: 'str', targetType: 'number' }] },
+        {
+          operations: [
+            { type: 'type_convert', field: 'str', targetType: 'number' },
+          ],
+        },
         context,
       )) as Record<string, unknown>;
       expect(result.str).toBe(42);
@@ -116,7 +132,11 @@ describe('TransformHandler', () => {
     it('should convert to boolean', async () => {
       const result = (await handler.execute(
         { val: 1 },
-        { operations: [{ type: 'type_convert', field: 'val', targetType: 'boolean' }] },
+        {
+          operations: [
+            { type: 'type_convert', field: 'val', targetType: 'boolean' },
+          ],
+        },
         context,
       )) as Record<string, unknown>;
       expect(result.val).toBe(true);
@@ -125,7 +145,11 @@ describe('TransformHandler', () => {
     it('should not modify data when field does not exist', async () => {
       const result = await handler.execute(
         { a: 1 },
-        { operations: [{ type: 'type_convert', field: 'missing', targetType: 'string' }] },
+        {
+          operations: [
+            { type: 'type_convert', field: 'missing', targetType: 'string' },
+          ],
+        },
         context,
       );
       expect(result).toEqual({ a: 1 });
@@ -136,7 +160,9 @@ describe('TransformHandler', () => {
     it('should trim a string', async () => {
       const result = (await handler.execute(
         { text: '  hello  ' },
-        { operations: [{ type: 'string_op', field: 'text', operation: 'trim' }] },
+        {
+          operations: [{ type: 'string_op', field: 'text', operation: 'trim' }],
+        },
         context,
       )) as Record<string, unknown>;
       expect(result.text).toBe('hello');
@@ -145,7 +171,11 @@ describe('TransformHandler', () => {
     it('should uppercase a string', async () => {
       const result = (await handler.execute(
         { text: 'hello' },
-        { operations: [{ type: 'string_op', field: 'text', operation: 'uppercase' }] },
+        {
+          operations: [
+            { type: 'string_op', field: 'text', operation: 'uppercase' },
+          ],
+        },
         context,
       )) as Record<string, unknown>;
       expect(result.text).toBe('HELLO');
@@ -154,7 +184,11 @@ describe('TransformHandler', () => {
     it('should lowercase a string', async () => {
       const result = (await handler.execute(
         { text: 'HELLO' },
-        { operations: [{ type: 'string_op', field: 'text', operation: 'lowercase' }] },
+        {
+          operations: [
+            { type: 'string_op', field: 'text', operation: 'lowercase' },
+          ],
+        },
         context,
       )) as Record<string, unknown>;
       expect(result.text).toBe('hello');
@@ -183,7 +217,11 @@ describe('TransformHandler', () => {
     it('should add', async () => {
       const result = (await handler.execute(
         { val: 10 },
-        { operations: [{ type: 'math_op', field: 'val', operation: 'add', operand: 5 }] },
+        {
+          operations: [
+            { type: 'math_op', field: 'val', operation: 'add', operand: 5 },
+          ],
+        },
         context,
       )) as Record<string, unknown>;
       expect(result.val).toBe(15);
@@ -192,7 +230,16 @@ describe('TransformHandler', () => {
     it('should subtract', async () => {
       const result = (await handler.execute(
         { val: 10 },
-        { operations: [{ type: 'math_op', field: 'val', operation: 'subtract', operand: 3 }] },
+        {
+          operations: [
+            {
+              type: 'math_op',
+              field: 'val',
+              operation: 'subtract',
+              operand: 3,
+            },
+          ],
+        },
         context,
       )) as Record<string, unknown>;
       expect(result.val).toBe(7);
@@ -201,7 +248,16 @@ describe('TransformHandler', () => {
     it('should multiply', async () => {
       const result = (await handler.execute(
         { val: 4 },
-        { operations: [{ type: 'math_op', field: 'val', operation: 'multiply', operand: 3 }] },
+        {
+          operations: [
+            {
+              type: 'math_op',
+              field: 'val',
+              operation: 'multiply',
+              operand: 3,
+            },
+          ],
+        },
         context,
       )) as Record<string, unknown>;
       expect(result.val).toBe(12);
@@ -210,7 +266,11 @@ describe('TransformHandler', () => {
     it('should divide', async () => {
       const result = (await handler.execute(
         { val: 10 },
-        { operations: [{ type: 'math_op', field: 'val', operation: 'divide', operand: 2 }] },
+        {
+          operations: [
+            { type: 'math_op', field: 'val', operation: 'divide', operand: 2 },
+          ],
+        },
         context,
       )) as Record<string, unknown>;
       expect(result.val).toBe(5);
@@ -219,7 +279,11 @@ describe('TransformHandler', () => {
     it('should not divide by zero', async () => {
       const result = (await handler.execute(
         { val: 10 },
-        { operations: [{ type: 'math_op', field: 'val', operation: 'divide', operand: 0 }] },
+        {
+          operations: [
+            { type: 'math_op', field: 'val', operation: 'divide', operand: 0 },
+          ],
+        },
         context,
       )) as Record<string, unknown>;
       expect(result.val).toBe(10);

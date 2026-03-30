@@ -12,7 +12,9 @@ export class NodeHandlerRegistry {
   get(type: string): NodeHandler {
     const handler = this.handlers.get(type);
     if (!handler) {
-      throw new Error(`UNKNOWN_NODE_TYPE: No handler registered for node type "${type}"`);
+      throw new Error(
+        `UNKNOWN_NODE_TYPE: No handler registered for node type "${type}"`,
+      );
     }
     return handler;
   }

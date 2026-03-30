@@ -7,6 +7,7 @@ import {
   IsObject,
   MaxLength,
 } from 'class-validator';
+import { Transform } from 'class-transformer';
 
 export class CreateTriggerDto {
   @IsUUID()
@@ -34,5 +35,6 @@ export class CreateTriggerDto {
 
   @IsOptional()
   @IsUUID()
-  authConfigId?: string;
+  @Transform(({ value }: { value: unknown }) => (value === '' ? null : value))
+  authConfigId?: string | null;
 }

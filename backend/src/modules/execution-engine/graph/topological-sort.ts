@@ -24,10 +24,7 @@ export function topologicalSort(
       continue;
     }
     adjacency.get(edge.sourceNodeId)!.push(edge.targetNodeId);
-    inDegree.set(
-      edge.targetNodeId,
-      (inDegree.get(edge.targetNodeId) ?? 0) + 1,
-    );
+    inDegree.set(edge.targetNodeId, (inDegree.get(edge.targetNodeId) ?? 0) + 1);
   }
 
   const queue: string[] = [];

@@ -156,7 +156,9 @@ export class TransformHandler implements NodeHandler {
         value = value.toLowerCase();
         break;
       case 'replace': {
-        const args = op.args as { search: string; replacement: string } | undefined;
+        const args = op.args as
+          | { search: string; replacement: string }
+          | undefined;
         if (args) {
           value = value.replaceAll(args.search, args.replacement);
         }

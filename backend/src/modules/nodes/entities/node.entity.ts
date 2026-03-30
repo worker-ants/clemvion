@@ -56,15 +56,15 @@ export class Node {
   @Column({ type: 'text', nullable: true })
   description: string;
 
-  @Column({ name: 'container_id', nullable: true })
-  containerId: string;
+  @Column({ name: 'container_id', type: 'uuid', nullable: true })
+  containerId: string | null;
 
   @ManyToOne(() => Node, { nullable: true, onDelete: 'SET NULL' })
   @JoinColumn({ name: 'container_id' })
   container: Node;
 
-  @Column({ name: 'tool_owner_id', nullable: true })
-  toolOwnerId: string;
+  @Column({ name: 'tool_owner_id', type: 'uuid', nullable: true })
+  toolOwnerId: string | null;
 
   @ManyToOne(() => Node, { nullable: true, onDelete: 'SET NULL' })
   @JoinColumn({ name: 'tool_owner_id' })

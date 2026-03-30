@@ -1,0 +1,88 @@
+{
+  "timestamp": "2026-03-30T16:43:58.991618",
+  "files": [
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/backend/src/common/decorators/workspace.decorator.spec.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/backend/src/common/dto/uuid-transform.spec.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/backend/src/modules/auth/strategies/jwt.strategy.spec.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    }
+  ],
+  "total_elapsed_seconds": 105.93,
+  "agents": [
+    {
+      "name": "database",
+      "status": "success",
+      "elapsed_seconds": 7.39
+    },
+    {
+      "name": "concurrency",
+      "status": "success",
+      "elapsed_seconds": 10.2
+    },
+    {
+      "name": "dependency",
+      "status": "success",
+      "elapsed_seconds": 22.16
+    },
+    {
+      "name": "documentation",
+      "status": "success",
+      "elapsed_seconds": 27.81
+    },
+    {
+      "name": "requirement",
+      "status": "success",
+      "elapsed_seconds": 29.79
+    },
+    {
+      "name": "scope",
+      "status": "success",
+      "elapsed_seconds": 31.78
+    },
+    {
+      "name": "security",
+      "status": "success",
+      "elapsed_seconds": 34.62
+    },
+    {
+      "name": "performance",
+      "status": "success",
+      "elapsed_seconds": 34.84
+    },
+    {
+      "name": "architecture",
+      "status": "success",
+      "elapsed_seconds": 35.66
+    },
+    {
+      "name": "api_contract",
+      "status": "success",
+      "elapsed_seconds": 37.5
+    },
+    {
+      "name": "side_effect",
+      "status": "success",
+      "elapsed_seconds": 38.1
+    },
+    {
+      "name": "maintainability",
+      "status": "success",
+      "elapsed_seconds": 38.39
+    },
+    {
+      "name": "testing",
+      "status": "success",
+      "elapsed_seconds": 41.5
+    }
+  ]
+}

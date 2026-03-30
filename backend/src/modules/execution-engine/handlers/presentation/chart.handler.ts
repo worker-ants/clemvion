@@ -14,7 +14,9 @@ export class ChartHandler implements NodeHandler {
       typeof config.chartType !== 'string' ||
       !validTypes.includes(config.chartType)
     ) {
-      errors.push(`chartType is required and must be one of: ${validTypes.join(', ')}`);
+      errors.push(
+        `chartType is required and must be one of: ${validTypes.join(', ')}`,
+      );
     }
 
     const xAxis = config.xAxis as Record<string, unknown> | undefined;

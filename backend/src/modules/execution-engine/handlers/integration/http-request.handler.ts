@@ -11,8 +11,16 @@ export class HttpRequestHandler implements NodeHandler {
     if (!config.method || typeof config.method !== 'string') {
       errors.push('method is required and must be a string');
     } else {
-      const allowed = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD', 'OPTIONS'];
-      if (!allowed.includes((config.method as string).toUpperCase())) {
+      const allowed = [
+        'GET',
+        'POST',
+        'PUT',
+        'PATCH',
+        'DELETE',
+        'HEAD',
+        'OPTIONS',
+      ];
+      if (!allowed.includes(config.method.toUpperCase())) {
         errors.push(`method must be one of: ${allowed.join(', ')}`);
       }
     }
@@ -21,7 +29,10 @@ export class HttpRequestHandler implements NodeHandler {
       errors.push('url is required and must be a string');
     }
 
-    if (config.timeout !== undefined && (typeof config.timeout !== 'number' || config.timeout <= 0)) {
+    if (
+      config.timeout !== undefined &&
+      (typeof config.timeout !== 'number' || config.timeout <= 0)
+    ) {
       errors.push('timeout must be a positive number');
     }
 
@@ -36,7 +47,9 @@ export class HttpRequestHandler implements NodeHandler {
     const method = (config.method as string).toUpperCase();
     let url = config.url as string;
     const headers = (config.headers as Record<string, string>) ?? {};
-    const queryParams = config.queryParams as Record<string, string> | undefined;
+    const queryParams = config.queryParams as
+      | Record<string, string>
+      | undefined;
     const body = config.body;
     const bodyType = (config.bodyType as string) ?? 'json';
     const responseType = (config.responseType as string) ?? 'json';
@@ -59,12 +72,15 @@ export class HttpRequestHandler implements NodeHandler {
     if (body !== undefined && !['GET', 'HEAD'].includes(method)) {
       if (bodyType === 'json') {
         (fetchOptions.headers as Record<string, string>)['Content-Type'] =
-          (fetchOptions.headers as Record<string, string>)['Content-Type'] ?? 'application/json';
+          (fetchOptions.headers as Record<string, string>)['Content-Type'] ??
+          'application/json';
         fetchOptions.body = JSON.stringify(body);
       } else if (bodyType === 'form') {
         const formData = new URLSearchParams();
         if (typeof body === 'object' && body !== null) {
-          for (const [key, value] of Object.entries(body as Record<string, unknown>)) {
+          for (const [key, value] of Object.entries(
+            body as Record<string, unknown>,
+          )) {
             formData.append(key, String(value));
           }
         }

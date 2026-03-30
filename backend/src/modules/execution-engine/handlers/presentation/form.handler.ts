@@ -8,7 +8,11 @@ export class FormHandler implements NodeHandler {
   validate(config: Record<string, unknown>): ValidationResult {
     const errors: string[] = [];
 
-    if (!config.fields || !Array.isArray(config.fields) || config.fields.length === 0) {
+    if (
+      !config.fields ||
+      !Array.isArray(config.fields) ||
+      config.fields.length === 0
+    ) {
       errors.push('fields is required and must be a non-empty array');
     }
 

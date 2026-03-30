@@ -7,6 +7,7 @@ import {
   IsUUID,
   MaxLength,
 } from 'class-validator';
+import { Transform } from 'class-transformer';
 
 export class UpdateNodeDto {
   @IsOptional()
@@ -36,9 +37,11 @@ export class UpdateNodeDto {
 
   @IsOptional()
   @IsUUID()
-  containerId?: string;
+  @Transform(({ value }: { value: unknown }) => (value === '' ? null : value))
+  containerId?: string | null;
 
   @IsOptional()
   @IsUUID()
-  toolOwnerId?: string;
+  @Transform(({ value }: { value: unknown }) => (value === '' ? null : value))
+  toolOwnerId?: string | null;
 }

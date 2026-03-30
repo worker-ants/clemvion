@@ -46,11 +46,15 @@ export class IfElseHandler implements NodeHandler {
       for (let i = 0; i < conditions.length; i++) {
         const cond = conditions[i];
         if (!cond.field || typeof cond.field !== 'string') {
-          errors.push(`conditions[${i}].field is required and must be a string`);
+          errors.push(
+            `conditions[${i}].field is required and must be a string`,
+          );
         }
         if (
           !cond.operator ||
-          !VALID_OPERATORS.includes(cond.operator as (typeof VALID_OPERATORS)[number])
+          !VALID_OPERATORS.includes(
+            cond.operator as (typeof VALID_OPERATORS)[number],
+          )
         ) {
           errors.push(
             `conditions[${i}].operator must be one of: ${VALID_OPERATORS.join(', ')}`,
@@ -71,9 +75,12 @@ export class IfElseHandler implements NodeHandler {
     config: Record<string, unknown>,
     _context: ExecutionContext,
   ): Promise<unknown> {
-    const { conditions, combineMode = 'and' } = config as unknown as IfElseConfig;
+    const { conditions, combineMode = 'and' } =
+      config as unknown as IfElseConfig;
 
-    const results = conditions.map((cond) => this.evaluateCondition(input, cond));
+    const results = conditions.map((cond) =>
+      this.evaluateCondition(input, cond),
+    );
 
     const passed =
       combineMode === 'and' ? results.every(Boolean) : results.some(Boolean);
@@ -99,19 +106,23 @@ export class IfElseHandler implements NodeHandler {
       case 'lte':
         return Number(fieldValue) <= Number(compareValue);
       case 'contains':
-        return typeof fieldValue === 'string' && typeof compareValue === 'string'
+        return typeof fieldValue === 'string' &&
+          typeof compareValue === 'string'
           ? fieldValue.includes(compareValue)
           : false;
       case 'not_contains':
-        return typeof fieldValue === 'string' && typeof compareValue === 'string'
+        return typeof fieldValue === 'string' &&
+          typeof compareValue === 'string'
           ? !fieldValue.includes(compareValue)
           : true;
       case 'starts_with':
-        return typeof fieldValue === 'string' && typeof compareValue === 'string'
+        return typeof fieldValue === 'string' &&
+          typeof compareValue === 'string'
           ? fieldValue.startsWith(compareValue)
           : false;
       case 'ends_with':
-        return typeof fieldValue === 'string' && typeof compareValue === 'string'
+        return typeof fieldValue === 'string' &&
+          typeof compareValue === 'string'
           ? fieldValue.endsWith(compareValue)
           : false;
       case 'is_empty':

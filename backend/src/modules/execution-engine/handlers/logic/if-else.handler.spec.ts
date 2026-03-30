@@ -161,9 +161,7 @@ describe('IfElseHandler', () => {
       const result = await handler.execute(
         { name: 'hello world' },
         {
-          conditions: [
-            { field: 'name', operator: 'contains', value: 'world' },
-          ],
+          conditions: [{ field: 'name', operator: 'contains', value: 'world' }],
           combineMode: 'and',
         },
         context,
@@ -209,9 +207,7 @@ describe('IfElseHandler', () => {
       const result = await handler.execute(
         { file: 'document.pdf' },
         {
-          conditions: [
-            { field: 'file', operator: 'ends_with', value: '.pdf' },
-          ],
+          conditions: [{ field: 'file', operator: 'ends_with', value: '.pdf' }],
           combineMode: 'and',
         },
         context,
@@ -288,9 +284,7 @@ describe('IfElseHandler', () => {
       const result = await handler.execute(
         {},
         {
-          conditions: [
-            { field: 'missing', operator: 'is_null', value: null },
-          ],
+          conditions: [{ field: 'missing', operator: 'is_null', value: null }],
           combineMode: 'and',
         },
         context,
