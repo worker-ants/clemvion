@@ -27,7 +27,8 @@ export class SplitHandler implements NodeHandler {
     config: Record<string, unknown>,
     _context: ExecutionContext,
   ): Promise<unknown> {
-    const { fieldPath, keepOtherFields = false } = config as unknown as SplitConfig;
+    const { fieldPath, keepOtherFields = false } =
+      config as unknown as SplitConfig;
 
     const arrayValue = getNestedValue(input, fieldPath);
 
@@ -57,7 +58,9 @@ export class SplitHandler implements NodeHandler {
     const result: Record<string, unknown> = {};
     const topLevelKey = excludePath.split('.')[0];
 
-    for (const [key, value] of Object.entries(input as Record<string, unknown>)) {
+    for (const [key, value] of Object.entries(
+      input as Record<string, unknown>,
+    )) {
       if (key !== topLevelKey) {
         result[key] = value;
       }

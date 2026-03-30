@@ -19,7 +19,8 @@ interface SwitchConfig {
 export class SwitchHandler implements NodeHandler {
   validate(config: Record<string, unknown>): ValidationResult {
     const errors: string[] = [];
-    const { switchValue, cases, hasDefault } = config as unknown as SwitchConfig;
+    const { switchValue, cases, hasDefault } =
+      config as unknown as SwitchConfig;
 
     if (!switchValue || typeof switchValue !== 'string') {
       errors.push('switchValue is required and must be a string');
@@ -48,7 +49,8 @@ export class SwitchHandler implements NodeHandler {
     config: Record<string, unknown>,
     _context: ExecutionContext,
   ): Promise<unknown> {
-    const { switchValue, cases, hasDefault } = config as unknown as SwitchConfig;
+    const { switchValue, cases, hasDefault } =
+      config as unknown as SwitchConfig;
 
     const actualValue = getNestedValue(input, switchValue);
 

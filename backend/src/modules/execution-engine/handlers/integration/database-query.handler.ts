@@ -14,7 +14,9 @@ export class DatabaseQueryHandler implements NodeHandler {
 
     if (
       config.queryType !== undefined &&
-      !['select', 'insert', 'update', 'delete'].includes(config.queryType as string)
+      !['select', 'insert', 'update', 'delete'].includes(
+        config.queryType as string,
+      )
     ) {
       errors.push('queryType must be one of: select, insert, update, delete');
     }

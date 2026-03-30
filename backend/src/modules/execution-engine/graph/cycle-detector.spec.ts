@@ -5,8 +5,18 @@ describe('detectCycle', () => {
   it('should detect no cycle in a linear graph', () => {
     const nodes: GraphNode[] = [{ id: 'A' }, { id: 'B' }, { id: 'C' }];
     const edges: GraphEdge[] = [
-      { sourceNodeId: 'A', sourcePort: 'out', targetNodeId: 'B', targetPort: 'in' },
-      { sourceNodeId: 'B', sourcePort: 'out', targetNodeId: 'C', targetPort: 'in' },
+      {
+        sourceNodeId: 'A',
+        sourcePort: 'out',
+        targetNodeId: 'B',
+        targetPort: 'in',
+      },
+      {
+        sourceNodeId: 'B',
+        sourcePort: 'out',
+        targetNodeId: 'C',
+        targetPort: 'in',
+      },
     ];
 
     const result = detectCycle(nodes, edges);
@@ -17,8 +27,18 @@ describe('detectCycle', () => {
   it('should detect a simple cycle: A -> B -> A', () => {
     const nodes: GraphNode[] = [{ id: 'A' }, { id: 'B' }];
     const edges: GraphEdge[] = [
-      { sourceNodeId: 'A', sourcePort: 'out', targetNodeId: 'B', targetPort: 'in' },
-      { sourceNodeId: 'B', sourcePort: 'out', targetNodeId: 'A', targetPort: 'in' },
+      {
+        sourceNodeId: 'A',
+        sourcePort: 'out',
+        targetNodeId: 'B',
+        targetPort: 'in',
+      },
+      {
+        sourceNodeId: 'B',
+        sourcePort: 'out',
+        targetNodeId: 'A',
+        targetPort: 'in',
+      },
     ];
 
     const result = detectCycle(nodes, edges);
@@ -30,9 +50,24 @@ describe('detectCycle', () => {
   it('should detect a complex cycle: A -> B -> C -> A', () => {
     const nodes: GraphNode[] = [{ id: 'A' }, { id: 'B' }, { id: 'C' }];
     const edges: GraphEdge[] = [
-      { sourceNodeId: 'A', sourcePort: 'out', targetNodeId: 'B', targetPort: 'in' },
-      { sourceNodeId: 'B', sourcePort: 'out', targetNodeId: 'C', targetPort: 'in' },
-      { sourceNodeId: 'C', sourcePort: 'out', targetNodeId: 'A', targetPort: 'in' },
+      {
+        sourceNodeId: 'A',
+        sourcePort: 'out',
+        targetNodeId: 'B',
+        targetPort: 'in',
+      },
+      {
+        sourceNodeId: 'B',
+        sourcePort: 'out',
+        targetNodeId: 'C',
+        targetPort: 'in',
+      },
+      {
+        sourceNodeId: 'C',
+        sourcePort: 'out',
+        targetNodeId: 'A',
+        targetPort: 'in',
+      },
     ];
 
     const result = detectCycle(nodes, edges);
@@ -49,10 +84,30 @@ describe('detectCycle', () => {
       { id: 'D' },
     ];
     const edges: GraphEdge[] = [
-      { sourceNodeId: 'A', sourcePort: 'out', targetNodeId: 'B', targetPort: 'in' },
-      { sourceNodeId: 'A', sourcePort: 'out', targetNodeId: 'C', targetPort: 'in' },
-      { sourceNodeId: 'B', sourcePort: 'out', targetNodeId: 'D', targetPort: 'in' },
-      { sourceNodeId: 'C', sourcePort: 'out', targetNodeId: 'D', targetPort: 'in' },
+      {
+        sourceNodeId: 'A',
+        sourcePort: 'out',
+        targetNodeId: 'B',
+        targetPort: 'in',
+      },
+      {
+        sourceNodeId: 'A',
+        sourcePort: 'out',
+        targetNodeId: 'C',
+        targetPort: 'in',
+      },
+      {
+        sourceNodeId: 'B',
+        sourcePort: 'out',
+        targetNodeId: 'D',
+        targetPort: 'in',
+      },
+      {
+        sourceNodeId: 'C',
+        sourcePort: 'out',
+        targetNodeId: 'D',
+        targetPort: 'in',
+      },
     ];
 
     const result = detectCycle(nodes, edges);

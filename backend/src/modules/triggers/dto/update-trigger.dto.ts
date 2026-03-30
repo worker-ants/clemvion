@@ -6,6 +6,7 @@ import {
   IsUUID,
   MaxLength,
 } from 'class-validator';
+import { Transform } from 'class-transformer';
 
 export class UpdateTriggerDto {
   @IsOptional()
@@ -28,5 +29,6 @@ export class UpdateTriggerDto {
 
   @IsOptional()
   @IsUUID()
-  authConfigId?: string;
+  @Transform(({ value }: { value: unknown }) => (value === '' ? null : value))
+  authConfigId?: string | null;
 }

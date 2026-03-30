@@ -91,7 +91,8 @@ export class VariableModificationHandler implements NodeHandler {
         break;
       case 'append':
         context.variables[mod.variable] =
-          (typeof current === 'string' ? current : '') + String(mod.value ?? '');
+          (typeof current === 'string' ? current : '') +
+          String(mod.value ?? '');
         break;
       case 'push':
         if (Array.isArray(current)) {

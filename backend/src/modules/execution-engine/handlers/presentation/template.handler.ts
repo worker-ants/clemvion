@@ -44,11 +44,14 @@ export class TemplateHandler implements NodeHandler {
     template: string,
     data: Record<string, unknown>,
   ): string {
-    return template.replace(/\{\{(\s*[\w.]+\s*)\}\}/g, (_match, key: string) => {
-      const trimmedKey = key.trim();
-      const value = this.resolveNestedValue(data, trimmedKey);
-      return value !== undefined ? String(value) : '';
-    });
+    return template.replace(
+      /\{\{(\s*[\w.]+\s*)\}\}/g,
+      (_match, key: string) => {
+        const trimmedKey = key.trim();
+        const value = this.resolveNestedValue(data, trimmedKey);
+        return value !== undefined ? String(value) : '';
+      },
+    );
   }
 
   private resolveNestedValue(
@@ -59,7 +62,11 @@ export class TemplateHandler implements NodeHandler {
     let current: unknown = data;
 
     for (const part of parts) {
-      if (current === null || current === undefined || typeof current !== 'object') {
+      if (
+        current === null ||
+        current === undefined ||
+        typeof current !== 'object'
+      ) {
         return undefined;
       }
       current = (current as Record<string, unknown>)[part];

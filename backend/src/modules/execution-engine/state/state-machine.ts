@@ -5,7 +5,10 @@ import { ExecutionStatus } from '../../executions/entities/execution.entity';
  * Based on spec: §1.1 Execution 상태
  */
 const ALLOWED_TRANSITIONS: Record<string, string[]> = {
-  [ExecutionStatus.PENDING]: [ExecutionStatus.RUNNING, ExecutionStatus.CANCELLED],
+  [ExecutionStatus.PENDING]: [
+    ExecutionStatus.RUNNING,
+    ExecutionStatus.CANCELLED,
+  ],
   [ExecutionStatus.RUNNING]: [
     ExecutionStatus.COMPLETED,
     ExecutionStatus.FAILED,

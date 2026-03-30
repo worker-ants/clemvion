@@ -14,7 +14,11 @@ export class TableHandler implements NodeHandler {
   validate(config: Record<string, unknown>): ValidationResult {
     const errors: string[] = [];
 
-    if (!config.columns || !Array.isArray(config.columns) || config.columns.length === 0) {
+    if (
+      !config.columns ||
+      !Array.isArray(config.columns) ||
+      config.columns.length === 0
+    ) {
       errors.push('columns is required and must be a non-empty array');
     }
 

@@ -1,4 +1,5 @@
 import { IsOptional, IsIn, IsUUID, IsDateString } from 'class-validator';
+import { Transform } from 'class-transformer';
 
 export class QueryStatisticsDto {
   @IsOptional()
@@ -7,7 +8,8 @@ export class QueryStatisticsDto {
 
   @IsOptional()
   @IsUUID()
-  workflowId?: string;
+  @Transform(({ value }: { value: unknown }) => (value === '' ? null : value))
+  workflowId?: string | null;
 
   @IsOptional()
   @IsDateString()

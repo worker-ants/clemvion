@@ -30,10 +30,7 @@ export class ForEachExecutor {
   async execute(
     config: ForEachConfig,
     context: ExecutionContext,
-    executeBody: (
-      item: unknown,
-      context: ExecutionContext,
-    ) => Promise<unknown>,
+    executeBody: (item: unknown, context: ExecutionContext) => Promise<unknown>,
   ): Promise<unknown[]> {
     const { array, errorPolicy = 'stop', collectResults = true } = config;
     const results: unknown[] = [];
@@ -57,8 +54,7 @@ export class ForEachExecutor {
       } catch (error: unknown) {
         const errorMessage =
           error instanceof Error ? error.message : String(error);
-        const errorCode =
-          error instanceof Error ? error.name : 'UNKNOWN_ERROR';
+        const errorCode = error instanceof Error ? error.name : 'UNKNOWN_ERROR';
 
         switch (errorPolicy) {
           case 'stop':

@@ -62,10 +62,7 @@ export class MergeHandler implements NodeHandler {
     return [input];
   }
 
-  private formatOutput(
-    inputs: unknown[],
-    outputFormat: string,
-  ): unknown {
+  private formatOutput(inputs: unknown[], outputFormat: string): unknown {
     switch (outputFormat) {
       case 'array':
         return inputs;

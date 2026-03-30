@@ -35,8 +35,8 @@ export class Workflow {
   @Column({ type: 'text', array: true, default: () => "'{}'" })
   tags: string[];
 
-  @Column({ name: 'folder_id', nullable: true })
-  folderId: string;
+  @Column({ name: 'folder_id', type: 'uuid', nullable: true })
+  folderId: string | null;
 
   @ManyToOne(() => Folder, { nullable: true, onDelete: 'SET NULL' })
   @JoinColumn({ name: 'folder_id' })

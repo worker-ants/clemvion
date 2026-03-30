@@ -44,8 +44,8 @@ export class Trigger {
   @Column({ name: 'endpoint_path', nullable: true, length: 255 })
   endpointPath: string;
 
-  @Column({ name: 'auth_config_id', nullable: true })
-  authConfigId: string;
+  @Column({ name: 'auth_config_id', type: 'uuid', nullable: true })
+  authConfigId: string | null;
 
   @Column({ name: 'last_triggered_at', type: 'timestamptz', nullable: true })
   lastTriggeredAt: Date;

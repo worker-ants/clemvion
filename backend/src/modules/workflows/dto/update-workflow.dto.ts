@@ -7,6 +7,7 @@ import {
   MaxLength,
   IsObject,
 } from 'class-validator';
+import { Transform } from 'class-transformer';
 
 export class UpdateWorkflowDto {
   @IsOptional()
@@ -29,7 +30,8 @@ export class UpdateWorkflowDto {
 
   @IsOptional()
   @IsUUID()
-  folderId?: string;
+  @Transform(({ value }: { value: unknown }) => (value === '' ? null : value))
+  folderId?: string | null;
 
   @IsOptional()
   @IsObject()

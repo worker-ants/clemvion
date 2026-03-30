@@ -16,7 +16,10 @@ describe('HttpRequestHandler', () => {
 
   describe('validate', () => {
     it('should pass with valid method and url', () => {
-      const result = handler.validate({ method: 'GET', url: 'https://api.example.com' });
+      const result = handler.validate({
+        method: 'GET',
+        url: 'https://api.example.com',
+      });
       expect(result.valid).toBe(true);
       expect(result.errors).toHaveLength(0);
     });
@@ -34,7 +37,10 @@ describe('HttpRequestHandler', () => {
     });
 
     it('should fail with invalid method', () => {
-      const result = handler.validate({ method: 'INVALID', url: 'https://api.example.com' });
+      const result = handler.validate({
+        method: 'INVALID',
+        url: 'https://api.example.com',
+      });
       expect(result.valid).toBe(false);
       expect(result.errors[0]).toContain('method');
     });
@@ -50,9 +56,20 @@ describe('HttpRequestHandler', () => {
     });
 
     it('should accept all valid HTTP methods', () => {
-      const methods = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD', 'OPTIONS'];
+      const methods = [
+        'GET',
+        'POST',
+        'PUT',
+        'PATCH',
+        'DELETE',
+        'HEAD',
+        'OPTIONS',
+      ];
       for (const method of methods) {
-        const result = handler.validate({ method, url: 'https://api.example.com' });
+        const result = handler.validate({
+          method,
+          url: 'https://api.example.com',
+        });
         expect(result.valid).toBe(true);
       }
     });
@@ -75,13 +92,21 @@ describe('HttpRequestHandler', () => {
         status: 200,
         json: jest.fn().mockResolvedValue({ data: 'test' }),
       };
-      global.fetch = jest.fn().mockResolvedValue(mockResponse) as unknown as typeof fetch;
+      global.fetch = jest
+        .fn()
+        .mockResolvedValue(mockResponse) as unknown as typeof fetch;
 
       const result = (await handler.execute(
         null,
         { method: 'GET', url: 'https://api.example.com/data' },
         context,
-      )) as { port: string; data: { response: unknown; meta: { statusCode: number; duration: number } } };
+      )) as {
+        port: string;
+        data: {
+          response: unknown;
+          meta: { statusCode: number; duration: number };
+        };
+      };
 
       expect(result.port).toBe('success');
       expect(result.data.response).toEqual({ data: 'test' });
@@ -95,26 +120,38 @@ describe('HttpRequestHandler', () => {
         status: 404,
         json: jest.fn().mockResolvedValue({ error: 'not found' }),
       };
-      global.fetch = jest.fn().mockResolvedValue(mockResponse) as unknown as typeof fetch;
+      global.fetch = jest
+        .fn()
+        .mockResolvedValue(mockResponse) as unknown as typeof fetch;
 
       const result = (await handler.execute(
         null,
         { method: 'GET', url: 'https://api.example.com/missing' },
         context,
-      )) as { port: string; data: { response: unknown; meta: { statusCode: number } } };
+      )) as {
+        port: string;
+        data: { response: unknown; meta: { statusCode: number } };
+      };
 
       expect(result.port).toBe('error');
       expect(result.data.meta.statusCode).toBe(404);
     });
 
     it('should return error port on network failure', async () => {
-      global.fetch = jest.fn().mockRejectedValue(new Error('Network error')) as unknown as typeof fetch;
+      global.fetch = jest
+        .fn()
+        .mockRejectedValue(
+          new Error('Network error'),
+        ) as unknown as typeof fetch;
 
       const result = (await handler.execute(
         null,
         { method: 'GET', url: 'https://api.example.com/fail' },
         context,
-      )) as { port: string; data: { response: { error: string }; meta: { statusCode: number } } };
+      )) as {
+        port: string;
+        data: { response: { error: string }; meta: { statusCode: number } };
+      };
 
       expect(result.port).toBe('error');
       expect(result.data.response.error).toBe('Network error');
@@ -127,7 +164,9 @@ describe('HttpRequestHandler', () => {
         status: 200,
         json: jest.fn().mockResolvedValue({}),
       };
-      global.fetch = jest.fn().mockResolvedValue(mockResponse) as unknown as typeof fetch;
+      global.fetch = jest
+        .fn()
+        .mockResolvedValue(mockResponse) as unknown as typeof fetch;
 
       await handler.execute(
         null,
@@ -150,7 +189,9 @@ describe('HttpRequestHandler', () => {
         status: 201,
         json: jest.fn().mockResolvedValue({ id: 1 }),
       };
-      global.fetch = jest.fn().mockResolvedValue(mockResponse) as unknown as typeof fetch;
+      global.fetch = jest
+        .fn()
+        .mockResolvedValue(mockResponse) as unknown as typeof fetch;
 
       await handler.execute(
         null,
@@ -162,7 +203,8 @@ describe('HttpRequestHandler', () => {
         context,
       );
 
-      const fetchArgs = (global.fetch as jest.Mock).mock.calls[0][1] as RequestInit;
+      const fetchArgs = (global.fetch as jest.Mock).mock
+        .calls[0][1] as RequestInit;
       expect(fetchArgs.body).toBe(JSON.stringify({ name: 'test' }));
     });
 
@@ -172,7 +214,9 @@ describe('HttpRequestHandler', () => {
         status: 200,
         text: jest.fn().mockResolvedValue('plain text response'),
       };
-      global.fetch = jest.fn().mockResolvedValue(mockResponse) as unknown as typeof fetch;
+      global.fetch = jest
+        .fn()
+        .mockResolvedValue(mockResponse) as unknown as typeof fetch;
 
       const result = (await handler.execute(
         null,

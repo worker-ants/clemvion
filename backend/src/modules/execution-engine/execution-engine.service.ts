@@ -1,7 +1,10 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { Execution, ExecutionStatus } from '../executions/entities/execution.entity';
+import {
+  Execution,
+  ExecutionStatus,
+} from '../executions/entities/execution.entity';
 import {
   NodeExecution,
   NodeExecutionStatus,
@@ -19,7 +22,10 @@ import {
   ErrorPolicyHandler,
   ErrorPolicyConfig,
 } from './error/error-policy.handler';
-import { ExecutionContext, NodeHandler } from './handlers/node-handler.interface';
+import {
+  ExecutionContext,
+  NodeHandler,
+} from './handlers/node-handler.interface';
 
 // Node handler imports
 import { IfElseHandler } from './handlers/logic/if-else.handler';
@@ -131,10 +137,7 @@ export class ExecutionEngineService implements OnModuleInit {
 
     try {
       // 3. Transition to RUNNING
-      await this.updateExecutionStatus(
-        savedExecution,
-        ExecutionStatus.RUNNING,
-      );
+      await this.updateExecutionStatus(savedExecution, ExecutionStatus.RUNNING);
 
       // 4. Load nodes and edges
       const nodes = await this.nodeRepository.findBy({ workflowId });
@@ -282,12 +285,10 @@ export class ExecutionEngineService implements OnModuleInit {
 
       // Update node execution record
       nodeExecution.status = NodeExecutionStatus.COMPLETED;
-      nodeExecution.outputData =
-        (output as Record<string, unknown>) ?? {};
+      nodeExecution.outputData = (output as Record<string, unknown>) ?? {};
       nodeExecution.finishedAt = new Date();
       nodeExecution.durationMs =
-        nodeExecution.finishedAt.getTime() -
-        nodeExecution.startedAt.getTime();
+        nodeExecution.finishedAt.getTime() - nodeExecution.startedAt.getTime();
       await this.nodeExecutionRepository.save(nodeExecution);
 
       // Update execution path
@@ -343,8 +344,7 @@ export class ExecutionEngineService implements OnModuleInit {
           );
           nodeExecution.status = NodeExecutionStatus.FAILED;
           nodeExecution.error = {
-            message:
-              error instanceof Error ? error.message : String(error),
+            message: error instanceof Error ? error.message : String(error),
           };
           nodeExecution.finishedAt = new Date();
           nodeExecution.durationMs =
@@ -358,8 +358,7 @@ export class ExecutionEngineService implements OnModuleInit {
         default:
           nodeExecution.status = NodeExecutionStatus.FAILED;
           nodeExecution.error = {
-            message:
-              error instanceof Error ? error.message : String(error),
+            message: error instanceof Error ? error.message : String(error),
           };
           nodeExecution.finishedAt = new Date();
           nodeExecution.durationMs =
@@ -422,7 +421,9 @@ export class ExecutionEngineService implements OnModuleInit {
     }
 
     return {
-      policy: (errorHandling['policy'] as ErrorPolicyConfig['policy']) ?? 'stop_workflow',
+      policy:
+        (errorHandling['policy'] as ErrorPolicyConfig['policy']) ??
+        'stop_workflow',
       defaultOutput: errorHandling['defaultOutput'],
       retryConfig: errorHandling['retryConfig'] as
         | ErrorPolicyConfig['retryConfig']

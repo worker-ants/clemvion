@@ -53,9 +53,7 @@ export class ErrorPolicyHandler {
         return { action: 'skip' };
 
       case 'use_default_output':
-        this.logger.warn(
-          `Using default output due to error: ${error.message}`,
-        );
+        this.logger.warn(`Using default output due to error: ${error.message}`);
         return { action: 'use_default', output: config.defaultOutput ?? null };
 
       case 'retry': {

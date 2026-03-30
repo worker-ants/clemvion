@@ -4,8 +4,14 @@ import { ExecutionEngineService } from './execution-engine.service';
 import { NodeHandlerRegistry } from './handlers/node-handler.registry';
 import { ExecutionContextService } from './context/execution-context.service';
 import { ErrorPolicyHandler } from './error/error-policy.handler';
-import { Execution, ExecutionStatus } from '../executions/entities/execution.entity';
-import { NodeExecution, NodeExecutionStatus } from '../node-executions/entities/node-execution.entity';
+import {
+  Execution,
+  ExecutionStatus,
+} from '../executions/entities/execution.entity';
+import {
+  NodeExecution,
+  NodeExecutionStatus,
+} from '../node-executions/entities/node-execution.entity';
 import { Node, NodeCategory } from '../nodes/entities/node.entity';
 import { Edge, EdgeType } from '../edges/entities/edge.entity';
 import { Workflow } from '../workflows/entities/workflow.entity';
@@ -113,7 +119,9 @@ describe('ExecutionEngineService', () => {
       save: jest.fn().mockImplementation((entity: Partial<Execution>) => {
         return Promise.resolve({ ...savedExecution, ...entity });
       }),
-      findOneBy: jest.fn().mockResolvedValue({ ...savedExecution, executionPath: [] }),
+      findOneBy: jest
+        .fn()
+        .mockResolvedValue({ ...savedExecution, executionPath: [] }),
     };
 
     mockNodeExecutionRepo = {
@@ -122,9 +130,11 @@ describe('ExecutionEngineService', () => {
         ...data,
         startedAt: new Date(),
       })),
-      save: jest.fn().mockImplementation((entity: Partial<NodeExecution>) =>
-        Promise.resolve(entity),
-      ),
+      save: jest
+        .fn()
+        .mockImplementation((entity: Partial<NodeExecution>) =>
+          Promise.resolve(entity),
+        ),
     };
 
     mockNodeRepo = {
@@ -146,7 +156,10 @@ describe('ExecutionEngineService', () => {
         ExecutionContextService,
         ErrorPolicyHandler,
         { provide: getRepositoryToken(Execution), useValue: mockExecutionRepo },
-        { provide: getRepositoryToken(NodeExecution), useValue: mockNodeExecutionRepo },
+        {
+          provide: getRepositoryToken(NodeExecution),
+          useValue: mockNodeExecutionRepo,
+        },
         { provide: getRepositoryToken(Node), useValue: mockNodeRepo },
         { provide: getRepositoryToken(Edge), useValue: mockEdgeRepo },
         { provide: getRepositoryToken(Workflow), useValue: mockWorkflowRepo },

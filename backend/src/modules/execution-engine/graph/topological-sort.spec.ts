@@ -5,8 +5,18 @@ describe('topologicalSort', () => {
   it('should sort a linear chain: A -> B -> C', () => {
     const nodes: GraphNode[] = [{ id: 'A' }, { id: 'B' }, { id: 'C' }];
     const edges: GraphEdge[] = [
-      { sourceNodeId: 'A', sourcePort: 'out', targetNodeId: 'B', targetPort: 'in' },
-      { sourceNodeId: 'B', sourcePort: 'out', targetNodeId: 'C', targetPort: 'in' },
+      {
+        sourceNodeId: 'A',
+        sourcePort: 'out',
+        targetNodeId: 'B',
+        targetPort: 'in',
+      },
+      {
+        sourceNodeId: 'B',
+        sourcePort: 'out',
+        targetNodeId: 'C',
+        targetPort: 'in',
+      },
     ];
 
     const result = topologicalSort(nodes, edges);
@@ -21,10 +31,30 @@ describe('topologicalSort', () => {
       { id: 'D' },
     ];
     const edges: GraphEdge[] = [
-      { sourceNodeId: 'A', sourcePort: 'out', targetNodeId: 'B', targetPort: 'in' },
-      { sourceNodeId: 'A', sourcePort: 'out', targetNodeId: 'C', targetPort: 'in' },
-      { sourceNodeId: 'B', sourcePort: 'out', targetNodeId: 'D', targetPort: 'in' },
-      { sourceNodeId: 'C', sourcePort: 'out', targetNodeId: 'D', targetPort: 'in' },
+      {
+        sourceNodeId: 'A',
+        sourcePort: 'out',
+        targetNodeId: 'B',
+        targetPort: 'in',
+      },
+      {
+        sourceNodeId: 'A',
+        sourcePort: 'out',
+        targetNodeId: 'C',
+        targetPort: 'in',
+      },
+      {
+        sourceNodeId: 'B',
+        sourcePort: 'out',
+        targetNodeId: 'D',
+        targetPort: 'in',
+      },
+      {
+        sourceNodeId: 'C',
+        sourcePort: 'out',
+        targetNodeId: 'D',
+        targetPort: 'in',
+      },
     ];
 
     const result = topologicalSort(nodes, edges);
@@ -55,8 +85,18 @@ describe('topologicalSort', () => {
       { id: 'D' },
     ];
     const edges: GraphEdge[] = [
-      { sourceNodeId: 'A', sourcePort: 'out', targetNodeId: 'B', targetPort: 'in' },
-      { sourceNodeId: 'C', sourcePort: 'out', targetNodeId: 'D', targetPort: 'in' },
+      {
+        sourceNodeId: 'A',
+        sourcePort: 'out',
+        targetNodeId: 'B',
+        targetPort: 'in',
+      },
+      {
+        sourceNodeId: 'C',
+        sourcePort: 'out',
+        targetNodeId: 'D',
+        targetPort: 'in',
+      },
     ];
 
     const result = topologicalSort(nodes, edges);
@@ -75,9 +115,24 @@ describe('topologicalSort', () => {
       { id: 'D' },
     ];
     const edges: GraphEdge[] = [
-      { sourceNodeId: 'A', sourcePort: 'out', targetNodeId: 'B', targetPort: 'in' },
-      { sourceNodeId: 'A', sourcePort: 'out', targetNodeId: 'C', targetPort: 'in' },
-      { sourceNodeId: 'A', sourcePort: 'out', targetNodeId: 'D', targetPort: 'in' },
+      {
+        sourceNodeId: 'A',
+        sourcePort: 'out',
+        targetNodeId: 'B',
+        targetPort: 'in',
+      },
+      {
+        sourceNodeId: 'A',
+        sourcePort: 'out',
+        targetNodeId: 'C',
+        targetPort: 'in',
+      },
+      {
+        sourceNodeId: 'A',
+        sourcePort: 'out',
+        targetNodeId: 'D',
+        targetPort: 'in',
+      },
     ];
 
     const result = topologicalSort(nodes, edges);
@@ -92,8 +147,18 @@ describe('topologicalSort', () => {
   it('should throw on cyclic graph', () => {
     const nodes: GraphNode[] = [{ id: 'A' }, { id: 'B' }];
     const edges: GraphEdge[] = [
-      { sourceNodeId: 'A', sourcePort: 'out', targetNodeId: 'B', targetPort: 'in' },
-      { sourceNodeId: 'B', sourcePort: 'out', targetNodeId: 'A', targetPort: 'in' },
+      {
+        sourceNodeId: 'A',
+        sourcePort: 'out',
+        targetNodeId: 'B',
+        targetPort: 'in',
+      },
+      {
+        sourceNodeId: 'B',
+        sourcePort: 'out',
+        targetNodeId: 'A',
+        targetPort: 'in',
+      },
     ];
 
     expect(() => topologicalSort(nodes, edges)).toThrow('cycle');

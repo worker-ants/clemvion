@@ -38,15 +38,21 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     const workspace = await this.workspacesService.findPersonalWorkspace(
       user.id,
     );
-    const role = workspace
-      ? ((await this.workspacesService.getMemberRole(workspace.id, user.id)) ??
-        'owner')
-      : 'owner';
+    if (!workspace) {
+      throw new UnauthorizedException({
+        code: 'WORKSPACE_NOT_FOUND',
+        message: 'No workspace found for user',
+      });
+    }
+
+    const role =
+      (await this.workspacesService.getMemberRole(workspace.id, user.id)) ??
+      'member';
 
     return {
       sub: user.id,
       email: user.email,
-      workspaceId: workspace?.id ?? '',
+      workspaceId: workspace.id,
       role,
     };
   }
