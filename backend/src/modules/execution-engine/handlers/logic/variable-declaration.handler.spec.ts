@@ -1,0 +1,141 @@
+import { VariableDeclarationHandler } from './variable-declaration.handler.js';
+import { ExecutionContext } from '../node-handler.interface.js';
+
+describe('VariableDeclarationHandler', () => {
+  let handler: VariableDeclarationHandler;
+  let context: ExecutionContext;
+
+  beforeEach(() => {
+    handler = new VariableDeclarationHandler();
+    context = {
+      executionId: 'test-exec-1',
+      workflowId: 'test-wf-1',
+      variables: {},
+      nodeOutputCache: {},
+    };
+  });
+
+  describe('validate', () => {
+    it('should return valid for correct config', () => {
+      const result = handler.validate({
+        variables: [
+          { name: 'counter', type: 'number', defaultValue: 0 },
+          { name: 'label', type: 'string', defaultValue: 'hello' },
+        ],
+      });
+      expect(result.valid).toBe(true);
+      expect(result.errors).toHaveLength(0);
+    });
+
+    it('should return invalid when variables is missing', () => {
+      const result = handler.validate({});
+      expect(result.valid).toBe(false);
+      expect(result.errors).toContain('variables must be an array');
+    });
+
+    it('should return invalid when variables is empty', () => {
+      const result = handler.validate({ variables: [] });
+      expect(result.valid).toBe(false);
+      expect(result.errors).toContain('variables must not be empty');
+    });
+
+    it('should return invalid when variable name is missing', () => {
+      const result = handler.validate({
+        variables: [{ type: 'string', defaultValue: '' }],
+      });
+      expect(result.valid).toBe(false);
+      expect(result.errors).toContain(
+        'variables[0].name is required and must be a string',
+      );
+    });
+
+    it('should return invalid when variable type is missing', () => {
+      const result = handler.validate({
+        variables: [{ name: 'x', defaultValue: '' }],
+      });
+      expect(result.valid).toBe(false);
+      expect(result.errors).toContain(
+        'variables[0].type is required and must be a string',
+      );
+    });
+  });
+
+  describe('execute', () => {
+    it('should set variables with default values in context', async () => {
+      const input = { some: 'data' };
+      const result = await handler.execute(
+        input,
+        {
+          variables: [
+            { name: 'counter', type: 'number', defaultValue: 0 },
+            { name: 'label', type: 'string', defaultValue: 'hello' },
+          ],
+        },
+        context,
+      );
+
+      expect(result).toBe(input);
+      expect(context.variables['counter']).toBe(0);
+      expect(context.variables['label']).toBe('hello');
+    });
+
+    it('should set null when no defaultValue is provided', async () => {
+      await handler.execute(
+        {},
+        {
+          variables: [{ name: 'x', type: 'number' }],
+        },
+        context,
+      );
+
+      expect(context.variables['x']).toBeNull();
+    });
+
+    it('should not overwrite existing variables', async () => {
+      context.variables['counter'] = 42;
+
+      await handler.execute(
+        {},
+        {
+          variables: [{ name: 'counter', type: 'number', defaultValue: 0 }],
+        },
+        context,
+      );
+
+      expect(context.variables['counter']).toBe(42);
+    });
+
+    it('should pass through input unchanged', async () => {
+      const input = { nested: { data: [1, 2, 3] } };
+      const result = await handler.execute(
+        input,
+        {
+          variables: [{ name: 'v', type: 'string', defaultValue: '' }],
+        },
+        context,
+      );
+
+      expect(result).toBe(input);
+    });
+
+    it('should declare multiple variables at once', async () => {
+      await handler.execute(
+        {},
+        {
+          variables: [
+            { name: 'a', type: 'number', defaultValue: 1 },
+            { name: 'b', type: 'string', defaultValue: 'test' },
+            { name: 'c', type: 'boolean', defaultValue: true },
+            { name: 'd', type: 'array', defaultValue: [1, 2] },
+          ],
+        },
+        context,
+      );
+
+      expect(context.variables['a']).toBe(1);
+      expect(context.variables['b']).toBe('test');
+      expect(context.variables['c']).toBe(true);
+      expect(context.variables['d']).toEqual([1, 2]);
+    });
+  });
+});

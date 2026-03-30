@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Execution, ExecutionStatus } from '../executions/entities/execution.entity';
@@ -21,8 +21,32 @@ import {
 } from './error/error-policy.handler';
 import { ExecutionContext, NodeHandler } from './handlers/node-handler.interface';
 
+// Node handler imports
+import { IfElseHandler } from './handlers/logic/if-else.handler';
+import { SwitchHandler } from './handlers/logic/switch.handler';
+import { LoopHandler } from './handlers/logic/loop.handler';
+import { VariableDeclarationHandler } from './handlers/logic/variable-declaration.handler';
+import { VariableModificationHandler } from './handlers/logic/variable-modification.handler';
+import { SplitHandler } from './handlers/logic/split.handler';
+import { MapHandler } from './handlers/logic/map.handler';
+import { ForEachHandler } from './handlers/logic/foreach.handler';
+import { MergeHandler } from './handlers/logic/merge.handler';
+import { WorkflowHandler } from './handlers/flow/workflow.handler';
+import { HttpRequestHandler } from './handlers/integration/http-request.handler';
+import { DatabaseQueryHandler } from './handlers/integration/database-query.handler';
+import { SlackHandler } from './handlers/integration/slack.handler';
+import { SendEmailHandler } from './handlers/integration/send-email.handler';
+import { TransformHandler } from './handlers/data/transform.handler';
+import { CodeHandler } from './handlers/data/code.handler';
+import { CarouselHandler } from './handlers/presentation/carousel.handler';
+import { TableHandler } from './handlers/presentation/table.handler';
+import { ChartHandler } from './handlers/presentation/chart.handler';
+import { FormHandler } from './handlers/presentation/form.handler';
+import { TemplateHandler } from './handlers/presentation/template.handler';
+import { PdfHandler } from './handlers/presentation/pdf.handler';
+
 @Injectable()
-export class ExecutionEngineService {
+export class ExecutionEngineService implements OnModuleInit {
   private readonly logger = new Logger(ExecutionEngineService.name);
 
   constructor(
@@ -40,6 +64,43 @@ export class ExecutionEngineService {
     private readonly contextService: ExecutionContextService,
     private readonly errorPolicyHandler: ErrorPolicyHandler,
   ) {}
+
+  onModuleInit() {
+    this.registerHandlers();
+  }
+
+  private registerHandlers() {
+    const handlers: [string, NodeHandler][] = [
+      ['if_else', new IfElseHandler()],
+      ['switch', new SwitchHandler()],
+      ['loop', new LoopHandler()],
+      ['variable_declaration', new VariableDeclarationHandler()],
+      ['variable_modification', new VariableModificationHandler()],
+      ['split', new SplitHandler()],
+      ['map', new MapHandler()],
+      ['foreach', new ForEachHandler()],
+      ['merge', new MergeHandler()],
+      ['workflow', new WorkflowHandler()],
+      ['http_request', new HttpRequestHandler()],
+      ['database_query', new DatabaseQueryHandler()],
+      ['slack', new SlackHandler()],
+      ['send_email', new SendEmailHandler()],
+      ['transform', new TransformHandler()],
+      ['code', new CodeHandler()],
+      ['carousel', new CarouselHandler()],
+      ['table', new TableHandler()],
+      ['chart', new ChartHandler()],
+      ['form', new FormHandler()],
+      ['template', new TemplateHandler()],
+      ['pdf', new PdfHandler()],
+    ];
+
+    for (const [type, handler] of handlers) {
+      this.handlerRegistry.register(type, handler);
+    }
+
+    this.logger.log(`Registered ${handlers.length} node handlers`);
+  }
 
   /**
    * Execute a workflow. Returns the execution ID.
