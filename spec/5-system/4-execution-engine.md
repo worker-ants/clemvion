@@ -188,6 +188,11 @@ $loop.count = 10              $item.index = 1
 
 - 메인 Execution과 동일한 execution_id를 공유
 - 백그라운드 실패가 메인 흐름의 Execution 상태에 영향을 주지 않음
+- 백그라운드 실패 시 `notifyOnError=true`이면 `notifyChannels`에 따라 알림 전송:
+  - `in_app`: Notification 엔티티 생성 (`type: background_failed`, 실행 시작 사용자에게)
+  - `email`: 실행 시작 사용자 이메일로 실패 알림 발송
+  - `slack`: 연동된 Slack Integration을 통해 지정 채널에 메시지 전송
+- Execution 상세 화면에서 Background 실행 결과를 별도 섹션으로 표시 (성공/실패 불문)
 
 ---
 
