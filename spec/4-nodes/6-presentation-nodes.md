@@ -202,10 +202,33 @@
 
 1. 입력 데이터에서 `dataField` 경로로 배열 추출
 2. `xAxis.field`로 카테고리/라벨 추출
-3. `yAxis.field` + `yAxis.aggregation`으로 값 산출
+3. `yAxis.field` + `yAxis.aggregation`으로 값 산출 (§3.3.1 aggregation 규칙 참조)
 4. `groupBy` 지정 시 시리즈별 데이터 그룹화
 5. `chartType`에 따른 SVG 차트 렌더링
 6. 차트 설정 JSON + SVG 문자열을 출력 포트로 전달
+
+#### 3.3.1 Aggregation 상세 규칙
+
+X축 값이 중복되는 경우(예: 동일 월이 여러 행에 존재) `yAxis.aggregation`에 따라 자동 합산한다.
+
+| aggregation | 동작 | null/undefined 처리 |
+|-------------|------|---------------------|
+| `sum` (기본) | 동일 X축 키의 Y값 합계 | 건너뜀 (합산에서 제외) |
+| `count` | 동일 X축 키의 행 수 | null 포함 카운트 |
+| `avg` | 동일 X축 키의 Y값 평균 | 건너뜀 (분모에서도 제외) |
+| `min` | 동일 X축 키의 Y값 최솟값 | 건너뜀 |
+| `max` | 동일 X축 키의 Y값 최댓값 | 건너뜀 |
+
+**규칙:**
+
+| 항목 | 설명 |
+|------|------|
+| 기본 aggregation | `aggregation` 미지정 시 기본값은 `sum` |
+| X축 중복 처리 | 동일 X축 키에 여러 행이 매핑되면 aggregation에 따라 자동 합산 |
+| groupBy 조합 | `groupBy` 사용 시 그룹 내에서 X축 중복 합산 → 그룹별 시리즈 생성 |
+| null/undefined Y값 | `count`를 제외한 모든 aggregation에서 해당 행을 건너뜀 (합산/평균/최솟값/최댓값에서 제외) |
+| null X축 값 | X축 값이 null/undefined인 행은 차트에서 제외 |
+| 빈 결과 | aggregation 후 데이터가 0건이면 빈 차트 렌더링 (축만 표시) |
 
 **출력 형식:**
 

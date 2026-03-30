@@ -139,13 +139,15 @@
 ## Phase 3: 낮은 우선순위
 
 ### 16. 온보딩 플로우 [A3]
-- [ ] **논의**: 최초 가입 후 안내 UX (Phase 1 필수 여부 결정)
+- [x] **결정**: Phase 1에서 제외. Phase 2에서 구현.
 
 ### 17. Background 실패 처리 [B6]
-- [ ] **작업**: 백그라운드 태스크 실패 시 알림 채널 정의
+- [x] **결정**: 인앱 알림 + Execution 상세 화면 별도 섹션 + 알림 채널 설정(in_app/email/slack)
+- [x] **수정 완료**: logic-nodes.md (Background config + 실패 알림), execution-engine.md (§3.3 보강), data-model.md (Notification.type 추가)
 
 ### 18. Chart aggregation 상세 [C5]
-- [ ] **작업**: 중복 키 합산 규칙 구체화
+- [x] **결정**: X축 중복 시 자동 합산, 기본 sum, null 건너뜀, count는 null 포함
+- [x] **수정 완료**: presentation-nodes.md (Chart §3.3.1 aggregation 상세 규칙)
 
 ---
 
@@ -168,6 +170,6 @@
 | 13 | PDF 렌더링 기술 | ✅ 완료 | B안(Playwright) 채택. page.pdf() API, Chromium 풀 관리 명시 |
 | 14 | API 패턴 통일 | ✅ 완료 | PATCH 본문 토글 패턴, 워크스페이스 단위 유니크, Execution.error↔NodeExecution.error 관계 반영 |
 | 15 | 인프라 세부사항 | ✅ 완료 | Redis 키 네이밍 컨벤션, S3 호환 버킷 구조, Flyway 마이그레이션 전략 반영 |
-| 16 | 온보딩 플로우 | ⬜ 미착수 | |
-| 17 | Background 실패 | ⬜ 미착수 | |
-| 18 | Chart aggregation | ⬜ 미착수 | |
+| 16 | 온보딩 플로우 | ✅ 완료 | Phase 1 제외, Phase 2 이연 결정 |
+| 17 | Background 실패 | ✅ 완료 | 인앱+이메일+Slack 알림 채널, Execution 상세 별도 섹션 표시 |
+| 18 | Chart aggregation | ✅ 완료 | X축 중복 자동 합산, 기본 sum, null 처리 규칙 명시 |
