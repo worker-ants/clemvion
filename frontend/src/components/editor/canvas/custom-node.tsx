@@ -5,6 +5,7 @@ import { Handle, Position } from "@xyflow/react";
 import type { NodeProps, Node } from "@xyflow/react";
 import { cn } from "@/lib/utils/cn";
 import { getNodeDefinition, CATEGORY_COLORS } from "@/lib/node-definitions";
+import { useExecutionStore } from "@/lib/stores/execution-store";
 import { NodeIcon } from "./node-icon";
 
 type CustomNodeData = {
@@ -17,12 +18,30 @@ type CustomNodeData = {
 
 type CustomNodeType = Node<CustomNodeData, "custom">;
 
-function CustomNodeComponent({ data, selected }: NodeProps<CustomNodeType>) {
+function CustomNodeComponent({ id, data, selected }: NodeProps<CustomNodeType>) {
   const definition = getNodeDefinition(data.type);
   const categoryColor = CATEGORY_COLORS[data.category] ?? "#6B7280";
   const inputs = definition?.inputs ?? [];
   const outputs = definition?.outputs ?? [];
   const hasMultipleOutputs = outputs.length > 1;
+
+  const nodeStatus = useExecutionStore((s) => s.nodeStatuses.get(id));
+
+  const statusStyles = (() => {
+    if (!nodeStatus) return "";
+    switch (nodeStatus.status) {
+      case "running":
+        return "ring-2 ring-blue-400 animate-pulse";
+      case "completed":
+        return "ring-2 ring-green-400";
+      case "failed":
+        return "ring-2 ring-red-400";
+      case "skipped":
+        return "opacity-40";
+      default:
+        return "";
+    }
+  })();
 
   return (
     <div
@@ -30,6 +49,7 @@ function CustomNodeComponent({ data, selected }: NodeProps<CustomNodeType>) {
         "w-[180px] rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--card))] shadow-sm transition-shadow",
         selected && "ring-2 ring-[hsl(var(--ring))] shadow-md",
         data.isDisabled && "opacity-50",
+        statusStyles,
       )}
     >
       {/* Header bar */}
@@ -95,6 +115,20 @@ function CustomNodeComponent({ data, selected }: NodeProps<CustomNodeType>) {
 
         {/* Minimal body height for single output nodes */}
         {!hasMultipleOutputs && <div className="h-2" />}
+
+        {/* Execution status indicator */}
+        {nodeStatus?.status === "completed" && (
+          <div className="absolute -bottom-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-green-500 text-white">
+            <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
+              <path d="M2 5L4 7L8 3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </div>
+        )}
+        {nodeStatus?.status === "failed" && (
+          <div className="absolute -bottom-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-white text-[8px] font-bold">
+            !
+          </div>
+        )}
       </div>
     </div>
   );

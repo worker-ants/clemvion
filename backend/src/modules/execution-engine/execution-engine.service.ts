@@ -26,6 +26,11 @@ import {
   ExecutionContext,
   NodeHandler,
 } from './handlers/node-handler.interface';
+import {
+  WebsocketService,
+  ExecutionEventType,
+  NodeEventType,
+} from '../websocket/websocket.service';
 
 // Node handler imports
 import { IfElseHandler } from './handlers/logic/if-else.handler';
@@ -50,6 +55,7 @@ import { ChartHandler } from './handlers/presentation/chart.handler';
 import { FormHandler } from './handlers/presentation/form.handler';
 import { TemplateHandler } from './handlers/presentation/template.handler';
 import { PdfHandler } from './handlers/presentation/pdf.handler';
+import { ManualTriggerHandler } from './handlers/trigger/manual-trigger.handler';
 
 @Injectable()
 export class ExecutionEngineService implements OnModuleInit {
@@ -69,6 +75,7 @@ export class ExecutionEngineService implements OnModuleInit {
     private readonly handlerRegistry: NodeHandlerRegistry,
     private readonly contextService: ExecutionContextService,
     private readonly errorPolicyHandler: ErrorPolicyHandler,
+    private readonly websocketService: WebsocketService,
   ) {}
 
   onModuleInit() {
@@ -99,6 +106,7 @@ export class ExecutionEngineService implements OnModuleInit {
       ['form', new FormHandler()],
       ['template', new TemplateHandler()],
       ['pdf', new PdfHandler()],
+      ['manual_trigger', new ManualTriggerHandler()],
     ];
 
     for (const [type, handler] of handlers) {
@@ -138,6 +146,11 @@ export class ExecutionEngineService implements OnModuleInit {
     try {
       // 3. Transition to RUNNING
       await this.updateExecutionStatus(savedExecution, ExecutionStatus.RUNNING);
+      this.websocketService.emitExecutionEvent(
+        executionId,
+        ExecutionEventType.EXECUTION_STARTED,
+        { status: ExecutionStatus.RUNNING },
+      );
 
       // 4. Load nodes and edges
       const nodes = await this.nodeRepository.findBy({ workflowId });
@@ -224,6 +237,13 @@ export class ExecutionEngineService implements OnModuleInit {
         await this.executionRepository.save(savedExecution);
       }
 
+      // Emit after all DB writes are complete
+      this.websocketService.emitExecutionEvent(
+        executionId,
+        ExecutionEventType.EXECUTION_COMPLETED,
+        { status: ExecutionStatus.COMPLETED },
+      );
+
       return executionId;
     } catch (error: unknown) {
       // Mark execution as failed
@@ -237,6 +257,14 @@ export class ExecutionEngineService implements OnModuleInit {
         savedExecution.finishedAt.getTime() -
         savedExecution.startedAt.getTime();
       await this.executionRepository.save(savedExecution);
+      this.websocketService.emitExecutionEvent(
+        executionId,
+        ExecutionEventType.EXECUTION_FAILED,
+        {
+          status: ExecutionStatus.FAILED,
+          error: error instanceof Error ? error.message : String(error),
+        },
+      );
       throw error;
     } finally {
       this.contextService.deleteContext(executionId);
@@ -255,6 +283,12 @@ export class ExecutionEngineService implements OnModuleInit {
       executionId,
       node.id,
       NodeExecutionStatus.RUNNING,
+    );
+    this.websocketService.emitNodeEvent(
+      executionId,
+      node.id,
+      NodeEventType.NODE_STARTED,
+      { status: NodeExecutionStatus.RUNNING },
     );
 
     try {
@@ -290,6 +324,15 @@ export class ExecutionEngineService implements OnModuleInit {
       nodeExecution.durationMs =
         nodeExecution.finishedAt.getTime() - nodeExecution.startedAt.getTime();
       await this.nodeExecutionRepository.save(nodeExecution);
+      this.websocketService.emitNodeEvent(
+        executionId,
+        node.id,
+        NodeEventType.NODE_COMPLETED,
+        {
+          status: NodeExecutionStatus.COMPLETED,
+          duration: nodeExecution.durationMs,
+        },
+      );
 
       // Update execution path
       const execution = await this.executionRepository.findOneBy({
@@ -316,6 +359,12 @@ export class ExecutionEngineService implements OnModuleInit {
             nodeExecution.finishedAt.getTime() -
             nodeExecution.startedAt.getTime();
           await this.nodeExecutionRepository.save(nodeExecution);
+          this.websocketService.emitNodeEvent(
+            executionId,
+            node.id,
+            NodeEventType.NODE_SKIPPED,
+            { status: NodeExecutionStatus.SKIPPED },
+          );
           executedNodes.add(node.id);
           break;
 
@@ -365,6 +414,15 @@ export class ExecutionEngineService implements OnModuleInit {
             nodeExecution.finishedAt.getTime() -
             nodeExecution.startedAt.getTime();
           await this.nodeExecutionRepository.save(nodeExecution);
+          this.websocketService.emitNodeEvent(
+            executionId,
+            node.id,
+            NodeEventType.NODE_FAILED,
+            {
+              status: NodeExecutionStatus.FAILED,
+              error: error instanceof Error ? error.message : String(error),
+            },
+          );
           throw error;
       }
     }
@@ -407,7 +465,7 @@ export class ExecutionEngineService implements OnModuleInit {
       }
     }
 
-    throw lastError;
+    throw lastError ?? new Error('All retry attempts exhausted');
   }
 
   private getErrorPolicyConfig(node: Node): ErrorPolicyConfig {

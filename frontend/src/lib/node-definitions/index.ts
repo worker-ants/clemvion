@@ -6,7 +6,7 @@ export type PortDefinition = {
 
 export type NodeDefinition = {
   type: string;
-  category: "logic" | "flow" | "ai" | "integration" | "data" | "presentation";
+  category: "trigger" | "logic" | "flow" | "ai" | "integration" | "data" | "presentation";
   label: string;
   description: string;
   icon: string;
@@ -17,6 +17,7 @@ export type NodeDefinition = {
 };
 
 export const CATEGORY_COLORS: Record<string, string> = {
+  trigger: "#F59E0B",
   logic: "#3B82F6",
   flow: "#8B5CF6",
   ai: "#10B981",
@@ -26,6 +27,9 @@ export const CATEGORY_COLORS: Record<string, string> = {
 };
 
 export const NODE_DEFINITIONS: NodeDefinition[] = [
+  // ===== TRIGGER (1) =====
+  { type: "manual_trigger", category: "trigger", label: "Manual Trigger", description: "Start point for manual workflow execution", icon: "Zap", color: CATEGORY_COLORS.trigger, inputs: [], outputs: [{ id: "out", label: "Output", type: "data" }] },
+
   // ===== LOGIC (9) =====
   { type: "if_else", category: "logic", label: "If/Else", description: "Conditional branching", icon: "GitBranch", color: CATEGORY_COLORS.logic, inputs: [{ id: "in", label: "Input", type: "data" }], outputs: [{ id: "true", label: "True", type: "data" }, { id: "false", label: "False", type: "data" }] },
   { type: "switch", category: "logic", label: "Switch", description: "Multi-path branching", icon: "Route", color: CATEGORY_COLORS.logic, inputs: [{ id: "in", label: "Input", type: "data" }], outputs: [{ id: "default", label: "Default", type: "data" }] },
@@ -68,6 +72,7 @@ export function getNodesByCategory(category: string): NodeDefinition[] {
 }
 
 export const CATEGORIES = [
+  { id: "trigger", label: "Trigger", icon: "Zap" },
   { id: "logic", label: "Logic", icon: "GitBranch" },
   { id: "flow", label: "Flow", icon: "Workflow" },
   { id: "integration", label: "Integration", icon: "Puzzle" },

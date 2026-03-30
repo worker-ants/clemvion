@@ -1,8 +1,10 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
+import { DataSource } from 'typeorm';
 import { NotFoundException } from '@nestjs/common';
 import { WorkflowsService } from './workflows.service';
 import { Workflow } from './entities/workflow.entity';
+import { Node, NodeCategory } from '../nodes/entities/node.entity';
 
 describe('WorkflowsService', () => {
   let service: WorkflowsService;
@@ -38,15 +40,34 @@ describe('WorkflowsService', () => {
     remove: jest.fn().mockResolvedValue(undefined),
   };
 
+  const mockNodeRepository = {
+    create: jest.fn().mockImplementation((data) => data),
+    save: jest.fn().mockImplementation((data) => Promise.resolve({ id: 'node-id', ...data })),
+  };
+
+  const mockTransactionManager = {
+    save: jest.fn().mockImplementation((_entity, data) => Promise.resolve(Array.isArray(data) ? data : { id: 'new-id', ...data })),
+    find: jest.fn().mockResolvedValue([]),
+    remove: jest.fn().mockResolvedValue(undefined),
+    create: jest.fn().mockImplementation((_entity, data) => data),
+  };
+
+  const mockDataSource = {
+    transaction: jest.fn().mockImplementation((cb) => cb(mockTransactionManager)),
+  };
+
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         WorkflowsService,
         { provide: getRepositoryToken(Workflow), useValue: mockRepository },
+        { provide: getRepositoryToken(Node), useValue: mockNodeRepository },
+        { provide: DataSource, useValue: mockDataSource },
       ],
     }).compile();
 
     service = module.get<WorkflowsService>(WorkflowsService);
+    jest.clearAllMocks();
   });
 
   it('should be defined', () => {
@@ -78,12 +99,31 @@ describe('WorkflowsService', () => {
   });
 
   describe('create', () => {
-    it('should create a workflow', async () => {
+    it('should create a workflow with manual trigger node atomically', async () => {
       const result = await service.create('ws-uuid-1', 'user-uuid-1', {
         name: 'New Workflow',
       });
-      expect(result.name).toBe('New Workflow');
-      expect(result.workspaceId).toBe('ws-uuid-1');
+
+      // Transaction should be used
+      expect(mockDataSource.transaction).toHaveBeenCalled();
+
+      // Should save workflow
+      expect(mockTransactionManager.save).toHaveBeenCalledWith(
+        Workflow,
+        expect.objectContaining({ name: 'New Workflow', workspaceId: 'ws-uuid-1' }),
+      );
+
+      // Should create manual trigger node
+      expect(mockTransactionManager.create).toHaveBeenCalledWith(
+        Node,
+        expect.objectContaining({
+          type: 'manual_trigger',
+          category: NodeCategory.TRIGGER,
+          label: 'Manual Trigger',
+        }),
+      );
+
+      expect(result).toBeDefined();
     });
   });
 
@@ -96,6 +136,82 @@ describe('WorkflowsService', () => {
         'user-uuid-1',
       );
       expect(result.name).toBe('Test Workflow (Copy)');
+    });
+  });
+
+  describe('saveCanvas', () => {
+    beforeEach(() => {
+      mockRepository.findOne.mockResolvedValue({ ...mockWorkflow, currentVersion: 1 });
+    });
+
+    it('should save canvas with nodes and edges in a transaction', async () => {
+      const dto = {
+        name: 'Updated Name',
+        nodes: [
+          {
+            id: 'node-1',
+            type: 'manual_trigger',
+            category: NodeCategory.TRIGGER,
+            label: 'Manual Trigger',
+            positionX: 100,
+            positionY: 200,
+            config: {},
+          },
+        ],
+        edges: [],
+      };
+
+      const result = await service.saveCanvas('wf-uuid-1', 'ws-uuid-1', dto);
+      expect(mockDataSource.transaction).toHaveBeenCalled();
+      expect(result).toBeDefined();
+    });
+
+    it('should reject canvas without manual trigger', async () => {
+      const dto = {
+        nodes: [
+          {
+            id: 'node-1',
+            type: 'if_else',
+            category: NodeCategory.LOGIC,
+            label: 'If/Else',
+            positionX: 100,
+            positionY: 200,
+          },
+        ],
+        edges: [],
+      };
+
+      await expect(
+        service.saveCanvas('wf-uuid-1', 'ws-uuid-1', dto),
+      ).rejects.toThrow('Workflow must contain a Manual Trigger node');
+    });
+
+    it('should reject canvas with multiple manual triggers', async () => {
+      const dto = {
+        nodes: [
+          {
+            id: 'node-1',
+            type: 'manual_trigger',
+            category: NodeCategory.TRIGGER,
+            label: 'Trigger 1',
+            positionX: 100,
+            positionY: 200,
+          },
+          {
+            id: 'node-2',
+            type: 'manual_trigger',
+            category: NodeCategory.TRIGGER,
+            label: 'Trigger 2',
+            positionX: 300,
+            positionY: 200,
+          },
+        ],
+        edges: [],
+      };
+
+      await expect(
+        service.saveCanvas('wf-uuid-1', 'ws-uuid-1', dto),
+      ).rejects.toThrow('Workflow cannot contain more than one Manual Trigger node');
     });
   });
 });

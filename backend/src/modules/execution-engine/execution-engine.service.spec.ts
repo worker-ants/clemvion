@@ -4,6 +4,7 @@ import { ExecutionEngineService } from './execution-engine.service';
 import { NodeHandlerRegistry } from './handlers/node-handler.registry';
 import { ExecutionContextService } from './context/execution-context.service';
 import { ErrorPolicyHandler } from './error/error-policy.handler';
+import { WebsocketService } from '../websocket/websocket.service';
 import {
   Execution,
   ExecutionStatus,
@@ -20,6 +21,7 @@ import { NodeHandler } from './handlers/node-handler.interface';
 describe('ExecutionEngineService', () => {
   let service: ExecutionEngineService;
   let handlerRegistry: NodeHandlerRegistry;
+  let mockWebsocketService: { emitExecutionEvent: jest.Mock; emitNodeEvent: jest.Mock };
 
   // Mock data
   const workflowId = 'workflow-1';
@@ -163,11 +165,19 @@ describe('ExecutionEngineService', () => {
         { provide: getRepositoryToken(Node), useValue: mockNodeRepo },
         { provide: getRepositoryToken(Edge), useValue: mockEdgeRepo },
         { provide: getRepositoryToken(Workflow), useValue: mockWorkflowRepo },
+        {
+          provide: WebsocketService,
+          useValue: {
+            emitExecutionEvent: jest.fn(),
+            emitNodeEvent: jest.fn(),
+          },
+        },
       ],
     }).compile();
 
     service = module.get<ExecutionEngineService>(ExecutionEngineService);
     handlerRegistry = module.get<NodeHandlerRegistry>(NodeHandlerRegistry);
+    mockWebsocketService = module.get(WebsocketService);
 
     // Register mock handler
     handlerRegistry.register('test_node', mockHandler);
@@ -238,6 +248,66 @@ describe('ExecutionEngineService', () => {
     expect(calls[2]).toEqual({
       step: 2,
       previousInput: { step: 1, previousInput: { initial: true } },
+    });
+  });
+
+  describe('WebSocket events', () => {
+    it('should emit EXECUTION_STARTED event when execution begins', async () => {
+      await service.execute(workflowId, { data: 'test' });
+
+      expect(mockWebsocketService.emitExecutionEvent).toHaveBeenCalledWith(
+        executionId,
+        'execution.started',
+        expect.objectContaining({ status: 'running' }),
+      );
+    });
+
+    it('should emit EXECUTION_COMPLETED event after successful execution', async () => {
+      await service.execute(workflowId, { data: 'test' });
+
+      expect(mockWebsocketService.emitExecutionEvent).toHaveBeenCalledWith(
+        executionId,
+        'execution.completed',
+        expect.objectContaining({ status: 'completed' }),
+      );
+    });
+
+    it('should emit NODE_STARTED and NODE_COMPLETED for each node', async () => {
+      await service.execute(workflowId, { data: 'test' });
+
+      // 3 nodes = 3 started + 3 completed = 6 node events
+      expect(mockWebsocketService.emitNodeEvent).toHaveBeenCalledTimes(6);
+
+      // Check first node started
+      expect(mockWebsocketService.emitNodeEvent).toHaveBeenCalledWith(
+        executionId,
+        'node-1',
+        'execution.node.started',
+        expect.objectContaining({ status: 'running' }),
+      );
+
+      // Check first node completed
+      expect(mockWebsocketService.emitNodeEvent).toHaveBeenCalledWith(
+        executionId,
+        'node-1',
+        'execution.node.completed',
+        expect.objectContaining({ status: 'completed' }),
+      );
+    });
+
+    it('should emit EXECUTION_FAILED on error', async () => {
+      (mockHandler.execute as jest.Mock).mockRejectedValue(new Error('Node execution failed'));
+
+      await expect(service.execute(workflowId)).rejects.toThrow('Node execution failed');
+
+      expect(mockWebsocketService.emitExecutionEvent).toHaveBeenCalledWith(
+        executionId,
+        'execution.failed',
+        expect.objectContaining({
+          status: 'failed',
+          error: 'Node execution failed',
+        }),
+      );
     });
   });
 });

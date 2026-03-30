@@ -3,6 +3,7 @@
 import { create } from "zustand";
 import type { Node, Edge, OnNodesChange, OnEdgesChange, Connection } from "@xyflow/react";
 import { applyNodeChanges, applyEdgeChanges, addEdge } from "@xyflow/react";
+import { workflowsApi } from "@/lib/api/workflows";
 
 interface EditorState {
   // Workflow metadata
@@ -32,6 +33,7 @@ interface EditorState {
   selectNode: (id: string | null) => void;
   setDirty: (dirty: boolean) => void;
   setSaving: (saving: boolean) => void;
+  saveWorkflow: () => Promise<boolean>;
   pushUndo: () => void;
   undo: () => void;
   redo: () => void;
@@ -108,6 +110,46 @@ export const useEditorStore = create<EditorState>((set, get) => ({
 
   setDirty: (isDirty) => set({ isDirty }),
   setSaving: (isSaving) => set({ isSaving }),
+
+  saveWorkflow: async () => {
+    const { workflowId, workflowName, nodes, edges, isSaving } = get();
+    if (!workflowId || isSaving) return false;
+
+    set({ isSaving: true });
+    try {
+      const payload = {
+        name: workflowName,
+        nodes: nodes.map((n) => {
+          const d = n.data as { type: string; category: string; label: string; config: Record<string, unknown>; isDisabled: boolean };
+          return {
+            id: n.id,
+            type: d.type,
+            category: d.category,
+            label: d.label,
+            positionX: n.position.x,
+            positionY: n.position.y,
+            config: d.config || {},
+            isDisabled: d.isDisabled || false,
+          };
+        }),
+        edges: edges.map((e) => ({
+          sourceNodeId: e.source,
+          sourcePort: e.sourceHandle || "out",
+          targetNodeId: e.target,
+          targetPort: e.targetHandle || "in",
+        })),
+      };
+
+      await workflowsApi.saveCanvas(workflowId, payload);
+      set({ isDirty: false });
+      return true;
+    } catch (error) {
+      console.error("Save failed:", error);
+      return false;
+    } finally {
+      set({ isSaving: false });
+    }
+  },
 
   pushUndo: () => {
     const { nodes, edges, undoStack } = get();

@@ -55,10 +55,13 @@ export function WorkflowCanvas() {
         // Don't delete if an input is focused
         const target = event.target as HTMLElement;
         if (target.tagName === "INPUT" || target.tagName === "TEXTAREA") return;
+        // Prevent deletion of trigger nodes
+        const node = nodes.find((n) => n.id === selectedNodeId);
+        if (node?.data?.type === "manual_trigger") return;
         removeNode(selectedNodeId);
       }
     },
-    [selectedNodeId, removeNode],
+    [selectedNodeId, removeNode, nodes],
   );
 
   const onDragOver = useCallback((event: React.DragEvent) => {
@@ -76,6 +79,12 @@ export function WorkflowCanvas() {
       const definition = getNodeDefinition(nodeType);
       if (!definition) return;
 
+      // Prevent duplicate Manual Trigger nodes
+      if (nodeType === "manual_trigger") {
+        const hasTrigger = nodes.some((n) => n.data?.type === "manual_trigger");
+        if (hasTrigger) return;
+      }
+
       const bounds = reactFlowWrapper.current?.getBoundingClientRect();
       if (!bounds || !reactFlowInstance.current) return;
 
@@ -87,7 +96,7 @@ export function WorkflowCanvas() {
       pushUndo();
 
       const newNode = {
-        id: `${nodeType}_${Date.now()}`,
+        id: crypto.randomUUID(),
         type: "custom",
         position,
         data: {
@@ -101,7 +110,7 @@ export function WorkflowCanvas() {
 
       addNode(newNode);
     },
-    [addNode, pushUndo],
+    [addNode, pushUndo, nodes],
   );
 
   const onInit = useCallback((instance: ReactFlowInstance) => {

@@ -11,10 +11,12 @@ import { ExecutionContextService } from './context/execution-context.service';
 import { ErrorPolicyHandler } from './error/error-policy.handler';
 import { LoopExecutor } from './containers/loop-executor';
 import { ForEachExecutor } from './containers/foreach-executor';
+import { WebsocketModule } from '../websocket/websocket.module';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([Execution, NodeExecution, Node, Edge, Workflow]),
+    WebsocketModule,
   ],
   providers: [
     ExecutionEngineService,

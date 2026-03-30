@@ -3,6 +3,8 @@
 import { useEffect, useCallback } from "react";
 import { ReactFlowProvider } from "@xyflow/react";
 import { useEditorStore } from "@/lib/stores/editor-store";
+import { useExecutionStore } from "@/lib/stores/execution-store";
+import { useExecutionEvents } from "@/lib/websocket/use-execution-events";
 import { EditorToolbar } from "./toolbar/editor-toolbar";
 import { NodePalette } from "./palette/node-palette";
 import { WorkflowCanvas } from "./canvas/workflow-canvas";
@@ -11,6 +13,11 @@ import { NodeSettingsPanel } from "./settings-panel/node-settings-panel";
 export function WorkflowEditor() {
   const undo = useEditorStore((s) => s.undo);
   const redo = useEditorStore((s) => s.redo);
+  const saveWorkflow = useEditorStore((s) => s.saveWorkflow);
+  const executionId = useExecutionStore((s) => s.executionId);
+
+  // Subscribe to WebSocket execution events
+  useExecutionEvents({ executionId });
 
   const handleKeyDown = useCallback(
     (e: KeyboardEvent) => {
@@ -28,10 +35,10 @@ export function WorkflowEditor() {
 
       if (isMod && e.key === "s") {
         e.preventDefault();
-        // Save placeholder - will be connected to API later
+        void saveWorkflow();
       }
     },
-    [undo, redo],
+    [undo, redo, saveWorkflow],
   );
 
   useEffect(() => {
