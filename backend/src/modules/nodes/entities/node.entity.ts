@@ -11,6 +11,7 @@ import {
 import { Workflow } from '../../workflows/entities/workflow.entity';
 
 export enum NodeCategory {
+  TRIGGER = 'trigger',
   LOGIC = 'logic',
   FLOW = 'flow',
   AI = 'ai',

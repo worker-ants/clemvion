@@ -1,6 +1,9 @@
 "use client";
 
+import { useCallback } from "react";
 import { useEditorStore } from "@/lib/stores/editor-store";
+import { useExecutionStore } from "@/lib/stores/execution-store";
+import { workflowsApi } from "@/lib/api/workflows";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -10,18 +13,44 @@ import {
   Save,
   Play,
   ChevronRight,
+  Loader2,
 } from "lucide-react";
 import Link from "next/link";
 
 export function EditorToolbar() {
+  const workflowId = useEditorStore((s) => s.workflowId);
   const workflowName = useEditorStore((s) => s.workflowName);
   const setWorkflowName = useEditorStore((s) => s.setWorkflowName);
   const isDirty = useEditorStore((s) => s.isDirty);
   const isSaving = useEditorStore((s) => s.isSaving);
   const undo = useEditorStore((s) => s.undo);
   const redo = useEditorStore((s) => s.redo);
+  const saveWorkflow = useEditorStore((s) => s.saveWorkflow);
   const undoStack = useEditorStore((s) => s.undoStack);
   const redoStack = useEditorStore((s) => s.redoStack);
+
+  const executionStatus = useExecutionStore((s) => s.status);
+  const startExecution = useExecutionStore((s) => s.startExecution);
+
+  const isRunning = executionStatus === "running";
+
+  const handleRun = useCallback(async () => {
+    if (!workflowId || isRunning) return;
+
+    // Save first if there are unsaved changes
+    if (isDirty) {
+      const saved = await saveWorkflow();
+      if (!saved) return;
+    }
+
+    try {
+      const response = await workflowsApi.execute(workflowId);
+      const { executionId } = response.data as { executionId: string };
+      startExecution(executionId);
+    } catch (error) {
+      console.error("Execution failed:", error);
+    }
+  }, [workflowId, isRunning, isDirty, saveWorkflow, startExecution]);
 
   return (
     <div className="flex h-12 shrink-0 items-center border-b border-[hsl(var(--border))] bg-[hsl(var(--card))] px-3">
@@ -85,15 +114,30 @@ export function EditorToolbar() {
           size="sm"
           className="h-8 gap-1.5 text-xs"
           disabled={!isDirty || isSaving}
+          onClick={() => void saveWorkflow()}
         >
           <Save size={14} />
           Save
         </Button>
 
         {/* Run */}
-        <Button size="sm" className="h-8 gap-1.5 text-xs">
-          <Play size={14} />
-          Run
+        <Button
+          size="sm"
+          className="h-8 gap-1.5 text-xs"
+          disabled={isRunning || !workflowId}
+          onClick={() => void handleRun()}
+        >
+          {isRunning ? (
+            <>
+              <Loader2 size={14} className="animate-spin" />
+              Running...
+            </>
+          ) : (
+            <>
+              <Play size={14} />
+              Run
+            </>
+          )}
         </Button>
       </div>
     </div>

@@ -69,4 +69,33 @@ export const workflowsApi = {
     apiClient.post<{ data: EdgeData }>(`/workflows/${workflowId}/edges`, data),
 
   deleteEdge: (edgeId: string) => apiClient.delete(`/edges/${edgeId}`),
+
+  saveCanvas: (
+    workflowId: string,
+    data: {
+      name?: string;
+      nodes: Array<{
+        id: string;
+        type: string;
+        category: string;
+        label: string;
+        positionX: number;
+        positionY: number;
+        config?: Record<string, unknown>;
+        isDisabled?: boolean;
+        containerId?: string | null;
+        toolOwnerId?: string | null;
+      }>;
+      edges: Array<{
+        sourceNodeId: string;
+        sourcePort?: string;
+        targetNodeId: string;
+        targetPort?: string;
+        type?: string;
+      }>;
+    },
+  ) => apiClient.post(`/workflows/${workflowId}/save`, data),
+
+  execute: (workflowId: string, input?: Record<string, unknown>) =>
+    apiClient.post(`/workflows/${workflowId}/execute`, { input }),
 };
