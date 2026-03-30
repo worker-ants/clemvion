@@ -19,6 +19,7 @@ import {
   ErrorPolicyHandler,
   ErrorPolicyConfig,
 } from './error/error-policy.handler';
+import { ExecutionContext, NodeHandler } from './handlers/node-handler.interface';
 
 @Injectable()
 export class ExecutionEngineService {
@@ -182,7 +183,7 @@ export class ExecutionEngineService {
     executionId: string,
     node: Node,
     nodeInput: unknown,
-    context: import('./handlers/node-handler.interface.js').ExecutionContext,
+    context: ExecutionContext,
     outgoingEdges: Map<string, GraphEdge[]>,
     executedNodes: Set<string>,
   ): Promise<void> {
@@ -310,10 +311,10 @@ export class ExecutionEngineService {
   }
 
   private async executeWithRetry(
-    handler: import('./handlers/node-handler.interface.js').NodeHandler,
+    handler: NodeHandler,
     input: unknown,
     config: Record<string, unknown>,
-    context: import('./handlers/node-handler.interface.js').ExecutionContext,
+    context: ExecutionContext,
     node: Node,
     nodeExecution: NodeExecution,
   ): Promise<unknown> {
