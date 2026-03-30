@@ -34,6 +34,7 @@ import { IntegrationsModule } from './modules/integrations/integrations.module';
 import { AuthConfigsModule } from './modules/auth-configs/auth-configs.module';
 import { FoldersModule } from './modules/folders/folders.module';
 import { ExecutionEngineModule } from './modules/execution-engine/execution-engine.module';
+import { WebsocketModule } from './modules/websocket/websocket.module';
 
 // Entity imports
 import { User } from './modules/users/entities/user.entity';
@@ -122,6 +123,7 @@ import { RefreshToken } from './modules/auth/entities/refresh-token.entity';
     AuthConfigsModule,
     FoldersModule,
     ExecutionEngineModule,
+    WebsocketModule,
   ],
   providers: [
     { provide: APP_FILTER, useClass: GlobalExceptionFilter },
