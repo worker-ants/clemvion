@@ -6,10 +6,14 @@ import {
   UpdateDateColumn,
   ManyToOne,
   JoinColumn,
+  Unique,
+  Index,
 } from 'typeorm';
 import { User } from '../../users/entities/user.entity';
 
 @Entity('workspace')
+@Unique(['ownerId', 'type'])
+@Index(['ownerId', 'type'])
 export class Workspace {
   @PrimaryGeneratedColumn('uuid')
   id: string;

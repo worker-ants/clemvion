@@ -7,7 +7,7 @@ import {
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { DataSource, Repository } from 'typeorm';
 import * as bcrypt from 'bcrypt';
 import { v4 as uuidv4 } from 'uuid';
 import { createHash } from 'crypto';
@@ -27,6 +27,7 @@ export class AuthService {
     private readonly workspacesService: WorkspacesService,
     @InjectRepository(RefreshToken)
     private readonly refreshTokenRepository: Repository<RefreshToken>,
+    private readonly dataSource: DataSource,
   ) {}
 
   // ========== REGISTER ==========
@@ -90,18 +91,20 @@ export class AuthService {
       });
     }
 
-    await this.usersService.update(userByToken.id, {
-      emailVerified: true,
-      emailVerifyToken: null as unknown as string,
-      emailVerifyExpiresAt: null as unknown as Date,
-    });
+    await this.dataSource.transaction(async (manager) => {
+      await manager.getRepository(User).update(userByToken.id, {
+        emailVerified: true,
+        emailVerifyToken: null as unknown as string,
+        emailVerifyExpiresAt: null as unknown as Date,
+      });
 
-    // Create personal workspace
-    await this.workspacesService.createPersonalWorkspace(
-      userByToken.id,
-      userByToken.name,
-      userByToken.email,
-    );
+      await this.workspacesService.createPersonalWorkspace(
+        userByToken.id,
+        userByToken.name,
+        userByToken.email,
+        manager,
+      );
+    });
 
     return this.generateTokens(userByToken);
   }
@@ -287,18 +290,20 @@ export class AuthService {
     rememberMe = false,
     familyId?: string,
   ): Promise<{ accessToken: string; refreshToken: string }> {
-    const workspace = await this.workspacesService.findPersonalWorkspace(
-      user.id,
-    );
-    const role = workspace
-      ? ((await this.workspacesService.getMemberRole(workspace.id, user.id)) ??
-        'owner')
-      : 'owner';
+    const workspace =
+      await this.workspacesService.findOrCreatePersonalWorkspace(
+        user.id,
+        user.name,
+        user.email,
+      );
+    const role =
+      (await this.workspacesService.getMemberRole(workspace.id, user.id)) ??
+      'owner';
 
     const accessPayload = {
       sub: user.id,
       email: user.email,
-      workspaceId: workspace?.id ?? '',
+      workspaceId: workspace.id,
       role,
     };
 
