@@ -1,0 +1,93 @@
+{
+  "timestamp": "2026-03-30T17:37:26.390144",
+  "files": [
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/backend/src/modules/auth/auth.service.spec.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/backend/src/modules/auth/auth.service.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/backend/src/modules/workspaces/workspaces.service.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/backend/src/modules/workspaces/workspaces.service.spec.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    }
+  ],
+  "total_elapsed_seconds": 280.68,
+  "agents": [
+    {
+      "name": "documentation",
+      "status": "success",
+      "elapsed_seconds": 26.33
+    },
+    {
+      "name": "api_contract",
+      "status": "success",
+      "elapsed_seconds": 29.74
+    },
+    {
+      "name": "database",
+      "status": "success",
+      "elapsed_seconds": 31.42
+    },
+    {
+      "name": "concurrency",
+      "status": "success",
+      "elapsed_seconds": 32.5
+    },
+    {
+      "name": "side_effect",
+      "status": "success",
+      "elapsed_seconds": 34.8
+    },
+    {
+      "name": "requirement",
+      "status": "success",
+      "elapsed_seconds": 35.51
+    },
+    {
+      "name": "performance",
+      "status": "success",
+      "elapsed_seconds": 36.13
+    },
+    {
+      "name": "dependency",
+      "status": "success",
+      "elapsed_seconds": 36.37
+    },
+    {
+      "name": "security",
+      "status": "success",
+      "elapsed_seconds": 38.55
+    },
+    {
+      "name": "architecture",
+      "status": "success",
+      "elapsed_seconds": 39.82
+    },
+    {
+      "name": "scope",
+      "status": "success",
+      "elapsed_seconds": 40.11
+    },
+    {
+      "name": "testing",
+      "status": "success",
+      "elapsed_seconds": 40.16
+    },
+    {
+      "name": "maintainability",
+      "status": "success",
+      "elapsed_seconds": 42.07
+    }
+  ]
+}

@@ -3,6 +3,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { getRepositoryToken } from '@nestjs/typeorm';
+import { DataSource } from 'typeorm';
 import {
   ConflictException,
   UnauthorizedException,
@@ -18,7 +19,6 @@ import { User } from '../users/entities/user.entity';
 describe('AuthService', () => {
   let service: AuthService;
   let usersService: jest.Mocked<UsersService>;
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   let workspacesService: jest.Mocked<WorkspacesService>;
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   let jwtService: jest.Mocked<JwtService>;
@@ -29,6 +29,7 @@ describe('AuthService', () => {
     update: jest.Mock;
     manager: { getRepository: jest.Mock };
   };
+  let mockDataSource: { transaction: jest.Mock };
 
   const mockUser: Partial<User> = {
     id: 'user-uuid-1',
@@ -90,12 +91,30 @@ describe('AuthService', () => {
             createPersonalWorkspace: jest.fn().mockResolvedValue({
               id: 'ws-uuid-1',
             }),
+            findOrCreatePersonalWorkspace: jest.fn().mockResolvedValue({
+              id: 'ws-uuid-1',
+            }),
             getMemberRole: jest.fn().mockResolvedValue('owner'),
           },
         },
         {
           provide: getRepositoryToken(RefreshToken),
           useValue: mockRefreshTokenRepo,
+        },
+        {
+          provide: DataSource,
+          useValue: {
+            transaction: jest
+              .fn()
+              .mockImplementation((cb: (manager: unknown) => Promise<void>) => {
+                const mockManager = {
+                  getRepository: jest.fn().mockReturnValue({
+                    update: jest.fn().mockResolvedValue(undefined),
+                  }),
+                };
+                return cb(mockManager);
+              }),
+          },
         },
       ],
     }).compile();
@@ -105,6 +124,7 @@ describe('AuthService', () => {
     workspacesService = module.get(WorkspacesService);
     jwtService = module.get(JwtService);
     refreshTokenRepo = module.get(getRepositoryToken(RefreshToken));
+    mockDataSource = module.get(DataSource);
   });
 
   it('should be defined', () => {
@@ -290,6 +310,80 @@ describe('AuthService', () => {
       usersService.findByEmail.mockResolvedValue(null);
       const result = await service.forgotPassword('nonexistent@example.com');
       expect(result.message).toContain('If an account exists');
+    });
+  });
+
+  describe('generateTokens (via login)', () => {
+    it('should create workspace if none exists when logging in', async () => {
+      const hash = await bcrypt.hash('Test123!@#', 12);
+      usersService.findByEmail.mockResolvedValue({
+        ...mockUser,
+        passwordHash: hash,
+      } as User);
+
+      workspacesService.findOrCreatePersonalWorkspace.mockResolvedValue({
+        id: 'new-ws-uuid',
+      } as never);
+      workspacesService.getMemberRole.mockResolvedValue('owner');
+
+      const result = await service.login({
+        email: 'test@example.com',
+        password: 'Test123!@#',
+      });
+
+      expect(result.accessToken).toBe('mock-access-token');
+      expect(
+        workspacesService.findOrCreatePersonalWorkspace,
+      ).toHaveBeenCalledWith('user-uuid-1', 'Test User', 'test@example.com');
+    });
+  });
+
+  describe('verifyEmail', () => {
+    it('should verify email and create workspace in transaction', async () => {
+      const unverifiedUser = {
+        ...mockUser,
+        emailVerified: false,
+        emailVerifyToken: 'valid-token',
+        emailVerifyExpiresAt: new Date(Date.now() + 86400000),
+      } as User;
+
+      usersService.findByEmail.mockResolvedValue(null);
+      jest
+        .spyOn(service as never, 'findUserByVerifyToken' as never)
+        .mockResolvedValue(unverifiedUser as never);
+
+      const result = await service.verifyEmail('valid-token');
+
+      expect(mockDataSource.transaction).toHaveBeenCalled();
+      expect(result.accessToken).toBe('mock-access-token');
+      expect(result.refreshToken).toBeDefined();
+    });
+
+    it('should throw for invalid verification token', async () => {
+      jest
+        .spyOn(service as never, 'findUserByVerifyToken' as never)
+        .mockResolvedValue(null as never);
+
+      await expect(service.verifyEmail('invalid-token')).rejects.toThrow(
+        BadRequestException,
+      );
+    });
+
+    it('should throw for expired verification token', async () => {
+      const expiredUser = {
+        ...mockUser,
+        emailVerified: false,
+        emailVerifyToken: 'expired-token',
+        emailVerifyExpiresAt: new Date(Date.now() - 86400000),
+      } as User;
+
+      jest
+        .spyOn(service as never, 'findUserByVerifyToken' as never)
+        .mockResolvedValue(expiredUser as never);
+
+      await expect(service.verifyEmail('expired-token')).rejects.toThrow(
+        BadRequestException,
+      );
     });
   });
 });
