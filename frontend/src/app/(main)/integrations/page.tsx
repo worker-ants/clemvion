@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo, useCallback } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api/client";
 import { Button } from "@/components/ui/button";
@@ -27,6 +27,8 @@ import {
   Mail,
   Database,
   MessageSquare,
+  Search,
+  RefreshCw,
 } from "lucide-react";
 
 interface Integration {
@@ -35,7 +37,10 @@ interface Integration {
   serviceType: string;
   authType: string;
   status: "connected" | "expired" | "error";
+  scope?: "personal" | "organization";
 }
+
+type ScopeFilter = "all" | "personal" | "organization";
 
 const SERVICE_TYPES = [
   "Slack",
@@ -61,12 +66,20 @@ const STATUS_STYLES: Record<string, { dot: string; label: string }> = {
   error: { dot: "bg-red-500", label: "Error" },
 };
 
+const SCOPE_OPTIONS: { value: ScopeFilter; label: string }[] = [
+  { value: "all", label: "All" },
+  { value: "personal", label: "Personal" },
+  { value: "organization", label: "Organization" },
+];
+
 export default function IntegrationsPage() {
   const queryClient = useQueryClient();
   const [showDialog, setShowDialog] = useState(false);
   const [formName, setFormName] = useState("");
   const [formServiceType, setFormServiceType] = useState("");
   const [formAuthType, setFormAuthType] = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [scopeFilter, setScopeFilter] = useState<ScopeFilter>("all");
 
   const { data: integrations = [], isLoading, isError } = useQuery<Integration[]>({
     queryKey: ["integrations"],
@@ -75,6 +88,17 @@ export default function IntegrationsPage() {
       return res.data.data ?? res.data;
     },
   });
+
+  const filteredIntegrations = useMemo(() => {
+    return integrations.filter((integration) => {
+      const matchesSearch =
+        !searchQuery.trim() ||
+        integration.name.toLowerCase().includes(searchQuery.toLowerCase());
+      const matchesScope =
+        scopeFilter === "all" || integration.scope === scopeFilter;
+      return matchesSearch && matchesScope;
+    });
+  }, [integrations, searchQuery, scopeFilter]);
 
   const createMutation = useMutation({
     mutationFn: async () => {
@@ -120,6 +144,40 @@ export default function IntegrationsPage() {
     },
   });
 
+  const reauthorizeMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const res = await apiClient.post(`/integrations/${id}/reauthorize`);
+      return res.data.data ?? res.data;
+    },
+    onSuccess: (data: { authUrl?: string; state?: string }) => {
+      if (data.authUrl) {
+        const width = 600;
+        const height = 700;
+        const left = window.screenX + (window.outerWidth - width) / 2;
+        const top = window.screenY + (window.outerHeight - height) / 2;
+        window.open(
+          data.authUrl,
+          "reauthorize",
+          `width=${width},height=${height},left=${left},top=${top},toolbar=no,menubar=no`,
+        );
+        toast.success("Reauthorization window opened");
+      } else {
+        toast.success("Reauthorization initiated");
+        queryClient.invalidateQueries({ queryKey: ["integrations"] });
+      }
+    },
+    onError: () => {
+      toast.error("Failed to reauthorize integration");
+    },
+  });
+
+  const handleReauthorize = useCallback(
+    (id: string) => {
+      reauthorizeMutation.mutate(id);
+    },
+    [reauthorizeMutation],
+  );
+
   function resetForm() {
     setFormName("");
     setFormServiceType("");
@@ -143,6 +201,36 @@ export default function IntegrationsPage() {
           <Plus className="mr-2 h-4 w-4" />
           Add Integration
         </Button>
+      </div>
+
+      {/* Search & Scope Filter */}
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="relative w-full max-w-sm">
+          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[hsl(var(--muted-foreground))]" />
+          <Input
+            placeholder="Search integrations..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="pl-9"
+          />
+        </div>
+        <div className="inline-flex rounded-lg border border-[hsl(var(--border))] p-1">
+          {SCOPE_OPTIONS.map((option) => (
+            <button
+              key={option.value}
+              type="button"
+              className={cn(
+                "rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
+                scopeFilter === option.value
+                  ? "bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))]"
+                  : "text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]",
+              )}
+              onClick={() => setScopeFilter(option.value)}
+            >
+              {option.label}
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* Add Dialog */}
@@ -228,10 +316,19 @@ export default function IntegrationsPage() {
         </div>
       )}
 
-      {!isLoading && !isError && integrations.length > 0 && (
+      {!isLoading && !isError && integrations.length > 0 && filteredIntegrations.length === 0 && (
+        <div className="flex flex-col items-center justify-center py-16 text-[hsl(var(--muted-foreground))]">
+          <Search className="mb-2 h-10 w-10" />
+          <p className="text-sm">No integrations match your filters.</p>
+        </div>
+      )}
+
+      {!isLoading && !isError && filteredIntegrations.length > 0 && (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {integrations.map((integration) => {
+          {filteredIntegrations.map((integration) => {
             const statusInfo = STATUS_STYLES[integration.status] ?? STATUS_STYLES.error;
+            const needsReauth =
+              integration.status === "expired" || integration.status === "error";
             return (
               <Card key={integration.id}>
                 <CardHeader className="flex flex-row items-start gap-4 space-y-0">
@@ -259,6 +356,21 @@ export default function IntegrationsPage() {
                       {statusInfo.label}
                     </span>
                     <div className="flex gap-1">
+                      {needsReauth && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          disabled={reauthorizeMutation.isPending}
+                          onClick={() => handleReauthorize(integration.id)}
+                        >
+                          {reauthorizeMutation.isPending ? (
+                            <Loader2 className="mr-1 h-3 w-3 animate-spin" />
+                          ) : (
+                            <RefreshCw className="mr-1 h-3 w-3" />
+                          )}
+                          Reauthorize
+                        </Button>
+                      )}
                       <Button
                         variant="outline"
                         size="sm"

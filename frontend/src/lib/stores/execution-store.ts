@@ -17,14 +17,23 @@ export interface NodeStatusInfo {
   error?: string;
 }
 
+export interface NodeResult {
+  nodeId: string;
+  nodeLabel: string;
+  nodeType: string;
+  outputData: unknown;
+}
+
 interface ExecutionState {
   executionId: string | null;
   status: ExecutionStatus;
   nodeStatuses: Map<string, NodeStatusInfo>;
+  nodeResults: NodeResult[];
   startedAt: string | null;
 
   startExecution: (executionId: string) => void;
   updateNodeStatus: (nodeId: string, info: NodeStatusInfo) => void;
+  addNodeResult: (result: NodeResult) => void;
   completeExecution: () => void;
   failExecution: (error?: string) => void;
   reset: () => void;
@@ -34,6 +43,7 @@ export const useExecutionStore = create<ExecutionState>((set) => ({
   executionId: null,
   status: "idle",
   nodeStatuses: new Map(),
+  nodeResults: [],
   startedAt: null,
 
   startExecution: (executionId: string) =>
@@ -41,6 +51,7 @@ export const useExecutionStore = create<ExecutionState>((set) => ({
       executionId,
       status: "running",
       nodeStatuses: new Map(),
+      nodeResults: [],
       startedAt: new Date().toISOString(),
     }),
 
@@ -50,6 +61,11 @@ export const useExecutionStore = create<ExecutionState>((set) => ({
       updated.set(nodeId, info);
       return { nodeStatuses: updated };
     }),
+
+  addNodeResult: (result: NodeResult) =>
+    set((state) => ({
+      nodeResults: [...state.nodeResults, result],
+    })),
 
   completeExecution: () => set({ status: "completed" }),
 
@@ -72,6 +88,7 @@ export const useExecutionStore = create<ExecutionState>((set) => ({
       executionId: null,
       status: "idle",
       nodeStatuses: new Map(),
+      nodeResults: [],
       startedAt: null,
     }),
 }));

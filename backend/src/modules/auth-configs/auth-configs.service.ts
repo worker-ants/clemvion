@@ -2,6 +2,8 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { AuthConfig } from './entities/auth-config.entity';
+import { Execution } from '../executions/entities/execution.entity';
+import { Trigger } from '../triggers/entities/trigger.entity';
 import { PaginatedResponseDto } from '../../common/dto/paginated-response.dto';
 import { PaginationQueryDto } from '../../common/dto/pagination.dto';
 import { randomBytes } from 'crypto';
@@ -11,6 +13,10 @@ export class AuthConfigsService {
   constructor(
     @InjectRepository(AuthConfig)
     private readonly authConfigRepository: Repository<AuthConfig>,
+    @InjectRepository(Execution)
+    private readonly executionRepository: Repository<Execution>,
+    @InjectRepository(Trigger)
+    private readonly triggerRepository: Repository<Trigger>,
   ) {}
 
   async findAll(
@@ -97,5 +103,59 @@ export class AuthConfigsService {
   async remove(id: string, workspaceId: string): Promise<void> {
     const config = await this.findById(id, workspaceId);
     await this.authConfigRepository.remove(config);
+  }
+
+  async getUsage(
+    id: string,
+    workspaceId: string,
+  ): Promise<{
+    totalCalls: number;
+    lastUsedAt: Date | null;
+    recentCalls: Array<{
+      id: string;
+      triggerName: string;
+      status: string;
+      startedAt: Date;
+    }>;
+  }> {
+    const config = await this.findById(id, workspaceId);
+
+    // Find triggers using this auth config
+    const triggers = await this.triggerRepository.find({
+      where: { authConfigId: id },
+    });
+    const triggerIds = triggers.map((t) => t.id);
+
+    if (triggerIds.length === 0) {
+      return {
+        totalCalls: 0,
+        lastUsedAt: config.lastUsedAt,
+        recentCalls: [],
+      };
+    }
+
+    const totalCalls = await this.executionRepository
+      .createQueryBuilder('e')
+      .where('e.trigger_id IN (:...triggerIds)', { triggerIds })
+      .getCount();
+
+    const recentExecutions = await this.executionRepository
+      .createQueryBuilder('e')
+      .innerJoinAndSelect('e.trigger', 't')
+      .where('e.trigger_id IN (:...triggerIds)', { triggerIds })
+      .orderBy('e.started_at', 'DESC')
+      .limit(20)
+      .getMany();
+
+    return {
+      totalCalls,
+      lastUsedAt: config.lastUsedAt,
+      recentCalls: recentExecutions.map((e) => ({
+        id: e.id,
+        triggerName: e.trigger?.name ?? 'Unknown',
+        status: e.status,
+        startedAt: e.startedAt,
+      })),
+    };
   }
 }

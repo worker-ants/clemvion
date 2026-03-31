@@ -68,6 +68,14 @@ export class IntegrationsController {
     return this.integrationsService.testConnection(id, workspaceId);
   }
 
+  @Post(':id/reauthorize')
+  async reauthorize(
+    @Param('id', ParseUUIDPipe) id: string,
+    @WorkspaceId() workspaceId: string,
+  ) {
+    return this.integrationsService.reauthorize(id, workspaceId);
+  }
+
   @Delete(':id')
   @HttpCode(HttpStatus.NO_CONTENT)
   async remove(

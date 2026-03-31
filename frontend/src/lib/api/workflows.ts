@@ -98,4 +98,10 @@ export const workflowsApi = {
 
   execute: (workflowId: string, input?: Record<string, unknown>) =>
     apiClient.post(`/workflows/${workflowId}/execute`, { input }),
+
+  exportWorkflow: (id: string) =>
+    apiClient.get(`/workflows/${id}/export`),
+
+  importWorkflow: (data: object) =>
+    apiClient.post<{ data: WorkflowData }>("/workflows/import", data),
 };

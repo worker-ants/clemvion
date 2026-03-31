@@ -8,6 +8,7 @@ import { cn } from "@/lib/utils/cn";
 import { toast } from "sonner";
 import { Copy, Loader2, Inbox } from "lucide-react";
 import Link from "next/link";
+import { TriggerDetailDrawer } from "@/components/triggers/trigger-detail-drawer";
 
 interface Trigger {
   id: string;
@@ -23,6 +24,9 @@ interface Trigger {
 const FILTER_TABS = ["all", "webhook", "schedule", "manual"] as const;
 type FilterTab = (typeof FILTER_TABS)[number];
 
+const STATUS_FILTERS = ["all", "active", "inactive"] as const;
+type StatusFilter = (typeof STATUS_FILTERS)[number];
+
 const TYPE_BADGE_STYLES: Record<string, string> = {
   webhook:
     "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200",
@@ -34,12 +38,17 @@ const TYPE_BADGE_STYLES: Record<string, string> = {
 
 export default function TriggersPage() {
   const [activeTab, setActiveTab] = useState<FilterTab>("all");
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
+  const [selectedTriggerId, setSelectedTriggerId] = useState<string | null>(null);
   const queryClient = useQueryClient();
 
   const { data: triggers = [], isLoading, isError } = useQuery<Trigger[]>({
-    queryKey: ["triggers", activeTab],
+    queryKey: ["triggers", activeTab, statusFilter],
     queryFn: async () => {
-      const params = activeTab !== "all" ? { type: activeTab } : {};
+      const params: Record<string, string> = {};
+      if (activeTab !== "all") params.type = activeTab;
+      if (statusFilter === "active") params.active = "true";
+      if (statusFilter === "inactive") params.active = "false";
       const res = await apiClient.get("/triggers", { params });
       return res.data.data ?? res.data;
     },
@@ -69,17 +78,33 @@ export default function TriggersPage() {
     <div className="space-y-6">
       <h1 className="text-3xl font-bold">Triggers</h1>
 
-      <div className="flex gap-2">
-        {FILTER_TABS.map((tab) => (
-          <Button
-            key={tab}
-            variant={activeTab === tab ? "default" : "outline"}
-            size="sm"
-            onClick={() => setActiveTab(tab)}
-          >
-            {tab.charAt(0).toUpperCase() + tab.slice(1)}
-          </Button>
-        ))}
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
+        <div className="flex gap-2">
+          {FILTER_TABS.map((tab) => (
+            <Button
+              key={tab}
+              variant={activeTab === tab ? "default" : "outline"}
+              size="sm"
+              onClick={() => setActiveTab(tab)}
+            >
+              {tab.charAt(0).toUpperCase() + tab.slice(1)}
+            </Button>
+          ))}
+        </div>
+        <div className="flex gap-2">
+          {STATUS_FILTERS.map((status) => (
+            <Button
+              key={status}
+              variant={statusFilter === status ? "default" : "outline"}
+              size="sm"
+              onClick={() => setStatusFilter(status)}
+            >
+              {status === "all"
+                ? "All Status"
+                : status.charAt(0).toUpperCase() + status.slice(1)}
+            </Button>
+          ))}
+        </div>
       </div>
 
       {isLoading && (
@@ -117,7 +142,11 @@ export default function TriggersPage() {
             </thead>
             <tbody className="divide-y divide-[hsl(var(--border))]">
               {triggers.map((trigger) => (
-                <tr key={trigger.id}>
+                <tr
+                  key={trigger.id}
+                  className="cursor-pointer hover:bg-[hsl(var(--muted))/0.5]"
+                  onClick={() => setSelectedTriggerId(trigger.id)}
+                >
                   <td className="px-4 py-3">
                     <span
                       className={cn(
@@ -141,6 +170,7 @@ export default function TriggersPage() {
                     <Link
                       href={`/workflows/${trigger.workflowId}`}
                       className="text-[hsl(var(--primary))] hover:underline"
+                      onClick={(e) => e.stopPropagation()}
                     >
                       {trigger.workflowName}
                     </Link>
@@ -155,7 +185,10 @@ export default function TriggersPage() {
                           variant="ghost"
                           size="icon"
                           className="h-6 w-6"
-                          onClick={() => copyToClipboard(trigger.endpoint!)}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            copyToClipboard(trigger.endpoint!);
+                          }}
                         >
                           <Copy className="h-3.5 w-3.5" />
                         </Button>
@@ -174,12 +207,13 @@ export default function TriggersPage() {
                       variant="outline"
                       size="sm"
                       disabled={toggleMutation.isPending}
-                      onClick={() =>
+                      onClick={(e) => {
+                        e.stopPropagation();
                         toggleMutation.mutate({
                           id: trigger.id,
                           active: !trigger.active,
-                        })
-                      }
+                        });
+                      }}
                     >
                       {trigger.active ? "Deactivate" : "Activate"}
                     </Button>
@@ -190,6 +224,12 @@ export default function TriggersPage() {
           </table>
         </div>
       )}
+
+      <TriggerDetailDrawer
+        triggerId={selectedTriggerId}
+        open={selectedTriggerId !== null}
+        onClose={() => setSelectedTriggerId(null)}
+      />
     </div>
   );
 }

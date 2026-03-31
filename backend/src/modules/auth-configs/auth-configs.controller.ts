@@ -53,6 +53,14 @@ export class AuthConfigsController {
     return this.authConfigsService.update(id, workspaceId, body);
   }
 
+  @Get(':id/usage')
+  async getUsage(
+    @Param('id', ParseUUIDPipe) id: string,
+    @WorkspaceId() workspaceId: string,
+  ) {
+    return this.authConfigsService.getUsage(id, workspaceId);
+  }
+
   @Post(':id/regenerate')
   async regenerate(
     @Param('id', ParseUUIDPipe) id: string,

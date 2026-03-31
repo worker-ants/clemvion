@@ -1,0 +1,323 @@
+{
+  "timestamp": "2026-03-31T15:42:01.420171",
+  "files": [
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/backend/package-lock.json",
+      "change_type": "Review",
+      "file_extension": "json"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/backend/package.json",
+      "change_type": "Review",
+      "file_extension": "json"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/backend/src/modules/auth-configs/auth-configs.controller.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/backend/src/modules/auth-configs/auth-configs.module.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/backend/src/modules/auth-configs/auth-configs.service.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/backend/src/modules/dashboard/dashboard.service.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/backend/src/modules/integrations/integrations.controller.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/backend/src/modules/integrations/integrations.service.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/backend/src/modules/schedules/schedules.controller.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/backend/src/modules/schedules/schedules.module.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/backend/src/modules/schedules/schedules.service.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/backend/src/modules/statistics/statistics.controller.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/backend/src/modules/statistics/statistics.module.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/backend/src/modules/statistics/statistics.service.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/backend/src/modules/triggers/triggers.controller.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/backend/src/modules/triggers/triggers.module.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/backend/src/modules/triggers/triggers.service.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/backend/src/modules/workflows/workflows.controller.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/backend/src/modules/workflows/workflows.module.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/backend/src/modules/workflows/workflows.service.spec.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/backend/src/modules/workflows/workflows.service.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/frontend/package-lock.json",
+      "change_type": "Review",
+      "file_extension": "json"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/frontend/package.json",
+      "change_type": "Review",
+      "file_extension": "json"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/frontend/src/app/(main)/authentication/page.tsx",
+      "change_type": "Review",
+      "file_extension": "tsx"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/frontend/src/app/(main)/dashboard/page.tsx",
+      "change_type": "Review",
+      "file_extension": "tsx"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/frontend/src/app/(main)/integrations/page.tsx",
+      "change_type": "Review",
+      "file_extension": "tsx"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/frontend/src/app/(main)/layout.tsx",
+      "change_type": "Review",
+      "file_extension": "tsx"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/frontend/src/app/(main)/schedules/page.tsx",
+      "change_type": "Review",
+      "file_extension": "tsx"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/frontend/src/app/(main)/statistics/page.tsx",
+      "change_type": "Review",
+      "file_extension": "tsx"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/frontend/src/app/(main)/triggers/page.tsx",
+      "change_type": "Review",
+      "file_extension": "tsx"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/frontend/src/app/(main)/workflows/page.tsx",
+      "change_type": "Review",
+      "file_extension": "tsx"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/frontend/src/components/editor/canvas/custom-edge.tsx",
+      "change_type": "Review",
+      "file_extension": "tsx"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/frontend/src/components/editor/canvas/workflow-canvas.tsx",
+      "change_type": "Review",
+      "file_extension": "tsx"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/frontend/src/components/editor/toolbar/editor-toolbar.tsx",
+      "change_type": "Review",
+      "file_extension": "tsx"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/frontend/src/components/editor/workflow-editor.tsx",
+      "change_type": "Review",
+      "file_extension": "tsx"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/frontend/src/components/layout/sidebar.tsx",
+      "change_type": "Review",
+      "file_extension": "tsx"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/frontend/src/lib/api/workflows.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/frontend/src/lib/stores/execution-store.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/backend/src/modules/workflows/dto/import-workflow.dto.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/frontend/src/components/editor/run-results/run-results-drawer.tsx",
+      "change_type": "Review",
+      "file_extension": "tsx"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/frontend/src/components/triggers/trigger-detail-drawer.tsx",
+      "change_type": "Review",
+      "file_extension": "tsx"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/frontend/src/components/ui/__tests__/badge.test.tsx",
+      "change_type": "Review",
+      "file_extension": "tsx"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/frontend/src/components/ui/__tests__/button.test.tsx",
+      "change_type": "Review",
+      "file_extension": "tsx"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/frontend/src/components/ui/__tests__/card.test.tsx",
+      "change_type": "Review",
+      "file_extension": "tsx"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/frontend/src/components/ui/slide-drawer.tsx",
+      "change_type": "Review",
+      "file_extension": "tsx"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/frontend/src/lib/stores/__tests__/auth-store.test.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/frontend/src/lib/stores/__tests__/editor-store.test.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/frontend/src/lib/stores/__tests__/execution-store.test.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/frontend/src/lib/utils/__tests__/cn.test.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/frontend/src/lib/utils/__tests__/date.test.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    }
+  ],
+  "total_elapsed_seconds": 445.97,
+  "agents": [
+    {
+      "name": "database",
+      "status": "success",
+      "elapsed_seconds": 41.11
+    },
+    {
+      "name": "maintainability",
+      "status": "success",
+      "elapsed_seconds": 43.33
+    },
+    {
+      "name": "performance",
+      "status": "success",
+      "elapsed_seconds": 43.86
+    },
+    {
+      "name": "documentation",
+      "status": "success",
+      "elapsed_seconds": 43.87
+    },
+    {
+      "name": "side_effect",
+      "status": "success",
+      "elapsed_seconds": 44.35
+    },
+    {
+      "name": "architecture",
+      "status": "success",
+      "elapsed_seconds": 44.75
+    },
+    {
+      "name": "api_contract",
+      "status": "success",
+      "elapsed_seconds": 45.48
+    },
+    {
+      "name": "dependency",
+      "status": "success",
+      "elapsed_seconds": 45.66
+    },
+    {
+      "name": "security",
+      "status": "success",
+      "elapsed_seconds": 53.87
+    },
+    {
+      "name": "requirement",
+      "status": "success",
+      "elapsed_seconds": 53.87
+    },
+    {
+      "name": "concurrency",
+      "status": "success",
+      "elapsed_seconds": 60.51
+    },
+    {
+      "name": "scope",
+      "status": "success",
+      "elapsed_seconds": 75.74
+    },
+    {
+      "name": "testing",
+      "status": "success",
+      "elapsed_seconds": 83.89
+    }
+  ]
+}

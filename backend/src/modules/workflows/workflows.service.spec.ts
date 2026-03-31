@@ -5,6 +5,7 @@ import { NotFoundException } from '@nestjs/common';
 import { WorkflowsService } from './workflows.service';
 import { Workflow } from './entities/workflow.entity';
 import { Node, NodeCategory } from '../nodes/entities/node.entity';
+import { Edge } from '../edges/entities/edge.entity';
 
 describe('WorkflowsService', () => {
   let service: WorkflowsService;
@@ -47,6 +48,13 @@ describe('WorkflowsService', () => {
       .mockImplementation((data) =>
         Promise.resolve({ id: 'node-id', ...data }),
       ),
+    find: jest.fn().mockResolvedValue([]),
+  };
+
+  const mockEdgeRepository = {
+    create: jest.fn().mockImplementation((data) => data),
+    save: jest.fn().mockResolvedValue(undefined),
+    find: jest.fn().mockResolvedValue([]),
   };
 
   const mockTransactionManager = {
@@ -72,6 +80,7 @@ describe('WorkflowsService', () => {
         WorkflowsService,
         { provide: getRepositoryToken(Workflow), useValue: mockRepository },
         { provide: getRepositoryToken(Node), useValue: mockNodeRepository },
+        { provide: getRepositoryToken(Edge), useValue: mockEdgeRepository },
         { provide: DataSource, useValue: mockDataSource },
       ],
     }).compile();

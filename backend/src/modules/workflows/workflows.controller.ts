@@ -17,6 +17,7 @@ import { CreateWorkflowDto } from './dto/create-workflow.dto';
 import { UpdateWorkflowDto } from './dto/update-workflow.dto';
 import { QueryWorkflowDto } from './dto/query-workflow.dto';
 import { SaveCanvasDto } from './dto/save-canvas.dto';
+import { ImportWorkflowDto } from './dto/import-workflow.dto';
 import { CurrentUser, WorkspaceId } from '../../common/decorators';
 import type { JwtPayload } from '../../common/decorators';
 
@@ -115,5 +116,15 @@ export class WorkflowsController {
     @WorkspaceId() workspaceId: string,
   ) {
     return this.workflowsService.exportWorkflow(id, workspaceId);
+  }
+
+  @Post('import')
+  @HttpCode(HttpStatus.CREATED)
+  async importWorkflow(
+    @WorkspaceId() workspaceId: string,
+    @CurrentUser() user: JwtPayload,
+    @Body() dto: ImportWorkflowDto,
+  ) {
+    return this.workflowsService.importWorkflow(workspaceId, user.sub, dto);
   }
 }

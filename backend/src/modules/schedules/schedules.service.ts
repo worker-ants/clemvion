@@ -1,4 +1,8 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Schedule } from './entities/schedule.entity';
@@ -7,6 +11,8 @@ import { CreateScheduleDto } from './dto/create-schedule.dto';
 import { UpdateScheduleDto } from './dto/update-schedule.dto';
 import { PaginatedResponseDto } from '../../common/dto/paginated-response.dto';
 import { PaginationQueryDto } from '../../common/dto/pagination.dto';
+import { CronExpressionParser } from 'cron-parser';
+import { ExecutionEngineService } from '../execution-engine/execution-engine.service';
 
 @Injectable()
 export class SchedulesService {
@@ -15,6 +21,7 @@ export class SchedulesService {
     private readonly scheduleRepository: Repository<Schedule>,
     @InjectRepository(Trigger)
     private readonly triggerRepository: Repository<Trigger>,
+    private readonly executionEngineService: ExecutionEngineService,
   ) {}
 
   async findAll(
@@ -115,5 +122,74 @@ export class SchedulesService {
       await this.triggerRepository.delete(schedule.triggerId);
     }
     await this.scheduleRepository.remove(schedule);
+  }
+
+  async getPreview(
+    id: string,
+    workspaceId: string,
+    count: number = 5,
+  ): Promise<{ nextRuns: string[] }> {
+    const schedule = await this.findById(id, workspaceId);
+    const nextRuns = this.computeNextRuns(
+      schedule.cronExpression,
+      schedule.timezone,
+      count,
+    );
+    return { nextRuns };
+  }
+
+  getPreviewFromExpression(
+    cronExpression: string,
+    timezone: string = 'Asia/Seoul',
+    count: number = 5,
+  ): { nextRuns: string[] } {
+    const nextRuns = this.computeNextRuns(cronExpression, timezone, count);
+    return { nextRuns };
+  }
+
+  async runNow(
+    id: string,
+    workspaceId: string,
+    userId: string,
+  ): Promise<{ executionId: string }> {
+    const schedule = await this.findById(id, workspaceId);
+    const workflowId = this.getWorkflowIdForSchedule(schedule);
+    if (!workflowId) {
+      throw new BadRequestException('Schedule has no associated workflow');
+    }
+    const executionId = await this.executionEngineService.execute(
+      workflowId,
+      undefined,
+      userId,
+    );
+    return { executionId };
+  }
+
+  getWorkflowIdForSchedule(schedule: Schedule): string | null {
+    return schedule.trigger?.workflowId ?? null;
+  }
+
+  private computeNextRuns(
+    cronExpression: string,
+    timezone: string,
+    count: number,
+  ): string[] {
+    const safeCount = Math.min(Math.max(count, 1), 20);
+    try {
+      const interval = CronExpressionParser.parse(cronExpression, {
+        tz: timezone,
+        currentDate: new Date(),
+      });
+      const runs: string[] = [];
+      for (let i = 0; i < safeCount; i++) {
+        const next = interval.next();
+        runs.push(next.toISOString() ?? new Date().toISOString());
+      }
+      return runs;
+    } catch {
+      throw new BadRequestException(
+        `Invalid cron expression: "${cronExpression}"`,
+      );
+    }
   }
 }

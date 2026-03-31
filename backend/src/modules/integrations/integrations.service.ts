@@ -93,6 +93,54 @@ export class IntegrationsService {
     return { success: true, message: 'Connection successful' };
   }
 
+  async reauthorize(
+    id: string,
+    workspaceId: string,
+  ): Promise<{ authUrl: string; state: string }> {
+    const integration = await this.findById(id, workspaceId);
+
+    const oauthConfigs: Record<string, { authUrl: string; scopes: string[] }> =
+      {
+        slack: {
+          authUrl: 'https://slack.com/oauth/v2/authorize',
+          scopes: ['chat:write', 'channels:read'],
+        },
+        google: {
+          authUrl: 'https://accounts.google.com/o/oauth2/v2/auth',
+          scopes: [
+            'https://www.googleapis.com/auth/drive',
+            'https://www.googleapis.com/auth/spreadsheets',
+          ],
+        },
+        github: {
+          authUrl: 'https://github.com/login/oauth/authorize',
+          scopes: ['repo', 'read:org'],
+        },
+      };
+
+    const config = oauthConfigs[integration.serviceType];
+    if (!config) {
+      // Non-OAuth integrations: just reset status
+      integration.status = 'connected';
+      await this.integrationRepository.save(integration);
+      return { authUrl: '', state: '' };
+    }
+
+    // Generate state token for CSRF protection
+    const { randomBytes } = await import('crypto');
+    const state = randomBytes(16).toString('hex');
+
+    const authUrl =
+      `${config.authUrl}?` +
+      `client_id=${process.env[`${integration.serviceType.toUpperCase()}_CLIENT_ID`] || ''}` +
+      `&redirect_uri=${encodeURIComponent(`${process.env.APP_URL || 'http://localhost:3011'}/api/integrations/oauth/callback/${integration.serviceType}`)}` +
+      `&scope=${encodeURIComponent(config.scopes.join(' '))}` +
+      `&state=${state}` +
+      `&response_type=code`;
+
+    return { authUrl, state };
+  }
+
   getAvailableServices(): Array<{
     type: string;
     name: string;

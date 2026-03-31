@@ -9,6 +9,7 @@ import { EditorToolbar } from "./toolbar/editor-toolbar";
 import { NodePalette } from "./palette/node-palette";
 import { WorkflowCanvas } from "./canvas/workflow-canvas";
 import { NodeSettingsPanel } from "./settings-panel/node-settings-panel";
+import { RunResultsDrawer } from "./run-results/run-results-drawer";
 
 export function WorkflowEditor() {
   const undo = useEditorStore((s) => s.undo);
@@ -53,17 +54,22 @@ export function WorkflowEditor() {
         <EditorToolbar />
 
         {/* Main content area */}
-        <div className="flex flex-1 overflow-hidden">
-          {/* Left palette */}
-          <NodePalette />
+        <div className="flex flex-1 flex-col overflow-hidden">
+          <div className="flex flex-1 overflow-hidden">
+            {/* Left palette */}
+            <NodePalette />
 
-          {/* Center canvas */}
-          <div className="flex-1">
-            <WorkflowCanvas />
+            {/* Center canvas */}
+            <div className="flex-1">
+              <WorkflowCanvas />
+            </div>
+
+            {/* Right settings panel (conditional) */}
+            <NodeSettingsPanel />
           </div>
 
-          {/* Right settings panel (conditional) */}
-          <NodeSettingsPanel />
+          {/* Run results drawer (bottom) */}
+          <RunResultsDrawer />
         </div>
       </div>
     </ReactFlowProvider>

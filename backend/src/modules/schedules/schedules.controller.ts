@@ -14,7 +14,9 @@ import {
 import { SchedulesService } from './schedules.service';
 import { CreateScheduleDto } from './dto/create-schedule.dto';
 import { UpdateScheduleDto } from './dto/update-schedule.dto';
-import { WorkspaceId } from '../../common/decorators';
+import { PreviewExpressionDto } from './dto/preview-expression.dto';
+import { CurrentUser, WorkspaceId } from '../../common/decorators';
+import type { JwtPayload } from '../../common/decorators';
 import { PaginationQueryDto } from '../../common/dto/pagination.dto';
 
 @Controller('schedules')
@@ -37,6 +39,28 @@ export class SchedulesController {
     return this.schedulesService.findById(id, workspaceId);
   }
 
+  @Get(':id/preview')
+  async getPreview(
+    @Param('id', ParseUUIDPipe) id: string,
+    @WorkspaceId() workspaceId: string,
+    @Query('count') count?: string,
+  ) {
+    return this.schedulesService.getPreview(
+      id,
+      workspaceId,
+      count ? parseInt(count, 10) : 5,
+    );
+  }
+
+  @Post('preview')
+  async previewExpression(@Body() dto: PreviewExpressionDto) {
+    return this.schedulesService.getPreviewFromExpression(
+      dto.cronExpression,
+      dto.timezone,
+      dto.count,
+    );
+  }
+
   @Post()
   @HttpCode(HttpStatus.CREATED)
   async create(
@@ -44,6 +68,16 @@ export class SchedulesController {
     @Body() dto: CreateScheduleDto,
   ) {
     return this.schedulesService.create(workspaceId, dto);
+  }
+
+  @Post(':id/run-now')
+  @HttpCode(HttpStatus.ACCEPTED)
+  async runNow(
+    @Param('id', ParseUUIDPipe) id: string,
+    @WorkspaceId() workspaceId: string,
+    @CurrentUser() user: JwtPayload,
+  ) {
+    return this.schedulesService.runNow(id, workspaceId, user.sub);
   }
 
   @Patch(':id')
