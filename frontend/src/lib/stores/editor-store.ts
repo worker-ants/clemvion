@@ -69,27 +69,28 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       });
       if (filteredChanges.length === 0) return state;
 
-      // Push undo for remove operations
-      const hasRemove = filteredChanges.some((c) => c.type === "remove");
-      if (hasRemove) {
+      // Handle remove operations: push undo, clean up edges, clear selection
+      const removedIds = new Set(
+        filteredChanges
+          .filter((c) => c.type === "remove")
+          .map((c) => c.id),
+      );
+
+      if (removedIds.size > 0) {
         const snapshot = { nodes: [...state.nodes], edges: [...state.edges] };
         const newStack = [...state.undoStack, snapshot].slice(-MAX_UNDO);
         return {
           nodes: applyNodeChanges(filteredChanges, state.nodes),
-          edges: state.edges.filter((e) => {
-            const removedIds = filteredChanges
-              .filter((c) => c.type === "remove")
-              .map((c) => c.id);
-            return !removedIds.includes(e.source) && !removedIds.includes(e.target);
-          }),
+          edges: state.edges.filter(
+            (e) => !removedIds.has(e.source) && !removedIds.has(e.target),
+          ),
           undoStack: newStack,
           redoStack: [],
           isDirty: true,
-          selectedNodeId: filteredChanges.some(
-            (c) => c.type === "remove" && c.id === state.selectedNodeId,
-          )
-            ? null
-            : state.selectedNodeId,
+          selectedNodeId:
+            state.selectedNodeId && removedIds.has(state.selectedNodeId)
+              ? null
+              : state.selectedNodeId,
         };
       }
 
