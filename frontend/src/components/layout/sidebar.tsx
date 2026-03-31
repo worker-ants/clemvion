@@ -1,8 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import {
   LayoutDashboard,
   GitBranch,
@@ -13,9 +13,13 @@ import {
   BarChart3,
   ChevronLeft,
   ChevronRight,
+  User,
+  LogOut,
 } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
 import { Button } from "@/components/ui/button";
+import { useAuthStore } from "@/lib/stores/auth-store";
+import { authApi } from "@/lib/api/auth";
 
 const navItems = [
   { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
@@ -29,7 +33,37 @@ const navItems = [
 
 export function Sidebar() {
   const pathname = usePathname();
+  const router = useRouter();
   const [collapsed, setCollapsed] = useState(false);
+  const [userMenuOpen, setUserMenuOpen] = useState(false);
+  const userMenuRef = useRef<HTMLDivElement>(null);
+  const user = useAuthStore((s) => s.user);
+  const logout = useAuthStore((s) => s.logout);
+
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (userMenuRef.current && !userMenuRef.current.contains(e.target as Node)) {
+        setUserMenuOpen(false);
+      }
+    }
+    if (userMenuOpen) {
+      document.addEventListener("mousedown", handleClickOutside);
+    }
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [userMenuOpen]);
+
+  async function handleLogout() {
+    try {
+      await authApi.logout();
+    } catch {
+      // Proceed with client-side logout even if API fails
+    }
+    logout();
+    router.push("/login");
+  }
+
+  const userInitial = user?.name?.charAt(0)?.toUpperCase() ?? "U";
+  const userName = user?.name ?? "User";
 
   return (
     <aside
@@ -77,19 +111,46 @@ export function Sidebar() {
       </nav>
 
       {/* User area */}
-      <div className="border-t border-[hsl(var(--border))] p-2">
-        <Link
-          href="/profile"
+      <div className="relative border-t border-[hsl(var(--border))] p-2" ref={userMenuRef}>
+        {userMenuOpen && (
+          <div className="absolute bottom-full left-2 right-2 mb-1 rounded-md border border-[hsl(var(--border))] bg-[hsl(var(--card))] py-1 shadow-lg">
+            <div className="border-b border-[hsl(var(--border))] px-3 py-2">
+              <p className="text-sm font-medium text-[hsl(var(--foreground))]">{userName}</p>
+              {user?.email && (
+                <p className="text-xs text-[hsl(var(--muted-foreground))]">{user.email}</p>
+              )}
+            </div>
+            <Link
+              href="/profile"
+              onClick={() => setUserMenuOpen(false)}
+              className="flex items-center gap-2 px-3 py-2 text-sm text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--accent))] hover:text-[hsl(var(--accent-foreground))]"
+            >
+              <User className="h-4 w-4" />
+              Profile
+            </Link>
+            <button
+              type="button"
+              onClick={handleLogout}
+              className="flex w-full items-center gap-2 px-3 py-2 text-sm text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--accent))] hover:text-[hsl(var(--accent-foreground))]"
+            >
+              <LogOut className="h-4 w-4" />
+              Logout
+            </button>
+          </div>
+        )}
+        <button
+          type="button"
+          onClick={() => setUserMenuOpen(!userMenuOpen)}
           className={cn(
-            "flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium text-[hsl(var(--muted-foreground))] transition-colors hover:bg-[hsl(var(--accent))] hover:text-[hsl(var(--accent-foreground))]",
+            "flex w-full items-center gap-3 rounded-md px-3 py-2 text-sm font-medium text-[hsl(var(--muted-foreground))] transition-colors hover:bg-[hsl(var(--accent))] hover:text-[hsl(var(--accent-foreground))]",
             collapsed && "justify-center px-2",
           )}
         >
           <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[hsl(var(--primary))] text-xs font-semibold text-[hsl(var(--primary-foreground))]">
-            U
+            {userInitial}
           </div>
-          {!collapsed && <span>User</span>}
-        </Link>
+          {!collapsed && <span>{userName}</span>}
+        </button>
       </div>
 
       {/* Collapse toggle */}

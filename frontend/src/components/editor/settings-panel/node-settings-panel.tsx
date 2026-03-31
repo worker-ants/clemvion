@@ -3,6 +3,7 @@
 import { useState, useCallback } from "react";
 import { useEditorStore } from "@/lib/stores/editor-store";
 import { getNodeDefinition } from "@/lib/node-definitions";
+import { NodeConfigRenderer } from "./node-configs";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -10,13 +11,12 @@ import { cn } from "@/lib/utils/cn";
 import { NodeIcon } from "../canvas/node-icon";
 import { X } from "lucide-react";
 
-type Tab = "settings" | "info";
+type Tab = "settings" | "code" | "info";
 
 export function NodeSettingsPanel() {
   const selectedNodeId = useEditorStore((s) => s.selectedNodeId);
   const nodes = useEditorStore((s) => s.nodes);
   const selectNode = useEditorStore((s) => s.selectNode);
-  const updateNodeConfig = useEditorStore((s) => s.updateNodeConfig);
 
   const node = nodes.find((n) => n.id === selectedNodeId);
   const [activeTab, setActiveTab] = useState<Tab>("settings");
@@ -56,7 +56,7 @@ export function NodeSettingsPanel() {
 
       {/* Tabs */}
       <div className="flex border-b border-[hsl(var(--border))]">
-        {(["settings", "info"] as const).map((tab) => (
+        {(["settings", "code", "info"] as const).map((tab) => (
           <button
             key={tab}
             type="button"
@@ -68,7 +68,7 @@ export function NodeSettingsPanel() {
                 : "text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]",
             )}
           >
-            {tab}
+            {tab === "code" ? "Code" : tab === "info" ? "Info" : "Settings"}
           </button>
         ))}
       </div>
@@ -80,10 +80,15 @@ export function NodeSettingsPanel() {
             key={selectedNodeId}
             nodeId={selectedNodeId}
             nodeData={nodeData}
-            updateNodeConfig={updateNodeConfig}
+          />
+        ) : activeTab === "code" ? (
+          <CodeTab
+            key={`code-${selectedNodeId}`}
+            nodeId={selectedNodeId}
+            nodeData={nodeData}
           />
         ) : (
-          <InfoTab />
+          <InfoTab nodeType={nodeData.type} />
         )}
       </div>
     </div>
@@ -93,7 +98,6 @@ export function NodeSettingsPanel() {
 function SettingsTab({
   nodeId,
   nodeData,
-  updateNodeConfig,
 }: {
   nodeId: string;
   nodeData: {
@@ -102,13 +106,11 @@ function SettingsTab({
     config: Record<string, unknown>;
     isDisabled?: boolean;
   };
-  updateNodeConfig: (id: string, config: Record<string, unknown>) => void;
 }) {
-  // Use nodeId as key to reset state when switching nodes (via key prop on parent)
   const [label, setLabel] = useState(nodeData.label);
   const [isDisabled, setIsDisabled] = useState(nodeData.isDisabled ?? false);
-  const [configJson, setConfigJson] = useState(
-    JSON.stringify(nodeData.config ?? {}, null, 2),
+  const [nodeConfig, setNodeConfig] = useState<Record<string, unknown>>(
+    nodeData.config ?? {},
   );
   const [notes, setNotes] = useState(
     (nodeData.config?.notes as string) ?? "",
@@ -116,26 +118,17 @@ function SettingsTab({
   const [errorPolicy, setErrorPolicy] = useState(
     (nodeData.config?.errorPolicy as string) ?? "stop",
   );
-  const [jsonError, setJsonError] = useState<string | null>(null);
+
+  const handleConfigChange = useCallback(
+    (newConfig: Record<string, unknown>) => {
+      setNodeConfig(newConfig);
+    },
+    [],
+  );
 
   const handleSave = useCallback(() => {
-    let parsedConfig: Record<string, unknown>;
-    try {
-      parsedConfig = JSON.parse(configJson);
-      setJsonError(null);
-    } catch {
-      setJsonError("Invalid JSON");
-      return;
-    }
-
-    // Store updates node data including the config
-    const nodes = useEditorStore.getState().nodes;
-    const currentNode = nodes.find((n) => n.id === nodeId);
-    if (!currentNode) return;
-
     useEditorStore.getState().pushUndo();
 
-    // Update the full node data
     useEditorStore.setState((state) => ({
       nodes: state.nodes.map((n) =>
         n.id === nodeId
@@ -145,14 +138,16 @@ function SettingsTab({
                 ...n.data,
                 label,
                 isDisabled,
-                config: { ...parsedConfig, notes, errorPolicy },
+                config: { ...nodeConfig, notes, errorPolicy },
               },
             }
           : n,
       ),
       isDirty: true,
     }));
-  }, [nodeId, label, isDisabled, configJson, notes, errorPolicy]);
+  }, [nodeId, label, isDisabled, nodeConfig, notes, errorPolicy]);
+
+  const isTrigger = nodeData.type === "manual_trigger";
 
   return (
     <div className="flex flex-col gap-4">
@@ -166,33 +161,47 @@ function SettingsTab({
         />
       </div>
 
-      {/* Disabled */}
-      <div className="flex items-center gap-2">
-        <input
-          type="checkbox"
-          id="node-disabled"
-          checked={isDisabled}
-          onChange={(e) => setIsDisabled(e.target.checked)}
-          className="h-4 w-4 rounded border-[hsl(var(--input))]"
-        />
-        <Label htmlFor="node-disabled" className="text-xs">
-          Disabled
-        </Label>
-      </div>
+      {/* Node-specific config */}
+      <NodeConfigRenderer
+        nodeType={nodeData.type}
+        config={nodeConfig}
+        onChange={handleConfigChange}
+      />
 
-      {/* Error handling policy */}
-      <div className="flex flex-col gap-1.5">
-        <Label className="text-xs">Error Handling</Label>
-        <select
-          value={errorPolicy}
-          onChange={(e) => setErrorPolicy(e.target.value)}
-          className="h-8 rounded-md border border-[hsl(var(--input))] bg-transparent px-2 text-xs text-[hsl(var(--foreground))]"
-        >
-          <option value="stop">Stop on Error</option>
-          <option value="continue">Continue on Error</option>
-          <option value="retry">Retry</option>
-        </select>
-      </div>
+      {/* Common fields below node-specific config */}
+      {!isTrigger && (
+        <>
+          {/* Error handling policy */}
+          <div className="flex flex-col gap-1.5">
+            <Label className="text-xs">Error Handling</Label>
+            <select
+              value={errorPolicy}
+              onChange={(e) => setErrorPolicy(e.target.value)}
+              className="h-8 rounded-md border border-[hsl(var(--input))] bg-transparent px-2 text-xs text-[hsl(var(--foreground))]"
+            >
+              <option value="stop">Stop Workflow</option>
+              <option value="skip">Skip Node</option>
+              <option value="default_output">Use Default Output</option>
+              <option value="retry">Retry</option>
+              <option value="error_port">Route to Error Port</option>
+            </select>
+          </div>
+
+          {/* Disabled */}
+          <div className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              id="node-disabled"
+              checked={isDisabled}
+              onChange={(e) => setIsDisabled(e.target.checked)}
+              className="h-4 w-4 rounded border-[hsl(var(--input))]"
+            />
+            <Label htmlFor="node-disabled" className="text-xs">
+              Disable this node
+            </Label>
+          </div>
+        </>
+      )}
 
       {/* Notes */}
       <div className="flex flex-col gap-1.5">
@@ -206,7 +215,50 @@ function SettingsTab({
         />
       </div>
 
-      {/* Config JSON */}
+      {/* Save button */}
+      <Button size="sm" onClick={handleSave} className="text-xs">
+        Save Changes
+      </Button>
+    </div>
+  );
+}
+
+function CodeTab({
+  nodeId,
+  nodeData,
+}: {
+  nodeId: string;
+  nodeData: {
+    type: string;
+    config: Record<string, unknown>;
+  };
+}) {
+  const [configJson, setConfigJson] = useState(
+    JSON.stringify(nodeData.config ?? {}, null, 2),
+  );
+  const [jsonError, setJsonError] = useState<string | null>(null);
+
+  const handleSave = useCallback(() => {
+    try {
+      const parsed = JSON.parse(configJson);
+      setJsonError(null);
+
+      useEditorStore.getState().pushUndo();
+      useEditorStore.setState((state) => ({
+        nodes: state.nodes.map((n) =>
+          n.id === nodeId
+            ? { ...n, data: { ...n.data, config: parsed } }
+            : n,
+        ),
+        isDirty: true,
+      }));
+    } catch {
+      setJsonError("Invalid JSON");
+    }
+  }, [nodeId, configJson]);
+
+  return (
+    <div className="flex flex-col gap-3">
       <div className="flex flex-col gap-1.5">
         <Label className="text-xs">Configuration (JSON)</Label>
         <textarea
@@ -215,7 +267,7 @@ function SettingsTab({
             setConfigJson(e.target.value);
             setJsonError(null);
           }}
-          rows={6}
+          rows={16}
           className={cn(
             "rounded-md border bg-transparent px-3 py-2 font-mono text-xs text-[hsl(var(--foreground))] placeholder:text-[hsl(var(--muted-foreground))] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--ring))]",
             jsonError
@@ -228,24 +280,74 @@ function SettingsTab({
           <span className="text-[10px] text-red-500">{jsonError}</span>
         )}
       </div>
-
-      {/* Save button */}
       <Button size="sm" onClick={handleSave} className="text-xs">
-        Save Changes
+        Apply JSON
       </Button>
     </div>
   );
 }
 
-function InfoTab() {
+function InfoTab({ nodeType }: { nodeType: string }) {
+  const definition = getNodeDefinition(nodeType);
+
   return (
-    <div className="flex flex-col items-center justify-center gap-2 py-8 text-center">
-      <span className="text-sm text-[hsl(var(--muted-foreground))]">
-        No execution data
-      </span>
-      <span className="text-xs text-[hsl(var(--muted-foreground))]">
-        Run the workflow to see execution results here.
-      </span>
+    <div className="flex flex-col gap-4">
+      {definition ? (
+        <>
+          <div className="flex flex-col gap-1">
+            <span className="text-sm font-medium text-[hsl(var(--foreground))]">
+              {definition.label}
+            </span>
+            <span className="text-xs text-[hsl(var(--muted-foreground))]">
+              {definition.description}
+            </span>
+          </div>
+          <div className="flex flex-col gap-1">
+            <span className="text-[10px] font-medium uppercase text-[hsl(var(--muted-foreground))]">
+              Category
+            </span>
+            <span className="text-xs capitalize" style={{ color: definition.color }}>
+              {definition.category}
+            </span>
+          </div>
+          <div className="flex flex-col gap-1">
+            <span className="text-[10px] font-medium uppercase text-[hsl(var(--muted-foreground))]">
+              Inputs
+            </span>
+            {definition.inputs.length > 0 ? (
+              definition.inputs.map((p) => (
+                <span key={p.id} className="text-xs text-[hsl(var(--foreground))]">
+                  {p.label} ({p.id})
+                </span>
+              ))
+            ) : (
+              <span className="text-xs text-[hsl(var(--muted-foreground))]">None (start node)</span>
+            )}
+          </div>
+          <div className="flex flex-col gap-1">
+            <span className="text-[10px] font-medium uppercase text-[hsl(var(--muted-foreground))]">
+              Outputs
+            </span>
+            {definition.outputs.map((p) => (
+              <span key={p.id} className="text-xs text-[hsl(var(--foreground))]">
+                {p.label} ({p.id})
+              </span>
+            ))}
+          </div>
+        </>
+      ) : (
+        <span className="text-xs text-[hsl(var(--muted-foreground))]">
+          Unknown node type
+        </span>
+      )}
+      <div className="border-t border-[hsl(var(--border))] pt-3">
+        <span className="text-sm text-[hsl(var(--muted-foreground))]">
+          No execution data
+        </span>
+        <p className="mt-1 text-xs text-[hsl(var(--muted-foreground))]">
+          Run the workflow to see execution results here.
+        </p>
+      </div>
     </div>
   );
 }

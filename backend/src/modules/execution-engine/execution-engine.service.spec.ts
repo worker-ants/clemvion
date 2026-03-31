@@ -21,7 +21,10 @@ import { NodeHandler } from './handlers/node-handler.interface';
 describe('ExecutionEngineService', () => {
   let service: ExecutionEngineService;
   let handlerRegistry: NodeHandlerRegistry;
-  let mockWebsocketService: { emitExecutionEvent: jest.Mock; emitNodeEvent: jest.Mock };
+  let mockWebsocketService: {
+    emitExecutionEvent: jest.Mock;
+    emitNodeEvent: jest.Mock;
+  };
 
   // Mock data
   const workflowId = 'workflow-1';
@@ -296,9 +299,13 @@ describe('ExecutionEngineService', () => {
     });
 
     it('should emit EXECUTION_FAILED on error', async () => {
-      (mockHandler.execute as jest.Mock).mockRejectedValue(new Error('Node execution failed'));
+      (mockHandler.execute as jest.Mock).mockRejectedValue(
+        new Error('Node execution failed'),
+      );
 
-      await expect(service.execute(workflowId)).rejects.toThrow('Node execution failed');
+      await expect(service.execute(workflowId)).rejects.toThrow(
+        'Node execution failed',
+      );
 
       expect(mockWebsocketService.emitExecutionEvent).toHaveBeenCalledWith(
         executionId,

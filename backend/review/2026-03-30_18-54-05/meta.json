@@ -1,0 +1,88 @@
+{
+  "timestamp": "2026-03-30T18:55:45.383720",
+  "files": [
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/backend/migrations/V003__add_trigger_category.sql",
+      "change_type": "Review",
+      "file_extension": "sql"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/backend/src/modules/users/users.controller.spec.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/backend/src/modules/users/users.controller.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    }
+  ],
+  "total_elapsed_seconds": 99.69,
+  "agents": [
+    {
+      "name": "concurrency",
+      "status": "success",
+      "elapsed_seconds": 9.29
+    },
+    {
+      "name": "scope",
+      "status": "success",
+      "elapsed_seconds": 14.9
+    },
+    {
+      "name": "documentation",
+      "status": "success",
+      "elapsed_seconds": 22.22
+    },
+    {
+      "name": "maintainability",
+      "status": "success",
+      "elapsed_seconds": 23.0
+    },
+    {
+      "name": "api_contract",
+      "status": "success",
+      "elapsed_seconds": 23.12
+    },
+    {
+      "name": "requirement",
+      "status": "success",
+      "elapsed_seconds": 23.3
+    },
+    {
+      "name": "performance",
+      "status": "success",
+      "elapsed_seconds": 24.18
+    },
+    {
+      "name": "testing",
+      "status": "success",
+      "elapsed_seconds": 25.14
+    },
+    {
+      "name": "security",
+      "status": "success",
+      "elapsed_seconds": 26.23
+    },
+    {
+      "name": "dependency",
+      "status": "success",
+      "elapsed_seconds": 26.92
+    },
+    {
+      "name": "architecture",
+      "status": "success",
+      "elapsed_seconds": 29.36
+    },
+    {
+      "name": "side_effect",
+      "status": "success",
+      "elapsed_seconds": 29.54
+    },
+    {
+      "name": "database",
+      "status": "success",
+      "elapsed_seconds": 30.94
+    }
+  ]
+}
