@@ -301,3 +301,13 @@ LLM을 사용하여 비정형 텍스트에서 구조화된 정보 추출.
   }
 }
 ```
+
+---
+
+## 4. 캔버스 요약
+
+| 노드 | 요약 포맷 | 예시 |
+|------|-----------|------|
+| AI Agent | `{model}`. Tool Area에 등록된 도구 수가 있으면 `· {N} tools`, Knowledge Base 연결 시 `· {N} KB` 추가 | `gpt-4o · 2 tools · 1 KB` |
+| Text Classifier | `{model} · {N} categories` (카테고리 수) | `gpt-4o-mini · 3 categories` |
+| Info Extractor | `{model} · {N} fields` (outputSchema 필드 수) | `claude-sonnet · 4 fields` |
