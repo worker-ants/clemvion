@@ -41,8 +41,8 @@ export class TriggersService {
 
     const totalItems = await qb.getCount();
     const data = await qb
-      .skip((page - 1) * limit)
-      .take(limit)
+      .offset((page - 1) * limit)
+      .limit(limit)
       .getMany();
 
     return PaginatedResponseDto.create(data, totalItems, page, limit);

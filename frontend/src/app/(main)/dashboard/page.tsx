@@ -23,13 +23,13 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
 import { timeAgo } from "@/lib/utils/date";
-import { cn } from "@/lib/utils/cn";
 
 interface DashboardSummary {
   totalWorkflows: number;
   activeWorkflows: number;
-  executionsLast7d: number;
+  runs7d: number;
   successRate: number;
+  avgExecutionTime: number;
 }
 
 interface RecentWorkflow {
@@ -41,10 +41,11 @@ interface RecentWorkflow {
 
 interface RecentExecution {
   id: string;
+  workflowId: string;
   workflowName: string;
-  status: "success" | "failed" | "running";
-  duration: number;
-  createdAt: string;
+  status: string;
+  durationMs: number | null;
+  startedAt: string;
 }
 
 function SummaryCardSkeleton() {
@@ -75,9 +76,12 @@ function TableSkeleton({ rows }: { rows: number }) {
 }
 
 const statusIcon: Record<string, string> = {
-  success: "\u2705",
+  completed: "\u2705",
   failed: "\u274C",
   running: "\u23F3",
+  pending: "\u23F3",
+  cancelled: "\u26D4",
+  waiting_for_input: "\u270B",
 };
 
 function formatDuration(ms: number): string {
@@ -146,7 +150,7 @@ export default function DashboardPage() {
     },
     {
       label: "Executions (7d)",
-      value: summary?.executionsLast7d ?? 0,
+      value: summary?.runs7d ?? 0,
       icon: Play,
     },
     {
@@ -289,10 +293,10 @@ export default function DashboardPage() {
                       {execution.workflowName}
                     </td>
                     <td className="px-4 py-3 text-[hsl(var(--muted-foreground))]">
-                      {formatDuration(execution.duration)}
+                      {execution.durationMs != null ? formatDuration(execution.durationMs) : "—"}
                     </td>
                     <td className="px-4 py-3 text-[hsl(var(--muted-foreground))]">
-                      {timeAgo(execution.createdAt)}
+                      {timeAgo(execution.startedAt)}
                     </td>
                   </tr>
                 ))}

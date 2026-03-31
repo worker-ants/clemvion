@@ -18,6 +18,11 @@ import { Edge, EdgeType } from '../edges/entities/edge.entity';
 import { Workflow } from '../workflows/entities/workflow.entity';
 import { NodeHandler } from './handlers/node-handler.interface';
 
+// Helper to flush pending promises (allow background execution to complete)
+function flushPromises(): Promise<void> {
+  return new Promise((resolve) => setImmediate(resolve));
+}
+
 describe('ExecutionEngineService', () => {
   let service: ExecutionEngineService;
   let handlerRegistry: NodeHandlerRegistry;
@@ -182,7 +187,8 @@ describe('ExecutionEngineService', () => {
     handlerRegistry = module.get<NodeHandlerRegistry>(NodeHandlerRegistry);
     mockWebsocketService = module.get(WebsocketService);
 
-    // Register mock handler
+    // Register mock handler (clear previous calls)
+    (mockHandler.execute as jest.Mock).mockClear();
     handlerRegistry.register('test_node', mockHandler);
   });
 
@@ -190,17 +196,19 @@ describe('ExecutionEngineService', () => {
     expect(service).toBeDefined();
   });
 
-  it('should execute a simple linear workflow with 3 nodes', async () => {
+  it('should return execution ID immediately', async () => {
     const result = await service.execute(workflowId, { data: 'test' });
-
     expect(result).toBe(executionId);
-
-    // Workflow should be looked up
     expect(mockWorkflowRepo.findOneBy).toHaveBeenCalledWith({ id: workflowId });
-
-    // Execution should be created
     expect(mockExecutionRepo.create).toHaveBeenCalled();
     expect(mockExecutionRepo.save).toHaveBeenCalled();
+  });
+
+  it('should execute all nodes in background after returning', async () => {
+    await service.execute(workflowId, { data: 'test' });
+
+    // Wait for background execution to complete
+    await flushPromises();
 
     // Nodes and edges should be loaded
     expect(mockNodeRepo.findBy).toHaveBeenCalledWith({ workflowId });
@@ -221,12 +229,20 @@ describe('ExecutionEngineService', () => {
     );
   });
 
-  it('should throw if handler not registered', async () => {
+  it('should handle handler errors in background without rejecting execute()', async () => {
     const customNodes = mockNodes.map((n) => ({ ...n, type: 'unknown_type' }));
     mockNodeRepo.findBy.mockResolvedValue(customNodes);
 
-    await expect(service.execute(workflowId)).rejects.toThrow(
-      'UNKNOWN_NODE_TYPE',
+    // execute() should resolve (not reject) since errors happen in background
+    const result = await service.execute(workflowId);
+    expect(result).toBe(executionId);
+
+    // Wait for background execution to fail
+    await flushPromises();
+
+    // Execution should be marked as failed
+    expect(mockExecutionRepo.save).toHaveBeenCalledWith(
+      expect.objectContaining({ status: ExecutionStatus.FAILED }),
     );
   });
 
@@ -242,6 +258,7 @@ describe('ExecutionEngineService', () => {
     handlerRegistry.register('test_node', tracingHandler);
 
     await service.execute(workflowId, { initial: true });
+    await flushPromises();
 
     // First node receives workflow input
     expect(calls[0]).toEqual({ initial: true });
@@ -257,6 +274,7 @@ describe('ExecutionEngineService', () => {
   describe('WebSocket events', () => {
     it('should emit EXECUTION_STARTED event when execution begins', async () => {
       await service.execute(workflowId, { data: 'test' });
+      await flushPromises();
 
       expect(mockWebsocketService.emitExecutionEvent).toHaveBeenCalledWith(
         executionId,
@@ -267,6 +285,7 @@ describe('ExecutionEngineService', () => {
 
     it('should emit EXECUTION_COMPLETED event after successful execution', async () => {
       await service.execute(workflowId, { data: 'test' });
+      await flushPromises();
 
       expect(mockWebsocketService.emitExecutionEvent).toHaveBeenCalledWith(
         executionId,
@@ -277,6 +296,7 @@ describe('ExecutionEngineService', () => {
 
     it('should emit NODE_STARTED and NODE_COMPLETED for each node', async () => {
       await service.execute(workflowId, { data: 'test' });
+      await flushPromises();
 
       // 3 nodes = 3 started + 3 completed = 6 node events
       expect(mockWebsocketService.emitNodeEvent).toHaveBeenCalledTimes(6);
@@ -298,14 +318,16 @@ describe('ExecutionEngineService', () => {
       );
     });
 
-    it('should emit EXECUTION_FAILED on error', async () => {
+    it('should emit EXECUTION_FAILED on error in background', async () => {
       (mockHandler.execute as jest.Mock).mockRejectedValue(
         new Error('Node execution failed'),
       );
 
-      await expect(service.execute(workflowId)).rejects.toThrow(
-        'Node execution failed',
-      );
+      // execute() returns normally (fire-and-forget)
+      const result = await service.execute(workflowId);
+      expect(result).toBe(executionId);
+
+      await flushPromises();
 
       expect(mockWebsocketService.emitExecutionEvent).toHaveBeenCalledWith(
         executionId,

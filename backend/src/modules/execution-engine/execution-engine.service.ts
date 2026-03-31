@@ -117,7 +117,8 @@ export class ExecutionEngineService implements OnModuleInit {
   }
 
   /**
-   * Execute a workflow. Returns the execution ID.
+   * Execute a workflow. Creates the execution record and starts execution
+   * in the background so the caller gets the execution ID immediately.
    */
   async execute(
     workflowId: string,
@@ -142,6 +143,29 @@ export class ExecutionEngineService implements OnModuleInit {
     });
     const savedExecution = await this.executionRepository.save(execution);
     const executionId = savedExecution.id;
+
+    // 3. Run execution in background (fire-and-forget)
+    this.runExecution(savedExecution, input).catch((error: unknown) => {
+      this.logger.error(
+        `Background execution failed for ${executionId}: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
+    });
+
+    return executionId;
+  }
+
+  /**
+   * Runs the actual execution logic. Called in background after execute()
+   * returns the execution ID to the caller.
+   */
+  private async runExecution(
+    savedExecution: Execution,
+    input: unknown,
+  ): Promise<void> {
+    const executionId = savedExecution.id;
+    const workflowId = savedExecution.workflowId;
 
     try {
       // 3. Transition to RUNNING
@@ -243,8 +267,6 @@ export class ExecutionEngineService implements OnModuleInit {
         ExecutionEventType.EXECUTION_COMPLETED,
         { status: ExecutionStatus.COMPLETED },
       );
-
-      return executionId;
     } catch (error: unknown) {
       // Mark execution as failed
       savedExecution.status = ExecutionStatus.FAILED;
@@ -265,7 +287,6 @@ export class ExecutionEngineService implements OnModuleInit {
           error: error instanceof Error ? error.message : String(error),
         },
       );
-      throw error;
     } finally {
       this.contextService.deleteContext(executionId);
     }

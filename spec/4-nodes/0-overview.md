@@ -17,7 +17,7 @@
 │  ┌─────────────────────────────────┐    │
 │  │         Node Definition         │    │
 │  │  - type: string                 │    │
-│  │  - category: logic|flow|ai|integration|data|presentation │
+│  │  - category: trigger|logic|flow|ai|integration|data|presentation │
 │  │  - icon: string                 │    │
 │  │  - color: string                │    │
 │  │  - inputPorts: PortDef[]        │    │
@@ -43,7 +43,7 @@
 | 속성 | 타입 | 설명 |
 |------|------|------|
 | type | String | 고유 식별자 (예: `if_else`, `ai_agent`) |
-| category | Enum | `logic` / `flow` / `ai` / `integration` / `data` / `presentation` |
+| category | Enum | `trigger` / `logic` / `flow` / `ai` / `integration` / `data` / `presentation` |
 | displayName | String | UI 표시 이름 |
 | description | String | 노드 설명 |
 | icon | String | 아이콘 식별자 |
@@ -70,6 +70,14 @@
 ---
 
 ## 2. 노드 전체 목록
+
+### 2.0 Trigger 노드 (1종)
+
+| type | 표시 이름 | 아이콘 | 입력 | 출력 | 키 설정 |
+|------|-----------|--------|------|------|---------|
+| `manual_trigger` | Manual Trigger | ⚡ | 0 | 1 (out) | 없음 (패스스루) |
+
+> 상세: [Trigger 노드 스펙](./7-trigger-nodes.md)
 
 ### 2.1 Logic 노드 (11종)
 
@@ -137,6 +145,7 @@
 
 | 카테고리 | 색상 | 용도 |
 |----------|------|------|
+| Trigger | `#F59E0B` (앰버) | 워크플로우 시작점 |
 | Logic | `#3B82F6` (파랑) | 데이터 흐름 제어, 변수 관리 |
 | Flow | `#8B5CF6` (보라) | 워크플로우 간 연결 |
 | AI | `#10B981` (초록) | AI/LLM 기반 처리 |
