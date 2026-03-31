@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useRef } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import {
   ReactFlow,
   Background,
@@ -9,13 +9,13 @@ import {
   Panel,
   useReactFlow,
 } from "@xyflow/react";
-import type { ReactFlowInstance } from "@xyflow/react";
+import type { ReactFlowInstance, Node as RFNode } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 
 import { useEditorStore } from "@/lib/stores/editor-store";
 import { getNodeDefinition } from "@/lib/node-definitions";
 import { Button } from "@/components/ui/button";
-import { ZoomIn, ZoomOut, Maximize } from "lucide-react";
+import { ZoomIn, ZoomOut, Maximize, Trash2 } from "lucide-react";
 
 import { CustomNode } from "./custom-node";
 import { CustomEdge, EdgeMarkerDefs } from "./custom-edge";
@@ -23,9 +23,16 @@ import { CustomEdge, EdgeMarkerDefs } from "./custom-edge";
 const nodeTypes = { custom: CustomNode };
 const edgeTypes = { custom: CustomEdge };
 
+interface ContextMenuState {
+  x: number;
+  y: number;
+  nodeId: string;
+}
+
 export function WorkflowCanvas() {
   const reactFlowWrapper = useRef<HTMLDivElement>(null);
   const reactFlowInstance = useRef<ReactFlowInstance | null>(null);
+  const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
 
   const nodes = useEditorStore((s) => s.nodes);
   const edges = useEditorStore((s) => s.edges);
@@ -35,7 +42,6 @@ export function WorkflowCanvas() {
   const addNode = useEditorStore((s) => s.addNode);
   const removeNode = useEditorStore((s) => s.removeNode);
   const selectNode = useEditorStore((s) => s.selectNode);
-  const selectedNodeId = useEditorStore((s) => s.selectedNodeId);
   const pushUndo = useEditorStore((s) => s.pushUndo);
 
   const onSelectionChange = useCallback(
@@ -49,20 +55,45 @@ export function WorkflowCanvas() {
     [selectNode],
   );
 
-  const onKeyDown = useCallback(
-    (event: React.KeyboardEvent) => {
-      if ((event.key === "Delete" || event.key === "Backspace") && selectedNodeId) {
-        // Don't delete if an input is focused
-        const target = event.target as HTMLElement;
-        if (target.tagName === "INPUT" || target.tagName === "TEXTAREA") return;
-        // Prevent deletion of trigger nodes
-        const node = nodes.find((n) => n.id === selectedNodeId);
-        if (node?.data?.type === "manual_trigger") return;
-        removeNode(selectedNodeId);
-      }
+  const canDeleteNode = useCallback(
+    (nodeId: string) => {
+      const node = nodes.find((n) => n.id === nodeId);
+      return node?.data?.type !== "manual_trigger";
     },
-    [selectedNodeId, removeNode, nodes],
+    [nodes],
   );
+
+  // Handle delete via ReactFlow's onNodesDelete — ReactFlow calls this
+  // after its internal delete-key handling. We override onNodesChange to
+  // filter out remove changes for manual_trigger nodes, so this callback
+  // simply closes the context menu if open.
+  const onNodesDelete = useCallback(
+    () => {
+      setContextMenu(null);
+    },
+    [],
+  );
+
+  // Handle right-click on nodes
+  const onNodeContextMenu = useCallback(
+    (event: React.MouseEvent, node: RFNode) => {
+      event.preventDefault();
+      setContextMenu({ x: event.clientX, y: event.clientY, nodeId: node.id });
+      selectNode(node.id);
+    },
+    [selectNode],
+  );
+
+  const handleContextMenuDelete = useCallback(() => {
+    if (contextMenu && canDeleteNode(contextMenu.nodeId)) {
+      removeNode(contextMenu.nodeId);
+    }
+    setContextMenu(null);
+  }, [contextMenu, canDeleteNode, removeNode]);
+
+  const closeContextMenu = useCallback(() => {
+    setContextMenu(null);
+  }, []);
 
   const onDragOver = useCallback((event: React.DragEvent) => {
     event.preventDefault();
@@ -126,7 +157,7 @@ export function WorkflowCanvas() {
   );
 
   return (
-    <div ref={reactFlowWrapper} className="h-full w-full" onKeyDown={onKeyDown}>
+    <div ref={reactFlowWrapper} className="h-full w-full" onClick={closeContextMenu}>
       <EdgeMarkerDefs />
       <ReactFlow
         nodes={nodes}
@@ -138,11 +169,13 @@ export function WorkflowCanvas() {
         onDrop={onDrop}
         onDragOver={onDragOver}
         onSelectionChange={onSelectionChange}
+        onNodesDelete={onNodesDelete}
+        onNodeContextMenu={onNodeContextMenu}
         nodeTypes={nodeTypes}
         edgeTypes={edgeTypes}
         defaultEdgeOptions={defaultEdgeOptions}
         fitView
-        deleteKeyCode={null}
+        deleteKeyCode={["Delete", "Backspace"]}
         className="bg-[hsl(var(--background))]"
       >
         <Background variant={BackgroundVariant.Dots} gap={16} size={1} />
@@ -154,6 +187,24 @@ export function WorkflowCanvas() {
         />
         <ZoomControls />
       </ReactFlow>
+
+      {/* Context menu */}
+      {contextMenu && (
+        <div
+          className="fixed z-50 min-w-[160px] rounded-md border border-[hsl(var(--border))] bg-[hsl(var(--card))] py-1 shadow-lg"
+          style={{ left: contextMenu.x, top: contextMenu.y }}
+        >
+          <button
+            type="button"
+            onClick={handleContextMenuDelete}
+            disabled={!canDeleteNode(contextMenu.nodeId)}
+            className="flex w-full items-center gap-2 px-3 py-2 text-sm text-[hsl(var(--destructive))] hover:bg-[hsl(var(--accent))] disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            <Trash2 className="h-4 w-4" />
+            Delete Node
+          </button>
+        </div>
+      )}
     </div>
   );
 }

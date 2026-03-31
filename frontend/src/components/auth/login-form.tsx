@@ -9,7 +9,9 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { AxiosError } from "axios";
 import { toast } from "sonner";
 import { authApi } from "@/lib/api/auth";
+import { usersApi } from "@/lib/api/users";
 import { setAccessToken } from "@/lib/api/client";
+import { useAuthStore } from "@/lib/stores/auth-store";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -32,6 +34,7 @@ type LoginFormValues = z.infer<typeof loginSchema>;
 export function LoginForm() {
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
+  const setAuthenticated = useAuthStore((s) => s.setAuthenticated);
 
   const {
     register,
@@ -57,6 +60,16 @@ export function LoginForm() {
       const accessToken = response.data.data?.accessToken;
       if (accessToken) {
         setAccessToken(accessToken);
+        // Fetch user profile and set auth state
+        try {
+          const userRes = await usersApi.getMe();
+          const user = userRes.data.data;
+          if (user) {
+            setAuthenticated(accessToken, user);
+          }
+        } catch {
+          // Auth state will be restored by AuthProvider on next page load
+        }
       }
       toast.success("Signed in successfully!");
       router.push("/dashboard");

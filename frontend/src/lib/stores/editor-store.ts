@@ -58,10 +58,46 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   setWorkflowName: (name) => set({ workflowName: name, isDirty: true }),
 
   onNodesChange: (changes) => {
-    set((state) => ({
-      nodes: applyNodeChanges(changes, state.nodes),
-      isDirty: true,
-    }));
+    set((state) => {
+      // Filter out remove changes for manual_trigger nodes
+      const filteredChanges = changes.filter((change) => {
+        if (change.type === "remove") {
+          const node = state.nodes.find((n) => n.id === change.id);
+          if (node?.data?.type === "manual_trigger") return false;
+        }
+        return true;
+      });
+      if (filteredChanges.length === 0) return state;
+
+      // Push undo for remove operations
+      const hasRemove = filteredChanges.some((c) => c.type === "remove");
+      if (hasRemove) {
+        const snapshot = { nodes: [...state.nodes], edges: [...state.edges] };
+        const newStack = [...state.undoStack, snapshot].slice(-MAX_UNDO);
+        return {
+          nodes: applyNodeChanges(filteredChanges, state.nodes),
+          edges: state.edges.filter((e) => {
+            const removedIds = filteredChanges
+              .filter((c) => c.type === "remove")
+              .map((c) => c.id);
+            return !removedIds.includes(e.source) && !removedIds.includes(e.target);
+          }),
+          undoStack: newStack,
+          redoStack: [],
+          isDirty: true,
+          selectedNodeId: filteredChanges.some(
+            (c) => c.type === "remove" && c.id === state.selectedNodeId,
+          )
+            ? null
+            : state.selectedNodeId,
+        };
+      }
+
+      return {
+        nodes: applyNodeChanges(filteredChanges, state.nodes),
+        isDirty: true,
+      };
+    });
   },
 
   onEdgesChange: (changes) => {

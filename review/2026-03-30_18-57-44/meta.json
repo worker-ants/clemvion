@@ -1,0 +1,263 @@
+{
+  "timestamp": "2026-03-30T19:05:26.284026",
+  "files": [
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/backend/src/modules/execution-engine/execution-engine.service.spec.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/backend/src/modules/users/users.module.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/backend/src/modules/workflows/workflows.service.spec.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/frontend/src/app/(main)/layout.tsx",
+      "change_type": "Review",
+      "file_extension": "tsx"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/frontend/src/components/auth/login-form.tsx",
+      "change_type": "Review",
+      "file_extension": "tsx"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/frontend/src/components/editor/canvas/workflow-canvas.tsx",
+      "change_type": "Review",
+      "file_extension": "tsx"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/frontend/src/components/editor/settings-panel/node-settings-panel.tsx",
+      "change_type": "Review",
+      "file_extension": "tsx"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/frontend/src/components/layout/sidebar.tsx",
+      "change_type": "Review",
+      "file_extension": "tsx"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/frontend/src/lib/stores/editor-store.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/backend/migrations/V003__add_trigger_category.sql",
+      "change_type": "Review",
+      "file_extension": "sql"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/backend/review/2026-03-30_18-54-05/RESOLUTION.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/backend/review/2026-03-30_18-54-05/SUMMARY.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/backend/review/2026-03-30_18-54-05/api_contract/review.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/backend/review/2026-03-30_18-54-05/architecture/review.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/backend/review/2026-03-30_18-54-05/concurrency/review.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/backend/review/2026-03-30_18-54-05/database/review.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/backend/review/2026-03-30_18-54-05/dependency/review.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/backend/review/2026-03-30_18-54-05/documentation/review.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/backend/review/2026-03-30_18-54-05/maintainability/review.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/backend/review/2026-03-30_18-54-05/meta.json",
+      "change_type": "Review",
+      "file_extension": "json"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/backend/review/2026-03-30_18-54-05/performance/review.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/backend/review/2026-03-30_18-54-05/requirement/review.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/backend/review/2026-03-30_18-54-05/scope/review.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/backend/review/2026-03-30_18-54-05/security/review.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/backend/review/2026-03-30_18-54-05/side_effect/review.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/backend/review/2026-03-30_18-54-05/testing/review.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/backend/src/modules/users/users.controller.spec.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/backend/src/modules/users/users.controller.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/frontend/src/components/auth/auth-provider.tsx",
+      "change_type": "Review",
+      "file_extension": "tsx"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/frontend/src/components/editor/settings-panel/node-configs/ai-configs.tsx",
+      "change_type": "Review",
+      "file_extension": "tsx"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/frontend/src/components/editor/settings-panel/node-configs/data-configs.tsx",
+      "change_type": "Review",
+      "file_extension": "tsx"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/frontend/src/components/editor/settings-panel/node-configs/flow-configs.tsx",
+      "change_type": "Review",
+      "file_extension": "tsx"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/frontend/src/components/editor/settings-panel/node-configs/index.tsx",
+      "change_type": "Review",
+      "file_extension": "tsx"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/frontend/src/components/editor/settings-panel/node-configs/integration-configs.tsx",
+      "change_type": "Review",
+      "file_extension": "tsx"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/frontend/src/components/editor/settings-panel/node-configs/logic-configs.tsx",
+      "change_type": "Review",
+      "file_extension": "tsx"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/frontend/src/components/editor/settings-panel/node-configs/presentation-configs.tsx",
+      "change_type": "Review",
+      "file_extension": "tsx"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/frontend/src/components/editor/settings-panel/node-configs/shared.tsx",
+      "change_type": "Review",
+      "file_extension": "tsx"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/frontend/src/lib/api/users.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    }
+  ],
+  "total_elapsed_seconds": 461.69,
+  "agents": [
+    {
+      "name": "dependency",
+      "status": "success",
+      "elapsed_seconds": 24.21
+    },
+    {
+      "name": "maintainability",
+      "status": "success",
+      "elapsed_seconds": 32.7
+    },
+    {
+      "name": "database",
+      "status": "success",
+      "elapsed_seconds": 34.69
+    },
+    {
+      "name": "testing",
+      "status": "success",
+      "elapsed_seconds": 37.5
+    },
+    {
+      "name": "requirement",
+      "status": "success",
+      "elapsed_seconds": 39.2
+    },
+    {
+      "name": "documentation",
+      "status": "success",
+      "elapsed_seconds": 40.72
+    },
+    {
+      "name": "performance",
+      "status": "success",
+      "elapsed_seconds": 42.86
+    },
+    {
+      "name": "architecture",
+      "status": "success",
+      "elapsed_seconds": 44.41
+    },
+    {
+      "name": "security",
+      "status": "success",
+      "elapsed_seconds": 45.04
+    },
+    {
+      "name": "side_effect",
+      "status": "success",
+      "elapsed_seconds": 46.17
+    },
+    {
+      "name": "api_contract",
+      "status": "success",
+      "elapsed_seconds": 48.38
+    },
+    {
+      "name": "scope",
+      "status": "success",
+      "elapsed_seconds": 62.31
+    },
+    {
+      "name": "concurrency",
+      "status": "success",
+      "elapsed_seconds": 68.06
+    }
+  ]
+}
