@@ -3,6 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Workflow } from '../workflows/entities/workflow.entity';
 import { Execution } from '../executions/entities/execution.entity';
+import { NodeExecution } from '../node-executions/entities/node-execution.entity';
 import { QueryStatisticsDto } from './dto/query-statistics.dto';
 
 export interface StatisticsSummary {
@@ -44,6 +45,8 @@ export class StatisticsService {
     private readonly workflowRepository: Repository<Workflow>,
     @InjectRepository(Execution)
     private readonly executionRepository: Repository<Execution>,
+    @InjectRepository(NodeExecution)
+    private readonly nodeExecutionRepository: Repository<NodeExecution>,
   ) {}
 
   async getSummary(
@@ -183,6 +186,92 @@ export class StatisticsService {
       .getRawMany();
 
     return results;
+  }
+
+  async getNodeStats(
+    workspaceId: string,
+    query: QueryStatisticsDto,
+  ): Promise<
+    Array<{
+      nodeId: string;
+      nodeLabel: string;
+      nodeType: string;
+      executionCount: number;
+      avgDurationMs: number;
+      errorRate: number;
+    }>
+  > {
+    if (!query.workflowId) {
+      return [];
+    }
+
+    const { startDate, endDate } = this.resolveDateRange(query);
+
+    const results = await this.nodeExecutionRepository
+      .createQueryBuilder('ne')
+      .innerJoin('ne.execution', 'e')
+      .innerJoin('ne.node', 'n')
+      .innerJoin('e.workflow', 'w')
+      .select([
+        'n.id AS "nodeId"',
+        'n.label AS "nodeLabel"',
+        'n.type AS "nodeType"',
+        'COUNT(*)::int AS "executionCount"',
+        'COALESCE(AVG(ne.duration_ms) FILTER (WHERE ne.duration_ms IS NOT NULL), 0)::float AS "avgDurationMs"',
+        'CASE WHEN COUNT(*) > 0 THEN ROUND(COUNT(*) FILTER (WHERE ne.status = \'failed\')::numeric / COUNT(*)::numeric * 100, 2)::float ELSE 0 END AS "errorRate"',
+      ])
+      .where('w.workspace_id = :workspaceId', { workspaceId })
+      .andWhere('e.workflow_id = :workflowId', {
+        workflowId: query.workflowId,
+      })
+      .andWhere('e.started_at >= :startDate', { startDate })
+      .andWhere('e.started_at <= :endDate', { endDate })
+      .groupBy('n.id')
+      .addGroupBy('n.label')
+      .addGroupBy('n.type')
+      .orderBy('"avgDurationMs"', 'DESC')
+      .getRawMany();
+
+    return results;
+  }
+
+  async exportData(
+    workspaceId: string,
+    query: QueryStatisticsDto,
+    format: 'json' | 'csv' = 'json',
+  ): Promise<{ data: string; contentType: string; filename: string }> {
+    const [summary, executions, errors, topWorkflows] = await Promise.all([
+      this.getSummary(workspaceId, query),
+      this.getExecutionsByPeriod(workspaceId, query),
+      this.getErrors(workspaceId, query),
+      this.getTopWorkflows(workspaceId, query),
+    ]);
+
+    const period = query.period || '7d';
+
+    if (format === 'csv') {
+      const rows = ['date,total,completed,failed,cancelled'];
+      for (const entry of executions) {
+        rows.push(
+          `${entry.date},${entry.total},${entry.completed},${entry.failed},${entry.cancelled}`,
+        );
+      }
+      return {
+        data: rows.join('\n'),
+        contentType: 'text/csv',
+        filename: `statistics-${period}.csv`,
+      };
+    }
+
+    return {
+      data: JSON.stringify(
+        { summary, executions, errors, topWorkflows },
+        null,
+        2,
+      ),
+      contentType: 'application/json',
+      filename: `statistics-${period}.json`,
+    };
   }
 
   private resolveDateRange(query: QueryStatisticsDto): {

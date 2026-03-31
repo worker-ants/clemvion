@@ -8,6 +8,7 @@ import { DataSource, EntityManager, Repository } from 'typeorm';
 import { Workflow } from './entities/workflow.entity';
 import { Node, NodeCategory } from '../nodes/entities/node.entity';
 import { Edge, EdgeType } from '../edges/entities/edge.entity';
+import { ImportWorkflowDto } from './dto/import-workflow.dto';
 import { CreateWorkflowDto } from './dto/create-workflow.dto';
 import { UpdateWorkflowDto } from './dto/update-workflow.dto';
 import { QueryWorkflowDto } from './dto/query-workflow.dto';
@@ -24,6 +25,8 @@ export class WorkflowsService {
     private readonly workflowRepository: Repository<Workflow>,
     @InjectRepository(Node)
     private readonly nodeRepository: Repository<Node>,
+    @InjectRepository(Edge)
+    private readonly edgeRepository: Repository<Edge>,
     private readonly dataSource: DataSource,
   ) {}
 
@@ -155,13 +158,110 @@ export class WorkflowsService {
     workspaceId: string,
   ): Promise<Record<string, unknown>> {
     const workflow = await this.findById(id, workspaceId);
+    const nodes = await this.nodeRepository.find({ where: { workflowId: id } });
+    const edges = await this.edgeRepository.find({ where: { workflowId: id } });
+
     return {
       name: workflow.name,
       description: workflow.description,
       tags: workflow.tags,
       settings: workflow.settings,
-      // TODO: Include nodes and edges in export
+      nodes: nodes.map((n) => ({
+        type: n.type,
+        category: n.category,
+        label: n.label,
+        positionX: n.positionX,
+        positionY: n.positionY,
+        config: n.config,
+        isDisabled: n.isDisabled,
+        description: n.description,
+        containerId: n.containerId,
+        toolOwnerId: n.toolOwnerId,
+      })),
+      edges: edges.map((e) => ({
+        sourceNodeIndex: nodes.findIndex((n) => n.id === e.sourceNodeId),
+        sourcePort: e.sourcePort,
+        targetNodeIndex: nodes.findIndex((n) => n.id === e.targetNodeId),
+        targetPort: e.targetPort,
+        type: e.type,
+        condition: e.condition,
+      })),
     };
+  }
+
+  async importWorkflow(
+    workspaceId: string,
+    userId: string,
+    dto: ImportWorkflowDto,
+  ): Promise<Workflow> {
+    return this.dataSource.transaction(async (manager) => {
+      const workflow = manager.create(Workflow, {
+        name: dto.name,
+        description: dto.description,
+        tags: dto.tags ?? [],
+        settings: dto.settings ?? {},
+        workspaceId,
+        createdBy: userId,
+      });
+      const savedWorkflow = await manager.save(Workflow, workflow);
+
+      // Create nodes with new UUIDs, keeping a map from index to new ID
+      const nodeIdMap: string[] = [];
+      for (const nodeDto of dto.nodes) {
+        const node = manager.create(Node, {
+          workflowId: savedWorkflow.id,
+          type: nodeDto.type,
+          category: nodeDto.category as NodeCategory,
+          label: nodeDto.label,
+          positionX: nodeDto.positionX,
+          positionY: nodeDto.positionY,
+          config: nodeDto.config ?? {},
+          isDisabled: nodeDto.isDisabled ?? false,
+          description: nodeDto.description,
+        });
+        const savedNode = await manager.save(Node, node);
+        nodeIdMap.push(savedNode.id);
+      }
+
+      // Resolve container references after all nodes are created
+      for (let i = 0; i < dto.nodes.length; i++) {
+        const nodeDto = dto.nodes[i];
+        if (
+          nodeDto.containerId !== undefined &&
+          nodeDto.containerId !== null &&
+          typeof nodeDto.containerId === 'number'
+        ) {
+          const containerNewId = nodeIdMap[nodeDto.containerId];
+          if (containerNewId) {
+            await manager.update(Node, nodeIdMap[i], {
+              containerId: containerNewId,
+            });
+          }
+        }
+      }
+
+      // Create edges using index-to-ID mapping
+      if (dto.edges?.length) {
+        for (const edgeDto of dto.edges) {
+          const sourceId = nodeIdMap[edgeDto.sourceNodeIndex];
+          const targetId = nodeIdMap[edgeDto.targetNodeIndex];
+          if (sourceId && targetId) {
+            const edge = manager.create(Edge, {
+              workflowId: savedWorkflow.id,
+              sourceNodeId: sourceId,
+              sourcePort: edgeDto.sourcePort ?? 'out',
+              targetNodeId: targetId,
+              targetPort: edgeDto.targetPort ?? 'in',
+              type: (edgeDto.type as EdgeType) ?? EdgeType.DATA,
+              condition: edgeDto.condition,
+            });
+            await manager.save(Edge, edge);
+          }
+        }
+      }
+
+      return savedWorkflow;
+    });
   }
 
   async saveCanvas(

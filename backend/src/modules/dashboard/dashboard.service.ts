@@ -11,6 +11,8 @@ export interface DashboardSummary {
   totalWorkflows: number;
   activeWorkflows: number;
   runs7d: number;
+  runs7dPrevious: number;
+  runs7dChangePercent: number | null;
   successRate: number;
   avgExecutionTime: number;
 }
@@ -52,12 +54,31 @@ export class DashboardService {
     const sevenDaysAgo = new Date();
     sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
 
-    const runs7dResult = await this.executionRepository
-      .createQueryBuilder('e')
-      .innerJoin('e.workflow', 'w')
-      .where('w.workspace_id = :workspaceId', { workspaceId })
-      .andWhere('e.started_at >= :sevenDaysAgo', { sevenDaysAgo })
-      .getCount();
+    const fourteenDaysAgo = new Date(sevenDaysAgo);
+    fourteenDaysAgo.setDate(fourteenDaysAgo.getDate() - 7);
+
+    const [runs7dResult, runs7dPrevious] = await Promise.all([
+      this.executionRepository
+        .createQueryBuilder('e')
+        .innerJoin('e.workflow', 'w')
+        .where('w.workspace_id = :workspaceId', { workspaceId })
+        .andWhere('e.started_at >= :sevenDaysAgo', { sevenDaysAgo })
+        .getCount(),
+      this.executionRepository
+        .createQueryBuilder('e')
+        .innerJoin('e.workflow', 'w')
+        .where('w.workspace_id = :workspaceId', { workspaceId })
+        .andWhere('e.started_at >= :fourteenDaysAgo', { fourteenDaysAgo })
+        .andWhere('e.started_at < :sevenDaysAgo', { sevenDaysAgo })
+        .getCount(),
+    ]);
+
+    const runs7dChangePercent =
+      runs7dPrevious > 0
+        ? Math.round(
+            ((runs7dResult - runs7dPrevious) / runs7dPrevious) * 10000,
+          ) / 100
+        : null;
 
     const successCount = await this.executionRepository
       .createQueryBuilder('e')
@@ -89,6 +110,8 @@ export class DashboardService {
       totalWorkflows,
       activeWorkflows,
       runs7d: runs7dResult,
+      runs7dPrevious,
+      runs7dChangePercent,
       successRate,
       avgExecutionTime,
     };

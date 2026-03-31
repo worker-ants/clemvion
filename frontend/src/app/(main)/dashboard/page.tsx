@@ -9,6 +9,8 @@ import {
   CheckCircle,
   Plus,
   Workflow,
+  TrendingUp,
+  TrendingDown,
 } from "lucide-react";
 import { toast } from "sonner";
 import { apiClient } from "@/lib/api/client";
@@ -28,6 +30,8 @@ interface DashboardSummary {
   totalWorkflows: number;
   activeWorkflows: number;
   runs7d: number;
+  runs7dPrevious: number;
+  runs7dChangePercent: number | null;
   successRate: number;
   avgExecutionTime: number;
 }
@@ -142,21 +146,25 @@ export default function DashboardPage() {
       label: "Total Workflows",
       value: summary?.totalWorkflows ?? 0,
       icon: GitBranch,
+      change: null as number | null,
     },
     {
       label: "Active Workflows",
       value: summary?.activeWorkflows ?? 0,
       icon: Activity,
+      change: null as number | null,
     },
     {
       label: "Executions (7d)",
       value: summary?.runs7d ?? 0,
       icon: Play,
+      change: summary?.runs7dChangePercent ?? null,
     },
     {
       label: "Success Rate",
       value: summary ? `${Math.round(summary.successRate)}%` : "0%",
       icon: CheckCircle,
+      change: null as number | null,
     },
   ];
 
@@ -192,6 +200,16 @@ export default function DashboardPage() {
                   </CardHeader>
                   <CardContent>
                     <div className="text-2xl font-bold">{card.value}</div>
+                    {card.change !== null && (
+                      <p className={`mt-1 flex items-center text-xs ${card.change >= 0 ? "text-green-600" : "text-red-600"}`}>
+                        {card.change >= 0 ? (
+                          <TrendingUp className="mr-1 h-3 w-3" />
+                        ) : (
+                          <TrendingDown className="mr-1 h-3 w-3" />
+                        )}
+                        {card.change >= 0 ? "+" : ""}{card.change}% vs prev 7d
+                      </p>
+                    )}
                   </CardContent>
                 </Card>
               );

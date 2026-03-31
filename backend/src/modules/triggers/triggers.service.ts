@@ -2,6 +2,7 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Trigger } from './entities/trigger.entity';
+import { Execution } from '../executions/entities/execution.entity';
 import { CreateTriggerDto } from './dto/create-trigger.dto';
 import { UpdateTriggerDto } from './dto/update-trigger.dto';
 import { PaginatedResponseDto } from '../../common/dto/paginated-response.dto';
@@ -12,6 +13,8 @@ export class TriggersService {
   constructor(
     @InjectRepository(Trigger)
     private readonly triggerRepository: Repository<Trigger>,
+    @InjectRepository(Execution)
+    private readonly executionRepository: Repository<Execution>,
   ) {}
 
   async findAll(
@@ -83,6 +86,34 @@ export class TriggersService {
   async remove(id: string, workspaceId: string): Promise<void> {
     const trigger = await this.findById(id, workspaceId);
     await this.triggerRepository.remove(trigger);
+  }
+
+  async getHistory(
+    id: string,
+    workspaceId: string,
+  ): Promise<
+    Array<{
+      id: string;
+      status: string;
+      startedAt: Date;
+      durationMs: number | null;
+    }>
+  > {
+    await this.findById(id, workspaceId);
+    const executions = await this.executionRepository
+      .createQueryBuilder('e')
+      .select(['e.id', 'e.status', 'e.started_at', 'e.duration_ms'])
+      .where('e.trigger_id = :triggerId', { triggerId: id })
+      .orderBy('e.started_at', 'DESC')
+      .limit(10)
+      .getMany();
+
+    return executions.map((e) => ({
+      id: e.id,
+      status: e.status,
+      startedAt: e.startedAt,
+      durationMs: e.durationMs,
+    }));
   }
 
   async findByEndpointPath(

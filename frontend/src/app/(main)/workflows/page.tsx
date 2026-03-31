@@ -14,6 +14,8 @@ import {
   Workflow,
   ChevronLeft,
   ChevronRight,
+  Download,
+  Upload,
 } from "lucide-react";
 import { toast } from "sonner";
 import { workflowsApi, type WorkflowData } from "@/lib/api/workflows";
@@ -39,6 +41,7 @@ export default function WorkflowsPage() {
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Debounce search
   useEffect(() => {
@@ -138,6 +141,53 @@ export default function WorkflowsPage() {
     },
   });
 
+  const importMutation = useMutation({
+    mutationFn: async (file: File) => {
+      const text = await file.text();
+      const json = JSON.parse(text);
+      return workflowsApi.importWorkflow(json);
+    },
+    onSuccess: () => {
+      toast.success("Workflow imported");
+      queryClient.invalidateQueries({ queryKey: ["workflows"] });
+    },
+    onError: () => {
+      toast.error("Failed to import workflow");
+    },
+  });
+
+  const handleExport = useCallback(async (workflow: WorkflowData) => {
+    try {
+      const { data } = await workflowsApi.exportWorkflow(workflow.id);
+      const exportData = data.data ?? data;
+      const blob = new Blob([JSON.stringify(exportData, null, 2)], {
+        type: "application/json",
+      });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${workflow.name.replace(/[^a-zA-Z0-9_-]/g, "_")}.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      toast.success("Workflow exported");
+    } catch {
+      toast.error("Failed to export workflow");
+    }
+  }, []);
+
+  const handleImportFile = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0];
+      if (file) {
+        importMutation.mutate(file);
+      }
+      e.target.value = "";
+    },
+    [importMutation],
+  );
+
   const handleMenuAction = useCallback(
     (action: string, workflow: WorkflowData) => {
       setOpenMenuId(null);
@@ -154,12 +204,15 @@ export default function WorkflowsPage() {
             isActive: workflow.isActive,
           });
           break;
+        case "export":
+          handleExport(workflow);
+          break;
         case "delete":
           setDeleteTarget(workflow.id);
           break;
       }
     },
-    [router, duplicateMutation, toggleActiveMutation],
+    [router, duplicateMutation, toggleActiveMutation, handleExport],
   );
 
   const workflows = workflowsQuery.data?.items ?? [];
@@ -177,13 +230,30 @@ export default function WorkflowsPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <h1 className="text-3xl font-bold">Workflows</h1>
-        <Button
-          onClick={() => createMutation.mutate()}
-          disabled={createMutation.isPending}
-        >
-          <Plus className="mr-2 h-4 w-4" />
-          New Workflow
-        </Button>
+        <div className="flex gap-2">
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".json"
+            className="hidden"
+            onChange={handleImportFile}
+          />
+          <Button
+            variant="outline"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={importMutation.isPending}
+          >
+            <Upload className="mr-2 h-4 w-4" />
+            Import Workflow
+          </Button>
+          <Button
+            onClick={() => createMutation.mutate()}
+            disabled={createMutation.isPending}
+          >
+            <Plus className="mr-2 h-4 w-4" />
+            New Workflow
+          </Button>
+        </div>
       </div>
 
       {/* Search & Filter */}
@@ -334,6 +404,14 @@ export default function WorkflowsPage() {
                               }
                             >
                               <Copy className="h-4 w-4" /> Duplicate
+                            </button>
+                            <button
+                              className="flex w-full items-center gap-2 px-3 py-2 text-sm hover:bg-[hsl(var(--accent))]"
+                              onClick={() =>
+                                handleMenuAction("export", workflow)
+                              }
+                            >
+                              <Download className="h-4 w-4" /> Export
                             </button>
                             <button
                               className="flex w-full items-center gap-2 px-3 py-2 text-sm hover:bg-[hsl(var(--accent))]"

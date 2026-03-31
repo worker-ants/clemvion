@@ -6,6 +6,8 @@ import { apiClient } from "@/lib/api/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
+import { SlideDrawer } from "@/components/ui/slide-drawer";
 import { cn } from "@/lib/utils/cn";
 import { toast } from "sonner";
 import { Plus, Loader2, Inbox, Trash2, X, RefreshCw, Copy } from "lucide-react";
@@ -17,6 +19,19 @@ interface AuthConfig {
   active: boolean;
   lastUsedAt?: string;
   key?: string;
+}
+
+interface UsageRecentCall {
+  id: string;
+  triggerName: string;
+  status: string;
+  startedAt: string;
+}
+
+interface AuthConfigUsage {
+  totalCalls: number;
+  lastUsedAt: string | null;
+  recentCalls: UsageRecentCall[];
 }
 
 const AUTH_TYPES = [
@@ -31,6 +46,13 @@ const TYPE_LABELS: Record<string, string> = {
   basic_auth: "Basic Auth",
 };
 
+const STATUS_BADGE_VARIANT: Record<string, "success" | "warning" | "destructive" | "outline"> = {
+  completed: "success",
+  running: "warning",
+  failed: "destructive",
+  pending: "outline",
+};
+
 export default function AuthenticationPage() {
   const queryClient = useQueryClient();
   const [showDialog, setShowDialog] = useState(false);
@@ -39,6 +61,7 @@ export default function AuthenticationPage() {
   const [generatedKey, setGeneratedKey] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
   const [regenerateTarget, setRegenerateTarget] = useState<string | null>(null);
+  const [selectedConfigId, setSelectedConfigId] = useState<string | null>(null);
 
   const { data: configs = [], isLoading, isError } = useQuery<AuthConfig[]>({
     queryKey: ["auth-configs"],
@@ -46,6 +69,21 @@ export default function AuthenticationPage() {
       const res = await apiClient.get("/auth-configs");
       return res.data.data ?? res.data;
     },
+  });
+
+  const selectedConfig = configs.find((c) => c.id === selectedConfigId) ?? null;
+
+  const {
+    data: usageData,
+    isLoading: isUsageLoading,
+    isError: isUsageError,
+  } = useQuery<AuthConfigUsage>({
+    queryKey: ["auth-config-usage", selectedConfigId],
+    queryFn: async () => {
+      const res = await apiClient.get(`/auth-configs/${selectedConfigId}/usage`);
+      return res.data.data ?? res.data;
+    },
+    enabled: !!selectedConfigId,
   });
 
   const createMutation = useMutation({
@@ -135,6 +173,10 @@ export default function AuthenticationPage() {
       () => toast.success("Copied to clipboard"),
       () => toast.error("Failed to copy"),
     );
+  }
+
+  function handleRowClick(configId: string) {
+    setSelectedConfigId(configId);
   }
 
   return (
@@ -319,7 +361,11 @@ export default function AuthenticationPage() {
             </thead>
             <tbody className="divide-y divide-[hsl(var(--border))]">
               {configs.map((config) => (
-                <tr key={config.id}>
+                <tr
+                  key={config.id}
+                  className="cursor-pointer transition-colors hover:bg-[hsl(var(--muted)/0.5)]"
+                  onClick={() => handleRowClick(config.id)}
+                >
                   <td className="px-4 py-3 font-medium">{config.name}</td>
                   <td className="px-4 py-3">
                     <span className="inline-block rounded-full bg-[hsl(var(--muted))] px-2.5 py-0.5 text-xs font-medium">
@@ -343,7 +389,10 @@ export default function AuthenticationPage() {
                       : "-"}
                   </td>
                   <td className="px-4 py-3">
-                    <div className="flex items-center gap-1">
+                    <div
+                      className="flex items-center gap-1"
+                      onClick={(e) => e.stopPropagation()}
+                    >
                       <Button
                         variant="outline"
                         size="sm"
@@ -381,6 +430,100 @@ export default function AuthenticationPage() {
           </table>
         </div>
       )}
+
+      {/* Usage Detail Drawer */}
+      <SlideDrawer
+        open={!!selectedConfigId}
+        onClose={() => setSelectedConfigId(null)}
+        title={selectedConfig ? `Usage: ${selectedConfig.name}` : "Usage Details"}
+      >
+        {isUsageLoading && (
+          <div className="flex items-center justify-center py-12">
+            <Loader2 className="h-6 w-6 animate-spin text-[hsl(var(--muted-foreground))]" />
+          </div>
+        )}
+
+        {isUsageError && (
+          <p className="text-sm text-[hsl(var(--destructive))]">
+            Failed to load usage data.
+          </p>
+        )}
+
+        {!isUsageLoading && !isUsageError && usageData && (
+          <div className="space-y-6">
+            {/* Summary Stats */}
+            <div className="grid grid-cols-2 gap-4">
+              <div className="rounded-lg border border-[hsl(var(--border))] p-4">
+                <p className="text-sm text-[hsl(var(--muted-foreground))]">
+                  Total Calls
+                </p>
+                <p className="mt-1 text-2xl font-bold">
+                  {usageData.totalCalls.toLocaleString()}
+                </p>
+              </div>
+              <div className="rounded-lg border border-[hsl(var(--border))] p-4">
+                <p className="text-sm text-[hsl(var(--muted-foreground))]">
+                  Last Used
+                </p>
+                <p className="mt-1 text-sm font-medium">
+                  {usageData.lastUsedAt
+                    ? new Date(usageData.lastUsedAt).toLocaleString()
+                    : "Never"}
+                </p>
+              </div>
+            </div>
+
+            {/* Recent Calls Table */}
+            <div>
+              <h3 className="mb-3 text-sm font-semibold">Recent Calls</h3>
+              {usageData.recentCalls.length === 0 ? (
+                <p className="text-sm text-[hsl(var(--muted-foreground))]">
+                  No recent calls.
+                </p>
+              ) : (
+                <div className="overflow-x-auto rounded-lg border border-[hsl(var(--border))]">
+                  <table className="w-full text-sm">
+                    <thead className="bg-[hsl(var(--muted))]">
+                      <tr>
+                        <th className="px-3 py-2 text-left font-medium">
+                          Trigger
+                        </th>
+                        <th className="px-3 py-2 text-left font-medium">
+                          Status
+                        </th>
+                        <th className="px-3 py-2 text-left font-medium">
+                          Started At
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-[hsl(var(--border))]">
+                      {usageData.recentCalls.map((call) => (
+                        <tr key={call.id}>
+                          <td className="px-3 py-2 font-medium">
+                            {call.triggerName}
+                          </td>
+                          <td className="px-3 py-2">
+                            <Badge
+                              variant={
+                                STATUS_BADGE_VARIANT[call.status] ?? "outline"
+                              }
+                            >
+                              {call.status}
+                            </Badge>
+                          </td>
+                          <td className="px-3 py-2 text-[hsl(var(--muted-foreground))]">
+                            {new Date(call.startedAt).toLocaleString()}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+      </SlideDrawer>
     </div>
   );
 }

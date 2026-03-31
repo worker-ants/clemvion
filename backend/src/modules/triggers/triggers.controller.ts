@@ -55,6 +55,14 @@ export class TriggersController {
     return this.triggersService.update(id, workspaceId, dto);
   }
 
+  @Get(':id/history')
+  async getHistory(
+    @Param('id', ParseUUIDPipe) id: string,
+    @WorkspaceId() workspaceId: string,
+  ) {
+    return this.triggersService.getHistory(id, workspaceId);
+  }
+
   @Delete(':id')
   @HttpCode(HttpStatus.NO_CONTENT)
   async remove(

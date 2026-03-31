@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo, useCallback } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api/client";
 import { Button } from "@/components/ui/button";
@@ -8,7 +8,20 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils/cn";
 import { toast } from "sonner";
-import { Plus, Loader2, Inbox, Trash2, X } from "lucide-react";
+import {
+  Plus,
+  Loader2,
+  Inbox,
+  Trash2,
+  X,
+  Play,
+  List,
+  Calendar,
+  ChevronLeft,
+  ChevronRight,
+} from "lucide-react";
+import cronstrue from "cronstrue";
+import { CronExpressionParser } from "cron-parser";
 
 interface Schedule {
   id: string;
@@ -27,10 +40,430 @@ interface Workflow {
   name: string;
 }
 
+type CronEditorTab = "expression" | "visual";
+type ViewMode = "list" | "calendar";
+type Frequency = "every-minute" | "hourly" | "daily" | "weekly" | "monthly";
+
+const DAYS_OF_WEEK = [
+  { label: "Sun", value: 0 },
+  { label: "Mon", value: 1 },
+  { label: "Tue", value: 2 },
+  { label: "Wed", value: 3 },
+  { label: "Thu", value: 4 },
+  { label: "Fri", value: 5 },
+  { label: "Sat", value: 6 },
+];
+
+function getCronDescription(expression: string): string | null {
+  try {
+    return cronstrue.toString(expression);
+  } catch {
+    return null;
+  }
+}
+
+function getNextRuns(
+  expression: string,
+  timezone: string,
+  count: number,
+): Date[] {
+  try {
+    const interval = CronExpressionParser.parse(expression, { tz: timezone });
+    const runs: Date[] = [];
+    for (let i = 0; i < count; i++) {
+      runs.push(interval.next().toDate());
+    }
+    return runs;
+  } catch {
+    return [];
+  }
+}
+
+function getRunDaysInMonth(
+  expression: string,
+  timezone: string,
+  year: number,
+  month: number,
+): Set<number> {
+  const days = new Set<number>();
+  try {
+    const startOfMonth = new Date(year, month, 1);
+    const endOfMonth = new Date(year, month + 1, 0, 23, 59, 59);
+    const interval = CronExpressionParser.parse(expression, {
+      tz: timezone,
+      currentDate: startOfMonth,
+    });
+    let next = interval.next().toDate();
+    while (next <= endOfMonth) {
+      days.add(next.getDate());
+      try {
+        next = interval.next().toDate();
+      } catch {
+        break;
+      }
+    }
+  } catch {
+    // invalid cron
+  }
+  return days;
+}
+
+function buildCronFromVisual(
+  frequency: Frequency,
+  minute: number,
+  hour: number,
+  selectedDays: number[],
+  dayOfMonth: number,
+): string {
+  switch (frequency) {
+    case "every-minute":
+      return "* * * * *";
+    case "hourly":
+      return `${minute} * * * *`;
+    case "daily":
+      return `${minute} ${hour} * * *`;
+    case "weekly": {
+      const daysStr =
+        selectedDays.length > 0 ? selectedDays.sort().join(",") : "*";
+      return `${minute} ${hour} * * ${daysStr}`;
+    }
+    case "monthly":
+      return `${minute} ${hour} ${dayOfMonth} * *`;
+    default:
+      return "* * * * *";
+  }
+}
+
+function NextRunsPreview({
+  expression,
+  timezone,
+}: {
+  expression: string;
+  timezone: string;
+}) {
+  const runs = useMemo(
+    () => getNextRuns(expression, timezone, 5),
+    [expression, timezone],
+  );
+
+  if (!expression.trim() || runs.length === 0) return null;
+
+  return (
+    <div className="rounded-md border border-[hsl(var(--border))] bg-[hsl(var(--muted))] p-3">
+      <p className="mb-2 text-xs font-medium text-[hsl(var(--muted-foreground))]">
+        Next 5 runs
+      </p>
+      <ul className="space-y-1">
+        {runs.map((run, i) => (
+          <li
+            key={i}
+            className="text-xs text-[hsl(var(--foreground))]"
+          >
+            {run.toLocaleString()}
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+function VisualCronEditor({
+  value,
+  onChange,
+}: {
+  value: string;
+  onChange: (cron: string) => void;
+}) {
+  const [frequency, setFrequency] = useState<Frequency>("daily");
+  const [minute, setMinute] = useState(0);
+  const [hour, setHour] = useState(9);
+  const [selectedDays, setSelectedDays] = useState<number[]>([1, 2, 3, 4, 5]);
+  const [dayOfMonth, setDayOfMonth] = useState(1);
+
+  const applyVisual = useCallback(
+    (f: Frequency, m: number, h: number, days: number[], dom: number) => {
+      const cron = buildCronFromVisual(f, m, h, days, dom);
+      onChange(cron);
+    },
+    [onChange],
+  );
+
+  const handleFrequencyChange = (f: Frequency) => {
+    setFrequency(f);
+    applyVisual(f, minute, hour, selectedDays, dayOfMonth);
+  };
+
+  const handleMinuteChange = (m: number) => {
+    setMinute(m);
+    applyVisual(frequency, m, hour, selectedDays, dayOfMonth);
+  };
+
+  const handleHourChange = (h: number) => {
+    setHour(h);
+    applyVisual(frequency, minute, h, selectedDays, dayOfMonth);
+  };
+
+  const handleDayToggle = (day: number) => {
+    const next = selectedDays.includes(day)
+      ? selectedDays.filter((d) => d !== day)
+      : [...selectedDays, day];
+    setSelectedDays(next);
+    applyVisual(frequency, minute, hour, next, dayOfMonth);
+  };
+
+  const handleDayOfMonthChange = (dom: number) => {
+    setDayOfMonth(dom);
+    applyVisual(frequency, minute, hour, selectedDays, dom);
+  };
+
+  return (
+    <div className="space-y-4">
+      <div>
+        <Label>Frequency</Label>
+        <select
+          className="flex h-10 w-full rounded-md border border-[hsl(var(--input))] bg-transparent px-3 py-2 text-sm"
+          value={frequency}
+          onChange={(e) => handleFrequencyChange(e.target.value as Frequency)}
+        >
+          <option value="every-minute">Every Minute</option>
+          <option value="hourly">Hourly</option>
+          <option value="daily">Daily</option>
+          <option value="weekly">Weekly</option>
+          <option value="monthly">Monthly</option>
+        </select>
+      </div>
+
+      {frequency === "hourly" && (
+        <div>
+          <Label>At minute</Label>
+          <select
+            className="flex h-10 w-full rounded-md border border-[hsl(var(--input))] bg-transparent px-3 py-2 text-sm"
+            value={minute}
+            onChange={(e) => handleMinuteChange(Number(e.target.value))}
+          >
+            {Array.from({ length: 60 }, (_, i) => (
+              <option key={i} value={i}>
+                :{String(i).padStart(2, "0")}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
+
+      {(frequency === "daily" ||
+        frequency === "weekly" ||
+        frequency === "monthly") && (
+        <div className="flex gap-3">
+          <div className="flex-1">
+            <Label>Hour</Label>
+            <select
+              className="flex h-10 w-full rounded-md border border-[hsl(var(--input))] bg-transparent px-3 py-2 text-sm"
+              value={hour}
+              onChange={(e) => handleHourChange(Number(e.target.value))}
+            >
+              {Array.from({ length: 24 }, (_, i) => (
+                <option key={i} value={i}>
+                  {String(i).padStart(2, "0")}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="flex-1">
+            <Label>Minute</Label>
+            <select
+              className="flex h-10 w-full rounded-md border border-[hsl(var(--input))] bg-transparent px-3 py-2 text-sm"
+              value={minute}
+              onChange={(e) => handleMinuteChange(Number(e.target.value))}
+            >
+              {Array.from({ length: 60 }, (_, i) => (
+                <option key={i} value={i}>
+                  {String(i).padStart(2, "0")}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+      )}
+
+      {frequency === "weekly" && (
+        <div>
+          <Label>Days of week</Label>
+          <div className="mt-1 flex flex-wrap gap-2">
+            {DAYS_OF_WEEK.map((day) => (
+              <button
+                key={day.value}
+                type="button"
+                className={cn(
+                  "rounded-md border px-3 py-1.5 text-xs font-medium transition-colors",
+                  selectedDays.includes(day.value)
+                    ? "border-[hsl(var(--primary))] bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))]"
+                    : "border-[hsl(var(--border))] bg-transparent text-[hsl(var(--foreground))] hover:bg-[hsl(var(--muted))]",
+                )}
+                onClick={() => handleDayToggle(day.value)}
+              >
+                {day.label}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {frequency === "monthly" && (
+        <div>
+          <Label>Day of month</Label>
+          <select
+            className="flex h-10 w-full rounded-md border border-[hsl(var(--input))] bg-transparent px-3 py-2 text-sm"
+            value={dayOfMonth}
+            onChange={(e) => handleDayOfMonthChange(Number(e.target.value))}
+          >
+            {Array.from({ length: 31 }, (_, i) => (
+              <option key={i + 1} value={i + 1}>
+                {i + 1}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
+
+      {value && (
+        <div className="rounded-md border border-[hsl(var(--border))] bg-[hsl(var(--muted))] p-3">
+          <p className="text-xs text-[hsl(var(--muted-foreground))]">
+            Generated expression
+          </p>
+          <code className="text-sm font-mono text-[hsl(var(--foreground))]">
+            {value}
+          </code>
+          {getCronDescription(value) && (
+            <p className="mt-1 text-xs text-[hsl(var(--muted-foreground))]">
+              {getCronDescription(value)}
+            </p>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function CalendarView({
+  schedules,
+}: {
+  schedules: Schedule[];
+}) {
+  const [viewDate, setViewDate] = useState(() => new Date());
+  const year = viewDate.getFullYear();
+  const month = viewDate.getMonth();
+
+  const firstDay = new Date(year, month, 1).getDay();
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const today = new Date();
+  const isCurrentMonth =
+    today.getFullYear() === year && today.getMonth() === month;
+
+  const scheduleDays = useMemo(() => {
+    const map = new Map<number, string[]>();
+    for (const schedule of schedules) {
+      if (!schedule.active) continue;
+      const days = getRunDaysInMonth(
+        schedule.cronExpression,
+        schedule.timezone,
+        year,
+        month,
+      );
+      for (const day of days) {
+        const existing = map.get(day) ?? [];
+        existing.push(schedule.name);
+        map.set(day, existing);
+      }
+    }
+    return map;
+  }, [schedules, year, month]);
+
+  const prevMonth = () => setViewDate(new Date(year, month - 1, 1));
+  const nextMonth = () => setViewDate(new Date(year, month + 1, 1));
+
+  const monthName = viewDate.toLocaleString("default", {
+    month: "long",
+    year: "numeric",
+  });
+
+  const cells: (number | null)[] = [];
+  for (let i = 0; i < firstDay; i++) cells.push(null);
+  for (let d = 1; d <= daysInMonth; d++) cells.push(d);
+  while (cells.length % 7 !== 0) cells.push(null);
+
+  return (
+    <div className="rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-4">
+      <div className="mb-4 flex items-center justify-between">
+        <Button variant="ghost" size="icon" onClick={prevMonth}>
+          <ChevronLeft className="h-4 w-4" />
+        </Button>
+        <span className="text-sm font-semibold">{monthName}</span>
+        <Button variant="ghost" size="icon" onClick={nextMonth}>
+          <ChevronRight className="h-4 w-4" />
+        </Button>
+      </div>
+      <div className="grid grid-cols-7 gap-px text-center text-xs">
+        {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((d) => (
+          <div
+            key={d}
+            className="py-2 font-medium text-[hsl(var(--muted-foreground))]"
+          >
+            {d}
+          </div>
+        ))}
+        {cells.map((day, idx) => {
+          const names = day ? scheduleDays.get(day) : undefined;
+          const isToday = isCurrentMonth && day === today.getDate();
+
+          return (
+            <div
+              key={idx}
+              className={cn(
+                "relative flex min-h-[3rem] flex-col items-center justify-start rounded-md py-1",
+                day
+                  ? "text-[hsl(var(--foreground))]"
+                  : "text-transparent",
+                isToday && "bg-[hsl(var(--accent))]",
+              )}
+              title={names ? names.join(", ") : undefined}
+            >
+              <span
+                className={cn(
+                  "text-xs",
+                  isToday && "font-bold",
+                )}
+              >
+                {day ?? ""}
+              </span>
+              {names && names.length > 0 && (
+                <div className="mt-1 flex flex-wrap justify-center gap-0.5">
+                  {names.slice(0, 3).map((_, dotIdx) => (
+                    <span
+                      key={dotIdx}
+                      className="h-1.5 w-1.5 rounded-full bg-[hsl(var(--primary))]"
+                    />
+                  ))}
+                  {names.length > 3 && (
+                    <span className="text-[8px] leading-none text-[hsl(var(--muted-foreground))]">
+                      +{names.length - 3}
+                    </span>
+                  )}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 export default function SchedulesPage() {
   const queryClient = useQueryClient();
   const [showDialog, setShowDialog] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
+  const [viewMode, setViewMode] = useState<ViewMode>("list");
+  const [cronTab, setCronTab] = useState<CronEditorTab>("expression");
 
   const [formName, setFormName] = useState("");
   const [formWorkflowId, setFormWorkflowId] = useState("");
@@ -39,7 +472,11 @@ export default function SchedulesPage() {
     Intl.DateTimeFormat().resolvedOptions().timeZone,
   );
 
-  const { data: schedules = [], isLoading, isError } = useQuery<Schedule[]>({
+  const {
+    data: schedules = [],
+    isLoading,
+    isError,
+  } = useQuery<Schedule[]>({
     queryKey: ["schedules"],
     queryFn: async () => {
       const res = await apiClient.get("/schedules");
@@ -101,11 +538,24 @@ export default function SchedulesPage() {
     },
   });
 
+  const runNowMutation = useMutation({
+    mutationFn: async (id: string) => {
+      await apiClient.post(`/schedules/${id}/run-now`);
+    },
+    onSuccess: () => {
+      toast.success("Schedule executed");
+    },
+    onError: () => {
+      toast.error("Failed to execute schedule");
+    },
+  });
+
   function resetForm() {
     setFormName("");
     setFormWorkflowId("");
     setFormCron("");
     setFormTimezone(Intl.DateTimeFormat().resolvedOptions().timeZone);
+    setCronTab("expression");
     setShowDialog(false);
   }
 
@@ -117,20 +567,48 @@ export default function SchedulesPage() {
     createMutation.mutate();
   }
 
+  const formCronDescription = useMemo(
+    () => getCronDescription(formCron),
+    [formCron],
+  );
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-3xl font-bold">Schedules</h1>
-        <Button onClick={() => setShowDialog(true)}>
-          <Plus className="mr-2 h-4 w-4" />
-          Add Schedule
-        </Button>
+        <div className="flex items-center gap-2">
+          {/* List / Calendar toggle */}
+          <div className="flex rounded-md border border-[hsl(var(--border))]">
+            <Button
+              variant={viewMode === "list" ? "default" : "ghost"}
+              size="sm"
+              className="rounded-r-none"
+              onClick={() => setViewMode("list")}
+            >
+              <List className="mr-1 h-4 w-4" />
+              List
+            </Button>
+            <Button
+              variant={viewMode === "calendar" ? "default" : "ghost"}
+              size="sm"
+              className="rounded-l-none"
+              onClick={() => setViewMode("calendar")}
+            >
+              <Calendar className="mr-1 h-4 w-4" />
+              Calendar
+            </Button>
+          </div>
+          <Button onClick={() => setShowDialog(true)}>
+            <Plus className="mr-2 h-4 w-4" />
+            Add Schedule
+          </Button>
+        </div>
       </div>
 
       {/* Create Dialog */}
       {showDialog && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-          <div className="w-full max-w-md rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-6 shadow-lg">
+          <div className="w-full max-w-md rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-6 shadow-lg max-h-[90vh] overflow-y-auto">
             <div className="mb-4 flex items-center justify-between">
               <h2 className="text-lg font-semibold">Add Schedule</h2>
               <Button variant="ghost" size="icon" onClick={resetForm}>
@@ -163,15 +641,67 @@ export default function SchedulesPage() {
                   ))}
                 </select>
               </div>
+
+              {/* Cron Expression Tabs */}
               <div>
-                <Label htmlFor="schedule-cron">Cron Expression</Label>
-                <Input
-                  id="schedule-cron"
-                  value={formCron}
-                  onChange={(e) => setFormCron(e.target.value)}
-                  placeholder="0 * * * *"
-                />
+                <div className="mb-2 flex rounded-md border border-[hsl(var(--border))]">
+                  <button
+                    type="button"
+                    className={cn(
+                      "flex-1 rounded-l-md px-3 py-1.5 text-sm font-medium transition-colors",
+                      cronTab === "expression"
+                        ? "bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))]"
+                        : "bg-transparent text-[hsl(var(--foreground))] hover:bg-[hsl(var(--muted))]",
+                    )}
+                    onClick={() => setCronTab("expression")}
+                  >
+                    Expression
+                  </button>
+                  <button
+                    type="button"
+                    className={cn(
+                      "flex-1 rounded-r-md px-3 py-1.5 text-sm font-medium transition-colors",
+                      cronTab === "visual"
+                        ? "bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))]"
+                        : "bg-transparent text-[hsl(var(--foreground))] hover:bg-[hsl(var(--muted))]",
+                    )}
+                    onClick={() => setCronTab("visual")}
+                  >
+                    Visual
+                  </button>
+                </div>
+
+                {cronTab === "expression" ? (
+                  <div className="space-y-2">
+                    <Label htmlFor="schedule-cron">Cron Expression</Label>
+                    <Input
+                      id="schedule-cron"
+                      value={formCron}
+                      onChange={(e) => setFormCron(e.target.value)}
+                      placeholder="0 * * * *"
+                    />
+                    {formCronDescription && (
+                      <p className="text-xs text-[hsl(var(--muted-foreground))]">
+                        {formCronDescription}
+                      </p>
+                    )}
+                  </div>
+                ) : (
+                  <VisualCronEditor
+                    value={formCron}
+                    onChange={setFormCron}
+                  />
+                )}
               </div>
+
+              {/* Next 5 runs preview */}
+              {formCron.trim() && (
+                <NextRunsPreview
+                  expression={formCron}
+                  timezone={formTimezone}
+                />
+              )}
+
               <div>
                 <Label htmlFor="schedule-tz">Timezone</Label>
                 <Input
@@ -247,7 +777,7 @@ export default function SchedulesPage() {
         </div>
       )}
 
-      {!isLoading && !isError && schedules.length > 0 && (
+      {!isLoading && !isError && schedules.length > 0 && viewMode === "list" && (
         <div className="overflow-x-auto rounded-lg border border-[hsl(var(--border))]">
           <table className="w-full text-sm">
             <thead className="bg-[hsl(var(--muted))]">
@@ -255,71 +785,93 @@ export default function SchedulesPage() {
                 <th className="px-4 py-3 text-left font-medium">Status</th>
                 <th className="px-4 py-3 text-left font-medium">Name</th>
                 <th className="px-4 py-3 text-left font-medium">Cron</th>
-                <th className="px-4 py-3 text-left font-medium">
-                  Description
-                </th>
                 <th className="px-4 py-3 text-left font-medium">Next Run</th>
                 <th className="px-4 py-3 text-left font-medium">Workflow</th>
                 <th className="px-4 py-3 text-left font-medium">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-[hsl(var(--border))]">
-              {schedules.map((schedule) => (
-                <tr key={schedule.id}>
-                  <td className="px-4 py-3">
-                    <span
-                      className={cn(
-                        "inline-block h-2.5 w-2.5 rounded-full",
-                        schedule.active ? "bg-green-500" : "bg-gray-400",
-                      )}
-                    />
-                  </td>
-                  <td className="px-4 py-3 font-medium">{schedule.name}</td>
-                  <td className="px-4 py-3">
-                    <code className="rounded bg-[hsl(var(--muted))] px-1.5 py-0.5 text-xs">
-                      {schedule.cronExpression}
-                    </code>
-                  </td>
-                  <td className="px-4 py-3 text-[hsl(var(--muted-foreground))]">
-                    {schedule.cronDescription ?? "-"}
-                  </td>
-                  <td className="px-4 py-3 text-[hsl(var(--muted-foreground))]">
-                    {schedule.nextRunAt
-                      ? new Date(schedule.nextRunAt).toLocaleString()
-                      : "-"}
-                  </td>
-                  <td className="px-4 py-3">{schedule.workflowName}</td>
-                  <td className="px-4 py-3">
-                    <div className="flex items-center gap-2">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        disabled={toggleMutation.isPending}
-                        onClick={() =>
-                          toggleMutation.mutate({
-                            id: schedule.id,
-                            active: !schedule.active,
-                          })
-                        }
-                      >
-                        {schedule.active ? "Deactivate" : "Activate"}
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8 text-[hsl(var(--destructive))]"
-                        onClick={() => setDeleteTarget(schedule.id)}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
+              {schedules.map((schedule) => {
+                const description = getCronDescription(
+                  schedule.cronExpression,
+                );
+                return (
+                  <tr key={schedule.id}>
+                    <td className="px-4 py-3">
+                      <span
+                        className={cn(
+                          "inline-block h-2.5 w-2.5 rounded-full",
+                          schedule.active ? "bg-green-500" : "bg-gray-400",
+                        )}
+                      />
+                    </td>
+                    <td className="px-4 py-3 font-medium">{schedule.name}</td>
+                    <td className="px-4 py-3">
+                      <div>
+                        <code className="rounded bg-[hsl(var(--muted))] px-1.5 py-0.5 text-xs">
+                          {schedule.cronExpression}
+                        </code>
+                        {description && (
+                          <p className="mt-0.5 text-xs text-[hsl(var(--muted-foreground))]">
+                            {description}
+                          </p>
+                        )}
+                      </div>
+                    </td>
+                    <td className="px-4 py-3 text-[hsl(var(--muted-foreground))]">
+                      {schedule.nextRunAt
+                        ? new Date(schedule.nextRunAt).toLocaleString()
+                        : "-"}
+                    </td>
+                    <td className="px-4 py-3">{schedule.workflowName}</td>
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          disabled={runNowMutation.isPending}
+                          onClick={() => runNowMutation.mutate(schedule.id)}
+                        >
+                          <Play className="mr-1 h-3 w-3" />
+                          Run Now
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          disabled={toggleMutation.isPending}
+                          onClick={() =>
+                            toggleMutation.mutate({
+                              id: schedule.id,
+                              active: !schedule.active,
+                            })
+                          }
+                        >
+                          {schedule.active ? "Deactivate" : "Activate"}
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 text-[hsl(var(--destructive))]"
+                          onClick={() => setDeleteTarget(schedule.id)}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
       )}
+
+      {!isLoading &&
+        !isError &&
+        schedules.length > 0 &&
+        viewMode === "calendar" && (
+          <CalendarView schedules={schedules} />
+        )}
     </div>
   );
 }
