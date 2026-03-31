@@ -365,3 +365,19 @@ Google Drive API를 호출하여 파일을 업로드, 다운로드, 관리한다
 - Action 드롭다운
 - 폴더 브라우저 (트리 형태 또는 ID 직접 입력)
 - Action별 동적 폼
+
+---
+
+## 9. 캔버스 요약
+
+| 노드 | 요약 포맷 | 예시 |
+|------|-----------|------|
+| HTTP Request | `{method} {url}` (URL 35자 초과 시 잘림) | `GET https://api.exam...` |
+| Database Query | `{queryType} · {쿼리 첫 줄}` (잘림) | `SELECT · SELECT * FROM us...` |
+| Slack | `{action}`. channel 설정 시 `· {channel}` 추가 | `send_message · #general` |
+| Google Sheets | `{action} · {range}` | `read_rows · Sheet1!A1:D10` |
+| GitHub | `{action} · {owner}/{repo}` | `create_issue · acme/app` |
+| Send Email | `to: {수신자}`. 수신자 2명 초과 시 `+N` 표시 | `to: user@exam..., +2` |
+| Google Drive | `{action}`. folderId 설정 시 폴더 경로 표시 | `upload_file · /reports` |
+
+Integration 노드에서 연결된 Integration이 삭제된 경우 `⚠ Missing integration` (앰버색)을 표시한다.

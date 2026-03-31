@@ -646,3 +646,82 @@ Handlebars 스타일 템플릿으로 입력 데이터를 바인딩하여 리치 
 - HTML 템플릿 에디터: Handlebars + HTML 구문 강조
 - Header/Footer 템플릿: 접을 수 있는(collapsible) 섹션
 - Preview: 마지막 실행의 PDF를 새 탭에서 미리보기, 또는 썸네일 표시
+
+---
+
+## 7. 캔버스 요약
+
+각 Presentation 노드가 캔버스에 표시하는 설정 요약 텍스트 포맷. ([캔버스 §5.3](../3-workflow-editor/0-canvas.md#53-노드-설정-요약-configuration-summary) 참조)
+
+| 노드 | 요약 포맷 | 예시 |
+|------|-----------|------|
+| Carousel | `{layout} · {titleField}` | `card · name` |
+| Table | `{N} columns`. pagination 활성화 시 `· pagination` 추가 | `3 columns · pagination` |
+| Chart | `{chartType} · {xAxis.field} / {yAxis.field}` | `bar · month / revenue` |
+| Form | `{N} fields · "{title}"` (필드 수 + 폼 제목) | `3 fields · "Approval"` |
+| Template | `{outputFormat} · {N} lines` (템플릿 줄 수) | `html · 9 lines` |
+| PDF | `{pageSize} {orientation} · {fileName}` | `A4 portrait · report.pdf` |
+
+---
+
+## 8. Run Results Drawer 렌더링
+
+각 Presentation 노드가 실행 완료 후 Run Results Drawer 탭에서 렌더링되는 방식. ([실행/디버깅 §10 Run Results Drawer](../3-workflow-editor/3-execution.md#10-run-results-drawer) 참조)
+
+### 8.1 Carousel
+
+| 항목 | 설명 |
+|------|------|
+| 렌더링 | `output.items` 배열을 `layout` 설정에 따라 카드/이미지/미니멀 형태로 표시 |
+| 인터랙션 | 좌/우 화살표로 슬라이드 탐색. 현재 슬라이드 인디케이터 (예: 3/10) |
+| 이미지 | `imageField` 지정 시 이미지 렌더링. 로드 실패 시 placeholder |
+| 빈 데이터 | "No items to display" 메시지 |
+
+### 8.2 Table
+
+| 항목 | 설명 |
+|------|------|
+| 렌더링 | `output.columns`와 `output.rows`를 테이블로 표시 |
+| 인터랙션 | `sortable` 컬럼 헤더 클릭 시 정렬 토글 (asc/desc). 페이지네이션 컨트롤 |
+| 포맷팅 | `format` 지정된 컬럼은 날짜/숫자 포맷 적용 |
+| 빈 데이터 | 컬럼 헤더만 표시 + "No data" 행 |
+| 대량 데이터 | 페이지네이션 강제 (최대 200행/페이지) |
+
+### 8.3 Chart
+
+| 항목 | 설명 |
+|------|------|
+| 렌더링 | `output.rendered` SVG를 인터랙티브 차트로 표시 |
+| 인터랙션 | 데이터 포인트 호버 시 값 툴팁. 범례 표시. 축 라벨 |
+| 차트 타입 | bar/line/area: X-Y 축 차트. pie/donut: 라벨-값 차트 |
+| 빈 데이터 | 축만 표시된 빈 차트 + "No data" 메시지 |
+| 리사이즈 | 드로어 크기 변경 시 차트 반응형 리사이즈 |
+
+### 8.4 Form
+
+| 항목 | 설명 |
+|------|------|
+| 대기 중 (`waiting_for_input`) | 실제 폼 UI 렌더링 — 제목, 설명(Markdown), 필드 목록, 제출 버튼. 필드 유효성 검증 실시간 적용 |
+| 파일 업로드 | `type: file` 필드는 드래그앤드롭 + 파일 선택 UI. MIME/크기 제한 실시간 검증 |
+| 제출 | 제출 버튼 클릭 → `execution.submit_form` WebSocket 명령 전송 → 검증 실패 시 에러 표시, 성공 시 실행 재개 |
+| 제출 후 | 제출된 데이터를 키-값 테이블로 표시. 제출 시각, 제출자 정보 포함 |
+| 타임아웃 | 타임아웃 설정 시 잔여 시간 카운트다운 표시. 타임아웃 도달 시 폼 비활성화 + "Timed out" 상태 표시 |
+
+### 8.5 Template
+
+| 항목 | 설명 |
+|------|------|
+| HTML 출력 | 샌드박스 iframe 내에서 렌더링. 외부 스크립트 실행 차단 |
+| Markdown 출력 | Markdown → HTML 변환 후 렌더링 |
+| Text 출력 | 코드 블록(`<pre>`) 형태로 표시 |
+| 빈 결과 | "Empty output" 메시지 |
+
+### 8.6 PDF
+
+| 항목 | 설명 |
+|------|------|
+| 생성 중 | 로딩 스피너 + "Generating PDF..." 메시지 |
+| 완료 | 브라우저 내장 PDF 뷰어로 임베드 렌더링 |
+| 버튼 | `[Download]` — 파일 다운로드. `[새 탭에서 열기]` — 새 탭에서 PDF 열기 |
+| 파일 정보 | 파일명, 파일 크기 표시 |
+| 에러 | PDF 생성 실패 시 에러 메시지 + 재시도 안내 |
