@@ -10,6 +10,7 @@ import {
 import { Logger } from '@nestjs/common';
 import { Server, Socket } from 'socket.io';
 import { JwtService } from '@nestjs/jwt';
+import { Public } from '../../common/decorators';
 
 const MAX_SUBSCRIPTIONS_PER_CONNECTION = 20;
 
@@ -19,6 +20,9 @@ function isValidChannel(channel: string): boolean {
   return VALID_CHANNEL_PREFIXES.some((prefix) => channel.startsWith(prefix));
 }
 
+// @Public() bypasses the global JwtAuthGuard for WebSocket message handlers.
+// Authentication is handled manually in handleConnection() via JWT verification.
+@Public()
 @WebSocketGateway({
   cors: { origin: '*', credentials: true },
   namespace: '/ws',
