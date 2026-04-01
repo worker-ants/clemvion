@@ -188,6 +188,15 @@ export class AuthService {
       relations: ['user'],
     });
 
+    // DEBUG: Remove after verifying refresh works
+    console.log('[DEBUG refresh]', {
+      tokenPrefix: refreshToken.substring(0, 8),
+      hashPrefix: tokenHash.substring(0, 16),
+      found: !!stored,
+      isRevoked: stored?.isRevoked,
+      expiresAt: stored?.expiresAt,
+    });
+
     if (!stored) {
       throw new UnauthorizedException({
         code: 'TOKEN_INVALID',

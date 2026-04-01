@@ -12,7 +12,7 @@ export const apiClient = axios.create({
   },
 });
 
-// Access token stored in memory (not localStorage for security)
+// Access token stored in memory (not localStorage/sessionStorage for security)
 let accessToken: string | null = null;
 
 export function setAccessToken(token: string | null) {
@@ -25,11 +25,47 @@ export function getAccessToken(): string | null {
 
 // Request interceptor: attach access token
 apiClient.interceptors.request.use((config) => {
-  if (accessToken) {
-    config.headers.Authorization = `Bearer ${accessToken}`;
+  const token = getAccessToken();
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
   }
   return config;
 });
+
+// Shared refresh promise to prevent concurrent refresh calls
+let refreshPromise: Promise<string | null> | null = null;
+
+// Flag to suppress interceptor refresh/redirect during session restore
+let sessionRestoreInProgress = false;
+
+export function setSessionRestoreInProgress(value: boolean) {
+  sessionRestoreInProgress = value;
+}
+
+async function doRefresh(): Promise<string | null> {
+  const { data } = await apiClient.post("/auth/refresh");
+  const newToken = data.data?.accessToken;
+  if (newToken) {
+    setAccessToken(newToken);
+    return newToken;
+  }
+  return null;
+}
+
+// Shared refresh entry point — deduplicates concurrent calls from AuthProvider and interceptor
+export function refreshAccessToken(): Promise<string | null> {
+  // DEBUG: Remove after verifying
+  console.log("[DEBUG refreshAccessToken]", {
+    hasExistingPromise: !!refreshPromise,
+    caller: new Error().stack?.split("\n")[2]?.trim(),
+  });
+  if (!refreshPromise) {
+    refreshPromise = doRefresh().finally(() => {
+      refreshPromise = null;
+    });
+  }
+  return refreshPromise;
+}
 
 // Response interceptor: handle 401 and auto-refresh
 apiClient.interceptors.response.use(
@@ -40,23 +76,19 @@ apiClient.interceptors.response.use(
     if (
       error.response?.status === 401 &&
       !originalRequest._retry &&
-      !originalRequest.url?.includes("/auth/")
+      !originalRequest.url?.includes("/auth/") &&
+      !sessionRestoreInProgress
     ) {
       originalRequest._retry = true;
 
       try {
-        const { data } = await apiClient.post("/auth/refresh", {});
-        const newToken = data.data?.accessToken;
+        const newToken = await refreshAccessToken();
         if (newToken) {
-          setAccessToken(newToken);
           originalRequest.headers.Authorization = `Bearer ${newToken}`;
           return apiClient(originalRequest);
         }
       } catch {
-        setAccessToken(null);
-        if (typeof window !== "undefined") {
-          window.location.href = "/login";
-        }
+        // Error already handled in doRefresh catch chain
       }
     }
 

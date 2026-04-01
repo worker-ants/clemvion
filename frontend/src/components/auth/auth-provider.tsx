@@ -3,9 +3,11 @@
 import { useEffect, useRef } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { useAuthStore } from "@/lib/stores/auth-store";
-import { authApi } from "@/lib/api/auth";
 import { usersApi } from "@/lib/api/users";
-import { setAccessToken } from "@/lib/api/client";
+import {
+  refreshAccessToken,
+  setSessionRestoreInProgress,
+} from "@/lib/api/client";
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const router = useRouter();
@@ -24,13 +26,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     async function restoreSession() {
       setLoading(true);
+      setSessionRestoreInProgress(true);
       try {
-        const refreshRes = await authApi.refresh();
-        const accessToken = refreshRes.data.data?.accessToken;
+        // Restore session via HttpOnly cookie refresh (deduplicated)
+        const accessToken = await refreshAccessToken();
         if (!accessToken) {
           throw new Error("No access token");
         }
-        setAccessToken(accessToken);
 
         const userRes = await usersApi.getMe();
         const user = userRes.data.data;
@@ -43,9 +45,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         logout();
         // Only redirect if current path is not already a public auth route
         if (!pathname.startsWith("/login")) {
-          const redirect = pathname.startsWith("/") ? pathname : "/dashboard";
+          const redirect =
+            pathname.startsWith("/") && !pathname.startsWith("//")
+              ? pathname
+              : "/dashboard";
           router.replace(`/login?redirect=${encodeURIComponent(redirect)}`);
         }
+      } finally {
+        setSessionRestoreInProgress(false);
+        setLoading(false);
       }
     }
 
