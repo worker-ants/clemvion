@@ -89,7 +89,7 @@ export function EditorToolbar() {
 
     try {
       const response = await workflowsApi.execute(workflowId);
-      const { executionId } = response.data as { executionId: string };
+      const { executionId } = (response.data as { data: { executionId: string } }).data;
       startExecution(executionId);
     } catch (error) {
       console.error("Execution failed:", error);
@@ -103,7 +103,7 @@ export function EditorToolbar() {
     try {
       const parsedInput = JSON.parse(jsonInput);
       const response = await workflowsApi.execute(workflowId, parsedInput);
-      const { executionId } = response.data as { executionId: string };
+      const { executionId } = (response.data as { data: { executionId: string } }).data;
       startExecution(executionId);
       setRunWithInputOpen(false);
       setJsonInput("{}");
@@ -128,7 +128,7 @@ export function EditorToolbar() {
       const response = await workflowsApi.execute(workflowId, {
         fromNodeId: selectedNodeId,
       });
-      const { executionId } = response.data as { executionId: string };
+      const { executionId } = (response.data as { data: { executionId: string } }).data;
       startExecution(executionId);
     } catch (error) {
       console.error("Execution failed:", error);

@@ -5,6 +5,8 @@ import { ReactFlowProvider } from "@xyflow/react";
 import { useEditorStore } from "@/lib/stores/editor-store";
 import { useExecutionStore } from "@/lib/stores/execution-store";
 import { useExecutionEvents } from "@/lib/websocket/use-execution-events";
+import { getWsClient } from "@/lib/websocket/ws-client";
+import { getAccessToken } from "@/lib/api/client";
 import { EditorToolbar } from "./toolbar/editor-toolbar";
 import { NodePalette } from "./palette/node-palette";
 import { WorkflowCanvas } from "./canvas/workflow-canvas";
@@ -16,6 +18,14 @@ export function WorkflowEditor() {
   const redo = useEditorStore((s) => s.redo);
   const saveWorkflow = useEditorStore((s) => s.saveWorkflow);
   const executionId = useExecutionStore((s) => s.executionId);
+
+  // Pre-connect WebSocket on editor mount for warm connection
+  useEffect(() => {
+    const token = getAccessToken();
+    if (token) {
+      getWsClient().connect(token);
+    }
+  }, []);
 
   // Subscribe to WebSocket execution events
   useExecutionEvents({ executionId });

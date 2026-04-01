@@ -13,6 +13,7 @@ export interface WsClient {
   off: (event: string, handler: (...args: unknown[]) => void) => void;
   isConnected: () => boolean;
   getSocket: () => Socket | null;
+  waitForConnect: () => Promise<void>;
 }
 
 export function createWsClient(): WsClient {
@@ -23,9 +24,12 @@ export function createWsClient(): WsClient {
       return;
     }
 
+    if (socket) {
+      socket.disconnect();
+    }
+
     socket = io(`${WS_URL}/ws`, {
       auth: { token },
-      query: { token },
       transports: ["websocket", "polling"],
       reconnection: true,
       reconnectionAttempts: Infinity,
@@ -73,6 +77,24 @@ export function createWsClient(): WsClient {
 
   const getSocket = () => socket;
 
+  const waitForConnect = (): Promise<void> => {
+    if (socket?.connected) return Promise.resolve();
+    if (!socket) return Promise.reject(new Error("Socket not initialized"));
+    return new Promise<void>((resolve, reject) => {
+      const s = socket!;
+      const onConnect = () => {
+        s.off("connect_error", onError);
+        resolve();
+      };
+      const onError = (err: Error) => {
+        s.off("connect", onConnect);
+        reject(err);
+      };
+      s.once("connect", onConnect);
+      s.once("connect_error", onError);
+    });
+  };
+
   return {
     connect,
     disconnect,
@@ -82,5 +104,22 @@ export function createWsClient(): WsClient {
     off,
     isConnected,
     getSocket,
+    waitForConnect,
   };
+}
+
+let singletonInstance: WsClient | null = null;
+
+export function getWsClient(): WsClient {
+  if (!singletonInstance) {
+    singletonInstance = createWsClient();
+  }
+  return singletonInstance;
+}
+
+export function resetWsClient(): void {
+  if (singletonInstance) {
+    singletonInstance.disconnect();
+    singletonInstance = null;
+  }
 }
