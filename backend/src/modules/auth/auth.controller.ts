@@ -6,6 +6,7 @@ import {
   HttpStatus,
   Req,
   Res,
+  UnauthorizedException,
 } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { Public } from '../../common/decorators';
@@ -14,7 +15,6 @@ import { LoginDto } from './dto/login.dto';
 import { VerifyEmailDto } from './dto/verify-email.dto';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
-import { RefreshTokenDto } from './dto/refresh-token.dto';
 import { CheckEmailDto } from './dto/check-email.dto';
 
 // Express types used directly to avoid isolatedModules + emitDecoratorMetadata issue
@@ -67,7 +67,7 @@ export class AuthController {
     if (refreshToken) {
       await this.authService.logout(refreshToken);
     }
-    res.clearCookie('refreshToken');
+    res.clearCookie('refreshToken', { path: '/' });
     return { data: { message: 'Logged out successfully' } };
   }
 
@@ -76,12 +76,14 @@ export class AuthController {
   @HttpCode(HttpStatus.OK)
   async refresh(
     @Req() req: Express.Request,
-    @Body() dto: RefreshTokenDto,
     @Res({ passthrough: true }) res: Express.Response,
   ) {
-    const token =
-      (req as unknown as { cookies: Record<string, string> }).cookies
-        ?.refreshToken || dto.refreshToken;
+    const token = (
+      req as unknown as { cookies: Record<string, string> }
+    ).cookies?.refreshToken;
+    if (!token) {
+      throw new UnauthorizedException('No refresh token provided');
+    }
     const result = await this.authService.refresh(token);
     this.setRefreshTokenCookie(res, result.refreshToken);
     return { data: { accessToken: result.accessToken } };
@@ -122,8 +124,8 @@ export class AuthController {
 
     res.cookie('refreshToken', token, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
+      secure: true,
+      sameSite: 'none',
       maxAge,
       path: '/',
     });
