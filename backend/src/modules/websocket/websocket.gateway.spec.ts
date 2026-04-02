@@ -200,7 +200,7 @@ describe('WebsocketGateway', () => {
       (socket as Socket & { userId?: string }).userId = 'user-1';
 
       const mockEngine = module.get(ExecutionEngineService);
-      mockEngine.continueExecution.mockImplementation(() => {
+      (mockEngine.continueExecution as jest.Mock).mockImplementation(() => {
         throw new Error('No pending continuation');
       });
 

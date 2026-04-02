@@ -530,18 +530,42 @@ export class ExecutionEngineService implements OnModuleInit {
       }
 
       // Resolve expressions in config
-      const resolvedConfig = nodeMap
-        ? this.expressionResolver.resolveConfig(
-            node.config,
-            this.expressionResolver.buildExpressionContext(
-              nodeInput,
-              context,
-              nodeMap,
-              executionMeta,
-            ),
-            node.type,
-          )
-        : node.config;
+      let resolvedConfig: Record<string, unknown>;
+      if (nodeMap) {
+        const exprContext = this.expressionResolver.buildExpressionContext(
+          nodeInput,
+          context,
+          nodeMap,
+          executionMeta,
+        );
+
+        // For template nodes, spread input data as root-level variables
+        // so that {{ name }} works in addition to {{ $input.name }}.
+        // This must run after buildExpressionContext() which populates
+        // the built-in $-prefixed variables that take precedence.
+        if (
+          node.type === 'template' &&
+          typeof nodeInput === 'object' &&
+          nodeInput !== null &&
+          !Array.isArray(nodeInput)
+        ) {
+          for (const [key, value] of Object.entries(
+            nodeInput as Record<string, unknown>,
+          )) {
+            if (!Object.hasOwn(exprContext, key)) {
+              exprContext[key] = value;
+            }
+          }
+        }
+
+        resolvedConfig = this.expressionResolver.resolveConfig(
+          node.config,
+          exprContext,
+          node.type,
+        );
+      } else {
+        resolvedConfig = node.config;
+      }
 
       // Execute with potential retry
       const output = await this.executeWithRetry(
