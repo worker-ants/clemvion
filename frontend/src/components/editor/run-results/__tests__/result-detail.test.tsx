@@ -17,6 +17,7 @@ vi.mock("@/lib/node-definitions", () => ({
       http_request: { label: "HTTP Request", category: "integration" },
       table: { label: "Table", category: "presentation" },
       form: { label: "Form", category: "presentation" },
+      template: { label: "Template", category: "presentation" },
     };
     return defs[type] ?? undefined;
   },
@@ -128,6 +129,29 @@ describe("ResultDetail", () => {
     );
 
     expect(screen.getByText("Connection timeout")).toBeDefined();
+  });
+
+  it("renders template preview for template nodes", () => {
+    render(
+      <ResultDetail
+        result={makeResult({
+          nodeType: "template",
+          nodeCategory: "presentation",
+          outputData: {
+            type: "template",
+            format: "text",
+            content: "Score: 95, User: Alice",
+          },
+        })}
+        isWaitingForm={false}
+        formConfig={null}
+        executionId="exec-1"
+        onFormSubmit={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText("Preview (text)")).toBeDefined();
+    expect(screen.getByText("Score: 95, User: Alice")).toBeDefined();
   });
 
   it("renders form UI when waiting for input", () => {
