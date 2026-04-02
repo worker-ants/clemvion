@@ -138,6 +138,7 @@ export function useExecutionEvents({
         nodeId?: string;
         nodeType?: string;
         nodeLabel?: string;
+        timestamp?: string;
       };
       if (payload.nodeId) {
         // Guard against out-of-order events (e.g., completed arriving before started)
@@ -153,6 +154,7 @@ export function useExecutionEvents({
           nodeCategory: getCategoryForType(payload.nodeType ?? "unknown"),
           status: "running",
           outputData: null,
+          startedAt: payload.timestamp ?? new Date().toISOString(),
         });
       }
     },
@@ -167,12 +169,18 @@ export function useExecutionEvents({
         nodeType?: string;
         nodeLabel?: string;
         output?: Record<string, unknown>;
+        timestamp?: string;
       };
       if (payload.nodeId) {
         updateNodeStatus(payload.nodeId, {
           status: "completed",
           duration: payload.duration,
         });
+
+        // Preserve startedAt from existing entry if available
+        const existing = useExecutionStore
+          .getState()
+          .nodeResults.find((r) => r.nodeId === payload.nodeId);
 
         addNodeResult({
           nodeId: payload.nodeId,
@@ -182,6 +190,7 @@ export function useExecutionEvents({
           status: "completed",
           duration: payload.duration,
           outputData: payload.output ?? null,
+          startedAt: existing?.startedAt,
         });
       }
     },
@@ -195,12 +204,18 @@ export function useExecutionEvents({
         error?: string;
         nodeType?: string;
         nodeLabel?: string;
+        timestamp?: string;
       };
       if (payload.nodeId) {
         updateNodeStatus(payload.nodeId, {
           status: "failed",
           error: payload.error,
         });
+
+        const existing = useExecutionStore
+          .getState()
+          .nodeResults.find((r) => r.nodeId === payload.nodeId);
+
         addNodeResult({
           nodeId: payload.nodeId,
           nodeLabel: payload.nodeLabel ?? payload.nodeId,
@@ -209,6 +224,7 @@ export function useExecutionEvents({
           status: "failed",
           error: payload.error,
           outputData: null,
+          startedAt: existing?.startedAt,
         });
       }
     },
@@ -281,9 +297,12 @@ export function useExecutionEvents({
 
         const execution = response.data;
 
-        // Reconcile node-level statuses
+        // Reconcile node-level statuses (sorted by startedAt for chronological order)
         if (execution.nodeExecutions) {
-          for (const ne of execution.nodeExecutions) {
+          const sorted = [...execution.nodeExecutions].sort((a, b) =>
+            (a.startedAt ?? "").localeCompare(b.startedAt ?? ""),
+          );
+          for (const ne of sorted) {
             const nodeType = ne.node?.type ?? "unknown";
             const nodeLabel = ne.node?.label ?? ne.nodeId;
 
@@ -303,6 +322,7 @@ export function useExecutionEvents({
               duration: ne.durationMs ?? undefined,
               error: ne.error?.message,
               outputData: ne.outputData,
+              startedAt: ne.startedAt,
             });
           }
         }
