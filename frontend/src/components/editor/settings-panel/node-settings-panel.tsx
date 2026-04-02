@@ -10,6 +10,7 @@ import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils/cn";
 import { NodeIcon } from "../canvas/node-icon";
 import { X } from "lucide-react";
+import { toast } from "sonner";
 
 type Tab = "settings" | "code" | "info";
 
@@ -145,6 +146,8 @@ function SettingsTab({
       ),
       isDirty: true,
     }));
+
+    toast.success("Node settings saved");
   }, [nodeId, label, isDisabled, nodeConfig, notes, errorPolicy]);
 
   const isTrigger = nodeData.type === "manual_trigger";
@@ -252,6 +255,8 @@ function CodeTab({
         ),
         isDirty: true,
       }));
+
+      toast.success("Configuration applied");
     } catch {
       setJsonError("Invalid JSON");
     }

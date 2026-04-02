@@ -51,11 +51,12 @@ export function IfElseConfig({ config, onChange }: { config: Config; onChange: O
               </Button>
             )}
           </div>
-          <Input
+          <ExpressionInput
+            bare
+            label=""
             value={cond.field}
-            onChange={(e) => updateCondition(i, "field", e.target.value)}
+            onChange={(v) => updateCondition(i, "field", v)}
             placeholder="Field (e.g. {{ $input.status }})"
-            className="h-7 text-xs"
           />
           <select
             value={cond.operator}
@@ -77,11 +78,12 @@ export function IfElseConfig({ config, onChange }: { config: Config; onChange: O
             <option value="regex">Regex Match</option>
             <option value="is_null">Is Null</option>
           </select>
-          <Input
+          <ExpressionInput
+            bare
+            label=""
             value={cond.value}
-            onChange={(e) => updateCondition(i, "value", e.target.value)}
-            placeholder="Value"
-            className="h-7 text-xs"
+            onChange={(v) => updateCondition(i, "value", v)}
+            placeholder="Value or {{ expression }}"
           />
         </div>
       ))}
@@ -136,12 +138,15 @@ export function SwitchConfig({ config, onChange }: { config: Config; onChange: O
             placeholder="Label"
             className="h-7 flex-1 text-xs"
           />
-          <Input
-            value={c.value}
-            onChange={(e) => updateCase(i, "value", e.target.value)}
-            placeholder="Value"
-            className="h-7 flex-1 text-xs"
-          />
+          <div className="flex-1">
+            <ExpressionInput
+              bare
+              label=""
+              value={c.value}
+              onChange={(v) => updateCase(i, "value", v)}
+              placeholder="Value or {{ expression }}"
+            />
+          </div>
           <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => removeCase(i)}>
             <X size={12} />
           </Button>
@@ -232,11 +237,12 @@ export function VariableDeclarationConfig({ config, onChange }: { config: Config
             <option value="array">Array</option>
             <option value="object">Object</option>
           </select>
-          <Input
+          <ExpressionInput
+            bare
+            label=""
             value={v.defaultValue}
-            onChange={(e) => updateVariable(i, "defaultValue", e.target.value)}
-            placeholder="Default value"
-            className="h-7 text-xs"
+            onChange={(val) => updateVariable(i, "defaultValue", val)}
+            placeholder="Default value or {{ expression }}"
           />
         </div>
       ))}
@@ -293,11 +299,12 @@ export function VariableModificationConfig({ config, onChange }: { config: Confi
             <option value="set_field">Set Field</option>
             <option value="delete_field">Delete Field</option>
           </select>
-          <Input
+          <ExpressionInput
+            bare
+            label=""
             value={m.value}
-            onChange={(e) => updateMod(i, "value", e.target.value)}
-            placeholder="Value or expression"
-            className="h-7 text-xs"
+            onChange={(v) => updateMod(i, "value", v)}
+            placeholder="Value or {{ expression }}"
           />
         </div>
       ))}
@@ -367,12 +374,15 @@ export function MapConfig({ config, onChange }: { config: Config; onChange: OnCh
             placeholder="Target field"
             className="h-7 flex-1 text-xs"
           />
-          <Input
-            value={m.expression}
-            onChange={(e) => updateMapping(i, "expression", e.target.value)}
-            placeholder="Expression"
-            className="h-7 flex-1 text-xs"
-          />
+          <div className="flex-1">
+            <ExpressionInput
+              bare
+              label=""
+              value={m.expression}
+              onChange={(v) => updateMapping(i, "expression", v)}
+              placeholder="{{ $item.field }}"
+            />
+          </div>
           <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => removeMapping(i)}>
             <X size={12} />
           </Button>

@@ -72,7 +72,7 @@ export function WorkflowEditorLoader({ workflowId }: EditorLoaderProps) {
 
   if (loading) {
     return (
-      <div className="flex h-screen items-center justify-center">
+      <div className="flex h-full items-center justify-center">
         <div className="h-8 w-8 animate-spin rounded-full border-4 border-[hsl(var(--primary))] border-t-transparent" />
       </div>
     );
@@ -80,7 +80,7 @@ export function WorkflowEditorLoader({ workflowId }: EditorLoaderProps) {
 
   if (error) {
     return (
-      <div className="flex h-screen items-center justify-center">
+      <div className="flex h-full items-center justify-center">
         <p className="text-[hsl(var(--destructive))]">{error}</p>
       </div>
     );

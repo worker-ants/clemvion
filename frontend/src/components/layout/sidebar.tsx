@@ -23,6 +23,7 @@ import {
 import { cn } from "@/lib/utils/cn";
 import { Button } from "@/components/ui/button";
 import { useAuthStore } from "@/lib/stores/auth-store";
+import { useSidebarStore, selectCollapsed } from "@/lib/stores/sidebar-store";
 import { authApi } from "@/lib/api/auth";
 import { apiClient } from "@/lib/api/client";
 
@@ -54,7 +55,6 @@ function useMediaQuery(query: string) {
 export function Sidebar() {
   const pathname = usePathname();
   const router = useRouter();
-  const [manualCollapse, setManualCollapse] = useState<boolean | null>(null);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
@@ -63,10 +63,19 @@ export function Sidebar() {
   const user = useAuthStore((s) => s.user);
   const logout = useAuthStore((s) => s.logout);
 
+  // Sidebar store for shared collapsed state
+  const collapsed = useSidebarStore(selectCollapsed);
+  const toggleCollapse = useSidebarStore((s) => s.toggleCollapse);
+  const setIsSmall = useSidebarStore((s) => s.setIsSmall);
+  const setIsMedium = useSidebarStore((s) => s.setIsMedium);
+
   const isSmall = useMediaQuery("(max-width: 1279px)");
   const isMedium = useMediaQuery("(min-width: 1280px) and (max-width: 1439px)");
 
-  const collapsed = manualCollapse ?? isMedium;
+  // Sync media query results to sidebar store
+  useEffect(() => { setIsSmall(isSmall); }, [isSmall, setIsSmall]);
+  useEffect(() => { setIsMedium(isMedium); }, [isMedium, setIsMedium]);
+
   const hidden = isSmall && !mobileOpen;
 
   // Notification unread count
@@ -318,9 +327,7 @@ export function Sidebar() {
             <Button
               variant="ghost"
               size="sm"
-              onClick={() =>
-                setManualCollapse(manualCollapse === null ? !isMedium : !manualCollapse)
-              }
+              onClick={toggleCollapse}
               className={cn("w-full", collapsed && "px-2")}
             >
               {collapsed ? (
