@@ -8,6 +8,8 @@ const initialState = {
   nodeStatuses: new Map(),
   nodeResults: [],
   startedAt: null,
+  waitingNodeId: null,
+  waitingFormConfig: null,
 };
 
 describe("useExecutionStore", () => {
@@ -22,6 +24,8 @@ describe("useExecutionStore", () => {
     expect(state.nodeStatuses.size).toBe(0);
     expect(state.nodeResults).toEqual([]);
     expect(state.startedAt).toBeNull();
+    expect(state.waitingNodeId).toBeNull();
+    expect(state.waitingFormConfig).toBeNull();
   });
 
   describe("startExecution", () => {
@@ -34,6 +38,8 @@ describe("useExecutionStore", () => {
       expect(state.startedAt).toBeTruthy();
       expect(state.nodeStatuses.size).toBe(0);
       expect(state.nodeResults).toEqual([]);
+      expect(state.waitingNodeId).toBeNull();
+      expect(state.waitingFormConfig).toBeNull();
     });
 
     it("resets previous results when starting new execution", () => {
@@ -101,13 +107,29 @@ describe("useExecutionStore", () => {
 
       expect(useExecutionStore.getState().nodeResults).toHaveLength(2);
     });
+
+    it("updates existing result for same nodeId instead of duplicating", () => {
+      const r1: NodeResult = { nodeId: "n1", nodeLabel: "A", nodeType: "table", outputData: { v: 1 } };
+      const r2: NodeResult = { nodeId: "n1", nodeLabel: "A", nodeType: "table", outputData: { v: 2 } };
+      useExecutionStore.getState().addNodeResult(r1);
+      useExecutionStore.getState().addNodeResult(r2);
+
+      const results = useExecutionStore.getState().nodeResults;
+      expect(results).toHaveLength(1);
+      expect(results[0].outputData).toEqual({ v: 2 });
+    });
   });
 
   describe("completeExecution", () => {
-    it("sets status to completed", () => {
+    it("sets status to completed and clears waiting state", () => {
       useExecutionStore.getState().startExecution("exec-1");
+      useExecutionStore.getState().pauseForForm("node-form", { fields: [] });
       useExecutionStore.getState().completeExecution();
-      expect(useExecutionStore.getState().status).toBe("completed");
+
+      const state = useExecutionStore.getState();
+      expect(state.status).toBe("completed");
+      expect(state.waitingNodeId).toBeNull();
+      expect(state.waitingFormConfig).toBeNull();
     });
   });
 
@@ -129,13 +151,51 @@ describe("useExecutionStore", () => {
         error: "Something went wrong",
       });
     });
+
+    it("clears waiting state on failure", () => {
+      useExecutionStore.getState().startExecution("exec-1");
+      useExecutionStore.getState().pauseForForm("node-form", { fields: [] });
+      useExecutionStore.getState().failExecution("Error");
+
+      const state = useExecutionStore.getState();
+      expect(state.waitingNodeId).toBeNull();
+      expect(state.waitingFormConfig).toBeNull();
+    });
+  });
+
+  describe("pauseForForm / resumeFromForm", () => {
+    it("transitions to waiting_for_input with form config", () => {
+      useExecutionStore.getState().startExecution("exec-1");
+      const formConfig = {
+        fields: [{ name: "approved", type: "checkbox", label: "Approved" }],
+        title: "Approval",
+      };
+      useExecutionStore.getState().pauseForForm("node-form", formConfig);
+
+      const state = useExecutionStore.getState();
+      expect(state.status).toBe("waiting_for_input");
+      expect(state.waitingNodeId).toBe("node-form");
+      expect(state.waitingFormConfig).toEqual(formConfig);
+    });
+
+    it("resumes to running state and clears waiting info", () => {
+      useExecutionStore.getState().startExecution("exec-1");
+      useExecutionStore.getState().pauseForForm("node-form", { fields: [] });
+      useExecutionStore.getState().resumeFromForm();
+
+      const state = useExecutionStore.getState();
+      expect(state.status).toBe("running");
+      expect(state.waitingNodeId).toBeNull();
+      expect(state.waitingFormConfig).toBeNull();
+    });
   });
 
   describe("reset", () => {
-    it("resets all state to initial values", () => {
+    it("resets all state to initial values including waiting state", () => {
       useExecutionStore.getState().startExecution("exec-1");
       useExecutionStore.getState().updateNodeStatus("n1", { status: "running" });
       useExecutionStore.getState().addNodeResult({ nodeId: "n1", nodeLabel: "A", nodeType: "x", outputData: null });
+      useExecutionStore.getState().pauseForForm("node-form", { fields: [] });
 
       useExecutionStore.getState().reset();
 
@@ -145,6 +205,8 @@ describe("useExecutionStore", () => {
       expect(state.nodeStatuses.size).toBe(0);
       expect(state.nodeResults).toEqual([]);
       expect(state.startedAt).toBeNull();
+      expect(state.waitingNodeId).toBeNull();
+      expect(state.waitingFormConfig).toBeNull();
     });
   });
 });

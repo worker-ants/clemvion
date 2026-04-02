@@ -1,4 +1,10 @@
-import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
+import {
+  Inject,
+  Injectable,
+  Logger,
+  OnModuleInit,
+  forwardRef,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import {
@@ -57,9 +63,29 @@ import { TemplateHandler } from './handlers/presentation/template.handler';
 import { PdfHandler } from './handlers/presentation/pdf.handler';
 import { ManualTriggerHandler } from './handlers/trigger/manual-trigger.handler';
 
+class ExecutionCancelledError extends Error {
+  constructor() {
+    super('Execution cancelled while waiting for input');
+    this.name = 'ExecutionCancelledError';
+  }
+}
+
 @Injectable()
 export class ExecutionEngineService implements OnModuleInit {
   private readonly logger = new Logger(ExecutionEngineService.name);
+
+  /**
+   * Stores pending continuation resolvers for Form nodes that are
+   * waiting for user input. Key: executionId.
+   */
+  private readonly pendingContinuations = new Map<
+    string,
+    {
+      nodeId: string;
+      resolve: (data?: unknown) => void;
+      reject: (err: Error) => void;
+    }
+  >();
 
   constructor(
     @InjectRepository(Execution)
@@ -75,11 +101,41 @@ export class ExecutionEngineService implements OnModuleInit {
     private readonly handlerRegistry: NodeHandlerRegistry,
     private readonly contextService: ExecutionContextService,
     private readonly errorPolicyHandler: ErrorPolicyHandler,
+    @Inject(forwardRef(() => WebsocketService))
     private readonly websocketService: WebsocketService,
   ) {}
 
-  onModuleInit() {
+  async onModuleInit() {
     this.registerHandlers();
+    await this.recoverStuckExecutions();
+  }
+
+  /**
+   * On server restart, mark any executions stuck in WAITING_FOR_INPUT as FAILED
+   * since their in-memory continuation Promises are lost.
+   */
+  private async recoverStuckExecutions(): Promise<void> {
+    const stuck = await this.executionRepository.find({
+      where: { status: ExecutionStatus.WAITING_FOR_INPUT },
+    });
+    if (stuck.length === 0) return;
+
+    this.logger.warn(
+      `Recovering ${stuck.length} execution(s) stuck in WAITING_FOR_INPUT`,
+    );
+    for (const execution of stuck) {
+      execution.status = ExecutionStatus.FAILED;
+      execution.error = {
+        message:
+          'Execution failed: server restarted while waiting for form input',
+      };
+      execution.finishedAt = new Date();
+      if (execution.startedAt) {
+        execution.durationMs =
+          execution.finishedAt.getTime() - execution.startedAt.getTime();
+      }
+      await this.executionRepository.save(execution);
+    }
   }
 
   private registerHandlers() {
@@ -240,6 +296,16 @@ export class ExecutionEngineService implements OnModuleInit {
           outgoingEdges,
           executedNodes,
         );
+
+        // Form nodes are blocking: pause execution until user submits the form
+        if (node.type === 'form') {
+          await this.waitForFormSubmission(
+            savedExecution,
+            executionId,
+            node,
+            context,
+          );
+        }
       }
 
       // 11. Mark execution as completed
@@ -268,6 +334,22 @@ export class ExecutionEngineService implements OnModuleInit {
         { status: ExecutionStatus.COMPLETED },
       );
     } catch (error: unknown) {
+      // Cancelled while waiting for form input — mark as cancelled, not failed
+      if (error instanceof ExecutionCancelledError) {
+        savedExecution.status = ExecutionStatus.CANCELLED;
+        savedExecution.finishedAt = new Date();
+        savedExecution.durationMs =
+          savedExecution.finishedAt.getTime() -
+          savedExecution.startedAt.getTime();
+        await this.executionRepository.save(savedExecution);
+        this.websocketService.emitExecutionEvent(
+          executionId,
+          ExecutionEventType.EXECUTION_CANCELLED,
+          { status: ExecutionStatus.CANCELLED },
+        );
+        return;
+      }
+
       // Mark execution as failed
       savedExecution.status = ExecutionStatus.FAILED;
       savedExecution.error = {
@@ -288,7 +370,117 @@ export class ExecutionEngineService implements OnModuleInit {
         },
       );
     } finally {
+      this.pendingContinuations.delete(executionId);
       this.contextService.deleteContext(executionId);
+    }
+  }
+
+  /**
+   * Pause execution at a Form node and wait for the user to submit form data.
+   * Transitions Execution → WAITING_FOR_INPUT, emits WS event, awaits Promise.
+   * On resume: merges formData into node output, transitions back to RUNNING.
+   */
+  private async waitForFormSubmission(
+    savedExecution: Execution,
+    executionId: string,
+    node: Node,
+    context: ExecutionContext,
+  ): Promise<void> {
+    // Update execution status to waiting
+    await this.updateExecutionStatus(
+      savedExecution,
+      ExecutionStatus.WAITING_FOR_INPUT,
+    );
+
+    // Update the node execution to waiting_for_input
+    const nodeExec = await this.nodeExecutionRepository.findOne({
+      where: { executionId, nodeId: node.id },
+      order: { startedAt: 'DESC' },
+    });
+    if (nodeExec) {
+      nodeExec.status = NodeExecutionStatus.WAITING_FOR_INPUT;
+      await this.nodeExecutionRepository.save(nodeExec);
+    }
+
+    // Emit waiting event so frontend can render the form
+    const nodeOutput = context.nodeOutputCache[node.id];
+    this.websocketService.emitExecutionEvent(
+      executionId,
+      ExecutionEventType.EXECUTION_WAITING_FOR_INPUT,
+      {
+        status: ExecutionStatus.WAITING_FOR_INPUT,
+        waitingNodeId: node.id,
+        waitingNodeType: node.type,
+        nodeOutput,
+      },
+    );
+
+    // Await user submission with timeout (30 minutes default)
+    const timeoutMs = ((node.config?.timeout as number) ?? 1800) * 1000;
+    const formData = await new Promise<unknown>((resolve, reject) => {
+      // Store resolve before emit so a fast client can't race
+      this.pendingContinuations.set(executionId, {
+        nodeId: node.id,
+        resolve,
+        reject,
+      });
+
+      setTimeout(() => {
+        if (this.pendingContinuations.has(executionId)) {
+          this.pendingContinuations.delete(executionId);
+          reject(new ExecutionCancelledError());
+        }
+      }, timeoutMs);
+    });
+
+    // Merge submitted form data into the node output
+    const updatedOutput = {
+      ...(nodeOutput as Record<string, unknown>),
+      status: 'submitted',
+      submittedData: formData,
+    };
+    this.contextService.setNodeOutput(executionId, node.id, updatedOutput);
+
+    // Update node execution to completed with merged output
+    if (nodeExec) {
+      nodeExec.status = NodeExecutionStatus.COMPLETED;
+      nodeExec.outputData = updatedOutput;
+      nodeExec.finishedAt = new Date();
+      nodeExec.durationMs =
+        nodeExec.finishedAt.getTime() - nodeExec.startedAt.getTime();
+      await this.nodeExecutionRepository.save(nodeExec);
+    }
+
+    // Transition back to RUNNING
+    await this.updateExecutionStatus(savedExecution, ExecutionStatus.RUNNING);
+    this.websocketService.emitExecutionEvent(
+      executionId,
+      ExecutionEventType.EXECUTION_STARTED,
+      { status: ExecutionStatus.RUNNING },
+    );
+  }
+
+  /**
+   * Resume a paused execution by submitting form data.
+   * Called from WebSocket handler or REST endpoint.
+   */
+  continueExecution(executionId: string, formData?: unknown): void {
+    const pending = this.pendingContinuations.get(executionId);
+    if (!pending) {
+      throw new Error(`No pending continuation for execution: ${executionId}`);
+    }
+    this.pendingContinuations.delete(executionId);
+    pending.resolve(formData);
+  }
+
+  /**
+   * Cancel a waiting execution by rejecting the pending continuation.
+   */
+  cancelWaitingExecution(executionId: string): void {
+    const pending = this.pendingContinuations.get(executionId);
+    if (pending) {
+      this.pendingContinuations.delete(executionId);
+      pending.reject(new ExecutionCancelledError());
     }
   }
 

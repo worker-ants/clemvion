@@ -2,6 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { JwtService } from '@nestjs/jwt';
 import { Socket, Server } from 'socket.io';
 import { WebsocketGateway } from './websocket.gateway';
+import { ExecutionEngineService } from '../execution-engine/execution-engine.service';
 
 function createMockSocket(overrides: Record<string, unknown> = {}): {
   socket: Socket;
@@ -28,15 +29,23 @@ function createMockSocket(overrides: Record<string, unknown> = {}): {
 
 describe('WebsocketGateway', () => {
   let gateway: WebsocketGateway;
+  let module: TestingModule;
 
   beforeEach(async () => {
-    const module: TestingModule = await Test.createTestingModule({
+    module = await Test.createTestingModule({
       providers: [
         WebsocketGateway,
         {
           provide: JwtService,
           useValue: {
             verify: jest.fn().mockReturnValue({ sub: 'user-1' }),
+          },
+        },
+        {
+          provide: ExecutionEngineService,
+          useValue: {
+            continueExecution: jest.fn(),
+            cancelWaitingExecution: jest.fn(),
           },
         },
       ],
@@ -160,6 +169,49 @@ describe('WebsocketGateway', () => {
       gateway.handleDisconnect(socket);
       expect(getSubscriptions().has('client-1')).toBe(false);
       expect(leave).toHaveBeenCalledTimes(2);
+    });
+  });
+
+  describe('handleSubmitForm', () => {
+    it('should reject unauthenticated client', () => {
+      const { socket } = createMockSocket({ id: 'no-auth' });
+
+      const result = gateway.handleSubmitForm(
+        { executionId: 'exec-1', formData: { approved: true } },
+        socket,
+      );
+      expect(result.data.success).toBe(false);
+      expect(result.data.error).toBe('Not authenticated');
+    });
+
+    it('should call continueExecution on success', () => {
+      const { socket } = createMockSocket({ id: 'client-1' });
+      (socket as Socket & { userId?: string }).userId = 'user-1';
+
+      const result = gateway.handleSubmitForm(
+        { executionId: 'exec-1', formData: { approved: true } },
+        socket,
+      );
+      expect(result.data.success).toBe(true);
+    });
+
+    it('should return error when continueExecution throws', () => {
+      const { socket } = createMockSocket({ id: 'client-1' });
+      (socket as Socket & { userId?: string }).userId = 'user-1';
+
+      const mockEngine = module.get(ExecutionEngineService) as unknown as {
+        continueExecution: jest.Mock;
+      };
+      mockEngine.continueExecution.mockImplementation(() => {
+        throw new Error('No pending continuation');
+      });
+
+      const result = gateway.handleSubmitForm(
+        { executionId: 'non-existent', formData: {} },
+        socket,
+      );
+      expect(result.data.success).toBe(false);
+      expect(result.data.error).toBe('Form submission failed');
     });
   });
 

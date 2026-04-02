@@ -7,10 +7,11 @@ import {
   MessageBody,
   ConnectedSocket,
 } from '@nestjs/websockets';
-import { Logger } from '@nestjs/common';
+import { Inject, Logger, forwardRef } from '@nestjs/common';
 import { Server, Socket } from 'socket.io';
 import { JwtService } from '@nestjs/jwt';
 import { Public } from '../../common/decorators';
+import { ExecutionEngineService } from '../execution-engine/execution-engine.service';
 
 const MAX_SUBSCRIPTIONS_PER_CONNECTION = 20;
 
@@ -38,7 +39,11 @@ export class WebsocketGateway
   /** Maps socket.id -> set of channels */
   private subscriptions = new Map<string, Set<string>>();
 
-  constructor(private readonly jwtService: JwtService) {}
+  constructor(
+    private readonly jwtService: JwtService,
+    @Inject(forwardRef(() => ExecutionEngineService))
+    private readonly executionEngineService: ExecutionEngineService,
+  ) {}
 
   handleConnection(client: Socket): void {
     try {
@@ -149,6 +154,37 @@ export class WebsocketGateway
       event: 'pong',
       data: { timestamp: Date.now() },
     };
+  }
+
+  @SubscribeMessage('execution.submit_form')
+  handleSubmitForm(
+    @MessageBody() data: { executionId: string; formData: unknown },
+    @ConnectedSocket() client: Socket,
+  ): {
+    event: string;
+    data: { success: boolean; error?: string };
+  } {
+    // Verify the client is authenticated
+    const userId = (client as Socket & { userId?: string }).userId;
+    if (!userId) {
+      return {
+        event: 'execution.form_submitted',
+        data: { success: false, error: 'Not authenticated' },
+      };
+    }
+
+    try {
+      this.executionEngineService.continueExecution(
+        data.executionId,
+        data.formData,
+      );
+      return { event: 'execution.form_submitted', data: { success: true } };
+    } catch {
+      return {
+        event: 'execution.form_submitted',
+        data: { success: false, error: 'Form submission failed' },
+      };
+    }
   }
 
   broadcastToChannel(channel: string, event: string, payload: unknown): void {

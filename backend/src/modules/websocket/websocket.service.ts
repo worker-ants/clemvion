@@ -6,6 +6,7 @@ export enum ExecutionEventType {
   EXECUTION_COMPLETED = 'execution.completed',
   EXECUTION_FAILED = 'execution.failed',
   EXECUTION_CANCELLED = 'execution.cancelled',
+  EXECUTION_WAITING_FOR_INPUT = 'execution.waiting_for_input',
 }
 
 export enum NodeEventType {
