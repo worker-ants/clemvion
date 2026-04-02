@@ -360,12 +360,75 @@
 ### 8.2 프론트엔드/백엔드 공유
 
 - 파서/평가기는 **JavaScript/TypeScript**로 구현하여 프론트엔드(에디터 미리보기)와 백엔드(실행 엔진) 양쪽에서 사용
-- npm 패키지로 분리하여 공유 (`@project/expression-engine`)
+- npm 패키지로 분리하여 공유 (`@workflow/expression-engine`)
 
-### 8.3 보안 고려사항
+### 8.3 실행 엔진 통합
+
+#### 8.3.1 ExpressionResolverService
+
+백엔드 실행 엔진의 `ExpressionResolverService`가 노드 실행 전 config 객체의 표현식을 해석한다.
+
+```
+validate(config) → resolveConfig(config, exprContext, excludeKeys) → execute(input, resolvedConfig, context)
+```
+
+- config 객체를 재귀 순회하며 문자열 값의 `{{ }}` 패턴을 `evaluate()`로 평가
+- 전체가 `{{ expr }}`인 경우: 평가 결과의 원래 타입 유지 (number, object, array 등)
+- 혼합 텍스트 + 표현식 (`"Hello {{ $input.name }}!"`): 결과는 항상 string
+- number, boolean, null 값: 패스스루 (해석 대상 아님)
+- 1회 패스만 수행 — 평가 결과에 `{{ }}`가 있어도 재평가하지 않음
+- config 구조 깊이 제한: 10단계
+
+#### 8.3.2 $node 라벨-출력 매핑
+
+`$node["Label"].output` 참조를 지원하기 위해, 실행 시점에 `nodeMap` (노드 ID → 노드 엔티티)과 `nodeOutputCache` (노드 ID → 출력)를 조합하여 라벨 키 맵을 생성한다:
+
+```typescript
+$node = { [node.label]: { output: nodeOutputCache[nodeId] } }
+```
+
+- 위상 정렬 순서로 실행되므로, 현재 노드에서 참조하는 노드는 항상 이미 실행 완료된 상태
+- 동일 라벨 존재 시 나중에 실행된 노드가 우선
+
+#### 8.3.3 핸들러별 제외 규칙
+
+| 핸들러 | 제외 키 | 사유 |
+|--------|---------|------|
+| `code` | `code` | 원시 JavaScript 코드. 자체 런타임(`$input`, `$vars`, `$execution`)으로 실행 |
+| `template` | `template` | 자체 `{{ key }}` 파서로 input 데이터를 참조. 향후 범용 표현식으로 마이그레이션 예정 |
+
+그 외 모든 핸들러의 config 문자열 필드는 표현식 해석 대상이다.
+
+### 8.4 에디터 표현식 입력
+
+#### 8.4.1 ExpressionInput 컴포넌트
+
+노드 설정 패널의 텍스트 입력 필드를 Expression-aware 입력으로 교체한다:
+
+- `{{ }}` 블록 구문 하이라이트 (배경 오버레이)
+- `validate()` 함수로 실시간 구문 검증 (빨간 밑줄 + 에러 메시지)
+
+#### 8.4.2 자동완성
+
+`{{` 입력 시 자동완성 팝업이 표시된다:
+
+| 트리거 | 제안 내용 | 데이터 소스 |
+|--------|-----------|-------------|
+| `$input.` | 직전 노드 출력 필드 목록 | 마지막 실행 결과의 outputData 키 |
+| `$node["` | 워크플로우 내 노드 라벨 목록 (노드 선택 드롭다운) | editor store의 nodes |
+| `$node["Label"].output.` | 해당 노드의 출력 필드 목록 | 해당 노드의 마지막 실행 결과 |
+| `$var.` | 선언된 변수 목록 | Variable Declaration 노드의 config |
+| 함수명 입력 | 매칭 내장 함수 + 시그니처 | 함수 레지스트리 (정적) |
+| 표현식 시작 | `$input`, `$node`, `$var`, `$execution`, ... | 내장 참조 변수 목록 |
+
+- 미실행 워크플로우: 함수명과 `$` 변수 카테고리만 제안, 필드 제안은 "(워크플로우를 먼저 실행하세요)" 힌트 표시
+- 화살표 키 네비게이션, Enter/Tab 선택, Escape 닫기
+
+### 8.5 보안 고려사항
 
 | 위협 | 대응 |
 |------|------|
 | 코드 인젝션 | `eval` 사용 금지. 자체 파서/평가기만 사용 |
 | DoS (복잡한 표현식) | 평가 시간 제한 (100ms) + 중첩 깊이 제한 (100) |
 | 데이터 유출 | `$env`는 셀프 호스팅에서만 허용 목록 기반 노출 |
+| 재귀 해석 공격 | 1회 패스만 수행. 평가 결과에 `{{ }}`가 있어도 재평가 안 함 |

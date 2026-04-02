@@ -3,8 +3,8 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
-    "build": "next build",
+    "dev": "next dev --webpack",
+    "build": "next build --webpack",
     "start": "next start",
     "lint": "eslint",
     "test": "vitest run",
@@ -40,7 +40,8 @@
     "tailwind-merge": "^3.5.0",
     "tailwindcss": "^4.2.2",
     "zod": "^4.3.6",
-    "zustand": "^5.0.12"
+    "zustand": "^5.0.12",
+    "@workflow/expression-engine": "file:../packages/expression-engine"
   },
   "devDependencies": {
     "@testing-library/jest-dom": "^6.9.1",

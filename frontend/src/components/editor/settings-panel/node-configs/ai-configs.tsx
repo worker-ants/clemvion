@@ -1,6 +1,7 @@
 "use client";
 
-import { TextField, SelectField, NumberField, TextAreaField, CheckboxField, SectionTitle } from "./shared";
+import { SelectField, NumberField, CheckboxField, SectionTitle } from "./shared";
+import { ExpressionInput } from "@/components/editor/expression";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Plus, X } from "lucide-react";
@@ -12,13 +13,13 @@ type OnChange = (config: Config) => void;
 export function AiAgentConfig({ config, onChange }: { config: Config; onChange: OnChange }) {
   return (
     <div className="flex flex-col gap-3">
-      <TextField
+      <ExpressionInput
         label="Model"
         value={(config.model as string) ?? ""}
         onChange={(v) => onChange({ ...config, model: v })}
         placeholder="e.g. gpt-4, claude-3-opus"
       />
-      <TextAreaField
+      <ExpressionInput multiline
         label="System Prompt"
         value={(config.systemPrompt as string) ?? ""}
         onChange={(v) => onChange({ ...config, systemPrompt: v })}
@@ -26,7 +27,7 @@ export function AiAgentConfig({ config, onChange }: { config: Config; onChange: 
         rows={4}
         hint="Supports markdown and expressions"
       />
-      <TextAreaField
+      <ExpressionInput multiline
         label="User Prompt"
         value={(config.userPrompt as string) ?? ""}
         onChange={(v) => onChange({ ...config, userPrompt: v })}
@@ -44,7 +45,7 @@ export function AiAgentConfig({ config, onChange }: { config: Config; onChange: 
         ]}
       />
       {(config.responseFormat as string) === "json" && (
-        <TextAreaField
+        <ExpressionInput multiline
           label="JSON Schema"
           value={(config.jsonSchema as string) ?? ""}
           onChange={(v) => onChange({ ...config, jsonSchema: v })}
@@ -114,19 +115,19 @@ export function TextClassifierConfig({ config, onChange }: { config: Config; onC
 
   return (
     <div className="flex flex-col gap-3">
-      <TextField
+      <ExpressionInput
         label="Model"
         value={(config.model as string) ?? ""}
         onChange={(v) => onChange({ ...config, model: v })}
         placeholder="e.g. gpt-4"
       />
-      <TextField
+      <ExpressionInput
         label="Input Field"
         value={(config.inputField as string) ?? ""}
         onChange={(v) => onChange({ ...config, inputField: v })}
         placeholder="{{ $input.text }}"
       />
-      <TextAreaField
+      <ExpressionInput multiline
         label="Instructions"
         value={(config.instructions as string) ?? ""}
         onChange={(v) => onChange({ ...config, instructions: v })}
@@ -188,19 +189,19 @@ export function InformationExtractorConfig({ config, onChange }: { config: Confi
 
   return (
     <div className="flex flex-col gap-3">
-      <TextField
+      <ExpressionInput
         label="Model"
         value={(config.model as string) ?? ""}
         onChange={(v) => onChange({ ...config, model: v })}
         placeholder="e.g. gpt-4"
       />
-      <TextField
+      <ExpressionInput
         label="Input Field"
         value={(config.inputField as string) ?? ""}
         onChange={(v) => onChange({ ...config, inputField: v })}
         placeholder="{{ $input.text }}"
       />
-      <TextAreaField
+      <ExpressionInput multiline
         label="Instructions"
         value={(config.instructions as string) ?? ""}
         onChange={(v) => onChange({ ...config, instructions: v })}

@@ -272,16 +272,53 @@ interface NodeHandlerRegistry {
 - 마켓플레이스를 통해 설치된 커스텀 플러그인 노드도 동일 레지스트리에 등록
 - 미등록 nodeType 조회 시 `UNKNOWN_NODE_TYPE` 에러
 
-### 5.3 Worker 실행 흐름
+### 5.3 표현식 해석 단계
+
+노드 실행 전, config 객체의 문자열 필드에 포함된 `{{ }}` 표현식을 해석한다.
+
+```
+1. handler.validate(config) → 원본 config의 구조 유효성 검사
+2. resolvedConfig = ExpressionResolver.resolveConfig(config, exprContext, excludeKeys)
+   - config 객체를 재귀 순회하며 문자열 값의 {{ }} 패턴을 evaluate()
+   - 전체가 {{ expr }}인 경우: 평가 결과의 원래 타입 유지 (number, object 등)
+   - 혼합 텍스트 + 표현식: 결과는 항상 string
+   - number, boolean, null: 패스스루
+   - 1회 패스만 수행 (재귀 해석 없음)
+3. handler.execute(input, resolvedConfig, context) → output
+```
+
+**ExpressionContext 구성**:
+
+| 변수 | 소스 |
+|------|------|
+| `$input` | 이전 노드 출력 (gatherNodeInput 결과) |
+| `$node` | nodeMap + nodeOutputCache → 노드 라벨 키 맵. `$node["Label"].output` 형태로 접근 |
+| `$var` | context.variables (Variable Declaration/Modification으로 관리) |
+| `$execution` | `{ id, workflowId, startedAt, mode }` |
+| `$now`, `$today` | 현재 시각/날짜 |
+| `$loop` | loopContext (Loop 컨테이너 내부) |
+| `$item`, `$itemIndex` | itemContext (ForEach 컨테이너 내부) |
+
+**핸들러별 제외 규칙**:
+
+| 핸들러 | 제외 키 | 사유 |
+|--------|---------|------|
+| `code` | `code` | 원시 JavaScript — 자체 런타임(`$input`, `$vars`, `$execution`) 사용 |
+| `template` | `template` | 자체 `{{ }}` 파서로 input 데이터 참조. 향후 범용 표현식으로 통합 예정 |
+
+> **상세**: 표현식 문법, 내장 함수, 타입 시스템은 [표현식 언어 스펙](./5-expression-language.md) 참조.
+
+### 5.4 Worker 실행 흐름
 
 ```
 1. Worker가 태스크 큐에서 태스크 메시지를 수신
 2. registry.get(nodeType) → handler 조회
 3. handler.validate(config) → 유효하지 않으면 즉시 실패 (INVALID_NODE_CONFIG)
-4. handler.execute(input, config, context) → output
-5. 출력 정규화: output이 JSON 직렬화 가능한지 확인
-6. NodeExecution 레코드에 input, output, status 기록
-7. 다음 노드 태스크 생성 (그래프 순회에 따라)
+4. ExpressionResolver.resolveConfig(config) → resolvedConfig (§5.3)
+5. handler.execute(input, resolvedConfig, context) → output
+6. 출력 정규화: output이 JSON 직렬화 가능한지 확인
+7. NodeExecution 레코드에 input, output, status 기록
+8. 다음 노드 태스크 생성 (그래프 순회에 따라)
 ```
 
 ### 5.4 노드 유형별 리트라이 정책
