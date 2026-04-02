@@ -1,0 +1,103 @@
+{
+  "timestamp": "2026-04-03T08:15:40.957106",
+  "files": [
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/frontend/src/components/editor/canvas/custom-node.tsx",
+      "change_type": "Review",
+      "file_extension": "tsx"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/frontend/src/components/editor/canvas/workflow-canvas.tsx",
+      "change_type": "Review",
+      "file_extension": "tsx"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/frontend/src/components/editor/canvas/__tests__/custom-node.test.tsx",
+      "change_type": "Review",
+      "file_extension": "tsx"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/frontend/src/components/ui/tooltip.tsx",
+      "change_type": "Review",
+      "file_extension": "tsx"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/frontend/src/lib/utils/__tests__/node-config-summary.test.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/frontend/src/lib/utils/node-config-summary.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    }
+  ],
+  "total_elapsed_seconds": 215.15,
+  "agents": [
+    {
+      "name": "database",
+      "status": "success",
+      "elapsed_seconds": 12.09
+    },
+    {
+      "name": "api_contract",
+      "status": "success",
+      "elapsed_seconds": 16.74
+    },
+    {
+      "name": "maintainability",
+      "status": "success",
+      "elapsed_seconds": 40.06
+    },
+    {
+      "name": "dependency",
+      "status": "success",
+      "elapsed_seconds": 46.2
+    },
+    {
+      "name": "scope",
+      "status": "success",
+      "elapsed_seconds": 49.66
+    },
+    {
+      "name": "concurrency",
+      "status": "success",
+      "elapsed_seconds": 51.3
+    },
+    {
+      "name": "documentation",
+      "status": "success",
+      "elapsed_seconds": 52.18
+    },
+    {
+      "name": "security",
+      "status": "success",
+      "elapsed_seconds": 62.29
+    },
+    {
+      "name": "side_effect",
+      "status": "success",
+      "elapsed_seconds": 75.68
+    },
+    {
+      "name": "performance",
+      "status": "success",
+      "elapsed_seconds": 88.45
+    },
+    {
+      "name": "architecture",
+      "status": "success",
+      "elapsed_seconds": 90.14
+    },
+    {
+      "name": "requirement",
+      "status": "success",
+      "elapsed_seconds": 94.45
+    },
+    {
+      "name": "testing",
+      "status": "success",
+      "elapsed_seconds": 98.0
+    }
+  ]
+}
