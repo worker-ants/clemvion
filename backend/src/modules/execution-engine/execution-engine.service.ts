@@ -28,6 +28,7 @@ import {
   ErrorPolicyHandler,
   ErrorPolicyConfig,
 } from './error/error-policy.handler';
+import { ExpressionResolverService } from './expression/expression-resolver.service';
 import {
   ExecutionContext,
   NodeHandler,
@@ -101,6 +102,7 @@ export class ExecutionEngineService implements OnModuleInit {
     private readonly handlerRegistry: NodeHandlerRegistry,
     private readonly contextService: ExecutionContextService,
     private readonly errorPolicyHandler: ErrorPolicyHandler,
+    private readonly expressionResolver: ExpressionResolverService,
     @Inject(forwardRef(() => WebsocketService))
     private readonly websocketService: WebsocketService,
   ) {}
@@ -295,6 +297,11 @@ export class ExecutionEngineService implements OnModuleInit {
           context,
           outgoingEdges,
           executedNodes,
+          nodeMap,
+          {
+            startedAt: savedExecution.startedAt?.toISOString(),
+            mode: 'manual',
+          },
         );
 
         // Form nodes are blocking: pause execution until user submits the form
@@ -491,6 +498,8 @@ export class ExecutionEngineService implements OnModuleInit {
     context: ExecutionContext,
     outgoingEdges: Map<string, GraphEdge[]>,
     executedNodes: Set<string>,
+    nodeMap?: Map<string, Node>,
+    executionMeta?: { startedAt?: string; mode?: string },
   ): Promise<void> {
     const nodeExecution = await this.createNodeExecution(
       executionId,
@@ -520,11 +529,25 @@ export class ExecutionEngineService implements OnModuleInit {
         );
       }
 
+      // Resolve expressions in config
+      const resolvedConfig = nodeMap
+        ? this.expressionResolver.resolveConfig(
+            node.config,
+            this.expressionResolver.buildExpressionContext(
+              nodeInput,
+              context,
+              nodeMap,
+              executionMeta,
+            ),
+            node.type,
+          )
+        : node.config;
+
       // Execute with potential retry
       const output = await this.executeWithRetry(
         handler,
         nodeInput,
-        node.config,
+        resolvedConfig,
         context,
         node,
         nodeExecution,

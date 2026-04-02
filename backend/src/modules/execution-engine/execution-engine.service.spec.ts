@@ -4,6 +4,7 @@ import { ExecutionEngineService } from './execution-engine.service';
 import { NodeHandlerRegistry } from './handlers/node-handler.registry';
 import { ExecutionContextService } from './context/execution-context.service';
 import { ErrorPolicyHandler } from './error/error-policy.handler';
+import { ExpressionResolverService } from './expression/expression-resolver.service';
 import { WebsocketService } from '../websocket/websocket.service';
 import {
   Execution,
@@ -146,15 +147,17 @@ describe('ExecutionEngineService', () => {
         .mockImplementation((entity: Partial<NodeExecution>) =>
           Promise.resolve(entity),
         ),
-      findOne: jest.fn().mockImplementation(({ where }: { where: { nodeId: string } }) => {
-        return Promise.resolve({
-          id: `ne-${where.nodeId}`,
-          executionId,
-          nodeId: where.nodeId,
-          status: NodeExecutionStatus.RUNNING,
-          startedAt: new Date(),
-        });
-      }),
+      findOne: jest
+        .fn()
+        .mockImplementation(({ where }: { where: { nodeId: string } }) => {
+          return Promise.resolve({
+            id: `ne-${where.nodeId}`,
+            executionId,
+            nodeId: where.nodeId,
+            status: NodeExecutionStatus.RUNNING,
+            startedAt: new Date(),
+          });
+        }),
     };
 
     mockNodeRepo = {
@@ -175,6 +178,7 @@ describe('ExecutionEngineService', () => {
         NodeHandlerRegistry,
         ExecutionContextService,
         ErrorPolicyHandler,
+        ExpressionResolverService,
         { provide: getRepositoryToken(Execution), useValue: mockExecutionRepo },
         {
           provide: getRepositoryToken(NodeExecution),
@@ -470,9 +474,9 @@ describe('ExecutionEngineService', () => {
     });
 
     it('should throw when continueExecution called without pending continuation', async () => {
-      expect(() =>
-        service.continueExecution('non-existent', {}),
-      ).toThrow('No pending continuation');
+      expect(() => service.continueExecution('non-existent', {})).toThrow(
+        'No pending continuation',
+      );
     });
 
     it('should handle cancellation of waiting execution', async () => {

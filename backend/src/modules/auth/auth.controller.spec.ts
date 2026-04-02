@@ -23,16 +23,16 @@ describe('AuthController', () => {
   describe('refresh', () => {
     it('should throw UnauthorizedException when no cookie token provided', async () => {
       const req = { cookies: {} } as never;
-      await expect(
-        controller.refresh(req, mockRes as never),
-      ).rejects.toThrow(UnauthorizedException);
+      await expect(controller.refresh(req, mockRes as never)).rejects.toThrow(
+        UnauthorizedException,
+      );
     });
 
     it('should throw UnauthorizedException when cookies object is missing', async () => {
       const req = {} as never;
-      await expect(
-        controller.refresh(req, mockRes as never),
-      ).rejects.toThrow(UnauthorizedException);
+      await expect(controller.refresh(req, mockRes as never)).rejects.toThrow(
+        UnauthorizedException,
+      );
     });
 
     it('should refresh tokens when cookie contains valid token', async () => {

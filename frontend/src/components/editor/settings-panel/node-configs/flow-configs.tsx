@@ -1,6 +1,7 @@
 "use client";
 
-import { TextField, SelectField, NumberField } from "./shared";
+import { SelectField, NumberField } from "./shared";
+import { ExpressionInput } from "@/components/editor/expression";
 
 type Config = Record<string, unknown>;
 type OnChange = (config: Config) => void;
@@ -9,7 +10,7 @@ type OnChange = (config: Config) => void;
 export function WorkflowConfig({ config, onChange }: { config: Config; onChange: OnChange }) {
   return (
     <div className="flex flex-col gap-3">
-      <TextField
+      <ExpressionInput
         label="Workflow ID"
         value={(config.workflowId as string) ?? ""}
         onChange={(v) => onChange({ ...config, workflowId: v })}

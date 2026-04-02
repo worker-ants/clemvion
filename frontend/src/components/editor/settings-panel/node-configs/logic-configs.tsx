@@ -1,6 +1,7 @@
 "use client";
 
-import { TextField, SelectField, NumberField, CheckboxField, SectionTitle } from "./shared";
+import { SelectField, NumberField, CheckboxField, SectionTitle } from "./shared";
+import { ExpressionInput } from "@/components/editor/expression";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Plus, X } from "lucide-react";
@@ -119,7 +120,7 @@ export function SwitchConfig({ config, onChange }: { config: Config; onChange: O
           { value: "expression", label: "Expression" },
         ]}
       />
-      <TextField
+      <ExpressionInput
         label="Switch Value"
         value={switchValue}
         onChange={(v) => onChange({ ...config, switchValue: v })}
@@ -162,7 +163,7 @@ export function SwitchConfig({ config, onChange }: { config: Config; onChange: O
 export function LoopConfig({ config, onChange }: { config: Config; onChange: OnChange }) {
   return (
     <div className="flex flex-col gap-3">
-      <TextField
+      <ExpressionInput
         label="Iteration Count"
         value={(config.count as string) ?? ""}
         onChange={(v) => onChange({ ...config, count: v })}
@@ -177,7 +178,7 @@ export function LoopConfig({ config, onChange }: { config: Config; onChange: OnC
         max={100000}
         hint="Safety limit to prevent infinite loops"
       />
-      <TextField
+      <ExpressionInput
         label="Break Condition"
         value={(config.breakCondition as string) ?? ""}
         onChange={(v) => onChange({ ...config, breakCondition: v })}
@@ -311,7 +312,7 @@ export function VariableModificationConfig({ config, onChange }: { config: Confi
 export function SplitConfig({ config, onChange }: { config: Config; onChange: OnChange }) {
   return (
     <div className="flex flex-col gap-3">
-      <TextField
+      <ExpressionInput
         label="Field Path"
         value={(config.fieldPath as string) ?? ""}
         onChange={(v) => onChange({ ...config, fieldPath: v })}
@@ -344,14 +345,14 @@ export function MapConfig({ config, onChange }: { config: Config; onChange: OnCh
 
   return (
     <div className="flex flex-col gap-3">
-      <TextField
+      <ExpressionInput
         label="Input Field"
         value={(config.inputField as string) ?? ""}
         onChange={(v) => onChange({ ...config, inputField: v })}
         placeholder="{{ $input.items }}"
         hint="Array field to transform"
       />
-      <TextField
+      <ExpressionInput
         label="Output Field"
         value={(config.outputField as string) ?? ""}
         onChange={(v) => onChange({ ...config, outputField: v })}
@@ -388,7 +389,7 @@ export function MapConfig({ config, onChange }: { config: Config; onChange: OnCh
 export function ForEachConfig({ config, onChange }: { config: Config; onChange: OnChange }) {
   return (
     <div className="flex flex-col gap-3">
-      <TextField
+      <ExpressionInput
         label="Array Field"
         value={(config.arrayField as string) ?? ""}
         onChange={(v) => onChange({ ...config, arrayField: v })}

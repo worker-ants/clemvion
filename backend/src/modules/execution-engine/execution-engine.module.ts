@@ -9,6 +9,7 @@ import { ExecutionEngineService } from './execution-engine.service';
 import { NodeHandlerRegistry } from './handlers/node-handler.registry';
 import { ExecutionContextService } from './context/execution-context.service';
 import { ErrorPolicyHandler } from './error/error-policy.handler';
+import { ExpressionResolverService } from './expression/expression-resolver.service';
 import { LoopExecutor } from './containers/loop-executor';
 import { ForEachExecutor } from './containers/foreach-executor';
 import { WebsocketModule } from '../websocket/websocket.module';
@@ -23,6 +24,7 @@ import { WebsocketModule } from '../websocket/websocket.module';
     NodeHandlerRegistry,
     ExecutionContextService,
     ErrorPolicyHandler,
+    ExpressionResolverService,
     LoopExecutor,
     ForEachExecutor,
   ],

@@ -1,6 +1,7 @@
 "use client";
 
-import { TextField, SelectField, NumberField, TextAreaField, CheckboxField, SectionTitle } from "./shared";
+import { SelectField, NumberField, CheckboxField, SectionTitle } from "./shared";
+import { ExpressionInput } from "@/components/editor/expression";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Plus, X } from "lucide-react";
@@ -12,20 +13,20 @@ type OnChange = (config: Config) => void;
 export function CarouselConfig({ config, onChange }: { config: Config; onChange: OnChange }) {
   return (
     <div className="flex flex-col gap-3">
-      <TextField
+      <ExpressionInput
         label="Title Field"
         value={(config.titleField as string) ?? ""}
         onChange={(v) => onChange({ ...config, titleField: v })}
         placeholder="title"
         hint="Field path for slide title"
       />
-      <TextField
+      <ExpressionInput
         label="Description Field"
         value={(config.descriptionField as string) ?? ""}
         onChange={(v) => onChange({ ...config, descriptionField: v })}
         placeholder="description"
       />
-      <TextField
+      <ExpressionInput
         label="Image Field"
         value={(config.imageField as string) ?? ""}
         onChange={(v) => onChange({ ...config, imageField: v })}
@@ -106,7 +107,7 @@ export function TableConfig({ config, onChange }: { config: Config; onChange: On
           max={100}
         />
       )}
-      <TextField
+      <ExpressionInput
         label="Default Sort Column"
         value={(config.sortBy as string) ?? ""}
         onChange={(v) => onChange({ ...config, sortBy: v })}
@@ -141,7 +142,7 @@ export function ChartConfig({ config, onChange }: { config: Config; onChange: On
           { value: "area", label: "Area" },
         ]}
       />
-      <TextField
+      <ExpressionInput
         label="Data Field"
         value={(config.dataField as string) ?? ""}
         onChange={(v) => onChange({ ...config, dataField: v })}
@@ -149,26 +150,26 @@ export function ChartConfig({ config, onChange }: { config: Config; onChange: On
         hint="Array field containing chart data"
       />
       <SectionTitle>X Axis</SectionTitle>
-      <TextField
+      <ExpressionInput
         label="Field"
         value={(config.xAxisField as string) ?? ""}
         onChange={(v) => onChange({ ...config, xAxisField: v })}
         placeholder="x field path"
       />
-      <TextField
+      <ExpressionInput
         label="Label"
         value={(config.xAxisLabel as string) ?? ""}
         onChange={(v) => onChange({ ...config, xAxisLabel: v })}
         placeholder="X axis label"
       />
       <SectionTitle>Y Axis</SectionTitle>
-      <TextField
+      <ExpressionInput
         label="Field"
         value={(config.yAxisField as string) ?? ""}
         onChange={(v) => onChange({ ...config, yAxisField: v })}
         placeholder="y field path"
       />
-      <TextField
+      <ExpressionInput
         label="Label"
         value={(config.yAxisLabel as string) ?? ""}
         onChange={(v) => onChange({ ...config, yAxisLabel: v })}
@@ -186,13 +187,13 @@ export function ChartConfig({ config, onChange }: { config: Config; onChange: On
           { value: "max", label: "Max" },
         ]}
       />
-      <TextField
+      <ExpressionInput
         label="Group By"
         value={(config.groupBy as string) ?? ""}
         onChange={(v) => onChange({ ...config, groupBy: v })}
         placeholder="Optional grouping field"
       />
-      <TextField
+      <ExpressionInput
         label="Title"
         value={(config.title as string) ?? ""}
         onChange={(v) => onChange({ ...config, title: v })}
@@ -222,20 +223,20 @@ export function FormConfig({ config, onChange }: { config: Config; onChange: OnC
 
   return (
     <div className="flex flex-col gap-3">
-      <TextField
+      <ExpressionInput
         label="Title"
         value={(config.title as string) ?? ""}
         onChange={(v) => onChange({ ...config, title: v })}
         placeholder="Form title"
       />
-      <TextAreaField
+      <ExpressionInput multiline
         label="Description"
         value={(config.description as string) ?? ""}
         onChange={(v) => onChange({ ...config, description: v })}
         placeholder="Form description (Markdown)"
         rows={2}
       />
-      <TextField
+      <ExpressionInput
         label="Submit Label"
         value={(config.submitLabel as string) ?? "Submit"}
         onChange={(v) => onChange({ ...config, submitLabel: v })}
@@ -296,7 +297,7 @@ export function FormConfig({ config, onChange }: { config: Config; onChange: OnC
 export function TemplateConfig({ config, onChange }: { config: Config; onChange: OnChange }) {
   return (
     <div className="flex flex-col gap-3">
-      <TextAreaField
+      <ExpressionInput multiline
         label="Template"
         value={(config.template as string) ?? ""}
         onChange={(v) => onChange({ ...config, template: v })}
@@ -328,7 +329,7 @@ export function TemplateConfig({ config, onChange }: { config: Config; onChange:
 export function PdfConfig({ config, onChange }: { config: Config; onChange: OnChange }) {
   return (
     <div className="flex flex-col gap-3">
-      <TextAreaField
+      <ExpressionInput multiline
         label="Template"
         value={(config.template as string) ?? ""}
         onChange={(v) => onChange({ ...config, template: v })}
@@ -356,7 +357,7 @@ export function PdfConfig({ config, onChange }: { config: Config; onChange: OnCh
           { value: "landscape", label: "Landscape" },
         ]}
       />
-      <TextField
+      <ExpressionInput
         label="File Name"
         value={(config.fileName as string) ?? "document.pdf"}
         onChange={(v) => onChange({ ...config, fileName: v })}

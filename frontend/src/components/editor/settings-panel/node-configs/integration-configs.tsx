@@ -1,6 +1,7 @@
 "use client";
 
-import { TextField, SelectField, NumberField, TextAreaField, CheckboxField, KeyValueEditor } from "./shared";
+import { SelectField, NumberField, CheckboxField, KeyValueEditor } from "./shared";
+import { ExpressionInput } from "@/components/editor/expression";
 
 type Config = Record<string, unknown>;
 type OnChange = (config: Config) => void;
@@ -26,7 +27,7 @@ export function HttpRequestConfig({ config, onChange }: { config: Config; onChan
           { value: "OPTIONS", label: "OPTIONS" },
         ]}
       />
-      <TextField
+      <ExpressionInput
         label="URL"
         value={(config.url as string) ?? ""}
         onChange={(v) => onChange({ ...config, url: v })}
@@ -68,12 +69,13 @@ export function HttpRequestConfig({ config, onChange }: { config: Config; onChan
           { value: "raw", label: "Raw" },
         ]}
       />
-      <TextAreaField
+      <ExpressionInput
         label="Body"
         value={(config.body as string) ?? ""}
         onChange={(v) => onChange({ ...config, body: v })}
         placeholder='{"key": "value"}'
         mono
+        multiline
         rows={5}
       />
       <SelectField
@@ -106,7 +108,7 @@ export function HttpRequestConfig({ config, onChange }: { config: Config; onChan
 export function DatabaseQueryConfig({ config, onChange }: { config: Config; onChange: OnChange }) {
   return (
     <div className="flex flex-col gap-3">
-      <TextField
+      <ExpressionInput
         label="Integration ID"
         value={(config.integrationId as string) ?? ""}
         onChange={(v) => onChange({ ...config, integrationId: v })}
@@ -124,21 +126,23 @@ export function DatabaseQueryConfig({ config, onChange }: { config: Config; onCh
           { value: "raw", label: "Raw SQL" },
         ]}
       />
-      <TextAreaField
+      <ExpressionInput
         label="Query"
         value={(config.query as string) ?? ""}
         onChange={(v) => onChange({ ...config, query: v })}
         placeholder="SELECT * FROM users WHERE id = $1"
         mono
+        multiline
         rows={5}
         hint="Use $1, $2, ... for parameters"
       />
-      <TextAreaField
+      <ExpressionInput
         label="Parameters"
         value={(config.parameters as string) ?? ""}
         onChange={(v) => onChange({ ...config, parameters: v })}
         placeholder='["value1", "value2"]'
         mono
+        multiline
         rows={2}
         hint="JSON array of parameter values"
       />
@@ -152,7 +156,7 @@ export function SlackConfig({ config, onChange }: { config: Config; onChange: On
 
   return (
     <div className="flex flex-col gap-3">
-      <TextField
+      <ExpressionInput
         label="Integration ID"
         value={(config.integrationId as string) ?? ""}
         onChange={(v) => onChange({ ...config, integrationId: v })}
@@ -172,13 +176,13 @@ export function SlackConfig({ config, onChange }: { config: Config; onChange: On
       />
       {(action === "send_message" || action === "update_message") && (
         <>
-          <TextField
+          <ExpressionInput
             label="Channel"
             value={(config.channel as string) ?? ""}
             onChange={(v) => onChange({ ...config, channel: v })}
             placeholder="#general or channel ID"
           />
-          <TextAreaField
+          <ExpressionInput multiline
             label="Message Text"
             value={(config.text as string) ?? ""}
             onChange={(v) => onChange({ ...config, text: v })}
@@ -189,18 +193,18 @@ export function SlackConfig({ config, onChange }: { config: Config; onChange: On
       )}
       {action === "add_reaction" && (
         <>
-          <TextField
+          <ExpressionInput
             label="Channel"
             value={(config.channel as string) ?? ""}
             onChange={(v) => onChange({ ...config, channel: v })}
           />
-          <TextField
+          <ExpressionInput
             label="Timestamp"
             value={(config.ts as string) ?? ""}
             onChange={(v) => onChange({ ...config, ts: v })}
             placeholder="Message timestamp"
           />
-          <TextField
+          <ExpressionInput
             label="Emoji"
             value={(config.emoji as string) ?? ""}
             onChange={(v) => onChange({ ...config, emoji: v })}
@@ -216,26 +220,26 @@ export function SlackConfig({ config, onChange }: { config: Config; onChange: On
 export function SendEmailConfig({ config, onChange }: { config: Config; onChange: OnChange }) {
   return (
     <div className="flex flex-col gap-3">
-      <TextField
+      <ExpressionInput
         label="Integration ID"
         value={(config.integrationId as string) ?? ""}
         onChange={(v) => onChange({ ...config, integrationId: v })}
         placeholder="SMTP integration UUID"
       />
-      <TextField
+      <ExpressionInput
         label="To"
         value={(config.to as string) ?? ""}
         onChange={(v) => onChange({ ...config, to: v })}
         placeholder="recipient@example.com"
         hint="Comma-separated or expression"
       />
-      <TextField
+      <ExpressionInput
         label="CC"
         value={(config.cc as string) ?? ""}
         onChange={(v) => onChange({ ...config, cc: v })}
         placeholder="cc@example.com"
       />
-      <TextField
+      <ExpressionInput
         label="Subject"
         value={(config.subject as string) ?? ""}
         onChange={(v) => onChange({ ...config, subject: v })}
@@ -250,7 +254,7 @@ export function SendEmailConfig({ config, onChange }: { config: Config; onChange
           { value: "text", label: "Plain Text" },
         ]}
       />
-      <TextAreaField
+      <ExpressionInput multiline
         label="Body"
         value={(config.body as string) ?? ""}
         onChange={(v) => onChange({ ...config, body: v })}
