@@ -59,7 +59,7 @@ export function WorkflowEditor() {
 
   return (
     <ReactFlowProvider>
-      <div className="flex h-screen flex-col bg-[hsl(var(--background))]">
+      <div className="flex h-full flex-col bg-[hsl(var(--background))]">
         {/* Toolbar */}
         <EditorToolbar />
 

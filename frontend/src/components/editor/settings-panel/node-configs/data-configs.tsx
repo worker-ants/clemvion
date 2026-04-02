@@ -1,7 +1,7 @@
 "use client";
 
 import { SelectField, TextAreaField, SectionTitle } from "./shared";
-import { Input } from "@/components/ui/input";
+import { ExpressionInput } from "@/components/editor/expression";
 import { Button } from "@/components/ui/button";
 import { Plus, X } from "lucide-react";
 
@@ -53,17 +53,19 @@ export function TransformConfig({ config, onChange }: { config: Config; onChange
             <option value="array_sort">Array Sort</option>
             <option value="object_pick">Object Pick</option>
           </select>
-          <Input
+          <ExpressionInput
+            bare
+            label=""
             value={op.field}
-            onChange={(e) => updateOperation(i, "field", e.target.value)}
-            placeholder="Field path"
-            className="h-7 text-xs"
+            onChange={(v) => updateOperation(i, "field", v)}
+            placeholder="Field path (e.g. {{ $input.data }})"
           />
-          <Input
+          <ExpressionInput
+            bare
+            label=""
             value={op.params}
-            onChange={(e) => updateOperation(i, "params", e.target.value)}
-            placeholder="Parameters (JSON or value)"
-            className="h-7 text-xs"
+            onChange={(v) => updateOperation(i, "params", v)}
+            placeholder="Parameters or {{ expression }}"
           />
         </div>
       ))}

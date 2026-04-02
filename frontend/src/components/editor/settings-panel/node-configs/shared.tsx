@@ -5,6 +5,7 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Plus, X } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
+import { ExpressionInput } from "@/components/editor/expression";
 
 // Shared form field components for node config forms
 
@@ -179,12 +180,15 @@ export function KeyValueEditor({
   onChange,
   keyPlaceholder,
   valuePlaceholder,
+  expressionValues,
 }: {
   label: string;
   items: { key: string; value: string }[];
   onChange: (items: { key: string; value: string }[]) => void;
   keyPlaceholder?: string;
   valuePlaceholder?: string;
+  /** When true, value fields render as ExpressionInput with autocomplete */
+  expressionValues?: boolean;
 }) {
   const addItem = () => onChange([...items, { key: "", value: "" }]);
   const removeItem = (i: number) => onChange(items.filter((_, idx) => idx !== i));
@@ -202,12 +206,24 @@ export function KeyValueEditor({
               placeholder={keyPlaceholder ?? "Key"}
               className="h-7 flex-1 text-xs"
             />
-            <Input
-              value={item.value}
-              onChange={(e) => updateItem(i, "value", e.target.value)}
-              placeholder={valuePlaceholder ?? "Value"}
-              className="h-7 flex-1 text-xs"
-            />
+            {expressionValues ? (
+              <div className="flex-1">
+                <ExpressionInput
+                  bare
+                  label=""
+                  value={item.value}
+                  onChange={(v) => updateItem(i, "value", v)}
+                  placeholder={valuePlaceholder ?? "Value or {{ expression }}"}
+                />
+              </div>
+            ) : (
+              <Input
+                value={item.value}
+                onChange={(e) => updateItem(i, "value", e.target.value)}
+                placeholder={valuePlaceholder ?? "Value"}
+                className="h-7 flex-1 text-xs"
+              />
+            )}
             <Button
               variant="ghost"
               size="icon"

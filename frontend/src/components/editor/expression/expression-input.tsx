@@ -9,6 +9,7 @@ import { useExpressionContext } from "./use-expression-context";
 import { useExpressionSuggestions, type Suggestion } from "./use-expression-suggestions";
 import { ExpressionAutocomplete } from "./expression-autocomplete";
 import { ExpressionHighlight } from "./expression-highlight";
+import { VariablePicker } from "./variable-picker";
 
 interface ExpressionInputProps {
   label: string;
@@ -19,6 +20,8 @@ interface ExpressionInputProps {
   multiline?: boolean;
   rows?: number;
   mono?: boolean;
+  /** When true, renders only the input without label/wrapper/hint (for inline use) */
+  bare?: boolean;
 }
 
 const EXPR_BLOCK_RE = /\{\{.+?\}\}/g;
@@ -45,12 +48,14 @@ export function ExpressionInput({
   multiline = false,
   rows = 4,
   mono = false,
+  bare = false,
 }: ExpressionInputProps) {
   const inputRef = useRef<HTMLInputElement | HTMLTextAreaElement | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
   const [cursorPos, setCursorPos] = useState(0);
   const [autocompleteOpen, setAutocompleteOpen] = useState(false);
+  const [pickerOpen, setPickerOpen] = useState(false);
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [validationError, setValidationError] = useState<string | null>(null);
 
@@ -104,6 +109,17 @@ export function ExpressionInput({
     [],
   );
 
+  // Ctrl+Space / Cmd+Space to open variable picker
+  const handleKeyDown = useCallback(
+    (e: React.KeyboardEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === " ") {
+        e.preventDefault();
+        setPickerOpen((prev) => !prev);
+      }
+    },
+    [],
+  );
+
   const handleSelect = useCallback(
     (suggestion: Suggestion) => {
       const before = value.slice(0, tokenStart);
@@ -139,6 +155,57 @@ export function ExpressionInput({
     [suggestions.length],
   );
 
+  // Insert from variable picker
+  const handlePickerInsert = useCallback(
+    (expressionText: string) => {
+      const pos = inputRef.current?.selectionStart ?? value.length;
+
+      // Check if cursor is already inside a {{ }} block
+      const before = value.slice(0, pos);
+      const after = value.slice(pos);
+      const openIdx = before.lastIndexOf("{{");
+      const closeBeforeCursor = before.lastIndexOf("}}");
+      const isInsideExpression = openIdx !== -1 && openIdx > closeBeforeCursor;
+
+      let newValue: string;
+      let newCursor: number;
+
+      if (isInsideExpression) {
+        // Inside {{ }}, insert raw expression text
+        newValue = before + expressionText + after;
+        newCursor = pos + expressionText.length;
+      } else {
+        // Outside expression, wrap with {{ }}
+        const wrapped = `{{ ${expressionText} }}`;
+        newValue = before + wrapped + after;
+        newCursor = pos + wrapped.length;
+      }
+
+      onChange(newValue);
+      setCursorPos(newCursor);
+
+      requestAnimationFrame(() => {
+        const el = inputRef.current;
+        if (el) {
+          el.focus();
+          el.setSelectionRange(newCursor, newCursor);
+        }
+      });
+    },
+    [value, onChange],
+  );
+
+  // Close picker when autocomplete opens
+  const handlePickerOpenChange = useCallback(
+    (open: boolean) => {
+      setPickerOpen(open);
+      if (open) {
+        setAutocompleteOpen(false);
+      }
+    },
+    [],
+  );
+
   // Close autocomplete on outside click
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
@@ -153,64 +220,82 @@ export function ExpressionInput({
   const hasExpression = value.includes("{{");
 
   const inputClasses = cn(
-    "w-full rounded-md border border-[hsl(var(--input))] bg-transparent px-3 py-2 text-xs text-[hsl(var(--foreground))] placeholder:text-[hsl(var(--muted-foreground))] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--ring))]",
+    "w-full rounded-md border border-[hsl(var(--input))] bg-transparent px-3 pr-8 py-2 text-xs text-[hsl(var(--foreground))] placeholder:text-[hsl(var(--muted-foreground))] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--ring))]",
     mono && "font-mono",
     validationError && "border-red-500/50",
   );
 
+  const inputContent = (
+    <div className="relative" ref={bare ? containerRef : undefined}>
+      {/* Highlight overlay for expressions */}
+      {hasExpression && (
+        <div
+          className={cn(
+            "absolute inset-0 px-3 text-xs pointer-events-none overflow-hidden",
+            multiline ? "py-2" : "flex items-center",
+          )}
+          aria-hidden
+        >
+          <ExpressionHighlight
+            value={value}
+            hasError={!!validationError}
+          />
+        </div>
+      )}
+
+      {multiline ? (
+        <textarea
+          ref={inputRef as React.RefObject<HTMLTextAreaElement>}
+          value={value}
+          onChange={handleInput}
+          onClick={handleClick}
+          onKeyUp={handleKeyUp}
+          onKeyDown={handleKeyDown}
+          rows={rows}
+          placeholder={placeholder}
+          className={inputClasses}
+        />
+      ) : (
+        <input
+          ref={inputRef as React.RefObject<HTMLInputElement>}
+          type="text"
+          value={value}
+          onChange={handleInput}
+          onClick={handleClick}
+          onKeyUp={handleKeyUp}
+          onKeyDown={handleKeyDown}
+          placeholder={placeholder}
+          className={cn(inputClasses, "h-8")}
+        />
+      )}
+
+      {/* Variable Picker trigger */}
+      <VariablePicker
+        expressionData={expressionData}
+        onInsert={handlePickerInsert}
+        open={pickerOpen}
+        onOpenChange={handlePickerOpenChange}
+      />
+
+      <ExpressionAutocomplete
+        suggestions={suggestions}
+        selectedIndex={clampedIndex}
+        onSelect={handleSelect}
+        onNavigate={handleNavigate}
+        visible={shouldShowAutocomplete}
+        anchorRef={inputRef as React.RefObject<HTMLElement>}
+      />
+    </div>
+  );
+
+  if (bare) {
+    return inputContent;
+  }
+
   return (
     <div className="flex flex-col gap-1.5" ref={containerRef}>
       <Label className="text-xs">{fieldLabel}</Label>
-      <div className="relative">
-        {/* Highlight overlay for expressions */}
-        {hasExpression && (
-          <div
-            className={cn(
-              "absolute inset-0 px-3 text-xs pointer-events-none overflow-hidden",
-              multiline ? "py-2" : "flex items-center",
-            )}
-            aria-hidden
-          >
-            <ExpressionHighlight
-              value={value}
-              hasError={!!validationError}
-            />
-          </div>
-        )}
-
-        {multiline ? (
-          <textarea
-            ref={inputRef as React.RefObject<HTMLTextAreaElement>}
-            value={value}
-            onChange={handleInput}
-            onClick={handleClick}
-            onKeyUp={handleKeyUp}
-            rows={rows}
-            placeholder={placeholder}
-            className={inputClasses}
-          />
-        ) : (
-          <input
-            ref={inputRef as React.RefObject<HTMLInputElement>}
-            type="text"
-            value={value}
-            onChange={handleInput}
-            onClick={handleClick}
-            onKeyUp={handleKeyUp}
-            placeholder={placeholder}
-            className={cn(inputClasses, "h-8")}
-          />
-        )}
-
-        <ExpressionAutocomplete
-          suggestions={suggestions}
-          selectedIndex={clampedIndex}
-          onSelect={handleSelect}
-          onNavigate={handleNavigate}
-          visible={shouldShowAutocomplete}
-          anchorRef={inputRef as React.RefObject<HTMLElement>}
-        />
-      </div>
+      {inputContent}
 
       {validationError ? (
         <span className="text-[10px] text-red-400">{validationError}</span>

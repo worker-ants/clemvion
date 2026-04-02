@@ -159,9 +159,7 @@ export class ExpressionResolverService {
       return typeof result === 'string' ? result : String(result ?? '');
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      throw new Error(
-        `Expression error in config.${path}: ${message}`,
-      );
+      throw new Error(`Expression error in config.${path}: ${message}`);
     }
   }
 }

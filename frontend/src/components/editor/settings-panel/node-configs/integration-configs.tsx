@@ -50,6 +50,7 @@ export function HttpRequestConfig({ config, onChange }: { config: Config; onChan
         onChange={(items) => onChange({ ...config, headers: items })}
         keyPlaceholder="Header name"
         valuePlaceholder="Header value"
+        expressionValues
       />
       <KeyValueEditor
         label="Query Parameters"
@@ -57,6 +58,7 @@ export function HttpRequestConfig({ config, onChange }: { config: Config; onChan
         onChange={(items) => onChange({ ...config, queryParams: items })}
         keyPlaceholder="Param name"
         valuePlaceholder="Param value"
+        expressionValues
       />
       <SelectField
         label="Body Type"

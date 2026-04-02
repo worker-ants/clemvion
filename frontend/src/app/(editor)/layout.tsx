@@ -1,17 +1,17 @@
 import { Sidebar } from "@/components/layout/sidebar";
 import { AuthProvider } from "@/components/auth/auth-provider";
-import { MainContent } from "@/components/layout/main-content";
+import { EditorContent } from "@/components/layout/editor-content";
 
-export default function MainLayout({
+export default function EditorLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
   return (
     <AuthProvider>
-      <div className="min-h-screen">
+      <div className="h-screen overflow-hidden">
         <Sidebar />
-        <MainContent>{children}</MainContent>
+        <EditorContent>{children}</EditorContent>
       </div>
     </AuthProvider>
   );
