@@ -53,13 +53,18 @@ describe("getConfigSummary", () => {
       "split", "map", "foreach", "merge", "workflow",
       "http_request", "database_query", "slack", "send_email",
       "transform", "code",
-      "carousel", "table", "chart", "form", "template", "pdf",
+      "table", "chart", "form", "template", "pdf",
       "ai_agent", "text_classifier", "information_extractor",
     ];
     for (const type of types) {
       const result = getConfigSummary(type, {});
       expect(result).toEqual(NOT_CONFIGURED);
     }
+  });
+
+  it("returns default summary for carousel with empty config (layout defaults to card)", () => {
+    const result = getConfigSummary("carousel", {});
+    expect(result).toEqual({ text: "card", isWarning: false });
   });
 });
 
@@ -437,8 +442,18 @@ describe("carousel summary", () => {
     })).toEqual({ text: "minimal", isWarning: false });
   });
 
-  it("shows warning when layout is empty", () => {
-    expect(getConfigSummary("carousel", { layout: "" })).toEqual(NOT_CONFIGURED);
+  it("defaults layout to card when not set", () => {
+    expect(getConfigSummary("carousel", {
+      mode: "static",
+      items: [{ id: 1, title: "a" }],
+    })).toEqual({ text: "card \u00b7 1 items", isWarning: false });
+  });
+
+  it("defaults layout to card in dynamic mode", () => {
+    expect(getConfigSummary("carousel", {
+      mode: "dynamic",
+      titleField: "name",
+    })).toEqual({ text: "card \u00b7 name", isWarning: false });
   });
 });
 
