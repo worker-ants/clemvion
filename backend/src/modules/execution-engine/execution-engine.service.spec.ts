@@ -495,4 +495,191 @@ describe('ExecutionEngineService', () => {
       );
     });
   });
+
+  describe('Template node expression resolution', () => {
+    const varDeclNodes: Partial<Node>[] = [
+      {
+        id: 'node-trigger',
+        workflowId,
+        type: 'test_node',
+        category: NodeCategory.LOGIC,
+        label: 'Trigger',
+        config: {},
+        isDisabled: false,
+        containerId: undefined as unknown as string,
+        toolOwnerId: undefined as unknown as string,
+      },
+      {
+        id: 'node-template',
+        workflowId,
+        type: 'template',
+        category: NodeCategory.PRESENTATION,
+        label: 'Template',
+        config: {
+          template:
+            'Hello {{ name }}, token: {{ $var.token }}, trigger: {{ $node["Trigger"].output.greeting }}',
+          outputFormat: 'text',
+        },
+        isDisabled: false,
+        containerId: undefined as unknown as string,
+        toolOwnerId: undefined as unknown as string,
+      },
+    ];
+
+    const varDeclEdges: Partial<Edge>[] = [
+      {
+        id: 'edge-1',
+        workflowId,
+        sourceNodeId: 'node-trigger',
+        sourcePort: 'out',
+        targetNodeId: 'node-template',
+        targetPort: 'in',
+        type: EdgeType.DATA,
+      },
+    ];
+
+    let templateExecuteSpy: jest.Mock;
+
+    beforeEach(() => {
+      mockNodeRepo.findBy.mockResolvedValue(varDeclNodes);
+      mockEdgeRepo.findBy.mockResolvedValue(varDeclEdges);
+
+      // Trigger node outputs { name: 'Alice', greeting: 'Hi' }
+      const triggerHandler: NodeHandler = {
+        validate: () => ({ valid: true, errors: [] }),
+        execute: jest.fn().mockResolvedValue({
+          name: 'Alice',
+          greeting: 'Hi',
+        }),
+      };
+      handlerRegistry.register('test_node', triggerHandler);
+
+      // Template handler: capture resolved config
+      templateExecuteSpy = jest
+        .fn<
+          Promise<Record<string, unknown>>,
+          [unknown, Record<string, unknown>]
+        >()
+        .mockImplementation((_input, config) =>
+          Promise.resolve({
+            type: 'template',
+            format: config.outputFormat as string,
+            content: config.template as string,
+          }),
+        );
+      const templateHandler: NodeHandler = {
+        validate: () => ({ valid: true, errors: [] }),
+        execute: templateExecuteSpy,
+      };
+      handlerRegistry.register('template', templateHandler);
+    });
+
+    it('should resolve $var, $node, and input-data references in template config', async () => {
+      // Inject variable into execution context
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-assignment
+      const contextService: ExecutionContextService = (service as any)[
+        'contextService'
+      ];
+      const origCreate = contextService.createContext.bind(contextService);
+      jest
+        .spyOn(contextService, 'createContext')
+        .mockImplementation(
+          (execId: string, wfId: string, vars?: Record<string, unknown>) => {
+            return origCreate(execId, wfId, { ...vars, token: 'xyz789' });
+          },
+        );
+
+      await service.execute(workflowId, {});
+      await flushPromises();
+
+      expect(templateExecuteSpy).toHaveBeenCalledTimes(1);
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+      const resolvedConfig = (
+        templateExecuteSpy.mock.calls[0] as unknown[]
+      )[1] as Record<string, unknown>;
+
+      // {{ name }} resolved from input data (root-level spread)
+      // {{ $var.token }} resolved from execution variables
+      // {{ $node["Trigger"].output.greeting }} resolved from node output
+      expect(resolvedConfig.template).toBe(
+        'Hello Alice, token: xyz789, trigger: Hi',
+      );
+    });
+
+    it('should not spread array input into expression context', async () => {
+      // Make trigger return an array
+      const arrayHandler: NodeHandler = {
+        validate: () => ({ valid: true, errors: [] }),
+        execute: jest.fn().mockResolvedValue(['a', 'b', 'c']),
+      };
+      handlerRegistry.register('test_node', arrayHandler);
+
+      // Template uses $input to reference array
+      mockNodeRepo.findBy.mockResolvedValue([
+        varDeclNodes[0],
+        {
+          ...varDeclNodes[1],
+          config: {
+            template: 'Data: {{ $input }}',
+            outputFormat: 'text',
+          },
+        },
+      ]);
+
+      await service.execute(workflowId, {});
+      await flushPromises();
+
+      // Should still execute without error (array not spread)
+      expect(templateExecuteSpy).toHaveBeenCalledTimes(1);
+    });
+
+    it('should not override built-in context with input data keys', async () => {
+      // Trigger outputs data with a key named "$var" (edge case)
+      const conflictHandler: NodeHandler = {
+        validate: () => ({ valid: true, errors: [] }),
+        execute: jest.fn().mockResolvedValue({
+          $var: { token: 'overridden' },
+          name: 'Bob',
+        }),
+      };
+      handlerRegistry.register('test_node', conflictHandler);
+
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-assignment
+      const contextService: ExecutionContextService = (service as any)[
+        'contextService'
+      ];
+      const origCreate = contextService.createContext.bind(contextService);
+      jest
+        .spyOn(contextService, 'createContext')
+        .mockImplementation(
+          (execId: string, wfId: string, vars?: Record<string, unknown>) => {
+            return origCreate(execId, wfId, { ...vars, token: 'original' });
+          },
+        );
+
+      mockNodeRepo.findBy.mockResolvedValue([
+        varDeclNodes[0],
+        {
+          ...varDeclNodes[1],
+          config: {
+            template: '{{ $var.token }} {{ name }}',
+            outputFormat: 'text',
+          },
+        },
+      ]);
+
+      await service.execute(workflowId, {});
+      await flushPromises();
+
+      expect(templateExecuteSpy).toHaveBeenCalledTimes(1);
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+      const resolvedConfig = (
+        templateExecuteSpy.mock.calls[0] as unknown[]
+      )[1] as Record<string, unknown>;
+
+      // $var should be the original context value, not overridden by input
+      // name from input should be spread as root-level since it doesn't conflict
+      expect(resolvedConfig.template).toBe('original Bob');
+    });
+  });
 });
