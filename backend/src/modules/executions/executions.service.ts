@@ -7,6 +7,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Execution, ExecutionStatus } from './entities/execution.entity';
 import { NodeExecution } from '../node-executions/entities/node-execution.entity';
+import { ExecutionEngineService } from '../execution-engine/execution-engine.service';
 import { QueryExecutionDto } from './dto/query-execution.dto';
 import { PaginatedResponseDto } from '../../common/dto/paginated-response.dto';
 
@@ -17,6 +18,7 @@ export class ExecutionsService {
     private readonly executionRepository: Repository<Execution>,
     @InjectRepository(NodeExecution)
     private readonly nodeExecutionRepository: Repository<NodeExecution>,
+    private readonly executionEngineService: ExecutionEngineService,
   ) {}
 
   async findById(
@@ -86,12 +88,24 @@ export class ExecutionsService {
 
     if (
       execution.status !== ExecutionStatus.RUNNING &&
-      execution.status !== ExecutionStatus.PENDING
+      execution.status !== ExecutionStatus.PENDING &&
+      execution.status !== ExecutionStatus.WAITING_FOR_INPUT
     ) {
       throw new BadRequestException({
         code: 'INVALID_STATE',
         message: `Cannot stop execution with status '${execution.status}'`,
       });
+    }
+
+    // If execution is waiting for form input, cancel the pending continuation
+    if (execution.status === ExecutionStatus.WAITING_FOR_INPUT) {
+      this.executionEngineService.cancelWaitingExecution(id);
+      // The cancelWaitingExecution will handle status transition via the catch block
+      // Re-fetch to get the updated state
+      const updated = await this.executionRepository.findOne({
+        where: { id },
+      });
+      return updated ?? execution;
     }
 
     execution.status = ExecutionStatus.CANCELLED;

@@ -11,6 +11,7 @@ const mockClient = {
   unsubscribe: vi.fn(),
   on: vi.fn(),
   off: vi.fn(),
+  emit: vi.fn(),
   isConnected: vi.fn(() => true),
   getSocket: vi.fn(),
   waitForConnect: vi.fn(() => Promise.resolve()),
@@ -59,6 +60,8 @@ describe("useExecutionEvents", () => {
       nodeStatuses: new Map(),
       nodeResults: [],
       startedAt: null,
+      waitingNodeId: null,
+      waitingFormConfig: null,
     });
     mockClient.waitForConnect.mockResolvedValue(undefined);
     mockClient.isConnected.mockReturnValue(true);
@@ -95,6 +98,73 @@ describe("useExecutionEvents", () => {
     expect(boundEvents).toContain("execution.node.completed");
     expect(boundEvents).toContain("execution.node.failed");
     expect(boundEvents).toContain("execution.node.skipped");
+    expect(boundEvents).toContain("execution.waiting_for_input");
+  });
+
+  it("handles execution.waiting_for_input WS event", async () => {
+    useExecutionStore.getState().startExecution("exec-1");
+
+    renderHook(() => useExecutionEvents({ executionId: "exec-1" }));
+
+    // Find the registered handler for waiting_for_input
+    const onCalls = (mockClient.on as Mock).mock.calls;
+    const waitingHandler = onCalls.find(
+      (c: unknown[]) => c[0] === "execution.waiting_for_input",
+    )?.[1] as (data: unknown) => void;
+
+    expect(waitingHandler).toBeDefined();
+
+    // Simulate the event
+    waitingHandler({
+      waitingNodeId: "form-1",
+      waitingNodeType: "form",
+      nodeOutput: {
+        type: "form",
+        formConfig: { fields: [{ name: "name", type: "text", label: "Name" }] },
+      },
+    });
+
+    const state = useExecutionStore.getState();
+    expect(state.status).toBe("waiting_for_input");
+    expect(state.waitingNodeId).toBe("form-1");
+    expect(state.waitingFormConfig).toEqual({
+      fields: [{ name: "name", type: "text", label: "Name" }],
+    });
+  });
+
+  it("collects presentation node results from node.completed WS event", async () => {
+    useExecutionStore.getState().startExecution("exec-1");
+
+    renderHook(() => useExecutionEvents({ executionId: "exec-1" }));
+
+    // Find the registered handler for node.completed
+    const onCalls = (mockClient.on as Mock).mock.calls;
+    const nodeCompletedHandler = onCalls.find(
+      (c: unknown[]) => c[0] === "execution.node.completed",
+    )?.[1] as (data: unknown) => void;
+
+    expect(nodeCompletedHandler).toBeDefined();
+
+    // Simulate a table node completing
+    nodeCompletedHandler({
+      nodeId: "table-1",
+      duration: 100,
+      output: { type: "table", rows: [{ a: 1 }], columns: ["a"] },
+    });
+
+    const results = useExecutionStore.getState().nodeResults;
+    expect(results).toHaveLength(1);
+    expect(results[0].nodeType).toBe("table");
+    expect(results[0].nodeId).toBe("table-1");
+
+    // Non-presentation node should NOT be collected
+    nodeCompletedHandler({
+      nodeId: "logic-1",
+      duration: 50,
+      output: { result: true },
+    });
+
+    expect(useExecutionStore.getState().nodeResults).toHaveLength(1);
   });
 
   it("polls execution status after subscribing", async () => {
@@ -215,7 +285,7 @@ describe("useExecutionEvents", () => {
   it("handles waiting_for_input node status from poll", async () => {
     mockGetById.mockResolvedValue({
       data: createMockExecution({
-        status: "running",
+        status: "waiting_for_input",
         nodeExecutions: [
           {
             id: "ne-1",
@@ -236,6 +306,7 @@ describe("useExecutionEvents", () => {
             error: null,
             startedAt: "2026-04-01T00:00:00.05Z",
             finishedAt: null,
+            outputData: { type: "form", formConfig: { fields: [] } },
           },
         ],
       }),
@@ -247,11 +318,12 @@ describe("useExecutionEvents", () => {
 
     await waitFor(() => {
       const state = useExecutionStore.getState();
-      expect(state.nodeStatuses.get("form-node")?.status).toBe("pending");
+      expect(state.nodeStatuses.get("form-node")?.status).toBe("waiting_for_input");
     });
 
-    // Execution should still be running (not completed/failed)
-    expect(useExecutionStore.getState().status).toBe("running");
+    // Execution should be in waiting_for_input state
+    expect(useExecutionStore.getState().status).toBe("waiting_for_input");
+    expect(useExecutionStore.getState().waitingNodeId).toBe("form-node");
   });
 
   it("unsubscribes and removes handlers on cleanup without disconnecting", async () => {

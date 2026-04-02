@@ -132,6 +132,7 @@ describe('ExecutionEngineService', () => {
       findOneBy: jest
         .fn()
         .mockResolvedValue({ ...savedExecution, executionPath: [] }),
+      find: jest.fn().mockResolvedValue([]),
     };
 
     mockNodeExecutionRepo = {
@@ -145,6 +146,15 @@ describe('ExecutionEngineService', () => {
         .mockImplementation((entity: Partial<NodeExecution>) =>
           Promise.resolve(entity),
         ),
+      findOne: jest.fn().mockImplementation(({ where }: { where: { nodeId: string } }) => {
+        return Promise.resolve({
+          id: `ne-${where.nodeId}`,
+          executionId,
+          nodeId: where.nodeId,
+          status: NodeExecutionStatus.RUNNING,
+          startedAt: new Date(),
+        });
+      }),
     };
 
     mockNodeRepo = {
@@ -336,6 +346,148 @@ describe('ExecutionEngineService', () => {
           status: 'failed',
           error: 'Node execution failed',
         }),
+      );
+    });
+  });
+
+  describe('Form node blocking', () => {
+    const formNodes: Partial<Node>[] = [
+      {
+        id: 'node-start',
+        workflowId,
+        type: 'test_node',
+        category: NodeCategory.LOGIC,
+        label: 'Start',
+        config: {},
+        isDisabled: false,
+        containerId: undefined as unknown as string,
+        toolOwnerId: undefined as unknown as string,
+      },
+      {
+        id: 'node-form',
+        workflowId,
+        type: 'form',
+        category: NodeCategory.PRESENTATION,
+        label: 'Approval Form',
+        config: {
+          fields: [{ name: 'approved', type: 'checkbox', label: 'Approved' }],
+          title: 'Approval',
+        },
+        isDisabled: false,
+        containerId: undefined as unknown as string,
+        toolOwnerId: undefined as unknown as string,
+      },
+      {
+        id: 'node-end',
+        workflowId,
+        type: 'test_node',
+        category: NodeCategory.LOGIC,
+        label: 'End',
+        config: {},
+        isDisabled: false,
+        containerId: undefined as unknown as string,
+        toolOwnerId: undefined as unknown as string,
+      },
+    ];
+
+    const formEdges: Partial<Edge>[] = [
+      {
+        id: 'edge-1',
+        workflowId,
+        sourceNodeId: 'node-start',
+        sourcePort: 'out',
+        targetNodeId: 'node-form',
+        targetPort: 'in',
+        type: EdgeType.DATA,
+      },
+      {
+        id: 'edge-2',
+        workflowId,
+        sourceNodeId: 'node-form',
+        sourcePort: 'out',
+        targetNodeId: 'node-end',
+        targetPort: 'in',
+        type: EdgeType.DATA,
+      },
+    ];
+
+    const formHandler: NodeHandler = {
+      validate: () => ({ valid: true, errors: [] }),
+      execute: jest.fn(async () => ({
+        type: 'form',
+        status: 'waiting_for_input',
+        formConfig: {
+          fields: [{ name: 'approved', type: 'checkbox', label: 'Approved' }],
+          title: 'Approval',
+        },
+      })),
+    };
+
+    beforeEach(() => {
+      // Reset the test_node handler implementation (may have been overridden by previous tests)
+      (mockHandler.execute as jest.Mock).mockResolvedValue({ processed: true });
+      mockNodeRepo.findBy.mockResolvedValue(formNodes);
+      mockEdgeRepo.findBy.mockResolvedValue(formEdges);
+      handlerRegistry.register('form', formHandler);
+    });
+
+    it('should pause at Form node and emit waiting_for_input event', async () => {
+      await service.execute(workflowId, { data: 'test' });
+      await flushPromises();
+
+      // Should emit waiting_for_input event
+      expect(mockWebsocketService.emitExecutionEvent).toHaveBeenCalledWith(
+        executionId,
+        'execution.waiting_for_input',
+        expect.objectContaining({
+          status: 'waiting_for_input',
+          waitingNodeId: 'node-form',
+          waitingNodeType: 'form',
+        }),
+      );
+
+      // End node should NOT have been executed yet (form is blocking)
+      expect(mockHandler.execute).toHaveBeenCalledTimes(1); // only start node
+    });
+
+    it('should resume after continueExecution and complete all nodes', async () => {
+      await service.execute(workflowId, { data: 'test' });
+      await flushPromises();
+
+      // Resume with form data
+      service.continueExecution(executionId, { approved: true });
+      await flushPromises();
+
+      // End node should now have been executed
+      expect(mockHandler.execute).toHaveBeenCalledTimes(2); // start + end
+
+      // Execution should be completed
+      expect(mockWebsocketService.emitExecutionEvent).toHaveBeenCalledWith(
+        executionId,
+        'execution.completed',
+        expect.objectContaining({ status: 'completed' }),
+      );
+    });
+
+    it('should throw when continueExecution called without pending continuation', async () => {
+      expect(() =>
+        service.continueExecution('non-existent', {}),
+      ).toThrow('No pending continuation');
+    });
+
+    it('should handle cancellation of waiting execution', async () => {
+      await service.execute(workflowId, { data: 'test' });
+      await flushPromises();
+
+      // Cancel the waiting execution
+      service.cancelWaitingExecution(executionId);
+      await flushPromises();
+
+      // Should emit cancelled event
+      expect(mockWebsocketService.emitExecutionEvent).toHaveBeenCalledWith(
+        executionId,
+        'execution.cancelled',
+        expect.objectContaining({ status: 'cancelled' }),
       );
     });
   });

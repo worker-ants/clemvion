@@ -17,7 +17,7 @@ export interface NodeExecutionData {
 export interface ExecutionData {
   id: string;
   workflowId: string;
-  status: "pending" | "running" | "completed" | "failed" | "cancelled";
+  status: "pending" | "running" | "completed" | "failed" | "cancelled" | "waiting_for_input";
   inputData: Record<string, unknown>;
   outputData: Record<string, unknown> | null;
   error: { message?: string } | null;

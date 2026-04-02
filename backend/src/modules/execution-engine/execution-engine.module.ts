@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { Execution } from '../executions/entities/execution.entity';
 import { NodeExecution } from '../node-executions/entities/node-execution.entity';
@@ -16,7 +16,7 @@ import { WebsocketModule } from '../websocket/websocket.module';
 @Module({
   imports: [
     TypeOrmModule.forFeature([Execution, NodeExecution, Node, Edge, Workflow]),
-    WebsocketModule,
+    forwardRef(() => WebsocketModule),
   ],
   providers: [
     ExecutionEngineService,

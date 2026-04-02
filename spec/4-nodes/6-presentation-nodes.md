@@ -666,7 +666,7 @@ Handlebars 스타일 템플릿으로 입력 데이터를 바인딩하여 리치 
 
 ## 8. Run Results Drawer 렌더링
 
-각 Presentation 노드가 실행 완료 후 Run Results Drawer 탭에서 렌더링되는 방식. ([실행/디버깅 §10 Run Results Drawer](../3-workflow-editor/3-execution.md#10-run-results-drawer) 참조)
+각 Presentation 노드가 실행 완료 후 Run Results Drawer의 **채팅형 히스토리 항목**으로 렌더링되는 방식. 히스토리는 실행 순서대로 누적되며, 각 항목은 접기/펼치기 가능하다. ([실행/디버깅 §10 Run Results Drawer](../3-workflow-editor/3-execution.md#10-run-results-drawer) 참조)
 
 ### 8.1 Carousel
 

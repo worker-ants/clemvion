@@ -18,6 +18,16 @@ interface UseExecutionEventsReturn {
 }
 
 const POLL_INTERVAL_MS = 2000;
+const POLL_INTERVAL_WAITING_MS = 10000; // Slower polling when waiting for form input
+
+const PRESENTATION_TYPES = new Set([
+  "carousel",
+  "table",
+  "chart",
+  "form",
+  "template",
+  "pdf",
+]);
 
 function mapNodeStatus(
   status: NodeExecutionData["status"],
@@ -31,6 +41,8 @@ function mapNodeStatus(
       return "failed";
     case "skipped":
       return "skipped";
+    case "waiting_for_input":
+      return "waiting_for_input";
     default:
       return "pending";
   }
@@ -42,8 +54,14 @@ export function useExecutionEvents({
   const [isConnected, setIsConnected] = useState(false);
   const cancelledRef = useRef(false);
 
-  const { startExecution, updateNodeStatus, completeExecution, failExecution } =
-    useExecutionStore();
+  const {
+    startExecution,
+    updateNodeStatus,
+    addNodeResult,
+    completeExecution,
+    failExecution,
+    pauseForForm,
+  } = useExecutionStore();
 
   const handleExecutionStarted = useCallback(
     (data: unknown) => {
@@ -71,6 +89,23 @@ export function useExecutionEvents({
     failExecution("Execution cancelled");
   }, [failExecution]);
 
+  const handleWaitingForInput = useCallback(
+    (data: unknown) => {
+      const payload = data as {
+        waitingNodeId?: string;
+        waitingNodeType?: string;
+        nodeOutput?: unknown;
+      };
+      if (payload.waitingNodeId && payload.waitingNodeType === "form") {
+        const output = payload.nodeOutput as {
+          formConfig?: unknown;
+        } | null;
+        pauseForForm(payload.waitingNodeId, output?.formConfig ?? null);
+      }
+    },
+    [pauseForForm],
+  );
+
   const handleNodeEvent = useCallback(
     (status: NodeExecutionStatus) => (data: unknown) => {
       const payload = data as {
@@ -87,6 +122,37 @@ export function useExecutionEvents({
       }
     },
     [updateNodeStatus],
+  );
+
+  const handleNodeCompleted = useCallback(
+    (data: unknown) => {
+      const payload = data as {
+        nodeId?: string;
+        duration?: number;
+        output?: Record<string, unknown>;
+      };
+      if (payload.nodeId) {
+        updateNodeStatus(payload.nodeId, {
+          status: "completed",
+          duration: payload.duration,
+        });
+
+        // Add presentation node results to the history
+        const output = payload.output;
+        if (output && typeof output === "object" && "type" in output) {
+          const outputType = output.type as string;
+          if (PRESENTATION_TYPES.has(outputType)) {
+            addNodeResult({
+              nodeId: payload.nodeId,
+              nodeLabel: (output.label as string) ?? payload.nodeId,
+              nodeType: outputType,
+              outputData: output,
+            });
+          }
+        }
+      }
+    },
+    [updateNodeStatus, addNodeResult],
   );
 
   useEffect(() => {
@@ -114,15 +180,15 @@ export function useExecutionEvents({
     client.on("execution.completed", handleExecutionCompleted);
     client.on("execution.failed", handleExecutionFailed);
     client.on("execution.cancelled", handleExecutionCancelled);
+    client.on("execution.waiting_for_input", handleWaitingForInput);
 
     // Bind node events
     const nodeStarted = handleNodeEvent("running");
-    const nodeCompleted = handleNodeEvent("completed");
     const nodeFailed = handleNodeEvent("failed");
     const nodeSkipped = handleNodeEvent("skipped");
 
     client.on("execution.node.started", nodeStarted);
-    client.on("execution.node.completed", nodeCompleted);
+    client.on("execution.node.completed", handleNodeCompleted);
     client.on("execution.node.failed", nodeFailed);
     client.on("execution.node.skipped", nodeSkipped);
 
@@ -145,13 +211,29 @@ export function useExecutionEvents({
               duration: ne.durationMs ?? undefined,
               error: ne.error?.message,
             });
+
+            // Collect presentation node results from polling
+            if (
+              ne.status === "completed" &&
+              ne.outputData &&
+              typeof ne.outputData === "object" &&
+              "type" in ne.outputData
+            ) {
+              const outputType = ne.outputData.type as string;
+              if (PRESENTATION_TYPES.has(outputType)) {
+                addNodeResult({
+                  nodeId: ne.nodeId,
+                  nodeLabel:
+                    (ne.outputData.label as string) ?? ne.nodeId,
+                  nodeType: outputType,
+                  outputData: ne.outputData,
+                });
+              }
+            }
           }
         }
 
         // Reconcile execution-level status
-        // Note: "cancelled" maps to "failed" in the UI store because the store
-        // only has idle/running/completed/failed states. Cancellation is treated
-        // as a terminal failure with a descriptive message.
         if (execution.status === "completed") {
           completeExecution();
           return true;
@@ -161,6 +243,32 @@ export function useExecutionEvents({
         } else if (execution.status === "cancelled") {
           failExecution("Execution cancelled");
           return true;
+        } else if (execution.status === "waiting_for_input") {
+          // Skip if already in waiting state for the same node
+          const { waitingNodeId: currentWaiting } =
+            useExecutionStore.getState();
+
+          // Find the waiting Form node
+          const waitingNode = execution.nodeExecutions?.find(
+            (ne) => ne.status === "waiting_for_input",
+          );
+
+          if (currentWaiting && currentWaiting === waitingNode?.nodeId) {
+            return false; // Already waiting, skip redundant update
+          }
+          if (waitingNode?.outputData) {
+            const output = waitingNode.outputData as {
+              type?: string;
+              formConfig?: unknown;
+            };
+            if (output.type === "form") {
+              pauseForForm(
+                waitingNode.nodeId,
+                output.formConfig ?? null,
+              );
+            }
+          }
+          return false; // not terminal, keep polling
         }
 
         return false;
@@ -194,15 +302,19 @@ export function useExecutionEvents({
     void trySubscribe();
 
     // Start polling immediately — ensures status updates even without WebSocket.
-    // First poll runs right away, then repeats every POLL_INTERVAL_MS until
-    // execution reaches a terminal state.
     let pollTimer: ReturnType<typeof setTimeout> | null = null;
 
     const startPolling = async () => {
       if (cancelledRef.current) return;
       const isTerminal = await pollExecutionStatus();
       if (!isTerminal && !cancelledRef.current) {
-        pollTimer = setTimeout(() => void startPolling(), POLL_INTERVAL_MS);
+        // Use slower polling when waiting for form input
+        const { status: currentStatus } = useExecutionStore.getState();
+        const interval =
+          currentStatus === "waiting_for_input"
+            ? POLL_INTERVAL_WAITING_MS
+            : POLL_INTERVAL_MS;
+        pollTimer = setTimeout(() => void startPolling(), interval);
       }
     };
 
@@ -218,8 +330,9 @@ export function useExecutionEvents({
       client.off("execution.completed", handleExecutionCompleted);
       client.off("execution.failed", handleExecutionFailed);
       client.off("execution.cancelled", handleExecutionCancelled);
+      client.off("execution.waiting_for_input", handleWaitingForInput);
       client.off("execution.node.started", nodeStarted);
-      client.off("execution.node.completed", nodeCompleted);
+      client.off("execution.node.completed", handleNodeCompleted);
       client.off("execution.node.failed", nodeFailed);
       client.off("execution.node.skipped", nodeSkipped);
       client.unsubscribe(channel);
@@ -231,10 +344,14 @@ export function useExecutionEvents({
     handleExecutionCompleted,
     handleExecutionFailed,
     handleExecutionCancelled,
+    handleWaitingForInput,
     handleNodeEvent,
+    handleNodeCompleted,
     updateNodeStatus,
+    addNodeResult,
     completeExecution,
     failExecution,
+    pauseForForm,
   ]);
 
   return { isConnected };
