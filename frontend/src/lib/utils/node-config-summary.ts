@@ -159,9 +159,9 @@ function codeSummary(config: NodeConfig): ConfigSummaryResult | null {
 }
 
 function carouselSummary(config: NodeConfig): ConfigSummaryResult | null {
-  const layout = config.layout as string | undefined;
-  if (!layout) return null;
   const mode = (config.mode as string) ?? "dynamic";
+  // layout defaults to "card" in the settings panel
+  const layout = (config.layout as string) || "card";
   if (mode === "static") {
     const items = Array.isArray(config.items) ? config.items : [];
     return { text: `${layout} \u00b7 ${items.length} items`, isWarning: false };
