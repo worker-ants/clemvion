@@ -141,14 +141,65 @@ describe('ExpressionResolverService', () => {
       expect(result.language).toBe('javascript');
     });
 
-    it('excludes keys for template handler', () => {
+    it('resolves expressions in template handler config', () => {
       const config = {
-        template: '<p>{{ name }}</p>',
+        template: '<p>{{ $input.name }}</p>',
         outputFormat: 'html',
       };
       const result = service.resolveConfig(config, baseContext, 'template');
-      expect(result.template).toBe('<p>{{ name }}</p>');
+      expect(result.template).toBe('<p>Alice</p>');
       expect(result.outputFormat).toBe('html');
+    });
+
+    it('resolves $var and $node references in template config', () => {
+      const contextWithNode = {
+        ...baseContext,
+        $node: {
+          Form: { output: { useful: 'important data' } },
+        },
+      };
+      const config = {
+        template:
+          '<h1>{{ $var.token }}</h1><p>{{ $node["Form"].output.useful }}</p>',
+        outputFormat: 'html',
+      };
+      const result = service.resolveConfig(config, contextWithNode, 'template');
+      expect(result.template).toBe('<h1>abc123</h1><p>important data</p>');
+    });
+
+    it('resolves root-level input data in template context', () => {
+      const contextWithInput = {
+        ...baseContext,
+        name: 'Alice',
+        score: 95,
+      };
+      const config = {
+        template: 'Hello {{ name }}, score: {{ score }}',
+        outputFormat: 'text',
+      };
+      const result = service.resolveConfig(
+        config,
+        contextWithInput,
+        'template',
+      );
+      expect(result.template).toBe('Hello Alice, score: 95');
+    });
+
+    it('does not override built-in context variables with root-level keys', () => {
+      const contextWithConflict = {
+        ...baseContext,
+        $input: { name: 'Alice', count: 5, nested: { value: 42 } },
+      };
+      const config = {
+        template: '{{ $input.name }}',
+        outputFormat: 'text',
+      };
+      const result = service.resolveConfig(
+        config,
+        contextWithConflict,
+        'template',
+      );
+      expect(result.template).toBe('Alice');
     });
 
     it('resolves expressions with built-in functions', () => {
