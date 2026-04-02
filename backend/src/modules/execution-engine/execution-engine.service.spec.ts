@@ -576,7 +576,7 @@ describe('ExecutionEngineService', () => {
 
     it('should resolve $var, $node, and input-data references in template config', async () => {
       // Inject variable into execution context
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-assignment
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
       const contextService: ExecutionContextService = (service as any)[
         'contextService'
       ];
@@ -593,7 +593,7 @@ describe('ExecutionEngineService', () => {
       await flushPromises();
 
       expect(templateExecuteSpy).toHaveBeenCalledTimes(1);
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+
       const resolvedConfig = (
         templateExecuteSpy.mock.calls[0] as unknown[]
       )[1] as Record<string, unknown>;
@@ -644,7 +644,7 @@ describe('ExecutionEngineService', () => {
       };
       handlerRegistry.register('test_node', conflictHandler);
 
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-assignment
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
       const contextService: ExecutionContextService = (service as any)[
         'contextService'
       ];
@@ -672,7 +672,7 @@ describe('ExecutionEngineService', () => {
       await flushPromises();
 
       expect(templateExecuteSpy).toHaveBeenCalledTimes(1);
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+
       const resolvedConfig = (
         templateExecuteSpy.mock.calls[0] as unknown[]
       )[1] as Record<string, unknown>;

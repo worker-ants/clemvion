@@ -10,35 +10,123 @@ type Config = Record<string, unknown>;
 type OnChange = (config: Config) => void;
 
 // ===== Carousel =====
+let carouselItemId = 0;
+
+interface CarouselItem {
+  id: number;
+  title: string;
+  description: string;
+  image: string;
+}
+
 export function CarouselConfig({ config, onChange }: { config: Config; onChange: OnChange }) {
+  const mode = (config.mode as string) ?? "dynamic";
+  const items = (config.items as CarouselItem[]) ?? [];
+
+  const handleModeChange = (v: string) => {
+    const { items: _items, titleField, descriptionField, imageField, maxItems, ...rest } = config;
+    void _items; void titleField; void descriptionField; void imageField; void maxItems;
+    if (v === "static") {
+      onChange({ ...rest, mode: v, items: items.length ? items : [] });
+    } else {
+      onChange({ ...rest, mode: v });
+    }
+  };
+
+  const addItem = () =>
+    onChange({
+      ...config,
+      items: [...items, { id: ++carouselItemId, title: "", description: "", image: "" }],
+    });
+
+  const removeItem = (i: number) =>
+    onChange({ ...config, items: items.filter((_, idx) => idx !== i) });
+
+  const updateItem = (i: number, key: string, val: string) => {
+    const updated = items.map((item, idx) => (idx === i ? { ...item, [key]: val } : item));
+    onChange({ ...config, items: updated });
+  };
+
   return (
     <div className="flex flex-col gap-3">
-      <ExpressionInput
-        label="Title Field"
-        value={(config.titleField as string) ?? ""}
-        onChange={(v) => onChange({ ...config, titleField: v })}
-        placeholder="title"
-        hint="Field path for slide title"
+      <SelectField
+        label="Mode"
+        value={mode}
+        onChange={handleModeChange}
+        options={[
+          { value: "static", label: "Static Items" },
+          { value: "dynamic", label: "Dynamic (from input)" },
+        ]}
       />
-      <ExpressionInput
-        label="Description Field"
-        value={(config.descriptionField as string) ?? ""}
-        onChange={(v) => onChange({ ...config, descriptionField: v })}
-        placeholder="description"
-      />
-      <ExpressionInput
-        label="Image Field"
-        value={(config.imageField as string) ?? ""}
-        onChange={(v) => onChange({ ...config, imageField: v })}
-        placeholder="imageUrl (optional)"
-      />
-      <NumberField
-        label="Max Items"
-        value={(config.maxItems as number) ?? 10}
-        onChange={(v) => onChange({ ...config, maxItems: v })}
-        min={1}
-        max={100}
-      />
+
+      {mode === "static" && (
+        <>
+          <SectionTitle>Items</SectionTitle>
+          {items.map((item, i) => (
+            <div key={item.id ?? i} className="flex flex-col gap-1 rounded border border-[hsl(var(--border))] p-2">
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] text-[hsl(var(--muted-foreground))]">Item {i + 1}</span>
+                <Button variant="ghost" size="icon" className="h-5 w-5" onClick={() => removeItem(i)}>
+                  <X size={10} />
+                </Button>
+              </div>
+              <ExpressionInput
+                label="Title"
+                value={item.title}
+                onChange={(v) => updateItem(i, "title", v)}
+                placeholder="Slide title"
+              />
+              <ExpressionInput
+                label="Description"
+                value={item.description}
+                onChange={(v) => updateItem(i, "description", v)}
+                placeholder="Slide description (optional)"
+              />
+              <ExpressionInput
+                label="Image URL"
+                value={item.image}
+                onChange={(v) => updateItem(i, "image", v)}
+                placeholder="https://... (optional)"
+              />
+            </div>
+          ))}
+          <Button variant="outline" size="sm" className="h-7 text-xs" onClick={addItem}>
+            <Plus size={12} className="mr-1" /> Add Item
+          </Button>
+        </>
+      )}
+
+      {mode === "dynamic" && (
+        <>
+          <ExpressionInput
+            label="Title Field"
+            value={(config.titleField as string) ?? ""}
+            onChange={(v) => onChange({ ...config, titleField: v })}
+            placeholder="title"
+            hint="Field path for slide title"
+          />
+          <ExpressionInput
+            label="Description Field"
+            value={(config.descriptionField as string) ?? ""}
+            onChange={(v) => onChange({ ...config, descriptionField: v })}
+            placeholder="description"
+          />
+          <ExpressionInput
+            label="Image Field"
+            value={(config.imageField as string) ?? ""}
+            onChange={(v) => onChange({ ...config, imageField: v })}
+            placeholder="imageUrl (optional)"
+          />
+          <NumberField
+            label="Max Items"
+            value={(config.maxItems as number) ?? 10}
+            onChange={(v) => onChange({ ...config, maxItems: v })}
+            min={1}
+            max={100}
+          />
+        </>
+      )}
+
       <SelectField
         label="Layout"
         value={(config.layout as string) ?? "card"}
