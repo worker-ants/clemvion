@@ -1,11 +1,13 @@
 "use client";
 
-import { memo } from "react";
-import { Handle, Position } from "@xyflow/react";
+import { memo, useMemo } from "react";
+import { Handle, Position, useStore } from "@xyflow/react";
 import type { NodeProps, Node } from "@xyflow/react";
 import { cn } from "@/lib/utils/cn";
 import { getNodeDefinition, CATEGORY_COLORS } from "@/lib/node-definitions";
 import { useExecutionStore } from "@/lib/stores/execution-store";
+import { getConfigSummary, truncateSummary } from "@/lib/utils/node-config-summary";
+import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 import { NodeIcon } from "./node-icon";
 
 type CustomNodeData = {
@@ -18,16 +20,32 @@ type CustomNodeData = {
 
 type CustomNodeType = Node<CustomNodeData, "custom">;
 
+// useStore with a boolean selector: only re-renders when crossing the 50% zoom threshold.
+// useViewport() would re-render on every pan/zoom change, which is expensive with many nodes.
+const zoomSelector = (s: { transform: number[] }) => s.transform[2] >= 0.5;
+
 function CustomNodeComponent({ id, data, selected }: NodeProps<CustomNodeType>) {
   const definition = getNodeDefinition(data.type);
   const categoryColor = CATEGORY_COLORS[data.category] ?? "#6B7280";
   const inputs = definition?.inputs ?? [];
   const outputs = definition?.outputs ?? [];
   const hasMultipleOutputs = outputs.length > 1;
+  const isContainer = definition?.isContainer ?? false;
 
   const nodeStatus = useExecutionStore((s) => s.nodeStatuses.get(id));
+  const showSummary = useStore(zoomSelector);
 
-  const statusStyles = (() => {
+  const summary = useMemo(
+    () => getConfigSummary(data.type, data.config),
+    [data.type, data.config],
+  );
+
+  const { display: displayText, isTruncated } = useMemo(
+    () => (summary ? truncateSummary(summary.text) : { display: "", isTruncated: false }),
+    [summary],
+  );
+
+  const statusStyles = useMemo(() => {
     if (!nodeStatus) return "";
     switch (nodeStatus.status) {
       case "running":
@@ -41,7 +59,13 @@ function CustomNodeComponent({ id, data, selected }: NodeProps<CustomNodeType>) 
       default:
         return "";
     }
-  })();
+  }, [nodeStatus]);
+
+  const isWarning = summary?.isWarning ?? false;
+  // Container nodes show non-warning summary in the header
+  const showHeaderSummary = isContainer && showSummary && summary && !isWarning;
+  // Body summary: regular nodes always, container nodes only for warnings
+  const showBodySummary = showSummary && summary && (!isContainer || isWarning);
 
   return (
     <div
@@ -61,6 +85,18 @@ function CustomNodeComponent({ id, data, selected }: NodeProps<CustomNodeType>) 
         <span className="truncate text-xs font-medium text-white">
           {data.label}
         </span>
+        {showHeaderSummary && (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <span className="ml-auto shrink-0 truncate text-[10px] text-white/70" style={{ maxWidth: "60px" }}>
+                {displayText}
+              </span>
+            </TooltipTrigger>
+            {isTruncated && (
+              <TooltipContent side="bottom">{summary.text}</TooltipContent>
+            )}
+          </Tooltip>
+        )}
       </div>
 
       {/* Body with handles */}
@@ -100,6 +136,27 @@ function CustomNodeComponent({ id, data, selected }: NodeProps<CustomNodeType>) 
           />
         ))}
 
+        {/* Config summary */}
+        {showBodySummary && (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <p
+                className={cn(
+                  "mb-1 truncate text-[10px] leading-tight",
+                  isWarning
+                    ? "text-amber-500"
+                    : "text-[hsl(var(--muted-foreground))]",
+                )}
+              >
+                {displayText}
+              </p>
+            </TooltipTrigger>
+            {isTruncated && (
+              <TooltipContent side="bottom">{summary.text}</TooltipContent>
+            )}
+          </Tooltip>
+        )}
+
         {/* Port labels for multi-output nodes */}
         {hasMultipleOutputs && (
           <div className="flex flex-col gap-0.5">
@@ -114,7 +171,7 @@ function CustomNodeComponent({ id, data, selected }: NodeProps<CustomNodeType>) 
         )}
 
         {/* Minimal body height for single output nodes */}
-        {!hasMultipleOutputs && <div className="h-2" />}
+        {!hasMultipleOutputs && !showBodySummary && <div className="h-2" />}
 
         {/* Execution status indicator */}
         {nodeStatus?.status === "completed" && (

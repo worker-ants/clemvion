@@ -29,6 +29,7 @@ import {
   Search,
 } from "lucide-react";
 
+import { TooltipProvider } from "@/components/ui/tooltip";
 import { CustomNode } from "./custom-node";
 import { CustomEdge, EdgeMarkerDefs } from "./custom-edge";
 
@@ -367,6 +368,7 @@ export function WorkflowCanvas() {
   }, [searchQuery]);
 
   return (
+    <TooltipProvider delayDuration={300}>
     <div
       ref={reactFlowWrapper}
       className="h-full w-full"
@@ -542,6 +544,7 @@ export function WorkflowCanvas() {
         </div>
       )}
     </div>
+    </TooltipProvider>
   );
 }
 
