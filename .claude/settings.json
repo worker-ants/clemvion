@@ -1,6 +1,6 @@
 {
   "plugins": [
-    ".claude/plugins/skills/code-review-agents"
+    ".claude/skills/code-review-agents"
   ],
   "hooks": {
     "PostToolUse": [

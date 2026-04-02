@@ -5,7 +5,7 @@
 1. 아래 명령으로 코드 리뷰 오케스트레이터를 실행합니다:
 
 ```bash
-python3 .claude/plugins/skills/code-review-agents/hooks/code_review_orchestrator.py --cli $ARGUMENTS
+python3 .claude/skills/code-review-agents/hooks/code_review_orchestrator.py --cli $ARGUMENTS
 ```
 
 2. 명령 실행이 완료되면, 출력된 세션 디렉토리 경로에서 `SUMMARY.md`를 읽어 사용자에게 보여주세요.
