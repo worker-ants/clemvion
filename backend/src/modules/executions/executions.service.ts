@@ -37,6 +37,7 @@ export class ExecutionsService {
 
     const nodeExecutions = await this.nodeExecutionRepository.find({
       where: { executionId: id },
+      relations: ['node'],
       order: { startedAt: 'ASC' },
     });
 

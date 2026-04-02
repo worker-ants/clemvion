@@ -27,6 +27,21 @@ vi.mock("../../api/client", () => ({
   getAccessToken: () => "test-token",
 }));
 
+// Mock node-definitions
+vi.mock("../../node-definitions", () => ({
+  getNodeDefinition: (type: string) => {
+    const defs: Record<string, { category: string }> = {
+      table: { category: "presentation" },
+      chart: { category: "presentation" },
+      form: { category: "presentation" },
+      if_else: { category: "logic" },
+      http_request: { category: "integration" },
+      manual_trigger: { category: "trigger" },
+    };
+    return defs[type] ?? { category: "unknown" };
+  },
+}));
+
 // Mock executions API
 const mockGetById = vi.fn();
 vi.mock("../../api/executions", () => ({
@@ -62,6 +77,7 @@ describe("useExecutionEvents", () => {
       startedAt: null,
       waitingNodeId: null,
       waitingFormConfig: null,
+      selectedResultNodeId: null,
     });
     mockClient.waitForConnect.mockResolvedValue(undefined);
     mockClient.isConnected.mockReturnValue(true);
@@ -130,14 +146,57 @@ describe("useExecutionEvents", () => {
     expect(state.waitingFormConfig).toEqual({
       fields: [{ name: "name", type: "text", label: "Name" }],
     });
+
+    // Verify nodeResults is updated with waiting_for_input status
+    const results = useExecutionStore.getState().nodeResults;
+    const formResult = results.find((r) => r.nodeId === "form-1");
+    expect(formResult).toBeDefined();
+    expect(formResult?.status).toBe("waiting_for_input");
+    expect(formResult?.nodeType).toBe("form");
+
+    // Verify nodeStatuses is updated
+    expect(state.nodeStatuses.get("form-1")?.status).toBe("waiting_for_input");
   });
 
-  it("collects presentation node results from node.completed WS event", async () => {
+  it("does not overwrite completed status with running (event order reversal)", async () => {
     useExecutionStore.getState().startExecution("exec-1");
 
     renderHook(() => useExecutionEvents({ executionId: "exec-1" }));
 
-    // Find the registered handler for node.completed
+    const onCalls = (mockClient.on as Mock).mock.calls;
+    const nodeCompletedHandler = onCalls.find(
+      (c: unknown[]) => c[0] === "execution.node.completed",
+    )?.[1] as (data: unknown) => void;
+    const nodeStartedHandler = onCalls.find(
+      (c: unknown[]) => c[0] === "execution.node.started",
+    )?.[1] as (data: unknown) => void;
+
+    // Completed arrives first (out of order)
+    nodeCompletedHandler({
+      nodeId: "node-1",
+      duration: 100,
+      nodeType: "http_request",
+      nodeLabel: "Fetch",
+      output: { status: 200 },
+    });
+
+    expect(useExecutionStore.getState().nodeStatuses.get("node-1")?.status).toBe("completed");
+
+    // Started arrives late — should NOT overwrite completed
+    nodeStartedHandler({
+      nodeId: "node-1",
+      nodeType: "http_request",
+      nodeLabel: "Fetch",
+    });
+
+    expect(useExecutionStore.getState().nodeStatuses.get("node-1")?.status).toBe("completed");
+  });
+
+  it("adds ALL node results from node.completed WS event (not just presentation)", async () => {
+    useExecutionStore.getState().startExecution("exec-1");
+
+    renderHook(() => useExecutionEvents({ executionId: "exec-1" }));
+
     const onCalls = (mockClient.on as Mock).mock.calls;
     const nodeCompletedHandler = onCalls.find(
       (c: unknown[]) => c[0] === "execution.node.completed",
@@ -145,26 +204,86 @@ describe("useExecutionEvents", () => {
 
     expect(nodeCompletedHandler).toBeDefined();
 
-    // Simulate a table node completing
+    // Presentation node
     nodeCompletedHandler({
       nodeId: "table-1",
       duration: 100,
+      nodeType: "table",
+      nodeLabel: "My Table",
       output: { type: "table", rows: [{ a: 1 }], columns: ["a"] },
+    });
+
+    // Non-presentation node (logic)
+    nodeCompletedHandler({
+      nodeId: "logic-1",
+      duration: 50,
+      nodeType: "if_else",
+      nodeLabel: "Branch",
+      output: { port: "true", data: {} },
+    });
+
+    // Integration node
+    nodeCompletedHandler({
+      nodeId: "http-1",
+      duration: 200,
+      nodeType: "http_request",
+      nodeLabel: "Fetch Users",
+      output: { statusCode: 200, body: {} },
+    });
+
+    const results = useExecutionStore.getState().nodeResults;
+    expect(results).toHaveLength(3);
+    expect(results[0].nodeType).toBe("table");
+    expect(results[0].nodeCategory).toBe("presentation");
+    expect(results[1].nodeType).toBe("if_else");
+    expect(results[1].nodeCategory).toBe("logic");
+    expect(results[2].nodeType).toBe("http_request");
+    expect(results[2].nodeCategory).toBe("integration");
+  });
+
+  it("adds node results from node.started WS event", async () => {
+    useExecutionStore.getState().startExecution("exec-1");
+
+    renderHook(() => useExecutionEvents({ executionId: "exec-1" }));
+
+    const onCalls = (mockClient.on as Mock).mock.calls;
+    const nodeStartedHandler = onCalls.find(
+      (c: unknown[]) => c[0] === "execution.node.started",
+    )?.[1] as (data: unknown) => void;
+
+    nodeStartedHandler({
+      nodeId: "node-1",
+      nodeType: "http_request",
+      nodeLabel: "Fetch API",
     });
 
     const results = useExecutionStore.getState().nodeResults;
     expect(results).toHaveLength(1);
-    expect(results[0].nodeType).toBe("table");
-    expect(results[0].nodeId).toBe("table-1");
+    expect(results[0].status).toBe("running");
+    expect(results[0].nodeType).toBe("http_request");
+  });
 
-    // Non-presentation node should NOT be collected
-    nodeCompletedHandler({
-      nodeId: "logic-1",
-      duration: 50,
-      output: { result: true },
+  it("adds node results from node.failed WS event", async () => {
+    useExecutionStore.getState().startExecution("exec-1");
+
+    renderHook(() => useExecutionEvents({ executionId: "exec-1" }));
+
+    const onCalls = (mockClient.on as Mock).mock.calls;
+    const nodeFailedHandler = onCalls.find(
+      (c: unknown[]) => c[0] === "execution.node.failed",
+    )?.[1] as (data: unknown) => void;
+
+    nodeFailedHandler({
+      nodeId: "node-1",
+      error: "Timeout",
+      nodeType: "http_request",
+      nodeLabel: "Fetch API",
     });
 
-    expect(useExecutionStore.getState().nodeResults).toHaveLength(1);
+    const results = useExecutionStore.getState().nodeResults;
+    expect(results).toHaveLength(1);
+    expect(results[0].status).toBe("failed");
+    expect(results[0].error).toBe("Timeout");
   });
 
   it("polls execution status after subscribing", async () => {
@@ -191,6 +310,7 @@ describe("useExecutionEvents", () => {
             error: null,
             startedAt: "2026-04-01T00:00:00Z",
             finishedAt: "2026-04-01T00:00:00.1Z",
+            node: { id: "node-1", type: "http_request", label: "Fetch" },
           },
           {
             id: "ne-2",
@@ -201,6 +321,7 @@ describe("useExecutionEvents", () => {
             error: null,
             startedAt: "2026-04-01T00:00:00.1Z",
             finishedAt: "2026-04-01T00:00:00.3Z",
+            node: { id: "node-2", type: "table", label: "Results" },
           },
         ],
       }),
@@ -219,6 +340,11 @@ describe("useExecutionEvents", () => {
     expect(state.nodeStatuses.get("node-1")?.status).toBe("completed");
     expect(state.nodeStatuses.get("node-1")?.duration).toBe(100);
     expect(state.nodeStatuses.get("node-2")?.status).toBe("completed");
+
+    // All nodes should be in results
+    expect(state.nodeResults).toHaveLength(2);
+    expect(state.nodeResults[0].nodeType).toBe("http_request");
+    expect(state.nodeResults[1].nodeType).toBe("table");
   });
 
   it("updates store to failed when poll returns failed execution", async () => {
@@ -236,6 +362,7 @@ describe("useExecutionEvents", () => {
             error: null,
             startedAt: "2026-04-01T00:00:00Z",
             finishedAt: "2026-04-01T00:00:00.05Z",
+            node: { id: "node-1", type: "if_else", label: "Branch" },
           },
           {
             id: "ne-2",
@@ -246,6 +373,7 @@ describe("useExecutionEvents", () => {
             error: { message: "Connection timeout" },
             startedAt: "2026-04-01T00:00:00.05Z",
             finishedAt: "2026-04-01T00:00:30.05Z",
+            node: { id: "node-2", type: "http_request", label: "Fetch" },
           },
         ],
       }),
@@ -266,8 +394,6 @@ describe("useExecutionEvents", () => {
   });
 
   it("handles cancelled execution from poll (maps to failed)", async () => {
-    // Note: "cancelled" maps to "failed" in the UI store because the store
-    // only has idle/running/completed/failed states.
     mockGetById.mockResolvedValue({
       data: createMockExecution({ status: "cancelled" }),
     });
@@ -296,6 +422,7 @@ describe("useExecutionEvents", () => {
             error: null,
             startedAt: "2026-04-01T00:00:00Z",
             finishedAt: "2026-04-01T00:00:00.05Z",
+            node: { id: "node-1", type: "if_else", label: "Branch" },
           },
           {
             id: "ne-2",
@@ -307,6 +434,7 @@ describe("useExecutionEvents", () => {
             startedAt: "2026-04-01T00:00:00.05Z",
             finishedAt: null,
             outputData: { type: "form", formConfig: { fields: [] } },
+            node: { id: "form-node", type: "form", label: "Approval" },
           },
         ],
       }),
@@ -437,56 +565,72 @@ describe("useExecutionEvents", () => {
       expect(useExecutionStore.getState().status).toBe("failed");
     });
 
-    it("execution.node.started updates node status", () => {
+    it("execution.node.started updates node status and adds to results", () => {
       useExecutionStore.getState().startExecution("exec-1");
       renderHook(() => useExecutionEvents({ executionId: "exec-1" }));
 
       const handler = getEventHandler("execution.node.started");
-      handler({ nodeId: "node-1" });
+      handler({ nodeId: "node-1", nodeType: "http_request", nodeLabel: "Fetch" });
 
       expect(
         useExecutionStore.getState().nodeStatuses.get("node-1")?.status,
       ).toBe("running");
+
+      const results = useExecutionStore.getState().nodeResults;
+      expect(results).toHaveLength(1);
+      expect(results[0].status).toBe("running");
     });
 
-    it("execution.node.completed updates node status with duration", () => {
+    it("execution.node.completed updates node status with duration and adds to results", () => {
       useExecutionStore.getState().startExecution("exec-1");
       renderHook(() => useExecutionEvents({ executionId: "exec-1" }));
 
       const handler = getEventHandler("execution.node.completed");
-      handler({ nodeId: "node-1", duration: 250 });
+      handler({ nodeId: "node-1", duration: 250, nodeType: "table", nodeLabel: "Results" });
 
       const nodeStatus = useExecutionStore
         .getState()
         .nodeStatuses.get("node-1");
       expect(nodeStatus?.status).toBe("completed");
       expect(nodeStatus?.duration).toBe(250);
+
+      const results = useExecutionStore.getState().nodeResults;
+      expect(results).toHaveLength(1);
+      expect(results[0].nodeType).toBe("table");
     });
 
-    it("execution.node.failed updates node status with error", () => {
+    it("execution.node.failed updates node status with error and adds to results", () => {
       useExecutionStore.getState().startExecution("exec-1");
       renderHook(() => useExecutionEvents({ executionId: "exec-1" }));
 
       const handler = getEventHandler("execution.node.failed");
-      handler({ nodeId: "node-1", error: "Timeout" });
+      handler({ nodeId: "node-1", error: "Timeout", nodeType: "http_request", nodeLabel: "Fetch" });
 
       const nodeStatus = useExecutionStore
         .getState()
         .nodeStatuses.get("node-1");
       expect(nodeStatus?.status).toBe("failed");
       expect(nodeStatus?.error).toBe("Timeout");
+
+      const results = useExecutionStore.getState().nodeResults;
+      expect(results).toHaveLength(1);
+      expect(results[0].error).toBe("Timeout");
     });
 
-    it("execution.node.skipped updates node status", () => {
+    it("execution.node.skipped updates node status and adds to results", () => {
       useExecutionStore.getState().startExecution("exec-1");
       renderHook(() => useExecutionEvents({ executionId: "exec-1" }));
 
       const handler = getEventHandler("execution.node.skipped");
-      handler({ nodeId: "node-1" });
+      handler({ nodeId: "node-1", nodeType: "if_else", nodeLabel: "Branch" });
 
       expect(
         useExecutionStore.getState().nodeStatuses.get("node-1")?.status,
       ).toBe("skipped");
+
+      const results = useExecutionStore.getState().nodeResults;
+      expect(results).toHaveLength(1);
+      expect(results[0].status).toBe("skipped");
     });
   });
 });

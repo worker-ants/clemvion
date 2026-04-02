@@ -12,6 +12,7 @@ export interface NodeExecutionData {
   outputData: Record<string, unknown> | null;
   error: { message?: string } | null;
   retryCount: number;
+  node?: { id: string; type: string; label: string };
 }
 
 export interface ExecutionData {
