@@ -27,6 +27,10 @@ export interface NodeResult {
   nodeId: string;
   nodeLabel: string;
   nodeType: string;
+  nodeCategory: string;
+  status: NodeExecutionStatus;
+  duration?: number;
+  error?: string;
   outputData: unknown;
 }
 
@@ -41,6 +45,9 @@ interface ExecutionState {
   waitingNodeId: string | null;
   waitingFormConfig: unknown;
 
+  /** Selected node in result timeline */
+  selectedResultNodeId: string | null;
+
   startExecution: (executionId: string) => void;
   updateNodeStatus: (nodeId: string, info: NodeStatusInfo) => void;
   addNodeResult: (result: NodeResult) => void;
@@ -48,6 +55,7 @@ interface ExecutionState {
   failExecution: (error?: string) => void;
   pauseForForm: (nodeId: string, formConfig: unknown) => void;
   resumeFromForm: () => void;
+  selectResultNode: (nodeId: string | null) => void;
   reset: () => void;
 }
 
@@ -59,6 +67,7 @@ export const useExecutionStore = create<ExecutionState>((set) => ({
   startedAt: null,
   waitingNodeId: null,
   waitingFormConfig: null,
+  selectedResultNodeId: null,
 
   startExecution: (executionId: string) =>
     set({
@@ -69,6 +78,7 @@ export const useExecutionStore = create<ExecutionState>((set) => ({
       startedAt: new Date().toISOString(),
       waitingNodeId: null,
       waitingFormConfig: null,
+      selectedResultNodeId: null,
     }),
 
   updateNodeStatus: (nodeId: string, info: NodeStatusInfo) =>
@@ -127,6 +137,9 @@ export const useExecutionStore = create<ExecutionState>((set) => ({
       waitingFormConfig: null,
     }),
 
+  selectResultNode: (nodeId: string | null) =>
+    set({ selectedResultNodeId: nodeId }),
+
   reset: () =>
     set({
       executionId: null,
@@ -136,5 +149,6 @@ export const useExecutionStore = create<ExecutionState>((set) => ({
       startedAt: null,
       waitingNodeId: null,
       waitingFormConfig: null,
+      selectedResultNodeId: null,
     }),
 }));

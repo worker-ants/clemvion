@@ -2,6 +2,18 @@ import { describe, it, expect, beforeEach } from "vitest";
 import { useExecutionStore } from "../execution-store";
 import type { NodeResult, NodeStatusInfo } from "../execution-store";
 
+function makeResult(overrides: Partial<NodeResult> = {}): NodeResult {
+  return {
+    nodeId: "n1",
+    nodeLabel: "Node 1",
+    nodeType: "action",
+    nodeCategory: "logic",
+    status: "completed",
+    outputData: null,
+    ...overrides,
+  };
+}
+
 const initialState = {
   executionId: null,
   status: "idle" as const,
@@ -10,6 +22,7 @@ const initialState = {
   startedAt: null,
   waitingNodeId: null,
   waitingFormConfig: null,
+  selectedResultNodeId: null,
 };
 
 describe("useExecutionStore", () => {
@@ -26,6 +39,7 @@ describe("useExecutionStore", () => {
     expect(state.startedAt).toBeNull();
     expect(state.waitingNodeId).toBeNull();
     expect(state.waitingFormConfig).toBeNull();
+    expect(state.selectedResultNodeId).toBeNull();
   });
 
   describe("startExecution", () => {
@@ -40,16 +54,11 @@ describe("useExecutionStore", () => {
       expect(state.nodeResults).toEqual([]);
       expect(state.waitingNodeId).toBeNull();
       expect(state.waitingFormConfig).toBeNull();
+      expect(state.selectedResultNodeId).toBeNull();
     });
 
     it("resets previous results when starting new execution", () => {
-      const result: NodeResult = {
-        nodeId: "n1",
-        nodeLabel: "Node 1",
-        nodeType: "action",
-        outputData: { foo: "bar" },
-      };
-      useExecutionStore.getState().addNodeResult(result);
+      useExecutionStore.getState().addNodeResult(makeResult({ outputData: { foo: "bar" } }));
       expect(useExecutionStore.getState().nodeResults).toHaveLength(1);
 
       useExecutionStore.getState().startExecution("exec-2");
@@ -87,12 +96,7 @@ describe("useExecutionStore", () => {
 
   describe("addNodeResult", () => {
     it("adds a result to the list", () => {
-      const result: NodeResult = {
-        nodeId: "n1",
-        nodeLabel: "Node 1",
-        nodeType: "action",
-        outputData: { data: "test" },
-      };
+      const result = makeResult({ outputData: { data: "test" } });
       useExecutionStore.getState().addNodeResult(result);
 
       expect(useExecutionStore.getState().nodeResults).toHaveLength(1);
@@ -100,19 +104,15 @@ describe("useExecutionStore", () => {
     });
 
     it("appends multiple results", () => {
-      const r1: NodeResult = { nodeId: "n1", nodeLabel: "A", nodeType: "action", outputData: null };
-      const r2: NodeResult = { nodeId: "n2", nodeLabel: "B", nodeType: "action", outputData: null };
-      useExecutionStore.getState().addNodeResult(r1);
-      useExecutionStore.getState().addNodeResult(r2);
+      useExecutionStore.getState().addNodeResult(makeResult({ nodeId: "n1", nodeLabel: "A" }));
+      useExecutionStore.getState().addNodeResult(makeResult({ nodeId: "n2", nodeLabel: "B" }));
 
       expect(useExecutionStore.getState().nodeResults).toHaveLength(2);
     });
 
     it("updates existing result for same nodeId instead of duplicating", () => {
-      const r1: NodeResult = { nodeId: "n1", nodeLabel: "A", nodeType: "table", outputData: { v: 1 } };
-      const r2: NodeResult = { nodeId: "n1", nodeLabel: "A", nodeType: "table", outputData: { v: 2 } };
-      useExecutionStore.getState().addNodeResult(r1);
-      useExecutionStore.getState().addNodeResult(r2);
+      useExecutionStore.getState().addNodeResult(makeResult({ nodeId: "n1", nodeType: "table", outputData: { v: 1 } }));
+      useExecutionStore.getState().addNodeResult(makeResult({ nodeId: "n1", nodeType: "table", outputData: { v: 2 } }));
 
       const results = useExecutionStore.getState().nodeResults;
       expect(results).toHaveLength(1);
@@ -190,12 +190,23 @@ describe("useExecutionStore", () => {
     });
   });
 
+  describe("selectResultNode", () => {
+    it("selects and deselects a result node", () => {
+      useExecutionStore.getState().selectResultNode("n1");
+      expect(useExecutionStore.getState().selectedResultNodeId).toBe("n1");
+
+      useExecutionStore.getState().selectResultNode(null);
+      expect(useExecutionStore.getState().selectedResultNodeId).toBeNull();
+    });
+  });
+
   describe("reset", () => {
     it("resets all state to initial values including waiting state", () => {
       useExecutionStore.getState().startExecution("exec-1");
       useExecutionStore.getState().updateNodeStatus("n1", { status: "running" });
-      useExecutionStore.getState().addNodeResult({ nodeId: "n1", nodeLabel: "A", nodeType: "x", outputData: null });
+      useExecutionStore.getState().addNodeResult(makeResult());
       useExecutionStore.getState().pauseForForm("node-form", { fields: [] });
+      useExecutionStore.getState().selectResultNode("n1");
 
       useExecutionStore.getState().reset();
 
@@ -207,6 +218,7 @@ describe("useExecutionStore", () => {
       expect(state.startedAt).toBeNull();
       expect(state.waitingNodeId).toBeNull();
       expect(state.waitingFormConfig).toBeNull();
+      expect(state.selectedResultNodeId).toBeNull();
     });
   });
 });

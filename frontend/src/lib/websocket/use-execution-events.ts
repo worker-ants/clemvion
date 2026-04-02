@@ -8,6 +8,7 @@ import {
 } from "../stores/execution-store";
 import { getAccessToken } from "../api/client";
 import { executionsApi, NodeExecutionData } from "../api/executions";
+import { getNodeDefinition } from "../node-definitions";
 
 interface UseExecutionEventsOptions {
   executionId: string | null;
@@ -19,15 +20,6 @@ interface UseExecutionEventsReturn {
 
 const POLL_INTERVAL_MS = 2000;
 const POLL_INTERVAL_WAITING_MS = 10000; // Slower polling when waiting for form input
-
-const PRESENTATION_TYPES = new Set([
-  "carousel",
-  "table",
-  "chart",
-  "form",
-  "template",
-  "pdf",
-]);
 
 function mapNodeStatus(
   status: NodeExecutionData["status"],
@@ -46,6 +38,28 @@ function mapNodeStatus(
     default:
       return "pending";
   }
+}
+
+function getCategoryForType(nodeType: string): string {
+  return getNodeDefinition(nodeType)?.category ?? "unknown";
+}
+
+// Higher priority = more terminal. Prevents stale WS events from overwriting.
+const STATUS_PRIORITY: Record<string, number> = {
+  pending: 0,
+  running: 1,
+  waiting_for_input: 2,
+  completed: 3,
+  failed: 3,
+  skipped: 3,
+};
+
+function shouldUpdateStatus(
+  current: NodeExecutionStatus | undefined,
+  incoming: NodeExecutionStatus,
+): boolean {
+  if (!current) return true;
+  return (STATUS_PRIORITY[incoming] ?? 0) >= (STATUS_PRIORITY[current] ?? 0);
 }
 
 export function useExecutionEvents({
@@ -100,28 +114,49 @@ export function useExecutionEvents({
         const output = payload.nodeOutput as {
           formConfig?: unknown;
         } | null;
+        // Update node status and result to waiting_for_input
+        updateNodeStatus(payload.waitingNodeId, {
+          status: "waiting_for_input",
+        });
+        addNodeResult({
+          nodeId: payload.waitingNodeId,
+          nodeLabel: payload.waitingNodeId,
+          nodeType: "form",
+          nodeCategory: "presentation",
+          status: "waiting_for_input",
+          outputData: payload.nodeOutput ?? null,
+        });
         pauseForForm(payload.waitingNodeId, output?.formConfig ?? null);
       }
     },
-    [pauseForForm],
+    [pauseForForm, updateNodeStatus, addNodeResult],
   );
 
-  const handleNodeEvent = useCallback(
-    (status: NodeExecutionStatus) => (data: unknown) => {
+  const handleNodeStarted = useCallback(
+    (data: unknown) => {
       const payload = data as {
         nodeId?: string;
-        duration?: number;
-        error?: string;
+        nodeType?: string;
+        nodeLabel?: string;
       };
       if (payload.nodeId) {
-        updateNodeStatus(payload.nodeId, {
-          status,
-          duration: payload.duration,
-          error: payload.error,
+        // Guard against out-of-order events (e.g., completed arriving before started)
+        const existing =
+          useExecutionStore.getState().nodeStatuses.get(payload.nodeId);
+        if (!shouldUpdateStatus(existing?.status, "running")) return;
+
+        updateNodeStatus(payload.nodeId, { status: "running" });
+        addNodeResult({
+          nodeId: payload.nodeId,
+          nodeLabel: payload.nodeLabel ?? payload.nodeId,
+          nodeType: payload.nodeType ?? "unknown",
+          nodeCategory: getCategoryForType(payload.nodeType ?? "unknown"),
+          status: "running",
+          outputData: null,
         });
       }
     },
-    [updateNodeStatus],
+    [updateNodeStatus, addNodeResult],
   );
 
   const handleNodeCompleted = useCallback(
@@ -129,6 +164,8 @@ export function useExecutionEvents({
       const payload = data as {
         nodeId?: string;
         duration?: number;
+        nodeType?: string;
+        nodeLabel?: string;
         output?: Record<string, unknown>;
       };
       if (payload.nodeId) {
@@ -137,19 +174,64 @@ export function useExecutionEvents({
           duration: payload.duration,
         });
 
-        // Add presentation node results to the history
-        const output = payload.output;
-        if (output && typeof output === "object" && "type" in output) {
-          const outputType = output.type as string;
-          if (PRESENTATION_TYPES.has(outputType)) {
-            addNodeResult({
-              nodeId: payload.nodeId,
-              nodeLabel: (output.label as string) ?? payload.nodeId,
-              nodeType: outputType,
-              outputData: output,
-            });
-          }
-        }
+        addNodeResult({
+          nodeId: payload.nodeId,
+          nodeLabel: payload.nodeLabel ?? payload.nodeId,
+          nodeType: payload.nodeType ?? "unknown",
+          nodeCategory: getCategoryForType(payload.nodeType ?? "unknown"),
+          status: "completed",
+          duration: payload.duration,
+          outputData: payload.output ?? null,
+        });
+      }
+    },
+    [updateNodeStatus, addNodeResult],
+  );
+
+  const handleNodeFailed = useCallback(
+    (data: unknown) => {
+      const payload = data as {
+        nodeId?: string;
+        error?: string;
+        nodeType?: string;
+        nodeLabel?: string;
+      };
+      if (payload.nodeId) {
+        updateNodeStatus(payload.nodeId, {
+          status: "failed",
+          error: payload.error,
+        });
+        addNodeResult({
+          nodeId: payload.nodeId,
+          nodeLabel: payload.nodeLabel ?? payload.nodeId,
+          nodeType: payload.nodeType ?? "unknown",
+          nodeCategory: getCategoryForType(payload.nodeType ?? "unknown"),
+          status: "failed",
+          error: payload.error,
+          outputData: null,
+        });
+      }
+    },
+    [updateNodeStatus, addNodeResult],
+  );
+
+  const handleNodeSkipped = useCallback(
+    (data: unknown) => {
+      const payload = data as {
+        nodeId?: string;
+        nodeType?: string;
+        nodeLabel?: string;
+      };
+      if (payload.nodeId) {
+        updateNodeStatus(payload.nodeId, { status: "skipped" });
+        addNodeResult({
+          nodeId: payload.nodeId,
+          nodeLabel: payload.nodeLabel ?? payload.nodeId,
+          nodeType: payload.nodeType ?? "unknown",
+          nodeCategory: getCategoryForType(payload.nodeType ?? "unknown"),
+          status: "skipped",
+          outputData: null,
+        });
       }
     },
     [updateNodeStatus, addNodeResult],
@@ -183,14 +265,10 @@ export function useExecutionEvents({
     client.on("execution.waiting_for_input", handleWaitingForInput);
 
     // Bind node events
-    const nodeStarted = handleNodeEvent("running");
-    const nodeFailed = handleNodeEvent("failed");
-    const nodeSkipped = handleNodeEvent("skipped");
-
-    client.on("execution.node.started", nodeStarted);
+    client.on("execution.node.started", handleNodeStarted);
     client.on("execution.node.completed", handleNodeCompleted);
-    client.on("execution.node.failed", nodeFailed);
-    client.on("execution.node.skipped", nodeSkipped);
+    client.on("execution.node.failed", handleNodeFailed);
+    client.on("execution.node.skipped", handleNodeSkipped);
 
     const channel = `execution:${executionId}`;
 
@@ -206,30 +284,26 @@ export function useExecutionEvents({
         // Reconcile node-level statuses
         if (execution.nodeExecutions) {
           for (const ne of execution.nodeExecutions) {
+            const nodeType = ne.node?.type ?? "unknown";
+            const nodeLabel = ne.node?.label ?? ne.nodeId;
+
             updateNodeStatus(ne.nodeId, {
               status: mapNodeStatus(ne.status),
               duration: ne.durationMs ?? undefined,
               error: ne.error?.message,
             });
 
-            // Collect presentation node results from polling
-            if (
-              ne.status === "completed" &&
-              ne.outputData &&
-              typeof ne.outputData === "object" &&
-              "type" in ne.outputData
-            ) {
-              const outputType = ne.outputData.type as string;
-              if (PRESENTATION_TYPES.has(outputType)) {
-                addNodeResult({
-                  nodeId: ne.nodeId,
-                  nodeLabel:
-                    (ne.outputData.label as string) ?? ne.nodeId,
-                  nodeType: outputType,
-                  outputData: ne.outputData,
-                });
-              }
-            }
+            // Add all nodes to results timeline
+            addNodeResult({
+              nodeId: ne.nodeId,
+              nodeLabel,
+              nodeType,
+              nodeCategory: getCategoryForType(nodeType),
+              status: mapNodeStatus(ne.status),
+              duration: ne.durationMs ?? undefined,
+              error: ne.error?.message,
+              outputData: ne.outputData,
+            });
           }
         }
 
@@ -331,10 +405,10 @@ export function useExecutionEvents({
       client.off("execution.failed", handleExecutionFailed);
       client.off("execution.cancelled", handleExecutionCancelled);
       client.off("execution.waiting_for_input", handleWaitingForInput);
-      client.off("execution.node.started", nodeStarted);
+      client.off("execution.node.started", handleNodeStarted);
       client.off("execution.node.completed", handleNodeCompleted);
-      client.off("execution.node.failed", nodeFailed);
-      client.off("execution.node.skipped", nodeSkipped);
+      client.off("execution.node.failed", handleNodeFailed);
+      client.off("execution.node.skipped", handleNodeSkipped);
       client.unsubscribe(channel);
       // Do NOT disconnect - singleton stays alive
     };
@@ -345,8 +419,10 @@ export function useExecutionEvents({
     handleExecutionFailed,
     handleExecutionCancelled,
     handleWaitingForInput,
-    handleNodeEvent,
+    handleNodeStarted,
     handleNodeCompleted,
+    handleNodeFailed,
+    handleNodeSkipped,
     updateNodeStatus,
     addNodeResult,
     completeExecution,

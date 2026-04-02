@@ -501,7 +501,11 @@ export class ExecutionEngineService implements OnModuleInit {
       executionId,
       node.id,
       NodeEventType.NODE_STARTED,
-      { status: NodeExecutionStatus.RUNNING },
+      {
+        status: NodeExecutionStatus.RUNNING,
+        nodeType: node.type,
+        nodeLabel: node.label ?? node.type,
+      },
     );
 
     try {
@@ -544,6 +548,9 @@ export class ExecutionEngineService implements OnModuleInit {
         {
           status: NodeExecutionStatus.COMPLETED,
           duration: nodeExecution.durationMs,
+          nodeType: node.type,
+          nodeLabel: node.label ?? node.type,
+          output: nodeExecution.outputData,
         },
       );
 
@@ -576,7 +583,11 @@ export class ExecutionEngineService implements OnModuleInit {
             executionId,
             node.id,
             NodeEventType.NODE_SKIPPED,
-            { status: NodeExecutionStatus.SKIPPED },
+            {
+              status: NodeExecutionStatus.SKIPPED,
+              nodeType: node.type,
+              nodeLabel: node.label ?? node.type,
+            },
           );
           executedNodes.add(node.id);
           break;
@@ -634,6 +645,8 @@ export class ExecutionEngineService implements OnModuleInit {
             {
               status: NodeExecutionStatus.FAILED,
               error: error instanceof Error ? error.message : String(error),
+              nodeType: node.type,
+              nodeLabel: node.label ?? node.type,
             },
           );
           throw error;
