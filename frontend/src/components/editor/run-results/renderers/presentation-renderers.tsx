@@ -34,6 +34,31 @@ function sanitizeHtml(html: string): string {
   return DOMPurify.sanitize(html, SANITIZE_CONFIG);
 }
 
+/** Basic markdown to HTML conversion for template preview */
+function markdownToHtml(md: string): string {
+  return md
+    // Headers
+    .replace(/^######\s+(.+)$/gm, "<h6>$1</h6>")
+    .replace(/^#####\s+(.+)$/gm, "<h5>$1</h5>")
+    .replace(/^####\s+(.+)$/gm, "<h4>$1</h4>")
+    .replace(/^###\s+(.+)$/gm, "<h3>$1</h3>")
+    .replace(/^##\s+(.+)$/gm, "<h2>$1</h2>")
+    .replace(/^#\s+(.+)$/gm, "<h1>$1</h1>")
+    // Bold and italic
+    .replace(/\*\*\*(.+?)\*\*\*/g, "<strong><em>$1</em></strong>")
+    .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
+    .replace(/\*(.+?)\*/g, "<em>$1</em>")
+    // Code
+    .replace(/`([^`]+)`/g, "<code>$1</code>")
+    // Horizontal rule
+    .replace(/^---$/gm, "<hr>")
+    // Line breaks
+    .replace(/\n\n/g, "</p><p>")
+    .replace(/\n/g, "<br>")
+    .replace(/^(.+)/, "<p>$1")
+    .replace(/(.+)$/, "$1</p>");
+}
+
 export function JsonContent({ data }: { data: unknown }) {
   return (
     <pre className="overflow-auto whitespace-pre-wrap break-words text-xs font-mono bg-[hsl(var(--muted))] rounded p-2 max-h-[400px]">
@@ -135,22 +160,56 @@ function ChartContent({ data }: { data: Record<string, unknown> }) {
 }
 
 function TemplateContent({ data }: { data: Record<string, unknown> }) {
-  const outputFormat = data.outputFormat as string | undefined;
-  const rendered = data.rendered as string | undefined;
-  if (!rendered) return <JsonContent data={data} />;
+  // Backend returns { type, format, content }
+  const outputFormat = (data.format ?? data.outputFormat) as string | undefined;
+  const content = (data.content ?? data.rendered) as string | undefined;
+
+  if (!content) return <JsonContent data={data} />;
+
+  let preview: React.ReactNode;
 
   if (outputFormat === "html") {
-    return (
+    preview = (
       <div
         className="prose prose-sm max-w-none overflow-auto text-xs"
-        dangerouslySetInnerHTML={{ __html: sanitizeHtml(rendered) }}
+        dangerouslySetInnerHTML={{ __html: sanitizeHtml(content) }}
       />
     );
+  } else if (outputFormat === "markdown") {
+    // Convert basic markdown to HTML for preview
+    preview = (
+      <div
+        className="prose prose-sm max-w-none overflow-auto text-xs"
+        dangerouslySetInnerHTML={{ __html: sanitizeHtml(markdownToHtml(content)) }}
+      />
+    );
+  } else {
+    preview = (
+      <pre className="overflow-auto whitespace-pre-wrap break-words text-xs font-mono bg-[hsl(var(--muted))] rounded p-2">
+        {content}
+      </pre>
+    );
   }
+
   return (
-    <pre className="overflow-auto whitespace-pre-wrap break-words text-xs font-mono bg-[hsl(var(--muted))] rounded p-2">
-      {rendered}
-    </pre>
+    <div className="space-y-3">
+      {/* Rendered preview */}
+      <div>
+        <p className="text-xs font-medium text-[hsl(var(--muted-foreground))] mb-1">
+          Preview ({outputFormat ?? "text"})
+        </p>
+        <div className="rounded border border-[hsl(var(--border))] p-3">
+          {preview}
+        </div>
+      </div>
+      {/* Debug data */}
+      <div>
+        <p className="text-xs font-medium text-[hsl(var(--muted-foreground))] mb-1">
+          Output Data
+        </p>
+        <JsonContent data={data} />
+      </div>
+    </div>
   );
 }
 
@@ -199,20 +258,48 @@ export function PresentationContent({ result }: { result: NodeResult }) {
   const data = result.outputData as Record<string, unknown>;
   if (!data || typeof data !== "object") return <JsonContent data={data} />;
 
+  // Template already includes its own debug data section
+  if (result.nodeType === "template") {
+    return <TemplateContent data={data} />;
+  }
+
+  let preview: React.ReactNode;
   switch (result.nodeType) {
     case "table":
-      return <TableContent data={data} />;
+      preview = <TableContent data={data} />;
+      break;
     case "carousel":
-      return <CarouselContent data={data} />;
+      preview = <CarouselContent data={data} />;
+      break;
     case "chart":
-      return <ChartContent data={data} />;
-    case "template":
-      return <TemplateContent data={data} />;
+      preview = <ChartContent data={data} />;
+      break;
     case "pdf":
-      return <PdfContent data={data} />;
+      preview = <PdfContent data={data} />;
+      break;
     case "form":
-      return <FormSubmittedContent data={data} />;
+      preview = <FormSubmittedContent data={data} />;
+      break;
     default:
       return <JsonContent data={data} />;
   }
+
+  return (
+    <div className="space-y-3">
+      {/* Preview */}
+      <div>
+        <p className="text-xs font-medium text-[hsl(var(--muted-foreground))] mb-1">
+          Preview
+        </p>
+        {preview}
+      </div>
+      {/* Debug data */}
+      <div>
+        <p className="text-xs font-medium text-[hsl(var(--muted-foreground))] mb-1">
+          Output Data
+        </p>
+        <JsonContent data={data} />
+      </div>
+    </div>
+  );
 }

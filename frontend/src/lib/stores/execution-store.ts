@@ -32,6 +32,8 @@ export interface NodeResult {
   duration?: number;
   error?: string;
   outputData: unknown;
+  /** ISO timestamp when this node started executing (for chronological sorting) */
+  startedAt?: string;
 }
 
 interface ExecutionState {
@@ -57,6 +59,16 @@ interface ExecutionState {
   resumeFromForm: () => void;
   selectResultNode: (nodeId: string | null) => void;
   reset: () => void;
+}
+
+/** Sort node results chronologically by startedAt timestamp */
+function sortByStartedAt(results: NodeResult[]): NodeResult[] {
+  return [...results].sort((a, b) => {
+    if (!a.startedAt && !b.startedAt) return 0;
+    if (!a.startedAt) return 1;
+    if (!b.startedAt) return -1;
+    return new Date(a.startedAt).getTime() - new Date(b.startedAt).getTime();
+  });
 }
 
 export const useExecutionStore = create<ExecutionState>((set) => ({
@@ -93,13 +105,15 @@ export const useExecutionStore = create<ExecutionState>((set) => ({
       // Avoid duplicate entries for the same node
       const exists = state.nodeResults.some((r) => r.nodeId === result.nodeId);
       if (exists) {
-        return {
-          nodeResults: state.nodeResults.map((r) =>
-            r.nodeId === result.nodeId ? result : r,
-          ),
-        };
+        const updated = state.nodeResults.map((r) =>
+          r.nodeId === result.nodeId
+            ? { ...result, startedAt: result.startedAt ?? r.startedAt }
+            : r,
+        );
+        return { nodeResults: sortByStartedAt(updated) };
       }
-      return { nodeResults: [...state.nodeResults, result] };
+      const appended = [...state.nodeResults, result];
+      return { nodeResults: sortByStartedAt(appended) };
     }),
 
   completeExecution: () =>
