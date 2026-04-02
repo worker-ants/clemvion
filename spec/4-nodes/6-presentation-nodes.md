@@ -6,30 +6,43 @@
 
 ## 1. Carousel
 
-입력 배열 데이터를 캐러셀(슬라이드) 형태로 구조화하여 시각적으로 렌더링한다. 다운스트림 노드에 구조화된 데이터를 전달하고, 실행 결과 뷰어에서 슬라이드 형태로 확인할 수 있다.
+데이터를 캐러셀(슬라이드) 형태로 구조화하여 시각적으로 렌더링한다. **Static** 모드에서는 각 슬라이드를 직접 정의하고, **Dynamic** 모드에서는 입력 배열 데이터의 필드를 매핑하여 자동 생성한다. 다운스트림 노드에 구조화된 데이터를 전달하고, 실행 결과 뷰어에서 슬라이드 형태로 확인할 수 있다.
 
 ### 1.1 Config
 
 | 필드 | 타입 | 필수 | 기본값 | 설명 |
 |------|------|------|--------|------|
-| titleField | String | ✓ | — | 각 슬라이드의 제목으로 사용할 입력 데이터 필드 경로 |
-| descriptionField | String | ✓ | — | 각 슬라이드의 설명으로 사용할 입력 데이터 필드 경로 |
-| imageField | String? | ✗ | — | 이미지 URL 필드 경로 (지정 시 이미지 슬라이드) |
-| maxItems | Number | ✗ | 10 | 최대 슬라이드 수 (1~100) |
+| mode | Enum | ✗ | `dynamic` | `static` / `dynamic` — 하위호환을 위해 미지정 시 `dynamic` |
+| items | ItemDef[] | static 모드 시 ✓ | `[]` | 정적 캐러셀 아이템 목록 (static 모드 전용) |
+| titleField | String | dynamic 모드 시 ✓ | — | 각 슬라이드의 제목으로 사용할 입력 데이터 필드 경로 |
+| descriptionField | String | ✗ | — | 각 슬라이드의 설명으로 사용할 입력 데이터 필드 경로 (dynamic 모드 전용) |
+| imageField | String? | ✗ | — | 이미지 URL 필드 경로 (지정 시 이미지 슬라이드, dynamic 모드 전용) |
+| maxItems | Number | ✗ | 10 | 최대 슬라이드 수 1~100 (dynamic 모드 전용) |
 | layout | Enum | ✗ | card | `card` / `image` / `minimal` |
+
+**ItemDef (static 모드 아이템 정의):**
+
+| 필드 | 타입 | 필수 | 설명 |
+|------|------|------|------|
+| title | String | ✓ | 슬라이드 제목 (`{{ }}` 표현식 사용 가능) |
+| description | String | ✗ | 슬라이드 설명 (`{{ }}` 표현식 사용 가능) |
+| image | String? | ✗ | 이미지 URL (`{{ }}` 표현식 사용 가능) |
 
 ### 1.2 포트 정의
 
 | 포트 | 방향 | 식별자 | 설명 |
 |------|------|--------|------|
-| Input | 입력 | `in` | 배열 데이터 입력 |
+| Input | 입력 | `in` | 배열 데이터 입력 (static 모드에서는 선택적 — 표현식에서 참조할 경우에만 필요) |
 | Output | 출력 | `out` | 캐러셀 구조 데이터 출력 |
 
 ### 1.3 실행 로직
 
-1. 입력 데이터에서 배열 추출 (최상위가 배열이 아닌 경우 배열 필드 자동 탐색)
-2. `maxItems`까지 항목 제한
-3. 각 항목에서 `titleField`, `descriptionField`, `imageField`를 매핑하여 슬라이드 구조 생성
+1. `mode` 확인 (기본값: `dynamic`)
+2. **Static 모드**: `items` 배열을 직접 사용 (표현식은 실행 엔진이 사전 해석)
+3. **Dynamic 모드**:
+   1. 입력 데이터에서 배열 추출 (최상위가 배열이 아닌 경우 배열 필드 자동 탐색)
+   2. `maxItems`까지 항목 제한
+   3. 각 항목에서 `titleField`, `descriptionField`, `imageField`를 매핑하여 슬라이드 구조 생성
 4. `layout`에 따른 HTML 렌더링 생성
 5. 구조화된 JSON + 렌더링된 HTML을 출력 포트로 전달
 
@@ -45,33 +58,57 @@
       "image": "..."
     }
   ],
+  "layout": "card",
   "rendered": "<html>..."
 }
 ```
 
 ### 1.4 설정 UI
 
+**Static 모드:**
+
 ```
 ┌──────────────────────────────┐
 │  Carousel Settings                   │
 │  ────────────────────────────── │
+│  Mode: [Static Items ▼]             │
+│                                      │
+│  ─── Items ─────────────────────── │
+│  ┌ Item 1 ──────────────────── [X] │
+│  │ Title: [Hello World_______]      │
+│  │ Description: [Description_]      │
+│  │ Image URL: [https://...]         │
+│  └──────────────────────────────── │
+│  ┌ Item 2 ──────────────────── [X] │
+│  │ Title: [Second Slide______]      │
+│  │ Description: [Description_]      │
+│  │ Image URL: [https://...]         │
+│  └──────────────────────────────── │
+│  [+ Add Item]                        │
+│                                      │
 │  Layout: [card ▼]                    │
+└──────────────────────────────┘
+```
+
+**Dynamic 모드:**
+
+```
+┌──────────────────────────────┐
+│  Carousel Settings                   │
+│  ────────────────────────────── │
+│  Mode: [Dynamic (from input) ▼]     │
 │                                      │
 │  Title Field:       [name________]   │
 │  Description Field: [summary_____]   │
 │  Image Field:       [thumbnail___]   │
-│                                      │
 │  Max Items:         [10_]            │
 │                                      │
-│  ─── Preview ───────────────────── │
-│  ┌──────┐ ┌──────┐ ┌──────┐        │
-│  │Card 1│ │Card 2│ │Card 3│ ...    │
-│  └──────┘ └──────┘ └──────┘        │
+│  Layout: [card ▼]                    │
 └──────────────────────────────┘
 ```
 
-- 필드 경로 입력 시 이전 노드 출력 스키마 기반 자동완성 지원
-- 하단 Preview: 마지막 실행 데이터 기준으로 캐러셀 미리보기
+- Static 모드: 각 아이템의 필드에서 `{{ }}` 표현식으로 변수 참조 가능
+- Dynamic 모드: 필드 경로 입력 시 이전 노드 출력 스키마 기반 자동완성 지원
 
 ---
 
