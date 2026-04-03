@@ -9,6 +9,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Braces, ChevronRight, ChevronDown } from "lucide-react";
 import type { ExpressionData } from "./use-expression-context";
+import { getValueType } from "./resolve-nested-path";
 
 interface VariablePickerProps {
   expressionData: ExpressionData;
@@ -32,6 +33,8 @@ const BUILT_IN_VARIABLES = [
   { label: "$item", insert: "$item", detail: "ForEach current item" },
   { label: "$itemIndex", insert: "$itemIndex", detail: "ForEach index" },
 ];
+
+const MAX_NESTING_DEPTH = 5;
 
 function CategoryHeader({
   label,
@@ -88,29 +91,124 @@ function PickerItem({
   );
 }
 
+function NestedFieldItem({
+  fieldName,
+  parentPath,
+  sample,
+  onInsert,
+  depth,
+}: {
+  fieldName: string;
+  parentPath: string;
+  sample: Record<string, unknown>;
+  onInsert: (text: string) => void;
+  depth: number;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  const fullPath = `${parentPath}.${fieldName}`;
+  const value = sample[fieldName];
+  const typeLabel = getValueType(value);
+
+  // Determine if this field can be expanded (object or array of objects)
+  let isExpandable = false;
+  let childSample: Record<string, unknown> | null = null;
+
+  if (value !== null && typeof value === "object" && !Array.isArray(value)) {
+    isExpandable = Object.keys(value as Record<string, unknown>).length > 0;
+    childSample = value as Record<string, unknown>;
+  } else if (Array.isArray(value) && value.length > 0) {
+    const first = value[0];
+    if (first && typeof first === "object" && !Array.isArray(first)) {
+      isExpandable = Object.keys(first as Record<string, unknown>).length > 0;
+      childSample = first as Record<string, unknown>;
+    }
+  }
+
+  // Respect max nesting depth
+  if (depth >= MAX_NESTING_DEPTH) isExpandable = false;
+
+  const paddingLeft = 12 + depth * 12;
+
+  if (!isExpandable) {
+    return (
+      <button
+        type="button"
+        onClick={() => onInsert(fullPath)}
+        className="flex w-full items-center justify-between gap-1 py-1 text-left text-xs hover:bg-[hsl(var(--accent))]"
+        style={{ paddingLeft, paddingRight: 12 }}
+      >
+        <span className="truncate text-green-400">.{fieldName}</span>
+        <span className="shrink-0 text-[10px] text-[hsl(var(--muted-foreground))]">
+          {typeLabel}
+        </span>
+      </button>
+    );
+  }
+
+  return (
+    <div>
+      <button
+        type="button"
+        onClick={() => setExpanded(!expanded)}
+        className="flex w-full items-center gap-1 py-1 text-left text-xs hover:bg-[hsl(var(--accent))]"
+        style={{ paddingLeft, paddingRight: 12 }}
+      >
+        {expanded ? (
+          <ChevronDown className="h-3 w-3 shrink-0 text-[hsl(var(--muted-foreground))]" />
+        ) : (
+          <ChevronRight className="h-3 w-3 shrink-0 text-[hsl(var(--muted-foreground))]" />
+        )}
+        <span className="flex-1 truncate text-green-400">.{fieldName}</span>
+        <span className="shrink-0 text-[10px] text-[hsl(var(--muted-foreground))]">
+          {typeLabel}
+        </span>
+      </button>
+      {expanded &&
+        childSample &&
+        Object.keys(childSample).map((key) => (
+          <NestedFieldItem
+            key={key}
+            fieldName={key}
+            parentPath={fullPath}
+            sample={childSample}
+            onInsert={onInsert}
+            depth={depth + 1}
+          />
+        ))}
+    </div>
+  );
+}
+
 function NodeSection({
   node,
   onInsert,
 }: {
-  node: { label: string; type: string; outputFields: string[] };
+  node: {
+    label: string;
+    type: string;
+    outputFields: string[];
+    outputSample: Record<string, unknown>;
+  };
   onInsert: (text: string) => void;
 }) {
   const [expanded, setExpanded] = useState(false);
+  const basePath = `$node["${node.label}"].output`;
+  const hasFields = Object.keys(node.outputSample).length > 0;
 
   return (
     <div>
       <button
         type="button"
         onClick={() => {
-          if (node.outputFields.length > 0) {
+          if (hasFields) {
             setExpanded(!expanded);
           } else {
-            onInsert(`$node["${node.label}"].output`);
+            onInsert(basePath);
           }
         }}
         className="flex w-full items-center gap-1 px-3 py-1 text-left text-xs hover:bg-[hsl(var(--accent))]"
       >
-        {node.outputFields.length > 0 ? (
+        {hasFields ? (
           expanded ? (
             <ChevronDown className="h-3 w-3 shrink-0 text-[hsl(var(--muted-foreground))]" />
           ) : (
@@ -125,22 +223,46 @@ function NodeSection({
         </span>
       </button>
       {expanded &&
-        node.outputFields.map((field) => (
-          <PickerItem
+        hasFields &&
+        Object.keys(node.outputSample).map((field) => (
+          <NestedFieldItem
             key={field}
-            label={`.${field}`}
-            colorClass="text-green-400 pl-4"
-            onClick={() =>
-              onInsert(`$node["${node.label}"].output.${field}`)
-            }
+            fieldName={field}
+            parentPath={basePath}
+            sample={node.outputSample}
+            onInsert={onInsert}
+            depth={0}
           />
         ))}
-      {expanded && node.outputFields.length === 0 && (
+      {expanded && !hasFields && (
         <div className="px-6 py-1 text-[10px] text-[hsl(var(--muted-foreground))]">
           No output fields (run workflow first)
         </div>
       )}
     </div>
+  );
+}
+
+function InputFieldSection({
+  inputSample,
+  onInsert,
+}: {
+  inputSample: Record<string, unknown>;
+  onInsert: (text: string) => void;
+}) {
+  return (
+    <>
+      {Object.keys(inputSample).map((field) => (
+        <NestedFieldItem
+          key={field}
+          fieldName={field}
+          parentPath="$input"
+          sample={inputSample}
+          onInsert={onInsert}
+          depth={0}
+        />
+      ))}
+    </>
   );
 }
 
@@ -168,6 +290,8 @@ export function VariablePicker({
     onOpenChange(false);
   };
 
+  const inputFieldCount = Object.keys(expressionData.inputSample).length;
+
   return (
     <Popover open={open} onOpenChange={onOpenChange}>
       <PopoverTrigger asChild>
@@ -192,23 +316,20 @@ export function VariablePicker({
         </div>
 
         {/* $input section */}
-        {expressionData.inputFields.length > 0 && (
+        {inputFieldCount > 0 && (
           <div>
             <CategoryHeader
               label="$input"
               expanded={expandedCategories.$input ?? true}
               onToggle={() => toggleCategory("$input")}
-              count={expressionData.inputFields.length}
+              count={inputFieldCount}
             />
-            {expandedCategories.$input &&
-              expressionData.inputFields.map((field) => (
-                <PickerItem
-                  key={field}
-                  label={`$input.${field}`}
-                  colorClass={TYPE_COLORS.field}
-                  onClick={() => handleInsert(`$input.${field}`)}
-                />
-              ))}
+            {expandedCategories.$input && (
+              <InputFieldSection
+                inputSample={expressionData.inputSample}
+                onInsert={handleInsert}
+              />
+            )}
           </div>
         )}
 
