@@ -98,10 +98,14 @@ export function IfElseConfig({ config, onChange }: { config: Config; onChange: O
 export function SwitchConfig({ config, onChange }: { config: Config; onChange: OnChange }) {
   const mode = (config.mode as string) ?? "value";
   const switchValue = (config.switchValue as string) ?? "";
-  const cases = (config.cases as Array<{ label: string; value: string }>) ?? [];
+  const cases = (config.cases as Array<{ id: string; label: string; value: string }>) ?? [];
 
   const addCase = () =>
-    onChange({ ...config, cases: [...cases, { label: `Case ${cases.length + 1}`, value: "" }] });
+    onChange({
+      ...config,
+      hasDefault: true,
+      cases: [...cases, { id: crypto.randomUUID(), label: `Case ${cases.length + 1}`, value: "" }],
+    });
 
   const removeCase = (i: number) =>
     onChange({ ...config, cases: cases.filter((_, idx) => idx !== i) });
@@ -131,7 +135,7 @@ export function SwitchConfig({ config, onChange }: { config: Config; onChange: O
       />
       <SectionTitle>Cases</SectionTitle>
       {cases.map((c, i) => (
-        <div key={i} className="flex gap-1">
+        <div key={c.id} className="flex gap-1">
           <Input
             value={c.label}
             onChange={(e) => updateCase(i, "label", e.target.value)}
@@ -155,11 +159,11 @@ export function SwitchConfig({ config, onChange }: { config: Config; onChange: O
       <Button variant="outline" size="sm" className="h-7 text-xs" onClick={addCase}>
         <Plus size={12} className="mr-1" /> Add Case
       </Button>
-      <CheckboxField
-        label="Include default case"
-        checked={(config.hasDefault as boolean) ?? true}
-        onChange={(v) => onChange({ ...config, hasDefault: v })}
-      />
+      {/* Default case — fixed, non-removable */}
+      <div className="flex items-center gap-1 rounded border border-dashed border-[hsl(var(--border))] px-2 py-1.5">
+        <span className="text-[10px] font-medium text-[hsl(var(--muted-foreground))]">Default</span>
+        <span className="ml-auto text-[10px] text-[hsl(var(--muted-foreground))]">no match fallback</span>
+      </div>
     </div>
   );
 }
