@@ -75,17 +75,31 @@ export function useExecutionEvents({
     completeExecution,
     failExecution,
     pauseForForm,
+    resumeFromForm,
   } = useExecutionStore();
 
   const handleExecutionStarted = useCallback(
     (data: unknown) => {
       const payload = data as { executionId?: string };
-      if (payload.executionId) {
-        startExecution(payload.executionId);
+      if (!payload.executionId) return;
+
+      // Backward compat guard: older backends may emit execution.started
+      // instead of execution.resumed when resuming from a form submission.
+      // Avoid resetting nodeResults when we're just resuming.
+      const { status: currentStatus } = useExecutionStore.getState();
+      if (currentStatus === "waiting_for_input") {
+        resumeFromForm();
+        return;
       }
+
+      startExecution(payload.executionId);
     },
-    [startExecution],
+    [startExecution, resumeFromForm],
   );
+
+  const handleExecutionResumed = useCallback(() => {
+    resumeFromForm();
+  }, [resumeFromForm]);
 
   const handleExecutionCompleted = useCallback(() => {
     completeExecution();
@@ -275,6 +289,7 @@ export function useExecutionEvents({
 
     // Bind execution events BEFORE subscribing
     client.on("execution.started", handleExecutionStarted);
+    client.on("execution.resumed", handleExecutionResumed);
     client.on("execution.completed", handleExecutionCompleted);
     client.on("execution.failed", handleExecutionFailed);
     client.on("execution.cancelled", handleExecutionCancelled);
@@ -328,6 +343,8 @@ export function useExecutionEvents({
         }
 
         // Reconcile execution-level status
+        const { status: prevStatus } = useExecutionStore.getState();
+
         if (execution.status === "completed") {
           completeExecution();
           return true;
@@ -337,6 +354,13 @@ export function useExecutionEvents({
         } else if (execution.status === "cancelled") {
           failExecution("Execution cancelled");
           return true;
+        } else if (
+          execution.status === "running" &&
+          prevStatus === "waiting_for_input"
+        ) {
+          // Execution resumed from form — WebSocket event may have been missed
+          resumeFromForm();
+          return false;
         } else if (execution.status === "waiting_for_input") {
           // Skip if already in waiting state for the same node
           const { waitingNodeId: currentWaiting } =
@@ -421,6 +445,7 @@ export function useExecutionEvents({
       client.off("disconnect", onDisconnect);
       client.off("connect", onReconnect);
       client.off("execution.started", handleExecutionStarted);
+      client.off("execution.resumed", handleExecutionResumed);
       client.off("execution.completed", handleExecutionCompleted);
       client.off("execution.failed", handleExecutionFailed);
       client.off("execution.cancelled", handleExecutionCancelled);
@@ -435,6 +460,7 @@ export function useExecutionEvents({
   }, [
     executionId,
     handleExecutionStarted,
+    handleExecutionResumed,
     handleExecutionCompleted,
     handleExecutionFailed,
     handleExecutionCancelled,
@@ -448,6 +474,7 @@ export function useExecutionEvents({
     completeExecution,
     failExecution,
     pauseForForm,
+    resumeFromForm,
   ]);
 
   return { isConnected };

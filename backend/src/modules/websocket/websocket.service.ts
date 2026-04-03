@@ -3,6 +3,8 @@ import { WebsocketGateway } from './websocket.gateway';
 
 export enum ExecutionEventType {
   EXECUTION_STARTED = 'execution.started',
+  /** Emitted when execution resumes after a Form node receives user input (not a fresh start) */
+  EXECUTION_RESUMED = 'execution.resumed',
   EXECUTION_COMPLETED = 'execution.completed',
   EXECUTION_FAILED = 'execution.failed',
   EXECUTION_CANCELLED = 'execution.cancelled',

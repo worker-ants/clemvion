@@ -115,6 +115,7 @@ describe("useExecutionEvents", () => {
     expect(boundEvents).toContain("execution.node.failed");
     expect(boundEvents).toContain("execution.node.skipped");
     expect(boundEvents).toContain("execution.waiting_for_input");
+    expect(boundEvents).toContain("execution.resumed");
   });
 
   it("handles execution.waiting_for_input WS event", async () => {
@@ -477,6 +478,12 @@ describe("useExecutionEvents", () => {
       (c: unknown[]) => c[0] === "connect",
     );
     expect(connectOffCalls.length).toBe(2);
+
+    // Verify execution.resumed handler is cleaned up
+    const resumedOffCalls = offCalls.filter(
+      (c: unknown[]) => c[0] === "execution.resumed",
+    );
+    expect(resumedOffCalls.length).toBe(1);
   });
 
   it("unsubscribes from old channel when executionId changes", async () => {
@@ -631,6 +638,88 @@ describe("useExecutionEvents", () => {
       const results = useExecutionStore.getState().nodeResults;
       expect(results).toHaveLength(1);
       expect(results[0].status).toBe("skipped");
+    });
+
+    it("execution.resumed resumes without clearing nodeResults", () => {
+      // Set up: execution is waiting for form input with existing results
+      useExecutionStore.getState().startExecution("exec-1");
+      useExecutionStore.getState().addNodeResult({
+        nodeId: "node-1",
+        nodeLabel: "HTTP Request",
+        nodeType: "http_request",
+        nodeCategory: "integration",
+        status: "completed",
+        outputData: { status: 200 },
+        startedAt: "2026-04-01T00:00:00Z",
+      });
+      useExecutionStore.getState().pauseForForm("form-1", { fields: [] });
+
+      renderHook(() => useExecutionEvents({ executionId: "exec-1" }));
+
+      const handler = getEventHandler("execution.resumed");
+      expect(handler).toBeDefined();
+      handler({ executionId: "exec-1" });
+
+      const state = useExecutionStore.getState();
+      // Status should be running (resumed)
+      expect(state.status).toBe("running");
+      // Waiting state should be cleared
+      expect(state.waitingNodeId).toBeNull();
+      // Previous nodeResults should be preserved (NOT cleared)
+      expect(state.nodeResults).toHaveLength(1);
+      expect(state.nodeResults[0].nodeId).toBe("node-1");
+    });
+
+    it("execution.started does NOT reset results when status is waiting_for_input (backward compat guard)", () => {
+      // Set up: execution is waiting for form with existing results
+      useExecutionStore.getState().startExecution("exec-1");
+      useExecutionStore.getState().addNodeResult({
+        nodeId: "node-1",
+        nodeLabel: "HTTP Request",
+        nodeType: "http_request",
+        nodeCategory: "integration",
+        status: "completed",
+        outputData: { status: 200 },
+        startedAt: "2026-04-01T00:00:00Z",
+      });
+      useExecutionStore.getState().addNodeResult({
+        nodeId: "form-1",
+        nodeLabel: "Form",
+        nodeType: "form",
+        nodeCategory: "presentation",
+        status: "waiting_for_input",
+        outputData: null,
+        startedAt: "2026-04-01T00:00:01Z",
+      });
+      useExecutionStore.getState().pauseForForm("form-1", { fields: [] });
+
+      renderHook(() => useExecutionEvents({ executionId: "exec-1" }));
+
+      const handler = getEventHandler("execution.started");
+      // Simulate old backend sending execution.started on resume
+      handler({ executionId: "exec-1" });
+
+      const state = useExecutionStore.getState();
+      // Should resume, NOT reset
+      expect(state.status).toBe("running");
+      expect(state.waitingNodeId).toBeNull();
+      // All previous results preserved
+      expect(state.nodeResults).toHaveLength(2);
+      expect(state.nodeResults[0].nodeId).toBe("node-1");
+      expect(state.nodeResults[1].nodeId).toBe("form-1");
+    });
+
+    it("execution.started DOES reset results for a fresh execution", () => {
+      // Status is idle (not waiting_for_input)
+      renderHook(() => useExecutionEvents({ executionId: "exec-1" }));
+
+      const handler = getEventHandler("execution.started");
+      handler({ executionId: "exec-1" });
+
+      const state = useExecutionStore.getState();
+      expect(state.status).toBe("running");
+      expect(state.executionId).toBe("exec-1");
+      expect(state.nodeResults).toHaveLength(0);
     });
   });
 });
