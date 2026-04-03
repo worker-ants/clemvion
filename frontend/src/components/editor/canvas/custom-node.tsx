@@ -28,7 +28,16 @@ function CustomNodeComponent({ id, data, selected }: NodeProps<CustomNodeType>) 
   const definition = getNodeDefinition(data.type);
   const categoryColor = CATEGORY_COLORS[data.category] ?? "#6B7280";
   const inputs = definition?.inputs ?? [];
-  const outputs = definition?.outputs ?? [];
+  const outputs = useMemo(() => {
+    if (data.type === "switch") {
+      const cases = (data.config.cases as Array<{ id: string; label: string }>) ?? [];
+      const casePorts = cases
+        .filter((c) => c.id)
+        .map((c) => ({ id: c.id, label: c.label || "Case", type: "data" as const }));
+      return [...casePorts, { id: "default", label: "Default", type: "data" as const }];
+    }
+    return getNodeDefinition(data.type)?.outputs ?? [];
+  }, [data.type, data.config]);
   const hasMultipleOutputs = outputs.length > 1;
   const isContainer = definition?.isContainer ?? false;
 

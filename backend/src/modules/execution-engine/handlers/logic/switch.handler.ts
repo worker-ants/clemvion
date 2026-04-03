@@ -7,13 +7,14 @@ import { getNestedValue } from './nested-value.util.js';
 
 interface SwitchCase {
   id: string;
+  label?: string;
   value: unknown;
 }
 
 interface SwitchConfig {
   switchValue: string;
   cases: SwitchCase[];
-  hasDefault: boolean;
+  hasDefault?: boolean;
 }
 
 export class SwitchHandler implements NodeHandler {
@@ -37,7 +38,11 @@ export class SwitchHandler implements NodeHandler {
       }
     }
 
-    if (hasDefault !== undefined && typeof hasDefault !== 'boolean') {
+    if (
+      hasDefault !== undefined &&
+      hasDefault !== null &&
+      typeof hasDefault !== 'boolean'
+    ) {
       errors.push('hasDefault must be a boolean');
     }
 
@@ -60,10 +65,12 @@ export class SwitchHandler implements NodeHandler {
       return { port: matchedCase.id, data: input };
     }
 
-    if (hasDefault) {
+    if (hasDefault !== false) {
       return { port: 'default', data: input };
     }
 
-    return { port: 'default', data: input };
+    throw new Error(
+      `No matching case found for value "${String(actualValue)}" and no default case configured`,
+    );
   }
 }

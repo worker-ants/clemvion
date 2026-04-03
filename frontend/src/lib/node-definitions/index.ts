@@ -32,7 +32,7 @@ export const NODE_DEFINITIONS: NodeDefinition[] = [
 
   // ===== LOGIC (9) =====
   { type: "if_else", category: "logic", label: "If/Else", description: "Conditional branching", icon: "GitBranch", color: CATEGORY_COLORS.logic, inputs: [{ id: "in", label: "Input", type: "data" }], outputs: [{ id: "true", label: "True", type: "data" }, { id: "false", label: "False", type: "data" }] },
-  { type: "switch", category: "logic", label: "Switch", description: "Multi-path branching", icon: "Route", color: CATEGORY_COLORS.logic, inputs: [{ id: "in", label: "Input", type: "data" }], outputs: [{ id: "default", label: "Default", type: "data" }] },
+  { type: "switch", category: "logic", label: "Switch", description: "Multi-path branching", icon: "Route", color: CATEGORY_COLORS.logic, inputs: [{ id: "in", label: "Input", type: "data" }], outputs: [] },
   { type: "loop", category: "logic", label: "Loop", description: "Repeat N times", icon: "Repeat", color: CATEGORY_COLORS.logic, inputs: [{ id: "in", label: "Input", type: "data" }], outputs: [{ id: "body", label: "Body", type: "data" }, { id: "done", label: "Done", type: "data" }], isContainer: true },
   { type: "variable_declaration", category: "logic", label: "Variable", description: "Declare variables", icon: "Variable", color: CATEGORY_COLORS.logic, inputs: [{ id: "in", label: "Input", type: "data" }], outputs: [{ id: "out", label: "Output", type: "data" }] },
   { type: "variable_modification", category: "logic", label: "Set Variable", description: "Modify variables", icon: "PenLine", color: CATEGORY_COLORS.logic, inputs: [{ id: "in", label: "Input", type: "data" }], outputs: [{ id: "out", label: "Output", type: "data" }] },
