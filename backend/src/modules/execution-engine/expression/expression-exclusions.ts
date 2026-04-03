@@ -7,4 +7,6 @@ export const EXPRESSION_EXCLUSIONS: Record<string, Set<string>> = {
   code: new Set(['code']),
   // columns expressions are evaluated per-item inside TableHandler
   table: new Set(['columns']),
+  // conditions contain field paths relative to each array item, not expressions
+  filter: new Set(['conditions']),
 };

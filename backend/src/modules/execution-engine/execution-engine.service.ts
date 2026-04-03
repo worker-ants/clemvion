@@ -49,6 +49,7 @@ import { SplitHandler } from './handlers/logic/split.handler';
 import { MapHandler } from './handlers/logic/map.handler';
 import { ForEachHandler } from './handlers/logic/foreach.handler';
 import { MergeHandler } from './handlers/logic/merge.handler';
+import { FilterHandler } from './handlers/logic/filter.handler';
 import { WorkflowHandler } from './handlers/flow/workflow.handler';
 import { HttpRequestHandler } from './handlers/integration/http-request.handler';
 import { DatabaseQueryHandler } from './handlers/integration/database-query.handler';
@@ -151,6 +152,7 @@ export class ExecutionEngineService implements OnModuleInit {
       ['map', new MapHandler()],
       ['foreach', new ForEachHandler()],
       ['merge', new MergeHandler()],
+      ['filter', new FilterHandler()],
       ['workflow', new WorkflowHandler()],
       ['http_request', new HttpRequestHandler()],
       ['database_query', new DatabaseQueryHandler()],

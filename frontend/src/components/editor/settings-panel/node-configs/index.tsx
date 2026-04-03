@@ -11,6 +11,7 @@ import {
   MapConfig,
   ForEachConfig,
   MergeConfig,
+  FilterConfig,
 } from "./logic-configs";
 
 // Flow
@@ -77,6 +78,8 @@ export function NodeConfigRenderer({
       return <ForEachConfig {...props} />;
     case "merge":
       return <MergeConfig {...props} />;
+    case "filter":
+      return <FilterConfig {...props} />;
     // Flow
     case "workflow":
       return <WorkflowConfig {...props} />;
