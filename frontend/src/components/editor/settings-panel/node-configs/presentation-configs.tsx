@@ -143,45 +143,148 @@ export function CarouselConfig({ config, onChange }: { config: Config; onChange:
 }
 
 // ===== Table =====
+interface TableRow {
+  id: string;
+  [key: string]: unknown;
+}
+
 export function TableConfig({ config, onChange }: { config: Config; onChange: OnChange }) {
+  const mode = (config.mode as string) ?? "dynamic";
   const columns = (config.columns as Array<{ field: string; label: string; sortable: boolean }>) ?? [];
+  const rows = (config.rows as TableRow[]) ?? [];
 
-  const addColumn = () =>
-    onChange({ ...config, columns: [...columns, { field: "", label: "", sortable: false }] });
+  const handleModeChange = (v: string) => {
+    const { rows: _rows, dataSource, ...rest } = config;
+    void _rows; void dataSource;
+    if (v === "static") {
+      onChange({ ...rest, mode: v, rows: rows.length ? rows : [] });
+    } else {
+      onChange({ ...rest, mode: v });
+    }
+  };
 
-  const removeColumn = (i: number) =>
-    onChange({ ...config, columns: columns.filter((_, idx) => idx !== i) });
+  const addColumn = () => {
+    const newField = `col${columns.length}`;
+    const newColumns = [...columns, { field: newField, label: "", sortable: false }];
+    const updatedRows = mode === "static"
+      ? rows.map((r) => ({ ...r, [newField]: "" }))
+      : rows;
+    onChange({ ...config, columns: newColumns, rows: updatedRows });
+  };
+
+  const removeColumn = (i: number) => {
+    const removedField = columns[i]?.field;
+    const newColumns = columns.filter((_, idx) => idx !== i);
+    const updatedRows = mode === "static" && removedField
+      ? rows.map((r) => {
+          const { [removedField]: _, ...rest } = r;
+          void _;
+          return rest as TableRow;
+        })
+      : rows;
+    onChange({ ...config, columns: newColumns, rows: updatedRows });
+  };
 
   const updateColumn = (i: number, key: string, val: string | boolean) => {
     const updated = columns.map((c, idx) => (idx === i ? { ...c, [key]: val } : c));
     onChange({ ...config, columns: updated });
   };
 
+  const addRow = () => {
+    const newRow: TableRow = { id: crypto.randomUUID() };
+    for (const col of columns) {
+      newRow[col.field] = "";
+    }
+    onChange({ ...config, rows: [...rows, newRow] });
+  };
+
+  const removeRow = (i: number) =>
+    onChange({ ...config, rows: rows.filter((_, idx) => idx !== i) });
+
+  const updateRowCell = (rowIdx: number, field: string, val: string) => {
+    const updated = rows.map((r, idx) => (idx === rowIdx ? { ...r, [field]: val } : r));
+    onChange({ ...config, rows: updated });
+  };
+
   return (
     <div className="flex flex-col gap-3">
+      <SelectField
+        label="Mode"
+        value={mode}
+        onChange={handleModeChange}
+        options={[
+          { value: "dynamic", label: "Dynamic (from data)" },
+          { value: "static", label: "Static (manual)" },
+        ]}
+      />
+
+      {mode === "dynamic" && (
+        <ExpressionInput
+          label="Data Source"
+          value={(config.dataSource as string) ?? ""}
+          onChange={(v) => onChange({ ...config, dataSource: v || undefined })}
+          placeholder="{{ $node[&quot;Node&quot;].output }} or {{ $var.list }}"
+          hint="Array data source (leave empty for previous node input)"
+        />
+      )}
+
       <SectionTitle>Columns</SectionTitle>
       {columns.map((col, i) => (
-        <div key={i} className="flex gap-1">
-          <Input
-            value={col.field}
-            onChange={(e) => updateColumn(i, "field", e.target.value)}
-            placeholder="Field path"
-            className="h-7 flex-1 text-xs"
-          />
-          <Input
+        <div key={i} className="flex flex-col gap-1 rounded border border-[hsl(var(--border))] p-2">
+          <div className="flex items-center justify-between">
+            <span className="text-[10px] text-[hsl(var(--muted-foreground))]">Column {i + 1}</span>
+            <Button variant="ghost" size="icon" className="h-5 w-5" onClick={() => removeColumn(i)}>
+              <X size={10} />
+            </Button>
+          </div>
+          {mode === "dynamic" && (
+            <ExpressionInput
+              label="Field"
+              value={col.field}
+              onChange={(v) => updateColumn(i, "field", v)}
+              placeholder="Field path"
+            />
+          )}
+          <ExpressionInput
+            label="Label"
             value={col.label}
-            onChange={(e) => updateColumn(i, "label", e.target.value)}
-            placeholder="Header"
-            className="h-7 flex-1 text-xs"
+            onChange={(v) => updateColumn(i, "label", v)}
+            placeholder="Column header"
           />
-          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => removeColumn(i)}>
-            <X size={12} />
-          </Button>
         </div>
       ))}
       <Button variant="outline" size="sm" className="h-7 text-xs" onClick={addColumn}>
         <Plus size={12} className="mr-1" /> Add Column
       </Button>
+
+      {mode === "static" && (
+        <>
+          <SectionTitle>Rows</SectionTitle>
+          {rows.map((row, ri) => (
+            <div key={row.id ?? ri} className="flex flex-col gap-1 rounded border border-[hsl(var(--border))] p-2">
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] text-[hsl(var(--muted-foreground))]">Row {ri + 1}</span>
+                <Button variant="ghost" size="icon" className="h-5 w-5" onClick={() => removeRow(ri)}>
+                  <X size={10} />
+                </Button>
+              </div>
+              {columns.map((col) => (
+                <ExpressionInput
+                  key={col.field}
+                  label={col.label || col.field}
+                  value={String(row[col.field] ?? "")}
+                  onChange={(v) => updateRowCell(ri, col.field, v)}
+                  placeholder={`Value for ${col.label || col.field}`}
+                />
+              ))}
+            </div>
+          ))}
+          <Button variant="outline" size="sm" className="h-7 text-xs" onClick={addRow}>
+            <Plus size={12} className="mr-1" /> Add Row
+          </Button>
+        </>
+      )}
+
       <CheckboxField
         label="Enable pagination"
         checked={(config.pagination as boolean) ?? true}
