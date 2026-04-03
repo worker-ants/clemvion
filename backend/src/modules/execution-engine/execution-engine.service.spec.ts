@@ -498,6 +498,27 @@ describe('ExecutionEngineService', () => {
       expect(startedCalls).toHaveLength(0);
     });
 
+    it('should emit NODE_COMPLETED for the form node when resuming', async () => {
+      await service.execute(workflowId, { data: 'test' });
+      await flushPromises();
+
+      mockWebsocketService.emitNodeEvent.mockClear();
+
+      service.continueExecution(executionId, { approved: true });
+      await flushPromises();
+
+      // Form node should have a NODE_COMPLETED event
+      expect(mockWebsocketService.emitNodeEvent).toHaveBeenCalledWith(
+        executionId,
+        'node-form',
+        'execution.node.completed',
+        expect.objectContaining({
+          status: 'completed',
+          nodeType: 'form',
+        }),
+      );
+    });
+
     it('should throw when continueExecution called without pending continuation', async () => {
       expect(() => service.continueExecution('non-existent', {})).toThrow(
         'No pending continuation',

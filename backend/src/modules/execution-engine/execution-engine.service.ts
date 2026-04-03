@@ -456,6 +456,18 @@ export class ExecutionEngineService implements OnModuleInit {
       nodeExec.durationMs =
         nodeExec.finishedAt.getTime() - nodeExec.startedAt.getTime();
       await this.nodeExecutionRepository.save(nodeExec);
+      this.websocketService.emitNodeEvent(
+        executionId,
+        node.id,
+        NodeEventType.NODE_COMPLETED,
+        {
+          status: NodeExecutionStatus.COMPLETED,
+          duration: nodeExec.durationMs,
+          nodeType: node.type,
+          nodeLabel: node.label ?? node.type,
+          output: nodeExec.outputData,
+        },
+      );
     }
 
     // Transition back to RUNNING (resumed from form, not a fresh start)
