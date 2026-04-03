@@ -27,7 +27,7 @@
 | `string_op` | `field` (String), `operation` (trim / uppercase / lowercase / replace / split / join), `args` (Object) | 문자열 조작 |
 | `math_op` | `field` (String), `operation` (add / subtract / multiply / divide / round / ceil / floor), `operand` (Number, 표현식) | 수학 연산 |
 | `date_op` | `field` (String), `operation` (format / add / subtract / diff), `args` (Object) | 날짜 조작 |
-| `array_filter` | `field` (String), `condition` (조건 표현식) | 배열 필터링 |
+| `array_filter` | `field` (String), `condition` (조건 표현식) | 배열 필터링. 다중 조건 필터링이나 매칭/비매칭 분기가 필요하면 [Filter 노드](./1-logic-nodes.md#8-filter) 사용 |
 | `array_sort` | `field` (String), `sortBy` (String?), `order` (asc / desc) | 배열 정렬 |
 | `object_pick` | `field` (String?), `keys` (String[]) | 객체에서 특정 키만 선택 |
 
