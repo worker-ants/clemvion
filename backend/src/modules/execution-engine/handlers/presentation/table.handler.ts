@@ -3,8 +3,15 @@ import {
   NodeHandler,
   ValidationResult,
 } from '../node-handler.interface.js';
+import {
+  evaluate,
+  ExpressionContext as EngineContext,
+} from '@workflow/expression-engine';
+import { getNestedValue } from '../logic/nested-value.util.js';
 
 type TableMode = 'static' | 'dynamic';
+
+const EXPRESSION_PATTERN = /\{\{/;
 
 interface ColumnConfig {
   field: string;
@@ -62,8 +69,7 @@ export class TableHandler implements NodeHandler {
   execute(
     input: unknown,
     config: Record<string, unknown>,
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    _context: ExecutionContext,
+    context: ExecutionContext,
   ): Promise<unknown> {
     const mode: TableMode = ((config.mode as string) ?? 'dynamic') as TableMode;
     const columns = config.columns as ColumnConfig[];
@@ -90,13 +96,35 @@ export class TableHandler implements NodeHandler {
     } else {
       const source = config.dataSource != null ? config.dataSource : input;
       const sourceArray = Array.isArray(source) ? source : [source];
-      dataRows = sourceArray.map((item: Record<string, unknown>) => {
-        const row: Record<string, unknown> = {};
-        for (const col of columns) {
-          row[col.field] = item[col.field] ?? null;
-        }
-        return row;
-      });
+      const baseCtx = (context.expressionContext ?? {}) as EngineContext;
+
+      // Pre-classify columns: expression vs plain field path (avoids O(N×M) regex)
+      const exprFields = new Set(
+        columns
+          .filter((c) => EXPRESSION_PATTERN.test(c.field))
+          .map((c) => c.field),
+      );
+
+      dataRows = sourceArray.map(
+        (item: Record<string, unknown>, index: number) => {
+          const row: Record<string, unknown> = {};
+          const itemCtx: EngineContext = {
+            ...baseCtx,
+            $dataSource: sourceArray,
+            $sourceItem: item,
+            $sourceItemIndex: index,
+          };
+
+          for (const col of columns) {
+            if (exprFields.has(col.field)) {
+              row[col.field] = this.safeEvaluate(col.field, itemCtx);
+            } else {
+              row[col.field] = getNestedValue(item, col.field) ?? null;
+            }
+          }
+          return row;
+        },
+      );
     }
 
     if (sortBy) {
@@ -113,28 +141,66 @@ export class TableHandler implements NodeHandler {
       dataRows = dataRows.slice(0, pageSize);
     }
 
-    const rendered = this.renderHtml(columns, dataRows);
+    // Resolve label expressions (once, using first item context if available)
+    const resolvedColumns = this.resolveColumnLabels(
+      columns,
+      config,
+      input,
+      context,
+    );
+
+    const rendered = this.renderHtml(resolvedColumns, columns, dataRows);
 
     return Promise.resolve({
       type: 'table',
-      columns,
+      columns: resolvedColumns,
       rows: dataRows,
       totalRows: dataRows.length,
       rendered,
     });
   }
 
-  private renderHtml(
+  private resolveColumnLabels(
     columns: ColumnConfig[],
+    config: Record<string, unknown>,
+    input: unknown,
+    context: ExecutionContext,
+  ): ColumnConfig[] {
+    const mode = (config.mode as string) ?? 'dynamic';
+    if (mode !== 'dynamic') return columns;
+
+    const hasExpressionLabel = columns.some((c) =>
+      EXPRESSION_PATTERN.test(c.label),
+    );
+    if (!hasExpressionLabel) return columns;
+
+    const sourceArray = this.resolveDataSource(config, input);
+    const baseCtx = (context.expressionContext ?? {}) as EngineContext;
+    const ctx: EngineContext = {
+      ...baseCtx,
+      $dataSource: sourceArray,
+    };
+
+    return columns.map((col) => {
+      if (EXPRESSION_PATTERN.test(col.label)) {
+        return { ...col, label: String(this.safeEvaluate(col.label, ctx)) };
+      }
+      return col;
+    });
+  }
+
+  private renderHtml(
+    resolvedColumns: ColumnConfig[],
+    originalColumns: ColumnConfig[],
     rows: Record<string, unknown>[],
   ): string {
-    const headerCells = columns
+    const headerCells = resolvedColumns
       .map((col) => `<th>${this.escapeHtml(col.label)}</th>`)
       .join('');
 
     const bodyRows = rows
       .map((row) => {
-        const cells = columns
+        const cells = originalColumns
           .map(
             (col) =>
               `<td>${this.escapeHtml(this.toDisplayString(row[col.field]))}</td>`,
@@ -145,6 +211,22 @@ export class TableHandler implements NodeHandler {
       .join('');
 
     return `<table><thead><tr>${headerCells}</tr></thead><tbody>${bodyRows}</tbody></table>`;
+  }
+
+  private resolveDataSource(
+    config: Record<string, unknown>,
+    input: unknown,
+  ): unknown[] {
+    const source = config.dataSource != null ? config.dataSource : input;
+    return Array.isArray(source) ? source : [source];
+  }
+
+  private safeEvaluate(template: string, ctx: EngineContext): unknown {
+    try {
+      return evaluate(template, ctx);
+    } catch {
+      return null;
+    }
   }
 
   private toDisplayString(value: unknown): string {
@@ -161,6 +243,7 @@ export class TableHandler implements NodeHandler {
       .replace(/&/g, '&amp;')
       .replace(/</g, '&lt;')
       .replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;');
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#x27;');
   }
 }

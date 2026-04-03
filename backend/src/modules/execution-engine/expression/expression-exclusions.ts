@@ -5,4 +5,6 @@
  */
 export const EXPRESSION_EXCLUSIONS: Record<string, Set<string>> = {
   code: new Set(['code']),
+  // columns expressions are evaluated per-item inside TableHandler
+  table: new Set(['columns']),
 };

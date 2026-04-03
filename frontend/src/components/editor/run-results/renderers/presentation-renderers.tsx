@@ -67,16 +67,37 @@ export function JsonContent({ data }: { data: unknown }) {
   );
 }
 
+interface ColumnDef {
+  field: string;
+  label: string;
+}
+
+function normalizeColumns(raw: unknown, firstRow: unknown): ColumnDef[] {
+  if (Array.isArray(raw) && raw.length > 0) {
+    // columns can be objects { field, label } or plain strings
+    return raw.map((col) => {
+      if (typeof col === "object" && col !== null && "field" in col) {
+        const c = col as Record<string, unknown>;
+        return { field: String(c.field ?? ""), label: String(c.label ?? c.field ?? "") };
+      }
+      return { field: String(col), label: String(col) };
+    });
+  }
+  // Fallback: infer from first row keys
+  if (firstRow && typeof firstRow === "object") {
+    return Object.keys(firstRow as Record<string, unknown>).map((k) => ({ field: k, label: k }));
+  }
+  return [];
+}
+
 function TableContent({ data }: { data: Record<string, unknown> }) {
-  const tableData = data as { rows?: unknown[]; columns?: string[] };
-  if (!tableData.rows || !Array.isArray(tableData.rows)) {
+  const rows = data.rows as unknown[] | undefined;
+  if (!rows || !Array.isArray(rows)) {
     return <JsonContent data={data} />;
   }
-  const columns =
-    tableData.columns ??
-    (tableData.rows[0] && typeof tableData.rows[0] === "object"
-      ? Object.keys(tableData.rows[0] as Record<string, unknown>)
-      : []);
+  const columns = normalizeColumns(data.columns, rows[0]);
+  if (columns.length === 0) return <JsonContent data={data} />;
+
   return (
     <div className="overflow-auto rounded border border-[hsl(var(--border))]">
       <table className="w-full text-xs">
@@ -84,24 +105,24 @@ function TableContent({ data }: { data: Record<string, unknown> }) {
           <tr className="border-b border-[hsl(var(--border))] bg-[hsl(var(--muted))]">
             {columns.map((col) => (
               <th
-                key={String(col)}
+                key={col.field}
                 className="px-3 py-1.5 text-left font-medium"
               >
-                {String(col)}
+                {col.label}
               </th>
             ))}
           </tr>
         </thead>
         <tbody>
-          {tableData.rows.slice(0, 50).map((row, i) => (
+          {rows.slice(0, 50).map((row, i) => (
             <tr
               key={i}
               className="border-b border-[hsl(var(--border))] last:border-b-0"
             >
               {columns.map((col) => (
-                <td key={String(col)} className="px-3 py-1">
+                <td key={col.field} className="px-3 py-1">
                   {String(
-                    (row as Record<string, unknown>)[String(col)] ?? "",
+                    (row as Record<string, unknown>)[col.field] ?? "",
                   )}
                 </td>
               ))}
