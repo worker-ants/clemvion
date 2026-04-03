@@ -2,6 +2,7 @@
 
 import { useMemo } from "react";
 import type { ExpressionData } from "./use-expression-context";
+import { getNestedKeys, splitPathAndLeaf } from "./resolve-nested-path";
 
 export type SuggestionType = "variable" | "field" | "node" | "function";
 
@@ -10,6 +11,8 @@ export interface Suggestion {
   insertText: string;
   type: SuggestionType;
   detail?: string;
+  /** When true, selecting this suggestion auto-appends "." and keeps autocomplete open */
+  isExpandable?: boolean;
 }
 
 /** Top-level $ variables shown when entering an expression */
@@ -57,6 +60,39 @@ function getExpressionToken(
   return { token, start, end: cursorPos };
 }
 
+/** Build nested field suggestions from a sample object at the given field path */
+function buildNestedSuggestions(
+  sample: Record<string, unknown>,
+  fieldPrefix: string,
+): { suggestions: Suggestion[]; leafLength: number } {
+  const { parentPath, leafPrefix } = splitPathAndLeaf(fieldPrefix);
+
+  const nestedKeys = parentPath
+    ? getNestedKeys(sample, parentPath)
+    : Object.keys(sample).map((key) => {
+        const val = sample[key];
+        const type =
+          val === null
+            ? "null"
+            : Array.isArray(val)
+              ? "array"
+              : typeof val;
+        return { key, type };
+      });
+
+  const suggestions = nestedKeys
+    .filter((f) => f.key.toLowerCase().startsWith(leafPrefix.toLowerCase()))
+    .map((f) => ({
+      label: f.key,
+      insertText: f.key,
+      type: "field" as const,
+      detail: f.type,
+      isExpandable: f.type === "object" || f.type === "array",
+    }));
+
+  return { suggestions, leafLength: leafPrefix.length };
+}
+
 /**
  * Compute expression suggestions based on cursor position and expression data.
  */
@@ -73,7 +109,7 @@ export function useExpressionSuggestions(
     const { token, end } = ctx;
     const trimmedToken = token.trimStart();
 
-    // $node["..."].output. → field suggestions for that node
+    // $node["..."].output. → field suggestions for that node (supports nested paths)
     const nodeOutputMatch = trimmedToken.match(
       /\$node\["([^"]+)"\]\.output\.(.*)$/,
     );
@@ -84,16 +120,13 @@ export function useExpressionSuggestions(
         (n) => n.label === nodeLabel,
       );
       if (node) {
-        const suggestions = node.outputFields
-          .filter((f) => f.toLowerCase().startsWith(fieldPrefix.toLowerCase()))
-          .map((f) => ({
-            label: f,
-            insertText: f,
-            type: "field" as const,
-          }));
+        const { suggestions, leafLength } = buildNestedSuggestions(
+          node.outputSample,
+          fieldPrefix,
+        );
         return {
           suggestions,
-          tokenStart: end - fieldPrefix.length,
+          tokenStart: end - leafLength,
           tokenEnd: end,
         };
       }
@@ -120,19 +153,16 @@ export function useExpressionSuggestions(
       };
     }
 
-    // $input. → input field suggestions
+    // $input. → input field suggestions (supports nested paths)
     if (trimmedToken.startsWith("$input.")) {
       const fieldPrefix = trimmedToken.slice(7);
-      const suggestions = expressionData.inputFields
-        .filter((f) => f.toLowerCase().startsWith(fieldPrefix.toLowerCase()))
-        .map((f) => ({
-          label: f,
-          insertText: f,
-          type: "field" as const,
-        }));
+      const { suggestions, leafLength } = buildNestedSuggestions(
+        expressionData.inputSample,
+        fieldPrefix,
+      );
       return {
         suggestions,
-        tokenStart: end - fieldPrefix.length,
+        tokenStart: end - leafLength,
         tokenEnd: end,
       };
     }

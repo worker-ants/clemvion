@@ -41,7 +41,10 @@ vi.mock("@/lib/stores/execution-store", () => ({
         {
           nodeId: "n1",
           nodeLabel: "HTTP Request",
-          outputData: { statusCode: 200, body: { data: "test" } },
+          outputData: {
+            statusCode: 200,
+            body: { data: { message: "test", code: 0 }, headers: {} },
+          },
         },
       ],
     }),

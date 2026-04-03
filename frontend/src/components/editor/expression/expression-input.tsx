@@ -124,12 +124,20 @@ export function ExpressionInput({
     (suggestion: Suggestion) => {
       const before = value.slice(0, tokenStart);
       const after = value.slice(tokenEnd);
-      const newValue = before + suggestion.insertText + after;
+      // Auto-append "." for expandable (object/array) fields to enable drill-down
+      const suffix = suggestion.isExpandable ? "." : "";
+      const insertText = suggestion.insertText + suffix;
+      const newValue = before + insertText + after;
       onChange(newValue);
 
-      const newCursor = tokenStart + suggestion.insertText.length;
+      const newCursor = tokenStart + insertText.length;
       setCursorPos(newCursor);
-      setAutocompleteOpen(false);
+
+      // Keep autocomplete open for nested drill-down
+      if (!suggestion.isExpandable) {
+        setAutocompleteOpen(false);
+      }
+      setSelectedIndex(0);
 
       // Restore focus + cursor
       requestAnimationFrame(() => {
