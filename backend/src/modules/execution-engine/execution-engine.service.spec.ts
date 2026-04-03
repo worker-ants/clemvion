@@ -473,6 +473,31 @@ describe('ExecutionEngineService', () => {
       );
     });
 
+    it('should emit EXECUTION_RESUMED (not EXECUTION_STARTED) when resuming from form', async () => {
+      await service.execute(workflowId, { data: 'test' });
+      await flushPromises();
+
+      // Clear mock to isolate resume events
+      mockWebsocketService.emitExecutionEvent.mockClear();
+
+      // Resume with form data
+      service.continueExecution(executionId, { approved: true });
+      await flushPromises();
+
+      // Should emit execution.resumed, NOT execution.started
+      expect(mockWebsocketService.emitExecutionEvent).toHaveBeenCalledWith(
+        executionId,
+        'execution.resumed',
+        expect.objectContaining({ status: 'running' }),
+      );
+      // Ensure execution.started was NOT emitted during resume
+      const startedCalls =
+        mockWebsocketService.emitExecutionEvent.mock.calls.filter(
+          (call: unknown[]) => call[1] === 'execution.started',
+        );
+      expect(startedCalls).toHaveLength(0);
+    });
+
     it('should throw when continueExecution called without pending continuation', async () => {
       expect(() => service.continueExecution('non-existent', {})).toThrow(
         'No pending continuation',

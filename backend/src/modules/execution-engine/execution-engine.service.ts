@@ -458,11 +458,11 @@ export class ExecutionEngineService implements OnModuleInit {
       await this.nodeExecutionRepository.save(nodeExec);
     }
 
-    // Transition back to RUNNING
+    // Transition back to RUNNING (resumed from form, not a fresh start)
     await this.updateExecutionStatus(savedExecution, ExecutionStatus.RUNNING);
     this.websocketService.emitExecutionEvent(
       executionId,
-      ExecutionEventType.EXECUTION_STARTED,
+      ExecutionEventType.EXECUTION_RESUMED,
       { status: ExecutionStatus.RUNNING },
     );
   }

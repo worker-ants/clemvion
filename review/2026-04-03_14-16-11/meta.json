@@ -1,0 +1,88 @@
+{
+  "timestamp": "2026-04-03T14:19:22.962928",
+  "files": [
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/backend/src/modules/websocket/websocket.service.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/backend/src/modules/execution-engine/execution-engine.service.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/frontend/src/lib/websocket/use-execution-events.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    }
+  ],
+  "total_elapsed_seconds": 191.22,
+  "agents": [
+    {
+      "name": "database",
+      "status": "success",
+      "elapsed_seconds": 17.45
+    },
+    {
+      "name": "api_contract",
+      "status": "success",
+      "elapsed_seconds": 19.88
+    },
+    {
+      "name": "scope",
+      "status": "success",
+      "elapsed_seconds": 21.2
+    },
+    {
+      "name": "maintainability",
+      "status": "success",
+      "elapsed_seconds": 21.19
+    },
+    {
+      "name": "dependency",
+      "status": "success",
+      "elapsed_seconds": 21.45
+    },
+    {
+      "name": "documentation",
+      "status": "success",
+      "elapsed_seconds": 25.18
+    },
+    {
+      "name": "architecture",
+      "status": "success",
+      "elapsed_seconds": 25.91
+    },
+    {
+      "name": "requirement",
+      "status": "success",
+      "elapsed_seconds": 27.12
+    },
+    {
+      "name": "performance",
+      "status": "success",
+      "elapsed_seconds": 28.15
+    },
+    {
+      "name": "side_effect",
+      "status": "success",
+      "elapsed_seconds": 28.92
+    },
+    {
+      "name": "security",
+      "status": "success",
+      "elapsed_seconds": 43.73
+    },
+    {
+      "name": "concurrency",
+      "status": "success",
+      "elapsed_seconds": 64.7
+    },
+    {
+      "name": "testing",
+      "status": "success",
+      "elapsed_seconds": 81.79
+    }
+  ]
+}
