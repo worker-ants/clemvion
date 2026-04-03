@@ -118,6 +118,103 @@ describe('VariableDeclarationHandler', () => {
       expect(result).toBe(input);
     });
 
+    it('should coerce string defaultValue to number type', async () => {
+      await handler.execute(
+        {},
+        {
+          variables: [{ name: 'counter', type: 'number', defaultValue: '1' }],
+        },
+        context,
+      );
+
+      expect(context.variables['counter']).toBe(1);
+      expect(typeof context.variables['counter']).toBe('number');
+    });
+
+    it('should coerce string defaultValue to boolean type', async () => {
+      await handler.execute(
+        {},
+        {
+          variables: [
+            { name: 'flag1', type: 'boolean', defaultValue: 'true' },
+            { name: 'flag2', type: 'boolean', defaultValue: 'false' },
+          ],
+        },
+        context,
+      );
+
+      expect(context.variables['flag1']).toBe(true);
+      expect(context.variables['flag2']).toBe(false);
+    });
+
+    it('should coerce JSON string defaultValue to array type', async () => {
+      await handler.execute(
+        {},
+        {
+          variables: [
+            {
+              name: 'items',
+              type: 'array',
+              defaultValue: '[{"id":1,"value":"a"},{"id":2,"value":"b"}]',
+            },
+          ],
+        },
+        context,
+      );
+
+      expect(Array.isArray(context.variables['items'])).toBe(true);
+      expect(context.variables['items']).toEqual([
+        { id: 1, value: 'a' },
+        { id: 2, value: 'b' },
+      ]);
+    });
+
+    it('should coerce JSON string defaultValue to object type', async () => {
+      await handler.execute(
+        {},
+        {
+          variables: [
+            {
+              name: 'config',
+              type: 'object',
+              defaultValue: '{"key":"value"}',
+            },
+          ],
+        },
+        context,
+      );
+
+      expect(context.variables['config']).toEqual({ key: 'value' });
+    });
+
+    it('should return null for invalid number string', async () => {
+      await handler.execute(
+        {},
+        {
+          variables: [{ name: 'x', type: 'number', defaultValue: 'abc' }],
+        },
+        context,
+      );
+
+      expect(context.variables['x']).toBeNull();
+    });
+
+    it('should keep already-typed values unchanged', async () => {
+      await handler.execute(
+        {},
+        {
+          variables: [
+            { name: 'n', type: 'number', defaultValue: 42 },
+            { name: 'arr', type: 'array', defaultValue: [1, 2] },
+          ],
+        },
+        context,
+      );
+
+      expect(context.variables['n']).toBe(42);
+      expect(context.variables['arr']).toEqual([1, 2]);
+    });
+
     it('should declare multiple variables at once', async () => {
       await handler.execute(
         {},
