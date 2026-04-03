@@ -96,7 +96,7 @@
 
 > 상세: [Trigger 노드 스펙](./7-trigger-nodes.md)
 
-### 2.1 Logic 노드 (11종)
+### 2.1 Logic 노드 (12종)
 
 | type | 표시 이름 | 아이콘 | 입력 | 출력 | 키 설정 |
 |------|-----------|--------|------|------|---------|
@@ -107,6 +107,7 @@
 | `variable_modification` | Set Variable | ✏️ | 1 | 1 | 대상 변수, 새 값 |
 | `split` | Split | ✂️ | 1 | 1 | 분리 대상 필드 |
 | `map` | Map | 🗺️ | 1 | 1 | 변환 표현식 |
+| `filter` | Filter | 🔽 | 1 | 2 (match/unmatched) | 대상 배열, 필터 조건 |
 | `foreach` | ForEach | 🔁 **컨테이너** | 1 | 2 (body/done) | 대상 배열, 에러 정책 |
 | `parallel` | Parallel | ⚡ | 1 | N | 분기 수 |
 | `merge` | Merge | 🔗 | N | 1 | 병합 전략 |
