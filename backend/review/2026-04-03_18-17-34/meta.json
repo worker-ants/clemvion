@@ -1,0 +1,83 @@
+{
+  "timestamp": "2026-04-03T18:19:35.235853",
+  "files": [
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/backend/src/modules/execution-engine/handlers/logic/filter.handler.spec.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/backend/src/modules/execution-engine/handlers/logic/filter.handler.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    }
+  ],
+  "total_elapsed_seconds": 121.2,
+  "agents": [
+    {
+      "name": "api_contract",
+      "status": "success",
+      "elapsed_seconds": 8.44
+    },
+    {
+      "name": "database",
+      "status": "success",
+      "elapsed_seconds": 9.08
+    },
+    {
+      "name": "dependency",
+      "status": "success",
+      "elapsed_seconds": 18.49
+    },
+    {
+      "name": "concurrency",
+      "status": "success",
+      "elapsed_seconds": 21.35
+    },
+    {
+      "name": "documentation",
+      "status": "success",
+      "elapsed_seconds": 24.69
+    },
+    {
+      "name": "side_effect",
+      "status": "success",
+      "elapsed_seconds": 25.62
+    },
+    {
+      "name": "performance",
+      "status": "success",
+      "elapsed_seconds": 25.63
+    },
+    {
+      "name": "requirement",
+      "status": "success",
+      "elapsed_seconds": 26.53
+    },
+    {
+      "name": "architecture",
+      "status": "success",
+      "elapsed_seconds": 30.36
+    },
+    {
+      "name": "testing",
+      "status": "success",
+      "elapsed_seconds": 30.35
+    },
+    {
+      "name": "maintainability",
+      "status": "success",
+      "elapsed_seconds": 31.08
+    },
+    {
+      "name": "security",
+      "status": "success",
+      "elapsed_seconds": 44.05
+    },
+    {
+      "name": "scope",
+      "status": "success",
+      "elapsed_seconds": 47.55
+    }
+  ]
+}

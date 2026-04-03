@@ -104,6 +104,16 @@ function foreachSummary(config: NodeConfig): ConfigSummaryResult | null {
   return { text: arrayField, isWarning: false };
 }
 
+function filterSummary(config: NodeConfig): ConfigSummaryResult | null {
+  const inputField = config.inputField as string | undefined;
+  if (!inputField) return null;
+  const conditions = Array.isArray(config.conditions) ? config.conditions : [];
+  const combineMode = ((config.combineMode as string) ?? "and").toUpperCase();
+  const condCount = conditions.length;
+  const condLabel = condCount === 1 ? "condition" : "conditions";
+  return { text: `${inputField} \u00b7 ${condCount} ${condLabel} \u00b7 ${combineMode}`, isWarning: false };
+}
+
 function mergeSummary(config: NodeConfig): ConfigSummaryResult | null {
   const inputCount = typeof config.inputCount === "number" ? config.inputCount : undefined;
   const strategy = config.strategy as string | undefined;
@@ -262,6 +272,7 @@ const FORMATTERS: Record<string, (config: NodeConfig) => ConfigSummaryResult | n
   map: mapSummary,
   foreach: foreachSummary,
   merge: mergeSummary,
+  filter: filterSummary,
   workflow: workflowSummary,
   http_request: httpRequestSummary,
   database_query: databaseQuerySummary,

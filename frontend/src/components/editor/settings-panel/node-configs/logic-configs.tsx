@@ -429,6 +429,105 @@ export function ForEachConfig({ config, onChange }: { config: Config; onChange: 
   );
 }
 
+// ===== Filter =====
+export function FilterConfig({ config, onChange }: { config: Config; onChange: OnChange }) {
+  const inputField = (config.inputField as string) ?? "";
+  const combineMode = (config.combineMode as string) ?? "and";
+  const conditions = (config.conditions as Array<{ field: string; operator: string; value: string }>) ?? [
+    { field: "", operator: "eq", value: "" },
+  ];
+  const strictComparison = (config.strictComparison as boolean) ?? false;
+
+  const updateCondition = (i: number, key: string, val: string) => {
+    const updated = conditions.map((c, idx) =>
+      idx === i ? { ...c, [key]: val } : c,
+    );
+    onChange({ ...config, conditions: updated });
+  };
+
+  const addCondition = () =>
+    onChange({ ...config, conditions: [...conditions, { field: "", operator: "eq", value: "" }] });
+
+  const removeCondition = (i: number) =>
+    onChange({ ...config, conditions: conditions.filter((_, idx) => idx !== i) });
+
+  return (
+    <div className="flex flex-col gap-3">
+      <ExpressionInput
+        label="Array Field"
+        value={inputField}
+        onChange={(v) => onChange({ ...config, inputField: v })}
+        placeholder="{{ $input.items }}"
+        hint="Array to filter"
+      />
+      <SelectField
+        label="Combine Mode"
+        value={combineMode}
+        onChange={(v) => onChange({ ...config, combineMode: v })}
+        options={[
+          { value: "and", label: "AND (all conditions)" },
+          { value: "or", label: "OR (any condition)" },
+        ]}
+      />
+      <SectionTitle>Conditions</SectionTitle>
+      {conditions.map((cond, i) => (
+        <div key={i} className="flex flex-col gap-1 rounded border border-[hsl(var(--border))] p-2">
+          <div className="flex items-center justify-between">
+            <span className="text-[10px] text-[hsl(var(--muted-foreground))]">Condition {i + 1}</span>
+            {conditions.length > 1 && (
+              <Button variant="ghost" size="icon" className="h-5 w-5" onClick={() => removeCondition(i)}>
+                <X size={10} />
+              </Button>
+            )}
+          </div>
+          <Input
+            value={cond.field}
+            onChange={(e) => updateCondition(i, "field", e.target.value)}
+            placeholder="Field path (e.g. status, user.age)"
+            className="h-7 text-xs"
+          />
+          <select
+            value={cond.operator}
+            onChange={(e) => updateCondition(i, "operator", e.target.value)}
+            className="h-7 rounded-md border border-[hsl(var(--input))] bg-transparent px-2 text-xs"
+          >
+            <option value="eq">Equals (==)</option>
+            <option value="neq">Not Equals (!=)</option>
+            <option value="gt">Greater Than (&gt;)</option>
+            <option value="gte">Greater or Equal (&gt;=)</option>
+            <option value="lt">Less Than (&lt;)</option>
+            <option value="lte">Less or Equal (&lt;=)</option>
+            <option value="contains">Contains</option>
+            <option value="not_contains">Not Contains</option>
+            <option value="starts_with">Starts With</option>
+            <option value="ends_with">Ends With</option>
+            <option value="is_empty">Is Empty</option>
+            <option value="is_not_empty">Is Not Empty</option>
+            <option value="regex">Regex Match</option>
+            <option value="is_null">Is Null</option>
+            <option value="is_type">Is Type</option>
+          </select>
+          <ExpressionInput
+            bare
+            label=""
+            value={cond.value}
+            onChange={(v) => updateCondition(i, "value", v)}
+            placeholder="Value or {{ expression }}"
+          />
+        </div>
+      ))}
+      <Button variant="outline" size="sm" className="h-7 text-xs" onClick={addCondition}>
+        <Plus size={12} className="mr-1" /> Add Condition
+      </Button>
+      <CheckboxField
+        label="Strict type comparison (===)"
+        checked={strictComparison}
+        onChange={(v) => onChange({ ...config, strictComparison: v })}
+      />
+    </div>
+  );
+}
+
 // ===== Merge =====
 export function MergeConfig({ config, onChange }: { config: Config; onChange: OnChange }) {
   return (

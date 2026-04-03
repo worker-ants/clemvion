@@ -50,7 +50,7 @@ describe("getConfigSummary", () => {
   it("returns warning for empty config on each configured node type", () => {
     const types = [
       "if_else", "switch", "loop", "variable_declaration", "variable_modification",
-      "split", "map", "foreach", "merge", "workflow",
+      "split", "map", "foreach", "merge", "filter", "workflow",
       "http_request", "database_query", "slack", "send_email",
       "transform", "code",
       "table", "chart", "form", "template", "pdf",
@@ -291,6 +291,50 @@ describe("merge summary", () => {
 
   it("shows warning when only strategy is provided", () => {
     expect(getConfigSummary("merge", { strategy: "wait_all" })).toEqual(NOT_CONFIGURED);
+  });
+});
+
+// ===== filter =====
+describe("filter summary", () => {
+  it("formats inputField, condition count, and combine mode", () => {
+    expect(getConfigSummary("filter", {
+      inputField: "$input.items",
+      conditions: [
+        { field: "status", operator: "eq", value: "active" },
+        { field: "age", operator: "gt", value: "18" },
+      ],
+      combineMode: "and",
+    })).toEqual({ text: "$input.items \u00b7 2 conditions \u00b7 AND", isWarning: false });
+  });
+
+  it("shows singular condition label for 1 condition", () => {
+    expect(getConfigSummary("filter", {
+      inputField: "$input.users",
+      conditions: [{ field: "active", operator: "eq", value: "true" }],
+      combineMode: "or",
+    })).toEqual({ text: "$input.users \u00b7 1 condition \u00b7 OR", isWarning: false });
+  });
+
+  it("defaults combineMode to AND", () => {
+    expect(getConfigSummary("filter", {
+      inputField: "$input.data",
+      conditions: [{ field: "x", operator: "eq", value: "1" }],
+    })).toEqual({ text: "$input.data \u00b7 1 condition \u00b7 AND", isWarning: false });
+  });
+
+  it("shows warning when inputField is empty", () => {
+    expect(getConfigSummary("filter", { inputField: "" })).toEqual(NOT_CONFIGURED);
+  });
+
+  it("shows warning when inputField is missing", () => {
+    expect(getConfigSummary("filter", {})).toEqual(NOT_CONFIGURED);
+  });
+
+  it("shows 0 conditions when conditions array is empty", () => {
+    expect(getConfigSummary("filter", {
+      inputField: "$input.items",
+      conditions: [],
+    })).toEqual({ text: "$input.items \u00b7 0 conditions \u00b7 AND", isWarning: false });
   });
 });
 
