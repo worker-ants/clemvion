@@ -480,7 +480,7 @@ describe("carousel summary", () => {
 
 // ===== table =====
 describe("table summary", () => {
-  it("formats column count with pagination", () => {
+  it("formats column count with pagination in dynamic mode", () => {
     expect(getConfigSummary("table", {
       columns: [
         { field: "name", label: "Name" },
@@ -488,20 +488,27 @@ describe("table summary", () => {
         { field: "email", label: "Email" },
       ],
       pagination: true,
-    })).toEqual({ text: "3 columns \u00b7 pagination", isWarning: false });
+    })).toEqual({ text: "dynamic \u00b7 3 columns \u00b7 pagination", isWarning: false });
   });
 
   it("omits pagination when false", () => {
     expect(getConfigSummary("table", {
       columns: [{ field: "name", label: "Name" }],
       pagination: false,
-    })).toEqual({ text: "1 column", isWarning: false });
+    })).toEqual({ text: "dynamic \u00b7 1 column", isWarning: false });
   });
 
   it("shows pagination by default when pagination is undefined", () => {
     expect(getConfigSummary("table", {
       columns: [{ field: "name", label: "Name" }],
-    })).toEqual({ text: "1 column \u00b7 pagination", isWarning: false });
+    })).toEqual({ text: "dynamic \u00b7 1 column \u00b7 pagination", isWarning: false });
+  });
+
+  it("shows static mode label", () => {
+    expect(getConfigSummary("table", {
+      mode: "static",
+      columns: [{ field: "col0", label: "Item" }],
+    })).toEqual({ text: "static \u00b7 1 column \u00b7 pagination", isWarning: false });
   });
 
   it("shows warning when columns is empty", () => {

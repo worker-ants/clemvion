@@ -182,10 +182,12 @@ function tableSummary(config: NodeConfig): ConfigSummaryResult | null {
   const columns = config.columns as unknown[] | undefined;
   if (!Array.isArray(columns) || !columns.length) return null;
   const count = columns.length;
-  const label = count === 1 ? "column" : "columns";
-  // Spec default for pagination is true; only omit when explicitly false
-  if (config.pagination === false) return { text: `${count} ${label}`, isWarning: false };
-  return { text: `${count} ${label} \u00b7 pagination`, isWarning: false };
+  const colLabel = count === 1 ? "column" : "columns";
+  const mode = (config.mode as string) ?? "dynamic";
+  const modeLabel = mode === "static" ? "static" : "dynamic";
+  const parts = [`${modeLabel} · ${count} ${colLabel}`];
+  if (config.pagination !== false) parts.push("pagination");
+  return { text: parts.join(" · "), isWarning: false };
 }
 
 function chartSummary(config: NodeConfig): ConfigSummaryResult | null {
