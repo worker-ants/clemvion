@@ -76,11 +76,12 @@ export function CarouselConfig({ config, onChange }: { config: Config; onChange:
                 onChange={(v) => updateItem(i, "title", v)}
                 placeholder="Slide title"
               />
-              <ExpressionInput
+              <ExpressionInput multiline
                 label="Description"
                 value={item.description}
                 onChange={(v) => updateItem(i, "description", v)}
                 placeholder="Slide description (optional)"
+                rows={2}
               />
               <ExpressionInput
                 label="Image URL"
@@ -372,6 +373,11 @@ export function FormConfig({ config, onChange }: { config: Config; onChange: OnC
             <option value="date">Date</option>
             <option value="file">File</option>
           </select>
+          <CheckboxField
+            label="Required"
+            checked={field.required ?? false}
+            onChange={(v) => updateField(i, "required", v)}
+          />
         </div>
       ))}
       <Button variant="outline" size="sm" className="h-7 text-xs" onClick={addField}>

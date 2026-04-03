@@ -152,24 +152,45 @@ describe("loop summary", () => {
 
 // ===== variable_declaration =====
 describe("variable_declaration summary", () => {
-  it("lists variable names", () => {
+  it("shows name, type and default value", () => {
     expect(getConfigSummary("variable_declaration", {
       variables: [
         { name: "counter", type: "number", defaultValue: "0" },
         { name: "total", type: "number", defaultValue: "0" },
       ],
-    })).toEqual({ text: "counter, total", isWarning: false });
+    })).toEqual({ text: "counter: number = 0, total: number = 0", isWarning: false });
   });
 
-  it("shows +N for more than 3 variables", () => {
+  it("shows name and type without default value", () => {
+    expect(getConfigSummary("variable_declaration", {
+      variables: [
+        { name: "flag", type: "boolean" },
+      ],
+    })).toEqual({ text: "flag: boolean", isWarning: false });
+  });
+
+  it("shows +N for more than 2 variables", () => {
     expect(getConfigSummary("variable_declaration", {
       variables: [
         { name: "a", type: "string", defaultValue: "" },
         { name: "b", type: "string", defaultValue: "" },
         { name: "c", type: "string", defaultValue: "" },
-        { name: "d", type: "string", defaultValue: "" },
       ],
-    })).toEqual({ text: "a, b, c, +1", isWarning: false });
+    })).toEqual({ text: "a: string, b: string, +1", isWarning: false });
+  });
+
+  it("excludes empty string defaultValue from display", () => {
+    expect(getConfigSummary("variable_declaration", {
+      variables: [
+        { name: "msg", type: "string", defaultValue: "" },
+      ],
+    })).toEqual({ text: "msg: string", isWarning: false });
+  });
+
+  it("shows name only when type and defaultValue are absent", () => {
+    expect(getConfigSummary("variable_declaration", {
+      variables: [{ name: "x" }],
+    })).toEqual({ text: "x", isWarning: false });
   });
 
   it("shows warning when variables is empty", () => {

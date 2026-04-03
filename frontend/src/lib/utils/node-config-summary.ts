@@ -59,13 +59,20 @@ function loopSummary(config: NodeConfig): ConfigSummaryResult | null {
   return { text, isWarning: false };
 }
 
+function formatVariable(v: { name: string; type?: string; defaultValue?: string }): string {
+  const parts = [v.name];
+  if (v.type) parts.push(`: ${v.type}`);
+  if (v.defaultValue !== undefined && v.defaultValue !== "") parts.push(` = ${v.defaultValue}`);
+  return parts.join("");
+}
+
 function variableDeclarationSummary(config: NodeConfig): ConfigSummaryResult | null {
-  const variables = config.variables as Array<{ name: string }> | undefined;
+  const variables = config.variables as Array<{ name: string; type?: string; defaultValue?: string }> | undefined;
   if (!Array.isArray(variables) || !variables.length) return null;
-  const names = variables.map((v) => v.name).filter(Boolean);
-  if (!names.length) return null;
-  if (names.length <= 3) return { text: names.join(", "), isWarning: false };
-  return { text: `${names.slice(0, 3).join(", ")}, +${names.length - 3}`, isWarning: false };
+  const valid = variables.filter((v) => v.name);
+  if (!valid.length) return null;
+  if (valid.length <= 2) return { text: valid.map(formatVariable).join(", "), isWarning: false };
+  return { text: `${valid.slice(0, 2).map(formatVariable).join(", ")}, +${valid.length - 2}`, isWarning: false };
 }
 
 function variableModificationSummary(config: NodeConfig): ConfigSummaryResult | null {

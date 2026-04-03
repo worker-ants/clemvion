@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useCallback, useEffect } from "react";
+import { useState, useRef, useCallback, useEffect, type UIEvent } from "react";
 import { Label } from "@/components/ui/label";
 import { validate } from "@workflow/expression-engine";
 import { cn } from "@/lib/utils/cn";
@@ -51,6 +51,7 @@ export function ExpressionInput({
   bare = false,
 }: ExpressionInputProps) {
   const inputRef = useRef<HTMLInputElement | HTMLTextAreaElement | null>(null);
+  const highlightRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
   const [cursorPos, setCursorPos] = useState(0);
@@ -214,6 +215,17 @@ export function ExpressionInput({
     [],
   );
 
+  // Sync highlight overlay scroll with input scroll
+  const handleScroll = useCallback(
+    (e: UIEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+      if (highlightRef.current) {
+        highlightRef.current.scrollTop = e.currentTarget.scrollTop;
+        highlightRef.current.scrollLeft = e.currentTarget.scrollLeft;
+      }
+    },
+    [],
+  );
+
   // Close autocomplete on outside click
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
@@ -235,11 +247,12 @@ export function ExpressionInput({
 
   const inputContent = (
     <div className="relative" ref={bare ? containerRef : undefined}>
-      {/* Highlight overlay for expressions */}
+      {/* Highlight overlay for expressions — scroll-synced with input */}
       {hasExpression && (
         <div
+          ref={highlightRef}
           className={cn(
-            "absolute inset-0 px-3 text-xs pointer-events-none overflow-hidden",
+            "absolute inset-0 px-3 pr-8 text-xs pointer-events-none overflow-hidden",
             multiline ? "py-2" : "flex items-center",
           )}
           aria-hidden
@@ -259,6 +272,7 @@ export function ExpressionInput({
           onClick={handleClick}
           onKeyUp={handleKeyUp}
           onKeyDown={handleKeyDown}
+          onScroll={handleScroll}
           rows={rows}
           placeholder={placeholder}
           className={inputClasses}
@@ -272,6 +286,7 @@ export function ExpressionInput({
           onClick={handleClick}
           onKeyUp={handleKeyUp}
           onKeyDown={handleKeyDown}
+          onScroll={handleScroll}
           placeholder={placeholder}
           className={cn(inputClasses, "h-8")}
         />

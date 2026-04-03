@@ -250,7 +250,7 @@ describe("CustomNode", () => {
       },
       category: "logic",
     });
-    expect(screen.getByText("x, y")).toBeInTheDocument();
+    expect(screen.getByText("x: number = 0, y: string")).toBeInTheDocument();
   });
 
   it("renders code summary", () => {
