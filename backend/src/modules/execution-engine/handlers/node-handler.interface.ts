@@ -15,6 +15,7 @@ export interface ExecutionContext {
     isFirst: boolean;
     isLast: boolean;
   };
+  expressionContext?: Record<string, unknown>;
 }
 
 export interface ValidationResult {

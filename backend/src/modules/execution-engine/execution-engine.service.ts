@@ -543,6 +543,7 @@ export class ExecutionEngineService implements OnModuleInit {
 
       // Resolve expressions in config
       let resolvedConfig: Record<string, unknown>;
+      let nodeContext = context;
       if (nodeMap) {
         const exprContext = this.expressionResolver.buildExpressionContext(
           nodeInput,
@@ -575,6 +576,10 @@ export class ExecutionEngineService implements OnModuleInit {
           exprContext,
           node.type,
         );
+
+        // Store expression context for handlers that need per-item evaluation (e.g. Table)
+        // Use a shallow copy to avoid mutating the shared context object
+        nodeContext = { ...context, expressionContext: exprContext };
       } else {
         resolvedConfig = node.config;
       }
@@ -584,7 +589,7 @@ export class ExecutionEngineService implements OnModuleInit {
         handler,
         nodeInput,
         resolvedConfig,
-        context,
+        nodeContext,
         node,
         nodeExecution,
       );

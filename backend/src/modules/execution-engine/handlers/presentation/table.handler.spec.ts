@@ -525,5 +525,164 @@ describe('TableHandler', () => {
 
       expect(result.totalRows).toBe(2);
     });
+
+    // === Dot-path (nested field) access ===
+    it('should support dot-path access for nested fields', async () => {
+      const input = [
+        { name: 'Alice', address: { city: 'Seoul', zip: '01234' } },
+        { name: 'Bob', address: { city: 'Busan', zip: '56789' } },
+      ];
+      const result = (await handler.execute(
+        input,
+        {
+          columns: [
+            { field: 'name', label: 'Name' },
+            { field: 'address.city', label: 'City' },
+          ],
+        },
+        context,
+      )) as Record<string, unknown>;
+
+      const rows = result.rows as Array<Record<string, unknown>>;
+      expect(rows[0]).toEqual({ name: 'Alice', 'address.city': 'Seoul' });
+      expect(rows[1]).toEqual({ name: 'Bob', 'address.city': 'Busan' });
+    });
+
+    it('should return null for missing nested path', async () => {
+      const result = (await handler.execute(
+        [{ name: 'Alice' }],
+        {
+          columns: [{ field: 'address.city', label: 'City' }],
+        },
+        context,
+      )) as Record<string, unknown>;
+
+      const rows = result.rows as Array<Record<string, unknown>>;
+      expect(rows[0]).toEqual({ 'address.city': null });
+    });
+
+    // === Per-item expression evaluation ===
+    it('should evaluate per-item expressions with $sourceItem', async () => {
+      const input = [
+        { first: 'Alice', last: 'Kim' },
+        { first: 'Bob', last: 'Lee' },
+      ];
+      const result = (await handler.execute(
+        input,
+        {
+          columns: [
+            {
+              field: '{{ $sourceItem.first + " " + $sourceItem.last }}',
+              label: 'Full Name',
+            },
+          ],
+        },
+        context,
+      )) as Record<string, unknown>;
+
+      const rows = result.rows as Array<Record<string, unknown>>;
+      expect(rows[0]['{{ $sourceItem.first + " " + $sourceItem.last }}']).toBe(
+        'Alice Kim',
+      );
+      expect(rows[1]['{{ $sourceItem.first + " " + $sourceItem.last }}']).toBe(
+        'Bob Lee',
+      );
+    });
+
+    it('should provide $sourceItemIndex in per-item expressions', async () => {
+      const input = [{ name: 'A' }, { name: 'B' }];
+      const result = (await handler.execute(
+        input,
+        {
+          columns: [
+            { field: '{{ $sourceItemIndex + 1 }}', label: '#' },
+            { field: 'name', label: 'Name' },
+          ],
+        },
+        context,
+      )) as Record<string, unknown>;
+
+      const rows = result.rows as Array<Record<string, unknown>>;
+      expect(rows[0]['{{ $sourceItemIndex + 1 }}']).toBe(1);
+      expect(rows[1]['{{ $sourceItemIndex + 1 }}']).toBe(2);
+    });
+
+    it('should provide $dataSource in per-item expressions', async () => {
+      const input = [{ x: 1 }, { x: 2 }, { x: 3 }];
+      const result = (await handler.execute(
+        input,
+        {
+          columns: [{ field: '{{ $dataSource.length }}', label: 'Total' }],
+        },
+        context,
+      )) as Record<string, unknown>;
+
+      const rows = result.rows as Array<Record<string, unknown>>;
+      expect(rows[0]['{{ $dataSource.length }}']).toBe(3);
+    });
+
+    it('should use dataSource with per-item expression', async () => {
+      const resolvedDataSource = [
+        { id: 1, score: 90 },
+        { id: 2, score: 80 },
+      ];
+      const result = (await handler.execute(
+        null,
+        {
+          mode: 'dynamic',
+          dataSource: resolvedDataSource,
+          columns: [
+            { field: '{{ $sourceItem.id }}', label: 'ID' },
+            { field: '{{ $sourceItem.score }}', label: 'Score' },
+          ],
+        },
+        context,
+      )) as Record<string, unknown>;
+
+      const rows = result.rows as Array<Record<string, unknown>>;
+      expect(rows[0]['{{ $sourceItem.id }}']).toBe(1);
+      expect(rows[0]['{{ $sourceItem.score }}']).toBe(90);
+    });
+
+    it('should access $var in per-item expressions via expressionContext', async () => {
+      const ctxWithExpr = {
+        ...context,
+        variables: { prefix: 'User' },
+        expressionContext: { $var: { prefix: 'User' } },
+      };
+      const input = [{ name: 'Alice' }];
+      const result = (await handler.execute(
+        input,
+        {
+          columns: [
+            {
+              field: '{{ $var.prefix + ": " + $sourceItem.name }}',
+              label: 'Name',
+            },
+          ],
+        },
+        ctxWithExpr,
+      )) as Record<string, unknown>;
+
+      const rows = result.rows as Array<Record<string, unknown>>;
+      expect(rows[0]['{{ $var.prefix + ": " + $sourceItem.name }}']).toBe(
+        'User: Alice',
+      );
+    });
+
+    it('should not use per-item evaluation in static mode', async () => {
+      const result = (await handler.execute(
+        null,
+        {
+          mode: 'static',
+          columns: [{ field: 'col0', label: 'Item' }],
+          rows: [{ col0: 'plain value' }],
+        },
+        context,
+      )) as Record<string, unknown>;
+
+      const rows = result.rows as Array<Record<string, unknown>>;
+      expect(rows[0]).toEqual({ col0: 'plain value' });
+    });
   });
 });

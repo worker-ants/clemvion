@@ -35,6 +35,9 @@ export interface ExpressionContext {
   $item?: unknown;
   $itemIndex?: number;
   $trigger?: Record<string, unknown>;
+  $dataSource?: unknown[];
+  $sourceItem?: unknown;
+  $sourceItemIndex?: number;
   [key: string]: unknown;
 }
 

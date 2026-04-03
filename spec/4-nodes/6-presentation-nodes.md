@@ -133,7 +133,7 @@
 
 | 필드 | 타입 | 필수 | 설명 |
 |------|------|------|------|
-| field | String | ✓ | 데이터 필드 경로 (`{{ }}` 표현식 사용 가능) |
+| field | String | ✓ | 데이터 필드 경로 또는 `{{ }}` 표현식. 단순 문자열 시 dot-path 지원 (예: `address.city`). 표현식 시 per-item 평가 (예: `{{ $sourceItem.first + " " + $sourceItem.last }}`) |
 | label | String | ✓ | 컬럼 헤더 표시 이름 (`{{ }}` 표현식 사용 가능) |
 | width | String? | ✗ | 컬럼 너비 (예: "200px", "30%") |
 | sortable | Boolean? | ✗ | 정렬 가능 여부 (기본: false) |
@@ -157,12 +157,26 @@
 3. **Dynamic 모드**:
    1. `dataSource` 지정 시 해당 값 사용, 미지정 시 이전 노드 입력(`$input`) 사용
    2. 데이터를 배열로 정규화 (단일 객체는 `[obj]`로 래핑)
-   3. `columns` 정의에 따라 각 행에서 필드 매핑
+   3. `columns` 정의에 따라 각 행에서 필드 매핑:
+      - **단순 필드 경로** (예: `name`, `address.city`): dot-path로 중첩 접근
+      - **`{{ }}` 표현식** (예: `{{ $sourceItem.first + " " + $sourceItem.last }}`): per-item 표현식 평가
 4. `format` 지정된 컬럼에 포맷팅 적용 (날짜/숫자)
 5. `sortBy`/`sortOrder`에 따라 정렬
 6. `pageSize`에 따른 페이지네이션 적용
 7. HTML 테이블 렌더링 생성
 8. 구조화된 JSON + 렌더링된 HTML을 출력 포트로 전달
+
+**Dynamic 모드 per-item 변수:**
+
+column의 `field`/`label`에서 `{{ }}` 표현식을 사용할 때 다음 변수가 추가로 제공된다:
+
+| 변수 | 타입 | 설명 |
+|------|------|------|
+| `$dataSource` | `unknown[]` | 해석된 data source 배열 전체 |
+| `$sourceItem` | `unknown` | 현재 순회 중인 배열 항목 |
+| `$sourceItemIndex` | `number` | 현재 항목의 0-based 인덱스 |
+
+기존 변수 (`$input`, `$var`, `$node`, `$execution` 등)도 함께 사용 가능하다.
 
 **출력 형식:**
 
@@ -245,7 +259,8 @@
 
 - Static 모드: 각 행의 셀 값에서 `{{ }}` 표현식으로 변수 참조 가능
 - Dynamic 모드: Data Source에서 `{{ }}` 표현식으로 변수 시스템 전체 활용 가능
-- Dynamic 모드: 컬럼 Field/Label에서 `{{ }}` 표현식 지원, 자동완성 제공
+- Dynamic 모드: 컬럼 Field에서 dot-path 접근 (예: `address.city`) 또는 `{{ }}` per-item 표현식 지원 (예: `{{ $sourceItem.first + " " + $sourceItem.last }}`)
+- Dynamic 모드: 컬럼 Label에서 `{{ }}` 표현식 지원
 - 컬럼 행을 드래그로 순서 변경 가능
 - `+ Add Column` / `+ Add Row` 버튼으로 항목 추가
 - 각 항목에 삭제 버튼 (`[✕]`)
