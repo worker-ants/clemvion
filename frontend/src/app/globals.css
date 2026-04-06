@@ -48,6 +48,11 @@
   --ring: 212.7 26.8% 83.9%;
 }
 
+/* ===== Toast ===== */
+[data-sonner-toast] {
+  cursor: pointer;
+}
+
 /* ===== Base Styles ===== */
 html {
   height: 100%;
