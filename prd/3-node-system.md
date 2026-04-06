@@ -323,6 +323,8 @@
 | ND-CL-03 | 레이아웃 선택 (card/image/minimal) | 필수 | 1 |
 | ND-CL-04 | 최대 슬라이드 수 제한 설정 | 필수 | 1 |
 | ND-CL-05 | 구조화된 JSON + 렌더링된 HTML 출력 | 필수 | 1 |
+| ND-CL-06 | n개의 버튼 설정 기능 — 버튼 유형: 외부 링크(link) 또는 노드 포트(port). 버튼 라벨, 스타일, URL(link 시) 설정 | 필수 | 1 |
+| ND-CL-07 | 버튼 설정 시 Blocking Mode — 실행 일시 정지(waiting_for_input), 사용자 버튼 클릭 시 해당 포트로 실행 재개. 선택적 타임아웃 지원 (무제한 가능) | 필수 | 1 |
 
 ### 9.2 Table
 
@@ -333,6 +335,8 @@
 | ND-TB-03 | 페이지네이션 지원 | 필수 | 1 |
 | ND-TB-04 | 정렬 설정 (기본 정렬 컬럼, 정렬 순서) | 필수 | 1 |
 | ND-TB-05 | 구조화된 JSON + 렌더링된 HTML 출력 | 필수 | 1 |
+| ND-TB-06 | n개의 버튼 설정 기능 — 버튼 유형: 외부 링크(link) 또는 노드 포트(port). 버튼 라벨, 스타일, URL(link 시) 설정 | 필수 | 1 |
+| ND-TB-07 | 버튼 설정 시 Blocking Mode — 실행 일시 정지(waiting_for_input), 사용자 버튼 클릭 시 해당 포트로 실행 재개. 선택적 타임아웃 지원 (무제한 가능) | 필수 | 1 |
 
 ### 9.3 Chart
 
@@ -343,6 +347,8 @@
 | ND-CH-03 | 그룹화(groupBy)를 통한 다중 시리즈 지원 | 필수 | 1 |
 | ND-CH-04 | 차트 제목, 커스텀 색상 설정 | 권장 | 1 |
 | ND-CH-05 | 구조화된 JSON + SVG 렌더링 출력 | 필수 | 1 |
+| ND-CH-06 | n개의 버튼 설정 기능 — 버튼 유형: 외부 링크(link) 또는 노드 포트(port). 버튼 라벨, 스타일, URL(link 시) 설정 | 필수 | 1 |
+| ND-CH-07 | 버튼 설정 시 Blocking Mode — 실행 일시 정지(waiting_for_input), 사용자 버튼 클릭 시 해당 포트로 실행 재개. 선택적 타임아웃 지원 (무제한 가능) | 필수 | 1 |
 
 ### 9.4 Form (Human-in-the-loop)
 
@@ -364,6 +370,8 @@
 | ND-TP-02 | 출력 포맷 선택 (html/markdown/text) | 필수 | 1 |
 | ND-TP-03 | 내장 Handlebars 헬퍼 제공 (if, each, formatDate, formatNumber 등) | 필수 | 1 |
 | ND-TP-04 | 렌더링된 콘텐츠를 출력으로 전달 | 필수 | 1 |
+| ND-TP-05 | n개의 버튼 설정 기능 — 버튼 유형: 외부 링크(link) 또는 노드 포트(port). 버튼 라벨, 스타일, URL(link 시) 설정 | 필수 | 1 |
+| ND-TP-06 | 버튼 설정 시 Blocking Mode — 실행 일시 정지(waiting_for_input), 사용자 버튼 클릭 시 해당 포트로 실행 재개. 선택적 타임아웃 지원 (무제한 가능) | 필수 | 1 |
 
 ### 9.6 PDF
 

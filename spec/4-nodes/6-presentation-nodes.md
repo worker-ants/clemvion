@@ -19,6 +19,9 @@
 | imageField | String? | ✗ | — | 이미지 URL 필드 경로 (지정 시 이미지 슬라이드, dynamic 모드 전용) |
 | maxItems | Number | ✗ | 10 | 최대 슬라이드 수 1~100 (dynamic 모드 전용) |
 | layout | Enum | ✗ | card | `card` / `image` / `minimal` |
+| buttons | ButtonDef[] | ✗ | `[]` | 버튼 정의 배열. 비어있지 않으면 Blocking Mode 활성화. 아래 §1.6 참조 |
+| buttonTimeout | Number? | ✗ | — | 버튼 대기 타임아웃 (초). 미지정 시 무제한 대기 |
+| buttonTimeoutAction | Enum | ✗ | `continue` | `continue` (continue 포트로 재개) / `cancel` (실행 취소). `buttonTimeout` 설정 시에만 유효. port 타입 버튼 존재 시 `cancel`만 허용 |
 
 **ItemDef (static 모드 아이템 정의):**
 
@@ -30,10 +33,22 @@
 
 ### 1.2 포트 정의
 
+**버튼 미설정 시 (기본):**
+
 | 포트 | 방향 | 식별자 | 설명 |
 |------|------|--------|------|
 | Input | 입력 | `in` | 배열 데이터 입력 (static 모드에서는 선택적 — 표현식에서 참조할 경우에만 필요) |
 | Output | 출력 | `out` | 캐러셀 구조 데이터 출력 |
+
+**버튼 설정 시 (`buttons`가 비어있지 않은 경우):**
+
+| 포트 | 방향 | 식별자 | 설명 |
+|------|------|--------|------|
+| Input | 입력 | `in` | 배열 데이터 입력 |
+| Button Port (N개) | 출력 | `{button.id}` (UUID v4) | port 타입 버튼마다 동적 생성. 버튼 클릭 시 해당 포트로 실행 라우팅 |
+| Continue | 출력 | `continue` | **link 타입 버튼만 존재**할 경우 자동 생성. Continue 클릭 또는 타임아웃(continue) 시 실행 재개 |
+
+> `out` 포트는 버튼 설정 시 **제거**된다. port 타입 버튼의 동적 포트가 출력을 대체한다. link 타입 버튼만 존재할 경우 `continue` 포트가 `out`을 대체한다.
 
 ### 1.3 실행 로직
 
@@ -44,9 +59,20 @@
    2. `maxItems`까지 항목 제한
    3. 각 항목에서 `titleField`, `descriptionField`, `imageField`를 매핑하여 슬라이드 구조 생성
 4. `layout`에 따른 HTML 렌더링 생성
-5. 구조화된 JSON + 렌더링된 HTML을 출력 포트로 전달
+5. 구조화된 JSON + 렌더링된 HTML 생성
+6. **Blocking Mode** (`buttons`가 비어있지 않은 경우):
+   1. 렌더링 출력을 `NodeExecution.output_data`에 저장
+   2. `NodeExecution.status` = `waiting_for_input`, `Execution.status` = `waiting_for_input`
+   3. WS 이벤트 `execution.waiting_for_input` 발행 (`interactionType: "buttons"`, `buttonConfig` 포함)
+   4. `buttonTimeout` 설정 시 타이머 시작
+   5. 사용자 인터랙션 대기:
+      - **port 버튼 클릭** → 해당 버튼의 동적 포트(`{button.id}`)로 버튼 클릭 데이터 전달
+      - **Continue 클릭** (link 전용 시) → `continue` 포트로 렌더링 출력 전달
+      - **타임아웃** → `buttonTimeoutAction`에 따라 `continue` 포트로 재개 또는 `BUTTON_TIMEOUT` 에러
+   6. `NodeExecution.interaction_data`에 클릭 정보 기록
+7. **Non-blocking** (`buttons`가 비어있는 경우): `out` 포트로 출력 전달 (기존과 동일)
 
-**출력 형식:**
+**출력 형식 (Non-blocking, 기존과 동일):**
 
 ```json
 {
@@ -60,6 +86,40 @@
   ],
   "layout": "card",
   "rendered": "<html>..."
+}
+```
+
+**버튼 포트 출력 형식 (port 버튼 클릭 시):**
+
+```json
+{
+  "type": "button_click",
+  "buttonId": "uuid",
+  "buttonLabel": "승인",
+  "clickedAt": "2026-04-06T10:30:00Z",
+  "clickedBy": "user-uuid",
+  "nodeOutput": {
+    "type": "carousel",
+    "items": [ ... ],
+    "layout": "card",
+    "rendered": "<html>..."
+  }
+}
+```
+
+**Continue 포트 출력 형식 (Continue 클릭 시):**
+
+```json
+{
+  "type": "button_continue",
+  "clickedAt": "2026-04-06T10:30:00Z",
+  "clickedBy": "user-uuid",
+  "nodeOutput": {
+    "type": "carousel",
+    "items": [ ... ],
+    "layout": "card",
+    "rendered": "<html>..."
+  }
 }
 ```
 
@@ -110,6 +170,63 @@
 - Static 모드: 각 아이템의 필드에서 `{{ }}` 표현식으로 변수 참조 가능
 - Dynamic 모드: 필드 경로 입력 시 이전 노드 출력 스키마 기반 자동완성 지원
 
+### 1.5 버튼 설정 UI
+
+기존 설정 UI 하단에 접이식(collapsible) "Buttons" 섹션을 추가한다:
+
+```
+┌──────────────────────────────┐
+│  ... (기존 Carousel Settings)        │
+│                                      │
+│  ▶ Buttons ──────────────────────── │
+│  ┌ Button 1 ──────────────── [✕] [↕]│
+│  │ Label: [승인____________]         │
+│  │ Type:  [port ▼]                   │
+│  │ Style: [primary ▼]               │
+│  └──────────────────────────────── │
+│  ┌ Button 2 ──────────────── [✕] [↕]│
+│  │ Label: [상세 보기________]        │
+│  │ Type:  [link ▼]                   │
+│  │ URL:   [{{ $input.url }}____]     │
+│  │ Style: [outline ▼]               │
+│  └──────────────────────────────── │
+│  [+ Add Button]                      │
+│                                      │
+│  Timeout: [_____] seconds (선택)     │
+│  On Timeout: [cancel ▼]             │
+└──────────────────────────────┘
+```
+
+- 버튼 카드: 드래그 순서 변경 (`[↕]`), 삭제 (`[✕]`)
+- Type=link 선택 시 URL 입력 필드 표시, Type=port 선택 시 URL 숨김
+- 버튼 추가 시 UUID v4 자동 할당 (ID 불변)
+- 최대 10개 버튼
+- Timeout / On Timeout 필드는 버튼이 1개 이상일 때만 표시
+- port 타입 버튼이 존재하면 On Timeout 드롭다운에서 `cancel`만 선택 가능
+
+### 1.6 ButtonDef 구조
+
+| 필드 | 타입 | 필수 | 설명 |
+|------|------|------|------|
+| id | String (UUID v4) | 자동 생성 | 불변 버튼 식별자. `port` 타입일 경우 동적 출력 포트 ID로 사용 |
+| label | String | ✓ | 버튼 텍스트 (`{{ }}` 표현식 지원) |
+| type | Enum | ✓ | `link` (외부 URL) / `port` (노드 포트 연결) |
+| url | String | type=link 시 ✓ | 외부 URL (`{{ }}` 표현식 지원) |
+| style | Enum | ✗ | `primary` / `secondary` / `outline` / `danger` (기본: `secondary`) |
+
+### 1.7 유효성 검증
+
+| 규칙 | 설명 |
+|------|------|
+| 버튼 라벨 필수 | 각 ButtonDef의 `label`은 비어있을 수 없음 |
+| link URL 필수 | `type: "link"`는 `url`이 필수 |
+| port에 URL 불가 | `type: "port"`는 `url` 설정 불가 |
+| 최대 버튼 수 | 노드당 최대 10개 |
+| 버튼 ID 고유 | 노드 내 모든 버튼 ID 유일 |
+| 타임아웃 범위 | `buttonTimeout`: 1~86400 (1초~24시간) |
+| 타임아웃 continue 제약 | port 타입 버튼 존재 시 `buttonTimeoutAction = continue` 불가 (`cancel`만 허용) |
+| 미연결 port 경고 | port 타입 버튼의 동적 포트에 엣지 미연결 시 경고 (에러 아님) |
+
 ---
 
 ## 2. Table
@@ -128,6 +245,9 @@
 | pageSize | Number | ✗ | 20 | 페이지당 행 수 (1~200) |
 | sortBy | String? | ✗ | — | 기본 정렬 컬럼 필드명 |
 | sortOrder | Enum | ✗ | asc | `asc` / `desc` |
+| buttons | ButtonDef[] | ✗ | `[]` | 버튼 정의 배열. 비어있지 않으면 Blocking Mode 활성화. ButtonDef 구조는 §1.6 참조 |
+| buttonTimeout | Number? | ✗ | — | 버튼 대기 타임아웃 (초). 미지정 시 무제한 대기 |
+| buttonTimeoutAction | Enum | ✗ | `continue` | `continue` / `cancel`. port 타입 버튼 존재 시 `cancel`만 허용 |
 
 **ColumnDef 구조:**
 
@@ -145,10 +265,14 @@
 
 ### 2.2 포트 정의
 
+**버튼 미설정 시 (기본):**
+
 | 포트 | 방향 | 식별자 | 설명 |
 |------|------|--------|------|
 | Input | 입력 | `in` | 배열 데이터 입력 (static 모드에서는 선택적 — 표현식에서 참조할 경우에만 필요) |
 | Output | 출력 | `out` | 테이블 구조 데이터 출력 |
+
+**버튼 설정 시:** Carousel §1.2와 동일한 포트 규칙 적용 — `out` 제거, port 버튼별 동적 포트, link 전용 시 `continue` 자동 생성.
 
 ### 2.3 실행 로직
 
@@ -164,7 +288,9 @@
 5. `sortBy`/`sortOrder`에 따라 정렬
 6. `pageSize`에 따른 페이지네이션 적용
 7. HTML 테이블 렌더링 생성
-8. 구조화된 JSON + 렌더링된 HTML을 출력 포트로 전달
+8. 구조화된 JSON + 렌더링된 HTML 생성
+9. **Blocking Mode** (`buttons`가 비어있지 않은 경우): Carousel §1.3과 동일한 블로킹 실행 흐름 — `waiting_for_input` 진입, 버튼 클릭/Continue/타임아웃 대기, 해당 포트로 라우팅
+10. **Non-blocking** (`buttons`가 비어있는 경우): `out` 포트로 출력 전달 (기존과 동일)
 
 **Dynamic 모드 per-item 변수:**
 
@@ -265,6 +391,10 @@ column의 `field`/`label`에서 `{{ }}` 표현식을 사용할 때 다음 변수
 - `+ Add Column` / `+ Add Row` 버튼으로 항목 추가
 - 각 항목에 삭제 버튼 (`[✕]`)
 
+### 2.5 버튼 설정 UI
+
+Carousel §1.5와 동일한 접이식 "Buttons" 섹션을 Table 설정 UI 하단에 추가한다. ButtonDef 구조(§1.6), 유효성 검증(§1.7) 모두 동일 적용.
+
 ---
 
 ## 3. Chart
@@ -282,6 +412,9 @@ column의 `field`/`label`에서 `{{ }}` 표현식을 사용할 때 다음 변수
 | groupBy | String? | ✗ | — | 그룹화 필드 (다중 시리즈) |
 | title | String? | ✗ | — | 차트 제목 |
 | colors | String[]? | ✗ | — | 커스텀 색상 배열 (미지정 시 기본 팔레트) |
+| buttons | ButtonDef[] | ✗ | `[]` | 버튼 정의 배열. 비어있지 않으면 Blocking Mode 활성화. ButtonDef 구조는 §1.6 참조 |
+| buttonTimeout | Number? | ✗ | — | 버튼 대기 타임아웃 (초). 미지정 시 무제한 대기 |
+| buttonTimeoutAction | Enum | ✗ | `continue` | `continue` / `cancel`. port 타입 버튼 존재 시 `cancel`만 허용 |
 
 **AxisDef 구조:**
 
@@ -293,10 +426,14 @@ column의 `field`/`label`에서 `{{ }}` 표현식을 사용할 때 다음 변수
 
 ### 3.2 포트 정의
 
+**버튼 미설정 시 (기본):**
+
 | 포트 | 방향 | 식별자 | 설명 |
 |------|------|--------|------|
 | Input | 입력 | `in` | 데이터 입력 |
 | Output | 출력 | `out` | 차트 구조 데이터 출력 |
+
+**버튼 설정 시:** Carousel §1.2와 동일한 포트 규칙 적용 — `out` 제거, port 버튼별 동적 포트, link 전용 시 `continue` 자동 생성.
 
 ### 3.3 실행 로직
 
@@ -305,7 +442,9 @@ column의 `field`/`label`에서 `{{ }}` 표현식을 사용할 때 다음 변수
 3. `yAxis.field` + `yAxis.aggregation`으로 값 산출 (§3.3.1 aggregation 규칙 참조)
 4. `groupBy` 지정 시 시리즈별 데이터 그룹화
 5. `chartType`에 따른 SVG 차트 렌더링
-6. 차트 설정 JSON + SVG 문자열을 출력 포트로 전달
+6. 차트 설정 JSON + SVG 문자열 생성
+7. **Blocking Mode** (`buttons`가 비어있지 않은 경우): Carousel §1.3과 동일한 블로킹 실행 흐름 — `waiting_for_input` 진입, 버튼 클릭/Continue/타임아웃 대기, 해당 포트로 라우팅
+8. **Non-blocking** (`buttons`가 비어있는 경우): `out` 포트로 출력 전달 (기존과 동일)
 
 #### 3.3.1 Aggregation 상세 규칙
 
@@ -381,6 +520,10 @@ X축 값이 중복되는 경우(예: 동일 월이 여러 행에 존재) `yAxis.
 - Chart Type 선택 시 설정 폼이 차트 유형에 맞게 조정 (pie/donut: xAxis 대신 labelField/valueField)
 - 필드 경로 자동완성 지원
 - 하단 Preview: 마지막 실행 데이터 기준 차트 미리보기
+
+### 3.5 버튼 설정 UI
+
+Carousel §1.5와 동일한 접이식 "Buttons" 섹션을 Chart 설정 UI 하단에 추가한다. ButtonDef 구조(§1.6), 유효성 검증(§1.7) 모두 동일 적용.
 
 ---
 
@@ -561,6 +704,9 @@ Handlebars 스타일 템플릿으로 입력 데이터를 바인딩하여 리치 
 | template | String | ✓ | — | Handlebars 문법 템플릿 문자열 |
 | outputFormat | Enum | ✗ | html | `html` / `markdown` / `text` |
 | helpers | Boolean | ✗ | true | 내장 Handlebars 헬퍼 활성화 |
+| buttons | ButtonDef[] | ✗ | `[]` | 버튼 정의 배열. 비어있지 않으면 Blocking Mode 활성화. ButtonDef 구조는 §1.6 참조 |
+| buttonTimeout | Number? | ✗ | — | 버튼 대기 타임아웃 (초). 미지정 시 무제한 대기 |
+| buttonTimeoutAction | Enum | ✗ | `continue` | `continue` / `cancel`. port 타입 버튼 존재 시 `cancel`만 허용 |
 
 **내장 헬퍼:**
 
@@ -578,10 +724,14 @@ Handlebars 스타일 템플릿으로 입력 데이터를 바인딩하여 리치 
 
 ### 5.2 포트 정의
 
+**버튼 미설정 시 (기본):**
+
 | 포트 | 방향 | 식별자 | 설명 |
 |------|------|--------|------|
 | Input | 입력 | `in` | 템플릿 컨텍스트 데이터 |
 | Output | 출력 | `out` | 렌더링된 콘텐츠 |
+
+**버튼 설정 시:** Carousel §1.2와 동일한 포트 규칙 적용 — `out` 제거, port 버튼별 동적 포트, link 전용 시 `continue` 자동 생성.
 
 ### 5.3 실행 로직
 
@@ -589,7 +739,9 @@ Handlebars 스타일 템플릿으로 입력 데이터를 바인딩하여 리치 
 2. `helpers` 활성화 시 내장 헬퍼 등록
 3. 템플릿 컴파일 및 렌더링
 4. `outputFormat`에 따른 후처리 (HTML 새니타이징, Markdown→HTML 변환 등)
-5. 렌더링 결과를 출력 포트로 전달
+5. 렌더링 결과 생성
+6. **Blocking Mode** (`buttons`가 비어있지 않은 경우): Carousel §1.3과 동일한 블로킹 실행 흐름 — `waiting_for_input` 진입, 버튼 클릭/Continue/타임아웃 대기, 해당 포트로 라우팅
+7. **Non-blocking** (`buttons`가 비어있는 경우): `out` 포트로 출력 전달 (기존과 동일)
 
 **출력 형식:**
 
@@ -636,6 +788,10 @@ Handlebars 스타일 템플릿으로 입력 데이터를 바인딩하여 리치 
 
 - 코드 에디터: Handlebars 구문 강조, `{{` 입력 시 입력 데이터 필드 자동완성
 - 하단 Rendered Preview: 마지막 실행 데이터 기준 렌더링 결과 미리보기
+
+### 5.5 버튼 설정 UI
+
+Carousel §1.5와 동일한 접이식 "Buttons" 섹션을 Template 설정 UI 하단에 추가한다. ButtonDef 구조(§1.6), 유효성 검증(§1.7) 모두 동일 적용.
 
 ---
 
@@ -755,11 +911,15 @@ Handlebars 스타일 템플릿으로 입력 데이터를 바인딩하여 리치 
 
 | 노드 | 요약 포맷 | 예시 |
 |------|-----------|------|
-| Carousel | `{layout} · {titleField}` | `card · name` |
-| Table | `{N} columns`. pagination 활성화 시 `· pagination` 추가 | `3 columns · pagination` |
-| Chart | `{chartType} · {xAxis.field} / {yAxis.field}` | `bar · month / revenue` |
+| Carousel (버튼 없음) | `{layout} · {titleField}` | `card · name` |
+| Carousel (버튼 있음) | `{layout} · {N} buttons` | `card · 3 buttons` |
+| Table (버튼 없음) | `{N} columns`. pagination 활성화 시 `· pagination` 추가 | `3 columns · pagination` |
+| Table (버튼 있음) | `{N} columns · {N} buttons` | `3 columns · 2 buttons` |
+| Chart (버튼 없음) | `{chartType} · {xAxis.field} / {yAxis.field}` | `bar · month / revenue` |
+| Chart (버튼 있음) | `{chartType} · {N} buttons` | `bar · 2 buttons` |
 | Form | `{N} fields · "{title}"` (필드 수 + 폼 제목) | `3 fields · "Approval"` |
-| Template | `{outputFormat} · {N} lines` (템플릿 줄 수) | `html · 9 lines` |
+| Template (버튼 없음) | `{outputFormat} · {N} lines` (템플릿 줄 수) | `html · 9 lines` |
+| Template (버튼 있음) | `{outputFormat} · {N} buttons` | `html · 2 buttons` |
 | PDF | `{pageSize} {orientation} · {fileName}` | `A4 portrait · report.pdf` |
 
 ---
@@ -776,6 +936,8 @@ Handlebars 스타일 템플릿으로 입력 데이터를 바인딩하여 리치 
 | 인터랙션 | 좌/우 화살표로 슬라이드 탐색. 현재 슬라이드 인디케이터 (예: 3/10) |
 | 이미지 | `imageField` 지정 시 이미지 렌더링. 로드 실패 시 placeholder |
 | 빈 데이터 | "No items to display" 메시지 |
+| **버튼 대기 중** (`waiting_for_input`) | 카드 리스트 아래 **버튼 바** 표시. port 버튼 클릭 시 `execution.click_button` WS 명령 전송 → 해당 포트로 실행 재개. link 버튼 클릭 시 새 탭에서 URL 열기 (실행 상태 변경 없음). link 전용 시 `[Continue →]` 암시적 버튼 표시 → `__continue__` ID로 WS 명령. 타임아웃 설정 시 잔여 시간 카운트다운 표시 |
+| **버튼 클릭 후** | "Button clicked: {label}" + 클릭 시각, 클릭자 정보 표시. 타임아웃 발생 시 "Timed out — {action}" 표시 |
 
 ### 8.2 Table
 
@@ -786,6 +948,8 @@ Handlebars 스타일 템플릿으로 입력 데이터를 바인딩하여 리치 
 | 포맷팅 | `format` 지정된 컬럼은 날짜/숫자 포맷 적용 |
 | 빈 데이터 | 컬럼 헤더만 표시 + "No data" 행 |
 | 대량 데이터 | 페이지네이션 강제 (최대 200행/페이지) |
+| **버튼 대기 중** (`waiting_for_input`) | 테이블 아래 **버튼 바** 표시. Carousel §8.1 버튼 대기와 동일한 인터랙션 |
+| **버튼 클릭 후** | Carousel §8.1 버튼 클릭 후와 동일 |
 
 ### 8.3 Chart
 
@@ -796,6 +960,8 @@ Handlebars 스타일 템플릿으로 입력 데이터를 바인딩하여 리치 
 | 차트 타입 | bar/line/area: X-Y 축 차트. pie/donut: 라벨-값 차트 |
 | 빈 데이터 | 축만 표시된 빈 차트 + "No data" 메시지 |
 | 리사이즈 | 드로어 크기 변경 시 차트 반응형 리사이즈 |
+| **버튼 대기 중** (`waiting_for_input`) | 차트 아래 **버튼 바** 표시. Carousel §8.1 버튼 대기와 동일한 인터랙션 |
+| **버튼 클릭 후** | Carousel §8.1 버튼 클릭 후와 동일 |
 
 ### 8.4 Form
 
@@ -815,6 +981,8 @@ Handlebars 스타일 템플릿으로 입력 데이터를 바인딩하여 리치 
 | Markdown 출력 | Markdown → HTML 변환 후 렌더링 |
 | Text 출력 | 코드 블록(`<pre>`) 형태로 표시 |
 | 빈 결과 | "Empty output" 메시지 |
+| **버튼 대기 중** (`waiting_for_input`) | 렌더링된 콘텐츠 아래 **버튼 바** 표시. Carousel §8.1 버튼 대기와 동일한 인터랙션 |
+| **버튼 클릭 후** | Carousel §8.1 버튼 클릭 후와 동일 |
 
 ### 8.6 PDF
 

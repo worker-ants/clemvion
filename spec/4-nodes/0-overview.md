@@ -150,11 +150,11 @@
 
 | type | 표시 이름 | 아이콘 | 입력 | 출력 | 키 설정 |
 |------|-----------|--------|------|------|---------|
-| `carousel` | Carousel | 🎠 | 1 | 1 | titleField, descriptionField, imageField, layout |
-| `table` | Table | 📋 | 1 | 1 | columns, pagination, pageSize, sortBy |
-| `chart` | Chart | 📊 | 1 | 1 | chartType, dataField, xAxis, yAxis, groupBy |
+| `carousel` | Carousel | 🎠 | 1 | 1 (out) 또는 N (동적 버튼 포트) | titleField, descriptionField, imageField, layout, buttons, buttonTimeout |
+| `table` | Table | 📋 | 1 | 1 (out) 또는 N (동적 버튼 포트) | columns, pagination, pageSize, sortBy, buttons, buttonTimeout |
+| `chart` | Chart | 📊 | 1 | 1 (out) 또는 N (동적 버튼 포트) | chartType, dataField, xAxis, yAxis, groupBy, buttons, buttonTimeout |
 | `form` | Form | 📝 | 1 | 1 | fields, title, submitLabel, timeout |
-| `template` | Template | 📄 | 1 | 1 | template, outputFormat, helpers |
+| `template` | Template | 📄 | 1 | 1 (out) 또는 N (동적 버튼 포트) | template, outputFormat, helpers, buttons, buttonTimeout |
 | `pdf` | PDF | 📑 | 1 | 1 | template, pageSize, orientation, fileName |
 
 ---
