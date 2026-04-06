@@ -5,4 +5,5 @@ export const appConfig = registerAs('app', () => ({
   url: process.env.APP_URL || 'http://localhost:3001',
   frontendUrl: process.env.FRONTEND_URL || 'http://localhost:3000',
   encryptionKey: process.env.ENCRYPTION_KEY || '',
+  cookieDomain: process.env.COOKIE_DOMAIN || '',
 }));

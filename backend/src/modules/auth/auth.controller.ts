@@ -8,6 +8,7 @@ import {
   Res,
   UnauthorizedException,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { AuthService } from './auth.service';
 import { Public } from '../../common/decorators';
 import { RegisterDto } from './dto/register.dto';
@@ -22,7 +23,14 @@ import Express from 'express';
 
 @Controller('auth')
 export class AuthController {
-  constructor(private readonly authService: AuthService) {}
+  private readonly cookieDomain: string;
+
+  constructor(
+    private readonly authService: AuthService,
+    private readonly configService: ConfigService,
+  ) {
+    this.cookieDomain = this.configService.get<string>('app.cookieDomain') || '';
+  }
 
   @Public()
   @Post('register')
@@ -67,7 +75,10 @@ export class AuthController {
     if (refreshToken) {
       await this.authService.logout(refreshToken);
     }
-    res.clearCookie('refreshToken', { path: '/' });
+    res.clearCookie('refreshToken', {
+      path: '/',
+      ...(this.cookieDomain ? { domain: this.cookieDomain } : {}),
+    });
     return { data: { message: 'Logged out successfully' } };
   }
 
@@ -127,6 +138,7 @@ export class AuthController {
       sameSite: 'none',
       maxAge,
       path: '/',
+      ...(this.cookieDomain ? { domain: this.cookieDomain } : {}),
     });
   }
 }
