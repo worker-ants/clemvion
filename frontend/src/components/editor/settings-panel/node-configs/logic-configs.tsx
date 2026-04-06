@@ -98,13 +98,22 @@ export function IfElseConfig({ config, onChange }: { config: Config; onChange: O
 export function SwitchConfig({ config, onChange }: { config: Config; onChange: OnChange }) {
   const mode = (config.mode as string) ?? "value";
   const switchValue = (config.switchValue as string) ?? "";
-  const cases = (config.cases as Array<{ id: string; label: string; value: string }>) ?? [];
+  const cases =
+    (config.cases as Array<{
+      id: string;
+      label: string;
+      value: string;
+      valueType?: string;
+    }>) ?? [];
 
   const addCase = () =>
     onChange({
       ...config,
       hasDefault: true,
-      cases: [...cases, { id: crypto.randomUUID(), label: `Case ${cases.length + 1}`, value: "" }],
+      cases: [
+        ...cases,
+        { id: crypto.randomUUID(), label: `Case ${cases.length + 1}`, value: "", valueType: "string" },
+      ],
     });
 
   const removeCase = (i: number) =>
@@ -151,6 +160,15 @@ export function SwitchConfig({ config, onChange }: { config: Config; onChange: O
               placeholder="Value or {{ expression }}"
             />
           </div>
+          <select
+            value={c.valueType ?? "string"}
+            onChange={(e) => updateCase(i, "valueType", e.target.value)}
+            className="h-7 w-[72px] shrink-0 rounded-md border border-[hsl(var(--input))] bg-transparent px-1 text-[10px]"
+          >
+            <option value="string">String</option>
+            <option value="number">Number</option>
+            <option value="boolean">Boolean</option>
+          </select>
           <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => removeCase(i)}>
             <X size={12} />
           </Button>

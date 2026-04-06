@@ -5,10 +5,14 @@ import {
 } from '../node-handler.interface.js';
 import { getNestedValue } from './nested-value.util.js';
 
+const VALID_VALUE_TYPES = new Set(['string', 'number', 'boolean']);
+type CaseValueType = 'string' | 'number' | 'boolean';
+
 interface SwitchCase {
   id: string;
   label?: string;
   value: unknown;
+  valueType?: CaseValueType;
 }
 
 interface SwitchConfig {
@@ -44,6 +48,11 @@ export class SwitchHandler implements NodeHandler {
         } else {
           seenIds.add(c.id);
         }
+        if (c.valueType !== undefined && !VALID_VALUE_TYPES.has(c.valueType)) {
+          errors.push(
+            `cases[${i}].valueType must be one of: string, number, boolean`,
+          );
+        }
       }
     }
 
@@ -72,7 +81,9 @@ export class SwitchHandler implements NodeHandler {
         ? getNestedValue(input, switchValue)
         : switchValue;
 
-    const matchedCase = cases.find((c) => c.value === actualValue);
+    const matchedCase = cases.find(
+      (c) => this.coerceCaseValue(c.value, c.valueType) === actualValue,
+    );
 
     if (matchedCase) {
       return { port: matchedCase.id, data: input };
@@ -83,5 +94,24 @@ export class SwitchHandler implements NodeHandler {
     }
 
     throw new Error('No matching case found and no default case configured');
+  }
+
+  private coerceCaseValue(value: unknown, valueType?: CaseValueType): unknown {
+    if (valueType === undefined || valueType === 'string') {
+      return value;
+    }
+    if (typeof value !== 'string') {
+      return value;
+    }
+    if (valueType === 'number') {
+      const n = Number(value);
+      return Number.isNaN(n) ? value : n;
+    }
+    if (valueType === 'boolean') {
+      if (value === 'true') return true;
+      if (value === 'false') return false;
+      return value;
+    }
+    return value;
   }
 }
