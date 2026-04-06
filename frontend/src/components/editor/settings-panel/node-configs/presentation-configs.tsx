@@ -1,13 +1,227 @@
 "use client";
 
+import { useState } from "react";
 import { SelectField, NumberField, CheckboxField, SectionTitle } from "./shared";
 import { ExpressionInput } from "@/components/editor/expression";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Plus, X } from "lucide-react";
+import { Plus, X, ChevronDown, ChevronRight, GripVertical } from "lucide-react";
 
 type Config = Record<string, unknown>;
 type OnChange = (config: Config) => void;
+
+// ===== Shared Buttons Config =====
+
+interface ButtonDef {
+  id: string;
+  label: string;
+  type: "link" | "port";
+  url?: string;
+  style?: "primary" | "secondary" | "outline" | "danger";
+}
+
+function ButtonsConfig({ config, onChange }: { config: Config; onChange: OnChange }) {
+  const [expanded, setExpanded] = useState(false);
+  const buttons = (config.buttons as ButtonDef[]) ?? [];
+  const hasPortButtons = buttons.some((b) => b.type === "port");
+
+  const addButton = () => {
+    if (buttons.length >= 10) return;
+    const newButton: ButtonDef = {
+      id: crypto.randomUUID(),
+      label: "",
+      type: "port",
+      style: "secondary",
+    };
+    onChange({ ...config, buttons: [...buttons, newButton] });
+  };
+
+  const removeButton = (i: number) => {
+    const updated = buttons.filter((_, idx) => idx !== i);
+    onChange({ ...config, buttons: updated });
+  };
+
+  const updateButton = (i: number, key: string, val: string) => {
+    const updated = buttons.map((btn, idx) => {
+      if (idx !== i) return btn;
+      const next = { ...btn, [key]: val };
+      // Clear url when switching to port type
+      if (key === "type" && val === "port") {
+        delete next.url;
+      }
+      return next;
+    });
+    onChange({ ...config, buttons: updated });
+  };
+
+  const moveButton = (from: number, to: number) => {
+    if (to < 0 || to >= buttons.length) return;
+    const updated = [...buttons];
+    const [moved] = updated.splice(from, 1);
+    updated.splice(to, 0, moved);
+    onChange({ ...config, buttons: updated });
+  };
+
+  return (
+    <div className="border-t border-[hsl(var(--border))] pt-2 mt-2">
+      <button
+        type="button"
+        className="flex w-full items-center gap-1.5 text-left"
+        onClick={() => setExpanded(!expanded)}
+      >
+        {expanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
+        <span className="text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--muted-foreground))]">
+          Buttons
+        </span>
+        {buttons.length > 0 && (
+          <span className="ml-auto text-[10px] text-[hsl(var(--muted-foreground))]">
+            {buttons.length}
+          </span>
+        )}
+      </button>
+
+      {expanded && (
+        <div className="mt-2 flex flex-col gap-2">
+          {buttons.map((btn, i) => (
+            <div
+              key={btn.id}
+              className="flex flex-col gap-1 rounded border border-[hsl(var(--border))] p-2"
+            >
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-1">
+                  <button
+                    type="button"
+                    className="cursor-grab text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]"
+                    title="Move up"
+                    onClick={() => moveButton(i, i - 1)}
+                    disabled={i === 0}
+                  >
+                    <GripVertical size={10} />
+                  </button>
+                  <span className="text-[10px] text-[hsl(var(--muted-foreground))]">
+                    Button {i + 1}
+                  </span>
+                </div>
+                <div className="flex gap-0.5">
+                  {i > 0 && (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-5 w-5 text-[10px]"
+                      onClick={() => moveButton(i, i - 1)}
+                      title="Move up"
+                    >
+                      ↑
+                    </Button>
+                  )}
+                  {i < buttons.length - 1 && (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-5 w-5 text-[10px]"
+                      onClick={() => moveButton(i, i + 1)}
+                      title="Move down"
+                    >
+                      ↓
+                    </Button>
+                  )}
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-5 w-5"
+                    onClick={() => removeButton(i)}
+                  >
+                    <X size={10} />
+                  </Button>
+                </div>
+              </div>
+              <ExpressionInput
+                label="Label"
+                value={btn.label}
+                onChange={(v) => updateButton(i, "label", v)}
+                placeholder="Button label"
+              />
+              <SelectField
+                label="Type"
+                value={btn.type}
+                onChange={(v) => updateButton(i, "type", v)}
+                options={[
+                  { value: "port", label: "Port (route execution)" },
+                  { value: "link", label: "Link (open URL)" },
+                ]}
+              />
+              {btn.type === "link" && (
+                <ExpressionInput
+                  label="URL"
+                  value={btn.url ?? ""}
+                  onChange={(v) => updateButton(i, "url", v)}
+                  placeholder="https://... or {{ expression }}"
+                />
+              )}
+              <SelectField
+                label="Style"
+                value={btn.style ?? "secondary"}
+                onChange={(v) => updateButton(i, "style", v)}
+                options={[
+                  { value: "primary", label: "Primary" },
+                  { value: "secondary", label: "Secondary" },
+                  { value: "outline", label: "Outline" },
+                  { value: "danger", label: "Danger" },
+                ]}
+              />
+            </div>
+          ))}
+
+          {buttons.length < 10 && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-7 text-xs"
+              onClick={addButton}
+            >
+              <Plus size={12} className="mr-1" /> Add Button
+            </Button>
+          )}
+
+          {buttons.length > 0 && (
+            <>
+              <NumberField
+                label="Timeout (seconds)"
+                value={(config.buttonTimeout as number) ?? 0}
+                onChange={(v) =>
+                  onChange({
+                    ...config,
+                    buttonTimeout: v > 0 ? v : undefined,
+                  })
+                }
+                min={0}
+                max={86400}
+                hint="0 = no timeout (unlimited wait)"
+              />
+              {(config.buttonTimeout as number) > 0 && (
+                <SelectField
+                  label="On Timeout"
+                  value={(config.buttonTimeoutAction as string) ?? (hasPortButtons ? "cancel" : "continue")}
+                  onChange={(v) =>
+                    onChange({ ...config, buttonTimeoutAction: v })
+                  }
+                  options={
+                    hasPortButtons
+                      ? [{ value: "cancel", label: "Cancel execution" }]
+                      : [
+                          { value: "continue", label: "Continue execution" },
+                          { value: "cancel", label: "Cancel execution" },
+                        ]
+                  }
+                />
+              )}
+            </>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
 
 // ===== Carousel =====
 let carouselItemId = 0;
@@ -138,6 +352,8 @@ export function CarouselConfig({ config, onChange }: { config: Config; onChange:
           { value: "minimal", label: "Minimal" },
         ]}
       />
+
+      <ButtonsConfig config={config} onChange={onChange} />
     </div>
   );
 }
@@ -314,6 +530,8 @@ export function TableConfig({ config, onChange }: { config: Config; onChange: On
           { value: "desc", label: "Descending" },
         ]}
       />
+
+      <ButtonsConfig config={config} onChange={onChange} />
     </div>
   );
 }
@@ -391,6 +609,8 @@ export function ChartConfig({ config, onChange }: { config: Config; onChange: On
         onChange={(v) => onChange({ ...config, title: v })}
         placeholder="Chart title"
       />
+
+      <ButtonsConfig config={config} onChange={onChange} />
     </div>
   );
 }
@@ -518,6 +738,8 @@ export function TemplateConfig({ config, onChange }: { config: Config; onChange:
         checked={(config.helpers as boolean) ?? true}
         onChange={(v) => onChange({ ...config, helpers: v })}
       />
+
+      <ButtonsConfig config={config} onChange={onChange} />
     </div>
   );
 }

@@ -1,4 +1,5 @@
 import { UnauthorizedException } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
 
@@ -11,13 +12,17 @@ describe('AuthController', () => {
     clearCookie: jest.fn(),
   };
 
+  const mockConfigService = {
+    get: jest.fn().mockReturnValue(''),
+  } as unknown as ConfigService;
+
   beforeEach(() => {
     authService = {
       refresh: jest.fn(),
       logout: jest.fn(),
     } as unknown as jest.Mocked<AuthService>;
 
-    controller = new AuthController(authService);
+    controller = new AuthController(authService, mockConfigService);
   });
 
   describe('refresh', () => {

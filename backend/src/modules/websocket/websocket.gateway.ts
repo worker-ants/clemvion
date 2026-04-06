@@ -187,6 +187,53 @@ export class WebsocketGateway
     }
   }
 
+  @SubscribeMessage('execution.click_button')
+  handleClickButton(
+    @MessageBody()
+    data: { executionId: string; nodeId?: string; buttonId: string },
+    @ConnectedSocket() client: Socket,
+  ): {
+    event: string;
+    data: {
+      success: boolean;
+      executionId?: string;
+      buttonId?: string;
+      resumed?: boolean;
+      error?: string;
+    };
+  } {
+    const userId = (client as Socket & { userId?: string }).userId;
+    if (!userId) {
+      return {
+        event: 'execution.click_button.ack',
+        data: { success: false, error: 'Not authenticated' },
+      };
+    }
+
+    try {
+      this.executionEngineService.continueButtonClick(
+        data.executionId,
+        data.buttonId,
+      );
+      return {
+        event: 'execution.click_button.ack',
+        data: {
+          success: true,
+          executionId: data.executionId,
+          buttonId: data.buttonId,
+          resumed: true,
+        },
+      };
+    } catch (error: unknown) {
+      const message =
+        error instanceof Error ? error.message : 'Button click failed';
+      return {
+        event: 'execution.click_button.ack',
+        data: { success: false, error: message },
+      };
+    }
+  }
+
   broadcastToChannel(channel: string, event: string, payload: unknown): void {
     this.server.to(channel).emit(event, payload);
   }

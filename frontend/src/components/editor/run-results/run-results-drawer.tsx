@@ -62,8 +62,13 @@ export function RunResultsDrawer() {
     (s) => s.selectedResultNodeId,
   );
   const selectResultNode = useExecutionStore((s) => s.selectResultNode);
+  const waitingInteractionType = useExecutionStore(
+    (s) => s.waitingInteractionType,
+  );
+  const waitingButtonConfig = useExecutionStore((s) => s.waitingButtonConfig);
   const reset = useExecutionStore((s) => s.reset);
   const resumeFromForm = useExecutionStore((s) => s.resumeFromForm);
+  const resumeFromButtons = useExecutionStore((s) => s.resumeFromButtons);
 
   // Auto-select waiting form node
   useEffect(() => {
@@ -157,10 +162,14 @@ export function RunResultsDrawer() {
   const selectedResult =
     nodeResults.find((r) => r.nodeId === selectedResultNodeId) ?? null;
 
-  const isWaitingForm =
+  const isSelectedWaiting =
     status === "waiting_for_input" &&
     waitingNodeId != null &&
     selectedResultNodeId === waitingNodeId;
+
+  const isWaitingForm = isSelectedWaiting && waitingInteractionType === "form";
+  const isWaitingButtons =
+    isSelectedWaiting && waitingInteractionType === "buttons";
 
   return (
     <div className="border-t border-[hsl(var(--border))] bg-[hsl(var(--card))]">
@@ -234,8 +243,11 @@ export function RunResultsDrawer() {
               result={selectedResult}
               isWaitingForm={isWaitingForm}
               formConfig={waitingFormConfig}
+              isWaitingButtons={isWaitingButtons}
+              buttonConfig={waitingButtonConfig}
               executionId={executionId}
               onFormSubmit={resumeFromForm}
+              onButtonClick={resumeFromButtons}
             />
           </div>
         </div>

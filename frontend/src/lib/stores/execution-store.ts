@@ -36,6 +36,8 @@ export interface NodeResult {
   startedAt?: string;
 }
 
+export type WaitingInteractionType = "form" | "buttons";
+
 interface ExecutionState {
   executionId: string | null;
   status: ExecutionStatus;
@@ -47,6 +49,11 @@ interface ExecutionState {
   waitingNodeId: string | null;
   waitingFormConfig: unknown;
 
+  /** Interaction type discriminator */
+  waitingInteractionType: WaitingInteractionType | null;
+  /** Button config when waiting for button interaction */
+  waitingButtonConfig: unknown;
+
   /** Selected node in result timeline */
   selectedResultNodeId: string | null;
 
@@ -57,6 +64,8 @@ interface ExecutionState {
   failExecution: (error?: string) => void;
   pauseForForm: (nodeId: string, formConfig: unknown) => void;
   resumeFromForm: () => void;
+  pauseForButtons: (nodeId: string, buttonConfig: unknown) => void;
+  resumeFromButtons: () => void;
   selectResultNode: (nodeId: string | null) => void;
   reset: () => void;
 }
@@ -79,6 +88,8 @@ export const useExecutionStore = create<ExecutionState>((set) => ({
   startedAt: null,
   waitingNodeId: null,
   waitingFormConfig: null,
+  waitingInteractionType: null,
+  waitingButtonConfig: null,
   selectedResultNodeId: null,
 
   startExecution: (executionId: string) =>
@@ -90,6 +101,8 @@ export const useExecutionStore = create<ExecutionState>((set) => ({
       startedAt: new Date().toISOString(),
       waitingNodeId: null,
       waitingFormConfig: null,
+      waitingInteractionType: null,
+      waitingButtonConfig: null,
       selectedResultNodeId: null,
     }),
 
@@ -117,10 +130,16 @@ export const useExecutionStore = create<ExecutionState>((set) => ({
     }),
 
   completeExecution: () =>
-    set({ status: "completed", waitingNodeId: null, waitingFormConfig: null }),
+    set({ status: "completed", waitingNodeId: null, waitingFormConfig: null, waitingInteractionType: null, waitingButtonConfig: null }),
 
   failExecution: (error?: string) =>
     set((state) => {
+      const clearWaiting = {
+        waitingNodeId: null,
+        waitingFormConfig: null,
+        waitingInteractionType: null as WaitingInteractionType | null,
+        waitingButtonConfig: null,
+      };
       if (error && state.executionId) {
         const updated = new Map(state.nodeStatuses);
         updated.set("__execution__", {
@@ -128,13 +147,12 @@ export const useExecutionStore = create<ExecutionState>((set) => ({
           error,
         });
         return {
-          status: "failed",
+          status: "failed" as ExecutionStatus,
           nodeStatuses: updated,
-          waitingNodeId: null,
-          waitingFormConfig: null,
+          ...clearWaiting,
         };
       }
-      return { status: "failed", waitingNodeId: null, waitingFormConfig: null };
+      return { status: "failed" as ExecutionStatus, ...clearWaiting };
     }),
 
   pauseForForm: (nodeId: string, formConfig: unknown) =>
@@ -142,6 +160,8 @@ export const useExecutionStore = create<ExecutionState>((set) => ({
       status: "waiting_for_input",
       waitingNodeId: nodeId,
       waitingFormConfig: formConfig,
+      waitingInteractionType: "form",
+      waitingButtonConfig: null,
     }),
 
   resumeFromForm: () =>
@@ -149,6 +169,26 @@ export const useExecutionStore = create<ExecutionState>((set) => ({
       status: "running",
       waitingNodeId: null,
       waitingFormConfig: null,
+      waitingInteractionType: null,
+      waitingButtonConfig: null,
+    }),
+
+  pauseForButtons: (nodeId: string, buttonConfig: unknown) =>
+    set({
+      status: "waiting_for_input",
+      waitingNodeId: nodeId,
+      waitingFormConfig: null,
+      waitingInteractionType: "buttons",
+      waitingButtonConfig: buttonConfig,
+    }),
+
+  resumeFromButtons: () =>
+    set({
+      status: "running",
+      waitingNodeId: null,
+      waitingFormConfig: null,
+      waitingInteractionType: null,
+      waitingButtonConfig: null,
     }),
 
   selectResultNode: (nodeId: string | null) =>
@@ -163,6 +203,8 @@ export const useExecutionStore = create<ExecutionState>((set) => ({
       startedAt: null,
       waitingNodeId: null,
       waitingFormConfig: null,
+      waitingInteractionType: null,
+      waitingButtonConfig: null,
       selectedResultNodeId: null,
     }),
 }));

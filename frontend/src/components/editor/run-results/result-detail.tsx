@@ -15,6 +15,7 @@ import { getWsClient } from "@/lib/websocket/ws-client";
 import { PresentationContent } from "./renderers/presentation-renderers";
 import { GenericRenderer } from "./renderers/generic-renderer";
 import { DynamicFormUI } from "./dynamic-form-ui";
+import { ButtonBar } from "./button-bar";
 import { formatDuration } from "./utils";
 
 function StatusBadge({ status }: { status: string }) {
@@ -78,16 +79,22 @@ interface ResultDetailProps {
   result: NodeResult | null;
   isWaitingForm: boolean;
   formConfig: unknown;
+  isWaitingButtons: boolean;
+  buttonConfig: unknown;
   executionId: string | null;
   onFormSubmit: () => void;
+  onButtonClick: () => void;
 }
 
 export function ResultDetail({
   result,
   isWaitingForm,
   formConfig,
+  isWaitingButtons,
+  buttonConfig,
   executionId,
   onFormSubmit,
+  onButtonClick,
 }: ResultDetailProps) {
   const handleFormSubmit = useCallback(
     (data: Record<string, unknown>) => {
@@ -101,6 +108,33 @@ export function ResultDetail({
     },
     [executionId, onFormSubmit],
   );
+
+  const handlePortButtonClick = useCallback(
+    (buttonId: string) => {
+      if (!executionId) return;
+      const client = getWsClient();
+      client.emit("execution.click_button", {
+        executionId,
+        buttonId,
+      });
+      onButtonClick();
+    },
+    [executionId, onButtonClick],
+  );
+
+  const handleContinueClick = useCallback(() => {
+    if (!executionId) return;
+    const client = getWsClient();
+    client.emit("execution.click_button", {
+      executionId,
+      buttonId: "__continue__",
+    });
+    onButtonClick();
+  }, [executionId, onButtonClick]);
+
+  const handleLinkButtonClick = useCallback((url: string) => {
+    window.open(url, "_blank", "noopener,noreferrer");
+  }, []);
 
   if (!result) {
     return (
@@ -141,6 +175,35 @@ export function ResultDetail({
           formConfig={formConfig as Record<string, unknown>}
           onSubmit={handleFormSubmit}
         />
+      ) : isWaitingButtons && buttonConfig ? (
+        <div>
+          {isPresentation && <PresentationContent result={result} />}
+          <ButtonBar
+            buttons={
+              ((buttonConfig as Record<string, unknown>).buttons as Array<{
+                id: string;
+                label: string;
+                type: "link" | "port";
+                url?: string;
+                style?: "primary" | "secondary" | "outline" | "danger";
+              }>) ?? []
+            }
+            timeout={
+              (buttonConfig as Record<string, unknown>).timeout as
+                | number
+                | undefined
+            }
+            timeoutAction={
+              (buttonConfig as Record<string, unknown>).timeoutAction as
+                | "continue"
+                | "cancel"
+                | undefined
+            }
+            onPortButtonClick={handlePortButtonClick}
+            onLinkButtonClick={handleLinkButtonClick}
+            onContinueClick={handleContinueClick}
+          />
+        </div>
       ) : isPresentation && result.status === "completed" ? (
         <PresentationContent result={result} />
       ) : (

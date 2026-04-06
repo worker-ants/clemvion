@@ -64,11 +64,19 @@ import { FormHandler } from './handlers/presentation/form.handler';
 import { TemplateHandler } from './handlers/presentation/template.handler';
 import { PdfHandler } from './handlers/presentation/pdf.handler';
 import { ManualTriggerHandler } from './handlers/trigger/manual-trigger.handler';
+import { ButtonConfig } from './types/button.types';
 
 class ExecutionCancelledError extends Error {
   constructor() {
     super('Execution cancelled while waiting for input');
     this.name = 'ExecutionCancelledError';
+  }
+}
+
+class ButtonTimeoutError extends Error {
+  constructor() {
+    super('BUTTON_TIMEOUT: Button interaction timed out');
+    this.name = 'ButtonTimeoutError';
   }
 }
 
@@ -130,7 +138,7 @@ export class ExecutionEngineService implements OnModuleInit {
       execution.status = ExecutionStatus.FAILED;
       execution.error = {
         message:
-          'Execution failed: server restarted while waiting for form input',
+          'Execution failed: server restarted while waiting for user input',
       };
       execution.finishedAt = new Date();
       if (execution.startedAt) {
@@ -266,6 +274,8 @@ export class ExecutionEngineService implements OnModuleInit {
 
       // 10. Execute nodes in topological order
       const executedNodes = new Set<string>();
+      // Track nodes skipped due to button port routing (for transitive propagation)
+      const portRoutingSkipped = new Set<string>();
 
       for (const nodeId of sortedNodeIds) {
         const node = nodeMap.get(nodeId);
@@ -291,6 +301,49 @@ export class ExecutionEngineService implements OnModuleInit {
           input,
         );
 
+        // Skip nodes whose upstream was filtered by button port routing.
+        // Checks two cases:
+        //  1. Direct: source has _selectedPort and this edge's port doesn't match
+        //  2. Transitive: source was already skipped due to port routing
+        const incomingEdges = graphEdges.filter(
+          (e) => e.targetNodeId === nodeId,
+        );
+        if (nodeInput === undefined && incomingEdges.length > 0) {
+          const shouldSkipForPortRouting = incomingEdges.some((e) => {
+            if (!executedNodes.has(e.sourceNodeId)) return false;
+            // Transitive: source was skipped by port routing
+            if (portRoutingSkipped.has(e.sourceNodeId)) return true;
+            // Direct: source has _selectedPort
+            const srcOut = context.nodeOutputCache[e.sourceNodeId];
+            return (
+              srcOut &&
+              typeof srcOut === 'object' &&
+              '_selectedPort' in (srcOut as Record<string, unknown>)
+            );
+          });
+          if (shouldSkipForPortRouting) {
+            portRoutingSkipped.add(nodeId);
+            await this.createNodeExecution(
+              executionId,
+              nodeId,
+              NodeExecutionStatus.SKIPPED,
+            );
+            this.websocketService.emitNodeEvent(
+              executionId,
+              nodeId,
+              NodeEventType.NODE_SKIPPED,
+              {
+                status: NodeExecutionStatus.SKIPPED,
+                nodeType: node.type,
+                nodeLabel: node.label ?? node.type,
+                reason: 'Port not selected (button routing)',
+              },
+            );
+            executedNodes.add(nodeId);
+            continue;
+          }
+        }
+
         // Execute the node
         await this.executeNode(
           executionId,
@@ -306,14 +359,27 @@ export class ExecutionEngineService implements OnModuleInit {
           },
         );
 
-        // Form nodes are blocking: pause execution until user submits the form
-        if (node.type === 'form') {
-          await this.waitForFormSubmission(
-            savedExecution,
-            executionId,
-            node,
-            context,
-          );
+        // Blocking nodes: pause execution until user interaction
+        const nodeOutput = context.nodeOutputCache[node.id] as
+          | Record<string, unknown>
+          | undefined;
+        if (nodeOutput?.status === 'waiting_for_input') {
+          if (node.type === 'form') {
+            await this.waitForFormSubmission(
+              savedExecution,
+              executionId,
+              node,
+              context,
+            );
+          } else if (nodeOutput.interactionType === 'buttons') {
+            await this.waitForButtonInteraction(
+              savedExecution,
+              executionId,
+              node,
+              context,
+              graphEdges,
+            );
+          }
         }
       }
 
@@ -343,7 +409,7 @@ export class ExecutionEngineService implements OnModuleInit {
         { status: ExecutionStatus.COMPLETED },
       );
     } catch (error: unknown) {
-      // Cancelled while waiting for form input — mark as cancelled, not failed
+      // Cancelled while waiting for user input — mark as cancelled, not failed
       if (error instanceof ExecutionCancelledError) {
         savedExecution.status = ExecutionStatus.CANCELLED;
         savedExecution.finishedAt = new Date();
@@ -355,6 +421,26 @@ export class ExecutionEngineService implements OnModuleInit {
           executionId,
           ExecutionEventType.EXECUTION_CANCELLED,
           { status: ExecutionStatus.CANCELLED },
+        );
+        return;
+      }
+
+      // Button timeout with cancel action — mark as cancelled
+      if (error instanceof ButtonTimeoutError) {
+        savedExecution.status = ExecutionStatus.CANCELLED;
+        savedExecution.error = { message: error.message };
+        savedExecution.finishedAt = new Date();
+        savedExecution.durationMs =
+          savedExecution.finishedAt.getTime() -
+          savedExecution.startedAt.getTime();
+        await this.executionRepository.save(savedExecution);
+        this.websocketService.emitExecutionEvent(
+          executionId,
+          ExecutionEventType.EXECUTION_CANCELLED,
+          {
+            status: ExecutionStatus.CANCELLED,
+            error: error.message,
+          },
         );
         return;
       }
@@ -503,6 +589,229 @@ export class ExecutionEngineService implements OnModuleInit {
       this.pendingContinuations.delete(executionId);
       pending.reject(new ExecutionCancelledError());
     }
+  }
+
+  /**
+   * Resume a paused execution by clicking a button.
+   * Called from WebSocket handler.
+   */
+  continueButtonClick(executionId: string, buttonId: string): void {
+    const pending = this.pendingContinuations.get(executionId);
+    if (!pending) {
+      throw new Error(`No pending continuation for execution: ${executionId}`);
+    }
+    this.pendingContinuations.delete(executionId);
+    pending.resolve({ type: 'button_click', buttonId });
+  }
+
+  /**
+   * Pause execution at a Presentation node with buttons and wait for user interaction.
+   * Transitions Execution → WAITING_FOR_INPUT, emits WS event, awaits Promise.
+   * On resume: sets _selectedPort for port routing, transitions back to RUNNING.
+   */
+  private async waitForButtonInteraction(
+    savedExecution: Execution,
+    executionId: string,
+    node: Node,
+    context: ExecutionContext,
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    _graphEdges: GraphEdge[],
+  ): Promise<void> {
+    // Update execution status to waiting
+    await this.updateExecutionStatus(
+      savedExecution,
+      ExecutionStatus.WAITING_FOR_INPUT,
+    );
+
+    // Update the node execution to waiting_for_input
+    const nodeExec = await this.nodeExecutionRepository.findOne({
+      where: { executionId, nodeId: node.id },
+      order: { startedAt: 'DESC' },
+    });
+    if (nodeExec) {
+      nodeExec.status = NodeExecutionStatus.WAITING_FOR_INPUT;
+      await this.nodeExecutionRepository.save(nodeExec);
+    }
+
+    // Get the button config from the node output
+    const nodeOutput = context.nodeOutputCache[node.id] as Record<
+      string,
+      unknown
+    >;
+    const buttonConfig = nodeOutput.buttonConfig as ButtonConfig;
+    const buttons = buttonConfig.buttons;
+
+    // Emit waiting event so frontend can render buttons
+    this.websocketService.emitExecutionEvent(
+      executionId,
+      ExecutionEventType.EXECUTION_WAITING_FOR_INPUT,
+      {
+        status: ExecutionStatus.WAITING_FOR_INPUT,
+        waitingNodeId: node.id,
+        waitingNodeType: node.type,
+        interactionType: 'buttons',
+        buttonConfig: {
+          buttons,
+          timeout: buttonConfig.buttonTimeout,
+          timeoutAction: buttonConfig.buttonTimeoutAction,
+          nodeOutput,
+        },
+      },
+    );
+
+    // Determine timeout
+    const timeoutSeconds = buttonConfig.buttonTimeout;
+    // If no timeout set, use 30 minutes as safety default
+    const timeoutMs = timeoutSeconds ? timeoutSeconds * 1000 : 30 * 60 * 1000;
+
+    // Await user button click with timeout
+    const clickData = await new Promise<unknown>((resolve, reject) => {
+      this.pendingContinuations.set(executionId, {
+        nodeId: node.id,
+        resolve,
+        reject,
+      });
+
+      setTimeout(() => {
+        if (this.pendingContinuations.has(executionId)) {
+          this.pendingContinuations.delete(executionId);
+
+          // If explicit timeout is set, apply timeoutAction
+          if (timeoutSeconds) {
+            const action = buttonConfig.buttonTimeoutAction ?? 'continue';
+            if (action === 'cancel') {
+              reject(new ButtonTimeoutError());
+            } else {
+              // continue: resolve with timeout continue action
+              resolve({ type: 'button_timeout', action: 'continue' });
+            }
+          } else {
+            // Safety timeout (no explicit timeout set) → cancel
+            reject(new ExecutionCancelledError());
+          }
+        }
+      }, timeoutMs);
+    });
+
+    // Process the interaction result
+    const click = clickData as {
+      type: string;
+      buttonId?: string;
+      action?: string;
+    };
+    const now = new Date().toISOString();
+
+    let selectedPort: string;
+    let interactionData: Record<string, unknown>;
+    let updatedOutput: Record<string, unknown>;
+
+    // Strip internal fields from nodeOutput for downstream consumption
+    const cleanNodeOutput = { ...nodeOutput };
+    delete cleanNodeOutput.status;
+    delete cleanNodeOutput.interactionType;
+    delete cleanNodeOutput.buttonConfig;
+
+    if (click.type === 'button_click') {
+      const buttonId = click.buttonId!;
+      const clickedButton = buttons.find((b) => b.id === buttonId);
+
+      if (!clickedButton) {
+        throw new Error(`INVALID_BUTTON_ID: Button ${buttonId} not found`);
+      }
+
+      if (clickedButton.type === 'port') {
+        selectedPort = buttonId;
+        interactionData = {
+          interactionType: 'button_click',
+          buttonId,
+          buttonLabel: clickedButton.label,
+          clickedAt: now,
+        };
+        updatedOutput = {
+          type: 'button_click',
+          buttonId,
+          buttonLabel: clickedButton.label,
+          clickedAt: now,
+          nodeOutput: cleanNodeOutput,
+          _selectedPort: selectedPort,
+        };
+      } else {
+        // __continue__ for link-only "Continue" click
+        selectedPort = 'continue';
+        interactionData = {
+          interactionType: 'button_continue',
+          clickedAt: now,
+        };
+        updatedOutput = {
+          type: 'button_continue',
+          clickedAt: now,
+          nodeOutput: cleanNodeOutput,
+          _selectedPort: selectedPort,
+        };
+      }
+    } else if (click.type === 'button_timeout') {
+      // Timeout with continue action
+      selectedPort = 'continue';
+      interactionData = {
+        interactionType: 'button_timeout',
+        action: 'continue',
+        clickedAt: now,
+      };
+      updatedOutput = {
+        type: 'button_continue',
+        clickedAt: now,
+        timedOut: true,
+        nodeOutput: cleanNodeOutput,
+        _selectedPort: selectedPort,
+      };
+    } else {
+      // Fallback: treat as continue
+      selectedPort = 'continue';
+      interactionData = {
+        interactionType: 'button_continue',
+        clickedAt: now,
+      };
+      updatedOutput = {
+        type: 'button_continue',
+        clickedAt: now,
+        nodeOutput: cleanNodeOutput,
+        _selectedPort: selectedPort,
+      };
+    }
+
+    // Update node output cache with port selection
+    this.contextService.setNodeOutput(executionId, node.id, updatedOutput);
+
+    // Update node execution to completed with interaction data
+    if (nodeExec) {
+      nodeExec.status = NodeExecutionStatus.COMPLETED;
+      nodeExec.outputData = updatedOutput;
+      nodeExec.interactionData = interactionData;
+      nodeExec.finishedAt = new Date();
+      nodeExec.durationMs =
+        nodeExec.finishedAt.getTime() - nodeExec.startedAt.getTime();
+      await this.nodeExecutionRepository.save(nodeExec);
+      this.websocketService.emitNodeEvent(
+        executionId,
+        node.id,
+        NodeEventType.NODE_COMPLETED,
+        {
+          status: NodeExecutionStatus.COMPLETED,
+          duration: nodeExec.durationMs,
+          nodeType: node.type,
+          nodeLabel: node.label ?? node.type,
+          output: nodeExec.outputData,
+        },
+      );
+    }
+
+    // Transition back to RUNNING
+    await this.updateExecutionStatus(savedExecution, ExecutionStatus.RUNNING);
+    this.websocketService.emitExecutionEvent(
+      executionId,
+      ExecutionEventType.EXECUTION_RESUMED,
+      { status: ExecutionStatus.RUNNING },
+    );
   }
 
   private async executeNode(
@@ -799,19 +1108,52 @@ export class ExecutionEngineService implements OnModuleInit {
     if (incomingEdges.length === 1) {
       const sourceId = incomingEdges[0].sourceNodeId;
       if (executedNodes.has(sourceId)) {
-        return nodeOutputCache[sourceId];
+        const sourceOutput = nodeOutputCache[sourceId];
+        // Port-aware filtering: if source has _selectedPort, only pass data
+        // if the edge's sourcePort matches the selected port
+        if (this.isPortFiltered(sourceOutput, incomingEdges[0].sourcePort)) {
+          return undefined;
+        }
+        return sourceOutput;
       }
       return undefined;
     }
 
     // Multiple inputs - merge into object keyed by source node ID
     const merged: Record<string, unknown> = {};
+    let hasAnyInput = false;
     for (const edge of incomingEdges) {
       if (executedNodes.has(edge.sourceNodeId)) {
-        merged[edge.sourceNodeId] = nodeOutputCache[edge.sourceNodeId];
+        const sourceOutput = nodeOutputCache[edge.sourceNodeId];
+        // Port-aware filtering for multi-input nodes
+        if (this.isPortFiltered(sourceOutput, edge.sourcePort)) {
+          continue;
+        }
+        merged[edge.sourceNodeId] = sourceOutput;
+        hasAnyInput = true;
       }
     }
-    return merged;
+    return hasAnyInput ? merged : undefined;
+  }
+
+  /**
+   * Check if a source output should be filtered based on port selection.
+   * Returns true if the output has _selectedPort and it doesn't match the edge's sourcePort.
+   */
+  private isPortFiltered(
+    sourceOutput: unknown,
+    edgeSourcePort: string,
+  ): boolean {
+    if (
+      sourceOutput &&
+      typeof sourceOutput === 'object' &&
+      '_selectedPort' in (sourceOutput as Record<string, unknown>)
+    ) {
+      const selectedPort = (sourceOutput as Record<string, unknown>)
+        ._selectedPort as string;
+      return edgeSourcePort !== selectedPort;
+    }
+    return false;
   }
 
   private buildOutgoingEdgeMap(edges: GraphEdge[]): Map<string, GraphEdge[]> {

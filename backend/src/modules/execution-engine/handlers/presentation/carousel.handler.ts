@@ -3,6 +3,7 @@ import {
   NodeHandler,
   ValidationResult,
 } from '../node-handler.interface.js';
+import { ButtonDef, validateButtons } from '../../types/button.types.js';
 
 function toStr(value: unknown): string {
   if (value == null) return '';
@@ -47,6 +48,8 @@ export class CarouselHandler implements NodeHandler {
     } else {
       errors.push('mode must be either "static" or "dynamic"');
     }
+
+    errors.push(...validateButtons(config));
 
     return { valid: errors.length === 0, errors };
   }
@@ -102,6 +105,23 @@ export class CarouselHandler implements NodeHandler {
     }
 
     const rendered = this.renderHtml(items, layout);
+
+    const buttons = config.buttons as ButtonDef[] | undefined;
+    if (Array.isArray(buttons) && buttons.length > 0) {
+      return Promise.resolve({
+        type: 'carousel',
+        items,
+        layout,
+        rendered,
+        status: 'waiting_for_input',
+        interactionType: 'buttons',
+        buttonConfig: {
+          buttons,
+          buttonTimeout: config.buttonTimeout,
+          buttonTimeoutAction: config.buttonTimeoutAction ?? 'continue',
+        },
+      });
+    }
 
     return Promise.resolve({ type: 'carousel', items, layout, rendered });
   }
