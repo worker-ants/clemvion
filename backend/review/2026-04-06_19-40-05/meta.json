@@ -1,0 +1,153 @@
+{
+  "timestamp": "2026-04-06T19:44:59.652718",
+  "files": [
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/backend/review/2026-04-06_19-32-41/SUMMARY.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/backend/review/2026-04-06_19-32-41/api_contract/review.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/backend/review/2026-04-06_19-32-41/architecture/review.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/backend/review/2026-04-06_19-32-41/concurrency/review.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/backend/review/2026-04-06_19-32-41/database/review.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/backend/review/2026-04-06_19-32-41/dependency/review.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/backend/review/2026-04-06_19-32-41/documentation/review.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/backend/review/2026-04-06_19-32-41/maintainability/review.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/backend/review/2026-04-06_19-32-41/meta.json",
+      "change_type": "Review",
+      "file_extension": "json"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/backend/review/2026-04-06_19-32-41/performance/review.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/backend/review/2026-04-06_19-32-41/requirement/review.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/backend/review/2026-04-06_19-32-41/scope/review.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/backend/review/2026-04-06_19-32-41/security/review.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/backend/review/2026-04-06_19-32-41/side_effect/review.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/backend/review/2026-04-06_19-32-41/testing/review.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/backend/src/modules/execution-engine/handlers/logic/switch.handler.spec.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    }
+  ],
+  "total_elapsed_seconds": 294.11,
+  "agents": [
+    {
+      "name": "database",
+      "status": "success",
+      "elapsed_seconds": 6.2
+    },
+    {
+      "name": "api_contract",
+      "status": "success",
+      "elapsed_seconds": 6.93
+    },
+    {
+      "name": "concurrency",
+      "status": "success",
+      "elapsed_seconds": 7.02
+    },
+    {
+      "name": "documentation",
+      "status": "success",
+      "elapsed_seconds": 16.01
+    },
+    {
+      "name": "dependency",
+      "status": "success",
+      "elapsed_seconds": 16.42
+    },
+    {
+      "name": "side_effect",
+      "status": "success",
+      "elapsed_seconds": 21.74
+    },
+    {
+      "name": "scope",
+      "status": "success",
+      "elapsed_seconds": 26.34
+    },
+    {
+      "name": "performance",
+      "status": "success",
+      "elapsed_seconds": 27.88
+    },
+    {
+      "name": "maintainability",
+      "status": "success",
+      "elapsed_seconds": 32.81
+    },
+    {
+      "name": "architecture",
+      "status": "success",
+      "elapsed_seconds": 45.58
+    },
+    {
+      "name": "security",
+      "status": "success",
+      "elapsed_seconds": 55.67
+    },
+    {
+      "name": "requirement",
+      "status": "success",
+      "elapsed_seconds": 77.87
+    },
+    {
+      "name": "testing",
+      "status": "success",
+      "elapsed_seconds": 101.58
+    }
+  ]
+}
