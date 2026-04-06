@@ -178,6 +178,7 @@ Access Token (15분) 만료 전에 연결을 유지하려면:
 | `execution.node.completed` | `{ executionId, nodeId, nodeName, output, duration }` | 노드 실행 완료 |
 | `execution.node.failed` | `{ executionId, nodeId, nodeName, error }` | 노드 실행 실패 |
 | `execution.node.skipped` | `{ executionId, nodeId, nodeName, reason }` | 노드 건너뜀 |
+| `execution.waiting_for_input` | `{ executionId, nodeId, nodeType, interactionType, formConfig?, buttonConfig? }` | Form 노드 또는 버튼이 설정된 Presentation 노드에서 사용자 입력 대기. 아래 §4.4 참조 |
 
 ### 4.2 실행 제어 명령 (Client → Server)
 
@@ -187,6 +188,8 @@ Access Token (15분) 만료 전에 연결을 유지하려면:
 | `execution.stop` | `{ executionId, force? }` | 실행 중단 요청 |
 | `execution.continue` | `{ executionId }` | 브레이크포인트 후 계속 |
 | `execution.step` | `{ executionId }` | 한 노드만 실행 후 다시 정지 |
+| `execution.submit_form` | `{ executionId, nodeId, formData }` | Form 노드에 사용자 입력 제출 |
+| `execution.click_button` | `{ executionId, nodeId, buttonId }` | 버튼이 설정된 Presentation 노드에서 버튼 클릭. `buttonId`는 port 타입 버튼의 UUID 또는 `__continue__` (link 전용 시 Continue 액션) |
 
 **실행 시작 응답:**
 
@@ -200,6 +203,86 @@ Access Token (15분) 만료 전에 연결을 유지하려면:
   }
 }
 ```
+
+**버튼 클릭 응답:**
+
+```json
+{
+  "type": "execution.click_button.ack",
+  "id": "req-uuid",
+  "payload": {
+    "executionId": "uuid",
+    "nodeId": "uuid",
+    "buttonId": "uuid",
+    "resumed": true
+  }
+}
+```
+
+**버튼 클릭 에러 코드:**
+
+| 코드 | 설명 |
+|------|------|
+| `INVALID_BUTTON_ID` | 존재하지 않는 버튼 ID |
+| `INVALID_EXECUTION_STATE` | 실행이 `waiting_for_input` 상태가 아님 |
+| `INTERACTION_TIMEOUT` | 이미 타임아웃이 발생한 상태 |
+
+### 4.4 사용자 입력 대기 이벤트 상세 (`execution.waiting_for_input`)
+
+`interactionType` 필드로 Form 노드와 버튼 Presentation 노드를 구분한다.
+
+**Form 노드 (`interactionType: "form"`):**
+
+```json
+{
+  "type": "execution.waiting_for_input",
+  "payload": {
+    "executionId": "uuid",
+    "nodeId": "uuid",
+    "nodeType": "form",
+    "interactionType": "form",
+    "formConfig": {
+      "title": "Approval Request",
+      "description": "Please review...",
+      "fields": [ ... ],
+      "submitLabel": "Submit",
+      "timeout": 300
+    }
+  }
+}
+```
+
+**버튼 Presentation 노드 (`interactionType: "buttons"`):**
+
+```json
+{
+  "type": "execution.waiting_for_input",
+  "payload": {
+    "executionId": "uuid",
+    "nodeId": "uuid",
+    "nodeType": "carousel",
+    "interactionType": "buttons",
+    "buttonConfig": {
+      "buttons": [
+        { "id": "uuid-1", "label": "승인", "type": "port", "style": "primary" },
+        { "id": "uuid-2", "label": "상세보기", "type": "link", "url": "https://...", "style": "outline" }
+      ],
+      "timeout": 300,
+      "timeoutAction": "cancel",
+      "nodeOutput": { "type": "carousel", "items": [...], "rendered": "..." }
+    }
+  }
+}
+```
+
+| 필드 | 설명 |
+|------|------|
+| `interactionType` | `form`: Form 노드, `buttons`: 버튼이 설정된 Presentation 노드 |
+| `formConfig` | `interactionType = form` 시 존재. Form 노드의 폼 설정 |
+| `buttonConfig` | `interactionType = buttons` 시 존재. 버튼 정의 + 타임아웃 + 노드 렌더링 출력 |
+| `buttonConfig.nodeOutput` | 노드의 렌더링 결과 (클라이언트가 콘텐츠 + 버튼을 함께 표시) |
+
+---
 
 ### 4.3 임베딩 이벤트 (Server → Client)
 

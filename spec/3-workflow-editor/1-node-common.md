@@ -55,11 +55,11 @@
 | Google Drive | 1 | 1 | `out` |
 | Transform | 1 | 1 | `out` |
 | Code | 1 | 1 | `out` |
-| Carousel | 1 | 1 | `out` |
-| Table | 1 | 1 | `out` |
-| Chart | 1 | 1 | `out` |
+| Carousel | 1 | 1 또는 N (동적) | `out` (기본). 버튼 설정 시 `out` 제거 → port 버튼별 동적 포트 (`{button.id}`) + link 전용 시 `continue` 자동 생성 |
+| Table | 1 | 1 또는 N (동적) | Carousel과 동일 |
+| Chart | 1 | 1 또는 N (동적) | Carousel과 동일 |
 | Form | 1 | 1 | `out` |
-| Template | 1 | 1 | `out` |
+| Template | 1 | 1 또는 N (동적) | Carousel과 동일 |
 | PDF | 1 | 1 | `out` |
 | **(조건부) error** | — | +1 | `error` — 에러 처리 정책이 "Route to Error Port"인 노드에 동적 추가. 빨간 원, 노드 우하단 |
 
