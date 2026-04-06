@@ -27,9 +27,9 @@ export function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
-  // Check for refresh token cookie (presence indicates authenticated session)
-  const refreshToken = request.cookies.get("refreshToken");
-  if (!refreshToken) {
+  // Check for session hint cookie (set by frontend JS on login, works cross-domain)
+  const hasSession = request.cookies.get("has_session");
+  if (!hasSession) {
     const loginUrl = new URL("/login", request.url);
     loginUrl.searchParams.set("redirect", pathname);
     return NextResponse.redirect(loginUrl);
