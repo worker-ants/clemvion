@@ -109,6 +109,17 @@ describe('SwitchHandler', () => {
       expect(result.errors).toContain('switchValue is required');
     });
 
+    it('should return invalid when valueType is not a valid type', () => {
+      const result = handler.validate({
+        switchValue: 'field',
+        cases: [{ id: 'case-1', value: 'a', valueType: 'integer' }],
+      });
+      expect(result.valid).toBe(false);
+      expect(result.errors).toContain(
+        'cases[0].valueType must be one of: string, number, boolean',
+      );
+    });
+
     it('should return invalid when case ids are duplicated', () => {
       const result = handler.validate({
         switchValue: 'field',
@@ -264,7 +275,27 @@ describe('SwitchHandler', () => {
       expect(result).toEqual({ port: 'first', data: { x: 1 } });
     });
 
-    it('should use strict equality (no type coercion)', async () => {
+    it('should match number via path lookup with valueType number', async () => {
+      const result = await handler.execute(
+        { x: 42 },
+        {
+          switchValue: 'x',
+          cases: [
+            {
+              id: 'case-1',
+              label: 'FortyTwo',
+              value: '42',
+              valueType: 'number',
+            },
+          ],
+          hasDefault: true,
+        },
+        context,
+      );
+      expect(result).toEqual({ port: 'case-1', data: { x: 42 } });
+    });
+
+    it('should use strict equality when valueType is not specified', async () => {
       const result = await handler.execute(
         { x: '1' },
         {
@@ -307,6 +338,102 @@ describe('SwitchHandler', () => {
       ).rejects.toThrow(
         'No matching case found and no default case configured',
       );
+    });
+
+    it('should coerce case value to number when valueType is number', async () => {
+      const result = await handler.execute(
+        {},
+        {
+          switchValue: 42,
+          cases: [
+            {
+              id: 'case-1',
+              label: 'FortyTwo',
+              value: '42',
+              valueType: 'number',
+            },
+          ],
+          hasDefault: true,
+        },
+        context,
+      );
+      expect(result).toEqual({ port: 'case-1', data: {} });
+    });
+
+    it('should coerce case value to boolean when valueType is boolean', async () => {
+      const result = await handler.execute(
+        {},
+        {
+          switchValue: true,
+          cases: [
+            { id: 'case-1', label: 'Yes', value: 'true', valueType: 'boolean' },
+            { id: 'case-2', label: 'No', value: 'false', valueType: 'boolean' },
+          ],
+          hasDefault: true,
+        },
+        context,
+      );
+      expect(result).toEqual({ port: 'case-1', data: {} });
+    });
+
+    it('should not coerce when valueType is string (default)', async () => {
+      const result = await handler.execute(
+        {},
+        {
+          switchValue: 42,
+          cases: [
+            { id: 'case-1', label: 'Str42', value: '42', valueType: 'string' },
+          ],
+          hasDefault: true,
+        },
+        context,
+      );
+      expect(result).toEqual({ port: 'default', data: {} });
+    });
+
+    it('should not coerce when valueType is omitted', async () => {
+      const result = await handler.execute(
+        {},
+        {
+          switchValue: 42,
+          cases: [{ id: 'case-1', label: 'Str42', value: '42' }],
+          hasDefault: true,
+        },
+        context,
+      );
+      expect(result).toEqual({ port: 'default', data: {} });
+    });
+
+    it('should keep original string when number coercion fails', async () => {
+      const result = await handler.execute(
+        { x: 'abc' },
+        {
+          switchValue: 'x',
+          cases: [
+            { id: 'case-1', label: 'NaN', value: 'abc', valueType: 'number' },
+          ],
+          hasDefault: true,
+        },
+        context,
+      );
+      // 'abc' cannot be coerced to number, stays as 'abc', matches string 'abc'
+      expect(result).toEqual({ port: 'case-1', data: { x: 'abc' } });
+    });
+
+    it('should keep original string when boolean coercion gets non-boolean string', async () => {
+      const result = await handler.execute(
+        { x: 'yes' },
+        {
+          switchValue: 'x',
+          cases: [
+            { id: 'case-1', label: 'Yes', value: 'yes', valueType: 'boolean' },
+          ],
+          hasDefault: true,
+        },
+        context,
+      );
+      // 'yes' is not 'true'/'false', stays as 'yes', matches string 'yes'
+      expect(result).toEqual({ port: 'case-1', data: { x: 'yes' } });
     });
 
     it('should not traverse prototype properties', async () => {
