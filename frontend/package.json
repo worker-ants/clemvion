@@ -3,9 +3,9 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev --webpack",
+    "dev": "source .env 2>/dev/null; next dev --port ${PORT:-3000} --webpack",
     "build": "next build --webpack",
-    "start": "next start",
+    "start": "source .env 2>/dev/null; next start --port ${PORT:-3000}",
     "lint": "eslint",
     "test": "vitest run",
     "test:watch": "vitest"
