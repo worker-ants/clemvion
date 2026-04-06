@@ -1,4 +1,8 @@
-import { validateButtons, hasPortButtons, hasOnlyLinkButtons } from './button.types.js';
+import {
+  validateButtons,
+  hasPortButtons,
+  hasOnlyLinkButtons,
+} from './button.types.js';
 
 describe('button.types', () => {
   describe('hasPortButtons', () => {
@@ -127,9 +131,7 @@ describe('button.types', () => {
 
     it('should fail for invalid style', () => {
       const errors = validateButtons({
-        buttons: [
-          { id: 'btn-1', label: 'X', type: 'port', style: 'neon' },
-        ],
+        buttons: [{ id: 'btn-1', label: 'X', type: 'port', style: 'neon' }],
       });
       expect(errors.some((e) => e.includes('style'))).toBe(true);
     });
@@ -156,9 +158,7 @@ describe('button.types', () => {
         buttonTimeout: 300,
         buttonTimeoutAction: 'continue',
       });
-      expect(
-        errors.some((e) => e.includes('cannot be "continue"')),
-      ).toBe(true);
+      expect(errors.some((e) => e.includes('cannot be "continue"'))).toBe(true);
     });
 
     it('should pass when port buttons exist and timeoutAction is cancel', () => {

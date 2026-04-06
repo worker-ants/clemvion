@@ -29,7 +29,8 @@ export class AuthController {
     private readonly authService: AuthService,
     private readonly configService: ConfigService,
   ) {
-    this.cookieDomain = this.configService.get<string>('app.cookieDomain') || '';
+    this.cookieDomain =
+      this.configService.get<string>('app.cookieDomain') || '';
   }
 
   @Public()

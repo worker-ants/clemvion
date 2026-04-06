@@ -1,3 +1,5 @@
+const BLOCKED_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
+
 export function getNestedValue(obj: unknown, path: string): unknown {
   if (obj === null || obj === undefined) {
     return undefined;
@@ -11,6 +13,9 @@ export function getNestedValue(obj: unknown, path: string): unknown {
       return undefined;
     }
     if (typeof current !== 'object') {
+      return undefined;
+    }
+    if (BLOCKED_KEYS.has(key)) {
       return undefined;
     }
     current = (current as Record<string, unknown>)[key];
@@ -29,6 +34,9 @@ export function setNestedValue(
 
   for (let i = 0; i < keys.length - 1; i++) {
     const key = keys[i];
+    if (BLOCKED_KEYS.has(key)) {
+      return;
+    }
     if (
       current[key] === undefined ||
       current[key] === null ||
@@ -39,5 +47,9 @@ export function setNestedValue(
     current = current[key] as Record<string, unknown>;
   }
 
-  current[keys[keys.length - 1]] = value;
+  const lastKey = keys[keys.length - 1];
+  if (BLOCKED_KEYS.has(lastKey)) {
+    return;
+  }
+  current[lastKey] = value;
 }

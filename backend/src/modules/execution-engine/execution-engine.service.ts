@@ -905,8 +905,10 @@ export class ExecutionEngineService implements OnModuleInit {
         nodeExecution,
       );
 
-      // Store output
-      this.contextService.setNodeOutput(executionId, node.id, output);
+      // If handler returned port-based output ({ port, data }), set _selectedPort
+      // so that downstream routing filters edges correctly.
+      const finalOutput = this.applyPortSelection(output);
+      this.contextService.setNodeOutput(executionId, node.id, finalOutput);
       executedNodes.add(node.id);
 
       // Update node execution record
@@ -1134,6 +1136,26 @@ export class ExecutionEngineService implements OnModuleInit {
       }
     }
     return hasAnyInput ? merged : undefined;
+  }
+
+  /**
+   * If a handler returned { port, data }, convert to { ...data, _selectedPort }
+   * so downstream routing can filter edges by port.
+   */
+  private applyPortSelection(output: unknown): unknown {
+    if (
+      output &&
+      typeof output === 'object' &&
+      'port' in output &&
+      'data' in output
+    ) {
+      const { port, data } = output as { port: string; data: unknown };
+      if (data && typeof data === 'object') {
+        return { ...(data as Record<string, unknown>), _selectedPort: port };
+      }
+      return { _selectedPort: port };
+    }
+    return output;
   }
 
   /**
