@@ -15,6 +15,7 @@ import { User } from '../users/entities/user.entity';
 import { RefreshToken } from './entities/refresh-token.entity';
 import { UsersService } from '../users/users.service';
 import { WorkspacesService } from '../workspaces/workspaces.service';
+import { MailService } from '../mail/mail.service';
 
 const BCRYPT_ROUNDS = 12;
 
@@ -25,6 +26,7 @@ export class AuthService {
     private readonly configService: ConfigService,
     private readonly usersService: UsersService,
     private readonly workspacesService: WorkspacesService,
+    private readonly mailService: MailService,
     @InjectRepository(RefreshToken)
     private readonly refreshTokenRepository: Repository<RefreshToken>,
     private readonly dataSource: DataSource,
@@ -59,10 +61,10 @@ export class AuthService {
       emailVerified: false,
     });
 
-    // TODO: Send verification email via mailer service
-    // For dev: log token
-    console.log(
-      `[DEV] Email verification token for ${dto.email}: ${emailVerifyToken}`,
+    await this.mailService.sendVerificationEmail(
+      dto.email,
+      dto.name,
+      emailVerifyToken,
     );
 
     return { message: 'Registration successful. Please verify your email.' };

@@ -9,6 +9,7 @@ import { JwtStrategy } from './strategies/jwt.strategy';
 import { RefreshToken } from './entities/refresh-token.entity';
 import { UsersModule } from '../users/users.module';
 import { WorkspacesModule } from '../workspaces/workspaces.module';
+import { MailModule } from '../mail/mail.module';
 
 @Module({
   imports: [
@@ -26,6 +27,7 @@ import { WorkspacesModule } from '../workspaces/workspaces.module';
     TypeOrmModule.forFeature([RefreshToken]),
     UsersModule,
     WorkspacesModule,
+    MailModule,
   ],
   controllers: [AuthController],
   providers: [AuthService, JwtStrategy],
