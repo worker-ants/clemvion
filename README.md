@@ -151,6 +151,15 @@ APP_PORT=3011
 APP_URL=http://localhost:3011
 FRONTEND_URL=http://localhost:3000
 
+# Email (dev: console / prod: smtp)
+MAIL_TRANSPORT=console
+MAIL_HOST=smtp.example.com
+MAIL_PORT=587
+MAIL_SECURE=false
+MAIL_USER=<smtp-user>
+MAIL_PASS=<smtp-password>
+MAIL_FROM=noreply@ideaworkflow.com
+
 # Security
 ENCRYPTION_KEY=<32-byte-hex>
 ```

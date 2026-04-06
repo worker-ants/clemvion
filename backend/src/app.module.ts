@@ -9,6 +9,7 @@ import {
   redisConfig,
   s3Config,
   jwtConfig,
+  mailConfig,
 } from './common/config';
 import { GlobalExceptionFilter } from './common/filters/http-exception.filter';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
@@ -35,6 +36,7 @@ import { AuthConfigsModule } from './modules/auth-configs/auth-configs.module';
 import { FoldersModule } from './modules/folders/folders.module';
 import { ExecutionEngineModule } from './modules/execution-engine/execution-engine.module';
 import { WebsocketModule } from './modules/websocket/websocket.module';
+import { MailModule } from './modules/mail/mail.module';
 
 // Entity imports
 import { User } from './modules/users/entities/user.entity';
@@ -60,7 +62,14 @@ import { RefreshToken } from './modules/auth/entities/refresh-token.entity';
     // Config
     ConfigModule.forRoot({
       isGlobal: true,
-      load: [appConfig, databaseConfig, redisConfig, s3Config, jwtConfig],
+      load: [
+        appConfig,
+        databaseConfig,
+        redisConfig,
+        s3Config,
+        jwtConfig,
+        mailConfig,
+      ],
       envFilePath: '.env',
     }),
 
@@ -124,6 +133,7 @@ import { RefreshToken } from './modules/auth/entities/refresh-token.entity';
     FoldersModule,
     ExecutionEngineModule,
     WebsocketModule,
+    MailModule,
   ],
   providers: [
     { provide: APP_FILTER, useClass: GlobalExceptionFilter },

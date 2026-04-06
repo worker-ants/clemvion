@@ -14,12 +14,14 @@ import { AuthService } from './auth.service';
 import { RefreshToken } from './entities/refresh-token.entity';
 import { UsersService } from '../users/users.service';
 import { WorkspacesService } from '../workspaces/workspaces.service';
+import { MailService } from '../mail/mail.service';
 import { User } from '../users/entities/user.entity';
 
 describe('AuthService', () => {
   let service: AuthService;
   let usersService: jest.Mocked<UsersService>;
   let workspacesService: jest.Mocked<WorkspacesService>;
+  let mailService: jest.Mocked<MailService>;
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   let jwtService: jest.Mocked<JwtService>;
   let refreshTokenRepo: {
@@ -98,6 +100,12 @@ describe('AuthService', () => {
           },
         },
         {
+          provide: MailService,
+          useValue: {
+            sendVerificationEmail: jest.fn().mockResolvedValue(undefined),
+          },
+        },
+        {
           provide: getRepositoryToken(RefreshToken),
           useValue: mockRefreshTokenRepo,
         },
@@ -122,6 +130,7 @@ describe('AuthService', () => {
     service = module.get<AuthService>(AuthService);
     usersService = module.get(UsersService);
     workspacesService = module.get(WorkspacesService);
+    mailService = module.get(MailService);
     jwtService = module.get(JwtService);
     refreshTokenRepo = module.get(getRepositoryToken(RefreshToken));
     mockDataSource = module.get(DataSource);
@@ -132,7 +141,7 @@ describe('AuthService', () => {
   });
 
   describe('register', () => {
-    it('should register a new user', async () => {
+    it('should register a new user and send verification email', async () => {
       usersService.emailExists.mockResolvedValue(false);
       usersService.create.mockResolvedValue(mockUser as User);
 
@@ -144,6 +153,11 @@ describe('AuthService', () => {
 
       expect(result.message).toContain('verify your email');
       expect(usersService.create).toHaveBeenCalled();
+      expect(mailService.sendVerificationEmail).toHaveBeenCalledWith(
+        'test@example.com',
+        'Test',
+        expect.any(String),
+      );
     });
 
     it('should throw ConflictException for duplicate email', async () => {

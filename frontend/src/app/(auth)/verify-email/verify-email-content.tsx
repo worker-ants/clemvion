@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useEffect, useRef, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { AxiosError } from "axios";
 import { toast } from "sonner";
@@ -16,19 +16,19 @@ import {
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 
-interface VerifyEmailContentProps {
-  token?: string;
-}
-
-export function VerifyEmailContent({ token }: VerifyEmailContentProps) {
+export function VerifyEmailContent() {
   const router = useRouter();
-  const [status, setStatus] = useState<"verifying" | "success" | "error" | "check-email">(
-    token ? "verifying" : "check-email",
-  );
+  const searchParams = useSearchParams();
+  const token = searchParams.get("token");
+  const [status, setStatus] = useState<
+    "verifying" | "success" | "error" | "check-email"
+  >(token ? "verifying" : "check-email");
   const [errorMessage, setErrorMessage] = useState("");
+  const calledRef = useRef(false);
 
   useEffect(() => {
-    if (!token) return;
+    if (!token || calledRef.current) return;
+    calledRef.current = true;
 
     async function verify() {
       try {
@@ -42,7 +42,9 @@ export function VerifyEmailContent({ token }: VerifyEmailContentProps) {
         setTimeout(() => router.push("/dashboard"), 2000);
       } catch (err) {
         const error = err as AxiosError<{ message?: string }>;
-        const message = error.response?.data?.message ?? "Verification failed. Please try again.";
+        const message =
+          error.response?.data?.message ??
+          "Verification failed. Please try again.";
         setErrorMessage(message);
         setStatus("error");
         toast.error(message);
@@ -73,7 +75,9 @@ export function VerifyEmailContent({ token }: VerifyEmailContentProps) {
         {status === "check-email" && (
           <div className="text-center text-sm text-[hsl(var(--muted-foreground))]">
             <p>We have sent a verification link to your email address.</p>
-            <p className="mt-2">Please click the link in the email to verify your account.</p>
+            <p className="mt-2">
+              Please click the link in the email to verify your account.
+            </p>
           </div>
         )}
 
@@ -85,7 +89,9 @@ export function VerifyEmailContent({ token }: VerifyEmailContentProps) {
 
         {status === "error" && (
           <div className="space-y-4 text-center">
-            <p className="text-sm text-[hsl(var(--destructive))]">{errorMessage}</p>
+            <p className="text-sm text-[hsl(var(--destructive))]">
+              {errorMessage}
+            </p>
             <Button asChild variant="outline" className="w-full">
               <Link href="/login">Back to Sign In</Link>
             </Button>
