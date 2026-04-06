@@ -175,10 +175,18 @@ function codeSummary(config: NodeConfig): ConfigSummaryResult | null {
   return { text: `${displayLang} \u00b7 ${lineCount} ${lineCount === 1 ? "line" : "lines"}`, isWarning: false };
 }
 
+function buttonSuffix(config: NodeConfig): string | null {
+  const buttons = Array.isArray(config.buttons) ? config.buttons : [];
+  return buttons.length > 0 ? `${buttons.length} buttons` : null;
+}
+
 function carouselSummary(config: NodeConfig): ConfigSummaryResult | null {
   const mode = (config.mode as string) ?? "dynamic";
-  // layout defaults to "card" in the settings panel
   const layout = (config.layout as string) || "card";
+  const btnSuffix = buttonSuffix(config);
+  if (btnSuffix) {
+    return { text: `${layout} \u00b7 ${btnSuffix}`, isWarning: false };
+  }
   if (mode === "static") {
     const items = Array.isArray(config.items) ? config.items : [];
     return { text: `${layout} \u00b7 ${items.length} items`, isWarning: false };
@@ -193,6 +201,10 @@ function tableSummary(config: NodeConfig): ConfigSummaryResult | null {
   if (!Array.isArray(columns) || !columns.length) return null;
   const count = columns.length;
   const colLabel = count === 1 ? "column" : "columns";
+  const btnSuffix = buttonSuffix(config);
+  if (btnSuffix) {
+    return { text: `${count} ${colLabel} \u00b7 ${btnSuffix}`, isWarning: false };
+  }
   const mode = (config.mode as string) ?? "dynamic";
   const modeLabel = mode === "static" ? "static" : "dynamic";
   const parts = [`${modeLabel} · ${count} ${colLabel}`];
@@ -202,9 +214,14 @@ function tableSummary(config: NodeConfig): ConfigSummaryResult | null {
 
 function chartSummary(config: NodeConfig): ConfigSummaryResult | null {
   const chartType = config.chartType as string | undefined;
+  if (!chartType) return null;
+  const btnSuffix = buttonSuffix(config);
+  if (btnSuffix) {
+    return { text: `${chartType} \u00b7 ${btnSuffix}`, isWarning: false };
+  }
   const xAxisField = config.xAxisField as string | undefined;
   const yAxisField = config.yAxisField as string | undefined;
-  if (!chartType || !xAxisField || !yAxisField) return null;
+  if (!xAxisField || !yAxisField) return null;
   return { text: `${chartType} \u00b7 ${xAxisField} / ${yAxisField}`, isWarning: false };
 }
 
@@ -222,6 +239,10 @@ function templateSummary(config: NodeConfig): ConfigSummaryResult | null {
   const template = config.template as string | undefined;
   if (!template) return null;
   const outputFormat = (config.outputFormat as string) ?? "html";
+  const btnSuffix = buttonSuffix(config);
+  if (btnSuffix) {
+    return { text: `${outputFormat} \u00b7 ${btnSuffix}`, isWarning: false };
+  }
   const lineCount = (template.match(/\n/g)?.length ?? 0) + 1;
   return { text: `${outputFormat} \u00b7 ${lineCount} ${lineCount === 1 ? "line" : "lines"}`, isWarning: false };
 }

@@ -76,6 +76,8 @@ export function useExecutionEvents({
     failExecution,
     pauseForForm,
     resumeFromForm,
+    pauseForButtons,
+    resumeFromButtons,
   } = useExecutionStore();
 
   const handleExecutionStarted = useCallback(
@@ -98,8 +100,13 @@ export function useExecutionEvents({
   );
 
   const handleExecutionResumed = useCallback(() => {
-    resumeFromForm();
-  }, [resumeFromForm]);
+    const { waitingInteractionType } = useExecutionStore.getState();
+    if (waitingInteractionType === "buttons") {
+      resumeFromButtons();
+    } else {
+      resumeFromForm();
+    }
+  }, [resumeFromForm, resumeFromButtons]);
 
   const handleExecutionCompleted = useCallback(() => {
     completeExecution();
@@ -122,28 +129,41 @@ export function useExecutionEvents({
       const payload = data as {
         waitingNodeId?: string;
         waitingNodeType?: string;
+        interactionType?: "form" | "buttons";
         nodeOutput?: unknown;
+        buttonConfig?: unknown;
       };
-      if (payload.waitingNodeId && payload.waitingNodeType === "form") {
+      if (!payload.waitingNodeId) return;
+
+      const nodeType = payload.waitingNodeType ?? "unknown";
+      const nodeCategory = getCategoryForType(nodeType);
+
+      // Update node status
+      updateNodeStatus(payload.waitingNodeId, {
+        status: "waiting_for_input",
+      });
+      addNodeResult({
+        nodeId: payload.waitingNodeId,
+        nodeLabel: payload.waitingNodeId,
+        nodeType,
+        nodeCategory,
+        status: "waiting_for_input",
+        outputData: payload.nodeOutput ?? null,
+      });
+
+      if (payload.interactionType === "buttons") {
+        // Button interaction on Presentation node
+        const btnConfig = payload.buttonConfig ?? (payload.nodeOutput as Record<string, unknown> | null)?.buttonConfig;
+        pauseForButtons(payload.waitingNodeId, btnConfig ?? null);
+      } else {
+        // Form interaction (default for backward compat)
         const output = payload.nodeOutput as {
           formConfig?: unknown;
         } | null;
-        // Update node status and result to waiting_for_input
-        updateNodeStatus(payload.waitingNodeId, {
-          status: "waiting_for_input",
-        });
-        addNodeResult({
-          nodeId: payload.waitingNodeId,
-          nodeLabel: payload.waitingNodeId,
-          nodeType: "form",
-          nodeCategory: "presentation",
-          status: "waiting_for_input",
-          outputData: payload.nodeOutput ?? null,
-        });
         pauseForForm(payload.waitingNodeId, output?.formConfig ?? null);
       }
     },
-    [pauseForForm, updateNodeStatus, addNodeResult],
+    [pauseForForm, pauseForButtons, updateNodeStatus, addNodeResult],
   );
 
   const handleNodeStarted = useCallback(
@@ -378,8 +398,15 @@ export function useExecutionEvents({
             const output = waitingNode.outputData as {
               type?: string;
               formConfig?: unknown;
+              interactionType?: string;
+              buttonConfig?: unknown;
             };
-            if (output.type === "form") {
+            if (output.interactionType === "buttons") {
+              pauseForButtons(
+                waitingNode.nodeId,
+                output.buttonConfig ?? null,
+              );
+            } else if (output.type === "form") {
               pauseForForm(
                 waitingNode.nodeId,
                 output.formConfig ?? null,
@@ -475,6 +502,8 @@ export function useExecutionEvents({
     failExecution,
     pauseForForm,
     resumeFromForm,
+    pauseForButtons,
+    resumeFromButtons,
   ]);
 
   return { isConnected };

@@ -36,6 +36,18 @@ function CustomNodeComponent({ id, data, selected }: NodeProps<CustomNodeType>) 
         .map((c) => ({ id: c.id, label: c.label || "Case", type: "data" as const }));
       return [...casePorts, { id: "default", label: "Default", type: "data" as const }];
     }
+    // Dynamic ports for presentation nodes with buttons
+    if (["carousel", "table", "chart", "template"].includes(data.type)) {
+      const buttons = (data.config.buttons as Array<{ id: string; label: string; type: string }>) ?? [];
+      if (buttons.length > 0) {
+        const portButtons = buttons.filter((b) => b.type === "port");
+        if (portButtons.length > 0) {
+          return portButtons.map((b) => ({ id: b.id, label: b.label || "Button", type: "data" as const }));
+        }
+        // Only link buttons → single continue port
+        return [{ id: "continue", label: "Continue", type: "data" as const }];
+      }
+    }
     return getNodeDefinition(data.type)?.outputs ?? [];
   }, [data.type, data.config]);
   const hasMultipleOutputs = outputs.length > 1;

@@ -57,6 +57,9 @@ export class NodeExecution {
   @Column({ type: 'jsonb', nullable: true })
   error: Record<string, unknown>;
 
+  @Column({ name: 'interaction_data', type: 'jsonb', nullable: true })
+  interactionData: Record<string, unknown>;
+
   @Column({ name: 'retry_count', default: 0 })
   retryCount: number;
 }

@@ -8,6 +8,7 @@ import {
   ExpressionContext as EngineContext,
 } from '@workflow/expression-engine';
 import { getNestedValue } from '../logic/nested-value.util.js';
+import { ButtonDef, validateButtons } from '../../types/button.types.js';
 
 type TableMode = 'static' | 'dynamic';
 
@@ -62,6 +63,8 @@ export class TableHandler implements NodeHandler {
         );
       }
     }
+
+    errors.push(...validateButtons(config));
 
     return { valid: errors.length === 0, errors };
   }
@@ -151,13 +154,29 @@ export class TableHandler implements NodeHandler {
 
     const rendered = this.renderHtml(resolvedColumns, columns, dataRows);
 
-    return Promise.resolve({
+    const output = {
       type: 'table',
       columns: resolvedColumns,
       rows: dataRows,
       totalRows: dataRows.length,
       rendered,
-    });
+    };
+
+    const buttons = config.buttons as ButtonDef[] | undefined;
+    if (Array.isArray(buttons) && buttons.length > 0) {
+      return Promise.resolve({
+        ...output,
+        status: 'waiting_for_input',
+        interactionType: 'buttons',
+        buttonConfig: {
+          buttons,
+          buttonTimeout: config.buttonTimeout,
+          buttonTimeoutAction: config.buttonTimeoutAction ?? 'continue',
+        },
+      });
+    }
+
+    return Promise.resolve(output);
   }
 
   private resolveColumnLabels(

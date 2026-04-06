@@ -1,4 +1,5 @@
 import { NodeHandler, ValidationResult } from '../node-handler.interface.js';
+import { ButtonDef, validateButtons } from '../../types/button.types.js';
 
 export class TemplateHandler implements NodeHandler {
   validate(config: Record<string, unknown>): ValidationResult {
@@ -15,6 +16,8 @@ export class TemplateHandler implements NodeHandler {
       errors.push('outputFormat must be one of: html, markdown, text');
     }
 
+    errors.push(...validateButtons(config));
+
     return { valid: errors.length === 0, errors };
   }
 
@@ -23,6 +26,22 @@ export class TemplateHandler implements NodeHandler {
     const outputFormat = (config.outputFormat as string) ?? 'text';
 
     // config.template is already resolved by the expression engine
-    return Promise.resolve({ type: 'template', format: outputFormat, content });
+    const output = { type: 'template', format: outputFormat, content };
+
+    const buttons = config.buttons as ButtonDef[] | undefined;
+    if (Array.isArray(buttons) && buttons.length > 0) {
+      return Promise.resolve({
+        ...output,
+        status: 'waiting_for_input',
+        interactionType: 'buttons',
+        buttonConfig: {
+          buttons,
+          buttonTimeout: config.buttonTimeout,
+          buttonTimeoutAction: config.buttonTimeoutAction ?? 'continue',
+        },
+      });
+    }
+
+    return Promise.resolve(output);
   }
 }

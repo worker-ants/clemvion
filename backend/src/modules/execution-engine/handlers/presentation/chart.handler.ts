@@ -3,6 +3,7 @@ import {
   NodeHandler,
   ValidationResult,
 } from '../node-handler.interface.js';
+import { ButtonDef, validateButtons } from '../../types/button.types.js';
 
 export class ChartHandler implements NodeHandler {
   validate(config: Record<string, unknown>): ValidationResult {
@@ -24,12 +25,15 @@ export class ChartHandler implements NodeHandler {
       errors.push('xAxis.field is required and must be a string');
     }
 
+    errors.push(...validateButtons(config));
+
     return { valid: errors.length === 0, errors };
   }
 
-  async execute(
+  execute(
     input: unknown,
     config: Record<string, unknown>,
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     _context: ExecutionContext,
   ): Promise<unknown> {
     const chartType = config.chartType as string;
@@ -58,23 +62,33 @@ export class ChartHandler implements NodeHandler {
       return point;
     });
 
-    if (yAxis?.aggregation) {
-      return {
-        type: 'chart',
-        chartType,
-        title,
-        data: this.aggregate(data, yAxis.aggregation),
-        config: { xAxis, yAxis, title },
-      };
-    }
+    const chartData = yAxis?.aggregation
+      ? this.aggregate(data, yAxis.aggregation)
+      : data;
 
-    return {
+    const output = {
       type: 'chart',
       chartType,
       title,
-      data,
+      data: chartData,
       config: { xAxis, yAxis, title },
     };
+
+    const buttons = config.buttons as ButtonDef[] | undefined;
+    if (Array.isArray(buttons) && buttons.length > 0) {
+      return Promise.resolve({
+        ...output,
+        status: 'waiting_for_input',
+        interactionType: 'buttons',
+        buttonConfig: {
+          buttons,
+          buttonTimeout: config.buttonTimeout,
+          buttonTimeoutAction: config.buttonTimeoutAction ?? 'continue',
+        },
+      });
+    }
+
+    return Promise.resolve(output);
   }
 
   private aggregate(
