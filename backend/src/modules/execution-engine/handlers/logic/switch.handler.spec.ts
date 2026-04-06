@@ -147,7 +147,12 @@ describe('SwitchHandler', () => {
         },
         context,
       );
-      expect(result).toEqual({ port: 'case-1', data: { status: 'active' } });
+      expect(result).toEqual({
+        port: 'case-1',
+        expression: 'status',
+        value: 'active',
+        data: { status: 'active' },
+      });
     });
 
     it('should match a case by nested path lookup', async () => {
@@ -165,6 +170,8 @@ describe('SwitchHandler', () => {
       );
       expect(result).toEqual({
         port: 'case-1',
+        expression: 'user.role',
+        value: 'admin',
         data: { user: { role: 'admin' } },
       });
     });
@@ -185,6 +192,8 @@ describe('SwitchHandler', () => {
       );
       expect(result).toEqual({
         port: 'case-2',
+        expression: undefined,
+        value: 2,
         data: { someField: 'ignored' },
       });
     });
@@ -199,7 +208,12 @@ describe('SwitchHandler', () => {
         },
         context,
       );
-      expect(result).toEqual({ port: 'default', data: {} });
+      expect(result).toEqual({
+        port: 'default',
+        expression: 'missing',
+        value: undefined,
+        data: {},
+      });
     });
 
     it('should throw when no case matches and no default', async () => {
@@ -231,7 +245,12 @@ describe('SwitchHandler', () => {
         },
         context,
       );
-      expect(result).toEqual({ port: 'case-1', data: {} });
+      expect(result).toEqual({
+        port: 'case-1',
+        expression: undefined,
+        value: true,
+        data: {},
+      });
     });
 
     it('should fall through to default when hasDefault is omitted', async () => {
@@ -243,7 +262,12 @@ describe('SwitchHandler', () => {
         },
         context,
       );
-      expect(result).toEqual({ port: 'default', data: {} });
+      expect(result).toEqual({
+        port: 'default',
+        expression: 'missing',
+        value: undefined,
+        data: {},
+      });
     });
 
     it('should handle null intermediate path gracefully', async () => {
@@ -256,7 +280,12 @@ describe('SwitchHandler', () => {
         },
         context,
       );
-      expect(result).toEqual({ port: 'default', data: { user: null } });
+      expect(result).toEqual({
+        port: 'default',
+        expression: 'user.role',
+        value: undefined,
+        data: { user: null },
+      });
     });
 
     it('should match first case when duplicate values exist', async () => {
@@ -272,7 +301,12 @@ describe('SwitchHandler', () => {
         },
         context,
       );
-      expect(result).toEqual({ port: 'first', data: { x: 1 } });
+      expect(result).toEqual({
+        port: 'first',
+        expression: 'x',
+        value: 1,
+        data: { x: 1 },
+      });
     });
 
     it('should match number via path lookup with valueType number', async () => {
@@ -292,7 +326,12 @@ describe('SwitchHandler', () => {
         },
         context,
       );
-      expect(result).toEqual({ port: 'case-1', data: { x: 42 } });
+      expect(result).toEqual({
+        port: 'case-1',
+        expression: 'x',
+        value: 42,
+        data: { x: 42 },
+      });
     });
 
     it('should use strict equality when valueType is not specified', async () => {
@@ -305,7 +344,12 @@ describe('SwitchHandler', () => {
         },
         context,
       );
-      expect(result).toEqual({ port: 'default', data: { x: '1' } });
+      expect(result).toEqual({
+        port: 'default',
+        expression: 'x',
+        value: '1',
+        data: { x: '1' },
+      });
     });
 
     it('should handle falsy number switchValue (0)', async () => {
@@ -321,7 +365,12 @@ describe('SwitchHandler', () => {
         },
         context,
       );
-      expect(result).toEqual({ port: 'case-0', data: {} });
+      expect(result).toEqual({
+        port: 'case-0',
+        expression: undefined,
+        value: 0,
+        data: {},
+      });
     });
 
     it('should throw when hasDefault is false and null intermediate path', async () => {
@@ -357,7 +406,12 @@ describe('SwitchHandler', () => {
         },
         context,
       );
-      expect(result).toEqual({ port: 'case-1', data: {} });
+      expect(result).toEqual({
+        port: 'case-1',
+        expression: undefined,
+        value: 42,
+        data: {},
+      });
     });
 
     it('should coerce case value to boolean when valueType is boolean', async () => {
@@ -373,7 +427,12 @@ describe('SwitchHandler', () => {
         },
         context,
       );
-      expect(result).toEqual({ port: 'case-1', data: {} });
+      expect(result).toEqual({
+        port: 'case-1',
+        expression: undefined,
+        value: true,
+        data: {},
+      });
     });
 
     it('should not coerce when valueType is string (default)', async () => {
@@ -388,7 +447,12 @@ describe('SwitchHandler', () => {
         },
         context,
       );
-      expect(result).toEqual({ port: 'default', data: {} });
+      expect(result).toEqual({
+        port: 'default',
+        expression: undefined,
+        value: 42,
+        data: {},
+      });
     });
 
     it('should not coerce when valueType is omitted', async () => {
@@ -401,7 +465,12 @@ describe('SwitchHandler', () => {
         },
         context,
       );
-      expect(result).toEqual({ port: 'default', data: {} });
+      expect(result).toEqual({
+        port: 'default',
+        expression: undefined,
+        value: 42,
+        data: {},
+      });
     });
 
     it('should keep original string when number coercion fails', async () => {
@@ -416,8 +485,12 @@ describe('SwitchHandler', () => {
         },
         context,
       );
-      // 'abc' cannot be coerced to number, stays as 'abc', matches string 'abc'
-      expect(result).toEqual({ port: 'case-1', data: { x: 'abc' } });
+      expect(result).toEqual({
+        port: 'case-1',
+        expression: 'x',
+        value: 'abc',
+        data: { x: 'abc' },
+      });
     });
 
     it('should keep original string when boolean coercion gets non-boolean string', async () => {
@@ -432,8 +505,12 @@ describe('SwitchHandler', () => {
         },
         context,
       );
-      // 'yes' is not 'true'/'false', stays as 'yes', matches string 'yes'
-      expect(result).toEqual({ port: 'case-1', data: { x: 'yes' } });
+      expect(result).toEqual({
+        port: 'case-1',
+        expression: 'x',
+        value: 'yes',
+        data: { x: 'yes' },
+      });
     });
 
     it('should not traverse prototype properties', async () => {
@@ -446,7 +523,12 @@ describe('SwitchHandler', () => {
         },
         context,
       );
-      expect(result).toEqual({ port: 'default', data: {} });
+      expect(result).toEqual({
+        port: 'default',
+        expression: '__proto__.constructor',
+        value: undefined,
+        data: {},
+      });
     });
   });
 });

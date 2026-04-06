@@ -81,16 +81,24 @@ export class SwitchHandler implements NodeHandler {
         ? getNestedValue(input, switchValue)
         : switchValue;
 
+    const expression =
+      typeof switchValue === 'string' ? switchValue : undefined;
+
     const matchedCase = cases.find(
       (c) => this.coerceCaseValue(c.value, c.valueType) === actualValue,
     );
 
     if (matchedCase) {
-      return { port: matchedCase.id, data: input };
+      return {
+        port: matchedCase.id,
+        expression,
+        value: actualValue,
+        data: input,
+      };
     }
 
     if (hasDefault !== false) {
-      return { port: 'default', data: input };
+      return { port: 'default', expression, value: actualValue, data: input };
     }
 
     throw new Error('No matching case found and no default case configured');
