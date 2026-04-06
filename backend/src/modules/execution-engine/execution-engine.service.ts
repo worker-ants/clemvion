@@ -1139,8 +1139,9 @@ export class ExecutionEngineService implements OnModuleInit {
   }
 
   /**
-   * If a handler returned { port, data }, convert to { ...data, _selectedPort }
+   * If a handler returned { port, data, ... }, convert to { ...data, _selectedPort }
    * so downstream routing can filter edges by port.
+   * Extra root-level fields (e.g. expression, value) are preserved for the execution record.
    */
   private applyPortSelection(output: unknown): unknown {
     if (
@@ -1149,11 +1150,12 @@ export class ExecutionEngineService implements OnModuleInit {
       'port' in output &&
       'data' in output
     ) {
-      const { port, data } = output as { port: string; data: unknown };
-      if (data && typeof data === 'object') {
-        return { ...(data as Record<string, unknown>), _selectedPort: port };
-      }
-      return { _selectedPort: port };
+      const { port, data, ...extra } = output as Record<string, unknown>;
+      const base =
+        data && typeof data === 'object'
+          ? (data as Record<string, unknown>)
+          : {};
+      return { ...base, ...extra, _selectedPort: port };
     }
     return output;
   }
