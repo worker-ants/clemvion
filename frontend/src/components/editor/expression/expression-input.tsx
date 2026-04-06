@@ -252,8 +252,9 @@ export function ExpressionInput({
         <div
           ref={highlightRef}
           className={cn(
-            "absolute inset-0 px-3 pr-8 text-xs pointer-events-none overflow-hidden",
+            "absolute inset-0 border border-transparent px-3 pr-8 text-xs pointer-events-none overflow-hidden",
             multiline ? "py-2" : "flex items-center",
+            mono && "font-mono",
           )}
           aria-hidden
         >
