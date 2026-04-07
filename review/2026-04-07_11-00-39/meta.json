@@ -1,0 +1,93 @@
+{
+  "timestamp": "2026-04-07T11:00:40.001817",
+  "files": [
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/frontend/src/components/editor/expression/__tests__/use-expression-suggestions.test.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/frontend/src/components/editor/expression/use-expression-context.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/frontend/src/components/editor/expression/use-expression-suggestions.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/frontend/src/components/editor/expression/variable-picker.tsx",
+      "change_type": "Review",
+      "file_extension": "tsx"
+    }
+  ],
+  "total_elapsed_seconds": 0.02,
+  "agents": [
+    {
+      "name": "testing",
+      "status": "error",
+      "elapsed_seconds": 0.0
+    },
+    {
+      "name": "documentation",
+      "status": "error",
+      "elapsed_seconds": 0.0
+    },
+    {
+      "name": "architecture",
+      "status": "error",
+      "elapsed_seconds": 0.0
+    },
+    {
+      "name": "dependency",
+      "status": "error",
+      "elapsed_seconds": 0.0
+    },
+    {
+      "name": "requirement",
+      "status": "error",
+      "elapsed_seconds": 0.0
+    },
+    {
+      "name": "security",
+      "status": "error",
+      "elapsed_seconds": 0.0
+    },
+    {
+      "name": "database",
+      "status": "error",
+      "elapsed_seconds": 0.0
+    },
+    {
+      "name": "scope",
+      "status": "error",
+      "elapsed_seconds": 0.0
+    },
+    {
+      "name": "performance",
+      "status": "error",
+      "elapsed_seconds": 0.0
+    },
+    {
+      "name": "side_effect",
+      "status": "error",
+      "elapsed_seconds": 0.0
+    },
+    {
+      "name": "maintainability",
+      "status": "error",
+      "elapsed_seconds": 0.0
+    },
+    {
+      "name": "concurrency",
+      "status": "error",
+      "elapsed_seconds": 0.0
+    },
+    {
+      "name": "api_contract",
+      "status": "error",
+      "elapsed_seconds": 0.0
+    }
+  ]
+}

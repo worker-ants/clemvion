@@ -28,6 +28,12 @@ export interface ExpressionData {
 
   /** Built-in function names */
   functionNames: string[];
+
+  /** Whether the selected node is a table node in dynamic mode (enables $sourceItem/$dataSource variables) */
+  isTableContext: boolean;
+
+  /** Sample of a single item from table data source (for $sourceItem. field drill-down, requires execution results) */
+  sourceItemSample: Record<string, unknown> | null;
 }
 
 function extractFields(data: unknown): string[] {
@@ -50,10 +56,12 @@ export function useExpressionContext(selectedNodeId: string | null): ExpressionD
   const nodeResults = useExecutionStore((s) => s.nodeResults);
 
   return useMemo(() => {
-    // Build a map of nodeId -> last execution result
+    // Build maps of nodeId -> last execution result
     const resultMap = new Map<string, Record<string, unknown>>();
+    const rawResultMap = new Map<string, unknown>();
     for (const r of nodeResults) {
       resultMap.set(r.nodeId, toRecord(r.outputData));
+      rawResultMap.set(r.nodeId, r.outputData);
     }
 
     // Find predecessor nodes for $input. suggestions
@@ -107,12 +115,64 @@ export function useExpressionContext(selectedNodeId: string | null): ExpressionD
       }
     }
 
+    // Detect table node context and compute sourceItemSample
+    let isTableContext = false;
+    let sourceItemSample: Record<string, unknown> | null = null;
+    if (selectedNodeId) {
+      const selectedNode = nodes.find((n) => n.id === selectedNodeId);
+      const selectedData = selectedNode?.data as Record<string, unknown> | undefined;
+      if (selectedData?.type === "table") {
+        const config = selectedData.config as Record<string, unknown> | undefined;
+        const mode = (config?.mode as string) ?? "dynamic";
+        if (mode === "dynamic") {
+          isTableContext = true;
+          // Try to resolve data source sample (use rawResultMap to preserve arrays)
+          let resolvedSource: unknown = null;
+
+          // Check if dataSource expression references a specific node
+          const dataSourceExpr = config?.dataSource as string | undefined;
+          const nodeRefMatch = dataSourceExpr?.match(/\$node\["([^"]+)"\]\.output/);
+          if (nodeRefMatch) {
+            const refLabel = nodeRefMatch[1];
+            const refNode = availableNodes.find((n) => n.label === refLabel);
+            if (refNode) {
+              const refOutput = rawResultMap.get(refNode.id);
+              if (refOutput) resolvedSource = refOutput;
+            }
+          }
+
+          // Fallback: use predecessor node output
+          if (!resolvedSource) {
+            const tableIncoming = edges.filter((e) => e.target === selectedNodeId);
+            if (tableIncoming.length === 1) {
+              const predOutput = rawResultMap.get(tableIncoming[0].source);
+              if (predOutput) resolvedSource = predOutput;
+            }
+          }
+
+          // Extract first item from array, or use object directly
+          if (resolvedSource) {
+            if (Array.isArray(resolvedSource) && resolvedSource.length > 0) {
+              const first = resolvedSource[0];
+              if (first && typeof first === "object" && !Array.isArray(first)) {
+                sourceItemSample = first as Record<string, unknown>;
+              }
+            } else if (typeof resolvedSource === "object" && !Array.isArray(resolvedSource)) {
+              sourceItemSample = resolvedSource as Record<string, unknown>;
+            }
+          }
+        }
+      }
+    }
+
     return {
       inputFields,
       inputSample,
       availableNodes,
       variables,
       functionNames: FUNCTION_NAMES,
+      isTableContext,
+      sourceItemSample,
     };
   }, [nodes, edges, nodeResults, selectedNodeId]);
 }

@@ -14,6 +14,8 @@ function makeSuggestions(
     availableNodes: [],
     variables: [],
     functionNames: [],
+    isTableContext: false,
+    sourceItemSample: null,
     ...data,
   };
 
@@ -226,6 +228,86 @@ describe("useExpressionSuggestions - nested paths", () => {
     });
   });
 
+  describe("$sourceItem suggestions (table node)", () => {
+    const sourceItemSample = {
+      first: "John",
+      last: "Doe",
+      address: { city: "Seoul", zip: "12345" },
+    };
+
+    it("shows $sourceItem in root suggestions when isTableContext is true", () => {
+      const expr = "{{ $ }}";
+      const { suggestions } = makeSuggestions(expr, cursorAfterExpr(expr), {
+        isTableContext: true,
+        sourceItemSample,
+      });
+      const labels = suggestions.map((s) => s.label);
+      expect(labels).toContain("$sourceItem");
+      expect(labels).toContain("$sourceItemIndex");
+      expect(labels).toContain("$dataSource");
+    });
+
+    it("shows $sourceItem in root suggestions even without sourceItemSample", () => {
+      const expr = "{{ $ }}";
+      const { suggestions } = makeSuggestions(expr, cursorAfterExpr(expr), {
+        isTableContext: true,
+        sourceItemSample: null,
+      });
+      const labels = suggestions.map((s) => s.label);
+      expect(labels).toContain("$sourceItem");
+      expect(labels).toContain("$sourceItemIndex");
+      expect(labels).toContain("$dataSource");
+    });
+
+    it("does not show $sourceItem when not in table context", () => {
+      const expr = "{{ $ }}";
+      const { suggestions } = makeSuggestions(expr, cursorAfterExpr(expr), {
+        isTableContext: false,
+        sourceItemSample: null,
+      });
+      const labels = suggestions.map((s) => s.label);
+      expect(labels).not.toContain("$sourceItem");
+      expect(labels).not.toContain("$sourceItemIndex");
+      expect(labels).not.toContain("$dataSource");
+    });
+
+    it("suggests top-level fields for $sourceItem.", () => {
+      const expr = "{{ $sourceItem. }}";
+      const { suggestions } = makeSuggestions(expr, cursorAfterExpr(expr), {
+        isTableContext: true,
+        sourceItemSample,
+      });
+      expect(suggestions.map((s) => s.label)).toEqual(["first", "last", "address"]);
+    });
+
+    it("suggests nested fields for $sourceItem.address.", () => {
+      const expr = "{{ $sourceItem.address. }}";
+      const { suggestions } = makeSuggestions(expr, cursorAfterExpr(expr), {
+        isTableContext: true,
+        sourceItemSample,
+      });
+      expect(suggestions.map((s) => s.label)).toEqual(["city", "zip"]);
+    });
+
+    it("filters fields by prefix for $sourceItem.f", () => {
+      const expr = "{{ $sourceItem.f }}";
+      const { suggestions } = makeSuggestions(expr, cursorAfterExpr(expr), {
+        isTableContext: true,
+        sourceItemSample,
+      });
+      expect(suggestions.map((s) => s.label)).toEqual(["first"]);
+    });
+
+    it("does not suggest $sourceItem. fields when sourceItemSample is null", () => {
+      const expr = "{{ $sourceItem. }}";
+      const { suggestions } = makeSuggestions(expr, cursorAfterExpr(expr), {
+        isTableContext: true,
+        sourceItemSample: null,
+      });
+      expect(suggestions).toEqual([]);
+    });
+  });
+
   describe("tokenStart position for nested paths", () => {
     it("sets tokenStart correctly for nested $input", () => {
       const expr = "{{ $input.body.da }}";
@@ -248,6 +330,101 @@ describe("useExpressionSuggestions - nested paths", () => {
       });
       expect(tokenStart).toBe(cursor);
       expect(tokenEnd).toBe(cursor);
+    });
+  });
+
+  describe("$var. suggestions", () => {
+    it("suggests declared variables for $var.", () => {
+      const expr = "{{ $var. }}";
+      const { suggestions } = makeSuggestions(expr, cursorAfterExpr(expr), {
+        variables: [
+          { name: "counter", type: "number" },
+          { name: "token", type: "string" },
+        ],
+      });
+      expect(suggestions.map((s) => s.label)).toEqual(["counter", "token"]);
+      expect(suggestions[0].type).toBe("variable");
+      expect(suggestions[0].detail).toBe("number");
+    });
+
+    it("filters variables by prefix", () => {
+      const expr = "{{ $var.to }}";
+      const { suggestions } = makeSuggestions(expr, cursorAfterExpr(expr), {
+        variables: [
+          { name: "counter", type: "number" },
+          { name: "token", type: "string" },
+        ],
+      });
+      expect(suggestions.map((s) => s.label)).toEqual(["token"]);
+    });
+
+    it("returns empty when no variables match", () => {
+      const expr = "{{ $var.xyz }}";
+      const { suggestions } = makeSuggestions(expr, cursorAfterExpr(expr), {
+        variables: [{ name: "counter", type: "number" }],
+      });
+      expect(suggestions).toEqual([]);
+    });
+  });
+
+  describe("$node suggestions", () => {
+    const nodeData = {
+      availableNodes: [
+        {
+          id: "n1",
+          label: "Form_test",
+          type: "form",
+          outputFields: ["submittedData"],
+          outputSample: { submittedData: { name: "test" } },
+        },
+        {
+          id: "n2",
+          label: "HTTP Request",
+          type: "http_request",
+          outputFields: ["body"],
+          outputSample: { body: { data: [] } },
+        },
+      ],
+    };
+
+    it('suggests node labels for $node["', () => {
+      const expr = '{{ $node[" }}';
+      const { suggestions } = makeSuggestions(expr, cursorAfterExpr(expr), nodeData);
+      expect(suggestions.map((s) => s.label)).toEqual(["Form_test", "HTTP Request"]);
+      expect(suggestions[0].type).toBe("node");
+      expect(suggestions[0].insertText).toBe('Form_test"].output');
+    });
+
+    it('filters node labels by prefix for $node["H', () => {
+      const expr = '{{ $node["H }}';
+      const { suggestions } = makeSuggestions(expr, cursorAfterExpr(expr), nodeData);
+      expect(suggestions.map((s) => s.label)).toEqual(["HTTP Request"]);
+    });
+  });
+
+  describe("$dataSource. suggestions (table node)", () => {
+    const sourceItemSample = {
+      id: 1,
+      name: "test",
+      nested: { key: "value" },
+    };
+
+    it("suggests fields for $dataSource.", () => {
+      const expr = "{{ $dataSource. }}";
+      const { suggestions } = makeSuggestions(expr, cursorAfterExpr(expr), {
+        isTableContext: true,
+        sourceItemSample,
+      });
+      expect(suggestions.map((s) => s.label)).toEqual(["id", "name", "nested"]);
+    });
+
+    it("does not suggest $dataSource. fields when sourceItemSample is null", () => {
+      const expr = "{{ $dataSource. }}";
+      const { suggestions } = makeSuggestions(expr, cursorAfterExpr(expr), {
+        isTableContext: false,
+        sourceItemSample: null,
+      });
+      expect(suggestions).toEqual([]);
     });
   });
 });

@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Braces, ChevronRight, ChevronDown } from "lucide-react";
 import type { ExpressionData } from "./use-expression-context";
 import { getValueType } from "./resolve-nested-path";
+import { BUILT_IN_PICKER_VARIABLES } from "./expression-constants";
 
 interface VariablePickerProps {
   expressionData: ExpressionData;
@@ -24,15 +25,6 @@ const TYPE_COLORS: Record<string, string> = {
   node: "text-orange-400",
   function: "text-purple-400",
 };
-
-const BUILT_IN_VARIABLES = [
-  { label: "$execution", insert: "$execution", detail: "Execution context" },
-  { label: "$now", insert: "$now", detail: "Current timestamp" },
-  { label: "$today", insert: "$today", detail: "Current date" },
-  { label: "$loop", insert: "$loop", detail: "Loop context" },
-  { label: "$item", insert: "$item", detail: "ForEach current item" },
-  { label: "$itemIndex", insert: "$itemIndex", detail: "ForEach index" },
-];
 
 const MAX_NESTING_DEPTH = 5;
 
@@ -276,6 +268,7 @@ export function VariablePicker({
     Record<string, boolean>
   >({
     $input: true,
+    $sourceItem: true,
     $node: true,
     $var: true,
     builtin: false,
@@ -333,6 +326,55 @@ export function VariablePicker({
           </div>
         )}
 
+        {/* $sourceItem section (table nodes only) */}
+        {expressionData.isTableContext && (
+          <div>
+            <CategoryHeader
+              label="$sourceItem"
+              expanded={expandedCategories.$sourceItem ?? true}
+              onToggle={() => toggleCategory("$sourceItem")}
+              count={
+                (expressionData.sourceItemSample
+                  ? Object.keys(expressionData.sourceItemSample).length
+                  : 0) + 3
+              }
+            />
+            {expandedCategories.$sourceItem && (
+              <>
+                <PickerItem
+                  label="$sourceItem"
+                  detail="Current row item"
+                  colorClass={TYPE_COLORS.variable}
+                  onClick={() => handleInsert("$sourceItem")}
+                />
+                {expressionData.sourceItemSample &&
+                  Object.keys(expressionData.sourceItemSample).map((field) => (
+                    <NestedFieldItem
+                      key={field}
+                      fieldName={field}
+                      parentPath="$sourceItem"
+                      sample={expressionData.sourceItemSample!}
+                      onInsert={handleInsert}
+                      depth={0}
+                    />
+                  ))}
+                <PickerItem
+                  label="$sourceItemIndex"
+                  detail="number"
+                  colorClass={TYPE_COLORS.variable}
+                  onClick={() => handleInsert("$sourceItemIndex")}
+                />
+                <PickerItem
+                  label="$dataSource"
+                  detail="array"
+                  colorClass={TYPE_COLORS.variable}
+                  onClick={() => handleInsert("$dataSource")}
+                />
+              </>
+            )}
+          </div>
+        )}
+
         {/* $node section */}
         {expressionData.availableNodes.length > 0 && (
           <div>
@@ -381,10 +423,10 @@ export function VariablePicker({
             label="Built-in"
             expanded={expandedCategories.builtin ?? false}
             onToggle={() => toggleCategory("builtin")}
-            count={BUILT_IN_VARIABLES.length}
+            count={BUILT_IN_PICKER_VARIABLES.length}
           />
           {expandedCategories.builtin &&
-            BUILT_IN_VARIABLES.map((v) => (
+            BUILT_IN_PICKER_VARIABLES.map((v) => (
               <PickerItem
                 key={v.label}
                 label={v.label}
