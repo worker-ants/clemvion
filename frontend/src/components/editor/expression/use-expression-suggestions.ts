@@ -3,6 +3,7 @@
 import { useMemo } from "react";
 import type { ExpressionData } from "./use-expression-context";
 import { getNestedKeys, splitPathAndLeaf } from "./resolve-nested-path";
+import { ROOT_VARIABLES, TABLE_CONTEXT_VARIABLES } from "./expression-constants";
 
 export type SuggestionType = "variable" | "field" | "node" | "function";
 
@@ -14,19 +15,6 @@ export interface Suggestion {
   /** When true, selecting this suggestion auto-appends "." and keeps autocomplete open */
   isExpandable?: boolean;
 }
-
-/** Top-level $ variables shown when entering an expression */
-const ROOT_VARIABLES: Suggestion[] = [
-  { label: "$input", insertText: "$input", type: "variable", detail: "Previous node output" },
-  { label: "$node", insertText: '$node["', type: "variable", detail: "Specific node output" },
-  { label: "$var", insertText: "$var", type: "variable", detail: "Workflow variables" },
-  { label: "$execution", insertText: "$execution", type: "variable", detail: "Execution context" },
-  { label: "$now", insertText: "$now", type: "variable", detail: "Current timestamp" },
-  { label: "$today", insertText: "$today", type: "variable", detail: "Current date" },
-  { label: "$loop", insertText: "$loop", type: "variable", detail: "Loop context" },
-  { label: "$item", insertText: "$item", type: "variable", detail: "ForEach current item" },
-  { label: "$itemIndex", insertText: "$itemIndex", type: "variable", detail: "ForEach index" },
-];
 
 /**
  * Determine the expression token context at the given cursor position.
@@ -140,12 +128,16 @@ export function useExpressionSuggestions(
         .filter((n) =>
           n.label.toLowerCase().startsWith(prefix.toLowerCase()),
         )
-        .map((n) => ({
-          label: n.label,
-          insertText: `${n.label}"].output`,
-          type: "node" as const,
-          detail: n.type,
-        }));
+        .map((n) => {
+          // Escape special characters in labels to prevent expression syntax breakage
+          const escaped = n.label.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+          return {
+            label: n.label,
+            insertText: `${escaped}"].output`,
+            type: "node" as const,
+            detail: n.type,
+          };
+        });
       return {
         suggestions,
         tokenStart: end - prefix.length,
@@ -187,9 +179,43 @@ export function useExpressionSuggestions(
       };
     }
 
+    // $sourceItem. → source item field suggestions (table nodes only)
+    if (trimmedToken.startsWith("$sourceItem.") && expressionData.sourceItemSample) {
+      const fieldPrefix = trimmedToken.slice(12);
+      const { suggestions, leafLength } = buildNestedSuggestions(
+        expressionData.sourceItemSample,
+        fieldPrefix,
+      );
+      return {
+        suggestions,
+        tokenStart: end - leafLength,
+        tokenEnd: end,
+      };
+    }
+
+    // $dataSource. → data source array item field suggestions (table nodes only, same shape as $sourceItem)
+    if (trimmedToken.startsWith("$dataSource.") && expressionData.sourceItemSample) {
+      const fieldPrefix = trimmedToken.slice(12);
+      const { suggestions, leafLength } = buildNestedSuggestions(
+        expressionData.sourceItemSample,
+        fieldPrefix,
+      );
+      return {
+        suggestions,
+        tokenStart: end - leafLength,
+        tokenEnd: end,
+      };
+    }
+
     // At expression start or after operator — show root variables + functions
     const filterPrefix = trimmedToken.replace(/^.*[+\-*/%=!<>&|?,:([\s]/, "");
-    const rootSuggestions = ROOT_VARIABLES.filter((s) =>
+
+    // Add table context variables ($sourceItem, $sourceItemIndex, $dataSource) when in a table node
+    const contextualRoots = expressionData.isTableContext
+      ? [...ROOT_VARIABLES, ...TABLE_CONTEXT_VARIABLES]
+      : ROOT_VARIABLES;
+
+    const rootSuggestions = contextualRoots.filter((s) =>
       s.label.toLowerCase().startsWith(filterPrefix.toLowerCase()),
     );
     const fnSuggestions = expressionData.functionNames
