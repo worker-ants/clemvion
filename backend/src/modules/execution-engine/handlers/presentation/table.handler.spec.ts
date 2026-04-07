@@ -670,6 +670,31 @@ describe('TableHandler', () => {
       );
     });
 
+    it('should evaluate arithmetic expressions with $sourceItem and $var', async () => {
+      const ctxWithExpr = {
+        ...context,
+        variables: { a: 10 },
+        expressionContext: { $var: { a: 10 } },
+      };
+      const input = [{ value: 2 }, { value: 5 }];
+      const result = (await handler.execute(
+        input,
+        {
+          columns: [
+            {
+              field: '{{ $sourceItem.value * $var.a }}',
+              label: 'Result',
+            },
+          ],
+        },
+        ctxWithExpr,
+      )) as Record<string, unknown>;
+
+      const rows = result.rows as Array<Record<string, unknown>>;
+      expect(rows[0]['{{ $sourceItem.value * $var.a }}']).toBe(20);
+      expect(rows[1]['{{ $sourceItem.value * $var.a }}']).toBe(50);
+    });
+
     it('should not use per-item evaluation in static mode', async () => {
       const result = (await handler.execute(
         null,
