@@ -20,7 +20,7 @@ import { Edge } from '../edges/entities/edge.entity';
 import { Workflow } from '../workflows/entities/workflow.entity';
 import { buildGraph, GraphEdge } from './graph/graph-builder';
 import { topologicalSort } from './graph/topological-sort';
-import { detectCycle } from './graph/cycle-detector';
+import { identifyBackEdges } from './graph/back-edge-identifier';
 import { assertTransition } from './state/state-machine';
 import { NodeHandlerRegistry } from './handlers/node-handler.registry';
 import { ExecutionContextService } from './context/execution-context.service';
@@ -38,6 +38,7 @@ import {
   ExecutionEventType,
   NodeEventType,
 } from '../websocket/websocket.service';
+import { ConfigService } from '@nestjs/config';
 
 // Node handler imports
 import { IfElseHandler } from './handlers/logic/if-else.handler';
@@ -114,6 +115,7 @@ export class ExecutionEngineService implements OnModuleInit {
     private readonly expressionResolver: ExpressionResolverService,
     @Inject(forwardRef(() => WebsocketService))
     private readonly websocketService: WebsocketService,
+    private readonly configService: ConfigService,
   ) {}
 
   async onModuleInit() {
@@ -251,16 +253,35 @@ export class ExecutionEngineService implements OnModuleInit {
       // 5. Build graph (filters container children & tool area nodes)
       const { graphNodes, graphEdges } = buildGraph(nodes, edges);
 
-      // 6. Check for cycles
-      const cycleResult = detectCycle(graphNodes, graphEdges);
-      if (cycleResult.hasCycle) {
-        throw new Error(
-          `Workflow graph contains a cycle: ${cycleResult.cyclePath?.join(' -> ')}`,
-        );
+      // 6. Identify back-edges (edges that create cycles) and separate forward-edges
+      const { forwardEdges, backEdges } = identifyBackEdges(
+        graphNodes,
+        graphEdges,
+      );
+
+      // 7. Topological sort on forward-edges-only graph (guaranteed DAG)
+      const sortedNodeIds = topologicalSort(graphNodes, forwardEdges);
+
+      // Pre-compute node-id → sorted-index map for O(1) lookup
+      const sortedIndexMap = new Map<string, number>();
+      for (let i = 0; i < sortedNodeIds.length; i++) {
+        sortedIndexMap.set(sortedNodeIds[i], i);
       }
 
-      // 7. Topological sort
-      const sortedNodeIds = topologicalSort(graphNodes, graphEdges);
+      // Build back-edge lookup: sourceNodeId -> [{ edge, targetIndex }]
+      // Used at runtime to jump the execution pointer back when a back-edge is activated.
+      const backEdgeMap = new Map<
+        string,
+        Array<{ edge: GraphEdge; targetIndex: number }>
+      >();
+      for (const edge of backEdges) {
+        const targetIndex = sortedIndexMap.get(edge.targetNodeId);
+        // Skip back-edges whose target is not in the sorted graph (defensive guard)
+        if (targetIndex === undefined) continue;
+        const list = backEdgeMap.get(edge.sourceNodeId) ?? [];
+        list.push({ edge, targetIndex });
+        backEdgeMap.set(edge.sourceNodeId, list);
+      }
 
       // 8. Create execution context
       const context = this.contextService.createContext(
@@ -272,14 +293,46 @@ export class ExecutionEngineService implements OnModuleInit {
       const nodeMap = new Map(nodes.map((n) => [n.id, n]));
       const outgoingEdges = this.buildOutgoingEdgeMap(graphEdges);
 
-      // 10. Execute nodes in topological order
+      // 10. Execute nodes with pointer-based loop (supports back-edge jumps)
+      const maxNodeIterations = this.configService.get<number>(
+        'MAX_NODE_ITERATIONS',
+        100,
+      );
+      if (maxNodeIterations === 0 && backEdges.length > 0) {
+        this.logger.warn(
+          `MAX_NODE_ITERATIONS=0 (unlimited) with ${backEdges.length} back-edge(s). ` +
+            `Cyclic workflows may run indefinitely if no exit condition is met.`,
+        );
+      }
+      const nodeExecutionCount = new Map<string, number>();
+      // NOTE: executedNodes is intentionally NOT cleared on back-edge jumps.
+      // Re-executed nodes overwrite their output in nodeOutputCache, and
+      // gatherNodeInput uses executedNodes to confirm predecessor completion.
+      // Keeping them in the set ensures downstream nodes see predecessor output.
       const executedNodes = new Set<string>();
-      // Track nodes skipped due to button port routing (for transitive propagation)
+      // Track nodes skipped due to button port routing (for transitive propagation).
+      // This set IS cleared for the re-execution range on back-edge jumps,
+      // because port routing decisions may change when nodes re-execute.
       const portRoutingSkipped = new Set<string>();
 
-      for (const nodeId of sortedNodeIds) {
+      let pointer = 0;
+      while (pointer < sortedNodeIds.length) {
+        const nodeId = sortedNodeIds[pointer];
         const node = nodeMap.get(nodeId);
-        if (!node) continue;
+        if (!node) {
+          pointer++;
+          continue;
+        }
+
+        // Max iteration guard (0 = unlimited)
+        const count = (nodeExecutionCount.get(nodeId) ?? 0) + 1;
+        nodeExecutionCount.set(nodeId, count);
+        if (maxNodeIterations > 0 && count > maxNodeIterations) {
+          throw new Error(
+            `Node "${node.label ?? node.type}" exceeded maximum iteration count (${maxNodeIterations}). ` +
+              `Set MAX_NODE_ITERATIONS=0 for unlimited.`,
+          );
+        }
 
         // Skip disabled nodes
         if (node.isDisabled) {
@@ -289,6 +342,7 @@ export class ExecutionEngineService implements OnModuleInit {
             NodeExecutionStatus.SKIPPED,
           );
           executedNodes.add(nodeId);
+          pointer++;
           continue;
         }
 
@@ -340,6 +394,7 @@ export class ExecutionEngineService implements OnModuleInit {
               },
             );
             executedNodes.add(nodeId);
+            pointer++;
             continue;
           }
         }
@@ -381,6 +436,26 @@ export class ExecutionEngineService implements OnModuleInit {
             );
           }
         }
+
+        // Check for activated back-edges (cyclic workflow support)
+        const backEdgesFromNode = backEdgeMap.get(nodeId);
+        if (backEdgesFromNode?.length) {
+          const activated = this.findActivatedBackEdge(
+            nodeId,
+            backEdgesFromNode,
+            context.nodeOutputCache,
+          );
+          if (activated) {
+            // Reset portRoutingSkipped for nodes in the re-execution range
+            for (let i = activated.targetIndex; i <= pointer; i++) {
+              portRoutingSkipped.delete(sortedNodeIds[i]);
+            }
+            pointer = activated.targetIndex;
+            continue;
+          }
+        }
+
+        pointer++;
       }
 
       // 11. Mark execution as completed
@@ -1118,7 +1193,8 @@ export class ExecutionEngineService implements OnModuleInit {
         }
         return sourceOutput;
       }
-      return undefined;
+      // No executed predecessor (e.g., back-edge target on first run) → use workflow input
+      return workflowInput;
     }
 
     // Multiple inputs - merge into object keyed by source node ID
@@ -1135,7 +1211,9 @@ export class ExecutionEngineService implements OnModuleInit {
         hasAnyInput = true;
       }
     }
-    return hasAnyInput ? merged : undefined;
+    // If no predecessor has produced output yet (e.g., all incoming are back-edges
+    // and none have executed), fall back to workflow input
+    return hasAnyInput ? merged : workflowInput;
   }
 
   /**
@@ -1178,6 +1256,25 @@ export class ExecutionEngineService implements OnModuleInit {
       return edgeSourcePort !== selectedPort;
     }
     return false;
+  }
+
+  /**
+   * Check if any back-edge from the given source node should be activated.
+   * A back-edge is activated when its sourcePort matches the selected port
+   * (or the source has no port selection at all).
+   */
+  private findActivatedBackEdge(
+    sourceNodeId: string,
+    backEdges: Array<{ edge: GraphEdge; targetIndex: number }>,
+    nodeOutputCache: Record<string, unknown>,
+  ): { edge: GraphEdge; targetIndex: number } | null {
+    const sourceOutput = nodeOutputCache[sourceNodeId];
+    for (const backEdge of backEdges) {
+      if (!this.isPortFiltered(sourceOutput, backEdge.edge.sourcePort)) {
+        return backEdge;
+      }
+    }
+    return null;
   }
 
   private buildOutgoingEdgeMap(edges: GraphEdge[]): Map<string, GraphEdge[]> {

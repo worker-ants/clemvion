@@ -6,6 +6,7 @@ import { ExecutionContextService } from './context/execution-context.service';
 import { ErrorPolicyHandler } from './error/error-policy.handler';
 import { ExpressionResolverService } from './expression/expression-resolver.service';
 import { WebsocketService } from '../websocket/websocket.service';
+import { ConfigService } from '@nestjs/config';
 import {
   Execution,
   ExecutionStatus,
@@ -192,6 +193,15 @@ describe('ExecutionEngineService', () => {
           useValue: {
             emitExecutionEvent: jest.fn(),
             emitNodeEvent: jest.fn(),
+          },
+        },
+        {
+          provide: ConfigService,
+          useValue: {
+            get: jest.fn((key: string, defaultValue?: unknown) => {
+              if (key === 'MAX_NODE_ITERATIONS') return 100;
+              return defaultValue;
+            }),
           },
         },
       ],
@@ -726,6 +736,440 @@ describe('ExecutionEngineService', () => {
       // $var should be the original context value, not overridden by input
       // name from input should be spread as root-level since it doesn't conflict
       expect(resolvedConfig.template).toBe('original Bob');
+    });
+  });
+
+  describe('Cyclic workflow execution (back-edge support)', () => {
+    it('should execute a cyclic workflow when back-edge port is conditionally selected', async () => {
+      // A -> Switch -> case1 back to A, case2 forward to C
+      // Switch selects case1 on first call, case2 on second call
+      let switchCallCount = 0;
+      const switchHandler: NodeHandler = {
+        validate: () => ({ valid: true, errors: [] }),
+        execute: jest.fn(async () => {
+          switchCallCount++;
+          if (switchCallCount === 1) {
+            return { port: 'case1', data: { iteration: 1 } };
+          }
+          return { port: 'case2', data: { iteration: 2 } };
+        }),
+      };
+
+      const passHandler: NodeHandler = {
+        validate: () => ({ valid: true, errors: [] }),
+        execute: jest.fn(async (input: unknown) => ({
+          processed: true,
+          input,
+        })),
+      };
+
+      handlerRegistry.register('cyclic_pass', passHandler);
+      handlerRegistry.register('cyclic_switch', switchHandler);
+
+      const cyclicNodes: Partial<Node>[] = [
+        {
+          id: 'node-a',
+          workflowId,
+          type: 'cyclic_pass',
+          category: NodeCategory.LOGIC,
+          label: 'Node A',
+          config: {},
+          isDisabled: false,
+          containerId: undefined as unknown as string,
+          toolOwnerId: undefined as unknown as string,
+        },
+        {
+          id: 'node-switch',
+          workflowId,
+          type: 'cyclic_switch',
+          category: NodeCategory.LOGIC,
+          label: 'Switch',
+          config: {},
+          isDisabled: false,
+          containerId: undefined as unknown as string,
+          toolOwnerId: undefined as unknown as string,
+        },
+        {
+          id: 'node-c',
+          workflowId,
+          type: 'cyclic_pass',
+          category: NodeCategory.LOGIC,
+          label: 'Node C',
+          config: {},
+          isDisabled: false,
+          containerId: undefined as unknown as string,
+          toolOwnerId: undefined as unknown as string,
+        },
+      ];
+
+      const cyclicEdges: Partial<Edge>[] = [
+        {
+          id: 'edge-a-switch',
+          workflowId,
+          sourceNodeId: 'node-a',
+          sourcePort: 'out',
+          targetNodeId: 'node-switch',
+          targetPort: 'in',
+          type: EdgeType.DATA,
+        },
+        {
+          id: 'edge-switch-a',
+          workflowId,
+          sourceNodeId: 'node-switch',
+          sourcePort: 'case1',
+          targetNodeId: 'node-a',
+          targetPort: 'in',
+          type: EdgeType.DATA,
+        },
+        {
+          id: 'edge-switch-c',
+          workflowId,
+          sourceNodeId: 'node-switch',
+          sourcePort: 'case2',
+          targetNodeId: 'node-c',
+          targetPort: 'in',
+          type: EdgeType.DATA,
+        },
+      ];
+
+      mockNodeRepo.findBy.mockResolvedValue(cyclicNodes);
+      mockEdgeRepo.findBy.mockResolvedValue(cyclicEdges);
+
+      await service.execute(workflowId, { start: true });
+      await flushPromises();
+
+      // Switch should be called twice (first loop back, then forward)
+      expect(switchCallCount).toBe(2);
+
+      // Execution should complete (not fail)
+      expect(mockExecutionRepo.save).toHaveBeenCalledWith(
+        expect.objectContaining({ status: ExecutionStatus.COMPLETED }),
+      );
+    });
+
+    it('should throw when a node exceeds MAX_NODE_ITERATIONS', async () => {
+      // A -> B -> A (always loops back, no exit)
+      const alwaysOutputHandler: NodeHandler = {
+        validate: () => ({ valid: true, errors: [] }),
+        execute: jest.fn(async () => ({ value: 'data' })),
+      };
+      handlerRegistry.register('infinite_node', alwaysOutputHandler);
+
+      const infiniteNodes: Partial<Node>[] = [
+        {
+          id: 'node-a',
+          workflowId,
+          type: 'infinite_node',
+          category: NodeCategory.LOGIC,
+          label: 'Node A',
+          config: {},
+          isDisabled: false,
+          containerId: undefined as unknown as string,
+          toolOwnerId: undefined as unknown as string,
+        },
+        {
+          id: 'node-b',
+          workflowId,
+          type: 'infinite_node',
+          category: NodeCategory.LOGIC,
+          label: 'Node B',
+          config: {},
+          isDisabled: false,
+          containerId: undefined as unknown as string,
+          toolOwnerId: undefined as unknown as string,
+        },
+      ];
+
+      const infiniteEdges: Partial<Edge>[] = [
+        {
+          id: 'edge-a-b',
+          workflowId,
+          sourceNodeId: 'node-a',
+          sourcePort: 'out',
+          targetNodeId: 'node-b',
+          targetPort: 'in',
+          type: EdgeType.DATA,
+        },
+        {
+          id: 'edge-b-a',
+          workflowId,
+          sourceNodeId: 'node-b',
+          sourcePort: 'out',
+          targetNodeId: 'node-a',
+          targetPort: 'in',
+          type: EdgeType.DATA,
+        },
+      ];
+
+      mockNodeRepo.findBy.mockResolvedValue(infiniteNodes);
+      mockEdgeRepo.findBy.mockResolvedValue(infiniteEdges);
+
+      // ConfigService returns MAX_NODE_ITERATIONS=3 for this test
+      const configService = service['configService'] as unknown as {
+        get: jest.Mock;
+      };
+      configService.get.mockImplementation(
+        (key: string, defaultValue?: unknown) => {
+          if (key === 'MAX_NODE_ITERATIONS') return 3;
+          return defaultValue;
+        },
+      );
+
+      await service.execute(workflowId, {});
+      await flushPromises();
+
+      // Should be marked as failed due to max iteration exceeded
+      expect(mockExecutionRepo.save).toHaveBeenCalledWith(
+        expect.objectContaining({
+          status: ExecutionStatus.FAILED,
+          error: expect.objectContaining({
+            message: expect.stringContaining('exceeded maximum iteration count'),
+          }),
+        }),
+      );
+    });
+
+    it('should allow unlimited iterations when MAX_NODE_ITERATIONS=0', async () => {
+      // A -> B -> A with B exiting after 5 iterations via port routing
+      let bCallCount = 0;
+      const loopHandler: NodeHandler = {
+        validate: () => ({ valid: true, errors: [] }),
+        execute: jest.fn(async () => {
+          bCallCount++;
+          if (bCallCount < 5) {
+            return { port: 'loop', data: { count: bCallCount } };
+          }
+          return { port: 'exit', data: { count: bCallCount } };
+        }),
+      };
+      const passHandler: NodeHandler = {
+        validate: () => ({ valid: true, errors: [] }),
+        execute: jest.fn(async (input: unknown) => ({ processed: true, input })),
+      };
+
+      handlerRegistry.register('loop_switch', loopHandler);
+      handlerRegistry.register('loop_pass', passHandler);
+
+      const loopNodes: Partial<Node>[] = [
+        {
+          id: 'node-a',
+          workflowId,
+          type: 'loop_pass',
+          category: NodeCategory.LOGIC,
+          label: 'Node A',
+          config: {},
+          isDisabled: false,
+          containerId: undefined as unknown as string,
+          toolOwnerId: undefined as unknown as string,
+        },
+        {
+          id: 'node-b',
+          workflowId,
+          type: 'loop_switch',
+          category: NodeCategory.LOGIC,
+          label: 'Node B',
+          config: {},
+          isDisabled: false,
+          containerId: undefined as unknown as string,
+          toolOwnerId: undefined as unknown as string,
+        },
+        {
+          id: 'node-end',
+          workflowId,
+          type: 'loop_pass',
+          category: NodeCategory.LOGIC,
+          label: 'End',
+          config: {},
+          isDisabled: false,
+          containerId: undefined as unknown as string,
+          toolOwnerId: undefined as unknown as string,
+        },
+      ];
+
+      const loopEdges: Partial<Edge>[] = [
+        {
+          id: 'edge-a-b',
+          workflowId,
+          sourceNodeId: 'node-a',
+          sourcePort: 'out',
+          targetNodeId: 'node-b',
+          targetPort: 'in',
+          type: EdgeType.DATA,
+        },
+        {
+          id: 'edge-b-a',
+          workflowId,
+          sourceNodeId: 'node-b',
+          sourcePort: 'loop',
+          targetNodeId: 'node-a',
+          targetPort: 'in',
+          type: EdgeType.DATA,
+        },
+        {
+          id: 'edge-b-end',
+          workflowId,
+          sourceNodeId: 'node-b',
+          sourcePort: 'exit',
+          targetNodeId: 'node-end',
+          targetPort: 'in',
+          type: EdgeType.DATA,
+        },
+      ];
+
+      mockNodeRepo.findBy.mockResolvedValue(loopNodes);
+      mockEdgeRepo.findBy.mockResolvedValue(loopEdges);
+
+      // ConfigService returns 0 (unlimited)
+      const configService = service['configService'] as unknown as {
+        get: jest.Mock;
+      };
+      configService.get.mockImplementation(
+        (key: string, defaultValue?: unknown) => {
+          if (key === 'MAX_NODE_ITERATIONS') return 0;
+          return defaultValue;
+        },
+      );
+
+      await service.execute(workflowId, {});
+      await flushPromises();
+
+      // B should have been called 5 times (4 loops + 1 exit)
+      expect(bCallCount).toBe(5);
+
+      // Execution should complete successfully
+      expect(mockExecutionRepo.save).toHaveBeenCalledWith(
+        expect.objectContaining({ status: ExecutionStatus.COMPLETED }),
+      );
+    });
+
+    it('should pass workflowInput to back-edge target start node on first execution', async () => {
+      // A (start, also back-edge target) -> B (switch)
+      // B -> case1: back to A, case2: forward to C
+      let aInputs: unknown[] = [];
+      const startHandler: NodeHandler = {
+        validate: () => ({ valid: true, errors: [] }),
+        execute: jest.fn(async (input: unknown) => {
+          aInputs.push(input);
+          return { fromA: true, input };
+        }),
+      };
+
+      let switchCount = 0;
+      const switchNodeHandler: NodeHandler = {
+        validate: () => ({ valid: true, errors: [] }),
+        execute: jest.fn(async () => {
+          switchCount++;
+          if (switchCount === 1) {
+            return { port: 'case1', data: { loop: true } };
+          }
+          return { port: 'case2', data: { done: true } };
+        }),
+      };
+
+      const endHandler: NodeHandler = {
+        validate: () => ({ valid: true, errors: [] }),
+        execute: jest.fn(async (input: unknown) => ({ end: true, input })),
+      };
+
+      handlerRegistry.register('start_input_test', startHandler);
+      handlerRegistry.register('switch_input_test', switchNodeHandler);
+      handlerRegistry.register('end_input_test', endHandler);
+
+      const nodes: Partial<Node>[] = [
+        {
+          id: 'node-a',
+          workflowId,
+          type: 'start_input_test',
+          category: NodeCategory.LOGIC,
+          label: 'A',
+          config: {},
+          isDisabled: false,
+          containerId: undefined as unknown as string,
+          toolOwnerId: undefined as unknown as string,
+        },
+        {
+          id: 'node-sw',
+          workflowId,
+          type: 'switch_input_test',
+          category: NodeCategory.LOGIC,
+          label: 'SW',
+          config: {},
+          isDisabled: false,
+          containerId: undefined as unknown as string,
+          toolOwnerId: undefined as unknown as string,
+        },
+        {
+          id: 'node-c',
+          workflowId,
+          type: 'end_input_test',
+          category: NodeCategory.LOGIC,
+          label: 'C',
+          config: {},
+          isDisabled: false,
+          containerId: undefined as unknown as string,
+          toolOwnerId: undefined as unknown as string,
+        },
+      ];
+
+      const edges: Partial<Edge>[] = [
+        {
+          id: 'e1',
+          workflowId,
+          sourceNodeId: 'node-a',
+          sourcePort: 'out',
+          targetNodeId: 'node-sw',
+          targetPort: 'in',
+          type: EdgeType.DATA,
+        },
+        {
+          id: 'e2',
+          workflowId,
+          sourceNodeId: 'node-sw',
+          sourcePort: 'case1',
+          targetNodeId: 'node-a',
+          targetPort: 'in',
+          type: EdgeType.DATA,
+        },
+        {
+          id: 'e3',
+          workflowId,
+          sourceNodeId: 'node-sw',
+          sourcePort: 'case2',
+          targetNodeId: 'node-c',
+          targetPort: 'in',
+          type: EdgeType.DATA,
+        },
+      ];
+
+      mockNodeRepo.findBy.mockResolvedValue(nodes);
+      mockEdgeRepo.findBy.mockResolvedValue(edges);
+
+      await service.execute(workflowId, { initial: 'data' });
+      await flushPromises();
+
+      // First execution: A should receive workflowInput (not undefined)
+      expect(aInputs[0]).toEqual({ initial: 'data' });
+      // Second execution (after back-edge): A should receive switch output
+      expect(aInputs[1]).toEqual(
+        expect.objectContaining({ loop: true, _selectedPort: 'case1' }),
+      );
+    });
+
+    it('should still work for non-cyclic DAG workflows (regression)', async () => {
+      // Use default mockNodes/mockEdges (linear: node-1 -> node-2 -> node-3)
+      mockNodeRepo.findBy.mockResolvedValue(mockNodes);
+      mockEdgeRepo.findBy.mockResolvedValue(mockEdges);
+
+      (mockHandler.execute as jest.Mock).mockResolvedValue({ ok: true });
+      handlerRegistry.register('test_node', mockHandler);
+
+      await service.execute(workflowId, { data: 'test' });
+      await flushPromises();
+
+      expect(mockHandler.execute).toHaveBeenCalledTimes(3);
+      expect(mockExecutionRepo.save).toHaveBeenCalledWith(
+        expect.objectContaining({ status: ExecutionStatus.COMPLETED }),
+      );
     });
   });
 });
