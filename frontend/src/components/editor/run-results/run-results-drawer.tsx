@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { useExecutionStore } from "@/lib/stores/execution-store";
 import {
   ChevronDown,
@@ -122,10 +122,16 @@ export function RunResultsDrawer() {
     };
   }, []);
 
+  // Filter out skipped nodes from results timeline
+  const visibleResults = useMemo(
+    () => nodeResults.filter((r) => r.status !== "skipped"),
+    [nodeResults],
+  );
+
   if (status === "idle") return null;
 
   const completedNodes = Array.from(nodeStatuses.entries()).filter(
-    ([key]) => key !== "__execution__",
+    ([key, info]) => key !== "__execution__" && info.status !== "skipped",
   );
   const totalNodes = completedNodes.length;
   const completedCount = completedNodes.filter(
@@ -222,7 +228,7 @@ export function RunResultsDrawer() {
         <div className="flex" style={{ height: panelHeight }}>
           {/* Left: Timeline */}
           <div className="w-[280px] shrink-0 border-r border-[hsl(var(--border))] overflow-hidden">
-            {nodeResults.length === 0 ? (
+            {visibleResults.length === 0 ? (
               <div className="flex h-full items-center justify-center text-xs text-[hsl(var(--muted-foreground))]">
                 {status === "running"
                   ? "Waiting for nodes..."
@@ -230,7 +236,7 @@ export function RunResultsDrawer() {
               </div>
             ) : (
               <ResultTimeline
-                results={nodeResults}
+                results={visibleResults}
                 selectedId={selectedResultNodeId}
                 onSelect={selectResultNode}
               />
