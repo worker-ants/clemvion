@@ -268,6 +268,8 @@ function aiAgentSummary(config: NodeConfig): ConfigSummaryResult | null {
   if (tools?.length) parts.push(`${tools.length} tools`);
   const kbs = Array.isArray(config.knowledgeBases) ? config.knowledgeBases : undefined;
   if (kbs?.length) parts.push(`${kbs.length} KB`);
+  const conds = Array.isArray(config.conditions) ? config.conditions : undefined;
+  if (conds?.length) parts.push(`${conds.length} cond`);
   return { text: parts.join(" \u00b7 ") || "Configured", isWarning: false };
 }
 

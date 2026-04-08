@@ -7,6 +7,39 @@ import { LlmService } from '../../../llm/llm.service';
 import { RagSearchService } from '../../../knowledge-base/search/rag-search.service';
 import { ChatMessage } from '../../../llm/interfaces/llm-client.interface';
 
+interface ConditionDef {
+  id: string;
+  label: string;
+  prompt: string;
+}
+
+interface ToolCall {
+  id: string;
+  name: string;
+  arguments: string;
+}
+
+interface ConditionClassification {
+  conditionToolCalls: ToolCall[];
+  normalToolCalls: ToolCall[];
+  matchedCondition: ConditionDef | null;
+}
+
+/** Replace non-alphanumeric/underscore chars for LLM-safe tool names. */
+function sanitizeId(id: string): string {
+  return id.replace(/[^a-zA-Z0-9_]/g, '_');
+}
+
+/** Build LLM tool name for a normal (Tool Area) node. */
+function toolName(nodeId: string): string {
+  return `tool_${sanitizeId(nodeId)}`;
+}
+
+/** Build LLM tool name for a condition. */
+function condToolName(conditionId: string): string {
+  return `cond_${sanitizeId(conditionId)}`;
+}
+
 export class AiAgentHandler implements NodeHandler {
   constructor(
     private readonly llmService: LlmService,
@@ -36,6 +69,43 @@ export class AiAgentHandler implements NodeHandler {
         errors.push('turnTimeout must be a positive integer');
       }
     }
+
+    // Validate conditions
+    const conditions = config.conditions as ConditionDef[] | undefined;
+    if (Array.isArray(conditions)) {
+      if (conditions.length > 20) {
+        errors.push('conditions: maximum 20 conditions allowed');
+      }
+      const reservedPortIds = new Set([
+        'out',
+        'in',
+        'timeout',
+        'error',
+        'user_ended',
+        'max_turns',
+      ]);
+      for (let i = 0; i < conditions.length; i++) {
+        const c = conditions[i];
+        if (!c.id) {
+          errors.push(`conditions[${i}]: id is required`);
+        } else if (reservedPortIds.has(c.id)) {
+          errors.push(
+            `conditions[${i}]: id '${c.id}' conflicts with reserved port name`,
+          );
+        }
+        if (!c.label) {
+          errors.push(`conditions[${i}]: label is required`);
+        }
+        if (!c.prompt) {
+          errors.push(`conditions[${i}]: prompt is required`);
+        } else if (c.prompt.length > 2000) {
+          errors.push(
+            `conditions[${i}]: prompt must be 2000 characters or less`,
+          );
+        }
+      }
+    }
+
     return { valid: errors.length === 0, errors };
   }
 
@@ -69,6 +139,7 @@ export class AiAgentHandler implements NodeHandler {
     const ragTopK = (config.ragTopK as number) || 5;
     const ragThreshold = (config.ragThreshold as number) || 0.7;
     const maxToolCalls = (config.maxToolCalls as number) || 10;
+    const conditions = (config.conditions as ConditionDef[]) || [];
 
     const workspaceId = (context.variables?.__workspaceId as string) || '';
     const llmConfig = await this.llmService.resolveConfig(
@@ -76,7 +147,7 @@ export class AiAgentHandler implements NodeHandler {
       workspaceId,
     );
 
-    // Build system prompt with RAG context
+    // Build system prompt with RAG context + condition instructions
     let finalSystemPrompt = systemPrompt;
     let ragSources: unknown[] = [];
 
@@ -95,6 +166,11 @@ export class AiAgentHandler implements NodeHandler {
       }
     }
 
+    // Inject condition instructions into system prompt
+    if (conditions.length > 0) {
+      finalSystemPrompt += this.buildConditionSystemPromptSuffix(conditions);
+    }
+
     // Build messages
     const messages: ChatMessage[] = [];
     if (finalSystemPrompt) {
@@ -104,7 +180,7 @@ export class AiAgentHandler implements NodeHandler {
       messages.push({ role: 'user', content: userPrompt });
     }
 
-    // Build tool definitions from tool area nodes
+    // Build tool definitions from tool area nodes + conditions
     const tools = this.buildTools(config);
 
     // LLM call with tool use loop
@@ -120,22 +196,68 @@ export class AiAgentHandler implements NodeHandler {
 
     let toolCallCount = 0;
     while (result.toolCalls?.length && toolCallCount < maxToolCalls) {
+      // Classify tool calls into condition and normal
+      const classification = this.classifyToolCalls(
+        result.toolCalls as ToolCall[],
+        conditions,
+      );
+
+      // Case 1: Only condition tools called (no normal tools)
+      if (
+        classification.normalToolCalls.length === 0 &&
+        classification.matchedCondition
+      ) {
+        const reason = this.extractConditionReason(
+          result.toolCalls as ToolCall[],
+          classification.matchedCondition.id,
+        );
+        messages.push({ role: 'assistant', content: result.content || '' });
+        return this.buildConditionOutput(
+          classification.matchedCondition,
+          reason,
+          messages,
+          1,
+          {
+            model: result.model ?? (model || llmConfig.defaultModel),
+            totalInputTokens: result.usage?.inputTokens ?? 0,
+            totalOutputTokens: result.usage?.outputTokens ?? 0,
+            toolCalls: toolCallCount,
+            ragSources,
+          },
+        );
+      }
+
+      // Case 2: Mixed (condition + normal) — execute normal tools, defer condition
+      // Case 3: Only normal tools
       messages.push({
         role: 'assistant',
         content: result.content || '',
         toolCalls: result.toolCalls,
       });
 
-      for (const tc of result.toolCalls) {
-        toolCallCount++;
-        messages.push({
-          role: 'tool',
-          content: JSON.stringify({
-            result: `Tool ${tc.name} executed`,
-            arguments: tc.arguments,
-          }),
-          toolCallId: tc.id,
-        });
+      for (const tc of result.toolCalls as ToolCall[]) {
+        if (classification.conditionToolCalls.some((ct) => ct.id === tc.id)) {
+          // Condition tool: send deferral message (does not count toward toolCallCount)
+          messages.push({
+            role: 'tool',
+            content: JSON.stringify({
+              result:
+                '확인되었습니다. 도구 실행 결과를 참고하여 최종 판단해주세요.',
+            }),
+            toolCallId: tc.id,
+          });
+        } else {
+          // Normal tool: execute and count
+          toolCallCount++;
+          messages.push({
+            role: 'tool',
+            content: JSON.stringify({
+              result: `Tool ${tc.name} executed`,
+              arguments: tc.arguments,
+            }),
+            toolCallId: tc.id,
+          });
+        }
       }
 
       result = await this.llmService.chat(llmConfig, {
@@ -189,6 +311,7 @@ export class AiAgentHandler implements NodeHandler {
     const maxToolCalls = (config.maxToolCalls as number) || 10;
     const maxTurns = (config.maxTurns as number) ?? 20;
     const turnTimeout = (config.turnTimeout as number) ?? 1800;
+    const conditions = (config.conditions as ConditionDef[]) || [];
 
     const workspaceId = (context.variables?.__workspaceId as string) || '';
     const llmConfig = await this.llmService.resolveConfig(
@@ -215,6 +338,11 @@ export class AiAgentHandler implements NodeHandler {
       }
     }
 
+    // Inject condition instructions
+    if (conditions.length > 0) {
+      finalSystemPrompt += this.buildConditionSystemPromptSuffix(conditions);
+    }
+
     // Build initial messages
     const messages: ChatMessage[] = [];
     if (finalSystemPrompt) {
@@ -235,6 +363,7 @@ export class AiAgentHandler implements NodeHandler {
       turnTimeout,
       toolNodeIds: (config.toolNodeIds as string[]) || [],
       toolOverrides: (config.toolOverrides as unknown[]) || [],
+      conditions,
       workspaceId,
     };
 
@@ -285,25 +414,67 @@ export class AiAgentHandler implements NodeHandler {
       tools: firstTurnToolsDef,
     });
 
-    // Handle tool calls in first turn
+    // Handle tool calls in first turn (with condition detection)
     let toolCallCount = 0;
     while (result.toolCalls?.length && toolCallCount < maxToolCalls) {
+      const classification = this.classifyToolCalls(
+        result.toolCalls as ToolCall[],
+        conditions,
+      );
+
+      // Condition-only: route immediately
+      if (
+        classification.normalToolCalls.length === 0 &&
+        classification.matchedCondition
+      ) {
+        const reason = this.extractConditionReason(
+          result.toolCalls as ToolCall[],
+          classification.matchedCondition.id,
+        );
+        messages.push({ role: 'assistant', content: result.content || '' });
+        return this.buildConditionOutput(
+          classification.matchedCondition,
+          reason,
+          messages,
+          1,
+          {
+            model: resolvedModel,
+            totalInputTokens: result.usage?.inputTokens ?? 0,
+            totalOutputTokens: result.usage?.outputTokens ?? 0,
+            toolCalls: toolCallCount,
+            ragSources,
+          },
+        );
+      }
+
+      // Mixed or normal-only: execute tools
       messages.push({
         role: 'assistant',
         content: result.content || '',
         toolCalls: result.toolCalls,
       });
 
-      for (const tc of result.toolCalls) {
+      for (const tc of result.toolCalls as ToolCall[]) {
         toolCallCount++;
-        messages.push({
-          role: 'tool',
-          content: JSON.stringify({
-            result: `Tool ${tc.name} executed`,
-            arguments: tc.arguments,
-          }),
-          toolCallId: tc.id,
-        });
+        if (classification.conditionToolCalls.some((ct) => ct.id === tc.id)) {
+          messages.push({
+            role: 'tool',
+            content: JSON.stringify({
+              result:
+                '확인되었습니다. 도구 실행 결과를 참고하여 최종 판단해주세요.',
+            }),
+            toolCallId: tc.id,
+          });
+        } else {
+          messages.push({
+            role: 'tool',
+            content: JSON.stringify({
+              result: `Tool ${tc.name} executed`,
+              arguments: tc.arguments,
+            }),
+            toolCallId: tc.id,
+          });
+        }
       }
 
       result = await this.llmService.chat(llmConfig, {
@@ -367,6 +538,7 @@ export class AiAgentHandler implements NodeHandler {
     const ragTopK = (state.ragTopK as number) || 5;
     const ragThreshold = (state.ragThreshold as number) || 0.7;
     const workspaceId = (state.workspaceId as string) || '';
+    const conditions = (state.conditions as ConditionDef[]) || [];
     let totalInputTokens = state.totalInputTokens as number;
     let totalOutputTokens = state.totalOutputTokens as number;
     let toolCallCount = state.toolCalls as number;
@@ -420,24 +592,70 @@ export class AiAgentHandler implements NodeHandler {
       tools: toolsDef,
     });
 
-    // Handle tool calls
+    // Handle tool calls with condition detection
     while (result.toolCalls?.length && toolCallCount < maxToolCalls) {
+      const classification = this.classifyToolCalls(
+        result.toolCalls as ToolCall[],
+        conditions,
+      );
+
+      // Condition-only: route immediately
+      if (
+        classification.normalToolCalls.length === 0 &&
+        classification.matchedCondition
+      ) {
+        const reason = this.extractConditionReason(
+          result.toolCalls as ToolCall[],
+          classification.matchedCondition.id,
+        );
+        messages.push({ role: 'assistant', content: result.content || '' });
+
+        totalInputTokens += result.usage?.inputTokens ?? 0;
+        totalOutputTokens += result.usage?.outputTokens ?? 0;
+
+        return this.buildConditionOutput(
+          classification.matchedCondition,
+          reason,
+          messages,
+          turnCount,
+          {
+            model,
+            totalInputTokens,
+            totalOutputTokens,
+            toolCalls: toolCallCount,
+            ragSources,
+          },
+        );
+      }
+
+      // Mixed or normal-only: execute tools
       messages.push({
         role: 'assistant',
         content: result.content || '',
         toolCalls: result.toolCalls,
       });
 
-      for (const tc of result.toolCalls) {
+      for (const tc of result.toolCalls as ToolCall[]) {
         toolCallCount++;
-        messages.push({
-          role: 'tool',
-          content: JSON.stringify({
-            result: `Tool ${tc.name} executed`,
-            arguments: tc.arguments,
-          }),
-          toolCallId: tc.id,
-        });
+        if (classification.conditionToolCalls.some((ct) => ct.id === tc.id)) {
+          messages.push({
+            role: 'tool',
+            content: JSON.stringify({
+              result:
+                '확인되었습니다. 도구 실행 결과를 참고하여 최종 판단해주세요.',
+            }),
+            toolCallId: tc.id,
+          });
+        } else {
+          messages.push({
+            role: 'tool',
+            content: JSON.stringify({
+              result: `Tool ${tc.name} executed`,
+              arguments: tc.arguments,
+            }),
+            toolCallId: tc.id,
+          });
+        }
       }
 
       result = await this.llmService.chat(llmConfig, {
@@ -508,7 +726,7 @@ export class AiAgentHandler implements NodeHandler {
     messages: ChatMessage[],
     lastResponse: string,
     turnCount: number,
-    endReason: 'user_ended' | 'max_turns' | 'timeout',
+    endReason: 'user_ended' | 'max_turns' | 'timeout' | 'condition' | 'error',
     metadata: {
       model: string;
       totalInputTokens: number;
@@ -533,6 +751,122 @@ export class AiAgentHandler implements NodeHandler {
     };
   }
 
+  /**
+   * Build condition-triggered output with port routing.
+   */
+  private buildConditionOutput(
+    condition: ConditionDef,
+    reason: string,
+    messages: ChatMessage[],
+    turnCount: number,
+    metadata: {
+      model: string;
+      totalInputTokens: number;
+      totalOutputTokens: number;
+      toolCalls: number;
+      ragSources: unknown[];
+    },
+  ): unknown {
+    const lastMsg = messages[messages.length - 1];
+    const lastResponse = lastMsg?.content ?? '';
+
+    return {
+      port: condition.id,
+      data: {
+        response: lastResponse,
+        messages,
+        turnCount,
+        endReason: 'condition',
+        condition: {
+          id: condition.id,
+          label: condition.label,
+          reason,
+        },
+        metadata: {
+          model: metadata.model,
+          totalInputTokens: metadata.totalInputTokens,
+          totalOutputTokens: metadata.totalOutputTokens,
+          totalTokens: metadata.totalInputTokens + metadata.totalOutputTokens,
+          toolCalls: metadata.toolCalls,
+          ragSources: metadata.ragSources,
+        },
+      },
+    };
+  }
+
+  /**
+   * Classify tool calls into condition tools and normal tools.
+   * If multiple condition tools are called, select the one with the lowest index in conditions array.
+   */
+  private classifyToolCalls(
+    toolCalls: ToolCall[],
+    conditions: ConditionDef[],
+  ): ConditionClassification {
+    // Map cond_ tool name → condition for reverse lookup
+    const condNameToCondition = new Map<string, ConditionDef>();
+    for (const c of conditions) {
+      condNameToCondition.set(condToolName(c.id), c);
+    }
+
+    const conditionToolCalls: ToolCall[] = [];
+    const normalToolCalls: ToolCall[] = [];
+
+    for (const tc of toolCalls) {
+      if (condNameToCondition.has(tc.name)) {
+        conditionToolCalls.push(tc);
+      } else {
+        normalToolCalls.push(tc);
+      }
+    }
+
+    // Find the matched condition with lowest index in conditions array
+    let matchedCondition: ConditionDef | null = null;
+    if (conditionToolCalls.length > 0) {
+      let lowestIndex = Infinity;
+      for (const ctc of conditionToolCalls) {
+        const cond = condNameToCondition.get(ctc.name);
+        if (cond) {
+          const idx = conditions.indexOf(cond);
+          if (idx !== -1 && idx < lowestIndex) {
+            lowestIndex = idx;
+            matchedCondition = cond;
+          }
+        }
+      }
+    }
+
+    return { conditionToolCalls, normalToolCalls, matchedCondition };
+  }
+
+  /**
+   * Extract the reason argument from a condition tool call.
+   */
+  private extractConditionReason(
+    toolCalls: ToolCall[],
+    conditionId: string,
+  ): string {
+    const name = condToolName(conditionId);
+    const tc = toolCalls.find((t) => t.name === name);
+    if (!tc) return '';
+    try {
+      const args = JSON.parse(tc.arguments) as Record<string, unknown>;
+      const reason = typeof args.reason === 'string' ? args.reason : '';
+      return reason.slice(0, 500);
+    } catch {
+      return '';
+    }
+  }
+
+  /**
+   * Build system prompt suffix that instructs the LLM about available conditions.
+   */
+  private buildConditionSystemPromptSuffix(conditions: ConditionDef[]): string {
+    const condList = conditions
+      .map((c) => `- ${condToolName(c.id)}: ${c.prompt}`)
+      .join('\n');
+    return `\n\n[조건 안내] 대화 중 아래 조건에 해당하는 상황이 감지되면, 해당 조건 도구를 호출하세요:\n${condList}\n조건에 해당하지 않으면 대화를 계속하세요.`;
+  }
+
   private buildTools(config: Record<string, unknown>): Array<{
     name: string;
     description: string;
@@ -545,11 +879,13 @@ export class AiAgentHandler implements NodeHandler {
         toolName: string;
         toolDescription: string;
       }>) || [];
+    const conditions = (config.conditions as ConditionDef[]) || [];
 
-    return toolNodeIds.map((nodeId) => {
+    // Build normal tool definitions (tool_ prefix + sanitized UUID)
+    const normalTools = toolNodeIds.map((nodeId) => {
       const override = toolOverrides.find((o) => o.nodeId === nodeId);
       return {
-        name: override?.toolName || `tool_${nodeId.substring(0, 8)}`,
+        name: override?.toolName || toolName(nodeId),
         description: override?.toolDescription || `Execute node ${nodeId}`,
         parameters: {
           type: 'object' as const,
@@ -559,5 +895,22 @@ export class AiAgentHandler implements NodeHandler {
         },
       };
     });
+
+    // Build condition tool definitions (cond_ prefix + sanitized id)
+    const conditionTools = conditions.map((c) => ({
+      name: condToolName(c.id),
+      description: c.prompt,
+      parameters: {
+        type: 'object' as const,
+        properties: {
+          reason: {
+            type: 'string',
+            description: '이 조건을 선택한 이유',
+          },
+        },
+      },
+    }));
+
+    return [...normalTools, ...conditionTools];
   }
 }

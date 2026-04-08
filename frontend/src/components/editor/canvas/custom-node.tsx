@@ -36,6 +36,37 @@ function CustomNodeComponent({ id, data, selected }: NodeProps<CustomNodeType>) 
         .map((c) => ({ id: c.id, label: c.label || "Case", type: "data" as const }));
       return [...casePorts, { id: "default", label: "Default", type: "data" as const }];
     }
+    // Dynamic ports for AI Agent with conditions
+    if (data.type === "ai_agent") {
+      const conditions = (data.config.conditions as Array<{ id: string; label: string }>) ?? [];
+      const condPorts = conditions
+        .filter((c) => c.id)
+        .map((c) => ({ id: c.id, label: c.label || "Condition", type: "data" as const }));
+
+      // No conditions: use default "out" port only (backward compatible)
+      if (condPorts.length === 0) {
+        return getNodeDefinition(data.type)?.outputs ?? [];
+      }
+
+      const mode = (data.config.mode as string) ?? "single_turn";
+      if (mode === "multi_turn") {
+        // Multi Turn: condition ports + timeout + user_ended + max_turns + error (no "out")
+        return [
+          ...condPorts,
+          { id: "timeout", label: "Timeout", type: "error" as const },
+          { id: "user_ended", label: "User Ended", type: "data" as const },
+          { id: "max_turns", label: "Max Turns", type: "data" as const },
+          { id: "error", label: "Error", type: "error" as const },
+        ];
+      }
+      // Single Turn: out + condition ports + timeout + error
+      return [
+        { id: "out", label: "Output", type: "data" as const },
+        ...condPorts,
+        { id: "timeout", label: "Timeout", type: "error" as const },
+        { id: "error", label: "Error", type: "error" as const },
+      ];
+    }
     // Dynamic ports for presentation nodes with buttons
     if (["carousel", "table", "chart", "template"].includes(data.type)) {
       const buttons = (data.config.buttons as Array<{ id: string; label: string; type: string }>) ?? [];

@@ -675,6 +675,32 @@ describe("ai_agent summary", () => {
   it("shows warning when neither model nor llmConfigId", () => {
     expect(getConfigSummary("ai_agent", { model: "" })).toEqual(NOT_CONFIGURED);
   });
+
+  it("shows condition count when conditions exist", () => {
+    expect(getConfigSummary("ai_agent", {
+      model: "gpt-4o",
+      conditions: [
+        { id: "c1", label: "Refund", prompt: "refund request" },
+        { id: "c2", label: "Escalation", prompt: "needs expert" },
+      ],
+    })).toEqual({ text: "gpt-4o \u00b7 2 cond", isWarning: false });
+  });
+
+  it("shows tools, KB, and conditions together", () => {
+    expect(getConfigSummary("ai_agent", {
+      model: "gpt-4o",
+      toolNodeIds: ["t1"],
+      knowledgeBases: ["kb1"],
+      conditions: [{ id: "c1", label: "Cond", prompt: "test" }],
+    })).toEqual({ text: "gpt-4o \u00b7 1 tools \u00b7 1 KB \u00b7 1 cond", isWarning: false });
+  });
+
+  it("does not show cond suffix when conditions array is empty", () => {
+    expect(getConfigSummary("ai_agent", {
+      model: "gpt-4o",
+      conditions: [],
+    })).toEqual({ text: "gpt-4o", isWarning: false });
+  });
 });
 
 // ===== text_classifier =====

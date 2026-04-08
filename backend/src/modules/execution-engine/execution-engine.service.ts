@@ -923,6 +923,15 @@ export class ExecutionEngineService implements OnModuleInit {
               },
             },
           );
+        } else if ('port' in resultObj && 'data' in resultObj) {
+          // Condition triggered — apply port routing and end conversation
+          const portRouted = this.applyPortSelection(resultObj);
+          this.contextService.setNodeOutput(
+            executionId,
+            node.id,
+            portRouted as Record<string, unknown>,
+          );
+          conversationEnded = true;
         } else {
           // maxTurns reached — conversation ended
           this.contextService.setNodeOutput(executionId, node.id, resultObj);
