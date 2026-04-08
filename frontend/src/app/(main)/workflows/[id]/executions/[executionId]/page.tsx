@@ -25,6 +25,12 @@ import {
   STATUS_LABEL,
   formatDuration,
 } from "@/lib/utils/execution-status";
+import { getNodeDefinition } from "@/lib/node-definitions";
+import { PresentationContent } from "@/components/editor/run-results/renderers/presentation-renderers";
+import { GenericRenderer } from "@/components/editor/run-results/renderers/generic-renderer";
+import { ConversationInspector } from "@/components/editor/run-results/conversation-inspector";
+import { parseHistoryMessages } from "@/components/editor/run-results/conversation-utils";
+import type { NodeResult } from "@/lib/stores/execution-store";
 
 function NodeStatusIcon({ status }: { status: string }) {
   switch (status) {
@@ -265,18 +271,39 @@ export default function ExecutionDetailPage({
   );
 }
 
+type DetailTab = "preview" | "input" | "output" | "error";
+
+function toNodeResult(ne: NodeExecutionData): NodeResult {
+  const def = getNodeDefinition(ne.node?.type ?? "");
+  return {
+    nodeId: ne.nodeId,
+    nodeLabel: ne.node?.label ?? ne.nodeId,
+    nodeType: ne.node?.type ?? "",
+    nodeCategory: def?.category ?? "unknown",
+    status: ne.status,
+    duration: ne.durationMs ?? undefined,
+    error: ne.error?.message,
+    outputData: ne.outputData,
+  };
+}
+
 function NodeResultsTab({
   nodeExecutions,
 }: {
   nodeExecutions: NodeExecutionData[];
 }) {
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
-  const [nodeDetailTab, setNodeDetailTab] = useState<"input" | "output" | "error">("output");
+  const [nodeDetailTab, setNodeDetailTab] = useState<DetailTab>("preview");
 
   const selectedNode = useMemo(() => {
     if (!selectedNodeId) return null;
     return nodeExecutions.find((ne) => ne.nodeId === selectedNodeId) ?? null;
   }, [selectedNodeId, nodeExecutions]);
+
+  const selectedNodeResult = useMemo(() => {
+    if (!selectedNode) return null;
+    return toNodeResult(selectedNode);
+  }, [selectedNode]);
 
   if (!nodeExecutions.length) {
     return (
@@ -286,7 +313,14 @@ function NodeResultsTab({
     );
   }
 
-  const detailTabs: { id: "input" | "output" | "error"; label: string; show: boolean }[] = [
+  const isPresentation = selectedNodeResult?.nodeCategory === "presentation";
+  const isAiAgent = selectedNodeResult?.nodeType === "ai_agent";
+  const isCompletedConversation =
+    isAiAgent &&
+    !!(selectedNode?.outputData as Record<string, unknown> | null)?.messages;
+
+  const detailTabs: { id: DetailTab; label: string; show: boolean }[] = [
+    { id: "preview", label: "Preview", show: !!selectedNode?.outputData },
     { id: "input", label: "Input", show: true },
     { id: "output", label: "Output", show: true },
     { id: "error", label: "Error", show: !!selectedNode?.error },
@@ -311,7 +345,9 @@ function NodeResultsTab({
             )}
             onClick={() => {
               setSelectedNodeId(ne.nodeId);
-              setNodeDetailTab(ne.error ? "error" : "output");
+              setNodeDetailTab(
+                ne.error ? "error" : ne.outputData ? "preview" : "output",
+              );
             }}
           >
             <NodeStatusIcon status={ne.status} />
@@ -374,6 +410,25 @@ function NodeResultsTab({
 
             {/* Content */}
             <div className="flex-1 overflow-auto p-4">
+              {nodeDetailTab === "preview" && selectedNodeResult && (
+                isCompletedConversation ? (
+                  <ConversationInspector
+                    result={selectedNodeResult}
+                    conversationMessages={parseHistoryMessages(selectedNode?.outputData)}
+                    selectedItemIndex={null}
+                    isLive={false}
+                    isWaitingAiResponse={false}
+                    conversationConfig={null}
+                    onSendMessage={() => {}}
+                    onEndConversation={() => {}}
+                    previewOnly
+                  />
+                ) : isPresentation ? (
+                  <PresentationContent result={selectedNodeResult} previewOnly />
+                ) : (
+                  <GenericRenderer result={selectedNodeResult} previewOnly />
+                )
+              )}
               {nodeDetailTab === "input" && (
                 <JsonViewer data={selectedNode.inputData} />
               )}

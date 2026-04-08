@@ -5,7 +5,7 @@ import type { NodeResult } from "@/lib/stores/execution-store";
 import { JsonContent } from "./presentation-renderers";
 import { formatDuration } from "../utils";
 
-export function GenericRenderer({ result }: { result: NodeResult }) {
+export function GenericRenderer({ result, previewOnly = false }: { result: NodeResult; previewOnly?: boolean }) {
   return (
     <div className="space-y-3">
       {/* Error display */}
@@ -35,7 +35,7 @@ export function GenericRenderer({ result }: { result: NodeResult }) {
       </div>
 
       {/* Output */}
-      {result.outputData != null && (
+      {!previewOnly && result.outputData != null && (
         <div>
           <p className="text-xs font-medium text-[hsl(var(--muted-foreground))] mb-1">
             Output

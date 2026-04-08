@@ -50,6 +50,8 @@ interface ConversationInspectorProps {
   conversationConfig: unknown;
   onSendMessage: (message: string) => void;
   onEndConversation: () => void;
+  /** When true, hide the raw Output Data section in summary view */
+  previewOnly?: boolean;
 }
 
 export function ConversationInspector({
@@ -61,20 +63,35 @@ export function ConversationInspector({
   conversationConfig,
   onSendMessage,
   onEndConversation,
+  previewOnly = false,
 }: ConversationInspectorProps) {
+  const [internalSelectedIndex, setInternalSelectedIndex] = useState<number | null>(null);
+  const effectiveIndex = previewOnly ? internalSelectedIndex : selectedItemIndex;
+
   const selectedItem =
-    selectedItemIndex != null
-      ? conversationMessages[selectedItemIndex]
+    effectiveIndex != null
+      ? conversationMessages[effectiveIndex]
       : undefined;
 
   return (
     <div className="flex h-full flex-col">
       <div className="flex-1 overflow-y-auto">
         {selectedItem ? (
-          <SelectedItemDetail
-            key={`${selectedItem.type}-${selectedItem.turnIndex}`}
-            item={selectedItem}
-          />
+          <div className="flex flex-col h-full">
+            {previewOnly && (
+              <button
+                type="button"
+                className="flex items-center gap-1 px-3 pt-2 pb-1 text-xs text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))] transition-colors"
+                onClick={() => setInternalSelectedIndex(null)}
+              >
+                ← Back to conversation
+              </button>
+            )}
+            <SelectedItemDetail
+              key={`${selectedItem.type}-${selectedItem.turnIndex}`}
+              item={selectedItem}
+            />
+          </div>
         ) : (
           <div className="p-3">
             <SummaryView
@@ -82,6 +99,8 @@ export function ConversationInspector({
               conversationConfig={conversationConfig}
               isLive={isLive}
               conversationMessages={conversationMessages}
+              previewOnly={previewOnly}
+              onSelectItem={previewOnly ? setInternalSelectedIndex : undefined}
             />
           </div>
         )}
@@ -355,11 +374,15 @@ function SummaryView({
   conversationConfig,
   isLive,
   conversationMessages,
+  previewOnly = false,
+  onSelectItem,
 }: {
   result: NodeResult;
   conversationConfig: unknown;
   isLive: boolean;
   conversationMessages: ConversationItem[];
+  previewOnly?: boolean;
+  onSelectItem?: (index: number) => void;
 }) {
   const config = conversationConfig as Record<string, unknown> | null;
   const output = result.outputData as Record<string, unknown> | null;
@@ -396,14 +419,20 @@ function SummaryView({
       {/* Full conversation thread */}
       {items.length > 0 && (
         <div className="flex flex-col gap-2">
-          {items.map((item, i) => (
-            <div
+          {items.map((item, i) => {
+            const isClickable = !!onSelectItem;
+            const Wrapper = isClickable ? "button" : "div";
+            return (
+            <Wrapper
               key={`${item.type}-${item.turnIndex}-${i}`}
+              type={isClickable ? "button" : undefined}
+              onClick={isClickable ? () => onSelectItem(i) : undefined}
               className={cn(
-                "rounded px-3 py-2 text-xs whitespace-pre-wrap",
+                "rounded px-3 py-2 text-xs whitespace-pre-wrap text-left",
                 item.type === "user"
                   ? "bg-[hsl(var(--accent))] ml-6"
                   : "bg-[hsl(var(--muted))] mr-6",
+                isClickable && "cursor-pointer transition-shadow hover:ring-1 hover:ring-[hsl(var(--primary))/0.3]",
               )}
             >
               <div className="mb-1 text-[10px] font-medium text-[hsl(var(--muted-foreground))]">
@@ -418,8 +447,9 @@ function SummaryView({
                   (empty)
                 </span>
               )}
-            </div>
-          ))}
+            </Wrapper>
+            );
+          })}
         </div>
       )}
 
@@ -438,12 +468,14 @@ function SummaryView({
               </div>
             </div>
           )}
-          <div>
-            <div className="mb-1 text-xs font-medium text-[hsl(var(--muted-foreground))]">
-              Output Data
+          {!previewOnly && (
+            <div>
+              <div className="mb-1 text-xs font-medium text-[hsl(var(--muted-foreground))]">
+                Output Data
+              </div>
+              <GenericRenderer result={result} />
             </div>
-            <GenericRenderer result={result} />
-          </div>
+          )}
         </>
       )}
     </div>
