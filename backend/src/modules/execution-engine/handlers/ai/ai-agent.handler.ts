@@ -267,13 +267,22 @@ export class AiAgentHandler implements NodeHandler {
     messages.push({ role: 'user', content: userPrompt });
 
     const tools = this.buildTools(config);
+    const firstTurnToolsDef = tools.length > 0 ? tools : undefined;
+    const firstTurnStartedAt = Date.now();
+    const firstTurnRequest = {
+      model: resolvedModel,
+      messages: [...messages],
+      temperature,
+      maxTokens,
+      tools: firstTurnToolsDef,
+    };
 
     let result = await this.llmService.chat(llmConfig, {
       model: resolvedModel,
       messages,
       temperature,
       maxTokens,
-      tools: tools.length > 0 ? tools : undefined,
+      tools: firstTurnToolsDef,
     });
 
     // Handle tool calls in first turn
@@ -306,6 +315,8 @@ export class AiAgentHandler implements NodeHandler {
       });
     }
 
+    const firstTurnDurationMs = Date.now() - firstTurnStartedAt;
+
     // Add assistant response to messages
     messages.push({ role: 'assistant', content: result.content || '' });
 
@@ -332,6 +343,9 @@ export class AiAgentHandler implements NodeHandler {
         totalOutputTokens,
         toolCalls: toolCallCount,
         ragSources,
+        lastTurnRequest: firstTurnRequest,
+        lastTurnResponse: result,
+        lastTurnDurationMs: firstTurnDurationMs,
       },
     };
   }
@@ -388,13 +402,22 @@ export class AiAgentHandler implements NodeHandler {
     const maxTokens = state.maxTokens as number | undefined;
     const tools = this.buildTools(state);
 
-    // Call LLM
+    // Call LLM — snapshot request for debugging before mutation
+    const turnStartedAt = Date.now();
+    const toolsDef = tools.length > 0 ? tools : undefined;
+    const chatParams = {
+      model,
+      messages: [...messages],
+      temperature,
+      maxTokens,
+      tools: toolsDef,
+    };
     let result = await this.llmService.chat(llmConfig, {
       model,
       messages,
       temperature,
       maxTokens,
-      tools: tools.length > 0 ? tools : undefined,
+      tools: toolsDef,
     });
 
     // Handle tool calls
@@ -426,6 +449,7 @@ export class AiAgentHandler implements NodeHandler {
       });
     }
 
+    const turnDurationMs = Date.now() - turnStartedAt;
     messages.push({ role: 'assistant', content: result.content || '' });
 
     totalInputTokens += result.usage?.inputTokens ?? 0;
@@ -470,6 +494,9 @@ export class AiAgentHandler implements NodeHandler {
         totalOutputTokens,
         toolCalls: toolCallCount,
         ragSources,
+        lastTurnRequest: chatParams,
+        lastTurnResponse: result,
+        lastTurnDurationMs: turnDurationMs,
       },
     };
   }

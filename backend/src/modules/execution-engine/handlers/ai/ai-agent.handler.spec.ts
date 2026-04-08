@@ -304,6 +304,29 @@ describe('AiAgentHandler', () => {
       expect(state.totalInputTokens).toBe(0);
     });
 
+    it('should include debug fields in first turn state when userPrompt is provided', async () => {
+      const result = await handler.execute(
+        {},
+        {
+          mode: 'multi_turn',
+          systemPrompt: 'You are helpful',
+          userPrompt: 'Hello',
+          maxTurns: 10,
+          turnTimeout: 600,
+        },
+        baseContext,
+      );
+
+      const output = result as Record<string, unknown>;
+      const state = output._multiTurnState as Record<string, unknown>;
+      expect(state.lastTurnRequest).toBeDefined();
+      expect((state.lastTurnRequest as Record<string, unknown>).model).toBe(
+        'gpt-4o',
+      );
+      expect(state.lastTurnResponse).toBeDefined();
+      expect(typeof state.lastTurnDurationMs).toBe('number');
+    });
+
     it('should include RAG sources in multi_turn first turn', async () => {
       mockRagService.search.mockResolvedValue([
         { chunkId: 'c1', content: 'KB content', score: 0.9 },
@@ -380,6 +403,100 @@ describe('AiAgentHandler', () => {
       expect(newState.turnCount).toBe(2);
       expect(newState.totalInputTokens).toBe(250);
       expect(newState.totalOutputTokens).toBe(80);
+    });
+
+    it('should include debug fields (lastTurnRequest, lastTurnResponse, lastTurnDurationMs)', async () => {
+      const state = {
+        llmConfigId: 'config-1',
+        model: 'gpt-4o',
+        temperature: 0.5,
+        maxTokens: 1024,
+        knowledgeBases: [],
+        ragTopK: 5,
+        ragThreshold: 0.7,
+        maxToolCalls: 10,
+        maxTurns: 10,
+        turnTimeout: 600,
+        messages: [
+          { role: 'system', content: 'System prompt' },
+          { role: 'user', content: 'Hello' },
+          { role: 'assistant', content: 'Hi!' },
+        ],
+        turnCount: 1,
+        totalInputTokens: 0,
+        totalOutputTokens: 0,
+        toolCalls: 0,
+        ragSources: [],
+        workspaceId: 'ws-1',
+      };
+
+      const llmResponse = {
+        content: 'Response text',
+        usage: { inputTokens: 80, outputTokens: 20, totalTokens: 100 },
+        model: 'gpt-4o',
+        finishReason: 'stop',
+      };
+      mockLlmService.chat.mockResolvedValue(llmResponse);
+
+      const result = await handler.processMultiTurnMessage('Hi again', state);
+
+      const newState = (result as Record<string, unknown>)
+        ._multiTurnState as Record<string, unknown>;
+      expect(newState.lastTurnRequest).toBeDefined();
+      expect(newState.lastTurnRequest).toEqual(
+        expect.objectContaining({
+          model: 'gpt-4o',
+          temperature: 0.5,
+          maxTokens: 1024,
+          tools: undefined,
+          messages: expect.arrayContaining([
+            expect.objectContaining({ role: 'user', content: 'Hi again' }),
+          ]),
+        }),
+      );
+      expect(newState.lastTurnResponse).toBeDefined();
+      expect((newState.lastTurnResponse as Record<string, unknown>).content).toBe(
+        'Response text',
+      );
+      expect(typeof newState.lastTurnDurationMs).toBe('number');
+      expect(newState.lastTurnDurationMs as number).toBeGreaterThanOrEqual(0);
+    });
+
+    it('should not mutate the original messages array', async () => {
+      const originalMessages = [
+        { role: 'system', content: 'System' },
+        { role: 'user', content: 'Hello' },
+        { role: 'assistant', content: 'Hi!' },
+      ];
+      const state = {
+        llmConfigId: 'config-1',
+        model: 'gpt-4o',
+        knowledgeBases: [],
+        ragTopK: 5,
+        ragThreshold: 0.7,
+        maxToolCalls: 10,
+        maxTurns: 10,
+        turnTimeout: 600,
+        messages: originalMessages,
+        turnCount: 1,
+        totalInputTokens: 0,
+        totalOutputTokens: 0,
+        toolCalls: 0,
+        ragSources: [],
+        workspaceId: 'ws-1',
+      };
+
+      mockLlmService.chat.mockResolvedValue({
+        content: 'Reply',
+        usage: { inputTokens: 10, outputTokens: 5, totalTokens: 15 },
+        model: 'gpt-4o',
+        finishReason: 'stop',
+      });
+
+      await handler.processMultiTurnMessage('New message', state);
+
+      // Original array should not be mutated
+      expect(originalMessages).toHaveLength(3);
     });
 
     it('should return final output when maxTurns is reached', async () => {

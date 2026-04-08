@@ -218,16 +218,38 @@ export function useExecutionEvents({
         message?: string;
         turnCount?: number;
         messages?: Array<{ role: string; content: string }>;
+        metadata?: {
+          model?: string;
+          inputTokens?: number;
+          outputTokens?: number;
+          toolCalls?: number;
+          ragChunks?: number;
+        };
+        requestPayload?: unknown;
+        responsePayload?: unknown;
+        durationMs?: number;
       };
-      if (!payload.message) return;
+      if (payload.message == null) return;
 
       const turnCount = payload.turnCount ?? 1;
 
-      // Add the AI response as a conversation item
       addConversationMessage({
         type: "assistant",
-        content: payload.message,
+        content: payload.message ?? "",
         turnIndex: turnCount,
+        timestamp: new Date().toISOString(),
+        durationMs: payload.durationMs,
+        requestPayload: payload.requestPayload,
+        responsePayload: payload.responsePayload,
+        metadata: payload.metadata
+          ? {
+              model: payload.metadata.model,
+              inputTokens: payload.metadata.inputTokens,
+              outputTokens: payload.metadata.outputTokens,
+              toolCalls: payload.metadata.toolCalls,
+              ragChunks: payload.metadata.ragChunks,
+            }
+          : undefined,
       });
 
       updateConversationConfig(payload);

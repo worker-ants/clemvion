@@ -45,7 +45,16 @@ export interface ConversationItem {
   toolResult?: unknown;
   toolStatus?: "success" | "error";
   turnIndex: number;
+  /** Timestamp when the message was sent/received */
+  timestamp?: string;
+  /** Duration in ms (for assistant: LLM latency) */
+  durationMs?: number;
+  /** Raw request payload sent to LLM (assistant items only) */
+  requestPayload?: unknown;
+  /** Raw response payload from LLM (assistant items only) */
+  responsePayload?: unknown;
   metadata?: {
+    model?: string;
     inputTokens?: number;
     outputTokens?: number;
     toolCalls?: number;

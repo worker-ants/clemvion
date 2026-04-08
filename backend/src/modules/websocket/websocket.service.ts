@@ -9,6 +9,7 @@ export enum ExecutionEventType {
   EXECUTION_FAILED = 'execution.failed',
   EXECUTION_CANCELLED = 'execution.cancelled',
   EXECUTION_WAITING_FOR_INPUT = 'execution.waiting_for_input',
+  AI_MESSAGE = 'execution.ai_message',
 }
 
 export enum NodeEventType {

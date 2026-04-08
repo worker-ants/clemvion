@@ -157,6 +157,7 @@ export function RunResultsDrawer() {
         content: message,
         turnIndex:
           conversationMessages.filter((m) => m.type === "user").length + 1,
+        timestamp: new Date().toISOString(),
       });
       setWaitingAiResponse(true);
     },
