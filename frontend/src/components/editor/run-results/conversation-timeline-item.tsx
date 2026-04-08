@@ -2,7 +2,7 @@
 
 import { cn } from "@/lib/utils/cn";
 import type { ConversationItem } from "@/lib/stores/execution-store";
-import { CheckCircle, XCircle } from "lucide-react";
+import { CheckCircle, XCircle, Wrench } from "lucide-react";
 
 interface ConversationTimelineItemProps {
   item: ConversationItem;
@@ -43,7 +43,12 @@ export function ConversationTimelineItem({
             {item.type === "user" ? "👤" : "🤖"}
           </span>
           <span className="line-clamp-2 text-[hsl(var(--foreground))]">
-            {item.content}
+            {item.content || (item.assistantToolCalls?.length ? (
+              <span className="inline-flex items-center gap-0.5 text-[hsl(var(--muted-foreground))]">
+                <Wrench size={10} />
+                <span className="text-[10px]">Tool Call</span>
+              </span>
+            ) : null)}
           </span>
         </div>
       )}

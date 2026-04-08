@@ -83,10 +83,18 @@ export function parseHistoryMessages(
       const resp = callDebug?.responsePayload as Record<string, unknown> | undefined;
       const usage = resp?.usage as Record<string, unknown> | undefined;
 
+      // Extract tool calls from the LLM response or the message itself
+      const toolCalls = (
+        (resp?.toolCalls ?? msg.toolCalls) as
+          | Array<{ name?: string; arguments?: string }>
+          | undefined
+      )?.map((tc) => ({ name: tc.name ?? "", arguments: tc.arguments }));
+
       items.push({
         type: "assistant",
         content: msg.content,
         turnIndex: turn,
+        assistantToolCalls: toolCalls?.length ? toolCalls : undefined,
         requestPayload: callDebug?.requestPayload,
         responsePayload: callDebug?.responsePayload,
         durationMs: callDebug?.durationMs,

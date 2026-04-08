@@ -2,11 +2,44 @@
 
 import { useState, useCallback, useRef, useEffect, useMemo } from "react";
 import { Button } from "@/components/ui/button";
-import { Loader2, Send, Square } from "lucide-react";
+import { Loader2, Send, Square, Wrench, ChevronRight, ChevronDown } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
-import type { ConversationItem } from "@/lib/stores/execution-store";
+import type { ConversationItem, ToolCallInfo } from "@/lib/stores/execution-store";
 import type { NodeResult } from "@/lib/stores/execution-store";
 import { GenericRenderer } from "./renderers/generic-renderer";
+
+function ToolCallBadge({ toolCalls }: { toolCalls: ToolCallInfo[] }) {
+  const [open, setOpen] = useState(false);
+  const count = toolCalls.length;
+  return (
+    <div>
+      <button
+        type="button"
+        className="inline-flex items-center gap-1 rounded bg-[hsl(var(--accent))] px-1.5 py-0.5 text-[10px] font-medium text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--accent))]/80 transition-colors"
+        onClick={(e) => { e.stopPropagation(); setOpen(!open); }}
+      >
+        <Wrench size={10} />
+        <span>Tool Call</span>
+        {open ? <ChevronDown size={10} /> : <ChevronRight size={10} />}
+        <span>{count} tool{count > 1 ? "s" : ""} called</span>
+      </button>
+      {open && (
+        <div className="mt-1.5 space-y-1">
+          {toolCalls.map((tc, i) => (
+            <div key={i} className="rounded bg-[hsl(var(--background))] border border-[hsl(var(--border))] px-2 py-1 text-[10px] font-mono">
+              <div className="font-medium">{tc.name}</div>
+              {tc.arguments && (
+                <div className="mt-0.5 text-[hsl(var(--muted-foreground))] break-all">
+                  {tc.arguments}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
 interface ConversationInspectorProps {
   result: NodeResult;
@@ -140,15 +173,23 @@ function SelectedItemDetail({ item }: { item: ConversationItem }) {
 // ── Assistant tabs ──
 
 function PreviewTab({ item }: { item: ConversationItem }) {
+  const hasToolCalls = !!item.assistantToolCalls?.length;
   return (
     <div className="flex flex-col gap-3">
       <div className="flex items-center gap-2">
         <span>🤖</span>
         <span className="text-xs font-medium text-[hsl(var(--muted-foreground))]">
-          AI Response — Turn {item.turnIndex}
+          {hasToolCalls && !item.content
+            ? `Tool Call — Turn ${item.turnIndex}`
+            : `AI Response — Turn ${item.turnIndex}`}
         </span>
       </div>
-      <div className="whitespace-pre-wrap text-sm">{item.content}</div>
+      {item.content && (
+        <div className="whitespace-pre-wrap text-sm">{item.content}</div>
+      )}
+      {hasToolCalls && (
+        <ToolCallBadge toolCalls={item.assistantToolCalls!} />
+      )}
     </div>
   );
 }
@@ -368,7 +409,11 @@ function SummaryView({
               <div className="mb-1 text-[10px] font-medium text-[hsl(var(--muted-foreground))]">
                 {item.type === "user" ? "👤 User" : "🤖 AI"}
               </div>
-              {item.content || (
+              {item.content ? (
+                item.content
+              ) : item.assistantToolCalls?.length ? (
+                <ToolCallBadge toolCalls={item.assistantToolCalls} />
+              ) : (
                 <span className="italic text-[hsl(var(--muted-foreground))]">
                   (empty)
                 </span>
