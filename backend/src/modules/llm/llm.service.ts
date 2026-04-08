@@ -98,7 +98,7 @@ export class LlmService {
     llmConfigId: string | undefined,
     workspaceId: string,
   ): Promise<LlmConfig> {
-    if (llmConfigId) {
+    if (llmConfigId && llmConfigId.trim()) {
       return this.llmConfigService.findEntity(llmConfigId, workspaceId);
     }
     const defaultConfig = await this.llmConfigService.findDefault(workspaceId);

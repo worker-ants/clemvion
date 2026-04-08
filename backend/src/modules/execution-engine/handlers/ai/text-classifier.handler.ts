@@ -113,9 +113,9 @@ Respond ONLY with the JSON object, no additional text.`;
         originalInput: inputField,
         metadata: {
           model: result.model,
-          inputTokens: result.usage.inputTokens,
-          outputTokens: result.usage.outputTokens,
-          totalTokens: result.usage.totalTokens,
+          inputTokens: result.usage?.inputTokens ?? 0,
+          outputTokens: result.usage?.outputTokens ?? 0,
+          totalTokens: result.usage?.totalTokens ?? 0,
         },
       },
     };

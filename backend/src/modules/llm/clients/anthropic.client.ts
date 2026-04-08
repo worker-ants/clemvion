@@ -96,7 +96,7 @@ export class AnthropicClient implements LLMClient {
     let textContent = '';
     const toolCalls: ToolCall[] = [];
 
-    for (const block of response.content) {
+    for (const block of response.content ?? []) {
       if (block.type === 'text') {
         textContent += block.text;
       } else if (block.type === 'tool_use') {

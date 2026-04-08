@@ -82,9 +82,7 @@ describe('AiAgentHandler', () => {
         turnTimeout: 0,
       });
       expect(result.valid).toBe(false);
-      expect(result.errors).toContain(
-        'turnTimeout must be a positive integer',
-      );
+      expect(result.errors).toContain('turnTimeout must be a positive integer');
     });
 
     it('should pass multi_turn mode with valid settings', () => {
@@ -428,10 +426,7 @@ describe('AiAgentHandler', () => {
         finishReason: 'stop',
       });
 
-      await handler.processMultiTurnMessage(
-        'Tell me about X',
-        state,
-      );
+      await handler.processMultiTurnMessage('Tell me about X', state);
 
       expect(mockRagService.search).toHaveBeenCalledWith(
         'Tell me about X',

@@ -10,12 +10,17 @@ import {
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { CATEGORY_COLORS, getNodeDefinition } from "@/lib/node-definitions";
-import type { NodeResult } from "@/lib/stores/execution-store";
+import type {
+  NodeResult,
+  ConversationItem,
+} from "@/lib/stores/execution-store";
 import { getWsClient } from "@/lib/websocket/ws-client";
 import { PresentationContent } from "./renderers/presentation-renderers";
 import { GenericRenderer } from "./renderers/generic-renderer";
 import { DynamicFormUI } from "./dynamic-form-ui";
 import { ButtonBar } from "./button-bar";
+import { ConversationInspector } from "./conversation-inspector";
+import { parseHistoryMessages } from "./conversation-utils";
 import { formatDuration } from "./utils";
 
 function StatusBadge({ status }: { status: string }) {
@@ -81,9 +86,16 @@ interface ResultDetailProps {
   formConfig: unknown;
   isWaitingButtons: boolean;
   buttonConfig: unknown;
+  isWaitingConversation: boolean;
+  conversationConfig: unknown;
+  conversationMessages: ConversationItem[];
+  selectedConversationItemIndex: number | null;
+  isWaitingAiResponse: boolean;
   executionId: string | null;
   onFormSubmit: () => void;
   onButtonClick: () => void;
+  onConversationEnd: () => void;
+  onSendMessage: (message: string) => void;
 }
 
 export function ResultDetail({
@@ -92,9 +104,16 @@ export function ResultDetail({
   formConfig,
   isWaitingButtons,
   buttonConfig,
+  isWaitingConversation,
+  conversationConfig,
+  conversationMessages,
+  selectedConversationItemIndex,
+  isWaitingAiResponse,
   executionId,
   onFormSubmit,
   onButtonClick,
+  onConversationEnd,
+  onSendMessage,
 }: ResultDetailProps) {
   const handleFormSubmit = useCallback(
     (data: Record<string, unknown>) => {
@@ -136,6 +155,30 @@ export function ResultDetail({
     window.open(url, "_blank", "noopener,noreferrer");
   }, []);
 
+  const handleSendMessage = useCallback(
+    (message: string) => {
+      if (!executionId || !result) return;
+      onSendMessage(message);
+      const client = getWsClient();
+      client.emit("execution.submit_message", {
+        executionId,
+        nodeId: result.nodeId,
+        message,
+      });
+    },
+    [executionId, result, onSendMessage],
+  );
+
+  const handleEndConversation = useCallback(() => {
+    if (!executionId || !result) return;
+    const client = getWsClient();
+    client.emit("execution.end_conversation", {
+      executionId,
+      nodeId: result.nodeId,
+    });
+    onConversationEnd();
+  }, [executionId, result, onConversationEnd]);
+
   if (!result) {
     return (
       <div className="flex h-full items-center justify-center text-sm text-[hsl(var(--muted-foreground))]">
@@ -149,10 +192,16 @@ export function ResultDetail({
     CATEGORY_COLORS[result.nodeCategory] ?? "#6B7280";
   const isPresentation = result.nodeCategory === "presentation";
 
+  // Check for completed multi-turn conversation (history mode)
+  const isCompletedConversation =
+    result.nodeType === "ai_agent" &&
+    result.status === "completed" &&
+    !!(result.outputData as Record<string, unknown> | null)?.messages;
+
   return (
-    <div className="h-full overflow-y-auto p-3">
+    <div className="h-full overflow-hidden flex flex-col">
       {/* Header */}
-      <div className="mb-3 flex items-center gap-2">
+      <div className="shrink-0 px-3 pt-3 pb-2 flex items-center gap-2">
         <span
           className="h-2.5 w-2.5 shrink-0 rounded-full"
           style={{ backgroundColor: categoryColor }}
@@ -169,46 +218,76 @@ export function ResultDetail({
         )}
       </div>
 
-      {/* Form waiting state */}
-      {isWaitingForm && formConfig ? (
-        <DynamicFormUI
-          formConfig={formConfig as Record<string, unknown>}
-          onSubmit={handleFormSubmit}
-        />
-      ) : isWaitingButtons && buttonConfig ? (
-        <div>
-          {isPresentation && <PresentationContent result={result} />}
-          <ButtonBar
-            buttons={
-              ((buttonConfig as Record<string, unknown>).buttons as Array<{
-                id: string;
-                label: string;
-                type: "link" | "port";
-                url?: string;
-                style?: "primary" | "secondary" | "outline" | "danger";
-              }>) ?? []
-            }
-            timeout={
-              (buttonConfig as Record<string, unknown>).timeout as
-                | number
-                | undefined
-            }
-            timeoutAction={
-              (buttonConfig as Record<string, unknown>).timeoutAction as
-                | "continue"
-                | "cancel"
-                | undefined
-            }
-            onPortButtonClick={handlePortButtonClick}
-            onLinkButtonClick={handleLinkButtonClick}
-            onContinueClick={handleContinueClick}
+      {/* Content */}
+      <div className="flex-1 overflow-hidden">
+        {isWaitingForm && formConfig ? (
+          <div className="h-full overflow-y-auto p-3">
+            <DynamicFormUI
+              formConfig={formConfig as Record<string, unknown>}
+              onSubmit={handleFormSubmit}
+            />
+          </div>
+        ) : isWaitingConversation ? (
+          <ConversationInspector
+            result={result}
+            conversationMessages={conversationMessages}
+            selectedItemIndex={selectedConversationItemIndex}
+            isLive={true}
+            isWaitingAiResponse={isWaitingAiResponse}
+            conversationConfig={conversationConfig}
+            onSendMessage={handleSendMessage}
+            onEndConversation={handleEndConversation}
           />
-        </div>
-      ) : isPresentation && result.status === "completed" ? (
-        <PresentationContent result={result} />
-      ) : (
-        <GenericRenderer result={result} />
-      )}
+        ) : isWaitingButtons && buttonConfig ? (
+          <div className="h-full overflow-y-auto p-3">
+            {isPresentation && <PresentationContent result={result} />}
+            <ButtonBar
+              buttons={
+                ((buttonConfig as Record<string, unknown>).buttons as Array<{
+                  id: string;
+                  label: string;
+                  type: "link" | "port";
+                  url?: string;
+                  style?: "primary" | "secondary" | "outline" | "danger";
+                }>) ?? []
+              }
+              timeout={
+                (buttonConfig as Record<string, unknown>).timeout as
+                  | number
+                  | undefined
+              }
+              timeoutAction={
+                (buttonConfig as Record<string, unknown>).timeoutAction as
+                  | "continue"
+                  | "cancel"
+                  | undefined
+              }
+              onPortButtonClick={handlePortButtonClick}
+              onLinkButtonClick={handleLinkButtonClick}
+              onContinueClick={handleContinueClick}
+            />
+          </div>
+        ) : isCompletedConversation ? (
+          <ConversationInspector
+            result={result}
+            conversationMessages={parseHistoryMessages(result.outputData)}
+            selectedItemIndex={selectedConversationItemIndex}
+            isLive={false}
+            isWaitingAiResponse={false}
+            conversationConfig={null}
+            onSendMessage={() => {}}
+            onEndConversation={() => {}}
+          />
+        ) : isPresentation && result.status === "completed" ? (
+          <div className="h-full overflow-y-auto p-3">
+            <PresentationContent result={result} />
+          </div>
+        ) : (
+          <div className="h-full overflow-y-auto p-3">
+            <GenericRenderer result={result} />
+          </div>
+        )}
+      </div>
     </div>
   );
 }

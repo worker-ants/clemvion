@@ -88,7 +88,19 @@ export class OpenAIClient implements LLMClient {
     }
 
     const response = await this.client.chat.completions.create(requestParams);
-    const choice = response.choices[0];
+    const choice = response.choices?.[0];
+    if (!choice?.message) {
+      return {
+        content: null,
+        usage: {
+          inputTokens: response.usage?.prompt_tokens ?? 0,
+          outputTokens: response.usage?.completion_tokens ?? 0,
+          totalTokens: response.usage?.total_tokens ?? 0,
+        },
+        model: response.model,
+        finishReason: 'stop',
+      };
+    }
 
     const toolCalls: ToolCall[] | undefined = choice.message.tool_calls
       ?.filter(

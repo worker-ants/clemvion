@@ -78,6 +78,10 @@ export function useExecutionEvents({
     resumeFromForm,
     pauseForButtons,
     resumeFromButtons,
+    pauseForConversation,
+    resumeFromConversation,
+    addConversationMessage,
+    updateConversationConfig,
   } = useExecutionStore();
 
   const handleExecutionStarted = useCallback(
@@ -101,12 +105,14 @@ export function useExecutionEvents({
 
   const handleExecutionResumed = useCallback(() => {
     const { waitingInteractionType } = useExecutionStore.getState();
-    if (waitingInteractionType === "buttons") {
+    if (waitingInteractionType === "ai_conversation") {
+      resumeFromConversation();
+    } else if (waitingInteractionType === "buttons") {
       resumeFromButtons();
     } else {
       resumeFromForm();
     }
-  }, [resumeFromForm, resumeFromButtons]);
+  }, [resumeFromForm, resumeFromButtons, resumeFromConversation]);
 
   const handleExecutionCompleted = useCallback(() => {
     completeExecution();
@@ -129,7 +135,7 @@ export function useExecutionEvents({
       const payload = data as {
         waitingNodeId?: string;
         waitingNodeType?: string;
-        interactionType?: "form" | "buttons";
+        interactionType?: "form" | "buttons" | "ai_conversation";
         nodeOutput?: unknown;
         buttonConfig?: unknown;
       };
@@ -151,19 +157,82 @@ export function useExecutionEvents({
         outputData: payload.nodeOutput ?? null,
       });
 
-      if (payload.interactionType === "buttons") {
-        // Button interaction on Presentation node
-        const btnConfig = payload.buttonConfig ?? (payload.nodeOutput as Record<string, unknown> | null)?.buttonConfig;
+      // Resolve interactionType from top-level or inside nodeOutput
+      const nodeOutputObj = payload.nodeOutput as Record<string, unknown> | null;
+      const interactionType =
+        payload.interactionType ??
+        (nodeOutputObj?.interactionType as string | undefined);
+
+      if (interactionType === "ai_conversation") {
+        const convConfig = nodeOutputObj?.conversationConfig as {
+          message?: string;
+          messages?: Array<{ role: string; content: string }>;
+          turnCount?: number;
+          maxTurns?: number;
+          turnTimeout?: number;
+        } | undefined;
+        pauseForConversation(payload.waitingNodeId, convConfig ?? null);
+
+        // Parse initial messages into ConversationItems
+        if (convConfig?.messages) {
+          const { conversationMessages } = useExecutionStore.getState();
+          // Only add if no messages yet (avoid duplicates on re-emit)
+          if (conversationMessages.length === 0) {
+            const turnCount = convConfig.turnCount ?? 1;
+            for (const msg of convConfig.messages) {
+              if (msg.role === "user" || msg.role === "assistant") {
+                addConversationMessage({
+                  type: msg.role,
+                  content: msg.content,
+                  turnIndex: turnCount,
+                });
+              }
+            }
+          }
+        }
+      } else if (interactionType === "buttons") {
+        const btnConfig =
+          payload.buttonConfig ??
+          nodeOutputObj?.buttonConfig;
         pauseForButtons(payload.waitingNodeId, btnConfig ?? null);
       } else {
         // Form interaction (default for backward compat)
-        const output = payload.nodeOutput as {
-          formConfig?: unknown;
-        } | null;
+        const output = nodeOutputObj as { formConfig?: unknown } | null;
         pauseForForm(payload.waitingNodeId, output?.formConfig ?? null);
       }
     },
-    [pauseForForm, pauseForButtons, updateNodeStatus, addNodeResult],
+    [
+      pauseForForm,
+      pauseForButtons,
+      pauseForConversation,
+      addConversationMessage,
+      updateNodeStatus,
+      addNodeResult,
+    ],
+  );
+
+  const handleAiMessage = useCallback(
+    (data: unknown) => {
+      const payload = data as {
+        nodeId?: string;
+        message?: string;
+        turnCount?: number;
+        messages?: Array<{ role: string; content: string }>;
+      };
+      if (!payload.message) return;
+
+      const turnCount = payload.turnCount ?? 1;
+
+      // Add the AI response as a conversation item
+      addConversationMessage({
+        type: "assistant",
+        content: payload.message,
+        turnIndex: turnCount,
+      });
+
+      updateConversationConfig(payload);
+    },
+    [addConversationMessage, updateConversationConfig],
   );
 
   const handleNodeStarted = useCallback(
@@ -314,6 +383,7 @@ export function useExecutionEvents({
     client.on("execution.failed", handleExecutionFailed);
     client.on("execution.cancelled", handleExecutionCancelled);
     client.on("execution.waiting_for_input", handleWaitingForInput);
+    client.on("execution.ai_message", handleAiMessage);
 
     // Bind node events
     client.on("execution.node.started", handleNodeStarted);
@@ -378,8 +448,16 @@ export function useExecutionEvents({
           execution.status === "running" &&
           prevStatus === "waiting_for_input"
         ) {
-          // Execution resumed from form — WebSocket event may have been missed
-          resumeFromForm();
+          // Execution resumed — WebSocket event may have been missed
+          const { waitingInteractionType: wit } =
+            useExecutionStore.getState();
+          if (wit === "ai_conversation") {
+            resumeFromConversation();
+          } else if (wit === "buttons") {
+            resumeFromButtons();
+          } else {
+            resumeFromForm();
+          }
           return false;
         } else if (execution.status === "waiting_for_input") {
           // Skip if already in waiting state for the same node
@@ -400,8 +478,14 @@ export function useExecutionEvents({
               formConfig?: unknown;
               interactionType?: string;
               buttonConfig?: unknown;
+              conversationConfig?: unknown;
             };
-            if (output.interactionType === "buttons") {
+            if (output.interactionType === "ai_conversation") {
+              pauseForConversation(
+                waitingNode.nodeId,
+                output.conversationConfig ?? null,
+              );
+            } else if (output.interactionType === "buttons") {
               pauseForButtons(
                 waitingNode.nodeId,
                 output.buttonConfig ?? null,
@@ -477,6 +561,7 @@ export function useExecutionEvents({
       client.off("execution.failed", handleExecutionFailed);
       client.off("execution.cancelled", handleExecutionCancelled);
       client.off("execution.waiting_for_input", handleWaitingForInput);
+      client.off("execution.ai_message", handleAiMessage);
       client.off("execution.node.started", handleNodeStarted);
       client.off("execution.node.completed", handleNodeCompleted);
       client.off("execution.node.failed", handleNodeFailed);
@@ -492,6 +577,7 @@ export function useExecutionEvents({
     handleExecutionFailed,
     handleExecutionCancelled,
     handleWaitingForInput,
+    handleAiMessage,
     handleNodeStarted,
     handleNodeCompleted,
     handleNodeFailed,
@@ -504,6 +590,10 @@ export function useExecutionEvents({
     resumeFromForm,
     pauseForButtons,
     resumeFromButtons,
+    pauseForConversation,
+    resumeFromConversation,
+    addConversationMessage,
+    updateConversationConfig,
   ]);
 
   return { isConnected };

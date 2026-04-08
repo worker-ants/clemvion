@@ -80,6 +80,14 @@ export class GoogleClient implements LLMClient {
     }
 
     const lastMessage = nonSystemMessages[nonSystemMessages.length - 1];
+    if (!lastMessage) {
+      return {
+        content: null,
+        usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 },
+        model: modelId,
+        finishReason: 'stop',
+      };
+    }
     const chat = model.startChat({
       history,
       ...(systemInstruction
@@ -99,7 +107,7 @@ export class GoogleClient implements LLMClient {
     let textContent = '';
 
     for (const candidate of response.candidates || []) {
-      for (const part of candidate.content.parts) {
+      for (const part of candidate.content?.parts ?? []) {
         if ('text' in part && part.text) {
           textContent += part.text;
         }

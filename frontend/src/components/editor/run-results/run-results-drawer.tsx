@@ -66,11 +66,35 @@ export function RunResultsDrawer() {
     (s) => s.waitingInteractionType,
   );
   const waitingButtonConfig = useExecutionStore((s) => s.waitingButtonConfig);
+  const waitingConversationConfig = useExecutionStore(
+    (s) => s.waitingConversationConfig,
+  );
+  const conversationMessages = useExecutionStore(
+    (s) => s.conversationMessages,
+  );
+  const isWaitingAiResponse = useExecutionStore(
+    (s) => s.isWaitingAiResponse,
+  );
+  const selectedConversationItemIndex = useExecutionStore(
+    (s) => s.selectedConversationItemIndex,
+  );
+  const selectConversationItem = useExecutionStore(
+    (s) => s.selectConversationItem,
+  );
   const reset = useExecutionStore((s) => s.reset);
   const resumeFromForm = useExecutionStore((s) => s.resumeFromForm);
   const resumeFromButtons = useExecutionStore((s) => s.resumeFromButtons);
+  const resumeFromConversation = useExecutionStore(
+    (s) => s.resumeFromConversation,
+  );
+  const addConversationMessage = useExecutionStore(
+    (s) => s.addConversationMessage,
+  );
+  const setWaitingAiResponse = useExecutionStore(
+    (s) => s.setWaitingAiResponse,
+  );
 
-  // Auto-select waiting form node
+  // Auto-select waiting form/conversation node
   useEffect(() => {
     if (waitingNodeId) {
       selectResultNode(waitingNodeId);
@@ -104,7 +128,6 @@ export function RunResultsDrawer() {
       isDragging.current = false;
       document.body.style.cursor = "";
       document.body.style.userSelect = "";
-      // Use ref to get the latest height
       localStorage.setItem(STORAGE_KEY, String(currentHeightRef.current));
     };
 
@@ -113,7 +136,6 @@ export function RunResultsDrawer() {
     return () => {
       window.removeEventListener("mousemove", handleMouseMove);
       window.removeEventListener("mouseup", handleMouseUp);
-      // Cleanup body styles if unmounted during drag
       if (isDragging.current) {
         isDragging.current = false;
         document.body.style.cursor = "";
@@ -126,6 +148,19 @@ export function RunResultsDrawer() {
   const visibleResults = useMemo(
     () => nodeResults.filter((r) => r.status !== "skipped"),
     [nodeResults],
+  );
+
+  const handleSendMessage = useCallback(
+    (message: string) => {
+      addConversationMessage({
+        type: "user",
+        content: message,
+        turnIndex:
+          conversationMessages.filter((m) => m.type === "user").length + 1,
+      });
+      setWaitingAiResponse(true);
+    },
+    [addConversationMessage, setWaitingAiResponse, conversationMessages],
   );
 
   if (status === "idle") return null;
@@ -162,7 +197,9 @@ export function RunResultsDrawer() {
         : status === "failed"
           ? "Failed"
           : status === "waiting_for_input"
-            ? "Waiting for input..."
+            ? waitingInteractionType === "ai_conversation"
+              ? "Conversing..."
+              : "Waiting for input..."
             : "Execution";
 
   const selectedResult =
@@ -176,6 +213,11 @@ export function RunResultsDrawer() {
   const isWaitingForm = isSelectedWaiting && waitingInteractionType === "form";
   const isWaitingButtons =
     isSelectedWaiting && waitingInteractionType === "buttons";
+  const isWaitingConversation =
+    isSelectedWaiting && waitingInteractionType === "ai_conversation";
+  const isLiveConversation =
+    status === "waiting_for_input" &&
+    waitingInteractionType === "ai_conversation";
 
   return (
     <div className="border-t border-[hsl(var(--border))] bg-[hsl(var(--card))]">
@@ -239,6 +281,10 @@ export function RunResultsDrawer() {
                 results={visibleResults}
                 selectedId={selectedResultNodeId}
                 onSelect={selectResultNode}
+                conversationMessages={conversationMessages}
+                selectedConversationItemIndex={selectedConversationItemIndex}
+                onSelectConversationItem={selectConversationItem}
+                isLiveConversation={isLiveConversation}
               />
             )}
           </div>
@@ -251,9 +297,16 @@ export function RunResultsDrawer() {
               formConfig={waitingFormConfig}
               isWaitingButtons={isWaitingButtons}
               buttonConfig={waitingButtonConfig}
+              isWaitingConversation={isWaitingConversation}
+              conversationConfig={waitingConversationConfig}
+              conversationMessages={conversationMessages}
+              selectedConversationItemIndex={selectedConversationItemIndex}
+              isWaitingAiResponse={isWaitingAiResponse}
               executionId={executionId}
               onFormSubmit={resumeFromForm}
               onButtonClick={resumeFromButtons}
+              onConversationEnd={resumeFromConversation}
+              onSendMessage={handleSendMessage}
             />
           </div>
         </div>

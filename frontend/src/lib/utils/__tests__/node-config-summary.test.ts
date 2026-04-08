@@ -651,7 +651,28 @@ describe("ai_agent summary", () => {
     })).toEqual({ text: "claude-sonnet", isWarning: false });
   });
 
-  it("shows warning when model is empty", () => {
+  it("shows configured when llmConfigId set but no model", () => {
+    expect(getConfigSummary("ai_agent", {
+      llmConfigId: "config-uuid",
+    })).toEqual({ text: "Configured", isWarning: false });
+  });
+
+  it("shows multi_turn mode prefix", () => {
+    expect(getConfigSummary("ai_agent", {
+      mode: "multi_turn",
+      llmConfigId: "config-uuid",
+      model: "gpt-4o",
+    })).toEqual({ text: "Multi Turn \u00b7 gpt-4o", isWarning: false });
+  });
+
+  it("shows multi_turn without model", () => {
+    expect(getConfigSummary("ai_agent", {
+      mode: "multi_turn",
+      llmConfigId: "config-uuid",
+    })).toEqual({ text: "Multi Turn", isWarning: false });
+  });
+
+  it("shows warning when neither model nor llmConfigId", () => {
     expect(getConfigSummary("ai_agent", { model: "" })).toEqual(NOT_CONFIGURED);
   });
 });
