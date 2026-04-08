@@ -16,6 +16,7 @@ import {
   ChevronRight,
   Download,
   Upload,
+  History,
 } from "lucide-react";
 import { toast } from "sonner";
 import { workflowsApi, type WorkflowData } from "@/lib/api/workflows";
@@ -194,6 +195,9 @@ export default function WorkflowsPage() {
       switch (action) {
         case "edit":
           router.push(`/workflows/${workflow.id}`);
+          break;
+        case "executions":
+          router.push(`/workflows/${workflow.id}/executions`);
           break;
         case "duplicate":
           duplicateMutation.mutate(workflow.id);
@@ -396,6 +400,14 @@ export default function WorkflowsPage() {
                               }
                             >
                               <Pencil className="h-4 w-4" /> Edit
+                            </button>
+                            <button
+                              className="flex w-full items-center gap-2 px-3 py-2 text-sm hover:bg-[hsl(var(--accent))]"
+                              onClick={() =>
+                                handleMenuAction("executions", workflow)
+                              }
+                            >
+                              <History className="h-4 w-4" /> Execution History
                             </button>
                             <button
                               className="flex w-full items-center gap-2 px-3 py-2 text-sm hover:bg-[hsl(var(--accent))]"

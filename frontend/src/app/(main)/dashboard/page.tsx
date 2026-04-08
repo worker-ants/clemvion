@@ -300,7 +300,12 @@ export default function DashboardPage() {
                 {recentExecutionsQuery.data.slice(0, 10).map((execution) => (
                   <tr
                     key={execution.id}
-                    className="border-b border-[hsl(var(--border))] last:border-b-0"
+                    className="border-b border-[hsl(var(--border))] last:border-b-0 hover:bg-[hsl(var(--muted))/0.5] cursor-pointer"
+                    onClick={() =>
+                      router.push(
+                        `/workflows/${execution.workflowId}/executions`,
+                      )
+                    }
                   >
                     <td className="px-4 py-3">
                       <span className="text-base">

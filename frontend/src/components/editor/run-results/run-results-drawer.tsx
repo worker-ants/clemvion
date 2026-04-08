@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect, useCallback, useMemo } from "react";
+import { useParams } from "next/navigation";
 import { useExecutionStore } from "@/lib/stores/execution-store";
 import {
   ChevronDown,
@@ -11,6 +12,7 @@ import {
   Loader2,
   PauseCircle,
   GripHorizontal,
+  History,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ResultTimeline } from "./result-timeline";
@@ -40,6 +42,8 @@ function getStoredHeight(): number {
 }
 
 export function RunResultsDrawer() {
+  const params = useParams();
+  const workflowId = params?.id as string | undefined;
   const [expanded, setExpanded] = useState(true);
   const [panelHeight, setPanelHeight] = useState(getStoredHeight);
   const isDragging = useRef(false);
@@ -243,6 +247,17 @@ export function RunResultsDrawer() {
           </span>
         </div>
         <div className="flex items-center gap-1">
+          {workflowId && (
+            <a
+              href={`/workflows/${workflowId}/executions`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-1 px-2 py-1 text-xs text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))] transition-colors"
+            >
+              <History className="h-3 w-3" />
+              All Executions
+            </a>
+          )}
           <Button
             variant="ghost"
             size="icon"
