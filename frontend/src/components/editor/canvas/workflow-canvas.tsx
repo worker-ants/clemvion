@@ -5,7 +5,6 @@ import {
   ReactFlow,
   Background,
   BackgroundVariant,
-  MiniMap,
   Panel,
   useReactFlow,
 } from "@xyflow/react";
@@ -395,14 +394,9 @@ export function WorkflowCanvas() {
         fitView
         deleteKeyCode={["Delete", "Backspace"]}
         className="bg-[hsl(var(--background))]"
+        proOptions={{ hideAttribution: true }}
       >
         <Background variant={BackgroundVariant.Dots} gap={16} size={1} />
-        <MiniMap
-          position="bottom-right"
-          className="!h-[100px] !w-[140px]"
-          maskColor="rgba(0,0,0,0.1)"
-          nodeStrokeWidth={3}
-        />
         <ZoomControls />
       </ReactFlow>
 
