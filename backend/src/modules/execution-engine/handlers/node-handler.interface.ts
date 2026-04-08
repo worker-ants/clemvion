@@ -16,6 +16,9 @@ export interface ExecutionContext {
     isLast: boolean;
   };
   expressionContext?: Record<string, unknown>;
+  recursionDepth?: number;
+  /** Runtime state injected by ExecutionEngineService for sub-workflow inline execution */
+  _executedNodes?: Set<string>;
 }
 
 export interface ValidationResult {

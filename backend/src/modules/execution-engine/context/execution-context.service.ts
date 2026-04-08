@@ -13,12 +13,14 @@ export class ExecutionContextService {
     executionId: string,
     workflowId: string,
     initialVariables: Record<string, unknown> = {},
+    recursionDepth?: number,
   ): ExecutionContext {
     const context: ExecutionContext = {
       executionId,
       workflowId,
       variables: { ...initialVariables },
       nodeOutputCache: {},
+      recursionDepth: recursionDepth ?? 0,
     };
     this.contexts.set(executionId, context);
     return context;

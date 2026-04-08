@@ -372,7 +372,7 @@ function SummaryView({
     let turnCounter = 0;
     return msgs
       .filter((m) => m.role === "user" || m.role === "assistant")
-      .map((m) => {
+      .map((m): ConversationItem => {
         if (m.role === "user") turnCounter++;
         return {
           type: m.role as "user" | "assistant",

@@ -71,6 +71,12 @@ import { InformationExtractorHandler } from './handlers/ai/information-extractor
 import { LlmService } from '../llm/llm.service';
 import { RagSearchService } from '../knowledge-base/search/rag-search.service';
 import { ButtonConfig } from './types/button.types';
+import {
+  WorkflowExecutor,
+  SubWorkflowOptions,
+  SubWorkflowResult,
+  InlineExecutionOptions,
+} from './handlers/flow/workflow-executor.interface';
 
 class ExecutionCancelledError extends Error {
   constructor() {
@@ -87,7 +93,7 @@ class ButtonTimeoutError extends Error {
 }
 
 @Injectable()
-export class ExecutionEngineService implements OnModuleInit {
+export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
   private readonly logger = new Logger(ExecutionEngineService.name);
 
   /**
@@ -170,7 +176,7 @@ export class ExecutionEngineService implements OnModuleInit {
       ['foreach', new ForEachHandler()],
       ['merge', new MergeHandler()],
       ['filter', new FilterHandler()],
-      ['workflow', new WorkflowHandler()],
+      ['workflow', new WorkflowHandler(this)],
       ['http_request', new HttpRequestHandler()],
       ['database_query', new DatabaseQueryHandler()],
       ['slack', new SlackHandler()],
@@ -232,6 +238,416 @@ export class ExecutionEngineService implements OnModuleInit {
     this.runExecution(savedExecution, input).catch((error: unknown) => {
       this.logger.error(
         `Background execution failed for ${executionId}: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
+    });
+
+    return executionId;
+  }
+
+  /**
+   * Execute a sub-workflow inline within the parent execution.
+   * Shares the same executionId, nodeOutputCache, and nodeMap so that
+   * $node references work seamlessly and node executions appear in the
+   * same history timeline.
+   */
+  async executeInline(
+    workflowId: string,
+    input: unknown,
+    options: InlineExecutionOptions,
+  ): Promise<unknown> {
+    const { executionId, context, executedNodes, recursionDepth } = options;
+
+    // Strip _selectedPort from input — this is parent execution metadata
+    // that must not leak into the sub-workflow (it would cause all downstream
+    // nodes to be port-routing-skipped).
+    let cleanInput = input;
+    if (
+      input &&
+      typeof input === 'object' &&
+      '_selectedPort' in (input as Record<string, unknown>)
+    ) {
+      const { _selectedPort, ...rest } = input as Record<string, unknown>;
+      void _selectedPort;
+      cleanInput = rest;
+    }
+
+    this.logger.log(
+      `[executeInline] Starting inline execution of workflow ${workflowId} within execution ${executionId}`,
+    );
+
+    // Load target workflow's nodes and edges
+    const subNodes = await this.nodeRepository.findBy({ workflowId });
+    const subEdges = await this.edgeRepository.findBy({ workflowId });
+
+    if (subNodes.length === 0) {
+      return cleanInput;
+    }
+
+    // Build graph for the sub-workflow
+    const { graphNodes, graphEdges } = buildGraph(subNodes, subEdges);
+    const { forwardEdges, backEdges } = identifyBackEdges(
+      graphNodes,
+      graphEdges,
+    );
+    const sortedNodeIds = topologicalSort(graphNodes, forwardEdges);
+
+    if (sortedNodeIds.length === 0) {
+      return cleanInput;
+    }
+
+    // Pre-compute sorted-index map for back-edge jumps
+    const sortedIndexMap = new Map<string, number>();
+    for (let i = 0; i < sortedNodeIds.length; i++) {
+      sortedIndexMap.set(sortedNodeIds[i], i);
+    }
+    const backEdgeMap = new Map<
+      string,
+      Array<{ edge: GraphEdge; targetIndex: number }>
+    >();
+    for (const edge of backEdges) {
+      const targetIndex = sortedIndexMap.get(edge.targetNodeId);
+      if (targetIndex === undefined) continue;
+      const list = backEdgeMap.get(edge.sourceNodeId) ?? [];
+      list.push({ edge, targetIndex });
+      backEdgeMap.set(edge.sourceNodeId, list);
+    }
+
+    // Use target-only nodeMap for expression resolution.
+    // $node references in the target workflow should resolve against the
+    // target workflow's own nodes only, not the parent (source) workflow.
+    const subNodeMap = new Map(subNodes.map((n) => [n.id, n]));
+
+    // Debug: log node labels and execution order
+    this.logger.log(
+      `[executeInline] Target workflow nodes: ${subNodes.map((n) => `${n.label}(${n.type})`).join(', ')}`,
+    );
+    this.logger.log(
+      `[executeInline] Sorted execution order (${sortedNodeIds.length} nodes): ${sortedNodeIds.map((id) => subNodeMap.get(id)?.label ?? id).join(' → ')}`,
+    );
+
+    const outgoingEdges = this.buildOutgoingEdgeMap(graphEdges);
+
+    // Update context recursionDepth for nested sub-workflow calls
+    const prevDepth = context.recursionDepth;
+    context.recursionDepth = recursionDepth;
+
+    const maxNodeIterations = this.configService.get<number>(
+      'MAX_NODE_ITERATIONS',
+      100,
+    );
+    const nodeExecutionCount = new Map<string, number>();
+    const portRoutingSkipped = new Set<string>();
+
+    // Retrieve execution meta for expression context
+    const execution = await this.executionRepository.findOneBy({
+      id: executionId,
+    });
+
+    let lastOutput: unknown = cleanInput;
+    let pointer = 0;
+
+    try {
+      while (pointer < sortedNodeIds.length) {
+        const nodeId = sortedNodeIds[pointer];
+        const node = subNodeMap.get(nodeId);
+        if (!node) {
+          pointer++;
+          continue;
+        }
+
+        // Max iteration guard
+        const count = (nodeExecutionCount.get(nodeId) ?? 0) + 1;
+        nodeExecutionCount.set(nodeId, count);
+        if (maxNodeIterations > 0 && count > maxNodeIterations) {
+          throw new Error(
+            `Node "${node.label ?? node.type}" exceeded maximum iteration count (${maxNodeIterations}).`,
+          );
+        }
+
+        // Skip disabled nodes
+        if (node.isDisabled) {
+          await this.createNodeExecution(
+            executionId,
+            nodeId,
+            NodeExecutionStatus.SKIPPED,
+          );
+          executedNodes.add(nodeId);
+          pointer++;
+          continue;
+        }
+
+        // Skip trigger nodes in sub-workflows (they are entry points only)
+        if (node.type === 'manual_trigger') {
+          executedNodes.add(nodeId);
+          // Pass clean input through trigger node's output slot
+          this.contextService.setNodeOutput(executionId, nodeId, cleanInput);
+          pointer++;
+          continue;
+        }
+
+        // Gather input from predecessor nodes within the sub-workflow graph
+        const nodeInput = this.gatherNodeInput(
+          nodeId,
+          graphEdges,
+          executedNodes,
+          context.nodeOutputCache,
+          cleanInput,
+        );
+
+        // Port routing skip logic
+        const incomingEdges = graphEdges.filter(
+          (e) => e.targetNodeId === nodeId,
+        );
+        if (nodeInput === undefined && incomingEdges.length > 0) {
+          const shouldSkipForPortRouting = incomingEdges.some((e) => {
+            if (!executedNodes.has(e.sourceNodeId)) return false;
+            if (portRoutingSkipped.has(e.sourceNodeId)) return true;
+            const srcOut = context.nodeOutputCache[e.sourceNodeId];
+            return (
+              srcOut &&
+              typeof srcOut === 'object' &&
+              '_selectedPort' in (srcOut as Record<string, unknown>)
+            );
+          });
+          if (shouldSkipForPortRouting) {
+            portRoutingSkipped.add(nodeId);
+            await this.createNodeExecution(
+              executionId,
+              nodeId,
+              NodeExecutionStatus.SKIPPED,
+            );
+            this.websocketService.emitNodeEvent(
+              executionId,
+              nodeId,
+              NodeEventType.NODE_SKIPPED,
+              {
+                status: NodeExecutionStatus.SKIPPED,
+                nodeType: node.type,
+                nodeLabel: node.label ?? node.type,
+                reason: 'Port not selected (button routing)',
+              },
+            );
+            executedNodes.add(nodeId);
+            pointer++;
+            continue;
+          }
+        }
+
+        // Execute the node using the parent execution's context but
+        // target-only nodeMap for $node expression resolution.
+        this.logger.log(
+          `[executeInline] Executing node "${node.label}" (type=${node.type}, id=${node.id})`,
+        );
+        await this.executeNode(
+          executionId,
+          node,
+          nodeInput,
+          context,
+          outgoingEdges,
+          executedNodes,
+          subNodeMap,
+          {
+            startedAt: execution?.startedAt?.toISOString(),
+            mode: 'manual',
+          },
+        );
+
+        // Debug: log $node keys available after this node executed
+        const availableLabels = [...subNodeMap.entries()]
+          .filter(([nid]) => context.nodeOutputCache[nid] !== undefined)
+          .map(([, n]) => n.label);
+        this.logger.log(
+          `[executeInline] After "${node.label}": $node labels available = [${availableLabels.join(', ')}]`,
+        );
+
+        // Blocking nodes: pause execution until user interaction
+        // (same logic as runExecution — Form, Button, AI Conversation)
+        const nodeOutput = context.nodeOutputCache[node.id] as
+          | Record<string, unknown>
+          | undefined;
+        this.logger.log(
+          `[executeInline] Node "${node.label}" output status=${nodeOutput?.status ?? 'none'}, execution=${execution ? 'found' : 'NULL'}`,
+        );
+        if (execution) {
+          if (nodeOutput?.status === 'waiting_for_input') {
+            this.logger.log(
+              `[executeInline] BLOCKING: "${node.label}" is waiting_for_input (type=${node.type})`,
+            );
+            if (node.type === 'form') {
+              await this.waitForFormSubmission(
+                execution,
+                executionId,
+                node,
+                context,
+              );
+            } else if (nodeOutput.interactionType === 'buttons') {
+              await this.waitForButtonInteraction(
+                execution,
+                executionId,
+                node,
+                context,
+                graphEdges,
+              );
+            } else if (nodeOutput.interactionType === 'ai_conversation') {
+              await this.waitForAiConversation(
+                execution,
+                executionId,
+                node,
+                context,
+              );
+            }
+          }
+        }
+
+        lastOutput = context.nodeOutputCache[node.id];
+
+        // Back-edge handling
+        const backEdgesFromNode = backEdgeMap.get(nodeId);
+        if (backEdgesFromNode?.length) {
+          const activated = this.findActivatedBackEdge(
+            nodeId,
+            backEdgesFromNode,
+            context.nodeOutputCache,
+          );
+          if (activated) {
+            for (let i = activated.targetIndex; i <= pointer; i++) {
+              portRoutingSkipped.delete(sortedNodeIds[i]);
+            }
+            pointer = activated.targetIndex;
+            continue;
+          }
+        }
+
+        pointer++;
+      }
+    } finally {
+      // Restore parent's recursion depth
+      context.recursionDepth = prevDepth;
+    }
+
+    return lastOutput;
+  }
+
+  /**
+   * Execute a sub-workflow synchronously (blocking).
+   * Creates an Execution record, runs it inline, and returns the output.
+   */
+  async executeSync(
+    workflowId: string,
+    input?: unknown,
+    options?: SubWorkflowOptions,
+  ): Promise<SubWorkflowResult> {
+    const workflow = await this.workflowRepository.findOneBy({
+      id: workflowId,
+    });
+    if (!workflow) {
+      throw new Error(`Workflow not found: ${workflowId}`);
+    }
+
+    const execution = this.executionRepository.create({
+      workflowId,
+      status: ExecutionStatus.PENDING,
+      inputData: (input as Record<string, unknown>) ?? {},
+      executionPath: [],
+      parentExecutionId: options?.parentExecutionId ?? undefined,
+      recursionDepth: options?.recursionDepth ?? 0,
+    });
+    const savedExecution = await this.executionRepository.save(execution);
+
+    const timeoutMs = options?.timeoutMs ?? 300_000;
+    let timeoutHandle: ReturnType<typeof setTimeout>;
+    const timeoutPromise = new Promise<never>((_, reject) => {
+      timeoutHandle = setTimeout(() => {
+        reject(
+          new Error(`Sub-workflow execution timed out after ${timeoutMs}ms`),
+        );
+      }, timeoutMs);
+    });
+
+    try {
+      await Promise.race([
+        this.runExecution(savedExecution, input),
+        timeoutPromise,
+      ]);
+    } catch (error: unknown) {
+      // On timeout, mark the sub-execution as failed
+      const reloaded = await this.executionRepository.findOneBy({
+        id: savedExecution.id,
+      });
+      if (
+        reloaded &&
+        reloaded.status !== ExecutionStatus.COMPLETED &&
+        reloaded.status !== ExecutionStatus.FAILED
+      ) {
+        reloaded.status = ExecutionStatus.FAILED;
+        reloaded.error = {
+          message: error instanceof Error ? error.message : String(error),
+        };
+        reloaded.finishedAt = new Date();
+        if (reloaded.startedAt) {
+          reloaded.durationMs =
+            reloaded.finishedAt.getTime() - reloaded.startedAt.getTime();
+        }
+        await this.executionRepository.save(reloaded);
+      }
+      throw error;
+    } finally {
+      clearTimeout(timeoutHandle!);
+    }
+
+    const completed = await this.executionRepository.findOneBy({
+      id: savedExecution.id,
+    });
+
+    if (completed?.status === ExecutionStatus.FAILED) {
+      const errRecord = completed.error as Record<string, string> | null;
+      const errMsg: string = errRecord?.message ?? 'Unknown error';
+      throw new Error(`Sub-workflow execution failed: ${errMsg}`);
+    }
+
+    if (completed?.status === ExecutionStatus.CANCELLED) {
+      throw new Error('Sub-workflow execution was cancelled');
+    }
+
+    return {
+      executionId: savedExecution.id,
+      output: completed?.outputData ?? {},
+      status: completed?.status ?? ExecutionStatus.FAILED,
+    };
+  }
+
+  /**
+   * Execute a sub-workflow asynchronously (fire-and-forget).
+   * Returns the execution ID immediately.
+   */
+  async executeAsync(
+    workflowId: string,
+    input?: unknown,
+    options?: Omit<SubWorkflowOptions, 'timeoutMs'>,
+  ): Promise<string> {
+    const workflow = await this.workflowRepository.findOneBy({
+      id: workflowId,
+    });
+    if (!workflow) {
+      throw new Error(`Workflow not found: ${workflowId}`);
+    }
+
+    const execution = this.executionRepository.create({
+      workflowId,
+      status: ExecutionStatus.PENDING,
+      inputData: (input as Record<string, unknown>) ?? {},
+      executionPath: [],
+      parentExecutionId: options?.parentExecutionId ?? undefined,
+      recursionDepth: options?.recursionDepth ?? 0,
+    });
+    const savedExecution = await this.executionRepository.save(execution);
+    const executionId = savedExecution.id;
+
+    this.runExecution(savedExecution, input).catch((error: unknown) => {
+      this.logger.error(
+        `Background sub-workflow execution failed for ${executionId}: ${
           error instanceof Error ? error.message : String(error)
         }`,
       );
@@ -305,6 +721,7 @@ export class ExecutionEngineService implements OnModuleInit {
         executionId,
         workflowId,
         { __workspaceId: workflow?.workspaceId ?? '' },
+        savedExecution.recursionDepth,
       );
 
       // 9. Build lookup maps
@@ -312,6 +729,7 @@ export class ExecutionEngineService implements OnModuleInit {
       const outgoingEdges = this.buildOutgoingEdgeMap(graphEdges);
 
       // 10. Execute nodes with pointer-based loop (supports back-edge jumps)
+      // Inject runtime state into context for sub-workflow inline execution
       const maxNodeIterations = this.configService.get<number>(
         'MAX_NODE_ITERATIONS',
         100,
@@ -328,6 +746,7 @@ export class ExecutionEngineService implements OnModuleInit {
       // gatherNodeInput uses executedNodes to confirm predecessor completion.
       // Keeping them in the set ensures downstream nodes see predecessor output.
       const executedNodes = new Set<string>();
+      context._executedNodes = executedNodes;
       // Track nodes skipped due to button port routing (for transitive propagation).
       // This set IS cleared for the re-execution range on back-edge jumps,
       // because port routing decisions may change when nodes re-execute.
@@ -834,8 +1253,7 @@ export class ExecutionEngineService implements OnModuleInit {
         action.type === 'ai_timeout'
       ) {
         // End conversation
-        const endReason =
-          action.type === 'ai_timeout' ? 'error' : 'user_ended';
+        const endReason = action.type === 'ai_timeout' ? 'error' : 'user_ended';
 
         const handler = this.handlerRegistry.get(
           'ai_agent',

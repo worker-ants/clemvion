@@ -65,6 +65,16 @@ export class Execution {
   @JoinColumn({ name: 'executed_by' })
   executor: User;
 
+  @Column({ name: 'parent_execution_id', nullable: true })
+  parentExecutionId: string;
+
+  @ManyToOne(() => Execution, { nullable: true, onDelete: 'SET NULL' })
+  @JoinColumn({ name: 'parent_execution_id' })
+  parentExecution: Execution;
+
+  @Column({ name: 'recursion_depth', default: 0 })
+  recursionDepth: number;
+
   @Column({
     name: 'execution_path',
     type: 'uuid',
