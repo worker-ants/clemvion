@@ -14,10 +14,12 @@
 |------|------|------|--------|------|
 | mode | Enum | ✗ | `dynamic` | `static` / `dynamic` — 하위호환을 위해 미지정 시 `dynamic` |
 | items | ItemDef[] | static 모드 시 ✓ | `[]` | 정적 캐러셀 아이템 목록 (static 모드 전용) |
+| source | Expression | dynamic 모드 시 ✓ | — | 배열을 반환하는 표현식 (예: `{{ $input.items }}`, `{{ $node["API"].output.results }}`). 실행 엔진이 resolve한 결과를 데이터 소스로 사용 |
 | titleField | String | dynamic 모드 시 ✓ | — | 각 슬라이드의 제목으로 사용할 입력 데이터 필드 경로 |
 | descriptionField | String | ✗ | — | 각 슬라이드의 설명으로 사용할 입력 데이터 필드 경로 (dynamic 모드 전용) |
 | imageField | String? | ✗ | — | 이미지 URL 필드 경로 (지정 시 이미지 슬라이드, dynamic 모드 전용) |
 | maxItems | Number | ✗ | 10 | 최대 슬라이드 수 1~100 (dynamic 모드 전용) |
+| itemButtons | ButtonDef[] | ✗ | `[]` | 아이템별 공통 버튼 정의 (dynamic 모드 전용). 모든 동적 아이템에 동일한 버튼이 적용됨. 최대 4개. 런타임에 아이템별 고유 ID(`{btnId}__item_{index}`)가 생성되며, 포트 라우팅은 원래 정의 ID로 수행됨 |
 | layout | Enum | ✗ | card | `card` / `image` / `minimal` |
 | buttons | ButtonDef[] | ✗ | `[]` | 버튼 정의 배열. 비어있지 않으면 Blocking Mode 활성화. 아래 §1.6 참조 |
 | buttonTimeout | Number? | ✗ | — | 버튼 대기 타임아웃 (초). 미지정 시 무제한 대기 |
@@ -30,6 +32,7 @@
 | title | String | ✓ | 슬라이드 제목 (`{{ }}` 표현식 사용 가능) |
 | description | String | ✗ | 슬라이드 설명 (`{{ }}` 표현식 사용 가능) |
 | image | String? | ✗ | 이미지 URL (`{{ }}` 표현식 사용 가능) |
+| buttons | ButtonDef[] | ✗ | 아이템별 버튼 (최대 4개). port, link 타입 모두 지원. 아이템 버튼 클릭 시 해당 아이템 데이터가 `selectedItem`으로 출력에 포함됨 |
 
 ### 1.2 포트 정의
 
@@ -40,13 +43,15 @@
 | Input | 입력 | `in` | 배열 데이터 입력 (static 모드에서는 선택적 — 표현식에서 참조할 경우에만 필요) |
 | Output | 출력 | `out` | 캐러셀 구조 데이터 출력 |
 
-**버튼 설정 시 (`buttons`가 비어있지 않은 경우):**
+**버튼 설정 시 (글로벌 `buttons` 또는 아이템 버튼이 하나라도 있는 경우):**
 
 | 포트 | 방향 | 식별자 | 설명 |
 |------|------|--------|------|
 | Input | 입력 | `in` | 배열 데이터 입력 |
-| Button Port (N개) | 출력 | `{button.id}` (UUID v4) | port 타입 버튼마다 동적 생성. 버튼 클릭 시 해당 포트로 실행 라우팅 |
-| Continue | 출력 | `continue` | **link 타입 버튼만 존재**할 경우 자동 생성. Continue 클릭 또는 타임아웃(continue) 시 실행 재개 |
+| Global Button Port | 출력 | `{button.id}` | 글로벌 port 타입 버튼마다 동적 생성 |
+| Item Button Port (Static) | 출력 | `{button.id}` | Static 모드: 각 아이템의 port 타입 버튼마다 개별 포트 생성. 포트 라벨: `"아이템 제목 - 버튼 라벨"` |
+| Item Button Port (Dynamic) | 출력 | `{itemButton.id}` | Dynamic 모드: `itemButtons` 정의의 port 타입 버튼마다 포트 생성. 런타임에 아이템별 고유 ID(`{id}__item_{idx}`)가 생성되나, 포트 라우팅은 원래 정의 ID로 수행 |
+| Continue | 출력 | `continue` | **link 타입 버튼만 존재**할 경우 자동 생성 |
 
 > `out` 포트는 버튼 설정 시 **제거**된다. port 타입 버튼의 동적 포트가 출력을 대체한다. link 타입 버튼만 존재할 경우 `continue` 포트가 `out`을 대체한다.
 
@@ -60,17 +65,20 @@
    3. 각 항목에서 `titleField`, `descriptionField`, `imageField`를 매핑하여 슬라이드 구조 생성
 4. `layout`에 따른 HTML 렌더링 생성
 5. 구조화된 JSON + 렌더링된 HTML 생성
-6. **Blocking Mode** (`buttons`가 비어있지 않은 경우):
-   1. 렌더링 출력을 `NodeExecution.output_data`에 저장
-   2. `NodeExecution.status` = `waiting_for_input`, `Execution.status` = `waiting_for_input`
-   3. WS 이벤트 `execution.waiting_for_input` 발행 (`interactionType: "buttons"`, `buttonConfig` 포함)
-   4. `buttonTimeout` 설정 시 타이머 시작
-   5. 사용자 인터랙션 대기:
-      - **port 버튼 클릭** → 해당 버튼의 동적 포트(`{button.id}`)로 버튼 클릭 데이터 전달
+6. **Blocking Mode** (글로벌 `buttons` 또는 아이템 `buttons`가 하나라도 있는 경우):
+   1. 글로벌 버튼 + 모든 아이템 버튼을 합쳐서 `buttonConfig.buttons`에 포함
+   2. 아이템 버튼 ID → 아이템 인덱스 매핑을 `buttonConfig.buttonItemMap`에 저장
+   3. 렌더링 출력을 `NodeExecution.output_data`에 저장
+   4. `NodeExecution.status` = `waiting_for_input`, `Execution.status` = `waiting_for_input`
+   5. WS 이벤트 `execution.waiting_for_input` 발행 (`interactionType: "buttons"`, `buttonConfig` 포함)
+   6. `buttonTimeout` 설정 시 타이머 시작
+   7. 사용자 인터랙션 대기:
+      - **글로벌 port 버튼 클릭** → 해당 버튼의 동적 포트(`{button.id}`)로 데이터 전달
+      - **아이템 port 버튼 클릭** → 해당 포트로 데이터 전달 + `selectedItem` 필드에 아이템 데이터 포함
       - **Continue 클릭** (link 전용 시) → `continue` 포트로 렌더링 출력 전달
       - **타임아웃** → `buttonTimeoutAction`에 따라 `continue` 포트로 재개 또는 `BUTTON_TIMEOUT` 에러
-   6. `NodeExecution.interaction_data`에 클릭 정보 기록
-7. **Non-blocking** (`buttons`가 비어있는 경우): `out` 포트로 출력 전달 (기존과 동일)
+   8. `NodeExecution.interaction_data`에 클릭 정보 기록
+7. **Non-blocking** (버튼이 전혀 없는 경우): `out` 포트로 출력 전달 (기존과 동일)
 
 **출력 형식 (Non-blocking, 기존과 동일):**
 
@@ -97,7 +105,7 @@
   "buttonId": "uuid",
   "buttonLabel": "승인",
   "clickedAt": "2026-04-06T10:30:00Z",
-  "clickedBy": "user-uuid",
+  "selectedItem": { "title": "...", "description": "..." },
   "nodeOutput": {
     "type": "carousel",
     "items": [ ... ],
@@ -105,6 +113,9 @@
     "rendered": "<html>..."
   }
 }
+```
+
+> `selectedItem`은 아이템 버튼 클릭 시에만 포함된다. 글로벌 버튼 클릭 시에는 생략된다.
 ```
 
 **Continue 포트 출력 형식 (Continue 클릭 시):**
@@ -138,11 +149,16 @@
 │  │ Title: [Hello World_______]      │
 │  │ Description: [Description_]      │
 │  │ Image URL: [https://...]         │
+│  │ ▶ Item Buttons (0)               │
 │  └──────────────────────────────── │
 │  ┌ Item 2 ──────────────────── [X] │
 │  │ Title: [Second Slide______]      │
 │  │ Description: [Description_]      │
 │  │ Image URL: [https://...]         │
+│  │ ▶ Item Buttons (1)               │
+│  │   ┌ Button 1 ──────── [✕]      │
+│  │   │ Label: [선택]  Type: [port] │
+│  │   └──────────────────────────── │
 │  └──────────────────────────────── │
 │  [+ Add Item]                        │
 │                                      │
@@ -161,6 +177,7 @@
 │  Title Field:       [name________]   │
 │  Description Field: [summary_____]   │
 │  Image Field:       [thumbnail___]   │
+│  ▶ Item Buttons (0)                  │
 │  Max Items:         [10_]            │
 │                                      │
 │  Layout: [card ▼]                    │

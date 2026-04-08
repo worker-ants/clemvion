@@ -67,13 +67,50 @@ function CustomNodeComponent({ id, data, selected }: NodeProps<CustomNodeType>) 
     }
     // Dynamic ports for presentation nodes with buttons
     if (["carousel", "table", "chart", "template"].includes(data.type)) {
-      const buttons = (data.config.buttons as Array<{ id: string; label: string; type: string }>) ?? [];
-      if (buttons.length > 0) {
-        const portButtons = buttons.filter((b) => b.type === "port");
-        if (portButtons.length > 0) {
-          return portButtons.map((b) => ({ id: b.id, label: b.label || "Button", type: "data" as const }));
+      type BtnEntry = { id: string; label: string; type: string };
+      type PortDef = { id: string; label: string; type: "data"; group?: string };
+      const globalButtons = (data.config.buttons as BtnEntry[]) ?? [];
+      const portDefs: PortDef[] = [];
+
+      // Carousel item-level buttons first (grouped by item)
+      if (data.type === "carousel") {
+        // Static mode: each item has its own buttons with unique IDs
+        if (data.config.mode === "static" && Array.isArray(data.config.items)) {
+          for (const item of data.config.items as Array<{ title?: string; buttons?: BtnEntry[] }>) {
+            if (item.buttons) {
+              for (const b of item.buttons) {
+                if (b.type === "port") {
+                  portDefs.push({ id: b.id, label: b.label || "Button", type: "data", group: item.title || "Item" });
+                }
+              }
+            }
+          }
         }
-        // Only link buttons → single continue port
+        // Dynamic mode: shared itemButtons definitions
+        if (Array.isArray(data.config.itemButtons)) {
+          for (const b of data.config.itemButtons as BtnEntry[]) {
+            if (b.type === "port") {
+              portDefs.push({ id: b.id, label: b.label || "Button", type: "data", group: "Item" });
+            }
+          }
+        }
+      }
+
+      // Global port buttons
+      for (const b of globalButtons) {
+        if (b.type === "port") {
+          portDefs.push({ id: b.id, label: b.label || "Button", type: "data" });
+        }
+      }
+
+      if (portDefs.length > 0) {
+        return portDefs;
+      }
+      // Any buttons exist but none are port type → continue port
+      const hasAnyLink = globalButtons.some((b) => b.type === "link")
+        || (data.type === "carousel" && Array.isArray(data.config.itemButtons) && (data.config.itemButtons as BtnEntry[]).some((b) => b.type === "link"))
+        || (data.type === "carousel" && data.config.mode === "static" && Array.isArray(data.config.items) && (data.config.items as Array<{ buttons?: BtnEntry[] }>).some((item) => item.buttons?.some((b) => b.type === "link")));
+      if (hasAnyLink) {
         return [{ id: "continue", label: "Continue", type: "data" as const }];
       }
     }
@@ -191,18 +228,34 @@ function CustomNodeComponent({ id, data, selected }: NodeProps<CustomNodeType>) 
         {/* Port labels with co-located output handles */}
         {hasMultipleOutputs ? (
           <div className="flex flex-col gap-0.5">
-            {outputs.map((port, index) => (
+            {outputs.map((port, index) => {
+              const group = (port as { group?: string }).group;
+              const prevGroup = index > 0 ? (outputs[index - 1] as { group?: string }).group : undefined;
+              const showSystemDivider = index > 0 &&
+                outputs[index - 1].type === "data" &&
+                (port.type === "system" || port.type === "error");
+              const showGlobalDivider = !showSystemDivider && index > 0 && prevGroup && !group;
+
+              return (
               <div key={port.id}>
-                {/* Divider between user conditions and system ports */}
-                {index > 0 &&
-                  outputs[index - 1].type === "data" &&
-                  (port.type === "system" || port.type === "error") && (
-                    <div className="border-t border-dashed border-[hsl(var(--border))] my-0.5" />
-                  )}
+                {showGlobalDivider && (
+                  <div className="border-t border-dashed border-[hsl(var(--border))] my-0.5" />
+                )}
+                {showSystemDivider && (
+                  <div className="border-t border-dashed border-[hsl(var(--border))] my-0.5" />
+                )}
                 <div className="relative flex items-center justify-end">
-                  <span className="text-[10px] text-[hsl(var(--muted-foreground))]">
-                    {port.label}
-                  </span>
+                  {group ? (
+                    <span className="text-[10px]">
+                      <span className="text-[hsl(var(--muted-foreground))/0.6]">{group}</span>
+                      <span className="text-[hsl(var(--muted-foreground))/0.4] mx-1">›</span>
+                      <span className="text-[hsl(var(--muted-foreground))]">{port.label}</span>
+                    </span>
+                  ) : (
+                    <span className="text-[10px] text-[hsl(var(--muted-foreground))]">
+                      {port.label}
+                    </span>
+                  )}
                   <Handle
                     id={port.id}
                     type="source"
@@ -219,7 +272,8 @@ function CustomNodeComponent({ id, data, selected }: NodeProps<CustomNodeType>) 
                   />
                 </div>
               </div>
-            ))}
+              );
+            })}
           </div>
         ) : (
           <>

@@ -17,6 +17,7 @@ describe('CarouselHandler - Buttons', () => {
   describe('validate with buttons', () => {
     it('should pass with valid buttons config', () => {
       const result = handler.validate({
+        source: '{{ $input }}',
         titleField: 'name',
         buttons: [{ id: 'btn-1', label: 'Approve', type: 'port' }],
       });
@@ -25,6 +26,7 @@ describe('CarouselHandler - Buttons', () => {
 
     it('should fail with invalid button config', () => {
       const result = handler.validate({
+        source: '{{ $input }}',
         titleField: 'name',
         buttons: [{ id: 'btn-1', label: '', type: 'port' }],
       });
@@ -34,6 +36,7 @@ describe('CarouselHandler - Buttons', () => {
 
     it('should fail with link button missing URL', () => {
       const result = handler.validate({
+        source: '{{ $input }}',
         titleField: 'name',
         buttons: [{ id: 'btn-1', label: 'Link', type: 'link' }],
       });

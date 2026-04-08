@@ -135,9 +135,16 @@ function TableContent({ data }: { data: Record<string, unknown> }) {
   );
 }
 
-function CarouselContent({ data }: { data: Record<string, unknown> }) {
+interface CarouselContentProps {
+  data: Record<string, unknown>;
+  selectedButtonId?: string;
+  onPortButtonClick?: (buttonId: string) => void;
+  onLinkButtonClick?: (url: string) => void;
+}
+
+function CarouselContent({ data, selectedButtonId, onPortButtonClick, onLinkButtonClick }: CarouselContentProps) {
   const items = data.items as
-    | Array<{ title?: string; description?: string; image?: string }>
+    | Array<{ title?: string; description?: string; image?: string; buttons?: Array<{ id: string; label: string; type?: string; url?: string; style?: string }> }>
     | undefined;
 
   // If rendered HTML has actual content (not just an empty wrapper), use it
@@ -145,7 +152,7 @@ function CarouselContent({ data }: { data: Record<string, unknown> }) {
   const hasRenderedContent =
     rendered && /<[^>]+>[^<]+/.test(rendered); // has text inside tags
 
-  if (hasRenderedContent) {
+  if (hasRenderedContent && (!items || items.every((it) => !it.buttons?.length))) {
     return (
       <div
         className="overflow-auto"
@@ -155,19 +162,21 @@ function CarouselContent({ data }: { data: Record<string, unknown> }) {
   }
 
   if (!items || items.length === 0) {
-    // Empty carousel — show placeholder instead of raw JSON
     return (
       <div className="rounded border border-dashed border-[hsl(var(--border))] p-4 text-center text-xs text-[hsl(var(--muted-foreground))]">
         No items
       </div>
     );
   }
+
+  const isInteractive = !!(onPortButtonClick || onLinkButtonClick);
+
   return (
     <div className="flex gap-2 overflow-x-auto pb-1">
       {items.map((item, i) => (
         <div
           key={i}
-          className="shrink-0 w-[180px] rounded border border-[hsl(var(--border))] bg-[hsl(var(--muted))] p-2"
+          className="shrink-0 w-[180px] rounded border border-[hsl(var(--border))] bg-[hsl(var(--muted))] p-2 flex flex-col"
         >
           {isHttpUrl(item.image) && (
             <div className="h-20 rounded bg-[hsl(var(--accent))] mb-1.5 overflow-hidden">
@@ -184,6 +193,38 @@ function CarouselContent({ data }: { data: Record<string, unknown> }) {
             <p className="text-[10px] text-[hsl(var(--muted-foreground))] line-clamp-2 mt-0.5">
               {item.description}
             </p>
+          )}
+          {item.buttons && item.buttons.length > 0 && (
+            <div className="mt-auto pt-1.5 flex flex-col gap-1">
+              {item.buttons.map((btn) => {
+                const isSelected = selectedButtonId === btn.id;
+                return (
+                  <button
+                    key={btn.id}
+                    type="button"
+                    disabled={!isInteractive && !isSelected}
+                    className={cn(
+                      "w-full rounded px-2 py-0.5 text-[10px] transition-colors truncate",
+                      isSelected
+                        ? "border border-[hsl(var(--primary))] bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))]"
+                        : isInteractive
+                          ? "border border-[hsl(var(--input))] bg-[hsl(var(--secondary))] text-[hsl(var(--secondary-foreground))] hover:bg-[hsl(var(--secondary))]/80 cursor-pointer"
+                          : "border border-[hsl(var(--border))] text-[hsl(var(--muted-foreground))]",
+                    )}
+                    onClick={() => {
+                      if (isSelected) return;
+                      if (btn.type === "link" && btn.url) {
+                        onLinkButtonClick?.(btn.url);
+                      } else {
+                        onPortButtonClick?.(btn.id);
+                      }
+                    }}
+                  >
+                    {btn.label}
+                  </button>
+                );
+              })}
+            </div>
           )}
         </div>
       ))}
@@ -323,6 +364,9 @@ export function PresentationContent({
       ? (raw.nodeOutput as Record<string, unknown>)
       : raw;
 
+  // Determine which button was clicked (from button_click wrapper)
+  const selectedButtonId = raw.type === "button_click" ? (raw.buttonId as string | undefined) : undefined;
+
   // Template already includes its own debug data section
   if (result.nodeType === "template") {
     return <TemplateContent data={data} previewOnly={previewOnly} />;
@@ -334,7 +378,14 @@ export function PresentationContent({
       preview = <TableContent data={data} />;
       break;
     case "carousel":
-      preview = <CarouselContent data={data} />;
+      preview = (
+        <CarouselContent
+          data={data}
+          selectedButtonId={selectedButtonId}
+          onPortButtonClick={onPortButtonClick}
+          onLinkButtonClick={onLinkButtonClick}
+        />
+      );
       break;
     case "chart":
       preview = <ChartContent data={data} />;
@@ -349,18 +400,20 @@ export function PresentationContent({
       return <JsonContent data={data} />;
   }
 
-  // Extract inline buttons from data.buttonConfig or nodeOutput.buttonConfig
+  // Extract global buttons (exclude item-level buttons using buttonItemMap)
   const btnConfig = data.buttonConfig as Record<string, unknown> | undefined;
-  const buttons = (btnConfig?.buttons ?? []) as Array<{
+  const allButtons = (btnConfig?.buttons ?? []) as Array<{
     id: string;
     label: string;
     type?: "link" | "port";
     url?: string;
     style?: string;
   }>;
+  const buttonItemMap = btnConfig?.buttonItemMap as Record<string, number> | undefined;
+  const buttons = buttonItemMap
+    ? allButtons.filter((btn) => !(btn.id in buttonItemMap))
+    : allButtons;
   const isInteractive = !!(onPortButtonClick || onLinkButtonClick);
-  // Determine which button was clicked (from button_click wrapper)
-  const selectedButtonId = raw.type === "button_click" ? (raw.buttonId as string | undefined) : undefined;
 
   return (
     <div className="space-y-3">

@@ -1191,8 +1191,9 @@ describe('ExecutionEngineService', () => {
       // First execution: A should receive workflowInput (not undefined)
       expect(aInputs[0]).toEqual({ initial: 'data' });
       // Second execution (after back-edge): A should receive switch output
+      // _selectedPort is stripped before passing as input to downstream nodes
       expect(aInputs[1]).toEqual(
-        expect.objectContaining({ loop: true, _selectedPort: 'case1' }),
+        expect.objectContaining({ loop: true }),
       );
     });
 
