@@ -261,4 +261,85 @@ describe("CustomNode", () => {
     });
     expect(screen.getByText("JavaScript \u00b7 2 lines")).toBeInTheDocument();
   });
+
+  // --- AI Agent dynamic ports ---
+
+  it("renders ai_agent with only out port when no conditions", () => {
+    const { container } = renderNode({
+      type: "ai_agent",
+      label: "AI Agent",
+      config: { mode: "single_turn" },
+      category: "ai",
+    });
+    expect(container.querySelector('[data-testid="handle-out"]')).toBeInTheDocument();
+    expect(container.querySelector('[data-testid="handle-timeout"]')).not.toBeInTheDocument();
+    expect(container.querySelector('[data-testid="handle-error"]')).not.toBeInTheDocument();
+  });
+
+  it("renders single_turn ai_agent with condition ports", () => {
+    const { container } = renderNode({
+      type: "ai_agent",
+      label: "AI Agent",
+      config: {
+        mode: "single_turn",
+        conditions: [
+          { id: "cond-1", label: "Refund", prompt: "refund" },
+          { id: "cond-2", label: "Escalate", prompt: "escalate" },
+        ],
+      },
+      category: "ai",
+    });
+    expect(container.querySelector('[data-testid="handle-out"]')).toBeInTheDocument();
+    expect(container.querySelector('[data-testid="handle-cond-1"]')).toBeInTheDocument();
+    expect(container.querySelector('[data-testid="handle-cond-2"]')).toBeInTheDocument();
+    expect(container.querySelector('[data-testid="handle-timeout"]')).toBeInTheDocument();
+    expect(container.querySelector('[data-testid="handle-error"]')).toBeInTheDocument();
+    // Port labels should be shown
+    expect(screen.getByText("Refund")).toBeInTheDocument();
+    expect(screen.getByText("Escalate")).toBeInTheDocument();
+  });
+
+  it("renders multi_turn ai_agent with only out port when no conditions", () => {
+    const { container } = renderNode({
+      type: "ai_agent",
+      label: "AI Agent",
+      config: { mode: "multi_turn" },
+      category: "ai",
+    });
+    // No conditions: backward compatible, just "out" port
+    expect(container.querySelector('[data-testid="handle-out"]')).toBeInTheDocument();
+    expect(container.querySelector('[data-testid="handle-timeout"]')).not.toBeInTheDocument();
+  });
+
+  it("renders multi_turn ai_agent with conditions and no out port", () => {
+    const { container } = renderNode({
+      type: "ai_agent",
+      label: "AI Agent",
+      config: {
+        mode: "multi_turn",
+        conditions: [{ id: "cond-1", label: "Refund", prompt: "refund" }],
+      },
+      category: "ai",
+    });
+    expect(container.querySelector('[data-testid="handle-out"]')).not.toBeInTheDocument();
+    expect(container.querySelector('[data-testid="handle-cond-1"]')).toBeInTheDocument();
+    expect(screen.getByText("Refund")).toBeInTheDocument();
+  });
+
+  it("filters out conditions with empty id", () => {
+    const { container } = renderNode({
+      type: "ai_agent",
+      label: "AI Agent",
+      config: {
+        mode: "single_turn",
+        conditions: [
+          { id: "", label: "Empty", prompt: "test" },
+          { id: "cond-1", label: "Valid", prompt: "test" },
+        ],
+      },
+      category: "ai",
+    });
+    expect(container.querySelector('[data-testid="handle-cond-1"]')).toBeInTheDocument();
+    expect(screen.getByText("Valid")).toBeInTheDocument();
+  });
 });

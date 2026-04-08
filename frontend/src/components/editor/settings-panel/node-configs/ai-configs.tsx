@@ -11,6 +11,55 @@ import { Plus, X } from "lucide-react";
 type Config = Record<string, unknown>;
 type OnChange = (config: Config) => void;
 
+// ===== AI Agent Conditions Section =====
+function ConditionsSection({ config, onChange }: { config: Config; onChange: OnChange }) {
+  const conditions = (config.conditions as Array<{ id: string; label: string; prompt: string }>) ?? [];
+
+  const addCondition = () => {
+    const id = crypto.randomUUID();
+    onChange({ ...config, conditions: [...conditions, { id, label: "", prompt: "" }] });
+  };
+
+  const removeCondition = (i: number) =>
+    onChange({ ...config, conditions: conditions.filter((_, idx) => idx !== i) });
+
+  const updateCondition = (i: number, key: string, val: string) => {
+    const updated = conditions.map((c, idx) => (idx === i ? { ...c, [key]: val } : c));
+    onChange({ ...config, conditions: updated });
+  };
+
+  return (
+    <>
+      <SectionTitle>Conditions</SectionTitle>
+      {conditions.map((cond, i) => (
+        <div key={cond.id} className="flex flex-col gap-1 rounded border border-[hsl(var(--border))] p-2">
+          <div className="flex items-center justify-between">
+            <span className="text-[10px] text-[hsl(var(--muted-foreground))]">Condition {i + 1}</span>
+            <Button variant="ghost" size="icon" className="h-5 w-5" onClick={() => removeCondition(i)}>
+              <X size={10} />
+            </Button>
+          </div>
+          <Input
+            value={cond.label}
+            onChange={(e) => updateCondition(i, "label", e.target.value)}
+            placeholder="Label (e.g. Refund Request)"
+            className="h-7 text-xs"
+          />
+          <Input
+            value={cond.prompt}
+            onChange={(e) => updateCondition(i, "prompt", e.target.value)}
+            placeholder="Prompt (when to trigger this condition)"
+            className="h-7 text-xs"
+          />
+        </div>
+      ))}
+      <Button variant="outline" size="sm" className="h-7 text-xs" onClick={addCondition}>
+        <Plus size={12} className="mr-1" /> Add Condition
+      </Button>
+    </>
+  );
+}
+
 // ===== AI Agent =====
 export function AiAgentConfig({ config, onChange }: { config: Config; onChange: OnChange }) {
   const mode = (config.mode as string) ?? "single_turn";
@@ -95,6 +144,8 @@ export function AiAgentConfig({ config, onChange }: { config: Config; onChange: 
         max={1}
         hint="Minimum similarity score (0-1)"
       />
+
+      <ConditionsSection config={config} onChange={onChange} />
 
       <SectionTitle>Advanced</SectionTitle>
       <NumberField

@@ -629,4 +629,377 @@ describe('AiAgentHandler', () => {
       expect(metadata.toolCalls).toBe(1);
     });
   });
+
+  // ===== Conditions feature =====
+
+  describe('validate - conditions', () => {
+    it('should pass with valid conditions', () => {
+      const result = handler.validate({
+        systemPrompt: 'You are helpful',
+        conditions: [
+          { id: 'cond-uuid-1', label: 'Refund', prompt: 'Customer wants a refund' },
+        ],
+      });
+      expect(result.valid).toBe(true);
+    });
+
+    it('should fail when condition is missing label', () => {
+      const result = handler.validate({
+        systemPrompt: 'You are helpful',
+        conditions: [
+          { id: 'cond-uuid-1', label: '', prompt: 'Customer wants a refund' },
+        ],
+      });
+      expect(result.valid).toBe(false);
+      expect(result.errors[0]).toContain('label');
+    });
+
+    it('should fail when condition is missing prompt', () => {
+      const result = handler.validate({
+        systemPrompt: 'You are helpful',
+        conditions: [
+          { id: 'cond-uuid-1', label: 'Refund', prompt: '' },
+        ],
+      });
+      expect(result.valid).toBe(false);
+      expect(result.errors[0]).toContain('prompt');
+    });
+
+    it('should fail when condition is missing id', () => {
+      const result = handler.validate({
+        systemPrompt: 'You are helpful',
+        conditions: [
+          { id: '', label: 'Refund', prompt: 'Customer wants a refund' },
+        ],
+      });
+      expect(result.valid).toBe(false);
+      expect(result.errors[0]).toContain('id');
+    });
+
+    it('should fail when condition id conflicts with reserved port name', () => {
+      const result = handler.validate({
+        systemPrompt: 'You are helpful',
+        conditions: [{ id: 'out', label: 'Conflict', prompt: 'test' }],
+      });
+      expect(result.valid).toBe(false);
+      expect(result.errors[0]).toContain('reserved');
+    });
+
+    it('should fail when prompt exceeds 2000 characters', () => {
+      const result = handler.validate({
+        systemPrompt: 'You are helpful',
+        conditions: [
+          { id: 'cond-1', label: 'Long', prompt: 'a'.repeat(2001) },
+        ],
+      });
+      expect(result.valid).toBe(false);
+      expect(result.errors[0]).toContain('2000');
+    });
+
+    it('should fail when more than 20 conditions', () => {
+      const conditions = Array.from({ length: 21 }, (_, i) => ({
+        id: `cond-${i}`,
+        label: `C${i}`,
+        prompt: `Condition ${i}`,
+      }));
+      const result = handler.validate({
+        systemPrompt: 'You are helpful',
+        conditions,
+      });
+      expect(result.valid).toBe(false);
+      expect(result.errors[0]).toContain('maximum');
+    });
+  });
+
+  describe('buildTools - tool naming', () => {
+    it('should use tool_ prefix with sanitized nodeId', async () => {
+      await handler.execute(
+        {},
+        {
+          userPrompt: 'Hello',
+          toolNodeIds: ['abc12345-full-node-id'],
+        },
+        baseContext,
+      );
+      const chatCall = mockLlmService.chat.mock.calls[0];
+      const tools = chatCall[1].tools;
+      expect(tools[0].name).toBe('tool_abc12345_full_node_id');
+    });
+
+    it('should use cond_ prefix for condition tools', async () => {
+      await handler.execute(
+        {},
+        {
+          userPrompt: 'Hello',
+          systemPrompt: 'Be helpful',
+          conditions: [
+            { id: 'abc-123', label: 'Test', prompt: 'Test condition' },
+          ],
+        },
+        baseContext,
+      );
+      const chatCall = mockLlmService.chat.mock.calls[0];
+      const tools = chatCall[1].tools;
+      const condTool = tools.find(
+        (t: { name: string }) => t.name === 'cond_abc_123',
+      );
+      expect(condTool).toBeDefined();
+      expect(condTool.description).toBe('Test condition');
+    });
+  });
+
+  describe('conditions - single_turn', () => {
+    const conditionConfig = {
+      userPrompt: 'I want a refund',
+      systemPrompt: 'You are a support agent',
+      conditions: [
+        { id: 'a1b2c3d4-refund', label: 'Refund', prompt: 'Customer requests a refund' },
+        { id: 'e5f6g7h8-escalate', label: 'Escalation', prompt: 'Issue needs expert help' },
+      ],
+    };
+
+    it('should register condition tools with condition id as name', async () => {
+      await handler.execute({}, conditionConfig, baseContext);
+
+      const chatCall = mockLlmService.chat.mock.calls[0];
+      const tools = chatCall[1].tools;
+      const condTools = tools.filter(
+        (t: { name: string }) =>
+          t.name === 'cond_a1b2c3d4_refund' || t.name === 'cond_e5f6g7h8_escalate',
+      );
+      expect(condTools).toHaveLength(2);
+      expect(condTools[0].description).toBe('Customer requests a refund');
+      expect(condTools[1].description).toBe('Issue needs expert help');
+    });
+
+    it('should inject condition instructions into system prompt', async () => {
+      await handler.execute({}, conditionConfig, baseContext);
+
+      const chatCall = mockLlmService.chat.mock.calls[0];
+      const messages = chatCall[1].messages;
+      const systemMsg = messages.find(
+        (m: { role: string }) => m.role === 'system',
+      );
+      expect(systemMsg.content).toContain('조건');
+    });
+
+    it('should route to condition port when LLM calls only condition tool', async () => {
+      mockLlmService.chat.mockResolvedValueOnce({
+        content: 'I will process your refund.',
+        toolCalls: [
+          {
+            id: 'tc-1',
+            name: 'cond_a1b2c3d4_refund',
+            arguments: '{"reason":"Customer explicitly asked for refund"}',
+          },
+        ],
+        usage: { inputTokens: 100, outputTokens: 50, totalTokens: 150 },
+        model: 'gpt-4o',
+        finishReason: 'tool_calls',
+      });
+
+      const result = (await handler.execute(
+        {},
+        conditionConfig,
+        baseContext,
+      )) as Record<string, unknown>;
+
+      expect(result.port).toBe('a1b2c3d4-refund');
+      expect(result.data).toBeDefined();
+      const data = result.data as Record<string, unknown>;
+      expect(data.condition).toBeDefined();
+      const condition = data.condition as Record<string, unknown>;
+      expect(condition.id).toBe('a1b2c3d4-refund');
+      expect(condition.label).toBe('Refund');
+    });
+
+    it('should execute normal tools first when condition + normal tools are called together', async () => {
+      // First call: LLM calls both condition and normal tool
+      mockLlmService.chat
+        .mockResolvedValueOnce({
+          content: null,
+          toolCalls: [
+            { id: 'tc-1', name: 'tool_node_tool_uuid', arguments: '{"input":"check"}' },
+            { id: 'tc-2', name: 'cond_a1b2c3d4_refund', arguments: '{"reason":"maybe refund"}' },
+          ],
+          usage: { inputTokens: 100, outputTokens: 50, totalTokens: 150 },
+          model: 'gpt-4o',
+          finishReason: 'tool_calls',
+        })
+        // Second call: After re-evaluation, LLM calls only condition tool
+        .mockResolvedValueOnce({
+          content: 'Processing refund.',
+          toolCalls: [
+            { id: 'tc-3', name: 'cond_a1b2c3d4_refund', arguments: '{"reason":"confirmed refund"}' },
+          ],
+          usage: { inputTokens: 200, outputTokens: 30, totalTokens: 230 },
+          model: 'gpt-4o',
+          finishReason: 'tool_calls',
+        });
+
+      const result = (await handler.execute(
+        {},
+        {
+          ...conditionConfig,
+          toolNodeIds: ['node-tool-uuid'],
+        },
+        baseContext,
+      )) as Record<string, unknown>;
+
+      // LLM should have been called twice (first with mixed tools, then re-evaluation)
+      expect(mockLlmService.chat).toHaveBeenCalledTimes(2);
+      expect(result.port).toBe('a1b2c3d4-refund');
+    });
+
+    it('should select first-defined condition when multiple conditions are called', async () => {
+      mockLlmService.chat.mockResolvedValueOnce({
+        content: 'Multiple conditions detected.',
+        toolCalls: [
+          { id: 'tc-1', name: 'cond_e5f6g7h8_escalate', arguments: '{}' },
+          { id: 'tc-2', name: 'cond_a1b2c3d4_refund', arguments: '{}' },
+        ],
+        usage: { inputTokens: 100, outputTokens: 50, totalTokens: 150 },
+        model: 'gpt-4o',
+        finishReason: 'tool_calls',
+      });
+
+      const result = (await handler.execute(
+        {},
+        conditionConfig,
+        baseContext,
+      )) as Record<string, unknown>;
+
+      // a1b2c3d4-refund is first in conditions array (index 0)
+      expect(result.port).toBe('a1b2c3d4-refund');
+    });
+
+    it('should return normal output via out port when no condition is triggered', async () => {
+      const result = (await handler.execute(
+        {},
+        conditionConfig,
+        baseContext,
+      )) as Record<string, unknown>;
+
+      // Default mock returns no toolCalls, so should go to normal output
+      expect(result.port).toBeUndefined();
+      expect(result.response).toBe('Hello! I am an AI assistant.');
+    });
+  });
+
+  describe('conditions - multi_turn', () => {
+    it('should route to condition port when condition triggered during processMultiTurnMessage', async () => {
+      const state = {
+        llmConfigId: 'config-1',
+        model: 'gpt-4o',
+        temperature: 0.7,
+        maxTokens: 2048,
+        knowledgeBases: [],
+        ragTopK: 5,
+        ragThreshold: 0.7,
+        maxToolCalls: 10,
+        maxTurns: 10,
+        turnTimeout: 600,
+        messages: [
+          { role: 'system', content: 'You are helpful' },
+          { role: 'user', content: 'Hello' },
+          { role: 'assistant', content: 'Hi!' },
+        ],
+        turnCount: 1,
+        totalInputTokens: 100,
+        totalOutputTokens: 50,
+        toolCalls: 0,
+        ragSources: [],
+        workspaceId: 'ws-1',
+        conditions: [
+          { id: 'a1b2c3d4-refund', label: 'Refund', prompt: 'Customer wants refund' },
+        ],
+      };
+
+      mockLlmService.chat.mockResolvedValue({
+        content: 'I will process your refund.',
+        toolCalls: [
+          { id: 'tc-1', name: 'cond_a1b2c3d4_refund', arguments: '{"reason":"refund request"}' },
+        ],
+        usage: { inputTokens: 150, outputTokens: 30, totalTokens: 180 },
+        model: 'gpt-4o',
+        finishReason: 'tool_calls',
+      });
+
+      const result = (await handler.processMultiTurnMessage(
+        'I want a refund please',
+        state,
+      )) as Record<string, unknown>;
+
+      expect(result.port).toBe('a1b2c3d4-refund');
+      expect(result.data).toBeDefined();
+      const data = result.data as Record<string, unknown>;
+      expect(data.endReason).toBe('condition');
+      expect(data.condition).toBeDefined();
+    });
+
+    it('should pass conditions to multiTurnState from execute', async () => {
+      const result = (await handler.execute(
+        {},
+        {
+          mode: 'multi_turn',
+          systemPrompt: 'You are helpful',
+          userPrompt: 'Hello',
+          conditions: [
+            { id: 'cond-1', label: 'Cond1', prompt: 'Test condition' },
+          ],
+        },
+        baseContext,
+      )) as Record<string, unknown>;
+
+      const state = result._multiTurnState as Record<string, unknown>;
+      expect(state.conditions).toBeDefined();
+      expect(state.conditions).toHaveLength(1);
+    });
+  });
+
+  describe('buildMultiTurnFinalOutput with port', () => {
+    it('should support condition endReason', () => {
+      const messages = [
+        { role: 'system' as const, content: 'System' },
+        { role: 'user' as const, content: 'Hi' },
+        { role: 'assistant' as const, content: 'Hello!' },
+      ];
+
+      const result = handler.buildMultiTurnFinalOutput(
+        messages,
+        'Hello!',
+        3,
+        'condition',
+        {
+          model: 'gpt-4o',
+          totalInputTokens: 500,
+          totalOutputTokens: 200,
+          toolCalls: 1,
+          ragSources: [],
+        },
+      );
+
+      const output = result as Record<string, unknown>;
+      expect(output.endReason).toBe('condition');
+    });
+
+    it('should support error endReason', () => {
+      const result = handler.buildMultiTurnFinalOutput(
+        [],
+        '',
+        1,
+        'error',
+        {
+          model: 'gpt-4o',
+          totalInputTokens: 0,
+          totalOutputTokens: 0,
+          toolCalls: 0,
+          ragSources: [],
+        },
+      );
+
+      const output = result as Record<string, unknown>;
+      expect(output.endReason).toBe('error');
+    });
+  });
 });

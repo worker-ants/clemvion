@@ -25,7 +25,7 @@ describe("ResultTimeline", () => {
     ];
 
     render(
-      <ResultTimeline results={results} selectedId={null} onSelect={vi.fn()} />,
+      <ResultTimeline results={results} selectedId={null} onSelect={vi.fn()} conversationMessages={[]} selectedConversationItemIndex={null} onSelectConversationItem={vi.fn()} isLiveConversation={false} />,
     );
 
     expect(screen.getByText("Trigger")).toBeDefined();
@@ -40,7 +40,7 @@ describe("ResultTimeline", () => {
     ];
 
     const { container } = render(
-      <ResultTimeline results={results} selectedId="n1" onSelect={vi.fn()} />,
+      <ResultTimeline results={results} selectedId="n1" onSelect={vi.fn()} conversationMessages={[]} selectedConversationItemIndex={null} onSelectConversationItem={vi.fn()} isLiveConversation={false} />,
     );
 
     const buttons = container.querySelectorAll("button");
@@ -53,7 +53,7 @@ describe("ResultTimeline", () => {
     const results = [makeResult({ nodeId: "n1", nodeLabel: "Click Me" })];
 
     render(
-      <ResultTimeline results={results} selectedId={null} onSelect={onSelect} />,
+      <ResultTimeline results={results} selectedId={null} onSelect={onSelect} conversationMessages={[]} selectedConversationItemIndex={null} onSelectConversationItem={vi.fn()} isLiveConversation={false} />,
     );
 
     fireEvent.click(screen.getByText("Click Me"));
@@ -64,7 +64,7 @@ describe("ResultTimeline", () => {
     const results = [makeResult({ duration: 142 })];
 
     render(
-      <ResultTimeline results={results} selectedId={null} onSelect={vi.fn()} />,
+      <ResultTimeline results={results} selectedId={null} onSelect={vi.fn()} conversationMessages={[]} selectedConversationItemIndex={null} onSelectConversationItem={vi.fn()} isLiveConversation={false} />,
     );
 
     expect(screen.getByText("142ms")).toBeDefined();
@@ -74,7 +74,7 @@ describe("ResultTimeline", () => {
     const results = [makeResult({ duration: 2500 })];
 
     render(
-      <ResultTimeline results={results} selectedId={null} onSelect={vi.fn()} />,
+      <ResultTimeline results={results} selectedId={null} onSelect={vi.fn()} conversationMessages={[]} selectedConversationItemIndex={null} onSelectConversationItem={vi.fn()} isLiveConversation={false} />,
     );
 
     expect(screen.getByText("2.5s")).toBeDefined();
@@ -85,7 +85,7 @@ describe("ResultTimeline", () => {
     const results = [makeResult({ nodeId: "first" })];
 
     render(
-      <ResultTimeline results={results} selectedId={null} onSelect={onSelect} />,
+      <ResultTimeline results={results} selectedId={null} onSelect={onSelect} conversationMessages={[]} selectedConversationItemIndex={null} onSelectConversationItem={vi.fn()} isLiveConversation={false} />,
     );
 
     expect(onSelect).toHaveBeenCalledWith("first");
