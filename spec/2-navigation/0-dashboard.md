@@ -79,7 +79,7 @@
 
 | 동작 | 설명 |
 |------|------|
-| 행 클릭 | 해당 워크플로우의 실행 내역 목록(`/workflows/:workflowId/executions`)으로 이동. 상세 스펙은 [Spec 실행 내역](./6-execution-history.md) 참조 |
+| 행 클릭 | 해당 실행의 상세 페이지(`/workflows/:workflowId/executions/:executionId`)로 이동. 상세 스펙은 [Spec 실행 내역](./6-execution-history.md) 참조 |
 | 빈 상태 | "No executions yet. Run a workflow to see results here." |
 
 ---
