@@ -217,7 +217,15 @@ Skipped 상태의 노드는 목록에서 제외한다.
 - 상태 (Status), 소요 시간 (Duration) 표시
 - 에러가 있으면 에러 메시지 표시
 
-### 3.5 이전/다음 실행 네비게이션
+### 3.5 에러 및 상태 처리
+
+| 상태 | 표시 |
+|------|------|
+| Loading | 스켈레톤 로더 (3개 블록) |
+| API Error | "Failed to load execution. Please try again." + Back 버튼 |
+| Not Found | "Execution not found." + Back 버튼 |
+
+### 3.6 이전/다음 실행 네비게이션
 
 - 실행 상세 페이지 헤더 우측에 `← Prev` / `Next →` 버튼
 - 같은 워크플로우의 시간 순서 기준으로 이전/다음 실행으로 이동

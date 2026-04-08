@@ -115,6 +115,7 @@
                 │
                 ├─ Skip Node
                 │   → NodeExecution.status = "skipped"
+                │   → NodeExecution.error = { message: "..." } (에러 정보 보존)
                 │   → 출력 = null
                 │   → 다음 노드는 null 입력으로 실행
                 │
