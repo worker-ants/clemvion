@@ -31,6 +31,15 @@ LLM 기반 AI Agent를 실행. 프롬프트, RAG, Tool Use를 지원. **Single T
 | historyCount | Integer? | last_n 시 보관 대화 수 |
 | maxTurns | Integer? | Multi Turn 모드 시 최대 대화 턴 수 (기본: 20, 0=무제한) |
 | turnTimeout | Integer? | Multi Turn 모드 시 사용자 응답 대기 타임아웃 초 (기본: 1800=30분) |
+| conditions | ConditionDef[] | 조건 목록. 각 조건은 라벨과 프롬프트로 구성. 조건이 있으면 조건별 동적 출력 포트를 생성한다 |
+
+**ConditionDef 구조:**
+
+| 필드 | 타입 | 설명 |
+|------|------|------|
+| id | UUID | 조건의 고유 식별자. 출력 포트 ID 및 LLM 도구 이름으로 사용. 생성 시 UUID v4 할당, 이후 불변 |
+| label | String | 조건 이름 (UI 표시 및 포트 라벨) |
+| prompt | String | 조건 설명 (LLM 도구의 description으로 사용 — "언제 이 조건을 선택해야 하는지" 기술) |
 
 ### 설정 UI
 
@@ -78,6 +87,18 @@ LLM 기반 AI Agent를 실행. 프롬프트, RAG, Tool Use를 지원. **Single T
 │  │    설명: [데이터베이스 검색__]       ││
 │  └──────────────────────────────────────┘│
 │                                          │
+│  ── Conditions ──  (선택 사항)            │
+│  ┌──────────────────────────────────────┐│
+│  │ 1. 환불 요청 감지                 [×]││
+│  │    Prompt: "고객이 환불을 요청하거나 ││
+│  │    결제 취소를 원할 때"              ││
+│  ├──────────────────────────────────────┤│
+│  │ 2. 기술 지원 에스컬레이션         [×]││
+│  │    Prompt: "문제가 복잡하여 전문가   ││
+│  │    연결이 필요한 경우"              ││
+│  └──────────────────────────────────────┘│
+│  [+ Add Condition]                       │
+│                                          │
 │  ── Conversation History ──              │
 │  Mode: [Last N ▼]  Count: [10]          │
 │                                          │
@@ -88,25 +109,85 @@ LLM 기반 AI Agent를 실행. 프롬프트, RAG, Tool Use를 지원. **Single T
 ```
 
 ### 포트
+
 - 입력: `in` (1개)
-- 출력: `out` (1개)
+- 출력 (모드별로 다름):
+
+  **Single Turn 모드:**
+  - `out` (정적, 기본 출력): 조건 없이 정상 완료되었을 때의 기본 경로
+  - `{condition.id}` (동적, 조건별): 각 조건마다 UUID v4 기반 포트. 포트 라벨은 `condition.label`
+  - `timeout` (정적): LLM API 호출 타임아웃 시 라우팅
+  - `error` (정적): LLM 오류 발생 시 라우팅
+
+  **Multi Turn 모드:**
+  - `{condition.id}` (동적, 조건별): 각 조건마다 UUID v4 기반 포트. 포트 라벨은 `condition.label`
+  - `timeout` (정적): 사용자 응답 대기 타임아웃(`turnTimeout`) 초과 시 라우팅
+  - `user_ended` (정적): 사용자가 명시적으로 대화를 종료한 경우
+  - `max_turns` (정적): 대화 턴 수가 `maxTurns`에 도달한 경우
+  - `error` (정적): LLM 오류 발생 시 라우팅
+  - ※ `out` 포트 없음 — Multi Turn 모드에서는 종료 사유가 항상 명확하므로 전용 포트로 분기
+
+  **공통:**
+  - 조건 추가/삭제/이름 변경/재정렬 시에도 기존 포트 ID(UUID)는 불변이므로 연결된 엣지가 유지됨
+  - 조건이 0개인 경우:
+    - Single Turn: `out` + `timeout` + `error`
+    - Multi Turn: `timeout` + `user_ended` + `max_turns` + `error`
 
 ### Tool Area 연동
 
 도구 관리는 캔버스의 [Tool Area](../3-workflow-editor/0-canvas.md#11-ai-agent-tool-area)에서 수행한다. 노드를 Tool Area에 드래그하여 등록하면 `toolNodeIds`에 자동 추가된다.
 
-**도구 이름/설명 파생 규칙:**
-- 기본: Tool 노드의 `label`(이름)과 `description`(설명)에서 파생
-- 오버라이드 가능: `toolOverrides`에서 도구별 이름/설명을 커스텀 설정
+**도구 이름 규칙:**
+- 모든 도구의 이름은 UUID 기반으로 자동 지정된다 (도구 노드의 `nodeId`를 사용)
+- 이를 통해 이름 충돌을 원천 차단하고, LLM이 도구 이름의 의미를 잘못 해석하여 오작동하는 것을 방지한다
+- LLM은 도구의 `description`을 기반으로 도구를 선택한다
+
+**도구 설명 파생 규칙:**
+- 기본: Tool 노드의 `description`(설명)에서 파생
+- 오버라이드 가능: `toolOverrides`에서 도구별 설명을 커스텀 설정
 
 **ToolOverride 구조:**
 
 | 필드 | 타입 | 설명 |
 |------|------|------|
 | nodeId | UUID | Tool Area에 등록된 노드 ID |
-| toolName | String? | LLM에게 표시할 도구 이름 (미설정 시 노드 label 사용) |
+| toolName | String? | LLM에게 표시할 도구 이름 (미설정 시 nodeId UUID 사용) |
 | toolDescription | String? | LLM에게 표시할 도구 설명 (미설정 시 노드 description 사용) |
 | inputMapping | MappingDef[]? | 도구 파라미터 → 노드 입력 매핑 (미설정 시 자동 매핑) |
+
+### 조건 (Conditions)
+
+AI Agent가 대화 중 특정 상황을 감지하면 해당 조건의 출력 포트로 실행을 분기하는 기능이다. Text Classifier가 단일 입력에 대한 정적 분류라면, Condition은 대화 맥락 전체를 고려한 동적 분류이다.
+
+#### 조건 도구 등록
+
+각 조건은 LLM에게 제공되는 도구(tool)로 변환된다:
+
+| 도구 속성 | 값 |
+|-----------|-----|
+| name | `{condition.id}` (UUID). 일반 도구와의 충돌 방지 및 LLM이 이름으로부터 의미를 추론하여 오작동하는 것을 방지 |
+| description | `condition.prompt` (사용자가 입력한 조건 프롬프트) |
+| parameters | `{ type: "object", properties: { reason: { type: "string", description: "이 조건을 선택한 이유" } }, required: [] }` |
+
+조건 도구는 일반 Tool Area 도구 뒤에 추가된다.
+
+시스템 프롬프트에 조건 사용 지시를 자동 주입:
+> "다음 조건 중 상황이 충족되면 해당 도구를 호출하세요. 조건이 충족되지 않으면 대화를 계속하세요."
+
+#### 조건 도구 호출 감지 및 처리
+
+LLM 응답의 `toolCalls`를 순회할 때 다음 로직을 적용:
+
+1. `toolCalls`를 **조건 도구**와 **일반 도구**로 분류 (조건의 `id` 목록과 대조)
+2. **조건 도구만 호출된 경우 (일반 도구 없음):**
+   a. 복수의 조건 도구가 호출된 경우, `conditions` 배열에서 인덱스가 가장 작은 조건을 선택
+   b. AI Agent를 즉시 종료하고, 선택된 조건의 포트로 라우팅
+3. **조건 도구 + 일반 도구가 함께 호출된 경우:**
+   a. 조건 도구 호출은 보류하고, 일반 도구를 먼저 실행
+   b. 일반 도구의 실행 결과를 LLM에 전달 (조건 도구 호출에 대해서는 "확인되었습니다. 도구 실행 결과를 참고하여 최종 판단해주세요." 메시지를 tool result로 전달)
+   c. LLM이 재평가하여 다음 응답을 생성 — 이 응답에서 다시 조건 체크를 수행
+   d. 이 과정은 기존 tool call 루프 안에서 자연스럽게 반복됨
+4. **조건 도구가 없는 경우:** 기존 로직대로 일반 도구를 실행하고 대화를 계속
 
 ### 실행 로직
 
@@ -116,43 +197,50 @@ LLM 기반 AI Agent를 실행. 프롬프트, RAG, Tool Use를 지원. **Single T
    b. 검색 결과를 컨텍스트에 추가
 2. systemPrompt + 컨텍스트 + userPrompt로 LLM 호출
 3. LLM이 도구 호출을 요청하면:
-   a. Tool Area에서 해당 도구 노드를 on-demand로 독립 실행
-   b. 실행 결과를 LLM에 전달
-   c. maxToolCalls 초과 전까지 반복
+   a. `toolCalls`를 조건 도구와 일반 도구로 분류
+   b. **조건 도구만 존재:** 해당 조건 포트로 즉시 라우팅
+   c. **조건 도구 + 일반 도구 혼재:** 일반 도구를 먼저 실행, 결과를 LLM에 전달하여 재평가
+   d. **일반 도구만 존재:** 기존 로직대로 실행 후 반복
+   e. maxToolCalls 초과 전까지 반복
 4. 최종 응답을 출력 형식에 맞게 변환
 5. `out` 포트로 출력
+6. LLM 오류 발생 시 `error` 포트로 출력
+7. LLM API 타임아웃 시 `timeout` 포트로 출력
 
 #### Multi Turn 모드 (mode = `multi_turn`)
 
 워크플로우 실행을 일시 정지(blocking)하고 사용자와 대화형 인터랙션을 수행한다. 기존 Form 노드의 `waiting_for_input` 메커니즘을 확장하여 구현한다.
 
 1. **첫 번째 턴:**
-   a. Single Turn과 동일하게 RAG 검색 + LLM 호출 + Tool 처리 수행
-   b. AI 응답을 WebSocket으로 클라이언트에 전달
-   c. `status: 'waiting_for_input'`, `interactionType: 'ai_conversation'`을 반환하여 실행 일시 정지
-   d. 대화 이력(messages)을 노드 내부 상태로 유지
+   a. Single Turn과 동일하게 RAG 검색 + LLM 호출 + Tool/Condition 처리 수행
+   b. 조건이 충족되면 해당 포트로 라우팅하고 종료
+   c. 조건 미충족 시 AI 응답을 WebSocket으로 클라이언트에 전달
+   d. `status: 'waiting_for_input'`, `interactionType: 'ai_conversation'`을 반환하여 실행 일시 정지
+   e. 대화 이력(messages)을 노드 내부 상태로 유지
 
 2. **후속 턴 (사용자 메시지 수신 시):**
    a. 클라이언트가 `execution.submit_message` 명령으로 사용자 메시지를 전송
    b. 사용자 메시지를 대화 이력에 추가
    c. Knowledge Base가 설정된 경우 사용자 메시지로 RAG 재검색
-   d. 갱신된 대화 이력으로 LLM 호출 + Tool 처리
-   e. AI 응답을 WebSocket으로 전달
-   f. 종료 조건 미충족 시 다시 `waiting_for_input` 상태로 전환
+   d. 갱신된 대화 이력으로 LLM 호출 + Tool/Condition 처리 (Single Turn 3단계와 동일한 분류 로직)
+   e. 조건이 충족되면 해당 포트로 라우팅하고 종료
+   f. 조건 미충족 시 AI 응답을 WebSocket으로 전달
+   g. 종료 조건 미충족 시 다시 `waiting_for_input` 상태로 전환
 
-3. **종료 조건** (하나라도 충족 시 대화 종료):
-   a. 사용자가 `execution.end_conversation` 명령 전송
-   b. 대화 턴 수가 `maxTurns`에 도달 (0=무제한)
-   c. 사용자 응답 대기 시간이 `turnTimeout` 초과
-   d. LLM 응답에 종료 시그널 포함 (향후 확장)
+3. **종료 조건** (하나라도 충족 시 대화 종료, 각 사유별 전용 포트로 라우팅):
+   a. LLM이 조건 도구를 호출 → 해당 조건의 출력 포트(`{condition.id}`)로 분기
+   b. 사용자가 `execution.end_conversation` 명령 전송 → `user_ended` 포트로 출력
+   c. 대화 턴 수가 `maxTurns`에 도달 (0=무제한) → `max_turns` 포트로 출력
+   d. 사용자 응답 대기 시간이 `turnTimeout` 초과 → `timeout` 포트로 출력
+   e. LLM 오류 발생 → `error` 포트로 출력
 
 4. **종료 시:**
-   a. 전체 대화 이력과 마지막 AI 응답을 `out` 포트로 출력
+   a. 종료 사유에 해당하는 포트로 출력
    b. 워크플로우 실행 재개
 
 ### 출력 구조
 
-#### Single Turn 모드
+#### Single Turn 모드 — 정상 완료 (`out` 포트)
 
 ```json
 {
@@ -170,7 +258,52 @@ LLM 기반 AI Agent를 실행. 프롬프트, RAG, Tool Use를 지원. **Single T
 }
 ```
 
-#### Multi Turn 모드
+#### Single Turn 모드 — 조건 충족 시 (`{condition.id}` 포트)
+
+```json
+{
+  "response": "AI의 마지막 응답",
+  "condition": {
+    "id": "uuid-of-condition",
+    "label": "환불 요청 감지",
+    "reason": "LLM이 전달한 선택 이유 (있을 경우)"
+  },
+  "metadata": {
+    "model": "gpt-4o",
+    "inputTokens": 1250,
+    "outputTokens": 350,
+    "totalTokens": 1600,
+    "toolCalls": 2,
+    "ragSources": [...]
+  }
+}
+```
+
+#### Single Turn 모드 — 타임아웃 (`timeout` 포트)
+
+```json
+{
+  "error": {
+    "code": "LLM_TIMEOUT",
+    "message": "LLM API 호출이 타임아웃되었습니다"
+  },
+  "metadata": { "model": "gpt-4o" }
+}
+```
+
+#### Single Turn 모드 — 오류 (`error` 포트)
+
+```json
+{
+  "error": {
+    "code": "LLM_API_ERROR",
+    "message": "오류 상세 메시지"
+  },
+  "metadata": { "model": "gpt-4o" }
+}
+```
+
+#### Multi Turn 모드 — 조건 충족 시 (`{condition.id}` 포트)
 
 ```json
 {
@@ -182,20 +315,76 @@ LLM 기반 AI Agent를 실행. 프롬프트, RAG, Tool Use를 지원. **Single T
     { "role": "user", "content": "두 번째 사용자 메시지" },
     { "role": "assistant", "content": "마지막 AI 응답" }
   ],
-  "turnCount": 3,
-  "endReason": "user_ended | max_turns | timeout",
+  "turnCount": 5,
+  "endReason": "condition",
+  "condition": {
+    "id": "uuid-of-condition",
+    "label": "환불 요청 감지",
+    "reason": "LLM이 전달한 선택 이유"
+  },
   "metadata": {
     "model": "gpt-4o",
     "totalInputTokens": 3800,
     "totalOutputTokens": 1200,
     "totalTokens": 5000,
     "toolCalls": 5,
-    "ragSources": [
-      { "documentId": "uuid", "chunk": "관련 텍스트...", "score": 0.92 }
-    ]
+    "ragSources": [...]
   }
 }
 ```
+
+#### Multi Turn 모드 — 사용자 종료 (`user_ended` 포트)
+
+```json
+{
+  "response": "마지막 AI 응답",
+  "messages": [...],
+  "turnCount": 3,
+  "endReason": "user_ended",
+  "metadata": { "..." }
+}
+```
+
+#### Multi Turn 모드 — 최대 턴 도달 (`max_turns` 포트)
+
+```json
+{
+  "response": "마지막 AI 응답",
+  "messages": [...],
+  "turnCount": 20,
+  "endReason": "max_turns",
+  "metadata": { "..." }
+}
+```
+
+#### Multi Turn 모드 — 타임아웃 (`timeout` 포트)
+
+```json
+{
+  "response": "마지막 AI 응답 (있을 경우)",
+  "messages": [...],
+  "turnCount": 3,
+  "endReason": "timeout",
+  "metadata": { "..." }
+}
+```
+
+#### Multi Turn 모드 — 오류 (`error` 포트)
+
+```json
+{
+  "messages": [...],
+  "turnCount": 3,
+  "endReason": "error",
+  "error": {
+    "code": "LLM_API_ERROR",
+    "message": "오류 상세 메시지"
+  },
+  "metadata": { "..." }
+}
+```
+
+`endReason` enum: `condition | user_ended | max_turns | timeout | error`
 
 ---
 
@@ -377,6 +566,6 @@ LLM을 사용하여 비정형 텍스트에서 구조화된 정보 추출.
 
 | 노드 | 요약 포맷 | 예시 |
 |------|-----------|------|
-| AI Agent | `{mode} · {model}`. Tool Area에 등록된 도구 수가 있으면 `· {N} tools`, Knowledge Base 연결 시 `· {N} KB` 추가. mode가 `multi_turn`이면 `Multi Turn` 표기, `single_turn`이면 생략 | `gpt-4o · 2 tools · 1 KB` (single) / `Multi Turn · gpt-4o · 1 KB` (multi) |
+| AI Agent | `{mode} · {model}`. Tool Area에 등록된 도구 수가 있으면 `· {N} tools`, Knowledge Base 연결 시 `· {N} KB`, 조건이 있으면 `· {N} cond` 추가. mode가 `multi_turn`이면 `Multi Turn` 표기, `single_turn`이면 생략 | `gpt-4o · 2 tools · 1 KB · 3 cond` (single) / `Multi Turn · gpt-4o · 1 KB · 2 cond` (multi) |
 | Text Classifier | `{model} · {N} categories` (카테고리 수) | `gpt-4o-mini · 3 categories` |
 | Info Extractor | `{model} · {N} fields` (outputSchema 필드 수) | `claude-sonnet · 4 fields` |
