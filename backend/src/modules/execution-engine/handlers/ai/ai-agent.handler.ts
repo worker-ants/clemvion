@@ -156,9 +156,9 @@ export class AiAgentHandler implements NodeHandler {
       response,
       metadata: {
         model: result.model,
-        inputTokens: result.usage.inputTokens,
-        outputTokens: result.usage.outputTokens,
-        totalTokens: result.usage.totalTokens,
+        inputTokens: result.usage?.inputTokens ?? 0,
+        outputTokens: result.usage?.outputTokens ?? 0,
+        totalTokens: result.usage?.totalTokens ?? 0,
         toolCalls: toolCallCount,
         ragSources,
       },
@@ -261,8 +261,8 @@ export class AiAgentHandler implements NodeHandler {
     // Add assistant response to messages
     messages.push({ role: 'assistant', content: result.content || '' });
 
-    const totalInputTokens = result.usage.inputTokens;
-    const totalOutputTokens = result.usage.outputTokens;
+    const totalInputTokens = result.usage?.inputTokens ?? 0;
+    const totalOutputTokens = result.usage?.outputTokens ?? 0;
 
     // Return waiting_for_input to trigger blocking in execution engine
     return {
@@ -393,8 +393,8 @@ export class AiAgentHandler implements NodeHandler {
 
     messages.push({ role: 'assistant', content: result.content || '' });
 
-    totalInputTokens += result.usage.inputTokens;
-    totalOutputTokens += result.usage.outputTokens;
+    totalInputTokens += result.usage?.inputTokens ?? 0;
+    totalOutputTokens += result.usage?.outputTokens ?? 0;
 
     // Check if max turns reached
     const isLastTurn = maxTurns > 0 && turnCount >= maxTurns;

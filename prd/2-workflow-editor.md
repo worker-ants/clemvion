@@ -113,6 +113,9 @@
 | ED-EX-06 | 실행 완료 후 각 노드의 입출력 데이터 조회 | 필수 |
 | ED-EX-07 | 실행 히스토리 조회 | 필수 |
 | ED-EX-08 | 테스트용 입력 데이터 설정 (Mock Input) | 필수 |
+| ED-EX-09 | AI Agent Multi Turn 모드 실행 시 Run Results 드로어에서 대화형 인터랙션 | 필수 |
+| ED-EX-10 | Multi Turn 대화 진행 중 타임라인에 메시지/Tool Call 프리뷰 표시 | 필수 |
+| ED-EX-11 | Multi Turn 대화 완료 후 히스토리에서 전체 대화 이력 재조회 | 필수 |
 
 ---
 

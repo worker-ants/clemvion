@@ -258,13 +258,17 @@ function pdfSummary(config: NodeConfig): ConfigSummaryResult | null {
 
 function aiAgentSummary(config: NodeConfig): ConfigSummaryResult | null {
   const model = config.model as string | undefined;
-  if (!model) return null;
-  const parts: string[] = [model];
+  const llmConfigId = config.llmConfigId as string | undefined;
+  if (!model && !llmConfigId) return null;
+  const mode = config.mode as string | undefined;
+  const parts: string[] = [];
+  if (mode === "multi_turn") parts.push("Multi Turn");
+  if (model) parts.push(model);
   const tools = Array.isArray(config.toolNodeIds) ? config.toolNodeIds : undefined;
   if (tools?.length) parts.push(`${tools.length} tools`);
   const kbs = Array.isArray(config.knowledgeBases) ? config.knowledgeBases : undefined;
   if (kbs?.length) parts.push(`${kbs.length} KB`);
-  return { text: parts.join(" \u00b7 "), isWarning: false };
+  return { text: parts.join(" \u00b7 ") || "Configured", isWarning: false };
 }
 
 function textClassifierSummary(config: NodeConfig): ConfigSummaryResult | null {

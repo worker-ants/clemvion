@@ -36,7 +36,22 @@ export interface NodeResult {
   startedAt?: string;
 }
 
-export type WaitingInteractionType = "form" | "buttons";
+export type WaitingInteractionType = "form" | "buttons" | "ai_conversation";
+
+export interface ConversationItem {
+  type: "user" | "assistant" | "tool";
+  content: string;
+  toolArgs?: unknown;
+  toolResult?: unknown;
+  toolStatus?: "success" | "error";
+  turnIndex: number;
+  metadata?: {
+    inputTokens?: number;
+    outputTokens?: number;
+    toolCalls?: number;
+    ragChunks?: number;
+  };
+}
 
 interface ExecutionState {
   executionId: string | null;
@@ -54,8 +69,15 @@ interface ExecutionState {
   /** Button config when waiting for button interaction */
   waitingButtonConfig: unknown;
 
+  /** AI conversation state */
+  waitingConversationConfig: unknown;
+  conversationMessages: ConversationItem[];
+  isWaitingAiResponse: boolean;
+
   /** Selected node in result timeline */
   selectedResultNodeId: string | null;
+  /** Selected conversation item index (within the conversation) */
+  selectedConversationItemIndex: number | null;
 
   startExecution: (executionId: string) => void;
   updateNodeStatus: (nodeId: string, info: NodeStatusInfo) => void;
@@ -66,7 +88,13 @@ interface ExecutionState {
   resumeFromForm: () => void;
   pauseForButtons: (nodeId: string, buttonConfig: unknown) => void;
   resumeFromButtons: () => void;
+  pauseForConversation: (nodeId: string, config: unknown) => void;
+  resumeFromConversation: () => void;
+  addConversationMessage: (item: ConversationItem) => void;
+  updateConversationConfig: (config: unknown) => void;
+  setWaitingAiResponse: (value: boolean) => void;
   selectResultNode: (nodeId: string | null) => void;
+  selectConversationItem: (index: number | null) => void;
   reset: () => void;
 }
 
@@ -80,6 +108,17 @@ function sortByStartedAt(results: NodeResult[]): NodeResult[] {
   });
 }
 
+const CLEAR_WAITING = {
+  waitingNodeId: null,
+  waitingFormConfig: null,
+  waitingInteractionType: null as WaitingInteractionType | null,
+  waitingButtonConfig: null,
+  waitingConversationConfig: null,
+  conversationMessages: [] as ConversationItem[],
+  isWaitingAiResponse: false,
+  selectedConversationItemIndex: null,
+};
+
 export const useExecutionStore = create<ExecutionState>((set) => ({
   executionId: null,
   status: "idle",
@@ -90,7 +129,11 @@ export const useExecutionStore = create<ExecutionState>((set) => ({
   waitingFormConfig: null,
   waitingInteractionType: null,
   waitingButtonConfig: null,
+  waitingConversationConfig: null,
+  conversationMessages: [],
+  isWaitingAiResponse: false,
   selectedResultNodeId: null,
+  selectedConversationItemIndex: null,
 
   startExecution: (executionId: string) =>
     set({
@@ -99,11 +142,8 @@ export const useExecutionStore = create<ExecutionState>((set) => ({
       nodeStatuses: new Map(),
       nodeResults: [],
       startedAt: new Date().toISOString(),
-      waitingNodeId: null,
-      waitingFormConfig: null,
-      waitingInteractionType: null,
-      waitingButtonConfig: null,
       selectedResultNodeId: null,
+      ...CLEAR_WAITING,
     }),
 
   updateNodeStatus: (nodeId: string, info: NodeStatusInfo) =>
@@ -129,17 +169,10 @@ export const useExecutionStore = create<ExecutionState>((set) => ({
       return { nodeResults: sortByStartedAt(appended) };
     }),
 
-  completeExecution: () =>
-    set({ status: "completed", waitingNodeId: null, waitingFormConfig: null, waitingInteractionType: null, waitingButtonConfig: null }),
+  completeExecution: () => set({ status: "completed", ...CLEAR_WAITING }),
 
   failExecution: (error?: string) =>
     set((state) => {
-      const clearWaiting = {
-        waitingNodeId: null,
-        waitingFormConfig: null,
-        waitingInteractionType: null as WaitingInteractionType | null,
-        waitingButtonConfig: null,
-      };
       if (error && state.executionId) {
         const updated = new Map(state.nodeStatuses);
         updated.set("__execution__", {
@@ -149,10 +182,10 @@ export const useExecutionStore = create<ExecutionState>((set) => ({
         return {
           status: "failed" as ExecutionStatus,
           nodeStatuses: updated,
-          ...clearWaiting,
+          ...CLEAR_WAITING,
         };
       }
-      return { status: "failed" as ExecutionStatus, ...clearWaiting };
+      return { status: "failed" as ExecutionStatus, ...CLEAR_WAITING };
     }),
 
   pauseForForm: (nodeId: string, formConfig: unknown) =>
@@ -162,16 +195,10 @@ export const useExecutionStore = create<ExecutionState>((set) => ({
       waitingFormConfig: formConfig,
       waitingInteractionType: "form",
       waitingButtonConfig: null,
+      waitingConversationConfig: null,
     }),
 
-  resumeFromForm: () =>
-    set({
-      status: "running",
-      waitingNodeId: null,
-      waitingFormConfig: null,
-      waitingInteractionType: null,
-      waitingButtonConfig: null,
-    }),
+  resumeFromForm: () => set({ status: "running", ...CLEAR_WAITING }),
 
   pauseForButtons: (nodeId: string, buttonConfig: unknown) =>
     set({
@@ -180,19 +207,50 @@ export const useExecutionStore = create<ExecutionState>((set) => ({
       waitingFormConfig: null,
       waitingInteractionType: "buttons",
       waitingButtonConfig: buttonConfig,
+      waitingConversationConfig: null,
     }),
 
-  resumeFromButtons: () =>
+  resumeFromButtons: () => set({ status: "running", ...CLEAR_WAITING }),
+
+  pauseForConversation: (nodeId: string, config: unknown) =>
     set({
-      status: "running",
-      waitingNodeId: null,
+      status: "waiting_for_input",
+      waitingNodeId: nodeId,
       waitingFormConfig: null,
-      waitingInteractionType: null,
+      waitingInteractionType: "ai_conversation",
       waitingButtonConfig: null,
+      waitingConversationConfig: config,
+      isWaitingAiResponse: false,
     }),
+
+  resumeFromConversation: () => set({ status: "running", ...CLEAR_WAITING }),
+
+  addConversationMessage: (item: ConversationItem) =>
+    set((state) => ({
+      conversationMessages: [...state.conversationMessages, item],
+    })),
+
+  updateConversationConfig: (config: unknown) =>
+    set((state) => {
+      // Merge with existing config to preserve maxTurns, turnTimeout etc.
+      const existing = state.waitingConversationConfig as Record<string, unknown> | null;
+      const incoming = config as Record<string, unknown> | null;
+      return {
+        waitingConversationConfig: existing && incoming
+          ? { ...existing, ...incoming }
+          : incoming ?? existing,
+        isWaitingAiResponse: false,
+      };
+    }),
+
+  setWaitingAiResponse: (value: boolean) =>
+    set({ isWaitingAiResponse: value }),
 
   selectResultNode: (nodeId: string | null) =>
-    set({ selectedResultNodeId: nodeId }),
+    set({ selectedResultNodeId: nodeId, selectedConversationItemIndex: null }),
+
+  selectConversationItem: (index: number | null) =>
+    set({ selectedConversationItemIndex: index }),
 
   reset: () =>
     set({
@@ -201,10 +259,7 @@ export const useExecutionStore = create<ExecutionState>((set) => ({
       nodeStatuses: new Map(),
       nodeResults: [],
       startedAt: null,
-      waitingNodeId: null,
-      waitingFormConfig: null,
-      waitingInteractionType: null,
-      waitingButtonConfig: null,
       selectedResultNodeId: null,
+      ...CLEAR_WAITING,
     }),
 }));

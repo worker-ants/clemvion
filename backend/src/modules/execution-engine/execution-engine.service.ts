@@ -297,10 +297,14 @@ export class ExecutionEngineService implements OnModuleInit {
         backEdgeMap.set(edge.sourceNodeId, list);
       }
 
-      // 8. Create execution context
+      // 8. Create execution context (inject workspaceId for AI handlers)
+      const workflow = await this.workflowRepository.findOneBy({
+        id: workflowId,
+      });
       const context = this.contextService.createContext(
         executionId,
         workflowId,
+        { __workspaceId: workflow?.workspaceId ?? '' },
       );
 
       // 9. Build lookup maps
@@ -818,13 +822,11 @@ export class ExecutionEngineService implements OnModuleInit {
         const handler = this.handlerRegistry.get(
           'ai_agent',
         ) as unknown as AiAgentHandler;
-        const messages = multiTurnState.messages as Array<
-          Record<string, unknown>
-        >;
-        const lastMessage =
-          messages.length > 0
-            ? (messages[messages.length - 1].content as string) || ''
-            : '';
+        const messages =
+          (multiTurnState.messages as Array<Record<string, unknown>>) ?? [];
+        const lastMsg =
+          messages.length > 0 ? messages[messages.length - 1] : null;
+        const lastMessage = (lastMsg?.content as string) ?? '';
 
         const finalOutput = handler.buildMultiTurnFinalOutput(
           messages as never,

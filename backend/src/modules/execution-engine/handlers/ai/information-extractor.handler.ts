@@ -148,9 +148,9 @@ Respond ONLY with a JSON object containing the extracted fields. Use null for fi
           extracted,
           metadata: {
             model: result.model,
-            inputTokens: result.usage.inputTokens,
-            outputTokens: result.usage.outputTokens,
-            totalTokens: result.usage.totalTokens,
+            inputTokens: result.usage?.inputTokens ?? 0,
+            outputTokens: result.usage?.outputTokens ?? 0,
+            totalTokens: result.usage?.totalTokens ?? 0,
           },
         };
       } catch (error) {
