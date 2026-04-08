@@ -1,6 +1,6 @@
 # Spec: 대시보드
 
-> 관련 문서: [Spec 레이아웃](./0-layout.md) · [Spec 인증 플로우](./10-auth-flow.md) · [PRD 내비게이션](../../prd/1-navigation.md) · [Spec 워크플로우 목록](./1-workflow-list.md)
+> 관련 문서: [Spec 레이아웃](./0-layout.md) · [Spec 인증 플로우](./10-auth-flow.md) · [PRD 내비게이션](../../prd/1-navigation.md) · [Spec 워크플로우 목록](./1-workflow-list.md) · [Spec 실행 내역](./6-execution-history.md)
 
 ---
 
@@ -79,8 +79,7 @@
 
 | 동작 | 설명 |
 |------|------|
-| 행 클릭 (성공) | 실행 상세 뷰로 이동 |
-| 행 클릭 (실패) | 디버그 뷰로 이동 (실패 노드 하이라이트) |
+| 행 클릭 | 해당 워크플로우의 실행 내역 목록(`/workflows/:workflowId/executions`)으로 이동. 상세 스펙은 [Spec 실행 내역](./6-execution-history.md) 참조 |
 | 빈 상태 | "No executions yet. Run a workflow to see results here." |
 
 ---
