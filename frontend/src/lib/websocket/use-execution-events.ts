@@ -440,10 +440,8 @@ export function useExecutionEvents({
     // Returns true if execution reached a terminal state
     const pollExecutionStatus = async (): Promise<boolean> => {
       try {
-        const response = await executionsApi.getById(executionId);
+        const execution = await executionsApi.getById(executionId);
         if (cancelledRef.current) return true;
-
-        const execution = response.data;
 
         // Reconcile node-level statuses (sorted by startedAt for chronological order)
         if (execution.nodeExecutions) {

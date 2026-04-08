@@ -81,9 +81,7 @@ describe("useExecutionEvents", () => {
     });
     mockClient.waitForConnect.mockResolvedValue(undefined);
     mockClient.isConnected.mockReturnValue(true);
-    mockGetById.mockResolvedValue({
-      data: createMockExecution(),
-    });
+    mockGetById.mockResolvedValue(createMockExecution());
   });
 
   it("does nothing when executionId is null", () => {
@@ -296,8 +294,7 @@ describe("useExecutionEvents", () => {
   });
 
   it("updates store to completed when poll returns completed execution", async () => {
-    mockGetById.mockResolvedValue({
-      data: createMockExecution({
+    mockGetById.mockResolvedValue(createMockExecution({
         status: "completed",
         finishedAt: "2026-04-01T00:00:02Z",
         durationMs: 2000,
@@ -325,8 +322,7 @@ describe("useExecutionEvents", () => {
             node: { id: "node-2", type: "table", label: "Results" },
           },
         ],
-      }),
-    });
+      }));
 
     useExecutionStore.getState().startExecution("exec-1");
 
@@ -349,8 +345,7 @@ describe("useExecutionEvents", () => {
   });
 
   it("updates store to failed when poll returns failed execution", async () => {
-    mockGetById.mockResolvedValue({
-      data: createMockExecution({
+    mockGetById.mockResolvedValue(createMockExecution({
         status: "failed",
         error: { message: "Node C timeout" },
         nodeExecutions: [
@@ -377,8 +372,7 @@ describe("useExecutionEvents", () => {
             node: { id: "node-2", type: "http_request", label: "Fetch" },
           },
         ],
-      }),
-    });
+      }));
 
     useExecutionStore.getState().startExecution("exec-1");
 
@@ -395,9 +389,7 @@ describe("useExecutionEvents", () => {
   });
 
   it("handles cancelled execution from poll (maps to failed)", async () => {
-    mockGetById.mockResolvedValue({
-      data: createMockExecution({ status: "cancelled" }),
-    });
+    mockGetById.mockResolvedValue(createMockExecution({ status: "cancelled" }));
 
     useExecutionStore.getState().startExecution("exec-1");
 
@@ -410,8 +402,7 @@ describe("useExecutionEvents", () => {
   });
 
   it("handles waiting_for_input node status from poll", async () => {
-    mockGetById.mockResolvedValue({
-      data: createMockExecution({
+    mockGetById.mockResolvedValue(createMockExecution({
         status: "waiting_for_input",
         nodeExecutions: [
           {
@@ -438,8 +429,7 @@ describe("useExecutionEvents", () => {
             node: { id: "form-node", type: "form", label: "Approval" },
           },
         ],
-      }),
-    });
+      }));
 
     useExecutionStore.getState().startExecution("exec-1");
 
