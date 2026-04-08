@@ -835,7 +835,7 @@ export class ExecutionEngineService implements OnModuleInit {
       ) {
         // End conversation
         const endReason =
-          action.type === 'ai_timeout' ? 'timeout' : 'user_ended';
+          action.type === 'ai_timeout' ? 'error' : 'user_ended';
 
         const handler = this.handlerRegistry.get(
           'ai_agent',

@@ -37,7 +37,7 @@ LLM 기반 AI Agent를 실행. 프롬프트, RAG, Tool Use를 지원. **Single T
 
 | 필드 | 타입 | 설명 |
 |------|------|------|
-| id | UUID | 조건의 고유 식별자. 출력 포트 ID 및 LLM 도구 이름으로 사용. 생성 시 UUID v4 할당, 이후 불변 |
+| id | UUID | 조건의 고유 식별자. 출력 포트 ID로 사용. LLM 도구 이름은 `cond_` 접두사 + 정제된 UUID로 자동 생성. 생성 시 UUID v4 할당, 이후 불변 |
 | label | String | 조건 이름 (UI 표시 및 포트 라벨) |
 | prompt | String | 조건 설명 (LLM 도구의 description으로 사용 — "언제 이 조건을 선택해야 하는지" 기술) |
 
@@ -113,34 +113,36 @@ LLM 기반 AI Agent를 실행. 프롬프트, RAG, Tool Use를 지원. **Single T
 - 입력: `in` (1개)
 - 출력 (모드별로 다름):
 
-  **Single Turn 모드:**
+  **Single Turn 모드 (조건 ≥ 1):**
+  - `{condition.id}` (동적, 조건별): 각 조건마다 UUID v4 기반 포트. 포트 라벨은 `condition.label`
   - `out` (정적, 기본 출력): 조건 없이 정상 완료되었을 때의 기본 경로
-  - `{condition.id}` (동적, 조건별): 각 조건마다 UUID v4 기반 포트. 포트 라벨은 `condition.label`
-  - `timeout` (정적): LLM API 호출 타임아웃 시 라우팅
-  - `error` (정적): LLM 오류 발생 시 라우팅
+  - `error` (정적): LLM 오류, 타임아웃, rate limit 등 모든 오류 시 라우팅
 
-  **Multi Turn 모드:**
+  **Multi Turn 모드 (조건 ≥ 1):**
   - `{condition.id}` (동적, 조건별): 각 조건마다 UUID v4 기반 포트. 포트 라벨은 `condition.label`
-  - `timeout` (정적): 사용자 응답 대기 타임아웃(`turnTimeout`) 초과 시 라우팅
   - `user_ended` (정적): 사용자가 명시적으로 대화를 종료한 경우
   - `max_turns` (정적): 대화 턴 수가 `maxTurns`에 도달한 경우
-  - `error` (정적): LLM 오류 발생 시 라우팅
+  - `error` (정적): LLM 오류, 타임아웃, rate limit 등 모든 오류 시 라우팅
   - ※ `out` 포트 없음 — Multi Turn 모드에서는 종료 사유가 항상 명확하므로 전용 포트로 분기
 
   **공통:**
   - 조건 추가/삭제/이름 변경/재정렬 시에도 기존 포트 ID(UUID)는 불변이므로 연결된 엣지가 유지됨
-  - 조건이 0개인 경우:
-    - Single Turn: `out` + `timeout` + `error`
-    - Multi Turn: `timeout` + `user_ended` + `max_turns` + `error`
+  - 조건이 0개인 경우 (하위 호환 — 노드 정의의 기본 포트 사용):
+    - Single Turn: `out` + `error`
+    - Multi Turn: `out` + `error` (기존 엣지 유지를 위해 기본 출력 포트 제공)
+  - `timeout` 포트는 존재하지 않음 — 타임아웃, rate limit 등은 `error` 포트로 통합 라우팅
+  - **마이그레이션**: 기존 `timeout` 포트에 연결된 엣지는 프론트엔드에서 dangling 상태가 됨. 사용자가 수동으로 `error` 포트로 재연결 필요 (신규 기능이므로 기존 워크플로우에 `timeout` 엣지 존재하지 않음)
 
 ### Tool Area 연동
 
 도구 관리는 캔버스의 [Tool Area](../3-workflow-editor/0-canvas.md#11-ai-agent-tool-area)에서 수행한다. 노드를 Tool Area에 드래그하여 등록하면 `toolNodeIds`에 자동 추가된다.
 
 **도구 이름 규칙:**
-- 모든 도구의 이름은 UUID 기반으로 자동 지정된다 (도구 노드의 `nodeId`를 사용)
-- 이를 통해 이름 충돌을 원천 차단하고, LLM이 도구 이름의 의미를 잘못 해석하여 오작동하는 것을 방지한다
-- LLM은 도구의 `description`을 기반으로 도구를 선택한다
+- 일반 도구: `tool_` 접두사 + 정제된 nodeId (예: `tool_abc1234_5678_...`)
+- 조건 도구: `cond_` 접두사 + 정제된 conditionId (예: `cond_def9012_3456_...`)
+- 정제(sanitize): UUID 내 `-` 등 비영숫자 문자를 `_`로 치환하여 LLM API 호환성 보장
+- 접두사로 일반 도구와 조건 도구를 명확히 구분하여 이름 충돌 방지
+- LLM은 도구의 `description`을 기반으로 도구를 선택한다 (이름의 의미를 해석하지 않도록 설계)
 
 **도구 설명 파생 규칙:**
 - 기본: Tool 노드의 `description`(설명)에서 파생
@@ -165,11 +167,18 @@ AI Agent가 대화 중 특정 상황을 감지하면 해당 조건의 출력 포
 
 | 도구 속성 | 값 |
 |-----------|-----|
-| name | `{condition.id}` (UUID). 일반 도구와의 충돌 방지 및 LLM이 이름으로부터 의미를 추론하여 오작동하는 것을 방지 |
+| name | `cond_{sanitizeId(condition.id)}` (예: `cond_abc1234_5678_...`). `cond_` 접두사로 일반 도구(`tool_`)와 구분 |
 | description | `condition.prompt` (사용자가 입력한 조건 프롬프트) |
 | parameters | `{ type: "object", properties: { reason: { type: "string", description: "이 조건을 선택한 이유" } }, required: [] }` |
 
 조건 도구는 일반 Tool Area 도구 뒤에 추가된다.
+
+**유효성 검증 규칙:**
+- 최대 20개 조건 허용
+- 각 조건의 `id`는 필수, 예약된 포트 ID(`out`, `in`, `timeout`, `error`, `user_ended`, `max_turns`)와 충돌 불가
+- 각 조건의 `label`은 필수
+- 각 조건의 `prompt`는 필수, 최대 2,000자
+- 조건의 `reason` 응답은 최대 500자로 잘림 처리
 
 시스템 프롬프트에 조건 사용 지시를 자동 주입:
 > "다음 조건 중 상황이 충족되면 해당 도구를 호출하세요. 조건이 충족되지 않으면 대화를 계속하세요."
@@ -204,8 +213,7 @@ LLM 응답의 `toolCalls`를 순회할 때 다음 로직을 적용:
    e. maxToolCalls 초과 전까지 반복
 4. 최종 응답을 출력 형식에 맞게 변환
 5. `out` 포트로 출력
-6. LLM 오류 발생 시 `error` 포트로 출력
-7. LLM API 타임아웃 시 `timeout` 포트로 출력
+6. LLM 오류, 타임아웃, rate limit 발생 시 `error` 포트로 출력
 
 #### Multi Turn 모드 (mode = `multi_turn`)
 
@@ -231,8 +239,8 @@ LLM 응답의 `toolCalls`를 순회할 때 다음 로직을 적용:
    a. LLM이 조건 도구를 호출 → 해당 조건의 출력 포트(`{condition.id}`)로 분기
    b. 사용자가 `execution.end_conversation` 명령 전송 → `user_ended` 포트로 출력
    c. 대화 턴 수가 `maxTurns`에 도달 (0=무제한) → `max_turns` 포트로 출력
-   d. 사용자 응답 대기 시간이 `turnTimeout` 초과 → `timeout` 포트로 출력
-   e. LLM 오류 발생 → `error` 포트로 출력
+   d. 사용자 응답 대기 시간이 `turnTimeout` 초과 → `error` 포트로 출력
+   e. LLM 오류, rate limit 등 → `error` 포트로 출력
 
 4. **종료 시:**
    a. 종료 사유에 해당하는 포트로 출력
@@ -279,24 +287,14 @@ LLM 응답의 `toolCalls`를 순회할 때 다음 로직을 적용:
 }
 ```
 
-#### Single Turn 모드 — 타임아웃 (`timeout` 포트)
-
-```json
-{
-  "error": {
-    "code": "LLM_TIMEOUT",
-    "message": "LLM API 호출이 타임아웃되었습니다"
-  },
-  "metadata": { "model": "gpt-4o" }
-}
-```
-
 #### Single Turn 모드 — 오류 (`error` 포트)
 
+타임아웃, rate limit, LLM API 오류 등 모든 오류 상황에서 사용.
+
 ```json
 {
   "error": {
-    "code": "LLM_API_ERROR",
+    "code": "LLM_TIMEOUT | LLM_API_ERROR | LLM_RATE_LIMIT",
     "message": "오류 상세 메시지"
   },
   "metadata": { "model": "gpt-4o" }
@@ -357,19 +355,9 @@ LLM 응답의 `toolCalls`를 순회할 때 다음 로직을 적용:
 }
 ```
 
-#### Multi Turn 모드 — 타임아웃 (`timeout` 포트)
+#### Multi Turn 모드 — 오류/타임아웃 (`error` 포트)
 
-```json
-{
-  "response": "마지막 AI 응답 (있을 경우)",
-  "messages": [...],
-  "turnCount": 3,
-  "endReason": "timeout",
-  "metadata": { "..." }
-}
-```
-
-#### Multi Turn 모드 — 오류 (`error` 포트)
+타임아웃, rate limit, LLM API 오류 등 모든 오류 상황에서 사용.
 
 ```json
 {
@@ -377,14 +365,47 @@ LLM 응답의 `toolCalls`를 순회할 때 다음 로직을 적용:
   "turnCount": 3,
   "endReason": "error",
   "error": {
-    "code": "LLM_API_ERROR",
+    "code": "LLM_TIMEOUT | LLM_API_ERROR | LLM_RATE_LIMIT",
     "message": "오류 상세 메시지"
   },
   "metadata": { "..." }
 }
 ```
 
-`endReason` enum: `condition | user_ended | max_turns | timeout | error`
+`endReason` enum: `condition | user_ended | max_turns | error`
+
+### 디버그 데이터 (`_turnDebugHistory`)
+
+실행 결과에 포함되는 턴별 디버그 데이터. 프론트엔드 Conversation Inspector에서 각 LLM 호출의 요청/응답/토큰 사용량을 표시하는 데 사용.
+
+```json
+{
+  "_turnDebugHistory": [
+    {
+      "turnIndex": 1,
+      "llmCalls": [
+        {
+          "requestPayload": { "model": "gpt-4o", "messages": [...], "tools": [...] },
+          "responsePayload": { "model": "gpt-4o", "usage": { "inputTokens": 500, "outputTokens": 120 }, "toolCalls": [...] },
+          "durationMs": 1250
+        },
+        {
+          "requestPayload": { "...tool result 포함..." },
+          "responsePayload": { "...최종 응답..." },
+          "durationMs": 800
+        }
+      ],
+      "totalDurationMs": 2050
+    }
+  ]
+}
+```
+
+- 한 턴에서 function calling이 발생하면 `llmCalls` 배열에 여러 항목이 추가됨
+- 각 `llmCalls` 항목은 하나의 LLM API 호출에 대응
+- 프론트엔드에서 각 assistant 메시지를 해당 턴의 N번째 LLM 호출과 매칭하여 디버그 정보를 표시
+- 실행 결과에 항상 포함됨 (워크플로우 소유자만 실행 결과 조회 가능하므로 별도 접근 제어 불필요)
+- `requestPayload`에 시스템 프롬프트 및 전체 대화 이력이 포함될 수 있음에 유의
 
 ---
 
