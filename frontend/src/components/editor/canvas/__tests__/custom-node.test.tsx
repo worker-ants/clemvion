@@ -272,7 +272,6 @@ describe("CustomNode", () => {
       category: "ai",
     });
     expect(container.querySelector('[data-testid="handle-out"]')).toBeInTheDocument();
-    expect(container.querySelector('[data-testid="handle-timeout"]')).not.toBeInTheDocument();
     expect(container.querySelector('[data-testid="handle-error"]')).not.toBeInTheDocument();
   });
 
@@ -292,7 +291,6 @@ describe("CustomNode", () => {
     expect(container.querySelector('[data-testid="handle-out"]')).toBeInTheDocument();
     expect(container.querySelector('[data-testid="handle-cond-1"]')).toBeInTheDocument();
     expect(container.querySelector('[data-testid="handle-cond-2"]')).toBeInTheDocument();
-    expect(container.querySelector('[data-testid="handle-timeout"]')).toBeInTheDocument();
     expect(container.querySelector('[data-testid="handle-error"]')).toBeInTheDocument();
     // Port labels should be shown
     expect(screen.getByText("Refund")).toBeInTheDocument();
@@ -308,7 +306,6 @@ describe("CustomNode", () => {
     });
     // No conditions: backward compatible, just "out" port
     expect(container.querySelector('[data-testid="handle-out"]')).toBeInTheDocument();
-    expect(container.querySelector('[data-testid="handle-timeout"]')).not.toBeInTheDocument();
   });
 
   it("renders multi_turn ai_agent with conditions and no out port", () => {

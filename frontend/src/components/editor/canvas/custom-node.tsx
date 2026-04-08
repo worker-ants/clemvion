@@ -50,20 +50,18 @@ function CustomNodeComponent({ id, data, selected }: NodeProps<CustomNodeType>) 
 
       const mode = (data.config.mode as string) ?? "single_turn";
       if (mode === "multi_turn") {
-        // Multi Turn: condition ports + timeout + user_ended + max_turns + error (no "out")
+        // Multi Turn: condition ports + user_ended + max_turns + error (no "out")
         return [
           ...condPorts,
-          { id: "timeout", label: "Timeout", type: "error" as const },
           { id: "user_ended", label: "User Ended", type: "data" as const },
           { id: "max_turns", label: "Max Turns", type: "data" as const },
           { id: "error", label: "Error", type: "error" as const },
         ];
       }
-      // Single Turn: out + condition ports + timeout + error
+      // Single Turn: condition ports + out + error
       return [
-        { id: "out", label: "Output", type: "data" as const },
         ...condPorts,
-        { id: "timeout", label: "Timeout", type: "error" as const },
+        { id: "out", label: "Output", type: "data" as const },
         { id: "error", label: "Error", type: "error" as const },
       ];
     }
@@ -153,7 +151,7 @@ function CustomNodeComponent({ id, data, selected }: NodeProps<CustomNodeType>) 
 
       {/* Body with handles */}
       <div className="relative px-3 py-2">
-        {/* Input handles */}
+        {/* Input handles — aligned to center of body */}
         {inputs.map((port, index) => (
           <Handle
             key={port.id}
@@ -165,25 +163,6 @@ function CustomNodeComponent({ id, data, selected }: NodeProps<CustomNodeType>) 
               top: inputs.length === 1
                 ? "50%"
                 : `${((index + 1) / (inputs.length + 1)) * 100}%`,
-            }}
-          />
-        ))}
-
-        {/* Output handles */}
-        {outputs.map((port, index) => (
-          <Handle
-            key={port.id}
-            id={port.id}
-            type="source"
-            position={Position.Right}
-            className={cn(
-              "!h-2.5 !w-2.5 !border-2 !border-white",
-              port.type === "error" ? "!bg-red-400" : "!bg-green-400",
-            )}
-            style={{
-              top: outputs.length === 1
-                ? "50%"
-                : `${((index + 1) / (outputs.length + 1)) * 100}%`,
             }}
           />
         ))}
@@ -209,21 +188,46 @@ function CustomNodeComponent({ id, data, selected }: NodeProps<CustomNodeType>) 
           </Tooltip>
         )}
 
-        {/* Port labels for multi-output nodes */}
-        {hasMultipleOutputs && (
+        {/* Port labels with co-located output handles */}
+        {hasMultipleOutputs ? (
           <div className="flex flex-col gap-0.5">
             {outputs.map((port) => (
-              <div key={port.id} className="flex items-center justify-end">
+              <div key={port.id} className="relative flex items-center justify-end">
                 <span className="text-[10px] text-[hsl(var(--muted-foreground))]">
                   {port.label}
                 </span>
+                <Handle
+                  id={port.id}
+                  type="source"
+                  position={Position.Right}
+                  className={cn(
+                    "!h-2.5 !w-2.5 !border-2 !border-white",
+                    port.type === "error" ? "!bg-red-400" : "!bg-green-400",
+                  )}
+                  style={{ top: "50%", right: "-12px" }}
+                />
               </div>
             ))}
           </div>
+        ) : (
+          <>
+            {/* Single output handle — centered */}
+            {outputs.map((port) => (
+              <Handle
+                key={port.id}
+                id={port.id}
+                type="source"
+                position={Position.Right}
+                className={cn(
+                  "!h-2.5 !w-2.5 !border-2 !border-white",
+                  port.type === "error" ? "!bg-red-400" : "!bg-green-400",
+                )}
+                style={{ top: "50%" }}
+              />
+            ))}
+            {!showBodySummary && <div className="h-2" />}
+          </>
         )}
-
-        {/* Minimal body height for single output nodes */}
-        {!hasMultipleOutputs && !showBodySummary && <div className="h-2" />}
 
         {/* Execution status indicator */}
         {nodeStatus?.status === "completed" && (
