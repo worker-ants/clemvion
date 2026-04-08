@@ -38,9 +38,16 @@ export interface NodeResult {
 
 export type WaitingInteractionType = "form" | "buttons" | "ai_conversation";
 
+export interface ToolCallInfo {
+  name: string;
+  arguments?: string;
+}
+
 export interface ConversationItem {
   type: "user" | "assistant" | "tool";
   content: string;
+  /** Tool calls made by the assistant in this message (function calling) */
+  assistantToolCalls?: ToolCallInfo[];
   toolArgs?: unknown;
   toolResult?: unknown;
   toolStatus?: "success" | "error";
