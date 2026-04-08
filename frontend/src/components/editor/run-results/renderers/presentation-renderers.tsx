@@ -349,7 +349,7 @@ export function PresentationContent({
       return <JsonContent data={data} />;
   }
 
-  // Extract inline buttons from data.buttonConfig (present when node is waiting for button click)
+  // Extract inline buttons from data.buttonConfig or nodeOutput.buttonConfig
   const btnConfig = data.buttonConfig as Record<string, unknown> | undefined;
   const buttons = (btnConfig?.buttons ?? []) as Array<{
     id: string;
@@ -360,7 +360,7 @@ export function PresentationContent({
   }>;
   const isInteractive = !!(onPortButtonClick || onLinkButtonClick);
   // Determine which button was clicked (from button_click wrapper)
-  const clickedButtonLabel = raw.type === "button_click" ? (raw.buttonLabel as string | undefined) : undefined;
+  const selectedButtonId = raw.type === "button_click" ? (raw.buttonId as string | undefined) : undefined;
 
   return (
     <div className="space-y-3">
@@ -370,40 +370,36 @@ export function PresentationContent({
           Preview
         </p>
         {preview}
-        {/* Show clickable buttons during live execution */}
         {buttons.length > 0 && (
           <div className="mt-2 flex flex-wrap gap-2">
-            {buttons.map((btn) => (
-              <button
-                key={btn.id}
-                type="button"
-                disabled={!isInteractive}
-                className={cn(
-                  "inline-flex items-center rounded-md px-3 py-1 text-xs transition-colors",
-                  isInteractive
-                    ? "border border-[hsl(var(--input))] bg-[hsl(var(--secondary))] text-[hsl(var(--secondary-foreground))] hover:bg-[hsl(var(--secondary))]/80 cursor-pointer"
-                    : "border border-[hsl(var(--border))] text-[hsl(var(--muted-foreground))]",
-                )}
-                onClick={() => {
-                  if (btn.type === "link" && btn.url) {
-                    onLinkButtonClick?.(btn.url);
-                  } else {
-                    onPortButtonClick?.(btn.id);
-                  }
-                }}
-              >
-                {btn.label}
-              </button>
-            ))}
-          </div>
-        )}
-        {/* Show clicked button result (after execution completed) */}
-        {clickedButtonLabel && buttons.length === 0 && (
-          <div className="mt-2">
-            <p className="text-[10px] text-[hsl(var(--muted-foreground))] mb-1">Selected</p>
-            <span className="inline-flex items-center rounded-md px-3 py-1 text-xs border border-[hsl(var(--primary))] bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))]">
-              {clickedButtonLabel}
-            </span>
+            {buttons.map((btn) => {
+              const isSelected = selectedButtonId === btn.id;
+              return (
+                <button
+                  key={btn.id}
+                  type="button"
+                  disabled={!isInteractive && !isSelected}
+                  className={cn(
+                    "inline-flex items-center rounded-md px-3 py-1 text-xs transition-colors",
+                    isSelected
+                      ? "border border-[hsl(var(--primary))] bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))]"
+                      : isInteractive
+                        ? "border border-[hsl(var(--input))] bg-[hsl(var(--secondary))] text-[hsl(var(--secondary-foreground))] hover:bg-[hsl(var(--secondary))]/80 cursor-pointer"
+                        : "border border-[hsl(var(--border))] text-[hsl(var(--muted-foreground))]",
+                  )}
+                  onClick={() => {
+                    if (isSelected) return;
+                    if (btn.type === "link" && btn.url) {
+                      onLinkButtonClick?.(btn.url);
+                    } else {
+                      onPortButtonClick?.(btn.id);
+                    }
+                  }}
+                >
+                  {btn.label}
+                </button>
+              );
+            })}
           </div>
         )}
       </div>
