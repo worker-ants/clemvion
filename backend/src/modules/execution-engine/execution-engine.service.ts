@@ -1573,10 +1573,10 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
     let updatedOutput: Record<string, unknown>;
 
     // Strip internal fields from nodeOutput for downstream consumption
+    // Keep buttonConfig so the execution detail page can render all buttons
     const cleanNodeOutput = { ...nodeOutput };
     delete cleanNodeOutput.status;
     delete cleanNodeOutput.interactionType;
-    delete cleanNodeOutput.buttonConfig;
 
     if (click.type === 'button_click') {
       const buttonId = click.buttonId!;
