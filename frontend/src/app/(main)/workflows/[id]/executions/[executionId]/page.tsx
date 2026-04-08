@@ -8,7 +8,6 @@ import {
   CheckCircle,
   XCircle,
   Loader2,
-  MinusCircle,
   PauseCircle,
   Clock,
   ChevronLeft as ChevronLeftIcon,
@@ -35,8 +34,6 @@ function NodeStatusIcon({ status }: { status: string }) {
       return <CheckCircle className="h-4 w-4 text-green-500" />;
     case "failed":
       return <XCircle className="h-4 w-4 text-red-500" />;
-    case "skipped":
-      return <MinusCircle className="h-4 w-4 text-gray-400" />;
     case "waiting_for_input":
       return <PauseCircle className="h-4 w-4 text-amber-500" />;
     default:
@@ -55,8 +52,6 @@ function JsonViewer({ data }: { data: unknown }) {
   );
 }
 
-type TabId = "timeline" | "node-results";
-
 export default function ExecutionDetailPage({
   params,
 }: {
@@ -64,9 +59,6 @@ export default function ExecutionDetailPage({
 }) {
   const { id: workflowId, executionId } = use(params);
   const router = useRouter();
-
-  const [activeTab, setActiveTab] = useState<TabId>("timeline");
-  const [defaultSelectedNodeId, setDefaultSelectedNodeId] = useState<string | null>(null);
 
   const workflowQuery = useQuery({
     queryKey: ["workflow", workflowId],
@@ -108,9 +100,11 @@ export default function ExecutionDetailPage({
 
   const sortedNodeExecutions = useMemo(() => {
     if (!nodeExecutions) return [];
-    return [...nodeExecutions].sort(
-      (a, b) => new Date(a.startedAt).getTime() - new Date(b.startedAt).getTime(),
-    );
+    return [...nodeExecutions]
+      .filter((ne) => ne.status !== "skipped")
+      .sort(
+        (a, b) => new Date(a.startedAt).getTime() - new Date(b.startedAt).getTime(),
+      );
   }, [nodeExecutions]);
 
   const completedCount = sortedNodeExecutions.filter(
@@ -160,11 +154,6 @@ export default function ExecutionDetailPage({
       </div>
     );
   }
-
-  const tabs: { id: TabId; label: string }[] = [
-    { id: "timeline", label: "Timeline" },
-    { id: "node-results", label: "Node Results" },
-  ];
 
   return (
     <div className="space-y-6">
@@ -270,116 +259,18 @@ export default function ExecutionDetailPage({
         )}
       </div>
 
-      {/* Tabs */}
-      <div className="border-b border-[hsl(var(--border))]">
-        <div className="flex gap-4">
-          {tabs.map((tab) => (
-            <button
-              key={tab.id}
-              type="button"
-              className={cn(
-                "pb-2 text-sm font-medium transition-colors",
-                activeTab === tab.id
-                  ? "border-b-2 border-[hsl(var(--primary))] text-[hsl(var(--foreground))]"
-                  : "text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]",
-              )}
-              onClick={() => setActiveTab(tab.id)}
-            >
-              {tab.label}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* Tab Content */}
-      {activeTab === "timeline" && (
-        <TimelineTab
-          nodeExecutions={sortedNodeExecutions}
-          onNodeClick={(nodeId) => {
-            setDefaultSelectedNodeId(nodeId);
-            setActiveTab("node-results");
-          }}
-        />
-      )}
-
-      {activeTab === "node-results" && (
-        <NodeResultsTab
-          nodeExecutions={sortedNodeExecutions}
-          defaultSelectedNodeId={defaultSelectedNodeId}
-        />
-      )}
-    </div>
-  );
-}
-
-function TimelineTab({
-  nodeExecutions,
-  onNodeClick,
-}: {
-  nodeExecutions: NodeExecutionData[];
-  onNodeClick: (nodeId: string) => void;
-}) {
-  if (!nodeExecutions.length) {
-    return (
-      <p className="py-8 text-center text-[hsl(var(--muted-foreground))]">
-        No node executions recorded.
-      </p>
-    );
-  }
-
-  return (
-    <div className="space-y-0">
-      {nodeExecutions.map((ne, index) => (
-        <div key={ne.id} className="flex gap-4">
-          {/* Timeline line & dot */}
-          <div className="flex flex-col items-center">
-            <div className="flex h-8 w-8 shrink-0 items-center justify-center">
-              <NodeStatusIcon status={ne.status} />
-            </div>
-            {index < nodeExecutions.length - 1 && (
-              <div className="w-px flex-1 bg-[hsl(var(--border))]" />
-            )}
-          </div>
-
-          {/* Content */}
-          <button
-            type="button"
-            className={cn(
-              "mb-3 flex-1 rounded-md border p-3 text-left transition-colors hover:bg-[hsl(var(--muted))/0.5]",
-              ne.status === "failed"
-                ? "border-[hsl(var(--destructive))/0.5]"
-                : "border-[hsl(var(--border))]",
-            )}
-            onClick={() => onNodeClick(ne.nodeId)}
-          >
-            <div className="flex items-center justify-between">
-              <span className="font-medium text-sm">
-                {ne.node?.label ?? ne.nodeId}
-              </span>
-              <span className="text-xs text-[hsl(var(--muted-foreground))]">
-                {formatDuration(ne.durationMs)}
-              </span>
-            </div>
-            {ne.status === "failed" && ne.error?.message && (
-              <p className="mt-1 text-xs text-[hsl(var(--destructive))]">
-                {ne.error.message}
-              </p>
-            )}
-          </button>
-        </div>
-      ))}
+      {/* Node Results */}
+      <NodeResultsTab nodeExecutions={sortedNodeExecutions} />
     </div>
   );
 }
 
 function NodeResultsTab({
   nodeExecutions,
-  defaultSelectedNodeId,
 }: {
   nodeExecutions: NodeExecutionData[];
-  defaultSelectedNodeId: string | null;
 }) {
-  const [selectedNodeId, setSelectedNodeId] = useState<string | null>(defaultSelectedNodeId);
+  const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [nodeDetailTab, setNodeDetailTab] = useState<"input" | "output" | "error">("output");
 
   const selectedNode = useMemo(() => {

@@ -127,25 +127,21 @@ describe("ExecutionDetailPage", () => {
     expect(await screen.findByText(/2\/2 completed/)).toBeDefined();
   });
 
-  it("renders Timeline tab with node names", async () => {
+  it("renders node list with names", async () => {
     await renderPage();
     expect(await screen.findByText("Data Transform")).toBeDefined();
     expect(screen.getByText("API Call")).toBeDefined();
   });
 
-  it("switches to Node Results tab", async () => {
+  it("shows placeholder when no node is selected", async () => {
     await renderPage();
     await screen.findByText("Data Transform");
-
-    fireEvent.click(screen.getByText("Node Results"));
     expect(screen.getByText("Select a node to view details")).toBeDefined();
   });
 
-  it("shows node detail when clicking a node in Node Results", async () => {
+  it("shows node detail when clicking a node", async () => {
     await renderPage();
     await screen.findByText("Data Transform");
-
-    fireEvent.click(screen.getByText("Node Results"));
 
     const buttons = screen.getAllByRole("button");
     const transformButton = buttons.find(
@@ -164,14 +160,6 @@ describe("ExecutionDetailPage", () => {
     fireEvent.click(buttons[0]);
 
     expect(mockPush).toHaveBeenCalledWith("/workflows/wf-1/executions");
-  });
-
-  it("renders tabs for Timeline and Node Results", async () => {
-    await renderPage();
-    await screen.findByText("Completed");
-
-    expect(screen.getByText("Timeline")).toBeDefined();
-    expect(screen.getByText("Node Results")).toBeDefined();
   });
 });
 
