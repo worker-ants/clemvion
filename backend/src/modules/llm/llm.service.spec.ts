@@ -1,0 +1,193 @@
+import { BadRequestException } from '@nestjs/common';
+import { LlmService } from './llm.service';
+
+describe('LlmService', () => {
+  let service: LlmService;
+  let mockLlmConfigService: Record<string, jest.Mock>;
+  let mockClientFactory: Record<string, jest.Mock>;
+  let mockClient: Record<string, jest.Mock>;
+
+  beforeEach(() => {
+    mockClient = {
+      chat: jest.fn().mockResolvedValue({
+        content: 'response',
+        usage: { inputTokens: 10, outputTokens: 5, totalTokens: 15 },
+        model: 'gpt-4o',
+        finishReason: 'stop',
+      }),
+      embed: jest.fn().mockResolvedValue([[0.1, 0.2]]),
+      testConnection: jest.fn().mockResolvedValue(true),
+      listModels: jest.fn().mockResolvedValue([]),
+    };
+
+    mockLlmConfigService = {
+      getDecryptedApiKey: jest.fn().mockReturnValue('sk-decrypted-key'),
+      findEntity: jest.fn().mockResolvedValue({
+        id: 'config-1',
+        provider: 'openai',
+        defaultModel: 'gpt-4o',
+        apiKey: 'encrypted',
+      }),
+      findDefault: jest.fn().mockResolvedValue(null),
+    };
+
+    mockClientFactory = {
+      create: jest.fn().mockReturnValue(mockClient),
+    };
+
+    service = new LlmService(
+      mockLlmConfigService as never,
+      mockClientFactory as never,
+    );
+  });
+
+  describe('chat', () => {
+    it('should resolve config and call client.chat', async () => {
+      const config = {
+        id: 'config-1',
+        provider: 'openai',
+        defaultModel: 'gpt-4o',
+        apiKey: 'encrypted',
+      } as any;
+      const params = {
+        model: 'gpt-4o',
+        messages: [{ role: 'user' as const, content: 'Hello' }],
+      };
+
+      const result = await service.chat(config, params);
+
+      expect(mockLlmConfigService.getDecryptedApiKey).toHaveBeenCalledWith(
+        config,
+      );
+      expect(mockClientFactory.create).toHaveBeenCalledWith({
+        provider: 'openai',
+        apiKey: 'sk-decrypted-key',
+        defaultModel: 'gpt-4o',
+        baseUrl: undefined,
+      });
+      expect(mockClient.chat).toHaveBeenCalledWith(params);
+      expect(result.content).toBe('response');
+    });
+  });
+
+  describe('embed', () => {
+    it('should batch texts into groups of 20', async () => {
+      const config = {
+        provider: 'openai',
+        defaultModel: 'gpt-4o',
+        apiKey: 'encrypted',
+      } as any;
+
+      // Generate 45 texts to verify batching
+      const texts = Array.from({ length: 45 }, (_, i) => `text-${i}`);
+      mockClient.embed
+        .mockResolvedValueOnce(Array.from({ length: 20 }, () => [0.1]))
+        .mockResolvedValueOnce(Array.from({ length: 20 }, () => [0.2]))
+        .mockResolvedValueOnce(Array.from({ length: 5 }, () => [0.3]));
+
+      const result = await service.embed(config, texts);
+
+      expect(mockClient.embed).toHaveBeenCalledTimes(3);
+      expect(mockClient.embed).toHaveBeenNthCalledWith(
+        1,
+        texts.slice(0, 20),
+        undefined,
+      );
+      expect(mockClient.embed).toHaveBeenNthCalledWith(
+        2,
+        texts.slice(20, 40),
+        undefined,
+      );
+      expect(mockClient.embed).toHaveBeenNthCalledWith(
+        3,
+        texts.slice(40, 45),
+        undefined,
+      );
+      expect(result).toHaveLength(45);
+    });
+  });
+
+  describe('testConnection', () => {
+    it('should return success on successful connection', async () => {
+      const result = await service.testConnection('config-1', 'ws-1');
+      expect(result).toEqual({ success: true });
+      expect(mockClient.testConnection).toHaveBeenCalled();
+    });
+
+    it('should return failure on error', async () => {
+      mockClient.testConnection.mockRejectedValue(
+        new Error('Connection refused'),
+      );
+
+      const result = await service.testConnection('config-1', 'ws-1');
+      expect(result).toEqual({
+        success: false,
+        error: 'Connection refused',
+      });
+    });
+  });
+
+  describe('resolveConfig', () => {
+    it('should use provided configId', async () => {
+      const result = await service.resolveConfig('config-1', 'ws-1');
+      expect(mockLlmConfigService.findEntity).toHaveBeenCalledWith(
+        'config-1',
+        'ws-1',
+      );
+      expect(result.id).toBe('config-1');
+    });
+
+    it('should fall back to default config when no configId', async () => {
+      const defaultConfig = {
+        id: 'default-1',
+        provider: 'openai',
+        isDefault: true,
+      };
+      mockLlmConfigService.findDefault.mockResolvedValue(defaultConfig);
+
+      const result = await service.resolveConfig(undefined, 'ws-1');
+      expect(mockLlmConfigService.findDefault).toHaveBeenCalledWith('ws-1');
+      expect(result.id).toBe('default-1');
+    });
+
+    it('should throw when no config available', async () => {
+      mockLlmConfigService.findDefault.mockResolvedValue(null);
+
+      await expect(service.resolveConfig(undefined, 'ws-1')).rejects.toThrow(
+        BadRequestException,
+      );
+    });
+  });
+
+  describe('withRetry', () => {
+    it('should retry on 429 errors', async () => {
+      let callCount = 0;
+      mockClient.chat.mockImplementation(() => {
+        callCount++;
+        if (callCount <= 2) {
+          throw new Error('429 Too Many Requests');
+        }
+        return {
+          content: 'success',
+          usage: { inputTokens: 10, outputTokens: 5, totalTokens: 15 },
+          model: 'gpt-4o',
+          finishReason: 'stop',
+        };
+      });
+
+      const config = {
+        provider: 'openai',
+        defaultModel: 'gpt-4o',
+        apiKey: 'encrypted',
+      } as any;
+
+      const result = await service.chat(config, {
+        model: 'gpt-4o',
+        messages: [{ role: 'user', content: 'test' }],
+      });
+
+      expect(callCount).toBe(3);
+      expect(result.content).toBe('success');
+    }, 30000);
+  });
+});

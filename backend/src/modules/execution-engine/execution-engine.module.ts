@@ -14,12 +14,16 @@ import { ExpressionResolverService } from './expression/expression-resolver.serv
 import { LoopExecutor } from './containers/loop-executor';
 import { ForEachExecutor } from './containers/foreach-executor';
 import { WebsocketModule } from '../websocket/websocket.module';
+import { LlmModule } from '../llm/llm.module';
+import { KnowledgeBaseModule } from '../knowledge-base/knowledge-base.module';
 
 @Module({
   imports: [
     ConfigModule,
     TypeOrmModule.forFeature([Execution, NodeExecution, Node, Edge, Workflow]),
     forwardRef(() => WebsocketModule),
+    LlmModule,
+    KnowledgeBaseModule,
   ],
   providers: [
     ExecutionEngineService,

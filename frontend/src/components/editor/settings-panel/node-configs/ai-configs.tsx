@@ -2,6 +2,8 @@
 
 import { SelectField, NumberField, CheckboxField, SectionTitle } from "./shared";
 import { ExpressionInput } from "@/components/editor/expression";
+import { LlmConfigSelector } from "@/components/llm-config/llm-config-selector";
+import { KbSelector } from "@/components/knowledge-base/kb-selector";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Plus, X } from "lucide-react";
@@ -13,11 +15,15 @@ type OnChange = (config: Config) => void;
 export function AiAgentConfig({ config, onChange }: { config: Config; onChange: OnChange }) {
   return (
     <div className="flex flex-col gap-3">
+      <LlmConfigSelector
+        value={(config.llmConfigId as string) ?? ""}
+        onChange={(v) => onChange({ ...config, llmConfigId: v })}
+      />
       <ExpressionInput
-        label="Model"
+        label="Model Override"
         value={(config.model as string) ?? ""}
         onChange={(v) => onChange({ ...config, model: v })}
-        placeholder="e.g. gpt-4, claude-3-opus"
+        placeholder="Leave empty for provider default"
       />
       <ExpressionInput multiline
         label="System Prompt"
@@ -54,6 +60,29 @@ export function AiAgentConfig({ config, onChange }: { config: Config; onChange: 
           rows={4}
         />
       )}
+
+      <SectionTitle>Knowledge Base (RAG)</SectionTitle>
+      <KbSelector
+        value={(config.knowledgeBases as string[]) ?? []}
+        onChange={(v) => onChange({ ...config, knowledgeBases: v })}
+      />
+      <NumberField
+        label="RAG Top-K"
+        value={(config.ragTopK as number) ?? 5}
+        onChange={(v) => onChange({ ...config, ragTopK: v })}
+        min={1}
+        max={20}
+        hint="Number of chunks to retrieve"
+      />
+      <NumberField
+        label="RAG Threshold"
+        value={(config.ragThreshold as number) ?? 0.7}
+        onChange={(v) => onChange({ ...config, ragThreshold: v })}
+        min={0}
+        max={1}
+        hint="Minimum similarity score (0-1)"
+      />
+
       <SectionTitle>Advanced</SectionTitle>
       <NumberField
         label="Temperature"
@@ -115,11 +144,15 @@ export function TextClassifierConfig({ config, onChange }: { config: Config; onC
 
   return (
     <div className="flex flex-col gap-3">
+      <LlmConfigSelector
+        value={(config.llmConfigId as string) ?? ""}
+        onChange={(v) => onChange({ ...config, llmConfigId: v })}
+      />
       <ExpressionInput
-        label="Model"
+        label="Model Override"
         value={(config.model as string) ?? ""}
         onChange={(v) => onChange({ ...config, model: v })}
-        placeholder="e.g. gpt-4"
+        placeholder="Leave empty for provider default"
       />
       <ExpressionInput
         label="Input Field"
@@ -189,11 +222,15 @@ export function InformationExtractorConfig({ config, onChange }: { config: Confi
 
   return (
     <div className="flex flex-col gap-3">
+      <LlmConfigSelector
+        value={(config.llmConfigId as string) ?? ""}
+        onChange={(v) => onChange({ ...config, llmConfigId: v })}
+      />
       <ExpressionInput
-        label="Model"
+        label="Model Override"
         value={(config.model as string) ?? ""}
         onChange={(v) => onChange({ ...config, model: v })}
-        placeholder="e.g. gpt-4"
+        placeholder="Leave empty for provider default"
       />
       <ExpressionInput
         label="Input Field"

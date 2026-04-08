@@ -10,6 +10,7 @@ import {
   s3Config,
   jwtConfig,
   mailConfig,
+  llmConfig,
 } from './common/config';
 import { GlobalExceptionFilter } from './common/filters/http-exception.filter';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
@@ -37,6 +38,9 @@ import { FoldersModule } from './modules/folders/folders.module';
 import { ExecutionEngineModule } from './modules/execution-engine/execution-engine.module';
 import { WebsocketModule } from './modules/websocket/websocket.module';
 import { MailModule } from './modules/mail/mail.module';
+import { LlmConfigModule } from './modules/llm-config/llm-config.module';
+import { LlmModule } from './modules/llm/llm.module';
+import { KnowledgeBaseModule } from './modules/knowledge-base/knowledge-base.module';
 
 // Entity imports
 import { User } from './modules/users/entities/user.entity';
@@ -56,6 +60,10 @@ import { WorkflowVersion } from './modules/workflow-versions/entities/workflow-v
 import { Notification } from './modules/notifications/entities/notification.entity';
 import { AuditLog } from './modules/audit-logs/entities/audit-log.entity';
 import { RefreshToken } from './modules/auth/entities/refresh-token.entity';
+import { LlmConfig } from './modules/llm-config/entities/llm-config.entity';
+import { KnowledgeBase } from './modules/knowledge-base/entities/knowledge-base.entity';
+import { Document } from './modules/knowledge-base/entities/document.entity';
+import { DocumentChunk } from './modules/knowledge-base/entities/document-chunk.entity';
 
 @Module({
   imports: [
@@ -69,6 +77,7 @@ import { RefreshToken } from './modules/auth/entities/refresh-token.entity';
         s3Config,
         jwtConfig,
         mailConfig,
+        llmConfig,
       ],
       envFilePath: '.env',
     }),
@@ -101,6 +110,10 @@ import { RefreshToken } from './modules/auth/entities/refresh-token.entity';
           Notification,
           AuditLog,
           RefreshToken,
+          LlmConfig,
+          KnowledgeBase,
+          Document,
+          DocumentChunk,
         ],
         synchronize: false,
         logging: process.env.NODE_ENV === 'development',
@@ -134,6 +147,9 @@ import { RefreshToken } from './modules/auth/entities/refresh-token.entity';
     ExecutionEngineModule,
     WebsocketModule,
     MailModule,
+    LlmConfigModule,
+    LlmModule,
+    KnowledgeBaseModule,
   ],
   providers: [
     { provide: APP_FILTER, useClass: GlobalExceptionFilter },

@@ -12,6 +12,8 @@ import {
   Puzzle,
   Lock,
   BarChart3,
+  BookOpen,
+  Brain,
   ChevronLeft,
   ChevronRight,
   User,
@@ -33,6 +35,8 @@ const navItems = [
   { label: "Triggers", href: "/triggers", icon: Zap },
   { label: "Schedule", href: "/schedules", icon: Calendar },
   { label: "Integration", href: "/integrations", icon: Puzzle },
+  { label: "Knowledge Base", href: "/knowledge-bases", icon: BookOpen },
+  { label: "LLM Config", href: "/llm-configs", icon: Brain },
   { label: "Authentication", href: "/authentication", icon: Lock },
   { label: "Statistics", href: "/statistics", icon: BarChart3 },
 ] as const;

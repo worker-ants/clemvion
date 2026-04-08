@@ -45,6 +45,11 @@ export const NODE_DEFINITIONS: NodeDefinition[] = [
   // ===== FLOW (1) =====
   { type: "workflow", category: "flow", label: "Sub-Workflow", description: "Call another workflow", icon: "Workflow", color: CATEGORY_COLORS.flow, inputs: [{ id: "in", label: "Input", type: "data" }], outputs: [{ id: "out", label: "Output", type: "data" }] },
 
+  // ===== AI (3) =====
+  { type: "ai_agent", category: "ai", label: "AI Agent", description: "Chat with LLM using RAG context", icon: "Brain", color: CATEGORY_COLORS.ai, inputs: [{ id: "in", label: "Input", type: "data" }], outputs: [{ id: "out", label: "Output", type: "data" }] },
+  { type: "text_classifier", category: "ai", label: "Text Classifier", description: "Classify text into categories", icon: "Tags", color: CATEGORY_COLORS.ai, inputs: [{ id: "in", label: "Input", type: "data" }], outputs: [{ id: "class_0", label: "Class 1", type: "data" }, { id: "class_1", label: "Class 2", type: "data" }, { id: "fallback", label: "Fallback", type: "data" }] },
+  { type: "information_extractor", category: "ai", label: "Information Extractor", description: "Extract structured data from text", icon: "FileSearch", color: CATEGORY_COLORS.ai, inputs: [{ id: "in", label: "Input", type: "data" }], outputs: [{ id: "out", label: "Output", type: "data" }] },
+
   // ===== INTEGRATION (4) =====
   { type: "http_request", category: "integration", label: "HTTP Request", description: "Make HTTP requests", icon: "Globe", color: CATEGORY_COLORS.integration, inputs: [{ id: "in", label: "Input", type: "data" }], outputs: [{ id: "success", label: "Success", type: "data" }, { id: "error", label: "Error", type: "error" }] },
   { type: "database_query", category: "integration", label: "Database", description: "Execute SQL queries", icon: "Database", color: CATEGORY_COLORS.integration, inputs: [{ id: "in", label: "Input", type: "data" }], outputs: [{ id: "out", label: "Output", type: "data" }] },
@@ -76,6 +81,7 @@ export const CATEGORIES = [
   { id: "trigger", label: "Trigger", icon: "Zap" },
   { id: "logic", label: "Logic", icon: "GitBranch" },
   { id: "flow", label: "Flow", icon: "Workflow" },
+  { id: "ai", label: "AI", icon: "Sparkles" },
   { id: "integration", label: "Integration", icon: "Puzzle" },
   { id: "data", label: "Data", icon: "Database" },
   { id: "presentation", label: "Presentation", icon: "Layout" },

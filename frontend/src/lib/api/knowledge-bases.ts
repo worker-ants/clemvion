@@ -1,0 +1,98 @@
+import { apiClient } from "./client";
+
+export interface KnowledgeBaseData {
+  id: string;
+  name: string;
+  description?: string;
+  embeddingModel: string;
+  chunkSize: number;
+  chunkOverlap: number;
+  documentCount: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface DocumentData {
+  id: string;
+  knowledgeBaseId: string;
+  name: string;
+  fileType: string;
+  fileUrl: string;
+  fileSize: number;
+  embeddingStatus: "pending" | "processing" | "completed" | "error";
+  chunkCount: number;
+  tags: string[];
+  metadata: Record<string, unknown>;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export const knowledgeBasesApi = {
+  async getAll(params?: { page?: number; limit?: number; search?: string }) {
+    const { data } = await apiClient.get("/knowledge-bases", { params });
+    return data;
+  },
+
+  async getById(id: string) {
+    const { data } = await apiClient.get(`/knowledge-bases/${id}`);
+    return data;
+  },
+
+  async create(payload: {
+    name: string;
+    description?: string;
+    embeddingModel?: string;
+    chunkSize?: number;
+    chunkOverlap?: number;
+  }) {
+    const { data } = await apiClient.post("/knowledge-bases", payload);
+    return data;
+  },
+
+  async update(
+    id: string,
+    payload: Partial<{
+      name: string;
+      description: string;
+      chunkSize: number;
+      chunkOverlap: number;
+    }>,
+  ) {
+    const { data } = await apiClient.patch(`/knowledge-bases/${id}`, payload);
+    return data;
+  },
+
+  async remove(id: string) {
+    await apiClient.delete(`/knowledge-bases/${id}`);
+  },
+
+  // Documents
+  async getDocuments(kbId: string, params?: { page?: number; limit?: number }) {
+    const { data } = await apiClient.get(`/knowledge-bases/${kbId}/documents`, {
+      params,
+    });
+    return data;
+  },
+
+  async uploadDocument(kbId: string, file: File) {
+    const formData = new FormData();
+    formData.append("file", file);
+    const { data } = await apiClient.post(
+      `/knowledge-bases/${kbId}/documents`,
+      formData,
+      { headers: { "Content-Type": "multipart/form-data" } },
+    );
+    return data;
+  },
+
+  async removeDocument(kbId: string, docId: string) {
+    await apiClient.delete(`/knowledge-bases/${kbId}/documents/${docId}`);
+  },
+
+  async reEmbed(kbId: string, docId: string) {
+    const { data } = await apiClient.post(
+      `/knowledge-bases/${kbId}/documents/${docId}/re-embed`,
+    );
+    return data;
+  },
+};
