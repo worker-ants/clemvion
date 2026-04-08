@@ -203,7 +203,7 @@ function ChartContent({ data }: { data: Record<string, unknown> }) {
   return <JsonContent data={data} />;
 }
 
-function TemplateContent({ data }: { data: Record<string, unknown> }) {
+function TemplateContent({ data, previewOnly = false }: { data: Record<string, unknown>; previewOnly?: boolean }) {
   // Backend returns { type, format, content }
   const outputFormat = (data.format ?? data.outputFormat) as string | undefined;
   const content = (data.content ?? data.rendered) as string | undefined;
@@ -247,12 +247,14 @@ function TemplateContent({ data }: { data: Record<string, unknown> }) {
         </div>
       </div>
       {/* Debug data */}
-      <div>
-        <p className="text-xs font-medium text-[hsl(var(--muted-foreground))] mb-1">
-          Output Data
-        </p>
-        <JsonContent data={data} />
-      </div>
+      {!previewOnly && (
+        <div>
+          <p className="text-xs font-medium text-[hsl(var(--muted-foreground))] mb-1">
+            Output Data
+          </p>
+          <JsonContent data={data} />
+        </div>
+      )}
     </div>
   );
 }
@@ -302,12 +304,15 @@ interface PresentationContentProps {
   result: NodeResult;
   onPortButtonClick?: (buttonId: string) => void;
   onLinkButtonClick?: (url: string) => void;
+  /** When true, only render the visual preview without the raw Output Data JSON section */
+  previewOnly?: boolean;
 }
 
 export function PresentationContent({
   result,
   onPortButtonClick,
   onLinkButtonClick,
+  previewOnly = false,
 }: PresentationContentProps) {
   const raw = result.outputData as Record<string, unknown>;
   if (!raw || typeof raw !== "object") return <JsonContent data={raw} />;
@@ -320,7 +325,7 @@ export function PresentationContent({
 
   // Template already includes its own debug data section
   if (result.nodeType === "template") {
-    return <TemplateContent data={data} />;
+    return <TemplateContent data={data} previewOnly={previewOnly} />;
   }
 
   let preview: React.ReactNode;
@@ -354,6 +359,8 @@ export function PresentationContent({
     style?: string;
   }>;
   const isInteractive = !!(onPortButtonClick || onLinkButtonClick);
+  // Determine which button was clicked (from button_click wrapper)
+  const clickedButtonLabel = raw.type === "button_click" ? (raw.buttonLabel as string | undefined) : undefined;
 
   return (
     <div className="space-y-3">
@@ -363,6 +370,7 @@ export function PresentationContent({
           Preview
         </p>
         {preview}
+        {/* Show clickable buttons during live execution */}
         {buttons.length > 0 && (
           <div className="mt-2 flex flex-wrap gap-2">
             {buttons.map((btn) => (
@@ -389,14 +397,25 @@ export function PresentationContent({
             ))}
           </div>
         )}
+        {/* Show clicked button result (after execution completed) */}
+        {clickedButtonLabel && buttons.length === 0 && (
+          <div className="mt-2">
+            <p className="text-[10px] text-[hsl(var(--muted-foreground))] mb-1">Selected</p>
+            <span className="inline-flex items-center rounded-md px-3 py-1 text-xs border border-[hsl(var(--primary))] bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))]">
+              {clickedButtonLabel}
+            </span>
+          </div>
+        )}
       </div>
       {/* Debug data */}
-      <div>
-        <p className="text-xs font-medium text-[hsl(var(--muted-foreground))] mb-1">
-          Output Data
-        </p>
-        <JsonContent data={data} />
-      </div>
+      {!previewOnly && (
+        <div>
+          <p className="text-xs font-medium text-[hsl(var(--muted-foreground))] mb-1">
+            Output Data
+          </p>
+          <JsonContent data={data} />
+        </div>
+      )}
     </div>
   );
 }
