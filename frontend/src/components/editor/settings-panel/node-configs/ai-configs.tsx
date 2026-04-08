@@ -13,8 +13,19 @@ type OnChange = (config: Config) => void;
 
 // ===== AI Agent =====
 export function AiAgentConfig({ config, onChange }: { config: Config; onChange: OnChange }) {
+  const mode = (config.mode as string) ?? "single_turn";
+
   return (
     <div className="flex flex-col gap-3">
+      <SelectField
+        label="Mode"
+        value={mode}
+        onChange={(v) => onChange({ ...config, mode: v })}
+        options={[
+          { value: "single_turn", label: "Single Turn" },
+          { value: "multi_turn", label: "Multi Turn (Conversation)" },
+        ]}
+      />
       <LlmConfigSelector
         value={(config.llmConfigId as string) ?? ""}
         onChange={(v) => onChange({ ...config, llmConfigId: v })}
@@ -122,6 +133,25 @@ export function AiAgentConfig({ config, onChange }: { config: Config; onChange: 
           onChange={(v) => onChange({ ...config, historyCount: v })}
           min={1}
         />
+      )}
+      {mode === "multi_turn" && (
+        <>
+          <SectionTitle>Multi Turn Settings</SectionTitle>
+          <NumberField
+            label="Max Turns"
+            value={(config.maxTurns as number) ?? 20}
+            onChange={(v) => onChange({ ...config, maxTurns: v })}
+            min={0}
+            hint="0 = unlimited"
+          />
+          <NumberField
+            label="Turn Timeout (sec)"
+            value={(config.turnTimeout as number) ?? 1800}
+            onChange={(v) => onChange({ ...config, turnTimeout: v })}
+            min={1}
+            hint="Max wait time for user response"
+          />
+        </>
       )}
     </div>
   );

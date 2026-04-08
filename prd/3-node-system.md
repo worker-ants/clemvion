@@ -179,6 +179,10 @@
 | ND-AG-08 | 응답 형식 지정 (텍스트, JSON 등) | 필수 | 2 |
 | ND-AG-09 | 스트리밍 응답 지원 | 권장 | 2 |
 | ND-AG-10 | Tool Area를 통한 도구 연결 — 캔버스에서 노드를 드래그하여 AI Agent의 Tool Area에 등록 | 필수 | 2 |
+| ND-AG-11 | 실행 모드 선택 — Single Turn(단일 호출) / Multi Turn(대화형 블로킹) 모드 지원 | 필수 | 2 |
+| ND-AG-12 | Multi Turn 모드 시 워크플로우 실행을 일시 정지(blocking)하고, 사용자와 대화형 인터랙션 제공 | 필수 | 2 |
+| ND-AG-13 | Multi Turn 모드의 종료 조건 설정 — 최대 턴 수, 타임아웃, 사용자 명시적 종료 | 필수 | 2 |
+| ND-AG-14 | Multi Turn 모드에서 대화 중 Tool Use 및 RAG 검색 지속 지원 | 필수 | 2 |
 
 ### 6.2 Text Classifier
 

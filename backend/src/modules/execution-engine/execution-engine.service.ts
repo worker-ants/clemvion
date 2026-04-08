@@ -448,6 +448,13 @@ export class ExecutionEngineService implements OnModuleInit {
               context,
               graphEdges,
             );
+          } else if (nodeOutput.interactionType === 'ai_conversation') {
+            await this.waitForAiConversation(
+              savedExecution,
+              executionId,
+              node,
+              context,
+            );
           }
         }
 
@@ -691,6 +698,255 @@ export class ExecutionEngineService implements OnModuleInit {
     }
     this.pendingContinuations.delete(executionId);
     pending.resolve({ type: 'button_click', buttonId });
+  }
+
+  /**
+   * Submit a user message in a multi-turn AI conversation.
+   */
+  continueAiConversation(executionId: string, message: string): void {
+    const pending = this.pendingContinuations.get(executionId);
+    if (!pending) {
+      throw new Error(`No pending continuation for execution: ${executionId}`);
+    }
+    this.pendingContinuations.delete(executionId);
+    pending.resolve({ type: 'ai_message', message });
+  }
+
+  /**
+   * End a multi-turn AI conversation.
+   */
+  endAiConversation(executionId: string): void {
+    const pending = this.pendingContinuations.get(executionId);
+    if (!pending) {
+      throw new Error(`No pending continuation for execution: ${executionId}`);
+    }
+    this.pendingContinuations.delete(executionId);
+    pending.resolve({ type: 'ai_end_conversation' });
+  }
+
+  /**
+   * Pause execution at an AI Agent node in multi-turn mode.
+   * Loops: emit AI response → wait for user message → process → repeat.
+   * Exits when user ends conversation, maxTurns is reached, or timeout occurs.
+   */
+  private async waitForAiConversation(
+    savedExecution: Execution,
+    executionId: string,
+    node: Node,
+    context: ExecutionContext,
+  ): Promise<void> {
+    const nodeOutput = context.nodeOutputCache[node.id] as Record<
+      string,
+      unknown
+    >;
+    let multiTurnState = nodeOutput._multiTurnState as Record<string, unknown>;
+    const turnTimeout = (multiTurnState.turnTimeout as number) ?? 1800;
+    const timeoutMs = turnTimeout * 1000;
+
+    // Update execution status to waiting
+    await this.updateExecutionStatus(
+      savedExecution,
+      ExecutionStatus.WAITING_FOR_INPUT,
+    );
+
+    const nodeExec = await this.nodeExecutionRepository.findOne({
+      where: { executionId, nodeId: node.id },
+      order: { startedAt: 'DESC' },
+    });
+    if (nodeExec) {
+      nodeExec.status = NodeExecutionStatus.WAITING_FOR_INPUT;
+      await this.nodeExecutionRepository.save(nodeExec);
+    }
+
+    // Emit initial waiting event with the first AI response
+    // Filter system prompts from client-facing messages
+    const initialConvConfig = nodeOutput.conversationConfig as Record<
+      string,
+      unknown
+    >;
+    const initialClientMessages = (
+      initialConvConfig.messages as Array<Record<string, unknown>>
+    ).filter((m) => m.role !== 'system');
+    this.websocketService.emitExecutionEvent(
+      executionId,
+      ExecutionEventType.EXECUTION_WAITING_FOR_INPUT,
+      {
+        status: ExecutionStatus.WAITING_FOR_INPUT,
+        waitingNodeId: node.id,
+        waitingNodeType: node.type,
+        nodeOutput: {
+          interactionType: 'ai_conversation',
+          conversationConfig: {
+            ...initialConvConfig,
+            messages: initialClientMessages,
+          },
+        },
+      },
+    );
+
+    // Conversation loop
+    let conversationEnded = false;
+    while (!conversationEnded) {
+      // Wait for user message or end signal
+      let turnTimer: ReturnType<typeof setTimeout> | undefined;
+      const userData = await new Promise<unknown>((resolve, reject) => {
+        this.pendingContinuations.set(executionId, {
+          nodeId: node.id,
+          resolve,
+          reject,
+        });
+
+        turnTimer = setTimeout(() => {
+          if (this.pendingContinuations.has(executionId)) {
+            this.pendingContinuations.delete(executionId);
+            resolve({ type: 'ai_timeout' });
+          }
+        }, timeoutMs);
+      });
+      if (turnTimer) clearTimeout(turnTimer);
+
+      const action = userData as Record<string, unknown>;
+
+      if (
+        action.type === 'ai_end_conversation' ||
+        action.type === 'ai_timeout'
+      ) {
+        // End conversation
+        const endReason =
+          action.type === 'ai_timeout' ? 'timeout' : 'user_ended';
+
+        const handler = this.handlerRegistry.get(
+          'ai_agent',
+        ) as unknown as AiAgentHandler;
+        const messages = multiTurnState.messages as Array<
+          Record<string, unknown>
+        >;
+        const lastMessage =
+          messages.length > 0
+            ? (messages[messages.length - 1].content as string) || ''
+            : '';
+
+        const finalOutput = handler.buildMultiTurnFinalOutput(
+          messages as never,
+          lastMessage,
+          multiTurnState.turnCount as number,
+          endReason,
+          {
+            model: multiTurnState.model as string,
+            totalInputTokens: multiTurnState.totalInputTokens as number,
+            totalOutputTokens: multiTurnState.totalOutputTokens as number,
+            toolCalls: multiTurnState.toolCalls as number,
+            ragSources: multiTurnState.ragSources as unknown[],
+          },
+        );
+
+        this.contextService.setNodeOutput(
+          executionId,
+          node.id,
+          finalOutput as Record<string, unknown>,
+        );
+        conversationEnded = true;
+      } else if (action.type === 'ai_message') {
+        // Process user message
+        const handler = this.handlerRegistry.get(
+          'ai_agent',
+        ) as unknown as AiAgentHandler;
+        const result = await handler.processMultiTurnMessage(
+          action.message as string,
+          multiTurnState,
+        );
+
+        const resultObj = result as Record<string, unknown>;
+
+        if (resultObj.status === 'waiting_for_input') {
+          // Update state for next turn
+          multiTurnState = resultObj._multiTurnState as Record<string, unknown>;
+
+          // Emit AI response event (filter system prompts from client)
+          const convConfig = resultObj.conversationConfig as Record<
+            string,
+            unknown
+          >;
+          const clientMessages = (
+            convConfig.messages as Array<Record<string, unknown>>
+          ).filter((m) => m.role !== 'system');
+          this.websocketService.emitExecutionEvent(
+            executionId,
+            'execution.ai_message' as ExecutionEventType,
+            {
+              nodeId: node.id,
+              message: convConfig.message,
+              turnCount: convConfig.turnCount,
+              messages: clientMessages,
+            },
+          );
+
+          // Emit waiting_for_input again (filter system prompts)
+          const nextConvConfig = resultObj.conversationConfig as Record<
+            string,
+            unknown
+          >;
+          const nextClientMessages = (
+            nextConvConfig.messages as Array<Record<string, unknown>>
+          ).filter((m) => m.role !== 'system');
+          this.websocketService.emitExecutionEvent(
+            executionId,
+            ExecutionEventType.EXECUTION_WAITING_FOR_INPUT,
+            {
+              status: ExecutionStatus.WAITING_FOR_INPUT,
+              waitingNodeId: node.id,
+              waitingNodeType: node.type,
+              nodeOutput: {
+                interactionType: 'ai_conversation',
+                conversationConfig: {
+                  ...nextConvConfig,
+                  messages: nextClientMessages,
+                },
+              },
+            },
+          );
+        } else {
+          // maxTurns reached — conversation ended
+          this.contextService.setNodeOutput(executionId, node.id, resultObj);
+          conversationEnded = true;
+        }
+      }
+    }
+
+    // Update node execution to completed
+    if (nodeExec) {
+      nodeExec.status = NodeExecutionStatus.COMPLETED;
+      // Strip internal state from persisted output
+      const finalOutput = {
+        ...(context.nodeOutputCache[node.id] as Record<string, unknown>),
+      };
+      delete finalOutput._multiTurnState;
+      nodeExec.outputData = finalOutput;
+      nodeExec.finishedAt = new Date();
+      nodeExec.durationMs =
+        nodeExec.finishedAt.getTime() - nodeExec.startedAt.getTime();
+      await this.nodeExecutionRepository.save(nodeExec);
+      this.websocketService.emitNodeEvent(
+        executionId,
+        node.id,
+        NodeEventType.NODE_COMPLETED,
+        {
+          status: NodeExecutionStatus.COMPLETED,
+          duration: nodeExec.durationMs,
+          nodeType: node.type,
+          nodeLabel: node.label ?? node.type,
+          output: nodeExec.outputData,
+        },
+      );
+    }
+
+    // Transition back to RUNNING
+    await this.updateExecutionStatus(savedExecution, ExecutionStatus.RUNNING);
+    this.websocketService.emitExecutionEvent(
+      executionId,
+      ExecutionEventType.EXECUTION_RESUMED,
+      { status: ExecutionStatus.RUNNING },
+    );
   }
 
   /**

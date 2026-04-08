@@ -22,7 +22,7 @@ pending → running ──┤                     └─ cancelled
 |------|------|-----------|
 | `pending` | 실행 요청됨, Worker 할당 대기 | 트리거/수동 실행 시 생성 |
 | `running` | 실행 중 | Worker가 태스크 소비 시 |
-| `waiting_for_input` | Form 노드에서 사용자 입력 대기 중 또는 버튼이 설정된 Presentation 노드에서 사용자 인터랙션 대기 중 | Form 노드 도달 시 또는 버튼이 설정된 Presentation 노드(Carousel, Table, Chart, Template) 도달 시 |
+| `waiting_for_input` | 사용자 입력 대기 중 — Form 노드, 버튼이 설정된 Presentation 노드, 또는 AI Agent Multi Turn 대화 입력 대기 | Form 노드 도달, 버튼이 설정된 Presentation 노드 도달, 또는 AI Agent Multi Turn 대화 턴 대기 시 |
 | `completed` | 정상 완료 | 모든 노드 실행 완료 |
 | `failed` | 실패 | 노드 에러 + Stop Workflow 정책, 또는 시스템 에러 |
 | `cancelled` | 사용자 취소 | 사용자가 실행 중단 요청 |
@@ -36,8 +36,8 @@ pending → running ──┤                     └─ cancelled
 | running | completed | 정상 종료 |
 | running | failed | 에러 발생 |
 | running | cancelled | 사용자 취소 |
-| running | waiting_for_input | Form 노드 도달 또는 버튼이 설정된 Presentation 노드 도달 |
-| waiting_for_input | running | 사용자 폼 ���출 또는 버튼 클릭 (실행 재개) |
+| running | waiting_for_input | Form 노드 도달, 버튼이 설정된 Presentation 노드 도달, 또는 AI Agent Multi Turn 대화 턴 대기 |
+| waiting_for_input | running | 사용자 폼 제출, 버튼 클릭, 또는 AI 대화 메시지 수신/대화 종료 (실행 재개) |
 | waiting_for_input | cancelled | 사용자 취소 또는 타임아웃 |
 
 ### 1.2 NodeExecution 상태
@@ -50,14 +50,14 @@ pending → running ──┤
                     │
                     ├─ skipped
                     │
-                    └─ waiting_for_input → completed (폼 제출 또는 버튼 클릭 시)
+                    └─ waiting_for_input → completed (폼 제출, 버튼 클릭, 또는 AI 대화 종료 시)
 ```
 
 | 상태 | 설명 |
 |------|------|
 | `pending` | 실행 대기 (선행 노드 완료 대기) |
 | `running` | 실행 중 |
-| `waiting_for_input` | Form 노드에서 사용자 입력 대기 중 또는 버튼이 설정된 Presentation 노드에서 사용자 인터랙션 대기 중 |
+| `waiting_for_input` | 사용자 입력 대기 중 — Form 노드, 버튼이 설정된 Presentation 노드, 또는 AI Agent Multi Turn 대화 입력 대기 |
 | `completed` | 정상 완료 |
 | `failed` | 실행 실패 |
 | `skipped` | 건너뜀 (노드 비활성, Skip Node 정책, 조건 분기 미선택) |
