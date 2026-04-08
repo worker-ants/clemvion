@@ -15,10 +15,17 @@ export class AiAgentHandler implements NodeHandler {
 
   validate(config: Record<string, unknown>): ValidationResult {
     const errors: string[] = [];
-    if (!config.systemPrompt && !config.userPrompt) {
-      errors.push('Either systemPrompt or userPrompt is required');
-    }
     const mode = (config.mode as string) || 'single_turn';
+    if (mode === 'multi_turn') {
+      // Multi Turn: systemPrompt is sufficient (userPrompt comes from UI)
+      if (!config.systemPrompt) {
+        errors.push('systemPrompt is required for multi_turn mode');
+      }
+    } else {
+      if (!config.systemPrompt && !config.userPrompt) {
+        errors.push('Either systemPrompt or userPrompt is required');
+      }
+    }
     if (mode === 'multi_turn') {
       const maxTurns = config.maxTurns as number | undefined;
       if (maxTurns !== undefined && maxTurns < 0) {
@@ -213,15 +220,56 @@ export class AiAgentHandler implements NodeHandler {
     if (finalSystemPrompt) {
       messages.push({ role: 'system', content: finalSystemPrompt });
     }
-    if (userPrompt) {
-      messages.push({ role: 'user', content: userPrompt });
+
+    const resolvedModel = model || llmConfig.defaultModel;
+    const multiTurnStateBase = {
+      llmConfigId,
+      model: resolvedModel,
+      temperature,
+      maxTokens,
+      knowledgeBases,
+      ragTopK,
+      ragThreshold,
+      maxToolCalls,
+      maxTurns,
+      turnTimeout,
+      toolNodeIds: (config.toolNodeIds as string[]) || [],
+      toolOverrides: (config.toolOverrides as unknown[]) || [],
+      workspaceId,
+    };
+
+    // No userPrompt: skip LLM call, wait for user's first message from UI
+    if (!userPrompt) {
+      return {
+        type: 'ai_conversation',
+        status: 'waiting_for_input',
+        interactionType: 'ai_conversation',
+        conversationConfig: {
+          message: '',
+          messages,
+          turnCount: 0,
+          maxTurns,
+          turnTimeout,
+        },
+        _multiTurnState: {
+          ...multiTurnStateBase,
+          messages,
+          turnCount: 0,
+          totalInputTokens: 0,
+          totalOutputTokens: 0,
+          toolCalls: 0,
+          ragSources,
+        },
+      };
     }
+
+    // userPrompt provided: perform first LLM call
+    messages.push({ role: 'user', content: userPrompt });
 
     const tools = this.buildTools(config);
 
-    // First turn: call LLM
     let result = await this.llmService.chat(llmConfig, {
-      model: model || llmConfig.defaultModel,
+      model: resolvedModel,
       messages,
       temperature,
       maxTokens,
@@ -250,7 +298,7 @@ export class AiAgentHandler implements NodeHandler {
       }
 
       result = await this.llmService.chat(llmConfig, {
-        model: model || llmConfig.defaultModel,
+        model: resolvedModel,
         messages,
         temperature,
         maxTokens,
@@ -276,27 +324,14 @@ export class AiAgentHandler implements NodeHandler {
         maxTurns,
         turnTimeout,
       },
-      // Internal state for continuation
       _multiTurnState: {
-        llmConfigId,
-        model: model || llmConfig.defaultModel,
-        temperature,
-        maxTokens,
-        knowledgeBases,
-        ragTopK,
-        ragThreshold,
-        maxToolCalls,
-        maxTurns,
-        turnTimeout,
-        toolNodeIds: (config.toolNodeIds as string[]) || [],
-        toolOverrides: (config.toolOverrides as unknown[]) || [],
+        ...multiTurnStateBase,
         messages,
         turnCount: 1,
         totalInputTokens,
         totalOutputTokens,
         toolCalls: toolCallCount,
         ragSources,
-        workspaceId,
       },
     };
   }

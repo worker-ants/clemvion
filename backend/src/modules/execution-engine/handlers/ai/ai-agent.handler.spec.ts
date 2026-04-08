@@ -87,12 +87,22 @@ describe('AiAgentHandler', () => {
 
     it('should pass multi_turn mode with valid settings', () => {
       const result = handler.validate({
-        userPrompt: 'Hello',
+        systemPrompt: 'You are helpful',
         mode: 'multi_turn',
         maxTurns: 10,
         turnTimeout: 600,
       });
       expect(result.valid).toBe(true);
+    });
+
+    it('should fail multi_turn without systemPrompt', () => {
+      const result = handler.validate({
+        mode: 'multi_turn',
+      });
+      expect(result.valid).toBe(false);
+      expect(result.errors).toContain(
+        'systemPrompt is required for multi_turn mode',
+      );
     });
   });
 
@@ -263,6 +273,35 @@ describe('AiAgentHandler', () => {
       expect(state.turnCount).toBe(1);
       expect(state.totalInputTokens).toBe(100);
       expect(state.totalOutputTokens).toBe(50);
+    });
+
+    it('should skip LLM call and wait immediately when no userPrompt', async () => {
+      const result = await handler.execute(
+        {},
+        {
+          mode: 'multi_turn',
+          systemPrompt: 'You are helpful',
+          maxTurns: 10,
+          turnTimeout: 600,
+        },
+        baseContext,
+      );
+
+      // Should NOT call LLM
+      expect(mockLlmService.chat).not.toHaveBeenCalled();
+
+      const output = result as Record<string, unknown>;
+      expect(output.status).toBe('waiting_for_input');
+      expect(output.interactionType).toBe('ai_conversation');
+
+      const convConfig = output.conversationConfig as Record<string, unknown>;
+      expect(convConfig.turnCount).toBe(0);
+      expect(convConfig.message).toBe('');
+      expect(convConfig.messages).toHaveLength(1); // system only
+
+      const state = output._multiTurnState as Record<string, unknown>;
+      expect(state.turnCount).toBe(0);
+      expect(state.totalInputTokens).toBe(0);
     });
 
     it('should include RAG sources in multi_turn first turn', async () => {

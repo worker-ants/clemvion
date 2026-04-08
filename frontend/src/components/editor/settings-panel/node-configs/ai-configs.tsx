@@ -44,14 +44,16 @@ export function AiAgentConfig({ config, onChange }: { config: Config; onChange: 
         rows={4}
         hint="Supports markdown and expressions"
       />
-      <ExpressionInput multiline
-        label="User Prompt"
-        value={(config.userPrompt as string) ?? ""}
-        onChange={(v) => onChange({ ...config, userPrompt: v })}
-        placeholder="{{ $input.question }}"
-        rows={3}
-        hint="Expression to build the user message"
-      />
+      {mode !== "multi_turn" && (
+        <ExpressionInput multiline
+          label="User Prompt"
+          value={(config.userPrompt as string) ?? ""}
+          onChange={(v) => onChange({ ...config, userPrompt: v })}
+          placeholder="{{ $input.question }}"
+          rows={3}
+          hint="Expression to build the user message"
+        />
+      )}
       <SelectField
         label="Response Format"
         value={(config.responseFormat as string) ?? "text"}
