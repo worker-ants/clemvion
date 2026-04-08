@@ -276,8 +276,14 @@ function FormSubmittedContent({ data }: { data: Record<string, unknown> }) {
 }
 
 export function PresentationContent({ result }: { result: NodeResult }) {
-  const data = result.outputData as Record<string, unknown>;
-  if (!data || typeof data !== "object") return <JsonContent data={data} />;
+  const raw = result.outputData as Record<string, unknown>;
+  if (!raw || typeof raw !== "object") return <JsonContent data={raw} />;
+
+  // Unwrap button_click wrapper: actual node output is in nodeOutput field
+  const data =
+    raw.type === "button_click" && raw.nodeOutput && typeof raw.nodeOutput === "object"
+      ? (raw.nodeOutput as Record<string, unknown>)
+      : raw;
 
   // Template already includes its own debug data section
   if (result.nodeType === "template") {
