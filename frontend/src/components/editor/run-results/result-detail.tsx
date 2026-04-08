@@ -240,32 +240,39 @@ export function ResultDetail({
           />
         ) : isWaitingButtons && buttonConfig ? (
           <div className="h-full overflow-y-auto p-3">
-            {isPresentation && <PresentationContent result={result} />}
-            <ButtonBar
-              buttons={
-                ((buttonConfig as Record<string, unknown>).buttons as Array<{
-                  id: string;
-                  label: string;
-                  type: "link" | "port";
-                  url?: string;
-                  style?: "primary" | "secondary" | "outline" | "danger";
-                }>) ?? []
-              }
-              timeout={
-                (buttonConfig as Record<string, unknown>).timeout as
-                  | number
-                  | undefined
-              }
-              timeoutAction={
-                (buttonConfig as Record<string, unknown>).timeoutAction as
-                  | "continue"
-                  | "cancel"
-                  | undefined
-              }
-              onPortButtonClick={handlePortButtonClick}
-              onLinkButtonClick={handleLinkButtonClick}
-              onContinueClick={handleContinueClick}
-            />
+            {isPresentation ? (
+              <PresentationContent
+                result={result}
+                onPortButtonClick={handlePortButtonClick}
+                onLinkButtonClick={handleLinkButtonClick}
+              />
+            ) : (
+              <ButtonBar
+                buttons={
+                  ((buttonConfig as Record<string, unknown>).buttons as Array<{
+                    id: string;
+                    label: string;
+                    type: "link" | "port";
+                    url?: string;
+                    style?: "primary" | "secondary" | "outline" | "danger";
+                  }>) ?? []
+                }
+                timeout={
+                  (buttonConfig as Record<string, unknown>).timeout as
+                    | number
+                    | undefined
+                }
+                timeoutAction={
+                  (buttonConfig as Record<string, unknown>).timeoutAction as
+                    | "continue"
+                    | "cancel"
+                    | undefined
+                }
+                onPortButtonClick={handlePortButtonClick}
+                onLinkButtonClick={handleLinkButtonClick}
+                onContinueClick={handleContinueClick}
+              />
+            )}
           </div>
         ) : isCompletedConversation ? (
           <ConversationInspector
