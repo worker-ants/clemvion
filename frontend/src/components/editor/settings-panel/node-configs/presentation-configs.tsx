@@ -20,38 +20,37 @@ interface ButtonDef {
   style?: "primary" | "secondary" | "outline" | "danger";
 }
 
-function ButtonsConfig({ config, onChange }: { config: Config; onChange: OnChange }) {
-  const [expanded, setExpanded] = useState(false);
-  const buttons = (config.buttons as ButtonDef[]) ?? [];
-  const hasPortButtons = buttons.some((b) => b.type === "port");
-
+/** Reusable button list editor. Used by both global ButtonsConfig and per-item ItemButtonsConfig. */
+function ButtonListEditor({
+  buttons,
+  onChange,
+  maxButtons = 10,
+}: {
+  buttons: ButtonDef[];
+  onChange: (buttons: ButtonDef[]) => void;
+  maxButtons?: number;
+}) {
   const addButton = () => {
-    if (buttons.length >= 10) return;
-    const newButton: ButtonDef = {
-      id: crypto.randomUUID(),
-      label: "",
-      type: "port",
-      style: "secondary",
-    };
-    onChange({ ...config, buttons: [...buttons, newButton] });
+    if (buttons.length >= maxButtons) return;
+    onChange([
+      ...buttons,
+      { id: crypto.randomUUID(), label: "", type: "port", style: "secondary" },
+    ]);
   };
 
-  const removeButton = (i: number) => {
-    const updated = buttons.filter((_, idx) => idx !== i);
-    onChange({ ...config, buttons: updated });
-  };
+  const removeButton = (i: number) =>
+    onChange(buttons.filter((_, idx) => idx !== i));
 
   const updateButton = (i: number, key: string, val: string) => {
     const updated = buttons.map((btn, idx) => {
       if (idx !== i) return btn;
       const next = { ...btn, [key]: val };
-      // Clear url when switching to port type
       if (key === "type" && val === "port") {
         delete next.url;
       }
       return next;
     });
-    onChange({ ...config, buttons: updated });
+    onChange(updated);
   };
 
   const moveButton = (from: number, to: number) => {
@@ -59,8 +58,119 @@ function ButtonsConfig({ config, onChange }: { config: Config; onChange: OnChang
     const updated = [...buttons];
     const [moved] = updated.splice(from, 1);
     updated.splice(to, 0, moved);
-    onChange({ ...config, buttons: updated });
+    onChange(updated);
   };
+
+  return (
+    <div className="flex flex-col gap-2">
+      {buttons.map((btn, i) => (
+        <div
+          key={btn.id}
+          className="flex flex-col gap-1 rounded border border-[hsl(var(--border))] p-2"
+        >
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-1">
+              <button
+                type="button"
+                className="cursor-grab text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]"
+                title="Move up"
+                onClick={() => moveButton(i, i - 1)}
+                disabled={i === 0}
+              >
+                <GripVertical size={10} />
+              </button>
+              <span className="text-[10px] text-[hsl(var(--muted-foreground))]">
+                Button {i + 1}
+              </span>
+            </div>
+            <div className="flex gap-0.5">
+              {i > 0 && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-5 w-5 text-[10px]"
+                  onClick={() => moveButton(i, i - 1)}
+                  title="Move up"
+                >
+                  ↑
+                </Button>
+              )}
+              {i < buttons.length - 1 && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-5 w-5 text-[10px]"
+                  onClick={() => moveButton(i, i + 1)}
+                  title="Move down"
+                >
+                  ↓
+                </Button>
+              )}
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-5 w-5"
+                onClick={() => removeButton(i)}
+              >
+                <X size={10} />
+              </Button>
+            </div>
+          </div>
+          <ExpressionInput
+            label="Label"
+            value={btn.label}
+            onChange={(v) => updateButton(i, "label", v)}
+            placeholder="Button label"
+          />
+          <SelectField
+            label="Type"
+            value={btn.type}
+            onChange={(v) => updateButton(i, "type", v)}
+            options={[
+              { value: "port", label: "Port (route execution)" },
+              { value: "link", label: "Link (open URL)" },
+            ]}
+          />
+          {btn.type === "link" && (
+            <ExpressionInput
+              label="URL"
+              value={btn.url ?? ""}
+              onChange={(v) => updateButton(i, "url", v)}
+              placeholder="https://... or {{ expression }}"
+            />
+          )}
+          <SelectField
+            label="Style"
+            value={btn.style ?? "secondary"}
+            onChange={(v) => updateButton(i, "style", v)}
+            options={[
+              { value: "primary", label: "Primary" },
+              { value: "secondary", label: "Secondary" },
+              { value: "outline", label: "Outline" },
+              { value: "danger", label: "Danger" },
+            ]}
+          />
+        </div>
+      ))}
+
+      {buttons.length < maxButtons && (
+        <Button
+          variant="outline"
+          size="sm"
+          className="h-7 text-xs"
+          onClick={addButton}
+        >
+          <Plus size={12} className="mr-1" /> Add Button
+        </Button>
+      )}
+    </div>
+  );
+}
+
+function ButtonsConfig({ config, onChange }: { config: Config; onChange: OnChange }) {
+  const [expanded, setExpanded] = useState(false);
+  const buttons = (config.buttons as ButtonDef[]) ?? [];
+  const hasPortButtons = buttons.some((b) => b.type === "port");
 
   return (
     <div className="border-t border-[hsl(var(--border))] pt-2 mt-2">
@@ -82,106 +192,10 @@ function ButtonsConfig({ config, onChange }: { config: Config; onChange: OnChang
 
       {expanded && (
         <div className="mt-2 flex flex-col gap-2">
-          {buttons.map((btn, i) => (
-            <div
-              key={btn.id}
-              className="flex flex-col gap-1 rounded border border-[hsl(var(--border))] p-2"
-            >
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-1">
-                  <button
-                    type="button"
-                    className="cursor-grab text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]"
-                    title="Move up"
-                    onClick={() => moveButton(i, i - 1)}
-                    disabled={i === 0}
-                  >
-                    <GripVertical size={10} />
-                  </button>
-                  <span className="text-[10px] text-[hsl(var(--muted-foreground))]">
-                    Button {i + 1}
-                  </span>
-                </div>
-                <div className="flex gap-0.5">
-                  {i > 0 && (
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-5 w-5 text-[10px]"
-                      onClick={() => moveButton(i, i - 1)}
-                      title="Move up"
-                    >
-                      ↑
-                    </Button>
-                  )}
-                  {i < buttons.length - 1 && (
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-5 w-5 text-[10px]"
-                      onClick={() => moveButton(i, i + 1)}
-                      title="Move down"
-                    >
-                      ↓
-                    </Button>
-                  )}
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-5 w-5"
-                    onClick={() => removeButton(i)}
-                  >
-                    <X size={10} />
-                  </Button>
-                </div>
-              </div>
-              <ExpressionInput
-                label="Label"
-                value={btn.label}
-                onChange={(v) => updateButton(i, "label", v)}
-                placeholder="Button label"
-              />
-              <SelectField
-                label="Type"
-                value={btn.type}
-                onChange={(v) => updateButton(i, "type", v)}
-                options={[
-                  { value: "port", label: "Port (route execution)" },
-                  { value: "link", label: "Link (open URL)" },
-                ]}
-              />
-              {btn.type === "link" && (
-                <ExpressionInput
-                  label="URL"
-                  value={btn.url ?? ""}
-                  onChange={(v) => updateButton(i, "url", v)}
-                  placeholder="https://... or {{ expression }}"
-                />
-              )}
-              <SelectField
-                label="Style"
-                value={btn.style ?? "secondary"}
-                onChange={(v) => updateButton(i, "style", v)}
-                options={[
-                  { value: "primary", label: "Primary" },
-                  { value: "secondary", label: "Secondary" },
-                  { value: "outline", label: "Outline" },
-                  { value: "danger", label: "Danger" },
-                ]}
-              />
-            </div>
-          ))}
-
-          {buttons.length < 10 && (
-            <Button
-              variant="outline"
-              size="sm"
-              className="h-7 text-xs"
-              onClick={addButton}
-            >
-              <Plus size={12} className="mr-1" /> Add Button
-            </Button>
-          )}
+          <ButtonListEditor
+            buttons={buttons}
+            onChange={(updated) => onChange({ ...config, buttons: updated })}
+          />
 
           {buttons.length > 0 && (
             <>
@@ -231,6 +245,39 @@ interface CarouselItem {
   title: string;
   description: string;
   image: string;
+  buttons?: ButtonDef[];
+}
+
+function ItemButtonsConfig({
+  buttons,
+  onChange,
+}: {
+  buttons: ButtonDef[];
+  onChange: (buttons: ButtonDef[]) => void;
+}) {
+  const [expanded, setExpanded] = useState(false);
+
+  return (
+    <div className="mt-1">
+      <button
+        type="button"
+        className="flex items-center gap-1 text-[10px] text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]"
+        onClick={() => setExpanded(!expanded)}
+      >
+        {expanded ? <ChevronDown size={10} /> : <ChevronRight size={10} />}
+        Item Buttons ({buttons.length})
+      </button>
+      {expanded && (
+        <div className="mt-1 pl-2 border-l border-[hsl(var(--border))]">
+          <ButtonListEditor
+            buttons={buttons}
+            onChange={onChange}
+            maxButtons={4}
+          />
+        </div>
+      )}
+    </div>
+  );
 }
 
 export function CarouselConfig({ config, onChange }: { config: Config; onChange: OnChange }) {
@@ -238,8 +285,8 @@ export function CarouselConfig({ config, onChange }: { config: Config; onChange:
   const items = (config.items as CarouselItem[]) ?? [];
 
   const handleModeChange = (v: string) => {
-    const { items: _items, titleField, descriptionField, imageField, maxItems, ...rest } = config;
-    void _items; void titleField; void descriptionField; void imageField; void maxItems;
+    const { items: _items, titleField, descriptionField, imageField, maxItems, source, itemButtons, ...rest } = config;
+    void _items; void titleField; void descriptionField; void imageField; void maxItems; void source; void itemButtons;
     if (v === "static") {
       onChange({ ...rest, mode: v, items: items.length ? items : [] });
     } else {
@@ -256,7 +303,7 @@ export function CarouselConfig({ config, onChange }: { config: Config; onChange:
   const removeItem = (i: number) =>
     onChange({ ...config, items: items.filter((_, idx) => idx !== i) });
 
-  const updateItem = (i: number, key: string, val: string) => {
+  const updateItem = (i: number, key: string, val: unknown) => {
     const updated = items.map((item, idx) => (idx === i ? { ...item, [key]: val } : item));
     onChange({ ...config, items: updated });
   };
@@ -303,6 +350,10 @@ export function CarouselConfig({ config, onChange }: { config: Config; onChange:
                 onChange={(v) => updateItem(i, "image", v)}
                 placeholder="https://... (optional)"
               />
+              <ItemButtonsConfig
+                buttons={item.buttons ?? []}
+                onChange={(btns) => updateItem(i, "buttons", btns.length > 0 ? btns : undefined)}
+              />
             </div>
           ))}
           <Button variant="outline" size="sm" className="h-7 text-xs" onClick={addItem}>
@@ -313,6 +364,13 @@ export function CarouselConfig({ config, onChange }: { config: Config; onChange:
 
       {mode === "dynamic" && (
         <>
+          <ExpressionInput
+            label="Source"
+            value={(config.source as string) ?? ""}
+            onChange={(v) => onChange({ ...config, source: v })}
+            placeholder="{{ $input.items }}"
+            hint="Expression that returns the array to display"
+          />
           <ExpressionInput
             label="Title Field"
             value={(config.titleField as string) ?? ""}
@@ -340,6 +398,13 @@ export function CarouselConfig({ config, onChange }: { config: Config; onChange:
             max={100}
           />
         </>
+      )}
+
+      {mode === "dynamic" && (
+        <ItemButtonsConfig
+          buttons={(config.itemButtons as ButtonDef[]) ?? []}
+          onChange={(btns) => onChange({ ...config, itemButtons: btns.length > 0 ? btns : undefined })}
+        />
       )}
 
       <SelectField

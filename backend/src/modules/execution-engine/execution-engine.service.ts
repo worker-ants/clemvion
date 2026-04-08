@@ -1578,6 +1578,14 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
     delete cleanNodeOutput.status;
     delete cleanNodeOutput.interactionType;
 
+    // Resolve selected item for item-level buttons (e.g. carousel per-item buttons)
+    const buttonItemMap = (
+      nodeOutput.buttonConfig as Record<string, unknown> | undefined
+    )?.buttonItemMap as Record<string, number> | undefined;
+    const outputItems = (nodeOutput.items ?? cleanNodeOutput.items) as
+      | unknown[]
+      | undefined;
+
     if (click.type === 'button_click') {
       const buttonId = click.buttonId!;
       const clickedButton = buttons.find((b) => b.id === buttonId);
@@ -1586,8 +1594,18 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
         throw new Error(`INVALID_BUTTON_ID: Button ${buttonId} not found`);
       }
 
+      // Determine selected item for item-level buttons
+      const itemIndex =
+        buttonItemMap != null ? buttonItemMap[buttonId] : undefined;
+      const selectedItem =
+        itemIndex != null && outputItems ? outputItems[itemIndex] : undefined;
+
       if (clickedButton.type === 'port') {
-        selectedPort = buttonId;
+        // Dynamic item buttons have IDs like "{defId}__item_{idx}".
+        // Route to the base definition port so editor edges match.
+        selectedPort = buttonId.includes('__item_')
+          ? buttonId.split('__item_')[0]
+          : buttonId;
         interactionData = {
           interactionType: 'button_click',
           buttonId,
@@ -1599,6 +1617,7 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
           buttonId,
           buttonLabel: clickedButton.label,
           clickedAt: now,
+          ...(selectedItem !== undefined && { selectedItem }),
           nodeOutput: cleanNodeOutput,
           _selectedPort: selectedPort,
         };
@@ -1612,6 +1631,7 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
         updatedOutput = {
           type: 'button_continue',
           clickedAt: now,
+          ...(selectedItem !== undefined && { selectedItem }),
           nodeOutput: cleanNodeOutput,
           _selectedPort: selectedPort,
         };
@@ -1818,6 +1838,9 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
       switch (result.action) {
         case 'skip':
           nodeExecution.status = NodeExecutionStatus.SKIPPED;
+          nodeExecution.error = {
+            message: error instanceof Error ? error.message : String(error),
+          };
           nodeExecution.finishedAt = new Date();
           nodeExecution.durationMs =
             nodeExecution.finishedAt.getTime() -
@@ -1831,6 +1854,7 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
               status: NodeExecutionStatus.SKIPPED,
               nodeType: node.type,
               nodeLabel: node.label ?? node.type,
+              error: nodeExecution.error.message,
             },
           );
           executedNodes.add(node.id);
@@ -1983,7 +2007,7 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
         if (this.isPortFiltered(sourceOutput, incomingEdges[0].sourcePort)) {
           return undefined;
         }
-        return sourceOutput;
+        return this.stripSelectedPort(sourceOutput);
       }
       // No executed predecessor (e.g., back-edge target on first run) → use workflow input
       return workflowInput;
@@ -1999,7 +2023,7 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
         if (this.isPortFiltered(sourceOutput, edge.sourcePort)) {
           continue;
         }
-        merged[edge.sourceNodeId] = sourceOutput;
+        merged[edge.sourceNodeId] = this.stripSelectedPort(sourceOutput);
         hasAnyInput = true;
       }
     }
@@ -2048,6 +2072,25 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
       return edgeSourcePort !== selectedPort;
     }
     return false;
+  }
+
+  /**
+   * Strip _selectedPort from output before passing as input to the next node.
+   * _selectedPort is routing metadata for the current node's edges only —
+   * it must not leak into downstream nodes, otherwise pass-through nodes
+   * (e.g. Variable) would cause their successors to be incorrectly skipped.
+   */
+  private stripSelectedPort(output: unknown): unknown {
+    if (
+      output &&
+      typeof output === 'object' &&
+      '_selectedPort' in (output as Record<string, unknown>)
+    ) {
+      const { _selectedPort, ...rest } = output as Record<string, unknown>;
+      void _selectedPort;
+      return rest;
+    }
+    return output;
   }
 
   /**

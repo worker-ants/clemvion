@@ -10,7 +10,7 @@ const ENCRYPTION_KEY = randomBytes(32).toString('hex');
 
 describe('LlmConfigService', () => {
   let service: LlmConfigService;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
   let mockRepo: Record<string, any>;
 
   beforeEach(async () => {

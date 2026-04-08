@@ -455,9 +455,9 @@ describe('AiAgentHandler', () => {
         }),
       );
       expect(newState.lastTurnResponse).toBeDefined();
-      expect((newState.lastTurnResponse as Record<string, unknown>).content).toBe(
-        'Response text',
-      );
+      expect(
+        (newState.lastTurnResponse as Record<string, unknown>).content,
+      ).toBe('Response text');
       expect(typeof newState.lastTurnDurationMs).toBe('number');
       expect(newState.lastTurnDurationMs as number).toBeGreaterThanOrEqual(0);
     });
@@ -637,7 +637,11 @@ describe('AiAgentHandler', () => {
       const result = handler.validate({
         systemPrompt: 'You are helpful',
         conditions: [
-          { id: 'cond-uuid-1', label: 'Refund', prompt: 'Customer wants a refund' },
+          {
+            id: 'cond-uuid-1',
+            label: 'Refund',
+            prompt: 'Customer wants a refund',
+          },
         ],
       });
       expect(result.valid).toBe(true);
@@ -657,9 +661,7 @@ describe('AiAgentHandler', () => {
     it('should fail when condition is missing prompt', () => {
       const result = handler.validate({
         systemPrompt: 'You are helpful',
-        conditions: [
-          { id: 'cond-uuid-1', label: 'Refund', prompt: '' },
-        ],
+        conditions: [{ id: 'cond-uuid-1', label: 'Refund', prompt: '' }],
       });
       expect(result.valid).toBe(false);
       expect(result.errors[0]).toContain('prompt');
@@ -688,9 +690,7 @@ describe('AiAgentHandler', () => {
     it('should fail when prompt exceeds 2000 characters', () => {
       const result = handler.validate({
         systemPrompt: 'You are helpful',
-        conditions: [
-          { id: 'cond-1', label: 'Long', prompt: 'a'.repeat(2001) },
-        ],
+        conditions: [{ id: 'cond-1', label: 'Long', prompt: 'a'.repeat(2001) }],
       });
       expect(result.valid).toBe(false);
       expect(result.errors[0]).toContain('2000');
@@ -753,8 +753,16 @@ describe('AiAgentHandler', () => {
       userPrompt: 'I want a refund',
       systemPrompt: 'You are a support agent',
       conditions: [
-        { id: 'a1b2c3d4-refund', label: 'Refund', prompt: 'Customer requests a refund' },
-        { id: 'e5f6g7h8-escalate', label: 'Escalation', prompt: 'Issue needs expert help' },
+        {
+          id: 'a1b2c3d4-refund',
+          label: 'Refund',
+          prompt: 'Customer requests a refund',
+        },
+        {
+          id: 'e5f6g7h8-escalate',
+          label: 'Escalation',
+          prompt: 'Issue needs expert help',
+        },
       ],
     };
 
@@ -765,7 +773,8 @@ describe('AiAgentHandler', () => {
       const tools = chatCall[1].tools;
       const condTools = tools.filter(
         (t: { name: string }) =>
-          t.name === 'cond_a1b2c3d4_refund' || t.name === 'cond_e5f6g7h8_escalate',
+          t.name === 'cond_a1b2c3d4_refund' ||
+          t.name === 'cond_e5f6g7h8_escalate',
       );
       expect(condTools).toHaveLength(2);
       expect(condTools[0].description).toBe('Customer requests a refund');
@@ -819,8 +828,16 @@ describe('AiAgentHandler', () => {
         .mockResolvedValueOnce({
           content: null,
           toolCalls: [
-            { id: 'tc-1', name: 'tool_node_tool_uuid', arguments: '{"input":"check"}' },
-            { id: 'tc-2', name: 'cond_a1b2c3d4_refund', arguments: '{"reason":"maybe refund"}' },
+            {
+              id: 'tc-1',
+              name: 'tool_node_tool_uuid',
+              arguments: '{"input":"check"}',
+            },
+            {
+              id: 'tc-2',
+              name: 'cond_a1b2c3d4_refund',
+              arguments: '{"reason":"maybe refund"}',
+            },
           ],
           usage: { inputTokens: 100, outputTokens: 50, totalTokens: 150 },
           model: 'gpt-4o',
@@ -830,7 +847,11 @@ describe('AiAgentHandler', () => {
         .mockResolvedValueOnce({
           content: 'Processing refund.',
           toolCalls: [
-            { id: 'tc-3', name: 'cond_a1b2c3d4_refund', arguments: '{"reason":"confirmed refund"}' },
+            {
+              id: 'tc-3',
+              name: 'cond_a1b2c3d4_refund',
+              arguments: '{"reason":"confirmed refund"}',
+            },
           ],
           usage: { inputTokens: 200, outputTokens: 30, totalTokens: 230 },
           model: 'gpt-4o',
@@ -911,14 +932,22 @@ describe('AiAgentHandler', () => {
         ragSources: [],
         workspaceId: 'ws-1',
         conditions: [
-          { id: 'a1b2c3d4-refund', label: 'Refund', prompt: 'Customer wants refund' },
+          {
+            id: 'a1b2c3d4-refund',
+            label: 'Refund',
+            prompt: 'Customer wants refund',
+          },
         ],
       };
 
       mockLlmService.chat.mockResolvedValue({
         content: 'I will process your refund.',
         toolCalls: [
-          { id: 'tc-1', name: 'cond_a1b2c3d4_refund', arguments: '{"reason":"refund request"}' },
+          {
+            id: 'tc-1',
+            name: 'cond_a1b2c3d4_refund',
+            arguments: '{"reason":"refund request"}',
+          },
         ],
         usage: { inputTokens: 150, outputTokens: 30, totalTokens: 180 },
         model: 'gpt-4o',
@@ -984,19 +1013,13 @@ describe('AiAgentHandler', () => {
     });
 
     it('should support error endReason', () => {
-      const result = handler.buildMultiTurnFinalOutput(
-        [],
-        '',
-        1,
-        'error',
-        {
-          model: 'gpt-4o',
-          totalInputTokens: 0,
-          totalOutputTokens: 0,
-          toolCalls: 0,
-          ragSources: [],
-        },
-      );
+      const result = handler.buildMultiTurnFinalOutput([], '', 1, 'error', {
+        model: 'gpt-4o',
+        totalInputTokens: 0,
+        totalOutputTokens: 0,
+        toolCalls: 0,
+        ragSources: [],
+      });
 
       const output = result as Record<string, unknown>;
       expect(output.endReason).toBe('error');
