@@ -792,6 +792,17 @@ export class ExecutionEngineService implements OnModuleInit {
             messages: initialClientMessages,
           },
         },
+        // Include Turn 1 debug data for initial AI response
+        turnDebug: {
+          llmCalls:
+            ((multiTurnState.turnDebugHistory as unknown[]) ?? [])[0] ??
+            undefined,
+          metadata: {
+            model: multiTurnState.model,
+            inputTokens: multiTurnState.totalInputTokens,
+            outputTokens: multiTurnState.totalOutputTokens,
+          },
+        },
       },
     );
 
@@ -847,6 +858,8 @@ export class ExecutionEngineService implements OnModuleInit {
             toolCalls: multiTurnState.toolCalls as number,
             ragSources: multiTurnState.ragSources as unknown[],
           },
+          undefined,
+          (multiTurnState.turnDebugHistory as unknown[]) ?? [],
         );
 
         this.contextService.setNodeOutput(
@@ -924,7 +937,40 @@ export class ExecutionEngineService implements OnModuleInit {
             },
           );
         } else if ('port' in resultObj && 'data' in resultObj) {
-          // Condition triggered — apply port routing and end conversation
+          // Condition triggered — emit final turn debug data, then apply port routing
+          const condData = resultObj.data as Record<string, unknown>;
+          const condMessages = Array.isArray(condData.messages)
+            ? (condData.messages as Array<Record<string, unknown>>).filter(
+                (m) => m.role !== 'system',
+              )
+            : [];
+          const turnDebug = resultObj._turnDebug as
+            | Record<string, unknown>
+            | undefined;
+
+          this.websocketService.emitExecutionEvent(
+            executionId,
+            ExecutionEventType.AI_MESSAGE,
+            {
+              nodeId: node.id,
+              message: condData.response ?? '',
+              turnCount: condData.turnCount,
+              messages: condMessages,
+              metadata: {
+                model: (condData.metadata as Record<string, unknown>)?.model,
+                inputTokens: (condData.metadata as Record<string, unknown>)
+                  ?.totalInputTokens,
+                outputTokens: (condData.metadata as Record<string, unknown>)
+                  ?.totalOutputTokens,
+              },
+              llmCalls: turnDebug?.llmCalls,
+              durationMs: turnDebug?.totalDurationMs,
+            },
+          );
+
+          // Strip _turnDebug before persisting
+          delete resultObj._turnDebug;
+
           const portRouted = this.applyPortSelection(resultObj);
           this.contextService.setNodeOutput(
             executionId,
@@ -933,7 +979,38 @@ export class ExecutionEngineService implements OnModuleInit {
           );
           conversationEnded = true;
         } else {
-          // maxTurns reached — conversation ended
+          // maxTurns reached — emit final turn debug data, then end
+          const turnDebug = resultObj._turnDebug as
+            | Record<string, unknown>
+            | undefined;
+          if (turnDebug) {
+            const meta = resultObj.metadata as
+              | Record<string, unknown>
+              | undefined;
+            const finalMessages = Array.isArray(resultObj.messages)
+              ? (resultObj.messages as Array<Record<string, unknown>>).filter(
+                  (m) => m.role !== 'system',
+                )
+              : [];
+            this.websocketService.emitExecutionEvent(
+              executionId,
+              ExecutionEventType.AI_MESSAGE,
+              {
+                nodeId: node.id,
+                message: resultObj.response ?? '',
+                turnCount: resultObj.turnCount,
+                messages: finalMessages,
+                metadata: {
+                  model: meta?.model,
+                  inputTokens: meta?.totalInputTokens,
+                  outputTokens: meta?.totalOutputTokens,
+                },
+                llmCalls: turnDebug.llmCalls,
+                durationMs: turnDebug.totalDurationMs,
+              },
+            );
+            delete resultObj._turnDebug;
+          }
           this.contextService.setNodeOutput(executionId, node.id, resultObj);
           conversationEnded = true;
         }

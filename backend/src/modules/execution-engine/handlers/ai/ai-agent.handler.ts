@@ -406,12 +406,23 @@ export class AiAgentHandler implements NodeHandler {
       tools: firstTurnToolsDef,
     };
 
+    const firstTurnLlmCalls: Array<{
+      requestPayload: unknown;
+      responsePayload: unknown;
+      durationMs: number;
+    }> = [];
+    let ftCallStart = Date.now();
     let result = await this.llmService.chat(llmConfig, {
       model: resolvedModel,
       messages,
       temperature,
       maxTokens,
       tools: firstTurnToolsDef,
+    });
+    firstTurnLlmCalls.push({
+      requestPayload: firstTurnRequest,
+      responsePayload: result,
+      durationMs: Date.now() - ftCallStart,
     });
 
     // Handle tool calls in first turn (with condition detection)
@@ -432,6 +443,13 @@ export class AiAgentHandler implements NodeHandler {
           classification.matchedCondition.id,
         );
         messages.push({ role: 'assistant', content: result.content || '' });
+        const ft1DebugHistory = [
+          {
+            turnIndex: 1,
+            llmCalls: firstTurnLlmCalls,
+            totalDurationMs: Date.now() - firstTurnStartedAt,
+          },
+        ];
         return this.buildConditionOutput(
           classification.matchedCondition,
           reason,
@@ -444,6 +462,11 @@ export class AiAgentHandler implements NodeHandler {
             toolCalls: toolCallCount,
             ragSources,
           },
+          {
+            llmCalls: firstTurnLlmCalls,
+            totalDurationMs: Date.now() - firstTurnStartedAt,
+          },
+          ft1DebugHistory,
         );
       }
 
@@ -477,12 +500,25 @@ export class AiAgentHandler implements NodeHandler {
         }
       }
 
+      const ftLoopReq = {
+        model: resolvedModel,
+        messages: [...messages],
+        temperature,
+        maxTokens,
+        tools: firstTurnToolsDef,
+      };
+      ftCallStart = Date.now();
       result = await this.llmService.chat(llmConfig, {
         model: resolvedModel,
         messages,
         temperature,
         maxTokens,
         tools,
+      });
+      firstTurnLlmCalls.push({
+        requestPayload: ftLoopReq,
+        responsePayload: result,
+        durationMs: Date.now() - ftCallStart,
       });
     }
 
@@ -517,6 +553,13 @@ export class AiAgentHandler implements NodeHandler {
         lastTurnRequest: firstTurnRequest,
         lastTurnResponse: result,
         lastTurnDurationMs: firstTurnDurationMs,
+        turnDebugHistory: [
+          {
+            turnIndex: 1,
+            llmCalls: firstTurnLlmCalls,
+            totalDurationMs: firstTurnDurationMs,
+          },
+        ],
       },
     };
   }
@@ -574,7 +617,7 @@ export class AiAgentHandler implements NodeHandler {
     const maxTokens = state.maxTokens as number | undefined;
     const tools = this.buildTools(state);
 
-    // Call LLM — snapshot request for debugging before mutation
+    // Call LLM — track all LLM calls for debug
     const turnStartedAt = Date.now();
     const toolsDef = tools.length > 0 ? tools : undefined;
     const chatParams = {
@@ -584,12 +627,23 @@ export class AiAgentHandler implements NodeHandler {
       maxTokens,
       tools: toolsDef,
     };
+    const llmCalls: Array<{
+      requestPayload: unknown;
+      responsePayload: unknown;
+      durationMs: number;
+    }> = [];
+    let callStart = Date.now();
     let result = await this.llmService.chat(llmConfig, {
       model,
       messages,
       temperature,
       maxTokens,
       tools: toolsDef,
+    });
+    llmCalls.push({
+      requestPayload: chatParams,
+      responsePayload: result,
+      durationMs: Date.now() - callStart,
     });
 
     // Handle tool calls with condition detection
@@ -613,6 +667,17 @@ export class AiAgentHandler implements NodeHandler {
         totalInputTokens += result.usage?.inputTokens ?? 0;
         totalOutputTokens += result.usage?.outputTokens ?? 0;
 
+        // Accumulate debug history including this turn
+        const prevHistory = (state.turnDebugHistory as unknown[]) || [];
+        const condTurnDebugHistory = [
+          ...prevHistory,
+          {
+            turnIndex: turnCount,
+            llmCalls,
+            totalDurationMs: Date.now() - turnStartedAt,
+          },
+        ];
+
         return this.buildConditionOutput(
           classification.matchedCondition,
           reason,
@@ -625,6 +690,8 @@ export class AiAgentHandler implements NodeHandler {
             toolCalls: toolCallCount,
             ragSources,
           },
+          { llmCalls, totalDurationMs: Date.now() - turnStartedAt },
+          condTurnDebugHistory,
         );
       }
 
@@ -658,12 +725,25 @@ export class AiAgentHandler implements NodeHandler {
         }
       }
 
+      const loopReq = {
+        model,
+        messages: [...messages],
+        temperature,
+        maxTokens,
+        tools: toolsDef,
+      };
+      callStart = Date.now();
       result = await this.llmService.chat(llmConfig, {
         model,
         messages,
         temperature,
         maxTokens,
         tools,
+      });
+      llmCalls.push({
+        requestPayload: loopReq,
+        responsePayload: result,
+        durationMs: Date.now() - callStart,
       });
     }
 
@@ -672,6 +752,15 @@ export class AiAgentHandler implements NodeHandler {
 
     totalInputTokens += result.usage?.inputTokens ?? 0;
     totalOutputTokens += result.usage?.outputTokens ?? 0;
+
+    // Accumulate per-turn debug history (with all LLM calls)
+    const prevHistory = (state.turnDebugHistory as unknown[]) || [];
+    const currentTurnDebug = {
+      turnIndex: turnCount,
+      llmCalls,
+      totalDurationMs: turnDurationMs,
+    };
+    const turnDebugHistory = [...prevHistory, currentTurnDebug];
 
     // Check if max turns reached
     const isLastTurn = maxTurns > 0 && turnCount >= maxTurns;
@@ -689,6 +778,8 @@ export class AiAgentHandler implements NodeHandler {
           toolCalls: toolCallCount,
           ragSources,
         },
+        { llmCalls, totalDurationMs: turnDurationMs },
+        turnDebugHistory,
       );
     }
 
@@ -715,6 +806,7 @@ export class AiAgentHandler implements NodeHandler {
         lastTurnRequest: chatParams,
         lastTurnResponse: result,
         lastTurnDurationMs: turnDurationMs,
+        turnDebugHistory,
       },
     };
   }
@@ -734,6 +826,11 @@ export class AiAgentHandler implements NodeHandler {
       toolCalls: number;
       ragSources: unknown[];
     },
+    turnDebug?: {
+      llmCalls?: unknown[];
+      totalDurationMs?: number;
+    },
+    turnDebugHistory?: unknown[],
   ): unknown {
     return {
       response: lastResponse,
@@ -748,6 +845,8 @@ export class AiAgentHandler implements NodeHandler {
         toolCalls: metadata.toolCalls,
         ragSources: metadata.ragSources,
       },
+      ...(turnDebug && { _turnDebug: turnDebug }),
+      ...(turnDebugHistory?.length && { _turnDebugHistory: turnDebugHistory }),
     };
   }
 
@@ -766,6 +865,11 @@ export class AiAgentHandler implements NodeHandler {
       toolCalls: number;
       ragSources: unknown[];
     },
+    turnDebug?: {
+      llmCalls?: unknown[];
+      totalDurationMs?: number;
+    },
+    turnDebugHistory?: unknown[],
   ): unknown {
     const lastMsg = messages[messages.length - 1];
     const lastResponse = lastMsg?.content ?? '';
@@ -790,7 +894,12 @@ export class AiAgentHandler implements NodeHandler {
           toolCalls: metadata.toolCalls,
           ragSources: metadata.ragSources,
         },
+        // Persisted for parseHistoryMessages to read
+        ...(turnDebugHistory?.length && {
+          _turnDebugHistory: turnDebugHistory,
+        }),
       },
+      ...(turnDebug && { _turnDebug: turnDebug }),
     };
   }
 

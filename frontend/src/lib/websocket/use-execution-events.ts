@@ -179,12 +179,27 @@ export function useExecutionEvents({
           // Only add if no messages yet (avoid duplicates on re-emit)
           if (conversationMessages.length === 0) {
             const turnCount = convConfig.turnCount ?? 1;
+            // Extract Turn 1 debug data from event payload
+            const turnDebug = (payload as Record<string, unknown>).turnDebug as {
+              llmCalls?: { llmCalls?: Array<{ requestPayload?: unknown; responsePayload?: unknown; durationMs?: number }> };
+              metadata?: { model?: string; inputTokens?: number; outputTokens?: number };
+            } | undefined;
+            const llmCallEntries = turnDebug?.llmCalls?.llmCalls ?? [];
+
+            let assistantIdx = 0;
             for (const msg of convConfig.messages) {
               if (msg.role === "user" || msg.role === "assistant") {
+                const callDebug = msg.role === "assistant" ? llmCallEntries[assistantIdx++] : undefined;
                 addConversationMessage({
                   type: msg.role,
                   content: msg.content,
                   turnIndex: turnCount,
+                  ...(callDebug ? {
+                    requestPayload: callDebug.requestPayload,
+                    responsePayload: callDebug.responsePayload,
+                    durationMs: callDebug.durationMs,
+                    metadata: turnDebug?.metadata,
+                  } : {}),
                 });
               }
             }
@@ -227,20 +242,26 @@ export function useExecutionEvents({
         };
         requestPayload?: unknown;
         responsePayload?: unknown;
+        llmCalls?: Array<{ requestPayload?: unknown; responsePayload?: unknown; durationMs?: number }>;
         durationMs?: number;
       };
       if (payload.message == null) return;
 
       const turnCount = payload.turnCount ?? 1;
 
+      // Use llmCalls (last entry) if available, fallback to legacy fields
+      const lastLlmCall = payload.llmCalls?.length
+        ? payload.llmCalls[payload.llmCalls.length - 1]
+        : undefined;
+
       addConversationMessage({
         type: "assistant",
         content: payload.message ?? "",
         turnIndex: turnCount,
         timestamp: new Date().toISOString(),
-        durationMs: payload.durationMs,
-        requestPayload: payload.requestPayload,
-        responsePayload: payload.responsePayload,
+        durationMs: payload.durationMs ?? lastLlmCall?.durationMs,
+        requestPayload: payload.requestPayload ?? lastLlmCall?.requestPayload,
+        responsePayload: payload.responsePayload ?? lastLlmCall?.responsePayload,
         metadata: payload.metadata
           ? {
               model: payload.metadata.model,
