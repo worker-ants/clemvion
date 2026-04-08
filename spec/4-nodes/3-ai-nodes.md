@@ -6,7 +6,7 @@
 
 ## 1. AI Agent
 
-LLM 기반 AI Agent를 실행. 프롬프트, RAG, Tool Use를 지원.
+LLM 기반 AI Agent를 실행. 프롬프트, RAG, Tool Use를 지원. **Single Turn**(단일 호출) 및 **Multi Turn**(대화형 블로킹) 모드를 제공.
 
 ### 설정 (config)
 
@@ -14,6 +14,7 @@ LLM 기반 AI Agent를 실행. 프롬프트, RAG, Tool Use를 지원.
 |------|------|------|
 | llmConfigId | UUID | 사용할 LLM 프로바이더 설정 |
 | model | String | 모델 ID (프로바이더별) |
+| mode | Enum | `single_turn` (기본) / `multi_turn` |
 | systemPrompt | String | 시스템 프롬프트 (마크다운, 표현식 지원) |
 | userPrompt | Expression | 사용자 프롬프트 (입력 데이터 참조) |
 | temperature | Float? | 오버라이드 (없으면 LLMConfig 기본값) |
@@ -28,6 +29,8 @@ LLM 기반 AI Agent를 실행. 프롬프트, RAG, Tool Use를 지원.
 | maxToolCalls | Integer | 최대 도구 호출 횟수 (기본: 10) |
 | conversationHistory | Enum | `none` / `last_n` / `full` |
 | historyCount | Integer? | last_n 시 보관 대화 수 |
+| maxTurns | Integer? | Multi Turn 모드 시 최대 대화 턴 수 (기본: 20, 0=무제한) |
+| turnTimeout | Integer? | Multi Turn 모드 시 사용자 응답 대기 타임아웃 초 (기본: 1800=30분) |
 
 ### 설정 UI
 
@@ -38,6 +41,9 @@ LLM 기반 AI Agent를 실행. 프롬프트, RAG, Tool Use를 지원.
 │                                          │
 │  LLM Provider: [OpenAI ▼]               │
 │  Model:        [gpt-4o ▼]               │
+│                                          │
+│  ── Mode ──                              │
+│  ● Single Turn   ○ Multi Turn            │
 │                                          │
 │  ── System Prompt ──                     │
 │  ┌──────────────────────────────────────┐│
@@ -74,6 +80,10 @@ LLM 기반 AI Agent를 실행. 프롬프트, RAG, Tool Use를 지원.
 │                                          │
 │  ── Conversation History ──              │
 │  Mode: [Last N ▼]  Count: [10]          │
+│                                          │
+│  ── Multi Turn Settings ──  (mode=multi_turn 시 표시) │
+│  Max Turns:    [20__]                    │
+│  Turn Timeout: [1800_] sec               │
 └──────────────────────────────────────────┘
 ```
 
@@ -99,6 +109,8 @@ LLM 기반 AI Agent를 실행. 프롬프트, RAG, Tool Use를 지원.
 | inputMapping | MappingDef[]? | 도구 파라미터 → 노드 입력 매핑 (미설정 시 자동 매핑) |
 
 ### 실행 로직
+
+#### Single Turn 모드 (mode = `single_turn`)
 1. Knowledge Base가 설정된 경우:
    a. userPrompt를 임베딩하여 유사 문서 검색 (Top-K, Threshold)
    b. 검색 결과를 컨텍스트에 추가
@@ -110,7 +122,37 @@ LLM 기반 AI Agent를 실행. 프롬프트, RAG, Tool Use를 지원.
 4. 최종 응답을 출력 형식에 맞게 변환
 5. `out` 포트로 출력
 
+#### Multi Turn 모드 (mode = `multi_turn`)
+
+워크플로우 실행을 일시 정지(blocking)하고 사용자와 대화형 인터랙션을 수행한다. 기존 Form 노드의 `waiting_for_input` 메커니즘을 확장하여 구현한다.
+
+1. **첫 번째 턴:**
+   a. Single Turn과 동일하게 RAG 검색 + LLM 호출 + Tool 처리 수행
+   b. AI 응답을 WebSocket으로 클라이언트에 전달
+   c. `status: 'waiting_for_input'`, `interactionType: 'ai_conversation'`을 반환하여 실행 일시 정지
+   d. 대화 이력(messages)을 노드 내부 상태로 유지
+
+2. **후속 턴 (사용자 메시지 수신 시):**
+   a. 클라이언트가 `execution.submit_message` 명령으로 사용자 메시지를 전송
+   b. 사용자 메시지를 대화 이력에 추가
+   c. Knowledge Base가 설정된 경우 사용자 메시지로 RAG 재검색
+   d. 갱신된 대화 이력으로 LLM 호출 + Tool 처리
+   e. AI 응답을 WebSocket으로 전달
+   f. 종료 조건 미충족 시 다시 `waiting_for_input` 상태로 전환
+
+3. **종료 조건** (하나라도 충족 시 대화 종료):
+   a. 사용자가 `execution.end_conversation` 명령 전송
+   b. 대화 턴 수가 `maxTurns`에 도달 (0=무제한)
+   c. 사용자 응답 대기 시간이 `turnTimeout` 초과
+   d. LLM 응답에 종료 시그널 포함 (향후 확장)
+
+4. **종료 시:**
+   a. 전체 대화 이력과 마지막 AI 응답을 `out` 포트로 출력
+   b. 워크플로우 실행 재개
+
 ### 출력 구조
+
+#### Single Turn 모드
 
 ```json
 {
@@ -121,6 +163,33 @@ LLM 기반 AI Agent를 실행. 프롬프트, RAG, Tool Use를 지원.
     "outputTokens": 350,
     "totalTokens": 1600,
     "toolCalls": 2,
+    "ragSources": [
+      { "documentId": "uuid", "chunk": "관련 텍스트...", "score": 0.92 }
+    ]
+  }
+}
+```
+
+#### Multi Turn 모드
+
+```json
+{
+  "response": "마지막 AI 응답",
+  "messages": [
+    { "role": "system", "content": "..." },
+    { "role": "user", "content": "첫 번째 사용자 메시지" },
+    { "role": "assistant", "content": "첫 번째 AI 응답" },
+    { "role": "user", "content": "두 번째 사용자 메시지" },
+    { "role": "assistant", "content": "마지막 AI 응답" }
+  ],
+  "turnCount": 3,
+  "endReason": "user_ended | max_turns | timeout",
+  "metadata": {
+    "model": "gpt-4o",
+    "totalInputTokens": 3800,
+    "totalOutputTokens": 1200,
+    "totalTokens": 5000,
+    "toolCalls": 5,
     "ragSources": [
       { "documentId": "uuid", "chunk": "관련 텍스트...", "score": 0.92 }
     ]
@@ -308,6 +377,6 @@ LLM을 사용하여 비정형 텍스트에서 구조화된 정보 추출.
 
 | 노드 | 요약 포맷 | 예시 |
 |------|-----------|------|
-| AI Agent | `{model}`. Tool Area에 등록된 도구 수가 있으면 `· {N} tools`, Knowledge Base 연결 시 `· {N} KB` 추가 | `gpt-4o · 2 tools · 1 KB` |
+| AI Agent | `{mode} · {model}`. Tool Area에 등록된 도구 수가 있으면 `· {N} tools`, Knowledge Base 연결 시 `· {N} KB` 추가. mode가 `multi_turn`이면 `Multi Turn` 표기, `single_turn`이면 생략 | `gpt-4o · 2 tools · 1 KB` (single) / `Multi Turn · gpt-4o · 1 KB` (multi) |
 | Text Classifier | `{model} · {N} categories` (카테고리 수) | `gpt-4o-mini · 3 categories` |
 | Info Extractor | `{model} · {N} fields` (outputSchema 필드 수) | `claude-sonnet · 4 fields` |

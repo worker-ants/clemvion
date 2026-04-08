@@ -178,7 +178,8 @@ Access Token (15분) 만료 전에 연결을 유지하려면:
 | `execution.node.completed` | `{ executionId, nodeId, nodeName, output, duration }` | 노드 실행 완료 |
 | `execution.node.failed` | `{ executionId, nodeId, nodeName, error }` | 노드 실행 실패 |
 | `execution.node.skipped` | `{ executionId, nodeId, nodeName, reason }` | 노드 건너뜀 |
-| `execution.waiting_for_input` | `{ executionId, nodeId, nodeType, interactionType, formConfig?, buttonConfig? }` | Form 노드 또는 버튼이 설정된 Presentation 노드에서 사용자 입력 대기. 아래 §4.4 참조 |
+| `execution.waiting_for_input` | `{ executionId, nodeId, nodeType, interactionType, formConfig?, buttonConfig?, conversationConfig? }` | Form 노드, 버튼 Presentation 노드, 또는 AI Agent Multi Turn 노드에서 사용자 입력 대기. 아래 §4.4 참조 |
+| `execution.ai_message` | `{ executionId, nodeId, message, turnCount, messages }` | AI Agent Multi Turn 모드에서 AI 응답 메시지 전달 |
 
 ### 4.2 실행 제어 명령 (Client → Server)
 
@@ -190,6 +191,8 @@ Access Token (15분) 만료 전에 연결을 유지하려면:
 | `execution.step` | `{ executionId }` | 한 노드만 실행 후 다시 정지 |
 | `execution.submit_form` | `{ executionId, nodeId, formData }` | Form 노드에 사용자 입력 제출 |
 | `execution.click_button` | `{ executionId, nodeId, buttonId }` | 버튼이 설정된 Presentation 노드에서 버튼 클릭. `buttonId`는 port 타입 버튼의 UUID 또는 `__continue__` (link 전용 시 Continue 액션) |
+| `execution.submit_message` | `{ executionId, nodeId, message }` | AI Agent Multi Turn 모드에서 사용자 메시지 전송 |
+| `execution.end_conversation` | `{ executionId, nodeId }` | AI Agent Multi Turn 대화 종료 요청 |
 
 **실행 시작 응답:**
 
@@ -277,10 +280,80 @@ Access Token (15분) 만료 전에 연결을 유지하려면:
 
 | 필드 | 설명 |
 |------|------|
-| `interactionType` | `form`: Form 노드, `buttons`: 버튼이 설정된 Presentation 노드 |
+| `interactionType` | `form`: Form 노드, `buttons`: 버튼이 설정된 Presentation 노드, `ai_conversation`: AI Agent Multi Turn 대화 |
 | `formConfig` | `interactionType = form` 시 존재. Form 노드의 폼 설정 |
 | `buttonConfig` | `interactionType = buttons` 시 존재. 버튼 정의 + 타임아웃 + 노드 렌더링 출력 |
 | `buttonConfig.nodeOutput` | 노드의 렌더링 결과 (클라이언트가 콘텐츠 + 버튼을 함께 표시) |
+| `conversationConfig` | `interactionType = ai_conversation` 시 존재. AI Agent Multi Turn 대화 설정 |
+
+**AI Agent Multi Turn 노드 (`interactionType: "ai_conversation"`):**
+
+```json
+{
+  "type": "execution.waiting_for_input",
+  "payload": {
+    "executionId": "uuid",
+    "nodeId": "uuid",
+    "nodeType": "ai_agent",
+    "interactionType": "ai_conversation",
+    "conversationConfig": {
+      "message": "안녕하세요! 무엇을 도와드릴까요?",
+      "messages": [
+        { "role": "system", "content": "..." },
+        { "role": "user", "content": "첫 번째 사용자 메시지" },
+        { "role": "assistant", "content": "안녕하세요! 무엇을 도와드릴까요?" }
+      ],
+      "turnCount": 1,
+      "maxTurns": 20,
+      "turnTimeout": 1800
+    }
+  }
+}
+```
+
+**사용자 메시지 전송 (`execution.submit_message`):**
+
+```json
+{
+  "type": "execution.submit_message",
+  "id": "req-uuid",
+  "payload": {
+    "executionId": "uuid",
+    "nodeId": "uuid",
+    "message": "주문 상태를 확인해주세요"
+  }
+}
+```
+
+**AI 응답 이벤트 (`execution.ai_message`):**
+
+서버가 LLM 응답을 처리한 후 클라이언트에 전달하는 이벤트. 종료 조건 미충족 시 `execution.waiting_for_input`이 다시 발송된다.
+
+```json
+{
+  "type": "execution.ai_message",
+  "payload": {
+    "executionId": "uuid",
+    "nodeId": "uuid",
+    "message": "주문번호 ORD-12345는 현재 배송 중입니다.",
+    "turnCount": 2,
+    "messages": [ ... ]
+  }
+}
+```
+
+**대화 종료 요청 (`execution.end_conversation`):**
+
+```json
+{
+  "type": "execution.end_conversation",
+  "id": "req-uuid",
+  "payload": {
+    "executionId": "uuid",
+    "nodeId": "uuid"
+  }
+}
+```
 
 ---
 

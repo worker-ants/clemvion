@@ -234,6 +234,85 @@ export class WebsocketGateway
     }
   }
 
+  @SubscribeMessage('execution.submit_message')
+  handleSubmitMessage(
+    @MessageBody()
+    data: { executionId: string; nodeId: string; message: string },
+    @ConnectedSocket() client: Socket,
+  ): {
+    event: string;
+    data: { success: boolean; error?: string };
+  } {
+    const userId = (client as Socket & { userId?: string }).userId;
+    if (!userId) {
+      return {
+        event: 'execution.submit_message.ack',
+        data: { success: false, error: 'Not authenticated' },
+      };
+    }
+
+    // Verify client is subscribed to this execution's channel
+    const clientChannels = this.subscriptions.get(client.id);
+    if (!clientChannels?.has(`execution:${data.executionId}`)) {
+      return {
+        event: 'execution.submit_message.ack',
+        data: { success: false, error: 'Not authorized for this execution' },
+      };
+    }
+
+    try {
+      this.executionEngineService.continueAiConversation(
+        data.executionId,
+        data.message,
+      );
+      return { event: 'execution.submit_message.ack', data: { success: true } };
+    } catch {
+      return {
+        event: 'execution.submit_message.ack',
+        data: { success: false, error: 'Message submission failed' },
+      };
+    }
+  }
+
+  @SubscribeMessage('execution.end_conversation')
+  handleEndConversation(
+    @MessageBody() data: { executionId: string; nodeId: string },
+    @ConnectedSocket() client: Socket,
+  ): {
+    event: string;
+    data: { success: boolean; error?: string };
+  } {
+    const userId = (client as Socket & { userId?: string }).userId;
+    if (!userId) {
+      return {
+        event: 'execution.end_conversation.ack',
+        data: { success: false, error: 'Not authenticated' },
+      };
+    }
+
+    // Verify client is subscribed to this execution's channel
+    const clientChannels = this.subscriptions.get(client.id);
+    if (!clientChannels?.has(`execution:${data.executionId}`)) {
+      return {
+        event: 'execution.end_conversation.ack',
+        data: { success: false, error: 'Not authorized for this execution' },
+      };
+    }
+
+    try {
+      this.executionEngineService.endAiConversation(data.executionId);
+      return {
+        event: 'execution.end_conversation.ack',
+        data: { success: true },
+      };
+    } catch {
+      return {
+        event: 'execution.end_conversation.ack',
+        data: { success: false, error: 'End conversation failed' },
+      };
+    }
+  }
+
   broadcastToChannel(channel: string, event: string, payload: unknown): void {
     this.server.to(channel).emit(event, payload);
   }

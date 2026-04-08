@@ -63,6 +63,10 @@ Phase 1에서 구축한 워크플로우 엔진 위에 **AI 기능**을 추가하
 | ND-AG-08 | 응답 형식 지정 (text / json + JSON Schema) | 필수 |
 | ND-AG-09 | 스트리밍 응답 | 권장 |
 | ND-AG-10 | Tool Area: 캔버스에서 드래그 앤 드롭으로 도구 등록 | 필수 |
+| ND-AG-11 | 실행 모드 선택: Single Turn(단일 호출) / Multi Turn(대화형 블로킹) | 필수 |
+| ND-AG-12 | Multi Turn 모드 시 워크플로우 실행 일시 정지 후 사용자와 대화형 인터랙션 | 필수 |
+| ND-AG-13 | Multi Turn 종료 조건: 최대 턴 수, 타임아웃, 사용자 명시적 종료 | 필수 |
+| ND-AG-14 | Multi Turn 대화 중 Tool Use 및 RAG 검색 지속 지원 | 필수 |
 
 ### 3.3 Text Classifier 노드
 
