@@ -247,7 +247,7 @@
 
 | 변경 사항 | 설명 |
 |-----------|------|
-| 행 클릭 핸들러 | 클릭 시 `/workflows/:workflowId/executions`로 이동 |
+| 행 클릭 핸들러 | 클릭 시 `/workflows/:workflowId/executions/:executionId`로 이동 (개별 실행 상세) |
 | 커서 스타일 | `cursor-pointer` 추가 |
 
 ### 4.2 Workflow List

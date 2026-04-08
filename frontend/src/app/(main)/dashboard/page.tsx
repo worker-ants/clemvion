@@ -303,7 +303,7 @@ export default function DashboardPage() {
                     className="border-b border-[hsl(var(--border))] last:border-b-0 hover:bg-[hsl(var(--muted))/0.5] cursor-pointer"
                     onClick={() =>
                       router.push(
-                        `/workflows/${execution.workflowId}/executions`,
+                        `/workflows/${execution.workflowId}/executions/${execution.id}`,
                       )
                     }
                   >
