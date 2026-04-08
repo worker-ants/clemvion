@@ -13,6 +13,7 @@
 | 필드 | 타입 | 설명 |
 |------|------|------|
 | workflowId | UUID | 호출할 대상 워크플로우 ID |
+| workflowName | String? | 선택된 워크플로우 이름 (캔버스 요약 표시용, 드롭다운 선택 시 자동 저장) |
 | mode | Enum | `sync` / `async` |
 | inputMapping | MappingDef[] | 입력 파라미터 매핑 |
 | timeout | Integer? | 동기 호출 시 타임아웃 (초, 기본: 300) |
@@ -24,10 +25,17 @@
 │  Workflow                              │
 │  ────────────────────────────────────  │
 │                                        │
-│  Target: [Select Workflow ▼]           │
-│          "Data Processing Pipeline"     │
+│  Target Workflow:                      │
+│  [Select a workflow...          ▼]     │
+│    - Data Processing Pipeline          │
+│    - Email Notification Flow           │
+│    - ...                               │
 │                                        │
-│  Mode:   ● Sync  ○ Async              │
+│  Workflow ID:                          │
+│  [_________________________]           │
+│  (직접 UUID 또는 expression 입력 가능) │
+│                                        │
+│  Mode:   [Sync ▼]                     │
 │                                        │
 │  Input Mapping:                        │
 │  ┌────────────────────────────────────┐│
@@ -39,6 +47,9 @@
 │  Timeout: [300] seconds                │
 └────────────────────────────────────────┘
 ```
+
+- 드롭다운에서 선택 시 Workflow ID 필드에 자동 반영
+- 직접 입력 시 드롭다운 선택 해제
 
 ### 포트
 - 입력: `in` (1개)
@@ -70,8 +81,11 @@
 
 ### 대상 워크플로우 선택
 
-- 드롭다운: 같은 워크스페이스 내의 워크플로우 목록
-- 검색 가능
+- 드롭다운: 같은 워크스페이스 내의 워크플로우 목록 (API: `GET /workflows`)
+- 현재 편집 중인 워크플로우는 목록에서 제외
+- 비활성 워크플로우는 `(inactive)` 라벨 표시
+- 드롭다운 선택 시 `workflowId`와 `workflowName`을 config에 동시 저장
+- ExpressionInput을 통한 직접 UUID/expression 입력도 지원 (직접 입력 시 `workflowName` 초기화)
 - 선택 시 대상 워크플로우의 입력 스키마(첫 노드 기대 입력) 표시
 - 대상 워크플로우가 삭제/비활성화된 경우 경고 표시
 
@@ -93,4 +107,4 @@
 
 | 노드 | 요약 포맷 | 예시 |
 |------|-----------|------|
-| Workflow | `{대상 워크플로우 이름} · {mode}`. 워크플로우 삭제 시 `⚠ Missing workflow` | `Data Pipeline · sync` |
+| Workflow | `{workflowName 또는 workflowId} · {mode}`. `workflowName`이 있으면 이름 표시, 없으면 ID 표시. 워크플로우 삭제 시 `⚠ Missing workflow` | `Data Pipeline · sync` |
