@@ -62,8 +62,7 @@
 | Failed | `failed` | 실패한 실행만 |
 | Running | `running` | 실행 중인 것만 |
 | Cancelled | `cancelled` | 취소된 실행만 |
-
-> `pending`, `waiting_for_input` 상태는 `Running` 필터에 포함하지 않고 All에서만 표시한다.
+| Waiting | `waiting_for_input` | 입력 대기 중인 것만 |
 
 ### 2.4 테이블
 
@@ -72,7 +71,7 @@
 | Status | 상태 아이콘 + 텍스트 (`✅ Completed`, `❌ Failed`, `⏳ Running`, `⛔ Cancelled`, `🙋 Waiting`) | 가능 |
 | Started At | 실행 시작 시각 (`YYYY-MM-DD HH:mm:ss`) | 가능 (기본: 내림차순) |
 | Duration | 실행 소요 시간 (초/분 자동 전환). 실행 중이면 `—` 표시 | 가능 |
-| Trigger | 실행을 트리거한 방식 (`Manual`, `Webhook`, `Schedule`) | — |
+| Nodes | 노드 실행 현황 (`완료 수/전체 수`, 실패 시 `(N failed)` 추가) | — |
 
 | 동작 | 설명 |
 |------|------|
@@ -131,16 +130,15 @@
 │  └──────────────────────────────────────────────────────────────┘ │
 │                                                                    │
 │  ┌──────────────────────┬──────────────────────────────────┐     │
-│  │ Nodes                │ API Call                         │     │
-│  │ ──────────────────── │ Status: ❌ Failed  Dur: 1.0s     │     │
-│  │                      │                                  │     │
-│  │ ✅ Start Node        │ [Input]  [Output]  [Error]       │     │
-│  │ ✅ Data Transform    │ ──────────────────────────────── │     │
-│  │ ❌ API Call     ←    │                                  │     │
-│  │                      │ {                                │     │
-│  │                      │   "message": "Connection ...",   │     │
-│  │                      │   "code": "ETIMEDOUT"            │     │
-│  │                      │ }                                │     │
+│  │ Nodes                │ Carousel                  carousel│     │
+│  │ ──────────────────── │                                  │     │
+│  │ ✅ Manual Trigger    │ [Preview]  Input  Output         │     │
+│  │ ✅ Carousel     ←    │ ──────────────────────────────── │     │
+│  │ ✅ Template          │ Preview                          │     │
+│  │ ✅ AI Agent          │ ┌────────────────────────────┐   │     │
+│  │ ✅ Template          │ │ (Carousel 시각적 프리뷰)    │   │     │
+│  │                      │ └────────────────────────────┘   │     │
+│  │                      │ [버튼1] [▉ 선택된 버튼] [버튼3]  │     │
 │  └──────────────────────┴──────────────────────────────────┘     │
 └────────────────────────────────────────────────────────────────────┘
 ```
@@ -175,14 +173,51 @@ Skipped 상태의 노드는 목록에서 제외한다.
 **좌측 패널 (노드 목록)**:
 - 실행된 노드만 상태 아이콘과 함께 목록으로 표시 (skipped 제외)
 - 선택된 노드 하이라이트
-- 실패한 노드는 빨간색 강조
 
 **우측 패널 (노드 상세)**:
-- 노드 이름, 타입, 상태, 소요 시간
-- 서브 탭: Input / Output / Error (에러가 있을 때만)
-- JSON 데이터는 코드 블록으로 표시
+- 노드 이름, 타입 배지, 상태, 소요 시간
+- 서브 탭: **Preview** / Input / Output / Error (에러가 있을 때만)
+- 기본 선택 탭: outputData가 있으면 Preview, 에러면 Error, 그 외 Output
 
-### 3.4 이전/다음 실행 네비게이션
+### 3.4 Preview 탭
+
+노드 유형에 따라 다른 방식으로 시각적 프리뷰를 제공한다. Output Data JSON은 별도 Output 탭에서 확인한다.
+
+#### Presentation 노드 (table, carousel, chart, template, pdf, form)
+
+에디터 실행 시와 동일한 시각적 렌더링을 제공한다:
+- **Table**: 테이블 형태로 rows/columns 표시
+- **Carousel**: 카드 슬라이드 또는 rendered HTML
+- **Chart**: SVG/rendered HTML 차트
+- **Template**: 포맷(html/markdown/text)에 따른 프리뷰
+- **PDF**: 파일명 + 다운로드 링크
+- **Form**: 제출된 form 데이터 표시
+
+#### 버튼이 있는 노드
+
+- 노드의 `buttonConfig.buttons`에서 전체 버튼 목록을 표시
+- 실행 완료 후 선택된 버튼(`buttonId` 매칭)은 primary 색상으로 하이라이트
+- 미선택 버튼은 outline 스타일로 비활성 표시
+
+#### AI Agent 노드
+
+완료된 대화를 채팅 스레드 형태로 표시한다:
+- 턴 카운터, 종료 사유 표시
+- User/Assistant 메시지를 버블 형태로 나열
+- Tool Call 배지 (접기/펼치기)
+- 메타데이터 (Model, Tokens)
+- **메시지 클릭**: 개별 메시지의 상세 뷰로 전환
+  - Assistant 메시지: Preview / Response / Request / Usage 탭
+  - User 메시지: 메시지 내용 + 타임스탬프
+  - Tool 메시지: 인자 + 결과
+- **"← Back to conversation"** 버튼으로 스레드 뷰 복귀
+
+#### 일반 노드
+
+- 상태 (Status), 소요 시간 (Duration) 표시
+- 에러가 있으면 에러 메시지 표시
+
+### 3.5 이전/다음 실행 네비게이션
 
 - 실행 상세 페이지 헤더 우측에 `← Prev` / `Next →` 버튼
 - 같은 워크플로우의 시간 순서 기준으로 이전/다음 실행으로 이동
