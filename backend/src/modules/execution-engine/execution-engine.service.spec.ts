@@ -7,6 +7,8 @@ import { ErrorPolicyHandler } from './error/error-policy.handler';
 import { ExpressionResolverService } from './expression/expression-resolver.service';
 import { WebsocketService } from '../websocket/websocket.service';
 import { ConfigService } from '@nestjs/config';
+import { LlmService } from '../llm/llm.service';
+import { RagSearchService } from '../knowledge-base/search/rag-search.service';
 import {
   Execution,
   ExecutionStatus,
@@ -202,6 +204,23 @@ describe('ExecutionEngineService', () => {
               if (key === 'MAX_NODE_ITERATIONS') return 100;
               return defaultValue;
             }),
+          },
+        },
+        {
+          provide: LlmService,
+          useValue: {
+            resolveConfig: jest.fn(),
+            chat: jest.fn(),
+            embed: jest.fn(),
+          },
+        },
+        {
+          provide: RagSearchService,
+          useValue: {
+            search: jest.fn().mockResolvedValue([]),
+            buildContext: jest
+              .fn()
+              .mockReturnValue({ context: '', sources: [] }),
           },
         },
       ],
@@ -923,7 +942,9 @@ describe('ExecutionEngineService', () => {
         expect.objectContaining({
           status: ExecutionStatus.FAILED,
           error: expect.objectContaining({
-            message: expect.stringContaining('exceeded maximum iteration count'),
+            message: expect.stringContaining(
+              'exceeded maximum iteration count',
+            ),
           }),
         }),
       );
@@ -944,7 +965,10 @@ describe('ExecutionEngineService', () => {
       };
       const passHandler: NodeHandler = {
         validate: () => ({ valid: true, errors: [] }),
-        execute: jest.fn(async (input: unknown) => ({ processed: true, input })),
+        execute: jest.fn(async (input: unknown) => ({
+          processed: true,
+          input,
+        })),
       };
 
       handlerRegistry.register('loop_switch', loopHandler);
@@ -1045,7 +1069,7 @@ describe('ExecutionEngineService', () => {
     it('should pass workflowInput to back-edge target start node on first execution', async () => {
       // A (start, also back-edge target) -> B (switch)
       // B -> case1: back to A, case2: forward to C
-      let aInputs: unknown[] = [];
+      const aInputs: unknown[] = [];
       const startHandler: NodeHandler = {
         validate: () => ({ valid: true, errors: [] }),
         execute: jest.fn(async (input: unknown) => {

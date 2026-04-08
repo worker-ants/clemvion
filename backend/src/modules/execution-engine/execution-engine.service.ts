@@ -65,6 +65,11 @@ import { FormHandler } from './handlers/presentation/form.handler';
 import { TemplateHandler } from './handlers/presentation/template.handler';
 import { PdfHandler } from './handlers/presentation/pdf.handler';
 import { ManualTriggerHandler } from './handlers/trigger/manual-trigger.handler';
+import { AiAgentHandler } from './handlers/ai/ai-agent.handler';
+import { TextClassifierHandler } from './handlers/ai/text-classifier.handler';
+import { InformationExtractorHandler } from './handlers/ai/information-extractor.handler';
+import { LlmService } from '../llm/llm.service';
+import { RagSearchService } from '../knowledge-base/search/rag-search.service';
 import { ButtonConfig } from './types/button.types';
 
 class ExecutionCancelledError extends Error {
@@ -116,6 +121,8 @@ export class ExecutionEngineService implements OnModuleInit {
     @Inject(forwardRef(() => WebsocketService))
     private readonly websocketService: WebsocketService,
     private readonly configService: ConfigService,
+    private readonly llmService: LlmService,
+    private readonly ragSearchService: RagSearchService,
   ) {}
 
   async onModuleInit() {
@@ -177,6 +184,13 @@ export class ExecutionEngineService implements OnModuleInit {
       ['template', new TemplateHandler()],
       ['pdf', new PdfHandler()],
       ['manual_trigger', new ManualTriggerHandler()],
+      // AI handlers
+      ['ai_agent', new AiAgentHandler(this.llmService, this.ragSearchService)],
+      ['text_classifier', new TextClassifierHandler(this.llmService)],
+      [
+        'information_extractor',
+        new InformationExtractorHandler(this.llmService),
+      ],
     ];
 
     for (const [type, handler] of handlers) {

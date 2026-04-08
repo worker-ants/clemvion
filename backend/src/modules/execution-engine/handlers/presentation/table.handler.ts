@@ -245,7 +245,10 @@ export class TableHandler implements NodeHandler {
       return evaluate(template, ctx);
     } catch (e) {
       console.error('[TableHandler] safeEvaluate error:', template, e);
-      console.error('[TableHandler] ctx.$sourceItem:', JSON.stringify(ctx.$sourceItem));
+      console.error(
+        '[TableHandler] ctx.$sourceItem:',
+        JSON.stringify(ctx.$sourceItem),
+      );
       console.error('[TableHandler] ctx.$var:', JSON.stringify(ctx.$var));
       return null;
     }

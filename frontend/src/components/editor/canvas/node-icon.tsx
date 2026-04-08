@@ -27,6 +27,9 @@ import {
   Puzzle,
   Layout,
   HelpCircle,
+  Brain,
+  Tags,
+  FileSearch,
 } from "lucide-react";
 
 const ICON_MAP: Record<string, React.ComponentType<LucideProps>> = {
@@ -55,6 +58,9 @@ const ICON_MAP: Record<string, React.ComponentType<LucideProps>> = {
   Puzzle,
   Layout,
   HelpCircle,
+  Brain,
+  Tags,
+  FileSearch,
 };
 
 interface NodeIconProps extends LucideProps {
