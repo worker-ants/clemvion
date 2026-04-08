@@ -46,7 +46,11 @@ export function ConversationTimelineItem({
             {item.content || (item.assistantToolCalls?.length ? (
               <span className="inline-flex items-center gap-0.5 text-[hsl(var(--muted-foreground))]">
                 <Wrench size={10} />
-                <span className="text-[10px]">Tool Call</span>
+                <span className="text-[10px]">
+                  {item.assistantToolCalls.length === 1
+                    ? "Called 1 tool"
+                    : `Called ${item.assistantToolCalls.length} tools`}
+                </span>
               </span>
             ) : null)}
           </span>
