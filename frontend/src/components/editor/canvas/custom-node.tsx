@@ -53,15 +53,15 @@ function CustomNodeComponent({ id, data, selected }: NodeProps<CustomNodeType>) 
         // Multi Turn: condition ports + user_ended + max_turns + error (no "out")
         return [
           ...condPorts,
-          { id: "user_ended", label: "User Ended", type: "data" as const },
-          { id: "max_turns", label: "Max Turns", type: "data" as const },
+          { id: "user_ended", label: "User Ended", type: "system" as const },
+          { id: "max_turns", label: "Max Turns", type: "system" as const },
           { id: "error", label: "Error", type: "error" as const },
         ];
       }
       // Single Turn: condition ports + out + error
       return [
         ...condPorts,
-        { id: "out", label: "Output", type: "data" as const },
+        { id: "out", label: "Output", type: "system" as const },
         { id: "error", label: "Error", type: "error" as const },
       ];
     }
@@ -191,21 +191,33 @@ function CustomNodeComponent({ id, data, selected }: NodeProps<CustomNodeType>) 
         {/* Port labels with co-located output handles */}
         {hasMultipleOutputs ? (
           <div className="flex flex-col gap-0.5">
-            {outputs.map((port) => (
-              <div key={port.id} className="relative flex items-center justify-end">
-                <span className="text-[10px] text-[hsl(var(--muted-foreground))]">
-                  {port.label}
-                </span>
-                <Handle
-                  id={port.id}
-                  type="source"
-                  position={Position.Right}
-                  className={cn(
-                    "!h-2.5 !w-2.5 !border-2 !border-white",
-                    port.type === "error" ? "!bg-red-400" : "!bg-green-400",
+            {outputs.map((port, index) => (
+              <div key={port.id}>
+                {/* Divider between user conditions and system ports */}
+                {index > 0 &&
+                  outputs[index - 1].type === "data" &&
+                  (port.type === "system" || port.type === "error") && (
+                    <div className="border-t border-dashed border-[hsl(var(--border))] my-0.5" />
                   )}
-                  style={{ top: "50%", right: "-12px" }}
-                />
+                <div className="relative flex items-center justify-end">
+                  <span className="text-[10px] text-[hsl(var(--muted-foreground))]">
+                    {port.label}
+                  </span>
+                  <Handle
+                    id={port.id}
+                    type="source"
+                    position={Position.Right}
+                    className={cn(
+                      "!h-2.5 !w-2.5 !border-2 !border-white",
+                      port.type === "error"
+                        ? "!bg-red-400"
+                        : port.type === "system"
+                          ? "!bg-blue-400"
+                          : "!bg-green-400",
+                    )}
+                    style={{ top: "50%", right: "-12px" }}
+                  />
+                </div>
               </div>
             ))}
           </div>
@@ -220,7 +232,11 @@ function CustomNodeComponent({ id, data, selected }: NodeProps<CustomNodeType>) 
                 position={Position.Right}
                 className={cn(
                   "!h-2.5 !w-2.5 !border-2 !border-white",
-                  port.type === "error" ? "!bg-red-400" : "!bg-green-400",
+                  port.type === "error"
+                    ? "!bg-red-400"
+                    : port.type === "system"
+                      ? "!bg-blue-400"
+                      : "!bg-green-400",
                 )}
                 style={{ top: "50%" }}
               />
