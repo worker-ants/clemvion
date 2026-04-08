@@ -554,6 +554,23 @@ describe('ExecutionEngineService', () => {
       );
     });
 
+    it('should throw when continueAiConversation receives oversized message', async () => {
+      // Set up a pending continuation first
+      await service.execute(workflowId, { data: 'test' });
+      await flushPromises();
+
+      const oversizedMessage = 'x'.repeat(10_001);
+      expect(() =>
+        service.continueAiConversation(executionId, oversizedMessage),
+      ).toThrow('Message exceeds maximum length');
+    });
+
+    it('should throw when continueAiConversation called without pending continuation', () => {
+      expect(() =>
+        service.continueAiConversation('non-existent', 'hello'),
+      ).toThrow('No pending continuation');
+    });
+
     it('should handle cancellation of waiting execution', async () => {
       await service.execute(workflowId, { data: 'test' });
       await flushPromises();

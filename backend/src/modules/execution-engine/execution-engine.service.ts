@@ -707,10 +707,17 @@ export class ExecutionEngineService implements OnModuleInit {
   /**
    * Submit a user message in a multi-turn AI conversation.
    */
+  private static readonly MAX_MESSAGE_LENGTH = 10_000;
+
   continueAiConversation(executionId: string, message: string): void {
     const pending = this.pendingContinuations.get(executionId);
     if (!pending) {
       throw new Error(`No pending continuation for execution: ${executionId}`);
+    }
+    if (message.length > ExecutionEngineService.MAX_MESSAGE_LENGTH) {
+      throw new Error(
+        `Message exceeds maximum length of ${ExecutionEngineService.MAX_MESSAGE_LENGTH} characters`,
+      );
     }
     this.pendingContinuations.delete(executionId);
     pending.resolve({ type: 'ai_message', message });
@@ -872,14 +879,23 @@ export class ExecutionEngineService implements OnModuleInit {
           const clientMessages = (
             convConfig.messages as Array<Record<string, unknown>>
           ).filter((m) => m.role !== 'system');
+
           this.websocketService.emitExecutionEvent(
             executionId,
-            'execution.ai_message' as ExecutionEventType,
+            ExecutionEventType.AI_MESSAGE,
             {
               nodeId: node.id,
               message: convConfig.message,
               turnCount: convConfig.turnCount,
               messages: clientMessages,
+              metadata: {
+                model: multiTurnState.model,
+                inputTokens: multiTurnState.totalInputTokens,
+                outputTokens: multiTurnState.totalOutputTokens,
+              },
+              requestPayload: multiTurnState.lastTurnRequest,
+              responsePayload: multiTurnState.lastTurnResponse,
+              durationMs: multiTurnState.lastTurnDurationMs,
             },
           );
 
