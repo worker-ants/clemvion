@@ -79,7 +79,6 @@ export class AiAgentHandler implements NodeHandler {
       const reservedPortIds = new Set([
         'out',
         'in',
-        'timeout',
         'error',
         'user_ended',
         'max_turns',
@@ -818,7 +817,7 @@ export class AiAgentHandler implements NodeHandler {
     messages: ChatMessage[],
     lastResponse: string,
     turnCount: number,
-    endReason: 'user_ended' | 'max_turns' | 'timeout' | 'condition' | 'error',
+    endReason: 'user_ended' | 'max_turns' | 'condition' | 'error',
     metadata: {
       model: string;
       totalInputTokens: number;

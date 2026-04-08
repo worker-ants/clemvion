@@ -1,0 +1,88 @@
+{
+  "timestamp": "2026-04-09T01:49:49.681554",
+  "files": [
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/prd/3-node-system.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/prd/6-phase2-ai.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/spec/4-nodes/3-ai-nodes.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    }
+  ],
+  "total_elapsed_seconds": 158.17,
+  "agents": [
+    {
+      "name": "database",
+      "status": "success",
+      "elapsed_seconds": 19.9
+    },
+    {
+      "name": "performance",
+      "status": "success",
+      "elapsed_seconds": 33.27
+    },
+    {
+      "name": "maintainability",
+      "status": "success",
+      "elapsed_seconds": 34.3
+    },
+    {
+      "name": "documentation",
+      "status": "success",
+      "elapsed_seconds": 41.72
+    },
+    {
+      "name": "dependency",
+      "status": "success",
+      "elapsed_seconds": 42.38
+    },
+    {
+      "name": "architecture",
+      "status": "success",
+      "elapsed_seconds": 42.81
+    },
+    {
+      "name": "scope",
+      "status": "success",
+      "elapsed_seconds": 43.02
+    },
+    {
+      "name": "api_contract",
+      "status": "success",
+      "elapsed_seconds": 44.04
+    },
+    {
+      "name": "security",
+      "status": "success",
+      "elapsed_seconds": 54.61
+    },
+    {
+      "name": "concurrency",
+      "status": "success",
+      "elapsed_seconds": 54.76
+    },
+    {
+      "name": "side_effect",
+      "status": "success",
+      "elapsed_seconds": 57.34
+    },
+    {
+      "name": "testing",
+      "status": "success",
+      "elapsed_seconds": 58.02
+    },
+    {
+      "name": "requirement",
+      "status": "success",
+      "elapsed_seconds": 63.18
+    }
+  ]
+}

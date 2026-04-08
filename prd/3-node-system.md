@@ -181,18 +181,18 @@
 | ND-AG-10 | Tool Area를 통한 도구 연결 — 캔버스에서 노드를 드래그하여 AI Agent의 Tool Area에 등록 | 필수 | 2 |
 | ND-AG-11 | 실행 모드 선택 — Single Turn(단일 호출) / Multi Turn(대화형 블로킹) 모드 지원 | 필수 | 2 |
 | ND-AG-12 | Multi Turn 모드 시 워크플로우 실행을 일시 정지(blocking)하고, 사용자와 대화형 인터랙션 제공 | 필수 | 2 |
-| ND-AG-13 | Multi Turn 모드의 종료 조건 설정 — 최대 턴 수, 타임아웃, 사용자 명시적 종료 | 필수 | 2 |
+| ND-AG-13 | Multi Turn 모드의 종료 조건 설정 — 최대 턴 수, 타임아웃(→ error 포트로 통합), 사용자 명시적 종료 | 필수 | 2 |
 | ND-AG-14 | Multi Turn 모드에서 대화 중 Tool Use 및 RAG 검색 지속 지원 | 필수 | 2 |
 | ND-AG-15 | Condition(조건) 설정으로 AI Agent 대화 결과에 따른 동적 출력 포트 분기 지원 | 필수 | 2 |
 | ND-AG-16 | 조건별 동적 출력 포트 자동 생성 | 필수 | 2 |
-| ND-AG-17 | 조건을 LLM 도구(tool)로 자동 등록, 도구 이름은 UUID 기반 자동 지정 | 필수 | 2 |
+| ND-AG-17 | 조건을 LLM 도구(tool)로 자동 등록, 도구 이름은 `cond_` 접두사 + 정제된 UUID (일반 도구는 `tool_` 접두사) | 필수 | 2 |
 | ND-AG-18 | 조건 도구 호출 시 AI Agent 종료 및 해당 포트 라우팅 | 필수 | 2 |
-| ND-AG-19 | 종료 사유별 기본 출력 포트 제공 (timeout, user_ended, error, max_turns) | 필수 | 2 |
+| ND-AG-19 | 종료 사유별 기본 출력 포트 제공 (user_ended, error, max_turns). timeout/rate limit는 error로 통합 | 필수 | 2 |
 | ND-AG-20 | 조건의 동적 추가/삭제, 포트 ID 불변 유지 | 필수 | 2 |
 | ND-AG-21 | 조건과 일반 도구 동시 호출 시 일반 도구 우선 실행 후 LLM 재평가 | 필수 | 2 |
 | ND-AG-22 | 복수 조건 동시 호출 시 목록 순서 기준 첫 번째 조건 선택 | 필수 | 2 |
-| ND-AG-23 | Single Turn 모드: `out` + 조건 포트 + `timeout` + `error` | 필수 | 2 |
-| ND-AG-24 | Multi Turn 모드: 조건 포트 + `timeout` + `user_ended` + `max_turns` + `error` (`out` 없음) | 필수 | 2 |
+| ND-AG-23 | Single Turn 모드: 조건 포트 + `out` + `error`. 조건 0개 시 `out` + `error` | 필수 | 2 |
+| ND-AG-24 | Multi Turn 모드: 조건 포트 + `user_ended` + `max_turns` + `error`. 조건 0개 시 `out` + `error` (하위 호환) | 필수 | 2 |
 
 ### 6.2 Text Classifier
 
