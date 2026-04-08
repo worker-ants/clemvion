@@ -3,6 +3,7 @@
 import DOMPurify from "dompurify";
 import { FileDown } from "lucide-react";
 import type { NodeResult } from "@/lib/stores/execution-store";
+import { cn } from "@/lib/utils/cn";
 
 function isHttpUrl(url: unknown): url is string {
   if (typeof url !== "string") return false;
@@ -138,7 +139,29 @@ function CarouselContent({ data }: { data: Record<string, unknown> }) {
   const items = data.items as
     | Array<{ title?: string; description?: string; image?: string }>
     | undefined;
-  if (!items || items.length === 0) return <JsonContent data={data} />;
+
+  // If rendered HTML has actual content (not just an empty wrapper), use it
+  const rendered = data.rendered as string | undefined;
+  const hasRenderedContent =
+    rendered && /<[^>]+>[^<]+/.test(rendered); // has text inside tags
+
+  if (hasRenderedContent) {
+    return (
+      <div
+        className="overflow-auto"
+        dangerouslySetInnerHTML={{ __html: sanitizeHtml(rendered) }}
+      />
+    );
+  }
+
+  if (!items || items.length === 0) {
+    // Empty carousel — show placeholder instead of raw JSON
+    return (
+      <div className="rounded border border-dashed border-[hsl(var(--border))] p-4 text-center text-xs text-[hsl(var(--muted-foreground))]">
+        No items
+      </div>
+    );
+  }
   return (
     <div className="flex gap-2 overflow-x-auto pb-1">
       {items.map((item, i) => (
@@ -275,7 +298,17 @@ function FormSubmittedContent({ data }: { data: Record<string, unknown> }) {
   );
 }
 
-export function PresentationContent({ result }: { result: NodeResult }) {
+interface PresentationContentProps {
+  result: NodeResult;
+  onPortButtonClick?: (buttonId: string) => void;
+  onLinkButtonClick?: (url: string) => void;
+}
+
+export function PresentationContent({
+  result,
+  onPortButtonClick,
+  onLinkButtonClick,
+}: PresentationContentProps) {
   const raw = result.outputData as Record<string, unknown>;
   if (!raw || typeof raw !== "object") return <JsonContent data={raw} />;
 
@@ -311,6 +344,17 @@ export function PresentationContent({ result }: { result: NodeResult }) {
       return <JsonContent data={data} />;
   }
 
+  // Extract inline buttons from data.buttonConfig (present when node is waiting for button click)
+  const btnConfig = data.buttonConfig as Record<string, unknown> | undefined;
+  const buttons = (btnConfig?.buttons ?? []) as Array<{
+    id: string;
+    label: string;
+    type?: "link" | "port";
+    url?: string;
+    style?: string;
+  }>;
+  const isInteractive = !!(onPortButtonClick || onLinkButtonClick);
+
   return (
     <div className="space-y-3">
       {/* Preview */}
@@ -319,6 +363,32 @@ export function PresentationContent({ result }: { result: NodeResult }) {
           Preview
         </p>
         {preview}
+        {buttons.length > 0 && (
+          <div className="mt-2 flex flex-wrap gap-2">
+            {buttons.map((btn) => (
+              <button
+                key={btn.id}
+                type="button"
+                disabled={!isInteractive}
+                className={cn(
+                  "inline-flex items-center rounded-md px-3 py-1 text-xs transition-colors",
+                  isInteractive
+                    ? "border border-[hsl(var(--input))] bg-[hsl(var(--secondary))] text-[hsl(var(--secondary-foreground))] hover:bg-[hsl(var(--secondary))]/80 cursor-pointer"
+                    : "border border-[hsl(var(--border))] text-[hsl(var(--muted-foreground))]",
+                )}
+                onClick={() => {
+                  if (btn.type === "link" && btn.url) {
+                    onLinkButtonClick?.(btn.url);
+                  } else {
+                    onPortButtonClick?.(btn.id);
+                  }
+                }}
+              >
+                {btn.label}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
       {/* Debug data */}
       <div>
