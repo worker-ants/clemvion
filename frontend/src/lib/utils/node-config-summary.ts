@@ -125,7 +125,9 @@ function workflowSummary(config: NodeConfig): ConfigSummaryResult | null {
   const workflowId = config.workflowId as string | undefined;
   if (!workflowId) return null;
   const mode = (config.mode as string) ?? "sync";
-  return { text: `${workflowId} \u00b7 ${mode}`, isWarning: false };
+  const workflowName = config.workflowName as string | undefined;
+  const label = workflowName || workflowId;
+  return { text: `${label} \u00b7 ${mode}`, isWarning: false };
 }
 
 function httpRequestSummary(config: NodeConfig): ConfigSummaryResult | null {

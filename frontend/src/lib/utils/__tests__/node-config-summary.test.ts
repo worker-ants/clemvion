@@ -347,6 +347,22 @@ describe("workflow summary", () => {
     })).toEqual({ text: "abc-123 \u00b7 sync", isWarning: false });
   });
 
+  it("shows workflow name instead of id when available", () => {
+    expect(getConfigSummary("workflow", {
+      workflowId: "abc-123",
+      workflowName: "Data Pipeline",
+      mode: "sync",
+    })).toEqual({ text: "Data Pipeline \u00b7 sync", isWarning: false });
+  });
+
+  it("falls back to id when workflowName is empty", () => {
+    expect(getConfigSummary("workflow", {
+      workflowId: "abc-123",
+      workflowName: "",
+      mode: "async",
+    })).toEqual({ text: "abc-123 \u00b7 async", isWarning: false });
+  });
+
   it("shows warning when workflowId is empty", () => {
     expect(getConfigSummary("workflow", { workflowId: "" })).toEqual(NOT_CONFIGURED);
   });
