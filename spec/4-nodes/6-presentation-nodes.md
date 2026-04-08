@@ -49,7 +49,7 @@
 |------|------|--------|------|
 | Input | 입력 | `in` | 배열 데이터 입력 |
 | Global Button Port | 출력 | `{button.id}` | 글로벌 port 타입 버튼마다 동적 생성 |
-| Item Button Port (Static) | 출력 | `{button.id}` | Static 모드: 각 아이템의 port 타입 버튼마다 개별 포트 생성. 포트 라벨: `"아이템 제목 - 버튼 라벨"` |
+| Item Button Port (Static) | 출력 | `{button.id}` | Static 모드: 각 아이템의 port 타입 버튼마다 개별 포트 생성. 포트 라벨: `"아이템 제목 › 버튼 라벨"` (아이템명은 연한 색상) |
 | Item Button Port (Dynamic) | 출력 | `{itemButton.id}` | Dynamic 모드: `itemButtons` 정의의 port 타입 버튼마다 포트 생성. 런타임에 아이템별 고유 ID(`{id}__item_{idx}`)가 생성되나, 포트 라우팅은 원래 정의 ID로 수행 |
 | Continue | 출력 | `continue` | **link 타입 버튼만 존재**할 경우 자동 생성 |
 
@@ -60,9 +60,10 @@
 1. `mode` 확인 (기본값: `dynamic`)
 2. **Static 모드**: `items` 배열을 직접 사용 (표현식은 실행 엔진이 사전 해석)
 3. **Dynamic 모드**:
-   1. 입력 데이터에서 배열 추출 (최상위가 배열이 아닌 경우 배열 필드 자동 탐색)
+   1. `source` 표현식이 설정되어 있으면 resolve된 결과를 배열로 사용. 미설정 시 입력 데이터를 직접 사용 (하위호환)
    2. `maxItems`까지 항목 제한
    3. 각 항목에서 `titleField`, `descriptionField`, `imageField`를 매핑하여 슬라이드 구조 생성
+   4. `itemButtons`가 설정되어 있으면 모든 아이템에 동일한 버튼을 적용 (아이템별 고유 ID `{btnId}__item_{index}` 자동 생성)
 4. `layout`에 따른 HTML 렌더링 생성
 5. 구조화된 JSON + 렌더링된 HTML 생성
 6. **Blocking Mode** (글로벌 `buttons` 또는 아이템 `buttons`가 하나라도 있는 경우):
@@ -74,11 +75,14 @@
    6. `buttonTimeout` 설정 시 타이머 시작
    7. 사용자 인터랙션 대기:
       - **글로벌 port 버튼 클릭** → 해당 버튼의 동적 포트(`{button.id}`)로 데이터 전달
-      - **아이템 port 버튼 클릭** → 해당 포트로 데이터 전달 + `selectedItem` 필드에 아이템 데이터 포함
+      - **아이템 port 버튼 클릭** → 해당 포트로 데이터 전달 + `selectedItem` 필드에 아이템 데이터 포함. Dynamic 모드의 경우 런타임 ID(`{id}__item_{idx}`)에서 원래 정의 ID를 추출하여 포트 라우팅에 사용
       - **Continue 클릭** (link 전용 시) → `continue` 포트로 렌더링 출력 전달
       - **타임아웃** → `buttonTimeoutAction`에 따라 `continue` 포트로 재개 또는 `BUTTON_TIMEOUT` 에러
    8. `NodeExecution.interaction_data`에 클릭 정보 기록
+   9. `buttonConfig`는 실행 결과에 보존하여 실행 내역 페이지에서 모든 버튼을 표시 가능
 7. **Non-blocking** (버튼이 전혀 없는 경우): `out` 포트로 출력 전달 (기존과 동일)
+
+> **포트 라우팅 메타데이터**: 버튼 클릭 시 output에 `_selectedPort`가 설정되어 엣지 기반 라우팅에 사용된다. 이 메타데이터는 다운스트림 노드의 input으로 전달될 때 자동으로 제거되어, pass-through 노드(Variable 등)를 거쳐도 이후 노드가 잘못 skip되지 않는다.
 
 **출력 형식 (Non-blocking, 기존과 동일):**
 
@@ -174,6 +178,7 @@
 │  ────────────────────────────── │
 │  Mode: [Dynamic (from input) ▼]     │
 │                                      │
+│  Source: [{{ $input.items }}____]     │
 │  Title Field:       [name________]   │
 │  Description Field: [summary_____]   │
 │  Image Field:       [thumbnail___]   │

@@ -98,6 +98,10 @@ pending → running ──┤
   - **순환 참조는 반드시 분기 노드(Switch, If/Else 등)의 특정 포트에서만 back-edge를 연결해야 안전함**
 - 활성화된 back-edge가 있으면 해당 타겟 노드부터 재실행, 재실행 구간의 포트 라우팅 스킵 상태가 초기화됨
 
+#### `_selectedPort` 메타데이터 처리
+
+`_selectedPort`는 해당 노드의 엣지 라우팅에만 사용되는 내부 메타데이터이다. 다운스트림 노드의 input으로 전달될 때 자동으로 제거(strip)된다. 이를 통해 pass-through 노드(Variable, Set Variable 등)를 거쳐도 이후 노드가 잘못 skip되지 않는다.
+
 ### 2.2 컨테이너 내부 독립 정렬
 
 컨테이너 노드(Loop, ForEach, Background) 내부의 자식 노드는 독립적으로 토폴로지 정렬한다.
