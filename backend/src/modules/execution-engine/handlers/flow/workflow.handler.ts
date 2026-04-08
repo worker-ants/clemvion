@@ -3,17 +3,30 @@ import {
   ValidationResult,
   ExecutionContext,
 } from '../node-handler.interface.js';
+import { WorkflowExecutor } from './workflow-executor.interface.js';
+
+interface MappingDef {
+  paramName: string;
+  expression: unknown;
+}
 
 interface WorkflowConfig {
   workflowId: string;
+  workflowName?: string;
   mode: 'sync' | 'async';
-  inputMapping?: Record<string, string>;
+  inputMapping?: MappingDef[];
+  timeout?: number;
 }
 
+const MAX_RECURSION_DEPTH = 10;
+
 export class WorkflowHandler implements NodeHandler {
+  constructor(private readonly executionEngine: WorkflowExecutor) {}
+
   validate(config: Record<string, unknown>): ValidationResult {
     const errors: string[] = [];
-    const { workflowId, mode } = config as unknown as WorkflowConfig;
+    const { workflowId, mode, timeout, inputMapping } =
+      config as unknown as WorkflowConfig;
 
     if (!workflowId || typeof workflowId !== 'string') {
       errors.push('workflowId is required and must be a string');
@@ -23,20 +36,91 @@ export class WorkflowHandler implements NodeHandler {
       errors.push('mode must be "sync" or "async"');
     }
 
+    if (
+      timeout !== undefined &&
+      (typeof timeout !== 'number' || timeout <= 0)
+    ) {
+      errors.push('timeout must be a positive number');
+    }
+
+    if (inputMapping !== undefined) {
+      if (!Array.isArray(inputMapping)) {
+        errors.push('inputMapping must be an array');
+      } else {
+        for (let i = 0; i < inputMapping.length; i++) {
+          const mapping = inputMapping[i];
+          if (!mapping.paramName || typeof mapping.paramName !== 'string') {
+            errors.push(
+              `inputMapping[${i}].paramName is required and must be a string`,
+            );
+          }
+        }
+      }
+    }
+
     return { valid: errors.length === 0, errors };
   }
 
   async execute(
-    _input: unknown,
+    input: unknown,
     config: Record<string, unknown>,
-    _context: ExecutionContext,
+    context: ExecutionContext,
   ): Promise<unknown> {
-    const { workflowId, mode = 'sync' } = config as unknown as WorkflowConfig;
-
-    return {
+    const {
       workflowId,
-      mode,
-      status: 'not_implemented',
-    };
+      mode = 'sync',
+      inputMapping = [],
+    } = config as unknown as WorkflowConfig;
+
+    // Recursion depth check
+    const currentDepth = context.recursionDepth ?? 0;
+    if (currentDepth >= MAX_RECURSION_DEPTH) {
+      throw new Error(
+        `Maximum recursion depth exceeded (limit: ${MAX_RECURSION_DEPTH})`,
+      );
+    }
+
+    // Build sub-workflow input from inputMapping
+    // Expression values are already resolved by ExecutionEngineService
+    const subInput: Record<string, unknown> = {};
+    for (const mapping of inputMapping) {
+      subInput[mapping.paramName] = mapping.expression;
+    }
+
+    // If no inputMapping, pass the parent input through
+    const effectiveInput =
+      inputMapping.length > 0 ? subInput : (input as Record<string, unknown>);
+
+    if (mode === 'async') {
+      const subExecutionId = await this.executionEngine.executeAsync(
+        workflowId,
+        effectiveInput,
+        {
+          parentExecutionId: context.executionId,
+          recursionDepth: currentDepth + 1,
+        },
+      );
+
+      return {
+        executionId: subExecutionId,
+        workflowId,
+        status: 'started',
+      };
+    }
+
+    // Sync mode: execute inline within the same execution context.
+    // Sub-workflow nodes share the parent's executionId so they appear
+    // in the same history timeline. $node references resolve against
+    // the target workflow's own nodes only.
+    if (!context._executedNodes) {
+      throw new Error('Inline execution requires _executedNodes in context');
+    }
+
+    return this.executionEngine.executeInline(workflowId, effectiveInput, {
+      executionId: context.executionId,
+      context,
+      executedNodes: context._executedNodes,
+      recursionDepth: currentDepth + 1,
+    });
   }
 }
