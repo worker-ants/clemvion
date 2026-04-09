@@ -32,42 +32,40 @@ import { ExpressionResolverService } from './expression/expression-resolver.serv
 import {
   ExecutionContext,
   NodeHandler,
-} from './handlers/node-handler.interface';
+  IfElseHandler,
+  SwitchHandler,
+  LoopHandler,
+  VariableDeclarationHandler,
+  VariableModificationHandler,
+  SplitHandler,
+  MapHandler,
+  ForEachHandler,
+  MergeHandler,
+  FilterHandler,
+  WorkflowHandler,
+  HttpRequestHandler,
+  DatabaseQueryHandler,
+  SlackHandler,
+  SendEmailHandler,
+  TransformHandler,
+  CodeHandler,
+  CarouselHandler,
+  TableHandler,
+  ChartHandler,
+  FormHandler,
+  TemplateHandler,
+  PdfHandler,
+  ManualTriggerHandler,
+  AiAgentHandler,
+  TextClassifierHandler,
+  InformationExtractorHandler,
+} from './handlers';
 import {
   WebsocketService,
   ExecutionEventType,
   NodeEventType,
 } from '../websocket/websocket.service';
 import { ConfigService } from '@nestjs/config';
-
-// Node handler imports
-import { IfElseHandler } from './handlers/logic/if-else.handler';
-import { SwitchHandler } from './handlers/logic/switch.handler';
-import { LoopHandler } from './handlers/logic/loop.handler';
-import { VariableDeclarationHandler } from './handlers/logic/variable-declaration.handler';
-import { VariableModificationHandler } from './handlers/logic/variable-modification.handler';
-import { SplitHandler } from './handlers/logic/split.handler';
-import { MapHandler } from './handlers/logic/map.handler';
-import { ForEachHandler } from './handlers/logic/foreach.handler';
-import { MergeHandler } from './handlers/logic/merge.handler';
-import { FilterHandler } from './handlers/logic/filter.handler';
-import { WorkflowHandler } from './handlers/flow/workflow.handler';
-import { HttpRequestHandler } from './handlers/integration/http-request.handler';
-import { DatabaseQueryHandler } from './handlers/integration/database-query.handler';
-import { SlackHandler } from './handlers/integration/slack.handler';
-import { SendEmailHandler } from './handlers/integration/send-email.handler';
-import { TransformHandler } from './handlers/data/transform.handler';
-import { CodeHandler } from './handlers/data/code.handler';
-import { CarouselHandler } from './handlers/presentation/carousel.handler';
-import { TableHandler } from './handlers/presentation/table.handler';
-import { ChartHandler } from './handlers/presentation/chart.handler';
-import { FormHandler } from './handlers/presentation/form.handler';
-import { TemplateHandler } from './handlers/presentation/template.handler';
-import { PdfHandler } from './handlers/presentation/pdf.handler';
-import { ManualTriggerHandler } from './handlers/trigger/manual-trigger.handler';
-import { AiAgentHandler } from './handlers/ai/ai-agent.handler';
-import { TextClassifierHandler } from './handlers/ai/text-classifier.handler';
-import { InformationExtractorHandler } from './handlers/ai/information-extractor.handler';
 import { LlmService } from '../llm/llm.service';
 import { RagSearchService } from '../knowledge-base/search/rag-search.service';
 import { ButtonConfig } from './types/button.types';
@@ -327,8 +325,6 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
       `[executeInline] Sorted execution order (${sortedNodeIds.length} nodes): ${sortedNodeIds.map((id) => subNodeMap.get(id)?.label ?? id).join(' → ')}`,
     );
 
-    const outgoingEdges = this.buildOutgoingEdgeMap(graphEdges);
-
     // Update context recursionDepth for nested sub-workflow calls
     const prevDepth = context.recursionDepth;
     context.recursionDepth = recursionDepth;
@@ -445,7 +441,6 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
           node,
           nodeInput,
           context,
-          outgoingEdges,
           executedNodes,
           subNodeMap,
           {
@@ -726,8 +721,6 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
 
       // 9. Build lookup maps
       const nodeMap = new Map(nodes.map((n) => [n.id, n]));
-      const outgoingEdges = this.buildOutgoingEdgeMap(graphEdges);
-
       // 10. Execute nodes with pointer-based loop (supports back-edge jumps)
       // Inject runtime state into context for sub-workflow inline execution
       const maxNodeIterations = this.configService.get<number>(
@@ -765,6 +758,7 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
         const count = (nodeExecutionCount.get(nodeId) ?? 0) + 1;
         nodeExecutionCount.set(nodeId, count);
         if (maxNodeIterations > 0 && count > maxNodeIterations) {
+          // noinspection ExceptionCaughtLocallyJS — intentional: delegates to the catch block's failure handling
           throw new Error(
             `Node "${node.label ?? node.type}" exceeded maximum iteration count (${maxNodeIterations}). ` +
               `Set MAX_NODE_ITERATIONS=0 for unlimited.`,
@@ -842,7 +836,6 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
           node,
           nodeInput,
           context,
-          outgoingEdges,
           executedNodes,
           nodeMap,
           {
@@ -1706,7 +1699,6 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
     node: Node,
     nodeInput: unknown,
     context: ExecutionContext,
-    outgoingEdges: Map<string, GraphEdge[]>,
     executedNodes: Set<string>,
     nodeMap?: Map<string, Node>,
     executionMeta?: { startedAt?: string; mode?: string },
@@ -1734,6 +1726,7 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
       // Validate config
       const validationResult = handler.validate(node.config);
       if (!validationResult.valid) {
+        // noinspection ExceptionCaughtLocallyJS — intentional: delegates to the catch block's error policy handler
         throw new Error(
           `INVALID_NODE_CONFIG: ${validationResult.errors.join(', ')}`,
         );
@@ -2126,16 +2119,6 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
       }
     }
     return null;
-  }
-
-  private buildOutgoingEdgeMap(edges: GraphEdge[]): Map<string, GraphEdge[]> {
-    const map = new Map<string, GraphEdge[]>();
-    for (const edge of edges) {
-      const list = map.get(edge.sourceNodeId) ?? [];
-      list.push(edge);
-      map.set(edge.sourceNodeId, list);
-    }
-    return map;
   }
 
   private async updateExecutionStatus(

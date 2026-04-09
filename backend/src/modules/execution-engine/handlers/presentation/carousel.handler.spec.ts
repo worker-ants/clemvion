@@ -17,7 +17,10 @@ describe('CarouselHandler', () => {
   describe('validate', () => {
     // Dynamic mode
     it('should pass with valid source and titleField in dynamic mode', () => {
-      const result = handler.validate({ source: '{{ $input }}', titleField: 'name' });
+      const result = handler.validate({
+        source: '{{ $input }}',
+        titleField: 'name',
+      });
       expect(result.valid).toBe(true);
       expect(result.errors).toHaveLength(0);
     });
@@ -43,13 +46,19 @@ describe('CarouselHandler', () => {
     });
 
     it('should fail when titleField is not a string in dynamic mode', () => {
-      const result = handler.validate({ source: '{{ $input }}', titleField: 123 });
+      const result = handler.validate({
+        source: '{{ $input }}',
+        titleField: 123,
+      });
       expect(result.valid).toBe(false);
       expect(result.errors[0]).toContain('titleField');
     });
 
     it('should fail when mode=dynamic and titleField is missing', () => {
-      const result = handler.validate({ mode: 'dynamic', source: '{{ $input }}' });
+      const result = handler.validate({
+        mode: 'dynamic',
+        source: '{{ $input }}',
+      });
       expect(result.valid).toBe(false);
       expect(result.errors[0]).toContain('titleField');
     });
@@ -129,7 +138,10 @@ describe('CarouselHandler', () => {
 
     // Backward compatibility
     it('should default to dynamic mode when mode is not specified', () => {
-      const result = handler.validate({ source: '{{ $input }}', titleField: 'name' });
+      const result = handler.validate({
+        source: '{{ $input }}',
+        titleField: 'name',
+      });
       expect(result.valid).toBe(true);
     });
   });
