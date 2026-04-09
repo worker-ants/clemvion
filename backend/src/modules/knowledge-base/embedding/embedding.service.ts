@@ -143,11 +143,8 @@ export class EmbeddingService {
     }
 
     // 6. Save chunks with embeddings using bulk INSERT for performance
-    const queryRunner = this.dataSource.createQueryRunner();
-    await queryRunner.connect();
-    await queryRunner.startTransaction();
-    try {
-      const batchInsertSize = 100;
+    const batchInsertSize = 100;
+    await this.dataSource.transaction(async (manager) => {
       for (let b = 0; b < chunks.length; b += batchInsertSize) {
         const batchChunks = chunks.slice(b, b + batchInsertSize);
         const batchEmbeddings = allEmbeddings.slice(b, b + batchInsertSize);
@@ -176,19 +173,13 @@ export class EmbeddingService {
           paramIdx += 7;
         }
 
-        await queryRunner.query(
+        await manager.query(
           `INSERT INTO document_chunk (document_id, knowledge_base_id, content, chunk_index, embedding, token_count, metadata)
            VALUES ${values.join(', ')}`,
           params,
         );
       }
-      await queryRunner.commitTransaction();
-    } catch (error) {
-      await queryRunner.rollbackTransaction();
-      throw error;
-    } finally {
-      await queryRunner.release();
-    }
+    });
 
     // 7. Update document status
     await this.documentRepository.update(documentId, {
