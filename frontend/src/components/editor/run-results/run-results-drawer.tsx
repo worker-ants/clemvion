@@ -98,7 +98,7 @@ export function RunResultsDrawer() {
     (s) => s.setWaitingAiResponse,
   );
 
-  // Auto-select waiting form/conversation node
+  // Auto-select any blocking node (form, buttons, conversation) so user can interact immediately
   useEffect(() => {
     if (waitingNodeId) {
       selectResultNode(waitingNodeId);

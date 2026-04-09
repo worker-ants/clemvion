@@ -212,6 +212,7 @@ export const useExecutionStore = create<ExecutionState>((set) => ({
       waitingInteractionType: "form",
       waitingButtonConfig: null,
       waitingConversationConfig: null,
+      selectedResultNodeId: nodeId,
     }),
 
   resumeFromForm: () => set({ status: "running", ...CLEAR_WAITING }),
@@ -224,6 +225,7 @@ export const useExecutionStore = create<ExecutionState>((set) => ({
       waitingInteractionType: "buttons",
       waitingButtonConfig: buttonConfig,
       waitingConversationConfig: null,
+      selectedResultNodeId: nodeId,
     }),
 
   resumeFromButtons: () => set({ status: "running", ...CLEAR_WAITING }),
@@ -237,6 +239,7 @@ export const useExecutionStore = create<ExecutionState>((set) => ({
       waitingButtonConfig: null,
       waitingConversationConfig: config,
       isWaitingAiResponse: false,
+      selectedResultNodeId: nodeId,
     }),
 
   resumeFromConversation: () => set({ status: "running", ...CLEAR_WAITING }),
