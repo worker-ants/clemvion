@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback } from "react";
+import { useCallback, useState } from "react";
 import {
   CheckCircle,
   XCircle,
@@ -9,13 +9,14 @@ import {
   Loader2,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { cn } from "@/lib/utils/cn";
 import { CATEGORY_COLORS, getNodeDefinition } from "@/lib/node-definitions";
 import type {
   NodeResult,
   ConversationItem,
 } from "@/lib/stores/execution-store";
 import { getWsClient } from "@/lib/websocket/ws-client";
-import { PresentationContent } from "./renderers/presentation-renderers";
+import { PresentationContent, JsonContent } from "./renderers/presentation-renderers";
 import { GenericRenderer } from "./renderers/generic-renderer";
 import { DynamicFormUI } from "./dynamic-form-ui";
 import { ButtonBar } from "./button-bar";
@@ -78,6 +79,78 @@ function StatusBadge({ status }: { status: string }) {
     default:
       return null;
   }
+}
+
+type DetailTab = "preview" | "input" | "output" | "error";
+
+interface NodeDetailTabsProps {
+  result: NodeResult;
+  /** Custom preview content (e.g. interactive buttons/form). When provided, overrides the default PresentationContent preview. */
+  previewContent?: React.ReactNode;
+  /** Whether to show the preview tab. Defaults to: presentation node with outputData, or previewContent provided. */
+  hasPreview?: boolean;
+}
+
+function NodeDetailTabs({ result, previewContent, hasPreview }: NodeDetailTabsProps) {
+  const isPresentation = result.nodeCategory === "presentation";
+  const showPreview = hasPreview ?? (isPresentation && !!result.outputData);
+
+  const defaultTab: DetailTab = result.error
+    ? "error"
+    : showPreview
+      ? "preview"
+      : "output";
+
+  const [activeTab, setActiveTab] = useState<DetailTab>(defaultTab);
+
+  const detailTabs: { id: DetailTab; label: string; show: boolean }[] = [
+    { id: "preview", label: "Preview", show: showPreview },
+    { id: "input", label: "Input", show: true },
+    { id: "output", label: "Output", show: true },
+    { id: "error", label: "Error", show: !!result.error },
+  ];
+
+  return (
+    <>
+      {/* Tab bar */}
+      <div className="shrink-0 flex gap-2 border-b border-[hsl(var(--border))] px-3">
+        {detailTabs
+          .filter((t) => t.show)
+          .map((t) => (
+            <button
+              key={t.id}
+              type="button"
+              className={cn(
+                "py-1.5 text-xs font-medium transition-colors",
+                activeTab === t.id
+                  ? "border-b-2 border-[hsl(var(--primary))] text-[hsl(var(--foreground))]"
+                  : "text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]",
+              )}
+              onClick={() => setActiveTab(t.id)}
+            >
+              {t.label}
+            </button>
+          ))}
+      </div>
+      {/* Tab content */}
+      <div className="flex-1 overflow-y-auto p-3">
+        {activeTab === "preview" && (
+          previewContent ?? (isPresentation && <PresentationContent result={result} previewOnly />)
+        )}
+        {activeTab === "input" && (
+          result.inputData != null
+            ? <JsonContent data={result.inputData} />
+            : <span className="text-xs text-[hsl(var(--muted-foreground))]">Loading input data...</span>
+        )}
+        {activeTab === "output" && (
+          <JsonContent data={result.outputData} />
+        )}
+        {activeTab === "error" && (
+          <JsonContent data={result.error} />
+        )}
+      </div>
+    </>
+  );
 }
 
 interface ResultDetailProps {
@@ -191,12 +264,21 @@ export function ResultDetail({
   const categoryColor =
     CATEGORY_COLORS[result.nodeCategory] ?? "#6B7280";
   const isPresentation = result.nodeCategory === "presentation";
+  const isAiAgent = result.nodeType === "ai_agent";
 
   // Check for completed multi-turn conversation (history mode)
   const isCompletedConversation =
-    result.nodeType === "ai_agent" &&
+    isAiAgent &&
     result.status === "completed" &&
     !!(result.outputData as Record<string, unknown> | null)?.messages;
+
+  // Determine if tabs should be shown:
+  // Tabs for non-AI nodes in completed/failed/waiting states
+  const showTabs =
+    !isWaitingConversation &&
+    !isCompletedConversation &&
+    !isAiAgent &&
+    (result.status === "completed" || result.status === "failed" || result.status === "waiting_for_input");
 
   return (
     <div className="h-full overflow-hidden flex flex-col">
@@ -219,15 +301,8 @@ export function ResultDetail({
       </div>
 
       {/* Content */}
-      <div className="flex-1 overflow-hidden">
-        {isWaitingForm && formConfig ? (
-          <div className="h-full overflow-y-auto p-3">
-            <DynamicFormUI
-              formConfig={formConfig as Record<string, unknown>}
-              onSubmit={handleFormSubmit}
-            />
-          </div>
-        ) : isWaitingConversation ? (
+      <div className="flex-1 overflow-hidden flex flex-col">
+        {isWaitingConversation ? (
           <ConversationInspector
             result={result}
             conversationMessages={conversationMessages}
@@ -238,42 +313,6 @@ export function ResultDetail({
             onSendMessage={handleSendMessage}
             onEndConversation={handleEndConversation}
           />
-        ) : isWaitingButtons && buttonConfig ? (
-          <div className="h-full overflow-y-auto p-3">
-            {isPresentation ? (
-              <PresentationContent
-                result={result}
-                onPortButtonClick={handlePortButtonClick}
-                onLinkButtonClick={handleLinkButtonClick}
-              />
-            ) : (
-              <ButtonBar
-                buttons={
-                  ((buttonConfig as Record<string, unknown>).buttons as Array<{
-                    id: string;
-                    label: string;
-                    type: "link" | "port";
-                    url?: string;
-                    style?: "primary" | "secondary" | "outline" | "danger";
-                  }>) ?? []
-                }
-                timeout={
-                  (buttonConfig as Record<string, unknown>).timeout as
-                    | number
-                    | undefined
-                }
-                timeoutAction={
-                  (buttonConfig as Record<string, unknown>).timeoutAction as
-                    | "continue"
-                    | "cancel"
-                    | undefined
-                }
-                onPortButtonClick={handlePortButtonClick}
-                onLinkButtonClick={handleLinkButtonClick}
-                onContinueClick={handleContinueClick}
-              />
-            )}
-          </div>
         ) : isCompletedConversation ? (
           <ConversationInspector
             result={result}
@@ -285,13 +324,68 @@ export function ResultDetail({
             onSendMessage={() => {}}
             onEndConversation={() => {}}
           />
-        ) : isPresentation && result.status === "completed" ? (
-          <div className="h-full overflow-y-auto p-3">
-            <PresentationContent result={result} />
-          </div>
+        ) : showTabs ? (
+          <NodeDetailTabs
+            key={result.nodeId}
+            result={result}
+            hasPreview={
+              isWaitingForm
+                ? true
+                : isWaitingButtons
+                  ? true
+                  : undefined
+            }
+            previewContent={
+              isWaitingForm && formConfig ? (
+                <DynamicFormUI
+                  formConfig={formConfig as Record<string, unknown>}
+                  onSubmit={handleFormSubmit}
+                />
+              ) : isWaitingButtons && buttonConfig ? (
+                isPresentation ? (
+                  <PresentationContent
+                    result={result}
+                    onPortButtonClick={handlePortButtonClick}
+                    onLinkButtonClick={handleLinkButtonClick}
+                    previewOnly
+                  />
+                ) : (
+                  <ButtonBar
+                    buttons={
+                      ((buttonConfig as Record<string, unknown>).buttons as Array<{
+                        id: string;
+                        label: string;
+                        type: "link" | "port";
+                        url?: string;
+                        style?: "primary" | "secondary" | "outline" | "danger";
+                      }>) ?? []
+                    }
+                    timeout={
+                      (buttonConfig as Record<string, unknown>).timeout as
+                        | number
+                        | undefined
+                    }
+                    timeoutAction={
+                      (buttonConfig as Record<string, unknown>).timeoutAction as
+                        | "continue"
+                        | "cancel"
+                        | undefined
+                    }
+                    onPortButtonClick={handlePortButtonClick}
+                    onLinkButtonClick={handleLinkButtonClick}
+                    onContinueClick={handleContinueClick}
+                  />
+                )
+              ) : undefined
+            }
+          />
         ) : (
           <div className="h-full overflow-y-auto p-3">
-            <GenericRenderer result={result} />
+            {isPresentation && result.outputData ? (
+              <PresentationContent result={result} />
+            ) : (
+              <GenericRenderer result={result} />
+            )}
           </div>
         )}
       </div>

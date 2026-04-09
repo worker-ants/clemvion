@@ -468,6 +468,7 @@ export function useExecutionEvents({
               duration: ne.durationMs ?? undefined,
               error: ne.error?.message,
               outputData: ne.outputData,
+              inputData: ne.inputData,
               startedAt: ne.startedAt,
             });
           }

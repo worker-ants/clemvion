@@ -118,6 +118,41 @@ describe("useExecutionStore", () => {
       expect(results).toHaveLength(1);
       expect(results[0].outputData).toEqual({ v: 2 });
     });
+
+    it("preserves inputData when merging with a result that lacks it", () => {
+      // First result from polling includes inputData
+      useExecutionStore.getState().addNodeResult(makeResult({
+        nodeId: "n1",
+        outputData: { v: 1 },
+        inputData: { key: "value" },
+      }));
+
+      // Second result from WS event lacks inputData
+      useExecutionStore.getState().addNodeResult(makeResult({
+        nodeId: "n1",
+        outputData: { v: 2 },
+      }));
+
+      const results = useExecutionStore.getState().nodeResults;
+      expect(results).toHaveLength(1);
+      expect(results[0].outputData).toEqual({ v: 2 });
+      expect(results[0].inputData).toEqual({ key: "value" });
+    });
+
+    it("updates inputData when new result provides it", () => {
+      useExecutionStore.getState().addNodeResult(makeResult({
+        nodeId: "n1",
+        inputData: { old: true },
+      }));
+
+      useExecutionStore.getState().addNodeResult(makeResult({
+        nodeId: "n1",
+        inputData: { new: true },
+      }));
+
+      const results = useExecutionStore.getState().nodeResults;
+      expect(results[0].inputData).toEqual({ new: true });
+    });
   });
 
   describe("completeExecution", () => {

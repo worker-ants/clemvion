@@ -280,9 +280,11 @@ function TemplateContent({ data, previewOnly = false }: { data: Record<string, u
     <div className="space-y-3">
       {/* Rendered preview */}
       <div>
-        <p className="text-xs font-medium text-[hsl(var(--muted-foreground))] mb-1">
-          Preview ({outputFormat ?? "text"})
-        </p>
+        {!previewOnly && (
+          <p className="text-xs font-medium text-[hsl(var(--muted-foreground))] mb-1">
+            Preview ({outputFormat ?? "text"})
+          </p>
+        )}
         <div className="rounded border border-[hsl(var(--border))] p-3">
           {preview}
         </div>
@@ -419,9 +421,11 @@ export function PresentationContent({
     <div className="space-y-3">
       {/* Preview */}
       <div>
-        <p className="text-xs font-medium text-[hsl(var(--muted-foreground))] mb-1">
-          Preview
-        </p>
+        {!previewOnly && (
+          <p className="text-xs font-medium text-[hsl(var(--muted-foreground))] mb-1">
+            Preview
+          </p>
+        )}
         {preview}
         {buttons.length > 0 && (
           <div className="mt-2 flex flex-wrap gap-2">
