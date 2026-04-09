@@ -98,12 +98,8 @@ export function RunResultsDrawer() {
     (s) => s.setWaitingAiResponse,
   );
 
-  // Auto-select any blocking node (form, buttons, conversation) so user can interact immediately
-  useEffect(() => {
-    if (waitingNodeId) {
-      selectResultNode(waitingNodeId);
-    }
-  }, [waitingNodeId, selectResultNode]);
+  // Auto-selection of blocking nodes is handled directly in store actions
+  // (pauseForForm, pauseForButtons, pauseForConversation set selectedResultNodeId atomically)
 
   // Resize handlers
   const handleMouseDown = useCallback((e: React.MouseEvent) => {

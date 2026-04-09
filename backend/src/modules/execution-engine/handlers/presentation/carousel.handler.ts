@@ -29,6 +29,8 @@ function validateItemButtons(buttons: unknown[], prefix: string): string[] {
     const btn = buttons[j] as Record<string, unknown>;
     if (!btn.id || typeof btn.id !== 'string') {
       errors.push(`${prefix}.buttons[${j}].id is required`);
+    } else if ((btn.id as string).includes('__item_')) {
+      errors.push(`${prefix}.buttons[${j}].id must not contain reserved separator "__item_"`);
     } else if (ids.has(btn.id)) {
       errors.push(
         `${prefix}.buttons[${j}].id must be unique (duplicate: ${btn.id})`,
@@ -46,6 +48,13 @@ function validateItemButtons(buttons: unknown[], prefix: string): string[] {
       errors.push(
         `${prefix}.buttons[${j}].url is required for link type buttons`,
       );
+    } else if (btn.type === 'link' && btn.url && typeof btn.url === 'string') {
+      const trimmedUrl = (btn.url as string).trim().toLowerCase();
+      if (/^(javascript|data|vbscript):/i.test(trimmedUrl)) {
+        errors.push(
+          `${prefix}.buttons[${j}].url contains a disallowed URL scheme`,
+        );
+      }
     }
     if (btn.type === 'port' && btn.url) {
       errors.push(

@@ -1,0 +1,143 @@
+{
+  "timestamp": "2026-04-09T09:39:11.485166",
+  "files": [
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/review/2026-04-09_06-29-35/2026-04-09_06-29-35/documentation/review.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/review/2026-04-09_06-29-35/2026-04-09_06-29-35/maintainability/review.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/review/2026-04-09_06-29-35/2026-04-09_06-29-35/meta.json",
+      "change_type": "Review",
+      "file_extension": "json"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/review/2026-04-09_06-29-35/2026-04-09_06-29-35/performance/review.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/review/2026-04-09_06-29-35/2026-04-09_06-29-35/requirement/review.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/review/2026-04-09_06-29-35/2026-04-09_06-29-35/scope/review.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/review/2026-04-09_06-29-35/2026-04-09_06-29-35/security/review.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/review/2026-04-09_06-29-35/2026-04-09_06-29-35/side_effect/review.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/review/2026-04-09_06-29-35/2026-04-09_06-29-35/testing/review.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/spec/2-navigation/0-dashboard.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/spec/2-navigation/6-execution-history.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/spec/4-nodes/6-presentation-nodes.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/spec/5-system/3-error-handling.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/spec/5-system/4-execution-engine.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    }
+  ],
+  "total_elapsed_seconds": 371.85,
+  "agents": [
+    {
+      "name": "database",
+      "status": "success",
+      "elapsed_seconds": 11.81
+    },
+    {
+      "name": "concurrency",
+      "status": "success",
+      "elapsed_seconds": 16.83
+    },
+    {
+      "name": "scope",
+      "status": "success",
+      "elapsed_seconds": 31.62
+    },
+    {
+      "name": "dependency",
+      "status": "success",
+      "elapsed_seconds": 40.85
+    },
+    {
+      "name": "api_contract",
+      "status": "success",
+      "elapsed_seconds": 42.77
+    },
+    {
+      "name": "side_effect",
+      "status": "success",
+      "elapsed_seconds": 56.33
+    },
+    {
+      "name": "security",
+      "status": "success",
+      "elapsed_seconds": 57.91
+    },
+    {
+      "name": "architecture",
+      "status": "success",
+      "elapsed_seconds": 67.0
+    },
+    {
+      "name": "performance",
+      "status": "success",
+      "elapsed_seconds": 71.42
+    },
+    {
+      "name": "testing",
+      "status": "success",
+      "elapsed_seconds": 77.48
+    },
+    {
+      "name": "documentation",
+      "status": "success",
+      "elapsed_seconds": 78.09
+    },
+    {
+      "name": "maintainability",
+      "status": "success",
+      "elapsed_seconds": 79.62
+    },
+    {
+      "name": "requirement",
+      "status": "success",
+      "elapsed_seconds": 113.27
+    }
+  ]
+}

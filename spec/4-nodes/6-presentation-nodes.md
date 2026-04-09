@@ -14,7 +14,7 @@
 |------|------|------|--------|------|
 | mode | Enum | ✗ | `dynamic` | `static` / `dynamic` — 하위호환을 위해 미지정 시 `dynamic` |
 | items | ItemDef[] | static 모드 시 ✓ | `[]` | 정적 캐러셀 아이템 목록 (static 모드 전용) |
-| source | Expression | dynamic 모드 시 ✓ | — | 배열을 반환하는 표현식 (예: `{{ $input.items }}`, `{{ $node["API"].output.results }}`). 실행 엔진이 resolve한 결과를 데이터 소스로 사용 |
+| source | Expression | ✗ | — | 배열을 반환하는 표현식 (예: `{{ $input.items }}`, `{{ $node["API"].output.results }}`). 설정 시 실행 엔진이 resolve한 결과를 데이터 소스로 사용. 미설정 시 입력 포트 데이터를 직접 사용 (하위호환) |
 | titleField | String | dynamic 모드 시 ✓ | — | 각 슬라이드의 제목으로 사용할 입력 데이터 필드 경로 |
 | descriptionField | String | ✗ | — | 각 슬라이드의 설명으로 사용할 입력 데이터 필드 경로 (dynamic 모드 전용) |
 | imageField | String? | ✗ | — | 이미지 URL 필드 경로 (지정 시 이미지 슬라이드, dynamic 모드 전용) |
