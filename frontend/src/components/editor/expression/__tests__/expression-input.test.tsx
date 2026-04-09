@@ -51,10 +51,10 @@ vi.mock("@/lib/stores/execution-store", () => ({
 }));
 
 describe("ExpressionInput", () => {
-  let onChange: ReturnType<typeof vi.fn>;
+  let onChange: ReturnType<typeof vi.fn<(value: string) => void>>;
 
   beforeEach(() => {
-    onChange = vi.fn();
+    onChange = vi.fn<(value: string) => void>();
   });
 
   it("renders with label and value", () => {
