@@ -20,7 +20,7 @@ import {
 import { Node, NodeCategory } from '../nodes/entities/node.entity';
 import { Edge, EdgeType } from '../edges/entities/edge.entity';
 import { Workflow } from '../workflows/entities/workflow.entity';
-import { NodeHandler } from './handlers/node-handler.interface';
+import { NodeHandler } from './handlers';
 
 // Helper to flush pending promises (allow background execution to complete)
 function flushPromises(): Promise<void> {
@@ -1192,9 +1192,7 @@ describe('ExecutionEngineService', () => {
       expect(aInputs[0]).toEqual({ initial: 'data' });
       // Second execution (after back-edge): A should receive switch output
       // _selectedPort is stripped before passing as input to downstream nodes
-      expect(aInputs[1]).toEqual(
-        expect.objectContaining({ loop: true }),
-      );
+      expect(aInputs[1]).toEqual(expect.objectContaining({ loop: true }));
     });
 
     it('should still work for non-cyclic DAG workflows (regression)', async () => {

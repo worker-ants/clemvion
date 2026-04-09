@@ -29,8 +29,10 @@ function validateItemButtons(buttons: unknown[], prefix: string): string[] {
     const btn = buttons[j] as Record<string, unknown>;
     if (!btn.id || typeof btn.id !== 'string') {
       errors.push(`${prefix}.buttons[${j}].id is required`);
-    } else if ((btn.id as string).includes('__item_')) {
-      errors.push(`${prefix}.buttons[${j}].id must not contain reserved separator "__item_"`);
+    } else if (btn.id.includes('__item_')) {
+      errors.push(
+        `${prefix}.buttons[${j}].id must not contain reserved separator "__item_"`,
+      );
     } else if (ids.has(btn.id)) {
       errors.push(
         `${prefix}.buttons[${j}].id must be unique (duplicate: ${btn.id})`,
@@ -49,7 +51,7 @@ function validateItemButtons(buttons: unknown[], prefix: string): string[] {
         `${prefix}.buttons[${j}].url is required for link type buttons`,
       );
     } else if (btn.type === 'link' && btn.url && typeof btn.url === 'string') {
-      const trimmedUrl = (btn.url as string).trim().toLowerCase();
+      const trimmedUrl = btn.url.trim().toLowerCase();
       if (/^(javascript|data|vbscript):/i.test(trimmedUrl)) {
         errors.push(
           `${prefix}.buttons[${j}].url contains a disallowed URL scheme`,
@@ -174,28 +176,30 @@ export class CarouselHandler implements NodeHandler {
         ? inputArray.slice(0, maxItems)
         : inputArray;
 
-      items = limitedArray.map((item: Record<string, unknown>, itemIdx: number) => {
-        const result: {
-          title: string;
-          description: string;
-          image?: string;
-          buttons?: ButtonDef[];
-        } = {
-          title: toStr(item[titleField]),
-          description: descriptionField ? toStr(item[descriptionField]) : '',
-          image: imageField
-            ? sanitizeUrl(toStr(item[imageField])) || undefined
-            : undefined,
-        };
-        if (itemButtons && itemButtons.length > 0) {
-          // Apply same buttons to all dynamic items, with unique IDs per item
-          result.buttons = itemButtons.map((btn) => ({
-            ...btn,
-            id: `${btn.id}__item_${itemIdx}`,
-          }));
-        }
-        return result;
-      });
+      items = limitedArray.map(
+        (item: Record<string, unknown>, itemIdx: number) => {
+          const result: {
+            title: string;
+            description: string;
+            image?: string;
+            buttons?: ButtonDef[];
+          } = {
+            title: toStr(item[titleField]),
+            description: descriptionField ? toStr(item[descriptionField]) : '',
+            image: imageField
+              ? sanitizeUrl(toStr(item[imageField])) || undefined
+              : undefined,
+          };
+          if (itemButtons && itemButtons.length > 0) {
+            // Apply same buttons to all dynamic items, with unique IDs per item
+            result.buttons = itemButtons.map((btn) => ({
+              ...btn,
+              id: `${btn.id}__item_${itemIdx}`,
+            }));
+          }
+          return result;
+        },
+      );
     }
 
     const rendered = this.renderHtml(items, layout);
