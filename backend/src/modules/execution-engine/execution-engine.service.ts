@@ -1798,25 +1798,41 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
       this.contextService.setNodeOutput(executionId, node.id, finalOutput);
       executedNodes.add(node.id);
 
-      // Update node execution record
-      nodeExecution.status = NodeExecutionStatus.COMPLETED;
-      nodeExecution.outputData = (output as Record<string, unknown>) ?? {};
-      nodeExecution.finishedAt = new Date();
-      nodeExecution.durationMs =
-        nodeExecution.finishedAt.getTime() - nodeExecution.startedAt.getTime();
-      await this.nodeExecutionRepository.save(nodeExecution);
-      this.websocketService.emitNodeEvent(
-        executionId,
-        node.id,
-        NodeEventType.NODE_COMPLETED,
-        {
-          status: NodeExecutionStatus.COMPLETED,
-          duration: nodeExecution.durationMs,
-          nodeType: node.type,
-          nodeLabel: node.label ?? node.type,
-          output: nodeExecution.outputData,
-        },
-      );
+      // Check if this is a blocking node (waiting_for_input).
+      // If so, defer NODE_COMPLETED — it will be emitted after user interaction.
+      // Emitting it now would cause the frontend to mark the node as done
+      // before the WAITING_FOR_INPUT event arrives.
+      const isBlocking =
+        output &&
+        typeof output === 'object' &&
+        (output as Record<string, unknown>).status === 'waiting_for_input';
+
+      if (!isBlocking) {
+        // Update node execution record
+        nodeExecution.status = NodeExecutionStatus.COMPLETED;
+        nodeExecution.outputData = (output as Record<string, unknown>) ?? {};
+        nodeExecution.finishedAt = new Date();
+        nodeExecution.durationMs =
+          nodeExecution.finishedAt.getTime() -
+          nodeExecution.startedAt.getTime();
+        await this.nodeExecutionRepository.save(nodeExecution);
+        this.websocketService.emitNodeEvent(
+          executionId,
+          node.id,
+          NodeEventType.NODE_COMPLETED,
+          {
+            status: NodeExecutionStatus.COMPLETED,
+            duration: nodeExecution.durationMs,
+            nodeType: node.type,
+            nodeLabel: node.label ?? node.type,
+            output: nodeExecution.outputData,
+          },
+        );
+      } else {
+        // Save output for blocking nodes (waitForButtonInteraction will update status)
+        nodeExecution.outputData = (output as Record<string, unknown>) ?? {};
+        await this.nodeExecutionRepository.save(nodeExecution);
+      }
 
       // Update execution path
       const execution = await this.executionRepository.findOneBy({
