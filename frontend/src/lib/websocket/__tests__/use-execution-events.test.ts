@@ -306,6 +306,7 @@ describe("useExecutionEvents", () => {
             status: "completed",
             durationMs: 100,
             error: null,
+            inputData: { url: "https://example.com" },
             startedAt: "2026-04-01T00:00:00Z",
             finishedAt: "2026-04-01T00:00:00.1Z",
             node: { id: "node-1", type: "http_request", label: "Fetch" },
@@ -317,6 +318,7 @@ describe("useExecutionEvents", () => {
             status: "completed",
             durationMs: 200,
             error: null,
+            inputData: { rows: [] },
             startedAt: "2026-04-01T00:00:00.1Z",
             finishedAt: "2026-04-01T00:00:00.3Z",
             node: { id: "node-2", type: "table", label: "Results" },
@@ -338,10 +340,12 @@ describe("useExecutionEvents", () => {
     expect(state.nodeStatuses.get("node-1")?.duration).toBe(100);
     expect(state.nodeStatuses.get("node-2")?.status).toBe("completed");
 
-    // All nodes should be in results
+    // All nodes should be in results with inputData
     expect(state.nodeResults).toHaveLength(2);
     expect(state.nodeResults[0].nodeType).toBe("http_request");
+    expect(state.nodeResults[0].inputData).toEqual({ url: "https://example.com" });
     expect(state.nodeResults[1].nodeType).toBe("table");
+    expect(state.nodeResults[1].inputData).toEqual({ rows: [] });
   });
 
   it("updates store to failed when poll returns failed execution", async () => {

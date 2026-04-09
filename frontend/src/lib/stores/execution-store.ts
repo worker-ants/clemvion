@@ -32,6 +32,7 @@ export interface NodeResult {
   duration?: number;
   error?: string;
   outputData: unknown;
+  inputData?: unknown;
   /** ISO timestamp when this node started executing (for chronological sorting) */
   startedAt?: string;
 }
@@ -176,7 +177,7 @@ export const useExecutionStore = create<ExecutionState>((set) => ({
       if (exists) {
         const updated = state.nodeResults.map((r) =>
           r.nodeId === result.nodeId
-            ? { ...result, startedAt: result.startedAt ?? r.startedAt }
+            ? { ...result, startedAt: result.startedAt ?? r.startedAt, inputData: result.inputData ?? r.inputData }
             : r,
         );
         return { nodeResults: sortByStartedAt(updated) };

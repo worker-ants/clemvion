@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, fireEvent } from "@testing-library/react";
 import { ResultDetail } from "../result-detail";
 import type { NodeResult } from "@/lib/stores/execution-store";
 
@@ -18,14 +18,34 @@ vi.mock("@/lib/node-definitions", () => ({
       table: { label: "Table", category: "presentation" },
       form: { label: "Form", category: "presentation" },
       template: { label: "Template", category: "presentation" },
+      carousel: { label: "Carousel", category: "presentation" },
+      ai_agent: { label: "AI Agent", category: "ai" },
     };
     return defs[type] ?? undefined;
   },
   CATEGORY_COLORS: {
     integration: "#F97316",
     presentation: "#EC4899",
+    ai: "#10B981",
   },
 }));
+
+const defaultProps = {
+  isWaitingForm: false,
+  formConfig: null,
+  isWaitingButtons: false,
+  buttonConfig: null,
+  isWaitingConversation: false,
+  conversationConfig: null,
+  conversationMessages: [],
+  selectedConversationItemIndex: null,
+  isWaitingAiResponse: false,
+  executionId: "exec-1",
+  onFormSubmit: vi.fn(),
+  onButtonClick: vi.fn(),
+  onConversationEnd: vi.fn(),
+  onSendMessage: vi.fn(),
+};
 
 function makeResult(overrides: Partial<NodeResult> = {}): NodeResult {
   return {
@@ -45,10 +65,7 @@ describe("ResultDetail", () => {
     render(
       <ResultDetail
         result={null}
-        isWaitingForm={false}
-        formConfig={null}
-        executionId="exec-1"
-        onFormSubmit={vi.fn()}
+        {...defaultProps}
       />,
     );
 
@@ -59,79 +76,145 @@ describe("ResultDetail", () => {
     render(
       <ResultDetail
         result={makeResult()}
-        isWaitingForm={false}
-        formConfig={null}
-        executionId="exec-1"
-        onFormSubmit={vi.fn()}
+        {...defaultProps}
       />,
     );
 
     expect(screen.getByText("My Node")).toBeDefined();
-    // Duration appears in both header and detail view
     expect(screen.getAllByText("250ms").length).toBeGreaterThanOrEqual(1);
   });
 
-  it("renders generic view for non-presentation nodes", () => {
-    render(
-      <ResultDetail
-        result={makeResult({
-          nodeType: "http_request",
-          nodeCategory: "integration",
-          outputData: { statusCode: 200 },
-        })}
-        isWaitingForm={false}
-        formConfig={null}
-        executionId="exec-1"
-        onFormSubmit={vi.fn()}
-      />,
-    );
+  describe("tabs for completed nodes", () => {
+    it("shows Input and Output tabs for non-presentation completed nodes", () => {
+      render(
+        <ResultDetail
+          result={makeResult({
+            nodeType: "http_request",
+            nodeCategory: "integration",
+            outputData: { statusCode: 200 },
+          })}
+          {...defaultProps}
+        />,
+      );
 
-    // Should show JSON output
-    expect(screen.getByText(/statusCode/)).toBeDefined();
+      expect(screen.getByText("Input")).toBeDefined();
+      expect(screen.getByText("Output")).toBeDefined();
+      // Preview tab should NOT be shown for non-presentation nodes
+      expect(screen.queryByText("Preview")).toBeNull();
+    });
+
+    it("shows Preview, Input, Output tabs for presentation completed nodes", () => {
+      render(
+        <ResultDetail
+          result={makeResult({
+            nodeType: "table",
+            nodeCategory: "presentation",
+            outputData: {
+              rows: [{ name: "Alice", score: 95 }],
+              columns: ["name", "score"],
+            },
+          })}
+          {...defaultProps}
+        />,
+      );
+
+      // Tab buttons exist
+      expect(screen.getAllByText("Preview").length).toBeGreaterThanOrEqual(1);
+      expect(screen.getByText("Input")).toBeDefined();
+      expect(screen.getByText("Output")).toBeDefined();
+    });
+
+    it("defaults to Preview tab for presentation nodes with outputData", () => {
+      render(
+        <ResultDetail
+          result={makeResult({
+            nodeType: "table",
+            nodeCategory: "presentation",
+            outputData: {
+              rows: [{ name: "Alice" }],
+              columns: ["name"],
+            },
+          })}
+          {...defaultProps}
+        />,
+      );
+
+      // Preview tab should be active, showing table content
+      expect(screen.getByText("Alice")).toBeDefined();
+    });
+
+    it("defaults to Output tab for non-presentation nodes", () => {
+      render(
+        <ResultDetail
+          result={makeResult({
+            nodeType: "http_request",
+            nodeCategory: "integration",
+            outputData: { statusCode: 200 },
+          })}
+          {...defaultProps}
+        />,
+      );
+
+      // Output tab should be active, showing JSON
+      expect(screen.getByText(/statusCode/)).toBeDefined();
+    });
+
+    it("defaults to Error tab when node has error", () => {
+      render(
+        <ResultDetail
+          result={makeResult({
+            status: "failed",
+            error: "Connection timeout",
+            outputData: null,
+          })}
+          {...defaultProps}
+        />,
+      );
+
+      expect(screen.getByText("Error")).toBeDefined();
+      expect(screen.getByText(/Connection timeout/)).toBeDefined();
+    });
+
+    it("switches tabs on click", () => {
+      render(
+        <ResultDetail
+          result={makeResult({
+            nodeType: "http_request",
+            nodeCategory: "integration",
+            outputData: { statusCode: 200 },
+            inputData: { url: "https://example.com" },
+          })}
+          {...defaultProps}
+        />,
+      );
+
+      // Default is Output tab
+      expect(screen.getByText(/statusCode/)).toBeDefined();
+
+      // Switch to Input tab
+      fireEvent.click(screen.getByText("Input"));
+      expect(screen.getByText(/example\.com/)).toBeDefined();
+    });
+
+    it("shows loading message when inputData is not yet available", () => {
+      render(
+        <ResultDetail
+          result={makeResult({
+            nodeType: "http_request",
+            nodeCategory: "integration",
+            outputData: { statusCode: 200 },
+          })}
+          {...defaultProps}
+        />,
+      );
+
+      // Switch to Input tab
+      fireEvent.click(screen.getByText("Input"));
+      expect(screen.getByText("Loading input data...")).toBeDefined();
+    });
   });
 
-  it("renders presentation content for presentation nodes", () => {
-    render(
-      <ResultDetail
-        result={makeResult({
-          nodeType: "table",
-          nodeCategory: "presentation",
-          outputData: {
-            rows: [{ name: "Alice", score: 95 }],
-            columns: ["name", "score"],
-          },
-        })}
-        isWaitingForm={false}
-        formConfig={null}
-        executionId="exec-1"
-        onFormSubmit={vi.fn()}
-      />,
-    );
-
-    // Should render table
-    expect(screen.getByText("Alice")).toBeDefined();
-    expect(screen.getByText("95")).toBeDefined();
-  });
-
-  it("renders error for failed nodes", () => {
-    render(
-      <ResultDetail
-        result={makeResult({
-          status: "failed",
-          error: "Connection timeout",
-          outputData: null,
-        })}
-        isWaitingForm={false}
-        formConfig={null}
-        executionId="exec-1"
-        onFormSubmit={vi.fn()}
-      />,
-    );
-
-    expect(screen.getByText("Connection timeout")).toBeDefined();
-  });
-
-  it("renders template preview for template nodes", () => {
+  it("renders template preview in Preview tab for template nodes", () => {
     render(
       <ResultDetail
         result={makeResult({
@@ -143,14 +226,11 @@ describe("ResultDetail", () => {
             content: "Score: 95, User: Alice",
           },
         })}
-        isWaitingForm={false}
-        formConfig={null}
-        executionId="exec-1"
-        onFormSubmit={vi.fn()}
+        {...defaultProps}
       />,
     );
 
-    expect(screen.getByText("Preview (text)")).toBeDefined();
+    // "Preview (text)" heading is hidden in previewOnly mode (tab itself is Preview)
     expect(screen.getByText("Score: 95, User: Alice")).toBeDefined();
   });
 
@@ -162,17 +242,32 @@ describe("ResultDetail", () => {
           nodeCategory: "presentation",
           status: "waiting_for_input",
         })}
+        {...defaultProps}
         isWaitingForm={true}
         formConfig={{
           title: "Approval Form",
           fields: [{ name: "approved", type: "checkbox", label: "Approve" }],
         }}
-        executionId="exec-1"
-        onFormSubmit={vi.fn()}
       />,
     );
 
     expect(screen.getByText("Approval Form")).toBeDefined();
     expect(screen.getByText("Submit")).toBeDefined();
+  });
+
+  it("does not show tabs for running nodes", () => {
+    render(
+      <ResultDetail
+        result={makeResult({
+          status: "running",
+          outputData: null,
+        })}
+        {...defaultProps}
+      />,
+    );
+
+    // Should not have tab buttons
+    expect(screen.queryByText("Input")).toBeNull();
+    expect(screen.queryByText("Output")).toBeNull();
   });
 });

@@ -116,6 +116,8 @@
 | ED-EX-09 | AI Agent Multi Turn 모드 실행 시 Run Results 드로어에서 대화형 인터랙션 | 필수 |
 | ED-EX-10 | Multi Turn 대화 진행 중 타임라인에 메시지/Tool Call 프리뷰 표시 | 필수 |
 | ED-EX-11 | Multi Turn 대화 완료 후 히스토리에서 전체 대화 이력 재조회 | 필수 |
+| ED-EX-12 | Run Results 드로어에서 completed/failed 노드에 Preview/Input/Output/Error 서브 탭 제공 (AI 에이전트 노드 제외) | 필수 |
+| ED-EX-13 | 서브 탭 기본 선택 우선순위: Preview (Presentation 노드 + outputData 있을 때) > Output > Input. 에러 발생 시 Error 탭 우선 선택 | 필수 |
 
 ---
 
