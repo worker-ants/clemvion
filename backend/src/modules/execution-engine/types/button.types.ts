@@ -57,6 +57,8 @@ export function validateButtons(config: Record<string, unknown>): string[] {
 
     if (!btn.id || typeof btn.id !== 'string') {
       errors.push(`buttons[${i}].id is required`);
+    } else if (btn.id.includes('__item_')) {
+      errors.push(`buttons[${i}].id must not contain reserved separator "__item_"`);
     } else if (ids.has(btn.id)) {
       errors.push(`buttons[${i}].id must be unique (duplicate: ${btn.id})`);
     } else {
@@ -76,6 +78,10 @@ export function validateButtons(config: Record<string, unknown>): string[] {
     // Link URL required
     if (btn.type === 'link' && (!btn.url || typeof btn.url !== 'string')) {
       errors.push(`buttons[${i}].url is required for link type buttons`);
+    } else if (btn.type === 'link' && btn.url) {
+      if (/^(javascript|data|vbscript):/i.test(btn.url.trim())) {
+        errors.push(`buttons[${i}].url contains a disallowed URL scheme`);
+      }
     }
 
     // Port cannot have URL

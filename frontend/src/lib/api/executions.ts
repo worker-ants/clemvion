@@ -57,7 +57,7 @@ export interface PaginatedExecutions {
 // Helper to unwrap API response that may be wrapped in { data: T }
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function unwrap<T>(data: any): T {
-  return data?.data !== undefined && typeof data.data === "object" && !Array.isArray(data.data)
+  return data?.data != null && typeof data.data === "object" && !Array.isArray(data.data)
     ? data.data
     : data;
 }
