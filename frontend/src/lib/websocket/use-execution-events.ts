@@ -19,7 +19,7 @@ interface UseExecutionEventsReturn {
 }
 
 const POLL_INTERVAL_MS = 2000;
-const POLL_INTERVAL_WAITING_MS = 10000; // Slower polling when waiting for form input
+const POLL_INTERVAL_WAITING_MS = 2000; // Same interval when waiting for user input
 
 function mapNodeStatus(
   status: NodeExecutionData["status"],
