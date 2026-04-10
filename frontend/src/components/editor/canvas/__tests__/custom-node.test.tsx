@@ -345,6 +345,52 @@ describe("CustomNode", () => {
     expect(screen.getByText("Refund")).toBeInTheDocument();
   });
 
+  // --- Text Classifier dynamic ports ---
+
+  it("renders text_classifier with only fallback port when no categories", () => {
+    const { container } = renderNode({
+      type: "text_classifier",
+      label: "Text Classifier",
+      config: {},
+      category: "ai",
+    });
+    // Single output renders as centered handle without label
+    expect(container.querySelector('[data-testid="handle-fallback"]')).toBeInTheDocument();
+    expect(container.querySelector('[data-testid="handle-class_0"]')).not.toBeInTheDocument();
+  });
+
+  it("renders text_classifier with category ports and fallback", () => {
+    const { container } = renderNode({
+      type: "text_classifier",
+      label: "Text Classifier",
+      config: {
+        categories: [
+          { name: "Billing", description: "Payment questions" },
+          { name: "Technical", description: "Tech support" },
+        ],
+      },
+      category: "ai",
+    });
+    expect(container.querySelector('[data-testid="handle-class_0"]')).toBeInTheDocument();
+    expect(container.querySelector('[data-testid="handle-class_1"]')).toBeInTheDocument();
+    expect(container.querySelector('[data-testid="handle-fallback"]')).toBeInTheDocument();
+    expect(screen.getByText("Billing")).toBeInTheDocument();
+    expect(screen.getByText("Technical")).toBeInTheDocument();
+    expect(screen.getByText("Fallback")).toBeInTheDocument();
+  });
+
+  it("renders text_classifier with fallback label for unnamed categories", () => {
+    renderNode({
+      type: "text_classifier",
+      label: "Text Classifier",
+      config: {
+        categories: [{ name: "", description: "empty name" }],
+      },
+      category: "ai",
+    });
+    expect(screen.getByText("Category 1")).toBeInTheDocument();
+  });
+
   it("filters out conditions with empty id", () => {
     const { container } = renderNode({
       type: "ai_agent",

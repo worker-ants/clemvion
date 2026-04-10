@@ -74,6 +74,20 @@ ${includeConfidence ? '- "confidence": a number between 0.0 and 1.0 indicating y
 
 Respond ONLY with the JSON object, no additional text.`;
 
+    const jsonSchema: Record<string, unknown> = {
+      type: 'object',
+      properties: {
+        category: { type: 'string', enum: categoryNames },
+        ...(includeConfidence
+          ? { confidence: { type: 'number' } }
+          : {}),
+      },
+      required: includeConfidence
+        ? ['category', 'confidence']
+        : ['category'],
+      additionalProperties: false,
+    };
+
     const result = await this.llmService.chat(llmConfig, {
       model: model || llmConfig.defaultModel,
       messages: [
@@ -81,6 +95,7 @@ Respond ONLY with the JSON object, no additional text.`;
         { role: 'user', content: inputField },
       ],
       responseFormat: 'json',
+      jsonSchema,
     });
 
     let category = '';
@@ -89,7 +104,7 @@ Respond ONLY with the JSON object, no additional text.`;
     try {
       const parsed = JSON.parse(result.content || '{}');
       category = parsed.category || '';
-      confidence = parsed.confidence || 0;
+      confidence = parsed.confidence ?? 0;
     } catch {
       // Fallback: try to extract category name from text
       for (const c of categories) {
@@ -102,8 +117,7 @@ Respond ONLY with the JSON object, no additional text.`;
 
     // Find matching port
     const portIndex = categories.findIndex((c) => c.name === category);
-    const port =
-      portIndex >= 0 ? `class_${portIndex}` : `class_${categories.length}`;
+    const port = portIndex >= 0 ? `class_${portIndex}` : 'fallback';
 
     return {
       port,
