@@ -1,0 +1,93 @@
+{
+  "timestamp": "2026-04-10T19:01:31.996525",
+  "files": [
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/frontend/src/components/editor/settings-panel/node-configs/logic-configs.tsx",
+      "change_type": "Review",
+      "file_extension": "tsx"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/frontend/src/lib/node-definitions/index.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/spec/4-nodes/1-logic-nodes.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/backend/src/modules/execution-engine/handlers/logic/merge.handler.spec.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    }
+  ],
+  "total_elapsed_seconds": 311.43,
+  "agents": [
+    {
+      "name": "database",
+      "status": "success",
+      "elapsed_seconds": 13.96
+    },
+    {
+      "name": "performance",
+      "status": "success",
+      "elapsed_seconds": 29.46
+    },
+    {
+      "name": "api_contract",
+      "status": "success",
+      "elapsed_seconds": 31.51
+    },
+    {
+      "name": "requirement",
+      "status": "success",
+      "elapsed_seconds": 34.83
+    },
+    {
+      "name": "dependency",
+      "status": "success",
+      "elapsed_seconds": 36.13
+    },
+    {
+      "name": "documentation",
+      "status": "success",
+      "elapsed_seconds": 39.99
+    },
+    {
+      "name": "maintainability",
+      "status": "success",
+      "elapsed_seconds": 40.12
+    },
+    {
+      "name": "security",
+      "status": "success",
+      "elapsed_seconds": 40.14
+    },
+    {
+      "name": "architecture",
+      "status": "success",
+      "elapsed_seconds": 41.99
+    },
+    {
+      "name": "testing",
+      "status": "success",
+      "elapsed_seconds": 42.48
+    },
+    {
+      "name": "scope",
+      "status": "success",
+      "elapsed_seconds": 44.52
+    },
+    {
+      "name": "side_effect",
+      "status": "success",
+      "elapsed_seconds": 51.6
+    },
+    {
+      "name": "concurrency",
+      "status": "success",
+      "elapsed_seconds": 54.18
+    }
+  ]
+}

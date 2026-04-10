@@ -67,10 +67,17 @@ export class MergeHandler implements NodeHandler {
       case 'array':
         return inputs;
       case 'merge_object': {
-        const merged: Record<string, unknown> = {};
+        const merged = Object.create(null) as Record<string, unknown>;
+        const blockedKeys = new Set(['__proto__', 'constructor', 'prototype']);
         for (const item of inputs) {
           if (typeof item === 'object' && item !== null) {
-            Object.assign(merged, item);
+            for (const [key, value] of Object.entries(
+              item as Record<string, unknown>,
+            )) {
+              if (!blockedKeys.has(key)) {
+                merged[key] = value;
+              }
+            }
           }
         }
         return merged;
