@@ -1,5 +1,3 @@
-"use client";
-
 import { useState } from "react";
 import { SelectField, NumberField, CheckboxField, SectionTitle } from "./shared";
 import { ExpressionInput } from "@/components/editor/expression";

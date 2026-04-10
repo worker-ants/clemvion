@@ -1,5 +1,3 @@
-"use client";
-
 /**
  * Renders a highlight overlay behind the input to colorize {{ }} expression blocks.
  * Uses an absolutely positioned div with identical font/sizing as the input.

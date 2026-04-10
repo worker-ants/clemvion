@@ -1,5 +1,3 @@
-"use client";
-
 import { SelectField, TextAreaField, SectionTitle } from "./shared";
 import { ExpressionInput } from "@/components/editor/expression";
 import { Button } from "@/components/ui/button";

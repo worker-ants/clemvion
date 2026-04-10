@@ -1,5 +1,3 @@
-"use client";
-
 import type { Suggestion } from "./use-expression-suggestions";
 
 /** Canonical list of top-level $ variables shown in autocomplete and variable picker */

@@ -1,5 +1,3 @@
-"use client";
-
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
@@ -57,31 +55,6 @@ export function SelectField({
           </option>
         ))}
       </select>
-    </FieldGroup>
-  );
-}
-
-export function TextField({
-  label,
-  value,
-  onChange,
-  placeholder,
-  hint,
-}: {
-  label: string;
-  value: string;
-  onChange: (value: string) => void;
-  placeholder?: string;
-  hint?: string;
-}) {
-  return (
-    <FieldGroup label={label} hint={hint}>
-      <Input
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        placeholder={placeholder}
-        className="h-8 text-xs"
-      />
     </FieldGroup>
   );
 }

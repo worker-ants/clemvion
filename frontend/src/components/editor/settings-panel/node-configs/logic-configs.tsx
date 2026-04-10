@@ -1,5 +1,3 @@
-"use client";
-
 import { SelectField, NumberField, CheckboxField, SectionTitle } from "./shared";
 import { ExpressionInput } from "@/components/editor/expression";
 import { Input } from "@/components/ui/input";

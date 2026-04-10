@@ -1,5 +1,3 @@
-"use client";
-
 import { useEffect, useRef, useCallback } from "react";
 import type { Suggestion } from "./use-expression-suggestions";
 
