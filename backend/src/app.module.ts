@@ -3,6 +3,7 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { APP_FILTER, APP_GUARD, APP_INTERCEPTOR, APP_PIPE } from '@nestjs/core';
 import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
+import { BullModule } from '@nestjs/bullmq';
 import {
   appConfig,
   databaseConfig,
@@ -117,6 +118,17 @@ import { DocumentChunk } from './modules/knowledge-base/entities/document-chunk.
         ],
         synchronize: false,
         logging: process.env.NODE_ENV === 'development',
+      }),
+    }),
+
+    // BullMQ (Redis-backed job queue for scheduled workflow execution)
+    BullModule.forRootAsync({
+      inject: [ConfigService],
+      useFactory: (config: ConfigService) => ({
+        connection: {
+          host: config.get<string>('redis.host'),
+          port: config.get<number>('redis.port'),
+        },
       }),
     }),
 
