@@ -30,6 +30,8 @@ import {
   Brain,
   Tags,
   FileSearch,
+  Zap,
+  Filter,
 } from "lucide-react";
 
 const ICON_MAP: Record<string, React.ComponentType<LucideProps>> = {
@@ -61,6 +63,8 @@ const ICON_MAP: Record<string, React.ComponentType<LucideProps>> = {
   Brain,
   Tags,
   FileSearch,
+  Zap,
+  Filter,
 };
 
 interface NodeIconProps extends LucideProps {
