@@ -78,7 +78,7 @@ export class LlmService {
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unknown error';
       this.logger.warn(`LLM connection test failed: ${message}`);
-      return { success: false, error: message };
+      return { success: false, error: this.sanitizeErrorMessage(message) };
     }
   }
 
@@ -109,6 +109,53 @@ export class LlmService {
       });
     }
     return defaultConfig;
+  }
+
+  private sanitizeErrorMessage(message: string): string {
+    if (
+      message.includes('401') ||
+      message.toLowerCase().includes('unauthorized') ||
+      message.toLowerCase().includes('authentication')
+    ) {
+      return 'Authentication failed. Please check your API key.';
+    }
+    if (
+      message.includes('403') ||
+      message.toLowerCase().includes('forbidden')
+    ) {
+      return 'Access denied. Please check your API key permissions.';
+    }
+    if (
+      message.includes('404') ||
+      message.toLowerCase().includes('not found')
+    ) {
+      return 'Model or endpoint not found. Please check your configuration.';
+    }
+    if (
+      message.includes('429') ||
+      message.toLowerCase().includes('rate limit')
+    ) {
+      return 'Rate limit exceeded. Please try again later.';
+    }
+    if (
+      message.toLowerCase().includes('timeout') ||
+      message.toLowerCase().includes('timed out')
+    ) {
+      return 'Connection timed out. Please check your network or endpoint URL.';
+    }
+    if (
+      message.toLowerCase().includes('econnrefused') ||
+      message.toLowerCase().includes('connection refused')
+    ) {
+      return 'Connection refused. Please check your endpoint URL.';
+    }
+    if (
+      message.toLowerCase().includes('enotfound') ||
+      message.toLowerCase().includes('getaddrinfo')
+    ) {
+      return 'Could not resolve hostname. Please check your endpoint URL.';
+    }
+    return 'Connection test failed. Please check your configuration.';
   }
 
   private async withRetry<T>(fn: () => Promise<T>, maxRetries = 3): Promise<T> {

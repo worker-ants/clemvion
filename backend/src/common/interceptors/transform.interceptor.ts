@@ -22,12 +22,8 @@ export class TransformInterceptor<T> implements NestInterceptor<
   ): Observable<WrappedResponse<T>> {
     return next.handle().pipe(
       map((data) => {
-        // If response already has 'data' or 'error' key, pass through
-        if (
-          data &&
-          typeof data === 'object' &&
-          ('data' in data || 'error' in data)
-        ) {
+        // If response already has 'data' key, pass through to avoid double-wrapping
+        if (data && typeof data === 'object' && 'data' in data) {
           return data;
         }
         return { data };
