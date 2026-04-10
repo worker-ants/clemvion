@@ -102,10 +102,10 @@ export function useExpressionSuggestions(
       /\$node\["([^"]+)"\]\.output\.(.*)$/,
     );
     if (nodeOutputMatch) {
-      const nodeLabel = nodeOutputMatch[1];
+      const nodeKey = nodeOutputMatch[1];
       const fieldPrefix = nodeOutputMatch[2];
       const node = expressionData.availableNodes.find(
-        (n) => n.label === nodeLabel,
+        (n) => n.resolvedKey === nodeKey,
       );
       if (node) {
         const { suggestions, leafLength } = buildNestedSuggestions(
@@ -126,13 +126,13 @@ export function useExpressionSuggestions(
       const prefix = nodeSelectMatch[1];
       const suggestions = expressionData.availableNodes
         .filter((n) =>
-          n.label.toLowerCase().startsWith(prefix.toLowerCase()),
+          n.resolvedKey.toLowerCase().startsWith(prefix.toLowerCase()),
         )
         .map((n) => {
-          // Escape special characters in labels to prevent expression syntax breakage
-          const escaped = n.label.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+          // Escape special characters in keys to prevent expression syntax breakage
+          const escaped = n.resolvedKey.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
           return {
-            label: n.label,
+            label: n.resolvedKey,
             insertText: `${escaped}"].output`,
             type: "node" as const,
             detail: n.type,

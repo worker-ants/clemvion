@@ -15,9 +15,13 @@ vi.mock("@/lib/stores/execution-store", () => ({
     selector(executionState),
 }));
 
-vi.mock("@workflow/expression-engine", () => ({
-  getAllFunctionNames: () => ["length", "uppercase"],
-}));
+vi.mock("@workflow/expression-engine", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@workflow/expression-engine")>();
+  return {
+    ...actual,
+    getAllFunctionNames: () => ["length", "uppercase"],
+  };
+});
 
 import { useExpressionContext } from "../use-expression-context";
 
@@ -104,6 +108,27 @@ describe("useExpressionContext", () => {
     const { result } = renderHook(() => useExpressionContext("n2"));
     expect(result.current.availableNodes).toHaveLength(1);
     expect(result.current.availableNodes[0].label).toBe("HTTP");
+    expect(result.current.availableNodes[0].resolvedKey).toBe("HTTP");
+  });
+
+  it("assigns disambiguated resolvedKey for duplicate labels", () => {
+    editorState = {
+      nodes: [
+        makeNode("n1", "http_request", "HTTP Request"),
+        makeNode("n2", "http_request", "HTTP Request"),
+        makeNode("n3", "code", "Code"),
+      ],
+      edges: [],
+    };
+    executionState = { nodeResults: [] };
+
+    const { result } = renderHook(() => useExpressionContext("n3"));
+    const available = result.current.availableNodes;
+    expect(available).toHaveLength(2);
+    expect(available[0].label).toBe("HTTP Request");
+    expect(available[0].resolvedKey).toBe("HTTP Request");
+    expect(available[1].label).toBe("HTTP Request");
+    expect(available[1].resolvedKey).toBe("HTTP Request#2");
   });
 
   describe("sourceItemSample for table nodes", () => {

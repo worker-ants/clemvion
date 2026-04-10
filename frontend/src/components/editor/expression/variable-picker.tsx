@@ -177,6 +177,7 @@ function NodeSection({
 }: {
   node: {
     label: string;
+    resolvedKey: string;
     type: string;
     outputFields: string[];
     outputSample: Record<string, unknown>;
@@ -184,7 +185,7 @@ function NodeSection({
   onInsert: (text: string) => void;
 }) {
   const [expanded, setExpanded] = useState(false);
-  const basePath = `$node["${node.label}"].output`;
+  const basePath = `$node["${node.resolvedKey}"].output`;
   const hasFields = Object.keys(node.outputSample).length > 0;
 
   return (
@@ -209,7 +210,7 @@ function NodeSection({
         ) : (
           <span className="w-3" />
         )}
-        <span className="flex-1 truncate text-orange-400">{node.label}</span>
+        <span className="flex-1 truncate text-orange-400">{node.resolvedKey}</span>
         <span className="shrink-0 text-[10px] text-[hsl(var(--muted-foreground))]">
           {node.type}
         </span>

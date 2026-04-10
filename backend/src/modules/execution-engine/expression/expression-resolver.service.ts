@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import {
   evaluate,
   ExpressionContext as EngineContext,
+  buildDisambiguatedKeys,
 } from '@workflow/expression-engine';
 import { ExecutionContext } from '../handlers/node-handler.interface';
 import { Node } from '../../nodes/entities/node.entity';
@@ -24,13 +25,27 @@ export class ExpressionResolverService {
     nodeMap: Map<string, Node>,
     executionMeta?: { startedAt?: string; mode?: string },
   ): EngineContext {
-    // Build $node label-to-output map
+    // Build $node label-to-output map with disambiguation and UUID fallback.
+    // Note: nodeMap must be ordered by topological sort (execution order) for
+    // deterministic #N suffix assignment in buildDisambiguatedKeys.
     const $node: Record<string, { output: unknown }> = {};
+
+    const nodesWithOutput: Array<{ id: string; label: string }> = [];
     for (const [nodeId, node] of nodeMap) {
-      const output = executionContext.nodeOutputCache[nodeId];
-      if (output !== undefined) {
-        $node[node.label] = { output };
+      if (executionContext.nodeOutputCache[nodeId] !== undefined) {
+        nodesWithOutput.push({ id: nodeId, label: node.label });
       }
+    }
+
+    const disambiguatedKeys = buildDisambiguatedKeys(nodesWithOutput);
+    for (const [nodeId] of nodeMap) {
+      const output = executionContext.nodeOutputCache[nodeId];
+      if (output === undefined) continue;
+
+      const resolvedKey = disambiguatedKeys.get(nodeId)!;
+      $node[resolvedKey] = { output };
+      // UUID fallback: always accessible by node ID
+      $node[nodeId] = { output };
     }
 
     const now = new Date();
@@ -156,7 +171,13 @@ export class ExpressionResolverService {
       }
 
       // Mixed text + expression: always coerce to string
-      return typeof result === 'string' ? result : String(result ?? '');
+      if (typeof result === 'string') return result;
+      if (result === null || result === undefined) return '';
+      if (typeof result === 'object') return JSON.stringify(result);
+      if (typeof result === 'number' || typeof result === 'boolean') {
+        return result.toString();
+      }
+      return `${result as string}`;
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       throw new Error(`Expression error in config.${path}: ${message}`);

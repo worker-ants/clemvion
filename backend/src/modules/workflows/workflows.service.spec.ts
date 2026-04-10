@@ -1,7 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';
-import { NotFoundException } from '@nestjs/common';
+import { ConflictException, NotFoundException } from '@nestjs/common';
 import { WorkflowsService } from './workflows.service';
 import { Workflow } from './entities/workflow.entity';
 import { Node, NodeCategory } from '../nodes/entities/node.entity';
@@ -239,6 +239,42 @@ describe('WorkflowsService', () => {
       ).rejects.toThrow(
         'Workflow cannot contain more than one Manual Trigger node',
       );
+    });
+
+    it('should reject canvas with duplicate node labels', async () => {
+      const dto = {
+        nodes: [
+          {
+            id: 'node-1',
+            type: 'manual_trigger',
+            category: NodeCategory.TRIGGER,
+            label: 'Manual Trigger',
+            positionX: 100,
+            positionY: 200,
+          },
+          {
+            id: 'node-2',
+            type: 'http_request',
+            category: NodeCategory.INTEGRATION,
+            label: 'HTTP Request',
+            positionX: 300,
+            positionY: 200,
+          },
+          {
+            id: 'node-3',
+            type: 'http_request',
+            category: NodeCategory.INTEGRATION,
+            label: 'HTTP Request',
+            positionX: 500,
+            positionY: 200,
+          },
+        ],
+        edges: [],
+      };
+
+      await expect(
+        service.saveCanvas('wf-uuid-1', 'ws-uuid-1', dto),
+      ).rejects.toThrow(ConflictException);
     });
   });
 });

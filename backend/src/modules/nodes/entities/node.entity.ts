@@ -7,6 +7,8 @@ import {
   ManyToOne,
   JoinColumn,
   Check,
+  Unique,
+  Index,
 } from 'typeorm';
 import { Workflow } from '../../workflows/entities/workflow.entity';
 
@@ -22,6 +24,8 @@ export enum NodeCategory {
 
 @Entity('node')
 @Check(`"NOT (container_id IS NOT NULL AND tool_owner_id IS NOT NULL)"`)
+@Unique('UQ_node_workflow_label', ['workflowId', 'label'])
+@Index('IDX_node_workflow_label', ['workflowId', 'label'])
 export class Node {
   @PrimaryGeneratedColumn('uuid')
   id: string;

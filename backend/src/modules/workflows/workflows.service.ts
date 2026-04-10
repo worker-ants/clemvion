@@ -1,6 +1,7 @@
 import {
   Injectable,
   BadRequestException,
+  ConflictException,
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -194,6 +195,18 @@ export class WorkflowsService {
     userId: string,
     dto: ImportWorkflowDto,
   ): Promise<Workflow> {
+    // Validate unique labels in imported nodes
+    const seen = new Set<string>();
+    for (const nodeDto of dto.nodes) {
+      if (seen.has(nodeDto.label)) {
+        throw new ConflictException({
+          code: 'DUPLICATE_NODE_LABEL',
+          message: `Duplicate node label in import: "${nodeDto.label}"`,
+        });
+      }
+      seen.add(nodeDto.label);
+    }
+
     return this.dataSource.transaction(async (manager) => {
       const workflow = manager.create(Workflow, {
         name: dto.name,
@@ -273,6 +286,7 @@ export class WorkflowsService {
 
     // Server-side validation: Manual Trigger must exist and be unique
     this.validateManualTrigger(dto);
+    this.validateUniqueLabels(dto);
 
     return this.dataSource.transaction(async (manager) => {
       // Update workflow name if provided
@@ -302,6 +316,19 @@ export class WorkflowsService {
       throw new BadRequestException(
         'Workflow cannot contain more than one Manual Trigger node',
       );
+    }
+  }
+
+  private validateUniqueLabels(dto: SaveCanvasDto): void {
+    const seen = new Set<string>();
+    for (const node of dto.nodes) {
+      if (seen.has(node.label)) {
+        throw new ConflictException({
+          code: 'DUPLICATE_NODE_LABEL',
+          message: `Duplicate node label: "${node.label}"`,
+        });
+      }
+      seen.add(node.label);
     }
   }
 

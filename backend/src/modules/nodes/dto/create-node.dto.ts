@@ -7,6 +7,7 @@ import {
   IsBoolean,
   IsUUID,
   MaxLength,
+  Matches,
 } from 'class-validator';
 import { Transform } from 'class-transformer';
 import { NodeCategory } from '../entities/node.entity';
@@ -21,6 +22,7 @@ export class CreateNodeDto {
 
   @IsString()
   @MaxLength(255)
+  @Matches(/^[^#]*$/, { message: 'Node label must not contain "#" character' })
   label: string;
 
   @IsOptional()

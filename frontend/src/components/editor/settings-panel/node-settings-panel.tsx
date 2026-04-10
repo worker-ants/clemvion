@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useMemo } from "react";
 import { useEditorStore } from "@/lib/stores/editor-store";
 import { getNodeDefinition } from "@/lib/node-definitions";
 import { NodeConfigRenderer } from "./node-configs";
@@ -108,6 +108,7 @@ function SettingsTab({
     isDisabled?: boolean;
   };
 }) {
+  const nodes = useEditorStore((s) => s.nodes);
   const [label, setLabel] = useState(nodeData.label);
   const [isDisabled, setIsDisabled] = useState(nodeData.isDisabled ?? false);
   const [nodeConfig, setNodeConfig] = useState<Record<string, unknown>>(
@@ -127,7 +128,21 @@ function SettingsTab({
     [],
   );
 
+  const isDuplicateLabel = useMemo(() => {
+    return nodes.some(
+      (n) =>
+        n.id !== nodeId &&
+        (n.data as Record<string, unknown>).label === label,
+    );
+  }, [nodes, nodeId, label]);
+
   const handleSave = useCallback(() => {
+    // Block save if label is duplicated
+    if (isDuplicateLabel) {
+      toast.error("동일한 이름의 노드가 이미 존재합니다");
+      return;
+    }
+
     useEditorStore.getState().pushUndo();
 
     useEditorStore.setState((state) => ({
@@ -148,7 +163,7 @@ function SettingsTab({
     }));
 
     toast.success("Node settings saved");
-  }, [nodeId, label, isDisabled, nodeConfig, notes, errorPolicy]);
+  }, [nodeId, label, isDuplicateLabel, isDisabled, nodeConfig, notes, errorPolicy]);
 
   const isTrigger = nodeData.type === "manual_trigger";
 
@@ -160,8 +175,16 @@ function SettingsTab({
         <Input
           value={label}
           onChange={(e) => setLabel(e.target.value)}
-          className="h-8 text-xs"
+          className={cn(
+            "h-8 text-xs",
+            isDuplicateLabel && "border-red-500 focus-visible:ring-red-500",
+          )}
         />
+        {isDuplicateLabel && (
+          <span className="text-[10px] text-red-500">
+            동일한 이름의 노드가 이미 존재합니다
+          </span>
+        )}
       </div>
 
       {/* Node-specific config */}

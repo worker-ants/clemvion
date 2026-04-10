@@ -69,3 +69,4 @@ export { tokenize } from './tokenizer';
 export { parse } from './parser';
 export { Evaluator } from './evaluator';
 export { getFunction, hasFunction, getAllFunctionNames } from './functions';
+export { buildDisambiguatedKeys } from './disambiguate-labels';
