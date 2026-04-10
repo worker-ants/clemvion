@@ -6,6 +6,7 @@ import {
   IsBoolean,
   IsUUID,
   MaxLength,
+  Matches,
 } from 'class-validator';
 import { Transform } from 'class-transformer';
 
@@ -13,6 +14,7 @@ export class UpdateNodeDto {
   @IsOptional()
   @IsString()
   @MaxLength(255)
+  @Matches(/^[^#]*$/, { message: 'Node label must not contain "#" character' })
   label?: string;
 
   @IsOptional()

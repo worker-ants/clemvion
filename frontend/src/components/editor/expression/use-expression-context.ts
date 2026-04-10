@@ -3,13 +3,15 @@
 import { useMemo } from "react";
 import { useEditorStore } from "@/lib/stores/editor-store";
 import { useExecutionStore } from "@/lib/stores/execution-store";
-import { getAllFunctionNames } from "@workflow/expression-engine";
+import { getAllFunctionNames, buildDisambiguatedKeys } from "@workflow/expression-engine";
 
 const FUNCTION_NAMES = getAllFunctionNames();
 
 export interface ExpressionNodeInfo {
   id: string;
   label: string;
+  /** Disambiguated key used in $node["..."] expressions (label or label#N for duplicates) */
+  resolvedKey: string;
   type: string;
   outputFields: string[];
   outputSample: Record<string, unknown>;
@@ -84,19 +86,26 @@ export function useExpressionContext(selectedNodeId: string | null): ExpressionD
       }
     }
 
-    // Build available nodes list for $node["..."] suggestions
-    const availableNodes: ExpressionNodeInfo[] = nodes
-      .filter((n) => n.id !== selectedNodeId)
-      .map((n) => {
-        const output = resultMap.get(n.id) ?? {};
-        return {
-          id: n.id,
-          label: (n.data as Record<string, unknown>).label as string ?? n.id,
-          type: (n.data as Record<string, unknown>).type as string ?? "unknown",
-          outputFields: extractFields(output),
-          outputSample: output,
-        };
-      });
+    // Build disambiguation keys from ALL nodes (matching backend execution scope)
+    const allDisambiguatedKeys = buildDisambiguatedKeys(
+      nodes.map((n) => ({
+        id: n.id,
+        label: (n.data as Record<string, unknown>).label as string ?? n.id,
+      })),
+    );
+    // Filter out selected node for display, but use keys computed from full set
+    const filteredNodes = nodes.filter((n) => n.id !== selectedNodeId);
+    const availableNodes: ExpressionNodeInfo[] = filteredNodes.map((n) => {
+      const output = resultMap.get(n.id) ?? {};
+      return {
+        id: n.id,
+        label: (n.data as Record<string, unknown>).label as string ?? n.id,
+        resolvedKey: allDisambiguatedKeys.get(n.id) ?? n.id,
+        type: (n.data as Record<string, unknown>).type as string ?? "unknown",
+        outputFields: extractFields(output),
+        outputSample: output,
+      };
+    });
 
     // Extract declared variables from variable_declaration nodes
     const variables: Array<{ name: string; type: string }> = [];
@@ -134,7 +143,7 @@ export function useExpressionContext(selectedNodeId: string | null): ExpressionD
           const nodeRefMatch = dataSourceExpr?.match(/\$node\["([^"]+)"\]\.output/);
           if (nodeRefMatch) {
             const refLabel = nodeRefMatch[1];
-            const refNode = availableNodes.find((n) => n.label === refLabel);
+            const refNode = availableNodes.find((n) => n.resolvedKey === refLabel);
             if (refNode) {
               const refOutput = rawResultMap.get(refNode.id);
               if (refOutput) resolvedSource = refOutput;

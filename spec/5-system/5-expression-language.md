@@ -153,7 +153,7 @@
 | 참조 | 타입 | 설명 | 예시 |
 |------|------|------|------|
 | `$input` | Object | 직전 연결 노드의 출력 데이터 | `{{ $input.email }}` |
-| `$node["이름"]` | Object | 특정 노드의 출력. `.output`으로 접근 | `{{ $node["Fetch User"].output.id }}` |
+| `$node["이름"]` | Object | 특정 노드의 출력. `.output`으로 접근. UUID로도 접근 가능 | `{{ $node["Fetch User"].output.id }}` |
 | `$var` | Object | 워크플로우 선언 변수 | `{{ $var.counter }}` |
 | `$execution` | Object | 현재 실행 컨텍스트 | `{{ $execution.id }}` |
 | `$now` | String | 현재 타임스탬프 (ISO 8601) | `{{ $now }}` |
@@ -384,11 +384,19 @@ validate(config) → resolveConfig(config, exprContext, excludeKeys) → execute
 `$node["Label"].output` 참조를 지원하기 위해, 실행 시점에 `nodeMap` (노드 ID → 노드 엔티티)과 `nodeOutputCache` (노드 ID → 출력)를 조합하여 라벨 키 맵을 생성한다:
 
 ```typescript
-$node = { [node.label]: { output: nodeOutputCache[nodeId] } }
+// 라벨 중복 구분 + UUID 폴백 등록
+const disambiguatedKeys = buildDisambiguatedKeys(nodesWithOutput);
+for (const { id, label } of nodesWithOutput) {
+  const resolvedKey = disambiguatedKeys.get(id);
+  $node[resolvedKey] = { output: nodeOutputCache[id] };
+  $node[id] = { output: nodeOutputCache[id] }; // UUID 폴백
+}
 ```
 
 - 위상 정렬 순서로 실행되므로, 현재 노드에서 참조하는 노드는 항상 이미 실행 완료된 상태
-- 동일 라벨 존재 시 나중에 실행된 노드가 우선
+- **노드 라벨 유니크 정책**: 워크플로우 내 노드 라벨은 고유해야 한다. 노드 생성/이름변경/캔버스 저장 시 중복이 차단된다.
+- **중복 라벨 안전장치**: 만약 동일 라벨이 존재하는 경우, 실행 순서에 따라 `#N` 접미사로 자동 구분된다. 첫 번째 노드는 원본 라벨, 이후 노드는 `Label#2`, `Label#3` 형식.
+- **UUID 폴백**: 모든 노드는 `$node["<nodeId>"]` 형식으로도 접근 가능하다. UUID 기반 참조는 라벨 변경에 영향받지 않는 안정적 참조 방식이다.
 
 #### 8.3.3 핸들러별 제외 규칙
 

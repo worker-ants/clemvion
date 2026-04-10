@@ -323,4 +323,107 @@ describe('ExpressionResolverService', () => {
       expect(result.url).toBe('https://api.example.com/users/1');
     });
   });
+
+  describe('duplicate label disambiguation', () => {
+    it('disambiguates duplicate labels with #N suffix', () => {
+      const nodeMap = new Map<string, Node>();
+      nodeMap.set('n1', makeNode('n1', 'HTTP Request'));
+      nodeMap.set('n2', makeNode('n2', 'HTTP Request'));
+
+      const execContext: ExecutionContext = {
+        executionId: 'exec-1',
+        workflowId: 'wf-1',
+        variables: {},
+        nodeOutputCache: {
+          n1: { status: 200 },
+          n2: { status: 404 },
+        },
+      };
+
+      const ctx = service.buildExpressionContext({}, execContext, nodeMap);
+
+      expect((ctx.$node as any)['HTTP Request']).toEqual({
+        output: { status: 200 },
+      });
+      expect((ctx.$node as any)['HTTP Request#2']).toEqual({
+        output: { status: 404 },
+      });
+    });
+
+    it('provides UUID fallback for all nodes', () => {
+      const nodeMap = new Map<string, Node>();
+      nodeMap.set('n1', makeNode('n1', 'Transform'));
+
+      const execContext: ExecutionContext = {
+        executionId: 'exec-1',
+        workflowId: 'wf-1',
+        variables: {},
+        nodeOutputCache: {
+          n1: { result: 'data' },
+        },
+      };
+
+      const ctx = service.buildExpressionContext({}, execContext, nodeMap);
+
+      // Accessible by label
+      expect((ctx.$node as any)['Transform']).toEqual({
+        output: { result: 'data' },
+      });
+      // Also accessible by UUID
+      expect((ctx.$node as any)['n1']).toEqual({
+        output: { result: 'data' },
+      });
+    });
+
+    it('resolves disambiguated $node reference in expression', () => {
+      const nodeMap = new Map<string, Node>();
+      nodeMap.set('n1', makeNode('n1', 'HTTP Request'));
+      nodeMap.set('n2', makeNode('n2', 'HTTP Request'));
+
+      const execContext: ExecutionContext = {
+        executionId: 'exec-1',
+        workflowId: 'wf-1',
+        variables: {},
+        nodeOutputCache: {
+          n1: { status: 200 },
+          n2: { status: 404 },
+        },
+      };
+
+      const exprContext = service.buildExpressionContext(
+        {},
+        execContext,
+        nodeMap,
+      );
+
+      const config1 = { val: '{{ $node["HTTP Request"].output.status }}' };
+      expect(service.resolveConfig(config1, exprContext).val).toBe(200);
+
+      const config2 = { val: '{{ $node["HTTP Request#2"].output.status }}' };
+      expect(service.resolveConfig(config2, exprContext).val).toBe(404);
+    });
+
+    it('resolves node by UUID in expression', () => {
+      const nodeMap = new Map<string, Node>();
+      nodeMap.set('n1', makeNode('n1', 'Code'));
+
+      const execContext: ExecutionContext = {
+        executionId: 'exec-1',
+        workflowId: 'wf-1',
+        variables: {},
+        nodeOutputCache: {
+          n1: { result: 42 },
+        },
+      };
+
+      const exprContext = service.buildExpressionContext(
+        {},
+        execContext,
+        nodeMap,
+      );
+
+      const config = { val: '{{ $node["n1"].output.result }}' };
+      expect(service.resolveConfig(config, exprContext).val).toBe(42);
+    });
+  });
 });

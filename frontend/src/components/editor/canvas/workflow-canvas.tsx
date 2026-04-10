@@ -13,6 +13,7 @@ import "@xyflow/react/dist/style.css";
 
 import { useEditorStore } from "@/lib/stores/editor-store";
 import { getNodeDefinition, NODE_DEFINITIONS } from "@/lib/node-definitions";
+import { generateUniqueLabel } from "@/lib/utils/generate-unique-label";
 import { Button } from "@/components/ui/button";
 import {
   ZoomIn,
@@ -34,6 +35,12 @@ import { CustomEdge, EdgeMarkerDefs } from "./custom-edge";
 
 const nodeTypes = { custom: CustomNode };
 const edgeTypes = { custom: CustomEdge };
+
+function getExistingLabels(nodes: RFNode[]): string[] {
+  return nodes.map(
+    (n) => (n.data as Record<string, unknown>).label as string,
+  );
+}
 
 interface NodeContextMenuState {
   x: number;
@@ -176,6 +183,10 @@ export function WorkflowCanvas() {
             node.data?.type as string,
           );
           if (!definition) break;
+          const existingLabels = getExistingLabels(nodes);
+          const currentLabel =
+            (node.data as Record<string, unknown>).label as string ??
+            definition.label;
           const newNode = {
             id: crypto.randomUUID(),
             type: "custom",
@@ -183,7 +194,10 @@ export function WorkflowCanvas() {
               x: node.position.x + 50,
               y: node.position.y + 50,
             },
-            data: { ...node.data },
+            data: {
+              ...node.data,
+              label: generateUniqueLabel(currentLabel, existingLabels),
+            },
           };
           addNode(newNode);
           break;
@@ -271,13 +285,16 @@ export function WorkflowCanvas() {
       }
 
       pushUndo();
+      const existingLabels = nodes.map(
+        (n) => (n.data as Record<string, unknown>).label as string,
+      );
       const newNode = {
         id: crypto.randomUUID(),
         type: "custom",
         position: nodeSearchPopup.flowPosition,
         data: {
           type: nodeType,
-          label: definition.label,
+          label: generateUniqueLabel(definition.label, existingLabels),
           config: {},
           category: definition.category,
           isDisabled: false,
@@ -324,13 +341,16 @@ export function WorkflowCanvas() {
 
       pushUndo();
 
+      const existingLabels = nodes.map(
+        (n) => (n.data as Record<string, unknown>).label as string,
+      );
       const newNode = {
         id: crypto.randomUUID(),
         type: "custom",
         position,
         data: {
           type: nodeType,
-          label: definition.label,
+          label: generateUniqueLabel(definition.label, existingLabels),
           config: {},
           category: definition.category,
           isDisabled: false,

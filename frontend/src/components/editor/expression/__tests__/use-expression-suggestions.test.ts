@@ -162,6 +162,7 @@ describe("useExpressionSuggestions - nested paths", () => {
         {
           id: "n1",
           label: "Form_test",
+          resolvedKey: "Form_test",
           type: "form",
           outputFields: ["submittedData", "status"],
           outputSample: {
@@ -373,6 +374,7 @@ describe("useExpressionSuggestions - nested paths", () => {
         {
           id: "n1",
           label: "Form_test",
+          resolvedKey: "Form_test",
           type: "form",
           outputFields: ["submittedData"],
           outputSample: { submittedData: { name: "test" } },
@@ -380,6 +382,7 @@ describe("useExpressionSuggestions - nested paths", () => {
         {
           id: "n2",
           label: "HTTP Request",
+          resolvedKey: "HTTP Request",
           type: "http_request",
           outputFields: ["body"],
           outputSample: { body: { data: [] } },
