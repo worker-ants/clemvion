@@ -19,6 +19,7 @@ import {
   Calendar,
   ChevronLeft,
   ChevronRight,
+  Pencil,
 } from "lucide-react";
 import cronstrue from "cronstrue";
 import { CronExpressionParser } from "cron-parser";
@@ -29,7 +30,7 @@ interface Schedule {
   cronExpression: string;
   cronDescription?: string;
   timezone: string;
-  active: boolean;
+  isActive: boolean;
   nextRunAt?: string;
   workflowId: string;
   workflowName: string;
@@ -362,7 +363,7 @@ function CalendarView({
   const scheduleDays = useMemo(() => {
     const map = new Map<number, string[]>();
     for (const schedule of schedules) {
-      if (!schedule.active) continue;
+      if (!schedule.isActive) continue;
       const days = getRunDaysInMonth(
         schedule.cronExpression,
         schedule.timezone,
@@ -461,6 +462,7 @@ function CalendarView({
 export default function SchedulesPage() {
   const queryClient = useQueryClient();
   const [showDialog, setShowDialog] = useState(false);
+  const [editTarget, setEditTarget] = useState<Schedule | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<ViewMode>("list");
   const [cronTab, setCronTab] = useState<CronEditorTab>("expression");
@@ -480,7 +482,18 @@ export default function SchedulesPage() {
     queryKey: ["schedules"],
     queryFn: async () => {
       const res = await apiClient.get("/schedules");
-      return res.data.data ?? res.data;
+      const raw = res.data.data ?? res.data;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      return (raw as any[]).map((s) => ({
+        id: s.id,
+        name: s.trigger?.name ?? s.name ?? "",
+        cronExpression: s.cronExpression,
+        timezone: s.timezone,
+        isActive: s.isActive,
+        nextRunAt: s.nextRunAt,
+        workflowId: s.trigger?.workflowId ?? "",
+        workflowName: s.trigger?.workflow?.name ?? "",
+      }));
     },
   });
 
@@ -511,9 +524,23 @@ export default function SchedulesPage() {
     },
   });
 
+  const updateMutation = useMutation({
+    mutationFn: async ({ id, data }: { id: string; data: { name: string; cronExpression: string; timezone: string } }) => {
+      await apiClient.patch(`/schedules/${id}`, data);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["schedules"] });
+      toast.success("Schedule updated");
+      resetForm();
+    },
+    onError: () => {
+      toast.error("Failed to update schedule");
+    },
+  });
+
   const toggleMutation = useMutation({
-    mutationFn: async ({ id, active }: { id: string; active: boolean }) => {
-      await apiClient.patch(`/schedules/${id}`, { active });
+    mutationFn: async ({ id, isActive }: { id: string; isActive: boolean }) => {
+      await apiClient.patch(`/schedules/${id}`, { isActive });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["schedules"] });
@@ -556,15 +583,32 @@ export default function SchedulesPage() {
     setFormCron("");
     setFormTimezone(Intl.DateTimeFormat().resolvedOptions().timeZone);
     setCronTab("expression");
+    setEditTarget(null);
     setShowDialog(false);
   }
 
-  function handleCreate() {
+  function openEdit(schedule: Schedule) {
+    setFormName(schedule.name);
+    setFormWorkflowId(schedule.workflowId);
+    setFormCron(schedule.cronExpression);
+    setFormTimezone(schedule.timezone);
+    setEditTarget(schedule);
+    setShowDialog(true);
+  }
+
+  function handleSubmit() {
     if (!formName.trim() || !formWorkflowId || !formCron.trim()) {
       toast.error("Please fill in all required fields");
       return;
     }
-    createMutation.mutate();
+    if (editTarget) {
+      updateMutation.mutate({
+        id: editTarget.id,
+        data: { name: formName, cronExpression: formCron, timezone: formTimezone },
+      });
+    } else {
+      createMutation.mutate();
+    }
   }
 
   const formCronDescription = useMemo(
@@ -610,7 +654,7 @@ export default function SchedulesPage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
           <div className="w-full max-w-md rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-6 shadow-lg max-h-[90vh] overflow-y-auto">
             <div className="mb-4 flex items-center justify-between">
-              <h2 className="text-lg font-semibold">Add Schedule</h2>
+              <h2 className="text-lg font-semibold">{editTarget ? "Edit Schedule" : "Add Schedule"}</h2>
               <Button variant="ghost" size="icon" onClick={resetForm}>
                 <X className="h-4 w-4" />
               </Button>
@@ -629,9 +673,10 @@ export default function SchedulesPage() {
                 <Label htmlFor="schedule-workflow">Workflow</Label>
                 <select
                   id="schedule-workflow"
-                  className="flex h-10 w-full rounded-md border border-[hsl(var(--input))] bg-transparent px-3 py-2 text-sm"
+                  className="flex h-10 w-full rounded-md border border-[hsl(var(--input))] bg-transparent px-3 py-2 text-sm disabled:opacity-50"
                   value={formWorkflowId}
                   onChange={(e) => setFormWorkflowId(e.target.value)}
+                  disabled={!!editTarget}
                 >
                   <option value="">Select a workflow</option>
                   {workflows.map((wf) => (
@@ -716,13 +761,13 @@ export default function SchedulesPage() {
                   Cancel
                 </Button>
                 <Button
-                  onClick={handleCreate}
-                  disabled={createMutation.isPending}
+                  onClick={handleSubmit}
+                  disabled={createMutation.isPending || updateMutation.isPending}
                 >
-                  {createMutation.isPending ? (
+                  {(createMutation.isPending || updateMutation.isPending) ? (
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                   ) : null}
-                  Create
+                  {editTarget ? "Save" : "Create"}
                 </Button>
               </div>
             </div>
@@ -801,7 +846,7 @@ export default function SchedulesPage() {
                       <span
                         className={cn(
                           "inline-block h-2.5 w-2.5 rounded-full",
-                          schedule.active ? "bg-green-500" : "bg-gray-400",
+                          schedule.isActive ? "bg-green-500" : "bg-gray-400",
                         )}
                       />
                     </td>
@@ -842,11 +887,20 @@ export default function SchedulesPage() {
                           onClick={() =>
                             toggleMutation.mutate({
                               id: schedule.id,
-                              active: !schedule.active,
+                              isActive: !schedule.isActive,
                             })
                           }
                         >
-                          {schedule.active ? "Deactivate" : "Activate"}
+                          {schedule.isActive ? "Deactivate" : "Activate"}
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8"
+                          onClick={() => openEdit(schedule)}
+                          title="Edit"
+                        >
+                          <Pencil className="h-4 w-4" />
                         </Button>
                         <Button
                           variant="ghost"

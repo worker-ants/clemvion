@@ -13,6 +13,7 @@ import { PaginatedResponseDto } from '../../common/dto/paginated-response.dto';
 import { PaginationQueryDto } from '../../common/dto/pagination.dto';
 import { CronExpressionParser } from 'cron-parser';
 import { ExecutionEngineService } from '../execution-engine/execution-engine.service';
+import { ScheduleRunnerService } from './schedule-runner.service';
 
 @Injectable()
 export class SchedulesService {
@@ -22,6 +23,7 @@ export class SchedulesService {
     @InjectRepository(Trigger)
     private readonly triggerRepository: Repository<Trigger>,
     private readonly executionEngineService: ExecutionEngineService,
+    private readonly scheduleRunnerService: ScheduleRunnerService,
   ) {}
 
   async findAll(
@@ -77,15 +79,27 @@ export class SchedulesService {
     });
     const savedTrigger = await this.triggerRepository.save(trigger);
 
+    const timezone = dto.timezone ?? 'Asia/Seoul';
+    const isActive = dto.isActive ?? true;
+    const [nextRun] = this.computeNextRuns(dto.cronExpression, timezone, 1);
+
     const schedule = this.scheduleRepository.create({
       workspaceId,
       triggerId: savedTrigger.id,
       cronExpression: dto.cronExpression,
-      timezone: dto.timezone ?? 'Asia/Seoul',
-      isActive: dto.isActive ?? true,
-      // TODO: Calculate next_run_at from cron expression
+      timezone,
+      isActive,
+      nextRunAt: nextRun ? new Date(nextRun) : undefined,
     });
-    return this.scheduleRepository.save(schedule);
+    const saved = await this.scheduleRepository.save(schedule);
+
+    // Register BullMQ repeatable job
+    if (isActive) {
+      saved.trigger = savedTrigger;
+      await this.scheduleRunnerService.registerJob(saved);
+    }
+
+    return saved;
   }
 
   async update(
@@ -112,11 +126,33 @@ export class SchedulesService {
     if (dto.timezone) schedule.timezone = dto.timezone;
     if (dto.isActive !== undefined) schedule.isActive = dto.isActive;
 
-    return this.scheduleRepository.save(schedule);
+    // Recalculate nextRunAt if cron or timezone changed
+    if (dto.cronExpression || dto.timezone) {
+      const [nextRun] = this.computeNextRuns(
+        schedule.cronExpression,
+        schedule.timezone,
+        1,
+      );
+      schedule.nextRunAt = nextRun ? new Date(nextRun) : (null as unknown as Date);
+    }
+
+    const saved = await this.scheduleRepository.save(schedule);
+
+    // Update BullMQ job
+    if (schedule.isActive) {
+      saved.trigger = trigger ?? schedule.trigger;
+      await this.scheduleRunnerService.registerJob(saved);
+    } else {
+      await this.scheduleRunnerService.removeJob(saved.id);
+    }
+
+    return saved;
   }
 
   async remove(id: string, workspaceId: string): Promise<void> {
     const schedule = await this.findById(id, workspaceId);
+    // Remove BullMQ job
+    await this.scheduleRunnerService.removeJob(schedule.id);
     // Cascade delete trigger
     if (schedule.triggerId) {
       await this.triggerRepository.delete(schedule.triggerId);
