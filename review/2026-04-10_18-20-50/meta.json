@@ -1,0 +1,98 @@
+{
+  "timestamp": "2026-04-10T18:22:31.983644",
+  "files": [
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/backend/src/modules/executions/executions.controller.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/backend/src/modules/integrations/integrations.service.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/backend/src/modules/llm/llm.service.spec.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/backend/src/modules/llm/llm.service.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/frontend/src/lib/api/llm-configs.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    }
+  ],
+  "total_elapsed_seconds": 101.88,
+  "agents": [
+    {
+      "name": "database",
+      "status": "success",
+      "elapsed_seconds": 9.47
+    },
+    {
+      "name": "performance",
+      "status": "success",
+      "elapsed_seconds": 22.83
+    },
+    {
+      "name": "concurrency",
+      "status": "success",
+      "elapsed_seconds": 26.2
+    },
+    {
+      "name": "documentation",
+      "status": "success",
+      "elapsed_seconds": 26.36
+    },
+    {
+      "name": "maintainability",
+      "status": "success",
+      "elapsed_seconds": 27.81
+    },
+    {
+      "name": "api_contract",
+      "status": "success",
+      "elapsed_seconds": 29.03
+    },
+    {
+      "name": "dependency",
+      "status": "success",
+      "elapsed_seconds": 29.25
+    },
+    {
+      "name": "requirement",
+      "status": "success",
+      "elapsed_seconds": 29.49
+    },
+    {
+      "name": "testing",
+      "status": "success",
+      "elapsed_seconds": 31.13
+    },
+    {
+      "name": "side_effect",
+      "status": "success",
+      "elapsed_seconds": 31.2
+    },
+    {
+      "name": "security",
+      "status": "success",
+      "elapsed_seconds": 33.27
+    },
+    {
+      "name": "scope",
+      "status": "success",
+      "elapsed_seconds": 41.15
+    },
+    {
+      "name": "architecture",
+      "status": "success",
+      "elapsed_seconds": 45.7
+    }
+  ]
+}

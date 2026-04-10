@@ -1,6 +1,11 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
+import { randomBytes } from 'crypto';
 import { Integration } from './entities/integration.entity';
 import { PaginatedResponseDto } from '../../common/dto/paginated-response.dto';
 import { PaginationQueryDto } from '../../common/dto/pagination.dto';
@@ -126,14 +131,24 @@ export class IntegrationsService {
       return { authUrl: '', state: '' };
     }
 
+    const clientIdKey = `${integration.serviceType.toUpperCase()}_CLIENT_ID`;
+    const clientId = process.env[clientIdKey];
+    if (!clientId) {
+      throw new BadRequestException({
+        code: 'OAUTH_CONFIG_MISSING',
+        message: `OAuth client ID (${clientIdKey}) is not configured`,
+      });
+    }
+
     // Generate state token for CSRF protection
-    const { randomBytes } = await import('crypto');
     const state = randomBytes(16).toString('hex');
 
+    const appUrl = process.env.APP_URL || 'http://localhost:3011';
+    const redirectUri = `${appUrl}/api/integrations/oauth/callback/${integration.serviceType}`;
     const authUrl =
       `${config.authUrl}?` +
-      `client_id=${process.env[`${integration.serviceType.toUpperCase()}_CLIENT_ID`] || ''}` +
-      `&redirect_uri=${encodeURIComponent(`${process.env.APP_URL || 'http://localhost:3011'}/api/integrations/oauth/callback/${integration.serviceType}`)}` +
+      `client_id=${clientId}` +
+      `&redirect_uri=${encodeURIComponent(redirectUri)}` +
       `&scope=${encodeURIComponent(config.scopes.join(' '))}` +
       `&state=${state}` +
       `&response_type=code`;

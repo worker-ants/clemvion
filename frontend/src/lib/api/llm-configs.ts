@@ -65,7 +65,7 @@ export const llmConfigsApi = {
 
   async testConnection(id: string) {
     const { data } = await apiClient.post(`/llm-configs/${id}/test`);
-    return data as { success: boolean; error?: string };
+    return data.data as { success: boolean; error?: string };
   },
 
   async listModels(id: string) {

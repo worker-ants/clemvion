@@ -114,7 +114,7 @@ describe('LlmService', () => {
       expect(mockClient.testConnection).toHaveBeenCalled();
     });
 
-    it('should return failure on error', async () => {
+    it('should return failure with sanitized error on connection refused', async () => {
       mockClient.testConnection.mockRejectedValue(
         new Error('Connection refused'),
       );
@@ -122,7 +122,44 @@ describe('LlmService', () => {
       const result = await service.testConnection('config-1', 'ws-1');
       expect(result).toEqual({
         success: false,
-        error: 'Connection refused',
+        error: 'Connection refused. Please check your endpoint URL.',
+      });
+    });
+
+    it('should sanitize 401 authentication errors', async () => {
+      mockClient.testConnection.mockRejectedValue(
+        new Error('401 Unauthorized'),
+      );
+
+      const result = await service.testConnection('config-1', 'ws-1');
+      expect(result).toEqual({
+        success: false,
+        error: 'Authentication failed. Please check your API key.',
+      });
+    });
+
+    it('should sanitize timeout errors', async () => {
+      mockClient.testConnection.mockRejectedValue(
+        new Error('Request timed out'),
+      );
+
+      const result = await service.testConnection('config-1', 'ws-1');
+      expect(result).toEqual({
+        success: false,
+        error:
+          'Connection timed out. Please check your network or endpoint URL.',
+      });
+    });
+
+    it('should return generic message for unknown errors', async () => {
+      mockClient.testConnection.mockRejectedValue(
+        new Error('some internal detail'),
+      );
+
+      const result = await service.testConnection('config-1', 'ws-1');
+      expect(result).toEqual({
+        success: false,
+        error: 'Connection test failed. Please check your configuration.',
       });
     });
   });
