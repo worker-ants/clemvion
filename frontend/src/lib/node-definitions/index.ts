@@ -47,7 +47,7 @@ export const NODE_DEFINITIONS: NodeDefinition[] = [
 
   // ===== AI (3) =====
   { type: "ai_agent", category: "ai", label: "AI Agent", description: "Chat with LLM using RAG context", icon: "Brain", color: CATEGORY_COLORS.ai, inputs: [{ id: "in", label: "Input", type: "data" }], outputs: [{ id: "out", label: "Output", type: "data" }] },
-  { type: "text_classifier", category: "ai", label: "Text Classifier", description: "Classify text into categories", icon: "Tags", color: CATEGORY_COLORS.ai, inputs: [{ id: "in", label: "Input", type: "data" }], outputs: [{ id: "class_0", label: "Class 1", type: "data" }, { id: "class_1", label: "Class 2", type: "data" }, { id: "fallback", label: "Fallback", type: "data" }] },
+  { type: "text_classifier", category: "ai", label: "Text Classifier", description: "Classify text into categories", icon: "Tags", color: CATEGORY_COLORS.ai, inputs: [{ id: "in", label: "Input", type: "data" }], outputs: [] },
   { type: "information_extractor", category: "ai", label: "Information Extractor", description: "Extract structured data from text", icon: "FileSearch", color: CATEGORY_COLORS.ai, inputs: [{ id: "in", label: "Input", type: "data" }], outputs: [{ id: "out", label: "Output", type: "data" }] },
 
   // ===== INTEGRATION (4) =====

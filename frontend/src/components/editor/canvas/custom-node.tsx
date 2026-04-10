@@ -36,6 +36,13 @@ function CustomNodeComponent({ id, data, selected }: NodeProps<CustomNodeType>) 
         .map((c) => ({ id: c.id, label: c.label || "Case", type: "data" as const }));
       return [...casePorts, { id: "default", label: "Default", type: "data" as const }];
     }
+    // Dynamic ports for Text Classifier based on configured categories
+    if (data.type === "text_classifier") {
+      const categories = (data.config.categories as Array<{ name: string }>) ?? [];
+      const catPorts = categories
+        .map((c, i) => ({ id: `class_${i}`, label: c.name || `Category ${i + 1}`, type: "data" as const }));
+      return [...catPorts, { id: "fallback", label: "Fallback", type: "data" as const }];
+    }
     // Dynamic ports for AI Agent with conditions
     if (data.type === "ai_agent") {
       const conditions = (data.config.conditions as Array<{ id: string; label: string }>) ?? [];
