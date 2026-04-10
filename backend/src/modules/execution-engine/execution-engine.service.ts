@@ -15,7 +15,7 @@ import {
   NodeExecution,
   NodeExecutionStatus,
 } from '../node-executions/entities/node-execution.entity';
-import { Node } from '../nodes/entities/node.entity';
+import { Node, NodeCategory } from '../nodes/entities/node.entity';
 import { Edge } from '../edges/entities/edge.entity';
 import { Workflow } from '../workflows/entities/workflow.entity';
 import { buildGraph, GraphEdge } from './graph/graph-builder';
@@ -342,11 +342,17 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
       100,
     );
     const nodeExecutionCount = new Map<string, number>();
-    // Seed reachability with root nodes (no incoming forward edges)
-    const nodesWithIncoming = new Set(forwardEdges.map((e) => e.targetNodeId));
+    // Seed with trigger nodes. If none exist, fall back to nodes with no incoming edges.
     const reachable = new Set<string>();
+    const nodesWithIncoming = new Set(forwardEdges.map((e) => e.targetNodeId));
     for (const id of sortedNodeIds) {
-      if (!nodesWithIncoming.has(id)) reachable.add(id);
+      const node = subNodeMap.get(id);
+      if (node?.category === NodeCategory.TRIGGER) reachable.add(id);
+    }
+    if (reachable.size === 0) {
+      for (const id of sortedNodeIds) {
+        if (!nodesWithIncoming.has(id)) reachable.add(id);
+      }
     }
 
     // Retrieve execution meta for expression context
@@ -745,11 +751,17 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
       context._executedNodes = executedNodes;
       // Track which nodes are reachable from the trigger through activated edges.
       // Only reachable nodes are executed; unreachable branches are silently skipped.
-      // Seed with root nodes (no incoming forward edges).
-      const nodesWithIncoming = new Set(forwardEdges.map((e) => e.targetNodeId));
+      // Seed with trigger nodes. If none exist, fall back to nodes with no incoming edges.
       const reachable = new Set<string>();
+      const nodesWithIncoming = new Set(forwardEdges.map((e) => e.targetNodeId));
       for (const id of sortedNodeIds) {
-        if (!nodesWithIncoming.has(id)) reachable.add(id);
+        const node = nodeMap.get(id);
+        if (node?.category === NodeCategory.TRIGGER) reachable.add(id);
+      }
+      if (reachable.size === 0) {
+        for (const id of sortedNodeIds) {
+          if (!nodesWithIncoming.has(id)) reachable.add(id);
+        }
       }
 
       let pointer = 0;
