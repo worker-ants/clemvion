@@ -148,17 +148,22 @@ export function useExecutionEvents({
       updateNodeStatus(payload.waitingNodeId, {
         status: "waiting_for_input",
       });
+      // nodeOutput may be at top-level (form) or nested inside buttonConfig (buttons)
+      const resolvedOutput =
+        payload.nodeOutput ??
+        (payload.buttonConfig as Record<string, unknown> | undefined)?.nodeOutput ??
+        null;
       addNodeResult({
         nodeId: payload.waitingNodeId,
         nodeLabel: payload.waitingNodeId,
         nodeType,
         nodeCategory,
         status: "waiting_for_input",
-        outputData: payload.nodeOutput ?? null,
+        outputData: resolvedOutput,
       });
 
       // Resolve interactionType from top-level or inside nodeOutput
-      const nodeOutputObj = payload.nodeOutput as Record<string, unknown> | null;
+      const nodeOutputObj = resolvedOutput as Record<string, unknown> | null;
       const interactionType =
         payload.interactionType ??
         (nodeOutputObj?.interactionType as string | undefined);
