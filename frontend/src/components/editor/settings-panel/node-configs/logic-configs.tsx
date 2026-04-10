@@ -550,13 +550,6 @@ export function FilterConfig({ config, onChange }: { config: Config; onChange: O
 export function MergeConfig({ config, onChange }: { config: Config; onChange: OnChange }) {
   return (
     <div className="flex flex-col gap-3">
-      <NumberField
-        label="Input Count"
-        value={(config.inputCount as number) ?? 2}
-        onChange={(v) => onChange({ ...config, inputCount: v })}
-        min={2}
-        max={10}
-      />
       <SelectField
         label="Strategy"
         value={(config.strategy as string) ?? "wait_all"}

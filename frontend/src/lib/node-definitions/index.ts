@@ -39,7 +39,7 @@ export const NODE_DEFINITIONS: NodeDefinition[] = [
   { type: "split", category: "logic", label: "Split", description: "Split array items", icon: "Split", color: CATEGORY_COLORS.logic, inputs: [{ id: "in", label: "Input", type: "data" }], outputs: [{ id: "out", label: "Output", type: "data" }] },
   { type: "map", category: "logic", label: "Map", description: "Transform array items", icon: "Map", color: CATEGORY_COLORS.logic, inputs: [{ id: "in", label: "Input", type: "data" }], outputs: [{ id: "out", label: "Output", type: "data" }] },
   { type: "foreach", category: "logic", label: "ForEach", description: "Iterate over array", icon: "ListOrdered", color: CATEGORY_COLORS.logic, inputs: [{ id: "in", label: "Input", type: "data" }], outputs: [{ id: "body", label: "Body", type: "data" }, { id: "done", label: "Done", type: "data" }], isContainer: true },
-  { type: "merge", category: "logic", label: "Merge", description: "Combine inputs", icon: "Merge", color: CATEGORY_COLORS.logic, inputs: [{ id: "in_0", label: "Input 1", type: "data" }, { id: "in_1", label: "Input 2", type: "data" }], outputs: [{ id: "out", label: "Output", type: "data" }] },
+  { type: "merge", category: "logic", label: "Merge", description: "Combine inputs", icon: "Merge", color: CATEGORY_COLORS.logic, inputs: [{ id: "in", label: "Input", type: "data" }], outputs: [{ id: "out", label: "Output", type: "data" }] },
   { type: "filter", category: "logic", label: "Filter", description: "Filter array by conditions", icon: "Filter", color: CATEGORY_COLORS.logic, inputs: [{ id: "in", label: "Input", type: "data" }], outputs: [{ id: "match", label: "Match", type: "data" }, { id: "unmatched", label: "Unmatched", type: "data" }] },
 
   // ===== FLOW (1) =====
