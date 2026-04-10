@@ -62,7 +62,7 @@ describe('TextClassifierHandler', () => {
     it('should collect multiple errors', () => {
       const result = handler.validate({});
       expect(result.valid).toBe(false);
-      expect(result.errors!.length).toBeGreaterThanOrEqual(2);
+      expect(result.errors.length).toBeGreaterThanOrEqual(2);
     });
 
     it('should pass with valid config', () => {
@@ -88,7 +88,10 @@ describe('TextClassifierHandler', () => {
     };
 
     it('should classify and route to correct port (first category)', async () => {
-      const result = (await handler.execute({}, baseConfig, context)) as Record<string, unknown>;
+      const result = (await handler.execute({}, baseConfig, context)) as Record<
+        string,
+        unknown
+      >;
       expect(result.port).toBe('class_0');
       const data = result.data as Record<string, unknown>;
       expect(data.category).toBe('Billing');
@@ -101,7 +104,10 @@ describe('TextClassifierHandler', () => {
         usage: { inputTokens: 50, outputTokens: 10, totalTokens: 60 },
         model: 'gpt-4o-mini',
       });
-      const result = (await handler.execute({}, baseConfig, context)) as Record<string, unknown>;
+      const result = (await handler.execute({}, baseConfig, context)) as Record<
+        string,
+        unknown
+      >;
       expect(result.port).toBe('class_1');
     });
 
@@ -111,7 +117,10 @@ describe('TextClassifierHandler', () => {
         usage: { inputTokens: 50, outputTokens: 10, totalTokens: 60 },
         model: 'gpt-4o-mini',
       });
-      const result = (await handler.execute({}, baseConfig, context)) as Record<string, unknown>;
+      const result = (await handler.execute({}, baseConfig, context)) as Record<
+        string,
+        unknown
+      >;
       expect(result.port).toBe('fallback');
     });
 
@@ -121,7 +130,10 @@ describe('TextClassifierHandler', () => {
         usage: { inputTokens: 50, outputTokens: 10, totalTokens: 60 },
         model: 'gpt-4o-mini',
       });
-      const result = (await handler.execute({}, baseConfig, context)) as Record<string, unknown>;
+      const result = (await handler.execute({}, baseConfig, context)) as Record<
+        string,
+        unknown
+      >;
       expect(result.port).toBe('fallback');
       const data = result.data as Record<string, unknown>;
       expect(data.category).toBe('');
@@ -133,7 +145,10 @@ describe('TextClassifierHandler', () => {
         usage: { inputTokens: 50, outputTokens: 10, totalTokens: 60 },
         model: 'gpt-4o-mini',
       });
-      const result = (await handler.execute({}, baseConfig, context)) as Record<string, unknown>;
+      const result = (await handler.execute({}, baseConfig, context)) as Record<
+        string,
+        unknown
+      >;
       expect(result.port).toBe('class_0');
       const data = result.data as Record<string, unknown>;
       expect(data.category).toBe('Billing');
@@ -145,13 +160,19 @@ describe('TextClassifierHandler', () => {
         usage: { inputTokens: 50, outputTokens: 10, totalTokens: 60 },
         model: 'gpt-4o-mini',
       });
-      const result = (await handler.execute({}, baseConfig, context)) as Record<string, unknown>;
+      const result = (await handler.execute({}, baseConfig, context)) as Record<
+        string,
+        unknown
+      >;
       const data = result.data as Record<string, unknown>;
       expect(data.confidence).toBe(0);
     });
 
     it('should include metadata in output', async () => {
-      const result = (await handler.execute({}, baseConfig, context)) as Record<string, unknown>;
+      const result = (await handler.execute({}, baseConfig, context)) as Record<
+        string,
+        unknown
+      >;
       const data = result.data as Record<string, unknown>;
       const metadata = data.metadata as Record<string, unknown>;
       expect(metadata.model).toBe('gpt-4o-mini');
@@ -161,7 +182,10 @@ describe('TextClassifierHandler', () => {
     });
 
     it('should include originalInput in output', async () => {
-      const result = (await handler.execute({}, baseConfig, context)) as Record<string, unknown>;
+      const result = (await handler.execute({}, baseConfig, context)) as Record<
+        string,
+        unknown
+      >;
       const data = result.data as Record<string, unknown>;
       expect(data.originalInput).toBe('I need a refund');
     });

@@ -1212,4 +1212,319 @@ describe('ExecutionEngineService', () => {
       );
     });
   });
+
+  describe('Reachability-based execution', () => {
+    it('should only execute the branch matching the selected port', async () => {
+      // A(port router) -> port1 -> B, port2 -> C
+      // A selects port1, so B executes and C does NOT
+      const routerHandler: NodeHandler = {
+        validate: () => ({ valid: true, errors: [] }),
+        execute: jest.fn(async () => ({
+          port: 'port1',
+          data: { routed: true },
+        })),
+      };
+      const leafHandler: NodeHandler = {
+        validate: () => ({ valid: true, errors: [] }),
+        execute: jest.fn(async (input: unknown) => ({ received: true, input })),
+      };
+      handlerRegistry.register('port_router', routerHandler);
+      handlerRegistry.register('port_leaf', leafHandler);
+
+      const nodes: Partial<Node>[] = [
+        {
+          id: 'node-a',
+          workflowId,
+          type: 'port_router',
+          category: NodeCategory.LOGIC,
+          label: 'Router',
+          config: {},
+          isDisabled: false,
+          containerId: undefined as unknown as string,
+          toolOwnerId: undefined as unknown as string,
+        },
+        {
+          id: 'node-b',
+          workflowId,
+          type: 'port_leaf',
+          category: NodeCategory.LOGIC,
+          label: 'B',
+          config: {},
+          isDisabled: false,
+          containerId: undefined as unknown as string,
+          toolOwnerId: undefined as unknown as string,
+        },
+        {
+          id: 'node-c',
+          workflowId,
+          type: 'port_leaf',
+          category: NodeCategory.LOGIC,
+          label: 'C',
+          config: {},
+          isDisabled: false,
+          containerId: undefined as unknown as string,
+          toolOwnerId: undefined as unknown as string,
+        },
+      ];
+      const edges: Partial<Edge>[] = [
+        {
+          id: 'e-a-b',
+          workflowId,
+          sourceNodeId: 'node-a',
+          sourcePort: 'port1',
+          targetNodeId: 'node-b',
+          targetPort: 'in',
+          type: EdgeType.DATA,
+        },
+        {
+          id: 'e-a-c',
+          workflowId,
+          sourceNodeId: 'node-a',
+          sourcePort: 'port2',
+          targetNodeId: 'node-c',
+          targetPort: 'in',
+          type: EdgeType.DATA,
+        },
+      ];
+
+      mockNodeRepo.findBy.mockResolvedValue(nodes);
+      mockEdgeRepo.findBy.mockResolvedValue(edges);
+
+      await service.execute(workflowId, { start: true });
+      await flushPromises();
+
+      expect(routerHandler.execute).toHaveBeenCalledTimes(1);
+      expect(leafHandler.execute).toHaveBeenCalledTimes(1);
+      // B received the routed data (without _selectedPort)
+      const bInput = (leafHandler.execute as jest.Mock).mock.calls[0][0];
+      expect(bInput).toEqual({ routed: true });
+    });
+
+    it('should not execute nodes downstream of a disabled node', async () => {
+      // A -> B(disabled) -> C — C should never execute
+      const passHandler: NodeHandler = {
+        validate: () => ({ valid: true, errors: [] }),
+        execute: jest.fn(async (input: unknown) => ({
+          processed: true,
+          input,
+        })),
+      };
+      handlerRegistry.register('reach_pass', passHandler);
+
+      const nodes: Partial<Node>[] = [
+        {
+          id: 'node-a',
+          workflowId,
+          type: 'reach_pass',
+          category: NodeCategory.LOGIC,
+          label: 'A',
+          config: {},
+          isDisabled: false,
+          containerId: undefined as unknown as string,
+          toolOwnerId: undefined as unknown as string,
+        },
+        {
+          id: 'node-b',
+          workflowId,
+          type: 'reach_pass',
+          category: NodeCategory.LOGIC,
+          label: 'B',
+          config: {},
+          isDisabled: true,
+          containerId: undefined as unknown as string,
+          toolOwnerId: undefined as unknown as string,
+        },
+        {
+          id: 'node-c',
+          workflowId,
+          type: 'reach_pass',
+          category: NodeCategory.LOGIC,
+          label: 'C',
+          config: {},
+          isDisabled: false,
+          containerId: undefined as unknown as string,
+          toolOwnerId: undefined as unknown as string,
+        },
+      ];
+      const edges: Partial<Edge>[] = [
+        {
+          id: 'e-a-b',
+          workflowId,
+          sourceNodeId: 'node-a',
+          sourcePort: 'out',
+          targetNodeId: 'node-b',
+          targetPort: 'in',
+          type: EdgeType.DATA,
+        },
+        {
+          id: 'e-b-c',
+          workflowId,
+          sourceNodeId: 'node-b',
+          sourcePort: 'out',
+          targetNodeId: 'node-c',
+          targetPort: 'in',
+          type: EdgeType.DATA,
+        },
+      ];
+
+      mockNodeRepo.findBy.mockResolvedValue(nodes);
+      mockEdgeRepo.findBy.mockResolvedValue(edges);
+
+      await service.execute(workflowId, { start: true });
+      await flushPromises();
+
+      // A executes, B is disabled (skipped), C never executes (unreachable)
+      expect(passHandler.execute).toHaveBeenCalledTimes(1);
+    });
+
+    it('should isolate parallel branches through port routing', async () => {
+      // Trigger -> Router -> [port1->X->Y, port2->P->Q]
+      // Router selects port2: P and Q execute, X and Y do NOT
+      const triggerHandler: NodeHandler = {
+        validate: () => ({ valid: true, errors: [] }),
+        execute: jest.fn(async () => ({ triggered: true })),
+      };
+      const routerHandler: NodeHandler = {
+        validate: () => ({ valid: true, errors: [] }),
+        execute: jest.fn(async () => ({ port: 'port2', data: { branch: 2 } })),
+      };
+      const branchHandler: NodeHandler = {
+        validate: () => ({ valid: true, errors: [] }),
+        execute: jest.fn(async (input: unknown) => ({ done: true, input })),
+      };
+      handlerRegistry.register('iso_trigger', triggerHandler);
+      handlerRegistry.register('iso_router', routerHandler);
+      handlerRegistry.register('iso_branch', branchHandler);
+
+      const nodes: Partial<Node>[] = [
+        {
+          id: 'trigger',
+          workflowId,
+          type: 'iso_trigger',
+          category: NodeCategory.TRIGGER,
+          label: 'Trigger',
+          config: {},
+          isDisabled: false,
+          containerId: undefined as unknown as string,
+          toolOwnerId: undefined as unknown as string,
+        },
+        {
+          id: 'router',
+          workflowId,
+          type: 'iso_router',
+          category: NodeCategory.LOGIC,
+          label: 'Router',
+          config: {},
+          isDisabled: false,
+          containerId: undefined as unknown as string,
+          toolOwnerId: undefined as unknown as string,
+        },
+        {
+          id: 'x',
+          workflowId,
+          type: 'iso_branch',
+          category: NodeCategory.LOGIC,
+          label: 'X',
+          config: {},
+          isDisabled: false,
+          containerId: undefined as unknown as string,
+          toolOwnerId: undefined as unknown as string,
+        },
+        {
+          id: 'y',
+          workflowId,
+          type: 'iso_branch',
+          category: NodeCategory.LOGIC,
+          label: 'Y',
+          config: {},
+          isDisabled: false,
+          containerId: undefined as unknown as string,
+          toolOwnerId: undefined as unknown as string,
+        },
+        {
+          id: 'p',
+          workflowId,
+          type: 'iso_branch',
+          category: NodeCategory.LOGIC,
+          label: 'P',
+          config: {},
+          isDisabled: false,
+          containerId: undefined as unknown as string,
+          toolOwnerId: undefined as unknown as string,
+        },
+        {
+          id: 'q',
+          workflowId,
+          type: 'iso_branch',
+          category: NodeCategory.LOGIC,
+          label: 'Q',
+          config: {},
+          isDisabled: false,
+          containerId: undefined as unknown as string,
+          toolOwnerId: undefined as unknown as string,
+        },
+      ];
+      const edges: Partial<Edge>[] = [
+        {
+          id: 'e-t-r',
+          workflowId,
+          sourceNodeId: 'trigger',
+          sourcePort: 'out',
+          targetNodeId: 'router',
+          targetPort: 'in',
+          type: EdgeType.DATA,
+        },
+        {
+          id: 'e-r-x',
+          workflowId,
+          sourceNodeId: 'router',
+          sourcePort: 'port1',
+          targetNodeId: 'x',
+          targetPort: 'in',
+          type: EdgeType.DATA,
+        },
+        {
+          id: 'e-x-y',
+          workflowId,
+          sourceNodeId: 'x',
+          sourcePort: 'out',
+          targetNodeId: 'y',
+          targetPort: 'in',
+          type: EdgeType.DATA,
+        },
+        {
+          id: 'e-r-p',
+          workflowId,
+          sourceNodeId: 'router',
+          sourcePort: 'port2',
+          targetNodeId: 'p',
+          targetPort: 'in',
+          type: EdgeType.DATA,
+        },
+        {
+          id: 'e-p-q',
+          workflowId,
+          sourceNodeId: 'p',
+          sourcePort: 'out',
+          targetNodeId: 'q',
+          targetPort: 'in',
+          type: EdgeType.DATA,
+        },
+      ];
+
+      mockNodeRepo.findBy.mockResolvedValue(nodes);
+      mockEdgeRepo.findBy.mockResolvedValue(edges);
+
+      await service.execute(workflowId, {});
+      await flushPromises();
+
+      expect(triggerHandler.execute).toHaveBeenCalledTimes(1);
+      expect(routerHandler.execute).toHaveBeenCalledTimes(1);
+      // P and Q execute (port2 branch)
+      expect(branchHandler.execute).toHaveBeenCalledTimes(2);
+      // Verify the inputs are from the port2 branch
+      const calls = (branchHandler.execute as jest.Mock).mock.calls;
+      expect(calls[0][0]).toEqual({ branch: 2 }); // P receives router data
+    });
+  });
 });

@@ -78,13 +78,9 @@ Respond ONLY with the JSON object, no additional text.`;
       type: 'object',
       properties: {
         category: { type: 'string', enum: categoryNames },
-        ...(includeConfidence
-          ? { confidence: { type: 'number' } }
-          : {}),
+        ...(includeConfidence ? { confidence: { type: 'number' } } : {}),
       },
-      required: includeConfidence
-        ? ['category', 'confidence']
-        : ['category'],
+      required: includeConfidence ? ['category', 'confidence'] : ['category'],
       additionalProperties: false,
     };
 
