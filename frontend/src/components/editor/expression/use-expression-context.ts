@@ -1,5 +1,3 @@
-"use client";
-
 import { useMemo } from "react";
 import { useEditorStore } from "@/lib/stores/editor-store";
 import { useExecutionStore } from "@/lib/stores/execution-store";

@@ -1,5 +1,3 @@
-"use client";
-
 import { useState, useRef, useCallback, useEffect, type UIEvent } from "react";
 import { Label } from "@/components/ui/label";
 import { validate } from "@workflow/expression-engine";

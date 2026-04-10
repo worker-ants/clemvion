@@ -1,5 +1,3 @@
-"use client";
-
 import { useQuery } from "@tanstack/react-query";
 import { FieldGroup, SelectField, NumberField } from "./shared";
 import { ExpressionInput } from "@/components/editor/expression";

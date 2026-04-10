@@ -1,5 +1,3 @@
-"use client";
-
 import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { useParams } from "next/navigation";
 import { useExecutionStore } from "@/lib/stores/execution-store";
