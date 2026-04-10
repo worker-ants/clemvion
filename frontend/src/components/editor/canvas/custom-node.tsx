@@ -42,13 +42,23 @@ function CustomNodeComponent({ id, data, selected }: NodeProps<CustomNodeType>) 
       const condPorts = conditions
         .filter((c) => c.id)
         .map((c) => ({ id: c.id, label: c.label || "Condition", type: "data" as const }));
+      const mode = (data.config.mode as string) ?? "single_turn";
 
-      // No conditions: use default "out" port only (backward compatible)
+      // No conditions: show mode-specific system ports
       if (condPorts.length === 0) {
-        return getNodeDefinition(data.type)?.outputs ?? [];
+        if (mode === "multi_turn") {
+          return [
+            { id: "user_ended", label: "User Ended", type: "system" as const },
+            { id: "max_turns", label: "Max Turns", type: "system" as const },
+            { id: "error", label: "Error", type: "error" as const },
+          ];
+        }
+        return [
+          { id: "out", label: "Output", type: "system" as const },
+          { id: "error", label: "Error", type: "error" as const },
+        ];
       }
 
-      const mode = (data.config.mode as string) ?? "single_turn";
       if (mode === "multi_turn") {
         // Multi Turn: condition ports + user_ended + max_turns + error (no "out")
         return [

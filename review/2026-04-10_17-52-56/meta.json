@@ -1,0 +1,88 @@
+{
+  "timestamp": "2026-04-10T17:57:12.929101",
+  "files": [
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/frontend/src/components/editor/canvas/__tests__/custom-node.test.tsx",
+      "change_type": "Review",
+      "file_extension": "tsx"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/frontend/src/components/editor/canvas/custom-node.tsx",
+      "change_type": "Review",
+      "file_extension": "tsx"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/spec/4-nodes/3-ai-nodes.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    }
+  ],
+  "total_elapsed_seconds": 256.09,
+  "agents": [
+    {
+      "name": "database",
+      "status": "success",
+      "elapsed_seconds": 11.73
+    },
+    {
+      "name": "api_contract",
+      "status": "success",
+      "elapsed_seconds": 13.14
+    },
+    {
+      "name": "concurrency",
+      "status": "success",
+      "elapsed_seconds": 15.69
+    },
+    {
+      "name": "performance",
+      "status": "success",
+      "elapsed_seconds": 29.81
+    },
+    {
+      "name": "documentation",
+      "status": "success",
+      "elapsed_seconds": 30.23
+    },
+    {
+      "name": "maintainability",
+      "status": "success",
+      "elapsed_seconds": 32.87
+    },
+    {
+      "name": "dependency",
+      "status": "success",
+      "elapsed_seconds": 34.22
+    },
+    {
+      "name": "requirement",
+      "status": "success",
+      "elapsed_seconds": 38.22
+    },
+    {
+      "name": "architecture",
+      "status": "success",
+      "elapsed_seconds": 43.9
+    },
+    {
+      "name": "scope",
+      "status": "success",
+      "elapsed_seconds": 47.16
+    },
+    {
+      "name": "side_effect",
+      "status": "success",
+      "elapsed_seconds": 50.7
+    },
+    {
+      "name": "security",
+      "status": "success",
+      "elapsed_seconds": 52.92
+    },
+    {
+      "name": "testing",
+      "status": "success",
+      "elapsed_seconds": 81.83
+    }
+  ]
+}

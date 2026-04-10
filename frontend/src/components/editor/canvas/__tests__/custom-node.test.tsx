@@ -264,7 +264,7 @@ describe("CustomNode", () => {
 
   // --- AI Agent dynamic ports ---
 
-  it("renders ai_agent with only out port when no conditions", () => {
+  it("renders ai_agent with out and error ports when no conditions", () => {
     const { container } = renderNode({
       type: "ai_agent",
       label: "AI Agent",
@@ -272,7 +272,20 @@ describe("CustomNode", () => {
       category: "ai",
     });
     expect(container.querySelector('[data-testid="handle-out"]')).toBeInTheDocument();
-    expect(container.querySelector('[data-testid="handle-error"]')).not.toBeInTheDocument();
+    expect(container.querySelector('[data-testid="handle-error"]')).toBeInTheDocument();
+    expect(screen.getByText("Output")).toBeInTheDocument();
+    expect(screen.getByText("Error")).toBeInTheDocument();
+  });
+
+  it("renders ai_agent with single_turn fallback when mode is not set", () => {
+    const { container } = renderNode({
+      type: "ai_agent",
+      label: "AI Agent",
+      config: {},
+      category: "ai",
+    });
+    expect(container.querySelector('[data-testid="handle-out"]')).toBeInTheDocument();
+    expect(container.querySelector('[data-testid="handle-error"]')).toBeInTheDocument();
   });
 
   it("renders single_turn ai_agent with condition ports", () => {
@@ -297,18 +310,24 @@ describe("CustomNode", () => {
     expect(screen.getByText("Escalate")).toBeInTheDocument();
   });
 
-  it("renders multi_turn ai_agent with only out port when no conditions", () => {
+  it("renders multi_turn ai_agent with system ports when no conditions", () => {
     const { container } = renderNode({
       type: "ai_agent",
       label: "AI Agent",
       config: { mode: "multi_turn" },
       category: "ai",
     });
-    // No conditions: backward compatible, just "out" port
-    expect(container.querySelector('[data-testid="handle-out"]')).toBeInTheDocument();
+    // No conditions: multi_turn shows user_ended + max_turns + error (no out)
+    expect(container.querySelector('[data-testid="handle-out"]')).not.toBeInTheDocument();
+    expect(container.querySelector('[data-testid="handle-user_ended"]')).toBeInTheDocument();
+    expect(container.querySelector('[data-testid="handle-max_turns"]')).toBeInTheDocument();
+    expect(container.querySelector('[data-testid="handle-error"]')).toBeInTheDocument();
+    expect(screen.getByText("User Ended")).toBeInTheDocument();
+    expect(screen.getByText("Max Turns")).toBeInTheDocument();
+    expect(screen.getByText("Error")).toBeInTheDocument();
   });
 
-  it("renders multi_turn ai_agent with conditions and no out port", () => {
+  it("renders multi_turn ai_agent with conditions and system ports", () => {
     const { container } = renderNode({
       type: "ai_agent",
       label: "AI Agent",
@@ -320,6 +339,9 @@ describe("CustomNode", () => {
     });
     expect(container.querySelector('[data-testid="handle-out"]')).not.toBeInTheDocument();
     expect(container.querySelector('[data-testid="handle-cond-1"]')).toBeInTheDocument();
+    expect(container.querySelector('[data-testid="handle-user_ended"]')).toBeInTheDocument();
+    expect(container.querySelector('[data-testid="handle-max_turns"]')).toBeInTheDocument();
+    expect(container.querySelector('[data-testid="handle-error"]')).toBeInTheDocument();
     expect(screen.getByText("Refund")).toBeInTheDocument();
   });
 
