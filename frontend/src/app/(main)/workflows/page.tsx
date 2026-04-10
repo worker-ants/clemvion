@@ -341,15 +341,24 @@ export default function WorkflowsPage() {
                     className="border-b border-[hsl(var(--border))] last:border-b-0 hover:bg-[hsl(var(--muted))/0.5]"
                   >
                     <td className="px-4 py-3">
-                      <span
+                      <button
                         className={cn(
-                          "inline-block h-2.5 w-2.5 rounded-full",
-                          workflow.isActive
-                            ? "bg-emerald-500"
-                            : "bg-gray-400",
+                          "relative inline-flex h-5 w-9 items-center rounded-full transition-colors",
+                          workflow.isActive ? "bg-emerald-500" : "bg-gray-300",
                         )}
-                        title={workflow.isActive ? "Active" : "Inactive"}
-                      />
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          toggleActiveMutation.mutate({ id: workflow.id, isActive: workflow.isActive });
+                        }}
+                        title={workflow.isActive ? "Deactivate" : "Activate"}
+                      >
+                        <span
+                          className={cn(
+                            "inline-block h-3.5 w-3.5 rounded-full bg-white shadow transition-transform",
+                            workflow.isActive ? "translate-x-[18px]" : "translate-x-[3px]",
+                          )}
+                        />
+                      </button>
                     </td>
                     <td className="px-4 py-3">
                       <button
