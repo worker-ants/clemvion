@@ -125,8 +125,13 @@ export function ExpressionInput({
     (suggestion: Suggestion) => {
       const before = value.slice(0, tokenStart);
       const after = value.slice(tokenEnd);
-      // Auto-append "." for expandable (object/array) fields to enable drill-down
-      const suffix = suggestion.isExpandable ? "." : "";
+      // Auto-append "." for expandable fields, unless the insertText already ends with
+      // a non-dot accessor (e.g., $node[" ends with a quote — no dot needed)
+      const needsDot =
+        suggestion.isExpandable &&
+        !suggestion.insertText.endsWith('"') &&
+        !suggestion.insertText.endsWith("[");
+      const suffix = needsDot ? "." : "";
       const insertText = suggestion.insertText + suffix;
       const newValue = before + insertText + after;
       onChange(newValue);
