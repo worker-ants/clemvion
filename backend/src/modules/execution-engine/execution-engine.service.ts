@@ -312,6 +312,14 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
       backEdgeMap.set(edge.sourceNodeId, list);
     }
 
+    // Build outgoing-edge lookup for O(1) propagation
+    const outgoingEdgeMap = new Map<string, GraphEdge[]>();
+    for (const edge of graphEdges) {
+      const list = outgoingEdgeMap.get(edge.sourceNodeId) ?? [];
+      list.push(edge);
+      outgoingEdgeMap.set(edge.sourceNodeId, list);
+    }
+
     // Use target-only nodeMap for expression resolution.
     // $node references in the target workflow should resolve against the
     // target workflow's own nodes only, not the parent (source) workflow.
@@ -334,7 +342,12 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
       100,
     );
     const nodeExecutionCount = new Map<string, number>();
-    const portRoutingSkipped = new Set<string>();
+    // Seed reachability with root nodes (no incoming forward edges)
+    const nodesWithIncoming = new Set(forwardEdges.map((e) => e.targetNodeId));
+    const reachable = new Set<string>();
+    for (const id of sortedNodeIds) {
+      if (!nodesWithIncoming.has(id)) reachable.add(id);
+    }
 
     // Retrieve execution meta for expression context
     const execution = await this.executionRepository.findOneBy({
@@ -353,6 +366,12 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
           continue;
         }
 
+        // Skip unreachable nodes (not on any activated branch)
+        if (!reachable.has(nodeId)) {
+          pointer++;
+          continue;
+        }
+
         // Max iteration guard
         const count = (nodeExecutionCount.get(nodeId) ?? 0) + 1;
         nodeExecutionCount.set(nodeId, count);
@@ -362,7 +381,7 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
           );
         }
 
-        // Skip disabled nodes
+        // Skip disabled nodes (don't propagate reachability to downstream)
         if (node.isDisabled) {
           await this.createNodeExecution(
             executionId,
@@ -379,6 +398,12 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
           executedNodes.add(nodeId);
           // Pass clean input through trigger node's output slot
           this.contextService.setNodeOutput(executionId, nodeId, cleanInput);
+          this.propagateReachability(
+            nodeId,
+            outgoingEdgeMap,
+            context.nodeOutputCache,
+            reachable,
+          );
           pointer++;
           continue;
         }
@@ -391,45 +416,6 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
           context.nodeOutputCache,
           cleanInput,
         );
-
-        // Port routing skip logic
-        const incomingEdges = graphEdges.filter(
-          (e) => e.targetNodeId === nodeId,
-        );
-        if (nodeInput === undefined && incomingEdges.length > 0) {
-          const shouldSkipForPortRouting = incomingEdges.some((e) => {
-            if (!executedNodes.has(e.sourceNodeId)) return false;
-            if (portRoutingSkipped.has(e.sourceNodeId)) return true;
-            const srcOut = context.nodeOutputCache[e.sourceNodeId];
-            return (
-              srcOut &&
-              typeof srcOut === 'object' &&
-              '_selectedPort' in (srcOut as Record<string, unknown>)
-            );
-          });
-          if (shouldSkipForPortRouting) {
-            portRoutingSkipped.add(nodeId);
-            await this.createNodeExecution(
-              executionId,
-              nodeId,
-              NodeExecutionStatus.SKIPPED,
-            );
-            this.websocketService.emitNodeEvent(
-              executionId,
-              nodeId,
-              NodeEventType.NODE_SKIPPED,
-              {
-                status: NodeExecutionStatus.SKIPPED,
-                nodeType: node.type,
-                nodeLabel: node.label ?? node.type,
-                reason: 'Port not selected (button routing)',
-              },
-            );
-            executedNodes.add(nodeId);
-            pointer++;
-            continue;
-          }
-        }
 
         // Execute the node using the parent execution's context but
         // target-only nodeMap for $node expression resolution.
@@ -498,6 +484,14 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
 
         lastOutput = context.nodeOutputCache[node.id];
 
+        // Propagate reachability to downstream nodes through activated edges
+        this.propagateReachability(
+          nodeId,
+          outgoingEdgeMap,
+          context.nodeOutputCache,
+          reachable,
+        );
+
         // Back-edge handling
         const backEdgesFromNode = backEdgeMap.get(nodeId);
         if (backEdgesFromNode?.length) {
@@ -508,8 +502,9 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
           );
           if (activated) {
             for (let i = activated.targetIndex; i <= pointer; i++) {
-              portRoutingSkipped.delete(sortedNodeIds[i]);
+              reachable.delete(sortedNodeIds[i]);
             }
+            reachable.add(sortedNodeIds[activated.targetIndex]);
             pointer = activated.targetIndex;
             continue;
           }
@@ -708,6 +703,14 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
         backEdgeMap.set(edge.sourceNodeId, list);
       }
 
+      // Build outgoing-edge lookup for O(1) propagation
+      const outgoingEdgeMap = new Map<string, GraphEdge[]>();
+      for (const edge of graphEdges) {
+        const list = outgoingEdgeMap.get(edge.sourceNodeId) ?? [];
+        list.push(edge);
+        outgoingEdgeMap.set(edge.sourceNodeId, list);
+      }
+
       // 8. Create execution context (inject workspaceId for AI handlers)
       const workflow = await this.workflowRepository.findOneBy({
         id: workflowId,
@@ -740,16 +743,26 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
       // Keeping them in the set ensures downstream nodes see predecessor output.
       const executedNodes = new Set<string>();
       context._executedNodes = executedNodes;
-      // Track nodes skipped due to button port routing (for transitive propagation).
-      // This set IS cleared for the re-execution range on back-edge jumps,
-      // because port routing decisions may change when nodes re-execute.
-      const portRoutingSkipped = new Set<string>();
+      // Track which nodes are reachable from the trigger through activated edges.
+      // Only reachable nodes are executed; unreachable branches are silently skipped.
+      // Seed with root nodes (no incoming forward edges).
+      const nodesWithIncoming = new Set(forwardEdges.map((e) => e.targetNodeId));
+      const reachable = new Set<string>();
+      for (const id of sortedNodeIds) {
+        if (!nodesWithIncoming.has(id)) reachable.add(id);
+      }
 
       let pointer = 0;
       while (pointer < sortedNodeIds.length) {
         const nodeId = sortedNodeIds[pointer];
         const node = nodeMap.get(nodeId);
         if (!node) {
+          pointer++;
+          continue;
+        }
+
+        // Skip unreachable nodes (not on any activated branch)
+        if (!reachable.has(nodeId)) {
           pointer++;
           continue;
         }
@@ -765,7 +778,7 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
           );
         }
 
-        // Skip disabled nodes
+        // Skip disabled nodes (don't propagate reachability to downstream)
         if (node.isDisabled) {
           await this.createNodeExecution(
             executionId,
@@ -785,50 +798,6 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
           context.nodeOutputCache,
           input,
         );
-
-        // Skip nodes whose upstream was filtered by button port routing.
-        // Checks two cases:
-        //  1. Direct: source has _selectedPort and this edge's port doesn't match
-        //  2. Transitive: source was already skipped due to port routing
-        const incomingEdges = graphEdges.filter(
-          (e) => e.targetNodeId === nodeId,
-        );
-        if (nodeInput === undefined && incomingEdges.length > 0) {
-          const shouldSkipForPortRouting = incomingEdges.some((e) => {
-            if (!executedNodes.has(e.sourceNodeId)) return false;
-            // Transitive: source was skipped by port routing
-            if (portRoutingSkipped.has(e.sourceNodeId)) return true;
-            // Direct: source has _selectedPort
-            const srcOut = context.nodeOutputCache[e.sourceNodeId];
-            return (
-              srcOut &&
-              typeof srcOut === 'object' &&
-              '_selectedPort' in (srcOut as Record<string, unknown>)
-            );
-          });
-          if (shouldSkipForPortRouting) {
-            portRoutingSkipped.add(nodeId);
-            await this.createNodeExecution(
-              executionId,
-              nodeId,
-              NodeExecutionStatus.SKIPPED,
-            );
-            this.websocketService.emitNodeEvent(
-              executionId,
-              nodeId,
-              NodeEventType.NODE_SKIPPED,
-              {
-                status: NodeExecutionStatus.SKIPPED,
-                nodeType: node.type,
-                nodeLabel: node.label ?? node.type,
-                reason: 'Port not selected (button routing)',
-              },
-            );
-            executedNodes.add(nodeId);
-            pointer++;
-            continue;
-          }
-        }
 
         // Execute the node
         await this.executeNode(
@@ -874,6 +843,15 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
           }
         }
 
+        // Propagate reachability to downstream nodes through activated edges.
+        // Must happen after blocking interactions which may set _selectedPort.
+        this.propagateReachability(
+          nodeId,
+          outgoingEdgeMap,
+          context.nodeOutputCache,
+          reachable,
+        );
+
         // Check for activated back-edges (cyclic workflow support)
         const backEdgesFromNode = backEdgeMap.get(nodeId);
         if (backEdgesFromNode?.length) {
@@ -883,10 +861,12 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
             context.nodeOutputCache,
           );
           if (activated) {
-            // Reset portRoutingSkipped for nodes in the re-execution range
+            // Clear reachability for nodes in the re-execution range
             for (let i = activated.targetIndex; i <= pointer; i++) {
-              portRoutingSkipped.delete(sortedNodeIds[i]);
+              reachable.delete(sortedNodeIds[i]);
             }
+            // Re-add the back-edge target so it executes on the next pass
+            reachable.add(sortedNodeIds[activated.targetIndex]);
             pointer = activated.targetIndex;
             continue;
           }
@@ -2119,6 +2099,28 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
       }
     }
     return null;
+  }
+
+  /**
+   * After a node executes, propagate reachability to downstream nodes
+   * through edges whose sourcePort matches the node's _selectedPort.
+   * If the node has no _selectedPort, all outgoing edges are activated.
+   * Note: disabled nodes must NOT call this method — caller responsibility.
+   */
+  private propagateReachability(
+    nodeId: string,
+    outgoingEdgeMap: Map<string, GraphEdge[]>,
+    nodeOutputCache: Record<string, unknown>,
+    reachable: Set<string>,
+  ): void {
+    const sourceOutput = nodeOutputCache[nodeId];
+    const outgoingEdges = outgoingEdgeMap.get(nodeId) ?? [];
+    for (const edge of outgoingEdges) {
+      if (this.isPortFiltered(sourceOutput, edge.sourcePort)) {
+        continue;
+      }
+      reachable.add(edge.targetNodeId);
+    }
   }
 
   private async updateExecutionStatus(
