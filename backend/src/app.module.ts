@@ -42,6 +42,7 @@ import { MailModule } from './modules/mail/mail.module';
 import { LlmConfigModule } from './modules/llm-config/llm-config.module';
 import { LlmModule } from './modules/llm/llm.module';
 import { KnowledgeBaseModule } from './modules/knowledge-base/knowledge-base.module';
+import { HooksModule } from './modules/hooks/hooks.module';
 
 // Entity imports
 import { User } from './modules/users/entities/user.entity';
@@ -162,6 +163,7 @@ import { DocumentChunk } from './modules/knowledge-base/entities/document-chunk.
     LlmConfigModule,
     LlmModule,
     KnowledgeBaseModule,
+    HooksModule,
   ],
   providers: [
     { provide: APP_FILTER, useClass: GlobalExceptionFilter },
