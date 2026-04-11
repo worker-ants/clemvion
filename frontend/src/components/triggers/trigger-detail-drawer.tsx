@@ -1,11 +1,14 @@
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api/client";
 import { SlideDrawer } from "@/components/ui/slide-drawer";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils/cn";
-import { Loader2 } from "lucide-react";
+import { Loader2, Copy, ChevronDown, ChevronRight } from "lucide-react";
 import Link from "next/link";
+import { toast } from "sonner";
 
 interface TriggerDetail {
   id: string;
@@ -128,51 +131,7 @@ export function TriggerDetailDrawer({ triggerId, open, onClose }: TriggerDetailD
 
           {/* Webhook Details */}
           {trigger.type === "webhook" && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-base">Webhook Configuration</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <dl className="space-y-3 text-sm">
-                  {trigger.endpointPath && (
-                    <div>
-                      <dt className="text-[hsl(var(--muted-foreground))] mb-1">URL</dt>
-                      <dd>
-                        <code className="block break-all rounded bg-[hsl(var(--muted))] px-2 py-1.5 text-xs">
-                          {typeof window !== "undefined"
-                            ? `${window.location.origin.replace(/:\d+$/, ":3011")}/api/hooks/${trigger.endpointPath}`
-                            : `/api/hooks/${trigger.endpointPath}`}
-                        </code>
-                      </dd>
-                    </div>
-                  )}
-                  <div className="flex items-center justify-between">
-                    <dt className="text-[hsl(var(--muted-foreground))]">HTTP Method</dt>
-                    <dd>
-                      <Badge variant="outline">POST</Badge>
-                    </dd>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <dt className="text-[hsl(var(--muted-foreground))]">Authentication</dt>
-                    <dd>
-                      <Badge variant="outline">
-                        {trigger.config?.authType === "hmac"
-                          ? "HMAC Signature"
-                          : trigger.config?.authType === "bearer"
-                            ? "Bearer Token"
-                            : "None (Public)"}
-                      </Badge>
-                    </dd>
-                  </div>
-                  {trigger.config?.authType === "hmac" && trigger.config.hmacHeader && (
-                    <div className="flex items-center justify-between">
-                      <dt className="text-[hsl(var(--muted-foreground))]">Signature Header</dt>
-                      <dd className="font-medium">{trigger.config.hmacHeader}</dd>
-                    </div>
-                  )}
-                </dl>
-              </CardContent>
-            </Card>
+            <WebhookConfigCard trigger={trigger} />
           )}
 
           {/* Schedule Details */}
@@ -260,5 +219,123 @@ export function TriggerDetailDrawer({ triggerId, open, onClose }: TriggerDetailD
         </p>
       )}
     </SlideDrawer>
+  );
+}
+
+function getWebhookUrl(endpointPath: string) {
+  const base = typeof window !== "undefined"
+    ? window.location.origin.replace(/:\d+$/, ":3011")
+    : "";
+  return `${base}/api/hooks/${endpointPath}`;
+}
+
+function WebhookConfigCard({ trigger }: { trigger: TriggerDetail }) {
+  const [showExample, setShowExample] = useState(false);
+  const url = trigger.endpointPath ? getWebhookUrl(trigger.endpointPath) : "";
+  const authType = trigger.config?.authType ?? "none";
+  const hmacHeader = trigger.config?.hmacHeader ?? "X-Hub-Signature-256";
+
+  function copyText(text: string) {
+    navigator.clipboard.writeText(text).then(
+      () => toast.success("Copied to clipboard"),
+      () => toast.error("Failed to copy"),
+    );
+  }
+
+  function getCurlExample() {
+    if (authType === "hmac") {
+      return `SECRET="your-secret-key"
+BODY='{"event":"test"}'
+SIG=$(echo -n "$BODY" | openssl dgst -sha256 -hmac "$SECRET" | awk '{print "sha256="$2}')
+
+curl -X POST ${url} \\
+  -H "Content-Type: application/json" \\
+  -H "${hmacHeader}: $SIG" \\
+  -d "$BODY"`;
+    }
+    if (authType === "bearer") {
+      return `curl -X POST ${url} \\
+  -H "Content-Type: application/json" \\
+  -H "Authorization: Bearer your-token" \\
+  -d '{"event":"test"}'`;
+    }
+    return `curl -X POST ${url} \\
+  -H "Content-Type: application/json" \\
+  -d '{"event":"test"}'`;
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-base">Webhook Configuration</CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <dl className="space-y-3 text-sm">
+          {url && (
+            <div>
+              <dt className="text-[hsl(var(--muted-foreground))] mb-1">URL</dt>
+              <dd className="flex items-center gap-1">
+                <code className="block flex-1 break-all rounded bg-[hsl(var(--muted))] px-2 py-1.5 text-xs">
+                  {url}
+                </code>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7 shrink-0"
+                  onClick={() => copyText(url)}
+                >
+                  <Copy className="h-3.5 w-3.5" />
+                </Button>
+              </dd>
+            </div>
+          )}
+          <div className="flex items-center justify-between">
+            <dt className="text-[hsl(var(--muted-foreground))]">HTTP Method</dt>
+            <dd><Badge variant="outline">POST</Badge></dd>
+          </div>
+          <div className="flex items-center justify-between">
+            <dt className="text-[hsl(var(--muted-foreground))]">Authentication</dt>
+            <dd>
+              <Badge variant="outline">
+                {authType === "hmac" ? "HMAC Signature" : authType === "bearer" ? "Bearer Token" : "None (Public)"}
+              </Badge>
+            </dd>
+          </div>
+          {authType === "hmac" && (
+            <div className="flex items-center justify-between">
+              <dt className="text-[hsl(var(--muted-foreground))]">Signature Header</dt>
+              <dd className="font-medium">{hmacHeader}</dd>
+            </div>
+          )}
+        </dl>
+
+        {/* Usage Example */}
+        <div>
+          <button
+            type="button"
+            className="flex w-full items-center gap-1 text-xs font-medium text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))] transition-colors"
+            onClick={() => setShowExample(!showExample)}
+          >
+            {showExample ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
+            Usage Example (curl)
+          </button>
+          {showExample && (
+            <div className="mt-2 relative">
+              <pre className="rounded bg-[hsl(var(--muted))] px-3 py-2.5 text-xs leading-relaxed overflow-x-auto whitespace-pre-wrap break-all">
+                {getCurlExample()}
+              </pre>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="absolute top-1.5 right-1.5 h-6 w-6"
+                onClick={() => copyText(getCurlExample())}
+              >
+                <Copy className="h-3 w-3" />
+              </Button>
+            </div>
+          )}
+        </div>
+      </CardContent>
+    </Card>
   );
 }
