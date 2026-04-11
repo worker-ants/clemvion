@@ -4,9 +4,11 @@ import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api/client";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils/cn";
 import { toast } from "sonner";
-import { Copy, Loader2, Inbox } from "lucide-react";
+import { Copy, Loader2, Inbox, Plus, X } from "lucide-react";
 import Link from "next/link";
 import { TriggerDetailDrawer } from "@/components/triggers/trigger-detail-drawer";
 
@@ -14,12 +16,19 @@ interface Trigger {
   id: string;
   name: string;
   type: "webhook" | "schedule" | "manual";
-  active: boolean;
+  isActive: boolean;
   workflowId: string;
   workflowName: string;
-  endpoint?: string;
+  endpointPath?: string;
   lastTriggeredAt?: string;
 }
+
+interface Workflow {
+  id: string;
+  name: string;
+}
+
+type AuthType = "none" | "hmac" | "bearer";
 
 const FILTER_TABS = ["all", "webhook", "schedule", "manual"] as const;
 type FilterTab = (typeof FILTER_TABS)[number];
@@ -40,23 +49,51 @@ export default function TriggersPage() {
   const [activeTab, setActiveTab] = useState<FilterTab>("all");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [selectedTriggerId, setSelectedTriggerId] = useState<string | null>(null);
+  const [showDialog, setShowDialog] = useState(false);
   const queryClient = useQueryClient();
+
+  // Form state
+  const [formName, setFormName] = useState("");
+  const [formWorkflowId, setFormWorkflowId] = useState("");
+  const [formAuthType, setFormAuthType] = useState<AuthType>("none");
+  const [formSecret, setFormSecret] = useState("");
+  const [formHmacHeader, setFormHmacHeader] = useState("X-Hub-Signature-256");
+  const [formBearerToken, setFormBearerToken] = useState("");
 
   const { data: triggers = [], isLoading, isError } = useQuery<Trigger[]>({
     queryKey: ["triggers", activeTab, statusFilter],
     queryFn: async () => {
       const params: Record<string, string> = {};
       if (activeTab !== "all") params.type = activeTab;
-      if (statusFilter === "active") params.active = "true";
-      if (statusFilter === "inactive") params.active = "false";
+      if (statusFilter === "active") params.isActive = "true";
+      if (statusFilter === "inactive") params.isActive = "false";
       const res = await apiClient.get("/triggers", { params });
+      const raw = res.data.data ?? res.data;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      return (raw as any[]).map((t) => ({
+        id: t.id,
+        name: t.name,
+        type: t.type,
+        isActive: t.isActive,
+        workflowId: t.workflowId ?? t.workflow?.id ?? "",
+        workflowName: t.workflow?.name ?? "",
+        endpointPath: t.endpointPath,
+        lastTriggeredAt: t.lastTriggeredAt,
+      }));
+    },
+  });
+
+  const { data: workflows = [] } = useQuery<Workflow[]>({
+    queryKey: ["workflows-list"],
+    queryFn: async () => {
+      const res = await apiClient.get("/workflows");
       return res.data.data ?? res.data;
     },
   });
 
   const toggleMutation = useMutation({
-    mutationFn: async ({ id, active }: { id: string; active: boolean }) => {
-      await apiClient.patch(`/triggers/${id}`, { active });
+    mutationFn: async ({ id, isActive }: { id: string; isActive: boolean }) => {
+      await apiClient.patch(`/triggers/${id}`, { isActive });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["triggers"] });
@@ -67,6 +104,60 @@ export default function TriggersPage() {
     },
   });
 
+  const createMutation = useMutation({
+    mutationFn: async () => {
+      const config: Record<string, unknown> = { authType: formAuthType };
+      if (formAuthType === "hmac") {
+        config.secret = formSecret;
+        config.hmacHeader = formHmacHeader;
+        config.hmacAlgorithm = "sha256";
+      }
+      if (formAuthType === "bearer") {
+        config.bearerToken = formBearerToken;
+      }
+      await apiClient.post("/triggers", {
+        workflowId: formWorkflowId,
+        type: "webhook",
+        name: formName,
+        endpointPath: crypto.randomUUID(),
+        config,
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["triggers"] });
+      toast.success("Webhook trigger created");
+      resetForm();
+    },
+    onError: () => {
+      toast.error("Failed to create webhook trigger");
+    },
+  });
+
+  function resetForm() {
+    setFormName("");
+    setFormWorkflowId("");
+    setFormAuthType("none");
+    setFormSecret("");
+    setFormHmacHeader("X-Hub-Signature-256");
+    setFormBearerToken("");
+    setShowDialog(false);
+  }
+
+  function handleCreate() {
+    if (!formName.trim() || !formWorkflowId) {
+      toast.error("Please fill in all required fields");
+      return;
+    }
+    createMutation.mutate();
+  }
+
+  function getWebhookUrl(endpointPath: string) {
+    const base = typeof window !== "undefined"
+      ? window.location.origin.replace(/:\d+$/, ":3011")
+      : "";
+    return `${base}/api/hooks/${endpointPath}`;
+  }
+
   function copyToClipboard(text: string) {
     navigator.clipboard.writeText(text).then(
       () => toast.success("Copied to clipboard"),
@@ -76,7 +167,116 @@ export default function TriggersPage() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-3xl font-bold">Triggers</h1>
+      <div className="flex items-center justify-between">
+        <h1 className="text-3xl font-bold">Triggers</h1>
+        <Button onClick={() => setShowDialog(true)}>
+          <Plus className="mr-2 h-4 w-4" />
+          Add Webhook
+        </Button>
+      </div>
+
+      {/* Create Webhook Dialog */}
+      {showDialog && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+          <div className="w-full max-w-md rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-6 shadow-lg max-h-[90vh] overflow-y-auto">
+            <div className="mb-4 flex items-center justify-between">
+              <h2 className="text-lg font-semibold">Add Webhook Trigger</h2>
+              <Button variant="ghost" size="icon" onClick={resetForm}>
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+            <div className="space-y-4">
+              <div>
+                <Label htmlFor="webhook-name">Name</Label>
+                <Input
+                  id="webhook-name"
+                  value={formName}
+                  onChange={(e) => setFormName(e.target.value)}
+                  placeholder="My Webhook"
+                />
+              </div>
+              <div>
+                <Label htmlFor="webhook-workflow">Workflow</Label>
+                <select
+                  id="webhook-workflow"
+                  className="flex h-10 w-full rounded-md border border-[hsl(var(--input))] bg-transparent px-3 py-2 text-sm"
+                  value={formWorkflowId}
+                  onChange={(e) => setFormWorkflowId(e.target.value)}
+                >
+                  <option value="">Select a workflow</option>
+                  {workflows.map((wf) => (
+                    <option key={wf.id} value={wf.id}>
+                      {wf.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <Label htmlFor="webhook-auth">Authentication</Label>
+                <select
+                  id="webhook-auth"
+                  className="flex h-10 w-full rounded-md border border-[hsl(var(--input))] bg-transparent px-3 py-2 text-sm"
+                  value={formAuthType}
+                  onChange={(e) => setFormAuthType(e.target.value as AuthType)}
+                >
+                  <option value="none">None (Public)</option>
+                  <option value="hmac">HMAC Signature</option>
+                  <option value="bearer">Bearer Token</option>
+                </select>
+              </div>
+              {formAuthType === "hmac" && (
+                <>
+                  <div>
+                    <Label htmlFor="webhook-secret">Secret Key</Label>
+                    <Input
+                      id="webhook-secret"
+                      type="password"
+                      value={formSecret}
+                      onChange={(e) => setFormSecret(e.target.value)}
+                      placeholder="your-secret-key"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="webhook-hmac-header">Signature Header</Label>
+                    <Input
+                      id="webhook-hmac-header"
+                      value={formHmacHeader}
+                      onChange={(e) => setFormHmacHeader(e.target.value)}
+                      placeholder="X-Hub-Signature-256"
+                    />
+                  </div>
+                </>
+              )}
+              {formAuthType === "bearer" && (
+                <div>
+                  <Label htmlFor="webhook-token">Bearer Token</Label>
+                  <Input
+                    id="webhook-token"
+                    type="password"
+                    value={formBearerToken}
+                    onChange={(e) => setFormBearerToken(e.target.value)}
+                    placeholder="your-bearer-token"
+                  />
+                </div>
+              )}
+              <div className="flex justify-end gap-2">
+                <Button variant="outline" onClick={resetForm}>
+                  Cancel
+                </Button>
+                <Button
+                  onClick={handleCreate}
+                  disabled={createMutation.isPending}
+                >
+                  {createMutation.isPending ? (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  ) : null}
+                  Create
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
         <div className="flex gap-2">
@@ -151,7 +351,7 @@ export default function TriggersPage() {
                     <span
                       className={cn(
                         "inline-block h-2.5 w-2.5 rounded-full",
-                        trigger.active ? "bg-green-500" : "bg-gray-400",
+                        trigger.isActive ? "bg-green-500" : "bg-gray-400",
                       )}
                     />
                   </td>
@@ -172,14 +372,14 @@ export default function TriggersPage() {
                       className="text-[hsl(var(--primary))] hover:underline"
                       onClick={(e) => e.stopPropagation()}
                     >
-                      {trigger.workflowName}
+                      {trigger.workflowName || "-"}
                     </Link>
                   </td>
                   <td className="px-4 py-3">
-                    {trigger.type === "webhook" && trigger.endpoint ? (
+                    {trigger.type === "webhook" && trigger.endpointPath ? (
                       <span className="inline-flex items-center gap-1">
-                        <code className="rounded bg-[hsl(var(--muted))] px-1.5 py-0.5 text-xs">
-                          {trigger.endpoint}
+                        <code className="rounded bg-[hsl(var(--muted))] px-1.5 py-0.5 text-xs max-w-[200px] truncate">
+                          {getWebhookUrl(trigger.endpointPath)}
                         </code>
                         <Button
                           variant="ghost"
@@ -187,7 +387,7 @@ export default function TriggersPage() {
                           className="h-6 w-6"
                           onClick={(e) => {
                             e.stopPropagation();
-                            copyToClipboard(trigger.endpoint!);
+                            copyToClipboard(getWebhookUrl(trigger.endpointPath!));
                           }}
                         >
                           <Copy className="h-3.5 w-3.5" />
@@ -211,11 +411,11 @@ export default function TriggersPage() {
                         e.stopPropagation();
                         toggleMutation.mutate({
                           id: trigger.id,
-                          active: !trigger.active,
+                          isActive: !trigger.isActive,
                         });
                       }}
                     >
-                      {trigger.active ? "Deactivate" : "Activate"}
+                      {trigger.isActive ? "Deactivate" : "Activate"}
                     </Button>
                   </td>
                 </tr>

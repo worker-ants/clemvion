@@ -11,12 +11,16 @@ interface TriggerDetail {
   id: string;
   name: string;
   type: "webhook" | "schedule" | "manual";
-  active: boolean;
+  isActive: boolean;
   workflowId: string;
   workflowName: string;
-  endpoint?: string;
-  httpMethod?: string;
-  contentType?: string;
+  endpointPath?: string;
+  config?: {
+    authType?: "none" | "hmac" | "bearer";
+    hmacHeader?: string;
+    hmacAlgorithm?: string;
+    [key: string]: unknown;
+  };
   cronExpression?: string;
   timezone?: string;
   nextRunAt?: string;
@@ -45,7 +49,12 @@ export function TriggerDetailDrawer({ triggerId, open, onClose }: TriggerDetailD
     queryKey: ["trigger-detail", triggerId],
     queryFn: async () => {
       const res = await apiClient.get(`/triggers/${triggerId}`);
-      return res.data.data ?? res.data;
+      const raw = res.data.data ?? res.data;
+      return {
+        ...raw,
+        workflowName: raw.workflow?.name ?? raw.workflowName ?? "",
+        workflowId: raw.workflowId ?? raw.workflow?.id ?? "",
+      } as TriggerDetail;
     },
     enabled: !!triggerId && open,
   });
@@ -97,8 +106,8 @@ export function TriggerDetailDrawer({ triggerId, open, onClose }: TriggerDetailD
                 <div className="flex items-center justify-between">
                   <dt className="text-[hsl(var(--muted-foreground))]">Status</dt>
                   <dd>
-                    <Badge variant={trigger.active ? "success" : "outline"}>
-                      {trigger.active ? "Active" : "Inactive"}
+                    <Badge variant={trigger.isActive ? "success" : "outline"}>
+                      {trigger.isActive ? "Active" : "Inactive"}
                     </Badge>
                   </dd>
                 </div>
@@ -125,28 +134,40 @@ export function TriggerDetailDrawer({ triggerId, open, onClose }: TriggerDetailD
               </CardHeader>
               <CardContent>
                 <dl className="space-y-3 text-sm">
-                  {trigger.endpoint && (
+                  {trigger.endpointPath && (
                     <div>
                       <dt className="text-[hsl(var(--muted-foreground))] mb-1">URL</dt>
                       <dd>
                         <code className="block break-all rounded bg-[hsl(var(--muted))] px-2 py-1.5 text-xs">
-                          {trigger.endpoint}
+                          {typeof window !== "undefined"
+                            ? `${window.location.origin.replace(/:\d+$/, ":3011")}/api/hooks/${trigger.endpointPath}`
+                            : `/api/hooks/${trigger.endpointPath}`}
                         </code>
                       </dd>
                     </div>
                   )}
-                  {trigger.httpMethod && (
+                  <div className="flex items-center justify-between">
+                    <dt className="text-[hsl(var(--muted-foreground))]">HTTP Method</dt>
+                    <dd>
+                      <Badge variant="outline">POST</Badge>
+                    </dd>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <dt className="text-[hsl(var(--muted-foreground))]">Authentication</dt>
+                    <dd>
+                      <Badge variant="outline">
+                        {trigger.config?.authType === "hmac"
+                          ? "HMAC Signature"
+                          : trigger.config?.authType === "bearer"
+                            ? "Bearer Token"
+                            : "None (Public)"}
+                      </Badge>
+                    </dd>
+                  </div>
+                  {trigger.config?.authType === "hmac" && trigger.config.hmacHeader && (
                     <div className="flex items-center justify-between">
-                      <dt className="text-[hsl(var(--muted-foreground))]">HTTP Method</dt>
-                      <dd>
-                        <Badge variant="outline">{trigger.httpMethod}</Badge>
-                      </dd>
-                    </div>
-                  )}
-                  {trigger.contentType && (
-                    <div className="flex items-center justify-between">
-                      <dt className="text-[hsl(var(--muted-foreground))]">Content Type</dt>
-                      <dd className="font-medium">{trigger.contentType}</dd>
+                      <dt className="text-[hsl(var(--muted-foreground))]">Signature Header</dt>
+                      <dd className="font-medium">{trigger.config.hmacHeader}</dd>
                     </div>
                   )}
                 </dl>
