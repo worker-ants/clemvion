@@ -65,8 +65,8 @@ export default function TriggersPage() {
     queryFn: async () => {
       const params: Record<string, string> = {};
       if (activeTab !== "all") params.type = activeTab;
-      if (statusFilter === "active") params.isActive = "true";
-      if (statusFilter === "inactive") params.isActive = "false";
+      if (statusFilter === "active") params.status = "active";
+      if (statusFilter === "inactive") params.status = "inactive";
       const res = await apiClient.get("/triggers", { params });
       const raw = res.data.data ?? res.data;
       // eslint-disable-next-line @typescript-eslint/no-explicit-any

@@ -15,7 +15,7 @@ import { TriggersService } from './triggers.service';
 import { CreateTriggerDto } from './dto/create-trigger.dto';
 import { UpdateTriggerDto } from './dto/update-trigger.dto';
 import { WorkspaceId } from '../../common/decorators';
-import { PaginationQueryDto } from '../../common/dto/pagination.dto';
+import { QueryTriggerDto } from './dto/query-trigger.dto';
 
 @Controller('triggers')
 export class TriggersController {
@@ -24,7 +24,7 @@ export class TriggersController {
   @Get()
   async findAll(
     @WorkspaceId() workspaceId: string,
-    @Query() query: PaginationQueryDto,
+    @Query() query: QueryTriggerDto,
   ) {
     return this.triggersService.findAll(workspaceId, query);
   }
