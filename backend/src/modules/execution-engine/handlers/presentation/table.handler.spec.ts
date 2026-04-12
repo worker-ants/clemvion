@@ -139,8 +139,8 @@ describe('TableHandler', () => {
         context,
       )) as Record<string, unknown>;
 
-      expect(result.type).toBe('table');
-      const rows = result.rows as Array<Record<string, unknown>>;
+      expect(result.output.type).toBe('table');
+      const rows = result.output.rows as Array<Record<string, unknown>>;
       expect(rows).toHaveLength(2);
       expect(rows[0]).toEqual({ name: 'Alice', email: 'alice@test.com' });
       expect(rows[1]).toEqual({ name: 'Bob', email: 'bob@test.com' });
@@ -153,7 +153,7 @@ describe('TableHandler', () => {
         context,
       )) as Record<string, unknown>;
 
-      const rows = result.rows as Array<Record<string, unknown>>;
+      const rows = result.output.rows as Array<Record<string, unknown>>;
       expect(rows).toHaveLength(1);
       expect(rows[0]).toEqual({ name: 'Single' });
     });
@@ -177,7 +177,7 @@ describe('TableHandler', () => {
         context,
       )) as Record<string, unknown>;
 
-      const rows = result.rows as Array<Record<string, unknown>>;
+      const rows = result.output.rows as Array<Record<string, unknown>>;
       expect(rows).toHaveLength(2);
       expect(rows[0]).toEqual({ id: 1, title: 'Task A' });
       expect(rows[1]).toEqual({ id: 2, title: 'Task B' });
@@ -194,7 +194,7 @@ describe('TableHandler', () => {
         context,
       )) as Record<string, unknown>;
 
-      const rows = result.rows as Array<Record<string, unknown>>;
+      const rows = result.output.rows as Array<Record<string, unknown>>;
       expect(rows).toHaveLength(1);
       expect(rows[0]).toEqual({ name: 'Solo' });
     });
@@ -210,7 +210,7 @@ describe('TableHandler', () => {
         context,
       )) as Record<string, unknown>;
 
-      const rows = result.rows as Array<Record<string, unknown>>;
+      const rows = result.output.rows as Array<Record<string, unknown>>;
       expect(rows[0]).toEqual({ name: 'Fallback' });
     });
 
@@ -234,7 +234,7 @@ describe('TableHandler', () => {
         context,
       )) as Record<string, unknown>;
 
-      const rows = result.rows as Array<Record<string, unknown>>;
+      const rows = result.output.rows as Array<Record<string, unknown>>;
       expect(rows[0].score).toBe(70);
       expect(rows[1].score).toBe(80);
       expect(rows[2].score).toBe(90);
@@ -259,7 +259,7 @@ describe('TableHandler', () => {
         context,
       )) as Record<string, unknown>;
 
-      const rows = result.rows as Array<Record<string, unknown>>;
+      const rows = result.output.rows as Array<Record<string, unknown>>;
       expect(rows[0].score).toBe(30);
       expect(rows[2].score).toBe(10);
     });
@@ -276,9 +276,9 @@ describe('TableHandler', () => {
         context,
       )) as Record<string, unknown>;
 
-      const rows = result.rows as Array<Record<string, unknown>>;
+      const rows = result.output.rows as Array<Record<string, unknown>>;
       expect(rows).toHaveLength(3);
-      expect(result.totalRows).toBe(3);
+      expect(result.output.totalRows).toBe(3);
     });
 
     // Missing fields
@@ -294,7 +294,7 @@ describe('TableHandler', () => {
         context,
       )) as Record<string, unknown>;
 
-      const rows = result.rows as Array<Record<string, unknown>>;
+      const rows = result.output.rows as Array<Record<string, unknown>>;
       expect(rows[0]).toEqual({ name: 'Alice', email: null });
     });
 
@@ -316,8 +316,8 @@ describe('TableHandler', () => {
         context,
       )) as Record<string, unknown>;
 
-      expect(result.type).toBe('table');
-      const rows = result.rows as Array<Record<string, unknown>>;
+      expect(result.output.type).toBe('table');
+      const rows = result.output.rows as Array<Record<string, unknown>>;
       expect(rows).toHaveLength(2);
       expect(rows[0]).toEqual({ col0: 'User Count', col1: '42' });
       expect(rows[1]).toEqual({ col0: 'Avg Score', col1: '85.5' });
@@ -333,7 +333,7 @@ describe('TableHandler', () => {
         context,
       )) as Record<string, unknown>;
 
-      const rows = result.rows as Array<Record<string, unknown>>;
+      const rows = result.output.rows as Array<Record<string, unknown>>;
       expect(rows).toHaveLength(0);
     });
 
@@ -357,7 +357,7 @@ describe('TableHandler', () => {
         context,
       )) as Record<string, unknown>;
 
-      const rows = result.rows as Array<Record<string, unknown>>;
+      const rows = result.output.rows as Array<Record<string, unknown>>;
       expect(rows[0].col1).toBe(70);
       expect(rows[2].col1).toBe(90);
     });
@@ -374,7 +374,7 @@ describe('TableHandler', () => {
         context,
       )) as Record<string, unknown>;
 
-      const rows = result.rows as Array<Record<string, unknown>>;
+      const rows = result.output.rows as Array<Record<string, unknown>>;
       expect(rows).toHaveLength(2);
     });
 
@@ -389,7 +389,7 @@ describe('TableHandler', () => {
         context,
       )) as Record<string, unknown>;
 
-      const rows = result.rows as Array<Record<string, unknown>>;
+      const rows = result.output.rows as Array<Record<string, unknown>>;
       expect(rows).toHaveLength(1);
       expect(rows[0]).toEqual({ col0: 'Static Value' });
     });
@@ -402,8 +402,8 @@ describe('TableHandler', () => {
         context,
       )) as Record<string, unknown>;
 
-      expect(result.type).toBe('table');
-      const rows = result.rows as Array<Record<string, unknown>>;
+      expect(result.output.type).toBe('table');
+      const rows = result.output.rows as Array<Record<string, unknown>>;
       expect(rows[0]).toEqual({ name: 'Test' });
     });
 
@@ -415,10 +415,10 @@ describe('TableHandler', () => {
         context,
       )) as Record<string, unknown>;
 
-      expect(result.rendered).toBeDefined();
-      expect(typeof result.rendered).toBe('string');
-      expect(result.rendered as string).toContain('<table>');
-      expect(result.rendered as string).toContain('Alice');
+      expect(result.output.rendered).toBeDefined();
+      expect(typeof result.output.rendered).toBe('string');
+      expect(result.output.rendered as string).toContain('<table>');
+      expect(result.output.rendered as string).toContain('Alice');
     });
 
     it('should escape HTML in rendered output', async () => {
@@ -428,8 +428,8 @@ describe('TableHandler', () => {
         context,
       )) as Record<string, unknown>;
 
-      expect(result.rendered as string).not.toContain('<script>');
-      expect(result.rendered as string).toContain('&lt;script&gt;');
+      expect(result.output.rendered as string).not.toContain('<script>');
+      expect(result.output.rendered as string).toContain('&lt;script&gt;');
     });
 
     it('should render object values as JSON string', async () => {
@@ -444,7 +444,7 @@ describe('TableHandler', () => {
       )) as Record<string, unknown>;
 
       // HTML escaping converts quotes to &quot;
-      expect(result.rendered as string).toContain(
+      expect(result.output.rendered as string).toContain(
         '{&quot;nested&quot;:&quot;value&quot;}',
       );
     });
@@ -460,7 +460,7 @@ describe('TableHandler', () => {
         context,
       )) as Record<string, unknown>;
 
-      expect(result.rendered as string).toContain('[1,2,3]');
+      expect(result.output.rendered as string).toContain('[1,2,3]');
     });
 
     it('should sort stably when some values are null', async () => {
@@ -482,7 +482,7 @@ describe('TableHandler', () => {
         context,
       )) as Record<string, unknown>;
 
-      const rows = result.rows as Array<Record<string, unknown>>;
+      const rows = result.output.rows as Array<Record<string, unknown>>;
       expect(rows).toHaveLength(3);
       // null values are treated as greater than non-null (pushed to end in asc)
       const nonNullRows = rows.filter((r) => r.score !== null);
@@ -501,7 +501,7 @@ describe('TableHandler', () => {
         context,
       )) as Record<string, unknown>;
 
-      const rows = result.rows as Array<Record<string, unknown>>;
+      const rows = result.output.rows as Array<Record<string, unknown>>;
       expect(rows).toHaveLength(2);
       expect(rows[0]).toEqual({ col0: 'valid' });
       expect(rows[1]).toEqual({ col0: 'also valid' });
@@ -523,7 +523,7 @@ describe('TableHandler', () => {
         context,
       )) as Record<string, unknown>;
 
-      expect(result.totalRows).toBe(2);
+      expect(result.output.totalRows).toBe(2);
     });
 
     // === Dot-path (nested field) access ===
@@ -543,7 +543,7 @@ describe('TableHandler', () => {
         context,
       )) as Record<string, unknown>;
 
-      const rows = result.rows as Array<Record<string, unknown>>;
+      const rows = result.output.rows as Array<Record<string, unknown>>;
       expect(rows[0]).toEqual({ name: 'Alice', 'address.city': 'Seoul' });
       expect(rows[1]).toEqual({ name: 'Bob', 'address.city': 'Busan' });
     });
@@ -557,7 +557,7 @@ describe('TableHandler', () => {
         context,
       )) as Record<string, unknown>;
 
-      const rows = result.rows as Array<Record<string, unknown>>;
+      const rows = result.output.rows as Array<Record<string, unknown>>;
       expect(rows[0]).toEqual({ 'address.city': null });
     });
 
@@ -580,7 +580,7 @@ describe('TableHandler', () => {
         context,
       )) as Record<string, unknown>;
 
-      const rows = result.rows as Array<Record<string, unknown>>;
+      const rows = result.output.rows as Array<Record<string, unknown>>;
       expect(rows[0]['{{ $sourceItem.first + " " + $sourceItem.last }}']).toBe(
         'Alice Kim',
       );
@@ -602,7 +602,7 @@ describe('TableHandler', () => {
         context,
       )) as Record<string, unknown>;
 
-      const rows = result.rows as Array<Record<string, unknown>>;
+      const rows = result.output.rows as Array<Record<string, unknown>>;
       expect(rows[0]['{{ $sourceItemIndex + 1 }}']).toBe(1);
       expect(rows[1]['{{ $sourceItemIndex + 1 }}']).toBe(2);
     });
@@ -617,7 +617,7 @@ describe('TableHandler', () => {
         context,
       )) as Record<string, unknown>;
 
-      const rows = result.rows as Array<Record<string, unknown>>;
+      const rows = result.output.rows as Array<Record<string, unknown>>;
       expect(rows[0]['{{ $dataSource.length }}']).toBe(3);
     });
 
@@ -639,7 +639,7 @@ describe('TableHandler', () => {
         context,
       )) as Record<string, unknown>;
 
-      const rows = result.rows as Array<Record<string, unknown>>;
+      const rows = result.output.rows as Array<Record<string, unknown>>;
       expect(rows[0]['{{ $sourceItem.id }}']).toBe(1);
       expect(rows[0]['{{ $sourceItem.score }}']).toBe(90);
     });
@@ -664,7 +664,7 @@ describe('TableHandler', () => {
         ctxWithExpr,
       )) as Record<string, unknown>;
 
-      const rows = result.rows as Array<Record<string, unknown>>;
+      const rows = result.output.rows as Array<Record<string, unknown>>;
       expect(rows[0]['{{ $var.prefix + ": " + $sourceItem.name }}']).toBe(
         'User: Alice',
       );
@@ -690,7 +690,7 @@ describe('TableHandler', () => {
         ctxWithExpr,
       )) as Record<string, unknown>;
 
-      const rows = result.rows as Array<Record<string, unknown>>;
+      const rows = result.output.rows as Array<Record<string, unknown>>;
       expect(rows[0]['{{ $sourceItem.value * $var.a }}']).toBe(20);
       expect(rows[1]['{{ $sourceItem.value * $var.a }}']).toBe(50);
     });
@@ -706,7 +706,7 @@ describe('TableHandler', () => {
         context,
       )) as Record<string, unknown>;
 
-      const rows = result.rows as Array<Record<string, unknown>>;
+      const rows = result.output.rows as Array<Record<string, unknown>>;
       expect(rows[0]).toEqual({ col0: 'plain value' });
     });
   });

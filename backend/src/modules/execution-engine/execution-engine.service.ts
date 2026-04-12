@@ -32,6 +32,7 @@ import { ExpressionResolverService } from './expression/expression-resolver.serv
 import {
   ExecutionContext,
   NodeHandler,
+  NodeHandlerOutput,
   IfElseHandler,
   SwitchHandler,
   LoopHandler,
@@ -69,6 +70,10 @@ import { ConfigService } from '@nestjs/config';
 import { LlmService } from '../llm/llm.service';
 import { RagSearchService } from '../knowledge-base/search/rag-search.service';
 import { IntegrationsService } from '../integrations/integrations.service';
+import {
+  adaptHandlerReturn,
+  toEngineFlatShape,
+} from './handlers/handler-output.adapter';
 import { ButtonConfig } from './types/button.types';
 import {
   WorkflowExecutor,
@@ -456,8 +461,11 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
         const nodeOutput = context.nodeOutputCache[node.id] as
           | Record<string, unknown>
           | undefined;
+        const interactionType = this.getInteractionType(context, node.id);
+        const statusForLog =
+          typeof nodeOutput?.status === 'string' ? nodeOutput.status : 'none';
         this.logger.log(
-          `[executeInline] Node "${node.label}" output status=${nodeOutput?.status ?? 'none'}, execution=${execution ? 'found' : 'NULL'}`,
+          `[executeInline] Node "${node.label}" output status=${statusForLog}, execution=${execution ? 'found' : 'NULL'}`,
         );
         if (execution) {
           if (nodeOutput?.status === 'waiting_for_input') {
@@ -471,7 +479,7 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
                 node,
                 context,
               );
-            } else if (nodeOutput.interactionType === 'buttons') {
+            } else if (interactionType === 'buttons') {
               await this.waitForButtonInteraction(
                 execution,
                 executionId,
@@ -479,7 +487,7 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
                 context,
                 graphEdges,
               );
-            } else if (nodeOutput.interactionType === 'ai_conversation') {
+            } else if (interactionType === 'ai_conversation') {
               await this.waitForAiConversation(
                 execution,
                 executionId,
@@ -833,6 +841,7 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
         const nodeOutput = context.nodeOutputCache[node.id] as
           | Record<string, unknown>
           | undefined;
+        const interactionType = this.getInteractionType(context, node.id);
         if (nodeOutput?.status === 'waiting_for_input') {
           if (node.type === 'form') {
             await this.waitForFormSubmission(
@@ -841,7 +850,7 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
               node,
               context,
             );
-          } else if (nodeOutput.interactionType === 'buttons') {
+          } else if (interactionType === 'buttons') {
             await this.waitForButtonInteraction(
               savedExecution,
               executionId,
@@ -849,7 +858,7 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
               context,
               graphEdges,
             );
-          } else if (nodeOutput.interactionType === 'ai_conversation') {
+          } else if (interactionType === 'ai_conversation') {
             await this.waitForAiConversation(
               savedExecution,
               executionId,
@@ -979,6 +988,26 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
   }
 
   /**
+   * Read the blocking node's interaction type, preferring the structured
+   * cache (new NodeHandlerOutput shape: `meta.interactionType`) and falling
+   * back to the legacy flat output root. Single source of truth for the two
+   * callers (runExecution blocking dispatch and executeInline resume).
+   */
+  private getInteractionType(
+    context: ExecutionContext,
+    nodeId: string,
+  ): string | undefined {
+    const structuredMeta = context.structuredOutputCache?.[nodeId]?.meta;
+    const structuredType = structuredMeta?.interactionType;
+    if (typeof structuredType === 'string') return structuredType;
+    const flat = context.nodeOutputCache[nodeId] as
+      | Record<string, unknown>
+      | undefined;
+    const flatType = flat?.interactionType;
+    return typeof flatType === 'string' ? flatType : undefined;
+  }
+
+  /**
    * Pause execution at a Form node and wait for the user to submit form data.
    * Transitions Execution → WAITING_FOR_INPUT, emits WS event, awaits Promise.
    * On resume: merges formData into node output, transitions back to RUNNING.
@@ -995,18 +1024,27 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
       ExecutionStatus.WAITING_FOR_INPUT,
     );
 
-    // Update the node execution to waiting_for_input
+    // Emit waiting event so frontend can render the form. Prefer the
+    // structured cache entry (new NodeHandlerOutput shape) so the frontend
+    // can read the form declaration from `.config`; fall back to the flat
+    // cache for legacy handlers that still stash declarations at the root.
+    const nodeOutput =
+      context.structuredOutputCache?.[node.id] ??
+      context.nodeOutputCache[node.id];
+
+    // Update the node execution to waiting_for_input AND persist the output
+    // shape so REST polling reconciliation stays consistent with WS —
+    // otherwise polling would overwrite the WS-delivered outputData with
+    // `null`, making the rendered form declaration disappear between polls.
     const nodeExec = await this.nodeExecutionRepository.findOne({
       where: { executionId, nodeId: node.id },
       order: { startedAt: 'DESC' },
     });
     if (nodeExec) {
       nodeExec.status = NodeExecutionStatus.WAITING_FOR_INPUT;
+      nodeExec.outputData = nodeOutput as Record<string, unknown>;
       await this.nodeExecutionRepository.save(nodeExec);
     }
-
-    // Emit waiting event so frontend can render the form
-    const nodeOutput = context.nodeOutputCache[node.id];
     this.websocketService.emitExecutionEvent(
       executionId,
       ExecutionEventType.EXECUTION_WAITING_FOR_INPUT,
@@ -1036,18 +1074,38 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
       }, timeoutMs);
     });
 
-    // Merge submitted form data into the node output
-    const updatedOutput = {
-      ...(nodeOutput as Record<string, unknown>),
+    // Merge submitted form data into the structured NodeHandlerOutput.
+    // The form handler stored { config: formDeclaration, output: null, status:
+    // 'waiting_for_input', meta } in the structured cache on initial execute;
+    // here we replace `output` with the produced value and flip `status`.
+    const prevStructured = context.structuredOutputCache?.[node.id];
+    const updatedStructured = {
+      config: prevStructured?.config ?? node.config ?? {},
+      output: { submittedData: formData },
       status: 'submitted',
-      submittedData: formData,
+      ...(prevStructured?.meta !== undefined
+        ? { meta: prevStructured.meta }
+        : {}),
     };
-    this.contextService.setNodeOutput(executionId, node.id, updatedOutput);
+    this.contextService.setStructuredOutput(
+      executionId,
+      node.id,
+      updatedStructured,
+    );
+    this.contextService.setNodeOutput(
+      executionId,
+      node.id,
+      toEngineFlatShape(updatedStructured),
+    );
+    // Keep `updatedOutput` alias for the rest of the function (DB save, emit).
+    // Downstream consumers (frontend) receive the structured shape and can
+    // unwrap via output-shape helper.
+    const updatedOutput = updatedStructured;
 
     // Update node execution to completed with merged output
     if (nodeExec) {
       nodeExec.status = NodeExecutionStatus.COMPLETED;
-      nodeExec.outputData = updatedOutput;
+      nodeExec.outputData = updatedOutput as unknown as Record<string, unknown>;
       nodeExec.finishedAt = new Date();
       nodeExec.durationMs =
         nodeExec.finishedAt.getTime() - nodeExec.startedAt.getTime();
@@ -1174,6 +1232,10 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
     });
     if (nodeExec) {
       nodeExec.status = NodeExecutionStatus.WAITING_FOR_INPUT;
+      // Persist the in-flight conversation state so REST polling
+      // reconciliation doesn't overwrite WS-delivered outputData with null
+      // while the user is typing a reply.
+      nodeExec.outputData = nodeOutput as Record<string, unknown>;
       await this.nodeExecutionRepository.save(nodeExec);
     }
 
@@ -1378,7 +1440,15 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
           // Strip _turnDebug before persisting
           delete resultObj._turnDebug;
 
-          const portRouted = this.applyPortSelection(resultObj);
+          const adaptedConv = adaptHandlerReturn(resultObj);
+          this.contextService.setStructuredOutput(
+            executionId,
+            node.id,
+            adaptedConv,
+          );
+          const portRouted = this.applyPortSelection(
+            toEngineFlatShape(adaptedConv),
+          );
           this.contextService.setNodeOutput(
             executionId,
             node.id,
@@ -1479,23 +1549,43 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
       ExecutionStatus.WAITING_FOR_INPUT,
     );
 
-    // Update the node execution to waiting_for_input
+    // Resolve buttonConfig up front so we can persist it on the node execution
+    // before releasing control to the user. This means the REST polling
+    // reconciler (which reads `nodeExecution.outputData` every 2s) sees the
+    // same structured shape the WebSocket delivers — otherwise polling would
+    // overwrite the WS-delivered outputData with `null`, making buttons
+    // disappear until NODE_COMPLETED fires on the next event.
+    const flatNodeOutput = context.nodeOutputCache[node.id] as Record<
+      string,
+      unknown
+    >;
+    const structured = context.structuredOutputCache?.[node.id];
+    const structuredConfig = structured?.config;
+    const buttonConfig = (structuredConfig?.buttonConfig ??
+      flatNodeOutput.buttonConfig) as ButtonConfig | undefined;
+    if (!buttonConfig || !Array.isArray(buttonConfig.buttons)) {
+      throw new Error(
+        `MISSING_BUTTON_CONFIG: Node ${node.id} entered waitForButtonInteraction without a buttonConfig`,
+      );
+    }
+    const buttons = buttonConfig.buttons;
+    // Prefer the structured NodeHandlerOutput so the frontend receives
+    // `config.buttonConfig` (required by presentation renderers) in the first
+    // render pass. Legacy (non-migrated) handlers still fall back to the flat
+    // cache.
+    const nodeOutputForEvent: unknown = structured ?? flatNodeOutput;
+
+    // Update the node execution to waiting_for_input AND persist the output
+    // shape so REST polling reconciliation stays consistent with WS.
     const nodeExec = await this.nodeExecutionRepository.findOne({
       where: { executionId, nodeId: node.id },
       order: { startedAt: 'DESC' },
     });
     if (nodeExec) {
       nodeExec.status = NodeExecutionStatus.WAITING_FOR_INPUT;
+      nodeExec.outputData = nodeOutputForEvent as Record<string, unknown>;
       await this.nodeExecutionRepository.save(nodeExec);
     }
-
-    // Get the button config from the node output
-    const nodeOutput = context.nodeOutputCache[node.id] as Record<
-      string,
-      unknown
-    >;
-    const buttonConfig = nodeOutput.buttonConfig as ButtonConfig;
-    const buttons = buttonConfig.buttons;
 
     // Emit waiting event so frontend can render buttons
     this.websocketService.emitExecutionEvent(
@@ -1510,7 +1600,7 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
           buttons,
           timeout: buttonConfig.buttonTimeout,
           timeoutAction: buttonConfig.buttonTimeoutAction,
-          nodeOutput,
+          nodeOutput: nodeOutputForEvent,
         },
       },
     );
@@ -1563,17 +1653,18 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
 
     // Strip internal fields from nodeOutput for downstream consumption
     // Keep buttonConfig so the execution detail page can render all buttons
-    const cleanNodeOutput = { ...nodeOutput };
+    const cleanNodeOutput = { ...flatNodeOutput };
     delete cleanNodeOutput.status;
     delete cleanNodeOutput.interactionType;
 
     // Resolve selected item for item-level buttons (e.g. carousel per-item buttons)
-    const buttonItemMap = (
-      nodeOutput.buttonConfig as Record<string, unknown> | undefined
-    )?.buttonItemMap as Record<string, number> | undefined;
-    const outputItems = (nodeOutput.items ?? cleanNodeOutput.items) as
-      | unknown[]
+    const buttonItemMap = buttonConfig.buttonItemMap;
+    const structuredOutputObj = structured?.output as
+      | Record<string, unknown>
       | undefined;
+    const outputItems = (structuredOutputObj?.items ??
+      flatNodeOutput.items ??
+      cleanNodeOutput.items) as unknown[] | undefined;
 
     if (click.type === 'button_click') {
       const buttonId = click.buttonId!;
@@ -1655,13 +1746,87 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
       };
     }
 
-    // Update node output cache with port selection
+    // Update node output cache with port selection. The flat-shape
+    // `updatedOutput` carries `_selectedPort` so existing routing logic
+    // (applyPortSelection / hasPortMismatch / stripSelectedPort) keeps
+    // operating without changes.
     this.contextService.setNodeOutput(executionId, node.id, updatedOutput);
+
+    // Mirror the interaction result into the structured NodeHandlerOutput
+    // cache so `$node["<label>"].output.interaction.buttonId` and
+    // `.output.selectedItem` resolve predictably. `setNodeOutput` above
+    // already derived a legacy structured view; we overwrite it with a
+    // richer shape that preserves the handler's original `config`/`meta`.
+    const prevStructured = context.structuredOutputCache?.[node.id];
+    const prevConfig = prevStructured?.config ?? {};
+    const prevMeta = prevStructured?.meta;
+    const rawPrevOutput = prevStructured?.output ?? cleanNodeOutput;
+    // Strip any nested `previousOutput` so repeated resume cycles (loops,
+    // retries) don't produce `previousOutput.previousOutput.…` chains that
+    // grow unbounded in memory and DB rows.
+    const prevOutput =
+      rawPrevOutput &&
+      typeof rawPrevOutput === 'object' &&
+      !Array.isArray(rawPrevOutput)
+        ? Object.fromEntries(
+            Object.entries(rawPrevOutput as Record<string, unknown>).filter(
+              ([key]) => key !== 'previousOutput',
+            ),
+          )
+        : rawPrevOutput;
+    const structuredOutputPayload: Record<string, unknown> = {
+      interaction: interactionData,
+    };
+    const itemIndexForStruct =
+      buttonItemMap != null && click.type === 'button_click' && click.buttonId
+        ? buttonItemMap[click.buttonId]
+        : undefined;
+    const structSelectedItem =
+      itemIndexForStruct != null &&
+      itemIndexForStruct >= 0 &&
+      outputItems &&
+      itemIndexForStruct < outputItems.length
+        ? outputItems[itemIndexForStruct]
+        : undefined;
+    if (structSelectedItem !== undefined) {
+      structuredOutputPayload.selectedItem = structSelectedItem;
+    }
+    structuredOutputPayload.previousOutput = prevOutput;
+    // `interactionType` is whitelist-validated at the ButtonInteractionData
+    // type boundary; narrow to a known set so downstream routing can't be
+    // coerced into unknown states.
+    const INTERACTION_STATUSES = [
+      'button_click',
+      'button_continue',
+      'button_timeout',
+    ] as const;
+    type InteractionStatus = (typeof INTERACTION_STATUSES)[number];
+    const rawStatus = interactionData.interactionType as string;
+    const resolvedStatus: InteractionStatus = (
+      INTERACTION_STATUSES as readonly string[]
+    ).includes(rawStatus)
+      ? (rawStatus as InteractionStatus)
+      : 'button_continue';
+    const updatedStructured: NodeHandlerOutput = {
+      config: prevConfig,
+      output: structuredOutputPayload,
+      port: selectedPort,
+      status: resolvedStatus,
+      ...(prevMeta !== undefined ? { meta: prevMeta } : {}),
+    };
+    this.contextService.setStructuredOutput(
+      executionId,
+      node.id,
+      updatedStructured,
+    );
 
     // Update node execution to completed with interaction data
     if (nodeExec) {
       nodeExec.status = NodeExecutionStatus.COMPLETED;
-      nodeExec.outputData = updatedOutput;
+      nodeExec.outputData = updatedStructured as unknown as Record<
+        string,
+        unknown
+      >;
       nodeExec.interactionData = interactionData;
       nodeExec.finishedAt = new Date();
       nodeExec.durationMs =
@@ -1785,9 +1950,16 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
         nodeExecution,
       );
 
+      // Normalize handler return into the unified NodeHandlerOutput shape.
+      // Structured cache powers `$node[X].config/.output/.meta/.port/.status`
+      // expressions; the flat cache preserves pre-migration engine internals.
+      const adapted = adaptHandlerReturn(output);
+      this.contextService.setStructuredOutput(executionId, node.id, adapted);
+      const flatForCache = toEngineFlatShape(adapted);
+
       // If handler returned port-based output ({ port, data }), set _selectedPort
       // so that downstream routing filters edges correctly.
-      const finalOutput = this.applyPortSelection(output);
+      const finalOutput = this.applyPortSelection(flatForCache);
       this.contextService.setNodeOutput(executionId, node.id, finalOutput);
       executedNodes.add(node.id);
 

@@ -58,17 +58,23 @@ export class MapHandler implements NodeHandler {
     const array = getNestedValue(input, inputField);
 
     if (!Array.isArray(array)) {
-      return [];
+      return {
+        config: { inputField, mapping },
+        output: [],
+      };
     }
 
-    return array.map((item) => {
+    const mapped = array.map((item) => {
       const result: Record<string, unknown> = {};
-
       for (const m of mapping) {
         result[m.targetField] = getNestedValue(item, m.sourceField);
       }
-
       return result;
     });
+
+    return {
+      config: { inputField, mapping },
+      output: mapped,
+    };
   }
 }

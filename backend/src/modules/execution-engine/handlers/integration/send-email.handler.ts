@@ -98,10 +98,8 @@ export class SendEmailHandler
 
     if (!this.integrationsService) {
       return {
-        to,
-        cc,
-        subject,
-        bodyType,
+        config: { to, cc, subject, bodyType },
+        output: null,
         status: 'requires_integration',
       };
     }
@@ -141,15 +139,13 @@ export class SendEmailHandler
         durationMs,
       }).catch(() => {});
       return {
-        messageId: info.messageId,
-        accepted: info.accepted,
-        rejected: info.rejected,
-        to,
-        cc,
-        subject,
-        bodyType,
-        status: 'sent',
-        durationMs,
+        config: { integrationId, to, cc, subject, bodyType },
+        output: {
+          messageId: info.messageId,
+          accepted: info.accepted,
+          rejected: info.rejected,
+        },
+        meta: { durationMs, deliveryStatus: 'sent' },
       };
     } catch (err) {
       const logError =

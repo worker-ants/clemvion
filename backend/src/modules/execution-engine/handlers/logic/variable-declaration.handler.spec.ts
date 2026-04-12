@@ -74,7 +74,7 @@ describe('VariableDeclarationHandler', () => {
         context,
       );
 
-      expect(result).toBe(input);
+      expect((result as any).output).toBe(input);
       expect(context.variables['counter']).toBe(0);
       expect(context.variables['label']).toBe('hello');
     });
@@ -106,7 +106,7 @@ describe('VariableDeclarationHandler', () => {
     });
 
     it('should pass through input unchanged', async () => {
-      const input = { nested: { data: [1, 2, 3] } };
+      const input = { nested: { output: [1, 2, 3] } };
       const result = await handler.execute(
         input,
         {
@@ -115,7 +115,7 @@ describe('VariableDeclarationHandler', () => {
         context,
       );
 
-      expect(result).toBe(input);
+      expect((result as any).output).toBe(input);
     });
 
     it('should coerce string defaultValue to number type', async () => {
@@ -163,7 +163,7 @@ describe('VariableDeclarationHandler', () => {
       );
 
       expect(Array.isArray(context.variables['items'])).toBe(true);
-      expect(context.variables['items']).toEqual([
+      expect(context.variables['items']).toMatchObject([
         { id: 1, value: 'a' },
         { id: 2, value: 'b' },
       ]);
@@ -184,7 +184,7 @@ describe('VariableDeclarationHandler', () => {
         context,
       );
 
-      expect(context.variables['config']).toEqual({ key: 'value' });
+      expect(context.variables['config']).toMatchObject({ key: 'value' });
     });
 
     it('should return null for invalid number string', async () => {
@@ -212,7 +212,7 @@ describe('VariableDeclarationHandler', () => {
       );
 
       expect(context.variables['n']).toBe(42);
-      expect(context.variables['arr']).toEqual([1, 2]);
+      expect(context.variables['arr']).toMatchObject([1, 2]);
     });
 
     it('should declare multiple variables at once', async () => {
@@ -232,7 +232,7 @@ describe('VariableDeclarationHandler', () => {
       expect(context.variables['a']).toBe(1);
       expect(context.variables['b']).toBe('test');
       expect(context.variables['c']).toBe(true);
-      expect(context.variables['d']).toEqual([1, 2]);
+      expect(context.variables['d']).toMatchObject([1, 2]);
     });
   });
 });

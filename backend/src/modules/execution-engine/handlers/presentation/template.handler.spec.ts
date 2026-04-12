@@ -74,10 +74,12 @@ describe('TemplateHandler', () => {
         { template: '<h1>Hello Alice</h1>', outputFormat: 'html' },
         context,
       );
-      expect(result).toEqual({
-        type: 'template',
-        format: 'html',
-        content: '<h1>Hello Alice</h1>',
+      expect(result).toMatchObject({
+        output: {
+          type: 'template',
+          format: 'html',
+          content: '<h1>Hello Alice</h1>',
+        },
       });
     });
 
@@ -87,10 +89,12 @@ describe('TemplateHandler', () => {
         { template: 'Plain text content' },
         context,
       );
-      expect(result).toEqual({
-        type: 'template',
-        format: 'text',
-        content: 'Plain text content',
+      expect(result).toMatchObject({
+        output: {
+          type: 'template',
+          format: 'text',
+          content: 'Plain text content',
+        },
       });
     });
 
@@ -100,10 +104,8 @@ describe('TemplateHandler', () => {
         { template: '# Title', outputFormat: 'markdown' },
         context,
       );
-      expect(result).toEqual({
-        type: 'template',
-        format: 'markdown',
-        content: '# Title',
+      expect(result).toMatchObject({
+        output: { type: 'template', format: 'markdown', content: '# Title' },
       });
     });
 
@@ -113,10 +115,12 @@ describe('TemplateHandler', () => {
         { template: 'Score: 95, User: Alice', outputFormat: 'text' },
         context,
       );
-      expect(result).toEqual({
-        type: 'template',
-        format: 'text',
-        content: 'Score: 95, User: Alice',
+      expect(result).toMatchObject({
+        output: {
+          type: 'template',
+          format: 'text',
+          content: 'Score: 95, User: Alice',
+        },
       });
     });
 
@@ -127,10 +131,8 @@ describe('TemplateHandler', () => {
         { template, outputFormat: 'html' },
         context,
       );
-      expect(result).toEqual({
-        type: 'template',
-        format: 'html',
-        content: template,
+      expect(result).toMatchObject({
+        output: { type: 'template', format: 'html', content: template },
       });
     });
   });

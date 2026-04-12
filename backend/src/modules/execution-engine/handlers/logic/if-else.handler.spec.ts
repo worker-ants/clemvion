@@ -76,9 +76,9 @@ describe('IfElseHandler', () => {
         },
         context,
       );
-      expect(result).toEqual({
+      expect(result).toMatchObject({
         port: 'true',
-        data: { status: 'active' },
+        output: { status: 'active' },
       });
     });
 
@@ -91,9 +91,9 @@ describe('IfElseHandler', () => {
         },
         context,
       );
-      expect(result).toEqual({
+      expect(result).toMatchObject({
         port: 'false',
-        data: { status: 'inactive' },
+        output: { status: 'inactive' },
       });
     });
 
@@ -106,7 +106,7 @@ describe('IfElseHandler', () => {
         },
         context,
       );
-      expect(result).toEqual({ port: 'true', data: { value: 5 } });
+      expect(result).toMatchObject({ port: 'true', output: { value: 5 } });
     });
 
     it('should handle gt operator', async () => {
@@ -118,7 +118,7 @@ describe('IfElseHandler', () => {
         },
         context,
       );
-      expect(result).toEqual({ port: 'true', data: { age: 25 } });
+      expect(result).toMatchObject({ port: 'true', output: { age: 25 } });
     });
 
     it('should handle gte operator', async () => {
@@ -130,7 +130,7 @@ describe('IfElseHandler', () => {
         },
         context,
       );
-      expect(result).toEqual({ port: 'true', data: { age: 18 } });
+      expect(result).toMatchObject({ port: 'true', output: { age: 18 } });
     });
 
     it('should handle lt operator', async () => {
@@ -142,7 +142,7 @@ describe('IfElseHandler', () => {
         },
         context,
       );
-      expect(result).toEqual({ port: 'true', data: { score: 3 } });
+      expect(result).toMatchObject({ port: 'true', output: { score: 3 } });
     });
 
     it('should handle lte operator', async () => {
@@ -154,7 +154,7 @@ describe('IfElseHandler', () => {
         },
         context,
       );
-      expect(result).toEqual({ port: 'true', data: { score: 5 } });
+      expect(result).toMatchObject({ port: 'true', output: { score: 5 } });
     });
 
     it('should handle contains operator', async () => {
@@ -166,9 +166,9 @@ describe('IfElseHandler', () => {
         },
         context,
       );
-      expect(result).toEqual({
+      expect(result).toMatchObject({
         port: 'true',
-        data: { name: 'hello world' },
+        output: { name: 'hello world' },
       });
     });
 
@@ -183,7 +183,7 @@ describe('IfElseHandler', () => {
         },
         context,
       );
-      expect(result).toEqual({ port: 'true', data: { name: 'hello' } });
+      expect(result).toMatchObject({ port: 'true', output: { name: 'hello' } });
     });
 
     it('should handle starts_with operator', async () => {
@@ -197,9 +197,9 @@ describe('IfElseHandler', () => {
         },
         context,
       );
-      expect(result).toEqual({
+      expect(result).toMatchObject({
         port: 'true',
-        data: { url: 'https://example.com' },
+        output: { url: 'https://example.com' },
       });
     });
 
@@ -212,9 +212,9 @@ describe('IfElseHandler', () => {
         },
         context,
       );
-      expect(result).toEqual({
+      expect(result).toMatchObject({
         port: 'true',
-        data: { file: 'document.pdf' },
+        output: { file: 'document.pdf' },
       });
     });
 
@@ -227,7 +227,7 @@ describe('IfElseHandler', () => {
         },
         context,
       );
-      expect(result).toEqual({ port: 'true', data: { field: '' } });
+      expect(result).toMatchObject({ port: 'true', output: { field: '' } });
     });
 
     it('should handle is_empty operator with null', async () => {
@@ -239,7 +239,7 @@ describe('IfElseHandler', () => {
         },
         context,
       );
-      expect(result).toEqual({ port: 'true', data: { field: null } });
+      expect(result).toMatchObject({ port: 'true', output: { field: null } });
     });
 
     it('should handle is_empty operator with empty array', async () => {
@@ -251,7 +251,7 @@ describe('IfElseHandler', () => {
         },
         context,
       );
-      expect(result).toEqual({ port: 'true', data: { items: [] } });
+      expect(result).toMatchObject({ port: 'true', output: { items: [] } });
     });
 
     it('should handle is_not_empty operator', async () => {
@@ -265,7 +265,7 @@ describe('IfElseHandler', () => {
         },
         context,
       );
-      expect(result).toEqual({ port: 'true', data: { name: 'test' } });
+      expect(result).toMatchObject({ port: 'true', output: { name: 'test' } });
     });
 
     it('should handle is_null operator', async () => {
@@ -277,7 +277,7 @@ describe('IfElseHandler', () => {
         },
         context,
       );
-      expect(result).toEqual({ port: 'true', data: { value: null } });
+      expect(result).toMatchObject({ port: 'true', output: { value: null } });
     });
 
     it('should handle is_null with undefined field', async () => {
@@ -289,7 +289,7 @@ describe('IfElseHandler', () => {
         },
         context,
       );
-      expect(result).toEqual({ port: 'true', data: {} });
+      expect(result).toMatchObject({ port: 'true', output: {} });
     });
 
     it('should combine conditions with "and" mode', async () => {
@@ -304,9 +304,9 @@ describe('IfElseHandler', () => {
         },
         context,
       );
-      expect(result).toEqual({
+      expect(result).toMatchObject({
         port: 'true',
-        data: { age: 25, status: 'active' },
+        output: { age: 25, status: 'active' },
       });
     });
 
@@ -322,9 +322,9 @@ describe('IfElseHandler', () => {
         },
         context,
       );
-      expect(result).toEqual({
+      expect(result).toMatchObject({
         port: 'false',
-        data: { age: 15, status: 'active' },
+        output: { age: 15, status: 'active' },
       });
     });
 
@@ -340,9 +340,9 @@ describe('IfElseHandler', () => {
         },
         context,
       );
-      expect(result).toEqual({
+      expect(result).toMatchObject({
         port: 'true',
-        data: { age: 15, status: 'active' },
+        output: { age: 15, status: 'active' },
       });
     });
 
@@ -357,9 +357,9 @@ describe('IfElseHandler', () => {
         },
         context,
       );
-      expect(result).toEqual({
+      expect(result).toMatchObject({
         port: 'true',
-        data: { user: { profile: { age: 30 } } },
+        output: { user: { profile: { age: 30 } } },
       });
     });
 
@@ -374,9 +374,9 @@ describe('IfElseHandler', () => {
         },
         context,
       );
-      expect(result).toEqual({
+      expect(result).toMatchObject({
         port: 'true',
-        data: { a: 1, b: 2 },
+        output: { a: 1, b: 2 },
       });
     });
   });

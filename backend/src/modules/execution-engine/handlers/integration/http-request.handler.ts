@@ -241,10 +241,18 @@ export class HttpRequestHandler
         });
       }
 
-      if (res.ok) {
-        return { port: 'success', data: { response: responseData, meta } };
-      }
-      return { port: 'error', data: { response: responseData, meta } };
+      const configEcho: Record<string, unknown> = {
+        method,
+        url,
+        authentication,
+      };
+      if (integrationId) configEcho.integrationId = integrationId;
+      return {
+        config: configEcho,
+        output: { response: responseData },
+        meta,
+        port: res.ok ? 'success' : 'error',
+      };
     } catch (error: unknown) {
       clearTimeout(timeoutId);
       const duration = Date.now() - start;
@@ -257,12 +265,17 @@ export class HttpRequestHandler
           error: { code: 'HTTP_TRANSPORT_FAILED', message },
         });
       }
+      const configEcho: Record<string, unknown> = {
+        method,
+        url,
+        authentication,
+      };
+      if (integrationId) configEcho.integrationId = integrationId;
       return {
+        config: configEcho,
+        output: { response: { error: message } },
+        meta: { statusCode: 0, duration },
         port: 'error',
-        data: {
-          response: { error: message },
-          meta: { statusCode: 0, duration },
-        },
       };
     }
   }

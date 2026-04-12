@@ -166,10 +166,10 @@ describe('CarouselHandler', () => {
         context,
       )) as Record<string, unknown>;
 
-      expect(result.type).toBe('carousel');
-      expect(result.layout).toBe('card');
+      expect(result.output.type).toBe('carousel');
+      expect(result.output.layout).toBe('card');
 
-      const items = result.items as Array<Record<string, unknown>>;
+      const items = result.output.items as Array<Record<string, unknown>>;
       expect(items).toHaveLength(2);
       expect(items[0]).toEqual({
         title: 'Slide 1',
@@ -194,7 +194,7 @@ describe('CarouselHandler', () => {
         context,
       )) as Record<string, unknown>;
 
-      const items = result.items as Array<Record<string, unknown>>;
+      const items = result.output.items as Array<Record<string, unknown>>;
       expect(items[0].image).toBeUndefined();
     });
 
@@ -208,7 +208,7 @@ describe('CarouselHandler', () => {
         context,
       )) as Record<string, unknown>;
 
-      const items = result.items as Array<Record<string, unknown>>;
+      const items = result.output.items as Array<Record<string, unknown>>;
       expect(items[0]).toEqual({
         title: 'Only Title',
         description: '',
@@ -223,7 +223,7 @@ describe('CarouselHandler', () => {
         context,
       )) as Record<string, unknown>;
 
-      const items = result.items as Array<Record<string, unknown>>;
+      const items = result.output.items as Array<Record<string, unknown>>;
       expect(items).toHaveLength(0);
     });
 
@@ -245,10 +245,10 @@ describe('CarouselHandler', () => {
         context,
       )) as Record<string, unknown>;
 
-      expect(result.type).toBe('carousel');
-      expect(result.layout).toBe('image');
+      expect(result.output.type).toBe('carousel');
+      expect(result.output.layout).toBe('image');
 
-      const items = result.items as Array<Record<string, unknown>>;
+      const items = result.output.items as Array<Record<string, unknown>>;
       expect(items).toHaveLength(2);
       expect(items[0]).toEqual({
         title: 'Item A',
@@ -267,7 +267,7 @@ describe('CarouselHandler', () => {
         context,
       )) as Record<string, unknown>;
 
-      const items = result.items as Array<Record<string, unknown>>;
+      const items = result.output.items as Array<Record<string, unknown>>;
       expect(items).toHaveLength(2);
     });
 
@@ -278,7 +278,7 @@ describe('CarouselHandler', () => {
         context,
       )) as Record<string, unknown>;
 
-      const items = result.items as Array<Record<string, unknown>>;
+      const items = result.output.items as Array<Record<string, unknown>>;
       expect(items).toHaveLength(1);
       expect(items[0].title).toBe('Single');
     });
@@ -290,7 +290,7 @@ describe('CarouselHandler', () => {
         context,
       )) as Record<string, unknown>;
 
-      const items = result.items as Array<Record<string, unknown>>;
+      const items = result.output.items as Array<Record<string, unknown>>;
       expect(items[0].title).toBe('');
     });
 
@@ -301,7 +301,7 @@ describe('CarouselHandler', () => {
         context,
       )) as Record<string, unknown>;
 
-      const items = result.items as Array<Record<string, unknown>>;
+      const items = result.output.items as Array<Record<string, unknown>>;
       expect(items).toHaveLength(0);
     });
 
@@ -312,7 +312,7 @@ describe('CarouselHandler', () => {
         context,
       )) as Record<string, unknown>;
 
-      const items = result.items as Array<Record<string, unknown>>;
+      const items = result.output.items as Array<Record<string, unknown>>;
       expect(items[0].title).toBe('42');
       expect(items[0].description).toBe('true');
     });
@@ -325,8 +325,8 @@ describe('CarouselHandler', () => {
         context,
       )) as Record<string, unknown>;
 
-      expect(result.type).toBe('carousel');
-      const items = result.items as Array<Record<string, unknown>>;
+      expect(result.output.type).toBe('carousel');
+      const items = result.output.items as Array<Record<string, unknown>>;
       expect(items[0].title).toBe('Test');
     });
 
@@ -338,7 +338,7 @@ describe('CarouselHandler', () => {
         context,
       )) as Record<string, unknown>;
 
-      expect(result.layout).toBe('card');
+      expect(result.output.layout).toBe('card');
     });
 
     it('should use specified layout', async () => {
@@ -348,7 +348,7 @@ describe('CarouselHandler', () => {
         context,
       )) as Record<string, unknown>;
 
-      expect(result.layout).toBe('minimal');
+      expect(result.output.layout).toBe('minimal');
     });
 
     // Rendered HTML
@@ -363,10 +363,10 @@ describe('CarouselHandler', () => {
         context,
       )) as Record<string, unknown>;
 
-      expect(result.rendered).toBeDefined();
-      expect(typeof result.rendered).toBe('string');
-      expect(result.rendered as string).toContain('carousel');
-      expect(result.rendered as string).toContain('Hello');
+      expect(result.output.rendered).toBeDefined();
+      expect(typeof result.output.rendered).toBe('string');
+      expect(result.output.rendered as string).toContain('carousel');
+      expect(result.output.rendered as string).toContain('Hello');
     });
 
     it('should escape HTML in rendered output', async () => {
@@ -379,8 +379,8 @@ describe('CarouselHandler', () => {
         context,
       )) as Record<string, unknown>;
 
-      expect(result.rendered as string).not.toContain('<script>');
-      expect(result.rendered as string).toContain('&lt;script&gt;');
+      expect(result.output.rendered as string).not.toContain('<script>');
+      expect(result.output.rendered as string).toContain('&lt;script&gt;');
     });
 
     it('should sanitize javascript: URLs in image fields', async () => {
@@ -393,9 +393,9 @@ describe('CarouselHandler', () => {
         context,
       )) as Record<string, unknown>;
 
-      const items = result.items as Array<Record<string, unknown>>;
+      const items = result.output.items as Array<Record<string, unknown>>;
       expect(items[0].image).toBeUndefined();
-      expect(result.rendered as string).not.toContain('javascript:');
+      expect(result.output.rendered as string).not.toContain('javascript:');
     });
 
     it('should escape double quotes in image attributes', async () => {
@@ -408,7 +408,7 @@ describe('CarouselHandler', () => {
         context,
       )) as Record<string, unknown>;
 
-      const rendered = result.rendered as string;
+      const rendered = result.output.rendered as string;
       expect(rendered).toContain('&quot;');
       // The " is escaped to &quot; preventing attribute breakout
       expect(rendered).not.toContain('src="http://img.png" onload');
@@ -424,7 +424,7 @@ describe('CarouselHandler', () => {
         context,
       )) as Record<string, unknown>;
 
-      expect(result.rendered as string).toContain('&#39;');
+      expect(result.output.rendered as string).toContain('&#39;');
     });
   });
 });

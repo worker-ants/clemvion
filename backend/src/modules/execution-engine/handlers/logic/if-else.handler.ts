@@ -85,7 +85,11 @@ export class IfElseHandler implements NodeHandler {
     const passed =
       combineMode === 'and' ? results.every(Boolean) : results.some(Boolean);
 
-    return { port: passed ? 'true' : 'false', data: input };
+    return {
+      config: { conditions, combineMode },
+      output: input,
+      port: passed ? 'true' : 'false',
+    };
   }
 
   private evaluateCondition(input: unknown, condition: Condition): boolean {

@@ -10,6 +10,8 @@ export interface ButtonConfig {
   buttons: ButtonDef[];
   buttonTimeout?: number;
   buttonTimeoutAction?: 'continue' | 'cancel';
+  /** Maps button id → item index for carousel/table per-item buttons. */
+  buttonItemMap?: Record<string, number>;
 }
 
 export interface ButtonInteractionData {

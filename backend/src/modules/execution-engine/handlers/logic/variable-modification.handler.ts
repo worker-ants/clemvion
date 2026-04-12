@@ -68,7 +68,10 @@ export class VariableModificationHandler implements NodeHandler {
       this.applyModification(context, mod);
     }
 
-    return input;
+    return {
+      config: { modifications },
+      output: input,
+    };
   }
 
   private applyModification(

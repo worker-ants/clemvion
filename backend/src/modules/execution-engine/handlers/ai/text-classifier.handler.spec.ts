@@ -92,8 +92,8 @@ describe('TextClassifierHandler', () => {
         string,
         unknown
       >;
-      expect(result.port).toBe('class_0');
-      const data = result.data as Record<string, unknown>;
+      expect((result as any).port).toBe('class_0');
+      const data = result.output as Record<string, unknown>;
       expect(data.category).toBe('Billing');
       expect(data.confidence).toBe(0.95);
     });
@@ -108,7 +108,7 @@ describe('TextClassifierHandler', () => {
         string,
         unknown
       >;
-      expect(result.port).toBe('class_1');
+      expect((result as any).port).toBe('class_1');
     });
 
     it('should route to fallback port when category does not match', async () => {
@@ -121,7 +121,7 @@ describe('TextClassifierHandler', () => {
         string,
         unknown
       >;
-      expect(result.port).toBe('fallback');
+      expect((result as any).port).toBe('fallback');
     });
 
     it('should route to fallback port on JSON parse failure with no match', async () => {
@@ -134,8 +134,8 @@ describe('TextClassifierHandler', () => {
         string,
         unknown
       >;
-      expect(result.port).toBe('fallback');
-      const data = result.data as Record<string, unknown>;
+      expect((result as any).port).toBe('fallback');
+      const data = result.output as Record<string, unknown>;
       expect(data.category).toBe('');
     });
 
@@ -149,8 +149,8 @@ describe('TextClassifierHandler', () => {
         string,
         unknown
       >;
-      expect(result.port).toBe('class_0');
-      const data = result.data as Record<string, unknown>;
+      expect((result as any).port).toBe('class_0');
+      const data = result.output as Record<string, unknown>;
       expect(data.category).toBe('Billing');
     });
 
@@ -164,7 +164,7 @@ describe('TextClassifierHandler', () => {
         string,
         unknown
       >;
-      const data = result.data as Record<string, unknown>;
+      const data = result.output as Record<string, unknown>;
       expect(data.confidence).toBe(0);
     });
 
@@ -173,8 +173,8 @@ describe('TextClassifierHandler', () => {
         string,
         unknown
       >;
-      const data = result.data as Record<string, unknown>;
-      const metadata = data.metadata as Record<string, unknown>;
+      const data = result.output as Record<string, unknown>;
+      const metadata = result.meta as Record<string, unknown>;
       expect(metadata.model).toBe('gpt-4o-mini');
       expect(metadata.inputTokens).toBe(50);
       expect(metadata.outputTokens).toBe(10);
@@ -186,7 +186,7 @@ describe('TextClassifierHandler', () => {
         string,
         unknown
       >;
-      const data = result.data as Record<string, unknown>;
+      const data = result.output as Record<string, unknown>;
       expect(data.originalInput).toBe('I need a refund');
     });
 

@@ -47,12 +47,20 @@ export class CodeHandler implements NodeHandler {
         }),
       ]);
 
-      return { success: true, result };
+      return {
+        config: { language: config.language ?? 'javascript' },
+        output: result,
+        meta: { success: true },
+      };
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       const stack = error instanceof Error ? error.stack : undefined;
 
-      return { success: false, error: message, stack };
+      return {
+        config: { language: config.language ?? 'javascript' },
+        output: null,
+        meta: { success: false, error: message, stack },
+      };
     }
   }
 }

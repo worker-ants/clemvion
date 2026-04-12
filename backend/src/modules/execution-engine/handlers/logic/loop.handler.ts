@@ -41,6 +41,9 @@ export class LoopHandler implements NodeHandler {
     const { count, maxIterations } = config as unknown as LoopConfig;
     const max = maxIterations ?? DEFAULT_MAX_ITERATIONS;
 
-    return { count, maxIterations: max };
+    return {
+      config: { count, maxIterations: max },
+      output: null,
+    };
   }
 }

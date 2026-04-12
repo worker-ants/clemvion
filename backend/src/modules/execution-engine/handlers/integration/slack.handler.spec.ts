@@ -151,9 +151,13 @@ describe('SlackHandler', () => {
           text: 'hi',
         },
         ctx(),
-      )) as { ts: string; status: string };
-      expect(out.status).toBe('ok');
-      expect(out.ts).toBe('100.0');
+      )) as {
+        config: { action: string };
+        output: { ts: string; channel: string };
+        meta: { durationMs: number };
+      };
+      expect(out.config.action).toBe('send_message');
+      expect(out.output.ts).toBe('100.0');
       expect(postMessageMock).toHaveBeenCalledWith({
         channel: 'C1',
         text: 'hi',
@@ -267,8 +271,8 @@ describe('SlackHandler', () => {
         null,
         { integrationId: 'int-1', action: 'list_channels' },
         ctx(),
-      )) as { channels: Array<{ id: string; name: string }> };
-      expect(out.channels).toHaveLength(2);
+      )) as { output: { channels: Array<{ id: string; name: string }> } };
+      expect(out.output.channels).toHaveLength(2);
     });
 
     it('update_message invokes chat.update with ts/text', async () => {
@@ -285,8 +289,8 @@ describe('SlackHandler', () => {
           text: 'edited',
         },
         ctx(),
-      )) as { ts: string };
-      expect(out.ts).toBe('200.0');
+      )) as { output: { ts: string } };
+      expect(out.output.ts).toBe('200.0');
       expect(updateMock).toHaveBeenCalledWith({
         channel: 'C1',
         ts: '100.0',

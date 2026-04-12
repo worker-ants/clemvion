@@ -16,6 +16,7 @@ import type {
 import { getWsClient } from "@/lib/websocket/ws-client";
 import { PresentationContent, JsonContent } from "./renderers/presentation-renderers";
 import { GenericRenderer } from "./renderers/generic-renderer";
+import { unwrapNodeOutput } from "./output-shape";
 import { DynamicFormUI } from "./dynamic-form-ui";
 import { ButtonBar } from "./button-bar";
 import { ConversationInspector } from "./conversation-inspector";
@@ -79,7 +80,7 @@ function StatusBadge({ status }: { status: string }) {
   }
 }
 
-type DetailTab = "preview" | "input" | "output" | "error";
+type DetailTab = "preview" | "input" | "output" | "config" | "error";
 
 interface NodeDetailTabsProps {
   result: NodeResult;
@@ -93,6 +94,8 @@ function NodeDetailTabs({ result, previewContent, hasPreview }: NodeDetailTabsPr
   const isPresentation = result.nodeCategory === "presentation";
   const showPreview = hasPreview ?? (isPresentation && !!result.outputData);
 
+  const unwrapped = unwrapNodeOutput(result.outputData);
+
   const defaultTab: DetailTab = result.error
     ? "error"
     : showPreview
@@ -105,6 +108,7 @@ function NodeDetailTabs({ result, previewContent, hasPreview }: NodeDetailTabsPr
     { id: "preview", label: "Preview", show: showPreview },
     { id: "input", label: "Input", show: true },
     { id: "output", label: "Output", show: true },
+    { id: "config", label: "Config", show: true },
     { id: "error", label: "Error", show: !!result.error },
   ];
 
@@ -141,7 +145,10 @@ function NodeDetailTabs({ result, previewContent, hasPreview }: NodeDetailTabsPr
             : <span className="text-xs text-[hsl(var(--muted-foreground))]">Loading input data...</span>
         )}
         {activeTab === "output" && (
-          <JsonContent data={result.outputData} />
+          <OutputTabContent unwrapped={unwrapped} />
+        )}
+        {activeTab === "config" && (
+          <ConfigTabContent unwrapped={unwrapped} />
         )}
         {activeTab === "error" && (
           <JsonContent data={result.error} />
@@ -149,6 +156,77 @@ function NodeDetailTabs({ result, previewContent, hasPreview }: NodeDetailTabsPr
       </div>
     </>
   );
+}
+
+/**
+ * Output tab — shows the actual produced value. Surfaces `meta`, `port`,
+ * and `status` as small header pills when present.
+ */
+function OutputTabContent({
+  unwrapped,
+}: {
+  unwrapped: ReturnType<typeof unwrapNodeOutput>;
+}) {
+  const pills: Array<{ key: string; value: string }> = [];
+  if (unwrapped.port) pills.push({ key: "port", value: unwrapped.port });
+  if (unwrapped.status) pills.push({ key: "status", value: unwrapped.status });
+  if (unwrapped.meta) {
+    for (const [k, v] of Object.entries(unwrapped.meta)) {
+      if (v === null || v === undefined) continue;
+      pills.push({
+        key: k,
+        value: typeof v === "object" ? JSON.stringify(v) : String(v),
+      });
+    }
+  }
+
+  return (
+    <div className="space-y-3">
+      {pills.length > 0 && (
+        <div className="flex flex-wrap gap-1.5">
+          {pills.map((p) => (
+            <span
+              key={p.key}
+              className="inline-flex items-center gap-1 rounded-full bg-[hsl(var(--muted))] px-2 py-0.5 text-[10px] font-medium"
+            >
+              <span className="uppercase tracking-wide text-[hsl(var(--muted-foreground))]">
+                {p.key}
+              </span>
+              <span className="text-[hsl(var(--foreground))]">{p.value}</span>
+            </span>
+          ))}
+        </div>
+      )}
+      <JsonContent data={unwrapped.output} />
+      {!unwrapped.isStructured && (
+        <p className="text-[10px] italic text-[hsl(var(--muted-foreground))]">
+          Legacy output shape — config/meta not separately recorded.
+        </p>
+      )}
+    </div>
+  );
+}
+
+/**
+ * Config tab — shows the resolved settings the node actually executed with.
+ * Uses the handler-echoed `config` when the new shape is in effect; otherwise
+ * reports that no config was captured (the node is still on the legacy shape).
+ */
+function ConfigTabContent({
+  unwrapped,
+}: {
+  unwrapped: ReturnType<typeof unwrapNodeOutput>;
+}) {
+  const echo = unwrapped.config;
+  if (!echo || Object.keys(echo).length === 0) {
+    return (
+      <span className="text-xs text-[hsl(var(--muted-foreground))]">
+        This node didn&apos;t record a config — it may be a handler still on
+        the legacy output shape.
+      </span>
+    );
+  }
+  return <JsonContent data={echo} />;
 }
 
 interface ResultDetailProps {

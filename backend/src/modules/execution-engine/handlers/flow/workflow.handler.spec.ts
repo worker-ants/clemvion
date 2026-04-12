@@ -127,7 +127,7 @@ describe('WorkflowHandler', () => {
         context,
       );
 
-      expect(result).toEqual(subOutput);
+      expect((result as { output: unknown }).output).toEqual(subOutput);
       expect(mockExecutor.executeInline).toHaveBeenCalledWith(
         'sub-wf-1',
         { input: 'data' },
@@ -187,10 +187,10 @@ describe('WorkflowHandler', () => {
         context,
       );
 
-      expect(result).toEqual({
-        executionId: 'sub-exec-async-1',
-        workflowId: 'sub-wf-1',
-        status: 'started',
+      expect(result).toMatchObject({
+        config: { workflowId: 'sub-wf-1', mode: 'async' },
+        output: { executionId: 'sub-exec-async-1' },
+        meta: { status: 'started' },
       });
       expect(mockExecutor.executeAsync).toHaveBeenCalledWith(
         'sub-wf-1',
@@ -242,7 +242,7 @@ describe('WorkflowHandler', () => {
         context,
       );
 
-      expect(result).toEqual({ ok: true });
+      expect((result as { output: unknown }).output).toEqual({ ok: true });
       expect(mockExecutor.executeInline).toHaveBeenCalledWith(
         'sub-wf-1',
         {},

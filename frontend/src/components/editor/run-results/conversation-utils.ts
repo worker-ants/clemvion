@@ -29,7 +29,17 @@ interface TurnDebugEntry {
 export function parseHistoryMessages(
   outputData: unknown,
 ): ConversationItem[] {
-  const output = outputData as Record<string, unknown> | null;
+  const raw = outputData as Record<string, unknown> | null;
+  // Support both the legacy flat shape and the new
+  // `{ config, output, meta?, port?, status? }` wrapper.
+  const output =
+    raw &&
+    typeof raw === "object" &&
+    !Array.isArray(raw) &&
+    "config" in raw &&
+    "output" in raw
+      ? (raw.output as Record<string, unknown> | null)
+      : raw;
   if (!output?.messages) return [];
 
   const messages = output.messages as Array<{

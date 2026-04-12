@@ -102,6 +102,9 @@ export class VariableDeclarationHandler implements NodeHandler {
       }
     }
 
-    return input;
+    return {
+      config: { variables },
+      output: input,
+    };
   }
 }

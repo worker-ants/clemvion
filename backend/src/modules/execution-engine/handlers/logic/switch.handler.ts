@@ -90,15 +90,20 @@ export class SwitchHandler implements NodeHandler {
 
     if (matchedCase) {
       return {
+        config: { switchValue, cases },
+        output: input,
+        meta: { expression, value: actualValue, matchedCase: matchedCase.id },
         port: matchedCase.id,
-        expression,
-        value: actualValue,
-        data: input,
       };
     }
 
     if (hasDefault !== false) {
-      return { port: 'default', expression, value: actualValue, data: input };
+      return {
+        config: { switchValue, cases },
+        output: input,
+        meta: { expression, value: actualValue, matchedCase: 'default' },
+        port: 'default',
+      };
     }
 
     throw new Error('No matching case found and no default case configured');

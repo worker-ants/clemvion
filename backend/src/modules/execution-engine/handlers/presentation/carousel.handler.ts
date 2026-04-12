@@ -218,25 +218,28 @@ export class CarouselHandler implements NodeHandler {
       }
     }
 
+    const payload = { type: 'carousel', items, layout, rendered };
+    const configEcho: Record<string, unknown> = { layout, mode };
+
     if (allButtons.length > 0) {
       return Promise.resolve({
-        type: 'carousel',
-        items,
-        layout,
-        rendered,
-        status: 'waiting_for_input',
-        interactionType: 'buttons',
-        buttonConfig: {
-          buttons: allButtons,
-          buttonItemMap:
-            Object.keys(buttonItemMap).length > 0 ? buttonItemMap : undefined,
-          buttonTimeout: config.buttonTimeout,
-          buttonTimeoutAction: config.buttonTimeoutAction ?? 'continue',
+        config: {
+          ...configEcho,
+          buttonConfig: {
+            buttons: allButtons,
+            buttonItemMap:
+              Object.keys(buttonItemMap).length > 0 ? buttonItemMap : undefined,
+            buttonTimeout: config.buttonTimeout,
+            buttonTimeoutAction: config.buttonTimeoutAction ?? 'continue',
+          },
         },
+        output: payload,
+        status: 'waiting_for_input',
+        meta: { interactionType: 'buttons' },
       });
     }
 
-    return Promise.resolve({ type: 'carousel', items, layout, rendered });
+    return Promise.resolve({ config: configEcho, output: payload });
   }
 
   private renderHtml(
