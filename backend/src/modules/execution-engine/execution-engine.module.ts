@@ -16,6 +16,7 @@ import { ForEachExecutor } from './containers/foreach-executor';
 import { WebsocketModule } from '../websocket/websocket.module';
 import { LlmModule } from '../llm/llm.module';
 import { KnowledgeBaseModule } from '../knowledge-base/knowledge-base.module';
+import { IntegrationsModule } from '../integrations/integrations.module';
 
 @Module({
   imports: [
@@ -24,6 +25,7 @@ import { KnowledgeBaseModule } from '../knowledge-base/knowledge-base.module';
     forwardRef(() => WebsocketModule),
     LlmModule,
     KnowledgeBaseModule,
+    IntegrationsModule,
   ],
   providers: [
     ExecutionEngineService,

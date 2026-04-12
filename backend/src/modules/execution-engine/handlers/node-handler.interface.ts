@@ -1,6 +1,8 @@
 export interface ExecutionContext {
   executionId: string;
   workflowId: string;
+  /** Current NodeExecution row id — set by the engine before each handler call. */
+  nodeExecutionId?: string;
   variables: Record<string, unknown>;
   nodeOutputCache: Record<string, unknown>;
   loopContext?: {
