@@ -20,6 +20,10 @@
 | INT-MG-02 | 연동 생성 시 서비스 유형 선택 후 인증 정보 입력 | 필수 |
 | INT-MG-03 | 하나의 서비스에 대해 여러 계정/인스턴스의 연동 설정 가능 | 필수 |
 | INT-MG-04 | 연동 설정에 별칭(이름) 부여하여 구분 | 필수 |
+| INT-MG-05 | 연동별 상세 페이지 제공 (개요, 보안, 사용처, 최근 활동) | 필수 |
+| INT-MG-06 | 자격 증명 회전(Rotation) 기능 — 비OAuth는 교체 폼, OAuth는 재인증. 연결 테스트 성공 시에만 저장 커밋, 마지막 회전 시각 표시 | 필수 |
+| INT-MG-07 | Personal ↔ Organization 범위 전환 — Admin만 가능하며 확인 다이얼로그 필수. 기존 자격 증명 승계 | 필수 |
+| INT-MG-08 | 추가 플로우는 목록 모달(서비스 선택) → 별도 페이지(`/integrations/new?service=…`) 하이브리드 구조로 제공 | 필수 |
 
 ### 2.2 인증 방식
 
@@ -30,8 +34,38 @@
 | INT-AU-03 | Bearer Token 인증 | 필수 |
 | INT-AU-04 | 토큰 자동 갱신 (OAuth Refresh Token) | 필수 |
 | INT-AU-05 | 인증 정보 암호화 저장 | 필수 |
+| INT-AU-06 | OAuth 연동 생성 시 사용자에게 scope 체크박스 선택 제공 (서비스별 권장 기본값 프리셋) | 필수 |
+| INT-AU-07 | 노드 실행 중 `insufficient_scope` 감지 시 연동 상태를 `error(insufficient_scope)`로 전이하고, 상세 페이지에 누락 scope 배지 + "Scope 추가 요청" 액션 제공 | 필수 |
+| INT-AU-08 | Basic Auth (username + password) 인증 지원 (HTTP/REST 연동용) | 필수 |
+| INT-AU-09 | Connection String 기반 인증 지원 (Database) | 필수 |
+| INT-AU-10 | SMTP 인증 (host/port/secure/user/pass) 지원 (Email) | 필수 |
 
-### 2.3 지원 서비스
+### 2.3 상태 및 알림
+
+| ID | 요구사항 | 우선순위 |
+|----|----------|----------|
+| INT-ST-01 | 연동 상태 Enum: `connected` / `expired` / `error(<reason>)`. `<reason>`은 `insufficient_scope`, `auth_failed`, `network`, `unknown` 등 머신 판독 가능 값 | 필수 |
+| INT-ST-02 | 매일 00:00(워크스페이스 타임존) 만료 스캐너 Cron 실행 — 임계치 7일/3일/당일에 상태·알림 생성 | 필수 |
+| INT-ST-03 | 사이드바 Integration 메뉴에 주의 필요(만료 임박/에러) 개수 배지 표시, 목록 카드와 상세 헤더에 상태 배지 노출 | 필수 |
+| INT-ST-04 | 인앱 알림(종 드롭다운)에 만료 임박·재인증 실패 이벤트 표시. 사용자별 이메일 알림 토글을 옵션으로 제공 | 필수 |
+
+### 2.4 사용처 추적 및 라이프사이클
+
+| ID | 요구사항 | 우선순위 |
+|----|----------|----------|
+| INT-US-01 | 연동을 사용 중인 워크플로우·노드를 추적 (노드 `config.integrationId` 참조 기준, 활성/비활성 무관) | 필수 |
+| INT-US-02 | 사용처가 존재하는 연동은 삭제 차단 — 사용 중 노드 목록을 표시하고 "먼저 연동을 교체하거나 노드를 제거" 안내 | 필수 |
+| INT-US-03 | 연동이 `expired`/`error` 상태로 전이되면 이를 참조하는 노드의 워크플로우 에디터에 경고 뱃지 표시 | 필수 |
+| INT-US-04 | 연동별 최근 호출 이력을 조회 가능하도록 `integration_usage_log` 기록 (노드 실행 시점마다 1건). 최근 7일 호출 수 차트 제공 | 필수 |
+
+### 2.5 Webhook 서비스 경계
+
+| ID | 요구사항 | 우선순위 |
+|----|----------|----------|
+| INT-WH-01 | Integration의 Webhook 서비스는 **Outbound 전용** — 외부 엔드포인트로의 HTTP 호출 대상을 미리 정의 (URL, method, 기본 헤더, 서명 secret) | 필수 |
+| INT-WH-02 | Inbound Webhook URL 발급은 Trigger(type=webhook)에서만 담당하며, Integration Webhook과 상호 참조·공유하지 않는다 | 필수 |
+
+### 2.6 지원 서비스
 
 > 워크플로우 내에서 Integration을 노드로 사용하는 방법은 [PRD 노드 시스템 §6 Integration 노드](./3-node-system.md#6-integration-노드-7종)를 참조한다.
 
@@ -45,7 +79,7 @@
 | INT-SV-06 | Email (SMTP) — 이메일 전송 | 필수 |
 | INT-SV-07 | Webhook — 외부 이벤트 수신 | 필수 |
 
-### 2.4 조직 레벨 연동
+### 2.7 조직 레벨 연동
 
 | ID | 요구사항 | 우선순위 |
 |----|----------|----------|
