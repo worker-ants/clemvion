@@ -91,6 +91,40 @@ export class NotificationsService {
     return { affected: result.affected || 0 };
   }
 
+  /**
+   * Persist a batch of notifications in a single INSERT. Safe against empty
+   * arrays (no-op). Used by background workers that fan out to many users.
+   */
+  async createMany(
+    entries: Array<{
+      workspaceId: string;
+      userId: string;
+      type: string;
+      title: string;
+      message: string;
+      resourceType?: string;
+      resourceId?: string;
+      channel?: 'in_app' | 'email' | 'both';
+    }>,
+  ): Promise<void> {
+    if (entries.length === 0) return;
+    const rows = entries.map((e) => {
+      const row = this.notificationRepository.create({
+        workspaceId: e.workspaceId,
+        userId: e.userId,
+        type: e.type,
+        title: e.title,
+        message: e.message,
+        channel: e.channel ?? 'in_app',
+        isRead: false,
+      });
+      if (e.resourceType) row.resourceType = e.resourceType;
+      if (e.resourceId) row.resourceId = e.resourceId;
+      return row;
+    });
+    await this.notificationRepository.save(rows);
+  }
+
   private getSortColumn(sort: string): string {
     const allowed: Record<string, string> = {
       created_at: 'created_at',

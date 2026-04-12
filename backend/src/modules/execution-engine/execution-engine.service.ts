@@ -753,7 +753,9 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
       // Only reachable nodes are executed; unreachable branches are silently skipped.
       // Seed with trigger nodes. If none exist, fall back to nodes with no incoming edges.
       const reachable = new Set<string>();
-      const nodesWithIncoming = new Set(forwardEdges.map((e) => e.targetNodeId));
+      const nodesWithIncoming = new Set(
+        forwardEdges.map((e) => e.targetNodeId),
+      );
       for (const id of sortedNodeIds) {
         const node = nodeMap.get(id);
         if (node?.category === NodeCategory.TRIGGER) reachable.add(id);

@@ -16,10 +16,7 @@ interface ScheduleJobData {
 
 @Injectable()
 @Processor(SCHEDULE_QUEUE)
-export class ScheduleRunnerService
-  extends WorkerHost
-  implements OnModuleInit
-{
+export class ScheduleRunnerService extends WorkerHost implements OnModuleInit {
   private readonly logger = new Logger(ScheduleRunnerService.name);
 
   constructor(
@@ -89,9 +86,7 @@ export class ScheduleRunnerService
     }
 
     try {
-      const executionId = await this.executionEngineService.execute(
-        workflowId,
-      );
+      const executionId = await this.executionEngineService.execute(workflowId);
       this.logger.log(
         `Schedule ${scheduleId} triggered execution ${executionId}`,
       );

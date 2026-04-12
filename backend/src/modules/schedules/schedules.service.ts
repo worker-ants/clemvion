@@ -133,7 +133,9 @@ export class SchedulesService {
         schedule.timezone,
         1,
       );
-      schedule.nextRunAt = nextRun ? new Date(nextRun) : (null as unknown as Date);
+      schedule.nextRunAt = nextRun
+        ? new Date(nextRun)
+        : (null as unknown as Date);
     }
 
     const saved = await this.scheduleRepository.save(schedule);

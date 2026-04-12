@@ -57,6 +57,37 @@ export class AuditLogsService {
     return PaginatedResponseDto.create(data, totalItems, page, limit);
   }
 
+  /**
+   * Record an audit event. Failures are swallowed — audit logging must never
+   * break the primary action.
+   */
+  async record(entry: {
+    workspaceId: string;
+    userId: string;
+    action: string;
+    resourceType: string;
+    resourceId: string;
+    details?: Record<string, unknown>;
+    ipAddress?: string;
+  }): Promise<void> {
+    try {
+      const log = this.auditLogRepository.create({
+        workspaceId: entry.workspaceId,
+        userId: entry.userId,
+        action: entry.action,
+        resourceType: entry.resourceType,
+        resourceId: entry.resourceId,
+        details: entry.details ?? {},
+      });
+      if (entry.ipAddress) log.ipAddress = entry.ipAddress;
+      await this.auditLogRepository.save(log);
+    } catch (err) {
+      console.warn(
+        `Failed to write audit log: ${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
+  }
+
   private getSortColumn(sort: string): string {
     const allowed: Record<string, string> = {
       created_at: 'created_at',

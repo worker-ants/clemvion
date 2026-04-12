@@ -70,6 +70,11 @@ export class User {
   @Column({ name: 'oauth_provider_id', nullable: true, length: 255 })
   oauthProviderId: string;
 
+  @Column({ name: 'notification_preferences', type: 'jsonb', default: {} })
+  notificationPreferences: {
+    integrationExpiryEmail?: boolean;
+  };
+
   @CreateDateColumn({ name: 'created_at', type: 'timestamptz' })
   createdAt: Date;
 
