@@ -183,6 +183,8 @@ describe('SendEmailHandler', () => {
           workflowId: 'wf-1',
         }),
       );
+      // Transporter is now cached across calls; close() only fires on shutdown.
+      await handler.shutdown();
       expect(closeMock).toHaveBeenCalled();
     });
 
@@ -212,6 +214,7 @@ describe('SendEmailHandler', () => {
           error: expect.objectContaining({ code: 'SMTP_SEND_FAILED' }),
         }),
       );
+      await handler.shutdown();
       expect(closeMock).toHaveBeenCalled();
     });
 

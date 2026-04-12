@@ -368,7 +368,9 @@ interface NodeHandlerRegistry {
 {
   "executionId": "uuid",
   "workflowId": "uuid",
+  "nodeExecutionId": "uuid",
   "variables": {
+    "__workspaceId": "uuid",
     "myVar": "value"
   },
   "nodeOutputCache": {
@@ -389,6 +391,14 @@ interface NodeHandlerRegistry {
   }
 }
 ```
+
+| 필드 | 언제 설정되는가 | 용도 |
+|------|----------------|------|
+| `executionId` | 실행 시작 시 고정 | Execution/NodeExecution 귀속 |
+| `workflowId` | 실행 시작 시 고정 | 표현식 컨텍스트, 사용처 확인 |
+| `nodeExecutionId` | 엔진이 handler.execute 호출 직전 주입, 노드별 갱신 | Integration 핸들러가 `IntegrationUsageLog.node_execution_id`로 기록 |
+| `variables.__workspaceId` | 실행 시작 시 주입 (workflow.workspaceId) | Integration 조회, AI LLM 설정 조회 등 워크스페이스 단위 리소스 해소 |
+| `variables.*` (그 외) | 트리거·워크플로우 변수 | 표현식 `{{ $variables.X }}` 평가 |
 
 ### 6.2 저장 전략
 
@@ -479,3 +489,81 @@ interface NodeHandlerRegistry {
 | `core:{wsId}:rate:{userId}` | API Rate Limit 카운터 | 60초 |
 | `ws:{wsId}:session:{connId}` | WebSocket 세션 정보 | 세션 유지 시간 |
 | `exec:{wsId}:queue:priority` | 우선순위 큐 (Sorted Set) | 영구 (큐 소비 시 삭제) |
+
+---
+
+## 10. Integration Handler 계약
+
+Integration 노드(HTTP, Database, Slack, Send Email, 등)를 처리하는 핸들러는 공통 베이스(`IntegrationHandlerBase`)를 통해 credential을 해소하고 호출 이력을 기록한다. 노드별 세부 동작은 [Spec Integration 노드 §10](../4-nodes/4-integration-nodes.md#10-handler-실행-세멘틱) 참조.
+
+### 10.1 IntegrationsService API (실행 엔진용)
+
+```ts
+class IntegrationsService {
+  /**
+   * 실행 엔진 전용 내부 조회. credentials는 AES-256-GCM transformer가
+   * 복호화한 평문으로 반환된다 — 결과는 시크릿으로 취급할 것.
+   */
+  getForExecution(id: UUID, workspaceId: UUID): Promise<Integration>;
+
+  /**
+   * 노드 실행 완료 시 호출. 성공·실패 여부와 durationMs를 기록하고
+   * integration.last_used_at / last_error 를 갱신한다.
+   */
+  logUsage(params: {
+    integrationId: UUID;
+    nodeExecutionId: UUID;
+    workflowId: UUID;
+    status: 'success' | 'failed';
+    durationMs: number;
+    error?: { code?: string; message?: string } | null;
+  }): Promise<void>;
+}
+```
+
+`logUsage`는 best-effort — 내부 예외를 swallow하므로 실행 흐름을 중단시키지 않는다.
+
+### 10.2 IntegrationHandlerBase 계약
+
+모든 Integration 핸들러는 다음 베이스를 상속 또는 동등한 로직을 수행한다:
+
+```ts
+class IntegrationHandlerBase {
+  constructor(protected readonly integrationsService?: IntegrationsService) {}
+
+  protected resolveIntegration(
+    integrationId: UUID,
+    context: ExecutionContext,
+    expectedServiceType: string,
+  ): Promise<Integration>;  // workspaceId / service_type / status 모두 검증
+
+  protected logUsage(
+    context: ExecutionContext,
+    params: IntegrationUsageParams,
+  ): Promise<void>;
+}
+```
+
+`resolveIntegration` 실패 시 `IntegrationError(code, message)`를 throw하며 `code`는 [Spec Integration 노드 §10.2](../4-nodes/4-integration-nodes.md#102-공통-에러-코드) 공통 vocabulary를 사용한다.
+
+### 10.3 호출 순서
+
+```
+engine.runNode
+  ├─ nodeExecution = createNodeExecution(execId, nodeId, RUNNING)
+  ├─ context.nodeExecutionId = nodeExecution.id    # ← 엔진이 주입
+  ├─ resolvedConfig = expressionResolver.resolve(config, ctx)
+  ├─ handler.execute(input, resolvedConfig, context)
+  │    ├─ integration = resolveIntegration(...)
+  │    ├─ <외부 SDK 호출>
+  │    └─ logUsage({ status, durationMs, error? })
+  └─ nodeExecution.status = COMPLETED | FAILED
+```
+
+- `context.nodeExecutionId`는 각 노드 호출 직전 새로 배정되므로 순차 실행 모델에서 안전하다.
+- `integrationsService`가 주입되지 않은 레거시/테스트 경로에서는 핸들러가 `status: 'requires_integration'` stub을 반환(엔진 단위 테스트 호환성).
+
+### 10.4 Fallback / Degraded 모드
+
+- `context.variables.__workspaceId`가 누락되면 핸들러는 `Missing workspace context` 오류를 throw하여 즉시 실패 처리.
+- `integrationsService` 미주입 환경(예: 단순 샌드박스 실행)에서는 Integration 조회·Usage 로깅이 모두 skip된다 — 프로덕션 경로에서는 반드시 주입돼야 한다.

@@ -23,12 +23,16 @@ export function IntegrationSelector({
     queryKey: ["integrations", "list", { serviceTypes }],
     queryFn: () =>
       integrationsApi.list({ serviceType: serviceTypes, limit: 100 }),
-    staleTime: 30_000,
+    staleTime: 5 * 60 * 1000,
   });
 
   const integrations: IntegrationDto[] = data?.data ?? [];
+  // Only flag "missing" once the list has actually loaded — otherwise the
+  // option flashes during initial fetch whenever a saved value is present.
   const hasSavedButMissing =
-    value !== "" && !integrations.some((i) => i.id === value);
+    !isLoading &&
+    value !== "" &&
+    !integrations.some((i) => i.id === value);
   const empty = !isLoading && integrations.length === 0;
   const displayName = serviceDisplayName ?? serviceTypes[0] ?? "integration";
   const createHref = `/integrations/new?service=${encodeURIComponent(
