@@ -22,7 +22,8 @@ export class HooksController {
     @Param('endpointPath') endpointPath: string,
     @Body() body: unknown,
     @Query() query: Record<string, string>,
-    @Req() req: { headers: Record<string, unknown>; method: string; rawBody?: Buffer },
+    @Req()
+    req: { headers: Record<string, unknown>; method: string; rawBody?: Buffer },
   ) {
     const headers: Record<string, string> = {};
     for (const [key, value] of Object.entries(req.headers)) {

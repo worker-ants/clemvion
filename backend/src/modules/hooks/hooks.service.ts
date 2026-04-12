@@ -95,9 +95,7 @@ export class HooksService {
 
     if (authType === 'bearer') {
       const authHeader = headers['authorization'] ?? '';
-      const token = authHeader.startsWith('Bearer ')
-        ? authHeader.slice(7)
-        : '';
+      const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : '';
       if (!token || token !== config.bearerToken) {
         throw new UnauthorizedException({
           code: 'AUTH_FAILED',
@@ -128,10 +126,7 @@ export class HooksService {
         .digest('hex')}`;
 
       if (
-        !crypto.timingSafeEqual(
-          Buffer.from(signature),
-          Buffer.from(expected),
-        )
+        !crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(expected))
       ) {
         throw new UnauthorizedException({
           code: 'AUTH_FAILED',

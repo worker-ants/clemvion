@@ -55,6 +55,10 @@ import { Edge } from './modules/edges/entities/edge.entity';
 import { Trigger } from './modules/triggers/entities/trigger.entity';
 import { Schedule } from './modules/schedules/entities/schedule.entity';
 import { Integration } from './modules/integrations/entities/integration.entity';
+import { IntegrationUsageLog } from './modules/integrations/entities/integration-usage-log.entity';
+import { IntegrationOAuthState } from './modules/integrations/entities/integration-oauth-state.entity';
+import { IntegrationOAuthPreview } from './modules/integrations/entities/integration-oauth-preview.entity';
+import { IntegrationExpiryDispatch } from './modules/integrations/entities/integration-expiry-dispatch.entity';
 import { AuthConfig } from './modules/auth-configs/entities/auth-config.entity';
 import { Execution } from './modules/executions/entities/execution.entity';
 import { NodeExecution } from './modules/node-executions/entities/node-execution.entity';
@@ -105,6 +109,10 @@ import { DocumentChunk } from './modules/knowledge-base/entities/document-chunk.
           Trigger,
           Schedule,
           Integration,
+          IntegrationUsageLog,
+          IntegrationOAuthState,
+          IntegrationOAuthPreview,
+          IntegrationExpiryDispatch,
           AuthConfig,
           Execution,
           NodeExecution,

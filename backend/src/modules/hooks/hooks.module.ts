@@ -6,10 +6,7 @@ import { HooksService } from './hooks.service';
 import { ExecutionEngineModule } from '../execution-engine/execution-engine.module';
 
 @Module({
-  imports: [
-    TypeOrmModule.forFeature([Trigger]),
-    ExecutionEngineModule,
-  ],
+  imports: [TypeOrmModule.forFeature([Trigger]), ExecutionEngineModule],
   controllers: [HooksController],
   providers: [HooksService],
 })

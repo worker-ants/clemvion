@@ -92,4 +92,15 @@ export class WorkspacesService {
     });
     return member?.role ?? null;
   }
+
+  /** Return user IDs of admin-tier members (owner/admin) in the workspace. */
+  async findAdminUserIds(workspaceId: string): Promise<string[]> {
+    const admins = await this.memberRepository.find({
+      where: [
+        { workspaceId, role: 'owner' },
+        { workspaceId, role: 'admin' },
+      ],
+    });
+    return admins.map((m) => m.userId);
+  }
 }

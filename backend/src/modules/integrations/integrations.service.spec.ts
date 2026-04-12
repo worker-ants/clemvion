@@ -1,90 +1,585 @@
-import { NotFoundException, BadRequestException } from '@nestjs/common';
+import {
+  NotFoundException,
+  BadRequestException,
+  ConflictException,
+  ForbiddenException,
+} from '@nestjs/common';
 import { IntegrationsService } from './integrations.service';
+import type { Integration } from './entities/integration.entity';
 
-describe('IntegrationsService', () => {
-  let service: IntegrationsService;
-  let mockRepository: Record<string, jest.Mock>;
+type Mock = jest.Mock;
 
-  const mockIntegration = {
+function makeIntegration(overrides: Partial<Integration> = {}): Integration {
+  const base: Integration = {
     id: 'int-1',
     workspaceId: 'ws-1',
     serviceType: 'slack',
     name: 'My Slack',
+    authType: 'oauth2',
+    credentials: {
+      access_token: 'xoxb-secret',
+      team_id: 'T1',
+      scopes: ['chat:write'],
+    },
+    scope: 'personal',
     status: 'connected',
+    statusReason: null,
+    tokenExpiresAt: null,
+    lastUsedAt: null,
+    lastRotatedAt: null,
+    lastError: null,
+    createdBy: 'user-1',
+    createdAt: new Date(),
+    updatedAt: new Date(),
+  } as Integration;
+  return { ...base, ...overrides } as Integration;
+}
+
+function makeQueryBuilder(result: {
+  count?: number;
+  many?: unknown[];
+  raw?: unknown[];
+}): Record<string, Mock> {
+  const qb: Record<string, Mock> = {
+    where: jest.fn().mockReturnThis(),
+    andWhere: jest.fn().mockReturnThis(),
+    orderBy: jest.fn().mockReturnThis(),
+    addOrderBy: jest.fn().mockReturnThis(),
+    select: jest.fn().mockReturnThis(),
+    addSelect: jest.fn().mockReturnThis(),
+    groupBy: jest.fn().mockReturnThis(),
+    innerJoin: jest.fn().mockReturnThis(),
+    limit: jest.fn().mockReturnThis(),
+    skip: jest.fn().mockReturnThis(),
+    take: jest.fn().mockReturnThis(),
+    getCount: jest.fn().mockResolvedValue(result.count ?? 0),
+    getMany: jest.fn().mockResolvedValue(result.many ?? []),
+    getRawMany: jest.fn().mockResolvedValue(result.raw ?? []),
   };
+  return qb;
+}
+
+describe('IntegrationsService', () => {
+  let service: IntegrationsService;
+  let integrationRepo: Record<string, Mock>;
+  let usageLogRepo: Record<string, Mock>;
+  let nodeRepo: Record<string, Mock>;
+  let workspacesService: { getMemberRole: Mock };
+  let oauthServiceMock: {
+    begin: Mock;
+    consumePreviewToken: Mock;
+  };
+  let auditLogsService: { record: Mock };
+  let integration: Integration;
 
   beforeEach(() => {
-    mockRepository = {
-      findOne: jest.fn().mockResolvedValue(mockIntegration),
-      create: jest.fn().mockImplementation((data) => data),
-      save: jest.fn().mockImplementation((data) => Promise.resolve(data)),
+    integration = makeIntegration();
+
+    integrationRepo = {
+      findOne: jest.fn().mockResolvedValue(integration),
+      create: jest
+        .fn()
+        .mockImplementation((data) => ({ ...integration, ...data })),
+      save: jest
+        .fn()
+        .mockImplementation((entity) => Promise.resolve(entity as Integration)),
       remove: jest.fn().mockResolvedValue(undefined),
-      createQueryBuilder: jest.fn().mockReturnValue({
-        where: jest.fn().mockReturnThis(),
-        andWhere: jest.fn().mockReturnThis(),
-        orderBy: jest.fn().mockReturnThis(),
-        skip: jest.fn().mockReturnThis(),
-        take: jest.fn().mockReturnThis(),
-        getCount: jest.fn().mockResolvedValue(0),
-        getMany: jest.fn().mockResolvedValue([]),
-      }),
+      createQueryBuilder: jest
+        .fn()
+        .mockReturnValue(makeQueryBuilder({ count: 0, many: [] })),
     };
 
-    service = new IntegrationsService(mockRepository as never);
+    usageLogRepo = {
+      create: jest.fn().mockImplementation((data: unknown) => data),
+      save: jest.fn().mockResolvedValue(undefined),
+      createQueryBuilder: jest
+        .fn()
+        .mockReturnValue(makeQueryBuilder({ many: [], raw: [] })),
+    };
+
+    nodeRepo = {
+      createQueryBuilder: jest
+        .fn()
+        .mockReturnValue(makeQueryBuilder({ raw: [] })),
+    };
+
+    workspacesService = {
+      getMemberRole: jest.fn().mockResolvedValue('member'),
+    };
+
+    oauthServiceMock = {
+      begin: jest
+        .fn()
+        .mockResolvedValue({ authUrl: 'https://example.com', state: 'abc' }),
+      consumePreviewToken: jest.fn(),
+    };
+    auditLogsService = { record: jest.fn().mockResolvedValue(undefined) };
+
+    service = new IntegrationsService(
+      integrationRepo as never,
+      usageLogRepo as never,
+      nodeRepo as never,
+      workspacesService as never,
+      oauthServiceMock as never,
+      auditLogsService as never,
+    );
   });
 
+  // -----------------------------------------------------------------
+  // findById / masking
+  // -----------------------------------------------------------------
+  describe('findById', () => {
+    it('masks secret credential fields', async () => {
+      const result = await service.findById('int-1', 'ws-1');
+      expect(result.credentials.access_token).toBe('********');
+      expect(result.credentials.team_id).toBe('T1');
+    });
+
+    it('throws NotFoundException when missing', async () => {
+      integrationRepo.findOne.mockResolvedValue(null);
+      await expect(service.findById('missing', 'ws-1')).rejects.toThrow(
+        NotFoundException,
+      );
+    });
+  });
+
+  // -----------------------------------------------------------------
+  // testConnection
+  // -----------------------------------------------------------------
   describe('testConnection', () => {
-    it('should return success for existing integration', async () => {
+    it('returns success for valid credentials', async () => {
       const result = await service.testConnection('int-1', 'ws-1');
-      expect(result).toEqual({
-        success: true,
-        message: 'Connection successful',
-      });
-      expect(mockRepository.findOne).toHaveBeenCalledWith({
-        where: { id: 'int-1', workspaceId: 'ws-1' },
-      });
+      expect(result.success).toBe(true);
     });
 
-    it('should throw NotFoundException for non-existent integration', async () => {
-      mockRepository.findOne.mockResolvedValue(null);
-
-      await expect(
-        service.testConnection('non-existent', 'ws-1'),
-      ).rejects.toThrow(NotFoundException);
+    it('throws NotFoundException for missing integration', async () => {
+      integrationRepo.findOne.mockResolvedValue(null);
+      await expect(service.testConnection('missing', 'ws-1')).rejects.toThrow(
+        NotFoundException,
+      );
     });
   });
 
+  // -----------------------------------------------------------------
+  // reauthorize
+  // -----------------------------------------------------------------
   describe('reauthorize', () => {
-    it('should throw BadRequestException when OAuth client ID is missing', async () => {
-      delete process.env.SLACK_CLIENT_ID;
-
-      await expect(service.reauthorize('int-1', 'ws-1')).rejects.toThrow(
-        BadRequestException,
+    it('delegates to OAuth service for OAuth integrations', async () => {
+      const result = await service.reauthorize('int-1', 'ws-1', 'user-1');
+      expect(result.authUrl).toBe('https://example.com');
+      expect(oauthServiceMock.begin).toHaveBeenCalledWith(
+        expect.objectContaining({
+          service: 'slack',
+          mode: 'reauthorize',
+          integrationId: 'int-1',
+        }),
       );
     });
 
-    it('should return auth URL when OAuth client ID is set', async () => {
-      process.env.SLACK_CLIENT_ID = 'test-client-id';
-
-      const result = await service.reauthorize('int-1', 'ws-1');
-      expect(result.authUrl).toContain('client_id=test-client-id');
-      expect(result.state).toHaveLength(32); // 16 bytes hex
-
-      delete process.env.SLACK_CLIENT_ID;
-    });
-
-    it('should reset status for non-OAuth integrations', async () => {
-      mockRepository.findOne.mockResolvedValue({
-        ...mockIntegration,
-        serviceType: 'http',
-        status: 'error',
-      });
-
-      const result = await service.reauthorize('int-1', 'ws-1');
+    it('resets status for non-OAuth integrations', async () => {
+      integrationRepo.findOne.mockResolvedValue(
+        makeIntegration({
+          serviceType: 'http',
+          authType: 'api_key',
+          status: 'error',
+          statusReason: 'auth_failed',
+        }),
+      );
+      const result = await service.reauthorize('int-1', 'ws-1', 'user-1');
       expect(result).toEqual({ authUrl: '', state: '' });
-      expect(mockRepository.save).toHaveBeenCalledWith(
-        expect.objectContaining({ status: 'connected' }),
+      expect(integrationRepo.save).toHaveBeenCalledWith(
+        expect.objectContaining({ status: 'connected', statusReason: null }),
       );
+    });
+  });
+
+  // -----------------------------------------------------------------
+  // remove / usage-block
+  // -----------------------------------------------------------------
+  describe('remove', () => {
+    it('deletes when no usages exist', async () => {
+      await service.remove('int-1', 'ws-1', 'user-1');
+      expect(integrationRepo.remove).toHaveBeenCalled();
+      expect(auditLogsService.record).toHaveBeenCalledWith(
+        expect.objectContaining({ action: 'integration.deleted' }),
+      );
+    });
+
+    it('throws ConflictException when usages exist', async () => {
+      nodeRepo.createQueryBuilder.mockReturnValue(
+        makeQueryBuilder({
+          raw: [
+            {
+              node_id: 'n1',
+              node_label: 'Send Slack',
+              node_type: 'slack-send',
+              workflow_id: 'w1',
+              workflow_name: 'Workflow A',
+              is_active: true,
+            },
+          ],
+        }),
+      );
+      await expect(service.remove('int-1', 'ws-1', 'user-1')).rejects.toThrow(
+        ConflictException,
+      );
+      expect(integrationRepo.remove).not.toHaveBeenCalled();
+    });
+  });
+
+  // -----------------------------------------------------------------
+  // getUsages
+  // -----------------------------------------------------------------
+  describe('getUsages', () => {
+    it('groups rows by workflow', async () => {
+      nodeRepo.createQueryBuilder.mockReturnValue(
+        makeQueryBuilder({
+          raw: [
+            {
+              node_id: 'n1',
+              node_label: 'Send',
+              node_type: 'slack-send',
+              workflow_id: 'w1',
+              workflow_name: 'Workflow A',
+              is_active: true,
+            },
+            {
+              node_id: 'n2',
+              node_label: 'Lookup',
+              node_type: 'slack-user',
+              workflow_id: 'w1',
+              workflow_name: 'Workflow A',
+              is_active: true,
+            },
+            {
+              node_id: 'n3',
+              node_label: 'Notify',
+              node_type: 'slack-send',
+              workflow_id: 'w2',
+              workflow_name: 'Workflow B',
+              is_active: false,
+            },
+          ],
+        }),
+      );
+      const usages = await service.getUsages('int-1', 'ws-1');
+      expect(usages).toHaveLength(2);
+      expect(usages[0].nodes).toHaveLength(2);
+      expect(usages[1].isActive).toBe(false);
+    });
+  });
+
+  // -----------------------------------------------------------------
+  // rotate
+  // -----------------------------------------------------------------
+  describe('rotate', () => {
+    beforeEach(() => {
+      integrationRepo.findOne.mockResolvedValue(
+        makeIntegration({
+          serviceType: 'http',
+          authType: 'api_key',
+          credentials: {
+            location: 'header',
+            key_name: 'X-Api-Key',
+            value: 'old-secret',
+          },
+        }),
+      );
+    });
+
+    it('rejects OAuth rotation', async () => {
+      integrationRepo.findOne.mockResolvedValue(makeIntegration());
+      await expect(
+        service.rotate('int-1', 'ws-1', 'user-1', 'member', {
+          credentials: { access_token: 'new' },
+        }),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('merges credentials and marks rotated on success', async () => {
+      const result = await service.rotate('int-1', 'ws-1', 'user-1', 'member', {
+        credentials: { value: 'new-secret' },
+      });
+      expect(result.credentials.value).toBe('********');
+      expect(integrationRepo.save).toHaveBeenCalledWith(
+        expect.objectContaining({
+          lastRotatedAt: expect.any(Date),
+          status: 'connected',
+          statusReason: null,
+        }),
+      );
+      expect(auditLogsService.record).toHaveBeenCalledWith(
+        expect.objectContaining({ action: 'integration.rotated' }),
+      );
+    });
+
+    it('rejects org-scope rotation for non-admin', async () => {
+      integrationRepo.findOne.mockResolvedValue(
+        makeIntegration({
+          serviceType: 'http',
+          authType: 'api_key',
+          scope: 'organization',
+          credentials: {
+            location: 'header',
+            key_name: 'X-Api-Key',
+            value: 'v',
+          },
+        }),
+      );
+      await expect(
+        service.rotate('int-1', 'ws-1', 'user-1', 'member', {
+          credentials: { value: 'v2' },
+        }),
+      ).rejects.toThrow(ForbiddenException);
+    });
+  });
+
+  // -----------------------------------------------------------------
+  // requestScopes
+  // -----------------------------------------------------------------
+  describe('requestScopes', () => {
+    it('merges existing + new scopes and delegates to OAuth service', async () => {
+      await service.requestScopes('int-1', 'ws-1', 'user-1', 'member', {
+        scopes: ['files:write'],
+      });
+      expect(oauthServiceMock.begin).toHaveBeenCalledWith(
+        expect.objectContaining({
+          service: 'slack',
+          mode: 'request_scopes',
+          integrationId: 'int-1',
+          scopes: expect.arrayContaining(['chat:write', 'files:write']),
+        }),
+      );
+    });
+
+    it('rejects non-OAuth services', async () => {
+      integrationRepo.findOne.mockResolvedValue(
+        makeIntegration({
+          serviceType: 'http',
+          authType: 'api_key',
+          credentials: { location: 'header', key_name: 'X', value: 'v' },
+        }),
+      );
+      await expect(
+        service.requestScopes('int-1', 'ws-1', 'user-1', 'member', {
+          scopes: ['x'],
+        }),
+      ).rejects.toThrow(BadRequestException);
+    });
+  });
+
+  // -----------------------------------------------------------------
+  // updateScope
+  // -----------------------------------------------------------------
+  describe('updateScope', () => {
+    it('requires admin role', async () => {
+      await expect(
+        service.updateScope('int-1', 'ws-1', 'user-1', 'member', {
+          scope: 'organization',
+        }),
+      ).rejects.toThrow(ForbiddenException);
+    });
+
+    it('allows admin to change scope', async () => {
+      const result = await service.updateScope(
+        'int-1',
+        'ws-1',
+        'user-1',
+        'owner',
+        { scope: 'organization' },
+      );
+      expect(result.scope).toBe('organization');
+      expect(auditLogsService.record).toHaveBeenCalledWith(
+        expect.objectContaining({ action: 'integration.scope_changed' }),
+      );
+    });
+  });
+
+  // -----------------------------------------------------------------
+  // create
+  // -----------------------------------------------------------------
+  describe('create', () => {
+    it('rejects organization scope for non-admin', async () => {
+      await expect(
+        service.create('ws-1', 'user-1', 'member', {
+          serviceType: 'http',
+          authType: 'api_key',
+          name: 'My API',
+          scope: 'organization',
+          credentials: { location: 'header', key_name: 'X', value: 'v' },
+        }),
+      ).rejects.toThrow(ForbiddenException);
+    });
+
+    it('validates credentials against schema', async () => {
+      await expect(
+        service.create('ws-1', 'user-1', 'member', {
+          serviceType: 'http',
+          authType: 'api_key',
+          name: 'My API',
+          credentials: { location: 'header' },
+        }),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('persists valid integration', async () => {
+      const result = await service.create('ws-1', 'user-1', 'member', {
+        serviceType: 'http',
+        authType: 'api_key',
+        name: 'My API',
+        credentials: {
+          location: 'header',
+          key_name: 'X-Api-Key',
+          value: 'secret',
+        },
+      });
+      expect(result.name).toBe('My API');
+      expect(result.credentials.value).toBe('********');
+      expect(auditLogsService.record).toHaveBeenCalledWith(
+        expect.objectContaining({ action: 'integration.created' }),
+      );
+    });
+  });
+
+  // -----------------------------------------------------------------
+  // findAll — filter translation
+  // -----------------------------------------------------------------
+  describe('findAll', () => {
+    it('applies q/scope/serviceType/status filters to query builder', async () => {
+      const qb = makeQueryBuilder({ count: 0, many: [] });
+      integrationRepo.createQueryBuilder.mockReturnValue(qb);
+      await service.findAll('ws-1', {
+        q: 'slack',
+        scope: 'organization',
+        serviceType: ['slack', 'google'],
+        status: 'expiring',
+      });
+      const sql = qb.andWhere.mock.calls.map((c) => c[0]).join(' | ');
+      expect(sql).toContain('i.name ILIKE');
+      expect(sql).toContain('i.scope');
+      expect(sql).toContain('service_type IN');
+      expect(sql).toContain('status');
+    });
+
+    it('ignores empty serviceType array', async () => {
+      const qb = makeQueryBuilder({ count: 0, many: [] });
+      integrationRepo.createQueryBuilder.mockReturnValue(qb);
+      await service.findAll('ws-1', { serviceType: [] });
+      const sql = qb.andWhere.mock.calls.map((c) => c[0]).join(' | ');
+      expect(sql).not.toContain('service_type IN');
+    });
+  });
+
+  // -----------------------------------------------------------------
+  // previewTest
+  // -----------------------------------------------------------------
+  describe('previewTest', () => {
+    it('returns success for valid credentials', async () => {
+      const result = await service.previewTest({
+        serviceType: 'http',
+        authType: 'api_key',
+        credentials: {
+          location: 'header',
+          key_name: 'X',
+          value: 'v',
+        },
+      });
+      expect(result.success).toBe(true);
+    });
+
+    it('returns failure for invalid credentials', async () => {
+      const result = await service.previewTest({
+        serviceType: 'http',
+        authType: 'api_key',
+        credentials: { location: 'header' },
+      });
+      expect(result.success).toBe(false);
+      expect(result.message).toContain('required');
+    });
+  });
+
+  // -----------------------------------------------------------------
+  // getActivity — clamping & summary
+  // -----------------------------------------------------------------
+  describe('getActivity', () => {
+    it('clamps limit to [1,100] and days to [1,30]', async () => {
+      const itemsQb = makeQueryBuilder({ many: [], raw: [] });
+      const summaryQb = makeQueryBuilder({ many: [], raw: [] });
+      let call = 0;
+      usageLogRepo.createQueryBuilder.mockImplementation(() =>
+        call++ === 0 ? itemsQb : summaryQb,
+      );
+      const result = await service.getActivity('int-1', 'ws-1', 9999, 9999);
+      expect(itemsQb.limit).toHaveBeenCalledWith(100);
+      expect(result.summary.successRate).toBe(1);
+    });
+
+    it('computes summary from raw rows', async () => {
+      const itemsQb = makeQueryBuilder({ many: [] });
+      const summaryQb = makeQueryBuilder({
+        raw: [
+          { day: '2026-04-10', total: '10', failed: '2' },
+          { day: '2026-04-11', total: '5', failed: '0' },
+        ],
+      });
+      let call = 0;
+      usageLogRepo.createQueryBuilder.mockImplementation(() =>
+        call++ === 0 ? itemsQb : summaryQb,
+      );
+      const result = await service.getActivity('int-1', 'ws-1', 20, 7);
+      expect(result.summary.totalCalls).toBe(15);
+      expect(result.summary.successRate).toBeCloseTo(13 / 15);
+      expect(result.summary.dailyCounts).toHaveLength(2);
+    });
+  });
+
+  // -----------------------------------------------------------------
+  // logUsage
+  // -----------------------------------------------------------------
+  describe('logUsage', () => {
+    it('records success row and updates lastUsedAt', async () => {
+      integrationRepo.findOne.mockResolvedValue(makeIntegration());
+      await service.logUsage({
+        integrationId: 'int-1',
+        nodeExecutionId: 'nex-1',
+        workflowId: 'wf-1',
+        status: 'success',
+        durationMs: 120,
+      });
+      expect(usageLogRepo.save).toHaveBeenCalled();
+      expect(integrationRepo.save).toHaveBeenCalledWith(
+        expect.objectContaining({ lastUsedAt: expect.any(Date) }),
+      );
+    });
+
+    it('records lastError on failure', async () => {
+      integrationRepo.findOne.mockResolvedValue(makeIntegration());
+      await service.logUsage({
+        integrationId: 'int-1',
+        nodeExecutionId: 'nex-1',
+        workflowId: 'wf-1',
+        status: 'failed',
+        durationMs: 800,
+        error: { code: 'auth_failed', message: '401' },
+      });
+      expect(integrationRepo.save).toHaveBeenCalledWith(
+        expect.objectContaining({
+          lastError: expect.objectContaining({ code: 'auth_failed' }),
+        }),
+      );
+    });
+
+    it('swallows DB failure (non-blocking)', async () => {
+      usageLogRepo.save.mockRejectedValue(new Error('boom'));
+      await expect(
+        service.logUsage({
+          integrationId: 'int-1',
+          nodeExecutionId: 'nex-1',
+          workflowId: 'wf-1',
+          status: 'success',
+          durationMs: 1,
+        }),
+      ).resolves.toBeUndefined();
     });
   });
 });
