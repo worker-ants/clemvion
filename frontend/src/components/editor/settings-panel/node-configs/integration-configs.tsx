@@ -1,5 +1,6 @@
 import { SelectField, NumberField, CheckboxField, KeyValueEditor } from "./shared";
 import { ExpressionInput } from "@/components/editor/expression";
+import { IntegrationSelector } from "./integration-selector";
 
 type Config = Record<string, unknown>;
 type OnChange = (config: Config) => void;
@@ -108,11 +109,12 @@ export function HttpRequestConfig({ config, onChange }: { config: Config; onChan
 export function DatabaseQueryConfig({ config, onChange }: { config: Config; onChange: OnChange }) {
   return (
     <div className="flex flex-col gap-3">
-      <ExpressionInput
-        label="Integration ID"
+      <IntegrationSelector
+        label="Integration"
         value={(config.integrationId as string) ?? ""}
         onChange={(v) => onChange({ ...config, integrationId: v })}
-        placeholder="Database integration UUID"
+        serviceTypes={["database"]}
+        serviceDisplayName="Database"
       />
       <SelectField
         label="Query Type"
@@ -156,11 +158,12 @@ export function SlackConfig({ config, onChange }: { config: Config; onChange: On
 
   return (
     <div className="flex flex-col gap-3">
-      <ExpressionInput
-        label="Integration ID"
+      <IntegrationSelector
+        label="Integration"
         value={(config.integrationId as string) ?? ""}
         onChange={(v) => onChange({ ...config, integrationId: v })}
-        placeholder="Slack integration UUID"
+        serviceTypes={["slack"]}
+        serviceDisplayName="Slack"
       />
       <SelectField
         label="Action"
@@ -220,24 +223,26 @@ export function SlackConfig({ config, onChange }: { config: Config; onChange: On
 export function SendEmailConfig({ config, onChange }: { config: Config; onChange: OnChange }) {
   return (
     <div className="flex flex-col gap-3">
-      <ExpressionInput
-        label="Integration ID"
+      <IntegrationSelector
+        label="Integration"
         value={(config.integrationId as string) ?? ""}
         onChange={(v) => onChange({ ...config, integrationId: v })}
-        placeholder="SMTP integration UUID"
+        serviceTypes={["email"]}
+        serviceDisplayName="Email"
       />
       <ExpressionInput
         label="To"
         value={(config.to as string) ?? ""}
         onChange={(v) => onChange({ ...config, to: v })}
-        placeholder="recipient@example.com"
-        hint="Comma-separated or expression"
+        placeholder="recipient@example.com, other@example.com"
+        hint="Comma-separated addresses, or an expression that resolves to a string or array"
       />
       <ExpressionInput
         label="CC"
         value={(config.cc as string) ?? ""}
         onChange={(v) => onChange({ ...config, cc: v })}
         placeholder="cc@example.com"
+        hint="Optional. Same format as To."
       />
       <ExpressionInput
         label="Subject"

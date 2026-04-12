@@ -8,6 +8,29 @@ export const apiClient = axios.create({
   headers: {
     "Content-Type": "application/json",
   },
+  // Serialize array params as repeated keys (`?foo=a&foo=b`) instead of axios
+  // v1's default bracket form (`?foo[]=a&foo[]=b`). Express's default query
+  // parser ("simple" / Node `querystring`) only recognizes the repeated form,
+  // and our global ValidationPipe runs with `forbidNonWhitelisted: true`,
+  // which would reject the bracketed key name.
+  paramsSerializer: {
+    serialize: (params) => {
+      const search = new URLSearchParams();
+      for (const [key, value] of Object.entries(params)) {
+        if (value === undefined || value === null) continue;
+        if (Array.isArray(value)) {
+          for (const entry of value) {
+            if (entry !== undefined && entry !== null) {
+              search.append(key, String(entry));
+            }
+          }
+        } else {
+          search.append(key, String(value));
+        }
+      }
+      return search.toString();
+    },
+  },
 });
 
 // Access token stored in memory (not localStorage/sessionStorage for security)
