@@ -132,9 +132,9 @@ describe('FilterHandler', () => {
         },
       );
 
-      expect(result.match).toHaveLength(3);
-      expect(result.unmatched).toHaveLength(1);
-      expect(result.unmatched[0]).toEqual(items[1]);
+      expect(result.output.match).toHaveLength(3);
+      expect(result.output.unmatched).toHaveLength(1);
+      expect(result.output.unmatched[0]).toMatchObject(items[1]);
     });
 
     it('should filter items by gt condition', async () => {
@@ -147,9 +147,9 @@ describe('FilterHandler', () => {
         },
       );
 
-      expect(result.match).toHaveLength(2);
-      expect(result.match).toEqual([items[0], items[2]]);
-      expect(result.unmatched).toHaveLength(2);
+      expect(result.output.match).toHaveLength(2);
+      expect(result.output.match).toMatchObject([items[0], items[2]]);
+      expect(result.output.unmatched).toHaveLength(2);
     });
 
     it('should combine conditions with AND mode', async () => {
@@ -165,8 +165,8 @@ describe('FilterHandler', () => {
         },
       );
 
-      expect(result.match).toHaveLength(2);
-      expect(result.match).toEqual([items[0], items[2]]);
+      expect(result.output.match).toHaveLength(2);
+      expect(result.output.match).toMatchObject([items[0], items[2]]);
     });
 
     it('should combine conditions with OR mode', async () => {
@@ -182,8 +182,8 @@ describe('FilterHandler', () => {
         },
       );
 
-      expect(result.match).toHaveLength(2);
-      expect(result.match).toEqual([items[0], items[1]]);
+      expect(result.output.match).toHaveLength(2);
+      expect(result.output.match).toMatchObject([items[0], items[1]]);
     });
 
     it('should default combineMode to "and"', async () => {
@@ -198,8 +198,8 @@ describe('FilterHandler', () => {
         },
       );
 
-      expect(result.match).toHaveLength(2);
-      expect(result.match).toEqual([items[0], items[2]]);
+      expect(result.output.match).toHaveLength(2);
+      expect(result.output.match).toMatchObject([items[0], items[2]]);
     });
 
     it('should throw error for non-array input', async () => {
@@ -238,8 +238,8 @@ describe('FilterHandler', () => {
         },
       );
 
-      expect(result.match).toHaveLength(0);
-      expect(result.unmatched).toHaveLength(0);
+      expect(result.output.match).toHaveLength(0);
+      expect(result.output.unmatched).toHaveLength(0);
     });
 
     it('should handle nested field access', async () => {
@@ -260,8 +260,8 @@ describe('FilterHandler', () => {
         },
       );
 
-      expect(result.match).toHaveLength(2);
-      expect(result.unmatched).toHaveLength(1);
+      expect(result.output.match).toHaveLength(2);
+      expect(result.output.unmatched).toHaveLength(1);
     });
 
     it('should handle neq operator', async () => {
@@ -274,8 +274,8 @@ describe('FilterHandler', () => {
         },
       );
 
-      expect(result.match).toHaveLength(1);
-      expect(result.match[0]).toEqual(items[1]);
+      expect(result.output.match).toHaveLength(1);
+      expect(result.output.match[0]).toMatchObject(items[1]);
     });
 
     it('should handle lt operator', async () => {
@@ -288,8 +288,8 @@ describe('FilterHandler', () => {
         },
       );
 
-      expect(result.match).toHaveLength(2);
-      expect(result.match).toEqual([items[1], items[3]]);
+      expect(result.output.match).toHaveLength(2);
+      expect(result.output.match).toMatchObject([items[1], items[3]]);
     });
 
     it('should handle lte operator', async () => {
@@ -302,8 +302,8 @@ describe('FilterHandler', () => {
         },
       );
 
-      expect(result.match).toHaveLength(2);
-      expect(result.match).toEqual([items[1], items[3]]);
+      expect(result.output.match).toHaveLength(2);
+      expect(result.output.match).toMatchObject([items[1], items[3]]);
     });
 
     it('should handle contains operator', async () => {
@@ -316,7 +316,7 @@ describe('FilterHandler', () => {
         },
       );
 
-      expect(result.match).toHaveLength(2); // Alice, Charlie
+      expect(result.output.match).toHaveLength(2); // Alice, Charlie
     });
 
     it('should handle not_contains operator', async () => {
@@ -331,7 +331,7 @@ describe('FilterHandler', () => {
         },
       );
 
-      expect(result.match).toHaveLength(2); // Bob, Diana
+      expect(result.output.match).toHaveLength(2); // Bob, Diana
     });
 
     it('should return false for not_contains when field is non-string', async () => {
@@ -349,7 +349,7 @@ describe('FilterHandler', () => {
       );
 
       // 42 is non-string → false (symmetric with contains), "hello world" contains "hello" → false
-      expect(result.match).toHaveLength(0);
+      expect(result.output.match).toHaveLength(0);
     });
 
     it('should handle starts_with operator', async () => {
@@ -362,8 +362,8 @@ describe('FilterHandler', () => {
         },
       );
 
-      expect(result.match).toHaveLength(1);
-      expect(result.match[0]).toEqual(items[0]);
+      expect(result.output.match).toHaveLength(1);
+      expect(result.output.match[0]).toMatchObject(items[0]);
     });
 
     it('should handle ends_with operator', async () => {
@@ -376,8 +376,8 @@ describe('FilterHandler', () => {
         },
       );
 
-      expect(result.match).toHaveLength(1);
-      expect(result.match[0]).toEqual(items[3]); // Diana
+      expect(result.output.match).toHaveLength(1);
+      expect(result.output.match[0]).toMatchObject(items[3]); // Diana
     });
 
     it('should handle is_empty operator', async () => {
@@ -396,7 +396,7 @@ describe('FilterHandler', () => {
         },
       );
 
-      expect(result.match).toHaveLength(2); // Alice (empty array), Charlie (null)
+      expect(result.output.match).toHaveLength(2); // Alice (empty array), Charlie (null)
     });
 
     it('should handle is_empty with empty string', async () => {
@@ -411,8 +411,8 @@ describe('FilterHandler', () => {
         },
       );
 
-      expect(result.match).toHaveLength(1);
-      expect(result.match[0]).toEqual({ name: '' });
+      expect(result.output.match).toHaveLength(1);
+      expect(result.output.match[0]).toMatchObject({ name: '' });
     });
 
     it('should handle is_not_empty operator', async () => {
@@ -433,8 +433,8 @@ describe('FilterHandler', () => {
         },
       );
 
-      expect(result.match).toHaveLength(1);
-      expect(result.match[0]).toEqual(testItems[1]);
+      expect(result.output.match).toHaveLength(1);
+      expect(result.output.match[0]).toMatchObject(testItems[1]);
     });
 
     it('should handle is_null operator', async () => {
@@ -453,7 +453,7 @@ describe('FilterHandler', () => {
         },
       );
 
-      expect(result.match).toHaveLength(2); // Bob (null), Charlie (undefined)
+      expect(result.output.match).toHaveLength(2); // Bob (null), Charlie (undefined)
     });
 
     it('should handle regex operator', async () => {
@@ -466,8 +466,8 @@ describe('FilterHandler', () => {
         },
       );
 
-      expect(result.match).toHaveLength(3); // Alice, Bob, Charlie
-      expect(result.unmatched).toHaveLength(1); // Diana
+      expect(result.output.match).toHaveLength(3); // Alice, Bob, Charlie
+      expect(result.output.unmatched).toHaveLength(1); // Diana
     });
 
     it('should handle invalid regex gracefully', async () => {
@@ -480,8 +480,8 @@ describe('FilterHandler', () => {
         },
       );
 
-      expect(result.match).toHaveLength(0);
-      expect(result.unmatched).toHaveLength(1);
+      expect(result.output.match).toHaveLength(0);
+      expect(result.output.unmatched).toHaveLength(1);
     });
 
     it('should reject regex patterns exceeding max length', async () => {
@@ -497,8 +497,8 @@ describe('FilterHandler', () => {
         },
       );
 
-      expect(result.match).toHaveLength(0);
-      expect(result.unmatched).toHaveLength(1);
+      expect(result.output.match).toHaveLength(0);
+      expect(result.output.unmatched).toHaveLength(1);
     });
 
     it('should handle is_type operator with string', async () => {
@@ -515,8 +515,8 @@ describe('FilterHandler', () => {
         },
       );
 
-      expect(result.match).toHaveLength(1);
-      expect(result.match[0]).toEqual(testItems[0]);
+      expect(result.output.match).toHaveLength(1);
+      expect(result.output.match[0]).toMatchObject(testItems[0]);
     });
 
     it('should handle is_type operator with number', async () => {
@@ -533,8 +533,8 @@ describe('FilterHandler', () => {
         },
       );
 
-      expect(result.match).toHaveLength(1);
-      expect(result.match[0]).toEqual({ value: 42 });
+      expect(result.output.match).toHaveLength(1);
+      expect(result.output.match[0]).toMatchObject({ value: 42 });
     });
 
     it('should handle is_type operator with boolean', async () => {
@@ -551,8 +551,8 @@ describe('FilterHandler', () => {
         },
       );
 
-      expect(result.match).toHaveLength(1);
-      expect(result.match[0]).toEqual({ value: true });
+      expect(result.output.match).toHaveLength(1);
+      expect(result.output.match[0]).toMatchObject({ value: true });
     });
 
     it('should handle is_type operator with array', async () => {
@@ -571,7 +571,7 @@ describe('FilterHandler', () => {
         },
       );
 
-      expect(result.match).toHaveLength(2);
+      expect(result.output.match).toHaveLength(2);
     });
 
     it('should handle is_type operator with null', async () => {
@@ -590,7 +590,7 @@ describe('FilterHandler', () => {
         },
       );
 
-      expect(result.match).toHaveLength(2); // null and undefined
+      expect(result.output.match).toHaveLength(2); // null and undefined
     });
 
     it('should reject invalid is_type values', async () => {
@@ -607,7 +607,7 @@ describe('FilterHandler', () => {
         },
       );
 
-      expect(result.match).toHaveLength(0); // "function" not in whitelist
+      expect(result.output.match).toHaveLength(0); // "function" not in whitelist
     });
 
     it('should handle strictComparison mode', async () => {
@@ -624,7 +624,7 @@ describe('FilterHandler', () => {
         },
       );
 
-      expect(looseResult.match).toHaveLength(2); // 1 and "1"
+      expect(looseResult.output.match).toHaveLength(2); // 1 and "1"
 
       // Strict: "1" === 1 is false
       const strictResult = await execFilter(
@@ -637,8 +637,8 @@ describe('FilterHandler', () => {
         },
       );
 
-      expect(strictResult.match).toHaveLength(1);
-      expect(strictResult.match[0]).toEqual({ value: 1 });
+      expect(strictResult.output.match).toHaveLength(1);
+      expect(strictResult.output.match[0]).toMatchObject({ value: 1 });
     });
 
     it('should handle strictComparison with neq', async () => {
@@ -655,7 +655,7 @@ describe('FilterHandler', () => {
         },
       );
 
-      expect(result.match).toHaveLength(2); // "1" and 2
+      expect(result.output.match).toHaveLength(2); // "1" and 2
     });
 
     it('should handle all items matching', async () => {
@@ -670,8 +670,8 @@ describe('FilterHandler', () => {
         },
       );
 
-      expect(result.match).toHaveLength(4);
-      expect(result.unmatched).toHaveLength(0);
+      expect(result.output.match).toHaveLength(4);
+      expect(result.output.unmatched).toHaveLength(0);
     });
 
     it('should handle no items matching', async () => {
@@ -684,8 +684,8 @@ describe('FilterHandler', () => {
         },
       );
 
-      expect(result.match).toHaveLength(0);
-      expect(result.unmatched).toHaveLength(4);
+      expect(result.output.match).toHaveLength(0);
+      expect(result.output.unmatched).toHaveLength(4);
     });
 
     it('should handle numeric comparison with non-numeric values as NaN', async () => {
@@ -701,8 +701,8 @@ describe('FilterHandler', () => {
       );
 
       // NaN > 5 is false, so only score: 10 matches
-      expect(result.match).toHaveLength(1);
-      expect(result.match[0]).toEqual({ score: 10 });
+      expect(result.output.match).toHaveLength(1);
+      expect(result.output.match[0]).toMatchObject({ score: 10 });
     });
   });
 });

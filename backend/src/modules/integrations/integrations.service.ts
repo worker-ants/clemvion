@@ -683,10 +683,7 @@ export class IntegrationsService {
    * Credentials on the returned object are NOT masked — callers must treat
    * the result as secret material and avoid logging it.
    */
-  async getForExecution(
-    id: string,
-    workspaceId: string,
-  ): Promise<Integration> {
+  async getForExecution(id: string, workspaceId: string): Promise<Integration> {
     return this.requireEntity(id, workspaceId);
   }
 

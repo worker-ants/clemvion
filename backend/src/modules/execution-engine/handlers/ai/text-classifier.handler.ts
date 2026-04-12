@@ -116,18 +116,19 @@ Respond ONLY with the JSON object, no additional text.`;
     const port = portIndex >= 0 ? `class_${portIndex}` : 'fallback';
 
     return {
-      port,
-      data: {
+      config: { categories, inputField },
+      output: {
         category,
         confidence,
         originalInput: inputField,
-        metadata: {
-          model: result.model,
-          inputTokens: result.usage?.inputTokens ?? 0,
-          outputTokens: result.usage?.outputTokens ?? 0,
-          totalTokens: result.usage?.totalTokens ?? 0,
-        },
       },
+      meta: {
+        model: result.model,
+        inputTokens: result.usage?.inputTokens ?? 0,
+        outputTokens: result.usage?.outputTokens ?? 0,
+        totalTokens: result.usage?.totalTokens ?? 0,
+      },
+      port,
     };
   }
 }

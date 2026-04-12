@@ -29,10 +29,12 @@ function ctx(): ExecutionContext {
   };
 }
 
-function makeService(overrides: {
-  integration?: unknown;
-  logUsage?: jest.Mock;
-} = {}) {
+function makeService(
+  overrides: {
+    integration?: unknown;
+    logUsage?: jest.Mock;
+  } = {},
+) {
   const logUsage = overrides.logUsage ?? jest.fn().mockResolvedValue(undefined);
   const integration = overrides.integration ?? {
     id: 'int-1',
@@ -65,7 +67,7 @@ describe('DatabaseQueryHandler', () => {
     releaseMock.mockReset();
     endMock.mockReset().mockResolvedValue(undefined);
     onMock.mockReset();
-    (jest.requireMock('pg') as { Pool: jest.Mock }).Pool.mockClear();
+    jest.requireMock('pg').Pool.mockClear();
   });
 
   describe('validate', () => {
@@ -136,9 +138,14 @@ describe('DatabaseQueryHandler', () => {
           parameters: [18],
         },
         ctx(),
-      )) as { rows: unknown[]; rowCount: number; status: string };
-      expect(out.rowCount).toBe(2);
-      expect(out.status).toBe('ok');
+      )) as {
+        config: { query: string };
+        output: { rows: unknown[]; rowCount: number };
+        meta: { durationMs: number };
+      };
+      expect(out.output.rowCount).toBe(2);
+      expect(out.config.query).toBe('SELECT id FROM users WHERE age > $1');
+      expect(out.meta.durationMs).toBeGreaterThanOrEqual(0);
       expect(queryMock).toHaveBeenCalledWith(
         'SELECT id FROM users WHERE age > $1',
         [18],
@@ -158,7 +165,7 @@ describe('DatabaseQueryHandler', () => {
       await handler.execute(null, config, ctx());
       await handler.execute(null, config, ctx());
       // Pool constructor called once; connect/release called twice.
-      const pg = jest.requireMock('pg') as { Pool: jest.Mock };
+      const pg = jest.requireMock('pg');
       expect(pg.Pool).toHaveBeenCalledTimes(1);
       expect(connectMock).toHaveBeenCalledTimes(2);
       expect(releaseMock).toHaveBeenCalledTimes(2);
@@ -277,8 +284,8 @@ describe('DatabaseQueryHandler', () => {
         null,
         { integrationId: 'int-1', query: 'SELECT 1' },
         ctx(),
-      )) as { message: string };
-      expect(out.message).toMatch(/requires integration/);
+      )) as { output: { message: string } };
+      expect(out.output.message).toMatch(/requires integration/);
     });
   });
 });

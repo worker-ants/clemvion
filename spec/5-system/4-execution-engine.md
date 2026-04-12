@@ -271,19 +271,89 @@ $loop.count = 10              $item.index = 1
 
 모든 노드 유형은 공통 핸들러 인터페이스를 구현한다.
 
-```
+```ts
 interface NodeHandler {
-  validate(config: JSON) → ValidationResult
-  execute(input: JSON, config: JSON, context: ExecutionContext) → JSON
+  validate(config: Record<string, unknown>): ValidationResult;
+  execute(
+    input: unknown,
+    config: Record<string, unknown>,
+    context: ExecutionContext,
+  ): Promise<NodeHandlerOutput>;
+}
+
+interface NodeHandlerOutput {
+  /** 해석 완료된 입력 설정(echo). 민감 정보(credential 본체)는 포함하지 않는다. */
+  config: Record<string, unknown>;
+
+  /** 실제 생산된 결과값 — 배열/객체/primitive 모두 허용. */
+  output: unknown;
+
+  /** 부가 실행 정보. durationMs, statusCode, tokensUsed 등 관측 메타데이터. */
+  meta?: Record<string, unknown>;
+
+  /** 라우팅 디렉티브. 값은 노드 정의의 출력 포트 식별자. */
+  port?: string;
+
+  /** 엔진 흐름 제어. 'waiting_for_input' | 'requires_integration' | 'requires_playwright' 등. */
+  status?: string;
 }
 ```
 
 | 메서드 | 설명 |
 |--------|------|
 | `validate(config)` | 노드 설정의 유효성 검사. 워크플로우 저장/실행 전에 호출. 에러 시 `{ valid: false, errors: [...] }` 반환 |
-| `execute(input, config, context)` | 노드 실행. 입력 데이터와 설정을 받아 처리 후 출력 데이터를 반환 |
+| `execute(input, config, context)` | 노드 실행. 입력 데이터와 해석된 설정을 받아 `NodeHandlerOutput`을 반환한다 |
 
-### 5.2 NodeHandlerRegistry
+**config vs output 원칙**
+
+- `config`는 "노드가 무엇을 하도록 설정됐는가"를 기록한다. 디버깅, 감사, downstream 표현식에서 설정값 재사용 용도.
+- `output`은 "노드가 무엇을 생산했는가"를 담는다. 다음 노드가 소비하는 주 데이터.
+- `meta`는 실행 부산물(시간, 외부 상태코드, 토큰 사용량). 비즈니스 로직이 아닌 관측 정보.
+- `port`, `status`는 엔진이 읽어 흐름을 결정하는 디렉티브 — 일반 downstream 참조는 권장하지 않는다.
+
+**민감 정보 정책**
+
+- `config`에는 `integrationId` UUID, 액션 이름, 파라미터만 echo한다.
+- credentials 객체(access_token, password, api_key, private_key 등)는 handler 내부에서만 사용하고 반환값에 포함하지 않는다.
+- AES-256-GCM으로 저장된 credential을 복호화해 외부 서비스에 전달한 뒤, 반환값을 구성할 때는 credential을 떨어뜨린다.
+
+### 5.2 `$node` Expression 네임스페이스
+
+Expression resolver는 각 노드의 `NodeHandlerOutput`을 그대로 `$node[nodeKey]`에 노출한다. Legacy `$node[key] = { output: ... }` wrapper는 제거되었다.
+
+```ts
+// expression-resolver.service.ts
+$node[resolvedKey] = executionContext.nodeOutputCache[nodeId];
+```
+
+| 표현식 | 반환 |
+|--------|------|
+| `$node["SendEmail"].output.messageId` | 메일 전송 결과 messageId |
+| `$node["SendEmail"].config.subject` | 노드가 실제 사용한 제목 (echoed config) |
+| `$node["HTTP"].meta.statusCode` | HTTP 응답 상태코드 |
+| `$node["HTTP"].output.response` | 응답 본문 |
+| `$node["IfElse"].port` | 실행 시 선택된 포트 (`'true'` / `'false'`) |
+| `$node["Form"].status` | `'waiting_for_input'` 등 엔진 디렉티브 |
+
+`nodeKey`는 노드 라벨(중복 시 `#N` suffix)과 노드 UUID 두 방식 모두 지원한다. `.output`·`.config`·`.meta`·`.port`·`.status` 외의 필드는 정의되지 않는다.
+
+### 5.3 Port Selector 패턴
+
+조건 분기 노드(`if-else`, `switch`, `text-classifier`, `http-request`, `ai-agent` 조건 라우팅)는 반환값에 `port` 필드를 함께 설정한다:
+
+```ts
+return {
+  config: { condition: '...' },
+  output: forwardedData,      // downstream으로 전달될 입력
+  port: 'true' | 'false',     // 엔진이 이 포트의 엣지만 활성화
+};
+```
+
+엔진의 `applyPortSelection(output)`은 `output.port`를 읽어 `_selectedPort`를 기록하고, downstream 노드의 input은 `output.output`이 된다.
+
+Legacy `{ port, data }` 패턴은 제거되었으며, Phase 1 이행 기간 동안 `output.data`가 있으면 `output.output`으로 자동 보정한다.
+
+### 5.4 NodeHandlerRegistry
 
 ```
 interface NodeHandlerRegistry {

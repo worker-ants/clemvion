@@ -31,20 +31,22 @@ export class SplitHandler implements NodeHandler {
       config as unknown as SplitConfig;
 
     const arrayValue = getNestedValue(input, fieldPath);
+    const baseConfig = { fieldPath, keepOtherFields };
 
     if (!Array.isArray(arrayValue)) {
-      return [];
+      return { config: baseConfig, output: [] };
     }
 
     if (!keepOtherFields) {
-      return arrayValue;
+      return { config: baseConfig, output: arrayValue };
     }
 
     const parentFields = this.getFieldsExcluding(input, fieldPath);
-    return arrayValue.map((item) => ({
+    const spread = arrayValue.map((item) => ({
       ...parentFields,
       ...(typeof item === 'object' && item !== null ? item : { value: item }),
     }));
+    return { config: baseConfig, output: spread };
   }
 
   private getFieldsExcluding(

@@ -109,9 +109,9 @@ describe('HttpRequestHandler', () => {
       };
 
       expect(result.port).toBe('success');
-      expect(result.data.response).toEqual({ data: 'test' });
-      expect(result.data.meta.statusCode).toBe(200);
-      expect(typeof result.data.meta.duration).toBe('number');
+      expect(result.output.response).toEqual({ data: 'test' });
+      expect(result.meta.statusCode).toBe(200);
+      expect(typeof result.meta.duration).toBe('number');
     });
 
     it('should return error port on non-2xx response', async () => {
@@ -134,7 +134,7 @@ describe('HttpRequestHandler', () => {
       };
 
       expect(result.port).toBe('error');
-      expect(result.data.meta.statusCode).toBe(404);
+      expect(result.meta.statusCode).toBe(404);
     });
 
     it('should return error port on network failure', async () => {
@@ -154,8 +154,8 @@ describe('HttpRequestHandler', () => {
       };
 
       expect(result.port).toBe('error');
-      expect(result.data.response.error).toBe('Network error');
-      expect(result.data.meta.statusCode).toBe(0);
+      expect(result.output.response.error).toBe('Network error');
+      expect(result.meta.statusCode).toBe(0);
     });
 
     it('should append query params to URL', async () => {
@@ -229,7 +229,7 @@ describe('HttpRequestHandler', () => {
       )) as { port: string; data: { response: unknown } };
 
       expect(result.port).toBe('success');
-      expect(result.data.response).toBe('plain text response');
+      expect(result.output.response).toBe('plain text response');
     });
   });
 
@@ -433,7 +433,9 @@ describe('HttpRequestHandler', () => {
       const { service, logUsage } = makeService('bearer_token', { token: 't' });
       global.fetch = jest
         .fn()
-        .mockRejectedValue(new Error('ECONNREFUSED')) as unknown as typeof fetch;
+        .mockRejectedValue(
+          new Error('ECONNREFUSED'),
+        ) as unknown as typeof fetch;
       const handler = new HttpRequestHandler(service as never);
       await handler.execute(
         null,

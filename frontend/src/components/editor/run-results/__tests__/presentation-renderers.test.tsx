@@ -185,4 +185,104 @@ describe("PresentationContent", () => {
       expect(screen.getByText("yes")).toBeDefined();
     });
   });
+
+  describe("Carousel global buttons (new NodeHandlerOutput shape)", () => {
+    it("renders global buttons from envelope config.buttonConfig", () => {
+      render(
+        <PresentationContent
+          result={makeResult({
+            nodeType: "carousel",
+            outputData: {
+              config: {
+                layout: "card",
+                mode: "static",
+                buttonConfig: {
+                  buttons: [
+                    { id: "approve", label: "Approve", type: "port" },
+                    { id: "reject", label: "Reject", type: "port" },
+                  ],
+                },
+              },
+              output: {
+                type: "carousel",
+                layout: "card",
+                items: [{ title: "Item 1", description: "desc" }],
+                rendered: "<div class=\"carousel\"><div>Item 1</div></div>",
+              },
+              status: "waiting_for_input",
+              meta: { interactionType: "buttons" },
+            },
+          })}
+          onPortButtonClick={() => {}}
+        />,
+      );
+
+      expect(screen.getByText("Approve")).toBeDefined();
+      expect(screen.getByText("Reject")).toBeDefined();
+    });
+
+    it("still renders buttons from legacy flat data.buttonConfig", () => {
+      render(
+        <PresentationContent
+          result={makeResult({
+            nodeType: "carousel",
+            outputData: {
+              type: "carousel",
+              layout: "card",
+              items: [{ title: "Item 1" }],
+              rendered: "<div class=\"carousel\"><div>Item 1</div></div>",
+              buttonConfig: {
+                buttons: [{ id: "ok", label: "OK", type: "port" }],
+              },
+            },
+          })}
+          onPortButtonClick={() => {}}
+        />,
+      );
+
+      expect(screen.getByText("OK")).toBeDefined();
+    });
+
+    it("renders items and highlights selected button on structured resume shape", () => {
+      render(
+        <PresentationContent
+          result={makeResult({
+            nodeType: "carousel",
+            status: "completed",
+            outputData: {
+              config: {
+                layout: "card",
+                buttonConfig: {
+                  buttons: [
+                    { id: "approve", label: "Approve", type: "port" },
+                    { id: "reject", label: "Reject", type: "port" },
+                  ],
+                },
+              },
+              output: {
+                interaction: {
+                  interactionType: "button_click",
+                  buttonId: "approve",
+                },
+                previousOutput: {
+                  type: "carousel",
+                  layout: "card",
+                  items: [{ title: "Item 1", description: "desc" }],
+                  rendered:
+                    "<div class=\"carousel\"><div>Item 1</div></div>",
+                },
+              },
+              status: "button_click",
+            },
+          })}
+        />,
+      );
+
+      expect(screen.getByText("Item 1")).toBeDefined();
+      const approve = screen.getByText("Approve").closest("button");
+      expect(approve).not.toBeNull();
+      // Selected button carries primary-color classes in the renderer's styling.
+      expect(approve?.className).toContain("bg-[hsl(var(--primary))]");
+    });
+  });
 });

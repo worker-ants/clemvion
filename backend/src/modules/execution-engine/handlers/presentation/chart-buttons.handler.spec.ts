@@ -48,10 +48,10 @@ describe('ChartHandler - Buttons', () => {
         context,
       )) as Record<string, unknown>;
 
-      expect(result.type).toBe('chart');
+      expect(result.output.type).toBe('chart');
       expect(result.status).toBe('waiting_for_input');
-      expect(result.interactionType).toBe('buttons');
-      expect(result.data).toBeDefined();
+      expect(result.meta?.interactionType).toBe('buttons');
+      expect(result.output.data).toBeDefined();
     });
 
     it('should return normal output without buttons', async () => {
@@ -65,7 +65,7 @@ describe('ChartHandler - Buttons', () => {
         context,
       )) as Record<string, unknown>;
 
-      expect(result.type).toBe('chart');
+      expect(result.output.type).toBe('chart');
       expect(result.status).toBeUndefined();
     });
   });

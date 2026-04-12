@@ -36,16 +36,15 @@ export class MergeHandler implements NodeHandler {
     const { strategy, outputFormat } = config as unknown as MergeConfig;
 
     const inputs = this.normalizeInputs(input);
+    const formatted =
+      strategy === 'first'
+        ? this.formatOutput([inputs[0]], outputFormat)
+        : this.formatOutput(inputs, outputFormat);
 
-    switch (strategy) {
-      case 'first':
-        return this.formatOutput([inputs[0]], outputFormat);
-      case 'append':
-        return this.formatOutput(inputs, outputFormat);
-      case 'wait_all':
-      default:
-        return this.formatOutput(inputs, outputFormat);
-    }
+    return {
+      config: { strategy, outputFormat },
+      output: formatted,
+    };
   }
 
   private normalizeInputs(input: unknown): unknown[] {

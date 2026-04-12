@@ -77,9 +77,12 @@ export class SlackHandler
     if (!this.integrationsService) {
       // Legacy stub behaviour for engine tests that don't wire the service.
       return {
-        action,
-        channel: config.channel,
-        text: config.text,
+        config: {
+          action,
+          channel: config.channel,
+          text: config.text,
+        },
+        output: null,
         status: 'requires_integration',
       };
     }
@@ -109,7 +112,11 @@ export class SlackHandler
         status: 'success',
         durationMs,
       }).catch(() => {});
-      return { action, status: 'ok', durationMs, ...result };
+      return {
+        config: buildSlackConfigEcho(integrationId, action, config),
+        output: result,
+        meta: { durationMs },
+      };
     } catch (err) {
       await this.logUsage(context, {
         integrationId,
@@ -211,7 +218,10 @@ async function runAction(
       };
       const payload = fileBuffer
         ? { ...basePayload, file: fileBuffer }
-        : { ...basePayload, content: (config.content as string | undefined) ?? '' };
+        : {
+            ...basePayload,
+            content: (config.content as string | undefined) ?? '',
+          };
       const res = await client.files.uploadV2(
         payload as Parameters<typeof client.files.uploadV2>[0],
       );
@@ -222,6 +232,46 @@ async function runAction(
 
 function stripColons(s: string): string {
   return s.replace(/^:|:$/g, '');
+}
+
+/** Echo the action-relevant config fields into the unified `config` slot. */
+function buildSlackConfigEcho(
+  integrationId: string,
+  action: SlackAction,
+  config: Record<string, unknown>,
+): Record<string, unknown> {
+  const base: Record<string, unknown> = { integrationId, action };
+  switch (action) {
+    case 'send_message':
+      return { ...base, channel: config.channel, text: config.text };
+    case 'update_message':
+      return {
+        ...base,
+        channel: config.channel,
+        ts: config.ts,
+        text: config.text,
+      };
+    case 'add_reaction':
+      return {
+        ...base,
+        channel: config.channel,
+        ts: config.ts,
+        emoji: config.emoji,
+      };
+    case 'list_channels':
+      return {
+        ...base,
+        limit: config.limit ?? 100,
+        types: config.types ?? 'public_channel,private_channel',
+      };
+    case 'upload_file':
+      return {
+        ...base,
+        channel: config.channel,
+        filename: config.filename,
+        comment: config.comment,
+      };
+  }
 }
 
 /**

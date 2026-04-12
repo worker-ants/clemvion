@@ -357,17 +357,51 @@ export function PresentationContent({
   onLinkButtonClick,
   previewOnly = false,
 }: PresentationContentProps) {
-  const raw = result.outputData as Record<string, unknown>;
+  // Accept both the legacy flat output and the new
+  // `{ config, output, meta?, port?, status? }` shape — payload lives under
+  // `output` in the latter.
+  const rawInput = result.outputData as Record<string, unknown>;
+  const isStructured =
+    rawInput !== null &&
+    typeof rawInput === "object" &&
+    !Array.isArray(rawInput) &&
+    "config" in rawInput &&
+    "output" in rawInput;
+  const envelopeConfig = isStructured
+    ? (rawInput.config as Record<string, unknown> | undefined)
+    : undefined;
+  const unwrapped = isStructured
+    ? (rawInput.output as Record<string, unknown>)
+    : rawInput;
+  const raw = unwrapped;
   if (!raw || typeof raw !== "object") return <JsonContent data={raw} />;
 
-  // Unwrap button_click wrapper: actual node output is in nodeOutput field
-  const data =
-    raw.type === "button_click" && raw.nodeOutput && typeof raw.nodeOutput === "object"
-      ? (raw.nodeOutput as Record<string, unknown>)
-      : raw;
+  // Unwrap interaction wrappers so renderers see the original payload fields.
+  // Two cases to handle:
+  //   (a) Legacy resume flat shape: `{ type: 'button_click', buttonId, nodeOutput }`
+  //   (b) Structured resume shape: `{ interaction: {interactionType, buttonId, ...},
+  //       selectedItem?, previousOutput }`
+  let data = raw;
+  let selectedButtonId: string | undefined;
 
-  // Determine which button was clicked (from button_click wrapper)
-  const selectedButtonId = raw.type === "button_click" ? (raw.buttonId as string | undefined) : undefined;
+  if (
+    raw.type === "button_click" &&
+    raw.nodeOutput &&
+    typeof raw.nodeOutput === "object"
+  ) {
+    data = raw.nodeOutput as Record<string, unknown>;
+    selectedButtonId = raw.buttonId as string | undefined;
+  } else if (
+    raw.interaction &&
+    typeof raw.interaction === "object" &&
+    raw.previousOutput &&
+    typeof raw.previousOutput === "object"
+  ) {
+    data = raw.previousOutput as Record<string, unknown>;
+    const interaction = raw.interaction as Record<string, unknown>;
+    selectedButtonId =
+      typeof interaction.buttonId === "string" ? interaction.buttonId : undefined;
+  }
 
   // Template already includes its own debug data section
   if (result.nodeType === "template") {
@@ -402,8 +436,15 @@ export function PresentationContent({
       return <JsonContent data={data} />;
   }
 
-  // Extract global buttons (exclude item-level buttons using buttonItemMap)
-  const btnConfig = data.buttonConfig as Record<string, unknown> | undefined;
+  // Extract global buttons (exclude item-level buttons using buttonItemMap).
+  // Prefer the new envelope `config.buttonConfig`; fall back to the legacy
+  // flat location `data.buttonConfig` so pre-migration payloads keep working.
+  const btnConfig = ((envelopeConfig?.buttonConfig as
+    | Record<string, unknown>
+    | undefined) ??
+    (data.buttonConfig as Record<string, unknown> | undefined)) as
+    | Record<string, unknown>
+    | undefined;
   const allButtons = (btnConfig?.buttons ?? []) as Array<{
     id: string;
     label: string;

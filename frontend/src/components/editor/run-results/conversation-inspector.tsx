@@ -385,7 +385,16 @@ function SummaryView({
   onSelectItem?: (index: number) => void;
 }) {
   const config = conversationConfig as Record<string, unknown> | null;
-  const output = result.outputData as Record<string, unknown> | null;
+  const rawOutput = result.outputData as Record<string, unknown> | null;
+  // Support new `{ config, output, ... }` wrapper and legacy flat shape.
+  const output =
+    rawOutput &&
+    typeof rawOutput === "object" &&
+    !Array.isArray(rawOutput) &&
+    "config" in rawOutput &&
+    "output" in rawOutput
+      ? (rawOutput.output as Record<string, unknown> | null)
+      : rawOutput;
 
   // Full conversation thread (shown in both Live and History)
   const items = useMemo(() => {

@@ -44,11 +44,11 @@ describe('TableHandler - Buttons', () => {
         context,
       )) as Record<string, unknown>;
 
-      expect(result.type).toBe('table');
+      expect(result.output.type).toBe('table');
       expect(result.status).toBe('waiting_for_input');
-      expect(result.interactionType).toBe('buttons');
-      expect(result.rows).toBeDefined();
-      expect(result.rendered).toBeDefined();
+      expect(result.meta?.interactionType).toBe('buttons');
+      expect(result.output.rows).toBeDefined();
+      expect(result.output.rendered).toBeDefined();
     });
 
     it('should return normal output without buttons', async () => {
@@ -58,7 +58,7 @@ describe('TableHandler - Buttons', () => {
         context,
       )) as Record<string, unknown>;
 
-      expect(result.type).toBe('table');
+      expect(result.output.type).toBe('table');
       expect(result.status).toBeUndefined();
     });
   });

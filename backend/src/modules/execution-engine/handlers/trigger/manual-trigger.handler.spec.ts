@@ -32,23 +32,23 @@ describe('ManualTriggerHandler', () => {
     it('should pass through input unchanged', async () => {
       const input = { userId: 123, action: 'signup' };
       const result = await handler.execute(input, {}, mockContext);
-      expect(result).toEqual(input);
+      expect((result as any).output).toEqual(input);
     });
 
     it('should pass through null input', async () => {
       const result = await handler.execute(null, {}, mockContext);
-      expect(result).toBeNull();
+      expect((result as any).output).toBeNull();
     });
 
     it('should pass through undefined input', async () => {
       const result = await handler.execute(undefined, {}, mockContext);
-      expect(result).toBeUndefined();
+      expect((result as any).output).toBeUndefined();
     });
 
     it('should pass through complex nested input', async () => {
       const input = { data: { items: [1, 2, 3], nested: { deep: true } } };
       const result = await handler.execute(input, {}, mockContext);
-      expect(result).toBe(input); // Same reference, not a copy
+      expect((result as any).output).toBe(input); // Same reference, not a copy
     });
   });
 });

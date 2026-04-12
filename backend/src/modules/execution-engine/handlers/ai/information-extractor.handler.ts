@@ -145,8 +145,9 @@ Respond ONLY with a JSON object containing the extracted fields. Use null for fi
         const extracted = JSON.parse(result.content || '{}');
 
         return {
-          extracted,
-          metadata: {
+          config: { schema: config.schema },
+          output: extracted,
+          meta: {
             model: result.model,
             inputTokens: result.usage?.inputTokens ?? 0,
             outputTokens: result.usage?.outputTokens ?? 0,

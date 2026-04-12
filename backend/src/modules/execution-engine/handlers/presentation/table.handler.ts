@@ -154,29 +154,38 @@ export class TableHandler implements NodeHandler {
 
     const rendered = this.renderHtml(resolvedColumns, columns, dataRows);
 
-    const output = {
+    const payload = {
       type: 'table',
       columns: resolvedColumns,
       rows: dataRows,
       totalRows: dataRows.length,
       rendered,
     };
+    const configEcho: Record<string, unknown> = {
+      mode,
+      columns: resolvedColumns,
+      ...(pageSize !== undefined ? { pageSize } : {}),
+      ...(sortBy !== undefined ? { sortBy, sortOrder } : {}),
+    };
 
     const buttons = config.buttons as ButtonDef[] | undefined;
     if (Array.isArray(buttons) && buttons.length > 0) {
       return Promise.resolve({
-        ...output,
-        status: 'waiting_for_input',
-        interactionType: 'buttons',
-        buttonConfig: {
-          buttons,
-          buttonTimeout: config.buttonTimeout,
-          buttonTimeoutAction: config.buttonTimeoutAction ?? 'continue',
+        config: {
+          ...configEcho,
+          buttonConfig: {
+            buttons,
+            buttonTimeout: config.buttonTimeout,
+            buttonTimeoutAction: config.buttonTimeoutAction ?? 'continue',
+          },
         },
+        output: payload,
+        status: 'waiting_for_input',
+        meta: { interactionType: 'buttons' },
       });
     }
 
-    return Promise.resolve(output);
+    return Promise.resolve({ config: configEcho, output: payload });
   }
 
   private resolveColumnLabels(

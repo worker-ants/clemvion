@@ -154,7 +154,10 @@ export class FilterHandler implements NodeHandler {
       }
     }
 
-    return { match, unmatched };
+    return {
+      config: { inputField, conditions, combineMode, strictComparison },
+      output: { match, unmatched },
+    };
   }
 
   private evaluateCondition(

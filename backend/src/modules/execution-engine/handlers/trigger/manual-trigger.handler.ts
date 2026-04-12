@@ -17,6 +17,6 @@ export class ManualTriggerHandler implements NodeHandler {
   ): Promise<unknown> {
     void config;
     void context;
-    return Promise.resolve(input);
+    return Promise.resolve({ config: {}, output: input });
   }
 }

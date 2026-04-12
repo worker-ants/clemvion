@@ -147,11 +147,10 @@ describe('SwitchHandler', () => {
         },
         context,
       );
-      expect(result).toEqual({
+      expect(result).toMatchObject({
         port: 'case-1',
-        expression: 'status',
-        value: 'active',
-        data: { status: 'active' },
+        output: { status: 'active' },
+        meta: { expression: 'status', value: 'active' },
       });
     });
 
@@ -168,11 +167,10 @@ describe('SwitchHandler', () => {
         },
         context,
       );
-      expect(result).toEqual({
+      expect(result).toMatchObject({
         port: 'case-1',
-        expression: 'user.role',
-        value: 'admin',
-        data: { user: { role: 'admin' } },
+        output: { user: { role: 'admin' } },
+        meta: { expression: 'user.role', value: 'admin' },
       });
     });
 
@@ -190,11 +188,10 @@ describe('SwitchHandler', () => {
         },
         context,
       );
-      expect(result).toEqual({
+      expect(result).toMatchObject({
         port: 'case-2',
-        expression: undefined,
-        value: 2,
-        data: { someField: 'ignored' },
+        output: { someField: 'ignored' },
+        meta: { expression: undefined, value: 2 },
       });
     });
 
@@ -208,11 +205,10 @@ describe('SwitchHandler', () => {
         },
         context,
       );
-      expect(result).toEqual({
+      expect(result).toMatchObject({
         port: 'default',
-        expression: 'missing',
-        value: undefined,
-        data: {},
+        output: {},
+        meta: { expression: 'missing', value: undefined },
       });
     });
 
@@ -245,11 +241,10 @@ describe('SwitchHandler', () => {
         },
         context,
       );
-      expect(result).toEqual({
+      expect(result).toMatchObject({
         port: 'case-1',
-        expression: undefined,
-        value: true,
-        data: {},
+        output: {},
+        meta: { expression: undefined, value: true },
       });
     });
 
@@ -262,11 +257,10 @@ describe('SwitchHandler', () => {
         },
         context,
       );
-      expect(result).toEqual({
+      expect(result).toMatchObject({
         port: 'default',
-        expression: 'missing',
-        value: undefined,
-        data: {},
+        output: {},
+        meta: { expression: 'missing', value: undefined },
       });
     });
 
@@ -280,11 +274,10 @@ describe('SwitchHandler', () => {
         },
         context,
       );
-      expect(result).toEqual({
+      expect(result).toMatchObject({
         port: 'default',
-        expression: 'user.role',
-        value: undefined,
-        data: { user: null },
+        output: { user: null },
+        meta: { expression: 'user.role', value: undefined },
       });
     });
 
@@ -301,11 +294,10 @@ describe('SwitchHandler', () => {
         },
         context,
       );
-      expect(result).toEqual({
+      expect(result).toMatchObject({
         port: 'first',
-        expression: 'x',
-        value: 1,
-        data: { x: 1 },
+        output: { x: 1 },
+        meta: { expression: 'x', value: 1 },
       });
     });
 
@@ -326,11 +318,10 @@ describe('SwitchHandler', () => {
         },
         context,
       );
-      expect(result).toEqual({
+      expect(result).toMatchObject({
         port: 'case-1',
-        expression: 'x',
-        value: 42,
-        data: { x: 42 },
+        output: { x: 42 },
+        meta: { expression: 'x', value: 42 },
       });
     });
 
@@ -344,11 +335,10 @@ describe('SwitchHandler', () => {
         },
         context,
       );
-      expect(result).toEqual({
+      expect(result).toMatchObject({
         port: 'default',
-        expression: 'x',
-        value: '1',
-        data: { x: '1' },
+        output: { x: '1' },
+        meta: { expression: 'x', value: '1' },
       });
     });
 
@@ -365,11 +355,10 @@ describe('SwitchHandler', () => {
         },
         context,
       );
-      expect(result).toEqual({
+      expect(result).toMatchObject({
         port: 'case-0',
-        expression: undefined,
-        value: 0,
-        data: {},
+        output: {},
+        meta: { expression: undefined, value: 0 },
       });
     });
 
@@ -406,11 +395,10 @@ describe('SwitchHandler', () => {
         },
         context,
       );
-      expect(result).toEqual({
+      expect(result).toMatchObject({
         port: 'case-1',
-        expression: undefined,
-        value: 42,
-        data: {},
+        output: {},
+        meta: { expression: undefined, value: 42 },
       });
     });
 
@@ -427,11 +415,10 @@ describe('SwitchHandler', () => {
         },
         context,
       );
-      expect(result).toEqual({
+      expect(result).toMatchObject({
         port: 'case-1',
-        expression: undefined,
-        value: true,
-        data: {},
+        output: {},
+        meta: { expression: undefined, value: true },
       });
     });
 
@@ -447,11 +434,10 @@ describe('SwitchHandler', () => {
         },
         context,
       );
-      expect(result).toEqual({
+      expect(result).toMatchObject({
         port: 'default',
-        expression: undefined,
-        value: 42,
-        data: {},
+        output: {},
+        meta: { expression: undefined, value: 42 },
       });
     });
 
@@ -465,11 +451,10 @@ describe('SwitchHandler', () => {
         },
         context,
       );
-      expect(result).toEqual({
+      expect(result).toMatchObject({
         port: 'default',
-        expression: undefined,
-        value: 42,
-        data: {},
+        output: {},
+        meta: { expression: undefined, value: 42 },
       });
     });
 
@@ -485,11 +470,10 @@ describe('SwitchHandler', () => {
         },
         context,
       );
-      expect(result).toEqual({
+      expect(result).toMatchObject({
         port: 'case-1',
-        expression: 'x',
-        value: 'abc',
-        data: { x: 'abc' },
+        output: { x: 'abc' },
+        meta: { expression: 'x', value: 'abc' },
       });
     });
 
@@ -505,11 +489,10 @@ describe('SwitchHandler', () => {
         },
         context,
       );
-      expect(result).toEqual({
+      expect(result).toMatchObject({
         port: 'case-1',
-        expression: 'x',
-        value: 'yes',
-        data: { x: 'yes' },
+        output: { x: 'yes' },
+        meta: { expression: 'x', value: 'yes' },
       });
     });
 
@@ -523,11 +506,10 @@ describe('SwitchHandler', () => {
         },
         context,
       );
-      expect(result).toEqual({
+      expect(result).toMatchObject({
         port: 'default',
-        expression: '__proto__.constructor',
-        value: undefined,
-        data: {},
+        output: {},
+        meta: { expression: '__proto__.constructor', value: undefined },
       });
     });
   });

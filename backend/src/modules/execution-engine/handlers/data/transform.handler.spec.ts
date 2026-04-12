@@ -54,7 +54,7 @@ describe('TransformHandler', () => {
         },
         context,
       );
-      expect(result).toEqual({ newName: 'value' });
+      expect((result as any).output).toEqual({ newName: 'value' });
     });
 
     it('should not modify data when source field does not exist', async () => {
@@ -67,7 +67,7 @@ describe('TransformHandler', () => {
         },
         context,
       );
-      expect(result).toEqual({ other: 'value' });
+      expect((result as any).output).toEqual({ other: 'value' });
     });
   });
 
@@ -78,7 +78,7 @@ describe('TransformHandler', () => {
         { operations: [{ type: 'remove_field', field: 'a' }] },
         context,
       );
-      expect(result).toEqual({ b: 2 });
+      expect((result as any).output).toEqual({ b: 2 });
     });
   });
 
@@ -89,7 +89,7 @@ describe('TransformHandler', () => {
         { operations: [{ type: 'set_field', field: 'b', value: 42 }] },
         context,
       );
-      expect(result).toEqual({ a: 1, b: 42 });
+      expect((result as any).output).toEqual({ a: 1, b: 42 });
     });
 
     it('should overwrite existing field value', async () => {
@@ -98,7 +98,7 @@ describe('TransformHandler', () => {
         { operations: [{ type: 'set_field', field: 'a', value: 99 }] },
         context,
       );
-      expect(result).toEqual({ a: 99 });
+      expect((result as any).output).toEqual({ a: 99 });
     });
   });
 
@@ -112,8 +112,8 @@ describe('TransformHandler', () => {
           ],
         },
         context,
-      )) as Record<string, unknown>;
-      expect(result.num).toBe('42');
+      )) as { output: Record<string, unknown> };
+      expect(result.output.num).toBe('42');
     });
 
     it('should convert to number', async () => {
@@ -125,8 +125,8 @@ describe('TransformHandler', () => {
           ],
         },
         context,
-      )) as Record<string, unknown>;
-      expect(result.str).toBe(42);
+      )) as { output: Record<string, unknown> };
+      expect(result.output.str).toBe(42);
     });
 
     it('should convert to boolean', async () => {
@@ -138,8 +138,8 @@ describe('TransformHandler', () => {
           ],
         },
         context,
-      )) as Record<string, unknown>;
-      expect(result.val).toBe(true);
+      )) as { output: Record<string, unknown> };
+      expect(result.output.val).toBe(true);
     });
 
     it('should not modify data when field does not exist', async () => {
@@ -152,7 +152,7 @@ describe('TransformHandler', () => {
         },
         context,
       );
-      expect(result).toEqual({ a: 1 });
+      expect((result as any).output).toEqual({ a: 1 });
     });
   });
 
@@ -164,8 +164,8 @@ describe('TransformHandler', () => {
           operations: [{ type: 'string_op', field: 'text', operation: 'trim' }],
         },
         context,
-      )) as Record<string, unknown>;
-      expect(result.text).toBe('hello');
+      )) as { output: Record<string, unknown> };
+      expect(result.output.text).toBe('hello');
     });
 
     it('should uppercase a string', async () => {
@@ -177,8 +177,8 @@ describe('TransformHandler', () => {
           ],
         },
         context,
-      )) as Record<string, unknown>;
-      expect(result.text).toBe('HELLO');
+      )) as { output: Record<string, unknown> };
+      expect(result.output.text).toBe('HELLO');
     });
 
     it('should lowercase a string', async () => {
@@ -190,8 +190,8 @@ describe('TransformHandler', () => {
           ],
         },
         context,
-      )) as Record<string, unknown>;
-      expect(result.text).toBe('hello');
+      )) as { output: Record<string, unknown> };
+      expect(result.output.text).toBe('hello');
     });
 
     it('should replace substrings', async () => {
@@ -208,8 +208,8 @@ describe('TransformHandler', () => {
           ],
         },
         context,
-      )) as Record<string, unknown>;
-      expect(result.text).toBe('hello there');
+      )) as { output: Record<string, unknown> };
+      expect(result.output.text).toBe('hello there');
     });
   });
 
@@ -223,8 +223,8 @@ describe('TransformHandler', () => {
           ],
         },
         context,
-      )) as Record<string, unknown>;
-      expect(result.val).toBe(15);
+      )) as { output: Record<string, unknown> };
+      expect(result.output.val).toBe(15);
     });
 
     it('should subtract', async () => {
@@ -241,8 +241,8 @@ describe('TransformHandler', () => {
           ],
         },
         context,
-      )) as Record<string, unknown>;
-      expect(result.val).toBe(7);
+      )) as { output: Record<string, unknown> };
+      expect(result.output.val).toBe(7);
     });
 
     it('should multiply', async () => {
@@ -259,8 +259,8 @@ describe('TransformHandler', () => {
           ],
         },
         context,
-      )) as Record<string, unknown>;
-      expect(result.val).toBe(12);
+      )) as { output: Record<string, unknown> };
+      expect(result.output.val).toBe(12);
     });
 
     it('should divide', async () => {
@@ -272,8 +272,8 @@ describe('TransformHandler', () => {
           ],
         },
         context,
-      )) as Record<string, unknown>;
-      expect(result.val).toBe(5);
+      )) as { output: Record<string, unknown> };
+      expect(result.output.val).toBe(5);
     });
 
     it('should not divide by zero', async () => {
@@ -285,8 +285,8 @@ describe('TransformHandler', () => {
           ],
         },
         context,
-      )) as Record<string, unknown>;
-      expect(result.val).toBe(10);
+      )) as { output: Record<string, unknown> };
+      expect(result.output.val).toBe(10);
     });
 
     it('should round', async () => {
@@ -294,8 +294,8 @@ describe('TransformHandler', () => {
         { val: 3.7 },
         { operations: [{ type: 'math_op', field: 'val', operation: 'round' }] },
         context,
-      )) as Record<string, unknown>;
-      expect(result.val).toBe(4);
+      )) as { output: Record<string, unknown> };
+      expect(result.output.val).toBe(4);
     });
   });
 
@@ -313,7 +313,11 @@ describe('TransformHandler', () => {
         },
         context,
       );
-      expect(result).toEqual({ name: 'John', age: 26, active: true });
+      expect((result as any).output).toEqual({
+        name: 'John',
+        age: 26,
+        active: true,
+      });
     });
   });
 

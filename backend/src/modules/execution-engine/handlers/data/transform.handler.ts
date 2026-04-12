@@ -58,7 +58,7 @@ export class TransformHandler implements NodeHandler {
       data = this.applyOperation(data, op);
     }
 
-    return data;
+    return { config: { operations }, output: data };
   }
 
   private applyOperation(

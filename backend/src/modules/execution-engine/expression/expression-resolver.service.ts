@@ -28,7 +28,11 @@ export class ExpressionResolverService {
     // Build $node label-to-output map with disambiguation and UUID fallback.
     // Note: nodeMap must be ordered by topological sort (execution order) for
     // deterministic #N suffix assignment in buildDisambiguatedKeys.
-    const $node: Record<string, { output: unknown }> = {};
+    // Values are the full {@link NodeHandlerOutput} structure when the
+    // handler has migrated (from `structuredOutputCache`), else a legacy
+    // compatibility shim `{ output: <flat> }` so pre-migration expressions
+    // like `$node["X"].output.field` keep resolving.
+    const $node: Record<string, Record<string, unknown>> = {};
 
     const nodesWithOutput: Array<{ id: string; label: string }> = [];
     for (const [nodeId, node] of nodeMap) {
@@ -37,15 +41,28 @@ export class ExpressionResolverService {
       }
     }
 
+    const structured = executionContext.structuredOutputCache ?? {};
     const disambiguatedKeys = buildDisambiguatedKeys(nodesWithOutput);
     for (const [nodeId] of nodeMap) {
-      const output = executionContext.nodeOutputCache[nodeId];
-      if (output === undefined) continue;
+      const flat = executionContext.nodeOutputCache[nodeId];
+      if (flat === undefined) continue;
+
+      // Prefer the structured view once the engine has populated it.
+      const adapted = structured[nodeId];
+      const entry: Record<string, unknown> = adapted
+        ? {
+            config: adapted.config ?? {},
+            output: adapted.output,
+            ...(adapted.meta !== undefined ? { meta: adapted.meta } : {}),
+            ...(adapted.port !== undefined ? { port: adapted.port } : {}),
+            ...(adapted.status !== undefined ? { status: adapted.status } : {}),
+          }
+        : { output: flat };
 
       const resolvedKey = disambiguatedKeys.get(nodeId)!;
-      $node[resolvedKey] = { output };
+      $node[resolvedKey] = entry;
       // UUID fallback: always accessible by node ID
-      $node[nodeId] = { output };
+      $node[nodeId] = entry;
     }
 
     const now = new Date();

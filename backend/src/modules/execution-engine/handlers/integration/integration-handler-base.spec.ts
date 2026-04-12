@@ -38,28 +38,26 @@ function ctx(overrides: Partial<ExecutionContext> = {}): ExecutionContext {
 describe('IntegrationHandlerBase.resolveIntegration', () => {
   it('throws when integrations service is absent', async () => {
     const handler = new TestHandler();
-    await expect(
-      handler.callResolve('int-1', ctx(), 'slack'),
-    ).rejects.toThrow(/not available/);
+    await expect(handler.callResolve('int-1', ctx(), 'slack')).rejects.toThrow(
+      /not available/,
+    );
   });
 
   it('throws when workspaceId missing in context', async () => {
     const service = { getForExecution: jest.fn(), logUsage: jest.fn() };
     const handler = new TestHandler(service as never);
     await expect(
-      handler.callResolve(
-        'int-1',
-        ctx({ variables: {} }),
-        'slack',
-      ),
+      handler.callResolve('int-1', ctx({ variables: {} }), 'slack'),
     ).rejects.toThrow(/workspace context/);
   });
 
   it('rejects type mismatch via IntegrationError(TYPE_MISMATCH)', async () => {
     const service = {
-      getForExecution: jest
-        .fn()
-        .mockResolvedValue({ serviceType: 'slack', status: 'connected', name: 'X' }),
+      getForExecution: jest.fn().mockResolvedValue({
+        serviceType: 'slack',
+        status: 'connected',
+        name: 'X',
+      }),
       logUsage: jest.fn(),
     };
     const handler = new TestHandler(service as never);

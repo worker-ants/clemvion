@@ -42,6 +42,7 @@ export { InformationExtractorHandler } from './ai/information-extractor.handler.
 // Interfaces
 export type {
   NodeHandler,
+  NodeHandlerOutput,
   ValidationResult,
   ExecutionContext,
 } from './node-handler.interface.js';

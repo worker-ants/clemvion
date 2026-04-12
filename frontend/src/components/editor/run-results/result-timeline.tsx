@@ -38,7 +38,16 @@ function StatusIcon({ status }: { status: string }) {
 
 function isMultiTurnAgent(result: NodeResult): boolean {
   if (result.nodeType !== "ai_agent") return false;
-  const output = result.outputData as Record<string, unknown> | null;
+  const raw = result.outputData as Record<string, unknown> | null;
+  // Support both legacy flat output and new `{ config, output, ... }` wrapper.
+  const output =
+    raw &&
+    typeof raw === "object" &&
+    !Array.isArray(raw) &&
+    "config" in raw &&
+    "output" in raw
+      ? (raw.output as Record<string, unknown> | null)
+      : raw;
   // Live mode: has conversationConfig, or History mode: has messages array
   return !!(
     output?.conversationConfig ||
@@ -134,15 +143,21 @@ export function ResultTimeline({
             ? getHistoryMessages(result)
             : [];
 
-        const convConfig = (
-          result.outputData as Record<string, unknown> | null
-        )?.conversationConfig as Record<string, unknown> | undefined;
+        const rawForConv = result.outputData as Record<string, unknown> | null;
+        const convPayload =
+          rawForConv &&
+          typeof rawForConv === "object" &&
+          !Array.isArray(rawForConv) &&
+          "config" in rawForConv &&
+          "output" in rawForConv
+            ? (rawForConv.output as Record<string, unknown> | null)
+            : rawForConv;
+        const convConfig = convPayload?.conversationConfig as
+          | Record<string, unknown>
+          | undefined;
         const turnCount =
           (convConfig?.turnCount as number) ??
-          (
-            (result.outputData as Record<string, unknown> | null)
-              ?.turnCount as number | undefined
-          ) ??
+          (convPayload?.turnCount as number | undefined) ??
           0;
         const maxTurns = (convConfig?.maxTurns as number) ?? 0;
 

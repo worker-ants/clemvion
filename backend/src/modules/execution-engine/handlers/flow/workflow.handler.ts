@@ -102,9 +102,9 @@ export class WorkflowHandler implements NodeHandler {
       );
 
       return {
-        executionId: subExecutionId,
-        workflowId,
-        status: 'started',
+        config: { workflowId, mode: 'async' },
+        output: { executionId: subExecutionId },
+        meta: { status: 'started' },
       };
     }
 
@@ -116,11 +116,19 @@ export class WorkflowHandler implements NodeHandler {
       throw new Error('Inline execution requires _executedNodes in context');
     }
 
-    return this.executionEngine.executeInline(workflowId, effectiveInput, {
-      executionId: context.executionId,
-      context,
-      executedNodes: context._executedNodes,
-      recursionDepth: currentDepth + 1,
-    });
+    const inlineResult = await this.executionEngine.executeInline(
+      workflowId,
+      effectiveInput,
+      {
+        executionId: context.executionId,
+        context,
+        executedNodes: context._executedNodes,
+        recursionDepth: currentDepth + 1,
+      },
+    );
+    return {
+      config: { workflowId, mode: 'sync' },
+      output: inlineResult,
+    };
   }
 }

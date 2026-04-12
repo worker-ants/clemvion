@@ -78,7 +78,7 @@ describe('InformationExtractorHandler', () => {
       );
 
       const output = result as Record<string, unknown>;
-      const extracted = output.extracted as Record<string, unknown>;
+      const extracted = output.output as Record<string, unknown>;
       expect(extracted.senderName).toBe('John');
       expect(extracted.orderNumber).toBe('ORD-123');
     });
@@ -117,7 +117,7 @@ describe('InformationExtractorHandler', () => {
       // Should have been called twice (first failed JSON parse, second succeeded)
       expect(mockLlmService.chat).toHaveBeenCalledTimes(2);
       const output = result as Record<string, unknown>;
-      const extracted = output.extracted as Record<string, unknown>;
+      const extracted = output.output as Record<string, unknown>;
       expect(extracted.senderName).toBe('Alice');
     });
 

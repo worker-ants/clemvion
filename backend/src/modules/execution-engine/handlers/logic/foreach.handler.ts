@@ -40,6 +40,9 @@ export class ForEachHandler implements NodeHandler {
     const array = getNestedValue(input, arrayField);
     const items = Array.isArray(array) ? array : [];
 
-    return { arrayField, items };
+    return {
+      config: { arrayField },
+      output: items,
+    };
   }
 }

@@ -216,9 +216,21 @@ export function useExecutionEvents({
           nodeOutputObj?.buttonConfig;
         pauseForButtons(payload.waitingNodeId, btnConfig ?? null);
       } else {
-        // Form interaction (default for backward compat)
-        const output = nodeOutputObj as { formConfig?: unknown } | null;
-        pauseForForm(payload.waitingNodeId, output?.formConfig ?? null);
+        // Form interaction (default for backward compat).
+        // New shape: `{ config: formDeclaration, output: null, status: 'waiting_for_input' }`
+        // Legacy:    `{ type: 'form', formConfig: {...}, status: 'waiting_for_input' }`
+        const output = nodeOutputObj as
+          | { formConfig?: unknown; config?: unknown; output?: unknown }
+          | null;
+        const isStructured =
+          output != null &&
+          typeof output === "object" &&
+          "config" in output &&
+          "output" in output;
+        const formConfig = isStructured
+          ? output.config
+          : (output?.formConfig ?? null);
+        pauseForForm(payload.waitingNodeId, formConfig ?? null);
       }
     },
     [

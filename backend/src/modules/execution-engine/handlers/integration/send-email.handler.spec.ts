@@ -109,10 +109,10 @@ describe('SendEmailHandler', () => {
       const handler = new SendEmailHandler();
       const out = (await handler.execute(null, baseConfig, makeContext())) as {
         status: string;
-        to: string[];
+        config: { to: string[] };
       };
       expect(out.status).toBe('requires_integration');
-      expect(out.to).toEqual(['recipient@example.com']);
+      expect(out.config.to).toEqual(['recipient@example.com']);
     });
   });
 
@@ -162,7 +162,11 @@ describe('SendEmailHandler', () => {
           cc: 'c@example.com',
         },
         makeContext(),
-      )) as { status: string; to: string[]; cc: string[]; messageId: string };
+      )) as {
+        config: { to: string[]; cc: string[] };
+        output: { messageId: string };
+        meta: { durationMs: number; deliveryStatus: string };
+      };
 
       expect(sendMailMock).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -173,8 +177,10 @@ describe('SendEmailHandler', () => {
           text: 'hello',
         }),
       );
-      expect(out.status).toBe('sent');
-      expect(out.messageId).toBe('msg-123');
+      expect(out.meta.deliveryStatus).toBe('sent');
+      expect(out.output.messageId).toBe('msg-123');
+      expect(out.config.to).toEqual(['a@example.com', 'b@example.com']);
+      expect(out.config.cc).toEqual(['c@example.com']);
       expect(logUsage).toHaveBeenCalledWith(
         expect.objectContaining({
           status: 'success',

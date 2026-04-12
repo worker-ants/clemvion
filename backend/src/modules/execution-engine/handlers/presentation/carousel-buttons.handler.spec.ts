@@ -76,18 +76,18 @@ describe('CarouselHandler - Buttons', () => {
         context,
       )) as Record<string, unknown>;
 
-      expect(result.type).toBe('carousel');
+      expect(result.output.type).toBe('carousel');
       expect(result.status).toBe('waiting_for_input');
-      expect(result.interactionType).toBe('buttons');
-      expect(result.buttonConfig).toEqual({
+      expect(result.meta?.interactionType).toBe('buttons');
+      expect(result.config.buttonConfig).toEqual({
         buttons,
         buttonTimeout: 300,
         buttonTimeoutAction: 'cancel',
       });
       // Should still include normal carousel output
-      expect(result.items).toBeDefined();
-      expect(result.layout).toBeDefined();
-      expect(result.rendered).toBeDefined();
+      expect(result.output.items).toBeDefined();
+      expect(result.output.layout).toBeDefined();
+      expect(result.output.rendered).toBeDefined();
     });
 
     it('should return normal output when buttons array is empty', async () => {
@@ -97,9 +97,9 @@ describe('CarouselHandler - Buttons', () => {
         context,
       )) as Record<string, unknown>;
 
-      expect(result.type).toBe('carousel');
+      expect(result.output.type).toBe('carousel');
       expect(result.status).toBeUndefined();
-      expect(result.interactionType).toBeUndefined();
+      expect(result.meta?.interactionType).toBeUndefined();
     });
 
     it('should return normal output when no buttons configured', async () => {
@@ -109,7 +109,7 @@ describe('CarouselHandler - Buttons', () => {
         context,
       )) as Record<string, unknown>;
 
-      expect(result.type).toBe('carousel');
+      expect(result.output.type).toBe('carousel');
       expect(result.status).toBeUndefined();
     });
 
@@ -130,7 +130,7 @@ describe('CarouselHandler - Buttons', () => {
         context,
       )) as Record<string, unknown>;
 
-      const btnConfig = result.buttonConfig as Record<string, unknown>;
+      const btnConfig = result.config.buttonConfig as Record<string, unknown>;
       expect(btnConfig.buttonTimeoutAction).toBe('continue');
     });
   });

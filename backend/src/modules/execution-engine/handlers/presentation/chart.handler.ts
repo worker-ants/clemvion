@@ -66,29 +66,37 @@ export class ChartHandler implements NodeHandler {
       ? this.aggregate(data, yAxis.aggregation)
       : data;
 
-    const output = {
+    const payload = {
       type: 'chart',
       chartType,
       title,
       data: chartData,
-      config: { xAxis, yAxis, title },
+    };
+    const configEcho: Record<string, unknown> = {
+      chartType,
+      title,
+      xAxis,
+      yAxis,
     };
 
     const buttons = config.buttons as ButtonDef[] | undefined;
     if (Array.isArray(buttons) && buttons.length > 0) {
       return Promise.resolve({
-        ...output,
-        status: 'waiting_for_input',
-        interactionType: 'buttons',
-        buttonConfig: {
-          buttons,
-          buttonTimeout: config.buttonTimeout,
-          buttonTimeoutAction: config.buttonTimeoutAction ?? 'continue',
+        config: {
+          ...configEcho,
+          buttonConfig: {
+            buttons,
+            buttonTimeout: config.buttonTimeout,
+            buttonTimeoutAction: config.buttonTimeoutAction ?? 'continue',
+          },
         },
+        output: payload,
+        status: 'waiting_for_input',
+        meta: { interactionType: 'buttons' },
       });
     }
 
-    return Promise.resolve(output);
+    return Promise.resolve({ config: configEcho, output: payload });
   }
 
   private aggregate(

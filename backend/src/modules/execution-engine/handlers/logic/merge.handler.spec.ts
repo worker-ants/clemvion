@@ -77,24 +77,24 @@ describe('MergeHandler', () => {
       it('should handle object input keyed by source node IDs', async () => {
         const input = { nodeA: { a: 1 }, nodeB: { b: 2 } };
         const result = await handler.execute(input, baseConfig, context);
-        expect(result).toEqual([{ a: 1 }, { b: 2 }]);
+        expect(result.output).toMatchObject([{ a: 1 }, { b: 2 }]);
       });
 
       it('should handle array input as-is', async () => {
         const input = [{ a: 1 }, { b: 2 }];
         const result = await handler.execute(input, baseConfig, context);
-        expect(result).toEqual([{ a: 1 }, { b: 2 }]);
+        expect(result.output).toMatchObject([{ a: 1 }, { b: 2 }]);
       });
 
       it('should wrap single value in array', async () => {
         const result = await handler.execute('hello', baseConfig, context);
-        expect(result).toEqual(['hello']);
+        expect(result.output).toMatchObject(['hello']);
       });
 
       it('should sort object keys for deterministic ordering', async () => {
         const input = { z_node: 'last', a_node: 'first' };
         const result = await handler.execute(input, baseConfig, context);
-        expect(result).toEqual(['first', 'last']);
+        expect(result.output).toMatchObject(['first', 'last']);
       });
     });
 
@@ -103,7 +103,7 @@ describe('MergeHandler', () => {
         const input = { nodeA: 1, nodeB: 2, nodeC: 3 };
         const config = { strategy: 'wait_all', outputFormat: 'array' };
         const result = await handler.execute(input, config, context);
-        expect(result).toEqual([1, 2, 3]);
+        expect(result.output).toMatchObject([1, 2, 3]);
       });
     });
 
@@ -112,7 +112,7 @@ describe('MergeHandler', () => {
         const input = { a_node: 'first', b_node: 'second' };
         const config = { strategy: 'first', outputFormat: 'array' };
         const result = await handler.execute(input, config, context);
-        expect(result).toEqual(['first']);
+        expect(result.output).toMatchObject(['first']);
       });
     });
 
@@ -121,7 +121,7 @@ describe('MergeHandler', () => {
         const input = { nodeA: 1, nodeB: 2 };
         const config = { strategy: 'append', outputFormat: 'array' };
         const result = await handler.execute(input, config, context);
-        expect(result).toEqual([1, 2]);
+        expect(result.output).toMatchObject([1, 2]);
       });
     });
 
@@ -130,7 +130,7 @@ describe('MergeHandler', () => {
         const input = { nodeA: 'a', nodeB: 'b' };
         const config = { strategy: 'wait_all', outputFormat: 'array' };
         const result = await handler.execute(input, config, context);
-        expect(result).toEqual(['a', 'b']);
+        expect(result.output).toMatchObject(['a', 'b']);
       });
     });
 
@@ -139,14 +139,14 @@ describe('MergeHandler', () => {
         const input = { nodeA: { a: 1, b: 2 }, nodeB: { b: 3, c: 4 } };
         const config = { strategy: 'wait_all', outputFormat: 'merge_object' };
         const result = await handler.execute(input, config, context);
-        expect(result).toEqual({ a: 1, b: 3, c: 4 });
+        expect(result.output).toMatchObject({ a: 1, b: 3, c: 4 });
       });
 
       it('should skip non-object inputs during merge', async () => {
         const input = { nodeA: { a: 1 }, nodeB: 'not-an-object' };
         const config = { strategy: 'wait_all', outputFormat: 'merge_object' };
         const result = await handler.execute(input, config, context);
-        expect(result).toEqual({ a: 1 });
+        expect(result.output).toMatchObject({ a: 1 });
       });
 
       it('should block __proto__ key to prevent prototype pollution', async () => {
@@ -155,8 +155,10 @@ describe('MergeHandler', () => {
         };
         const config = { strategy: 'wait_all', outputFormat: 'merge_object' };
         const result = await handler.execute(input, config, context);
-        expect(result).toEqual({ safe: 1 });
-        expect((result as Record<string, unknown>).__proto__).toBeUndefined();
+        expect(result.output).toMatchObject({ safe: 1 });
+        expect(
+          (result.output as Record<string, unknown>).__proto__,
+        ).toBeUndefined();
         expect(({} as Record<string, unknown>).polluted).toBeUndefined();
       });
 
@@ -166,7 +168,7 @@ describe('MergeHandler', () => {
         };
         const config = { strategy: 'wait_all', outputFormat: 'merge_object' };
         const result = await handler.execute(input, config, context);
-        expect(result).toEqual({ valid: 1 });
+        expect(result.output).toMatchObject({ valid: 1 });
       });
     });
 
@@ -175,29 +177,29 @@ describe('MergeHandler', () => {
         const input = { nodeA: 'first', nodeB: 'second' };
         const config = { strategy: 'wait_all', outputFormat: 'indexed' };
         const result = await handler.execute(input, config, context);
-        expect(result).toEqual({ in_0: 'first', in_1: 'second' });
+        expect(result.output).toMatchObject({ in_0: 'first', in_1: 'second' });
       });
     });
 
     describe('edge cases', () => {
       it('should handle null input', async () => {
         const result = await handler.execute(null, baseConfig, context);
-        expect(result).toEqual([null]);
+        expect(result.output).toMatchObject([null]);
       });
 
       it('should handle undefined input', async () => {
         const result = await handler.execute(undefined, baseConfig, context);
-        expect(result).toEqual([undefined]);
+        expect(result.output).toMatchObject([undefined]);
       });
 
       it('should handle empty object input', async () => {
         const result = await handler.execute({}, baseConfig, context);
-        expect(result).toEqual([]);
+        expect(result.output).toMatchObject([]);
       });
 
       it('should handle empty array input', async () => {
         const result = await handler.execute([], baseConfig, context);
-        expect(result).toEqual([]);
+        expect(result.output).toMatchObject([]);
       });
     });
   });

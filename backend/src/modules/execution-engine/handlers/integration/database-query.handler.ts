@@ -96,11 +96,12 @@ export class DatabaseQueryHandler
 
     if (!this.integrationsService) {
       return {
-        rows: [],
-        rowCount: 0,
-        query,
-        queryType,
-        message: 'Database execution requires integration connection',
+        config: { integrationId, query, queryType, parameters },
+        output: {
+          rows: [],
+          rowCount: 0,
+          message: 'Database execution requires integration connection',
+        },
       };
     }
 
@@ -138,16 +139,16 @@ export class DatabaseQueryHandler
           durationMs,
         }).catch(() => {});
         return {
-          rows: result.rows,
-          rowCount: result.rowCount ?? result.rows.length,
-          fields: result.fields?.map((f) => ({
-            name: f.name,
-            dataTypeID: f.dataTypeID,
-          })),
-          query,
-          queryType,
-          durationMs,
-          status: 'ok',
+          config: { integrationId, query, queryType, parameters },
+          output: {
+            rows: result.rows,
+            rowCount: result.rowCount ?? result.rows.length,
+            fields: result.fields?.map((f) => ({
+              name: f.name,
+              dataTypeID: f.dataTypeID,
+            })),
+          },
+          meta: { durationMs },
         };
       } finally {
         client?.release();

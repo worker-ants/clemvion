@@ -26,22 +26,26 @@ export class TemplateHandler implements NodeHandler {
     const outputFormat = (config.outputFormat as string) ?? 'text';
 
     // config.template is already resolved by the expression engine
-    const output = { type: 'template', format: outputFormat, content };
+    const payload = { type: 'template', format: outputFormat, content };
+    const configEcho: Record<string, unknown> = { outputFormat };
 
     const buttons = config.buttons as ButtonDef[] | undefined;
     if (Array.isArray(buttons) && buttons.length > 0) {
       return Promise.resolve({
-        ...output,
-        status: 'waiting_for_input',
-        interactionType: 'buttons',
-        buttonConfig: {
-          buttons,
-          buttonTimeout: config.buttonTimeout,
-          buttonTimeoutAction: config.buttonTimeoutAction ?? 'continue',
+        config: {
+          ...configEcho,
+          buttonConfig: {
+            buttons,
+            buttonTimeout: config.buttonTimeout,
+            buttonTimeoutAction: config.buttonTimeoutAction ?? 'continue',
+          },
         },
+        output: payload,
+        status: 'waiting_for_input',
+        meta: { interactionType: 'buttons' },
       });
     }
 
-    return Promise.resolve(output);
+    return Promise.resolve({ config: configEcho, output: payload });
   }
 }
