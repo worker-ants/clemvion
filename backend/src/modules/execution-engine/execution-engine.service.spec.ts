@@ -9,6 +9,7 @@ import { WebsocketService } from '../websocket/websocket.service';
 import { ConfigService } from '@nestjs/config';
 import { LlmService } from '../llm/llm.service';
 import { RagSearchService } from '../knowledge-base/search/rag-search.service';
+import { IntegrationsService } from '../integrations/integrations.service';
 import {
   Execution,
   ExecutionStatus,
@@ -221,6 +222,13 @@ describe('ExecutionEngineService', () => {
             buildContext: jest
               .fn()
               .mockReturnValue({ context: '', sources: [] }),
+          },
+        },
+        {
+          provide: IntegrationsService,
+          useValue: {
+            getForExecution: jest.fn(),
+            logUsage: jest.fn().mockResolvedValue(undefined),
           },
         },
       ],

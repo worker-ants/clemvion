@@ -68,6 +68,7 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { LlmService } from '../llm/llm.service';
 import { RagSearchService } from '../knowledge-base/search/rag-search.service';
+import { IntegrationsService } from '../integrations/integrations.service';
 import { ButtonConfig } from './types/button.types';
 import {
   WorkflowExecutor,
@@ -127,6 +128,7 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
     private readonly configService: ConfigService,
     private readonly llmService: LlmService,
     private readonly ragSearchService: RagSearchService,
+    private readonly integrationsService: IntegrationsService,
   ) {}
 
   async onModuleInit() {
@@ -178,7 +180,7 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
       ['http_request', new HttpRequestHandler()],
       ['database_query', new DatabaseQueryHandler()],
       ['slack', new SlackHandler()],
-      ['send_email', new SendEmailHandler()],
+      ['send_email', new SendEmailHandler(this.integrationsService)],
       ['transform', new TransformHandler()],
       ['code', new CodeHandler()],
       ['carousel', new CarouselHandler()],
@@ -1768,6 +1770,10 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
       } else {
         resolvedConfig = node.config;
       }
+
+      // Thread the current NodeExecution id into the context so handlers can
+      // attribute side-effects (e.g. IntegrationUsageLog) to the row.
+      nodeContext = { ...nodeContext, nodeExecutionId: nodeExecution.id };
 
       // Execute with potential retry
       const output = await this.executeWithRetry(
