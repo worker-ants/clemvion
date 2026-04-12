@@ -58,7 +58,12 @@ export class IntegrationOAuthState {
   })
   requestedScopes: string[];
 
-  @Column({ name: 'integration_name', type: 'varchar', length: 255, nullable: true })
+  @Column({
+    name: 'integration_name',
+    type: 'varchar',
+    length: 255,
+    nullable: true,
+  })
   integrationName: string | null;
 
   @Column({ type: 'varchar', length: 20, nullable: true })

@@ -51,7 +51,12 @@ export class Integration {
   @Column({ length: 20, default: 'connected' })
   status: IntegrationStatus;
 
-  @Column({ name: 'status_reason', type: 'varchar', length: 64, nullable: true })
+  @Column({
+    name: 'status_reason',
+    type: 'varchar',
+    length: 64,
+    nullable: true,
+  })
   statusReason: string | null;
 
   @Column({ name: 'token_expires_at', type: 'timestamptz', nullable: true })

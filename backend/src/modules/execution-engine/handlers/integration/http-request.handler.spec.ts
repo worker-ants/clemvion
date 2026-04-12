@@ -232,4 +232,188 @@ describe('HttpRequestHandler', () => {
       expect(result.data.response).toBe('plain text response');
     });
   });
+
+  describe('integration-backed authentication', () => {
+    const contextWithWorkspace: ExecutionContext = {
+      executionId: 'exec-1',
+      workflowId: 'wf-1',
+      nodeExecutionId: 'ne-1',
+      variables: { __workspaceId: 'ws-1' },
+      nodeOutputCache: {},
+    };
+
+    function makeService(
+      authType: string,
+      credentials: Record<string, unknown>,
+    ) {
+      const logUsage = jest.fn().mockResolvedValue(undefined);
+      const getForExecution = jest.fn().mockResolvedValue({
+        id: 'int-1',
+        name: 'API',
+        serviceType: 'http',
+        authType,
+        status: 'connected',
+        credentials,
+      });
+      return { service: { getForExecution, logUsage }, logUsage };
+    }
+
+    beforeEach(() => {
+      global.fetch = jest.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: jest.fn().mockResolvedValue({ ok: true }),
+      }) as unknown as typeof fetch;
+    });
+
+    it('attaches bearer token from integration credentials', async () => {
+      const { service, logUsage } = makeService('bearer_token', {
+        token: 'abc',
+      });
+      const handler = new HttpRequestHandler(service as never);
+      await handler.execute(
+        null,
+        {
+          method: 'GET',
+          url: 'https://api.example.com/me',
+          authentication: 'integration',
+          integrationId: 'int-1',
+        },
+        contextWithWorkspace,
+      );
+      const args = (global.fetch as jest.Mock).mock.calls[0][1] as RequestInit;
+      expect((args.headers as Record<string, string>).Authorization).toBe(
+        'Bearer abc',
+      );
+      expect(logUsage).toHaveBeenCalledWith(
+        expect.objectContaining({ status: 'success' }),
+      );
+    });
+
+    it('places API key in header when location=header', async () => {
+      const { service } = makeService('api_key', {
+        location: 'header',
+        key_name: 'X-Api-Key',
+        value: 'secret',
+      });
+      const handler = new HttpRequestHandler(service as never);
+      await handler.execute(
+        null,
+        {
+          method: 'GET',
+          url: 'https://api.example.com/x',
+          authentication: 'integration',
+          integrationId: 'int-1',
+        },
+        contextWithWorkspace,
+      );
+      const args = (global.fetch as jest.Mock).mock.calls[0][1] as RequestInit;
+      expect((args.headers as Record<string, string>)['X-Api-Key']).toBe(
+        'secret',
+      );
+    });
+
+    it('places API key in query when location=query', async () => {
+      const { service } = makeService('api_key', {
+        location: 'query',
+        key_name: 'token',
+        value: 'abc',
+      });
+      const handler = new HttpRequestHandler(service as never);
+      await handler.execute(
+        null,
+        {
+          method: 'GET',
+          url: 'https://api.example.com/x',
+          authentication: 'integration',
+          integrationId: 'int-1',
+        },
+        contextWithWorkspace,
+      );
+      const url = (global.fetch as jest.Mock).mock.calls[0][0] as string;
+      expect(url).toContain('token=abc');
+    });
+
+    it('uses base_url when URL is relative', async () => {
+      const { service } = makeService('bearer_token', {
+        token: 't',
+        base_url: 'https://api.example.com',
+      });
+      const handler = new HttpRequestHandler(service as never);
+      await handler.execute(
+        null,
+        {
+          method: 'GET',
+          url: '/me',
+          authentication: 'integration',
+          integrationId: 'int-1',
+        },
+        contextWithWorkspace,
+      );
+      const url = (global.fetch as jest.Mock).mock.calls[0][0] as string;
+      expect(url).toBe('https://api.example.com/me');
+    });
+
+    it('builds basic auth header', async () => {
+      const { service } = makeService('basic', {
+        username: 'u',
+        password: 'p',
+      });
+      const handler = new HttpRequestHandler(service as never);
+      await handler.execute(
+        null,
+        {
+          method: 'GET',
+          url: 'https://api.example.com/x',
+          authentication: 'integration',
+          integrationId: 'int-1',
+        },
+        contextWithWorkspace,
+      );
+      const args = (global.fetch as jest.Mock).mock.calls[0][1] as RequestInit;
+      const expected = `Basic ${Buffer.from('u:p').toString('base64')}`;
+      expect((args.headers as Record<string, string>).Authorization).toBe(
+        expected,
+      );
+    });
+
+    it('rejects when authentication=integration without integrationId', async () => {
+      const { service } = makeService('bearer_token', { token: 't' });
+      const handler = new HttpRequestHandler(service as never);
+      const result = handler.validate({
+        method: 'GET',
+        url: 'https://x',
+        authentication: 'integration',
+      });
+      expect(result.valid).toBe(false);
+      void service;
+    });
+
+    it('logs HTTP non-2xx as failed', async () => {
+      const { service, logUsage } = makeService('bearer_token', { token: 't' });
+      global.fetch = jest.fn().mockResolvedValue({
+        ok: false,
+        status: 500,
+        statusText: 'Server Error',
+        json: jest.fn().mockResolvedValue({ error: 'boom' }),
+      }) as unknown as typeof fetch;
+      const handler = new HttpRequestHandler(service as never);
+      await handler.execute(
+        null,
+        {
+          method: 'GET',
+          url: 'https://api.example.com/x',
+          authentication: 'integration',
+          integrationId: 'int-1',
+        },
+        contextWithWorkspace,
+      );
+      expect(logUsage).toHaveBeenCalledWith(
+        expect.objectContaining({
+          status: 'failed',
+          error: expect.objectContaining({ code: 'HTTP_500' }),
+        }),
+      );
+    });
+  });
 });

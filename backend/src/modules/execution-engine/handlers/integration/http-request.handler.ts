@@ -3,8 +3,21 @@ import {
   NodeHandler,
   ValidationResult,
 } from '../node-handler.interface.js';
+import {
+  IntegrationError,
+  IntegrationHandlerBase,
+  toLogError,
+} from './integration-handler-base.js';
+import { IntegrationsService } from '../../../integrations/integrations.service.js';
 
-export class HttpRequestHandler implements NodeHandler {
+export class HttpRequestHandler
+  extends IntegrationHandlerBase
+  implements NodeHandler
+{
+  constructor(integrationsService?: IntegrationsService) {
+    super(integrationsService);
+  }
+
   validate(config: Record<string, unknown>): ValidationResult {
     const errors: string[] = [];
 
@@ -36,26 +49,73 @@ export class HttpRequestHandler implements NodeHandler {
       errors.push('timeout must be a positive number');
     }
 
+    if (
+      config.authentication === 'integration' &&
+      (!config.integrationId || typeof config.integrationId !== 'string')
+    ) {
+      errors.push(
+        'integrationId is required when authentication is "integration"',
+      );
+    }
+
     return { valid: errors.length === 0, errors };
   }
 
   async execute(
-    input: unknown,
+    _input: unknown,
     config: Record<string, unknown>,
-    _context: ExecutionContext,
+    context: ExecutionContext,
   ): Promise<unknown> {
     const method = (config.method as string).toUpperCase();
-    let url = config.url as string;
-    const headers = (config.headers as Record<string, string>) ?? {};
-    const queryParams = config.queryParams as
-      | Record<string, string>
-      | undefined;
+    const initialUrl = config.url as string;
+    const userHeaders = (config.headers as Record<string, string>) ?? {};
+    const queryParams = (config.queryParams as Record<string, string>) ?? {};
     const body = config.body;
     const bodyType = (config.bodyType as string) ?? 'json';
     const responseType = (config.responseType as string) ?? 'json';
     const timeout = (config.timeout as number) ?? 30000;
+    const authentication = (config.authentication as string) ?? 'none';
+    const integrationId = config.integrationId as string | undefined;
 
-    if (queryParams && typeof queryParams === 'object') {
+    const start = Date.now();
+
+    // Resolve integration-backed authentication, if requested.
+    let credentials: HttpCredentials = {};
+    let baseUrl: string | undefined;
+    if (authentication === 'integration' && integrationId) {
+      if (!this.integrationsService) {
+        throw new Error(
+          'Integration-based authentication is not available in this environment',
+        );
+      }
+      try {
+        const integration = await this.resolveIntegration(
+          integrationId,
+          context,
+          'http',
+        );
+        const result = buildHttpCredentials(
+          integration.authType,
+          integration.credentials,
+        );
+        credentials = result.credentials;
+        baseUrl = result.baseUrl;
+      } catch (err) {
+        await this.logUsage(context, {
+          integrationId,
+          status: 'failed',
+          durationMs: Date.now() - start,
+          error: toLogError(err),
+        });
+        throw err;
+      }
+    }
+
+    // Build request URL: prepend base_url if present and the config URL is relative.
+    let url = resolveUrl(baseUrl, initialUrl);
+
+    // Append query parameters to the resolved URL.
+    if (Object.keys(queryParams).length > 0) {
       const params = new URLSearchParams();
       for (const [key, value] of Object.entries(queryParams)) {
         params.append(key, String(value));
@@ -64,16 +124,28 @@ export class HttpRequestHandler implements NodeHandler {
       url = `${url}${separator}${params.toString()}`;
     }
 
-    const fetchOptions: RequestInit = {
-      method,
-      headers: { ...headers },
+    // Apply integration-provided query params (api_key in query mode).
+    if (credentials.queryParams) {
+      const params = new URLSearchParams();
+      for (const [k, v] of Object.entries(credentials.queryParams)) {
+        params.append(k, v);
+      }
+      const separator = url.includes('?') ? '&' : '?';
+      url = `${url}${separator}${params.toString()}`;
+    }
+
+    const mergedHeaders: Record<string, string> = {
+      ...(credentials.defaultHeaders ?? {}),
+      ...(credentials.headers ?? {}),
+      ...userHeaders,
     };
+
+    const fetchOptions: RequestInit = { method, headers: mergedHeaders };
 
     if (body !== undefined && !['GET', 'HEAD'].includes(method)) {
       if (bodyType === 'json') {
-        (fetchOptions.headers as Record<string, string>)['Content-Type'] =
-          (fetchOptions.headers as Record<string, string>)['Content-Type'] ??
-          'application/json';
+        mergedHeaders['Content-Type'] =
+          mergedHeaders['Content-Type'] ?? 'application/json';
         fetchOptions.body = JSON.stringify(body);
       } else if (bodyType === 'form') {
         const formData = new URLSearchParams();
@@ -85,15 +157,14 @@ export class HttpRequestHandler implements NodeHandler {
           }
         }
         fetchOptions.body = formData.toString();
-        (fetchOptions.headers as Record<string, string>)['Content-Type'] =
-          (fetchOptions.headers as Record<string, string>)['Content-Type'] ??
-          'application/x-www-form-urlencoded';
+        mergedHeaders['Content-Type'] =
+          mergedHeaders['Content-Type'] ?? 'application/x-www-form-urlencoded';
       } else {
-        fetchOptions.body = String(body);
+        fetchOptions.body =
+          typeof body === 'string' ? body : JSON.stringify(body);
       }
     }
 
-    const startTime = Date.now();
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), timeout);
     fetchOptions.signal = controller.signal;
@@ -102,7 +173,7 @@ export class HttpRequestHandler implements NodeHandler {
       const res = await fetch(url, fetchOptions);
       clearTimeout(timeoutId);
 
-      const duration = Date.now() - startTime;
+      const duration = Date.now() - start;
 
       let responseData: unknown;
       if (responseType === 'json') {
@@ -115,14 +186,33 @@ export class HttpRequestHandler implements NodeHandler {
 
       const meta = { statusCode: res.status, duration };
 
+      if (integrationId && authentication === 'integration') {
+        await this.logUsage(context, {
+          integrationId,
+          status: res.ok ? 'success' : 'failed',
+          durationMs: duration,
+          error: res.ok
+            ? null
+            : { code: `HTTP_${res.status}`, message: res.statusText },
+        });
+      }
+
       if (res.ok) {
         return { port: 'success', data: { response: responseData, meta } };
       }
       return { port: 'error', data: { response: responseData, meta } };
     } catch (error: unknown) {
       clearTimeout(timeoutId);
-      const duration = Date.now() - startTime;
+      const duration = Date.now() - start;
       const message = error instanceof Error ? error.message : String(error);
+      if (integrationId && authentication === 'integration') {
+        await this.logUsage(context, {
+          integrationId,
+          status: 'failed',
+          durationMs: duration,
+          error: { code: 'HTTP_TRANSPORT_FAILED', message },
+        });
+      }
       return {
         port: 'error',
         data: {
@@ -132,4 +222,97 @@ export class HttpRequestHandler implements NodeHandler {
       };
     }
   }
+}
+
+interface HttpCredentials {
+  headers?: Record<string, string>;
+  queryParams?: Record<string, string>;
+  defaultHeaders?: Record<string, string>;
+}
+
+function buildHttpCredentials(
+  authType: string,
+  raw: Record<string, unknown>,
+): { credentials: HttpCredentials; baseUrl: string | undefined } {
+  const defaultHeaders =
+    typeof raw.default_headers === 'object' && raw.default_headers !== null
+      ? (raw.default_headers as Record<string, string>)
+      : undefined;
+  const baseUrl =
+    typeof raw.base_url === 'string' && raw.base_url.length > 0
+      ? raw.base_url
+      : undefined;
+
+  switch (authType) {
+    case 'api_key': {
+      const location = raw.location as 'header' | 'query' | undefined;
+      const keyName = raw.key_name as string | undefined;
+      const value = raw.value as string | undefined;
+      if (!location || !keyName || !value) {
+        throw new IntegrationError(
+          'INTEGRATION_INCOMPLETE',
+          'HTTP integration (api_key) is missing location/key_name/value',
+        );
+      }
+      if (location === 'header') {
+        return {
+          credentials: { headers: { [keyName]: value }, defaultHeaders },
+          baseUrl,
+        };
+      }
+      return {
+        credentials: { queryParams: { [keyName]: value }, defaultHeaders },
+        baseUrl,
+      };
+    }
+    case 'bearer_token': {
+      const token = raw.token as string | undefined;
+      if (!token) {
+        throw new IntegrationError(
+          'INTEGRATION_INCOMPLETE',
+          'HTTP integration (bearer) is missing token',
+        );
+      }
+      return {
+        credentials: {
+          headers: { Authorization: `Bearer ${token}` },
+          defaultHeaders,
+        },
+        baseUrl,
+      };
+    }
+    case 'basic': {
+      const username = raw.username as string | undefined;
+      const password = raw.password as string | undefined;
+      if (!username || !password) {
+        throw new IntegrationError(
+          'INTEGRATION_INCOMPLETE',
+          'HTTP integration (basic) is missing username/password',
+        );
+      }
+      const encoded = Buffer.from(`${username}:${password}`).toString('base64');
+      return {
+        credentials: {
+          headers: { Authorization: `Basic ${encoded}` },
+          defaultHeaders,
+        },
+        baseUrl,
+      };
+    }
+    default:
+      throw new IntegrationError(
+        'INTEGRATION_AUTH_UNSUPPORTED',
+        `HTTP integration auth type "${authType}" is not supported`,
+      );
+  }
+}
+
+/**
+ * If the config URL is absolute (includes a scheme), use it verbatim.
+ * Otherwise, prefix with `base_url` (if provided), stripping duplicate slashes.
+ */
+function resolveUrl(baseUrl: string | undefined, configUrl: string): string {
+  if (/^https?:\/\//i.test(configUrl)) return configUrl;
+  if (!baseUrl) return configUrl;
+  return `${baseUrl.replace(/\/+$/, '')}/${configUrl.replace(/^\/+/, '')}`;
 }
