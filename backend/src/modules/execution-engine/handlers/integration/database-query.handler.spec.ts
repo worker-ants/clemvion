@@ -3,13 +3,19 @@ import { ExecutionContext } from '../node-handler.interface.js';
 
 const connectMock = jest.fn();
 const queryMock = jest.fn();
+const releaseMock = jest.fn();
 const endMock = jest.fn();
+const onMock = jest.fn();
 
 jest.mock('pg', () => ({
-  Client: jest.fn().mockImplementation(() => ({
-    connect: () => connectMock(),
-    query: (...args: unknown[]) => queryMock(...args),
+  Pool: jest.fn().mockImplementation(() => ({
+    connect: () =>
+      connectMock().then(() => ({
+        query: (...args: unknown[]) => queryMock(...args),
+        release: () => releaseMock(),
+      })),
     end: () => endMock(),
+    on: (...args: unknown[]) => onMock(...args),
   })),
 }));
 
@@ -23,12 +29,10 @@ function ctx(): ExecutionContext {
   };
 }
 
-function makeService(
-  overrides: {
-    integration?: unknown;
-    logUsage?: jest.Mock;
-  } = {},
-) {
+function makeService(overrides: {
+  integration?: unknown;
+  logUsage?: jest.Mock;
+} = {}) {
   const logUsage = overrides.logUsage ?? jest.fn().mockResolvedValue(undefined);
   const integration = overrides.integration ?? {
     id: 'int-1',
@@ -58,10 +62,12 @@ describe('DatabaseQueryHandler', () => {
   beforeEach(() => {
     connectMock.mockReset().mockResolvedValue(undefined);
     queryMock.mockReset();
+    releaseMock.mockReset();
     endMock.mockReset().mockResolvedValue(undefined);
+    onMock.mockReset();
+    (jest.requireMock('pg') as { Pool: jest.Mock }).Pool.mockClear();
   });
 
-  // ---- validate ----
   describe('validate', () => {
     const handler = new DatabaseQueryHandler();
 
@@ -80,6 +86,16 @@ describe('DatabaseQueryHandler', () => {
           queryType: 'vacuum',
         }).valid,
       ).toBe(false);
+    });
+
+    it('accepts queryType=raw', () => {
+      expect(
+        handler.validate({
+          integrationId: 'int-1',
+          query: 'VACUUM ANALYZE',
+          queryType: 'raw',
+        }).valid,
+      ).toBe(true);
     });
 
     it('accepts string parameters (will be parsed)', () => {
@@ -103,9 +119,8 @@ describe('DatabaseQueryHandler', () => {
     });
   });
 
-  // ---- execute ----
   describe('execute', () => {
-    it('executes query and logs success', async () => {
+    it('executes query via pool and releases client', async () => {
       const { service, logUsage } = makeService();
       queryMock.mockResolvedValue({
         rows: [{ id: 1 }, { id: 2 }],
@@ -128,10 +143,26 @@ describe('DatabaseQueryHandler', () => {
         'SELECT id FROM users WHERE age > $1',
         [18],
       );
-      expect(endMock).toHaveBeenCalled();
+      expect(releaseMock).toHaveBeenCalled();
       expect(logUsage).toHaveBeenCalledWith(
         expect.objectContaining({ status: 'success' }),
       );
+      await handler.shutdown();
+    });
+
+    it('reuses the pool for subsequent calls with the same credentials', async () => {
+      const { service } = makeService();
+      queryMock.mockResolvedValue({ rows: [], rowCount: 0 });
+      const handler = new DatabaseQueryHandler(service as never);
+      const config = { integrationId: 'int-1', query: 'SELECT 1' };
+      await handler.execute(null, config, ctx());
+      await handler.execute(null, config, ctx());
+      // Pool constructor called once; connect/release called twice.
+      const pg = jest.requireMock('pg') as { Pool: jest.Mock };
+      expect(pg.Pool).toHaveBeenCalledTimes(1);
+      expect(connectMock).toHaveBeenCalledTimes(2);
+      expect(releaseMock).toHaveBeenCalledTimes(2);
+      await handler.shutdown();
     });
 
     it('parses JSON array string parameters', async () => {
@@ -150,9 +181,10 @@ describe('DatabaseQueryHandler', () => {
       expect(queryMock).toHaveBeenCalledWith('SELECT * FROM t WHERE a = $1', [
         'hello',
       ]);
+      await handler.shutdown();
     });
 
-    it('closes the connection and logs failure on query error', async () => {
+    it('releases the client and logs failure on query error', async () => {
       const { service, logUsage } = makeService();
       queryMock.mockRejectedValue(new Error('syntax error'));
       const handler = new DatabaseQueryHandler(service as never);
@@ -163,10 +195,11 @@ describe('DatabaseQueryHandler', () => {
           ctx(),
         ),
       ).rejects.toThrow('syntax error');
-      expect(endMock).toHaveBeenCalled();
+      expect(releaseMock).toHaveBeenCalled();
       expect(logUsage).toHaveBeenCalledWith(
         expect.objectContaining({ status: 'failed' }),
       );
+      await handler.shutdown();
     });
 
     it('rejects mysql until mysql2 driver is added', async () => {
@@ -209,7 +242,6 @@ describe('DatabaseQueryHandler', () => {
             host: 'h',
             port: 5432,
             database: 'd',
-            // username/password missing
           },
         },
       });

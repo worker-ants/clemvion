@@ -381,3 +381,151 @@ Google Drive API를 호출하여 파일을 업로드, 다운로드, 관리한다
 | Google Drive | `{action}`. folderId 설정 시 폴더 경로 표시 | `upload_file · /reports` |
 
 Integration 노드에서 연결된 Integration이 삭제된 경우 `⚠ Missing integration` (앰버색)을 표시한다.
+
+---
+
+## 10. Handler 실행 세멘틱
+
+Integration 노드의 실제 외부 호출 책임은 Execution Engine의 핸들러가 진다. 모든 Integration 핸들러는 다음 공통 계약을 따른다 — 세부는 [Spec 실행 엔진 §7 Integration Handler 계약](../5-system/4-execution-engine.md#7-integration-handler-계약) 참조.
+
+### 10.1 공통 계약
+
+| 단계 | 책임 |
+|------|------|
+| 1. 워크스페이스 확인 | `ExecutionContext.variables.__workspaceId` 조회. 없으면 즉시 오류 |
+| 2. Integration 조회 | `IntegrationsService.getForExecution(integrationId, workspaceId)` 호출. credentials는 AES-256-GCM transformer로 자동 복호화됨 |
+| 3. 타입/상태 검증 | `serviceType`이 노드 기대값과 일치 + `status === 'connected'` 검증 |
+| 4. Credential 충족 검증 | 서비스별 필수 필드 누락 시 `INTEGRATION_INCOMPLETE` |
+| 5. 외부 호출 | 서비스별 SDK/드라이버 호출 |
+| 6. Usage 로깅 | 성공·실패 무관 `IntegrationsService.logUsage({integrationId, nodeExecutionId, workflowId, status, durationMs, error?})` 호출 |
+
+### 10.2 공통 에러 코드
+
+| 코드 | 의미 |
+|------|------|
+| `INTEGRATION_NOT_FOUND` | integrationId가 존재하지 않거나 현재 워크스페이스에 속하지 않음 |
+| `INTEGRATION_TYPE_MISMATCH` | 참조된 Integration의 `serviceType`이 노드 기대 타입과 다름 |
+| `INTEGRATION_NOT_CONNECTED` | Integration 상태가 `connected`가 아님(`expired`, `error`) |
+| `INTEGRATION_INCOMPLETE` | credentials JSONB에 서비스별 필수 필드가 누락 |
+| `INTEGRATION_CALL_FAILED` | 기타 일반 예외(분류되지 않은 실패) |
+
+위 코드는 `IntegrationError(code, message)` 예외로 throw되며, 실행 엔진은 노드 실행을 실패 처리하고 동시에 Usage 로그에 `error.code`와 `error.message`를 기록한다.
+
+### 10.3 Send Email (`send_email`)
+
+**라이브러리**: `nodemailer` — Integration.credentials.{host, port, secure, username, password, default_from} 기반으로 SMTP transport를 매 호출마다 생성하고 `finally`에서 `transporter.close()`한다.
+
+**`to`/`cc` 정규화** (`validate()` 통과 후 `execute()`에서 수행):
+- 배열 → 각 원소 `trim()` 후 공백 원소 제거
+- 문자열 → `","`로 split, 각 토큰 `trim()` 후 공백 제거
+- 최종 결과가 비어있으면 "No valid recipients" 오류
+
+**SMTP secure 매핑**:
+| `credentials.secure` | nodemailer 옵션 |
+|----------------------|-----------------|
+| `tls` | `secure: true` |
+| `starttls` | `secure: false, requireTLS: true` |
+| `none` | `secure: false` |
+
+**반환 shape** (성공 시):
+```json
+{
+  "messageId": "<...>",
+  "accepted": ["a@example.com"],
+  "rejected": [],
+  "to": ["a@example.com"],
+  "cc": [],
+  "subject": "...",
+  "bodyType": "text",
+  "status": "sent",
+  "durationMs": 412
+}
+```
+
+**에러 코드**: 공통 코드 외에 `SMTP_SEND_FAILED` (nodemailer sendMail이 throw한 모든 오류).
+
+### 10.4 Slack (`slack`)
+
+**라이브러리**: `@slack/web-api` `WebClient`. Integration.credentials.access_token 미존재 시 `INTEGRATION_INCOMPLETE`.
+
+**액션 매트릭스**:
+| action | 필수 필드 | 호출 | 반환 |
+|--------|----------|------|------|
+| `send_message` | `channel`, `text` | `chat.postMessage` | `{channel, ts}` |
+| `update_message` | `channel`, `ts`, `text` | `chat.update` | `{channel, ts}` |
+| `add_reaction` | `channel`, `ts`, `emoji` | `reactions.add` | `{}` |
+| `list_channels` | — | `conversations.list(limit, types)` | `{channels: [{id, name}]}` |
+| `upload_file` | `channel`, `content` 또는 `file` | `files.uploadV2` | `{file}` |
+
+**이모지 정규화**: `add_reaction`의 `emoji` 값은 양쪽 `:` 기호를 스트립(`:thumbsup:` → `thumbsup`).
+
+**공통 반환**: `{action, status: 'ok', durationMs, ...액션별 결과}`. 실패 시 공통 계약에 따라 `IntegrationError` throw 또는 원본 Slack 오류 전파.
+
+### 10.5 Database Query (`database_query`)
+
+**드라이버**: `pg` (PostgreSQL). `credentials.driver === 'mysql'`이면 `DRIVER_NOT_SUPPORTED` 오류 (MySQL은 `mysql2` 추가 시 구현 예정). `credentials.host/port/database/username/password/driver` 중 하나라도 누락 시 `INTEGRATION_INCOMPLETE`.
+
+**SSL 모드 매핑**:
+| `credentials.ssl` | pg 옵션 |
+|-------------------|--------|
+| `disable` | `ssl: false` |
+| `require` | `ssl: { rejectUnauthorized: false }` |
+| `verify-full` | `ssl: { rejectUnauthorized: true }` |
+
+**파라미터 바인딩** (`config.parameters`):
+- 배열 → 그대로 `client.query(sql, params)`에 전달
+- 문자열 → `JSON.parse`로 배열 복원. 파싱 실패 시 `INVALID_PARAMETERS`
+- `undefined`/`null`/`''` → 빈 배열
+
+**반환 shape**:
+```json
+{
+  "rows": [...],
+  "rowCount": 42,
+  "fields": [{"name": "id", "dataTypeID": 23}],
+  "query": "...",
+  "queryType": "select",
+  "durationMs": 18,
+  "status": "ok"
+}
+```
+
+커넥션 lifecycle: `new Client(...) → connect() → query() → finally end()`. 장기 pool은 사용하지 않음(노드 단위 일회성 연결).
+
+**에러 코드**: 공통 + `DRIVER_NOT_SUPPORTED`, `INVALID_PARAMETERS`. SQL 오류는 pg가 throw한 원본 메시지를 Usage 로그에 기록.
+
+### 10.6 HTTP Request (`http_request`)
+
+**인증 모드**:
+| `config.authentication` | 동작 |
+|-------------------------|------|
+| `none` | 아무 것도 주입 안 함 |
+| `integration` | `integrationId`로 Integration 조회 후 `auth_type`별 credential을 요청에 자동 적용 (아래 표) |
+| `custom` | 사용자가 `headers`에 직접 입력 |
+
+`authentication='integration'`이지만 `integrationId`가 비어있으면 validate 실패(`integrationId is required when authentication is "integration"`).
+
+**`auth_type`별 credential 적용**:
+| `auth_type` | 주입 위치 | 예시 |
+|-------------|----------|------|
+| `api_key` + `location=header` | `credentials.headers[key_name] = value` | `X-Api-Key: secret` |
+| `api_key` + `location=query` | URL 쿼리 파라미터에 `key_name=value` append | `?token=secret` |
+| `bearer_token` | `Authorization: Bearer {token}` | — |
+| `basic` | `Authorization: Basic {base64(username:password)}` | — |
+
+**헤더 우선순위** (뒤가 우선):
+1. `credentials.default_headers`
+2. credential 주입 헤더
+3. 노드 설정의 `headers` (사용자 입력)
+
+**`base_url` prefix**: credential에 `base_url`이 있고 노드의 `url`이 절대 URL(`https?://` 시작)이 아니면 `{base_url}/{url}`로 결합(중복 슬래시 정규화).
+
+**Usage 로깅** (`authentication='integration'`일 때만 수행):
+| 조건 | `status` | `error.code` |
+|------|---------|--------------|
+| 2xx | `success` | — |
+| 3xx/4xx/5xx | `failed` | `HTTP_{status}` |
+| fetch reject(네트워크/타임아웃) | `failed` | `HTTP_TRANSPORT_FAILED` |
+
+**반환 shape** (기존 §2.3과 동일) — 포트는 2xx = `success`, 그 외 = `error`.
+

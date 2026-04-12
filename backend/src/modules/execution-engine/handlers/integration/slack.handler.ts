@@ -24,8 +24,27 @@ export class SlackHandler
   extends IntegrationHandlerBase
   implements NodeHandler
 {
+  /**
+   * access_token → WebClient cache. Sharing an instance preserves the SDK's
+   * internal rate-limit queue across node executions using the same token.
+   */
+  private readonly clients = new Map<string, WebClient>();
+
   constructor(integrationsService?: IntegrationsService) {
     super(integrationsService);
+  }
+
+  private resolveClient(token: string): WebClient {
+    const existing = this.clients.get(token);
+    if (existing) return existing;
+    const client = new WebClient(token);
+    this.clients.set(token, client);
+    return client;
+  }
+
+  /** Evict a cached client — useful when a token is rotated. */
+  invalidateClient(token: string): void {
+    this.clients.delete(token);
   }
 
   validate(config: Record<string, unknown>): ValidationResult {
@@ -81,7 +100,7 @@ export class SlackHandler
         );
       }
 
-      const client = new WebClient(token);
+      const client = this.resolveClient(token);
       const result = await runAction(client, action, config);
 
       const durationMs = Date.now() - start;
@@ -89,7 +108,7 @@ export class SlackHandler
         integrationId,
         status: 'success',
         durationMs,
-      });
+      }).catch(() => {});
       return { action, status: 'ok', durationMs, ...result };
     } catch (err) {
       await this.logUsage(context, {
@@ -97,7 +116,7 @@ export class SlackHandler
         status: 'failed',
         durationMs: Date.now() - start,
         error: toLogError(err),
-      });
+      }).catch(() => {});
       throw err;
     }
   }
@@ -184,12 +203,18 @@ async function runAction(
       };
     }
     case 'upload_file': {
-      const res = await client.files.uploadV2({
+      const fileBuffer = coerceFile(config.file);
+      const basePayload = {
         channel_id: config.channel as string,
         filename: (config.filename as string | undefined) ?? 'upload.txt',
-        content: (config.content as string | undefined) ?? '',
         initial_comment: config.comment as string | undefined,
-      });
+      };
+      const payload = fileBuffer
+        ? { ...basePayload, file: fileBuffer }
+        : { ...basePayload, content: (config.content as string | undefined) ?? '' };
+      const res = await client.files.uploadV2(
+        payload as Parameters<typeof client.files.uploadV2>[0],
+      );
       return { file: (res as { files?: unknown }).files };
     }
   }
@@ -197,4 +222,30 @@ async function runAction(
 
 function stripColons(s: string): string {
   return s.replace(/^:|:$/g, '');
+}
+
+/**
+ * Accept the upload payload in the shapes a workflow might produce:
+ *  - Buffer (pass-through)
+ *  - string prefixed `base64:...` → decoded
+ *  - `{ base64: '...' }` object → decoded
+ *  - `{ url: '...' }` — not supported here (Slack SDK accepts URL separately);
+ *    falls back to `content` path by returning null.
+ */
+function coerceFile(raw: unknown): Buffer | null {
+  if (!raw) return null;
+  if (Buffer.isBuffer(raw)) return raw;
+  if (typeof raw === 'string') {
+    if (raw.startsWith('base64:')) {
+      return Buffer.from(raw.slice(7), 'base64');
+    }
+    return null;
+  }
+  if (typeof raw === 'object') {
+    const obj = raw as { base64?: unknown };
+    if (typeof obj.base64 === 'string') {
+      return Buffer.from(obj.base64, 'base64');
+    }
+  }
+  return null;
 }

@@ -670,11 +670,23 @@ export class IntegrationsService {
   }
 
   /**
-   * Fetch the raw entity (with decrypted credentials via the TypeORM transformer)
-   * for use by the execution engine. Credentials are NOT masked — callers must
-   * treat the returned object as secret material.
+   * Fetch the raw entity (with decrypted credentials via the TypeORM
+   * transformer) for use by the execution engine.
+   *
+   * **Authorisation contract** — the caller MUST already have established
+   * that the execution has permission to use this integration. This method
+   * only enforces the `workspace_id` scope check; it does not verify the
+   * individual workflow's ownership, the user triggering the run, or
+   * whether the integration is organisation-shared vs. personal. Use
+   * exclusively from trusted execution-engine code paths.
+   *
+   * Credentials on the returned object are NOT masked — callers must treat
+   * the result as secret material and avoid logging it.
    */
-  async getForExecution(id: string, workspaceId: string): Promise<Integration> {
+  async getForExecution(
+    id: string,
+    workspaceId: string,
+  ): Promise<Integration> {
     return this.requireEntity(id, workspaceId);
   }
 

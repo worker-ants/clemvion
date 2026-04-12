@@ -389,6 +389,70 @@ describe('HttpRequestHandler', () => {
       void service;
     });
 
+    it('blocks outbound requests to private IPv4 ranges', async () => {
+      const { service, logUsage } = makeService('bearer_token', { token: 't' });
+      const handler = new HttpRequestHandler(service as never);
+      await expect(
+        handler.execute(
+          null,
+          {
+            method: 'GET',
+            url: 'http://169.254.169.254/latest/meta-data/',
+            authentication: 'integration',
+            integrationId: 'int-1',
+          },
+          contextWithWorkspace,
+        ),
+      ).rejects.toThrow(/SSRF_BLOCKED/);
+      expect(logUsage).toHaveBeenCalledWith(
+        expect.objectContaining({
+          status: 'failed',
+          error: expect.objectContaining({ code: 'HTTP_BLOCKED' }),
+        }),
+      );
+    });
+
+    it('blocks localhost by name', async () => {
+      const { service } = makeService('bearer_token', { token: 't' });
+      const handler = new HttpRequestHandler(service as never);
+      await expect(
+        handler.execute(
+          null,
+          {
+            method: 'GET',
+            url: 'http://localhost:9000/admin',
+            authentication: 'integration',
+            integrationId: 'int-1',
+          },
+          contextWithWorkspace,
+        ),
+      ).rejects.toThrow(/SSRF_BLOCKED/);
+    });
+
+    it('logs HTTP transport failure with HTTP_TRANSPORT_FAILED', async () => {
+      const { service, logUsage } = makeService('bearer_token', { token: 't' });
+      global.fetch = jest
+        .fn()
+        .mockRejectedValue(new Error('ECONNREFUSED')) as unknown as typeof fetch;
+      const handler = new HttpRequestHandler(service as never);
+      await handler.execute(
+        null,
+        {
+          method: 'GET',
+          url: 'https://api.example.com/x',
+          authentication: 'integration',
+          integrationId: 'int-1',
+        },
+        contextWithWorkspace,
+      );
+      expect(logUsage).toHaveBeenCalledWith(
+        expect.objectContaining({
+          status: 'failed',
+          error: expect.objectContaining({ code: 'HTTP_TRANSPORT_FAILED' }),
+        }),
+      );
+    });
+
     it('logs HTTP non-2xx as failed', async () => {
       const { service, logUsage } = makeService('bearer_token', { token: 't' });
       global.fetch = jest.fn().mockResolvedValue({

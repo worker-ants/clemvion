@@ -271,6 +271,75 @@ describe('SlackHandler', () => {
       expect(out.channels).toHaveLength(2);
     });
 
+    it('update_message invokes chat.update with ts/text', async () => {
+      const { service } = makeService();
+      updateMock.mockResolvedValue({ channel: 'C1', ts: '200.0' });
+      const handler = new SlackHandler(service as never);
+      const out = (await handler.execute(
+        null,
+        {
+          integrationId: 'int-1',
+          action: 'update_message',
+          channel: 'C1',
+          ts: '100.0',
+          text: 'edited',
+        },
+        ctx(),
+      )) as { ts: string };
+      expect(out.ts).toBe('200.0');
+      expect(updateMock).toHaveBeenCalledWith({
+        channel: 'C1',
+        ts: '100.0',
+        text: 'edited',
+      });
+    });
+
+    it('upload_file with content field falls back to content payload', async () => {
+      const { service } = makeService();
+      filesUploadMock.mockResolvedValue({ files: [{ id: 'F1' }] });
+      const handler = new SlackHandler(service as never);
+      await handler.execute(
+        null,
+        {
+          integrationId: 'int-1',
+          action: 'upload_file',
+          channel: 'C1',
+          content: 'hello',
+          filename: 'note.txt',
+        },
+        ctx(),
+      );
+      expect(filesUploadMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          channel_id: 'C1',
+          content: 'hello',
+          filename: 'note.txt',
+        }),
+      );
+    });
+
+    it('upload_file decodes base64 file field into a Buffer', async () => {
+      const { service } = makeService();
+      filesUploadMock.mockResolvedValue({ files: [{ id: 'F2' }] });
+      const handler = new SlackHandler(service as never);
+      await handler.execute(
+        null,
+        {
+          integrationId: 'int-1',
+          action: 'upload_file',
+          channel: 'C1',
+          file: 'base64:' + Buffer.from('binary').toString('base64'),
+        },
+        ctx(),
+      );
+      const payload = filesUploadMock.mock.calls[0][0] as {
+        file?: unknown;
+        content?: unknown;
+      };
+      expect(Buffer.isBuffer(payload.file)).toBe(true);
+      expect(payload.content).toBeUndefined();
+    });
+
     it('falls back to requires_integration stub without service', async () => {
       const handler = new SlackHandler();
       const out = (await handler.execute(

@@ -660,6 +660,44 @@ Cron: 0 0 * * *   (워크스페이스 타임존 00:00)
 
 ## 14. 연관 동작
 
-- **노드 실행 엔진**: Integration 노드 실행 완료 후 `IntegrationUsageLog`를 1건 insert하고, 실패 시 `Integration.status`·`last_error` 갱신
-- **워크플로우 에디터**: 노드 설정 패널에서 Integration 드롭다운을 보여줄 때, 연동 상태 배지를 함께 노출 (§7.3)
-- **감사 로그(AuditLog)**: Integration 생성·삭제·회전·재인증·scope 전환 이벤트를 `resource_type='integration'`로 기록
+### 14.1 노드 실행 엔진
+
+핸들러 실행 세멘틱과 공통 계약은 [Spec Integration 노드 §10](../4-nodes/4-integration-nodes.md#10-handler-실행-세멘틱)과 [Spec 실행 엔진 §10](../5-system/4-execution-engine.md#10-integration-handler-계약)에 정의되어 있다. 핵심 규약:
+
+- 모든 Integration 핸들러는 `IntegrationsService.getForExecution(id, workspaceId)`로 credential을 해소하고, 호출 결과를 `IntegrationsService.logUsage(...)`로 기록한다.
+- 엔진은 각 노드 실행 직전 `ExecutionContext.nodeExecutionId`를 주입하여 usage 로그의 귀속을 보장한다.
+- 실패 시 핸들러는 `IntegrationError(code, message)`를 throw하며 `Integration.status`·`last_error`가 함께 갱신된다.
+
+#### 에러 코드 vocabulary
+
+| 코드 | 원인 | 영향 |
+|------|------|------|
+| `INTEGRATION_NOT_FOUND` | integrationId가 존재하지 않거나 타 워크스페이스 소속 | Usage 로그 기록(failed) + 노드 실패 |
+| `INTEGRATION_TYPE_MISMATCH` | 참조 Integration의 `service_type`이 노드 기대와 불일치 | 위와 동일 |
+| `INTEGRATION_NOT_CONNECTED` | Integration 상태가 `expired`/`error` | 위와 동일 |
+| `INTEGRATION_INCOMPLETE` | credentials JSONB에 필수 필드 누락 | 위와 동일 |
+| `INTEGRATION_CALL_FAILED` | 기타 분류 불가 실패 | 위와 동일 |
+| `SMTP_SEND_FAILED` | nodemailer 전송 실패 | Usage log `error.code` 기록 |
+| `DRIVER_NOT_SUPPORTED` | Database 핸들러에서 MySQL 등 미구현 드라이버 선택 | 위와 동일 |
+| `INVALID_PARAMETERS` | Database `parameters`가 JSON 배열 문자열로 파싱되지 않음 | 위와 동일 |
+| `HTTP_{status}` | HTTP 핸들러가 2xx 아닌 응답을 받음 | 위와 동일 (HTTP 노드는 `error` 포트로 출력) |
+| `HTTP_TRANSPORT_FAILED` | HTTP 전송 실패(네트워크/타임아웃) | 위와 동일 |
+
+#### 핸들러별 usage 기록 시점
+
+| 노드 | Usage 로그 기록 조건 |
+|------|---------------------|
+| `send_email` | 매 호출 (성공/실패 모두) |
+| `slack` | 매 호출 (성공/실패 모두) |
+| `database_query` | 매 호출 (성공/실패 모두) |
+| `http_request` | `authentication === 'integration'`인 경우에만 기록 (None/Custom은 Usage 대상 아님) |
+
+### 14.2 워크플로우 에디터
+
+- 노드 설정 패널에서 Integration 선택은 `IntegrationSelector` 공용 드롭다운을 사용한다 — `serviceTypes` prop으로 목록을 필터(Send Email은 `email`, Slack은 `slack`, Database는 `database`, HTTP의 `authentication='integration'` 모드는 `http`).
+- 연동 상태 배지를 함께 노출하며(§7.3), 해당 타입의 연동이 0건이면 `+ Create {Service} integration` CTA 링크를 select 아래에 표시(`/integrations/new?service=…&step=auth`).
+- 삭제된 integrationId가 저장돼 있으면 `{id앞8자}… (missing)` 옵션을 추가해 값 보존.
+
+### 14.3 감사 로그(AuditLog)
+
+Integration 생성·삭제·회전·재인증·scope 전환 이벤트를 `resource_type='integration'`로 기록한다. `action`은 `integration.created`, `integration.deleted`, `integration.rotated`, `integration.reauthorized`, `integration.scope_changed`.

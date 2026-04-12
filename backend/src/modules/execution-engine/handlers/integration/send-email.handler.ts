@@ -1,9 +1,15 @@
 import { createTransport, type Transporter } from 'nodemailer';
+import { createHash } from 'crypto';
 import {
   ExecutionContext,
   NodeHandler,
   ValidationResult,
 } from '../node-handler.interface.js';
+import {
+  IntegrationError,
+  IntegrationHandlerBase,
+  toLogError,
+} from './integration-handler-base.js';
 import { IntegrationsService } from '../../../integrations/integrations.service.js';
 
 interface SmtpCredentials {
@@ -15,8 +21,24 @@ interface SmtpCredentials {
   default_from: string;
 }
 
-export class SendEmailHandler implements NodeHandler {
-  constructor(private readonly integrationsService?: IntegrationsService) {}
+export class SendEmailHandler
+  extends IntegrationHandlerBase
+  implements NodeHandler
+{
+  /**
+   * integrationId → cached SMTP transport. Re-creating a transport per call
+   * costs a fresh TLS handshake; nodemailer's pool keeps the connection open
+   * across messages. Keyed by credentials hash so a credential rotation
+   * evicts the stale instance.
+   */
+  private readonly transports = new Map<
+    string,
+    { transporter: Transporter; credsHash: string }
+  >();
+
+  constructor(integrationsService?: IntegrationsService) {
+    super(integrationsService);
+  }
 
   validate(config: Record<string, unknown>): ValidationResult {
     const errors: string[] = [];
@@ -74,8 +96,6 @@ export class SendEmailHandler implements NodeHandler {
       throw new Error('No valid recipients after normalizing the `to` field');
     }
 
-    // The engine may be exercising this handler without wiring (e.g. older
-    // unit tests). Keep the legacy stub behaviour so those paths still pass.
     if (!this.integrationsService) {
       return {
         to,
@@ -86,69 +106,27 @@ export class SendEmailHandler implements NodeHandler {
       };
     }
 
-    const workspaceId = context.variables.__workspaceId as string | undefined;
-    if (!workspaceId) {
-      throw new Error(
-        'Missing workspace context — send_email cannot resolve the integration',
-      );
-    }
-
     const start = Date.now();
-    let integration;
     try {
-      integration = await this.integrationsService.getForExecution(
+      const integration = await this.resolveIntegration(
         integrationId,
-        workspaceId,
+        context,
+        'email',
       );
-    } catch (err) {
-      await this.safeLogUsage(context, integrationId, {
-        status: 'failed',
-        durationMs: Date.now() - start,
-        error: {
-          code: 'INTEGRATION_NOT_FOUND',
-          message: err instanceof Error ? err.message : String(err),
-        },
-      });
-      throw err;
-    }
+      const credentials = integration.credentials as Partial<SmtpCredentials>;
+      const missing = missingSmtpFields(credentials);
+      if (missing.length > 0) {
+        throw new IntegrationError(
+          'INTEGRATION_INCOMPLETE',
+          `SMTP integration is missing fields: ${missing.join(', ')}`,
+        );
+      }
 
-    if (integration.serviceType !== 'email') {
-      const message = `Integration ${integrationId} is type "${integration.serviceType}", not "email"`;
-      await this.safeLogUsage(context, integrationId, {
-        status: 'failed',
-        durationMs: Date.now() - start,
-        error: { code: 'INTEGRATION_TYPE_MISMATCH', message },
-      });
-      throw new Error(message);
-    }
+      const transporter = this.resolveTransport(
+        integrationId,
+        credentials as SmtpCredentials,
+      );
 
-    if (integration.status !== 'connected') {
-      const message = `Integration "${integration.name}" is ${integration.status}${
-        integration.statusReason ? ` (${integration.statusReason})` : ''
-      }`;
-      await this.safeLogUsage(context, integrationId, {
-        status: 'failed',
-        durationMs: Date.now() - start,
-        error: { code: 'INTEGRATION_NOT_CONNECTED', message },
-      });
-      throw new Error(message);
-    }
-
-    const credentials = integration.credentials as Partial<SmtpCredentials>;
-    const missing = missingSmtpFields(credentials);
-    if (missing.length > 0) {
-      const message = `SMTP integration is missing fields: ${missing.join(', ')}`;
-      await this.safeLogUsage(context, integrationId, {
-        status: 'failed',
-        durationMs: Date.now() - start,
-        error: { code: 'INTEGRATION_INCOMPLETE', message },
-      });
-      throw new Error(message);
-    }
-
-    const transporter = this.buildTransport(credentials as SmtpCredentials);
-
-    try {
       const info = await transporter.sendMail({
         from: credentials.default_from,
         to,
@@ -157,10 +135,11 @@ export class SendEmailHandler implements NodeHandler {
         ...(bodyType === 'html' ? { html: body } : { text: body }),
       });
       const durationMs = Date.now() - start;
-      await this.safeLogUsage(context, integrationId, {
+      await this.logUsage(context, {
+        integrationId,
         status: 'success',
         durationMs,
-      });
+      }).catch(() => {});
       return {
         messageId: info.messageId,
         accepted: info.accepted,
@@ -173,49 +152,84 @@ export class SendEmailHandler implements NodeHandler {
         durationMs,
       };
     } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      await this.safeLogUsage(context, integrationId, {
+      const logError =
+        err instanceof IntegrationError
+          ? toLogError(err)
+          : { code: 'SMTP_SEND_FAILED', message: safeMessage(err) };
+      await this.logUsage(context, {
+        integrationId,
         status: 'failed',
         durationMs: Date.now() - start,
-        error: { code: 'SMTP_SEND_FAILED', message },
-      });
+        error: logError,
+      }).catch(() => {});
       throw err;
-    } finally {
-      transporter.close();
     }
   }
 
-  private buildTransport(credentials: SmtpCredentials): Transporter {
-    const { host, port, secure, username, password } = credentials;
-    return createTransport({
-      host,
-      port,
-      secure: secure === 'tls',
-      requireTLS: secure === 'starttls',
-      auth: { user: username, pass: password },
-    });
+  /**
+   * Drop the cached transport for an integration — useful when credentials
+   * change or the process is shutting down.
+   */
+  async invalidateTransport(integrationId: string): Promise<void> {
+    const entry = this.transports.get(integrationId);
+    if (!entry) return;
+    this.transports.delete(integrationId);
+    try {
+      entry.transporter.close();
+    } catch {
+      /* ignore */
+    }
   }
 
-  private async safeLogUsage(
-    context: ExecutionContext,
-    integrationId: string,
-    params: {
-      status: 'success' | 'failed';
-      durationMs: number;
-      error?: { code?: string; message?: string };
-    },
-  ): Promise<void> {
-    if (!this.integrationsService) return;
-    if (!context.nodeExecutionId) return;
-    await this.integrationsService.logUsage({
-      integrationId,
-      nodeExecutionId: context.nodeExecutionId,
-      workflowId: context.workflowId,
-      status: params.status,
-      durationMs: params.durationMs,
-      error: params.error ?? null,
-    });
+  async shutdown(): Promise<void> {
+    const entries = Array.from(this.transports.values());
+    this.transports.clear();
+    for (const { transporter } of entries) {
+      try {
+        transporter.close();
+      } catch {
+        /* ignore */
+      }
+    }
   }
+
+  private resolveTransport(
+    integrationId: string,
+    creds: SmtpCredentials,
+  ): Transporter {
+    const credsHash = hashCredentials(creds);
+    const existing = this.transports.get(integrationId);
+    if (existing && existing.credsHash === credsHash) {
+      return existing.transporter;
+    }
+    if (existing) {
+      try {
+        existing.transporter.close();
+      } catch {
+        /* ignore */
+      }
+    }
+
+    const transporter = createTransport({
+      host: creds.host,
+      port: creds.port,
+      secure: creds.secure === 'tls',
+      requireTLS: creds.secure === 'starttls',
+      auth: { user: creds.username, pass: creds.password },
+      pool: true,
+      maxConnections: 3,
+      maxMessages: 100,
+    });
+    this.transports.set(integrationId, { transporter, credsHash });
+    return transporter;
+  }
+}
+
+function safeMessage(err: unknown): string {
+  const msg = err instanceof Error ? err.message : String(err);
+  // Reuse the sanitizer so passwords / auth headers don't leak from
+  // nodemailer SMTP errors.
+  return toLogError(new Error(msg)).message;
 }
 
 function isRecipientsLike(value: unknown): boolean {
@@ -257,4 +271,16 @@ function missingSmtpFields(creds: Partial<SmtpCredentials>): string[] {
   return required.filter(
     (k) => creds[k] === undefined || creds[k] === null || creds[k] === '',
   );
+}
+
+function hashCredentials(creds: SmtpCredentials): string {
+  const fingerprint = [
+    creds.host,
+    creds.port,
+    creds.secure,
+    creds.username,
+    creds.password,
+    creds.default_from,
+  ].join('|');
+  return createHash('sha256').update(fingerprint).digest('hex');
 }

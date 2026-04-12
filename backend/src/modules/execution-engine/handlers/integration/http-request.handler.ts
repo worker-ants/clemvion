@@ -9,6 +9,7 @@ import {
   toLogError,
 } from './integration-handler-base.js';
 import { IntegrationsService } from '../../../integrations/integrations.service.js';
+import { assertSafeOutboundUrl } from './http-safety.js';
 
 export class HttpRequestHandler
   extends IntegrationHandlerBase
@@ -165,12 +166,55 @@ export class HttpRequestHandler
       }
     }
 
+    // SSRF guard for Integration-backed calls only. Un-authenticated HTTP
+    // requests (authentication=none / custom) may legitimately target
+    // internal services in some deployments, so we don't block those here.
+    if (authentication === 'integration') {
+      try {
+        assertSafeOutboundUrl(url);
+      } catch (err) {
+        if (integrationId) {
+          await this.logUsage(context, {
+            integrationId,
+            status: 'failed',
+            durationMs: Date.now() - start,
+            error: {
+              code: 'HTTP_BLOCKED',
+              message: err instanceof Error ? err.message : String(err),
+            },
+          }).catch(() => {});
+        }
+        throw err;
+      }
+    }
+
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), timeout);
     fetchOptions.signal = controller.signal;
+    // Follow redirects manually so that a redirect to an internal host does
+    // not bypass `assertSafeOutboundUrl`. We honour up to 5 hops and
+    // re-validate each target.
+    fetchOptions.redirect = 'manual';
 
     try {
-      const res = await fetch(url, fetchOptions);
+      let res = await fetch(url, fetchOptions);
+      let hops = 0;
+      while (
+        authentication === 'integration' &&
+        res.status >= 300 &&
+        res.status < 400 &&
+        res.headers.get('location')
+      ) {
+        if (hops >= 5) {
+          throw new Error('SSRF_BLOCKED: redirect chain exceeded 5 hops');
+        }
+        const location = res.headers.get('location') as string;
+        const next = new URL(location, url).toString();
+        assertSafeOutboundUrl(next);
+        url = next;
+        hops++;
+        res = await fetch(url, fetchOptions);
+      }
       clearTimeout(timeoutId);
 
       const duration = Date.now() - start;
@@ -308,8 +352,11 @@ function buildHttpCredentials(
 }
 
 /**
- * If the config URL is absolute (includes a scheme), use it verbatim.
- * Otherwise, prefix with `base_url` (if provided), stripping duplicate slashes.
+ * If the config URL is absolute (starts with `http://` or `https://`), use
+ * it verbatim. Otherwise, prefix with `base_url` (if provided). Trims a
+ * trailing slash from `base_url` and a leading slash from `configUrl` so
+ * the join point yields exactly one `/`. Slashes inside the path are left
+ * untouched.
  */
 function resolveUrl(baseUrl: string | undefined, configUrl: string): string {
   if (/^https?:\/\//i.test(configUrl)) return configUrl;

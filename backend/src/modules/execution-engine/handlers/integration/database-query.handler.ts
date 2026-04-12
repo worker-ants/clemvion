@@ -1,4 +1,5 @@
-import { Client as PgClient } from 'pg';
+import { Pool, PoolClient } from 'pg';
+import { createHash } from 'crypto';
 import {
   ExecutionContext,
   NodeHandler,
@@ -21,10 +22,33 @@ interface DbCredentials {
   ssl: 'disable' | 'require' | 'verify-full';
 }
 
+/**
+ * Allowed values for `config.queryType`. Centralised so that validate() and
+ * any future runtime branching stay in sync.
+ */
+export const ALLOWED_QUERY_TYPES = [
+  'select',
+  'insert',
+  'update',
+  'delete',
+  'raw',
+] as const;
+
+const POOL_MAX_CONNECTIONS = 5;
+const POOL_IDLE_TIMEOUT_MS = 30_000;
+
 export class DatabaseQueryHandler
   extends IntegrationHandlerBase
   implements NodeHandler
 {
+  /**
+   * integrationId → cached pg.Pool. A new Pool is created on first use and
+   * reused across node executions to bound total TCP connections against
+   * PostgreSQL's `max_connections`. Keyed by integrationId + credentials hash
+   * so credential rotations invalidate the cache.
+   */
+  private readonly pools = new Map<string, { pool: Pool; credsHash: string }>();
+
   constructor(integrationsService?: IntegrationsService) {
     super(integrationsService);
   }
@@ -40,12 +64,12 @@ export class DatabaseQueryHandler
     }
     if (
       config.queryType !== undefined &&
-      !['select', 'insert', 'update', 'delete', 'raw'].includes(
-        config.queryType as string,
+      !ALLOWED_QUERY_TYPES.includes(
+        config.queryType as (typeof ALLOWED_QUERY_TYPES)[number],
       )
     ) {
       errors.push(
-        'queryType must be one of: select, insert, update, delete, raw',
+        `queryType must be one of: ${ALLOWED_QUERY_TYPES.join(', ')}`,
       );
     }
     if (
@@ -102,16 +126,17 @@ export class DatabaseQueryHandler
         );
       }
 
-      const client = new PgClient(buildPgConnection(creds as DbCredentials));
-      await client.connect();
+      const pool = this.resolvePool(integrationId, creds as DbCredentials);
+      let client: PoolClient | undefined;
       try {
+        client = await pool.connect();
         const result = await client.query(query, parameters);
         const durationMs = Date.now() - start;
         await this.logUsage(context, {
           integrationId,
           status: 'success',
           durationMs,
-        });
+        }).catch(() => {});
         return {
           rows: result.rows,
           rowCount: result.rowCount ?? result.rows.length,
@@ -125,7 +150,7 @@ export class DatabaseQueryHandler
           status: 'ok',
         };
       } finally {
-        await client.end();
+        client?.release();
       }
     } catch (err) {
       await this.logUsage(context, {
@@ -133,9 +158,56 @@ export class DatabaseQueryHandler
         status: 'failed',
         durationMs: Date.now() - start,
         error: toLogError(err),
-      });
+      }).catch(() => {});
       throw err;
     }
+  }
+
+  /**
+   * Drop the cached pool for an integration — useful when credentials change.
+   * Safe to call even if no pool exists for the id.
+   */
+  async invalidatePool(integrationId: string): Promise<void> {
+    const entry = this.pools.get(integrationId);
+    if (!entry) return;
+    this.pools.delete(integrationId);
+    try {
+      await entry.pool.end();
+    } catch {
+      /* ignore */
+    }
+  }
+
+  /**
+   * Close all cached pools. Intended for test cleanup and graceful shutdown.
+   */
+  async shutdown(): Promise<void> {
+    const entries = Array.from(this.pools.values());
+    this.pools.clear();
+    await Promise.allSettled(entries.map((e) => e.pool.end()));
+  }
+
+  private resolvePool(integrationId: string, creds: DbCredentials): Pool {
+    const credsHash = hashCredentials(creds);
+    const existing = this.pools.get(integrationId);
+    if (existing && existing.credsHash === credsHash) {
+      return existing.pool;
+    }
+    if (existing) {
+      // credential rotated — end the stale pool in the background
+      void existing.pool.end().catch(() => {});
+    }
+
+    const pool = new Pool({
+      ...buildPgConnection(creds),
+      max: POOL_MAX_CONNECTIONS,
+      idleTimeoutMillis: POOL_IDLE_TIMEOUT_MS,
+    });
+    // Prevent unhandled error events from crashing the process when an idle
+    // client encounters a network issue.
+    pool.on('error', () => {});
+    this.pools.set(integrationId, { pool, credsHash });
+    return pool;
   }
 }
 
@@ -148,8 +220,14 @@ function buildPgConnection(creds: DbCredentials): {
   ssl: boolean | { rejectUnauthorized: boolean };
 } {
   let ssl: boolean | { rejectUnauthorized: boolean } = false;
-  if (creds.ssl === 'require') ssl = { rejectUnauthorized: false };
-  if (creds.ssl === 'verify-full') ssl = { rejectUnauthorized: true };
+  // `require` now enforces cert verification. Operators who rely on
+  // self-signed certificates must opt in explicitly by rotating to a
+  // fully validated `verify-full` pair, OR extending this mapping to a
+  // new `require-trust` mode — we intentionally stopped defaulting to
+  // `rejectUnauthorized: false` because of the MITM exposure.
+  if (creds.ssl === 'require' || creds.ssl === 'verify-full') {
+    ssl = { rejectUnauthorized: true };
+  }
   return {
     host: creds.host,
     port: creds.port,
@@ -174,7 +252,6 @@ function missingDbFields(creds: Partial<DbCredentials>): string[] {
   );
 }
 
-/** Parameters may arrive as array or as a JSON-array string from the UI. */
 function parseParameters(raw: unknown): unknown[] {
   if (raw === undefined || raw === null || raw === '') return [];
   if (Array.isArray(raw)) return raw;
@@ -193,4 +270,17 @@ function parseParameters(raw: unknown): unknown[] {
     'INVALID_PARAMETERS',
     'parameters must be an array or a JSON array string',
   );
+}
+
+function hashCredentials(creds: DbCredentials): string {
+  const fingerprint = [
+    creds.driver,
+    creds.host,
+    creds.port,
+    creds.database,
+    creds.username,
+    creds.password,
+    creds.ssl,
+  ].join('|');
+  return createHash('sha256').update(fingerprint).digest('hex');
 }
