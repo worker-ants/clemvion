@@ -674,10 +674,7 @@ export class IntegrationsService {
    * for use by the execution engine. Credentials are NOT masked — callers must
    * treat the returned object as secret material.
    */
-  async getForExecution(
-    id: string,
-    workspaceId: string,
-  ): Promise<Integration> {
+  async getForExecution(id: string, workspaceId: string): Promise<Integration> {
     return this.requireEntity(id, workspaceId);
   }
 

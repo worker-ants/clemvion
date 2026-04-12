@@ -120,11 +120,14 @@ describe('SendEmailHandler', () => {
   // execute — full SMTP path
   // -----------------------------------------------------------------
   describe('execute (with integrations service)', () => {
-    function makeService(overrides: {
-      integration?: unknown;
-      logUsage?: jest.Mock;
-    } = {}) {
-      const logUsage = overrides.logUsage ?? jest.fn().mockResolvedValue(undefined);
+    function makeService(
+      overrides: {
+        integration?: unknown;
+        logUsage?: jest.Mock;
+      } = {},
+    ) {
+      const logUsage =
+        overrides.logUsage ?? jest.fn().mockResolvedValue(undefined);
       const integration = overrides.integration ?? {
         id: 'int-1',
         workspaceId: 'ws-1',
@@ -153,7 +156,11 @@ describe('SendEmailHandler', () => {
       const handler = new SendEmailHandler(service as never);
       const out = (await handler.execute(
         null,
-        { ...baseConfig, to: 'a@example.com, b@example.com', cc: 'c@example.com' },
+        {
+          ...baseConfig,
+          to: 'a@example.com, b@example.com',
+          cc: 'c@example.com',
+        },
         makeContext(),
       )) as { status: string; to: string[]; cc: string[]; messageId: string };
 
