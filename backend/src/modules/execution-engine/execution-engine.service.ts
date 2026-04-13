@@ -2477,13 +2477,52 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
    * points, emit source. Validated once at the start of {@link runContainer}
    * so every iteration shares the same wiring and errors surface upfront.
    */
+  /**
+   * Walk the containerId chain from each container's children upward to make
+   * sure no container is its own (transitive) ancestor. Throws when a cycle
+   * is found so the engine surfaces a stable, named error instead of looping.
+   */
+  private assertNoContainerCycle(containerNode: Node, allNodes: Node[]): void {
+    const byId = new Map(allNodes.map((n) => [n.id, n]));
+    for (const node of allNodes) {
+      if (node.containerId !== containerNode.id) continue;
+      const visited = new Set<string>();
+      let cursor: Node | undefined = node;
+      while (cursor?.containerId) {
+        if (visited.has(cursor.id)) {
+          throw new Error(
+            `CONTAINER_CYCLE: Container "${containerNode.label ?? containerNode.type}" is part of a containerId cycle involving node "${cursor.label ?? cursor.type}".`,
+          );
+        }
+        visited.add(cursor.id);
+        cursor = byId.get(cursor.containerId);
+      }
+    }
+  }
+
   private planContainerBody(
     containerNode: Node,
     allNodes: Node[],
     allEdges: Edge[],
   ): ContainerBodyPlan {
+    // Detect a containerId cycle (e.g. A.containerId=B && B.containerId=A)
+    // before doing any work so the user gets a clear error instead of an
+    // infinite loop or stack overflow.
+    this.assertNoContainerCycle(containerNode, allNodes);
+
     const children = allNodes.filter((n) => n.containerId === containerNode.id);
     const childIds = new Set(children.map((c) => c.id));
+
+    // Trigger nodes can never live inside a container body — their semantics
+    // (workflow entry point) conflict with iterative re-execution.
+    const triggerChild = children.find(
+      (n) => n.category === NodeCategory.TRIGGER,
+    );
+    if (triggerChild) {
+      throw new Error(
+        `CONTAINER_INVALID_CHILD: Trigger node "${triggerChild.label ?? triggerChild.type}" cannot be placed inside container "${containerNode.label ?? containerNode.type}".`,
+      );
+    }
 
     const bodyEntryNodeIds = new Set(
       allEdges
@@ -2563,6 +2602,61 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
    * `done`-port edges carry the body results.
    */
   private async runContainer(
+    containerNode: Node,
+    allNodes: Node[],
+    allEdges: Edge[],
+    context: ExecutionContext,
+    executionId: string,
+    executedNodes: Set<string>,
+    executionMeta: { startedAt?: string; mode?: string },
+  ): Promise<void> {
+    try {
+      await this.runContainerInner(
+        containerNode,
+        allNodes,
+        allEdges,
+        context,
+        executionId,
+        executedNodes,
+        executionMeta,
+      );
+    } catch (error) {
+      // Container-level failure happens AFTER executeNode has already marked
+      // the container as COMPLETED (handler's initial return succeeded). We
+      // overwrite that to FAILED with the real error so the UI surfaces the
+      // reason (e.g. CONTAINER_MISSING_EMIT) on the container node itself
+      // instead of leaving it looking "completed with null output".
+      const message = error instanceof Error ? error.message : String(error);
+      const nodeExec = await this.nodeExecutionRepository.findOne({
+        where: { executionId, nodeId: containerNode.id },
+        order: { startedAt: 'DESC' },
+      });
+      if (nodeExec) {
+        nodeExec.status = NodeExecutionStatus.FAILED;
+        nodeExec.error = { message };
+        nodeExec.finishedAt = new Date();
+        if (nodeExec.startedAt) {
+          nodeExec.durationMs =
+            nodeExec.finishedAt.getTime() - nodeExec.startedAt.getTime();
+        }
+        await this.nodeExecutionRepository.save(nodeExec);
+      }
+      this.websocketService.emitNodeEvent(
+        executionId,
+        containerNode.id,
+        NodeEventType.NODE_FAILED,
+        {
+          status: NodeExecutionStatus.FAILED,
+          error: message,
+          nodeType: containerNode.type,
+          nodeLabel: containerNode.label ?? containerNode.type,
+        },
+      );
+      throw error;
+    }
+  }
+
+  private async runContainerInner(
     containerNode: Node,
     allNodes: Node[],
     allEdges: Edge[],

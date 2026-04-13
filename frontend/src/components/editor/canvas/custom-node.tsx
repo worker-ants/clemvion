@@ -29,6 +29,16 @@ function CustomNodeComponent({ id, data, selected }: NodeProps<CustomNodeType>) 
   const definition = getNodeDefinition(data.type);
   const categoryColor = CATEGORY_COLORS[data.category] ?? "#6B7280";
   const inputs = definition?.inputs ?? [];
+  const containerId =
+    (data as Record<string, unknown>).containerId as string | null | undefined;
+  // Look up the container's label so the badge stays in sync with renames.
+  // useStore subscribes only when the looked-up label string changes, keeping
+  // re-renders cheap even for very large canvases.
+  const containerLabel = useStore((s: { nodes: Array<{ id: string; data: { label?: string } }> }) => {
+    if (!containerId) return null;
+    const found = s.nodes.find((n) => n.id === containerId);
+    return found ? (found.data.label ?? null) : null;
+  });
   const outputs = useMemo(() => {
     if (data.type === "switch") {
       const cases = (data.config.cases as Array<{ id: string; label: string }>) ?? [];
@@ -220,6 +230,17 @@ function CustomNodeComponent({ id, data, selected }: NodeProps<CustomNodeType>) 
           </Tooltip>
         )}
       </div>
+
+      {/* Container membership badge — visible only for body children so users
+          can verify which container a node belongs to without opening the
+          settings panel. */}
+      {containerId && (
+        <div className="border-b border-[hsl(var(--border))] bg-[hsl(var(--muted))]/40 px-3 py-0.5">
+          <span className="text-[10px] text-[hsl(var(--muted-foreground))]">
+            in <span className="text-[hsl(var(--foreground))]">{containerLabel ?? "(deleted)"}</span>
+          </span>
+        </div>
+      )}
 
       {/* Body with handles */}
       <div className="relative px-3 py-2">
