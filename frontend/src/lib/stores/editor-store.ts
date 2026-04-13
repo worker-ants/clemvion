@@ -219,17 +219,36 @@ function propagateContainerOnConnect(
   return result;
 }
 
+/** Shallow comparison of containerId across two node lists (matched by id). */
+function nodesContainerIdsEqual(a: Node[], b: Node[]): boolean {
+  if (a.length !== b.length) return false;
+  const aMap = new Map(a.map((n) => [n.id, getContainerId(n)]));
+  for (const node of b) {
+    if (aMap.get(node.id) !== getContainerId(node)) return false;
+  }
+  return true;
+}
+
 /**
- * Re-run container propagation across every existing edge until the assignment
- * stabilises. Used when loading a saved workflow so wires drawn before this
- * propagation logic existed (or any other drift) get back-filled — without it
- * users see `CONTAINER_MISSING_EMIT` even though their wiring looks correct.
+ * Compute every node's `containerId` purely as a function of the current
+ * edges:
  *
- * Iterates to a fixed point because chain propagation depends on already-set
- * containerIds: assigning A in pass 1 may unlock B in pass 2.
+ *   1. Reset all assignments to `null` (so edges that have since been removed
+ *      no longer claim a node).
+ *   2. Iterate `propagateContainerOnConnect` over every remaining edge until
+ *      no further change happens (fixed point) — chain rules need previously
+ *      assigned containerIds to fire, so a single pass isn't enough.
+ *
+ * This makes deletion automatic: drop the body edge → the node falls back to
+ * `null` unless an emit edge or a chain still anchors it to the same
+ * container. Used on workflow load, edge removal, and node removal.
  */
-function backfillContainerAssignments(nodes: Node[], edges: Edge[]): Node[] {
-  let current = nodes;
+function deriveContainerAssignments(nodes: Node[], edges: Edge[]): Node[] {
+  let current = nodes.map((n) => {
+    const data = n.data as Record<string, unknown> | undefined;
+    if (!data || data.containerId == null) return n;
+    return { ...n, data: { ...data, containerId: null } };
+  });
   for (let pass = 0; pass < 16; pass++) {
     let changed = false;
     for (const e of edges) {
@@ -261,17 +280,16 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   redoStack: [],
 
   setWorkflow: (id, name, nodes, edges) => {
-    // Back-fill containerId on existing nodes so workflows that were saved
-    // before edge auto-propagation existed (or wires that bypassed
-    // onConnect) still have their body chains identified at execution time.
-    const backfilled = backfillContainerAssignments(nodes, edges);
-    // Mark dirty when the back-fill actually changed assignments so the user
-    // can persist the recovered state on the next save.
-    const recovered = backfilled !== nodes;
+    // Re-derive containerId from the loaded edges so the in-memory state
+    // matches the canonical "edges are the source of truth" model. This
+    // recovers stale data (containerId persisted but no longer wired) and
+    // back-fills wires drawn before auto-propagation existed.
+    const derived = deriveContainerAssignments(nodes, edges);
+    const recovered = !nodesContainerIdsEqual(nodes, derived);
     set({
       workflowId: id,
       workflowName: name,
-      nodes: backfilled,
+      nodes: derived,
       edges,
       isDirty: recovered,
       undoStack: [],
@@ -303,18 +321,15 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       if (removedIds.size > 0) {
         const snapshot = { nodes: [...state.nodes], edges: [...state.edges] };
         const newStack = [...state.undoStack, snapshot].slice(-MAX_UNDO);
+        const remainingNodes = applyNodeChanges(filteredChanges, state.nodes);
+        const remainingEdges = state.edges.filter(
+          (e) => !removedIds.has(e.source) && !removedIds.has(e.target),
+        );
         return {
-          nodes: applyNodeChanges(filteredChanges, state.nodes).map((n) => {
-            const data = n.data as Record<string, unknown>;
-            const cId = data?.containerId;
-            if (typeof cId === "string" && removedIds.has(cId)) {
-              return { ...n, data: { ...data, containerId: null } };
-            }
-            return n;
-          }),
-          edges: state.edges.filter(
-            (e) => !removedIds.has(e.source) && !removedIds.has(e.target),
-          ),
+          // Re-derive after node removal — disposing of a container or a body
+          // member changes which container claims which node.
+          nodes: deriveContainerAssignments(remainingNodes, remainingEdges),
+          edges: remainingEdges,
           undoStack: newStack,
           redoStack: [],
           isDirty: true,
@@ -333,10 +348,22 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   },
 
   onEdgesChange: (changes) => {
-    set((state) => ({
-      edges: applyEdgeChanges(changes, state.edges),
-      isDirty: true,
-    }));
+    set((state) => {
+      const nextEdges = applyEdgeChanges(changes, state.edges);
+      // Edge removal can leave a node without any wire that justifies its
+      // containerId — re-derive so the assignment stays in lock-step with
+      // the visible wiring. (Add changes don't need this; onConnect handles
+      // them and applies propagation at insert time.)
+      const hasRemove = changes.some((c) => c.type === "remove");
+      const nextNodes = hasRemove
+        ? deriveContainerAssignments(state.nodes, nextEdges)
+        : state.nodes;
+      return {
+        edges: nextEdges,
+        nodes: nextNodes,
+        isDirty: true,
+      };
+    });
   },
 
   onConnect: (connection) => {
@@ -372,21 +399,21 @@ export const useEditorStore = create<EditorState>((set, get) => ({
 
   removeNode: (id) => {
     get().pushUndo();
-    set((state) => ({
-      // Drop the node, drop its edges, AND orphan-clean: any other node that
-      // pointed to this id as its container loses the reference (so it doesn't
-      // dangle as "in (deleted)").
-      nodes: state.nodes
-        .filter((n) => n.id !== id)
-        .map((n) => {
-          const data = n.data as Record<string, unknown>;
-          if (data?.containerId !== id) return n;
-          return { ...n, data: { ...data, containerId: null } };
-        }),
-      edges: state.edges.filter((e) => e.source !== id && e.target !== id),
-      selectedNodeId: state.selectedNodeId === id ? null : state.selectedNodeId,
-      isDirty: true,
-    }));
+    set((state) => {
+      const remainingNodes = state.nodes.filter((n) => n.id !== id);
+      const remainingEdges = state.edges.filter(
+        (e) => e.source !== id && e.target !== id,
+      );
+      return {
+        // Re-derive containerIds — removing a node also removes its edges,
+        // which may strand other nodes' container assignments.
+        nodes: deriveContainerAssignments(remainingNodes, remainingEdges),
+        edges: remainingEdges,
+        selectedNodeId:
+          state.selectedNodeId === id ? null : state.selectedNodeId,
+        isDirty: true,
+      };
+    });
   },
 
   updateNodeConfig: (id, config) => {

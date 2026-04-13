@@ -10,7 +10,10 @@ const BLOCKED_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
  * Returns the resolved value. Useful for handlers that accept "Expression |
  * Path" config fields (Map, ForEach, Split).
  */
-export function resolveFieldValue(input: unknown, fieldValue: unknown): unknown {
+export function resolveFieldValue(
+  input: unknown,
+  fieldValue: unknown,
+): unknown {
   if (typeof fieldValue === 'string') {
     return getNestedValue(input, fieldValue);
   }

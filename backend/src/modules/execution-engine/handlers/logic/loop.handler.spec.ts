@@ -61,9 +61,9 @@ describe('LoopHandler', () => {
     });
 
     it('accepts numeric string maxIterations', () => {
-      expect(
-        handler.validate({ count: '5', maxIterations: '100' }).valid,
-      ).toBe(true);
+      expect(handler.validate({ count: '5', maxIterations: '100' }).valid).toBe(
+        true,
+      );
     });
   });
 

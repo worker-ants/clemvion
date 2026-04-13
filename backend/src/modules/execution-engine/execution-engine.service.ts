@@ -2547,8 +2547,7 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
       // pointing the user at the offending node + container assignment helps
       // them recover quickly.
       const orphanEmitEdges = allEdges.filter(
-        (e) =>
-          e.targetNodeId === containerNode.id && e.targetPort === 'emit',
+        (e) => e.targetNodeId === containerNode.id && e.targetPort === 'emit',
       );
       if (orphanEmitEdges.length > 0) {
         const sourceLabels = orphanEmitEdges
