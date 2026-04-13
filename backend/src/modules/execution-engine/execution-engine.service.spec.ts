@@ -1645,6 +1645,15 @@ describe('ExecutionEngineService', () => {
           type: EdgeType.DATA,
         },
         {
+          id: 'e-body-emit',
+          workflowId,
+          sourceNodeId: 'body',
+          sourcePort: 'out',
+          targetNodeId: 'foreach',
+          targetPort: 'emit',
+          type: EdgeType.DATA,
+        },
+        {
           id: 'e-fe-sink',
           workflowId,
           sourceNodeId: 'foreach',
@@ -1768,6 +1777,15 @@ describe('ExecutionEngineService', () => {
           type: EdgeType.DATA,
         },
         {
+          id: 'e-body-emit-loop',
+          workflowId,
+          sourceNodeId: 'body',
+          sourcePort: 'out',
+          targetNodeId: 'loop',
+          targetPort: 'emit',
+          type: EdgeType.DATA,
+        },
+        {
           id: 'e-loop-sink',
           workflowId,
           sourceNodeId: 'loop',
@@ -1782,7 +1800,7 @@ describe('ExecutionEngineService', () => {
       mockEdgeRepo.findBy.mockResolvedValue(edges);
 
       await service.execute(workflowId, {});
-      await flushPromises();
+      await new Promise((r) => setTimeout(r, 200));
 
       expect(bodyHandler.execute).toHaveBeenCalledTimes(4);
       expect(sinkCalls).toEqual([
@@ -1880,6 +1898,15 @@ describe('ExecutionEngineService', () => {
           type: EdgeType.DATA,
         },
         {
+          id: 'e-body-emit',
+          workflowId,
+          sourceNodeId: 'body',
+          sourcePort: 'out',
+          targetNodeId: 'foreach',
+          targetPort: 'emit',
+          type: EdgeType.DATA,
+        },
+        {
           id: 'e-fe-sink',
           workflowId,
           sourceNodeId: 'foreach',
@@ -1894,10 +1921,227 @@ describe('ExecutionEngineService', () => {
       mockEdgeRepo.findBy.mockResolvedValue(edges);
 
       await service.execute(workflowId, {});
-      await flushPromises();
+      await new Promise((r) => setTimeout(r, 200));
 
       expect(bodyHandler.execute).not.toHaveBeenCalled();
       expect(sinkCalls[0]).toEqual([]);
+    });
+
+    it('fails execution when container has no emit edge', async () => {
+      const bodyHandler: NodeHandler = {
+        validate: () => ({ valid: true, errors: [] }),
+        execute: jest.fn(async () => ({ ran: true })),
+      };
+      handlerRegistry.register('body_node', bodyHandler);
+
+      const triggerHandler: NodeHandler = {
+        validate: () => ({ valid: true, errors: [] }),
+        execute: jest.fn(async () => ({ items: [1, 2] })),
+      };
+      handlerRegistry.register('source_node', triggerHandler);
+
+      const nodes: Partial<Node>[] = [
+        {
+          id: 'source',
+          workflowId,
+          type: 'source_node',
+          category: NodeCategory.TRIGGER,
+          label: 'source',
+          config: {},
+          isDisabled: false,
+          containerId: null as unknown as string,
+          toolOwnerId: null as unknown as string,
+        },
+        {
+          id: 'foreach',
+          workflowId,
+          type: 'foreach',
+          category: NodeCategory.LOGIC,
+          label: 'foreach',
+          config: { arrayField: 'items' },
+          isDisabled: false,
+          containerId: null as unknown as string,
+          toolOwnerId: null as unknown as string,
+        },
+        {
+          id: 'body',
+          workflowId,
+          type: 'body_node',
+          category: NodeCategory.LOGIC,
+          label: 'body',
+          config: {},
+          isDisabled: false,
+          containerId: 'foreach',
+          toolOwnerId: null as unknown as string,
+        },
+      ];
+
+      // No edge targeting foreach.emit — should fail
+      const edges: Partial<Edge>[] = [
+        {
+          id: 'e-src-fe',
+          workflowId,
+          sourceNodeId: 'source',
+          sourcePort: 'out',
+          targetNodeId: 'foreach',
+          targetPort: 'in',
+          type: EdgeType.DATA,
+        },
+        {
+          id: 'e-fe-body',
+          workflowId,
+          sourceNodeId: 'foreach',
+          sourcePort: 'body',
+          targetNodeId: 'body',
+          targetPort: 'in',
+          type: EdgeType.DATA,
+        },
+      ];
+
+      mockNodeRepo.findBy.mockResolvedValue(nodes);
+      mockEdgeRepo.findBy.mockResolvedValue(edges);
+
+      await service.execute(workflowId, {});
+      await new Promise((r) => setTimeout(r, 200));
+
+      // Execution should be marked failed with the emit-missing message
+      const saveCalls = (mockExecutionRepo.save as jest.Mock).mock.calls;
+      const failed = saveCalls.find(
+        (c: unknown[]) =>
+          (c[0] as Partial<Execution>).status === ExecutionStatus.FAILED,
+      );
+      expect(failed).toBeDefined();
+      expect(
+        ((failed as [Partial<Execution>])[0].error as { message?: string })
+          .message,
+      ).toMatch(/CONTAINER_MISSING_EMIT/);
+    });
+
+    it('fails execution when container has multiple emit edges', async () => {
+      const bodyHandler: NodeHandler = {
+        validate: () => ({ valid: true, errors: [] }),
+        execute: jest.fn(async () => ({ ran: true })),
+      };
+      handlerRegistry.register('body_node', bodyHandler);
+      handlerRegistry.register('body_node_2', bodyHandler);
+
+      const triggerHandler: NodeHandler = {
+        validate: () => ({ valid: true, errors: [] }),
+        execute: jest.fn(async () => ({ items: [1] })),
+      };
+      handlerRegistry.register('source_node', triggerHandler);
+
+      const nodes: Partial<Node>[] = [
+        {
+          id: 'source',
+          workflowId,
+          type: 'source_node',
+          category: NodeCategory.TRIGGER,
+          label: 'source',
+          config: {},
+          isDisabled: false,
+          containerId: null as unknown as string,
+          toolOwnerId: null as unknown as string,
+        },
+        {
+          id: 'foreach',
+          workflowId,
+          type: 'foreach',
+          category: NodeCategory.LOGIC,
+          label: 'foreach',
+          config: { arrayField: 'items' },
+          isDisabled: false,
+          containerId: null as unknown as string,
+          toolOwnerId: null as unknown as string,
+        },
+        {
+          id: 'body-a',
+          workflowId,
+          type: 'body_node',
+          category: NodeCategory.LOGIC,
+          label: 'body-a',
+          config: {},
+          isDisabled: false,
+          containerId: 'foreach',
+          toolOwnerId: null as unknown as string,
+        },
+        {
+          id: 'body-b',
+          workflowId,
+          type: 'body_node_2',
+          category: NodeCategory.LOGIC,
+          label: 'body-b',
+          config: {},
+          isDisabled: false,
+          containerId: 'foreach',
+          toolOwnerId: null as unknown as string,
+        },
+      ];
+
+      const edges: Partial<Edge>[] = [
+        {
+          id: 'e-src-fe',
+          workflowId,
+          sourceNodeId: 'source',
+          sourcePort: 'out',
+          targetNodeId: 'foreach',
+          targetPort: 'in',
+          type: EdgeType.DATA,
+        },
+        {
+          id: 'e-fe-body-a',
+          workflowId,
+          sourceNodeId: 'foreach',
+          sourcePort: 'body',
+          targetNodeId: 'body-a',
+          targetPort: 'in',
+          type: EdgeType.DATA,
+        },
+        {
+          id: 'e-fe-body-b',
+          workflowId,
+          sourceNodeId: 'foreach',
+          sourcePort: 'body',
+          targetNodeId: 'body-b',
+          targetPort: 'in',
+          type: EdgeType.DATA,
+        },
+        {
+          id: 'e-emit-a',
+          workflowId,
+          sourceNodeId: 'body-a',
+          sourcePort: 'out',
+          targetNodeId: 'foreach',
+          targetPort: 'emit',
+          type: EdgeType.DATA,
+        },
+        {
+          id: 'e-emit-b',
+          workflowId,
+          sourceNodeId: 'body-b',
+          sourcePort: 'out',
+          targetNodeId: 'foreach',
+          targetPort: 'emit',
+          type: EdgeType.DATA,
+        },
+      ];
+
+      mockNodeRepo.findBy.mockResolvedValue(nodes);
+      mockEdgeRepo.findBy.mockResolvedValue(edges);
+
+      await service.execute(workflowId, {});
+      await new Promise((r) => setTimeout(r, 200));
+
+      const saveCalls = (mockExecutionRepo.save as jest.Mock).mock.calls;
+      const failed = saveCalls.find(
+        (c: unknown[]) =>
+          (c[0] as Partial<Execution>).status === ExecutionStatus.FAILED,
+      );
+      expect(failed).toBeDefined();
+      expect(
+        ((failed as [Partial<Execution>])[0].error as { message?: string })
+          .message,
+      ).toMatch(/CONTAINER_MULTIPLE_EMIT/);
     });
   });
 });

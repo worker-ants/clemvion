@@ -110,15 +110,21 @@ describe("CustomNode", () => {
     expect(screen.getByText("GET https://api.test.com")).toBeInTheDocument();
   });
 
-  it("shows warning when config is missing required fields", () => {
-    renderNode({ type: "http_request", config: {} });
-    expect(screen.getByText("\u26a0 Not configured")).toBeInTheDocument();
+  it("shows warning as header icon when config is missing required fields", () => {
+    const { container } = renderNode({ type: "http_request", config: {} });
+    const header = container.querySelector(".rounded-t-lg");
+    const warningIcon = header?.querySelector('[aria-label="warning"]');
+    expect(warningIcon).toBeInTheDocument();
+    // Inline body warning text should not render anymore
+    const warningMatches = screen.queryAllByText("\u26a0 Not configured");
+    expect(warningMatches.some((el) => el.tagName === "P")).toBe(false);
   });
 
-  it("applies amber color to warning text", () => {
-    renderNode({ type: "http_request", config: {} });
-    const warning = screen.getByText("\u26a0 Not configured");
-    expect(warning.className).toContain("text-amber-500");
+  it("applies amber color to warning icon", () => {
+    const { container } = renderNode({ type: "http_request", config: {} });
+    const header = container.querySelector(".rounded-t-lg");
+    const warningIcon = header?.querySelector('[aria-label="warning"] svg');
+    expect(warningIcon?.getAttribute("class")).toContain("text-amber-500");
   });
 
   it("applies muted color to normal summary", () => {
@@ -154,7 +160,7 @@ describe("CustomNode", () => {
     expect(header?.textContent).toContain("10x");
   });
 
-  it("renders container node warning in body (not header)", () => {
+  it("renders container node warning as header icon (not body text)", () => {
     const { container } = renderNode({
       type: "loop",
       label: "Process",
@@ -162,9 +168,15 @@ describe("CustomNode", () => {
       category: "logic",
     });
     const header = container.querySelector(".rounded-t-lg");
-    expect(header?.textContent).not.toContain("Not configured");
-    const warning = screen.getByText("\u26a0 Not configured");
-    expect(warning.tagName).toBe("P"); // Body uses <p>, header uses <span>
+    // Warning icon is inline in the header for aria accessibility
+    const warningIcon = header?.querySelector('[aria-label="warning"]');
+    expect(warningIcon).toBeInTheDocument();
+    // The inline <p> variant (body) should not render for container warnings
+    const warningMatches = screen.queryAllByText("\u26a0 Not configured");
+    expect(warningMatches.some((el) => el.tagName === "P")).toBe(false);
+    // Tooltip exposes the full message
+    const tooltipContent = screen.getByTestId("tooltip-content");
+    expect(tooltipContent.textContent).toContain("Not configured");
   });
 
   // --- Tooltip conditional rendering ---

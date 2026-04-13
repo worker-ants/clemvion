@@ -84,6 +84,15 @@ import {
   InlineExecutionOptions,
 } from './handlers/flow/workflow-executor.interface';
 
+interface ContainerBodyPlan {
+  childIds: Set<string>;
+  bodyEntryNodeIds: Set<string>;
+  emitSourceNodeId: string;
+  internalEdges: GraphEdge[];
+  sortedNodeIds: string[];
+  outgoingEdgeMap: Map<string, GraphEdge[]>;
+}
+
 class ExecutionCancelledError extends Error {
   constructor() {
     super('Execution cancelled while waiting for input');
@@ -2359,63 +2368,26 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
    */
   private async executeContainerBody(
     containerNode: Node,
+    plan: ContainerBodyPlan,
     allNodes: Node[],
-    allEdges: Edge[],
     context: ExecutionContext,
     executionId: string,
     executedNodes: Set<string>,
     executionMeta: { startedAt?: string; mode?: string },
     iterInput: unknown,
   ): Promise<unknown> {
-    const children = allNodes.filter((n) => n.containerId === containerNode.id);
-    if (children.length === 0) {
+    const {
+      childIds,
+      bodyEntryNodeIds,
+      emitSourceNodeId,
+      internalEdges,
+      sortedNodeIds,
+      outgoingEdgeMap,
+    } = plan;
+    if (sortedNodeIds.length === 0) {
       return undefined;
     }
-    const childIds = new Set(children.map((c) => c.id));
-
-    // Body entry: edges from containerNode via sourcePort='body'
-    const bodyEntryNodeIds = new Set(
-      allEdges
-        .filter(
-          (e) => e.sourceNodeId === containerNode.id && e.sourcePort === 'body',
-        )
-        .map((e) => e.targetNodeId),
-    );
-
-    // Internal edges: child-to-child. Emit edges (source=child, target=container)
-    // are NOT part of the execution graph — they are only used later for
-    // result collection in Phase 2.
-    const internalEdges: GraphEdge[] = allEdges
-      .filter(
-        (e) => childIds.has(e.sourceNodeId) && childIds.has(e.targetNodeId),
-      )
-      .map((e) => ({
-        sourceNodeId: e.sourceNodeId,
-        sourcePort: e.sourcePort,
-        targetNodeId: e.targetNodeId,
-        targetPort: e.targetPort,
-      }));
-
-    const graphNodes = children.map((n) => ({ id: n.id }));
-    const { forwardEdges, backEdges } = identifyBackEdges(
-      graphNodes,
-      internalEdges,
-    );
-    if (backEdges.length > 0) {
-      throw new Error(
-        `Container "${containerNode.label ?? containerNode.type}" body contains back-edges, which are not yet supported inside containers.`,
-      );
-    }
-    const sortedNodeIds = topologicalSort(graphNodes, forwardEdges);
     const nodeMap = new Map(allNodes.map((n) => [n.id, n]));
-
-    // Outgoing edge map for port-based reachability propagation
-    const outgoingEdgeMap = new Map<string, GraphEdge[]>();
-    for (const edge of internalEdges) {
-      const list = outgoingEdgeMap.get(edge.sourceNodeId) ?? [];
-      list.push(edge);
-      outgoingEdgeMap.set(edge.sourceNodeId, list);
-    }
 
     // Seed reachability: body entry nodes OR (if none via port) children
     // with no incoming internal edge.
@@ -2432,11 +2404,6 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
         if (!childrenWithIncoming.has(id)) reachable.add(id);
       }
     }
-
-    // Nodes that ran at least once in this iteration — used for leaf detection
-    // and to scope leaf collection to *this* iteration (the nodeOutputCache
-    // may still carry the previous iter's value otherwise).
-    const ranInThisIteration = new Set<string>();
 
     for (const nodeId of sortedNodeIds) {
       if (!reachable.has(nodeId)) continue;
@@ -2470,7 +2437,6 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
         nodeMap,
         executionMeta,
       );
-      ranInThisIteration.add(nodeId);
 
       const nodeOutput = context.nodeOutputCache[node.id] as
         | Record<string, unknown>
@@ -2489,25 +2455,98 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
       );
     }
 
-    // Leaf detection: child nodes that ran and have no activated outgoing
-    // internal edge. Port-filtered edges don't count as "outgoing" for this
-    // iteration. Phase 2 replaces this with explicit emit-port edges.
-    const leafOutputs: Record<string, unknown> = {};
-    for (const id of ranInThisIteration) {
-      const outgoing = outgoingEdgeMap.get(id) ?? [];
-      const sourceOutput = context.nodeOutputCache[id];
-      const hasActivatedOutgoing = outgoing.some(
-        (e) => !this.isPortFiltered(sourceOutput, e.sourcePort),
+    // If the emit source didn't run this iteration (e.g. port routing
+    // short-circuited before reaching it), there is no collectable value.
+    // Returning undefined avoids leaking stale output from a previous iter.
+    if (!reachable.has(emitSourceNodeId)) {
+      return undefined;
+    }
+    return context.nodeOutputCache[emitSourceNodeId];
+  }
+
+  /**
+   * Resolve the container body plan: child nodes, internal edges, body entry
+   * points, emit source. Validated once at the start of {@link runContainer}
+   * so every iteration shares the same wiring and errors surface upfront.
+   */
+  private planContainerBody(
+    containerNode: Node,
+    allNodes: Node[],
+    allEdges: Edge[],
+  ): ContainerBodyPlan {
+    const children = allNodes.filter(
+      (n) => n.containerId === containerNode.id,
+    );
+    const childIds = new Set(children.map((c) => c.id));
+
+    const bodyEntryNodeIds = new Set(
+      allEdges
+        .filter(
+          (e) =>
+            e.sourceNodeId === containerNode.id && e.sourcePort === 'body',
+        )
+        .map((e) => e.targetNodeId),
+    );
+
+    // Emit edges: source is a child, target is the container itself with
+    // targetPort='emit'. Exactly one is required — multiple or zero would
+    // be ambiguous and are rejected upfront.
+    const emitEdges = allEdges.filter(
+      (e) =>
+        e.targetNodeId === containerNode.id &&
+        e.targetPort === 'emit' &&
+        childIds.has(e.sourceNodeId),
+    );
+    if (emitEdges.length === 0) {
+      throw new Error(
+        `CONTAINER_MISSING_EMIT: Container "${containerNode.label ?? containerNode.type}" has no body node wired to its "emit" port. Connect the node whose output should be collected.`,
       );
-      if (!hasActivatedOutgoing) {
-        leafOutputs[id] = context.nodeOutputCache[id];
-      }
+    }
+    if (emitEdges.length > 1) {
+      throw new Error(
+        `CONTAINER_MULTIPLE_EMIT: Container "${containerNode.label ?? containerNode.type}" has ${emitEdges.length} nodes wired to its "emit" port. Only one emit source is allowed.`,
+      );
+    }
+    const emitSourceNodeId = emitEdges[0].sourceNodeId;
+
+    const internalEdges: GraphEdge[] = allEdges
+      .filter(
+        (e) => childIds.has(e.sourceNodeId) && childIds.has(e.targetNodeId),
+      )
+      .map((e) => ({
+        sourceNodeId: e.sourceNodeId,
+        sourcePort: e.sourcePort,
+        targetNodeId: e.targetNodeId,
+        targetPort: e.targetPort,
+      }));
+
+    const graphNodes = children.map((n) => ({ id: n.id }));
+    const { forwardEdges, backEdges } = identifyBackEdges(
+      graphNodes,
+      internalEdges,
+    );
+    if (backEdges.length > 0) {
+      throw new Error(
+        `Container "${containerNode.label ?? containerNode.type}" body contains back-edges, which are not yet supported inside containers.`,
+      );
+    }
+    const sortedNodeIds = topologicalSort(graphNodes, forwardEdges);
+
+    const outgoingEdgeMap = new Map<string, GraphEdge[]>();
+    for (const edge of internalEdges) {
+      const list = outgoingEdgeMap.get(edge.sourceNodeId) ?? [];
+      list.push(edge);
+      outgoingEdgeMap.set(edge.sourceNodeId, list);
     }
 
-    const leafKeys = Object.keys(leafOutputs);
-    if (leafKeys.length === 0) return undefined;
-    if (leafKeys.length === 1) return leafOutputs[leafKeys[0]];
-    return { ...leafOutputs };
+    return {
+      childIds,
+      bodyEntryNodeIds,
+      emitSourceNodeId,
+      internalEdges,
+      sortedNodeIds,
+      outgoingEdgeMap,
+    };
   }
 
   /**
@@ -2527,11 +2566,16 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
     executedNodes: Set<string>,
     executionMeta: { startedAt?: string; mode?: string },
   ): Promise<void> {
+    // Resolve and validate the container wiring once upfront. planContainerBody
+    // throws on missing/duplicate emit edges or back-edges so the user sees
+    // the error immediately rather than mid-iteration.
+    const plan = this.planContainerBody(containerNode, allNodes, allEdges);
+
     const runIter = async (iterInput: unknown) => {
       return this.executeContainerBody(
         containerNode,
+        plan,
         allNodes,
-        allEdges,
         context,
         executionId,
         executedNodes,
