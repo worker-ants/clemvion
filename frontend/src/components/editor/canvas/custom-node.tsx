@@ -1,7 +1,7 @@
 "use client";
 
-import { memo, useMemo } from "react";
-import { Handle, Position, useStore } from "@xyflow/react";
+import { memo, useEffect, useMemo } from "react";
+import { Handle, Position, useStore, useUpdateNodeInternals } from "@xyflow/react";
 import type { NodeProps, Node } from "@xyflow/react";
 import { useQuery } from "@tanstack/react-query";
 import { AlertTriangle } from "lucide-react";
@@ -151,6 +151,14 @@ function CustomNodeComponent({ id, data, selected }: NodeProps<CustomNodeType>) 
   const hasDynamicOutputs = outputs.length > 0 && outputs.some(p => !defaultOutputIds.has(p.id));
   const hasMultipleOutputs = outputs.length > 1 || hasDynamicOutputs;
   const isContainer = definition?.isContainer ?? false;
+
+  // Force React Flow to re-measure handle positions when outputs change
+  // (e.g. button reorder in presentation nodes, condition changes in AI Agent)
+  const updateNodeInternals = useUpdateNodeInternals();
+  const outputKey = outputs.map((p) => p.id).join(",");
+  useEffect(() => {
+    updateNodeInternals(id);
+  }, [outputKey, id, updateNodeInternals]);
 
   const nodeStatus = useExecutionStore((s) => s.nodeStatuses.get(id));
   const showSummary = useStore(zoomSelector);
@@ -359,6 +367,7 @@ function CustomNodeComponent({ id, data, selected }: NodeProps<CustomNodeType>) 
                     </span>
                   )}
                   <Handle
+                    key={port.id}
                     id={port.id}
                     type="source"
                     position={Position.Right}
