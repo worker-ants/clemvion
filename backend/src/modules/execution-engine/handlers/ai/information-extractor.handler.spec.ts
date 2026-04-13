@@ -145,7 +145,8 @@ describe('InformationExtractorHandler', () => {
       );
 
       const output = result as Record<string, unknown>;
-      const extracted = output.output as Record<string, unknown>;
+      const extracted = (output.output as Record<string, unknown>)
+        .extracted as Record<string, unknown>;
       expect(extracted.senderName).toBe('John');
       expect(extracted.orderNumber).toBe('ORD-123');
     });
@@ -184,7 +185,8 @@ describe('InformationExtractorHandler', () => {
       // Should have been called twice (first failed JSON parse, second succeeded)
       expect(mockLlmService.chat).toHaveBeenCalledTimes(2);
       const output = result as Record<string, unknown>;
-      const extracted = output.output as Record<string, unknown>;
+      const extracted = (output.output as Record<string, unknown>)
+        .extracted as Record<string, unknown>;
       expect(extracted.senderName).toBe('Alice');
     });
 
@@ -262,11 +264,12 @@ describe('InformationExtractorHandler', () => {
 
       const output = result as Record<string, unknown>;
       expect(output.status).toBeUndefined();
-      const extracted = output.output as Record<string, unknown>;
+      const outObj = output.output as Record<string, unknown>;
+      const extracted = outObj.extracted as Record<string, unknown>;
       expect(extracted.senderName).toBe('John');
       expect(extracted.orderNumber).toBe('ORD-123');
-      expect(extracted._endReason).toBe('completed');
-      expect(extracted._turnCount).toBe(1);
+      expect(outObj.endReason).toBe('completed');
+      expect(outObj.turnCount).toBe(1);
     });
 
     it('should enter waiting_for_input when required fields are missing', async () => {
@@ -352,9 +355,10 @@ describe('InformationExtractorHandler', () => {
 
       const output = result as Record<string, unknown>;
       expect(output.status).toBeUndefined();
-      const extracted = output.output as Record<string, unknown>;
+      const outObj = output.output as Record<string, unknown>;
+      const extracted = outObj.extracted as Record<string, unknown>;
       expect(extracted.amount).toBeNull();
-      expect(extracted._endReason).toBe('completed');
+      expect(outObj.endReason).toBe('completed');
     });
   });
 
@@ -418,11 +422,12 @@ describe('InformationExtractorHandler', () => {
 
       const output = result as Record<string, unknown>;
       expect(output.status).toBeUndefined();
-      const extracted = output.output as Record<string, unknown>;
+      const outObj = output.output as Record<string, unknown>;
+      const extracted = outObj.extracted as Record<string, unknown>;
       expect(extracted.senderName).toBe('John'); // preserved
       expect(extracted.orderNumber).toBe('ORD-999');
-      expect(extracted._endReason).toBe('completed');
-      expect(extracted._turnCount).toBe(2);
+      expect(outObj.endReason).toBe('completed');
+      expect(outObj.turnCount).toBe(2);
     });
 
     it('should continue waiting when required fields still missing', async () => {
@@ -462,8 +467,9 @@ describe('InformationExtractorHandler', () => {
 
       const output = result as Record<string, unknown>;
       expect(output.status).toBeUndefined();
-      const extracted = output.output as Record<string, unknown>;
-      expect(extracted._endReason).toBe('max_turns');
+      const outObj = output.output as Record<string, unknown>;
+      const extracted = outObj.extracted as Record<string, unknown>;
+      expect(outObj.endReason).toBe('max_turns');
       expect(extracted.senderName).toBe('John');
       expect(extracted.orderNumber).toBeNull();
     });
@@ -494,8 +500,9 @@ describe('InformationExtractorHandler', () => {
       );
 
       const output = result as Record<string, unknown>;
-      const extracted = output.output as Record<string, unknown>;
-      expect(extracted._endReason).toBe('user_ended');
+      const outObj = output.output as Record<string, unknown>;
+      const extracted = outObj.extracted as Record<string, unknown>;
+      expect(outObj.endReason).toBe('user_ended');
       expect(extracted.senderName).toBe('John');
       const meta = output.meta as Record<string, unknown>;
       expect(meta.interactionType).toBe('ai_conversation');
