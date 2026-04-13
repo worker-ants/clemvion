@@ -344,12 +344,7 @@ export function SplitConfig({ config, onChange }: { config: Config; onChange: On
         value={(config.fieldPath as string) ?? ""}
         onChange={(v) => onChange({ ...config, fieldPath: v })}
         placeholder="{{ $input.items }}"
-        hint="Array field to split into individual items"
-      />
-      <CheckboxField
-        label="Keep other fields"
-        checked={(config.keepOtherFields as boolean) ?? false}
-        onChange={(v) => onChange({ ...config, keepOtherFields: v })}
+        hint="Array field to normalize into [{ index, value }] items"
       />
     </div>
   );

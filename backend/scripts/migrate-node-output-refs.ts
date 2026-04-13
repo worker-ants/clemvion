@@ -43,7 +43,7 @@ const RELOCATED_FIELDS: Record<string, readonly string[]> = {
   loop: ['count', 'maxIterations'],
   map: ['inputField', 'mapping'],
   merge: ['strategy', 'outputFormat'],
-  split: ['fieldPath', 'keepOtherFields'],
+  split: ['fieldPath'],
   variable_declaration: ['variables'],
   variable_modification: ['modifications'],
   transform: ['operations'],

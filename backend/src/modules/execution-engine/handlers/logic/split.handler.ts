@@ -7,7 +7,11 @@ import { getNestedValue } from './nested-value.util.js';
 
 interface SplitConfig {
   fieldPath: string;
-  keepOtherFields?: boolean;
+}
+
+interface SplitItem {
+  index: number;
+  value: unknown;
 }
 
 export class SplitHandler implements NodeHandler {
@@ -27,47 +31,20 @@ export class SplitHandler implements NodeHandler {
     config: Record<string, unknown>,
     _context: ExecutionContext,
   ): Promise<unknown> {
-    const { fieldPath, keepOtherFields = false } =
-      config as unknown as SplitConfig;
+    const { fieldPath } = config as unknown as SplitConfig;
+    const baseConfig = { fieldPath };
 
     const arrayValue = getNestedValue(input, fieldPath);
-    const baseConfig = { fieldPath, keepOtherFields };
 
     if (!Array.isArray(arrayValue)) {
-      return { config: baseConfig, output: [] };
+      return { config: baseConfig, output: [] as SplitItem[] };
     }
 
-    if (!keepOtherFields) {
-      return { config: baseConfig, output: arrayValue };
-    }
-
-    const parentFields = this.getFieldsExcluding(input, fieldPath);
-    const spread = arrayValue.map((item) => ({
-      ...parentFields,
-      ...(typeof item === 'object' && item !== null ? item : { value: item }),
+    const output: SplitItem[] = arrayValue.map((value, index) => ({
+      index,
+      value,
     }));
-    return { config: baseConfig, output: spread };
-  }
 
-  private getFieldsExcluding(
-    input: unknown,
-    excludePath: string,
-  ): Record<string, unknown> {
-    if (typeof input !== 'object' || input === null) {
-      return {};
-    }
-
-    const result: Record<string, unknown> = {};
-    const topLevelKey = excludePath.split('.')[0];
-
-    for (const [key, value] of Object.entries(
-      input as Record<string, unknown>,
-    )) {
-      if (key !== topLevelKey) {
-        result[key] = value;
-      }
-    }
-
-    return result;
+    return { config: baseConfig, output };
   }
 }
