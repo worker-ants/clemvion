@@ -32,7 +32,9 @@
 | WH-EP-02 | URL 형식: `{base_url}/api/hooks/{endpoint_path}` | 필수 |
 | WH-EP-03 | HTTP POST 메서드 지원 | 필수 |
 | WH-EP-04 | JSON, form-urlencoded 요청 본문 수신 | 필수 |
-| WH-EP-05 | 요청 본문 전체를 워크플로우 입력 데이터로 전달 | 필수 |
+| WH-EP-05 | 요청 본문 전체를 워크플로우 입력 데이터로 전달 (`body`) | 필수 |
+| WH-EP-05-1 | Manual Trigger 노드가 선언한 `parameters` 스키마에 따라 body에서 파라미터를 추출/검증하여 `$input.parameters` / `$params`로 제공 | 필수 |
+| WH-EP-05-2 | required 파라미터 누락 또는 타입 강제 변환 실패 시 `400 Bad Request`와 누락 필드 목록 반환 | 필수 |
 | WH-EP-06 | 요청 헤더 정보를 메타데이터로 전달 (`headers`, `method`, `query`) | 권장 |
 | WH-EP-07 | 비활성 트리거로의 요청은 `410 Gone` 응답 반환 | 필수 |
 

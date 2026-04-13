@@ -128,21 +128,50 @@ Webhook으로 수신된 데이터는 아래 구조로 워크플로우에 전달:
 
 ```json
 {
-  "body": { ... },
+  "parameters": { "orderId": "abc", "amount": 1000 },
+  "body": { "orderId": "abc", "amount": "1000", "extra": "..." },
   "headers": {
     "content-type": "application/json",
-    "x-github-event": "push",
-    ...
+    "x-github-event": "push"
   },
   "query": { "key": "value" },
   "method": "POST"
 }
 ```
 
-- `body`: 요청 본문 (파싱된 JSON 또는 form data)
-- `headers`: 요청 헤더 (소문자 키)
-- `query`: URL 쿼리 파라미터
-- `method`: HTTP 메서드
+| 키 | 설명 |
+|----|------|
+| `parameters` | Manual Trigger 노드의 `config.parameters`에 따라 **body의 동일 이름 최상위 키**에서 추출 + 타입 coerce 결과. 다운스트림에서 `$params.<name>` 또는 `$input.parameters.<name>`으로 접근. |
+| `body` | 파싱된 요청 본문 (JSON 또는 form data, 원본 유지) |
+| `headers` | 요청 헤더 (소문자 키) |
+| `query` | URL 쿼리 파라미터 |
+| `method` | HTTP 메서드 |
+
+### 5.1 파라미터 추출 규칙
+
+1. 워크플로우의 manual_trigger 노드에서 `config.parameters` 스키마를 조회한다.
+2. 스키마가 없거나 빈 배열 → `parameters = {}` (기존 동작과 호환)
+3. 스키마가 있는 경우 각 파라미터에 대해:
+   - `body`가 객체인 경우: 해당 `name` 최상위 키 값을 가져옴
+   - `body`가 객체가 아닌 경우: 모든 값은 미지정으로 취급
+   - 값이 없고 `required=true`면 누락으로 간주 → **400 Bad Request** 반환 (body 전체가 누락 필드 목록과 함께)
+   - 값이 없고 `required=false`면 `defaultValue` 사용 (없으면 `null`)
+   - 타입 불일치는 `coerceToType`로 강제 변환 (실패 시 400)
+
+### 5.2 400 응답 형식
+
+```json
+{
+  "statusCode": 400,
+  "message": "Invalid webhook payload",
+  "errors": [
+    { "field": "orderId", "reason": "missing_required" },
+    { "field": "amount", "reason": "coerce_failed" }
+  ]
+}
+```
+
+이 경우 Execution 레코드는 생성되지 않는다.
 
 ---
 
@@ -174,9 +203,11 @@ backend/src/modules/hooks/
    b. config.authType === 'hmac' → HMAC 서명 검증
    c. config.authType === 'bearer' → Bearer 토큰 검증
    d. 실패 → 401 Unauthorized
-7. ExecutionEngineService.execute(trigger.workflowId, webhookInput)
-8. Trigger.lastTriggeredAt = now → DB 업데이트
-9. 202 Accepted + { executionId } 반환
+7. resolveTriggerParameters(workflow, body) 호출
+   - required 누락 / coerce 실패 → 400 Bad Request (Execution 생성하지 않음)
+8. ExecutionEngineService.execute(trigger.workflowId, { parameters, body, headers, query, method })
+9. Trigger.lastTriggeredAt = now → DB 업데이트
+10. 202 Accepted + { executionId } 반환
 ```
 
 ---

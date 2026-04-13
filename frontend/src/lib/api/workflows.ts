@@ -96,8 +96,17 @@ export const workflowsApi = {
     },
   ) => apiClient.post(`/workflows/${workflowId}/save`, data),
 
-  execute: (workflowId: string, input?: Record<string, unknown>) =>
-    apiClient.post(`/workflows/${workflowId}/execute`, { input }),
+  execute: (
+    workflowId: string,
+    options?: {
+      input?: Record<string, unknown>;
+      parameterValues?: Record<string, unknown>;
+    },
+  ) =>
+    apiClient.post(`/workflows/${workflowId}/execute`, {
+      input: options?.input,
+      parameterValues: options?.parameterValues,
+    }),
 
   exportWorkflow: (id: string) =>
     apiClient.get(`/workflows/${id}/export`),

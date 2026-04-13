@@ -4,11 +4,16 @@ import {
   NotFoundException,
   GoneException,
   UnauthorizedException,
+  BadRequestException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Trigger } from '../triggers/entities/trigger.entity';
+import { Node } from '../nodes/entities/node.entity';
 import { ExecutionEngineService } from '../execution-engine/execution-engine.service';
+import { resolveTriggerParameters } from '../execution-engine/utils/resolve-trigger-parameters';
+import { loadTriggerParameterSchema } from '../execution-engine/utils/load-trigger-parameter-schema';
+import { TriggerParameterValidationException } from '../execution-engine/types/trigger-parameter.types';
 import * as crypto from 'crypto';
 
 interface WebhookConfig {
@@ -33,6 +38,8 @@ export class HooksService {
   constructor(
     @InjectRepository(Trigger)
     private readonly triggerRepository: Repository<Trigger>,
+    @InjectRepository(Node)
+    private readonly nodeRepository: Repository<Node>,
     private readonly executionEngineService: ExecutionEngineService,
   ) {}
 
@@ -65,17 +72,37 @@ export class HooksService {
     const config = (trigger.config ?? {}) as WebhookConfig;
     this.verifyAuth(config, input.headers, rawBody);
 
-    // 4. Execute workflow
+    // 4. Extract & validate trigger parameters from body
+    const schema = await loadTriggerParameterSchema(
+      this.nodeRepository,
+      trigger.workflowId,
+      this.logger,
+    );
+    let parameters: Record<string, unknown>;
+    try {
+      parameters = resolveTriggerParameters(schema, input.body);
+    } catch (err) {
+      if (err instanceof TriggerParameterValidationException) {
+        throw new BadRequestException({
+          code: 'INVALID_WEBHOOK_PAYLOAD',
+          message: 'Invalid webhook payload',
+          errors: err.errors,
+        });
+      }
+      throw err;
+    }
+
+    // 5. Execute workflow
     const executionId = await this.executionEngineService.execute(
       trigger.workflowId,
-      input,
+      { parameters, ...input },
     );
 
     this.logger.log(
       `Webhook ${endpointPath} triggered execution ${executionId} for workflow ${trigger.workflowId}`,
     );
 
-    // 5. Update lastTriggeredAt
+    // 6. Update lastTriggeredAt
     trigger.lastTriggeredAt = new Date();
     await this.triggerRepository.save(trigger);
 

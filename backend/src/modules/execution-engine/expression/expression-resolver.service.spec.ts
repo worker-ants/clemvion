@@ -293,6 +293,23 @@ describe('ExpressionResolverService', () => {
 
       const ctx = service.buildExpressionContext(null, execContext, nodeMap);
       expect(ctx.$input).toEqual({});
+      expect(ctx.$params).toEqual({});
+    });
+
+    it('exposes $params as alias for $input.parameters', () => {
+      const nodeMap = new Map<string, Node>();
+      const execContext: ExecutionContext = {
+        executionId: 'exec-1',
+        workflowId: 'wf-1',
+        variables: {},
+        nodeOutputCache: {},
+      };
+      const ctx = service.buildExpressionContext(
+        { parameters: { orderId: 'abc', amount: 1000 }, body: {} },
+        execContext,
+        nodeMap,
+      );
+      expect(ctx.$params).toEqual({ orderId: 'abc', amount: 1000 });
     });
   });
 

@@ -1235,7 +1235,7 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
       // Persist the in-flight conversation state so REST polling
       // reconciliation doesn't overwrite WS-delivered outputData with null
       // while the user is typing a reply.
-      nodeExec.outputData = nodeOutput as Record<string, unknown>;
+      nodeExec.outputData = nodeOutput;
       await this.nodeExecutionRepository.save(nodeExec);
     }
 

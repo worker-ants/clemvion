@@ -215,6 +215,7 @@ User ──┬── Workspace (1:N)
 | is_active | Boolean | 활성 상태 |
 | next_run_at | Timestamp | 다음 실행 예정 시각 |
 | last_run_at | Timestamp? | 마지막 실행 시각 |
+| parameter_values | JSONB | 워크플로우 Manual Trigger 노드 스키마에 대응하는 파라미터 값 맵. 값 문자열에 `{{ $now }}`, `{{ $schedule.* }}` 등 제한 표현식 사용 가능. 기본값 `{}`. |
 | created_at | Timestamp | 생성 시각 |
 | updated_at | Timestamp | 수정 시각 |
 

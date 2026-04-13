@@ -101,8 +101,14 @@ export function EditorToolbar() {
     if (!ready || !workflowId) return;
 
     try {
-      const parsedInput = JSON.parse(jsonInput);
-      const response = await workflowsApi.execute(workflowId, parsedInput);
+      const parsedInput = JSON.parse(jsonInput) as Record<string, unknown>;
+      const parameterValues =
+        (parsedInput.parameterValues as Record<string, unknown> | undefined) ??
+        (parsedInput.parameters as Record<string, unknown> | undefined);
+      const response = await workflowsApi.execute(workflowId, {
+        input: parsedInput,
+        parameterValues,
+      });
       const { executionId } = (response.data as { data: { executionId: string } }).data;
       startExecution(executionId);
       setRunWithInputOpen(false);
@@ -126,7 +132,7 @@ export function EditorToolbar() {
 
     try {
       const response = await workflowsApi.execute(workflowId, {
-        fromNodeId: selectedNodeId,
+        input: { fromNodeId: selectedNodeId },
       });
       const { executionId } = (response.data as { data: { executionId: string } }).data;
       startExecution(executionId);

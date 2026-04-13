@@ -44,6 +44,9 @@ export class Schedule {
   @Column({ name: 'last_run_at', type: 'timestamptz', nullable: true })
   lastRunAt: Date;
 
+  @Column({ name: 'parameter_values', type: 'jsonb', default: {} })
+  parameterValues: Record<string, unknown>;
+
   @CreateDateColumn({ name: 'created_at', type: 'timestamptz' })
   createdAt: Date;
 

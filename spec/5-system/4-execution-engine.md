@@ -385,7 +385,8 @@ interface NodeHandlerRegistry {
 
 | 변수 | 소스 |
 |------|------|
-| `$input` | 이전 노드 출력 (gatherNodeInput 결과) |
+| `$input` | 이전 노드 출력 (gatherNodeInput 결과). 트리거 노드에서는 `{ parameters, ...(트리거별 메타) }` |
+| `$params` | `$input.parameters`의 축약형. Trigger 노드가 생성한 구조화된 입력 파라미터에 직접 접근 |
 | `$node` | nodeMap + nodeOutputCache → 노드 라벨 키 맵. `$node["Label"].output` 형태로 접근 |
 | `$var` | context.variables (Variable Declaration/Modification으로 관리) |
 | `$execution` | `{ id, workflowId, startedAt, mode }` |
@@ -469,6 +470,45 @@ interface NodeHandlerRegistry {
 | `nodeExecutionId` | 엔진이 handler.execute 호출 직전 주입, 노드별 갱신 | Integration 핸들러가 `IntegrationUsageLog.node_execution_id`로 기록 |
 | `variables.__workspaceId` | 실행 시작 시 주입 (workflow.workspaceId) | Integration 조회, AI LLM 설정 조회 등 워크스페이스 단위 리소스 해소 |
 | `variables.*` (그 외) | 트리거·워크플로우 변수 | 표현식 `{{ $variables.X }}` 평가 |
+
+### 6.1.1 트리거 입력 파라미터 seeding
+
+실행 엔진의 진입 API는 `execute(workflowId, input?)` 시그니처이며, `input`은 트리거 종류와 무관하게 아래 규약을 따른다.
+
+```typescript
+type TriggerExecutionInput = {
+  parameters?: Record<string, unknown>;
+  // webhook 한정 추가 필드
+  body?: unknown;
+  headers?: Record<string, string>;
+  query?: Record<string, string>;
+  method?: string;
+};
+```
+
+- **공통 유틸** `resolveTriggerParameters(workflow, rawValues)`:
+  1. 워크플로우 그래프에서 `manual_trigger` 노드를 찾아 `config.parameters` 스키마 조회
+  2. required 누락 시 `InvalidInputError` (호출측이 400/실행 실패로 매핑)
+  3. 기본값(defaultValue) 적용
+  4. `coerceToType`로 타입 강제 변환 (variable-declaration 공용 유틸)
+- **Manual**: 컨트롤러가 `{ parameterValues }`를 수신 → `resolveTriggerParameters` 수행 → `{ parameters }` 형태로 `execute()` 호출
+- **Webhook**: `HooksService`가 `body`를 raw source로 사용하여 `resolveTriggerParameters` 수행. 실패 시 `400 Bad Request` 후 Execution 생성하지 않음. 성공 시 `{ parameters, body, headers, query, method }`로 `execute()` 호출
+- **Schedule**: `ScheduleRunnerService`가 `schedule.parameterValues`를 제한 컨텍스트(`{ $now, $schedule: { id, cronExpression, timezone } }`)로 ExpressionResolver에 통과시킨 뒤 `resolveTriggerParameters` 수행 → `{ parameters }`로 `execute()` 호출. `$node`, `$input`, `$var` 불가.
+
+Manual Trigger 핸들러의 `execute()` 출력은 항상 다음 형태이다:
+
+```json
+{
+  "config": { "parameters": [...] },
+  "output": {
+    "parameters": { "name": "test", "count": 3 },
+    "body": "...(webhook 시)",
+    "headers": "...(webhook 시)"
+  }
+}
+```
+
+다운스트림 표현식 해석 시 `$input.parameters === $params === context.parameters` 관계가 성립한다.
 
 ### 6.2 저장 전략
 

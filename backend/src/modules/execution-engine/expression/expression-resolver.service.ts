@@ -67,8 +67,19 @@ export class ExpressionResolverService {
 
     const now = new Date();
 
+    const inputObject = (nodeInput ?? {}) as Record<string, unknown>;
+    const paramsFromInput =
+      inputObject &&
+      typeof inputObject === 'object' &&
+      inputObject.parameters &&
+      typeof inputObject.parameters === 'object' &&
+      !Array.isArray(inputObject.parameters)
+        ? (inputObject.parameters as Record<string, unknown>)
+        : {};
+
     return {
-      $input: (nodeInput ?? {}) as Record<string, unknown>,
+      $input: inputObject,
+      $params: paramsFromInput,
       $node,
       $var: executionContext.variables ?? {},
       $execution: {

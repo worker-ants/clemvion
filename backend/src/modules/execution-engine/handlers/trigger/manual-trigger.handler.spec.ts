@@ -16,39 +16,100 @@ describe('ManualTriggerHandler', () => {
   });
 
   describe('validate', () => {
-    it('should always return valid', () => {
-      const result = handler.validate({});
-      expect(result.valid).toBe(true);
-      expect(result.errors).toHaveLength(0);
+    it('returns valid when parameters is undefined (backward compat)', () => {
+      expect(handler.validate({})).toEqual({ valid: true, errors: [] });
     });
 
-    it('should return valid regardless of config content', () => {
-      const result = handler.validate({ foo: 'bar', nested: { x: 1 } });
+    it('returns valid for a well-formed parameters schema', () => {
+      const result = handler.validate({
+        parameters: [
+          { name: 'orderId', type: 'string', required: true },
+          { name: 'amount', type: 'number' },
+        ],
+      });
       expect(result.valid).toBe(true);
+      expect(result.errors).toEqual([]);
+    });
+
+    it('returns invalid for duplicate parameter names', () => {
+      const result = handler.validate({
+        parameters: [
+          { name: 'x', type: 'string' },
+          { name: 'x', type: 'number' },
+        ],
+      });
+      expect(result.valid).toBe(false);
+      expect(result.errors[0]).toContain('parameters.x');
+    });
+
+    it('returns invalid for invalid identifier', () => {
+      const result = handler.validate({
+        parameters: [{ name: '1bad', type: 'string' }],
+      });
+      expect(result.valid).toBe(false);
+    });
+
+    it('returns invalid when parameters is not an array', () => {
+      const result = handler.validate({ parameters: { not: 'array' } });
+      expect(result.valid).toBe(false);
     });
   });
 
   describe('execute', () => {
-    it('should pass through input unchanged', async () => {
-      const input = { userId: 123, action: 'signup' };
-      const result = await handler.execute(input, {}, mockContext);
-      expect((result as any).output).toEqual(input);
+    it('exposes resolved parameters on structured output', async () => {
+      const result = (await handler.execute(
+        { parameters: { name: 'Alice', count: 3 } },
+        { parameters: [{ name: 'name', type: 'string' }] },
+        mockContext,
+      )) as {
+        config: unknown;
+        output: { parameters: Record<string, unknown> };
+      };
+
+      expect(result.output.parameters).toEqual({ name: 'Alice', count: 3 });
     });
 
-    it('should pass through null input', async () => {
-      const result = await handler.execute(null, {}, mockContext);
-      expect((result as any).output).toBeNull();
+    it('preserves webhook-style sibling fields (body, headers, query, method)', async () => {
+      const result = (await handler.execute(
+        {
+          parameters: { orderId: 'abc' },
+          body: { raw: true },
+          headers: { 'x-source': 'github' },
+          query: { q: '1' },
+          method: 'POST',
+        },
+        { parameters: [{ name: 'orderId', type: 'string' }] },
+        mockContext,
+      )) as {
+        output: {
+          parameters: Record<string, unknown>;
+          body: unknown;
+          headers: unknown;
+          query: unknown;
+          method: string;
+        };
+      };
+
+      expect(result.output.parameters).toEqual({ orderId: 'abc' });
+      expect(result.output.body).toEqual({ raw: true });
+      expect(result.output.method).toBe('POST');
     });
 
-    it('should pass through undefined input', async () => {
-      const result = await handler.execute(undefined, {}, mockContext);
-      expect((result as any).output).toBeUndefined();
+    it('returns parameters: {} when input is null/undefined', async () => {
+      const result = (await handler.execute(null, {}, mockContext)) as {
+        output: { parameters: Record<string, unknown> };
+      };
+      expect(result.output.parameters).toEqual({});
     });
 
-    it('should pass through complex nested input', async () => {
-      const input = { data: { items: [1, 2, 3], nested: { deep: true } } };
-      const result = await handler.execute(input, {}, mockContext);
-      expect((result as any).output).toBe(input); // Same reference, not a copy
+    it('echoes declared schema under config.parameters', async () => {
+      const schema = [{ name: 'x', type: 'string' }];
+      const result = (await handler.execute(
+        { parameters: { x: 'y' } },
+        { parameters: schema },
+        mockContext,
+      )) as { config: { parameters: unknown } };
+      expect(result.config.parameters).toEqual(schema);
     });
   });
 });

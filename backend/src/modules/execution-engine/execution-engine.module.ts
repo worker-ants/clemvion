@@ -36,6 +36,10 @@ import { IntegrationsModule } from '../integrations/integrations.module';
     LoopExecutor,
     ForEachExecutor,
   ],
-  exports: [ExecutionEngineService, NodeHandlerRegistry],
+  exports: [
+    ExecutionEngineService,
+    NodeHandlerRegistry,
+    ExpressionResolverService,
+  ],
 })
 export class ExecutionEngineModule {}
