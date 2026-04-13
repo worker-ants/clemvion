@@ -124,11 +124,11 @@ describe("CustomNode", () => {
     expect(warningMatches.some((el) => el.tagName === "P")).toBe(false);
   });
 
-  it("applies amber color to warning icon", () => {
+  it("warning icon inherits header text color", () => {
     const { container } = renderNode({ type: "http_request", config: {} });
     const header = container.querySelector(".rounded-t-lg");
-    const warningIcon = header?.querySelector('[aria-label="warning"] svg');
-    expect(warningIcon?.getAttribute("class")).toContain("text-amber-500");
+    const warningSpan = header?.querySelector('[aria-label="warning"]');
+    expect(warningSpan?.getAttribute("class")).toContain("text-white/70");
   });
 
   it("applies muted color to normal summary", () => {
