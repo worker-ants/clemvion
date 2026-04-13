@@ -48,7 +48,7 @@ export const NODE_DEFINITIONS: NodeDefinition[] = [
   // ===== AI (3) =====
   { type: "ai_agent", category: "ai", label: "AI Agent", description: "Chat with LLM using RAG context", icon: "Brain", color: CATEGORY_COLORS.ai, inputs: [{ id: "in", label: "Input", type: "data" }], outputs: [{ id: "out", label: "Output", type: "data" }] },
   { type: "text_classifier", category: "ai", label: "Text Classifier", description: "Classify text into categories", icon: "Tags", color: CATEGORY_COLORS.ai, inputs: [{ id: "in", label: "Input", type: "data" }], outputs: [] },
-  { type: "information_extractor", category: "ai", label: "Information Extractor", description: "Extract structured data from text", icon: "FileSearch", color: CATEGORY_COLORS.ai, inputs: [{ id: "in", label: "Input", type: "data" }], outputs: [{ id: "out", label: "Output", type: "data" }] },
+  { type: "information_extractor", category: "ai", label: "Information Extractor", description: "Extract structured data from text", icon: "FileSearch", color: CATEGORY_COLORS.ai, inputs: [{ id: "in", label: "Input", type: "data" }], outputs: [{ id: "out", label: "Output", type: "data" }, { id: "error", label: "Error", type: "error" }] },
 
   // ===== INTEGRATION (4) =====
   { type: "http_request", category: "integration", label: "HTTP Request", description: "Make HTTP requests", icon: "Globe", color: CATEGORY_COLORS.integration, inputs: [{ id: "in", label: "Input", type: "data" }], outputs: [{ id: "success", label: "Success", type: "data" }, { id: "error", label: "Error", type: "error" }] },

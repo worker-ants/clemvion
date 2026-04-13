@@ -19,7 +19,7 @@ interface Example {
   output: Record<string, unknown>;
 }
 
-type EndReason = 'completed' | 'max_turns' | 'user_ended' | 'timeout';
+type EndReason = 'completed' | 'max_turns' | 'user_ended' | 'timeout' | 'error';
 
 interface MultiTurnState {
   llmConfigId?: string;
@@ -129,15 +129,30 @@ export class InformationExtractorHandler implements NodeHandler {
     let lastError: Error | undefined;
 
     for (let attempt = 0; attempt <= maxRetries; attempt++) {
-      const result = await this.llmService.chat(llmConfig, {
-        model: model || llmConfig.defaultModel,
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: inputField },
-        ],
-        responseFormat: 'json',
-        jsonSchema,
-      });
+      let result;
+      try {
+        result = await this.llmService.chat(llmConfig, {
+          model: model || llmConfig.defaultModel,
+          messages: [
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: inputField },
+          ],
+          responseFormat: 'json',
+          jsonSchema,
+        });
+      } catch (error) {
+        return {
+          port: 'error',
+          data: {
+            config: { schema: outputSchema },
+            output: {
+              error: error instanceof Error ? error.message : String(error),
+              originalInput: inputField,
+            },
+            meta: {},
+          },
+        };
+      }
 
       try {
         const extracted = JSON.parse(result.content || '{}') as Record<
@@ -163,7 +178,18 @@ export class InformationExtractorHandler implements NodeHandler {
       }
     }
 
-    throw lastError || new Error('Failed to extract information');
+    // All retries exhausted — route to error port instead of throwing
+    return {
+      port: 'error',
+      data: {
+        config: { schema: outputSchema },
+        output: {
+          error: lastError?.message || 'Failed to extract information',
+          originalInput: inputField,
+        },
+        meta: {},
+      },
+    };
   }
 
   // ======================================================================
@@ -232,12 +258,27 @@ export class InformationExtractorHandler implements NodeHandler {
       { role: 'user', content: inputField },
     ];
 
-    const result = await this.llmService.chat(llmConfig, {
-      model: resolvedModel,
-      messages: [...messages],
-      responseFormat: 'json',
-      jsonSchema,
-    });
+    let result;
+    try {
+      result = await this.llmService.chat(llmConfig, {
+        model: resolvedModel,
+        messages: [...messages],
+        responseFormat: 'json',
+        jsonSchema,
+      });
+    } catch (error) {
+      return {
+        port: 'error',
+        data: {
+          config: { schema: outputSchema, mode: 'multi_turn' },
+          output: {
+            error: error instanceof Error ? error.message : String(error),
+            originalInput: inputField,
+          },
+          meta: {},
+        },
+      };
+    }
 
     const parsed = this.safeParseJson(result.content);
     const partialResult = this.mergePartial({}, parsed, outputSchema);
@@ -285,12 +326,20 @@ export class InformationExtractorHandler implements NodeHandler {
     ];
 
     const jsonSchema = this.buildJsonSchema(state.outputSchema, true);
-    const result = await this.llmService.chat(llmConfig, {
-      model: state.model,
-      messages: [...messages],
-      responseFormat: 'json',
-      jsonSchema,
-    });
+    let result;
+    try {
+      result = await this.llmService.chat(llmConfig, {
+        model: state.model,
+        messages: [...messages],
+        responseFormat: 'json',
+        jsonSchema,
+      });
+    } catch (error) {
+      return this.buildMultiTurnFinalOutput(
+        { ...state, messages },
+        'error',
+      );
+    }
 
     const parsed = this.safeParseJson(result.content);
     const partialResult = this.mergePartial(

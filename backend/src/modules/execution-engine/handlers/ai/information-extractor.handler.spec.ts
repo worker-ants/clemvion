@@ -190,7 +190,7 @@ describe('InformationExtractorHandler', () => {
       expect(extracted.senderName).toBe('Alice');
     });
 
-    it('should throw after exhausting all retries on JSON parse failure', async () => {
+    it('should route to error port after exhausting all retries on JSON parse failure', async () => {
       mockLlmService.chat.mockResolvedValue({
         content: 'always invalid json {{{',
         usage: { inputTokens: 100, outputTokens: 20, totalTokens: 120 },
@@ -198,23 +198,27 @@ describe('InformationExtractorHandler', () => {
         finishReason: 'stop',
       });
 
-      await expect(
-        handler.execute(
-          {},
-          {
-            inputField: 'test input',
-            outputSchema: [
-              {
-                name: 'field1',
-                type: 'string',
-                description: 'desc',
-                required: true,
-              },
-            ],
-          },
-          context,
-        ),
-      ).rejects.toThrow();
+      const result = (await handler.execute(
+        {},
+        {
+          inputField: 'test input',
+          outputSchema: [
+            {
+              name: 'field1',
+              type: 'string',
+              description: 'desc',
+              required: true,
+            },
+          ],
+        },
+        context,
+      )) as Record<string, unknown>;
+
+      expect(result.port).toBe('error');
+      expect(result.data).toBeDefined();
+      const data = result.data as Record<string, unknown>;
+      const output = data.output as Record<string, unknown>;
+      expect(output.error).toBeDefined();
 
       // 1 initial + 2 retries = 3 calls total
       expect(mockLlmService.chat).toHaveBeenCalledTimes(3);
