@@ -4,7 +4,9 @@ import {
   truncateSummary,
 } from "../node-config-summary";
 
-const NOT_CONFIGURED = { text: "\u26a0 Not configured", isWarning: true };
+function warningOf(detail: string) {
+  return { text: `\u26a0 ${detail}`, isWarning: true };
+}
 
 // ===== truncateSummary =====
 describe("truncateSummary", () => {
@@ -47,18 +49,37 @@ describe("getConfigSummary", () => {
     expect(getConfigSummary("unknown_type", {})).toBeNull();
   });
 
-  it("returns warning for empty config on each configured node type", () => {
-    const types = [
-      "if_else", "switch", "loop", "variable_declaration", "variable_modification",
-      "split", "map", "foreach", "merge", "filter", "workflow",
-      "http_request", "database_query", "slack", "send_email",
-      "transform", "code",
-      "table", "chart", "form", "template", "pdf",
-      "ai_agent", "text_classifier", "information_extractor",
-    ];
-    for (const type of types) {
+  it("returns specific warning for empty config on each configured node type", () => {
+    const expected: Record<string, string> = {
+      if_else: "Condition not set",
+      switch: "Switch value not set",
+      loop: "Count not set",
+      variable_declaration: "No variables defined",
+      variable_modification: "Variable not selected",
+      split: "Field path not set",
+      map: "Input field not set",
+      foreach: "Array field not set",
+      merge: "Input count and strategy not set",
+      filter: "Input field not set",
+      workflow: "Workflow not selected",
+      http_request: "URL not set",
+      database_query: "Query not set",
+      slack: "Action not selected",
+      send_email: "Recipient not set",
+      transform: "No operations defined",
+      code: "Code not written",
+      table: "Columns not defined",
+      chart: "Chart type not selected",
+      form: "No fields defined",
+      template: "Template not set",
+      pdf: "Template not set",
+      ai_agent: "Model not selected",
+      text_classifier: "Model not selected",
+      information_extractor: "Model not selected",
+    };
+    for (const [type, detail] of Object.entries(expected)) {
       const result = getConfigSummary(type, {});
-      expect(result).toEqual(NOT_CONFIGURED);
+      expect(result).toEqual(warningOf(detail));
     }
   });
 
@@ -94,13 +115,13 @@ describe("if_else summary", () => {
   });
 
   it("shows warning when conditions is empty array", () => {
-    expect(getConfigSummary("if_else", { conditions: [] })).toEqual(NOT_CONFIGURED);
+    expect(getConfigSummary("if_else", { conditions: [] })).toEqual(warningOf("Condition not set"));
   });
 
   it("shows warning when first condition field is empty", () => {
     expect(getConfigSummary("if_else", {
       conditions: [{ field: "", operator: "eq", value: "" }],
-    })).toEqual(NOT_CONFIGURED);
+    })).toEqual(warningOf("Condition not set"));
   });
 });
 
@@ -118,7 +139,7 @@ describe("switch summary", () => {
   });
 
   it("shows warning when switchValue is empty", () => {
-    expect(getConfigSummary("switch", { switchValue: "" })).toEqual(NOT_CONFIGURED);
+    expect(getConfigSummary("switch", { switchValue: "" })).toEqual(warningOf("Switch value not set"));
   });
 
   it("shows 0 cases when cases array is empty", () => {
@@ -146,7 +167,7 @@ describe("loop summary", () => {
   });
 
   it("shows warning when count is empty", () => {
-    expect(getConfigSummary("loop", { count: "" })).toEqual(NOT_CONFIGURED);
+    expect(getConfigSummary("loop", { count: "" })).toEqual(warningOf("Count not set"));
   });
 });
 
@@ -194,7 +215,7 @@ describe("variable_declaration summary", () => {
   });
 
   it("shows warning when variables is empty", () => {
-    expect(getConfigSummary("variable_declaration", { variables: [] })).toEqual(NOT_CONFIGURED);
+    expect(getConfigSummary("variable_declaration", { variables: [] })).toEqual(warningOf("No variables defined"));
   });
 });
 
@@ -207,7 +228,7 @@ describe("variable_modification summary", () => {
   });
 
   it("shows warning when modifications is empty", () => {
-    expect(getConfigSummary("variable_modification", { modifications: [] })).toEqual(NOT_CONFIGURED);
+    expect(getConfigSummary("variable_modification", { modifications: [] })).toEqual(warningOf("Variable not selected"));
   });
 });
 
@@ -221,7 +242,7 @@ describe("split summary", () => {
   });
 
   it("shows warning when fieldPath is empty", () => {
-    expect(getConfigSummary("split", { fieldPath: "" })).toEqual(NOT_CONFIGURED);
+    expect(getConfigSummary("split", { fieldPath: "" })).toEqual(warningOf("Field path not set"));
   });
 });
 
@@ -235,7 +256,7 @@ describe("map summary", () => {
   });
 
   it("shows warning when inputField is missing", () => {
-    expect(getConfigSummary("map", {})).toEqual(NOT_CONFIGURED);
+    expect(getConfigSummary("map", {})).toEqual(warningOf("Input field not set"));
   });
 });
 
@@ -262,7 +283,7 @@ describe("foreach summary", () => {
   });
 
   it("shows warning when arrayField is empty", () => {
-    expect(getConfigSummary("foreach", { arrayField: "" })).toEqual(NOT_CONFIGURED);
+    expect(getConfigSummary("foreach", { arrayField: "" })).toEqual(warningOf("Array field not set"));
   });
 });
 
@@ -283,11 +304,18 @@ describe("merge summary", () => {
   });
 
   it("shows warning when only inputCount is provided", () => {
-    expect(getConfigSummary("merge", { inputCount: 3 })).toEqual(NOT_CONFIGURED);
+    expect(getConfigSummary("merge", { inputCount: 3 })).toEqual(warningOf("Strategy not set"));
   });
 
   it("shows warning when only strategy is provided", () => {
-    expect(getConfigSummary("merge", { strategy: "wait_all" })).toEqual(NOT_CONFIGURED);
+    expect(getConfigSummary("merge", { strategy: "wait_all" })).toEqual(warningOf("Input count not set"));
+  });
+
+  it("accepts inputCount of 0 as valid", () => {
+    expect(getConfigSummary("merge", {
+      inputCount: 0,
+      strategy: "wait_all",
+    })).toEqual({ text: "0 inputs \u00b7 wait_all", isWarning: false });
   });
 });
 
@@ -320,11 +348,11 @@ describe("filter summary", () => {
   });
 
   it("shows warning when inputField is empty", () => {
-    expect(getConfigSummary("filter", { inputField: "" })).toEqual(NOT_CONFIGURED);
+    expect(getConfigSummary("filter", { inputField: "" })).toEqual(warningOf("Input field not set"));
   });
 
   it("shows warning when inputField is missing", () => {
-    expect(getConfigSummary("filter", {})).toEqual(NOT_CONFIGURED);
+    expect(getConfigSummary("filter", {})).toEqual(warningOf("Input field not set"));
   });
 
   it("shows 0 conditions when conditions array is empty", () => {
@@ -361,7 +389,7 @@ describe("workflow summary", () => {
   });
 
   it("shows warning when workflowId is empty", () => {
-    expect(getConfigSummary("workflow", { workflowId: "" })).toEqual(NOT_CONFIGURED);
+    expect(getConfigSummary("workflow", { workflowId: "" })).toEqual(warningOf("Workflow not selected"));
   });
 });
 
@@ -381,7 +409,7 @@ describe("http_request summary", () => {
   });
 
   it("shows warning when url is empty", () => {
-    expect(getConfigSummary("http_request", { url: "" })).toEqual(NOT_CONFIGURED);
+    expect(getConfigSummary("http_request", { url: "" })).toEqual(warningOf("URL not set"));
   });
 });
 
@@ -395,7 +423,7 @@ describe("database_query summary", () => {
   });
 
   it("shows warning when query is empty", () => {
-    expect(getConfigSummary("database_query", { query: "" })).toEqual(NOT_CONFIGURED);
+    expect(getConfigSummary("database_query", { query: "" })).toEqual(warningOf("Query not set"));
   });
 });
 
@@ -415,7 +443,7 @@ describe("slack summary", () => {
   });
 
   it("shows warning when action is empty", () => {
-    expect(getConfigSummary("slack", { action: "" })).toEqual(NOT_CONFIGURED);
+    expect(getConfigSummary("slack", { action: "" })).toEqual(warningOf("Action not selected"));
   });
 });
 
@@ -434,7 +462,7 @@ describe("send_email summary", () => {
   });
 
   it("shows warning when to is empty", () => {
-    expect(getConfigSummary("send_email", { to: "" })).toEqual(NOT_CONFIGURED);
+    expect(getConfigSummary("send_email", { to: "" })).toEqual(warningOf("Recipient not set"));
   });
 });
 
@@ -451,7 +479,7 @@ describe("transform summary", () => {
   });
 
   it("shows warning when operations is empty", () => {
-    expect(getConfigSummary("transform", { operations: [] })).toEqual(NOT_CONFIGURED);
+    expect(getConfigSummary("transform", { operations: [] })).toEqual(warningOf("No operations defined"));
   });
 });
 
@@ -472,7 +500,7 @@ describe("code summary", () => {
   });
 
   it("shows warning when code is empty", () => {
-    expect(getConfigSummary("code", { code: "" })).toEqual(NOT_CONFIGURED);
+    expect(getConfigSummary("code", { code: "" })).toEqual(warningOf("Code not written"));
   });
 
   it("capitalizes known languages correctly", () => {
@@ -569,7 +597,7 @@ describe("table summary", () => {
   });
 
   it("shows warning when columns is empty", () => {
-    expect(getConfigSummary("table", { columns: [] })).toEqual(NOT_CONFIGURED);
+    expect(getConfigSummary("table", { columns: [] })).toEqual(warningOf("Columns not defined"));
   });
 });
 
@@ -583,8 +611,12 @@ describe("chart summary", () => {
     })).toEqual({ text: "bar \u00b7 month / revenue", isWarning: false });
   });
 
-  it("shows warning when required fields are missing", () => {
-    expect(getConfigSummary("chart", { chartType: "bar" })).toEqual(NOT_CONFIGURED);
+  it("shows warning when axis fields are missing", () => {
+    expect(getConfigSummary("chart", { chartType: "bar" })).toEqual(warningOf("Axis fields not set"));
+  });
+
+  it("shows warning when chartType is missing", () => {
+    expect(getConfigSummary("chart", {})).toEqual(warningOf("Chart type not selected"));
   });
 });
 
@@ -608,7 +640,7 @@ describe("form summary", () => {
   });
 
   it("shows warning when fields is empty", () => {
-    expect(getConfigSummary("form", { fields: [] })).toEqual(NOT_CONFIGURED);
+    expect(getConfigSummary("form", { fields: [] })).toEqual(warningOf("No fields defined"));
   });
 });
 
@@ -622,7 +654,7 @@ describe("template summary", () => {
   });
 
   it("shows warning when template is empty", () => {
-    expect(getConfigSummary("template", { template: "" })).toEqual(NOT_CONFIGURED);
+    expect(getConfigSummary("template", { template: "" })).toEqual(warningOf("Template not set"));
   });
 });
 
@@ -638,7 +670,7 @@ describe("pdf summary", () => {
   });
 
   it("shows warning when template is empty", () => {
-    expect(getConfigSummary("pdf", { template: "" })).toEqual(NOT_CONFIGURED);
+    expect(getConfigSummary("pdf", { template: "" })).toEqual(warningOf("Template not set"));
   });
 
   it("uses default values when optional fields are missing", () => {
@@ -686,7 +718,7 @@ describe("ai_agent summary", () => {
   });
 
   it("shows warning when neither model nor llmConfigId", () => {
-    expect(getConfigSummary("ai_agent", { model: "" })).toEqual(NOT_CONFIGURED);
+    expect(getConfigSummary("ai_agent", { model: "" })).toEqual(warningOf("Model not selected"));
   });
 
   it("shows condition count when conditions exist", () => {
@@ -729,9 +761,19 @@ describe("text_classifier summary", () => {
     })).toEqual({ text: "gpt-4o-mini \u00b7 3 categories", isWarning: false });
   });
 
-  it("shows warning when model or categories are empty", () => {
-    expect(getConfigSummary("text_classifier", { model: "gpt-4o" })).toEqual(NOT_CONFIGURED);
-    expect(getConfigSummary("text_classifier", { categories: [{ name: "a" }] })).toEqual(NOT_CONFIGURED);
+  it("shows warning when categories are empty", () => {
+    expect(getConfigSummary("text_classifier", { model: "gpt-4o" })).toEqual(warningOf("Categories not defined"));
+  });
+
+  it("shows warning when model is missing", () => {
+    expect(getConfigSummary("text_classifier", { categories: [{ name: "a" }] })).toEqual(warningOf("Model not selected"));
+  });
+
+  it("accepts llmConfigId alone when model override is empty", () => {
+    expect(getConfigSummary("text_classifier", {
+      llmConfigId: "cfg-1",
+      categories: [{ name: "a" }, { name: "b" }],
+    })).toEqual({ text: "2 categories", isWarning: false });
   });
 });
 
@@ -749,9 +791,12 @@ describe("information_extractor summary", () => {
     })).toEqual({ text: "claude-sonnet \u00b7 4 fields", isWarning: false });
   });
 
-  it("shows warning when model or outputSchema are empty", () => {
-    expect(getConfigSummary("information_extractor", { model: "gpt-4o" })).toEqual(NOT_CONFIGURED);
-    expect(getConfigSummary("information_extractor", { outputSchema: [{ name: "a" }] })).toEqual(NOT_CONFIGURED);
+  it("shows warning when outputSchema is empty", () => {
+    expect(getConfigSummary("information_extractor", { model: "gpt-4o" })).toEqual(warningOf("Output schema not defined"));
+  });
+
+  it("shows warning when model is missing", () => {
+    expect(getConfigSummary("information_extractor", { outputSchema: [{ name: "a" }] })).toEqual(warningOf("Model not selected"));
   });
 
   it("accepts llmConfigId alone when model override is empty", () => {

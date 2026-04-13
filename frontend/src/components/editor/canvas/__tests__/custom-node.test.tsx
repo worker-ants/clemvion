@@ -119,9 +119,12 @@ describe("CustomNode", () => {
     const header = container.querySelector(".rounded-t-lg");
     const warningIcon = header?.querySelector('[aria-label="warning"]');
     expect(warningIcon).toBeInTheDocument();
-    // Inline body warning text should not render anymore
-    const warningMatches = screen.queryAllByText("\u26a0 Not configured");
+    // Inline body warning text should not render as <p>
+    const warningMatches = screen.queryAllByText(/^⚠/);
     expect(warningMatches.some((el) => el.tagName === "P")).toBe(false);
+    // Tooltip exposes the specific missing field
+    const tooltipContent = screen.getByTestId("tooltip-content");
+    expect(tooltipContent.textContent).toContain("URL not set");
   });
 
   it("warning icon inherits header text color", () => {
@@ -147,7 +150,7 @@ describe("CustomNode", () => {
       config: {},
       category: "trigger",
     });
-    expect(screen.queryByText("\u26a0 Not configured")).not.toBeInTheDocument();
+    expect(screen.queryByText(/^⚠/)).not.toBeInTheDocument();
   });
 
   // --- Container node summary location ---
@@ -176,11 +179,11 @@ describe("CustomNode", () => {
     const warningIcon = header?.querySelector('[aria-label="warning"]');
     expect(warningIcon).toBeInTheDocument();
     // The inline <p> variant (body) should not render for container warnings
-    const warningMatches = screen.queryAllByText("\u26a0 Not configured");
+    const warningMatches = screen.queryAllByText(/^⚠/);
     expect(warningMatches.some((el) => el.tagName === "P")).toBe(false);
-    // Tooltip exposes the full message
+    // Tooltip exposes the full message with specific detail
     const tooltipContent = screen.getByTestId("tooltip-content");
-    expect(tooltipContent.textContent).toContain("Not configured");
+    expect(tooltipContent.textContent).toContain("Count not set");
   });
 
   // --- Tooltip conditional rendering ---
