@@ -2482,16 +2482,13 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
     allNodes: Node[],
     allEdges: Edge[],
   ): ContainerBodyPlan {
-    const children = allNodes.filter(
-      (n) => n.containerId === containerNode.id,
-    );
+    const children = allNodes.filter((n) => n.containerId === containerNode.id);
     const childIds = new Set(children.map((c) => c.id));
 
     const bodyEntryNodeIds = new Set(
       allEdges
         .filter(
-          (e) =>
-            e.sourceNodeId === containerNode.id && e.sourcePort === 'body',
+          (e) => e.sourceNodeId === containerNode.id && e.sourcePort === 'body',
         )
         .map((e) => e.targetNodeId),
     );

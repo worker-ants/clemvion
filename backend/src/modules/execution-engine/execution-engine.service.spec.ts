@@ -23,7 +23,12 @@ import {
 import { Node, NodeCategory } from '../nodes/entities/node.entity';
 import { Edge, EdgeType } from '../edges/entities/edge.entity';
 import { Workflow } from '../workflows/entities/workflow.entity';
-import { NodeHandler, ForEachHandler, LoopHandler, MapHandler } from './handlers';
+import {
+  NodeHandler,
+  ForEachHandler,
+  LoopHandler,
+  MapHandler,
+} from './handlers';
 
 // Helper to flush pending promises (allow background execution to complete)
 function flushPromises(): Promise<void> {
@@ -2006,7 +2011,7 @@ describe('ExecutionEngineService', () => {
       await new Promise((r) => setTimeout(r, 200));
 
       // Execution should be marked failed with the emit-missing message
-      const saveCalls = (mockExecutionRepo.save as jest.Mock).mock.calls;
+      const saveCalls = mockExecutionRepo.save.mock.calls;
       const failed = saveCalls.find(
         (c: unknown[]) =>
           (c[0] as Partial<Execution>).status === ExecutionStatus.FAILED,
@@ -2133,7 +2138,7 @@ describe('ExecutionEngineService', () => {
       await service.execute(workflowId, {});
       await new Promise((r) => setTimeout(r, 200));
 
-      const saveCalls = (mockExecutionRepo.save as jest.Mock).mock.calls;
+      const saveCalls = mockExecutionRepo.save.mock.calls;
       const failed = saveCalls.find(
         (c: unknown[]) =>
           (c[0] as Partial<Execution>).status === ExecutionStatus.FAILED,
@@ -2170,7 +2175,9 @@ describe('ExecutionEngineService', () => {
 
       const triggerHandler: NodeHandler = {
         validate: () => ({ valid: true, errors: [] }),
-        execute: jest.fn(async () => ({ items: [{ n: 2 }, { n: 3 }, { n: 4 }] })),
+        execute: jest.fn(async () => ({
+          items: [{ n: 2 }, { n: 3 }, { n: 4 }],
+        })),
       };
       handlerRegistry.register('source_node', triggerHandler);
 
