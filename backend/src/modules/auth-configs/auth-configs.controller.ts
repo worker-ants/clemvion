@@ -11,15 +11,54 @@ import {
   HttpStatus,
   ParseUUIDPipe,
 } from '@nestjs/common';
+import {
+  ApiTags,
+  ApiBearerAuth,
+  ApiOperation,
+  ApiParam,
+  ApiOkResponse,
+  ApiCreatedResponse,
+  ApiNoContentResponse,
+  ApiBadRequestResponse,
+  ApiUnauthorizedResponse,
+  ApiNotFoundResponse,
+} from '@nestjs/swagger';
 import { AuthConfigsService } from './auth-configs.service';
 import { WorkspaceId } from '../../common/decorators';
 import { PaginationQueryDto } from '../../common/dto/pagination.dto';
+import { CreateAuthConfigDto } from './dto/create-auth-config.dto';
+import { UpdateAuthConfigDto } from './dto/update-auth-config.dto';
 
+@ApiTags('Auth Configs')
+@ApiBearerAuth('access-token')
 @Controller('auth-configs')
 export class AuthConfigsController {
   constructor(private readonly authConfigsService: AuthConfigsService) {}
 
   @Get()
+  @ApiOperation({
+    summary: '인증 설정 목록 조회',
+    description:
+      '하위 API(웹훅/트리거)에서 사용하는 커스텀 인증 설정 목록을 페이지네이션으로 반환합니다.',
+  })
+  @ApiOkResponse({
+    description: '인증 설정 목록 및 페이지네이션 메타',
+    schema: {
+      type: 'object',
+      properties: {
+        data: {
+          type: 'object',
+          properties: {
+            data: { type: 'array', items: { type: 'object' } },
+            totalItems: { type: 'number' },
+            page: { type: 'number' },
+            limit: { type: 'number' },
+          },
+        },
+      },
+    },
+  })
+  @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
   async findAll(
     @WorkspaceId() workspaceId: string,
     @Query() query: PaginationQueryDto,
@@ -28,6 +67,14 @@ export class AuthConfigsController {
   }
 
   @Get(':id')
+  @ApiOperation({
+    summary: '인증 설정 단건 조회',
+    description: 'ID로 인증 설정 상세를 조회합니다.',
+  })
+  @ApiParam({ name: 'id', description: '인증 설정 UUID', format: 'uuid' })
+  @ApiOkResponse({ description: '인증 설정 상세' })
+  @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
+  @ApiNotFoundResponse({ description: '해당 인증 설정을 찾을 수 없음' })
   async findOne(
     @Param('id', ParseUUIDPipe) id: string,
     @WorkspaceId() workspaceId: string,
@@ -37,23 +84,76 @@ export class AuthConfigsController {
 
   @Post()
   @HttpCode(HttpStatus.CREATED)
+  @ApiOperation({
+    summary: '인증 설정 생성',
+    description:
+      '새 인증 설정을 생성합니다. type이 api_key/bearer_token인 경우 키/토큰을 자동으로 발급합니다.',
+  })
+  @ApiCreatedResponse({ description: '생성된 인증 설정' })
+  @ApiBadRequestResponse({ description: '입력값 검증 실패' })
+  @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
   async create(
     @WorkspaceId() workspaceId: string,
-    @Body() body: Record<string, unknown>,
+    @Body() body: CreateAuthConfigDto,
   ) {
     return this.authConfigsService.create(workspaceId, body);
   }
 
   @Patch(':id')
+  @ApiOperation({
+    summary: '인증 설정 수정',
+    description:
+      '이름, 타입, 상세 설정, IP 화이트리스트, 활성 여부 등을 부분 수정합니다.',
+  })
+  @ApiParam({ name: 'id', description: '인증 설정 UUID', format: 'uuid' })
+  @ApiOkResponse({ description: '수정된 인증 설정' })
+  @ApiBadRequestResponse({ description: '입력값 검증 실패' })
+  @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
+  @ApiNotFoundResponse({ description: '해당 인증 설정을 찾을 수 없음' })
   async update(
     @Param('id', ParseUUIDPipe) id: string,
     @WorkspaceId() workspaceId: string,
-    @Body() body: Record<string, unknown>,
+    @Body() body: UpdateAuthConfigDto,
   ) {
     return this.authConfigsService.update(id, workspaceId, body);
   }
 
   @Get(':id/usage')
+  @ApiOperation({
+    summary: '인증 설정 사용 통계',
+    description:
+      '이 인증 설정을 사용한 총 호출 수, 마지막 사용 시각, 최근 호출 20건의 실행 메타를 반환합니다.',
+  })
+  @ApiParam({ name: 'id', description: '인증 설정 UUID', format: 'uuid' })
+  @ApiOkResponse({
+    description: '사용 통계',
+    schema: {
+      type: 'object',
+      properties: {
+        data: {
+          type: 'object',
+          properties: {
+            totalCalls: { type: 'number' },
+            lastUsedAt: { type: 'string', format: 'date-time', nullable: true },
+            recentCalls: {
+              type: 'array',
+              items: {
+                type: 'object',
+                properties: {
+                  id: { type: 'string', format: 'uuid' },
+                  triggerName: { type: 'string' },
+                  status: { type: 'string' },
+                  startedAt: { type: 'string', format: 'date-time' },
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+  })
+  @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
+  @ApiNotFoundResponse({ description: '해당 인증 설정을 찾을 수 없음' })
   async getUsage(
     @Param('id', ParseUUIDPipe) id: string,
     @WorkspaceId() workspaceId: string,
@@ -62,6 +162,15 @@ export class AuthConfigsController {
   }
 
   @Post(':id/regenerate')
+  @ApiOperation({
+    summary: '인증 키/토큰 재발급',
+    description:
+      'api_key 또는 bearer_token 타입의 설정에 대해 키/토큰을 새 값으로 교체합니다. 기존 값은 즉시 무효화됩니다.',
+  })
+  @ApiParam({ name: 'id', description: '인증 설정 UUID', format: 'uuid' })
+  @ApiOkResponse({ description: '재발급 후 인증 설정 (새 키/토큰 포함)' })
+  @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
+  @ApiNotFoundResponse({ description: '해당 인증 설정을 찾을 수 없음' })
   async regenerate(
     @Param('id', ParseUUIDPipe) id: string,
     @WorkspaceId() workspaceId: string,
@@ -71,6 +180,15 @@ export class AuthConfigsController {
 
   @Delete(':id')
   @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({
+    summary: '인증 설정 삭제',
+    description:
+      '인증 설정을 영구 삭제합니다. 이 설정을 참조 중인 트리거는 인증에 실패하므로 사전 확인이 필요합니다.',
+  })
+  @ApiParam({ name: 'id', description: '인증 설정 UUID', format: 'uuid' })
+  @ApiNoContentResponse({ description: '삭제 성공' })
+  @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
+  @ApiNotFoundResponse({ description: '해당 인증 설정을 찾을 수 없음' })
   async remove(
     @Param('id', ParseUUIDPipe) id: string,
     @WorkspaceId() workspaceId: string,
