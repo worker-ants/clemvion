@@ -5,44 +5,32 @@ import {
 } from '../node-handler.interface.js';
 import { getNestedValue } from './nested-value.util.js';
 
-interface FieldMapping {
-  targetField: string;
-  sourceField: string;
-}
-
+/**
+ * Map is a container node that iterates over an array and collects the body
+ * subgraph's `emit` output per iteration (Phase 3 of the container runtime
+ * refactor). The handler itself only resolves the input array and surfaces
+ * it to the engine's container dispatch — iteration + collection is handled
+ * by {@link ForEachExecutor}, shared with ForEach.
+ */
 interface MapConfig {
   inputField: string;
-  mapping: FieldMapping[];
+  errorPolicy?: 'stop' | 'skip' | 'continue';
 }
 
 export class MapHandler implements NodeHandler {
   validate(config: Record<string, unknown>): ValidationResult {
     const errors: string[] = [];
-    const { inputField, mapping } = config as unknown as MapConfig;
+    const { inputField, errorPolicy } = config as unknown as MapConfig;
 
     if (!inputField || typeof inputField !== 'string') {
       errors.push('inputField is required and must be a string');
     }
 
-    if (!mapping || !Array.isArray(mapping)) {
-      errors.push('mapping must be an array');
-    } else {
-      if (mapping.length === 0) {
-        errors.push('mapping must not be empty');
-      }
-      for (let i = 0; i < mapping.length; i++) {
-        const m = mapping[i];
-        if (!m.targetField || typeof m.targetField !== 'string') {
-          errors.push(
-            `mapping[${i}].targetField is required and must be a string`,
-          );
-        }
-        if (!m.sourceField || typeof m.sourceField !== 'string') {
-          errors.push(
-            `mapping[${i}].sourceField is required and must be a string`,
-          );
-        }
-      }
+    if (
+      errorPolicy !== undefined &&
+      !['stop', 'skip', 'continue'].includes(errorPolicy)
+    ) {
+      errors.push('errorPolicy must be one of: stop, skip, continue');
     }
 
     return { valid: errors.length === 0, errors };
@@ -53,28 +41,14 @@ export class MapHandler implements NodeHandler {
     config: Record<string, unknown>,
     _context: ExecutionContext,
   ): Promise<unknown> {
-    const { inputField, mapping } = config as unknown as MapConfig;
+    const { inputField } = config as unknown as MapConfig;
 
     const array = getNestedValue(input, inputField);
-
-    if (!Array.isArray(array)) {
-      return {
-        config: { inputField, mapping },
-        output: [],
-      };
-    }
-
-    const mapped = array.map((item) => {
-      const result: Record<string, unknown> = {};
-      for (const m of mapping) {
-        result[m.targetField] = getNestedValue(item, m.sourceField);
-      }
-      return result;
-    });
+    const items = Array.isArray(array) ? array : [];
 
     return {
-      config: { inputField, mapping },
-      output: mapped,
+      config: { inputField },
+      output: items,
     };
   }
 }

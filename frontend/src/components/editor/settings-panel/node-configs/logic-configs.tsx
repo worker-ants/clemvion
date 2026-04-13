@@ -352,19 +352,6 @@ export function SplitConfig({ config, onChange }: { config: Config; onChange: On
 
 // ===== Map =====
 export function MapConfig({ config, onChange }: { config: Config; onChange: OnChange }) {
-  const mapping = (config.mapping as Array<{ targetField: string; expression: string }>) ?? [];
-
-  const addMapping = () =>
-    onChange({ ...config, mapping: [...mapping, { targetField: "", expression: "" }] });
-
-  const removeMapping = (i: number) =>
-    onChange({ ...config, mapping: mapping.filter((_, idx) => idx !== i) });
-
-  const updateMapping = (i: number, key: string, val: string) => {
-    const updated = mapping.map((m, idx) => (idx === i ? { ...m, [key]: val } : m));
-    onChange({ ...config, mapping: updated });
-  };
-
   return (
     <div className="flex flex-col gap-3">
       <ExpressionInput
@@ -372,40 +359,18 @@ export function MapConfig({ config, onChange }: { config: Config; onChange: OnCh
         value={(config.inputField as string) ?? ""}
         onChange={(v) => onChange({ ...config, inputField: v })}
         placeholder="{{ $input.items }}"
-        hint="Array field to transform"
+        hint="Array to transform. Each item flows into the body subgraph; connect the transformed value to the Emit port."
       />
-      <ExpressionInput
-        label="Output Field"
-        value={(config.outputField as string) ?? ""}
-        onChange={(v) => onChange({ ...config, outputField: v })}
-        placeholder="result"
+      <SelectField
+        label="Error Policy"
+        value={(config.errorPolicy as string) ?? "stop"}
+        onChange={(v) => onChange({ ...config, errorPolicy: v })}
+        options={[
+          { value: "stop", label: "Stop on Error" },
+          { value: "skip", label: "Skip Item" },
+          { value: "continue", label: "Continue" },
+        ]}
       />
-      <SectionTitle>Mapping Rules</SectionTitle>
-      {mapping.map((m, i) => (
-        <div key={i} className="flex gap-1">
-          <Input
-            value={m.targetField}
-            onChange={(e) => updateMapping(i, "targetField", e.target.value)}
-            placeholder="Target field"
-            className="h-7 flex-1 text-xs"
-          />
-          <div className="flex-1">
-            <ExpressionInput
-              bare
-              label=""
-              value={m.expression}
-              onChange={(v) => updateMapping(i, "expression", v)}
-              placeholder="{{ $item.field }}"
-            />
-          </div>
-          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => removeMapping(i)}>
-            <X size={12} />
-          </Button>
-        </div>
-      ))}
-      <Button variant="outline" size="sm" className="h-7 text-xs" onClick={addMapping}>
-        <Plus size={12} className="mr-1" /> Add Mapping
-      </Button>
     </div>
   );
 }

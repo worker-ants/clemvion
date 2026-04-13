@@ -41,7 +41,7 @@ const RELOCATED_FIELDS: Record<string, readonly string[]> = {
   filter: ['inputField', 'conditions', 'combineMode', 'strictComparison'],
   foreach: ['arrayField'],
   loop: ['count', 'maxIterations'],
-  map: ['inputField', 'mapping'],
+  map: ['inputField', 'errorPolicy'],
   merge: ['strategy', 'outputFormat'],
   split: ['fieldPath'],
   variable_declaration: ['variables'],
