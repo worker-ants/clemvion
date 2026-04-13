@@ -3,11 +3,14 @@
 import { memo, useMemo } from "react";
 import { Handle, Position, useStore } from "@xyflow/react";
 import type { NodeProps, Node } from "@xyflow/react";
+import { useQuery } from "@tanstack/react-query";
 import { AlertTriangle } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
 import { getNodeDefinition, CATEGORY_COLORS } from "@/lib/node-definitions";
 import { useExecutionStore } from "@/lib/stores/execution-store";
 import { getConfigSummary, truncateSummary } from "@/lib/utils/node-config-summary";
+import type { SummaryContext } from "@/lib/utils/node-config-summary";
+import { llmConfigsApi, type LlmConfigData } from "@/lib/api/llm-configs";
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 import { NodeIcon } from "./node-icon";
 
@@ -152,9 +155,22 @@ function CustomNodeComponent({ id, data, selected }: NodeProps<CustomNodeType>) 
   const nodeStatus = useExecutionStore((s) => s.nodeStatuses.get(id));
   const showSummary = useStore(zoomSelector);
 
+  const isAiNode = data.type === "ai_agent" || data.type === "text_classifier" || data.type === "information_extractor";
+  const { data: llmConfigsData } = useQuery({
+    queryKey: ["llm-configs"],
+    queryFn: () => llmConfigsApi.getAll(),
+    staleTime: 30_000,
+    enabled: isAiNode,
+  });
+  const summaryContext = useMemo<SummaryContext | undefined>(() => {
+    if (!isAiNode) return undefined;
+    const configs: LlmConfigData[] = llmConfigsData?.data ?? llmConfigsData ?? [];
+    return { hasDefaultLlmConfig: configs.some((c) => c.isDefault) };
+  }, [isAiNode, llmConfigsData]);
+
   const summary = useMemo(
-    () => getConfigSummary(data.type, data.config),
-    [data.type, data.config],
+    () => getConfigSummary(data.type, data.config, summaryContext),
+    [data.type, data.config, summaryContext],
   );
 
   const { display: displayText, isTruncated } = useMemo(

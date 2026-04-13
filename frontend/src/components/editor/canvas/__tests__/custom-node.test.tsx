@@ -30,6 +30,12 @@ vi.mock("../node-icon", () => ({
   NodeIcon: ({ name }: { name: string }) => <span data-testid="node-icon">{name}</span>,
 }));
 
+// Mock react-query — useQuery returns empty data by default; override via mockLlmConfigs
+let mockLlmConfigs: Array<{ id: string; isDefault: boolean }> = [];
+vi.mock("@tanstack/react-query", () => ({
+  useQuery: () => ({ data: mockLlmConfigs }),
+}));
+
 // Mock tooltip — renders TooltipContent with data-testid for conditional rendering tests
 vi.mock("@/components/ui/tooltip", () => ({
   Tooltip: ({ children }: { children: React.ReactNode }) => <>{children}</>,
@@ -86,6 +92,7 @@ describe("CustomNode", () => {
   beforeEach(() => {
     mockZoom = 1;
     mockNodeStatus = null;
+    mockLlmConfigs = [];
   });
 
   // --- Summary rendering ---

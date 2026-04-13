@@ -73,9 +73,9 @@ describe("getConfigSummary", () => {
       form: "No fields defined",
       template: "Template not set",
       pdf: "Template not set",
-      ai_agent: "Model not selected",
-      text_classifier: "Model not selected",
-      information_extractor: "Model not selected",
+      ai_agent: "Default provider not configured",
+      text_classifier: "Default provider not configured",
+      information_extractor: "Default provider not configured",
     };
     for (const [type, detail] of Object.entries(expected)) {
       const result = getConfigSummary(type, {});
@@ -717,8 +717,28 @@ describe("ai_agent summary", () => {
     })).toEqual({ text: "Multi Turn", isWarning: false });
   });
 
-  it("shows warning when neither model nor llmConfigId", () => {
-    expect(getConfigSummary("ai_agent", { model: "" })).toEqual(warningOf("Model not selected"));
+  it("does not warn when default LLM config exists (llmConfigId undefined)", () => {
+    expect(getConfigSummary("ai_agent", {}, { hasDefaultLlmConfig: true })).toEqual({
+      text: "Configured",
+      isWarning: false,
+    });
+  });
+
+  it("does not warn when default LLM config exists (llmConfigId empty string)", () => {
+    expect(getConfigSummary("ai_agent", { llmConfigId: "" }, { hasDefaultLlmConfig: true })).toEqual({
+      text: "Configured",
+      isWarning: false,
+    });
+  });
+
+  it("warns when no default LLM config exists", () => {
+    expect(getConfigSummary("ai_agent", {}, { hasDefaultLlmConfig: false }))
+      .toEqual(warningOf("Default provider not configured"));
+  });
+
+  it("warns when no context provided and no llmConfigId", () => {
+    expect(getConfigSummary("ai_agent", {}))
+      .toEqual(warningOf("Default provider not configured"));
   });
 
   it("shows condition count when conditions exist", () => {
@@ -765,8 +785,21 @@ describe("text_classifier summary", () => {
     expect(getConfigSummary("text_classifier", { model: "gpt-4o" })).toEqual(warningOf("Categories not defined"));
   });
 
-  it("shows warning when model is missing", () => {
-    expect(getConfigSummary("text_classifier", { categories: [{ name: "a" }] })).toEqual(warningOf("Model not selected"));
+  it("warns when no default LLM config and no model", () => {
+    expect(getConfigSummary("text_classifier", { categories: [{ name: "a" }] })).toEqual(warningOf("Default provider not configured"));
+  });
+
+  it("does not warn when default config exists and no model", () => {
+    expect(getConfigSummary("text_classifier", {
+      categories: [{ name: "a" }],
+    }, { hasDefaultLlmConfig: true })).toEqual({ text: "1 categories", isWarning: false });
+  });
+
+  it("warns when default provider selected but no default config exists", () => {
+    expect(getConfigSummary("text_classifier", {
+      llmConfigId: "",
+      categories: [{ name: "a" }],
+    }, { hasDefaultLlmConfig: false })).toEqual(warningOf("Default provider not configured"));
   });
 
   it("accepts llmConfigId alone when model override is empty", () => {
@@ -795,8 +828,21 @@ describe("information_extractor summary", () => {
     expect(getConfigSummary("information_extractor", { model: "gpt-4o" })).toEqual(warningOf("Output schema not defined"));
   });
 
-  it("shows warning when model is missing", () => {
-    expect(getConfigSummary("information_extractor", { outputSchema: [{ name: "a" }] })).toEqual(warningOf("Model not selected"));
+  it("warns when no default LLM config and no model", () => {
+    expect(getConfigSummary("information_extractor", { outputSchema: [{ name: "a" }] })).toEqual(warningOf("Default provider not configured"));
+  });
+
+  it("does not warn when default config exists and no model", () => {
+    expect(getConfigSummary("information_extractor", {
+      outputSchema: [{ name: "a" }],
+    }, { hasDefaultLlmConfig: true })).toEqual({ text: "1 fields", isWarning: false });
+  });
+
+  it("warns when default provider selected but no default config exists", () => {
+    expect(getConfigSummary("information_extractor", {
+      llmConfigId: "",
+      outputSchema: [{ name: "a" }],
+    }, { hasDefaultLlmConfig: false })).toEqual(warningOf("Default provider not configured"));
   });
 
   it("accepts llmConfigId alone when model override is empty", () => {
