@@ -813,6 +813,35 @@ export class AiAgentHandler implements NodeHandler {
   /**
    * Build the final output when multi-turn conversation ends.
    */
+  /**
+   * Engine-facing entry point used when the user ends a conversation or the
+   * per-turn timer fires. Unpacks the accumulated multi-turn state and
+   * delegates to the in-handler {@link buildMultiTurnFinalOutput}.
+   */
+  endMultiTurnConversation(
+    state: Record<string, unknown>,
+    endReason: 'user_ended' | 'max_turns' | 'condition' | 'error',
+  ): unknown {
+    const messages = (state.messages as ChatMessage[]) ?? [];
+    const lastMsg = messages.length > 0 ? messages[messages.length - 1] : null;
+    const lastResponse = (lastMsg?.content as string) ?? '';
+    return this.buildMultiTurnFinalOutput(
+      messages,
+      lastResponse,
+      (state.turnCount as number) ?? 0,
+      endReason,
+      {
+        model: state.model as string,
+        totalInputTokens: (state.totalInputTokens as number) ?? 0,
+        totalOutputTokens: (state.totalOutputTokens as number) ?? 0,
+        toolCalls: (state.toolCalls as number) ?? 0,
+        ragSources: (state.ragSources as unknown[]) ?? [],
+      },
+      undefined,
+      (state.turnDebugHistory as unknown[]) ?? [],
+    );
+  }
+
   buildMultiTurnFinalOutput(
     messages: ChatMessage[],
     lastResponse: string,

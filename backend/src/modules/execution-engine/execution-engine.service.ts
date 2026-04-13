@@ -1306,29 +1306,16 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
         // End conversation
         const endReason = action.type === 'ai_timeout' ? 'error' : 'user_ended';
 
-        const handler = this.handlerRegistry.get(
-          'ai_agent',
-        ) as unknown as AiAgentHandler;
-        const messages =
-          (multiTurnState.messages as Array<Record<string, unknown>>) ?? [];
-        const lastMsg =
-          messages.length > 0 ? messages[messages.length - 1] : null;
-        const lastMessage = (lastMsg?.content as string) ?? '';
+        const handler = this.handlerRegistry.get(node.type) as unknown as {
+          endMultiTurnConversation: (
+            state: Record<string, unknown>,
+            endReason: string,
+          ) => unknown;
+        };
 
-        const finalOutput = handler.buildMultiTurnFinalOutput(
-          messages as never,
-          lastMessage,
-          multiTurnState.turnCount as number,
+        const finalOutput = handler.endMultiTurnConversation(
+          multiTurnState,
           endReason,
-          {
-            model: multiTurnState.model as string,
-            totalInputTokens: multiTurnState.totalInputTokens as number,
-            totalOutputTokens: multiTurnState.totalOutputTokens as number,
-            toolCalls: multiTurnState.toolCalls as number,
-            ragSources: multiTurnState.ragSources as unknown[],
-          },
-          undefined,
-          (multiTurnState.turnDebugHistory as unknown[]) ?? [],
         );
 
         this.contextService.setNodeOutput(
@@ -1338,10 +1325,15 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
         );
         conversationEnded = true;
       } else if (action.type === 'ai_message') {
-        // Process user message
-        const handler = this.handlerRegistry.get(
-          'ai_agent',
-        ) as unknown as AiAgentHandler;
+        // Process user message via the node's own handler (so both ai_agent
+        // and information_extractor can implement conversational extraction
+        // with their own domain logic).
+        const handler = this.handlerRegistry.get(node.type) as unknown as {
+          processMultiTurnMessage: (
+            userMessage: string,
+            state: Record<string, unknown>,
+          ) => Promise<unknown>;
+        };
         const result = await handler.processMultiTurnMessage(
           action.message as string,
           multiTurnState,

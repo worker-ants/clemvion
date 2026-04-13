@@ -286,7 +286,12 @@ function informationExtractorSummary(config: NodeConfig): ConfigSummaryResult | 
   const model = config.model as string | undefined;
   const outputSchema = config.outputSchema as unknown[] | undefined;
   if (!model || !Array.isArray(outputSchema) || !outputSchema.length) return null;
-  return { text: `${model} \u00b7 ${outputSchema.length} fields`, isWarning: false };
+  const mode = config.mode as string | undefined;
+  const parts: string[] = [];
+  if (mode === "multi_turn") parts.push("Multi Turn");
+  parts.push(model);
+  parts.push(`${outputSchema.length} fields`);
+  return { text: parts.join(" \u00b7 "), isWarning: false };
 }
 
 // --- Formatter registry ---
