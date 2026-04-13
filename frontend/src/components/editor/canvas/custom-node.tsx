@@ -3,6 +3,7 @@
 import { memo, useMemo } from "react";
 import { Handle, Position, useStore } from "@xyflow/react";
 import type { NodeProps, Node } from "@xyflow/react";
+import { AlertTriangle } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
 import { getNodeDefinition, CATEGORY_COLORS } from "@/lib/node-definitions";
 import { useExecutionStore } from "@/lib/stores/execution-store";
@@ -166,10 +167,13 @@ function CustomNodeComponent({ id, data, selected }: NodeProps<CustomNodeType>) 
   }, [nodeStatus]);
 
   const isWarning = summary?.isWarning ?? false;
-  // Container nodes show non-warning summary in the header
+  // Warnings are unified as a single amber icon in the header for every node
+  // type so the body keeps a consistent layout regardless of configuration
+  // state. Non-warning summaries still follow the existing split: container
+  // nodes render in the header, regular nodes in the body.
+  const showHeaderWarning = showSummary && summary && isWarning;
   const showHeaderSummary = isContainer && showSummary && summary && !isWarning;
-  // Body summary: regular nodes always, container nodes only for warnings
-  const showBodySummary = showSummary && summary && (!isContainer || isWarning);
+  const showBodySummary = !isContainer && showSummary && summary && !isWarning;
 
   return (
     <div
@@ -201,25 +205,67 @@ function CustomNodeComponent({ id, data, selected }: NodeProps<CustomNodeType>) 
             )}
           </Tooltip>
         )}
+        {showHeaderWarning && (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <span
+                className="ml-auto shrink-0 inline-flex items-center justify-center rounded-full bg-white/90 p-0.5"
+                role="img"
+                aria-label="warning"
+              >
+                <AlertTriangle className="h-3 w-3 text-amber-500" />
+              </span>
+            </TooltipTrigger>
+            <TooltipContent side="bottom">{summary.text}</TooltipContent>
+          </Tooltip>
+        )}
       </div>
 
       {/* Body with handles */}
       <div className="relative px-3 py-2">
-        {/* Input handles — aligned to center of body */}
-        {inputs.map((port, index) => (
+        {/* Input handles — aligned to center of body. Multi-input nodes
+            render a label and per-type color so ports like ForEach's
+            "Input" vs "Emit" are distinguishable at a glance. */}
+        {inputs.length === 1 ? (
           <Handle
-            key={port.id}
-            id={port.id}
+            key={inputs[0].id}
+            id={inputs[0].id}
             type="target"
             position={Position.Left}
             className="!h-2.5 !w-2.5 !border-2 !border-white !bg-gray-400"
-            style={{
-              top: inputs.length === 1
-                ? "50%"
-                : `${((index + 1) / (inputs.length + 1)) * 100}%`,
-            }}
+            style={{ top: "50%" }}
           />
-        ))}
+        ) : (
+          <div className="flex flex-col gap-0.5">
+            {inputs.map((port) => {
+              const isEmit = port.id === "emit";
+              return (
+                <div key={port.id} className="relative flex items-center">
+                  <Handle
+                    id={port.id}
+                    type="target"
+                    position={Position.Left}
+                    className={cn(
+                      "!h-2.5 !w-2.5 !border-2 !border-white",
+                      isEmit ? "!bg-purple-400" : "!bg-gray-400",
+                    )}
+                    style={{ top: "50%", left: "-12px" }}
+                  />
+                  <span
+                    className={cn(
+                      "text-[10px]",
+                      isEmit
+                        ? "text-purple-500"
+                        : "text-[hsl(var(--muted-foreground))]",
+                    )}
+                  >
+                    {port.label}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        )}
 
         {/* Config summary */}
         {showBodySummary && (
