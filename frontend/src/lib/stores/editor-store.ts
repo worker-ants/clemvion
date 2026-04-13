@@ -3,6 +3,7 @@
 import { create } from "zustand";
 import type { Node, Edge, OnNodesChange, OnEdgesChange, Connection } from "@xyflow/react";
 import { applyNodeChanges, applyEdgeChanges, addEdge } from "@xyflow/react";
+import { toast } from "sonner";
 import { workflowsApi } from "@/lib/api/workflows";
 import { getNodeDefinition } from "@/lib/node-definitions";
 
@@ -90,16 +91,74 @@ function applyContainerAssignment(
 }
 
 /**
+ * Inspect a pending connection for a body/emit conflict before any state
+ * change. Returns a human-readable error string when the connection should be
+ * blocked (different container claims the same node), or null when the edge
+ * is allowed. Lets `onConnect` short-circuit and surface a toast without
+ * mutating store state.
+ */
+function detectContainerConflict(
+  nodes: Node[],
+  connection: Connection,
+): string | null {
+  const sourceNode = nodes.find((n) => n.id === connection.source);
+  const targetNode = nodes.find((n) => n.id === connection.target);
+  if (!sourceNode || !targetNode) return null;
+
+  // Body port: the target must either be unassigned or already a child of
+  // this exact container. Anything else means the user is trying to claim a
+  // node that another container already owns.
+  if (
+    isContainerNode(sourceNode) &&
+    connection.sourceHandle === "body"
+  ) {
+    const targetContainer = getContainerId(targetNode);
+    if (targetContainer && targetContainer !== sourceNode.id) {
+      const otherLabel = labelOf(nodes, targetContainer);
+      const targetLabel = labelOf(nodes, targetNode.id);
+      return `Cannot connect: "${targetLabel}" is already a body child of "${otherLabel}". Detach it from "${otherLabel}" first.`;
+    }
+  }
+
+  // Emit port: the source must either be unassigned or already a child of
+  // this exact container.
+  if (
+    isContainerNode(targetNode) &&
+    connection.targetHandle === "emit"
+  ) {
+    const sourceContainer = getContainerId(sourceNode);
+    if (sourceContainer && sourceContainer !== targetNode.id) {
+      const otherLabel = labelOf(nodes, sourceContainer);
+      const sourceLabel = labelOf(nodes, sourceNode.id);
+      return `Cannot connect: "${sourceLabel}" is already a body child of "${otherLabel}". Detach it from "${otherLabel}" first.`;
+    }
+  }
+
+  return null;
+}
+
+function labelOf(nodes: Node[], id: string): string {
+  const node = nodes.find((n) => n.id === id);
+  if (!node) return id;
+  return ((node.data as { label?: string }).label as string | undefined) ?? id;
+}
+
+/**
  * When the user connects two nodes, infer container membership so multi-step
  * body chains (`Loop.body → A → B → C → Loop.emit`) automatically capture
- * every intermediate node into the container without manual setup. Rules:
+ * every intermediate node into the container without manual setup.
  *
- * 1. Container's `body` output → target gets the container's id.
- * 2. Source → container's `emit` input → source gets the container's id.
+ * IMPORTANT: callers must run {@link detectContainerConflict} first and bail
+ * before invoking this helper when a conflict is detected. The body/emit
+ * rules below assume conflicts have already been ruled out — they overwrite
+ * existing assignments unconditionally so the explicit body/emit wire wins.
+ *
+ * Rules:
+ * 1. Container's `body` output → target gets the container's id (force).
+ * 2. Source → container's `emit` input → source gets the container's id (force).
  * 3. Otherwise, if exactly one side already belongs to a container and the
  *    other is unassigned, propagate that container id to the unassigned side.
- *    Two different containers leave both sides untouched (ambiguity — user
- *    resolves manually via the settings dropdown).
+ *    Two different containers leave both sides untouched.
  */
 function propagateContainerOnConnect(
   nodes: Node[],
@@ -112,20 +171,19 @@ function propagateContainerOnConnect(
   let nextSourceContainer = getContainerId(sourceNode);
   let nextTargetContainer = getContainerId(targetNode);
 
-  // Rule 1 — body port pushes its container id onto the target.
+  // Rule 1 — body port forces the target into this container. Conflicts must
+  // have been intercepted by detectContainerConflict already.
   if (
     isContainerNode(sourceNode) &&
-    connection.sourceHandle === "body" &&
-    !nextTargetContainer
+    connection.sourceHandle === "body"
   ) {
     nextTargetContainer = sourceNode.id;
   }
 
-  // Rule 2 — emit port pulls the source into its container.
+  // Rule 2 — emit port forces the source into this container.
   if (
     isContainerNode(targetNode) &&
-    connection.targetHandle === "emit" &&
-    !nextSourceContainer
+    connection.targetHandle === "emit"
   ) {
     nextSourceContainer = targetNode.id;
   }
@@ -151,9 +209,6 @@ function propagateContainerOnConnect(
     return nodes;
   }
 
-  // Apply container assignment changes through the helper so parentId / extent
-  // / position stay synchronized — duplicating the logic here would let the
-  // two paths drift.
   let result = nodes;
   if (nextSourceContainer !== getContainerId(sourceNode)) {
     result = applyContainerAssignment(result, sourceNode.id, nextSourceContainer);
@@ -285,6 +340,16 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   },
 
   onConnect: (connection) => {
+    // Reject the edge upfront if it would force a node into a different
+    // container than the one it already belongs to. Otherwise the wire would
+    // appear connected in the canvas while the container assignment silently
+    // disagreed, and the engine would surface CONTAINER_MISSING_EMIT only at
+    // execution time.
+    const conflict = detectContainerConflict(get().nodes, connection);
+    if (conflict) {
+      toast.error(conflict);
+      return;
+    }
     get().pushUndo();
     set((state) => {
       const nextEdges = addEdge({ ...connection, type: "custom" }, state.edges);
