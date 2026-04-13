@@ -135,6 +135,7 @@ export function useExecutionEvents({
       const payload = data as {
         waitingNodeId?: string;
         waitingNodeType?: string;
+        nodeExecutionId?: string;
         interactionType?: "form" | "buttons" | "ai_conversation";
         nodeOutput?: unknown;
         buttonConfig?: unknown;
@@ -154,6 +155,10 @@ export function useExecutionEvents({
         (payload.buttonConfig as Record<string, unknown> | undefined)?.nodeOutput ??
         null;
       addNodeResult({
+        // Propagate the DB row id so this update maps to the same timeline
+        // entry created by NODE_STARTED — otherwise a second phantom row
+        // appears when execution resumes (carousel button flow etc.).
+        nodeExecutionId: payload.nodeExecutionId,
         nodeId: payload.waitingNodeId,
         nodeLabel: payload.waitingNodeId,
         nodeType,
@@ -298,6 +303,7 @@ export function useExecutionEvents({
   const handleNodeStarted = useCallback(
     (data: unknown) => {
       const payload = data as {
+        nodeExecutionId?: string;
         nodeId?: string;
         nodeType?: string;
         nodeLabel?: string;
@@ -311,6 +317,7 @@ export function useExecutionEvents({
 
         updateNodeStatus(payload.nodeId, { status: "running" });
         addNodeResult({
+          nodeExecutionId: payload.nodeExecutionId,
           nodeId: payload.nodeId,
           nodeLabel: payload.nodeLabel ?? payload.nodeId,
           nodeType: payload.nodeType ?? "unknown",
@@ -327,6 +334,7 @@ export function useExecutionEvents({
   const handleNodeCompleted = useCallback(
     (data: unknown) => {
       const payload = data as {
+        nodeExecutionId?: string;
         nodeId?: string;
         duration?: number;
         nodeType?: string;
@@ -340,12 +348,16 @@ export function useExecutionEvents({
           duration: payload.duration,
         });
 
-        // Preserve startedAt from existing entry if available
-        const existing = useExecutionStore
-          .getState()
-          .nodeResults.find((r) => r.nodeId === payload.nodeId);
+        // Preserve startedAt from the matching prior entry if available.
+        // Match by nodeExecutionId when present so iterations stay distinct.
+        const existing = useExecutionStore.getState().nodeResults.find((r) =>
+          payload.nodeExecutionId
+            ? r.nodeExecutionId === payload.nodeExecutionId
+            : !r.nodeExecutionId && r.nodeId === payload.nodeId,
+        );
 
         addNodeResult({
+          nodeExecutionId: payload.nodeExecutionId,
           nodeId: payload.nodeId,
           nodeLabel: payload.nodeLabel ?? payload.nodeId,
           nodeType: payload.nodeType ?? "unknown",
@@ -363,6 +375,7 @@ export function useExecutionEvents({
   const handleNodeFailed = useCallback(
     (data: unknown) => {
       const payload = data as {
+        nodeExecutionId?: string;
         nodeId?: string;
         error?: string;
         nodeType?: string;
@@ -375,11 +388,14 @@ export function useExecutionEvents({
           error: payload.error,
         });
 
-        const existing = useExecutionStore
-          .getState()
-          .nodeResults.find((r) => r.nodeId === payload.nodeId);
+        const existing = useExecutionStore.getState().nodeResults.find((r) =>
+          payload.nodeExecutionId
+            ? r.nodeExecutionId === payload.nodeExecutionId
+            : !r.nodeExecutionId && r.nodeId === payload.nodeId,
+        );
 
         addNodeResult({
+          nodeExecutionId: payload.nodeExecutionId,
           nodeId: payload.nodeId,
           nodeLabel: payload.nodeLabel ?? payload.nodeId,
           nodeType: payload.nodeType ?? "unknown",
@@ -397,6 +413,7 @@ export function useExecutionEvents({
   const handleNodeSkipped = useCallback(
     (data: unknown) => {
       const payload = data as {
+        nodeExecutionId?: string;
         nodeId?: string;
         nodeType?: string;
         nodeLabel?: string;
@@ -404,6 +421,7 @@ export function useExecutionEvents({
       if (payload.nodeId) {
         updateNodeStatus(payload.nodeId, { status: "skipped" });
         addNodeResult({
+          nodeExecutionId: payload.nodeExecutionId,
           nodeId: payload.nodeId,
           nodeLabel: payload.nodeLabel ?? payload.nodeId,
           nodeType: payload.nodeType ?? "unknown",
@@ -475,8 +493,12 @@ export function useExecutionEvents({
               error: ne.error?.message,
             });
 
-            // Add all nodes to results timeline
+            // Add all nodes to results timeline. Pass the NodeExecution row id
+            // so WS events and polling converge on the same timeline entry —
+            // without this, each iteration's row appears twice (once from the
+            // WS NODE_COMPLETED event, once from the polling reconciliation).
             addNodeResult({
+              nodeExecutionId: ne.id,
               nodeId: ne.nodeId,
               nodeLabel,
               nodeType,
