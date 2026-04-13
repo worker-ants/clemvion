@@ -221,11 +221,11 @@ function CustomNodeComponent({ id, data, selected }: NodeProps<CustomNodeType>) 
           <Tooltip>
             <TooltipTrigger asChild>
               <span
-                className="ml-auto shrink-0 inline-flex items-center justify-center rounded-full bg-white/90 p-0.5"
+                className="ml-auto shrink-0 inline-flex items-center justify-center text-white/70 hover:text-white transition-colors"
                 role="img"
                 aria-label="warning"
               >
-                <AlertTriangle className="h-3 w-3 text-amber-500" />
+                <AlertTriangle className="h-3.5 w-3.5" />
               </span>
             </TooltipTrigger>
             <TooltipContent side="bottom">{summary.text}</TooltipContent>
