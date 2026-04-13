@@ -756,4 +756,19 @@ describe("information_extractor summary", () => {
     expect(getConfigSummary("information_extractor", { model: "gpt-4o" })).toEqual(NOT_CONFIGURED);
     expect(getConfigSummary("information_extractor", { outputSchema: [{ name: "a" }] })).toEqual(NOT_CONFIGURED);
   });
+
+  it("accepts llmConfigId alone when model override is empty", () => {
+    expect(getConfigSummary("information_extractor", {
+      llmConfigId: "cfg-1",
+      outputSchema: [{ name: "a" }, { name: "b" }],
+    })).toEqual({ text: "2 fields", isWarning: false });
+  });
+
+  it("prefixes Multi Turn when mode is multi_turn", () => {
+    expect(getConfigSummary("information_extractor", {
+      mode: "multi_turn",
+      llmConfigId: "cfg-1",
+      outputSchema: [{ name: "a" }],
+    })).toEqual({ text: "Multi Turn \u00b7 1 fields", isWarning: false });
+  });
 });

@@ -277,21 +277,26 @@ function aiAgentSummary(config: NodeConfig): ConfigSummaryResult | null {
 
 function textClassifierSummary(config: NodeConfig): ConfigSummaryResult | null {
   const model = config.model as string | undefined;
+  const llmConfigId = config.llmConfigId as string | undefined;
   const categories = config.categories as unknown[] | undefined;
-  if (!model || !Array.isArray(categories) || !categories.length) return null;
-  return { text: `${model} \u00b7 ${categories.length} categories`, isWarning: false };
+  if ((!model && !llmConfigId) || !Array.isArray(categories) || !categories.length) return null;
+  const parts: string[] = [];
+  if (model) parts.push(model);
+  parts.push(`${categories.length} categories`);
+  return { text: parts.join(" \u00b7 ") || "Configured", isWarning: false };
 }
 
 function informationExtractorSummary(config: NodeConfig): ConfigSummaryResult | null {
   const model = config.model as string | undefined;
+  const llmConfigId = config.llmConfigId as string | undefined;
   const outputSchema = config.outputSchema as unknown[] | undefined;
-  if (!model || !Array.isArray(outputSchema) || !outputSchema.length) return null;
+  if ((!model && !llmConfigId) || !Array.isArray(outputSchema) || !outputSchema.length) return null;
   const mode = config.mode as string | undefined;
   const parts: string[] = [];
   if (mode === "multi_turn") parts.push("Multi Turn");
-  parts.push(model);
+  if (model) parts.push(model);
   parts.push(`${outputSchema.length} fields`);
-  return { text: parts.join(" \u00b7 "), isWarning: false };
+  return { text: parts.join(" \u00b7 ") || "Configured", isWarning: false };
 }
 
 // --- Formatter registry ---
