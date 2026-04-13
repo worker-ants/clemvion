@@ -299,10 +299,42 @@
 
 | 항목 | 설명 |
 |------|------|
-| 표시 | 헤더 우측에 앰버 `AlertTriangle` 아이콘(`text-amber-500`) + hover 시 툴팁으로 `Not configured` 전체 문구. **모든 노드 유형(일반/컨테이너) 동일하게 헤더 아이콘으로 통일**. 접근성을 위해 아이콘은 `aria-label="warning"` |
+| 표시 | 헤더 우측에 `AlertTriangle` 아이콘(`text-white/70`, hover 시 `text-white` 전환) + hover 시 툴팁으로 **구체적 누락 항목** 표시. **모든 노드 유형(일반/컨테이너) 동일하게 헤더 아이콘으로 통일**. 접근성을 위해 아이콘은 `aria-label="warning"` |
 | 조건 | 노드의 필수 config 필드가 하나 이상 비어 있을 때 |
 | 예외 | Manual Trigger — config 없으므로 아이콘 표시 안 함 |
 | 선택적 필드만 | 모든 필드가 선택적이면 정상 summary(일반 노드는 body, 컨테이너는 헤더 텍스트) 표시 |
+
+##### 노드별 미설정 경고 메시지
+
+각 노드 유형은 어떤 필수 항목이 누락되었는지를 구체적으로 안내한다:
+
+| 노드 | 경고 메시지 | 누락 조건 |
+|------|-------------|-----------|
+| If/Else | `⚠ Condition not set` | conditions 미설정 |
+| Switch | `⚠ Switch value not set` | switchValue 미설정 |
+| Loop | `⚠ Count not set` | count 미설정 |
+| Variable Declaration | `⚠ No variables defined` | variables 미설정 |
+| Variable Modification | `⚠ Variable not selected` | modifications 미설정 |
+| Split | `⚠ Field path not set` | fieldPath 미설정 |
+| Map | `⚠ Input field not set` | inputField 미설정 |
+| ForEach | `⚠ Array field not set` | arrayField 미설정 |
+| Merge | `⚠ Input count and strategy not set` / `⚠ Strategy not set` / `⚠ Input count not set` | 각 필드 누락 조합별 |
+| Filter | `⚠ Input field not set` | inputField 미설정 |
+| Workflow | `⚠ Workflow not selected` | workflowId 미설정 |
+| HTTP Request | `⚠ URL not set` | url 미설정 |
+| Database Query | `⚠ Query not set` | query 미설정 |
+| Slack | `⚠ Action not selected` | action 미설정 |
+| Send Email | `⚠ Recipient not set` | to 미설정 |
+| Transform | `⚠ No operations defined` | operations 미설정 |
+| Code | `⚠ Code not written` | code 미설정 |
+| Table | `⚠ Columns not defined` | columns 미설정 |
+| Chart | `⚠ Chart type not selected` / `⚠ Axis fields not set` | chartType 또는 axis 누락 |
+| Form | `⚠ No fields defined` | fields 미설정 |
+| Template | `⚠ Template not set` | template 미설정 |
+| PDF | `⚠ Template not set` | template 미설정 |
+| AI Agent | `⚠ Model not selected` | model 및 llmConfigId 미설정 |
+| Text Classifier | `⚠ Model not selected` / `⚠ Categories not defined` | 각 필드 누락별 |
+| Info Extractor | `⚠ Model not selected` / `⚠ Output schema not defined` | 각 필드 누락별 |
 
 #### 5.3.3 컨테이너 노드 요약
 
