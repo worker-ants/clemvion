@@ -13,6 +13,7 @@ vi.mock("@xyflow/react", () => ({
   NodeResizer: () => null,
   useStore: (selector: (s: { transform: number[]; nodes: Array<{ id: string; data: { label?: string } }> }) => unknown) =>
     selector({ transform: [0, 0, mockZoom], nodes: [] }),
+  useUpdateNodeInternals: () => vi.fn(),
 }));
 
 // Mock execution store — supports per-test overrides via mockNodeStatus
