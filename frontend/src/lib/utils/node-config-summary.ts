@@ -5,6 +5,10 @@ export type ConfigSummaryResult = {
   isWarning: boolean;
 };
 
+export type SummaryContext = {
+  hasDefaultLlmConfig?: boolean;
+};
+
 const OPERATOR_DISPLAY: Record<string, string> = {
   eq: "==",
   neq: "!=",
@@ -263,10 +267,10 @@ function pdfSummary(config: NodeConfig): ConfigSummaryResult {
   return { text: `${pageSize} ${orientation} \u00b7 ${fileName}`, isWarning: false };
 }
 
-function aiAgentSummary(config: NodeConfig): ConfigSummaryResult {
+function aiAgentSummary(config: NodeConfig, context?: SummaryContext): ConfigSummaryResult {
   const model = config.model as string | undefined;
   const llmConfigId = config.llmConfigId as string | undefined;
-  if (!model && !llmConfigId) return warning("Model not selected");
+  if (!model && !llmConfigId && !context?.hasDefaultLlmConfig) return warning("Default provider not configured");
   const mode = config.mode as string | undefined;
   const parts: string[] = [];
   if (mode === "multi_turn") parts.push("Multi Turn");
@@ -280,11 +284,11 @@ function aiAgentSummary(config: NodeConfig): ConfigSummaryResult {
   return { text: parts.join(" \u00b7 ") || "Configured", isWarning: false };
 }
 
-function textClassifierSummary(config: NodeConfig): ConfigSummaryResult {
+function textClassifierSummary(config: NodeConfig, context?: SummaryContext): ConfigSummaryResult {
   const model = config.model as string | undefined;
   const llmConfigId = config.llmConfigId as string | undefined;
   const categories = config.categories as unknown[] | undefined;
-  if (!model && !llmConfigId) return warning("Model not selected");
+  if (!model && !llmConfigId && !context?.hasDefaultLlmConfig) return warning("Default provider not configured");
   if (!Array.isArray(categories) || !categories.length) return warning("Categories not defined");
   const parts: string[] = [];
   if (model) parts.push(model);
@@ -292,11 +296,11 @@ function textClassifierSummary(config: NodeConfig): ConfigSummaryResult {
   return { text: parts.join(" \u00b7 ") || "Configured", isWarning: false };
 }
 
-function informationExtractorSummary(config: NodeConfig): ConfigSummaryResult {
+function informationExtractorSummary(config: NodeConfig, context?: SummaryContext): ConfigSummaryResult {
   const model = config.model as string | undefined;
   const llmConfigId = config.llmConfigId as string | undefined;
   const outputSchema = config.outputSchema as unknown[] | undefined;
-  if (!model && !llmConfigId) return warning("Model not selected");
+  if (!model && !llmConfigId && !context?.hasDefaultLlmConfig) return warning("Default provider not configured");
   if (!Array.isArray(outputSchema) || !outputSchema.length) return warning("Output schema not defined");
   const mode = config.mode as string | undefined;
   const parts: string[] = [];
@@ -308,7 +312,7 @@ function informationExtractorSummary(config: NodeConfig): ConfigSummaryResult {
 
 // --- Formatter registry ---
 
-const FORMATTERS: Record<string, (config: NodeConfig) => ConfigSummaryResult> = {
+const FORMATTERS: Record<string, (config: NodeConfig, context?: SummaryContext) => ConfigSummaryResult> = {
   if_else: ifElseSummary,
   switch: switchSummary,
   loop: loopSummary,
@@ -341,13 +345,14 @@ const FORMATTERS: Record<string, (config: NodeConfig) => ConfigSummaryResult> = 
 export function getConfigSummary(
   nodeType: string,
   config: NodeConfig,
+  context?: SummaryContext,
 ): ConfigSummaryResult | null {
   if (nodeType === "manual_trigger") return null;
 
   const formatter = Object.hasOwn(FORMATTERS, nodeType) ? FORMATTERS[nodeType] : undefined;
   if (!formatter) return null;
 
-  return formatter(config);
+  return formatter(config, context);
 }
 
 /** Truncates text to maxLen (default 40) with ellipsis. Returns whether truncation occurred. */
