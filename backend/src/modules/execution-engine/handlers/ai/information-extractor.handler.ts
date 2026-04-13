@@ -140,11 +140,14 @@ export class InformationExtractorHandler implements NodeHandler {
       });
 
       try {
-        const extracted = JSON.parse(result.content || '{}');
+        const extracted = JSON.parse(result.content || '{}') as Record<
+          string,
+          unknown
+        >;
 
         return {
           config: { schema: outputSchema },
-          output: extracted,
+          output: { extracted },
           meta: {
             model: result.model,
             inputTokens: result.usage?.inputTokens ?? 0,
@@ -340,8 +343,8 @@ export class InformationExtractorHandler implements NodeHandler {
   ): unknown {
     const totalTokens = state.totalInputTokens + state.totalOutputTokens;
 
-    // Always emit every schema field in the final output, so downstream
-    // nodes can reference `$node.output.<field>` unconditionally. Missing
+    // Always emit every schema field under `extracted` so downstream nodes
+    // can reference `$node.output.extracted.<field>` unconditionally. Missing
     // values become `null` rather than disappearing.
     const extracted: Record<string, unknown> = {};
     for (const field of state.outputSchema) {
@@ -352,10 +355,10 @@ export class InformationExtractorHandler implements NodeHandler {
     return {
       config: { schema: state.outputSchema, mode: 'multi_turn' },
       output: {
-        ...extracted,
-        _messages: state.messages,
-        _endReason: endReason,
-        _turnCount: state.turnCount,
+        extracted,
+        messages: state.messages,
+        endReason,
+        turnCount: state.turnCount,
       },
       meta: {
         model: state.model,

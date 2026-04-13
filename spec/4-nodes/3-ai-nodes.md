@@ -599,10 +599,12 @@ LLM을 사용하여 비정형 텍스트에서 구조화된 정보 추출.
 {
   "config": { "schema": [...] },
   "output": {
-    "senderName": "김철수",
-    "orderNumber": "ORD-12345",
-    "issueType": "refund",
-    "amount": 29900
+    "extracted": {
+      "senderName": "김철수",
+      "orderNumber": "ORD-12345",
+      "issueType": "refund",
+      "amount": 29900
+    }
   },
   "meta": {
     "model": "claude-sonnet-4-6",
@@ -619,18 +621,20 @@ LLM을 사용하여 비정형 텍스트에서 구조화된 정보 추출.
 {
   "config": { "schema": [...], "mode": "multi_turn" },
   "output": {
-    "senderName": "김철수",
-    "orderNumber": "ORD-12345",
-    "issueType": "refund",
-    "amount": 29900,
-    "_messages": [
+    "extracted": {
+      "senderName": "김철수",
+      "orderNumber": "ORD-12345",
+      "issueType": "refund",
+      "amount": 29900
+    },
+    "messages": [
       { "role": "system", "content": "..." },
       { "role": "user", "content": "환불해주세요" },
       { "role": "assistant", "content": "..." },
       { "role": "user", "content": "주문번호는 ORD-12345입니다" }
     ],
-    "_endReason": "completed",
-    "_turnCount": 2
+    "endReason": "completed",
+    "turnCount": 2
   },
   "meta": {
     "model": "claude-sonnet-4-6",
@@ -641,6 +645,8 @@ LLM을 사용하여 비정형 텍스트에서 구조화된 정보 추출.
   }
 }
 ```
+
+다운스트림 노드는 `$node["Info Extractor"].output.extracted.<필드명>`으로 추출된 값에 접근한다.
 
 ---
 
