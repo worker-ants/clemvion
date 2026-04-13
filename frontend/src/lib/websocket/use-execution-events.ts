@@ -532,28 +532,40 @@ export function useExecutionEvents({
             return false; // Already waiting, skip redundant update
           }
           if (waitingNode?.outputData) {
-            const output = waitingNode.outputData as {
-              type?: string;
-              formConfig?: unknown;
-              interactionType?: string;
-              buttonConfig?: unknown;
-              conversationConfig?: unknown;
-            };
-            if (output.interactionType === "ai_conversation") {
-              pauseForConversation(
-                waitingNode.nodeId,
-                output.conversationConfig ?? null,
-              );
-            } else if (output.interactionType === "buttons") {
-              pauseForButtons(
-                waitingNode.nodeId,
-                output.buttonConfig ?? null,
-              );
-            } else if (output.type === "form") {
-              pauseForForm(
-                waitingNode.nodeId,
-                output.formConfig ?? null,
-              );
+            const raw = waitingNode.outputData as Record<string, unknown>;
+
+            // Structured shape: `{ config, output, status, meta: { interactionType } }`
+            // Legacy flat:      `{ type: 'form', formConfig, interactionType, buttonConfig, conversationConfig, ... }`
+            const isStructured =
+              raw != null &&
+              typeof raw === "object" &&
+              "config" in raw &&
+              "output" in raw;
+
+            const meta = isStructured
+              ? (raw.meta as Record<string, unknown> | undefined)
+              : undefined;
+
+            const interactionType =
+              (meta?.interactionType as string | undefined) ??
+              (raw.interactionType as string | undefined) ??
+              (raw.type === "form" ? "form" : undefined);
+
+            if (interactionType === "ai_conversation") {
+              const convConfig = isStructured
+                ? (raw.config as Record<string, unknown> | undefined)
+                : (raw.conversationConfig as Record<string, unknown> | undefined);
+              pauseForConversation(waitingNode.nodeId, convConfig ?? null);
+            } else if (interactionType === "buttons") {
+              const btnConfig = isStructured
+                ? (raw.config as Record<string, unknown> | undefined)
+                : (raw.buttonConfig as Record<string, unknown> | undefined);
+              pauseForButtons(waitingNode.nodeId, btnConfig ?? null);
+            } else if (interactionType === "form") {
+              const formConfig = isStructured
+                ? (raw.config as Record<string, unknown> | undefined)
+                : (raw.formConfig as Record<string, unknown> | undefined);
+              pauseForForm(waitingNode.nodeId, formConfig ?? null);
             }
           }
           return false; // not terminal, keep polling
