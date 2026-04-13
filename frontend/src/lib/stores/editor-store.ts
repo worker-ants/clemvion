@@ -164,6 +164,36 @@ function propagateContainerOnConnect(
   return result;
 }
 
+/**
+ * Re-run container propagation across every existing edge until the assignment
+ * stabilises. Used when loading a saved workflow so wires drawn before this
+ * propagation logic existed (or any other drift) get back-filled — without it
+ * users see `CONTAINER_MISSING_EMIT` even though their wiring looks correct.
+ *
+ * Iterates to a fixed point because chain propagation depends on already-set
+ * containerIds: assigning A in pass 1 may unlock B in pass 2.
+ */
+function backfillContainerAssignments(nodes: Node[], edges: Edge[]): Node[] {
+  let current = nodes;
+  for (let pass = 0; pass < 16; pass++) {
+    let changed = false;
+    for (const e of edges) {
+      const next = propagateContainerOnConnect(current, {
+        source: e.source,
+        sourceHandle: e.sourceHandle ?? null,
+        target: e.target,
+        targetHandle: e.targetHandle ?? null,
+      });
+      if (next !== current) {
+        current = next;
+        changed = true;
+      }
+    }
+    if (!changed) break;
+  }
+  return current;
+}
+
 export const useEditorStore = create<EditorState>((set, get) => ({
   workflowId: null,
   workflowName: "Untitled Workflow",
@@ -175,8 +205,24 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   undoStack: [],
   redoStack: [],
 
-  setWorkflow: (id, name, nodes, edges) =>
-    set({ workflowId: id, workflowName: name, nodes, edges, isDirty: false, undoStack: [], redoStack: [] }),
+  setWorkflow: (id, name, nodes, edges) => {
+    // Back-fill containerId on existing nodes so workflows that were saved
+    // before edge auto-propagation existed (or wires that bypassed
+    // onConnect) still have their body chains identified at execution time.
+    const backfilled = backfillContainerAssignments(nodes, edges);
+    // Mark dirty when the back-fill actually changed assignments so the user
+    // can persist the recovered state on the next save.
+    const recovered = backfilled !== nodes;
+    set({
+      workflowId: id,
+      workflowName: name,
+      nodes: backfilled,
+      edges,
+      isDirty: recovered,
+      undoStack: [],
+      redoStack: [],
+    });
+  },
 
   setWorkflowName: (name) => set({ workflowName: name, isDirty: true }),
 

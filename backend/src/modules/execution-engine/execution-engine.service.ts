@@ -2542,6 +2542,25 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
         childIds.has(e.sourceNodeId),
     );
     if (emitEdges.length === 0) {
+      // Distinguish "wire missing" from "wire present but the source isn't
+      // tagged as a body child" — the latter is the more common gotcha and
+      // pointing the user at the offending node + container assignment helps
+      // them recover quickly.
+      const orphanEmitEdges = allEdges.filter(
+        (e) =>
+          e.targetNodeId === containerNode.id && e.targetPort === 'emit',
+      );
+      if (orphanEmitEdges.length > 0) {
+        const sourceLabels = orphanEmitEdges
+          .map((e) => {
+            const sourceNode = allNodes.find((n) => n.id === e.sourceNodeId);
+            return sourceNode?.label ?? sourceNode?.type ?? e.sourceNodeId;
+          })
+          .join(', ');
+        throw new Error(
+          `CONTAINER_MISSING_EMIT: Container "${containerNode.label ?? containerNode.type}" has an "emit" wire from "${sourceLabels}" but that node isn't a body child of this container. Open its settings panel and set its "Container" to "${containerNode.label ?? containerNode.type}".`,
+        );
+      }
       throw new Error(
         `CONTAINER_MISSING_EMIT: Container "${containerNode.label ?? containerNode.type}" has no body node wired to its "emit" port. Connect the node whose output should be collected.`,
       );

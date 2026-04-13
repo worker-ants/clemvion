@@ -19,23 +19,44 @@ describe('SplitHandler', () => {
     it('fails when fieldPath is missing', () => {
       const result = handler.validate({});
       expect(result.valid).toBe(false);
-      expect(result.errors).toEqual([
-        'fieldPath is required and must be a string',
-      ]);
+      expect(result.errors).toEqual(['fieldPath is required']);
     });
 
-    it('fails when fieldPath is not a string', () => {
-      const result = handler.validate({ fieldPath: 123 as unknown as string });
+    it('fails when fieldPath is empty string', () => {
+      const result = handler.validate({ fieldPath: '' });
       expect(result.valid).toBe(false);
     });
 
-    it('passes with a valid fieldPath', () => {
+    it('passes with a string path', () => {
       const result = handler.validate({ fieldPath: 'items' });
+      expect(result.valid).toBe(true);
+    });
+
+    it('passes when fieldPath is already a resolved array (inline expression)', () => {
+      // {{ $var.a }} resolves to the array itself before reaching the handler.
+      const result = handler.validate({ fieldPath: [1, 2, 3] });
       expect(result.valid).toBe(true);
     });
   });
 
   describe('execute', () => {
+    it('uses an already-resolved array directly (inline expression)', async () => {
+      // Mirrors the runtime behaviour after the expression resolver has
+      // replaced `{{ $var.a }}` with the underlying array value.
+      const result = await handler.execute(
+        {},
+        { fieldPath: [{ id: 1 }, { id: 2 }] },
+        context,
+      );
+      expect(result).toEqual({
+        config: { fieldPath: [{ id: 1 }, { id: 2 }] },
+        output: [
+          { index: 0, value: { id: 1 } },
+          { index: 1, value: { id: 2 } },
+        ],
+      });
+    });
+
     it('returns an empty array when the target value is not an array', async () => {
       const result = await handler.execute(
         { id: 1, items: 'not-an-array' },

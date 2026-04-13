@@ -1,5 +1,22 @@
 const BLOCKED_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
 
+/**
+ * Resolve a config value that can be either:
+ *   - a dot-path string applied to `input` (e.g. `"items"`, `"order.items"`), or
+ *   - the value itself, already produced by an inline expression like
+ *     `{{ $var.a }}` whose evaluator returns the underlying type (array,
+ *     object, primitive) instead of stringifying it.
+ *
+ * Returns the resolved value. Useful for handlers that accept "Expression |
+ * Path" config fields (Map, ForEach, Split).
+ */
+export function resolveFieldValue(input: unknown, fieldValue: unknown): unknown {
+  if (typeof fieldValue === 'string') {
+    return getNestedValue(input, fieldValue);
+  }
+  return fieldValue;
+}
+
 export function getNestedValue(obj: unknown, path: string): unknown {
   if (obj === null || obj === undefined) {
     return undefined;
