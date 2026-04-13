@@ -5,6 +5,8 @@ import { NodeHandlerRegistry } from './handlers/node-handler.registry';
 import { ExecutionContextService } from './context/execution-context.service';
 import { ErrorPolicyHandler } from './error/error-policy.handler';
 import { ExpressionResolverService } from './expression/expression-resolver.service';
+import { ForEachExecutor } from './containers/foreach-executor';
+import { LoopExecutor } from './containers/loop-executor';
 import { WebsocketService } from '../websocket/websocket.service';
 import { ConfigService } from '@nestjs/config';
 import { LlmService } from '../llm/llm.service';
@@ -21,7 +23,7 @@ import {
 import { Node, NodeCategory } from '../nodes/entities/node.entity';
 import { Edge, EdgeType } from '../edges/entities/edge.entity';
 import { Workflow } from '../workflows/entities/workflow.entity';
-import { NodeHandler } from './handlers';
+import { NodeHandler, ForEachHandler, LoopHandler } from './handlers';
 
 // Helper to flush pending promises (allow background execution to complete)
 function flushPromises(): Promise<void> {
@@ -183,6 +185,8 @@ describe('ExecutionEngineService', () => {
         ExecutionContextService,
         ErrorPolicyHandler,
         ExpressionResolverService,
+        ForEachExecutor,
+        LoopExecutor,
         { provide: getRepositoryToken(Execution), useValue: mockExecutionRepo },
         {
           provide: getRepositoryToken(NodeExecution),
@@ -1533,6 +1537,367 @@ describe('ExecutionEngineService', () => {
       // Verify the inputs are from the port2 branch
       const calls = (branchHandler.execute as jest.Mock).mock.calls;
       expect(calls[0][0]).toEqual({ branch: 2 }); // P receives router data
+    });
+  });
+
+  describe('Container runtime', () => {
+    beforeEach(() => {
+      // Test modules don't invoke onModuleInit, so register real container
+      // handlers used by the pointer loop here.
+      handlerRegistry.register('foreach', new ForEachHandler());
+      handlerRegistry.register('loop', new LoopHandler());
+    });
+
+    it('executes ForEach body once per item and puts collected results on done port', async () => {
+      const bodyCalls: unknown[] = [];
+      const bodyHandler: NodeHandler = {
+        validate: () => ({ valid: true, errors: [] }),
+        execute: jest.fn(async (input: unknown) => {
+          bodyCalls.push(input);
+          const item = input as Record<string, unknown> | null;
+          return { doubled: ((item?.n as number) ?? 0) * 2 };
+        }),
+      };
+      handlerRegistry.register('body_node', bodyHandler);
+
+      const sinkCalls: unknown[] = [];
+      const sinkHandler: NodeHandler = {
+        validate: () => ({ valid: true, errors: [] }),
+        execute: jest.fn(async (input: unknown) => {
+          sinkCalls.push(input);
+          return { received: input };
+        }),
+      };
+      handlerRegistry.register('sink_node', sinkHandler);
+
+      const triggerHandler: NodeHandler = {
+        validate: () => ({ valid: true, errors: [] }),
+        execute: jest.fn(async () => ({
+          items: [{ n: 1 }, { n: 2 }, { n: 3 }],
+        })),
+      };
+      handlerRegistry.register('source_node', triggerHandler);
+
+      const nodes: Partial<Node>[] = [
+        {
+          id: 'source',
+          workflowId,
+          type: 'source_node',
+          category: NodeCategory.TRIGGER,
+          label: 'source',
+          config: {},
+          isDisabled: false,
+          containerId: null as unknown as string,
+          toolOwnerId: null as unknown as string,
+        },
+        {
+          id: 'foreach',
+          workflowId,
+          type: 'foreach',
+          category: NodeCategory.LOGIC,
+          label: 'foreach',
+          config: { arrayField: 'items' },
+          isDisabled: false,
+          containerId: null as unknown as string,
+          toolOwnerId: null as unknown as string,
+        },
+        {
+          id: 'body',
+          workflowId,
+          type: 'body_node',
+          category: NodeCategory.LOGIC,
+          label: 'body',
+          config: {},
+          isDisabled: false,
+          containerId: 'foreach',
+          toolOwnerId: null as unknown as string,
+        },
+        {
+          id: 'sink',
+          workflowId,
+          type: 'sink_node',
+          category: NodeCategory.LOGIC,
+          label: 'sink',
+          config: {},
+          isDisabled: false,
+          containerId: null as unknown as string,
+          toolOwnerId: null as unknown as string,
+        },
+      ];
+
+      const edges: Partial<Edge>[] = [
+        {
+          id: 'e-src-fe',
+          workflowId,
+          sourceNodeId: 'source',
+          sourcePort: 'out',
+          targetNodeId: 'foreach',
+          targetPort: 'in',
+          type: EdgeType.DATA,
+        },
+        {
+          id: 'e-fe-body',
+          workflowId,
+          sourceNodeId: 'foreach',
+          sourcePort: 'body',
+          targetNodeId: 'body',
+          targetPort: 'in',
+          type: EdgeType.DATA,
+        },
+        {
+          id: 'e-fe-sink',
+          workflowId,
+          sourceNodeId: 'foreach',
+          sourcePort: 'done',
+          targetNodeId: 'sink',
+          targetPort: 'in',
+          type: EdgeType.DATA,
+        },
+      ];
+
+      mockNodeRepo.findBy.mockResolvedValue(nodes);
+      mockEdgeRepo.findBy.mockResolvedValue(edges);
+
+      await service.execute(workflowId, {});
+      await new Promise((r) => setTimeout(r, 200));
+
+      // Body ran once per item
+      expect(bodyHandler.execute).toHaveBeenCalledTimes(3);
+      expect(bodyCalls).toEqual([{ n: 1 }, { n: 2 }, { n: 3 }]);
+
+      // Sink received the collected results on done port
+      expect(sinkHandler.execute).toHaveBeenCalledTimes(1);
+      expect(sinkCalls[0]).toEqual([
+        { doubled: 2 },
+        { doubled: 4 },
+        { doubled: 6 },
+      ]);
+    });
+
+    it('executes Loop body N times', async () => {
+      let counter = 0;
+      const bodyHandler: NodeHandler = {
+        validate: () => ({ valid: true, errors: [] }),
+        execute: jest.fn(async () => {
+          counter++;
+          return { count: counter };
+        }),
+      };
+      handlerRegistry.register('body_node', bodyHandler);
+
+      const sinkCalls: unknown[] = [];
+      const sinkHandler: NodeHandler = {
+        validate: () => ({ valid: true, errors: [] }),
+        execute: jest.fn(async (input: unknown) => {
+          sinkCalls.push(input);
+          return { done: true };
+        }),
+      };
+      handlerRegistry.register('sink_node', sinkHandler);
+
+      const triggerHandler: NodeHandler = {
+        validate: () => ({ valid: true, errors: [] }),
+        execute: jest.fn(async () => ({})),
+      };
+      handlerRegistry.register('source_node', triggerHandler);
+
+      const nodes: Partial<Node>[] = [
+        {
+          id: 'source',
+          workflowId,
+          type: 'source_node',
+          category: NodeCategory.TRIGGER,
+          label: 'source',
+          config: {},
+          isDisabled: false,
+          containerId: null as unknown as string,
+          toolOwnerId: null as unknown as string,
+        },
+        {
+          id: 'loop',
+          workflowId,
+          type: 'loop',
+          category: NodeCategory.LOGIC,
+          label: 'loop',
+          config: { count: 4 },
+          isDisabled: false,
+          containerId: null as unknown as string,
+          toolOwnerId: null as unknown as string,
+        },
+        {
+          id: 'body',
+          workflowId,
+          type: 'body_node',
+          category: NodeCategory.LOGIC,
+          label: 'body',
+          config: {},
+          isDisabled: false,
+          containerId: 'loop',
+          toolOwnerId: null as unknown as string,
+        },
+        {
+          id: 'sink',
+          workflowId,
+          type: 'sink_node',
+          category: NodeCategory.LOGIC,
+          label: 'sink',
+          config: {},
+          isDisabled: false,
+          containerId: null as unknown as string,
+          toolOwnerId: null as unknown as string,
+        },
+      ];
+
+      const edges: Partial<Edge>[] = [
+        {
+          id: 'e-src-loop',
+          workflowId,
+          sourceNodeId: 'source',
+          sourcePort: 'out',
+          targetNodeId: 'loop',
+          targetPort: 'in',
+          type: EdgeType.DATA,
+        },
+        {
+          id: 'e-loop-body',
+          workflowId,
+          sourceNodeId: 'loop',
+          sourcePort: 'body',
+          targetNodeId: 'body',
+          targetPort: 'in',
+          type: EdgeType.DATA,
+        },
+        {
+          id: 'e-loop-sink',
+          workflowId,
+          sourceNodeId: 'loop',
+          sourcePort: 'done',
+          targetNodeId: 'sink',
+          targetPort: 'in',
+          type: EdgeType.DATA,
+        },
+      ];
+
+      mockNodeRepo.findBy.mockResolvedValue(nodes);
+      mockEdgeRepo.findBy.mockResolvedValue(edges);
+
+      await service.execute(workflowId, {});
+      await flushPromises();
+
+      expect(bodyHandler.execute).toHaveBeenCalledTimes(4);
+      expect(sinkCalls).toEqual([
+        [{ count: 1 }, { count: 2 }, { count: 3 }, { count: 4 }],
+      ]);
+    });
+
+    it('produces empty array when ForEach array is empty', async () => {
+      const bodyHandler: NodeHandler = {
+        validate: () => ({ valid: true, errors: [] }),
+        execute: jest.fn(async () => ({ ran: true })),
+      };
+      handlerRegistry.register('body_node', bodyHandler);
+
+      const sinkCalls: unknown[] = [];
+      const sinkHandler: NodeHandler = {
+        validate: () => ({ valid: true, errors: [] }),
+        execute: jest.fn(async (input: unknown) => {
+          sinkCalls.push(input);
+          return { ok: true };
+        }),
+      };
+      handlerRegistry.register('sink_node', sinkHandler);
+
+      const triggerHandler: NodeHandler = {
+        validate: () => ({ valid: true, errors: [] }),
+        execute: jest.fn(async () => ({ items: [] })),
+      };
+      handlerRegistry.register('source_node', triggerHandler);
+
+      const nodes: Partial<Node>[] = [
+        {
+          id: 'source',
+          workflowId,
+          type: 'source_node',
+          category: NodeCategory.TRIGGER,
+          label: 'source',
+          config: {},
+          isDisabled: false,
+          containerId: null as unknown as string,
+          toolOwnerId: null as unknown as string,
+        },
+        {
+          id: 'foreach',
+          workflowId,
+          type: 'foreach',
+          category: NodeCategory.LOGIC,
+          label: 'foreach',
+          config: { arrayField: 'items' },
+          isDisabled: false,
+          containerId: null as unknown as string,
+          toolOwnerId: null as unknown as string,
+        },
+        {
+          id: 'body',
+          workflowId,
+          type: 'body_node',
+          category: NodeCategory.LOGIC,
+          label: 'body',
+          config: {},
+          isDisabled: false,
+          containerId: 'foreach',
+          toolOwnerId: null as unknown as string,
+        },
+        {
+          id: 'sink',
+          workflowId,
+          type: 'sink_node',
+          category: NodeCategory.LOGIC,
+          label: 'sink',
+          config: {},
+          isDisabled: false,
+          containerId: null as unknown as string,
+          toolOwnerId: null as unknown as string,
+        },
+      ];
+
+      const edges: Partial<Edge>[] = [
+        {
+          id: 'e-src-fe',
+          workflowId,
+          sourceNodeId: 'source',
+          sourcePort: 'out',
+          targetNodeId: 'foreach',
+          targetPort: 'in',
+          type: EdgeType.DATA,
+        },
+        {
+          id: 'e-fe-body',
+          workflowId,
+          sourceNodeId: 'foreach',
+          sourcePort: 'body',
+          targetNodeId: 'body',
+          targetPort: 'in',
+          type: EdgeType.DATA,
+        },
+        {
+          id: 'e-fe-sink',
+          workflowId,
+          sourceNodeId: 'foreach',
+          sourcePort: 'done',
+          targetNodeId: 'sink',
+          targetPort: 'in',
+          type: EdgeType.DATA,
+        },
+      ];
+
+      mockNodeRepo.findBy.mockResolvedValue(nodes);
+      mockEdgeRepo.findBy.mockResolvedValue(edges);
+
+      await service.execute(workflowId, {});
+      await flushPromises();
+
+      expect(bodyHandler.execute).not.toHaveBeenCalled();
+      expect(sinkCalls[0]).toEqual([]);
     });
   });
 });

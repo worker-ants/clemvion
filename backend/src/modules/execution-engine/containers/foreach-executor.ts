@@ -35,58 +35,62 @@ export class ForEachExecutor {
     const { array, errorPolicy = 'stop', collectResults = true } = config;
     const results: unknown[] = [];
 
-    for (let i = 0; i < array.length; i++) {
-      const item = array[i];
+    // Save prior itemContext so nested ForEach containers restore outer state
+    // when they finish instead of wiping it.
+    const prevItemContext = context.itemContext;
 
-      // Set $item context
-      context.itemContext = {
-        item,
-        index: i,
-        isFirst: i === 0,
-        isLast: i === array.length - 1,
-      };
+    try {
+      for (let i = 0; i < array.length; i++) {
+        const item = array[i];
 
-      try {
-        const output = await executeBody(item, context);
-        if (collectResults) {
-          results.push(output);
-        }
-      } catch (error: unknown) {
-        const errorMessage =
-          error instanceof Error ? error.message : String(error);
-        const errorCode = error instanceof Error ? error.name : 'UNKNOWN_ERROR';
+        // Set $item context
+        context.itemContext = {
+          item,
+          index: i,
+          isFirst: i === 0,
+          isLast: i === array.length - 1,
+        };
 
-        switch (errorPolicy) {
-          case 'stop':
-            // Clean up and rethrow
-            context.itemContext = undefined;
-            throw error;
+        try {
+          const output = await executeBody(item, context);
+          if (collectResults) {
+            results.push(output);
+          }
+        } catch (error: unknown) {
+          const errorMessage =
+            error instanceof Error ? error.message : String(error);
+          const errorCode =
+            error instanceof Error ? error.name : 'UNKNOWN_ERROR';
 
-          case 'skip':
-            if (collectResults) {
-              const skipped: SkippedResult = {
-                _skipped: true,
-                error: { code: errorCode, message: errorMessage },
-              };
-              results.push(skipped);
-            }
-            break;
+          switch (errorPolicy) {
+            case 'stop':
+              throw error;
 
-          case 'continue':
-            if (collectResults) {
-              const skipped: SkippedResult = {
-                _skipped: true,
-                error: { code: errorCode, message: errorMessage },
-              };
-              results.push(skipped);
-            }
-            break;
+            case 'skip':
+              if (collectResults) {
+                const skipped: SkippedResult = {
+                  _skipped: true,
+                  error: { code: errorCode, message: errorMessage },
+                };
+                results.push(skipped);
+              }
+              break;
+
+            case 'continue':
+              if (collectResults) {
+                const skipped: SkippedResult = {
+                  _skipped: true,
+                  error: { code: errorCode, message: errorMessage },
+                };
+                results.push(skipped);
+              }
+              break;
+          }
         }
       }
+    } finally {
+      context.itemContext = prevItemContext;
     }
-
-    // Clean up item context
-    context.itemContext = undefined;
 
     return results;
   }
