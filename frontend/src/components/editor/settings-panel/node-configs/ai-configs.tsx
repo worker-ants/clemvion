@@ -285,7 +285,8 @@ export function TextClassifierConfig({ config, onChange }: { config: Config; onC
 
 // ===== Information Extractor =====
 export function InformationExtractorConfig({ config, onChange }: { config: Config; onChange: OnChange }) {
-  const outputSchema = (config.outputSchema as Array<{ name: string; type: string; description: string; required: boolean }>) ?? [];
+  const outputSchema = (config.outputSchema as Array<{ name: string; type: string; description: string; required?: boolean }>) ?? [];
+  const mode = (config.mode as string) ?? "single_turn";
 
   const addField = () =>
     onChange({
@@ -303,6 +304,15 @@ export function InformationExtractorConfig({ config, onChange }: { config: Confi
 
   return (
     <div className="flex flex-col gap-3">
+      <SelectField
+        label="Mode"
+        value={mode}
+        onChange={(v) => onChange({ ...config, mode: v })}
+        options={[
+          { value: "single_turn", label: "Single Turn" },
+          { value: "multi_turn", label: "Multi Turn (Conversation)" },
+        ]}
+      />
       <LlmConfigSelector
         value={(config.llmConfigId as string) ?? ""}
         onChange={(v) => onChange({ ...config, llmConfigId: v })}
@@ -313,12 +323,14 @@ export function InformationExtractorConfig({ config, onChange }: { config: Confi
         onChange={(v) => onChange({ ...config, model: v })}
         placeholder="Leave empty for provider default"
       />
-      <ExpressionInput
-        label="Input Field"
-        value={(config.inputField as string) ?? ""}
-        onChange={(v) => onChange({ ...config, inputField: v })}
-        placeholder="{{ $input.text }}"
-      />
+      {mode !== "multi_turn" && (
+        <ExpressionInput
+          label="Input Field"
+          value={(config.inputField as string) ?? ""}
+          onChange={(v) => onChange({ ...config, inputField: v })}
+          placeholder="{{ $input.text }}"
+        />
+      )}
       <ExpressionInput multiline
         label="Instructions"
         value={(config.instructions as string) ?? ""}
@@ -327,42 +339,71 @@ export function InformationExtractorConfig({ config, onChange }: { config: Confi
         rows={3}
       />
       <SectionTitle>Output Schema</SectionTitle>
-      {outputSchema.map((field, i) => (
-        <div key={i} className="flex flex-col gap-1 rounded border border-[hsl(var(--border))] p-2">
-          <div className="flex items-center justify-between">
-            <span className="text-[10px] text-[hsl(var(--muted-foreground))]">Field {i + 1}</span>
-            <Button variant="ghost" size="icon" className="h-5 w-5" onClick={() => removeField(i)}>
-              <X size={10} />
-            </Button>
+      {outputSchema.map((field, i) => {
+        const isRequired = field.required !== false;
+        return (
+          <div key={i} className="flex flex-col gap-1 rounded border border-[hsl(var(--border))] p-2">
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] text-[hsl(var(--muted-foreground))]">
+                Field {i + 1} · {isRequired ? "required" : "optional"}
+              </span>
+              <Button variant="ghost" size="icon" className="h-5 w-5" onClick={() => removeField(i)}>
+                <X size={10} />
+              </Button>
+            </div>
+            <Input
+              value={field.name}
+              onChange={(e) => updateField(i, "name", e.target.value)}
+              placeholder="Field name"
+              className="h-7 text-xs"
+            />
+            <select
+              value={field.type}
+              onChange={(e) => updateField(i, "type", e.target.value)}
+              className="h-7 rounded-md border border-[hsl(var(--input))] bg-transparent px-2 text-xs"
+            >
+              <option value="string">String</option>
+              <option value="number">Number</option>
+              <option value="boolean">Boolean</option>
+              <option value="array">Array</option>
+              <option value="object">Object</option>
+            </select>
+            <Input
+              value={field.description}
+              onChange={(e) => updateField(i, "description", e.target.value)}
+              placeholder="Field description"
+              className="h-7 text-xs"
+            />
+            <CheckboxField
+              label="Required"
+              checked={isRequired}
+              onChange={(v) => updateField(i, "required", v)}
+            />
           </div>
-          <Input
-            value={field.name}
-            onChange={(e) => updateField(i, "name", e.target.value)}
-            placeholder="Field name"
-            className="h-7 text-xs"
-          />
-          <select
-            value={field.type}
-            onChange={(e) => updateField(i, "type", e.target.value)}
-            className="h-7 rounded-md border border-[hsl(var(--input))] bg-transparent px-2 text-xs"
-          >
-            <option value="string">String</option>
-            <option value="number">Number</option>
-            <option value="boolean">Boolean</option>
-            <option value="array">Array</option>
-            <option value="object">Object</option>
-          </select>
-          <Input
-            value={field.description}
-            onChange={(e) => updateField(i, "description", e.target.value)}
-            placeholder="Field description"
-            className="h-7 text-xs"
-          />
-        </div>
-      ))}
+        );
+      })}
       <Button variant="outline" size="sm" className="h-7 text-xs" onClick={addField}>
         <Plus size={12} className="mr-1" /> Add Field
       </Button>
+      {mode === "multi_turn" && (
+        <>
+          <SectionTitle>Multi Turn Settings</SectionTitle>
+          <NumberField
+            label="Max Turns"
+            value={(config.maxTurns as number) ?? 10}
+            onChange={(v) => onChange({ ...config, maxTurns: v })}
+            min={0}
+            hint="0 = unlimited"
+          />
+          <NumberField
+            label="Turn Timeout (sec)"
+            value={(config.turnTimeout as number) ?? 1800}
+            onChange={(v) => onChange({ ...config, turnTimeout: v })}
+            min={1}
+            hint="Max wait time for user response"
+          />
+        </>
+      )}
     </div>
   );
 }

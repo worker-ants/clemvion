@@ -508,6 +508,9 @@ LLM을 사용하여 비정형 텍스트에서 구조화된 정보 추출.
 | outputSchema | FieldDef[] | 추출할 필드 정의 |
 | examples | ExampleDef[] | Few-shot 예시 (선택) |
 | instructions | String? | 추가 추출 지시사항 |
+| mode | Enum | `single_turn` (기본) / `multi_turn` |
+| maxTurns | Number? | `multi_turn`에서 최대 대화 턴 수. 0 = 제한 없음 (기본 10) |
+| turnTimeout | Number? | `multi_turn`에서 각 턴의 사용자 응답 대기 시간(초). 기본 1800 |
 
 **FieldDef 구조:**
 
@@ -516,7 +519,7 @@ LLM을 사용하여 비정형 텍스트에서 구조화된 정보 추출.
 | name | String | 필드 이름 |
 | type | Enum | string / number / boolean / array / object |
 | description | String | 필드 설명 (LLM에게 제공) |
-| required | Boolean | 필수 여부 |
+| required | Boolean | 필수 여부. 설정 UI에서 체크박스로 토글 (기본 true) |
 | enumValues | String[]? | 허용 값 목록 (있을 경우) |
 
 **ExampleDef 구조:**
@@ -564,6 +567,8 @@ LLM을 사용하여 비정형 텍스트에서 구조화된 정보 추출.
 - 출력: `out` (1개)
 
 ### 실행 로직
+
+**Single Turn (기본)**
 1. outputSchema를 JSON Schema로 변환
 2. 추출 프롬프트 구성 (스키마 + 예시 + 지시사항)
 3. LLM 호출 (JSON 응답 형식 강제)
@@ -571,21 +576,68 @@ LLM을 사용하여 비정형 텍스트에서 구조화된 정보 추출.
 5. 검증 통과 시 추출 결과를 `out` 포트로 전달
 6. 검증 실패 시 재시도 (최대 2회) 또는 에러
 
+**Multi Turn**
+1. `inputField`가 비어있으면 LLM을 호출하지 않고 system prompt만 준비한 뒤 바로 사용자 입력을 대기(`turnCount: 0`). 값이 있으면 그 값을 첫 user 메시지로 LLM에 전달한다. 설정 UI는 `multi_turn`일 때 Input Field 항목을 숨겨 이 UX를 강제한다.
+2. LLM은 확장된 JSON 스키마로 응답하며 다음 필드를 포함:
+   - 스키마에 정의된 모든 추출 필드
+   - `_missingFields: string[]` — 아직 채워지지 않은 required 필드 이름
+   - `_followUpQuestion: string` — 사용자에게 물어볼 자연어 질문 (모두 채워지면 빈 문자열)
+3. 응답을 파싱하여 `partialResult`에 누적. LLM이 `null`을 반환한 필드는 기존 값을 보존.
+4. 종료 조건 평가:
+   - 모든 `required: true` 필드가 채워졌으면 → 최종 결과 반환 (`endReason: 'completed'`).
+   - `turnCount >= maxTurns` (0이 아닐 때) → partial 결과 반환 (`endReason: 'max_turns'`).
+   - 사용자가 대화 종료 → partial 결과 반환 (`endReason: 'user_ended'`).
+   - 사용자 응답 타임아웃 → partial 결과 반환 (`endReason: 'timeout'`).
+5. 종료 조건을 만족하지 않으면 `interactionType: 'ai_conversation'`으로 `waiting_for_input` 반환. 사용자의 응답을 받아 다음 턴을 진행.
+6. 프론트엔드는 AI Agent multi-turn과 동일한 `ConversationInspector` UI로 대화를 렌더.
+
 ### 출력 구조
+
+**Single Turn**
 
 ```json
 {
-  "extracted": {
+  "config": { "schema": [...] },
+  "output": {
     "senderName": "김철수",
     "orderNumber": "ORD-12345",
     "issueType": "refund",
     "amount": 29900
   },
-  "metadata": {
+  "meta": {
     "model": "claude-sonnet-4-6",
     "inputTokens": 450,
     "outputTokens": 80,
     "totalTokens": 530
+  }
+}
+```
+
+**Multi Turn**
+
+```json
+{
+  "config": { "schema": [...], "mode": "multi_turn" },
+  "output": {
+    "senderName": "김철수",
+    "orderNumber": "ORD-12345",
+    "issueType": "refund",
+    "amount": 29900,
+    "_messages": [
+      { "role": "system", "content": "..." },
+      { "role": "user", "content": "환불해주세요" },
+      { "role": "assistant", "content": "..." },
+      { "role": "user", "content": "주문번호는 ORD-12345입니다" }
+    ],
+    "_endReason": "completed",
+    "_turnCount": 2
+  },
+  "meta": {
+    "model": "claude-sonnet-4-6",
+    "inputTokens": 920,
+    "outputTokens": 150,
+    "totalTokens": 1070,
+    "interactionType": "ai_conversation"
   }
 }
 ```
@@ -598,4 +650,4 @@ LLM을 사용하여 비정형 텍스트에서 구조화된 정보 추출.
 |------|-----------|------|
 | AI Agent | `{mode} · {model}`. Tool Area에 등록된 도구 수가 있으면 `· {N} tools`, Knowledge Base 연결 시 `· {N} KB`, 조건이 있으면 `· {N} cond` 추가. mode가 `multi_turn`이면 `Multi Turn` 표기, `single_turn`이면 생략 | `gpt-4o · 2 tools · 1 KB · 3 cond` (single) / `Multi Turn · gpt-4o · 1 KB · 2 cond` (multi) |
 | Text Classifier | `{model} · {N} categories` (카테고리 수) | `gpt-4o-mini · 3 categories` |
-| Info Extractor | `{model} · {N} fields` (outputSchema 필드 수) | `claude-sonnet · 4 fields` |
+| Info Extractor | `{model} · {N} fields` (outputSchema 필드 수). mode가 `multi_turn`이면 `Multi Turn` 접두어 추가 | `claude-sonnet · 4 fields` (single) / `Multi Turn · claude-sonnet · 4 fields` (multi) |
