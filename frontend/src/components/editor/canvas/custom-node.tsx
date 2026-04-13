@@ -144,7 +144,9 @@ function CustomNodeComponent({ id, data, selected }: NodeProps<CustomNodeType>) 
     }
     return getNodeDefinition(data.type)?.outputs ?? [];
   }, [data.type, data.config]);
-  const hasMultipleOutputs = outputs.length > 1;
+  const defaultOutputIds = new Set((getNodeDefinition(data.type)?.outputs ?? []).map(o => o.id));
+  const hasDynamicOutputs = outputs.length > 0 && outputs.some(p => !defaultOutputIds.has(p.id));
+  const hasMultipleOutputs = outputs.length > 1 || hasDynamicOutputs;
   const isContainer = definition?.isContainer ?? false;
 
   const nodeStatus = useExecutionStore((s) => s.nodeStatuses.get(id));
