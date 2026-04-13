@@ -55,7 +55,7 @@ function CustomNodeComponent({ id, data, selected }: NodeProps<CustomNodeType>) 
       const categories = (data.config.categories as Array<{ name: string }>) ?? [];
       const catPorts = categories
         .map((c, i) => ({ id: `class_${i}`, label: c.name || `Category ${i + 1}`, type: "data" as const }));
-      return [...catPorts, { id: "fallback", label: "Fallback", type: "data" as const }];
+      return [...catPorts, { id: "fallback", label: "Fallback", type: "data" as const }, { id: "error", label: "Error", type: "error" as const }];
     }
     // Dynamic ports for AI Agent with conditions
     if (data.type === "ai_agent") {

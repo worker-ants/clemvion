@@ -84,15 +84,30 @@ Respond ONLY with the JSON object, no additional text.`;
       additionalProperties: false,
     };
 
-    const result = await this.llmService.chat(llmConfig, {
-      model: model || llmConfig.defaultModel,
-      messages: [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: inputField },
-      ],
-      responseFormat: 'json',
-      jsonSchema,
-    });
+    let result;
+    try {
+      result = await this.llmService.chat(llmConfig, {
+        model: model || llmConfig.defaultModel,
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: inputField },
+        ],
+        responseFormat: 'json',
+        jsonSchema,
+      });
+    } catch (error) {
+      return {
+        port: 'error',
+        data: {
+          config: { categories, inputField },
+          output: {
+            error: error instanceof Error ? error.message : String(error),
+            originalInput: inputField,
+          },
+          meta: {},
+        },
+      };
+    }
 
     let category = '';
     let confidence = 0;
