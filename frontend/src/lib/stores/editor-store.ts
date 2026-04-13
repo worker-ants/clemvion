@@ -6,6 +6,8 @@ import { applyNodeChanges, applyEdgeChanges, addEdge } from "@xyflow/react";
 import { toast } from "sonner";
 import { workflowsApi } from "@/lib/api/workflows";
 import { getNodeDefinition } from "@/lib/node-definitions";
+import { buildEdgeData } from "@/lib/utils/edge-utils";
+import { useCanvasHoverStore } from "./canvas-hover-store";
 
 interface EditorState {
   // Workflow metadata
@@ -286,6 +288,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     // back-fills wires drawn before auto-propagation existed.
     const derived = deriveContainerAssignments(nodes, edges);
     const recovered = !nodesContainerIdsEqual(nodes, derived);
+    useCanvasHoverStore.getState().reset();
     set({
       workflowId: id,
       workflowName: name,
@@ -379,7 +382,13 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     }
     get().pushUndo();
     set((state) => {
-      const nextEdges = addEdge({ ...connection, type: "custom" }, state.edges);
+      const sourceNode = state.nodes.find((n) => n.id === connection.source);
+      const sourceNodeType = (sourceNode?.data as { type?: string })?.type ?? "";
+      const edgeData = buildEdgeData(connection.sourceHandle, sourceNodeType);
+      const nextEdges = addEdge(
+        { ...connection, type: "custom", data: edgeData },
+        state.edges,
+      );
       const nextNodes = propagateContainerOnConnect(state.nodes, connection);
       return {
         edges: nextEdges,

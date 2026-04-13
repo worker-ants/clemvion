@@ -8,7 +8,7 @@ import {
   Panel,
   useReactFlow,
 } from "@xyflow/react";
-import type { ReactFlowInstance, Node as RFNode } from "@xyflow/react";
+import type { ReactFlowInstance, Node as RFNode, Edge as RFEdge } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 
 import { useEditorStore } from "@/lib/stores/editor-store";
@@ -30,8 +30,10 @@ import {
 } from "lucide-react";
 
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { useCanvasHoverStore } from "@/lib/stores/canvas-hover-store";
 import { CustomNode } from "./custom-node";
 import { CustomEdge, EdgeMarkerDefs } from "./custom-edge";
+import { useEdgeHighlighting } from "./use-edge-highlighting";
 
 const nodeTypes = { custom: CustomNode };
 const edgeTypes = { custom: CustomEdge };
@@ -82,6 +84,50 @@ export function WorkflowCanvas() {
   const selectNode = useEditorStore((s) => s.selectNode);
   const pushUndo = useEditorStore((s) => s.pushUndo);
   const updateNodeConfig = useEditorStore((s) => s.updateNodeConfig);
+  const setHoveredNode = useCanvasHoverStore((s) => s.setHoveredNode);
+  const setHoveredEdge = useCanvasHoverStore((s) => s.setHoveredEdge);
+
+  const { enhancedEdges, isFocusActive, hoveredEdgeNodes } = useEdgeHighlighting(edges);
+
+  // Apply glow className to source/target nodes when an edge is hovered
+  const glowNodes = useMemo(() => {
+    if (!hoveredEdgeNodes) return nodes;
+    const glowIds = new Set([hoveredEdgeNodes.sourceId, hoveredEdgeNodes.targetId]);
+    return nodes.map((node) => {
+      if (glowIds.has(node.id)) {
+        const existing = node.className ?? "";
+        if (existing.includes("node-edge-glow")) return node;
+        return { ...node, className: `${existing} node-edge-glow`.trim() };
+      }
+      if (node.className?.includes("node-edge-glow")) {
+        const cleaned = node.className.replace("node-edge-glow", "").trim();
+        return { ...node, className: cleaned || undefined };
+      }
+      return node;
+    });
+  }, [nodes, hoveredEdgeNodes]);
+
+  const onNodeMouseEnter = useCallback(
+    (_: React.MouseEvent, node: RFNode) => {
+      setHoveredNode(node.id);
+    },
+    [setHoveredNode],
+  );
+
+  const onNodeMouseLeave = useCallback(() => {
+    setHoveredNode(null);
+  }, [setHoveredNode]);
+
+  const onEdgeMouseEnter = useCallback(
+    (_: React.MouseEvent, edge: RFEdge) => {
+      setHoveredEdge(edge.id);
+    },
+    [setHoveredEdge],
+  );
+
+  const onEdgeMouseLeave = useCallback(() => {
+    setHoveredEdge(null);
+  }, [setHoveredEdge]);
 
   const onSelectionChange = useCallback(
     ({ nodes: selectedNodes }: { nodes: Array<{ id: string }> }) => {
@@ -370,6 +416,7 @@ export function WorkflowCanvas() {
   const defaultEdgeOptions = useMemo(
     () => ({
       type: "custom" as const,
+      interactionWidth: 20,
     }),
     [],
   );
@@ -391,12 +438,13 @@ export function WorkflowCanvas() {
     <div
       ref={reactFlowWrapper}
       className="h-full w-full"
+      data-edge-focus-active={isFocusActive || undefined}
       onClick={closeAllMenus}
     >
       <EdgeMarkerDefs />
       <ReactFlow
-        nodes={nodes}
-        edges={edges}
+        nodes={glowNodes}
+        edges={enhancedEdges}
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
         onConnect={onConnect}
@@ -406,6 +454,10 @@ export function WorkflowCanvas() {
         onSelectionChange={onSelectionChange}
         onNodesDelete={onNodesDelete}
         onNodeContextMenu={onNodeContextMenu}
+        onNodeMouseEnter={onNodeMouseEnter}
+        onNodeMouseLeave={onNodeMouseLeave}
+        onEdgeMouseEnter={onEdgeMouseEnter}
+        onEdgeMouseLeave={onEdgeMouseLeave}
         onPaneContextMenu={onPaneContextMenu}
         onPaneClick={onPaneClick}
         nodeTypes={nodeTypes}

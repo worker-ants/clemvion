@@ -6,6 +6,7 @@ import { useEditorStore } from "@/lib/stores/editor-store";
 import { workflowsApi } from "@/lib/api/workflows";
 import type { Node, Edge } from "@xyflow/react";
 import { getNodeDefinition } from "@/lib/node-definitions";
+import { enrichEdgesWithPortData } from "@/lib/utils/edge-utils";
 
 interface EditorLoaderProps {
   workflowId: string;
@@ -17,6 +18,8 @@ export function WorkflowEditorLoader({ workflowId }: EditorLoaderProps) {
   const setWorkflow = useEditorStore((s) => s.setWorkflow);
 
   useEffect(() => {
+    let cancelled = false;
+
     async function load() {
       try {
         const [wfRes, nodesRes, edgesRes] = await Promise.all([
@@ -24,6 +27,8 @@ export function WorkflowEditorLoader({ workflowId }: EditorLoaderProps) {
           workflowsApi.getNodes(workflowId),
           workflowsApi.getEdges(workflowId),
         ]);
+
+        if (cancelled) return;
 
         const wf = (wfRes.data.data ?? wfRes.data) as unknown as Record<string, unknown>;
         const rawNodes = (nodesRes.data.data ?? nodesRes.data) as unknown as Array<Record<string, unknown>>;
@@ -46,14 +51,19 @@ export function WorkflowEditorLoader({ workflowId }: EditorLoaderProps) {
           };
         });
 
-        const flowEdges: Edge[] = (Array.isArray(rawEdges) ? rawEdges : []).map((e) => ({
-          id: e.id as string,
-          source: e.sourceNodeId as string,
-          sourceHandle: e.sourcePort as string,
-          target: e.targetNodeId as string,
-          targetHandle: e.targetPort as string,
-          type: "custom",
-        }));
+        const flowEdges: Edge[] = enrichEdgesWithPortData(
+          (Array.isArray(rawEdges) ? rawEdges : []).map((e) => ({
+            id: e.id as string,
+            source: e.sourceNodeId as string,
+            sourceHandle: e.sourcePort as string,
+            target: e.targetNodeId as string,
+            targetHandle: e.targetPort as string,
+            type: "custom",
+          })),
+          flowNodes,
+        );
+
+        if (cancelled) return;
 
         setWorkflow(
           workflowId,
@@ -62,13 +72,16 @@ export function WorkflowEditorLoader({ workflowId }: EditorLoaderProps) {
           flowEdges,
         );
       } catch (err) {
+        if (cancelled) return;
         setError(err instanceof Error ? err.message : "Failed to load workflow");
       } finally {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       }
     }
 
     void load();
+
+    return () => { cancelled = true; };
   }, [workflowId, setWorkflow]);
 
   if (loading) {

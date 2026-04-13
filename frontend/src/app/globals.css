@@ -65,3 +65,43 @@ body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
+
+/* ===== Edge Highlighting ===== */
+
+/* When focus is active, dim all edges */
+[data-edge-focus-active] .react-flow__edge path {
+  opacity: 0.12;
+  transition: opacity 150ms ease, stroke-width 150ms ease;
+}
+
+/* Highlighted edges stay fully visible */
+[data-edge-focus-active] .react-flow__edge.edge-highlighted path {
+  opacity: 1;
+}
+
+/* Selected edges also stay visible */
+[data-edge-focus-active] .react-flow__edge.selected path {
+  opacity: 1;
+}
+
+/* Animated flow direction on highlighted edges (non-error only) */
+[data-edge-focus-active] .react-flow__edge.edge-highlighted:not([class*="error"]) path.react-flow__edge-path {
+  stroke-dasharray: 8 4;
+  animation: edge-flow 0.6s linear infinite;
+}
+
+@keyframes edge-flow {
+  from {
+    stroke-dashoffset: 12;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+/* Glow effect for source/target nodes when edge is hovered */
+.react-flow__node.node-edge-glow > div {
+  box-shadow: 0 0 0 2px hsl(var(--primary) / 0.4);
+  border-radius: var(--radius);
+  transition: box-shadow 150ms ease;
+}
