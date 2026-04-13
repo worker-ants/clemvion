@@ -47,33 +47,38 @@ export class LoopExecutor {
     const results: LoopIterationResult[] = [];
     let previousOutput: unknown = undefined;
 
-    for (let i = 0; i < count; i++) {
-      if (i >= maxIterations) {
-        throw new Error(
-          `MAX_ITERATIONS_EXCEEDED: Loop iteration ${i} exceeds maximum ${maxIterations}`,
-        );
+    // Save prior loopContext so nested Loop containers restore outer state
+    // when they finish instead of wiping it.
+    const prevLoopContext = context.loopContext;
+
+    try {
+      for (let i = 0; i < count; i++) {
+        if (i >= maxIterations) {
+          throw new Error(
+            `MAX_ITERATIONS_EXCEEDED: Loop iteration ${i} exceeds maximum ${maxIterations}`,
+          );
+        }
+
+        // Set $loop context
+        context.loopContext = {
+          index: i,
+          count,
+          isFirst: i === 0,
+          isLast: i === count - 1,
+        };
+
+        const output = await executeBody(previousOutput, context);
+        results.push({ index: i, output });
+        previousOutput = output;
+
+        // Check break condition
+        if (config.breakCondition && config.breakCondition(context)) {
+          break;
+        }
       }
-
-      // Set $loop context
-      context.loopContext = {
-        index: i,
-        count,
-        isFirst: i === 0,
-        isLast: i === count - 1,
-      };
-
-      const output = await executeBody(previousOutput, context);
-      results.push({ index: i, output });
-      previousOutput = output;
-
-      // Check break condition
-      if (config.breakCondition && config.breakCondition(context)) {
-        break;
-      }
+    } finally {
+      context.loopContext = prevLoopContext;
     }
-
-    // Clean up loop context
-    context.loopContext = undefined;
 
     return results;
   }

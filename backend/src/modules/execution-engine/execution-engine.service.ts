@@ -21,6 +21,8 @@ import { Workflow } from '../workflows/entities/workflow.entity';
 import { buildGraph, GraphEdge } from './graph/graph-builder';
 import { topologicalSort } from './graph/topological-sort';
 import { identifyBackEdges } from './graph/back-edge-identifier';
+import { ForEachExecutor } from './containers/foreach-executor';
+import { LoopExecutor } from './containers/loop-executor';
 import { assertTransition } from './state/state-machine';
 import { NodeHandlerRegistry } from './handlers/node-handler.registry';
 import { ExecutionContextService } from './context/execution-context.service';
@@ -134,6 +136,8 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
     private readonly llmService: LlmService,
     private readonly ragSearchService: RagSearchService,
     private readonly integrationsService: IntegrationsService,
+    private readonly foreachExecutor: ForEachExecutor,
+    private readonly loopExecutor: LoopExecutor,
   ) {}
 
   async onModuleInit() {
@@ -447,6 +451,22 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
             mode: 'manual',
           },
         );
+
+        // Container dispatch for sub-workflow inline execution.
+        if (node.type === 'foreach' || node.type === 'loop') {
+          await this.runContainer(
+            node,
+            subNodes,
+            subEdges,
+            context,
+            executionId,
+            executedNodes,
+            {
+              startedAt: execution?.startedAt?.toISOString(),
+              mode: 'manual',
+            },
+          );
+        }
 
         // Debug: log $node keys available after this node executed
         const availableLabels = [...subNodeMap.entries()]
@@ -836,6 +856,24 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
             mode: 'manual',
           },
         );
+
+        // Container dispatch: after the handler runs (which resolves config),
+        // iterate the body subgraph and overwrite container output with the
+        // collected results so `done`-port edges see the right value.
+        if (node.type === 'foreach' || node.type === 'loop') {
+          await this.runContainer(
+            node,
+            nodes,
+            edges,
+            context,
+            executionId,
+            executedNodes,
+            {
+              startedAt: savedExecution.startedAt?.toISOString(),
+              mode: 'manual',
+            },
+          );
+        }
 
         // Blocking nodes: pause execution until user interaction
         const nodeOutput = context.nodeOutputCache[node.id] as
@@ -2305,6 +2343,246 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
       }
       reachable.add(edge.targetNodeId);
     }
+  }
+
+  /**
+   * Execute the body subgraph of a container node for a single iteration.
+   *
+   * Phase 1 behavior:
+   * - Runs the body children in topological order.
+   * - Supports port-based routing and unreachable branch skipping.
+   * - Does NOT support back-edges inside the body or blocking nodes
+   *   (form/buttons/ai_conversation) — both raise an error if encountered.
+   * - Collects leaf-node outputs per spec §3.1.2: single leaf → value as-is,
+   *   multiple leaves → merged object keyed by nodeId. Phase 2 replaces this
+   *   with explicit emit-port collection.
+   */
+  private async executeContainerBody(
+    containerNode: Node,
+    allNodes: Node[],
+    allEdges: Edge[],
+    context: ExecutionContext,
+    executionId: string,
+    executedNodes: Set<string>,
+    executionMeta: { startedAt?: string; mode?: string },
+    iterInput: unknown,
+  ): Promise<unknown> {
+    const children = allNodes.filter((n) => n.containerId === containerNode.id);
+    if (children.length === 0) {
+      return undefined;
+    }
+    const childIds = new Set(children.map((c) => c.id));
+
+    // Body entry: edges from containerNode via sourcePort='body'
+    const bodyEntryNodeIds = new Set(
+      allEdges
+        .filter(
+          (e) => e.sourceNodeId === containerNode.id && e.sourcePort === 'body',
+        )
+        .map((e) => e.targetNodeId),
+    );
+
+    // Internal edges: child-to-child. Emit edges (source=child, target=container)
+    // are NOT part of the execution graph — they are only used later for
+    // result collection in Phase 2.
+    const internalEdges: GraphEdge[] = allEdges
+      .filter(
+        (e) => childIds.has(e.sourceNodeId) && childIds.has(e.targetNodeId),
+      )
+      .map((e) => ({
+        sourceNodeId: e.sourceNodeId,
+        sourcePort: e.sourcePort,
+        targetNodeId: e.targetNodeId,
+        targetPort: e.targetPort,
+      }));
+
+    const graphNodes = children.map((n) => ({ id: n.id }));
+    const { forwardEdges, backEdges } = identifyBackEdges(
+      graphNodes,
+      internalEdges,
+    );
+    if (backEdges.length > 0) {
+      throw new Error(
+        `Container "${containerNode.label ?? containerNode.type}" body contains back-edges, which are not yet supported inside containers.`,
+      );
+    }
+    const sortedNodeIds = topologicalSort(graphNodes, forwardEdges);
+    const nodeMap = new Map(allNodes.map((n) => [n.id, n]));
+
+    // Outgoing edge map for port-based reachability propagation
+    const outgoingEdgeMap = new Map<string, GraphEdge[]>();
+    for (const edge of internalEdges) {
+      const list = outgoingEdgeMap.get(edge.sourceNodeId) ?? [];
+      list.push(edge);
+      outgoingEdgeMap.set(edge.sourceNodeId, list);
+    }
+
+    // Seed reachability: body entry nodes OR (if none via port) children
+    // with no incoming internal edge.
+    const reachable = new Set<string>();
+    if (bodyEntryNodeIds.size > 0) {
+      for (const id of bodyEntryNodeIds) {
+        if (childIds.has(id)) reachable.add(id);
+      }
+    } else {
+      const childrenWithIncoming = new Set(
+        internalEdges.map((e) => e.targetNodeId),
+      );
+      for (const id of sortedNodeIds) {
+        if (!childrenWithIncoming.has(id)) reachable.add(id);
+      }
+    }
+
+    // Nodes that ran at least once in this iteration — used for leaf detection
+    // and to scope leaf collection to *this* iteration (the nodeOutputCache
+    // may still carry the previous iter's value otherwise).
+    const ranInThisIteration = new Set<string>();
+
+    for (const nodeId of sortedNodeIds) {
+      if (!reachable.has(nodeId)) continue;
+      const node = nodeMap.get(nodeId);
+      if (!node) continue;
+
+      if (node.isDisabled) {
+        await this.createNodeExecution(
+          executionId,
+          nodeId,
+          NodeExecutionStatus.SKIPPED,
+        );
+        executedNodes.add(nodeId);
+        continue;
+      }
+
+      const nodeInput = this.gatherNodeInput(
+        nodeId,
+        internalEdges,
+        executedNodes,
+        context.nodeOutputCache,
+        iterInput,
+      );
+
+      await this.executeNode(
+        executionId,
+        node,
+        nodeInput,
+        context,
+        executedNodes,
+        nodeMap,
+        executionMeta,
+      );
+      ranInThisIteration.add(nodeId);
+
+      const nodeOutput = context.nodeOutputCache[node.id] as
+        | Record<string, unknown>
+        | undefined;
+      if (nodeOutput?.status === 'waiting_for_input') {
+        throw new Error(
+          `Blocking node "${node.label ?? node.type}" inside container "${containerNode.label ?? containerNode.type}" is not supported.`,
+        );
+      }
+
+      this.propagateReachability(
+        nodeId,
+        outgoingEdgeMap,
+        context.nodeOutputCache,
+        reachable,
+      );
+    }
+
+    // Leaf detection: child nodes that ran and have no activated outgoing
+    // internal edge. Port-filtered edges don't count as "outgoing" for this
+    // iteration. Phase 2 replaces this with explicit emit-port edges.
+    const leafOutputs: Record<string, unknown> = {};
+    for (const id of ranInThisIteration) {
+      const outgoing = outgoingEdgeMap.get(id) ?? [];
+      const sourceOutput = context.nodeOutputCache[id];
+      const hasActivatedOutgoing = outgoing.some(
+        (e) => !this.isPortFiltered(sourceOutput, e.sourcePort),
+      );
+      if (!hasActivatedOutgoing) {
+        leafOutputs[id] = context.nodeOutputCache[id];
+      }
+    }
+
+    const leafKeys = Object.keys(leafOutputs);
+    if (leafKeys.length === 0) return undefined;
+    if (leafKeys.length === 1) return leafOutputs[leafKeys[0]];
+    return { ...leafOutputs };
+  }
+
+  /**
+   * Run the container executor (ForEach/Loop) for a container node, wiring
+   * the per-iteration callback to {@link executeContainerBody}. Reads the
+   * resolved input array / count from the container handler's output, which
+   * was just stored in the structured cache by executeNode. The resulting
+   * collected array overwrites the container's output so downstream
+   * `done`-port edges carry the body results.
+   */
+  private async runContainer(
+    containerNode: Node,
+    allNodes: Node[],
+    allEdges: Edge[],
+    context: ExecutionContext,
+    executionId: string,
+    executedNodes: Set<string>,
+    executionMeta: { startedAt?: string; mode?: string },
+  ): Promise<void> {
+    const runIter = async (iterInput: unknown) => {
+      return this.executeContainerBody(
+        containerNode,
+        allNodes,
+        allEdges,
+        context,
+        executionId,
+        executedNodes,
+        executionMeta,
+        iterInput,
+      );
+    };
+
+    const structured = context.structuredOutputCache?.[containerNode.id];
+    const resolvedConfig = structured?.config ?? containerNode.config ?? {};
+    let results: unknown;
+
+    if (containerNode.type === 'foreach') {
+      // ForEachHandler already resolved `arrayField` and stored the array
+      // under `output`. Fall back to scanning the resolved config if absent.
+      const handlerOutput = structured?.output;
+      const array = Array.isArray(handlerOutput) ? handlerOutput : [];
+      const collected = await this.foreachExecutor.execute(
+        {
+          array,
+          errorPolicy:
+            (resolvedConfig.errorPolicy as 'stop' | 'skip' | 'continue') ??
+            'stop',
+          collectResults: true,
+        },
+        context,
+        runIter,
+      );
+      results = collected;
+    } else if (containerNode.type === 'loop') {
+      const count = Number(resolvedConfig.count ?? 0);
+      const maxIterations = resolvedConfig.maxIterations as number | undefined;
+      const collected = await this.loopExecutor.execute(
+        { count, maxIterations },
+        context,
+        runIter,
+      );
+      results = collected.map((r) => r.output);
+    } else {
+      return;
+    }
+
+    this.contextService.setStructuredOutput(executionId, containerNode.id, {
+      config: resolvedConfig,
+      output: results,
+    });
+    this.contextService.setNodeOutput(
+      executionId,
+      containerNode.id,
+      results as Record<string, unknown>,
+    );
   }
 
   private async updateExecutionStatus(
