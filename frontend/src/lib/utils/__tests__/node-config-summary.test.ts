@@ -227,18 +227,15 @@ describe("split summary", () => {
 
 // ===== map =====
 describe("map summary", () => {
-  it("shows mapping count", () => {
-    expect(getConfigSummary("map", {
-      mapping: [
-        { targetField: "a", expression: "x" },
-        { targetField: "b", expression: "y" },
-        { targetField: "c", expression: "z" },
-      ],
-    })).toEqual({ text: "3 mappings", isWarning: false });
+  it("shows input field expression when set", () => {
+    expect(getConfigSummary("map", { inputField: "$input.items" })).toEqual({
+      text: "$input.items",
+      isWarning: false,
+    });
   });
 
-  it("shows warning when mapping is empty", () => {
-    expect(getConfigSummary("map", { mapping: [] })).toEqual(NOT_CONFIGURED);
+  it("shows warning when inputField is missing", () => {
+    expect(getConfigSummary("map", {})).toEqual(NOT_CONFIGURED);
   });
 });
 

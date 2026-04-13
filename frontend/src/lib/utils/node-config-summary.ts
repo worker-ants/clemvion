@@ -89,9 +89,9 @@ function splitSummary(config: NodeConfig): ConfigSummaryResult | null {
 }
 
 function mapSummary(config: NodeConfig): ConfigSummaryResult | null {
-  const mapping = config.mapping as unknown[] | undefined;
-  if (!Array.isArray(mapping) || !mapping.length) return null;
-  return { text: `${mapping.length} mappings`, isWarning: false };
+  const inputField = config.inputField as string | undefined;
+  if (!inputField) return null;
+  return { text: inputField, isWarning: false };
 }
 
 function foreachSummary(config: NodeConfig): ConfigSummaryResult | null {

@@ -462,7 +462,11 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
         );
 
         // Container dispatch for sub-workflow inline execution.
-        if (node.type === 'foreach' || node.type === 'loop') {
+        if (
+          node.type === 'foreach' ||
+          node.type === 'loop' ||
+          node.type === 'map'
+        ) {
           await this.runContainer(
             node,
             subNodes,
@@ -869,7 +873,11 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
         // Container dispatch: after the handler runs (which resolves config),
         // iterate the body subgraph and overwrite container output with the
         // collected results so `done`-port edges see the right value.
-        if (node.type === 'foreach' || node.type === 'loop') {
+        if (
+          node.type === 'foreach' ||
+          node.type === 'loop' ||
+          node.type === 'map'
+        ) {
           await this.runContainer(
             node,
             nodes,
@@ -2588,9 +2596,11 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
     const resolvedConfig = structured?.config ?? containerNode.config ?? {};
     let results: unknown;
 
-    if (containerNode.type === 'foreach') {
-      // ForEachHandler already resolved `arrayField` and stored the array
-      // under `output`. Fall back to scanning the resolved config if absent.
+    if (containerNode.type === 'foreach' || containerNode.type === 'map') {
+      // Both ForEachHandler and MapHandler resolve the input array and store
+      // it under `output`. The collection semantics are identical — iterate
+      // items, run body per iter, collect emit outputs — so they share the
+      // same executor.
       const handlerOutput = structured?.output;
       const array = Array.isArray(handlerOutput) ? handlerOutput : [];
       const collected = await this.foreachExecutor.execute(

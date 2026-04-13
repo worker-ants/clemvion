@@ -23,7 +23,7 @@ import {
 import { Node, NodeCategory } from '../nodes/entities/node.entity';
 import { Edge, EdgeType } from '../edges/entities/edge.entity';
 import { Workflow } from '../workflows/entities/workflow.entity';
-import { NodeHandler, ForEachHandler, LoopHandler } from './handlers';
+import { NodeHandler, ForEachHandler, LoopHandler, MapHandler } from './handlers';
 
 // Helper to flush pending promises (allow background execution to complete)
 function flushPromises(): Promise<void> {
@@ -1546,6 +1546,7 @@ describe('ExecutionEngineService', () => {
       // handlers used by the pointer loop here.
       handlerRegistry.register('foreach', new ForEachHandler());
       handlerRegistry.register('loop', new LoopHandler());
+      handlerRegistry.register('map', new MapHandler());
     });
 
     it('executes ForEach body once per item and puts collected results on done port', async () => {
@@ -2142,6 +2143,137 @@ describe('ExecutionEngineService', () => {
         ((failed as [Partial<Execution>])[0].error as { message?: string })
           .message,
       ).toMatch(/CONTAINER_MULTIPLE_EMIT/);
+    });
+
+    it('executes Map body once per item and transforms via emit port', async () => {
+      const bodyCalls: unknown[] = [];
+      const bodyHandler: NodeHandler = {
+        validate: () => ({ valid: true, errors: [] }),
+        execute: jest.fn(async (input: unknown) => {
+          bodyCalls.push(input);
+          const item = input as Record<string, unknown> | null;
+          const n = (item?.n as number) ?? 0;
+          return { squared: n * n };
+        }),
+      };
+      handlerRegistry.register('body_node', bodyHandler);
+
+      const sinkCalls: unknown[] = [];
+      const sinkHandler: NodeHandler = {
+        validate: () => ({ valid: true, errors: [] }),
+        execute: jest.fn(async (input: unknown) => {
+          sinkCalls.push(input);
+          return { received: input };
+        }),
+      };
+      handlerRegistry.register('sink_node', sinkHandler);
+
+      const triggerHandler: NodeHandler = {
+        validate: () => ({ valid: true, errors: [] }),
+        execute: jest.fn(async () => ({ items: [{ n: 2 }, { n: 3 }, { n: 4 }] })),
+      };
+      handlerRegistry.register('source_node', triggerHandler);
+
+      const nodes: Partial<Node>[] = [
+        {
+          id: 'source',
+          workflowId,
+          type: 'source_node',
+          category: NodeCategory.TRIGGER,
+          label: 'source',
+          config: {},
+          isDisabled: false,
+          containerId: null as unknown as string,
+          toolOwnerId: null as unknown as string,
+        },
+        {
+          id: 'map',
+          workflowId,
+          type: 'map',
+          category: NodeCategory.LOGIC,
+          label: 'map',
+          config: { inputField: 'items' },
+          isDisabled: false,
+          containerId: null as unknown as string,
+          toolOwnerId: null as unknown as string,
+        },
+        {
+          id: 'body',
+          workflowId,
+          type: 'body_node',
+          category: NodeCategory.LOGIC,
+          label: 'body',
+          config: {},
+          isDisabled: false,
+          containerId: 'map',
+          toolOwnerId: null as unknown as string,
+        },
+        {
+          id: 'sink',
+          workflowId,
+          type: 'sink_node',
+          category: NodeCategory.LOGIC,
+          label: 'sink',
+          config: {},
+          isDisabled: false,
+          containerId: null as unknown as string,
+          toolOwnerId: null as unknown as string,
+        },
+      ];
+
+      const edges: Partial<Edge>[] = [
+        {
+          id: 'e-src-map',
+          workflowId,
+          sourceNodeId: 'source',
+          sourcePort: 'out',
+          targetNodeId: 'map',
+          targetPort: 'in',
+          type: EdgeType.DATA,
+        },
+        {
+          id: 'e-map-body',
+          workflowId,
+          sourceNodeId: 'map',
+          sourcePort: 'body',
+          targetNodeId: 'body',
+          targetPort: 'in',
+          type: EdgeType.DATA,
+        },
+        {
+          id: 'e-body-emit-map',
+          workflowId,
+          sourceNodeId: 'body',
+          sourcePort: 'out',
+          targetNodeId: 'map',
+          targetPort: 'emit',
+          type: EdgeType.DATA,
+        },
+        {
+          id: 'e-map-sink',
+          workflowId,
+          sourceNodeId: 'map',
+          sourcePort: 'done',
+          targetNodeId: 'sink',
+          targetPort: 'in',
+          type: EdgeType.DATA,
+        },
+      ];
+
+      mockNodeRepo.findBy.mockResolvedValue(nodes);
+      mockEdgeRepo.findBy.mockResolvedValue(edges);
+
+      await service.execute(workflowId, {});
+      await new Promise((r) => setTimeout(r, 200));
+
+      expect(bodyHandler.execute).toHaveBeenCalledTimes(3);
+      expect(bodyCalls).toEqual([{ n: 2 }, { n: 3 }, { n: 4 }]);
+      expect(sinkHandler.execute).toHaveBeenCalledTimes(1);
+      expect(sinkCalls[0]).toEqual([
+        { squared: 4 },
+        { squared: 9 },
+        { squared: 16 },
+      ]);
     });
   });
 });

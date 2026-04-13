@@ -285,31 +285,34 @@ Split은 배열을 일괄 출력하므로, 각 항목에 대해 개별 처리가
 
 ## 7. Map
 
-배열의 각 항목에 변환 로직을 적용하여 새 배열 생성.
+배열의 각 항목에 대해 body 서브그래프를 실행하고, 각 반복의 `emit` 포트 출력을 모아 새 배열을 생성하는 **컨테이너 노드**. ForEach와 동일한 실행 모델을 사용하지만 시맨틱이 "결과 수집(transform)"으로 특화되어 있다.
 
 ### 설정 (config)
 
 | 필드 | 타입 | 설명 |
 |------|------|------|
-| inputField | Expression | 대상 배열 필드 경로 |
-| outputField | String | 결과를 저장할 필드 이름 |
-| mapping | MappingDef[] | 변환 매핑 규칙 |
-
-**MappingDef 구조:**
-
-| 필드 | 타입 | 설명 |
-|------|------|------|
-| targetField | String | 출력 필드 이름 |
-| expression | Expression | 변환 표현식 ({{ $item.field }} 참조) |
+| inputField | Expression | 변환 대상 배열 필드 경로 (예: `$input.items`) |
+| errorPolicy | Enum | `stop` / `skip` / `continue` (기본 `stop`) |
 
 ### 포트
-- 입력: `in` (1개)
-- 출력: `out` (1개)
+- 입력: `in` (외부 데이터 진입), `emit` (body 서브그래프에서 수집 지점)
+- 출력: `body` (각 항목을 body 내부 첫 노드로 전달), `done` (전체 변환 완료 후 수집된 배열)
 
 ### 실행 로직
-1. `inputField`로 배열 추출
-2. 각 항목에 대해 mapping 규칙 적용
-3. 변환된 배열을 `outputField`에 저장하여 출력
+1. `inputField`로 배열 추출. 배열이 아니면 빈 배열로 처리.
+2. 각 항목에 대해:
+   - `$item`/`$itemIndex`를 바인딩하고 body 서브그래프의 첫 노드로 항목을 전달.
+   - body 노드를 토폴로지 순서로 실행.
+   - `emit` 포트에 연결된 body 노드의 출력을 해당 iter 결과로 수집.
+3. 모든 iter 완료 시 수집된 결과 배열을 `done` 포트로 전달.
+4. `errorPolicy`에 따라 iter 에러 처리: `stop`은 즉시 실패, `skip`/`continue`는 에러 항목에 `{_skipped, error}`를 넣고 진행.
+
+### 제약
+- `emit` 포트에 **반드시 정확히 1개의 body 노드**가 연결되어야 한다 (`CONTAINER_MISSING_EMIT` / `CONTAINER_MULTIPLE_EMIT`).
+- body 내부에 back-edge(순환) 및 blocking 노드(form / buttons / ai_conversation)는 허용하지 않는다.
+
+### ForEach와의 차이
+ForEach는 "각 항목에 대해 side effect 중심의 body 실행", Map은 "각 항목을 새로운 값으로 변환하여 배열을 생성"에 의미적으로 특화. 엔진 내부에서 동일한 executor(`ForEachExecutor`)를 공유하지만 UX·시맨틱상 두 노드를 구분한다.
 
 ---
 
