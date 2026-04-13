@@ -449,6 +449,120 @@ describe("useExecutionEvents", () => {
     expect(useExecutionStore.getState().waitingNodeId).toBe("form-node");
   });
 
+  it("recognizes structured form shape from poll (form rehydration)", async () => {
+    const formConfig = {
+      title: "입력폼",
+      description: "테스트 폼이에요",
+      notes: "",
+      errorPolicy: "stop",
+      fields: [
+        { name: "useful", type: "number", label: "만족도 (1~5)", required: true },
+      ],
+    };
+    mockGetById.mockResolvedValue(createMockExecution({
+      status: "waiting_for_input",
+      nodeExecutions: [
+        {
+          id: "ne-1",
+          executionId: "exec-1",
+          nodeId: "form-node",
+          status: "waiting_for_input",
+          durationMs: null,
+          error: null,
+          startedAt: "2026-04-01T00:00:00Z",
+          finishedAt: null,
+          outputData: {
+            config: formConfig,
+            output: null,
+            status: "waiting_for_input",
+            meta: { interactionType: "form" },
+          },
+          node: { id: "form-node", type: "form", label: "Form" },
+        },
+      ],
+    }));
+
+    useExecutionStore.getState().startExecution("exec-1");
+    renderHook(() => useExecutionEvents({ executionId: "exec-1" }));
+
+    await waitFor(() => {
+      const state = useExecutionStore.getState();
+      expect(state.waitingInteractionType).toBe("form");
+    });
+
+    const state = useExecutionStore.getState();
+    expect(state.waitingNodeId).toBe("form-node");
+    expect(state.waitingFormConfig).toEqual(formConfig);
+  });
+
+  it("recognizes structured buttons shape from poll", async () => {
+    const btnConfig = {
+      buttons: [{ id: "b1", label: "Yes", type: "port" }],
+    };
+    mockGetById.mockResolvedValue(createMockExecution({
+      status: "waiting_for_input",
+      nodeExecutions: [
+        {
+          id: "ne-1",
+          executionId: "exec-1",
+          nodeId: "btn-node",
+          status: "waiting_for_input",
+          durationMs: null,
+          error: null,
+          startedAt: "2026-04-01T00:00:00Z",
+          finishedAt: null,
+          outputData: {
+            config: btnConfig,
+            output: null,
+            status: "waiting_for_input",
+            meta: { interactionType: "buttons" },
+          },
+          node: { id: "btn-node", type: "table", label: "Buttons" },
+        },
+      ],
+    }));
+
+    useExecutionStore.getState().startExecution("exec-1");
+    renderHook(() => useExecutionEvents({ executionId: "exec-1" }));
+
+    await waitFor(() => {
+      const state = useExecutionStore.getState();
+      expect(state.waitingInteractionType).toBe("buttons");
+    });
+    expect(useExecutionStore.getState().waitingButtonConfig).toEqual(btnConfig);
+  });
+
+  it("still handles legacy flat form shape from poll (backward compat)", async () => {
+    mockGetById.mockResolvedValue(createMockExecution({
+      status: "waiting_for_input",
+      nodeExecutions: [
+        {
+          id: "ne-1",
+          executionId: "exec-1",
+          nodeId: "form-node",
+          status: "waiting_for_input",
+          durationMs: null,
+          error: null,
+          startedAt: "2026-04-01T00:00:00Z",
+          finishedAt: null,
+          outputData: { type: "form", formConfig: { fields: [{ name: "x", type: "text", label: "X" }] } },
+          node: { id: "form-node", type: "form", label: "Form" },
+        },
+      ],
+    }));
+
+    useExecutionStore.getState().startExecution("exec-1");
+    renderHook(() => useExecutionEvents({ executionId: "exec-1" }));
+
+    await waitFor(() => {
+      const state = useExecutionStore.getState();
+      expect(state.waitingInteractionType).toBe("form");
+    });
+    expect(useExecutionStore.getState().waitingFormConfig).toEqual({
+      fields: [{ name: "x", type: "text", label: "X" }],
+    });
+  });
+
   it("unsubscribes and removes handlers on cleanup without disconnecting", async () => {
     const { unmount } = renderHook(() =>
       useExecutionEvents({ executionId: "exec-1" }),
