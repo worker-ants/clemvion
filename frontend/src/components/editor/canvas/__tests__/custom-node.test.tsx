@@ -7,8 +7,12 @@ let mockZoom = 1;
 vi.mock("@xyflow/react", () => ({
   Handle: ({ id }: { id: string }) => <div data-testid={`handle-${id}`} />,
   Position: { Left: "left", Right: "right" },
-  useStore: (selector: (s: { transform: number[] }) => unknown) =>
-    selector({ transform: [0, 0, mockZoom] }),
+  // The container view conditionally renders <NodeResizer /> when selected.
+  // Tests render unselected by default, but we still need an exported stub so
+  // the import doesn't crash the module evaluation.
+  NodeResizer: () => null,
+  useStore: (selector: (s: { transform: number[]; nodes: Array<{ id: string; data: { label?: string } }> }) => unknown) =>
+    selector({ transform: [0, 0, mockZoom], nodes: [] }),
 }));
 
 // Mock execution store — supports per-test overrides via mockNodeStatus

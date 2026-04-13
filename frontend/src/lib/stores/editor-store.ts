@@ -4,6 +4,7 @@ import { create } from "zustand";
 import type { Node, Edge, OnNodesChange, OnEdgesChange, Connection } from "@xyflow/react";
 import { applyNodeChanges, applyEdgeChanges, addEdge } from "@xyflow/react";
 import { workflowsApi } from "@/lib/api/workflows";
+import { getNodeDefinition } from "@/lib/node-definitions";
 
 interface EditorState {
   // Workflow metadata
@@ -30,6 +31,7 @@ interface EditorState {
   addNode: (node: Node) => void;
   removeNode: (id: string) => void;
   updateNodeConfig: (id: string, config: Record<string, unknown>) => void;
+  setNodeContainer: (id: string, containerId: string | null) => void;
   selectNode: (id: string | null) => void;
   setDirty: (dirty: boolean) => void;
   setSaving: (saving: boolean) => void;
@@ -40,6 +42,127 @@ interface EditorState {
 }
 
 const MAX_UNDO = 50;
+
+/**
+ * Read the containerId stored on a node's `data` payload. Returns null when
+ * the node isn't part of any container.
+ */
+function getContainerId(node: Node | undefined | null): string | null {
+  if (!node) return null;
+  const data = node.data as Record<string, unknown> | undefined;
+  const value = data?.containerId;
+  return typeof value === "string" ? value : null;
+}
+
+function isContainerNode(node: Node | undefined | null): boolean {
+  if (!node) return false;
+  const type = (node.data as { type?: string } | undefined)?.type;
+  if (!type) return false;
+  return getNodeDefinition(type)?.isContainer ?? false;
+}
+
+/**
+ * Apply a container assignment to a single child node. `containerId` is a
+ * pure metadata field — no visual containment / parentId is wired up — so
+ * the engine treats the node as part of a container body without React Flow
+ * having to re-parent it on the canvas.
+ */
+function applyContainerAssignment(
+  nodes: Node[],
+  nodeId: string,
+  containerId: string | null,
+): Node[] {
+  const child = nodes.find((n) => n.id === nodeId);
+  if (!child) return nodes;
+  // Trigger nodes are workflow entry points and can't be re-executed by a
+  // container — the backend rejects them with CONTAINER_INVALID_CHILD too.
+  const childCategory = (child.data as { category?: string }).category;
+  if (containerId && childCategory === "trigger") {
+    return nodes;
+  }
+  if (getContainerId(child) === containerId) return nodes;
+
+  return nodes.map((n) =>
+    n.id === nodeId
+      ? { ...n, data: { ...n.data, containerId: containerId ?? null } }
+      : n,
+  );
+}
+
+/**
+ * When the user connects two nodes, infer container membership so multi-step
+ * body chains (`Loop.body → A → B → C → Loop.emit`) automatically capture
+ * every intermediate node into the container without manual setup. Rules:
+ *
+ * 1. Container's `body` output → target gets the container's id.
+ * 2. Source → container's `emit` input → source gets the container's id.
+ * 3. Otherwise, if exactly one side already belongs to a container and the
+ *    other is unassigned, propagate that container id to the unassigned side.
+ *    Two different containers leave both sides untouched (ambiguity — user
+ *    resolves manually via the settings dropdown).
+ */
+function propagateContainerOnConnect(
+  nodes: Node[],
+  connection: Connection,
+): Node[] {
+  const sourceNode = nodes.find((n) => n.id === connection.source);
+  const targetNode = nodes.find((n) => n.id === connection.target);
+  if (!sourceNode || !targetNode) return nodes;
+
+  let nextSourceContainer = getContainerId(sourceNode);
+  let nextTargetContainer = getContainerId(targetNode);
+
+  // Rule 1 — body port pushes its container id onto the target.
+  if (
+    isContainerNode(sourceNode) &&
+    connection.sourceHandle === "body" &&
+    !nextTargetContainer
+  ) {
+    nextTargetContainer = sourceNode.id;
+  }
+
+  // Rule 2 — emit port pulls the source into its container.
+  if (
+    isContainerNode(targetNode) &&
+    connection.targetHandle === "emit" &&
+    !nextSourceContainer
+  ) {
+    nextSourceContainer = targetNode.id;
+  }
+
+  // Rule 3 — chain propagation between two regular nodes.
+  if (
+    !isContainerNode(sourceNode) &&
+    !isContainerNode(targetNode) &&
+    nextSourceContainer !== nextTargetContainer
+  ) {
+    if (nextSourceContainer && !nextTargetContainer) {
+      nextTargetContainer = nextSourceContainer;
+    } else if (!nextSourceContainer && nextTargetContainer) {
+      nextSourceContainer = nextTargetContainer;
+    }
+    // If both sides belong to different containers, leave them alone.
+  }
+
+  if (
+    nextSourceContainer === getContainerId(sourceNode) &&
+    nextTargetContainer === getContainerId(targetNode)
+  ) {
+    return nodes;
+  }
+
+  // Apply container assignment changes through the helper so parentId / extent
+  // / position stay synchronized — duplicating the logic here would let the
+  // two paths drift.
+  let result = nodes;
+  if (nextSourceContainer !== getContainerId(sourceNode)) {
+    result = applyContainerAssignment(result, sourceNode.id, nextSourceContainer);
+  }
+  if (nextTargetContainer !== getContainerId(targetNode)) {
+    result = applyContainerAssignment(result, targetNode.id, nextTargetContainer);
+  }
+  return result;
+}
 
 export const useEditorStore = create<EditorState>((set, get) => ({
   workflowId: null,
@@ -69,7 +192,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       });
       if (filteredChanges.length === 0) return state;
 
-      // Handle remove operations: push undo, clean up edges, clear selection
+      // Handle remove operations: push undo, clean up edges + orphaned children
       const removedIds = new Set(
         filteredChanges
           .filter((c) => c.type === "remove")
@@ -80,7 +203,14 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         const snapshot = { nodes: [...state.nodes], edges: [...state.edges] };
         const newStack = [...state.undoStack, snapshot].slice(-MAX_UNDO);
         return {
-          nodes: applyNodeChanges(filteredChanges, state.nodes),
+          nodes: applyNodeChanges(filteredChanges, state.nodes).map((n) => {
+            const data = n.data as Record<string, unknown>;
+            const cId = data?.containerId;
+            if (typeof cId === "string" && removedIds.has(cId)) {
+              return { ...n, data: { ...data, containerId: null } };
+            }
+            return n;
+          }),
           edges: state.edges.filter(
             (e) => !removedIds.has(e.source) && !removedIds.has(e.target),
           ),
@@ -110,10 +240,15 @@ export const useEditorStore = create<EditorState>((set, get) => ({
 
   onConnect: (connection) => {
     get().pushUndo();
-    set((state) => ({
-      edges: addEdge({ ...connection, type: "custom" }, state.edges),
-      isDirty: true,
-    }));
+    set((state) => {
+      const nextEdges = addEdge({ ...connection, type: "custom" }, state.edges);
+      const nextNodes = propagateContainerOnConnect(state.nodes, connection);
+      return {
+        edges: nextEdges,
+        nodes: nextNodes,
+        isDirty: true,
+      };
+    });
   },
 
   addNode: (node) => {
@@ -127,7 +262,16 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   removeNode: (id) => {
     get().pushUndo();
     set((state) => ({
-      nodes: state.nodes.filter((n) => n.id !== id),
+      // Drop the node, drop its edges, AND orphan-clean: any other node that
+      // pointed to this id as its container loses the reference (so it doesn't
+      // dangle as "in (deleted)").
+      nodes: state.nodes
+        .filter((n) => n.id !== id)
+        .map((n) => {
+          const data = n.data as Record<string, unknown>;
+          if (data?.containerId !== id) return n;
+          return { ...n, data: { ...data, containerId: null } };
+        }),
       edges: state.edges.filter((e) => e.source !== id && e.target !== id),
       selectedNodeId: state.selectedNodeId === id ? null : state.selectedNodeId,
       isDirty: true,
@@ -139,6 +283,14 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       nodes: state.nodes.map((n) =>
         n.id === id ? { ...n, data: { ...n.data, config } } : n,
       ),
+      isDirty: true,
+    }));
+  },
+
+  setNodeContainer: (id, containerId) => {
+    get().pushUndo();
+    set((state) => ({
+      nodes: applyContainerAssignment(state.nodes, id, containerId),
       isDirty: true,
     }));
   },
@@ -157,7 +309,14 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       const payload = {
         name: workflowName,
         nodes: nodes.map((n) => {
-          const d = n.data as { type: string; category: string; label: string; config: Record<string, unknown>; isDisabled: boolean };
+          const d = n.data as {
+            type: string;
+            category: string;
+            label: string;
+            config: Record<string, unknown>;
+            isDisabled: boolean;
+            containerId?: string | null;
+          };
           return {
             id: n.id,
             type: d.type,
@@ -167,6 +326,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
             positionY: n.position.y,
             config: d.config || {},
             isDisabled: d.isDisabled || false,
+            containerId: d.containerId ?? null,
           };
         }),
         edges: edges.map((e) => ({

@@ -106,9 +106,11 @@ function SettingsTab({
     label: string;
     config: Record<string, unknown>;
     isDisabled?: boolean;
+    containerId?: string | null;
   };
 }) {
   const nodes = useEditorStore((s) => s.nodes);
+  const setNodeContainer = useEditorStore((s) => s.setNodeContainer);
   const [label, setLabel] = useState(nodeData.label);
   const [isDisabled, setIsDisabled] = useState(nodeData.isDisabled ?? false);
   const [nodeConfig, setNodeConfig] = useState<Record<string, unknown>>(
@@ -120,6 +122,40 @@ function SettingsTab({
   const [errorPolicy, setErrorPolicy] = useState(
     (nodeData.config?.errorPolicy as string) ?? "stop",
   );
+
+  const containerId = nodeData.containerId ?? "";
+
+  // Container options exclude:
+  //   1. the node itself (no self-containment), and
+  //   2. any descendant container of this node — picking a descendant would
+  //      form a containerId cycle (A.container=B, B.container=A) that the
+  //      engine rejects at runtime via CONTAINER_CYCLE.
+  const containerOptions = useMemo(() => {
+    const descendants = new Set<string>();
+    const stack: string[] = [nodeId];
+    while (stack.length) {
+      const current = stack.pop()!;
+      for (const n of nodes) {
+        if ((n.data as { containerId?: string | null }).containerId === current) {
+          if (!descendants.has(n.id)) {
+            descendants.add(n.id);
+            stack.push(n.id);
+          }
+        }
+      }
+    }
+    return nodes
+      .filter((n) => {
+        if (n.id === nodeId) return false;
+        if (descendants.has(n.id)) return false;
+        const t = (n.data as { type?: string }).type;
+        return t ? getNodeDefinition(t)?.isContainer === true : false;
+      })
+      .map((n) => ({
+        id: n.id,
+        label: (n.data as { label?: string }).label ?? n.id,
+      }));
+  }, [nodes, nodeId]);
 
   const handleConfigChange = useCallback(
     (newConfig: Record<string, unknown>) => {
@@ -211,6 +247,29 @@ function SettingsTab({
               <option value="retry">Retry</option>
               <option value="error_port">Route to Error Port</option>
             </select>
+          </div>
+
+          {/* Container — assign this node to a Loop/ForEach/Map body. */}
+          <div className="flex flex-col gap-1.5">
+            <Label className="text-xs">Container</Label>
+            <select
+              value={containerId}
+              onChange={(e) =>
+                setNodeContainer(nodeId, e.target.value === "" ? null : e.target.value)
+              }
+              className="h-8 rounded-md border border-[hsl(var(--input))] bg-transparent px-2 text-xs text-[hsl(var(--foreground))]"
+            >
+              <option value="">(none)</option>
+              {containerOptions.map((opt) => (
+                <option key={opt.id} value={opt.id}>
+                  {opt.label}
+                </option>
+              ))}
+            </select>
+            <span className="text-[10px] text-[hsl(var(--muted-foreground))]">
+              Belong to a Loop/ForEach/Map body. Edges to body/emit ports also
+              auto-assign.
+            </span>
           </div>
 
           {/* Disabled */}

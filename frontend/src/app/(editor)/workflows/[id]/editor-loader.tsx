@@ -41,6 +41,7 @@ export function WorkflowEditorLoader({ workflowId }: EditorLoaderProps) {
               category: n.category || def?.category,
               config: n.config || {},
               isDisabled: n.isDisabled || false,
+              containerId: (n.containerId as string | null) ?? null,
             },
           };
         });
