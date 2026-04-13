@@ -335,10 +335,7 @@ export class InformationExtractorHandler implements NodeHandler {
         jsonSchema,
       });
     } catch (error) {
-      return this.buildMultiTurnFinalOutput(
-        { ...state, messages },
-        'error',
-      );
+      return this.buildMultiTurnFinalOutput({ ...state, messages }, 'error');
     }
 
     const parsed = this.safeParseJson(result.content);
