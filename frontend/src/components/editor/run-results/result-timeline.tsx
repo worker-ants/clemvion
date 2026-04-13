@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useEffect, useState, useCallback } from "react";
+import { useRef, useEffect, useMemo, useState, useCallback } from "react";
 import {
   Loader2,
   CheckCircle,
@@ -91,28 +91,32 @@ export function ResultTimeline({
     prevMsgCountRef.current = conversationMessages.length;
   }, [results.length, conversationMessages.length]);
 
+  /** Identifier used for selection + React keys. Prefers the per-iteration
+   *  execution id so Loop/Map body iterations stay distinct rows. */
+  const idOf = (r: NodeResult): string => r.nodeExecutionId ?? r.nodeId;
+
   // Auto-select first result if nothing selected
   useEffect(() => {
     if (!selectedId && results.length > 0) {
-      onSelect(results[0].nodeId);
+      onSelect(idOf(results[0]));
     }
   }, [selectedId, results, onSelect]);
 
-  const toggleExpand = useCallback((nodeId: string) => {
-    setExpanded((prev) => ({ ...prev, [nodeId]: !prev[nodeId] }));
+  const toggleExpand = useCallback((id: string) => {
+    setExpanded((prev) => ({ ...prev, [id]: !prev[id] }));
   }, []);
 
   const handleNodeClick = useCallback(
-    (nodeId: string) => {
-      onSelect(nodeId);
+    (id: string) => {
+      onSelect(id);
       onSelectConversationItem(null);
     },
     [onSelect, onSelectConversationItem],
   );
 
   const handleConversationItemClick = useCallback(
-    (nodeId: string, index: number) => {
-      onSelect(nodeId);
+    (id: string, index: number) => {
+      onSelect(id);
       onSelectConversationItem(index);
     },
     [onSelect, onSelectConversationItem],
@@ -124,19 +128,50 @@ export function ResultTimeline({
     [],
   );
 
+  // Build per-nodeId iteration counters so we can append "(iter N)" to the
+  // label whenever the same node ran multiple times — the user otherwise
+  // can't tell which row corresponds to which Loop/Map iteration.
+  const nodeIdCounts = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const r of results) {
+      counts.set(r.nodeId, (counts.get(r.nodeId) ?? 0) + 1);
+    }
+    return counts;
+  }, [results]);
+
+  const iterIndices = useMemo(() => {
+    const seen = new Map<string, number>();
+    const indices = new Map<string, number>();
+    for (const r of results) {
+      const next = (seen.get(r.nodeId) ?? 0) + 1;
+      seen.set(r.nodeId, next);
+      indices.set(idOf(r), next);
+    }
+    return indices;
+  }, [results]);
+
   return (
     <div ref={scrollRef} className="h-full overflow-y-auto">
       {results.map((result) => {
+        const rowId = idOf(result);
         const categoryColor =
           CATEGORY_COLORS[result.nodeCategory] ?? "#6B7280";
-        const isSelected = selectedId === result.nodeId;
+        const isSelected = selectedId === rowId;
         const isMultiTurn = isMultiTurnAgent(result);
         const isLiveNode =
           isLiveConversation &&
           result.status === "waiting_for_input" &&
           result.nodeType === "ai_agent";
         // Live conversation node is always expanded
-        const isExpanded = isLiveNode || (expanded[result.nodeId] ?? false);
+        const isExpanded = isLiveNode || (expanded[rowId] ?? false);
+        // Append "(iter N)" so multiple iterations of the same body node are
+        // distinguishable in the timeline.
+        const totalForNode = nodeIdCounts.get(result.nodeId) ?? 1;
+        const iterIndex = iterIndices.get(rowId);
+        const labelText =
+          totalForNode > 1 && iterIndex
+            ? `${result.nodeLabel} (iter ${iterIndex})`
+            : result.nodeLabel;
         const items = isLiveNode
           ? conversationMessages
           : isMultiTurn
@@ -162,15 +197,15 @@ export function ResultTimeline({
         const maxTurns = (convConfig?.maxTurns as number) ?? 0;
 
         return (
-          <div key={result.nodeId}>
+          <div key={rowId}>
             {/* Node row */}
             <button
               type="button"
               onClick={() => {
                 if (isMultiTurn || isLiveNode) {
-                  toggleExpand(result.nodeId);
+                  toggleExpand(rowId);
                 }
-                handleNodeClick(result.nodeId);
+                handleNodeClick(rowId);
               }}
               className={`flex w-full items-center gap-2 px-3 py-1.5 text-left transition-colors ${
                 isSelected && selectedConversationItemIndex == null
@@ -198,7 +233,7 @@ export function ResultTimeline({
               )}
               {/* Node label */}
               <span className="flex-1 truncate text-xs">
-                {result.nodeLabel}
+                {labelText}
               </span>
               {/* Turn counter for multi-turn */}
               {(isMultiTurn || isLiveNode) && turnCount > 0 && (
@@ -222,13 +257,13 @@ export function ResultTimeline({
               <div className="border-l-2 border-[hsl(var(--border))] ml-5 mb-1">
                 {items.map((item, idx) => (
                   <ConversationTimelineItem
-                    key={`${result.nodeId}-conv-${idx}`}
+                    key={`${rowId}-conv-${idx}`}
                     item={item}
                     isSelected={
                       isSelected && selectedConversationItemIndex === idx
                     }
                     onClick={() =>
-                      handleConversationItemClick(result.nodeId, idx)
+                      handleConversationItemClick(rowId, idx)
                     }
                   />
                 ))}

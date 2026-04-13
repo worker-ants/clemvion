@@ -201,13 +201,26 @@ export function RunResultsDrawer() {
               : "Waiting for input..."
             : "Execution";
 
+  // Selection id is the per-iteration id (nodeExecutionId) when available so
+  // each Loop/Map iteration of the same node can be inspected separately,
+  // falling back to nodeId for legacy entries that lack an execution id.
   const selectedResult =
-    nodeResults.find((r) => r.nodeId === selectedResultNodeId) ?? null;
+    nodeResults.find((r) =>
+      r.nodeExecutionId
+        ? r.nodeExecutionId === selectedResultNodeId
+        : r.nodeId === selectedResultNodeId,
+    ) ?? null;
 
+  // `waitingNodeId` tracks the logical node id (stable per node) while
+  // `selectedResultNodeId` may hold a per-iteration nodeExecutionId. Resolve
+  // the selected result back to its nodeId before comparing so the preview
+  // tab's "waiting for input" branches (form/buttons/conversation) still
+  // activate after the recent iteration-aware selection changes.
   const isSelectedWaiting =
     status === "waiting_for_input" &&
     waitingNodeId != null &&
-    selectedResultNodeId === waitingNodeId;
+    (selectedResult?.nodeId === waitingNodeId ||
+      selectedResultNodeId === waitingNodeId);
 
   const isWaitingForm = isSelectedWaiting && waitingInteractionType === "form";
   const isWaitingButtons =

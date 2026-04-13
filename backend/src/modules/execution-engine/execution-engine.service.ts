@@ -1107,6 +1107,7 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
         status: ExecutionStatus.WAITING_FOR_INPUT,
         waitingNodeId: node.id,
         waitingNodeType: node.type,
+        nodeExecutionId: nodeExec?.id,
         nodeOutput,
       },
     );
@@ -1170,6 +1171,7 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
         node.id,
         NodeEventType.NODE_COMPLETED,
         {
+          nodeExecutionId: nodeExec.id,
           status: NodeExecutionStatus.COMPLETED,
           duration: nodeExec.durationMs,
           nodeType: node.type,
@@ -1310,6 +1312,7 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
         status: ExecutionStatus.WAITING_FOR_INPUT,
         waitingNodeId: node.id,
         waitingNodeType: node.type,
+        nodeExecutionId: nodeExec?.id,
         nodeOutput: {
           interactionType: 'ai_conversation',
           conversationConfig: {
@@ -1443,6 +1446,7 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
               status: ExecutionStatus.WAITING_FOR_INPUT,
               waitingNodeId: node.id,
               waitingNodeType: node.type,
+              nodeExecutionId: nodeExec?.id,
               nodeOutput: {
                 interactionType: 'ai_conversation',
                 conversationConfig: {
@@ -1559,6 +1563,7 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
         node.id,
         NodeEventType.NODE_COMPLETED,
         {
+          nodeExecutionId: nodeExec.id,
           status: NodeExecutionStatus.COMPLETED,
           duration: nodeExec.durationMs,
           nodeType: node.type,
@@ -1642,6 +1647,10 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
         status: ExecutionStatus.WAITING_FOR_INPUT,
         waitingNodeId: node.id,
         waitingNodeType: node.type,
+        // Surface the DB row id so the frontend's addNodeResult can match
+        // the same timeline entry created by NODE_STARTED, preventing a
+        // phantom duplicate row when execution resumes.
+        nodeExecutionId: nodeExec?.id,
         interactionType: 'buttons',
         buttonConfig: {
           buttons,
@@ -1884,6 +1893,7 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
         node.id,
         NodeEventType.NODE_COMPLETED,
         {
+          nodeExecutionId: nodeExec.id,
           status: NodeExecutionStatus.COMPLETED,
           duration: nodeExec.durationMs,
           nodeType: node.type,
@@ -1921,6 +1931,10 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
       node.id,
       NodeEventType.NODE_STARTED,
       {
+        // Surface the DB row id so the frontend can distinguish iterations of
+        // the same body node — without this, multiple runs of the same nodeId
+        // collapse into one entry in the run-results timeline.
+        nodeExecutionId: nodeExecution.id,
         status: NodeExecutionStatus.RUNNING,
         nodeType: node.type,
         nodeLabel: node.label ?? node.type,
@@ -2033,6 +2047,7 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
           node.id,
           NodeEventType.NODE_COMPLETED,
           {
+            nodeExecutionId: nodeExecution.id,
             status: NodeExecutionStatus.COMPLETED,
             duration: nodeExecution.durationMs,
             nodeType: node.type,
@@ -2079,6 +2094,7 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
             node.id,
             NodeEventType.NODE_SKIPPED,
             {
+              nodeExecutionId: nodeExecution.id,
               status: NodeExecutionStatus.SKIPPED,
               nodeType: node.type,
               nodeLabel: node.label ?? node.type,
@@ -2139,6 +2155,7 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
             node.id,
             NodeEventType.NODE_FAILED,
             {
+              nodeExecutionId: nodeExecution.id,
               status: NodeExecutionStatus.FAILED,
               error: error instanceof Error ? error.message : String(error),
               nodeType: node.type,
@@ -2664,6 +2681,7 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
         containerNode.id,
         NodeEventType.NODE_FAILED,
         {
+          nodeExecutionId: nodeExec?.id,
           status: NodeExecutionStatus.FAILED,
           error: message,
           nodeType: containerNode.type,
