@@ -174,11 +174,11 @@ Access Token (15분) 만료 전에 연결을 유지하려면:
 | `execution.failed` | `{ executionId, error, failedNodeId, duration }` | 실행 실패 |
 | `execution.cancelled` | `{ executionId, cancelledBy, duration }` | 실행 취소 |
 | `execution.paused` | `{ executionId, nodeId, nodeName, reason }` | 브레이크포인트에서 일시 정지 |
-| `execution.node.started` | `{ executionId, nodeId, nodeName, nodeType }` | 노드 실행 시작 |
-| `execution.node.completed` | `{ executionId, nodeId, nodeName, output, duration }` | 노드 실행 완료 |
-| `execution.node.failed` | `{ executionId, nodeId, nodeName, error }` | 노드 실행 실패 |
-| `execution.node.skipped` | `{ executionId, nodeId, nodeName, reason }` | 노드 건너뜀 |
-| `execution.waiting_for_input` | `{ executionId, nodeId, nodeType, interactionType, formConfig?, buttonConfig?, conversationConfig? }` | Form 노드, 버튼 Presentation 노드, 또는 AI Agent Multi Turn 노드에서 사용자 입력 대기. 아래 §4.4 참조 |
+| `execution.node.started` | `{ executionId, nodeId, nodeExecutionId, nodeName, nodeType }` | 노드 실행 시작. `nodeExecutionId`는 `NodeExecution` 행의 PK로, 컨테이너 body 노드의 iter별 타임라인 row를 구분하는 식별자 |
+| `execution.node.completed` | `{ executionId, nodeId, nodeExecutionId, nodeName, output, duration }` | 노드 실행 완료 |
+| `execution.node.failed` | `{ executionId, nodeId, nodeExecutionId, nodeName, error }` | 노드 실행 실패 |
+| `execution.node.skipped` | `{ executionId, nodeId, nodeExecutionId, nodeName, reason }` | 노드 건너뜀 |
+| `execution.waiting_for_input` | `{ executionId, nodeId, nodeExecutionId, nodeType, interactionType, formConfig?, buttonConfig?, conversationConfig? }` | Form 노드, 버튼 Presentation 노드, 또는 AI Agent Multi Turn 노드에서 사용자 입력 대기. 재개 후 `execution.node.completed`도 동일한 `nodeExecutionId`로 발행되어 프론트 타임라인의 동일 row가 업데이트된다. 아래 §4.4 참조 |
 | `execution.ai_message` | `{ executionId, nodeId, message, turnCount, messages }` | AI Agent Multi Turn 모드에서 AI 응답 메시지 전달 |
 
 ### 4.2 실행 제어 명령 (Client → Server)

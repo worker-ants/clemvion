@@ -122,14 +122,16 @@ User ──┬── Workspace (1:N)
 | config | JSONB | 노드별 설정 값 |
 | is_disabled | Boolean | 비활성 여부 |
 | description | String? | 메모/설명 |
-| container_id | UUID? | FK → Node. 컨테이너 노드(Loop/ForEach/Background) 내부에 배치된 경우 |
+| container_id | UUID? | FK → Node. 컨테이너 노드(Loop/ForEach/Map/Background[🚧 미구현]) 내부에 배치된 경우. 엣지 연결/삭제로 자동 동기화(§11.2.1 canvas 스펙 참조) |
 | tool_owner_id | UUID? | FK → Node. AI Agent의 Tool Area에 등록된 경우 |
 | created_at | Timestamp | 생성 시각 |
 | updated_at | Timestamp | 수정 시각 |
 
 **제약 조건:**
 - `container_id`와 `tool_owner_id`는 동시에 값을 가질 수 없음 (CHECK 제약)
-- `container_id`가 참조하는 노드의 type은 `loop`, `foreach`, `background` 중 하나여야 함
+- `container_id`가 참조하는 노드의 type은 `loop`, `foreach`, `map` 중 하나여야 함 (Background는 도입 시 추가)
+- `container_id` 체인은 순환하지 않아야 함 — 실행 시 `CONTAINER_CYCLE` 에러로 거부
+- 트리거 카테고리 노드(`manual_trigger` 등)는 `container_id`를 가질 수 없음 — 실행 시 `CONTAINER_INVALID_CHILD` 에러로 거부
 - `tool_owner_id`가 참조하는 노드의 type은 `ai_agent`여야 함
 
 **Node.type 전체 목록:**

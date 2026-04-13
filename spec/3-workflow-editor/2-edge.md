@@ -118,17 +118,17 @@
 
 ## 6. 컨테이너 내부 엣지 규칙
 
-컨테이너 노드(Loop, ForEach, Background) 내부의 자식 노드 간 엣지에 적용되는 규칙.
+컨테이너 노드(Loop, ForEach, Map, Background[🚧 미구현]) 내부의 자식 노드 간 엣지에 적용되는 규칙.
 
 ### 6.1 진입점과 출력 수집
 
 | 규칙 | 설명 |
 |------|------|
-| 진입점 | 컨테이너의 `body`(또는 `background`) 포트 → 컨테이너 내부의 첫 번째 자식 노드로 연결 |
-| 출력 수집 | 컨테이너 내부의 리프 노드(출력 엣지 없는 노드) 출력이 자동으로 수집됨 |
-| Loop | 리프 노드 출력 → 다음 반복의 입력으로 전달. 최종 반복 후 `done` 포트로 전달 |
-| ForEach | collectResults=true 시 리프 노드 출력을 배열로 수집 → `done` 포트로 전달 |
-| Background | 리프 노드 출력은 메인 흐름에 영향 없음 (독립 실행) |
+| 진입점 | 컨테이너의 `body`(Background는 `background`) 포트 → 컨테이너 내부의 첫 번째 자식 노드로 연결 |
+| 출력 수집 (`emit` 포트) | Loop/ForEach/Map은 body 자식 중 **정확히 1개**가 컨테이너의 `emit` 입력 포트로 연결되어야 함. 매 반복의 emit source 노드 출력이 수집 대상 |
+| 검증 | emit 없음 → `CONTAINER_MISSING_EMIT`, 2개 이상 → `CONTAINER_MULTIPLE_EMIT`. 실행 시 엔진이 upfront 검증 |
+| Loop / Map / ForEach | emit source 출력을 배열로 수집 → `done` 포트로 전달. ForEach는 `errorPolicy`에 따라 스킵/계속 항목에 `{_skipped, error}` 삽입 |
+| Background _(🚧 미구현)_ | 리프 노드 출력은 메인 흐름에 영향 없음 (독립 실행). 도입 시 emit 모델 미적용, pass-through |
 
 ### 6.2 경계 규칙
 

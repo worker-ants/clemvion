@@ -104,7 +104,7 @@ pending → running ──┤
 
 ### 2.2 컨테이너 내부 독립 정렬
 
-컨테이너 노드(Loop, ForEach, Background) 내부의 자식 노드는 독립적으로 토폴로지 정렬한다.
+컨테이너 노드(Loop, ForEach, Map, Background[🚧 미구현]) 내부의 자식 노드는 독립적으로 토폴로지 정렬한다.
 
 - 컨테이너 실행 시점에 내부 노드의 실행 순서를 별도 산출
 - 내부 그래프는 글로벌 DAG 사이클 검사에서 제외 (반복 구조 허용)
@@ -208,6 +208,8 @@ $loop.count = 10              $item.index = 1
 ---
 
 ### 3.3 Background 실행
+
+> **🚧 구현 상태 — 미구현 (spec-only)**: Background 노드는 아직 엔진에 구현되지 않았다. `runContainer` / `executeContainerBody` (§3.1/§3.2)는 Loop·ForEach·Map만 dispatch 대상으로 다루고 있고, 별도 Worker 태스크 시작이나 background NodeExecution 플래그도 아직 없다. 도입 시 본 절의 규칙을 따르며, `planContainerBody` + emit 포트 모델을 공유하되 **sync wait 없이 pass-through** + **비동기 실행 파이프라인** + **알림 전송 hook**을 추가한다.
 
 ```
 1. main 포트로 입력 데이터를 즉시 pass-through (메인 흐름 계속)
