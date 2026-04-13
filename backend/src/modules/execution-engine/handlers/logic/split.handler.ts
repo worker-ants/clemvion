@@ -3,10 +3,13 @@ import {
   ValidationResult,
   ExecutionContext,
 } from '../node-handler.interface.js';
-import { getNestedValue } from './nested-value.util.js';
+import { resolveFieldValue } from './nested-value.util.js';
 
 interface SplitConfig {
-  fieldPath: string;
+  // Either a dot-path string applied to `$input` (e.g. `"items"`) OR the
+  // resolved value itself when an inline expression like `{{ $var.a }}` is
+  // used.
+  fieldPath: unknown;
 }
 
 interface SplitItem {
@@ -19,8 +22,8 @@ export class SplitHandler implements NodeHandler {
     const errors: string[] = [];
     const { fieldPath } = config as unknown as SplitConfig;
 
-    if (!fieldPath || typeof fieldPath !== 'string') {
-      errors.push('fieldPath is required and must be a string');
+    if (fieldPath === undefined || fieldPath === null || fieldPath === '') {
+      errors.push('fieldPath is required');
     }
 
     return { valid: errors.length === 0, errors };
@@ -34,7 +37,7 @@ export class SplitHandler implements NodeHandler {
     const { fieldPath } = config as unknown as SplitConfig;
     const baseConfig = { fieldPath };
 
-    const arrayValue = getNestedValue(input, fieldPath);
+    const arrayValue = resolveFieldValue(input, fieldPath);
 
     if (!Array.isArray(arrayValue)) {
       return { config: baseConfig, output: [] as SplitItem[] };

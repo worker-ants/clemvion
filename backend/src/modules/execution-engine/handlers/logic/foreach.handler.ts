@@ -3,10 +3,13 @@ import {
   ValidationResult,
   ExecutionContext,
 } from '../node-handler.interface.js';
-import { getNestedValue } from './nested-value.util.js';
+import { resolveFieldValue } from './nested-value.util.js';
 
 interface ForEachConfig {
-  arrayField: string;
+  // Either a dot-path string applied to `$input` (e.g. `"items"`) OR the
+  // resolved value itself when an inline expression like `{{ $var.a }}` is
+  // used.
+  arrayField: unknown;
   errorPolicy: 'stop' | 'skip' | 'continue';
   collectResults: boolean;
 }
@@ -16,8 +19,8 @@ export class ForEachHandler implements NodeHandler {
     const errors: string[] = [];
     const { arrayField, errorPolicy } = config as unknown as ForEachConfig;
 
-    if (!arrayField || typeof arrayField !== 'string') {
-      errors.push('arrayField is required and must be a string');
+    if (arrayField === undefined || arrayField === null || arrayField === '') {
+      errors.push('arrayField is required');
     }
 
     if (
@@ -37,8 +40,8 @@ export class ForEachHandler implements NodeHandler {
   ): Promise<unknown> {
     const { arrayField } = config as unknown as ForEachConfig;
 
-    const array = getNestedValue(input, arrayField);
-    const items = Array.isArray(array) ? array : [];
+    const resolved = resolveFieldValue(input, arrayField);
+    const items = Array.isArray(resolved) ? resolved : [];
 
     return {
       config: { arrayField },
