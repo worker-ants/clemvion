@@ -25,7 +25,7 @@
 | 다중 연결 | 하나의 출력 포트에서 여러 엣지 연결 가능 (데이터 복제 전달) |
 | 라벨 | 포트별 이름 표시 (예: "True", "False", "Case 1") |
 | **error 포트** | 에러 처리 정책이 "Route to Error Port"인 경우 동적 생성. 빨간 원(●) 아이콘, 노드 우하단 위치 |
-| **포트 색상** | 데이터 포트=초록(●), 시스템 포트=파랑(●), 에러 포트=빨강(●). 시스템 포트는 노드가 사전 정의하는 고정 출력(예: AI Agent의 `user_ended`, `max_turns`, `out`). 사용자 조건 포트와 시스템 포트 사이에는 점선 구분자를 표시 |
+| **포트 색상** | 데이터 포트=초록(●), 시스템 포트=파랑(●), 에러 포트=빨강(●), **컨테이너 `emit` 포트=보라(●)**(Loop/ForEach/Map의 body 결과 수집 입력, 헤드 라벨도 보라색). 시스템 포트는 노드가 사전 정의하는 고정 출력(예: AI Agent의 `user_ended`, `max_turns`, `out`). 사용자 조건 포트와 시스템 포트 사이에는 점선 구분자를 표시. 입력 포트가 여러 개(예: 컨테이너의 `Input`·`Emit`)일 때는 핸들 옆에 라벨 텍스트가 함께 표시되어 구분 |
 
 ### 1.3 노드별 포트 구성
 
@@ -34,15 +34,15 @@
 | Manual Trigger | 0 | 1 | `out` — 워크플로우 시작점. 입력 포트 없음. 워크플로우 실행 입력 데이터를 패스스루 |
 | If/Else | 1 | 2 | `true`, `false` |
 | Switch | 1 | N (동적) | `case_0`, `case_1`, ..., `default` |
-| Loop (**컨테이너**) | 1 | 2 (+error) | `body` (반복 본문 → 내부 노드), `done` (완료 후) |
+| Loop (**컨테이너**) | 2 | 2 (+error) | 입력: `in`, `emit`(보라색, body 결과 수집). 출력: `body` (반복 진입점), `done` (수집된 배열) |
 | Variable Declaration | 1 | 1 | `out` |
 | Variable Modification | 1 | 1 | `out` |
-| Split | 1 | 1 | `out` (분리된 항목을 배열로 일괄 출력) |
-| Map | 1 | 1 | `out` |
-| ForEach (**컨테이너**) | 1 | 2 (+error) | `body` (각 항목 처리 → 내부 노드), `done` (전체 완료) |
+| Split | 1 | 1 | `out` (분리된 항목을 `[{index, value}]` 배열로 일괄 출력) |
+| Map (**컨테이너**) | 2 | 2 (+error) | 입력: `in`, `emit`(보라색, body 결과 수집). 출력: `body` (각 항목 진입점), `done` (변환된 배열) |
+| ForEach (**컨테이너**) | 2 | 2 (+error) | 입력: `in`, `emit`(보라색, body 결과 수집). 출력: `body` (각 항목 진입점), `done` (수집된 배열) |
 | Parallel | 1 | N (동적) | `branch_0`, `branch_1`, ... |
 | Merge | N (동적) | 1 | `out` |
-| Background (**컨테이너**) | 1 | 2 (+error) | `main` (즉시 진행), `background` (백그라운드 본문 → 내부 노드) |
+| Background (**컨테이너**, 🚧 미구현) | 1 | 2 (+error) | `main` (즉시 진행), `background` (백그라운드 본문 → 내부 노드) |
 | Workflow | 1 | 1 | `out` |
 | AI Agent | 1 | 1 | `out` |
 | Text Classifier | 1 | N (동적) | `class_0`, `class_1`, ..., (카테고리별) |

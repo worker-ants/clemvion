@@ -102,16 +102,16 @@
 |------|-----------|--------|------|------|---------|
 | `if_else` | If/Else | 🔀 | 1 | 2 (true/false) | 조건식 |
 | `switch` | Switch | 🔀 | 1 | N+1 (cases+default) | 케이스 목록 |
-| `loop` | Loop | 🔄 **컨테이너** | 1 | 2 (body/done) | 반복 횟수, break 조건 |
+| `loop` | Loop | 🔄 **컨테이너** | 1+`emit` | 2 (body/done) | 반복 횟수, break 조건 |
 | `variable_declaration` | Variable | 📝 | 1 | 1 | 변수명, 타입, 초기값 |
 | `variable_modification` | Set Variable | ✏️ | 1 | 1 | 대상 변수, 새 값 |
 | `split` | Split | ✂️ | 1 | 1 | 분리 대상 필드 |
-| `map` | Map | 🗺️ | 1 | 1 | 변환 표현식 |
+| `map` | Map | 🗺️ **컨테이너** | 1+`emit` | 2 (body/done) | 변환 대상 배열, 에러 정책 |
 | `filter` | Filter | 🔽 | 1 | 2 (match/unmatched) | 대상 배열, 필터 조건 |
-| `foreach` | ForEach | 🔁 **컨테이너** | 1 | 2 (body/done) | 대상 배열, 에러 정책 |
+| `foreach` | ForEach | 🔁 **컨테이너** | 1+`emit` | 2 (body/done) | 대상 배열, 에러 정책 |
 | `parallel` | Parallel | ⚡ | 1 | N | 분기 수 |
 | `merge` | Merge | 🔗 | N | 1 | 병합 전략 |
-| `background` | Background | 🌙 **컨테이너** | 1 | 2 (main/bg) | 알림 설정 |
+| `background` | Background | 🌙 **컨테이너** | 1 | 2 (main/bg) | 알림 설정 · _🚧 미구현 (spec-only; frontend/backend 핸들러 없음)_ |
 
 ### 2.2 Flow 노드 (1종)
 
