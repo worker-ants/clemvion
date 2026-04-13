@@ -27,21 +27,41 @@
 
 ### 1.3 실행 동작
 
-- **패스스루(Pass-through)**: 워크플로우 실행 입력 데이터를 그대로 출력 포트로 전달
-- 입력 데이터가 없으면 빈 객체 `{}` 출력
-- 실행 시간: 거의 0ms (데이터 변환 없음)
+- 워크플로우의 **입력 파라미터 스키마**를 노드 config로 선언
+- 실행 진입 시 들어오는 원시 값(`rawParameterValues`)을 스키마 기반으로 **검증 + 기본값 적용 + 타입 강제 변환(coerce)** 후 구조화된 `parameters` 객체로 출력
+- 다운스트림 노드는 `{{ $input.parameters.<name> }}` 또는 축약형 `{{ $params.<name> }}`으로 접근
+- 파라미터가 정의되지 않은 경우 `parameters = {}`로 처리하여 기존 pass-through 호환
+- 실행 시간: 거의 0ms (스키마 검증만 수행)
 
 ```
-워크플로우 실행 요청 (input: { name: "test" })
+워크플로우 실행 요청 (parameterValues: { name: "test", count: "3" })
   ↓
-Manual Trigger Node
-  ↓ (output: { name: "test" })
-다음 노드
+Manual Trigger Node (parameters schema: name:string, count:number)
+  ↓ (output.parameters: { name: "test", count: 3 })
+다음 노드 ({{ $params.count }} → 3)
 ```
 
 ### 1.4 설정 (Config)
 
-Manual Trigger 노드는 사용자 설정이 없다. 설정 패널에서는 Label과 Notes만 편집 가능.
+| 키 | 타입 | 설명 |
+|----|------|------|
+| `parameters` | `TriggerParameterDefinition[]` | 입력 파라미터 스키마 배열 (선택) |
+
+**TriggerParameterDefinition**:
+
+```typescript
+interface TriggerParameterDefinition {
+  name: string;                                         // 고유 식별자 (영문/숫자/_)
+  type: 'string' | 'number' | 'boolean' | 'object' | 'array';
+  required?: boolean;                                   // 기본 false
+  defaultValue?: unknown;                               // required=false일 때만 의미 있음
+  description?: string;                                 // UI 힌트
+}
+```
+
+- `name`은 워크플로우의 trigger 노드 내에서 유일해야 한다 (중복 시 validate 실패)
+- 빈 배열 또는 미정의 시 파라미터 기능 비활성 (기존 동작과 호환)
+- 설정 패널에서는 Label, Notes, Parameters만 편집 가능
 
 ### 1.5 포트 정의
 
@@ -60,31 +80,35 @@ Manual Trigger 노드는 사용자 설정이 없다. 설정 패널에서는 Labe
 ### 1.7 실행 흐름
 
 ```
-1. 사용자가 Run 버튼 클릭 또는 POST /workflows/:id/execute API 호출
-2. 실행 엔진이 Execution 레코드 생성 (status: PENDING)
-3. 실행 엔진이 비동기로 실행 시작 (status: RUNNING)
-4. 워크플로우의 노드와 엣지를 로드하여 DAG 구성
-5. 위상 정렬(Topological Sort)로 실행 순서 결정
-6. Manual Trigger 노드가 첫 번째로 실행됨 (입력 엣지 없음 → 루트 노드)
-7. 워크플로우 입력 데이터를 출력 포트로 전달
-8. 출력 포트에 연결된 다음 노드들이 순서대로 실행
-9. 모든 노드 실행 완료 → status: COMPLETED
+1. 사용자가 Run 버튼 클릭 또는 POST /workflows/:id/execute { parameterValues } API 호출
+2. 실행 엔진이 parameterValues + trigger 노드 config를 resolveTriggerParameters() 유틸로 해석
+   - required 누락 → 즉시 실행 실패 (INVALID_INPUT)
+   - 기본값 적용 + 타입 coerce
+3. Execution 레코드 생성 (status: PENDING, inputData: { parameters })
+4. 비동기 실행 시작 (status: RUNNING)
+5. DAG 구성 및 위상 정렬
+6. Manual Trigger 노드가 루트로 실행되어 { parameters } 구조화된 output 출력
+7. 연결된 다음 노드들이 $input.parameters / $params로 값 참조
+8. 모든 노드 실행 완료 → status: COMPLETED
 ```
 
 ---
 
-## 2. 향후 확장: Webhook Trigger, Schedule Trigger
+## 2. 트리거 진입 파라미터 공통 계약
 
-현재 Phase 1에서는 Manual Trigger만 구현되어 있다.
-향후 Phase 2에서 아래 트리거 유형이 추가될 예정:
+Manual, Webhook, Schedule 세 가지 트리거는 모두 **동일한 파라미터 스키마**(Manual Trigger 노드의 `config.parameters`)를 단일 소스로 사용한다. 차이는 값의 **수집 방식**뿐이다.
 
-| type | 표시 이름 | 설명 |
-|------|-----------|------|
-| `webhook_trigger` | Webhook Trigger | 외부 HTTP 요청으로 워크플로우 실행 |
-| `schedule_trigger` | Schedule Trigger | 크론 스케줄에 따라 자동 실행 |
+| 트리거 | 값 수집 방식 | 실행 실패 시점 |
+|--------|--------------|---------------|
+| Manual | Run 대화상자 폼 또는 `POST /workflows/:id/execute { parameterValues }` | Execution 생성 전 400 응답 또는 RUNNING 진입 즉시 실패 |
+| Webhook | HTTP POST `body`에서 **동일 이름 최상위 키** 추출 | HooksService가 `400 Bad Request`로 요청 거부 (Execution 생성되지 않음) |
+| Schedule | `schedule.parameterValues` 저장값 → 제한 표현식 컨텍스트(`$now`, `$schedule`)로 resolve | 스케줄 등록/수정 시 DTO 검증, 런타임은 default 채움 |
 
-이들은 별도의 Trigger 엔티티(`trigger` 테이블)와 연동되며,
-Manual Trigger와 동일하게 워크플로우 그래프의 루트 노드 역할을 한다.
+최종적으로 워크플로우 실행 엔진에는 항상 `{ parameters: Record<string, unknown>, ... }` 형태의 input이 전달된다.
+
+- Webhook: `$input = { parameters, body, headers, query, method }`
+- Schedule/Manual: `$input = { parameters }`
+- 축약형: `$params === $input.parameters`
 
 ---
 
@@ -92,4 +116,4 @@ Manual Trigger와 동일하게 워크플로우 그래프의 루트 노드 역할
 
 | 노드 | 요약 포맷 | 예시 |
 |------|-----------|------|
-| Manual Trigger | (표시 안 함 — config 없음) | — |
+| Manual Trigger | 파라미터 개수 | `Parameters: 2` 또는 `(none)` |

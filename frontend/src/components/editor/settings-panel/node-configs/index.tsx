@@ -43,6 +43,9 @@ import {
   PdfConfig,
 } from "./presentation-configs";
 
+// Trigger
+import { ManualTriggerConfig } from "./trigger-configs";
+
 type NodeConfigProps = {
   config: Record<string, unknown>;
   onChange: (config: Record<string, unknown>) => void;
@@ -57,6 +60,9 @@ export function NodeConfigRenderer({
   const props = { config, onChange };
 
   switch (nodeType) {
+    // Trigger
+    case "manual_trigger":
+      return <ManualTriggerConfig {...props} />;
     // Logic
     case "if_else":
       return <IfElseConfig {...props} />;

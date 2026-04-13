@@ -3,6 +3,7 @@ import {
   IsOptional,
   IsBoolean,
   IsUUID,
+  IsObject,
   MaxLength,
 } from 'class-validator';
 
@@ -26,4 +27,8 @@ export class CreateScheduleDto {
   @IsOptional()
   @IsBoolean()
   isActive?: boolean;
+
+  @IsOptional()
+  @IsObject()
+  parameterValues?: Record<string, unknown>;
 }

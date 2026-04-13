@@ -34,6 +34,7 @@ interface Schedule {
   nextRunAt?: string;
   workflowId: string;
   workflowName: string;
+  parameterValues?: Record<string, unknown>;
 }
 
 interface Workflow {
@@ -473,6 +474,10 @@ export default function SchedulesPage() {
   const [formTimezone, setFormTimezone] = useState(
     Intl.DateTimeFormat().resolvedOptions().timeZone,
   );
+  const [formParameterValuesJson, setFormParameterValuesJson] = useState("{}");
+  const [parameterValuesError, setParameterValuesError] = useState<string | null>(
+    null,
+  );
 
   const {
     data: schedules = [],
@@ -493,6 +498,7 @@ export default function SchedulesPage() {
         nextRunAt: s.nextRunAt,
         workflowId: s.trigger?.workflowId ?? "",
         workflowName: s.trigger?.workflow?.name ?? "",
+        parameterValues: s.parameterValues ?? {},
       }));
     },
   });
@@ -506,12 +512,13 @@ export default function SchedulesPage() {
   });
 
   const createMutation = useMutation({
-    mutationFn: async () => {
+    mutationFn: async (parameterValues: Record<string, unknown>) => {
       await apiClient.post("/schedules", {
         name: formName,
         workflowId: formWorkflowId,
         cronExpression: formCron,
         timezone: formTimezone,
+        parameterValues,
       });
     },
     onSuccess: () => {
@@ -525,7 +532,18 @@ export default function SchedulesPage() {
   });
 
   const updateMutation = useMutation({
-    mutationFn: async ({ id, data }: { id: string; data: { name: string; cronExpression: string; timezone: string } }) => {
+    mutationFn: async ({
+      id,
+      data,
+    }: {
+      id: string;
+      data: {
+        name: string;
+        cronExpression: string;
+        timezone: string;
+        parameterValues: Record<string, unknown>;
+      };
+    }) => {
       await apiClient.patch(`/schedules/${id}`, data);
     },
     onSuccess: () => {
@@ -582,6 +600,8 @@ export default function SchedulesPage() {
     setFormWorkflowId("");
     setFormCron("");
     setFormTimezone(Intl.DateTimeFormat().resolvedOptions().timeZone);
+    setFormParameterValuesJson("{}");
+    setParameterValuesError(null);
     setCronTab("expression");
     setEditTarget(null);
     setShowDialog(false);
@@ -592,6 +612,10 @@ export default function SchedulesPage() {
     setFormWorkflowId(schedule.workflowId);
     setFormCron(schedule.cronExpression);
     setFormTimezone(schedule.timezone);
+    setFormParameterValuesJson(
+      JSON.stringify(schedule.parameterValues ?? {}, null, 2),
+    );
+    setParameterValuesError(null);
     setEditTarget(schedule);
     setShowDialog(true);
   }
@@ -601,13 +625,34 @@ export default function SchedulesPage() {
       toast.error("Please fill in all required fields");
       return;
     }
+    let parameterValues: Record<string, unknown>;
+    try {
+      const trimmed = formParameterValuesJson.trim();
+      const parsed: unknown = trimmed.length === 0 ? {} : JSON.parse(trimmed);
+      if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
+        throw new Error("Parameter values must be a JSON object");
+      }
+      parameterValues = parsed as Record<string, unknown>;
+      setParameterValuesError(null);
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : "Invalid JSON for parameter values";
+      setParameterValuesError(message);
+      toast.error(message);
+      return;
+    }
     if (editTarget) {
       updateMutation.mutate({
         id: editTarget.id,
-        data: { name: formName, cronExpression: formCron, timezone: formTimezone },
+        data: {
+          name: formName,
+          cronExpression: formCron,
+          timezone: formTimezone,
+          parameterValues,
+        },
       });
     } else {
-      createMutation.mutate();
+      createMutation.mutate(parameterValues);
     }
   }
 
@@ -755,6 +800,33 @@ export default function SchedulesPage() {
                   onChange={(e) => setFormTimezone(e.target.value)}
                   placeholder="Asia/Seoul"
                 />
+              </div>
+              <div>
+                <Label htmlFor="schedule-params">
+                  Parameter Values (JSON)
+                </Label>
+                <textarea
+                  id="schedule-params"
+                  value={formParameterValuesJson}
+                  onChange={(e) => {
+                    setFormParameterValuesJson(e.target.value);
+                    setParameterValuesError(null);
+                  }}
+                  rows={5}
+                  className="w-full rounded-md border border-[hsl(var(--input))] bg-transparent px-3 py-2 font-mono text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--ring))]"
+                  placeholder={`{\n  "region": "kr",\n  "runAt": "{{ $now }}"\n}`}
+                />
+                <p className="mt-1 text-[11px] text-[hsl(var(--muted-foreground))]">
+                  워크플로우의 Manual Trigger 노드 파라미터에 매핑됩니다.
+                  문자열 값에 <code>{"{{ $now }}"}</code>,{" "}
+                  <code>{"{{ $schedule.id }}"}</code> 등 제한 표현식을 사용할 수
+                  있습니다.
+                </p>
+                {parameterValuesError && (
+                  <p className="mt-1 text-[11px] text-red-500">
+                    {parameterValuesError}
+                  </p>
+                )}
               </div>
               <div className="flex justify-end gap-2">
                 <Button variant="outline" onClick={resetForm}>

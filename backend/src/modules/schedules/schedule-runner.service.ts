@@ -4,7 +4,12 @@ import { Job, Queue } from 'bullmq';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Schedule } from './entities/schedule.entity';
+import { Node } from '../nodes/entities/node.entity';
 import { ExecutionEngineService } from '../execution-engine/execution-engine.service';
+import { resolveTriggerParameters } from '../execution-engine/utils/resolve-trigger-parameters';
+import { loadTriggerParameterSchema } from '../execution-engine/utils/load-trigger-parameter-schema';
+import { TriggerParameterValidationException } from '../execution-engine/types/trigger-parameter.types';
+import { evaluate } from '@workflow/expression-engine';
 import { CronExpressionParser } from 'cron-parser';
 
 export const SCHEDULE_QUEUE = 'schedule-execution';
@@ -22,12 +27,77 @@ export class ScheduleRunnerService extends WorkerHost implements OnModuleInit {
   constructor(
     @InjectRepository(Schedule)
     private readonly scheduleRepository: Repository<Schedule>,
+    @InjectRepository(Node)
+    private readonly nodeRepository: Repository<Node>,
     @InjectQueue(SCHEDULE_QUEUE)
     private readonly queue: Queue<ScheduleJobData>,
     @Inject(ExecutionEngineService)
     private readonly executionEngineService: ExecutionEngineService,
   ) {
     super();
+  }
+
+  /**
+   * Resolve schedule.parameterValues against a limited expression context
+   * (`$now`, `$schedule`) and the workflow's trigger parameter schema.
+   *
+   * Exposed as a public method primarily for unit testing.
+   */
+  async resolveScheduleParameters(
+    schedule: Schedule,
+    workflowId: string,
+    now: Date = new Date(),
+  ): Promise<Record<string, unknown>> {
+    const schema = await loadTriggerParameterSchema(
+      this.nodeRepository,
+      workflowId,
+      this.logger,
+    );
+    const rawValues = schedule.parameterValues ?? {};
+    const ctx = {
+      $now: now.toISOString(),
+      $schedule: {
+        id: schedule.id,
+        cronExpression: schedule.cronExpression,
+        timezone: schedule.timezone,
+      },
+    };
+
+    const resolvedRaw: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(rawValues)) {
+      resolvedRaw[key] = this.resolveLimitedExpression(value, ctx);
+    }
+
+    try {
+      return resolveTriggerParameters(schema, resolvedRaw);
+    } catch (err) {
+      if (err instanceof TriggerParameterValidationException) {
+        this.logger.warn(
+          `Schedule ${schedule.id} parameter validation failed: ${err.errors
+            .map((e) => `${e.field}(${e.reason})`)
+            .join(', ')}`,
+        );
+        // Fall back to whatever the schema-less resolver would produce so
+        // execution still proceeds; the workflow engine may report downstream.
+        return resolveTriggerParameters(undefined, resolvedRaw);
+      }
+      throw err;
+    }
+  }
+
+  private resolveLimitedExpression(
+    value: unknown,
+    ctx: Record<string, unknown>,
+  ): unknown {
+    if (typeof value !== 'string' || !value.includes('{{')) return value;
+    try {
+      return evaluate(value, ctx);
+    } catch (err) {
+      this.logger.warn(
+        `Failed to evaluate scheduled parameter expression: ${err instanceof Error ? err.message : String(err)}`,
+      );
+      return value;
+    }
   }
 
   /**
@@ -86,7 +156,14 @@ export class ScheduleRunnerService extends WorkerHost implements OnModuleInit {
     }
 
     try {
-      const executionId = await this.executionEngineService.execute(workflowId);
+      const parameters = await this.resolveScheduleParameters(
+        schedule,
+        workflowId,
+      );
+      const executionId = await this.executionEngineService.execute(
+        workflowId,
+        { parameters },
+      );
       this.logger.log(
         `Schedule ${scheduleId} triggered execution ${executionId}`,
       );

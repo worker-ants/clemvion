@@ -1,4 +1,10 @@
-import { IsString, IsOptional, IsBoolean, MaxLength } from 'class-validator';
+import {
+  IsString,
+  IsOptional,
+  IsBoolean,
+  IsObject,
+  MaxLength,
+} from 'class-validator';
 
 export class UpdateScheduleDto {
   @IsOptional()
@@ -19,4 +25,8 @@ export class UpdateScheduleDto {
   @IsOptional()
   @IsBoolean()
   isActive?: boolean;
+
+  @IsOptional()
+  @IsObject()
+  parameterValues?: Record<string, unknown>;
 }

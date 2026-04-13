@@ -90,6 +90,7 @@ export class SchedulesService {
       timezone,
       isActive,
       nextRunAt: nextRun ? new Date(nextRun) : undefined,
+      parameterValues: dto.parameterValues ?? {},
     });
     const saved = await this.scheduleRepository.save(schedule);
 
@@ -125,6 +126,8 @@ export class SchedulesService {
     if (dto.cronExpression) schedule.cronExpression = dto.cronExpression;
     if (dto.timezone) schedule.timezone = dto.timezone;
     if (dto.isActive !== undefined) schedule.isActive = dto.isActive;
+    if (dto.parameterValues !== undefined)
+      schedule.parameterValues = dto.parameterValues;
 
     // Recalculate nextRunAt if cron or timezone changed
     if (dto.cronExpression || dto.timezone) {
@@ -195,9 +198,14 @@ export class SchedulesService {
     if (!workflowId) {
       throw new BadRequestException('Schedule has no associated workflow');
     }
+    const parameters =
+      await this.scheduleRunnerService.resolveScheduleParameters(
+        schedule,
+        workflowId,
+      );
     const executionId = await this.executionEngineService.execute(
       workflowId,
-      undefined,
+      { parameters },
       userId,
     );
     return { executionId };

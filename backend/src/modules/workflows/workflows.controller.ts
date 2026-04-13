@@ -11,8 +11,15 @@ import {
   HttpStatus,
   ParseUUIDPipe,
 } from '@nestjs/common';
+import { BadRequestException, Logger } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
+import { Node } from '../nodes/entities/node.entity';
 import { WorkflowsService } from './workflows.service';
 import { ExecutionEngineService } from '../execution-engine/execution-engine.service';
+import { resolveTriggerParameters } from '../execution-engine/utils/resolve-trigger-parameters';
+import { loadTriggerParameterSchema } from '../execution-engine/utils/load-trigger-parameter-schema';
+import { TriggerParameterValidationException } from '../execution-engine/types/trigger-parameter.types';
 import { CreateWorkflowDto } from './dto/create-workflow.dto';
 import { UpdateWorkflowDto } from './dto/update-workflow.dto';
 import { QueryWorkflowDto } from './dto/query-workflow.dto';
@@ -23,9 +30,13 @@ import type { JwtPayload } from '../../common/decorators';
 
 @Controller('workflows')
 export class WorkflowsController {
+  private readonly logger = new Logger(WorkflowsController.name);
+
   constructor(
     private readonly workflowsService: WorkflowsService,
     private readonly executionEngineService: ExecutionEngineService,
+    @InjectRepository(Node)
+    private readonly nodeRepository: Repository<Node>,
   ) {}
 
   @Get()
@@ -88,13 +99,48 @@ export class WorkflowsController {
     @Param('id', ParseUUIDPipe) id: string,
     @WorkspaceId() workspaceId: string,
     @CurrentUser() user: JwtPayload,
-    @Body() body?: { input?: Record<string, unknown> },
+    @Body()
+    body?: {
+      input?: Record<string, unknown>;
+      parameterValues?: Record<string, unknown>;
+    },
   ) {
     // Verify workflow belongs to workspace
     await this.workflowsService.findById(id, workspaceId);
+
+    // Resolve trigger parameters against the workflow's trigger node schema.
+    // Accepts `parameterValues` (preferred) or `input.parameters` for
+    // back-compat with older clients.
+    const rawValues =
+      body?.parameterValues ??
+      (body?.input && typeof body.input === 'object' && body.input !== null
+        ? (body.input.parameters as Record<string, unknown> | undefined)
+        : undefined) ??
+      {};
+
+    const schema = await loadTriggerParameterSchema(
+      this.nodeRepository,
+      id,
+      this.logger,
+    );
+    let parameters: Record<string, unknown>;
+    try {
+      parameters = resolveTriggerParameters(schema, rawValues);
+    } catch (err) {
+      if (err instanceof TriggerParameterValidationException) {
+        throw new BadRequestException({
+          code: 'INVALID_TRIGGER_PARAMETERS',
+          message: 'Invalid trigger parameters',
+          errors: err.errors,
+        });
+      }
+      throw err;
+    }
+
+    const executionInput = { ...(body?.input ?? {}), parameters };
     const executionId = await this.executionEngineService.execute(
       id,
-      body?.input,
+      executionInput,
       user.sub,
     );
     return { executionId };
