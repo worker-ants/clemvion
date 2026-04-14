@@ -2,8 +2,29 @@
 
 import DOMPurify from "dompurify";
 import { FileDown } from "lucide-react";
+import {
+  Area,
+  AreaChart,
+  Bar,
+  BarChart,
+  CartesianGrid,
+  Cell,
+  Line,
+  LineChart,
+  Pie,
+  PieChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
 import type { NodeResult } from "@/lib/stores/execution-store";
 import { cn } from "@/lib/utils/cn";
+
+const CHART_COLORS = [
+  "#3b82f6", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6",
+  "#ec4899", "#14b8a6", "#f97316", "#6366f1", "#84cc16",
+];
 
 function isHttpUrl(url: unknown): url is string {
   if (typeof url !== "string") return false;
@@ -241,7 +262,80 @@ function ChartContent({ data }: { data: Record<string, unknown> }) {
       />
     );
   }
-  return <JsonContent data={data} />;
+
+  const chartType = (data.chartType as string) ?? "bar";
+  const title = data.title as string | undefined;
+  const points = Array.isArray(data.data) ? (data.data as Array<Record<string, unknown>>) : [];
+
+  if (points.length === 0) return <JsonContent data={data} />;
+
+  const renderChart = () => {
+    switch (chartType) {
+      case "line":
+        return (
+          <LineChart data={points}>
+            <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+            <XAxis dataKey="x" tick={{ fontSize: 11 }} />
+            <YAxis tick={{ fontSize: 11 }} />
+            <Tooltip />
+            <Line type="monotone" dataKey="y" stroke={CHART_COLORS[0]} strokeWidth={2} dot={{ r: 3 }} />
+          </LineChart>
+        );
+      case "area":
+        return (
+          <AreaChart data={points}>
+            <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+            <XAxis dataKey="x" tick={{ fontSize: 11 }} />
+            <YAxis tick={{ fontSize: 11 }} />
+            <Tooltip />
+            <Area type="monotone" dataKey="y" stroke={CHART_COLORS[0]} fill={CHART_COLORS[0]} fillOpacity={0.3} />
+          </AreaChart>
+        );
+      case "pie":
+      case "donut":
+        return (
+          <PieChart>
+            <Tooltip />
+            <Pie
+              data={points}
+              dataKey="y"
+              nameKey="x"
+              cx="50%"
+              cy="50%"
+              outerRadius={90}
+              innerRadius={chartType === "donut" ? 50 : 0}
+              label={(entry: { x: unknown; y: unknown }) => String(entry.x)}
+            >
+              {points.map((_, i) => (
+                <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />
+              ))}
+            </Pie>
+          </PieChart>
+        );
+      case "bar":
+      default:
+        return (
+          <BarChart data={points}>
+            <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+            <XAxis dataKey="x" tick={{ fontSize: 11 }} />
+            <YAxis tick={{ fontSize: 11 }} />
+            <Tooltip />
+            <Bar dataKey="y" fill={CHART_COLORS[0]} />
+          </BarChart>
+        );
+    }
+  };
+
+  return (
+    <div className="flex flex-col gap-2">
+      {title && <div className="text-sm font-medium">{title}</div>}
+      <div className="h-64 w-full">
+        <ResponsiveContainer width="100%" height="100%">
+          {renderChart()}
+        </ResponsiveContainer>
+      </div>
+    </div>
+  );
 }
 
 function TemplateContent({ data, previewOnly = false }: { data: Record<string, unknown>; previewOnly?: boolean }) {
