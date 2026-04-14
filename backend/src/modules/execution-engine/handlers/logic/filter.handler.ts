@@ -3,54 +3,23 @@ import {
   ValidationResult,
   ExecutionContext,
 } from '../node-handler.interface.js';
-import { getNestedValue, resolveFieldValue } from './nested-value.util.js';
-
-interface FilterCondition {
-  field: string;
-  operator: (typeof VALID_OPERATORS)[number];
-  value: unknown;
-}
+import { resolveFieldValue } from './nested-value.util.js';
+import {
+  Condition,
+  VALID_OPERATORS,
+  VALID_OPERATORS_STR,
+  compileRegexCache,
+  evaluateCondition,
+} from './condition-eval.util.js';
 
 interface FilterConfig {
   // Either a dot-path string applied to `$input` (e.g. `"items"`) OR the
   // resolved value itself when an inline expression like `{{ $var.a }}` is used.
   inputField: unknown;
-  conditions: FilterCondition[];
+  conditions: Condition[];
   combineMode: 'and' | 'or';
   strictComparison?: boolean;
 }
-
-const VALID_OPERATORS = [
-  'eq',
-  'neq',
-  'gt',
-  'gte',
-  'lt',
-  'lte',
-  'contains',
-  'not_contains',
-  'starts_with',
-  'ends_with',
-  'is_empty',
-  'is_not_empty',
-  'regex',
-  'is_null',
-  'is_type',
-] as const;
-
-const VALID_OPERATORS_STR = VALID_OPERATORS.join(', ');
-
-const VALID_TYPES = new Set([
-  'string',
-  'number',
-  'boolean',
-  'object',
-  'array',
-  'null',
-  'undefined',
-]);
-
-const MAX_REGEX_LENGTH = 200;
 
 export class FilterHandler implements NodeHandler {
   validate(config: Record<string, unknown>): ValidationResult {
@@ -111,20 +80,7 @@ export class FilterHandler implements NodeHandler {
       throw new Error('Filter inputField does not resolve to an array');
     }
 
-    // Pre-compile regex patterns to avoid repeated construction per item
-    const compiledRegexes = new Map<number, RegExp>();
-    for (let i = 0; i < conditions.length; i++) {
-      const cond = conditions[i];
-      if (cond.operator === 'regex' && typeof cond.value === 'string') {
-        const pattern = cond.value;
-        if (pattern.length > MAX_REGEX_LENGTH) continue;
-        try {
-          compiledRegexes.set(i, new RegExp(pattern));
-        } catch {
-          // Invalid regex — will return false during evaluation
-        }
-      }
-    }
+    const compiledRegexes = compileRegexCache(conditions);
 
     const match: unknown[] = [];
     const unmatched: unknown[] = [];
@@ -133,7 +89,7 @@ export class FilterHandler implements NodeHandler {
       const passed =
         combineMode === 'or'
           ? conditions.some((cond, i) =>
-              this.evaluateCondition(
+              evaluateCondition(
                 item,
                 cond,
                 strictComparison,
@@ -141,7 +97,7 @@ export class FilterHandler implements NodeHandler {
               ),
             )
           : conditions.every((cond, i) =>
-              this.evaluateCondition(
+              evaluateCondition(
                 item,
                 cond,
                 strictComparison,
@@ -160,88 +116,5 @@ export class FilterHandler implements NodeHandler {
       config: { inputField, conditions, combineMode, strictComparison },
       output: { match, unmatched },
     };
-  }
-
-  private evaluateCondition(
-    item: unknown,
-    condition: FilterCondition,
-    strict: boolean,
-    compiledRegex?: RegExp,
-  ): boolean {
-    const fieldValue = getNestedValue(item, condition.field);
-    const compareValue = condition.value;
-
-    switch (condition.operator) {
-      case 'eq':
-        return strict
-          ? fieldValue === compareValue
-          : fieldValue == compareValue;
-      case 'neq':
-        return strict
-          ? fieldValue !== compareValue
-          : fieldValue != compareValue;
-      case 'gt':
-        return Number(fieldValue) > Number(compareValue);
-      case 'gte':
-        return Number(fieldValue) >= Number(compareValue);
-      case 'lt':
-        return Number(fieldValue) < Number(compareValue);
-      case 'lte':
-        return Number(fieldValue) <= Number(compareValue);
-      case 'contains':
-        return typeof fieldValue === 'string' &&
-          typeof compareValue === 'string'
-          ? fieldValue.includes(compareValue)
-          : false;
-      case 'not_contains':
-        // Non-string values cannot contain a string, so return false (symmetric with contains)
-        return typeof fieldValue === 'string' &&
-          typeof compareValue === 'string'
-          ? !fieldValue.includes(compareValue)
-          : false;
-      case 'starts_with':
-        return typeof fieldValue === 'string' &&
-          typeof compareValue === 'string'
-          ? fieldValue.startsWith(compareValue)
-          : false;
-      case 'ends_with':
-        return typeof fieldValue === 'string' &&
-          typeof compareValue === 'string'
-          ? fieldValue.endsWith(compareValue)
-          : false;
-      case 'is_empty':
-        return (
-          fieldValue === '' ||
-          fieldValue === null ||
-          fieldValue === undefined ||
-          (Array.isArray(fieldValue) && fieldValue.length === 0)
-        );
-      case 'is_not_empty':
-        return (
-          fieldValue !== '' &&
-          fieldValue !== null &&
-          fieldValue !== undefined &&
-          !(Array.isArray(fieldValue) && fieldValue.length === 0)
-        );
-      case 'regex':
-        if (!compiledRegex) return false;
-        return compiledRegex.test(
-          typeof fieldValue === 'string'
-            ? fieldValue
-            : String(fieldValue as string | number | boolean),
-        );
-      case 'is_null':
-        return fieldValue === null || fieldValue === undefined;
-      case 'is_type': {
-        if (typeof compareValue !== 'string' || !VALID_TYPES.has(compareValue))
-          return false;
-        if (compareValue === 'array') return Array.isArray(fieldValue);
-        if (compareValue === 'null')
-          return fieldValue === null || fieldValue === undefined;
-        return typeof fieldValue === compareValue;
-      }
-      default:
-        return false;
-    }
   }
 }
