@@ -38,6 +38,7 @@ export function EditorToolbar() {
   const undoStack = useEditorStore((s) => s.undoStack);
   const redoStack = useEditorStore((s) => s.redoStack);
   const selectedNodeId = useEditorStore((s) => s.selectedNodeId);
+  const setVersionHistoryOpen = useEditorStore((s) => s.setVersionHistoryOpen);
 
   const executionStatus = useExecutionStore((s) => s.status);
   const startExecution = useExecutionStore((s) => s.startExecution);
@@ -329,7 +330,7 @@ export function EditorToolbar() {
                   className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-[hsl(var(--popover-foreground))] hover:bg-[hsl(var(--accent))]"
                   onClick={() => {
                     setMoreDropdownOpen(false);
-                    alert("Coming soon");
+                    setVersionHistoryOpen(true);
                   }}
                 >
                   <History size={14} />

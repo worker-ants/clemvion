@@ -21,6 +21,12 @@ interface EditorState {
   edges: Edge[];
   selectedNodeId: string | null;
 
+  // Version history panel
+  versionHistoryOpen: boolean;
+  // Bumped after every successful canvas save so subscribers (e.g., the
+  // version history panel) can refetch.
+  saveCount: number;
+
   // Undo/Redo
   undoStack: Array<{ nodes: Node[]; edges: Edge[] }>;
   redoStack: Array<{ nodes: Node[]; edges: Edge[] }>;
@@ -38,6 +44,7 @@ interface EditorState {
   selectNode: (id: string | null) => void;
   setDirty: (dirty: boolean) => void;
   setSaving: (saving: boolean) => void;
+  setVersionHistoryOpen: (open: boolean) => void;
   saveWorkflow: () => Promise<boolean>;
   pushUndo: () => void;
   undo: () => void;
@@ -280,6 +287,8 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   selectedNodeId: null,
   undoStack: [],
   redoStack: [],
+  versionHistoryOpen: false,
+  saveCount: 0,
 
   setWorkflow: (id, name, nodes, edges) => {
     // Re-derive containerId from the loaded edges so the in-memory state
@@ -446,6 +455,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
 
   setDirty: (isDirty) => set({ isDirty }),
   setSaving: (isSaving) => set({ isSaving }),
+  setVersionHistoryOpen: (open) => set({ versionHistoryOpen: open }),
 
   saveWorkflow: async () => {
     const { workflowId, workflowName, nodes, edges, isSaving } = get();
@@ -485,7 +495,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       };
 
       await workflowsApi.saveCanvas(workflowId, payload);
-      set({ isDirty: false });
+      set((state) => ({ isDirty: false, saveCount: state.saveCount + 1 }));
       return true;
     } catch (error) {
       console.error("Save failed:", error);

@@ -202,4 +202,14 @@ export class SaveCanvasDto {
   @ValidateNested({ each: true })
   @Type(() => SaveCanvasEdgeDto)
   edges: SaveCanvasEdgeDto[];
+
+  /** 이 저장에 대한 변경 요약 (버전 이력에 기록됨) */
+  @ApiPropertyOptional({
+    description: '이 저장에 대한 변경 요약. 버전 이력 목록에 표시됩니다.',
+    maxLength: 500,
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  changeSummary?: string;
 }

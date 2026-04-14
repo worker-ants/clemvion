@@ -283,10 +283,37 @@ export class WorkflowsController {
   async saveCanvas(
     @Param('id', ParseUUIDPipe) id: string,
     @WorkspaceId() workspaceId: string,
-    @CurrentUser() _user: JwtPayload,
+    @CurrentUser() user: JwtPayload,
     @Body() dto: SaveCanvasDto,
   ) {
-    return this.workflowsService.saveCanvas(id, workspaceId, dto);
+    return this.workflowsService.saveCanvas(id, workspaceId, user.sub, dto);
+  }
+
+  @Post(':id/versions/:versionId/restore')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: '워크플로우 버전 복원',
+    description:
+      '지정한 버전의 스냅샷으로 현재 워크플로우를 덮어씁니다. 복원 동작도 새로운 버전으로 기록됩니다.',
+  })
+  @ApiParam({ name: 'id', description: '워크플로우 UUID', format: 'uuid' })
+  @ApiParam({ name: 'versionId', description: '버전 UUID', format: 'uuid' })
+  @ApiOkResponse({ description: '복원 결과 (워크플로우/노드/엣지)' })
+  @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
+  @ApiNotFoundResponse({ description: '워크플로우 또는 버전을 찾을 수 없음' })
+  @ApiConflictResponse({ description: '스냅샷 노드 라벨 충돌' })
+  async restoreVersion(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Param('versionId', ParseUUIDPipe) versionId: string,
+    @WorkspaceId() workspaceId: string,
+    @CurrentUser() user: JwtPayload,
+  ) {
+    return this.workflowsService.restoreVersion(
+      id,
+      workspaceId,
+      versionId,
+      user.sub,
+    );
   }
 
   @Get(':id/export')

@@ -118,3 +118,68 @@ describe('WorkflowsController (execute endpoint)', () => {
     expect(findMock).toHaveBeenCalledWith('wf1', 'ws');
   });
 });
+
+describe('WorkflowsController (canvas + version endpoints)', () => {
+  let controller: WorkflowsController;
+  let workflowsService: jest.Mocked<WorkflowsService>;
+
+  const user: JwtPayload = {
+    sub: 'user-42',
+    email: 'x@y',
+  } as unknown as JwtPayload;
+
+  beforeEach(async () => {
+    const moduleRef = await Test.createTestingModule({
+      controllers: [WorkflowsController],
+      providers: [
+        {
+          provide: WorkflowsService,
+          useValue: {
+            saveCanvas: jest
+              .fn()
+              .mockResolvedValue({ workflow: {}, nodes: [], edges: [] }),
+            restoreVersion: jest
+              .fn()
+              .mockResolvedValue({ workflow: {}, nodes: [], edges: [] }),
+          },
+        },
+        {
+          provide: ExecutionEngineService,
+          useValue: { execute: jest.fn() },
+        },
+        {
+          provide: getRepositoryToken(Node),
+          useValue: { findOne: jest.fn() },
+        },
+      ],
+    }).compile();
+
+    controller = moduleRef.get(WorkflowsController);
+    workflowsService = moduleRef.get(WorkflowsService);
+  });
+
+  it('passes user.sub and dto into saveCanvas', async () => {
+    const dto = {
+      nodes: [],
+      edges: [],
+      changeSummary: 'tweak',
+    } as never;
+    await controller.saveCanvas('wf-1', 'ws-1', user, dto);
+    expect(workflowsService.saveCanvas).toHaveBeenCalledWith(
+      'wf-1',
+      'ws-1',
+      'user-42',
+      dto,
+    );
+  });
+
+  it('forwards version + workflow ids into restoreVersion', async () => {
+    await controller.restoreVersion('wf-1', 'v-1', 'ws-1', user);
+    expect(workflowsService.restoreVersion).toHaveBeenCalledWith(
+      'wf-1',
+      'ws-1',
+      'v-1',
+      'user-42',
+    );
+  });
+});

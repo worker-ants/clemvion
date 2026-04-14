@@ -12,6 +12,7 @@ import { NodePalette } from "./palette/node-palette";
 import { WorkflowCanvas } from "./canvas/workflow-canvas";
 import { NodeSettingsPanel } from "./settings-panel/node-settings-panel";
 import { RunResultsDrawer } from "./run-results/run-results-drawer";
+import { VersionHistoryPanel } from "./version-history/version-history-panel";
 
 export function WorkflowEditor() {
   const undo = useEditorStore((s) => s.undo);
@@ -76,6 +77,9 @@ export function WorkflowEditor() {
 
             {/* Right settings panel (conditional) */}
             <NodeSettingsPanel />
+
+            {/* Version history side panel (conditional) */}
+            <VersionHistoryPanel />
           </div>
 
           {/* Run results drawer (bottom) */}
