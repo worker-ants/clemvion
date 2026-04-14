@@ -65,6 +65,51 @@ export interface ExportedWorkflow {
   edges: ExportedEdge[];
 }
 
+export interface VersionSnapshotNode {
+  id: string;
+  type: string;
+  category: string;
+  label: string;
+  positionX: number;
+  positionY: number;
+  config: Record<string, unknown>;
+  isDisabled: boolean;
+  description: string | null;
+  containerId: string | null;
+  toolOwnerId: string | null;
+}
+
+export interface VersionSnapshotEdge {
+  id: string;
+  sourceNodeId: string;
+  sourcePort: string;
+  targetNodeId: string;
+  targetPort: string;
+  type: string;
+  condition: Record<string, unknown> | null;
+}
+
+export interface VersionSnapshot {
+  name: string;
+  description: string | null;
+  nodes: VersionSnapshotNode[];
+  edges: VersionSnapshotEdge[];
+}
+
+export interface WorkflowVersionSummary {
+  id: string;
+  workflowId: string;
+  version: number;
+  changeSummary: string | null;
+  createdBy: string;
+  createdAt: string;
+  creator?: { id: string; name?: string; email?: string } | null;
+}
+
+export interface WorkflowVersionDetail extends WorkflowVersionSummary {
+  snapshot: VersionSnapshot;
+}
+
 export const workflowsApi = {
   list: (params?: Record<string, string>) =>
     apiClient.get("/workflows", { params }),
@@ -144,4 +189,19 @@ export const workflowsApi = {
 
   importWorkflow: (data: object) =>
     apiClient.post<{ data: WorkflowData }>("/workflows/import", data),
+
+  listVersions: (workflowId: string) =>
+    apiClient.get<{ data: WorkflowVersionSummary[] }>(
+      `/workflows/${workflowId}/versions`,
+    ),
+
+  getVersion: (workflowId: string, versionId: string) =>
+    apiClient.get<{ data: WorkflowVersionDetail }>(
+      `/workflows/${workflowId}/versions/${versionId}`,
+    ),
+
+  restoreVersion: (workflowId: string, versionId: string) =>
+    apiClient.post<{
+      data: { workflow: WorkflowData; nodes: NodeData[]; edges: EdgeData[] };
+    }>(`/workflows/${workflowId}/versions/${versionId}/restore`),
 };

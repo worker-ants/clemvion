@@ -1,14 +1,37 @@
-import { Injectable } from '@nestjs/common';
+import {
+  ConflictException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { EntityManager, QueryFailedError, Repository } from 'typeorm';
 import { WorkflowVersion } from './entities/workflow-version.entity';
+import { Workflow } from '../workflows/entities/workflow.entity';
 
 @Injectable()
 export class WorkflowVersionsService {
   constructor(
     @InjectRepository(WorkflowVersion)
     private readonly workflowVersionRepository: Repository<WorkflowVersion>,
+    @InjectRepository(Workflow)
+    private readonly workflowRepository: Repository<Workflow>,
   ) {}
+
+  async assertWorkspaceOwnership(
+    workflowId: string,
+    workspaceId: string,
+  ): Promise<void> {
+    const workflow = await this.workflowRepository.findOne({
+      where: { id: workflowId, workspaceId },
+      select: { id: true },
+    });
+    if (!workflow) {
+      throw new NotFoundException({
+        code: 'RESOURCE_NOT_FOUND',
+        message: 'Workflow not found',
+      });
+    }
+  }
 
   async findByWorkflow(workflowId: string): Promise<WorkflowVersion[]> {
     return this.workflowVersionRepository.find({
@@ -18,21 +41,48 @@ export class WorkflowVersionsService {
     });
   }
 
+  async findOne(
+    workflowId: string,
+    versionId: string,
+  ): Promise<WorkflowVersion> {
+    const version = await this.workflowVersionRepository.findOne({
+      where: { id: versionId, workflowId },
+      relations: ['creator'],
+    });
+    if (!version) {
+      throw new NotFoundException({
+        code: 'RESOURCE_NOT_FOUND',
+        message: 'Workflow version not found',
+      });
+    }
+    return version;
+  }
+
   async createVersion(
     workflowId: string,
     userId: string,
     snapshot: Record<string, unknown>,
     changeSummary?: string,
+    manager?: EntityManager,
   ): Promise<WorkflowVersion> {
-    const latestVersion = await this.workflowVersionRepository
+    const repo = manager
+      ? manager.getRepository(WorkflowVersion)
+      : this.workflowVersionRepository;
+
+    // Compute next version under a row-level write lock so concurrent saves
+    // can't allocate the same number. Falls back to a plain query when no
+    // transaction is provided (legacy callers); the unique constraint catches
+    // the race below either way.
+    const qb = repo
       .createQueryBuilder('wv')
       .where('wv.workflow_id = :workflowId', { workflowId })
-      .orderBy('wv.version', 'DESC')
-      .getOne();
+      .orderBy('wv.version', 'DESC');
+    if (manager) qb.setLock('pessimistic_write');
+    const latestVersion = await qb.getOne();
 
     const nextVersion = latestVersion ? latestVersion.version + 1 : 1;
 
-    const version = this.workflowVersionRepository.create({
+    const version = repo.create({
       workflowId,
       version: nextVersion,
       snapshot,
@@ -40,6 +90,19 @@ export class WorkflowVersionsService {
       createdBy: userId,
     });
 
-    return this.workflowVersionRepository.save(version);
+    try {
+      return await repo.save(version);
+    } catch (err) {
+      if (
+        err instanceof QueryFailedError &&
+        /unique|duplicate/i.test(err.message)
+      ) {
+        throw new ConflictException({
+          code: 'WORKFLOW_VERSION_CONFLICT',
+          message: 'Concurrent save detected — please retry',
+        });
+      }
+      throw err;
+    }
   }
 }

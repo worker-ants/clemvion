@@ -6,11 +6,13 @@ import { Edge } from '../edges/entities/edge.entity';
 import { WorkflowsController } from './workflows.controller';
 import { WorkflowsService } from './workflows.service';
 import { ExecutionEngineModule } from '../execution-engine/execution-engine.module';
+import { WorkflowVersionsModule } from '../workflow-versions/workflow-versions.module';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([Workflow, Node, Edge]),
     ExecutionEngineModule,
+    WorkflowVersionsModule,
   ],
   controllers: [WorkflowsController],
   providers: [WorkflowsService],

@@ -1,11 +1,16 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';
-import { ConflictException, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  NotFoundException,
+} from '@nestjs/common';
 import { WorkflowsService } from './workflows.service';
 import { Workflow } from './entities/workflow.entity';
 import { Node, NodeCategory } from '../nodes/entities/node.entity';
 import { Edge } from '../edges/entities/edge.entity';
+import { WorkflowVersionsService } from '../workflow-versions/workflow-versions.service';
 
 describe('WorkflowsService', () => {
   let service: WorkflowsService;
@@ -74,6 +79,12 @@ describe('WorkflowsService', () => {
       .mockImplementation((cb) => cb(mockTransactionManager)),
   };
 
+  const mockWorkflowVersionsService = {
+    createVersion: jest.fn().mockResolvedValue({ id: 'v-id', version: 2 }),
+    findOne: jest.fn(),
+    findByWorkflow: jest.fn().mockResolvedValue([]),
+  };
+
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -82,6 +93,10 @@ describe('WorkflowsService', () => {
         { provide: getRepositoryToken(Node), useValue: mockNodeRepository },
         { provide: getRepositoryToken(Edge), useValue: mockEdgeRepository },
         { provide: DataSource, useValue: mockDataSource },
+        {
+          provide: WorkflowVersionsService,
+          useValue: mockWorkflowVersionsService,
+        },
       ],
     }).compile();
 
@@ -186,9 +201,47 @@ describe('WorkflowsService', () => {
         edges: [],
       };
 
-      const result = await service.saveCanvas('wf-uuid-1', 'ws-uuid-1', dto);
+      const result = await service.saveCanvas(
+        'wf-uuid-1',
+        'ws-uuid-1',
+        'user-uuid-1',
+        dto,
+      );
       expect(mockDataSource.transaction).toHaveBeenCalled();
       expect(result).toBeDefined();
+    });
+
+    it('should create a version snapshot after committing the canvas', async () => {
+      const dto = {
+        name: 'Updated Name',
+        nodes: [
+          {
+            id: 'node-1',
+            type: 'manual_trigger',
+            category: NodeCategory.TRIGGER,
+            label: 'Manual Trigger',
+            positionX: 100,
+            positionY: 200,
+            config: {},
+          },
+        ],
+        edges: [],
+        changeSummary: 'initial setup',
+      };
+
+      await service.saveCanvas('wf-uuid-1', 'ws-uuid-1', 'user-uuid-1', dto);
+
+      expect(mockWorkflowVersionsService.createVersion).toHaveBeenCalledWith(
+        'wf-uuid-1',
+        'user-uuid-1',
+        expect.objectContaining({
+          name: 'Updated Name',
+          nodes: expect.any(Array),
+          edges: expect.any(Array),
+        }),
+        'initial setup',
+        mockTransactionManager,
+      );
     });
 
     it('should reject canvas without manual trigger', async () => {
@@ -207,7 +260,7 @@ describe('WorkflowsService', () => {
       };
 
       await expect(
-        service.saveCanvas('wf-uuid-1', 'ws-uuid-1', dto),
+        service.saveCanvas('wf-uuid-1', 'ws-uuid-1', 'user-uuid-1', dto),
       ).rejects.toThrow('Workflow must contain a Manual Trigger node');
     });
 
@@ -235,7 +288,7 @@ describe('WorkflowsService', () => {
       };
 
       await expect(
-        service.saveCanvas('wf-uuid-1', 'ws-uuid-1', dto),
+        service.saveCanvas('wf-uuid-1', 'ws-uuid-1', 'user-uuid-1', dto),
       ).rejects.toThrow(
         'Workflow cannot contain more than one Manual Trigger node',
       );
@@ -273,8 +326,85 @@ describe('WorkflowsService', () => {
       };
 
       await expect(
-        service.saveCanvas('wf-uuid-1', 'ws-uuid-1', dto),
+        service.saveCanvas('wf-uuid-1', 'ws-uuid-1', 'user-uuid-1', dto),
       ).rejects.toThrow(ConflictException);
+    });
+  });
+
+  describe('restoreVersion', () => {
+    it('should throw BadRequestException when snapshot is malformed', async () => {
+      mockRepository.findOne.mockResolvedValue(mockWorkflow);
+      mockWorkflowVersionsService.findOne.mockResolvedValue({
+        id: 'v-bad',
+        workflowId: 'wf-uuid-1',
+        version: 1,
+        snapshot: { name: 'x' /* nodes/edges missing */ },
+      });
+
+      await expect(
+        service.restoreVersion('wf-uuid-1', 'ws-uuid-1', 'v-bad', 'user-1'),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('should propagate NotFoundException from findOne', async () => {
+      mockRepository.findOne.mockResolvedValue(mockWorkflow);
+      mockWorkflowVersionsService.findOne.mockRejectedValue(
+        new NotFoundException(),
+      );
+
+      await expect(
+        service.restoreVersion('wf-uuid-1', 'ws-uuid-1', 'v-missing', 'user-1'),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it('should reapply snapshot via saveCanvas with "Restored from vN" summary', async () => {
+      mockRepository.findOne.mockResolvedValue({
+        ...mockWorkflow,
+        currentVersion: 3,
+      });
+      mockWorkflowVersionsService.findOne.mockResolvedValue({
+        id: 'v-uuid-1',
+        workflowId: 'wf-uuid-1',
+        version: 2,
+        snapshot: {
+          name: 'Snapshot Name',
+          nodes: [
+            {
+              id: 'node-1',
+              type: 'manual_trigger',
+              category: NodeCategory.TRIGGER,
+              label: 'Manual Trigger',
+              positionX: 0,
+              positionY: 0,
+              config: {},
+            },
+          ],
+          edges: [],
+        },
+      });
+
+      const saveCanvasSpy = jest.spyOn(service, 'saveCanvas');
+
+      await service.restoreVersion(
+        'wf-uuid-1',
+        'ws-uuid-1',
+        'v-uuid-1',
+        'user-uuid-1',
+      );
+
+      expect(mockWorkflowVersionsService.findOne).toHaveBeenCalledWith(
+        'wf-uuid-1',
+        'v-uuid-1',
+      );
+      expect(saveCanvasSpy).toHaveBeenCalledWith(
+        'wf-uuid-1',
+        'ws-uuid-1',
+        'user-uuid-1',
+        expect.objectContaining({
+          name: 'Snapshot Name',
+          changeSummary: 'Restored from v2',
+        }),
+      );
     });
   });
 });

@@ -15,6 +15,7 @@ import { UpdateWorkflowDto } from './dto/update-workflow.dto';
 import { QueryWorkflowDto } from './dto/query-workflow.dto';
 import { SaveCanvasDto } from './dto/save-canvas.dto';
 import { PaginatedResponseDto } from '../../common/dto/paginated-response.dto';
+import { WorkflowVersionsService } from '../workflow-versions/workflow-versions.service';
 
 const MANUAL_TRIGGER_TYPE = 'manual_trigger';
 const MANUAL_TRIGGER_DEFAULT_POSITION = { x: 250, y: 300 };
@@ -29,6 +30,7 @@ export class WorkflowsService {
     @InjectRepository(Edge)
     private readonly edgeRepository: Repository<Edge>,
     private readonly dataSource: DataSource,
+    private readonly workflowVersionsService: WorkflowVersionsService,
   ) {}
 
   async findAll(
@@ -280,6 +282,7 @@ export class WorkflowsService {
   async saveCanvas(
     id: string,
     workspaceId: string,
+    userId: string,
     dto: SaveCanvasDto,
   ): Promise<{ workflow: Workflow; nodes: Node[]; edges: Edge[] }> {
     const workflow = await this.findById(id, workspaceId);
@@ -299,8 +302,92 @@ export class WorkflowsService {
       const savedNodes = await this.syncNodes(manager, id, dto);
       const savedEdges = await this.syncEdges(manager, id, dto);
 
+      // Snapshot creation runs in the same transaction so canvas + version
+      // either both commit or both roll back. The pessimistic lock inside
+      // createVersion serialises concurrent saves on this workflow.
+      await this.workflowVersionsService.createVersion(
+        id,
+        userId,
+        this.buildSnapshot(workflow, savedNodes, savedEdges),
+        dto.changeSummary,
+        manager,
+      );
+
       return { workflow, nodes: savedNodes, edges: savedEdges };
     });
+  }
+
+  async restoreVersion(
+    workflowId: string,
+    workspaceId: string,
+    versionId: string,
+    userId: string,
+  ): Promise<{ workflow: Workflow; nodes: Node[]; edges: Edge[] }> {
+    await this.findById(workflowId, workspaceId);
+    const target = await this.workflowVersionsService.findOne(
+      workflowId,
+      versionId,
+    );
+
+    // Reject obviously malformed snapshots before they reach saveCanvas, where
+    // a missing `nodes` array would silently wipe the canvas.
+    const snapshot = target.snapshot as {
+      name?: unknown;
+      nodes?: unknown;
+      edges?: unknown;
+    };
+    if (
+      !Array.isArray(snapshot.nodes) ||
+      !Array.isArray(snapshot.edges) ||
+      (snapshot.name !== undefined && typeof snapshot.name !== 'string')
+    ) {
+      throw new BadRequestException({
+        code: 'INVALID_VERSION_SNAPSHOT',
+        message: 'Version snapshot is malformed and cannot be restored',
+      });
+    }
+
+    const dto: SaveCanvasDto = {
+      name: snapshot.name,
+      nodes: snapshot.nodes as SaveCanvasDto['nodes'],
+      edges: snapshot.edges as SaveCanvasDto['edges'],
+      changeSummary: `Restored from v${target.version}`,
+    };
+
+    return this.saveCanvas(workflowId, workspaceId, userId, dto);
+  }
+
+  private buildSnapshot(
+    workflow: Workflow,
+    nodes: Node[],
+    edges: Edge[],
+  ): Record<string, unknown> {
+    return {
+      name: workflow.name,
+      description: workflow.description,
+      nodes: nodes.map((n) => ({
+        id: n.id,
+        type: n.type,
+        category: n.category,
+        label: n.label,
+        positionX: n.positionX,
+        positionY: n.positionY,
+        config: n.config ?? {},
+        isDisabled: n.isDisabled ?? false,
+        description: n.description ?? null,
+        containerId: n.containerId ?? null,
+        toolOwnerId: n.toolOwnerId ?? null,
+      })),
+      edges: edges.map((e) => ({
+        id: e.id,
+        sourceNodeId: e.sourceNodeId,
+        sourcePort: e.sourcePort,
+        targetNodeId: e.targetNodeId,
+        targetPort: e.targetPort,
+        type: e.type,
+        condition: e.condition ?? null,
+      })),
+    };
   }
 
   private validateManualTrigger(dto: SaveCanvasDto): void {

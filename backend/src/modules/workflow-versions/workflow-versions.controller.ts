@@ -6,8 +6,10 @@ import {
   ApiParam,
   ApiOkResponse,
   ApiUnauthorizedResponse,
+  ApiNotFoundResponse,
 } from '@nestjs/swagger';
 import { WorkflowVersionsService } from './workflow-versions.service';
+import { WorkspaceId } from '../../common/decorators';
 
 @ApiTags('Workflow Versions')
 @ApiBearerAuth('access-token')
@@ -26,7 +28,42 @@ export class WorkflowVersionsController {
   @ApiParam({ name: 'wfId', description: '워크플로우 UUID', format: 'uuid' })
   @ApiOkResponse({ description: '버전 이력 목록 (최신순)' })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
-  async findByWorkflow(@Param('wfId', ParseUUIDPipe) wfId: string) {
+  @ApiNotFoundResponse({
+    description: '워크플로우가 현재 워크스페이스에 속하지 않음',
+  })
+  async findByWorkflow(
+    @Param('wfId', ParseUUIDPipe) wfId: string,
+    @WorkspaceId() workspaceId: string,
+  ) {
+    await this.workflowVersionsService.assertWorkspaceOwnership(
+      wfId,
+      workspaceId,
+    );
     return this.workflowVersionsService.findByWorkflow(wfId);
+  }
+
+  @Get(':versionId')
+  @ApiOperation({
+    summary: '워크플로우 버전 상세 조회',
+    description:
+      '지정한 버전의 스냅샷(노드/엣지 포함)과 메타데이터를 반환합니다.',
+  })
+  @ApiParam({ name: 'wfId', description: '워크플로우 UUID', format: 'uuid' })
+  @ApiParam({ name: 'versionId', description: '버전 UUID', format: 'uuid' })
+  @ApiOkResponse({ description: '버전 상세 (snapshot 포함)' })
+  @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
+  @ApiNotFoundResponse({
+    description: '해당 버전을 찾을 수 없거나 다른 워크스페이스 소속',
+  })
+  async findOne(
+    @Param('wfId', ParseUUIDPipe) wfId: string,
+    @Param('versionId', ParseUUIDPipe) versionId: string,
+    @WorkspaceId() workspaceId: string,
+  ) {
+    await this.workflowVersionsService.assertWorkspaceOwnership(
+      wfId,
+      workspaceId,
+    );
+    return this.workflowVersionsService.findOne(wfId, versionId);
   }
 }
