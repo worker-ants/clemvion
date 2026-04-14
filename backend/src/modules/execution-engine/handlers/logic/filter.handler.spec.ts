@@ -41,9 +41,7 @@ describe('FilterHandler', () => {
         combineMode: 'and',
       });
       expect(result.valid).toBe(false);
-      expect(result.errors).toContain(
-        'inputField is required and must be a string',
-      );
+      expect(result.errors).toContain('inputField is required');
     });
 
     it('should return invalid when conditions is missing', () => {
@@ -105,6 +103,17 @@ describe('FilterHandler', () => {
       expect(result.valid).toBe(true);
     });
 
+    it('should accept an already-resolved array as inputField (inline expression)', () => {
+      // {{ $var.a }} is evaluated before reaching the handler and arrives as
+      // the underlying array value rather than a string path.
+      const result = handler.validate({
+        inputField: [{ status: 'active' }],
+        conditions: [{ field: 'status', operator: 'eq', value: 'active' }],
+        combineMode: 'and',
+      });
+      expect(result.valid).toBe(true);
+    });
+
     it('should accept config without combineMode', () => {
       const result = handler.validate({
         inputField: 'items',
@@ -121,6 +130,24 @@ describe('FilterHandler', () => {
       { name: 'Charlie', age: 25, status: 'active' },
       { name: 'Diana', age: 15, status: 'active' },
     ];
+
+    it('should use an already-resolved array directly (inline expression)', async () => {
+      // Mirrors the runtime behaviour after {{ $var.a }} has been replaced
+      // with the underlying array value. Previously this path crashed with
+      // "path.split is not a function" inside getNestedValue.
+      const result = await execFilter(
+        {},
+        {
+          inputField: items,
+          conditions: [{ field: 'status', operator: 'eq', value: 'active' }],
+          combineMode: 'and',
+        },
+      );
+
+      expect(result.output.match).toHaveLength(3);
+      expect(result.output.unmatched).toHaveLength(1);
+      expect(result.output.unmatched[0]).toMatchObject(items[1]);
+    });
 
     it('should filter items by eq condition', async () => {
       const result = await execFilter(
