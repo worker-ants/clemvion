@@ -3,7 +3,7 @@ import {
   ValidationResult,
   ExecutionContext,
 } from '../node-handler.interface.js';
-import { getNestedValue } from './nested-value.util.js';
+import { getNestedValue, resolveFieldValue } from './nested-value.util.js';
 
 interface FilterCondition {
   field: string;
@@ -12,7 +12,9 @@ interface FilterCondition {
 }
 
 interface FilterConfig {
-  inputField: string;
+  // Either a dot-path string applied to `$input` (e.g. `"items"`) OR the
+  // resolved value itself when an inline expression like `{{ $var.a }}` is used.
+  inputField: unknown;
   conditions: FilterCondition[];
   combineMode: 'and' | 'or';
   strictComparison?: boolean;
@@ -56,8 +58,8 @@ export class FilterHandler implements NodeHandler {
     const { inputField, conditions, combineMode } =
       config as unknown as FilterConfig;
 
-    if (!inputField || typeof inputField !== 'string') {
-      errors.push('inputField is required and must be a string');
+    if (inputField === undefined || inputField === null || inputField === '') {
+      errors.push('inputField is required');
     }
 
     if (!conditions || !Array.isArray(conditions)) {
@@ -103,7 +105,7 @@ export class FilterHandler implements NodeHandler {
       strictComparison = false,
     } = config as unknown as FilterConfig;
 
-    const array = getNestedValue(input, inputField);
+    const array = resolveFieldValue(input, inputField);
 
     if (!Array.isArray(array)) {
       throw new Error('Filter inputField does not resolve to an array');
