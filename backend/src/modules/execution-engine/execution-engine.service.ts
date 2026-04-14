@@ -100,13 +100,6 @@ class ExecutionCancelledError extends Error {
   }
 }
 
-class ButtonTimeoutError extends Error {
-  constructor() {
-    super('BUTTON_TIMEOUT: Button interaction timed out');
-    this.name = 'ButtonTimeoutError';
-  }
-}
-
 @Injectable()
 export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
   private readonly logger = new Logger(ExecutionEngineService.name);
@@ -624,20 +617,30 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
     const savedExecution = await this.executionRepository.save(execution);
 
     const timeoutMs = options?.timeoutMs ?? 300_000;
-    let timeoutHandle: ReturnType<typeof setTimeout>;
-    const timeoutPromise = new Promise<never>((_, reject) => {
-      timeoutHandle = setTimeout(() => {
-        reject(
-          new Error(`Sub-workflow execution timed out after ${timeoutMs}ms`),
-        );
-      }, timeoutMs);
-    });
+    let timeoutHandle: ReturnType<typeof setTimeout> | undefined;
+    // timeoutMs === 0 means "no timeout" per spec; skip Promise.race entirely.
+    const timeoutPromise =
+      timeoutMs > 0
+        ? new Promise<never>((_, reject) => {
+            timeoutHandle = setTimeout(() => {
+              reject(
+                new Error(
+                  `Sub-workflow execution timed out after ${timeoutMs}ms`,
+                ),
+              );
+            }, timeoutMs);
+          })
+        : null;
 
     try {
-      await Promise.race([
-        this.runExecution(savedExecution, input),
-        timeoutPromise,
-      ]);
+      if (timeoutPromise) {
+        await Promise.race([
+          this.runExecution(savedExecution, input),
+          timeoutPromise,
+        ]);
+      } else {
+        await this.runExecution(savedExecution, input);
+      }
     } catch (error: unknown) {
       // On timeout, mark the sub-execution as failed
       const reloaded = await this.executionRepository.findOneBy({
@@ -661,7 +664,7 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
       }
       throw error;
     } finally {
-      clearTimeout(timeoutHandle!);
+      if (timeoutHandle) clearTimeout(timeoutHandle);
     }
 
     const completed = await this.executionRepository.findOneBy({
@@ -1038,26 +1041,6 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
         return;
       }
 
-      // Button timeout with cancel action — mark as cancelled
-      if (error instanceof ButtonTimeoutError) {
-        savedExecution.status = ExecutionStatus.CANCELLED;
-        savedExecution.error = { message: error.message };
-        savedExecution.finishedAt = new Date();
-        savedExecution.durationMs =
-          savedExecution.finishedAt.getTime() -
-          savedExecution.startedAt.getTime();
-        await this.executionRepository.save(savedExecution);
-        this.websocketService.emitExecutionEvent(
-          executionId,
-          ExecutionEventType.EXECUTION_CANCELLED,
-          {
-            status: ExecutionStatus.CANCELLED,
-            error: error.message,
-          },
-        );
-        return;
-      }
-
       // Mark execution as failed
       savedExecution.status = ExecutionStatus.FAILED;
       savedExecution.error = {
@@ -1153,22 +1136,13 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
       },
     );
 
-    // Await user submission with timeout (30 minutes default)
-    const timeoutMs = ((node.config?.timeout as number) ?? 1800) * 1000;
+    // Await user submission indefinitely; external cancel is the only exit.
     const formData = await new Promise<unknown>((resolve, reject) => {
-      // Store resolve before emit so a fast client can't race
       this.pendingContinuations.set(executionId, {
         nodeId: node.id,
         resolve,
         reject,
       });
-
-      setTimeout(() => {
-        if (this.pendingContinuations.has(executionId)) {
-          this.pendingContinuations.delete(executionId);
-          reject(new ExecutionCancelledError());
-        }
-      }, timeoutMs);
     });
 
     // Merge submitted form data into the structured NodeHandlerOutput.
@@ -1303,7 +1277,7 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
   /**
    * Pause execution at an AI Agent node in multi-turn mode.
    * Loops: emit AI response → wait for user message → process → repeat.
-   * Exits when user ends conversation, maxTurns is reached, or timeout occurs.
+   * Exits when user ends conversation or maxTurns is reached.
    */
   private async waitForAiConversation(
     savedExecution: Execution,
@@ -1316,8 +1290,6 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
       unknown
     >;
     let multiTurnState = nodeOutput._multiTurnState as Record<string, unknown>;
-    const turnTimeout = (multiTurnState.turnTimeout as number) ?? 1800;
-    const timeoutMs = turnTimeout * 1000;
 
     // Update execution status to waiting
     await this.updateExecutionStatus(
@@ -1379,32 +1351,19 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
     // Conversation loop
     let conversationEnded = false;
     while (!conversationEnded) {
-      // Wait for user message or end signal
-      let turnTimer: ReturnType<typeof setTimeout> | undefined;
+      // Wait for user message or end signal (no timeout — external cancel only)
       const userData = await new Promise<unknown>((resolve, reject) => {
         this.pendingContinuations.set(executionId, {
           nodeId: node.id,
           resolve,
           reject,
         });
-
-        turnTimer = setTimeout(() => {
-          if (this.pendingContinuations.has(executionId)) {
-            this.pendingContinuations.delete(executionId);
-            resolve({ type: 'ai_timeout' });
-          }
-        }, timeoutMs);
       });
-      if (turnTimer) clearTimeout(turnTimer);
 
       const action = userData as Record<string, unknown>;
 
-      if (
-        action.type === 'ai_end_conversation' ||
-        action.type === 'ai_timeout'
-      ) {
-        // End conversation
-        const endReason = action.type === 'ai_timeout' ? 'error' : 'user_ended';
+      if (action.type === 'ai_end_conversation') {
+        const endReason = 'user_ended';
 
         const handler = this.handlerRegistry.get(node.type) as unknown as {
           endMultiTurnConversation: (
@@ -1697,45 +1656,18 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
         interactionType: 'buttons',
         buttonConfig: {
           buttons,
-          timeout: buttonConfig.buttonTimeout,
-          timeoutAction: buttonConfig.buttonTimeoutAction,
           nodeOutput: nodeOutputForEvent,
         },
       },
     );
 
-    // Determine timeout
-    const timeoutSeconds = buttonConfig.buttonTimeout;
-    // If no timeout set, use 30 minutes as safety default
-    const timeoutMs = timeoutSeconds ? timeoutSeconds * 1000 : 30 * 60 * 1000;
-
-    // Await user button click with timeout
+    // Await user button click indefinitely; external cancel is the only exit.
     const clickData = await new Promise<unknown>((resolve, reject) => {
       this.pendingContinuations.set(executionId, {
         nodeId: node.id,
         resolve,
         reject,
       });
-
-      setTimeout(() => {
-        if (this.pendingContinuations.has(executionId)) {
-          this.pendingContinuations.delete(executionId);
-
-          // If explicit timeout is set, apply timeoutAction
-          if (timeoutSeconds) {
-            const action = buttonConfig.buttonTimeoutAction ?? 'continue';
-            if (action === 'cancel') {
-              reject(new ButtonTimeoutError());
-            } else {
-              // continue: resolve with timeout continue action
-              resolve({ type: 'button_timeout', action: 'continue' });
-            }
-          } else {
-            // Safety timeout (no explicit timeout set) → cancel
-            reject(new ExecutionCancelledError());
-          }
-        }
-      }, timeoutMs);
     });
 
     // Process the interaction result
@@ -1815,21 +1747,6 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
           _selectedPort: selectedPort,
         };
       }
-    } else if (click.type === 'button_timeout') {
-      // Timeout with continue action
-      selectedPort = 'continue';
-      interactionData = {
-        interactionType: 'button_timeout',
-        action: 'continue',
-        clickedAt: now,
-      };
-      updatedOutput = {
-        type: 'button_continue',
-        clickedAt: now,
-        timedOut: true,
-        nodeOutput: cleanNodeOutput,
-        _selectedPort: selectedPort,
-      };
     } else {
       // Fallback: treat as continue
       selectedPort = 'continue';
@@ -1894,11 +1811,7 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
     // `interactionType` is whitelist-validated at the ButtonInteractionData
     // type boundary; narrow to a known set so downstream routing can't be
     // coerced into unknown states.
-    const INTERACTION_STATUSES = [
-      'button_click',
-      'button_continue',
-      'button_timeout',
-    ] as const;
+    const INTERACTION_STATUSES = ['button_click', 'button_continue'] as const;
     type InteractionStatus = (typeof INTERACTION_STATUSES)[number];
     const rawStatus = interactionData.interactionType as string;
     const resolvedStatus: InteractionStatus = (

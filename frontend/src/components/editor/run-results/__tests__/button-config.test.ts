@@ -16,13 +16,9 @@ describe("parseButtonConfig", () => {
   it("parses a valid port button", () => {
     const cfg = parseButtonConfig({
       buttons: [{ id: "a", label: "A", type: "port" }],
-      timeout: 30,
-      timeoutAction: "continue",
     });
     expect(cfg).toEqual({
       buttons: [{ id: "a", label: "A", type: "port", url: undefined, style: undefined }],
-      timeout: 30,
-      timeoutAction: "continue",
     });
   });
 

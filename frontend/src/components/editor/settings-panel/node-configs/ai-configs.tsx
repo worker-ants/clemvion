@@ -195,13 +195,6 @@ export function AiAgentConfig({ config, onChange }: { config: Config; onChange: 
             min={0}
             hint="0 = unlimited"
           />
-          <NumberField
-            label="Turn Timeout (sec)"
-            value={(config.turnTimeout as number) ?? 1800}
-            onChange={(v) => onChange({ ...config, turnTimeout: v })}
-            min={1}
-            hint="Max wait time for user response"
-          />
         </>
       )}
     </div>
@@ -394,13 +387,6 @@ export function InformationExtractorConfig({ config, onChange }: { config: Confi
             onChange={(v) => onChange({ ...config, maxTurns: v })}
             min={0}
             hint="0 = unlimited"
-          />
-          <NumberField
-            label="Turn Timeout (sec)"
-            value={(config.turnTimeout as number) ?? 1800}
-            onChange={(v) => onChange({ ...config, turnTimeout: v })}
-            min={1}
-            hint="Max wait time for user response"
           />
         </>
       )}

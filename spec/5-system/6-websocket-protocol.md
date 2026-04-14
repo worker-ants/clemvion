@@ -304,8 +304,7 @@ Access Token (15분) 만료 전에 연결을 유지하려면:
         { "role": "assistant", "content": "안녕하세요! 무엇을 도와드릴까요?" }
       ],
       "turnCount": 1,
-      "maxTurns": 20,
-      "turnTimeout": 1800
+      "maxTurns": 20
     }
   }
 }

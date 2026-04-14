@@ -192,7 +192,6 @@ export function useExecutionEvents({
           messages?: Array<{ role: string; content: string }>;
           turnCount?: number;
           maxTurns?: number;
-          turnTimeout?: number;
         } | undefined;
         pauseForConversation(payload.waitingNodeId, convConfig ?? null);
 

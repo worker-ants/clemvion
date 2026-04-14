@@ -7,12 +7,14 @@ import {
 interface MergeConfig {
   strategy: 'wait_all' | 'first' | 'append';
   outputFormat: 'array' | 'merge_object' | 'indexed';
+  timeout?: number;
 }
 
 export class MergeHandler implements NodeHandler {
   validate(config: Record<string, unknown>): ValidationResult {
     const errors: string[] = [];
-    const { strategy, outputFormat } = config as unknown as MergeConfig;
+    const { strategy, outputFormat, timeout } =
+      config as unknown as MergeConfig;
 
     if (!strategy || !['wait_all', 'first', 'append'].includes(strategy)) {
       errors.push('strategy must be one of: wait_all, first, append');
@@ -23,6 +25,10 @@ export class MergeHandler implements NodeHandler {
       !['array', 'merge_object', 'indexed'].includes(outputFormat)
     ) {
       errors.push('outputFormat must be one of: array, merge_object, indexed');
+    }
+
+    if (timeout !== undefined && (typeof timeout !== 'number' || timeout < 0)) {
+      errors.push('timeout must be a non-negative number (0 = no timeout)');
     }
 
     return { valid: errors.length === 0, errors };

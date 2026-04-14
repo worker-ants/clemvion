@@ -90,8 +90,6 @@ export class ChartHandler implements NodeHandler {
           ...configEcho,
           buttonConfig: {
             buttons,
-            buttonTimeout: config.buttonTimeout,
-            buttonTimeoutAction: config.buttonTimeoutAction ?? 'continue',
           },
         },
         output: payload,

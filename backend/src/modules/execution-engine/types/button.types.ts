@@ -8,14 +8,12 @@ export interface ButtonDef {
 
 export interface ButtonConfig {
   buttons: ButtonDef[];
-  buttonTimeout?: number;
-  buttonTimeoutAction?: 'continue' | 'cancel';
   /** Maps button id → item index for carousel/table per-item buttons. */
   buttonItemMap?: Record<string, number>;
 }
 
 export interface ButtonInteractionData {
-  interactionType: 'button_click' | 'button_continue' | 'button_timeout';
+  interactionType: 'button_click' | 'button_continue';
   buttonId?: string;
   buttonLabel?: string;
   clickedAt: string;
@@ -104,35 +102,6 @@ export function validateButtons(config: Record<string, unknown>): string[] {
         `buttons[${i}].style must be one of: primary, secondary, outline, danger`,
       );
     }
-  }
-
-  // Timeout validation
-  const buttonTimeout = config.buttonTimeout;
-  if (buttonTimeout !== undefined && buttonTimeout !== null) {
-    if (
-      typeof buttonTimeout !== 'number' ||
-      buttonTimeout < 1 ||
-      buttonTimeout > 86400
-    ) {
-      errors.push('buttonTimeout must be between 1 and 86400 seconds');
-    }
-  }
-
-  // Timeout action validation
-  const buttonTimeoutAction = config.buttonTimeoutAction as string | undefined;
-  if (
-    buttonTimeoutAction !== undefined &&
-    !['continue', 'cancel'].includes(buttonTimeoutAction)
-  ) {
-    errors.push('buttonTimeoutAction must be "continue" or "cancel"');
-  }
-
-  // If port buttons exist, timeoutAction must be cancel (or undefined)
-  const validatedButtons = rawButtons as unknown as ButtonDef[];
-  if (hasPortButtons(validatedButtons) && buttonTimeoutAction === 'continue') {
-    errors.push(
-      'buttonTimeoutAction cannot be "continue" when port type buttons exist',
-    );
   }
 
   return errors;

@@ -229,8 +229,6 @@ export class CarouselHandler implements NodeHandler {
             buttons: allButtons,
             buttonItemMap:
               Object.keys(buttonItemMap).length > 0 ? buttonItemMap : undefined,
-            buttonTimeout: config.buttonTimeout,
-            buttonTimeoutAction: config.buttonTimeoutAction ?? 'continue',
           },
         },
         output: payload,

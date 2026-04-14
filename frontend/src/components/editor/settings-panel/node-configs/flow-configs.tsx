@@ -67,8 +67,8 @@ export function WorkflowConfig({ config, onChange }: { config: Config; onChange:
           label="Timeout (seconds)"
           value={(config.timeout as number) ?? 300}
           onChange={(v) => onChange({ ...config, timeout: v })}
-          min={1}
-          hint="Max wait time for synchronous execution"
+          min={0}
+          hint="0 = no timeout"
         />
       )}
     </div>

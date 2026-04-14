@@ -150,11 +150,11 @@
 
 | type | 표시 이름 | 아이콘 | 입력 | 출력 | 키 설정 |
 |------|-----------|--------|------|------|---------|
-| `carousel` | Carousel | 🎠 | 1 | 1 (out) 또는 N (동적 버튼 포트) | titleField, descriptionField, imageField, layout, buttons, buttonTimeout |
-| `table` | Table | 📋 | 1 | 1 (out) 또는 N (동적 버튼 포트) | columns, pagination, pageSize, sortBy, buttons, buttonTimeout |
-| `chart` | Chart | 📊 | 1 | 1 (out) 또는 N (동적 버튼 포트) | chartType, dataField, xAxis, yAxis, groupBy, buttons, buttonTimeout |
-| `form` | Form | 📝 | 1 | 1 | fields, title, submitLabel, timeout |
-| `template` | Template | 📄 | 1 | 1 (out) 또는 N (동적 버튼 포트) | template, outputFormat, helpers, buttons, buttonTimeout |
+| `carousel` | Carousel | 🎠 | 1 | 1 (out) 또는 N (동적 버튼 포트) | titleField, descriptionField, imageField, layout, buttons |
+| `table` | Table | 📋 | 1 | 1 (out) 또는 N (동적 버튼 포트) | columns, pagination, pageSize, sortBy, buttons |
+| `chart` | Chart | 📊 | 1 | 1 (out) 또는 N (동적 버튼 포트) | chartType, dataField, xAxis, yAxis, groupBy, buttons |
+| `form` | Form | 📝 | 1 | 1 | fields, title, submitLabel |
+| `template` | Template | 📄 | 1 | 1 (out) 또는 N (동적 버튼 포트) | template, outputFormat, helpers, buttons |
 | `pdf` | PDF | 📑 | 1 | 1 | template, pageSize, orientation, fileName |
 
 ---

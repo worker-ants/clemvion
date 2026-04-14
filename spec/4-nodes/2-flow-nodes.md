@@ -16,7 +16,7 @@
 | workflowName | String? | 선택된 워크플로우 이름 (캔버스 요약 표시용, 드롭다운 선택 시 자동 저장) |
 | mode | Enum | `sync` / `async` |
 | inputMapping | MappingDef[] | 입력 파라미터 매핑 |
-| timeout | Integer? | 동기 호출 시 타임아웃 (초, 기본: 300) |
+| timeout | Integer? | 동기 호출 시 타임아웃 (초, 기본: 300). `0 = no timeout` (무제한 대기) |
 
 ### 설정 UI
 
@@ -44,7 +44,7 @@
 │  │ [+ Add Parameter]                 ││
 │  └────────────────────────────────────┘│
 │                                        │
-│  Timeout: [300] seconds                │
+│  Timeout: [300] seconds (0=no timeout) │
 └────────────────────────────────────────┘
 ```
 

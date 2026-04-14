@@ -70,14 +70,13 @@ describe('WorkflowHandler', () => {
       expect(result.errors).toContain('mode must be "sync" or "async"');
     });
 
-    it('should fail when timeout is not positive', () => {
+    it('should allow timeout = 0 (no timeout)', () => {
       const result = handler.validate({
         workflowId: 'wf-123',
         mode: 'sync',
         timeout: 0,
       });
-      expect(result.valid).toBe(false);
-      expect(result.errors).toContain('timeout must be a positive number');
+      expect(result.valid).toBe(true);
     });
 
     it('should fail when timeout is negative', () => {
@@ -87,7 +86,9 @@ describe('WorkflowHandler', () => {
         timeout: -10,
       });
       expect(result.valid).toBe(false);
-      expect(result.errors).toContain('timeout must be a positive number');
+      expect(result.errors).toContain(
+        'timeout must be a non-negative number (0 = no timeout)',
+      );
     });
 
     it('should fail when inputMapping is not an array', () => {
