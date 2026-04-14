@@ -20,6 +20,12 @@ export interface NodeExecutionData {
   outputData: Record<string, unknown> | null;
   error: { message?: string } | null;
   retryCount: number;
+  /**
+   * NodeExecution.id of the Sub-Workflow node that invoked this node via
+   * inline execution. Null for nodes in the root workflow. Used by the
+   * run-results timeline to render Sub-Workflow children as a nested card.
+   */
+  parentNodeExecutionId: string | null;
   node?: { id: string; type: string; label: string };
 }
 

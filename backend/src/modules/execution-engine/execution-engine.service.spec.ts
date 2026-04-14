@@ -256,6 +256,90 @@ describe('ExecutionEngineService', () => {
     expect(service).toBeDefined();
   });
 
+  describe('executeInline — Sub-Workflow parent linking', () => {
+    let contextService: ExecutionContextService;
+
+    beforeEach(() => {
+      contextService = (
+        service as unknown as { contextService: ExecutionContextService }
+      ).contextService;
+    });
+
+    it('stamps parent_node_execution_id on every child created during inline run', async () => {
+      mockNodeExecutionRepo.create.mockClear();
+      const context = contextService.createContext(executionId, workflowId);
+
+      await service.executeInline(
+        workflowId,
+        { foo: 'bar' },
+        {
+          executionId,
+          context,
+          executedNodes: new Set<string>(),
+          recursionDepth: 1,
+          parentNodeExecutionId: 'workflow-node-row-1',
+        },
+      );
+
+      // Every NodeExecution.create call inside the inline run must carry
+      // the parent id we passed.
+      const createCalls = mockNodeExecutionRepo.create.mock.calls as Array<
+        [Partial<NodeExecution>]
+      >;
+      expect(createCalls.length).toBeGreaterThan(0);
+      for (const [arg] of createCalls) {
+        expect(arg.parentNodeExecutionId).toBe('workflow-node-row-1');
+      }
+    });
+
+    it('restores context.parentNodeExecutionId after the inline run (happy path)', async () => {
+      const context = contextService.createContext(executionId, workflowId);
+      context.parentNodeExecutionId = 'outer-parent';
+
+      await service.executeInline(
+        workflowId,
+        {},
+        {
+          executionId,
+          context,
+          executedNodes: new Set<string>(),
+          recursionDepth: 1,
+          parentNodeExecutionId: 'inner-parent',
+        },
+      );
+
+      expect(context.parentNodeExecutionId).toBe('outer-parent');
+    });
+
+    it('restores context.parentNodeExecutionId even when a child handler throws', async () => {
+      const throwingHandler: NodeHandler = {
+        validate: () => ({ valid: true, errors: [] }),
+        execute: jest.fn(() => Promise.reject(new Error('boom'))),
+      };
+      handlerRegistry.register('test_node', throwingHandler);
+
+      const context = contextService.createContext(executionId, workflowId);
+      context.parentNodeExecutionId = 'outer-parent';
+
+      await expect(
+        service.executeInline(
+          workflowId,
+          {},
+          {
+            executionId,
+            context,
+            executedNodes: new Set<string>(),
+            recursionDepth: 1,
+            parentNodeExecutionId: 'inner-parent',
+          },
+        ),
+      ).rejects.toThrow();
+
+      // finally block must restore regardless of success/failure.
+      expect(context.parentNodeExecutionId).toBe('outer-parent');
+    });
+  });
+
   it('should return execution ID immediately', async () => {
     const result = await service.execute(workflowId, { data: 'test' });
     expect(result).toBe(executionId);

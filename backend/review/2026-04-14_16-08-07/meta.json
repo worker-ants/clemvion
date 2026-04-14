@@ -1,0 +1,78 @@
+{
+  "timestamp": "2026-04-14T16:09:14.639462",
+  "files": [
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/backend/migrations/V012__add_parent_node_execution_id.sql",
+      "change_type": "Review",
+      "file_extension": "sql"
+    }
+  ],
+  "total_elapsed_seconds": 66.74,
+  "agents": [
+    {
+      "name": "scope",
+      "status": "success",
+      "elapsed_seconds": 10.26
+    },
+    {
+      "name": "api_contract",
+      "status": "success",
+      "elapsed_seconds": 10.24
+    },
+    {
+      "name": "security",
+      "status": "success",
+      "elapsed_seconds": 17.77
+    },
+    {
+      "name": "dependency",
+      "status": "success",
+      "elapsed_seconds": 18.14
+    },
+    {
+      "name": "concurrency",
+      "status": "success",
+      "elapsed_seconds": 18.57
+    },
+    {
+      "name": "documentation",
+      "status": "success",
+      "elapsed_seconds": 18.78
+    },
+    {
+      "name": "maintainability",
+      "status": "success",
+      "elapsed_seconds": 21.07
+    },
+    {
+      "name": "side_effect",
+      "status": "success",
+      "elapsed_seconds": 22.21
+    },
+    {
+      "name": "testing",
+      "status": "success",
+      "elapsed_seconds": 22.81
+    },
+    {
+      "name": "requirement",
+      "status": "success",
+      "elapsed_seconds": 23.99
+    },
+    {
+      "name": "architecture",
+      "status": "success",
+      "elapsed_seconds": 27.57
+    },
+    {
+      "name": "database",
+      "status": "success",
+      "elapsed_seconds": 27.78
+    },
+    {
+      "name": "performance",
+      "status": "success",
+      "elapsed_seconds": 27.81
+    }
+  ]
+}

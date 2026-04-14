@@ -136,7 +136,23 @@ describe('WorkflowHandler', () => {
           context,
           executedNodes: context._executedNodes,
           recursionDepth: 1,
+          parentNodeExecutionId: context.nodeExecutionId,
         },
+      );
+    });
+
+    it("should pass the workflow node's own nodeExecutionId as parentNodeExecutionId for children", async () => {
+      context.nodeExecutionId = 'workflow-node-exec-42';
+      mockExecutor.executeInline.mockResolvedValue({});
+
+      await handler.execute({}, syncConfig, context);
+
+      expect(mockExecutor.executeInline).toHaveBeenCalledWith(
+        'sub-wf-1',
+        {},
+        expect.objectContaining({
+          parentNodeExecutionId: 'workflow-node-exec-42',
+        }),
       );
     });
 

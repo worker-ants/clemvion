@@ -275,7 +275,13 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
     input: unknown,
     options: InlineExecutionOptions,
   ): Promise<unknown> {
-    const { executionId, context, executedNodes, recursionDepth } = options;
+    const {
+      executionId,
+      context,
+      executedNodes,
+      recursionDepth,
+      parentNodeExecutionId,
+    } = options;
 
     // Strip _selectedPort from input — this is parent execution metadata
     // that must not leak into the sub-workflow (it would cause all downstream
@@ -357,6 +363,14 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
     const prevDepth = context.recursionDepth;
     context.recursionDepth = recursionDepth;
 
+    // Stamp parentNodeExecutionId so every NodeExecution created during this
+    // inline run records the invoking Sub-Workflow row id. Restored in
+    // the finally block so sibling nodes of the parent don't inherit it.
+    const prevParentNodeExecutionId = context.parentNodeExecutionId;
+    if (parentNodeExecutionId) {
+      context.parentNodeExecutionId = parentNodeExecutionId;
+    }
+
     const maxNodeIterations = this.configService.get<number>(
       'MAX_NODE_ITERATIONS',
       100,
@@ -409,10 +423,23 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
 
         // Skip disabled nodes (don't propagate reachability to downstream)
         if (node.isDisabled) {
-          await this.createNodeExecution(
+          const skipped = await this.createNodeExecution(
             executionId,
             nodeId,
             NodeExecutionStatus.SKIPPED,
+            context.parentNodeExecutionId,
+          );
+          this.websocketService.emitNodeEvent(
+            executionId,
+            nodeId,
+            NodeEventType.NODE_SKIPPED,
+            {
+              nodeExecutionId: skipped.id,
+              parentNodeExecutionId: context.parentNodeExecutionId,
+              status: NodeExecutionStatus.SKIPPED,
+              nodeType: node.type,
+              nodeLabel: node.label ?? node.type,
+            },
           );
           executedNodes.add(nodeId);
           pointer++;
@@ -564,6 +591,7 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
     } finally {
       // Restore parent's recursion depth
       context.recursionDepth = prevDepth;
+      context.parentNodeExecutionId = prevParentNodeExecutionId;
     }
 
     return lastOutput;
@@ -837,10 +865,23 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
 
         // Skip disabled nodes (don't propagate reachability to downstream)
         if (node.isDisabled) {
-          await this.createNodeExecution(
+          const skipped = await this.createNodeExecution(
             executionId,
             nodeId,
             NodeExecutionStatus.SKIPPED,
+            context.parentNodeExecutionId,
+          );
+          this.websocketService.emitNodeEvent(
+            executionId,
+            nodeId,
+            NodeEventType.NODE_SKIPPED,
+            {
+              nodeExecutionId: skipped.id,
+              parentNodeExecutionId: context.parentNodeExecutionId,
+              status: NodeExecutionStatus.SKIPPED,
+              nodeType: node.type,
+              nodeLabel: node.label ?? node.type,
+            },
           );
           executedNodes.add(nodeId);
           pointer++;
@@ -1172,6 +1213,7 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
         NodeEventType.NODE_COMPLETED,
         {
           nodeExecutionId: nodeExec.id,
+          parentNodeExecutionId: context.parentNodeExecutionId,
           status: NodeExecutionStatus.COMPLETED,
           duration: nodeExec.durationMs,
           nodeType: node.type,
@@ -1564,6 +1606,7 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
         NodeEventType.NODE_COMPLETED,
         {
           nodeExecutionId: nodeExec.id,
+          parentNodeExecutionId: context.parentNodeExecutionId,
           status: NodeExecutionStatus.COMPLETED,
           duration: nodeExec.durationMs,
           nodeType: node.type,
@@ -1894,6 +1937,7 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
         NodeEventType.NODE_COMPLETED,
         {
           nodeExecutionId: nodeExec.id,
+          parentNodeExecutionId: context.parentNodeExecutionId,
           status: NodeExecutionStatus.COMPLETED,
           duration: nodeExec.durationMs,
           nodeType: node.type,
@@ -1925,6 +1969,7 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
       executionId,
       node.id,
       NodeExecutionStatus.RUNNING,
+      context.parentNodeExecutionId,
     );
     this.websocketService.emitNodeEvent(
       executionId,
@@ -1935,6 +1980,10 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
         // the same body node — without this, multiple runs of the same nodeId
         // collapse into one entry in the run-results timeline.
         nodeExecutionId: nodeExecution.id,
+        // Sub-Workflow grouping: when the node runs inside an inline
+        // Sub-Workflow, the frontend uses this to nest it under the
+        // invoking Sub-Workflow row as a card child.
+        parentNodeExecutionId: context.parentNodeExecutionId,
         status: NodeExecutionStatus.RUNNING,
         nodeType: node.type,
         nodeLabel: node.label ?? node.type,
@@ -2048,6 +2097,7 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
           NodeEventType.NODE_COMPLETED,
           {
             nodeExecutionId: nodeExecution.id,
+            parentNodeExecutionId: context.parentNodeExecutionId,
             status: NodeExecutionStatus.COMPLETED,
             duration: nodeExecution.durationMs,
             nodeType: node.type,
@@ -2095,6 +2145,7 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
             NodeEventType.NODE_SKIPPED,
             {
               nodeExecutionId: nodeExecution.id,
+              parentNodeExecutionId: context.parentNodeExecutionId,
               status: NodeExecutionStatus.SKIPPED,
               nodeType: node.type,
               nodeLabel: node.label ?? node.type,
@@ -2156,6 +2207,7 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
             NodeEventType.NODE_FAILED,
             {
               nodeExecutionId: nodeExecution.id,
+              parentNodeExecutionId: context.parentNodeExecutionId,
               status: NodeExecutionStatus.FAILED,
               error: error instanceof Error ? error.message : String(error),
               nodeType: node.type,
@@ -2436,10 +2488,23 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
       if (!node) continue;
 
       if (node.isDisabled) {
-        await this.createNodeExecution(
+        const skipped = await this.createNodeExecution(
           executionId,
           nodeId,
           NodeExecutionStatus.SKIPPED,
+          context.parentNodeExecutionId,
+        );
+        this.websocketService.emitNodeEvent(
+          executionId,
+          nodeId,
+          NodeEventType.NODE_SKIPPED,
+          {
+            nodeExecutionId: skipped.id,
+            parentNodeExecutionId: context.parentNodeExecutionId,
+            status: NodeExecutionStatus.SKIPPED,
+            nodeType: node.type,
+            nodeLabel: node.label ?? node.type,
+          },
         );
         executedNodes.add(nodeId);
         continue;
@@ -2682,6 +2747,7 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
         NodeEventType.NODE_FAILED,
         {
           nodeExecutionId: nodeExec?.id,
+          parentNodeExecutionId: nodeExec?.parentNodeExecutionId ?? undefined,
           status: NodeExecutionStatus.FAILED,
           error: message,
           nodeType: containerNode.type,
@@ -2779,12 +2845,14 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
     executionId: string,
     nodeId: string,
     status: NodeExecutionStatus,
+    parentNodeExecutionId?: string | null,
   ): Promise<NodeExecution> {
     const nodeExecution = this.nodeExecutionRepository.create({
       executionId,
       nodeId,
       status,
       inputData: {},
+      parentNodeExecutionId: parentNodeExecutionId ?? null,
     });
     return this.nodeExecutionRepository.save(nodeExecution);
   }

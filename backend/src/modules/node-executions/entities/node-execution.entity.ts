@@ -62,4 +62,19 @@ export class NodeExecution {
 
   @Column({ name: 'retry_count', default: 0 })
   retryCount: number;
+
+  /**
+   * When this NodeExecution was produced inside an inline Sub-Workflow
+   * invocation, points to the `workflow` node's NodeExecution row that
+   * triggered the inline run. Lets the run-results timeline group children
+   * under their parent Sub-Workflow card. NULL for nodes that ran directly
+   * in the main workflow (or at any depth where no Sub-Workflow wrapper
+   * applies).
+   */
+  @Column({ name: 'parent_node_execution_id', nullable: true })
+  parentNodeExecutionId: string | null;
+
+  @ManyToOne(() => NodeExecution, { nullable: true, onDelete: 'SET NULL' })
+  @JoinColumn({ name: 'parent_node_execution_id' })
+  parentNodeExecution: NodeExecution | null;
 }

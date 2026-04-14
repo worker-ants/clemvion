@@ -27,6 +27,15 @@ export interface ExecutionContext {
   };
   expressionContext?: Record<string, unknown>;
   recursionDepth?: number;
+  /**
+   * When set, the engine will persist every NodeExecution created under this
+   * context with `parent_node_execution_id = this value`. Stamped by
+   * WorkflowHandler before an inline sub-workflow run so children can be
+   * grouped under their invoking Sub-Workflow row in the run-results
+   * timeline. Must be restored to the prior value on inline-run return so
+   * sibling nodes don't inherit it.
+   */
+  parentNodeExecutionId?: string;
   /** Runtime state injected by ExecutionEngineService for sub-workflow inline execution */
   _executedNodes?: Set<string>;
 }
