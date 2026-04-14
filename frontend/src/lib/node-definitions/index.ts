@@ -14,6 +14,7 @@ export type NodeDefinition = {
   inputs: PortDefinition[];
   outputs: PortDefinition[];
   isContainer?: boolean;
+  defaultConfig?: Record<string, unknown>;
 };
 
 export const CATEGORY_COLORS: Record<string, string> = {
@@ -39,7 +40,7 @@ export const NODE_DEFINITIONS: NodeDefinition[] = [
   { type: "split", category: "logic", label: "Split", description: "Split array items", icon: "Split", color: CATEGORY_COLORS.logic, inputs: [{ id: "in", label: "Input", type: "data" }], outputs: [{ id: "out", label: "Output", type: "data" }] },
   { type: "map", category: "logic", label: "Map", description: "Transform array items via body subgraph", icon: "Map", color: CATEGORY_COLORS.logic, inputs: [{ id: "in", label: "Input", type: "data" }, { id: "emit", label: "Emit", type: "data" }], outputs: [{ id: "body", label: "Body", type: "data" }, { id: "done", label: "Done", type: "data" }], isContainer: true },
   { type: "foreach", category: "logic", label: "ForEach", description: "Iterate over array", icon: "ListOrdered", color: CATEGORY_COLORS.logic, inputs: [{ id: "in", label: "Input", type: "data" }, { id: "emit", label: "Emit", type: "data" }], outputs: [{ id: "body", label: "Body", type: "data" }, { id: "done", label: "Done", type: "data" }], isContainer: true },
-  { type: "merge", category: "logic", label: "Merge", description: "Combine inputs", icon: "Merge", color: CATEGORY_COLORS.logic, inputs: [{ id: "in", label: "Input", type: "data" }], outputs: [{ id: "out", label: "Output", type: "data" }] },
+  { type: "merge", category: "logic", label: "Merge", description: "Combine inputs", icon: "Merge", color: CATEGORY_COLORS.logic, inputs: [{ id: "in", label: "Input", type: "data" }], outputs: [{ id: "out", label: "Output", type: "data" }], defaultConfig: { strategy: "wait_all", outputFormat: "array", timeout: 300 } },
   { type: "filter", category: "logic", label: "Filter", description: "Filter array by conditions", icon: "Filter", color: CATEGORY_COLORS.logic, inputs: [{ id: "in", label: "Input", type: "data" }], outputs: [{ id: "match", label: "Match", type: "data" }, { id: "unmatched", label: "Unmatched", type: "data" }] },
 
   // ===== FLOW (1) =====
