@@ -44,7 +44,6 @@ const defaultProps = {
   onFormSubmit: vi.fn(),
   onButtonClick: vi.fn(),
   onConversationEnd: vi.fn(),
-  onSendMessage: vi.fn(),
 };
 
 function makeResult(overrides: Partial<NodeResult> = {}): NodeResult {

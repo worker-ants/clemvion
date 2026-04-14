@@ -13,7 +13,7 @@ import type {
   NodeResult,
   ConversationItem,
 } from "@/lib/stores/execution-store";
-import { getWsClient } from "@/lib/websocket/ws-client";
+import { useExecutionInteractionCommands } from "@/lib/websocket/use-execution-interaction-commands";
 import { PresentationContent, JsonContent } from "./renderers/presentation-renderers";
 import { GenericRenderer } from "./renderers/generic-renderer";
 import { unwrapNodeOutput } from "./output-shape";
@@ -22,6 +22,7 @@ import { ButtonBar } from "./button-bar";
 import { ConversationInspector } from "./conversation-inspector";
 import { parseHistoryMessages } from "./conversation-utils";
 import { formatDuration } from "./utils";
+import { parseButtonConfig, openExternalLink } from "./button-config";
 
 function StatusBadge({ status }: { status: string }) {
   switch (status) {
@@ -244,7 +245,6 @@ interface ResultDetailProps {
   onFormSubmit: () => void;
   onButtonClick: () => void;
   onConversationEnd: () => void;
-  onSendMessage: (message: string) => void;
 }
 
 export function ResultDetail({
@@ -262,71 +262,50 @@ export function ResultDetail({
   onFormSubmit,
   onButtonClick,
   onConversationEnd,
-  onSendMessage,
 }: ResultDetailProps) {
+  const commands = useExecutionInteractionCommands(executionId);
+
   const handleFormSubmit = useCallback(
     (data: Record<string, unknown>) => {
       if (!executionId) return;
-      const client = getWsClient();
-      client.emit("execution.submit_form", {
-        executionId,
-        formData: data,
-      });
+      commands.submitForm(data);
       onFormSubmit();
     },
-    [executionId, onFormSubmit],
+    [executionId, commands, onFormSubmit],
   );
 
   const handlePortButtonClick = useCallback(
     (buttonId: string) => {
       if (!executionId) return;
-      const client = getWsClient();
-      client.emit("execution.click_button", {
-        executionId,
-        buttonId,
-      });
+      commands.clickButton(buttonId);
       onButtonClick();
     },
-    [executionId, onButtonClick],
+    [executionId, commands, onButtonClick],
   );
 
   const handleContinueClick = useCallback(() => {
     if (!executionId) return;
-    const client = getWsClient();
-    client.emit("execution.click_button", {
-      executionId,
-      buttonId: "__continue__",
-    });
+    commands.clickContinue();
     onButtonClick();
-  }, [executionId, onButtonClick]);
+  }, [executionId, commands, onButtonClick]);
 
   const handleLinkButtonClick = useCallback((url: string) => {
-    window.open(url, "_blank", "noopener,noreferrer");
+    openExternalLink(url);
   }, []);
 
   const handleSendMessage = useCallback(
     (message: string) => {
       if (!executionId || !result) return;
-      onSendMessage(message);
-      const client = getWsClient();
-      client.emit("execution.submit_message", {
-        executionId,
-        nodeId: result.nodeId,
-        message,
-      });
+      commands.sendMessage(result.nodeId, message);
     },
-    [executionId, result, onSendMessage],
+    [executionId, result, commands],
   );
 
   const handleEndConversation = useCallback(() => {
     if (!executionId || !result) return;
-    const client = getWsClient();
-    client.emit("execution.end_conversation", {
-      executionId,
-      nodeId: result.nodeId,
-    });
+    commands.endConversation(result.nodeId);
     onConversationEnd();
-  }, [executionId, result, onConversationEnd]);
+  }, [executionId, result, commands, onConversationEnd]);
 
   if (!result) {
     return (
@@ -417,7 +396,7 @@ export function ResultDetail({
                   formConfig={formConfig as Record<string, unknown>}
                   onSubmit={handleFormSubmit}
                 />
-              ) : isWaitingButtons && buttonConfig ? (
+              ) : isWaitingButtons ? (
                 isPresentation ? (
                   <PresentationContent
                     result={result}
@@ -425,33 +404,20 @@ export function ResultDetail({
                     onLinkButtonClick={handleLinkButtonClick}
                     previewOnly
                   />
-                ) : (
-                  <ButtonBar
-                    buttons={
-                      ((buttonConfig as Record<string, unknown>).buttons as Array<{
-                        id: string;
-                        label: string;
-                        type: "link" | "port";
-                        url?: string;
-                        style?: "primary" | "secondary" | "outline" | "danger";
-                      }>) ?? []
-                    }
-                    timeout={
-                      (buttonConfig as Record<string, unknown>).timeout as
-                        | number
-                        | undefined
-                    }
-                    timeoutAction={
-                      (buttonConfig as Record<string, unknown>).timeoutAction as
-                        | "continue"
-                        | "cancel"
-                        | undefined
-                    }
-                    onPortButtonClick={handlePortButtonClick}
-                    onLinkButtonClick={handleLinkButtonClick}
-                    onContinueClick={handleContinueClick}
-                  />
-                )
+                ) : (() => {
+                  const parsed = parseButtonConfig(buttonConfig);
+                  if (!parsed) return null;
+                  return (
+                    <ButtonBar
+                      buttons={parsed.buttons}
+                      timeout={parsed.timeout}
+                      timeoutAction={parsed.timeoutAction}
+                      onPortButtonClick={handlePortButtonClick}
+                      onLinkButtonClick={handleLinkButtonClick}
+                      onContinueClick={handleContinueClick}
+                    />
+                  );
+                })()
               ) : undefined
             }
           />
