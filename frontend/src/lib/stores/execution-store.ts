@@ -46,6 +46,13 @@ export interface NodeResult {
   inputData?: unknown;
   /** ISO timestamp when this node started executing (for chronological sorting) */
   startedAt?: string;
+  /**
+   * When present, this node ran inside an inline Sub-Workflow invocation and
+   * the value is the `nodeExecutionId` of the invoking Sub-Workflow (`workflow`
+   * node) row. Used by the run-results timeline to group children under a
+   * Sub-Workflow card.
+   */
+  parentNodeExecutionId?: string;
 }
 
 export type WaitingInteractionType = "form" | "buttons" | "ai_conversation";
@@ -236,6 +243,11 @@ export const useExecutionStore = create<ExecutionState>((set) => ({
                 // Preserve the original per-execution id once known so later
                 // events without it don't erase it.
                 nodeExecutionId: result.nodeExecutionId ?? r.nodeExecutionId,
+                // Same for parentNodeExecutionId — some mid-flight events
+                // (waiting_for_input) don't carry it, and losing it would
+                // collapse the Sub-Workflow card back to a flat row.
+                parentNodeExecutionId:
+                  result.parentNodeExecutionId ?? r.parentNodeExecutionId,
                 startedAt: result.startedAt ?? prev.startedAt,
                 inputData: result.inputData ?? prev.inputData,
               }

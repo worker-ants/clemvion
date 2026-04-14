@@ -153,6 +153,43 @@ describe("useExecutionStore", () => {
       const results = useExecutionStore.getState().nodeResults;
       expect(results[0].inputData).toEqual({ new: true });
     });
+
+    it("preserves parentNodeExecutionId when a later update omits it", () => {
+      // NODE_STARTED carries the parent link; later NODE_COMPLETED / waiting
+      // events may omit it. Collapsing the link back to undefined would pop
+      // the node out of its Sub-Workflow card.
+      useExecutionStore.getState().addNodeResult(
+        makeResult({
+          nodeExecutionId: "child-1",
+          nodeId: "n1",
+          parentNodeExecutionId: "workflow-node-1",
+        }),
+      );
+      useExecutionStore.getState().addNodeResult(
+        makeResult({
+          nodeExecutionId: "child-1",
+          nodeId: "n1",
+          status: "completed",
+        }),
+      );
+      const results = useExecutionStore.getState().nodeResults;
+      expect(results[0].parentNodeExecutionId).toBe("workflow-node-1");
+    });
+
+    it("overwrites parentNodeExecutionId when a newer event provides one", () => {
+      useExecutionStore.getState().addNodeResult(
+        makeResult({ nodeExecutionId: "child-1", nodeId: "n1" }),
+      );
+      useExecutionStore.getState().addNodeResult(
+        makeResult({
+          nodeExecutionId: "child-1",
+          nodeId: "n1",
+          parentNodeExecutionId: "workflow-node-1",
+        }),
+      );
+      const results = useExecutionStore.getState().nodeResults;
+      expect(results[0].parentNodeExecutionId).toBe("workflow-node-1");
+    });
   });
 
   describe("completeExecution", () => {

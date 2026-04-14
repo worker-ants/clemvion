@@ -124,6 +124,10 @@ export class WorkflowHandler implements NodeHandler {
         context,
         executedNodes: context._executedNodes,
         recursionDepth: currentDepth + 1,
+        // Tag every NodeExecution produced by this inline run with the
+        // workflow node's own row id, so the frontend timeline can render a
+        // Sub-Workflow card grouping its children.
+        parentNodeExecutionId: context.nodeExecutionId,
       },
     );
     return {

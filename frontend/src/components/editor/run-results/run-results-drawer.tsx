@@ -16,27 +16,47 @@ import { Button } from "@/components/ui/button";
 import { ResultTimeline } from "./result-timeline";
 import { ResultDetail } from "./result-detail";
 
-const DEFAULT_HEIGHT = 300;
-const MIN_HEIGHT = 150;
+const DEFAULT_HEIGHT = 420;
+const MIN_HEIGHT = 240;
 const MAX_HEIGHT_RATIO = 0.6; // 60% of viewport
 const STORAGE_KEY = "run-results-height";
+
+const DEFAULT_TIMELINE_WIDTH = 400;
+const MIN_TIMELINE_WIDTH = 280;
+const MAX_TIMELINE_WIDTH = 640;
+const TIMELINE_WIDTH_STORAGE_KEY = "run-results-timeline-width";
 
 function getStoredHeight(): number {
   if (typeof window === "undefined") return DEFAULT_HEIGHT;
   const stored = localStorage.getItem(STORAGE_KEY);
   if (stored) {
     const parsed = Number(stored);
-    const maxHeight = window.innerHeight * MAX_HEIGHT_RATIO;
+    if (!Number.isNaN(parsed) && Number.isFinite(parsed)) {
+      // Clamp instead of discarding — when MIN_HEIGHT is raised (as here),
+      // existing users' stored preference would otherwise silently reset
+      // to DEFAULT_HEIGHT on first load.
+      const maxHeight = window.innerHeight * MAX_HEIGHT_RATIO;
+      return Math.max(MIN_HEIGHT, Math.min(maxHeight, parsed));
+    }
+  }
+  return DEFAULT_HEIGHT;
+}
+
+function getStoredTimelineWidth(): number {
+  if (typeof window === "undefined") return DEFAULT_TIMELINE_WIDTH;
+  const stored = localStorage.getItem(TIMELINE_WIDTH_STORAGE_KEY);
+  if (stored) {
+    const parsed = Number(stored);
     if (
       !Number.isNaN(parsed) &&
       Number.isFinite(parsed) &&
-      parsed >= MIN_HEIGHT &&
-      parsed <= maxHeight
+      parsed >= MIN_TIMELINE_WIDTH &&
+      parsed <= MAX_TIMELINE_WIDTH
     ) {
       return parsed;
     }
   }
-  return DEFAULT_HEIGHT;
+  return DEFAULT_TIMELINE_WIDTH;
 }
 
 export function RunResultsDrawer() {
@@ -44,10 +64,19 @@ export function RunResultsDrawer() {
   const workflowId = params?.id as string | undefined;
   const [expanded, setExpanded] = useState(true);
   const [panelHeight, setPanelHeight] = useState(getStoredHeight);
+  const [timelineWidth, setTimelineWidth] = useState(getStoredTimelineWidth);
   const isDragging = useRef(false);
   const startY = useRef(0);
   const startHeight = useRef(0);
   const currentHeightRef = useRef(panelHeight);
+  const isDraggingWidth = useRef(false);
+  const startX = useRef(0);
+  const startWidth = useRef(0);
+  const currentWidthRef = useRef(timelineWidth);
+
+  useEffect(() => {
+    currentWidthRef.current = timelineWidth;
+  }, [timelineWidth]);
 
   // Keep ref in sync with state
   useEffect(() => {
@@ -109,24 +138,52 @@ export function RunResultsDrawer() {
     document.body.style.userSelect = "none";
   }, []);
 
+  const handleWidthMouseDown = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    isDraggingWidth.current = true;
+    startX.current = e.clientX;
+    startWidth.current = currentWidthRef.current;
+    document.body.style.cursor = "col-resize";
+    document.body.style.userSelect = "none";
+  }, []);
+
   useEffect(() => {
     const handleMouseMove = (e: MouseEvent) => {
-      if (!isDragging.current) return;
-      const diff = startY.current - e.clientY;
-      const maxHeight = window.innerHeight * MAX_HEIGHT_RATIO;
-      const newHeight = Math.max(
-        MIN_HEIGHT,
-        Math.min(maxHeight, startHeight.current + diff),
-      );
-      setPanelHeight(newHeight);
+      if (isDragging.current) {
+        const diff = startY.current - e.clientY;
+        const maxHeight = window.innerHeight * MAX_HEIGHT_RATIO;
+        const newHeight = Math.max(
+          MIN_HEIGHT,
+          Math.min(maxHeight, startHeight.current + diff),
+        );
+        setPanelHeight(newHeight);
+      }
+      if (isDraggingWidth.current) {
+        const diff = e.clientX - startX.current;
+        const newWidth = Math.max(
+          MIN_TIMELINE_WIDTH,
+          Math.min(MAX_TIMELINE_WIDTH, startWidth.current + diff),
+        );
+        setTimelineWidth(newWidth);
+      }
     };
 
     const handleMouseUp = () => {
-      if (!isDragging.current) return;
-      isDragging.current = false;
-      document.body.style.cursor = "";
-      document.body.style.userSelect = "";
-      localStorage.setItem(STORAGE_KEY, String(currentHeightRef.current));
+      if (isDragging.current) {
+        isDragging.current = false;
+        document.body.style.cursor = "";
+        document.body.style.userSelect = "";
+        localStorage.setItem(STORAGE_KEY, String(currentHeightRef.current));
+      }
+      if (isDraggingWidth.current) {
+        isDraggingWidth.current = false;
+        document.body.style.cursor = "";
+        document.body.style.userSelect = "";
+        localStorage.setItem(
+          TIMELINE_WIDTH_STORAGE_KEY,
+          String(currentWidthRef.current),
+        );
+      }
     };
 
     window.addEventListener("mousemove", handleMouseMove);
@@ -134,8 +191,9 @@ export function RunResultsDrawer() {
     return () => {
       window.removeEventListener("mousemove", handleMouseMove);
       window.removeEventListener("mouseup", handleMouseUp);
-      if (isDragging.current) {
+      if (isDragging.current || isDraggingWidth.current) {
         isDragging.current = false;
+        isDraggingWidth.current = false;
         document.body.style.cursor = "";
         document.body.style.userSelect = "";
       }
@@ -292,7 +350,10 @@ export function RunResultsDrawer() {
       {expanded && (
         <div className="flex" style={{ height: panelHeight }}>
           {/* Left: Timeline */}
-          <div className="w-[280px] shrink-0 border-r border-[hsl(var(--border))] overflow-hidden">
+          <div
+            className="shrink-0 overflow-hidden"
+            style={{ width: timelineWidth }}
+          >
             {visibleResults.length === 0 ? (
               <div className="flex h-full items-center justify-center text-xs text-[hsl(var(--muted-foreground))]">
                 {status === "running"
@@ -311,6 +372,14 @@ export function RunResultsDrawer() {
               />
             )}
           </div>
+
+          {/* Vertical resizer between Timeline and Detail. Styled minimal so
+              it doesn't steal focus — hover shows the accent bar. */}
+          <div
+            onMouseDown={handleWidthMouseDown}
+            className="w-1 shrink-0 cursor-col-resize bg-[hsl(var(--border))] hover:bg-[hsl(var(--accent))] transition-colors"
+            aria-label="Resize timeline panel"
+          />
 
           {/* Right: Detail */}
           <div className="flex-1 overflow-hidden">

@@ -18,6 +18,12 @@ export interface InlineExecutionOptions {
   context: ExecutionContext;
   executedNodes: Set<string>;
   recursionDepth: number;
+  /**
+   * Stamp every NodeExecution produced by this inline run with this parent
+   * id so the timeline can group children under the invoking Sub-Workflow
+   * row. Normally the id of the `workflow` node's own NodeExecution.
+   */
+  parentNodeExecutionId?: string;
 }
 
 export interface WorkflowExecutor {

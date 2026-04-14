@@ -44,6 +44,19 @@ function getCategoryForType(nodeType: string): string {
   return getNodeDefinition(nodeType)?.category ?? "unknown";
 }
 
+const UUID_REGEX =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * Accept only well-formed UUIDs. Timeline IDs (`nodeExecutionId`,
+ * `parentNodeExecutionId`) flow directly into React keys and selection
+ * state; a malformed/over-long value from an upstream bug or a malicious
+ * payload would otherwise be persisted verbatim.
+ */
+function sanitizeUuid(v: unknown): string | undefined {
+  return typeof v === "string" && UUID_REGEX.test(v) ? v : undefined;
+}
+
 // Higher priority = more terminal. Prevents stale WS events from overwriting.
 const STATUS_PRIORITY: Record<string, number> = {
   pending: 0,
@@ -158,7 +171,7 @@ export function useExecutionEvents({
         // Propagate the DB row id so this update maps to the same timeline
         // entry created by NODE_STARTED — otherwise a second phantom row
         // appears when execution resumes (carousel button flow etc.).
-        nodeExecutionId: payload.nodeExecutionId,
+        nodeExecutionId: sanitizeUuid(payload.nodeExecutionId),
         nodeId: payload.waitingNodeId,
         nodeLabel: payload.waitingNodeId,
         nodeType,
@@ -304,6 +317,7 @@ export function useExecutionEvents({
     (data: unknown) => {
       const payload = data as {
         nodeExecutionId?: string;
+        parentNodeExecutionId?: string;
         nodeId?: string;
         nodeType?: string;
         nodeLabel?: string;
@@ -317,7 +331,8 @@ export function useExecutionEvents({
 
         updateNodeStatus(payload.nodeId, { status: "running" });
         addNodeResult({
-          nodeExecutionId: payload.nodeExecutionId,
+          nodeExecutionId: sanitizeUuid(payload.nodeExecutionId),
+          parentNodeExecutionId: sanitizeUuid(payload.parentNodeExecutionId),
           nodeId: payload.nodeId,
           nodeLabel: payload.nodeLabel ?? payload.nodeId,
           nodeType: payload.nodeType ?? "unknown",
@@ -335,6 +350,7 @@ export function useExecutionEvents({
     (data: unknown) => {
       const payload = data as {
         nodeExecutionId?: string;
+        parentNodeExecutionId?: string;
         nodeId?: string;
         duration?: number;
         nodeType?: string;
@@ -357,7 +373,10 @@ export function useExecutionEvents({
         );
 
         addNodeResult({
-          nodeExecutionId: payload.nodeExecutionId,
+          nodeExecutionId: sanitizeUuid(payload.nodeExecutionId),
+          parentNodeExecutionId:
+            sanitizeUuid(payload.parentNodeExecutionId) ??
+            existing?.parentNodeExecutionId,
           nodeId: payload.nodeId,
           nodeLabel: payload.nodeLabel ?? payload.nodeId,
           nodeType: payload.nodeType ?? "unknown",
@@ -376,6 +395,7 @@ export function useExecutionEvents({
     (data: unknown) => {
       const payload = data as {
         nodeExecutionId?: string;
+        parentNodeExecutionId?: string;
         nodeId?: string;
         error?: string;
         nodeType?: string;
@@ -395,7 +415,10 @@ export function useExecutionEvents({
         );
 
         addNodeResult({
-          nodeExecutionId: payload.nodeExecutionId,
+          nodeExecutionId: sanitizeUuid(payload.nodeExecutionId),
+          parentNodeExecutionId:
+            sanitizeUuid(payload.parentNodeExecutionId) ??
+            existing?.parentNodeExecutionId,
           nodeId: payload.nodeId,
           nodeLabel: payload.nodeLabel ?? payload.nodeId,
           nodeType: payload.nodeType ?? "unknown",
@@ -414,6 +437,7 @@ export function useExecutionEvents({
     (data: unknown) => {
       const payload = data as {
         nodeExecutionId?: string;
+        parentNodeExecutionId?: string;
         nodeId?: string;
         nodeType?: string;
         nodeLabel?: string;
@@ -421,7 +445,8 @@ export function useExecutionEvents({
       if (payload.nodeId) {
         updateNodeStatus(payload.nodeId, { status: "skipped" });
         addNodeResult({
-          nodeExecutionId: payload.nodeExecutionId,
+          nodeExecutionId: sanitizeUuid(payload.nodeExecutionId),
+          parentNodeExecutionId: sanitizeUuid(payload.parentNodeExecutionId),
           nodeId: payload.nodeId,
           nodeLabel: payload.nodeLabel ?? payload.nodeId,
           nodeType: payload.nodeType ?? "unknown",
@@ -499,6 +524,7 @@ export function useExecutionEvents({
             // WS NODE_COMPLETED event, once from the polling reconciliation).
             addNodeResult({
               nodeExecutionId: ne.id,
+              parentNodeExecutionId: ne.parentNodeExecutionId ?? undefined,
               nodeId: ne.nodeId,
               nodeLabel,
               nodeType,

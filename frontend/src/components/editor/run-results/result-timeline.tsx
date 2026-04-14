@@ -9,6 +9,7 @@ import {
   PauseCircle,
   ChevronRight,
   ChevronDown,
+  Workflow,
 } from "lucide-react";
 import { CATEGORY_COLORS } from "@/lib/node-definitions";
 import type {
@@ -18,6 +19,13 @@ import type {
 import { ConversationTimelineItem } from "./conversation-timeline-item";
 import { parseHistoryMessages } from "./conversation-utils";
 import { formatDuration } from "./utils";
+import {
+  buildTimelineTree,
+  countDescendants,
+  keyOf,
+  sumDescendantDurations,
+  type TimelineTreeNode,
+} from "./timeline-tree";
 
 function StatusIcon({ status }: { status: string }) {
   switch (status) {
@@ -33,6 +41,24 @@ function StatusIcon({ status }: { status: string }) {
       return <PauseCircle className="h-3 w-3 text-amber-500" />;
     default:
       return <Loader2 className="h-3 w-3 text-gray-400" />;
+  }
+}
+
+/** Accent color for a Sub-Workflow card's left border based on aggregate status. */
+function statusAccentClass(status: string): string {
+  switch (status) {
+    case "running":
+      return "border-l-blue-500";
+    case "completed":
+      return "border-l-green-500";
+    case "failed":
+      return "border-l-red-500";
+    case "waiting_for_input":
+      return "border-l-amber-500";
+    case "skipped":
+      return "border-l-gray-400";
+    default:
+      return "border-l-[hsl(var(--border))]";
   }
 }
 
@@ -56,6 +82,10 @@ function isMultiTurnAgent(result: NodeResult): boolean {
   );
 }
 
+function isSubWorkflowNode(result: NodeResult): boolean {
+  return result.nodeType === "workflow";
+}
+
 interface ResultTimelineProps {
   results: NodeResult[];
   selectedId: string | null;
@@ -64,6 +94,217 @@ interface ResultTimelineProps {
   selectedConversationItemIndex: number | null;
   onSelectConversationItem: (index: number | null) => void;
   isLiveConversation: boolean;
+}
+
+interface RowCtx {
+  selectedId: string | null;
+  selectedConversationItemIndex: number | null;
+  conversationMessages: ConversationItem[];
+  isLiveConversation: boolean;
+  expanded: Record<string, boolean>;
+  toggleExpand: (id: string) => void;
+  handleNodeClick: (id: string) => void;
+  handleConversationItemClick: (id: string, index: number) => void;
+}
+
+/** Regular (non-card) timeline row. Used for leaf nodes and as the header
+ *  body of Sub-Workflow cards. */
+function TimelineRow({
+  tnode,
+  ctx,
+  renderAsCardHeader = false,
+  cardChildCount,
+  cardChildDurationSum,
+}: {
+  tnode: TimelineTreeNode;
+  ctx: RowCtx;
+  renderAsCardHeader?: boolean;
+  cardChildCount?: number;
+  cardChildDurationSum?: number;
+}) {
+  const { result } = tnode;
+  const rowId = keyOf(result);
+  const isSelected = ctx.selectedId === rowId;
+  const isMultiTurn = isMultiTurnAgent(result);
+  const isLiveNode =
+    ctx.isLiveConversation &&
+    result.status === "waiting_for_input" &&
+    result.nodeType === "ai_agent";
+  const isExpanded = isLiveNode || (ctx.expanded[rowId] ?? false);
+  const isCardHeader = renderAsCardHeader;
+
+  const labelText =
+    tnode.totalIterations > 1
+      ? `${result.nodeLabel} (iter ${tnode.iterIndex})`
+      : result.nodeLabel;
+
+  // Multi-turn conversation items (expanded under AI agent rows)
+  const items = isLiveNode
+    ? ctx.conversationMessages
+    : isMultiTurn
+      ? parseHistoryMessages(result.outputData)
+      : [];
+
+  // Turn counter derivation for AI multi-turn rows
+  const rawForConv = result.outputData as Record<string, unknown> | null;
+  const convPayload =
+    rawForConv &&
+    typeof rawForConv === "object" &&
+    !Array.isArray(rawForConv) &&
+    "config" in rawForConv &&
+    "output" in rawForConv
+      ? (rawForConv.output as Record<string, unknown> | null)
+      : rawForConv;
+  const convConfig = convPayload?.conversationConfig as
+    | Record<string, unknown>
+    | undefined;
+  const turnCount =
+    (convConfig?.turnCount as number) ??
+    (convPayload?.turnCount as number | undefined) ??
+    0;
+  const maxTurns = (convConfig?.maxTurns as number) ?? 0;
+
+  const categoryColor = CATEGORY_COLORS[result.nodeCategory] ?? "#6B7280";
+
+  return (
+    <>
+      <button
+        type="button"
+        onClick={() => {
+          if (isCardHeader || isMultiTurn || isLiveNode) {
+            ctx.toggleExpand(rowId);
+          }
+          ctx.handleNodeClick(rowId);
+        }}
+        className={`flex w-full items-center gap-2 px-3 py-1.5 text-left transition-colors ${
+          isSelected && ctx.selectedConversationItemIndex == null
+            ? "bg-[hsl(var(--accent))]"
+            : "hover:bg-[hsl(var(--accent))/0.5]"
+        }`}
+      >
+        {/* Leading indicator: chevron for expandable rows (multi-turn or card
+            header), Workflow icon for Sub-Workflow leaves, or category dot. */}
+        {isCardHeader ? (
+          <span className="flex h-3 w-3 shrink-0 items-center justify-center">
+            {isExpanded ? (
+              <ChevronDown className="h-3 w-3 text-[hsl(var(--muted-foreground))]" />
+            ) : (
+              <ChevronRight className="h-3 w-3 text-[hsl(var(--muted-foreground))]" />
+            )}
+          </span>
+        ) : isMultiTurn || isLiveNode ? (
+          <span className="flex h-3 w-3 shrink-0 items-center justify-center">
+            {isExpanded ? (
+              <ChevronDown className="h-3 w-3 text-[hsl(var(--muted-foreground))]" />
+            ) : (
+              <ChevronRight className="h-3 w-3 text-[hsl(var(--muted-foreground))]" />
+            )}
+          </span>
+        ) : isSubWorkflowNode(result) ? (
+          <Workflow
+            className="h-3 w-3 shrink-0"
+            style={{ color: categoryColor }}
+          />
+        ) : (
+          <span
+            className="h-2 w-2 shrink-0 rounded-full"
+            style={{ backgroundColor: categoryColor }}
+          />
+        )}
+        {isCardHeader && (
+          <Workflow
+            className="h-3 w-3 shrink-0"
+            style={{ color: categoryColor }}
+          />
+        )}
+        {!isCardHeader && (isMultiTurn || isLiveNode) && (
+          <span className="shrink-0 text-[10px]">🤖</span>
+        )}
+        <span className="flex-1 truncate text-xs">{labelText}</span>
+        {/* Card header summary: child count + aggregate child duration */}
+        {isCardHeader && cardChildCount != null && cardChildCount > 0 && (
+          <span className="shrink-0 text-[10px] text-[hsl(var(--muted-foreground))]">
+            {cardChildCount} nodes
+            {cardChildDurationSum != null && cardChildDurationSum > 0 && (
+              <> · {formatDuration(cardChildDurationSum)}</>
+            )}
+          </span>
+        )}
+        {!isCardHeader && (isMultiTurn || isLiveNode) && turnCount > 0 && (
+          <span className="shrink-0 text-[10px] text-[hsl(var(--muted-foreground))]">
+            Turn {turnCount}
+            {maxTurns > 0 ? `/${maxTurns}` : ""}
+          </span>
+        )}
+        {result.duration != null && (
+          <span className="shrink-0 text-[10px] text-[hsl(var(--muted-foreground))]">
+            {formatDuration(result.duration)}
+          </span>
+        )}
+        <StatusIcon status={result.status} />
+      </button>
+
+      {/* Multi-turn conversation items (only for AI agent rows, not card headers). */}
+      {!isCardHeader && isExpanded && items.length > 0 && (
+        <div className="border-l-2 border-[hsl(var(--border))] ml-5 mb-1">
+          {items.map((item, idx) => (
+            <ConversationTimelineItem
+              key={`${rowId}-conv-${idx}`}
+              item={item}
+              isSelected={
+                isSelected && ctx.selectedConversationItemIndex === idx
+              }
+              onClick={() => ctx.handleConversationItemClick(rowId, idx)}
+            />
+          ))}
+        </div>
+      )}
+    </>
+  );
+}
+
+/** Sub-Workflow card — wraps a `workflow`-type row with a styled box and
+ *  recursively renders its children underneath when expanded. */
+function SubWorkflowCard({
+  tnode,
+  ctx,
+  renderChild,
+}: {
+  tnode: TimelineTreeNode;
+  ctx: RowCtx;
+  renderChild: (child: TimelineTreeNode) => React.ReactNode;
+}) {
+  const rowId = keyOf(tnode.result);
+  // Sub-Workflow cards start expanded so users see the inline execution flow
+  // immediately. They can be collapsed to hide internals.
+  const isExpanded = ctx.expanded[rowId] ?? true;
+  const childCount = countDescendants(tnode);
+  const childDurationSum = sumDescendantDurations(tnode);
+  const accent = statusAccentClass(tnode.result.status);
+
+  return (
+    <div
+      className={`my-1 mx-2 rounded-md border border-l-2 border-[hsl(var(--border))] ${accent} bg-[hsl(var(--muted))/0.3] overflow-hidden`}
+    >
+      <div className="bg-[hsl(var(--muted))/0.6]">
+        <TimelineRow
+          tnode={tnode}
+          ctx={{
+            ...ctx,
+            toggleExpand: ctx.toggleExpand, // header click toggles card
+          }}
+          renderAsCardHeader
+          cardChildCount={childCount}
+          cardChildDurationSum={childDurationSum}
+        />
+      </div>
+      {isExpanded && tnode.children.length > 0 && (
+        <div className="py-0.5">
+          {tnode.children.map((child) => renderChild(child))}
+        </div>
+      )}
+    </div>
+  );
 }
 
 export function ResultTimeline({
@@ -91,19 +332,21 @@ export function ResultTimeline({
     prevMsgCountRef.current = conversationMessages.length;
   }, [results.length, conversationMessages.length]);
 
-  /** Identifier used for selection + React keys. Prefers the per-iteration
-   *  execution id so Loop/Map body iterations stay distinct rows. */
-  const idOf = (r: NodeResult): string => r.nodeExecutionId ?? r.nodeId;
-
   // Auto-select first result if nothing selected
   useEffect(() => {
     if (!selectedId && results.length > 0) {
-      onSelect(idOf(results[0]));
+      onSelect(keyOf(results[0]));
     }
   }, [selectedId, results, onSelect]);
 
   const toggleExpand = useCallback((id: string) => {
-    setExpanded((prev) => ({ ...prev, [id]: !prev[id] }));
+    setExpanded((prev) => ({ ...prev, [id]: !(prev[id] ?? false) }));
+  }, []);
+
+  // For Sub-Workflow cards the default is expanded — a toggle should flip
+  // relative to that default, not to false.
+  const toggleCardExpand = useCallback((id: string) => {
+    setExpanded((prev) => ({ ...prev, [id]: !(prev[id] ?? true) }));
   }, []);
 
   const handleNodeClick = useCallback(
@@ -122,156 +365,45 @@ export function ResultTimeline({
     [onSelect, onSelectConversationItem],
   );
 
-  const getHistoryMessages = useCallback(
-    (result: NodeResult): ConversationItem[] =>
-      parseHistoryMessages(result.outputData),
-    [],
-  );
+  const tree = useMemo(() => buildTimelineTree(results), [results]);
 
-  // Build per-nodeId iteration counters so we can append "(iter N)" to the
-  // label whenever the same node ran multiple times — the user otherwise
-  // can't tell which row corresponds to which Loop/Map iteration.
-  const nodeIdCounts = useMemo(() => {
-    const counts = new Map<string, number>();
-    for (const r of results) {
-      counts.set(r.nodeId, (counts.get(r.nodeId) ?? 0) + 1);
-    }
-    return counts;
-  }, [results]);
+  const ctx: RowCtx = {
+    selectedId,
+    selectedConversationItemIndex,
+    conversationMessages,
+    isLiveConversation,
+    expanded,
+    toggleExpand,
+    handleNodeClick,
+    handleConversationItemClick,
+  };
 
-  const iterIndices = useMemo(() => {
-    const seen = new Map<string, number>();
-    const indices = new Map<string, number>();
-    for (const r of results) {
-      const next = (seen.get(r.nodeId) ?? 0) + 1;
-      seen.set(r.nodeId, next);
-      indices.set(idOf(r), next);
+  const renderTreeNode = (tnode: TimelineTreeNode): React.ReactNode => {
+    const key = keyOf(tnode.result);
+    // A Sub-Workflow node with children renders as a card. A Sub-Workflow
+    // node without children (async mode, or before children have arrived)
+    // renders as a regular row so the user still sees the invocation.
+    if (isSubWorkflowNode(tnode.result) && tnode.children.length > 0) {
+      return (
+        <div key={key}>
+          <SubWorkflowCard
+            tnode={tnode}
+            ctx={{ ...ctx, toggleExpand: toggleCardExpand }}
+            renderChild={renderTreeNode}
+          />
+        </div>
+      );
     }
-    return indices;
-  }, [results]);
+    return (
+      <div key={key}>
+        <TimelineRow tnode={tnode} ctx={ctx} />
+      </div>
+    );
+  };
 
   return (
     <div ref={scrollRef} className="h-full overflow-y-auto">
-      {results.map((result) => {
-        const rowId = idOf(result);
-        const categoryColor =
-          CATEGORY_COLORS[result.nodeCategory] ?? "#6B7280";
-        const isSelected = selectedId === rowId;
-        const isMultiTurn = isMultiTurnAgent(result);
-        const isLiveNode =
-          isLiveConversation &&
-          result.status === "waiting_for_input" &&
-          result.nodeType === "ai_agent";
-        // Live conversation node is always expanded
-        const isExpanded = isLiveNode || (expanded[rowId] ?? false);
-        // Append "(iter N)" so multiple iterations of the same body node are
-        // distinguishable in the timeline.
-        const totalForNode = nodeIdCounts.get(result.nodeId) ?? 1;
-        const iterIndex = iterIndices.get(rowId);
-        const labelText =
-          totalForNode > 1 && iterIndex
-            ? `${result.nodeLabel} (iter ${iterIndex})`
-            : result.nodeLabel;
-        const items = isLiveNode
-          ? conversationMessages
-          : isMultiTurn
-            ? getHistoryMessages(result)
-            : [];
-
-        const rawForConv = result.outputData as Record<string, unknown> | null;
-        const convPayload =
-          rawForConv &&
-          typeof rawForConv === "object" &&
-          !Array.isArray(rawForConv) &&
-          "config" in rawForConv &&
-          "output" in rawForConv
-            ? (rawForConv.output as Record<string, unknown> | null)
-            : rawForConv;
-        const convConfig = convPayload?.conversationConfig as
-          | Record<string, unknown>
-          | undefined;
-        const turnCount =
-          (convConfig?.turnCount as number) ??
-          (convPayload?.turnCount as number | undefined) ??
-          0;
-        const maxTurns = (convConfig?.maxTurns as number) ?? 0;
-
-        return (
-          <div key={rowId}>
-            {/* Node row */}
-            <button
-              type="button"
-              onClick={() => {
-                if (isMultiTurn || isLiveNode) {
-                  toggleExpand(rowId);
-                }
-                handleNodeClick(rowId);
-              }}
-              className={`flex w-full items-center gap-2 px-3 py-1.5 text-left transition-colors ${
-                isSelected && selectedConversationItemIndex == null
-                  ? "bg-[hsl(var(--accent))]"
-                  : "hover:bg-[hsl(var(--accent))/0.5]"
-              }`}
-            >
-              {/* Expand/collapse or category dot */}
-              {isMultiTurn || isLiveNode ? (
-                <span className="flex h-3 w-3 shrink-0 items-center justify-center">
-                  {isExpanded ? (
-                    <ChevronDown className="h-3 w-3 text-[hsl(var(--muted-foreground))]" />
-                  ) : (
-                    <ChevronRight className="h-3 w-3 text-[hsl(var(--muted-foreground))]" />
-                  )}
-                </span>
-              ) : (
-                <span
-                  className="h-2 w-2 shrink-0 rounded-full"
-                  style={{ backgroundColor: categoryColor }}
-                />
-              )}
-              {(isMultiTurn || isLiveNode) && (
-                <span className="shrink-0 text-[10px]">🤖</span>
-              )}
-              {/* Node label */}
-              <span className="flex-1 truncate text-xs">
-                {labelText}
-              </span>
-              {/* Turn counter for multi-turn */}
-              {(isMultiTurn || isLiveNode) && turnCount > 0 && (
-                <span className="shrink-0 text-[10px] text-[hsl(var(--muted-foreground))]">
-                  Turn {turnCount}
-                  {maxTurns > 0 ? `/${maxTurns}` : ""}
-                </span>
-              )}
-              {/* Duration */}
-              {result.duration != null && (
-                <span className="shrink-0 text-[10px] text-[hsl(var(--muted-foreground))]">
-                  {formatDuration(result.duration)}
-                </span>
-              )}
-              {/* Status icon */}
-              <StatusIcon status={result.status} />
-            </button>
-
-            {/* Expanded conversation items */}
-            {isExpanded && items.length > 0 && (
-              <div className="border-l-2 border-[hsl(var(--border))] ml-5 mb-1">
-                {items.map((item, idx) => (
-                  <ConversationTimelineItem
-                    key={`${rowId}-conv-${idx}`}
-                    item={item}
-                    isSelected={
-                      isSelected && selectedConversationItemIndex === idx
-                    }
-                    onClick={() =>
-                      handleConversationItemClick(rowId, idx)
-                    }
-                  />
-                ))}
-              </div>
-            )}
-          </div>
-        );
-      })}
+      {tree.map((tnode) => renderTreeNode(tnode))}
     </div>
   );
 }
