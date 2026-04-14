@@ -34,6 +34,37 @@ export interface EdgeData {
   type: string;
 }
 
+export interface ExportedNode {
+  type: string;
+  category: string;
+  label: string;
+  positionX: number;
+  positionY: number;
+  config: Record<string, unknown>;
+  isDisabled: boolean;
+  description?: string;
+  containerId: number | null;
+  toolOwnerId: string | null;
+}
+
+export interface ExportedEdge {
+  sourceNodeIndex: number;
+  sourcePort: string;
+  targetNodeIndex: number;
+  targetPort: string;
+  type: string;
+  condition: Record<string, unknown> | null;
+}
+
+export interface ExportedWorkflow {
+  name: string;
+  description?: string;
+  tags: string[];
+  settings: Record<string, unknown>;
+  nodes: ExportedNode[];
+  edges: ExportedEdge[];
+}
+
 export const workflowsApi = {
   list: (params?: Record<string, string>) =>
     apiClient.get("/workflows", { params }),
@@ -109,7 +140,7 @@ export const workflowsApi = {
     }),
 
   exportWorkflow: (id: string) =>
-    apiClient.get(`/workflows/${id}/export`),
+    apiClient.get<{ data: ExportedWorkflow }>(`/workflows/${id}/export`),
 
   importWorkflow: (data: object) =>
     apiClient.post<{ data: WorkflowData }>("/workflows/import", data),

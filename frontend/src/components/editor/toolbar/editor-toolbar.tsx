@@ -144,8 +144,8 @@ export function EditorToolbar() {
   const handleExport = useCallback(async () => {
     if (!workflowId) return;
     try {
-      const response = await workflowsApi.get(workflowId);
-      const data = response.data;
+      const response = await workflowsApi.exportWorkflow(workflowId);
+      const data = response.data.data;
       const blob = new Blob([JSON.stringify(data, null, 2)], {
         type: "application/json",
       });
