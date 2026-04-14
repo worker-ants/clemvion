@@ -30,6 +30,7 @@
 | `array_filter` | `field` (String), `condition` (조건 표현식) | 배열 필터링. 다중 조건 필터링이나 매칭/비매칭 분기가 필요하면 [Filter 노드](./1-logic-nodes.md#8-filter) 사용 |
 | `array_sort` | `field` (String), `sortBy` (String?), `order` (asc / desc) | 배열 정렬 |
 | `object_pick` | `field` (String?), `keys` (String[]) | 객체에서 특정 키만 선택 |
+| `object_omit` | `field` (String?), `keys` (String[]) | 객체에서 특정 키만 제거 |
 
 **string_op args:**
 
@@ -38,7 +39,7 @@
 | trim | — |
 | uppercase | — |
 | lowercase | — |
-| replace | `search` (String), `replacement` (String), `all` (Boolean) |
+| replace | `search` (String), `replacement` (String), `all` (Boolean, 기본 true), `regex` (Boolean, 기본 false) |
 | split | `separator` (String) |
 | join | `separator` (String) |
 
@@ -64,6 +65,7 @@
 2. `operations` 배열을 순서대로 적용
 3. 각 연산은 이전 연산의 결과를 입력으로 받음
 4. 최종 결과를 출력 포트로 전달
+5. 모든 `field` 파라미터는 dot/bracket 중첩 경로를 지원한다 (예: `user.profile.name`, `items[0].id`). 대상 필드·객체가 없거나 타입이 맞지 않으면 해당 연산은 원값을 유지하고 다음 연산으로 넘어간다.
 
 ### 1.5 설정 UI — 시각적 빌더
 
