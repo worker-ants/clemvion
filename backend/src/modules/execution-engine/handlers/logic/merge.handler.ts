@@ -4,23 +4,38 @@ import {
   ExecutionContext,
 } from '../node-handler.interface.js';
 
+type MergeStrategy = 'wait_all' | 'first' | 'append';
+type MergeOutputFormat = 'array' | 'merge_object' | 'indexed';
+
 interface MergeConfig {
-  strategy: 'wait_all' | 'first' | 'append';
-  outputFormat: 'array' | 'merge_object' | 'indexed';
+  strategy?: MergeStrategy;
+  outputFormat?: MergeOutputFormat;
 }
+
+const DEFAULT_STRATEGY: MergeStrategy = 'wait_all';
+const DEFAULT_OUTPUT_FORMAT: MergeOutputFormat = 'array';
+const VALID_STRATEGIES: MergeStrategy[] = ['wait_all', 'first', 'append'];
+const VALID_OUTPUT_FORMATS: MergeOutputFormat[] = [
+  'array',
+  'merge_object',
+  'indexed',
+];
 
 export class MergeHandler implements NodeHandler {
   validate(config: Record<string, unknown>): ValidationResult {
     const errors: string[] = [];
     const { strategy, outputFormat } = config as unknown as MergeConfig;
 
-    if (!strategy || !['wait_all', 'first', 'append'].includes(strategy)) {
+    if (
+      strategy !== undefined &&
+      !(VALID_STRATEGIES as string[]).includes(strategy)
+    ) {
       errors.push('strategy must be one of: wait_all, first, append');
     }
 
     if (
-      !outputFormat ||
-      !['array', 'merge_object', 'indexed'].includes(outputFormat)
+      outputFormat !== undefined &&
+      !(VALID_OUTPUT_FORMATS as string[]).includes(outputFormat)
     ) {
       errors.push('outputFormat must be one of: array, merge_object, indexed');
     }
@@ -33,7 +48,11 @@ export class MergeHandler implements NodeHandler {
     config: Record<string, unknown>,
     _context: ExecutionContext,
   ): Promise<unknown> {
-    const { strategy, outputFormat } = config as unknown as MergeConfig;
+    const { strategy: rawStrategy, outputFormat: rawOutputFormat } =
+      config as unknown as MergeConfig;
+    const strategy: MergeStrategy = rawStrategy ?? DEFAULT_STRATEGY;
+    const outputFormat: MergeOutputFormat =
+      rawOutputFormat ?? DEFAULT_OUTPUT_FORMAT;
 
     const inputs = this.normalizeInputs(input);
     const formatted =
