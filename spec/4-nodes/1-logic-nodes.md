@@ -375,7 +375,7 @@ ForEach는 "각 항목에 대해 side effect 중심의 body 실행", Map은 "각
 - `$item`: 현재 평가 중인 배열 항목 (ForEach, Map과 동일 패턴)
 
 ### 실행 로직
-1. `inputField`로 배열 추출
+1. `inputField`로 배열 추출. **dot-path 문자열**(`"items"`, `"order.items"`)이면 `$input`에 적용하고, `{{ $var.a }}`처럼 **inline 표현식**이면 expression resolver가 값 자체를 치환하므로 그 값을 그대로 사용 (Split/ForEach와 동일 규칙).
 2. 배열이 아니면 에러
 3. 각 항목에 대해 `$item`을 바인딩하고 모든 조건 평가
 4. combineMode에 따라 AND/OR 결합하여 최종 매칭 여부 결정
