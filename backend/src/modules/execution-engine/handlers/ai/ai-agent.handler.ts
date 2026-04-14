@@ -64,10 +64,6 @@ export class AiAgentHandler implements NodeHandler {
       if (maxTurns !== undefined && maxTurns < 0) {
         errors.push('maxTurns must be 0 (unlimited) or a positive integer');
       }
-      const turnTimeout = config.turnTimeout as number | undefined;
-      if (turnTimeout !== undefined && turnTimeout <= 0) {
-        errors.push('turnTimeout must be a positive integer');
-      }
     }
 
     // Validate conditions
@@ -309,7 +305,6 @@ export class AiAgentHandler implements NodeHandler {
     const ragThreshold = (config.ragThreshold as number) || 0.7;
     const maxToolCalls = (config.maxToolCalls as number) || 10;
     const maxTurns = (config.maxTurns as number) ?? 20;
-    const turnTimeout = (config.turnTimeout as number) ?? 1800;
     const conditions = (config.conditions as ConditionDef[]) || [];
 
     const workspaceId = (context.variables?.__workspaceId as string) || '';
@@ -359,7 +354,6 @@ export class AiAgentHandler implements NodeHandler {
       ragThreshold,
       maxToolCalls,
       maxTurns,
-      turnTimeout,
       toolNodeIds: (config.toolNodeIds as string[]) || [],
       toolOverrides: (config.toolOverrides as unknown[]) || [],
       conditions,
@@ -377,7 +371,6 @@ export class AiAgentHandler implements NodeHandler {
           messages,
           turnCount: 0,
           maxTurns,
-          turnTimeout,
         },
         _multiTurnState: {
           ...multiTurnStateBase,
@@ -539,7 +532,6 @@ export class AiAgentHandler implements NodeHandler {
         messages,
         turnCount: 1,
         maxTurns,
-        turnTimeout,
       },
       _multiTurnState: {
         ...multiTurnStateBase,
@@ -575,7 +567,6 @@ export class AiAgentHandler implements NodeHandler {
     const turnCount = (state.turnCount as number) + 1;
     const maxTurns = state.maxTurns as number;
     const maxToolCalls = state.maxToolCalls as number;
-    const turnTimeout = state.turnTimeout as number;
     const knowledgeBases = (state.knowledgeBases as string[]) || [];
     const ragTopK = (state.ragTopK as number) || 5;
     const ragThreshold = (state.ragThreshold as number) || 0.7;
@@ -792,7 +783,6 @@ export class AiAgentHandler implements NodeHandler {
         messages,
         turnCount,
         maxTurns,
-        turnTimeout,
       },
       _multiTurnState: {
         ...state,

@@ -75,22 +75,11 @@ describe('AiAgentHandler', () => {
       );
     });
 
-    it('should validate multi_turn mode with invalid turnTimeout', () => {
-      const result = handler.validate({
-        userPrompt: 'Hello',
-        mode: 'multi_turn',
-        turnTimeout: 0,
-      });
-      expect(result.valid).toBe(false);
-      expect(result.errors).toContain('turnTimeout must be a positive integer');
-    });
-
     it('should pass multi_turn mode with valid settings', () => {
       const result = handler.validate({
         systemPrompt: 'You are helpful',
         mode: 'multi_turn',
         maxTurns: 10,
-        turnTimeout: 600,
       });
       expect(result.valid).toBe(true);
     });
@@ -252,7 +241,6 @@ describe('AiAgentHandler', () => {
           systemPrompt: 'You are helpful',
           userPrompt: 'Hello',
           maxTurns: 10,
-          turnTimeout: 600,
         },
         baseContext,
       );
@@ -266,7 +254,6 @@ describe('AiAgentHandler', () => {
       expect(convConfig.message).toBe('Hello! I am an AI assistant.');
       expect(convConfig.turnCount).toBe(1);
       expect(convConfig.maxTurns).toBe(10);
-      expect(convConfig.turnTimeout).toBe(600);
       expect(convConfig.messages).toHaveLength(3); // system + user + assistant
 
       const state = output._multiTurnState as Record<string, unknown>;
@@ -282,7 +269,6 @@ describe('AiAgentHandler', () => {
           mode: 'multi_turn',
           systemPrompt: 'You are helpful',
           maxTurns: 10,
-          turnTimeout: 600,
         },
         baseContext,
       );
@@ -312,7 +298,6 @@ describe('AiAgentHandler', () => {
           systemPrompt: 'You are helpful',
           userPrompt: 'Hello',
           maxTurns: 10,
-          turnTimeout: 600,
         },
         baseContext,
       );
@@ -366,7 +351,6 @@ describe('AiAgentHandler', () => {
         ragThreshold: 0.7,
         maxToolCalls: 10,
         maxTurns: 10,
-        turnTimeout: 600,
         messages: [
           { role: 'system', content: 'You are helpful' },
           { role: 'user', content: 'Hello' },
@@ -416,7 +400,6 @@ describe('AiAgentHandler', () => {
         ragThreshold: 0.7,
         maxToolCalls: 10,
         maxTurns: 10,
-        turnTimeout: 600,
         messages: [
           { role: 'system', content: 'System prompt' },
           { role: 'user', content: 'Hello' },
@@ -476,7 +459,6 @@ describe('AiAgentHandler', () => {
         ragThreshold: 0.7,
         maxToolCalls: 10,
         maxTurns: 10,
-        turnTimeout: 600,
         messages: originalMessages,
         turnCount: 1,
         totalInputTokens: 0,
@@ -510,7 +492,6 @@ describe('AiAgentHandler', () => {
         ragThreshold: 0.7,
         maxToolCalls: 10,
         maxTurns: 2,
-        turnTimeout: 600,
         messages: [
           { role: 'system', content: 'You are helpful' },
           { role: 'user', content: 'Hello' },
@@ -553,7 +534,6 @@ describe('AiAgentHandler', () => {
         ragThreshold: 0.7,
         maxToolCalls: 10,
         maxTurns: 20,
-        turnTimeout: 600,
         messages: [
           { role: 'system', content: 'You are helpful' },
           { role: 'user', content: 'Hello' },
@@ -919,7 +899,6 @@ describe('AiAgentHandler', () => {
         ragThreshold: 0.7,
         maxToolCalls: 10,
         maxTurns: 10,
-        turnTimeout: 600,
         messages: [
           { role: 'system', content: 'You are helpful' },
           { role: 'user', content: 'Hello' },

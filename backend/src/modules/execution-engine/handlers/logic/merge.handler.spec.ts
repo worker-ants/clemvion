@@ -63,6 +63,27 @@ describe('MergeHandler', () => {
       );
     });
 
+    it('should allow timeout = 0 (no timeout)', () => {
+      const result = handler.validate({
+        strategy: 'wait_all',
+        outputFormat: 'array',
+        timeout: 0,
+      });
+      expect(result.valid).toBe(true);
+    });
+
+    it('should reject negative timeout', () => {
+      const result = handler.validate({
+        strategy: 'wait_all',
+        outputFormat: 'array',
+        timeout: -5,
+      });
+      expect(result.valid).toBe(false);
+      expect(result.errors).toContain(
+        'timeout must be a non-negative number (0 = no timeout)',
+      );
+    });
+
     it('should collect multiple errors', () => {
       const result = handler.validate({});
       expect(result.valid).toBe(false);

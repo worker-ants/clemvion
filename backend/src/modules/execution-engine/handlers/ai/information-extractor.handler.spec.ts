@@ -69,29 +69,11 @@ describe('InformationExtractorHandler', () => {
       expect(result.valid).toBe(false);
     });
 
-    it('should fail when multi_turn turnTimeout is zero', () => {
-      const result = handler.validate({
-        mode: 'multi_turn',
-        inputField: '{{ $input.text }}',
-        turnTimeout: 0,
-        outputSchema: [
-          {
-            name: 'senderName',
-            type: 'string',
-            description: 'Name',
-            required: true,
-          },
-        ],
-      });
-      expect(result.valid).toBe(false);
-    });
-
     it('should pass with valid multi_turn config', () => {
       const result = handler.validate({
         mode: 'multi_turn',
         inputField: '{{ $input.text }}',
         maxTurns: 5,
-        turnTimeout: 600,
         outputSchema: [
           {
             name: 'senderName',
@@ -292,7 +274,6 @@ describe('InformationExtractorHandler', () => {
           inputField: 'John 입니다',
           outputSchema: multiTurnSchema,
           maxTurns: 5,
-          turnTimeout: 600,
         },
         context,
       );
@@ -318,7 +299,6 @@ describe('InformationExtractorHandler', () => {
           inputField: '',
           outputSchema: multiTurnSchema,
           maxTurns: 5,
-          turnTimeout: 600,
         },
         context,
       );
@@ -403,7 +383,6 @@ describe('InformationExtractorHandler', () => {
         partialResult: { senderName: 'John', orderNumber: null },
         turnCount: 1,
         maxTurns: 5,
-        turnTimeout: 600,
         totalInputTokens: 100,
         totalOutputTokens: 30,
         ...overrides,

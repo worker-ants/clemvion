@@ -70,8 +70,6 @@ describe('CarouselHandler - Buttons', () => {
         {
           titleField: 'name',
           buttons,
-          buttonTimeout: 300,
-          buttonTimeoutAction: 'cancel',
         },
         context,
       )) as Record<string, unknown>;
@@ -79,11 +77,7 @@ describe('CarouselHandler - Buttons', () => {
       expect(result.output.type).toBe('carousel');
       expect(result.status).toBe('waiting_for_input');
       expect(result.meta?.interactionType).toBe('buttons');
-      expect(result.config.buttonConfig).toEqual({
-        buttons,
-        buttonTimeout: 300,
-        buttonTimeoutAction: 'cancel',
-      });
+      expect(result.config.buttonConfig).toEqual({ buttons });
       // Should still include normal carousel output
       expect(result.output.items).toBeDefined();
       expect(result.output.layout).toBeDefined();
@@ -111,27 +105,6 @@ describe('CarouselHandler - Buttons', () => {
 
       expect(result.output.type).toBe('carousel');
       expect(result.status).toBeUndefined();
-    });
-
-    it('should default buttonTimeoutAction to continue', async () => {
-      const result = (await handler.execute(
-        [{ name: 'Item 1' }],
-        {
-          titleField: 'name',
-          buttons: [
-            {
-              id: 'btn-1',
-              label: 'Link',
-              type: 'link',
-              url: 'http://x.com',
-            },
-          ],
-        },
-        context,
-      )) as Record<string, unknown>;
-
-      const btnConfig = result.config.buttonConfig as Record<string, unknown>;
-      expect(btnConfig.buttonTimeoutAction).toBe('continue');
     });
   });
 });

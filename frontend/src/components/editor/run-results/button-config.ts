@@ -14,8 +14,6 @@ export interface ButtonDef {
 
 export interface ButtonConfig {
   buttons: ButtonDef[];
-  timeout?: number;
-  timeoutAction?: "continue" | "cancel";
 }
 
 function isSafeButtonUrl(url: unknown): url is string {
@@ -65,14 +63,7 @@ export function parseButtonConfig(value: unknown): ButtonConfig | null {
     .map(parseButtonDef)
     .filter((b): b is ButtonDef => b !== null);
   if (buttons.length === 0) return null;
-  return {
-    buttons,
-    timeout: typeof v.timeout === "number" ? v.timeout : undefined,
-    timeoutAction:
-      v.timeoutAction === "continue" || v.timeoutAction === "cancel"
-        ? v.timeoutAction
-        : undefined,
-  };
+  return { buttons };
 }
 
 /** Safe wrapper for `window.open` that blocks non-http(s) schemes. */

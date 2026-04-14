@@ -36,11 +36,8 @@ export class WorkflowHandler implements NodeHandler {
       errors.push('mode must be "sync" or "async"');
     }
 
-    if (
-      timeout !== undefined &&
-      (typeof timeout !== 'number' || timeout <= 0)
-    ) {
-      errors.push('timeout must be a positive number');
+    if (timeout !== undefined && (typeof timeout !== 'number' || timeout < 0)) {
+      errors.push('timeout must be a non-negative number (0 = no timeout)');
     }
 
     if (inputMapping !== undefined) {

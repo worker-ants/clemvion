@@ -30,8 +30,9 @@ LLM 기반 AI Agent를 실행. 프롬프트, RAG, Tool Use를 지원. **Single T
 | conversationHistory | Enum | `none` / `last_n` / `full` |
 | historyCount | Integer? | last_n 시 보관 대화 수 |
 | maxTurns | Integer? | Multi Turn 모드 시 최대 대화 턴 수 (기본: 20, 0=무제한) |
-| turnTimeout | Integer? | Multi Turn 모드 시 사용자 응답 대기 타임아웃 초 (기본: 1800=30분) |
 | conditions | ConditionDef[] | 조건 목록. 각 조건은 라벨과 프롬프트로 구성. 조건이 있으면 조건별 동적 출력 포트를 생성한다 |
+
+> Multi Turn 모드에서 사용자 응답은 무제한 대기합니다. (외부 cancel 외에는 타임아웃이 발생하지 않습니다.)
 
 **ConditionDef 구조:**
 
@@ -104,7 +105,6 @@ LLM 기반 AI Agent를 실행. 프롬프트, RAG, Tool Use를 지원. **Single T
 │                                          │
 │  ── Multi Turn Settings ──  (mode=multi_turn 시 표시) │
 │  Max Turns:    [20__]                    │
-│  Turn Timeout: [1800_] sec               │
 └──────────────────────────────────────────┘
 ```
 
@@ -184,7 +184,7 @@ AI Agent가 대화 중 특정 상황을 감지하면 해당 조건의 출력 포
 
 **유효성 검증 규칙:**
 - 최대 20개 조건 허용
-- 각 조건의 `id`는 필수, 예약된 포트 ID(`out`, `in`, `timeout`, `error`, `user_ended`, `max_turns`)와 충돌 불가
+- 각 조건의 `id`는 필수, 예약된 포트 ID(`out`, `in`, `error`, `user_ended`, `max_turns`)와 충돌 불가
 - 각 조건의 `label`은 필수
 - 각 조건의 `prompt`는 필수, 최대 2,000자
 - 조건의 `reason` 응답은 최대 500자로 잘림 처리
@@ -248,8 +248,9 @@ LLM 응답의 `toolCalls`를 순회할 때 다음 로직을 적용:
    a. LLM이 조건 도구를 호출 → 해당 조건의 출력 포트(`{condition.id}`)로 분기
    b. 사용자가 `execution.end_conversation` 명령 전송 → `user_ended` 포트로 출력
    c. 대화 턴 수가 `maxTurns`에 도달 (0=무제한) → `max_turns` 포트로 출력
-   d. 사용자 응답 대기 시간이 `turnTimeout` 초과 → `error` 포트로 출력
-   e. LLM 오류, rate limit 등 → `error` 포트로 출력
+   d. LLM 오류, rate limit 등 → `error` 포트로 출력
+
+   > 사용자 응답은 무제한 대기합니다. (외부 cancel 외에는 타임아웃이 발생하지 않습니다.)
 
 4. **종료 시:**
    a. 종료 사유에 해당하는 포트로 출력
@@ -513,7 +514,8 @@ LLM을 사용하여 비정형 텍스트에서 구조화된 정보 추출.
 | instructions | String? | 추가 추출 지시사항 |
 | mode | Enum | `single_turn` (기본) / `multi_turn` |
 | maxTurns | Number? | `multi_turn`에서 최대 대화 턴 수. 0 = 제한 없음 (기본 10) |
-| turnTimeout | Number? | `multi_turn`에서 각 턴의 사용자 응답 대기 시간(초). 기본 1800 |
+
+> `multi_turn` 모드에서 사용자 응답은 무제한 대기합니다. (외부 cancel 외에는 타임아웃이 발생하지 않습니다.)
 
 **FieldDef 구조:**
 
@@ -592,7 +594,6 @@ LLM을 사용하여 비정형 텍스트에서 구조화된 정보 추출.
    - 모든 `required: true` 필드가 채워졌으면 → 최종 결과 반환 (`endReason: 'completed'`).
    - `turnCount >= maxTurns` (0이 아닐 때) → partial 결과 반환 (`endReason: 'max_turns'`).
    - 사용자가 대화 종료 → partial 결과 반환 (`endReason: 'user_ended'`).
-   - 사용자 응답 타임아웃 → partial 결과 반환 (`endReason: 'timeout'`).
 5. 종료 조건을 만족하지 않으면 `interactionType: 'ai_conversation'`으로 `waiting_for_input` 반환. 사용자의 응답을 받아 다음 턴을 진행.
 6. 프론트엔드는 AI Agent multi-turn과 동일한 `ConversationInspector` UI로 대화를 렌더.
 

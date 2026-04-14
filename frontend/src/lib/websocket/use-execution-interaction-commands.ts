@@ -6,8 +6,8 @@ import { useExecutionStore } from "../stores/execution-store";
 
 /**
  * Sentinel buttonId recognised by the engine's button-interaction handler as
- * "proceed without picking a concrete button" — used when a button-waiting
- * node hits its timeout and the timeoutAction is `continue`.
+ * "proceed without picking a concrete button" — used for link-only buttons
+ * where the user explicitly presses the Continue affordance.
  */
 export const CONTINUE_BUTTON_ID = "__continue__";
 

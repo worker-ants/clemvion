@@ -136,47 +136,10 @@ describe('button.types', () => {
       expect(errors.some((e) => e.includes('style'))).toBe(true);
     });
 
-    it('should validate buttonTimeout range', () => {
+    it('should ignore unknown buttonTimeout field (no longer supported)', () => {
       const errors = validateButtons({
         buttons: [{ id: 'btn-1', label: 'X', type: 'port' }],
         buttonTimeout: 100000,
-      });
-      expect(errors.some((e) => e.includes('buttonTimeout'))).toBe(true);
-    });
-
-    it('should pass for valid buttonTimeout', () => {
-      const errors = validateButtons({
-        buttons: [{ id: 'btn-1', label: 'X', type: 'port' }],
-        buttonTimeout: 300,
-      });
-      expect(errors).toEqual([]);
-    });
-
-    it('should fail when port buttons exist and timeoutAction is continue', () => {
-      const errors = validateButtons({
-        buttons: [{ id: 'btn-1', label: 'X', type: 'port' }],
-        buttonTimeout: 300,
-        buttonTimeoutAction: 'continue',
-      });
-      expect(errors.some((e) => e.includes('cannot be "continue"'))).toBe(true);
-    });
-
-    it('should pass when port buttons exist and timeoutAction is cancel', () => {
-      const errors = validateButtons({
-        buttons: [{ id: 'btn-1', label: 'X', type: 'port' }],
-        buttonTimeout: 300,
-        buttonTimeoutAction: 'cancel',
-      });
-      expect(errors).toEqual([]);
-    });
-
-    it('should allow continue timeoutAction when only link buttons', () => {
-      const errors = validateButtons({
-        buttons: [
-          { id: 'btn-1', label: 'X', type: 'link', url: 'http://x.com' },
-        ],
-        buttonTimeout: 300,
-        buttonTimeoutAction: 'continue',
       });
       expect(errors).toEqual([]);
     });

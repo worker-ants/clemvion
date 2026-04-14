@@ -168,7 +168,6 @@ function ButtonListEditor({
 function ButtonsConfig({ config, onChange }: { config: Config; onChange: OnChange }) {
   const [expanded, setExpanded] = useState(false);
   const buttons = (config.buttons as ButtonDef[]) ?? [];
-  const hasPortButtons = buttons.some((b) => b.type === "port");
 
   return (
     <div className="border-t border-[hsl(var(--border))] pt-2 mt-2">
@@ -194,41 +193,6 @@ function ButtonsConfig({ config, onChange }: { config: Config; onChange: OnChang
             buttons={buttons}
             onChange={(updated) => onChange({ ...config, buttons: updated })}
           />
-
-          {buttons.length > 0 && (
-            <>
-              <NumberField
-                label="Timeout (seconds)"
-                value={(config.buttonTimeout as number) ?? 0}
-                onChange={(v) =>
-                  onChange({
-                    ...config,
-                    buttonTimeout: v > 0 ? v : undefined,
-                  })
-                }
-                min={0}
-                max={86400}
-                hint="0 = no timeout (unlimited wait)"
-              />
-              {(config.buttonTimeout as number) > 0 && (
-                <SelectField
-                  label="On Timeout"
-                  value={(config.buttonTimeoutAction as string) ?? (hasPortButtons ? "cancel" : "continue")}
-                  onChange={(v) =>
-                    onChange({ ...config, buttonTimeoutAction: v })
-                  }
-                  options={
-                    hasPortButtons
-                      ? [{ value: "cancel", label: "Cancel execution" }]
-                      : [
-                          { value: "continue", label: "Continue execution" },
-                          { value: "cancel", label: "Cancel execution" },
-                        ]
-                  }
-                />
-              )}
-            </>
-          )}
         </div>
       )}
     </div>
@@ -718,13 +682,6 @@ export function FormConfig({ config, onChange }: { config: Config; onChange: OnC
         label="Submit Label"
         value={(config.submitLabel as string) ?? "Submit"}
         onChange={(v) => onChange({ ...config, submitLabel: v })}
-      />
-      <NumberField
-        label="Timeout (seconds)"
-        value={(config.timeout as number) ?? 0}
-        onChange={(v) => onChange({ ...config, timeout: v })}
-        min={0}
-        hint="0 = no timeout"
       />
       <SectionTitle>Fields</SectionTitle>
       {fields.map((field, i) => (

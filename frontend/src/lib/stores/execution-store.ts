@@ -328,7 +328,7 @@ export const useExecutionStore = create<ExecutionState>((set) => ({
 
   updateConversationConfig: (config: unknown) =>
     set((state) => {
-      // Merge with existing config to preserve maxTurns, turnTimeout etc.
+      // Merge with existing config to preserve maxTurns etc.
       const existing = state.waitingConversationConfig as Record<string, unknown> | null;
       const incoming = config as Record<string, unknown> | null;
       return {

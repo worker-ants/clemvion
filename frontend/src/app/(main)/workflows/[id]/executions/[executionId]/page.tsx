@@ -563,8 +563,6 @@ function NodeResultsTab({
                     return (
                       <ButtonBar
                         buttons={parsed.buttons}
-                        timeout={parsed.timeout}
-                        timeoutAction={parsed.timeoutAction}
                         onPortButtonClick={handlePortButtonClick}
                         onLinkButtonClick={handleLinkButtonClick}
                         onContinueClick={handleContinueClick}

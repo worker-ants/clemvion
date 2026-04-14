@@ -32,7 +32,6 @@ interface MultiTurnState {
   partialResult: Record<string, unknown>;
   turnCount: number;
   maxTurns: number;
-  turnTimeout: number;
   totalInputTokens: number;
   totalOutputTokens: number;
   // Unused by this handler but kept so the engine can pass generic state fields
@@ -74,10 +73,6 @@ export class InformationExtractorHandler implements NodeHandler {
       const maxTurns = config.maxTurns as number | undefined;
       if (maxTurns !== undefined && maxTurns < 0) {
         errors.push('maxTurns must be 0 (unlimited) or a positive integer');
-      }
-      const turnTimeout = config.turnTimeout as number | undefined;
-      if (turnTimeout !== undefined && turnTimeout <= 0) {
-        errors.push('turnTimeout must be a positive integer');
       }
     }
 
@@ -208,7 +203,6 @@ export class InformationExtractorHandler implements NodeHandler {
     const examples = (config.examples as Example[]) || [];
     const instructions = (config.instructions as string) || '';
     const maxTurns = (config.maxTurns as number) ?? 10;
-    const turnTimeout = (config.turnTimeout as number) ?? 1800;
 
     const workspaceId = (context.variables?.__workspaceId as string) || '';
     const llmConfig = await this.llmService.resolveConfig(
@@ -231,7 +225,6 @@ export class InformationExtractorHandler implements NodeHandler {
       instructions,
       examples,
       maxTurns,
-      turnTimeout,
     };
 
     // No inputField: skip initial LLM call and wait for the user's first
@@ -433,7 +426,6 @@ export class InformationExtractorHandler implements NodeHandler {
         messages: state.messages,
         turnCount: state.turnCount,
         maxTurns: state.maxTurns,
-        turnTimeout: state.turnTimeout,
       },
       _multiTurnState: state,
     };
@@ -615,7 +607,6 @@ For every response emit a single JSON object with these rules:
       partialResult: (raw.partialResult as Record<string, unknown>) || {},
       turnCount: (raw.turnCount as number) || 0,
       maxTurns: (raw.maxTurns as number) ?? 10,
-      turnTimeout: (raw.turnTimeout as number) ?? 1800,
       totalInputTokens: (raw.totalInputTokens as number) || 0,
       totalOutputTokens: (raw.totalOutputTokens as number) || 0,
     };
