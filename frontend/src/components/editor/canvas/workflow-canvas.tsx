@@ -341,7 +341,7 @@ export function WorkflowCanvas() {
         data: {
           type: nodeType,
           label: generateUniqueLabel(definition.label, existingLabels),
-          config: {},
+          config: { ...(definition.defaultConfig ?? {}) },
           category: definition.category,
           isDisabled: false,
         },
@@ -397,7 +397,7 @@ export function WorkflowCanvas() {
         data: {
           type: nodeType,
           label: generateUniqueLabel(definition.label, existingLabels),
-          config: {},
+          config: { ...(definition.defaultConfig ?? {}) },
           category: definition.category,
           isDisabled: false,
         },
