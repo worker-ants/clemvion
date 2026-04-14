@@ -118,12 +118,6 @@ export function RunResultsDrawer() {
   const resumeFromConversation = useExecutionStore(
     (s) => s.resumeFromConversation,
   );
-  const addConversationMessage = useExecutionStore(
-    (s) => s.addConversationMessage,
-  );
-  const setWaitingAiResponse = useExecutionStore(
-    (s) => s.setWaitingAiResponse,
-  );
 
   // Auto-selection of blocking nodes is handled directly in store actions
   // (pauseForForm, pauseForButtons, pauseForConversation set selectedResultNodeId atomically)
@@ -204,20 +198,6 @@ export function RunResultsDrawer() {
   const visibleResults = useMemo(
     () => nodeResults.filter((r) => r.status !== "skipped"),
     [nodeResults],
-  );
-
-  const handleSendMessage = useCallback(
-    (message: string) => {
-      addConversationMessage({
-        type: "user",
-        content: message,
-        turnIndex:
-          conversationMessages.filter((m) => m.type === "user").length + 1,
-        timestamp: new Date().toISOString(),
-      });
-      setWaitingAiResponse(true);
-    },
-    [addConversationMessage, setWaitingAiResponse, conversationMessages],
   );
 
   if (status === "idle") return null;
@@ -398,7 +378,6 @@ export function RunResultsDrawer() {
               onFormSubmit={resumeFromForm}
               onButtonClick={resumeFromButtons}
               onConversationEnd={resumeFromConversation}
-              onSendMessage={handleSendMessage}
             />
           </div>
         </div>

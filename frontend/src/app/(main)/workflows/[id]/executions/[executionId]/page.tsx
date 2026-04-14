@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, use, useMemo } from "react";
+import { useState, use, useMemo, useEffect } from "react";
+
 import { useQuery } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import {
@@ -30,7 +31,16 @@ import { PresentationContent } from "@/components/editor/run-results/renderers/p
 import { GenericRenderer } from "@/components/editor/run-results/renderers/generic-renderer";
 import { ConversationInspector } from "@/components/editor/run-results/conversation-inspector";
 import { parseHistoryMessages } from "@/components/editor/run-results/conversation-utils";
+import { DynamicFormUI } from "@/components/editor/run-results/dynamic-form-ui";
+import { ButtonBar } from "@/components/editor/run-results/button-bar";
+import {
+  parseButtonConfig,
+  openExternalLink,
+} from "@/components/editor/run-results/button-config";
 import type { NodeResult } from "@/lib/stores/execution-store";
+import { useExecutionStore } from "@/lib/stores/execution-store";
+import { useExecutionEvents } from "@/lib/websocket/use-execution-events";
+import { useExecutionInteractionCommands } from "@/lib/websocket/use-execution-interaction-commands";
 
 function NodeStatusIcon({ status }: { status: string }) {
   switch (status) {
@@ -66,6 +76,19 @@ export default function ExecutionDetailPage({
   const { id: workflowId, executionId } = use(params);
   const router = useRouter();
 
+  // Reset store when switching between executions so stale waiting/conversation
+  // state from a previously viewed execution doesn't bleed into this one.
+  // The poll loop in useExecutionEvents then repopulates from REST.
+  const resetStore = useExecutionStore((s) => s.reset);
+  useEffect(() => {
+    resetStore();
+  }, [executionId, resetStore]);
+
+  // Subscribe to WebSocket events + REST polling so waiting state is
+  // hydrated into the store even when the page is opened after the
+  // waiting event was emitted.
+  useExecutionEvents({ executionId });
+
   const workflowQuery = useQuery({
     queryKey: ["workflow", workflowId],
     queryFn: async () => {
@@ -74,9 +97,24 @@ export default function ExecutionDetailPage({
     },
   });
 
+  // useExecutionEvents already polls REST + subscribes over WebSocket and
+  // hydrates the store. The summary card/node list are driven by this
+  // one-shot query plus React Query's cache invalidation on completion.
   const executionQuery = useQuery<ExecutionData>({
     queryKey: ["execution", executionId],
     queryFn: () => executionsApi.getById(executionId),
+    refetchInterval: (query) => {
+      // Refresh summary data while the execution is mid-flight. Polling stops
+      // once a terminal status is reached; `waiting_for_input` continues to
+      // poll so the summary card reflects the resumed run in real time.
+      const status = query.state.data?.status;
+      if (!status) return 2000;
+      return status === "completed" ||
+        status === "failed" ||
+        status === "cancelled"
+        ? false
+        : 2000;
+    },
   });
 
   // Fetch adjacent executions for prev/next navigation
@@ -266,7 +304,10 @@ export default function ExecutionDetailPage({
       </div>
 
       {/* Node Results */}
-      <NodeResultsTab nodeExecutions={sortedNodeExecutions} />
+      <NodeResultsTab
+        executionId={executionId}
+        nodeExecutions={sortedNodeExecutions}
+      />
     </div>
   );
 }
@@ -288,12 +329,49 @@ function toNodeResult(ne: NodeExecutionData): NodeResult {
 }
 
 function NodeResultsTab({
+  executionId,
   nodeExecutions,
 }: {
+  executionId: string;
   nodeExecutions: NodeExecutionData[];
 }) {
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [nodeDetailTab, setNodeDetailTab] = useState<DetailTab>("preview");
+  // Tracks which waitingNodeId we've already auto-selected, so changes to the
+  // waiting node (e.g. after resumption into a new waiting node) move the
+  // selection once without fighting manual clicks.
+  const [lastAutoSelectedWaiting, setLastAutoSelectedWaiting] =
+    useState<string | null>(null);
+
+  // Waiting-state selectors — populated by useExecutionEvents when the
+  // execution (live or already persisted) is in `waiting_for_input`.
+  const waitingNodeId = useExecutionStore((s) => s.waitingNodeId);
+  const waitingInteractionType = useExecutionStore(
+    (s) => s.waitingInteractionType,
+  );
+  const waitingFormConfig = useExecutionStore((s) => s.waitingFormConfig);
+  const waitingButtonConfig = useExecutionStore((s) => s.waitingButtonConfig);
+  const waitingConversationConfig = useExecutionStore(
+    (s) => s.waitingConversationConfig,
+  );
+  const conversationMessages = useExecutionStore((s) => s.conversationMessages);
+  const isWaitingAiResponse = useExecutionStore((s) => s.isWaitingAiResponse);
+  const resumeFromForm = useExecutionStore((s) => s.resumeFromForm);
+  const resumeFromButtons = useExecutionStore((s) => s.resumeFromButtons);
+  const resumeFromConversation = useExecutionStore(
+    (s) => s.resumeFromConversation,
+  );
+
+  const commands = useExecutionInteractionCommands(executionId);
+
+  // Derived-state pattern (not an effect): when a newly-surfaced waiting node
+  // differs from the one we previously auto-selected, move the selection once.
+  // The user can still click away freely afterwards.
+  if (waitingNodeId && waitingNodeId !== lastAutoSelectedWaiting) {
+    setLastAutoSelectedWaiting(waitingNodeId);
+    setSelectedNodeId(waitingNodeId);
+    setNodeDetailTab("preview");
+  }
 
   const selectedNode = useMemo(() => {
     if (!selectedNodeId) return null;
@@ -304,6 +382,45 @@ function NodeResultsTab({
     if (!selectedNode) return null;
     return toNodeResult(selectedNode);
   }, [selectedNode]);
+
+  const isSelectedWaiting =
+    !!waitingNodeId && selectedNodeId === waitingNodeId;
+  const isWaitingForm =
+    isSelectedWaiting && waitingInteractionType === "form";
+  const isWaitingButtons =
+    isSelectedWaiting && waitingInteractionType === "buttons";
+  const isWaitingConversation =
+    isSelectedWaiting && waitingInteractionType === "ai_conversation";
+
+  const handleFormSubmit = (data: Record<string, unknown>) => {
+    commands.submitForm(data);
+    resumeFromForm();
+  };
+
+  const handlePortButtonClick = (buttonId: string) => {
+    commands.clickButton(buttonId);
+    resumeFromButtons();
+  };
+
+  const handleContinueClick = () => {
+    commands.clickContinue();
+    resumeFromButtons();
+  };
+
+  const handleLinkButtonClick = (url: string) => {
+    openExternalLink(url);
+  };
+
+  const handleSendMessage = (message: string) => {
+    if (!selectedNode) return;
+    commands.sendMessage(selectedNode.nodeId, message);
+  };
+
+  const handleEndConversation = () => {
+    if (!selectedNode) return;
+    commands.endConversation(selectedNode.nodeId);
+    resumeFromConversation();
+  };
 
   if (!nodeExecutions.length) {
     return (
@@ -317,10 +434,15 @@ function NodeResultsTab({
   const isAiAgent = selectedNodeResult?.nodeType === "ai_agent";
   const isCompletedConversation =
     isAiAgent &&
+    !isWaitingConversation &&
     !!(selectedNode?.outputData as Record<string, unknown> | null)?.messages;
 
+  // Preview tab should also render when the selected node is waiting for
+  // input — even if outputData is null the page must show the interactive UI.
+  const hasPreview = !!selectedNode?.outputData || isSelectedWaiting;
+
   const detailTabs: { id: DetailTab; label: string; show: boolean }[] = [
-    { id: "preview", label: "Preview", show: !!selectedNode?.outputData },
+    { id: "preview", label: "Preview", show: hasPreview },
     { id: "input", label: "Input", show: true },
     { id: "output", label: "Output", show: true },
     { id: "error", label: "Error", show: !!selectedNode?.error },
@@ -346,7 +468,7 @@ function NodeResultsTab({
             onClick={() => {
               setSelectedNodeId(ne.nodeId);
               setNodeDetailTab(
-                ne.error ? "error" : ne.outputData ? "preview" : "output",
+                ne.error ? "error" : (ne.outputData || ne.nodeId === waitingNodeId) ? "preview" : "output",
               );
             }}
           >
@@ -411,7 +533,45 @@ function NodeResultsTab({
             {/* Content */}
             <div className="flex-1 overflow-auto p-4">
               {nodeDetailTab === "preview" && selectedNodeResult && (
-                isCompletedConversation ? (
+                isWaitingConversation ? (
+                  <ConversationInspector
+                    result={selectedNodeResult}
+                    conversationMessages={conversationMessages}
+                    selectedItemIndex={null}
+                    isLive={true}
+                    isWaitingAiResponse={isWaitingAiResponse}
+                    conversationConfig={waitingConversationConfig}
+                    onSendMessage={handleSendMessage}
+                    onEndConversation={handleEndConversation}
+                  />
+                ) : isWaitingForm && waitingFormConfig ? (
+                  <DynamicFormUI
+                    formConfig={waitingFormConfig as Record<string, unknown>}
+                    onSubmit={handleFormSubmit}
+                  />
+                ) : isWaitingButtons ? (
+                  isPresentation ? (
+                    <PresentationContent
+                      result={selectedNodeResult}
+                      onPortButtonClick={handlePortButtonClick}
+                      onLinkButtonClick={handleLinkButtonClick}
+                      previewOnly
+                    />
+                  ) : (() => {
+                    const parsed = parseButtonConfig(waitingButtonConfig);
+                    if (!parsed) return null;
+                    return (
+                      <ButtonBar
+                        buttons={parsed.buttons}
+                        timeout={parsed.timeout}
+                        timeoutAction={parsed.timeoutAction}
+                        onPortButtonClick={handlePortButtonClick}
+                        onLinkButtonClick={handleLinkButtonClick}
+                        onContinueClick={handleContinueClick}
+                      />
+                    );
+                  })()
+                ) : isCompletedConversation ? (
                   <ConversationInspector
                     result={selectedNodeResult}
                     conversationMessages={parseHistoryMessages(selectedNode?.outputData)}

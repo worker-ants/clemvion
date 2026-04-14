@@ -1,0 +1,113 @@
+{
+  "timestamp": "2026-04-14T17:48:15.059724",
+  "files": [
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/frontend/package-lock.json",
+      "change_type": "Review",
+      "file_extension": "json"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/frontend/src/app/(main)/workflows/[id]/executions/[executionId]/page.tsx",
+      "change_type": "Review",
+      "file_extension": "tsx"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/frontend/src/components/editor/run-results/__tests__/result-detail.test.tsx",
+      "change_type": "Review",
+      "file_extension": "tsx"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/frontend/src/components/editor/run-results/result-detail.tsx",
+      "change_type": "Review",
+      "file_extension": "tsx"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/frontend/src/components/editor/run-results/run-results-drawer.tsx",
+      "change_type": "Review",
+      "file_extension": "tsx"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/frontend/src/app/(main)/workflows/[id]/executions/__tests__/execution-detail-waiting.test.tsx",
+      "change_type": "Review",
+      "file_extension": "tsx"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/frontend/src/lib/websocket/__tests__/use-execution-interaction-commands.test.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/frontend/src/lib/websocket/use-execution-interaction-commands.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    }
+  ],
+  "total_elapsed_seconds": 139.11,
+  "agents": [
+    {
+      "name": "database",
+      "status": "success",
+      "elapsed_seconds": 10.89
+    },
+    {
+      "name": "dependency",
+      "status": "success",
+      "elapsed_seconds": 35.55
+    },
+    {
+      "name": "api_contract",
+      "status": "success",
+      "elapsed_seconds": 36.09
+    },
+    {
+      "name": "documentation",
+      "status": "success",
+      "elapsed_seconds": 36.76
+    },
+    {
+      "name": "testing",
+      "status": "success",
+      "elapsed_seconds": 37.92
+    },
+    {
+      "name": "side_effect",
+      "status": "success",
+      "elapsed_seconds": 41.16
+    },
+    {
+      "name": "maintainability",
+      "status": "success",
+      "elapsed_seconds": 42.28
+    },
+    {
+      "name": "requirement",
+      "status": "success",
+      "elapsed_seconds": 43.35
+    },
+    {
+      "name": "security",
+      "status": "success",
+      "elapsed_seconds": 44.41
+    },
+    {
+      "name": "performance",
+      "status": "success",
+      "elapsed_seconds": 44.74
+    },
+    {
+      "name": "scope",
+      "status": "success",
+      "elapsed_seconds": 46.63
+    },
+    {
+      "name": "architecture",
+      "status": "success",
+      "elapsed_seconds": 47.42
+    },
+    {
+      "name": "concurrency",
+      "status": "success",
+      "elapsed_seconds": 67.21
+    }
+  ]
+}
