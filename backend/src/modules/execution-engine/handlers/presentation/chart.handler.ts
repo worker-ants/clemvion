@@ -45,7 +45,11 @@ export class ChartHandler implements NodeHandler {
     const dataField = config.dataField as string | undefined;
 
     let inputArray: unknown[];
-    if (dataField && typeof input === 'object' && input !== null) {
+    if (config.dataSource !== undefined && config.dataSource !== null) {
+      inputArray = Array.isArray(config.dataSource)
+        ? (config.dataSource as unknown[])
+        : [config.dataSource];
+    } else if (dataField && typeof input === 'object' && input !== null) {
       inputArray = (input as Record<string, unknown>)[dataField] as unknown[];
       if (!Array.isArray(inputArray)) inputArray = [];
     } else {

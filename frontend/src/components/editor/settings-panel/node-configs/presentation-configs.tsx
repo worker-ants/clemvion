@@ -601,6 +601,9 @@ export function TableConfig({ config, onChange }: { config: Config; onChange: On
 
 // ===== Chart =====
 export function ChartConfig({ config, onChange }: { config: Config; onChange: OnChange }) {
+  const xAxis = (config.xAxis as { field?: string; label?: string } | undefined) ?? {};
+  const yAxis =
+    (config.yAxis as { field?: string; label?: string; aggregation?: string } | undefined) ?? {};
   return (
     <div className="flex flex-col gap-3">
       <SelectField
@@ -616,42 +619,42 @@ export function ChartConfig({ config, onChange }: { config: Config; onChange: On
         ]}
       />
       <ExpressionInput
-        label="Data Field"
-        value={(config.dataField as string) ?? ""}
-        onChange={(v) => onChange({ ...config, dataField: v })}
-        placeholder="data"
-        hint="Array field containing chart data"
+        label="Data Source"
+        value={(config.dataSource as string) ?? ""}
+        onChange={(v) => onChange({ ...config, dataSource: v })}
+        placeholder="{{$var.items}}"
+        hint="Array expression for chart data (leave empty to use previous node output)"
       />
       <SectionTitle>X Axis</SectionTitle>
       <ExpressionInput
         label="Field"
-        value={(config.xAxisField as string) ?? ""}
-        onChange={(v) => onChange({ ...config, xAxisField: v })}
+        value={xAxis.field ?? ""}
+        onChange={(v) => onChange({ ...config, xAxis: { ...xAxis, field: v } })}
         placeholder="x field path"
       />
       <ExpressionInput
         label="Label"
-        value={(config.xAxisLabel as string) ?? ""}
-        onChange={(v) => onChange({ ...config, xAxisLabel: v })}
+        value={xAxis.label ?? ""}
+        onChange={(v) => onChange({ ...config, xAxis: { ...xAxis, label: v } })}
         placeholder="X axis label"
       />
       <SectionTitle>Y Axis</SectionTitle>
       <ExpressionInput
         label="Field"
-        value={(config.yAxisField as string) ?? ""}
-        onChange={(v) => onChange({ ...config, yAxisField: v })}
+        value={yAxis.field ?? ""}
+        onChange={(v) => onChange({ ...config, yAxis: { ...yAxis, field: v } })}
         placeholder="y field path"
       />
       <ExpressionInput
         label="Label"
-        value={(config.yAxisLabel as string) ?? ""}
-        onChange={(v) => onChange({ ...config, yAxisLabel: v })}
+        value={yAxis.label ?? ""}
+        onChange={(v) => onChange({ ...config, yAxis: { ...yAxis, label: v } })}
         placeholder="Y axis label"
       />
       <SelectField
         label="Aggregation"
-        value={(config.yAxisAggregation as string) ?? "sum"}
-        onChange={(v) => onChange({ ...config, yAxisAggregation: v })}
+        value={yAxis.aggregation ?? "sum"}
+        onChange={(v) => onChange({ ...config, yAxis: { ...yAxis, aggregation: v } })}
         options={[
           { value: "sum", label: "Sum" },
           { value: "count", label: "Count" },
