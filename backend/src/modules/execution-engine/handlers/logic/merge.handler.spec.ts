@@ -25,12 +25,10 @@ describe('MergeHandler', () => {
       expect(result.errors).toHaveLength(0);
     });
 
-    it('should return invalid when strategy is missing', () => {
+    it('should treat missing strategy as valid (defaulted in execute)', () => {
       const result = handler.validate({ outputFormat: 'array' });
-      expect(result.valid).toBe(false);
-      expect(result.errors).toContain(
-        'strategy must be one of: wait_all, first, append',
-      );
+      expect(result.valid).toBe(true);
+      expect(result.errors).toHaveLength(0);
     });
 
     it('should return invalid for unknown strategy', () => {
@@ -44,12 +42,16 @@ describe('MergeHandler', () => {
       );
     });
 
-    it('should return invalid when outputFormat is missing', () => {
+    it('should treat missing outputFormat as valid (defaulted in execute)', () => {
       const result = handler.validate({ strategy: 'wait_all' });
-      expect(result.valid).toBe(false);
-      expect(result.errors).toContain(
-        'outputFormat must be one of: array, merge_object, indexed',
-      );
+      expect(result.valid).toBe(true);
+      expect(result.errors).toHaveLength(0);
+    });
+
+    it('should treat empty config as valid (all fields defaulted)', () => {
+      const result = handler.validate({});
+      expect(result.valid).toBe(true);
+      expect(result.errors).toHaveLength(0);
     });
 
     it('should return invalid for unknown outputFormat', () => {
@@ -63,8 +65,11 @@ describe('MergeHandler', () => {
       );
     });
 
-    it('should collect multiple errors', () => {
-      const result = handler.validate({});
+    it('should collect multiple errors when both enum values are invalid', () => {
+      const result = handler.validate({
+        strategy: 'bad',
+        outputFormat: 'bad',
+      });
       expect(result.valid).toBe(false);
       expect(result.errors).toHaveLength(2);
     });
@@ -72,6 +77,30 @@ describe('MergeHandler', () => {
 
   describe('execute', () => {
     const baseConfig = { strategy: 'wait_all', outputFormat: 'array' };
+
+    describe('default config', () => {
+      it('should default strategy to wait_all and outputFormat to array when both missing', async () => {
+        const input = [{ a: 1 }, { b: 2 }];
+        const result = (await handler.execute(input, {}, context)) as {
+          config: { strategy: string; outputFormat: string };
+          output: unknown;
+        };
+        expect(result.config.strategy).toBe('wait_all');
+        expect(result.config.outputFormat).toBe('array');
+        expect(result.output).toMatchObject([{ a: 1 }, { b: 2 }]);
+      });
+
+      it('should default only missing fields and respect provided ones', async () => {
+        const input = [{ a: 1 }, { b: 2 }];
+        const result = (await handler.execute(
+          input,
+          { strategy: 'first' },
+          context,
+        )) as { config: { strategy: string; outputFormat: string } };
+        expect(result.config.strategy).toBe('first');
+        expect(result.config.outputFormat).toBe('array');
+      });
+    });
 
     describe('input normalization', () => {
       it('should handle object input keyed by source node IDs', async () => {
