@@ -49,10 +49,7 @@
 | Information Extractor | 1 | 1 | `out` |
 | HTTP Request | 1 | 2 | `success`, `error` |
 | Database Query | 1 | 1 | `out` |
-| Google Sheets | 1 | 1 | `out` |
-| GitHub | 1 | 1 | `out` |
 | Send Email | 1 | 1 | `out` |
-| Google Drive | 1 | 1 | `out` |
 | Transform | 1 | 1 | `out` |
 | Code | 1 | 1 | `out` |
 | Carousel | 1 | 1 또는 N (동적) | `out` (기본). 버튼 설정 시 `out` 제거 → port 버튼별 동적 포트 (`{button.id}`) + link 전용 시 `continue` 자동 생성 |
