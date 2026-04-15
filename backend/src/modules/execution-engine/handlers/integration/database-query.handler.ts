@@ -1,4 +1,10 @@
 import { Pool, PoolClient } from 'pg';
+import {
+  createPool as mysqlCreatePool,
+  Pool as MysqlPool,
+  ResultSetHeader,
+  RowDataPacket,
+} from 'mysql2/promise';
 import { createHash } from 'crypto';
 import {
   ExecutionContext,
@@ -42,12 +48,16 @@ export class DatabaseQueryHandler
   implements NodeHandler
 {
   /**
-   * integrationId → cached pg.Pool. A new Pool is created on first use and
-   * reused across node executions to bound total TCP connections against
-   * PostgreSQL's `max_connections`. Keyed by integrationId + credentials hash
-   * so credential rotations invalidate the cache.
+   * integrationId → cached driver-specific connection pool. A new Pool is
+   * created on first use and reused across node executions to bound total
+   * TCP connections against the database's `max_connections`. Keyed by
+   * integrationId + credentials hash so credential rotations invalidate.
    */
-  private readonly pools = new Map<string, { pool: Pool; credsHash: string }>();
+  private readonly pools = new Map<
+    string,
+    | { driver: 'postgres'; pool: Pool; credsHash: string }
+    | { driver: 'mysql'; pool: MysqlPool; credsHash: string }
+  >();
 
   constructor(integrationsService?: IntegrationsService) {
     super(integrationsService);
@@ -95,72 +105,136 @@ export class DatabaseQueryHandler
     const parameters = parseParameters(config.parameters);
 
     if (!this.integrationsService) {
-      return {
-        config: { integrationId, query, queryType, parameters },
-        output: {
-          rows: [],
-          rowCount: 0,
-          message: 'Database execution requires integration connection',
-        },
-      };
+      throw new IntegrationError(
+        'INTEGRATION_SERVICE_UNAVAILABLE',
+        'Database node requires an integrations service to be configured',
+      );
     }
 
     const start = Date.now();
-    try {
-      const integration = await this.resolveIntegration(
-        integrationId,
-        context,
-        'database',
-      );
-      const creds = integration.credentials as Partial<DbCredentials>;
-      const missing = missingDbFields(creds);
-      if (missing.length > 0) {
-        throw new IntegrationError(
-          'INTEGRATION_INCOMPLETE',
-          `Database integration is missing fields: ${missing.join(', ')}`,
-        );
-      }
-      if (creds.driver === 'mysql') {
-        throw new IntegrationError(
-          'DRIVER_NOT_SUPPORTED',
-          'MySQL driver is not yet implemented — add `mysql2` dependency to enable',
-        );
-      }
+    const configEcho = { integrationId, query, queryType, parameters };
 
-      const pool = this.resolvePool(integrationId, creds as DbCredentials);
-      let client: PoolClient | undefined;
-      try {
-        client = await pool.connect();
-        const result = await client.query(query, parameters);
-        const durationMs = Date.now() - start;
-        await this.logUsage(context, {
-          integrationId,
-          status: 'success',
-          durationMs,
-        }).catch(() => {});
-        return {
-          config: { integrationId, query, queryType, parameters },
-          output: {
-            rows: result.rows,
-            rowCount: result.rowCount ?? result.rows.length,
-            fields: result.fields?.map((f) => ({
-              name: f.name,
-              dataTypeID: f.dataTypeID,
-            })),
-          },
-          meta: { durationMs },
-        };
-      } finally {
-        client?.release();
-      }
+    // Pre-flight configuration errors throw (halt workflow). Runtime
+    // execution errors route to the `error` port so authors can branch.
+    const integration = await this.resolveIntegration(
+      integrationId,
+      context,
+      'database',
+    );
+    const creds = integration.credentials as Partial<DbCredentials>;
+    const missing = missingDbFields(creds);
+    if (missing.length > 0) {
+      throw new IntegrationError(
+        'INTEGRATION_INCOMPLETE',
+        `Database integration is missing fields: ${missing.join(', ')}`,
+      );
+    }
+
+    try {
+      const driver = creds.driver ?? 'postgres';
+      const result =
+        driver === 'mysql'
+          ? await this.executeMysql(
+              integrationId,
+              creds as DbCredentials,
+              query,
+              parameters,
+            )
+          : await this.executePostgres(
+              integrationId,
+              creds as DbCredentials,
+              query,
+              parameters,
+            );
+      const durationMs = Date.now() - start;
+      await this.logUsage(context, {
+        integrationId,
+        status: 'success',
+        durationMs,
+      }).catch(() => {});
+      return {
+        config: configEcho,
+        output: result,
+        meta: { durationMs },
+        port: 'success',
+      };
     } catch (err) {
+      const durationMs = Date.now() - start;
       await this.logUsage(context, {
         integrationId,
         status: 'failed',
-        durationMs: Date.now() - start,
+        durationMs,
         error: toLogError(err),
       }).catch(() => {});
-      throw err;
+      return {
+        config: configEcho,
+        output: {
+          error: {
+            code: err instanceof IntegrationError ? err.code : 'QUERY_FAILED',
+            message: err instanceof Error ? err.message : String(err),
+          },
+        },
+        meta: { durationMs },
+        port: 'error',
+      };
+    }
+  }
+
+  private async executeMysql(
+    integrationId: string,
+    creds: DbCredentials,
+    query: string,
+    parameters: unknown[],
+  ): Promise<Record<string, unknown>> {
+    const pool = this.resolveMysqlPool(integrationId, creds);
+    // mysql2 uses `?` placeholders. Convert `$1, $2, ...` from the
+    // PostgreSQL-flavoured UI hint into positional `?` marks. Parameters
+    // are still bound positionally against `parameters[]`.
+    const sql = convertPgPlaceholders(query);
+    const [rawRows, fields] = await pool.query(sql, parameters);
+    if (Array.isArray(rawRows)) {
+      const rows = rawRows as RowDataPacket[];
+      return {
+        rows,
+        rowCount: rows.length,
+        fields: Array.isArray(fields)
+          ? fields.map((f) => ({
+              name: f.name,
+              dataTypeID: f.columnType,
+            }))
+          : undefined,
+      };
+    }
+    const header = rawRows as ResultSetHeader;
+    return {
+      rows: [],
+      rowCount: header.affectedRows ?? 0,
+      insertId: header.insertId,
+      fields: [],
+    };
+  }
+
+  private async executePostgres(
+    integrationId: string,
+    creds: DbCredentials,
+    query: string,
+    parameters: unknown[],
+  ): Promise<Record<string, unknown>> {
+    const pool = this.resolvePgPool(integrationId, creds);
+    let client: PoolClient | undefined;
+    try {
+      client = await pool.connect();
+      const result = await client.query(query, parameters);
+      return {
+        rows: result.rows,
+        rowCount: result.rowCount ?? result.rows.length,
+        fields: result.fields?.map((f) => ({
+          name: f.name,
+          dataTypeID: f.dataTypeID,
+        })),
+      };
+    } finally {
+      client?.release();
     }
   }
 
@@ -188,14 +262,18 @@ export class DatabaseQueryHandler
     await Promise.allSettled(entries.map((e) => e.pool.end()));
   }
 
-  private resolvePool(integrationId: string, creds: DbCredentials): Pool {
+  private resolvePgPool(integrationId: string, creds: DbCredentials): Pool {
     const credsHash = hashCredentials(creds);
     const existing = this.pools.get(integrationId);
-    if (existing && existing.credsHash === credsHash) {
+    if (
+      existing &&
+      existing.driver === 'postgres' &&
+      existing.credsHash === credsHash
+    ) {
       return existing.pool;
     }
     if (existing) {
-      // credential rotated — end the stale pool in the background
+      // credential or driver rotated — end the stale pool in the background
       void existing.pool.end().catch(() => {});
     }
 
@@ -207,7 +285,39 @@ export class DatabaseQueryHandler
     // Prevent unhandled error events from crashing the process when an idle
     // client encounters a network issue.
     pool.on('error', () => {});
-    this.pools.set(integrationId, { pool, credsHash });
+    this.pools.set(integrationId, { driver: 'postgres', pool, credsHash });
+    return pool;
+  }
+
+  private resolveMysqlPool(
+    integrationId: string,
+    creds: DbCredentials,
+  ): MysqlPool {
+    const credsHash = hashCredentials(creds);
+    const existing = this.pools.get(integrationId);
+    if (
+      existing &&
+      existing.driver === 'mysql' &&
+      existing.credsHash === credsHash
+    ) {
+      return existing.pool;
+    }
+    if (existing) {
+      void existing.pool.end().catch(() => {});
+    }
+
+    const pool = mysqlCreatePool({
+      host: creds.host,
+      port: creds.port,
+      user: creds.username,
+      password: creds.password,
+      database: creds.database,
+      ssl: buildMysqlSsl(creds.ssl),
+      connectionLimit: POOL_MAX_CONNECTIONS,
+      idleTimeout: POOL_IDLE_TIMEOUT_MS,
+      waitForConnections: true,
+    });
+    this.pools.set(integrationId, { driver: 'mysql', pool, credsHash });
     return pool;
   }
 }
@@ -258,7 +368,7 @@ function parseParameters(raw: unknown): unknown[] {
   if (Array.isArray(raw)) return raw;
   if (typeof raw === 'string') {
     try {
-      const parsed = JSON.parse(raw);
+      const parsed: unknown = JSON.parse(raw);
       if (Array.isArray(parsed)) return parsed;
     } catch {
       throw new IntegrationError(
@@ -271,6 +381,21 @@ function parseParameters(raw: unknown): unknown[] {
     'INVALID_PARAMETERS',
     'parameters must be an array or a JSON array string',
   );
+}
+
+function convertPgPlaceholders(sql: string): string {
+  // Convert `$1, $2, ...` to `?`. Parameters remain positional, so authors
+  // must list `$N` markers in the same order as the `parameters` array.
+  return sql.replace(/\$\d+/g, '?');
+}
+
+function buildMysqlSsl(
+  ssl: DbCredentials['ssl'],
+): { rejectUnauthorized: boolean } | undefined {
+  if (ssl === 'require' || ssl === 'verify-full') {
+    return { rejectUnauthorized: true };
+  }
+  return undefined;
 }
 
 function hashCredentials(creds: DbCredentials): string {

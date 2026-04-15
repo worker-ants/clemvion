@@ -32,14 +32,14 @@ export const databaseQueryNodeConfigSchema = z
         },
       }),
     parameters: z
-      .array(z.unknown())
+      .union([z.array(z.unknown()), z.string()])
       .default([])
       .meta({
         ui: {
           label: 'Parameters',
-          widget: 'field-array',
-          itemLabel: 'Param',
+          widget: 'expression',
           order: 4,
+          hint: 'JSON array of values bound to $1, $2, ...',
         },
       }),
   })
@@ -48,7 +48,10 @@ export type DatabaseQueryConfig = z.infer<typeof databaseQueryNodeConfigSchema>;
 
 export const databaseQueryNodePorts: NodePorts = {
   inputs: [{ id: 'in', label: 'Input', type: 'data' }],
-  outputs: [{ id: 'out', label: 'Output', type: 'data' }],
+  outputs: [
+    { id: 'success', label: 'Success', type: 'data' },
+    { id: 'error', label: 'Error', type: 'error' },
+  ],
 };
 
 export const databaseQueryNodeMetadata: NodeComponentMetadata = {
