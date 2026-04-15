@@ -7,7 +7,7 @@ import {
   NodeExecutionStatus,
 } from "../stores/execution-store";
 import { getAccessToken } from "../api/client";
-import { executionsApi, NodeExecutionData } from "../api/executions";
+import { ExecutionData, NodeExecutionData } from "../api/executions";
 import { getNodeDefinition } from "../node-definitions";
 
 interface UseExecutionEventsOptions {
@@ -17,9 +17,6 @@ interface UseExecutionEventsOptions {
 interface UseExecutionEventsReturn {
   isConnected: boolean;
 }
-
-const POLL_INTERVAL_MS = 2000;
-const POLL_INTERVAL_WAITING_MS = 2000; // Same interval when waiting for user input
 
 function mapNodeStatus(
   status: NodeExecutionData["status"],
@@ -321,6 +318,8 @@ export function useExecutionEvents({
         nodeType?: string;
         nodeLabel?: string;
         timestamp?: string;
+        input?: unknown;
+        startedAt?: string;
       };
       if (payload.nodeId) {
         // Guard against out-of-order events (e.g., completed arriving before started)
@@ -338,7 +337,9 @@ export function useExecutionEvents({
           nodeCategory: getCategoryForType(payload.nodeType ?? "unknown"),
           status: "running",
           outputData: null,
-          startedAt: payload.timestamp ?? new Date().toISOString(),
+          inputData: payload.input,
+          startedAt:
+            payload.startedAt ?? payload.timestamp ?? new Date().toISOString(),
         });
       }
     },
@@ -355,6 +356,9 @@ export function useExecutionEvents({
         nodeType?: string;
         nodeLabel?: string;
         output?: Record<string, unknown>;
+        input?: unknown;
+        interactionData?: unknown;
+        finishedAt?: string;
         timestamp?: string;
       };
       if (payload.nodeId) {
@@ -363,8 +367,9 @@ export function useExecutionEvents({
           duration: payload.duration,
         });
 
-        // Preserve startedAt from the matching prior entry if available.
-        // Match by nodeExecutionId when present so iterations stay distinct.
+        // Preserve startedAt/inputData from the matching prior entry if
+        // available. Match by nodeExecutionId when present so iterations
+        // stay distinct.
         const existing = useExecutionStore.getState().nodeResults.find((r) =>
           payload.nodeExecutionId
             ? r.nodeExecutionId === payload.nodeExecutionId
@@ -383,6 +388,7 @@ export function useExecutionEvents({
           status: "completed",
           duration: payload.duration,
           outputData: payload.output ?? null,
+          inputData: payload.input ?? existing?.inputData,
           startedAt: existing?.startedAt,
         });
       }
@@ -399,6 +405,8 @@ export function useExecutionEvents({
         error?: string;
         nodeType?: string;
         nodeLabel?: string;
+        input?: unknown;
+        finishedAt?: string;
         timestamp?: string;
       };
       if (payload.nodeId) {
@@ -425,6 +433,7 @@ export function useExecutionEvents({
           status: "failed",
           error: payload.error,
           outputData: null,
+          inputData: payload.input ?? existing?.inputData,
           startedAt: existing?.startedAt,
         });
       }
@@ -495,137 +504,124 @@ export function useExecutionEvents({
 
     const channel = `execution:${executionId}`;
 
-    // Poll execution status via REST API (works independently of WebSocket)
-    // Returns true if execution reached a terminal state
-    const pollExecutionStatus = async (): Promise<boolean> => {
-      try {
-        const execution = await executionsApi.getById(executionId);
-        if (cancelledRef.current) return true;
+    // One-shot snapshot, delivered by the backend right after we subscribe
+    // (and again on reconnect). Carries the full Execution + NodeExecution
+    // graph — same shape as the old REST `GET /executions/:id` response —
+    // so timeline/detail state can be rebuilt from WS alone.
+    const handleSnapshot = (data: unknown) => {
+      const payload = data as { execution?: ExecutionData } | null;
+      const execution = payload?.execution;
+      if (!execution || cancelledRef.current) return;
 
-        // Reconcile node-level statuses (sorted by startedAt for chronological order)
-        if (execution.nodeExecutions) {
-          const sorted = [...execution.nodeExecutions].sort((a, b) =>
-            (a.startedAt ?? "").localeCompare(b.startedAt ?? ""),
-          );
-          for (const ne of sorted) {
-            const nodeType = ne.node?.type ?? "unknown";
-            const nodeLabel = ne.node?.label ?? ne.nodeId;
+      if (execution.nodeExecutions) {
+        const sorted = [...execution.nodeExecutions].sort((a, b) =>
+          (a.startedAt ?? "").localeCompare(b.startedAt ?? ""),
+        );
+        for (const ne of sorted) {
+          const nodeType = ne.node?.type ?? "unknown";
+          const nodeLabel = ne.node?.label ?? ne.nodeId;
 
-            updateNodeStatus(ne.nodeId, {
-              status: mapNodeStatus(ne.status),
-              duration: ne.durationMs ?? undefined,
-              error: ne.error?.message,
-            });
+          updateNodeStatus(ne.nodeId, {
+            status: mapNodeStatus(ne.status),
+            duration: ne.durationMs ?? undefined,
+            error: ne.error?.message,
+          });
 
-            // Add all nodes to results timeline. Pass the NodeExecution row id
-            // so WS events and polling converge on the same timeline entry —
-            // without this, each iteration's row appears twice (once from the
-            // WS NODE_COMPLETED event, once from the polling reconciliation).
-            addNodeResult({
-              nodeExecutionId: ne.id,
-              parentNodeExecutionId: ne.parentNodeExecutionId ?? undefined,
-              nodeId: ne.nodeId,
-              nodeLabel,
-              nodeType,
-              nodeCategory: getCategoryForType(nodeType),
-              status: mapNodeStatus(ne.status),
-              duration: ne.durationMs ?? undefined,
-              error: ne.error?.message,
-              outputData: ne.outputData,
-              inputData: ne.inputData,
-              startedAt: ne.startedAt,
-            });
+          addNodeResult({
+            nodeExecutionId: ne.id,
+            parentNodeExecutionId: ne.parentNodeExecutionId ?? undefined,
+            nodeId: ne.nodeId,
+            nodeLabel,
+            nodeType,
+            nodeCategory: getCategoryForType(nodeType),
+            status: mapNodeStatus(ne.status),
+            duration: ne.durationMs ?? undefined,
+            error: ne.error?.message,
+            outputData: ne.outputData,
+            inputData: ne.inputData,
+            startedAt: ne.startedAt,
+          });
+        }
+      }
+
+      const { status: prevStatus } = useExecutionStore.getState();
+
+      if (execution.status === "completed") {
+        completeExecution();
+        return;
+      }
+      if (execution.status === "failed") {
+        failExecution(execution.error?.message);
+        return;
+      }
+      if (execution.status === "cancelled") {
+        failExecution("Execution cancelled");
+        return;
+      }
+      if (
+        execution.status === "running" &&
+        prevStatus === "waiting_for_input"
+      ) {
+        // Execution already resumed before we joined — reconcile local state.
+        const { waitingInteractionType: wit } = useExecutionStore.getState();
+        if (wit === "ai_conversation") {
+          resumeFromConversation();
+        } else if (wit === "buttons") {
+          resumeFromButtons();
+        } else {
+          resumeFromForm();
+        }
+        return;
+      }
+      if (execution.status === "waiting_for_input") {
+        const { waitingNodeId: currentWaiting } =
+          useExecutionStore.getState();
+        const waitingNode = execution.nodeExecutions?.find(
+          (ne) => ne.status === "waiting_for_input",
+        );
+        if (currentWaiting && currentWaiting === waitingNode?.nodeId) return;
+        if (waitingNode?.outputData) {
+          const raw = waitingNode.outputData as Record<string, unknown>;
+
+          // Structured shape: `{ config, output, status, meta: { interactionType } }`
+          // Legacy flat:      `{ type: 'form', formConfig, interactionType, buttonConfig, conversationConfig, ... }`
+          const isStructured =
+            raw != null &&
+            typeof raw === "object" &&
+            "config" in raw &&
+            "output" in raw;
+
+          const meta = isStructured
+            ? (raw.meta as Record<string, unknown> | undefined)
+            : undefined;
+
+          const interactionType =
+            (meta?.interactionType as string | undefined) ??
+            (raw.interactionType as string | undefined) ??
+            (raw.type === "form" ? "form" : undefined);
+
+          if (interactionType === "ai_conversation") {
+            const convConfig = isStructured
+              ? (raw.config as Record<string, unknown> | undefined)
+              : (raw.conversationConfig as Record<string, unknown> | undefined);
+            pauseForConversation(waitingNode.nodeId, convConfig ?? null);
+          } else if (interactionType === "buttons") {
+            const btnConfig = isStructured
+              ? (raw.config as Record<string, unknown> | undefined)
+              : (raw.buttonConfig as Record<string, unknown> | undefined);
+            pauseForButtons(waitingNode.nodeId, btnConfig ?? null);
+          } else if (interactionType === "form") {
+            const formConfig = isStructured
+              ? (raw.config as Record<string, unknown> | undefined)
+              : (raw.formConfig as Record<string, unknown> | undefined);
+            pauseForForm(waitingNode.nodeId, formConfig ?? null);
           }
         }
-
-        // Reconcile execution-level status
-        const { status: prevStatus } = useExecutionStore.getState();
-
-        if (execution.status === "completed") {
-          completeExecution();
-          return true;
-        } else if (execution.status === "failed") {
-          failExecution(execution.error?.message);
-          return true;
-        } else if (execution.status === "cancelled") {
-          failExecution("Execution cancelled");
-          return true;
-        } else if (
-          execution.status === "running" &&
-          prevStatus === "waiting_for_input"
-        ) {
-          // Execution resumed — WebSocket event may have been missed
-          const { waitingInteractionType: wit } =
-            useExecutionStore.getState();
-          if (wit === "ai_conversation") {
-            resumeFromConversation();
-          } else if (wit === "buttons") {
-            resumeFromButtons();
-          } else {
-            resumeFromForm();
-          }
-          return false;
-        } else if (execution.status === "waiting_for_input") {
-          // Skip if already in waiting state for the same node
-          const { waitingNodeId: currentWaiting } =
-            useExecutionStore.getState();
-
-          // Find the waiting Form node
-          const waitingNode = execution.nodeExecutions?.find(
-            (ne) => ne.status === "waiting_for_input",
-          );
-
-          if (currentWaiting && currentWaiting === waitingNode?.nodeId) {
-            return false; // Already waiting, skip redundant update
-          }
-          if (waitingNode?.outputData) {
-            const raw = waitingNode.outputData as Record<string, unknown>;
-
-            // Structured shape: `{ config, output, status, meta: { interactionType } }`
-            // Legacy flat:      `{ type: 'form', formConfig, interactionType, buttonConfig, conversationConfig, ... }`
-            const isStructured =
-              raw != null &&
-              typeof raw === "object" &&
-              "config" in raw &&
-              "output" in raw;
-
-            const meta = isStructured
-              ? (raw.meta as Record<string, unknown> | undefined)
-              : undefined;
-
-            const interactionType =
-              (meta?.interactionType as string | undefined) ??
-              (raw.interactionType as string | undefined) ??
-              (raw.type === "form" ? "form" : undefined);
-
-            if (interactionType === "ai_conversation") {
-              const convConfig = isStructured
-                ? (raw.config as Record<string, unknown> | undefined)
-                : (raw.conversationConfig as Record<string, unknown> | undefined);
-              pauseForConversation(waitingNode.nodeId, convConfig ?? null);
-            } else if (interactionType === "buttons") {
-              const btnConfig = isStructured
-                ? (raw.config as Record<string, unknown> | undefined)
-                : (raw.buttonConfig as Record<string, unknown> | undefined);
-              pauseForButtons(waitingNode.nodeId, btnConfig ?? null);
-            } else if (interactionType === "form") {
-              const formConfig = isStructured
-                ? (raw.config as Record<string, unknown> | undefined)
-                : (raw.formConfig as Record<string, unknown> | undefined);
-              pauseForForm(waitingNode.nodeId, formConfig ?? null);
-            }
-          }
-          return false; // not terminal, keep polling
-        }
-
-        return false;
-      } catch (err) {
-        console.error("[execution-events] Poll failed:", err);
-        return false;
       }
     };
 
-    // Subscribe via WebSocket (best-effort, not required for correctness)
+    client.on("execution.snapshot", handleSnapshot);
+
     const trySubscribe = async () => {
       try {
         await client.waitForConnect();
@@ -633,11 +629,10 @@ export function useExecutionEvents({
           client.subscribe(channel);
         }
       } catch {
-        // WebSocket connection failed — polling will handle status updates
+        // Connection still pending — reconnect handler will retry.
       }
     };
 
-    // Re-subscribe on reconnect
     const onReconnect = () => {
       if (!cancelledRef.current) {
         void trySubscribe();
@@ -645,31 +640,10 @@ export function useExecutionEvents({
     };
     client.on("connect", onReconnect);
 
-    // Start WebSocket subscription (non-blocking)
     void trySubscribe();
-
-    // Start polling immediately — ensures status updates even without WebSocket.
-    let pollTimer: ReturnType<typeof setTimeout> | null = null;
-
-    const startPolling = async () => {
-      if (cancelledRef.current) return;
-      const isTerminal = await pollExecutionStatus();
-      if (!isTerminal && !cancelledRef.current) {
-        // Use slower polling when waiting for form input
-        const { status: currentStatus } = useExecutionStore.getState();
-        const interval =
-          currentStatus === "waiting_for_input"
-            ? POLL_INTERVAL_WAITING_MS
-            : POLL_INTERVAL_MS;
-        pollTimer = setTimeout(() => void startPolling(), interval);
-      }
-    };
-
-    void startPolling();
 
     return () => {
       cancelledRef.current = true;
-      if (pollTimer) clearTimeout(pollTimer);
       client.off("connect", onConnect);
       client.off("disconnect", onDisconnect);
       client.off("connect", onReconnect);
@@ -684,6 +658,7 @@ export function useExecutionEvents({
       client.off("execution.node.completed", handleNodeCompleted);
       client.off("execution.node.failed", handleNodeFailed);
       client.off("execution.node.skipped", handleNodeSkipped);
+      client.off("execution.snapshot", handleSnapshot);
       client.unsubscribe(channel);
       // Do NOT disconnect - singleton stays alive
     };

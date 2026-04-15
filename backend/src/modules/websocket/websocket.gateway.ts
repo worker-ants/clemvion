@@ -12,6 +12,7 @@ import { Server, Socket } from 'socket.io';
 import { JwtService } from '@nestjs/jwt';
 import { Public } from '../../common/decorators';
 import { ExecutionEngineService } from '../execution-engine/execution-engine.service';
+import { ExecutionsService } from '../executions/executions.service';
 
 const MAX_SUBSCRIPTIONS_PER_CONNECTION = 20;
 
@@ -43,6 +44,8 @@ export class WebsocketGateway
     private readonly jwtService: JwtService,
     @Inject(forwardRef(() => ExecutionEngineService))
     private readonly executionEngineService: ExecutionEngineService,
+    @Inject(forwardRef(() => ExecutionsService))
+    private readonly executionsService: ExecutionsService,
   ) {}
 
   handleConnection(client: Socket): void {
@@ -122,10 +125,38 @@ export class WebsocketGateway
     void client.join(channel);
     this.logger.debug(`Client ${client.id} subscribed to ${channel}`);
 
+    // Send a one-shot snapshot to the subscribing client only. This replaces
+    // the old REST `GET /executions/:id` polling loop: timeline and detail
+    // state is now fully hydrated from WS events (snapshot + incremental).
+    if (channel.startsWith('execution:')) {
+      const executionId = channel.slice('execution:'.length);
+      void this.emitExecutionSnapshot(client, executionId);
+    }
+
     return {
       event: 'subscribed',
       data: { success: true, channel },
     };
+  }
+
+  private async emitExecutionSnapshot(
+    client: Socket,
+    executionId: string,
+  ): Promise<void> {
+    try {
+      const snapshot = await this.executionsService.findById(executionId);
+      client.emit('execution.snapshot', {
+        executionId,
+        execution: snapshot,
+        timestamp: new Date().toISOString(),
+      });
+    } catch (error: unknown) {
+      // Missing/forbidden executions just skip the snapshot — the client
+      // will treat the absent event the same as "no prior state".
+      this.logger.debug(
+        `Skipped snapshot for ${executionId}: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
   }
 
   @SubscribeMessage('unsubscribe')

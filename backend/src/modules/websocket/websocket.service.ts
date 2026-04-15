@@ -10,6 +10,8 @@ export enum ExecutionEventType {
   EXECUTION_CANCELLED = 'execution.cancelled',
   EXECUTION_WAITING_FOR_INPUT = 'execution.waiting_for_input',
   AI_MESSAGE = 'execution.ai_message',
+  /** One-shot snapshot sent to the subscribing client right after it joins an `execution:*` channel */
+  EXECUTION_SNAPSHOT = 'execution.snapshot',
 }
 
 export enum NodeEventType {

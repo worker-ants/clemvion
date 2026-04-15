@@ -1132,6 +1132,8 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
           nodeType: node.type,
           nodeLabel: node.label ?? node.type,
           output: nodeExec.outputData,
+          input: nodeExec.inputData,
+          finishedAt: nodeExec.finishedAt?.toISOString?.(),
         },
       );
     }
@@ -1510,6 +1512,9 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
           nodeType: node.type,
           nodeLabel: node.label ?? node.type,
           output: nodeExec.outputData,
+          input: nodeExec.inputData,
+          interactionData: nodeExec.interactionData,
+          finishedAt: nodeExec.finishedAt?.toISOString?.(),
         },
       );
     }
@@ -1795,6 +1800,9 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
           nodeType: node.type,
           nodeLabel: node.label ?? node.type,
           output: nodeExec.outputData,
+          input: nodeExec.inputData,
+          interactionData: nodeExec.interactionData,
+          finishedAt: nodeExec.finishedAt?.toISOString?.(),
         },
       );
     }
@@ -1822,6 +1830,7 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
       node.id,
       NodeExecutionStatus.RUNNING,
       context.parentNodeExecutionId,
+      nodeInput,
     );
     this.websocketService.emitNodeEvent(
       executionId,
@@ -1839,6 +1848,10 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
         status: NodeExecutionStatus.RUNNING,
         nodeType: node.type,
         nodeLabel: node.label ?? node.type,
+        // Resolved predecessor input — included so the frontend can show
+        // input data on the detail panel without a separate REST refetch.
+        input: nodeInput,
+        startedAt: nodeExecution.startedAt?.toISOString?.(),
       },
     );
 
@@ -1955,6 +1968,8 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
             nodeType: node.type,
             nodeLabel: node.label ?? node.type,
             output: nodeExecution.outputData,
+            input: nodeExecution.inputData,
+            finishedAt: nodeExecution.finishedAt?.toISOString?.(),
           },
         );
       } else {
@@ -2002,6 +2017,8 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
               nodeType: node.type,
               nodeLabel: node.label ?? node.type,
               error: nodeExecution.error.message,
+              input: nodeExecution.inputData,
+              finishedAt: nodeExecution.finishedAt?.toISOString?.(),
             },
           );
           executedNodes.add(node.id);
@@ -2064,6 +2081,8 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
               error: error instanceof Error ? error.message : String(error),
               nodeType: node.type,
               nodeLabel: node.label ?? node.type,
+              input: nodeExecution.inputData,
+              finishedAt: nodeExecution.finishedAt?.toISOString?.(),
             },
           );
           throw error;
@@ -2604,6 +2623,8 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
           error: message,
           nodeType: containerNode.type,
           nodeLabel: containerNode.label ?? containerNode.type,
+          input: nodeExec?.inputData,
+          finishedAt: nodeExec?.finishedAt?.toISOString?.(),
         },
       );
       throw error;
@@ -2698,12 +2719,13 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
     nodeId: string,
     status: NodeExecutionStatus,
     parentNodeExecutionId?: string | null,
+    inputData?: unknown,
   ): Promise<NodeExecution> {
     const nodeExecution = this.nodeExecutionRepository.create({
       executionId,
       nodeId,
       status,
-      inputData: {},
+      inputData: (inputData ?? {}) as Record<string, unknown>,
       parentNodeExecutionId: parentNodeExecutionId ?? null,
     });
     return this.nodeExecutionRepository.save(nodeExecution);

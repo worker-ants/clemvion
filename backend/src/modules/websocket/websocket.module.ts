@@ -4,6 +4,7 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { WebsocketGateway } from './websocket.gateway';
 import { WebsocketService } from './websocket.service';
 import { ExecutionEngineModule } from '../execution-engine/execution-engine.module';
+import { ExecutionsModule } from '../executions/executions.module';
 
 @Module({
   imports: [
@@ -18,6 +19,7 @@ import { ExecutionEngineModule } from '../execution-engine/execution-engine.modu
       }),
     }),
     forwardRef(() => ExecutionEngineModule),
+    forwardRef(() => ExecutionsModule),
   ],
   providers: [WebsocketGateway, WebsocketService],
   exports: [WebsocketService],

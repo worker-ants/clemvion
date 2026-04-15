@@ -3,6 +3,7 @@ import { JwtService } from '@nestjs/jwt';
 import { Socket, Server } from 'socket.io';
 import { WebsocketGateway } from './websocket.gateway';
 import { ExecutionEngineService } from '../execution-engine/execution-engine.service';
+import { ExecutionsService } from '../executions/executions.service';
 
 function createMockSocket(overrides: Record<string, unknown> = {}): {
   socket: Socket;
@@ -46,6 +47,12 @@ describe('WebsocketGateway', () => {
           useValue: {
             continueExecution: jest.fn(),
             cancelWaitingExecution: jest.fn(),
+          },
+        },
+        {
+          provide: ExecutionsService,
+          useValue: {
+            findById: jest.fn().mockRejectedValue(new Error('not found')),
           },
         },
       ],
