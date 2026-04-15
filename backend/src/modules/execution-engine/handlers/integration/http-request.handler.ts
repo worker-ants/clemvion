@@ -69,8 +69,8 @@ export class HttpRequestHandler
   ): Promise<unknown> {
     const method = (config.method as string).toUpperCase();
     const initialUrl = config.url as string;
-    const userHeaders = (config.headers as Record<string, string>) ?? {};
-    const queryParams = (config.queryParams as Record<string, string>) ?? {};
+    const userHeaders = toKeyValueRecord(config.headers);
+    const queryParams = toKeyValueRecord(config.queryParams);
     const body = config.body;
     const bodyType = (config.bodyType as string) ?? 'json';
     const responseType = (config.responseType as string) ?? 'json';
@@ -135,10 +135,13 @@ export class HttpRequestHandler
       url = `${url}${separator}${params.toString()}`;
     }
 
+    // Credential headers must take precedence over user-supplied headers to
+    // prevent a workflow author from silently overwriting an integration's
+    // Authorization header with an attacker-controlled value.
     const mergedHeaders: Record<string, string> = {
       ...(credentials.defaultHeaders ?? {}),
-      ...(credentials.headers ?? {}),
       ...userHeaders,
+      ...(credentials.headers ?? {}),
     };
 
     const fetchOptions: RequestInit = { method, headers: mergedHeaders };
@@ -147,19 +150,27 @@ export class HttpRequestHandler
       if (bodyType === 'json') {
         mergedHeaders['Content-Type'] =
           mergedHeaders['Content-Type'] ?? 'application/json';
-        fetchOptions.body = JSON.stringify(body);
-      } else if (bodyType === 'form') {
+        fetchOptions.body =
+          typeof body === 'string' ? body : JSON.stringify(body);
+      } else if (bodyType === 'x-www-form-urlencoded' || bodyType === 'form') {
         const formData = new URLSearchParams();
-        if (typeof body === 'object' && body !== null) {
-          for (const [key, value] of Object.entries(
-            body as Record<string, unknown>,
-          )) {
-            formData.append(key, String(value));
-          }
+        const entries = toKeyValueEntries(body);
+        for (const [key, value] of entries) {
+          formData.append(key, value);
         }
         fetchOptions.body = formData.toString();
         mergedHeaders['Content-Type'] =
           mergedHeaders['Content-Type'] ?? 'application/x-www-form-urlencoded';
+      } else if (bodyType === 'form-data') {
+        const formData = new FormData();
+        const entries = toKeyValueEntries(body);
+        for (const [key, value] of entries) {
+          formData.append(key, value);
+        }
+        fetchOptions.body = formData;
+        // Let the runtime set the multipart boundary; explicit Content-Type
+        // would prevent the boundary parameter from being added.
+        delete mergedHeaders['Content-Type'];
       } else {
         fetchOptions.body =
           typeof body === 'string' ? body : JSON.stringify(body);
@@ -278,6 +289,68 @@ export class HttpRequestHandler
         port: 'error',
       };
     }
+  }
+}
+
+/**
+ * Normalize config values that the schema declares as
+ * `Array<{ key, value }>` but callers may legacy-pass as
+ * `Record<string, string>`. Empty keys are dropped so malformed rows
+ * in the UI don't produce invalid headers.
+ */
+function toKeyValueRecord(value: unknown): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const [k, v] of toKeyValueEntries(value)) {
+    out[k] = v;
+  }
+  return out;
+}
+
+function toKeyValueEntries(value: unknown): Array<[string, string]> {
+  if (value == null) return [];
+  if (Array.isArray(value)) {
+    const entries: Array<[string, string]> = [];
+    for (const item of value) {
+      if (item && typeof item === 'object' && 'key' in item) {
+        const rec = item as { key: unknown; value: unknown };
+        const key = stripCrlf(stringifyScalar(rec.key)).trim();
+        if (!key) continue;
+        entries.push([key, stripCrlf(stringifyScalar(rec.value))]);
+      }
+    }
+    return entries;
+  }
+  if (typeof value === 'object' && value !== null) {
+    return Object.entries(value as Record<string, unknown>)
+      .map(([k, v]): [string, string] => [
+        stripCrlf(k).trim(),
+        stripCrlf(stringifyScalar(v)),
+      ])
+      .filter(([k]) => k.length > 0);
+  }
+  return [];
+}
+
+// Strip CR/LF from header-like values to prevent HTTP header injection when
+// the workflow author can influence the key or value via expressions.
+function stripCrlf(value: string): string {
+  return value.replace(/[\r\n]/g, '');
+}
+
+function stringifyScalar(value: unknown): string {
+  if (value == null) return '';
+  if (typeof value === 'string') return value;
+  if (
+    typeof value === 'number' ||
+    typeof value === 'boolean' ||
+    typeof value === 'bigint'
+  ) {
+    return String(value);
+  }
+  try {
+    return JSON.stringify(value) ?? '';
+  } catch {
+    return '';
   }
 }
 

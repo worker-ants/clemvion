@@ -158,7 +158,7 @@ describe('HttpRequestHandler', () => {
       expect(result.meta.statusCode).toBe(0);
     });
 
-    it('should append query params to URL', async () => {
+    it('should append array-shaped query params to URL', async () => {
       const mockResponse = {
         ok: true,
         status: 200,
@@ -173,7 +173,10 @@ describe('HttpRequestHandler', () => {
         {
           method: 'GET',
           url: 'https://api.example.com/data',
-          queryParams: { page: '1', limit: '10' },
+          queryParams: [
+            { key: 'page', value: '1' },
+            { key: 'limit', value: '10' },
+          ],
         },
         context,
       );
@@ -181,6 +184,233 @@ describe('HttpRequestHandler', () => {
       const calledUrl = (global.fetch as jest.Mock).mock.calls[0][0] as string;
       expect(calledUrl).toContain('page=1');
       expect(calledUrl).toContain('limit=10');
+    });
+
+    it('should send array-shaped user headers to fetch', async () => {
+      const mockResponse = {
+        ok: true,
+        status: 200,
+        json: jest.fn().mockResolvedValue({}),
+      };
+      global.fetch = jest
+        .fn()
+        .mockResolvedValue(mockResponse) as unknown as typeof fetch;
+
+      await handler.execute(
+        null,
+        {
+          method: 'GET',
+          url: 'https://api.example.com/data',
+          headers: [
+            { key: 'Authorization', value: 'Bearer mytoken' },
+            { key: 'X-Custom', value: 'custom-value' },
+          ],
+        },
+        context,
+      );
+
+      const args = (global.fetch as jest.Mock).mock.calls[0][1] as RequestInit;
+      const headers = args.headers as Record<string, string>;
+      expect(headers.Authorization).toBe('Bearer mytoken');
+      expect(headers['X-Custom']).toBe('custom-value');
+      // Array indices must not leak through as header names.
+      expect(headers['0']).toBeUndefined();
+      expect(headers['1']).toBeUndefined();
+    });
+
+    it('should drop header rows with empty keys', async () => {
+      const mockResponse = {
+        ok: true,
+        status: 200,
+        json: jest.fn().mockResolvedValue({}),
+      };
+      global.fetch = jest
+        .fn()
+        .mockResolvedValue(mockResponse) as unknown as typeof fetch;
+
+      await handler.execute(
+        null,
+        {
+          method: 'GET',
+          url: 'https://api.example.com/data',
+          headers: [
+            { key: '', value: 'ignored' },
+            { key: '   ', value: 'ignored-too' },
+            { key: 'X-Keep', value: 'yes' },
+          ],
+        },
+        context,
+      );
+
+      const args = (global.fetch as jest.Mock).mock.calls[0][1] as RequestInit;
+      const headers = args.headers as Record<string, string>;
+      expect(Object.keys(headers)).toEqual(['X-Keep']);
+      expect(headers['X-Keep']).toBe('yes');
+    });
+
+    it('should drop query param rows with empty keys', async () => {
+      const mockResponse = {
+        ok: true,
+        status: 200,
+        json: jest.fn().mockResolvedValue({}),
+      };
+      global.fetch = jest
+        .fn()
+        .mockResolvedValue(mockResponse) as unknown as typeof fetch;
+
+      await handler.execute(
+        null,
+        {
+          method: 'GET',
+          url: 'https://api.example.com/data',
+          queryParams: [
+            { key: '', value: 'skip' },
+            { key: '   ', value: 'skip' },
+            { key: 'keep', value: 'yes' },
+          ],
+        },
+        context,
+      );
+
+      const url = (global.fetch as jest.Mock).mock.calls[0][0] as string;
+      expect(url).toContain('keep=yes');
+      expect(url).not.toContain('skip');
+    });
+
+    it('should accept legacy Record-shaped headers and queryParams', async () => {
+      const mockResponse = {
+        ok: true,
+        status: 200,
+        json: jest.fn().mockResolvedValue({}),
+      };
+      global.fetch = jest
+        .fn()
+        .mockResolvedValue(mockResponse) as unknown as typeof fetch;
+
+      await handler.execute(
+        null,
+        {
+          method: 'GET',
+          url: 'https://api.example.com/data',
+          headers: { 'X-Legacy': 'on' },
+          queryParams: { page: '1' },
+        },
+        context,
+      );
+
+      const url = (global.fetch as jest.Mock).mock.calls[0][0] as string;
+      const args = (global.fetch as jest.Mock).mock.calls[0][1] as RequestInit;
+      expect(url).toContain('page=1');
+      expect((args.headers as Record<string, string>)['X-Legacy']).toBe('on');
+    });
+
+    it('should strip CRLF from header keys and values (injection guard)', async () => {
+      const mockResponse = {
+        ok: true,
+        status: 200,
+        json: jest.fn().mockResolvedValue({}),
+      };
+      global.fetch = jest
+        .fn()
+        .mockResolvedValue(mockResponse) as unknown as typeof fetch;
+
+      await handler.execute(
+        null,
+        {
+          method: 'GET',
+          url: 'https://api.example.com/data',
+          headers: [{ key: 'X-Safe\r\nX-Injected', value: 'ok\r\nEvil: yes' }],
+        },
+        context,
+      );
+
+      const args = (global.fetch as jest.Mock).mock.calls[0][1] as RequestInit;
+      const headers = args.headers as Record<string, string>;
+      expect(headers['X-SafeX-Injected']).toBe('okEvil: yes');
+      expect(headers['X-Injected']).toBeUndefined();
+      expect(headers['Evil']).toBeUndefined();
+    });
+
+    it('should treat legacy bodyType "form" as x-www-form-urlencoded', async () => {
+      const mockResponse = {
+        ok: true,
+        status: 200,
+        json: jest.fn().mockResolvedValue({}),
+      };
+      global.fetch = jest
+        .fn()
+        .mockResolvedValue(mockResponse) as unknown as typeof fetch;
+
+      await handler.execute(
+        null,
+        {
+          method: 'POST',
+          url: 'https://api.example.com/form',
+          bodyType: 'form',
+          body: { name: 'alice' },
+        },
+        context,
+      );
+
+      const args = (global.fetch as jest.Mock).mock.calls[0][1] as RequestInit;
+      const headers = args.headers as Record<string, string>;
+      expect(headers['Content-Type']).toBe('application/x-www-form-urlencoded');
+      expect(args.body).toBe('name=alice');
+    });
+
+    it('should send x-www-form-urlencoded body with correct content-type', async () => {
+      const mockResponse = {
+        ok: true,
+        status: 200,
+        json: jest.fn().mockResolvedValue({}),
+      };
+      global.fetch = jest
+        .fn()
+        .mockResolvedValue(mockResponse) as unknown as typeof fetch;
+
+      await handler.execute(
+        null,
+        {
+          method: 'POST',
+          url: 'https://api.example.com/form',
+          bodyType: 'x-www-form-urlencoded',
+          body: { name: 'alice', age: 30 },
+        },
+        context,
+      );
+
+      const args = (global.fetch as jest.Mock).mock.calls[0][1] as RequestInit;
+      const headers = args.headers as Record<string, string>;
+      expect(headers['Content-Type']).toBe('application/x-www-form-urlencoded');
+      expect(args.body).toBe('name=alice&age=30');
+    });
+
+    it('should send form-data body and omit explicit Content-Type', async () => {
+      const mockResponse = {
+        ok: true,
+        status: 200,
+        json: jest.fn().mockResolvedValue({}),
+      };
+      global.fetch = jest
+        .fn()
+        .mockResolvedValue(mockResponse) as unknown as typeof fetch;
+
+      await handler.execute(
+        null,
+        {
+          method: 'POST',
+          url: 'https://api.example.com/upload',
+          bodyType: 'form-data',
+          body: { field: 'value' },
+        },
+        context,
+      );
+
+      const args = (global.fetch as jest.Mock).mock.calls[0][1] as RequestInit;
+      expect(args.body).toBeInstanceOf(FormData);
+      expect((args.body as FormData).get('field')).toBe('value');
+      const headers = args.headers as Record<string, string>;
+      expect(headers['Content-Type']).toBeUndefined();
     });
 
     it('should send JSON body for POST requests', async () => {
@@ -288,6 +518,45 @@ describe('HttpRequestHandler', () => {
       expect(logUsage).toHaveBeenCalledWith(
         expect.objectContaining({ status: 'success' }),
       );
+    });
+
+    it('merges user-provided headers with integration credential headers', async () => {
+      const { service } = makeService('bearer_token', { token: 'abc' });
+      const handler = new HttpRequestHandler(service as never);
+      await handler.execute(
+        null,
+        {
+          method: 'GET',
+          url: 'https://api.example.com/me',
+          authentication: 'integration',
+          integrationId: 'int-1',
+          headers: [{ key: 'X-Request-Id', value: 'req-42' }],
+        },
+        contextWithWorkspace,
+      );
+      const args = (global.fetch as jest.Mock).mock.calls[0][1] as RequestInit;
+      const headers = args.headers as Record<string, string>;
+      expect(headers.Authorization).toBe('Bearer abc');
+      expect(headers['X-Request-Id']).toBe('req-42');
+    });
+
+    it('prioritizes integration credential headers over user headers', async () => {
+      const { service } = makeService('bearer_token', { token: 'real' });
+      const handler = new HttpRequestHandler(service as never);
+      await handler.execute(
+        null,
+        {
+          method: 'GET',
+          url: 'https://api.example.com/me',
+          authentication: 'integration',
+          integrationId: 'int-1',
+          headers: [{ key: 'Authorization', value: 'Bearer attacker' }],
+        },
+        contextWithWorkspace,
+      );
+      const args = (global.fetch as jest.Mock).mock.calls[0][1] as RequestInit;
+      const headers = args.headers as Record<string, string>;
+      expect(headers.Authorization).toBe('Bearer real');
     });
 
     it('places API key in header when location=header', async () => {
