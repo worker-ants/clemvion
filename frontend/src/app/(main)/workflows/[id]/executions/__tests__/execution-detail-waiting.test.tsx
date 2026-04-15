@@ -36,6 +36,12 @@ vi.mock("@/lib/websocket/ws-client", () => ({
   getWsClient: () => ({ emit: emitMock }),
 }));
 
+vi.mock("@/lib/node-definitions", () => ({
+  getNodeDefinition: () => undefined,
+  loadNodeDefinitions: vi.fn().mockResolvedValue(undefined),
+  CATEGORY_COLORS: {} as Record<string, string>,
+}));
+
 import ExecutionDetailPage from "../[executionId]/page";
 import { useExecutionStore } from "@/lib/stores/execution-store";
 

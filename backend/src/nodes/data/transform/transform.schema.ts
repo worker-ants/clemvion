@@ -4,7 +4,37 @@ import {
   NodePorts,
 } from '../../core/node-component.interface';
 
-export const transformNodeConfigSchema = z.object({}).passthrough();
+/**
+ * Transform operation item. The detailed per-type params are handled by a
+ * custom override form in the frontend — the schema only describes the base
+ * `type` discriminator plus a passthrough params bag.
+ */
+export const transformOperationSchema = z
+  .object({
+    type: z
+      .string()
+      .default('rename_field')
+      .meta({
+        ui: { label: 'Type', widget: 'select' },
+      }),
+  })
+  .passthrough();
+
+export const transformNodeConfigSchema = z
+  .object({
+    operations: z
+      .array(transformOperationSchema)
+      .default([])
+      .meta({
+        ui: {
+          label: 'Operations',
+          widget: 'field-array',
+          itemLabel: 'Operation',
+          hint: 'Transform operations applied in order',
+        },
+      }),
+  })
+  .passthrough();
 export type TransformConfig = z.infer<typeof transformNodeConfigSchema>;
 
 export const transformNodePorts: NodePorts = {
@@ -19,6 +49,4 @@ export const transformNodeMetadata: NodeComponentMetadata = {
   description: 'Transform data',
   icon: 'ArrowRightLeft',
   color: '#06B6D4',
-
-  defaultConfig: { operations: [] },
 };

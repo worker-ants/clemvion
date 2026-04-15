@@ -12,6 +12,12 @@ export interface NodeDefinitionView {
   metadata: NodeComponentMetadata;
   ports: NodePorts;
   configSchema: unknown;
+  /**
+   * Resolved default config. Prefers explicit `metadata.defaultConfig`; falls
+   * back to `configSchema.parse({})` which populates fields declared with
+   * `.default(...)` in the zod schema.
+   */
+  defaultConfig: Record<string, unknown>;
   inputSchema?: unknown;
   outputSchema?: unknown;
 }
@@ -53,8 +59,15 @@ export class NodeComponentRegistry {
       metadata: c.metadata,
       ports: c.ports,
       configSchema: z.toJSONSchema(c.configSchema),
+      defaultConfig: this.resolveDefaultConfig(c),
       inputSchema: c.inputSchema ? z.toJSONSchema(c.inputSchema) : undefined,
       outputSchema: c.outputSchema ? z.toJSONSchema(c.outputSchema) : undefined,
     }));
+  }
+
+  private resolveDefaultConfig(c: NodeComponent): Record<string, unknown> {
+    if (c.metadata.defaultConfig) return c.metadata.defaultConfig;
+    const parsed = c.configSchema.safeParse({});
+    return parsed.success ? (parsed.data as Record<string, unknown>) : {};
   }
 }

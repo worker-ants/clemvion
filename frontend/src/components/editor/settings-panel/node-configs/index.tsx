@@ -1,127 +1,39 @@
-// Logic
-import {
-  IfElseConfig,
-  SwitchConfig,
-  LoopConfig,
-  VariableDeclarationConfig,
-  VariableModificationConfig,
-  SplitConfig,
-  MapConfig,
-  ForEachConfig,
-  MergeConfig,
-  FilterConfig,
-} from "./logic-configs";
-
-// Flow
-import { WorkflowConfig } from "./flow-configs";
-
-// AI
-import {
-  AiAgentConfig,
-  TextClassifierConfig,
-  InformationExtractorConfig,
-} from "./ai-configs";
-
-// Integration
-import {
-  HttpRequestConfig,
-  DatabaseQueryConfig,
-  SlackConfig,
-  SendEmailConfig,
-} from "./integration-configs";
-
-// Data
-import { TransformConfig, CodeConfig } from "./data-configs";
-
-// Presentation
-import {
-  CarouselConfig,
-  TableConfig,
-  ChartConfig,
-  FormConfig,
-  TemplateConfig,
-  PdfConfig,
-} from "./presentation-configs";
-
-// Trigger
-import { ManualTriggerConfig } from "./trigger-configs";
+import { getNodeDefinition } from "@/lib/node-definitions";
+import { SchemaForm } from "../auto-form/schema-form";
+import { OVERRIDE_REGISTRY } from "./override-registry";
 
 type NodeConfigProps = {
   config: Record<string, unknown>;
   onChange: (config: Record<string, unknown>) => void;
 };
 
-// Stable wrapper component that renders the correct config form for a given node type
+/**
+ * Renders the settings form for a given node type.
+ *
+ * Strategy:
+ *   1. If `OVERRIDE_REGISTRY[nodeType]` is defined, render that bespoke form.
+ *   2. Otherwise, auto-generate the form from the node's JSON Schema
+ *      (loaded by `loadNodeDefinitions()` on editor entry) using `SchemaForm`.
+ *
+ * To migrate a node from override to auto-gen, remove its entry from the
+ * override registry and ensure the backend zod schema has sufficient
+ * `.meta({ ui: ... })` hints for the form to render correctly.
+ */
 export function NodeConfigRenderer({
   nodeType,
   config,
   onChange,
 }: NodeConfigProps & { nodeType: string }) {
-  const props = { config, onChange };
+  const Custom = OVERRIDE_REGISTRY[nodeType];
+  if (Custom) return <Custom config={config} onChange={onChange} />;
 
-  switch (nodeType) {
-    // Trigger
-    case "manual_trigger":
-      return <ManualTriggerConfig {...props} />;
-    // Logic
-    case "if_else":
-      return <IfElseConfig {...props} />;
-    case "switch":
-      return <SwitchConfig {...props} />;
-    case "loop":
-      return <LoopConfig {...props} />;
-    case "variable_declaration":
-      return <VariableDeclarationConfig {...props} />;
-    case "variable_modification":
-      return <VariableModificationConfig {...props} />;
-    case "split":
-      return <SplitConfig {...props} />;
-    case "map":
-      return <MapConfig {...props} />;
-    case "foreach":
-      return <ForEachConfig {...props} />;
-    case "merge":
-      return <MergeConfig {...props} />;
-    case "filter":
-      return <FilterConfig {...props} />;
-    // Flow
-    case "workflow":
-      return <WorkflowConfig {...props} />;
-    // AI
-    case "ai_agent":
-      return <AiAgentConfig {...props} />;
-    case "text_classifier":
-      return <TextClassifierConfig {...props} />;
-    case "information_extractor":
-      return <InformationExtractorConfig {...props} />;
-    // Integration
-    case "http_request":
-      return <HttpRequestConfig {...props} />;
-    case "database_query":
-      return <DatabaseQueryConfig {...props} />;
-    case "slack":
-      return <SlackConfig {...props} />;
-    case "send_email":
-      return <SendEmailConfig {...props} />;
-    // Data
-    case "transform":
-      return <TransformConfig {...props} />;
-    case "code":
-      return <CodeConfig {...props} />;
-    // Presentation
-    case "carousel":
-      return <CarouselConfig {...props} />;
-    case "table":
-      return <TableConfig {...props} />;
-    case "chart":
-      return <ChartConfig {...props} />;
-    case "form":
-      return <FormConfig {...props} />;
-    case "template":
-      return <TemplateConfig {...props} />;
-    case "pdf":
-      return <PdfConfig {...props} />;
-    default:
-      return null;
-  }
+  const definition = getNodeDefinition(nodeType);
+  if (!definition?.configSchema) return null;
+  return (
+    <SchemaForm
+      schema={definition.configSchema}
+      value={config}
+      onChange={onChange}
+    />
+  );
 }

@@ -4,7 +4,21 @@ import {
   NodePorts,
 } from '../../core/node-component.interface';
 
-export const splitNodeConfigSchema = z.object({}).passthrough();
+export const splitNodeConfigSchema = z
+  .object({
+    fieldPath: z
+      .string()
+      .default('')
+      .meta({
+        ui: {
+          label: 'Field Path',
+          widget: 'expression',
+          placeholder: '$input.items',
+          hint: 'Dot-path or inline expression returning an array',
+        },
+      }),
+  })
+  .passthrough();
 export type SplitConfig = z.infer<typeof splitNodeConfigSchema>;
 
 export const splitNodePorts: NodePorts = {
@@ -19,6 +33,4 @@ export const splitNodeMetadata: NodeComponentMetadata = {
   description: 'Split array items',
   icon: 'Split',
   color: '#3B82F6',
-
-  defaultConfig: {},
 };

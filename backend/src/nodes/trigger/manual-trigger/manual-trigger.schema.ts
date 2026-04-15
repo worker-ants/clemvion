@@ -4,7 +4,42 @@ import {
   NodePorts,
 } from '../../core/node-component.interface';
 
-export const manualTriggerConfigSchema = z.object({}).passthrough();
+const triggerParameterSchema = z
+  .object({
+    name: z
+      .string()
+      .default('')
+      .meta({ ui: { label: 'Name', widget: 'text' } }),
+    type: z
+      .enum(['string', 'number', 'boolean', 'object', 'array'])
+      .default('string')
+      .meta({ ui: { label: 'Type', widget: 'select' } }),
+    required: z
+      .boolean()
+      .optional()
+      .meta({ ui: { label: 'Required', widget: 'checkbox' } }),
+    defaultValue: z.unknown().optional(),
+    description: z
+      .string()
+      .optional()
+      .meta({ ui: { label: 'Description', widget: 'text' } }),
+  })
+  .passthrough();
+
+export const manualTriggerConfigSchema = z
+  .object({
+    parameters: z
+      .array(triggerParameterSchema)
+      .default([])
+      .meta({
+        ui: {
+          label: 'Parameters',
+          widget: 'field-array',
+          itemLabel: 'Parameter',
+        },
+      }),
+  })
+  .passthrough();
 export type ManualTriggerConfig = z.infer<typeof manualTriggerConfigSchema>;
 
 export const manualTriggerPorts: NodePorts = {
@@ -19,5 +54,4 @@ export const manualTriggerMetadata: NodeComponentMetadata = {
   description: 'Start point for manual workflow execution',
   icon: 'Zap',
   color: '#F59E0B',
-  defaultConfig: { parameters: [] },
 };

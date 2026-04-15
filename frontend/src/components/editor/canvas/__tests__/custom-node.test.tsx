@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, beforeAll } from "vitest";
 import { render, screen } from "@testing-library/react";
 import type { NodeProps, Node } from "@xyflow/react";
 
@@ -45,6 +45,60 @@ vi.mock("@/components/ui/tooltip", () => ({
 }));
 
 import { CustomNode } from "../custom-node";
+import { useNodeDefinitionsStore } from "@/lib/stores/node-definitions-store";
+import type { NodeDefinition } from "@/lib/node-definitions";
+
+beforeAll(() => {
+  const make = (type: string, extras: Partial<NodeDefinition>): NodeDefinition => ({
+    type,
+    category: "logic",
+    label: type,
+    description: "",
+    icon: "Box",
+    color: "#000",
+    inputs: [{ id: "in", label: "Input", type: "data" }],
+    outputs: [{ id: "out", label: "Output", type: "data" }],
+    defaultConfig: {},
+    configSchema: {},
+    ...extras,
+  });
+  useNodeDefinitionsStore.setState({
+    status: "ready",
+    error: null,
+    order: ["loop", "map", "foreach", "http_request", "if_else", "manual_trigger", "variable_declaration", "ai_agent"],
+    definitions: {
+      loop: make("loop", {
+        isContainer: true,
+        inputs: [
+          { id: "in", label: "Input", type: "data" },
+          { id: "emit", label: "Emit", type: "data" },
+        ],
+        outputs: [
+          { id: "body", label: "Body", type: "data" },
+          { id: "done", label: "Done", type: "data" },
+        ],
+      }),
+      map: make("map", { isContainer: true }),
+      foreach: make("foreach", { isContainer: true }),
+      http_request: make("http_request", {
+        category: "integration",
+        outputs: [
+          { id: "success", label: "Success", type: "data" },
+          { id: "error", label: "Error", type: "error" },
+        ],
+      }),
+      if_else: make("if_else", {
+        outputs: [
+          { id: "true", label: "True", type: "data" },
+          { id: "false", label: "False", type: "data" },
+        ],
+      }),
+      manual_trigger: make("manual_trigger", { category: "trigger", inputs: [] }),
+      variable_declaration: make("variable_declaration", {}),
+      ai_agent: make("ai_agent", { category: "ai" }),
+    },
+  });
+});
 
 type CustomNodeData = {
   type: string;

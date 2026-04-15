@@ -4,7 +4,45 @@ import {
   NodePorts,
 } from '../../core/node-component.interface';
 
-export const variableDeclarationNodeConfigSchema = z.object({}).passthrough();
+export const varDefSchema = z
+  .object({
+    name: z
+      .string()
+      .default('')
+      .meta({
+        ui: {
+          label: 'Name',
+          widget: 'text',
+          placeholder: 'variableName',
+        },
+      }),
+    type: z
+      .enum(['string', 'number', 'boolean', 'array', 'object'])
+      .default('string')
+      .meta({ ui: { label: 'Type', widget: 'select' } }),
+    defaultValue: z
+      .unknown()
+      .optional()
+      .meta({
+        ui: { label: 'Default Value', widget: 'expression' },
+      }),
+  })
+  .passthrough();
+
+export const variableDeclarationNodeConfigSchema = z
+  .object({
+    variables: z
+      .array(varDefSchema)
+      .default([])
+      .meta({
+        ui: {
+          label: 'Variables',
+          widget: 'field-array',
+          itemLabel: 'Variable',
+        },
+      }),
+  })
+  .passthrough();
 export type VariableDeclarationConfig = z.infer<
   typeof variableDeclarationNodeConfigSchema
 >;
@@ -21,6 +59,4 @@ export const variableDeclarationNodeMetadata: NodeComponentMetadata = {
   description: 'Declare variables',
   icon: 'Variable',
   color: '#3B82F6',
-
-  defaultConfig: { variables: [] },
 };

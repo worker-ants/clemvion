@@ -3,8 +3,48 @@ import {
   NodeComponentMetadata,
   NodePorts,
 } from '../../core/node-component.interface';
+import { conditionGroupSchema } from '../if-else/if-else.schema';
 
-export const filterNodeConfigSchema = z.object({}).passthrough();
+export const filterNodeConfigSchema = z
+  .object({
+    inputField: z
+      .string()
+      .default('')
+      .meta({
+        ui: {
+          label: 'Input Field',
+          widget: 'expression',
+          placeholder: '$input.items',
+          hint: 'Dot-path or inline expression returning an array',
+        },
+      }),
+    conditions: z
+      .array(conditionGroupSchema)
+      .default([])
+      .meta({
+        ui: {
+          label: 'Conditions',
+          widget: 'condition-builder',
+          itemLabel: 'Condition',
+          hint: 'Use {{ $item.* }} to reference the current array item',
+        },
+      }),
+    combineMode: z
+      .enum(['and', 'or'])
+      .default('and')
+      .meta({ ui: { label: 'Combine Mode', widget: 'select' } }),
+    strictComparison: z
+      .boolean()
+      .default(false)
+      .meta({
+        ui: {
+          label: 'Strict Comparison',
+          widget: 'checkbox',
+          hint: 'Compare without type coercion',
+        },
+      }),
+  })
+  .passthrough();
 export type FilterConfig = z.infer<typeof filterNodeConfigSchema>;
 
 export const filterNodePorts: NodePorts = {
@@ -22,10 +62,4 @@ export const filterNodeMetadata: NodeComponentMetadata = {
   description: 'Filter array by conditions',
   icon: 'Filter',
   color: '#3B82F6',
-
-  defaultConfig: {
-    conditions: [],
-    combineMode: 'and',
-    strictComparison: false,
-  },
 };

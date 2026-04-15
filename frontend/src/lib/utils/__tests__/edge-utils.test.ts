@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, beforeAll } from "vitest";
 import {
   resolvePortType,
   getEdgeColor,
@@ -8,6 +8,44 @@ import {
   PORT_TYPE_COLORS,
 } from "../edge-utils";
 import type { Node, Edge } from "@xyflow/react";
+import { useNodeDefinitionsStore } from "@/lib/stores/node-definitions-store";
+import type { NodeDefinition } from "@/lib/node-definitions";
+
+beforeAll(() => {
+  const make = (
+    type: string,
+    extras: Partial<NodeDefinition>,
+  ): NodeDefinition => ({
+    type,
+    category: "logic",
+    label: type,
+    description: "",
+    icon: "Box",
+    color: "#000",
+    inputs: [],
+    outputs: [],
+    defaultConfig: {},
+    configSchema: {},
+    ...extras,
+  });
+  useNodeDefinitionsStore.setState({
+    status: "ready",
+    error: null,
+    order: ["loop", "map", "foreach", "http_request"],
+    definitions: {
+      loop: make("loop", { isContainer: true }),
+      map: make("map", { isContainer: true }),
+      foreach: make("foreach", { isContainer: true }),
+      http_request: make("http_request", {
+        category: "integration",
+        outputs: [
+          { id: "success", label: "Success", type: "data" },
+          { id: "error", label: "Error", type: "error" },
+        ],
+      }),
+    },
+  });
+});
 
 describe("resolvePortType", () => {
   it("returns 'error' for error sourceHandle", () => {
