@@ -22,5 +22,5 @@ export const textClassifierNodeMetadata: NodeComponentMetadata = {
   icon: 'Tags',
   color: '#10B981',
 
-  defaultConfig: {},
+  defaultConfig: { categories: [], includeConfidence: false },
 };

@@ -22,5 +22,5 @@ export const variableDeclarationNodeMetadata: NodeComponentMetadata = {
   icon: 'Variable',
   color: '#3B82F6',
 
-  defaultConfig: {},
+  defaultConfig: { variables: [] },
 };

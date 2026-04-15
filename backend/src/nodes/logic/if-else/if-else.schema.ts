@@ -35,5 +35,9 @@ export const ifElseMetadata: NodeComponentMetadata = {
   description: 'Conditional branching',
   icon: 'GitBranch',
   color: '#3B82F6',
-  defaultConfig: { conditions: [], combineMode: 'and' },
+  defaultConfig: {
+    conditions: [],
+    combineMode: 'and',
+    strictComparison: false,
+  },
 };

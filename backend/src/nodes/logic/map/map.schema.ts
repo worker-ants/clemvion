@@ -26,5 +26,5 @@ export const mapNodeMetadata: NodeComponentMetadata = {
   icon: 'Map',
   color: '#3B82F6',
   isContainer: true,
-  defaultConfig: {},
+  defaultConfig: { errorPolicy: 'stop' },
 };

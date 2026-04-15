@@ -20,5 +20,5 @@ export const codeNodeMetadata: NodeComponentMetadata = {
   icon: 'Code',
   color: '#06B6D4',
 
-  defaultConfig: {},
+  defaultConfig: { language: 'javascript' },
 };

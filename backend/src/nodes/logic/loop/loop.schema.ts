@@ -26,5 +26,5 @@ export const loopNodeMetadata: NodeComponentMetadata = {
   icon: 'Repeat',
   color: '#3B82F6',
   isContainer: true,
-  defaultConfig: { count: 1 },
+  defaultConfig: { count: 1, maxIterations: 1000 },
 };

@@ -20,5 +20,5 @@ export const formNodeMetadata: NodeComponentMetadata = {
   icon: 'FileInput',
   color: '#EC4899',
 
-  defaultConfig: {},
+  defaultConfig: { fields: [], submitButtonLabel: 'Submit', buttons: [] },
 };

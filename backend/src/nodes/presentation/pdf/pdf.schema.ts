@@ -20,5 +20,5 @@ export const pdfNodeMetadata: NodeComponentMetadata = {
   icon: 'FileDown',
   color: '#EC4899',
 
-  defaultConfig: {},
+  defaultConfig: { timeout: 60 },
 };

@@ -20,5 +20,10 @@ export const mergeNodeMetadata: NodeComponentMetadata = {
   icon: 'Merge',
   color: '#3B82F6',
 
-  defaultConfig: { strategy: 'wait_all', outputFormat: 'array', timeout: 300 },
+  defaultConfig: {
+    strategy: 'wait_all',
+    outputFormat: 'array',
+    timeout: 300,
+    partialOnTimeout: false,
+  },
 };

@@ -20,5 +20,11 @@ export const sendEmailNodeMetadata: NodeComponentMetadata = {
   icon: 'Mail',
   color: '#F97316',
 
-  defaultConfig: {},
+  defaultConfig: {
+    to: [],
+    cc: [],
+    bcc: [],
+    bodyType: 'text',
+    attachments: [],
+  },
 };
