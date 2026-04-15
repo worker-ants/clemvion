@@ -21,7 +21,6 @@ import { informationExtractorNodeComponent } from './ai/information-extractor';
 
 import { httpRequestNodeComponent } from './integration/http-request';
 import { databaseQueryNodeComponent } from './integration/database-query';
-import { slackNodeComponent } from './integration/slack';
 import { sendEmailNodeComponent } from './integration/send-email';
 
 import { transformNodeComponent } from './data/transform';
@@ -32,7 +31,6 @@ import { tableNodeComponent } from './presentation/table';
 import { chartComponent } from './presentation/chart';
 import { formNodeComponent } from './presentation/form';
 import { templateNodeComponent } from './presentation/template';
-import { pdfNodeComponent } from './presentation/pdf';
 
 export const ALL_NODE_COMPONENTS: NodeComponent[] = [
   manualTriggerComponent,
@@ -56,7 +54,6 @@ export const ALL_NODE_COMPONENTS: NodeComponent[] = [
 
   httpRequestNodeComponent,
   databaseQueryNodeComponent,
-  slackNodeComponent,
   sendEmailNodeComponent,
 
   transformNodeComponent,
@@ -67,7 +64,6 @@ export const ALL_NODE_COMPONENTS: NodeComponent[] = [
   chartComponent,
   formNodeComponent,
   templateNodeComponent,
-  pdfNodeComponent,
 ];
 
 export * from './core';

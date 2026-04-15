@@ -114,7 +114,7 @@ User ──┬── Workspace (1:N)
 |------|------|------|
 | id | UUID | PK |
 | workflow_id | UUID | FK → Workflow |
-| type | Enum | 노드 유형 (if_else, switch, loop, ..., ai_agent, text_classifier, information_extractor, http_request, ..., transform, code, carousel, table, chart, form, template, pdf) |
+| type | Enum | 노드 유형 (if_else, switch, loop, ..., ai_agent, text_classifier, information_extractor, http_request, ..., transform, code, carousel, table, chart, form, template) |
 | category | Enum | logic / flow / ai / integration / data / presentation |
 | label | String | 사용자 지정 노드 이름 |
 | position_x | Float | 캔버스 X 좌표 |
@@ -155,7 +155,6 @@ User ──┬── Workspace (1:N)
 | ai | information_extractor | 정보 추출 |
 | integration | http_request | 범용 HTTP 요청 |
 | integration | database_query | 데이터베이스 쿼리 |
-| integration | slack | Slack 메시지/채널 관리 |
 | integration | google_sheets | Google Sheets 읽기/쓰기 |
 | integration | github | GitHub Issue/PR 관리 |
 | integration | send_email | 이메일 발송 (SMTP) |
@@ -167,7 +166,6 @@ User ──┬── Workspace (1:N)
 | presentation | chart | 차트 시각화 |
 | presentation | form | 사용자 입력 폼 (Human-in-the-loop) |
 | presentation | template | 템플릿 기반 콘텐츠 생성 |
-| presentation | pdf | PDF 문서 생성 |
 
 ### 2.7 Edge
 
@@ -246,7 +244,7 @@ Schedule은 Trigger의 서브타입이다. 양쪽의 라이프사이클과 상�
 |------|------|------|
 | id | UUID | PK |
 | workspace_id | UUID | FK → Workspace |
-| service_type | String | 서비스 유형 (slack, google, github, http, database, email, webhook) |
+| service_type | String | 서비스 유형 (google, github, http, database, email, webhook) |
 | name | String | 사용자 지정 별칭 |
 | auth_type | Enum | oauth2 / api_key / bearer_token / basic / connection_string / smtp / webhook_outbound |
 | credentials | JSONB (encrypted) | 인증 정보 (암호화 저장). OAuth의 경우 `scopes: string[]` 포함 |

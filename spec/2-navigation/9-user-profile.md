@@ -157,7 +157,7 @@
 │  🔴 Workflow "Order Bot" failed       │
 │     2 minutes ago                      │
 │  ─────────────────────────── │
-│  🟡 Slack integration expired         │
+│  🟡 Google integration expired        │
 │     1 hour ago                         │
 │  ─────────────────────────── │
 │  🔵 Team Alpha invited you            │

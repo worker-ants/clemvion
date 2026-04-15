@@ -155,14 +155,6 @@ function databaseQuerySummary(config: NodeConfig): ConfigSummaryResult {
   return { text: `${queryType} \u00b7 ${firstLine}`, isWarning: false };
 }
 
-function slackSummary(config: NodeConfig): ConfigSummaryResult {
-  const action = config.action as string | undefined;
-  if (!action) return warning("Action not selected");
-  const channel = config.channel as string | undefined;
-  if (channel) return { text: `${action} \u00b7 ${channel}`, isWarning: false };
-  return { text: action, isWarning: false };
-}
-
 function sendEmailSummary(config: NodeConfig): ConfigSummaryResult {
   const to = config.to as string | undefined;
   if (!to) return warning("Recipient not set");
@@ -258,15 +250,6 @@ function templateSummary(config: NodeConfig): ConfigSummaryResult {
   return { text: `${outputFormat} \u00b7 ${lineCount} ${lineCount === 1 ? "line" : "lines"}`, isWarning: false };
 }
 
-function pdfSummary(config: NodeConfig): ConfigSummaryResult {
-  const template = config.template as string | undefined;
-  if (!template) return warning("Template not set");
-  const pageSize = (config.pageSize as string) ?? "A4";
-  const orientation = (config.orientation as string) ?? "portrait";
-  const fileName = (config.fileName as string) ?? "document.pdf";
-  return { text: `${pageSize} ${orientation} \u00b7 ${fileName}`, isWarning: false };
-}
-
 function aiAgentSummary(config: NodeConfig, context?: SummaryContext): ConfigSummaryResult {
   const model = config.model as string | undefined;
   const llmConfigId = config.llmConfigId as string | undefined;
@@ -326,7 +309,6 @@ const FORMATTERS: Record<string, (config: NodeConfig, context?: SummaryContext) 
   workflow: workflowSummary,
   http_request: httpRequestSummary,
   database_query: databaseQuerySummary,
-  slack: slackSummary,
   send_email: sendEmailSummary,
   transform: transformSummary,
   code: codeSummary,
@@ -335,7 +317,6 @@ const FORMATTERS: Record<string, (config: NodeConfig, context?: SummaryContext) 
   chart: chartSummary,
   form: formSummary,
   template: templateSummary,
-  pdf: pdfSummary,
   ai_agent: aiAgentSummary,
   text_classifier: textClassifierSummary,
   information_extractor: informationExtractorSummary,

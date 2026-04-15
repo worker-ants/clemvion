@@ -13,13 +13,14 @@ function makeIntegration(overrides: Partial<Integration> = {}): Integration {
   const base: Integration = {
     id: 'int-1',
     workspaceId: 'ws-1',
-    serviceType: 'slack',
-    name: 'My Slack',
+    serviceType: 'google',
+    name: 'My Google',
     authType: 'oauth2',
     credentials: {
-      access_token: 'xoxb-secret',
-      team_id: 'T1',
-      scopes: ['chat:write'],
+      access_token: 'ya29-secret',
+      refresh_token: 'refresh-secret',
+      account_email: 'user@example.com',
+      scopes: ['https://www.googleapis.com/auth/drive'],
     },
     scope: 'personal',
     status: 'connected',
@@ -132,7 +133,7 @@ describe('IntegrationsService', () => {
     it('masks secret credential fields', async () => {
       const result = await service.findById('int-1', 'ws-1');
       expect(result.credentials.access_token).toBe('********');
-      expect(result.credentials.team_id).toBe('T1');
+      expect(result.credentials.account_email).toBe('user@example.com');
     });
 
     it('throws NotFoundException when missing', async () => {
@@ -169,7 +170,7 @@ describe('IntegrationsService', () => {
       expect(result.authUrl).toBe('https://example.com');
       expect(oauthServiceMock.begin).toHaveBeenCalledWith(
         expect.objectContaining({
-          service: 'slack',
+          service: 'google',
           mode: 'reauthorize',
           integrationId: 'int-1',
         }),
@@ -211,8 +212,8 @@ describe('IntegrationsService', () => {
           raw: [
             {
               node_id: 'n1',
-              node_label: 'Send Slack',
-              node_type: 'slack-send',
+              node_label: 'Send HTTP',
+              node_type: 'http-request',
               workflow_id: 'w1',
               workflow_name: 'Workflow A',
               is_active: true,
@@ -238,7 +239,7 @@ describe('IntegrationsService', () => {
             {
               node_id: 'n1',
               node_label: 'Send',
-              node_type: 'slack-send',
+              node_type: 'http-send',
               workflow_id: 'w1',
               workflow_name: 'Workflow A',
               is_active: true,
@@ -246,7 +247,7 @@ describe('IntegrationsService', () => {
             {
               node_id: 'n2',
               node_label: 'Lookup',
-              node_type: 'slack-user',
+              node_type: 'http-user',
               workflow_id: 'w1',
               workflow_name: 'Workflow A',
               is_active: true,
@@ -254,7 +255,7 @@ describe('IntegrationsService', () => {
             {
               node_id: 'n3',
               node_label: 'Notify',
-              node_type: 'slack-send',
+              node_type: 'http-send',
               workflow_id: 'w2',
               workflow_name: 'Workflow B',
               is_active: false,
@@ -340,14 +341,17 @@ describe('IntegrationsService', () => {
   describe('requestScopes', () => {
     it('merges existing + new scopes and delegates to OAuth service', async () => {
       await service.requestScopes('int-1', 'ws-1', 'user-1', 'member', {
-        scopes: ['files:write'],
+        scopes: ['https://www.googleapis.com/auth/gmail.send'],
       });
       expect(oauthServiceMock.begin).toHaveBeenCalledWith(
         expect.objectContaining({
-          service: 'slack',
+          service: 'google',
           mode: 'request_scopes',
           integrationId: 'int-1',
-          scopes: expect.arrayContaining(['chat:write', 'files:write']),
+          scopes: expect.arrayContaining([
+            'https://www.googleapis.com/auth/drive',
+            'https://www.googleapis.com/auth/gmail.send',
+          ]),
         }),
       );
     });
@@ -449,9 +453,9 @@ describe('IntegrationsService', () => {
       const qb = makeQueryBuilder({ count: 0, many: [] });
       integrationRepo.createQueryBuilder.mockReturnValue(qb);
       await service.findAll('ws-1', {
-        q: 'slack',
+        q: 'google',
         scope: 'organization',
-        serviceType: ['slack', 'google'],
+        serviceType: ['google', 'github'],
         status: 'expiring',
       });
       const sql = qb.andWhere.mock.calls.map((c) => c[0]).join(' | ');

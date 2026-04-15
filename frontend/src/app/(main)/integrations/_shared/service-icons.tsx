@@ -1,5 +1,4 @@
 import {
-  MessageSquare,
   Globe,
   GitBranch,
   Zap,
@@ -10,7 +9,6 @@ import {
 } from "lucide-react";
 
 export const SERVICE_ICONS: Record<string, LucideIcon> = {
-  slack: MessageSquare,
   google: Globe,
   github: GitBranch,
   http: Zap,

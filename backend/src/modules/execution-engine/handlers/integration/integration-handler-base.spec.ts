@@ -38,7 +38,7 @@ function ctx(overrides: Partial<ExecutionContext> = {}): ExecutionContext {
 describe('IntegrationHandlerBase.resolveIntegration', () => {
   it('throws when integrations service is absent', async () => {
     const handler = new TestHandler();
-    await expect(handler.callResolve('int-1', ctx(), 'slack')).rejects.toThrow(
+    await expect(handler.callResolve('int-1', ctx(), 'http')).rejects.toThrow(
       /not available/,
     );
   });
@@ -47,14 +47,14 @@ describe('IntegrationHandlerBase.resolveIntegration', () => {
     const service = { getForExecution: jest.fn(), logUsage: jest.fn() };
     const handler = new TestHandler(service as never);
     await expect(
-      handler.callResolve('int-1', ctx({ variables: {} }), 'slack'),
+      handler.callResolve('int-1', ctx({ variables: {} }), 'http'),
     ).rejects.toThrow(/workspace context/);
   });
 
   it('rejects type mismatch via IntegrationError(TYPE_MISMATCH)', async () => {
     const service = {
       getForExecution: jest.fn().mockResolvedValue({
-        serviceType: 'slack',
+        serviceType: 'http',
         status: 'connected',
         name: 'X',
       }),
@@ -71,7 +71,7 @@ describe('IntegrationHandlerBase.resolveIntegration', () => {
   it('rejects non-connected status', async () => {
     const service = {
       getForExecution: jest.fn().mockResolvedValue({
-        serviceType: 'slack',
+        serviceType: 'http',
         status: 'expired',
         statusReason: null,
         name: 'Stale',
@@ -80,7 +80,7 @@ describe('IntegrationHandlerBase.resolveIntegration', () => {
     };
     const handler = new TestHandler(service as never);
     await expect(
-      handler.callResolve('int-1', ctx(), 'slack'),
+      handler.callResolve('int-1', ctx(), 'http'),
     ).rejects.toMatchObject({
       code: 'INTEGRATION_NOT_CONNECTED',
     });
@@ -89,7 +89,7 @@ describe('IntegrationHandlerBase.resolveIntegration', () => {
   it('returns the integration when all checks pass', async () => {
     const integration = {
       id: 'int-1',
-      serviceType: 'slack',
+      serviceType: 'http',
       status: 'connected',
       name: 'Team',
     };
@@ -98,7 +98,7 @@ describe('IntegrationHandlerBase.resolveIntegration', () => {
       logUsage: jest.fn(),
     };
     const handler = new TestHandler(service as never);
-    await expect(handler.callResolve('int-1', ctx(), 'slack')).resolves.toBe(
+    await expect(handler.callResolve('int-1', ctx(), 'http')).resolves.toBe(
       integration,
     );
   });
@@ -159,14 +159,6 @@ describe('toLogError', () => {
     expect(toLogError(err)).toEqual({ code: 'SOMETHING', message: 'bad' });
   });
 
-  it('extracts Slack err.data.error into SLACK_<CODE>', () => {
-    const err = { data: { error: 'not_authed' }, message: 'Request failed' };
-    expect(toLogError(err)).toEqual({
-      code: 'SLACK_NOT_AUTHED',
-      message: 'not_authed',
-    });
-  });
-
   it('falls back to INTEGRATION_CALL_FAILED with sanitized message', () => {
     const err = new Error('password=supersecret123456 on host db');
     const result = toLogError(err);
@@ -181,10 +173,6 @@ describe('sanitizeMessage', () => {
     expect(
       sanitizeMessage('Authorization Bearer AKIAIOSFODNN7EXAMPLE rejected'),
     ).toContain('Bearer ***');
-  });
-
-  it('masks Slack tokens', () => {
-    expect(sanitizeMessage('token=xoxb-1234567890-abcd')).toContain('***');
   });
 
   it('masks long opaque blobs', () => {

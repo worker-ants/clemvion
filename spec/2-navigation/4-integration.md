@@ -29,12 +29,12 @@
 │  ┌──────────────────┐  ┌──────────────────┐             │
 │  │ 🔍 Search...     │  │ Scope: All ▼     │             │
 │  └──────────────────┘  └──────────────────┘             │
-│  [All] [Slack] [Google] [GitHub] [HTTP] [DB] [Email] [Webhook]
+│  [All] [Google] [GitHub] [HTTP] [DB] [Email] [Webhook]
 │  [All] [Connected] [Expiring] [Expired] [Error]         │
 │                                                         │
 │  Organization                                           │
 │  ┌─────────────────────────────────────────────────────┐ │
-│  │ 🟢 Slack - Team Bot      OAuth2   Connected      ⋮ │ │
+│  │ 🟢 Google - Team Account      OAuth2   Connected      ⋮ │ │
 │  │ 🟡 Google - Drive        OAuth2   Expires in 2d  ⋮ │ │
 │  └─────────────────────────────────────────────────────┘ │
 │                                                         │
@@ -82,10 +82,10 @@
 │  Add Integration — Select a service     │
 │                                         │
 │  ┌─────────┐ ┌─────────┐ ┌─────────┐   │
-│  │  Slack  │ │ Google  │ │ GitHub  │   │
+│  │ Google  │ │ GitHub  │ │  HTTP   │   │
 │  └─────────┘ └─────────┘ └─────────┘   │
 │  ┌─────────┐ ┌─────────┐ ┌─────────┐   │
-│  │  HTTP   │ │Database │ │  Email  │   │
+│  │Database │ │  Email  │ │ Webhook │   │
 │  └─────────┘ └─────────┘ └─────────┘   │
 │  ┌─────────┐                            │
 │  │ Webhook │                            │
@@ -125,7 +125,7 @@ Step 2 auth     ──submit──▶ Step 3 test
 | `name` | ✓ | 별칭. 워크스페이스 내 유일 |
 | `scope` | ✓ | Personal / Organization (팀 워크스페이스일 때). Admin이 아니면 Organization 비활성 |
 
-**OAuth2 흐름 (Slack/Google/GitHub)**
+**OAuth2 흐름 (Google/GitHub)**
 1. 사용자가 scope 체크박스로 권한 범위 선택 (§5 참조)
 2. `[Connect with <Service>]` 클릭 → 백엔드 `POST /api/integrations/oauth/begin`으로 state 발급
 3. 신규 팝업(600×700)으로 OAuth authorize URL 오픈
@@ -169,7 +169,7 @@ Step 2 auth     ──submit──▶ Step 3 test
 ┌──────────────────────────────────────────────────────────────┐
 │ ← Back to integrations                                       │
 │                                                              │
-│ 🟢 Slack - Team Bot                                          │
+│ 🟢 Google - Team Account                                          │
 │ OAuth2 · Organization · Connected · Last used 2m ago         │
 │ Created by @alice, 2026-03-01                                │
 │ ───────────────────────────────────────────────────────────  │
@@ -220,8 +220,8 @@ Used by 3 nodes across 2 workflows
 
 ┌────────────────────────────────────────────────────────────┐
 │ Workflow A (Active)                                        │
-│  └─ Send Slack message  (node id: abc)  [Open in editor →] │
-│  └─ Lookup Slack user   (node id: def)  [Open in editor →] │
+│  └─ Send Email message  (node id: abc)  [Open in editor →] │
+│  └─ Lookup Google user   (node id: def)  [Open in editor →] │
 │                                                            │
 │ Workflow B (Inactive)                                      │
 │  └─ Notify on failure   (node id: ghi)  [Open in editor →] │
@@ -242,8 +242,8 @@ Recent calls (latest 20)
 ┌──────────────────┬──────────────┬────────────┬──────┬─────┐
 │ At               │ Workflow     │ Node       │ ✓/✗  │ ms  │
 ├──────────────────┼──────────────┼────────────┼──────┼─────┤
-│ 14:03 Apr 11     │ Workflow A   │ Slack-send │  ✓   │ 412 │
-│ 13:55 Apr 11     │ Workflow B   │ Slack-fetch│  ✗   │ 1203│
+│ 14:03 Apr 11     │ Workflow A   │ Email-send │  ✓   │ 412 │
+│ 13:55 Apr 11     │ Workflow B   │ Google-fetch│  ✗   │ 1203│
 └──────────────────┴──────────────┴────────────┴──────┴─────┘
 ```
 
@@ -279,19 +279,7 @@ Recent calls (latest 20)
 
 모든 스키마는 `Integration.credentials` JSONB에 저장된다. 민감 필드는 `write-only` — API 응답에서 마스킹된 프리뷰만 반환한다.
 
-### 5.1 Slack (OAuth2)
-
-| 필드 | 타입 | 필수 | 비밀 | 비고 |
-|------|------|------|------|------|
-| `scopes` | string[] | ✓ | × | 체크박스로 선택. 권장 기본: `chat:write`, `channels:read` |
-| `access_token` | string | ✓ | 🔒 | OAuth 콜백에서 주입 |
-| `refresh_token` | string? | | 🔒 | Slack은 rotating refresh 토큰 사용 |
-| `team_id` | string | ✓ | × | 팝업 콜백에서 획득 |
-| `scope` 추가 옵션 | checkbox | | × | `files:write`, `users:read`, `groups:read`, `im:write` |
-
-테스트 방법: `auth.test` API.
-
-### 5.2 Google (OAuth2)
+### 5.1 Google (OAuth2)
 
 | 필드 | 타입 | 필수 | 비밀 |
 |------|------|------|------|
@@ -311,7 +299,7 @@ scope는 서비스 번들 체크박스로 노출:
 
 테스트 방법: `tokeninfo` 엔드포인트 또는 선택된 첫 번들의 `/about` 핑.
 
-### 5.3 GitHub
+### 5.2 GitHub
 
 GitHub는 2개 `auth_type`을 선택 가능.
 
@@ -331,7 +319,7 @@ GitHub는 2개 `auth_type`을 선택 가능.
 
 테스트: `GET https://api.github.com/user`.
 
-### 5.4 HTTP/REST
+### 5.3 HTTP/REST
 
 `auth_type`을 `none` / `api_key` / `bearer` / `basic` 중 선택.
 
@@ -358,7 +346,7 @@ GitHub는 2개 `auth_type`을 선택 가능.
 
 테스트: `base_url` 존재 시 `GET base_url`(혹은 사용자가 지정한 `test_path`) 200 기대. 미지정이면 테스트 단계를 건너뛰고 경고 배너.
 
-### 5.5 Database
+### 5.4 Database
 
 | 필드 | 타입 | 필수 | 비밀 |
 |------|------|------|------|
@@ -372,7 +360,7 @@ GitHub는 2개 `auth_type`을 선택 가능.
 
 테스트: 연결 후 `SELECT 1` 실행. 실패 시 드라이버별 에러 메시지를 `error.code`에 정규화(`auth_failed`, `network`, `unknown`).
 
-### 5.6 Email (SMTP)
+### 5.5 Email (SMTP)
 
 | 필드 | 타입 | 필수 | 비밀 |
 |------|------|------|------|
@@ -385,7 +373,7 @@ GitHub는 2개 `auth_type`을 선택 가능.
 
 테스트: SMTP 핸드셰이크 + `NOOP` 명령. 실제 메일은 전송하지 않음.
 
-### 5.7 Webhook (Outbound)
+### 5.6 Webhook (Outbound)
 
 | 필드 | 타입 | 필수 | 비밀 |
 |------|------|------|------|
@@ -439,13 +427,13 @@ GitHub는 2개 `auth_type`을 선택 가능.
 ### 7.2 삭제 차단 다이얼로그
 
 ```
-Cannot delete "Slack - Team Bot"
+Cannot delete "Google - Team Account"
 
 This integration is still referenced by the following nodes:
 
 Workflow A (Active)
-  • Send Slack message   (node id: abc)
-  • Lookup Slack user    (node id: def)
+  • Send Email message   (node id: abc)
+  • Lookup Google user    (node id: def)
 Workflow B (Inactive)
   • Notify on failure    (node id: ghi)
 
@@ -536,7 +524,7 @@ GET /api/integrations/oauth/callback/:provider
 
 | 파라미터 | 설명 |
 |----------|------|
-| `:provider` | OAuth 제공자 (`slack`, `google`, `github`) |
+| `:provider` | OAuth 제공자 (`google`, `github`) |
 | `code` | Authorization Code |
 | `state` | CSRF 방지 토큰 (서버 발급) |
 | `error` | OAuth 에러 코드 (거부 등) |
@@ -557,7 +545,7 @@ GET /api/integrations/oauth/callback/:provider
 ```javascript
 window.opener.postMessage({
   type: "oauth_callback",
-  provider: "slack",
+  provider: "google",
   status: "success",           // "success" | "error"
   mode: "new",                  // "new" | "reauthorize" | "request-scopes"
   previewToken: "tmp_...",      // mode=new일 때만
@@ -571,7 +559,6 @@ window.close();
 
 | Provider | Token URL | 기본 scope 프리셋 | Refresh |
 |----------|-----------|-----------------|---------|
-| Slack | `https://slack.com/api/oauth.v2.access` | `chat:write`, `channels:read` | ✓ (rotating) |
 | Google | `https://oauth2.googleapis.com/token` | 사용자 체크박스 선택 결과 | ✓ |
 | GitHub | `https://github.com/login/oauth/access_token` | `repo`, `read:org` | ✗ |
 
@@ -688,13 +675,12 @@ Cron: 0 0 * * *   (워크스페이스 타임존 00:00)
 | 노드 | Usage 로그 기록 조건 |
 |------|---------------------|
 | `send_email` | 매 호출 (성공/실패 모두) |
-| `slack` | 매 호출 (성공/실패 모두) |
 | `database_query` | 매 호출 (성공/실패 모두) |
 | `http_request` | `authentication === 'integration'`인 경우에만 기록 (None/Custom은 Usage 대상 아님) |
 
 ### 14.2 워크플로우 에디터
 
-- 노드 설정 패널에서 Integration 선택은 `IntegrationSelector` 공용 드롭다운을 사용한다 — `serviceTypes` prop으로 목록을 필터(Send Email은 `email`, Slack은 `slack`, Database는 `database`, HTTP의 `authentication='integration'` 모드는 `http`).
+- 노드 설정 패널에서 Integration 선택은 `IntegrationSelector` 공용 드롭다운을 사용한다 — `serviceTypes` prop으로 목록을 필터(Send Email은 `email`, Database는 `database`, HTTP의 `authentication='integration'` 모드는 `http`).
 - 연동 상태 배지를 함께 노출하며(§7.3), 해당 타입의 연동이 0건이면 `+ Create {Service} integration` CTA 링크를 select 아래에 표시(`/integrations/new?service=…&step=auth`).
 - 삭제된 integrationId가 저장돼 있으면 `{id앞8자}… (missing)` 옵션을 추가해 값 보존.
 

@@ -55,7 +55,7 @@ export interface ScopeOption {
 export interface ServiceDefinition {
   type: string;
   name: string;
-  oauthProvider: "slack" | "google" | "github" | null;
+  oauthProvider: "google" | "github" | null;
   authTypes: string[];
   authVariants: AuthVariant[];
   scopes: ScopeOption[];

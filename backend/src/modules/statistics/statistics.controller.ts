@@ -138,7 +138,7 @@ export class StatisticsController {
             type: 'object',
             properties: {
               workflowId: { type: 'string', format: 'uuid' },
-              workflowName: { type: 'string', example: 'Slack 알림 플로우' },
+              workflowName: { type: 'string', example: '이메일 알림 플로우' },
               executionCount: { type: 'integer', example: 85 },
               successRate: { type: 'number', example: 97.65 },
               avgDurationMs: { type: 'integer', example: 980 },

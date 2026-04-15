@@ -25,7 +25,6 @@ const ALLOWED_NODE_TYPES = [
   'workflow',
   'http_request',
   'database_query',
-  'slack',
   'send_email',
   'transform',
   'code',
@@ -34,7 +33,6 @@ const ALLOWED_NODE_TYPES = [
   'chart',
   'form',
   'template',
-  'pdf',
 ];
 
 const ALLOWED_CATEGORIES = [

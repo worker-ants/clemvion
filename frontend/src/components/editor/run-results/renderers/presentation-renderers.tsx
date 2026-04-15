@@ -1,7 +1,6 @@
 "use client";
 
 import DOMPurify from "dompurify";
-import { FileDown } from "lucide-react";
 import {
   Area,
   AreaChart,
@@ -396,28 +395,6 @@ function TemplateContent({ data, previewOnly = false }: { data: Record<string, u
   );
 }
 
-function PdfContent({ data }: { data: Record<string, unknown> }) {
-  const url = data.url as string | undefined;
-  return (
-    <div className="flex items-center gap-2 p-2">
-      <FileDown className="h-5 w-5 text-[hsl(var(--muted-foreground))]" />
-      <span className="text-xs">
-        {(data.fileName as string) ?? "document.pdf"}
-      </span>
-      {isHttpUrl(url) && (
-        <a
-          href={url}
-          target="_blank"
-          rel="noreferrer"
-          className="text-xs text-blue-500 underline ml-2"
-        >
-          Open
-        </a>
-      )}
-    </div>
-  );
-}
-
 function FormSubmittedContent({ data }: { data: Record<string, unknown> }) {
   const submittedData = (data.submittedData ?? data.formData) as
     | Record<string, unknown>
@@ -519,9 +496,6 @@ export function PresentationContent({
       break;
     case "chart":
       preview = <ChartContent data={data} />;
-      break;
-    case "pdf":
-      preview = <PdfContent data={data} />;
       break;
     case "form":
       preview = <FormSubmittedContent data={data} />;

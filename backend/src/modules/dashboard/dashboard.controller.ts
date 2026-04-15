@@ -103,7 +103,7 @@ export class DashboardController {
             properties: {
               id: { type: 'string', format: 'uuid' },
               workflowId: { type: 'string', format: 'uuid' },
-              workflowName: { type: 'string', example: 'Slack 알림 플로우' },
+              workflowName: { type: 'string', example: '이메일 알림 플로우' },
               status: {
                 type: 'string',
                 enum: [

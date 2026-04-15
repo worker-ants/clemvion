@@ -154,13 +154,12 @@ backend/src/nodes/
 | `text_classifier` | Text Classifier | 🏷️ | 1 | N | 카테고리 목록, 모델 |
 | `information_extractor` | Info Extractor | 🔍 | 1 | 1 | 출력 스키마, 모델 |
 
-### 2.4 Integration 노드 (7종)
+### 2.4 Integration 노드 (6종)
 
 | type | 표시 이름 | 아이콘 | 입력 | 출력 | 키 설정 |
 |------|-----------|--------|------|------|---------|
 | `http_request` | HTTP Request | 🌐 | 1 | 2 (success/error) | method, url, headers, body, responseType |
 | `database_query` | Database Query | 🗄️ | 1 | 1 | integrationId, query, parameters, queryType |
-| `slack` | Slack | 💬 | 1 | 1 | integrationId, action, actionConfig |
 | `google_sheets` | Google Sheets | 📊 | 1 | 1 | integrationId, action, spreadsheetId, range |
 | `github` | GitHub | 🐙 | 1 | 1 | integrationId, action, owner, repo, actionConfig |
 | `send_email` | Send Email | 📧 | 1 | 1 | integrationId, to, subject, body, bodyType |
@@ -173,7 +172,7 @@ backend/src/nodes/
 | `transform` | Transform | 🔄 | 1 | 1 | operations (변환 체인) |
 | `code` | Code | 💻 | 1 | 1 | language, code |
 
-### 2.6 Presentation 노드 (6종)
+### 2.6 Presentation 노드 (5종)
 
 | type | 표시 이름 | 아이콘 | 입력 | 출력 | 키 설정 |
 |------|-----------|--------|------|------|---------|
@@ -182,7 +181,6 @@ backend/src/nodes/
 | `chart` | Chart | 📊 | 1 | 1 (out) 또는 N (동적 버튼 포트) | chartType, dataField, xAxis, yAxis, groupBy, buttons |
 | `form` | Form | 📝 | 1 | 1 | fields, title, submitLabel |
 | `template` | Template | 📄 | 1 | 1 (out) 또는 N (동적 버튼 포트) | template, outputFormat, helpers, buttons |
-| `pdf` | PDF | 📑 | 1 | 1 | template, pageSize, orientation, fileName |
 
 ---
 

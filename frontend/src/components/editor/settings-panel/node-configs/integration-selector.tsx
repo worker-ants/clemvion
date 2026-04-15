@@ -5,10 +5,10 @@ import { integrationsApi, type IntegrationDto } from "@/lib/api/integrations";
 interface IntegrationSelectorProps {
   value: string;
   onChange: (value: string) => void;
-  /** Service type filter — e.g. `['email']`, `['slack']`. */
+  /** Service type filter — e.g. `['email']`, `['http']`. */
   serviceTypes: string[];
   label?: string;
-  /** Human-readable name for the empty-state CTA (e.g. "Email", "Slack"). */
+  /** Human-readable name for the empty-state CTA (e.g. "Email", "HTTP"). */
   serviceDisplayName?: string;
 }
 

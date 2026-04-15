@@ -11,7 +11,7 @@ describe('htmlEscape', () => {
 describe('renderCallbackHtml', () => {
   it('escapes attacker-controlled error messages in HTML body', () => {
     const html = renderCallbackHtml(
-      { status: 'error', provider: 'slack', error: '<img src=x onerror=1>' },
+      { status: 'error', provider: 'google', error: '<img src=x onerror=1>' },
       'https://app.example.com',
     );
     expect(html).toContain('&lt;img');
@@ -22,7 +22,7 @@ describe('renderCallbackHtml', () => {
     const html = renderCallbackHtml(
       {
         status: 'error',
-        provider: 'slack',
+        provider: 'google',
         error: '</script><script>alert(1)</script>',
       },
       'https://app.example.com',
@@ -37,7 +37,7 @@ describe('renderCallbackHtml', () => {
         status: 'success',
         result: {
           mode: 'new',
-          provider: 'slack',
+          provider: 'google',
           previewToken: 'tmp_abc',
         },
       },

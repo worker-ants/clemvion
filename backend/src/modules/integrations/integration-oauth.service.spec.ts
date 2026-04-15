@@ -72,32 +72,35 @@ describe('IntegrationOAuthService', () => {
     });
 
     it('throws InternalServerError when CLIENT_ID env var is missing', async () => {
-      delete process.env.SLACK_CLIENT_ID;
+      delete process.env.GOOGLE_CLIENT_ID;
       await expect(
         service.begin({
           workspaceId: 'ws-1',
           userId: 'u-1',
-          service: 'slack',
-          scopes: ['chat:write'],
+          service: 'google',
+          scopes: ['https://www.googleapis.com/auth/drive'],
           mode: 'new',
         }),
       ).rejects.toThrow(InternalServerErrorException);
     });
 
     it('returns authUrl and persists state for new mode', async () => {
-      process.env.SLACK_CLIENT_ID = 'cid-123';
+      process.env.GOOGLE_CLIENT_ID = 'cid-123';
       const result = await service.begin({
         workspaceId: 'ws-1',
         userId: 'u-1',
-        service: 'slack',
-        scopes: ['chat:write', 'channels:read'],
+        service: 'google',
+        scopes: [
+          'https://www.googleapis.com/auth/drive',
+          'https://www.googleapis.com/auth/calendar',
+        ],
         mode: 'new',
       });
       expect(result.authUrl).toContain('client_id=cid-123');
-      expect(result.authUrl).toContain('chat%3Awrite');
+      expect(result.authUrl).toContain('https');
       expect(result.state).toHaveLength(48);
       expect(stateRepo.save).toHaveBeenCalled();
-      delete process.env.SLACK_CLIENT_ID;
+      delete process.env.GOOGLE_CLIENT_ID;
     });
   });
 
@@ -110,61 +113,61 @@ describe('IntegrationOAuthService', () => {
 
     it('rejects on error param', async () => {
       await expect(
-        service.handleCallback('slack', { error: 'access_denied' }),
+        service.handleCallback('google', { error: 'access_denied' }),
       ).rejects.toThrow(BadRequestException);
     });
 
     it('rejects on missing state', async () => {
       await expect(
-        service.handleCallback('slack', { code: 'x' }),
+        service.handleCallback('google', { code: 'x' }),
       ).rejects.toThrow(BadRequestException);
     });
 
     it('rejects on missing code', async () => {
       await expect(
-        service.handleCallback('slack', { state: 'y' }),
+        service.handleCallback('google', { state: 'y' }),
       ).rejects.toThrow(BadRequestException);
     });
 
     it('rejects already-consumed state', async () => {
       dataSource.query.mockResolvedValue([]);
       await expect(
-        service.handleCallback('slack', { code: 'x', state: 'y' }),
+        service.handleCallback('google', { code: 'x', state: 'y' }),
       ).rejects.toThrow(BadRequestException);
     });
 
     it('rejects expired state', async () => {
       dataSource.query.mockResolvedValue([
         {
-          provider: 'slack',
-          serviceType: 'slack',
+          provider: 'google',
+          serviceType: 'google',
           mode: 'new',
           workspaceId: 'ws-1',
           userId: 'u-1',
-          requestedScopes: ['chat:write'],
+          requestedScopes: ['https://www.googleapis.com/auth/drive'],
           integrationId: null,
           expiresAt: new Date(Date.now() - 60_000),
         },
       ]);
       await expect(
-        service.handleCallback('slack', { code: 'x', state: 'y' }),
+        service.handleCallback('google', { code: 'x', state: 'y' }),
       ).rejects.toThrow(BadRequestException);
     });
 
     it('returns previewToken for new mode', async () => {
       dataSource.query.mockResolvedValue([
         {
-          provider: 'slack',
-          serviceType: 'slack',
+          provider: 'google',
+          serviceType: 'google',
           mode: 'new',
           workspaceId: 'ws-1',
           userId: 'u-1',
-          requestedScopes: ['chat:write'],
+          requestedScopes: ['https://www.googleapis.com/auth/drive'],
           integrationId: null,
           expiresAt: new Date(Date.now() + 60_000),
         },
       ]);
-      const result = await service.handleCallback('slack', {
+      const result = await service.handleCallback('google', {
         code: 'code-xyz',
         state: 'abc',
       });
@@ -176,12 +179,12 @@ describe('IntegrationOAuthService', () => {
     it('updates integration for reauthorize mode', async () => {
       dataSource.query.mockResolvedValue([
         {
-          provider: 'slack',
-          serviceType: 'slack',
+          provider: 'google',
+          serviceType: 'google',
           mode: 'reauthorize',
           workspaceId: 'ws-1',
           userId: 'u-1',
-          requestedScopes: ['chat:write'],
+          requestedScopes: ['https://www.googleapis.com/auth/drive'],
           integrationId: 'int-1',
           expiresAt: new Date(Date.now() + 60_000),
         },
@@ -192,7 +195,7 @@ describe('IntegrationOAuthService', () => {
         credentials: { access_token: 'old' },
         status: 'error',
       });
-      const result = await service.handleCallback('slack', {
+      const result = await service.handleCallback('google', {
         code: 'code',
         state: 'abc',
       });
@@ -206,12 +209,15 @@ describe('IntegrationOAuthService', () => {
     it('merges scopes for request_scopes mode', async () => {
       dataSource.query.mockResolvedValue([
         {
-          provider: 'slack',
-          serviceType: 'slack',
+          provider: 'google',
+          serviceType: 'google',
           mode: 'request_scopes',
           workspaceId: 'ws-1',
           userId: 'u-1',
-          requestedScopes: ['chat:write', 'files:write'],
+          requestedScopes: [
+            'https://www.googleapis.com/auth/drive',
+            'https://www.googleapis.com/auth/gmail.send',
+          ],
           integrationId: 'int-1',
           expiresAt: new Date(Date.now() + 60_000),
         },
@@ -219,10 +225,13 @@ describe('IntegrationOAuthService', () => {
       integrationRepo.findOne.mockResolvedValue({
         id: 'int-1',
         workspaceId: 'ws-1',
-        credentials: { access_token: 'old', scopes: ['chat:write'] },
+        credentials: {
+          access_token: 'old',
+          scopes: ['https://www.googleapis.com/auth/drive'],
+        },
         status: 'error',
       });
-      const result = await service.handleCallback('slack', {
+      const result = await service.handleCallback('google', {
         code: 'code',
         state: 'abc',
       });
@@ -231,7 +240,10 @@ describe('IntegrationOAuthService', () => {
         credentials: { scopes: string[] };
       };
       expect(saved.credentials.scopes).toEqual(
-        expect.arrayContaining(['chat:write', 'files:write']),
+        expect.arrayContaining([
+          'https://www.googleapis.com/auth/drive',
+          'https://www.googleapis.com/auth/gmail.send',
+        ]),
       );
     });
   });
@@ -250,7 +262,7 @@ describe('IntegrationOAuthService', () => {
           previewToken: 'tmp_x',
           workspaceId: 'other',
           userId: 'u-1',
-          serviceType: 'slack',
+          serviceType: 'google',
           credentials: { access_token: 't' },
           tokenExpiresAt: null,
           expiresAt: new Date(Date.now() + 60_000),
@@ -267,7 +279,7 @@ describe('IntegrationOAuthService', () => {
           previewToken: 'tmp_x',
           workspaceId: 'ws-1',
           userId: 'u-1',
-          serviceType: 'slack',
+          serviceType: 'google',
           credentials: { access_token: 't' },
           tokenExpiresAt: null,
           expiresAt: new Date(Date.now() - 60_000),
@@ -284,14 +296,14 @@ describe('IntegrationOAuthService', () => {
           previewToken: 'tmp_x',
           workspaceId: 'ws-1',
           userId: 'u-1',
-          serviceType: 'slack',
+          serviceType: 'google',
           credentials: { access_token: 't' },
           tokenExpiresAt: null,
           expiresAt: new Date(Date.now() + 60_000),
         },
       ]);
       const result = await service.consumePreviewToken('tmp_x', 'ws-1', 'u-1');
-      expect(result.serviceType).toBe('slack');
+      expect(result.serviceType).toBe('google');
       expect(result.credentials.access_token).toBe('t');
     });
   });

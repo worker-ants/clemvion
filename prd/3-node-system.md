@@ -219,9 +219,9 @@
 
 ---
 
-## 7. Integration 노드 (7종)
+## 7. Integration 노드 (6종)
 
-외부 서비스와 연동하여 데이터를 주고받는 노드이다. 범용 노드(HTTP Request, Database Query)와 서비스 특화 노드(Slack, Google Sheets, GitHub, Send Email, Google Drive)로 구성된다. 모든 Integration 노드는 Integration 엔티티에 저장된 인증 정보를 참조한다.
+외부 서비스와 연동하여 데이터를 주고받는 노드이다. 범용 노드(HTTP Request, Database Query)와 서비스 특화 노드(Google Sheets, GitHub, Send Email, Google Drive)로 구성된다. 모든 Integration 노드는 Integration 엔티티에 저장된 인증 정보를 참조한다.
 
 ### 7.1 HTTP Request
 
@@ -244,17 +244,7 @@
 | ND-DQ-04 | 쿼리 유형 구분 (SELECT → 결과 반환, INSERT/UPDATE/DELETE → 영향 행 수) | 필수 | 1 |
 | ND-DQ-05 | 지원 DB: PostgreSQL, MySQL | 필수 | 1 |
 
-### 7.3 Slack
-
-| ID | 요구사항 | 우선순위 | Phase |
-|----|----------|----------|-------|
-| ND-SL-01 | Slack Integration을 통해 Slack API 호출 | 필수 | 1 |
-| ND-SL-02 | 액션: 메시지 전송 (채널/DM), 메시지 업데이트, 리액션 추가 | 필수 | 1 |
-| ND-SL-03 | 채널 목록 조회 및 선택 UI | 필수 | 1 |
-| ND-SL-04 | Block Kit 메시지 포맷 지원 | 권장 | 1 |
-| ND-SL-05 | 파일 업로드 지원 | 권장 | 1 |
-
-### 7.4 Google Sheets
+### 7.3 Google Sheets
 
 | ID | 요구사항 | 우선순위 | Phase |
 |----|----------|----------|-------|
@@ -263,7 +253,7 @@
 | ND-GS-03 | 스프레드시트 ID 및 시트/범위 지정 | 필수 | 2 |
 | ND-GS-04 | 헤더 행 자동 인식 및 필드 매핑 | 권장 | 2 |
 
-### 7.5 GitHub
+### 7.4 GitHub
 
 | ID | 요구사항 | 우선순위 | Phase |
 |----|----------|----------|-------|
@@ -272,7 +262,7 @@
 | ND-GH-03 | 리포지토리(owner/repo) 선택 UI | 필수 | 2 |
 | ND-GH-04 | 라벨, 담당자 등 메타데이터 설정 | 권장 | 2 |
 
-### 7.6 Send Email
+### 7.5 Send Email
 
 | ID | 요구사항 | 우선순위 | Phase |
 |----|----------|----------|-------|
@@ -282,7 +272,7 @@
 | ND-EM-04 | 첨부 파일 지원 | 권장 | 1 |
 | ND-EM-05 | 표현식을 통한 동적 수신자/본문 구성 | 필수 | 1 |
 
-### 7.7 Google Drive
+### 7.6 Google Drive
 
 | ID | 요구사항 | 우선순위 | Phase |
 |----|----------|----------|-------|
@@ -390,16 +380,6 @@
 | ND-TP-04 | 렌더링된 콘텐츠를 출력으로 전달 | 필수 | 1 |
 | ND-TP-05 | n개의 버튼 설정 기능 — 버튼 유형: 외부 링크(link) 또는 노드 포트(port). 버튼 라벨, 스타일, URL(link 시) 설정 | 필수 | 1 |
 | ND-TP-06 | 버튼 설정 시 Blocking Mode — 실행 일시 정지(waiting_for_input), 사용자 버튼 클릭 시 해당 포트로 실행 재개. 선택적 타임아웃 지원 (무제한 가능) | 필수 | 1 |
-
-### 9.6 PDF
-
-| ID | 요구사항 | 우선순위 | Phase |
-|----|----------|----------|-------|
-| ND-PD-01 | HTML 템플릿에 데이터 바인딩 후 PDF 렌더링 | 필수 | 1 |
-| ND-PD-02 | 페이지 크기(A4/Letter/A3), 방향(portrait/landscape) 설정 | 필수 | 1 |
-| ND-PD-03 | 페이지 여백, 머리글/바닥글 템플릿 설정 | 필수 | 1 |
-| ND-PD-04 | 생성된 PDF를 Object Storage에 저장, 다운로드 URL 출력 | 필수 | 1 |
-| ND-PD-05 | 파일명 동적 지정 (표현식 지원) | 필수 | 1 |
 
 ---
 

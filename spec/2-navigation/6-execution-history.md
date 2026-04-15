@@ -183,14 +183,13 @@ Skipped 상태의 노드는 목록에서 제외한다.
 
 노드 유형에 따라 다른 방식으로 시각적 프리뷰를 제공한다. Output Data JSON은 별도 Output 탭에서 확인한다.
 
-#### Presentation 노드 (table, carousel, chart, template, pdf, form)
+#### Presentation 노드 (table, carousel, chart, template, form)
 
 에디터 실행 시와 동일한 시각적 렌더링을 제공한다:
 - **Table**: 테이블 형태로 rows/columns 표시
 - **Carousel**: 카드 슬라이드 또는 rendered HTML
 - **Chart**: SVG/rendered HTML 차트
 - **Template**: 포맷(html/markdown/text)에 따른 프리뷰
-- **PDF**: 파일명 + 다운로드 링크
 - **Form**: 제출된 form 데이터 표시
 
 #### 버튼이 있는 노드

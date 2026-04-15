@@ -227,7 +227,7 @@ describe('SendEmailHandler', () => {
     it('rejects when integration type is not email', async () => {
       const { service, logUsage } = makeService({
         integration: {
-          serviceType: 'slack',
+          serviceType: 'http',
           status: 'connected',
           name: 'Wrong',
           credentials: {},

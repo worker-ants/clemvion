@@ -58,7 +58,7 @@ describe("useExpressionContext", () => {
     editorState = {
       nodes: [
         makeNode("n1", "http_request", "HTTP"),
-        makeNode("n2", "slack", "Slack"),
+        makeNode("n2", "http_request", "HTTP Request"),
       ],
       edges: [makeEdge("n1", "n2")],
     };
@@ -82,7 +82,7 @@ describe("useExpressionContext", () => {
             { name: "token", type: "string" },
           ],
         }),
-        makeNode("n1", "slack", "Slack"),
+        makeNode("n1", "http_request", "HTTP Request"),
       ],
       edges: [],
     };
@@ -99,7 +99,7 @@ describe("useExpressionContext", () => {
     editorState = {
       nodes: [
         makeNode("n1", "http_request", "HTTP"),
-        makeNode("n2", "slack", "Slack"),
+        makeNode("n2", "http_request", "HTTP Request"),
       ],
       edges: [],
     };
@@ -134,7 +134,7 @@ describe("useExpressionContext", () => {
   describe("sourceItemSample for table nodes", () => {
     it("returns false/null for non-table nodes", () => {
       editorState = {
-        nodes: [makeNode("n1", "slack", "Slack")],
+        nodes: [makeNode("n1", "http_request", "HTTP Request")],
         edges: [],
       };
       executionState = { nodeResults: [] };

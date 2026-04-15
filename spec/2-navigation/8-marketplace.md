@@ -81,7 +81,7 @@
 │                                                              │
 │  ## Requirements                                             │
 │  - LLM Provider: OpenAI or Anthropic                         │
-│  - Integration: Slack (optional)                             │
+│  - Integration: Email (optional)                             │
 │                                                              │
 │  ## Reviews                                                  │
 │  ★★★★★ "Exactly what we needed" - @user123                  │

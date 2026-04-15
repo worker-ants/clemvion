@@ -14,7 +14,7 @@ export class UpdateTriggerDto {
   @ApiPropertyOptional({
     description: '트리거 이름',
     maxLength: 255,
-    example: 'Slack 수신 훅',
+    example: 'Webhook 수신 훅',
   })
   @IsOptional()
   @IsString()

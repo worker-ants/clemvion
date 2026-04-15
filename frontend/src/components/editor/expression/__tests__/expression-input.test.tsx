@@ -27,7 +27,7 @@ vi.mock("@/lib/stores/editor-store", () => ({
         },
         {
           id: "current-node",
-          data: { label: "Current", type: "slack", config: {} },
+          data: { label: "Current", type: "http_request", config: {} },
         },
       ],
       edges: [{ source: "n1", target: "current-node" }],

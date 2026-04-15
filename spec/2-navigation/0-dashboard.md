@@ -29,7 +29,7 @@
 │  │ 1. Data Sync       2m ago  │ │ Data Sync  ✅ 3.2s  14:02│ │
 │  │ 2. Email Campaign  1h ago  │ │ Report Gen ❌ 1.0s  14:01│ │
 │  │ 3. Report Gen      3h ago  │ │ Email Camp ✅ 5.1s  13:58│ │
-│  │ 4. Slack Notify    1d ago  │ │ Slack Ntfy ✅ 0.8s  13:55│ │
+│  │ 4. Email Notify    1d ago  │ │ Email Ntfy ✅ 0.8s  13:55│ │
 │  │ 5. DB Backup       2d ago  │ │ ...                      │ │
 │  │                             │ │                          │ │
 │  │ [View All →]                │ │                          │ │
