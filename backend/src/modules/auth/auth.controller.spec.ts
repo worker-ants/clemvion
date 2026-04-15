@@ -14,6 +14,7 @@ describe('AuthController', () => {
     cookie: jest.fn(),
     clearCookie: jest.fn(),
     redirect: jest.fn(),
+    setHeader: jest.fn(),
   };
 
   const mockConfigService = {
@@ -33,6 +34,7 @@ describe('AuthController', () => {
     oauthService = {
       beginAuth: jest.fn(),
       handleCallback: jest.fn(),
+      getEnabledProviders: jest.fn(),
     } as unknown as jest.Mocked<AuthOauthService>;
     controller = new AuthController(
       authService,
@@ -86,6 +88,24 @@ describe('AuthController', () => {
 
       expect(mockRes.clearCookie).toHaveBeenCalledWith('refreshToken', {
         path: '/',
+      });
+    });
+  });
+
+  describe('getOauthProviders', () => {
+    // Cache-Control header is applied via @Header() decorator and verified
+    // implicitly by NestJS — controller method just returns the payload.
+    it('returns enabled providers', () => {
+      oauthService.getEnabledProviders.mockReturnValue(['google']);
+      expect(controller.getOauthProviders()).toEqual({
+        data: { providers: ['google'] },
+      });
+    });
+
+    it('returns empty list when no providers are configured', () => {
+      oauthService.getEnabledProviders.mockReturnValue([]);
+      expect(controller.getOauthProviders()).toEqual({
+        data: { providers: [] },
       });
     });
   });

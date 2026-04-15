@@ -6,6 +6,17 @@ const cookieParser = require('cookie-parser');
 import { AppModule } from './app.module';
 
 async function bootstrap() {
+  // Fail-closed: OAUTH_STUB_MODE bypasses real provider verification, so
+  // running it in production would let anyone forge an account.
+  if (
+    process.env.NODE_ENV === 'production' &&
+    process.env.OAUTH_STUB_MODE === 'true'
+  ) {
+    throw new Error(
+      'OAUTH_STUB_MODE=true is not allowed when NODE_ENV=production',
+    );
+  }
+
   const app = await NestFactory.create(AppModule);
   const configService = app.get(ConfigService);
 

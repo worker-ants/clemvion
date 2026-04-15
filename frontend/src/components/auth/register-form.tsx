@@ -9,6 +9,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { AxiosError } from "axios";
 import { toast } from "sonner";
 import { authApi } from "@/lib/api/auth";
+import type { OAuthProvider } from "@/lib/api/auth-providers";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -36,8 +37,12 @@ type RegisterFormValues = z.infer<typeof registerSchema>;
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3011/api";
 
-function startOauth(provider: "google" | "github") {
+function startOauth(provider: OAuthProvider) {
   window.location.href = `${API_BASE_URL}/auth/oauth/${provider}?mode=register`;
+}
+
+interface RegisterFormProps {
+  enabledProviders?: OAuthProvider[];
 }
 
 function getPasswordStrength(password: string): { score: number; label: string; color: string } {
@@ -55,9 +60,12 @@ function getPasswordStrength(password: string): { score: number; label: string; 
   return { score, label: "Very Strong", color: "bg-green-600" };
 }
 
-export function RegisterForm() {
+export function RegisterForm({ enabledProviders = [] }: RegisterFormProps) {
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
+  const showGoogle = enabledProviders.includes("google");
+  const showGithub = enabledProviders.includes("github");
+  const showOauth = showGoogle || showGithub;
 
   const {
     register,
@@ -189,33 +197,47 @@ export function RegisterForm() {
           </Button>
         </form>
 
-        <div className="relative my-6">
-          <div className="absolute inset-0 flex items-center">
-            <span className="w-full border-t border-[hsl(var(--border))]" />
-          </div>
-          <div className="relative flex justify-center text-xs uppercase">
-            <span className="bg-[hsl(var(--card))] px-2 text-[hsl(var(--muted-foreground))]">
-              Or continue with
-            </span>
-          </div>
-        </div>
+        {showOauth && (
+          <>
+            <div className="relative my-6">
+              <div className="absolute inset-0 flex items-center">
+                <span className="w-full border-t border-[hsl(var(--border))]" />
+              </div>
+              <div className="relative flex justify-center text-xs uppercase">
+                <span className="bg-[hsl(var(--card))] px-2 text-[hsl(var(--muted-foreground))]">
+                  Or continue with
+                </span>
+              </div>
+            </div>
 
-        <div className="grid grid-cols-2 gap-3">
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => startOauth("google")}
-          >
-            Google
-          </Button>
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => startOauth("github")}
-          >
-            GitHub
-          </Button>
-        </div>
+            <div
+              className={
+                showGoogle && showGithub
+                  ? "grid grid-cols-2 gap-3"
+                  : "grid grid-cols-1 gap-3"
+              }
+            >
+              {showGoogle && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => startOauth("google")}
+                >
+                  Google
+                </Button>
+              )}
+              {showGithub && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => startOauth("github")}
+                >
+                  GitHub
+                </Button>
+              )}
+            </div>
+          </>
+        )}
 
         <p className="mt-6 text-center text-sm text-[hsl(var(--muted-foreground))]">
           Already have an account?{" "}

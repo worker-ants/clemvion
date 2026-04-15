@@ -252,6 +252,20 @@
 
 ## 5. OAuth 소셜 로그인
 
+### 5.0 활성화된 Provider 노출
+
+회원가입·로그인 화면 진입 시 서버에서 `GET /api/auth/oauth/providers` 를 호출하여 현재 자격증명이 설정된 provider 목록을 받는다.
+
+| 응답 | UI 동작 |
+|------|---------|
+| `{ data: { providers: ["google", "github"] } }` | "Or continue with" 구분선과 두 버튼 모두 표시 |
+| 일부만 포함 (예: `["google"]`) | 해당 버튼만 단일 컬럼으로 표시 |
+| 빈 배열 `[]` | 구분선과 버튼 모두 비표시 (이메일/비밀번호 폼만 노출) |
+
+- Provider 활성화 기준: `OAUTH_STUB_MODE=true` (개발) 또는 `{PROVIDER}_CLIENT_ID` 환경변수가 설정된 경우
+- 응답은 `Cache-Control: public, max-age=300` 으로 5분 캐싱 (Next.js Server Component `fetch` 의 `revalidate: 300` 와 정합)
+- 이 API 호출이 실패하면 안전 기본값으로 빈 배열 처리하여 SSO UI 비표시 (이메일/비밀번호 로그인은 정상 동작)
+
 ### 5.1 플로우
 
 ```
@@ -366,6 +380,7 @@
 | POST | /api/auth/refresh | 토큰 갱신 |
 | POST | /api/auth/forgot-password | 비밀번호 재설정 요청 |
 | POST | /api/auth/reset-password | 비밀번호 재설정 |
+| GET | /api/auth/oauth/providers | 활성화된 OAuth provider 목록 (UI 노출 제어용, 5분 캐싱) |
 | GET | /api/auth/oauth/:provider | OAuth 시작 (리다이렉트) |
 | GET | /api/auth/oauth/:provider/callback | OAuth 콜백 |
 | POST | /api/auth/check-email | 이메일 중복 확인 (가입 폼 실시간 검증용) |

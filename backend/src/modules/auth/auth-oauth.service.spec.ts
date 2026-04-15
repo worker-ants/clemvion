@@ -134,6 +134,29 @@ describe('AuthOauthService', () => {
     jest.clearAllMocks();
   });
 
+  describe('getEnabledProviders', () => {
+    it('returns all providers in stub mode regardless of credentials', () => {
+      process.env.OAUTH_STUB_MODE = 'true';
+      delete process.env.GOOGLE_CLIENT_ID;
+      delete process.env.GITHUB_CLIENT_ID;
+      expect(service.getEnabledProviders()).toEqual(['google', 'github']);
+    });
+
+    it('returns only providers with CLIENT_ID set when stub mode off', () => {
+      process.env.OAUTH_STUB_MODE = 'false';
+      process.env.GOOGLE_CLIENT_ID = 'real-google';
+      delete process.env.GITHUB_CLIENT_ID;
+      expect(service.getEnabledProviders()).toEqual(['google']);
+    });
+
+    it('returns empty when stub off and no credentials set', () => {
+      process.env.OAUTH_STUB_MODE = 'false';
+      delete process.env.GOOGLE_CLIENT_ID;
+      delete process.env.GITHUB_CLIENT_ID;
+      expect(service.getEnabledProviders()).toEqual([]);
+    });
+  });
+
   describe('beginAuth', () => {
     it('persists state and returns Google authorize URL', async () => {
       const { authUrl } = await service.beginAuth('google', {
@@ -244,6 +267,23 @@ describe('AuthOauthService', () => {
         1,
       );
       expect(authService.issueTokensForOauthUser).toHaveBeenCalled();
+    });
+
+    it('recovers from concurrent first-time OAuth (unique violation)', async () => {
+      dataSource.query.mockResolvedValueOnce([validState]);
+      usersService.findByOauth
+        .mockResolvedValueOnce(null)
+        .mockResolvedValueOnce(baseUser as User);
+      usersService.findByEmail.mockResolvedValue(null);
+      // Simulate the transaction throwing a Postgres unique-violation.
+      dataSource.transaction.mockRejectedValueOnce(
+        Object.assign(new Error('duplicate key'), { code: '23505' }),
+      );
+
+      const result = await service.handleCallback('google', 'code', 'abc');
+
+      expect(result.accessToken).toBe('access-token');
+      expect(usersService.findByOauth).toHaveBeenCalledTimes(2);
     });
 
     it('propagates rememberMe through to token issuance', async () => {
