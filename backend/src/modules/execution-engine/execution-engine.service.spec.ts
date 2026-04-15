@@ -2,6 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { ExecutionEngineService } from './execution-engine.service';
 import { NodeHandlerRegistry } from './handlers/node-handler.registry';
+import { NodeComponentRegistry } from '../../nodes/core/node-component.registry';
 import { ExecutionContextService } from './context/execution-context.service';
 import { ErrorPolicyHandler } from './error/error-policy.handler';
 import { ExpressionResolverService } from './expression/expression-resolver.service';
@@ -187,6 +188,7 @@ describe('ExecutionEngineService', () => {
       providers: [
         ExecutionEngineService,
         NodeHandlerRegistry,
+        NodeComponentRegistry,
         ExecutionContextService,
         ErrorPolicyHandler,
         ExpressionResolverService,

@@ -8,6 +8,7 @@ import { Edge } from '../edges/entities/edge.entity';
 import { Workflow } from '../workflows/entities/workflow.entity';
 import { ExecutionEngineService } from './execution-engine.service';
 import { NodeHandlerRegistry } from './handlers/node-handler.registry';
+import { NodeComponentRegistry } from '../../nodes/core/node-component.registry';
 import { ExecutionContextService } from './context/execution-context.service';
 import { ErrorPolicyHandler } from './error/error-policy.handler';
 import { ExpressionResolverService } from './expression/expression-resolver.service';
@@ -30,6 +31,7 @@ import { IntegrationsModule } from '../integrations/integrations.module';
   providers: [
     ExecutionEngineService,
     NodeHandlerRegistry,
+    NodeComponentRegistry,
     ExecutionContextService,
     ErrorPolicyHandler,
     ExpressionResolverService,
@@ -39,6 +41,7 @@ import { IntegrationsModule } from '../integrations/integrations.module';
   exports: [
     ExecutionEngineService,
     NodeHandlerRegistry,
+    NodeComponentRegistry,
     ExpressionResolverService,
   ],
 })

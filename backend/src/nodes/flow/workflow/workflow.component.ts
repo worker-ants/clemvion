@@ -1,0 +1,14 @@
+import { WorkflowHandler } from '../../../modules/execution-engine/handlers/flow/workflow.handler';
+import { NodeComponent } from '../../core/node-component.interface';
+import {
+  workflowNodeConfigSchema,
+  workflowNodeMetadata,
+  workflowNodePorts,
+} from './workflow.schema';
+
+export const workflowNodeComponent: NodeComponent = {
+  metadata: workflowNodeMetadata,
+  ports: workflowNodePorts,
+  configSchema: workflowNodeConfigSchema,
+  createHandler: (deps) => new WorkflowHandler(deps.workflowExecutor),
+};
