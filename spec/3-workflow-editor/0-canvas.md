@@ -165,10 +165,7 @@
 │ ▼ Integration    │
 │   HTTP Request   │
 │   Database Query │
-│   Google Sheets  │
-│   GitHub         │
 │   Send Email     │
-│   Google Drive   │
 ├──────────────────┤
 │ ▼ Data           │
 │   Transform      │
@@ -368,10 +365,7 @@
 | Info Extractor | `{모델} · {N} fields` | `claude-sonnet · 4 fields` |
 | HTTP Request | `{METHOD} {url}` | `GET https://api.exam...` |
 | Database Query | `{queryType} · {쿼리 첫줄}` | `SELECT · SELECT * FROM us...` |
-| Google Sheets | `{action} · {range}` | `read_rows · Sheet1!A1:D10` |
-| GitHub | `{action} · {owner/repo}` | `create_issue · acme/app` |
 | Send Email | `to: {수신자}` | `to: user@exam..., +2` |
-| Google Drive | `{action} · {경로}` | `upload_file · /reports` |
 | Transform | `{N} operations` | `3 operations` |
 | Code | `{language} · {N} lines` | `JavaScript · 12 lines` |
 | Carousel | `{layout} · {titleField}` | `card · name` |

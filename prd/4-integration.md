@@ -67,16 +67,14 @@
 
 ### 2.6 지원 서비스
 
-> 워크플로우 내에서 Integration을 노드로 사용하는 방법은 [PRD 노드 시스템 §6 Integration 노드](./3-node-system.md#6-integration-노드-7종)를 참조한다.
+> 워크플로우 내에서 Integration을 노드로 사용하는 방법은 [PRD 노드 시스템 §7 Integration 노드](./3-node-system.md#7-integration-노드-3종)를 참조한다.
 
 | ID | 요구사항 | 우선순위 |
 |----|----------|----------|
-| INT-SV-01 | Google — Gmail, Google Sheets, Google Drive, Google Calendar | 필수 |
-| INT-SV-02 | GitHub — Issue, PR, Webhook | 필수 |
-| INT-SV-03 | HTTP/REST — 범용 HTTP 요청 (GET, POST, PUT, DELETE 등) | 필수 |
-| INT-SV-04 | Database — PostgreSQL, MySQL 등 직접 쿼리 | 필수 |
-| INT-SV-05 | Email (SMTP) — 이메일 전송 | 필수 |
-| INT-SV-06 | Webhook — 외부 이벤트 수신 | 필수 |
+| INT-SV-01 | HTTP/REST — 범용 HTTP 요청 (GET, POST, PUT, DELETE 등) | 필수 |
+| INT-SV-02 | Database — PostgreSQL, MySQL 등 직접 쿼리 | 필수 |
+| INT-SV-03 | Email (SMTP) — 이메일 전송 | 필수 |
+| INT-SV-04 | Webhook — 외부 이벤트 수신 | 필수 |
 
 ### 2.7 조직 레벨 연동
 

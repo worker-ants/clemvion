@@ -154,16 +154,13 @@ backend/src/nodes/
 | `text_classifier` | Text Classifier | 🏷️ | 1 | N | 카테고리 목록, 모델 |
 | `information_extractor` | Info Extractor | 🔍 | 1 | 1 | 출력 스키마, 모델 |
 
-### 2.4 Integration 노드 (6종)
+### 2.4 Integration 노드 (3종)
 
 | type | 표시 이름 | 아이콘 | 입력 | 출력 | 키 설정 |
 |------|-----------|--------|------|------|---------|
 | `http_request` | HTTP Request | 🌐 | 1 | 2 (success/error) | method, url, headers, body, responseType |
 | `database_query` | Database Query | 🗄️ | 1 | 1 | integrationId, query, parameters, queryType |
-| `google_sheets` | Google Sheets | 📊 | 1 | 1 | integrationId, action, spreadsheetId, range |
-| `github` | GitHub | 🐙 | 1 | 1 | integrationId, action, owner, repo, actionConfig |
 | `send_email` | Send Email | 📧 | 1 | 1 | integrationId, to, subject, body, bodyType |
-| `google_drive` | Google Drive | 📁 | 1 | 1 | integrationId, action, folderId, fileId |
 
 ### 2.5 Data 노드 (2종)
 

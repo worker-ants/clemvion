@@ -219,9 +219,9 @@
 
 ---
 
-## 7. Integration 노드 (6종)
+## 7. Integration 노드 (3종)
 
-외부 서비스와 연동하여 데이터를 주고받는 노드이다. 범용 노드(HTTP Request, Database Query)와 서비스 특화 노드(Google Sheets, GitHub, Send Email, Google Drive)로 구성된다. 모든 Integration 노드는 Integration 엔티티에 저장된 인증 정보를 참조한다.
+외부 서비스와 연동하여 데이터를 주고받는 노드이다. 범용 노드(HTTP Request, Database Query)와 서비스 특화 노드(Send Email)로 구성된다. 모든 Integration 노드는 Integration 엔티티에 저장된 인증 정보를 참조한다.
 
 ### 7.1 HTTP Request
 
@@ -244,25 +244,7 @@
 | ND-DQ-04 | 쿼리 유형 구분 (SELECT → 결과 반환, INSERT/UPDATE/DELETE → 영향 행 수) | 필수 | 1 |
 | ND-DQ-05 | 지원 DB: PostgreSQL, MySQL | 필수 | 1 |
 
-### 7.3 Google Sheets
-
-| ID | 요구사항 | 우선순위 | Phase |
-|----|----------|----------|-------|
-| ND-GS-01 | Google Sheets Integration을 통해 스프레드시트 읽기/쓰기 | 필수 | 2 |
-| ND-GS-02 | 액션: 행 읽기, 행 추가, 행 업데이트, 시트 정보 조회 | 필수 | 2 |
-| ND-GS-03 | 스프레드시트 ID 및 시트/범위 지정 | 필수 | 2 |
-| ND-GS-04 | 헤더 행 자동 인식 및 필드 매핑 | 권장 | 2 |
-
-### 7.4 GitHub
-
-| ID | 요구사항 | 우선순위 | Phase |
-|----|----------|----------|-------|
-| ND-GH-01 | GitHub Integration을 통해 GitHub API 호출 | 필수 | 2 |
-| ND-GH-02 | 액션: Issue 생성/수정/조회, PR 생성/조회, Comment 추가 | 필수 | 2 |
-| ND-GH-03 | 리포지토리(owner/repo) 선택 UI | 필수 | 2 |
-| ND-GH-04 | 라벨, 담당자 등 메타데이터 설정 | 권장 | 2 |
-
-### 7.5 Send Email
+### 7.3 Send Email
 
 | ID | 요구사항 | 우선순위 | Phase |
 |----|----------|----------|-------|
@@ -271,15 +253,6 @@
 | ND-EM-03 | 본문 형식: 텍스트 또는 HTML | 필수 | 1 |
 | ND-EM-04 | 첨부 파일 지원 | 권장 | 1 |
 | ND-EM-05 | 표현식을 통한 동적 수신자/본문 구성 | 필수 | 1 |
-
-### 7.6 Google Drive
-
-| ID | 요구사항 | 우선순위 | Phase |
-|----|----------|----------|-------|
-| ND-GD-01 | Google Drive Integration을 통해 파일 관리 | 필수 | 2 |
-| ND-GD-02 | 액션: 파일 업로드, 다운로드, 목록 조회, 삭제 | 필수 | 2 |
-| ND-GD-03 | 폴더 ID 지정을 통한 대상 폴더 선택 | 필수 | 2 |
-| ND-GD-04 | 파일 공유 설정 (권한 부여) | 권장 | 2 |
 
 ---
 

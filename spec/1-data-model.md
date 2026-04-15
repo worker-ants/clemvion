@@ -155,10 +155,7 @@ User ──┬── Workspace (1:N)
 | ai | information_extractor | 정보 추출 |
 | integration | http_request | 범용 HTTP 요청 |
 | integration | database_query | 데이터베이스 쿼리 |
-| integration | google_sheets | Google Sheets 읽기/쓰기 |
-| integration | github | GitHub Issue/PR 관리 |
 | integration | send_email | 이메일 발송 (SMTP) |
-| integration | google_drive | Google Drive 파일 관리 |
 | data | transform | 데이터 변환 (연산 체인) |
 | data | code | JavaScript 코드 실행 |
 | presentation | carousel | 캐러셀(슬라이드) 시각화 |

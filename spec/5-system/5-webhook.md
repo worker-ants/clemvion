@@ -132,7 +132,7 @@ Webhook으로 수신된 데이터는 아래 구조로 워크플로우에 전달:
   "body": { "orderId": "abc", "amount": "1000", "extra": "..." },
   "headers": {
     "content-type": "application/json",
-    "x-github-event": "push"
+    "x-event-type": "order.created"
   },
   "query": { "key": "value" },
   "method": "POST"

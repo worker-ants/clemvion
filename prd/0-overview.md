@@ -84,7 +84,7 @@
 
 | 영역 | 핵심 기능 |
 |------|-----------|
-| **노드 시스템** | AI 노드 3종 (AI Agent, Text Classifier, Information Extractor), Logic 2종 (Parallel, Background), Integration 3종 (Google Sheets, GitHub, Google Drive) |
+| **노드 시스템** | AI 노드 3종 (AI Agent, Text Classifier, Information Extractor), Logic 2종 (Parallel, Background) |
 | **내비게이션** | 지식 저장소(Knowledge Base), 팀 관리 |
 | **시스템** | RBAC, 2FA, 팀 워크스페이스 |
 
