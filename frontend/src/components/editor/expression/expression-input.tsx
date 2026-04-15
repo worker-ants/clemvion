@@ -39,7 +39,7 @@ function validateExpressions(value: string): string | null {
 
 export function ExpressionInput({
   label: fieldLabel,
-  value,
+  value: rawValue,
   onChange,
   placeholder,
   hint,
@@ -48,6 +48,10 @@ export function ExpressionInput({
   mono = false,
   bare = false,
 }: ExpressionInputProps) {
+  // Coerce non-string values (numbers, nulls from older configs) so callers
+  // don't crash on `value.includes`. Upstream callers should pass strings —
+  // this is a last-resort safety net.
+  const value = rawValue == null ? "" : typeof rawValue === "string" ? rawValue : String(rawValue);
   const inputRef = useRef<HTMLInputElement | HTMLTextAreaElement | null>(null);
   const highlightRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
