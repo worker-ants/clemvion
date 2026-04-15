@@ -66,6 +66,7 @@ import { WorkflowVersion } from './modules/workflow-versions/entities/workflow-v
 import { Notification } from './modules/notifications/entities/notification.entity';
 import { AuditLog } from './modules/audit-logs/entities/audit-log.entity';
 import { RefreshToken } from './modules/auth/entities/refresh-token.entity';
+import { AuthOAuthState } from './modules/auth/entities/auth-oauth-state.entity';
 import { LlmConfig } from './modules/llm-config/entities/llm-config.entity';
 import { KnowledgeBase } from './modules/knowledge-base/entities/knowledge-base.entity';
 import { Document } from './modules/knowledge-base/entities/document.entity';
@@ -120,6 +121,7 @@ import { DocumentChunk } from './modules/knowledge-base/entities/document-chunk.
           Notification,
           AuditLog,
           RefreshToken,
+          AuthOAuthState,
           LlmConfig,
           KnowledgeBase,
           Document,

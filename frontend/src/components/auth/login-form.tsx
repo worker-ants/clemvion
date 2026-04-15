@@ -31,6 +31,8 @@ const loginSchema = z.object({
 
 type LoginFormValues = z.infer<typeof loginSchema>;
 
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3011/api";
+
 export function LoginForm() {
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
@@ -39,6 +41,7 @@ export function LoginForm() {
   const {
     register,
     handleSubmit,
+    getValues,
     formState: { errors },
   } = useForm<LoginFormValues>({
     resolver: zodResolver(loginSchema),
@@ -48,6 +51,11 @@ export function LoginForm() {
       rememberMe: false,
     },
   });
+
+  function startOauth(provider: "google" | "github") {
+    const rememberMe = getValues("rememberMe") ? "&rememberMe=true" : "";
+    window.location.href = `${API_BASE_URL}/auth/oauth/${provider}?mode=login${rememberMe}`;
+  }
 
   async function onSubmit(data: LoginFormValues) {
     setIsLoading(true);
@@ -155,14 +163,14 @@ export function LoginForm() {
           <Button
             type="button"
             variant="outline"
-            onClick={() => toast.info("Google 로그인은 아직 지원하지 않습니다.")}
+            onClick={() => startOauth("google")}
           >
             Google
           </Button>
           <Button
             type="button"
             variant="outline"
-            onClick={() => toast.info("GitHub 로그인은 아직 지원하지 않습니다.")}
+            onClick={() => startOauth("github")}
           >
             GitHub
           </Button>

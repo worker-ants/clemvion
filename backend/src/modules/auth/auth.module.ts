@@ -5,8 +5,10 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
+import { AuthOauthService } from './auth-oauth.service';
 import { JwtStrategy } from './strategies/jwt.strategy';
 import { RefreshToken } from './entities/refresh-token.entity';
+import { AuthOAuthState } from './entities/auth-oauth-state.entity';
 import { UsersModule } from '../users/users.module';
 import { WorkspacesModule } from '../workspaces/workspaces.module';
 import { MailModule } from '../mail/mail.module';
@@ -24,13 +26,13 @@ import { MailModule } from '../mail/mail.module';
         },
       }),
     }),
-    TypeOrmModule.forFeature([RefreshToken]),
+    TypeOrmModule.forFeature([RefreshToken, AuthOAuthState]),
     UsersModule,
     WorkspacesModule,
     MailModule,
   ],
   controllers: [AuthController],
-  providers: [AuthService, JwtStrategy],
+  providers: [AuthService, AuthOauthService, JwtStrategy],
   exports: [AuthService],
 })
 export class AuthModule {}

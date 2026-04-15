@@ -1,12 +1,17 @@
 import {
   Controller,
   Post,
+  Get,
   Body,
   HttpCode,
   HttpStatus,
+  Param,
+  ParseEnumPipe,
+  Query,
   Req,
   Res,
   UnauthorizedException,
+  Logger,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import {
@@ -17,8 +22,12 @@ import {
   ApiBadRequestResponse,
   ApiUnauthorizedResponse,
   ApiConflictResponse,
+  ApiFoundResponse,
+  ApiParam,
+  ApiQuery,
 } from '@nestjs/swagger';
 import { AuthService } from './auth.service';
+import { AuthOauthService, AUTH_OAUTH_PROVIDERS } from './auth-oauth.service';
 import { Public } from '../../common/decorators';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
@@ -30,17 +39,31 @@ import { CheckEmailDto } from './dto/check-email.dto';
 // Express types used directly to avoid isolatedModules + emitDecoratorMetadata issue
 import Express from 'express';
 
+const OAUTH_PROVIDER_ENUM = AUTH_OAUTH_PROVIDERS.reduce<Record<string, string>>(
+  (acc, p) => {
+    acc[p] = p;
+    return acc;
+  },
+  {},
+);
+
 @ApiTags('Auth')
 @Controller('auth')
 export class AuthController {
+  private readonly logger = new Logger(AuthController.name);
   private readonly cookieDomain: string;
+  private readonly frontendUrl: string;
 
   constructor(
     private readonly authService: AuthService,
     private readonly configService: ConfigService,
+    private readonly authOauthService: AuthOauthService,
   ) {
     this.cookieDomain =
       this.configService.get<string>('app.cookieDomain') || '';
+    this.frontendUrl =
+      this.configService.get<string>('app.frontendUrl') ??
+      'http://localhost:3002';
   }
 
   @Public()
@@ -320,6 +343,88 @@ export class AuthController {
     return this.authService.checkEmail(dto.email);
   }
 
+  @Public()
+  @Get('oauth/:provider')
+  @ApiOperation({
+    summary: 'OAuth 로그인 시작',
+    description:
+      '지정한 OAuth 제공자(Google/GitHub)로 인증 요청을 시작하여 해당 제공자의 인증 페이지로 302 리다이렉트합니다.',
+  })
+  @ApiParam({ name: 'provider', enum: ['google', 'github'] })
+  @ApiQuery({ name: 'mode', enum: ['login', 'register'], required: false })
+  @ApiQuery({ name: 'rememberMe', type: Boolean, required: false })
+  @ApiFoundResponse({ description: 'OAuth 제공자 인증 URL로 리다이렉트' })
+  @ApiBadRequestResponse({ description: '지원하지 않는 provider' })
+  async beginOauth(
+    @Param('provider', new ParseEnumPipe(OAUTH_PROVIDER_ENUM))
+    provider: string,
+    @Query('mode') mode: 'login' | 'register' = 'login',
+    @Query('rememberMe') rememberMe: string | undefined,
+    @Res() res: Express.Response,
+  ) {
+    const { authUrl } = await this.authOauthService.beginAuth(provider, {
+      mode: mode === 'register' ? 'register' : 'login',
+      rememberMe: rememberMe === 'true',
+    });
+    return res.redirect(authUrl);
+  }
+
+  @Public()
+  @Get('oauth/:provider/callback')
+  @ApiOperation({
+    summary: 'OAuth 콜백',
+    description:
+      'OAuth 제공자의 콜백을 처리하여 사용자를 생성/매칭한 뒤 Refresh Token 쿠키를 설정하고 프론트엔드 `/callback`으로 리다이렉트합니다.',
+  })
+  @ApiParam({ name: 'provider', enum: ['google', 'github'] })
+  @ApiFoundResponse({
+    description:
+      '성공: `{frontendUrl}/callback?success=true&token={accessToken}` / 실패: `{frontendUrl}/callback?error={code}`',
+  })
+  async oauthCallback(
+    @Param('provider', new ParseEnumPipe(OAUTH_PROVIDER_ENUM))
+    provider: string,
+    @Query('code') code: string | undefined,
+    @Query('state') state: string | undefined,
+    @Query('error') providerError: string | undefined,
+    @Res() res: Express.Response,
+  ) {
+    const frontendUrl = this.frontendUrl;
+
+    if (providerError) {
+      return res.redirect(
+        `${frontendUrl}/callback?error=${encodeURIComponent('token_exchange_failed')}`,
+      );
+    }
+    if (!code || !state) {
+      return res.redirect(
+        `${frontendUrl}/callback?error=${encodeURIComponent('invalid_state')}`,
+      );
+    }
+
+    try {
+      const result = await this.authOauthService.handleCallback(
+        provider,
+        code,
+        state,
+      );
+      this.setRefreshTokenCookie(res, result.refreshToken, result.rememberMe);
+      return res.redirect(
+        `${frontendUrl}/callback?success=true&token=${encodeURIComponent(result.accessToken)}`,
+      );
+    } catch (err) {
+      const errorCode = mapOauthError(err);
+      if (errorCode === 'server_error') {
+        this.logger.error(
+          `OAuth callback failed for ${provider}: ${err instanceof Error ? err.message : String(err)}`,
+        );
+      }
+      return res.redirect(
+        `${frontendUrl}/callback?error=${encodeURIComponent(errorCode)}`,
+      );
+    }
+  }
+
   private setRefreshTokenCookie(
     res: Express.Response,
     token: string,
@@ -337,5 +442,25 @@ export class AuthController {
       path: '/',
       ...(this.cookieDomain ? { domain: this.cookieDomain } : {}),
     });
+  }
+}
+
+function mapOauthError(err: unknown): string {
+  const code =
+    err && typeof err === 'object' && 'response' in err
+      ? (err as { response?: { code?: string } }).response?.code
+      : undefined;
+  switch (code) {
+    case 'OAUTH_STATE_MISMATCH':
+    case 'OAUTH_STATE_EXPIRED':
+    case 'OAUTH_PROVIDER_UNKNOWN':
+      return 'invalid_state';
+    case 'OAUTH_TOKEN_EXCHANGE_FAILED':
+    case 'OAUTH_PROFILE_FAILED':
+      return 'token_exchange_failed';
+    case 'OAUTH_EMAIL_REQUIRED':
+      return 'email_required';
+    default:
+      return 'server_error';
   }
 }

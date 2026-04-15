@@ -288,19 +288,19 @@
 | 기존 사용자 | OAuth 프로바이더 정보 연결 → 로그인 처리 |
 | 신규 사용자 | 자동 회원가입 → 개인 워크스페이스 생성 → 로그인 처리 |
 | JWT 발급 | Access Token + Refresh Token 발급 |
-| 리다이렉트 | `{frontend_url}/auth/callback?success=true` (토큰은 Cookie에 설정) |
+| 리다이렉트 | `{frontend_url}/callback?success=true&token={accessToken}` (Refresh Token은 httpOnly Cookie로 설정, Access Token은 짧게 URL 파라미터로 전달되며 클라이언트가 즉시 메모리에 저장 후 URL 정리) |
 
 ### 5.4 OAuth 에러 처리
 
 | 에러 | 처리 |
 |------|------|
-| state 불일치 | `{frontend_url}/auth/callback?error=invalid_state` |
-| 코드 교환 실패 | `{frontend_url}/auth/callback?error=token_exchange_failed` |
-| 이메일 미제공 | `{frontend_url}/auth/callback?error=email_required` (GitHub private email 등) |
-| 서버 오류 | `{frontend_url}/auth/callback?error=server_error` |
+| state 불일치 | `{frontend_url}/callback?error=invalid_state` |
+| 코드 교환 실패 | `{frontend_url}/callback?error=token_exchange_failed` |
+| 이메일 미제공 | `{frontend_url}/callback?error=email_required` (GitHub private email 등) |
+| 서버 오류 | `{frontend_url}/callback?error=server_error` |
 
-프론트엔드의 `/auth/callback` 페이지:
-- `success=true` → 대시보드(`/dashboard`)로 리다이렉트
+프론트엔드의 `/callback` 페이지:
+- `success=true` + `token` → `setAccessToken(token)` 후 대시보드(`/dashboard`)로 리다이렉트
 - `error=*` → 에러 메시지 표시 + "다시 시도" 버튼 + 로그인 화면 링크
 
 ---

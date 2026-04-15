@@ -196,3 +196,35 @@ npm run dev
 | 린트 | `npm run lint` | `npm run lint` |
 | 테스트 | `npm run test` | `npm run test` |
 | 테스트 (E2E) | - | `npm run test:e2e` |
+
+# integration (SSO)
+## Google OAuth 연동 설정
+
+1. Google Cloud Console에서 OAuth 클라이언트 생성
+
+1. https://console.cloud.google.com/ 접속 → 프로젝트 생성 (또는 기존 선택)
+2. APIs & Services → OAuth consent screen
+   - User type: External 선택
+   - 앱 이름, 지원 이메일, 개발자 연락처 입력
+   - Scopes: .../auth/userinfo.email, .../auth/userinfo.profile, openid 추가
+   - Test users에 본인 Google 계정 추가 (Publishing 전까지 테스트 계정만 로그인 가능)
+3. APIs & Services → Credentials → + CREATE CREDENTIALS → OAuth client ID
+   - Application type: Web application
+   - Authorized redirect URIs 에 두 개 모두 등록:
+   http://localhost:3011/api/auth/oauth/google/callback          ← 유저 로그인용 (이번 작업)
+   http://localhost:3011/api/integrations/oauth/callback/google  ← 통합(Integration)용 (기존)
+   - 생성 후 Client ID / Client Secret 복사
+
+2. backend/.env 설정
+
+```text
+OAUTH_STUB_MODE=false
+GOOGLE_CLIENT_ID=<복사한 client id>.apps.googleusercontent.com
+GOOGLE_CLIENT_SECRET=<복사한 client secret>
+```
+
+# 프론트엔드 리다이렉트 대상 (기본값이 3002라서 실제 포트와 일치하는지 확인)
+```text
+FRONTEND_URL=http://localhost:3002
+APP_URL=http://localhost:3011
+```

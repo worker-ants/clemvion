@@ -34,6 +34,12 @@ const registerSchema = z.object({
 
 type RegisterFormValues = z.infer<typeof registerSchema>;
 
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3011/api";
+
+function startOauth(provider: "google" | "github") {
+  window.location.href = `${API_BASE_URL}/auth/oauth/${provider}?mode=register`;
+}
+
 function getPasswordStrength(password: string): { score: number; label: string; color: string } {
   let score = 0;
   if (password.length >= 8) score++;
@@ -198,14 +204,14 @@ export function RegisterForm() {
           <Button
             type="button"
             variant="outline"
-            onClick={() => toast.info("Google 로그인은 아직 지원하지 않습니다.")}
+            onClick={() => startOauth("google")}
           >
             Google
           </Button>
           <Button
             type="button"
             variant="outline"
-            onClick={() => toast.info("GitHub 로그인은 아직 지원하지 않습니다.")}
+            onClick={() => startOauth("github")}
           >
             GitHub
           </Button>
