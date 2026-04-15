@@ -20,5 +20,5 @@ export const workflowNodeMetadata: NodeComponentMetadata = {
   icon: 'Workflow',
   color: '#8B5CF6',
 
-  defaultConfig: {},
+  defaultConfig: { mode: 'sync', inputMapping: [], timeout: 300 },
 };

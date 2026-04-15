@@ -20,5 +20,17 @@ export const aiAgentNodeMetadata: NodeComponentMetadata = {
   icon: 'Brain',
   color: '#10B981',
 
-  defaultConfig: {},
+  defaultConfig: {
+    mode: 'single_turn',
+    responseFormat: 'text',
+    knowledgeBases: [],
+    ragTopK: 5,
+    ragThreshold: 0.7,
+    toolNodeIds: [],
+    toolOverrides: [],
+    maxToolCalls: 10,
+    conversationHistory: 'none',
+    maxTurns: 20,
+    conditions: [],
+  },
 };

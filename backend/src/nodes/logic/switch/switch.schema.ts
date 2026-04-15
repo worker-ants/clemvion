@@ -22,5 +22,10 @@ export const switchNodeMetadata: NodeComponentMetadata = {
   icon: 'Route',
   color: '#3B82F6',
 
-  defaultConfig: {},
+  defaultConfig: {
+    mode: 'value',
+    cases: [],
+    hasDefault: false,
+    strictComparison: false,
+  },
 };

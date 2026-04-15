@@ -20,5 +20,12 @@ export const carouselNodeMetadata: NodeComponentMetadata = {
   icon: 'GalleryHorizontal',
   color: '#EC4899',
 
-  defaultConfig: {},
+  defaultConfig: {
+    mode: 'dynamic',
+    items: [],
+    maxItems: 10,
+    layout: 'card',
+    itemButtons: [],
+    buttons: [],
+  },
 };

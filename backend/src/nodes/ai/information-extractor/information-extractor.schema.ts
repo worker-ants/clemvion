@@ -25,5 +25,10 @@ export const informationExtractorNodeMetadata: NodeComponentMetadata = {
   icon: 'FileSearch',
   color: '#10B981',
 
-  defaultConfig: {},
+  defaultConfig: {
+    outputSchema: [],
+    examples: [],
+    mode: 'single_turn',
+    maxTurns: 10,
+  },
 };

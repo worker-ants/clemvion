@@ -20,5 +20,5 @@ export const databaseQueryNodeMetadata: NodeComponentMetadata = {
   icon: 'Database',
   color: '#F97316',
 
-  defaultConfig: {},
+  defaultConfig: { parameters: [], queryType: 'select' },
 };

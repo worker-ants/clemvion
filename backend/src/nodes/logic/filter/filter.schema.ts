@@ -23,5 +23,9 @@ export const filterNodeMetadata: NodeComponentMetadata = {
   icon: 'Filter',
   color: '#3B82F6',
 
-  defaultConfig: {},
+  defaultConfig: {
+    conditions: [],
+    combineMode: 'and',
+    strictComparison: false,
+  },
 };

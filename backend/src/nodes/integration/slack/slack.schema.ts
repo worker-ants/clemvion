@@ -20,5 +20,5 @@ export const slackNodeMetadata: NodeComponentMetadata = {
   icon: 'MessageSquare',
   color: '#F97316',
 
-  defaultConfig: {},
+  defaultConfig: { action: 'send_message' },
 };

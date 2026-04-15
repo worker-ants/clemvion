@@ -23,5 +23,15 @@ export const httpRequestNodeMetadata: NodeComponentMetadata = {
   icon: 'Globe',
   color: '#F97316',
 
-  defaultConfig: {},
+  defaultConfig: {
+    method: 'GET',
+    authentication: 'none',
+    headers: [],
+    queryParams: [],
+    bodyType: 'json',
+    responseType: 'json',
+    timeout: 30000,
+    followRedirects: true,
+    verifySsl: true,
+  },
 };

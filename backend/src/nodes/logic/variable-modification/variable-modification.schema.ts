@@ -22,5 +22,5 @@ export const variableModificationNodeMetadata: NodeComponentMetadata = {
   icon: 'PenLine',
   color: '#3B82F6',
 
-  defaultConfig: {},
+  defaultConfig: { modifications: [] },
 };

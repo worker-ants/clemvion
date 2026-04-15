@@ -26,5 +26,5 @@ export const foreachNodeMetadata: NodeComponentMetadata = {
   icon: 'ListOrdered',
   color: '#3B82F6',
   isContainer: true,
-  defaultConfig: {},
+  defaultConfig: { errorPolicy: 'stop' },
 };

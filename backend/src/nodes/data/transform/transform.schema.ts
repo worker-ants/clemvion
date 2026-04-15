@@ -20,5 +20,5 @@ export const transformNodeMetadata: NodeComponentMetadata = {
   icon: 'ArrowRightLeft',
   color: '#06B6D4',
 
-  defaultConfig: {},
+  defaultConfig: { operations: [] },
 };

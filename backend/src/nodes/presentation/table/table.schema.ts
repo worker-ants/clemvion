@@ -20,5 +20,13 @@ export const tableNodeMetadata: NodeComponentMetadata = {
   icon: 'Table',
   color: '#EC4899',
 
-  defaultConfig: {},
+  defaultConfig: {
+    mode: 'dynamic',
+    columns: [],
+    rows: [],
+    pagination: true,
+    pageSize: 20,
+    sortOrder: 'asc',
+    buttons: [],
+  },
 };
