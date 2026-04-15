@@ -109,6 +109,51 @@ describe('WebsocketGateway', () => {
       expect(join).toHaveBeenCalledWith('execution:exec-123');
     });
 
+    it('should emit execution.snapshot to the subscribing client when execution exists', async () => {
+      const { socket, emit } = createMockSocket({ id: 'client-1' });
+      getSubscriptions().set('client-1', new Set());
+
+      const fakeExecution = {
+        id: 'exec-abc',
+        status: 'running',
+        nodeExecutions: [],
+      };
+      // eslint-disable-next-line @typescript-eslint/unbound-method
+      const findByIdMock = jest.mocked(module.get(ExecutionsService).findById);
+      findByIdMock.mockResolvedValue(fakeExecution);
+
+      gateway.handleSubscribe({ channel: 'execution:exec-abc' }, socket);
+
+      // emitExecutionSnapshot is fire-and-forget — wait a macrotask so the
+      // awaited findById resolves and the emit side-effect lands.
+      await new Promise((resolve) => setImmediate(resolve));
+
+      expect(findByIdMock).toHaveBeenCalledWith('exec-abc');
+      expect(emit).toHaveBeenCalledWith(
+        'execution.snapshot',
+        expect.objectContaining({
+          executionId: 'exec-abc',
+          execution: fakeExecution,
+        }),
+      );
+    });
+
+    it('should not re-emit snapshot on duplicate subscribe', async () => {
+      const { socket, emit } = createMockSocket({ id: 'client-1' });
+      const existing = new Set(['execution:exec-abc']);
+      getSubscriptions().set('client-1', existing);
+
+      // eslint-disable-next-line @typescript-eslint/unbound-method
+      const findByIdMock = jest.mocked(module.get(ExecutionsService).findById);
+      findByIdMock.mockResolvedValue({ id: 'exec-abc' });
+
+      gateway.handleSubscribe({ channel: 'execution:exec-abc' }, socket);
+      await new Promise((resolve) => setImmediate(resolve));
+
+      expect(findByIdMock).not.toHaveBeenCalled();
+      expect(emit).not.toHaveBeenCalled();
+    });
+
     it('should reject when max subscriptions reached', () => {
       const { socket } = createMockSocket({ id: 'client-1' });
       const subs = new Set<string>();

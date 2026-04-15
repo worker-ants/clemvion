@@ -590,6 +590,68 @@ describe("useExecutionEvents", () => {
     expect(useExecutionStore.getState().status).toBe("running");
   });
 
+  it("promotes idle → running when snapshot reports a running execution (mid-run page entry)", () => {
+    // Store starts idle — simulates opening the detail page while a
+    // workflow is already executing on another tab / device.
+    renderHook(() => useExecutionEvents({ executionId: "exec-1" }));
+
+    emitSnapshot(
+      createMockExecution({
+        id: "exec-1",
+        status: "running",
+        nodeExecutions: [],
+      }),
+    );
+
+    const state = useExecutionStore.getState();
+    expect(state.status).toBe("running");
+    expect(state.executionId).toBe("exec-1");
+  });
+
+  it("does not downgrade a completed node when snapshot carries an older running row", () => {
+    useExecutionStore.getState().startExecution("exec-1");
+    renderHook(() => useExecutionEvents({ executionId: "exec-1" }));
+
+    // Incremental node.completed arrives first (race: snapshot is in flight
+    // but the node already finished on the server).
+    getHandler("execution.node.completed")({
+      nodeExecutionId: "ne-1",
+      nodeId: "node-1",
+      duration: 120,
+      nodeType: "http_request",
+      nodeLabel: "Fetch",
+      output: { status: 200 },
+    });
+    expect(
+      useExecutionStore.getState().nodeStatuses.get("node-1")?.status,
+    ).toBe("completed");
+
+    // Older snapshot showing the node still "running" must not regress the
+    // completed status.
+    emitSnapshot(
+      createMockExecution({
+        status: "running",
+        nodeExecutions: [
+          {
+            id: "ne-1",
+            executionId: "exec-1",
+            nodeId: "node-1",
+            status: "running",
+            durationMs: null,
+            error: null,
+            startedAt: "2026-04-01T00:00:00Z",
+            finishedAt: null,
+            node: { id: "node-1", type: "http_request", label: "Fetch" },
+          },
+        ],
+      }),
+    );
+
+    expect(
+      useExecutionStore.getState().nodeStatuses.get("node-1")?.status,
+    ).toBe("completed");
+  });
+
   describe("WebSocket event handlers update store correctly", () => {
     function getEventHandler(eventName: string): (...args: unknown[]) => void {
       const onCalls = (mockClient.on as Mock).mock.calls;
