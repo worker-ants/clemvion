@@ -6,6 +6,33 @@
 
 ## 1. 노드 아키텍처
 
+### 1.0 노드 컴포넌트 구조 (Backend)
+
+노드는 `backend/src/nodes/<category>/<type>/` 폴더에 컴포넌트 단위로 구성된다. 각 노드 컴포넌트는 구조 정의와 실행 로직을 한 폴더에 응집시킨다.
+
+```
+backend/src/nodes/
+├── core/
+│   ├── node-component.interface.ts   # NodeComponent 타입, Ports 타입, HandlerDependencies
+│   ├── node-component.registry.ts    # 모든 컴포넌트 부트스트랩 + metadata/JSON schema 조회
+│   └── zod-validator.ts              # Zod 스키마를 ValidationResult로 어댑팅
+├── <category>/<type>/
+│   ├── <type>.schema.ts     # Zod configSchema + metadata + ports + input/output schema
+│   ├── <type>.component.ts  # NodeComponent 번들 (createHandler 팩토리 포함)
+│   └── index.ts
+└── index.ts                 # ALL_NODE_COMPONENTS 배열
+```
+
+- **`<type>.schema.ts`** — 노드의 구조(input/output/config)를 Zod로 선언한다. `NodeComponentMetadata`, `NodePorts`, `defaultConfig`도 동일 파일에서 export 한다. Zod 스키마는 런타임 검증과 JSON Schema 직렬화의 단일 소스로 사용된다.
+- **`<type>.component.ts`** — schema/metadata와 handler 팩토리를 묶은 `NodeComponent` 객체를 export 한다. `createHandler(deps)`는 LLM/RAG/Integration/WorkflowExecutor 등 의존성을 주입받아 `NodeHandler` 인스턴스를 생성한다.
+- 실행 로직(`NodeHandler.execute`)은 `backend/src/modules/execution-engine/handlers/<category>/<type>.handler.ts`에 유지된다. 컴포넌트는 해당 핸들러를 import하여 실행 동작을 노출한다.
+
+`NodeComponentRegistry`는 서버 부팅 시 `ALL_NODE_COMPONENTS` 배열을 순회하며 각 컴포넌트의 `createHandler(deps)`를 호출하여 `NodeHandlerRegistry`에 등록한다. 또한 `listDefinitions()`를 통해 메타데이터, 포트, JSON Schema를 프론트엔드에 제공한다.
+
+#### 메타데이터 API
+
+- `GET /api/v1/nodes/definitions` — 등록된 모든 노드의 `{ metadata, ports, configSchema, inputSchema?, outputSchema? }` 배열을 반환한다. 스키마는 Zod v4의 `z.toJSONSchema()`로 직렬화된 JSON Schema 포맷이다. 프론트엔드는 본 엔드포인트로 노드 팔레트, 설정 폼, 포트 카탈로그를 구성한다.
+
 ### 1.1 노드 추상 구조
 
 모든 노드는 다음의 공통 인터페이스를 따른다:

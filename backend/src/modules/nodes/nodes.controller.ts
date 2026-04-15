@@ -26,12 +26,27 @@ import {
 import { NodesService } from './nodes.service';
 import { CreateNodeDto } from './dto/create-node.dto';
 import { UpdateNodeDto } from './dto/update-node.dto';
+import { NodeComponentRegistry } from '../../nodes/core/node-component.registry';
 
 @ApiTags('Nodes')
 @ApiBearerAuth('access-token')
 @Controller()
 export class NodesController {
-  constructor(private readonly nodesService: NodesService) {}
+  constructor(
+    private readonly nodesService: NodesService,
+    private readonly componentRegistry: NodeComponentRegistry,
+  ) {}
+
+  @Get('nodes/definitions')
+  @ApiOperation({
+    summary: '노드 컴포넌트 정의 목록 조회',
+    description:
+      '시스템에 등록된 모든 노드 컴포넌트의 메타데이터, 포트, JSON Schema 를 반환합니다. 프론트엔드는 이 응답으로 팔레트/설정 폼을 생성합니다.',
+  })
+  @ApiOkResponse({ description: '노드 정의 목록' })
+  listDefinitions() {
+    return this.componentRegistry.listDefinitions();
+  }
 
   @Get('workflows/:workflowId/nodes')
   @ApiOperation({

@@ -25,44 +25,15 @@ import { ForEachExecutor } from './containers/foreach-executor';
 import { LoopExecutor } from './containers/loop-executor';
 import { assertTransition } from './state/state-machine';
 import { NodeHandlerRegistry } from './handlers/node-handler.registry';
+import { NodeComponentRegistry } from '../../nodes/core/node-component.registry';
+import { ALL_NODE_COMPONENTS } from '../../nodes';
 import { ExecutionContextService } from './context/execution-context.service';
 import {
   ErrorPolicyHandler,
   ErrorPolicyConfig,
 } from './error/error-policy.handler';
 import { ExpressionResolverService } from './expression/expression-resolver.service';
-import {
-  ExecutionContext,
-  NodeHandler,
-  NodeHandlerOutput,
-  IfElseHandler,
-  SwitchHandler,
-  LoopHandler,
-  VariableDeclarationHandler,
-  VariableModificationHandler,
-  SplitHandler,
-  MapHandler,
-  ForEachHandler,
-  MergeHandler,
-  FilterHandler,
-  WorkflowHandler,
-  HttpRequestHandler,
-  DatabaseQueryHandler,
-  SlackHandler,
-  SendEmailHandler,
-  TransformHandler,
-  CodeHandler,
-  CarouselHandler,
-  TableHandler,
-  ChartHandler,
-  FormHandler,
-  TemplateHandler,
-  PdfHandler,
-  ManualTriggerHandler,
-  AiAgentHandler,
-  TextClassifierHandler,
-  InformationExtractorHandler,
-} from './handlers';
+import { ExecutionContext, NodeHandler, NodeHandlerOutput } from './handlers';
 import {
   WebsocketService,
   ExecutionEventType,
@@ -129,6 +100,7 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
     @InjectRepository(Workflow)
     private readonly workflowRepository: Repository<Workflow>,
     private readonly handlerRegistry: NodeHandlerRegistry,
+    private readonly componentRegistry: NodeComponentRegistry,
     private readonly contextService: ExecutionContextService,
     private readonly errorPolicyHandler: ErrorPolicyHandler,
     private readonly expressionResolver: ExpressionResolverService,
@@ -176,45 +148,12 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
   }
 
   private registerHandlers() {
-    const handlers: [string, NodeHandler][] = [
-      ['if_else', new IfElseHandler()],
-      ['switch', new SwitchHandler()],
-      ['loop', new LoopHandler()],
-      ['variable_declaration', new VariableDeclarationHandler()],
-      ['variable_modification', new VariableModificationHandler()],
-      ['split', new SplitHandler()],
-      ['map', new MapHandler()],
-      ['foreach', new ForEachHandler()],
-      ['merge', new MergeHandler()],
-      ['filter', new FilterHandler()],
-      ['workflow', new WorkflowHandler(this)],
-      ['http_request', new HttpRequestHandler(this.integrationsService)],
-      ['database_query', new DatabaseQueryHandler(this.integrationsService)],
-      ['slack', new SlackHandler(this.integrationsService)],
-      ['send_email', new SendEmailHandler(this.integrationsService)],
-      ['transform', new TransformHandler()],
-      ['code', new CodeHandler()],
-      ['carousel', new CarouselHandler()],
-      ['table', new TableHandler()],
-      ['chart', new ChartHandler()],
-      ['form', new FormHandler()],
-      ['template', new TemplateHandler()],
-      ['pdf', new PdfHandler()],
-      ['manual_trigger', new ManualTriggerHandler()],
-      // AI handlers
-      ['ai_agent', new AiAgentHandler(this.llmService, this.ragSearchService)],
-      ['text_classifier', new TextClassifierHandler(this.llmService)],
-      [
-        'information_extractor',
-        new InformationExtractorHandler(this.llmService),
-      ],
-    ];
-
-    for (const [type, handler] of handlers) {
-      this.handlerRegistry.register(type, handler);
-    }
-
-    this.logger.log(`Registered ${handlers.length} node handlers`);
+    this.componentRegistry.bootstrap(ALL_NODE_COMPONENTS, {
+      llmService: this.llmService,
+      ragSearchService: this.ragSearchService,
+      integrationsService: this.integrationsService,
+      workflowExecutor: this,
+    });
   }
 
   /**
