@@ -42,13 +42,23 @@ vi.mock("../../node-definitions", () => ({
   },
 }));
 
-// Mock executions API
-const mockGetById = vi.fn();
-vi.mock("../../api/executions", () => ({
-  executionsApi: {
-    getById: (...args: unknown[]) => mockGetById(...args),
-  },
-}));
+vi.mock("../../api/executions", () => ({}));
+
+/**
+ * Pulls the handler the hook registered for `eventName` out of the mock
+ * client's `.on` call list. Tests use this to fire simulated WS events.
+ */
+function getHandler(eventName: string): (data: unknown) => void {
+  const onCalls = (mockClient.on as Mock).mock.calls;
+  const match = onCalls.find((c: unknown[]) => c[0] === eventName);
+  return match?.[1] as (data: unknown) => void;
+}
+
+/** Fire the `execution.snapshot` WS event with a full execution payload. */
+function emitSnapshot(execution: Record<string, unknown>): void {
+  const handler = getHandler("execution.snapshot");
+  handler({ executionId: execution.id, execution });
+}
 
 function createMockExecution(overrides: Record<string, unknown> = {}) {
   return {
@@ -81,7 +91,6 @@ describe("useExecutionEvents", () => {
     });
     mockClient.waitForConnect.mockResolvedValue(undefined);
     mockClient.isConnected.mockReturnValue(true);
-    mockGetById.mockResolvedValue(createMockExecution());
   });
 
   it("does nothing when executionId is null", () => {
@@ -114,6 +123,7 @@ describe("useExecutionEvents", () => {
     expect(boundEvents).toContain("execution.node.skipped");
     expect(boundEvents).toContain("execution.waiting_for_input");
     expect(boundEvents).toContain("execution.resumed");
+    expect(boundEvents).toContain("execution.snapshot");
   });
 
   it("handles execution.waiting_for_input WS event", async () => {
@@ -285,16 +295,17 @@ describe("useExecutionEvents", () => {
     expect(results[0].error).toBe("Timeout");
   });
 
-  it("polls execution status after subscribing", async () => {
+  it("binds the execution.snapshot handler", () => {
     renderHook(() => useExecutionEvents({ executionId: "exec-1" }));
-
-    await waitFor(() => {
-      expect(mockGetById).toHaveBeenCalledWith("exec-1");
-    });
+    expect(getHandler("execution.snapshot")).toBeDefined();
   });
 
-  it("updates store to completed when poll returns completed execution", async () => {
-    mockGetById.mockResolvedValue(createMockExecution({
+  it("updates store to completed when snapshot reports a completed execution", () => {
+    useExecutionStore.getState().startExecution("exec-1");
+    renderHook(() => useExecutionEvents({ executionId: "exec-1" }));
+
+    emitSnapshot(
+      createMockExecution({
         status: "completed",
         finishedAt: "2026-04-01T00:00:02Z",
         durationMs: 2000,
@@ -324,23 +335,15 @@ describe("useExecutionEvents", () => {
             node: { id: "node-2", type: "table", label: "Results" },
           },
         ],
-      }));
-
-    useExecutionStore.getState().startExecution("exec-1");
-
-    renderHook(() => useExecutionEvents({ executionId: "exec-1" }));
-
-    await waitFor(() => {
-      const state = useExecutionStore.getState();
-      expect(state.status).toBe("completed");
-    });
+      }),
+    );
 
     const state = useExecutionStore.getState();
+    expect(state.status).toBe("completed");
     expect(state.nodeStatuses.get("node-1")?.status).toBe("completed");
     expect(state.nodeStatuses.get("node-1")?.duration).toBe(100);
     expect(state.nodeStatuses.get("node-2")?.status).toBe("completed");
 
-    // All nodes should be in results with inputData
     expect(state.nodeResults).toHaveLength(2);
     expect(state.nodeResults[0].nodeType).toBe("http_request");
     expect(state.nodeResults[0].inputData).toEqual({ url: "https://example.com" });
@@ -348,22 +351,15 @@ describe("useExecutionEvents", () => {
     expect(state.nodeResults[1].inputData).toEqual({ rows: [] });
   });
 
-  it("updates store to failed when poll returns failed execution", async () => {
-    mockGetById.mockResolvedValue(createMockExecution({
+  it("updates store to failed when snapshot reports a failed execution", () => {
+    useExecutionStore.getState().startExecution("exec-1");
+    renderHook(() => useExecutionEvents({ executionId: "exec-1" }));
+
+    emitSnapshot(
+      createMockExecution({
         status: "failed",
         error: { message: "Node C timeout" },
         nodeExecutions: [
-          {
-            id: "ne-1",
-            executionId: "exec-1",
-            nodeId: "node-1",
-            status: "completed",
-            durationMs: 50,
-            error: null,
-            startedAt: "2026-04-01T00:00:00Z",
-            finishedAt: "2026-04-01T00:00:00.05Z",
-            node: { id: "node-1", type: "if_else", label: "Branch" },
-          },
           {
             id: "ne-2",
             executionId: "exec-1",
@@ -376,50 +372,32 @@ describe("useExecutionEvents", () => {
             node: { id: "node-2", type: "http_request", label: "Fetch" },
           },
         ],
-      }));
-
-    useExecutionStore.getState().startExecution("exec-1");
-
-    renderHook(() => useExecutionEvents({ executionId: "exec-1" }));
-
-    await waitFor(() => {
-      const state = useExecutionStore.getState();
-      expect(state.status).toBe("failed");
-    });
+      }),
+    );
 
     const state = useExecutionStore.getState();
+    expect(state.status).toBe("failed");
     expect(state.nodeStatuses.get("node-2")?.status).toBe("failed");
     expect(state.nodeStatuses.get("node-2")?.error).toBe("Connection timeout");
   });
 
-  it("handles cancelled execution from poll (maps to failed)", async () => {
-    mockGetById.mockResolvedValue(createMockExecution({ status: "cancelled" }));
-
+  it("maps a cancelled snapshot to failed", () => {
     useExecutionStore.getState().startExecution("exec-1");
-
     renderHook(() => useExecutionEvents({ executionId: "exec-1" }));
 
-    await waitFor(() => {
-      const state = useExecutionStore.getState();
-      expect(state.status).toBe("failed");
-    });
+    emitSnapshot(createMockExecution({ status: "cancelled" }));
+
+    expect(useExecutionStore.getState().status).toBe("failed");
   });
 
-  it("handles waiting_for_input node status from poll", async () => {
-    mockGetById.mockResolvedValue(createMockExecution({
+  it("reconstructs waiting_for_input state from snapshot", () => {
+    useExecutionStore.getState().startExecution("exec-1");
+    renderHook(() => useExecutionEvents({ executionId: "exec-1" }));
+
+    emitSnapshot(
+      createMockExecution({
         status: "waiting_for_input",
         nodeExecutions: [
-          {
-            id: "ne-1",
-            executionId: "exec-1",
-            nodeId: "node-1",
-            status: "completed",
-            durationMs: 50,
-            error: null,
-            startedAt: "2026-04-01T00:00:00Z",
-            finishedAt: "2026-04-01T00:00:00.05Z",
-            node: { id: "node-1", type: "if_else", label: "Branch" },
-          },
           {
             id: "ne-2",
             executionId: "exec-1",
@@ -433,23 +411,16 @@ describe("useExecutionEvents", () => {
             node: { id: "form-node", type: "form", label: "Approval" },
           },
         ],
-      }));
+      }),
+    );
 
-    useExecutionStore.getState().startExecution("exec-1");
-
-    renderHook(() => useExecutionEvents({ executionId: "exec-1" }));
-
-    await waitFor(() => {
-      const state = useExecutionStore.getState();
-      expect(state.nodeStatuses.get("form-node")?.status).toBe("waiting_for_input");
-    });
-
-    // Execution should be in waiting_for_input state
-    expect(useExecutionStore.getState().status).toBe("waiting_for_input");
-    expect(useExecutionStore.getState().waitingNodeId).toBe("form-node");
+    const state = useExecutionStore.getState();
+    expect(state.nodeStatuses.get("form-node")?.status).toBe("waiting_for_input");
+    expect(state.status).toBe("waiting_for_input");
+    expect(state.waitingNodeId).toBe("form-node");
   });
 
-  it("recognizes structured form shape from poll (form rehydration)", async () => {
+  it("rehydrates structured form shape from snapshot", () => {
     const formConfig = {
       title: "입력폼",
       description: "테스트 폼이에요",
@@ -459,105 +430,101 @@ describe("useExecutionEvents", () => {
         { name: "useful", type: "number", label: "만족도 (1~5)", required: true },
       ],
     };
-    mockGetById.mockResolvedValue(createMockExecution({
-      status: "waiting_for_input",
-      nodeExecutions: [
-        {
-          id: "ne-1",
-          executionId: "exec-1",
-          nodeId: "form-node",
-          status: "waiting_for_input",
-          durationMs: null,
-          error: null,
-          startedAt: "2026-04-01T00:00:00Z",
-          finishedAt: null,
-          outputData: {
-            config: formConfig,
-            output: null,
-            status: "waiting_for_input",
-            meta: { interactionType: "form" },
-          },
-          node: { id: "form-node", type: "form", label: "Form" },
-        },
-      ],
-    }));
-
     useExecutionStore.getState().startExecution("exec-1");
     renderHook(() => useExecutionEvents({ executionId: "exec-1" }));
 
-    await waitFor(() => {
-      const state = useExecutionStore.getState();
-      expect(state.waitingInteractionType).toBe("form");
-    });
+    emitSnapshot(
+      createMockExecution({
+        status: "waiting_for_input",
+        nodeExecutions: [
+          {
+            id: "ne-1",
+            executionId: "exec-1",
+            nodeId: "form-node",
+            status: "waiting_for_input",
+            durationMs: null,
+            error: null,
+            startedAt: "2026-04-01T00:00:00Z",
+            finishedAt: null,
+            outputData: {
+              config: formConfig,
+              output: null,
+              status: "waiting_for_input",
+              meta: { interactionType: "form" },
+            },
+            node: { id: "form-node", type: "form", label: "Form" },
+          },
+        ],
+      }),
+    );
 
     const state = useExecutionStore.getState();
+    expect(state.waitingInteractionType).toBe("form");
     expect(state.waitingNodeId).toBe("form-node");
     expect(state.waitingFormConfig).toEqual(formConfig);
   });
 
-  it("recognizes structured buttons shape from poll", async () => {
+  it("rehydrates structured buttons shape from snapshot", () => {
     const btnConfig = {
       buttons: [{ id: "b1", label: "Yes", type: "port" }],
     };
-    mockGetById.mockResolvedValue(createMockExecution({
-      status: "waiting_for_input",
-      nodeExecutions: [
-        {
-          id: "ne-1",
-          executionId: "exec-1",
-          nodeId: "btn-node",
-          status: "waiting_for_input",
-          durationMs: null,
-          error: null,
-          startedAt: "2026-04-01T00:00:00Z",
-          finishedAt: null,
-          outputData: {
-            config: btnConfig,
-            output: null,
-            status: "waiting_for_input",
-            meta: { interactionType: "buttons" },
-          },
-          node: { id: "btn-node", type: "table", label: "Buttons" },
-        },
-      ],
-    }));
-
     useExecutionStore.getState().startExecution("exec-1");
     renderHook(() => useExecutionEvents({ executionId: "exec-1" }));
 
-    await waitFor(() => {
-      const state = useExecutionStore.getState();
-      expect(state.waitingInteractionType).toBe("buttons");
-    });
+    emitSnapshot(
+      createMockExecution({
+        status: "waiting_for_input",
+        nodeExecutions: [
+          {
+            id: "ne-1",
+            executionId: "exec-1",
+            nodeId: "btn-node",
+            status: "waiting_for_input",
+            durationMs: null,
+            error: null,
+            startedAt: "2026-04-01T00:00:00Z",
+            finishedAt: null,
+            outputData: {
+              config: btnConfig,
+              output: null,
+              status: "waiting_for_input",
+              meta: { interactionType: "buttons" },
+            },
+            node: { id: "btn-node", type: "table", label: "Buttons" },
+          },
+        ],
+      }),
+    );
+
+    expect(useExecutionStore.getState().waitingInteractionType).toBe("buttons");
     expect(useExecutionStore.getState().waitingButtonConfig).toEqual(btnConfig);
   });
 
-  it("still handles legacy flat form shape from poll (backward compat)", async () => {
-    mockGetById.mockResolvedValue(createMockExecution({
-      status: "waiting_for_input",
-      nodeExecutions: [
-        {
-          id: "ne-1",
-          executionId: "exec-1",
-          nodeId: "form-node",
-          status: "waiting_for_input",
-          durationMs: null,
-          error: null,
-          startedAt: "2026-04-01T00:00:00Z",
-          finishedAt: null,
-          outputData: { type: "form", formConfig: { fields: [{ name: "x", type: "text", label: "X" }] } },
-          node: { id: "form-node", type: "form", label: "Form" },
-        },
-      ],
-    }));
-
+  it("rehydrates legacy flat form shape from snapshot (backward compat)", () => {
     useExecutionStore.getState().startExecution("exec-1");
     renderHook(() => useExecutionEvents({ executionId: "exec-1" }));
 
-    await waitFor(() => {
-      const state = useExecutionStore.getState();
-      expect(state.waitingInteractionType).toBe("form");
-    });
+    emitSnapshot(
+      createMockExecution({
+        status: "waiting_for_input",
+        nodeExecutions: [
+          {
+            id: "ne-1",
+            executionId: "exec-1",
+            nodeId: "form-node",
+            status: "waiting_for_input",
+            durationMs: null,
+            error: null,
+            startedAt: "2026-04-01T00:00:00Z",
+            finishedAt: null,
+            outputData: { type: "form", formConfig: { fields: [{ name: "x", type: "text", label: "X" }] } },
+            node: { id: "form-node", type: "form", label: "Form" },
+          },
+        ],
+      }),
+    );
+
+    expect(useExecutionStore.getState().waitingInteractionType).toBe("form");
     expect(useExecutionStore.getState().waitingFormConfig).toEqual({
       fields: [{ name: "x", type: "text", label: "X" }],
     });
@@ -612,20 +579,15 @@ describe("useExecutionEvents", () => {
     });
   });
 
-  it("handles poll failure gracefully", async () => {
-    const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {});
-    mockGetById.mockRejectedValue(new Error("Network error"));
-
+  it("silently ignores a snapshot with no execution payload", () => {
+    useExecutionStore.getState().startExecution("exec-1");
     renderHook(() => useExecutionEvents({ executionId: "exec-1" }));
 
-    await waitFor(() => {
-      expect(consoleSpy).toHaveBeenCalledWith(
-        "[execution-events] Poll failed:",
-        expect.any(Error),
-      );
-    });
+    const handler = getHandler("execution.snapshot");
+    handler({ executionId: "exec-1" });
 
-    consoleSpy.mockRestore();
+    // Status untouched (still "running" from startExecution)
+    expect(useExecutionStore.getState().status).toBe("running");
   });
 
   describe("WebSocket event handlers update store correctly", () => {
