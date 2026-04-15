@@ -43,7 +43,60 @@ export interface NodeComponentMetadata {
   isDynamicPorts?: boolean;
   /** Canvas summary template referenced by spec §1.4. */
   summaryTemplate?: string;
+  /**
+   * Optional explicit default config. When omitted, the registry derives the
+   * default by running `configSchema.parse({})` — fields with `.default(...)`
+   * in the zod schema populate automatically.
+   */
   defaultConfig?: Record<string, unknown>;
+}
+
+/**
+ * UI metadata attached to a zod field via `.meta({ ui: UiHint })`. Survives
+ * `z.toJSONSchema()` and is consumed by the frontend auto-form renderer to
+ * pick a widget and rendering options per field.
+ *
+ * Supported widget values:
+ *  - text / textarea / number / select / checkbox  (basic primitives)
+ *  - expression          — renders ExpressionInput (template syntax + autocomplete)
+ *  - kv / kv-expression  — key-value list editor (expression-aware variant)
+ *  - code                — monospaced multiline editor
+ *  - integration-selector / llm-config-selector / kb-selector / workflow-selector
+ *  - condition-builder   — array-of-ConditionGroup editor (operators per spec §1.1)
+ *  - field-array         — generic ordered array-of-object editor
+ */
+export interface UiHint {
+  label?: string;
+  placeholder?: string;
+  hint?: string;
+  widget?:
+    | 'text'
+    | 'textarea'
+    | 'number'
+    | 'select'
+    | 'checkbox'
+    | 'expression'
+    | 'kv'
+    | 'kv-expression'
+    | 'code'
+    | 'integration-selector'
+    | 'llm-config-selector'
+    | 'kb-selector'
+    | 'workflow-selector'
+    | 'condition-builder'
+    | 'field-array';
+  /** Sort index within the form. Lower appears first. */
+  order?: number;
+  /** Hide from auto-form rendering (still validated). */
+  hidden?: boolean;
+  /** Simple visibility DSL. Field is only shown when sibling equals given value. */
+  visibleWhen?: { field: string; equals: unknown };
+  /** Options for `widget: 'select'` when not derivable from z.enum. */
+  options?: { value: string; label: string }[];
+  /** For 'code' widget — language hint (javascript, sql, json, handlebars). */
+  language?: string;
+  /** For array/object widgets — child item label. */
+  itemLabel?: string;
 }
 
 /**

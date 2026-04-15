@@ -12,7 +12,7 @@ import type { ReactFlowInstance, Node as RFNode, Edge as RFEdge } from "@xyflow/
 import "@xyflow/react/dist/style.css";
 
 import { useEditorStore } from "@/lib/stores/editor-store";
-import { getNodeDefinition, NODE_DEFINITIONS } from "@/lib/node-definitions";
+import { getNodeDefinition, useNodeDefinitionsStore } from "@/lib/node-definitions";
 import { generateUniqueLabel } from "@/lib/utils/generate-unique-label";
 import { Button } from "@/components/ui/button";
 import {
@@ -422,16 +422,19 @@ export function WorkflowCanvas() {
   );
 
   // Filtered node definitions for search popup
+  const definitionsMap = useNodeDefinitionsStore((s) => s.definitions);
+  const definitionsOrder = useNodeDefinitionsStore((s) => s.order);
   const filteredNodes = useMemo(() => {
-    if (!searchQuery) return NODE_DEFINITIONS;
+    const all = definitionsOrder.map((t) => definitionsMap[t]).filter(Boolean);
+    if (!searchQuery) return all;
     const q = searchQuery.toLowerCase();
-    return NODE_DEFINITIONS.filter(
+    return all.filter(
       (n) =>
         n.label.toLowerCase().includes(q) ||
         n.type.toLowerCase().includes(q) ||
         n.category.toLowerCase().includes(q),
     );
-  }, [searchQuery]);
+  }, [searchQuery, definitionsMap, definitionsOrder]);
 
   return (
     <TooltipProvider delayDuration={300}>

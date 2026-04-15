@@ -5,7 +5,7 @@ import { WorkflowEditor } from "@/components/editor/workflow-editor";
 import { useEditorStore } from "@/lib/stores/editor-store";
 import { workflowsApi } from "@/lib/api/workflows";
 import type { Node, Edge } from "@xyflow/react";
-import { getNodeDefinition } from "@/lib/node-definitions";
+import { getNodeDefinition, loadNodeDefinitions } from "@/lib/node-definitions";
 import { enrichEdgesWithPortData } from "@/lib/utils/edge-utils";
 
 interface EditorLoaderProps {
@@ -26,6 +26,7 @@ export function WorkflowEditorLoader({ workflowId }: EditorLoaderProps) {
           workflowsApi.get(workflowId),
           workflowsApi.getNodes(workflowId),
           workflowsApi.getEdges(workflowId),
+          loadNodeDefinitions(),
         ]);
 
         if (cancelled) return;

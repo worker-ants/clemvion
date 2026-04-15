@@ -4,18 +4,76 @@ import {
   NodePorts,
 } from '../../core/node-component.interface';
 
-const conditionSchema = z
+export const conditionOperatorSchema = z.enum([
+  'eq',
+  'neq',
+  'gt',
+  'gte',
+  'lt',
+  'lte',
+  'contains',
+  'not_contains',
+  'starts_with',
+  'ends_with',
+  'is_empty',
+  'is_not_empty',
+  'regex',
+  'is_null',
+  'is_type',
+]);
+
+export const conditionGroupSchema = z
   .object({
-    field: z.string(),
-    operator: z.string(),
-    value: z.unknown().optional(),
+    field: z
+      .string()
+      .default('')
+      .meta({
+        ui: {
+          label: 'Field',
+          widget: 'expression',
+          placeholder: '{{ $input.value }}',
+        },
+      }),
+    operator: conditionOperatorSchema.default('eq').meta({
+      ui: { label: 'Operator', widget: 'select' },
+    }),
+    value: z
+      .unknown()
+      .optional()
+      .meta({
+        ui: { label: 'Value', widget: 'expression' },
+      }),
   })
   .passthrough();
 
 export const ifElseConfigSchema = z
   .object({
-    conditions: z.array(conditionSchema),
-    combineMode: z.enum(['and', 'or']).optional(),
+    conditions: z
+      .array(conditionGroupSchema)
+      .default([])
+      .meta({
+        ui: {
+          label: 'Conditions',
+          widget: 'condition-builder',
+          itemLabel: 'Condition',
+        },
+      }),
+    combineMode: z
+      .enum(['and', 'or'])
+      .default('and')
+      .meta({
+        ui: { label: 'Combine Mode', widget: 'select' },
+      }),
+    strictComparison: z
+      .boolean()
+      .default(false)
+      .meta({
+        ui: {
+          label: 'Strict Comparison',
+          widget: 'checkbox',
+          hint: 'Compare without type coercion',
+        },
+      }),
   })
   .passthrough();
 export type IfElseConfig = z.infer<typeof ifElseConfigSchema>;
@@ -35,9 +93,4 @@ export const ifElseMetadata: NodeComponentMetadata = {
   description: 'Conditional branching',
   icon: 'GitBranch',
   color: '#3B82F6',
-  defaultConfig: {
-    conditions: [],
-    combineMode: 'and',
-    strictComparison: false,
-  },
 };

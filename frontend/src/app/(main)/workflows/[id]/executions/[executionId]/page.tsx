@@ -26,7 +26,7 @@ import {
   STATUS_LABEL,
   formatDuration,
 } from "@/lib/utils/execution-status";
-import { getNodeDefinition } from "@/lib/node-definitions";
+import { getNodeDefinition, loadNodeDefinitions } from "@/lib/node-definitions";
 import { PresentationContent } from "@/components/editor/run-results/renderers/presentation-renderers";
 import { GenericRenderer } from "@/components/editor/run-results/renderers/generic-renderer";
 import { ConversationInspector } from "@/components/editor/run-results/conversation-inspector";
@@ -83,6 +83,10 @@ export default function ExecutionDetailPage({
   useEffect(() => {
     resetStore();
   }, [executionId, resetStore]);
+
+  useEffect(() => {
+    void loadNodeDefinitions();
+  }, []);
 
   // Subscribe to WebSocket events + REST polling so waiting state is
   // hydrated into the store even when the page is opened after the

@@ -3,8 +3,79 @@ import {
   NodeComponentMetadata,
   NodePorts,
 } from '../../core/node-component.interface';
+import { conditionGroupSchema } from '../if-else/if-else.schema';
 
-export const switchNodeConfigSchema = z.object({}).passthrough();
+export const caseDefSchema = z
+  .object({
+    label: z
+      .string()
+      .default('')
+      .meta({ ui: { label: 'Label', widget: 'text' } }),
+    value: z
+      .unknown()
+      .optional()
+      .meta({
+        ui: {
+          label: 'Value',
+          widget: 'expression',
+          visibleWhen: { field: 'mode', equals: 'value' },
+        },
+      }),
+    condition: conditionGroupSchema.optional().meta({
+      ui: {
+        label: 'Condition',
+        widget: 'condition-builder',
+        visibleWhen: { field: 'mode', equals: 'expression' },
+      },
+    }),
+  })
+  .passthrough();
+
+export const switchNodeConfigSchema = z
+  .object({
+    mode: z
+      .enum(['value', 'expression'])
+      .default('value')
+      .meta({ ui: { label: 'Mode', widget: 'select' } }),
+    switchValue: z
+      .string()
+      .default('')
+      .meta({
+        ui: {
+          label: 'Switch Value',
+          widget: 'expression',
+          placeholder: '{{ $input.value }}',
+          visibleWhen: { field: 'mode', equals: 'value' },
+        },
+      }),
+    cases: z
+      .array(caseDefSchema)
+      .default([])
+      .meta({
+        ui: {
+          label: 'Cases',
+          widget: 'field-array',
+          itemLabel: 'Case',
+        },
+      }),
+    hasDefault: z
+      .boolean()
+      .default(false)
+      .meta({
+        ui: { label: 'Has Default', widget: 'checkbox' },
+      }),
+    strictComparison: z
+      .boolean()
+      .default(false)
+      .meta({
+        ui: {
+          label: 'Strict Comparison',
+          widget: 'checkbox',
+          hint: 'Compare without type coercion',
+        },
+      }),
+  })
+  .passthrough();
 export type SwitchConfig = z.infer<typeof switchNodeConfigSchema>;
 
 // Case-specific output ports are generated dynamically from config.cases.
@@ -21,11 +92,4 @@ export const switchNodeMetadata: NodeComponentMetadata = {
   description: 'Multi-path branching',
   icon: 'Route',
   color: '#3B82F6',
-
-  defaultConfig: {
-    mode: 'value',
-    cases: [],
-    hasDefault: false,
-    strictComparison: false,
-  },
 };

@@ -4,7 +4,27 @@ import {
   NodePorts,
 } from '../../core/node-component.interface';
 
-export const codeNodeConfigSchema = z.object({}).passthrough();
+export const codeNodeConfigSchema = z
+  .object({
+    language: z
+      .enum(['javascript'])
+      .default('javascript')
+      .meta({
+        ui: { label: 'Language', widget: 'select' },
+      }),
+    code: z
+      .string()
+      .default('')
+      .meta({
+        ui: {
+          label: 'Code',
+          widget: 'code',
+          language: 'javascript',
+          hint: 'Use return to produce output. $input, $vars, $helpers are injected.',
+        },
+      }),
+  })
+  .passthrough();
 export type CodeConfig = z.infer<typeof codeNodeConfigSchema>;
 
 export const codeNodePorts: NodePorts = {
@@ -19,6 +39,4 @@ export const codeNodeMetadata: NodeComponentMetadata = {
   description: 'Run JavaScript code',
   icon: 'Code',
   color: '#06B6D4',
-
-  defaultConfig: { language: 'javascript' },
 };

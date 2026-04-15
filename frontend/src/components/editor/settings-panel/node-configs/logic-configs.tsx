@@ -190,7 +190,7 @@ export function LoopConfig({ config, onChange }: { config: Config; onChange: OnC
     <div className="flex flex-col gap-3">
       <ExpressionInput
         label="Iteration Count"
-        value={(config.count as string) ?? ""}
+        value={config.count == null ? "" : String(config.count)}
         onChange={(v) => onChange({ ...config, count: v })}
         placeholder="10 or {{ $input.count }}"
         hint="Number of iterations or expression"
@@ -205,7 +205,9 @@ export function LoopConfig({ config, onChange }: { config: Config; onChange: OnC
       />
       <ExpressionInput
         label="Break Condition"
-        value={(config.breakCondition as string) ?? ""}
+        value={
+          typeof config.breakCondition === "string" ? config.breakCondition : ""
+        }
         onChange={(v) => onChange({ ...config, breakCondition: v })}
         placeholder="Optional: {{ $loop.result > 100 }}"
         hint="Expression to exit early (optional)"

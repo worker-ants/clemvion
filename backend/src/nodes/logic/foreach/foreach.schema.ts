@@ -4,7 +4,25 @@ import {
   NodePorts,
 } from '../../core/node-component.interface';
 
-export const foreachNodeConfigSchema = z.object({}).passthrough();
+export const foreachNodeConfigSchema = z
+  .object({
+    arrayField: z
+      .string()
+      .default('')
+      .meta({
+        ui: {
+          label: 'Array Field',
+          widget: 'expression',
+          placeholder: '$input.items',
+          hint: 'Dot-path or inline expression returning an array',
+        },
+      }),
+    errorPolicy: z
+      .enum(['stop', 'skip', 'continue'])
+      .default('stop')
+      .meta({ ui: { label: 'Error Policy', widget: 'select' } }),
+  })
+  .passthrough();
 export type ForEachConfig = z.infer<typeof foreachNodeConfigSchema>;
 
 export const foreachNodePorts: NodePorts = {
@@ -26,5 +44,4 @@ export const foreachNodeMetadata: NodeComponentMetadata = {
   icon: 'ListOrdered',
   color: '#3B82F6',
   isContainer: true,
-  defaultConfig: { errorPolicy: 'stop' },
 };

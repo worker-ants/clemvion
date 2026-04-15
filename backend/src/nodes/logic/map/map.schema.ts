@@ -4,7 +4,25 @@ import {
   NodePorts,
 } from '../../core/node-component.interface';
 
-export const mapNodeConfigSchema = z.object({}).passthrough();
+export const mapNodeConfigSchema = z
+  .object({
+    inputField: z
+      .string()
+      .default('')
+      .meta({
+        ui: {
+          label: 'Input Field',
+          widget: 'expression',
+          placeholder: '$input.items',
+          hint: 'Dot-path or inline expression returning an array',
+        },
+      }),
+    errorPolicy: z
+      .enum(['stop', 'skip', 'continue'])
+      .default('stop')
+      .meta({ ui: { label: 'Error Policy', widget: 'select' } }),
+  })
+  .passthrough();
 export type MapConfig = z.infer<typeof mapNodeConfigSchema>;
 
 export const mapNodePorts: NodePorts = {
@@ -26,5 +44,4 @@ export const mapNodeMetadata: NodeComponentMetadata = {
   icon: 'Map',
   color: '#3B82F6',
   isContainer: true,
-  defaultConfig: { errorPolicy: 'stop' },
 };

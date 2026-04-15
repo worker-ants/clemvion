@@ -26,6 +26,12 @@ vi.mock("@/lib/api/executions", () => ({
   },
 }));
 
+vi.mock("@/lib/node-definitions", () => ({
+  getNodeDefinition: () => undefined,
+  loadNodeDefinitions: vi.fn().mockResolvedValue(undefined),
+  CATEGORY_COLORS: {} as Record<string, string>,
+}));
+
 import ExecutionDetailPage from "../[executionId]/page";
 
 function makeExecution(overrides: Record<string, unknown> = {}) {
