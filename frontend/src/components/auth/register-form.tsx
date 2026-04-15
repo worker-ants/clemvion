@@ -195,11 +195,19 @@ export function RegisterForm() {
         </div>
 
         <div className="grid grid-cols-2 gap-3">
-          <Button variant="outline" asChild>
-            <a href="/api/auth/google">Google</a>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => toast.info("Google 로그인은 아직 지원하지 않습니다.")}
+          >
+            Google
           </Button>
-          <Button variant="outline" asChild>
-            <a href="/api/auth/github">GitHub</a>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => toast.info("GitHub 로그인은 아직 지원하지 않습니다.")}
+          >
+            GitHub
           </Button>
         </div>
 
