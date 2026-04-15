@@ -1,0 +1,143 @@
+{
+  "timestamp": "2026-04-15T20:12:59.298185",
+  "files": [
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/backend/example.env",
+      "change_type": "Review",
+      "file_extension": "env"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/backend/src/app.module.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/backend/src/modules/auth/auth.controller.spec.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/backend/src/modules/auth/auth.controller.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/backend/src/modules/auth/auth.module.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/backend/src/modules/auth/auth.service.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/backend/src/modules/users/users.service.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/frontend/src/components/auth/login-form.tsx",
+      "change_type": "Review",
+      "file_extension": "tsx"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/frontend/src/components/auth/register-form.tsx",
+      "change_type": "Review",
+      "file_extension": "tsx"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/spec/2-navigation/10-auth-flow.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/backend/migrations/V013__auth_oauth_state.sql",
+      "change_type": "Review",
+      "file_extension": "sql"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/backend/src/modules/auth/auth-oauth.service.spec.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/backend/src/modules/auth/auth-oauth.service.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/backend/src/modules/auth/entities/auth-oauth-state.entity.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    }
+  ],
+  "total_elapsed_seconds": 210.5,
+  "agents": [
+    {
+      "name": "dependency",
+      "status": "success",
+      "elapsed_seconds": 29.0
+    },
+    {
+      "name": "maintainability",
+      "status": "success",
+      "elapsed_seconds": 29.49
+    },
+    {
+      "name": "scope",
+      "status": "success",
+      "elapsed_seconds": 33.59
+    },
+    {
+      "name": "documentation",
+      "status": "success",
+      "elapsed_seconds": 40.79
+    },
+    {
+      "name": "database",
+      "status": "success",
+      "elapsed_seconds": 41.52
+    },
+    {
+      "name": "concurrency",
+      "status": "success",
+      "elapsed_seconds": 49.4
+    },
+    {
+      "name": "performance",
+      "status": "success",
+      "elapsed_seconds": 53.13
+    },
+    {
+      "name": "api_contract",
+      "status": "success",
+      "elapsed_seconds": 66.62
+    },
+    {
+      "name": "side_effect",
+      "status": "success",
+      "elapsed_seconds": 75.84
+    },
+    {
+      "name": "security",
+      "status": "success",
+      "elapsed_seconds": 76.93
+    },
+    {
+      "name": "testing",
+      "status": "success",
+      "elapsed_seconds": 77.89
+    },
+    {
+      "name": "requirement",
+      "status": "success",
+      "elapsed_seconds": 86.06
+    },
+    {
+      "name": "architecture",
+      "status": "success",
+      "elapsed_seconds": 87.83
+    }
+  ]
+}

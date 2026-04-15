@@ -190,15 +190,6 @@ export class AuthService {
       relations: ['user'],
     });
 
-    // DEBUG: Remove after verifying refresh works
-    console.log('[DEBUG refresh]', {
-      tokenPrefix: refreshToken.substring(0, 8),
-      hashPrefix: tokenHash.substring(0, 16),
-      found: !!stored,
-      isRevoked: stored?.isRevoked,
-      expiresAt: stored?.expiresAt,
-    });
-
     if (!stored) {
       throw new UnauthorizedException({
         code: 'TOKEN_INVALID',
@@ -295,6 +286,16 @@ export class AuthService {
   }
 
   // ========== HELPERS ==========
+
+  // Public entry point for OAuth sign-in — wraps the private token issuance
+  // so other auth paths (email/password login, refresh) remain the only callers
+  // of the private implementation.
+  async issueTokensForOauthUser(
+    user: User,
+    rememberMe: boolean,
+  ): Promise<{ accessToken: string; refreshToken: string }> {
+    return this.generateTokens(user, rememberMe);
+  }
 
   private async generateTokens(
     user: User,
