@@ -19,6 +19,16 @@ jest.mock('pg', () => ({
   })),
 }));
 
+const mysqlQueryMock = jest.fn();
+const mysqlEndMock = jest.fn();
+
+jest.mock('mysql2/promise', () => ({
+  createPool: jest.fn().mockImplementation(() => ({
+    query: (...args: unknown[]) => mysqlQueryMock(...args),
+    end: () => mysqlEndMock(),
+  })),
+}));
+
 function ctx(): ExecutionContext {
   return {
     executionId: 'exec-1',
@@ -68,6 +78,9 @@ describe('DatabaseQueryHandler', () => {
     endMock.mockReset().mockResolvedValue(undefined);
     onMock.mockReset();
     jest.requireMock('pg').Pool.mockClear();
+    mysqlQueryMock.mockReset();
+    mysqlEndMock.mockReset().mockResolvedValue(undefined);
+    jest.requireMock('mysql2/promise').createPool.mockClear();
   });
 
   describe('validate', () => {
@@ -142,7 +155,9 @@ describe('DatabaseQueryHandler', () => {
         config: { query: string };
         output: { rows: unknown[]; rowCount: number };
         meta: { durationMs: number };
+        port: string;
       };
+      expect(out.port).toBe('success');
       expect(out.output.rowCount).toBe(2);
       expect(out.config.query).toBe('SELECT id FROM users WHERE age > $1');
       expect(out.meta.durationMs).toBeGreaterThanOrEqual(0);
@@ -191,17 +206,20 @@ describe('DatabaseQueryHandler', () => {
       await handler.shutdown();
     });
 
-    it('releases the client and logs failure on query error', async () => {
+    it('routes query error to error port and releases the client', async () => {
       const { service, logUsage } = makeService();
       queryMock.mockRejectedValue(new Error('syntax error'));
       const handler = new DatabaseQueryHandler(service as never);
-      await expect(
-        handler.execute(
-          null,
-          { integrationId: 'int-1', query: 'SELEC 1' },
-          ctx(),
-        ),
-      ).rejects.toThrow('syntax error');
+      const out = (await handler.execute(
+        null,
+        { integrationId: 'int-1', query: 'SELEC 1' },
+        ctx(),
+      )) as {
+        port: string;
+        output: { error: { code: string; message: string } };
+      };
+      expect(out.port).toBe('error');
+      expect(out.output.error.message).toBe('syntax error');
       expect(releaseMock).toHaveBeenCalled();
       expect(logUsage).toHaveBeenCalledWith(
         expect.objectContaining({ status: 'failed' }),
@@ -209,7 +227,7 @@ describe('DatabaseQueryHandler', () => {
       await handler.shutdown();
     });
 
-    it('rejects mysql until mysql2 driver is added', async () => {
+    it('executes MySQL SELECT via mysql2 pool with $N → ? conversion', async () => {
       const { service } = makeService({
         integration: {
           id: 'int-1',
@@ -227,14 +245,106 @@ describe('DatabaseQueryHandler', () => {
           },
         },
       });
+      mysqlQueryMock.mockResolvedValue([
+        [{ id: 7 }],
+        [{ name: 'id', columnType: 3 }],
+      ]);
       const handler = new DatabaseQueryHandler(service as never);
-      await expect(
-        handler.execute(
-          null,
-          { integrationId: 'int-1', query: 'SELECT 1' },
-          ctx(),
-        ),
-      ).rejects.toThrow(/MySQL/);
+      const out = (await handler.execute(
+        null,
+        {
+          integrationId: 'int-1',
+          query: 'SELECT id FROM t WHERE x = $1',
+          parameters: ['v'],
+        },
+        ctx(),
+      )) as {
+        port: string;
+        output: { rows: unknown[]; rowCount: number; fields: unknown[] };
+      };
+      expect(out.port).toBe('success');
+      expect(out.output.rowCount).toBe(1);
+      expect(mysqlQueryMock).toHaveBeenCalledWith(
+        'SELECT id FROM t WHERE x = ?',
+        ['v'],
+      );
+      await handler.shutdown();
+    });
+
+    it('normalizes MySQL INSERT ResultSetHeader to rowCount/insertId', async () => {
+      const { service } = makeService({
+        integration: {
+          id: 'int-1',
+          name: 'MySql',
+          serviceType: 'database',
+          status: 'connected',
+          credentials: {
+            driver: 'mysql',
+            host: 'h',
+            port: 3306,
+            database: 'd',
+            username: 'u',
+            password: 'p',
+            ssl: 'disable',
+          },
+        },
+      });
+      mysqlQueryMock.mockResolvedValue([
+        { affectedRows: 2, insertId: 99 },
+        undefined,
+      ]);
+      const handler = new DatabaseQueryHandler(service as never);
+      const out = (await handler.execute(
+        null,
+        {
+          integrationId: 'int-1',
+          query: 'INSERT INTO t (a) VALUES (?)',
+          parameters: [1],
+          queryType: 'insert',
+        },
+        ctx(),
+      )) as {
+        port: string;
+        output: { rows: unknown[]; rowCount: number; insertId: number };
+      };
+      expect(out.port).toBe('success');
+      expect(out.output.rowCount).toBe(2);
+      expect(out.output.insertId).toBe(99);
+      expect(out.output.rows).toEqual([]);
+      await handler.shutdown();
+    });
+
+    it('routes MySQL query error to error port', async () => {
+      const { service } = makeService({
+        integration: {
+          id: 'int-1',
+          name: 'MySql',
+          serviceType: 'database',
+          status: 'connected',
+          credentials: {
+            driver: 'mysql',
+            host: 'h',
+            port: 3306,
+            database: 'd',
+            username: 'u',
+            password: 'p',
+            ssl: 'disable',
+          },
+        },
+      });
+      mysqlQueryMock.mockRejectedValue(new Error('ER_PARSE_ERROR'));
+      const handler = new DatabaseQueryHandler(service as never);
+      const out = (await handler.execute(
+        null,
+        { integrationId: 'int-1', query: 'SELEC 1' },
+        ctx(),
+      )) as {
+        port: string;
+        output: { error: { message: string } };
+      };
+      expect(out.port).toBe('error');
+      expect(out.output.error.message).toBe('ER_PARSE_ERROR');
+      await handler.shutdown();
     });
 
     it('rejects incomplete credentials', async () => {
@@ -278,14 +388,15 @@ describe('DatabaseQueryHandler', () => {
       ).rejects.toThrow(/JSON array/);
     });
 
-    it('falls back to stub when integrations service missing', async () => {
+    it('throws when integrations service is missing', async () => {
       const handler = new DatabaseQueryHandler();
-      const out = (await handler.execute(
-        null,
-        { integrationId: 'int-1', query: 'SELECT 1' },
-        ctx(),
-      )) as { output: { message: string } };
-      expect(out.output.message).toMatch(/requires integration/);
+      await expect(
+        handler.execute(
+          null,
+          { integrationId: 'int-1', query: 'SELECT 1' },
+          ctx(),
+        ),
+      ).rejects.toThrow(/integrations service/);
     });
   });
 });
