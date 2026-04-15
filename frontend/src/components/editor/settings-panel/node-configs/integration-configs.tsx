@@ -9,6 +9,7 @@ type OnChange = (config: Config) => void;
 export function HttpRequestConfig({ config, onChange }: { config: Config; onChange: OnChange }) {
   const headers = (config.headers as Array<{ key: string; value: string }>) ?? [];
   const queryParams = (config.queryParams as Array<{ key: string; value: string }>) ?? [];
+  const authentication = (config.authentication as string) ?? "none";
 
   return (
     <div className="flex flex-col gap-3">
@@ -35,14 +36,29 @@ export function HttpRequestConfig({ config, onChange }: { config: Config; onChan
       />
       <SelectField
         label="Authentication"
-        value={(config.authentication as string) ?? "none"}
-        onChange={(v) => onChange({ ...config, authentication: v })}
+        value={authentication}
+        onChange={(v) =>
+          onChange({
+            ...config,
+            authentication: v,
+            integrationId: v === "integration" ? config.integrationId : undefined,
+          })
+        }
         options={[
           { value: "none", label: "None" },
           { value: "integration", label: "Integration" },
           { value: "custom", label: "Custom" },
         ]}
       />
+      {authentication === "integration" && (
+        <IntegrationSelector
+          label="Integration"
+          value={(config.integrationId as string) ?? ""}
+          onChange={(v) => onChange({ ...config, integrationId: v })}
+          serviceTypes={["http"]}
+          serviceDisplayName="HTTP"
+        />
+      )}
       <KeyValueEditor
         label="Headers"
         items={headers}

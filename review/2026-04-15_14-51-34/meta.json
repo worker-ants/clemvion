@@ -1,0 +1,88 @@
+{
+  "timestamp": "2026-04-15T14:53:48.810970",
+  "files": [
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/backend/src/modules/execution-engine/handlers/integration/http-request.handler.spec.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/backend/src/modules/execution-engine/handlers/integration/http-request.handler.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/frontend/src/components/editor/settings-panel/node-configs/integration-configs.tsx",
+      "change_type": "Review",
+      "file_extension": "tsx"
+    }
+  ],
+  "total_elapsed_seconds": 133.86,
+  "agents": [
+    {
+      "name": "database",
+      "status": "success",
+      "elapsed_seconds": 7.04
+    },
+    {
+      "name": "dependency",
+      "status": "success",
+      "elapsed_seconds": 23.01
+    },
+    {
+      "name": "performance",
+      "status": "success",
+      "elapsed_seconds": 27.24
+    },
+    {
+      "name": "documentation",
+      "status": "success",
+      "elapsed_seconds": 29.5
+    },
+    {
+      "name": "api_contract",
+      "status": "success",
+      "elapsed_seconds": 29.66
+    },
+    {
+      "name": "requirement",
+      "status": "success",
+      "elapsed_seconds": 30.57
+    },
+    {
+      "name": "side_effect",
+      "status": "success",
+      "elapsed_seconds": 31.21
+    },
+    {
+      "name": "architecture",
+      "status": "success",
+      "elapsed_seconds": 34.81
+    },
+    {
+      "name": "maintainability",
+      "status": "success",
+      "elapsed_seconds": 36.34
+    },
+    {
+      "name": "testing",
+      "status": "success",
+      "elapsed_seconds": 37.73
+    },
+    {
+      "name": "security",
+      "status": "success",
+      "elapsed_seconds": 38.51
+    },
+    {
+      "name": "scope",
+      "status": "success",
+      "elapsed_seconds": 41.38
+    },
+    {
+      "name": "concurrency",
+      "status": "success",
+      "elapsed_seconds": 71.25
+    }
+  ]
+}
