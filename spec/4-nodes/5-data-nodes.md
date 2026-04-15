@@ -168,21 +168,21 @@ JavaScript 코드를 작성하여 자유로운 데이터 처리를 수행한다.
 
 #### 2.7.1 격리 방식
 
-Code 노드의 JavaScript 실행은 **V8 Isolate (vm2/isolated-vm)** 기반으로 격리한다.
+Code 노드의 JavaScript 실행은 **Node.js `node:vm` 모듈 기반의 격리 context**로 실행한다.
 
 | 방식 | 설명 |
 |------|------|
-| **Phase 1: V8 Isolate** | `isolated-vm` 라이브러리를 사용하여 별도의 V8 Isolate 내에서 코드를 실행. 메인 프로세스와 메모리 공간이 완전히 분리됨 |
-| Phase 2 이후 (선택): Docker 기반 | 대규모 배포 시 컨테이너 격리로 전환 가능. Phase 1에서는 불필요 |
+| **Phase 1: node:vm context** | `vm.createContext({ ... }, { codeGeneration: { strings: false, wasm: false } })`로 허용된 전역만 주입한 별도 context에서 코드를 실행. `require`/`process`/`global`/`Buffer`/`fetch` 등은 주입하지 않아 접근 불가. `eval`/`new Function`은 `codeGeneration.strings: false`로 차단. 동적 `import(...)`는 모듈 로더(`importModuleDynamically`) 미설정으로 차단 |
+| Phase 2 이후 (선택): `isolated-vm` 또는 컨테이너 | 메모리 제한 강제(128MB)나 프로세스 레벨 격리가 필요해질 경우 `isolated-vm`(V8 Isolate) 또는 Docker 격리로 전환 |
 
-> **선택 근거**: V8 Isolate는 별도 프로세스/컨테이너 오버헤드 없이 수 밀리초 내에 격리 환경을 생성할 수 있다. Code 노드는 데이터 변환 목적이므로 네트워크/파일 접근이 불필요하며, V8 Isolate로 충분한 격리 수준을 제공한다.
+> **선택 근거**: `node:vm`은 네이티브 빌드(node-gyp) 의존성이 없어 배포/개발 환경 구성이 단순하고, 전역 미주입 + `codeGeneration` 차단으로 스펙상의 모듈 로드/네트워크/파일 시스템 차단 요구를 달성한다. 단, 메모리 하드 리밋과 완벽한 sandbox escape 방어는 불가하며, 필요 시 Phase 2에서 재검토한다.
 
 #### 2.7.2 리소스 제한
 
 | 항목 | 제한 | 설명 |
 |------|------|------|
-| 타임아웃 | 기본 30초 (노드 설정에서 1~120초 범위 내 변경 가능) | `isolate.compileScript` + `script.run`에 timeout 옵션 적용 |
-| 메모리 | 최대 128MB | `new ivm.Isolate({ memoryLimit: 128 })` |
+| 타임아웃 | 기본 30초 (노드 설정에서 1~120초 범위 내 변경 가능) | `vm.Script#runInContext`의 `timeout` 옵션(동기 무한루프 보호) + 외부 `Promise.race` 타임아웃(비동기 무한 대기 보호) 이중 적용 |
+| 메모리 | (Phase 1에서는 강제 불가) | `node:vm`은 메모리 하드 리밋을 지원하지 않으므로 Phase 1에서는 enforce하지 않음. 필요 시 Phase 2에서 `isolated-vm`으로 전환해 128MB 제한 적용 |
 | 네트워크 | 완전 차단 | `fetch`, `XMLHttpRequest`, `WebSocket` 등 네트워크 API 미주입 |
 | 파일 시스템 | 접근 불가 | `fs`, `path`, `child_process` 등 Node.js 모듈 미주입 |
 | 모듈 | require/import 불가 | 모듈 로더 미제공. 내장 유틸리티만 전역 객체로 주입 |
