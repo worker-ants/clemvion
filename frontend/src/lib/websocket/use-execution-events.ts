@@ -514,15 +514,27 @@ export function useExecutionEvents({
       if (!execution || cancelledRef.current) return;
 
       if (execution.nodeExecutions) {
-        const sorted = [...execution.nodeExecutions].sort((a, b) =>
-          (a.startedAt ?? "").localeCompare(b.startedAt ?? ""),
-        );
+        const sorted = [...execution.nodeExecutions].sort((a, b) => {
+          const aStarted = a.startedAt ?? "";
+          const bStarted = b.startedAt ?? "";
+          return aStarted < bStarted ? -1 : aStarted > bStarted ? 1 : 0;
+        });
         for (const ne of sorted) {
           const nodeType = ne.node?.type ?? "unknown";
           const nodeLabel = ne.node?.label ?? ne.nodeId;
+          const incomingStatus = mapNodeStatus(ne.status);
+
+          // When a node.completed event arrives before the snapshot (the
+          // snapshot can race the subscribe→incremental path), the store
+          // already holds a terminal status for this node. Don't let the
+          // snapshot's older row overwrite it back to "running".
+          const currentStatus = useExecutionStore
+            .getState()
+            .nodeStatuses.get(ne.nodeId)?.status;
+          if (!shouldUpdateStatus(currentStatus, incomingStatus)) continue;
 
           updateNodeStatus(ne.nodeId, {
-            status: mapNodeStatus(ne.status),
+            status: incomingStatus,
             duration: ne.durationMs ?? undefined,
             error: ne.error?.message,
           });
@@ -534,7 +546,7 @@ export function useExecutionEvents({
             nodeLabel,
             nodeType,
             nodeCategory: getCategoryForType(nodeType),
-            status: mapNodeStatus(ne.status),
+            status: incomingStatus,
             duration: ne.durationMs ?? undefined,
             error: ne.error?.message,
             outputData: ne.outputData,
@@ -571,6 +583,17 @@ export function useExecutionEvents({
         } else {
           resumeFromForm();
         }
+        return;
+      }
+      if (execution.status === "running" && prevStatus === "idle") {
+        // Page opened mid-execution: store still shows idle because the
+        // execution.started event fired before we were listening. Promote
+        // to running without clearing the just-populated timeline.
+        useExecutionStore.setState({
+          executionId: execution.id,
+          status: "running",
+          startedAt: execution.startedAt ?? new Date().toISOString(),
+        });
         return;
       }
       if (execution.status === "waiting_for_input") {

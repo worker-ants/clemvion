@@ -13,6 +13,7 @@ import { JwtService } from '@nestjs/jwt';
 import { Public } from '../../common/decorators';
 import { ExecutionEngineService } from '../execution-engine/execution-engine.service';
 import { ExecutionsService } from '../executions/executions.service';
+import { ExecutionEventType } from './websocket.service';
 
 const MAX_SUBSCRIPTIONS_PER_CONNECTION = 20;
 
@@ -121,6 +122,11 @@ export class WebsocketGateway
       };
     }
 
+    // Detect first-time subscription so we only send the snapshot once. A
+    // re-subscribe (e.g. after the hook re-binds without actually
+    // disconnecting) must not re-emit — the client's store would merge
+    // a second snapshot and double-append terminal rows.
+    const isNewSubscription = !clientSubs.has(channel);
     clientSubs.add(channel);
     void client.join(channel);
     this.logger.debug(`Client ${client.id} subscribed to ${channel}`);
@@ -128,7 +134,7 @@ export class WebsocketGateway
     // Send a one-shot snapshot to the subscribing client only. This replaces
     // the old REST `GET /executions/:id` polling loop: timeline and detail
     // state is now fully hydrated from WS events (snapshot + incremental).
-    if (channel.startsWith('execution:')) {
+    if (isNewSubscription && channel.startsWith('execution:')) {
       const executionId = channel.slice('execution:'.length);
       void this.emitExecutionSnapshot(client, executionId);
     }
@@ -145,7 +151,7 @@ export class WebsocketGateway
   ): Promise<void> {
     try {
       const snapshot = await this.executionsService.findById(executionId);
-      client.emit('execution.snapshot', {
+      client.emit(ExecutionEventType.EXECUTION_SNAPSHOT, {
         executionId,
         execution: snapshot,
         timestamp: new Date().toISOString(),
