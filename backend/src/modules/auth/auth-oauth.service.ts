@@ -77,6 +77,16 @@ export class AuthOauthService {
     return (AUTH_OAUTH_PROVIDERS as readonly string[]).includes(value);
   }
 
+  // Providers are considered "enabled" when their CLIENT_ID is configured,
+  // OR when stub mode is on (so local dev sees buttons without real creds).
+  getEnabledProviders(): AuthOAuthProvider[] {
+    const stub = process.env.OAUTH_STUB_MODE === 'true';
+    return AUTH_OAUTH_PROVIDERS.filter((p) => {
+      if (stub) return true;
+      return Boolean(process.env[`${p.toUpperCase()}_CLIENT_ID`]);
+    });
+  }
+
   async beginAuth(
     provider: string,
     params: BeginOauthParams,
@@ -348,26 +358,39 @@ export class AuthOauthService {
     }
 
     // New user path — create user and personal workspace atomically.
-    return this.dataSource.transaction(async (manager) => {
-      const userRepo = manager.getRepository(User);
-      const created = await userRepo.save(
-        userRepo.create({
-          email: profile.email,
-          name: profile.name,
-          avatarUrl: profile.avatarUrl ?? undefined,
-          emailVerified: true,
-          oauthProvider: provider,
-          oauthProviderId: profile.providerId,
-        }),
-      );
-      await this.workspacesService.createPersonalWorkspace(
-        created.id,
-        created.name,
-        created.email,
-        manager,
-      );
-      return created;
-    });
+    try {
+      return await this.dataSource.transaction(async (manager) => {
+        const userRepo = manager.getRepository(User);
+        const created = await userRepo.save(
+          userRepo.create({
+            email: profile.email,
+            name: profile.name,
+            avatarUrl: profile.avatarUrl ?? undefined,
+            emailVerified: true,
+            oauthProvider: provider,
+            oauthProviderId: profile.providerId,
+          }),
+        );
+        await this.workspacesService.createPersonalWorkspace(
+          created.id,
+          created.name,
+          created.email,
+          manager,
+        );
+        return created;
+      });
+    } catch (err) {
+      // Concurrent first-time OAuth callbacks (same identity) collide on the
+      // unique index — recover by returning the row the winning callback wrote.
+      if (isUniqueViolation(err)) {
+        const existing = await this.usersService.findByOauth(
+          provider,
+          profile.providerId,
+        );
+        if (existing) return existing;
+      }
+      throw err;
+    }
   }
 
   private async purgeExpired(): Promise<void> {
@@ -411,6 +434,16 @@ export class AuthOauthService {
       'http://localhost:3011';
     return `${appUrl}/api/auth/oauth/${provider}/callback`;
   }
+}
+
+function isUniqueViolation(err: unknown): boolean {
+  // Postgres SQLSTATE 23505 surfaced via TypeORM's QueryFailedError.
+  return (
+    err !== null &&
+    typeof err === 'object' &&
+    'code' in err &&
+    (err as { code?: string }).code === '23505'
+  );
 }
 
 async function safeReadBody(response: Response): Promise<string> {

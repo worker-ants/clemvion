@@ -3,6 +3,7 @@ import {
   Post,
   Get,
   Body,
+  Header,
   HttpCode,
   HttpStatus,
   Param,
@@ -341,6 +342,37 @@ export class AuthController {
   @ApiBadRequestResponse({ description: '이메일 형식 오류' })
   async checkEmail(@Body() dto: CheckEmailDto) {
     return this.authService.checkEmail(dto.email);
+  }
+
+  @Public()
+  @Get('oauth/providers')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: '활성화된 OAuth provider 목록',
+    description:
+      '백엔드 환경에 자격증명이 설정된 provider 목록을 반환합니다. 클라이언트는 이 목록이 비어있으면 SSO UI를 표시하지 않습니다.',
+  })
+  @ApiOkResponse({
+    description: '활성화된 provider 목록',
+    schema: {
+      type: 'object',
+      properties: {
+        data: {
+          type: 'object',
+          properties: {
+            providers: {
+              type: 'array',
+              items: { type: 'string', enum: ['google', 'github'] },
+            },
+          },
+        },
+      },
+    },
+  })
+  @Header('Cache-Control', 'private, max-age=300')
+  getOauthProviders() {
+    const providers = this.authOauthService.getEnabledProviders();
+    return { data: { providers } };
   }
 
   @Public()
