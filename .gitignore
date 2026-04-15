@@ -1,3 +1,9 @@
+# IDE
 .idea/
+
+# packages
+node_modules/
+
+# env
 /CLAUDE.md
 .env
