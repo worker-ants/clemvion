@@ -23,7 +23,7 @@ export class CreateWorkflowDto {
   /** 워크플로우 설명 (선택) */
   @ApiPropertyOptional({
     description: '워크플로우에 대한 설명',
-    example: '신규 리드가 유입될 때 Slack 알림과 DB 저장을 수행합니다.',
+    example: '신규 리드가 유입될 때 이메일 알림과 DB 저장을 수행합니다.',
   })
   @IsOptional()
   @IsString()

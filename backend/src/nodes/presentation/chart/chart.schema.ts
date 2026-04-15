@@ -72,12 +72,8 @@ export const chartConfigSchema = z
       .string()
       .default('')
       .meta({ ui: { label: 'Data Field', widget: 'text' } }),
-    xAxis: xAxisSchema
-      .default({ field: '' })
-      .meta({ ui: { label: 'X Axis' } }),
-    yAxis: yAxisSchema
-      .default({ field: '' })
-      .meta({ ui: { label: 'Y Axis' } }),
+    xAxis: xAxisSchema.default({ field: '' }).meta({ ui: { label: 'X Axis' } }),
+    yAxis: yAxisSchema.default({ field: '' }).meta({ ui: { label: 'Y Axis' } }),
     groupBy: z
       .string()
       .optional()

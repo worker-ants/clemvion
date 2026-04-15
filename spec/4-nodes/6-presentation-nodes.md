@@ -810,117 +810,7 @@ Carousel §1.5와 동일한 접이식 "Buttons" 섹션을 Template 설정 UI 하
 
 ---
 
-## 6. PDF
-
-데이터를 HTML 템플릿에 바인딩하여 PDF 문서로 렌더링한다. 생성된 PDF는 Object Storage에 저장되고 다운로드 URL이 출력된다.
-
-### 6.1 Config
-
-| 필드 | 타입 | 필수 | 기본값 | 설명 |
-|------|------|------|--------|------|
-| template | String | ✓ | — | HTML 템플릿 (Handlebars 문법 지원) |
-| pageSize | Enum | ✗ | A4 | `A4` / `Letter` / `A3` |
-| orientation | Enum | ✗ | portrait | `portrait` / `landscape` |
-| margin | Object | ✗ | `{ top: "20mm", right: "15mm", bottom: "20mm", left: "15mm" }` | 페이지 여백 |
-| headerTemplate | String? | ✗ | — | 머리글 HTML 템플릿 |
-| footerTemplate | String? | ✗ | — | 바닥글 HTML 템플릿 (페이지 번호 등) |
-| fileName | String | ✗ | "document.pdf" | 출력 파일명 (표현식 가능, 예: `report_{{date}}.pdf`) |
-
-**margin 구조:**
-
-| 필드 | 타입 | 기본값 | 설명 |
-|------|------|--------|------|
-| top | String | "20mm" | 상단 여백 |
-| right | String | "15mm" | 우측 여백 |
-| bottom | String | "20mm" | 하단 여백 |
-| left | String | "15mm" | 좌측 여백 |
-
-### 6.2 포트 정의
-
-| 포트 | 방향 | 식별자 | 설명 |
-|------|------|--------|------|
-| Input | 입력 | `in` | 템플릿 컨텍스트 데이터 |
-| Output | 출력 | `out` | PDF 파일 정보 |
-
-### 6.3 실행 로직
-
-1. 입력 데이터를 Handlebars 컨텍스트로 바인딩하여 HTML 렌더링
-2. **Playwright** 기반 Chromium 헤드리스 브라우저로 HTML→PDF 변환
-   - `page.pdf()` API 사용
-   - `pageSize`, `orientation`, `margin` 적용
-   - `headerTemplate`, `footerTemplate` 적용
-3. 생성된 PDF를 Object Storage에 업로드
-4. 파일 메타데이터(URL, 크기 등)를 출력 포트로 전달
-
-**출력 형식:**
-
-```json
-{
-  "type": "pdf",
-  "fileName": "report_2026-03.pdf",
-  "fileSize": 245760,
-  "url": "https://storage.example.com/files/uuid/report_2026-03.pdf"
-}
-```
-
-### 6.4 리소스 제한
-
-| 항목 | 제한 | 설명 |
-|------|------|------|
-| PDF 렌더링 타임아웃 | 60초 | 기본 노드 타임아웃(30초)보다 긴 기본값 적용 |
-| 최대 파일 크기 | 50MB | 초과 시 `PDF_SIZE_EXCEEDED` 에러 |
-| 동시 렌더링 수 | Worker당 2 | Playwright Chromium 인스턴스 풀 관리 |
-
-### 6.6 구현 참고사항
-
-| 항목 | 설명 |
-|------|------|
-| 렌더링 엔진 | **Playwright** (Chromium 헤드리스) |
-| PDF 생성 API | `page.pdf({ format, landscape, margin, headerTemplate, footerTemplate })` |
-| 페이지 사이즈/방향 | config의 `pageSize`, `orientation` 값을 `page.pdf()` 옵션으로 매핑 |
-| 브라우저 풀 | Worker 시작 시 Playwright Browser 인스턴스를 미리 생성하고 풀로 관리. 각 PDF 렌더링마다 새 Page를 열고 완료 후 닫음 |
-
-### 6.5 설정 UI
-
-```
-┌──────────────────────────────┐
-│  PDF Settings                        │
-│  ────────────────────────────── │
-│  File Name: [report_{{date}}.pdf]    │
-│  Page Size: [A4 ▼]                   │
-│  Orientation: [portrait ▼]           │
-│                                      │
-│  Margin:                             │
-│  Top:[20mm] Right:[15mm]             │
-│  Bottom:[20mm] Left:[15mm]           │
-│  ────────────────────────────── │
-│  Template (HTML):                    │
-│  ┌──────────────────────────────┐│
-│  │ 1│ <h1>{{title}}</h1>            ││
-│  │ 2│ <table>                        ││
-│  │ 3│ {{#each rows}}                ││
-│  │ 4│   <tr><td>{{this.name}}</td>  ││
-│  │ 5│       <td>{{this.value}}</td> ││
-│  │ 6│   </tr>                        ││
-│  │ 7│ {{/each}}                     ││
-│  │ 8│ </table>                       ││
-│  └──────────────────────────────┘│
-│                                      │
-│  ▶ Header Template (선택)            │
-│  ▶ Footer Template (선택)            │
-│                                      │
-│  ─── Preview ───────────────────── │
-│  [📄 PDF Preview]  (새 탭에서 열기)  │
-└──────────────────────────────┘
-```
-
-- HTML 템플릿 에디터: Handlebars + HTML 구문 강조
-- Header/Footer 템플릿: 접을 수 있는(collapsible) 섹션
-- Preview: 마지막 실행의 PDF를 새 탭에서 미리보기, 또는 썸네일 표시
-
----
-
-## 7. 캔버스 요약
+## 6. 캔버스 요약
 
 각 Presentation 노드가 캔버스에 표시하는 설정 요약 텍스트 포맷. ([캔버스 §5.3](../3-workflow-editor/0-canvas.md#53-노드-설정-요약-configuration-summary) 참조)
 
@@ -935,7 +825,6 @@ Carousel §1.5와 동일한 접이식 "Buttons" 섹션을 Template 설정 UI 하
 | Form | `{N} fields · "{title}"` (필드 수 + 폼 제목) | `3 fields · "Approval"` |
 | Template (버튼 없음) | `{outputFormat} · {N} lines` (템플릿 줄 수) | `html · 9 lines` |
 | Template (버튼 있음) | `{outputFormat} · {N} buttons` | `html · 2 buttons` |
-| PDF | `{pageSize} {orientation} · {fileName}` | `A4 portrait · report.pdf` |
 
 ---
 
@@ -999,12 +888,3 @@ Carousel §1.5와 동일한 접이식 "Buttons" 섹션을 Template 설정 UI 하
 | **버튼 대기 중** (`waiting_for_input`) | 렌더링된 콘텐츠 아래 **버튼 바** 표시. Carousel §8.1 버튼 대기와 동일한 인터랙션 |
 | **버튼 클릭 후** | Carousel §8.1 버튼 클릭 후와 동일 |
 
-### 8.6 PDF
-
-| 항목 | 설명 |
-|------|------|
-| 생성 중 | 로딩 스피너 + "Generating PDF..." 메시지 |
-| 완료 | 브라우저 내장 PDF 뷰어로 임베드 렌더링 |
-| 버튼 | `[Download]` — 파일 다운로드. `[새 탭에서 열기]` — 새 탭에서 PDF 열기 |
-| 파일 정보 | 파일명, 파일 크기 표시 |
-| 에러 | PDF 생성 실패 시 에러 메시지 + 재시도 안내 |

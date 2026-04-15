@@ -49,7 +49,6 @@
 | Information Extractor | 1 | 1 | `out` |
 | HTTP Request | 1 | 2 | `success`, `error` |
 | Database Query | 1 | 1 | `out` |
-| Slack | 1 | 1 | `out` |
 | Google Sheets | 1 | 1 | `out` |
 | GitHub | 1 | 1 | `out` |
 | Send Email | 1 | 1 | `out` |
@@ -61,7 +60,6 @@
 | Chart | 1 | 1 또는 N (동적) | Carousel과 동일 |
 | Form | 1 | 1 | `out` |
 | Template | 1 | 1 또는 N (동적) | Carousel과 동일 |
-| PDF | 1 | 1 | `out` |
 | **(조건부) error** | — | +1 | `error` — 에러 처리 정책이 "Route to Error Port"인 노드에 동적 추가. 빨간 원, 노드 우하단 |
 
 ### 1.4 포트 인터랙션

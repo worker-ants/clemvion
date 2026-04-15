@@ -224,7 +224,6 @@ $loop.count = 10              $item.index = 1
 - 백그라운드 실패 시 `notifyOnError=true`이면 `notifyChannels`에 따라 알림 전송:
   - `in_app`: Notification 엔티티 생성 (`type: background_failed`, 실행 시작 사용자에게)
   - `email`: 실행 시작 사용자 이메일로 실패 알림 발송
-  - `slack`: 연동된 Slack Integration을 통해 지정 채널에 메시지 전송
 - Execution 상세 화면에서 Background 실행 결과를 별도 섹션으로 표시 (성공/실패 불문)
 
 ---
@@ -613,7 +612,7 @@ Manual Trigger 핸들러의 `execute()` 출력은 항상 다음 형태이다:
 
 ## 10. Integration Handler 계약
 
-Integration 노드(HTTP, Database, Slack, Send Email, 등)를 처리하는 핸들러는 공통 베이스(`IntegrationHandlerBase`)를 통해 credential을 해소하고 호출 이력을 기록한다. 노드별 세부 동작은 [Spec Integration 노드 §10](../4-nodes/4-integration-nodes.md#10-handler-실행-세멘틱) 참조.
+Integration 노드(HTTP, Database, Send Email, 등)를 처리하는 핸들러는 공통 베이스(`IntegrationHandlerBase`)를 통해 credential을 해소하고 호출 이력을 기록한다. 노드별 세부 동작은 [Spec Integration 노드 §10](../4-nodes/4-integration-nodes.md#10-handler-실행-세멘틱) 참조.
 
 ### 10.1 IntegrationsService API (실행 엔진용)
 

@@ -16,7 +16,6 @@ export { WorkflowHandler } from './flow/workflow.handler.js';
 // Integration handlers
 export { HttpRequestHandler } from './integration/http-request.handler.js';
 export { DatabaseQueryHandler } from './integration/database-query.handler.js';
-export { SlackHandler } from './integration/slack.handler.js';
 export { SendEmailHandler } from './integration/send-email.handler.js';
 
 // Data handlers
@@ -29,7 +28,6 @@ export { TableHandler } from './presentation/table.handler.js';
 export { ChartHandler } from './presentation/chart.handler.js';
 export { FormHandler } from './presentation/form.handler.js';
 export { TemplateHandler } from './presentation/template.handler.js';
-export { PdfHandler } from './presentation/pdf.handler.js';
 
 // Trigger handlers
 export { ManualTriggerHandler } from './trigger/manual-trigger.handler.js';

@@ -68,6 +68,6 @@ export class NodeComponentRegistry {
   private resolveDefaultConfig(c: NodeComponent): Record<string, unknown> {
     if (c.metadata.defaultConfig) return c.metadata.defaultConfig;
     const parsed = c.configSchema.safeParse({});
-    return parsed.success ? (parsed.data as Record<string, unknown>) : {};
+    return parsed.success ? parsed.data : {};
   }
 }

@@ -24,7 +24,6 @@ import {
 import {
   HttpRequestConfig,
   DatabaseQueryConfig,
-  SlackConfig,
   SendEmailConfig,
 } from "./integration-configs";
 
@@ -74,7 +73,6 @@ export const OVERRIDE_REGISTRY: Record<string, ComponentType<ConfigProps>> = {
   // Integration
   http_request: HttpRequestConfig,
   database_query: DatabaseQueryConfig,
-  slack: SlackConfig,
   send_email: SendEmailConfig,
   // Data
   transform: TransformConfig,
@@ -85,5 +83,4 @@ export const OVERRIDE_REGISTRY: Record<string, ComponentType<ConfigProps>> = {
   chart: ChartConfig,
   form: FormConfig,
   template: TemplateConfig,
-  // `pdf` is migrated to auto-form (schema-driven).
 };

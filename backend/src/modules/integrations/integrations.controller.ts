@@ -187,7 +187,7 @@ export class IntegrationsController {
   })
   @ApiParam({
     name: 'provider',
-    description: 'OAuth provider 식별자 (예: google, slack, github)',
+    description: 'OAuth provider 식별자 (예: google, github)',
     example: 'google',
   })
   @ApiProduces('text/html')

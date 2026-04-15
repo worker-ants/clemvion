@@ -27,7 +27,7 @@ export class ListIntegrationsQueryDto extends PaginationQueryDto {
   /** 통합 이름 또는 서비스 타입에 대한 검색어 */
   @ApiPropertyOptional({
     description: '통합 이름 또는 서비스 타입 검색어 (부분 일치)',
-    example: 'slack',
+    example: 'google',
   })
   @IsOptional()
   @IsString()
@@ -44,13 +44,13 @@ export class ListIntegrationsQueryDto extends PaginationQueryDto {
   scope?: 'personal' | 'organization' | 'all';
 
   /**
-   * 서비스 타입 필터. 단일 값 또는 복수 값(`?serviceType=slack&serviceType=google`)을 모두 지원하며 항상 배열로 정규화됩니다.
+   * 서비스 타입 필터. 단일 값 또는 복수 값(`?serviceType=google&serviceType=github`)을 모두 지원하며 항상 배열로 정규화됩니다.
    */
   @ApiPropertyOptional({
     description:
       '서비스 타입 필터. 단일/복수 값을 모두 허용하며 내부적으로 배열로 정규화됩니다.',
     type: [String],
-    example: ['slack', 'google'],
+    example: ['google', 'github'],
   })
   @IsOptional()
   @Transform(({ value }) => (Array.isArray(value) ? value : [value]))
@@ -72,10 +72,10 @@ export class ListIntegrationsQueryDto extends PaginationQueryDto {
 }
 
 export class CreateIntegrationDto {
-  /** 통합 서비스 타입 (예: slack, google, github) */
+  /** 통합 서비스 타입 (예: google, github) */
   @ApiProperty({
     description: '통합 서비스 타입 식별자',
-    example: 'slack',
+    example: 'google',
     maxLength: 50,
   })
   @IsString()
@@ -86,7 +86,7 @@ export class CreateIntegrationDto {
   /** 통합 표시 이름 */
   @ApiProperty({
     description: '통합 표시 이름 (사용자 구분용)',
-    example: 'Marketing Slack',
+    example: 'Marketing Google',
     maxLength: 255,
   })
   @IsString()
@@ -111,7 +111,7 @@ export class CreateIntegrationDto {
       '자격 증명 정보. authType에 따라 요구 필드가 달라지며 서비스 레지스트리로 검증됩니다.',
     type: 'object',
     additionalProperties: true,
-    example: { apiKey: 'xoxb-xxxx' },
+    example: { apiKey: 'sk-xxxx' },
   })
   @IsOptional()
   @IsObject()
@@ -142,7 +142,7 @@ export class PreviewTestDto {
   /** 통합 서비스 타입 */
   @ApiProperty({
     description: '통합 서비스 타입',
-    example: 'slack',
+    example: 'http',
   })
   @IsString()
   @IsNotEmpty()
@@ -239,7 +239,7 @@ export class UpdateIntegrationDto {
   /** 변경할 통합 표시 이름 */
   @ApiPropertyOptional({
     description: '변경할 통합 표시 이름',
-    example: 'Team Slack (renamed)',
+    example: 'Team Google (renamed)',
     maxLength: 255,
   })
   @IsOptional()

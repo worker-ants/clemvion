@@ -45,7 +45,7 @@ export interface ServiceDefinition {
   authVariants: AuthVariant[];
   scopes?: ScopeOption[];
   /** OAuth provider identifier, if any variant is oauth2 */
-  oauthProvider?: 'slack' | 'google' | 'github';
+  oauthProvider?: 'google' | 'github';
 }
 
 const HTTP_COMMON: CredentialField[] = [
@@ -59,46 +59,6 @@ const HTTP_COMMON: CredentialField[] = [
 ];
 
 export const SERVICE_REGISTRY: ServiceDefinition[] = [
-  {
-    type: 'slack',
-    name: 'Slack',
-    oauthProvider: 'slack',
-    authVariants: [
-      {
-        authType: 'oauth2',
-        label: 'OAuth 2.0',
-        fields: [
-          {
-            key: 'access_token',
-            label: 'Access Token',
-            type: 'string',
-            required: true,
-            secret: true,
-          },
-          {
-            key: 'refresh_token',
-            label: 'Refresh Token',
-            type: 'string',
-            required: false,
-            secret: true,
-          },
-          { key: 'team_id', label: 'Team ID', type: 'string', required: true },
-        ],
-      },
-    ],
-    scopes: [
-      { value: 'chat:write', label: 'Post messages', recommended: true },
-      {
-        value: 'channels:read',
-        label: 'List public channels',
-        recommended: true,
-      },
-      { value: 'files:write', label: 'Upload files' },
-      { value: 'users:read', label: 'Read user list' },
-      { value: 'groups:read', label: 'List private channels' },
-      { value: 'im:write', label: 'Send direct messages' },
-    ],
-  },
   {
     type: 'google',
     name: 'Google',

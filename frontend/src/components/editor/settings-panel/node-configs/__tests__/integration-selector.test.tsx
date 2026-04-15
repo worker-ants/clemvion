@@ -108,17 +108,17 @@ describe("IntegrationSelector", () => {
         <IntegrationSelector
           value=""
           onChange={() => {}}
-          serviceTypes={["slack"]}
-          serviceDisplayName="Slack"
+          serviceTypes={["http"]}
+          serviceDisplayName="HTTP"
         />,
       ),
     );
-    await waitForText(/\+ Create Slack integration/);
+    await waitForText(/\+ Create HTTP integration/);
 
-    const cta = screen.getByText("+ Create Slack integration");
+    const cta = screen.getByText("+ Create HTTP integration");
     expect(cta).toBeDefined();
     expect(cta.getAttribute("href")).toBe(
-      "/integrations/new?service=slack&step=auth",
+      "/integrations/new?service=http&step=auth",
     );
 
     const select = screen.getByRole("combobox") as HTMLSelectElement;

@@ -95,7 +95,7 @@
 - **PostgreSQL**: 주 데이터베이스 (워크플로우, 사용자, 설정 등)
 - **Redis**: 캐시, 실행 상태 Pub/Sub, 세션 관리
 - **Vector DB**: Knowledge Base 임베딩 저장/검색
-- **Object Storage**: S3 호환 스토리지 (AWS S3 / MinIO). 파일 업로드, Knowledge Base 원본 문서, PDF 생성물 등 저장
+- **Object Storage**: S3 호환 스토리지 (AWS S3 / MinIO). 파일 업로드, Knowledge Base 원본 문서 등 저장
 
 ### 2.7 Object Storage (S3 호환)
 
@@ -113,9 +113,6 @@
     forms/          # Form 노드 파일 업로드
       {executionId}/
         {fileId}_{originalName}
-    exports/        # PDF 생성물 등 내보내기 파일
-      {executionId}/
-        {fileName}
     knowledge-base/ # Knowledge Base 원본 문서
       {kbId}/
         {documentId}_{originalName}

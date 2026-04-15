@@ -7,7 +7,7 @@
 ## 주요 기능
 
 - **캔버스 에디터** - 무한 2D 캔버스에서 노드를 드래그앤드롭으로 배치하고 연결
-- **22종 노드** - 로직(If/Else, Switch, Loop 등), 통합(HTTP, Slack, Email, DB), 데이터 변환, 프레젠테이션 노드
+- **20종 노드** - 로직(If/Else, Switch, Loop 등), 통합(HTTP, Email, DB), 데이터 변환, 프레젠테이션 노드
 - **실행 엔진** - 수동 실행, 스케줄(Cron) 실행, Webhook 트리거 지원
 - **실시간 모니터링** - WebSocket 기반 실행 상태 실시간 추적
 - **버전 관리** - 워크플로우 버전 히스토리 및 롤백
@@ -32,7 +32,7 @@ Client (Next.js SPA)
 │  Execution Engine                   │
 │  - BullMQ 워커 풀, 스케줄러         │
 │  Integration Service                │
-│  - OAuth, HTTP, Slack, Email, DB    │
+│  - OAuth, HTTP, Email, DB           │
 │  WebSocket Gateway                  │
 │  - 실시간 실행 상태 업데이트        │
 └─────────────────────────────────────┘

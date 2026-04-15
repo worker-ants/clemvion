@@ -71,13 +71,12 @@
 
 | ID | 요구사항 | 우선순위 |
 |----|----------|----------|
-| INT-SV-01 | Slack — 메시지 전송, 채널 관리, 이벤트 수신 | 필수 |
-| INT-SV-02 | Google — Gmail, Google Sheets, Google Drive, Google Calendar | 필수 |
-| INT-SV-03 | GitHub — Issue, PR, Webhook | 필수 |
-| INT-SV-04 | HTTP/REST — 범용 HTTP 요청 (GET, POST, PUT, DELETE 등) | 필수 |
-| INT-SV-05 | Database — PostgreSQL, MySQL 등 직접 쿼리 | 필수 |
-| INT-SV-06 | Email (SMTP) — 이메일 전송 | 필수 |
-| INT-SV-07 | Webhook — 외부 이벤트 수신 | 필수 |
+| INT-SV-01 | Google — Gmail, Google Sheets, Google Drive, Google Calendar | 필수 |
+| INT-SV-02 | GitHub — Issue, PR, Webhook | 필수 |
+| INT-SV-03 | HTTP/REST — 범용 HTTP 요청 (GET, POST, PUT, DELETE 등) | 필수 |
+| INT-SV-04 | Database — PostgreSQL, MySQL 등 직접 쿼리 | 필수 |
+| INT-SV-05 | Email (SMTP) — 이메일 전송 | 필수 |
+| INT-SV-06 | Webhook — 외부 이벤트 수신 | 필수 |
 
 ### 2.7 조직 레벨 연동
 

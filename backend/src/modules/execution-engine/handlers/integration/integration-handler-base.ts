@@ -107,7 +107,7 @@ export class IntegrationError extends Error {
  * Sanitizes an arbitrary thrown value for recording in IntegrationUsageLog.
  * Prefers the structured `IntegrationError` code/message pair, otherwise
  * extracts a safe string from the error and masks credential-like tokens
- * so that pg / nodemailer / @slack/web-api messages don't leak secrets
+ * so that pg / nodemailer messages don't leak secrets
  * into activity logs.
  */
 export function toLogError(err: unknown): {
@@ -116,21 +116,6 @@ export function toLogError(err: unknown): {
 } {
   if (err instanceof IntegrationError) {
     return { code: err.code, message: sanitizeMessage(err.message) };
-  }
-
-  // Slack @slack/web-api errors carry the machine-readable code on
-  // `err.data.error` (e.g. `not_authed`, `channel_not_found`). Prefer that
-  // over the full error string which may include tokens in some variants.
-  if (typeof err === 'object' && err !== null) {
-    const obj = err as { data?: { error?: unknown }; message?: unknown };
-    const slackCode =
-      obj.data && typeof obj.data.error === 'string' ? obj.data.error : null;
-    if (slackCode) {
-      return {
-        code: `SLACK_${slackCode.toUpperCase()}`,
-        message: slackCode,
-      };
-    }
   }
 
   return {
@@ -142,16 +127,13 @@ export function toLogError(err: unknown): {
 /**
  * Redacts likely secret tokens from free-form error messages. Intentionally
  * conservative — we match common secret-looking patterns (long hex/base64
- * strings, `password=…`, `Bearer …`, Slack `xoxb-…` tokens) and replace
- * them with `***`.
+ * strings, `password=…`, `Bearer …`) and replace them with `***`.
  */
 const SECRET_PATTERNS: Array<[RegExp, string]> = [
   // password=..., pwd=..., secret=..., token=..., api_key=..., apikey=...
   [/((?:password|pwd|secret|token|api[_-]?key)=)[^&\s"']+/gi, '$1***'],
   // Bearer / Basic Authorization header fragments
   [/(Bearer|Basic)\s+[A-Za-z0-9+/=._-]{8,}/g, '$1 ***'],
-  // Slack tokens (xoxb-, xoxa-, xoxp-, xoxs-)
-  [/xox[abpers]-[A-Za-z0-9-]{10,}/g, 'xox*-***'],
   // Long opaque hex/base64-ish blobs (24+ chars)
   [/(?<![A-Za-z0-9+/=._-])[A-Za-z0-9+/=]{32,}(?![A-Za-z0-9+/=])/g, '***'],
 ];

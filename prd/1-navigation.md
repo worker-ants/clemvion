@@ -79,7 +79,7 @@
 
 | ID | 요구사항 | 우선순위 | Phase |
 |----|----------|----------|-------|
-| NAV-IN-01 | Third-party 서비스(Slack, Google, GitHub 등) 연동 관리 | 필수 | 1 |
+| NAV-IN-01 | Third-party 서비스(Google, GitHub 등) 연동 관리 | 필수 | 1 |
 | NAV-IN-02 | 연동 추가/수정/삭제 | 필수 | 1 |
 | NAV-IN-03 | OAuth 기반 인증 플로우 지원 | 필수 | 1 |
 | NAV-IN-04 | API Key 기반 인증 지원 | 필수 | 1 |

@@ -30,7 +30,7 @@
 │  │ ie  │    └──────────────────────┘             │        │ │
 │  ├─────┴─────────────────────────────────────────┴────────┤ │
 │  │  Run Results (실행 시)                        [−] [✕]  │ │
-│  │  [📋 Table] [📊 Chart] [📄 PDF] ...                    │ │
+│  │  [📋 Table] [📊 Chart] [📄 Template] ...                │ │
 │  │  (렌더링된 Presentation 노드 결과)                      │ │
 │  └────────────────────────────────────────────────────────┘ │
 │  [Zoom -] ━━━━●━━━━ [Zoom +]  [Fit]  [Undo] [Redo]         │
@@ -165,7 +165,6 @@
 │ ▼ Integration    │
 │   HTTP Request   │
 │   Database Query │
-│   Slack          │
 │   Google Sheets  │
 │   GitHub         │
 │   Send Email     │
@@ -181,7 +180,6 @@
 │   Chart          │
 │   Form           │
 │   Template       │
-│   PDF            │
 ├──────────────────┤
 │ ▼ Installed      │
 │   (마켓플레이스   │
@@ -323,7 +321,6 @@
 | Workflow | `⚠ Workflow not selected` | workflowId 미설정 |
 | HTTP Request | `⚠ URL not set` | url 미설정 |
 | Database Query | `⚠ Query not set` | query 미설정 |
-| Slack | `⚠ Action not selected` | action 미설정 |
 | Send Email | `⚠ Recipient not set` | to 미설정 |
 | Transform | `⚠ No operations defined` | operations 미설정 |
 | Code | `⚠ Code not written` | code 미설정 |
@@ -331,7 +328,6 @@
 | Chart | `⚠ Chart type not selected` / `⚠ Axis fields not set` | chartType 또는 axis 누락 |
 | Form | `⚠ No fields defined` | fields 미설정 |
 | Template | `⚠ Template not set` | template 미설정 |
-| PDF | `⚠ Template not set` | template 미설정 |
 | AI Agent | `⚠ Model not selected` / `⚠ Default provider not configured` | model 및 llmConfigId 미설정 시 "Model not selected". "Default provider" 선택(`llmConfigId=""`) 시 LLM Config에서 실제 default 존재 여부를 확인하여 없으면 "Default provider not configured" 표시 |
 | Text Classifier | `⚠ Model not selected` / `⚠ Default provider not configured` / `⚠ Categories not defined` | AI Agent와 동일한 LLM provider 규칙 적용 + categories 누락 시 별도 경고 |
 | Info Extractor | `⚠ Model not selected` / `⚠ Default provider not configured` / `⚠ Output schema not defined` | AI Agent와 동일한 LLM provider 규칙 적용 + outputSchema 누락 시 별도 경고 |
@@ -365,14 +361,13 @@
 | ForEach | `{배열필드}` + 에러정책 | `$input.items · skip errors` |
 | Parallel | `{N} branches` | `3 branches` |
 | Merge | `{N} inputs · {전략}` | `3 inputs · wait_all` |
-| Background _(🚧 미구현)_ | 알림 채널 | `notify: slack` |
+| Background _(🚧 미구현)_ | 알림 채널 | `notify: in_app, email` |
 | Workflow | `{워크플로우 이름} · {모드}` | `Data Pipeline · sync` |
 | AI Agent | `{모델} · {N} tools · {N} KB` | `gpt-4o · 2 tools · 1 KB` |
 | Text Classifier | `{모델} · {N} categories` | `gpt-4o-mini · 3 categories` |
 | Info Extractor | `{모델} · {N} fields` | `claude-sonnet · 4 fields` |
 | HTTP Request | `{METHOD} {url}` | `GET https://api.exam...` |
 | Database Query | `{queryType} · {쿼리 첫줄}` | `SELECT · SELECT * FROM us...` |
-| Slack | `{action} · {채널}` | `send_message · #general` |
 | Google Sheets | `{action} · {range}` | `read_rows · Sheet1!A1:D10` |
 | GitHub | `{action} · {owner/repo}` | `create_issue · acme/app` |
 | Send Email | `to: {수신자}` | `to: user@exam..., +2` |
@@ -384,7 +379,6 @@
 | Chart | `{chartType} · {x}/{y}` | `bar · month / revenue` |
 | Form | `{N} fields · "{title}"` | `3 fields · "Approval"` |
 | Template | `{format} · {N} lines` | `html · 9 lines` |
-| PDF | `{size} {방향} · {파일명}` | `A4 portrait · report.pdf` |
 
 #### 5.3.5 엣지 케이스
 

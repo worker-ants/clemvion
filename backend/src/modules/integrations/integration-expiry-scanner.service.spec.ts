@@ -52,7 +52,7 @@ describe('IntegrationExpiryScannerService.run', () => {
       {
         id: 'int-1',
         workspaceId: 'ws-1',
-        name: 'My Slack',
+        name: 'My Service',
         scope: 'personal',
         status: 'connected',
         createdBy: 'user-1',
@@ -84,7 +84,7 @@ describe('IntegrationExpiryScannerService.run', () => {
       {
         id: 'int-1',
         workspaceId: 'ws-1',
-        name: 'My Slack',
+        name: 'My Service',
         scope: 'personal',
         status: 'connected',
         createdBy: 'user-1',
@@ -152,7 +152,7 @@ describe('IntegrationExpiryScannerService.run', () => {
       {
         id: 'int-4',
         workspaceId: 'ws-1',
-        name: 'Team Slack',
+        name: 'Team Integration',
         scope: 'organization',
         status: 'connected',
         createdBy: 'user-1',

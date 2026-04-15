@@ -64,7 +64,6 @@ describe("getConfigSummary", () => {
       workflow: "Workflow not selected",
       http_request: "URL not set",
       database_query: "Query not set",
-      slack: "Action not selected",
       send_email: "Recipient not set",
       transform: "No operations defined",
       code: "Code not written",
@@ -72,7 +71,6 @@ describe("getConfigSummary", () => {
       chart: "Chart type not selected",
       form: "No fields defined",
       template: "Template not set",
-      pdf: "Template not set",
       ai_agent: "Default provider not configured",
       text_classifier: "Default provider not configured",
       information_extractor: "Default provider not configured",
@@ -427,26 +425,6 @@ describe("database_query summary", () => {
   });
 });
 
-// ===== slack =====
-describe("slack summary", () => {
-  it("formats action and channel", () => {
-    expect(getConfigSummary("slack", {
-      action: "send_message",
-      channel: "#general",
-    })).toEqual({ text: "send_message \u00b7 #general", isWarning: false });
-  });
-
-  it("shows action only when no channel", () => {
-    expect(getConfigSummary("slack", {
-      action: "list_channels",
-    })).toEqual({ text: "list_channels", isWarning: false });
-  });
-
-  it("shows warning when action is empty", () => {
-    expect(getConfigSummary("slack", { action: "" })).toEqual(warningOf("Action not selected"));
-  });
-});
-
 // ===== send_email =====
 describe("send_email summary", () => {
   it("formats single recipient", () => {
@@ -655,28 +633,6 @@ describe("template summary", () => {
 
   it("shows warning when template is empty", () => {
     expect(getConfigSummary("template", { template: "" })).toEqual(warningOf("Template not set"));
-  });
-});
-
-// ===== pdf =====
-describe("pdf summary", () => {
-  it("formats page size, orientation and filename", () => {
-    expect(getConfigSummary("pdf", {
-      template: "<html>...</html>",
-      pageSize: "A4",
-      orientation: "portrait",
-      fileName: "report.pdf",
-    })).toEqual({ text: "A4 portrait \u00b7 report.pdf", isWarning: false });
-  });
-
-  it("shows warning when template is empty", () => {
-    expect(getConfigSummary("pdf", { template: "" })).toEqual(warningOf("Template not set"));
-  });
-
-  it("uses default values when optional fields are missing", () => {
-    expect(getConfigSummary("pdf", {
-      template: "<html>content</html>",
-    })).toEqual({ text: "A4 portrait \u00b7 document.pdf", isWarning: false });
   });
 });
 

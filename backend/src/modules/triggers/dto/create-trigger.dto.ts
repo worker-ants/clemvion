@@ -33,7 +33,7 @@ export class CreateTriggerDto {
   @ApiProperty({
     description: '트리거 이름 (워크스페이스 내에서 식별용)',
     maxLength: 255,
-    example: 'Slack 수신 훅',
+    example: 'Webhook 수신 훅',
   })
   @IsString()
   @MaxLength(255)

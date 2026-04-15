@@ -19,17 +19,15 @@ import { findService } from './services/service-registry';
 const STATE_TTL_MS = 10 * 60 * 1000;
 const PREVIEW_TTL_MS = 10 * 60 * 1000;
 
-export const ALLOWED_OAUTH_PROVIDERS = ['slack', 'google', 'github'] as const;
+export const ALLOWED_OAUTH_PROVIDERS = ['google', 'github'] as const;
 export type OAuthProvider = (typeof ALLOWED_OAUTH_PROVIDERS)[number];
 
 const AUTHORIZE_URLS: Record<OAuthProvider, string> = {
-  slack: 'https://slack.com/oauth/v2/authorize',
   google: 'https://accounts.google.com/o/oauth2/v2/auth',
   github: 'https://github.com/login/oauth/authorize',
 };
 
 const TOKEN_URLS: Record<OAuthProvider, string> = {
-  slack: 'https://slack.com/api/oauth.v2.access',
   google: 'https://oauth2.googleapis.com/token',
   github: 'https://github.com/login/oauth/access_token',
 };
@@ -429,11 +427,6 @@ function normalizeTokenResponse(
     : requestedScopes;
 
   const providerMeta: Record<string, unknown> = {};
-  if (provider === 'slack') {
-    providerMeta.team_id =
-      readString((data.team as Record<string, unknown>) ?? {}, 'id') ??
-      readString(data, 'team_id');
-  }
   if (provider === 'google') {
     providerMeta.account_email =
       readString(data, 'account_email') ?? readString(data, 'email');

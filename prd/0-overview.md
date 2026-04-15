@@ -76,8 +76,8 @@
 |------|-----------|
 | **내비게이션** | 대시보드, 워크플로우 목록, 트리거 목록, 스케줄, 통합, 인증 설정, 통계, 사용자 프로필 |
 | **워크플로우 에디터** | 캔버스 기반 노드 편집, 엣지 연결, 실행/디버깅 |
-| **노드 시스템** | Logic 9종, Flow 1종, Integration 4종, Data 2종, Presentation 6종 (총 22종) |
-| **통합/연동** | HTTP Request, Database, Slack, Send Email 연동 |
+| **노드 시스템** | Logic 9종, Flow 1종, Integration 3종, Data 2종, Presentation 5종 (총 20종) |
+| **통합/연동** | HTTP Request, Database, Send Email 연동 |
 | **시스템** | 인증/인가(개인 워크스페이스), API, 에러 처리, 표현식 엔진, 실행 엔진 |
 
 ### 6.2 Phase 2 — AI & 협업
@@ -108,7 +108,7 @@
 | **Port** | 노드의 입출력 연결 지점. 입력 포트(Input Port)와 출력 포트(Output Port)로 구분 |
 | **Trigger** | 워크플로우의 실행을 시작하는 이벤트. Webhook, 스케줄(Cron), 수동 실행 등의 유형 존재 |
 | **Canvas** | 워크플로우를 시각적으로 편집하는 작업 공간 |
-| **Integration** | 외부 서비스(Slack, Google 등)와의 연동 설정 |
+| **Integration** | 외부 서비스(Google, GitHub 등)와의 연동 설정 |
 | **Knowledge Base** | AI Agent의 RAG(Retrieval-Augmented Generation)를 위한 지식 저장소 |
 | **Execution** | 워크플로우의 한 번의 실행 인스턴스. 실행 상태, 각 노드별 입출력 데이터, 로그를 포함 |
 | **Workspace** | 사용자 또는 팀이 워크플로우, Integration, 설정 등을 관리하는 독립된 공간 |

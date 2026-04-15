@@ -33,7 +33,6 @@ const DRY_RUN = process.argv.includes('--dry-run') || !process.argv.includes('--
  */
 const RELOCATED_FIELDS: Record<string, readonly string[]> = {
   send_email: ['integrationId', 'to', 'cc', 'subject', 'bodyType'],
-  slack: ['integrationId', 'action', 'channel', 'text', 'ts', 'emoji', 'filename', 'comment'],
   database_query: ['integrationId', 'query', 'queryType', 'parameters'],
   http_request: ['method', 'url', 'authentication', 'integrationId'],
   if_else: ['conditions', 'combineMode'],
@@ -60,7 +59,6 @@ const RELOCATED_FIELDS: Record<string, readonly string[]> = {
  */
 const META_FIELDS: Record<string, readonly string[]> = {
   send_email: ['durationMs', 'deliveryStatus'],
-  slack: ['durationMs'],
   database_query: ['durationMs'],
   http_request: ['statusCode', 'duration', 'headers'],
   switch: ['expression', 'value', 'matchedCase'],
