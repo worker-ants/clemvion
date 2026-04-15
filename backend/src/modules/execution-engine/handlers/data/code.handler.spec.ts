@@ -15,11 +15,6 @@ describe('CodeHandler', () => {
     };
   });
 
-  afterEach(() => {
-    jest.clearAllTimers();
-    jest.useRealTimers();
-  });
-
   describe('validate', () => {
     it('should return valid when code is a non-empty string', () => {
       const result = handler.validate({ code: 'return 1;' });
@@ -42,9 +37,30 @@ describe('CodeHandler', () => {
       const result = handler.validate({ code: 42 });
       expect(result.valid).toBe(false);
     });
+
+    it('should accept timeout within allowed range', () => {
+      expect(handler.validate({ code: 'return 1;', timeout: 1 }).valid).toBe(
+        true,
+      );
+      expect(handler.validate({ code: 'return 1;', timeout: 120 }).valid).toBe(
+        true,
+      );
+    });
+
+    it('should reject timeout outside allowed range', () => {
+      expect(handler.validate({ code: 'return 1;', timeout: 0 }).valid).toBe(
+        false,
+      );
+      expect(handler.validate({ code: 'return 1;', timeout: 121 }).valid).toBe(
+        false,
+      );
+      expect(handler.validate({ code: 'return 1;', timeout: 'x' }).valid).toBe(
+        false,
+      );
+    });
   });
 
-  describe('execute', () => {
+  describe('execute — basic', () => {
     it('should run simple synchronous code and return output', async () => {
       const result = (await handler.execute(
         { value: 5 },
@@ -79,37 +95,48 @@ describe('CodeHandler', () => {
     it('should await a returned promise (async code)', async () => {
       const result = (await handler.execute(
         null,
-        {
-          code: 'return Promise.resolve(42);',
-        },
+        { code: 'return Promise.resolve(42);' },
         context,
       )) as { output: unknown };
       expect(result.output).toBe(42);
     });
 
-    it('should capture runtime errors into meta.error and return null output', async () => {
+    it('should support top-level await inside user code', async () => {
+      const result = (await handler.execute(
+        null,
+        { code: 'const v = await Promise.resolve(7); return v + 1;' },
+        context,
+      )) as { output: unknown };
+      expect(result.output).toBe(8);
+    });
+
+    it('should capture runtime errors with CODE_RUNTIME_ERROR code', async () => {
       const result = (await handler.execute(
         null,
         { code: 'throw new Error("boom");' },
         context,
       )) as {
         output: unknown;
-        meta: { success: boolean; error?: string; stack?: string };
+        meta: { success: boolean; error?: string; errorCode?: string };
       };
       expect(result.output).toBeNull();
       expect(result.meta.success).toBe(false);
       expect(result.meta.error).toContain('boom');
+      expect(result.meta.errorCode).toBe('CODE_RUNTIME_ERROR');
     });
 
-    it('should capture syntax errors (new Function construction) into meta', async () => {
+    it('should capture syntax errors with CODE_SYNTAX_ERROR code', async () => {
       const result = (await handler.execute(
         null,
         { code: 'this is ( not valid js' },
         context,
-      )) as { output: unknown; meta: { success: boolean; error?: string } };
+      )) as {
+        output: unknown;
+        meta: { success: boolean; error?: string; errorCode?: string };
+      };
       expect(result.output).toBeNull();
       expect(result.meta.success).toBe(false);
-      expect(result.meta.error).toBeDefined();
+      expect(result.meta.errorCode).toBe('CODE_SYNTAX_ERROR');
     });
 
     it('should return undefined output when code returns nothing', async () => {
@@ -149,24 +176,157 @@ describe('CodeHandler', () => {
       expect(result.config.language).toBe('javascript');
       expect(result.meta.success).toBe(false);
     });
+  });
 
-    it('should timeout code that exceeds CODE_TIMEOUT_MS', async () => {
-      jest.useFakeTimers();
-      const executePromise = handler.execute(
+  describe('execute — security restrictions', () => {
+    it.each([
+      ['require', 'return require("fs");'],
+      ['process', 'return process.env;'],
+      ['global', 'return global;'],
+      ['Buffer', 'return Buffer.from("x");'],
+      ['fetch', 'return fetch("http://x");'],
+      ['setTimeout', 'return setTimeout(() => {}, 0);'],
+      ['setInterval', 'return setInterval(() => {}, 0);'],
+      ['setImmediate', 'return setImmediate(() => {});'],
+      ['Reflect', 'return Reflect.get({}, "x");'],
+      ['Proxy', 'return new Proxy({}, {});'],
+    ])('should block access to %s', async (_name, code) => {
+      const result = (await handler.execute(null, { code }, context)) as {
+        meta: { success: boolean; error?: string };
+      };
+      expect(result.meta.success).toBe(false);
+      expect(result.meta.error).toBeDefined();
+    });
+
+    it('should shadow globalThis so it exposes no dangerous globals', async () => {
+      const result = (await handler.execute(
+        null,
+        { code: 'return typeof globalThis;' },
+        context,
+      )) as { output: string };
+      expect(result.output).toBe('undefined');
+    });
+
+    it('should block dynamic import()', async () => {
+      const result = (await handler.execute(
+        null,
+        { code: 'return import("fs");' },
+        context,
+      )) as { meta: { success: boolean } };
+      expect(result.meta.success).toBe(false);
+    });
+
+    it('should block eval()', async () => {
+      const result = (await handler.execute(
+        null,
+        { code: 'return eval("1+1");' },
+        context,
+      )) as { meta: { success: boolean } };
+      expect(result.meta.success).toBe(false);
+    });
+
+    it('should block new Function() constructor', async () => {
+      const result = (await handler.execute(
+        null,
+        { code: 'return new Function("return 1")();' },
+        context,
+      )) as { meta: { success: boolean } };
+      expect(result.meta.success).toBe(false);
+    });
+
+    it('should allow JSON, Math, Date, and other approved globals', async () => {
+      const result = (await handler.execute(
         null,
         {
-          code: 'return new Promise((resolve) => setTimeout(resolve, 60000));',
+          code: `
+            const o = JSON.parse('{"a":1}');
+            const pi = Math.PI;
+            const d = new Date(0).getFullYear();
+            return { a: o.a, pi, d };
+          `,
         },
         context,
-      );
-      await jest.advanceTimersByTimeAsync(30_001);
-      const result = (await executePromise) as {
+      )) as { output: { a: number; pi: number; d: number } };
+      expect(result.output.a).toBe(1);
+      expect(result.output.pi).toBeCloseTo(Math.PI);
+      expect(result.output.d).toBe(1970);
+    });
+
+    it('should capture console.log into meta.logs', async () => {
+      const result = (await handler.execute(
+        null,
+        { code: 'console.log("hello", 1); return 1;' },
+        context,
+      )) as { meta: { logs: string[] } };
+      expect(result.meta.logs).toEqual(['[log] hello 1']);
+    });
+
+    it('should cap console logs at 100 lines', async () => {
+      const result = (await handler.execute(
+        null,
+        {
+          code: 'for (let i = 0; i < 250; i++) console.log(i); return 1;',
+        },
+        context,
+      )) as { meta: { logs: string[] } };
+      expect(result.meta.logs).toHaveLength(100);
+    });
+  });
+
+  describe('execute — timeouts', () => {
+    it('should timeout synchronous infinite loops via vm timeout option', async () => {
+      const result = (await handler.execute(
+        null,
+        { code: 'while (true) {}', timeout: 1 },
+        context,
+      )) as {
         output: unknown;
-        meta: { success: boolean; error?: string };
+        meta: { success: boolean; errorCode?: string; error?: string };
       };
       expect(result.output).toBeNull();
       expect(result.meta.success).toBe(false);
+      expect(result.meta.errorCode).toBe('EXECUTION_TIMEOUT');
+    }, 10_000);
+
+    it('should timeout async code that never resolves', async () => {
+      const result = (await handler.execute(
+        null,
+        {
+          code: 'await new Promise(() => {}); return 1;',
+          timeout: 1,
+        },
+        context,
+      )) as {
+        output: unknown;
+        meta: { success: boolean; errorCode?: string; error?: string };
+      };
+      expect(result.output).toBeNull();
+      expect(result.meta.success).toBe(false);
+      expect(result.meta.errorCode).toBe('EXECUTION_TIMEOUT');
       expect(result.meta.error).toContain('timed out');
     }, 10_000);
+  });
+
+  describe('execute — $vars atomic replace', () => {
+    it('should apply $vars mutations after successful execution', async () => {
+      context.variables = { counter: 1 };
+      const result = (await handler.execute(
+        null,
+        { code: '$vars.counter = 42; $vars.added = "new"; return $vars;' },
+        context,
+      )) as { meta: { success: boolean } };
+      expect(result.meta.success).toBe(true);
+      expect(context.variables).toEqual({ counter: 42, added: 'new' });
+    });
+
+    it('should preserve original $vars when execution throws', async () => {
+      context.variables = { counter: 1 };
+      await handler.execute(
+        null,
+        { code: '$vars.counter = 999; throw new Error("fail");' },
+        context,
+      );
+      expect(context.variables).toEqual({ counter: 1 });
+    });
   });
 });
