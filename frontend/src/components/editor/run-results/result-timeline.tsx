@@ -11,7 +11,7 @@ import {
   ChevronDown,
   Workflow,
 } from "lucide-react";
-import { CATEGORY_COLORS } from "@/lib/node-definitions";
+import { getCategoryColor } from "@/lib/node-definitions";
 import type {
   NodeResult,
   ConversationItem,
@@ -149,7 +149,7 @@ function TimelineRow({
     0;
   const maxTurns = (convConfig?.maxTurns as number) ?? 0;
 
-  const categoryColor = CATEGORY_COLORS[result.nodeCategory] ?? "#6B7280";
+  const categoryColor = getCategoryColor(result.nodeCategory);
 
   return (
     <>

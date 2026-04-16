@@ -102,4 +102,9 @@ export const httpRequestNodeMetadata: NodeComponentMetadata = {
   description: 'Make HTTP requests',
   icon: 'Globe',
   color: '#F97316',
+  summaryTemplate: {
+    template: '{{method|default:GET}} {{url}}',
+    warnWhen: '!url',
+    warnMessage: 'URL not set',
+  },
 };

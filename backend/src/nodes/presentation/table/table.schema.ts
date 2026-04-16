@@ -186,4 +186,9 @@ export const tableNodeMetadata: NodeComponentMetadata = {
   description: 'Display as table',
   icon: 'Table',
   color: '#EC4899',
+  isDynamicPorts: true,
+  dynamicPorts: {
+    kind: 'presentation-buttons',
+    continueId: 'continue',
+  },
 };

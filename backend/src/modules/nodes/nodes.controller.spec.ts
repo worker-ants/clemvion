@@ -5,10 +5,16 @@ import { NodeComponentRegistry } from '../../nodes/core/node-component.registry'
 
 describe('NodesController', () => {
   let controller: NodesController;
-  let componentRegistry: { listDefinitions: jest.Mock };
+  let componentRegistry: {
+    listDefinitions: jest.Mock;
+    listCategories: jest.Mock;
+  };
 
   beforeEach(async () => {
-    componentRegistry = { listDefinitions: jest.fn() };
+    componentRegistry = {
+      listDefinitions: jest.fn(),
+      listCategories: jest.fn(),
+    };
     const module = await Test.createTestingModule({
       controllers: [NodesController],
       providers: [
@@ -20,8 +26,8 @@ describe('NodesController', () => {
   });
 
   describe('listDefinitions', () => {
-    it('delegates to NodeComponentRegistry.listDefinitions', () => {
-      const fixture = [
+    it('returns definitions and categories from the registry', () => {
+      const definitions = [
         {
           metadata: {
             type: 'x',
@@ -35,9 +41,20 @@ describe('NodesController', () => {
           configSchema: { type: 'object' },
         },
       ];
-      componentRegistry.listDefinitions.mockReturnValue(fixture);
-      expect(controller.listDefinitions()).toBe(fixture);
+      const categories = [
+        {
+          id: 'logic',
+          label: 'Logic',
+          icon: 'GitBranch',
+          color: '#3B82F6',
+          order: 1,
+        },
+      ];
+      componentRegistry.listDefinitions.mockReturnValue(definitions);
+      componentRegistry.listCategories.mockReturnValue(categories);
+      expect(controller.listDefinitions()).toEqual({ definitions, categories });
       expect(componentRegistry.listDefinitions).toHaveBeenCalledTimes(1);
+      expect(componentRegistry.listCategories).toHaveBeenCalledTimes(1);
     });
   });
 });

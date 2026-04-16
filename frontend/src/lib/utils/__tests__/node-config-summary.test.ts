@@ -1,12 +1,78 @@
-import { describe, expect, it } from "vitest";
+import { beforeAll, describe, expect, it } from "vitest";
 import {
   getConfigSummary,
   truncateSummary,
 } from "../node-config-summary";
+import { useNodeDefinitionsStore } from "@/lib/stores/node-definitions-store";
+import type { NodeDefinition, SummaryTemplate } from "@/lib/node-definitions/types";
 
 function warningOf(detail: string) {
   return { text: `\u26a0 ${detail}`, isWarning: true };
 }
+
+// Nodes migrated to `metadata.summaryTemplate` (SSOT backend schema). The
+// production app loads these via the /nodes/definitions store; here we seed
+// the store manually so the template path in `getConfigSummary` is exercised
+// alongside the legacy `FORMATTERS` fallback path for unmigrated nodes.
+const MIGRATED_TEMPLATES: Record<string, SummaryTemplate> = {
+  switch: {
+    template: "{{switchValue}} \u2192 {{cases.length}} cases",
+    warnWhen: "!switchValue",
+    warnMessage: "Switch value not set",
+  },
+  split: {
+    template: "{{fieldPath}}",
+    warnWhen: "!fieldPath",
+    warnMessage: "Field path not set",
+  },
+  map: {
+    template: "{{inputField}}",
+    warnWhen: "!inputField",
+    warnMessage: "Input field not set",
+  },
+  transform: {
+    template: "{{operations.length}} operations",
+    warnWhen: "!operations.length",
+    warnMessage: "No operations defined",
+  },
+  http_request: {
+    template: "{{method|default:GET}} {{url}}",
+    warnWhen: "!url",
+    warnMessage: "URL not set",
+  },
+};
+
+function stubDefinition(type: string, template: SummaryTemplate): NodeDefinition {
+  return {
+    type,
+    category: "logic",
+    label: type,
+    description: "",
+    icon: "Box",
+    color: "#000",
+    inputs: [],
+    outputs: [],
+    defaultConfig: {},
+    configSchema: {},
+    summaryTemplate: template,
+  };
+}
+
+beforeAll(() => {
+  const definitions: Record<string, NodeDefinition> = {};
+  const order: string[] = [];
+  for (const [type, template] of Object.entries(MIGRATED_TEMPLATES)) {
+    definitions[type] = stubDefinition(type, template);
+    order.push(type);
+  }
+  useNodeDefinitionsStore.setState({
+    status: "ready",
+    error: null,
+    categories: [],
+    order,
+    definitions,
+  });
+});
 
 // ===== truncateSummary =====
 describe("truncateSummary", () => {

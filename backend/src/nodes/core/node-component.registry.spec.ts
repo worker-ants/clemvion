@@ -124,4 +124,25 @@ describe('NodeComponentRegistry', () => {
       expect(def.outputSchema).toBeUndefined();
     });
   });
+
+  describe('listCategories', () => {
+    it('returns all 7 node categories sorted by order', () => {
+      const categories = registry.listCategories();
+      expect(categories.map((c) => c.id)).toEqual([
+        'trigger',
+        'logic',
+        'flow',
+        'ai',
+        'integration',
+        'data',
+        'presentation',
+      ]);
+      for (const c of categories) {
+        expect(c.label).toBeTruthy();
+        expect(c.icon).toBeTruthy();
+        expect(c.color).toMatch(/^#[0-9A-Fa-f]{6}$/);
+        expect(typeof c.order).toBe('number');
+      }
+    });
+  });
 });

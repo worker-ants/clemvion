@@ -13,6 +13,14 @@ export type NodeCategory =
   | "data"
   | "presentation";
 
+export type NodeCategoryMeta = {
+  id: NodeCategory;
+  label: string;
+  icon: string;
+  color: string;
+  order: number;
+};
+
 export type UiWidget =
   | "text"
   | "textarea"
@@ -71,6 +79,30 @@ export type JsonSchemaNode = {
   [key: string]: unknown;
 };
 
+export type SummaryTemplateSpec = {
+  template: string;
+  warnWhen?: string;
+  warnMessage?: string;
+};
+
+export type SummaryTemplate = string | SummaryTemplateSpec;
+
+export type DynamicPortsSpec =
+  | { kind: "switch-cases" }
+  | { kind: "classifier-categories"; fallbackId: string; errorId: string }
+  | {
+      kind: "ai-agent-conditional";
+      modeField: string;
+      conditionsField: string;
+      multiTurnValue: string;
+    }
+  | {
+      kind: "presentation-buttons";
+      supportsItems?: boolean;
+      supportsItemButtons?: boolean;
+      continueId: string;
+    };
+
 export type NodeMetadata = {
   type: string;
   category: NodeCategory;
@@ -80,7 +112,8 @@ export type NodeMetadata = {
   color: string;
   isContainer?: boolean;
   isDynamicPorts?: boolean;
-  summaryTemplate?: string;
+  dynamicPorts?: DynamicPortsSpec;
+  summaryTemplate?: SummaryTemplate;
 };
 
 /** Shape returned by `GET /nodes/definitions`. */
@@ -105,6 +138,8 @@ export type NodeDefinition = {
   outputs: PortDefinition[];
   isContainer?: boolean;
   isDynamicPorts?: boolean;
+  dynamicPorts?: DynamicPortsSpec;
+  summaryTemplate?: SummaryTemplate;
   defaultConfig: Record<string, unknown>;
   configSchema: JsonSchemaNode;
   inputSchema?: JsonSchemaNode;

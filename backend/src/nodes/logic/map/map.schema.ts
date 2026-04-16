@@ -44,4 +44,9 @@ export const mapNodeMetadata: NodeComponentMetadata = {
   icon: 'Map',
   color: '#3B82F6',
   isContainer: true,
+  summaryTemplate: {
+    template: '{{inputField}}',
+    warnWhen: '!inputField',
+    warnMessage: 'Input field not set',
+  },
 };

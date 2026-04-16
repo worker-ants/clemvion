@@ -24,10 +24,13 @@ vi.mock("@/lib/node-definitions", () => ({
     };
     return defs[type] ?? undefined;
   },
-  CATEGORY_COLORS: {
-    integration: "#F97316",
-    presentation: "#EC4899",
-    ai: "#10B981",
+  getCategoryColor: (category: string) => {
+    const colors: Record<string, string> = {
+      integration: "#F97316",
+      presentation: "#EC4899",
+      ai: "#10B981",
+    };
+    return colors[category] ?? "#6B7280";
   },
 }));
 

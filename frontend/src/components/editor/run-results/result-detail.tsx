@@ -8,7 +8,7 @@ import {
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils/cn";
-import { CATEGORY_COLORS, getNodeDefinition } from "@/lib/node-definitions";
+import { getCategoryColor, getNodeDefinition } from "@/lib/node-definitions";
 import type {
   NodeResult,
   ConversationItem,
@@ -316,8 +316,7 @@ export function ResultDetail({
   }
 
   const definition = getNodeDefinition(result.nodeType);
-  const categoryColor =
-    CATEGORY_COLORS[result.nodeCategory] ?? "#6B7280";
+  const categoryColor = getCategoryColor(result.nodeCategory);
   const isPresentation = result.nodeCategory === "presentation";
 
   const isCompletedConversation =

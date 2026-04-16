@@ -6,7 +6,8 @@ import type { NodeProps, Node } from "@xyflow/react";
 import { useQuery } from "@tanstack/react-query";
 import { AlertTriangle } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
-import { getNodeDefinition, CATEGORY_COLORS } from "@/lib/node-definitions";
+import { getNodeDefinition, getCategoryColor } from "@/lib/node-definitions";
+import { resolveDynamicPorts } from "@/lib/node-definitions/resolve-dynamic-ports";
 import { useExecutionStore } from "@/lib/stores/execution-store";
 import { getConfigSummary, truncateSummary } from "@/lib/utils/node-config-summary";
 import type { SummaryContext } from "@/lib/utils/node-config-summary";
@@ -30,7 +31,7 @@ const zoomSelector = (s: { transform: number[] }) => s.transform[2] >= 0.5;
 
 function CustomNodeComponent({ id, data, selected }: NodeProps<CustomNodeType>) {
   const definition = getNodeDefinition(data.type);
-  const categoryColor = CATEGORY_COLORS[data.category] ?? "#6B7280";
+  const categoryColor = getCategoryColor(data.category);
   const inputs = definition?.inputs ?? [];
   const containerId =
     (data as Record<string, unknown>).containerId as string | null | undefined;
@@ -42,114 +43,18 @@ function CustomNodeComponent({ id, data, selected }: NodeProps<CustomNodeType>) 
     const found = s.nodes.find((n) => n.id === containerId);
     return found ? (found.data.label ?? null) : null;
   });
-  const outputs = useMemo(() => {
-    if (data.type === "switch") {
-      const cases = (data.config.cases as Array<{ id: string; label: string }>) ?? [];
-      const casePorts = cases
-        .filter((c) => c.id)
-        .map((c) => ({ id: c.id, label: c.label || "Case", type: "data" as const }));
-      return [...casePorts, { id: "default", label: "Default", type: "data" as const }];
-    }
-    // Dynamic ports for Text Classifier based on configured categories
-    if (data.type === "text_classifier") {
-      const categories = (data.config.categories as Array<{ name: string }>) ?? [];
-      const catPorts = categories
-        .map((c, i) => ({ id: `class_${i}`, label: c.name || `Category ${i + 1}`, type: "data" as const }));
-      return [...catPorts, { id: "fallback", label: "Fallback", type: "data" as const }, { id: "error", label: "Error", type: "error" as const }];
-    }
-    // Dynamic ports for AI Agent with conditions
-    if (data.type === "ai_agent") {
-      const conditions = (data.config.conditions as Array<{ id: string; label: string }>) ?? [];
-      const condPorts = conditions
-        .filter((c) => c.id)
-        .map((c) => ({ id: c.id, label: c.label || "Condition", type: "data" as const }));
-      const mode = (data.config.mode as string) ?? "single_turn";
-
-      // No conditions: show mode-specific system ports
-      if (condPorts.length === 0) {
-        if (mode === "multi_turn") {
-          return [
-            { id: "user_ended", label: "User Ended", type: "system" as const },
-            { id: "max_turns", label: "Max Turns", type: "system" as const },
-            { id: "error", label: "Error", type: "error" as const },
-          ];
-        }
-        return [
-          { id: "out", label: "Output", type: "system" as const },
-          { id: "error", label: "Error", type: "error" as const },
-        ];
-      }
-
-      if (mode === "multi_turn") {
-        // Multi Turn: condition ports + user_ended + max_turns + error (no "out")
-        return [
-          ...condPorts,
-          { id: "user_ended", label: "User Ended", type: "system" as const },
-          { id: "max_turns", label: "Max Turns", type: "system" as const },
-          { id: "error", label: "Error", type: "error" as const },
-        ];
-      }
-      // Single Turn: condition ports + out + error
-      return [
-        ...condPorts,
-        { id: "out", label: "Output", type: "system" as const },
-        { id: "error", label: "Error", type: "error" as const },
-      ];
-    }
-    // Dynamic ports for presentation nodes with buttons
-    if (["carousel", "table", "chart", "template"].includes(data.type)) {
-      type BtnEntry = { id: string; label: string; type: string };
-      type PortDef = { id: string; label: string; type: "data"; group?: string };
-      const globalButtons = (data.config.buttons as BtnEntry[]) ?? [];
-      const portDefs: PortDef[] = [];
-
-      // Carousel item-level buttons first (grouped by item)
-      if (data.type === "carousel") {
-        // Static mode: each item has its own buttons with unique IDs
-        if (data.config.mode === "static" && Array.isArray(data.config.items)) {
-          for (const item of data.config.items as Array<{ title?: string; buttons?: BtnEntry[] }>) {
-            if (item.buttons) {
-              for (const b of item.buttons) {
-                if (b.type === "port") {
-                  portDefs.push({ id: b.id, label: b.label || "Button", type: "data", group: item.title || "Item" });
-                }
-              }
-            }
-          }
-        }
-        // Dynamic mode: shared itemButtons definitions
-        if (Array.isArray(data.config.itemButtons)) {
-          for (const b of data.config.itemButtons as BtnEntry[]) {
-            if (b.type === "port") {
-              portDefs.push({ id: b.id, label: b.label || "Button", type: "data", group: "Item" });
-            }
-          }
-        }
-      }
-
-      // Global port buttons
-      for (const b of globalButtons) {
-        if (b.type === "port") {
-          portDefs.push({ id: b.id, label: b.label || "Button", type: "data" });
-        }
-      }
-
-      if (portDefs.length > 0) {
-        return portDefs;
-      }
-      // Any buttons exist but none are port type → continue port
-      const hasAnyLink = globalButtons.some((b) => b.type === "link")
-        || (data.type === "carousel" && Array.isArray(data.config.itemButtons) && (data.config.itemButtons as BtnEntry[]).some((b) => b.type === "link"))
-        || (data.type === "carousel" && data.config.mode === "static" && Array.isArray(data.config.items) && (data.config.items as Array<{ buttons?: BtnEntry[] }>).some((item) => item.buttons?.some((b) => b.type === "link")));
-      if (hasAnyLink) {
-        return [{ id: "continue", label: "Continue", type: "data" as const }];
-      }
-    }
-    return getNodeDefinition(data.type)?.outputs ?? [];
-  }, [data.type, data.config]);
-  const defaultOutputIds = new Set((getNodeDefinition(data.type)?.outputs ?? []).map(o => o.id));
-  const hasDynamicOutputs = outputs.length > 0 && outputs.some(p => !defaultOutputIds.has(p.id));
-  const hasMultipleOutputs = outputs.length > 1 || hasDynamicOutputs;
+  const outputs = useMemo(
+    () => resolveDynamicPorts(data.type, data.config, getNodeDefinition(data.type)),
+    [data.type, data.config],
+  );
+  const hasMultipleOutputs = useMemo(() => {
+    const defaultIds = new Set(
+      (getNodeDefinition(data.type)?.outputs ?? []).map((o) => o.id),
+    );
+    const hasDynamic =
+      outputs.length > 0 && outputs.some((p) => !defaultIds.has(p.id));
+    return outputs.length > 1 || hasDynamic;
+  }, [outputs, data.type]);
   const isContainer = definition?.isContainer ?? false;
 
   // Force React Flow to re-measure handle positions when outputs change

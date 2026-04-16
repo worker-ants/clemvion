@@ -3,6 +3,8 @@
 import { create } from "zustand";
 import { nodeDefinitionsApi } from "@/lib/api/node-definitions";
 import type {
+  NodeCategory,
+  NodeCategoryMeta,
   NodeDefinition,
   NodeDefinitionResponse,
 } from "@/lib/node-definitions/types";
@@ -14,6 +16,7 @@ interface NodeDefinitionsState {
   error: string | null;
   definitions: Record<string, NodeDefinition>;
   order: string[];
+  categories: NodeCategoryMeta[];
   load: () => Promise<void>;
 }
 
@@ -29,11 +32,45 @@ function normalizeResponse(raw: NodeDefinitionResponse): NodeDefinition {
     outputs: raw.ports.outputs,
     isContainer: raw.metadata.isContainer,
     isDynamicPorts: raw.metadata.isDynamicPorts,
+    dynamicPorts: raw.metadata.dynamicPorts,
+    summaryTemplate: raw.metadata.summaryTemplate,
     defaultConfig: raw.defaultConfig ?? {},
     configSchema: raw.configSchema,
     inputSchema: raw.inputSchema,
     outputSchema: raw.outputSchema,
   };
+}
+
+type ParsedPayload = {
+  definitions: NodeDefinitionResponse[];
+  categories: NodeCategoryMeta[];
+};
+
+/**
+ * Normalizes all response shapes into `{ definitions, categories }`.
+ * Supports legacy `T[]`/`{ data: T[] }` payloads and the current
+ * `{ definitions, categories }` / `{ data: { definitions, categories } }` shape.
+ */
+function parsePayload(raw: unknown): ParsedPayload {
+  const unwrapped =
+    raw && typeof raw === "object" && "data" in raw
+      ? (raw as { data: unknown }).data
+      : raw;
+
+  if (Array.isArray(unwrapped)) {
+    return { definitions: unwrapped as NodeDefinitionResponse[], categories: [] };
+  }
+  if (unwrapped && typeof unwrapped === "object") {
+    const obj = unwrapped as {
+      definitions?: NodeDefinitionResponse[];
+      categories?: NodeCategoryMeta[];
+    };
+    return {
+      definitions: Array.isArray(obj.definitions) ? obj.definitions : [],
+      categories: Array.isArray(obj.categories) ? obj.categories : [],
+    };
+  }
+  return { definitions: [], categories: [] };
 }
 
 let loadPromise: Promise<void> | null = null;
@@ -44,6 +81,7 @@ export const useNodeDefinitionsStore = create<NodeDefinitionsState>(
     error: null,
     definitions: {},
     order: [],
+    categories: [],
     load: () => {
       const state = get();
       if (state.status === "ready") return Promise.resolve();
@@ -53,10 +91,7 @@ export const useNodeDefinitionsStore = create<NodeDefinitionsState>(
       loadPromise = nodeDefinitionsApi
         .list()
         .then((res) => {
-          const payload = res.data as
-            | { data: NodeDefinitionResponse[] }
-            | NodeDefinitionResponse[];
-          const list = Array.isArray(payload) ? payload : payload.data;
+          const { definitions: list, categories } = parsePayload(res.data);
           const definitions: Record<string, NodeDefinition> = {};
           const order: string[] = [];
           for (const raw of list) {
@@ -64,7 +99,13 @@ export const useNodeDefinitionsStore = create<NodeDefinitionsState>(
             definitions[def.type] = def;
             order.push(def.type);
           }
-          set({ status: "ready", error: null, definitions, order });
+          set({
+            status: "ready",
+            error: null,
+            definitions,
+            order,
+            categories,
+          });
         })
         .catch((err: unknown) => {
           const message =
@@ -92,6 +133,17 @@ export function getAllNodeDefinitions(): NodeDefinition[] {
 
 export function getNodesByCategory(category: string): NodeDefinition[] {
   return getAllNodeDefinitions().filter((n) => n.category === category);
+}
+
+export function getCategories(): NodeCategoryMeta[] {
+  return useNodeDefinitionsStore.getState().categories;
+}
+
+export function getCategoryColor(category: NodeCategory | string): string {
+  const meta = useNodeDefinitionsStore
+    .getState()
+    .categories.find((c) => c.id === category);
+  return meta?.color ?? "#6B7280";
 }
 
 export async function loadNodeDefinitions(): Promise<void> {

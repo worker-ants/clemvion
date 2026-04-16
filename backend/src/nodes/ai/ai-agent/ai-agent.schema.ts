@@ -299,4 +299,11 @@ export const aiAgentNodeMetadata: NodeComponentMetadata = {
   description: 'Chat with LLM using RAG context',
   icon: 'Brain',
   color: '#10B981',
+  isDynamicPorts: true,
+  dynamicPorts: {
+    kind: 'ai-agent-conditional',
+    modeField: 'mode',
+    conditionsField: 'conditions',
+    multiTurnValue: 'multi_turn',
+  },
 };

@@ -33,4 +33,9 @@ export const splitNodeMetadata: NodeComponentMetadata = {
   description: 'Split array items',
   icon: 'Split',
   color: '#3B82F6',
+  summaryTemplate: {
+    template: '{{fieldPath}}',
+    warnWhen: '!fieldPath',
+    warnMessage: 'Field path not set',
+  },
 };
