@@ -133,4 +133,4 @@ return { items: result };
 
 - 간단한 변환은 Transform, 복잡한 로직은 Code로 나눠 쓰면 유지보수가 쉬워요.
 - 표현식과 Code의 역할 구분은 [표현식 기본](/docs/03-expression-language/basics)과 [치트시트](/docs/03-expression-language/cheatsheet)를 참고해요.
-- 개발자용 팁: Code 노드는 Node.js `node:vm` context로 격리되며, `codeGeneration.strings: false`로 동적 코드 생성까지 차단해요. 메모리 하드 리밋이 필요해지면 이후 Phase에서 `isolated-vm`으로 전환 가능해요.
+- 개발자용 팁: Code 노드는 Node.js `node:vm` context로 격리되며, `codeGeneration.strings: false`로 동적 코드 생성까지 차단해요. 메모리 하드 리밋이 필요하면 추후 `isolated-vm`으로 전환도 검토할 수 있어요.

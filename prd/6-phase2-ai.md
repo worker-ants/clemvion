@@ -1,12 +1,14 @@
-# PRD: Phase 2 — AI & 지식 저장소
+# PRD: AI & 지식 저장소
 
-> 관련 문서: [제품 개요](./0-overview.md#62-phase-2--ai--협업) · [노드 시스템](./3-node-system.md#5-ai-노드) · [통합/연동](./4-integration.md#3-knowledge-base) · [내비게이션](./1-navigation.md#37-config--llm) · [Spec AI 노드](../spec/4-nodes/3-ai-nodes.md) · [Spec Knowledge Base](../spec/2-navigation/5-knowledge-base.md) · [Spec LLM Config](../spec/2-navigation/6-config.md)
+> 관련 문서: [제품 개요](./0-overview.md) · [노드 시스템](./3-node-system.md#5-ai-노드) · [통합/연동](./4-integration.md#3-knowledge-base) · [내비게이션](./1-navigation.md#37-config--llm) · [Spec AI 노드](../spec/4-nodes/3-ai-nodes.md) · [Spec Knowledge Base](../spec/2-navigation/5-knowledge-base.md) · [Spec LLM Config](../spec/2-navigation/6-config.md)
+
+> **구현 상태**: 이 문서에서 정의한 AI 기능은 모두 **구현 완료(✅)**다. 팀 워크스페이스·RBAC·2FA는 별도 로드맵 항목으로 현재 백엔드 모듈만 존재한다.
 
 ---
 
-## 1. Phase 2 목표
+## 1. 목표
 
-Phase 1에서 구축한 워크플로우 엔진 위에 **AI 기능**을 추가하여, 사용자가 LLM 기반 지능형 워크플로우를 구축할 수 있도록 한다.
+워크플로우 엔진 위에 **AI 기능**을 더해, 사용자가 LLM 기반 지능형 워크플로우를 구축할 수 있도록 한다.
 
 | 구분 | 목표 |
 |------|------|
@@ -18,7 +20,7 @@ Phase 1에서 구축한 워크플로우 엔진 위에 **AI 기능**을 추가하
 
 ## 2. 범위
 
-### 2.1 Phase 2-A: AI 핵심 (본 문서의 범위)
+### 2.1 본 문서 범위 (모두 ✅ 구현됨)
 
 | 영역 | 기능 |
 |------|------|
@@ -27,9 +29,9 @@ Phase 1에서 구축한 워크플로우 엔진 위에 **AI 기능**을 추가하
 | **지식 저장소** | 컬렉션 관리, 문서 업로드, 벡터 임베딩, RAG 검색 |
 | **AI Agent 고급** | Tool Area (도구 호출), Knowledge Base 연동 |
 
-### 2.2 Phase 2-B: 협업 (별도 PRD)
+### 2.2 본 문서 범위 밖
 
-팀 워크스페이스, RBAC, 2FA, 추가 Integration 노드 — 본 문서 범위 밖.
+팀 워크스페이스, RBAC, 2FA, 추가 Integration 노드. 현재 상태는 [제품 개요 §6.2](./0-overview.md) 참조.
 
 ---
 

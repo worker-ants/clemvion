@@ -59,42 +59,34 @@
 
 ---
 
-## 6. 제품 범위 및 로드맵
+## 6. 현재 구현 상태 및 남은 로드맵
 
-제품은 3개 Phase로 나누어 점진적으로 출시한다.
+### 6.1 구현 완료 (✅)
 
-### 6.1 Phase 1 — 핵심 자동화
-
-**Phase 1 범위 원칙:**
-- **워크스페이스**: Phase 1은 **개인 워크스페이스(personal)만** 지원한다. 팀 워크스페이스(team), RBAC 기반 멤버 관리, 조직 레벨 Integration 공유는 모두 **Phase 2** 범위이다.
-- 데이터 모델에 `Workspace.type = personal | team`, `WorkspaceMember.role` 등 팀 관련 스키마가 포함되어 있으나, 이는 Phase 2 확장을 위한 사전 설계이며 **Phase 1에서는 개인 워크스페이스 고정**으로 동작한다.
-- Phase 1에서 회원가입 시 개인 워크스페이스가 자동 생성되며, 워크스페이스 전환/생성 UI는 Phase 2에서 활성화한다.
-- API의 `X-Workspace-Id` 헤더는 Phase 1에서도 사용하되, 사용자당 1개 워크스페이스만 존재하므로 서버가 자동 매핑한다.
-- Phase 1에서 제공하지 않는 기능(Knowledge Base, Marketplace, Config > LLM)은 사이드바에서 숨긴다. Phase 2/3에서 해당 기능 구현 시 메뉴를 복원한다.
-
-| 영역 | 핵심 기능 |
+| 영역 | 기능 |
 |------|-----------|
-| **내비게이션** | 대시보드, 워크플로우 목록, 트리거 목록, 스케줄, 통합, 인증 설정, 통계, 사용자 프로필 |
-| **워크플로우 에디터** | 캔버스 기반 노드 편집, 엣지 연결, 실행/디버깅 |
-| **노드 시스템** | Logic 9종, Flow 1종, Integration 3종, Data 2종, Presentation 5종 (총 20종) |
-| **통합/연동** | HTTP Request, Database, Send Email 연동 |
-| **시스템** | 인증/인가(개인 워크스페이스), API, 에러 처리, 표현식 엔진, 실행 엔진 |
+| **내비게이션** | 대시보드, 워크플로우 목록, 트리거 목록, 스케줄, 통합, Knowledge Base, LLM 설정, 인증 설정, 통계, 사용자 매뉴얼(/docs), 사용자 프로필 |
+| **워크플로우 에디터** | 캔버스 기반 노드 편집, 엣지 연결, 실행·디버깅, 버전 히스토리 |
+| **노드 시스템** | Trigger(Manual), Logic(If/Else·Switch·Loop·ForEach·Map·Split·Merge·Variable Decl/Mod), Flow(Workflow), AI(AI Agent·Text Classifier·Information Extractor), Integration(HTTP·Database·Send Email), Data(Transform·Code), Presentation(Carousel·Chart·Form·Table·Template) |
+| **AI 플랫폼** | LLM Config(프로바이더·모델·API Key), Knowledge Base(문서 업로드·임베딩·RAG 검색) |
+| **시스템** | 인증/인가(개인 워크스페이스), REST API, 에러 처리, 표현식 엔진(`{{ }}`), 실행 엔진(Redis 큐 + 워커 풀), WebSocket 실시간 상태, Webhook 수신, 실행 이력 |
 
-### 6.2 Phase 2 — AI & 협업
+### 6.2 백엔드만 존재 / 부분 구현 (🚧)
 
-| 영역 | 핵심 기능 |
-|------|-----------|
-| **노드 시스템** | AI 노드 3종 (AI Agent, Text Classifier, Information Extractor), Logic 2종 (Parallel, Background) |
-| **내비게이션** | 지식 저장소(Knowledge Base), 팀 관리 |
-| **시스템** | RBAC, 2FA, 팀 워크스페이스 |
+| 영역 | 상태 |
+|------|------|
+| **팀 워크스페이스·RBAC** | 데이터 모델(`Workspace.type = personal \| team`, `WorkspaceMember.role`)과 백엔드 모듈(`backend/src/modules/workspaces`)은 존재하지만, 프런트엔드 UI(전환·멤버 초대)는 아직 활성화되지 않았다. 회원가입 시 개인 워크스페이스가 자동 생성되고 `X-Workspace-Id`는 서버가 자동 매핑한다. |
+| **조직 레벨 Integration 공유** | 팀 워크스페이스 UI와 함께 연계될 예정이다. |
 
-### 6.3 Phase 3 — 생태계
+### 6.3 로드맵 / 미구현 (❌)
 
-| 영역 | 핵심 기능 |
-|------|-----------|
-| **마켓플레이스** | 워크플로우 템플릿, AI Agent 프리셋, Integration 플러그인, 커스텀 노드 |
-| **배포** | 셀프 호스팅 (Docker, Kubernetes) |
-| **확장** | 노드 플러그인 SDK, 커스텀 노드 개발/게시 |
+| 영역 | 내용 |
+|------|------|
+| **Logic 확장 노드** | Parallel, Background 노드. 스펙만 존재하고 런타임·레지스트리 등록은 아직 없다. 당장 필요한 경우 1:N 분기 + Merge(`wait_all`) 우회로 구성한다. |
+| **마켓플레이스** | 워크플로우 템플릿·AI Agent 프리셋·Integration 플러그인·커스텀 노드 게시 기능. |
+| **배포 자동화 확장** | 공식 Docker/Kubernetes 배포 가이드, 셀프 호스팅 번들. |
+| **확장 SDK** | 노드 플러그인 SDK, 외부 커스텀 노드 개발/게시. |
+| **문서 내 검색** | `/docs`의 검색 UI. 콘텐츠 규모가 커지면 도입한다. |
 
 ---
 

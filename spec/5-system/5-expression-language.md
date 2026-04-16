@@ -142,7 +142,7 @@
 
 - `$input.user.name`: `$input.user`가 null이면 → **에러 발생**
 - 안전 접근이 필요한 경우 삼항 연산 사용: `{{ $input.user ? $input.user.name : "unknown" }}`
-- `??` (nullish coalescing)은 지원하지 않음 (Phase 1). `||`로 대체 가능
+- `??` (nullish coalescing)은 현재 지원하지 않으며 `||`로 대체 가능
 
 ---
 

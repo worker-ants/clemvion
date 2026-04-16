@@ -1,6 +1,6 @@
 # Spec: LLM 클라이언트 추상화 계층
 
-> 관련 문서: [PRD Phase 2](../../prd/6-phase2-ai.md) · [Spec LLM Config UI](../2-navigation/6-config.md) · [데이터 모델 - LLMConfig](../1-data-model.md#216-llmconfig) · [Spec AI 노드](../4-nodes/3-ai-nodes.md)
+> 관련 문서: [PRD AI & 지식 저장소](../../prd/6-phase2-ai.md) · [Spec LLM Config UI](../2-navigation/6-config.md) · [데이터 모델 - LLMConfig](../1-data-model.md#216-llmconfig) · [Spec AI 노드](../4-nodes/3-ai-nodes.md)
 
 ---
 
