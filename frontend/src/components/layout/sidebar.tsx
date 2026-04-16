@@ -13,6 +13,7 @@ import {
   Lock,
   BarChart3,
   BookOpen,
+  BookMarked,
   Brain,
   ChevronLeft,
   ChevronRight,
@@ -39,6 +40,7 @@ const navItems = [
   { label: "LLM Config", href: "/llm-configs", icon: Brain },
   { label: "Authentication", href: "/authentication", icon: Lock },
   { label: "Statistics", href: "/statistics", icon: BarChart3 },
+  { label: "User Guide", href: "/docs", icon: BookMarked },
 ] as const;
 
 function useMediaQuery(query: string) {

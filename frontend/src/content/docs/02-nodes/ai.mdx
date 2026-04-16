@@ -1,0 +1,200 @@
+---
+title: "AI 노드"
+section: "02-nodes"
+order: 6
+summary: "AI Agent, 텍스트 분류기, 정보 추출기로 LLM 기반 처리를 담당하는 노드들을 설명해요."
+spec: ["spec/4-nodes/3-ai-nodes.md"]
+code: ["backend/src/nodes/ai/ai-agent/ai-agent.schema.ts", "backend/src/nodes/ai/text-classifier/text-classifier.schema.ts", "backend/src/nodes/ai/information-extractor/information-extractor.schema.ts"]
+---
+
+이 페이지에서는 LLM을 호출해서 답변을 만들거나, 텍스트를 분류하거나, 비정형 데이터에서 필드를 뽑아내는 AI 노드 세 가지를 설명해요.
+
+## AI Agent
+
+### 언제 써요
+
+- LLM에 프롬프트를 보내 **답변 생성**, **RAG 기반 질의**, **도구 호출**을 수행하고 싶을 때 써요.
+- **Multi Turn** 모드를 켜면 사용자와 대화형으로 주고받는 블로킹 실행을 할 수 있어요.
+- 조건(Conditions)을 정의하면 LLM이 특정 상황을 감지해 **조건 포트로 분기**할 수 있어요.
+
+### 필드
+
+<FieldTable rows={[
+  {name: "mode", required: true, type: "`single_turn` / `multi_turn`", description: "단일 호출 또는 블로킹 대화형 모드를 선택해요.", default: "single_turn"},
+  {name: "llmConfigId", required: false, type: "UUID", description: "사용할 LLM 프로바이더 설정이에요. 사이드바의 LLM 설정에서 관리해요.", default: "-"},
+  {name: "model", required: false, type: "string", description: "프로바이더 기본 모델을 재정의하고 싶을 때 사용해요.", default: "-"},
+  {name: "systemPrompt", required: false, type: "string(markdown·표현식)", description: "시스템 프롬프트예요.", default: "-"},
+  {name: "userPrompt", required: false, type: "expression", description: "사용자 프롬프트예요. Multi Turn 모드에서는 숨겨져요.", default: "-"},
+  {name: "responseFormat", required: false, type: "`text` / `json`", description: "응답 형식이에요. `json`일 때는 `jsonSchema`를 함께 지정해요.", default: "text"},
+  {name: "jsonSchema", required: false, type: "JSONSchema", description: "`responseFormat=json` 시 출력 스키마예요.", default: "-"},
+  {name: "knowledgeBases", required: false, type: "UUID[]", description: "RAG에 참조할 Knowledge Base 목록이에요.", default: "[]"},
+  {name: "ragTopK", required: false, type: "integer", description: "RAG 검색 결과 수예요.", default: "5"},
+  {name: "ragThreshold", required: false, type: "float", description: "RAG 유사도 임계값이에요 (0~1).", default: "0.7"},
+  {name: "conditions", required: false, type: "ConditionDef[]", description: "조건 목록이에요. 각 조건은 `id`, `label`, `prompt`를 가지며, 각 조건마다 동적 출력 포트가 생겨요.", default: "[]"},
+  {name: "temperature", required: false, type: "float", description: "LLMConfig 기본값을 재정의해요.", default: "-"},
+  {name: "maxTokens", required: false, type: "integer", description: "최대 토큰 수예요.", default: "-"},
+  {name: "maxToolCalls", required: false, type: "integer", description: "최대 도구 호출 횟수예요.", default: "10"},
+  {name: "toolNodeIds", required: false, type: "UUID[]", description: "Tool Area에 등록된 도구 노드 ID 목록이에요. 캔버스의 Tool Area에서 자동 관리돼요.", default: "[]"},
+  {name: "toolOverrides", required: false, type: "ToolOverride[]", description: "도구별 이름/설명/입력 매핑 오버라이드예요.", default: "[]"},
+  {name: "conversationHistory", required: false, type: "`none` / `last_n` / `full`", description: "대화 이력 보관 전략이에요.", default: "none"},
+  {name: "historyCount", required: false, type: "integer", description: "`last_n`일 때 보관 메시지 수예요.", default: "-"},
+  {name: "maxTurns", required: false, type: "integer", description: "Multi Turn 모드의 최대 대화 턴 수예요. `0`은 무제한이에요.", default: "20"}
+]} />
+
+### 포트
+
+<FieldTable rows={[
+  {name: "Single Turn", required: false, type: "out + error + 조건 포트", description: "조건 없이 정상 완료 시 `out`, 조건 매칭 시 해당 조건 포트, 오류 시 `error`로 나가요.", default: "-"},
+  {name: "Multi Turn", required: false, type: "조건 포트 + user_ended + max_turns + error", description: "Multi Turn은 `out` 포트 없이 종료 사유별 전용 포트로 분기해요. 사용자 종료는 `user_ended`, 턴 한도 초과는 `max_turns`로 나가요.", default: "-"}
+]} />
+
+<Callout type="note">
+조건(Conditions)은 LLM에게 특별한 도구(`cond_*`)로 제공돼요. LLM이 조건 도구만 호출하면 해당 포트로 분기하고, 일반 도구와 함께 호출하면 일반 도구를 먼저 실행한 뒤 재평가해요. 최대 20개 조건까지 허용해요.
+</Callout>
+
+### 예시
+
+<Example title="고객 문의 처리 — Single Turn + 조건 분기">
+```ts
+// config 요약
+{
+  mode: "single_turn",
+  llmConfigId: "…",
+  systemPrompt: "당신은 고객 지원 에이전트예요.",
+  userPrompt: "{{ $input.message }}",
+  knowledgeBases: ["faq-kb-id"],
+  conditions: [
+    { id: "uuid-1", label: "환불 요청 감지",     prompt: "고객이 환불/취소를 원할 때" },
+    { id: "uuid-2", label: "기술 에스컬레이션",   prompt: "복잡한 기술 문제로 상담사 연결이 필요할 때" }
+  ]
+}
+
+// 출력(조건 포트)
+{
+  response: "…",
+  condition: { id: "uuid-1", label: "환불 요청 감지", reason: "…" },
+  metadata: { model: "gpt-4o", totalTokens: 1600, toolCalls: 2, ragSources: [...] }
+}
+```
+</Example>
+
+<Callout type="warn">
+Multi Turn 모드에서 사용자 응답은 **무제한 대기**해요. 외부 cancel/종료가 아니면 타임아웃이 발생하지 않으니, 장시간 대기를 전제로 설계해요.
+</Callout>
+
+## Text Classifier
+
+### 언제 써요
+
+- 입력 텍스트를 **미리 정의한 카테고리**로 분류하고 싶을 때 써요.
+- 카테고리별로 서로 다른 후속 노드로 라우팅하고 싶을 때 유용해요.
+
+### 필드
+
+<FieldTable rows={[
+  {name: "llmConfigId", required: false, type: "UUID", description: "사용할 LLM 프로바이더 설정이에요.", default: "-"},
+  {name: "model", required: false, type: "string", description: "모델 ID예요.", default: "-"},
+  {name: "inputField", required: false, type: "expression", description: "분류할 텍스트 필드 표현식이에요.", default: "-"},
+  {name: "categories", required: true, type: "CategoryDef[]", description: "분류 카테고리 목록이에요. 각 항목은 `name`, `description`, `examples`를 가져요.", default: "[]"},
+  {name: "instructions", required: false, type: "string", description: "추가 분류 지시사항이에요.", default: "-"},
+  {name: "includeConfidence", required: false, type: "boolean", description: "신뢰도 점수를 출력에 포함해요.", default: "false"},
+  {name: "multiLabel", required: false, type: "boolean", description: "true면 여러 카테고리를 동시에 선택할 수 있어요.", default: "false"}
+]} />
+
+### 포트
+
+- `class_0`, `class_1`, … (카테고리별 동적 포트, 데이터 타입)
+- `fallback` (어떤 카테고리에도 매칭되지 않을 때)
+- `error` (LLM API 오류, 타임아웃 등)
+
+### 예시
+
+<Example title="문의 분류 후 라우팅">
+```ts
+// config
+{
+  llmConfigId: "…",
+  inputField: "{{ $input.text }}",
+  categories: [
+    { name: "Billing",   description: "결제·환불·구독 관련",   examples: ["환불 요청"] },
+    { name: "Technical", description: "기술 문제, 버그 리포트", examples: ["로그인 안돼요"] },
+    { name: "General",   description: "일반 문의·기능 요청",   examples: [] }
+  ],
+  includeConfidence: true
+}
+
+// 출력 (Single-label)
+{ category: "Billing", confidence: 0.95, originalInput: "환불해주세요" }
+```
+</Example>
+
+<Callout type="note">
+카테고리 이름으로 `__none__`은 예약어라 사용할 수 없어요. LLM이 `__none__`을 반환하거나 매칭 실패 시 `fallback` 포트로 빠져요.
+</Callout>
+
+## Information Extractor
+
+### 언제 써요
+
+- 비정형 텍스트(이메일, 메시지 등)에서 **정해진 스키마**의 값을 뽑아 구조화된 JSON으로 만들고 싶을 때 써요.
+- Multi Turn 모드를 켜면 필요한 필드가 채워질 때까지 **사용자와 대화하며** 값을 수집할 수 있어요.
+
+### 필드
+
+<FieldTable rows={[
+  {name: "llmConfigId", required: false, type: "UUID", description: "사용할 LLM 프로바이더 설정이에요.", default: "-"},
+  {name: "model", required: false, type: "string", description: "모델 ID예요.", default: "-"},
+  {name: "inputField", required: false, type: "expression", description: "추출 대상 텍스트 필드예요. `multi_turn`일 때는 설정 UI에서 숨겨져요.", default: "-"},
+  {name: "outputSchema", required: true, type: "FieldDef[]", description: "추출할 필드 정의 배열이에요. 각 항목은 `name`, `type`, `description`, `required`, `enumValues`를 가져요.", default: "[]"},
+  {name: "examples", required: false, type: "ExampleDef[]", description: "Few-shot 예시(입력 텍스트와 기대 출력)예요.", default: "[]"},
+  {name: "instructions", required: false, type: "string", description: "추가 추출 지시사항이에요.", default: "-"},
+  {name: "mode", required: true, type: "`single_turn` / `multi_turn`", description: "추출 모드예요.", default: "single_turn"},
+  {name: "maxTurns", required: false, type: "integer", description: "`multi_turn`에서 최대 대화 턴 수예요. `0`은 무제한이에요.", default: "10"}
+]} />
+
+### 포트
+
+- `out` (정상 완료 시)
+- `error` (LLM API 오류, 타임아웃, 스키마 검증 재시도 소진 시)
+
+### 예시
+
+<Example title="환불 이메일에서 정보 추출">
+```ts
+// config (single_turn)
+{
+  inputField: "{{ $input.emailBody }}",
+  outputSchema: [
+    { name: "senderName",  type: "string", description: "발신자 이름",       required: true  },
+    { name: "orderNumber", type: "string", description: "주문 번호",          required: true  },
+    { name: "issueType",   type: "string", description: "문제 유형",          required: true,
+      enumValues: ["refund", "exchange", "question"] },
+    { name: "amount",      type: "number", description: "관련 금액",          required: false }
+  ]
+}
+
+// 다운스트림에서 참조
+{{ $node["Info Extractor"].output.extracted.orderNumber }}
+```
+</Example>
+
+<Callout type="tip">
+스키마 검증에 실패하면 **최대 2회 재시도**하고, 이후에는 `error` 포트로 라우팅해요. 필드에 `enumValues`를 넣어 두면 LLM이 허용된 값 범위 안에서 답하도록 강제할 수 있어요.
+</Callout>
+
+<Callout type="warn">
+Multi Turn 모드에서 `inputField`를 비워 두면 LLM을 호출하지 않고 바로 사용자 입력을 기다려요(`turnCount: 0`). 설정 UI도 해당 필드를 숨겨서 이 UX를 명확히 해요. 사용자 응답은 무제한 대기예요.
+</Callout>
+
+## 캔버스 요약
+
+- AI Agent: `{mode} · {model}` + `· {N} tools / {N} KB / {N} cond` (해당 시 추가).
+- Text Classifier: `{model} · {N} categories`.
+- Info Extractor: `{model} · {N} fields` (Multi Turn이면 `Multi Turn` 접두어).
+
+## 팁 & 참고
+
+- 도구 등록은 캔버스의 **Tool Area**에서 해요. 등록된 노드는 `toolNodeIds`에 자동 추가되고, LLM에는 `tool_*` 접두사 이름으로 전달돼요. 조건 도구는 `cond_*` 접두사를 쓰기 때문에 일반 도구와 이름이 겹치지 않아요.
+- LLM 프로바이더 연동은 [LLM 설정](/docs/05-integrations-and-config/llm-config)에서, Knowledge Base 구성은 [지식 저장소](/docs/05-integrations-and-config/knowledge-base)에서 관리해요.
+- Multi Turn 실행 이력은 Conversation Inspector로 턴별 요청/응답/토큰 사용량을 확인할 수 있어요. 자세한 동작은 [실행 결과](/docs/04-run-and-debug/run-results)를 참고해요.
+- 개발자용 팁: `responseFormat=json`일 때 Zod의 `z.toJSONSchema()`로 직렬화된 스키마가 LLM에 그대로 전달돼요. 출력 스키마를 바꿀 때 백엔드 `<type>.schema.ts`와 프런트엔드의 기본값이 벗어나지 않도록 확인해요.

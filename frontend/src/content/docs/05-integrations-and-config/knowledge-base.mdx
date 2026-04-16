@@ -1,0 +1,87 @@
+---
+title: "지식 저장소"
+section: "05-integrations-and-config"
+order: 3
+summary: "RAG용 Knowledge Base(지식 저장소)를 만들고 문서를 업로드한 뒤 AI Agent에서 참조하는 방법을 설명해요."
+spec: ["spec/2-navigation/5-knowledge-base.md", "spec/5-system/8-embedding-pipeline.md", "spec/5-system/9-rag-search.md"]
+code: ["backend/src/modules/knowledge-base/knowledge-base.controller.ts", "backend/src/modules/knowledge-base/knowledge-base.service.ts", "backend/src/modules/knowledge-base/entities/knowledge-base.entity.ts", "frontend/src/app/(main)/knowledge-bases/page.tsx", "frontend/src/app/(main)/knowledge-bases/[id]/page.tsx"]
+---
+
+이 페이지에서는 지식 저장소(Knowledge Base)를 만들고 문서를 업로드해서 AI Agent의 RAG(Retrieval-Augmented Generation)에 활용하는 방법을 설명해요.
+
+## 지식 저장소 구조
+
+지식 저장소는 컬렉션(Collection) 단위로 관리해요. 컬렉션마다 임베딩 모델과 청크 전략을 고정하고, 그 아래에 문서를 올려요. 업로드된 문서는 자동으로 청크 분할 → 임베딩 → pgvector 저장을 거쳐요.
+
+<FieldTable rows={[
+  { name: "이름", type: "string", required: "필수", description: "컬렉션 이름. 목록 카드에 표시돼요." },
+  { name: "설명", type: "string", required: "선택", description: "용도를 적어두면 협업할 때 편해요." },
+  { name: "임베딩 모델", type: "LLM Config 참조", required: "필수", description: "컬렉션 생성 시 고정. 변경하려면 전체 재임베딩이 필요해요." },
+  { name: "청크 크기", type: "integer (토큰)", required: "선택", description: "기본 1000. 문서 분할 기준 최대 토큰 수." },
+  { name: "청크 오버랩", type: "integer (토큰)", required: "선택", description: "기본 200. 인접 청크 간 겹치는 토큰." }
+]} />
+
+<Callout type="note">임베딩 모델은 LLM 설정의 프로바이더 중 임베딩을 지원하는 항목에서만 고를 수 있어요. 프로바이더를 먼저 등록하려면 `/docs/05-integrations-and-config/llm-config` 를 참고해 주세요.</Callout>
+
+## 컬렉션 만들고 문서 업로드하기
+
+<Steps>
+<Step>`/knowledge-bases` 에서 `[+ New Collection]` 을 눌러 이름 · 설명 · 임베딩 모델 · 청크 파라미터를 입력해요.</Step>
+<Step>목록에서 새 컬렉션을 클릭해 상세 화면으로 들어가, `[Upload Documents]` 버튼을 누르거나 파일을 드래그 앤 드롭해요.</Step>
+<Step>지원 형식은 `.txt`, `.md`, `.pdf`, `.csv` 에요. 여러 파일을 한 번에 올릴 수 있고, 업로드 즉시 임베딩이 시작돼요.</Step>
+<Step>각 문서의 상태 배지가 `🔄 Processing` 에서 `✅ Ready` 로 바뀌면 검색에 사용할 수 있어요. 상태는 WebSocket으로 실시간 갱신돼요.</Step>
+<Step>실패한 문서는 `❌ Error` 로 표시돼요. 항목의 ⋮ 메뉴에서 `재임베딩` 을 눌러 파이프라인을 다시 실행할 수 있어요.</Step>
+</Steps>
+
+<Callout type="warn">CSV는 행 단위로 독립 청크가 생성돼요. 헤더가 없으면 각 셀의 의미가 흐려지므로, 첫 줄에 컬럼명을 두는 편이 검색 품질에 유리해요.</Callout>
+
+## 임베딩 상태 이해하기
+
+상태 값은 문서 목록과 컬렉션 카드의 배지로 확인할 수 있어요.
+
+<FieldTable rows={[
+  { name: "pending", type: "상태", required: "-", description: "업로드 직후. 곧 파이프라인이 시작돼요." },
+  { name: "processing", type: "상태", required: "-", description: "파싱 → 청킹 → 임베딩 진행 중. 청크 배치가 끝날 때마다 진행률이 올라가요." },
+  { name: "completed", type: "상태", required: "-", description: "검색 대상에 포함돼요." },
+  { name: "error", type: "상태", required: "-", description: "파싱 실패나 임베딩 API 에러. `metadata.error` 로 원인을 확인해요." }
+]} />
+
+동시에 처리되는 문서 수는 기본 3건으로 제한돼요. 대량 업로드 시에도 일부는 `pending` 으로 대기했다가 차례로 처리돼요.
+
+## AI Agent에서 참조하기
+
+AI Agent 노드의 설정 패널에 `Knowledge Bases` 멀티 선택 필드가 있어요. 선택한 컬렉션은 실행 시 사용자 프롬프트를 기준으로 유사도 검색되고, 결과가 시스템 프롬프트 하단에 주입돼요.
+
+<Example title="AI Agent 노드의 KB 참조 설정">
+```ts
+{
+  "type": "aiAgent",
+  "config": {
+    "llmConfigId": "llm_01H...",
+    "systemPrompt": "You are a customer support assistant.",
+    "userPrompt": "{{ $run.input.question }}",
+    "knowledgeBases": [
+      "kb_01H...FAQ",
+      "kb_01H...POLICY"
+    ],
+    "rag": {
+      "topK": 5,           // 최대 결과 수 (기본 5)
+      "threshold": 0.7     // cosine 유사도 하한 (기본 0.7)
+    }
+  }
+}
+```
+</Example>
+
+실행이 끝나면 AI Agent의 노드 결과에 `metadata.ragSources` 가 같이 들어와요. 어떤 문서의 어떤 청크가 참조됐는지, 점수는 얼마였는지 확인할 수 있어요. 표현식으로도 꺼내 쓸 수 있어요. 예를 들어 `{{ $nodes.agent.metadata.ragSources[0].documentName }}` 처럼요.
+
+<Callout type="tip">검색 결과가 `threshold` 를 넘지 못하면 RAG 없이 LLM이 호출돼요. 답변 품질이 떨어지면 임계값을 0.6 수준으로 낮추거나, 청크 크기를 줄여 재임베딩해 보세요.</Callout>
+
+## 팁 & 참고
+
+- 여러 컬렉션을 동시에 선택하면, 동일한 임베딩 모델을 쓰는 KB들은 한 번의 쿼리로, 서로 다른 모델을 쓰는 KB들은 각각 별도 임베딩 후 결과를 병합해요.
+- 주입되는 컨텍스트는 모델 컨텍스트 윈도우의 50%를 넘지 않도록 자동으로 잘려요. 점수가 낮은 청크부터 제거되므로 상위 결과는 항상 포함돼요.
+- 문서 미리보기에서 생성된 청크 목록을 하나씩 확인할 수 있어요. 특정 청크가 이상하면 원문을 다듬고 `재임베딩` 을 돌려 주세요.
+- 임베딩 모델을 바꾸고 싶다면 새 컬렉션을 만들어 문서를 옮기는 편이 안전해요. 기존 컬렉션의 모델을 바꾸면 모든 청크가 재생성돼요.
+- 표현식과 노드 결과에 대한 기본은 `/docs/03-expression-language/variables-and-context` 에서 설명해요.
+- RAG 검색 쿼리·거리 함수·에러 처리 규칙은 `spec/5-system/9-rag-search.md` 에서 확인할 수 있어요.

@@ -1,0 +1,330 @@
+---
+title: "로직 노드"
+section: "02-nodes"
+order: 3
+summary: "분기, 반복, 배열 처리, 변수 관리, 병합 등 워크플로우의 흐름을 제어하는 노드들을 설명해요."
+spec: ["spec/4-nodes/1-logic-nodes.md"]
+code: ["backend/src/nodes/logic/if-else/if-else.schema.ts", "backend/src/nodes/logic/switch/switch.schema.ts", "backend/src/nodes/logic/loop/loop.schema.ts", "backend/src/nodes/logic/foreach/foreach.schema.ts", "backend/src/nodes/logic/map/map.schema.ts", "backend/src/nodes/logic/filter/filter.schema.ts", "backend/src/nodes/logic/split/split.schema.ts", "backend/src/nodes/logic/merge/merge.schema.ts", "backend/src/nodes/logic/variable-declaration/variable-declaration.schema.ts", "backend/src/nodes/logic/variable-modification/variable-modification.schema.ts"]
+---
+
+이 페이지에서는 데이터 흐름을 제어하는 로직 노드를 설명해요. 조건 분기부터 반복, 배열 가공, 변수 선언과 변경, 여러 경로를 합치는 Merge까지 다뤄요.
+
+## If/Else
+
+### 언제 써요
+
+- 입력 데이터의 값에 따라 **두 갈래**로 분기하고 싶을 때 써요.
+- 여러 조건을 AND/OR로 묶어 최종 분기를 결정할 수 있어요.
+
+### 필드
+
+<FieldTable rows={[
+  {name: "conditions", required: true, type: "ConditionGroup[]", description: "평가할 조건 목록이에요. 각 항목은 `field` `operator` `value` 구조를 가져요.", default: "[]"},
+  {name: "combineMode", required: false, type: "`and` / `or`", description: "조건 간 결합 방식이에요.", default: "and"},
+  {name: "strictComparison", required: false, type: "boolean", description: "true면 타입 강제 변환 없이 엄격하게 비교해요.", default: "false"}
+]} />
+
+지원 연산자는 `eq`, `neq`, `gt`, `gte`, `lt`, `lte`, `contains`, `not_contains`, `starts_with`, `ends_with`, `is_empty`, `is_not_empty`, `regex`, `is_null`, `is_type`예요.
+
+### 예시
+
+<Example title="관리자 여부 분기">
+```ts
+// conditions
+[
+  { field: "{{ $input.role }}", operator: "eq", value: "admin" },
+  { field: "{{ $input.age }}", operator: "gte", value: 18 }
+]
+// combineMode: "and"
+// → 둘 다 참이면 `true` 포트, 아니면 `false` 포트로
+```
+</Example>
+
+<Callout type="note">
+입력 데이터는 어느 쪽 포트로 가든 **변형 없이 그대로** 전달돼요. 값을 가공하고 싶다면 Transform이나 Code 노드를 조합해요.
+</Callout>
+
+## Switch
+
+### 언제 써요
+
+- 하나의 값에 따라 **여러 경로**로 분기하고 싶을 때 써요.
+- 값 매칭(`value` 모드) 또는 조건식(`expression` 모드) 중 선택할 수 있어요.
+
+### 필드
+
+<FieldTable rows={[
+  {name: "mode", required: true, type: "`value` / `expression`", description: "케이스 매칭 방식이에요.", default: "value"},
+  {name: "switchValue", required: false, type: "expression", description: "`mode=value`일 때 비교 기준 값이에요.", default: "-"},
+  {name: "cases", required: true, type: "CaseDef[]", description: "케이스 목록이에요. 각 케이스는 `label`, `value`(value 모드) 또는 `condition`(expression 모드)을 가져요.", default: "[]"},
+  {name: "hasDefault", required: false, type: "boolean", description: "true면 어느 케이스에도 매칭되지 않을 때 `default` 포트로 보내요.", default: "false"},
+  {name: "strictComparison", required: false, type: "boolean", description: "true면 타입 강제 변환 없이 엄격 비교해요.", default: "false"}
+]} />
+
+### 예시
+
+<Example title="문의 유형별 경로">
+```ts
+// switchValue: "{{ $input.type }}"
+// cases:
+[
+  { label: "결제", value: "billing" },
+  { label: "기술", value: "tech" },
+  { label: "일반", value: "general" }
+]
+// hasDefault: true
+// → 매칭 안되면 `default` 포트
+```
+</Example>
+
+<Callout type="tip">
+케이스 포트 ID는 UUID v4로 고정돼 있어요. 라벨을 바꾸거나 순서를 재정렬해도 연결선이 그대로 유지돼요.
+</Callout>
+
+## Loop
+
+### 언제 써요
+
+- 정해진 **횟수**만큼 같은 로직을 반복할 때 써요.
+- 반복 중에 특정 조건이 되면 조기 종료하고 싶을 때 `breakCondition`을 써요.
+
+### 필드
+
+<FieldTable rows={[
+  {name: "count", required: true, type: "expression", description: "반복 횟수예요. 정수 리터럴이나 표현식 모두 가능해요.", default: "1"},
+  {name: "maxIterations", required: false, type: "integer", description: "안전 상한이에요. 초과 시 에러로 중단해요.", default: "1000"},
+  {name: "breakCondition", required: false, type: "ConditionGroup", description: "이 조건이 충족되면 반복을 조기 종료해요.", default: "-"}
+]} />
+
+Loop는 컨테이너 노드예요. 입력은 `in`, `emit` 두 개, 출력은 `body`, `done` 두 개를 가져요. body 안에서 반복을 수행하고, 반복 결과는 `emit`에 연결된 노드의 출력을 수집해 배열로 `done`에 모아요.
+
+### 예시
+
+<Example title="3번 반복하며 API 호출">
+```ts
+// count: "3"
+// body 안에서 $loop.index (0,1,2), $loop.isFirst, $loop.isLast 사용 가능
+// emit에 HTTP Request 1개 연결 → done으로 [결과0, 결과1, 결과2] 배열
+```
+</Example>
+
+<Callout type="warn">
+컨테이너의 `emit` 포트에는 **정확히 1개의 body 노드**만 연결해야 해요. 여러 개 또는 0개를 연결하면 `CONTAINER_MISSING_EMIT` 또는 `CONTAINER_MULTIPLE_EMIT`로 실행 실패해요. body 내부에 순환(back-edge)이나 blocking 노드(Form, 버튼 블로킹, AI 대화)는 허용되지 않아요.
+</Callout>
+
+## ForEach
+
+### 언제 써요
+
+- 배열의 **각 항목마다 body 서브그래프**를 순차 실행할 때 써요.
+- Map과 실행 모델이 같지만, 시맨틱이 "각 항목에 대한 처리(사이드 이펙트 중심)"에 맞춰져 있어요.
+
+### 필드
+
+<FieldTable rows={[
+  {name: "arrayField", required: true, type: "expression", description: "대상 배열 경로예요. dot-path(`items`, `order.items`) 또는 inline 표현식(`{{ $var.list }}`) 모두 허용해요.", default: "-"},
+  {name: "errorPolicy", required: false, type: "`stop` / `skip` / `continue`", description: "항목 실행 중 에러가 났을 때의 정책이에요. 결과 배열은 원본 인덱스를 유지해요.", default: "stop"}
+]} />
+
+body 내부에서 `$item`, `$itemIndex`, `$item.isFirst`, `$item.isLast`를 참조할 수 있어요.
+
+### 예시
+
+<Example title="주문 항목 처리">
+```ts
+// arrayField: "$input.order.items"
+// body 내부에서 $item.value, $itemIndex 참조
+// errorPolicy: "skip" → 실패한 인덱스에는 { _skipped: true, error: {...} } 삽입
+```
+</Example>
+
+## Map
+
+### 언제 써요
+
+- 배열의 **각 항목을 새 값으로 변환**해 새 배열을 만들고 싶을 때 써요.
+- ForEach와 실행 모델은 같지만, "변환" 시맨틱을 명시적으로 표현해요.
+
+### 필드
+
+<FieldTable rows={[
+  {name: "inputField", required: true, type: "expression", description: "변환 대상 배열 경로예요.", default: "-"},
+  {name: "errorPolicy", required: false, type: "`stop` / `skip` / `continue`", description: "항목별 에러 정책이에요.", default: "stop"}
+]} />
+
+### 예시
+
+<Example title="사용자 정보 정규화">
+```ts
+// inputField: "$input.users"
+// body 내부에서 $item을 받아 { id, name: $item.name.toUpperCase() } 형태로 emit
+// done에 정규화된 배열이 나와요
+```
+</Example>
+
+## Filter
+
+### 언제 써요
+
+- 배열에서 **조건을 만족하는 항목만 추출**하고, 매칭/비매칭을 두 포트로 나누고 싶을 때 써요.
+- Transform의 `array_filter`는 단일 조건의 인라인 연산이에요. 다중 조건과 분기가 필요하면 Filter 노드를 써요.
+
+### 필드
+
+<FieldTable rows={[
+  {name: "inputField", required: true, type: "expression", description: "대상 배열 경로예요.", default: "-"},
+  {name: "conditions", required: true, type: "ConditionGroup[]", description: "필터 조건이에요. 조건 내 `field`에서 `$item`으로 현재 항목을 참조해요.", default: "[]"},
+  {name: "combineMode", required: false, type: "`and` / `or`", description: "조건 결합 방식이에요.", default: "and"},
+  {name: "strictComparison", required: false, type: "boolean", description: "엄격 타입 비교 모드예요.", default: "false"}
+]} />
+
+출력 포트는 `match`(조건 만족)와 `unmatched`(조건 불만족) 두 개예요.
+
+### 예시
+
+<Example title="활성 사용자만 추출">
+```ts
+// inputField: "$input.users"
+// conditions:
+[
+  { field: "{{ $item.status }}", operator: "eq", value: "active" },
+  { field: "{{ $item.age }}", operator: "gte", value: 18 }
+]
+// match 포트: 조건 만족 항목 배열
+// unmatched 포트: 나머지 항목 배열
+```
+</Example>
+
+## Split
+
+### 언제 써요
+
+- 배열을 `[{ index, value }, ...]` 형태로 **정규화**하고 싶을 때 써요.
+- 각 항목을 개별 처리하려면 ForEach와 조합해요.
+
+### 필드
+
+<FieldTable rows={[
+  {name: "fieldPath", required: true, type: "expression", description: "분리할 배열 경로예요. dot-path 또는 inline 표현식을 모두 허용해요.", default: "-"}
+]} />
+
+### 예시
+
+<Example title="Split + ForEach 패턴">
+```ts
+// Split fieldPath: "$input.items"
+// 출력: [{ index: 0, value: {...} }, { index: 1, value: {...} }]
+// → ForEach로 연결해 각 항목을 body에서 처리
+```
+</Example>
+
+<Callout type="note">
+Split 출력은 원본의 다른 필드를 포함하지 않아요. 필요하면 후속 노드에서 `$node["이전 노드"].output.id` 형태로 직접 참조해요.
+</Callout>
+
+## Merge
+
+### 언제 써요
+
+- **여러 경로의 데이터를 하나로 합치고** 싶을 때 써요.
+- 여러 입력이 모두 도착하길 기다리거나, 가장 먼저 도착한 값만 통과시킬 때 유용해요.
+
+### 필드
+
+<FieldTable rows={[
+  {name: "strategy", required: false, type: "`wait_all` / `first` / `append`", description: "병합 전략이에요. `wait_all`은 전부 대기, `first`는 가장 빠른 하나, `append`는 도착 순 배열로 모아요.", default: "wait_all"},
+  {name: "outputFormat", required: false, type: "`array` / `merge_object` / `indexed`", description: "출력 구조예요. 객체 얕은 병합이 필요하면 `merge_object`를 써요.", default: "array"},
+  {name: "timeout", required: false, type: "integer(초)", description: "입력 대기 타임아웃이에요. `0`은 무제한 대기예요.", default: "300"},
+  {name: "partialOnTimeout", required: false, type: "boolean", description: "타임아웃 시 도착한 입력만으로 병합할지 여부예요. false면 에러 정책에 따라 처리해요.", default: "false"}
+]} />
+
+### 예시
+
+<Example title="세 경로 합치기">
+```ts
+// 세 개의 Parallel 분기를 Merge의 in 포트에 각각 연결
+// strategy: "wait_all", outputFormat: "merge_object"
+// → 세 분기의 출력을 shallow merge한 단일 객체
+```
+</Example>
+
+## Variable Declaration
+
+### 언제 써요
+
+- 워크플로우 실행 컨텍스트에 **변수를 선언**하고 초기값을 넣고 싶을 때 써요.
+- 선언 이후 모든 노드에서 `{{ $var.이름 }}`으로 참조할 수 있어요.
+
+### 필드
+
+<FieldTable rows={[
+  {name: "variables", required: true, type: "VarDef[]", description: "선언할 변수 목록이에요. 각 항목은 `name`, `type`, `defaultValue`를 가져요.", default: "[]"}
+]} />
+
+각 변수의 `type`은 `string` / `number` / `boolean` / `array` / `object`예요. `defaultValue`는 표현식으로도 지정할 수 있어요.
+
+### 예시
+
+<Example title="카운터와 누적 목록 선언">
+```ts
+// variables:
+[
+  { name: "counter", type: "number", defaultValue: 0 },
+  { name: "collected", type: "array", defaultValue: [] }
+]
+// 이후 노드에서 {{ $var.counter }}, {{ $var.collected }}로 참조
+```
+</Example>
+
+## Variable Modification
+
+### 언제 써요
+
+- 이미 선언된 변수를 **수정**할 때 써요. 값 덮어쓰기부터 증감, 배열 push/pop, 객체 필드 set/delete까지 지원해요.
+
+### 필드
+
+<FieldTable rows={[
+  {name: "modifications", required: true, type: "ModDef[]", description: "수정 목록이에요. 각 항목은 `variable`, `operation`, `value`를 가져요.", default: "[]"}
+]} />
+
+지원 연산: `set`, `increment`, `decrement`, `append`(string), `push`/`pop`(array), `set_field`/`delete_field`(object).
+
+### 예시
+
+<Example title="카운터 증가와 배열 누적">
+```ts
+// modifications:
+[
+  { variable: "counter", operation: "increment", value: 1 },
+  { variable: "collected", operation: "push", value: "{{ $input.id }}" }
+]
+```
+</Example>
+
+<Callout type="warn">
+대상 변수가 선언되어 있지 않으면 에러가 나요. 반드시 Variable Declaration으로 먼저 선언한 뒤 수정해요.
+</Callout>
+
+## Parallel (스펙 예약)
+
+### 언제 써요
+
+- 여러 분기를 **동시에** 실행하고 싶을 때 써요.
+
+<Callout type="warn">
+Parallel 노드는 현재 구현에 포함되어 있지 않고 스펙만 존재해요. 비슷한 효과가 필요하면 같은 출력 포트에서 여러 연결선을 내보내는 방식(1:N 분기)을 써요. 모든 분기 완료를 기다려야 한다면 이어서 Merge(`wait_all`)로 받으면 돼요.
+</Callout>
+
+## Background (미구현)
+
+<Callout type="warn">
+Background 컨테이너는 스펙에는 정의되어 있으나 **아직 구현되지 않았어요**. 백엔드·프론트엔드에 핸들러가 없으니 현재 버전에서는 사용할 수 없어요.
+</Callout>
+
+## 팁 & 참고
+
+- 컨테이너 노드의 세부 동작, 중첩 스코프, 에러 인덱스 유지 규칙은 `spec/5-system/4-execution-engine.md` §3을 참고해요.
+- 표현식 안에서 배열과 객체를 다루는 방법은 [표현식 치트시트](/docs/03-expression-language/cheatsheet)에서 확인해요.
+- 변수 스코프와 `$var` 사용법은 [변수와 컨텍스트](/docs/03-expression-language/variables-and-context)에서 다뤄요.
+- 개발자용 팁: ForEach와 Map은 내부적으로 동일한 `ForEachExecutor`를 공유해요. 새 컨테이너를 추가할 때 `runContainer` → `executeContainerBody` 인프라를 따라가면 기존 패턴을 그대로 재사용할 수 있어요.

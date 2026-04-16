@@ -60,6 +60,7 @@
 | 5 | Integration | 퍼즐 아이콘 | /integrations | |
 | 6 | Authentication | 자물쇠 아이콘 | /authentication | |
 | 7 | Statistics | 차트 아이콘 | /statistics | |
+| 8 | User Guide | 책 아이콘 (BookMarked) | /docs | 사용자 매뉴얼. 에디터·설정·노드 도움말. 상세는 [User Guide](./13-user-guide.md) 참조 |
 
 <!-- Phase 2 이후 메뉴 복원 규칙:
 - Knowledge Base: Phase 2에서 AI 노드와 함께 추가. Authentication 아래, Statistics 위에 배치.

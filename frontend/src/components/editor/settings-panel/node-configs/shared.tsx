@@ -1,3 +1,6 @@
+"use client";
+
+import { useId } from "react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
@@ -12,7 +15,7 @@ export function FieldGroup({
   children,
   hint,
 }: {
-  label: string;
+  label: React.ReactNode;
   children: React.ReactNode;
   hint?: string;
 }) {
@@ -36,7 +39,7 @@ export function SelectField({
   options,
   hint,
 }: {
-  label: string;
+  label: React.ReactNode;
   value: string;
   onChange: (value: string) => void;
   options: { value: string; label: string }[];
@@ -67,7 +70,7 @@ export function NumberField({
   max,
   hint,
 }: {
-  label: string;
+  label: React.ReactNode;
   value: number;
   onChange: (value: number) => void;
   min?: number;
@@ -126,11 +129,15 @@ export function CheckboxField({
   checked,
   onChange,
 }: {
-  label: string;
+  label: React.ReactNode;
   checked: boolean;
   onChange: (checked: boolean) => void;
 }) {
-  const id = `cb-${label.replace(/\s+/g, "-").toLowerCase()}`;
+  const reactId = useId();
+  const id =
+    typeof label === "string"
+      ? `cb-${label.replace(/\s+/g, "-").toLowerCase()}`
+      : `cb-${reactId}`;
   return (
     <div className="flex items-center gap-2">
       <input

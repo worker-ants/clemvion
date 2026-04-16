@@ -1,0 +1,80 @@
+---
+title: "자주 묻는 질문"
+section: "06-faq"
+order: 1
+summary: "데이터 저장, 실행 실패, 표현식 에러, 트리거 선택 같은 궁금증을 한 자리에 모았어요."
+spec: ["spec/0-overview.md", "spec/4-nodes/7-trigger-nodes.md", "spec/5-system/4-execution-engine.md", "spec/5-system/5-expression-language.md", "spec/5-system/5-webhook.md"]
+code: []
+---
+
+이 페이지에서는 사용자분들이 자주 묻는 질문을 한 자리에 모아 답을 드려요. 각 항목의 링크를 타고 가면 더 자세한 설명이 나와요.
+
+## Q1. 워크플로우와 실행 데이터는 어디에 저장돼요?
+
+워크플로우 구조·노드 설정·실행 이력은 제품 내부의 **PostgreSQL**에 저장돼요. 실행 중 상태와 캐시는 **Redis**를 쓰고, 파일 업로드(예: Form 노드 첨부 파일)는 **S3 호환 오브젝트 스토리지**(SaaS는 AWS S3, 셀프 호스팅은 MinIO)에 저장돼요. 지식 저장소의 임베딩은 별도의 Vector DB에 들어가요.
+
+## Q2. 실행이 실패하면 어떻게 원인을 확인해요?
+
+실행하면 캔버스 하단에 **Run Results 드로어**가 열려요. 실패한 노드는 빨간 테두리로 표시되고, 해당 노드를 클릭하면 `Error` 탭이 우선 선택돼 에러 메시지·스택·직전 입력을 보여줘요. 더 긴 이력을 보려면 [실행 결과 보기](/docs/04-run-and-debug/run-results)와 [에러 다루기](/docs/04-run-and-debug/error-handling)를 참고해요.
+
+## Q3. 표현식에서 `undefined is not an object` 같은 에러가 떠요.
+
+이전 노드의 결과 구조가 예상과 달라서 나오는 에러예요. `{{ $input.data.title }}`처럼 **경로 전체가 항상 존재**하는지 확인해요. 안전하게 쓰려면 삼항 조건 `{{ $input.data ? $input.data.title : "기본값" }}`을 써요. 문법과 함수 목록은 [표현식 치트시트](/docs/03-expression-language/cheatsheet)에 있어요.
+
+## Q4. 노드를 잠시 꺼 두고 싶어요.
+
+노드를 선택한 뒤 우클릭 메뉴에서 **비활성화**를 고르거나, 설정 패널의 토글을 꺼요. 비활성화된 노드는 실행 시 `skipped` 상태로 건너뛰고, 출력은 입력을 그대로 전달하지 않아요. 연결선은 유지되니 다시 켜면 곧바로 흐름에 복귀해요.
+
+## Q5. Manual Trigger랑 Webhook은 언제 뭘 써요?
+
+<FieldTable rows={[
+  {name: "Manual Trigger", required: false, type: "수동 실행", description: "에디터의 Run 버튼이나 내부 API 호출로 직접 실행할 때 써요. 테스트·일회성 작업에 어울려요.", default: "-"},
+  {name: "Webhook", required: false, type: "외부 이벤트 수신", description: "GitHub·Stripe 같은 외부 서비스가 HTTP POST로 보낸 이벤트를 받아 실행해요. URL을 공개하면 외부에서 언제든 호출할 수 있어요.", default: "-"},
+  {name: "Schedule", required: false, type: "주기 실행", description: "Cron 표현식에 따라 정해진 시간마다 실행해요. 리포트·청소 작업 같은 정기 업무에 좋아요.", default: "-"}
+]} />
+
+## Q6. LLM을 쓰는 AI 노드는 비용이 얼마나 나와요?
+
+비용은 사용한 프로바이더(OpenAI, Anthropic 등)의 **토큰 과금**을 그대로 따라요. 제품은 요청을 대신 라우팅만 해요. 얼마나 썼는지는 통계 메뉴에서 **LLM 토큰 사용량**으로 확인할 수 있어요(Phase 2). 비용을 줄이려면 프롬프트를 짧게 유지하고, 가능한 곳에서는 Text Classifier처럼 구조화된 AI 노드를 써요.
+
+## Q7. 한 워크플로우가 동시에 여러 번 실행돼도 괜찮아요?
+
+괜찮아요. 실행 엔진은 **Redis 기반 큐 + 워커 풀** 구조라 여러 실행이 병렬로 진행돼요. 각 실행은 고유한 `executionId`를 가지고 독립된 컨텍스트에서 돌아가요. 다만 Database Query로 같은 행을 건드리는 경우처럼 **외부 리소스에서의 경합**은 워크플로우 쪽에서 관리해야 해요.
+
+## Q8. 동시 실행 수에 한계가 있어요?
+
+SaaS에서는 요금제에 따라 **동시 실행 한도**와 분당 실행 수가 정해져 있어요. 셀프 호스팅에서는 워커 인스턴스 수를 늘려 수평 확장해요. 상한을 넘은 요청은 큐에서 `pending`으로 대기하다가 차례가 오면 `running`으로 넘어가요.
+
+## Q9. 실행 중간에 멈추고 싶어요.
+
+실행 중에 헤더의 Run 버튼이 `Stop`으로 바뀌어요. 누르면 현재 실행을 `cancelled` 상태로 표시해요. 이미 호출된 외부 API는 되돌릴 수 없다는 점을 기억해요. 복구가 필요한 경우 `error` 포트를 이용한 보상 로직을 미리 넣어 둬요.
+
+## Q10. 이전 버전으로 되돌릴 수 있어요?
+
+네. 에디터 헤더의 더보기(⋮) 메뉴에서 **버전 히스토리**를 열면 이전 스냅샷 목록이 나와요. 원하는 시점으로 복원하거나 차이를 비교할 수 있어요. 자세한 흐름은 [버전 히스토리](/docs/04-run-and-debug/version-history)에 있어요.
+
+## Q11. 외부에서 호출할 API Key는 어디서 만들어요?
+
+사이드바의 `Authentication` 메뉴에서 만들어요. API Key, Bearer Token, Basic Auth 같은 방식을 발급할 수 있고, 특정 워크플로우의 Webhook 트리거에 연결해 접근을 제한할 수 있어요. 자세한 내용은 [통합 관리](/docs/05-integrations-and-config/integration-management)를 참고해요.
+
+## Q12. 워크플로우를 다른 계정으로 옮기고 싶어요.
+
+워크플로우 목록의 더보기 메뉴에서 **내보내기(JSON)**를 써요. 받은 JSON 파일을 다른 계정에서 **가져오기**로 복원하면 노드 구조와 설정이 그대로 옮겨져요. 단, Integration의 실제 인증 정보(API Key 등)는 보안상 포함되지 않으니, 옮긴 쪽에서 다시 연결해 줘요.
+
+## Q13. 노드 실행 시간이 30초를 넘어가요.
+
+기본 노드 타임아웃은 **30초**예요. HTTP Request 노드처럼 `timeout` 필드를 지원하는 노드는 설정으로 늘릴 수 있어요. 오래 걸리는 작업은 Background 노드(Phase 2)로 분리하거나, 외부 작업 큐에 맡기는 패턴을 권해요.
+
+## Q14. 표현식에서 반복문을 쓸 수 있어요?
+
+표현식 언어는 **읽기 전용·무한 루프 금지**로 설계돼 있어요. 반복이 필요하면 `Loop`, `ForEach`, `Map` 같은 Logic 컨테이너 노드를 써요. 복잡한 변환은 Transform이나 Code 노드로 옮기는 것이 안전해요.
+
+## Q15. 개인 데이터와 팀 데이터가 섞이지 않나요?
+
+각 워크플로우는 **워크스페이스** 단위로 격리돼요. Phase 1에서는 가입 시 자동 생성되는 개인 워크스페이스 하나만 동작하고, Phase 2부터 팀 워크스페이스와 역할 기반 권한(RBAC)이 활성화돼요. 어떤 워크스페이스에서 작업 중인지는 사이드바 하단 사용자 영역에서 확인할 수 있어요.
+
+## 팁 & 참고
+
+- 질문에 답이 없다면 [실행과 디버깅](/docs/04-run-and-debug/running-a-workflow) 섹션을 먼저 훑어 봐요. 대부분의 운영 이슈는 여기에서 해결돼요.
+- 표현식 관련 문제는 [표현식 기본](/docs/03-expression-language/basics) → [변수와 컨텍스트](/docs/03-expression-language/variables-and-context) 순서로 보면 빠르게 잡혀요.
+- 개발자용 팁: 실행 엔진은 토폴로지 정렬 기반으로 동작하면서 back-edge로 순환을 지원해요. 동작 원리가 궁금하면 스펙 문서(`spec/5-system/4-execution-engine.md`)를 참고해요.

@@ -47,7 +47,8 @@
 
 ## DOCUMENTATION
 다음 문서를 최신화하세요.
-- `prd`, `spec` 경로의 문서 
+- `prd`, `spec` 경로의 문서
+- frontend의 `/docs`에서 제공되는 사용자 설명서 (구현된 내용을 기반으로 해야 합니다.)
 - backend swagger doc (API에 변동사항이 발생하는 경우)
 
 ## TEST WORKFLOW

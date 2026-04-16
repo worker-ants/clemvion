@@ -1,0 +1,162 @@
+---
+title: "UI 한 바퀴 둘러보기"
+section: "01-getting-started"
+order: 2
+summary: "사이드바·워크플로우 목록·캔버스 에디터 세 화면을 순서대로 훑어요."
+spec: ["spec/2-navigation/0-layout.md", "spec/3-workflow-editor/0-canvas.md", "prd/1-navigation.md"]
+code: []
+---
+
+이 페이지에서는 제품의 주요 화면 세 곳, 즉 **사이드바**, **워크플로우 목록**, **캔버스 에디터**를 순서대로 설명해요. 어디에 무엇이 있는지 미리 눈에 익혀 두면 다음 페이지부터 훨씬 편해요.
+
+## 전체 레이아웃
+
+<div className="my-4 flex gap-2 rounded-md border border-[hsl(var(--border))] bg-[hsl(var(--muted))/0.3] p-3 text-sm">
+  <div className="flex w-44 shrink-0 flex-col gap-2 rounded border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-3">
+    <div className="text-xs font-semibold text-[hsl(var(--muted-foreground))]">Sidebar (240px)</div>
+    <div className="font-medium">로고</div>
+    <ul className="space-y-0.5 text-xs text-[hsl(var(--muted-foreground))]">
+      <li>Dashboard</li>
+      <li>Workflows</li>
+      <li>Triggers</li>
+      <li>Schedule</li>
+      <li>Integration</li>
+      <li>Authentication</li>
+      <li>Statistics</li>
+      <li>User Guide</li>
+    </ul>
+    <div className="mt-auto text-xs text-[hsl(var(--muted-foreground))]">아바타 · 사용자</div>
+  </div>
+  <div className="flex flex-1 flex-col gap-2 rounded border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-3">
+    <div className="flex items-center justify-between text-xs font-semibold text-[hsl(var(--muted-foreground))]">
+      <span>Page Title</span>
+      <span>[ Action ]</span>
+    </div>
+    <div className="h-px bg-[hsl(var(--border))]" />
+    <div className="text-xs text-[hsl(var(--muted-foreground))]">
+      Main Content · 워크플로우 목록, 에디터, 설정 등 페이지 본문이 이 영역에 채워져요.
+    </div>
+  </div>
+</div>
+
+왼쪽 고정 사이드바가 내비게이션을 담당하고, 오른쪽 메인 영역이 페이지 본문을 채워요. 해상도가 좁아지면 사이드바가 자동으로 접히거나 햄버거 메뉴로 바뀌어요.
+
+## 1. 사이드바
+
+사이드바에는 제품의 **큰 메뉴**가 순서대로 나열돼요. 현재 위치한 페이지는 하이라이트로 표시해 줘요.
+
+<FieldTable rows={[
+  {name: "Dashboard", required: false, type: "홈", description: "최근 활동 요약과 바로가기를 모아 둔 첫 화면이에요.", default: "-"},
+  {name: "Workflows", required: false, type: "목록", description: "내가 만든 워크플로우를 관리해요. 생성·복제·삭제가 가능해요.", default: "-"},
+  {name: "Triggers", required: false, type: "목록", description: "워크플로우를 시작시키는 트리거(수동·웹훅·스케줄) 목록이에요.", default: "-"},
+  {name: "Schedule", required: false, type: "스케줄", description: "Cron 기반으로 워크플로우를 주기 실행하도록 등록해요.", default: "-"},
+  {name: "Integration", required: false, type: "연동", description: "HTTP·DB·메일 같은 외부 서비스 인증을 보관하는 곳이에요.", default: "-"},
+  {name: "Authentication", required: false, type: "인증", description: "외부에서 내 워크플로우를 호출할 때 쓸 API Key·토큰을 발급해요.", default: "-"},
+  {name: "Statistics", required: false, type: "통계", description: "실행 횟수, 성공/실패 비율, 평균 실행 시간을 볼 수 있어요.", default: "-"},
+  {name: "User Guide", required: false, type: "매뉴얼", description: "지금 보고 있는 사용자 매뉴얼이에요.", default: "-"}
+]} />
+
+<Callout type="note">
+Phase 1에서는 Knowledge Base, LLM 설정, Marketplace 메뉴가 사이드바에 보이지 않아요. 각 기능이 활성화되는 단계에서 메뉴가 다시 나타나요.
+</Callout>
+
+사이드바 하단에는 **아바타와 사용자 이름**이 있어요. 클릭하면 프로필, 테마(라이트/다크), 로그아웃 메뉴가 펼쳐져요.
+
+## 2. 워크플로우 목록
+
+`Workflows` 메뉴로 들어가면 지금까지 만든 워크플로우가 카드/행 형태로 보여요.
+
+<div className="my-4 overflow-hidden rounded-md border border-[hsl(var(--border))] bg-[hsl(var(--muted))/0.3] text-sm">
+  <div className="flex items-center justify-between border-b border-[hsl(var(--border))] px-4 py-2">
+    <span className="font-semibold">Workflows</span>
+    <span className="rounded bg-[hsl(var(--primary))] px-2 py-1 text-xs text-[hsl(var(--primary-foreground))]">+ New Workflow</span>
+  </div>
+  <div className="border-b border-[hsl(var(--border))] px-4 py-2 text-xs text-[hsl(var(--muted-foreground))]">🔍 검색 · 상태 ▾ · 태그 ▾</div>
+  <ul className="divide-y divide-[hsl(var(--border))]">
+    <li className="flex items-center justify-between px-4 py-2">
+      <span>● My First Workflow</span>
+      <span className="text-xs text-[hsl(var(--muted-foreground))]">Active · 방금 전 · ⋮</span>
+    </li>
+    <li className="flex items-center justify-between px-4 py-2">
+      <span>○ Lead Router</span>
+      <span className="text-xs text-[hsl(var(--muted-foreground))]">Inactive · 2일 전 · ⋮</span>
+    </li>
+    <li className="flex items-center justify-between px-4 py-2">
+      <span>● Daily Report</span>
+      <span className="text-xs text-[hsl(var(--muted-foreground))]">Active · 1시간 전 · ⋮</span>
+    </li>
+  </ul>
+</div>
+
+목록에서는 다음 동작을 할 수 있어요.
+
+- **검색**: 이름으로 필터링해요.
+- **활성/비활성 토글**: 행 왼쪽 동그라미 표시로 즉시 끄고 켜요. 비활성 상태에서는 트리거가 들어와도 실행되지 않아요.
+- **더보기(⋮)**: 편집, 복제, 내보내기(JSON), 삭제 등을 선택해요.
+- **항목 클릭**: 해당 워크플로우의 **캔버스 에디터**로 이동해요.
+
+## 3. 캔버스 에디터
+
+워크플로우를 실제로 그리는 공간이에요. 네 영역으로 나뉘어요.
+
+<div className="my-4 overflow-hidden rounded-md border border-[hsl(var(--border))] bg-[hsl(var(--muted))/0.3] text-sm">
+  <div className="flex items-center justify-between border-b border-[hsl(var(--border))] px-4 py-2 text-xs text-[hsl(var(--muted-foreground))]">
+    <span>← Workflows / My Workflow</span>
+    <span>[Save] · [▶ Run] · [⋮]</span>
+  </div>
+  <div className="flex min-h-[120px] divide-x divide-[hsl(var(--border))]">
+    <div className="w-28 shrink-0 bg-[hsl(var(--card))] p-3 text-xs text-[hsl(var(--muted-foreground))]">
+      <div className="font-semibold">Node Palette</div>
+      <div className="mt-1">검색 · Trigger · Logic · Flow · AI · …</div>
+    </div>
+    <div className="flex flex-1 items-center justify-center bg-[hsl(var(--card))] p-4">
+      <div className="flex items-center gap-2 text-xs">
+        <span className="rounded border border-[hsl(var(--border))] px-2 py-1">Node A</span>
+        <span className="text-[hsl(var(--muted-foreground))]">→</span>
+        <span className="rounded border border-[hsl(var(--border))] px-2 py-1">Node B</span>
+      </div>
+    </div>
+    <div className="w-32 shrink-0 bg-[hsl(var(--card))] p-3 text-xs text-[hsl(var(--muted-foreground))]">
+      <div className="font-semibold">Setting Panel</div>
+      <div className="mt-1">노드 선택 시 열림</div>
+    </div>
+  </div>
+  <div className="flex items-center justify-between border-t border-[hsl(var(--border))] bg-[hsl(var(--card))] px-4 py-2 text-xs text-[hsl(var(--muted-foreground))]">
+    <span>Run Results · 실행 시에만 표시</span>
+    <span>[−] [✕]</span>
+  </div>
+  <div className="flex items-center justify-between border-t border-[hsl(var(--border))] px-4 py-2 text-xs text-[hsl(var(--muted-foreground))]">
+    <span>Zoom ━━━━●━━━━</span>
+    <span>Fit · Undo · Redo</span>
+  </div>
+</div>
+
+<Steps>
+  <Step>**헤더**: 뒤로가기, 워크플로우 이름(인라인 편집), Save 버튼, Run 버튼, 더보기 메뉴가 놓여요. `Ctrl+S`로 언제든 저장할 수 있어요.</Step>
+  <Step>**노드 팔레트(좌측)**: Trigger·Logic·Flow·AI·Integration·Data·Presentation 카테고리별로 노드가 정리돼 있어요. 상단의 검색으로 이름을 바로 찾아요.</Step>
+  <Step>**캔버스(중앙)**: 팔레트에서 노드를 드래그해 배치하고, 출력 포트에서 다음 노드의 입력 포트로 **연결선**을 그어요. 마우스 휠로 줌, 빈 영역 드래그로 패닝해요.</Step>
+  <Step>**설정 패널(우측)**: 노드를 클릭하면 열려요. 필드에는 `{{ }}`로 감싼 표현식을 쓸 수 있고, 자동완성이 도와줘요. 변경은 즉시 반영돼요.</Step>
+  <Step>**Run Results 드로어(하단)**: Run 버튼을 눌러 실행하면 하단에 열려요. 노드별 입력·출력·에러를 확인하고, Presentation 노드는 Preview 탭으로 렌더링 결과를 바로 보여줘요.</Step>
+</Steps>
+
+### 자주 쓰는 단축키
+
+<FieldTable rows={[
+  {name: "Ctrl+S", required: false, type: "저장", description: "현재 워크플로우를 저장해요.", default: "-"},
+  {name: "Ctrl+C / Ctrl+V", required: false, type: "복사/붙여넣기", description: "선택한 노드와 연결선을 한 덩어리로 복제해요.", default: "-"},
+  {name: "Ctrl+D", required: false, type: "복제", description: "선택한 노드를 바로 옆에 복사해요.", default: "-"},
+  {name: "Delete", required: false, type: "삭제", description: "선택한 노드나 연결선을 지워요.", default: "-"},
+  {name: "Ctrl+Z / Ctrl+Y", required: false, type: "Undo/Redo", description: "직전 동작을 되돌리거나 다시 적용해요.", default: "-"},
+  {name: "Fit", required: false, type: "뷰 맞춤", description: "모든 노드가 보이도록 캔버스를 자동 조정해요.", default: "-"}
+]} />
+
+<Callout type="tip">
+**에디터의 Empty State**: 아직 노드가 하나도 없는 새 워크플로우라면 캔버스 중앙에 "시작하기" 카드가 떠요. 여기에서 매뉴얼의 해당 섹션으로 바로 이동할 수 있어요.
+</Callout>
+
+## 팁 & 참고
+
+- 에디터 작업 중 매뉴얼 링크를 클릭하면 **새 탭**으로 열려요. 작업 맥락을 잃지 않도록 설계돼 있어요.
+- 개발자용 팁: 노드 설정 패널은 개별 폼과 **JSON/코드 편집 모드**를 상호 전환할 수 있어요. 여러 필드를 한 번에 붙여넣거나 diff로 비교할 때 편해요.
+- 다음 단계는 [첫 워크플로우 만들기](/docs/01-getting-started/first-workflow)예요. 실제 노드를 올리고 결과를 확인해 봐요.
+- 노드 종류가 궁금하면 [노드 개요](/docs/02-nodes/overview)를 참고해요.

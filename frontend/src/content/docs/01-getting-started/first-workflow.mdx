@@ -1,0 +1,102 @@
+---
+title: "첫 워크플로우 만들기"
+section: "01-getting-started"
+order: 3
+summary: "Manual Trigger와 HTTP Request 노드로 5분 만에 첫 자동화를 만들어요."
+spec: ["spec/3-workflow-editor/0-canvas.md", "spec/4-nodes/7-trigger-nodes.md", "spec/4-nodes/4-integration-nodes.md", "prd/2-workflow-editor.md"]
+code: []
+---
+
+이 페이지에서는 **Manual Trigger + HTTP Request** 조합으로 가장 기본적인 워크플로우를 직접 만들어 보는 과정을 설명해요. 공개 API를 한 번 호출하고, 결과를 Run Results에서 확인하는 것까지 해 봐요.
+
+## 만들 워크플로우 미리보기
+
+<FlowDiagram steps={[
+  { title: "Manual Trigger", sub: "시작 신호" },
+  { title: "HTTP Request", sub: "GET 공개 API" },
+]} />
+
+실행하면 HTTP Request 노드가 외부 API를 호출하고, 응답을 **노드 결과**로 돌려줘요.
+
+## 준비물
+
+- 로그인된 상태의 사용자 계정이에요.
+- 별도의 Integration 없이 쓸 수 있는 공개 API 주소 하나예요. 예시로 `https://jsonplaceholder.typicode.com/todos/1`을 쓸게요.
+
+## 단계별 따라하기
+
+<Steps>
+  <Step>
+    **새 워크플로우 만들기** — 사이드바에서 `Workflows`로 이동해 우측 상단의 `+ New Workflow` 버튼을 클릭해요. 빈 캔버스가 열리고, 중앙에 `Manual Trigger` 노드 하나가 기본으로 놓여 있어요. (Manual Trigger는 워크플로우당 1개만 존재하며 삭제할 수 없어요.)
+  </Step>
+
+  <Step>
+    **워크플로우 이름 정하기** — 헤더의 이름 영역을 클릭해 `My First Workflow`처럼 원하는 이름으로 바꿔요. 캔버스는 자동 저장되지만, `Ctrl+S`로 언제든 수동 저장할 수 있어요.
+  </Step>
+
+  <Step>
+    **HTTP Request 노드 추가** — 좌측 팔레트의 검색창에 `HTTP`를 입력하고, `HTTP Request` 노드를 캔버스로 드래그해요. Manual Trigger 오른쪽에 떨어뜨리면 자연스러워요.
+  </Step>
+
+  <Step>
+    **노드 연결** — Manual Trigger 오른쪽의 출력 포트(작은 원)에서 마우스를 눌러 HTTP Request의 왼쪽 입력 포트까지 끌어 놓아요. 연결선이 그려지면 데이터 흐름이 완성된 거예요.
+  </Step>
+
+  <Step>
+    **HTTP Request 설정 채우기** — HTTP Request 노드를 클릭해 우측 설정 패널을 열고 다음 값을 입력해요.
+
+    <FieldTable rows={[
+      {name: "method", required: true, type: "enum", description: "GET을 선택해요.", default: "GET"},
+      {name: "url", required: true, type: "string(표현식)", description: "`https://jsonplaceholder.typicode.com/todos/1`을 입력해요.", default: "-"},
+      {name: "authentication", required: true, type: "enum", description: "`none`을 유지해요. 인증이 필요한 API라면 Integration을 먼저 만들어요.", default: "none"},
+      {name: "responseType", required: false, type: "enum", description: "`json`이면 응답을 객체로 파싱해 줘요.", default: "json"}
+    ]} />
+
+    설정은 변경 즉시 반영되고, 아래쪽에 `⚠ Not configured` 표시가 사라지면 준비 끝이에요.
+  </Step>
+
+  <Step>
+    **실행하기** — 헤더 우측의 `▶ Run` 버튼을 눌러요. 캔버스의 각 노드가 실행 상태에 따라 색을 바꾸고, 하단에 **Run Results 드로어**가 열려요. Manual Trigger는 거의 즉시 완료되고, HTTP Request가 성공하면 초록색 테두리로 바뀌어요.
+  </Step>
+
+  <Step>
+    **결과 확인하기** — Run Results에서 HTTP Request 노드를 클릭하면 `Preview / Input / Output / Error` 서브 탭이 보여요. `Output` 탭에서 다음과 비슷한 JSON을 볼 수 있어요.
+
+    <Example title="Output 예시">
+    ```json
+    {
+      "data": {
+        "userId": 1,
+        "id": 1,
+        "title": "delectus aut autem",
+        "completed": false
+      },
+      "meta": {
+        "statusCode": 200,
+        "duration_ms": 120
+      }
+    }
+    ```
+    </Example>
+
+    다음 노드에서 이 결과를 쓰려면 `{{ $input.data.title }}` 같은 표현식으로 참조해요.
+  </Step>
+</Steps>
+
+## 잘 안 될 때 체크 리스트
+
+<Callout type="warn" title="에러가 났다면">
+- URL 오타가 가장 흔해요. `https://` 접두사가 빠지지 않았는지 확인해요.
+- 회사망 안에서 외부 API가 막혀 있으면 `error` 포트로 빠져요. Run Results의 `Error` 탭에서 상태 코드와 메시지를 읽어요.
+- 인증이 필요한 API라면 `Integration` 메뉴에서 연동을 먼저 만들고 노드 설정에서 선택해요.
+</Callout>
+
+<Callout type="tip">
+Manual Trigger에 **입력 파라미터**를 선언해 두면 실행 시 다이얼로그에서 값을 받아와요. 이후 노드는 `{{ $params.<이름> }}` 또는 `{{ $input.parameters.<이름> }}`으로 그 값을 써요.
+</Callout>
+
+## 팁 & 참고
+
+- 한 노드만 다시 돌리고 싶다면 노드 우클릭 → `실행`(단일 노드 테스트) 또는 `여기서부터 실행`을 써요. 자세한 내용은 [워크플로우 실행하기](/docs/04-run-and-debug/running-a-workflow)에서 확인해요.
+- 결과 탭 구성과 Preview 우선순위 규칙은 [실행 결과 보기](/docs/04-run-and-debug/run-results)에 정리돼 있어요.
+- 개발자용 팁: HTTP Request 노드는 `success` / `error` 두 개의 출력 포트를 가져요. 실패 케이스를 분기 처리하려면 `error` 포트를 별도의 노드로 연결해요. 세부 필드는 [노드 가이드 · 통합](/docs/02-nodes/integrations)을 참고해요.
