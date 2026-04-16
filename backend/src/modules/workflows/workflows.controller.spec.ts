@@ -8,6 +8,7 @@ import { WorkflowsService } from './workflows.service';
 import { ExecutionEngineService } from '../execution-engine/execution-engine.service';
 import { Node, NodeCategory } from '../nodes/entities/node.entity';
 import type { JwtPayload } from '../../common/decorators';
+import { WorkspacesService } from '../workspaces/workspaces.service';
 
 describe('WorkflowsController (execute endpoint)', () => {
   let controller: WorkflowsController;
@@ -35,6 +36,12 @@ describe('WorkflowsController (execute endpoint)', () => {
         {
           provide: getRepositoryToken(Node),
           useValue: { findOne: jest.fn() },
+        },
+        {
+          provide: WorkspacesService,
+          useValue: {
+            getMemberRole: jest.fn().mockResolvedValue('owner'),
+          },
         },
       ],
     }).compile();
@@ -150,6 +157,12 @@ describe('WorkflowsController (canvas + version endpoints)', () => {
         {
           provide: getRepositoryToken(Node),
           useValue: { findOne: jest.fn() },
+        },
+        {
+          provide: WorkspacesService,
+          useValue: {
+            getMemberRole: jest.fn().mockResolvedValue('owner'),
+          },
         },
       ],
     }).compile();

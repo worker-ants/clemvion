@@ -16,6 +16,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { EmptyState } from "@/components/ui/empty-state";
+import { RoleGate } from "@/components/auth/role-gate";
 import { cn } from "@/lib/utils/cn";
 import {
   integrationsApi,
@@ -147,13 +148,15 @@ export default function IntegrationsPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-3xl font-bold">Integrations</h1>
-        <Button onClick={() => setPickerOpen(true)}>
-          <Plus className="mr-2 h-4 w-4" />
-          Add Integration
-          <kbd className="ml-2 hidden rounded bg-[hsl(var(--primary-foreground))]/20 px-1.5 py-0.5 text-[10px] sm:inline">
-            N
-          </kbd>
-        </Button>
+        <RoleGate minRole="editor">
+          <Button onClick={() => setPickerOpen(true)}>
+            <Plus className="mr-2 h-4 w-4" />
+            Add Integration
+            <kbd className="ml-2 hidden rounded bg-[hsl(var(--primary-foreground))]/20 px-1.5 py-0.5 text-[10px] sm:inline">
+              N
+            </kbd>
+          </Button>
+        </RoleGate>
       </div>
 
       {attentionCount > 0 && (
@@ -274,10 +277,12 @@ export default function IntegrationsPage() {
           title="No integrations yet"
           description="Connect external services to use them from your workflows."
           action={
-            <Button onClick={() => setPickerOpen(true)}>
-              <Plus className="mr-2 h-4 w-4" />
-              Add Integration
-            </Button>
+            <RoleGate minRole="editor">
+              <Button onClick={() => setPickerOpen(true)}>
+                <Plus className="mr-2 h-4 w-4" />
+                Add Integration
+              </Button>
+            </RoleGate>
           }
         />
       )}

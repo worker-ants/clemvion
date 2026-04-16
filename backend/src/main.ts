@@ -1,3 +1,5 @@
+// OpenTelemetry는 다른 모듈을 import하기 전에 부트스트랩되어야 자동 계측이 정확하다.
+import './instrumentation';
 import { NestFactory } from '@nestjs/core';
 import { ConfigService } from '@nestjs/config';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';

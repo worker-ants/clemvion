@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import { RoleGate } from "@/components/auth/role-gate";
 import { toast } from "sonner";
 import {
   Plus,
@@ -182,10 +183,12 @@ export default function LlmConfigsPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-3xl font-bold">LLM Config</h1>
-        <Button onClick={() => setShowDialog(true)}>
-          <Plus className="mr-2 h-4 w-4" />
-          Add Provider
-        </Button>
+        <RoleGate minRole="editor">
+          <Button onClick={() => setShowDialog(true)}>
+            <Plus className="mr-2 h-4 w-4" />
+            Add Provider
+          </Button>
+        </RoleGate>
       </div>
 
       {/* Add/Edit Dialog */}
@@ -381,33 +384,35 @@ export default function LlmConfigsPage() {
                         <Plug className="mr-1 h-3 w-3" />
                         Test
                       </Button>
-                      {!config.isDefault && (
+                      <RoleGate minRole="editor">
+                        {!config.isDefault && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 text-xs"
+                            onClick={() => setDefaultMutation.mutate(config.id)}
+                          >
+                            <Star className="mr-1 h-3 w-3" />
+                            Default
+                          </Button>
+                        )}
                         <Button
                           variant="ghost"
-                          size="sm"
-                          className="h-7 text-xs"
-                          onClick={() => setDefaultMutation.mutate(config.id)}
+                          size="icon"
+                          className="h-7 w-7"
+                          onClick={() => openEdit(config)}
                         >
-                          <Star className="mr-1 h-3 w-3" />
-                          Default
+                          <Pencil className="h-3 w-3" />
                         </Button>
-                      )}
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-7 w-7"
-                        onClick={() => openEdit(config)}
-                      >
-                        <Pencil className="h-3 w-3" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-7 w-7 text-[hsl(var(--destructive))]"
-                        onClick={() => setDeleteTarget(config.id)}
-                      >
-                        <Trash2 className="h-3 w-3" />
-                      </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7 text-[hsl(var(--destructive))]"
+                          onClick={() => setDeleteTarget(config.id)}
+                        >
+                          <Trash2 className="h-3 w-3" />
+                        </Button>
+                      </RoleGate>
                     </div>
                   </td>
                 </tr>

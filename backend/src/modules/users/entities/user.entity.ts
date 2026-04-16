@@ -35,6 +35,18 @@ export class User {
   @Column({ name: 'two_factor_secret', nullable: true, length: 255 })
   twoFactorSecret: string;
 
+  /**
+   * 2FA 복구 코드(SHA-256 해시 배열). 사용 시 해당 항목 제거.
+   * `totp_enabled = true`인 사용자에게 활성화 시점에 10개를 일회성으로 발급한다.
+   */
+  @Column({
+    name: 'totp_recovery_codes',
+    type: 'text',
+    array: true,
+    nullable: true,
+  })
+  totpRecoveryCodes: string[] | null;
+
   @Column({ name: 'email_verified', default: false })
   emailVerified: boolean;
 

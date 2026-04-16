@@ -8,6 +8,18 @@ import {
   ChatResult,
   ModelInfo,
 } from './interfaces/llm-client.interface';
+import { LlmUsageLogService } from './llm-usage-log.service';
+
+/**
+ * LLM 호출 시점의 실행 컨텍스트(선택).
+ * `workspaceId`는 `LlmConfig.workspaceId`로 자동 채워지므로 호출부에서 지정 불필요.
+ * 워크플로우/실행/노드 단위 귀속이 필요하면 호출부에서 명시한다.
+ */
+export interface LlmCallContext {
+  workflowId?: string | null;
+  executionId?: string | null;
+  nodeExecutionId?: string | null;
+}
 
 @Injectable()
 export class LlmService {
@@ -17,6 +29,7 @@ export class LlmService {
   constructor(
     private readonly llmConfigService: LlmConfigService,
     private readonly clientFactory: LLMClientFactory,
+    private readonly usageLogService: LlmUsageLogService,
   ) {}
 
   createClient(config: LlmConfig): LLMClient {
@@ -41,9 +54,26 @@ export class LlmService {
     this.clientCache.delete(configId);
   }
 
-  async chat(config: LlmConfig, params: ChatParams): Promise<ChatResult> {
+  async chat(
+    config: LlmConfig,
+    params: ChatParams,
+    context?: LlmCallContext,
+  ): Promise<ChatResult> {
     const client = this.createClient(config);
-    return this.withRetry(() => client.chat(params));
+    const result = await this.withRetry(() => client.chat(params));
+    // 사용량 기록은 fire-and-forget — 실패해도 호출 결과에 영향 없음.
+    // workspaceId는 LlmConfig에서 자동 채워지므로 컨텍스트 누락에 무관하게 집계됨.
+    void this.usageLogService.record({
+      workspaceId: config.workspaceId,
+      workflowId: context?.workflowId,
+      executionId: context?.executionId,
+      nodeExecutionId: context?.nodeExecutionId,
+      llmConfigId: config.id,
+      provider: config.provider,
+      model: result.model,
+      usage: result.usage,
+    });
+    return result;
   }
 
   async embed(

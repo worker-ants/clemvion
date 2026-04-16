@@ -29,7 +29,14 @@ import {
 } from '@nestjs/swagger';
 import { AuthService } from './auth.service';
 import { AuthOauthService, AUTH_OAUTH_PROVIDERS } from './auth-oauth.service';
-import { Public } from '../../common/decorators';
+import { TotpService } from './totp.service';
+import { Public, CurrentUser } from '../../common/decorators';
+import type { JwtPayload } from '../../common/decorators';
+import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
+import { UseGuards } from '@nestjs/common';
+import { LoginTotpDto, Verify2faDto, Disable2faDto } from './dto/totp.dto';
+import { UsersService } from '../users/users.service';
+import * as bcrypt from 'bcrypt';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 import { VerifyEmailDto } from './dto/verify-email.dto';
@@ -59,6 +66,8 @@ export class AuthController {
     private readonly authService: AuthService,
     private readonly configService: ConfigService,
     private readonly authOauthService: AuthOauthService,
+    private readonly totpService: TotpService,
+    private readonly usersService: UsersService,
   ) {
     this.cookieDomain =
       this.configService.get<string>('app.cookieDomain') || '';
@@ -168,8 +177,102 @@ export class AuthController {
     @Res({ passthrough: true }) res: Express.Response,
   ) {
     const result = await this.authService.login(dto);
+    if ('requiresTotp' in result) {
+      return {
+        data: {
+          requiresTotp: true,
+          challengeToken: result.challengeToken,
+        },
+      };
+    }
     this.setRefreshTokenCookie(res, result.refreshToken, dto.rememberMe);
     return { data: { accessToken: result.accessToken } };
+  }
+
+  @Public()
+  @Post('login/totp')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: '로그인 2단계 인증 (TOTP)',
+    description:
+      '`/auth/login`에서 받은 challengeToken과 6자리 인증 코드(또는 복구 코드)로 2단계 인증을 완료해 정식 토큰을 발급합니다.',
+  })
+  @ApiOkResponse({ description: '2단계 인증 성공' })
+  @ApiUnauthorizedResponse({
+    description: '인증 코드 불일치 또는 challenge 만료',
+  })
+  async loginTotp(
+    @Body() dto: LoginTotpDto,
+    @Res({ passthrough: true }) res: Express.Response,
+  ) {
+    const result = await this.authService.loginWithTotp(
+      dto.challengeToken,
+      dto.code,
+      (user, code) => this.totpService.verifyForLogin(user, code),
+    );
+    this.setRefreshTokenCookie(res, result.refreshToken, false);
+    return { data: { accessToken: result.accessToken } };
+  }
+
+  @Post('2fa/setup')
+  @UseGuards(JwtAuthGuard)
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: '2FA 설정 시작',
+    description:
+      'TOTP secret을 발급하고 Authenticator 앱이 스캔할 수 있는 QR 코드(data URL)를 반환합니다. 검증 전까지 활성화되지 않습니다.',
+  })
+  async setup2fa(@CurrentUser() user: JwtPayload) {
+    const result = await this.totpService.setup(user.sub);
+    return {
+      data: {
+        otpauthUrl: result.otpauthUrl,
+        qrCodeDataUrl: result.qrCodeDataUrl,
+      },
+    };
+  }
+
+  @Post('2fa/verify')
+  @UseGuards(JwtAuthGuard)
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: '2FA 검증·활성화',
+    description:
+      'setup으로 발급한 secret과 일치하는 6자리 코드를 검증해 2FA를 활성화하고 복구 코드 10개를 반환합니다(일회성 표시).',
+  })
+  async verify2fa(@CurrentUser() user: JwtPayload, @Body() dto: Verify2faDto) {
+    const result = await this.totpService.verifyAndEnable(user.sub, dto.code);
+    return { data: { recoveryCodes: result.recoveryCodes } };
+  }
+
+  @Post('2fa/disable')
+  @UseGuards(JwtAuthGuard)
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: '2FA 비활성',
+    description:
+      '비밀번호 재확인 후 2FA를 비활성화하고 복구 코드를 폐기합니다.',
+  })
+  async disable2fa(
+    @CurrentUser() user: JwtPayload,
+    @Body() dto: Disable2faDto,
+  ) {
+    const userEntity = await this.usersService.findById(user.sub);
+    if (!userEntity || !userEntity.passwordHash) {
+      throw new UnauthorizedException({
+        code: 'PASSWORD_REQUIRED',
+        message: '비밀번호 확인이 필요합니다.',
+      });
+    }
+    const ok = await bcrypt.compare(dto.password, userEntity.passwordHash);
+    if (!ok) {
+      throw new UnauthorizedException({
+        code: 'PASSWORD_INVALID',
+        message: '비밀번호가 일치하지 않습니다.',
+      });
+    }
+    await this.totpService.disable(user.sub);
+    return { data: { ok: true } };
   }
 
   @Public()

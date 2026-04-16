@@ -43,11 +43,14 @@ import { LlmConfigModule } from './modules/llm-config/llm-config.module';
 import { LlmModule } from './modules/llm/llm.module';
 import { KnowledgeBaseModule } from './modules/knowledge-base/knowledge-base.module';
 import { HooksModule } from './modules/hooks/hooks.module';
+import { AlertsModule } from './modules/alerts/alerts.module';
+import { AlertRule } from './modules/alerts/entities/alert-rule.entity';
 
 // Entity imports
 import { User } from './modules/users/entities/user.entity';
 import { Workspace } from './modules/workspaces/entities/workspace.entity';
 import { WorkspaceMember } from './modules/workspaces/entities/workspace-member.entity';
+import { WorkspaceInvitation } from './modules/workspaces/entities/workspace-invitation.entity';
 import { Workflow } from './modules/workflows/entities/workflow.entity';
 import { Folder } from './modules/folders/entities/folder.entity';
 import { Node } from './modules/nodes/entities/node.entity';
@@ -68,6 +71,7 @@ import { AuditLog } from './modules/audit-logs/entities/audit-log.entity';
 import { RefreshToken } from './modules/auth/entities/refresh-token.entity';
 import { AuthOAuthState } from './modules/auth/entities/auth-oauth-state.entity';
 import { LlmConfig } from './modules/llm-config/entities/llm-config.entity';
+import { LlmUsageLog } from './modules/llm/entities/llm-usage-log.entity';
 import { KnowledgeBase } from './modules/knowledge-base/entities/knowledge-base.entity';
 import { Document } from './modules/knowledge-base/entities/document.entity';
 import { DocumentChunk } from './modules/knowledge-base/entities/document-chunk.entity';
@@ -103,6 +107,7 @@ import { DocumentChunk } from './modules/knowledge-base/entities/document-chunk.
           User,
           Workspace,
           WorkspaceMember,
+          WorkspaceInvitation,
           Workflow,
           Folder,
           Node,
@@ -123,9 +128,11 @@ import { DocumentChunk } from './modules/knowledge-base/entities/document-chunk.
           RefreshToken,
           AuthOAuthState,
           LlmConfig,
+          LlmUsageLog,
           KnowledgeBase,
           Document,
           DocumentChunk,
+          AlertRule,
         ],
         synchronize: false,
         logging: process.env.NODE_ENV === 'development',
@@ -174,6 +181,7 @@ import { DocumentChunk } from './modules/knowledge-base/entities/document-chunk.
     LlmModule,
     KnowledgeBaseModule,
     HooksModule,
+    AlertsModule,
   ],
   providers: [
     { provide: APP_FILTER, useClass: GlobalExceptionFilter },

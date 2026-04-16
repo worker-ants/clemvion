@@ -10,6 +10,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { RoleGate } from "@/components/auth/role-gate";
 import { toast } from "sonner";
 import {
   Plus,
@@ -89,10 +90,12 @@ export default function KnowledgeBasesPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-3xl font-bold">Knowledge Base</h1>
-        <Button onClick={() => setShowDialog(true)}>
-          <Plus className="mr-2 h-4 w-4" />
-          New Collection
-        </Button>
+        <RoleGate minRole="editor">
+          <Button onClick={() => setShowDialog(true)}>
+            <Plus className="mr-2 h-4 w-4" />
+            New Collection
+          </Button>
+        </RoleGate>
       </div>
 
       {/* Create Dialog */}
@@ -231,17 +234,19 @@ export default function KnowledgeBasesPage() {
                   <BookOpen className="h-5 w-5 text-[hsl(var(--primary))]" />
                   <h3 className="font-semibold">{kb.name}</h3>
                 </div>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-7 w-7 text-[hsl(var(--destructive))]"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setDeleteTarget(kb.id);
-                  }}
-                >
-                  <Trash2 className="h-3 w-3" />
-                </Button>
+                <RoleGate minRole="editor">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-7 w-7 text-[hsl(var(--destructive))]"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setDeleteTarget(kb.id);
+                    }}
+                  >
+                    <Trash2 className="h-3 w-3" />
+                  </Button>
+                </RoleGate>
               </div>
               {kb.description && (
                 <p className="mb-3 text-sm text-[hsl(var(--muted-foreground))]">

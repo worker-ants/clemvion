@@ -1,6 +1,7 @@
 import { Module, forwardRef } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
+import { BullModule } from '@nestjs/bullmq';
 import { Execution } from '../executions/entities/execution.entity';
 import { NodeExecution } from '../node-executions/entities/node-execution.entity';
 import { Node } from '../nodes/entities/node.entity';
@@ -18,6 +19,9 @@ import { WebsocketModule } from '../websocket/websocket.module';
 import { LlmModule } from '../llm/llm.module';
 import { KnowledgeBaseModule } from '../knowledge-base/knowledge-base.module';
 import { IntegrationsModule } from '../integrations/integrations.module';
+import { NotificationsModule } from '../notifications/notifications.module';
+import { BACKGROUND_EXECUTION_QUEUE } from './queues/background-execution.queue';
+import { BackgroundExecutionProcessor } from './queues/background-execution.processor';
 
 @Module({
   imports: [
@@ -27,6 +31,8 @@ import { IntegrationsModule } from '../integrations/integrations.module';
     LlmModule,
     KnowledgeBaseModule,
     IntegrationsModule,
+    NotificationsModule,
+    BullModule.registerQueue({ name: BACKGROUND_EXECUTION_QUEUE }),
   ],
   providers: [
     ExecutionEngineService,
@@ -37,6 +43,7 @@ import { IntegrationsModule } from '../integrations/integrations.module';
     ExpressionResolverService,
     LoopExecutor,
     ForEachExecutor,
+    BackgroundExecutionProcessor,
   ],
   exports: [
     ExecutionEngineService,

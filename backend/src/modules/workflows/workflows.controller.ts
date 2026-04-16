@@ -10,8 +10,10 @@ import {
   HttpCode,
   HttpStatus,
   ParseUUIDPipe,
+  UseGuards,
 } from '@nestjs/common';
 import { BadRequestException, Logger } from '@nestjs/common';
+import { Roles, RolesGuard } from '../../common/guards/roles.guard';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import {
@@ -45,6 +47,7 @@ import type { JwtPayload } from '../../common/decorators';
 @ApiTags('Workflows')
 @ApiBearerAuth('access-token')
 @Controller('workflows')
+@UseGuards(RolesGuard)
 export class WorkflowsController {
   private readonly logger = new Logger(WorkflowsController.name);
 
@@ -103,6 +106,7 @@ export class WorkflowsController {
 
   @Post()
   @HttpCode(HttpStatus.CREATED)
+  @Roles('editor')
   @ApiOperation({
     summary: '워크플로우 생성',
     description:
@@ -120,6 +124,7 @@ export class WorkflowsController {
   }
 
   @Patch(':id')
+  @Roles('editor')
   @ApiOperation({
     summary: '워크플로우 정보 수정',
     description:
@@ -140,6 +145,7 @@ export class WorkflowsController {
 
   @Delete(':id')
   @HttpCode(HttpStatus.NO_CONTENT)
+  @Roles('editor')
   @ApiOperation({
     summary: '워크플로우 삭제',
     description:
@@ -158,6 +164,7 @@ export class WorkflowsController {
 
   @Post(':id/duplicate')
   @HttpCode(HttpStatus.CREATED)
+  @Roles('editor')
   @ApiOperation({
     summary: '워크플로우 복제',
     description:
@@ -177,6 +184,7 @@ export class WorkflowsController {
 
   @Post(':id/execute')
   @HttpCode(HttpStatus.ACCEPTED)
+  @Roles('editor')
   @ApiOperation({
     summary: '워크플로우 수동 실행',
     description:
@@ -252,6 +260,7 @@ export class WorkflowsController {
   }
 
   @Post(':id/save')
+  @Roles('editor')
   @ApiOperation({
     summary: '캔버스 저장',
     description:
@@ -291,6 +300,7 @@ export class WorkflowsController {
 
   @Post(':id/versions/:versionId/restore')
   @HttpCode(HttpStatus.OK)
+  @Roles('editor')
   @ApiOperation({
     summary: '워크플로우 버전 복원',
     description:
@@ -342,6 +352,7 @@ export class WorkflowsController {
   }
 
   @Post('import')
+  @Roles('editor')
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({
     summary: '워크플로우 가져오기',

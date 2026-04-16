@@ -10,7 +10,9 @@ import {
   HttpCode,
   HttpStatus,
   ParseUUIDPipe,
+  UseGuards,
 } from '@nestjs/common';
+import { Roles, RolesGuard } from '../../common/guards/roles.guard';
 import {
   ApiTags,
   ApiBearerAuth,
@@ -33,6 +35,7 @@ import { PaginationQueryDto } from '../../common/dto/pagination.dto';
 @ApiTags('LLM Config')
 @ApiBearerAuth('access-token')
 @Controller('llm-configs')
+@UseGuards(RolesGuard)
 export class LlmConfigController {
   constructor(
     private readonly llmConfigService: LlmConfigService,
@@ -88,6 +91,7 @@ export class LlmConfigController {
 
   @Post()
   @HttpCode(HttpStatus.CREATED)
+  @Roles('editor')
   @ApiOperation({
     summary: 'LLM 설정 생성',
     description:
@@ -104,6 +108,7 @@ export class LlmConfigController {
   }
 
   @Patch(':id')
+  @Roles('editor')
   @ApiOperation({
     summary: 'LLM 설정 수정',
     description:
@@ -126,6 +131,7 @@ export class LlmConfigController {
 
   @Patch(':id/set-default')
   @HttpCode(HttpStatus.NO_CONTENT)
+  @Roles('editor')
   @ApiOperation({
     summary: '기본 LLM 설정 지정',
     description:
@@ -193,6 +199,7 @@ export class LlmConfigController {
 
   @Delete(':id')
   @HttpCode(HttpStatus.NO_CONTENT)
+  @Roles('editor')
   @ApiOperation({
     summary: 'LLM 설정 삭제',
     description:

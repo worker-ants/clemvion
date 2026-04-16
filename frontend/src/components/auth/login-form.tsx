@@ -41,7 +41,44 @@ interface LoginFormProps {
 export function LoginForm({ enabledProviders = [] }: LoginFormProps) {
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
+  const [challengeToken, setChallengeToken] = useState<string | null>(null);
+  const [totpCode, setTotpCode] = useState("");
   const setAuthenticated = useAuthStore((s) => s.setAuthenticated);
+
+  async function completeLogin(accessToken: string) {
+    setAccessToken(accessToken);
+    try {
+      const userRes = await usersApi.getMe();
+      const user = userRes.data.data;
+      if (user) {
+        setAuthenticated(accessToken, user);
+      }
+    } catch {
+      /* AuthProvider가 다음 페이지 로드에서 복원 */
+    }
+    toast.success("Signed in successfully!");
+    router.push("/dashboard");
+  }
+
+  async function onSubmitTotp(e: React.FormEvent) {
+    e.preventDefault();
+    if (!challengeToken || totpCode.trim().length < 6) return;
+    setIsLoading(true);
+    try {
+      const response = await authApi.loginTotp(challengeToken, totpCode.trim());
+      const accessToken = response.data.data?.accessToken;
+      if (accessToken) {
+        await completeLogin(accessToken);
+      }
+    } catch (err) {
+      const error = err as AxiosError<{ message?: string }>;
+      const message =
+        error.response?.data?.message ?? "인증 코드가 올바르지 않아요.";
+      toast.error(message);
+    } finally {
+      setIsLoading(false);
+    }
+  }
 
   const {
     register,
@@ -74,22 +111,17 @@ export function LoginForm({ enabledProviders = [] }: LoginFormProps) {
         password: data.password,
         rememberMe: data.rememberMe,
       });
-      const accessToken = response.data.data?.accessToken;
-      if (accessToken) {
-        setAccessToken(accessToken);
-        // Fetch user profile and set auth state
-        try {
-          const userRes = await usersApi.getMe();
-          const user = userRes.data.data;
-          if (user) {
-            setAuthenticated(accessToken, user);
-          }
-        } catch {
-          // Auth state will be restored by AuthProvider on next page load
-        }
+      const payload = response.data.data;
+      if (payload && "requiresTotp" in payload && payload.requiresTotp) {
+        setChallengeToken(payload.challengeToken);
+        toast.info("2단계 인증이 필요해요. 인증 코드를 입력해 주세요.");
+        return;
       }
-      toast.success("Signed in successfully!");
-      router.push("/dashboard");
+      const accessToken =
+        payload && "accessToken" in payload ? payload.accessToken : undefined;
+      if (accessToken) {
+        await completeLogin(accessToken);
+      }
     } catch (err) {
       const error = err as AxiosError<{ message?: string }>;
       const message = error.response?.data?.message ?? "Failed to sign in. Please try again.";
@@ -97,6 +129,50 @@ export function LoginForm({ enabledProviders = [] }: LoginFormProps) {
     } finally {
       setIsLoading(false);
     }
+  }
+
+  if (challengeToken) {
+    return (
+      <Card>
+        <CardHeader className="text-center">
+          <CardTitle>2단계 인증</CardTitle>
+          <CardDescription>
+            Authenticator 앱의 6자리 코드 또는 복구 코드를 입력해 주세요.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <form onSubmit={onSubmitTotp} className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="totp">인증 코드</Label>
+              <Input
+                id="totp"
+                type="text"
+                inputMode="numeric"
+                autoComplete="one-time-code"
+                placeholder="123456"
+                value={totpCode}
+                onChange={(e) => setTotpCode(e.target.value)}
+                autoFocus
+              />
+            </div>
+            <Button type="submit" className="w-full" disabled={isLoading}>
+              {isLoading ? "확인 중..." : "확인"}
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              className="w-full"
+              onClick={() => {
+                setChallengeToken(null);
+                setTotpCode("");
+              }}
+            >
+              로그인으로 돌아가기
+            </Button>
+          </form>
+        </CardContent>
+      </Card>
+    );
   }
 
   return (

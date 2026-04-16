@@ -116,10 +116,10 @@ export class AuthService {
     email: string;
     password: string;
     rememberMe?: boolean;
-  }): Promise<{
-    accessToken: string;
-    refreshToken: string;
-  }> {
+  }): Promise<
+    | { accessToken: string; refreshToken: string }
+    | { requiresTotp: true; challengeToken: string }
+  > {
     const user = await this.usersService.findByEmail(dto.email);
     if (!user) {
       throw new UnauthorizedException({
@@ -161,7 +161,57 @@ export class AuthService {
 
     await this.usersService.resetLoginAttempts(user.id);
 
+    // 2FA 활성 사용자: 5분 만료 challenge token 발급, 클라이언트는 /auth/login/totp로 검증
+    if (user.twoFactorEnabled) {
+      const challengeToken = this.jwtService.sign(
+        { sub: user.id, mfa_challenge: true, rememberMe: !!dto.rememberMe },
+        { expiresIn: 300 },
+      );
+      return { requiresTotp: true, challengeToken };
+    }
+
     return this.generateTokens(user, dto.rememberMe);
+  }
+
+  /**
+   * 2FA 활성 사용자의 로그인 2단계.
+   * `/auth/login`에서 받은 challengeToken과 6자리 TOTP 코드(또는 복구 코드)를 검증한다.
+   */
+  async loginWithTotp(
+    challengeToken: string,
+    code: string,
+    verifier: (user: User, code: string) => Promise<boolean>,
+  ): Promise<{ accessToken: string; refreshToken: string }> {
+    let payload: { sub: string; mfa_challenge?: boolean; rememberMe?: boolean };
+    try {
+      payload = this.jwtService.verify(challengeToken);
+    } catch {
+      throw new UnauthorizedException({
+        code: 'CHALLENGE_INVALID',
+        message: '인증 세션이 만료됐어요. 다시 로그인해 주세요.',
+      });
+    }
+    if (!payload.mfa_challenge) {
+      throw new UnauthorizedException({
+        code: 'CHALLENGE_INVALID',
+        message: '잘못된 challenge token이에요.',
+      });
+    }
+    const user = await this.usersService.findById(payload.sub);
+    if (!user || !user.twoFactorEnabled) {
+      throw new UnauthorizedException({
+        code: 'TOTP_NOT_ENABLED',
+        message: '이 계정은 2FA가 비활성 상태예요. 다시 로그인해 주세요.',
+      });
+    }
+    const ok = await verifier(user, code);
+    if (!ok) {
+      throw new UnauthorizedException({
+        code: 'TOTP_INVALID',
+        message: '인증 코드가 올바르지 않아요.',
+      });
+    }
+    return this.generateTokens(user, !!payload.rememberMe);
   }
 
   // ========== LOGOUT ==========
