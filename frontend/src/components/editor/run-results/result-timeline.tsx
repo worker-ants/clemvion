@@ -19,6 +19,7 @@ import type {
 import { ConversationTimelineItem } from "./conversation-timeline-item";
 import { parseHistoryMessages } from "./conversation-utils";
 import { formatDuration } from "./utils";
+import { isConversationOutput } from "./output-shape";
 import {
   buildTimelineTree,
   countDescendants,
@@ -62,24 +63,8 @@ function statusAccentClass(status: string): string {
   }
 }
 
-function isMultiTurnAgent(result: NodeResult): boolean {
-  if (result.nodeType !== "ai_agent") return false;
-  const raw = result.outputData as Record<string, unknown> | null;
-  // Support both legacy flat output and new `{ config, output, ... }` wrapper.
-  const output =
-    raw &&
-    typeof raw === "object" &&
-    !Array.isArray(raw) &&
-    "config" in raw &&
-    "output" in raw
-      ? (raw.output as Record<string, unknown> | null)
-      : raw;
-  // Live mode: has conversationConfig, or History mode: has messages array
-  return !!(
-    output?.conversationConfig ||
-    output?.messages ||
-    output?.interactionType === "ai_conversation"
-  );
+function isMultiTurnConversation(result: NodeResult): boolean {
+  return isConversationOutput(result.outputData);
 }
 
 function isSubWorkflowNode(result: NodeResult): boolean {
@@ -125,11 +110,11 @@ function TimelineRow({
   const { result } = tnode;
   const rowId = keyOf(result);
   const isSelected = ctx.selectedId === rowId;
-  const isMultiTurn = isMultiTurnAgent(result);
+  const isMultiTurn = isMultiTurnConversation(result);
   const isLiveNode =
     ctx.isLiveConversation &&
     result.status === "waiting_for_input" &&
-    result.nodeType === "ai_agent";
+    isMultiTurn;
   const isExpanded = isLiveNode || (ctx.expanded[rowId] ?? false);
   const isCardHeader = renderAsCardHeader;
 

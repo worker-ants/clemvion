@@ -20,6 +20,7 @@ vi.mock("@/lib/node-definitions", () => ({
       template: { label: "Template", category: "presentation" },
       carousel: { label: "Carousel", category: "presentation" },
       ai_agent: { label: "AI Agent", category: "ai" },
+      information_extractor: { label: "Information Extractor", category: "ai" },
     };
     return defs[type] ?? undefined;
   },
@@ -252,6 +253,59 @@ describe("ResultDetail", () => {
 
     expect(screen.getByText("Approval Form")).toBeDefined();
     expect(screen.getByText("Submit")).toBeDefined();
+  });
+
+  it("renders conversation inspector for completed multi-turn information extractor", () => {
+    render(
+      <ResultDetail
+        result={makeResult({
+          nodeType: "information_extractor",
+          nodeCategory: "ai",
+          status: "completed",
+          outputData: {
+            config: { schema: {}, mode: "multi_turn" },
+            output: {
+              extracted: { name: "Alice" },
+              messages: [
+                { role: "user", content: "My name is Alice" },
+                { role: "assistant", content: "Got it, Alice." },
+              ],
+              endReason: "completed",
+              turnCount: 1,
+            },
+            meta: {
+              model: "test-model",
+              interactionType: "ai_conversation",
+            },
+          },
+        })}
+        {...defaultProps}
+      />,
+    );
+
+    expect(screen.queryByText("Input")).toBeNull();
+    expect(screen.getByText("My name is Alice")).toBeDefined();
+  });
+
+  it("shows tabs for single-turn ai agent nodes", () => {
+    render(
+      <ResultDetail
+        result={makeResult({
+          nodeType: "ai_agent",
+          nodeCategory: "ai",
+          status: "completed",
+          outputData: {
+            config: {},
+            output: { response: "Hello" },
+            meta: { model: "test-model" },
+          },
+        })}
+        {...defaultProps}
+      />,
+    );
+
+    expect(screen.getByText("Input")).toBeDefined();
+    expect(screen.getByText("Output")).toBeDefined();
   });
 
   it("does not show tabs for running nodes", () => {

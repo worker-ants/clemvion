@@ -80,6 +80,80 @@ describe("ResultTimeline", () => {
     expect(screen.getByText("2.5s")).toBeDefined();
   });
 
+  it("shows expandable conversation for multi-turn information extractor", () => {
+    const results = [
+      makeResult({
+        nodeId: "n1",
+        nodeLabel: "Extractor",
+        nodeType: "information_extractor",
+        nodeCategory: "ai",
+        status: "completed",
+        outputData: {
+          config: { schema: {}, mode: "multi_turn" },
+          output: {
+            extracted: { name: "Alice" },
+            messages: [
+              { role: "user", content: "My name is Alice" },
+              { role: "assistant", content: "Got it." },
+            ],
+            endReason: "completed",
+            turnCount: 1,
+          },
+          meta: { interactionType: "ai_conversation" },
+        },
+      }),
+    ];
+
+    render(
+      <ResultTimeline
+        results={results}
+        selectedId="n1"
+        onSelect={vi.fn()}
+        conversationMessages={[]}
+        selectedConversationItemIndex={null}
+        onSelectConversationItem={vi.fn()}
+        isLiveConversation={false}
+      />,
+    );
+
+    expect(screen.getByText("Extractor")).toBeDefined();
+    // Multi-turn nodes show robot emoji indicator
+    expect(screen.getByText("🤖")).toBeDefined();
+    // Click to expand and verify conversation items appear
+    fireEvent.click(screen.getByText("Extractor"));
+    expect(screen.getByText("My name is Alice")).toBeDefined();
+    expect(screen.getByText("Got it.")).toBeDefined();
+  });
+
+  it("does not show conversation UI for non-conversation waiting nodes", () => {
+    const results = [
+      makeResult({
+        nodeId: "n1",
+        nodeLabel: "My Form",
+        nodeType: "form",
+        nodeCategory: "presentation",
+        status: "waiting_for_input",
+        outputData: null,
+      }),
+    ];
+
+    render(
+      <ResultTimeline
+        results={results}
+        selectedId={null}
+        onSelect={vi.fn()}
+        conversationMessages={[]}
+        selectedConversationItemIndex={null}
+        onSelectConversationItem={vi.fn()}
+        isLiveConversation={true}
+      />,
+    );
+
+    expect(screen.getByText("My Form")).toBeDefined();
+    // Should NOT show robot emoji (not a conversation node)
+    expect(screen.queryByText("🤖")).toBeNull();
+  });
+
   it("auto-selects first result when nothing selected", () => {
     const onSelect = vi.fn();
     const results = [makeResult({ nodeId: "first" })];

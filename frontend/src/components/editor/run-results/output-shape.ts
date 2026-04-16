@@ -63,6 +63,24 @@ export function unwrapNodeOutput(raw: unknown): UnwrappedNodeOutput {
   };
 }
 
+/**
+ * Detect whether outputData represents a multi-turn conversation result.
+ * Handles both the legacy flat shape (top-level `messages` + `interactionType`)
+ * and the new wrapped shape (`{ config, output: { messages }, meta: { interactionType } }`).
+ */
+export function isConversationOutput(outputData: unknown): boolean {
+  const unwrapped = unwrapNodeOutput(outputData);
+  const output = unwrapped.output as Record<string, unknown> | null;
+  if (!output || typeof output !== "object") return false;
+
+  const hasMessages = Array.isArray(output.messages);
+  const outputInteraction = output.interactionType === "ai_conversation";
+  const metaInteraction = unwrapped.meta?.interactionType === "ai_conversation";
+  const hasConvConfig = !!output.conversationConfig;
+
+  return hasMessages && (outputInteraction || metaInteraction) || hasConvConfig;
+}
+
 function toRecord(value: unknown): Record<string, unknown> | null {
   if (value === null || value === undefined) return null;
   if (typeof value !== "object" || Array.isArray(value)) return null;
