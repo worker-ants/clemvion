@@ -1,0 +1,132 @@
+---
+title: "실행 결과 읽기"
+section: "04-run-and-debug"
+order: 2
+summary: "이 페이지에서는 실행 이력 조회, 타임라인 사용법, 노드별 I/O 확인, 에러 메시지 해석을 설명해요."
+spec: ["spec/3-workflow-editor/3-execution.md", "spec/2-navigation/6-execution-history.md"]
+code: ["frontend/src/components/editor/run-results", "backend/src/modules/executions"]
+---
+
+이 페이지에서는 **실행 이력 조회**, **Run Results 드로어의 타임라인**, **노드별 입출력 확인**, **에러 메시지 해석** 방법을 설명해요.
+
+## Run Results 드로어
+
+워크플로우를 실행하면 에디터 하단에 Run Results 드로어가 자동으로 펼쳐져요. **2분할 레이아웃**으로, 왼쪽은 타임라인, 오른쪽은 선택한 노드의 상세 결과를 표시해요.
+
+<div className="my-4 overflow-hidden rounded-md border border-[hsl(var(--border))] bg-[hsl(var(--muted))/0.3] text-sm">
+  <div className="flex items-center justify-between border-b border-[hsl(var(--border))] px-4 py-2 text-xs text-[hsl(var(--muted-foreground))]">
+    <span>🔄 Running... · 3/10 nodes</span>
+    <span>[−] [✕]</span>
+  </div>
+  <div className="flex min-h-[160px] divide-x divide-[hsl(var(--border))]">
+    <div className="w-56 shrink-0 bg-[hsl(var(--card))] p-3 text-xs">
+      <div className="mb-2 font-semibold text-[hsl(var(--muted-foreground))]">Timeline (280px)</div>
+      <ul className="space-y-1">
+        <li>🟡 Trigger · ✓</li>
+        <li>🔵 If/Else · ✓</li>
+        <li>🟠 HTTP · ✓</li>
+        <li>🔵 Transform · ✓</li>
+        <li>🩷 Table · ✓</li>
+        <li className="text-[hsl(var(--muted-foreground))]">🩷 Form · ⏸</li>
+      </ul>
+    </div>
+    <div className="flex-1 bg-[hsl(var(--card))] p-3 text-xs">
+      <div className="mb-2 font-semibold text-[hsl(var(--muted-foreground))]">Detail (flex-1)</div>
+      <div>HTTP Request: "Fetch Users"</div>
+      <div className="text-[hsl(var(--muted-foreground))]">Status: completed (142ms)</div>
+      <div className="mt-2 text-[hsl(var(--muted-foreground))]">[Preview] · Input · Output · Error</div>
+      <pre className="mt-1 rounded bg-[hsl(var(--muted))/0.5] p-2 text-[11px]">{`{ "statusCode": 200, ... }`}</pre>
+    </div>
+  </div>
+</div>
+
+<Callout type="tip">단축키 `Ctrl + Shift + R`로 드로어를 언제든 열고 닫을 수 있어요. 상단 핸들을 드래그해 높이를 조절할 수 있고, 최대 뷰포트의 60%까지 커져요.</Callout>
+
+## 타임라인 읽기
+
+왼쪽 타임라인에는 **모든 실행된 노드**가 실행 순서대로 나열돼요.
+
+<FieldTable rows={[
+  { name: "카테고리 색상 점", type: "Visual", description: "노드 카테고리를 나타내요. Trigger=🟡, Logic=🔵, Flow=🟣, AI=🟢, Integration=🟠, Data=🔵, Presentation=🩷" },
+  { name: "상태 아이콘", type: "Status", description: "⏳ Running, ✅ Completed, ❌ Failed, ⏸ Waiting, — Skipped" },
+  { name: "실행 시간", type: "Duration", description: "142ms, 1.2s 같은 소요 시간이에요." },
+  { name: "(iter N) 접미사", type: "반복", description: "Loop/ForEach/Map body 노드가 여러 번 실행될 때 각 반복이 독립 항목으로 나타나요." }
+]} />
+
+타임라인 항목을 클릭하면 오른쪽 상세 뷰에 해당 노드의 결과가 표시돼요.
+
+## 노드 상세 뷰: 서브 탭
+
+완료/실패한 노드(AI Agent 제외)는 상세 뷰 상단에 서브 탭이 있어요.
+
+<FieldTable rows={[
+  { name: "Preview", type: "Presentation 전용", description: "Table, Carousel, Chart, Template, Form 노드의 시각적 프리뷰를 보여줘요." },
+  { name: "Input", type: "항상", description: "노드가 받은 입력 JSON이에요. 폴링으로 뒤늦게 수신되므로 잠시 Loading이 뜰 수 있어요." },
+  { name: "Output", type: "항상", description: "노드의 출력 JSON이에요." },
+  { name: "Error", type: "실패 시", description: "에러 상세 정보를 JSON으로 표시해요." }
+]} />
+
+기본 선택 우선순위는 `Error → Preview → Output` 순이에요. 즉 에러가 있으면 Error 탭부터 열려요.
+
+## AI Agent Multi Turn 결과
+
+AI Agent 노드는 타임라인에서 접힘/펼침 가능한 트리로 표시돼요. 펼치면 **사용자 메시지, AI 응답, Tool 호출**이 프리뷰 카드로 인라인으로 나와요.
+
+- 대화 진행 중이면 인스펙터 하단에 입력 UI가 sticky로 고정돼요.
+- 완료된 대화는 채팅 스레드 형태로 읽을 수 있고, 메시지를 클릭하면 토큰 사용량·Tool 인자/결과 같은 상세가 열려요.
+
+## 실행 이력 조회
+
+한 번의 실행이 끝난 뒤에도 결과를 다시 볼 수 있어요.
+
+<Steps>
+  <Step>에디터 헤더의 더보기(`⋯`) → `실행 히스토리`를 클릭하거나, Run Results 드로어의 `View All Executions` 링크를 눌러요.</Step>
+  <Step>`/workflows/:id/executions` 페이지에서 상태별 필터(All / Completed / Failed / Running / Cancelled / Waiting)로 좁혀요.</Step>
+  <Step>행을 클릭하면 `/workflows/:id/executions/:executionId` 상세 페이지로 이동해요.</Step>
+  <Step>상세 페이지에서 실행 요약 카드, 노드별 결과, 에러 메시지, `← Prev / Next →`로 인접 실행 탐색까지 할 수 있어요.</Step>
+</Steps>
+
+실행 이력 진입점은 Dashboard의 Recent Executions, Workflow List의 컨텍스트 메뉴(`⋯ → Execution History`)에서도 찾을 수 있어요.
+
+## 노드별 입출력 확인 팁
+
+- **Copy 버튼**: 상세 뷰의 Input/Output 탭에서 `Copy Input`, `Copy Output` 버튼으로 JSON을 복사할 수 있어요. 그대로 Run with Input에 붙여넣으면 재현 실험이 쉬워요.
+- **이 입력으로 다시 실행**: 실행 이력 상세에서 특정 실행의 입력으로 새 실행을 시작할 수 있어요.
+- **Presentation 노드 Preview**: Table·Chart·Carousel·Template은 JSON이 아닌 렌더링된 프리뷰를 제공해요. 결과 JSON은 같은 화면의 Output 탭에 있어요.
+
+## 에러 메시지 해석
+
+실패한 노드의 Error 탭은 다음 구조로 표시돼요.
+
+<Example title="실행 에러 응답 예시">
+```json
+{
+  "error": {
+    "code": "NODE_EXECUTION_FAILED",
+    "message": "Node 'AI Agent' failed: LLM connection timeout",
+    "nodeId": "uuid-of-node",
+    "nodeName": "AI Agent",
+    "nodeType": "ai_agent",
+    "executionId": "uuid-of-execution"
+  }
+}
+```
+</Example>
+
+대표적인 에러 코드예요.
+
+<FieldTable rows={[
+  { name: "NODE_EXECUTION_FAILED", type: "실행", description: "노드 핸들러가 예외를 던졌을 때예요. `message`에 원인 요약이 들어가요." },
+  { name: "EXECUTION_TIMEOUT", type: "타임아웃", description: "노드 또는 전체 워크플로우 실행 시간이 초과됐어요." },
+  { name: "INVALID_EXPRESSION", type: "표현식", description: "표현식 평가 실패예요. 문법, null 접근, 타입 불일치를 확인해요." },
+  { name: "INTEGRATION_ERROR", type: "통합", description: "외부 연동 호출 실패예요. 인증·네트워크·응답 형식을 점검해요." },
+  { name: "LLM_RATE_LIMITED", type: "LLM", description: "LLM 프로바이더 Rate Limit에 걸렸어요. 잠시 후 다시 시도하거나 Retry 정책을 켜요." },
+  { name: "MAX_ITERATIONS_EXCEEDED", type: "반복", description: "Loop/ForEach 최대 반복 횟수를 넘었어요." },
+  { name: "ERROR_PORT_FALLBACK", type: "폴백", description: "`Route to Error Port` 정책인데 error 포트에 연결된 엣지가 없어 Stop Workflow로 폴백된 경우예요." }
+]} />
+
+## 팁 & 참고
+
+- 실패를 견고하게 처리하려면 노드별로 [에러 처리](/docs/04-run-and-debug/error-handling) 정책을 설정해요.
+- 실행 이전 상태로 되돌리려면 [버전 히스토리](/docs/04-run-and-debug/version-history)를 이용해요.
+- 표현식 관련 에러는 [표현식 기초](/docs/03-expression-language/basics)와 [변수와 컨텍스트](/docs/03-expression-language/variables-and-context)에서 원인 단서를 찾을 수 있어요.

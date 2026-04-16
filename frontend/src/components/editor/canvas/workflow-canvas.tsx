@@ -34,6 +34,8 @@ import { useCanvasHoverStore } from "@/lib/stores/canvas-hover-store";
 import { CustomNode } from "./custom-node";
 import { CustomEdge, EdgeMarkerDefs } from "./custom-edge";
 import { useEdgeHighlighting } from "./use-edge-highlighting";
+import { CanvasEmptyState } from "./canvas-empty-state";
+import { isWorkflowEmpty } from "@/lib/node-definitions/is-trigger";
 
 const nodeTypes = { custom: CustomNode };
 const edgeTypes = { custom: CustomEdge };
@@ -473,6 +475,9 @@ export function WorkflowCanvas() {
       >
         <Background variant={BackgroundVariant.Dots} gap={16} size={1} />
         <ZoomControls />
+        <Panel position="top-right" className="pointer-events-none mr-6 mt-6">
+          <CanvasEmptyState visible={isWorkflowEmpty(nodes)} />
+        </Panel>
       </ReactFlow>
 
       {/* Node context menu */}

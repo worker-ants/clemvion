@@ -1,4 +1,6 @@
 import { SelectField, NumberField, CheckboxField, SectionTitle } from "./shared";
+import { LabelWithHelp } from "./shared/field-help";
+import { DOCS } from "@/lib/docs/links";
 import { ExpressionInput } from "@/components/editor/expression";
 import { LlmConfigSelector } from "@/components/llm-config/llm-config-selector";
 import { Input } from "@/components/ui/input";
@@ -52,12 +54,30 @@ export function TextClassifierConfig({ config, onChange }: { config: Config; onC
         rows={3}
       />
       <CheckboxField
-        label="Include confidence scores"
+        label={
+          <LabelWithHelp
+            text="Include confidence scores"
+            help={{
+              summary:
+                "카테고리별 확신도(0~1)를 결과에 함께 담아요. 다운스트림 노드에서 임계값 분기를 만들 때 유용해요.",
+              docsHref: DOCS.nodes.ai,
+            }}
+          />
+        }
         checked={(config.includeConfidence as boolean) ?? true}
         onChange={(v) => onChange({ ...config, includeConfidence: v })}
       />
       <CheckboxField
-        label="Multi-label Classification"
+        label={
+          <LabelWithHelp
+            text="Multi-label Classification"
+            help={{
+              summary:
+                "하나의 입력이 여러 카테고리에 동시에 속할 수 있어요. 꺼두면 가장 확신도 높은 하나만 선택해요.",
+              docsHref: DOCS.nodes.ai,
+            }}
+          />
+        }
         checked={(config.multiLabel as boolean) ?? false}
         onChange={(v) => onChange({ ...config, multiLabel: v })}
       />
@@ -113,7 +133,16 @@ export function InformationExtractorConfig({ config, onChange }: { config: Confi
   return (
     <div className="flex flex-col gap-3">
       <SelectField
-        label="Mode"
+        label={
+          <LabelWithHelp
+            text="Mode"
+            help={{
+              summary:
+                "Single Turn은 한 번의 요청으로 정보를 추출해요. Multi Turn은 여러 차례 질문을 이어가며 정보를 보완해요.",
+              docsHref: DOCS.nodes.ai,
+            }}
+          />
+        }
         value={mode}
         onChange={(v) => onChange({ ...config, mode: v })}
         options={[
@@ -197,7 +226,16 @@ export function InformationExtractorConfig({ config, onChange }: { config: Confi
         <>
           <SectionTitle>Multi Turn Settings</SectionTitle>
           <NumberField
-            label="Max Turns"
+            label={
+              <LabelWithHelp
+                text="Max Turns"
+                help={{
+                  summary:
+                    "Multi Turn에서 허용할 최대 대화 횟수예요. 0이면 제한 없이 계속 이어가요.",
+                  docsHref: DOCS.nodes.ai,
+                }}
+              />
+            }
             value={(config.maxTurns as number) ?? 10}
             onChange={(v) => onChange({ ...config, maxTurns: v })}
             min={0}

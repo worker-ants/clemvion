@@ -1,0 +1,91 @@
+---
+title: "트리거 노드"
+section: "02-nodes"
+order: 2
+summary: "워크플로우의 시작점인 Manual Trigger를 설명하고, 웹훅·스케줄이 같은 파라미터 스키마를 공유하는 이유를 짚어요."
+spec: ["spec/4-nodes/7-trigger-nodes.md"]
+code: ["backend/src/nodes/trigger/manual-trigger/manual-trigger.schema.ts"]
+---
+
+이 페이지에서는 트리거 노드의 역할과 설정 방법을 설명해요. 현재 캔버스에 배치 가능한 트리거 노드는 **Manual Trigger** 한 종류이고, 웹훅과 스케줄은 별도의 트리거 시스템에서 같은 파라미터 스키마를 공유하는 방식으로 동작해요.
+
+## Manual Trigger
+
+### 언제 써요
+
+- 워크플로우에 **입력 파라미터를 정의**하고 싶을 때 써요.
+- Run 버튼 또는 `POST /workflows/:id/execute`로 수동 실행하는 모든 워크플로우가 기본으로 갖고 있어요.
+- 워크플로우를 만들면 자동으로 한 개 생기고, **삭제할 수 없어요**. 워크플로우당 정확히 한 개만 허용돼요.
+
+### 필드
+
+<FieldTable rows={[
+  {name: "parameters", required: false, type: "TriggerParameterDefinition[]", description: "이 워크플로우의 입력 파라미터 스키마예요. 비워 두면 파라미터 기능이 비활성화되고, 입력 데이터가 그대로 통과해요.", default: "[]"}
+]} />
+
+각 파라미터 항목은 다음 필드를 가져요.
+
+<FieldTable rows={[
+  {name: "name", required: true, type: "string", description: "파라미터 식별자예요. 영문, 숫자, `_`만 허용하고 trigger 노드 내에서 유일해야 해요.", default: "-"},
+  {name: "type", required: true, type: "enum", description: "`string` / `number` / `boolean` / `object` / `array` 중 하나예요. 실행 시 자동 타입 강제 변환이 적용돼요.", default: "string"},
+  {name: "required", required: false, type: "boolean", description: "true면 값 누락 시 실행이 `INVALID_INPUT`으로 실패해요.", default: "false"},
+  {name: "defaultValue", required: false, type: "any", description: "required가 false일 때 값이 없으면 이 값으로 채워요.", default: "-"},
+  {name: "description", required: false, type: "string", description: "Run 대화상자에서 힌트로 표시돼요.", default: "-"}
+]} />
+
+### 예시
+
+<Example title="입력 파라미터 스키마 선언과 참조">
+```ts
+// Manual Trigger config
+{
+  "parameters": [
+    { "name": "email", "type": "string", "required": true, "description": "대상 이메일" },
+    { "name": "count", "type": "number", "required": false, "defaultValue": 10 }
+  ]
+}
+
+// 다음 노드에서 값 참조
+{{ $params.email }}           // 축약형 (권장)
+{{ $input.parameters.email }} // 전체 경로
+
+// 실행 요청 예시
+POST /workflows/:id/execute
+{ "parameterValues": { "email": "user@example.com", "count": "3" } }
+// → count가 "3"(string)로 와도 number로 강제 변환돼요
+```
+</Example>
+
+<Callout type="warn">
+파라미터 이름이 중복되면 validate가 실패하고 실행도 거부돼요. 또한 이름은 **영문/숫자/밑줄**로만 구성해야 해요. 한글·하이픈·공백은 쓸 수 없어요.
+</Callout>
+
+### 포트
+
+Manual Trigger는 입력 포트가 없고, 출력 포트 `out` 1개를 가져요. 워크플로우 실행 입력이 검증·기본값 적용·타입 변환을 거쳐 `{ parameters }` 형태로 나가요.
+
+## 웹훅과 스케줄은 어떻게 이어져요
+
+웹훅과 스케줄은 **별도의 트리거 시스템**이에요. 캔버스의 Manual Trigger 노드와 1:1로 매핑되며, Manual Trigger의 `parameters` 스키마를 **단일 소스**로 공유해요.
+
+<FieldTable rows={[
+  {name: "Manual", required: false, type: "수동 실행", description: "Run 대화상자 또는 `POST /workflows/:id/execute`로 값이 수집돼요. `$input = { parameters }`", default: "-"},
+  {name: "Webhook", required: false, type: "HTTP POST", description: "HTTP body에서 파라미터와 **동일한 이름**의 최상위 키를 추출해요. 실패 시 400 Bad Request로 거부돼요. `$input = { parameters, body, headers, query, method }`", default: "-"},
+  {name: "Schedule", required: false, type: "Cron", description: "스케줄 설정에 저장된 `parameterValues`가 제한된 표현식 컨텍스트(`$now`, `$schedule`)로 resolve돼요. `$input = { parameters }`", default: "-"}
+]} />
+
+세 경로 모두 워크플로우 실행 엔진에는 동일한 `{ parameters, ... }` 입력이 전달돼요. `$params`는 `$input.parameters`의 축약형이에요.
+
+<Callout type="note">
+웹훅과 스케줄 설정은 사이드바의 Triggers/Schedules 메뉴에서 관리해요. 캔버스의 Manual Trigger에 파라미터 스키마를 먼저 잘 정의해 두면, 세 트리거 모두가 같은 계약을 따라 동작해요.
+</Callout>
+
+## 캔버스 요약
+
+Manual Trigger는 파라미터 개수를 요약에 표시해요. 없으면 `(none)`으로 표시돼요.
+
+## 팁 & 참고
+
+- 파라미터 값 접근 문법은 [표현식 변수와 컨텍스트](/docs/03-expression-language/variables-and-context)에서 자세히 다뤄요.
+- 실행 요청과 응답이 궁금하면 [워크플로우 실행](/docs/04-run-and-debug/running-a-workflow)를 참고해요.
+- 개발자용 팁: 파라미터 검증·기본값·coerce는 `resolveTriggerParameters()` 유틸에서 한 번에 수행돼요. 같은 유틸을 Manual·Webhook·Schedule 진입점이 공유해서, 어느 경로로 들어와도 동일한 값 형태로 워크플로우 엔진에 전달돼요.

@@ -1,0 +1,100 @@
+---
+title: "표현식 기초"
+section: "03-expression-language"
+order: 1
+summary: "이 페이지에서는 `{{ }}` 표현식이 무엇인지, 어디서 쓰고 어떻게 정적 값과 전환하는지 설명해요."
+spec: ["spec/5-system/5-expression-language.md", "spec/3-workflow-editor/1-node-common.md"]
+code: ["packages/expression-engine/src/parser.ts", "packages/expression-engine/src/evaluator.ts"]
+---
+
+이 페이지에서는 노드 설정 폼에서 **동적 값을 참조하는 표현식**(Expression)이 무엇이고, 어떻게 쓰는지 설명해요.
+
+## 표현식이란 무엇일까요
+
+표현식은 노드 설정 필드에서 **실행 시점에 값을 계산**하기 위한 작은 인라인 언어예요. 이전 노드의 결과를 가져오거나, 간단한 조건을 판정하거나, 문자열을 조립할 때 써요.
+
+- 읽기 전용이에요. 외부 상태를 바꾸지 않아요.
+- 가볍게 설계되어 있어서, 복잡한 데이터 변환은 **Transform 노드**나 **Code 노드**에서 처리하는 걸 권장해요.
+- 결정적이에요. 같은 입력을 넣으면 항상 같은 결과를 돌려줘요.
+
+## `{{ }}` 문법
+
+표현식은 반드시 이중 중괄호로 감싸요.
+
+<Example title="필드 값 전체가 표현식">
+```ts
+{{ $input.count + 1 }}
+```
+</Example>
+
+<Example title="문자열 안에 값 끼워 넣기 (보간)">
+```ts
+안녕하세요, {{ $input.name }}님!
+```
+</Example>
+
+문자열 보간 결과는 항상 문자열이에요. 반면 필드 값 전체가 하나의 `{{ ... }}`라면 평가 결과의 **원래 타입**(숫자, 객체, 배열 등)이 그대로 유지돼요.
+
+<Callout type="tip">리터럴 `{{` 문자를 그대로 쓰고 싶다면 역슬래시로 이스케이프해요. `\{\{`</Callout>
+
+## 어디에 쓸 수 있나요
+
+기본적으로 **모든 노드의 설정 패널 텍스트 입력 필드**에서 표현식을 쓸 수 있어요. 예를 들어 이런 곳에서요.
+
+- HTTP Request 노드의 URL, 헤더, Body
+- If/Else 노드의 조건식
+- Send Email 노드의 수신자, 제목, 본문
+- Transform 노드의 매핑 표현식
+- AI Agent 노드의 프롬프트
+- Carousel, Table, Template 노드의 아이템 바인딩
+
+다만 두 경우는 예외예요.
+
+<FieldTable rows={[
+  { name: "Code 노드의 `code` 필드", type: "제외", description: "원시 JavaScript 런타임에서 실행돼요. `{{ }}` 대신 `$input`, `$vars`, `$execution`을 직접 써요." },
+  { name: "Template 노드의 `template` 필드", type: "제외", description: "자체 `{{ key }}` 파서를 써서 input 데이터를 참조해요." }
+]} />
+
+## 정적 값과 표현식 모드 전환
+
+설정 패널의 많은 필드는 **정적 값 입력**과 **표현식 입력** 두 가지 모드를 지원해요. 라벨 옆의 토글 아이콘(`{}`)을 클릭하거나, 입력값을 `{{`로 시작해서 표현식 모드로 전환할 수 있어요.
+
+<Steps>
+  <Step>필드를 클릭해요.</Step>
+  <Step>정적 값만 넣고 싶다면 일반 텍스트를 그대로 입력해요. 예: `https://api.example.com/users`</Step>
+  <Step>동적 값이 필요한 자리만 `{{ ... }}`로 감싸요. 예: `https://api.example.com/users/{{ $input.userId }}`</Step>
+  <Step>자동완성 팝업이 `{{` 입력 직후 나타나요. 화살표 키로 탐색하고 Enter/Tab으로 선택해요.</Step>
+</Steps>
+
+## 간단한 예시
+
+<Example title="값 계산">
+```ts
+{{ $input.price * 1.1 }}
+```
+</Example>
+
+<Example title="삼항 조건">
+```ts
+{{ $input.score >= 80 ? "합격" : "불합격" }}
+```
+</Example>
+
+<Example title="배열 첫 번째 요소">
+```ts
+{{ first($input.items).name }}
+```
+</Example>
+
+<Example title="문자열 대문자 변환">
+```ts
+{{ uppercase($input.email) }}
+```
+</Example>
+
+## 팁 & 참고
+
+- 에디터에서 표현식 문법 오류가 있으면 빨간 밑줄이 뜨고, 실행은 차단되지 않지만 실행 시점에 노드가 실패해요.
+- `null` 값 접근은 에러를 일으켜요. 안전 접근 패턴은 [변수와 컨텍스트](/docs/03-expression-language/variables-and-context)에서 설명해요.
+- 자주 쓰는 패턴은 [치트시트](/docs/03-expression-language/cheatsheet)에서 한눈에 볼 수 있어요.
+- 에러 정책은 [에러 처리](/docs/04-run-and-debug/error-handling)에서 다뤄요.
