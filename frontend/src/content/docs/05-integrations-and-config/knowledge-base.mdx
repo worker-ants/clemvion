@@ -11,7 +11,7 @@ code: ["backend/src/modules/knowledge-base/knowledge-base.controller.ts", "backe
 
 ## 지식 저장소 구조
 
-지식 저장소는 컬렉션(Collection) 단위로 관리해요. 컬렉션마다 임베딩 모델과 청크 전략을 고정하고, 그 아래에 문서를 올려요. 업로드된 문서는 자동으로 청크 분할 → 임베딩 → pgvector 저장을 거쳐요.
+지식 저장소는 컬렉션(Collection) 단위로 관리해요. 컬렉션마다 임베딩 모델과 청크 전략을 고정하고, 그 아래에 문서를 올려요. 업로드된 문서는 자동으로 청크 분할 → 임베딩 → 벡터 저장소 저장을 거쳐요.
 
 <FieldTable rows={[
   { name: "이름", type: "string", required: "필수", description: "컬렉션 이름. 목록 카드에 표시돼요." },

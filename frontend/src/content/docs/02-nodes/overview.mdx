@@ -11,11 +11,11 @@ code: ["backend/src/nodes/core/node-component.interface.ts", "backend/src/nodes/
 
 ## 노드는 무엇이에요
 
-노드는 워크플로우의 **단위 작업**이에요. 왼쪽에서 입력을 받아 설정대로 일한 뒤, 오른쪽으로 결과를 내보내요. 모든 노드는 동일한 공통 구조를 따르고, 실행 엔진은 이 구조를 그대로 해석해서 실행해요.
+노드는 워크플로우의 **단위 작업**이에요. 왼쪽에서 입력을 받아 설정대로 일한 뒤, 오른쪽으로 결과를 내보내요. 모든 노드는 동일한 공통 구조(타입·카테고리·입출력 포트·설정 스키마)를 따르기 때문에, 어떤 노드든 같은 방식으로 배치하고 연결할 수 있어요.
 
-- 정의(`type`, `category`, 포트, 스키마)는 백엔드의 `<type>.schema.ts`에 선언돼요.
-- 실제 실행 로직은 Execution Engine의 핸들러가 담당해요.
-- 프론트엔드 팔레트와 설정 패널은 `GET /api/v1/nodes/definitions`가 돌려주는 메타데이터로 자동 구성돼요.
+- **타입·카테고리**로 각 노드의 성격을 구분해요 (예: `if_else` → logic, `ai_agent` → ai).
+- **포트**로 이어지는 데이터 흐름을 정의해요.
+- **설정 스키마**로 폼의 필드와 검증 규칙이 결정돼요. 팔레트·설정 패널 UI는 이 스키마를 그대로 해석해서 자동으로 만들어져요.
 
 ## 카테고리
 
@@ -87,7 +87,7 @@ code: ["backend/src/nodes/core/node-component.interface.ts", "backend/src/nodes/
 
 <FieldTable rows={[
   {name: "Settings", required: true, type: "탭", description: "노드 유형별 고유 설정 폼이에요. 기본으로 열려 있어요.", default: "-"},
-  {name: "Code", required: false, type: "탭", description: "설정을 JSON으로 직접 편집해요. 개발자용이에요.", default: "-"},
+  {name: "Code", required: false, type: "탭", description: "설정을 JSON으로 직접 편집해요. 필드를 한 번에 복붙하거나 두 노드 설정을 비교할 때 편해요.", default: "-"},
   {name: "Info", required: false, type: "탭", description: "노드 설명, 사용 팁, 최근 실행 요약을 보여줘요.", default: "-"}
 ]} />
 
@@ -125,4 +125,4 @@ code: ["backend/src/nodes/core/node-component.interface.ts", "backend/src/nodes/
 - 카테고리별 상세는 이어지는 페이지에서 다뤄요: [트리거](/docs/02-nodes/triggers) · [로직](/docs/02-nodes/logic) · [플로우](/docs/02-nodes/flow) · [데이터](/docs/02-nodes/data) · [AI](/docs/02-nodes/ai) · [통합](/docs/02-nodes/integrations) · [프리젠테이션](/docs/02-nodes/presentation).
 - 표현식 문법이 처음이라면 [표현식 기본](/docs/03-expression-language/basics)을 먼저 확인해요.
 - 에러 정책이 실제 실행에 어떻게 반영되는지는 [에러 처리](/docs/04-run-and-debug/error-handling)에서 이어서 설명해요.
-- 개발자용 팁: 노드 메타데이터는 `GET /api/v1/nodes/definitions` 한 번의 호출로 받을 수 있어요. 설정 폼 JSON Schema까지 함께 반환되므로 외부 도구에서도 그대로 쓸 수 있어요.
+- 파워유저 팁: 노드 종류와 설정 스키마는 `GET /api/v1/nodes/definitions` API 한 번으로 전부 받을 수 있어요. 외부 도구에서 폼을 자동 생성하거나 CI에서 워크플로우 JSON을 검증할 때 유용해요.
