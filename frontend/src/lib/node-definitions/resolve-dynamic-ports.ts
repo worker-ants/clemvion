@@ -20,6 +20,18 @@ type ConditionEntry = { id: string; label: string };
 type ButtonEntry = { id: string; label: string; type: string };
 type CarouselItem = { title?: string; buttons?: ButtonEntry[] };
 
+function parallelBranchPorts(config: Record<string, unknown>): DynamicPortDefinition[] {
+  const branchCount = Math.max(2, Math.min(16, Math.floor(
+    typeof config.branchCount === "number" ? config.branchCount : 2,
+  )));
+  const branches: DynamicPortDefinition[] = Array.from({ length: branchCount }, (_, i) => ({
+    id: `branch_${i}`,
+    label: `Branch ${i}`,
+    type: "data" as DynamicPortType,
+  }));
+  return [...branches, { id: "done", label: "Done", type: "data" }];
+}
+
 function switchPorts(config: Record<string, unknown>): DynamicPortDefinition[] {
   const cases = (config.cases as CaseEntry[] | undefined) ?? [];
   const casePorts = cases
@@ -188,6 +200,8 @@ export function resolveDynamicPorts(
         return aiAgentConditionalPorts(config, spec);
       case "presentation-buttons":
         return presentationButtonPorts(config, spec, staticOutputs);
+      case "parallel-branches":
+        return parallelBranchPorts(config);
     }
   }
 

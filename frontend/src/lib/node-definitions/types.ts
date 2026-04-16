@@ -101,7 +101,8 @@ export type DynamicPortsSpec =
       supportsItems?: boolean;
       supportsItemButtons?: boolean;
       continueId: string;
-    };
+    }
+  | { kind: "parallel-branches" };
 
 export type NodeMetadata = {
   type: string;

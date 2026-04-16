@@ -1,0 +1,148 @@
+{
+  "timestamp": "2026-04-17T07:30:00.090022",
+  "files": [
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/backend/package.json",
+      "change_type": "Review",
+      "file_extension": "json"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/backend/src/modules/execution-engine/execution-engine.module.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/backend/src/modules/execution-engine/execution-engine.service.spec.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/backend/src/modules/execution-engine/execution-engine.service.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/backend/src/modules/execution-engine/handlers/logic/merge.handler.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/backend/src/modules/execution-engine/handlers/logic/parallel.handler.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/backend/src/nodes/core/node-component.interface.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/backend/src/nodes/logic/parallel/parallel.schema.spec.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/backend/src/nodes/logic/parallel/parallel.schema.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/frontend/src/components/editor/settings-panel/node-configs/logic-configs.tsx",
+      "change_type": "Review",
+      "file_extension": "tsx"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/frontend/src/components/editor/settings-panel/node-configs/override-registry.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/frontend/src/lib/node-definitions/resolve-dynamic-ports.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/frontend/src/lib/node-definitions/types.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/backend/src/modules/execution-engine/containers/parallel-executor.spec.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/backend/src/modules/execution-engine/containers/parallel-executor.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    }
+  ],
+  "total_elapsed_seconds": 605.24,
+  "agents": [
+    {
+      "name": "dependency",
+      "status": "success",
+      "elapsed_seconds": 28.09
+    },
+    {
+      "name": "documentation",
+      "status": "success",
+      "elapsed_seconds": 52.66
+    },
+    {
+      "name": "scope",
+      "status": "success",
+      "elapsed_seconds": 53.64
+    },
+    {
+      "name": "database",
+      "status": "success",
+      "elapsed_seconds": 56.0
+    },
+    {
+      "name": "api_contract",
+      "status": "success",
+      "elapsed_seconds": 60.29
+    },
+    {
+      "name": "testing",
+      "status": "success",
+      "elapsed_seconds": 74.65
+    },
+    {
+      "name": "maintainability",
+      "status": "success",
+      "elapsed_seconds": 89.26
+    },
+    {
+      "name": "performance",
+      "status": "success",
+      "elapsed_seconds": 90.59
+    },
+    {
+      "name": "architecture",
+      "status": "success",
+      "elapsed_seconds": 109.84
+    },
+    {
+      "name": "concurrency",
+      "status": "success",
+      "elapsed_seconds": 114.8
+    },
+    {
+      "name": "security",
+      "status": "success",
+      "elapsed_seconds": 115.6
+    },
+    {
+      "name": "side_effect",
+      "status": "success",
+      "elapsed_seconds": 117.7
+    },
+    {
+      "name": "requirement",
+      "status": "success",
+      "elapsed_seconds": 216.32
+    }
+  ]
+}

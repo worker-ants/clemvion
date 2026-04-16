@@ -10,6 +10,7 @@ import { ErrorPolicyHandler } from './error/error-policy.handler';
 import { ExpressionResolverService } from './expression/expression-resolver.service';
 import { ForEachExecutor } from './containers/foreach-executor';
 import { LoopExecutor } from './containers/loop-executor';
+import { ParallelExecutor } from './containers/parallel-executor';
 import { WebsocketService } from '../websocket/websocket.service';
 import { ConfigService } from '@nestjs/config';
 import { LlmService } from '../llm/llm.service';
@@ -45,6 +46,7 @@ describe('ExecutionEngineService', () => {
     emitExecutionEvent: jest.Mock;
     emitNodeEvent: jest.Mock;
   };
+  let mockConfigService: { get: jest.Mock };
 
   // Mock data
   const workflowId = 'workflow-1';
@@ -196,6 +198,7 @@ describe('ExecutionEngineService', () => {
         ExpressionResolverService,
         ForEachExecutor,
         LoopExecutor,
+        ParallelExecutor,
         { provide: getRepositoryToken(Execution), useValue: mockExecutionRepo },
         {
           provide: getRepositoryToken(NodeExecution),
@@ -256,6 +259,7 @@ describe('ExecutionEngineService', () => {
     service = module.get<ExecutionEngineService>(ExecutionEngineService);
     handlerRegistry = module.get<NodeHandlerRegistry>(NodeHandlerRegistry);
     mockWebsocketService = module.get(WebsocketService);
+    mockConfigService = module.get(ConfigService);
 
     // Register mock handler (clear previous calls)
     (mockHandler.execute as jest.Mock).mockClear();
@@ -2556,6 +2560,338 @@ describe('ExecutionEngineService', () => {
         { squared: 9 },
         { squared: 16 },
       ]);
+    });
+  });
+
+  describe('Parallel execution (PARALLEL_ENGINE=v1)', () => {
+    afterEach(() => {
+      mockConfigService.get.mockReset();
+      mockConfigService.get.mockImplementation(
+        (key: string, defaultValue?: unknown) => {
+          if (key === 'MAX_NODE_ITERATIONS') return 100;
+          return defaultValue;
+        },
+      );
+    });
+
+    it('should execute branch bodies concurrently and feed Merge', async () => {
+      // Override ConfigService to enable parallel engine
+      mockConfigService.get.mockImplementation(
+        (key: string, defaultValue?: unknown) => {
+          if (key === 'PARALLEL_ENGINE') return 'v1';
+          if (key === 'MAX_NODE_ITERATIONS') return 100;
+          return defaultValue;
+        },
+      );
+
+      // Branch handlers record their call order
+      const executionOrder: string[] = [];
+      const branchHandler: NodeHandler = {
+        validate: () => ({ valid: true, errors: [] }),
+        execute: jest.fn(async (input: unknown) => {
+          executionOrder.push('branch');
+          return { branchOutput: true, input };
+        }),
+      };
+      const mergeHandler: NodeHandler = {
+        validate: () => ({ valid: true, errors: [] }),
+        execute: jest.fn(async (input: unknown) => {
+          executionOrder.push('merge');
+          return {
+            config: { strategy: 'wait_all', outputFormat: 'array' },
+            output: input,
+          };
+        }),
+      };
+      const parallelHandler: NodeHandler = {
+        validate: () => ({ valid: true, errors: [] }),
+        execute: jest.fn(async (input: unknown) => ({
+          config: { branchCount: 2, maxConcurrency: 0, waitAll: true },
+          output: input,
+          port: ['branch_0', 'branch_1'],
+        })),
+      };
+
+      handlerRegistry.register('parallel', parallelHandler);
+      handlerRegistry.register('branch_node', branchHandler);
+      handlerRegistry.register('merge', mergeHandler);
+
+      // Graph: Trigger -> Parallel -> [branch_0 -> A, branch_1 -> B] -> Merge
+      const nodes: Partial<Node>[] = [
+        {
+          id: 'trigger',
+          workflowId,
+          type: 'test_node',
+          category: NodeCategory.TRIGGER,
+          label: 'Trigger',
+          config: {},
+          isDisabled: false,
+          containerId: undefined as unknown as string,
+          toolOwnerId: undefined as unknown as string,
+        },
+        {
+          id: 'parallel-1',
+          workflowId,
+          type: 'parallel',
+          category: NodeCategory.LOGIC,
+          label: 'Parallel',
+          config: { branchCount: 2, maxConcurrency: 0, waitAll: true },
+          isDisabled: false,
+          containerId: undefined as unknown as string,
+          toolOwnerId: undefined as unknown as string,
+        },
+        {
+          id: 'branch-a',
+          workflowId,
+          type: 'branch_node',
+          category: NodeCategory.LOGIC,
+          label: 'Branch A',
+          config: {},
+          isDisabled: false,
+          containerId: undefined as unknown as string,
+          toolOwnerId: undefined as unknown as string,
+        },
+        {
+          id: 'branch-b',
+          workflowId,
+          type: 'branch_node',
+          category: NodeCategory.LOGIC,
+          label: 'Branch B',
+          config: {},
+          isDisabled: false,
+          containerId: undefined as unknown as string,
+          toolOwnerId: undefined as unknown as string,
+        },
+        {
+          id: 'merge-1',
+          workflowId,
+          type: 'merge',
+          category: NodeCategory.LOGIC,
+          label: 'Merge',
+          config: { strategy: 'wait_all', outputFormat: 'array' },
+          isDisabled: false,
+          containerId: undefined as unknown as string,
+          toolOwnerId: undefined as unknown as string,
+        },
+      ];
+
+      const edges: Partial<Edge>[] = [
+        {
+          id: 'e1',
+          workflowId,
+          sourceNodeId: 'trigger',
+          sourcePort: 'out',
+          targetNodeId: 'parallel-1',
+          targetPort: 'in',
+          type: EdgeType.DATA,
+        },
+        {
+          id: 'e2',
+          workflowId,
+          sourceNodeId: 'parallel-1',
+          sourcePort: 'branch_0',
+          targetNodeId: 'branch-a',
+          targetPort: 'in',
+          type: EdgeType.DATA,
+        },
+        {
+          id: 'e3',
+          workflowId,
+          sourceNodeId: 'parallel-1',
+          sourcePort: 'branch_1',
+          targetNodeId: 'branch-b',
+          targetPort: 'in',
+          type: EdgeType.DATA,
+        },
+        {
+          id: 'e4',
+          workflowId,
+          sourceNodeId: 'branch-a',
+          sourcePort: 'out',
+          targetNodeId: 'merge-1',
+          targetPort: 'in',
+          type: EdgeType.DATA,
+        },
+        {
+          id: 'e5',
+          workflowId,
+          sourceNodeId: 'branch-b',
+          sourcePort: 'out',
+          targetNodeId: 'merge-1',
+          targetPort: 'in',
+          type: EdgeType.DATA,
+        },
+      ];
+
+      mockNodeRepo.findBy.mockResolvedValue(nodes);
+      mockEdgeRepo.findBy.mockResolvedValue(edges);
+
+      await service.execute(workflowId, { start: true });
+      await flushPromises();
+
+      // Branch handlers both executed
+      expect(branchHandler.execute).toHaveBeenCalledTimes(2);
+      // Merge executed once
+      expect(mergeHandler.execute).toHaveBeenCalledTimes(1);
+      // Execution order: trigger → parallel → branches → merge
+      expect(executionOrder).toEqual(['branch', 'branch', 'merge']);
+      // Execution completed (not failed)
+      expect(mockExecutionRepo.save).toHaveBeenCalledWith(
+        expect.objectContaining({ status: ExecutionStatus.COMPLETED }),
+      );
+    });
+
+    it('should collect branch results on the done port', async () => {
+      mockConfigService.get.mockImplementation(
+        (key: string, defaultValue?: unknown) => {
+          if (key === 'PARALLEL_ENGINE') return 'v1';
+          if (key === 'MAX_NODE_ITERATIONS') return 100;
+          return defaultValue;
+        },
+      );
+
+      const doneReceived: unknown[] = [];
+      const branchHandler: NodeHandler = {
+        validate: () => ({ valid: true, errors: [] }),
+        execute: jest.fn(async (input: unknown) => ({
+          branchResult: true,
+          fromInput: input,
+        })),
+      };
+      const sinkHandler: NodeHandler = {
+        validate: () => ({ valid: true, errors: [] }),
+        execute: jest.fn(async (input: unknown) => {
+          doneReceived.push(input);
+          return { sink: true };
+        }),
+      };
+      const parallelHandler: NodeHandler = {
+        validate: () => ({ valid: true, errors: [] }),
+        execute: jest.fn(async (input: unknown) => ({
+          config: { branchCount: 2, maxConcurrency: 0, waitAll: true },
+          output: input,
+          port: ['branch_0', 'branch_1'],
+        })),
+      };
+
+      handlerRegistry.register('parallel', parallelHandler);
+      handlerRegistry.register('branch_node', branchHandler);
+      handlerRegistry.register('sink_node', sinkHandler);
+
+      // Graph: Trigger → Parallel → [branch_0→A, branch_1→B] | done → Sink
+      const nodes: Partial<Node>[] = [
+        {
+          id: 'trigger',
+          workflowId,
+          type: 'test_node',
+          category: NodeCategory.TRIGGER,
+          label: 'Trigger',
+          config: {},
+          isDisabled: false,
+          containerId: undefined as unknown as string,
+          toolOwnerId: undefined as unknown as string,
+        },
+        {
+          id: 'par',
+          workflowId,
+          type: 'parallel',
+          category: NodeCategory.LOGIC,
+          label: 'Parallel',
+          config: { branchCount: 2, maxConcurrency: 0, waitAll: true },
+          isDisabled: false,
+          containerId: undefined as unknown as string,
+          toolOwnerId: undefined as unknown as string,
+        },
+        {
+          id: 'a',
+          workflowId,
+          type: 'branch_node',
+          category: NodeCategory.LOGIC,
+          label: 'A',
+          config: {},
+          isDisabled: false,
+          containerId: undefined as unknown as string,
+          toolOwnerId: undefined as unknown as string,
+        },
+        {
+          id: 'b',
+          workflowId,
+          type: 'branch_node',
+          category: NodeCategory.LOGIC,
+          label: 'B',
+          config: {},
+          isDisabled: false,
+          containerId: undefined as unknown as string,
+          toolOwnerId: undefined as unknown as string,
+        },
+        {
+          id: 'sink',
+          workflowId,
+          type: 'sink_node',
+          category: NodeCategory.LOGIC,
+          label: 'Sink',
+          config: {},
+          isDisabled: false,
+          containerId: undefined as unknown as string,
+          toolOwnerId: undefined as unknown as string,
+        },
+      ];
+
+      const edges: Partial<Edge>[] = [
+        {
+          id: 'e1',
+          workflowId,
+          sourceNodeId: 'trigger',
+          sourcePort: 'out',
+          targetNodeId: 'par',
+          targetPort: 'in',
+          type: EdgeType.DATA,
+        },
+        {
+          id: 'e2',
+          workflowId,
+          sourceNodeId: 'par',
+          sourcePort: 'branch_0',
+          targetNodeId: 'a',
+          targetPort: 'in',
+          type: EdgeType.DATA,
+        },
+        {
+          id: 'e3',
+          workflowId,
+          sourceNodeId: 'par',
+          sourcePort: 'branch_1',
+          targetNodeId: 'b',
+          targetPort: 'in',
+          type: EdgeType.DATA,
+        },
+        {
+          id: 'e4',
+          workflowId,
+          sourceNodeId: 'par',
+          sourcePort: 'done',
+          targetNodeId: 'sink',
+          targetPort: 'in',
+          type: EdgeType.DATA,
+        },
+      ];
+
+      mockNodeRepo.findBy.mockResolvedValue(nodes);
+      mockEdgeRepo.findBy.mockResolvedValue(edges);
+
+      await service.execute(workflowId, { start: true });
+      await flushPromises();
+
+      // Both branches executed
+      expect(branchHandler.execute).toHaveBeenCalledTimes(2);
+      // Sink received collected results via done port
+      expect(sinkHandler.execute).toHaveBeenCalledTimes(1);
+      expect(doneReceived.length).toBe(1);
+      // The done port output should contain branches array
+      const received = doneReceived[0] as Record<string, unknown>;
+      expect(received.branches).toBeDefined();
+      expect(Array.isArray(received.branches)).toBe(true);
+      expect((received.branches as unknown[]).length).toBe(2);
     });
   });
 });

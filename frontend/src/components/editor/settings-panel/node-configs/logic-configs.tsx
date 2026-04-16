@@ -506,6 +506,40 @@ export function FilterConfig({ config, onChange }: { config: Config; onChange: O
   );
 }
 
+// ===== Parallel =====
+export function ParallelConfig({ config, onChange }: { config: Config; onChange: OnChange }) {
+  return (
+    <div className="flex flex-col gap-3">
+      <NumberField
+        label="Branch Count"
+        value={(config.branchCount as number) ?? 2}
+        onChange={(v) => onChange({ ...config, branchCount: v })}
+        min={2}
+        max={16}
+        hint="Number of concurrent branches (2-16)"
+      />
+      <NumberField
+        label="Max Concurrency"
+        value={(config.maxConcurrency as number) ?? 0}
+        onChange={(v) => onChange({ ...config, maxConcurrency: v })}
+        min={0}
+        max={16}
+        hint="0 = all branches run at once; otherwise limits concurrent branches"
+      />
+      <CheckboxField
+        label="Wait for all branches"
+        checked={(config.waitAll as boolean) ?? true}
+        onChange={(v) => onChange({ ...config, waitAll: v })}
+      />
+      {(config.waitAll as boolean) === false && (
+        <p className="text-[10px] text-[hsl(var(--muted-foreground))]">
+          waitAll=false is planned for a future phase. Currently all branches are always awaited.
+        </p>
+      )}
+    </div>
+  );
+}
+
 // ===== Merge =====
 export function MergeConfig({ config, onChange }: { config: Config; onChange: OnChange }) {
   return (

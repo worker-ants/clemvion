@@ -23,6 +23,10 @@ import { topologicalSort } from './graph/topological-sort';
 import { identifyBackEdges } from './graph/back-edge-identifier';
 import { ForEachExecutor } from './containers/foreach-executor';
 import { LoopExecutor } from './containers/loop-executor';
+import {
+  ParallelExecutor,
+  ParallelErrorPolicy,
+} from './containers/parallel-executor';
 import { assertTransition } from './state/state-machine';
 import { NodeHandlerRegistry } from './handlers/node-handler.registry';
 import { NodeComponentRegistry } from '../../nodes/core/node-component.registry';
@@ -70,6 +74,38 @@ interface ContainerBodyPlan {
   outgoingEdgeMap: Map<string, GraphEdge[]>;
 }
 
+/**
+ * Per-branch subgraph plan for the Parallel logic node.
+ *
+ * `bodyNodeIds` — nodes exclusive to this branch (reachable from this
+ *   `branch_N` target but not from any other `branch_M`). Shared downstream
+ *   nodes (typical Merge join points) live in {@link ParallelPlan.joinNodeIds}.
+ * `sortedNodeIds` — forward-edge topological order of `bodyNodeIds`.
+ * `entryNodeIds` — direct targets of `branch_N` edges; seed the reachability
+ *   set for the sequential body traversal.
+ * `exitNodeIds` — body nodes that have at least one outgoing edge to a node
+ *   outside the body (join nodes or unrelated downstream). After the branch
+ *   completes, propagation from these nodes re-activates the main loop's
+ *   `reachable` set.
+ */
+interface ParallelBranchPlan {
+  branchIndex: number;
+  branchPort: string;
+  bodyNodeIds: Set<string>;
+  sortedNodeIds: string[];
+  entryNodeIds: Set<string>;
+  exitNodeIds: Set<string>;
+  internalEdges: GraphEdge[];
+  outgoingEdgeMap: Map<string, GraphEdge[]>;
+}
+
+interface ParallelPlan {
+  branches: ParallelBranchPlan[];
+  joinNodeIds: Set<string>;
+  allBodyNodeIds: Set<string>;
+}
+
+
 class ExecutionCancelledError extends Error {
   constructor() {
     super('Execution cancelled while waiting for input');
@@ -93,6 +129,17 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
       reject: (err: Error) => void;
     }
   >();
+
+  /**
+   * Per-execution async mutex for the `executionPath` append write.
+   *
+   * Under ParallelExecutor (PARALLEL_ENGINE=v1), multiple branches may finish
+   * around the same event-loop tick and race on the read-modify-write sequence
+   * at the bottom of {@link executeNode}, causing a last-write-wins loss of
+   * node ids from the recorded path. Serializing writes per execution keeps
+   * the path ordered and complete.
+   */
+  private readonly executionPathChain = new Map<string, Promise<void>>();
 
   constructor(
     @InjectRepository(Execution)
@@ -118,6 +165,7 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
     private readonly integrationsService: IntegrationsService,
     private readonly foreachExecutor: ForEachExecutor,
     private readonly loopExecutor: LoopExecutor,
+    private readonly parallelExecutor: ParallelExecutor,
     @InjectQueue(BACKGROUND_EXECUTION_QUEUE)
     private readonly backgroundQueue: Queue<BackgroundExecutionJob>,
   ) {}
@@ -916,6 +964,48 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
           );
         }
 
+        // Parallel dispatch (PARALLEL_ENGINE=v1): run branch subgraphs
+        // concurrently. In the default 'off' mode the Parallel handler's
+        // `port: string[]` return value is handled by the legacy sequential
+        // propagateReachability path below, preserving existing semantics.
+        if (
+          node.type === 'parallel' &&
+          this.configService.get<string>('PARALLEL_ENGINE', 'off') === 'v1'
+        ) {
+          const nodeInput = this.gatherNodeInput(
+            nodeId,
+            graphEdges,
+            executedNodes,
+            context.nodeOutputCache,
+            input,
+          );
+          await this.runParallel(
+            node,
+            nodes,
+            edges,
+            forwardEdges,
+            backEdges,
+            outgoingEdgeMap,
+            context,
+            executionId,
+            executedNodes,
+            {
+              startedAt: savedExecution.startedAt?.toISOString(),
+              mode: 'manual',
+            },
+            reachable,
+            nodeInput,
+          );
+          // Skip downstream checks — runParallel already handled
+          // branch bodies, reachability propagation, and neutralized
+          // the Parallel node's _selectedPort sentinel so that the
+          // default propagateReachability below is a harmless no-op.
+          // However, we explicitly skip blocking/back-edge checks that
+          // don't apply to the Parallel node itself.
+          pointer++;
+          continue;
+        }
+
         // Blocking nodes: pause execution until user interaction
         const nodeOutput = context.nodeOutputCache[node.id] as
           | Record<string, unknown>
@@ -1041,9 +1131,47 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
         },
       );
     } finally {
+      // Drain the serialized executionPath queue before disposing in-memory
+      // state, otherwise a pending append could outlive the execution record.
+      const pending = this.executionPathChain.get(executionId);
+      if (pending) {
+        await pending.catch(() => undefined);
+        this.executionPathChain.delete(executionId);
+      }
       this.pendingContinuations.delete(executionId);
       this.contextService.deleteContext(executionId);
     }
+  }
+
+  /**
+   * Serialize the `execution.executionPath` read-modify-write across
+   * concurrent callers (ParallelExecutor branches) by chaining onto the
+   * per-execution promise. Errors are caught locally so one failing append
+   * cannot poison subsequent appends.
+   */
+  private appendExecutionPath(
+    executionId: string,
+    nodeId: string,
+  ): Promise<void> {
+    const prior = this.executionPathChain.get(executionId) ?? Promise.resolve();
+    const next = prior.then(async () => {
+      try {
+        const execution = await this.executionRepository.findOneBy({
+          id: executionId,
+        });
+        if (!execution) return;
+        execution.executionPath = [...execution.executionPath, nodeId];
+        await this.executionRepository.save(execution);
+      } catch (error) {
+        this.logger.warn(
+          `Failed to append executionPath for ${executionId}/${nodeId}: ${
+            error instanceof Error ? error.message : String(error)
+          }`,
+        );
+      }
+    });
+    this.executionPathChain.set(executionId, next);
+    return next;
   }
 
   /**
@@ -2023,14 +2151,9 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
         await this.nodeExecutionRepository.save(nodeExecution);
       }
 
-      // Update execution path
-      const execution = await this.executionRepository.findOneBy({
-        id: executionId,
-      });
-      if (execution) {
-        execution.executionPath = [...execution.executionPath, node.id];
-        await this.executionRepository.save(execution);
-      }
+      // Update execution path — serialized per execution to tolerate
+      // ParallelExecutor branches finishing concurrently.
+      await this.appendExecutionPath(executionId, node.id);
     } catch (error: unknown) {
       // Apply error policy
       const errorPolicyConfig = this.getErrorPolicyConfig(node);
@@ -2722,6 +2845,444 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
       ]);
     } else {
       await run;
+    }
+  }
+
+  /**
+   * Compute per-branch subgraph plans for a Parallel node.
+   *
+   * Strategy: for each `branch_N` port of the Parallel node, BFS forward
+   * across `forwardEdges` to collect reachable nodes. A node reached from
+   * multiple branches is a join (Merge) and excluded from every branch
+   * body; a node reached from exactly one branch is in that branch's body.
+   *
+   * Fails fast with `PARALLEL_INVALID_CHILD` / `PARALLEL_BACK_EDGE` /
+   * `PARALLEL_NESTED_NOT_SUPPORTED` so the user sees a named error at
+   * dispatch time instead of a mid-flight surprise.
+   */
+  private planParallelBody(
+    parallelNode: Node,
+    allNodes: Node[],
+    forwardEdges: GraphEdge[],
+    backEdges: GraphEdge[],
+    branchCount: number,
+  ): ParallelPlan {
+    const nodeMap = new Map(allNodes.map((n) => [n.id, n]));
+    const forwardAdj = new Map<string, GraphEdge[]>();
+    for (const edge of forwardEdges) {
+      const list = forwardAdj.get(edge.sourceNodeId) ?? [];
+      list.push(edge);
+      forwardAdj.set(edge.sourceNodeId, list);
+    }
+
+    // Direct `branch_N` targets — branch entry points.
+    const branchEntries: Set<string>[] = Array.from(
+      { length: branchCount },
+      () => new Set<string>(),
+    );
+    const parallelOutgoing = forwardAdj.get(parallelNode.id) ?? [];
+    for (const edge of parallelOutgoing) {
+      const match = /^branch_(\d+)$/.exec(edge.sourcePort);
+      if (!match) continue;
+      const idx = Number(match[1]);
+      if (idx >= 0 && idx < branchCount) {
+        branchEntries[idx].add(edge.targetNodeId);
+      }
+    }
+
+    // Forward-BFS reach set from each branch's entries, staying strictly
+    // within the DAG (back-edges are excluded so we never loop).
+    const reachPerBranch: Set<string>[] = branchEntries.map(() => new Set());
+    for (let i = 0; i < branchCount; i++) {
+      const queue = [...branchEntries[i]];
+      while (queue.length > 0) {
+        const nodeId = queue.shift();
+        if (nodeId === undefined) break;
+        if (reachPerBranch[i].has(nodeId)) continue;
+        reachPerBranch[i].add(nodeId);
+        for (const edge of forwardAdj.get(nodeId) ?? []) {
+          if (!reachPerBranch[i].has(edge.targetNodeId)) {
+            queue.push(edge.targetNodeId);
+          }
+        }
+      }
+    }
+
+    // Ownership: which branches reach each node.
+    const owners = new Map<string, Set<number>>();
+    for (let i = 0; i < branchCount; i++) {
+      for (const id of reachPerBranch[i]) {
+        const set = owners.get(id) ?? new Set<number>();
+        set.add(i);
+        owners.set(id, set);
+      }
+    }
+
+    const joinNodeIds = new Set<string>();
+    const allBodyNodeIds = new Set<string>();
+    for (const [id, set] of owners) {
+      if (set.size > 1) joinNodeIds.add(id);
+      else allBodyNodeIds.add(id);
+    }
+
+    // Back-edges inside any branch body are rejected to keep semantics
+    // consistent with the Container pattern (which also forbids cyclic bodies).
+    for (const edge of backEdges) {
+      if (
+        allBodyNodeIds.has(edge.sourceNodeId) ||
+        allBodyNodeIds.has(edge.targetNodeId)
+      ) {
+        throw new Error(
+          `PARALLEL_BACK_EDGE: Parallel node "${parallelNode.label ?? parallelNode.type}" body contains back-edges, which are not supported.`,
+        );
+      }
+    }
+
+    const branches: ParallelBranchPlan[] = [];
+    for (let i = 0; i < branchCount; i++) {
+      const bodyNodeIds = new Set<string>();
+      for (const id of reachPerBranch[i]) {
+        if (allBodyNodeIds.has(id)) bodyNodeIds.add(id);
+      }
+
+      // Reject disallowed child types inside this branch body.
+      for (const id of bodyNodeIds) {
+        const node = nodeMap.get(id);
+        if (!node) continue;
+        if (node.type === 'parallel') {
+          throw new Error(
+            `PARALLEL_NESTED_NOT_SUPPORTED: Parallel node "${parallelNode.label ?? parallelNode.type}" body contains nested Parallel node "${node.label ?? node.type}". Nested Parallel is reserved for a later phase.`,
+          );
+        }
+        if (
+          node.type === 'form' ||
+          node.type === 'buttons' ||
+          node.type === 'ai_conversation'
+        ) {
+          throw new Error(
+            `PARALLEL_INVALID_CHILD: Blocking node "${node.label ?? node.type}" inside Parallel node "${parallelNode.label ?? parallelNode.type}" is not supported.`,
+          );
+        }
+      }
+
+      const internalEdges = forwardEdges.filter(
+        (e) =>
+          bodyNodeIds.has(e.sourceNodeId) && bodyNodeIds.has(e.targetNodeId),
+      );
+      const graphNodes = Array.from(bodyNodeIds).map((id) => ({ id }));
+      const sortedNodeIds = topologicalSort(graphNodes, internalEdges);
+
+      const outgoingEdgeMap = new Map<string, GraphEdge[]>();
+      for (const edge of internalEdges) {
+        const list = outgoingEdgeMap.get(edge.sourceNodeId) ?? [];
+        list.push(edge);
+        outgoingEdgeMap.set(edge.sourceNodeId, list);
+      }
+
+      // Exit nodes: body nodes whose outgoing edges leave the body (typically
+      // into a join node such as a Merge). Used after dispatch to propagate
+      // reachability into the main loop's `reachable` set.
+      const exitNodeIds = new Set<string>();
+      for (const id of bodyNodeIds) {
+        const out = forwardAdj.get(id) ?? [];
+        for (const edge of out) {
+          if (!bodyNodeIds.has(edge.targetNodeId)) {
+            exitNodeIds.add(id);
+            break;
+          }
+        }
+        // A body node with no outgoing edges at all is still a terminal leaf;
+        // no propagation needed, so we don't add it to exitNodeIds.
+      }
+
+      branches.push({
+        branchIndex: i,
+        branchPort: `branch_${i}`,
+        bodyNodeIds,
+        sortedNodeIds,
+        entryNodeIds: branchEntries[i],
+        exitNodeIds,
+        internalEdges,
+        outgoingEdgeMap,
+      });
+    }
+
+    return { branches, joinNodeIds, allBodyNodeIds };
+  }
+
+  /**
+   * Execute a single branch's body subgraph sequentially — the engine runs
+   * branches *between* each other in parallel (via ParallelExecutor), but
+   * each branch's own nodes remain in topological order inside the branch.
+   *
+   * Mirrors {@link executeContainerBody}: seeds reachability with the branch
+   * entry nodes, routes by port, and rejects any blocking node encountered
+   * mid-flight (validation in {@link planParallelBody} covers statically-
+   * declared blocking nodes; this guards against ones emitted via
+   * `waiting_for_input` at runtime).
+   */
+  private async executeParallelBranchBody(
+    parallelNode: Node,
+    plan: ParallelBranchPlan,
+    allNodes: Node[],
+    allEdges: Edge[],
+    context: ExecutionContext,
+    executionId: string,
+    executedNodes: Set<string>,
+    executionMeta: { startedAt?: string; mode?: string },
+    branchInput: unknown,
+  ): Promise<void> {
+    if (plan.sortedNodeIds.length === 0) return;
+    const nodeMap = new Map(allNodes.map((n) => [n.id, n]));
+
+    const reachable = new Set<string>();
+    for (const id of plan.entryNodeIds) {
+      if (plan.bodyNodeIds.has(id)) reachable.add(id);
+    }
+
+    for (const nodeId of plan.sortedNodeIds) {
+      if (!reachable.has(nodeId)) continue;
+      const node = nodeMap.get(nodeId);
+      if (!node) continue;
+
+      if (node.isDisabled) {
+        const skipped = await this.createNodeExecution(
+          executionId,
+          nodeId,
+          NodeExecutionStatus.SKIPPED,
+          context.parentNodeExecutionId,
+        );
+        this.websocketService.emitNodeEvent(
+          executionId,
+          nodeId,
+          NodeEventType.NODE_SKIPPED,
+          {
+            nodeExecutionId: skipped.id,
+            parentNodeExecutionId: context.parentNodeExecutionId,
+            status: NodeExecutionStatus.SKIPPED,
+            nodeType: node.type,
+            nodeLabel: node.label ?? node.type,
+          },
+        );
+        executedNodes.add(nodeId);
+        continue;
+      }
+
+      const nodeInput = this.gatherNodeInput(
+        nodeId,
+        plan.internalEdges,
+        executedNodes,
+        context.nodeOutputCache,
+        branchInput,
+      );
+
+      await this.executeNode(
+        executionId,
+        node,
+        nodeInput,
+        context,
+        executedNodes,
+        nodeMap,
+        executionMeta,
+      );
+
+      // Container dispatch inside a branch body — mirrors the main loop so
+      // ForEach/Loop/Map inside a Parallel branch still iterates its body.
+      if (
+        node.type === 'foreach' ||
+        node.type === 'loop' ||
+        node.type === 'map'
+      ) {
+        await this.runContainer(
+          node,
+          allNodes,
+          allEdges,
+          context,
+          executionId,
+          executedNodes,
+          executionMeta,
+        );
+      }
+
+      // Background inside a branch just enqueues its body; the main flow
+      // (this branch) continues without waiting, which matches the top-level
+      // Background contract.
+      if (node.type === 'background') {
+        await this.scheduleBackgroundBody(
+          node,
+          allEdges,
+          context,
+          executionId,
+          branchInput,
+        );
+      }
+
+      const nodeOutput = context.nodeOutputCache[node.id] as
+        | Record<string, unknown>
+        | undefined;
+      if (nodeOutput?.status === 'waiting_for_input') {
+        throw new Error(
+          `PARALLEL_INVALID_CHILD: Blocking node "${node.label ?? node.type}" inside Parallel node "${parallelNode.label ?? parallelNode.type}" is not supported.`,
+        );
+      }
+
+      this.propagateReachability(
+        nodeId,
+        plan.outgoingEdgeMap,
+        context.nodeOutputCache,
+        reachable,
+      );
+    }
+  }
+
+  /**
+   * Run a Parallel node when `PARALLEL_ENGINE=v1` is active.
+   *
+   * 1. Plan each branch's exclusive body subgraph.
+   * 2. Hand the branches to {@link ParallelExecutor} which enforces
+   *    `maxConcurrency` via p-limit and aggregates failures per
+   *    `errorPolicy`.
+   * 3. After all branches settle, replace the Parallel node's output with
+   *    `_selectedPort: ['done']` so the main loop's propagateReachability
+   *    activates only the `done` port edges while suppressing `branch_N`
+   *    edges (preventing re-execution of branch body nodes).
+   * 4. Re-propagate reachability from each branch's exit nodes into the
+   *    caller-provided `reachable` set so join nodes (typical Merge) become
+   *    executable in the main loop.
+   *
+   * Called only when the feature flag is `v1`; otherwise the legacy
+   * sequential behavior applies (branch edges activate via `propagateReachability`
+   * and run one-by-one through the main pointer loop).
+   */
+  private async runParallel(
+    parallelNode: Node,
+    allNodes: Node[],
+    allEdges: Edge[],
+    forwardEdges: GraphEdge[],
+    backEdges: GraphEdge[],
+    outgoingEdgeMap: Map<string, GraphEdge[]>,
+    context: ExecutionContext,
+    executionId: string,
+    executedNodes: Set<string>,
+    executionMeta: { startedAt?: string; mode?: string },
+    reachable: Set<string>,
+    input: unknown,
+  ): Promise<void> {
+    const structured = context.structuredOutputCache?.[parallelNode.id];
+    const resolvedConfig = structured?.config ?? parallelNode.config ?? {};
+
+    const branchCount =
+      typeof resolvedConfig.branchCount === 'number' &&
+      Number.isFinite(resolvedConfig.branchCount)
+        ? Math.max(2, Math.min(16, Math.floor(resolvedConfig.branchCount)))
+        : 2;
+    const maxConcurrency =
+      typeof resolvedConfig.maxConcurrency === 'number' &&
+      Number.isFinite(resolvedConfig.maxConcurrency)
+        ? Math.max(0, Math.min(16, Math.floor(resolvedConfig.maxConcurrency)))
+        : 0;
+    const waitAll =
+      typeof resolvedConfig.waitAll === 'boolean'
+        ? resolvedConfig.waitAll
+        : true;
+    if (!waitAll) {
+      this.logger.warn(
+        `Parallel node "${parallelNode.label ?? parallelNode.type}" has waitAll=false, but Phase P1 always waits for all branches. ` +
+          `Use the Background node for fire-and-forget semantics.`,
+      );
+    }
+
+    const errorPolicyConfig = this.getErrorPolicyConfig(parallelNode);
+    const errorPolicy: ParallelErrorPolicy =
+      errorPolicyConfig.policy === 'skip_node' ||
+      errorPolicyConfig.policy === 'use_default_output' ||
+      errorPolicyConfig.policy === 'route_to_error_port'
+        ? 'continue'
+        : 'stop';
+
+    const plan = this.planParallelBody(
+      parallelNode,
+      allNodes,
+      forwardEdges,
+      backEdges,
+      branchCount,
+    );
+
+    // Resolve the Parallel node's current NodeExecution row so branch
+    // children can be grouped under it in the run-results timeline
+    // (mirrors the Background node's parentNodeExecutionId stamping).
+    const parentNodeExecution = await this.nodeExecutionRepository.findOne({
+      where: { executionId, nodeId: parallelNode.id },
+      order: { startedAt: 'DESC' },
+    });
+    const parentNodeExecutionId = parentNodeExecution?.id;
+    const branchParentContext: ExecutionContext = parentNodeExecutionId
+      ? { ...context, parentNodeExecutionId }
+      : context;
+
+    await this.parallelExecutor.execute(
+      { branchCount, maxConcurrency, waitAll, errorPolicy },
+      branchParentContext,
+      async (branchIndex, branchContext) => {
+        const branchPlan = plan.branches[branchIndex];
+        await this.executeParallelBranchBody(
+          parallelNode,
+          branchPlan,
+          allNodes,
+          allEdges,
+          branchContext,
+          executionId,
+          executedNodes,
+          executionMeta,
+          input,
+        );
+      },
+    );
+
+    // Collect each branch's terminal output for the `done` port.
+    // The last node in each branch's topological order is the terminal.
+    const branchResults: unknown[] = [];
+    for (const branch of plan.branches) {
+      if (branch.sortedNodeIds.length === 0) {
+        branchResults.push(undefined);
+        continue;
+      }
+      const lastNodeId =
+        branch.sortedNodeIds[branch.sortedNodeIds.length - 1];
+      const rawOutput = context.nodeOutputCache[lastNodeId];
+      branchResults.push(this.stripSelectedPort(rawOutput));
+    }
+
+    // Replace Parallel's output: `_selectedPort: ['done']` ensures only the
+    // `done` port fires while branch_N edges stay suppressed. The `done`
+    // downstream node receives `{ branches: [...] }` after stripping.
+    context.nodeOutputCache[parallelNode.id] = {
+      _selectedPort: ['done'],
+      branches: branchResults,
+    };
+    this.contextService.setStructuredOutput(executionId, parallelNode.id, {
+      config: resolvedConfig as Record<string, unknown>,
+      output: branchResults,
+      port: ['done'],
+    });
+
+    // Activate `done` downstream via the main outgoingEdgeMap (Parallel →
+    // done-port edges). Branch exit → join (Merge) edges are also activated.
+    this.propagateReachability(
+      parallelNode.id,
+      outgoingEdgeMap,
+      context.nodeOutputCache,
+      reachable,
+    );
+    for (const branch of plan.branches) {
+      for (const exitId of branch.exitNodeIds) {
+        this.propagateReachability(
+          exitId,
+          outgoingEdgeMap,
+          context.nodeOutputCache,
+          reachable,
+        );
+      }
     }
   }
 

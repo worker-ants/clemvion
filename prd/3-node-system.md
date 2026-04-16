@@ -120,12 +120,14 @@
 
 ### 4.9 Parallel
 
+> **🚧 P1 구현 완료**: `PARALLEL_ENGINE=v1` 환경변수로 활성화하면 `ParallelExecutor`가 `p-limit` + `Promise.allSettled`로 분기를 진짜 동시 실행한다(기본값 `off`이면 기존 순차 동작). branchCount(2~16), maxConcurrency(0=무제한, 1~16) 지원. 분기 내 블로킹 노드(form/buttons/ai_conversation) 금지, back-edge 금지, 중첩 Parallel 금지(P2 예정). waitAll은 항상 true로 동작하며 false는 P2에서 지원 예정이다.
+
 | ID | 요구사항 | 우선순위 | 상태 |
 |----|----------|----------|-------|
 | ND-PL-01 | 여러 분기를 동시에(병렬로) 실행 | 필수 | ✅ |
 | ND-PL-02 | 출력 포트 수를 동적으로 추가/제거 | 필수 | ✅ |
 | ND-PL-03 | 모든 분기 완료 후 결과 합산 또는 개별 전달 | 필수 | 🚧 (Merge `wait_all` 조합으로 우회) |
-| ND-PL-04 | 동시 실행 제한 수 설정 (리소스 관리) | 권장 | ❌ |
+| ND-PL-04 | 동시 실행 제한 수 설정 (리소스 관리) | 권장 | ✅ |
 
 ### 4.10 Merge
 

@@ -1,3 +1,4 @@
+import { Logger } from '@nestjs/common';
 import {
   NodeHandler,
   ValidationResult,
@@ -8,9 +9,12 @@ interface MergeConfig {
   strategy: 'wait_all' | 'first' | 'append';
   outputFormat: 'array' | 'merge_object' | 'indexed';
   timeout?: number;
+  partialOnTimeout?: boolean;
 }
 
 export class MergeHandler implements NodeHandler {
+  private readonly logger = new Logger(MergeHandler.name);
+
   validate(config: Record<string, unknown>): ValidationResult {
     const errors: string[] = [];
     const { strategy, outputFormat, timeout } =
@@ -31,15 +35,44 @@ export class MergeHandler implements NodeHandler {
       errors.push('timeout must be a non-negative number (0 = no timeout)');
     }
 
+    const { partialOnTimeout } = config as unknown as MergeConfig;
+    if (
+      partialOnTimeout !== undefined &&
+      typeof partialOnTimeout !== 'boolean'
+    ) {
+      errors.push('partialOnTimeout must be a boolean');
+    }
+
     return { valid: errors.length === 0, errors };
   }
 
+  // eslint-disable-next-line @typescript-eslint/require-await
   async execute(
     input: unknown,
     config: Record<string, unknown>,
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     _context: ExecutionContext,
   ): Promise<unknown> {
-    const { strategy, outputFormat } = config as unknown as MergeConfig;
+    const { strategy, outputFormat, timeout, partialOnTimeout } =
+      config as unknown as MergeConfig;
+
+    // Phase P1 runs on a sequential engine where all predecessors are
+    // already resolved before Merge executes, so a barrier is unnecessary.
+    // Surface a warning so operators notice the config is dormant until
+    // Phase P2 introduces true per-branch arrival tracking.
+    if (typeof timeout === 'number' && timeout > 0) {
+      this.logger.warn(
+        `Merge node timeout=${timeout}s is configured but will take effect in Phase P2 ` +
+          `(real-time fan-in barrier). In Phase P1 all predecessors are already resolved ` +
+          `before Merge runs, so this setting is dormant.`,
+      );
+    }
+    if (partialOnTimeout === true) {
+      this.logger.warn(
+        `Merge node partialOnTimeout=true is configured but only applies alongside the ` +
+          `Phase P2 barrier timeout. In Phase P1 this setting is dormant.`,
+      );
+    }
 
     const inputs = this.normalizeInputs(input);
     const formatted =

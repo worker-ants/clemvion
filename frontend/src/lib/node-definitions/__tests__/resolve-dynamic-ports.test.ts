@@ -312,4 +312,41 @@ describe("resolveDynamicPorts — unknown / default fallback", () => {
     const ports = resolveDynamicPorts("unknown", {}, undefined);
     expect(ports).toEqual([]);
   });
+
+  describe("parallel-branches", () => {
+    const PARALLEL_SPEC: DynamicPortsSpec = { kind: "parallel-branches" };
+
+    it("returns branchCount ports + done (default 2 branches)", () => {
+      const d = def("parallel", [], PARALLEL_SPEC);
+      const ports = resolveDynamicPorts("parallel", {}, d);
+      expect(ports).toEqual([
+        { id: "branch_0", label: "Branch 0", type: "data" },
+        { id: "branch_1", label: "Branch 1", type: "data" },
+        { id: "done", label: "Done", type: "data" },
+      ]);
+    });
+
+    it("respects branchCount config", () => {
+      const d = def("parallel", [], PARALLEL_SPEC);
+      const ports = resolveDynamicPorts("parallel", { branchCount: 4 }, d);
+      // 4 branches + 1 done = 5
+      expect(ports.length).toBe(5);
+      expect(ports[3]).toEqual({ id: "branch_3", label: "Branch 3", type: "data" });
+      expect(ports[4]).toEqual({ id: "done", label: "Done", type: "data" });
+    });
+
+    it("clamps to min 2", () => {
+      const d = def("parallel", [], PARALLEL_SPEC);
+      const ports = resolveDynamicPorts("parallel", { branchCount: 0 }, d);
+      // 2 branches + 1 done = 3
+      expect(ports.length).toBe(3);
+    });
+
+    it("clamps to max 16", () => {
+      const d = def("parallel", [], PARALLEL_SPEC);
+      const ports = resolveDynamicPorts("parallel", { branchCount: 100 }, d);
+      // 16 branches + 1 done = 17
+      expect(ports.length).toBe(17);
+    });
+  });
 });
