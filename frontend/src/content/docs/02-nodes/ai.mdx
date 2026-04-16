@@ -34,7 +34,7 @@ code: ["backend/src/nodes/ai/ai-agent/ai-agent.schema.ts", "backend/src/nodes/ai
   {name: "temperature", required: false, type: "float", description: "LLMConfig 기본값을 재정의해요.", default: "-"},
   {name: "maxTokens", required: false, type: "integer", description: "최대 토큰 수예요.", default: "-"},
   {name: "maxToolCalls", required: false, type: "integer", description: "최대 도구 호출 횟수예요.", default: "10"},
-  {name: "toolNodeIds", required: false, type: "UUID[]", description: "Tool Area에 등록된 도구 노드 ID 목록이에요. 캔버스의 Tool Area에서 자동 관리돼요.", default: "[]"},
+  {name: "도구 노드 (Tool Area)", required: false, type: "노드 목록", description: "캔버스의 Tool Area에 끌어다 놓은 노드가 AI Agent의 도구로 자동 등록돼요. 명시적 설정 없이 드래그만으로 관리돼요.", default: "없음"},
   {name: "toolOverrides", required: false, type: "ToolOverride[]", description: "도구별 이름/설명/입력 매핑 오버라이드예요.", default: "[]"},
   {name: "conversationHistory", required: false, type: "`none` / `last_n` / `full`", description: "대화 이력 보관 전략이에요.", default: "none"},
   {name: "historyCount", required: false, type: "integer", description: "`last_n`일 때 보관 메시지 수예요.", default: "-"},
@@ -194,7 +194,7 @@ Multi Turn 모드에서 `inputField`를 비워 두면 LLM을 호출하지 않고
 
 ## 팁 & 참고
 
-- 도구 등록은 캔버스의 **Tool Area**에서 해요. 등록된 노드는 `toolNodeIds`에 자동 추가되고, LLM에는 `tool_*` 접두사 이름으로 전달돼요. 조건 도구는 `cond_*` 접두사를 쓰기 때문에 일반 도구와 이름이 겹치지 않아요.
+- 도구 등록은 캔버스의 **Tool Area**에 노드를 끌어다 놓으면 끝이에요. AI Agent가 해당 노드를 도구로 호출할 수 있게 되고, 조건 도구는 일반 도구와 이름이 겹치지 않도록 자동으로 분리돼요.
 - LLM 프로바이더 연동은 [LLM 설정](/docs/05-integrations-and-config/llm-config)에서, Knowledge Base 구성은 [지식 저장소](/docs/05-integrations-and-config/knowledge-base)에서 관리해요.
 - Multi Turn 실행 이력은 Conversation Inspector로 턴별 요청/응답/토큰 사용량을 확인할 수 있어요. 자세한 동작은 [실행 결과](/docs/04-run-and-debug/run-results)를 참고해요.
-- 개발자용 팁: `responseFormat=json`일 때 Zod의 `z.toJSONSchema()`로 직렬화된 스키마가 LLM에 그대로 전달돼요. 출력 스키마를 바꿀 때 백엔드 `<type>.schema.ts`와 프런트엔드의 기본값이 벗어나지 않도록 확인해요.
+- 파워유저 팁: 응답 형식을 `json`으로 지정하면 LLM이 정의한 출력 스키마에 맞춘 구조로 돌려줘요. 필드를 추가·제거·이름 변경할 때는 다운스트림 노드의 `{{ $node["AI Agent"].output.field }}` 참조 경로도 같이 점검해요.

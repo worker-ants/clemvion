@@ -88,4 +88,4 @@ Manual Trigger는 파라미터 개수를 요약에 표시해요. 없으면 `(non
 
 - 파라미터 값 접근 문법은 [표현식 변수와 컨텍스트](/docs/03-expression-language/variables-and-context)에서 자세히 다뤄요.
 - 실행 요청과 응답이 궁금하면 [워크플로우 실행](/docs/04-run-and-debug/running-a-workflow)를 참고해요.
-- 개발자용 팁: 파라미터 검증·기본값·coerce는 `resolveTriggerParameters()` 유틸에서 한 번에 수행돼요. 같은 유틸을 Manual·Webhook·Schedule 진입점이 공유해서, 어느 경로로 들어와도 동일한 값 형태로 워크플로우 엔진에 전달돼요.
+- 파워유저 팁: Manual·Webhook·Schedule 어느 경로로 트리거되든 입력값은 동일하게 기본값이 채워지고 타입이 보정돼요. 같은 워크플로우를 여러 트리거로 재사용해도 파라미터가 일관되게 전달돼요.
