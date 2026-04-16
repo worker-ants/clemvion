@@ -16,7 +16,7 @@ import type {
 import { useExecutionInteractionCommands } from "@/lib/websocket/use-execution-interaction-commands";
 import { PresentationContent, JsonContent } from "./renderers/presentation-renderers";
 import { GenericRenderer } from "./renderers/generic-renderer";
-import { unwrapNodeOutput } from "./output-shape";
+import { unwrapNodeOutput, isConversationOutput } from "./output-shape";
 import { DynamicFormUI } from "./dynamic-form-ui";
 import { ButtonBar } from "./button-bar";
 import { ConversationInspector } from "./conversation-inspector";
@@ -319,20 +319,14 @@ export function ResultDetail({
   const categoryColor =
     CATEGORY_COLORS[result.nodeCategory] ?? "#6B7280";
   const isPresentation = result.nodeCategory === "presentation";
-  const isAiAgent = result.nodeType === "ai_agent";
 
-  // Check for completed multi-turn conversation (history mode)
   const isCompletedConversation =
-    isAiAgent &&
-    result.status === "completed" &&
-    !!(result.outputData as Record<string, unknown> | null)?.messages;
+    result.status === "completed" && isConversationOutput(result.outputData);
 
-  // Determine if tabs should be shown:
-  // Tabs for non-AI nodes in completed/failed/waiting states
+  const isConversationNode = isWaitingConversation || isCompletedConversation;
+
   const showTabs =
-    !isWaitingConversation &&
-    !isCompletedConversation &&
-    !isAiAgent &&
+    !isConversationNode &&
     (result.status === "completed" || result.status === "failed" || result.status === "waiting_for_input");
 
   return (
