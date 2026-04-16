@@ -23,13 +23,45 @@ const toolOverrideSchema = z.object({
 });
 
 const conditionDefSchema = z.object({
-  id: z.string().meta({ ui: { label: 'ID', widget: 'text' } }),
-  label: z.string().meta({ ui: { label: 'Label', widget: 'text' } }),
-  prompt: z.string().meta({ ui: { label: 'Prompt', widget: 'textarea' } }),
+  id: z.string().meta({ ui: { label: 'ID', widget: 'text', hidden: true } }),
+  label: z
+    .string()
+    .default('')
+    .meta({
+      ui: {
+        label: 'Label',
+        widget: 'text',
+        placeholder: 'Label (e.g. Refund Request)',
+      },
+    }),
+  prompt: z
+    .string()
+    .default('')
+    .meta({
+      ui: {
+        label: 'Prompt',
+        widget: 'text',
+        placeholder: 'Prompt (when to trigger this condition)',
+      },
+    }),
 });
 
 export const aiAgentNodeConfigSchema = z
   .object({
+    mode: z
+      .enum(['single_turn', 'multi_turn'])
+      .default('single_turn')
+      .meta({
+        ui: {
+          label: 'Mode',
+          widget: 'select',
+          order: 0,
+          options: [
+            { value: 'single_turn', label: 'Single Turn' },
+            { value: 'multi_turn', label: 'Multi Turn (Conversation)' },
+          ],
+        },
+      }),
     llmConfigId: z
       .string()
       .optional()
@@ -43,11 +75,14 @@ export const aiAgentNodeConfigSchema = z
     model: z
       .string()
       .optional()
-      .meta({ ui: { label: 'Model', widget: 'text', order: 2 } }),
-    mode: z
-      .enum(['single_turn', 'multi_turn'])
-      .default('single_turn')
-      .meta({ ui: { label: 'Mode', widget: 'select', order: 3 } }),
+      .meta({
+        ui: {
+          label: 'Model Override',
+          widget: 'expression',
+          placeholder: 'Leave empty for provider default',
+          order: 2,
+        },
+      }),
     systemPrompt: z
       .string()
       .optional()
@@ -55,28 +90,28 @@ export const aiAgentNodeConfigSchema = z
         ui: {
           label: 'System Prompt',
           widget: 'expression',
-          order: 4,
+          placeholder: 'You are a helpful assistant...',
+          hint: 'Supports markdown and expressions',
+          order: 3,
         },
       }),
     userPrompt: z
       .string()
       .optional()
       .meta({
-        ui: { label: 'User Prompt', widget: 'expression', order: 5 },
+        ui: {
+          label: 'User Prompt',
+          widget: 'expression',
+          placeholder: '{{ $input.question }}',
+          hint: 'Expression to build the user message',
+          order: 4,
+          visibleWhen: { field: 'mode', notEquals: 'multi_turn' },
+        },
       }),
-    temperature: z
-      .number()
-      .optional()
-      .meta({ ui: { label: 'Temperature', widget: 'number', order: 6 } }),
-    maxTokens: z
-      .number()
-      .int()
-      .optional()
-      .meta({ ui: { label: 'Max Tokens', widget: 'number', order: 7 } }),
     responseFormat: z
       .enum(['text', 'json'])
       .default('text')
-      .meta({ ui: { label: 'Response Format', widget: 'select', order: 8 } }),
+      .meta({ ui: { label: 'Response Format', widget: 'select', order: 5 } }),
     jsonSchema: z
       .record(z.string(), z.unknown())
       .optional()
@@ -85,30 +120,111 @@ export const aiAgentNodeConfigSchema = z
           label: 'JSON Schema',
           widget: 'code',
           language: 'json',
-          order: 9,
+          placeholder: '{"type": "object", "properties": {...}}',
+          order: 6,
           visibleWhen: { field: 'responseFormat', equals: 'json' },
         },
       }),
+
+    // ── Knowledge Base (RAG) ──
     knowledgeBases: z
       .array(z.string())
       .default([])
       .meta({
-        ui: { label: 'Knowledge Bases', widget: 'kb-selector', order: 10 },
+        ui: {
+          label: 'Knowledge Bases',
+          widget: 'kb-selector',
+          order: 10,
+          group: 'Knowledge Base (RAG)',
+        },
       }),
     ragTopK: z
       .number()
       .int()
       .default(5)
-      .meta({ ui: { label: 'RAG Top K', widget: 'number', order: 11 } }),
+      .meta({
+        ui: {
+          label: 'RAG Top-K',
+          widget: 'number',
+          hint: 'Number of chunks to retrieve',
+          order: 11,
+          group: 'Knowledge Base (RAG)',
+        },
+      }),
     ragThreshold: z
       .number()
       .default(0.7)
-      .meta({ ui: { label: 'RAG Threshold', widget: 'number', order: 12 } }),
+      .meta({
+        ui: {
+          label: 'RAG Threshold',
+          widget: 'number',
+          hint: 'Minimum similarity score (0-1)',
+          order: 12,
+          group: 'Knowledge Base (RAG)',
+        },
+      }),
+
+    // ── Conditions ──
+    conditions: z
+      .array(conditionDefSchema)
+      .default([])
+      .meta({
+        ui: {
+          label: 'Conditions',
+          widget: 'field-array',
+          itemLabel: 'Condition',
+          order: 20,
+          group: 'Conditions',
+        },
+      }),
+
+    // ── Advanced ──
+    temperature: z
+      .number()
+      .optional()
+      .meta({
+        ui: {
+          label: 'Temperature',
+          widget: 'number',
+          hint: '0 = deterministic, 2 = creative',
+          order: 30,
+          group: 'Advanced',
+        },
+      }),
+    maxTokens: z
+      .number()
+      .int()
+      .optional()
+      .meta({
+        ui: {
+          label: 'Max Tokens',
+          widget: 'number',
+          order: 31,
+          group: 'Advanced',
+        },
+      }),
+    maxToolCalls: z
+      .number()
+      .int()
+      .default(10)
+      .meta({
+        ui: {
+          label: 'Max Tool Calls',
+          widget: 'number',
+          order: 32,
+          group: 'Advanced',
+        },
+      }),
     toolNodeIds: z
       .array(z.string())
       .default([])
       .meta({
-        ui: { label: 'Tool Node IDs', widget: 'field-array', order: 13 },
+        ui: {
+          label: 'Tool Node IDs',
+          widget: 'field-array',
+          order: 33,
+          group: 'Advanced',
+        },
       }),
     toolOverrides: z
       .array(toolOverrideSchema)
@@ -118,14 +234,10 @@ export const aiAgentNodeConfigSchema = z
           label: 'Tool Overrides',
           widget: 'field-array',
           itemLabel: 'Tool',
-          order: 14,
+          order: 34,
+          group: 'Advanced',
         },
       }),
-    maxToolCalls: z
-      .number()
-      .int()
-      .default(10)
-      .meta({ ui: { label: 'Max Tool Calls', widget: 'number', order: 15 } }),
     conversationHistory: z
       .enum(['none', 'last_n', 'full'])
       .default('none')
@@ -133,7 +245,13 @@ export const aiAgentNodeConfigSchema = z
         ui: {
           label: 'Conversation History',
           widget: 'select',
-          order: 16,
+          order: 35,
+          group: 'Advanced',
+          options: [
+            { value: 'none', label: 'None' },
+            { value: 'last_n', label: 'Last N Messages' },
+            { value: 'full', label: 'Full History' },
+          ],
         },
       }),
     historyCount: z
@@ -144,10 +262,13 @@ export const aiAgentNodeConfigSchema = z
         ui: {
           label: 'History Count',
           widget: 'number',
-          order: 17,
+          order: 36,
+          group: 'Advanced',
           visibleWhen: { field: 'conversationHistory', equals: 'last_n' },
         },
       }),
+
+    // ── Multi Turn Settings ──
     maxTurns: z
       .number()
       .int()
@@ -156,19 +277,10 @@ export const aiAgentNodeConfigSchema = z
         ui: {
           label: 'Max Turns',
           widget: 'number',
-          order: 18,
+          hint: '0 = unlimited',
+          order: 40,
+          group: 'Multi Turn Settings',
           visibleWhen: { field: 'mode', equals: 'multi_turn' },
-        },
-      }),
-    conditions: z
-      .array(conditionDefSchema)
-      .default([])
-      .meta({
-        ui: {
-          label: 'Conditions',
-          widget: 'field-array',
-          itemLabel: 'Condition',
-          order: 19,
         },
       }),
   })

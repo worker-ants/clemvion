@@ -84,19 +84,37 @@ export interface UiHint {
     | 'kb-selector'
     | 'workflow-selector'
     | 'condition-builder'
-    | 'field-array';
+    | 'field-array'
+    | 'button-list'
+    | 'table-grid';
   /** Sort index within the form. Lower appears first. */
   order?: number;
   /** Hide from auto-form rendering (still validated). */
   hidden?: boolean;
-  /** Simple visibility DSL. Field is only shown when sibling equals given value. */
-  visibleWhen?: { field: string; equals: unknown };
+  /**
+   * Visibility DSL. Field is only shown when sibling matches the rule.
+   *  - `{ field, equals }`    — shown when `config[field] === equals`
+   *  - `{ field, notEquals }` — shown when `config[field] !== notEquals`
+   *  - `{ field, oneOf }`     — shown when `oneOf.includes(config[field])`
+   */
+  visibleWhen?:
+    | { field: string; equals: unknown }
+    | { field: string; notEquals: unknown }
+    | { field: string; oneOf: unknown[] };
   /** Options for `widget: 'select'` when not derivable from z.enum. */
   options?: { value: string; label: string }[];
   /** For 'code' widget — language hint (javascript, sql, json, handlebars). */
   language?: string;
   /** For array/object widgets — child item label. */
   itemLabel?: string;
+  /** Default value for new items in array widgets. */
+  itemDefault?: Record<string, unknown>;
+  /** Group name for section grouping in the auto-form. */
+  group?: string;
+  /** When true, the section group renders as collapsible (with expand/collapse toggle). */
+  collapsible?: boolean;
+  /** Field keys to clear from config when this field's value changes (e.g. mode switch). */
+  clearFields?: string[];
 }
 
 /**
