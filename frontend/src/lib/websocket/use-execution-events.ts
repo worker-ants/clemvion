@@ -145,6 +145,7 @@ export function useExecutionEvents({
       const payload = data as {
         waitingNodeId?: string;
         waitingNodeType?: string;
+        waitingNodeLabel?: string;
         nodeExecutionId?: string;
         interactionType?: "form" | "buttons" | "ai_conversation";
         nodeOutput?: unknown;
@@ -170,7 +171,10 @@ export function useExecutionEvents({
         // appears when execution resumes (carousel button flow etc.).
         nodeExecutionId: sanitizeUuid(payload.nodeExecutionId),
         nodeId: payload.waitingNodeId,
-        nodeLabel: payload.waitingNodeId,
+        // Backend now includes waitingNodeLabel; older payloads fall back to
+        // the id and the store's addNodeResult preserves the label that
+        // NODE_STARTED already filled in.
+        nodeLabel: payload.waitingNodeLabel ?? payload.waitingNodeId,
         nodeType,
         nodeCategory,
         status: "waiting_for_input",

@@ -31,6 +31,7 @@ import { PresentationContent } from "@/components/editor/run-results/renderers/p
 import { GenericRenderer } from "@/components/editor/run-results/renderers/generic-renderer";
 import { ConversationInspector } from "@/components/editor/run-results/conversation-inspector";
 import { parseHistoryMessages } from "@/components/editor/run-results/conversation-utils";
+import { isConversationOutput } from "@/components/editor/run-results/output-shape";
 import { DynamicFormUI } from "@/components/editor/run-results/dynamic-form-ui";
 import { ButtonBar } from "@/components/editor/run-results/button-bar";
 import {
@@ -435,11 +436,11 @@ function NodeResultsTab({
   }
 
   const isPresentation = selectedNodeResult?.nodeCategory === "presentation";
-  const isAiAgent = selectedNodeResult?.nodeType === "ai_agent";
+  // Detect any conversation-shaped output (AI Agent or Information Extractor)
+  // — used to render the conversation view inside the Preview tab while the
+  // Output tab still shows the raw produced value.
   const isCompletedConversation =
-    isAiAgent &&
-    !isWaitingConversation &&
-    !!(selectedNode?.outputData as Record<string, unknown> | null)?.messages;
+    !isWaitingConversation && isConversationOutput(selectedNode?.outputData);
 
   // Preview tab should also render when the selected node is waiting for
   // input — even if outputData is null the page must show the interactive UI.

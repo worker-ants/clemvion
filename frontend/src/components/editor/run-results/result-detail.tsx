@@ -325,9 +325,82 @@ export function ResultDetail({
 
   const isConversationNode = isWaitingConversation || isCompletedConversation;
 
+  // Conversation nodes (AI Agent / Information Extractor) used to take over
+  // the entire detail panel — losing access to Output/Config tabs. Now they
+  // share NodeDetailTabs and the conversation view lives inside the Preview
+  // tab so the user can still inspect the raw output.
   const showTabs =
-    !isConversationNode &&
-    (result.status === "completed" || result.status === "failed" || result.status === "waiting_for_input");
+    isConversationNode ||
+    result.status === "completed" ||
+    result.status === "failed" ||
+    result.status === "waiting_for_input";
+
+  const conversationPreview = isWaitingConversation ? (
+    <ConversationInspector
+      result={result}
+      conversationMessages={conversationMessages}
+      selectedItemIndex={selectedConversationItemIndex}
+      isLive={true}
+      isWaitingAiResponse={isWaitingAiResponse}
+      conversationConfig={conversationConfig}
+      onSendMessage={handleSendMessage}
+      onEndConversation={handleEndConversation}
+    />
+  ) : isCompletedConversation ? (
+    <ConversationInspector
+      result={result}
+      conversationMessages={parseHistoryMessages(result.outputData)}
+      selectedItemIndex={selectedConversationItemIndex}
+      isLive={false}
+      isWaitingAiResponse={false}
+      conversationConfig={null}
+      onSendMessage={() => {}}
+      onEndConversation={() => {}}
+    />
+  ) : null;
+
+  const formPreview =
+    isWaitingForm && formConfig ? (
+      <DynamicFormUI
+        formConfig={formConfig as Record<string, unknown>}
+        onSubmit={handleFormSubmit}
+      />
+    ) : null;
+
+  const buttonsPreview = isWaitingButtons
+    ? isPresentation
+      ? (
+          <PresentationContent
+            result={result}
+            onPortButtonClick={handlePortButtonClick}
+            onLinkButtonClick={handleLinkButtonClick}
+            previewOnly
+          />
+        )
+      : (() => {
+          const parsed = parseButtonConfig(buttonConfig);
+          if (!parsed) return null;
+          return (
+            <ButtonBar
+              buttons={parsed.buttons}
+              onPortButtonClick={handlePortButtonClick}
+              onLinkButtonClick={handleLinkButtonClick}
+              onContinueClick={handleContinueClick}
+            />
+          );
+        })()
+    : null;
+
+  const previewContent =
+    conversationPreview ?? formPreview ?? buttonsPreview ?? undefined;
+
+  // Preview tab is shown when there's any custom content to render in it
+  // (conversation, form, buttons) or when this is a presentation node.
+  const hasPreview =
+    !!conversationPreview ||
+    !!formPreview ||
+    !!buttonsPreview ||
+    (isPresentation && !!result.outputData);
 
   return (
     <div className="h-full overflow-hidden flex flex-col">
@@ -351,67 +424,12 @@ export function ResultDetail({
 
       {/* Content */}
       <div className="flex-1 overflow-hidden flex flex-col">
-        {isWaitingConversation ? (
-          <ConversationInspector
-            result={result}
-            conversationMessages={conversationMessages}
-            selectedItemIndex={selectedConversationItemIndex}
-            isLive={true}
-            isWaitingAiResponse={isWaitingAiResponse}
-            conversationConfig={conversationConfig}
-            onSendMessage={handleSendMessage}
-            onEndConversation={handleEndConversation}
-          />
-        ) : isCompletedConversation ? (
-          <ConversationInspector
-            result={result}
-            conversationMessages={parseHistoryMessages(result.outputData)}
-            selectedItemIndex={selectedConversationItemIndex}
-            isLive={false}
-            isWaitingAiResponse={false}
-            conversationConfig={null}
-            onSendMessage={() => {}}
-            onEndConversation={() => {}}
-          />
-        ) : showTabs ? (
+        {showTabs ? (
           <NodeDetailTabs
             key={result.nodeId}
             result={result}
-            hasPreview={
-              isWaitingForm
-                ? true
-                : isWaitingButtons
-                  ? true
-                  : undefined
-            }
-            previewContent={
-              isWaitingForm && formConfig ? (
-                <DynamicFormUI
-                  formConfig={formConfig as Record<string, unknown>}
-                  onSubmit={handleFormSubmit}
-                />
-              ) : isWaitingButtons ? (
-                isPresentation ? (
-                  <PresentationContent
-                    result={result}
-                    onPortButtonClick={handlePortButtonClick}
-                    onLinkButtonClick={handleLinkButtonClick}
-                    previewOnly
-                  />
-                ) : (() => {
-                  const parsed = parseButtonConfig(buttonConfig);
-                  if (!parsed) return null;
-                  return (
-                    <ButtonBar
-                      buttons={parsed.buttons}
-                      onPortButtonClick={handlePortButtonClick}
-                      onLinkButtonClick={handleLinkButtonClick}
-                      onContinueClick={handleContinueClick}
-                    />
-                  );
-                })()
-              ) : undefined
-            }
+            hasPreview={hasPreview}
+            previewContent={previewContent}
           />
         ) : (
           <div className="h-full overflow-y-auto p-3">

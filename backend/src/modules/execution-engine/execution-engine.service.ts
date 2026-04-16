@@ -1111,6 +1111,7 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
         status: ExecutionStatus.WAITING_FOR_INPUT,
         waitingNodeId: node.id,
         waitingNodeType: node.type,
+        waitingNodeLabel: node.label ?? node.type,
         nodeExecutionId: nodeExec?.id,
         nodeOutput,
       },
@@ -1308,6 +1309,7 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
         status: ExecutionStatus.WAITING_FOR_INPUT,
         waitingNodeId: node.id,
         waitingNodeType: node.type,
+        waitingNodeLabel: node.label ?? node.type,
         nodeExecutionId: nodeExec?.id,
         nodeOutput: {
           interactionType: 'ai_conversation',
@@ -1429,6 +1431,7 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
               status: ExecutionStatus.WAITING_FOR_INPUT,
               waitingNodeId: node.id,
               waitingNodeType: node.type,
+              waitingNodeLabel: node.label ?? node.type,
               nodeExecutionId: nodeExec?.id,
               nodeOutput: {
                 interactionType: 'ai_conversation',
@@ -1634,6 +1637,7 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
         status: ExecutionStatus.WAITING_FOR_INPUT,
         waitingNodeId: node.id,
         waitingNodeType: node.type,
+        waitingNodeLabel: node.label ?? node.type,
         // Surface the DB row id so the frontend's addNodeResult can match
         // the same timeline entry created by NODE_STARTED, preventing a
         // phantom duplicate row when execution resumes.
