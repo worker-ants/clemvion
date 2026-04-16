@@ -129,4 +129,9 @@ export const chartMetadata: NodeComponentMetadata = {
   icon: 'BarChart3',
   color: '#EC4899',
   isContainer: false,
+  isDynamicPorts: true,
+  dynamicPorts: {
+    kind: 'presentation-buttons',
+    continueId: 'continue',
+  },
 };

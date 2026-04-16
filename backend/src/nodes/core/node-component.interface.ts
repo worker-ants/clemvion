@@ -31,6 +31,41 @@ export interface NodePorts {
   outputs: NodePort[];
 }
 
+/**
+ * Structured form of `summaryTemplate` — pairs a template string with an
+ * optional warning predicate so nodes can declare "template + when to flag as
+ * misconfigured" in one place.
+ */
+export interface SummaryTemplateSpec {
+  template: string;
+  warnWhen?: string;
+  warnMessage?: string;
+}
+
+/**
+ * Declarative rule for generating a node's output ports from its `config` on
+ * the canvas. The frontend resolver switches on `kind` to pick a generator
+ * and uses the remaining fields as parameters.
+ *
+ * Keep the set closed (tagged union) — adding new dynamic-port behavior means
+ * adding a new kind here AND a matching branch in `resolveDynamicPorts`.
+ */
+export type DynamicPortsSpec =
+  | { kind: 'switch-cases' }
+  | { kind: 'classifier-categories'; fallbackId: string; errorId: string }
+  | {
+      kind: 'ai-agent-conditional';
+      modeField: string;
+      conditionsField: string;
+      multiTurnValue: string;
+    }
+  | {
+      kind: 'presentation-buttons';
+      supportsItems?: boolean;
+      supportsItemButtons?: boolean;
+      continueId: string;
+    };
+
 export interface NodeComponentMetadata {
   type: string;
   category: NodeCategory | `${NodeCategory}`;
@@ -41,8 +76,28 @@ export interface NodeComponentMetadata {
   isContainer?: boolean;
   /** True when output ports are generated dynamically at runtime (e.g. switch cases, carousel buttons). */
   isDynamicPorts?: boolean;
-  /** Canvas summary template referenced by spec §1.4. */
-  summaryTemplate?: string;
+  /**
+   * Declarative rule describing how the canvas should compute dynamic output
+   * ports from `config`. When set, `isDynamicPorts` is implied. See
+   * `DynamicPortsSpec` for supported kinds.
+   */
+  dynamicPorts?: DynamicPortsSpec;
+  /**
+   * Canvas summary template referenced by spec §1.4. Supports either a bare
+   * template string or a structured spec with a warning predicate.
+   *
+   * Template syntax:
+   *  - `{{path}}`                — interpolates `config.path`
+   *  - `{{path.nested}}`         — dot-path into nested objects/arrays
+   *  - `{{path.length}}`         — array length
+   *  - `{{path|upper}}`          — filters: `upper`, `lower`
+   *  - `{{path|default:GET}}`    — default value when path is missing/empty
+   *
+   * `warnWhen` syntax (any truthy match marks the summary as a warning):
+   *  - `!path` / `!path.length`  — negation / empty-check
+   *  - `path==value` / `path!=value` — equality comparisons
+   */
+  summaryTemplate?: string | SummaryTemplateSpec;
   /**
    * Optional explicit default config. When omitted, the registry derives the
    * default by running `configSchema.parse({})` — fields with `.default(...)`

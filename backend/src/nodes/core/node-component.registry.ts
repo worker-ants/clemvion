@@ -7,6 +7,7 @@ import {
   NodeComponentMetadata,
   NodePorts,
 } from './node-component.interface';
+import { NODE_CATEGORIES, NodeCategoryMeta } from './categories';
 
 export interface NodeDefinitionView {
   metadata: NodeComponentMetadata;
@@ -63,6 +64,10 @@ export class NodeComponentRegistry {
       inputSchema: c.inputSchema ? z.toJSONSchema(c.inputSchema) : undefined,
       outputSchema: c.outputSchema ? z.toJSONSchema(c.outputSchema) : undefined,
     }));
+  }
+
+  listCategories(): NodeCategoryMeta[] {
+    return [...NODE_CATEGORIES].sort((a, b) => a.order - b.order);
   }
 
   private resolveDefaultConfig(c: NodeComponent): Record<string, unknown> {

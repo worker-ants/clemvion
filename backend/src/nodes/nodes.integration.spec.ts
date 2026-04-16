@@ -1,4 +1,5 @@
 import { ALL_NODE_COMPONENTS } from './index';
+import { NODE_CATEGORIES } from './core/categories';
 
 describe('Node components', () => {
   it('registers a unique type for each component', () => {
@@ -16,10 +17,28 @@ describe('Node components', () => {
     }
   });
 
+  it('assigns every node to a category registered in NODE_CATEGORIES', () => {
+    const known = new Set(NODE_CATEGORIES.map((c) => c.id));
+    for (const c of ALL_NODE_COMPONENTS) {
+      expect(known.has(c.metadata.category)).toBe(true);
+    }
+  });
+
   it('declares non-null input/output port arrays', () => {
     for (const c of ALL_NODE_COMPONENTS) {
       expect(Array.isArray(c.ports.inputs)).toBe(true);
       expect(Array.isArray(c.ports.outputs)).toBe(true);
+    }
+  });
+
+  it('keeps isDynamicPorts and dynamicPorts in sync for every node', () => {
+    for (const c of ALL_NODE_COMPONENTS) {
+      if (c.metadata.isDynamicPorts) {
+        expect(c.metadata.dynamicPorts).toBeDefined();
+      }
+      if (c.metadata.dynamicPorts) {
+        expect(c.metadata.isDynamicPorts).toBe(true);
+      }
     }
   });
 

@@ -41,11 +41,14 @@ export class NodesController {
   @ApiOperation({
     summary: '노드 컴포넌트 정의 목록 조회',
     description:
-      '시스템에 등록된 모든 노드 컴포넌트의 메타데이터, 포트, JSON Schema 를 반환합니다. 프론트엔드는 이 응답으로 팔레트/설정 폼을 생성합니다.',
+      '시스템에 등록된 모든 노드 컴포넌트의 메타데이터, 포트, JSON Schema 와 카테고리 메타를 반환합니다. 프론트엔드는 이 응답으로 팔레트/설정 폼을 생성합니다.',
   })
-  @ApiOkResponse({ description: '노드 정의 목록' })
+  @ApiOkResponse({ description: '노드 정의 및 카테고리' })
   listDefinitions() {
-    return this.componentRegistry.listDefinitions();
+    return {
+      definitions: this.componentRegistry.listDefinitions(),
+      categories: this.componentRegistry.listCategories(),
+    };
   }
 
   @Get('workflows/:workflowId/nodes')

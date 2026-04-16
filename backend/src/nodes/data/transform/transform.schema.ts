@@ -49,4 +49,9 @@ export const transformNodeMetadata: NodeComponentMetadata = {
   description: 'Transform data',
   icon: 'ArrowRightLeft',
   color: '#06B6D4',
+  summaryTemplate: {
+    template: '{{operations.length}} operations',
+    warnWhen: '!operations.length',
+    warnMessage: 'No operations defined',
+  },
 };

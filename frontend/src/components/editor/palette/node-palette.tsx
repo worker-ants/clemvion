@@ -4,17 +4,20 @@ import { useState, useCallback } from "react";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils/cn";
 import {
-  CATEGORIES,
-  CATEGORY_COLORS,
+  getCategories,
   getNodesByCategory,
 } from "@/lib/node-definitions";
 import type { NodeDefinition } from "@/lib/node-definitions";
+import { useNodeDefinitionsStore } from "@/lib/stores/node-definitions-store";
 import { NodeIcon } from "../canvas/node-icon";
 import { Search, ChevronDown, ChevronRight } from "lucide-react";
 
 export function NodePalette() {
   const [search, setSearch] = useState("");
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
+  // Subscribe so the palette re-renders once definitions/categories finish loading.
+  useNodeDefinitionsStore((s) => s.categories);
+  const categories = getCategories();
 
   const toggleCategory = useCallback((id: string) => {
     setCollapsed((prev) => ({ ...prev, [id]: !prev[id] }));
@@ -50,7 +53,7 @@ export function NodePalette() {
 
       {/* Categories */}
       <div className="flex-1 overflow-y-auto p-2">
-        {CATEGORIES.map((cat) => {
+        {categories.map((cat) => {
           const nodes = getNodesByCategory(cat.id);
           const filtered = lowerSearch
             ? nodes.filter((n) => n.label.toLowerCase().includes(lowerSearch))
@@ -75,7 +78,7 @@ export function NodePalette() {
                 )}
                 <span
                   className="h-2 w-2 rounded-full"
-                  style={{ backgroundColor: CATEGORY_COLORS[cat.id] }}
+                  style={{ backgroundColor: cat.color }}
                 />
                 {cat.label}
                 <span className="ml-auto text-[10px] text-[hsl(var(--muted-foreground))]">

@@ -1,3 +1,6 @@
+import { getNodeDefinition } from "@/lib/stores/node-definitions-store";
+import { renderSummaryTemplate } from "./summary-template-interpreter";
+
 type NodeConfig = Record<string, unknown>;
 
 export type ConfigSummaryResult = {
@@ -51,13 +54,6 @@ function ifElseSummary(config: NodeConfig): ConfigSummaryResult {
   return { text, isWarning: false };
 }
 
-function switchSummary(config: NodeConfig): ConfigSummaryResult {
-  const switchValue = config.switchValue as string | undefined;
-  if (!switchValue) return warning("Switch value not set");
-  const cases = Array.isArray(config.cases) ? config.cases : [];
-  return { text: `${switchValue} \u2192 ${cases.length} cases`, isWarning: false };
-}
-
 function loopSummary(config: NodeConfig): ConfigSummaryResult {
   const count = config.count as string | undefined;
   if (!count) return warning("Count not set");
@@ -87,18 +83,6 @@ function variableModificationSummary(config: NodeConfig): ConfigSummaryResult {
   if (!Array.isArray(modifications) || !modifications.length || !modifications[0].variable) return warning("Variable not selected");
   const m = modifications[0];
   return { text: `${m.variable} ${m.operation}`, isWarning: false };
-}
-
-function splitSummary(config: NodeConfig): ConfigSummaryResult {
-  const fieldPath = config.fieldPath as string | undefined;
-  if (!fieldPath) return warning("Field path not set");
-  return { text: fieldPath, isWarning: false };
-}
-
-function mapSummary(config: NodeConfig): ConfigSummaryResult {
-  const inputField = config.inputField as string | undefined;
-  if (!inputField) return warning("Input field not set");
-  return { text: inputField, isWarning: false };
 }
 
 function foreachSummary(config: NodeConfig): ConfigSummaryResult {
@@ -139,13 +123,6 @@ function workflowSummary(config: NodeConfig): ConfigSummaryResult {
   return { text: `${label} \u00b7 ${mode}`, isWarning: false };
 }
 
-function httpRequestSummary(config: NodeConfig): ConfigSummaryResult {
-  const url = config.url as string | undefined;
-  if (!url) return warning("URL not set");
-  const method = (config.method as string) ?? "GET";
-  return { text: `${method} ${url}`, isWarning: false };
-}
-
 function databaseQuerySummary(config: NodeConfig): ConfigSummaryResult {
   const query = config.query as string | undefined;
   if (!query) return warning("Query not set");
@@ -161,12 +138,6 @@ function sendEmailSummary(config: NodeConfig): ConfigSummaryResult {
   const recipients = to.split(",").map((s) => s.trim()).filter(Boolean);
   if (recipients.length <= 1) return { text: `to: ${to}`, isWarning: false };
   return { text: `to: ${recipients[0]}, +${recipients.length - 1}`, isWarning: false };
-}
-
-function transformSummary(config: NodeConfig): ConfigSummaryResult {
-  const operations = config.operations as unknown[] | undefined;
-  if (!Array.isArray(operations) || !operations.length) return warning("No operations defined");
-  return { text: `${operations.length} operations`, isWarning: false };
 }
 
 function codeSummary(config: NodeConfig): ConfigSummaryResult {
@@ -295,22 +266,24 @@ function informationExtractorSummary(config: NodeConfig, context?: SummaryContex
 
 // --- Formatter registry ---
 
+/**
+ * Legacy imperative fallback registry. Nodes whose summary format has been
+ * migrated to `metadata.summaryTemplate` are intentionally absent — the
+ * template path in `getConfigSummary` handles them. Complex cases that rely
+ * on conditional composition, external context, or runtime-computed values
+ * remain here until the template DSL grows enough to express them.
+ */
 const FORMATTERS: Record<string, (config: NodeConfig, context?: SummaryContext) => ConfigSummaryResult> = {
   if_else: ifElseSummary,
-  switch: switchSummary,
   loop: loopSummary,
   variable_declaration: variableDeclarationSummary,
   variable_modification: variableModificationSummary,
-  split: splitSummary,
-  map: mapSummary,
   foreach: foreachSummary,
   merge: mergeSummary,
   filter: filterSummary,
   workflow: workflowSummary,
-  http_request: httpRequestSummary,
   database_query: databaseQuerySummary,
   send_email: sendEmailSummary,
-  transform: transformSummary,
   code: codeSummary,
   carousel: carouselSummary,
   table: tableSummary,
@@ -322,13 +295,25 @@ const FORMATTERS: Record<string, (config: NodeConfig, context?: SummaryContext) 
   information_extractor: informationExtractorSummary,
 };
 
-/** Returns a config summary for the given node type, or null if no summary applies (e.g. manual_trigger or unknown types). */
+/**
+ * Returns a config summary for the given node type, or null if no summary
+ * applies.
+ *
+ * Priority:
+ *  1. `metadata.summaryTemplate` declared in the backend node schema (SSOT).
+ *  2. Legacy `FORMATTERS` registry (fallback for complex cases not yet
+ *     migrated to the declarative template DSL).
+ */
 export function getConfigSummary(
   nodeType: string,
   config: NodeConfig,
   context?: SummaryContext,
 ): ConfigSummaryResult | null {
   if (nodeType === "manual_trigger") return null;
+
+  const template = getNodeDefinition(nodeType)?.summaryTemplate;
+  const fromTemplate = renderSummaryTemplate(template, config);
+  if (fromTemplate) return fromTemplate;
 
   const formatter = Object.hasOwn(FORMATTERS, nodeType) ? FORMATTERS[nodeType] : undefined;
   if (!formatter) return null;

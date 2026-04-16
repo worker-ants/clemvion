@@ -39,7 +39,7 @@ vi.mock("@/lib/websocket/ws-client", () => ({
 vi.mock("@/lib/node-definitions", () => ({
   getNodeDefinition: () => undefined,
   loadNodeDefinitions: vi.fn().mockResolvedValue(undefined),
-  CATEGORY_COLORS: {} as Record<string, string>,
+  getCategoryColor: () => "#6B7280",
 }));
 
 import ExecutionDetailPage from "../[executionId]/page";

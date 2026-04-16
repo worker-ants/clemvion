@@ -92,4 +92,11 @@ export const switchNodeMetadata: NodeComponentMetadata = {
   description: 'Multi-path branching',
   icon: 'Route',
   color: '#3B82F6',
+  isDynamicPorts: true,
+  dynamicPorts: { kind: 'switch-cases' },
+  summaryTemplate: {
+    template: '{{switchValue}} \u2192 {{cases.length}} cases',
+    warnWhen: '!switchValue',
+    warnMessage: 'Switch value not set',
+  },
 };

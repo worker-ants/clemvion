@@ -65,7 +65,26 @@ beforeAll(() => {
   useNodeDefinitionsStore.setState({
     status: "ready",
     error: null,
-    order: ["loop", "map", "foreach", "http_request", "if_else", "manual_trigger", "variable_declaration", "ai_agent"],
+    categories: [
+      { id: "trigger", label: "Trigger", icon: "Zap", color: "#F59E0B", order: 0 },
+      { id: "logic", label: "Logic", icon: "GitBranch", color: "#3B82F6", order: 1 },
+      { id: "ai", label: "AI", icon: "Sparkles", color: "#10B981", order: 3 },
+      { id: "integration", label: "Integration", icon: "Puzzle", color: "#F97316", order: 4 },
+    ],
+    order: [
+      "loop",
+      "map",
+      "foreach",
+      "http_request",
+      "if_else",
+      "manual_trigger",
+      "variable_declaration",
+      "ai_agent",
+      "text_classifier",
+      "switch",
+      "carousel",
+      "table",
+    ],
     definitions: {
       loop: make("loop", {
         isContainer: true,
@@ -86,6 +105,11 @@ beforeAll(() => {
           { id: "success", label: "Success", type: "data" },
           { id: "error", label: "Error", type: "error" },
         ],
+        summaryTemplate: {
+          template: "{{method|default:GET}} {{url}}",
+          warnWhen: "!url",
+          warnMessage: "URL not set",
+        },
       }),
       if_else: make("if_else", {
         outputs: [
@@ -95,7 +119,51 @@ beforeAll(() => {
       }),
       manual_trigger: make("manual_trigger", { category: "trigger", inputs: [] }),
       variable_declaration: make("variable_declaration", {}),
-      ai_agent: make("ai_agent", { category: "ai" }),
+      ai_agent: make("ai_agent", {
+        category: "ai",
+        isDynamicPorts: true,
+        dynamicPorts: {
+          kind: "ai-agent-conditional",
+          modeField: "mode",
+          conditionsField: "conditions",
+          multiTurnValue: "multi_turn",
+        },
+      }),
+      text_classifier: make("text_classifier", {
+        category: "ai",
+        outputs: [],
+        isDynamicPorts: true,
+        dynamicPorts: {
+          kind: "classifier-categories",
+          fallbackId: "fallback",
+          errorId: "error",
+        },
+      }),
+      switch: make("switch", {
+        outputs: [{ id: "default", label: "Default", type: "data" }],
+        isDynamicPorts: true,
+        dynamicPorts: { kind: "switch-cases" },
+      }),
+      carousel: make("carousel", {
+        category: "presentation",
+        outputs: [{ id: "out", label: "Output", type: "data" }],
+        isDynamicPorts: true,
+        dynamicPorts: {
+          kind: "presentation-buttons",
+          supportsItems: true,
+          supportsItemButtons: true,
+          continueId: "continue",
+        },
+      }),
+      table: make("table", {
+        category: "presentation",
+        outputs: [{ id: "out", label: "Output", type: "data" }],
+        isDynamicPorts: true,
+        dynamicPorts: {
+          kind: "presentation-buttons",
+          continueId: "continue",
+        },
+      }),
     },
   });
 });

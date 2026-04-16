@@ -234,4 +234,11 @@ export const carouselNodeMetadata: NodeComponentMetadata = {
   description: 'Display as slides',
   icon: 'GalleryHorizontal',
   color: '#EC4899',
+  isDynamicPorts: true,
+  dynamicPorts: {
+    kind: 'presentation-buttons',
+    supportsItems: true,
+    supportsItemButtons: true,
+    continueId: 'continue',
+  },
 };
