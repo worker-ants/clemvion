@@ -235,11 +235,20 @@ export const useExecutionStore = create<ExecutionState>((set) => ({
 
       if (targetIndex >= 0) {
         const prev = state.nodeResults[targetIndex];
+        // Preserve the previously-known label when the incoming event only
+        // carries the node id (the legacy waiting_for_input payload uses the
+        // id as a placeholder when the backend didn't include a label).
+        const incomingLabelIsPlaceholder =
+          result.nodeLabel === result.nodeId && !!prev.nodeLabel;
+        const mergedLabel = incomingLabelIsPlaceholder
+          ? prev.nodeLabel
+          : result.nodeLabel;
         const updated = state.nodeResults.map((r, idx) =>
           idx === targetIndex
             ? {
                 ...r,
                 ...result,
+                nodeLabel: mergedLabel,
                 // Preserve the original per-execution id once known so later
                 // events without it don't erase it.
                 nodeExecutionId: result.nodeExecutionId ?? r.nodeExecutionId,

@@ -851,6 +851,10 @@ export class AiAgentHandler implements NodeHandler {
     turnDebugHistory?: unknown[],
   ): unknown {
     return {
+      // Marker for the run-results UI (`isConversationOutput`) to render the
+      // conversation Preview tab. Without this, the completed AI Agent output
+      // would only contain `messages` and fall back to the raw JSON view.
+      interactionType: 'ai_conversation',
       response: lastResponse,
       messages,
       turnCount,
@@ -895,6 +899,8 @@ export class AiAgentHandler implements NodeHandler {
     return {
       port: condition.id,
       data: {
+        // Marker for the conversation Preview tab — see buildMultiTurnFinalOutput.
+        interactionType: 'ai_conversation',
         response: lastResponse,
         messages,
         turnCount,

@@ -255,7 +255,7 @@ describe("ResultDetail", () => {
     expect(screen.getByText("Submit")).toBeDefined();
   });
 
-  it("renders conversation inspector for completed multi-turn information extractor", () => {
+  it("renders conversation inside Preview tab for completed multi-turn information extractor and keeps Output/Config accessible", () => {
     render(
       <ResultDetail
         result={makeResult({
@@ -283,7 +283,12 @@ describe("ResultDetail", () => {
       />,
     );
 
-    expect(screen.queryByText("Input")).toBeNull();
+    // Conversation is now rendered inside the Preview tab, so all standard
+    // tabs remain accessible to the user.
+    expect(screen.getByRole("button", { name: "Preview" })).toBeDefined();
+    expect(screen.getByRole("button", { name: "Input" })).toBeDefined();
+    expect(screen.getByRole("button", { name: "Output" })).toBeDefined();
+    expect(screen.getByRole("button", { name: "Config" })).toBeDefined();
     expect(screen.getByText("My name is Alice")).toBeDefined();
   });
 

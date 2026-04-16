@@ -440,6 +440,95 @@ describe('ExecutionEngineService', () => {
       expect(inlineSpy).toHaveBeenCalled();
       inlineSpy.mockRestore();
     });
+
+    it('forwards every body entry node id to executeInline so all forward-reachable body nodes get scheduled', async () => {
+      const inlineSpy = jest
+        .spyOn(service, 'executeInline')
+        .mockResolvedValue(undefined);
+
+      await service.executeBackgroundSubgraph({
+        executionId,
+        parentNodeExecutionId: 'parent-1',
+        workspaceId: 'ws-1',
+        workflowId,
+        bodyEntryNodeIds: ['node-2', 'node-3', 'node-7'],
+        input: {},
+        variables: {},
+        nodeOutputCache: {},
+        expressionContext: {},
+        config: { notifyOnFailure: false, maxDurationMs: 0 },
+      });
+
+      const passed = inlineSpy.mock.calls[0][2];
+      expect(passed.entryNodeIds).toEqual(['node-2', 'node-3', 'node-7']);
+      // executeInline runs the topological sort itself; we just verify that
+      // the entry seeds reach it intact so the body subgraph can be expanded.
+      inlineSpy.mockRestore();
+    });
+
+    it('stamps parentNodeExecutionId on every NodeExecution created during the body run', async () => {
+      // Capture the parentNodeExecutionId that executeInline will use for
+      // any child NodeExecution created during the body subgraph run.
+      const inlineSpy = jest
+        .spyOn(service, 'executeInline')
+        .mockImplementation((_workflowId, _input, options) => {
+          // Mimic a body node creating a NodeExecution row — the engine's
+          // createNodeExecution helper reads context.parentNodeExecutionId
+          // when callers don't pass an explicit parent. executeInline sets
+          // context.parentNodeExecutionId from options.parentNodeExecutionId.
+          expect(options.parentNodeExecutionId).toBe('background-parent-row');
+          return Promise.resolve(undefined);
+        });
+
+      await service.executeBackgroundSubgraph({
+        executionId,
+        parentNodeExecutionId: 'background-parent-row',
+        workspaceId: 'ws-1',
+        workflowId,
+        bodyEntryNodeIds: ['node-2'],
+        input: {},
+        variables: {},
+        nodeOutputCache: {},
+        expressionContext: {},
+        config: { notifyOnFailure: false, maxDurationMs: 0 },
+      });
+
+      expect(inlineSpy).toHaveBeenCalled();
+      inlineSpy.mockRestore();
+    });
+
+    it('passes a fresh executedNodes Set so body execution does not collide with the main flow', async () => {
+      const inlineSpy = jest
+        .spyOn(service, 'executeInline')
+        .mockResolvedValue(undefined);
+
+      await service.executeBackgroundSubgraph({
+        executionId,
+        parentNodeExecutionId: 'parent-1',
+        workspaceId: 'ws-1',
+        workflowId,
+        bodyEntryNodeIds: ['node-2'],
+        input: {},
+        variables: {},
+        nodeOutputCache: { 'node-1': { from: 'main' } },
+        expressionContext: {},
+        config: { notifyOnFailure: false, maxDurationMs: 0 },
+      });
+
+      const passed = inlineSpy.mock.calls[0][2];
+      // A new Set, not the main run's executedNodes — body must be free to
+      // re-execute nodes that the main flow already executed (e.g. when the
+      // user wires a body branch back through a node also reachable from main).
+      expect(passed.executedNodes).toBeInstanceOf(Set);
+      expect(passed.executedNodes.size).toBe(0);
+      // The snapshot of nodeOutputCache from the main flow IS available to
+      // the body via context, but it lives on the cloned context object —
+      // not on the executedNodes set.
+      expect(passed.context.nodeOutputCache).toEqual({
+        'node-1': { from: 'main' },
+      });
+      inlineSpy.mockRestore();
+    });
   });
 
   it('should return execution ID immediately', async () => {
