@@ -2225,6 +2225,7 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
   /**
    * Check if a source output should be filtered based on port selection.
    * Returns true if the output has _selectedPort and it doesn't match the edge's sourcePort.
+   * Supports both single port (string) and multi-port (string[]) selection.
    */
   private isPortFiltered(
     sourceOutput: unknown,
@@ -2236,7 +2237,12 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
       '_selectedPort' in (sourceOutput as Record<string, unknown>)
     ) {
       const selectedPort = (sourceOutput as Record<string, unknown>)
-        ._selectedPort as string;
+        ._selectedPort;
+      if (Array.isArray(selectedPort)) {
+        return (
+          selectedPort.length > 0 && !selectedPort.includes(edgeSourcePort)
+        );
+      }
       return edgeSourcePort !== selectedPort;
     }
     return false;

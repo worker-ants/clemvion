@@ -246,6 +246,11 @@ export function TextClassifierConfig({ config, onChange }: { config: Config; onC
         checked={(config.includeConfidence as boolean) ?? true}
         onChange={(v) => onChange({ ...config, includeConfidence: v })}
       />
+      <CheckboxField
+        label="Multi-label Classification"
+        checked={(config.multiLabel as boolean) ?? false}
+        onChange={(v) => onChange({ ...config, multiLabel: v })}
+      />
       <SectionTitle>Categories</SectionTitle>
       {categories.map((cat, i) => (
         <div key={i} className="flex flex-col gap-1 rounded border border-[hsl(var(--border))] p-2">

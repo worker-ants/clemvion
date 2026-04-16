@@ -56,6 +56,16 @@ export const textClassifierNodeConfigSchema = z
       .meta({
         ui: { label: 'Include Confidence', widget: 'checkbox', order: 6 },
       }),
+    multiLabel: z
+      .boolean()
+      .default(false)
+      .meta({
+        ui: {
+          label: 'Multi-label Classification',
+          widget: 'checkbox',
+          order: 7,
+        },
+      }),
   })
   .passthrough();
 export type TextClassifierConfig = z.infer<

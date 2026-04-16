@@ -57,7 +57,8 @@ export interface ValidationResult {
  * - `meta` — optional execution metadata (durationMs, statusCode, tokensUsed,
  *   etc.). Exposed as `$node["<label>"].meta.<field>`.
  * - `port` — optional routing directive; the engine forwards only edges that
- *   match this port.
+ *   match this port. May be a `string[]` to activate multiple output ports
+ *   simultaneously (e.g. multi-label classification).
  * - `status` — optional flow-control directive (`waiting_for_input`,
  *   `requires_integration`, `requires_playwright`).
  */
@@ -65,7 +66,7 @@ export interface NodeHandlerOutput {
   config: Record<string, unknown>;
   output: unknown;
   meta?: Record<string, unknown>;
-  port?: string;
+  port?: string | string[];
   status?: string;
 }
 
