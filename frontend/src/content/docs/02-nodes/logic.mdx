@@ -234,19 +234,23 @@ Split 출력은 원본의 다른 필드를 포함하지 않아요. 필요하면 
 <FieldTable rows={[
   {name: "strategy", required: false, type: "`wait_all` / `first` / `append`", description: "병합 전략이에요. `wait_all`은 전부 대기, `first`는 가장 빠른 하나, `append`는 도착 순 배열로 모아요.", default: "wait_all"},
   {name: "outputFormat", required: false, type: "`array` / `merge_object` / `indexed`", description: "출력 구조예요. 객체 얕은 병합이 필요하면 `merge_object`를 써요.", default: "array"},
-  {name: "timeout", required: false, type: "integer(초)", description: "입력 대기 타임아웃이에요. `0`은 무제한 대기예요.", default: "300"},
-  {name: "partialOnTimeout", required: false, type: "boolean", description: "타임아웃 시 도착한 입력만으로 병합할지 여부예요. false면 에러 정책에 따라 처리해요.", default: "false"}
+  {name: "timeout", required: false, type: "integer(초)", description: "입력 대기 타임아웃이에요. `0`은 무제한 대기예요. (현재 버전에서는 동작하지 않아요.)", default: "300"},
+  {name: "partialOnTimeout", required: false, type: "boolean", description: "타임아웃 시 도착한 입력만으로 병합할지 여부예요. false면 에러 정책에 따라 처리해요. (현재 버전에서는 동작하지 않아요.)", default: "false"}
 ]} />
 
 ### 예시
 
-<Example title="세 경로 합치기">
+<Example title="Parallel 분기를 커스텀 전략으로 합치기">
 ```ts
-// 세 개의 Parallel 분기를 Merge의 in 포트에 각각 연결
+// Parallel(3)의 각 분기 마지막 노드를 Merge의 in 포트에 연결
 // strategy: "wait_all", outputFormat: "merge_object"
 // → 세 분기의 출력을 shallow merge한 단일 객체
 ```
 </Example>
+
+<Callout type="tip">
+단순히 분기 결과를 배열로 받기만 하면 되는 경우에는 Merge 없이 Parallel의 `done` 포트를 사용하는 게 더 간편해요. Merge는 **객체 병합, 첫 도착값 선택, 인덱싱** 같은 전략이 필요할 때 쓰세요.
+</Callout>
 
 ## Variable Declaration
 
@@ -315,14 +319,67 @@ Split 출력은 원본의 다른 필드를 포함하지 않아요. 필요하면 
 ### 필드
 
 <FieldTable rows={[
-  { name: "Branch Count", required: true, type: "number", description: "동시에 실행할 분기 수예요. 2~16 사이로 지정해요.", default: "2" }
+  { name: "Branch Count", required: true, type: "number", description: "동시에 실행할 분기 수예요. 2~16 사이로 지정해요.", default: "2" },
+  { name: "Max Concurrency", required: false, type: "number", description: "동시에 실행할 최대 분기 수예요. 0이면 전부 동시에, 1~16이면 그 수만큼만 동시에 실행해요.", default: "0 (무제한)" }
 ]} />
+
+### 포트
+
+- **입력**: `in` — 모든 분기에 동일한 입력이 복제 전달돼요.
+- **분기 출력**: `branch_0`, `branch_1`, … — Branch Count에 따라 동적으로 생성돼요. 각 분기의 시작 노드를 여기에 연결해요.
+- **done 출력**: `done` — 모든 분기가 완료된 뒤 결과를 모아서 내보내요. 출력 형태는 `{ branches: [분기0결과, 분기1결과, ...] }` 배열이에요.
 
 ### 동작
 
 - 입력이 들어오면 `branch_0`, `branch_1`, … 모든 분기 포트로 **동일한 입력을 동시에** 내보내요.
-- 각 분기에 연결된 노드들이 병렬로 실행돼요.
-- 분기 결과를 합치고 싶다면 뒤에 Merge 노드(`wait_all`)를 두고 연결해요.
+- `PARALLEL_ENGINE=v1` 환경변수가 설정되면 각 분기가 **진짜 병렬로** 실행돼요. 설정하지 않으면 기존과 동일하게 순차 실행해요.
+- Max Concurrency를 지정하면 리소스를 보호하면서 동시 실행 수를 제한할 수 있어요.
+- 모든 분기가 완료되면 각 분기의 마지막 노드 출력이 `done` 포트의 `branches` 배열로 수집돼요.
+
+### 사용 패턴
+
+**패턴 A — done 포트로 바로 이어가기 (간단)**
+
+분기 결과를 배열로 그대로 쓸 때 적합해요. Merge 노드가 필요 없어요.
+
+```
+Parallel(3)
+  ├── branch_0 → [API 호출 A]
+  ├── branch_1 → [API 호출 B]
+  ├── branch_2 → [API 호출 C]
+  └── done → 결과 처리 노드
+               ↑ { branches: [A결과, B결과, C결과] }
+```
+
+**패턴 B — Merge로 결과 재구성 (고급)**
+
+객체 병합, 첫 도착값만 사용 등 전략이 필요하면 각 분기의 마지막 노드를 Merge에 직접 연결해요.
+
+```
+Parallel(2)
+  ├── branch_0 → [A] ──┐
+  ├── branch_1 → [B] ──┼→ Merge(merge_object) → 처리
+  └── done (미연결)
+```
+
+두 패턴을 동시에 사용할 수도 있어요 — `done`으로는 전체 결과를, Merge로는 가공된 결과를 받아 서로 다른 후속 처리를 연결할 수 있어요.
+
+### 예시
+
+<Example title="3개 API를 동시 호출하고 결과 수집">
+```ts
+// Branch Count: 3, Max Concurrency: 0
+// branch_0 → HTTP Request (서비스 A)
+// branch_1 → HTTP Request (서비스 B)  
+// branch_2 → HTTP Request (서비스 C)
+// done → Transform
+// Transform에서 {{ $input.branches[0].data }} 등으로 각 분기 결과 참조
+```
+</Example>
+
+<Callout type="warn">
+Parallel 분기 안에서는 **Form, 버튼 블로킹, AI 대화(Multi Turn)** 같은 블로킹 노드를 사용할 수 없어요. 순환 연결(back-edge)과 Parallel 안에 또 다른 Parallel을 넣는 중첩도 현재는 지원하지 않아요.
+</Callout>
 
 <Callout type="tip">
 하나의 출력 포트에서 여러 연결선을 끌어내는 1:N 분기와의 차이는 **의도 표현**이에요. Parallel은 "이 분기들은 동시에 실행한다"라는 의미를 노드 자체로 드러내, 워크플로우를 읽는 사람이 의도를 바로 파악할 수 있어요.

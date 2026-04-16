@@ -8,6 +8,7 @@ import {
   VariableDeclarationConfig,
   VariableModificationConfig,
   FilterConfig,
+  ParallelConfig,
 } from "./logic-configs";
 
 // Flow
@@ -61,6 +62,7 @@ export const OVERRIDE_REGISTRY: Record<string, ComponentType<ConfigProps>> = {
   variable_declaration: VariableDeclarationConfig,
   variable_modification: VariableModificationConfig,
   // `split`, `map`, `foreach`, `merge` are migrated to auto-form (schema-driven).
+  parallel: ParallelConfig,
   filter: FilterConfig,
   // Flow
   workflow: WorkflowConfig,

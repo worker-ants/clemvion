@@ -67,7 +67,7 @@
 |------|-----------|
 | **내비게이션** | 대시보드, 워크플로우 목록, 트리거 목록, 스케줄, 통합, Knowledge Base, LLM 설정, 인증 설정, 통계, 사용자 매뉴얼(/docs), 사용자 프로필 |
 | **워크플로우 에디터** | 캔버스 기반 노드 편집, 엣지 연결, 실행·디버깅, 버전 히스토리 |
-| **노드 시스템** | Trigger(Manual), Logic(If/Else·Switch·Loop·ForEach·Map·Split·Merge·Variable Decl/Mod), Flow(Workflow), AI(AI Agent·Text Classifier·Information Extractor), Integration(HTTP·Database·Send Email), Data(Transform·Code), Presentation(Carousel·Chart·Form·Table·Template) |
+| **노드 시스템** | Trigger(Manual), Logic(If/Else·Switch·Loop·ForEach·Map·Split·Merge·Parallel·Variable Decl/Mod), Flow(Workflow), AI(AI Agent·Text Classifier·Information Extractor), Integration(HTTP·Database·Send Email), Data(Transform·Code), Presentation(Carousel·Chart·Form·Table·Template) |
 | **AI 플랫폼** | LLM Config(프로바이더·모델·API Key), Knowledge Base(문서 업로드·임베딩·RAG 검색) |
 | **시스템** | 인증/인가(개인 워크스페이스), REST API, 에러 처리, 표현식 엔진(`{{ }}`), 실행 엔진(Redis 큐 + 워커 풀), WebSocket 실시간 상태, Webhook 수신, 실행 이력 |
 
@@ -75,6 +75,7 @@
 
 | 영역 | 상태 |
 |------|------|
+| **Parallel 노드 (P1)** | `PARALLEL_ENGINE=v1` 환경변수로 활성화하면 `ParallelExecutor`가 `p-limit` + `Promise.allSettled`로 분기를 동시 실행한다(off 시 기존 순차 동작). branchCount(2~16), maxConcurrency(0=무제한, 1~16) 지원. 분기 내 블로킹 노드·back-edge·중첩 Parallel은 금지. Merge `wait_all` 조합으로 결과 합산 가능. P2에서 중첩 Parallel과 waitAll=false를 추가할 예정이다. |
 | **팀 워크스페이스·RBAC** | 데이터 모델(`Workspace.type = personal \| team`, `WorkspaceMember.role`)과 백엔드 모듈(`backend/src/modules/workspaces`)은 존재하지만, 프런트엔드 UI(전환·멤버 초대)는 아직 활성화되지 않았다. 회원가입 시 개인 워크스페이스가 자동 생성되고 `X-Workspace-Id`는 서버가 자동 매핑한다. |
 | **조직 레벨 Integration 공유** | 팀 워크스페이스 UI와 함께 연계될 예정이다. |
 
@@ -82,7 +83,7 @@
 
 | 영역 | 내용 |
 |------|------|
-| **Logic 확장 노드** | Parallel, Background 노드. 스펙만 존재하고 런타임·레지스트리 등록은 아직 없다. 당장 필요한 경우 1:N 분기 + Merge(`wait_all`) 우회로 구성한다. |
+| **Logic 확장 노드** | Parallel P2(중첩 Parallel, waitAll=false). Background 노드는 구현 완료. |
 | **마켓플레이스** | 워크플로우 템플릿·AI Agent 프리셋·Integration 플러그인·커스텀 노드 게시 기능. |
 | **배포 자동화 확장** | 공식 Docker/Kubernetes 배포 가이드, 셀프 호스팅 번들. |
 | **확장 SDK** | 노드 플러그인 SDK, 외부 커스텀 노드 개발/게시. |

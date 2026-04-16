@@ -15,6 +15,7 @@ import { ErrorPolicyHandler } from './error/error-policy.handler';
 import { ExpressionResolverService } from './expression/expression-resolver.service';
 import { LoopExecutor } from './containers/loop-executor';
 import { ForEachExecutor } from './containers/foreach-executor';
+import { ParallelExecutor } from './containers/parallel-executor';
 import { WebsocketModule } from '../websocket/websocket.module';
 import { LlmModule } from '../llm/llm.module';
 import { KnowledgeBaseModule } from '../knowledge-base/knowledge-base.module';
@@ -43,6 +44,7 @@ import { BackgroundExecutionProcessor } from './queues/background-execution.proc
     ExpressionResolverService,
     LoopExecutor,
     ForEachExecutor,
+    ParallelExecutor,
     BackgroundExecutionProcessor,
   ],
   exports: [
