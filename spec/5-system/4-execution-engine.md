@@ -359,7 +359,7 @@ return {
 
 엔진의 `applyPortSelection(output)`은 `output.port`를 읽어 `_selectedPort`를 기록하고, downstream 노드의 input은 `output.output`이 된다.
 
-Legacy `{ port, data }` 패턴은 제거되었으며, Phase 1 이행 기간 동안 `output.data`가 있으면 `output.output`으로 자동 보정한다.
+Legacy `{ port, data }` 패턴은 제거되었으며, 이행 기간 호환성을 위해 `output.data`가 있으면 `output.output`으로 자동 보정한다.
 
 ### 5.4 NodeHandlerRegistry
 

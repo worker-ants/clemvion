@@ -62,18 +62,14 @@
 | 7 | Statistics | 차트 아이콘 | /statistics | |
 | 8 | User Guide | 책 아이콘 (BookMarked) | /docs | 사용자 매뉴얼. 에디터·설정·노드 도움말. 상세는 [User Guide](./13-user-guide.md) 참조 |
 
-<!-- Phase 2 이후 메뉴 복원 규칙:
-- Knowledge Base: Phase 2에서 AI 노드와 함께 추가. Authentication 아래, Statistics 위에 배치.
-- Config > LLM: Phase 2에서 AI 노드와 함께 추가. Authentication과 묶어 Config 서브메뉴로 재구성하거나 별도 최상위 메뉴로 배치.
-- Marketplace: Phase 3에서 추가. Statistics 아래에 배치.
--->
+<!-- 로드맵 — Marketplace는 아직 미구현이며, 구현 시 Statistics 아래에 배치한다. -->
 
 ### 2.3 사이드바 동작
 
 | 동작 | 설명 |
 |------|------|
 | 활성 메뉴 표시 | 현재 페이지에 해당하는 메뉴 항목 하이라이트 (배경색 또는 좌측 indicator) |
-| ~~Config 접기/펼치기~~ | ~~Config 클릭 시 하위 메뉴 토글~~ — Phase 1에서는 Config 서브메뉴 구조 없음. Phase 2 이후 Config 그룹 복원 시 적용 |
+| ~~Config 접기/펼치기~~ | ~~Config 클릭 시 하위 메뉴 토글~~ — 현재는 Config 서브메뉴 구조 없음. 차후 Config 그룹 도입 시 적용 |
 | 사이드바 축소 | 아이콘만 표시하는 축소 모드 지원 (토글 버튼 또는 자동) |
 | 워크플로우 에디터 모드 | 에디터 진입 시 사이드바를 자동 축소하거나 숨길 수 있음 |
 | 툴팁 | 축소 모드에서 메뉴 아이콘 호버 시 메뉴 이름 툴팁 |
