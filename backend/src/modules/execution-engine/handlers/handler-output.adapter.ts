@@ -32,7 +32,8 @@ export function adaptHandlerReturn(raw: unknown): NodeHandlerOutput {
       config: {},
       output: data,
     };
-    if (typeof port === 'string') adapted.port = port;
+    if (typeof port === 'string' || Array.isArray(port))
+      adapted.port = port as string | string[];
     if (typeof status === 'string') adapted.status = status;
     if (Object.keys(rest).length > 0) adapted.meta = rest;
     return adapted;
@@ -51,7 +52,8 @@ export function adaptHandlerReturn(raw: unknown): NodeHandlerOutput {
   const obj = raw as Record<string, unknown>;
   const adapted: NodeHandlerOutput = { config: {}, output: raw };
   if (typeof obj.status === 'string') adapted.status = obj.status;
-  if (typeof obj.port === 'string') adapted.port = obj.port;
+  if (typeof obj.port === 'string' || Array.isArray(obj.port))
+    adapted.port = obj.port as string | string[];
   return adapted;
 }
 

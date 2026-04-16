@@ -422,6 +422,7 @@ LLM 응답의 `toolCalls`를 순회할 때 다음 로직을 적용:
 ## 2. Text Classifier
 
 LLM을 사용하여 입력 텍스트를 미리 정의된 카테고리로 분류.
+Single-label (기본) 또는 Multi-label 모드를 지원.
 
 ### 설정 (config)
 
@@ -433,12 +434,13 @@ LLM을 사용하여 입력 텍스트를 미리 정의된 카테고리로 분류.
 | categories | CategoryDef[] | 분류 카테고리 목록 |
 | instructions | String? | 추가 분류 지시사항 |
 | includeConfidence | Boolean | 신뢰도 점수 포함 여부 |
+| multiLabel | Boolean | Multi-label 분류 모드 (기본: false) |
 
 **CategoryDef 구조:**
 
 | 필드 | 타입 | 설명 |
 |------|------|------|
-| name | String | 카테고리 이름 (출력 포트 라벨) |
+| name | String | 카테고리 이름 (출력 포트 라벨). `__none__`은 예약어로 사용 불가 |
 | description | String | 카테고리 설명 (LLM에게 제공) |
 | examples | String[] | 예시 텍스트 목록 |
 
@@ -453,6 +455,9 @@ LLM을 사용하여 입력 텍스트를 미리 정의된 카테고리로 분류.
 │  Model:        [gpt-4o-mini ▼]          │
 │                                          │
 │  Input: [{{ $input.text }}]              │
+│                                          │
+│  □ Include confidence score              │
+│  □ Multi-label Classification            │
 │                                          │
 │  ── Categories ──                        │
 │  ┌──────────────────────────────────────┐│
@@ -469,7 +474,6 @@ LLM을 사용하여 입력 텍스트를 미리 정의된 카테고리로 분류.
 │  └──────────────────────────────────────┘│
 │  [+ Add Category]                        │
 │                                          │
-│  □ Include confidence score              │
 └──────────────────────────────────────────┘
 ```
 
@@ -481,12 +485,25 @@ LLM을 사용하여 입력 텍스트를 미리 정의된 카테고리로 분류.
   - `error` (정적) — LLM API 오류, 타임아웃 등 발생 시 (에러 타입)
 
 ### 실행 로직
+
+#### Single-label 모드 (기본)
 1. 카테고리 정보를 포함한 분류 프롬프트 구성
+2. JSON schema enum에 `__none__` 센티널을 포함하여 LLM이 해당 없음을 명시적으로 표현 가능
+3. LLM 호출 (실패 시 `error` 포트로 라우팅)
+4. 응답에서 분류 결과 파싱
+5. 해당 카테고리의 출력 포트로 데이터 전달
+   - LLM이 `__none__`을 반환하거나 매칭 실패 시 → `fallback` 포트
+
+#### Multi-label 모드 (multiLabel: true)
+1. 해당하는 모든 카테고리를 선택하도록 프롬프트 구성
 2. LLM 호출 (실패 시 `error` 포트로 라우팅)
-3. 응답에서 분류 결과 파싱
-4. 해당 카테고리의 출력 포트로 데이터 전달 (매칭 실패 시 `fallback` 포트)
+3. 응답에서 카테고리 배열 파싱
+4. 매칭된 모든 카테고리의 출력 포트를 동시에 활성화
+   - 매칭 없음 (빈 배열) → `fallback` 포트
 
 ### 출력 구조
+
+#### Single-label 모드
 
 ```json
 {
@@ -495,6 +512,22 @@ LLM을 사용하여 입력 텍스트를 미리 정의된 카테고리로 분류.
   "originalInput": "환불 요청드립니다"
 }
 ```
+
+- `category`는 매칭 실패 시 `null`
+
+#### Multi-label 모드
+
+```json
+{
+  "categories": [
+    { "name": "Billing", "confidence": 0.95 },
+    { "name": "General", "confidence": 0.7 }
+  ],
+  "originalInput": "환불 요청드립니다"
+}
+```
+
+- `categories`는 매칭 없음 시 빈 배열 `[]`
 
 ---
 
