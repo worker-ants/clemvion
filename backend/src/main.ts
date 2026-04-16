@@ -20,6 +20,9 @@ async function bootstrap() {
   const app = await NestFactory.create(AppModule);
   const configService = app.get(ConfigService);
 
+  // Remove x-powered-by header (security)
+  app.getHttpAdapter().getInstance().disable('x-powered-by');
+
   // Cookie parser
   app.use(cookieParser());
 
