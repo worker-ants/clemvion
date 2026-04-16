@@ -166,7 +166,7 @@ function ButtonListEditor({
 }
 
 function ButtonsConfig({ config, onChange }: { config: Config; onChange: OnChange }) {
-  const [expanded, setExpanded] = useState(false);
+  const [expanded, setExpanded] = useState(true);
   const buttons = (config.buttons as ButtonDef[]) ?? [];
 
   return (
@@ -217,7 +217,7 @@ function ItemButtonsConfig({
   buttons: ButtonDef[];
   onChange: (buttons: ButtonDef[]) => void;
 }) {
-  const [expanded, setExpanded] = useState(false);
+  const [expanded, setExpanded] = useState(true);
 
   return (
     <div className="mt-1">
