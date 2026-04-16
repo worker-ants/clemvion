@@ -15,7 +15,6 @@ import { WorkflowConfig } from "./flow-configs";
 
 // AI
 import {
-  AiAgentConfig,
   TextClassifierConfig,
   InformationExtractorConfig,
 } from "./ai-configs";
@@ -32,7 +31,6 @@ import { TransformConfig, CodeConfig } from "./data-configs";
 
 // Presentation
 import {
-  CarouselConfig,
   TableConfig,
   ChartConfig,
   FormConfig,
@@ -66,8 +64,7 @@ export const OVERRIDE_REGISTRY: Record<string, ComponentType<ConfigProps>> = {
   filter: FilterConfig,
   // Flow
   workflow: WorkflowConfig,
-  // AI
-  ai_agent: AiAgentConfig,
+  // AI — ai_agent migrated to auto-form (schema-driven)
   text_classifier: TextClassifierConfig,
   information_extractor: InformationExtractorConfig,
   // Integration
@@ -77,8 +74,8 @@ export const OVERRIDE_REGISTRY: Record<string, ComponentType<ConfigProps>> = {
   // Data
   transform: TransformConfig,
   code: CodeConfig,
-  // Presentation
-  carousel: CarouselConfig,
+  // Presentation — carousel migrated to auto-form (schema-driven)
+  // table: kept as override — column/row sync requires cross-field side effects
   table: TableConfig,
   chart: ChartConfig,
   form: FormConfig,

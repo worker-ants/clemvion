@@ -37,23 +37,41 @@ const itemDefSchema = z
     title: z
       .string()
       .default('')
-      .meta({ ui: { label: 'Title', widget: 'expression' } }),
+      .meta({
+        ui: {
+          label: 'Title',
+          widget: 'expression',
+          placeholder: 'Slide title',
+        },
+      }),
     description: z
       .string()
       .optional()
-      .meta({ ui: { label: 'Description', widget: 'expression' } }),
+      .meta({
+        ui: {
+          label: 'Description',
+          widget: 'expression',
+          placeholder: 'Slide description (optional)',
+        },
+      }),
     image: z
       .string()
       .optional()
-      .meta({ ui: { label: 'Image URL', widget: 'expression' } }),
+      .meta({
+        ui: {
+          label: 'Image URL',
+          widget: 'expression',
+          placeholder: 'https://... (optional)',
+        },
+      }),
     buttons: z
       .array(buttonDefSchema)
       .default([])
       .meta({
         ui: {
           label: 'Item Buttons',
-          widget: 'field-array',
-          itemLabel: 'Button',
+          widget: 'button-list',
+          collapsible: true,
         },
       }),
   })
@@ -64,7 +82,23 @@ export const carouselNodeConfigSchema = z
     mode: z
       .enum(['static', 'dynamic'])
       .default('dynamic')
-      .meta({ ui: { label: 'Mode', widget: 'select' } }),
+      .meta({
+        ui: {
+          label: 'Mode',
+          widget: 'select',
+          order: 0,
+          options: [
+            { value: 'static', label: 'Static Items' },
+            { value: 'dynamic', label: 'Dynamic (from input)' },
+          ],
+          // Intentionally does NOT include `items` or `itemButtons`: those hold
+          // user-authored content and would cause silent data loss on mode
+          // switch. They're already hidden via `visibleWhen` in the opposite
+          // mode, so preservation is safe.
+        },
+      }),
+
+    // ── Static mode fields ──
     items: z
       .array(itemDefSchema)
       .default([])
@@ -73,9 +107,13 @@ export const carouselNodeConfigSchema = z
           label: 'Items',
           widget: 'field-array',
           itemLabel: 'Item',
+          order: 1,
+          group: 'Items',
           visibleWhen: { field: 'mode', equals: 'static' },
         },
       }),
+
+    // ── Dynamic mode fields ──
     source: z
       .string()
       .optional()
@@ -84,6 +122,8 @@ export const carouselNodeConfigSchema = z
           label: 'Source',
           widget: 'expression',
           placeholder: '{{ $input.items }}',
+          hint: 'Expression that returns the array to display',
+          order: 10,
           visibleWhen: { field: 'mode', equals: 'dynamic' },
         },
       }),
@@ -93,7 +133,10 @@ export const carouselNodeConfigSchema = z
       .meta({
         ui: {
           label: 'Title Field',
-          widget: 'text',
+          widget: 'expression',
+          placeholder: 'title',
+          hint: 'Field path for slide title',
+          order: 11,
           visibleWhen: { field: 'mode', equals: 'dynamic' },
         },
       }),
@@ -103,7 +146,9 @@ export const carouselNodeConfigSchema = z
       .meta({
         ui: {
           label: 'Description Field',
-          widget: 'text',
+          widget: 'expression',
+          placeholder: 'description',
+          order: 12,
           visibleWhen: { field: 'mode', equals: 'dynamic' },
         },
       }),
@@ -113,7 +158,9 @@ export const carouselNodeConfigSchema = z
       .meta({
         ui: {
           label: 'Image Field',
-          widget: 'text',
+          widget: 'expression',
+          placeholder: 'imageUrl (optional)',
+          order: 13,
           visibleWhen: { field: 'mode', equals: 'dynamic' },
         },
       }),
@@ -127,6 +174,7 @@ export const carouselNodeConfigSchema = z
         ui: {
           label: 'Max Items',
           widget: 'number',
+          order: 14,
           visibleWhen: { field: 'mode', equals: 'dynamic' },
         },
       }),
@@ -136,23 +184,38 @@ export const carouselNodeConfigSchema = z
       .meta({
         ui: {
           label: 'Item Buttons',
-          widget: 'field-array',
-          itemLabel: 'Button',
+          widget: 'button-list',
+          order: 15,
           visibleWhen: { field: 'mode', equals: 'dynamic' },
         },
       }),
+
+    // ── Common fields ──
     layout: z
       .enum(['card', 'image', 'minimal'])
       .default('card')
-      .meta({ ui: { label: 'Layout', widget: 'select' } }),
+      .meta({
+        ui: {
+          label: 'Layout',
+          widget: 'select',
+          order: 20,
+          options: [
+            { value: 'card', label: 'Card' },
+            { value: 'image', label: 'Image' },
+            { value: 'minimal', label: 'Minimal' },
+          ],
+        },
+      }),
     buttons: z
       .array(buttonDefSchema)
       .default([])
       .meta({
         ui: {
           label: 'Buttons',
-          widget: 'field-array',
-          itemLabel: 'Button',
+          widget: 'button-list',
+          order: 30,
+          group: 'Buttons',
+          collapsible: true,
         },
       }),
   })

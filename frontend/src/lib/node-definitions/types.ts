@@ -28,7 +28,9 @@ export type UiWidget =
   | "kb-selector"
   | "workflow-selector"
   | "condition-builder"
-  | "field-array";
+  | "field-array"
+  | "button-list"
+  | "table-grid";
 
 export type UiHint = {
   label?: string;
@@ -37,10 +39,21 @@ export type UiHint = {
   widget?: UiWidget;
   order?: number;
   hidden?: boolean;
-  visibleWhen?: { field: string; equals: unknown };
+  visibleWhen?:
+    | { field: string; equals: unknown }
+    | { field: string; notEquals: unknown }
+    | { field: string; oneOf: unknown[] };
   options?: { value: string; label: string }[];
   language?: string;
   itemLabel?: string;
+  /** Default value for new items in array widgets. */
+  itemDefault?: Record<string, unknown>;
+  /** Group name for section grouping in the auto-form. */
+  group?: string;
+  /** When true, the section group renders as collapsible. */
+  collapsible?: boolean;
+  /** Field keys to clear from config when this field's value changes. */
+  clearFields?: string[];
 };
 
 /** JSON Schema node with optional `ui` hint (from zod `.meta({ ui: ... })`). */

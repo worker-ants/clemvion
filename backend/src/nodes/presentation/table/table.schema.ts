@@ -64,7 +64,17 @@ export const tableNodeConfigSchema = z
     mode: z
       .enum(['static', 'dynamic'])
       .default('dynamic')
-      .meta({ ui: { label: 'Mode', widget: 'select' } }),
+      .meta({
+        ui: {
+          label: 'Mode',
+          widget: 'select',
+          order: 0,
+          options: [
+            { value: 'dynamic', label: 'Dynamic (from data)' },
+            { value: 'static', label: 'Static (manual)' },
+          ],
+        },
+      }),
     dataSource: z
       .string()
       .optional()
@@ -72,6 +82,9 @@ export const tableNodeConfigSchema = z
         ui: {
           label: 'Data Source',
           widget: 'expression',
+          placeholder: '{{ $node["Node"].output }} or {{ $var.list }}',
+          hint: 'Array data source (leave empty for previous node input)',
+          order: 1,
           visibleWhen: { field: 'mode', equals: 'dynamic' },
         },
       }),
@@ -83,6 +96,8 @@ export const tableNodeConfigSchema = z
           label: 'Columns',
           widget: 'field-array',
           itemLabel: 'Column',
+          order: 2,
+          group: 'Columns',
         },
       }),
     rows: z
@@ -93,36 +108,66 @@ export const tableNodeConfigSchema = z
           label: 'Rows',
           widget: 'field-array',
           itemLabel: 'Row',
+          order: 3,
+          group: 'Rows',
           visibleWhen: { field: 'mode', equals: 'static' },
         },
       }),
     pagination: z
       .boolean()
       .default(true)
-      .meta({ ui: { label: 'Enable Pagination', widget: 'checkbox' } }),
+      .meta({
+        ui: { label: 'Enable Pagination', widget: 'checkbox', order: 10 },
+      }),
     pageSize: z
       .number()
       .int()
       .min(1)
       .max(200)
       .default(20)
-      .meta({ ui: { label: 'Page Size', widget: 'number' } }),
+      .meta({
+        ui: {
+          label: 'Page Size',
+          widget: 'number',
+          order: 11,
+          visibleWhen: { field: 'pagination', equals: true },
+        },
+      }),
     sortBy: z
       .string()
       .optional()
-      .meta({ ui: { label: 'Sort By', widget: 'text' } }),
+      .meta({
+        ui: {
+          label: 'Default Sort Column',
+          widget: 'expression',
+          placeholder: 'Optional field to sort by',
+          order: 12,
+        },
+      }),
     sortOrder: z
       .enum(['asc', 'desc'])
       .default('asc')
-      .meta({ ui: { label: 'Sort Order', widget: 'select' } }),
+      .meta({
+        ui: {
+          label: 'Sort Order',
+          widget: 'select',
+          order: 13,
+          options: [
+            { value: 'asc', label: 'Ascending' },
+            { value: 'desc', label: 'Descending' },
+          ],
+        },
+      }),
     buttons: z
       .array(buttonDefSchema)
       .default([])
       .meta({
         ui: {
           label: 'Buttons',
-          widget: 'field-array',
-          itemLabel: 'Button',
+          widget: 'button-list',
+          order: 20,
+          group: 'Buttons',
+          collapsible: true,
         },
       }),
   })
