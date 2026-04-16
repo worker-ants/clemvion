@@ -12,8 +12,10 @@ import {
   ParseUUIDPipe,
   Res,
   BadRequestException,
+  UseGuards,
 } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
+import { Roles, RolesGuard } from '../../common/guards/roles.guard';
 import {
   ApiTags,
   ApiBearerAuth,
@@ -56,6 +58,7 @@ import { renderCallbackHtml } from './services/oauth-callback.template';
 @ApiTags('Integrations')
 @ApiBearerAuth('access-token')
 @Controller('integrations')
+@UseGuards(RolesGuard)
 export class IntegrationsController {
   constructor(
     private readonly integrationsService: IntegrationsService,
@@ -299,6 +302,7 @@ export class IntegrationsController {
 
   @Post()
   @HttpCode(HttpStatus.CREATED)
+  @Roles('editor')
   @ApiOperation({
     summary: '통합 생성',
     description:
@@ -324,6 +328,7 @@ export class IntegrationsController {
   }
 
   @Patch(':id')
+  @Roles('editor')
   @ApiOperation({
     summary: '통합 수정',
     description: '통합의 이름 등 메타 정보를 수정합니다.',
@@ -360,6 +365,7 @@ export class IntegrationsController {
   }
 
   @Post(':id/rotate')
+  @Roles('editor')
   @ApiOperation({
     summary: '자격 증명 교체(rotate)',
     description:
@@ -477,6 +483,7 @@ export class IntegrationsController {
 
   @Delete(':id')
   @HttpCode(HttpStatus.NO_CONTENT)
+  @Roles('editor')
   @ApiOperation({
     summary: '통합 삭제',
     description:

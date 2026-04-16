@@ -13,6 +13,10 @@ export interface LoginData {
   rememberMe?: boolean;
 }
 
+export type LoginResponseData =
+  | { accessToken: string }
+  | { requiresTotp: true; challengeToken: string };
+
 export const authApi = {
   register: (data: RegisterData) =>
     apiClient.post<{ message: string }>("/auth/register", data),
@@ -21,7 +25,26 @@ export const authApi = {
     apiClient.post<{ data: { accessToken: string } }>("/auth/verify-email", { token }),
 
   login: (data: LoginData) =>
-    apiClient.post<{ data: { accessToken: string } }>("/auth/login", data),
+    apiClient.post<{ data: LoginResponseData }>("/auth/login", data),
+
+  loginTotp: (challengeToken: string, code: string) =>
+    apiClient.post<{ data: { accessToken: string } }>("/auth/login/totp", {
+      challengeToken,
+      code,
+    }),
+
+  setup2fa: () =>
+    apiClient.post<{
+      data: { otpauthUrl: string; qrCodeDataUrl: string };
+    }>("/auth/2fa/setup"),
+
+  verify2fa: (code: string) =>
+    apiClient.post<{ data: { recoveryCodes: string[] } }>("/auth/2fa/verify", {
+      code,
+    }),
+
+  disable2fa: (password: string) =>
+    apiClient.post<{ data: { ok: boolean } }>("/auth/2fa/disable", { password }),
 
   logout: () => apiClient.post("/auth/logout"),
 

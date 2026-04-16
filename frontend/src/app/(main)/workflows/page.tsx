@@ -24,6 +24,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
+import { RoleGate } from "@/components/auth/role-gate";
 import { timeAgo } from "@/lib/utils/date";
 import { cn } from "@/lib/utils/cn";
 
@@ -242,21 +243,23 @@ export default function WorkflowsPage() {
             className="hidden"
             onChange={handleImportFile}
           />
-          <Button
-            variant="outline"
-            onClick={() => fileInputRef.current?.click()}
-            disabled={importMutation.isPending}
-          >
-            <Upload className="mr-2 h-4 w-4" />
-            Import Workflow
-          </Button>
-          <Button
-            onClick={() => createMutation.mutate()}
-            disabled={createMutation.isPending}
-          >
-            <Plus className="mr-2 h-4 w-4" />
-            New Workflow
-          </Button>
+          <RoleGate minRole="editor">
+            <Button
+              variant="outline"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={importMutation.isPending}
+            >
+              <Upload className="mr-2 h-4 w-4" />
+              Import Workflow
+            </Button>
+            <Button
+              onClick={() => createMutation.mutate()}
+              disabled={createMutation.isPending}
+            >
+              <Plus className="mr-2 h-4 w-4" />
+              New Workflow
+            </Button>
+          </RoleGate>
         </div>
       </div>
 

@@ -12,6 +12,8 @@ import { mapNodeComponent } from './logic/map';
 import { foreachNodeComponent } from './logic/foreach';
 import { mergeNodeComponent } from './logic/merge';
 import { filterNodeComponent } from './logic/filter';
+import { parallelNodeComponent } from './logic/parallel';
+import { backgroundNodeComponent } from './logic/background';
 
 import { workflowNodeComponent } from './flow/workflow';
 
@@ -45,6 +47,8 @@ export const ALL_NODE_COMPONENTS: NodeComponent[] = [
   foreachNodeComponent,
   mergeNodeComponent,
   filterNodeComponent,
+  parallelNodeComponent,
+  backgroundNodeComponent,
 
   workflowNodeComponent,
 

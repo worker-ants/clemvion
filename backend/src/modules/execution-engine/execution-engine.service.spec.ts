@@ -1,5 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
+import { getQueueToken } from '@nestjs/bullmq';
+import { BACKGROUND_EXECUTION_QUEUE } from './queues/background-execution.queue';
 import { ExecutionEngineService } from './execution-engine.service';
 import { NodeHandlerRegistry } from './handlers/node-handler.registry';
 import { NodeComponentRegistry } from '../../nodes/core/node-component.registry';
@@ -242,6 +244,12 @@ describe('ExecutionEngineService', () => {
             logUsage: jest.fn().mockResolvedValue(undefined),
           },
         },
+        {
+          provide: getQueueToken(BACKGROUND_EXECUTION_QUEUE),
+          useValue: {
+            add: jest.fn().mockResolvedValue(undefined),
+          },
+        },
       ],
     }).compile();
 
@@ -339,6 +347,98 @@ describe('ExecutionEngineService', () => {
 
       // finally block must restore regardless of success/failure.
       expect(context.parentNodeExecutionId).toBe('outer-parent');
+    });
+  });
+
+  describe('executeBackgroundSubgraph', () => {
+    it('forks context: mutating snapshot vars must not affect job snapshot', async () => {
+      const inlineSpy = jest
+        .spyOn(service, 'executeInline')
+        .mockImplementation((_workflowId, _input, options) => {
+          // Mutate the cloned context as if a body node ran.
+          options.context.variables.touched = true;
+          options.context.nodeOutputCache['extra-node'] = { v: 1 };
+          return Promise.resolve(undefined);
+        });
+
+      const job = {
+        executionId,
+        parentNodeExecutionId: 'parent-1',
+        workspaceId: 'ws-1',
+        workflowId,
+        bodyEntryNodeIds: ['node-2'],
+        input: { foo: 1 },
+        variables: { keep: 'me' },
+        nodeOutputCache: { 'node-1': { hello: 'world' } },
+        expressionContext: { workspaceId: 'ws-1' },
+        config: { notifyOnFailure: false, maxDurationMs: 0 },
+      };
+
+      await service.executeBackgroundSubgraph(job);
+
+      // Mutations stayed inside the inline execution context.
+      expect(job.variables).toEqual({ keep: 'me' });
+      expect(job.nodeOutputCache).toEqual({
+        'node-1': { hello: 'world' },
+      });
+      expect(inlineSpy).toHaveBeenCalledWith(
+        workflowId,
+        { foo: 1 },
+        expect.objectContaining({
+          executionId,
+          parentNodeExecutionId: 'parent-1',
+          entryNodeIds: ['node-2'],
+        }),
+      );
+      inlineSpy.mockRestore();
+    });
+
+    it('rejects when body exceeds maxDurationMs', async () => {
+      const inlineSpy = jest
+        .spyOn(service, 'executeInline')
+        .mockImplementation(
+          () => new Promise((resolve) => setTimeout(resolve, 200)),
+        );
+
+      const job = {
+        executionId,
+        parentNodeExecutionId: 'parent-1',
+        workspaceId: 'ws-1',
+        workflowId,
+        bodyEntryNodeIds: ['node-2'],
+        input: {},
+        variables: {},
+        nodeOutputCache: {},
+        expressionContext: {},
+        config: { notifyOnFailure: false, maxDurationMs: 50 },
+      };
+
+      await expect(service.executeBackgroundSubgraph(job)).rejects.toThrow(
+        /maxDurationMs/,
+      );
+      inlineSpy.mockRestore();
+    });
+
+    it('does not apply timeout when maxDurationMs is 0', async () => {
+      const inlineSpy = jest
+        .spyOn(service, 'executeInline')
+        .mockResolvedValue(undefined);
+
+      await service.executeBackgroundSubgraph({
+        executionId,
+        parentNodeExecutionId: 'parent-1',
+        workspaceId: 'ws-1',
+        workflowId,
+        bodyEntryNodeIds: ['node-2'],
+        input: {},
+        variables: {},
+        nodeOutputCache: {},
+        expressionContext: {},
+        config: { notifyOnFailure: false, maxDurationMs: 0 },
+      });
+
+      expect(inlineSpy).toHaveBeenCalled();
+      inlineSpy.mockRestore();
     });
   });
 

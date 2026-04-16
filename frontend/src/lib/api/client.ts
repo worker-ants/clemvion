@@ -1,4 +1,5 @@
 import axios from "axios";
+import { getCurrentWorkspaceId } from "@/lib/stores/workspace-store";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001/api";
 
@@ -44,11 +45,15 @@ export function getAccessToken(): string | null {
   return accessToken;
 }
 
-// Request interceptor: attach access token
+// Request interceptor: attach access token + current workspace id
 apiClient.interceptors.request.use((config) => {
   const token = getAccessToken();
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
+  }
+  const workspaceId = getCurrentWorkspaceId();
+  if (workspaceId && !config.headers["X-Workspace-Id"]) {
+    config.headers["X-Workspace-Id"] = workspaceId;
   }
   return config;
 });

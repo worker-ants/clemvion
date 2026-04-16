@@ -40,9 +40,15 @@ import {
   NodeEventType,
 } from '../websocket/websocket.service';
 import { ConfigService } from '@nestjs/config';
+import { InjectQueue } from '@nestjs/bullmq';
+import type { Queue } from 'bullmq';
 import { LlmService } from '../llm/llm.service';
 import { RagSearchService } from '../knowledge-base/search/rag-search.service';
 import { IntegrationsService } from '../integrations/integrations.service';
+import {
+  BACKGROUND_EXECUTION_QUEUE,
+  BackgroundExecutionJob,
+} from './queues/background-execution.queue';
 import {
   adaptHandlerReturn,
   toEngineFlatShape,
@@ -112,6 +118,8 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
     private readonly integrationsService: IntegrationsService,
     private readonly foreachExecutor: ForEachExecutor,
     private readonly loopExecutor: LoopExecutor,
+    @InjectQueue(BACKGROUND_EXECUTION_QUEUE)
+    private readonly backgroundQueue: Queue<BackgroundExecutionJob>,
   ) {}
 
   async onModuleInit() {
@@ -308,16 +316,27 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
       100,
     );
     const nodeExecutionCount = new Map<string, number>();
-    // Seed with trigger nodes. If none exist, fall back to nodes with no incoming edges.
+    // Seed reachability. The Background processor passes explicit entry ids
+    // (the targets of `background`-port edges); otherwise we use the standard
+    // trigger-first / no-incoming-edge fallback used for sub-workflows.
     const reachable = new Set<string>();
-    const nodesWithIncoming = new Set(forwardEdges.map((e) => e.targetNodeId));
-    for (const id of sortedNodeIds) {
-      const node = subNodeMap.get(id);
-      if (node?.category === NodeCategory.TRIGGER) reachable.add(id);
-    }
-    if (reachable.size === 0) {
+    const explicitEntryIds = options.entryNodeIds;
+    if (explicitEntryIds && explicitEntryIds.length > 0) {
+      for (const id of explicitEntryIds) {
+        if (subNodeMap.has(id)) reachable.add(id);
+      }
+    } else {
+      const nodesWithIncoming = new Set(
+        forwardEdges.map((e) => e.targetNodeId),
+      );
       for (const id of sortedNodeIds) {
-        if (!nodesWithIncoming.has(id)) reachable.add(id);
+        const node = subNodeMap.get(id);
+        if (node?.category === NodeCategory.TRIGGER) reachable.add(id);
+      }
+      if (reachable.size === 0) {
+        for (const id of sortedNodeIds) {
+          if (!nodesWithIncoming.has(id)) reachable.add(id);
+        }
       }
     }
 
@@ -437,6 +456,17 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
               startedAt: execution?.startedAt?.toISOString(),
               mode: 'manual',
             },
+          );
+        }
+
+        // Background dispatch — enqueue body subgraph and continue main flow.
+        if (node.type === 'background') {
+          await this.scheduleBackgroundBody(
+            node,
+            subEdges,
+            context,
+            executionId,
+            cleanInput,
           );
         }
 
@@ -872,6 +902,17 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
               startedAt: savedExecution.startedAt?.toISOString(),
               mode: 'manual',
             },
+          );
+        }
+
+        // Background dispatch — enqueue body subgraph and continue main flow.
+        if (node.type === 'background') {
+          await this.scheduleBackgroundBody(
+            node,
+            edges,
+            context,
+            executionId,
+            input,
           );
         }
 
@@ -2568,6 +2609,116 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
       sortedNodeIds,
       outgoingEdgeMap,
     };
+  }
+
+  /**
+   * After a Background node executes (handler returned `port: 'main'`),
+   * snapshot the current execution context and enqueue the `background`-port
+   * body subgraph for asynchronous execution. The main flow continues without
+   * waiting. Failures inside the body never affect the main execution.
+   */
+  private async scheduleBackgroundBody(
+    node: Node,
+    allEdges: Edge[],
+    context: ExecutionContext,
+    executionId: string,
+    mainInput: unknown,
+  ): Promise<void> {
+    const bodyEntryNodeIds = allEdges
+      .filter(
+        (e) => e.sourceNodeId === node.id && e.sourcePort === 'background',
+      )
+      .map((e) => e.targetNodeId);
+    if (bodyEntryNodeIds.length === 0) return;
+
+    const config = (node.config ?? {}) as {
+      notifyOnFailure?: boolean;
+      maxDurationMs?: number;
+    };
+
+    // Resolve the Background node's NodeExecution id so children can be
+    // grouped under it in the timeline.
+    const parentNodeExecution = await this.nodeExecutionRepository.findOne({
+      where: { executionId, nodeId: node.id },
+      order: { startedAt: 'DESC' },
+    });
+    const parentNodeExecutionId = parentNodeExecution?.id ?? '';
+
+    const workspaceId =
+      typeof context.expressionContext?.workspaceId === 'string'
+        ? context.expressionContext.workspaceId
+        : '';
+
+    // Snapshot relevant context. Shallow-clone is enough — the body
+    // executes against these values, and any mutations the main flow makes
+    // afterwards stay isolated to the main flow.
+    const job: BackgroundExecutionJob = {
+      executionId,
+      parentNodeExecutionId,
+      workspaceId,
+      workflowId: context.workflowId,
+      bodyEntryNodeIds,
+      input: mainInput,
+      variables: { ...context.variables },
+      nodeOutputCache: { ...context.nodeOutputCache },
+      expressionContext: { ...(context.expressionContext ?? {}) },
+      config: {
+        notifyOnFailure: config.notifyOnFailure === true,
+        maxDurationMs:
+          typeof config.maxDurationMs === 'number' && config.maxDurationMs >= 0
+            ? config.maxDurationMs
+            : 300000,
+      },
+    };
+
+    await this.backgroundQueue.add('background-run', job, {
+      removeOnComplete: 100,
+      removeOnFail: 100,
+    });
+  }
+
+  /**
+   * Run a Background node's body subgraph. Called by the BullMQ processor
+   * with the snapshot captured at enqueue time. Reuses {@link executeInline}
+   * with `entryNodeIds` so the existing scheduler/topo-sort handles
+   * traversal — we just rebuild the context and apply the timeout.
+   */
+  async executeBackgroundSubgraph(job: BackgroundExecutionJob): Promise<void> {
+    const context = this.contextService.createContext(
+      job.executionId,
+      job.workflowId,
+    );
+    context.variables = { ...job.variables };
+    context.nodeOutputCache = { ...job.nodeOutputCache };
+    context.expressionContext = { ...job.expressionContext };
+
+    const run = this.executeInline(job.workflowId, job.input, {
+      executionId: job.executionId,
+      context,
+      executedNodes: new Set<string>(),
+      recursionDepth: 0,
+      parentNodeExecutionId: job.parentNodeExecutionId || undefined,
+      entryNodeIds: job.bodyEntryNodeIds,
+    });
+
+    if (job.config.maxDurationMs > 0) {
+      await Promise.race([
+        run,
+        new Promise<never>((_, reject) =>
+          setTimeout(
+            () =>
+              reject(
+                new Error(
+                  `Background body exceeded maxDurationMs (${job.config.maxDurationMs}ms)`,
+                ),
+              ),
+            job.config.maxDurationMs,
+          ),
+        ),
+      ]);
+    } else {
+      await run;
+    }
   }
 
   /**

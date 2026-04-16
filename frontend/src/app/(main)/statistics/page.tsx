@@ -78,6 +78,24 @@ interface NodeStat {
   errorRate: number;
 }
 
+interface LlmUsageByModel {
+  provider: string;
+  model: string;
+  promptTokens: number;
+  completionTokens: number;
+  totalTokens: number;
+  costUsd: number | null;
+}
+
+interface LlmUsageSummaryResponse {
+  totalPromptTokens: number;
+  totalCompletionTokens: number;
+  totalTokens: number;
+  totalCostUsd: number | null;
+  topProvider: string | null;
+  byModel: LlmUsageByModel[];
+}
+
 interface Workflow {
   id: string;
   name: string;
@@ -295,6 +313,17 @@ export default function StatisticsPage() {
     },
     enabled: !!selectedWorkflowId,
   });
+
+  const { data: llmUsage, isLoading: llmUsageLoading } =
+    useQuery<LlmUsageSummaryResponse>({
+      queryKey: ["statistics-llm-usage", period, selectedWorkflowId],
+      queryFn: async () => {
+        const res = await apiClient.get("/statistics/llm-usage/summary", {
+          params: { period, workflowId: workflowParam },
+        });
+        return extractData<LlmUsageSummaryResponse>(res);
+      },
+    });
 
   /* --- derived --- */
 
@@ -725,6 +754,92 @@ export default function StatisticsPage() {
               </CardContent>
             </Card>
           )}
+
+          {/* LLM Token Usage */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base font-semibold">
+                LLM Token Usage
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {llmUsageLoading ? (
+                <div className="flex h-32 items-center justify-center">
+                  <Loader2 className="h-5 w-5 animate-spin text-[hsl(var(--muted-foreground))]" />
+                </div>
+              ) : !llmUsage || llmUsage.totalTokens === 0 ? (
+                <div className="flex h-32 items-center justify-center text-sm text-[hsl(var(--muted-foreground))]">
+                  No LLM usage recorded for this period
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  <div className="grid gap-4 sm:grid-cols-3">
+                    <div className="rounded-md border border-[hsl(var(--border))] p-3">
+                      <div className="text-xs text-[hsl(var(--muted-foreground))]">Total Tokens</div>
+                      <div className="mt-1 text-xl font-semibold tabular-nums">
+                        {llmUsage.totalTokens.toLocaleString()}
+                      </div>
+                      <div className="mt-1 text-xs text-[hsl(var(--muted-foreground))]">
+                        prompt {llmUsage.totalPromptTokens.toLocaleString()} ·
+                        completion {llmUsage.totalCompletionTokens.toLocaleString()}
+                      </div>
+                    </div>
+                    <div className="rounded-md border border-[hsl(var(--border))] p-3">
+                      <div className="text-xs text-[hsl(var(--muted-foreground))]">Estimated Cost</div>
+                      <div className="mt-1 text-xl font-semibold tabular-nums">
+                        {llmUsage.totalCostUsd === null
+                          ? "—"
+                          : `$${llmUsage.totalCostUsd.toFixed(4)}`}
+                      </div>
+                      <div className="mt-1 text-xs text-[hsl(var(--muted-foreground))]">
+                        알려진 모델 합계 · 미등록 모델 제외
+                      </div>
+                    </div>
+                    <div className="rounded-md border border-[hsl(var(--border))] p-3">
+                      <div className="text-xs text-[hsl(var(--muted-foreground))]">Top Provider</div>
+                      <div className="mt-1 text-xl font-semibold">
+                        {llmUsage.topProvider ?? "—"}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="border-b border-[hsl(var(--border))]">
+                          <th className="py-2.5 pr-4 text-left font-medium text-[hsl(var(--muted-foreground))]">Provider</th>
+                          <th className="py-2.5 pr-4 text-left font-medium text-[hsl(var(--muted-foreground))]">Model</th>
+                          <th className="py-2.5 pr-4 text-right font-medium text-[hsl(var(--muted-foreground))]">Prompt</th>
+                          <th className="py-2.5 pr-4 text-right font-medium text-[hsl(var(--muted-foreground))]">Completion</th>
+                          <th className="py-2.5 pr-4 text-right font-medium text-[hsl(var(--muted-foreground))]">Total</th>
+                          <th className="py-2.5 text-right font-medium text-[hsl(var(--muted-foreground))]">Cost (USD)</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {llmUsage.byModel.map((row) => (
+                          <tr
+                            key={`${row.provider}:${row.model}`}
+                            className="border-b border-[hsl(var(--border))] last:border-b-0"
+                          >
+                            <td className="py-2.5 pr-4">
+                              <Badge variant="outline">{row.provider}</Badge>
+                            </td>
+                            <td className="py-2.5 pr-4 font-mono text-xs">{row.model}</td>
+                            <td className="py-2.5 pr-4 text-right tabular-nums">{row.promptTokens.toLocaleString()}</td>
+                            <td className="py-2.5 pr-4 text-right tabular-nums">{row.completionTokens.toLocaleString()}</td>
+                            <td className="py-2.5 pr-4 text-right tabular-nums font-medium">{row.totalTokens.toLocaleString()}</td>
+                            <td className="py-2.5 text-right tabular-nums">
+                              {row.costUsd === null ? "—" : `$${row.costUsd.toFixed(4)}`}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
 
           {/* Node Stats Table (only when a specific workflow is selected) */}
           {selectedWorkflowId && (

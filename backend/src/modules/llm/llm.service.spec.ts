@@ -35,9 +35,13 @@ describe('LlmService', () => {
       create: jest.fn().mockReturnValue(mockClient),
     };
 
+    const mockUsageLogService = {
+      record: jest.fn().mockResolvedValue(undefined),
+    };
     service = new LlmService(
       mockLlmConfigService as never,
       mockClientFactory as never,
+      mockUsageLogService as never,
     );
   });
 

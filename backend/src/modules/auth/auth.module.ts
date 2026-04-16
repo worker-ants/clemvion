@@ -7,6 +7,7 @@ import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
 import { AuthOauthService } from './auth-oauth.service';
 import { JwtStrategy } from './strategies/jwt.strategy';
+import { TotpService } from './totp.service';
 import { RefreshToken } from './entities/refresh-token.entity';
 import { AuthOAuthState } from './entities/auth-oauth-state.entity';
 import { UsersModule } from '../users/users.module';
@@ -32,7 +33,7 @@ import { MailModule } from '../mail/mail.module';
     MailModule,
   ],
   controllers: [AuthController],
-  providers: [AuthService, AuthOauthService, JwtStrategy],
-  exports: [AuthService],
+  providers: [AuthService, AuthOauthService, JwtStrategy, TotpService],
+  exports: [AuthService, TotpService],
 })
 export class AuthModule {}

@@ -4,6 +4,7 @@ import { Repository } from 'typeorm';
 import { Workflow } from '../workflows/entities/workflow.entity';
 import { Execution } from '../executions/entities/execution.entity';
 import { NodeExecution } from '../node-executions/entities/node-execution.entity';
+import { LlmUsageLog } from '../llm/entities/llm-usage-log.entity';
 import { QueryStatisticsDto } from './dto/query-statistics.dto';
 
 export interface StatisticsSummary {
@@ -38,6 +39,31 @@ export interface TopWorkflow {
   avgDurationMs: number;
 }
 
+export interface LlmUsageByModel {
+  provider: string;
+  model: string;
+  promptTokens: number;
+  completionTokens: number;
+  totalTokens: number;
+  costUsd: number | null;
+}
+
+export interface LlmUsageSummary {
+  totalPromptTokens: number;
+  totalCompletionTokens: number;
+  totalTokens: number;
+  totalCostUsd: number | null;
+  topProvider: string | null;
+  byModel: LlmUsageByModel[];
+}
+
+export interface LlmUsageTimePoint {
+  date: string;
+  provider: string;
+  totalTokens: number;
+  costUsd: number | null;
+}
+
 @Injectable()
 export class StatisticsService {
   constructor(
@@ -47,6 +73,8 @@ export class StatisticsService {
     private readonly executionRepository: Repository<Execution>,
     @InjectRepository(NodeExecution)
     private readonly nodeExecutionRepository: Repository<NodeExecution>,
+    @InjectRepository(LlmUsageLog)
+    private readonly llmUsageLogRepository: Repository<LlmUsageLog>,
   ) {}
 
   async getSummary(
@@ -272,6 +300,135 @@ export class StatisticsService {
       contentType: 'application/json',
       filename: `statistics-${period}.json`,
     };
+  }
+
+  async getLlmUsageSummary(
+    workspaceId: string,
+    query: QueryStatisticsDto,
+  ): Promise<LlmUsageSummary> {
+    const { startDate, endDate } = this.resolveDateRange(query);
+
+    const qb = this.llmUsageLogRepository
+      .createQueryBuilder('u')
+      .select([
+        'u.provider AS provider',
+        'u.model AS model',
+        'COALESCE(SUM(u.prompt_tokens), 0)::int AS "promptTokens"',
+        'COALESCE(SUM(u.completion_tokens), 0)::int AS "completionTokens"',
+        'COALESCE(SUM(u.total_tokens), 0)::int AS "totalTokens"',
+        'SUM(u.cost_usd)::float AS "costUsd"',
+      ])
+      .where('u.workspace_id = :workspaceId', { workspaceId })
+      .andWhere('u.created_at >= :startDate', { startDate })
+      .andWhere('u.created_at <= :endDate', { endDate })
+      .groupBy('u.provider')
+      .addGroupBy('u.model')
+      .orderBy('"totalTokens"', 'DESC');
+
+    if (query.workflowId) {
+      qb.andWhere('u.workflow_id = :workflowId', {
+        workflowId: query.workflowId,
+      });
+    }
+
+    const rows = await qb.getRawMany<{
+      provider: string;
+      model: string;
+      promptTokens: number;
+      completionTokens: number;
+      totalTokens: number;
+      costUsd: number | null;
+    }>();
+
+    const byModel: LlmUsageByModel[] = rows.map((row) => ({
+      provider: row.provider,
+      model: row.model,
+      promptTokens: Number(row.promptTokens) || 0,
+      completionTokens: Number(row.completionTokens) || 0,
+      totalTokens: Number(row.totalTokens) || 0,
+      costUsd: row.costUsd === null ? null : Number(row.costUsd),
+    }));
+
+    const totalPromptTokens = byModel.reduce(
+      (acc, m) => acc + m.promptTokens,
+      0,
+    );
+    const totalCompletionTokens = byModel.reduce(
+      (acc, m) => acc + m.completionTokens,
+      0,
+    );
+    const totalTokens = byModel.reduce((acc, m) => acc + m.totalTokens, 0);
+    const totalCostUsd = byModel.some((m) => m.costUsd !== null)
+      ? byModel.reduce((acc, m) => acc + (m.costUsd ?? 0), 0)
+      : null;
+
+    const providerTotals = new Map<string, number>();
+    for (const m of byModel) {
+      providerTotals.set(
+        m.provider,
+        (providerTotals.get(m.provider) ?? 0) + m.totalTokens,
+      );
+    }
+    let topProvider: string | null = null;
+    let topProviderTokens = 0;
+    for (const [provider, tokens] of providerTotals) {
+      if (tokens > topProviderTokens) {
+        topProvider = provider;
+        topProviderTokens = tokens;
+      }
+    }
+
+    return {
+      totalPromptTokens,
+      totalCompletionTokens,
+      totalTokens,
+      totalCostUsd,
+      topProvider,
+      byModel,
+    };
+  }
+
+  async getLlmUsageTimeseries(
+    workspaceId: string,
+    query: QueryStatisticsDto,
+  ): Promise<LlmUsageTimePoint[]> {
+    const { startDate, endDate } = this.resolveDateRange(query);
+
+    const qb = this.llmUsageLogRepository
+      .createQueryBuilder('u')
+      .select([
+        "TO_CHAR(u.created_at, 'YYYY-MM-DD') AS date",
+        'u.provider AS provider',
+        'COALESCE(SUM(u.total_tokens), 0)::int AS "totalTokens"',
+        'SUM(u.cost_usd)::float AS "costUsd"',
+      ])
+      .where('u.workspace_id = :workspaceId', { workspaceId })
+      .andWhere('u.created_at >= :startDate', { startDate })
+      .andWhere('u.created_at <= :endDate', { endDate })
+      .groupBy("TO_CHAR(u.created_at, 'YYYY-MM-DD')")
+      .addGroupBy('u.provider')
+      .orderBy('date', 'ASC')
+      .addOrderBy('provider', 'ASC');
+
+    if (query.workflowId) {
+      qb.andWhere('u.workflow_id = :workflowId', {
+        workflowId: query.workflowId,
+      });
+    }
+
+    const rows = await qb.getRawMany<{
+      date: string;
+      provider: string;
+      totalTokens: number;
+      costUsd: number | null;
+    }>();
+
+    return rows.map((row) => ({
+      date: row.date,
+      provider: row.provider,
+      totalTokens: Number(row.totalTokens) || 0,
+      costUsd: row.costUsd === null ? null : Number(row.costUsd),
+    }));
   }
 
   private resolveDateRange(query: QueryStatisticsDto): {

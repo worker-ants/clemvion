@@ -25,6 +25,19 @@ code: ["backend/src/modules/integrations/integrations.controller.ts", "backend/s
 
 <Callout type="note">Inbound Webhook URL은 여기서 만들지 않아요. 웹훅으로 워크플로우를 받는 방법은 `/docs/02-nodes/triggers` 를 참고해 주세요.</Callout>
 
+## 팀 워크스페이스에서 공유 사용
+
+팀 워크스페이스에 만든 통합은 그 워크스페이스의 모든 멤버가 자동으로 함께 사용할 수 있어요. 사용자가 사이드바에서 워크스페이스를 전환하면 통합 목록도 해당 워크스페이스 기준으로 갱신돼요.
+
+권한 정책은 다음과 같아요.
+
+<FieldTable rows={[
+  { name: "Viewer", type: "역할", required: "-", description: "통합 목록·상세 조회만 가능. 새 통합 생성·수정·삭제·재인증·자격 증명 교체 불가." },
+  { name: "Editor / Admin / Owner", type: "역할", required: "-", description: "통합 추가·수정·삭제·테스트·재인증·자격 증명 교체 모두 가능." }
+]} />
+
+<Callout type="tip">개인 워크스페이스의 통합은 본인만 보고 사용할 수 있어요. 팀과 공유하려면 팀 워크스페이스에서 새로 만들어요. 같은 외부 계정도 워크스페이스마다 별개의 통합 레코드를 가져요.</Callout>
+
 ## 연동 추가하기
 
 `/integrations` 목록의 우측 상단에서 `[+ Add Integration]` 을 눌러요. 추가 플로우는 목록 모달에서 서비스를 고르고, 인증 단계부터 전용 페이지(`/integrations/new?service=...&step=auth`)로 전환돼요.

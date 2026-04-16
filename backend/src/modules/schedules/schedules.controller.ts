@@ -10,7 +10,9 @@ import {
   HttpCode,
   HttpStatus,
   ParseUUIDPipe,
+  UseGuards,
 } from '@nestjs/common';
+import { Roles, RolesGuard } from '../../common/guards/roles.guard';
 import {
   ApiTags,
   ApiBearerAuth,
@@ -35,6 +37,7 @@ import { PaginationQueryDto } from '../../common/dto/pagination.dto';
 @ApiTags('Schedules')
 @ApiBearerAuth('access-token')
 @Controller('schedules')
+@UseGuards(RolesGuard)
 export class SchedulesController {
   constructor(private readonly schedulesService: SchedulesService) {}
 
@@ -162,7 +165,7 @@ export class SchedulesController {
   })
   @ApiBadRequestResponse({ description: '유효하지 않은 cron 식' })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
-  async previewExpression(@Body() dto: PreviewExpressionDto) {
+  previewExpression(@Body() dto: PreviewExpressionDto) {
     return this.schedulesService.getPreviewFromExpression(
       dto.cronExpression,
       dto.timezone,
@@ -171,6 +174,7 @@ export class SchedulesController {
   }
 
   @Post()
+  @Roles('editor')
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({
     summary: '스케줄 생성',
@@ -196,6 +200,7 @@ export class SchedulesController {
   }
 
   @Post(':id/run-now')
+  @Roles('editor')
   @HttpCode(HttpStatus.ACCEPTED)
   @ApiOperation({
     summary: '스케줄 즉시 실행',
@@ -231,6 +236,7 @@ export class SchedulesController {
   }
 
   @Patch(':id')
+  @Roles('editor')
   @ApiOperation({
     summary: '스케줄 수정',
     description:
@@ -258,6 +264,7 @@ export class SchedulesController {
   }
 
   @Delete(':id')
+  @Roles('editor')
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({
     summary: '스케줄 삭제',

@@ -3,6 +3,7 @@ import { getRepositoryToken } from '@nestjs/typeorm';
 import { WorkspacesService } from './workspaces.service';
 import { Workspace } from './entities/workspace.entity';
 import { WorkspaceMember } from './entities/workspace-member.entity';
+import { User } from '../users/entities/user.entity';
 
 describe('WorkspacesService', () => {
   let service: WorkspacesService;
@@ -51,6 +52,13 @@ describe('WorkspacesService', () => {
               .fn()
               .mockImplementation((data: unknown) => Promise.resolve(data)),
             findOne: jest.fn(),
+          },
+        },
+        {
+          provide: getRepositoryToken(User),
+          useValue: {
+            findOne: jest.fn(),
+            find: jest.fn().mockResolvedValue([]),
           },
         },
       ],

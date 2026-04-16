@@ -13,7 +13,9 @@ import {
   UseInterceptors,
   UploadedFile,
   Logger,
+  UseGuards,
 } from '@nestjs/common';
+import { Roles, RolesGuard } from '../../common/guards/roles.guard';
 import { FileInterceptor } from '@nestjs/platform-express';
 import {
   ApiTags,
@@ -43,6 +45,7 @@ import { PaginationQueryDto } from '../../common/dto/pagination.dto';
 @ApiTags('Knowledge Base')
 @ApiBearerAuth('access-token')
 @Controller('knowledge-bases')
+@UseGuards(RolesGuard)
 export class KnowledgeBaseController {
   private readonly logger = new Logger(KnowledgeBaseController.name);
 
@@ -103,6 +106,7 @@ export class KnowledgeBaseController {
 
   @Post()
   @HttpCode(HttpStatus.CREATED)
+  @Roles('editor')
   @ApiOperation({
     summary: '지식 베이스 생성',
     description:
@@ -119,6 +123,7 @@ export class KnowledgeBaseController {
   }
 
   @Patch(':id')
+  @Roles('editor')
   @ApiOperation({
     summary: '지식 베이스 수정',
     description:
@@ -139,6 +144,7 @@ export class KnowledgeBaseController {
 
   @Delete(':id')
   @HttpCode(HttpStatus.NO_CONTENT)
+  @Roles('editor')
   @ApiOperation({
     summary: '지식 베이스 삭제',
     description: '지식 베이스와 소속 문서·임베딩을 모두 영구 삭제합니다.',
@@ -193,6 +199,7 @@ export class KnowledgeBaseController {
 
   @Post(':id/documents')
   @HttpCode(HttpStatus.CREATED)
+  @Roles('editor')
   @UseInterceptors(
     FileInterceptor('file', {
       limits: { fileSize: 50 * 1024 * 1024 }, // 50MB
@@ -243,6 +250,7 @@ export class KnowledgeBaseController {
 
   @Delete(':id/documents/:docId')
   @HttpCode(HttpStatus.NO_CONTENT)
+  @Roles('editor')
   @ApiOperation({
     summary: '문서 삭제',
     description: '문서와 해당 문서의 임베딩 청크를 모두 영구 삭제합니다.',
@@ -262,6 +270,7 @@ export class KnowledgeBaseController {
 
   @Post(':id/documents/:docId/re-embed')
   @HttpCode(HttpStatus.ACCEPTED)
+  @Roles('editor')
   @ApiOperation({
     summary: '문서 재임베딩',
     description:

@@ -171,6 +171,52 @@ export function getAllSlugs(index: DocsIndex): string[][] {
   return slugs;
 }
 
+export interface DocsSearchEntry {
+  href: string;
+  title: string;
+  section: string;
+  sectionLabel: string;
+  summary: string;
+  headings: string[];
+}
+
+/** MDX 본문에서 `#`~`###` 헤딩을 뽑아요 (`#` 문자 포함한 라인만). */
+export function extractHeadings(mdxSource: string): string[] {
+  const headings: string[] = [];
+  for (const rawLine of mdxSource.split(/\r?\n/)) {
+    const m = /^(#{1,3})\s+(.+?)\s*$/.exec(rawLine);
+    if (m) headings.push(m[2].replace(/[*_`]/g, ""));
+  }
+  return headings;
+}
+
+/**
+ * 모든 문서에 대해 fuzzy 검색용 평면 인덱스를 반환해요.
+ * 본문 전체 대신 title·summary·headings만 담아 클라이언트 번들 크기를 제한해요.
+ */
+export function buildSearchIndex(index: DocsIndex): DocsSearchEntry[] {
+  const entries: DocsSearchEntry[] = [];
+  for (const section of index.sections) {
+    for (const page of section.pages) {
+      const source = fs.readFileSync(page.filePath, "utf8");
+      const parsed = matter(source, {
+        engines: { javascript: () => ({}) },
+      });
+      const body =
+        typeof parsed.content === "string" ? parsed.content : "";
+      entries.push({
+        href: page.href,
+        title: page.frontmatter.title,
+        section: section.key,
+        sectionLabel: section.label,
+        summary: page.frontmatter.summary,
+        headings: extractHeadings(body),
+      });
+    }
+  }
+  return entries;
+}
+
 const DEFAULT_DOCS_ROOT = path.join(process.cwd(), "src", "content", "docs");
 
 // Next.js HMR에서 모듈 캐시가 재평가되지 않아 stale 인덱스를 반환하는 것을 막기 위해

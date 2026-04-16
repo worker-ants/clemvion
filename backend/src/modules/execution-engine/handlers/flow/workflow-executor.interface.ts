@@ -24,6 +24,13 @@ export interface InlineExecutionOptions {
    * row. Normally the id of the `workflow` node's own NodeExecution.
    */
   parentNodeExecutionId?: string;
+  /**
+   * If provided, override the default reachability seeding (which uses
+   * trigger nodes, falling back to nodes with no incoming edges) and instead
+   * start traversal from exactly these node ids. Used by the Background node
+   * to run a body subgraph rooted at the `background`-port edge targets.
+   */
+  entryNodeIds?: string[];
 }
 
 export interface WorkflowExecutor {

@@ -10,7 +10,9 @@ import {
   HttpCode,
   HttpStatus,
   ParseUUIDPipe,
+  UseGuards,
 } from '@nestjs/common';
+import { Roles, RolesGuard } from '../../common/guards/roles.guard';
 import {
   ApiTags,
   ApiBearerAuth,
@@ -32,6 +34,7 @@ import { QueryTriggerDto } from './dto/query-trigger.dto';
 @ApiTags('Triggers')
 @ApiBearerAuth('access-token')
 @Controller('triggers')
+@UseGuards(RolesGuard)
 export class TriggersController {
   constructor(private readonly triggersService: TriggersService) {}
 
@@ -90,6 +93,7 @@ export class TriggersController {
   }
 
   @Post()
+  @Roles('editor')
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({
     summary: '트리거 생성',
@@ -113,6 +117,7 @@ export class TriggersController {
   }
 
   @Patch(':id')
+  @Roles('editor')
   @ApiOperation({
     summary: '트리거 수정',
     description:
@@ -174,6 +179,7 @@ export class TriggersController {
   }
 
   @Delete(':id')
+  @Roles('editor')
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({
     summary: '트리거 삭제',

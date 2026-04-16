@@ -192,6 +192,36 @@ export class StatisticsController {
     return this.statisticsService.getNodeStats(workspaceId, query);
   }
 
+  @Get('llm-usage/summary')
+  @ApiOperation({
+    summary: 'LLM 토큰 사용량 요약',
+    description:
+      '선택된 기간·워크플로우 기준으로 프로바이더×모델별 토큰 합계와 추정 비용(USD)을 반환합니다. 비용은 알려진 모델만 계산되며 미등록 모델은 null입니다.',
+  })
+  @ApiOkResponse({ description: 'LLM 사용량 요약' })
+  @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
+  async getLlmUsageSummary(
+    @WorkspaceId() workspaceId: string,
+    @Query() query: QueryStatisticsDto,
+  ) {
+    return this.statisticsService.getLlmUsageSummary(workspaceId, query);
+  }
+
+  @Get('llm-usage/timeseries')
+  @ApiOperation({
+    summary: 'LLM 토큰 사용량 시계열',
+    description:
+      '선택된 기간 동안 일자×프로바이더별 토큰 합계와 비용을 시계열로 반환합니다.',
+  })
+  @ApiOkResponse({ description: '일자별 LLM 사용량' })
+  @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
+  async getLlmUsageTimeseries(
+    @WorkspaceId() workspaceId: string,
+    @Query() query: QueryStatisticsDto,
+  ) {
+    return this.statisticsService.getLlmUsageTimeseries(workspaceId, query);
+  }
+
   @Get('export')
   @ApiOperation({
     summary: '통계 데이터 내보내기',

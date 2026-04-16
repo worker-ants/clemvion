@@ -27,8 +27,11 @@ import { cn } from "@/lib/utils/cn";
 import { Button } from "@/components/ui/button";
 import { useAuthStore } from "@/lib/stores/auth-store";
 import { useSidebarStore, selectCollapsed } from "@/lib/stores/sidebar-store";
+import { useWorkspaceStore } from "@/lib/stores/workspace-store";
 import { authApi } from "@/lib/api/auth";
+import { workspacesApi } from "@/lib/api/workspaces";
 import { apiClient } from "@/lib/api/client";
+import { Building2, Check, Plus } from "lucide-react";
 
 const navItems = [
   { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
@@ -64,10 +67,17 @@ export function Sidebar() {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
+  const [workspaceMenuOpen, setWorkspaceMenuOpen] = useState(false);
   const userMenuRef = useRef<HTMLDivElement>(null);
   const notifRef = useRef<HTMLDivElement>(null);
+  const workspaceMenuRef = useRef<HTMLDivElement>(null);
   const user = useAuthStore((s) => s.user);
   const logout = useAuthStore((s) => s.logout);
+  const workspaces = useWorkspaceStore((s) => s.workspaces);
+  const currentWorkspaceId = useWorkspaceStore((s) => s.currentWorkspaceId);
+  const setWorkspaces = useWorkspaceStore((s) => s.setWorkspaces);
+  const switchWorkspace = useWorkspaceStore((s) => s.switchWorkspace);
+  const currentWorkspace = workspaces.find((w) => w.id === currentWorkspaceId);
 
   // Sidebar store for shared collapsed state
   const collapsed = useSidebarStore(selectCollapsed);
@@ -83,6 +93,18 @@ export function Sidebar() {
   useEffect(() => { setIsMedium(isMedium); }, [isMedium, setIsMedium]);
 
   const hidden = isSmall && !mobileOpen;
+
+  // Workspace list
+  useQuery({
+    queryKey: ["workspaces", "list"],
+    queryFn: async () => {
+      const list = await workspacesApi.list();
+      setWorkspaces(list);
+      return list;
+    },
+    staleTime: 60_000,
+    enabled: !!user,
+  });
 
   // Notification unread count
   const unreadQuery = useQuery<number>({
@@ -122,12 +144,18 @@ export function Sidebar() {
       if (notifRef.current && !notifRef.current.contains(e.target as Node)) {
         setNotifOpen(false);
       }
+      if (
+        workspaceMenuRef.current &&
+        !workspaceMenuRef.current.contains(e.target as Node)
+      ) {
+        setWorkspaceMenuOpen(false);
+      }
     }
-    if (userMenuOpen || notifOpen) {
+    if (userMenuOpen || notifOpen || workspaceMenuOpen) {
       document.addEventListener("mousedown", handleClickOutside);
     }
     return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, [userMenuOpen, notifOpen]);
+  }, [userMenuOpen, notifOpen, workspaceMenuOpen]);
 
   // Close mobile sidebar on navigation
   const [lastPathname, setLastPathname] = useState(pathname);
@@ -276,6 +304,69 @@ export function Sidebar() {
             )}
           </button>
         </div>
+
+        {/* Workspace switcher */}
+        {workspaces.length > 0 && (
+          <div
+            className="relative border-t border-[hsl(var(--border))] px-2 pb-1 pt-2"
+            ref={workspaceMenuRef}
+          >
+            {workspaceMenuOpen && (
+              <div className="absolute bottom-full left-2 right-2 mb-1 max-h-[280px] overflow-y-auto rounded-md border border-[hsl(var(--border))] bg-[hsl(var(--card))] py-1 shadow-lg">
+                <div className="border-b border-[hsl(var(--border))] px-3 py-2 text-xs font-semibold uppercase tracking-wider text-[hsl(var(--muted-foreground))]">
+                  Switch Workspace
+                </div>
+                {workspaces.map((w) => (
+                  <button
+                    type="button"
+                    key={w.id}
+                    onClick={() => {
+                      switchWorkspace(w.id);
+                      setWorkspaceMenuOpen(false);
+                    }}
+                    className="flex w-full items-center justify-between gap-2 px-3 py-2 text-left text-sm hover:bg-[hsl(var(--accent))]"
+                  >
+                    <span className="flex min-w-0 flex-col">
+                      <span className="truncate font-medium">{w.name}</span>
+                      <span className="text-[10px] uppercase text-[hsl(var(--muted-foreground))]">
+                        {w.type} · {w.role}
+                      </span>
+                    </span>
+                    {w.id === currentWorkspaceId && (
+                      <Check className="h-4 w-4 shrink-0 text-[hsl(var(--primary))]" />
+                    )}
+                  </button>
+                ))}
+                <div className="border-t border-[hsl(var(--border))]">
+                  <Link
+                    href="/workspace/settings"
+                    onClick={() => setWorkspaceMenuOpen(false)}
+                    className="flex items-center gap-2 px-3 py-2 text-sm text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--accent))] hover:text-[hsl(var(--accent-foreground))]"
+                  >
+                    <Plus className="h-4 w-4" />
+                    워크스페이스 관리
+                  </Link>
+                </div>
+              </div>
+            )}
+            <button
+              type="button"
+              onClick={() => setWorkspaceMenuOpen(!workspaceMenuOpen)}
+              className={cn(
+                "flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm text-[hsl(var(--muted-foreground))] transition-colors hover:bg-[hsl(var(--accent))] hover:text-[hsl(var(--accent-foreground))]",
+                collapsed && "justify-center px-2",
+              )}
+              title={collapsed ? currentWorkspace?.name : undefined}
+            >
+              <Building2 className="h-4 w-4 shrink-0" />
+              {!collapsed && (
+                <span className="min-w-0 flex-1 truncate text-left font-medium">
+                  {currentWorkspace?.name ?? "Workspace"}
+                </span>
+              )}
+            </button>
+          </div>
+        )}
 
         {/* User area */}
         <div

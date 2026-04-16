@@ -22,7 +22,7 @@
 | ID | 요구사항 | 우선순위 | 상태 |
 |----|----------|----------|-------|
 | NF-SC-01 | 사용자 인증 (이메일/비밀번호, OAuth 소셜 로그인) | 필수 | ✅ |
-| NF-SC-02 | 역할 기반 접근 제어 (RBAC) — Owner, Admin, Editor, Viewer | 필수 | 🚧 |
+| NF-SC-02 | 역할 기반 접근 제어 (RBAC) — Owner, Admin, Editor, Viewer | 필수 | ✅ (Workflows·Integrations·LLM Config·KB API 가드 적용 · UI는 점진 채택) |
 | NF-SC-03 | API Key, OAuth Token 등 민감 정보 암호화 저장 (AES-256 이상) | 필수 | ✅ |
 | NF-SC-04 | 전송 중 데이터 암호화 (TLS 1.2+) | 필수 | ✅ |
 | NF-SC-05 | CSRF, XSS, SQL Injection 등 OWASP Top 10 대응 | 필수 | ✅ |
@@ -30,7 +30,7 @@
 | NF-SC-07 | 세션 관리 — 유효 기간, 동시 세션 제한 | 필수 | ✅ |
 | NF-SC-08 | 셀프 호스팅 환경에서의 보안 가이드 제공 | 필수 | ❌ |
 | NF-SC-09 | 워크플로우 실행 샌드박싱 — 악의적 노드로부터 시스템 보호 | 필수 | ✅ |
-| NF-SC-10 | 2FA(Two-Factor Authentication) 지원 | 권장 | ❌ |
+| NF-SC-10 | 2FA(Two-Factor Authentication) 지원 | 권장 | ✅ (TOTP + 복구 코드 10개. WebAuthn은 후속) |
 
 ---
 
@@ -66,9 +66,9 @@
 |----|----------|----------|-------|
 | NF-OB-01 | 구조화된 로깅 (JSON 형식) | 필수 | ✅ |
 | NF-OB-02 | 메트릭 수집 및 모니터링 (Prometheus 호환) | 필수 | ✅ |
-| NF-OB-03 | 분산 트레이싱 (OpenTelemetry 호환) | 권장 | ❌ |
+| NF-OB-03 | 분산 트레이싱 (OpenTelemetry 호환) | 권장 | ✅ (`OTEL_ENABLED=true`로 활성, OTLP HTTP exporter 기본 endpoint `/v1/traces`) |
 | NF-OB-04 | 워크플로우 실행 추적 — 각 노드별 실행 시간, 입출력 크기 기록 | 필수 | ✅ |
-| NF-OB-05 | 알림(Alert) 설정 — 실패율, 지연 임계값 초과 시 | 권장 | ❌ |
+| NF-OB-05 | 알림(Alert) 설정 — 실패율, 지연 임계값 초과 시 | 권장 | 🚧 (룰 CRUD API·`/profile/alerts` UI 완료. 주기 평가 cron은 후속) |
 
 ---
 
@@ -78,9 +78,9 @@
 |----|----------|----------|-------|
 | NF-I18N-01 | UI 다국어 지원 구조 (i18n) — 한국어, 영어 기본 | 필수 | ✅ |
 | NF-I18N-02 | 날짜/시간/숫자 형식의 로케일별 표시 | 필수 | ✅ |
-| NF-A11Y-01 | WCAG 2.1 AA 수준 접근성 준수 | 권장 | ❌ |
+| NF-A11Y-01 | WCAG 2.1 AA 수준 접근성 준수 | 권장 | 🚧 (Radix 기반 컴포넌트가 기본 ARIA 충족, 자동 axe 감사·전체 색 대비 점검은 후속) |
 | NF-A11Y-02 | 키보드 네비게이션 지원 | 필수 | ✅ |
-| NF-A11Y-03 | 스크린 리더 호환 | 권장 | ❌ |
+| NF-A11Y-03 | 스크린 리더 호환 | 권장 | 🚧 (주요 영역에 aria-label/role 사용, 동적 영역 aria-live 등 보강은 후속) |
 
 ---
 

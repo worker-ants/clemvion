@@ -306,20 +306,44 @@ Split 출력은 원본의 다른 필드를 포함하지 않아요. 필요하면 
 대상 변수가 선언되어 있지 않으면 에러가 나요. 반드시 Variable Declaration으로 먼저 선언한 뒤 수정해요.
 </Callout>
 
-## Parallel (스펙 예약)
+## Parallel
 
 ### 언제 써요
 
-- 여러 분기를 **동시에** 실행하고 싶을 때 써요.
+- 여러 작업을 **동시에** 실행해 전체 시간을 줄이고 싶을 때 써요. 예: 여러 API 호출을 동시에 보내기.
 
-<Callout type="warn">
-Parallel 노드는 현재 구현에 포함되어 있지 않고 스펙만 존재해요. 비슷한 효과가 필요하면 같은 출력 포트에서 여러 연결선을 내보내는 방식(1:N 분기)을 써요. 모든 분기 완료를 기다려야 한다면 이어서 Merge(`wait_all`)로 받으면 돼요.
+### 필드
+
+<FieldTable rows={[
+  { name: "Branch Count", required: true, type: "number", description: "동시에 실행할 분기 수예요. 2~16 사이로 지정해요.", default: "2" }
+]} />
+
+### 동작
+
+- 입력이 들어오면 `branch_0`, `branch_1`, … 모든 분기 포트로 **동일한 입력을 동시에** 내보내요.
+- 각 분기에 연결된 노드들이 병렬로 실행돼요.
+- 분기 결과를 합치고 싶다면 뒤에 Merge 노드(`wait_all`)를 두고 연결해요.
+
+<Callout type="tip">
+하나의 출력 포트에서 여러 연결선을 끌어내는 1:N 분기와의 차이는 **의도 표현**이에요. Parallel은 "이 분기들은 동시에 실행한다"라는 의미를 노드 자체로 드러내, 워크플로우를 읽는 사람이 의도를 바로 파악할 수 있어요.
 </Callout>
 
-## Background (미구현)
+## Background
 
-<Callout type="warn">
-Background 컨테이너는 스펙에는 정의되어 있으나 **아직 구현되지 않았어요**. 백엔드·프론트엔드에 핸들러가 없으니 현재 버전에서는 사용할 수 없어요.
+오래 걸리는 후속 작업(이메일 발송, 외부 API 알림 등)을 메인 흐름에서 분리하고 싶을 때 사용해요. Background 노드는 입력이 도착하면 **`main` 포트로 즉시** 다음 노드를 진행시키고, 동시에 **`background` 포트로 연결된 본문 분기**를 별도 워커(BullMQ 큐 `background-execution`)에서 실행해요.
+
+- 본문 실행 컨텍스트는 enqueue 시점의 변수·노드 출력 **스냅샷**으로 시작해요. 그래서 본문 실행 중 메인이 변수를 바꿔도 본문에는 반영되지 않아요(역도 마찬가지).
+- 본문 실행이 실패해도 메인 워크플로우 상태는 그대로 유지돼요. NodeExecution 이력에는 실패가 남아 타임라인에서 확인할 수 있어요.
+- 본문 결과는 메인으로 다시 흘러들어오지 않아요(fire-and-forget).
+
+<FieldTable rows={[
+  {name: "notes", required: false, type: "string", description: "본문이 무슨 작업을 하는지 동료가 알 수 있게 짧게 적어요. 동작에는 영향이 없어요.", default: "''"},
+  {name: "notifyOnFailure", required: false, type: "boolean", description: "본문에서 오류가 발생하면 워크스페이스 Admin에게 인앱 알림을 보내요.", default: "false"},
+  {name: "maxDurationMs", required: false, type: "number", description: "본문이 이 시간을 넘기면 강제 종료해요. 0을 입력하면 무제한이에요.", default: "300000 (5분)"}
+]} />
+
+<Callout type="tip">
+서버를 재시작하면 큐에 남아있던 미처리 background 작업은 BullMQ 기본 정책에 따라 재시도돼요. 다만 컨텍스트가 이미 사라진 상태에서는 본문이 실패할 수 있으니, 외부에서 다시 트리거할 수 있는 멱등성을 본문에 갖추는 걸 권장해요.
 </Callout>
 
 ## 팁 & 참고
