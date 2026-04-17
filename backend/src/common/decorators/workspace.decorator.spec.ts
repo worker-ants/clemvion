@@ -6,24 +6,21 @@ import { WorkspaceId } from './workspace.decorator';
 // called directly in tests. We extract the factory via Reflect to unit-test it.
 function getParamDecoratorFactory() {
   class TestController {
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     test(@WorkspaceId() _workspaceId: string) {}
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
   const metadata = Reflect.getMetadata(
     ROUTE_ARGS_METADATA,
     TestController,
     'test',
   );
-  // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
+
   const key = Object.keys(metadata)[0];
-  // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-return
+
   return metadata[key].factory;
 }
 
 describe('WorkspaceId decorator', () => {
-  // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
   const factory = getParamDecoratorFactory();
 
   function createMockContext(headers: Record<string, string>, user?: unknown) {

@@ -18,6 +18,15 @@ import {
   evaluateCondition,
 } from '../logic/condition-eval.util.js';
 
+function stringifyForSort(value: unknown): string {
+  if (value === null || value === undefined) return '';
+  if (typeof value === 'string') return value;
+  if (typeof value === 'number' || typeof value === 'boolean') {
+    return String(value);
+  }
+  return JSON.stringify(value);
+}
+
 dayjs.extend(customParseFormat);
 
 // ReDoS 방지: 사용자 입력을 정규식으로 컴파일할 때 길이 상한을 둔다.
@@ -222,7 +231,7 @@ export class TransformHandler implements NodeHandler {
     return { valid: errors.length === 0, errors };
   }
 
-  async execute(
+  execute(
     input: unknown,
     config: Record<string, unknown>,
     _context: ExecutionContext,
@@ -234,7 +243,7 @@ export class TransformHandler implements NodeHandler {
       data = this.applyOperation(data, op);
     }
 
-    return { config: { operations }, output: data };
+    return Promise.resolve({ config: { operations }, output: data });
   }
 
   private applyOperation(
@@ -317,7 +326,7 @@ export class TransformHandler implements NodeHandler {
         if (Array.isArray(value)) return data;
         if (typeof value === 'string') {
           try {
-            const parsed = JSON.parse(value);
+            const parsed: unknown = JSON.parse(value);
             if (Array.isArray(parsed)) setNestedValue(data, op.field, parsed);
           } catch {
             // keep original
@@ -334,7 +343,7 @@ export class TransformHandler implements NodeHandler {
           return data;
         if (typeof value === 'string') {
           try {
-            const parsed = JSON.parse(value);
+            const parsed: unknown = JSON.parse(value);
             if (
               parsed !== null &&
               typeof parsed === 'object' &&
@@ -529,15 +538,15 @@ export class TransformHandler implements NodeHandler {
     const arr = getNestedValue(data, op.field);
     if (!Array.isArray(arr)) return data;
 
-    const sorted = [...arr].sort((a, b) => {
-      const av = op.sortBy ? getNestedValue(a, op.sortBy) : a;
-      const bv = op.sortBy ? getNestedValue(b, op.sortBy) : b;
+    const sorted = [...(arr as unknown[])].sort((a, b) => {
+      const av: unknown = op.sortBy ? getNestedValue(a, op.sortBy) : a;
+      const bv: unknown = op.sortBy ? getNestedValue(b, op.sortBy) : b;
 
       if (typeof av === 'number' && typeof bv === 'number') {
         return av - bv;
       }
-      const as = av === null || av === undefined ? '' : String(av);
-      const bs = bv === null || bv === undefined ? '' : String(bv);
+      const as = stringifyForSort(av);
+      const bs = stringifyForSort(bv);
       return as.localeCompare(bs);
     });
 

@@ -4,7 +4,11 @@ import { NestFactory } from '@nestjs/core';
 import { ConfigService } from '@nestjs/config';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 // eslint-disable-next-line @typescript-eslint/no-require-imports
-const cookieParser = require('cookie-parser');
+const cookieParser = require('cookie-parser') as () => (
+  req: unknown,
+  res: unknown,
+  next: (err?: unknown) => void,
+) => void;
 import { AppModule } from './app.module';
 
 async function bootstrap() {
@@ -23,7 +27,11 @@ async function bootstrap() {
   const configService = app.get(ConfigService);
 
   // Remove x-powered-by header (security)
-  app.getHttpAdapter().getInstance().disable('x-powered-by');
+  (
+    app.getHttpAdapter().getInstance() as {
+      disable: (header: string) => void;
+    }
+  ).disable('x-powered-by');
 
   // Cookie parser
   app.use(cookieParser());

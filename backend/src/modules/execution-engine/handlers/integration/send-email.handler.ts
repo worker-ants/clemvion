@@ -125,13 +125,17 @@ export class SendEmailHandler
         credentials as SmtpCredentials,
       );
 
-      const info = await transporter.sendMail({
+      const info = (await transporter.sendMail({
         from: credentials.default_from,
         to,
         cc: cc.length > 0 ? cc : undefined,
         subject,
         ...(bodyType === 'html' ? { html: body } : { text: body }),
-      });
+      })) as {
+        messageId?: string;
+        accepted?: string[];
+        rejected?: string[];
+      };
       const durationMs = Date.now() - start;
       await this.logUsage(context, {
         integrationId,
@@ -166,7 +170,7 @@ export class SendEmailHandler
    * Drop the cached transport for an integration — useful when credentials
    * change or the process is shutting down.
    */
-  async invalidateTransport(integrationId: string): Promise<void> {
+  invalidateTransport(integrationId: string): void {
     const entry = this.transports.get(integrationId);
     if (!entry) return;
     this.transports.delete(integrationId);
@@ -177,7 +181,7 @@ export class SendEmailHandler
     }
   }
 
-  async shutdown(): Promise<void> {
+  shutdown(): void {
     const entries = Array.from(this.transports.values());
     this.transports.clear();
     for (const { transporter } of entries) {

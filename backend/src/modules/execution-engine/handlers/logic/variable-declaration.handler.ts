@@ -40,7 +40,7 @@ export class VariableDeclarationHandler implements NodeHandler {
     return { valid: errors.length === 0, errors };
   }
 
-  async execute(
+  execute(
     input: unknown,
     config: Record<string, unknown>,
     context: ExecutionContext,
@@ -54,9 +54,9 @@ export class VariableDeclarationHandler implements NodeHandler {
       }
     }
 
-    return {
+    return Promise.resolve({
       config: { variables },
       output: input,
-    };
+    });
   }
 }

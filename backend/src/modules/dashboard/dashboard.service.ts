@@ -100,7 +100,7 @@ export class DashboardService {
       .where('w.workspace_id = :workspaceId', { workspaceId })
       .andWhere('e.started_at >= :sevenDaysAgo', { sevenDaysAgo })
       .andWhere('e.duration_ms IS NOT NULL')
-      .getRawOne();
+      .getRawOne<{ avg: string | number | null }>();
 
     const avgExecutionTime = avgResult?.avg
       ? Math.round(Number(avgResult.avg))

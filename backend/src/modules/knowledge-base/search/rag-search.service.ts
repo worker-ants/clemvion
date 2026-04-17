@@ -37,8 +37,15 @@ export class RagSearchService {
       const queryEmbedding = embeddings[0];
       const vectorStr = `[${queryEmbedding.join(',')}]`;
 
-      // Vector similarity search
-      const results = await this.dataSource.query(
+      type RawRow = {
+        chunkId: string;
+        documentId: string;
+        documentName: string;
+        content: string;
+        score: string;
+        metadata: Record<string, unknown>;
+      };
+      const results = await this.dataSource.query<RawRow[]>(
         `SELECT
           dc.id AS "chunkId",
           dc.document_id AS "documentId",
@@ -58,23 +65,14 @@ export class RagSearchService {
         [vectorStr, knowledgeBaseIds, threshold, topK, workspaceId],
       );
 
-      return results.map(
-        (r: {
-          chunkId: string;
-          documentId: string;
-          documentName: string;
-          content: string;
-          score: string;
-          metadata: Record<string, unknown>;
-        }) => ({
-          chunkId: r.chunkId,
-          documentId: r.documentId,
-          documentName: r.documentName,
-          content: r.content,
-          score: parseFloat(r.score),
-          metadata: r.metadata || {},
-        }),
-      );
+      return results.map((r) => ({
+        chunkId: r.chunkId,
+        documentId: r.documentId,
+        documentName: r.documentName,
+        content: r.content,
+        score: parseFloat(r.score),
+        metadata: r.metadata || {},
+      }));
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unknown error';
       this.logger.warn(`RAG search failed: ${message}`);

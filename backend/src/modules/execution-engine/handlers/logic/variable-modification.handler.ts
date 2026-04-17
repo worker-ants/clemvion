@@ -57,7 +57,7 @@ export class VariableModificationHandler implements NodeHandler {
     return { valid: errors.length === 0, errors };
   }
 
-  async execute(
+  execute(
     input: unknown,
     config: Record<string, unknown>,
     context: ExecutionContext,
@@ -68,10 +68,10 @@ export class VariableModificationHandler implements NodeHandler {
       this.applyModification(context, mod);
     }
 
-    return {
+    return Promise.resolve({
       config: { modifications },
       output: input,
-    };
+    });
   }
 
   private applyModification(
@@ -92,11 +92,17 @@ export class VariableModificationHandler implements NodeHandler {
         context.variables[mod.variable] =
           (typeof current === 'number' ? current : 0) - Number(mod.value ?? 1);
         break;
-      case 'append':
+      case 'append': {
+        const addition =
+          typeof mod.value === 'string'
+            ? mod.value
+            : mod.value === null || mod.value === undefined
+              ? ''
+              : JSON.stringify(mod.value);
         context.variables[mod.variable] =
-          (typeof current === 'string' ? current : '') +
-          String(mod.value ?? '');
+          (typeof current === 'string' ? current : '') + addition;
         break;
+      }
       case 'push':
         if (Array.isArray(current)) {
           current.push(mod.value);

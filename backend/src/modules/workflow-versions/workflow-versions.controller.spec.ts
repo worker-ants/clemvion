@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/unbound-method */
 import { Test } from '@nestjs/testing';
 import { NotFoundException } from '@nestjs/common';
 import { WorkflowVersionsController } from './workflow-versions.controller';

@@ -71,7 +71,7 @@ export class SwitchHandler implements NodeHandler {
   async execute(
     input: unknown,
     config: Record<string, unknown>,
-    _context: ExecutionContext, // eslint-disable-line @typescript-eslint/no-unused-vars
+    _context: ExecutionContext,
   ): Promise<unknown> {
     const { switchValue, cases, hasDefault } =
       config as unknown as SwitchConfig;

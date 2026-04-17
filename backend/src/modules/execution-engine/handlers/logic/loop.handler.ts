@@ -73,23 +73,21 @@ export class LoopHandler implements NodeHandler {
     return { valid: errors.length === 0, errors };
   }
 
-  async execute(
+  execute(
     _input: unknown,
     config: Record<string, unknown>,
     _context: ExecutionContext,
   ): Promise<unknown> {
     const { count, maxIterations } = config as unknown as LoopConfig;
-    // Expressions have been resolved by the engine before reaching here, so
-    // `count`/`maxIterations` will be numbers or plain numeric strings.
     const resolvedCount = parseNumeric(count) ?? 0;
     const resolvedMax =
       maxIterations === undefined || maxIterations === null
         ? DEFAULT_MAX_ITERATIONS
         : (parseNumeric(maxIterations) ?? DEFAULT_MAX_ITERATIONS);
 
-    return {
+    return Promise.resolve({
       config: { count: resolvedCount, maxIterations: resolvedMax },
       output: null,
-    };
+    });
   }
 }

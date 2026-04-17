@@ -190,7 +190,7 @@ describe('SendEmailHandler', () => {
         }),
       );
       // Transporter is now cached across calls; close() only fires on shutdown.
-      await handler.shutdown();
+      handler.shutdown();
       expect(closeMock).toHaveBeenCalled();
     });
 
@@ -220,7 +220,7 @@ describe('SendEmailHandler', () => {
           error: expect.objectContaining({ code: 'SMTP_SEND_FAILED' }),
         }),
       );
-      await handler.shutdown();
+      handler.shutdown();
       expect(closeMock).toHaveBeenCalled();
     });
 

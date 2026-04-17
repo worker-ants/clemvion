@@ -53,7 +53,9 @@ export class ListIntegrationsQueryDto extends PaginationQueryDto {
     example: ['google', 'github'],
   })
   @IsOptional()
-  @Transform(({ value }) => (Array.isArray(value) ? value : [value]))
+  @Transform(({ value }: { value: unknown }) =>
+    Array.isArray(value) ? (value as string[]) : [value as string],
+  )
   @IsArray()
   @IsString({ each: true })
   @MaxLength(50, { each: true })

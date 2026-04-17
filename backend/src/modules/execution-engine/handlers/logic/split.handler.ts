@@ -29,7 +29,7 @@ export class SplitHandler implements NodeHandler {
     return { valid: errors.length === 0, errors };
   }
 
-  async execute(
+  execute(
     input: unknown,
     config: Record<string, unknown>,
     _context: ExecutionContext,
@@ -40,14 +40,16 @@ export class SplitHandler implements NodeHandler {
     const arrayValue = resolveFieldValue(input, fieldPath);
 
     if (!Array.isArray(arrayValue)) {
-      return { config: baseConfig, output: [] as SplitItem[] };
+      return Promise.resolve({ config: baseConfig, output: [] as SplitItem[] });
     }
 
-    const output: SplitItem[] = arrayValue.map((value, index) => ({
-      index,
-      value,
-    }));
+    const output: SplitItem[] = (arrayValue as unknown[]).map(
+      (value, index) => ({
+        index,
+        value,
+      }),
+    );
 
-    return { config: baseConfig, output };
+    return Promise.resolve({ config: baseConfig, output });
   }
 }

@@ -964,7 +964,7 @@ describe('ExecutionEngineService', () => {
 
     it('should resolve $var, $node, and input-data references in template config', async () => {
       // Inject variable into execution context
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+
       const contextService: ExecutionContextService = (service as any)[
         'contextService'
       ];
@@ -1032,7 +1032,6 @@ describe('ExecutionEngineService', () => {
       };
       handlerRegistry.register('test_node', conflictHandler);
 
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
       const contextService: ExecutionContextService = (service as any)[
         'contextService'
       ];

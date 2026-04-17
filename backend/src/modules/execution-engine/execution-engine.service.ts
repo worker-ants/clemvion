@@ -105,7 +105,6 @@ interface ParallelPlan {
   allBodyNodeIds: Set<string>;
 }
 
-
 class ExecutionCancelledError extends Error {
   constructor() {
     super('Execution cancelled while waiting for input');
@@ -1710,7 +1709,7 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
     executionId: string,
     node: Node,
     context: ExecutionContext,
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+
     _graphEdges: GraphEdge[],
   ): Promise<void> {
     // Update execution status to waiting
@@ -3247,8 +3246,7 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
         branchResults.push(undefined);
         continue;
       }
-      const lastNodeId =
-        branch.sortedNodeIds[branch.sortedNodeIds.length - 1];
+      const lastNodeId = branch.sortedNodeIds[branch.sortedNodeIds.length - 1];
       const rawOutput = context.nodeOutputCache[lastNodeId];
       branchResults.push(this.stripSelectedPort(rawOutput));
     }
@@ -3261,7 +3259,7 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
       branches: branchResults,
     };
     this.contextService.setStructuredOutput(executionId, parallelNode.id, {
-      config: resolvedConfig as Record<string, unknown>,
+      config: resolvedConfig,
       output: branchResults,
       port: ['done'],
     });

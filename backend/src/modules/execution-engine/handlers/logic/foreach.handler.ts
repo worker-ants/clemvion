@@ -33,7 +33,7 @@ export class ForEachHandler implements NodeHandler {
     return { valid: errors.length === 0, errors };
   }
 
-  async execute(
+  execute(
     input: unknown,
     config: Record<string, unknown>,
     _context: ExecutionContext,
@@ -43,9 +43,9 @@ export class ForEachHandler implements NodeHandler {
     const resolved = resolveFieldValue(input, arrayField);
     const items = Array.isArray(resolved) ? resolved : [];
 
-    return {
+    return Promise.resolve({
       config: { arrayField },
       output: items,
-    };
+    });
   }
 }

@@ -18,13 +18,12 @@ export class TransformInterceptor<T> implements NestInterceptor<
 > {
   intercept(
     context: ExecutionContext,
-    next: CallHandler,
+    next: CallHandler<T>,
   ): Observable<WrappedResponse<T>> {
     return next.handle().pipe(
-      map((data) => {
-        // If response already has 'data' key, pass through to avoid double-wrapping
+      map((data): WrappedResponse<T> => {
         if (data && typeof data === 'object' && 'data' in data) {
-          return data;
+          return data as WrappedResponse<T>;
         }
         return { data };
       }),
