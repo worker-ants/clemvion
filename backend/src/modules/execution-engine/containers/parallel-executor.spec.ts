@@ -105,7 +105,12 @@ describe('ParallelExecutor', () => {
   it('errorPolicy=stop: re-throws first branch failure', async () => {
     await expect(
       executor.execute(
-        { branchCount: 3, maxConcurrency: 0, waitAll: true, errorPolicy: 'stop' },
+        {
+          branchCount: 3,
+          maxConcurrency: 0,
+          waitAll: true,
+          errorPolicy: 'stop',
+        },
         baseContext,
         async (branchIndex) => {
           if (branchIndex === 1) throw new Error('branch-1-fail');
@@ -132,9 +137,9 @@ describe('ParallelExecutor', () => {
     expect(result.failures[0].branchIndex).toBe(2);
     expect(result.failures[0].error.message).toBe('branch-2-fail');
     // Other branches still succeeded
-    expect(
-      result.settled.filter((s) => s.status === 'fulfilled').length,
-    ).toBe(2);
+    expect(result.settled.filter((s) => s.status === 'fulfilled').length).toBe(
+      2,
+    );
   });
 
   it('should clamp branchCount to 2..16 range', async () => {

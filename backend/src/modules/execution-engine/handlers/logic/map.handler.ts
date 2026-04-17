@@ -40,7 +40,7 @@ export class MapHandler implements NodeHandler {
     return { valid: errors.length === 0, errors };
   }
 
-  async execute(
+  execute(
     input: unknown,
     config: Record<string, unknown>,
     _context: ExecutionContext,
@@ -50,9 +50,9 @@ export class MapHandler implements NodeHandler {
     const resolved = resolveFieldValue(input, inputField);
     const items = Array.isArray(resolved) ? resolved : [];
 
-    return {
+    return Promise.resolve({
       config: { inputField },
       output: items,
-    };
+    });
   }
 }

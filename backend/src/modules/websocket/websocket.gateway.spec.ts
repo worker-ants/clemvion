@@ -118,7 +118,7 @@ describe('WebsocketGateway', () => {
         status: 'running',
         nodeExecutions: [],
       };
-      // eslint-disable-next-line @typescript-eslint/unbound-method
+
       const findByIdMock = jest.mocked(module.get(ExecutionsService).findById);
       findByIdMock.mockResolvedValue(fakeExecution);
 
@@ -143,7 +143,6 @@ describe('WebsocketGateway', () => {
       const existing = new Set(['execution:exec-abc']);
       getSubscriptions().set('client-1', existing);
 
-      // eslint-disable-next-line @typescript-eslint/unbound-method
       const findByIdMock = jest.mocked(module.get(ExecutionsService).findById);
       findByIdMock.mockResolvedValue({ id: 'exec-abc' });
 

@@ -4,7 +4,10 @@ import {
   ValidationResult,
 } from '../node-handler.interface';
 import { LlmService } from '../../../llm/llm.service';
-import { ChatMessage } from '../../../llm/interfaces/llm-client.interface';
+import {
+  ChatMessage,
+  ChatResult,
+} from '../../../llm/interfaces/llm-client.interface';
 
 interface OutputField {
   name: string;
@@ -124,7 +127,7 @@ export class InformationExtractorHandler implements NodeHandler {
     let lastError: Error | undefined;
 
     for (let attempt = 0; attempt <= maxRetries; attempt++) {
-      let result;
+      let result: ChatResult;
       try {
         result = await this.llmService.chat(llmConfig, {
           model: model || llmConfig.defaultModel,
@@ -251,7 +254,7 @@ export class InformationExtractorHandler implements NodeHandler {
       { role: 'user', content: inputField },
     ];
 
-    let result;
+    let result: ChatResult;
     try {
       result = await this.llmService.chat(llmConfig, {
         model: resolvedModel,
@@ -319,7 +322,7 @@ export class InformationExtractorHandler implements NodeHandler {
     ];
 
     const jsonSchema = this.buildJsonSchema(state.outputSchema, true);
-    let result;
+    let result: ChatResult;
     try {
       result = await this.llmService.chat(llmConfig, {
         model: state.model,
@@ -327,7 +330,7 @@ export class InformationExtractorHandler implements NodeHandler {
         responseFormat: 'json',
         jsonSchema,
       });
-    } catch (error) {
+    } catch {
       return this.buildMultiTurnFinalOutput({ ...state, messages }, 'error');
     }
 

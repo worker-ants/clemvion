@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/unbound-method */
 import { WorkflowHandler } from './workflow.handler.js';
 import { ExecutionContext } from '../node-handler.interface.js';
 import { WorkflowExecutor } from './workflow-executor.interface.js';

@@ -63,7 +63,7 @@ describe('UsersController', () => {
           theme: 'light',
         },
       });
-      // eslint-disable-next-line @typescript-eslint/unbound-method
+
       expect(service.findById).toHaveBeenCalledWith('user-uuid');
     });
 

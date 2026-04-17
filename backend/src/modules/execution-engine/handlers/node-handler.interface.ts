@@ -76,5 +76,5 @@ export interface NodeHandler {
     input: unknown,
     config: Record<string, unknown>,
     context: ExecutionContext,
-  ): Promise<NodeHandlerOutput | unknown>;
+  ): Promise<NodeHandlerOutput> | Promise<unknown>;
 }

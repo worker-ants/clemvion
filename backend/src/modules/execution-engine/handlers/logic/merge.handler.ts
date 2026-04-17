@@ -50,7 +50,7 @@ export class MergeHandler implements NodeHandler {
   async execute(
     input: unknown,
     config: Record<string, unknown>,
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+
     _context: ExecutionContext,
   ): Promise<unknown> {
     const { strategy, outputFormat, timeout, partialOnTimeout } =

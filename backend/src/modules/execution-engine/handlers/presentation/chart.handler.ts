@@ -33,7 +33,7 @@ export class ChartHandler implements NodeHandler {
   execute(
     input: unknown,
     config: Record<string, unknown>,
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+
     _context: ExecutionContext,
   ): Promise<unknown> {
     const chartType = config.chartType as string;

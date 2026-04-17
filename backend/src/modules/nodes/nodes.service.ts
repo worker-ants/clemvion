@@ -109,17 +109,21 @@ export class NodesService {
     }
   }
 
-  /** Saves node(s) and catches DB unique constraint violations as ConflictException. */
+  private async saveWithUniqueConstraint(node: Node): Promise<Node>;
+  private async saveWithUniqueConstraint(nodes: Node[]): Promise<Node[]>;
   private async saveWithUniqueConstraint(
     nodeOrNodes: Node | Node[],
-  ): Promise<any> {
+  ): Promise<Node | Node[]> {
     try {
-      return await this.nodeRepository.save(nodeOrNodes as any);
+      if (Array.isArray(nodeOrNodes)) {
+        return await this.nodeRepository.save(nodeOrNodes);
+      }
+      return await this.nodeRepository.save(nodeOrNodes);
     } catch (error: unknown) {
       if (
         error instanceof Error &&
         'code' in error &&
-        (error as any).code === '23505'
+        (error as { code?: unknown }).code === '23505'
       ) {
         throw new ConflictException({
           code: 'DUPLICATE_NODE_LABEL',

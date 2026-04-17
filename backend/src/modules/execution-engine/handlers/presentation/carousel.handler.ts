@@ -121,7 +121,7 @@ export class CarouselHandler implements NodeHandler {
   execute(
     input: unknown,
     config: Record<string, unknown>,
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+
     _context: ExecutionContext,
   ): Promise<unknown> {
     const mode = (config.mode as string) ?? 'dynamic';

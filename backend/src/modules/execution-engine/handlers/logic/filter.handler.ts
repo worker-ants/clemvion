@@ -62,7 +62,7 @@ export class FilterHandler implements NodeHandler {
     return { valid: errors.length === 0, errors };
   }
 
-  async execute(
+  execute(
     input: unknown,
     config: Record<string, unknown>,
     _context: ExecutionContext,
@@ -112,9 +112,9 @@ export class FilterHandler implements NodeHandler {
       }
     }
 
-    return {
+    return Promise.resolve({
       config: { inputField, conditions, combineMode, strictComparison },
       output: { match, unmatched },
-    };
+    });
   }
 }

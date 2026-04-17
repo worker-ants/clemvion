@@ -646,7 +646,7 @@ describe('HttpRequestHandler', () => {
       );
     });
 
-    it('rejects when authentication=integration without integrationId', async () => {
+    it('rejects when authentication=integration without integrationId', () => {
       const { service } = makeService('bearer_token', { token: 't' });
       const handler = new HttpRequestHandler(service as never);
       const result = handler.validate({

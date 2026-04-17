@@ -70,7 +70,7 @@ export class IfElseHandler implements NodeHandler {
     return { valid: errors.length === 0, errors };
   }
 
-  async execute(
+  execute(
     input: unknown,
     config: Record<string, unknown>,
     _context: ExecutionContext,
@@ -85,11 +85,11 @@ export class IfElseHandler implements NodeHandler {
     const passed =
       combineMode === 'and' ? results.every(Boolean) : results.some(Boolean);
 
-    return {
+    return Promise.resolve({
       config: { conditions, combineMode },
       output: input,
       port: passed ? 'true' : 'false',
-    };
+    });
   }
 
   private evaluateCondition(input: unknown, condition: Condition): boolean {

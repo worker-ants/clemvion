@@ -96,10 +96,9 @@ export class StatisticsService {
       .where('w.workspace_id = :workspaceId', { workspaceId })
       .andWhere('e.started_at >= :startDate', { startDate })
       .andWhere('e.started_at <= :endDate', { endDate })
-      .getRawOne();
+      .getRawOne<Record<string, unknown>>();
 
     if (query.workflowId) {
-      // Re-run with workflow filter - done via separate query to keep above clean
       const filtered = await this.executionRepository
         .createQueryBuilder('e')
         .innerJoin('e.workflow', 'w')
@@ -116,12 +115,12 @@ export class StatisticsService {
         })
         .andWhere('e.started_at >= :startDate', { startDate })
         .andWhere('e.started_at <= :endDate', { endDate })
-        .getRawOne();
+        .getRawOne<Record<string, unknown>>();
 
-      return this.buildSummary(filtered);
+      return this.buildSummary(filtered ?? {});
     }
 
-    return this.buildSummary(result);
+    return this.buildSummary(result ?? {});
   }
 
   async getExecutionsByPeriod(
@@ -211,7 +210,7 @@ export class StatisticsService {
       .addGroupBy('w.name')
       .orderBy('"executionCount"', 'DESC')
       .limit(10)
-      .getRawMany();
+      .getRawMany<TopWorkflow>();
 
     return results;
   }
@@ -258,7 +257,14 @@ export class StatisticsService {
       .addGroupBy('n.label')
       .addGroupBy('n.type')
       .orderBy('"avgDurationMs"', 'DESC')
-      .getRawMany();
+      .getRawMany<{
+        nodeId: string;
+        nodeLabel: string;
+        nodeType: string;
+        executionCount: number;
+        avgDurationMs: number;
+        errorRate: number;
+      }>();
 
     return results;
   }
