@@ -176,8 +176,9 @@ Skipped 상태의 노드는 목록에서 제외한다.
 
 **우측 패널 (노드 상세)**:
 - 노드 이름, 타입 배지, 상태, 소요 시간
-- 서브 탭: **Preview** / Input / Output / **LLM Information** (AI 노드에서만) / Config / Error (에러가 있을 때만)
-- 기본 선택 탭: outputData가 있으면 Preview, 에러면 Error, 그 외 Output
+- 서브 탭(노드 레벨): **Preview** / Input / Output / **LLM Usage** (AI 노드에서만) / Config / Error (에러가 있을 때만)
+- AI Multi Turn 타임라인에서 assistant 메시지를 선택하면 탭이 메시지 레벨로 전환: **Preview** / **Response** / **Request** / **LLM Usage**
+- 기본 선택 탭: 에러면 Error, outputData가 있으면 Preview, 그 외 Output
 
 ### 3.4 Preview 탭
 
@@ -204,7 +205,7 @@ Skipped 상태의 노드는 목록에서 제외한다.
 - 턴 카운터, 종료 사유 표시
 - User/Assistant 메시지를 버블 형태로 나열
 - Tool Call 배지 (접기/펼치기)
-- **메시지 클릭**: 개별 메시지 상세 content만 inline 표시. 원문 요청/응답/사용량은 **LLM Information 탭**에서 확인 (Preview 탭은 대화 스레드에 집중)
+- **메시지 클릭**: 개별 메시지 상세 content만 inline 표시. assistant 메시지의 원문 요청/응답/사용량은 상세 패널의 **Response / Request / LLM Usage** 탭으로 노출 (Preview 탭은 대화 스레드에 집중)
   - Assistant 메시지: 본문 + tool call 배지만 표시
   - User 메시지: 메시지 내용 + 타임스탬프
   - Tool 메시지: 인자 + 결과
@@ -221,16 +222,19 @@ AI 노드(AI Agent, Information Extractor, Text Classifier)의 Output 탭은 일
 - **AI Metadata Grid** — Model, Total/Request/Response/Thinking Tokens, Turn Count(멀티턴), Tool Calls(AI Agent)
 - **Extracted Fields Card** (Info Extractor 전용) — 수집된 각 필드를 라벨-값 테이블로 표시. 미수집 필드는 dim "—" 로 placeholder. waiting 상태에서는 재수집 횟수(`재수집 n/m`)도 상단에 표시
 
-### 3.4.2 LLM Information 탭
+### 3.4.2 LLM Usage / Response / Request 탭
 
-AI 노드(AI Agent, Information Extractor, Text Classifier) 에서만 표시되는 최상위 탭. LLM 호출의 원문 요청/응답/사용량을 호출 단위로 inspect 할 수 있다.
+AI 노드(AI Agent, Information Extractor, Text Classifier) 에서만 표시되는 최상위 탭 집합. 이전에는 단일 `LLM Information` 탭 아래 `Response / Request / Usage` 하위 탭 구조였으나, 메시지를 선택할 때의 두 번 클릭 불편을 없애기 위해 평탄화되었다.
 
-- **턴/호출 선택기**: LLM 호출이 2개 이상일 때 상단에 드롭다운. 예: `Turn 1 · 응답`, `Turn 1 · 호출 2/3`(동일 턴 내 tool-call 루프 또는 재수집 iteration 시). 단일 호출 노드(Text Classifier, Info Extractor single-turn 성공 케이스)는 선택기 없이 바로 렌더
-- **Sub-tab**: Response / Request / Usage
-  - **Response** — `responsePayload` 전체 JSON
-  - **Request** — `requestPayload` 전체 JSON (model, messages, tools, responseFormat 등)
-  - **Usage** — Model, Input/Output/Total/Thinking Tokens, Latency
+**노드 레벨 (타임라인에서 메시지 미선택)**:
+- `LLM Usage` 탭 하나만 노출. 노드 전체 집계(Model / Total / Request / Response / Thinking Tokens / Turn Count / Tool Calls / LLM Calls)
 - 백엔드 핸들러가 per-call trace(`_llmCalls` 또는 `_turnDebugHistory`)를 persist 하지 않은 실행(이전 버전 기록 포함)은 "정보 없음" placeholder
+
+**메시지 레벨 (AI Agent · Information Extractor Multi Turn 에서 assistant 메시지 선택)**:
+- **Response** — 해당 턴 LLM 호출의 `responsePayload` 전체 JSON
+- **Request** — 해당 턴 LLM 호출의 `requestPayload` 전체 JSON (model, messages, tools, responseFormat 등)
+- **LLM Usage** — 선택한 call의 Model, Input/Output/Total/Thinking Tokens, Latency
+- **Call selector**: 동일 턴에 LLM 호출이 2개 이상일 때(tool-call 루프, Info Extractor 재수집 iteration) 각 탭 상단에 드롭다운. 선택은 Response ↔ Request ↔ LLM Usage 탭 전환 사이에도 유지됨. 호출이 1개뿐이면 드롭다운은 숨김
 
 ### 3.5 에러 및 상태 처리
 
