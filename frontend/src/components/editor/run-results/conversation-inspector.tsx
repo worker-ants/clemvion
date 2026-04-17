@@ -131,8 +131,9 @@ export function ConversationInspector({
 
 // ── Selected item detail ──
 //
-// Raw Response / Request / Usage live in the top-level "LLM Information"
-// tab (see `llm-information-tab.tsx`). Preview here stays focused on the
+// Raw Response / Request / per-call usage live in sibling top-level tabs
+// (Response / Request / LLM Usage — see `result-detail.tsx` and
+// `llm-information-tab.tsx`). Preview here stays focused on the
 // conversation content for the selected message.
 
 function SelectedItemDetail({ item }: { item: ConversationItem }) {
@@ -161,8 +162,9 @@ function SelectedItemDetail({ item }: { item: ConversationItem }) {
         <ToolCallBadge toolCalls={item.assistantToolCalls!} />
       )}
       <p className="text-[10px] italic text-[hsl(var(--muted-foreground))]">
-        원문 요청 / 응답 / 사용량은 &ldquo;LLM Information&rdquo; 탭에서
-        확인할 수 있습니다.
+        원문 요청 / 응답 / 사용량은 상단의 &ldquo;Request&rdquo; /
+        &ldquo;Response&rdquo; / &ldquo;LLM Usage&rdquo; 탭에서 확인할 수
+        있습니다.
       </p>
     </div>
   );

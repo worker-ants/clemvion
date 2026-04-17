@@ -2,11 +2,12 @@ import type { ConversationItem } from "@/lib/stores/execution-store";
 import { unwrapNodeOutput } from "./output-shape";
 
 /**
- * Canonical per-call trace surfaced in the LLM Information tab. Backend
- * handlers persist this shape either as a flat `_llmCalls: LlmCallTrace[]`
- * array (single-call nodes like Text Classifier, Information Extractor
- * single-turn) or nested inside `_turnDebugHistory` (conversation nodes
- * and AI Agent single-turn with tool loops).
+ * Canonical per-call trace surfaced in the Response / Request / LLM Usage
+ * tabs (and the node-level LLM Usage aggregate). Backend handlers persist
+ * this shape either as a flat `_llmCalls: LlmCallTrace[]` array (single-call
+ * nodes like Text Classifier, Information Extractor single-turn) or nested
+ * inside `_turnDebugHistory` (conversation nodes and AI Agent single-turn
+ * with tool loops).
  */
 export interface LlmCallTrace {
   turnIndex: number;
@@ -48,7 +49,7 @@ function toRecord(value: unknown): Record<string, unknown> | null {
  * over WebSocket (the engine strips them). For that case the caller can
  * pass `fallbackMessages` — per-assistant `requestPayload`/`responsePayload`
  * already attached by the WS event handler. Each matching assistant item
- * becomes one LlmCallTrace so the LLM Information tab still renders.
+ * becomes one LlmCallTrace so the Response/Request/LLM Usage tabs still render.
  *
  * Returns [] when nothing is available so the tab can render a placeholder.
  */

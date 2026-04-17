@@ -57,23 +57,35 @@ code: ["frontend/src/components/editor/run-results", "backend/src/modules/execut
 
 ## 노드 상세 뷰: 서브 탭
 
-완료/실패한 노드(AI Agent 제외)는 상세 뷰 상단에 서브 탭이 있어요.
+완료·실패·대기 상태의 노드는 상세 뷰 상단에 서브 탭이 나와요. AI 노드(AI Agent, Information Extractor, Text Classifier)도 동일한 탭 UI를 써요.
 
 <FieldTable rows={[
-  { name: "Preview", type: "Presentation 전용", description: "Table, Carousel, Chart, Template, Form 노드의 시각적 프리뷰를 보여줘요." },
-  { name: "Input", type: "항상", description: "노드가 받은 입력 JSON이에요. 폴링으로 뒤늦게 수신되므로 잠시 Loading이 뜰 수 있어요." },
-  { name: "Output", type: "항상", description: "노드의 출력 JSON이에요." },
+  { name: "Preview", type: "조건부", description: "Table·Carousel·Chart·Template·Form의 시각적 프리뷰, 또는 AI 대화형 노드의 ConversationInspector, Form/버튼 대기 UI를 보여줘요." },
+  { name: "Input", type: "노드 레벨", description: "노드가 받은 입력 JSON이에요. 폴링으로 뒤늦게 수신되므로 잠시 Loading이 뜰 수 있어요." },
+  { name: "Output", type: "노드 레벨", description: "노드의 출력 JSON이에요. AI 노드는 Model·Tokens·Turn Count·Tool Calls 요약 그리드가 상단에 함께 나와요." },
+  { name: "LLM Usage", type: "AI 노드", description: "노드 레벨에선 전체 실행 집계(Model·Total/Request/Response/Thinking Tokens·Turn Count·Tool Calls·LLM Calls). 메시지 레벨에선 선택한 LLM 호출의 토큰·레이턴시예요." },
+  { name: "Config", type: "노드 레벨", description: "노드가 실제 실행에 사용한 설정 echo 값이에요. 아직 새 출력 shape을 지원하지 않는 노드는 안내 메시지가 나와요." },
   { name: "Error", type: "실패 시", description: "에러 상세 정보를 JSON으로 표시해요." }
 ]} />
 
 기본 선택 우선순위는 `Error → Preview → Output` 순이에요. 즉 에러가 있으면 Error 탭부터 열려요.
 
-## AI Agent Multi Turn 결과
+## AI 노드 Multi Turn 결과
 
-AI Agent 노드는 타임라인에서 접힘/펼침 가능한 트리로 표시돼요. 펼치면 **사용자 메시지, AI 응답, Tool 호출**이 프리뷰 카드로 인라인으로 나와요.
+AI Agent / Information Extractor의 Multi Turn 실행은 타임라인에서 접힘/펼침 가능한 트리로 나와요. 펼치면 **사용자 메시지, AI 응답, Tool 호출**이 프리뷰 카드로 인라인 표시돼요.
 
-- 대화 진행 중이면 인스펙터 하단에 입력 UI가 sticky로 고정돼요.
-- 완료된 대화는 채팅 스레드 형태로 읽을 수 있고, 메시지를 클릭하면 토큰 사용량·Tool 인자/결과 같은 상세가 열려요.
+- 대화 진행 중이면 인스펙터 하단에 메시지 입력 UI가 sticky로 고정돼요.
+- 완료된 대화는 채팅 스레드처럼 읽을 수 있고, 항목을 클릭하면 상세 패널 탭 구성이 바뀌어요:
+
+<FieldTable rows={[
+  { name: "사용자 / Tool 항목 클릭", type: "Preview만", description: "ConversationInspector에서 해당 항목이 하이라이트돼요." },
+  { name: "AI 응답(assistant) 클릭", type: "Preview / Response / Request / LLM Usage", description: "해당 턴의 LLM 호출 페이로드와 토큰 사용량을 탭별로 볼 수 있어요. 한 턴에 호출이 여러 개(tool loop·retry)면 상단 Call selector로 전환할 수 있고, 선택은 Response ↔ Request ↔ LLM Usage 간 탭 이동에도 유지돼요." },
+  { name: "노드 자체(메시지 미선택)", type: "노드 레벨 탭", description: "LLM Usage 탭에서 노드 전체 토큰·호출 수 집계를 확인할 수 있어요." }
+]} />
+
+<Callout type="tip">
+Text Classifier는 단일 호출 노드라 타임라인에 assistant 메시지가 없어요. 대신 노드 레벨의 `LLM Usage` 탭에서 호출 결과의 토큰·모델 정보를 확인할 수 있어요.
+</Callout>
 
 ## 실행 이력 조회
 
