@@ -47,6 +47,9 @@ export class LlmUsageLog {
   @Column({ name: 'total_tokens', type: 'int', default: 0 })
   totalTokens: number;
 
+  @Column({ name: 'thinking_tokens', type: 'int', nullable: true })
+  thinkingTokens: number | null;
+
   @Column({
     name: 'cost_usd',
     type: 'numeric',

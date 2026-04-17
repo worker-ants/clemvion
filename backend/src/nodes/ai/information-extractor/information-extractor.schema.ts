@@ -98,6 +98,22 @@ export const informationExtractorNodeConfigSchema = z
           visibleWhen: { field: 'mode', equals: 'multi_turn' },
         },
       }),
+    maxCollectionRetries: z
+      .number()
+      .int()
+      .min(0)
+      .default(3)
+      .meta({
+        ui: {
+          label: 'Max Collection Retries',
+          widget: 'number',
+          order: 9,
+          group: 'Retry Settings',
+          visibleWhen: { field: 'mode', equals: 'multi_turn' },
+          description:
+            'How many times to re-prompt the LLM when it reports completion but required fields are still missing. 0 = unlimited.',
+        },
+      }),
   })
   .passthrough();
 export type InformationExtractorConfig = z.infer<
@@ -119,4 +135,10 @@ export const informationExtractorNodeMetadata: NodeComponentMetadata = {
   description: 'Extract structured data from text',
   icon: 'FileSearch',
   color: '#10B981',
+  isDynamicPorts: true,
+  dynamicPorts: {
+    kind: 'info-extractor-mode',
+    modeField: 'mode',
+    multiTurnValue: 'multi_turn',
+  },
 };

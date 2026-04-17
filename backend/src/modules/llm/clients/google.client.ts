@@ -124,6 +124,11 @@ export class GoogleClient implements LLMClient {
     const finishReason: ChatResult['finishReason'] =
       toolCalls.length > 0 ? 'tool_calls' : 'stop';
 
+    const usageMeta = response.usageMetadata as
+      | { thoughtsTokenCount?: number }
+      | undefined;
+    const thoughtsTokens = usageMeta?.thoughtsTokenCount;
+
     return {
       content: textContent || null,
       toolCalls: toolCalls.length > 0 ? toolCalls : undefined,
@@ -131,6 +136,7 @@ export class GoogleClient implements LLMClient {
         inputTokens: response.usageMetadata?.promptTokenCount ?? 0,
         outputTokens: response.usageMetadata?.candidatesTokenCount ?? 0,
         totalTokens: response.usageMetadata?.totalTokenCount ?? 0,
+        ...(thoughtsTokens !== undefined && { thinkingTokens: thoughtsTokens }),
       },
       model: modelId,
       finishReason,

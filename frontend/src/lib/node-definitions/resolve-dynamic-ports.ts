@@ -61,6 +61,27 @@ function classifierCategoriesPorts(
   ];
 }
 
+function infoExtractorModePorts(
+  config: Record<string, unknown>,
+  spec: Extract<DynamicPortsSpec, { kind: "info-extractor-mode" }>,
+): DynamicPortDefinition[] {
+  const mode = config[spec.modeField] as string | undefined;
+  const isMultiTurn = mode === spec.multiTurnValue;
+
+  if (isMultiTurn) {
+    return [
+      { id: "completed", label: "Completed", type: "system" },
+      { id: "user_ended", label: "User Ended", type: "system" },
+      { id: "max_turns", label: "Max Turns", type: "system" },
+      { id: "error", label: "Error", type: "error" },
+    ];
+  }
+  return [
+    { id: "out", label: "Output", type: "system" },
+    { id: "error", label: "Error", type: "error" },
+  ];
+}
+
 function aiAgentConditionalPorts(
   config: Record<string, unknown>,
   spec: Extract<DynamicPortsSpec, { kind: "ai-agent-conditional" }>,
@@ -198,6 +219,8 @@ export function resolveDynamicPorts(
         return classifierCategoriesPorts(config, spec);
       case "ai-agent-conditional":
         return aiAgentConditionalPorts(config, spec);
+      case "info-extractor-mode":
+        return infoExtractorModePorts(config, spec);
       case "presentation-buttons":
         return presentationButtonPorts(config, spec, staticOutputs);
       case "parallel-branches":

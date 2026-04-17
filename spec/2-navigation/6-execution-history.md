@@ -176,7 +176,7 @@ Skipped 상태의 노드는 목록에서 제외한다.
 
 **우측 패널 (노드 상세)**:
 - 노드 이름, 타입 배지, 상태, 소요 시간
-- 서브 탭: **Preview** / Input / Output / Error (에러가 있을 때만)
+- 서브 탭: **Preview** / Input / Output / **LLM Information** (AI 노드에서만) / Config / Error (에러가 있을 때만)
 - 기본 선택 탭: outputData가 있으면 Preview, 에러면 Error, 그 외 Output
 
 ### 3.4 Preview 탭
@@ -198,15 +198,14 @@ Skipped 상태의 노드는 목록에서 제외한다.
 - 실행 완료 후 선택된 버튼(`buttonId` 매칭)은 primary 색상으로 하이라이트
 - 미선택 버튼은 outline 스타일로 비활성 표시
 
-#### AI Agent 노드
+#### AI Agent / Information Extractor (multi-turn) 노드
 
 완료된 대화를 채팅 스레드 형태로 표시한다:
 - 턴 카운터, 종료 사유 표시
 - User/Assistant 메시지를 버블 형태로 나열
 - Tool Call 배지 (접기/펼치기)
-- 메타데이터 (Model, Tokens)
-- **메시지 클릭**: 개별 메시지의 상세 뷰로 전환
-  - Assistant 메시지: Preview / Response / Request / Usage 탭
+- **메시지 클릭**: 개별 메시지 상세 content만 inline 표시. 원문 요청/응답/사용량은 **LLM Information 탭**에서 확인 (Preview 탭은 대화 스레드에 집중)
+  - Assistant 메시지: 본문 + tool call 배지만 표시
   - User 메시지: 메시지 내용 + 타임스탬프
   - Tool 메시지: 인자 + 결과
 - **"← Back to conversation"** 버튼으로 스레드 뷰 복귀
@@ -215,6 +214,23 @@ Skipped 상태의 노드는 목록에서 제외한다.
 
 - 상태 (Status), 소요 시간 (Duration) 표시
 - 에러가 있으면 에러 메시지 표시
+
+### 3.4.1 Output 탭 — AI 노드 확장
+
+AI 노드(AI Agent, Information Extractor, Text Classifier)의 Output 탭은 일반 JSON 덤프에 더해 다음 요소를 상단에 표시한다:
+- **AI Metadata Grid** — Model, Total/Request/Response/Thinking Tokens, Turn Count(멀티턴), Tool Calls(AI Agent)
+- **Extracted Fields Card** (Info Extractor 전용) — 수집된 각 필드를 라벨-값 테이블로 표시. 미수집 필드는 dim "—" 로 placeholder. waiting 상태에서는 재수집 횟수(`재수집 n/m`)도 상단에 표시
+
+### 3.4.2 LLM Information 탭
+
+AI 노드(AI Agent, Information Extractor, Text Classifier) 에서만 표시되는 최상위 탭. LLM 호출의 원문 요청/응답/사용량을 호출 단위로 inspect 할 수 있다.
+
+- **턴/호출 선택기**: LLM 호출이 2개 이상일 때 상단에 드롭다운. 예: `Turn 1 · 응답`, `Turn 1 · 호출 2/3`(동일 턴 내 tool-call 루프 또는 재수집 iteration 시). 단일 호출 노드(Text Classifier, Info Extractor single-turn 성공 케이스)는 선택기 없이 바로 렌더
+- **Sub-tab**: Response / Request / Usage
+  - **Response** — `responsePayload` 전체 JSON
+  - **Request** — `requestPayload` 전체 JSON (model, messages, tools, responseFormat 등)
+  - **Usage** — Model, Input/Output/Total/Thinking Tokens, Latency
+- 백엔드 핸들러가 per-call trace(`_llmCalls` 또는 `_turnDebugHistory`)를 persist 하지 않은 실행(이전 버전 기록 포함)은 "정보 없음" placeholder
 
 ### 3.5 에러 및 상태 처리
 

@@ -112,6 +112,10 @@ export class AnthropicClient implements LLMClient {
     if (response.stop_reason === 'tool_use') finishReason = 'tool_calls';
     else if (response.stop_reason === 'max_tokens') finishReason = 'length';
 
+    // Anthropic does not expose a standalone thinking/reasoning token count:
+    // extended-thinking output is lumped into `output_tokens`, and the
+    // thinking text itself is delivered as `thinking` content blocks rather
+    // than a separate measurable field. `thinkingTokens` stays undefined.
     return {
       content: textContent || null,
       toolCalls: toolCalls.length > 0 ? toolCalls : undefined,

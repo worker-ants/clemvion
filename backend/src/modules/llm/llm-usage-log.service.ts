@@ -48,6 +48,7 @@ export class LlmUsageLogService {
         promptTokens: params.usage.inputTokens,
         completionTokens: params.usage.outputTokens,
         totalTokens: params.usage.totalTokens,
+        thinkingTokens: params.usage.thinkingTokens ?? null,
         costUsd: cost === null ? null : cost.toFixed(6),
       });
     } catch (error) {

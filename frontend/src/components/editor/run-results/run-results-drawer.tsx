@@ -378,6 +378,7 @@ export function RunResultsDrawer() {
               onFormSubmit={resumeFromForm}
               onButtonClick={resumeFromButtons}
               onConversationEnd={resumeFromConversation}
+              onSelectConversationItem={selectConversationItem}
             />
           </div>
         </div>

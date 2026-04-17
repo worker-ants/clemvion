@@ -316,6 +316,114 @@ describe("ResultDetail", () => {
     expect(screen.getByText("Output")).toBeDefined();
   });
 
+  describe("selection-driven tab visibility for AI conversation nodes", () => {
+    const aiConvOutput = {
+      config: { schema: [], mode: "multi_turn" },
+      output: {
+        extracted: { name: "Alice" },
+        messages: [
+          { role: "user", content: "hi" },
+          { role: "assistant", content: "hello" },
+        ],
+        endReason: "completed",
+        turnCount: 1,
+      },
+      meta: { model: "gpt", interactionType: "ai_conversation" },
+    };
+
+    it("node-level view shows all tabs including LLM Usage", () => {
+      render(
+        <ResultDetail
+          result={makeResult({
+            nodeType: "ai_agent",
+            nodeCategory: "ai",
+            status: "completed",
+            outputData: aiConvOutput,
+          })}
+          {...defaultProps}
+          selectedConversationItemIndex={null}
+        />,
+      );
+      expect(
+        screen.getByRole("button", { name: "Preview" }),
+      ).toBeDefined();
+      expect(screen.getByRole("button", { name: "Input" })).toBeDefined();
+      expect(screen.getByRole("button", { name: "Output" })).toBeDefined();
+      expect(
+        screen.getByRole("button", { name: "LLM Usage" }),
+      ).toBeDefined();
+      expect(screen.getByRole("button", { name: "Config" })).toBeDefined();
+      expect(
+        screen.queryByRole("button", { name: "LLM Information" }),
+      ).toBeNull();
+      // Response / Request are message-level only.
+      expect(screen.queryByRole("button", { name: "Response" })).toBeNull();
+      expect(screen.queryByRole("button", { name: "Request" })).toBeNull();
+    });
+
+    it("user message selected → only Preview tab", () => {
+      render(
+        <ResultDetail
+          result={makeResult({
+            nodeType: "ai_agent",
+            nodeCategory: "ai",
+            status: "completed",
+            outputData: aiConvOutput,
+          })}
+          {...defaultProps}
+          selectedConversationItemIndex={0}
+        />,
+      );
+      expect(
+        screen.getByRole("button", { name: "Preview" }),
+      ).toBeDefined();
+      expect(screen.queryByRole("button", { name: "Input" })).toBeNull();
+      expect(screen.queryByRole("button", { name: "Output" })).toBeNull();
+      expect(
+        screen.queryByRole("button", { name: "LLM Information" }),
+      ).toBeNull();
+      expect(
+        screen.queryByRole("button", { name: "LLM Usage" }),
+      ).toBeNull();
+      expect(screen.queryByRole("button", { name: "Response" })).toBeNull();
+      expect(screen.queryByRole("button", { name: "Request" })).toBeNull();
+      expect(screen.queryByRole("button", { name: "Config" })).toBeNull();
+    });
+
+    it("assistant message selected → Preview + Response/Request/LLM Usage", () => {
+      render(
+        <ResultDetail
+          result={makeResult({
+            nodeType: "ai_agent",
+            nodeCategory: "ai",
+            status: "completed",
+            outputData: aiConvOutput,
+          })}
+          {...defaultProps}
+          selectedConversationItemIndex={1}
+        />,
+      );
+      expect(
+        screen.getByRole("button", { name: "Preview" }),
+      ).toBeDefined();
+      expect(
+        screen.getByRole("button", { name: "Response" }),
+      ).toBeDefined();
+      expect(
+        screen.getByRole("button", { name: "Request" }),
+      ).toBeDefined();
+      expect(
+        screen.getByRole("button", { name: "LLM Usage" }),
+      ).toBeDefined();
+      expect(
+        screen.queryByRole("button", { name: "LLM Information" }),
+      ).toBeNull();
+      expect(screen.queryByRole("button", { name: "Input" })).toBeNull();
+      expect(screen.queryByRole("button", { name: "Output" })).toBeNull();
+      expect(screen.queryByRole("button", { name: "Config" })).toBeNull();
+    });
+  });
+
   it("does not show tabs for running nodes", () => {
     render(
       <ResultDetail

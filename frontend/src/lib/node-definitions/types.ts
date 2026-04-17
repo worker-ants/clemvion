@@ -97,6 +97,11 @@ export type DynamicPortsSpec =
       multiTurnValue: string;
     }
   | {
+      kind: "info-extractor-mode";
+      modeField: string;
+      multiTurnValue: string;
+    }
+  | {
       kind: "presentation-buttons";
       supportsItems?: boolean;
       supportsItemButtons?: boolean;

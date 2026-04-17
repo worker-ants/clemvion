@@ -178,7 +178,25 @@ export class AiAgentHandler implements NodeHandler {
     // Build tool definitions from tool area nodes + conditions
     const tools = this.buildTools(config);
 
-    // LLM call with tool use loop
+    // LLM call with tool use loop. Per-call trace is accumulated so the
+    // frontend LlmInformationTab can inspect each request/response/usage
+    // even for single-turn runs (tool loop commonly spans several calls).
+    const llmCalls: Array<{
+      requestPayload: unknown;
+      responsePayload: unknown;
+      durationMs: number;
+    }> = [];
+    const singleTurnStartedAt = Date.now();
+    const firstRequest = {
+      model: model || llmConfig.defaultModel,
+      messages: [...messages],
+      temperature,
+      maxTokens,
+      responseFormat,
+      jsonSchema,
+      tools: tools.length > 0 ? tools : undefined,
+    };
+    let callStartedAt = Date.now();
     let result = await this.llmService.chat(llmConfig, {
       model: model || llmConfig.defaultModel,
       messages,
@@ -187,6 +205,11 @@ export class AiAgentHandler implements NodeHandler {
       responseFormat,
       jsonSchema,
       tools: tools.length > 0 ? tools : undefined,
+    });
+    llmCalls.push({
+      requestPayload: firstRequest,
+      responsePayload: result,
+      durationMs: Date.now() - callStartedAt,
     });
 
     let toolCallCount = 0;
@@ -216,9 +239,21 @@ export class AiAgentHandler implements NodeHandler {
             model: result.model ?? (model || llmConfig.defaultModel),
             totalInputTokens: result.usage?.inputTokens ?? 0,
             totalOutputTokens: result.usage?.outputTokens ?? 0,
+            totalThinkingTokens: result.usage?.thinkingTokens ?? 0,
             toolCalls: toolCallCount,
             ragSources,
           },
+          {
+            llmCalls,
+            totalDurationMs: Date.now() - singleTurnStartedAt,
+          },
+          [
+            {
+              turnIndex: 1,
+              llmCalls,
+              totalDurationMs: Date.now() - singleTurnStartedAt,
+            },
+          ],
         );
       }
 
@@ -255,6 +290,16 @@ export class AiAgentHandler implements NodeHandler {
         }
       }
 
+      const loopRequest = {
+        model: model || llmConfig.defaultModel,
+        messages: [...messages],
+        temperature,
+        maxTokens,
+        responseFormat,
+        jsonSchema,
+        tools,
+      };
+      callStartedAt = Date.now();
       result = await this.llmService.chat(llmConfig, {
         model: model || llmConfig.defaultModel,
         messages,
@@ -263,6 +308,11 @@ export class AiAgentHandler implements NodeHandler {
         responseFormat,
         jsonSchema,
         tools,
+      });
+      llmCalls.push({
+        requestPayload: loopRequest,
+        responsePayload: result,
+        durationMs: Date.now() - callStartedAt,
       });
     }
 
@@ -283,9 +333,17 @@ export class AiAgentHandler implements NodeHandler {
         inputTokens: result.usage?.inputTokens ?? 0,
         outputTokens: result.usage?.outputTokens ?? 0,
         totalTokens: result.usage?.totalTokens ?? 0,
+        thinkingTokens: result.usage?.thinkingTokens,
         toolCalls: toolCallCount,
         ragSources,
       },
+      _turnDebugHistory: [
+        {
+          turnIndex: 1,
+          llmCalls,
+          totalDurationMs: Date.now() - singleTurnStartedAt,
+        },
+      ],
     };
   }
 
@@ -366,6 +424,7 @@ export class AiAgentHandler implements NodeHandler {
         type: 'ai_conversation',
         status: 'waiting_for_input',
         interactionType: 'ai_conversation',
+        config: { mode: 'multi_turn', maxTurns, maxToolCalls },
         conversationConfig: {
           message: '',
           messages,
@@ -378,6 +437,7 @@ export class AiAgentHandler implements NodeHandler {
           turnCount: 0,
           totalInputTokens: 0,
           totalOutputTokens: 0,
+          totalThinkingTokens: 0,
           toolCalls: 0,
           ragSources,
         },
@@ -451,6 +511,7 @@ export class AiAgentHandler implements NodeHandler {
             model: resolvedModel,
             totalInputTokens: result.usage?.inputTokens ?? 0,
             totalOutputTokens: result.usage?.outputTokens ?? 0,
+            totalThinkingTokens: result.usage?.thinkingTokens ?? 0,
             toolCalls: toolCallCount,
             ragSources,
           },
@@ -521,12 +582,14 @@ export class AiAgentHandler implements NodeHandler {
 
     const totalInputTokens = result.usage?.inputTokens ?? 0;
     const totalOutputTokens = result.usage?.outputTokens ?? 0;
+    const totalThinkingTokens = result.usage?.thinkingTokens ?? 0;
 
     // Return waiting_for_input to trigger blocking in execution engine
     return {
       type: 'ai_conversation',
       status: 'waiting_for_input',
       interactionType: 'ai_conversation',
+      config: { mode: 'multi_turn', maxTurns, maxToolCalls },
       conversationConfig: {
         message: result.content || '',
         messages,
@@ -539,6 +602,7 @@ export class AiAgentHandler implements NodeHandler {
         turnCount: 1,
         totalInputTokens,
         totalOutputTokens,
+        totalThinkingTokens,
         toolCalls: toolCallCount,
         ragSources,
         lastTurnRequest: firstTurnRequest,
@@ -574,6 +638,7 @@ export class AiAgentHandler implements NodeHandler {
     const conditions = (state.conditions as ConditionDef[]) || [];
     let totalInputTokens = state.totalInputTokens as number;
     let totalOutputTokens = state.totalOutputTokens as number;
+    let totalThinkingTokens = (state.totalThinkingTokens as number) ?? 0;
     let toolCallCount = state.toolCalls as number;
     let ragSources = state.ragSources as unknown[];
 
@@ -656,6 +721,7 @@ export class AiAgentHandler implements NodeHandler {
 
         totalInputTokens += result.usage?.inputTokens ?? 0;
         totalOutputTokens += result.usage?.outputTokens ?? 0;
+        totalThinkingTokens += result.usage?.thinkingTokens ?? 0;
 
         // Accumulate debug history including this turn
         const prevHistory = (state.turnDebugHistory as unknown[]) || [];
@@ -677,6 +743,7 @@ export class AiAgentHandler implements NodeHandler {
             model,
             totalInputTokens,
             totalOutputTokens,
+            totalThinkingTokens,
             toolCalls: toolCallCount,
             ragSources,
           },
@@ -742,6 +809,7 @@ export class AiAgentHandler implements NodeHandler {
 
     totalInputTokens += result.usage?.inputTokens ?? 0;
     totalOutputTokens += result.usage?.outputTokens ?? 0;
+    totalThinkingTokens += result.usage?.thinkingTokens ?? 0;
 
     // Accumulate per-turn debug history (with all LLM calls)
     const prevHistory = (state.turnDebugHistory as unknown[]) || [];
@@ -765,6 +833,7 @@ export class AiAgentHandler implements NodeHandler {
           model,
           totalInputTokens,
           totalOutputTokens,
+          totalThinkingTokens,
           toolCalls: toolCallCount,
           ragSources,
         },
@@ -778,6 +847,7 @@ export class AiAgentHandler implements NodeHandler {
       type: 'ai_conversation',
       status: 'waiting_for_input',
       interactionType: 'ai_conversation',
+      config: { mode: 'multi_turn', maxTurns, maxToolCalls },
       conversationConfig: {
         message: result.content || '',
         messages,
@@ -790,6 +860,7 @@ export class AiAgentHandler implements NodeHandler {
         turnCount,
         totalInputTokens,
         totalOutputTokens,
+        totalThinkingTokens,
         toolCalls: toolCallCount,
         ragSources,
         lastTurnRequest: chatParams,
@@ -824,6 +895,7 @@ export class AiAgentHandler implements NodeHandler {
         model: state.model as string,
         totalInputTokens: (state.totalInputTokens as number) ?? 0,
         totalOutputTokens: (state.totalOutputTokens as number) ?? 0,
+        totalThinkingTokens: (state.totalThinkingTokens as number) ?? 0,
         toolCalls: (state.toolCalls as number) ?? 0,
         ragSources: (state.ragSources as unknown[]) ?? [],
       },
@@ -841,6 +913,7 @@ export class AiAgentHandler implements NodeHandler {
       model: string;
       totalInputTokens: number;
       totalOutputTokens: number;
+      totalThinkingTokens?: number;
       toolCalls: number;
       ragSources: unknown[];
     },
@@ -864,6 +937,7 @@ export class AiAgentHandler implements NodeHandler {
         totalInputTokens: metadata.totalInputTokens,
         totalOutputTokens: metadata.totalOutputTokens,
         totalTokens: metadata.totalInputTokens + metadata.totalOutputTokens,
+        thinkingTokens: metadata.totalThinkingTokens ?? 0,
         toolCalls: metadata.toolCalls,
         ragSources: metadata.ragSources,
       },
@@ -884,6 +958,7 @@ export class AiAgentHandler implements NodeHandler {
       model: string;
       totalInputTokens: number;
       totalOutputTokens: number;
+      totalThinkingTokens?: number;
       toolCalls: number;
       ragSources: unknown[];
     },
@@ -915,6 +990,7 @@ export class AiAgentHandler implements NodeHandler {
           totalInputTokens: metadata.totalInputTokens,
           totalOutputTokens: metadata.totalOutputTokens,
           totalTokens: metadata.totalInputTokens + metadata.totalOutputTokens,
+          thinkingTokens: metadata.totalThinkingTokens ?? 0,
           toolCalls: metadata.toolCalls,
           ragSources: metadata.ragSources,
         },
