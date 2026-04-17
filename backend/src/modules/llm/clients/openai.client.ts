@@ -88,6 +88,8 @@ export class OpenAIClient implements LLMClient {
     }
 
     const response = await this.client.chat.completions.create(requestParams);
+    const reasoningTokens =
+      response.usage?.completion_tokens_details?.reasoning_tokens;
     const choice = response.choices?.[0];
     if (!choice?.message) {
       return {
@@ -96,6 +98,9 @@ export class OpenAIClient implements LLMClient {
           inputTokens: response.usage?.prompt_tokens ?? 0,
           outputTokens: response.usage?.completion_tokens ?? 0,
           totalTokens: response.usage?.total_tokens ?? 0,
+          ...(reasoningTokens !== undefined && {
+            thinkingTokens: reasoningTokens,
+          }),
         },
         model: response.model,
         finishReason: 'stop',
@@ -129,6 +134,9 @@ export class OpenAIClient implements LLMClient {
         inputTokens: response.usage?.prompt_tokens ?? 0,
         outputTokens: response.usage?.completion_tokens ?? 0,
         totalTokens: response.usage?.total_tokens ?? 0,
+        ...(reasoningTokens !== undefined && {
+          thinkingTokens: reasoningTokens,
+        }),
       },
       model: response.model,
       finishReason,

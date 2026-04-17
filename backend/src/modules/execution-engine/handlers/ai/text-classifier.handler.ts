@@ -85,27 +85,44 @@ export class TextClassifierHandler implements NodeHandler {
         );
 
     let result: ChatResult;
+    const requestPayload = {
+      model: model || llmConfig.defaultModel,
+      messages: [
+        { role: 'system' as const, content: systemPrompt },
+        { role: 'user' as const, content: inputField },
+      ],
+      responseFormat: 'json' as const,
+      jsonSchema,
+    };
+    const callStartedAt = Date.now();
     try {
-      result = await this.llmService.chat(llmConfig, {
-        model: model || llmConfig.defaultModel,
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: inputField },
-        ],
-        responseFormat: 'json',
-        jsonSchema,
-      });
+      result = await this.llmService.chat(llmConfig, requestPayload);
     } catch (error) {
       return {
         config: { categories, inputField, multiLabel },
         output: {
           error: error instanceof Error ? error.message : String(error),
           originalInput: inputField,
+          _llmCalls: [
+            {
+              requestPayload,
+              responsePayload: null,
+              durationMs: Date.now() - callStartedAt,
+            },
+          ],
         },
         meta: {},
         port: 'error',
       };
     }
+
+    const llmCalls = [
+      {
+        requestPayload,
+        responsePayload: result,
+        durationMs: Date.now() - callStartedAt,
+      },
+    ];
 
     if (multiLabel) {
       return this.processMultiLabelResult(
@@ -113,6 +130,7 @@ export class TextClassifierHandler implements NodeHandler {
         categories,
         inputField,
         includeConfidence,
+        llmCalls,
       );
     }
     return this.processSingleLabelResult(
@@ -120,6 +138,7 @@ export class TextClassifierHandler implements NodeHandler {
       categories,
       inputField,
       includeConfidence,
+      llmCalls,
     );
   }
 
@@ -210,6 +229,11 @@ Respond ONLY with the JSON object, no additional text.`;
     categories: Category[],
     inputField: string,
     includeConfidence: boolean,
+    llmCalls: Array<{
+      requestPayload: unknown;
+      responsePayload: unknown;
+      durationMs: number;
+    }>,
   ) {
     const NONE = TextClassifierHandler.NONE_SENTINEL;
     let category = '';
@@ -244,12 +268,14 @@ Respond ONLY with the JSON object, no additional text.`;
         category: isFallback ? null : category,
         ...(includeConfidence ? { confidence } : {}),
         originalInput: inputField,
+        _llmCalls: llmCalls,
       },
       meta: {
         model: result.model,
         inputTokens: result.usage?.inputTokens ?? 0,
         outputTokens: result.usage?.outputTokens ?? 0,
         totalTokens: result.usage?.totalTokens ?? 0,
+        thinkingTokens: result.usage?.thinkingTokens,
       },
       port,
     };
@@ -260,6 +286,11 @@ Respond ONLY with the JSON object, no additional text.`;
     categories: Category[],
     inputField: string,
     includeConfidence: boolean,
+    llmCalls: Array<{
+      requestPayload: unknown;
+      responsePayload: unknown;
+      durationMs: number;
+    }>,
   ) {
     let matchedCategories: { name: string; confidence?: number }[] = [];
 
@@ -301,12 +332,14 @@ Respond ONLY with the JSON object, no additional text.`;
       output: {
         categories: matchedCategories,
         originalInput: inputField,
+        _llmCalls: llmCalls,
       },
       meta: {
         model: result.model,
         inputTokens: result.usage?.inputTokens ?? 0,
         outputTokens: result.usage?.outputTokens ?? 0,
         totalTokens: result.usage?.totalTokens ?? 0,
+        thinkingTokens: result.usage?.thinkingTokens,
       },
       port,
     };

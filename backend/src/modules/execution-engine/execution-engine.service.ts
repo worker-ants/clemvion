@@ -1440,6 +1440,11 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
         nodeExecutionId: nodeExec?.id,
         nodeOutput: {
           interactionType: 'ai_conversation',
+          ...(nodeOutput.config
+            ? {
+                config: nodeOutput.config as Record<string, unknown>,
+              }
+            : {}),
           conversationConfig: {
             ...initialConvConfig,
             messages: initialClientMessages,
@@ -1562,6 +1567,12 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
               nodeExecutionId: nodeExec?.id,
               nodeOutput: {
                 interactionType: 'ai_conversation',
+                // Pass through handler's echoed node config so the Config
+                // tab can render during the waiting state. Conversation
+                // handlers (AI Agent / Info Extractor multi-turn) add this.
+                ...(resultObj.config
+                  ? { config: resultObj.config as Record<string, unknown> }
+                  : {}),
                 conversationConfig: {
                   ...nextConvConfig,
                   messages: nextClientMessages,

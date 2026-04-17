@@ -342,6 +342,9 @@ function NodeResultsTab({
 }) {
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [nodeDetailTab, setNodeDetailTab] = useState<DetailTab>("preview");
+  // Tracks which conversation message (if any) the user drilled into via
+  // Preview. `null` = node-level view (whole conversation).
+  const [selectedMsgIndex, setSelectedMsgIndex] = useState<number | null>(null);
   // Tracks which waitingNodeId we've already auto-selected, so changes to the
   // waiting node (e.g. after resumption into a new waiting node) move the
   // selection once without fighting manual clicks.
@@ -542,12 +545,14 @@ function NodeResultsTab({
                   <ConversationInspector
                     result={selectedNodeResult}
                     conversationMessages={conversationMessages}
-                    selectedItemIndex={null}
+                    selectedItemIndex={selectedMsgIndex}
                     isLive={true}
                     isWaitingAiResponse={isWaitingAiResponse}
                     conversationConfig={waitingConversationConfig}
                     onSendMessage={handleSendMessage}
                     onEndConversation={handleEndConversation}
+                    onSelectMessage={setSelectedMsgIndex}
+                    onBackToConversation={() => setSelectedMsgIndex(null)}
                   />
                 ) : isWaitingForm && waitingFormConfig ? (
                   <DynamicFormUI
@@ -578,13 +583,14 @@ function NodeResultsTab({
                   <ConversationInspector
                     result={selectedNodeResult}
                     conversationMessages={parseHistoryMessages(selectedNode?.outputData)}
-                    selectedItemIndex={null}
+                    selectedItemIndex={selectedMsgIndex}
                     isLive={false}
                     isWaitingAiResponse={false}
                     conversationConfig={null}
                     onSendMessage={() => {}}
                     onEndConversation={() => {}}
-                    previewOnly
+                    onSelectMessage={setSelectedMsgIndex}
+                    onBackToConversation={() => setSelectedMsgIndex(null)}
                   />
                 ) : isPresentation ? (
                   <PresentationContent result={selectedNodeResult} previewOnly />

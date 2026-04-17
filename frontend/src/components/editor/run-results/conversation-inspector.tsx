@@ -6,7 +6,6 @@ import { Loader2, Send, Square, Wrench, ChevronRight, ChevronDown } from "lucide
 import { cn } from "@/lib/utils/cn";
 import type { ConversationItem, ToolCallInfo } from "@/lib/stores/execution-store";
 import type { NodeResult } from "@/lib/stores/execution-store";
-import { GenericRenderer } from "./renderers/generic-renderer";
 
 function ToolCallBadge({ toolCalls }: { toolCalls: ToolCallInfo[] }) {
   const [open, setOpen] = useState(false);
@@ -44,14 +43,30 @@ function ToolCallBadge({ toolCalls }: { toolCalls: ToolCallInfo[] }) {
 interface ConversationInspectorProps {
   result: NodeResult;
   conversationMessages: ConversationItem[];
+  /**
+   * Index into `conversationMessages` for the currently-selected message, or
+   * `null` when no message is selected (node-level view). Driven by the
+   * shared execution-store so timeline clicks and Preview clicks agree on a
+   * single source of truth.
+   */
   selectedItemIndex: number | null;
   isLive: boolean;
   isWaitingAiResponse: boolean;
   conversationConfig: unknown;
   onSendMessage: (message: string) => void;
   onEndConversation: () => void;
-  /** When true, hide the raw Output Data section in summary view */
-  previewOnly?: boolean;
+  /**
+   * Called when the user picks a message inside SummaryView. Parent relays
+   * this to the store's `selectConversationItem(index)`.
+   */
+  onSelectMessage?: (index: number) => void;
+  /**
+   * Called when the user clicks "← Back to conversation" in the selected
+   * message detail view. Parent relays this to `selectConversationItem(null)`
+   * so the entire surface (timeline highlight, detail tabs) returns to the
+   * node-level view.
+   */
+  onBackToConversation?: () => void;
 }
 
 export function ConversationInspector({
@@ -63,14 +78,12 @@ export function ConversationInspector({
   conversationConfig,
   onSendMessage,
   onEndConversation,
-  previewOnly = false,
+  onSelectMessage,
+  onBackToConversation,
 }: ConversationInspectorProps) {
-  const [internalSelectedIndex, setInternalSelectedIndex] = useState<number | null>(null);
-  const effectiveIndex = previewOnly ? internalSelectedIndex : selectedItemIndex;
-
   const selectedItem =
-    effectiveIndex != null
-      ? conversationMessages[effectiveIndex]
+    selectedItemIndex != null
+      ? conversationMessages[selectedItemIndex]
       : undefined;
 
   return (
@@ -78,11 +91,11 @@ export function ConversationInspector({
       <div className="flex-1 overflow-y-auto">
         {selectedItem ? (
           <div className="flex flex-col h-full">
-            {previewOnly && (
+            {onBackToConversation && (
               <button
                 type="button"
                 className="flex items-center gap-1 px-3 pt-2 pb-1 text-xs text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))] transition-colors"
-                onClick={() => setInternalSelectedIndex(null)}
+                onClick={onBackToConversation}
               >
                 ← Back to conversation
               </button>
@@ -99,8 +112,7 @@ export function ConversationInspector({
               conversationConfig={conversationConfig}
               isLive={isLive}
               conversationMessages={conversationMessages}
-              previewOnly={previewOnly}
-              onSelectItem={previewOnly ? setInternalSelectedIndex : undefined}
+              onSelectItem={onSelectMessage}
             />
           </div>
         )}
@@ -117,84 +129,23 @@ export function ConversationInspector({
   );
 }
 
-function formatDuration(ms: number): string {
-  return ms < 1000 ? `${ms}ms` : `${(ms / 1000).toFixed(2)}s`;
-}
-
-// ── Tab definitions ──
-
-type AssistantTabId = "preview" | "response" | "request" | "usage";
-
-const ASSISTANT_TABS: { id: AssistantTabId; label: string }[] = [
-  { id: "preview", label: "Preview" },
-  { id: "response", label: "Response" },
-  { id: "request", label: "Request" },
-  { id: "usage", label: "Usage" },
-];
-
-function TabBar<T extends string>({
-  tabs,
-  active,
-  onChange,
-}: {
-  tabs: { id: T; label: string }[];
-  active: T;
-  onChange: (id: T) => void;
-}) {
-  return (
-    <div className="flex border-b border-[hsl(var(--border))] px-3 pt-2">
-      {tabs.map((tab) => (
-        <button
-          key={tab.id}
-          type="button"
-          onClick={() => onChange(tab.id)}
-          className={cn(
-            "px-3 py-1.5 text-xs font-medium transition-colors border-b-2 -mb-px",
-            active === tab.id
-              ? "border-[hsl(var(--primary))] text-[hsl(var(--foreground))]"
-              : "border-transparent text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]",
-          )}
-        >
-          {tab.label}
-        </button>
-      ))}
-    </div>
-  );
-}
-
-// ── Selected item detail (tabbed for assistant) ──
+// ── Selected item detail ──
+//
+// Raw Response / Request / Usage live in the top-level "LLM Information"
+// tab (see `llm-information-tab.tsx`). Preview here stays focused on the
+// conversation content for the selected message.
 
 function SelectedItemDetail({ item }: { item: ConversationItem }) {
-  // Key prop on the parent forces remount when item changes, resetting activeTab
-  const [activeTab, setActiveTab] = useState<AssistantTabId>("preview");
-
   if (item.type === "tool") {
     return <ToolDetail item={item} />;
   }
-
   if (item.type === "user") {
     return <UserDetail item={item} />;
   }
 
-  return (
-    <div className="flex flex-col h-full">
-      <TabBar tabs={ASSISTANT_TABS} active={activeTab} onChange={setActiveTab} />
-      <div className="flex-1 overflow-y-auto p-3">
-        {activeTab === "preview" && <PreviewTab item={item} />}
-        {activeTab === "response" && <ResponseTab item={item} />}
-        {activeTab === "request" && <RequestTab item={item} />}
-        {activeTab === "usage" && <UsageTab item={item} />}
-      </div>
-    </div>
-  );
-}
-
-// ── Assistant tabs ──
-
-function PreviewTab({ item }: { item: ConversationItem }) {
   const hasToolCalls = !!item.assistantToolCalls?.length;
   return (
-    <div className="flex flex-col gap-3">
+    <div className="flex flex-col gap-3 p-3">
       <div className="flex items-center gap-2">
         <span>🤖</span>
         <span className="text-xs font-medium text-[hsl(var(--muted-foreground))]">
@@ -209,104 +160,10 @@ function PreviewTab({ item }: { item: ConversationItem }) {
       {hasToolCalls && (
         <ToolCallBadge toolCalls={item.assistantToolCalls!} />
       )}
-    </div>
-  );
-}
-
-function ResponseTab({ item }: { item: ConversationItem }) {
-  return (
-    <div className="flex flex-col gap-3">
-      <div className="flex items-center gap-2 text-xs text-[hsl(var(--muted-foreground))]">
-        <span className="font-medium">Raw Response — Turn {item.turnIndex}</span>
-        {item.durationMs != null && (
-          <span className="ml-auto font-mono">
-            {formatDuration(item.durationMs)}
-          </span>
-        )}
-      </div>
-      {item.responsePayload != null ? (
-        <pre className="rounded bg-[hsl(var(--muted))] p-2 text-xs overflow-x-auto max-h-[60vh] overflow-y-auto">
-          {JSON.stringify(item.responsePayload, null, 2)}
-        </pre>
-      ) : (
-        <div className="text-xs text-[hsl(var(--muted-foreground))]">
-          No response payload available
-        </div>
-      )}
-    </div>
-  );
-}
-
-function RequestTab({ item }: { item: ConversationItem }) {
-  return (
-    <div className="flex flex-col gap-3">
-      <div className="text-xs font-medium text-[hsl(var(--muted-foreground))]">
-        Request Payload — Turn {item.turnIndex}
-      </div>
-      {item.requestPayload != null ? (
-        <pre className="rounded bg-[hsl(var(--muted))] p-2 text-xs overflow-x-auto max-h-[60vh] overflow-y-auto">
-          {JSON.stringify(item.requestPayload, null, 2)}
-        </pre>
-      ) : (
-        <div className="text-xs text-[hsl(var(--muted-foreground))]">
-          No request payload available
-        </div>
-      )}
-    </div>
-  );
-}
-
-function UsageTab({ item }: { item: ConversationItem }) {
-  const meta = item.metadata;
-
-  return (
-    <div className="flex flex-col gap-3">
-      <div className="text-xs font-medium text-[hsl(var(--muted-foreground))]">
-        Turn {item.turnIndex} Usage
-      </div>
-      <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-xs">
-        {meta?.model && (
-          <>
-            <div className="text-[hsl(var(--muted-foreground))]">Model</div>
-            <div className="font-mono">{meta.model}</div>
-          </>
-        )}
-        <div className="text-[hsl(var(--muted-foreground))]">Input Tokens</div>
-        <div className="font-mono">{meta?.inputTokens ?? 0}</div>
-        <div className="text-[hsl(var(--muted-foreground))]">Output Tokens</div>
-        <div className="font-mono">{meta?.outputTokens ?? 0}</div>
-        <div className="text-[hsl(var(--muted-foreground))]">Total Tokens</div>
-        <div className="font-mono">
-          {(meta?.inputTokens ?? 0) + (meta?.outputTokens ?? 0)}
-        </div>
-        {item.durationMs != null && (
-          <>
-            <div className="text-[hsl(var(--muted-foreground))]">Latency</div>
-            <div className="font-mono">
-              {item.durationMs < 1000
-                ? `${item.durationMs}ms`
-                : `${(item.durationMs / 1000).toFixed(2)}s`}
-            </div>
-          </>
-        )}
-        {(meta?.toolCalls ?? 0) > 0 && (
-          <>
-            <div className="text-[hsl(var(--muted-foreground))]">Tool Calls</div>
-            <div className="font-mono">{meta?.toolCalls}</div>
-          </>
-        )}
-        {(meta?.ragChunks ?? 0) > 0 && (
-          <>
-            <div className="text-[hsl(var(--muted-foreground))]">RAG Chunks</div>
-            <div className="font-mono">{meta?.ragChunks}</div>
-          </>
-        )}
-      </div>
-      {item.timestamp && (
-        <div className="text-[10px] text-[hsl(var(--muted-foreground))]">
-          {new Date(item.timestamp).toLocaleString()}
-        </div>
-      )}
+      <p className="text-[10px] italic text-[hsl(var(--muted-foreground))]">
+        원문 요청 / 응답 / 사용량은 &ldquo;LLM Information&rdquo; 탭에서
+        확인할 수 있습니다.
+      </p>
     </div>
   );
 }
@@ -374,14 +231,12 @@ function SummaryView({
   conversationConfig,
   isLive,
   conversationMessages,
-  previewOnly = false,
   onSelectItem,
 }: {
   result: NodeResult;
   conversationConfig: unknown;
   isLive: boolean;
   conversationMessages: ConversationItem[];
-  previewOnly?: boolean;
   onSelectItem?: (index: number) => void;
 }) {
   const config = conversationConfig as Record<string, unknown> | null;
@@ -462,31 +317,6 @@ function SummaryView({
         </div>
       )}
 
-      {/* History mode: metadata + raw output */}
-      {!isLive && output && (
-        <>
-          {output.metadata && (
-            <div className="grid grid-cols-2 gap-2 text-xs border-t border-[hsl(var(--border))] pt-3">
-              <div className="text-[hsl(var(--muted-foreground))]">Model</div>
-              <div>
-                {(output.metadata as Record<string, unknown>).model as string}
-              </div>
-              <div className="text-[hsl(var(--muted-foreground))]">Tokens</div>
-              <div>
-                {(output.metadata as Record<string, unknown>).totalTokens as number}
-              </div>
-            </div>
-          )}
-          {!previewOnly && (
-            <div>
-              <div className="mb-1 text-xs font-medium text-[hsl(var(--muted-foreground))]">
-                Output Data
-              </div>
-              <GenericRenderer result={result} />
-            </div>
-          )}
-        </>
-      )}
     </div>
   );
 }

@@ -547,6 +547,7 @@ LLM을 사용하여 비정형 텍스트에서 구조화된 정보 추출.
 | instructions | String? | 추가 추출 지시사항 |
 | mode | Enum | `single_turn` (기본) / `multi_turn` |
 | maxTurns | Number? | `multi_turn`에서 최대 대화 턴 수. 0 = 제한 없음 (기본 10) |
+| maxCollectionRetries | Number? | `multi_turn`에서 LLM이 `_missingFields: []`로 완료를 보고했지만 실제로 필수 필드가 비어 있을 때 재리포트를 요청하는 최대 횟수. 0 = 무제한 (기본 3). 초과 시 `error` 포트로 라우팅. "Retry Settings" 섹션에서 설정 |
 
 > `multi_turn` 모드에서 사용자 응답은 무제한 대기합니다. (외부 cancel 외에는 타임아웃이 발생하지 않습니다.)
 
@@ -602,9 +603,15 @@ LLM을 사용하여 비정형 텍스트에서 구조화된 정보 추출.
 
 ### 포트
 - 입력: `in` (1개)
-- 출력:
-  - `out` (정적) — 정상 완료 시 (데이터 타입)
-  - `error` (정적) — LLM API 오류, 타임아웃, 재시도 소진 시 (에러 타입)
+- 출력 (모드별 동적):
+  - **single_turn**:
+    - `out` (정적) — 정상 완료 시 (데이터 타입)
+    - `error` (정적) — LLM API 오류, JSON 파싱 재시도 소진 시 (에러 타입)
+  - **multi_turn**:
+    - `completed` — 모든 필수 필드가 수집되어 자연 완료 (데이터 타입)
+    - `user_ended` — 사용자가 대화 종료 (데이터 타입)
+    - `max_turns` — `maxTurns` 도달 (데이터 타입)
+    - `error` — LLM API 오류, 또는 `maxCollectionRetries` 초과 (`endReason: 'max_retries'`) (에러 타입)
 
 ### 실행 로직
 
@@ -619,16 +626,21 @@ LLM을 사용하여 비정형 텍스트에서 구조화된 정보 추출.
 **Multi Turn**
 1. `inputField`가 비어있으면 LLM을 호출하지 않고 system prompt만 준비한 뒤 바로 사용자 입력을 대기(`turnCount: 0`). 값이 있으면 그 값을 첫 user 메시지로 LLM에 전달한다. 설정 UI는 `multi_turn`일 때 Input Field 항목을 숨겨 이 UX를 강제한다.
 2. LLM은 확장된 JSON 스키마로 응답하며 다음 필드를 포함:
-   - 스키마에 정의된 모든 추출 필드
+   - 스키마에 정의된 모든 추출 필드 (매 턴 누적 값을 반복 포함해야 함)
    - `_missingFields: string[]` — 아직 채워지지 않은 required 필드 이름
    - `_followUpQuestion: string` — 사용자에게 물어볼 자연어 질문 (모두 채워지면 빈 문자열)
 3. 응답을 파싱하여 `partialResult`에 누적. LLM이 `null`을 반환한 필드는 기존 값을 보존.
-4. 종료 조건 평가:
-   - 모든 `required: true` 필드가 채워졌으면 → 최종 결과 반환 (`endReason: 'completed'`).
-   - `turnCount >= maxTurns` (0이 아닐 때) → partial 결과 반환 (`endReason: 'max_turns'`).
-   - 사용자가 대화 종료 → partial 결과 반환 (`endReason: 'user_ended'`).
-5. 종료 조건을 만족하지 않으면 `interactionType: 'ai_conversation'`으로 `waiting_for_input` 반환. 사용자의 응답을 받아 다음 턴을 진행.
-6. 프론트엔드는 AI Agent multi-turn과 동일한 `ConversationInspector` UI로 대화를 렌더.
+4. **재수집 판정**: `_missingFields=[]`로 완료가 보고되었지만 실제 `partialResult`에 required 필드가 비어 있는 경우:
+   - `collectionRetryCount`를 1 증가시키고 **assistant role**의 "Self-check" 독촉 메시지를 대화 스레드에 append
+   - 동일 턴 내에서 LLM을 다시 호출 (재시도 루프). 각 iteration은 `_turnDebugHistory`의 `llmCalls` 배열에 누적
+   - `maxCollectionRetries`(0 제외)를 초과하면 `endReason: 'max_retries'`로 **error 포트**로 라우팅
+5. 종료 조건 평가:
+   - 모든 `required: true` 필드가 채워졌으면 → `completed` 포트로 라우팅 (`endReason: 'completed'`).
+   - `turnCount >= maxTurns` (0이 아닐 때) → `max_turns` 포트로 라우팅 (`endReason: 'max_turns'`).
+   - 사용자가 대화 종료 → `user_ended` 포트로 라우팅 (`endReason: 'user_ended'`).
+   - 재수집 한도 초과 → `error` 포트로 라우팅 (`endReason: 'max_retries'`).
+6. 종료 조건을 만족하지 않으면 `interactionType: 'ai_conversation'`으로 `waiting_for_input` 반환. `conversationConfig`에 현재 `partialResult` 사본 (`extracted`), `missingFields`, `collectionRetryCount`, `maxCollectionRetries`를 포함해 UI가 실시간으로 수집 상태를 표시할 수 있도록 한다. 사용자의 응답을 받아 다음 턴을 진행.
+7. 프론트엔드는 AI Agent multi-turn과 동일한 `ConversationInspector` UI로 대화를 렌더하고, Output 탭에서 `ExtractedFieldsCard`로 수집된 필드를 구조화해 보여준다.
 
 ### 출력 구조
 

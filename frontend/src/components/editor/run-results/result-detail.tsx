@@ -16,7 +16,16 @@ import type {
 import { useExecutionInteractionCommands } from "@/lib/websocket/use-execution-interaction-commands";
 import { PresentationContent, JsonContent } from "./renderers/presentation-renderers";
 import { GenericRenderer } from "./renderers/generic-renderer";
-import { unwrapNodeOutput, isConversationOutput } from "./output-shape";
+import {
+  unwrapNodeOutput,
+  isConversationOutput,
+  extractAiMetadata,
+  extractIeSnapshot,
+  AI_META_KEYS_IN_GRID,
+  type AiMetadata,
+} from "./output-shape";
+import { ExtractedFieldsCard } from "./extracted-fields-card";
+import { LlmInformationTab } from "./llm-information-tab";
 import { DynamicFormUI } from "./dynamic-form-ui";
 import { ButtonBar } from "./button-bar";
 import { ConversationInspector } from "./conversation-inspector";
@@ -81,7 +90,25 @@ function StatusBadge({ status }: { status: string }) {
   }
 }
 
-type DetailTab = "preview" | "input" | "output" | "config" | "error";
+type DetailTab =
+  | "preview"
+  | "input"
+  | "output"
+  | "llm_usage"
+  | "response"
+  | "request"
+  | "config"
+  | "error";
+
+const AI_NODE_TYPES = new Set([
+  "ai_agent",
+  "information_extractor",
+  "text_classifier",
+]);
+
+function isAiNode(nodeType: string): boolean {
+  return AI_NODE_TYPES.has(nodeType);
+}
 
 interface NodeDetailTabsProps {
   result: NodeResult;
@@ -89,13 +116,63 @@ interface NodeDetailTabsProps {
   previewContent?: React.ReactNode;
   /** Whether to show the preview tab. Defaults to: presentation node with outputData, or previewContent provided. */
   hasPreview?: boolean;
+  /**
+   * Currently-selected conversation message (from store) — drives the
+   * "message-level" view where only a reduced set of tabs applies:
+   *   - user / tool → Preview only
+   *   - assistant → Preview + Response + Request + LLM Usage
+   * When `null` we render the node-level view (all tabs, incl. LLM Usage).
+   */
+  selectedMessage?: ConversationItem | null;
+  /**
+   * Conversation items to feed `LlmInformationTab` as a fallback for live
+   * waiting sessions (where outputData lacks `_turnDebugHistory`).
+   */
+  conversationMessages?: ConversationItem[];
 }
 
-function NodeDetailTabs({ result, previewContent, hasPreview }: NodeDetailTabsProps) {
+function NodeDetailTabs({
+  result,
+  previewContent,
+  hasPreview,
+  selectedMessage,
+  conversationMessages,
+}: NodeDetailTabsProps) {
   const isPresentation = result.nodeCategory === "presentation";
   const showPreview = hasPreview ?? (isPresentation && !!result.outputData);
+  const aiNode = isAiNode(result.nodeType);
+  const messageLevel = selectedMessage != null;
+  const isAssistantSelected =
+    messageLevel && selectedMessage?.type === "assistant";
 
   const unwrapped = unwrapNodeOutput(result.outputData);
+
+  // Tab visibility:
+  //   - Preview is always available when hasPreview (works for both levels).
+  //   - Input / Output / Config are node-level concepts — hidden for
+  //     message-level selections.
+  //   - Response / Request: flattened single-call panes; only when an
+  //     assistant message is selected (user / tool messages have no LLM call).
+  //   - LLM Usage: node-level aggregate for AI nodes, plus per-call usage
+  //     when an assistant message is selected.
+  //   - Error: only when result.error is set — node-level only.
+  const detailTabs: { id: DetailTab; label: string; show: boolean }[] = [
+    { id: "preview", label: "Preview", show: showPreview },
+    { id: "input", label: "Input", show: !messageLevel },
+    { id: "output", label: "Output", show: !messageLevel },
+    { id: "response", label: "Response", show: aiNode && isAssistantSelected },
+    { id: "request", label: "Request", show: aiNode && isAssistantSelected },
+    {
+      id: "llm_usage",
+      label: "LLM Usage",
+      show: aiNode && (!messageLevel || isAssistantSelected),
+    },
+    { id: "config", label: "Config", show: !messageLevel },
+    { id: "error", label: "Error", show: !messageLevel && !!result.error },
+  ];
+  const visibleIds = new Set(
+    detailTabs.filter((t) => t.show).map((t) => t.id),
+  );
 
   const defaultTab: DetailTab = result.error
     ? "error"
@@ -104,14 +181,30 @@ function NodeDetailTabs({ result, previewContent, hasPreview }: NodeDetailTabsPr
       : "output";
 
   const [activeTab, setActiveTab] = useState<DetailTab>(defaultTab);
+  // If the active tab disappears (e.g. user clicks a message and Output
+  // hides), fall back to Preview so the pane isn't blank.
+  const effectiveActiveTab = visibleIds.has(activeTab)
+    ? activeTab
+    : showPreview
+      ? "preview"
+      : (detailTabs.find((t) => t.show)?.id ?? activeTab);
 
-  const detailTabs: { id: DetailTab; label: string; show: boolean }[] = [
-    { id: "preview", label: "Preview", show: showPreview },
-    { id: "input", label: "Input", show: true },
-    { id: "output", label: "Output", show: true },
-    { id: "config", label: "Config", show: true },
-    { id: "error", label: "Error", show: !!result.error },
-  ];
+  // Lifted call-selector state — keeps the chosen call in sync across
+  // Response ↔ Request ↔ LLM Usage tab switches (each mounts/unmounts
+  // LlmInformationTab, so internal state would otherwise reset). Resets to
+  // 0 when the selected assistant message changes via the "adjusting state
+  // while rendering" pattern (avoids a setState-in-effect cascade).
+  const selectedTurnIndex = isAssistantSelected
+    ? selectedMessage!.turnIndex
+    : null;
+  const [callTurnKey, setCallTurnKey] = useState<number | null>(
+    selectedTurnIndex,
+  );
+  const [selectedCallIndex, setSelectedCallIndex] = useState(0);
+  if (selectedTurnIndex !== callTurnKey) {
+    setCallTurnKey(selectedTurnIndex);
+    setSelectedCallIndex(0);
+  }
 
   return (
     <>
@@ -125,7 +218,7 @@ function NodeDetailTabs({ result, previewContent, hasPreview }: NodeDetailTabsPr
               type="button"
               className={cn(
                 "py-1.5 text-xs font-medium transition-colors",
-                activeTab === t.id
+                effectiveActiveTab === t.id
                   ? "border-b-2 border-[hsl(var(--primary))] text-[hsl(var(--foreground))]"
                   : "text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]",
               )}
@@ -137,21 +230,70 @@ function NodeDetailTabs({ result, previewContent, hasPreview }: NodeDetailTabsPr
       </div>
       {/* Tab content */}
       <div className="flex-1 overflow-y-auto p-3">
-        {activeTab === "preview" && (
+        {effectiveActiveTab === "preview" && (
           previewContent ?? (isPresentation && <PresentationContent result={result} previewOnly />)
         )}
-        {activeTab === "input" && (
+        {effectiveActiveTab === "input" && (
           result.inputData != null
             ? <JsonContent data={result.inputData} />
             : <span className="text-xs text-[hsl(var(--muted-foreground))]">Loading input data...</span>
         )}
-        {activeTab === "output" && (
-          <OutputTabContent unwrapped={unwrapped} />
+        {effectiveActiveTab === "output" && (
+          <OutputTabContent
+            unwrapped={unwrapped}
+            aiMetadata={extractAiMetadata(result.outputData)}
+            ieSnapshot={extractIeSnapshot(result.outputData)}
+          />
         )}
-        {activeTab === "config" && (
+        {effectiveActiveTab === "response" && isAssistantSelected && (
+          <LlmInformationTab
+            key={`msg-${selectedMessage!.turnIndex}`}
+            result={result}
+            mode="single-call"
+            targetTurnIndex={selectedMessage!.turnIndex}
+            conversationMessages={conversationMessages}
+            forcedSubTab="response"
+            selectedCallIndex={selectedCallIndex}
+            onSelectCallIndex={setSelectedCallIndex}
+          />
+        )}
+        {effectiveActiveTab === "request" && isAssistantSelected && (
+          <LlmInformationTab
+            key={`msg-${selectedMessage!.turnIndex}`}
+            result={result}
+            mode="single-call"
+            targetTurnIndex={selectedMessage!.turnIndex}
+            conversationMessages={conversationMessages}
+            forcedSubTab="request"
+            selectedCallIndex={selectedCallIndex}
+            onSelectCallIndex={setSelectedCallIndex}
+          />
+        )}
+        {effectiveActiveTab === "llm_usage" && (
+          isAssistantSelected ? (
+            <LlmInformationTab
+              key={`msg-${selectedMessage!.turnIndex}`}
+              result={result}
+              mode="single-call"
+              targetTurnIndex={selectedMessage!.turnIndex}
+              conversationMessages={conversationMessages}
+              forcedSubTab="usage"
+              selectedCallIndex={selectedCallIndex}
+              onSelectCallIndex={setSelectedCallIndex}
+            />
+          ) : (
+            <LlmInformationTab
+              key="aggregate"
+              result={result}
+              mode="aggregate"
+              conversationMessages={conversationMessages}
+            />
+          )
+        )}
+        {effectiveActiveTab === "config" && (
           <ConfigTabContent unwrapped={unwrapped} />
         )}
-        {activeTab === "error" && (
+        {effectiveActiveTab === "error" && (
           <JsonContent data={result.error} />
         )}
       </div>
@@ -161,12 +303,18 @@ function NodeDetailTabs({ result, previewContent, hasPreview }: NodeDetailTabsPr
 
 /**
  * Output tab — shows the actual produced value. Surfaces `meta`, `port`,
- * and `status` as small header pills when present.
+ * and `status` as small header pills when present. For AI nodes (AI Agent,
+ * Text Classifier, Information Extractor), also renders a 2-column metadata
+ * grid at the top with Model / Tokens / Turn Count / Tool Calls.
  */
 function OutputTabContent({
   unwrapped,
+  aiMetadata,
+  ieSnapshot,
 }: {
   unwrapped: ReturnType<typeof unwrapNodeOutput>;
+  aiMetadata: AiMetadata | null;
+  ieSnapshot: ReturnType<typeof extractIeSnapshot>;
 }) {
   const pills: Array<{ key: string; value: string }> = [];
   if (unwrapped.port) pills.push({ key: "port", value: unwrapped.port });
@@ -174,6 +322,9 @@ function OutputTabContent({
   if (unwrapped.meta) {
     for (const [k, v] of Object.entries(unwrapped.meta)) {
       if (v === null || v === undefined) continue;
+      // When the AI metadata grid is rendered, skip fields it already shows
+      // so the same number doesn't appear twice in different visual styles.
+      if (aiMetadata && AI_META_KEYS_IN_GRID.has(k)) continue;
       pills.push({
         key: k,
         value: typeof v === "object" ? JSON.stringify(v) : String(v),
@@ -183,6 +334,14 @@ function OutputTabContent({
 
   return (
     <div className="space-y-3">
+      {aiMetadata && <AiMetadataGrid meta={aiMetadata} />}
+      {ieSnapshot && (
+        <ExtractedFieldsCard
+          fields={ieSnapshot.fields}
+          schema={ieSnapshot.schema}
+          retryInfo={ieSnapshot.retry}
+        />
+      )}
       {pills.length > 0 && (
         <div className="flex flex-wrap gap-1.5">
           {pills.map((p) => (
@@ -204,6 +363,49 @@ function OutputTabContent({
           Legacy output shape — config/meta not separately recorded.
         </p>
       )}
+    </div>
+  );
+}
+
+/**
+ * 2-column label-value grid of canonical AI metadata. Hides rows whose value
+ * is missing and is only optional for that node type (turnCount / toolCalls),
+ * so Text Classifier's grid stays compact.
+ */
+function AiMetadataGrid({ meta }: { meta: AiMetadata }) {
+  const rows: Array<{ label: string; value: string }> = [];
+  rows.push({ label: "Model", value: meta.model ?? "-" });
+  rows.push({
+    label: "Total Tokens",
+    value: meta.totalTokens != null ? String(meta.totalTokens) : "-",
+  });
+  rows.push({
+    label: "Request Tokens",
+    value: meta.requestTokens != null ? String(meta.requestTokens) : "-",
+  });
+  rows.push({
+    label: "Response Tokens",
+    value: meta.responseTokens != null ? String(meta.responseTokens) : "-",
+  });
+  rows.push({
+    label: "Thinking Tokens",
+    value: meta.thinkingTokens != null ? String(meta.thinkingTokens) : "-",
+  });
+  if (meta.turnCount != null) {
+    rows.push({ label: "Turn Count", value: String(meta.turnCount) });
+  }
+  if (meta.toolCalls != null) {
+    rows.push({ label: "Tool Calls", value: String(meta.toolCalls) });
+  }
+
+  return (
+    <div className="grid grid-cols-2 gap-2 text-xs">
+      {rows.map((r) => (
+        <div key={r.label} className="contents">
+          <div className="text-[hsl(var(--muted-foreground))]">{r.label}</div>
+          <div className="text-[hsl(var(--foreground))]">{r.value}</div>
+        </div>
+      ))}
     </div>
   );
 }
@@ -245,6 +447,13 @@ interface ResultDetailProps {
   onFormSubmit: () => void;
   onButtonClick: () => void;
   onConversationEnd: () => void;
+  /**
+   * Dispatches a change to the shared conversation-item selection. Called
+   * when the user clicks a message inside the Preview-tab conversation or
+   * hits "← Back to conversation". The drawer wires this to the execution
+   * store's `selectConversationItem` so timeline and detail stay in sync.
+   */
+  onSelectConversationItem?: (index: number | null) => void;
 }
 
 export function ResultDetail({
@@ -262,8 +471,18 @@ export function ResultDetail({
   onFormSubmit,
   onButtonClick,
   onConversationEnd,
+  onSelectConversationItem,
 }: ResultDetailProps) {
   const commands = useExecutionInteractionCommands(executionId);
+
+  const handleSelectMessage = useCallback(
+    (index: number) => onSelectConversationItem?.(index),
+    [onSelectConversationItem],
+  );
+  const handleBackToConversation = useCallback(
+    () => onSelectConversationItem?.(null),
+    [onSelectConversationItem],
+  );
 
   const handleFormSubmit = useCallback(
     (data: Record<string, unknown>) => {
@@ -334,6 +553,13 @@ export function ResultDetail({
     result.status === "failed" ||
     result.status === "waiting_for_input";
 
+  const historyMessages = isCompletedConversation
+    ? parseHistoryMessages(result.outputData)
+    : [];
+  const effectiveConversationMessages = isWaitingConversation
+    ? conversationMessages
+    : historyMessages;
+
   const conversationPreview = isWaitingConversation ? (
     <ConversationInspector
       result={result}
@@ -344,19 +570,28 @@ export function ResultDetail({
       conversationConfig={conversationConfig}
       onSendMessage={handleSendMessage}
       onEndConversation={handleEndConversation}
+      onSelectMessage={handleSelectMessage}
+      onBackToConversation={handleBackToConversation}
     />
   ) : isCompletedConversation ? (
     <ConversationInspector
       result={result}
-      conversationMessages={parseHistoryMessages(result.outputData)}
+      conversationMessages={historyMessages}
       selectedItemIndex={selectedConversationItemIndex}
       isLive={false}
       isWaitingAiResponse={false}
       conversationConfig={null}
       onSendMessage={() => {}}
       onEndConversation={() => {}}
+      onSelectMessage={handleSelectMessage}
+      onBackToConversation={handleBackToConversation}
     />
   ) : null;
+
+  const selectedMessage =
+    isConversationNode && selectedConversationItemIndex != null
+      ? (effectiveConversationMessages[selectedConversationItemIndex] ?? null)
+      : null;
 
   const formPreview =
     isWaitingForm && formConfig ? (
@@ -429,6 +664,8 @@ export function ResultDetail({
             result={result}
             hasPreview={hasPreview}
             previewContent={previewContent}
+            selectedMessage={selectedMessage}
+            conversationMessages={effectiveConversationMessages}
           />
         ) : (
           <div className="h-full overflow-y-auto p-3">
