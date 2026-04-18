@@ -50,7 +50,7 @@ export type UiHint = {
   visibleWhen?:
     | { field: string; equals: unknown }
     | { field: string; notEquals: unknown }
-    | { field: string; oneOf: unknown[] };
+    | { field: string; oneOf: readonly unknown[] };
   options?: { value: string; label: string }[];
   language?: string;
   itemLabel?: string;

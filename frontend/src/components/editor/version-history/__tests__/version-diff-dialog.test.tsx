@@ -62,7 +62,13 @@ describe("VersionDiffDialog", () => {
     vi.mocked(workflowsApi.getVersion).mockImplementation(
       async (_wf: string, vid: string) => {
         const n = vid === "v-1" ? 1 : 2;
-        return { data: { data: makeVersion(n, n === 1 ? "Old" : "New") } };
+        return {
+          data: { data: makeVersion(n, n === 1 ? "Old" : "New") },
+          status: 200,
+          statusText: "OK",
+          headers: {},
+          config: {} as never,
+        };
       },
     );
 
