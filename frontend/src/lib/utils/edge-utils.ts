@@ -98,26 +98,30 @@ export function getConnectedEdgeIds(nodeId: string, edges: Edge[]): Set<string> 
  * a `Couldn't create edge for source handle id: "..."` warning for each such
  * edge, and the edge is rendered as a disconnected stub.
  *
+ * Returns both the kept edges and the ones dropped — callers can surface the
+ * drop to the user (e.g. a toast) so the implicit deletion isn't silent.
+ *
  * Called at load time, before edges enter the store.
  */
-export function dropStaleEdges(edges: Edge[], nodes: Node[]): Edge[] {
+export function dropStaleEdges(
+  edges: Edge[],
+  nodes: Node[],
+): { edges: Edge[]; dropped: Edge[] } {
   const nodeMap = new Map<string, Node>();
   for (const n of nodes) nodeMap.set(n.id, n);
 
-  const outputsByNode = new Map<string, Set<string>>();
-  const inputsByNode = new Map<string, Set<string>>();
+  // `null` means "definition not available — skip validation". This keeps
+  // permissive behaviour distinct from "this node has zero valid ports".
+  const outputsByNode = new Map<string, Set<string> | null>();
+  const inputsByNode = new Map<string, Set<string> | null>();
 
-  function validOutputs(node: Node): Set<string> {
-    const cached = outputsByNode.get(node.id);
-    if (cached) return cached;
+  function validOutputs(node: Node): Set<string> | null {
+    if (outputsByNode.has(node.id)) return outputsByNode.get(node.id) ?? null;
     const data = node.data as { type?: string; config?: Record<string, unknown> };
     const def = data.type ? getNodeDefinition(data.type) : undefined;
     if (!def) {
-      // Unknown node type — can't validate; be permissive so we don't drop
-      // legitimate edges on a stale `nodeDefinitions` cache.
-      const wildcard = new Set<string>();
-      outputsByNode.set(node.id, wildcard);
-      return wildcard;
+      outputsByNode.set(node.id, null);
+      return null;
     }
     const ports = resolveDynamicPorts(data.type ?? "", data.config ?? {}, def);
     const set = new Set(ports.map((p) => p.id));
@@ -125,39 +129,44 @@ export function dropStaleEdges(edges: Edge[], nodes: Node[]): Edge[] {
     return set;
   }
 
-  function validInputs(node: Node): Set<string> {
-    const cached = inputsByNode.get(node.id);
-    if (cached) return cached;
+  function validInputs(node: Node): Set<string> | null {
+    if (inputsByNode.has(node.id)) return inputsByNode.get(node.id) ?? null;
     const data = node.data as { type?: string };
     const def = data.type ? getNodeDefinition(data.type) : undefined;
     if (!def) {
-      const wildcard = new Set<string>();
-      inputsByNode.set(node.id, wildcard);
-      return wildcard;
+      inputsByNode.set(node.id, null);
+      return null;
     }
     const set = new Set(def.inputs.map((p) => p.id));
     inputsByNode.set(node.id, set);
     return set;
   }
 
-  return edges.filter((edge) => {
+  const kept: Edge[] = [];
+  const dropped: Edge[] = [];
+  for (const edge of edges) {
     const source = nodeMap.get(edge.source);
     const target = nodeMap.get(edge.target);
-    if (!source || !target) return false;
+    if (!source || !target) {
+      dropped.push(edge);
+      continue;
+    }
 
-    // Unknown definition → permissive wildcard (empty set). Skip validation.
     const sourceOutputs = validOutputs(source);
-    if (sourceOutputs.size > 0 && edge.sourceHandle) {
-      if (!sourceOutputs.has(edge.sourceHandle)) return false;
+    if (sourceOutputs && edge.sourceHandle && !sourceOutputs.has(edge.sourceHandle)) {
+      dropped.push(edge);
+      continue;
     }
 
     const targetInputs = validInputs(target);
-    if (targetInputs.size > 0 && edge.targetHandle) {
-      if (!targetInputs.has(edge.targetHandle)) return false;
+    if (targetInputs && edge.targetHandle && !targetInputs.has(edge.targetHandle)) {
+      dropped.push(edge);
+      continue;
     }
 
-    return true;
-  });
+    kept.push(edge);
+  }
+  return { edges: kept, dropped };
 }
 
 /**

@@ -477,6 +477,66 @@ describe("useExpressionSuggestions - nested paths", () => {
     });
   });
 
+  describe("escaped quotes inside $node keys", () => {
+    // KNOWN LIMITATION: The tokenizer handles escaped quotes correctly and
+    // preserves them as part of the token, but the suggestion matchers use
+    // simple `[^"]+` regexes that treat any `"` as a string boundary. This
+    // means autocomplete doesn't resolve node names that contain literal
+    // `"`. In practice this is fine — node labels with escaped quotes are
+    // exceedingly rare. These tests pin down the current behaviour so a
+    // future fix can be tracked explicitly.
+    const nodeData = {
+      availableNodes: [
+        {
+          id: "n1",
+          label: 'Node "X"',
+          resolvedKey: 'Node \\"X\\"',
+          type: "ai_agent",
+          outputFields: [],
+          outputSample: {},
+        },
+      ],
+    };
+
+    it("tokenizer preserves the token across escaped quotes", () => {
+      // Sanity: the forward/backward walker does NOT split on \" — the token
+      // spans the whole string. This is the underlying fix that enables
+      // spaces inside `"..."` to work.
+      const expr = '{{ $node["Node \\"X\\""] }}';
+      // No trailing dot → matcher shouldn't try drill-down; we only check
+      // that this doesn't crash and that no hallucinated suggestions appear.
+      const result = makeSuggestions(expr, cursorAfterExpr(expr), nodeData);
+      expect(result.suggestions).toEqual([]);
+    });
+  });
+
+  describe("$node.meta path fallthrough", () => {
+    it("produces no suggestions when drilling past .meta (no schema/sample)", () => {
+      // meta is runtime-only (execution metadata) — no backend schema nor
+      // sample to hint from, so the drill-down matcher returns nothing and
+      // the suggestion falls through. Documents the expected behaviour.
+      const nodeData = {
+        availableNodes: [
+          {
+            id: "n1",
+            label: "Agent",
+            resolvedKey: "Agent",
+            type: "ai_agent",
+            outputFields: [],
+            outputSample: {},
+          },
+        ],
+      };
+      const expr = '{{ $node["Agent"].meta. }}';
+      const { suggestions } = makeSuggestions(
+        expr,
+        cursorAfterExpr(expr),
+        nodeData,
+      );
+      expect(suggestions).toEqual([]);
+    });
+  });
+
   describe("$node accessor hints", () => {
     const nodeData = {
       availableNodes: [

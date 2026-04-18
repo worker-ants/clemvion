@@ -236,45 +236,52 @@ describe("enrichEdgesWithPortData", () => {
 });
 
 describe("dropStaleEdges", () => {
+  // Isolated definitions fixture so changes here don't leak into other
+  // `describe` blocks in this file.
+  const definitionsFixture = {
+    ai_agent: {
+      type: "ai_agent",
+      category: "ai" as const,
+      label: "AI Agent",
+      description: "",
+      icon: "Brain",
+      color: "#000",
+      inputs: [{ id: "in", label: "Input", type: "data" as const }],
+      outputs: [{ id: "out", label: "Output", type: "data" as const }],
+      defaultConfig: {},
+      configSchema: {},
+      isDynamicPorts: true,
+      dynamicPorts: {
+        kind: "ai-agent-conditional" as const,
+        modeField: "mode",
+        conditionsField: "conditions",
+        multiTurnValue: "multi_turn",
+      },
+    },
+    template: {
+      type: "template",
+      category: "presentation" as const,
+      label: "Template",
+      description: "",
+      icon: "FileText",
+      color: "#000",
+      inputs: [{ id: "in", label: "Input", type: "data" as const }],
+      outputs: [{ id: "out", label: "Output", type: "data" as const }],
+      defaultConfig: {},
+      configSchema: {},
+    },
+  };
+
+  let snapshot: ReturnType<typeof useNodeDefinitionsStore.getState>;
   beforeAll(() => {
-    const existing = useNodeDefinitionsStore.getState().definitions;
+    snapshot = useNodeDefinitionsStore.getState();
     useNodeDefinitionsStore.setState({
       status: "ready",
       error: null,
-      order: [...useNodeDefinitionsStore.getState().order, "ai_agent", "template"],
+      order: [...snapshot.order, "ai_agent", "template"],
       definitions: {
-        ...existing,
-        ai_agent: {
-          type: "ai_agent",
-          category: "ai",
-          label: "AI Agent",
-          description: "",
-          icon: "Brain",
-          color: "#000",
-          inputs: [{ id: "in", label: "Input", type: "data" }],
-          outputs: [{ id: "out", label: "Output", type: "data" }],
-          defaultConfig: {},
-          configSchema: {},
-          isDynamicPorts: true,
-          dynamicPorts: {
-            kind: "ai-agent-conditional",
-            modeField: "mode",
-            conditionsField: "conditions",
-            multiTurnValue: "multi_turn",
-          },
-        },
-        template: {
-          type: "template",
-          category: "presentation",
-          label: "Template",
-          description: "",
-          icon: "FileText",
-          color: "#000",
-          inputs: [{ id: "in", label: "Input", type: "data" }],
-          outputs: [{ id: "out", label: "Output", type: "data" }],
-          defaultConfig: {},
-          configSchema: {},
-        },
+        ...snapshot.definitions,
+        ...definitionsFixture,
       },
     });
   });
@@ -287,7 +294,9 @@ describe("dropStaleEdges", () => {
     const edges: Edge[] = [
       { id: "e1", source: "a", target: "b", sourceHandle: "out", targetHandle: "in", type: "custom" },
     ];
-    expect(dropStaleEdges(edges, nodes)).toEqual(edges);
+    const result = dropStaleEdges(edges, nodes);
+    expect(result.edges).toEqual(edges);
+    expect(result.dropped).toEqual([]);
   });
 
   it("drops edges whose sourceHandle no longer exists after mode switch", () => {
@@ -301,7 +310,8 @@ describe("dropStaleEdges", () => {
       { id: "live", source: "a", target: "b", sourceHandle: "user_ended", targetHandle: "in", type: "custom" },
     ];
     const result = dropStaleEdges(edges, nodes);
-    expect(result.map((e) => e.id)).toEqual(["live"]);
+    expect(result.edges.map((e) => e.id)).toEqual(["live"]);
+    expect(result.dropped.map((e) => e.id)).toEqual(["stale"]);
   });
 
   it("drops edges whose targetHandle does not exist on the target node", () => {
@@ -312,7 +322,9 @@ describe("dropStaleEdges", () => {
     const edges: Edge[] = [
       { id: "stale", source: "a", target: "b", sourceHandle: "out", targetHandle: "nonexistent", type: "custom" },
     ];
-    expect(dropStaleEdges(edges, nodes)).toEqual([]);
+    const result = dropStaleEdges(edges, nodes);
+    expect(result.edges).toEqual([]);
+    expect(result.dropped).toEqual(edges);
   });
 
   it("drops edges referencing missing nodes", () => {
@@ -322,7 +334,9 @@ describe("dropStaleEdges", () => {
     const edges: Edge[] = [
       { id: "orphan", source: "a", target: "ghost", sourceHandle: "out", targetHandle: "in", type: "custom" },
     ];
-    expect(dropStaleEdges(edges, nodes)).toEqual([]);
+    const result = dropStaleEdges(edges, nodes);
+    expect(result.edges).toEqual([]);
+    expect(result.dropped).toEqual(edges);
   });
 
   it("keeps edges for unknown node types (permissive fallback)", () => {
@@ -334,6 +348,23 @@ describe("dropStaleEdges", () => {
     const edges: Edge[] = [
       { id: "e1", source: "a", target: "b", sourceHandle: "out", targetHandle: "in", type: "custom" },
     ];
-    expect(dropStaleEdges(edges, nodes)).toEqual(edges);
+    const result = dropStaleEdges(edges, nodes);
+    expect(result.edges).toEqual(edges);
+    expect(result.dropped).toEqual([]);
+  });
+
+  it("keeps edges with null sourceHandle (no handle constraint)", () => {
+    // null/undefined handles happen for nodes with a single default handle
+    // — React Flow accepts them without a source handle id.
+    const nodes: Node[] = [
+      { id: "a", position: { x: 0, y: 0 }, data: { type: "template" } },
+      { id: "b", position: { x: 0, y: 0 }, data: { type: "template" } },
+    ];
+    const edges: Edge[] = [
+      { id: "e1", source: "a", target: "b", sourceHandle: null, targetHandle: null, type: "custom" },
+    ];
+    const result = dropStaleEdges(edges, nodes);
+    expect(result.edges).toEqual(edges);
+    expect(result.dropped).toEqual([]);
   });
 });

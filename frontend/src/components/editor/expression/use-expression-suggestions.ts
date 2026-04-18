@@ -53,13 +53,18 @@ function getExpressionToken(
   const between = value.substring(openIdx, cursorPos);
   if (between.includes("}}")) return null;
 
+  // A `"` at k is an unescaped boundary when it isn't preceded by `\`. The
+  // guard `k > 0` makes the check explicit at the start of the string —
+  // relying on `between[-1]` returning `undefined` works today but is a
+  // silent-failure mode worth avoiding.
+  const isUnescapedQuoteAt = (k: number): boolean =>
+    between[k] === '"' && (k === 0 || between[k - 1] !== "\\");
+
   // Detect whether the cursor sits inside an unterminated `"..."` by scanning
   // forward and counting unescaped quotes. When odd, the tail is open.
   let cursorInsideString = false;
   for (let k = 0; k < between.length; k++) {
-    if (between[k] === '"' && between[k - 1] !== "\\") {
-      cursorInsideString = !cursorInsideString;
-    }
+    if (isUnescapedQuoteAt(k)) cursorInsideString = !cursorInsideString;
   }
 
   // Walk backward. Inside a `"..."` region every char is part of the token;
@@ -71,7 +76,7 @@ function getExpressionToken(
   while (i >= 0) {
     const ch = between[i];
     if (inString) {
-      if (ch === '"' && between[i - 1] !== "\\") inString = false;
+      if (isUnescapedQuoteAt(i)) inString = false;
       i--;
       continue;
     }

@@ -121,12 +121,19 @@ export type InformationExtractorConfig = z.infer<
 >;
 
 /**
+ * AUTOCOMPLETE HINT SCHEMA — not used for runtime validation.
+ *
  * Runtime `$node["X"].output` value. The handler returns the legacy port
- * selector `{ port, data: { config, output, meta } }`, so `data` becomes the
- * resolver-visible output — i.e. a nested `{ config, output: { extracted, ... }, meta }`.
+ * selector `{ port, data: { config, output, meta } }`, so the handler-output
+ * adapter promotes `data` into the resolver-visible `output`. The upshot is
+ * a NESTED shape — `$node["X"].output.output.extracted.<field>` — which is
+ * INTENTIONALLY ASYMMETRIC with ai_agent and text_classifier's flat shapes.
+ * This mismatch reflects the current handler contracts (legacy port-selector
+ * vs bare object); aligning them would require a breaking handler refactor.
+ *
  * User-defined extraction fields live at `.output.extracted.<name>` and are
  * enriched dynamically from each node instance's `config.outputSchema` on the
- * frontend side.
+ * frontend (see `enrichInfoExtractorOutputSchema`).
  */
 export const informationExtractorNodeOutputSchema = z
   .object({
