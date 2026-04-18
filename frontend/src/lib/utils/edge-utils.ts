@@ -1,4 +1,5 @@
 import { getNodeDefinition } from "@/lib/node-definitions";
+import { resolveDynamicPorts } from "@/lib/node-definitions/resolve-dynamic-ports";
 import type { Node, Edge } from "@xyflow/react";
 
 /**
@@ -87,6 +88,76 @@ export function getConnectedEdgeIds(nodeId: string, edges: Edge[]): Set<string> 
     }
   }
   return ids;
+}
+
+/**
+ * Drop edges that reference a handle which no longer exists on the current
+ * node — typically happens when a node's dynamic-port config has changed
+ * since the workflow was saved (e.g. AI Agent switched single_turn → multi_turn,
+ * Info Extractor mode flip, Switch/Classifier case removal). React Flow logs
+ * a `Couldn't create edge for source handle id: "..."` warning for each such
+ * edge, and the edge is rendered as a disconnected stub.
+ *
+ * Called at load time, before edges enter the store.
+ */
+export function dropStaleEdges(edges: Edge[], nodes: Node[]): Edge[] {
+  const nodeMap = new Map<string, Node>();
+  for (const n of nodes) nodeMap.set(n.id, n);
+
+  const outputsByNode = new Map<string, Set<string>>();
+  const inputsByNode = new Map<string, Set<string>>();
+
+  function validOutputs(node: Node): Set<string> {
+    const cached = outputsByNode.get(node.id);
+    if (cached) return cached;
+    const data = node.data as { type?: string; config?: Record<string, unknown> };
+    const def = data.type ? getNodeDefinition(data.type) : undefined;
+    if (!def) {
+      // Unknown node type — can't validate; be permissive so we don't drop
+      // legitimate edges on a stale `nodeDefinitions` cache.
+      const wildcard = new Set<string>();
+      outputsByNode.set(node.id, wildcard);
+      return wildcard;
+    }
+    const ports = resolveDynamicPorts(data.type ?? "", data.config ?? {}, def);
+    const set = new Set(ports.map((p) => p.id));
+    outputsByNode.set(node.id, set);
+    return set;
+  }
+
+  function validInputs(node: Node): Set<string> {
+    const cached = inputsByNode.get(node.id);
+    if (cached) return cached;
+    const data = node.data as { type?: string };
+    const def = data.type ? getNodeDefinition(data.type) : undefined;
+    if (!def) {
+      const wildcard = new Set<string>();
+      inputsByNode.set(node.id, wildcard);
+      return wildcard;
+    }
+    const set = new Set(def.inputs.map((p) => p.id));
+    inputsByNode.set(node.id, set);
+    return set;
+  }
+
+  return edges.filter((edge) => {
+    const source = nodeMap.get(edge.source);
+    const target = nodeMap.get(edge.target);
+    if (!source || !target) return false;
+
+    // Unknown definition → permissive wildcard (empty set). Skip validation.
+    const sourceOutputs = validOutputs(source);
+    if (sourceOutputs.size > 0 && edge.sourceHandle) {
+      if (!sourceOutputs.has(edge.sourceHandle)) return false;
+    }
+
+    const targetInputs = validInputs(target);
+    if (targetInputs.size > 0 && edge.targetHandle) {
+      if (!targetInputs.has(edge.targetHandle)) return false;
+    }
+
+    return true;
+  });
 }
 
 /**

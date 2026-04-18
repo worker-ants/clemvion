@@ -6,7 +6,7 @@ import { useEditorStore } from "@/lib/stores/editor-store";
 import { workflowsApi } from "@/lib/api/workflows";
 import type { Node, Edge } from "@xyflow/react";
 import { getNodeDefinition, loadNodeDefinitions } from "@/lib/node-definitions";
-import { enrichEdgesWithPortData } from "@/lib/utils/edge-utils";
+import { dropStaleEdges, enrichEdgesWithPortData } from "@/lib/utils/edge-utils";
 
 interface EditorLoaderProps {
   workflowId: string;
@@ -52,17 +52,24 @@ export function WorkflowEditorLoader({ workflowId }: EditorLoaderProps) {
           };
         });
 
-        const flowEdges: Edge[] = enrichEdgesWithPortData(
-          (Array.isArray(rawEdges) ? rawEdges : []).map((e) => ({
-            id: e.id as string,
-            source: e.sourceNodeId as string,
-            sourceHandle: e.sourcePort as string,
-            target: e.targetNodeId as string,
-            targetHandle: e.targetPort as string,
-            type: "custom",
-          })),
-          flowNodes,
-        );
+        const rawFlowEdges: Edge[] = (Array.isArray(rawEdges) ? rawEdges : []).map((e) => ({
+          id: e.id as string,
+          source: e.sourceNodeId as string,
+          sourceHandle: e.sourcePort as string,
+          target: e.targetNodeId as string,
+          targetHandle: e.targetPort as string,
+          type: "custom",
+        }));
+        // Drop edges whose handles no longer exist on the current node config
+        // (e.g. AI Agent switched from single_turn to multi_turn removes "out")
+        // so React Flow doesn't log "Couldn't create edge for source handle id" warnings.
+        const liveEdges = dropStaleEdges(rawFlowEdges, flowNodes);
+        if (liveEdges.length !== rawFlowEdges.length) {
+          console.warn(
+            `[workflow] Dropped ${rawFlowEdges.length - liveEdges.length} stale edge(s) referencing missing handles`,
+          );
+        }
+        const flowEdges: Edge[] = enrichEdgesWithPortData(liveEdges, flowNodes);
 
         if (cancelled) return;
 

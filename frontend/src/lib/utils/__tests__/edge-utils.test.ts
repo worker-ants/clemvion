@@ -4,6 +4,7 @@ import {
   getEdgeColor,
   buildEdgeData,
   getConnectedEdgeIds,
+  dropStaleEdges,
   enrichEdgesWithPortData,
   PORT_TYPE_COLORS,
 } from "../edge-utils";
@@ -231,5 +232,108 @@ describe("enrichEdgesWithPortData", () => {
 
     const enriched = enrichEdgesWithPortData(edges, nodes);
     expect((enriched[0].data as Record<string, unknown>).portType).toBe("container");
+  });
+});
+
+describe("dropStaleEdges", () => {
+  beforeAll(() => {
+    const existing = useNodeDefinitionsStore.getState().definitions;
+    useNodeDefinitionsStore.setState({
+      status: "ready",
+      error: null,
+      order: [...useNodeDefinitionsStore.getState().order, "ai_agent", "template"],
+      definitions: {
+        ...existing,
+        ai_agent: {
+          type: "ai_agent",
+          category: "ai",
+          label: "AI Agent",
+          description: "",
+          icon: "Brain",
+          color: "#000",
+          inputs: [{ id: "in", label: "Input", type: "data" }],
+          outputs: [{ id: "out", label: "Output", type: "data" }],
+          defaultConfig: {},
+          configSchema: {},
+          isDynamicPorts: true,
+          dynamicPorts: {
+            kind: "ai-agent-conditional",
+            modeField: "mode",
+            conditionsField: "conditions",
+            multiTurnValue: "multi_turn",
+          },
+        },
+        template: {
+          type: "template",
+          category: "presentation",
+          label: "Template",
+          description: "",
+          icon: "FileText",
+          color: "#000",
+          inputs: [{ id: "in", label: "Input", type: "data" }],
+          outputs: [{ id: "out", label: "Output", type: "data" }],
+          defaultConfig: {},
+          configSchema: {},
+        },
+      },
+    });
+  });
+
+  it("keeps edges whose handles exist on the current node config", () => {
+    const nodes: Node[] = [
+      { id: "a", position: { x: 0, y: 0 }, data: { type: "ai_agent", config: { mode: "single_turn" } } },
+      { id: "b", position: { x: 0, y: 0 }, data: { type: "template" } },
+    ];
+    const edges: Edge[] = [
+      { id: "e1", source: "a", target: "b", sourceHandle: "out", targetHandle: "in", type: "custom" },
+    ];
+    expect(dropStaleEdges(edges, nodes)).toEqual(edges);
+  });
+
+  it("drops edges whose sourceHandle no longer exists after mode switch", () => {
+    const nodes: Node[] = [
+      // AI Agent switched to multi_turn → ports become user_ended/max_turns/error, "out" removed
+      { id: "a", position: { x: 0, y: 0 }, data: { type: "ai_agent", config: { mode: "multi_turn" } } },
+      { id: "b", position: { x: 0, y: 0 }, data: { type: "template" } },
+    ];
+    const edges: Edge[] = [
+      { id: "stale", source: "a", target: "b", sourceHandle: "out", targetHandle: "in", type: "custom" },
+      { id: "live", source: "a", target: "b", sourceHandle: "user_ended", targetHandle: "in", type: "custom" },
+    ];
+    const result = dropStaleEdges(edges, nodes);
+    expect(result.map((e) => e.id)).toEqual(["live"]);
+  });
+
+  it("drops edges whose targetHandle does not exist on the target node", () => {
+    const nodes: Node[] = [
+      { id: "a", position: { x: 0, y: 0 }, data: { type: "template" } },
+      { id: "b", position: { x: 0, y: 0 }, data: { type: "template" } },
+    ];
+    const edges: Edge[] = [
+      { id: "stale", source: "a", target: "b", sourceHandle: "out", targetHandle: "nonexistent", type: "custom" },
+    ];
+    expect(dropStaleEdges(edges, nodes)).toEqual([]);
+  });
+
+  it("drops edges referencing missing nodes", () => {
+    const nodes: Node[] = [
+      { id: "a", position: { x: 0, y: 0 }, data: { type: "template" } },
+    ];
+    const edges: Edge[] = [
+      { id: "orphan", source: "a", target: "ghost", sourceHandle: "out", targetHandle: "in", type: "custom" },
+    ];
+    expect(dropStaleEdges(edges, nodes)).toEqual([]);
+  });
+
+  it("keeps edges for unknown node types (permissive fallback)", () => {
+    // Guards against over-eager dropping when the node definitions cache hasn't finished loading.
+    const nodes: Node[] = [
+      { id: "a", position: { x: 0, y: 0 }, data: { type: "unknown_future_type" } },
+      { id: "b", position: { x: 0, y: 0 }, data: { type: "template" } },
+    ];
+    const edges: Edge[] = [
+      { id: "e1", source: "a", target: "b", sourceHandle: "out", targetHandle: "in", type: "custom" },
+    ];
+    expect(dropStaleEdges(edges, nodes)).toEqual(edges);
   });
 });
