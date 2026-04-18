@@ -5,6 +5,11 @@ import { useNodeDefinitionsStore } from "@/lib/stores/node-definitions-store";
 import type { JsonSchemaNode } from "@/lib/node-definitions/types";
 import { getAllFunctionNames, buildDisambiguatedKeys } from "@workflow/expression-engine";
 import { enrichInfoExtractorOutputSchema } from "./node-output-schema-enrichers";
+import {
+  getAncestorsInScope,
+  getContainerChain,
+  type ScopedNode,
+} from "./reachable-nodes";
 
 const FUNCTION_NAMES = getAllFunctionNames();
 
@@ -29,8 +34,11 @@ export interface ExpressionData {
   /** Static schema for $input (predecessor node's outputSchema) — enables hints before execution */
   inputSchema?: JsonSchemaNode;
 
-  /** All workflow nodes (for $node["..."] suggestions) */
+  /** Ancestor nodes accessible from the selected node (for $node["..."] suggestions) */
   availableNodes: ExpressionNodeInfo[];
+
+  /** Resolved keys of every node in the workflow; used to distinguish unknown vs unreachable node references during scope validation */
+  allNodeKeys: Set<string>;
 
   /** Declared variables (for $var. suggestions) */
   variables: Array<{ name: string; type: string }>;
@@ -43,6 +51,17 @@ export interface ExpressionData {
 
   /** Sample of a single item from table data source (for $sourceItem. field drill-down, requires execution results) */
   sourceItemSample: Record<string, unknown> | null;
+
+  /**
+   * Container-provided variables visible to the selected node.
+   * Walks the containerId chain innermost → outermost and stops at a
+   * `parallel` container (which clears outer $loop/$item contexts for its
+   * branches, mirroring the runtime parallel-executor).
+   */
+  containerScope: {
+    hasLoop: boolean;
+    hasItem: boolean;
+  };
 }
 
 function extractFields(data: unknown): string[] {
@@ -78,12 +97,42 @@ export function useExpressionContext(selectedNodeId: string | null): ExpressionD
     }
     const nodeById = new Map(nodes.map((n) => [n.id, n]));
 
-    // Find predecessor nodes for $input. suggestions
+    // Project nodes to the minimal shape needed by reachable-nodes (containerId
+    // / toolOwnerId live on `data`). Shared by ancestor, container-scope, and
+    // $input filtering below.
+    const scopedNodes: ScopedNode[] = nodes.map((n) => {
+      const data = (n.data ?? {}) as Record<string, unknown>;
+      return {
+        id: n.id,
+        type: (data.type as string) ?? "unknown",
+        containerId: (data.containerId as string | null | undefined) ?? null,
+        toolOwnerId: (data.toolOwnerId as string | null | undefined) ?? null,
+      };
+    });
+
+    const selectedScoped = selectedNodeId
+      ? scopedNodes.find((n) => n.id === selectedNodeId)
+      : undefined;
+    const selectedContainerId = selectedScoped?.containerId ?? null;
+
+    const ancestors = selectedNodeId
+      ? getAncestorsInScope(selectedNodeId, scopedNodes, edges)
+      : new Set<string>();
+
+    // Find predecessor nodes for $input. suggestions.
+    // Only consider edges within the selected node's own container — body/emit
+    // wires that cross a container boundary carry control flow, not data.
     let inputFields: string[] = [];
     let inputSample: Record<string, unknown> = {};
     let inputSchema: JsonSchemaNode | undefined;
     if (selectedNodeId) {
-      const incomingEdges = edges.filter((e) => e.target === selectedNodeId);
+      const incomingEdges = edges.filter((e) => {
+        if (e.target !== selectedNodeId) return false;
+        const source = scopedNodes.find((n) => n.id === e.source);
+        if (!source) return false;
+        if (source.toolOwnerId !== null) return false;
+        return source.containerId === selectedContainerId;
+      });
       if (incomingEdges.length === 1) {
         const sourceId = incomingEdges[0].source;
         const sourceOutput = resultMap.get(sourceId);
@@ -119,8 +168,20 @@ export function useExpressionContext(selectedNodeId: string | null): ExpressionD
         label: (n.data as Record<string, unknown>).label as string ?? n.id,
       })),
     );
-    // Filter out selected node for display, but use keys computed from full set
-    const filteredNodes = nodes.filter((n) => n.id !== selectedNodeId);
+    const allNodeKeys = new Set<string>(allDisambiguatedKeys.values());
+    // Reverse lookup (resolvedKey → nodeId) — used by the dataSource $node
+    // preview below. Kept inside the same useMemo so it's rebuilt only when
+    // nodes/edges change.
+    const nodeIdByResolvedKey = new Map<string, string>();
+    for (const [id, key] of allDisambiguatedKeys.entries()) {
+      nodeIdByResolvedKey.set(key, id);
+    }
+    // Restrict to ancestors so autocomplete only surfaces references the
+    // runtime can actually resolve. allDisambiguatedKeys is still computed
+    // from the full workflow so key stability doesn't depend on selection.
+    const filteredNodes = nodes.filter(
+      (n) => n.id !== selectedNodeId && ancestors.has(n.id),
+    );
     const availableNodes: ExpressionNodeInfo[] = filteredNodes.map((n) => {
       const output = resultMap.get(n.id) ?? {};
       const data = n.data as Record<string, unknown>;
@@ -174,14 +235,19 @@ export function useExpressionContext(selectedNodeId: string | null): ExpressionD
           // Try to resolve data source sample (use rawResultMap to preserve arrays)
           let resolvedSource: unknown = null;
 
-          // Check if dataSource expression references a specific node
+          // Check if dataSource expression references a specific node.
+          // Resolve against ALL workflow nodes — this is an internal sample
+          // preview, not a user-facing autocomplete, and must work even when
+          // the referenced node isn't an ancestor (the user's reference may
+          // simply be invalid, but we still want a preview if a run sample
+          // exists).
           const dataSourceExpr = config?.dataSource as string | undefined;
           const nodeRefMatch = dataSourceExpr?.match(/\$node\["([^"]+)"\]\.output/);
           if (nodeRefMatch) {
             const refLabel = nodeRefMatch[1];
-            const refNode = availableNodes.find((n) => n.resolvedKey === refLabel);
-            if (refNode) {
-              const refOutput = rawResultMap.get(refNode.id);
+            const refNodeId = nodeIdByResolvedKey.get(refLabel);
+            if (refNodeId) {
+              const refOutput = rawResultMap.get(refNodeId);
               if (refOutput) resolvedSource = refOutput;
             }
           }
@@ -210,15 +276,32 @@ export function useExpressionContext(selectedNodeId: string | null): ExpressionD
       }
     }
 
+    // Container-scope flags: walk from innermost container outward. A
+    // `parallel` container aborts the walk because parallel-executor clears
+    // outer `itemContext` / `loopContext` when spawning branches.
+    let hasLoop = false;
+    let hasItem = false;
+    if (selectedNodeId) {
+      const scopedById = new Map(scopedNodes.map((n) => [n.id, n]));
+      const chain = getContainerChain(selectedNodeId, scopedNodes, scopedById);
+      for (const container of chain) {
+        if (container.type === "loop") hasLoop = true;
+        else if (container.type === "foreach") hasItem = true;
+        else if (container.type === "parallel") break;
+      }
+    }
+
     return {
       inputFields,
       inputSample,
       inputSchema,
       availableNodes,
+      allNodeKeys,
       variables,
       functionNames: FUNCTION_NAMES,
       isTableContext,
       sourceItemSample,
+      containerScope: { hasLoop, hasItem },
     };
   }, [nodes, edges, nodeResults, selectedNodeId, nodeDefinitions]);
 }

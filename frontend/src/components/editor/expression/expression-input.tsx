@@ -3,11 +3,15 @@ import { Label } from "@/components/ui/label";
 import { validate } from "@workflow/expression-engine";
 import { cn } from "@/lib/utils/cn";
 import { useEditorStore } from "@/lib/stores/editor-store";
-import { useExpressionContext } from "./use-expression-context";
+import { useExpressionContext, type ExpressionData } from "./use-expression-context";
 import { useExpressionSuggestions, type Suggestion } from "./use-expression-suggestions";
 import { ExpressionAutocomplete } from "./expression-autocomplete";
 import { ExpressionHighlight } from "./expression-highlight";
 import { VariablePicker } from "./variable-picker";
+import {
+  validateExpressionScope,
+  type ScopeValidationError,
+} from "./validate-scope";
 
 interface ExpressionInputProps {
   label: string;
@@ -24,7 +28,7 @@ interface ExpressionInputProps {
 
 const EXPR_BLOCK_RE = /\{\{.+?\}\}/g;
 
-function validateExpressions(value: string): string | null {
+function validateSyntax(value: string): string | null {
   const matches = value.match(EXPR_BLOCK_RE);
   if (!matches) return null;
 
@@ -35,6 +39,21 @@ function validateExpressions(value: string): string | null {
     }
   }
   return null;
+}
+
+function runScopeValidation(
+  value: string,
+  expressionData: ExpressionData,
+): ScopeValidationError[] {
+  if (!value || !value.includes("{{")) return [];
+  return validateExpressionScope(value, {
+    availableKeys: new Set(
+      expressionData.availableNodes.map((n) => n.resolvedKey),
+    ),
+    allNodeKeys: expressionData.allNodeKeys,
+    variables: expressionData.variables,
+    containerScope: expressionData.containerScope,
+  });
 }
 
 export function ExpressionInput({
@@ -60,7 +79,8 @@ export function ExpressionInput({
   const [autocompleteOpen, setAutocompleteOpen] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [selectedIndex, setSelectedIndex] = useState(0);
-  const [validationError, setValidationError] = useState<string | null>(null);
+  const [syntaxError, setSyntaxError] = useState<string | null>(null);
+  const [scopeErrors, setScopeErrors] = useState<ScopeValidationError[]>([]);
 
   const selectedNodeId = useEditorStore((s) => s.selectedNodeId);
   const expressionData = useExpressionContext(selectedNodeId);
@@ -70,13 +90,18 @@ export function ExpressionInput({
     expressionData,
   );
 
-  // Debounced validation
+  // Debounced syntax + scope validation. Both run in the same effect so the
+  // red-highlight / warning list stay in sync with the current input value.
   useEffect(() => {
     const timer = setTimeout(() => {
-      setValidationError(validateExpressions(value));
+      setSyntaxError(validateSyntax(value));
+      setScopeErrors(runScopeValidation(value, expressionData));
     }, 500);
     return () => clearTimeout(timer);
-  }, [value]);
+  }, [value, expressionData]);
+
+  const hasSyntaxError = !!syntaxError;
+  const hasScopeWarning = !hasSyntaxError && scopeErrors.length > 0;
 
   // Show autocomplete when open AND there are suggestions
   const shouldShowAutocomplete = autocompleteOpen && suggestions.length > 0;
@@ -249,7 +274,8 @@ export function ExpressionInput({
   const inputClasses = cn(
     "w-full rounded-md border border-[hsl(var(--input))] bg-transparent px-3 pr-8 py-2 text-xs text-[hsl(var(--foreground))] placeholder:text-[hsl(var(--muted-foreground))] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--ring))]",
     mono && "font-mono",
-    validationError && "border-red-500/50",
+    hasSyntaxError && "border-red-500/50",
+    hasScopeWarning && "border-amber-500/50",
   );
 
   const inputContent = (
@@ -267,7 +293,8 @@ export function ExpressionInput({
         >
           <ExpressionHighlight
             value={value}
-            hasError={!!validationError}
+            hasError={hasSyntaxError}
+            hasWarning={hasScopeWarning}
           />
         </div>
       )}
@@ -328,8 +355,19 @@ export function ExpressionInput({
       <Label className="text-xs">{fieldLabel}</Label>
       {inputContent}
 
-      {validationError ? (
-        <span className="text-[10px] text-red-400">{validationError}</span>
+      {syntaxError ? (
+        <span className="text-[10px] text-red-400">{syntaxError}</span>
+      ) : scopeErrors.length > 0 ? (
+        <ul className="flex flex-col gap-0.5">
+          {scopeErrors.map((err) => (
+            <li
+              key={`${err.kind}:${err.token}`}
+              className="text-[10px] text-amber-400"
+            >
+              {err.message}
+            </li>
+          ))}
+        </ul>
       ) : hint ? (
         <span className="text-[10px] text-[hsl(var(--muted-foreground))]">
           {hint}

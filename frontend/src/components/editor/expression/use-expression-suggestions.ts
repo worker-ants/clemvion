@@ -10,6 +10,7 @@ import {
   NODE_ACCESSORS,
   ROOT_VARIABLES,
   TABLE_CONTEXT_VARIABLES,
+  filterRootVariablesByScope,
 } from "./expression-constants";
 
 export type SuggestionType = "variable" | "field" | "node" | "function";
@@ -292,10 +293,18 @@ export function useExpressionSuggestions(
     // At expression start or after operator — show root variables + functions
     const filterPrefix = trimmedToken.replace(/^.*[+\-*/%=!<>&|?,:([\s]/, "");
 
+    // Drop container-only scope variables when the selected node is not
+    // inside the container that would produce them. Metadata lives on each
+    // ROOT_VARIABLES entry (`scopeKey`) so this stays in one place.
+    const scopedRoots = filterRootVariablesByScope(
+      ROOT_VARIABLES,
+      expressionData.containerScope,
+    );
+
     // Add table context variables ($sourceItem, $sourceItemIndex, $dataSource) when in a table node
     const contextualRoots = expressionData.isTableContext
-      ? [...ROOT_VARIABLES, ...TABLE_CONTEXT_VARIABLES]
-      : ROOT_VARIABLES;
+      ? [...scopedRoots, ...TABLE_CONTEXT_VARIABLES]
+      : scopedRoots;
 
     const rootSuggestions = contextualRoots.filter((s) =>
       s.label.toLowerCase().startsWith(filterPrefix.toLowerCase()),

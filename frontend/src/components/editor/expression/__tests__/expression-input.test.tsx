@@ -164,4 +164,100 @@ describe("ExpressionInput", () => {
 
     vi.useRealTimers();
   });
+
+  it("shows an amber scope warning when referencing an unreachable node", async () => {
+    vi.useFakeTimers();
+
+    render(
+      <ExpressionInput
+        label="URL"
+        // n2 (Vars) exists but is not an ancestor of current-node
+        value='{{ $node["Vars"].output.counter }}'
+        onChange={onChange}
+      />,
+    );
+
+    await act(async () => {
+      vi.advanceTimersByTime(600);
+    });
+
+    const warning = document.querySelector(".text-amber-400");
+    expect(warning).toBeTruthy();
+    expect(warning?.textContent ?? "").toContain("Vars");
+
+    // Syntax error slot should remain empty because the expression is
+    // syntactically valid.
+    const errorEl = document.querySelector(".text-red-400");
+    expect(errorEl).toBeFalsy();
+
+    vi.useRealTimers();
+  });
+
+  it("shows an amber scope warning for $loop used outside a loop container", async () => {
+    vi.useFakeTimers();
+
+    render(
+      <ExpressionInput
+        label="URL"
+        value="{{ $loop.index }}"
+        onChange={onChange}
+      />,
+    );
+
+    await act(async () => {
+      vi.advanceTimersByTime(600);
+    });
+
+    const warning = document.querySelector(".text-amber-400");
+    expect(warning).toBeTruthy();
+    expect(warning?.textContent ?? "").toContain("$loop");
+
+    vi.useRealTimers();
+  });
+
+  it("prefers the red syntax error over amber scope warnings when both are present", async () => {
+    vi.useFakeTimers();
+
+    render(
+      <ExpressionInput
+        label="URL"
+        // Dangling dot triggers a syntax error; the $node["Vars"] reference
+        // would also produce an unreachable-node scope warning.
+        value='{{ $node["Vars"].output. }}'
+        onChange={onChange}
+      />,
+    );
+
+    await act(async () => {
+      vi.advanceTimersByTime(600);
+    });
+
+    const errorEl = document.querySelector(".text-red-400");
+    expect(errorEl).toBeTruthy();
+    const warning = document.querySelector(".text-amber-400");
+    expect(warning).toBeFalsy();
+
+    vi.useRealTimers();
+  });
+
+  it("does not flag a reachable $node reference", async () => {
+    vi.useFakeTimers();
+
+    render(
+      <ExpressionInput
+        label="URL"
+        value='{{ $node["HTTP Request"].output.statusCode }}'
+        onChange={onChange}
+      />,
+    );
+
+    await act(async () => {
+      vi.advanceTimersByTime(600);
+    });
+
+    expect(document.querySelector(".text-red-400")).toBeFalsy();
+    expect(document.querySelector(".text-amber-400")).toBeFalsy();
+
+    vi.useRealTimers();
+  });
 });
