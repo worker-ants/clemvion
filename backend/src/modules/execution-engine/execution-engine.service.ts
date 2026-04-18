@@ -37,7 +37,11 @@ import {
   ErrorPolicyConfig,
 } from './error/error-policy.handler';
 import { ExpressionResolverService } from './expression/expression-resolver.service';
-import { ExecutionContext, NodeHandler, NodeHandlerOutput } from './handlers';
+import {
+  ExecutionContext,
+  NodeHandler,
+  NodeHandlerOutput,
+} from '../../nodes/core/node-handler.interface';
 import {
   WebsocketService,
   ExecutionEventType,
@@ -56,7 +60,7 @@ import {
 import {
   adaptHandlerReturn,
   toEngineFlatShape,
-} from './handlers/handler-output.adapter';
+} from './handler-output.adapter';
 import { ButtonConfig } from '../../nodes/presentation/_shared/button.types';
 import {
   WorkflowExecutor,

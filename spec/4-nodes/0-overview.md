@@ -15,17 +15,28 @@ backend/src/nodes/
 ├── core/
 │   ├── node-component.interface.ts   # NodeComponent 타입, Ports 타입, HandlerDependencies
 │   ├── node-component.registry.ts    # 모든 컴포넌트 부트스트랩 + metadata/JSON schema 조회
-│   └── zod-validator.ts              # Zod 스키마를 ValidationResult로 어댑팅
-├── <category>/<type>/
-│   ├── <type>.schema.ts     # Zod configSchema + metadata + ports + input/output schema
-│   ├── <type>.component.ts  # NodeComponent 번들 (createHandler 팩토리 포함)
-│   └── index.ts
-└── index.ts                 # ALL_NODE_COMPONENTS 배열
+│   ├── node-handler.interface.ts     # NodeHandler, ExecutionContext, NodeHandlerOutput 등 실행 계약
+│   ├── node-handler.registry.ts      # node type → handler 인스턴스 매핑 저장소
+│   ├── workflow-executor.interface.ts # sub-workflow 실행을 위한 engine <-> 노드 계약
+│   ├── nested-value.util.ts          # 다수 노드에서 공유되는 경로 기반 getter/setter
+│   ├── zod-validator.ts              # Zod 스키마를 ValidationResult로 어댑팅
+│   └── index.ts                      # core 공개 API re-export
+├── <category>/
+│   ├── _shared/ or _base/            # (선택) 카테고리 내 공유 유틸/베이스 클래스
+│   └── <type>/
+│       ├── <type>.schema.ts      # Zod configSchema + metadata + ports
+│       ├── <type>.component.ts   # NodeComponent 번들 (createHandler 팩토리 포함)
+│       ├── <type>.handler.ts     # NodeHandler.execute 실행 로직
+│       ├── <type>.handler.spec.ts
+│       └── index.ts
+└── index.ts                          # ALL_NODE_COMPONENTS 배열
 ```
 
 - **`<type>.schema.ts`** — 노드의 구조(input/output/config)를 Zod로 선언한다. `NodeComponentMetadata`, `NodePorts`, `defaultConfig`도 동일 파일에서 export 한다. Zod 스키마는 런타임 검증과 JSON Schema 직렬화의 단일 소스로 사용된다.
 - **`<type>.component.ts`** — schema/metadata와 handler 팩토리를 묶은 `NodeComponent` 객체를 export 한다. `createHandler(deps)`는 LLM/RAG/Integration/WorkflowExecutor 등 의존성을 주입받아 `NodeHandler` 인스턴스를 생성한다.
-- 실행 로직(`NodeHandler.execute`)은 `backend/src/modules/execution-engine/handlers/<category>/<type>.handler.ts`에 유지된다. 컴포넌트는 해당 핸들러를 import하여 실행 동작을 노출한다.
+- **`<type>.handler.ts`** — 노드 실행 로직(`NodeHandler.execute`)을 담는다. 한 노드의 스키마·컴포넌트·핸들러·테스트가 동일 디렉터리에 co-locate 된다.
+- 카테고리 내부에서만 공유되는 유틸/베이스 클래스는 `<category>/_shared/` 또는 `<category>/_base/`에 배치한다. (예: `integration/_base/integration-handler-base.ts`, `logic/_shared/condition-eval.util.ts`, `presentation/_shared/button.types.ts`)
+- `execution-engine` 모듈은 오케스트레이션(그래프 탐색·표현식 해석·state machine·큐 등)만 담당하며, 개별 노드의 실행 로직은 포함하지 않는다.
 
 `NodeComponentRegistry`는 서버 부팅 시 `ALL_NODE_COMPONENTS` 배열을 순회하며 각 컴포넌트의 `createHandler(deps)`를 호출하여 `NodeHandlerRegistry`에 등록한다. 또한 `listDefinitions()`를 통해 메타데이터, 포트, JSON Schema를 프론트엔드에 제공한다.
 

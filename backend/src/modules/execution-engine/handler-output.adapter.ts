@@ -1,4 +1,4 @@
-import { NodeHandlerOutput } from '../../../nodes/core/node-handler.interface.js';
+import { NodeHandlerOutput } from '../../nodes/core/node-handler.interface.js';
 
 /**
  * Narrow unknown handler return values into the canonical

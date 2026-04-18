@@ -8,10 +8,7 @@ import {
   ExpressionContext as EngineContext,
 } from '@workflow/expression-engine';
 import { getNestedValue } from '../../core/nested-value.util.js';
-import {
-  ButtonDef,
-  validateButtons,
-} from '../_shared/button.types.js';
+import { ButtonDef, validateButtons } from '../_shared/button.types.js';
 
 type TableMode = 'static' | 'dynamic';
 

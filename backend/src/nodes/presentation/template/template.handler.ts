@@ -2,10 +2,7 @@ import {
   NodeHandler,
   ValidationResult,
 } from '../../core/node-handler.interface.js';
-import {
-  ButtonDef,
-  validateButtons,
-} from '../_shared/button.types.js';
+import { ButtonDef, validateButtons } from '../_shared/button.types.js';
 
 export class TemplateHandler implements NodeHandler {
   validate(config: Record<string, unknown>): ValidationResult {
