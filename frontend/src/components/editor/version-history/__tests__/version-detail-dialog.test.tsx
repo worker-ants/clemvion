@@ -8,6 +8,7 @@ vi.mock("@/lib/api/workflows", () => ({
 
 import { workflowsApi } from "@/lib/api/workflows";
 import { VersionDetailDialog } from "../version-detail-dialog";
+import { useLocaleStore } from "@/lib/stores/locale-store";
 
 function wrapper() {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -17,7 +18,10 @@ function wrapper() {
   return Wrapper;
 }
 
-beforeEach(() => vi.clearAllMocks());
+beforeEach(() => {
+  vi.clearAllMocks();
+  useLocaleStore.setState({ locale: "en" });
+});
 
 describe("VersionDetailDialog", () => {
   it("renders snapshot nodes and edges from API response", async () => {

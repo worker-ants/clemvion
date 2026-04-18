@@ -14,14 +14,16 @@ import {
   type AlertRuleType,
 } from "@/lib/api/alerts";
 import { useHasRole } from "@/components/auth/role-gate";
+import { useT, type TranslationKey } from "@/lib/i18n";
 
-const TYPE_LABEL: Record<AlertRuleType, string> = {
-  failure_rate: "실패율 (%)",
-  duration: "평균 실행 시간 (ms)",
-  llm_cost: "LLM 비용 (USD/일)",
+const TYPE_LABEL_KEY: Record<AlertRuleType, TranslationKey> = {
+  failure_rate: "profile.alerts.typeFailureRate",
+  duration: "profile.alerts.typeDuration",
+  llm_cost: "profile.alerts.typeLlmCost",
 };
 
 export default function AlertsPage() {
+  const t = useT();
   const queryClient = useQueryClient();
   const isAdmin = useHasRole("admin");
   const [type, setType] = useState<AlertRuleType>("failure_rate");
@@ -41,17 +43,17 @@ export default function AlertsPage() {
         window: windowSpec,
       }),
     onSuccess: () => {
-      toast.success("알림 규칙을 만들었어요.");
+      toast.success(t("profile.alerts.createdToast"));
       setThreshold("10");
       queryClient.invalidateQueries({ queryKey: ["alerts", "list"] });
     },
-    onError: () => toast.error("규칙 생성 실패"),
+    onError: () => toast.error(t("profile.alerts.createFailedToast")),
   });
 
   const removeMutation = useMutation({
     mutationFn: (id: string) => alertsApi.remove(id),
     onSuccess: () => {
-      toast.success("규칙을 삭제했어요.");
+      toast.success(t("profile.alerts.deletedToast"));
       queryClient.invalidateQueries({ queryKey: ["alerts", "list"] });
     },
   });
@@ -66,16 +68,16 @@ export default function AlertsPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold">알림 규칙</h1>
+        <h1 className="text-3xl font-bold">{t("profile.alerts.pageTitle")}</h1>
         <p className="mt-1 text-sm text-[hsl(var(--muted-foreground))]">
-          실패율·실행 시간·LLM 비용이 임계값을 넘으면 앱 내 알림을 받아요.
+          {t("profile.alerts.pageDescription")}
         </p>
       </div>
 
       {isAdmin && (
         <Card>
           <CardHeader>
-            <CardTitle className="text-base font-semibold">새 규칙</CardTitle>
+            <CardTitle className="text-base font-semibold">{t("profile.alerts.newRule")}</CardTitle>
           </CardHeader>
           <CardContent>
             <form
@@ -83,7 +85,7 @@ export default function AlertsPage() {
               onSubmit={(e) => {
                 e.preventDefault();
                 if (!Number.isFinite(Number(threshold))) {
-                  toast.error("임계값은 숫자여야 해요.");
+                  toast.error(t("profile.alerts.thresholdMustBeNumber"));
                   return;
                 }
                 createMutation.mutate();
@@ -94,27 +96,27 @@ export default function AlertsPage() {
                 onChange={(e) => setType(e.target.value as AlertRuleType)}
                 className="h-9 rounded-md border border-[hsl(var(--input))] bg-transparent px-2 text-sm"
               >
-                <option value="failure_rate">실패율 (%)</option>
-                <option value="duration">평균 실행 시간 (ms)</option>
-                <option value="llm_cost">LLM 비용 (USD/일)</option>
+                <option value="failure_rate">{t("profile.alerts.typeFailureRate")}</option>
+                <option value="duration">{t("profile.alerts.typeDuration")}</option>
+                <option value="llm_cost">{t("profile.alerts.typeLlmCost")}</option>
               </select>
               <Input
                 value={threshold}
                 onChange={(e) => setThreshold(e.target.value)}
-                placeholder="임계값"
+                placeholder={t("profile.alerts.thresholdPlaceholderInput")}
                 className="sm:max-w-[140px]"
               />
               <Input
                 value={windowSpec}
                 onChange={(e) => setWindowSpec(e.target.value)}
-                placeholder="윈도우 (ISO 8601, 예: PT1H)"
+                placeholder={t("profile.alerts.windowPlaceholder")}
                 className="sm:max-w-[180px]"
               />
               <Button type="submit" disabled={createMutation.isPending}>
                 {createMutation.isPending ? (
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                 ) : null}
-                만들기
+                {t("profile.alerts.createBtn")}
               </Button>
             </form>
           </CardContent>
@@ -123,7 +125,7 @@ export default function AlertsPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-base font-semibold">규칙 목록</CardTitle>
+          <CardTitle className="text-base font-semibold">{t("profile.alerts.rulesList")}</CardTitle>
         </CardHeader>
         <CardContent>
           {rulesQuery.isLoading ? (
@@ -132,17 +134,17 @@ export default function AlertsPage() {
             </div>
           ) : !rulesQuery.data?.length ? (
             <p className="text-sm text-[hsl(var(--muted-foreground))]">
-              아직 규칙이 없어요.
+              {t("profile.alerts.noneYet")}
             </p>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-[hsl(var(--border))]">
-                    <th className="py-2 pr-4 text-left font-medium text-[hsl(var(--muted-foreground))]">유형</th>
-                    <th className="py-2 pr-4 text-right font-medium text-[hsl(var(--muted-foreground))]">임계값</th>
-                    <th className="py-2 pr-4 text-left font-medium text-[hsl(var(--muted-foreground))]">윈도우</th>
-                    <th className="py-2 pr-4 text-left font-medium text-[hsl(var(--muted-foreground))]">상태</th>
+                    <th className="py-2 pr-4 text-left font-medium text-[hsl(var(--muted-foreground))]">{t("profile.alerts.columnType")}</th>
+                    <th className="py-2 pr-4 text-right font-medium text-[hsl(var(--muted-foreground))]">{t("profile.alerts.columnThreshold")}</th>
+                    <th className="py-2 pr-4 text-left font-medium text-[hsl(var(--muted-foreground))]">{t("profile.alerts.columnWindow")}</th>
+                    <th className="py-2 pr-4 text-left font-medium text-[hsl(var(--muted-foreground))]">{t("profile.alerts.columnStatus")}</th>
                     <th className="py-2 text-right font-medium text-[hsl(var(--muted-foreground))]"></th>
                   </tr>
                 </thead>
@@ -152,7 +154,7 @@ export default function AlertsPage() {
                       key={r.id}
                       className="border-b border-[hsl(var(--border))] last:border-b-0"
                     >
-                      <td className="py-2 pr-4">{TYPE_LABEL[r.type]}</td>
+                      <td className="py-2 pr-4">{t(TYPE_LABEL_KEY[r.type])}</td>
                       <td className="py-2 pr-4 text-right tabular-nums">{r.threshold}</td>
                       <td className="py-2 pr-4 font-mono text-xs">{r.window}</td>
                       <td className="py-2 pr-4">
@@ -167,12 +169,12 @@ export default function AlertsPage() {
                             }
                           >
                             <Badge variant={r.enabled ? "success" : "outline"}>
-                              {r.enabled ? "enabled" : "disabled"}
+                              {r.enabled ? t("profile.alerts.statusEnabled") : t("profile.alerts.statusDisabled")}
                             </Badge>
                           </button>
                         ) : (
                           <Badge variant="outline">
-                            {r.enabled ? "enabled" : "disabled"}
+                            {r.enabled ? t("profile.alerts.statusEnabled") : t("profile.alerts.statusDisabled")}
                           </Badge>
                         )}
                       </td>
@@ -183,7 +185,7 @@ export default function AlertsPage() {
                             size="icon"
                             className="h-8 w-8"
                             onClick={() => removeMutation.mutate(r.id)}
-                            title="삭제"
+                            title={t("profile.alerts.deleteTooltip")}
                           >
                             <Trash2 className="h-4 w-4" />
                           </Button>

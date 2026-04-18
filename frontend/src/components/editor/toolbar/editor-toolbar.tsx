@@ -23,8 +23,10 @@ import {
   PlayCircle,
 } from "lucide-react";
 import Link from "next/link";
+import { useT } from "@/lib/i18n";
 
 export function EditorToolbar() {
+  const t = useT();
   const router = useRouter();
 
   const workflowId = useEditorStore((s) => s.workflowId);
@@ -116,16 +118,16 @@ export function EditorToolbar() {
       setJsonInput("{}");
     } catch (error) {
       if (error instanceof SyntaxError) {
-        alert("Invalid JSON input. Please check your input and try again.");
+        alert(t("editor.invalidJsonInput"));
         return;
       }
       console.error("Execution failed:", error);
     }
-  }, [workflowId, saveBeforeRun, startExecution, jsonInput]);
+  }, [workflowId, saveBeforeRun, startExecution, jsonInput, t]);
 
   const handleRunFromSelected = useCallback(async () => {
     if (!selectedNodeId) {
-      alert("Please select a node first.");
+      alert(t("editor.selectNodeFirst"));
       return;
     }
     const ready = await saveBeforeRun();
@@ -140,7 +142,7 @@ export function EditorToolbar() {
     } catch (error) {
       console.error("Execution failed:", error);
     }
-  }, [workflowId, selectedNodeId, saveBeforeRun, startExecution]);
+  }, [workflowId, selectedNodeId, saveBeforeRun, startExecution, t]);
 
   const handleExport = useCallback(async () => {
     if (!workflowId) return;
@@ -187,7 +189,7 @@ export function EditorToolbar() {
             </Button>
           </Link>
           <span className="text-xs text-[hsl(var(--muted-foreground))]">
-            Workflows
+            {t("editor.workflowsBreadcrumb")}
           </span>
           <ChevronRight
             size={12}
@@ -208,7 +210,11 @@ export function EditorToolbar() {
         <div className="flex items-center gap-1.5">
           {/* Dirty indicator */}
           <span className="mr-2 text-[10px] text-[hsl(var(--muted-foreground))]">
-            {isSaving ? "Saving..." : isDirty ? "Unsaved changes" : "Saved"}
+            {isSaving
+              ? t("editor.toolbarSaving")
+              : isDirty
+                ? t("editor.toolbarUnsaved")
+                : t("editor.toolbarSaved")}
           </span>
 
           {/* Undo/Redo */}
@@ -218,7 +224,7 @@ export function EditorToolbar() {
             className="h-8 w-8"
             onClick={undo}
             disabled={undoStack.length === 0}
-            title="Undo (Ctrl+Z)"
+            title={t("editor.undoTooltip")}
           >
             <Undo2 size={14} />
           </Button>
@@ -228,7 +234,7 @@ export function EditorToolbar() {
             className="h-8 w-8"
             onClick={redo}
             disabled={redoStack.length === 0}
-            title="Redo (Ctrl+Y)"
+            title={t("editor.redoTooltip")}
           >
             <Redo2 size={14} />
           </Button>
@@ -242,7 +248,7 @@ export function EditorToolbar() {
             onClick={() => void saveWorkflow()}
           >
             <Save size={14} />
-            Save
+            {t("common.save")}
           </Button>
 
           {/* Run split button */}
@@ -257,12 +263,12 @@ export function EditorToolbar() {
                 {isRunning ? (
                   <>
                     <Loader2 size={14} className="animate-spin" />
-                    Running...
+                    {t("editor.running")}
                   </>
                 ) : (
                   <>
                     <Play size={14} />
-                    Run
+                    {t("editor.runBtn")}
                   </>
                 )}
               </Button>
@@ -286,7 +292,7 @@ export function EditorToolbar() {
                   }}
                 >
                   <Play size={14} />
-                  Run
+                  {t("editor.runBtn")}
                 </button>
                 <button
                   className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-[hsl(var(--popover-foreground))] hover:bg-[hsl(var(--accent))]"
@@ -296,7 +302,7 @@ export function EditorToolbar() {
                   }}
                 >
                   <PlayCircle size={14} />
-                  Run with Input
+                  {t("editor.runWithInput")}
                 </button>
                 <button
                   className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-[hsl(var(--popover-foreground))] hover:bg-[hsl(var(--accent))] disabled:opacity-50"
@@ -307,7 +313,7 @@ export function EditorToolbar() {
                   }}
                 >
                   <ChevronRight size={14} />
-                  Run from Selected
+                  {t("editor.runFromSelected")}
                 </button>
               </div>
             )}
@@ -334,14 +340,14 @@ export function EditorToolbar() {
                   }}
                 >
                   <History size={14} />
-                  Version History
+                  {t("editor.versionHistoryTitle")}
                 </button>
                 <button
                   className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-[hsl(var(--popover-foreground))] hover:bg-[hsl(var(--accent))]"
                   onClick={() => void handleExport()}
                 >
                   <FileDown size={14} />
-                  Export
+                  {t("editor.exportMenu")}
                 </button>
                 <div className="my-1 border-t border-[hsl(var(--border))]" />
                 <button
@@ -352,7 +358,7 @@ export function EditorToolbar() {
                   }}
                 >
                   <Trash2 size={14} />
-                  Delete
+                  {t("editor.deleteMenu")}
                 </button>
               </div>
             )}
@@ -365,11 +371,11 @@ export function EditorToolbar() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
           <div className="w-full max-w-md rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-6 shadow-lg">
             <h3 className="mb-4 text-sm font-semibold text-[hsl(var(--card-foreground))]">
-              Run with Input
+              {t("editor.runWithInputTitle")}
             </h3>
             <textarea
               className="mb-4 h-40 w-full resize-none rounded-md border border-[hsl(var(--input))] bg-[hsl(var(--background))] p-3 font-mono text-sm text-[hsl(var(--foreground))] focus:outline-none focus:ring-2 focus:ring-[hsl(var(--ring))]"
-              placeholder='{"key": "value"}'
+              placeholder={t("editor.runWithInputPlaceholder")}
               value={jsonInput}
               onChange={(e) => setJsonInput(e.target.value)}
             />
@@ -382,7 +388,7 @@ export function EditorToolbar() {
                   setJsonInput("{}");
                 }}
               >
-                Cancel
+                {t("common.cancel")}
               </Button>
               <Button
                 size="sm"
@@ -390,7 +396,7 @@ export function EditorToolbar() {
                 onClick={() => void handleRunWithInput()}
               >
                 <Play size={14} className="mr-1.5" />
-                Run
+                {t("editor.runBtn")}
               </Button>
             </div>
           </div>
@@ -402,11 +408,10 @@ export function EditorToolbar() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
           <div className="w-full max-w-sm rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-6 shadow-lg">
             <h3 className="mb-2 text-sm font-semibold text-[hsl(var(--card-foreground))]">
-              Delete Workflow
+              {t("editor.deleteWorkflowTitle")}
             </h3>
             <p className="mb-4 text-sm text-[hsl(var(--muted-foreground))]">
-              Are you sure you want to delete &quot;{workflowName}&quot;? This
-              action cannot be undone.
+              {t("editor.deleteWorkflowMessage", { name: workflowName })}
             </p>
             <div className="flex justify-end gap-2">
               <Button
@@ -414,7 +419,7 @@ export function EditorToolbar() {
                 size="sm"
                 onClick={() => setDeleteConfirmOpen(false)}
               >
-                Cancel
+                {t("common.cancel")}
               </Button>
               <Button
                 size="sm"
@@ -422,7 +427,7 @@ export function EditorToolbar() {
                 onClick={() => void handleDelete()}
               >
                 <Trash2 size={14} className="mr-1.5" />
-                Delete
+                {t("common.delete")}
               </Button>
             </div>
           </div>

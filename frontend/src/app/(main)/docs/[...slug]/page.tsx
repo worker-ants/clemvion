@@ -6,6 +6,8 @@ import {
   getDocsIndex,
 } from "@/lib/docs/registry";
 import { isSafeDocsSlug } from "@/lib/docs/links";
+import { DocHeader } from "@/components/docs/doc-header";
+import { DocBodyNotice } from "@/components/docs/doc-body-notice";
 
 export const dynamicParams = false;
 
@@ -26,6 +28,8 @@ export async function generateMetadata({
   const index = getDocsIndex();
   const doc = getDocBySlug(index, slug);
   if (!doc) return {};
+  // Metadata runs at build time; we emit the Korean title as the canonical head.
+  // The runtime in-page heading is localized by <DocHeader /> once the client locale is known.
   return {
     title: `${doc.frontmatter.title} · 사용자 매뉴얼`,
     description: doc.frontmatter.summary,
@@ -56,12 +60,8 @@ export default async function DocPage({
 
   return (
     <>
-      <header className="mb-6 border-b border-[hsl(var(--border))] pb-4">
-        <h1 className="text-3xl font-semibold">{doc.frontmatter.title}</h1>
-        <p className="mt-2 text-sm text-[hsl(var(--muted-foreground))]">
-          {doc.frontmatter.summary}
-        </p>
-      </header>
+      <DocHeader frontmatter={doc.frontmatter} />
+      <DocBodyNotice />
       <MDXContent />
     </>
   );

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
@@ -18,16 +18,26 @@ import {
   CardDescription,
   CardContent,
 } from "@/components/ui/card";
+import { useT, useLocale } from "@/lib/i18n";
 
-const forgotPasswordSchema = z.object({
-  email: z.string().min(1, "Email is required").email("Invalid email address"),
-});
-
-type ForgotPasswordFormValues = z.infer<typeof forgotPasswordSchema>;
-
-export function ForgotPasswordForm() {
+function ForgotPasswordFormInner() {
+  const t = useT();
   const [isLoading, setIsLoading] = useState(false);
   const [isSubmitted, setIsSubmitted] = useState(false);
+
+  // defined inside component so validation messages pick up the current locale via t()
+  const forgotPasswordSchema = useMemo(
+    () =>
+      z.object({
+        email: z
+          .string()
+          .min(1, t("auth.validation.emailRequired"))
+          .email(t("auth.validation.emailInvalid")),
+      }),
+    [t],
+  );
+
+  type ForgotPasswordFormValues = z.infer<typeof forgotPasswordSchema>;
 
   const {
     register,
@@ -46,12 +56,11 @@ export function ForgotPasswordForm() {
       await authApi.forgotPassword(data.email);
     } catch (err) {
       const error = err as AxiosError;
-      // We intentionally don't show the error to prevent email enumeration
       void error;
     } finally {
       setIsLoading(false);
       setIsSubmitted(true);
-      toast.success("If an account exists with that email, you will receive a reset link.");
+      toast.success(t("auth.forgotPassword.genericInfo"));
     }
   }
 
@@ -59,14 +68,14 @@ export function ForgotPasswordForm() {
     return (
       <Card>
         <CardHeader className="text-center">
-          <CardTitle>Check Your Email</CardTitle>
+          <CardTitle>{t("auth.forgotPassword.submittedTitle")}</CardTitle>
           <CardDescription>
-            If an account exists with the email you provided, we have sent a password reset link.
+            {t("auth.forgotPassword.submittedDescription")}
           </CardDescription>
         </CardHeader>
         <CardContent>
           <Button asChild variant="outline" className="w-full">
-            <Link href="/login">Back to Sign In</Link>
+            <Link href="/login">{t("auth.forgotPassword.backToLogin")}</Link>
           </Button>
         </CardContent>
       </Card>
@@ -76,19 +85,19 @@ export function ForgotPasswordForm() {
   return (
     <Card>
       <CardHeader className="text-center">
-        <CardTitle>Forgot Password</CardTitle>
+        <CardTitle>{t("auth.forgotPassword.title")}</CardTitle>
         <CardDescription>
-          Enter your email address and we will send you a link to reset your password.
+          {t("auth.forgotPassword.subtitle")}
         </CardDescription>
       </CardHeader>
       <CardContent>
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="email">Email</Label>
+            <Label htmlFor="email">{t("auth.forgotPassword.email")}</Label>
             <Input
               id="email"
               type="email"
-              placeholder="you@example.com"
+              placeholder={t("auth.forgotPassword.emailPlaceholder")}
               autoComplete="email"
               {...register("email")}
             />
@@ -98,16 +107,21 @@ export function ForgotPasswordForm() {
           </div>
 
           <Button type="submit" className="w-full" disabled={isLoading}>
-            {isLoading ? "Sending..." : "Send Reset Link"}
+            {isLoading ? t("auth.forgotPassword.submitting") : t("auth.forgotPassword.submit")}
           </Button>
         </form>
 
         <p className="mt-6 text-center text-sm text-[hsl(var(--muted-foreground))]">
           <Link href="/login" className="text-[hsl(var(--primary))] hover:underline">
-            Back to Sign In
+            {t("auth.forgotPassword.backToLogin")}
           </Link>
         </p>
       </CardContent>
     </Card>
   );
+}
+
+export function ForgotPasswordForm() {
+  const locale = useLocale();
+  return <ForgotPasswordFormInner key={locale} />;
 }

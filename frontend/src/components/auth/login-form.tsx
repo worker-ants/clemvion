@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useForm } from "react-hook-form";
@@ -23,14 +23,7 @@ import {
   CardDescription,
   CardContent,
 } from "@/components/ui/card";
-
-const loginSchema = z.object({
-  email: z.string().min(1, "Email is required").email("Invalid email address"),
-  password: z.string().min(1, "Password is required"),
-  rememberMe: z.boolean().optional(),
-});
-
-type LoginFormValues = z.infer<typeof loginSchema>;
+import { useT, useLocale } from "@/lib/i18n";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3011/api";
 
@@ -38,12 +31,29 @@ interface LoginFormProps {
   enabledProviders?: OAuthProvider[];
 }
 
-export function LoginForm({ enabledProviders = [] }: LoginFormProps) {
+function LoginFormInner({ enabledProviders = [] }: LoginFormProps) {
+  const t = useT();
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
   const [challengeToken, setChallengeToken] = useState<string | null>(null);
   const [totpCode, setTotpCode] = useState("");
   const setAuthenticated = useAuthStore((s) => s.setAuthenticated);
+
+  // defined inside component so validation messages pick up the current locale via t()
+  const loginSchema = useMemo(
+    () =>
+      z.object({
+        email: z
+          .string()
+          .min(1, t("auth.validation.emailRequired"))
+          .email(t("auth.validation.emailInvalid")),
+        password: z.string().min(1, t("auth.validation.passwordRequired")),
+        rememberMe: z.boolean().optional(),
+      }),
+    [t],
+  );
+
+  type LoginFormValues = z.infer<typeof loginSchema>;
 
   async function completeLogin(accessToken: string) {
     setAccessToken(accessToken);
@@ -54,9 +64,9 @@ export function LoginForm({ enabledProviders = [] }: LoginFormProps) {
         setAuthenticated(accessToken, user);
       }
     } catch {
-      /* AuthProvider가 다음 페이지 로드에서 복원 */
+      /* AuthProvider will restore on next page load */
     }
-    toast.success("Signed in successfully!");
+    toast.success(t("auth.login.signedIn"));
     router.push("/dashboard");
   }
 
@@ -73,7 +83,7 @@ export function LoginForm({ enabledProviders = [] }: LoginFormProps) {
     } catch (err) {
       const error = err as AxiosError<{ message?: string }>;
       const message =
-        error.response?.data?.message ?? "인증 코드가 올바르지 않아요.";
+        error.response?.data?.message ?? t("auth.login.invalidTotp");
       toast.error(message);
     } finally {
       setIsLoading(false);
@@ -114,7 +124,7 @@ export function LoginForm({ enabledProviders = [] }: LoginFormProps) {
       const payload = response.data.data;
       if (payload && "requiresTotp" in payload && payload.requiresTotp) {
         setChallengeToken(payload.challengeToken);
-        toast.info("2단계 인증이 필요해요. 인증 코드를 입력해 주세요.");
+        toast.info(t("auth.login.totpRequired"));
         return;
       }
       const accessToken =
@@ -124,7 +134,7 @@ export function LoginForm({ enabledProviders = [] }: LoginFormProps) {
       }
     } catch (err) {
       const error = err as AxiosError<{ message?: string }>;
-      const message = error.response?.data?.message ?? "Failed to sign in. Please try again.";
+      const message = error.response?.data?.message ?? t("auth.login.genericFailed");
       toast.error(message);
     } finally {
       setIsLoading(false);
@@ -135,28 +145,28 @@ export function LoginForm({ enabledProviders = [] }: LoginFormProps) {
     return (
       <Card>
         <CardHeader className="text-center">
-          <CardTitle>2단계 인증</CardTitle>
+          <CardTitle>{t("auth.twoFactor.title")}</CardTitle>
           <CardDescription>
-            Authenticator 앱의 6자리 코드 또는 복구 코드를 입력해 주세요.
+            {t("auth.login.totpSubtitle")}
           </CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={onSubmitTotp} className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="totp">인증 코드</Label>
+              <Label htmlFor="totp">{t("auth.login.totpLabel")}</Label>
               <Input
                 id="totp"
                 type="text"
                 inputMode="numeric"
                 autoComplete="one-time-code"
-                placeholder="123456"
+                placeholder={t("auth.login.totpPlaceholder")}
                 value={totpCode}
                 onChange={(e) => setTotpCode(e.target.value)}
                 autoFocus
               />
             </div>
             <Button type="submit" className="w-full" disabled={isLoading}>
-              {isLoading ? "확인 중..." : "확인"}
+              {isLoading ? t("auth.login.totpConfirming") : t("auth.login.totpConfirm")}
             </Button>
             <Button
               type="button"
@@ -167,7 +177,7 @@ export function LoginForm({ enabledProviders = [] }: LoginFormProps) {
                 setTotpCode("");
               }}
             >
-              로그인으로 돌아가기
+              {t("auth.login.backToLogin")}
             </Button>
           </form>
         </CardContent>
@@ -178,17 +188,17 @@ export function LoginForm({ enabledProviders = [] }: LoginFormProps) {
   return (
     <Card>
       <CardHeader className="text-center">
-        <CardTitle>Sign In</CardTitle>
-        <CardDescription>Welcome back! Sign in to your account.</CardDescription>
+        <CardTitle>{t("auth.login.title")}</CardTitle>
+        <CardDescription>{t("auth.login.welcomeBack")}</CardDescription>
       </CardHeader>
       <CardContent>
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="email">Email</Label>
+            <Label htmlFor="email">{t("auth.login.email")}</Label>
             <Input
               id="email"
               type="email"
-              placeholder="you@example.com"
+              placeholder={t("auth.login.emailPlaceholder")}
               autoComplete="email"
               {...register("email")}
             />
@@ -198,11 +208,11 @@ export function LoginForm({ enabledProviders = [] }: LoginFormProps) {
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="password">Password</Label>
+            <Label htmlFor="password">{t("auth.login.password")}</Label>
             <Input
               id="password"
               type="password"
-              placeholder="Enter your password"
+              placeholder={t("auth.login.passwordPlaceholder")}
               autoComplete="current-password"
               {...register("password")}
             />
@@ -218,18 +228,18 @@ export function LoginForm({ enabledProviders = [] }: LoginFormProps) {
                 className="h-4 w-4 rounded border-[hsl(var(--input))]"
                 {...register("rememberMe")}
               />
-              Remember me
+              {t("auth.login.rememberMe")}
             </label>
             <Link
               href="/forgot-password"
               className="text-sm text-[hsl(var(--primary))] hover:underline"
             >
-              Forgot password?
+              {t("auth.login.forgotPassword")}
             </Link>
           </div>
 
           <Button type="submit" className="w-full" disabled={isLoading}>
-            {isLoading ? "Signing in..." : "Sign In"}
+            {isLoading ? t("auth.login.submitting") : t("auth.login.submit")}
           </Button>
         </form>
 
@@ -241,7 +251,7 @@ export function LoginForm({ enabledProviders = [] }: LoginFormProps) {
               </div>
               <div className="relative flex justify-center text-xs uppercase">
                 <span className="bg-[hsl(var(--card))] px-2 text-[hsl(var(--muted-foreground))]">
-                  Or continue with
+                  {t("auth.login.orContinueWith")}
                 </span>
               </div>
             </div>
@@ -276,12 +286,18 @@ export function LoginForm({ enabledProviders = [] }: LoginFormProps) {
         )}
 
         <p className="mt-6 text-center text-sm text-[hsl(var(--muted-foreground))]">
-          Don&apos;t have an account?{" "}
+          {t("auth.login.noAccountCta")}{" "}
           <Link href="/register" className="text-[hsl(var(--primary))] hover:underline">
-            Create account
+            {t("auth.login.createAccount")}
           </Link>
         </p>
       </CardContent>
     </Card>
   );
+}
+
+export function LoginForm(props: LoginFormProps) {
+  // Key by locale so the underlying useForm resolver picks up new validation messages after switch.
+  const locale = useLocale();
+  return <LoginFormInner key={locale} {...props} />;
 }

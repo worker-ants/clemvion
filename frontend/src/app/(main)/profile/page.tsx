@@ -16,8 +16,10 @@ import {
 import { toast } from "sonner";
 import { Loader2, Save } from "lucide-react";
 import { useThemeStore } from "@/lib/stores/theme-store";
+import { useLocaleStore } from "@/lib/stores/locale-store";
+import { useT } from "@/lib/i18n";
+import { isLocale, type Locale } from "@/lib/i18n/types";
 
-type Locale = "ko" | "en";
 type ServerTheme = "light" | "dark";
 
 interface UserProfile {
@@ -38,7 +40,9 @@ function axiosMessage(err: unknown, fallback: string): string {
 }
 
 export default function ProfilePage() {
+  const t = useT();
   const { theme, setTheme } = useThemeStore();
+  const setLocaleStore = useLocaleStore((s) => s.setLocale);
   const queryClient = useQueryClient();
 
   const [name, setName] = useState("");
@@ -56,17 +60,17 @@ export default function ProfilePage() {
     },
   });
 
-  // Seed editable state from fetched profile when it arrives.
   useEffect(() => {
     if (!user) return;
     setName(user.name ?? "");
-    if (user.locale === "ko" || user.locale === "en") {
+    if (isLocale(user.locale)) {
       setLanguage(user.locale);
+      setLocaleStore(user.locale);
     }
     if (user.theme === "light" || user.theme === "dark") {
       setTheme(user.theme);
     }
-  }, [user, setTheme]);
+  }, [user, setTheme, setLocaleStore]);
 
   const effectiveTheme: ServerTheme = theme === "dark" ? "dark" : "light";
 
@@ -96,15 +100,15 @@ export default function ProfilePage() {
 
     if (newPassword || confirmPassword || currentPassword) {
       if (!newPassword) {
-        toast.error("Please enter a new password");
+        toast.error(t("profile.enterNewPassword"));
         return;
       }
       if (newPassword !== confirmPassword) {
-        toast.error("Passwords do not match");
+        toast.error(t("profile.passwordsDoNotMatch"));
         return;
       }
       if (!currentPassword) {
-        toast.error("Please enter your current password");
+        toast.error(t("profile.enterCurrentPassword"));
         return;
       }
     }
@@ -113,7 +117,7 @@ export default function ProfilePage() {
     const hasPasswordChange = Boolean(newPassword);
 
     if (!hasProfileChanges && !hasPasswordChange) {
-      toast.info("No changes to save");
+      toast.info(t("profile.noChanges"));
       return;
     }
 
@@ -121,6 +125,9 @@ export default function ProfilePage() {
     try {
       if (hasProfileChanges) {
         await apiClient.patch("/users/me", dirtyProfile);
+        if (dirtyProfile.locale) {
+          setLocaleStore(dirtyProfile.locale);
+        }
       }
       if (hasPasswordChange) {
         await apiClient.post("/users/me/change-password", {
@@ -128,13 +135,13 @@ export default function ProfilePage() {
           newPassword,
         });
       }
-      toast.success("Profile updated");
+      toast.success(t("profile.saved"));
       setCurrentPassword("");
       setNewPassword("");
       setConfirmPassword("");
       await queryClient.invalidateQueries({ queryKey: ["user-profile"] });
     } catch (err) {
-      toast.error(axiosMessage(err, "Failed to update profile"));
+      toast.error(axiosMessage(err, t("profile.saveFailed")));
     } finally {
       setIsSaving(false);
     }
@@ -151,9 +158,9 @@ export default function ProfilePage() {
   if (isError) {
     return (
       <div className="space-y-6">
-        <h1 className="text-3xl font-bold">Profile</h1>
+        <h1 className="text-3xl font-bold">{t("profile.title")}</h1>
         <p className="text-sm text-[hsl(var(--destructive))]">
-          Failed to load profile.
+          {t("profile.loadFailed")}
         </p>
       </div>
     );
@@ -161,12 +168,12 @@ export default function ProfilePage() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-3xl font-bold">Profile</h1>
+      <h1 className="text-3xl font-bold">{t("profile.title")}</h1>
 
       {/* User Info */}
       <Card>
         <CardHeader>
-          <CardTitle className="text-lg">User Information</CardTitle>
+          <CardTitle className="text-lg">{t("profile.userInformation")}</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="flex items-center gap-4">
@@ -175,16 +182,16 @@ export default function ProfilePage() {
             </div>
             <div className="flex-1 space-y-4">
               <div>
-                <Label htmlFor="profile-name">Name</Label>
+                <Label htmlFor="profile-name">{t("profile.name")}</Label>
                 <Input
                   id="profile-name"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
-                  placeholder="Your name"
+                  placeholder={t("profile.namePlaceholder")}
                 />
               </div>
               <div>
-                <Label htmlFor="profile-email">Email</Label>
+                <Label htmlFor="profile-email">{t("profile.email")}</Label>
                 <Input
                   id="profile-email"
                   value={user?.email ?? ""}
@@ -200,37 +207,37 @@ export default function ProfilePage() {
       {/* Password Change */}
       <Card>
         <CardHeader>
-          <CardTitle className="text-lg">Change Password</CardTitle>
+          <CardTitle className="text-lg">{t("profile.changePassword")}</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           <div>
-            <Label htmlFor="current-pw">Current Password</Label>
+            <Label htmlFor="current-pw">{t("profile.currentPassword")}</Label>
             <Input
               id="current-pw"
               type="password"
               value={currentPassword}
               onChange={(e) => setCurrentPassword(e.target.value)}
-              placeholder="Enter current password"
+              placeholder={t("profile.currentPasswordPlaceholder")}
             />
           </div>
           <div>
-            <Label htmlFor="new-pw">New Password</Label>
+            <Label htmlFor="new-pw">{t("profile.newPassword")}</Label>
             <Input
               id="new-pw"
               type="password"
               value={newPassword}
               onChange={(e) => setNewPassword(e.target.value)}
-              placeholder="Enter new password"
+              placeholder={t("profile.newPasswordPlaceholder")}
             />
           </div>
           <div>
-            <Label htmlFor="confirm-pw">Confirm Password</Label>
+            <Label htmlFor="confirm-pw">{t("profile.confirmPassword")}</Label>
             <Input
               id="confirm-pw"
               type="password"
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
-              placeholder="Confirm new password"
+              placeholder={t("profile.confirmPasswordPlaceholder")}
             />
           </div>
         </CardContent>
@@ -239,38 +246,43 @@ export default function ProfilePage() {
       {/* Preferences */}
       <Card>
         <CardHeader>
-          <CardTitle className="text-lg">Preferences</CardTitle>
+          <CardTitle className="text-lg">{t("profile.preferences")}</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           <div>
-            <Label>Theme</Label>
+            <Label>{t("profile.theme")}</Label>
             <div className="mt-1 flex gap-2">
               <Button
                 variant={theme === "light" ? "default" : "outline"}
                 size="sm"
                 onClick={() => setTheme("light")}
               >
-                Light
+                {t("profile.themeLight")}
               </Button>
               <Button
                 variant={theme === "dark" ? "default" : "outline"}
                 size="sm"
                 onClick={() => setTheme("dark")}
               >
-                Dark
+                {t("profile.themeDark")}
               </Button>
             </div>
           </div>
           <div>
-            <Label htmlFor="language-select">Language</Label>
+            <Label htmlFor="language-select">{t("profile.language")}</Label>
             <select
               id="language-select"
               className="flex h-10 w-full max-w-xs rounded-md border border-[hsl(var(--input))] bg-transparent px-3 py-2 text-sm"
               value={language}
-              onChange={(e) => setLanguage(e.target.value as Locale)}
+              onChange={(e) => {
+                const next = e.target.value;
+                if (isLocale(next)) {
+                  setLanguage(next);
+                }
+              }}
             >
-              <option value="ko">Korean</option>
-              <option value="en">English</option>
+              <option value="ko">{t("profile.languageKorean")}</option>
+              <option value="en">{t("profile.languageEnglish")}</option>
             </select>
           </div>
         </CardContent>
@@ -284,7 +296,7 @@ export default function ProfilePage() {
           ) : (
             <Save className="mr-2 h-4 w-4" />
           )}
-          Save
+          {t("common.save")}
         </Button>
       </div>
     </div>

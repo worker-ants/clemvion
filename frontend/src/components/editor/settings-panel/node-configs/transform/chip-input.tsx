@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { X } from "lucide-react";
 import { Input } from "@/components/ui/input";
+import { useT } from "@/lib/i18n";
 
 export function ChipInput({
   values,
@@ -13,6 +14,7 @@ export function ChipInput({
   onChange: (values: string[]) => void;
   placeholder?: string;
 }) {
+  const t = useT();
   const [draft, setDraft] = useState("");
 
   const commit = () => {
@@ -40,7 +42,7 @@ export function ChipInput({
               type="button"
               onClick={() => remove(i)}
               className="text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]"
-              aria-label={`Remove ${v}`}
+              aria-label={t("nodeConfigs.chipInput.removeAria", { value: v })}
             >
               <X size={10} />
             </button>
@@ -74,7 +76,7 @@ export function ChipInput({
           }
         }}
         onBlur={commit}
-        placeholder={placeholder ?? "Enter 또는 쉼표로 추가"}
+        placeholder={placeholder ?? t("nodeConfigs.chipInput.placeholder")}
         className="h-7 text-xs"
       />
     </div>

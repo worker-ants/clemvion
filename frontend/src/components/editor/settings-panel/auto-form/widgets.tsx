@@ -16,6 +16,14 @@ import { Plus, X } from "lucide-react";
 import type { JsonSchemaNode, UiHint } from "@/lib/node-definitions";
 import { humanize, pickWidget } from "./utils";
 import { isFieldVisible } from "./visibility";
+import { useT, useLocale } from "@/lib/i18n";
+import {
+  translateBackendHint,
+  translateBackendItemLabel,
+  translateBackendLabel,
+  translateBackendOptionLabel,
+  translateBackendPlaceholder,
+} from "@/lib/i18n/backend-labels";
 
 export type WidgetProps = {
   schema: JsonSchemaNode;
@@ -27,12 +35,13 @@ export type WidgetProps = {
 
 /** Widget that renders a string as plain text input. */
 export function TextWidget({ ui, label, value, onChange }: WidgetProps) {
+  const locale = useLocale();
   return (
-    <FieldGroup label={label} hint={ui?.hint}>
+    <FieldGroup label={label} hint={translateBackendHint(ui?.hint, locale)}>
       <Input
         value={(value as string) ?? ""}
         onChange={(e) => onChange(e.target.value)}
-        placeholder={ui?.placeholder}
+        placeholder={translateBackendPlaceholder(ui?.placeholder, locale)}
         className="h-8 text-xs"
       />
     </FieldGroup>
@@ -40,18 +49,20 @@ export function TextWidget({ ui, label, value, onChange }: WidgetProps) {
 }
 
 export function TextAreaWidget({ ui, label, value, onChange }: WidgetProps) {
+  const locale = useLocale();
   return (
     <TextAreaField
       label={label}
       value={(value as string) ?? ""}
       onChange={onChange}
-      placeholder={ui?.placeholder}
-      hint={ui?.hint}
+      placeholder={translateBackendPlaceholder(ui?.placeholder, locale)}
+      hint={translateBackendHint(ui?.hint, locale)}
     />
   );
 }
 
 export function NumberWidget({ ui, label, value, onChange, schema }: WidgetProps) {
+  const locale = useLocale();
   return (
     <NumberField
       label={label}
@@ -59,7 +70,7 @@ export function NumberWidget({ ui, label, value, onChange, schema }: WidgetProps
       onChange={onChange}
       min={typeof schema.minimum === "number" ? schema.minimum : undefined}
       max={typeof schema.maximum === "number" ? schema.maximum : undefined}
-      hint={ui?.hint}
+      hint={translateBackendHint(ui?.hint, locale)}
     />
   );
 }
@@ -75,29 +86,35 @@ export function CheckboxWidget({ label, value, onChange }: WidgetProps) {
 }
 
 export function SelectWidget({ ui, label, value, onChange, schema }: WidgetProps) {
-  const options =
+  const locale = useLocale();
+  const rawOptions =
     ui?.options ??
     (Array.isArray(schema.enum)
       ? schema.enum.map((v) => ({ value: String(v), label: String(v) }))
       : []);
+  const options = rawOptions.map((o) => ({
+    ...o,
+    label: translateBackendOptionLabel(o.label, locale) ?? o.label,
+  }));
   return (
     <SelectField
       label={label}
       value={(value as string) ?? ""}
       onChange={onChange}
       options={options}
-      hint={ui?.hint}
+      hint={translateBackendHint(ui?.hint, locale)}
     />
   );
 }
 
 export function ExpressionWidget({ ui, label, value, onChange }: WidgetProps) {
+  const locale = useLocale();
   return (
     <ExpressionInput
       label={label}
       value={value == null ? "" : String(value)}
       onChange={onChange}
-      placeholder={ui?.placeholder}
+      placeholder={translateBackendPlaceholder(ui?.placeholder, locale)}
     />
   );
 }
@@ -134,6 +151,8 @@ export function KvWidget({ label, value, onChange }: WidgetProps) {
 
 /** Monospaced multi-line editor for code/templates. */
 export function CodeWidget({ ui, label, value, onChange }: WidgetProps) {
+  const t = useT();
+  const locale = useLocale();
   return (
     <TextAreaField
       label={label}
@@ -141,8 +160,13 @@ export function CodeWidget({ ui, label, value, onChange }: WidgetProps) {
       onChange={onChange}
       rows={8}
       mono
-      placeholder={ui?.placeholder}
-      hint={ui?.hint ?? (ui?.language ? `Language: ${ui.language}` : undefined)}
+      placeholder={translateBackendPlaceholder(ui?.placeholder, locale)}
+      hint={
+        translateBackendHint(ui?.hint, locale) ??
+        (ui?.language
+          ? t("nodeConfigs.autoForm.codeLanguageHint", { language: ui.language })
+          : undefined)
+      }
     />
   );
 }
@@ -217,6 +241,7 @@ function StructuredItemForm({
   item: Record<string, unknown>;
   onChange: (next: Record<string, unknown>) => void;
 }) {
+  const locale = useLocale();
   const fieldEntries = useMemo<FieldEntry[]>(() => {
     const props = itemSchema.properties ?? {};
     const list: FieldEntry[] = Object.entries(props).map(([key, field], idx) => {
@@ -233,7 +258,8 @@ function StructuredItemForm({
         if (ui?.hidden) return null;
         if (!isFieldVisible(ui, item)) return null;
         const Widget = pickWidget<WidgetProps>(fieldSchema, ui, PRIMITIVES);
-        const label = ui?.label ?? humanize(key);
+        const label =
+          translateBackendLabel(ui?.label, locale) ?? humanize(key);
         return (
           <Widget
             key={key}
@@ -257,9 +283,16 @@ function StructuredItemForm({
  * - Otherwise, falls back to a raw JSON textarea per item.
  */
 export function FieldArrayWidget({ ui, label, value, onChange, schema }: WidgetProps) {
+  const t = useT();
+  const locale = useLocale();
   const items = Array.isArray(value) ? (value as unknown[]) : [];
   const itemSchema = schema.items;
   const isStructured = itemSchema?.properties != null;
+  const translatedItemLabel = translateBackendItemLabel(ui?.itemLabel, locale);
+  const itemLabel =
+    translatedItemLabel ?? t("nodeConfigs.autoForm.defaultItemLabel");
+  const itemLabelLower =
+    translatedItemLabel ?? t("nodeConfigs.autoForm.defaultItemLabelLowercase");
 
   const add = () => {
     if (isStructured && itemSchema) {
@@ -273,7 +306,7 @@ export function FieldArrayWidget({ ui, label, value, onChange, schema }: WidgetP
     onChange(items.map((it, idx) => (idx === i ? v : it)));
 
   return (
-    <FieldGroup label={label} hint={ui?.hint}>
+    <FieldGroup label={label} hint={translateBackendHint(ui?.hint, locale)}>
       <div className="flex flex-col gap-2">
         {items.map((item, i) => {
           // Prefer a stable per-item id over array index so reorder / mid-list
@@ -290,13 +323,14 @@ export function FieldArrayWidget({ ui, label, value, onChange, schema }: WidgetP
             >
               <div className="flex items-center justify-between">
                 <span className="text-[10px] text-[hsl(var(--muted-foreground))]">
-                  {ui?.itemLabel ?? "Item"} {i + 1}
+                  {itemLabel} {i + 1}
                 </span>
                 <Button
                   variant="ghost"
                   size="icon"
                   className="h-5 w-5 shrink-0"
                   onClick={() => remove(i)}
+                  aria-label={t("nodeConfigs.autoForm.removeItemAria", { label: itemLabel })}
                 >
                   <X size={10} />
                 </Button>
@@ -330,7 +364,8 @@ export function FieldArrayWidget({ ui, label, value, onChange, schema }: WidgetP
           className="h-7 text-xs"
           onClick={add}
         >
-          <Plus size={12} className="mr-1" /> Add {ui?.itemLabel ?? "item"}
+          <Plus size={12} className="mr-1" />
+          {t("nodeConfigs.autoForm.addItem", { label: itemLabelLower })}
         </Button>
       </div>
     </FieldGroup>
@@ -339,10 +374,11 @@ export function FieldArrayWidget({ ui, label, value, onChange, schema }: WidgetP
 
 /** Fallback for widgets that haven't been implemented yet. Shows a raw JSON viewer. */
 export function UnsupportedWidget({ label, value }: WidgetProps) {
+  const t = useT();
   return (
     <FieldGroup
       label={label}
-      hint="Advanced widget not yet supported in auto-form"
+      hint={t("nodeConfigs.autoForm.unsupportedWidgetHint")}
     >
       <pre className="rounded-md bg-[hsl(var(--muted))] p-2 text-[11px]">
         {JSON.stringify(value ?? null, null, 2)}

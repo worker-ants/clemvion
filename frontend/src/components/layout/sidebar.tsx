@@ -32,19 +32,24 @@ import { authApi } from "@/lib/api/auth";
 import { workspacesApi } from "@/lib/api/workspaces";
 import { apiClient } from "@/lib/api/client";
 import { Building2, Check, Plus } from "lucide-react";
+import { useT, type TranslationKey } from "@/lib/i18n";
 
 const navItems = [
-  { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
-  { label: "Workflows", href: "/workflows", icon: GitBranch },
-  { label: "Triggers", href: "/triggers", icon: Zap },
-  { label: "Schedule", href: "/schedules", icon: Calendar },
-  { label: "Integration", href: "/integrations", icon: Puzzle },
-  { label: "Knowledge Base", href: "/knowledge-bases", icon: BookOpen },
-  { label: "LLM Config", href: "/llm-configs", icon: Brain },
-  { label: "Authentication", href: "/authentication", icon: Lock },
-  { label: "Statistics", href: "/statistics", icon: BarChart3 },
-  { label: "User Guide", href: "/docs", icon: BookMarked },
-] as const;
+  { labelKey: "sidebar.dashboard", href: "/dashboard", icon: LayoutDashboard },
+  { labelKey: "sidebar.workflows", href: "/workflows", icon: GitBranch },
+  { labelKey: "sidebar.triggers", href: "/triggers", icon: Zap },
+  { labelKey: "sidebar.schedule", href: "/schedules", icon: Calendar },
+  { labelKey: "sidebar.integration", href: "/integrations", icon: Puzzle },
+  { labelKey: "sidebar.knowledgeBase", href: "/knowledge-bases", icon: BookOpen },
+  { labelKey: "sidebar.llmConfig", href: "/llm-configs", icon: Brain },
+  { labelKey: "sidebar.authentication", href: "/authentication", icon: Lock },
+  { labelKey: "sidebar.statistics", href: "/statistics", icon: BarChart3 },
+  { labelKey: "sidebar.userGuide", href: "/docs", icon: BookMarked },
+] as const satisfies ReadonlyArray<{
+  labelKey: TranslationKey;
+  href: string;
+  icon: typeof LayoutDashboard;
+}>;
 
 function useMediaQuery(query: string) {
   const [matches, setMatches] = useState(() => {
@@ -62,6 +67,7 @@ function useMediaQuery(query: string) {
 }
 
 export function Sidebar() {
+  const t = useT();
   const pathname = usePathname();
   const router = useRouter();
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -177,7 +183,7 @@ export function Sidebar() {
   }
 
   const userInitial = user?.name?.charAt(0)?.toUpperCase() ?? "U";
-  const userName = user?.name ?? "User";
+  const userName = user?.name ?? t("sidebar.user");
 
   return (
     <>
@@ -211,7 +217,7 @@ export function Sidebar() {
         <div className="flex h-14 items-center border-b border-[hsl(var(--border))] px-4">
           {!collapsed && (
             <Link href="/dashboard" className="text-lg font-semibold">
-              Workflow
+              {t("sidebar.workflow")}
             </Link>
           )}
           {collapsed && (
@@ -237,6 +243,7 @@ export function Sidebar() {
         <nav className="flex-1 space-y-1 overflow-y-auto p-2">
           {navItems.map((item) => {
             const isActive = pathname.startsWith(item.href);
+            const label = t(item.labelKey);
             return (
               <Link
                 key={item.href}
@@ -248,10 +255,10 @@ export function Sidebar() {
                     : "text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--accent))] hover:text-[hsl(var(--accent-foreground))]",
                   collapsed && "justify-center px-2",
                 )}
-                title={collapsed ? item.label : undefined}
+                title={collapsed ? label : undefined}
               >
                 <item.icon className="h-5 w-5 shrink-0" />
-                {!collapsed && <span>{item.label}</span>}
+                {!collapsed && <span>{label}</span>}
               </Link>
             );
           })}
@@ -262,11 +269,11 @@ export function Sidebar() {
           {notifOpen && (
             <div className="absolute bottom-full left-2 right-2 mb-1 max-h-[300px] overflow-y-auto rounded-md border border-[hsl(var(--border))] bg-[hsl(var(--card))] shadow-lg">
               <div className="border-b border-[hsl(var(--border))] px-3 py-2">
-                <p className="text-sm font-medium">Notifications</p>
+                <p className="text-sm font-medium">{t("sidebar.notifications")}</p>
               </div>
               {!notifListQuery.data?.length ? (
                 <div className="px-3 py-4 text-center text-sm text-[hsl(var(--muted-foreground))]">
-                  No notifications
+                  {t("sidebar.noNotifications")}
                 </div>
               ) : (
                 notifListQuery.data.map((notif) => (
@@ -293,10 +300,10 @@ export function Sidebar() {
               "relative flex w-full items-center gap-3 rounded-md px-3 py-2 text-sm font-medium text-[hsl(var(--muted-foreground))] transition-colors hover:bg-[hsl(var(--accent))] hover:text-[hsl(var(--accent-foreground))]",
               collapsed && "justify-center px-2",
             )}
-            title={collapsed ? "Notifications" : undefined}
+            title={collapsed ? t("sidebar.notifications") : undefined}
           >
             <Bell className="h-5 w-5 shrink-0" />
-            {!collapsed && <span>Notifications</span>}
+            {!collapsed && <span>{t("sidebar.notifications")}</span>}
             {unreadCount > 0 && (
               <span className="absolute right-2 top-1 flex h-4 min-w-[16px] items-center justify-center rounded-full bg-[hsl(var(--destructive))] px-1 text-[10px] font-bold text-white">
                 {unreadCount > 99 ? "99+" : unreadCount}
@@ -314,7 +321,7 @@ export function Sidebar() {
             {workspaceMenuOpen && (
               <div className="absolute bottom-full left-2 right-2 mb-1 max-h-[280px] overflow-y-auto rounded-md border border-[hsl(var(--border))] bg-[hsl(var(--card))] py-1 shadow-lg">
                 <div className="border-b border-[hsl(var(--border))] px-3 py-2 text-xs font-semibold uppercase tracking-wider text-[hsl(var(--muted-foreground))]">
-                  Switch Workspace
+                  {t("sidebar.switchWorkspace")}
                 </div>
                 {workspaces.map((w) => (
                   <button
@@ -344,7 +351,7 @@ export function Sidebar() {
                     className="flex items-center gap-2 px-3 py-2 text-sm text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--accent))] hover:text-[hsl(var(--accent-foreground))]"
                   >
                     <Plus className="h-4 w-4" />
-                    워크스페이스 관리
+                    {t("sidebar.manageWorkspaces")}
                   </Link>
                 </div>
               </div>
@@ -361,7 +368,7 @@ export function Sidebar() {
               <Building2 className="h-4 w-4 shrink-0" />
               {!collapsed && (
                 <span className="min-w-0 flex-1 truncate text-left font-medium">
-                  {currentWorkspace?.name ?? "Workspace"}
+                  {currentWorkspace?.name ?? t("sidebar.workspace")}
                 </span>
               )}
             </button>
@@ -391,7 +398,7 @@ export function Sidebar() {
                 className="flex items-center gap-2 px-3 py-2 text-sm text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--accent))] hover:text-[hsl(var(--accent-foreground))]"
               >
                 <User className="h-4 w-4" />
-                Profile
+                {t("sidebar.profile")}
               </Link>
               <button
                 type="button"
@@ -399,7 +406,7 @@ export function Sidebar() {
                 className="flex w-full items-center gap-2 px-3 py-2 text-sm text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--accent))] hover:text-[hsl(var(--accent-foreground))]"
               >
                 <LogOut className="h-4 w-4" />
-                Logout
+                {t("sidebar.logout")}
               </button>
             </div>
           )}
@@ -432,7 +439,7 @@ export function Sidebar() {
               ) : (
                 <>
                   <ChevronLeft className="h-4 w-4" />
-                  <span className="ml-2">Collapse</span>
+                  <span className="ml-2">{t("sidebar.collapse")}</span>
                 </>
               )}
             </Button>

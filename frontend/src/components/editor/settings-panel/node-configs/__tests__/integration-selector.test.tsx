@@ -31,6 +31,7 @@ vi.mock("next/link", () => ({
 }));
 
 import { IntegrationSelector } from "../integration-selector";
+import { useLocaleStore } from "@/lib/stores/locale-store";
 
 function wrap(ui: React.ReactNode) {
   const client = new QueryClient({
@@ -52,6 +53,7 @@ async function waitForText(matcher: RegExp) {
 describe("IntegrationSelector", () => {
   beforeEach(() => {
     listMock.mockReset();
+    useLocaleStore.setState({ locale: "en" });
   });
 
   it("lists integrations matching the serviceTypes filter", async () => {
@@ -147,7 +149,7 @@ describe("IntegrationSelector", () => {
         />,
       ),
     );
-    await waitForText(/\(missing\)$/);
+    await waitForText(/\(missing\)\s*$/);
     const select = screen.getByRole("combobox") as HTMLSelectElement;
     expect(select.value).toBe("deleted-uuid-xxxx");
   });

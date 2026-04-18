@@ -15,8 +15,11 @@ import {
   CardContent,
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { useT, translate } from "@/lib/i18n";
+import { useLocaleStore } from "@/lib/stores/locale-store";
 
 export function VerifyEmailContent() {
+  const t = useT();
   const router = useRouter();
   const searchParams = useSearchParams();
   const token = searchParams.get("token");
@@ -31,6 +34,7 @@ export function VerifyEmailContent() {
     calledRef.current = true;
 
     async function verify() {
+      const currentLocale = useLocaleStore.getState().locale;
       try {
         const response = await authApi.verifyEmail(token!);
         const accessToken = response.data.data?.accessToken;
@@ -38,13 +42,13 @@ export function VerifyEmailContent() {
           setAccessToken(accessToken);
         }
         setStatus("success");
-        toast.success("Email verified successfully!");
+        toast.success(translate(currentLocale, "auth.verifyEmail.verifiedToast"));
         setTimeout(() => router.push("/dashboard"), 2000);
       } catch (err) {
         const error = err as AxiosError<{ message?: string }>;
         const message =
           error.response?.data?.message ??
-          "Verification failed. Please try again.";
+          translate(currentLocale, "auth.verifyEmail.genericFailed");
         setErrorMessage(message);
         setStatus("error");
         toast.error(message);
@@ -57,12 +61,12 @@ export function VerifyEmailContent() {
   return (
     <Card>
       <CardHeader className="text-center">
-        <CardTitle>Email Verification</CardTitle>
+        <CardTitle>{t("auth.verifyEmail.title")}</CardTitle>
         <CardDescription>
-          {status === "verifying" && "Verifying your email address..."}
-          {status === "check-email" && "Please check your email"}
-          {status === "success" && "Your email has been verified!"}
-          {status === "error" && "Verification failed"}
+          {status === "verifying" && t("auth.verifyEmail.descVerifying")}
+          {status === "check-email" && t("auth.verifyEmail.descCheckEmail")}
+          {status === "success" && t("auth.verifyEmail.descSuccess")}
+          {status === "error" && t("auth.verifyEmail.descError")}
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -74,16 +78,16 @@ export function VerifyEmailContent() {
 
         {status === "check-email" && (
           <div className="text-center text-sm text-[hsl(var(--muted-foreground))]">
-            <p>We have sent a verification link to your email address.</p>
+            <p>{t("auth.verifyEmail.checkEmailBody1")}</p>
             <p className="mt-2">
-              Please click the link in the email to verify your account.
+              {t("auth.verifyEmail.checkEmailBody2")}
             </p>
           </div>
         )}
 
         {status === "success" && (
           <div className="text-center text-sm text-[hsl(var(--muted-foreground))]">
-            <p>Redirecting to dashboard...</p>
+            <p>{t("auth.verifyEmail.redirecting")}</p>
           </div>
         )}
 
@@ -93,14 +97,14 @@ export function VerifyEmailContent() {
               {errorMessage}
             </p>
             <Button asChild variant="outline" className="w-full">
-              <Link href="/login">Back to Sign In</Link>
+              <Link href="/login">{t("auth.verifyEmail.backToLogin")}</Link>
             </Button>
           </div>
         )}
 
         {status === "check-email" && (
           <Button asChild variant="outline" className="w-full">
-            <Link href="/login">Back to Sign In</Link>
+            <Link href="/login">{t("auth.verifyEmail.backToLogin")}</Link>
           </Button>
         )}
       </CardContent>

@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, vi } from "vitest";
 import { render, screen, fireEvent, act } from "@testing-library/react";
 import { Suspense } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { useLocaleStore } from "@/lib/stores/locale-store";
 
 const mockPush = vi.fn();
 vi.mock("next/navigation", () => ({
@@ -110,6 +111,7 @@ async function renderPage(executionId = "exec-1") {
 describe("ExecutionDetailPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    useLocaleStore.setState({ locale: "en" });
     const exec = makeExecution();
     mockGetById.mockResolvedValue(exec);
     mockGetByWorkflow.mockResolvedValue({
@@ -172,6 +174,7 @@ describe("ExecutionDetailPage", () => {
 describe("ExecutionDetailPage - Failed Execution", () => {
   it("renders error message for failed execution", async () => {
     vi.clearAllMocks();
+    useLocaleStore.setState({ locale: "en" });
     const failedExec = makeExecution({
       status: "failed",
       error: { message: "Connection timeout" },

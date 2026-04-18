@@ -8,6 +8,7 @@ vi.mock("../../canvas/node-icon", () => ({
 
 import { NodePalette } from "../node-palette";
 import { useNodeDefinitionsStore } from "@/lib/stores/node-definitions-store";
+import { useLocaleStore } from "@/lib/stores/locale-store";
 import type { NodeDefinition } from "@/lib/node-definitions";
 
 function makeNode(type: string, category: NodeDefinition["category"], label: string): NodeDefinition {
@@ -26,6 +27,7 @@ function makeNode(type: string, category: NodeDefinition["category"], label: str
 }
 
 beforeEach(() => {
+  useLocaleStore.setState({ locale: "en" });
   useNodeDefinitionsStore.setState({
     status: "ready",
     error: null,

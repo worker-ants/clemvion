@@ -10,6 +10,7 @@ import type {
 } from "@/types/transform";
 import { TRANSFORM_OPERATION_TYPES } from "@/types/transform";
 import { defaultForType } from "./defaults";
+import { useT } from "@/lib/i18n";
 
 export interface OperationCardProps {
   id: string;
@@ -30,6 +31,7 @@ export function OperationCard({
   onDuplicate,
   children,
 }: OperationCardProps) {
+  const t = useT();
   const {
     attributes,
     listeners,
@@ -45,7 +47,7 @@ export function OperationCard({
     opacity: isDragging ? 0.5 : 1,
   };
 
-  const meta = TRANSFORM_OPERATION_TYPES.find((t) => t.value === op.type);
+  const meta = TRANSFORM_OPERATION_TYPES.find((m) => m.value === op.type);
 
   const handleTypeChange = (next: TransformOperationType) => {
     if (next === op.type) return;
@@ -65,12 +67,12 @@ export function OperationCard({
             className="cursor-grab touch-none p-0.5 text-[hsl(var(--muted-foreground))]"
             {...attributes}
             {...listeners}
-            aria-label="Drag to reorder"
+            aria-label={t("nodeConfigs.transform.dragToReorder")}
           >
             <GripVertical size={12} />
           </button>
           <span className="text-[10px] text-[hsl(var(--muted-foreground))]">
-            Step {index + 1}
+            {t("nodeConfigs.transform.stepLabel", { index: index + 1 })}
           </span>
         </div>
         <div className="flex items-center gap-0.5">
@@ -79,7 +81,7 @@ export function OperationCard({
             size="icon"
             className="h-5 w-5"
             onClick={onDuplicate}
-            aria-label="Duplicate"
+            aria-label={t("nodeConfigs.transform.duplicateStep")}
           >
             <Copy size={10} />
           </Button>
@@ -88,7 +90,7 @@ export function OperationCard({
             size="icon"
             className="h-5 w-5"
             onClick={onRemove}
-            aria-label="Remove"
+            aria-label={t("nodeConfigs.transform.removeStep")}
           >
             <X size={10} />
           </Button>
@@ -101,9 +103,9 @@ export function OperationCard({
         }
         className="h-7 rounded-md border border-[hsl(var(--input))] bg-transparent px-2 text-xs"
       >
-        {TRANSFORM_OPERATION_TYPES.map((t) => (
-          <option key={t.value} value={t.value}>
-            {t.label}
+        {TRANSFORM_OPERATION_TYPES.map((m) => (
+          <option key={m.value} value={m.value}>
+            {m.label}
           </option>
         ))}
       </select>

@@ -1,3 +1,9 @@
+"use client";
+
+import { translate } from "@/lib/i18n/core";
+import type { Locale } from "@/lib/i18n/types";
+import { useLocaleStore } from "@/lib/stores/locale-store";
+
 const MINUTE = 60;
 const HOUR = 3600;
 const DAY = 86400;
@@ -5,38 +11,67 @@ const WEEK = 604800;
 const MONTH = 2592000;
 const YEAR = 31536000;
 
-export function timeAgo(date: string | Date): string {
+// Snapshot read — not reactive. Components that should re-render on locale
+// change already do so via `useT()` / `useLocale()`; these utilities are only
+// called inline during render, so reading the store at call time is fine.
+function currentLocale(): Locale {
+  return useLocaleStore.getState().locale;
+}
+
+export function timeAgo(date: string | Date, locale?: Locale): string {
+  const loc = locale ?? currentLocale();
   const now = Date.now();
   const then = new Date(date).getTime();
   const seconds = Math.floor((now - then) / 1000);
 
-  if (seconds < 0) return "just now";
-  if (seconds < MINUTE) return `${seconds}s ago`;
-  if (seconds < HOUR) return `${Math.floor(seconds / MINUTE)}m ago`;
-  if (seconds < DAY) return `${Math.floor(seconds / HOUR)}h ago`;
-  if (seconds < WEEK) return `${Math.floor(seconds / DAY)}d ago`;
-  if (seconds < MONTH) return `${Math.floor(seconds / WEEK)}w ago`;
-  if (seconds < YEAR) return `${Math.floor(seconds / MONTH)}mo ago`;
-  return `${Math.floor(seconds / YEAR)}y ago`;
+  if (seconds < 0) return translate(loc, "time.justNow");
+  if (seconds < MINUTE) return translate(loc, "time.secondsAgo", { seconds });
+  if (seconds < HOUR)
+    return translate(loc, "time.minutesAgo", { minutes: Math.floor(seconds / MINUTE) });
+  if (seconds < DAY)
+    return translate(loc, "time.hoursAgo", { hours: Math.floor(seconds / HOUR) });
+  if (seconds < WEEK)
+    return translate(loc, "time.daysAgo", { days: Math.floor(seconds / DAY) });
+  if (seconds < MONTH)
+    return translate(loc, "time.weeksAgo", { weeks: Math.floor(seconds / WEEK) });
+  if (seconds < YEAR)
+    return translate(loc, "time.monthsAgo", { months: Math.floor(seconds / MONTH) });
+  return translate(loc, "time.yearsAgo", { years: Math.floor(seconds / YEAR) });
 }
 
-export function formatDate(date: string | Date, format?: string): string {
+/**
+ * Coarse duration formatter for dashboards and summary tiles: rounds sub-minute
+ * values to whole seconds ("5s") so at-a-glance metrics stay compact. Uses
+ * `time.minutesSeconds` for multi-minute runs. Prefer
+ * `@/lib/utils/execution-status.formatDuration` when you need 0.1s precision.
+ */
+export function formatDuration(ms: number, locale?: Locale): string {
+  const loc = locale ?? currentLocale();
+  if (ms < 1000) return translate(loc, "time.ms", { value: ms });
+  const totalSeconds = Math.floor(ms / 1000);
+  if (totalSeconds < 60) return translate(loc, "time.seconds", { value: totalSeconds });
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  return translate(loc, "time.minutesSeconds", { minutes, seconds });
+}
+
+/**
+ * Format a date with the user's locale. `format` accepts:
+ *   - `"iso"` — ISO 8601 string (locale-agnostic).
+ *   - `"datetime"` — short month + year + hour:minute.
+ *   - `"date"` / undefined — short month + year (default).
+ */
+export function formatDate(date: string | Date, format?: string, locale?: Locale): string {
+  const loc = locale ?? currentLocale();
+  const intlLocale = loc === "ko" ? "ko-KR" : "en-US";
   const d = new Date(date);
 
   if (format === "iso") {
     return d.toISOString();
   }
 
-  if (format === "date") {
-    return d.toLocaleDateString("en-US", {
-      year: "numeric",
-      month: "short",
-      day: "numeric",
-    });
-  }
-
   if (format === "datetime") {
-    return d.toLocaleDateString("en-US", {
+    return d.toLocaleDateString(intlLocale, {
       year: "numeric",
       month: "short",
       day: "numeric",
@@ -45,7 +80,8 @@ export function formatDate(date: string | Date, format?: string): string {
     });
   }
 
-  return d.toLocaleDateString("en-US", {
+  // `format === "date"` and undefined share the default branch intentionally.
+  return d.toLocaleDateString(intlLocale, {
     year: "numeric",
     month: "short",
     day: "numeric",

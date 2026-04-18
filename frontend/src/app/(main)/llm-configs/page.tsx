@@ -19,6 +19,7 @@ import {
   Plug,
   Pencil,
 } from "lucide-react";
+import { useT } from "@/lib/i18n";
 
 const PROVIDERS = [
   { value: "openai", label: "OpenAI" },
@@ -37,12 +38,12 @@ const PROVIDER_LABELS: Record<string, string> = {
 };
 
 export default function LlmConfigsPage() {
+  const t = useT();
   const queryClient = useQueryClient();
   const [showDialog, setShowDialog] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
 
-  // Form state
   const [formProvider, setFormProvider] = useState("");
   const [formName, setFormName] = useState("");
   const [formApiKey, setFormApiKey] = useState("");
@@ -72,10 +73,10 @@ export default function LlmConfigsPage() {
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["llm-configs"] });
-      toast.success("LLM provider added");
+      toast.success(t("llmConfigs.providerAdded"));
       resetForm();
     },
-    onError: () => toast.error("Failed to add provider"),
+    onError: () => toast.error(t("llmConfigs.providerAddFailed")),
   });
 
   const updateMutation = useMutation({
@@ -83,41 +84,41 @@ export default function LlmConfigsPage() {
       llmConfigsApi.update(payload.id, payload.data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["llm-configs"] });
-      toast.success("Provider updated");
+      toast.success(t("llmConfigs.providerUpdated"));
       resetForm();
     },
-    onError: () => toast.error("Failed to update provider"),
+    onError: () => toast.error(t("llmConfigs.providerUpdateFailed")),
   });
 
   const deleteMutation = useMutation({
     mutationFn: (id: string) => llmConfigsApi.remove(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["llm-configs"] });
-      toast.success("Provider deleted");
+      toast.success(t("llmConfigs.providerDeleted"));
       setDeleteTarget(null);
     },
-    onError: () => toast.error("Failed to delete provider"),
+    onError: () => toast.error(t("llmConfigs.providerDeleteFailed")),
   });
 
   const setDefaultMutation = useMutation({
     mutationFn: (id: string) => llmConfigsApi.setDefault(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["llm-configs"] });
-      toast.success("Default provider updated");
+      toast.success(t("llmConfigs.providerDefaultUpdated"));
     },
-    onError: () => toast.error("Failed to set default"),
+    onError: () => toast.error(t("llmConfigs.setDefaultFailed")),
   });
 
   const testMutation = useMutation({
     mutationFn: (id: string) => llmConfigsApi.testConnection(id),
     onSuccess: (result) => {
       if (result.success) {
-        toast.success("Connection successful");
+        toast.success(t("llmConfigs.connectionSucceeded"));
       } else {
-        toast.error(`Connection failed: ${result.error}`);
+        toast.error(t("llmConfigs.connectionFailed", { error: result.error ?? "" }));
       }
     },
-    onError: () => toast.error("Connection test failed"),
+    onError: () => toast.error(t("llmConfigs.testFailedShort")),
   });
 
   function resetForm() {
@@ -150,11 +151,11 @@ export default function LlmConfigsPage() {
 
   function handleSave() {
     if (!formName.trim() || !formProvider || !formModel.trim()) {
-      toast.error("Name, provider, and model are required");
+      toast.error(t("llmConfigs.requiredFields"));
       return;
     }
     if (!editId && !formApiKey.trim()) {
-      toast.error("API key is required");
+      toast.error(t("llmConfigs.apiKeyRequired"));
       return;
     }
 
@@ -182,22 +183,21 @@ export default function LlmConfigsPage() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-3xl font-bold">LLM Config</h1>
+        <h1 className="text-3xl font-bold">{t("llmConfigs.title")}</h1>
         <RoleGate minRole="editor">
           <Button onClick={() => setShowDialog(true)}>
             <Plus className="mr-2 h-4 w-4" />
-            Add Provider
+            {t("llmConfigs.addProvider")}
           </Button>
         </RoleGate>
       </div>
 
-      {/* Add/Edit Dialog */}
       {showDialog && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
           <div className="w-full max-w-md rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-6 shadow-lg">
             <div className="mb-4 flex items-center justify-between">
               <h2 className="text-lg font-semibold">
-                {editId ? "Edit Provider" : "Add Provider"}
+                {editId ? t("llmConfigs.editProvider") : t("llmConfigs.addProvider")}
               </h2>
               <Button variant="ghost" size="icon" onClick={resetForm}>
                 <X className="h-4 w-4" />
@@ -205,13 +205,13 @@ export default function LlmConfigsPage() {
             </div>
             <div className="space-y-4">
               <div>
-                <Label>Provider</Label>
+                <Label>{t("llmConfigs.provider")}</Label>
                 <select
                   className="flex h-10 w-full rounded-md border border-[hsl(var(--input))] bg-transparent px-3 py-2 text-sm"
                   value={formProvider}
                   onChange={(e) => setFormProvider(e.target.value)}
                 >
-                  <option value="">Select provider</option>
+                  <option value="">{t("llmConfigs.selectProvider")}</option>
                   {PROVIDERS.map((p) => (
                     <option key={p.value} value={p.value}>
                       {p.label}
@@ -220,43 +220,43 @@ export default function LlmConfigsPage() {
                 </select>
               </div>
               <div>
-                <Label>Name</Label>
+                <Label>{t("common.name")}</Label>
                 <Input
                   value={formName}
                   onChange={(e) => setFormName(e.target.value)}
-                  placeholder="My OpenAI"
+                  placeholder={t("llmConfigs.namePlaceholder")}
                 />
               </div>
               <div>
-                <Label>API Key</Label>
+                <Label>{t("llmConfigs.apiKey")}</Label>
                 <Input
                   type="password"
                   value={formApiKey}
                   onChange={(e) => setFormApiKey(e.target.value)}
-                  placeholder={editId ? "Leave empty to keep current" : "sk-..."}
+                  placeholder={editId ? t("llmConfigs.apiKeyPlaceholderEdit") : t("llmConfigs.apiKeyPlaceholderNew")}
                 />
               </div>
               {needsBaseUrl && (
                 <div>
-                  <Label>Base URL</Label>
+                  <Label>{t("llmConfigs.baseUrl")}</Label>
                   <Input
                     value={formBaseUrl}
                     onChange={(e) => setFormBaseUrl(e.target.value)}
-                    placeholder="https://your-endpoint.com/v1"
+                    placeholder={t("llmConfigs.baseUrlPlaceholderPlain")}
                   />
                 </div>
               )}
               <div>
-                <Label>Default Model</Label>
+                <Label>{t("llmConfigs.defaultModel")}</Label>
                 <Input
                   value={formModel}
                   onChange={(e) => setFormModel(e.target.value)}
-                  placeholder="gpt-4o"
+                  placeholder={t("llmConfigs.modelPlaceholder")}
                 />
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <Label>Temperature</Label>
+                  <Label>{t("llmConfigs.temperature")}</Label>
                   <Input
                     type="number"
                     step="0.1"
@@ -267,7 +267,7 @@ export default function LlmConfigsPage() {
                   />
                 </div>
                 <div>
-                  <Label>Max Tokens</Label>
+                  <Label>{t("llmConfigs.maxTokens")}</Label>
                   <Input
                     type="number"
                     min="1"
@@ -278,13 +278,13 @@ export default function LlmConfigsPage() {
               </div>
               <div className="flex justify-end gap-2">
                 <Button variant="outline" onClick={resetForm}>
-                  Cancel
+                  {t("common.cancel")}
                 </Button>
                 <Button onClick={handleSave} disabled={isPending}>
                   {isPending && (
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                   )}
-                  {editId ? "Update" : "Create"}
+                  {editId ? t("llmConfigs.updateBtn") : t("common.create")}
                 </Button>
               </div>
             </div>
@@ -292,17 +292,16 @@ export default function LlmConfigsPage() {
         </div>
       )}
 
-      {/* Delete Confirmation */}
       {deleteTarget && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
           <div className="w-full max-w-sm rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-6 shadow-lg">
-            <h2 className="mb-2 text-lg font-semibold">Delete Provider</h2>
+            <h2 className="mb-2 text-lg font-semibold">{t("llmConfigs.deleteTitle")}</h2>
             <p className="mb-4 text-sm text-[hsl(var(--muted-foreground))]">
-              This will permanently delete this LLM provider configuration.
+              {t("llmConfigs.deleteMessage")}
             </p>
             <div className="flex justify-end gap-2">
               <Button variant="outline" onClick={() => setDeleteTarget(null)}>
-                Cancel
+                {t("common.cancel")}
               </Button>
               <Button
                 variant="destructive"
@@ -312,7 +311,7 @@ export default function LlmConfigsPage() {
                 {deleteMutation.isPending && (
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                 )}
-                Delete
+                {t("common.delete")}
               </Button>
             </div>
           </div>
@@ -326,13 +325,13 @@ export default function LlmConfigsPage() {
       )}
       {isError && (
         <p className="text-sm text-[hsl(var(--destructive))]">
-          Failed to load LLM configs.
+          {t("llmConfigs.loadFailed")}
         </p>
       )}
       {!isLoading && !isError && configs.length === 0 && (
         <div className="flex flex-col items-center justify-center py-16 text-[hsl(var(--muted-foreground))]">
           <Inbox className="mb-2 h-10 w-10" />
-          <p className="text-sm">No LLM providers configured.</p>
+          <p className="text-sm">{t("llmConfigs.noConfigs")}</p>
         </div>
       )}
       {!isLoading && !isError && configs.length > 0 && (
@@ -340,11 +339,11 @@ export default function LlmConfigsPage() {
           <table className="w-full text-sm">
             <thead className="bg-[hsl(var(--muted))]">
               <tr>
-                <th className="px-4 py-3 text-left font-medium">Name</th>
-                <th className="px-4 py-3 text-left font-medium">Provider</th>
-                <th className="px-4 py-3 text-left font-medium">Model</th>
-                <th className="px-4 py-3 text-left font-medium">API Key</th>
-                <th className="px-4 py-3 text-left font-medium">Actions</th>
+                <th className="px-4 py-3 text-left font-medium">{t("llmConfigs.columnName")}</th>
+                <th className="px-4 py-3 text-left font-medium">{t("llmConfigs.columnProvider")}</th>
+                <th className="px-4 py-3 text-left font-medium">{t("llmConfigs.columnModel")}</th>
+                <th className="px-4 py-3 text-left font-medium">{t("llmConfigs.columnApiKey")}</th>
+                <th className="px-4 py-3 text-left font-medium">{t("llmConfigs.columnActions")}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-[hsl(var(--border))]">
@@ -382,7 +381,7 @@ export default function LlmConfigsPage() {
                         onClick={() => testMutation.mutate(config.id)}
                       >
                         <Plug className="mr-1 h-3 w-3" />
-                        Test
+                        {t("llmConfigs.testBtn")}
                       </Button>
                       <RoleGate minRole="editor">
                         {!config.isDefault && (
@@ -393,7 +392,7 @@ export default function LlmConfigsPage() {
                             onClick={() => setDefaultMutation.mutate(config.id)}
                           >
                             <Star className="mr-1 h-3 w-3" />
-                            Default
+                            {t("llmConfigs.defaultBtn")}
                           </Button>
                         )}
                         <Button

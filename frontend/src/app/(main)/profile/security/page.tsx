@@ -11,8 +11,10 @@ import { Label } from "@/components/ui/label";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { authApi } from "@/lib/api/auth";
 import { useAuthStore } from "@/lib/stores/auth-store";
+import { useT } from "@/lib/i18n";
 
 export default function SecurityPage() {
+  const t = useT();
   const user = useAuthStore((s) => s.user);
   const queryClient = useQueryClient();
   const [qrDataUrl, setQrDataUrl] = useState<string | null>(null);
@@ -26,7 +28,7 @@ export default function SecurityPage() {
       setQrDataUrl(res.data.data.qrCodeDataUrl);
       setRecoveryCodes(null);
     },
-    onError: () => toast.error("2FA 설정 시작에 실패했어요."),
+    onError: () => toast.error(t("profile.security.setupStartFailed")),
   });
 
   const verifyMutation = useMutation({
@@ -35,33 +37,31 @@ export default function SecurityPage() {
       setRecoveryCodes(res.data.data.recoveryCodes);
       setQrDataUrl(null);
       setCode("");
-      toast.success("2FA가 활성화됐어요.");
+      toast.success(t("profile.security.verifySuccess"));
       queryClient.invalidateQueries({ queryKey: ["users", "me"] });
     },
-    onError: () => toast.error("인증 코드가 올바르지 않아요."),
+    onError: () => toast.error(t("profile.security.verifyFailed")),
   });
 
   const disableMutation = useMutation({
     mutationFn: (password: string) => authApi.disable2fa(password),
     onSuccess: () => {
-      toast.success("2FA를 비활성화했어요.");
+      toast.success(t("profile.security.disableSuccess"));
       setDisablePassword("");
       queryClient.invalidateQueries({ queryKey: ["users", "me"] });
     },
-    onError: () => toast.error("비밀번호가 일치하지 않거나 처리에 실패했어요."),
+    onError: () => toast.error(t("profile.security.disableFailedDetail")),
   });
 
-  // user 객체에 twoFactorEnabled 필드가 있다고 가정 (백엔드가 노출 시).
-  // 없다면 별도 me 호출에서 받아온 값으로 판단.
   const twoFactorEnabled = (user as { twoFactorEnabled?: boolean } | null)
     ?.twoFactorEnabled;
 
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold">보안 · 2단계 인증</h1>
+        <h1 className="text-3xl font-bold">{t("profile.security.pageTitle")}</h1>
         <p className="mt-1 text-sm text-[hsl(var(--muted-foreground))]">
-          Authenticator 앱(예: Google Authenticator, 1Password)으로 발급되는 6자리 코드를 로그인 시 추가로 요구해요.
+          {t("profile.security.pageDescription")}
         </p>
       </div>
 
@@ -70,18 +70,18 @@ export default function SecurityPage() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-base font-semibold">
               <ShieldCheck className="h-4 w-4 text-emerald-600" />
-              2FA 활성 상태
+              {t("profile.security.active")}
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
             <p className="text-sm">
-              2FA가 켜져 있어요. 비활성화하려면 계정 비밀번호를 입력해 주세요.
+              {t("profile.security.activeMessage")}
             </p>
             <form
               onSubmit={(e) => {
                 e.preventDefault();
                 if (disablePassword.length < 8) {
-                  toast.error("비밀번호를 입력해 주세요.");
+                  toast.error(t("profile.security.passwordRequired"));
                   return;
                 }
                 disableMutation.mutate(disablePassword);
@@ -90,7 +90,7 @@ export default function SecurityPage() {
             >
               <Input
                 type="password"
-                placeholder="계정 비밀번호"
+                placeholder={t("profile.security.accountPasswordPlaceholder")}
                 value={disablePassword}
                 onChange={(e) => setDisablePassword(e.target.value)}
                 className="sm:max-w-xs"
@@ -101,7 +101,7 @@ export default function SecurityPage() {
                 disabled={disableMutation.isPending}
               >
                 <ShieldOff className="mr-2 h-4 w-4" />
-                2FA 비활성
+                {t("profile.security.disableButton")}
               </Button>
             </form>
           </CardContent>
@@ -109,7 +109,7 @@ export default function SecurityPage() {
       ) : (
         <Card>
           <CardHeader>
-            <CardTitle className="text-base font-semibold">2FA 설정</CardTitle>
+            <CardTitle className="text-base font-semibold">{t("profile.security.setupCardTitle")}</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             {!qrDataUrl && !recoveryCodes && (
@@ -121,7 +121,7 @@ export default function SecurityPage() {
                 {setupMutation.isPending ? (
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                 ) : null}
-                설정 시작
+                {t("profile.security.startSetup")}
               </Button>
             )}
 
@@ -129,11 +129,11 @@ export default function SecurityPage() {
               <>
                 <div>
                   <p className="mb-2 text-sm">
-                    Authenticator 앱으로 아래 QR 코드를 스캔한 뒤, 표시되는 6자리 코드를 입력해 주세요.
+                    {t("profile.security.scanInstruction")}
                   </p>
                   <Image
                     src={qrDataUrl}
-                    alt="TOTP QR Code"
+                    alt={t("profile.security.qrAlt")}
                     width={200}
                     height={200}
                     unoptimized
@@ -144,19 +144,19 @@ export default function SecurityPage() {
                   onSubmit={(e) => {
                     e.preventDefault();
                     if (code.trim().length !== 6) {
-                      toast.error("6자리 코드를 입력해 주세요.");
+                      toast.error(t("profile.security.invalidCode"));
                       return;
                     }
                     verifyMutation.mutate(code.trim());
                   }}
                 >
                   <div className="flex-1">
-                    <Label htmlFor="verify-code">인증 코드</Label>
+                    <Label htmlFor="verify-code">{t("profile.security.codeLabel")}</Label>
                     <Input
                       id="verify-code"
                       inputMode="numeric"
                       autoComplete="one-time-code"
-                      placeholder="123456"
+                      placeholder={t("profile.security.codePlaceholder")}
                       value={code}
                       onChange={(e) => setCode(e.target.value)}
                       className="sm:max-w-xs"
@@ -166,7 +166,7 @@ export default function SecurityPage() {
                     {verifyMutation.isPending ? (
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                     ) : null}
-                    검증·활성화
+                    {t("profile.security.verifyActivateButton")}
                   </Button>
                 </form>
               </>
@@ -175,10 +175,10 @@ export default function SecurityPage() {
             {recoveryCodes && (
               <div className="rounded-md border border-amber-500/50 bg-amber-500/10 p-4">
                 <p className="text-sm font-semibold">
-                  복구 코드 (한 번만 표시됩니다 — 안전한 곳에 저장하세요)
+                  {t("profile.security.recoveryCodesTitle")}
                 </p>
                 <p className="mt-1 text-xs text-[hsl(var(--muted-foreground))]">
-                  Authenticator 앱을 사용할 수 없을 때 각 코드를 한 번씩 사용해 로그인할 수 있어요.
+                  {t("profile.security.recoveryCodesHint")}
                 </p>
                 <ul className="mt-3 grid grid-cols-2 gap-2 font-mono text-sm">
                   {recoveryCodes.map((c) => (

@@ -4,6 +4,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { toast, Toaster } from "sonner";
 import { useWorkspaceStore } from "@/lib/stores/workspace-store";
+import { LocaleSync } from "@/lib/i18n/locale-sync";
 
 export function Providers({ children }: { children: React.ReactNode }) {
   const [queryClient] = useState(
@@ -50,6 +51,8 @@ export function Providers({ children }: { children: React.ReactNode }) {
 
   return (
     <QueryClientProvider client={queryClient}>
+      {/* syncs user profile locale to locale store on mount */}
+      <LocaleSync />
       {children}
       <Toaster position="top-right" richColors duration={5000} />
     </QueryClientProvider>

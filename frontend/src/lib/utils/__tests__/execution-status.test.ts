@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   STATUS_ICON,
   STATUS_BADGE_VARIANT,
-  STATUS_LABEL,
+  getStatusLabel,
   formatDuration,
 } from "../execution-status";
 
@@ -25,11 +25,21 @@ describe("STATUS_BADGE_VARIANT", () => {
   });
 });
 
-describe("STATUS_LABEL", () => {
-  it("has labels for all statuses", () => {
-    expect(STATUS_LABEL.completed).toBe("Completed");
-    expect(STATUS_LABEL.failed).toBe("Failed");
-    expect(STATUS_LABEL.waiting_for_input).toBe("Waiting");
+describe("getStatusLabel", () => {
+  it("returns English labels when locale is en", () => {
+    expect(getStatusLabel("completed", "en")).toBe("Completed");
+    expect(getStatusLabel("failed", "en")).toBe("Failed");
+    expect(getStatusLabel("waiting_for_input", "en")).toBe("Waiting");
+  });
+
+  it("returns Korean labels when locale is ko", () => {
+    expect(getStatusLabel("completed", "ko")).toBe("완료");
+    expect(getStatusLabel("failed", "ko")).toBe("실패");
+    expect(getStatusLabel("waiting_for_input", "ko")).toBe("대기");
+  });
+
+  it("returns the raw status for unknown keys", () => {
+    expect(getStatusLabel("unknown_state", "en")).toBe("unknown_state");
   });
 });
 
@@ -39,20 +49,31 @@ describe("formatDuration", () => {
   });
 
   it("formats milliseconds", () => {
-    expect(formatDuration(0)).toBe("0ms");
-    expect(formatDuration(500)).toBe("500ms");
-    expect(formatDuration(999)).toBe("999ms");
+    expect(formatDuration(0, "en")).toBe("0ms");
+    expect(formatDuration(500, "en")).toBe("500ms");
+    expect(formatDuration(999, "en")).toBe("999ms");
   });
 
-  it("formats seconds", () => {
-    expect(formatDuration(1000)).toBe("1.0s");
-    expect(formatDuration(2500)).toBe("2.5s");
-    expect(formatDuration(59999)).toBe("60.0s");
+  it("formats seconds with one decimal for short latencies", () => {
+    // 1000ms → Number("1.0") collapses to 1 → "1s"
+    expect(formatDuration(1000, "en")).toBe("1s");
+    // 1500ms preserves the fractional portion so p50/p95 latencies stay distinguishable
+    expect(formatDuration(1500, "en")).toBe("1.5s");
+    expect(formatDuration(2500, "en")).toBe("2.5s");
+    // At exactly 59999ms we're still in the sub-minute branch; toFixed(1)
+    // rounds to 60, Number() drops the trailing zero → "60s". Values ≥ 60000
+    // fall through to the minutes/seconds branch below.
+    expect(formatDuration(59999, "en")).toBe("60s");
   });
 
-  it("formats minutes", () => {
-    expect(formatDuration(60000)).toBe("1m 0s");
-    expect(formatDuration(90000)).toBe("1m 30s");
-    expect(formatDuration(125000)).toBe("2m 5s");
+  it("formats minutes with seconds", () => {
+    expect(formatDuration(60000, "en")).toBe("1m 0s");
+    expect(formatDuration(90000, "en")).toBe("1m 30s");
+    expect(formatDuration(125000, "en")).toBe("2m 5s");
+  });
+
+  it("uses Korean labels for ko locale", () => {
+    expect(formatDuration(5000, "ko")).toBe("5초");
+    expect(formatDuration(75000, "ko")).toBe("1분 15초");
   });
 });

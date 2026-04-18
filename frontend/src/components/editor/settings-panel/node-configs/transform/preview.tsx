@@ -6,6 +6,7 @@ import { useExecutionStore } from "@/lib/stores/execution-store";
 import { applyOperations } from "@/lib/transform/apply-operation";
 import type { TransformOperation } from "@/types/transform";
 import { SectionTitle } from "../shared";
+import { useT } from "@/lib/i18n";
 
 function toDisplayObject(value: unknown): Record<string, unknown> | null {
   if (value !== null && typeof value === "object" && !Array.isArray(value)) {
@@ -19,6 +20,7 @@ export function TransformPreview({
 }: {
   operations: TransformOperation[];
 }) {
+  const t = useT();
   const selectedNodeId = useEditorStore((s) => s.selectedNodeId);
   const nodeResults = useExecutionStore((s) => s.nodeResults);
 
@@ -53,14 +55,14 @@ export function TransformPreview({
       ) {
         return { ok: true, value: parsed as Record<string, unknown> };
       }
-      return { ok: false, error: "루트는 객체여야 합니다" };
+      return { ok: false, error: t("nodeConfigs.preview.rootMustBeObject") };
     } catch (e) {
       return {
         ok: false,
-        error: e instanceof Error ? e.message : "JSON 파싱 실패",
+        error: e instanceof Error ? e.message : t("nodeConfigs.preview.jsonParseFailed"),
       };
     }
-  }, [sampleText]);
+  }, [sampleText, t]);
 
   const input = hasExecutionInput
     ? toDisplayObject(latestInput)
@@ -80,27 +82,26 @@ export function TransformPreview({
     } catch (e) {
       return {
         ok: false,
-        error: e instanceof Error ? e.message : "연산 적용 중 오류",
+        error: e instanceof Error ? e.message : t("nodeConfigs.preview.operationErrorPrefix"),
       };
     }
-  }, [input, operations]);
+  }, [input, operations, t]);
   const steps = stepsResult.ok ? stepsResult.steps : [];
 
   return (
     <div className="flex flex-col gap-2">
-      <SectionTitle>Preview</SectionTitle>
+      <SectionTitle>{t("nodeConfigs.preview.title")}</SectionTitle>
       <p className="text-[10px] text-[hsl(var(--muted-foreground))]">
-        {"{{ $input.x }}"} 같은 표현식은 실행 시 평가되며, Preview 에서는
-        리터럴로 표시됩니다.
+        {t("nodeConfigs.preview.expressionHint")}
       </p>
       {hasExecutionInput ? (
         <p className="text-[10px] text-[hsl(var(--muted-foreground))]">
-          마지막 실행 결과의 입력 데이터를 사용합니다.
+          {t("nodeConfigs.preview.usingLastRunInput")}
         </p>
       ) : (
         <div className="flex flex-col gap-1">
           <span className="text-[10px] text-[hsl(var(--muted-foreground))]">
-            실행 이력이 없어 샘플 입력을 사용합니다. JSON을 직접 수정해 보세요.
+            {t("nodeConfigs.preview.usingSampleInput")}
           </span>
           <textarea
             value={sampleText}
@@ -113,7 +114,7 @@ export function TransformPreview({
           )}
         </div>
       )}
-      {input && <JsonCard title="Input" value={input} />}
+      {input && <JsonCard title={t("nodeConfigs.preview.input")} value={input} />}
       {!stepsResult.ok && (
         <span className="text-[10px] text-red-500">
           {stepsResult.error}
@@ -122,13 +123,13 @@ export function TransformPreview({
       {steps.map((step, i) => (
         <JsonCard
           key={`${i}-${step.op.type}`}
-          title={`Step ${i + 1} · ${step.op.type}`}
+          title={t("nodeConfigs.preview.stepHeader", { index: i + 1, type: step.op.type })}
           value={step.result}
         />
       ))}
       {input && stepsResult.ok && steps.length === 0 && (
         <span className="text-[10px] text-[hsl(var(--muted-foreground))]">
-          연산이 없습니다.
+          {t("nodeConfigs.preview.noOperations")}
         </span>
       )}
     </div>

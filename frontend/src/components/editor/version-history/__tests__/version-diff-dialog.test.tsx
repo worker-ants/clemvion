@@ -8,6 +8,7 @@ vi.mock("@/lib/api/workflows", () => ({
 
 import { workflowsApi } from "@/lib/api/workflows";
 import { VersionDiffDialog } from "../version-diff-dialog";
+import { useLocaleStore } from "@/lib/stores/locale-store";
 
 function makeVersion(version: number, name: string) {
   return {
@@ -51,7 +52,10 @@ function wrapper() {
   return Wrapper;
 }
 
-beforeEach(() => vi.clearAllMocks());
+beforeEach(() => {
+  vi.clearAllMocks();
+  useLocaleStore.setState({ locale: "en" });
+});
 
 describe("VersionDiffDialog", () => {
   it("orders versions so the lower number is 'before' regardless of selection order", async () => {

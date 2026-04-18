@@ -5,11 +5,13 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Plus, X, ChevronDown, ChevronRight } from "lucide-react";
 import { ButtonListEditor, type ButtonDef } from "./shared/button-list-editor";
+import { useT } from "@/lib/i18n";
 
 type Config = Record<string, unknown>;
 type OnChange = (config: Config) => void;
 
 function ButtonsConfig({ config, onChange }: { config: Config; onChange: OnChange }) {
+  const t = useT();
   const [expanded, setExpanded] = useState(true);
   const buttons = (config.buttons as ButtonDef[]) ?? [];
 
@@ -22,7 +24,7 @@ function ButtonsConfig({ config, onChange }: { config: Config; onChange: OnChang
       >
         {expanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
         <span className="text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--muted-foreground))]">
-          Buttons
+          {t("nodeConfigs.presentation.buttons")}
         </span>
         {buttons.length > 0 && (
           <span className="ml-auto text-[10px] text-[hsl(var(--muted-foreground))]">
@@ -43,9 +45,6 @@ function ButtonsConfig({ config, onChange }: { config: Config; onChange: OnChang
   );
 }
 
-// CarouselConfig migrated to auto-form (schema-driven). See
-// backend/src/nodes/presentation/carousel/carousel.schema.ts for field metadata.
-
 // ===== Table =====
 interface TableRow {
   id: string;
@@ -53,6 +52,7 @@ interface TableRow {
 }
 
 export function TableConfig({ config, onChange }: { config: Config; onChange: OnChange }) {
+  const t = useT();
   const mode = (config.mode as string) ?? "dynamic";
   const columns = (config.columns as Array<{ field: string; label: string; sortable: boolean }>) ?? [];
   const rows = (config.rows as TableRow[]) ?? [];
@@ -113,61 +113,65 @@ export function TableConfig({ config, onChange }: { config: Config; onChange: On
   return (
     <div className="flex flex-col gap-3">
       <SelectField
-        label="Mode"
+        label={t("nodeConfigs.presentation.mode")}
         value={mode}
         onChange={handleModeChange}
         options={[
-          { value: "dynamic", label: "Dynamic (from data)" },
-          { value: "static", label: "Static (manual)" },
+          { value: "dynamic", label: t("nodeConfigs.presentation.modeDynamic") },
+          { value: "static", label: t("nodeConfigs.presentation.modeStatic") },
         ]}
       />
 
       {mode === "dynamic" && (
         <ExpressionInput
-          label="Data Source"
+          label={t("nodeConfigs.presentation.dataSource")}
           value={(config.dataSource as string) ?? ""}
           onChange={(v) => onChange({ ...config, dataSource: v || undefined })}
-          placeholder="{{ $node[&quot;Node&quot;].output }} or {{ $var.list }}"
-          hint="Array data source (leave empty for previous node input)"
+          placeholder={t("nodeConfigs.presentation.dataSourcePlaceholder")}
+          hint={t("nodeConfigs.presentation.dataSourceHint")}
         />
       )}
 
-      <SectionTitle>Columns</SectionTitle>
+      <SectionTitle>{t("nodeConfigs.presentation.columns")}</SectionTitle>
       {columns.map((col, i) => (
         <div key={i} className="flex flex-col gap-1 rounded border border-[hsl(var(--border))] p-2">
           <div className="flex items-center justify-between">
-            <span className="text-[10px] text-[hsl(var(--muted-foreground))]">Column {i + 1}</span>
+            <span className="text-[10px] text-[hsl(var(--muted-foreground))]">
+              {t("nodeConfigs.presentation.columnLabel", { index: i + 1 })}
+            </span>
             <Button variant="ghost" size="icon" className="h-5 w-5" onClick={() => removeColumn(i)}>
               <X size={10} />
             </Button>
           </div>
           {mode === "dynamic" && (
             <ExpressionInput
-              label="Field"
+              label={t("nodeConfigs.presentation.field")}
               value={col.field}
               onChange={(v) => updateColumn(i, "field", v)}
-              placeholder="Field path"
+              placeholder={t("nodeConfigs.presentation.fieldPath")}
             />
           )}
           <ExpressionInput
-            label="Label"
+            label={t("nodeConfigs.presentation.label")}
             value={col.label}
             onChange={(v) => updateColumn(i, "label", v)}
-            placeholder="Column header"
+            placeholder={t("nodeConfigs.presentation.columnHeader")}
           />
         </div>
       ))}
       <Button variant="outline" size="sm" className="h-7 text-xs" onClick={addColumn}>
-        <Plus size={12} className="mr-1" /> Add Column
+        <Plus size={12} className="mr-1" /> {t("nodeConfigs.presentation.addColumn")}
       </Button>
 
       {mode === "static" && (
         <>
-          <SectionTitle>Rows</SectionTitle>
+          <SectionTitle>{t("nodeConfigs.presentation.rows")}</SectionTitle>
           {rows.map((row, ri) => (
             <div key={row.id ?? ri} className="flex flex-col gap-1 rounded border border-[hsl(var(--border))] p-2">
               <div className="flex items-center justify-between">
-                <span className="text-[10px] text-[hsl(var(--muted-foreground))]">Row {ri + 1}</span>
+                <span className="text-[10px] text-[hsl(var(--muted-foreground))]">
+                  {t("nodeConfigs.presentation.rowLabel", { index: ri + 1 })}
+                </span>
                 <Button variant="ghost" size="icon" className="h-5 w-5" onClick={() => removeRow(ri)}>
                   <X size={10} />
                 </Button>
@@ -178,25 +182,27 @@ export function TableConfig({ config, onChange }: { config: Config; onChange: On
                   label={col.label || col.field}
                   value={String(row[col.field] ?? "")}
                   onChange={(v) => updateRowCell(ri, col.field, v)}
-                  placeholder={`Value for ${col.label || col.field}`}
+                  placeholder={t("nodeConfigs.presentation.rowValuePlaceholder", {
+                    col: col.label || col.field,
+                  })}
                 />
               ))}
             </div>
           ))}
           <Button variant="outline" size="sm" className="h-7 text-xs" onClick={addRow}>
-            <Plus size={12} className="mr-1" /> Add Row
+            <Plus size={12} className="mr-1" /> {t("nodeConfigs.presentation.addRow")}
           </Button>
         </>
       )}
 
       <CheckboxField
-        label="Enable pagination"
+        label={t("nodeConfigs.presentation.enablePagination")}
         checked={(config.pagination as boolean) ?? true}
         onChange={(v) => onChange({ ...config, pagination: v })}
       />
       {(config.pagination as boolean) !== false && (
         <NumberField
-          label="Page Size"
+          label={t("nodeConfigs.presentation.pageSize")}
           value={(config.pageSize as number) ?? 20}
           onChange={(v) => onChange({ ...config, pageSize: v })}
           min={1}
@@ -204,18 +210,18 @@ export function TableConfig({ config, onChange }: { config: Config; onChange: On
         />
       )}
       <ExpressionInput
-        label="Default Sort Column"
+        label={t("nodeConfigs.presentation.defaultSortColumn")}
         value={(config.sortBy as string) ?? ""}
         onChange={(v) => onChange({ ...config, sortBy: v })}
-        placeholder="Optional field to sort by"
+        placeholder={t("nodeConfigs.presentation.defaultSortHint")}
       />
       <SelectField
-        label="Sort Order"
+        label={t("nodeConfigs.presentation.sortOrder")}
         value={(config.sortOrder as string) ?? "asc"}
         onChange={(v) => onChange({ ...config, sortOrder: v })}
         options={[
-          { value: "asc", label: "Ascending" },
-          { value: "desc", label: "Descending" },
+          { value: "asc", label: t("nodeConfigs.presentation.sortAsc") },
+          { value: "desc", label: t("nodeConfigs.presentation.sortDesc") },
         ]}
       />
 
@@ -226,79 +232,80 @@ export function TableConfig({ config, onChange }: { config: Config; onChange: On
 
 // ===== Chart =====
 export function ChartConfig({ config, onChange }: { config: Config; onChange: OnChange }) {
+  const t = useT();
   const xAxis = (config.xAxis as { field?: string; label?: string } | undefined) ?? {};
   const yAxis =
     (config.yAxis as { field?: string; label?: string; aggregation?: string } | undefined) ?? {};
   return (
     <div className="flex flex-col gap-3">
       <SelectField
-        label="Chart Type"
+        label={t("nodeConfigs.presentation.chartType")}
         value={(config.chartType as string) ?? "bar"}
         onChange={(v) => onChange({ ...config, chartType: v })}
         options={[
-          { value: "bar", label: "Bar" },
-          { value: "line", label: "Line" },
-          { value: "pie", label: "Pie" },
-          { value: "donut", label: "Donut" },
-          { value: "area", label: "Area" },
+          { value: "bar", label: t("nodeConfigs.presentation.chartBar") },
+          { value: "line", label: t("nodeConfigs.presentation.chartLine") },
+          { value: "pie", label: t("nodeConfigs.presentation.chartPie") },
+          { value: "donut", label: t("nodeConfigs.presentation.chartDonut") },
+          { value: "area", label: t("nodeConfigs.presentation.chartArea") },
         ]}
       />
       <ExpressionInput
-        label="Data Source"
+        label={t("nodeConfigs.presentation.dataSource")}
         value={(config.dataSource as string) ?? ""}
         onChange={(v) => onChange({ ...config, dataSource: v })}
         placeholder="{{$var.items}}"
-        hint="Array expression for chart data (leave empty to use previous node output)"
+        hint={t("nodeConfigs.presentation.chartDataHint")}
       />
-      <SectionTitle>X Axis</SectionTitle>
+      <SectionTitle>{t("nodeConfigs.presentation.xAxis")}</SectionTitle>
       <ExpressionInput
-        label="Field"
+        label={t("nodeConfigs.presentation.field")}
         value={xAxis.field ?? ""}
         onChange={(v) => onChange({ ...config, xAxis: { ...xAxis, field: v } })}
-        placeholder="x field path"
+        placeholder={t("nodeConfigs.presentation.xFieldPlaceholder")}
       />
       <ExpressionInput
-        label="Label"
+        label={t("nodeConfigs.presentation.label")}
         value={xAxis.label ?? ""}
         onChange={(v) => onChange({ ...config, xAxis: { ...xAxis, label: v } })}
-        placeholder="X axis label"
+        placeholder={t("nodeConfigs.presentation.xLabelPlaceholder")}
       />
-      <SectionTitle>Y Axis</SectionTitle>
+      <SectionTitle>{t("nodeConfigs.presentation.yAxis")}</SectionTitle>
       <ExpressionInput
-        label="Field"
+        label={t("nodeConfigs.presentation.field")}
         value={yAxis.field ?? ""}
         onChange={(v) => onChange({ ...config, yAxis: { ...yAxis, field: v } })}
-        placeholder="y field path"
+        placeholder={t("nodeConfigs.presentation.yFieldPlaceholder")}
       />
       <ExpressionInput
-        label="Label"
+        label={t("nodeConfigs.presentation.label")}
         value={yAxis.label ?? ""}
         onChange={(v) => onChange({ ...config, yAxis: { ...yAxis, label: v } })}
-        placeholder="Y axis label"
+        placeholder={t("nodeConfigs.presentation.yLabelPlaceholder")}
       />
       <SelectField
-        label="Aggregation"
+        label={t("nodeConfigs.presentation.aggregation")}
         value={yAxis.aggregation ?? "sum"}
         onChange={(v) => onChange({ ...config, yAxis: { ...yAxis, aggregation: v } })}
         options={[
-          { value: "sum", label: "Sum" },
-          { value: "count", label: "Count" },
-          { value: "avg", label: "Average" },
-          { value: "min", label: "Min" },
-          { value: "max", label: "Max" },
+          { value: "sum", label: t("nodeConfigs.presentation.aggSum") },
+          { value: "count", label: t("nodeConfigs.presentation.aggCount") },
+          { value: "avg", label: t("nodeConfigs.presentation.aggAverage") },
+          { value: "min", label: t("nodeConfigs.presentation.aggMin") },
+          { value: "max", label: t("nodeConfigs.presentation.aggMax") },
         ]}
       />
       <ExpressionInput
-        label="Group By"
+        label={t("nodeConfigs.presentation.groupBy")}
         value={(config.groupBy as string) ?? ""}
         onChange={(v) => onChange({ ...config, groupBy: v })}
-        placeholder="Optional grouping field"
+        placeholder={t("nodeConfigs.presentation.groupByHint")}
       />
       <ExpressionInput
-        label="Title"
+        label={t("nodeConfigs.presentation.title")}
         value={(config.title as string) ?? ""}
         onChange={(v) => onChange({ ...config, title: v })}
-        placeholder="Chart title"
+        placeholder={t("nodeConfigs.presentation.chartTitle")}
       />
 
       <ButtonsConfig config={config} onChange={onChange} />
@@ -308,6 +315,7 @@ export function ChartConfig({ config, onChange }: { config: Config; onChange: On
 
 // ===== Form =====
 export function FormConfig({ config, onChange }: { config: Config; onChange: OnChange }) {
+  const t = useT();
   const fields = (config.fields as Array<{ name: string; type: string; label: string; required: boolean }>) ?? [];
 
   const addField = () =>
@@ -327,28 +335,30 @@ export function FormConfig({ config, onChange }: { config: Config; onChange: OnC
   return (
     <div className="flex flex-col gap-3">
       <ExpressionInput
-        label="Title"
+        label={t("nodeConfigs.presentation.title")}
         value={(config.title as string) ?? ""}
         onChange={(v) => onChange({ ...config, title: v })}
-        placeholder="Form title"
+        placeholder={t("nodeConfigs.presentation.formTitle")}
       />
       <ExpressionInput multiline
-        label="Description"
+        label={t("nodeConfigs.presentation.description")}
         value={(config.description as string) ?? ""}
         onChange={(v) => onChange({ ...config, description: v })}
-        placeholder="Form description (Markdown)"
+        placeholder={t("nodeConfigs.presentation.formDescription")}
         rows={2}
       />
       <ExpressionInput
-        label="Submit Label"
-        value={(config.submitLabel as string) ?? "Submit"}
+        label={t("nodeConfigs.presentation.submitLabel")}
+        value={(config.submitLabel as string) ?? t("nodeConfigs.presentation.submitPlaceholder")}
         onChange={(v) => onChange({ ...config, submitLabel: v })}
       />
-      <SectionTitle>Fields</SectionTitle>
+      <SectionTitle>{t("nodeConfigs.presentation.fields")}</SectionTitle>
       {fields.map((field, i) => (
         <div key={i} className="flex flex-col gap-1 rounded border border-[hsl(var(--border))] p-2">
           <div className="flex items-center justify-between">
-            <span className="text-[10px] text-[hsl(var(--muted-foreground))]">Field {i + 1}</span>
+            <span className="text-[10px] text-[hsl(var(--muted-foreground))]">
+              {t("nodeConfigs.presentation.fieldLabel", { index: i + 1 })}
+            </span>
             <Button variant="ghost" size="icon" className="h-5 w-5" onClick={() => removeField(i)}>
               <X size={10} />
             </Button>
@@ -356,13 +366,13 @@ export function FormConfig({ config, onChange }: { config: Config; onChange: OnC
           <Input
             value={field.name}
             onChange={(e) => updateField(i, "name", e.target.value)}
-            placeholder="Field name"
+            placeholder={t("nodeConfigs.presentation.fieldNamePlaceholder")}
             className="h-7 text-xs"
           />
           <Input
             value={field.label}
             onChange={(e) => updateField(i, "label", e.target.value)}
-            placeholder="Label"
+            placeholder={t("nodeConfigs.presentation.label")}
             className="h-7 text-xs"
           />
           <select
@@ -370,25 +380,25 @@ export function FormConfig({ config, onChange }: { config: Config; onChange: OnC
             onChange={(e) => updateField(i, "type", e.target.value)}
             className="h-7 rounded-md border border-[hsl(var(--input))] bg-transparent px-2 text-xs"
           >
-            <option value="text">Text</option>
-            <option value="number">Number</option>
-            <option value="email">Email</option>
-            <option value="textarea">Textarea</option>
-            <option value="select">Select</option>
-            <option value="checkbox">Checkbox</option>
-            <option value="radio">Radio</option>
-            <option value="date">Date</option>
-            <option value="file">File</option>
+            <option value="text">{t("nodeConfigs.presentation.fieldTypeText")}</option>
+            <option value="number">{t("nodeConfigs.presentation.fieldTypeNumber")}</option>
+            <option value="email">{t("nodeConfigs.presentation.fieldTypeEmail")}</option>
+            <option value="textarea">{t("nodeConfigs.presentation.fieldTypeTextarea")}</option>
+            <option value="select">{t("nodeConfigs.presentation.fieldTypeSelect")}</option>
+            <option value="checkbox">{t("nodeConfigs.presentation.fieldTypeCheckbox")}</option>
+            <option value="radio">{t("nodeConfigs.presentation.fieldTypeRadio")}</option>
+            <option value="date">{t("nodeConfigs.presentation.fieldTypeDate")}</option>
+            <option value="file">{t("nodeConfigs.presentation.fieldTypeFile")}</option>
           </select>
           <CheckboxField
-            label="Required"
+            label={t("nodeConfigs.presentation.required")}
             checked={field.required ?? false}
             onChange={(v) => updateField(i, "required", v)}
           />
         </div>
       ))}
       <Button variant="outline" size="sm" className="h-7 text-xs" onClick={addField}>
-        <Plus size={12} className="mr-1" /> Add Field
+        <Plus size={12} className="mr-1" /> {t("nodeConfigs.presentation.addField")}
       </Button>
     </div>
   );
@@ -396,29 +406,30 @@ export function FormConfig({ config, onChange }: { config: Config; onChange: OnC
 
 // ===== Template =====
 export function TemplateConfig({ config, onChange }: { config: Config; onChange: OnChange }) {
+  const t = useT();
   return (
     <div className="flex flex-col gap-3">
       <ExpressionInput multiline
-        label="Template"
+        label={t("nodeConfigs.presentation.template")}
         value={(config.template as string) ?? ""}
         onChange={(v) => onChange({ ...config, template: v })}
-        placeholder="<h1>{{title}}</h1>\n<p>{{body}}</p>"
+        placeholder={t("nodeConfigs.presentation.templatePlaceholder")}
         mono
         rows={10}
-        hint="Handlebars template syntax"
+        hint={t("nodeConfigs.presentation.templateHint")}
       />
       <SelectField
-        label="Output Format"
+        label={t("nodeConfigs.presentation.outputFormat")}
         value={(config.outputFormat as string) ?? "html"}
         onChange={(v) => onChange({ ...config, outputFormat: v })}
         options={[
-          { value: "html", label: "HTML" },
-          { value: "markdown", label: "Markdown" },
-          { value: "text", label: "Plain Text" },
+          { value: "html", label: t("nodeConfigs.presentation.outHtml") },
+          { value: "markdown", label: t("nodeConfigs.presentation.outMarkdown") },
+          { value: "text", label: t("nodeConfigs.presentation.outPlain") },
         ]}
       />
       <CheckboxField
-        label="Enable built-in helpers"
+        label={t("nodeConfigs.presentation.enableHelpers")}
         checked={(config.helpers as boolean) ?? true}
         onChange={(v) => onChange({ ...config, helpers: v })}
       />
@@ -427,4 +438,3 @@ export function TemplateConfig({ config, onChange }: { config: Config; onChange:
     </div>
   );
 }
-

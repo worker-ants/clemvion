@@ -18,6 +18,7 @@ import {
 import { Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { SectionTitle } from "../shared";
+import { useT } from "@/lib/i18n";
 import type { TransformOperation } from "@/types/transform";
 import { OperationCard } from "./operation-card";
 import { defaultForType } from "./defaults";
@@ -85,6 +86,7 @@ export function TransformConfig({
   config: Config;
   onChange: OnChange;
 }) {
+  const t = useT();
   const incoming = useMemo<TransformOperation[]>(
     () => (config.operations as TransformOperation[]) ?? [],
     [config.operations],
@@ -167,7 +169,7 @@ export function TransformConfig({
 
   return (
     <div className="flex flex-col gap-3">
-      <SectionTitle>Operations</SectionTitle>
+      <SectionTitle>{t("nodeConfigs.transform.operations")}</SectionTitle>
       <DndContext
         sensors={sensors}
         collisionDetection={closestCenter}
@@ -197,7 +199,7 @@ export function TransformConfig({
         className="h-7 text-xs"
         onClick={addOperation}
       >
-        <Plus size={12} className="mr-1" /> Add Operation
+        <Plus size={12} className="mr-1" /> {t("nodeConfigs.transform.addOperation")}
       </Button>
       <TransformPreview operations={entries.map((e) => e.op)} />
     </div>

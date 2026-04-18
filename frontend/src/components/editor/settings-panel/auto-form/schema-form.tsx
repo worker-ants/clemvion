@@ -18,6 +18,11 @@ import {
 // ensures `registerWidgets` is called before any field tries to render.
 import "./widget-registry";
 import { SectionTitle } from "../node-configs/shared";
+import { useT, useLocale } from "@/lib/i18n";
+import {
+  translateBackendGroup,
+  translateBackendLabel,
+} from "@/lib/i18n/backend-labels";
 
 type SchemaFormProps = {
   schema: JsonSchemaNode;
@@ -112,6 +117,8 @@ function CollapsibleSection({
 }
 
 export function SchemaForm({ schema, value, onChange }: SchemaFormProps) {
+  const t = useT();
+  const locale = useLocale();
   const entries = useMemo<FieldEntry[]>(() => {
     const props = schema.properties ?? {};
     const list: FieldEntry[] = Object.entries(props).map(([key, field], idx) => {
@@ -132,7 +139,7 @@ export function SchemaForm({ schema, value, onChange }: SchemaFormProps) {
   if (entries.length === 0) {
     return (
       <p className="text-[11px] text-[hsl(var(--muted-foreground))]">
-        No configurable fields.
+        {t("nodeConfigs.autoForm.noFields")}
       </p>
     );
   }
@@ -146,7 +153,7 @@ export function SchemaForm({ schema, value, onChange }: SchemaFormProps) {
     if (ui?.hidden) return null;
     if (!isFieldVisible(ui, value)) return null;
     const Widget = pickWidget<WidgetProps>(fieldSchema, ui, PRIMITIVES);
-    const label = ui?.label ?? humanize(key);
+    const label = translateBackendLabel(ui?.label, locale) ?? humanize(key);
     return (
       <Widget
         key={key}
@@ -169,16 +176,25 @@ export function SchemaForm({ schema, value, onChange }: SchemaFormProps) {
 
         if (group.collapsible && group.name) {
           const count = countGroupValues(group.entries, value);
+          const translatedName =
+            translateBackendGroup(group.name, locale) ?? group.name;
           return (
-            <CollapsibleSection key={group.name} name={group.name} count={count}>
+            <CollapsibleSection
+              key={group.name}
+              name={translatedName}
+              count={count}
+            >
               {visibleFields.map(renderField)}
             </CollapsibleSection>
           );
         }
 
+        const translatedName = group.name
+          ? translateBackendGroup(group.name, locale) ?? group.name
+          : null;
         return (
           <div key={group.name ?? `_ungrouped_${gi}`} className="flex flex-col gap-3">
-            {group.name && <SectionTitle>{group.name}</SectionTitle>}
+            {translatedName && <SectionTitle>{translatedName}</SectionTitle>}
             {visibleFields.map(renderField)}
           </div>
         );

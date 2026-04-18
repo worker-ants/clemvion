@@ -7,6 +7,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { cn } from "@/lib/utils/cn";
+import { useT } from "@/lib/i18n";
 
 export interface FieldHelpProps {
   summary: React.ReactNode;
@@ -21,10 +22,11 @@ export function FieldHelp({
   side = "right",
   className,
 }: FieldHelpProps) {
+  const t = useT();
   return (
     <Popover>
       <PopoverTrigger
-        aria-label="도움말"
+        aria-label={t("editor.fieldHelpAriaLabel")}
         className={cn(
           "inline-flex h-4 w-4 items-center justify-center rounded-sm text-[hsl(var(--muted-foreground))] transition-colors hover:text-[hsl(var(--foreground))] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--ring))]",
           className,
@@ -47,7 +49,7 @@ export function FieldHelp({
               rel="noopener noreferrer"
               className="inline-block text-[hsl(var(--primary))] underline-offset-2 hover:underline"
             >
-              자세히 보기 →
+              {t("editor.fieldHelpLearnMore")}
             </a>
           )}
         </div>

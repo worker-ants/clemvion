@@ -36,6 +36,7 @@ import { CustomEdge, EdgeMarkerDefs } from "./custom-edge";
 import { useEdgeHighlighting } from "./use-edge-highlighting";
 import { CanvasEmptyState } from "./canvas-empty-state";
 import { isWorkflowEmpty } from "@/lib/node-definitions/is-trigger";
+import { useT } from "@/lib/i18n";
 
 const nodeTypes = { custom: CustomNode };
 const edgeTypes = { custom: CustomEdge };
@@ -65,6 +66,7 @@ interface NodeSearchPopupState {
 }
 
 export function WorkflowCanvas() {
+  const t = useT();
   const reactFlowWrapper = useRef<HTMLDivElement>(null);
   const reactFlowInstance = useRef<ReactFlowInstance | null>(null);
   const [nodeContextMenu, setNodeContextMenu] =
@@ -493,7 +495,7 @@ export function WorkflowCanvas() {
             className="flex w-full items-center gap-2 px-3 py-2 text-sm hover:bg-[hsl(var(--accent))]"
           >
             <Settings className="h-4 w-4" />
-            Open Settings
+            {t("editor.openSettings")}
           </button>
           <button
             type="button"
@@ -505,7 +507,7 @@ export function WorkflowCanvas() {
             className="flex w-full items-center gap-2 px-3 py-2 text-sm hover:bg-[hsl(var(--accent))] disabled:cursor-not-allowed disabled:opacity-50"
           >
             <Copy className="h-4 w-4" />
-            Duplicate
+            {t("editor.duplicateBtn")}
           </button>
           <button
             type="button"
@@ -516,12 +518,12 @@ export function WorkflowCanvas() {
               ?.isDisabled ? (
               <>
                 <Eye className="h-4 w-4" />
-                Enable
+                {t("editor.enableBtn")}
               </>
             ) : (
               <>
                 <EyeOff className="h-4 w-4" />
-                Disable
+                {t("editor.disableBtn")}
               </>
             )}
           </button>
@@ -533,7 +535,7 @@ export function WorkflowCanvas() {
             className="flex w-full items-center gap-2 px-3 py-2 text-sm text-[hsl(var(--destructive))] hover:bg-[hsl(var(--accent))] disabled:cursor-not-allowed disabled:opacity-50"
           >
             <Trash2 className="h-4 w-4" />
-            Delete Node
+            {t("editor.deleteNodeMenu")}
           </button>
         </div>
       )}
@@ -551,7 +553,7 @@ export function WorkflowCanvas() {
             className="flex w-full items-center gap-2 px-3 py-2 text-sm hover:bg-[hsl(var(--accent))]"
           >
             <Plus className="h-4 w-4" />
-            Add Node
+            {t("editor.addNodeMenu")}
           </button>
           <button
             type="button"
@@ -559,7 +561,7 @@ export function WorkflowCanvas() {
             className="flex w-full items-center gap-2 px-3 py-2 text-sm hover:bg-[hsl(var(--accent))]"
           >
             <Crosshair className="h-4 w-4" />
-            Select All
+            {t("editor.selectAll")}
           </button>
           <button
             type="button"
@@ -567,7 +569,7 @@ export function WorkflowCanvas() {
             className="flex w-full items-center gap-2 px-3 py-2 text-sm hover:bg-[hsl(var(--accent))]"
           >
             <Maximize className="h-4 w-4" />
-            Fit to View
+            {t("editor.fitToView")}
           </button>
         </div>
       )}
@@ -583,7 +585,7 @@ export function WorkflowCanvas() {
             <Search className="h-4 w-4 text-[hsl(var(--muted-foreground))]" />
             <input
               type="text"
-              placeholder="Search nodes..."
+              placeholder={t("editor.searchNodesPlaceholder")}
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="flex-1 bg-transparent text-sm outline-none placeholder:text-[hsl(var(--muted-foreground))]"
@@ -593,7 +595,7 @@ export function WorkflowCanvas() {
           <div className="max-h-[240px] overflow-y-auto py-1">
             {filteredNodes.length === 0 ? (
               <div className="px-3 py-2 text-sm text-[hsl(var(--muted-foreground))]">
-                No nodes found
+                {t("editor.noNodesFound")}
               </div>
             ) : (
               filteredNodes.map((def) => (

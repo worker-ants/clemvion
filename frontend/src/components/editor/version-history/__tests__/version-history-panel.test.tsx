@@ -13,6 +13,7 @@ vi.mock("@/lib/api/workflows", () => ({
 
 import { workflowsApi } from "@/lib/api/workflows";
 import { VersionHistoryPanel } from "../version-history-panel";
+import { useLocaleStore } from "@/lib/stores/locale-store";
 
 function wrapper() {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -31,6 +32,7 @@ async function renderPanel() {
 describe("VersionHistoryPanel", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    useLocaleStore.setState({ locale: "en" });
     useEditorStore.setState({
       workflowId: "wf-1",
       versionHistoryOpen: true,

@@ -34,6 +34,7 @@ import {
   Pie,
   Cell,
 } from "recharts";
+import { useT, type TranslationKey } from "@/lib/i18n";
 
 /* ---------- types ---------- */
 
@@ -106,11 +107,11 @@ interface Workflow {
 const PERIODS = ["1d", "7d", "30d", "90d"] as const;
 type Period = (typeof PERIODS)[number];
 
-const PERIOD_LABELS: Record<Period, string> = {
-  "1d": "Today",
-  "7d": "7 Days",
-  "30d": "30 Days",
-  "90d": "90 Days",
+const PERIOD_LABEL_KEYS: Record<Period, TranslationKey> = {
+  "1d": "statistics.periodToday",
+  "7d": "statistics.period7d",
+  "30d": "statistics.period30d",
+  "90d": "statistics.period90d",
 };
 
 const PIE_COLORS = [
@@ -233,6 +234,7 @@ function ChartTooltipContent({
 /* ---------- main page ---------- */
 
 export default function StatisticsPage() {
+  const t = useT();
   const [period, setPeriod] = useState<Period>("7d");
   const [selectedWorkflowId, setSelectedWorkflowId] = useState<string>("");
 
@@ -339,7 +341,7 @@ export default function StatisticsPage() {
   const cards = useMemo(
     () => [
       {
-        title: "Total Runs",
+        title: t("statistics.totalRuns"),
         value: summary?.totalExecutions ?? 0,
         format: (v: number) => v.toLocaleString(),
         icon: (
@@ -347,19 +349,19 @@ export default function StatisticsPage() {
         ),
       },
       {
-        title: "Success Rate",
+        title: t("statistics.successRate"),
         value: summary?.successRate ?? 0,
         format: (v: number) => `${v.toFixed(1)}%`,
         icon: <CheckCircle className="h-5 w-5 text-green-500" />,
       },
       {
-        title: "Failure Rate",
+        title: t("statistics.failureRate"),
         value: failureRate,
         format: (v: number) => `${v.toFixed(1)}%`,
         icon: <XCircle className="h-5 w-5 text-red-500" />,
       },
       {
-        title: "Avg Duration",
+        title: t("statistics.avgDuration"),
         value: summary?.avgDurationMs ?? 0,
         format: (v: number) => formatDuration(v),
         icon: (
@@ -367,7 +369,7 @@ export default function StatisticsPage() {
         ),
       },
     ],
-    [summary, failureRate],
+    [summary, failureRate, t],
   );
 
   /* --- export handler --- */
@@ -426,32 +428,32 @@ export default function StatisticsPage() {
   /* --- selected workflow name --- */
 
   const selectedWorkflowName = useMemo(() => {
-    if (!selectedWorkflowId) return "All Workflows";
+    if (!selectedWorkflowId) return t("statistics.allWorkflows");
     return (
       workflows?.find((w) => w.id === selectedWorkflowId)?.name ??
-      "Unknown Workflow"
+      t("statistics.unknownWorkflow")
     );
-  }, [selectedWorkflowId, workflows]);
+  }, [selectedWorkflowId, workflows, t]);
 
   return (
     <div className="space-y-6">
       {/* Header */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <h1 className="text-3xl font-bold">Statistics</h1>
+        <h1 className="text-3xl font-bold">{t("statistics.title")}</h1>
         <Dropdown
           trigger={
             <Button variant="outline" size="sm">
               <Download className="mr-2 h-4 w-4" />
-              Export
+              {t("statistics.export")}
               <ChevronDown className="ml-2 h-3 w-3" />
             </Button>
           }
         >
           <DropdownItem onClick={() => handleExport("csv")}>
-            Export as CSV
+            {t("statistics.exportCsv")}
           </DropdownItem>
           <DropdownItem onClick={() => handleExport("json")}>
-            Export as JSON
+            {t("statistics.exportJson")}
           </DropdownItem>
         </Dropdown>
       </div>
@@ -467,7 +469,7 @@ export default function StatisticsPage() {
               size="sm"
               onClick={() => setPeriod(p)}
             >
-              {PERIOD_LABELS[p]}
+              {t(PERIOD_LABEL_KEYS[p])}
             </Button>
           ))}
         </div>
@@ -484,7 +486,7 @@ export default function StatisticsPage() {
             align="left"
           >
             <DropdownItem onClick={() => setSelectedWorkflowId("")}>
-              All Workflows
+              {t("statistics.allWorkflows")}
             </DropdownItem>
             {workflows?.map((wf) => (
               <DropdownItem
@@ -508,7 +510,7 @@ export default function StatisticsPage() {
       {/* Error */}
       {summaryError && (
         <p className="text-sm text-[hsl(var(--destructive))]">
-          Failed to load statistics.
+          {t("statistics.loadFailed")}
         </p>
       )}
 
@@ -539,7 +541,7 @@ export default function StatisticsPage() {
             <Card>
               <CardHeader>
                 <CardTitle className="text-base font-semibold">
-                  Executions Over Time
+                  {t("statistics.executionsOverTime")}
                 </CardTitle>
               </CardHeader>
               <CardContent>
@@ -549,7 +551,7 @@ export default function StatisticsPage() {
                   </div>
                 ) : !executions?.length ? (
                   <div className="flex h-64 items-center justify-center text-sm text-[hsl(var(--muted-foreground))]">
-                    No execution data available
+                    {t("statistics.noExecutionData")}
                   </div>
                 ) : (
                   <div className="h-64">
@@ -587,21 +589,21 @@ export default function StatisticsPage() {
                           dataKey="completed"
                           stackId="a"
                           fill="#22c55e"
-                          name="Completed"
+                          name={t("statistics.legendCompleted")}
                           radius={[0, 0, 0, 0]}
                         />
                         <Bar
                           dataKey="failed"
                           stackId="a"
                           fill="#ef4444"
-                          name="Failed"
+                          name={t("statistics.legendFailed")}
                           radius={[0, 0, 0, 0]}
                         />
                         <Bar
                           dataKey="cancelled"
                           stackId="a"
                           fill="#94a3b8"
-                          name="Cancelled"
+                          name={t("statistics.legendCancelled")}
                           radius={[2, 2, 0, 0]}
                         />
                       </BarChart>
@@ -615,7 +617,7 @@ export default function StatisticsPage() {
             <Card>
               <CardHeader>
                 <CardTitle className="text-base font-semibold">
-                  Error Distribution
+                  {t("statistics.errorDistribution")}
                 </CardTitle>
               </CardHeader>
               <CardContent>
@@ -680,7 +682,7 @@ export default function StatisticsPage() {
             <Card>
               <CardHeader>
                 <CardTitle className="text-base font-semibold">
-                  Top Workflows
+                  {t("statistics.topWorkflowsTitle")}
                 </CardTitle>
               </CardHeader>
               <CardContent>
@@ -690,7 +692,7 @@ export default function StatisticsPage() {
                   </div>
                 ) : !topWorkflowsChartData.length ? (
                   <div className="flex h-72 items-center justify-center text-sm text-[hsl(var(--muted-foreground))]">
-                    No workflow data available
+                    {t("statistics.noData")}
                   </div>
                 ) : (
                   <div
@@ -730,7 +732,7 @@ export default function StatisticsPage() {
                         <Tooltip
                           formatter={(value) => [
                             Number(value).toLocaleString(),
-                            "Executions",
+                            t("statistics.totalRuns"),
                           ]}
                           contentStyle={{
                             backgroundColor: "hsl(var(--card))",
@@ -743,7 +745,7 @@ export default function StatisticsPage() {
                         <Bar
                           dataKey="executionCount"
                           fill="#3b82f6"
-                          name="Executions"
+                          name={t("statistics.totalRuns")}
                           radius={[0, 4, 4, 0]}
                           barSize={24}
                         />
@@ -759,7 +761,7 @@ export default function StatisticsPage() {
           <Card>
             <CardHeader>
               <CardTitle className="text-base font-semibold">
-                LLM Token Usage
+                {t("statistics.llmCost")}
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -769,13 +771,13 @@ export default function StatisticsPage() {
                 </div>
               ) : !llmUsage || llmUsage.totalTokens === 0 ? (
                 <div className="flex h-32 items-center justify-center text-sm text-[hsl(var(--muted-foreground))]">
-                  No LLM usage recorded for this period
+                  {t("statistics.noData")}
                 </div>
               ) : (
                 <div className="space-y-4">
                   <div className="grid gap-4 sm:grid-cols-3">
                     <div className="rounded-md border border-[hsl(var(--border))] p-3">
-                      <div className="text-xs text-[hsl(var(--muted-foreground))]">Total Tokens</div>
+                      <div className="text-xs text-[hsl(var(--muted-foreground))]">{t("statistics.totalTokens")}</div>
                       <div className="mt-1 text-xl font-semibold tabular-nums">
                         {llmUsage.totalTokens.toLocaleString()}
                       </div>
@@ -785,18 +787,18 @@ export default function StatisticsPage() {
                       </div>
                     </div>
                     <div className="rounded-md border border-[hsl(var(--border))] p-3">
-                      <div className="text-xs text-[hsl(var(--muted-foreground))]">Estimated Cost</div>
+                      <div className="text-xs text-[hsl(var(--muted-foreground))]">{t("statistics.estimatedCost")}</div>
                       <div className="mt-1 text-xl font-semibold tabular-nums">
                         {llmUsage.totalCostUsd === null
                           ? "—"
                           : `$${llmUsage.totalCostUsd.toFixed(4)}`}
                       </div>
                       <div className="mt-1 text-xs text-[hsl(var(--muted-foreground))]">
-                        알려진 모델 합계 · 미등록 모델 제외
+                        {t("statistics.costHint")}
                       </div>
                     </div>
                     <div className="rounded-md border border-[hsl(var(--border))] p-3">
-                      <div className="text-xs text-[hsl(var(--muted-foreground))]">Top Provider</div>
+                      <div className="text-xs text-[hsl(var(--muted-foreground))]">{t("statistics.topProvider")}</div>
                       <div className="mt-1 text-xl font-semibold">
                         {llmUsage.topProvider ?? "—"}
                       </div>
@@ -807,12 +809,12 @@ export default function StatisticsPage() {
                     <table className="w-full text-sm">
                       <thead>
                         <tr className="border-b border-[hsl(var(--border))]">
-                          <th className="py-2.5 pr-4 text-left font-medium text-[hsl(var(--muted-foreground))]">Provider</th>
-                          <th className="py-2.5 pr-4 text-left font-medium text-[hsl(var(--muted-foreground))]">Model</th>
-                          <th className="py-2.5 pr-4 text-right font-medium text-[hsl(var(--muted-foreground))]">Prompt</th>
-                          <th className="py-2.5 pr-4 text-right font-medium text-[hsl(var(--muted-foreground))]">Completion</th>
-                          <th className="py-2.5 pr-4 text-right font-medium text-[hsl(var(--muted-foreground))]">Total</th>
-                          <th className="py-2.5 text-right font-medium text-[hsl(var(--muted-foreground))]">Cost (USD)</th>
+                          <th className="py-2.5 pr-4 text-left font-medium text-[hsl(var(--muted-foreground))]">{t("statistics.providerCol")}</th>
+                          <th className="py-2.5 pr-4 text-left font-medium text-[hsl(var(--muted-foreground))]">{t("statistics.modelCol")}</th>
+                          <th className="py-2.5 pr-4 text-right font-medium text-[hsl(var(--muted-foreground))]">{t("statistics.promptCol")}</th>
+                          <th className="py-2.5 pr-4 text-right font-medium text-[hsl(var(--muted-foreground))]">{t("statistics.completionCol")}</th>
+                          <th className="py-2.5 pr-4 text-right font-medium text-[hsl(var(--muted-foreground))]">{t("statistics.totalCol")}</th>
+                          <th className="py-2.5 text-right font-medium text-[hsl(var(--muted-foreground))]">{t("statistics.costCol")}</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -846,7 +848,7 @@ export default function StatisticsPage() {
             <Card>
               <CardHeader>
                 <CardTitle className="text-base font-semibold">
-                  Node Performance
+                  {t("statistics.nodePerformance")}
                 </CardTitle>
               </CardHeader>
               <CardContent>
@@ -856,7 +858,7 @@ export default function StatisticsPage() {
                   </div>
                 ) : !nodeStats?.length ? (
                   <div className="flex h-32 items-center justify-center text-sm text-[hsl(var(--muted-foreground))]">
-                    No node statistics available
+                    {t("statistics.noNodeStats")}
                   </div>
                 ) : (
                   <div className="overflow-x-auto">
@@ -864,19 +866,19 @@ export default function StatisticsPage() {
                       <thead>
                         <tr className="border-b border-[hsl(var(--border))]">
                           <th className="py-2.5 pr-4 text-left font-medium text-[hsl(var(--muted-foreground))]">
-                            Node
+                            {t("statistics.colNode")}
                           </th>
                           <th className="py-2.5 pr-4 text-left font-medium text-[hsl(var(--muted-foreground))]">
-                            Type
+                            {t("statistics.colType")}
                           </th>
                           <th className="py-2.5 pr-4 text-right font-medium text-[hsl(var(--muted-foreground))]">
-                            Executions
+                            {t("statistics.colExecutions")}
                           </th>
                           <th className="py-2.5 pr-4 text-right font-medium text-[hsl(var(--muted-foreground))]">
-                            Avg Duration
+                            {t("statistics.colAvgDuration")}
                           </th>
                           <th className="py-2.5 text-right font-medium text-[hsl(var(--muted-foreground))]">
-                            Error Rate
+                            {t("statistics.colErrorRate")}
                           </th>
                         </tr>
                       </thead>
@@ -897,7 +899,7 @@ export default function StatisticsPage() {
                                 <span className="flex items-center gap-2">
                                   {node.nodeLabel}
                                   {isBottleneck && (
-                                    <Badge variant="warning">Bottleneck</Badge>
+                                    <Badge variant="warning">{t("statistics.bottleneckBadge")}</Badge>
                                   )}
                                 </span>
                               </td>

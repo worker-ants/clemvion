@@ -27,9 +27,10 @@ import { formatDate } from "@/lib/utils/date";
 import {
   STATUS_ICON,
   STATUS_BADGE_VARIANT,
-  STATUS_LABEL,
+  getStatusLabel,
   formatDuration,
 } from "@/lib/utils/execution-status";
+import { useT, type TranslationKey } from "@/lib/i18n";
 
 const PAGE_SIZE = 20;
 
@@ -68,13 +69,13 @@ function TableSkeleton() {
 
 type FilterValue = "all" | ExecutionStatus;
 
-const FILTER_BUTTONS: { label: string; value: FilterValue }[] = [
-  { label: "All", value: "all" },
-  { label: "Completed", value: "completed" },
-  { label: "Failed", value: "failed" },
-  { label: "Running", value: "running" },
-  { label: "Cancelled", value: "cancelled" },
-  { label: "Waiting", value: "waiting_for_input" },
+const FILTER_BUTTONS: { labelKey: TranslationKey; value: FilterValue }[] = [
+  { labelKey: "executions.filterAll", value: "all" },
+  { labelKey: "executions.filterCompleted", value: "completed" },
+  { labelKey: "executions.filterFailed", value: "failed" },
+  { labelKey: "executions.filterRunning", value: "running" },
+  { labelKey: "executions.filterCancelled", value: "cancelled" },
+  { labelKey: "executions.filterWaiting", value: "waiting_for_input" },
 ];
 
 export default function ExecutionListPage({
@@ -82,6 +83,7 @@ export default function ExecutionListPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
+  const t = useT();
   const { id: workflowId } = use(params);
   const router = useRouter();
 
@@ -140,7 +142,7 @@ export default function ExecutionListPage({
 
   const executions = executionsQuery.data?.items ?? [];
   const totalPages = executionsQuery.data?.totalPages ?? 1;
-  const workflowName = workflowQuery.data?.name ?? "Workflow";
+  const workflowName = workflowQuery.data?.name ?? t("executions.defaultName");
 
   return (
     <div className="space-y-6">
@@ -156,10 +158,7 @@ export default function ExecutionListPage({
           </Button>
           <div>
             <h1 className="text-2xl font-bold">
-              {workflowName}
-              <span className="text-[hsl(var(--muted-foreground))] font-normal">
-                {" "}&mdash; Executions
-              </span>
+              {t("executions.listHeader", { name: workflowName })}
             </h1>
           </div>
         </div>
@@ -168,11 +167,10 @@ export default function ExecutionListPage({
           onClick={() => router.push(`/workflows/${workflowId}`)}
         >
           <ExternalLink className="mr-2 h-4 w-4" />
-          Open in Editor
+          {t("executions.openInEditor")}
         </Button>
       </div>
 
-      {/* Filter */}
       <div className="flex gap-1">
         {FILTER_BUTTONS.map((fb) => (
           <Button
@@ -181,7 +179,7 @@ export default function ExecutionListPage({
             size="sm"
             onClick={() => handleFilterChange(fb.value)}
           >
-            {fb.label}
+            {t(fb.labelKey)}
           </Button>
         ))}
       </div>
@@ -192,15 +190,15 @@ export default function ExecutionListPage({
       ) : !executions.length ? (
         <EmptyState
           icon={Activity}
-          title="No executions yet"
-          description="Run this workflow to see execution history here."
+          title={t("executions.empty")}
+          description={t("executions.noExecutionsHint")}
           action={
             <Button
               variant="outline"
               onClick={() => router.push(`/workflows/${workflowId}`)}
             >
               <ExternalLink className="mr-2 h-4 w-4" />
-              Open in Editor
+              {t("executions.openInEditor")}
             </Button>
           }
         />
@@ -216,7 +214,7 @@ export default function ExecutionListPage({
                       className="inline-flex items-center hover:text-[hsl(var(--foreground))]"
                       onClick={() => handleSort("status")}
                     >
-                      Status
+                      {t("common.status")}
                       <SortIcon field="status" currentField={sortField} currentOrder={sortOrder} />
                     </button>
                   </th>
@@ -226,7 +224,7 @@ export default function ExecutionListPage({
                       className="inline-flex items-center hover:text-[hsl(var(--foreground))]"
                       onClick={() => handleSort("started_at")}
                     >
-                      Started At
+                      {t("executions.columnStartedAt")}
                       <SortIcon field="started_at" currentField={sortField} currentOrder={sortOrder} />
                     </button>
                   </th>
@@ -236,12 +234,12 @@ export default function ExecutionListPage({
                       className="inline-flex items-center hover:text-[hsl(var(--foreground))]"
                       onClick={() => handleSort("duration_ms")}
                     >
-                      Duration
+                      {t("executions.columnDuration")}
                       <SortIcon field="duration_ms" currentField={sortField} currentOrder={sortOrder} />
                     </button>
                   </th>
                   <th className="px-4 py-3 text-left font-medium">
-                    Nodes
+                    {t("executions.columnNodes")}
                   </th>
                 </tr>
               </thead>
@@ -273,7 +271,7 @@ export default function ExecutionListPage({
                           <Badge
                             variant={STATUS_BADGE_VARIANT[execution.status] ?? "outline"}
                           >
-                            {STATUS_LABEL[execution.status] ?? execution.status}
+                            {getStatusLabel(execution.status)}
                           </Badge>
                         </div>
                       </td>
@@ -289,7 +287,7 @@ export default function ExecutionListPage({
                             {completedNodes}/{totalNodes}
                             {failedNodes > 0 && (
                               <span className="text-[hsl(var(--destructive))]">
-                                {" "}({failedNodes} failed)
+                                {" "}{t("executions.failedCount", { count: failedNodes })}
                               </span>
                             )}
                           </span>

@@ -1,8 +1,13 @@
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import { ManualTriggerConfig } from "../trigger-configs";
+import { useLocaleStore } from "@/lib/stores/locale-store";
 
 describe("ManualTriggerConfig", () => {
+  beforeEach(() => {
+    useLocaleStore.setState({ locale: "en" });
+  });
+
   it("renders an empty parameter list initially", () => {
     const onChange = vi.fn();
     render(<ManualTriggerConfig config={{}} onChange={onChange} />);

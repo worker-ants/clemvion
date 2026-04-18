@@ -11,6 +11,7 @@ import { SlideDrawer } from "@/components/ui/slide-drawer";
 import { cn } from "@/lib/utils/cn";
 import { toast } from "sonner";
 import { Plus, Loader2, Inbox, Trash2, X, RefreshCw, Copy } from "lucide-react";
+import { useT, type TranslationKey } from "@/lib/i18n";
 
 interface AuthConfig {
   id: string;
@@ -34,16 +35,16 @@ interface AuthConfigUsage {
   recentCalls: UsageRecentCall[];
 }
 
-const AUTH_TYPES = [
-  { value: "api_key", label: "API Key" },
-  { value: "bearer_token", label: "Bearer Token" },
-  { value: "basic_auth", label: "Basic Auth" },
-] as const;
+const AUTH_TYPES: { value: string; labelKey: TranslationKey }[] = [
+  { value: "api_key", labelKey: "authentication.typeApiKey" },
+  { value: "bearer_token", labelKey: "authentication.typeBearerToken" },
+  { value: "basic_auth", labelKey: "authentication.typeBasicAuth" },
+];
 
-const TYPE_LABELS: Record<string, string> = {
-  api_key: "API Key",
-  bearer_token: "Bearer Token",
-  basic_auth: "Basic Auth",
+const TYPE_LABEL_KEYS: Record<string, TranslationKey> = {
+  api_key: "authentication.typeApiKey",
+  bearer_token: "authentication.typeBearerToken",
+  basic_auth: "authentication.typeBasicAuth",
 };
 
 const STATUS_BADGE_VARIANT: Record<string, "success" | "warning" | "destructive" | "outline"> = {
@@ -54,6 +55,7 @@ const STATUS_BADGE_VARIANT: Record<string, "success" | "warning" | "destructive"
 };
 
 export default function AuthenticationPage() {
+  const t = useT();
   const queryClient = useQueryClient();
   const [showDialog, setShowDialog] = useState(false);
   const [formName, setFormName] = useState("");
@@ -96,14 +98,14 @@ export default function AuthenticationPage() {
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["auth-configs"] });
-      toast.success("Auth config created");
+      toast.success(t("authentication.configCreated"));
       setGeneratedKey(data?.key ?? data?.token ?? null);
       if (!data?.key && !data?.token) {
         resetForm();
       }
     },
     onError: () => {
-      toast.error("Failed to create auth config");
+      toast.error(t("authentication.configCreateFailed"));
     },
   });
 
@@ -113,10 +115,10 @@ export default function AuthenticationPage() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["auth-configs"] });
-      toast.success("Auth config updated");
+      toast.success(t("authentication.configUpdated"));
     },
     onError: () => {
-      toast.error("Failed to update auth config");
+      toast.error(t("authentication.configUpdateFailed"));
     },
   });
 
@@ -127,14 +129,14 @@ export default function AuthenticationPage() {
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["auth-configs"] });
-      toast.success("Key regenerated");
+      toast.success(t("authentication.keyRegenerated"));
       if (data?.key || data?.token) {
         setGeneratedKey(data.key ?? data.token);
       }
       setRegenerateTarget(null);
     },
     onError: () => {
-      toast.error("Failed to regenerate key");
+      toast.error(t("authentication.keyRegenerateFailed"));
       setRegenerateTarget(null);
     },
   });
@@ -145,11 +147,11 @@ export default function AuthenticationPage() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["auth-configs"] });
-      toast.success("Auth config deleted");
+      toast.success(t("authentication.configDeleted"));
       setDeleteTarget(null);
     },
     onError: () => {
-      toast.error("Failed to delete auth config");
+      toast.error(t("authentication.configDeleteFailed"));
     },
   });
 
@@ -162,7 +164,7 @@ export default function AuthenticationPage() {
 
   function handleCreate() {
     if (!formName.trim() || !formType) {
-      toast.error("Please fill in all required fields");
+      toast.error(t("authentication.fillRequired"));
       return;
     }
     createMutation.mutate();
@@ -170,8 +172,8 @@ export default function AuthenticationPage() {
 
   function copyToClipboard(text: string) {
     navigator.clipboard.writeText(text).then(
-      () => toast.success("Copied to clipboard"),
-      () => toast.error("Failed to copy"),
+      () => toast.success(t("authentication.copiedClipboard")),
+      () => toast.error(t("authentication.copyFailed")),
     );
   }
 
@@ -182,10 +184,10 @@ export default function AuthenticationPage() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-3xl font-bold">Authentication</h1>
+        <h1 className="text-3xl font-bold">{t("authentication.title")}</h1>
         <Button onClick={() => setShowDialog(true)}>
           <Plus className="mr-2 h-4 w-4" />
-          Add Config
+          {t("authentication.addConfig")}
         </Button>
       </div>
 
@@ -194,7 +196,7 @@ export default function AuthenticationPage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
           <div className="w-full max-w-md rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-6 shadow-lg">
             <div className="mb-4 flex items-center justify-between">
-              <h2 className="text-lg font-semibold">Add Auth Config</h2>
+              <h2 className="text-lg font-semibold">{t("authentication.addConfigDialogTitle")}</h2>
               <Button variant="ghost" size="icon" onClick={resetForm}>
                 <X className="h-4 w-4" />
               </Button>
@@ -202,7 +204,7 @@ export default function AuthenticationPage() {
             {generatedKey ? (
               <div className="space-y-4">
                 <p className="text-sm text-[hsl(var(--muted-foreground))]">
-                  Save this key now. It will not be shown again.
+                  {t("authentication.saveKeyNotice")}
                 </p>
                 <div className="flex items-center gap-2 rounded-md bg-[hsl(var(--muted))] p-3">
                   <code className="flex-1 break-all text-sm">
@@ -218,39 +220,39 @@ export default function AuthenticationPage() {
                   </Button>
                 </div>
                 <div className="flex justify-end">
-                  <Button onClick={resetForm}>Done</Button>
+                  <Button onClick={resetForm}>{t("authentication.done")}</Button>
                 </div>
               </div>
             ) : (
               <div className="space-y-4">
                 <div>
-                  <Label htmlFor="auth-name">Name</Label>
+                  <Label htmlFor="auth-name">{t("common.name")}</Label>
                   <Input
                     id="auth-name"
                     value={formName}
                     onChange={(e) => setFormName(e.target.value)}
-                    placeholder="My API Key"
+                    placeholder={t("authentication.namePlaceholderConfig")}
                   />
                 </div>
                 <div>
-                  <Label htmlFor="auth-type">Type</Label>
+                  <Label htmlFor="auth-type">{t("common.type")}</Label>
                   <select
                     id="auth-type"
                     className="flex h-10 w-full rounded-md border border-[hsl(var(--input))] bg-transparent px-3 py-2 text-sm"
                     value={formType}
                     onChange={(e) => setFormType(e.target.value)}
                   >
-                    <option value="">Select type</option>
-                    {AUTH_TYPES.map((t) => (
-                      <option key={t.value} value={t.value}>
-                        {t.label}
+                    <option value="">{t("authentication.selectType")}</option>
+                    {AUTH_TYPES.map((opt) => (
+                      <option key={opt.value} value={opt.value}>
+                        {t(opt.labelKey)}
                       </option>
                     ))}
                   </select>
                 </div>
                 <div className="flex justify-end gap-2">
                   <Button variant="outline" onClick={resetForm}>
-                    Cancel
+                    {t("common.cancel")}
                   </Button>
                   <Button
                     onClick={handleCreate}
@@ -259,7 +261,7 @@ export default function AuthenticationPage() {
                     {createMutation.isPending ? (
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                     ) : null}
-                    Create
+                    {t("common.create")}
                   </Button>
                 </div>
               </div>
@@ -272,16 +274,16 @@ export default function AuthenticationPage() {
       {regenerateTarget && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
           <div className="w-full max-w-sm rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-6 shadow-lg">
-            <h2 className="mb-2 text-lg font-semibold">Regenerate Key</h2>
+            <h2 className="mb-2 text-lg font-semibold">{t("authentication.regenerateTitle")}</h2>
             <p className="mb-4 text-sm text-[hsl(var(--muted-foreground))]">
-              This will invalidate the current key. Are you sure?
+              {t("authentication.regenerateMessage")}
             </p>
             <div className="flex justify-end gap-2">
               <Button
                 variant="outline"
                 onClick={() => setRegenerateTarget(null)}
               >
-                Cancel
+                {t("common.cancel")}
               </Button>
               <Button
                 disabled={regenerateMutation.isPending}
@@ -290,7 +292,7 @@ export default function AuthenticationPage() {
                 {regenerateMutation.isPending ? (
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                 ) : null}
-                Regenerate
+                {t("authentication.regenerateButton")}
               </Button>
             </div>
           </div>
@@ -301,17 +303,16 @@ export default function AuthenticationPage() {
       {deleteTarget && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
           <div className="w-full max-w-sm rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-6 shadow-lg">
-            <h2 className="mb-2 text-lg font-semibold">Delete Auth Config</h2>
+            <h2 className="mb-2 text-lg font-semibold">{t("authentication.deleteTitleConfig")}</h2>
             <p className="mb-4 text-sm text-[hsl(var(--muted-foreground))]">
-              Are you sure you want to delete this auth config? This action
-              cannot be undone.
+              {t("authentication.deleteMessageConfig")}
             </p>
             <div className="flex justify-end gap-2">
               <Button
                 variant="outline"
                 onClick={() => setDeleteTarget(null)}
               >
-                Cancel
+                {t("common.cancel")}
               </Button>
               <Button
                 variant="destructive"
@@ -321,7 +322,7 @@ export default function AuthenticationPage() {
                 {deleteMutation.isPending ? (
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                 ) : null}
-                Delete
+                {t("common.delete")}
               </Button>
             </div>
           </div>
@@ -336,14 +337,14 @@ export default function AuthenticationPage() {
 
       {isError && (
         <p className="text-sm text-[hsl(var(--destructive))]">
-          Failed to load auth configs.
+          {t("authentication.loadFailed")}
         </p>
       )}
 
       {!isLoading && !isError && configs.length === 0 && (
         <div className="flex flex-col items-center justify-center py-16 text-[hsl(var(--muted-foreground))]">
           <Inbox className="mb-2 h-10 w-10" />
-          <p className="text-sm">No auth configs found.</p>
+          <p className="text-sm">{t("authentication.noConfigsFound")}</p>
         </div>
       )}
 
@@ -352,11 +353,11 @@ export default function AuthenticationPage() {
           <table className="w-full text-sm">
             <thead className="bg-[hsl(var(--muted))]">
               <tr>
-                <th className="px-4 py-3 text-left font-medium">Name</th>
-                <th className="px-4 py-3 text-left font-medium">Type</th>
-                <th className="px-4 py-3 text-left font-medium">Status</th>
-                <th className="px-4 py-3 text-left font-medium">Last Used</th>
-                <th className="px-4 py-3 text-left font-medium">Actions</th>
+                <th className="px-4 py-3 text-left font-medium">{t("common.name")}</th>
+                <th className="px-4 py-3 text-left font-medium">{t("common.type")}</th>
+                <th className="px-4 py-3 text-left font-medium">{t("common.status")}</th>
+                <th className="px-4 py-3 text-left font-medium">{t("authentication.lastUsed")}</th>
+                <th className="px-4 py-3 text-left font-medium">{t("common.actions")}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-[hsl(var(--border))]">
@@ -369,7 +370,7 @@ export default function AuthenticationPage() {
                   <td className="px-4 py-3 font-medium">{config.name}</td>
                   <td className="px-4 py-3">
                     <span className="inline-block rounded-full bg-[hsl(var(--muted))] px-2.5 py-0.5 text-xs font-medium">
-                      {TYPE_LABELS[config.type] ?? config.type}
+                      {TYPE_LABEL_KEYS[config.type] ? t(TYPE_LABEL_KEYS[config.type]) : config.type}
                     </span>
                   </td>
                   <td className="px-4 py-3">
@@ -380,7 +381,7 @@ export default function AuthenticationPage() {
                           config.active ? "bg-green-500" : "bg-gray-400",
                         )}
                       />
-                      {config.active ? "Active" : "Inactive"}
+                      {config.active ? t("common.active") : t("common.inactive")}
                     </span>
                   </td>
                   <td className="px-4 py-3 text-[hsl(var(--muted-foreground))]">
@@ -404,7 +405,7 @@ export default function AuthenticationPage() {
                           })
                         }
                       >
-                        {config.active ? "Deactivate" : "Activate"}
+                        {config.active ? t("workflows.actions.deactivate") : t("workflows.actions.activate")}
                       </Button>
                       <Button
                         variant="ghost"
@@ -435,7 +436,7 @@ export default function AuthenticationPage() {
       <SlideDrawer
         open={!!selectedConfigId}
         onClose={() => setSelectedConfigId(null)}
-        title={selectedConfig ? `Usage: ${selectedConfig.name}` : "Usage Details"}
+        title={selectedConfig ? `${t("authentication.usageTitlePrefix")} ${selectedConfig.name}` : t("authentication.usageTitle")}
       >
         {isUsageLoading && (
           <div className="flex items-center justify-center py-12">
@@ -445,7 +446,7 @@ export default function AuthenticationPage() {
 
         {isUsageError && (
           <p className="text-sm text-[hsl(var(--destructive))]">
-            Failed to load usage data.
+            {t("authentication.loadUsageFailed")}
           </p>
         )}
 
@@ -455,7 +456,7 @@ export default function AuthenticationPage() {
             <div className="grid grid-cols-2 gap-4">
               <div className="rounded-lg border border-[hsl(var(--border))] p-4">
                 <p className="text-sm text-[hsl(var(--muted-foreground))]">
-                  Total Calls
+                  {t("authentication.totalCalls")}
                 </p>
                 <p className="mt-1 text-2xl font-bold">
                   {usageData.totalCalls.toLocaleString()}
@@ -463,22 +464,22 @@ export default function AuthenticationPage() {
               </div>
               <div className="rounded-lg border border-[hsl(var(--border))] p-4">
                 <p className="text-sm text-[hsl(var(--muted-foreground))]">
-                  Last Used
+                  {t("authentication.lastUsedLabel")}
                 </p>
                 <p className="mt-1 text-sm font-medium">
                   {usageData.lastUsedAt
                     ? new Date(usageData.lastUsedAt).toLocaleString()
-                    : "Never"}
+                    : t("authentication.never")}
                 </p>
               </div>
             </div>
 
             {/* Recent Calls Table */}
             <div>
-              <h3 className="mb-3 text-sm font-semibold">Recent Calls</h3>
+              <h3 className="mb-3 text-sm font-semibold">{t("authentication.recentCalls")}</h3>
               {usageData.recentCalls.length === 0 ? (
                 <p className="text-sm text-[hsl(var(--muted-foreground))]">
-                  No recent calls.
+                  {t("authentication.noRecentCalls")}
                 </p>
               ) : (
                 <div className="overflow-x-auto rounded-lg border border-[hsl(var(--border))]">
@@ -486,13 +487,13 @@ export default function AuthenticationPage() {
                     <thead className="bg-[hsl(var(--muted))]">
                       <tr>
                         <th className="px-3 py-2 text-left font-medium">
-                          Trigger
+                          {t("authentication.trigger")}
                         </th>
                         <th className="px-3 py-2 text-left font-medium">
-                          Status
+                          {t("common.status")}
                         </th>
                         <th className="px-3 py-2 text-left font-medium">
-                          Started At
+                          {t("authentication.startedAt")}
                         </th>
                       </tr>
                     </thead>

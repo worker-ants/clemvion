@@ -11,8 +11,10 @@ import type { NodeDefinition } from "@/lib/node-definitions";
 import { useNodeDefinitionsStore } from "@/lib/stores/node-definitions-store";
 import { NodeIcon } from "../canvas/node-icon";
 import { Search, ChevronDown, ChevronRight } from "lucide-react";
+import { useT } from "@/lib/i18n";
 
 export function NodePalette() {
+  const t = useT();
   const [search, setSearch] = useState("");
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
   // Subscribe so the palette re-renders once definitions/categories finish loading.
@@ -43,7 +45,7 @@ export function NodePalette() {
             className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[hsl(var(--muted-foreground))]"
           />
           <Input
-            placeholder="Search nodes..."
+            placeholder={t("editor.searchNodes")}
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="h-8 pl-8 text-xs"
