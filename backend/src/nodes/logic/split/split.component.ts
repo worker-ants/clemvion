@@ -1,4 +1,4 @@
-import { SplitHandler } from '../../../modules/execution-engine/handlers/logic/split.handler';
+import { SplitHandler } from './split.handler';
 import { NodeComponent } from '../../core/node-component.interface';
 import {
   splitNodeConfigSchema,

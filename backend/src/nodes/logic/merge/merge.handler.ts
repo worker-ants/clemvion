@@ -3,7 +3,7 @@ import {
   NodeHandler,
   ValidationResult,
   ExecutionContext,
-} from '../../../../nodes/core/node-handler.interface.js';
+} from '../../core/node-handler.interface.js';
 
 interface MergeConfig {
   strategy: 'wait_all' | 'first' | 'append';

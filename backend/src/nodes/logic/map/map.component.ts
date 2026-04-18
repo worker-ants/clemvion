@@ -1,4 +1,4 @@
-import { MapHandler } from '../../../modules/execution-engine/handlers/logic/map.handler';
+import { MapHandler } from './map.handler';
 import { NodeComponent } from '../../core/node-component.interface';
 import {
   mapNodeConfigSchema,

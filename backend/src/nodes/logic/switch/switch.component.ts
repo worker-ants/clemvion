@@ -1,4 +1,4 @@
-import { SwitchHandler } from '../../../modules/execution-engine/handlers/logic/switch.handler';
+import { SwitchHandler } from './switch.handler';
 import { NodeComponent } from '../../core/node-component.interface';
 import {
   switchNodeConfigSchema,

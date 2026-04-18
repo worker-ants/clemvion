@@ -2,8 +2,8 @@ import {
   NodeHandler,
   ValidationResult,
   ExecutionContext,
-} from '../../../../nodes/core/node-handler.interface.js';
-import { resolveFieldValue } from '../../../../nodes/core/nested-value.util.js';
+} from '../../core/node-handler.interface.js';
+import { resolveFieldValue } from '../../core/nested-value.util.js';
 
 interface SplitConfig {
   // Either a dot-path string applied to `$input` (e.g. `"items"`) OR the

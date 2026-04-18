@@ -2,15 +2,15 @@ import {
   NodeHandler,
   ValidationResult,
   ExecutionContext,
-} from '../../../../nodes/core/node-handler.interface.js';
-import { resolveFieldValue } from '../../../../nodes/core/nested-value.util.js';
+} from '../../core/node-handler.interface.js';
+import { resolveFieldValue } from '../../core/nested-value.util.js';
 import {
   Condition,
   VALID_OPERATORS,
   VALID_OPERATORS_STR,
   compileRegexCache,
   evaluateCondition,
-} from '../../../../nodes/logic/_shared/condition-eval.util.js';
+} from '../_shared/condition-eval.util.js';
 
 interface FilterConfig {
   // Either a dot-path string applied to `$input` (e.g. `"items"`) OR the

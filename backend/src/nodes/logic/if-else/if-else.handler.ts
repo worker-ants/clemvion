@@ -2,8 +2,8 @@ import {
   NodeHandler,
   ValidationResult,
   ExecutionContext,
-} from '../../../../nodes/core/node-handler.interface.js';
-import { getNestedValue } from '../../../../nodes/core/nested-value.util.js';
+} from '../../core/node-handler.interface.js';
+import { getNestedValue } from '../../core/nested-value.util.js';
 
 interface Condition {
   field: string;

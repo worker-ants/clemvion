@@ -27,12 +27,10 @@ import {
 import { Node, NodeCategory } from '../nodes/entities/node.entity';
 import { Edge, EdgeType } from '../edges/entities/edge.entity';
 import { Workflow } from '../workflows/entities/workflow.entity';
-import {
-  NodeHandler,
-  ForEachHandler,
-  LoopHandler,
-  MapHandler,
-} from './handlers';
+import { NodeHandler } from '../../nodes/core/node-handler.interface';
+import { ForEachHandler } from '../../nodes/logic/foreach/foreach.handler';
+import { LoopHandler } from '../../nodes/logic/loop/loop.handler';
+import { MapHandler } from '../../nodes/logic/map/map.handler';
 
 // Helper to flush pending promises (allow background execution to complete)
 function flushPromises(): Promise<void> {

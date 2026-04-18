@@ -2,7 +2,7 @@ import {
   NodeHandler,
   NodeHandlerOutput,
   ValidationResult,
-} from '../../../../nodes/core/node-handler.interface';
+} from '../../core/node-handler.interface';
 
 /**
  * Background 노드 핸들러.

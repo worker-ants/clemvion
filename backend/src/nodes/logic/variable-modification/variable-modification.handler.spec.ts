@@ -1,5 +1,5 @@
 import { VariableModificationHandler } from './variable-modification.handler.js';
-import { ExecutionContext } from '../../../../nodes/core/node-handler.interface.js';
+import { ExecutionContext } from '../../core/node-handler.interface.js';
 
 describe('VariableModificationHandler', () => {
   let handler: VariableModificationHandler;
