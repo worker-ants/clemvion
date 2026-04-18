@@ -66,6 +66,8 @@ code: ["packages/expression-engine/src/parser.ts", "packages/expression-engine/s
   <Step>정적 값만 넣고 싶다면 일반 텍스트를 그대로 입력해요. 예: `https://api.example.com/users`</Step>
   <Step>동적 값이 필요한 자리만 `{{ ... }}`로 감싸요. 예: `https://api.example.com/users/{{ $input.userId }}`</Step>
   <Step>자동완성 팝업이 `{{` 입력 직후 나타나요. 화살표 키로 탐색하고 Enter/Tab으로 선택해요.</Step>
+  <Step>자동완성 목록은 **현재 노드에서 실제로 접근 가능한 노드·변수만** 보여줘요. 상위에 연결되지 않은 노드는 목록에서 숨겨지고, 루프/ForEach 컨테이너 밖에서는 `$loop`·`$item`·`$itemIndex`가 숨겨져요.</Step>
+  <Step>접근할 수 없는 노드를 이미 참조하고 있는 표현식에는 **주황색 경고**가 표시돼요. 구문 오류는 붉은색으로 구분돼요.</Step>
 </Steps>
 
 ## 간단한 예시

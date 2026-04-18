@@ -1,0 +1,93 @@
+{
+  "timestamp": "2026-04-18T23:54:37.460565",
+  "files": [
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/frontend/src/components/editor/expression/__tests__/reachable-nodes.test.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/frontend/src/components/editor/expression/__tests__/validate-scope.test.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/frontend/src/components/editor/expression/reachable-nodes.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/frontend/src/components/editor/expression/validate-scope.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    }
+  ],
+  "total_elapsed_seconds": 118.36,
+  "agents": [
+    {
+      "name": "database",
+      "status": "success",
+      "elapsed_seconds": 9.79
+    },
+    {
+      "name": "api_contract",
+      "status": "success",
+      "elapsed_seconds": 13.88
+    },
+    {
+      "name": "dependency",
+      "status": "success",
+      "elapsed_seconds": 17.35
+    },
+    {
+      "name": "documentation",
+      "status": "success",
+      "elapsed_seconds": 19.9
+    },
+    {
+      "name": "side_effect",
+      "status": "success",
+      "elapsed_seconds": 22.5
+    },
+    {
+      "name": "performance",
+      "status": "success",
+      "elapsed_seconds": 33.01
+    },
+    {
+      "name": "security",
+      "status": "success",
+      "elapsed_seconds": 33.11
+    },
+    {
+      "name": "architecture",
+      "status": "success",
+      "elapsed_seconds": 37.69
+    },
+    {
+      "name": "requirement",
+      "status": "success",
+      "elapsed_seconds": 37.86
+    },
+    {
+      "name": "maintainability",
+      "status": "success",
+      "elapsed_seconds": 44.45
+    },
+    {
+      "name": "testing",
+      "status": "success",
+      "elapsed_seconds": 52.15
+    },
+    {
+      "name": "scope",
+      "status": "success",
+      "elapsed_seconds": 53.07
+    },
+    {
+      "name": "concurrency",
+      "status": "success",
+      "elapsed_seconds": 53.7
+    }
+  ]
+}

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import {
   Popover,
   PopoverContent,
@@ -284,6 +284,17 @@ export function VariablePicker({
 
   const inputFieldCount = Object.keys(expressionData.inputSample).length;
 
+  // Drop container-only scope variables when the selected node isn't inside
+  // the matching container. `scopeKey` on each entry is the single source of
+  // truth for this gating (see expression-constants.ts).
+  const scopedBuiltIns = useMemo(
+    () =>
+      BUILT_IN_PICKER_VARIABLES.filter(
+        (v) => !v.scopeKey || expressionData.containerScope[v.scopeKey],
+      ),
+    [expressionData.containerScope],
+  );
+
   return (
     <Popover open={open} onOpenChange={onOpenChange}>
       <PopoverTrigger asChild>
@@ -416,16 +427,16 @@ export function VariablePicker({
           </div>
         )}
 
-        {/* Built-in variables */}
+        {/* Built-in variables — container-only scopes are filtered above. */}
         <div>
           <CategoryHeader
             label="Built-in"
             expanded={expandedCategories.builtin ?? false}
             onToggle={() => toggleCategory("builtin")}
-            count={BUILT_IN_PICKER_VARIABLES.length}
+            count={scopedBuiltIns.length}
           />
           {expandedCategories.builtin &&
-            BUILT_IN_PICKER_VARIABLES.map((v) => (
+            scopedBuiltIns.map((v) => (
               <PickerItem
                 key={v.label}
                 label={v.label}

@@ -36,8 +36,9 @@ function makeNode(
   type: string,
   label: string,
   config: Record<string, unknown> = {},
+  extraData: Record<string, unknown> = {},
 ) {
-  return { id, data: { label, type, config } };
+  return { id, data: { label, type, config, ...extraData } };
 }
 
 function makeEdge(source: string, target: string) {
@@ -102,13 +103,13 @@ describe("useExpressionContext", () => {
     ]);
   });
 
-  it("builds availableNodes excluding selected node", () => {
+  it("builds availableNodes from ancestors, excluding selected node", () => {
     editorState = {
       nodes: [
         makeNode("n1", "http_request", "HTTP"),
         makeNode("n2", "http_request", "HTTP Request"),
       ],
-      edges: [],
+      edges: [makeEdge("n1", "n2")],
     };
     executionState = { nodeResults: [] };
 
@@ -118,6 +119,41 @@ describe("useExpressionContext", () => {
     expect(result.current.availableNodes[0].resolvedKey).toBe("HTTP");
   });
 
+  it("excludes non-ancestor nodes from availableNodes", () => {
+    // n3 is NOT connected to n2 (no path). From n2 it is unreachable.
+    editorState = {
+      nodes: [
+        makeNode("n1", "http_request", "HTTP"),
+        makeNode("n2", "http_request", "HTTP Request"),
+        makeNode("n3", "code", "Unreachable"),
+      ],
+      edges: [makeEdge("n1", "n2")],
+    };
+    executionState = { nodeResults: [] };
+
+    const { result } = renderHook(() => useExpressionContext("n2"));
+    const labels = result.current.availableNodes.map((n) => n.label);
+    expect(labels).toEqual(["HTTP"]);
+    expect(labels).not.toContain("Unreachable");
+  });
+
+  it("keeps allNodeKeys populated with every node's resolved key", () => {
+    editorState = {
+      nodes: [
+        makeNode("n1", "http_request", "HTTP"),
+        makeNode("n2", "http_request", "HTTP Request"),
+        makeNode("n3", "code", "Unreachable"),
+      ],
+      edges: [makeEdge("n1", "n2")],
+    };
+    executionState = { nodeResults: [] };
+
+    const { result } = renderHook(() => useExpressionContext("n2"));
+    expect(result.current.allNodeKeys.has("HTTP")).toBe(true);
+    expect(result.current.allNodeKeys.has("HTTP Request")).toBe(true);
+    expect(result.current.allNodeKeys.has("Unreachable")).toBe(true);
+  });
+
   it("assigns disambiguated resolvedKey for duplicate labels", () => {
     editorState = {
       nodes: [
@@ -125,7 +161,7 @@ describe("useExpressionContext", () => {
         makeNode("n2", "http_request", "HTTP Request"),
         makeNode("n3", "code", "Code"),
       ],
-      edges: [],
+      edges: [makeEdge("n1", "n3"), makeEdge("n2", "n3")],
     };
     executionState = { nodeResults: [] };
 
@@ -136,6 +172,28 @@ describe("useExpressionContext", () => {
     expect(available[0].resolvedKey).toBe("HTTP Request");
     expect(available[1].label).toBe("HTTP Request");
     expect(available[1].resolvedKey).toBe("HTTP Request#2");
+  });
+
+  it("exposes stable disambiguated keys even for nodes outside the ancestor set", () => {
+    // Duplicate labels exist, but only one is an ancestor — the reachable
+    // node's resolvedKey must still match the globally-assigned key.
+    editorState = {
+      nodes: [
+        makeNode("n1", "http_request", "HTTP Request"),
+        makeNode("n2", "http_request", "HTTP Request"),
+        makeNode("n3", "code", "Code"),
+      ],
+      // Only n2 (the second "HTTP Request") is connected to n3.
+      edges: [makeEdge("n2", "n3")],
+    };
+    executionState = { nodeResults: [] };
+
+    const { result } = renderHook(() => useExpressionContext("n3"));
+    expect(result.current.availableNodes).toHaveLength(1);
+    expect(result.current.availableNodes[0].id).toBe("n2");
+    expect(result.current.availableNodes[0].resolvedKey).toBe("HTTP Request#2");
+    expect(result.current.allNodeKeys.has("HTTP Request")).toBe(true);
+    expect(result.current.allNodeKeys.has("HTTP Request#2")).toBe(true);
   });
 
   describe("sourceItemSample for table nodes", () => {
@@ -289,7 +347,7 @@ describe("useExpressionContext", () => {
           makeNode("c1", "chart", "Chart"),
           makeNode("n1", "http_request", "HTTP"),
         ],
-        edges: [],
+        edges: [makeEdge("c1", "n1")],
       };
       executionState = { nodeResults: [] };
       nodeDefinitionsState = {
@@ -329,6 +387,125 @@ describe("useExpressionContext", () => {
 
       const { result } = renderHook(() => useExpressionContext("n2"));
       expect(result.current.inputSchema).toEqual(predecessorOutputSchema);
+    });
+  });
+
+  describe("containerScope", () => {
+    it("returns both flags off for a top-level node", () => {
+      editorState = {
+        nodes: [makeNode("n1", "http_request", "HTTP")],
+        edges: [],
+      };
+      const { result } = renderHook(() => useExpressionContext("n1"));
+      expect(result.current.containerScope).toEqual({
+        hasLoop: false,
+        hasItem: false,
+      });
+    });
+
+    it("turns on hasLoop when the node is inside a loop container", () => {
+      editorState = {
+        nodes: [
+          makeNode("loop1", "loop", "Loop"),
+          makeNode("n1", "http_request", "HTTP", {}, { containerId: "loop1" }),
+        ],
+        edges: [],
+      };
+      const { result } = renderHook(() => useExpressionContext("n1"));
+      expect(result.current.containerScope).toEqual({
+        hasLoop: true,
+        hasItem: false,
+      });
+    });
+
+    it("turns on hasItem when the node is inside a foreach container", () => {
+      editorState = {
+        nodes: [
+          makeNode("fe", "foreach", "ForEach"),
+          makeNode("n1", "http_request", "HTTP", {}, { containerId: "fe" }),
+        ],
+        edges: [],
+      };
+      const { result } = renderHook(() => useExpressionContext("n1"));
+      expect(result.current.containerScope).toEqual({
+        hasLoop: false,
+        hasItem: true,
+      });
+    });
+
+    it("combines flags when containers are nested", () => {
+      editorState = {
+        nodes: [
+          makeNode("fe", "foreach", "ForEach"),
+          makeNode("lp", "loop", "Loop", {}, { containerId: "fe" }),
+          makeNode("n1", "http_request", "HTTP", {}, { containerId: "lp" }),
+        ],
+        edges: [],
+      };
+      const { result } = renderHook(() => useExpressionContext("n1"));
+      expect(result.current.containerScope).toEqual({
+        hasLoop: true,
+        hasItem: true,
+      });
+    });
+
+    it("stops at a parallel container — outer loop/foreach scopes do not leak in", () => {
+      // ForEach > Parallel > Loop > node: the outer foreach's $item is
+      // cleared by parallel, so the innermost loop still contributes $loop
+      // but the foreach contributes nothing.
+      editorState = {
+        nodes: [
+          makeNode("fe", "foreach", "ForEach"),
+          makeNode("pa", "parallel", "Parallel", {}, { containerId: "fe" }),
+          makeNode("lp", "loop", "Loop", {}, { containerId: "pa" }),
+          makeNode("n1", "http_request", "HTTP", {}, { containerId: "lp" }),
+        ],
+        edges: [],
+      };
+      const { result } = renderHook(() => useExpressionContext("n1"));
+      expect(result.current.containerScope).toEqual({
+        hasLoop: true,
+        hasItem: false,
+      });
+    });
+
+    it("returns both flags off when the node is directly inside a parallel branch", () => {
+      editorState = {
+        nodes: [
+          makeNode("fe", "foreach", "ForEach"),
+          makeNode("pa", "parallel", "Parallel", {}, { containerId: "fe" }),
+          makeNode("n1", "http_request", "HTTP", {}, { containerId: "pa" }),
+        ],
+        edges: [],
+      };
+      const { result } = renderHook(() => useExpressionContext("n1"));
+      expect(result.current.containerScope).toEqual({
+        hasLoop: false,
+        hasItem: false,
+      });
+    });
+
+    it("reports off-scope when the selected node is the container itself", () => {
+      // The loop/foreach node isn't *inside* its own body — its config is
+      // evaluated at the outer level, so $loop / $item aren't available to it.
+      editorState = {
+        nodes: [
+          makeNode("loop1", "loop", "Loop"),
+          makeNode("fe1", "foreach", "ForEach"),
+        ],
+        edges: [],
+      };
+      const loopResult = renderHook(() => useExpressionContext("loop1"));
+      expect(loopResult.result.current.containerScope).toEqual({
+        hasLoop: false,
+        hasItem: false,
+      });
+
+      const feResult = renderHook(() => useExpressionContext("fe1"));
+      expect(feResult.result.current.containerScope).toEqual({
+        hasLoop: false,
+        hasItem: false,
+      });
     });
   });
 });

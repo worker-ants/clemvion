@@ -12,10 +12,12 @@ function makeSuggestions(
     inputFields: [],
     inputSample: {},
     availableNodes: [],
+    allNodeKeys: new Set(),
     variables: [],
     functionNames: [],
     isTableContext: false,
     sourceItemSample: null,
+    containerScope: { hasLoop: false, hasItem: false },
     ...data,
   };
 
@@ -722,6 +724,53 @@ describe("useExpressionSuggestions - nested paths", () => {
         sourceItemSample: null,
       });
       expect(suggestions).toEqual([]);
+    });
+  });
+
+  describe("container scope gating", () => {
+    it("hides $loop / $item / $itemIndex when the selected node has no container scope", () => {
+      const expr = "{{ $ }}";
+      const { suggestions } = makeSuggestions(expr, cursorAfterExpr(expr));
+      const labels = suggestions.map((s) => s.label);
+      expect(labels).not.toContain("$loop");
+      expect(labels).not.toContain("$item");
+      expect(labels).not.toContain("$itemIndex");
+      // Unscoped variables remain visible.
+      expect(labels).toContain("$input");
+      expect(labels).toContain("$node");
+    });
+
+    it("shows $loop only when hasLoop is true", () => {
+      const expr = "{{ $ }}";
+      const { suggestions } = makeSuggestions(expr, cursorAfterExpr(expr), {
+        containerScope: { hasLoop: true, hasItem: false },
+      });
+      const labels = suggestions.map((s) => s.label);
+      expect(labels).toContain("$loop");
+      expect(labels).not.toContain("$item");
+      expect(labels).not.toContain("$itemIndex");
+    });
+
+    it("shows $item and $itemIndex only when hasItem is true", () => {
+      const expr = "{{ $ }}";
+      const { suggestions } = makeSuggestions(expr, cursorAfterExpr(expr), {
+        containerScope: { hasLoop: false, hasItem: true },
+      });
+      const labels = suggestions.map((s) => s.label);
+      expect(labels).toContain("$item");
+      expect(labels).toContain("$itemIndex");
+      expect(labels).not.toContain("$loop");
+    });
+
+    it("shows every container-scope variable when both flags are true", () => {
+      const expr = "{{ $ }}";
+      const { suggestions } = makeSuggestions(expr, cursorAfterExpr(expr), {
+        containerScope: { hasLoop: true, hasItem: true },
+      });
+      const labels = suggestions.map((s) => s.label);
+      expect(labels).toContain("$loop");
+      expect(labels).toContain("$item");
+      expect(labels).toContain("$itemIndex");
     });
   });
 });
