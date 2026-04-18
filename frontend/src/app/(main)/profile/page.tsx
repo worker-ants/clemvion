@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
-import { useQuery, useMutation } from "@tanstack/react-query";
+import { useEffect, useMemo, useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import axios from "axios";
 import { apiClient } from "@/lib/api/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -16,20 +17,36 @@ import { toast } from "sonner";
 import { Loader2, Save } from "lucide-react";
 import { useThemeStore } from "@/lib/stores/theme-store";
 
+type Locale = "ko" | "en";
+type ServerTheme = "light" | "dark";
+
 interface UserProfile {
   id: string;
   name: string;
   email: string;
+  avatarUrl?: string | null;
+  locale: Locale;
+  theme: ServerTheme;
+}
+
+function axiosMessage(err: unknown, fallback: string): string {
+  if (axios.isAxiosError(err)) {
+    return err.response?.data?.message ?? err.message ?? fallback;
+  }
+  if (err instanceof Error) return err.message || fallback;
+  return fallback;
 }
 
 export default function ProfilePage() {
   const { theme, setTheme } = useThemeStore();
+  const queryClient = useQueryClient();
 
   const [name, setName] = useState("");
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
-  const [language, setLanguage] = useState("ko");
+  const [language, setLanguage] = useState<Locale>("ko");
+  const [isSaving, setIsSaving] = useState(false);
 
   const { data: user, isLoading, isError } = useQuery<UserProfile>({
     queryKey: ["user-profile"],
@@ -39,31 +56,28 @@ export default function ProfilePage() {
     },
   });
 
-  // Sync name from fetched user data
-  const displayName = name || (user?.name ?? "");
+  // Seed editable state from fetched profile when it arrives.
+  useEffect(() => {
+    if (!user) return;
+    setName(user.name ?? "");
+    if (user.locale === "ko" || user.locale === "en") {
+      setLanguage(user.locale);
+    }
+    if (user.theme === "light" || user.theme === "dark") {
+      setTheme(user.theme);
+    }
+  }, [user, setTheme]);
 
-  const updateMutation = useMutation({
-    mutationFn: async () => {
-      const payload: Record<string, string> = { name };
-      if (newPassword) {
-        if (newPassword !== confirmPassword) {
-          throw new Error("Passwords do not match");
-        }
-        payload.currentPassword = currentPassword;
-        payload.newPassword = newPassword;
-      }
-      await apiClient.patch("/users/me", payload);
-    },
-    onSuccess: () => {
-      toast.success("Profile updated");
-      setCurrentPassword("");
-      setNewPassword("");
-      setConfirmPassword("");
-    },
-    onError: (err: Error) => {
-      toast.error(err.message || "Failed to update profile");
-    },
-  });
+  const effectiveTheme: ServerTheme = theme === "dark" ? "dark" : "light";
+
+  const dirtyProfile = useMemo(() => {
+    if (!user) return {} as Partial<Pick<UserProfile, "name" | "locale" | "theme">>;
+    const patch: Partial<Pick<UserProfile, "name" | "locale" | "theme">> = {};
+    if (name !== user.name) patch.name = name;
+    if (language !== user.locale) patch.locale = language;
+    if (effectiveTheme !== user.theme) patch.theme = effectiveTheme;
+    return patch;
+  }, [user, name, language, effectiveTheme]);
 
   function getInitials(nameStr: string, email: string): string {
     if (nameStr.trim()) {
@@ -77,16 +91,53 @@ export default function ProfilePage() {
     return email?.charAt(0).toUpperCase() ?? "?";
   }
 
-  function handleSave() {
-    if (newPassword && newPassword !== confirmPassword) {
-      toast.error("Passwords do not match");
+  async function handleSave() {
+    if (!user) return;
+
+    if (newPassword || confirmPassword || currentPassword) {
+      if (!newPassword) {
+        toast.error("Please enter a new password");
+        return;
+      }
+      if (newPassword !== confirmPassword) {
+        toast.error("Passwords do not match");
+        return;
+      }
+      if (!currentPassword) {
+        toast.error("Please enter your current password");
+        return;
+      }
+    }
+
+    const hasProfileChanges = Object.keys(dirtyProfile).length > 0;
+    const hasPasswordChange = Boolean(newPassword);
+
+    if (!hasProfileChanges && !hasPasswordChange) {
+      toast.info("No changes to save");
       return;
     }
-    if (newPassword && !currentPassword) {
-      toast.error("Please enter your current password");
-      return;
+
+    setIsSaving(true);
+    try {
+      if (hasProfileChanges) {
+        await apiClient.patch("/users/me", dirtyProfile);
+      }
+      if (hasPasswordChange) {
+        await apiClient.post("/users/me/change-password", {
+          currentPassword,
+          newPassword,
+        });
+      }
+      toast.success("Profile updated");
+      setCurrentPassword("");
+      setNewPassword("");
+      setConfirmPassword("");
+      await queryClient.invalidateQueries({ queryKey: ["user-profile"] });
+    } catch (err) {
+      toast.error(axiosMessage(err, "Failed to update profile"));
+    } finally {
+      setIsSaving(false);
     }
-    updateMutation.mutate();
   }
 
   if (isLoading) {
@@ -127,7 +178,7 @@ export default function ProfilePage() {
                 <Label htmlFor="profile-name">Name</Label>
                 <Input
                   id="profile-name"
-                  value={displayName}
+                  value={name}
                   onChange={(e) => setName(e.target.value)}
                   placeholder="Your name"
                 />
@@ -216,7 +267,7 @@ export default function ProfilePage() {
               id="language-select"
               className="flex h-10 w-full max-w-xs rounded-md border border-[hsl(var(--input))] bg-transparent px-3 py-2 text-sm"
               value={language}
-              onChange={(e) => setLanguage(e.target.value)}
+              onChange={(e) => setLanguage(e.target.value as Locale)}
             >
               <option value="ko">Korean</option>
               <option value="en">English</option>
@@ -227,8 +278,8 @@ export default function ProfilePage() {
 
       {/* Save */}
       <div className="flex justify-end">
-        <Button onClick={handleSave} disabled={updateMutation.isPending}>
-          {updateMutation.isPending ? (
+        <Button onClick={handleSave} disabled={isSaving}>
+          {isSaving ? (
             <Loader2 className="mr-2 h-4 w-4 animate-spin" />
           ) : (
             <Save className="mr-2 h-4 w-4" />
