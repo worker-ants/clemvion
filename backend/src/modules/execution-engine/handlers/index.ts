@@ -7,11 +7,6 @@
 // Data handlers
 
 // Presentation handlers
-export { CarouselHandler } from './presentation/carousel.handler.js';
-export { TableHandler } from './presentation/table.handler.js';
-export { ChartHandler } from './presentation/chart.handler.js';
-export { FormHandler } from './presentation/form.handler.js';
-export { TemplateHandler } from './presentation/template.handler.js';
 
 // Trigger handlers
 

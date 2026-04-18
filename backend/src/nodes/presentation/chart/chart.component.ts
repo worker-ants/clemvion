@@ -1,4 +1,4 @@
-import { ChartHandler } from '../../../modules/execution-engine/handlers/presentation/chart.handler';
+import { ChartHandler } from './chart.handler';
 import { NodeComponent } from '../../core/node-component.interface';
 import {
   chartConfigSchema,

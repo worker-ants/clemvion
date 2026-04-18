@@ -1,4 +1,4 @@
-import { CarouselHandler } from '../../../modules/execution-engine/handlers/presentation/carousel.handler';
+import { CarouselHandler } from './carousel.handler';
 import { NodeComponent } from '../../core/node-component.interface';
 import {
   carouselNodeConfigSchema,

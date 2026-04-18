@@ -1,4 +1,4 @@
-import { FormHandler } from '../../../modules/execution-engine/handlers/presentation/form.handler';
+import { FormHandler } from './form.handler';
 import { NodeComponent } from '../../core/node-component.interface';
 import {
   formNodeConfigSchema,
