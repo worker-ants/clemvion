@@ -1,10 +1,11 @@
 import { describe, it, expect } from "vitest";
 import { groupEntries, countGroupValues } from "../schema-form";
+import type { UiHint } from "@/lib/node-definitions";
 
 type Entry = {
   key: string;
   schema: Record<string, unknown>;
-  ui: { group?: string; collapsible?: boolean; hidden?: boolean; visibleWhen?: unknown } | undefined;
+  ui: UiHint | undefined;
   order: number;
 };
 
