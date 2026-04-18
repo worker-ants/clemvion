@@ -133,10 +133,20 @@ function databaseQuerySummary(config: NodeConfig): ConfigSummaryResult {
 }
 
 function sendEmailSummary(config: NodeConfig): ConfigSummaryResult {
-  const to = config.to as string | undefined;
-  if (!to) return warning("Recipient not set");
-  const recipients = to.split(",").map((s) => s.trim()).filter(Boolean);
-  if (recipients.length <= 1) return { text: `to: ${to}`, isWarning: false };
+  const raw = config.to;
+  let recipients: string[];
+  if (Array.isArray(raw)) {
+    recipients = raw
+      .filter((v): v is string => typeof v === "string")
+      .map((v) => v.trim())
+      .filter(Boolean);
+  } else if (typeof raw === "string") {
+    recipients = raw.split(",").map((s) => s.trim()).filter(Boolean);
+  } else {
+    recipients = [];
+  }
+  if (recipients.length === 0) return warning("Recipient not set");
+  if (recipients.length === 1) return { text: `to: ${recipients[0]}`, isWarning: false };
   return { text: `to: ${recipients[0]}, +${recipients.length - 1}`, isWarning: false };
 }
 

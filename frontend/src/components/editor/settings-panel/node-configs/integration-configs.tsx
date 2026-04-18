@@ -1,10 +1,84 @@
-import { SelectField, NumberField, CheckboxField, KeyValueEditor } from "./shared";
+import { FieldGroup, SelectField, NumberField, CheckboxField, KeyValueEditor } from "./shared";
 import { ExpressionInput } from "@/components/editor/expression";
 import { IntegrationSelector } from "./integration-selector";
+import { Button } from "@/components/ui/button";
+import { Plus, X } from "lucide-react";
 import { useT } from "@/lib/i18n";
 
 type Config = Record<string, unknown>;
 type OnChange = (config: Config) => void;
+
+function coerceRecipients(value: unknown): string[] {
+  if (Array.isArray(value)) {
+    return value.filter((v): v is string => typeof v === "string");
+  }
+  if (typeof value === "string") {
+    return value.split(",").map((s) => s.trim()).filter(Boolean);
+  }
+  return [];
+}
+
+function RecipientList({
+  label,
+  value,
+  onChange,
+  placeholder,
+  hint,
+}: {
+  label: string;
+  value: unknown;
+  onChange: (next: string[]) => void;
+  placeholder?: string;
+  hint?: string;
+}) {
+  const t = useT();
+  const items = coerceRecipients(value);
+  const itemLabel = t("nodeConfigs.integration.recipientItemLabel");
+  const itemLabelLower = t("nodeConfigs.integration.recipientItemLabelLower");
+
+  const update = (idx: number, next: string) =>
+    onChange(items.map((v, i) => (i === idx ? next : v)));
+  const remove = (idx: number) => onChange(items.filter((_, i) => i !== idx));
+  const add = () => onChange([...items, ""]);
+
+  return (
+    <FieldGroup label={label} hint={hint}>
+      <div className="flex flex-col gap-2">
+        {items.map((item, i) => (
+          <div key={`recipient-${i}`} className="flex items-start gap-1">
+            <div className="flex-1 min-w-0">
+              <ExpressionInput
+                bare
+                label=""
+                value={item}
+                onChange={(v) => update(i, v)}
+                placeholder={placeholder}
+              />
+            </div>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7 shrink-0"
+              onClick={() => remove(i)}
+              aria-label={t("nodeConfigs.autoForm.removeItemAria", { label: itemLabel })}
+            >
+              <X size={12} />
+            </Button>
+          </div>
+        ))}
+        <Button
+          variant="outline"
+          size="sm"
+          className="h-7 text-xs self-start"
+          onClick={add}
+        >
+          <Plus size={12} className="mr-1" />
+          {t("nodeConfigs.autoForm.addItem", { label: itemLabelLower })}
+        </Button>
+      </div>
+    </FieldGroup>
+  );
+}
 
 // ===== HTTP Request =====
 export function HttpRequestConfig({ config, onChange }: { config: Config; onChange: OnChange }) {
@@ -183,19 +257,26 @@ export function SendEmailConfig({ config, onChange }: { config: Config; onChange
         serviceTypes={["email"]}
         serviceDisplayName="Email"
       />
-      <ExpressionInput
+      <RecipientList
         label={t("nodeConfigs.integration.to")}
-        value={(config.to as string) ?? ""}
+        value={config.to}
         onChange={(v) => onChange({ ...config, to: v })}
         placeholder={t("nodeConfigs.integration.toPlaceholder")}
         hint={t("nodeConfigs.integration.toHint")}
       />
-      <ExpressionInput
+      <RecipientList
         label={t("nodeConfigs.integration.cc")}
-        value={(config.cc as string) ?? ""}
+        value={config.cc}
         onChange={(v) => onChange({ ...config, cc: v })}
         placeholder={t("nodeConfigs.integration.ccPlaceholder")}
         hint={t("nodeConfigs.integration.ccHint")}
+      />
+      <RecipientList
+        label={t("nodeConfigs.integration.bcc")}
+        value={config.bcc}
+        onChange={(v) => onChange({ ...config, bcc: v })}
+        placeholder={t("nodeConfigs.integration.bccPlaceholder")}
+        hint={t("nodeConfigs.integration.bccHint")}
       />
       <ExpressionInput
         label={t("nodeConfigs.integration.subject")}
