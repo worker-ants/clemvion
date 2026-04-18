@@ -2,7 +2,7 @@ import {
   ExecutionContext,
   NodeHandler,
   ValidationResult,
-} from '../node-handler.interface.js';
+} from '../../../../nodes/core/node-handler.interface.js';
 import { ButtonDef, validateButtons } from '../../types/button.types.js';
 
 function toStr(value: unknown): string {

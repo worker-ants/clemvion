@@ -1,5 +1,5 @@
 import { ParallelExecutor } from './parallel-executor';
-import { ExecutionContext } from '../handlers/node-handler.interface';
+import { ExecutionContext } from '../../../nodes/core/node-handler.interface';
 
 describe('ParallelExecutor', () => {
   let executor: ParallelExecutor;

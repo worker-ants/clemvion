@@ -1,5 +1,5 @@
 import { LoopHandler } from './loop.handler';
-import { ExecutionContext } from '../node-handler.interface';
+import { ExecutionContext } from '../../../../nodes/core/node-handler.interface';
 
 describe('LoopHandler', () => {
   let handler: LoopHandler;

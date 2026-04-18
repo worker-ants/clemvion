@@ -2,7 +2,7 @@ import {
   NodeHandler,
   ValidationResult,
   ExecutionContext,
-} from '../node-handler.interface.js';
+} from '../../../../nodes/core/node-handler.interface.js';
 
 interface LoopConfig {
   count: number | string;

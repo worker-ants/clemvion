@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { ExecutionContext } from '../handlers/node-handler.interface';
+import { ExecutionContext } from '../../../nodes/core/node-handler.interface';
 
 export type ForEachErrorPolicy = 'stop' | 'skip' | 'continue';
 

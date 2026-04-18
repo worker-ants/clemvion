@@ -1,5 +1,5 @@
 import { ManualTriggerHandler } from './manual-trigger.handler';
-import type { ExecutionContext } from '../node-handler.interface';
+import type { ExecutionContext } from '../../../../nodes/core/node-handler.interface';
 
 describe('ManualTriggerHandler', () => {
   let handler: ManualTriggerHandler;

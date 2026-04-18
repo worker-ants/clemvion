@@ -4,7 +4,7 @@ import {
   ExecutionContext,
   NodeHandler,
   ValidationResult,
-} from '../node-handler.interface.js';
+} from '../../../../nodes/core/node-handler.interface.js';
 import {
   delNestedValue,
   getNestedValue,

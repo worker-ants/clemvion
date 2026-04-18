@@ -1,5 +1,5 @@
 import { DatabaseQueryHandler } from './database-query.handler.js';
-import { ExecutionContext } from '../node-handler.interface.js';
+import { ExecutionContext } from '../../../../nodes/core/node-handler.interface.js';
 
 const connectMock = jest.fn();
 const queryMock = jest.fn();

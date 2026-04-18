@@ -1,5 +1,5 @@
 import { TextClassifierHandler } from './text-classifier.handler';
-import { ExecutionContext } from '../node-handler.interface';
+import { ExecutionContext } from '../../../../nodes/core/node-handler.interface';
 
 describe('TextClassifierHandler', () => {
   let handler: TextClassifierHandler;

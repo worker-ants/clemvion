@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import {
   ExecutionContext,
   NodeHandlerOutput,
-} from '../handlers/node-handler.interface';
+} from '../../../nodes/core/node-handler.interface';
 import { adaptHandlerReturn } from '../handlers/handler-output.adapter';
 
 /**

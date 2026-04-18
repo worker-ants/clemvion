@@ -1,5 +1,5 @@
 import { MergeHandler } from './merge.handler.js';
-import { ExecutionContext } from '../node-handler.interface.js';
+import { ExecutionContext } from '../../../../nodes/core/node-handler.interface.js';
 
 describe('MergeHandler', () => {
   let handler: MergeHandler;

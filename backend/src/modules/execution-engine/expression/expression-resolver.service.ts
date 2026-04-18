@@ -4,7 +4,7 @@ import {
   ExpressionContext as EngineContext,
   buildDisambiguatedKeys,
 } from '@workflow/expression-engine';
-import { ExecutionContext } from '../handlers/node-handler.interface';
+import { ExecutionContext } from '../../../nodes/core/node-handler.interface';
 import { Node } from '../../nodes/entities/node.entity';
 import { EXPRESSION_EXCLUSIONS } from './expression-exclusions';
 

@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { Test } from '@nestjs/testing';
-import { NodeHandlerRegistry } from '../../modules/execution-engine/handlers/node-handler.registry';
+import { NodeHandlerRegistry } from './node-handler.registry';
 import { NodeComponentRegistry } from './node-component.registry';
 import {
   HandlerDependencies,

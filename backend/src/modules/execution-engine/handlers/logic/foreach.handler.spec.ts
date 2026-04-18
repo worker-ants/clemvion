@@ -1,5 +1,5 @@
 import { ForEachHandler } from './foreach.handler.js';
-import { ExecutionContext } from '../node-handler.interface.js';
+import { ExecutionContext } from '../../../../nodes/core/node-handler.interface.js';
 
 describe('ForEachHandler', () => {
   let handler: ForEachHandler;

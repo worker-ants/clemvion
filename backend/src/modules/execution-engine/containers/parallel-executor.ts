@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import pLimit from 'p-limit';
-import { ExecutionContext } from '../handlers/node-handler.interface';
+import { ExecutionContext } from '../../../nodes/core/node-handler.interface';
 
 export type ParallelErrorPolicy = 'stop' | 'continue';
 
