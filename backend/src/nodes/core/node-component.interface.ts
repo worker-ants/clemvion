@@ -5,7 +5,7 @@ import {
   NodeHandler,
   NodeHandlerOutput,
   ValidationResult,
-} from '../../modules/execution-engine/handlers/node-handler.interface';
+} from './node-handler.interface';
 import { LlmService } from '../../modules/llm/llm.service';
 import { RagSearchService } from '../../modules/knowledge-base/search/rag-search.service';
 import { IntegrationsService } from '../../modules/integrations/integrations.service';

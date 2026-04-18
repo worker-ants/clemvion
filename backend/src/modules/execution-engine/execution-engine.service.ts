@@ -28,7 +28,7 @@ import {
   ParallelErrorPolicy,
 } from './containers/parallel-executor';
 import { assertTransition } from './state/state-machine';
-import { NodeHandlerRegistry } from './handlers/node-handler.registry';
+import { NodeHandlerRegistry } from '../../nodes/core/node-handler.registry';
 import { NodeComponentRegistry } from '../../nodes/core/node-component.registry';
 import { ALL_NODE_COMPONENTS } from '../../nodes';
 import { ExecutionContextService } from './context/execution-context.service';

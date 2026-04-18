@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { z } from 'zod';
-import { NodeHandlerRegistry } from '../../modules/execution-engine/handlers/node-handler.registry';
+import { NodeHandlerRegistry } from './node-handler.registry';
 import {
   HandlerDependencies,
   NodeComponent,

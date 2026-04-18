@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { ExecutionContext } from '../handlers/node-handler.interface';
+import { ExecutionContext } from '../../../nodes/core/node-handler.interface';
 
 const DEFAULT_MAX_ITERATIONS = 1000;
 

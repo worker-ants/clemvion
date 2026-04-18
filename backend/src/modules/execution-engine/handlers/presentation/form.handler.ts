@@ -1,4 +1,7 @@
-import { NodeHandler, ValidationResult } from '../node-handler.interface.js';
+import {
+  NodeHandler,
+  ValidationResult,
+} from '../../../../nodes/core/node-handler.interface.js';
 
 export class FormHandler implements NodeHandler {
   validate(config: Record<string, unknown>): ValidationResult {

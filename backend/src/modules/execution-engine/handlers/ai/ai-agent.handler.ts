@@ -2,7 +2,7 @@ import {
   NodeHandler,
   ExecutionContext,
   ValidationResult,
-} from '../node-handler.interface';
+} from '../../../../nodes/core/node-handler.interface';
 import { LlmService } from '../../../llm/llm.service';
 import { RagSearchService } from '../../../knowledge-base/search/rag-search.service';
 import { ChatMessage } from '../../../llm/interfaces/llm-client.interface';

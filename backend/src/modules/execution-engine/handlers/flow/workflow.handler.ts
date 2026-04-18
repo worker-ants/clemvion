@@ -2,7 +2,7 @@ import {
   NodeHandler,
   ValidationResult,
   ExecutionContext,
-} from '../node-handler.interface.js';
+} from '../../../../nodes/core/node-handler.interface.js';
 import { WorkflowExecutor } from './workflow-executor.interface.js';
 
 interface MappingDef {

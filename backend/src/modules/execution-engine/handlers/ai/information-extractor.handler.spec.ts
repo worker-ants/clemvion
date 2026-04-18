@@ -1,5 +1,5 @@
 import { InformationExtractorHandler } from './information-extractor.handler';
-import { ExecutionContext } from '../node-handler.interface';
+import { ExecutionContext } from '../../../../nodes/core/node-handler.interface';
 
 /**
  * Info Extractor returns `{ port, data: { config, output, meta } }` for

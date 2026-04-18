@@ -1,4 +1,7 @@
-import { NodeHandler, ValidationResult } from '../node-handler.interface.js';
+import {
+  NodeHandler,
+  ValidationResult,
+} from '../../../../nodes/core/node-handler.interface.js';
 import { ButtonDef, validateButtons } from '../../types/button.types.js';
 
 export class TemplateHandler implements NodeHandler {

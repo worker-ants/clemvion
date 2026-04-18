@@ -2,7 +2,7 @@ import {
   NodeHandler,
   ExecutionContext,
   ValidationResult,
-} from '../node-handler.interface';
+} from '../../../../nodes/core/node-handler.interface';
 import { LlmService } from '../../../llm/llm.service';
 import {
   ChatMessage,

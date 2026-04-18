@@ -1,5 +1,5 @@
 import { ExpressionResolverService } from './expression-resolver.service';
-import { ExecutionContext } from '../handlers/node-handler.interface';
+import { ExecutionContext } from '../../../nodes/core/node-handler.interface';
 import { Node, NodeCategory } from '../../nodes/entities/node.entity';
 
 function makeNode(id: string, label: string, type = 'http_request'): Node {

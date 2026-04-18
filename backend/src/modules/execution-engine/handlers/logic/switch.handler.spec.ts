@@ -1,5 +1,5 @@
 import { SwitchHandler } from './switch.handler.js';
-import { ExecutionContext } from '../node-handler.interface.js';
+import { ExecutionContext } from '../../../../nodes/core/node-handler.interface.js';
 
 describe('SwitchHandler', () => {
   let handler: SwitchHandler;

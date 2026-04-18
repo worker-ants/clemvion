@@ -3,7 +3,7 @@ import type {
   ValidationResult,
   ExecutionContext,
   NodeHandlerOutput,
-} from '../node-handler.interface';
+} from '../../../../nodes/core/node-handler.interface';
 import type { TriggerParameterDefinition } from '../../types/trigger-parameter.types';
 import { validateTriggerParameterSchema } from '../../utils/resolve-trigger-parameters';
 

@@ -3,7 +3,7 @@ import { getRepositoryToken } from '@nestjs/typeorm';
 import { getQueueToken } from '@nestjs/bullmq';
 import { BACKGROUND_EXECUTION_QUEUE } from './queues/background-execution.queue';
 import { ExecutionEngineService } from './execution-engine.service';
-import { NodeHandlerRegistry } from './handlers/node-handler.registry';
+import { NodeHandlerRegistry } from '../../nodes/core/node-handler.registry';
 import { NodeComponentRegistry } from '../../nodes/core/node-component.registry';
 import { ExecutionContextService } from './context/execution-context.service';
 import { ErrorPolicyHandler } from './error/error-policy.handler';
