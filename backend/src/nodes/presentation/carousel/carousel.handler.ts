@@ -3,10 +3,7 @@ import {
   NodeHandler,
   ValidationResult,
 } from '../../core/node-handler.interface.js';
-import {
-  ButtonDef,
-  validateButtons,
-} from '../_shared/button.types.js';
+import { ButtonDef, validateButtons } from '../_shared/button.types.js';
 
 function toStr(value: unknown): string {
   if (value == null) return '';

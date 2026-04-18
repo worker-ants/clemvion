@@ -3,7 +3,7 @@ import {
   ExecutionContext,
   NodeHandlerOutput,
 } from '../../../nodes/core/node-handler.interface';
-import { adaptHandlerReturn } from '../handlers/handler-output.adapter';
+import { adaptHandlerReturn } from '../handler-output.adapter';
 
 /**
  * In-memory execution context management for Phase 1.

@@ -3,10 +3,7 @@ import {
   NodeHandler,
   ValidationResult,
 } from '../../core/node-handler.interface.js';
-import {
-  ButtonDef,
-  validateButtons,
-} from '../_shared/button.types.js';
+import { ButtonDef, validateButtons } from '../_shared/button.types.js';
 
 export class ChartHandler implements NodeHandler {
   validate(config: Record<string, unknown>): ValidationResult {
