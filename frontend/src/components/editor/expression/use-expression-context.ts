@@ -1,6 +1,8 @@
 import { useMemo } from "react";
 import { useEditorStore } from "@/lib/stores/editor-store";
 import { useExecutionStore } from "@/lib/stores/execution-store";
+import { useNodeDefinitionsStore } from "@/lib/stores/node-definitions-store";
+import type { JsonSchemaNode } from "@/lib/node-definitions/types";
 import { getAllFunctionNames, buildDisambiguatedKeys } from "@workflow/expression-engine";
 
 const FUNCTION_NAMES = getAllFunctionNames();
@@ -13,12 +15,18 @@ export interface ExpressionNodeInfo {
   type: string;
   outputFields: string[];
   outputSample: Record<string, unknown>;
+  /** Static output schema from the node definition (used when execution sample is unavailable) */
+  outputSchema?: JsonSchemaNode;
+  /** Static config schema from the node definition (used for $node["X"].config.<field> hints) */
+  configSchema?: JsonSchemaNode;
 }
 
 export interface ExpressionData {
   /** Fields from direct predecessor node output (for $input. suggestions) */
   inputFields: string[];
   inputSample: Record<string, unknown>;
+  /** Static schema for $input (predecessor node's outputSchema) — enables hints before execution */
+  inputSchema?: JsonSchemaNode;
 
   /** All workflow nodes (for $node["..."] suggestions) */
   availableNodes: ExpressionNodeInfo[];
@@ -46,6 +54,57 @@ function toRecord(data: unknown): Record<string, unknown> {
   return data as Record<string, unknown>;
 }
 
+const INFO_EXTRACTOR_TYPE_MAP: Record<string, string> = {
+  string: "string",
+  number: "number",
+  boolean: "boolean",
+  array: "array",
+  object: "object",
+};
+
+/**
+ * Information Extractor declares user-configured output fields inside each
+ * node instance's `config.outputSchema`. Project those names into the
+ * static outputSchema so autocomplete can hint `.output.extracted.<name>`
+ * even before the node has executed.
+ */
+function enrichInfoExtractorOutputSchema(
+  baseSchema: JsonSchemaNode | undefined,
+  config: Record<string, unknown> | undefined,
+): JsonSchemaNode | undefined {
+  if (!baseSchema) return baseSchema;
+  const fields = config?.outputSchema as
+    | Array<{ name?: string; type?: string; description?: string }>
+    | undefined;
+  if (!Array.isArray(fields) || fields.length === 0) return baseSchema;
+
+  const userProps: Record<string, JsonSchemaNode> = {};
+  for (const f of fields) {
+    if (!f?.name) continue;
+    userProps[f.name] = {
+      type: INFO_EXTRACTOR_TYPE_MAP[f.type ?? "string"] ?? "string",
+      ...(f.description ? { description: f.description } : {}),
+    };
+  }
+  if (Object.keys(userProps).length === 0) return baseSchema;
+
+  const cloned = JSON.parse(JSON.stringify(baseSchema)) as JsonSchemaNode;
+  const outputNode = cloned.properties?.output;
+  if (!outputNode || typeof outputNode !== "object") return cloned;
+
+  if (!outputNode.properties) outputNode.properties = {};
+  const existing = outputNode.properties.extracted;
+  const existingProps =
+    existing && typeof existing === "object" && existing.properties
+      ? existing.properties
+      : {};
+  outputNode.properties.extracted = {
+    type: "object",
+    properties: { ...existingProps, ...userProps },
+  };
+  return cloned;
+}
+
 /**
  * Provides autocomplete data for ExpressionInput components.
  * Must be called within a component that has access to editor and execution stores.
@@ -54,6 +113,7 @@ export function useExpressionContext(selectedNodeId: string | null): ExpressionD
   const nodes = useEditorStore((s) => s.nodes);
   const edges = useEditorStore((s) => s.edges);
   const nodeResults = useExecutionStore((s) => s.nodeResults);
+  const nodeDefinitions = useNodeDefinitionsStore((s) => s.definitions);
 
   return useMemo(() => {
     // Build maps of nodeId -> last execution result
@@ -67,6 +127,7 @@ export function useExpressionContext(selectedNodeId: string | null): ExpressionD
     // Find predecessor nodes for $input. suggestions
     let inputFields: string[] = [];
     let inputSample: Record<string, unknown> = {};
+    let inputSchema: JsonSchemaNode | undefined;
     if (selectedNodeId) {
       const incomingEdges = edges.filter((e) => e.target === selectedNodeId);
       if (incomingEdges.length === 1) {
@@ -75,6 +136,19 @@ export function useExpressionContext(selectedNodeId: string | null): ExpressionD
         if (sourceOutput) {
           inputFields = extractFields(sourceOutput);
           inputSample = sourceOutput;
+        }
+        // Schema fallback: predecessor's outputSchema enables hints before execution
+        const sourceNode = nodes.find((n) => n.id === sourceId);
+        const sourceData = sourceNode?.data as Record<string, unknown> | undefined;
+        const sourceType = sourceData?.type as string | undefined;
+        if (sourceType) {
+          inputSchema = nodeDefinitions[sourceType]?.outputSchema;
+          if (inputSchema && sourceType === "information_extractor") {
+            inputSchema = enrichInfoExtractorOutputSchema(
+              inputSchema,
+              sourceData?.config as Record<string, unknown> | undefined,
+            );
+          }
         }
       } else if (incomingEdges.length > 1) {
         // Multiple inputs — keys are source node IDs
@@ -95,13 +169,23 @@ export function useExpressionContext(selectedNodeId: string | null): ExpressionD
     const filteredNodes = nodes.filter((n) => n.id !== selectedNodeId);
     const availableNodes: ExpressionNodeInfo[] = filteredNodes.map((n) => {
       const output = resultMap.get(n.id) ?? {};
+      const data = n.data as Record<string, unknown>;
+      const nodeType = (data.type as string) ?? "unknown";
+      const definition = nodeDefinitions[nodeType];
+      const config = data.config as Record<string, unknown> | undefined;
+      let outputSchema = definition?.outputSchema;
+      if (nodeType === "information_extractor") {
+        outputSchema = enrichInfoExtractorOutputSchema(outputSchema, config);
+      }
       return {
         id: n.id,
-        label: (n.data as Record<string, unknown>).label as string ?? n.id,
+        label: (data.label as string) ?? n.id,
         resolvedKey: allDisambiguatedKeys.get(n.id) ?? n.id,
-        type: (n.data as Record<string, unknown>).type as string ?? "unknown",
+        type: nodeType,
         outputFields: extractFields(output),
         outputSample: output,
+        outputSchema,
+        configSchema: definition?.configSchema,
       };
     });
 
@@ -175,11 +259,12 @@ export function useExpressionContext(selectedNodeId: string | null): ExpressionD
     return {
       inputFields,
       inputSample,
+      inputSchema,
       availableNodes,
       variables,
       functionNames: FUNCTION_NAMES,
       isTableContext,
       sourceItemSample,
     };
-  }, [nodes, edges, nodeResults, selectedNodeId]);
+  }, [nodes, edges, nodeResults, selectedNodeId, nodeDefinitions]);
 }

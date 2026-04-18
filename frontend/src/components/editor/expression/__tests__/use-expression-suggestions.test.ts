@@ -395,13 +395,247 @@ describe("useExpressionSuggestions - nested paths", () => {
       const { suggestions } = makeSuggestions(expr, cursorAfterExpr(expr), nodeData);
       expect(suggestions.map((s) => s.label)).toEqual(["Form_test", "HTTP Request"]);
       expect(suggestions[0].type).toBe("node");
-      expect(suggestions[0].insertText).toBe('Form_test"].output');
+      // Node selection should stop at "] so the next keystroke reveals accessor hints
+      expect(suggestions[0].insertText).toBe('Form_test"]');
+      expect(suggestions[0].isExpandable).toBe(true);
     });
 
     it('filters node labels by prefix for $node["H', () => {
       const expr = '{{ $node["H }}';
       const { suggestions } = makeSuggestions(expr, cursorAfterExpr(expr), nodeData);
       expect(suggestions.map((s) => s.label)).toEqual(["HTTP Request"]);
+    });
+  });
+
+  describe("spaces inside $node[\"...\"] keys", () => {
+    const nodeData = {
+      availableNodes: [
+        {
+          id: "n1",
+          label: "AI Agent",
+          resolvedKey: "AI Agent",
+          type: "ai_agent",
+          outputFields: [],
+          outputSample: {},
+        },
+      ],
+    };
+
+    it("extracts the full token across a space in the node key for accessor hints", () => {
+      const expr = '{{ $node["AI Agent"]. }}';
+      const { suggestions } = makeSuggestions(
+        expr,
+        cursorAfterExpr(expr),
+        nodeData,
+      );
+      expect(suggestions.map((s) => s.label)).toEqual([
+        "output",
+        "config",
+        "meta",
+        "port",
+        "status",
+      ]);
+    });
+
+    it("drills into output fields for a space-containing node key", () => {
+      const nodeDataWithSchema = {
+        availableNodes: [
+          {
+            id: "n1",
+            label: "AI Agent",
+            resolvedKey: "AI Agent",
+            type: "ai_agent",
+            outputFields: [],
+            outputSample: {},
+            outputSchema: {
+              type: "object",
+              properties: {
+                response: { type: "string" },
+                metadata: { type: "object" },
+              },
+            },
+          },
+        ],
+      };
+      const expr = '{{ $node["AI Agent"].output. }}';
+      const { suggestions } = makeSuggestions(
+        expr,
+        cursorAfterExpr(expr),
+        nodeDataWithSchema,
+      );
+      expect(suggestions.map((s) => s.label)).toEqual(["response", "metadata"]);
+    });
+
+    it("still lists nodes when the prefix contains a partial quoted name with a space", () => {
+      const expr = '{{ $node["AI A }}';
+      const { suggestions } = makeSuggestions(
+        expr,
+        cursorAfterExpr(expr),
+        nodeData,
+      );
+      expect(suggestions.map((s) => s.label)).toEqual(["AI Agent"]);
+    });
+  });
+
+  describe("$node accessor hints", () => {
+    const nodeData = {
+      availableNodes: [
+        {
+          id: "n1",
+          label: "Form_test",
+          resolvedKey: "Form_test",
+          type: "form",
+          outputFields: [],
+          outputSample: {},
+        },
+      ],
+    };
+
+    it('suggests all runtime accessors for $node["X"].', () => {
+      const expr = '{{ $node["Form_test"]. }}';
+      const { suggestions } = makeSuggestions(
+        expr,
+        cursorAfterExpr(expr),
+        nodeData,
+      );
+      expect(suggestions.map((s) => s.label)).toEqual([
+        "output",
+        "config",
+        "meta",
+        "port",
+        "status",
+      ]);
+    });
+
+    it('filters accessors by prefix for $node["X"].o', () => {
+      const expr = '{{ $node["Form_test"].o }}';
+      const { suggestions } = makeSuggestions(
+        expr,
+        cursorAfterExpr(expr),
+        nodeData,
+      );
+      expect(suggestions.map((s) => s.label)).toEqual(["output"]);
+    });
+
+    it('marks object accessors (output/config/meta) as expandable', () => {
+      const expr = '{{ $node["Form_test"]. }}';
+      const { suggestions } = makeSuggestions(
+        expr,
+        cursorAfterExpr(expr),
+        nodeData,
+      );
+      expect(suggestions.find((s) => s.label === "output")?.isExpandable).toBe(true);
+      expect(suggestions.find((s) => s.label === "config")?.isExpandable).toBe(true);
+      expect(suggestions.find((s) => s.label === "meta")?.isExpandable).toBe(true);
+      expect(suggestions.find((s) => s.label === "port")?.isExpandable).toBeFalsy();
+      expect(suggestions.find((s) => s.label === "status")?.isExpandable).toBeFalsy();
+    });
+  });
+
+  describe("$node schema-backed field hints", () => {
+    const nodeWithSchemaOnly = {
+      availableNodes: [
+        {
+          id: "n1",
+          label: "Chart",
+          resolvedKey: "Chart",
+          type: "chart",
+          outputFields: [],
+          outputSample: {}, // not executed yet
+          outputSchema: {
+            type: "object",
+            properties: {
+              type: { type: "string" },
+              chartType: { type: "string" },
+              data: { type: "array" },
+            },
+          },
+        },
+      ],
+    };
+
+    it('suggests output fields from static outputSchema when sample is empty', () => {
+      const expr = '{{ $node["Chart"].output. }}';
+      const { suggestions } = makeSuggestions(
+        expr,
+        cursorAfterExpr(expr),
+        nodeWithSchemaOnly,
+      );
+      expect(suggestions.map((s) => s.label)).toEqual(["type", "chartType", "data"]);
+    });
+
+    it('unions runtime sample with schema fields (no duplicates, sample wins)', () => {
+      const nodeData = {
+        availableNodes: [
+          {
+            id: "n1",
+            label: "Chart",
+            resolvedKey: "Chart",
+            type: "chart",
+            outputFields: ["type", "extra"],
+            outputSample: {
+              type: "chart",
+              extra: 123, // only in sample
+            },
+            outputSchema: {
+              type: "object",
+              properties: {
+                type: { type: "string" },
+                chartType: { type: "string" }, // only in schema
+              },
+            },
+          },
+        ],
+      };
+      const expr = '{{ $node["Chart"].output. }}';
+      const { suggestions } = makeSuggestions(expr, cursorAfterExpr(expr), nodeData);
+      const labels = suggestions.map((s) => s.label).sort();
+      expect(labels).toEqual(["chartType", "extra", "type"]);
+      // Sample type wins: `extra` → number (from sample), `chartType` → string (from schema)
+      expect(suggestions.find((s) => s.label === "extra")?.detail).toBe("number");
+      expect(suggestions.find((s) => s.label === "chartType")?.detail).toBe("string");
+    });
+
+    it('suggests config fields from configSchema', () => {
+      const nodeData = {
+        availableNodes: [
+          {
+            id: "n1",
+            label: "Chart",
+            resolvedKey: "Chart",
+            type: "chart",
+            outputFields: [],
+            outputSample: {},
+            configSchema: {
+              type: "object",
+              properties: {
+                title: { type: "string" },
+                chartType: { type: "string" },
+              },
+            },
+          },
+        ],
+      };
+      const expr = '{{ $node["Chart"].config. }}';
+      const { suggestions } = makeSuggestions(expr, cursorAfterExpr(expr), nodeData);
+      expect(suggestions.map((s) => s.label)).toEqual(["title", "chartType"]);
+    });
+  });
+
+  describe("$input schema fallback", () => {
+    it('suggests fields from inputSchema even when inputSample is empty', () => {
+      const expr = "{{ $input. }}";
+      const { suggestions } = makeSuggestions(expr, cursorAfterExpr(expr), {
+        inputSample: {},
+        inputSchema: {
+          type: "object",
+          properties: {
+            userId: { type: "string" },
+            count: { type: "number" },
+          },
+        },
+      });
+      expect(suggestions.map((s) => s.label)).toEqual(["userId", "count"]);
     });
   });
 
