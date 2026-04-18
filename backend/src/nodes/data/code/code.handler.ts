@@ -3,7 +3,7 @@ import {
   ExecutionContext,
   NodeHandler,
   ValidationResult,
-} from '../../../../nodes/core/node-handler.interface.js';
+} from '../../core/node-handler.interface.js';
 
 const DEFAULT_TIMEOUT_SEC = 30;
 const MIN_TIMEOUT_SEC = 1;

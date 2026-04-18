@@ -4,19 +4,19 @@ import {
   ExecutionContext,
   NodeHandler,
   ValidationResult,
-} from '../../../../nodes/core/node-handler.interface.js';
+} from '../../core/node-handler.interface.js';
 import {
   delNestedValue,
   getNestedValue,
   hasNestedValue,
   setNestedValue,
-} from '../../../../nodes/core/nested-value.util.js';
+} from '../../core/nested-value.util.js';
 import {
   Condition,
   VALID_OPERATORS,
   compileRegexCache,
   evaluateCondition,
-} from '../../../../nodes/logic/_shared/condition-eval.util.js';
+} from '../../logic/_shared/condition-eval.util.js';
 
 function stringifyForSort(value: unknown): string {
   if (value === null || value === undefined) return '';

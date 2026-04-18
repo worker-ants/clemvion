@@ -19,8 +19,6 @@ export { DatabaseQueryHandler } from './integration/database-query.handler.js';
 export { SendEmailHandler } from './integration/send-email.handler.js';
 
 // Data handlers
-export { TransformHandler } from './data/transform.handler.js';
-export { CodeHandler } from './data/code.handler.js';
 
 // Presentation handlers
 export { CarouselHandler } from './presentation/carousel.handler.js';
