@@ -493,19 +493,33 @@ describe("database_query summary", () => {
 
 // ===== send_email =====
 describe("send_email summary", () => {
-  it("formats single recipient", () => {
+  it("formats single recipient from array", () => {
     expect(getConfigSummary("send_email", {
-      to: "user@example.com",
+      to: ["user@example.com"],
     })).toEqual({ text: "to: user@example.com", isWarning: false });
   });
 
-  it("formats multiple recipients with count", () => {
+  it("formats multiple recipients with count from array", () => {
     expect(getConfigSummary("send_email", {
-      to: "a@test.com, b@test.com, c@test.com",
+      to: ["a@test.com", "b@test.com", "c@test.com"],
     })).toEqual({ text: "to: a@test.com, +2", isWarning: false });
   });
 
-  it("shows warning when to is empty", () => {
+  it("shows warning when to is an empty array", () => {
+    expect(getConfigSummary("send_email", { to: [] })).toEqual(warningOf("Recipient not set"));
+  });
+
+  it("shows warning when to is undefined", () => {
+    expect(getConfigSummary("send_email", {})).toEqual(warningOf("Recipient not set"));
+  });
+
+  it("tolerates legacy comma-separated string", () => {
+    expect(getConfigSummary("send_email", {
+      to: "a@test.com, b@test.com",
+    })).toEqual({ text: "to: a@test.com, +1", isWarning: false });
+  });
+
+  it("shows warning when to is empty string", () => {
     expect(getConfigSummary("send_email", { to: "" })).toEqual(warningOf("Recipient not set"));
   });
 });
