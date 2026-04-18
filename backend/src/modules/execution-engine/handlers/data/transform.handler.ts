@@ -10,13 +10,13 @@ import {
   getNestedValue,
   hasNestedValue,
   setNestedValue,
-} from '../logic/nested-value.util.js';
+} from '../../../../nodes/core/nested-value.util.js';
 import {
   Condition,
   VALID_OPERATORS,
   compileRegexCache,
   evaluateCondition,
-} from '../logic/condition-eval.util.js';
+} from '../../../../nodes/logic/_shared/condition-eval.util.js';
 
 function stringifyForSort(value: unknown): string {
   if (value === null || value === undefined) return '';

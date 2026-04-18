@@ -4,7 +4,7 @@ import {
   sanitizeMessage,
   toLogError,
 } from './integration-handler-base.js';
-import { ExecutionContext } from '../../../../nodes/core/node-handler.interface.js';
+import { ExecutionContext } from '../../core/node-handler.interface.js';
 
 // Concrete subclass so we can exercise protected helpers from a test.
 class TestHandler extends IntegrationHandlerBase {

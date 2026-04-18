@@ -1,7 +1,7 @@
 import { Logger } from '@nestjs/common';
-import { IntegrationsService } from '../../../integrations/integrations.service.js';
-import { Integration } from '../../../integrations/entities/integration.entity.js';
-import { ExecutionContext } from '../../../../nodes/core/node-handler.interface.js';
+import { IntegrationsService } from '../../../modules/integrations/integrations.service.js';
+import { Integration } from '../../../modules/integrations/entities/integration.entity.js';
+import { ExecutionContext } from '../../core/node-handler.interface.js';
 
 const logger = new Logger('IntegrationHandlerBase');
 let warnedMissingNodeExecutionId = false;

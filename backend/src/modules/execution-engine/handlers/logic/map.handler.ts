@@ -3,7 +3,7 @@ import {
   ValidationResult,
   ExecutionContext,
 } from '../../../../nodes/core/node-handler.interface.js';
-import { resolveFieldValue } from './nested-value.util.js';
+import { resolveFieldValue } from '../../../../nodes/core/nested-value.util.js';
 
 /**
  * Map is a container node that iterates over an array and collects the body

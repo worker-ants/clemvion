@@ -9,7 +9,7 @@ import {
   IntegrationError,
   IntegrationHandlerBase,
   toLogError,
-} from './integration-handler-base.js';
+} from '../../../../nodes/integration/_base/integration-handler-base.js';
 import { IntegrationsService } from '../../../integrations/integrations.service.js';
 
 interface SmtpCredentials {

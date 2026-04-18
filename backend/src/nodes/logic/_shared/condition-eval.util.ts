@@ -1,4 +1,4 @@
-import { getNestedValue } from './nested-value.util.js';
+import { getNestedValue } from '../../core/nested-value.util.js';
 
 export const VALID_OPERATORS = [
   'eq',

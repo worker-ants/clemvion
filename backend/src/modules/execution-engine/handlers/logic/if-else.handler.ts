@@ -3,7 +3,7 @@ import {
   ValidationResult,
   ExecutionContext,
 } from '../../../../nodes/core/node-handler.interface.js';
-import { getNestedValue } from './nested-value.util.js';
+import { getNestedValue } from '../../../../nodes/core/nested-value.util.js';
 
 interface Condition {
   field: string;
