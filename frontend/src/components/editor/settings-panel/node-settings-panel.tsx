@@ -11,8 +11,15 @@ import { cn } from "@/lib/utils/cn";
 import { NodeIcon } from "../canvas/node-icon";
 import { X } from "lucide-react";
 import { toast } from "sonner";
+import { useT, type TranslationKey } from "@/lib/i18n";
 
 type Tab = "settings" | "code" | "info";
+
+const TAB_LABEL_KEYS: Record<Tab, TranslationKey> = {
+  settings: "editor.tabSettings",
+  code: "editor.tabCode",
+  info: "editor.tabInfo",
+};
 
 export function NodeSettingsPanel() {
   const selectedNodeId = useEditorStore((s) => s.selectedNodeId);
@@ -58,19 +65,12 @@ export function NodeSettingsPanel() {
       {/* Tabs */}
       <div className="flex border-b border-[hsl(var(--border))]">
         {(["settings", "code", "info"] as const).map((tab) => (
-          <button
+          <TabButton
             key={tab}
-            type="button"
+            tab={tab}
+            active={activeTab === tab}
             onClick={() => setActiveTab(tab)}
-            className={cn(
-              "flex-1 px-4 py-2 text-xs font-medium capitalize transition-colors",
-              activeTab === tab
-                ? "border-b-2 border-[hsl(var(--primary))] text-[hsl(var(--foreground))]"
-                : "text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]",
-            )}
-          >
-            {tab === "code" ? "Code" : tab === "info" ? "Info" : "Settings"}
-          </button>
+          />
         ))}
       </div>
 
@@ -96,6 +96,32 @@ export function NodeSettingsPanel() {
   );
 }
 
+function TabButton({
+  tab,
+  active,
+  onClick,
+}: {
+  tab: Tab;
+  active: boolean;
+  onClick: () => void;
+}) {
+  const t = useT();
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={cn(
+        "flex-1 px-4 py-2 text-xs font-medium transition-colors",
+        active
+          ? "border-b-2 border-[hsl(var(--primary))] text-[hsl(var(--foreground))]"
+          : "text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]",
+      )}
+    >
+      {t(TAB_LABEL_KEYS[tab])}
+    </button>
+  );
+}
+
 function SettingsTab({
   nodeId,
   nodeData,
@@ -108,6 +134,7 @@ function SettingsTab({
     isDisabled?: boolean;
   };
 }) {
+  const t = useT();
   const nodes = useEditorStore((s) => s.nodes);
   const [label, setLabel] = useState(nodeData.label);
   const [isDisabled, setIsDisabled] = useState(nodeData.isDisabled ?? false);
@@ -137,9 +164,8 @@ function SettingsTab({
   }, [nodes, nodeId, label]);
 
   const handleSave = useCallback(() => {
-    // Block save if label is duplicated
     if (isDuplicateLabel) {
-      toast.error("동일한 이름의 노드가 이미 존재합니다");
+      toast.error(t("editor.duplicateLabelError"));
       return;
     }
 
@@ -162,8 +188,8 @@ function SettingsTab({
       isDirty: true,
     }));
 
-    toast.success("Node settings saved");
-  }, [nodeId, label, isDuplicateLabel, isDisabled, nodeConfig, notes, errorPolicy]);
+    toast.success(t("editor.settingsSavedToast"));
+  }, [nodeId, label, isDuplicateLabel, isDisabled, nodeConfig, notes, errorPolicy, t]);
 
   const isTrigger = nodeData.type === "manual_trigger";
 
@@ -171,7 +197,7 @@ function SettingsTab({
     <div className="flex flex-col gap-4">
       {/* Label */}
       <div className="flex flex-col gap-1.5">
-        <Label className="text-xs">Label</Label>
+        <Label className="text-xs">{t("editor.labelField")}</Label>
         <Input
           value={label}
           onChange={(e) => setLabel(e.target.value)}
@@ -182,7 +208,7 @@ function SettingsTab({
         />
         {isDuplicateLabel && (
           <span className="text-[10px] text-red-500">
-            동일한 이름의 노드가 이미 존재합니다
+            {t("editor.duplicateLabelError")}
           </span>
         )}
       </div>
@@ -199,17 +225,17 @@ function SettingsTab({
         <>
           {/* Error handling policy */}
           <div className="flex flex-col gap-1.5">
-            <Label className="text-xs">Error Handling</Label>
+            <Label className="text-xs">{t("editor.errorHandling")}</Label>
             <select
               value={errorPolicy}
               onChange={(e) => setErrorPolicy(e.target.value)}
               className="h-8 rounded-md border border-[hsl(var(--input))] bg-transparent px-2 text-xs text-[hsl(var(--foreground))]"
             >
-              <option value="stop">Stop Workflow</option>
-              <option value="skip">Skip Node</option>
-              <option value="default_output">Use Default Output</option>
-              <option value="retry">Retry</option>
-              <option value="error_port">Route to Error Port</option>
+              <option value="stop">{t("editor.errorStop")}</option>
+              <option value="skip">{t("editor.errorSkip")}</option>
+              <option value="default_output">{t("editor.errorDefaultOutput")}</option>
+              <option value="retry">{t("editor.errorRetry")}</option>
+              <option value="error_port">{t("editor.errorRoutePort")}</option>
             </select>
           </div>
 
@@ -223,7 +249,7 @@ function SettingsTab({
               className="h-4 w-4 rounded border-[hsl(var(--input))]"
             />
             <Label htmlFor="node-disabled" className="text-xs">
-              Disable this node
+              {t("editor.disableNode")}
             </Label>
           </div>
         </>
@@ -231,19 +257,19 @@ function SettingsTab({
 
       {/* Notes */}
       <div className="flex flex-col gap-1.5">
-        <Label className="text-xs">Notes</Label>
+        <Label className="text-xs">{t("editor.notesLabel")}</Label>
         <textarea
           value={notes}
           onChange={(e) => setNotes(e.target.value)}
           rows={3}
           className="rounded-md border border-[hsl(var(--input))] bg-transparent px-3 py-2 text-xs text-[hsl(var(--foreground))] placeholder:text-[hsl(var(--muted-foreground))] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--ring))]"
-          placeholder="Add notes about this node..."
+          placeholder={t("editor.notesPlaceholder")}
         />
       </div>
 
       {/* Save button */}
       <Button size="sm" onClick={handleSave} className="text-xs">
-        Save Changes
+        {t("editor.saveChanges")}
       </Button>
     </div>
   );
@@ -259,6 +285,7 @@ function CodeTab({
     config: Record<string, unknown>;
   };
 }) {
+  const t = useT();
   const [configJson, setConfigJson] = useState(
     JSON.stringify(nodeData.config ?? {}, null, 2),
   );
@@ -279,16 +306,16 @@ function CodeTab({
         isDirty: true,
       }));
 
-      toast.success("Configuration applied");
+      toast.success(t("editor.configApplied"));
     } catch {
-      setJsonError("Invalid JSON");
+      setJsonError(t("editor.invalidJson"));
     }
-  }, [nodeId, configJson]);
+  }, [nodeId, configJson, t]);
 
   return (
     <div className="flex flex-col gap-3">
       <div className="flex flex-col gap-1.5">
-        <Label className="text-xs">Configuration (JSON)</Label>
+        <Label className="text-xs">{t("editor.configJson")}</Label>
         <textarea
           value={configJson}
           onChange={(e) => {
@@ -309,13 +336,14 @@ function CodeTab({
         )}
       </div>
       <Button size="sm" onClick={handleSave} className="text-xs">
-        Apply JSON
+        {t("editor.applyJsonBtn")}
       </Button>
     </div>
   );
 }
 
 function InfoTab({ nodeType }: { nodeType: string }) {
+  const t = useT();
   const definition = getNodeDefinition(nodeType);
 
   return (
@@ -332,7 +360,7 @@ function InfoTab({ nodeType }: { nodeType: string }) {
           </div>
           <div className="flex flex-col gap-1">
             <span className="text-[10px] font-medium uppercase text-[hsl(var(--muted-foreground))]">
-              Category
+              {t("editor.categoryLabel")}
             </span>
             <span className="text-xs capitalize" style={{ color: definition.color }}>
               {definition.category}
@@ -340,7 +368,7 @@ function InfoTab({ nodeType }: { nodeType: string }) {
           </div>
           <div className="flex flex-col gap-1">
             <span className="text-[10px] font-medium uppercase text-[hsl(var(--muted-foreground))]">
-              Inputs
+              {t("editor.inputsLabel")}
             </span>
             {definition.inputs.length > 0 ? (
               definition.inputs.map((p) => (
@@ -349,12 +377,14 @@ function InfoTab({ nodeType }: { nodeType: string }) {
                 </span>
               ))
             ) : (
-              <span className="text-xs text-[hsl(var(--muted-foreground))]">None (start node)</span>
+              <span className="text-xs text-[hsl(var(--muted-foreground))]">
+                {t("editor.noInputsStartNode")}
+              </span>
             )}
           </div>
           <div className="flex flex-col gap-1">
             <span className="text-[10px] font-medium uppercase text-[hsl(var(--muted-foreground))]">
-              Outputs
+              {t("editor.outputsLabel")}
             </span>
             {definition.outputs.map((p) => (
               <span key={p.id} className="text-xs text-[hsl(var(--foreground))]">
@@ -365,15 +395,15 @@ function InfoTab({ nodeType }: { nodeType: string }) {
         </>
       ) : (
         <span className="text-xs text-[hsl(var(--muted-foreground))]">
-          Unknown node type
+          {t("editor.unknownNodeType")}
         </span>
       )}
       <div className="border-t border-[hsl(var(--border))] pt-3">
         <span className="text-sm text-[hsl(var(--muted-foreground))]">
-          No execution data
+          {t("editor.noExecutionData")}
         </span>
         <p className="mt-1 text-xs text-[hsl(var(--muted-foreground))]">
-          Run the workflow to see execution results here.
+          {t("editor.runToSeeResults")}
         </p>
       </div>
     </div>

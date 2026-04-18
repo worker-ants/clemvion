@@ -14,6 +14,7 @@ import type {
 } from "@/types/transform";
 import { CONDITION_OPERATORS, DATE_UNITS } from "@/types/transform";
 import { ChipInput } from "./chip-input";
+import { useT } from "@/lib/i18n";
 
 type OpPropsOf<T extends TransformOperation["type"]> = {
   op: Extract<TransformOperation, { type: T }>;
@@ -76,19 +77,20 @@ export function RenameFieldFields({
   op,
   onChange,
 }: OpPropsOf<"rename_field">) {
+  const t = useT();
   return (
     <>
-      <FieldLabel>From (source path)</FieldLabel>
+      <FieldLabel>{t("nodeConfigs.transform.fromPath")}</FieldLabel>
       <PathInput
         value={op.from}
         onChange={(v) => onChange({ ...op, from: v })}
-        placeholder="e.g. oldName"
+        placeholder={t("nodeConfigs.transform.fromPathPlaceholder")}
       />
-      <FieldLabel>To (target path)</FieldLabel>
+      <FieldLabel>{t("nodeConfigs.transform.toPath")}</FieldLabel>
       <Input
         value={op.to}
         onChange={(e) => onChange({ ...op, to: e.target.value })}
-        placeholder="e.g. newName"
+        placeholder={t("nodeConfigs.transform.toPathPlaceholder")}
         className="h-7 text-xs"
       />
     </>
@@ -99,9 +101,10 @@ export function RemoveFieldFields({
   op,
   onChange,
 }: OpPropsOf<"remove_field">) {
+  const t = useT();
   return (
     <>
-      <FieldLabel>Field path</FieldLabel>
+      <FieldLabel>{t("nodeConfigs.transform.fieldPath")}</FieldLabel>
       <PathInput
         value={op.field}
         onChange={(v) => onChange({ ...op, field: v })}
@@ -111,22 +114,23 @@ export function RemoveFieldFields({
 }
 
 export function SetFieldFields({ op, onChange }: OpPropsOf<"set_field">) {
+  const t = useT();
   const stringValue =
     typeof op.value === "string" ? op.value : JSON.stringify(op.value ?? "");
   return (
     <>
-      <FieldLabel>Field path</FieldLabel>
+      <FieldLabel>{t("nodeConfigs.transform.fieldPath")}</FieldLabel>
       <PathInput
         value={op.field}
         onChange={(v) => onChange({ ...op, field: v })}
       />
-      <FieldLabel>Value (표현식 지원)</FieldLabel>
+      <FieldLabel>{t("nodeConfigs.transform.valueExpression")}</FieldLabel>
       <ExpressionInput
         bare
         label=""
         value={stringValue}
         onChange={(v) => onChange({ ...op, value: v })}
-        placeholder="값 또는 {{ $input.x }}"
+        placeholder={t("nodeConfigs.transform.valueExpressionPlaceholder")}
       />
     </>
   );
@@ -136,23 +140,24 @@ export function TypeConvertFields({
   op,
   onChange,
 }: OpPropsOf<"type_convert">) {
+  const t = useT();
   return (
     <>
-      <FieldLabel>Field path</FieldLabel>
+      <FieldLabel>{t("nodeConfigs.transform.fieldPath")}</FieldLabel>
       <PathInput
         value={op.field}
         onChange={(v) => onChange({ ...op, field: v })}
       />
-      <FieldLabel>Target Type</FieldLabel>
+      <FieldLabel>{t("nodeConfigs.transform.targetType")}</FieldLabel>
       <MiniSelect<ConvertType>
         value={op.targetType}
         onChange={(v) => onChange({ ...op, targetType: v })}
         options={[
-          { value: "string", label: "string" },
-          { value: "number", label: "number" },
-          { value: "boolean", label: "boolean" },
-          { value: "array", label: "array (JSON parse)" },
-          { value: "object", label: "object (JSON parse)" },
+          { value: "string", label: t("nodeConfigs.transform.castString") },
+          { value: "number", label: t("nodeConfigs.transform.castNumber") },
+          { value: "boolean", label: t("nodeConfigs.transform.castBoolean") },
+          { value: "array", label: t("nodeConfigs.transform.castArray") },
+          { value: "object", label: t("nodeConfigs.transform.castObject") },
         ]}
       />
     </>
@@ -160,6 +165,7 @@ export function TypeConvertFields({
 }
 
 export function StringOpFields({ op, onChange }: OpPropsOf<"string_op">) {
+  const t = useT();
   const args = (op.args ?? {}) as Record<string, unknown>;
 
   const setArgs = (patch: Record<string, unknown>) =>
@@ -167,33 +173,33 @@ export function StringOpFields({ op, onChange }: OpPropsOf<"string_op">) {
 
   return (
     <>
-      <FieldLabel>Field path</FieldLabel>
+      <FieldLabel>{t("nodeConfigs.transform.fieldPath")}</FieldLabel>
       <PathInput
         value={op.field}
         onChange={(v) => onChange({ ...op, field: v })}
       />
-      <FieldLabel>Operation</FieldLabel>
+      <FieldLabel>{t("nodeConfigs.transform.operation")}</FieldLabel>
       <MiniSelect<StringOpKind>
         value={op.operation}
         onChange={(v) => onChange({ ...op, operation: v, args: {} })}
         options={[
-          { value: "trim", label: "trim" },
-          { value: "uppercase", label: "uppercase" },
-          { value: "lowercase", label: "lowercase" },
-          { value: "replace", label: "replace" },
-          { value: "split", label: "split" },
-          { value: "join", label: "join" },
+          { value: "trim", label: t("nodeConfigs.transform.strTrim") },
+          { value: "uppercase", label: t("nodeConfigs.transform.strUppercase") },
+          { value: "lowercase", label: t("nodeConfigs.transform.strLowercase") },
+          { value: "replace", label: t("nodeConfigs.transform.strReplace") },
+          { value: "split", label: t("nodeConfigs.transform.strSplit") },
+          { value: "join", label: t("nodeConfigs.transform.strJoin") },
         ]}
       />
       {op.operation === "replace" && (
         <>
-          <FieldLabel>Search</FieldLabel>
+          <FieldLabel>{t("nodeConfigs.transform.searchPlaceholder")}</FieldLabel>
           <Input
             value={(args.search as string) ?? ""}
             onChange={(e) => setArgs({ search: e.target.value })}
             className="h-7 text-xs"
           />
-          <FieldLabel>Replacement</FieldLabel>
+          <FieldLabel>{t("nodeConfigs.transform.replacementPlaceholder")}</FieldLabel>
           <Input
             value={(args.replacement as string) ?? ""}
             onChange={(e) => setArgs({ replacement: e.target.value })}
@@ -205,7 +211,7 @@ export function StringOpFields({ op, onChange }: OpPropsOf<"string_op">) {
               checked={args.all !== false}
               onChange={(e) => setArgs({ all: e.target.checked })}
             />
-            Replace all
+            {t("nodeConfigs.transform.replaceAll")}
           </label>
           <label className="flex items-center gap-1 text-[10px]">
             <input
@@ -213,17 +219,21 @@ export function StringOpFields({ op, onChange }: OpPropsOf<"string_op">) {
               checked={args.regex === true}
               onChange={(e) => setArgs({ regex: e.target.checked })}
             />
-            Regex pattern
+            {t("nodeConfigs.transform.regexPattern")}
           </label>
         </>
       )}
       {(op.operation === "split" || op.operation === "join") && (
         <>
-          <FieldLabel>Separator</FieldLabel>
+          <FieldLabel>{t("nodeConfigs.transform.separator")}</FieldLabel>
           <Input
             value={(args.separator as string) ?? ""}
             onChange={(e) => setArgs({ separator: e.target.value })}
-            placeholder={op.operation === "split" ? "e.g. ," : "e.g. -"}
+            placeholder={
+              op.operation === "split"
+                ? t("nodeConfigs.transform.separatorCommaHint")
+                : t("nodeConfigs.transform.separatorDashHint")
+            }
             className="h-7 text-xs"
           />
         </>
@@ -233,6 +243,7 @@ export function StringOpFields({ op, onChange }: OpPropsOf<"string_op">) {
 }
 
 export function MathOpFields({ op, onChange }: OpPropsOf<"math_op">) {
+  const t = useT();
   const needsOperand =
     op.operation === "add" ||
     op.operation === "subtract" ||
@@ -240,28 +251,28 @@ export function MathOpFields({ op, onChange }: OpPropsOf<"math_op">) {
     op.operation === "divide";
   return (
     <>
-      <FieldLabel>Field path</FieldLabel>
+      <FieldLabel>{t("nodeConfigs.transform.fieldPath")}</FieldLabel>
       <PathInput
         value={op.field}
         onChange={(v) => onChange({ ...op, field: v })}
       />
-      <FieldLabel>Operation</FieldLabel>
+      <FieldLabel>{t("nodeConfigs.transform.mathOp")}</FieldLabel>
       <MiniSelect<MathOpKind>
         value={op.operation}
         onChange={(v) => onChange({ ...op, operation: v })}
         options={[
-          { value: "add", label: "add" },
-          { value: "subtract", label: "subtract" },
-          { value: "multiply", label: "multiply" },
-          { value: "divide", label: "divide" },
-          { value: "round", label: "round" },
-          { value: "ceil", label: "ceil" },
-          { value: "floor", label: "floor" },
+          { value: "add", label: t("nodeConfigs.transform.mathAdd") },
+          { value: "subtract", label: t("nodeConfigs.transform.mathSubtract") },
+          { value: "multiply", label: t("nodeConfigs.transform.mathMultiply") },
+          { value: "divide", label: t("nodeConfigs.transform.mathDivide") },
+          { value: "round", label: t("nodeConfigs.transform.mathRound") },
+          { value: "ceil", label: t("nodeConfigs.transform.mathCeil") },
+          { value: "floor", label: t("nodeConfigs.transform.mathFloor") },
         ]}
       />
       {needsOperand && (
         <>
-          <FieldLabel>Operand</FieldLabel>
+          <FieldLabel>{t("nodeConfigs.transform.operand")}</FieldLabel>
           <Input
             type="number"
             value={op.operand ?? 0}
@@ -277,6 +288,7 @@ export function MathOpFields({ op, onChange }: OpPropsOf<"math_op">) {
 }
 
 export function DateOpFields({ op, onChange }: OpPropsOf<"date_op">) {
+  const t = useT();
   const args = (op.args ?? {}) as Record<string, unknown>;
   const setArgs = (patch: Record<string, unknown>) =>
     onChange({ ...op, args: { ...args, ...patch } });
@@ -285,43 +297,43 @@ export function DateOpFields({ op, onChange }: OpPropsOf<"date_op">) {
 
   return (
     <>
-      <FieldLabel>Field path</FieldLabel>
+      <FieldLabel>{t("nodeConfigs.transform.fieldPath")}</FieldLabel>
       <PathInput
         value={op.field}
         onChange={(v) => onChange({ ...op, field: v })}
       />
-      <FieldLabel>Operation</FieldLabel>
+      <FieldLabel>{t("nodeConfigs.transform.dateOp")}</FieldLabel>
       <MiniSelect<DateOpKind>
         value={op.operation}
         onChange={(v) => onChange({ ...op, operation: v, args: {} })}
         options={[
-          { value: "format", label: "format" },
-          { value: "add", label: "add" },
-          { value: "subtract", label: "subtract" },
-          { value: "diff", label: "diff" },
+          { value: "format", label: t("nodeConfigs.transform.dateFormat") },
+          { value: "add", label: t("nodeConfigs.transform.dateAdd") },
+          { value: "subtract", label: t("nodeConfigs.transform.dateSubtract") },
+          { value: "diff", label: t("nodeConfigs.transform.dateDiff") },
         ]}
       />
       {op.operation === "format" && (
         <>
-          <FieldLabel>Pattern (dayjs)</FieldLabel>
+          <FieldLabel>{t("nodeConfigs.transform.patternDayjs")}</FieldLabel>
           <Input
             value={(args.pattern as string) ?? ""}
             onChange={(e) => setArgs({ pattern: e.target.value })}
-            placeholder="e.g. YYYY-MM-DD HH:mm:ss"
+            placeholder={t("nodeConfigs.transform.patternPlaceholder")}
             className="h-7 text-xs"
           />
         </>
       )}
       {(op.operation === "add" || op.operation === "subtract") && (
         <>
-          <FieldLabel>Amount</FieldLabel>
+          <FieldLabel>{t("nodeConfigs.transform.amount")}</FieldLabel>
           <Input
             type="number"
             value={(args.amount as number) ?? 0}
             onChange={(e) => setArgs({ amount: Number(e.target.value) })}
             className="h-7 text-xs"
           />
-          <FieldLabel>Unit</FieldLabel>
+          <FieldLabel>{t("nodeConfigs.transform.unit")}</FieldLabel>
           <MiniSelect<DateUnit>
             value={(args.unit as DateUnit) ?? "days"}
             onChange={(v) => setArgs({ unit: v })}
@@ -331,12 +343,12 @@ export function DateOpFields({ op, onChange }: OpPropsOf<"date_op">) {
       )}
       {op.operation === "diff" && (
         <>
-          <FieldLabel>Compare Field</FieldLabel>
+          <FieldLabel>{t("nodeConfigs.transform.compareField")}</FieldLabel>
           <PathInput
             value={(args.compareField as string) ?? ""}
             onChange={(v) => setArgs({ compareField: v })}
           />
-          <FieldLabel>Unit</FieldLabel>
+          <FieldLabel>{t("nodeConfigs.transform.unit")}</FieldLabel>
           <MiniSelect<DateUnit>
             value={(args.unit as DateUnit) ?? "days"}
             onChange={(v) => setArgs({ unit: v })}
@@ -352,31 +364,32 @@ export function ArrayFilterFields({
   op,
   onChange,
 }: OpPropsOf<"array_filter">) {
+  const t = useT();
   const updateCondition = (patch: Partial<ArrayFilterCondition>) =>
     onChange({ ...op, condition: { ...op.condition, ...patch } });
 
   return (
     <>
-      <FieldLabel>Array Field (path)</FieldLabel>
+      <FieldLabel>{t("nodeConfigs.transform.arrayField")}</FieldLabel>
       <PathInput
         value={op.field}
         onChange={(v) => onChange({ ...op, field: v })}
-        placeholder="e.g. items"
+        placeholder={t("nodeConfigs.transform.arrayFieldPlaceholder")}
       />
-      <FieldLabel>Condition Field (요소 내 경로)</FieldLabel>
+      <FieldLabel>{t("nodeConfigs.transform.conditionField")}</FieldLabel>
       <Input
         value={op.condition.field}
         onChange={(e) => updateCondition({ field: e.target.value })}
-        placeholder="e.g. active, user.age"
+        placeholder={t("nodeConfigs.transform.conditionFieldPlaceholder")}
         className="h-7 text-xs"
       />
-      <FieldLabel>Operator</FieldLabel>
+      <FieldLabel>{t("nodeConfigs.transform.operator")}</FieldLabel>
       <MiniSelect<ConditionOperator>
         value={op.condition.operator}
         onChange={(v) => updateCondition({ operator: v })}
         options={CONDITION_OPERATORS}
       />
-      <FieldLabel>Value</FieldLabel>
+      <FieldLabel>{t("nodeConfigs.transform.valueLabel")}</FieldLabel>
       <ExpressionInput
         bare
         label=""
@@ -386,30 +399,31 @@ export function ArrayFilterFields({
             : String(op.condition.value ?? "")
         }
         onChange={(v) => updateCondition({ value: v })}
-        placeholder="값 또는 {{ 표현식 }}"
+        placeholder={t("nodeConfigs.transform.valueExprPlaceholder")}
       />
     </>
   );
 }
 
 export function ArraySortFields({ op, onChange }: OpPropsOf<"array_sort">) {
+  const t = useT();
   return (
     <>
-      <FieldLabel>Array Field (path)</FieldLabel>
+      <FieldLabel>{t("nodeConfigs.transform.arrayField")}</FieldLabel>
       <PathInput
         value={op.field}
         onChange={(v) => onChange({ ...op, field: v })}
       />
-      <FieldLabel>Sort By (요소 내 경로, 원시값이면 비워두세요)</FieldLabel>
+      <FieldLabel>{t("nodeConfigs.transform.sortBy")}</FieldLabel>
       <Input
         value={op.sortBy ?? ""}
         onChange={(e) =>
           onChange({ ...op, sortBy: e.target.value || undefined })
         }
-        placeholder="e.g. score"
+        placeholder={t("nodeConfigs.transform.sortByPlaceholder")}
         className="h-7 text-xs"
       />
-      <FieldLabel>Order</FieldLabel>
+      <FieldLabel>{t("nodeConfigs.transform.order")}</FieldLabel>
       <div className="flex gap-1">
         {(["asc", "desc"] as const).map((ord) => (
           <button
@@ -423,7 +437,9 @@ export function ArraySortFields({ op, onChange }: OpPropsOf<"array_sort">) {
                 : "border-[hsl(var(--input))] bg-transparent")
             }
           >
-            {ord.toUpperCase()}
+            {ord === "asc"
+              ? t("nodeConfigs.transform.orderAsc")
+              : t("nodeConfigs.transform.orderDesc")}
           </button>
         ))}
       </div>
@@ -435,18 +451,19 @@ export function ObjectPickFields({
   op,
   onChange,
 }: OpPropsOf<"object_pick">) {
+  const t = useT();
   return (
     <>
-      <FieldLabel>Target Object Path (비워두면 루트)</FieldLabel>
+      <FieldLabel>{t("nodeConfigs.transform.targetObjectPath")}</FieldLabel>
       <PathInput
         value={op.field ?? ""}
         onChange={(v) => onChange({ ...op, field: v || undefined })}
       />
-      <FieldLabel>Keys (Enter 또는 쉼표로 추가)</FieldLabel>
+      <FieldLabel>{t("nodeConfigs.transform.keysLabel")}</FieldLabel>
       <ChipInput
         values={op.keys}
         onChange={(keys) => onChange({ ...op, keys })}
-        placeholder="e.g. name, email"
+        placeholder={t("nodeConfigs.transform.keysNamePlaceholder")}
       />
     </>
   );
@@ -456,18 +473,19 @@ export function ObjectOmitFields({
   op,
   onChange,
 }: OpPropsOf<"object_omit">) {
+  const t = useT();
   return (
     <>
-      <FieldLabel>Target Object Path (비워두면 루트)</FieldLabel>
+      <FieldLabel>{t("nodeConfigs.transform.targetObjectPath")}</FieldLabel>
       <PathInput
         value={op.field ?? ""}
         onChange={(v) => onChange({ ...op, field: v || undefined })}
       />
-      <FieldLabel>Keys (Enter 또는 쉼표로 추가)</FieldLabel>
+      <FieldLabel>{t("nodeConfigs.transform.keysLabel")}</FieldLabel>
       <ChipInput
         values={op.keys}
         onChange={(keys) => onChange({ ...op, keys })}
-        placeholder="e.g. password"
+        placeholder={t("nodeConfigs.transform.keysPasswordPlaceholder")}
       />
     </>
   );

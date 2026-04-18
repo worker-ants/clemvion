@@ -5,6 +5,7 @@ import { X } from "lucide-react";
 import { workflowsApi } from "@/lib/api/workflows";
 import type { WorkflowVersionDetail } from "@/lib/api/workflows";
 import { Button } from "@/components/ui/button";
+import { useT } from "@/lib/i18n";
 
 interface Props {
   workflowId: string;
@@ -13,6 +14,7 @@ interface Props {
 }
 
 export function VersionDetailDialog({ workflowId, versionId, onClose }: Props) {
+  const t = useT();
   const query = useQuery({
     queryKey: ["workflow-version", workflowId, versionId],
     queryFn: async () => {
@@ -24,13 +26,13 @@ export function VersionDetailDialog({ workflowId, versionId, onClose }: Props) {
   return (
     <div
       role="dialog"
-      aria-label="Version detail"
+      aria-label={t("editor.versionDetailLabel")}
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
     >
       <div className="flex max-h-[80vh] w-full max-w-2xl flex-col rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--card))] shadow-lg">
         <header className="flex items-center justify-between border-b border-[hsl(var(--border))] px-4 py-3">
           <h3 className="text-sm font-semibold">
-            {query.data ? `v${query.data.version}` : "Version detail"}
+            {query.data ? `v${query.data.version}` : t("editor.versionDetailFallback")}
             {query.data?.changeSummary && (
               <span className="ml-2 font-normal text-[hsl(var(--muted-foreground))]">
                 — {query.data.changeSummary}
@@ -42,31 +44,35 @@ export function VersionDetailDialog({ workflowId, versionId, onClose }: Props) {
             size="icon"
             className="h-7 w-7"
             onClick={onClose}
-            aria-label="Close"
+            aria-label={t("editor.closeBtn")}
           >
             <X size={14} />
           </Button>
         </header>
 
         <div className="flex-1 overflow-y-auto p-4 text-xs">
-          {query.isLoading && <div>Loading…</div>}
+          {query.isLoading && <div>{t("editor.loadingShort")}</div>}
           {query.isError && (
             <div className="text-[hsl(var(--destructive))]">
-              Failed to load version
+              {t("editor.loadVersionFailed")}
             </div>
           )}
           {query.data && (
             <div className="space-y-4">
               <section>
-                <h4 className="mb-1 font-semibold">Workflow</h4>
-                <div>Name: {query.data.snapshot.name}</div>
+                <h4 className="mb-1 font-semibold">{t("editor.workflowHeading")}</h4>
+                <div>{t("editor.nameColon", { value: query.data.snapshot.name })}</div>
                 {query.data.snapshot.description && (
-                  <div>Description: {query.data.snapshot.description}</div>
+                  <div>
+                    {t("editor.descriptionColon", {
+                      value: query.data.snapshot.description,
+                    })}
+                  </div>
                 )}
               </section>
               <section>
                 <h4 className="mb-1 font-semibold">
-                  Nodes ({query.data.snapshot.nodes.length})
+                  {t("editor.nodesHeading", { count: query.data.snapshot.nodes.length })}
                 </h4>
                 <ul className="space-y-1">
                   {query.data.snapshot.nodes.map((n) => (
@@ -77,7 +83,7 @@ export function VersionDetailDialog({ workflowId, versionId, onClose }: Props) {
                       <div className="font-medium">{n.label}</div>
                       <div className="text-[hsl(var(--muted-foreground))]">
                         {n.type} · ({n.positionX}, {n.positionY})
-                        {n.isDisabled ? " · disabled" : ""}
+                        {n.isDisabled ? ` · ${t("editor.disabledSuffix")}` : ""}
                       </div>
                     </li>
                   ))}
@@ -85,7 +91,7 @@ export function VersionDetailDialog({ workflowId, versionId, onClose }: Props) {
               </section>
               <section>
                 <h4 className="mb-1 font-semibold">
-                  Edges ({query.data.snapshot.edges.length})
+                  {t("editor.edgesHeading", { count: query.data.snapshot.edges.length })}
                 </h4>
                 <ul className="space-y-1">
                   {query.data.snapshot.edges.map((e) => (

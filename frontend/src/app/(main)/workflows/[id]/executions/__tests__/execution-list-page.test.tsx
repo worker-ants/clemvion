@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, vi } from "vitest";
 import { render, screen, fireEvent, act } from "@testing-library/react";
 import { Suspense } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { useLocaleStore } from "@/lib/stores/locale-store";
 
 const mockPush = vi.fn();
 const mockBack = vi.fn();
@@ -89,11 +90,12 @@ async function renderPage() {
 describe("ExecutionListPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    useLocaleStore.setState({ locale: "en" });
   });
 
   it("renders workflow name and executions title", async () => {
     await renderPage();
-    expect(await screen.findByText("Test Workflow")).toBeDefined();
+    expect(await screen.findByText(/Test Workflow/)).toBeDefined();
     expect(screen.getByText(/Executions/)).toBeDefined();
   });
 
@@ -103,7 +105,7 @@ describe("ExecutionListPage", () => {
     // "Failed" appears as both filter button and badge, use getAllByText
     expect(screen.getAllByText("Failed").length).toBeGreaterThanOrEqual(2);
     expect(screen.getByText("3.2s")).toBeDefined();
-    expect(screen.getByText("1.0s")).toBeDefined();
+    expect(screen.getByText("1s")).toBeDefined();
   });
 
   it("renders filter buttons", async () => {
@@ -137,7 +139,7 @@ describe("ExecutionListPage", () => {
 
   it("displays node execution counts", async () => {
     await renderPage();
-    await screen.findByText("Completed");
+    await screen.findAllByText("Completed");
     expect(screen.getByText(/1 failed/)).toBeDefined();
   });
 });

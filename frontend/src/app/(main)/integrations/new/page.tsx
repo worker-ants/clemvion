@@ -18,6 +18,7 @@ import {
 } from "@/lib/api/integrations";
 import { ServiceIcon } from "../_shared/service-icons";
 import { CredentialsForm } from "../_shared/credentials-form";
+import { useT, type TFunction } from "@/lib/i18n";
 
 interface OAuthCallbackPayload {
   type: "oauth_callback";
@@ -32,6 +33,7 @@ interface OAuthCallbackPayload {
 type Step = "auth" | "test";
 
 export default function NewIntegrationPage() {
+  const t = useT();
   const router = useRouter();
   const params = useSearchParams();
   const serviceType = params.get("service") ?? "";
@@ -60,9 +62,6 @@ export default function NewIntegrationPage() {
   const [previewToken, setPreviewToken] = useState<string | null>(null);
   const popupRef = useRef<Window | null>(null);
 
-  // Reset form defaults whenever the selected auth variant changes. Using
-  // `useEffect` (rather than render-time setState) is the React-idiomatic way
-  // to sync derived state, at the cost of a single extra render pass.
   useEffect(() => {
     if (!variant) {
       setCredentials({});
@@ -80,7 +79,6 @@ export default function NewIntegrationPage() {
         : [],
     );
     setPreviewToken(null);
-    // `service` is read alongside `variant` — reset when either changes.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [variant]);
 
@@ -100,7 +98,7 @@ export default function NewIntegrationPage() {
       return integrationsApi.create(payload);
     },
     onSuccess: (created) => {
-      toast.success("Integration created");
+      toast.success(t("integrations.integrationCreatedToast"));
       router.push(`/integrations/${created.id}`);
     },
     onError: (err: unknown) => {
@@ -109,7 +107,7 @@ export default function NewIntegrationPage() {
         message?: string;
       };
       const msg =
-        e.response?.data?.message ?? e.message ?? "Failed to create integration";
+        e.response?.data?.message ?? e.message ?? t("integrations.integrationCreateFailedDefault");
       toast.error(msg);
     },
   });
@@ -140,26 +138,22 @@ export default function NewIntegrationPage() {
       setOauthError(null);
       setOauthWaiting(true);
       clearOAuthTimeout();
-      // Spec §3.5 — 5 minute timeout for the provider popup to complete.
       oauthTimeoutRef.current = setTimeout(() => {
         setOauthWaiting(false);
-        setOauthError("Authorization timed out. Please try again.");
+        setOauthError(t("integrations.oauthTimedOutShort"));
         if (popupRef.current && !popupRef.current.closed) {
           popupRef.current.close();
         }
-        toast.error("OAuth timed out — popup did not return within 5 minutes.");
+        toast.error(t("integrations.oauthTimedOutMessage"));
       }, 5 * 60 * 1000);
-      toast.message(
-        "Continue in the popup. This window will update when you are done.",
-      );
+      toast.message(t("integrations.oauthContinueInPopup"));
     },
     onError: (err: unknown) => {
       const e = err as { response?: { data?: { message?: string } } };
-      toast.error(e.response?.data?.message ?? "Failed to start OAuth");
+      toast.error(e.response?.data?.message ?? t("integrations.oauthStartFailed"));
     },
   });
 
-  // Listen for OAuth popup result. Cleanup always clears the timeout.
   useEffect(() => {
     const handler = (event: MessageEvent<OAuthCallbackPayload>) => {
       if (event.origin !== window.location.origin) return;
@@ -167,14 +161,15 @@ export default function NewIntegrationPage() {
       clearOAuthTimeout();
       setOauthWaiting(false);
       if (event.data.status === "error") {
-        setOauthError(event.data.error ?? "OAuth failed");
-        toast.error(event.data.error ?? "OAuth failed");
+        const msg = event.data.error ?? t("integrations.oauthFailedShort");
+        setOauthError(msg);
+        toast.error(msg);
         return;
       }
       if (event.data.previewToken) {
         setPreviewToken(event.data.previewToken);
         setOauthError(null);
-        toast.success("OAuth completed. Continue to save.");
+        toast.success(t("integrations.oauthCompletedToast"));
         goToStep("test");
       }
     };
@@ -186,7 +181,6 @@ export default function NewIntegrationPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Spec §3.6 — warn on navigation away while credentials are being entered.
   useEffect(() => {
     const isOAuth = variant?.authType === "oauth2";
     const hasUserInput =
@@ -210,20 +204,19 @@ export default function NewIntegrationPage() {
   };
 
   const validate = (): string | null => {
-    if (!variant) return "Select an authentication type";
-    if (!name.trim()) return "Integration name is required";
+    if (!variant) return t("integrations.selectAuthType");
+    if (!name.trim()) return t("integrations.nameRequired");
     const isOAuth = variant.authType === "oauth2";
     if (isOAuth) {
-      if (selectedScopes.length === 0) return "Select at least one scope";
-      if (!previewToken)
-        return "Complete OAuth authorization before continuing";
+      if (selectedScopes.length === 0) return t("integrations.selectAtLeastOneScope");
+      if (!previewToken) return t("integrations.completeOauth");
       return null;
     }
     for (const f of variant.fields) {
       if (f.required) {
         const v = credentials[f.key];
         if (v === undefined || v === null || v === "") {
-          return `${f.label} is required`;
+          return t("integrations.fieldRequired", { label: f.label });
         }
       }
     }
@@ -245,9 +238,11 @@ export default function NewIntegrationPage() {
           href="/integrations"
           className="inline-flex items-center gap-1 text-sm text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]"
         >
-          <ArrowLeft className="h-4 w-4" /> Back to integrations
+          <ArrowLeft className="h-4 w-4" /> {t("integrations.backToList")}
         </Link>
-        <p className="text-sm">Unknown service type: {serviceType || "—"}</p>
+        <p className="text-sm">
+          {t("integrations.unknownService", { type: serviceType || "—" })}
+        </p>
       </div>
     );
   }
@@ -258,7 +253,7 @@ export default function NewIntegrationPage() {
         href="/integrations"
         className="inline-flex items-center gap-1 text-sm text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]"
       >
-        <ArrowLeft className="h-4 w-4" /> Back to integrations
+        <ArrowLeft className="h-4 w-4" /> {t("integrations.backToList")}
       </Link>
 
       <div className="flex items-center gap-3">
@@ -266,9 +261,11 @@ export default function NewIntegrationPage() {
           <ServiceIcon type={service.type} className="h-7 w-7" />
         </div>
         <div>
-          <h1 className="text-2xl font-bold">Connect {service.name}</h1>
+          <h1 className="text-2xl font-bold">
+            {t("integrations.connectWith", { name: service.name })}
+          </h1>
           <p className="text-sm text-[hsl(var(--muted-foreground))]">
-            Step {step === "auth" ? "1" : "2"} of 2
+            {t("integrations.stepCounter", { current: step === "auth" ? 1 : 2 })}
           </p>
         </div>
       </div>
@@ -292,11 +289,11 @@ export default function NewIntegrationPage() {
           oauthError={oauthError}
           onConnect={() => {
             if (!name.trim()) {
-              toast.error("Integration name is required first");
+              toast.error(t("integrations.nameRequired"));
               return;
             }
             if (selectedScopes.length === 0) {
-              toast.error("Select at least one scope");
+              toast.error(t("integrations.selectAtLeastOneScope"));
               return;
             }
             oauthBeginMutation.mutate();
@@ -311,6 +308,7 @@ export default function NewIntegrationPage() {
             setTestError(null);
             goToStep("test");
           }}
+          t={t}
         />
       )}
 
@@ -331,6 +329,7 @@ export default function NewIntegrationPage() {
           saving={createMutation.isPending}
           onBack={() => goToStep("auth")}
           onSave={() => createMutation.mutate()}
+          t={t}
         />
       )}
     </div>
@@ -356,6 +355,7 @@ interface AuthStepProps {
   onConnect: () => void;
   connecting: boolean;
   onContinue: () => void;
+  t: TFunction;
 }
 
 function AuthStep({
@@ -377,6 +377,7 @@ function AuthStep({
   onConnect,
   connecting,
   onContinue,
+  t,
 }: AuthStepProps) {
   const isOAuth = variant?.authType === "oauth2";
   const toggleScope = (value: string) => {
@@ -391,43 +392,45 @@ function AuthStep({
     <div className="space-y-6 rounded-lg border border-[hsl(var(--border))] p-6">
       <div>
         <Label htmlFor="int-name">
-          Name <span className="text-red-500">*</span>
+          {t("integrations.nameLabel")} <span className="text-red-500">*</span>
         </Label>
         <Input
           id="int-name"
           value={name}
           onChange={(e) => setName(e.target.value)}
-          placeholder={`My ${service.name}`}
+          placeholder={t("integrations.namePlaceholderWithService", { name: service.name })}
         />
       </div>
 
       <div>
-        <Label>Scope</Label>
+        <Label>{t("integrations.scopeChangeTitle")}</Label>
         <div className="inline-flex w-full rounded-lg border border-[hsl(var(--border))] p-1">
           {(["personal", "organization"] as const).map((opt) => (
             <button
               key={opt}
               type="button"
               className={cn(
-                "flex-1 rounded-md px-3 py-1.5 text-sm font-medium capitalize transition-colors",
+                "flex-1 rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
                 scope === opt
                   ? "bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))]"
                   : "text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]",
               )}
               onClick={() => setScope(opt)}
             >
-              {opt}
+              {opt === "personal"
+                ? t("integrations.scopePersonal")
+                : t("integrations.scopeOrganization")}
             </button>
           ))}
         </div>
         <p className="mt-1 text-xs text-[hsl(var(--muted-foreground))]">
-          Organization scope requires Admin role.
+          {t("integrations.scopeHint")}
         </p>
       </div>
 
       {service.authVariants.length > 1 && (
         <div>
-          <Label>Authentication Type</Label>
+          <Label>{t("integrations.authTypeLabel2")}</Label>
           <div className="flex flex-wrap gap-2">
             {service.authVariants.map((v, i) => (
               <button
@@ -460,7 +463,7 @@ function AuthStep({
 
       {variant?.authType === "oauth2" && service.scopes.length > 0 && (
         <div>
-          <Label>OAuth Scopes</Label>
+          <Label>{t("integrations.oauthScopesLabel")}</Label>
           <div className="space-y-2 rounded-md border border-[hsl(var(--border))] p-3">
             {service.scopes.map((s) => (
               <label
@@ -481,7 +484,7 @@ function AuthStep({
                 </div>
                 {s.recommended && (
                   <span className="rounded bg-[hsl(var(--muted))] px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide">
-                    Recommended
+                    {t("integrations.recommendedBadge")}
                   </span>
                 )}
               </label>
@@ -494,10 +497,10 @@ function AuthStep({
         <div className="rounded-md border border-[hsl(var(--border))] bg-[hsl(var(--muted))]/30 p-4">
           <div className="mb-2 text-sm font-medium">
             {oauthWaiting
-              ? "Waiting for the provider popup…"
+              ? t("integrations.waitingPopup")
               : previewToken
-                ? "OAuth authorization complete."
-                : "Authorize this integration with the provider."}
+                ? t("integrations.oauthComplete")
+                : t("integrations.authorizePrompt")}
           </div>
           {oauthError && (
             <div className="mb-2 text-xs text-red-600 dark:text-red-400">
@@ -512,18 +515,20 @@ function AuthStep({
             {connecting || oauthWaiting ? (
               <Loader2 className="mr-2 h-4 w-4 animate-spin" />
             ) : null}
-            {previewToken ? "Reauthorize" : `Connect with ${service.name}`}
+            {previewToken
+              ? t("integrations.reauthorizeBtn2")
+              : t("integrations.connectWith", { name: service.name })}
           </Button>
           {oauthWaiting && (
             <p className="mt-2 text-xs text-[hsl(var(--muted-foreground))]">
-              Times out after 5 minutes.
+              {t("integrations.timesOutHint")}
             </p>
           )}
         </div>
       )}
 
       <div className="flex justify-end">
-        <Button onClick={onContinue}>Continue</Button>
+        <Button onClick={onContinue}>{t("integrations.continueBtn")}</Button>
       </div>
     </div>
   );
@@ -553,6 +558,7 @@ interface TestStepProps {
   saving: boolean;
   onBack: () => void;
   onSave: () => void;
+  t: TFunction;
 }
 
 function TestStep({
@@ -567,6 +573,7 @@ function TestStep({
   saving,
   onBack,
   onSave,
+  t,
 }: TestStepProps) {
   const test = useQuery({
     queryKey: ["integrations", "preview-test", serviceType, authType],
@@ -587,11 +594,11 @@ function TestStep({
 
   useEffect(() => {
     if (!skipProbe && test.isError) {
-      onTestError((test.error as Error | undefined)?.message ?? "Validation failed");
+      onTestError((test.error as Error | undefined)?.message ?? t("integrations.validationFailed"));
     } else if (test.isSuccess) {
       onTestError(null);
     }
-  }, [skipProbe, test.isError, test.isSuccess, test.error, onTestError]);
+  }, [skipProbe, test.isError, test.isSuccess, test.error, onTestError, t]);
 
   const pending = !skipProbe && test.isPending;
   const failed = (!skipProbe && test.isError) || !!savedError;
@@ -614,28 +621,28 @@ function TestStep({
         <div>
           <h2 className="text-lg font-semibold">
             {pending
-              ? "Testing credentials..."
+              ? t("integrations.testingCredentials")
               : failed
-                ? "Validation failed"
-                : "Ready to save"}
+                ? t("integrations.validationFailed")
+                : t("integrations.readyToSave")}
           </h2>
           <p className="text-sm text-[hsl(var(--muted-foreground))]">
             {pending
-              ? "Running a preview test against the service registry."
+              ? t("integrations.runningProbe")
               : failed
-                ? message ?? "Check the auth step and try again."
-                : `${service.name} "${name}" credentials are ready. Connection will be verified on first use.`}
+                ? message ?? t("integrations.checkAuthRetry")
+                : t("integrations.readyMessage", { service: service.name, name })}
           </p>
         </div>
       </div>
 
       <div className="flex justify-between">
         <Button variant="outline" onClick={onBack}>
-          Back to auth
+          {t("integrations.backToAuth")}
         </Button>
         <Button onClick={onSave} disabled={saving || pending || failed}>
           {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-          Save integration
+          {t("integrations.saveIntegration")}
         </Button>
       </div>
     </div>

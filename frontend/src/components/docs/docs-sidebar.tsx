@@ -3,16 +3,20 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { DocsSection } from "@/lib/docs/registry";
+import { localizedSectionLabel, localizedTitle } from "@/lib/docs/locale";
 import { cn } from "@/lib/utils/cn";
+import { useLocale, useT } from "@/lib/i18n";
 
 export function DocsSidebar({ sections }: { sections: DocsSection[] }) {
   const pathname = usePathname();
+  const locale = useLocale();
+  const t = useT();
   return (
-    <nav aria-label="매뉴얼 섹션" className="flex flex-col gap-5">
+    <nav aria-label={t("docs.title")} className="flex flex-col gap-5">
       {sections.map((section) => (
         <div key={section.key}>
           <h3 className="mb-1 text-xs font-semibold uppercase tracking-wider text-[hsl(var(--muted-foreground))]">
-            {section.label}
+            {localizedSectionLabel(section.key, locale)}
           </h3>
           <ul className="flex flex-col gap-0.5">
             {section.pages.map((page) => {
@@ -29,7 +33,7 @@ export function DocsSidebar({ sections }: { sections: DocsSection[] }) {
                     )}
                     aria-current={active ? "page" : undefined}
                   >
-                    {page.frontmatter.title}
+                    {localizedTitle(page.frontmatter, locale)}
                   </Link>
                 </li>
               );

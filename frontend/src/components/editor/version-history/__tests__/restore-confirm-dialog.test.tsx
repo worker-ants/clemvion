@@ -8,10 +8,12 @@ vi.mock("@/lib/api/workflows", () => ({
 
 import { workflowsApi } from "@/lib/api/workflows";
 import { RestoreConfirmDialog } from "../restore-confirm-dialog";
+import { useLocaleStore } from "@/lib/stores/locale-store";
 
 const reloadSpy = vi.fn();
 beforeEach(() => {
   vi.clearAllMocks();
+  useLocaleStore.setState({ locale: "en" });
   Object.defineProperty(window, "location", {
     configurable: true,
     value: { reload: reloadSpy } as unknown as Location,

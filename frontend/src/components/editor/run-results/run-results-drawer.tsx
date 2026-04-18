@@ -15,6 +15,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { ResultTimeline } from "./result-timeline";
 import { ResultDetail } from "./result-detail";
+import { useT } from "@/lib/i18n";
 
 const DEFAULT_HEIGHT = 420;
 const MIN_HEIGHT = 240;
@@ -60,6 +61,7 @@ function getStoredTimelineWidth(): number {
 }
 
 export function RunResultsDrawer() {
+  const t = useT();
   const params = useParams();
   const workflowId = params?.id as string | undefined;
   const [expanded, setExpanded] = useState(true);
@@ -228,16 +230,16 @@ export function RunResultsDrawer() {
 
   const statusLabel =
     status === "running"
-      ? "Running..."
+      ? t("editor.statusRunningEllipsis")
       : status === "completed"
-        ? "Completed"
+        ? t("editor.statusCompleted")
         : status === "failed"
-          ? "Failed"
+          ? t("editor.statusFailedLabel")
           : status === "waiting_for_input"
             ? waitingInteractionType === "ai_conversation"
-              ? "Conversing..."
-              : "Waiting for input..."
-            : "Execution";
+              ? t("editor.statusConversing")
+              : t("editor.statusWaitingInput")
+            : t("editor.statusExecutionFallback");
 
   // Selection id is the per-iteration id (nodeExecutionId) when available so
   // each Loop/Map iteration of the same node can be inspected separately,
@@ -287,8 +289,8 @@ export function RunResultsDrawer() {
           {statusIcon}
           <span className="text-sm font-medium">{statusLabel}</span>
           <span className="text-xs text-[hsl(var(--muted-foreground))]">
-            {completedCount}/{totalNodes} nodes
-            {failedCount > 0 && ` (${failedCount} failed)`}
+            {t("editor.nodesCount", { completed: completedCount, total: totalNodes })}
+            {failedCount > 0 && t("editor.failedParen", { count: failedCount })}
           </span>
         </div>
         <div className="flex items-center gap-1">
@@ -300,7 +302,7 @@ export function RunResultsDrawer() {
               className="flex items-center gap-1 px-2 py-1 text-xs text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))] transition-colors"
             >
               <History className="h-3 w-3" />
-              All Executions
+              {t("editor.allExecutions")}
             </a>
           )}
           <Button
@@ -337,8 +339,8 @@ export function RunResultsDrawer() {
             {visibleResults.length === 0 ? (
               <div className="flex h-full items-center justify-center text-xs text-[hsl(var(--muted-foreground))]">
                 {status === "running"
-                  ? "Waiting for nodes..."
-                  : "No nodes executed"}
+                  ? t("editor.waitingForNodes")
+                  : t("editor.noNodesExecuted")}
               </div>
             ) : (
               <ResultTimeline
@@ -358,7 +360,7 @@ export function RunResultsDrawer() {
           <div
             onMouseDown={handleWidthMouseDown}
             className="w-1 shrink-0 cursor-col-resize bg-[hsl(var(--border))] hover:bg-[hsl(var(--accent))] transition-colors"
-            aria-label="Resize timeline panel"
+            aria-label={t("editor.resizeTimelinePanel")}
           />
 
           {/* Right: Detail */}

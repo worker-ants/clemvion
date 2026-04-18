@@ -22,29 +22,30 @@ import {
   XCircle,
   Clock,
 } from "lucide-react";
+import { useT, type TranslationKey } from "@/lib/i18n";
 
 const STATUS_CONFIG: Record<
   string,
-  { icon: React.ReactNode; label: string; variant: "success" | "warning" | "destructive" | "outline" }
+  { icon: React.ReactNode; labelKey: TranslationKey; variant: "success" | "warning" | "destructive" | "outline" }
 > = {
   completed: {
     icon: <CheckCircle className="h-3 w-3" />,
-    label: "Ready",
+    labelKey: "knowledgeBases.statusReady",
     variant: "success",
   },
   processing: {
     icon: <Loader2 className="h-3 w-3 animate-spin" />,
-    label: "Processing",
+    labelKey: "knowledgeBases.statusProcessing",
     variant: "warning",
   },
   pending: {
     icon: <Clock className="h-3 w-3" />,
-    label: "Pending",
+    labelKey: "knowledgeBases.statusPending",
     variant: "outline",
   },
   error: {
     icon: <XCircle className="h-3 w-3" />,
-    label: "Error",
+    labelKey: "knowledgeBases.statusError",
     variant: "destructive",
   },
 };
@@ -60,6 +61,7 @@ export default function KnowledgeBaseDetailPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
+  const t = useT();
   const { id } = use(params);
   const router = useRouter();
   const queryClient = useQueryClient();
@@ -86,9 +88,9 @@ export default function KnowledgeBaseDetailPage({
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["kb-documents", id] });
       queryClient.invalidateQueries({ queryKey: ["knowledge-base", id] });
-      toast.success("Document uploaded");
+      toast.success(t("knowledgeBases.documentUploaded"));
     },
-    onError: () => toast.error("Upload failed"),
+    onError: () => toast.error(t("knowledgeBases.uploadFailedShort")),
   });
 
   const deleteMutation = useMutation({
@@ -96,19 +98,19 @@ export default function KnowledgeBaseDetailPage({
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["kb-documents", id] });
       queryClient.invalidateQueries({ queryKey: ["knowledge-base", id] });
-      toast.success("Document deleted");
+      toast.success(t("knowledgeBases.documentDeleted"));
       setDeleteTarget(null);
     },
-    onError: () => toast.error("Failed to delete document"),
+    onError: () => toast.error(t("knowledgeBases.documentDeleteFailed")),
   });
 
   const reEmbedMutation = useMutation({
     mutationFn: (docId: string) => knowledgeBasesApi.reEmbed(id, docId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["kb-documents", id] });
-      toast.success("Re-embedding started");
+      toast.success(t("knowledgeBases.reembedStarted"));
     },
-    onError: () => toast.error("Failed to start re-embedding"),
+    onError: () => toast.error(t("knowledgeBases.reembedFailed")),
   });
 
   function handleFiles(files: FileList | null) {
@@ -152,14 +154,12 @@ export default function KnowledgeBaseDetailPage({
         </div>
       </div>
 
-      {/* Info bar */}
       <div className="flex items-center gap-4 text-sm text-[hsl(var(--muted-foreground))]">
-        <span>Model: <code className="font-mono">{kb?.embeddingModel}</code></span>
-        <span>Chunk: {kb?.chunkSize} / Overlap: {kb?.chunkOverlap}</span>
-        <span>{kb?.documentCount} documents</span>
+        <span>{t("knowledgeBases.model")}: <code className="font-mono">{kb?.embeddingModel}</code></span>
+        <span>{t("knowledgeBases.chunk")}: {kb?.chunkSize} / {t("knowledgeBases.overlap")}: {kb?.chunkOverlap}</span>
+        <span>{t("knowledgeBases.documentsCount", { count: kb?.documentCount ?? 0 })}</span>
       </div>
 
-      {/* Upload zone */}
       <div
         className={`flex flex-col items-center justify-center rounded-lg border-2 border-dashed p-8 transition-colors ${
           isDragging
@@ -175,7 +175,7 @@ export default function KnowledgeBaseDetailPage({
       >
         <Upload className="mb-2 h-8 w-8 text-[hsl(var(--muted-foreground))]" />
         <p className="mb-1 text-sm text-[hsl(var(--muted-foreground))]">
-          Drag & drop files here, or
+          {t("knowledgeBases.dragDropHere")}
         </p>
         <Button
           variant="outline"
@@ -186,10 +186,10 @@ export default function KnowledgeBaseDetailPage({
           {uploadMutation.isPending && (
             <Loader2 className="mr-2 h-4 w-4 animate-spin" />
           )}
-          Browse Files
+          {t("knowledgeBases.browseFiles")}
         </Button>
         <p className="mt-2 text-xs text-[hsl(var(--muted-foreground))]">
-          Supported: .txt, .md, .pdf, .csv (max 50MB)
+          {t("knowledgeBases.supportedTypes")}
         </p>
         <input
           ref={fileInputRef}
@@ -201,20 +201,19 @@ export default function KnowledgeBaseDetailPage({
         />
       </div>
 
-      {/* Delete Confirmation */}
       {deleteTarget && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
           <div className="w-full max-w-sm rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-6 shadow-lg">
-            <h2 className="mb-2 text-lg font-semibold">Delete Document</h2>
+            <h2 className="mb-2 text-lg font-semibold">{t("knowledgeBases.documentDeleteTitle")}</h2>
             <p className="mb-4 text-sm text-[hsl(var(--muted-foreground))]">
-              This will delete the document and its embeddings.
+              {t("knowledgeBases.documentDeleteMessageFull")}
             </p>
             <div className="flex justify-end gap-2">
               <Button
                 variant="outline"
                 onClick={() => setDeleteTarget(null)}
               >
-                Cancel
+                {t("common.cancel")}
               </Button>
               <Button
                 variant="destructive"
@@ -224,14 +223,13 @@ export default function KnowledgeBaseDetailPage({
                 {deleteMutation.isPending && (
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                 )}
-                Delete
+                {t("common.delete")}
               </Button>
             </div>
           </div>
         </div>
       )}
 
-      {/* Documents list */}
       {docsLoading && (
         <div className="flex items-center justify-center py-8">
           <Loader2 className="h-5 w-5 animate-spin text-[hsl(var(--muted-foreground))]" />
@@ -240,7 +238,7 @@ export default function KnowledgeBaseDetailPage({
 
       {!docsLoading && documents.length === 0 && (
         <p className="py-8 text-center text-sm text-[hsl(var(--muted-foreground))]">
-          No documents yet. Upload files to get started.
+          {t("knowledgeBases.noDocumentsHint")}
         </p>
       )}
 
@@ -249,12 +247,12 @@ export default function KnowledgeBaseDetailPage({
           <table className="w-full text-sm">
             <thead className="bg-[hsl(var(--muted))]">
               <tr>
-                <th className="px-4 py-3 text-left font-medium">Name</th>
-                <th className="px-4 py-3 text-left font-medium">Type</th>
-                <th className="px-4 py-3 text-left font-medium">Size</th>
-                <th className="px-4 py-3 text-left font-medium">Status</th>
-                <th className="px-4 py-3 text-left font-medium">Chunks</th>
-                <th className="px-4 py-3 text-left font-medium">Actions</th>
+                <th className="px-4 py-3 text-left font-medium">{t("common.name")}</th>
+                <th className="px-4 py-3 text-left font-medium">{t("common.type")}</th>
+                <th className="px-4 py-3 text-left font-medium">{t("knowledgeBases.columnSize")}</th>
+                <th className="px-4 py-3 text-left font-medium">{t("common.status")}</th>
+                <th className="px-4 py-3 text-left font-medium">{t("knowledgeBases.columnChunks")}</th>
+                <th className="px-4 py-3 text-left font-medium">{t("common.actions")}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-[hsl(var(--border))]">
@@ -277,7 +275,7 @@ export default function KnowledgeBaseDetailPage({
                     <td className="px-4 py-3">
                       <Badge variant={status.variant}>
                         <span className="mr-1">{status.icon}</span>
-                        {status.label}
+                        {t(status.labelKey)}
                       </Badge>
                     </td>
                     <td className="px-4 py-3">{doc.chunkCount}</td>
@@ -287,7 +285,7 @@ export default function KnowledgeBaseDetailPage({
                           variant="ghost"
                           size="icon"
                           className="h-7 w-7"
-                          title="Re-embed"
+                          title={t("knowledgeBases.reembedTooltip")}
                           disabled={reEmbedMutation.isPending}
                           onClick={() => reEmbedMutation.mutate(doc.id)}
                         >

@@ -29,6 +29,7 @@ import {
 import { ServiceIcon, prettyAuthType } from "../_shared/service-icons";
 import { StatusBadge } from "../_shared/status-badge";
 import { CredentialsForm } from "../_shared/credentials-form";
+import { useT, type TFunction, type TranslationKey } from "@/lib/i18n";
 
 const TABS = [
   "overview",
@@ -40,11 +41,21 @@ const TABS = [
 ] as const;
 type Tab = (typeof TABS)[number];
 
+const TAB_LABEL_KEYS: Record<Tab, TranslationKey> = {
+  overview: "integrations.tabOverview",
+  security: "integrations.tabSecurity",
+  scope: "integrations.tabScope",
+  usage: "integrations.tabUsage",
+  activity: "integrations.tabActivity",
+  danger: "integrations.tabDanger",
+};
+
 export default function IntegrationDetailPage({
   params,
 }: {
   params: Promise<{ id: string }>;
 }) {
+  const t = useT();
   const { id } = use(params);
   const router = useRouter();
   const queryClient = useQueryClient();
@@ -74,7 +85,7 @@ export default function IntegrationDetailPage({
   const deleteMutation = useMutation({
     mutationFn: () => integrationsApi.remove(id),
     onSuccess: () => {
-      toast.success("Integration deleted");
+      toast.success(t("integrations.deleted"));
       router.push("/integrations");
     },
     onError: (err: unknown) => {
@@ -82,11 +93,9 @@ export default function IntegrationDetailPage({
         response?: { status?: number; data?: { code?: string } };
       };
       if (e.response?.status === 409) {
-        toast.error(
-          "Integration is still in use. See the Usage tab for details.",
-        );
+        toast.error(t("integrations.inUseError"));
       } else {
-        toast.error("Failed to delete integration");
+        toast.error(t("integrations.deleteFailed"));
       }
     },
   });
@@ -106,9 +115,9 @@ export default function IntegrationDetailPage({
           href="/integrations"
           className="inline-flex items-center gap-1 text-sm text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]"
         >
-          <ArrowLeft className="h-4 w-4" /> Back to integrations
+          <ArrowLeft className="h-4 w-4" /> {t("integrations.backToList")}
         </Link>
-        <p className="text-sm">Integration not found.</p>
+        <p className="text-sm">{t("integrations.notFound")}</p>
       </div>
     );
   }
@@ -119,7 +128,7 @@ export default function IntegrationDetailPage({
         href="/integrations"
         className="inline-flex items-center gap-1 text-sm text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]"
       >
-        <ArrowLeft className="h-4 w-4" /> Back to integrations
+        <ArrowLeft className="h-4 w-4" /> {t("integrations.backToList")}
       </Link>
 
       <header className="flex items-start gap-4 border-b border-[hsl(var(--border))] pb-6">
@@ -137,7 +146,11 @@ export default function IntegrationDetailPage({
             {integration.lastUsedAt && (
               <>
                 <span>·</span>
-                <span>Last used {formatRel(integration.lastUsedAt)}</span>
+                <span>
+                  {t("integrations.lastUsedRel", {
+                    relative: formatRel(integration.lastUsedAt, t),
+                  })}
+                </span>
               </>
             )}
           </div>
@@ -145,31 +158,32 @@ export default function IntegrationDetailPage({
       </header>
 
       <nav className="flex flex-wrap gap-1 border-b border-[hsl(var(--border))]">
-        {TABS.map((t) => (
+        {TABS.map((key) => (
           <button
-            key={t}
+            key={key}
             type="button"
-            onClick={() => setTab(t)}
+            onClick={() => setTab(key)}
             className={cn(
-              "border-b-2 px-4 py-2 text-sm font-medium capitalize transition-colors",
-              tab === t
+              "border-b-2 px-4 py-2 text-sm font-medium transition-colors",
+              tab === key
                 ? "border-[hsl(var(--primary))] text-[hsl(var(--foreground))]"
                 : "border-transparent text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]",
             )}
           >
-            {labelFor(t)}
+            {t(TAB_LABEL_KEYS[key])}
           </button>
         ))}
       </nav>
 
       {tab === "overview" && (
-        <OverviewTab integration={integration} onChanged={invalidate} />
+        <OverviewTab integration={integration} onChanged={invalidate} t={t} />
       )}
       {tab === "security" && (
         <SecurityTab
           integration={integration}
           variant={variant}
           onChanged={invalidate}
+          t={t}
         />
       )}
       {tab === "scope" && (
@@ -177,35 +191,33 @@ export default function IntegrationDetailPage({
           integration={integration}
           service={service}
           onChanged={invalidate}
+          t={t}
         />
       )}
-      {tab === "usage" && <UsageTab integrationId={id} />}
-      {tab === "activity" && <ActivityTab integrationId={id} />}
+      {tab === "usage" && <UsageTab integrationId={id} t={t} />}
+      {tab === "activity" && <ActivityTab integrationId={id} t={t} />}
       {tab === "danger" && (
         <DangerTab
           integration={integration}
           onDelete={() => deleteMutation.mutate()}
           deleting={deleteMutation.isPending}
           onScopeChanged={invalidate}
+          t={t}
         />
       )}
     </div>
   );
 }
 
-function labelFor(t: Tab): string {
-  return t === "danger" ? "Danger zone" : t;
-}
-
-function formatRel(at: string): string {
+function formatRel(at: string, t: TFunction): string {
   const diff = Date.now() - new Date(at).getTime();
   const minutes = Math.floor(diff / 60000);
-  if (minutes < 1) return "just now";
-  if (minutes < 60) return `${minutes}m ago`;
+  if (minutes < 1) return t("integrations.timeJustNow");
+  if (minutes < 60) return t("integrations.timeMinutesAgo", { minutes });
   const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `${hours}h ago`;
+  if (hours < 24) return t("integrations.timeHoursAgo", { hours });
   const days = Math.floor(hours / 24);
-  return `${days}d ago`;
+  return t("integrations.timeDaysAgo", { days });
 }
 
 // ---------------- Overview ----------------
@@ -213,9 +225,11 @@ function formatRel(at: string): string {
 function OverviewTab({
   integration,
   onChanged,
+  t,
 }: {
   integration: IntegrationDto;
   onChanged: () => void;
+  t: TFunction;
 }) {
   const [editing, setEditing] = useState(false);
   const [name, setName] = useState(integration.name);
@@ -223,28 +237,31 @@ function OverviewTab({
   const saveName = useMutation({
     mutationFn: () => integrationsApi.update(integration.id, { name }),
     onSuccess: () => {
-      toast.success("Name updated");
+      toast.success(t("integrations.nameUpdated"));
       setEditing(false);
       onChanged();
     },
-    onError: () => toast.error("Failed to update name"),
+    onError: () => toast.error(t("integrations.nameUpdateFailed")),
   });
 
   const testMutation = useMutation({
     mutationFn: () => integrationsApi.test(integration.id),
     onSuccess: (res) => {
-      if (res.success) toast.success("Connection test passed");
-      else toast.error(`Test failed: ${res.message}`);
+      if (res.success) toast.success(t("integrations.connectionPassed"));
+      else toast.error(t("integrations.connectionFailedMsg", { error: res.message ?? "" }));
     },
-    onError: () => toast.error("Test failed"),
+    onError: () => toast.error(t("integrations.testFailedToast")),
   });
 
   return (
     <div className="grid gap-4 sm:grid-cols-2">
-      <InfoRow label="Service" value={integration.serviceType} />
-      <InfoRow label="Auth type" value={prettyAuthType(integration.authType)} />
+      <InfoRow label={t("integrations.serviceLabel")} value={integration.serviceType} />
+      <InfoRow
+        label={t("integrations.authTypeLabel")}
+        value={prettyAuthType(integration.authType)}
+      />
       <div>
-        <div className="text-xs text-[hsl(var(--muted-foreground))]">Name</div>
+        <div className="text-xs text-[hsl(var(--muted-foreground))]">{t("integrations.nameLabel")}</div>
         {editing ? (
           <div className="mt-1 flex items-center gap-2">
             <Input value={name} onChange={(e) => setName(e.target.value)} />
@@ -253,7 +270,7 @@ function OverviewTab({
               onClick={() => saveName.mutate()}
               disabled={saveName.isPending}
             >
-              Save
+              {t("integrations.saveBtn")}
             </Button>
             <Button
               variant="ghost"
@@ -263,24 +280,24 @@ function OverviewTab({
                 setName(integration.name);
               }}
             >
-              Cancel
+              {t("integrations.cancelBtn")}
             </Button>
           </div>
         ) : (
           <div className="mt-1 flex items-center gap-2">
             <span className="text-sm">{integration.name}</span>
             <Button variant="ghost" size="sm" onClick={() => setEditing(true)}>
-              Edit
+              {t("integrations.editBtn")}
             </Button>
           </div>
         )}
       </div>
       <InfoRow
-        label="Created at"
+        label={t("integrations.createdAtLabel")}
         value={new Date(integration.createdAt).toLocaleString()}
       />
       <InfoRow
-        label="Last used"
+        label={t("integrations.lastUsedLabel")}
         value={
           integration.lastUsedAt
             ? new Date(integration.lastUsedAt).toLocaleString()
@@ -288,7 +305,7 @@ function OverviewTab({
         }
       />
       <InfoRow
-        label="Last rotated"
+        label={t("integrations.lastRotatedLabel")}
         value={
           integration.lastRotatedAt
             ? new Date(integration.lastRotatedAt).toLocaleString()
@@ -296,7 +313,7 @@ function OverviewTab({
         }
       />
       <InfoRow
-        label="Token expires"
+        label={t("integrations.tokenExpiresLabel")}
         value={
           integration.tokenExpiresAt
             ? new Date(integration.tokenExpiresAt).toLocaleString()
@@ -313,7 +330,7 @@ function OverviewTab({
           {testMutation.isPending ? (
             <Loader2 className="mr-2 h-4 w-4 animate-spin" />
           ) : null}
-          Test connection
+          {t("integrations.testConnectionBtn")}
         </Button>
       </div>
     </div>
@@ -335,10 +352,12 @@ function SecurityTab({
   integration,
   variant,
   onChanged,
+  t,
 }: {
   integration: IntegrationDto;
   variant: AuthVariant | undefined;
   onChanged: () => void;
+  t: TFunction;
 }) {
   const isOAuth = integration.authType === "oauth2";
 
@@ -347,13 +366,13 @@ function SecurityTab({
     onSuccess: (res) => {
       if (res.authUrl) {
         openOAuthPopup(res.authUrl);
-        toast.success("Reauthorization window opened");
+        toast.success(t("integrations.reauthorizeOpened"));
       } else {
-        toast.success("Integration reset");
+        toast.success(t("integrations.integrationReset"));
         onChanged();
       }
     },
-    onError: () => toast.error("Failed to start reauthorization"),
+    onError: () => toast.error(t("integrations.reauthorizeFailedToast")),
   });
 
   const [rotateOpen, setRotateOpen] = useState(false);
@@ -362,21 +381,21 @@ function SecurityTab({
   const rotate = useMutation({
     mutationFn: () => integrationsApi.rotate(integration.id, newCredentials),
     onSuccess: () => {
-      toast.success("Credentials rotated");
+      toast.success(t("integrations.credentialsRotated"));
       setRotateOpen(false);
       setNewCredentials({});
       onChanged();
     },
     onError: (err: unknown) => {
       const e = err as { response?: { data?: { message?: string } } };
-      toast.error(e.response?.data?.message ?? "Rotation failed");
+      toast.error(e.response?.data?.message ?? t("integrations.rotateFailedDefault"));
     },
   });
 
   return (
     <div className="space-y-6 rounded-lg border border-[hsl(var(--border))] p-6">
       <section>
-        <h3 className="text-sm font-semibold">Authentication</h3>
+        <h3 className="text-sm font-semibold">{t("integrations.authenticationSection")}</h3>
         <p className="text-xs text-[hsl(var(--muted-foreground))]">
           {prettyAuthType(integration.authType)}
         </p>
@@ -384,9 +403,9 @@ function SecurityTab({
 
       {isOAuth ? (
         <section className="space-y-2">
-          <h3 className="text-sm font-semibold">Reauthorize</h3>
+          <h3 className="text-sm font-semibold">{t("integrations.reauthorizeSection")}</h3>
           <p className="text-xs text-[hsl(var(--muted-foreground))]">
-            Open the provider in a new window to refresh tokens.
+            {t("integrations.reauthorizeHint")}
           </p>
           <Button
             variant="outline"
@@ -398,26 +417,25 @@ function SecurityTab({
             ) : (
               <RefreshCw className="mr-2 h-4 w-4" />
             )}
-            Reauthorize
+            {t("integrations.reauthorizeBtn")}
           </Button>
         </section>
       ) : (
         <section className="space-y-3">
           <div className="flex items-center justify-between">
-            <h3 className="text-sm font-semibold">Rotate credentials</h3>
+            <h3 className="text-sm font-semibold">{t("integrations.rotateSection")}</h3>
             {!rotateOpen && (
               <Button
                 variant="outline"
                 size="sm"
                 onClick={() => setRotateOpen(true)}
               >
-                Rotate
+                {t("integrations.rotateBtn")}
               </Button>
             )}
           </div>
           <p className="text-xs text-[hsl(var(--muted-foreground))]">
-            Existing values are masked. Enter new values to replace; leave
-            untouched fields blank.
+            {t("integrations.rotateHint")}
           </p>
           {rotateOpen && variant && (
             <div className="space-y-4 rounded-md border border-[hsl(var(--border))] bg-[hsl(var(--muted))]/30 p-4">
@@ -438,7 +456,7 @@ function SecurityTab({
                     setNewCredentials({});
                   }}
                 >
-                  Cancel
+                  {t("integrations.cancelBtn")}
                 </Button>
                 <Button
                   size="sm"
@@ -448,7 +466,7 @@ function SecurityTab({
                   {rotate.isPending ? (
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                   ) : null}
-                  Save
+                  {t("integrations.saveBtn")}
                 </Button>
               </div>
             </div>
@@ -458,12 +476,12 @@ function SecurityTab({
 
       <section>
         <div className="text-xs text-[hsl(var(--muted-foreground))]">
-          Last rotated
+          {t("integrations.lastRotatedLabel")}
         </div>
         <div className="mt-1 text-sm">
           {integration.lastRotatedAt
             ? new Date(integration.lastRotatedAt).toLocaleString()
-            : "Never"}
+            : t("integrations.never")}
         </div>
       </section>
     </div>
@@ -494,10 +512,12 @@ function ScopeTab({
   integration,
   service,
   onChanged,
+  t,
 }: {
   integration: IntegrationDto;
   service: ServiceDefinition | undefined;
   onChanged: () => void;
+  t: TFunction;
 }) {
   const currentScopes = Array.isArray(integration.credentials.scopes)
     ? (integration.credentials.scopes as string[])
@@ -517,17 +537,17 @@ function ScopeTab({
     onSuccess: (res) => {
       if (res.authUrl) {
         openOAuthPopup(res.authUrl);
-        toast.success("Scope request window opened");
+        toast.success(t("integrations.scopeRequestOpened"));
       }
       onChanged();
     },
-    onError: () => toast.error("Failed to request scopes"),
+    onError: () => toast.error(t("integrations.requestScopesFailed")),
   });
 
   if (integration.authType !== "oauth2") {
     return (
       <div className="rounded-lg border border-[hsl(var(--border))] p-6 text-sm text-[hsl(var(--muted-foreground))]">
-        Scope management is only available for OAuth integrations.
+        {t("integrations.scopeOnlyOauth")}
       </div>
     );
   }
@@ -541,11 +561,11 @@ function ScopeTab({
   return (
     <div className="space-y-6 rounded-lg border border-[hsl(var(--border))] p-6">
       <section>
-        <h3 className="text-sm font-semibold">Current scopes</h3>
+        <h3 className="text-sm font-semibold">{t("integrations.currentScopes")}</h3>
         <ul className="mt-2 flex flex-wrap gap-2">
           {currentScopes.length === 0 && (
             <li className="text-xs text-[hsl(var(--muted-foreground))]">
-              No scopes recorded.
+              {t("integrations.noScopes")}
             </li>
           )}
           {currentScopes.map((s) => (
@@ -562,7 +582,7 @@ function ScopeTab({
       {missingScopes.length > 0 && (
         <section className="rounded-md border border-red-300 bg-red-50 p-3 text-sm dark:border-red-900 dark:bg-red-950">
           <div className="font-medium text-red-700 dark:text-red-300">
-            Missing scopes detected
+            {t("integrations.missingScopesDetected")}
           </div>
           <ul className="mt-1 flex flex-wrap gap-2">
             {missingScopes.map((s) => (
@@ -578,10 +598,9 @@ function ScopeTab({
       )}
 
       <section className="space-y-2">
-        <h3 className="text-sm font-semibold">Request additional scopes</h3>
+        <h3 className="text-sm font-semibold">{t("integrations.requestScopesTitle")}</h3>
         <p className="text-xs text-[hsl(var(--muted-foreground))]">
-          Selecting scopes already granted has no effect. Triggers a new OAuth
-          flow.
+          {t("integrations.requestScopesHint")}
         </p>
         <div className="space-y-2 rounded-md border border-[hsl(var(--border))] p-3">
           {allOptions.map((s) => (
@@ -601,7 +620,7 @@ function ScopeTab({
                   {s.label}
                   {currentScopes.includes(s.value) && (
                     <span className="ml-2 text-xs text-[hsl(var(--muted-foreground))]">
-                      (already granted)
+                      {t("integrations.alreadyGranted")}
                     </span>
                   )}
                 </div>
@@ -620,7 +639,7 @@ function ScopeTab({
             {requestMutation.isPending ? (
               <Loader2 className="mr-2 h-4 w-4 animate-spin" />
             ) : null}
-            Request scopes
+            {t("integrations.requestScopesBtn")}
           </Button>
         </div>
       </section>
@@ -630,7 +649,7 @@ function ScopeTab({
 
 // ---------------- Usage ----------------
 
-function UsageTab({ integrationId }: { integrationId: string }) {
+function UsageTab({ integrationId, t }: { integrationId: string; t: TFunction }) {
   const { data: usages = [], isLoading } = useQuery({
     queryKey: ["integrations", integrationId, "usages"],
     queryFn: () => integrationsApi.usages(integrationId),
@@ -647,7 +666,7 @@ function UsageTab({ integrationId }: { integrationId: string }) {
   if (usages.length === 0) {
     return (
       <div className="rounded-lg border border-[hsl(var(--border))] p-6 text-sm text-[hsl(var(--muted-foreground))]">
-        No workflow nodes currently use this integration.
+        {t("integrations.usageEmpty")}
       </div>
     );
   }
@@ -657,8 +676,10 @@ function UsageTab({ integrationId }: { integrationId: string }) {
   return (
     <div className="space-y-4">
       <p className="text-sm text-[hsl(var(--muted-foreground))]">
-        Used by {totalNodes} node{totalNodes === 1 ? "" : "s"} across{" "}
-        {usages.length} workflow{usages.length === 1 ? "" : "s"}.
+        {t("integrations.usageSummary", {
+          nodes: totalNodes,
+          workflows: usages.length,
+        })}
       </p>
       <div className="divide-y rounded-lg border border-[hsl(var(--border))]">
         {usages.map((w: UsageWorkflow) => (
@@ -678,7 +699,7 @@ function UsageTab({ integrationId }: { integrationId: string }) {
                     : "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300",
                 )}
               >
-                {w.isActive ? "Active" : "Inactive"}
+                {w.isActive ? t("common.active") : t("common.inactive")}
               </span>
             </div>
             <ul className="mt-2 space-y-1 text-sm">
@@ -701,7 +722,7 @@ function UsageTab({ integrationId }: { integrationId: string }) {
 
 // ---------------- Activity ----------------
 
-function ActivityTab({ integrationId }: { integrationId: string }) {
+function ActivityTab({ integrationId, t }: { integrationId: string; t: TFunction }) {
   const { data, isLoading } = useQuery({
     queryKey: ["integrations", integrationId, "activity"],
     queryFn: () =>
@@ -719,7 +740,7 @@ function ActivityTab({ integrationId }: { integrationId: string }) {
   if (!data || data.items.length === 0) {
     return (
       <div className="rounded-lg border border-[hsl(var(--border))] p-6 text-sm text-[hsl(var(--muted-foreground))]">
-        No calls recorded in the last 7 days.
+        {t("integrations.activityEmpty")}
       </div>
     );
   }
@@ -729,18 +750,16 @@ function ActivityTab({ integrationId }: { integrationId: string }) {
   return (
     <div className="space-y-4">
       <div className="rounded-lg border border-[hsl(var(--border))] p-4 text-sm">
-        Last 7 days:{" "}
-        <strong>{data.summary.totalCalls}</strong> calls ·{" "}
-        <strong>{rate}%</strong> success
+        {t("integrations.activitySummary", { total: data.summary.totalCalls, rate })}
       </div>
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead className="text-left text-xs uppercase tracking-wide text-[hsl(var(--muted-foreground))]">
             <tr>
-              <th className="px-2 py-2">When</th>
-              <th className="px-2 py-2">Status</th>
-              <th className="px-2 py-2">Duration</th>
-              <th className="px-2 py-2">Error</th>
+              <th className="px-2 py-2">{t("integrations.activityWhen")}</th>
+              <th className="px-2 py-2">{t("integrations.activityStatus")}</th>
+              <th className="px-2 py-2">{t("integrations.activityDuration")}</th>
+              <th className="px-2 py-2">{t("integrations.activityError")}</th>
             </tr>
           </thead>
           <tbody className="divide-y">
@@ -786,11 +805,13 @@ function DangerTab({
   onDelete,
   deleting,
   onScopeChanged,
+  t,
 }: {
   integration: IntegrationDto;
   onDelete: () => void;
   deleting: boolean;
   onScopeChanged: () => void;
+  t: TFunction;
 }) {
   const [confirming, setConfirming] = useState(false);
   const [nextScope, setNextScope] = useState<IntegrationScope>(integration.scope);
@@ -798,22 +819,21 @@ function DangerTab({
   const scopeMutation = useMutation({
     mutationFn: () => integrationsApi.updateScope(integration.id, nextScope),
     onSuccess: () => {
-      toast.success("Scope updated");
+      toast.success(t("integrations.scopeUpdated"));
       onScopeChanged();
     },
     onError: (err: unknown) => {
       const e = err as { response?: { data?: { message?: string } } };
-      toast.error(e.response?.data?.message ?? "Failed to update scope");
+      toast.error(e.response?.data?.message ?? t("integrations.scopeUpdateFailedDefault"));
     },
   });
 
   return (
     <div className="space-y-6">
       <section className="rounded-lg border border-[hsl(var(--border))] p-6">
-        <h3 className="text-sm font-semibold">Change scope</h3>
+        <h3 className="text-sm font-semibold">{t("integrations.scopeChangeTitle")}</h3>
         <p className="mb-3 text-xs text-[hsl(var(--muted-foreground))]">
-          Moving between Personal and Organization shares or un-shares the
-          underlying credentials. Admin only.
+          {t("integrations.scopeChangeHint")}
         </p>
         <div className="flex items-center gap-2">
           <select
@@ -821,18 +841,14 @@ function DangerTab({
             onChange={(e) => setNextScope(e.target.value as IntegrationScope)}
             className="flex h-10 rounded-md border border-[hsl(var(--input))] bg-transparent px-3 py-2 text-sm"
           >
-            <option value="personal">Personal</option>
-            <option value="organization">Organization</option>
+            <option value="personal">{t("integrations.scopePersonal")}</option>
+            <option value="organization">{t("integrations.scopeOrganization")}</option>
           </select>
           <Button
             variant="outline"
             onClick={() => {
               if (nextScope !== integration.scope) {
-                if (
-                  window.confirm(
-                    "Existing credentials will be shared with all workspace members. Continue?",
-                  )
-                ) {
+                if (window.confirm(t("integrations.scopeChangeConfirm"))) {
                   scopeMutation.mutate();
                 }
               }
@@ -844,17 +860,17 @@ function DangerTab({
             {scopeMutation.isPending ? (
               <Loader2 className="mr-2 h-4 w-4 animate-spin" />
             ) : null}
-            Apply
+            {t("integrations.scopeApply")}
           </Button>
         </div>
       </section>
 
       <section className="rounded-lg border border-red-300 p-6 dark:border-red-900">
         <h3 className="text-sm font-semibold text-red-700 dark:text-red-300">
-          Delete integration
+          {t("integrations.dangerDeleteTitle")}
         </h3>
         <p className="mb-3 text-xs text-[hsl(var(--muted-foreground))]">
-          Deletion is blocked if any workflow node references this integration.
+          {t("integrations.dangerDeleteHint")}
         </p>
         {!confirming ? (
           <Button
@@ -863,7 +879,7 @@ function DangerTab({
             onClick={() => setConfirming(true)}
           >
             <Trash2 className="mr-2 h-4 w-4" />
-            Delete integration
+            {t("integrations.dangerDeleteBtn")}
           </Button>
         ) : (
           <div className="flex items-center gap-2">
@@ -875,10 +891,10 @@ function DangerTab({
               {deleting ? (
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
               ) : null}
-              Confirm delete
+              {t("integrations.confirmDeleteBtn")}
             </Button>
             <Button variant="ghost" onClick={() => setConfirming(false)}>
-              Cancel
+              {t("integrations.cancelBtn")}
             </Button>
           </div>
         )}

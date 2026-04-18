@@ -1,12 +1,14 @@
 import { SelectField, NumberField, CheckboxField, KeyValueEditor } from "./shared";
 import { ExpressionInput } from "@/components/editor/expression";
 import { IntegrationSelector } from "./integration-selector";
+import { useT } from "@/lib/i18n";
 
 type Config = Record<string, unknown>;
 type OnChange = (config: Config) => void;
 
 // ===== HTTP Request =====
 export function HttpRequestConfig({ config, onChange }: { config: Config; onChange: OnChange }) {
+  const t = useT();
   const headers = (config.headers as Array<{ key: string; value: string }>) ?? [];
   const queryParams = (config.queryParams as Array<{ key: string; value: string }>) ?? [];
   const authentication = (config.authentication as string) ?? "none";
@@ -14,7 +16,7 @@ export function HttpRequestConfig({ config, onChange }: { config: Config; onChan
   return (
     <div className="flex flex-col gap-3">
       <SelectField
-        label="Method"
+        label={t("nodeConfigs.integration.method")}
         value={(config.method as string) ?? "GET"}
         onChange={(v) => onChange({ ...config, method: v })}
         options={[
@@ -28,14 +30,14 @@ export function HttpRequestConfig({ config, onChange }: { config: Config; onChan
         ]}
       />
       <ExpressionInput
-        label="URL"
+        label={t("nodeConfigs.integration.url")}
         value={(config.url as string) ?? ""}
         onChange={(v) => onChange({ ...config, url: v })}
-        placeholder="https://api.example.com/endpoint"
-        hint="Supports expressions: {{ $input.url }}"
+        placeholder={t("nodeConfigs.integration.urlPlaceholder")}
+        hint={t("nodeConfigs.integration.urlHint")}
       />
       <SelectField
-        label="Authentication"
+        label={t("nodeConfigs.integration.authentication")}
         value={authentication}
         onChange={(v) =>
           onChange({
@@ -45,75 +47,75 @@ export function HttpRequestConfig({ config, onChange }: { config: Config; onChan
           })
         }
         options={[
-          { value: "none", label: "None" },
-          { value: "integration", label: "Integration" },
-          { value: "custom", label: "Custom" },
+          { value: "none", label: t("nodeConfigs.integration.authNone") },
+          { value: "integration", label: t("nodeConfigs.integration.authIntegration") },
+          { value: "custom", label: t("nodeConfigs.integration.authCustom") },
         ]}
       />
       {authentication === "integration" && (
         <IntegrationSelector
-          label="Integration"
+          label={t("nodeConfigs.integration.integrationLabel")}
           value={(config.integrationId as string) ?? ""}
           onChange={(v) => onChange({ ...config, integrationId: v })}
           serviceTypes={["http"]}
-          serviceDisplayName="HTTP"
+          serviceDisplayName={t("nodeConfigs.integration.httpLabel")}
         />
       )}
       <KeyValueEditor
-        label="Headers"
+        label={t("nodeConfigs.integration.headers")}
         items={headers}
         onChange={(items) => onChange({ ...config, headers: items })}
-        keyPlaceholder="Header name"
-        valuePlaceholder="Header value"
+        keyPlaceholder={t("nodeConfigs.integration.headerName")}
+        valuePlaceholder={t("nodeConfigs.integration.headerValue")}
         expressionValues
       />
       <KeyValueEditor
-        label="Query Parameters"
+        label={t("nodeConfigs.integration.queryParams")}
         items={queryParams}
         onChange={(items) => onChange({ ...config, queryParams: items })}
-        keyPlaceholder="Param name"
-        valuePlaceholder="Param value"
+        keyPlaceholder={t("nodeConfigs.integration.paramName")}
+        valuePlaceholder={t("nodeConfigs.integration.paramValue")}
         expressionValues
       />
       <SelectField
-        label="Body Type"
+        label={t("nodeConfigs.integration.bodyType")}
         value={(config.bodyType as string) ?? "json"}
         onChange={(v) => onChange({ ...config, bodyType: v })}
         options={[
-          { value: "json", label: "JSON" },
-          { value: "form-data", label: "Form Data" },
-          { value: "x-www-form-urlencoded", label: "URL Encoded" },
-          { value: "raw", label: "Raw" },
+          { value: "json", label: t("nodeConfigs.integration.bodyJson") },
+          { value: "form-data", label: t("nodeConfigs.integration.bodyFormData") },
+          { value: "x-www-form-urlencoded", label: t("nodeConfigs.integration.bodyUrlEncoded") },
+          { value: "raw", label: t("nodeConfigs.integration.bodyRaw") },
         ]}
       />
       <ExpressionInput
-        label="Body"
+        label={t("nodeConfigs.integration.body")}
         value={(config.body as string) ?? ""}
         onChange={(v) => onChange({ ...config, body: v })}
-        placeholder='{"key": "value"}'
+        placeholder={t("nodeConfigs.integration.bodyPlaceholder")}
         mono
         multiline
         rows={5}
       />
       <SelectField
-        label="Response Type"
+        label={t("nodeConfigs.integration.responseType")}
         value={(config.responseType as string) ?? "json"}
         onChange={(v) => onChange({ ...config, responseType: v })}
         options={[
-          { value: "json", label: "JSON" },
-          { value: "text", label: "Text" },
-          { value: "binary", label: "Binary" },
+          { value: "json", label: t("nodeConfigs.integration.respJson") },
+          { value: "text", label: t("nodeConfigs.integration.respText") },
+          { value: "binary", label: t("nodeConfigs.integration.respBinary") },
         ]}
       />
       <NumberField
-        label="Timeout (ms)"
+        label={t("nodeConfigs.integration.timeoutMs")}
         value={(config.timeout as number) ?? 30000}
         onChange={(v) => onChange({ ...config, timeout: v })}
         min={1000}
         max={300000}
       />
       <CheckboxField
-        label="Follow Redirects"
+        label={t("nodeConfigs.integration.followRedirects")}
         checked={(config.followRedirects as boolean) ?? true}
         onChange={(v) => onChange({ ...config, followRedirects: v })}
       />
@@ -123,46 +125,47 @@ export function HttpRequestConfig({ config, onChange }: { config: Config; onChan
 
 // ===== Database Query =====
 export function DatabaseQueryConfig({ config, onChange }: { config: Config; onChange: OnChange }) {
+  const t = useT();
   return (
     <div className="flex flex-col gap-3">
       <IntegrationSelector
-        label="Integration"
+        label={t("nodeConfigs.integration.integrationLabel")}
         value={(config.integrationId as string) ?? ""}
         onChange={(v) => onChange({ ...config, integrationId: v })}
         serviceTypes={["database"]}
         serviceDisplayName="Database"
       />
       <SelectField
-        label="Query Type"
+        label={t("nodeConfigs.integration.queryType")}
         value={(config.queryType as string) ?? "select"}
         onChange={(v) => onChange({ ...config, queryType: v })}
         options={[
-          { value: "select", label: "SELECT" },
-          { value: "insert", label: "INSERT" },
-          { value: "update", label: "UPDATE" },
-          { value: "delete", label: "DELETE" },
-          { value: "raw", label: "Raw SQL" },
+          { value: "select", label: t("nodeConfigs.integration.qtSelect") },
+          { value: "insert", label: t("nodeConfigs.integration.qtInsert") },
+          { value: "update", label: t("nodeConfigs.integration.qtUpdate") },
+          { value: "delete", label: t("nodeConfigs.integration.qtDelete") },
+          { value: "raw", label: t("nodeConfigs.integration.qtRaw") },
         ]}
       />
       <ExpressionInput
-        label="Query"
+        label={t("nodeConfigs.integration.query")}
         value={(config.query as string) ?? ""}
         onChange={(v) => onChange({ ...config, query: v })}
-        placeholder="SELECT * FROM users WHERE id = $1"
+        placeholder={t("nodeConfigs.integration.queryPlaceholder")}
         mono
         multiline
         rows={5}
-        hint="Use $1, $2, ... for parameters"
+        hint={t("nodeConfigs.integration.queryHint")}
       />
       <ExpressionInput
-        label="Parameters"
+        label={t("nodeConfigs.integration.parameters")}
         value={(config.parameters as string) ?? ""}
         onChange={(v) => onChange({ ...config, parameters: v })}
-        placeholder='["value1", "value2"]'
+        placeholder={t("nodeConfigs.integration.parametersPlaceholder")}
         mono
         multiline
         rows={2}
-        hint="JSON array of parameter values"
+        hint={t("nodeConfigs.integration.parametersHint")}
       />
     </div>
   );
@@ -170,49 +173,50 @@ export function DatabaseQueryConfig({ config, onChange }: { config: Config; onCh
 
 // ===== Send Email =====
 export function SendEmailConfig({ config, onChange }: { config: Config; onChange: OnChange }) {
+  const t = useT();
   return (
     <div className="flex flex-col gap-3">
       <IntegrationSelector
-        label="Integration"
+        label={t("nodeConfigs.integration.integrationLabel")}
         value={(config.integrationId as string) ?? ""}
         onChange={(v) => onChange({ ...config, integrationId: v })}
         serviceTypes={["email"]}
         serviceDisplayName="Email"
       />
       <ExpressionInput
-        label="To"
+        label={t("nodeConfigs.integration.to")}
         value={(config.to as string) ?? ""}
         onChange={(v) => onChange({ ...config, to: v })}
-        placeholder="recipient@example.com, other@example.com"
-        hint="Comma-separated addresses, or an expression that resolves to a string or array"
+        placeholder={t("nodeConfigs.integration.toPlaceholder")}
+        hint={t("nodeConfigs.integration.toHint")}
       />
       <ExpressionInput
-        label="CC"
+        label={t("nodeConfigs.integration.cc")}
         value={(config.cc as string) ?? ""}
         onChange={(v) => onChange({ ...config, cc: v })}
-        placeholder="cc@example.com"
-        hint="Optional. Same format as To."
+        placeholder={t("nodeConfigs.integration.ccPlaceholder")}
+        hint={t("nodeConfigs.integration.ccHint")}
       />
       <ExpressionInput
-        label="Subject"
+        label={t("nodeConfigs.integration.subject")}
         value={(config.subject as string) ?? ""}
         onChange={(v) => onChange({ ...config, subject: v })}
-        placeholder="Email subject"
+        placeholder={t("nodeConfigs.integration.subjectPlaceholder")}
       />
       <SelectField
-        label="Body Type"
+        label={t("nodeConfigs.integration.bodyType")}
         value={(config.bodyType as string) ?? "html"}
         onChange={(v) => onChange({ ...config, bodyType: v })}
         options={[
-          { value: "html", label: "HTML" },
-          { value: "text", label: "Plain Text" },
+          { value: "html", label: t("nodeConfigs.integration.bodyHtml") },
+          { value: "text", label: t("nodeConfigs.integration.bodyPlain") },
         ]}
       />
       <ExpressionInput multiline
-        label="Body"
+        label={t("nodeConfigs.integration.body")}
         value={(config.body as string) ?? ""}
         onChange={(v) => onChange({ ...config, body: v })}
-        placeholder="Email content..."
+        placeholder={t("nodeConfigs.integration.emailContentPlaceholder")}
         rows={6}
       />
     </div>

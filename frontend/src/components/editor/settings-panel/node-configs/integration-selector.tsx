@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import { integrationsApi, type IntegrationDto } from "@/lib/api/integrations";
+import { useT, type TFunction } from "@/lib/i18n";
 
 interface IntegrationSelectorProps {
   value: string;
@@ -16,9 +17,10 @@ export function IntegrationSelector({
   value,
   onChange,
   serviceTypes,
-  label = "Integration",
+  label,
   serviceDisplayName,
 }: IntegrationSelectorProps) {
+  const t = useT();
   const { data, isLoading } = useQuery({
     queryKey: ["integrations", "list", { serviceTypes }],
     queryFn: () =>
@@ -27,8 +29,6 @@ export function IntegrationSelector({
   });
 
   const integrations: IntegrationDto[] = data?.data ?? [];
-  // Only flag "missing" once the list has actually loaded — otherwise the
-  // option flashes during initial fetch whenever a saved value is present.
   const hasSavedButMissing =
     !isLoading &&
     value !== "" &&
@@ -42,7 +42,7 @@ export function IntegrationSelector({
   return (
     <div className="flex flex-col gap-1">
       <label className="text-[11px] font-medium text-[hsl(var(--muted-foreground))]">
-        {label}
+        {label ?? t("nodeConfigs.integrationSelector.label")}
       </label>
       <select
         className="h-8 w-full rounded-md border border-[hsl(var(--input))] bg-transparent px-2 text-xs focus:outline-none focus:ring-1 focus:ring-[hsl(var(--ring))] disabled:opacity-60"
@@ -51,15 +51,19 @@ export function IntegrationSelector({
         disabled={isLoading || empty}
       >
         <option value="">
-          {isLoading ? "Loading…" : "Select integration"}
+          {isLoading
+            ? t("nodeConfigs.integrationSelector.loading")
+            : t("nodeConfigs.integrationSelector.select")}
         </option>
         {integrations.map((i) => (
           <option key={i.id} value={i.id}>
-            {optionLabel(i)}
+            {optionLabel(i, t)}
           </option>
         ))}
         {hasSavedButMissing && (
-          <option value={value}>{`${value.slice(0, 8)}… (missing)`}</option>
+          <option value={value}>
+            {`${value.slice(0, 8)}${t("nodeConfigs.integrationSelector.missingSuffix")}`}
+          </option>
         )}
       </select>
       {empty && (
@@ -67,17 +71,17 @@ export function IntegrationSelector({
           href={createHref}
           className="mt-1 text-[11px] font-medium text-[hsl(var(--primary))] hover:underline"
         >
-          + Create {displayName} integration
+          {t("nodeConfigs.integrationSelector.createNew", { name: displayName })}
         </Link>
       )}
     </div>
   );
 }
 
-function optionLabel(i: IntegrationDto): string {
+function optionLabel(i: IntegrationDto, t: TFunction): string {
   const base = `${i.name} (${i.authType})`;
   if (i.status === "expired" || i.status === "error") {
-    return `${base} — needs attention`;
+    return `${base} — ${t("nodeConfigs.integrationSelector.needsAttention")}`;
   }
   return base;
 }

@@ -8,6 +8,8 @@ import { workflowsApi } from "@/lib/api/workflows";
 import type { Node, Edge } from "@xyflow/react";
 import { getNodeDefinition, loadNodeDefinitions } from "@/lib/node-definitions";
 import { dropStaleEdges, enrichEdgesWithPortData } from "@/lib/utils/edge-utils";
+import { translate } from "@/lib/i18n/core";
+import { useLocaleStore } from "@/lib/stores/locale-store";
 
 interface EditorLoaderProps {
   workflowId: string;
@@ -22,6 +24,7 @@ export function WorkflowEditorLoader({ workflowId }: EditorLoaderProps) {
     let cancelled = false;
 
     async function load() {
+      const currentLocale = useLocaleStore.getState().locale;
       try {
         const [wfRes, nodesRes, edgesRes] = await Promise.all([
           workflowsApi.get(workflowId),
@@ -69,7 +72,7 @@ export function WorkflowEditorLoader({ workflowId }: EditorLoaderProps) {
         const { edges: liveEdges, dropped } = dropStaleEdges(rawFlowEdges, flowNodes);
         if (dropped.length > 0) {
           toast.warning(
-            `${dropped.length}개의 엣지가 현재 노드 설정과 맞지 않아 제거되었습니다. 저장 시 워크플로우에 반영됩니다.`,
+            translate(currentLocale, "editor.autoCleanedEdgesFull", { count: dropped.length }),
           );
         }
         const flowEdges: Edge[] = enrichEdgesWithPortData(liveEdges, flowNodes);
@@ -78,13 +81,13 @@ export function WorkflowEditorLoader({ workflowId }: EditorLoaderProps) {
 
         setWorkflow(
           workflowId,
-          (wf.name as string) || "Untitled",
+          (wf.name as string) || translate(currentLocale, "editor.untitled"),
           flowNodes,
           flowEdges,
         );
       } catch (err) {
         if (cancelled) return;
-        setError(err instanceof Error ? err.message : "Failed to load workflow");
+        setError(err instanceof Error ? err.message : translate(currentLocale, "editor.loadFailed"));
       } finally {
         if (!cancelled) setLoading(false);
       }

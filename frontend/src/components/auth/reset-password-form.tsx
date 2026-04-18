@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useForm } from "react-hook-form";
@@ -19,23 +19,12 @@ import {
   CardDescription,
   CardContent,
 } from "@/components/ui/card";
+import { useT, useLocale, type TFunction } from "@/lib/i18n";
 
-const resetPasswordSchema = z
-  .object({
-    password: z
-      .string()
-      .min(1, "Password is required")
-      .min(8, "Password must be at least 8 characters"),
-    confirmPassword: z.string().min(1, "Please confirm your password"),
-  })
-  .refine((data) => data.password === data.confirmPassword, {
-    message: "Passwords do not match",
-    path: ["confirmPassword"],
-  });
-
-type ResetPasswordFormValues = z.infer<typeof resetPasswordSchema>;
-
-function getPasswordStrength(password: string): { score: number; label: string; color: string } {
+function getPasswordStrength(
+  password: string,
+  t: TFunction,
+): { score: number; label: string; color: string } {
   let score = 0;
   if (password.length >= 8) score++;
   if (/[a-z]/.test(password)) score++;
@@ -43,21 +32,42 @@ function getPasswordStrength(password: string): { score: number; label: string; 
   if (/[0-9]/.test(password)) score++;
   if (/[^a-zA-Z0-9]/.test(password)) score++;
 
-  if (score <= 1) return { score, label: "Weak", color: "bg-red-500" };
-  if (score <= 2) return { score, label: "Fair", color: "bg-orange-500" };
-  if (score <= 3) return { score, label: "Good", color: "bg-yellow-500" };
-  if (score <= 4) return { score, label: "Strong", color: "bg-green-400" };
-  return { score, label: "Very Strong", color: "bg-green-600" };
+  if (score <= 1) return { score, label: t("auth.register.strengthWeak"), color: "bg-red-500" };
+  if (score <= 2) return { score, label: t("auth.register.strengthFair"), color: "bg-orange-500" };
+  if (score <= 3) return { score, label: t("auth.register.strengthGood"), color: "bg-yellow-500" };
+  if (score <= 4) return { score, label: t("auth.register.strengthStrong"), color: "bg-green-400" };
+  return { score, label: t("auth.register.strengthVeryStrong"), color: "bg-green-600" };
 }
 
 interface ResetPasswordFormProps {
   token: string;
 }
 
-export function ResetPasswordForm({ token }: ResetPasswordFormProps) {
+function ResetPasswordFormInner({ token }: ResetPasswordFormProps) {
+  const t = useT();
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
+
+  // defined inside component so validation messages pick up the current locale via t()
+  const resetPasswordSchema = useMemo(
+    () =>
+      z
+        .object({
+          password: z
+            .string()
+            .min(1, t("auth.validation.passwordRequired"))
+            .min(8, t("auth.validation.passwordTooShort")),
+          confirmPassword: z.string().min(1, t("auth.resetPassword.confirmRequired")),
+        })
+        .refine((data) => data.password === data.confirmPassword, {
+          message: t("auth.resetPassword.mismatch"),
+          path: ["confirmPassword"],
+        }),
+    [t],
+  );
+
+  type ResetPasswordFormValues = z.infer<typeof resetPasswordSchema>;
 
   const {
     register,
@@ -73,11 +83,11 @@ export function ResetPasswordForm({ token }: ResetPasswordFormProps) {
   });
 
   const password = watch("password");
-  const strength = getPasswordStrength(password);
+  const strength = getPasswordStrength(password, t);
 
   async function onSubmit(data: ResetPasswordFormValues) {
     if (!token) {
-      toast.error("Invalid reset link. Please request a new one.");
+      toast.error(t("auth.resetPassword.invalidTokenShort"));
       return;
     }
 
@@ -85,12 +95,12 @@ export function ResetPasswordForm({ token }: ResetPasswordFormProps) {
     try {
       await authApi.resetPassword(token, data.password);
       setIsSuccess(true);
-      toast.success("Password reset successfully!");
+      toast.success(t("auth.resetPassword.passwordChanged"));
       setTimeout(() => router.push("/login"), 3000);
     } catch (err) {
       const error = err as AxiosError<{ message?: string }>;
       const message =
-        error.response?.data?.message ?? "Failed to reset password. Please try again.";
+        error.response?.data?.message ?? t("auth.resetPassword.genericFailed");
       toast.error(message);
     } finally {
       setIsLoading(false);
@@ -101,14 +111,14 @@ export function ResetPasswordForm({ token }: ResetPasswordFormProps) {
     return (
       <Card>
         <CardHeader className="text-center">
-          <CardTitle>Password Reset</CardTitle>
+          <CardTitle>{t("auth.resetPassword.successTitle")}</CardTitle>
           <CardDescription>
-            Your password has been reset successfully. Redirecting to sign in...
+            {t("auth.resetPassword.successDescription")}
           </CardDescription>
         </CardHeader>
         <CardContent>
           <Button asChild className="w-full">
-            <Link href="/login">Go to Sign In</Link>
+            <Link href="/login">{t("auth.resetPassword.goToLogin")}</Link>
           </Button>
         </CardContent>
       </Card>
@@ -119,14 +129,14 @@ export function ResetPasswordForm({ token }: ResetPasswordFormProps) {
     return (
       <Card>
         <CardHeader className="text-center">
-          <CardTitle>Invalid Link</CardTitle>
+          <CardTitle>{t("auth.resetPassword.invalidTitle")}</CardTitle>
           <CardDescription>
-            This password reset link is invalid or has expired.
+            {t("auth.resetPassword.invalidDescription")}
           </CardDescription>
         </CardHeader>
         <CardContent>
           <Button asChild className="w-full">
-            <Link href="/forgot-password">Request New Link</Link>
+            <Link href="/forgot-password">{t("auth.resetPassword.requestNewLink")}</Link>
           </Button>
         </CardContent>
       </Card>
@@ -136,17 +146,17 @@ export function ResetPasswordForm({ token }: ResetPasswordFormProps) {
   return (
     <Card>
       <CardHeader className="text-center">
-        <CardTitle>Reset Password</CardTitle>
-        <CardDescription>Enter your new password below.</CardDescription>
+        <CardTitle>{t("auth.resetPassword.title")}</CardTitle>
+        <CardDescription>{t("auth.resetPassword.subtitle")}</CardDescription>
       </CardHeader>
       <CardContent>
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="password">New Password</Label>
+            <Label htmlFor="password">{t("auth.resetPassword.newPassword")}</Label>
             <Input
               id="password"
               type="password"
-              placeholder="Enter new password"
+              placeholder={t("auth.resetPassword.newPasswordPlaceholder")}
               autoComplete="new-password"
               {...register("password")}
             />
@@ -171,11 +181,11 @@ export function ResetPasswordForm({ token }: ResetPasswordFormProps) {
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="confirmPassword">Confirm Password</Label>
+            <Label htmlFor="confirmPassword">{t("auth.resetPassword.confirmPassword")}</Label>
             <Input
               id="confirmPassword"
               type="password"
-              placeholder="Confirm new password"
+              placeholder={t("auth.resetPassword.confirmPasswordPlaceholder")}
               autoComplete="new-password"
               {...register("confirmPassword")}
             />
@@ -187,16 +197,21 @@ export function ResetPasswordForm({ token }: ResetPasswordFormProps) {
           </div>
 
           <Button type="submit" className="w-full" disabled={isLoading}>
-            {isLoading ? "Resetting..." : "Reset Password"}
+            {isLoading ? t("auth.resetPassword.submitting") : t("auth.resetPassword.submit")}
           </Button>
         </form>
 
         <p className="mt-6 text-center text-sm text-[hsl(var(--muted-foreground))]">
           <Link href="/login" className="text-[hsl(var(--primary))] hover:underline">
-            Back to Sign In
+            {t("auth.forgotPassword.backToLogin")}
           </Link>
         </p>
       </CardContent>
     </Card>
   );
+}
+
+export function ResetPasswordForm(props: ResetPasswordFormProps) {
+  const locale = useLocale();
+  return <ResetPasswordFormInner key={locale} {...props} />;
 }

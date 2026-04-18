@@ -4,6 +4,7 @@ import { SelectField } from "../shared";
 import { ExpressionInput } from "@/components/editor/expression";
 import { Button } from "@/components/ui/button";
 import { Plus, X, GripVertical } from "lucide-react";
+import { useT } from "@/lib/i18n";
 
 export interface ButtonDef {
   id: string;
@@ -23,6 +24,7 @@ export function ButtonListEditor({
   onChange: (buttons: ButtonDef[]) => void;
   maxButtons?: number;
 }) {
+  const t = useT();
   const addButton = () => {
     if (buttons.length >= maxButtons) return;
     onChange([
@@ -66,14 +68,14 @@ export function ButtonListEditor({
               <button
                 type="button"
                 className="cursor-grab text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]"
-                title="Move up"
+                title={t("nodeConfigs.buttonList.moveUp")}
                 onClick={() => moveButton(i, i - 1)}
                 disabled={i === 0}
               >
                 <GripVertical size={10} />
               </button>
               <span className="text-[10px] text-[hsl(var(--muted-foreground))]">
-                Button {i + 1}
+                {t("nodeConfigs.buttonList.buttonLabel", { index: i + 1 })}
               </span>
             </div>
             <div className="flex gap-0.5">
@@ -83,7 +85,7 @@ export function ButtonListEditor({
                   size="icon"
                   className="h-5 w-5 text-[10px]"
                   onClick={() => moveButton(i, i - 1)}
-                  title="Move up"
+                  title={t("nodeConfigs.buttonList.moveUp")}
                 >
                   ↑
                 </Button>
@@ -94,7 +96,7 @@ export function ButtonListEditor({
                   size="icon"
                   className="h-5 w-5 text-[10px]"
                   onClick={() => moveButton(i, i + 1)}
-                  title="Move down"
+                  title={t("nodeConfigs.buttonList.moveDown")}
                 >
                   ↓
                 </Button>
@@ -110,37 +112,37 @@ export function ButtonListEditor({
             </div>
           </div>
           <ExpressionInput
-            label="Label"
+            label={t("nodeConfigs.buttonList.labelField")}
             value={btn.label}
             onChange={(v) => updateButton(i, "label", v)}
-            placeholder="Button label"
+            placeholder={t("nodeConfigs.buttonList.labelPlaceholder")}
           />
           <SelectField
-            label="Type"
+            label={t("nodeConfigs.buttonList.typeField")}
             value={btn.type}
             onChange={(v) => updateButton(i, "type", v)}
             options={[
-              { value: "port", label: "Port (route execution)" },
-              { value: "link", label: "Link (open URL)" },
+              { value: "port", label: t("nodeConfigs.buttonList.typePort") },
+              { value: "link", label: t("nodeConfigs.buttonList.typeLink") },
             ]}
           />
           {btn.type === "link" && (
             <ExpressionInput
-              label="URL"
+              label={t("nodeConfigs.buttonList.urlField")}
               value={btn.url ?? ""}
               onChange={(v) => updateButton(i, "url", v)}
-              placeholder="https://... or {{ expression }}"
+              placeholder={t("nodeConfigs.buttonList.urlPlaceholder")}
             />
           )}
           <SelectField
-            label="Style"
+            label={t("nodeConfigs.buttonList.styleField")}
             value={btn.style ?? "secondary"}
             onChange={(v) => updateButton(i, "style", v)}
             options={[
-              { value: "primary", label: "Primary" },
-              { value: "secondary", label: "Secondary" },
-              { value: "outline", label: "Outline" },
-              { value: "danger", label: "Danger" },
+              { value: "primary", label: t("nodeConfigs.buttonList.stylePrimary") },
+              { value: "secondary", label: t("nodeConfigs.buttonList.styleSecondary") },
+              { value: "outline", label: t("nodeConfigs.buttonList.styleOutline") },
+              { value: "danger", label: t("nodeConfigs.buttonList.styleDanger") },
             ]}
           />
         </div>
@@ -153,7 +155,7 @@ export function ButtonListEditor({
           className="h-7 text-xs"
           onClick={addButton}
         >
-          <Plus size={12} className="mr-1" /> Add Button
+          <Plus size={12} className="mr-1" /> {t("nodeConfigs.buttonList.addButton")}
         </Button>
       )}
     </div>

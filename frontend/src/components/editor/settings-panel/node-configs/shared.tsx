@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Plus, X } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
 import { ExpressionInput } from "@/components/editor/expression";
+import { useT } from "@/lib/i18n";
 
 // Shared form field components for node config forms
 
@@ -170,6 +171,7 @@ export function KeyValueEditor({
   /** When true, value fields render as ExpressionInput with autocomplete */
   expressionValues?: boolean;
 }) {
+  const t = useT();
   const addItem = () => onChange([...items, { key: "", value: "" }]);
   const removeItem = (i: number) => onChange(items.filter((_, idx) => idx !== i));
   const updateItem = (i: number, field: "key" | "value", val: string) =>
@@ -183,7 +185,7 @@ export function KeyValueEditor({
             <Input
               value={item.key}
               onChange={(e) => updateItem(i, "key", e.target.value)}
-              placeholder={keyPlaceholder ?? "Key"}
+              placeholder={keyPlaceholder ?? t("nodeConfigs.common.keyPlaceholder")}
               className="h-7 flex-1 text-xs"
             />
             {expressionValues ? (
@@ -193,14 +195,14 @@ export function KeyValueEditor({
                   label=""
                   value={item.value}
                   onChange={(v) => updateItem(i, "value", v)}
-                  placeholder={valuePlaceholder ?? "Value or {{ expression }}"}
+                  placeholder={valuePlaceholder ?? t("nodeConfigs.common.valueExpression")}
                 />
               </div>
             ) : (
               <Input
                 value={item.value}
                 onChange={(e) => updateItem(i, "value", e.target.value)}
-                placeholder={valuePlaceholder ?? "Value"}
+                placeholder={valuePlaceholder ?? t("nodeConfigs.common.valuePlaceholder")}
                 className="h-7 flex-1 text-xs"
               />
             )}
@@ -215,7 +217,7 @@ export function KeyValueEditor({
           </div>
         ))}
         <Button variant="outline" size="sm" className="h-7 text-xs" onClick={addItem}>
-          <Plus size={12} className="mr-1" /> Add
+          <Plus size={12} className="mr-1" /> {t("editor.sharedAdd")}
         </Button>
       </div>
     </FieldGroup>

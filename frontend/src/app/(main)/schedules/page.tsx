@@ -23,6 +23,7 @@ import {
 } from "lucide-react";
 import cronstrue from "cronstrue";
 import { CronExpressionParser } from "cron-parser";
+import { useT, type TFunction, type TranslationKey } from "@/lib/i18n";
 
 interface Schedule {
   id: string;
@@ -46,14 +47,14 @@ type CronEditorTab = "expression" | "visual";
 type ViewMode = "list" | "calendar";
 type Frequency = "every-minute" | "hourly" | "daily" | "weekly" | "monthly";
 
-const DAYS_OF_WEEK = [
-  { label: "Sun", value: 0 },
-  { label: "Mon", value: 1 },
-  { label: "Tue", value: 2 },
-  { label: "Wed", value: 3 },
-  { label: "Thu", value: 4 },
-  { label: "Fri", value: 5 },
-  { label: "Sat", value: 6 },
+const DAYS_OF_WEEK: { labelKey: TranslationKey; value: number }[] = [
+  { labelKey: "schedules.dayShortSun", value: 0 },
+  { labelKey: "schedules.dayShortMon", value: 1 },
+  { labelKey: "schedules.dayShortTue", value: 2 },
+  { labelKey: "schedules.dayShortWed", value: 3 },
+  { labelKey: "schedules.dayShortThu", value: 4 },
+  { labelKey: "schedules.dayShortFri", value: 5 },
+  { labelKey: "schedules.dayShortSat", value: 6 },
 ];
 
 function getCronDescription(expression: string): string | null {
@@ -139,9 +140,11 @@ function buildCronFromVisual(
 function NextRunsPreview({
   expression,
   timezone,
+  t,
 }: {
   expression: string;
   timezone: string;
+  t: TFunction;
 }) {
   const runs = useMemo(
     () => getNextRuns(expression, timezone, 5),
@@ -153,7 +156,7 @@ function NextRunsPreview({
   return (
     <div className="rounded-md border border-[hsl(var(--border))] bg-[hsl(var(--muted))] p-3">
       <p className="mb-2 text-xs font-medium text-[hsl(var(--muted-foreground))]">
-        Next 5 runs
+        {t("schedules.nextFiveRuns")}
       </p>
       <ul className="space-y-1">
         {runs.map((run, i) => (
@@ -172,9 +175,11 @@ function NextRunsPreview({
 function VisualCronEditor({
   value,
   onChange,
+  t,
 }: {
   value: string;
   onChange: (cron: string) => void;
+  t: TFunction;
 }) {
   const [frequency, setFrequency] = useState<Frequency>("daily");
   const [minute, setMinute] = useState(0);
@@ -221,23 +226,23 @@ function VisualCronEditor({
   return (
     <div className="space-y-4">
       <div>
-        <Label>Frequency</Label>
+        <Label>{t("schedules.frequency")}</Label>
         <select
           className="flex h-10 w-full rounded-md border border-[hsl(var(--input))] bg-transparent px-3 py-2 text-sm"
           value={frequency}
           onChange={(e) => handleFrequencyChange(e.target.value as Frequency)}
         >
-          <option value="every-minute">Every Minute</option>
-          <option value="hourly">Hourly</option>
-          <option value="daily">Daily</option>
-          <option value="weekly">Weekly</option>
-          <option value="monthly">Monthly</option>
+          <option value="every-minute">{t("schedules.frequencyEveryMinute")}</option>
+          <option value="hourly">{t("schedules.frequencyHourly")}</option>
+          <option value="daily">{t("schedules.frequencyDaily")}</option>
+          <option value="weekly">{t("schedules.frequencyWeekly")}</option>
+          <option value="monthly">{t("schedules.frequencyMonthly")}</option>
         </select>
       </div>
 
       {frequency === "hourly" && (
         <div>
-          <Label>At minute</Label>
+          <Label>{t("schedules.atMinute")}</Label>
           <select
             className="flex h-10 w-full rounded-md border border-[hsl(var(--input))] bg-transparent px-3 py-2 text-sm"
             value={minute}
@@ -257,7 +262,7 @@ function VisualCronEditor({
         frequency === "monthly") && (
         <div className="flex gap-3">
           <div className="flex-1">
-            <Label>Hour</Label>
+            <Label>{t("schedules.hour")}</Label>
             <select
               className="flex h-10 w-full rounded-md border border-[hsl(var(--input))] bg-transparent px-3 py-2 text-sm"
               value={hour}
@@ -271,7 +276,7 @@ function VisualCronEditor({
             </select>
           </div>
           <div className="flex-1">
-            <Label>Minute</Label>
+            <Label>{t("schedules.minute")}</Label>
             <select
               className="flex h-10 w-full rounded-md border border-[hsl(var(--input))] bg-transparent px-3 py-2 text-sm"
               value={minute}
@@ -289,7 +294,7 @@ function VisualCronEditor({
 
       {frequency === "weekly" && (
         <div>
-          <Label>Days of week</Label>
+          <Label>{t("schedules.daysOfWeek")}</Label>
           <div className="mt-1 flex flex-wrap gap-2">
             {DAYS_OF_WEEK.map((day) => (
               <button
@@ -303,7 +308,7 @@ function VisualCronEditor({
                 )}
                 onClick={() => handleDayToggle(day.value)}
               >
-                {day.label}
+                {t(day.labelKey)}
               </button>
             ))}
           </div>
@@ -312,7 +317,7 @@ function VisualCronEditor({
 
       {frequency === "monthly" && (
         <div>
-          <Label>Day of month</Label>
+          <Label>{t("schedules.dayOfMonth")}</Label>
           <select
             className="flex h-10 w-full rounded-md border border-[hsl(var(--input))] bg-transparent px-3 py-2 text-sm"
             value={dayOfMonth}
@@ -330,7 +335,7 @@ function VisualCronEditor({
       {value && (
         <div className="rounded-md border border-[hsl(var(--border))] bg-[hsl(var(--muted))] p-3">
           <p className="text-xs text-[hsl(var(--muted-foreground))]">
-            Generated expression
+            {t("schedules.generatedExpression")}
           </p>
           <code className="text-sm font-mono text-[hsl(var(--foreground))]">
             {value}
@@ -348,8 +353,10 @@ function VisualCronEditor({
 
 function CalendarView({
   schedules,
+  t,
 }: {
   schedules: Schedule[];
+  t: TFunction;
 }) {
   const [viewDate, setViewDate] = useState(() => new Date());
   const year = viewDate.getFullYear();
@@ -405,12 +412,12 @@ function CalendarView({
         </Button>
       </div>
       <div className="grid grid-cols-7 gap-px text-center text-xs">
-        {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((d) => (
+        {(["schedules.dayShortSun", "schedules.dayShortMon", "schedules.dayShortTue", "schedules.dayShortWed", "schedules.dayShortThu", "schedules.dayShortFri", "schedules.dayShortSat"] satisfies TranslationKey[]).map((key) => (
           <div
-            key={d}
+            key={key}
             className="py-2 font-medium text-[hsl(var(--muted-foreground))]"
           >
-            {d}
+            {t(key)}
           </div>
         ))}
         {cells.map((day, idx) => {
@@ -461,6 +468,7 @@ function CalendarView({
 }
 
 export default function SchedulesPage() {
+  const t = useT();
   const queryClient = useQueryClient();
   const [showDialog, setShowDialog] = useState(false);
   const [editTarget, setEditTarget] = useState<Schedule | null>(null);
@@ -523,11 +531,11 @@ export default function SchedulesPage() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["schedules"] });
-      toast.success("Schedule created");
+      toast.success(t("schedules.created"));
       resetForm();
     },
     onError: () => {
-      toast.error("Failed to create schedule");
+      toast.error(t("schedules.createFailed"));
     },
   });
 
@@ -548,11 +556,11 @@ export default function SchedulesPage() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["schedules"] });
-      toast.success("Schedule updated");
+      toast.success(t("schedules.updated"));
       resetForm();
     },
     onError: () => {
-      toast.error("Failed to update schedule");
+      toast.error(t("schedules.updateFailed"));
     },
   });
 
@@ -562,10 +570,10 @@ export default function SchedulesPage() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["schedules"] });
-      toast.success("Schedule updated");
+      toast.success(t("schedules.updated"));
     },
     onError: () => {
-      toast.error("Failed to update schedule");
+      toast.error(t("schedules.updateFailed"));
     },
   });
 
@@ -575,11 +583,11 @@ export default function SchedulesPage() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["schedules"] });
-      toast.success("Schedule deleted");
+      toast.success(t("schedules.deleted"));
       setDeleteTarget(null);
     },
     onError: () => {
-      toast.error("Failed to delete schedule");
+      toast.error(t("schedules.deleteFailed"));
     },
   });
 
@@ -588,10 +596,10 @@ export default function SchedulesPage() {
       await apiClient.post(`/schedules/${id}/run-now`);
     },
     onSuccess: () => {
-      toast.success("Schedule executed");
+      toast.success(t("schedules.executed"));
     },
     onError: () => {
-      toast.error("Failed to execute schedule");
+      toast.error(t("schedules.executeFailed"));
     },
   });
 
@@ -622,7 +630,7 @@ export default function SchedulesPage() {
 
   function handleSubmit() {
     if (!formName.trim() || !formWorkflowId || !formCron.trim()) {
-      toast.error("Please fill in all required fields");
+      toast.error(t("schedules.fillRequired"));
       return;
     }
     let parameterValues: Record<string, unknown>;
@@ -630,13 +638,13 @@ export default function SchedulesPage() {
       const trimmed = formParameterValuesJson.trim();
       const parsed: unknown = trimmed.length === 0 ? {} : JSON.parse(trimmed);
       if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
-        throw new Error("Parameter values must be a JSON object");
+        throw new Error(t("schedules.paramsMustBeObject"));
       }
       parameterValues = parsed as Record<string, unknown>;
       setParameterValuesError(null);
     } catch (err) {
       const message =
-        err instanceof Error ? err.message : "Invalid JSON for parameter values";
+        err instanceof Error ? err.message : t("schedules.invalidJson");
       setParameterValuesError(message);
       toast.error(message);
       return;
@@ -664,7 +672,7 @@ export default function SchedulesPage() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-3xl font-bold">Schedules</h1>
+        <h1 className="text-3xl font-bold">{t("schedules.title")}</h1>
         <div className="flex items-center gap-2">
           {/* List / Calendar toggle */}
           <div className="flex rounded-md border border-[hsl(var(--border))]">
@@ -675,7 +683,7 @@ export default function SchedulesPage() {
               onClick={() => setViewMode("list")}
             >
               <List className="mr-1 h-4 w-4" />
-              List
+              {t("schedules.listView")}
             </Button>
             <Button
               variant={viewMode === "calendar" ? "default" : "ghost"}
@@ -684,12 +692,12 @@ export default function SchedulesPage() {
               onClick={() => setViewMode("calendar")}
             >
               <Calendar className="mr-1 h-4 w-4" />
-              Calendar
+              {t("schedules.calendarView")}
             </Button>
           </div>
           <Button onClick={() => setShowDialog(true)}>
             <Plus className="mr-2 h-4 w-4" />
-            Add Schedule
+            {t("schedules.addSchedule")}
           </Button>
         </div>
       </div>
@@ -699,23 +707,23 @@ export default function SchedulesPage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
           <div className="w-full max-w-md rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-6 shadow-lg max-h-[90vh] overflow-y-auto">
             <div className="mb-4 flex items-center justify-between">
-              <h2 className="text-lg font-semibold">{editTarget ? "Edit Schedule" : "Add Schedule"}</h2>
+              <h2 className="text-lg font-semibold">{editTarget ? t("schedules.editSchedule") : t("schedules.addSchedule")}</h2>
               <Button variant="ghost" size="icon" onClick={resetForm}>
                 <X className="h-4 w-4" />
               </Button>
             </div>
             <div className="space-y-4">
               <div>
-                <Label htmlFor="schedule-name">Name</Label>
+                <Label htmlFor="schedule-name">{t("schedules.name")}</Label>
                 <Input
                   id="schedule-name"
                   value={formName}
                   onChange={(e) => setFormName(e.target.value)}
-                  placeholder="My Schedule"
+                  placeholder={t("schedules.schedulePlaceholder")}
                 />
               </div>
               <div>
-                <Label htmlFor="schedule-workflow">Workflow</Label>
+                <Label htmlFor="schedule-workflow">{t("schedules.workflow")}</Label>
                 <select
                   id="schedule-workflow"
                   className="flex h-10 w-full rounded-md border border-[hsl(var(--input))] bg-transparent px-3 py-2 text-sm disabled:opacity-50"
@@ -723,7 +731,7 @@ export default function SchedulesPage() {
                   onChange={(e) => setFormWorkflowId(e.target.value)}
                   disabled={!!editTarget}
                 >
-                  <option value="">Select a workflow</option>
+                  <option value="">{t("schedules.selectWorkflow")}</option>
                   {workflows.map((wf) => (
                     <option key={wf.id} value={wf.id}>
                       {wf.name}
@@ -745,7 +753,7 @@ export default function SchedulesPage() {
                     )}
                     onClick={() => setCronTab("expression")}
                   >
-                    Expression
+                    {t("schedules.expressionTab")}
                   </button>
                   <button
                     type="button"
@@ -757,13 +765,13 @@ export default function SchedulesPage() {
                     )}
                     onClick={() => setCronTab("visual")}
                   >
-                    Visual
+                    {t("schedules.visualTab")}
                   </button>
                 </div>
 
                 {cronTab === "expression" ? (
                   <div className="space-y-2">
-                    <Label htmlFor="schedule-cron">Cron Expression</Label>
+                    <Label htmlFor="schedule-cron">{t("schedules.cronExpression")}</Label>
                     <Input
                       id="schedule-cron"
                       value={formCron}
@@ -780,6 +788,7 @@ export default function SchedulesPage() {
                   <VisualCronEditor
                     value={formCron}
                     onChange={setFormCron}
+                    t={t}
                   />
                 )}
               </div>
@@ -789,21 +798,22 @@ export default function SchedulesPage() {
                 <NextRunsPreview
                   expression={formCron}
                   timezone={formTimezone}
+                  t={t}
                 />
               )}
 
               <div>
-                <Label htmlFor="schedule-tz">Timezone</Label>
+                <Label htmlFor="schedule-tz">{t("schedules.timezone")}</Label>
                 <Input
                   id="schedule-tz"
                   value={formTimezone}
                   onChange={(e) => setFormTimezone(e.target.value)}
-                  placeholder="Asia/Seoul"
+                  placeholder={t("schedules.timezonePlaceholder")}
                 />
               </div>
               <div>
                 <Label htmlFor="schedule-params">
-                  Parameter Values (JSON)
+                  {t("schedules.paramsLabel")}
                 </Label>
                 <textarea
                   id="schedule-params"
@@ -817,10 +827,7 @@ export default function SchedulesPage() {
                   placeholder={`{\n  "region": "kr",\n  "runAt": "{{ $now }}"\n}`}
                 />
                 <p className="mt-1 text-[11px] text-[hsl(var(--muted-foreground))]">
-                  워크플로우의 Manual Trigger 노드 파라미터에 매핑됩니다.
-                  문자열 값에 <code>{"{{ $now }}"}</code>,{" "}
-                  <code>{"{{ $schedule.id }}"}</code> 등 제한 표현식을 사용할 수
-                  있습니다.
+                  {t("schedules.paramsHelp")}
                 </p>
                 {parameterValuesError && (
                   <p className="mt-1 text-[11px] text-red-500">
@@ -830,7 +837,7 @@ export default function SchedulesPage() {
               </div>
               <div className="flex justify-end gap-2">
                 <Button variant="outline" onClick={resetForm}>
-                  Cancel
+                  {t("common.cancel")}
                 </Button>
                 <Button
                   onClick={handleSubmit}
@@ -839,7 +846,7 @@ export default function SchedulesPage() {
                   {(createMutation.isPending || updateMutation.isPending) ? (
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                   ) : null}
-                  {editTarget ? "Save" : "Create"}
+                  {editTarget ? t("common.save") : t("common.create")}
                 </Button>
               </div>
             </div>
@@ -851,14 +858,13 @@ export default function SchedulesPage() {
       {deleteTarget && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
           <div className="w-full max-w-sm rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-6 shadow-lg">
-            <h2 className="mb-2 text-lg font-semibold">Delete Schedule</h2>
+            <h2 className="mb-2 text-lg font-semibold">{t("schedules.deleteTitle")}</h2>
             <p className="mb-4 text-sm text-[hsl(var(--muted-foreground))]">
-              Are you sure you want to delete this schedule? This action cannot
-              be undone.
+              {t("schedules.deleteMessage")}
             </p>
             <div className="flex justify-end gap-2">
               <Button variant="outline" onClick={() => setDeleteTarget(null)}>
-                Cancel
+                {t("common.cancel")}
               </Button>
               <Button
                 variant="destructive"
@@ -868,7 +874,7 @@ export default function SchedulesPage() {
                 {deleteMutation.isPending ? (
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                 ) : null}
-                Delete
+                {t("common.delete")}
               </Button>
             </div>
           </div>
@@ -883,14 +889,14 @@ export default function SchedulesPage() {
 
       {isError && (
         <p className="text-sm text-[hsl(var(--destructive))]">
-          Failed to load schedules.
+          {t("schedules.loadFailed")}
         </p>
       )}
 
       {!isLoading && !isError && schedules.length === 0 && (
         <div className="flex flex-col items-center justify-center py-16 text-[hsl(var(--muted-foreground))]">
           <Inbox className="mb-2 h-10 w-10" />
-          <p className="text-sm">No schedules found.</p>
+          <p className="text-sm">{t("schedules.noneFound")}</p>
         </div>
       )}
 
@@ -899,12 +905,12 @@ export default function SchedulesPage() {
           <table className="w-full text-sm">
             <thead className="bg-[hsl(var(--muted))]">
               <tr>
-                <th className="px-4 py-3 text-left font-medium">Status</th>
-                <th className="px-4 py-3 text-left font-medium">Name</th>
-                <th className="px-4 py-3 text-left font-medium">Cron</th>
-                <th className="px-4 py-3 text-left font-medium">Next Run</th>
-                <th className="px-4 py-3 text-left font-medium">Workflow</th>
-                <th className="px-4 py-3 text-left font-medium">Actions</th>
+                <th className="px-4 py-3 text-left font-medium">{t("schedules.columnStatus")}</th>
+                <th className="px-4 py-3 text-left font-medium">{t("schedules.columnName")}</th>
+                <th className="px-4 py-3 text-left font-medium">{t("schedules.columnCron")}</th>
+                <th className="px-4 py-3 text-left font-medium">{t("schedules.columnNextRun")}</th>
+                <th className="px-4 py-3 text-left font-medium">{t("schedules.columnWorkflow")}</th>
+                <th className="px-4 py-3 text-left font-medium">{t("schedules.columnActions")}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-[hsl(var(--border))]">
@@ -950,7 +956,7 @@ export default function SchedulesPage() {
                           onClick={() => runNowMutation.mutate(schedule.id)}
                         >
                           <Play className="mr-1 h-3 w-3" />
-                          Run Now
+                          {t("schedules.runNow")}
                         </Button>
                         <Button
                           variant="outline"
@@ -963,14 +969,14 @@ export default function SchedulesPage() {
                             })
                           }
                         >
-                          {schedule.isActive ? "Deactivate" : "Activate"}
+                          {schedule.isActive ? t("schedules.toggleDeactivate") : t("schedules.toggleActivate")}
                         </Button>
                         <Button
                           variant="ghost"
                           size="icon"
                           className="h-8 w-8"
                           onClick={() => openEdit(schedule)}
-                          title="Edit"
+                          title={t("schedules.editTooltip")}
                         >
                           <Pencil className="h-4 w-4" />
                         </Button>
@@ -996,7 +1002,7 @@ export default function SchedulesPage() {
         !isError &&
         schedules.length > 0 &&
         viewMode === "calendar" && (
-          <CalendarView schedules={schedules} />
+          <CalendarView schedules={schedules} t={t} />
         )}
     </div>
   );

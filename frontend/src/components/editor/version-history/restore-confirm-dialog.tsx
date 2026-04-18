@@ -6,6 +6,7 @@ import { RotateCcw, X } from "lucide-react";
 import { workflowsApi } from "@/lib/api/workflows";
 import type { WorkflowVersionSummary } from "@/lib/api/workflows";
 import { Button } from "@/components/ui/button";
+import { useT } from "@/lib/i18n";
 
 interface Props {
   workflowId: string;
@@ -14,6 +15,7 @@ interface Props {
 }
 
 export function RestoreConfirmDialog({ workflowId, version, onClose }: Props) {
+  const t = useT();
   const queryClient = useQueryClient();
   const [error, setError] = useState<string | null>(null);
 
@@ -24,38 +26,36 @@ export function RestoreConfirmDialog({ workflowId, version, onClose }: Props) {
       await queryClient.invalidateQueries({
         queryKey: ["workflow-versions", workflowId],
       });
-      // Reload editor state from server (snapshot replaces canvas + creates a
-      // new version row, so the in-memory editor state is no longer valid).
       window.location.reload();
     },
     onError: (e: unknown) => {
-      setError(e instanceof Error ? e.message : "Restore failed");
+      setError(e instanceof Error ? e.message : t("editor.restoreFailedDefault"));
     },
   });
 
   return (
     <div
       role="dialog"
-      aria-label="Restore confirmation"
+      aria-label={t("editor.restoreDialogLabel")}
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
     >
       <div className="w-full max-w-sm rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-5 shadow-lg">
         <header className="mb-2 flex items-center justify-between">
-          <h3 className="text-sm font-semibold">Restore v{version.version}?</h3>
+          <h3 className="text-sm font-semibold">
+            {t("editor.restoreDialogTitle", { version: version.version })}
+          </h3>
           <Button
             variant="ghost"
             size="icon"
             className="h-7 w-7"
             onClick={onClose}
-            aria-label="Close"
+            aria-label={t("editor.restoreDialogClose")}
           >
             <X size={14} />
           </Button>
         </header>
         <p className="mb-3 text-xs text-[hsl(var(--muted-foreground))]">
-          The current canvas will be replaced with the snapshot from v
-          {version.version}. The replacement is itself recorded as a new
-          version, so you can always restore back.
+          {t("editor.restoreDialogMessage", { version: version.version })}
         </p>
         {error && (
           <div
@@ -72,7 +72,7 @@ export function RestoreConfirmDialog({ workflowId, version, onClose }: Props) {
             onClick={onClose}
             disabled={mutation.isPending}
           >
-            Cancel
+            {t("common.cancel")}
           </Button>
           <Button
             size="sm"
@@ -80,7 +80,7 @@ export function RestoreConfirmDialog({ workflowId, version, onClose }: Props) {
             disabled={mutation.isPending}
           >
             <RotateCcw size={12} className="mr-1.5" />
-            {mutation.isPending ? "Restoring…" : "Restore"}
+            {mutation.isPending ? t("editor.restoring") : t("editor.restoreBtn")}
           </Button>
         </div>
       </div>

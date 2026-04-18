@@ -1,7 +1,12 @@
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { ChipInput } from "../chip-input";
+import { useLocaleStore } from "@/lib/stores/locale-store";
+
+beforeEach(() => {
+  useLocaleStore.setState({ locale: "en" });
+});
 
 function setup(initial: string[] = []) {
   const onChange = vi.fn();
@@ -70,7 +75,7 @@ describe("ChipInput", () => {
     const { onChange } = setup(["foo", "bar"]);
     expect(screen.getByText("foo")).toBeInTheDocument();
     expect(screen.getByText("bar")).toBeInTheDocument();
-    await user.click(screen.getByLabelText("Remove foo"));
+    await user.click(screen.getByLabelText(/Remove foo/));
     expect(onChange).toHaveBeenLastCalledWith(["bar"]);
   });
 });

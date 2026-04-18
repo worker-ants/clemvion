@@ -27,12 +27,14 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { RoleGate } from "@/components/auth/role-gate";
 import { timeAgo } from "@/lib/utils/date";
 import { cn } from "@/lib/utils/cn";
+import { useT, type TranslationKey } from "@/lib/i18n";
 
 type FilterStatus = "all" | "active" | "inactive";
 
 const PAGE_SIZE = 10;
 
 export default function WorkflowsPage() {
+  const t = useT();
   const router = useRouter();
   const queryClient = useQueryClient();
 
@@ -91,7 +93,7 @@ export default function WorkflowsPage() {
   const createMutation = useMutation({
     mutationFn: async () => {
       const { data } = await workflowsApi.create({
-        name: "Untitled Workflow",
+        name: t("dashboard.newWorkflowDefault"),
       });
       return data.data ?? data;
     },
@@ -99,30 +101,30 @@ export default function WorkflowsPage() {
       router.push(`/workflows/${workflow.id}`);
     },
     onError: () => {
-      toast.error("Failed to create workflow");
+      toast.error(t("workflows.createFailed"));
     },
   });
 
   const deleteMutation = useMutation({
     mutationFn: (id: string) => workflowsApi.delete(id),
     onSuccess: () => {
-      toast.success("Workflow deleted");
+      toast.success(t("workflows.deleted"));
       queryClient.invalidateQueries({ queryKey: ["workflows"] });
       setDeleteTarget(null);
     },
     onError: () => {
-      toast.error("Failed to delete workflow");
+      toast.error(t("workflows.deleteFailed"));
     },
   });
 
   const duplicateMutation = useMutation({
     mutationFn: (id: string) => workflowsApi.duplicate(id),
     onSuccess: () => {
-      toast.success("Workflow duplicated");
+      toast.success(t("workflows.duplicated"));
       queryClient.invalidateQueries({ queryKey: ["workflows"] });
     },
     onError: () => {
-      toast.error("Failed to duplicate workflow");
+      toast.error(t("workflows.duplicateFailed"));
     },
   });
 
@@ -135,11 +137,11 @@ export default function WorkflowsPage() {
       isActive: boolean;
     }) => workflowsApi.update(id, { isActive: !isActive }),
     onSuccess: () => {
-      toast.success("Workflow updated");
+      toast.success(t("workflows.activated"));
       queryClient.invalidateQueries({ queryKey: ["workflows"] });
     },
     onError: () => {
-      toast.error("Failed to update workflow");
+      toast.error(t("workflows.activateFailed"));
     },
   });
 
@@ -150,11 +152,11 @@ export default function WorkflowsPage() {
       return workflowsApi.importWorkflow(json);
     },
     onSuccess: () => {
-      toast.success("Workflow imported");
+      toast.success(t("workflows.imported"));
       queryClient.invalidateQueries({ queryKey: ["workflows"] });
     },
     onError: () => {
-      toast.error("Failed to import workflow");
+      toast.error(t("workflows.importFailed"));
     },
   });
 
@@ -173,11 +175,11 @@ export default function WorkflowsPage() {
       a.click();
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
-      toast.success("Workflow exported");
+      toast.success(t("workflows.exported"));
     } catch {
-      toast.error("Failed to export workflow");
+      toast.error(t("workflows.exportFailed"));
     }
-  }, []);
+  }, [t]);
 
   const handleImportFile = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -224,17 +226,17 @@ export default function WorkflowsPage() {
   const total = workflowsQuery.data?.total ?? 0;
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
-  const filterButtons: { label: string; value: FilterStatus }[] = [
-    { label: "All", value: "all" },
-    { label: "Active", value: "active" },
-    { label: "Inactive", value: "inactive" },
+  const filterButtons: { labelKey: TranslationKey; value: FilterStatus }[] = [
+    { labelKey: "workflows.filter.all", value: "all" },
+    { labelKey: "workflows.filter.active", value: "active" },
+    { labelKey: "workflows.filter.inactive", value: "inactive" },
   ];
 
   return (
     <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
-        <h1 className="text-3xl font-bold">Workflows</h1>
+        <h1 className="text-3xl font-bold">{t("workflows.title")}</h1>
         <div className="flex gap-2">
           <input
             ref={fileInputRef}
@@ -250,14 +252,14 @@ export default function WorkflowsPage() {
               disabled={importMutation.isPending}
             >
               <Upload className="mr-2 h-4 w-4" />
-              Import Workflow
+              {t("workflows.importWorkflow")}
             </Button>
             <Button
               onClick={() => createMutation.mutate()}
               disabled={createMutation.isPending}
             >
               <Plus className="mr-2 h-4 w-4" />
-              New Workflow
+              {t("workflows.new")}
             </Button>
           </RoleGate>
         </div>
@@ -268,7 +270,7 @@ export default function WorkflowsPage() {
         <div className="relative flex-1 max-w-sm">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[hsl(var(--muted-foreground))]" />
           <Input
-            placeholder="Search workflows..."
+            placeholder={t("workflows.searchPlaceholder")}
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="pl-9"
@@ -285,7 +287,7 @@ export default function WorkflowsPage() {
                 setPage(1);
               }}
             >
-              {fb.label}
+              {t(fb.labelKey)}
             </Button>
           ))}
         </div>
@@ -304,11 +306,11 @@ export default function WorkflowsPage() {
       ) : !workflows.length ? (
         <EmptyState
           icon={Workflow}
-          title="No workflows found"
+          title={t("workflows.noneFound")}
           description={
             debouncedSearch || filter !== "all"
-              ? "Try adjusting your search or filters."
-              : "Create your first workflow to get started."
+              ? t("workflows.adjustFiltersHint")
+              : t("workflows.firstWorkflowHint")
           }
           action={
             !debouncedSearch && filter === "all" ? (
@@ -317,7 +319,7 @@ export default function WorkflowsPage() {
                 disabled={createMutation.isPending}
               >
                 <Plus className="mr-2 h-4 w-4" />
-                Create Workflow
+                {t("workflows.createWorkflow")}
               </Button>
             ) : undefined
           }
@@ -328,13 +330,13 @@ export default function WorkflowsPage() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-[hsl(var(--border))] bg-[hsl(var(--muted))]">
-                  <th className="px-4 py-3 text-left font-medium">Status</th>
-                  <th className="px-4 py-3 text-left font-medium">Name</th>
-                  <th className="px-4 py-3 text-left font-medium">Tags</th>
+                  <th className="px-4 py-3 text-left font-medium">{t("common.status")}</th>
+                  <th className="px-4 py-3 text-left font-medium">{t("common.name")}</th>
+                  <th className="px-4 py-3 text-left font-medium">{t("workflows.tags")}</th>
                   <th className="px-4 py-3 text-left font-medium">
-                    Last Updated
+                    {t("workflows.lastUpdated")}
                   </th>
-                  <th className="px-4 py-3 text-right font-medium">Actions</th>
+                  <th className="px-4 py-3 text-right font-medium">{t("common.actions")}</th>
                 </tr>
               </thead>
               <tbody>
@@ -353,7 +355,7 @@ export default function WorkflowsPage() {
                           e.stopPropagation();
                           toggleActiveMutation.mutate({ id: workflow.id, isActive: workflow.isActive });
                         }}
-                        title={workflow.isActive ? "Deactivate" : "Activate"}
+                        title={workflow.isActive ? t("workflows.actions.deactivate") : t("workflows.actions.activate")}
                       >
                         <span
                           className={cn(
@@ -411,7 +413,7 @@ export default function WorkflowsPage() {
                                 handleMenuAction("edit", workflow)
                               }
                             >
-                              <Pencil className="h-4 w-4" /> Edit
+                              <Pencil className="h-4 w-4" /> {t("common.edit")}
                             </button>
                             <button
                               className="flex w-full items-center gap-2 px-3 py-2 text-sm hover:bg-[hsl(var(--accent))]"
@@ -419,7 +421,7 @@ export default function WorkflowsPage() {
                                 handleMenuAction("executions", workflow)
                               }
                             >
-                              <History className="h-4 w-4" /> Execution History
+                              <History className="h-4 w-4" /> {t("workflows.executionHistory")}
                             </button>
                             <button
                               className="flex w-full items-center gap-2 px-3 py-2 text-sm hover:bg-[hsl(var(--accent))]"
@@ -427,7 +429,7 @@ export default function WorkflowsPage() {
                                 handleMenuAction("duplicate", workflow)
                               }
                             >
-                              <Copy className="h-4 w-4" /> Duplicate
+                              <Copy className="h-4 w-4" /> {t("workflows.actions.duplicate")}
                             </button>
                             <button
                               className="flex w-full items-center gap-2 px-3 py-2 text-sm hover:bg-[hsl(var(--accent))]"
@@ -435,7 +437,7 @@ export default function WorkflowsPage() {
                                 handleMenuAction("export", workflow)
                               }
                             >
-                              <Download className="h-4 w-4" /> Export
+                              <Download className="h-4 w-4" /> {t("workflows.actions.export")}
                             </button>
                             <button
                               className="flex w-full items-center gap-2 px-3 py-2 text-sm hover:bg-[hsl(var(--accent))]"
@@ -444,7 +446,7 @@ export default function WorkflowsPage() {
                               }
                             >
                               <ToggleLeft className="h-4 w-4" />
-                              {workflow.isActive ? "Deactivate" : "Activate"}
+                              {workflow.isActive ? t("workflows.actions.deactivate") : t("workflows.actions.activate")}
                             </button>
                             <button
                               className="flex w-full items-center gap-2 px-3 py-2 text-sm text-[hsl(var(--destructive))] hover:bg-[hsl(var(--accent))]"
@@ -452,7 +454,7 @@ export default function WorkflowsPage() {
                                 handleMenuAction("delete", workflow)
                               }
                             >
-                              <Trash2 className="h-4 w-4" /> Delete
+                              <Trash2 className="h-4 w-4" /> {t("common.delete")}
                             </button>
                           </div>
                         )}
@@ -502,24 +504,23 @@ export default function WorkflowsPage() {
       {deleteTarget && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
           <div className="w-full max-w-sm rounded-lg bg-[hsl(var(--background))] p-6 shadow-lg border border-[hsl(var(--border))]">
-            <h3 className="text-lg font-semibold mb-2">Delete Workflow</h3>
+            <h3 className="text-lg font-semibold mb-2">{t("workflows.deleteDialog.title")}</h3>
             <p className="text-sm text-[hsl(var(--muted-foreground))] mb-6">
-              Are you sure you want to delete this workflow? This action cannot
-              be undone.
+              {t("workflows.deleteDialog.message")}
             </p>
             <div className="flex justify-end gap-2">
               <Button
                 variant="outline"
                 onClick={() => setDeleteTarget(null)}
               >
-                Cancel
+                {t("common.cancel")}
               </Button>
               <Button
                 variant="destructive"
                 onClick={() => deleteMutation.mutate(deleteTarget)}
                 disabled={deleteMutation.isPending}
               >
-                {deleteMutation.isPending ? "Deleting..." : "Delete"}
+                {deleteMutation.isPending ? t("workflows.deleting") : t("common.delete")}
               </Button>
             </div>
           </div>

@@ -24,7 +24,8 @@ import {
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
-import { timeAgo } from "@/lib/utils/date";
+import { timeAgo, formatDuration } from "@/lib/utils/date";
+import { useT, type TranslationKey } from "@/lib/i18n";
 
 interface DashboardSummary {
   totalWorkflows: number;
@@ -88,16 +89,8 @@ const statusIcon: Record<string, string> = {
   waiting_for_input: "\u270B",
 };
 
-function formatDuration(ms: number): string {
-  if (ms < 1000) return `${ms}ms`;
-  const seconds = Math.floor(ms / 1000);
-  if (seconds < 60) return `${seconds}s`;
-  const minutes = Math.floor(seconds / 60);
-  const remainingSeconds = seconds % 60;
-  return `${minutes}m ${remainingSeconds}s`;
-}
-
 export default function DashboardPage() {
+  const t = useT();
   const router = useRouter();
 
   const summaryQuery = useQuery<DashboardSummary>({
@@ -127,7 +120,7 @@ export default function DashboardPage() {
   const createWorkflowMutation = useMutation({
     mutationFn: async () => {
       const { data } = await workflowsApi.create({
-        name: "Untitled Workflow",
+        name: t("dashboard.newWorkflowDefault"),
       });
       return data.data ?? data;
     },
@@ -135,36 +128,41 @@ export default function DashboardPage() {
       router.push(`/workflows/${workflow.id}`);
     },
     onError: () => {
-      toast.error("Failed to create workflow");
+      toast.error(t("workflows.createFailed"));
     },
   });
 
   const summary = summaryQuery.data;
 
-  const summaryCards = [
+  const summaryCards: Array<{
+    labelKey: TranslationKey;
+    value: string | number;
+    icon: typeof GitBranch;
+    change: number | null;
+  }> = [
     {
-      label: "Total Workflows",
+      labelKey: "dashboard.totalWorkflows",
       value: summary?.totalWorkflows ?? 0,
       icon: GitBranch,
-      change: null as number | null,
+      change: null,
     },
     {
-      label: "Active Workflows",
+      labelKey: "dashboard.activeWorkflows",
       value: summary?.activeWorkflows ?? 0,
       icon: Activity,
-      change: null as number | null,
+      change: null,
     },
     {
-      label: "Executions (7d)",
+      labelKey: "dashboard.executions7d",
       value: summary?.runs7d ?? 0,
       icon: Play,
       change: summary?.runs7dChangePercent ?? null,
     },
     {
-      label: "Success Rate",
+      labelKey: "dashboard.successRate",
       value: summary ? `${Math.round(summary.successRate)}%` : "0%",
       icon: CheckCircle,
-      change: null as number | null,
+      change: null,
     },
   ];
 
@@ -172,13 +170,13 @@ export default function DashboardPage() {
     <div className="space-y-8">
       {/* Header */}
       <div className="flex items-center justify-between">
-        <h1 className="text-3xl font-bold">Dashboard</h1>
+        <h1 className="text-3xl font-bold">{t("dashboard.title")}</h1>
         <Button
           onClick={() => createWorkflowMutation.mutate()}
           disabled={createWorkflowMutation.isPending}
         >
           <Plus className="mr-2 h-4 w-4" />
-          New Workflow
+          {t("dashboard.newWorkflow")}
         </Button>
       </div>
 
@@ -191,10 +189,10 @@ export default function DashboardPage() {
           : summaryCards.map((card) => {
               const Icon = card.icon;
               return (
-                <Card key={card.label}>
+                <Card key={card.labelKey}>
                   <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                     <CardTitle className="text-sm font-medium">
-                      {card.label}
+                      {t(card.labelKey)}
                     </CardTitle>
                     <Icon className="h-5 w-5 text-[hsl(var(--muted-foreground))]" />
                   </CardHeader>
@@ -207,7 +205,7 @@ export default function DashboardPage() {
                         ) : (
                           <TrendingDown className="mr-1 h-3 w-3" />
                         )}
-                        {card.change >= 0 ? "+" : ""}{card.change}% vs prev 7d
+                        {card.change >= 0 ? "+" : ""}{card.change}% {t("dashboard.changeVsPrev")}
                       </p>
                     )}
                   </CardContent>
@@ -218,21 +216,21 @@ export default function DashboardPage() {
 
       {/* Recent Workflows */}
       <div>
-        <h2 className="text-xl font-semibold mb-4">Recent Workflows</h2>
+        <h2 className="text-xl font-semibold mb-4">{t("dashboard.recentWorkflows")}</h2>
         {recentWorkflowsQuery.isLoading ? (
           <TableSkeleton rows={5} />
         ) : !recentWorkflowsQuery.data?.length ? (
           <EmptyState
             icon={Workflow}
-            title="No workflows yet"
-            description="Create your first workflow to get started."
+            title={t("dashboard.noWorkflows")}
+            description={t("dashboard.noWorkflowsHint")}
             action={
               <Button
                 onClick={() => createWorkflowMutation.mutate()}
                 disabled={createWorkflowMutation.isPending}
               >
                 <Plus className="mr-2 h-4 w-4" />
-                Create Workflow
+                {t("dashboard.createWorkflow")}
               </Button>
             }
           />
@@ -241,10 +239,10 @@ export default function DashboardPage() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-[hsl(var(--border))] bg-[hsl(var(--muted))]">
-                  <th className="px-4 py-3 text-left font-medium">Name</th>
-                  <th className="px-4 py-3 text-left font-medium">Status</th>
+                  <th className="px-4 py-3 text-left font-medium">{t("common.name")}</th>
+                  <th className="px-4 py-3 text-left font-medium">{t("dashboard.status")}</th>
                   <th className="px-4 py-3 text-left font-medium">
-                    Last Updated
+                    {t("dashboard.lastUpdated")}
                   </th>
                 </tr>
               </thead>
@@ -260,7 +258,7 @@ export default function DashboardPage() {
                       <Badge
                         variant={workflow.isActive ? "success" : "outline"}
                       >
-                        {workflow.isActive ? "Active" : "Inactive"}
+                        {workflow.isActive ? t("common.active") : t("common.inactive")}
                       </Badge>
                     </td>
                     <td className="px-4 py-3 text-[hsl(var(--muted-foreground))]">
@@ -276,24 +274,24 @@ export default function DashboardPage() {
 
       {/* Recent Executions */}
       <div>
-        <h2 className="text-xl font-semibold mb-4">Recent Executions</h2>
+        <h2 className="text-xl font-semibold mb-4">{t("dashboard.recentExecutions")}</h2>
         {recentExecutionsQuery.isLoading ? (
           <TableSkeleton rows={5} />
         ) : !recentExecutionsQuery.data?.length ? (
           <EmptyState
             icon={Play}
-            title="No executions yet"
-            description="Run a workflow to see execution history here."
+            title={t("dashboard.noExecutions")}
+            description={t("dashboard.noExecutionsHint")}
           />
         ) : (
           <div className="rounded-md border border-[hsl(var(--border))]">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-[hsl(var(--border))] bg-[hsl(var(--muted))]">
-                  <th className="px-4 py-3 text-left font-medium">Status</th>
-                  <th className="px-4 py-3 text-left font-medium">Workflow</th>
-                  <th className="px-4 py-3 text-left font-medium">Duration</th>
-                  <th className="px-4 py-3 text-left font-medium">Time</th>
+                  <th className="px-4 py-3 text-left font-medium">{t("dashboard.status")}</th>
+                  <th className="px-4 py-3 text-left font-medium">{t("dashboard.workflow")}</th>
+                  <th className="px-4 py-3 text-left font-medium">{t("dashboard.duration")}</th>
+                  <th className="px-4 py-3 text-left font-medium">{t("dashboard.time")}</th>
                 </tr>
               </thead>
               <tbody>

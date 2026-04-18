@@ -1,0 +1,323 @@
+{
+  "timestamp": "2026-04-18T19:06:31.378487",
+  "files": [
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/frontend/src/components/editor/settings-panel/node-configs/transform/chip-input.tsx",
+      "change_type": "Review",
+      "file_extension": "tsx"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/frontend/src/components/editor/settings-panel/node-configs/transform/index.tsx",
+      "change_type": "Review",
+      "file_extension": "tsx"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/frontend/src/components/editor/settings-panel/node-configs/transform/operation-card.tsx",
+      "change_type": "Review",
+      "file_extension": "tsx"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/frontend/src/components/editor/settings-panel/node-configs/transform/ops.tsx",
+      "change_type": "Review",
+      "file_extension": "tsx"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/frontend/src/components/editor/settings-panel/node-configs/transform/preview.tsx",
+      "change_type": "Review",
+      "file_extension": "tsx"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/frontend/src/components/editor/settings-panel/node-configs/trigger-configs.tsx",
+      "change_type": "Review",
+      "file_extension": "tsx"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/frontend/src/components/editor/settings-panel/node-settings-panel.tsx",
+      "change_type": "Review",
+      "file_extension": "tsx"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/frontend/src/components/editor/toolbar/editor-toolbar.tsx",
+      "change_type": "Review",
+      "file_extension": "tsx"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/frontend/src/components/editor/version-history/__tests__/restore-confirm-dialog.test.tsx",
+      "change_type": "Review",
+      "file_extension": "tsx"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/frontend/src/components/editor/version-history/__tests__/version-detail-dialog.test.tsx",
+      "change_type": "Review",
+      "file_extension": "tsx"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/frontend/src/components/editor/version-history/__tests__/version-diff-dialog.test.tsx",
+      "change_type": "Review",
+      "file_extension": "tsx"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/frontend/src/components/editor/version-history/__tests__/version-history-panel.test.tsx",
+      "change_type": "Review",
+      "file_extension": "tsx"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/frontend/src/components/editor/version-history/restore-confirm-dialog.tsx",
+      "change_type": "Review",
+      "file_extension": "tsx"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/frontend/src/components/editor/version-history/version-detail-dialog.tsx",
+      "change_type": "Review",
+      "file_extension": "tsx"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/frontend/src/components/editor/version-history/version-diff-dialog.tsx",
+      "change_type": "Review",
+      "file_extension": "tsx"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/frontend/src/components/editor/version-history/version-history-panel.tsx",
+      "change_type": "Review",
+      "file_extension": "tsx"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/frontend/src/components/layout/sidebar.tsx",
+      "change_type": "Review",
+      "file_extension": "tsx"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/frontend/src/content/docs/01-getting-started/first-workflow.mdx",
+      "change_type": "Review",
+      "file_extension": "mdx"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/frontend/src/content/docs/01-getting-started/ui-tour.mdx",
+      "change_type": "Review",
+      "file_extension": "mdx"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/frontend/src/content/docs/01-getting-started/what-is-this.mdx",
+      "change_type": "Review",
+      "file_extension": "mdx"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/frontend/src/content/docs/02-nodes/ai.mdx",
+      "change_type": "Review",
+      "file_extension": "mdx"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/frontend/src/content/docs/02-nodes/data.mdx",
+      "change_type": "Review",
+      "file_extension": "mdx"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/frontend/src/content/docs/02-nodes/flow.mdx",
+      "change_type": "Review",
+      "file_extension": "mdx"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/frontend/src/content/docs/02-nodes/integrations.mdx",
+      "change_type": "Review",
+      "file_extension": "mdx"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/frontend/src/content/docs/02-nodes/logic.mdx",
+      "change_type": "Review",
+      "file_extension": "mdx"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/frontend/src/content/docs/02-nodes/overview.mdx",
+      "change_type": "Review",
+      "file_extension": "mdx"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/frontend/src/content/docs/02-nodes/presentation.mdx",
+      "change_type": "Review",
+      "file_extension": "mdx"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/frontend/src/content/docs/02-nodes/triggers.mdx",
+      "change_type": "Review",
+      "file_extension": "mdx"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/frontend/src/content/docs/03-expression-language/basics.mdx",
+      "change_type": "Review",
+      "file_extension": "mdx"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/frontend/src/content/docs/03-expression-language/cheatsheet.mdx",
+      "change_type": "Review",
+      "file_extension": "mdx"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/frontend/src/content/docs/03-expression-language/variables-and-context.mdx",
+      "change_type": "Review",
+      "file_extension": "mdx"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/frontend/src/content/docs/04-run-and-debug/error-handling.mdx",
+      "change_type": "Review",
+      "file_extension": "mdx"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/frontend/src/content/docs/04-run-and-debug/run-results.mdx",
+      "change_type": "Review",
+      "file_extension": "mdx"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/frontend/src/content/docs/04-run-and-debug/running-a-workflow.mdx",
+      "change_type": "Review",
+      "file_extension": "mdx"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/frontend/src/content/docs/04-run-and-debug/version-history.mdx",
+      "change_type": "Review",
+      "file_extension": "mdx"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/frontend/src/content/docs/05-integrations-and-config/integration-management.mdx",
+      "change_type": "Review",
+      "file_extension": "mdx"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/frontend/src/content/docs/05-integrations-and-config/knowledge-base.mdx",
+      "change_type": "Review",
+      "file_extension": "mdx"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/frontend/src/content/docs/05-integrations-and-config/llm-config.mdx",
+      "change_type": "Review",
+      "file_extension": "mdx"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/frontend/src/content/docs/06-faq/faq.mdx",
+      "change_type": "Review",
+      "file_extension": "mdx"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/frontend/src/lib/docs/registry.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/frontend/src/lib/providers.tsx",
+      "change_type": "Review",
+      "file_extension": "tsx"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/frontend/src/lib/utils/__tests__/date.test.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/frontend/src/lib/utils/__tests__/execution-status.test.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/frontend/src/lib/utils/date.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/frontend/src/lib/utils/execution-status.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/.claude/scheduled_tasks.lock",
+      "change_type": "Review",
+      "file_extension": "lock"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/frontend/src/components/docs/doc-body-notice.tsx",
+      "change_type": "Review",
+      "file_extension": "tsx"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/frontend/src/components/docs/doc-header.tsx",
+      "change_type": "Review",
+      "file_extension": "tsx"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/frontend/src/lib/docs/locale.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/frontend/src/lib/i18n/__tests__/i18n.test.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    }
+  ],
+  "total_elapsed_seconds": 207.16,
+  "agents": [
+    {
+      "name": "database",
+      "status": "success",
+      "elapsed_seconds": 7.12
+    },
+    {
+      "name": "api_contract",
+      "status": "success",
+      "elapsed_seconds": 15.15
+    },
+    {
+      "name": "dependency",
+      "status": "success",
+      "elapsed_seconds": 38.15
+    },
+    {
+      "name": "concurrency",
+      "status": "success",
+      "elapsed_seconds": 44.0
+    },
+    {
+      "name": "documentation",
+      "status": "success",
+      "elapsed_seconds": 50.72
+    },
+    {
+      "name": "scope",
+      "status": "success",
+      "elapsed_seconds": 70.13
+    },
+    {
+      "name": "security",
+      "status": "success",
+      "elapsed_seconds": 70.86
+    },
+    {
+      "name": "architecture",
+      "status": "success",
+      "elapsed_seconds": 71.25
+    },
+    {
+      "name": "maintainability",
+      "status": "success",
+      "elapsed_seconds": 75.45
+    },
+    {
+      "name": "testing",
+      "status": "success",
+      "elapsed_seconds": 79.76
+    },
+    {
+      "name": "performance",
+      "status": "success",
+      "elapsed_seconds": 85.79
+    },
+    {
+      "name": "requirement",
+      "status": "success",
+      "elapsed_seconds": 98.69
+    },
+    {
+      "name": "side_effect",
+      "status": "success",
+      "elapsed_seconds": 124.1
+    }
+  ]
+}

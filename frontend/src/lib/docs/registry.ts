@@ -4,13 +4,23 @@ import matter from "gray-matter";
 
 export interface DocFrontmatter {
   title: string;
+  title_en?: string;
   section: string;
   order: number;
   summary: string;
+  summary_en?: string;
   spec?: string[];
   code?: string[];
   draft?: boolean;
 }
+
+// Locale helpers live in ./locale (no node:fs/node:path imports, safe for client
+// bundles). Re-export them here so existing imports keep working.
+export {
+  localizedSectionLabel,
+  localizedTitle,
+  localizedSummary,
+} from "./locale";
 
 export interface DocMeta {
   slug: string[];

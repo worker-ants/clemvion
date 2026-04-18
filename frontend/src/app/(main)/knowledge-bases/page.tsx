@@ -21,8 +21,10 @@ import {
   BookOpen,
   FileText,
 } from "lucide-react";
+import { useT } from "@/lib/i18n";
 
 export default function KnowledgeBasesPage() {
+  const t = useT();
   const router = useRouter();
   const queryClient = useQueryClient();
   const [showDialog, setShowDialog] = useState(false);
@@ -53,20 +55,20 @@ export default function KnowledgeBasesPage() {
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["knowledge-bases"] });
-      toast.success("Collection created");
+      toast.success(t("knowledgeBases.collectionCreated"));
       resetForm();
     },
-    onError: () => toast.error("Failed to create collection"),
+    onError: () => toast.error(t("knowledgeBases.collectionCreateFailed")),
   });
 
   const deleteMutation = useMutation({
     mutationFn: (id: string) => knowledgeBasesApi.remove(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["knowledge-bases"] });
-      toast.success("Collection deleted");
+      toast.success(t("knowledgeBases.collectionDeleted"));
       setDeleteTarget(null);
     },
-    onError: () => toast.error("Failed to delete collection"),
+    onError: () => toast.error(t("knowledgeBases.collectionDeleteFailed")),
   });
 
   function resetForm() {
@@ -80,7 +82,7 @@ export default function KnowledgeBasesPage() {
 
   function handleCreate() {
     if (!formName.trim()) {
-      toast.error("Name is required");
+      toast.error(t("knowledgeBases.nameRequired"));
       return;
     }
     createMutation.mutate();
@@ -89,11 +91,11 @@ export default function KnowledgeBasesPage() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-3xl font-bold">Knowledge Base</h1>
+        <h1 className="text-3xl font-bold">{t("sidebar.knowledgeBase")}</h1>
         <RoleGate minRole="editor">
           <Button onClick={() => setShowDialog(true)}>
             <Plus className="mr-2 h-4 w-4" />
-            New Collection
+            {t("knowledgeBases.newCollection")}
           </Button>
         </RoleGate>
       </div>
@@ -103,30 +105,30 @@ export default function KnowledgeBasesPage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
           <div className="w-full max-w-md rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-6 shadow-lg">
             <div className="mb-4 flex items-center justify-between">
-              <h2 className="text-lg font-semibold">New Collection</h2>
+              <h2 className="text-lg font-semibold">{t("knowledgeBases.newCollection")}</h2>
               <Button variant="ghost" size="icon" onClick={resetForm}>
                 <X className="h-4 w-4" />
               </Button>
             </div>
             <div className="space-y-4">
               <div>
-                <Label>Name</Label>
+                <Label>{t("knowledgeBases.name")}</Label>
                 <Input
                   value={formName}
                   onChange={(e) => setFormName(e.target.value)}
-                  placeholder="Customer Support FAQ"
+                  placeholder={t("knowledgeBases.createPlaceholder")}
                 />
               </div>
               <div>
-                <Label>Description</Label>
+                <Label>{t("common.description")}</Label>
                 <Input
                   value={formDescription}
                   onChange={(e) => setFormDescription(e.target.value)}
-                  placeholder="Optional description..."
+                  placeholder={t("knowledgeBases.descriptionPlaceholderOptional")}
                 />
               </div>
               <div>
-                <Label>Embedding Model</Label>
+                <Label>{t("knowledgeBases.embeddingModel")}</Label>
                 <Input
                   value={formEmbeddingModel}
                   onChange={(e) => setFormEmbeddingModel(e.target.value)}
@@ -135,7 +137,7 @@ export default function KnowledgeBasesPage() {
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <Label>Chunk Size</Label>
+                  <Label>{t("knowledgeBases.chunkSize")}</Label>
                   <Input
                     type="number"
                     min="100"
@@ -145,7 +147,7 @@ export default function KnowledgeBasesPage() {
                   />
                 </div>
                 <div>
-                  <Label>Chunk Overlap</Label>
+                  <Label>{t("knowledgeBases.chunkOverlap")}</Label>
                   <Input
                     type="number"
                     min="0"
@@ -157,7 +159,7 @@ export default function KnowledgeBasesPage() {
               </div>
               <div className="flex justify-end gap-2">
                 <Button variant="outline" onClick={resetForm}>
-                  Cancel
+                  {t("common.cancel")}
                 </Button>
                 <Button
                   onClick={handleCreate}
@@ -166,7 +168,7 @@ export default function KnowledgeBasesPage() {
                   {createMutation.isPending && (
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                   )}
-                  Create
+                  {t("common.create")}
                 </Button>
               </div>
             </div>
@@ -178,17 +180,16 @@ export default function KnowledgeBasesPage() {
       {deleteTarget && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
           <div className="w-full max-w-sm rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-6 shadow-lg">
-            <h2 className="mb-2 text-lg font-semibold">Delete Collection</h2>
+            <h2 className="mb-2 text-lg font-semibold">{t("knowledgeBases.deleteTitle")}</h2>
             <p className="mb-4 text-sm text-[hsl(var(--muted-foreground))]">
-              This will delete all documents and embeddings. This action cannot
-              be undone.
+              {t("knowledgeBases.deleteMessage")}
             </p>
             <div className="flex justify-end gap-2">
               <Button
                 variant="outline"
                 onClick={() => setDeleteTarget(null)}
               >
-                Cancel
+                {t("common.cancel")}
               </Button>
               <Button
                 variant="destructive"
@@ -198,7 +199,7 @@ export default function KnowledgeBasesPage() {
                 {deleteMutation.isPending && (
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                 )}
-                Delete
+                {t("common.delete")}
               </Button>
             </div>
           </div>
@@ -212,13 +213,13 @@ export default function KnowledgeBasesPage() {
       )}
       {isError && (
         <p className="text-sm text-[hsl(var(--destructive))]">
-          Failed to load knowledge bases.
+          {t("knowledgeBases.loadFailed")}
         </p>
       )}
       {!isLoading && !isError && collections.length === 0 && (
         <div className="flex flex-col items-center justify-center py-16 text-[hsl(var(--muted-foreground))]">
           <Inbox className="mb-2 h-10 w-10" />
-          <p className="text-sm">No collections yet.</p>
+          <p className="text-sm">{t("knowledgeBases.noCollections")}</p>
         </div>
       )}
       {!isLoading && !isError && collections.length > 0 && (
@@ -256,7 +257,7 @@ export default function KnowledgeBasesPage() {
               <div className="flex items-center gap-3 text-xs text-[hsl(var(--muted-foreground))]">
                 <span className="flex items-center gap-1">
                   <FileText className="h-3 w-3" />
-                  {kb.documentCount} docs
+                  {t("knowledgeBases.docsCount", { count: kb.documentCount })}
                 </span>
                 <span className="font-mono">{kb.embeddingModel}</span>
               </div>

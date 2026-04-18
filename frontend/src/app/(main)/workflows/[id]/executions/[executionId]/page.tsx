@@ -23,9 +23,10 @@ import { cn } from "@/lib/utils/cn";
 import {
   STATUS_ICON,
   STATUS_BADGE_VARIANT,
-  STATUS_LABEL,
+  getStatusLabel,
   formatDuration,
 } from "@/lib/utils/execution-status";
+import { useT, type TranslationKey } from "@/lib/i18n";
 import { getNodeDefinition, loadNodeDefinitions } from "@/lib/node-definitions";
 import { PresentationContent } from "@/components/editor/run-results/renderers/presentation-renderers";
 import { GenericRenderer } from "@/components/editor/run-results/renderers/generic-renderer";
@@ -74,6 +75,7 @@ export default function ExecutionDetailPage({
 }: {
   params: Promise<{ id: string; executionId: string }>;
 }) {
+  const t = useT();
   const { id: workflowId, executionId } = use(params);
   const router = useRouter();
 
@@ -177,13 +179,13 @@ export default function ExecutionDetailPage({
   if (executionQuery.isError) {
     return (
       <div className="flex flex-col items-center justify-center py-16 text-[hsl(var(--muted-foreground))]">
-        <p>Failed to load execution. Please try again.</p>
+        <p>{t("executions.loadDetailFailed")}</p>
         <Button
           variant="outline"
           className="mt-4"
           onClick={() => router.push(`/workflows/${workflowId}/executions`)}
         >
-          Back to Executions
+          {t("executions.backToExecutions")}
         </Button>
       </div>
     );
@@ -192,13 +194,13 @@ export default function ExecutionDetailPage({
   if (!execution) {
     return (
       <div className="flex flex-col items-center justify-center py-16 text-[hsl(var(--muted-foreground))]">
-        <p>Execution not found.</p>
+        <p>{t("executions.executionNotFound")}</p>
         <Button
           variant="outline"
           className="mt-4"
           onClick={() => router.push(`/workflows/${workflowId}/executions`)}
         >
-          Back to Executions
+          {t("executions.backToExecutions")}
         </Button>
       </div>
     );
@@ -219,10 +221,9 @@ export default function ExecutionDetailPage({
             <ArrowLeft className="h-4 w-4" />
           </Button>
           <h1 className="text-2xl font-bold">
-            {workflowQuery.data?.name ?? "Workflow"}
-            <span className="text-[hsl(var(--muted-foreground))] font-normal">
-              {" "}&mdash; Execution Detail
-            </span>
+            {t("executions.detailHeader", {
+              name: workflowQuery.data?.name ?? t("executions.defaultName"),
+            })}
           </h1>
         </div>
         <div className="flex items-center gap-2">
@@ -238,7 +239,7 @@ export default function ExecutionDetailPage({
             }
           >
             <ChevronLeftIcon className="mr-1 h-4 w-4" />
-            Prev
+            {t("executions.prev")}
           </Button>
           <Button
             variant="outline"
@@ -251,7 +252,7 @@ export default function ExecutionDetailPage({
               )
             }
           >
-            Next
+            {t("executions.nextBtn")}
             <ChevronRightIcon className="ml-1 h-4 w-4" />
           </Button>
         </div>
@@ -269,16 +270,16 @@ export default function ExecutionDetailPage({
         <div className="flex items-center gap-3 mb-2">
           <span className="text-xl">{STATUS_ICON[execution.status] ?? "\u2753"}</span>
           <Badge variant={STATUS_BADGE_VARIANT[execution.status] ?? "outline"} className="text-sm">
-            {STATUS_LABEL[execution.status] ?? execution.status}
+            {getStatusLabel(execution.status)}
           </Badge>
         </div>
         <div className="grid grid-cols-2 gap-4 text-sm sm:grid-cols-4">
           <div>
-            <span className="text-[hsl(var(--muted-foreground))]">Started</span>
+            <span className="text-[hsl(var(--muted-foreground))]">{t("executions.summaryStarted")}</span>
             <p className="font-medium">{formatDate(execution.startedAt, "datetime")}</p>
           </div>
           <div>
-            <span className="text-[hsl(var(--muted-foreground))]">Finished</span>
+            <span className="text-[hsl(var(--muted-foreground))]">{t("executions.summaryFinished")}</span>
             <p className="font-medium">
               {execution.finishedAt
                 ? formatDate(execution.finishedAt, "datetime")
@@ -286,16 +287,16 @@ export default function ExecutionDetailPage({
             </p>
           </div>
           <div>
-            <span className="text-[hsl(var(--muted-foreground))]">Duration</span>
+            <span className="text-[hsl(var(--muted-foreground))]">{t("executions.summaryDuration")}</span>
             <p className="font-medium">{formatDuration(execution.durationMs)}</p>
           </div>
           <div>
-            <span className="text-[hsl(var(--muted-foreground))]">Nodes</span>
+            <span className="text-[hsl(var(--muted-foreground))]">{t("executions.summaryNodes")}</span>
             <p className="font-medium">
-              {completedCount}/{totalCount} completed
+              {t("executions.completedSummary", { completed: completedCount, total: totalCount })}
               {failedCount > 0 && (
                 <span className="text-[hsl(var(--destructive))]">
-                  , {failedCount} failed
+                  {t("executions.failedSuffix", { count: failedCount })}
                 </span>
               )}
             </p>
@@ -303,7 +304,7 @@ export default function ExecutionDetailPage({
         </div>
         {execution.status === "failed" && execution.error?.message && (
           <div className="mt-3 rounded-md bg-[hsl(var(--destructive))/0.1] p-3 text-sm text-[hsl(var(--destructive))]">
-            <strong>Error:</strong> {execution.error.message}
+            <strong>{t("executions.errorHeading")}</strong> {execution.error.message}
           </div>
         )}
       </div>
@@ -430,10 +431,12 @@ function NodeResultsTab({
     resumeFromConversation();
   };
 
+  const t = useT();
+
   if (!nodeExecutions.length) {
     return (
       <p className="py-8 text-center text-[hsl(var(--muted-foreground))]">
-        No node executions recorded.
+        {t("executions.noNodeExecutions")}
       </p>
     );
   }
@@ -449,11 +452,11 @@ function NodeResultsTab({
   // input — even if outputData is null the page must show the interactive UI.
   const hasPreview = !!selectedNode?.outputData || isSelectedWaiting;
 
-  const detailTabs: { id: DetailTab; label: string; show: boolean }[] = [
-    { id: "preview", label: "Preview", show: hasPreview },
-    { id: "input", label: "Input", show: true },
-    { id: "output", label: "Output", show: true },
-    { id: "error", label: "Error", show: !!selectedNode?.error },
+  const detailTabs: { id: DetailTab; labelKey: TranslationKey; show: boolean }[] = [
+    { id: "preview", labelKey: "executions.tabPreview", show: hasPreview },
+    { id: "input", labelKey: "executions.tabInput", show: true },
+    { id: "output", labelKey: "executions.tabOutput", show: true },
+    { id: "error", labelKey: "executions.tabError", show: !!selectedNode?.error },
   ];
 
   return (
@@ -461,7 +464,7 @@ function NodeResultsTab({
       {/* Left: Node List */}
       <div className="w-[240px] shrink-0 rounded-md border border-[hsl(var(--border))] overflow-y-auto">
         <div className="px-3 py-2 text-xs font-medium text-[hsl(var(--muted-foreground))] border-b border-[hsl(var(--border))]">
-          Nodes
+          {t("executions.nodesPanelTitle")}
         </div>
         {nodeExecutions.map((ne) => (
           <button
@@ -520,20 +523,20 @@ function NodeResultsTab({
             {/* Sub-tabs */}
             <div className="flex gap-2 border-b border-[hsl(var(--border))] px-4">
               {detailTabs
-                .filter((t) => t.show)
-                .map((t) => (
+                .filter((tab) => tab.show)
+                .map((tab) => (
                   <button
-                    key={t.id}
+                    key={tab.id}
                     type="button"
                     className={cn(
                       "py-2 text-xs font-medium transition-colors",
-                      nodeDetailTab === t.id
+                      nodeDetailTab === tab.id
                         ? "border-b-2 border-[hsl(var(--primary))] text-[hsl(var(--foreground))]"
                         : "text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]",
                     )}
-                    onClick={() => setNodeDetailTab(t.id)}
+                    onClick={() => setNodeDetailTab(tab.id)}
                   >
-                    {t.label}
+                    {t(tab.labelKey)}
                   </button>
                 ))}
             </div>

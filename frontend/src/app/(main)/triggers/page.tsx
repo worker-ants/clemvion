@@ -11,6 +11,7 @@ import { toast } from "sonner";
 import { Copy, Loader2, Inbox, Plus, X } from "lucide-react";
 import Link from "next/link";
 import { TriggerDetailDrawer } from "@/components/triggers/trigger-detail-drawer";
+import { useT, type TranslationKey } from "@/lib/i18n";
 
 interface Trigger {
   id: string;
@@ -45,7 +46,21 @@ const TYPE_BADGE_STYLES: Record<string, string> = {
     "bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-200",
 };
 
+const FILTER_TAB_LABELS: Record<FilterTab, TranslationKey> = {
+  all: "triggers.tabAll",
+  webhook: "triggers.tabWebhook",
+  schedule: "triggers.tabSchedule",
+  manual: "triggers.tabManual",
+};
+
+const STATUS_FILTER_LABELS: Record<StatusFilter, TranslationKey> = {
+  all: "triggers.statusAll",
+  active: "triggers.statusActive",
+  inactive: "triggers.statusInactive",
+};
+
 export default function TriggersPage() {
+  const t = useT();
   const [activeTab, setActiveTab] = useState<FilterTab>("all");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [selectedTriggerId, setSelectedTriggerId] = useState<string | null>(null);
@@ -97,10 +112,10 @@ export default function TriggersPage() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["triggers"] });
-      toast.success("Trigger updated");
+      toast.success(t("triggers.updated"));
     },
     onError: () => {
-      toast.error("Failed to update trigger");
+      toast.error(t("triggers.updateFailed"));
     },
   });
 
@@ -125,11 +140,11 @@ export default function TriggersPage() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["triggers"] });
-      toast.success("Webhook trigger created");
+      toast.success(t("triggers.webhookCreated"));
       resetForm();
     },
     onError: () => {
-      toast.error("Failed to create webhook trigger");
+      toast.error(t("triggers.webhookCreateFailed"));
     },
   });
 
@@ -145,7 +160,7 @@ export default function TriggersPage() {
 
   function handleCreate() {
     if (!formName.trim() || !formWorkflowId) {
-      toast.error("Please fill in all required fields");
+      toast.error(t("triggers.fillRequired"));
       return;
     }
     createMutation.mutate();
@@ -160,18 +175,18 @@ export default function TriggersPage() {
 
   function copyToClipboard(text: string) {
     navigator.clipboard.writeText(text).then(
-      () => toast.success("Copied to clipboard"),
-      () => toast.error("Failed to copy"),
+      () => toast.success(t("triggers.copied")),
+      () => toast.error(t("triggers.copyFailed")),
     );
   }
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-3xl font-bold">Triggers</h1>
+        <h1 className="text-3xl font-bold">{t("triggers.title")}</h1>
         <Button onClick={() => setShowDialog(true)}>
           <Plus className="mr-2 h-4 w-4" />
-          Add Webhook
+          {t("triggers.addWebhook")}
         </Button>
       </div>
 
@@ -180,30 +195,30 @@ export default function TriggersPage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
           <div className="w-full max-w-md rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-6 shadow-lg max-h-[90vh] overflow-y-auto">
             <div className="mb-4 flex items-center justify-between">
-              <h2 className="text-lg font-semibold">Add Webhook Trigger</h2>
+              <h2 className="text-lg font-semibold">{t("triggers.addWebhookTrigger")}</h2>
               <Button variant="ghost" size="icon" onClick={resetForm}>
                 <X className="h-4 w-4" />
               </Button>
             </div>
             <div className="space-y-4">
               <div>
-                <Label htmlFor="webhook-name">Name</Label>
+                <Label htmlFor="webhook-name">{t("triggers.nameLabel")}</Label>
                 <Input
                   id="webhook-name"
                   value={formName}
                   onChange={(e) => setFormName(e.target.value)}
-                  placeholder="My Webhook"
+                  placeholder={t("triggers.namePlaceholder")}
                 />
               </div>
               <div>
-                <Label htmlFor="webhook-workflow">Workflow</Label>
+                <Label htmlFor="webhook-workflow">{t("triggers.workflowLabel")}</Label>
                 <select
                   id="webhook-workflow"
                   className="flex h-10 w-full rounded-md border border-[hsl(var(--input))] bg-transparent px-3 py-2 text-sm"
                   value={formWorkflowId}
                   onChange={(e) => setFormWorkflowId(e.target.value)}
                 >
-                  <option value="">Select a workflow</option>
+                  <option value="">{t("triggers.selectWorkflow")}</option>
                   {workflows.map((wf) => (
                     <option key={wf.id} value={wf.id}>
                       {wf.name}
@@ -212,32 +227,32 @@ export default function TriggersPage() {
                 </select>
               </div>
               <div>
-                <Label htmlFor="webhook-auth">Authentication</Label>
+                <Label htmlFor="webhook-auth">{t("triggers.authenticationLabel")}</Label>
                 <select
                   id="webhook-auth"
                   className="flex h-10 w-full rounded-md border border-[hsl(var(--input))] bg-transparent px-3 py-2 text-sm"
                   value={formAuthType}
                   onChange={(e) => setFormAuthType(e.target.value as AuthType)}
                 >
-                  <option value="none">None (Public)</option>
-                  <option value="hmac">HMAC Signature</option>
-                  <option value="bearer">Bearer Token</option>
+                  <option value="none">{t("triggers.authNone")}</option>
+                  <option value="hmac">{t("triggers.authHmac")}</option>
+                  <option value="bearer">{t("triggers.authBearer")}</option>
                 </select>
               </div>
               {formAuthType === "hmac" && (
                 <>
                   <div>
-                    <Label htmlFor="webhook-secret">Secret Key</Label>
+                    <Label htmlFor="webhook-secret">{t("triggers.secretKey")}</Label>
                     <Input
                       id="webhook-secret"
                       type="password"
                       value={formSecret}
                       onChange={(e) => setFormSecret(e.target.value)}
-                      placeholder="your-secret-key"
+                      placeholder={t("triggers.secretPlaceholder")}
                     />
                   </div>
                   <div>
-                    <Label htmlFor="webhook-hmac-header">Signature Header</Label>
+                    <Label htmlFor="webhook-hmac-header">{t("triggers.signatureHeader")}</Label>
                     <Input
                       id="webhook-hmac-header"
                       value={formHmacHeader}
@@ -249,19 +264,19 @@ export default function TriggersPage() {
               )}
               {formAuthType === "bearer" && (
                 <div>
-                  <Label htmlFor="webhook-token">Bearer Token</Label>
+                  <Label htmlFor="webhook-token">{t("triggers.bearerToken")}</Label>
                   <Input
                     id="webhook-token"
                     type="password"
                     value={formBearerToken}
                     onChange={(e) => setFormBearerToken(e.target.value)}
-                    placeholder="your-bearer-token"
+                    placeholder={t("triggers.bearerPlaceholder")}
                   />
                 </div>
               )}
               <div className="flex justify-end gap-2">
                 <Button variant="outline" onClick={resetForm}>
-                  Cancel
+                  {t("common.cancel")}
                 </Button>
                 <Button
                   onClick={handleCreate}
@@ -270,7 +285,7 @@ export default function TriggersPage() {
                   {createMutation.isPending ? (
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                   ) : null}
-                  Create
+                  {t("common.create")}
                 </Button>
               </div>
             </div>
@@ -287,7 +302,7 @@ export default function TriggersPage() {
               size="sm"
               onClick={() => setActiveTab(tab)}
             >
-              {tab.charAt(0).toUpperCase() + tab.slice(1)}
+              {t(FILTER_TAB_LABELS[tab])}
             </Button>
           ))}
         </div>
@@ -299,9 +314,7 @@ export default function TriggersPage() {
               size="sm"
               onClick={() => setStatusFilter(status)}
             >
-              {status === "all"
-                ? "All Status"
-                : status.charAt(0).toUpperCase() + status.slice(1)}
+              {t(STATUS_FILTER_LABELS[status])}
             </Button>
           ))}
         </div>
@@ -315,14 +328,14 @@ export default function TriggersPage() {
 
       {isError && (
         <p className="text-sm text-[hsl(var(--destructive))]">
-          Failed to load triggers.
+          {t("triggers.loadFailed")}
         </p>
       )}
 
       {!isLoading && !isError && triggers.length === 0 && (
         <div className="flex flex-col items-center justify-center py-16 text-[hsl(var(--muted-foreground))]">
           <Inbox className="mb-2 h-10 w-10" />
-          <p className="text-sm">No triggers found.</p>
+          <p className="text-sm">{t("triggers.noTriggersFound")}</p>
         </div>
       )}
 
@@ -331,13 +344,13 @@ export default function TriggersPage() {
           <table className="w-full text-sm">
             <thead className="bg-[hsl(var(--muted))]">
               <tr>
-                <th className="px-4 py-3 text-left font-medium">Status</th>
-                <th className="px-4 py-3 text-left font-medium">Name</th>
-                <th className="px-4 py-3 text-left font-medium">Type</th>
-                <th className="px-4 py-3 text-left font-medium">Workflow</th>
-                <th className="px-4 py-3 text-left font-medium">Endpoint</th>
-                <th className="px-4 py-3 text-left font-medium">Last Triggered</th>
-                <th className="px-4 py-3 text-left font-medium">Actions</th>
+                <th className="px-4 py-3 text-left font-medium">{t("triggers.columnStatus")}</th>
+                <th className="px-4 py-3 text-left font-medium">{t("triggers.nameLabel")}</th>
+                <th className="px-4 py-3 text-left font-medium">{t("triggers.type")}</th>
+                <th className="px-4 py-3 text-left font-medium">{t("triggers.workflow")}</th>
+                <th className="px-4 py-3 text-left font-medium">{t("triggers.endpoint")}</th>
+                <th className="px-4 py-3 text-left font-medium">{t("triggers.lastTriggered")}</th>
+                <th className="px-4 py-3 text-left font-medium">{t("triggers.columnActions")}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-[hsl(var(--border))]">
@@ -363,7 +376,11 @@ export default function TriggersPage() {
                         TYPE_BADGE_STYLES[trigger.type],
                       )}
                     >
-                      {trigger.type.charAt(0).toUpperCase() + trigger.type.slice(1)}
+                      {trigger.type === "webhook"
+                        ? t("triggers.typeWebhook")
+                        : trigger.type === "schedule"
+                          ? t("triggers.typeSchedule")
+                          : t("triggers.typeManual")}
                     </span>
                   </td>
                   <td className="px-4 py-3">
@@ -415,7 +432,7 @@ export default function TriggersPage() {
                         });
                       }}
                     >
-                      {trigger.isActive ? "Deactivate" : "Activate"}
+                      {trigger.isActive ? t("triggers.toggleDeactivate") : t("triggers.toggleActivate")}
                     </Button>
                   </td>
                 </tr>

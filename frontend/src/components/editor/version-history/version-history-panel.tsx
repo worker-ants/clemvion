@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { VersionDetailDialog } from "./version-detail-dialog";
 import { VersionDiffDialog } from "./version-diff-dialog";
 import { RestoreConfirmDialog } from "./restore-confirm-dialog";
+import { useT } from "@/lib/i18n";
 
 function formatTimestamp(iso: string): string {
   try {
@@ -25,6 +26,7 @@ function creatorLabel(v: WorkflowVersionSummary): string {
 }
 
 export function VersionHistoryPanel() {
+  const t = useT();
   const open = useEditorStore((s) => s.versionHistoryOpen);
   const setOpen = useEditorStore((s) => s.setVersionHistoryOpen);
   const workflowId = useEditorStore((s) => s.workflowId);
@@ -89,14 +91,14 @@ export function VersionHistoryPanel() {
         <header className="flex items-center justify-between border-b border-[hsl(var(--border))] px-3 py-2">
           <div className="flex items-center gap-1.5">
             <History size={14} />
-            <h2 className="text-sm font-semibold">Version History</h2>
+            <h2 className="text-sm font-semibold">{t("editor.versionHistoryTitle")}</h2>
           </div>
           <Button
             variant="ghost"
             size="icon"
             className="h-7 w-7"
             onClick={() => setOpen(false)}
-            aria-label="Close version history"
+            aria-label={t("editor.closeVersionHistory")}
           >
             <X size={14} />
           </Button>
@@ -112,7 +114,7 @@ export function VersionHistoryPanel() {
                 setSelectedForDiff([]);
               }}
             />
-            Compare versions
+            {t("editor.compareVersions")}
           </label>
           {diffMode && (
             <Button
@@ -122,7 +124,7 @@ export function VersionHistoryPanel() {
               onClick={startDiff}
             >
               <GitCompare size={12} />
-              Diff ({selectedForDiff.length}/2)
+              {t("editor.diffBtn", { count: selectedForDiff.length })}
             </Button>
           )}
         </div>
@@ -133,7 +135,7 @@ export function VersionHistoryPanel() {
               role="status"
               className="p-3 text-xs text-[hsl(var(--muted-foreground))]"
             >
-              Loading versions…
+              {t("editor.loadingVersions")}
             </div>
           )}
           {query.isError && (
@@ -141,12 +143,12 @@ export function VersionHistoryPanel() {
               role="alert"
               className="p-3 text-xs text-[hsl(var(--destructive))]"
             >
-              Failed to load versions
+              {t("editor.loadVersionsFailed")}
             </div>
           )}
           {!query.isLoading && !query.isError && versions.length === 0 && (
             <div className="p-3 text-xs text-[hsl(var(--muted-foreground))]">
-              No versions yet. Save the canvas to create the first version.
+              {t("editor.noVersionsYet")}
             </div>
           )}
           <ul className="divide-y divide-[hsl(var(--border))]">
@@ -160,7 +162,7 @@ export function VersionHistoryPanel() {
                         {diffMode && (
                           <input
                             type="checkbox"
-                            aria-label={`Select v${v.version} for diff`}
+                            aria-label={t("editor.selectForDiff", { version: v.version })}
                             checked={checked}
                             onChange={() => toggleDiffSelect(v.id)}
                           />
@@ -186,7 +188,7 @@ export function VersionHistoryPanel() {
                           size="icon"
                           className="h-6 w-6"
                           onClick={() => setDetailVersionId(v.id)}
-                          aria-label={`View v${v.version}`}
+                          aria-label={t("editor.viewVersion", { version: v.version })}
                         >
                           <Eye size={12} />
                         </Button>
@@ -195,7 +197,7 @@ export function VersionHistoryPanel() {
                           size="icon"
                           className="h-6 w-6"
                           onClick={() => setRestoreTarget(v)}
-                          aria-label={`Restore v${v.version}`}
+                          aria-label={t("editor.restoreVersionLabel", { version: v.version })}
                         >
                           <RotateCcw size={12} />
                         </Button>

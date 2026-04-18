@@ -6,6 +6,7 @@ import Fuse, { type IFuseOptions } from "fuse.js";
 import { Search } from "lucide-react";
 import type { DocsSearchEntry } from "@/lib/docs/registry";
 import { cn } from "@/lib/utils/cn";
+import { useT } from "@/lib/i18n";
 
 const FUSE_OPTIONS: IFuseOptions<DocsSearchEntry> = {
   keys: [
@@ -20,6 +21,7 @@ const FUSE_OPTIONS: IFuseOptions<DocsSearchEntry> = {
 };
 
 export function DocsSearch({ entries }: { entries: DocsSearchEntry[] }) {
+  const t = useT();
   const router = useRouter();
   const inputRef = useRef<HTMLInputElement>(null);
   const [query, setQuery] = useState("");
@@ -90,8 +92,8 @@ export function DocsSearch({ entries }: { entries: DocsSearchEntry[] }) {
           onFocus={() => setOpen(true)}
           onBlur={() => window.setTimeout(() => setOpen(false), 120)}
           onKeyDown={onKeyDown}
-          placeholder="매뉴얼 검색 (⌘K)"
-          aria-label="매뉴얼 검색"
+          placeholder={`${t("docs.search")} (⌘K)`}
+          aria-label={t("docs.search")}
           className="h-9 w-full rounded-md border border-[hsl(var(--border))] bg-[hsl(var(--card))] pl-8 pr-3 text-sm placeholder:text-[hsl(var(--muted-foreground))] focus:outline-none focus:ring-2 focus:ring-[hsl(var(--ring))]"
         />
       </div>

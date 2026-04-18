@@ -1,8 +1,11 @@
+"use client";
+
 import { useQuery } from "@tanstack/react-query";
 import {
   knowledgeBasesApi,
   type KnowledgeBaseData,
 } from "@/lib/api/knowledge-bases";
+import { useT } from "@/lib/i18n";
 
 interface KbSelectorProps {
   value: string[];
@@ -10,6 +13,7 @@ interface KbSelectorProps {
 }
 
 export function KbSelector({ value, onChange }: KbSelectorProps) {
+  const t = useT();
   const { data } = useQuery({
     queryKey: ["knowledge-bases"],
     queryFn: () => knowledgeBasesApi.getAll(),
@@ -29,10 +33,10 @@ export function KbSelector({ value, onChange }: KbSelectorProps) {
     return (
       <div className="flex flex-col gap-1">
         <label className="text-[11px] font-medium text-[hsl(var(--muted-foreground))]">
-          Knowledge Bases
+          {t("nodeConfigs.kbSelector.label")}
         </label>
         <p className="text-[10px] text-[hsl(var(--muted-foreground))]">
-          No collections available
+          {t("nodeConfigs.kbSelector.noCollections")}
         </p>
       </div>
     );
@@ -41,7 +45,7 @@ export function KbSelector({ value, onChange }: KbSelectorProps) {
   return (
     <div className="flex flex-col gap-1">
       <label className="text-[11px] font-medium text-[hsl(var(--muted-foreground))]">
-        Knowledge Bases
+        {t("nodeConfigs.kbSelector.label")}
       </label>
       <div className="max-h-32 space-y-1 overflow-y-auto rounded-md border border-[hsl(var(--input))] p-1.5">
         {collections.map((kb) => (
@@ -57,7 +61,7 @@ export function KbSelector({ value, onChange }: KbSelectorProps) {
             />
             <span className="truncate">{kb.name}</span>
             <span className="ml-auto text-[10px] text-[hsl(var(--muted-foreground))]">
-              {kb.documentCount} docs
+              {t("nodeConfigs.kbSelector.docsCount", { count: kb.documentCount })}
             </span>
           </label>
         ))}

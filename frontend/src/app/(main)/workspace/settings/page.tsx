@@ -14,6 +14,7 @@ import {
   workspacesApi,
   type WorkspaceMemberSummary,
 } from "@/lib/api/workspaces";
+import { useT } from "@/lib/i18n";
 
 const ROLE_OPTIONS: WorkspaceRole[] = ["admin", "editor", "viewer"];
 
@@ -22,6 +23,7 @@ function isAdmin(role: WorkspaceRole | undefined): boolean {
 }
 
 export default function WorkspaceSettingsPage() {
+  const t = useT();
   const workspaces = useWorkspaceStore((s) => s.workspaces);
   const currentWorkspaceId = useWorkspaceStore((s) => s.currentWorkspaceId);
   const setWorkspaces = useWorkspaceStore((s) => s.setWorkspaces);
@@ -51,13 +53,13 @@ export default function WorkspaceSettingsPage() {
   const createTeamMutation = useMutation({
     mutationFn: (name: string) => workspacesApi.createTeam(name),
     onSuccess: async (created) => {
-      toast.success(`팀 워크스페이스 '${created.name}'을(를) 만들었어요.`);
+      toast.success(t("workspace.createSuccess", { name: created.name }));
       setNewTeamName("");
       await refreshWorkspaces();
       switchWorkspace(created.id);
     },
     onError: (err: unknown) => {
-      const msg = err instanceof Error ? err.message : "생성 실패";
+      const msg = err instanceof Error ? err.message : t("workspace.createGenericFailed");
       toast.error(msg);
     },
   });
@@ -66,7 +68,7 @@ export default function WorkspaceSettingsPage() {
     mutationFn: () =>
       workspacesApi.addMember(currentWorkspaceId!, memberEmail, memberRole),
     onSuccess: () => {
-      toast.success("멤버를 추가했어요.");
+      toast.success(t("workspace.memberAdded"));
       setMemberEmail("");
       setMemberRole("editor");
       queryClient.invalidateQueries({
@@ -74,7 +76,7 @@ export default function WorkspaceSettingsPage() {
       });
     },
     onError: (err: unknown) => {
-      const msg = err instanceof Error ? err.message : "멤버 추가 실패";
+      const msg = err instanceof Error ? err.message : t("workspace.addFailed");
       toast.error(msg);
     },
   });
@@ -89,13 +91,13 @@ export default function WorkspaceSettingsPage() {
     }) =>
       workspacesApi.updateMemberRole(currentWorkspaceId!, memberId, role),
     onSuccess: () => {
-      toast.success("역할을 변경했어요.");
+      toast.success(t("workspace.roleUpdated"));
       queryClient.invalidateQueries({
         queryKey: ["workspace-members", currentWorkspaceId],
       });
     },
     onError: (err: unknown) => {
-      const msg = err instanceof Error ? err.message : "역할 변경 실패";
+      const msg = err instanceof Error ? err.message : t("workspace.roleUpdateFailedShort");
       toast.error(msg);
     },
   });
@@ -104,13 +106,13 @@ export default function WorkspaceSettingsPage() {
     mutationFn: (memberId: string) =>
       workspacesApi.removeMember(currentWorkspaceId!, memberId),
     onSuccess: () => {
-      toast.success("멤버를 제거했어요.");
+      toast.success(t("workspace.memberRemoved"));
       queryClient.invalidateQueries({
         queryKey: ["workspace-members", currentWorkspaceId],
       });
     },
     onError: (err: unknown) => {
-      const msg = err instanceof Error ? err.message : "멤버 제거 실패";
+      const msg = err instanceof Error ? err.message : t("workspace.removeFailedShort");
       toast.error(msg);
     },
   });
@@ -118,15 +120,15 @@ export default function WorkspaceSettingsPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold">Workspace</h1>
+        <h1 className="text-3xl font-bold">{t("workspace.pageTitle")}</h1>
         <p className="mt-1 text-sm text-[hsl(var(--muted-foreground))]">
-          현재 워크스페이스 정보와 멤버를 관리해요.
+          {t("workspace.pageDescription")}
         </p>
       </div>
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-base font-semibold">현재 워크스페이스</CardTitle>
+          <CardTitle className="text-base font-semibold">{t("workspace.currentCardTitle")}</CardTitle>
         </CardHeader>
         <CardContent>
           {currentWorkspace ? (
@@ -142,7 +144,7 @@ export default function WorkspaceSettingsPage() {
             </div>
           ) : (
             <p className="text-sm text-[hsl(var(--muted-foreground))]">
-              선택된 워크스페이스가 없어요.
+              {t("workspace.noCurrentWorkspace")}
             </p>
           )}
         </CardContent>
@@ -150,7 +152,7 @@ export default function WorkspaceSettingsPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-base font-semibold">팀 워크스페이스 만들기</CardTitle>
+          <CardTitle className="text-base font-semibold">{t("workspace.createTeamCardTitle")}</CardTitle>
         </CardHeader>
         <CardContent>
           <form
@@ -158,7 +160,7 @@ export default function WorkspaceSettingsPage() {
             onSubmit={(e) => {
               e.preventDefault();
               if (newTeamName.trim().length < 2) {
-                toast.error("이름은 2자 이상이어야 해요.");
+                toast.error(t("workspace.nameTooShort"));
                 return;
               }
               createTeamMutation.mutate(newTeamName.trim());
@@ -167,14 +169,14 @@ export default function WorkspaceSettingsPage() {
             <Input
               value={newTeamName}
               onChange={(e) => setNewTeamName(e.target.value)}
-              placeholder="예: Marketing Team"
+              placeholder={t("workspace.createPlaceholder")}
               className="sm:max-w-xs"
             />
             <Button type="submit" disabled={createTeamMutation.isPending}>
               {createTeamMutation.isPending ? (
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
               ) : null}
-              만들기
+              {t("workspace.createBtn")}
             </Button>
           </form>
         </CardContent>
@@ -183,7 +185,7 @@ export default function WorkspaceSettingsPage() {
       {currentWorkspace?.type === "team" && (
         <Card>
           <CardHeader>
-            <CardTitle className="text-base font-semibold">멤버</CardTitle>
+            <CardTitle className="text-base font-semibold">{t("workspace.membersCardTitle")}</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             {adminMode && (
@@ -199,7 +201,7 @@ export default function WorkspaceSettingsPage() {
                   type="email"
                   value={memberEmail}
                   onChange={(e) => setMemberEmail(e.target.value)}
-                  placeholder="user@example.com"
+                  placeholder={t("workspace.memberEmailPlaceholder")}
                   className="sm:max-w-xs"
                 />
                 <select
@@ -221,7 +223,7 @@ export default function WorkspaceSettingsPage() {
                   variant="outline"
                 >
                   <UserPlus className="mr-2 h-4 w-4" />
-                  추가
+                  {t("workspace.addButton")}
                 </Button>
               </form>
             )}
@@ -232,16 +234,16 @@ export default function WorkspaceSettingsPage() {
               </div>
             ) : !membersQuery.data?.length ? (
               <p className="text-sm text-[hsl(var(--muted-foreground))]">
-                멤버가 없어요.
+                {t("workspace.noMembers")}
               </p>
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b border-[hsl(var(--border))]">
-                      <th className="py-2 pr-4 text-left font-medium text-[hsl(var(--muted-foreground))]">이름</th>
-                      <th className="py-2 pr-4 text-left font-medium text-[hsl(var(--muted-foreground))]">이메일</th>
-                      <th className="py-2 pr-4 text-left font-medium text-[hsl(var(--muted-foreground))]">역할</th>
+                      <th className="py-2 pr-4 text-left font-medium text-[hsl(var(--muted-foreground))]">{t("workspace.columnName")}</th>
+                      <th className="py-2 pr-4 text-left font-medium text-[hsl(var(--muted-foreground))]">{t("workspace.columnEmail")}</th>
+                      <th className="py-2 pr-4 text-left font-medium text-[hsl(var(--muted-foreground))]">{t("workspace.columnRole")}</th>
                       <th className="py-2 text-right font-medium text-[hsl(var(--muted-foreground))]"></th>
                     </tr>
                   </thead>
@@ -284,7 +286,7 @@ export default function WorkspaceSettingsPage() {
                               size="icon"
                               className="h-8 w-8"
                               onClick={() => removeMemberMutation.mutate(m.id)}
-                              title="멤버 제거"
+                              title={t("workspace.removeTooltip")}
                             >
                               <Trash2 className="h-4 w-4" />
                             </Button>

@@ -26,24 +26,26 @@ import {
 import { ServiceIcon, prettyAuthType } from "./_shared/service-icons";
 import { StatusBadge, needsAttention } from "./_shared/status-badge";
 import { ServicePickerModal } from "./_shared/service-picker-modal";
+import { useT, type TranslationKey } from "@/lib/i18n";
 
-const SCOPE_OPTIONS = [
-  { value: "all", label: "All" },
-  { value: "personal", label: "Personal" },
-  { value: "organization", label: "Organization" },
-] as const;
+const SCOPE_OPTIONS: { value: "all" | "personal" | "organization"; labelKey: TranslationKey }[] = [
+  { value: "all", labelKey: "integrations.scopeAll" },
+  { value: "personal", labelKey: "integrations.scopePersonal" },
+  { value: "organization", labelKey: "integrations.scopeOrganization" },
+];
 
-const STATUS_FILTERS: { value: ListStatusFilter; label: string }[] = [
-  { value: "all", label: "All" },
-  { value: "connected", label: "Connected" },
-  { value: "expiring", label: "Expiring" },
-  { value: "expired", label: "Expired" },
-  { value: "error", label: "Error" },
+const STATUS_FILTERS: { value: ListStatusFilter; labelKey: TranslationKey }[] = [
+  { value: "all", labelKey: "integrations.statusAll" },
+  { value: "connected", labelKey: "integrations.statusConnected" },
+  { value: "expiring", labelKey: "integrations.statusExpiring" },
+  { value: "expired", labelKey: "integrations.statusExpired" },
+  { value: "error", labelKey: "integrations.statusError" },
 ];
 
 const PAGE_SIZE = 30;
 
 export default function IntegrationsPage() {
+  const t = useT();
   const router = useRouter();
   const searchParams = useSearchParams();
 
@@ -147,11 +149,11 @@ export default function IntegrationsPage() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-3xl font-bold">Integrations</h1>
+        <h1 className="text-3xl font-bold">{t("integrations.title")}</h1>
         <RoleGate minRole="editor">
           <Button onClick={() => setPickerOpen(true)}>
             <Plus className="mr-2 h-4 w-4" />
-            Add Integration
+            {t("integrations.addIntegration")}
             <kbd className="ml-2 hidden rounded bg-[hsl(var(--primary-foreground))]/20 px-1.5 py-0.5 text-[10px] sm:inline">
               N
             </kbd>
@@ -167,9 +169,9 @@ export default function IntegrationsPage() {
         >
           <AlertTriangle className="h-5 w-5 shrink-0" />
           <span>
-            <strong>{attentionCount}</strong> integration
-            {attentionCount > 1 ? "s" : ""} need attention (expiring, expired, or
-            error). Click to filter.
+            <strong>{attentionCount}</strong> {t("integrations.attentionPrefix")}
+            {" "}
+            {t("integrations.attentionSuffix")}
           </span>
         </button>
       )}
@@ -179,7 +181,7 @@ export default function IntegrationsPage() {
           <div className="relative w-full max-w-sm">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[hsl(var(--muted-foreground))]" />
             <Input
-              placeholder="Search integrations..."
+              placeholder={t("integrations.searchPlaceholder")}
               value={q}
               onChange={(e) => updateParam("q", e.target.value)}
               className="pl-9"
@@ -199,7 +201,7 @@ export default function IntegrationsPage() {
                   )}
                   onClick={() => updateParam("scope", opt.value)}
                 >
-                  {opt.label}
+                  {t(opt.labelKey)}
                 </button>
               ))}
             </div>
@@ -208,7 +210,7 @@ export default function IntegrationsPage() {
               size="icon"
               onClick={() => void refetch()}
               disabled={isFetching}
-              aria-label="Refresh"
+              aria-label={t("integrations.refreshAria")}
             >
               <RefreshCw
                 className={cn("h-4 w-4", isFetching && "animate-spin")}
@@ -222,7 +224,7 @@ export default function IntegrationsPage() {
             active={serviceTypes.length === 0}
             onClick={() => updateParam("serviceType", null)}
           >
-            All services
+            {t("integrations.allServices")}
           </Chip>
           {services.map((s) => (
             <Chip
@@ -242,7 +244,7 @@ export default function IntegrationsPage() {
               active={status === f.value}
               onClick={() => updateParam("status", f.value)}
             >
-              {f.label}
+              {t(f.labelKey)}
             </Chip>
           ))}
         </div>
@@ -261,12 +263,12 @@ export default function IntegrationsPage() {
 
       {isError && (
         <div className="rounded-lg border border-[hsl(var(--destructive))]/30 bg-[hsl(var(--destructive))]/10 p-4 text-sm">
-          Failed to load integrations.{" "}
+          {t("integrations.loadFailedHint")}{" "}
           <button
             onClick={() => void refetch()}
             className="font-medium underline"
           >
-            Retry
+            {t("integrations.retry")}
           </button>
         </div>
       )}
@@ -274,13 +276,13 @@ export default function IntegrationsPage() {
       {!isLoading && !isError && integrations.length === 0 && (
         <EmptyState
           icon={Inbox}
-          title="No integrations yet"
-          description="Connect external services to use them from your workflows."
+          title={t("integrations.emptyTitle")}
+          description={t("integrations.emptyDescription")}
           action={
             <RoleGate minRole="editor">
               <Button onClick={() => setPickerOpen(true)}>
                 <Plus className="mr-2 h-4 w-4" />
-                Add Integration
+                {t("integrations.addIntegration")}
               </Button>
             </RoleGate>
           }
@@ -290,10 +292,10 @@ export default function IntegrationsPage() {
       {!isLoading && !isError && integrations.length > 0 && (
         <>
           {grouped.org.length > 0 && (
-            <Section title="Organization" items={grouped.org} />
+            <Section title={t("integrations.sectionOrg")} items={grouped.org} />
           )}
           {grouped.personal.length > 0 && (
-            <Section title="Personal" items={grouped.personal} />
+            <Section title={t("integrations.sectionPersonal")} items={grouped.personal} />
           )}
         </>
       )}
@@ -301,8 +303,11 @@ export default function IntegrationsPage() {
       {pagination && pagination.totalPages > 1 && (
         <div className="flex items-center justify-between border-t border-[hsl(var(--border))] pt-4 text-sm text-[hsl(var(--muted-foreground))]">
           <span>
-            Page {pagination.page} of {pagination.totalPages} ·{" "}
-            {pagination.totalItems} total
+            {t("integrations.paginationSummary", {
+              page: pagination.page,
+              totalPages: pagination.totalPages,
+              totalItems: pagination.totalItems,
+            })}
           </span>
           <div className="flex items-center gap-2">
             <Button

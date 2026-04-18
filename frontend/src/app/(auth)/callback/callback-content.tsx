@@ -12,6 +12,7 @@ import {
   CardContent,
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { useT } from "@/lib/i18n";
 
 interface CallbackContentProps {
   success?: string;
@@ -20,6 +21,7 @@ interface CallbackContentProps {
 }
 
 export function CallbackContent({ success, error, token }: CallbackContentProps) {
+  const t = useT();
   const router = useRouter();
   const hasError = !!error || (!success && !token);
   const [status] = useState<"loading" | "error">(
@@ -39,8 +41,8 @@ export function CallbackContent({ success, error, token }: CallbackContentProps)
     return (
       <Card>
         <CardHeader className="text-center">
-          <CardTitle>Signing in...</CardTitle>
-          <CardDescription>Please wait while we complete your sign in.</CardDescription>
+          <CardTitle>{t("auth.callback.signingIn")}</CardTitle>
+          <CardDescription>{t("auth.callback.pleaseWait")}</CardDescription>
         </CardHeader>
         <CardContent className="flex justify-center">
           <div className="h-8 w-8 animate-spin rounded-full border-4 border-[hsl(var(--primary))] border-t-transparent" />
@@ -52,17 +54,17 @@ export function CallbackContent({ success, error, token }: CallbackContentProps)
   return (
     <Card>
       <CardHeader className="text-center">
-        <CardTitle>Authentication Failed</CardTitle>
+        <CardTitle>{t("auth.callback.authFailedTitle")}</CardTitle>
         <CardDescription>
-          {error ?? "An unexpected error occurred during authentication."}
+          {error ?? t("auth.callback.authFailedDefault")}
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-3">
         <Button asChild className="w-full">
-          <Link href="/login">Try Again</Link>
+          <Link href="/login">{t("auth.callback.tryAgain")}</Link>
         </Button>
         <Button asChild variant="outline" className="w-full">
-          <Link href="/login">Back to Sign In</Link>
+          <Link href="/login">{t("auth.callback.backToLogin")}</Link>
         </Button>
       </CardContent>
     </Card>
