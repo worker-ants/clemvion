@@ -1,6 +1,6 @@
 import { WorkflowHandler } from './workflow.handler.js';
-import { ExecutionContext } from '../../../../nodes/core/node-handler.interface.js';
-import { WorkflowExecutor } from './workflow-executor.interface.js';
+import { ExecutionContext } from '../../core/node-handler.interface.js';
+import { WorkflowExecutor } from '../../core/workflow-executor.interface.js';
 
 describe('WorkflowHandler', () => {
   let handler: WorkflowHandler;

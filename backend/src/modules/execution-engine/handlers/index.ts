@@ -11,7 +11,6 @@ export { MergeHandler } from './logic/merge.handler.js';
 export { FilterHandler } from './logic/filter.handler.js';
 
 // Flow handlers
-export { WorkflowHandler } from './flow/workflow.handler.js';
 
 // Integration handlers
 export { HttpRequestHandler } from './integration/http-request.handler.js';
