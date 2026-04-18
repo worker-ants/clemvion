@@ -3,6 +3,8 @@
  * Used by expression autocomplete to provide deep field suggestions.
  */
 
+import type { JsonSchemaNode } from "@/lib/node-definitions/types";
+
 /** Maximum nesting depth for path traversal; prevents runaway on deeply nested or cyclic-like data */
 const MAX_DEPTH = 10;
 
@@ -136,4 +138,83 @@ export function splitPathAndLeaf(fullPath: string): {
     parentPath: fullPath.slice(0, lastDot),
     leafPrefix: fullPath.slice(lastDot + 1),
   };
+}
+
+/** Normalize a JSON Schema `type` value into a single display string. */
+function schemaTypeLabel(node: JsonSchemaNode | undefined): string {
+  if (!node) return "unknown";
+  if (Array.isArray(node.type)) return node.type[0] ?? "unknown";
+  return node.type ?? (node.properties ? "object" : "unknown");
+}
+
+/**
+ * Walk a JSON Schema node along a dot-path (matching {@link parsePath} semantics)
+ * and return the nested schema at that location, or null if unresolvable.
+ */
+function resolveSchemaNode(
+  schema: JsonSchemaNode | undefined,
+  dotPath: string,
+): JsonSchemaNode | null {
+  if (!schema) return null;
+  if (!dotPath) return schema;
+
+  const segments = parsePath(dotPath);
+  if (segments.length > MAX_DEPTH) return null;
+
+  let current: JsonSchemaNode | undefined = schema;
+
+  for (const segment of segments) {
+    if (!current) return null;
+
+    // Array index: walk into items
+    if (INDEX_SEGMENT_RE.test(segment)) {
+      if (typeof current.items === "object" && current.items) {
+        current = current.items;
+        continue;
+      }
+      return null;
+    }
+
+    // Object key: walk into properties[key]
+    if (current.properties && current.properties[segment]) {
+      current = current.properties[segment];
+      continue;
+    }
+    // Array of objects: unwrap items then descend into properties
+    if (typeof current.items === "object" && current.items?.properties?.[segment]) {
+      current = current.items.properties[segment];
+      continue;
+    }
+    return null;
+  }
+
+  return current ?? null;
+}
+
+/**
+ * Get the child keys (with types) from a JSON Schema at the given dot-path.
+ * - Object schemas → return their `properties` keys.
+ * - Array schemas → unwrap `items` and return its properties.
+ * Used as a static (execution-independent) fallback for autocomplete hints.
+ */
+export function getSchemaKeys(
+  schema: JsonSchemaNode | undefined,
+  dotPath: string,
+): Array<{ key: string; type: string }> {
+  const node = resolveSchemaNode(schema, dotPath);
+  if (!node) return [];
+
+  if (node.properties) {
+    return Object.entries(node.properties).map(([key, child]) => ({
+      key,
+      type: schemaTypeLabel(child),
+    }));
+  }
+  if (typeof node.items === "object" && node.items?.properties) {
+    return Object.entries(node.items.properties).map(([key, child]) => ({
+      key,
+      type: schemaTypeLabel(child),
+    }));
+  }
+  return [];
 }

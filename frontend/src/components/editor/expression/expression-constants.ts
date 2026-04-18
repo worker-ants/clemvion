@@ -22,6 +22,18 @@ export const TABLE_CONTEXT_VARIABLES: Suggestion[] = [
   { label: "$dataSource", insertText: "$dataSource", type: "variable", detail: "Table data source array" },
 ];
 
+/**
+ * Properties exposed by `$node["X"]` at runtime.
+ * Matches the shape built in `expression-resolver.service.ts` (config/output/meta/port/status).
+ */
+export const NODE_ACCESSORS: Suggestion[] = [
+  { label: "output", insertText: "output", type: "field", detail: "Node output data", isExpandable: true },
+  { label: "config", insertText: "config", type: "field", detail: "Node configuration", isExpandable: true },
+  { label: "meta", insertText: "meta", type: "field", detail: "Execution metadata", isExpandable: true },
+  { label: "port", insertText: "port", type: "field", detail: "Emitted output port id" },
+  { label: "status", insertText: "status", type: "field", detail: "Execution status" },
+];
+
 /** Built-in variables for variable picker (excludes $input, $node, $var which have their own sections) */
 export const BUILT_IN_PICKER_VARIABLES = ROOT_VARIABLES
   .filter((v) => !["$input", "$node", "$var"].includes(v.label))

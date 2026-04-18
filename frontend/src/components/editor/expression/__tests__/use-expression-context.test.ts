@@ -4,6 +4,7 @@ import { renderHook } from "@testing-library/react";
 // Store state that tests can mutate
 let editorState: Record<string, unknown> = {};
 let executionState: Record<string, unknown> = {};
+let nodeDefinitionsState: Record<string, unknown> = { definitions: {} };
 
 vi.mock("@/lib/stores/editor-store", () => ({
   useEditorStore: (selector: (s: Record<string, unknown>) => unknown) =>
@@ -13,6 +14,11 @@ vi.mock("@/lib/stores/editor-store", () => ({
 vi.mock("@/lib/stores/execution-store", () => ({
   useExecutionStore: (selector: (s: Record<string, unknown>) => unknown) =>
     selector(executionState),
+}));
+
+vi.mock("@/lib/stores/node-definitions-store", () => ({
+  useNodeDefinitionsStore: (selector: (s: Record<string, unknown>) => unknown) =>
+    selector(nodeDefinitionsState),
 }));
 
 vi.mock("@workflow/expression-engine", async (importOriginal) => {
@@ -42,6 +48,7 @@ describe("useExpressionContext", () => {
   beforeEach(() => {
     editorState = { nodes: [], edges: [] };
     executionState = { nodeResults: [] };
+    nodeDefinitionsState = { definitions: {} };
   });
 
   it("returns empty data when no nodes exist", () => {
@@ -264,6 +271,64 @@ describe("useExpressionContext", () => {
 
       const { result } = renderHook(() => useExpressionContext("t1"));
       expect(result.current.sourceItemSample).toBeNull();
+    });
+  });
+
+  describe("static schema attachment", () => {
+    it("attaches outputSchema/configSchema to availableNodes from node definitions", () => {
+      const chartOutputSchema = {
+        type: "object",
+        properties: { chartType: { type: "string" } },
+      };
+      const chartConfigSchema = {
+        type: "object",
+        properties: { title: { type: "string" } },
+      };
+      editorState = {
+        nodes: [
+          makeNode("c1", "chart", "Chart"),
+          makeNode("n1", "http_request", "HTTP"),
+        ],
+        edges: [],
+      };
+      executionState = { nodeResults: [] };
+      nodeDefinitionsState = {
+        definitions: {
+          chart: {
+            type: "chart",
+            outputSchema: chartOutputSchema,
+            configSchema: chartConfigSchema,
+          },
+        },
+      };
+
+      const { result } = renderHook(() => useExpressionContext("n1"));
+      const chart = result.current.availableNodes.find((n) => n.label === "Chart");
+      expect(chart?.outputSchema).toEqual(chartOutputSchema);
+      expect(chart?.configSchema).toEqual(chartConfigSchema);
+    });
+
+    it("exposes inputSchema from predecessor node's outputSchema", () => {
+      const predecessorOutputSchema = {
+        type: "object",
+        properties: { userId: { type: "string" } },
+      };
+      editorState = {
+        nodes: [
+          makeNode("n1", "chart", "Chart"),
+          makeNode("n2", "http_request", "HTTP Request"),
+        ],
+        edges: [makeEdge("n1", "n2")],
+      };
+      executionState = { nodeResults: [] };
+      nodeDefinitionsState = {
+        definitions: {
+          chart: { type: "chart", outputSchema: predecessorOutputSchema },
+        },
+      };
+
+      const { result } = renderHook(() => useExpressionContext("n2"));
+      expect(result.current.inputSchema).toEqual(predecessorOutputSchema);
     });
   });
 });

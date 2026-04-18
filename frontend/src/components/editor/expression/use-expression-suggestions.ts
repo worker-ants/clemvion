@@ -1,7 +1,16 @@
 import { useMemo } from "react";
 import type { ExpressionData } from "./use-expression-context";
-import { getNestedKeys, splitPathAndLeaf } from "./resolve-nested-path";
-import { ROOT_VARIABLES, TABLE_CONTEXT_VARIABLES } from "./expression-constants";
+import type { JsonSchemaNode } from "@/lib/node-definitions/types";
+import {
+  getNestedKeys,
+  getSchemaKeys,
+  splitPathAndLeaf,
+} from "./resolve-nested-path";
+import {
+  NODE_ACCESSORS,
+  ROOT_VARIABLES,
+  TABLE_CONTEXT_VARIABLES,
+} from "./expression-constants";
 
 export type SuggestionType = "variable" | "field" | "node" | "function";
 
@@ -14,9 +23,16 @@ export interface Suggestion {
   isExpandable?: boolean;
 }
 
+/** Characters that form part of an expression token when unquoted. */
+const TOKEN_CHAR_RE = /[a-zA-Z0-9_$.[\]]/;
+
 /**
  * Determine the expression token context at the given cursor position.
  * Returns null if the cursor is not inside a {{ }} expression block.
+ *
+ * Walks backward from the cursor, tracking whether we're inside a `"..."`
+ * string literal so that spaces inside node keys (e.g. `$node["AI Agent"]`)
+ * are part of the token, while spaces outside strings act as boundaries.
  */
 function getExpressionToken(
   value: string,
@@ -37,23 +53,56 @@ function getExpressionToken(
   const between = value.substring(openIdx, cursorPos);
   if (between.includes("}}")) return null;
 
-  // Extract the token from the last meaningful boundary
-  const tokenMatch = between.match(/([a-zA-Z0-9_$."[\]]*?)$/);
-  if (!tokenMatch) return { token: "", start: cursorPos, end: cursorPos };
+  // Detect whether the cursor sits inside an unterminated `"..."` by scanning
+  // forward and counting unescaped quotes. When odd, the tail is open.
+  let cursorInsideString = false;
+  for (let k = 0; k < between.length; k++) {
+    if (between[k] === '"' && between[k - 1] !== "\\") {
+      cursorInsideString = !cursorInsideString;
+    }
+  }
 
-  const token = tokenMatch[1];
-  const start = cursorPos - token.length;
+  // Walk backward. Inside a `"..."` region every char is part of the token;
+  // outside, only TOKEN_CHAR_RE chars continue the token. The initial
+  // `inString` state is taken from the forward scan so that `$node["AI A`
+  // (cursor mid-string) correctly treats the space as part of the token.
+  let i = between.length - 1;
+  let inString = cursorInsideString;
+  while (i >= 0) {
+    const ch = between[i];
+    if (inString) {
+      if (ch === '"' && between[i - 1] !== "\\") inString = false;
+      i--;
+      continue;
+    }
+    if (ch === '"') {
+      inString = true;
+      i--;
+      continue;
+    }
+    if (!TOKEN_CHAR_RE.test(ch)) break;
+    i--;
+  }
+
+  const tokenStartInBetween = i + 1;
+  const token = between.slice(tokenStartInBetween);
+  const start = openIdx + tokenStartInBetween;
   return { token, start, end: cursorPos };
 }
 
-/** Build nested field suggestions from a sample object at the given field path */
+/**
+ * Build nested field suggestions by unioning runtime sample keys with static
+ * JSON schema keys. Runtime sample is preferred when both sources describe
+ * the same field (live data is more accurate than the declared schema).
+ */
 function buildNestedSuggestions(
   sample: Record<string, unknown>,
   fieldPrefix: string,
+  schema?: JsonSchemaNode,
 ): { suggestions: Suggestion[]; leafLength: number } {
   const { parentPath, leafPrefix } = splitPathAndLeaf(fieldPrefix);
 
-  const nestedKeys = parentPath
+  const sampleKeys = parentPath
     ? getNestedKeys(sample, parentPath)
     : Object.keys(sample).map((key) => {
         const val = sample[key];
@@ -66,7 +115,13 @@ function buildNestedSuggestions(
         return { key, type };
       });
 
-  const suggestions = nestedKeys
+  const schemaKeys = getSchemaKeys(schema, parentPath);
+
+  const merged = new Map<string, { key: string; type: string }>();
+  for (const f of schemaKeys) merged.set(f.key, f);
+  for (const f of sampleKeys) merged.set(f.key, f);
+
+  const suggestions = Array.from(merged.values())
     .filter((f) => f.key.toLowerCase().startsWith(leafPrefix.toLowerCase()))
     .map((f) => ({
       label: f.key,
@@ -95,20 +150,25 @@ export function useExpressionSuggestions(
     const { token, end } = ctx;
     const trimmedToken = token.trimStart();
 
-    // $node["..."].output. → field suggestions for that node (supports nested paths)
-    const nodeOutputMatch = trimmedToken.match(
-      /\$node\["([^"]+)"\]\.output\.(.*)$/,
+    // $node["..."].(output|config).<path> → field suggestions for that accessor
+    const nodeAccessorDrillMatch = trimmedToken.match(
+      /\$node\["([^"]+)"\]\.(output|config)\.(.*)$/,
     );
-    if (nodeOutputMatch) {
-      const nodeKey = nodeOutputMatch[1];
-      const fieldPrefix = nodeOutputMatch[2];
+    if (nodeAccessorDrillMatch) {
+      const nodeKey = nodeAccessorDrillMatch[1];
+      const accessor = nodeAccessorDrillMatch[2] as "output" | "config";
+      const fieldPrefix = nodeAccessorDrillMatch[3];
       const node = expressionData.availableNodes.find(
         (n) => n.resolvedKey === nodeKey,
       );
       if (node) {
+        const sample = accessor === "output" ? node.outputSample : {};
+        const schema =
+          accessor === "output" ? node.outputSchema : node.configSchema;
         const { suggestions, leafLength } = buildNestedSuggestions(
-          node.outputSample,
+          sample,
           fieldPrefix,
+          schema,
         );
         return {
           suggestions,
@@ -116,6 +176,22 @@ export function useExpressionSuggestions(
           tokenEnd: end,
         };
       }
+    }
+
+    // $node["..."].<prefix> (first accessor) → node accessor hints (output/config/meta/port/status)
+    const nodeAccessorMatch = trimmedToken.match(
+      /\$node\["([^"]+)"\]\.([a-zA-Z_]*)$/,
+    );
+    if (nodeAccessorMatch) {
+      const accessorPrefix = nodeAccessorMatch[2];
+      const suggestions = NODE_ACCESSORS.filter((a) =>
+        a.label.toLowerCase().startsWith(accessorPrefix.toLowerCase()),
+      );
+      return {
+        suggestions,
+        tokenStart: end - accessorPrefix.length,
+        tokenEnd: end,
+      };
     }
 
     // $node[" → node label suggestions
@@ -131,9 +207,11 @@ export function useExpressionSuggestions(
           const escaped = n.resolvedKey.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
           return {
             label: n.resolvedKey,
-            insertText: `${escaped}"].output`,
+            insertText: `${escaped}"]`,
             type: "node" as const,
             detail: n.type,
+            // handleSelect auto-appends "." so the next keystroke opens the accessor hint
+            isExpandable: true,
           };
         });
       return {
@@ -143,12 +221,13 @@ export function useExpressionSuggestions(
       };
     }
 
-    // $input. → input field suggestions (supports nested paths)
+    // $input. → input field suggestions (supports nested paths, static schema fallback)
     if (trimmedToken.startsWith("$input.")) {
       const fieldPrefix = trimmedToken.slice(7);
       const { suggestions, leafLength } = buildNestedSuggestions(
         expressionData.inputSample,
         fieldPrefix,
+        expressionData.inputSchema,
       );
       return {
         suggestions,

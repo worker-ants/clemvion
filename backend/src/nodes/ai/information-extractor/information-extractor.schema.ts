@@ -120,6 +120,53 @@ export type InformationExtractorConfig = z.infer<
   typeof informationExtractorNodeConfigSchema
 >;
 
+/**
+ * Runtime `$node["X"].output` value. The handler returns the legacy port
+ * selector `{ port, data: { config, output, meta } }`, so `data` becomes the
+ * resolver-visible output — i.e. a nested `{ config, output: { extracted, ... }, meta }`.
+ * User-defined extraction fields live at `.output.extracted.<name>` and are
+ * enriched dynamically from each node instance's `config.outputSchema` on the
+ * frontend side.
+ */
+export const informationExtractorNodeOutputSchema = z
+  .object({
+    config: z
+      .object({
+        schema: z.array(fieldDefSchema).optional(),
+      })
+      .partial()
+      .passthrough()
+      .optional(),
+    output: z
+      .object({
+        extracted: z.record(z.string(), z.unknown()).optional(),
+        error: z.string().optional(),
+        originalInput: z.string().optional(),
+      })
+      .partial()
+      .passthrough()
+      .optional(),
+    meta: z
+      .object({
+        model: z.string(),
+        inputTokens: z.number(),
+        outputTokens: z.number(),
+        totalTokens: z.number(),
+        thinkingTokens: z.number(),
+      })
+      .partial()
+      .passthrough()
+      .optional(),
+    // Multi-turn / waiting-for-input shape also surfaces through $node.output
+    status: z.string().optional(),
+    interactionType: z.string().optional(),
+    conversationConfig: z.record(z.string(), z.unknown()).optional(),
+    turnCount: z.number().optional(),
+    endReason: z.string().optional(),
+    partialResult: z.record(z.string(), z.unknown()).optional(),
+  })
+  .passthrough();
+
 export const informationExtractorNodePorts: NodePorts = {
   inputs: [{ id: 'in', label: 'Input', type: 'data' }],
   outputs: [

@@ -287,6 +287,54 @@ export const aiAgentNodeConfigSchema = z
   .passthrough();
 export type AiAgentConfig = z.infer<typeof aiAgentNodeConfigSchema>;
 
+/**
+ * Superset of the fields handlers produce across the AI Agent's runtime modes
+ * (single-turn success, multi-turn waiting, multi-turn final, condition route).
+ * Kept permissive (`.passthrough()` + `.optional()`) so autocomplete surfaces
+ * every stable key without triggering validation churn when modes change.
+ */
+export const aiAgentNodeOutputSchema = z
+  .object({
+    response: z.unknown().optional(),
+    interactionType: z.string().optional(),
+    status: z.string().optional(),
+    messages: z.array(z.unknown()).optional(),
+    turnCount: z.number().optional(),
+    endReason: z.string().optional(),
+    conversationConfig: z
+      .object({
+        message: z.string(),
+        messages: z.array(z.unknown()),
+        turnCount: z.number(),
+        maxTurns: z.number(),
+      })
+      .partial()
+      .passthrough()
+      .optional(),
+    condition: z
+      .object({
+        id: z.string(),
+        label: z.string(),
+        reason: z.string(),
+      })
+      .partial()
+      .optional(),
+    metadata: z
+      .object({
+        model: z.string(),
+        inputTokens: z.number(),
+        outputTokens: z.number(),
+        totalTokens: z.number(),
+        thinkingTokens: z.number(),
+        toolCalls: z.number(),
+        ragSources: z.array(z.unknown()),
+      })
+      .partial()
+      .passthrough()
+      .optional(),
+  })
+  .passthrough();
+
 export const aiAgentNodePorts: NodePorts = {
   inputs: [{ id: 'in', label: 'Input', type: 'data' }],
   outputs: [{ id: 'out', label: 'Output', type: 'data' }],

@@ -72,6 +72,28 @@ export type TextClassifierConfig = z.infer<
   typeof textClassifierNodeConfigSchema
 >;
 
+/**
+ * Output shape after the handler adapter unwraps `{ config, output, meta, port }`:
+ * the runtime `$node["X"].output` value. Covers both single-label and
+ * multi-label variants plus the error-port case.
+ */
+export const textClassifierNodeOutputSchema = z
+  .object({
+    category: z.string().nullable().optional(),
+    categories: z
+      .array(
+        z.object({
+          name: z.string(),
+          confidence: z.number().optional(),
+        }),
+      )
+      .optional(),
+    confidence: z.number().optional(),
+    originalInput: z.string().optional(),
+    error: z.string().optional(),
+  })
+  .passthrough();
+
 export const textClassifierNodePorts: NodePorts = {
   inputs: [{ id: 'in', label: 'Input', type: 'data' }],
   outputs: [],
