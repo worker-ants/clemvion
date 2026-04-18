@@ -10,13 +10,13 @@ import {
   ExecutionContext,
   NodeHandler,
   ValidationResult,
-} from '../../../../nodes/core/node-handler.interface.js';
+} from '../../core/node-handler.interface.js';
 import {
   IntegrationError,
   IntegrationHandlerBase,
   toLogError,
-} from '../../../../nodes/integration/_base/integration-handler-base.js';
-import { IntegrationsService } from '../../../integrations/integrations.service.js';
+} from '../_base/integration-handler-base.js';
+import { IntegrationsService } from '../../../modules/integrations/integrations.service.js';
 
 interface DbCredentials {
   driver: 'postgres' | 'mysql';

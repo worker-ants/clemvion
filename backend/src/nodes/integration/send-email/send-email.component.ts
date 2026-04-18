@@ -1,4 +1,4 @@
-import { SendEmailHandler } from '../../../modules/execution-engine/handlers/integration/send-email.handler';
+import { SendEmailHandler } from './send-email.handler';
 import { NodeComponent } from '../../core/node-component.interface';
 import {
   sendEmailNodeConfigSchema,

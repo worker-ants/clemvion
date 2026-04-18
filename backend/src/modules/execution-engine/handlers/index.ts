@@ -13,9 +13,6 @@ export { FilterHandler } from './logic/filter.handler.js';
 // Flow handlers
 
 // Integration handlers
-export { HttpRequestHandler } from './integration/http-request.handler.js';
-export { DatabaseQueryHandler } from './integration/database-query.handler.js';
-export { SendEmailHandler } from './integration/send-email.handler.js';
 
 // Data handlers
 

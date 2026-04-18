@@ -1,4 +1,4 @@
-import { HttpRequestHandler } from '../../../modules/execution-engine/handlers/integration/http-request.handler';
+import { HttpRequestHandler } from './http-request.handler';
 import { NodeComponent } from '../../core/node-component.interface';
 import {
   httpRequestNodeConfigSchema,

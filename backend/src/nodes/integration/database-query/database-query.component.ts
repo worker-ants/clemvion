@@ -1,4 +1,4 @@
-import { DatabaseQueryHandler } from '../../../modules/execution-engine/handlers/integration/database-query.handler';
+import { DatabaseQueryHandler } from './database-query.handler';
 import { NodeComponent } from '../../core/node-component.interface';
 import {
   databaseQueryNodeConfigSchema,
