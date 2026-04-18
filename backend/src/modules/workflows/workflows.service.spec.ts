@@ -331,6 +331,222 @@ describe('WorkflowsService', () => {
     });
   });
 
+  describe('exportWorkflow', () => {
+    it('emits containerIndex / toolOwnerIndex instead of UUIDs', async () => {
+      mockRepository.findOne.mockResolvedValue(mockWorkflow);
+      const nodes = [
+        {
+          id: 'n1',
+          type: 'manual_trigger',
+          category: 'trigger',
+          label: 'Trig',
+          positionX: 0,
+          positionY: 0,
+          config: {},
+          isDisabled: false,
+          description: null,
+          containerId: null,
+          toolOwnerId: null,
+        },
+        {
+          id: 'n2',
+          type: 'loop',
+          category: 'logic',
+          label: 'Loop',
+          positionX: 0,
+          positionY: 0,
+          config: {},
+          isDisabled: false,
+          description: null,
+          containerId: null,
+          toolOwnerId: null,
+        },
+        {
+          id: 'n3',
+          type: 'http_request',
+          category: 'integration',
+          label: 'HTTP',
+          positionX: 0,
+          positionY: 0,
+          config: {},
+          isDisabled: false,
+          description: null,
+          containerId: 'n2',
+          toolOwnerId: null,
+        },
+        {
+          id: 'n4',
+          type: 'ai_agent',
+          category: 'ai',
+          label: 'AI',
+          positionX: 0,
+          positionY: 0,
+          config: {},
+          isDisabled: false,
+          description: null,
+          containerId: null,
+          toolOwnerId: null,
+        },
+        {
+          id: 'n5',
+          type: 'http_request',
+          category: 'integration',
+          label: 'Tool',
+          positionX: 0,
+          positionY: 0,
+          config: {},
+          isDisabled: false,
+          description: null,
+          containerId: null,
+          toolOwnerId: 'n4',
+        },
+      ];
+      mockNodeRepository.find.mockResolvedValue(nodes);
+      mockEdgeRepository.find.mockResolvedValue([]);
+
+      const result = (await service.exportWorkflow(
+        'wf-uuid-1',
+        'ws-uuid-1',
+      )) as {
+        nodes: {
+          containerIndex: number | null;
+          toolOwnerIndex: number | null;
+        }[];
+      };
+
+      expect(result.nodes[0].containerIndex).toBeNull();
+      expect(result.nodes[0].toolOwnerIndex).toBeNull();
+      expect(result.nodes[2].containerIndex).toBe(1);
+      expect(result.nodes[2].toolOwnerIndex).toBeNull();
+      expect(result.nodes[4].containerIndex).toBeNull();
+      expect(result.nodes[4].toolOwnerIndex).toBe(3);
+      // No UUID fields leak through
+      expect(result.nodes[0]).not.toHaveProperty('containerId');
+      expect(result.nodes[0]).not.toHaveProperty('toolOwnerId');
+    });
+  });
+
+  describe('importWorkflow', () => {
+    beforeEach(() => {
+      mockTransactionManager.update = jest.fn().mockResolvedValue(undefined);
+      mockTransactionManager.save = jest
+        .fn()
+        .mockImplementation((entity, data) => {
+          if (Array.isArray(data)) return Promise.resolve(data);
+          if (entity === Node) {
+            const newId = `new-${data.label}`;
+            return Promise.resolve({ id: newId, ...data });
+          }
+          return Promise.resolve({ id: 'new-wf-id', ...data });
+        });
+    });
+
+    it('remaps containerIndex to the new node UUID', async () => {
+      const dto = {
+        name: 'Imported',
+        nodes: [
+          {
+            type: 'manual_trigger',
+            category: NodeCategory.TRIGGER,
+            label: 'Trig',
+            positionX: 0,
+            positionY: 0,
+          },
+          {
+            type: 'loop',
+            category: NodeCategory.LOGIC,
+            label: 'Loop',
+            positionX: 0,
+            positionY: 0,
+          },
+          {
+            type: 'http_request',
+            category: NodeCategory.INTEGRATION,
+            label: 'HTTP',
+            positionX: 0,
+            positionY: 0,
+            containerIndex: 1,
+          },
+        ],
+        edges: [],
+      };
+
+      await service.importWorkflow('ws-uuid-1', 'user-uuid-1', dto);
+
+      expect(mockTransactionManager.update).toHaveBeenCalledWith(
+        Node,
+        'new-HTTP',
+        { containerId: 'new-Loop' },
+      );
+    });
+
+    it('remaps toolOwnerIndex to the new node UUID', async () => {
+      const dto = {
+        name: 'Imported',
+        nodes: [
+          {
+            type: 'manual_trigger',
+            category: NodeCategory.TRIGGER,
+            label: 'Trig',
+            positionX: 0,
+            positionY: 0,
+          },
+          {
+            type: 'ai_agent',
+            category: NodeCategory.AI,
+            label: 'AI',
+            positionX: 0,
+            positionY: 0,
+          },
+          {
+            type: 'http_request',
+            category: NodeCategory.INTEGRATION,
+            label: 'Tool',
+            positionX: 0,
+            positionY: 0,
+            toolOwnerIndex: 1,
+          },
+        ],
+        edges: [],
+      };
+
+      await service.importWorkflow('ws-uuid-1', 'user-uuid-1', dto);
+
+      expect(mockTransactionManager.update).toHaveBeenCalledWith(
+        Node,
+        'new-Tool',
+        { toolOwnerId: 'new-AI' },
+      );
+    });
+
+    it('rejects payload with duplicate node labels', async () => {
+      const dto = {
+        name: 'Imported',
+        nodes: [
+          {
+            type: 'manual_trigger',
+            category: NodeCategory.TRIGGER,
+            label: 'Same',
+            positionX: 0,
+            positionY: 0,
+          },
+          {
+            type: 'http_request',
+            category: NodeCategory.INTEGRATION,
+            label: 'Same',
+            positionX: 0,
+            positionY: 0,
+          },
+        ],
+        edges: [],
+      };
+
+      await expect(
+        service.importWorkflow('ws-uuid-1', 'user-uuid-1', dto),
+      ).rejects.toThrow(ConflictException);
+    });
+  });
+
   describe('restoreVersion', () => {
     it('should throw BadRequestException when snapshot is malformed', async () => {
       mockRepository.findOne.mockResolvedValue(mockWorkflow);

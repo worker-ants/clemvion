@@ -70,4 +70,8 @@ export const ALL_NODE_COMPONENTS: NodeComponent[] = [
   templateNodeComponent,
 ];
 
+export const ALL_NODE_TYPES: readonly string[] = ALL_NODE_COMPONENTS.map(
+  (c) => c.metadata.type,
+);
+
 export * from './core';
