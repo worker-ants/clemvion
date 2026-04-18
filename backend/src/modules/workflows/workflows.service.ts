@@ -169,18 +169,26 @@ export class WorkflowsService {
       description: workflow.description,
       tags: workflow.tags,
       settings: workflow.settings,
-      nodes: nodes.map((n) => ({
-        type: n.type,
-        category: n.category,
-        label: n.label,
-        positionX: n.positionX,
-        positionY: n.positionY,
-        config: n.config,
-        isDisabled: n.isDisabled,
-        description: n.description,
-        containerId: n.containerId,
-        toolOwnerId: n.toolOwnerId,
-      })),
+      nodes: nodes.map((n) => {
+        const containerIndex = n.containerId
+          ? nodes.findIndex((x) => x.id === n.containerId)
+          : -1;
+        const toolOwnerIndex = n.toolOwnerId
+          ? nodes.findIndex((x) => x.id === n.toolOwnerId)
+          : -1;
+        return {
+          type: n.type,
+          category: n.category,
+          label: n.label,
+          positionX: n.positionX,
+          positionY: n.positionY,
+          config: n.config,
+          isDisabled: n.isDisabled,
+          description: n.description,
+          containerIndex: containerIndex >= 0 ? containerIndex : null,
+          toolOwnerIndex: toolOwnerIndex >= 0 ? toolOwnerIndex : null,
+        };
+      }),
       edges: edges.map((e) => ({
         sourceNodeIndex: nodes.findIndex((n) => n.id === e.sourceNodeId),
         sourcePort: e.sourcePort,
@@ -226,7 +234,7 @@ export class WorkflowsService {
         const node = manager.create(Node, {
           workflowId: savedWorkflow.id,
           type: nodeDto.type,
-          category: nodeDto.category as NodeCategory,
+          category: nodeDto.category,
           label: nodeDto.label,
           positionX: nodeDto.positionX,
           positionY: nodeDto.positionY,
@@ -238,20 +246,25 @@ export class WorkflowsService {
         nodeIdMap.push(savedNode.id);
       }
 
-      // Resolve container references after all nodes are created
+      // Resolve container / toolOwner references after all nodes are created.
+      // Export emits these as nodes-array indices; remap to the new UUIDs here.
       for (let i = 0; i < dto.nodes.length; i++) {
         const nodeDto = dto.nodes[i];
+        const patch: { containerId?: string; toolOwnerId?: string } = {};
         if (
-          nodeDto.containerId !== undefined &&
-          nodeDto.containerId !== null &&
-          typeof nodeDto.containerId === 'number'
+          typeof nodeDto.containerIndex === 'number' &&
+          nodeIdMap[nodeDto.containerIndex]
         ) {
-          const containerNewId = nodeIdMap[nodeDto.containerId];
-          if (containerNewId) {
-            await manager.update(Node, nodeIdMap[i], {
-              containerId: containerNewId,
-            });
-          }
+          patch.containerId = nodeIdMap[nodeDto.containerIndex];
+        }
+        if (
+          typeof nodeDto.toolOwnerIndex === 'number' &&
+          nodeIdMap[nodeDto.toolOwnerIndex]
+        ) {
+          patch.toolOwnerId = nodeIdMap[nodeDto.toolOwnerIndex];
+        }
+        if (patch.containerId || patch.toolOwnerId) {
+          await manager.update(Node, nodeIdMap[i], patch);
         }
       }
 

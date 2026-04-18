@@ -43,8 +43,8 @@ export interface ExportedNode {
   config: Record<string, unknown>;
   isDisabled: boolean;
   description?: string;
-  containerId: number | null;
-  toolOwnerId: string | null;
+  containerIndex: number | null;
+  toolOwnerIndex: number | null;
 }
 
 export interface ExportedEdge {
