@@ -1,4 +1,4 @@
-import { ManualTriggerHandler } from '../../../modules/execution-engine/handlers/trigger/manual-trigger.handler';
+import { ManualTriggerHandler } from './manual-trigger.handler';
 import { NodeComponent } from '../../core/node-component.interface';
 import {
   manualTriggerConfigSchema,

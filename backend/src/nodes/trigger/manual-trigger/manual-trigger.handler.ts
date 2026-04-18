@@ -3,9 +3,9 @@ import type {
   ValidationResult,
   ExecutionContext,
   NodeHandlerOutput,
-} from '../../../../nodes/core/node-handler.interface';
-import type { TriggerParameterDefinition } from '../../types/trigger-parameter.types';
-import { validateTriggerParameterSchema } from '../../utils/resolve-trigger-parameters';
+} from '../../core/node-handler.interface';
+import type { TriggerParameterDefinition } from '../../../modules/execution-engine/types/trigger-parameter.types';
+import { validateTriggerParameterSchema } from '../../../modules/execution-engine/utils/resolve-trigger-parameters';
 
 interface ManualTriggerConfig {
   parameters?: TriggerParameterDefinition[];

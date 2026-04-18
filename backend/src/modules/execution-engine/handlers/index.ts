@@ -30,7 +30,6 @@ export { FormHandler } from './presentation/form.handler.js';
 export { TemplateHandler } from './presentation/template.handler.js';
 
 // Trigger handlers
-export { ManualTriggerHandler } from './trigger/manual-trigger.handler.js';
 
 // AI handlers
 export { AiAgentHandler } from './ai/ai-agent.handler.js';
