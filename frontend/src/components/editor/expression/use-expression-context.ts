@@ -4,6 +4,7 @@ import { useExecutionStore } from "@/lib/stores/execution-store";
 import { useNodeDefinitionsStore } from "@/lib/stores/node-definitions-store";
 import type { JsonSchemaNode } from "@/lib/node-definitions/types";
 import { getAllFunctionNames, buildDisambiguatedKeys } from "@workflow/expression-engine";
+import { enrichInfoExtractorOutputSchema } from "./node-output-schema-enrichers";
 
 const FUNCTION_NAMES = getAllFunctionNames();
 
@@ -54,56 +55,6 @@ function toRecord(data: unknown): Record<string, unknown> {
   return data as Record<string, unknown>;
 }
 
-const INFO_EXTRACTOR_TYPE_MAP: Record<string, string> = {
-  string: "string",
-  number: "number",
-  boolean: "boolean",
-  array: "array",
-  object: "object",
-};
-
-/**
- * Information Extractor declares user-configured output fields inside each
- * node instance's `config.outputSchema`. Project those names into the
- * static outputSchema so autocomplete can hint `.output.extracted.<name>`
- * even before the node has executed.
- */
-function enrichInfoExtractorOutputSchema(
-  baseSchema: JsonSchemaNode | undefined,
-  config: Record<string, unknown> | undefined,
-): JsonSchemaNode | undefined {
-  if (!baseSchema) return baseSchema;
-  const fields = config?.outputSchema as
-    | Array<{ name?: string; type?: string; description?: string }>
-    | undefined;
-  if (!Array.isArray(fields) || fields.length === 0) return baseSchema;
-
-  const userProps: Record<string, JsonSchemaNode> = {};
-  for (const f of fields) {
-    if (!f?.name) continue;
-    userProps[f.name] = {
-      type: INFO_EXTRACTOR_TYPE_MAP[f.type ?? "string"] ?? "string",
-      ...(f.description ? { description: f.description } : {}),
-    };
-  }
-  if (Object.keys(userProps).length === 0) return baseSchema;
-
-  const cloned = JSON.parse(JSON.stringify(baseSchema)) as JsonSchemaNode;
-  const outputNode = cloned.properties?.output;
-  if (!outputNode || typeof outputNode !== "object") return cloned;
-
-  if (!outputNode.properties) outputNode.properties = {};
-  const existing = outputNode.properties.extracted;
-  const existingProps =
-    existing && typeof existing === "object" && existing.properties
-      ? existing.properties
-      : {};
-  outputNode.properties.extracted = {
-    type: "object",
-    properties: { ...existingProps, ...userProps },
-  };
-  return cloned;
-}
 
 /**
  * Provides autocomplete data for ExpressionInput components.
@@ -116,13 +67,16 @@ export function useExpressionContext(selectedNodeId: string | null): ExpressionD
   const nodeDefinitions = useNodeDefinitionsStore((s) => s.definitions);
 
   return useMemo(() => {
-    // Build maps of nodeId -> last execution result
+    // Build maps of nodeId -> last execution result and nodeId -> node for
+    // O(1) reuse across the several places that need to look a node up
+    // (predecessor, table dataSource ref, selected node).
     const resultMap = new Map<string, Record<string, unknown>>();
     const rawResultMap = new Map<string, unknown>();
     for (const r of nodeResults) {
       resultMap.set(r.nodeId, toRecord(r.outputData));
       rawResultMap.set(r.nodeId, r.outputData);
     }
+    const nodeById = new Map(nodes.map((n) => [n.id, n]));
 
     // Find predecessor nodes for $input. suggestions
     let inputFields: string[] = [];
@@ -138,7 +92,7 @@ export function useExpressionContext(selectedNodeId: string | null): ExpressionD
           inputSample = sourceOutput;
         }
         // Schema fallback: predecessor's outputSchema enables hints before execution
-        const sourceNode = nodes.find((n) => n.id === sourceId);
+        const sourceNode = nodeById.get(sourceId);
         const sourceData = sourceNode?.data as Record<string, unknown> | undefined;
         const sourceType = sourceData?.type as string | undefined;
         if (sourceType) {
@@ -210,7 +164,7 @@ export function useExpressionContext(selectedNodeId: string | null): ExpressionD
     let isTableContext = false;
     let sourceItemSample: Record<string, unknown> | null = null;
     if (selectedNodeId) {
-      const selectedNode = nodes.find((n) => n.id === selectedNodeId);
+      const selectedNode = nodeById.get(selectedNodeId);
       const selectedData = selectedNode?.data as Record<string, unknown> | undefined;
       if (selectedData?.type === "table") {
         const config = selectedData.config as Record<string, unknown> | undefined;

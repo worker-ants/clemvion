@@ -73,9 +73,13 @@ export type TextClassifierConfig = z.infer<
 >;
 
 /**
- * Output shape after the handler adapter unwraps `{ config, output, meta, port }`:
- * the runtime `$node["X"].output` value. Covers both single-label and
- * multi-label variants plus the error-port case.
+ * AUTOCOMPLETE HINT SCHEMA — not used for runtime validation.
+ *
+ * Runtime `$node["X"].output` value after the handler-output adapter unwraps
+ * the handler's `{ config, output, meta, port }` return. This produces a
+ * FLAT output schema (same shape as ai_agent, different from info_extractor).
+ * Covers both single-label and multi-label variants plus the error-port case;
+ * `.passthrough()` keeps unknown keys visible if handlers evolve.
  */
 export const textClassifierNodeOutputSchema = z
   .object({

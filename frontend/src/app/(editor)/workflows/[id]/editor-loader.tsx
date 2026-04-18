@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { toast } from "sonner";
 import { WorkflowEditor } from "@/components/editor/workflow-editor";
 import { useEditorStore } from "@/lib/stores/editor-store";
 import { workflowsApi } from "@/lib/api/workflows";
@@ -62,11 +63,13 @@ export function WorkflowEditorLoader({ workflowId }: EditorLoaderProps) {
         }));
         // Drop edges whose handles no longer exist on the current node config
         // (e.g. AI Agent switched from single_turn to multi_turn removes "out")
-        // so React Flow doesn't log "Couldn't create edge for source handle id" warnings.
-        const liveEdges = dropStaleEdges(rawFlowEdges, flowNodes);
-        if (liveEdges.length !== rawFlowEdges.length) {
-          console.warn(
-            `[workflow] Dropped ${rawFlowEdges.length - liveEdges.length} stale edge(s) referencing missing handles`,
+        // so React Flow doesn't log "Couldn't create edge for source handle id"
+        // warnings. Surface the drop to the user — the workflow is mutated
+        // implicitly, and they'll see it once they save.
+        const { edges: liveEdges, dropped } = dropStaleEdges(rawFlowEdges, flowNodes);
+        if (dropped.length > 0) {
+          toast.warning(
+            `${dropped.length}개의 엣지가 현재 노드 설정과 맞지 않아 제거되었습니다. 저장 시 워크플로우에 반영됩니다.`,
           );
         }
         const flowEdges: Edge[] = enrichEdgesWithPortData(liveEdges, flowNodes);

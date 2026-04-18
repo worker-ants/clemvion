@@ -288,10 +288,18 @@ export const aiAgentNodeConfigSchema = z
 export type AiAgentConfig = z.infer<typeof aiAgentNodeConfigSchema>;
 
 /**
- * Superset of the fields handlers produce across the AI Agent's runtime modes
- * (single-turn success, multi-turn waiting, multi-turn final, condition route).
- * Kept permissive (`.passthrough()` + `.optional()`) so autocomplete surfaces
- * every stable key without triggering validation churn when modes change.
+ * AUTOCOMPLETE HINT SCHEMA — not used for runtime validation.
+ *
+ * Serialised via `z.toJSONSchema()` and sent to the frontend where it drives
+ * `$node["X"].output.<field>` suggestions. The AI Agent handler returns a
+ * legacy bare object (no `config/output` wrapper) so this schema describes a
+ * FLAT output — contrast with `information-extractor` whose handler returns
+ * `{ port, data: { config, output, meta } }` and surfaces a NESTED schema.
+ *
+ * The schema is a superset of every mode's return shape (single-turn, multi-
+ * turn waiting, multi-turn final, condition route) and is intentionally
+ * permissive (`.passthrough()` + `.optional()`) — we only need to enumerate
+ * stable keys for autocomplete, not reject runtime data.
  */
 export const aiAgentNodeOutputSchema = z
   .object({

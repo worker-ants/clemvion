@@ -3,9 +3,11 @@ import {
   parsePath,
   resolveNestedValue,
   getNestedKeys,
+  getSchemaKeys,
   getValueType,
   splitPathAndLeaf,
 } from "../resolve-nested-path";
+import type { JsonSchemaNode } from "@/lib/node-definitions/types";
 
 describe("getValueType", () => {
   it("returns correct types", () => {
@@ -273,5 +275,161 @@ describe("splitPathAndLeaf", () => {
       parentPath: "items[0]",
       leafPrefix: "name",
     });
+  });
+});
+
+describe("getSchemaKeys", () => {
+  it("returns [] for undefined schema", () => {
+    expect(getSchemaKeys(undefined, "")).toEqual([]);
+  });
+
+  it("returns top-level properties with types for root path", () => {
+    const schema: JsonSchemaNode = {
+      type: "object",
+      properties: {
+        id: { type: "number" },
+        name: { type: "string" },
+        tags: { type: "array", items: { type: "string" } },
+      },
+    };
+    expect(getSchemaKeys(schema, "")).toEqual([
+      { key: "id", type: "number" },
+      { key: "name", type: "string" },
+      { key: "tags", type: "array" },
+    ]);
+  });
+
+  it("descends through nested object path", () => {
+    const schema: JsonSchemaNode = {
+      type: "object",
+      properties: {
+        body: {
+          type: "object",
+          properties: {
+            data: {
+              type: "object",
+              properties: {
+                status: { type: "number" },
+                message: { type: "string" },
+              },
+            },
+          },
+        },
+      },
+    };
+    expect(getSchemaKeys(schema, "body.data")).toEqual([
+      { key: "status", type: "number" },
+      { key: "message", type: "string" },
+    ]);
+  });
+
+  it("unwraps array items to expose their object keys", () => {
+    const schema: JsonSchemaNode = {
+      type: "object",
+      properties: {
+        items: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: {
+              id: { type: "number" },
+              label: { type: "string" },
+            },
+          },
+        },
+      },
+    };
+    // items has object items → keys of the item object surface
+    expect(getSchemaKeys(schema, "items")).toEqual([
+      { key: "id", type: "number" },
+      { key: "label", type: "string" },
+    ]);
+  });
+
+  it("walks into items on bracket index segments", () => {
+    const schema: JsonSchemaNode = {
+      type: "object",
+      properties: {
+        items: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: { name: { type: "string" } },
+          },
+        },
+      },
+    };
+    expect(getSchemaKeys(schema, "items[0]")).toEqual([
+      { key: "name", type: "string" },
+    ]);
+  });
+
+  it("returns [] when the path doesn't resolve", () => {
+    const schema: JsonSchemaNode = {
+      type: "object",
+      properties: { known: { type: "string" } },
+    };
+    expect(getSchemaKeys(schema, "unknown.path")).toEqual([]);
+  });
+
+  it("returns [] on primitive leaf (no properties to hint)", () => {
+    const schema: JsonSchemaNode = {
+      type: "object",
+      properties: { name: { type: "string" } },
+    };
+    expect(getSchemaKeys(schema, "name")).toEqual([]);
+  });
+
+  it("handles array-typed property values", () => {
+    // JSON Schema allows `type: ["string", "null"]` — the helper picks the
+    // first entry for type display. Only leaf children that are objects
+    // produce keys, so this schema should yield nothing deeper.
+    const schema: JsonSchemaNode = {
+      type: "object",
+      properties: {
+        value: { type: ["string", "null"] },
+      },
+    };
+    expect(getSchemaKeys(schema, "")).toEqual([
+      { key: "value", type: "string" },
+    ]);
+  });
+
+  it("returns [] when path exceeds MAX_DEPTH (10 segments)", () => {
+    // Build a schema nested 12 levels deep and verify the guard rejects it.
+    let schema: JsonSchemaNode = { type: "string" };
+    const parts: string[] = [];
+    for (let i = 0; i < 12; i++) {
+      const key = `l${i}`;
+      parts.unshift(key);
+      schema = { type: "object", properties: { [key]: schema } };
+    }
+    expect(getSchemaKeys(schema, parts.join("."))).toEqual([]);
+  });
+
+  it("falls back to 'unknown' when schema declares no type and no properties", () => {
+    const schema: JsonSchemaNode = {
+      type: "object",
+      properties: {
+        anything: {},
+      },
+    };
+    expect(getSchemaKeys(schema, "")).toEqual([
+      { key: "anything", type: "unknown" },
+    ]);
+  });
+
+  it("infers 'object' when a child has properties but no explicit type", () => {
+    const schema: JsonSchemaNode = {
+      type: "object",
+      properties: {
+        nested: {
+          properties: { leaf: { type: "string" } },
+        },
+      },
+    };
+    expect(getSchemaKeys(schema, "")).toEqual([
+      { key: "nested", type: "object" },
+    ]);
   });
 });
