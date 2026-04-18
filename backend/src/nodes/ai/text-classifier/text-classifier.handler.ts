@@ -2,9 +2,9 @@ import {
   NodeHandler,
   ExecutionContext,
   ValidationResult,
-} from '../../../../nodes/core/node-handler.interface';
-import { LlmService } from '../../../llm/llm.service';
-import { ChatResult } from '../../../llm/interfaces/llm-client.interface';
+} from '../../core/node-handler.interface';
+import { LlmService } from '../../../modules/llm/llm.service';
+import { ChatResult } from '../../../modules/llm/interfaces/llm-client.interface';
 
 interface Category {
   name: string;

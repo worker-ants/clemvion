@@ -1,4 +1,4 @@
-import { InformationExtractorHandler } from '../../../modules/execution-engine/handlers/ai/information-extractor.handler';
+import { InformationExtractorHandler } from './information-extractor.handler';
 import { NodeComponent } from '../../core/node-component.interface';
 import {
   informationExtractorNodeConfigSchema,

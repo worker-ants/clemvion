@@ -2,10 +2,10 @@ import {
   NodeHandler,
   ExecutionContext,
   ValidationResult,
-} from '../../../../nodes/core/node-handler.interface';
-import { LlmService } from '../../../llm/llm.service';
-import { RagSearchService } from '../../../knowledge-base/search/rag-search.service';
-import { ChatMessage } from '../../../llm/interfaces/llm-client.interface';
+} from '../../core/node-handler.interface';
+import { LlmService } from '../../../modules/llm/llm.service';
+import { RagSearchService } from '../../../modules/knowledge-base/search/rag-search.service';
+import { ChatMessage } from '../../../modules/llm/interfaces/llm-client.interface';
 
 interface ConditionDef {
   id: string;

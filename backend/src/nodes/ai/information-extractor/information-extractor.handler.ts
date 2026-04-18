@@ -2,14 +2,14 @@ import {
   NodeHandler,
   ExecutionContext,
   ValidationResult,
-} from '../../../../nodes/core/node-handler.interface';
-import { LlmService } from '../../../llm/llm.service';
+} from '../../core/node-handler.interface';
+import { LlmService } from '../../../modules/llm/llm.service';
 import {
   ChatMessage,
   ChatResult,
   ToolCall,
   ToolDef,
-} from '../../../llm/interfaces/llm-client.interface';
+} from '../../../modules/llm/interfaces/llm-client.interface';
 import { Logger } from '@nestjs/common';
 
 interface OutputField {

@@ -1,5 +1,5 @@
 import { AiAgentHandler } from './ai-agent.handler';
-import { ExecutionContext } from '../../../../nodes/core/node-handler.interface';
+import { ExecutionContext } from '../../core/node-handler.interface';
 
 describe('AiAgentHandler', () => {
   let handler: AiAgentHandler;

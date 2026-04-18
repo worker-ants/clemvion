@@ -1,4 +1,4 @@
-import { TextClassifierHandler } from '../../../modules/execution-engine/handlers/ai/text-classifier.handler';
+import { TextClassifierHandler } from './text-classifier.handler';
 import { NodeComponent } from '../../core/node-component.interface';
 import {
   textClassifierNodeConfigSchema,
