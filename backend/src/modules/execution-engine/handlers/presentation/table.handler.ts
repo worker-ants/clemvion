@@ -7,8 +7,11 @@ import {
   evaluate,
   ExpressionContext as EngineContext,
 } from '@workflow/expression-engine';
-import { getNestedValue } from '../logic/nested-value.util.js';
-import { ButtonDef, validateButtons } from '../../types/button.types.js';
+import { getNestedValue } from '../../../../nodes/core/nested-value.util.js';
+import {
+  ButtonDef,
+  validateButtons,
+} from '../../../../nodes/presentation/_shared/button.types.js';
 
 type TableMode = 'static' | 'dynamic';
 

@@ -57,7 +57,7 @@ import {
   adaptHandlerReturn,
   toEngineFlatShape,
 } from './handlers/handler-output.adapter';
-import { ButtonConfig } from './types/button.types';
+import { ButtonConfig } from '../../nodes/presentation/_shared/button.types';
 import {
   WorkflowExecutor,
   SubWorkflowOptions,

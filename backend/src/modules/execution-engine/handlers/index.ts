@@ -46,4 +46,7 @@ export type {
 } from '../../../nodes/core/node-handler.interface.js';
 
 // Utilities
-export { getNestedValue, setNestedValue } from './logic/nested-value.util.js';
+export {
+  getNestedValue,
+  setNestedValue,
+} from '../../../nodes/core/nested-value.util.js';
