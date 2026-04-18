@@ -9,7 +9,7 @@ import {
 import { LlmService } from '../../modules/llm/llm.service';
 import { RagSearchService } from '../../modules/knowledge-base/search/rag-search.service';
 import { IntegrationsService } from '../../modules/integrations/integrations.service';
-import { WorkflowExecutor } from '../../modules/execution-engine/handlers/flow/workflow-executor.interface';
+import { WorkflowExecutor } from './workflow-executor.interface';
 
 export type {
   ExecutionContext,

@@ -1,5 +1,5 @@
-import { ExecutionStatus } from '../../../executions/entities/execution.entity.js';
-import { ExecutionContext } from '../../../../nodes/core/node-handler.interface.js';
+import { ExecutionStatus } from '../../modules/executions/entities/execution.entity.js';
+import { ExecutionContext } from './node-handler.interface.js';
 
 export interface SubWorkflowOptions {
   parentExecutionId?: string;

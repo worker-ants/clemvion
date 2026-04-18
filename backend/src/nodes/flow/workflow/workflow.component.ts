@@ -1,4 +1,4 @@
-import { WorkflowHandler } from '../../../modules/execution-engine/handlers/flow/workflow.handler';
+import { WorkflowHandler } from './workflow.handler';
 import { NodeComponent } from '../../core/node-component.interface';
 import {
   workflowNodeConfigSchema,

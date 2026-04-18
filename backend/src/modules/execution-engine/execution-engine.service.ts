@@ -63,7 +63,7 @@ import {
   SubWorkflowOptions,
   SubWorkflowResult,
   InlineExecutionOptions,
-} from './handlers/flow/workflow-executor.interface';
+} from '../../nodes/core/workflow-executor.interface';
 
 interface ContainerBodyPlan {
   childIds: Set<string>;
