@@ -1,4 +1,4 @@
-import { CodeHandler } from '../../../modules/execution-engine/handlers/data/code.handler';
+import { CodeHandler } from './code.handler';
 import { NodeComponent } from '../../core/node-component.interface';
 import {
   codeNodeConfigSchema,

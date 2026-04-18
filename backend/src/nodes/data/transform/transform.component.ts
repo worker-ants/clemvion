@@ -1,4 +1,4 @@
-import { TransformHandler } from '../../../modules/execution-engine/handlers/data/transform.handler';
+import { TransformHandler } from './transform.handler';
 import { NodeComponent } from '../../core/node-component.interface';
 import {
   transformNodeConfigSchema,
