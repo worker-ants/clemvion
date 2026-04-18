@@ -16,6 +16,7 @@ import { RefreshToken } from './entities/refresh-token.entity';
 import { UsersService } from '../users/users.service';
 import { WorkspacesService } from '../workspaces/workspaces.service';
 import { MailService } from '../mail/mail.service';
+import { validatePasswordStrength } from '../../common/utils/password.util';
 
 const BCRYPT_ROUNDS = 12;
 
@@ -46,7 +47,7 @@ export class AuthService {
       });
     }
 
-    this.validatePasswordStrength(dto.password);
+    validatePasswordStrength(dto.password);
 
     const passwordHash = await bcrypt.hash(dto.password, BCRYPT_ROUNDS);
     const emailVerifyToken = uuidv4();
@@ -295,7 +296,7 @@ export class AuthService {
 
   // ========== RESET PASSWORD ==========
   async resetPassword(token: string, newPassword: string): Promise<void> {
-    this.validatePasswordStrength(newPassword);
+    validatePasswordStrength(newPassword);
 
     const user = await this.findUserByResetToken(token);
     if (!user) {
@@ -394,38 +395,6 @@ export class AuthService {
 
   private hashToken(token: string): string {
     return createHash('sha256').update(token).digest('hex');
-  }
-
-  private validatePasswordStrength(password: string): void {
-    if (password.length < 8) {
-      throw new BadRequestException({
-        code: 'VALIDATION_ERROR',
-        message: 'Password must be at least 8 characters',
-        details: [
-          { field: 'password', message: 'Minimum 8 characters required' },
-        ],
-      });
-    }
-
-    let typesCount = 0;
-    if (/[a-z]/.test(password)) typesCount++;
-    if (/[A-Z]/.test(password)) typesCount++;
-    if (/[0-9]/.test(password)) typesCount++;
-    if (/[^a-zA-Z0-9]/.test(password)) typesCount++;
-
-    if (typesCount < 3) {
-      throw new BadRequestException({
-        code: 'VALIDATION_ERROR',
-        message:
-          'Password must contain at least 3 of: lowercase, uppercase, numbers, special characters',
-        details: [
-          {
-            field: 'password',
-            message: 'Requires 3+ character types',
-          },
-        ],
-      });
-    }
   }
 
   private async findUserByVerifyToken(token: string): Promise<User | null> {
