@@ -922,6 +922,14 @@ CONVERSATION STYLE
 - Keep questions short and easy to answer.
 
 ========================
+STRICT SEPARATION RULE
+========================
+
+- Asking for confirmation and calling the tool MUST happen in separate turns.
+- NEVER call the tool in the same response where you ask for confirmation.
+- If your message includes a question (e.g., "Is this correct?"), you MUST NOT call the tool.
+
+========================
 EXAMPLE FLOW
 ========================
 
@@ -948,7 +956,7 @@ You: (call ${FINALIZE_TOOL_NAME} with order_id="312321-1331231", product_id="XYZ
     return {
       name: FINALIZE_TOOL_NAME,
       description:
-        'Call this ONLY when every required field has been gathered from the user. Submit every collected value as an argument using the user-provided text verbatim.',
+        'Call this ONLY AFTER the user has explicitly confirmed that all collected values are correct. NEVER call this before confirmation.',
       parameters: this.buildJsonSchema(outputSchema, false),
     };
   }
