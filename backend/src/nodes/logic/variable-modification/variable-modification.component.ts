@@ -1,4 +1,4 @@
-import { VariableModificationHandler } from '../../../modules/execution-engine/handlers/logic/variable-modification.handler';
+import { VariableModificationHandler } from './variable-modification.handler';
 import { NodeComponent } from '../../core/node-component.interface';
 import {
   variableModificationNodeConfigSchema,

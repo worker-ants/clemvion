@@ -1,4 +1,4 @@
-import { ParallelHandler } from '../../../modules/execution-engine/handlers/logic/parallel.handler';
+import { ParallelHandler } from './parallel.handler';
 import {
   parallelNodeConfigSchema,
   parallelNodeMetadata,

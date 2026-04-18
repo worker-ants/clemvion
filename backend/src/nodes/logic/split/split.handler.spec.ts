@@ -1,5 +1,5 @@
 import { SplitHandler } from './split.handler';
-import { ExecutionContext } from '../../../../nodes/core/node-handler.interface';
+import { ExecutionContext } from '../../core/node-handler.interface';
 
 describe('SplitHandler', () => {
   let handler: SplitHandler;

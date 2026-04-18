@@ -2,8 +2,8 @@ import {
   NodeHandler,
   ValidationResult,
   ExecutionContext,
-} from '../../../../nodes/core/node-handler.interface.js';
-import { coerceToType } from '../../utils/coerce-type.js';
+} from '../../core/node-handler.interface.js';
+import { coerceToType } from '../../../modules/execution-engine/utils/coerce-type.js';
 
 interface VariableDefinition {
   name: string;

@@ -1,4 +1,4 @@
-import { IfElseHandler } from '../../../modules/execution-engine/handlers/logic/if-else.handler';
+import { IfElseHandler } from './if-else.handler';
 import { NodeComponent } from '../../core/node-component.interface';
 import {
   ifElseConfigSchema,

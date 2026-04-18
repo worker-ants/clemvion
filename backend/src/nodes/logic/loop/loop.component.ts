@@ -1,4 +1,4 @@
-import { LoopHandler } from '../../../modules/execution-engine/handlers/logic/loop.handler';
+import { LoopHandler } from './loop.handler';
 import { NodeComponent } from '../../core/node-component.interface';
 import {
   loopNodeConfigSchema,

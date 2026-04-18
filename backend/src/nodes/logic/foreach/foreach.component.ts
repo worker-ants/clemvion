@@ -1,4 +1,4 @@
-import { ForEachHandler } from '../../../modules/execution-engine/handlers/logic/foreach.handler';
+import { ForEachHandler } from './foreach.handler';
 import { NodeComponent } from '../../core/node-component.interface';
 import {
   foreachNodeConfigSchema,

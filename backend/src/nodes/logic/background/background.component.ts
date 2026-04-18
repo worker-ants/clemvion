@@ -1,4 +1,4 @@
-import { BackgroundHandler } from '../../../modules/execution-engine/handlers/logic/background.handler';
+import { BackgroundHandler } from './background.handler';
 import { NodeComponent } from '../../core/node-component.interface';
 import {
   backgroundNodeConfigSchema,

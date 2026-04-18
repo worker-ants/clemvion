@@ -2,8 +2,8 @@ import {
   NodeHandler,
   ValidationResult,
   ExecutionContext,
-} from '../../../../nodes/core/node-handler.interface.js';
-import { getNestedValue } from '../../../../nodes/core/nested-value.util.js';
+} from '../../core/node-handler.interface.js';
+import { getNestedValue } from '../../core/nested-value.util.js';
 
 const VALID_VALUE_TYPES = new Set(['string', 'number', 'boolean']);
 type CaseValueType = 'string' | 'number' | 'boolean';

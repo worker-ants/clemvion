@@ -1,4 +1,4 @@
-import { FilterHandler } from '../../../modules/execution-engine/handlers/logic/filter.handler';
+import { FilterHandler } from './filter.handler';
 import { NodeComponent } from '../../core/node-component.interface';
 import {
   filterNodeConfigSchema,

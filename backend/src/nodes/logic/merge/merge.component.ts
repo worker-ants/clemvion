@@ -1,4 +1,4 @@
-import { MergeHandler } from '../../../modules/execution-engine/handlers/logic/merge.handler';
+import { MergeHandler } from './merge.handler';
 import { NodeComponent } from '../../core/node-component.interface';
 import {
   mergeNodeConfigSchema,

@@ -1,5 +1,5 @@
 import { VariableDeclarationHandler } from './variable-declaration.handler.js';
-import { ExecutionContext } from '../../../../nodes/core/node-handler.interface.js';
+import { ExecutionContext } from '../../core/node-handler.interface.js';
 
 describe('VariableDeclarationHandler', () => {
   let handler: VariableDeclarationHandler;

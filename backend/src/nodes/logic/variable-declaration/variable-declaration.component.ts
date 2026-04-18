@@ -1,4 +1,4 @@
-import { VariableDeclarationHandler } from '../../../modules/execution-engine/handlers/logic/variable-declaration.handler';
+import { VariableDeclarationHandler } from './variable-declaration.handler';
 import { NodeComponent } from '../../core/node-component.interface';
 import {
   variableDeclarationNodeConfigSchema,
