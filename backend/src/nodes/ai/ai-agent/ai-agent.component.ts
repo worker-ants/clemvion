@@ -1,4 +1,4 @@
-import { AiAgentHandler } from '../../../modules/execution-engine/handlers/ai/ai-agent.handler';
+import { AiAgentHandler } from './ai-agent.handler';
 import { NodeComponent } from '../../core/node-component.interface';
 import {
   aiAgentNodeConfigSchema,

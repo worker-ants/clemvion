@@ -29,9 +29,6 @@ export { TemplateHandler } from './presentation/template.handler.js';
 // Trigger handlers
 
 // AI handlers
-export { AiAgentHandler } from './ai/ai-agent.handler.js';
-export { TextClassifierHandler } from './ai/text-classifier.handler.js';
-export { InformationExtractorHandler } from './ai/information-extractor.handler.js';
 
 // Interfaces
 export type {
