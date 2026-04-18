@@ -102,6 +102,7 @@ describe('AuthService', () => {
           provide: MailService,
           useValue: {
             sendVerificationEmail: jest.fn().mockResolvedValue(undefined),
+            sendPasswordResetEmail: jest.fn().mockResolvedValue(undefined),
           },
         },
         {
@@ -323,6 +324,95 @@ describe('AuthService', () => {
       usersService.findByEmail.mockResolvedValue(null);
       const result = await service.forgotPassword('nonexistent@example.com');
       expect(result.message).toContain('If an account exists');
+      expect(mailService.sendPasswordResetEmail).not.toHaveBeenCalled();
+      expect(usersService.update).not.toHaveBeenCalled();
+    });
+
+    it('should persist a hashed token and mail the raw token to the user', async () => {
+      usersService.findByEmail.mockResolvedValue(mockUser as User);
+      const before = Date.now();
+
+      const result = await service.forgotPassword('test@example.com');
+      const after = Date.now();
+
+      expect(result.message).toContain('If an account exists');
+      expect(usersService.update).toHaveBeenCalledWith(
+        mockUser.id,
+        expect.objectContaining({
+          passwordResetToken: expect.any(String),
+          passwordResetExpiresAt: expect.any(Date),
+        }),
+      );
+      const [, patch] = usersService.update.mock.calls[0] as [
+        string,
+        { passwordResetToken: string; passwordResetExpiresAt: Date },
+      ];
+
+      // Token persisted to DB must be a SHA-256 hex (64 chars), not the raw UUID.
+      expect(patch.passwordResetToken).toMatch(/^[0-9a-f]{64}$/);
+
+      // Expiry must be ~30 minutes from now.
+      const expiresAt = patch.passwordResetExpiresAt.getTime();
+      expect(expiresAt - before).toBeGreaterThanOrEqual(29 * 60 * 1000);
+      expect(expiresAt - after).toBeLessThanOrEqual(30 * 60 * 1000 + 1000);
+
+      // Mail call must receive the RAW token (not the DB-persisted hash),
+      // otherwise the reset link in the user's inbox would be unusable.
+      const mailCall = mailService.sendPasswordResetEmail.mock.calls[0] as [
+        string,
+        string,
+        string,
+      ];
+      expect(mailCall[0]).toBe(mockUser.email);
+      expect(mailCall[1]).toBe(mockUser.name);
+      expect(mailCall[2]).not.toBe(patch.passwordResetToken);
+      expect(mailCall[2]).toMatch(
+        /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/,
+      );
+    });
+
+    it('should return the same message even if mail dispatch fails', async () => {
+      usersService.findByEmail.mockResolvedValue(mockUser as User);
+      mailService.sendPasswordResetEmail.mockRejectedValueOnce(
+        new Error('SMTP error'),
+      );
+
+      const result = await service.forgotPassword('test@example.com');
+
+      expect(result.message).toContain('If an account exists');
+      expect(usersService.update).toHaveBeenCalled();
+      expect(mailService.sendPasswordResetEmail).toHaveBeenCalled();
+    });
+
+    it('should return the same message even if the DB update fails', async () => {
+      usersService.findByEmail.mockResolvedValue(mockUser as User);
+      usersService.update.mockRejectedValueOnce(new Error('DB down'));
+
+      const result = await service.forgotPassword('test@example.com');
+
+      expect(result.message).toContain('If an account exists');
+      expect(mailService.sendPasswordResetEmail).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('resetPassword (token hashing)', () => {
+    it('should look up the user by hashed token (not the raw value)', async () => {
+      const rawToken = '11111111-2222-3333-4444-555555555555';
+      const userRepoFindOne = jest.fn().mockResolvedValue(null);
+      refreshTokenRepo.manager.getRepository.mockReturnValue({
+        findOne: userRepoFindOne,
+      });
+
+      await expect(
+        service.resetPassword(rawToken, 'NewPass123!@#'),
+      ).rejects.toThrow(BadRequestException);
+
+      // The raw UUID must never appear in the DB query — only its SHA-256 hash.
+      const whereClause = userRepoFindOne.mock.calls[0][0].where as unknown as {
+        passwordResetToken: string;
+      };
+      expect(whereClause.passwordResetToken).not.toBe(rawToken);
+      expect(whereClause.passwordResetToken).toMatch(/^[0-9a-f]{64}$/);
     });
   });
 

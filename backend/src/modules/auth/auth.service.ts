@@ -277,16 +277,26 @@ export class AuthService {
 
   // ========== FORGOT PASSWORD ==========
   async forgotPassword(email: string): Promise<{ message: string }> {
-    const user = await this.usersService.findByEmail(email);
-    if (user) {
-      const resetToken = uuidv4();
-      const resetExpires = new Date(Date.now() + 30 * 60 * 1000); // 30 min
-      await this.usersService.update(user.id, {
-        passwordResetToken: resetToken,
-        passwordResetExpiresAt: resetExpires,
-      });
-      // TODO: Send reset email
-      console.log(`[DEV] Password reset token for ${email}: ${resetToken}`);
+    try {
+      const user = await this.usersService.findByEmail(email);
+      if (user) {
+        const resetToken = uuidv4();
+        const resetExpires = new Date(Date.now() + 30 * 60 * 1000); // 30 min
+        await this.usersService.update(user.id, {
+          passwordResetToken: this.hashToken(resetToken),
+          passwordResetExpiresAt: resetExpires,
+        });
+        await this.mailService.sendPasswordResetEmail(
+          user.email,
+          user.name,
+          resetToken,
+        );
+      }
+    } catch {
+      // Swallow all errors (DB, mail dispatch) so the response is
+      // indistinguishable from the "user not found" path. Without this,
+      // different failure modes leak whether an account exists. The
+      // underlying services log their own errors for operators.
     }
     // Always return same response to prevent email enumeration
     return {
@@ -405,6 +415,8 @@ export class AuthService {
 
   private async findUserByResetToken(token: string): Promise<User | null> {
     const repo = this.refreshTokenRepository.manager.getRepository(User);
-    return repo.findOne({ where: { passwordResetToken: token } });
+    return repo.findOne({
+      where: { passwordResetToken: this.hashToken(token) },
+    });
   }
 }

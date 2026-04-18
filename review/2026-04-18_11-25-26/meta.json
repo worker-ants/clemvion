@@ -1,0 +1,93 @@
+{
+  "timestamp": "2026-04-18T11:29:54.912946",
+  "files": [
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/backend/src/modules/auth/auth.service.spec.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/backend/src/modules/auth/auth.service.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/backend/src/modules/mail/mail.service.spec.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/backend/src/modules/mail/mail.service.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    }
+  ],
+  "total_elapsed_seconds": 268.85,
+  "agents": [
+    {
+      "name": "scope",
+      "status": "success",
+      "elapsed_seconds": 26.57
+    },
+    {
+      "name": "concurrency",
+      "status": "success",
+      "elapsed_seconds": 36.26
+    },
+    {
+      "name": "database",
+      "status": "success",
+      "elapsed_seconds": 46.35
+    },
+    {
+      "name": "documentation",
+      "status": "success",
+      "elapsed_seconds": 46.76
+    },
+    {
+      "name": "performance",
+      "status": "success",
+      "elapsed_seconds": 52.21
+    },
+    {
+      "name": "dependency",
+      "status": "success",
+      "elapsed_seconds": 53.92
+    },
+    {
+      "name": "maintainability",
+      "status": "success",
+      "elapsed_seconds": 56.54
+    },
+    {
+      "name": "side_effect",
+      "status": "success",
+      "elapsed_seconds": 56.61
+    },
+    {
+      "name": "architecture",
+      "status": "success",
+      "elapsed_seconds": 59.59
+    },
+    {
+      "name": "requirement",
+      "status": "success",
+      "elapsed_seconds": 62.54
+    },
+    {
+      "name": "api_contract",
+      "status": "success",
+      "elapsed_seconds": 62.76
+    },
+    {
+      "name": "security",
+      "status": "success",
+      "elapsed_seconds": 77.75
+    },
+    {
+      "name": "testing",
+      "status": "success",
+      "elapsed_seconds": 79.41
+    }
+  ]
+}
