@@ -1,4 +1,4 @@
-import { TemplateHandler } from '../../../modules/execution-engine/handlers/presentation/template.handler';
+import { TemplateHandler } from './template.handler';
 import { NodeComponent } from '../../core/node-component.interface';
 import {
   templateNodeConfigSchema,

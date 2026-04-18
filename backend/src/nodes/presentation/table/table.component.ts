@@ -1,4 +1,4 @@
-import { TableHandler } from '../../../modules/execution-engine/handlers/presentation/table.handler';
+import { TableHandler } from './table.handler';
 import { NodeComponent } from '../../core/node-component.interface';
 import {
   tableNodeConfigSchema,

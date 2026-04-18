@@ -2,11 +2,11 @@ import {
   ExecutionContext,
   NodeHandler,
   ValidationResult,
-} from '../../../../nodes/core/node-handler.interface.js';
+} from '../../core/node-handler.interface.js';
 import {
   ButtonDef,
   validateButtons,
-} from '../../../../nodes/presentation/_shared/button.types.js';
+} from '../_shared/button.types.js';
 
 function toStr(value: unknown): string {
   if (value == null) return '';
