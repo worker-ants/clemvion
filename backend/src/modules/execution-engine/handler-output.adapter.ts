@@ -3,11 +3,25 @@ import { NodeHandlerOutput } from '../../nodes/core/node-handler.interface.js';
 /**
  * Normalize an opaque handler return into {@link NodeHandlerOutput}.
  *
- * Post Phase-3 (node-specs-improvement plan §Stage 7) all handlers emit the
- * canonical `{ config, output, meta?, port?, status? }` shape. The adapter
- * now only guarantees `config` defaults to `{}` and strips undefined control
- * fields — the legacy `{port,data}` port-selector envelope and bare-object
- * coercion branches have been removed.
+ * Post-Phase-3 (node-specs-improvement plan §Stage 7) production handlers
+ * MUST emit the canonical `{ config, output, meta?, port?, status?,
+ * _resumeState? }` shape. The TypeScript `NodeHandler.execute` return type
+ * enforces this at compile time; this function enforces it at runtime.
+ *
+ * Modes:
+ *
+ *  - `NODE_ENV === 'production'` — strict. Any non-canonical return
+ *    throws synchronously with the handler's actual return shape in the
+ *    error message. This guarantees a production handler bug fails
+ *    loudly at the engine boundary rather than silently being wrapped.
+ *
+ *  - Otherwise (test / development) — lenient. Bare objects / primitives
+ *    are wrapped via {@link wrapBareAsNodeHandlerOutput} so the 39
+ *    fixtures in `execution-engine.service.spec.ts` (and similar test
+ *    doubles) keep working without per-test boilerplate.
+ *
+ * If you need lenient coercion in production code (you almost certainly
+ * don't), call {@link wrapBareAsNodeHandlerOutput} directly.
  */
 export function adaptHandlerReturn(raw: unknown): NodeHandlerOutput {
   if (isNewShape(raw)) {
@@ -22,11 +36,42 @@ export function adaptHandlerReturn(raw: unknown): NodeHandlerOutput {
     };
   }
 
-  // Test fixtures and a handful of one-off mock handlers still return bare
-  // objects / primitives. Wrap them so the engine receives the expected
-  // shape. Production handlers are type-checked against
-  // {@link NodeHandlerOutput}; this branch is effectively reached only by
-  // legacy test doubles.
+  if (process.env.NODE_ENV === 'production') {
+    let preview: string;
+    if (raw === null || raw === undefined) {
+      preview = String(raw);
+    } else {
+      try {
+        preview = JSON.stringify(raw).slice(0, 200);
+      } catch {
+        preview = '[unserializable]';
+      }
+    }
+    throw new Error(
+      'Node handler return violates the NodeHandlerOutput contract. ' +
+        `Expected { config, output, ... }; got ${preview}. ` +
+        "This indicates a handler bug — fix the handler's return value. " +
+        'If the return shape is intentionally legacy (e.g. a one-off ' +
+        'test double), call wrapBareAsNodeHandlerOutput() explicitly.',
+    );
+  }
+
+  return wrapBareAsNodeHandlerOutput(raw);
+}
+
+/**
+ * Legacy / test-fixture coercion into {@link NodeHandlerOutput}. Exported
+ * so test code that deliberately returns bare objects (see
+ * `execution-engine.service.spec.ts`) can stay concise while production
+ * handlers are gated through {@link adaptHandlerReturn}'s strict path.
+ *
+ *  - null / undefined / primitive / array → `{ config: {}, output: raw }`
+ *  - object → `{ config: {}, output: raw }` with `status` / `port` /
+ *    `_resumeState` lifted from the raw object's top level if present, so
+ *    the engine's blocking detection, port routing and resume logic keep
+ *    behaving identically.
+ */
+export function wrapBareAsNodeHandlerOutput(raw: unknown): NodeHandlerOutput {
   if (raw === null || raw === undefined) {
     return { config: {}, output: raw };
   }
@@ -39,8 +84,6 @@ export function adaptHandlerReturn(raw: unknown): NodeHandlerOutput {
   if (typeof obj.status === 'string') adapted.status = obj.status;
   if (typeof obj.port === 'string' || Array.isArray(obj.port))
     adapted.port = obj.port as string | string[];
-  // Lift `_resumeState` so the engine can find it on the flat cache even
-  // when a handler emits the legacy bare waiting shape.
   if (
     obj._resumeState !== null &&
     typeof obj._resumeState === 'object' &&
