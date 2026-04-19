@@ -11,7 +11,7 @@
 ### 1.1 NodeHandlerOutput (모든 노드의 실행 결과)
 
 모든 노드 핸들러는 다음 구조의 객체를 반환합니다.
-출처: `backend/src/modules/execution-engine/handlers/node-handler.interface.ts`
+출처: `backend/src/nodes/core/node-handler.interface.ts`
 
 ```ts
 interface NodeHandlerOutput {
