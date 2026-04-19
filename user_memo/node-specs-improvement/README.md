@@ -28,6 +28,7 @@
 - `information_extractor` 의 `output.output.extracted.*` 이중 중첩 제거 → `output.result.extracted.*`
 - Multi-turn 재개 컨트랙트 통합 (`ai_agent`, `information_extractor` vs `form`, `carousel`)
 - 에러 컨트랙트 통일 (runtime error → `port:'error'` + `output.error`)
+- **`config` ↔ `output` 직교성 (Principle 1.1)** — 리터럴 config 값을 `output` 에 중복 복사한 패턴 제거 (presentation / AI multi-turn / loop / parallel)
 
 **P1 (Usability)**:
 - LLM 응답 필드 통일 (`response` / `category` / `extracted` → `output.result.*`)
@@ -38,3 +39,8 @@
 - 동적 포트 네이밍 규칙 (`__item_${idx}` suffix 공식화)
 - Config echo 규칙 (credentials 제외, URL 내 토큰 sanitize)
 - 빈 입력 fallback 정책 (`[]` / `{}` 통일)
+
+## 개정 이력
+
+- **2026-04-19 (v2)** — Principle 1.1 (`config` ↔ `output` 직교성) 신설. 1차 초안에서 제안했던 `output.view` 래퍼와 `output.view.{title, layout, chartType, format, maxTurns, ...}` 리터럴 config echo 패턴을 **전면 폐기**. presentation / AI multi-turn 노드 문서 재작성. INCONSISTENCY_MATRIX 에 축 7.5 추가.
+- **2026-04-19 (v1)** — 최초 초안 26 노드 개선안 작성.

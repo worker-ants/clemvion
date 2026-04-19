@@ -1,5 +1,7 @@
 # Manual Trigger (`manual_trigger`) — Output 일관성 개선안
 
+> **v2**: Principle 1.1 적용으로 `output.parameters` 의 의미를 **스키마 정의(config)** 가 아닌 **해석된 런타임 값** 으로 명확화. 스키마 정의는 `config.parameters` 에만 존재하고, 해석된 값은 `output.parameters` 에 `{ [name]: value }` 형태로만 존재합니다.
+
 - **카테고리**: trigger
 - **현 문서**: [../../../user_memo/node-specs/trigger/manual_trigger.md](../../node-specs/trigger/manual_trigger.md)
 - **전역 규칙**: [../CONVENTIONS.md](../CONVENTIONS.md)
@@ -38,12 +40,30 @@
 | 1 | `output` 루트에 `body`/`headers`/`query`/`method` 평탄 병합 | P1 — `output`은 "비즈니스 결과물"만 | `parameters`(사용자 설정 도메인 값)와 transport-layer 메타(`method`, `headers`)가 같은 depth에 섞여 있음. 후속 노드 표현식에서 "이 키가 파라미터인지 HTTP 헤더인지" 구분 불가. |
 | 2 | `output.<나머지 키>` 의 존재 여부가 어댑터 구현에 암묵적으로 의존 | P1 / P11 — 예측 가능성 | 수동 실행 어댑터는 `parameters`만, webhook 어댑터는 `body`/`headers`/... 를 주는 식으로 같은 노드 타입이 실행 경로에 따라 다른 shape을 냄. 문서도 "실제 흐름에서 한 번 확인하세요"로 귀결. |
 | 3 | webhook 메타(`method`, `headers`)가 루트에 섞여 있어 `parameters`와 이름 충돌 가능성 존재 | P1 | 사용자가 `parameters`에 `headers`라는 키를 정의하면 `output.headers`가 파라미터인지 transport 헤더인지 모호. 현 구현상 `parameters`가 먼저 떼어져 보호되지만 이는 코드 순서에 의존한 암묵적 규칙. |
+| 4 | `parameters` 스키마 정의와 해석된 값이 이름만 같고 의미가 다름 | **P1.1 — config ↔ output 직교성** | `config.parameters` 는 `[{ name, type, defaultValue, ... }]` 형태의 **스키마 정의**이고, `output.parameters` 는 `{ [name]: value }` 형태의 **해석된 런타임 값** 임. 이름은 같지만 의미와 shape이 다르므로 문서에서 이 구분을 명확히 하지 않으면 "config를 output에 echo한 것처럼" 오해될 수 있음. |
 
 > `meta`/`status` 미사용은 P0/P2 위반이 아닙니다. 트리거 핸들러는 외부 호출을 하지 않으므로 `meta.durationMs`가 의미 있는 값이 되기 어렵고, 블로킹이 아니므로 `status`도 불필요합니다.
 
 ## 3. 제안된 Output 구조
 
-### Before
+### 3.1. `config.parameters` vs `output.parameters` — 의미 구분
+
+**두 필드는 이름은 같지만 shape과 의미가 완전히 다릅니다** (P1.1 직교성 원칙).
+
+| 필드 | 타입 | 의미 | 예시 |
+| --- | --- | --- | --- |
+| `config.parameters` | `Array<{ name, type, defaultValue?, required?, description? }>` | 사용자가 UI에서 정의한 **스키마 정의**. 실행 없이도 존재. | `[{ name: "orderId", type: "string", defaultValue: "" }]` |
+| `output.parameters` | `Record<string, unknown>` (= `{ [name]: value }`) | 어댑터가 전달한 input + config의 `defaultValue` 를 병합해 **해석된 런타임 값**. 실행 시점에만 존재. | `{ orderId: "abc" }` |
+
+**판단 기준** (P1.1.2): "실제 실행하지 않아도 알 수 있는가?"
+- 스키마 정의는 노드 설정만 보면 알 수 있음 → `config`.
+- 해석된 값은 트리거 어댑터 input 에 의존 → `output`.
+
+→ 따라서 **`output.parameters` 는 `config.parameters` 의 echo가 아닙니다.** 이 둘은 shape이 다른 서로 다른 데이터입니다.
+
+### 3.2. Before / After
+
+#### Before
 
 ```json
 {
@@ -62,13 +82,13 @@
 }
 ```
 
-### After
+#### After
 
 ```json
 {
   "config": {
     "parameters": [
-      { "name": "orderId", "type": "string" }
+      { "name": "orderId", "type": "string", "defaultValue": "" }
     ]
   },
   "output": {
@@ -87,18 +107,25 @@
 ```
 
 **핵심 변경점**:
-- `output.parameters`는 그대로 유지 — 사용자가 정의한 도메인 값은 여전히 최상위.
+- `config.parameters` — **스키마 정의만** 보관. `[{ name, type, defaultValue, required?, description? }]` 형태.
+- `output.parameters` — **해석된 값만** 보관. `{ [name]: resolvedValue }` 형태. 어댑터 input + `config.parameters[*].defaultValue` 병합 결과.
 - `body`/`headers`/`query`/`method` 를 **`output.request` 아래로 묶어** transport-layer 컨텍스트임을 명시. 수동 실행처럼 request 컨텍스트가 없는 어댑터에서는 `request` 자체를 생략 (`undefined`).
+- `output.request` 는 webhook 어댑터가 전달한 **런타임** transport 컨텍스트이므로 P1.1 위반 아님 (request 는 실행 시점에만 결정됨).
 - 어댑터 출처를 구분하기 위해 `meta.source: 'manual' | 'webhook' | 'schedule'` 를 추가 (디버깅/분기 판단용). 도메인 로직이 아니므로 `output`이 아닌 `meta`에 배치 (P1/P2).
 - `parameters`와 사용자 정의 파라미터 이름(`headers` 등)의 충돌 여지가 제거됨.
 
-### Case별 최종 shape
+### 3.3. Case별 최종 shape
 
 #### Case 1: 수동 실행 (request 컨텍스트 없음)
 
 ```json
 {
-  "config": { "parameters": [{ "name": "name", "type": "string" }] },
+  "config": {
+    "parameters": [
+      { "name": "name", "type": "string", "defaultValue": "" },
+      { "name": "count", "type": "number", "defaultValue": 0 }
+    ]
+  },
   "output": {
     "parameters": { "name": "Alice", "count": 3 }
   },
@@ -110,7 +137,11 @@
 
 ```json
 {
-  "config": { "parameters": [{ "name": "orderId", "type": "string" }] },
+  "config": {
+    "parameters": [
+      { "name": "orderId", "type": "string", "defaultValue": "" }
+    ]
+  },
   "output": {
     "parameters": { "orderId": "abc" },
     "request": {
@@ -124,22 +155,29 @@
 }
 ```
 
-#### Case 3: 빈/비객체 input
+#### Case 3: 빈/비객체 input — defaultValue 적용
 
 ```json
 {
-  "config": { "parameters": [] },
-  "output": { "parameters": {} },
+  "config": {
+    "parameters": [
+      { "name": "count", "type": "number", "defaultValue": 10 }
+    ]
+  },
+  "output": { "parameters": { "count": 10 } },
   "meta": { "source": "manual" }
 }
 ```
+
+> input 이 `{}` 또는 비객체여도 `config.parameters[*].defaultValue` 가 적용되어 `output.parameters` 가 채워집니다. 해석 로직이 런타임 단계에서 일어나므로 이 결과는 `config` 가 아닌 `output` 에 속합니다.
 
 ## 4. 마이그레이션 영향도
 
 | Expression 경로 (Before) | Expression 경로 (After) | Breaking? | 비고 |
 | --- | --- | --- | --- |
-| `$node["Manual Trigger"].output.parameters.userId` | `$node["Manual Trigger"].output.parameters.userId` | No | 변경 없음 (핵심 경로) |
-| `$node["Manual Trigger"].output.parameters` | `$node["Manual Trigger"].output.parameters` | No | 동일 |
+| `$node["Manual Trigger"].output.parameters.userId` | `$node["Manual Trigger"].output.parameters.userId` | No | 해석된 **값** 접근 경로는 그대로 유지 |
+| `$node["Manual Trigger"].output.parameters` | `$node["Manual Trigger"].output.parameters` | No | 해석된 값 전체 (`{[name]:value}`) |
+| (신규 구분) | `$node["Manual Trigger"].config.parameters[0].name` | No (신규 해석) | 스키마 정의 접근 — 기존에도 가능했으나 의미가 이제 명시적으로 구분됨 |
 | `$node["Manual Trigger"].output.body` | `$node["Manual Trigger"].output.request.body` | **Yes** | webhook 사용 워크플로우 영향 |
 | `$node["Manual Trigger"].output.headers` | `$node["Manual Trigger"].output.request.headers` | **Yes** | 동상 |
 | `$node["Manual Trigger"].output.query` | `$node["Manual Trigger"].output.request.query` | **Yes** | 동상 |
@@ -153,10 +191,12 @@
 - 1단계 — **Alias shim**: 핸들러에서 `output.request` 를 주(primary)로 배치하되, 구버전 호환을 위해 한 릴리즈 주기 동안 `output.body`/`headers`/`query`/`method` 를 같이 노출 (deprecation 로그 남김).
 - 2단계 — 다음 major release에서 flat 키 제거.
 - 프런트엔드 expression 자동완성은 이미 PR(fd3dc27)에서 노드별 변수 힌팅을 개선했으므로, 개선안 적용 시 자동완성 목록을 `output.request.*` 로 갱신하면 사용자가 자연스럽게 새 경로로 이동.
+- **문서 보완**: `config.parameters` 는 "파라미터 정의 (스키마)", `output.parameters` 는 "해석된 값 (런타임)" 으로 자동완성 툴팁에 표기하여 두 필드의 shape 차이를 노출.
 
 ## 5. 근거
 
-- **사용자 멘탈 모델**: "내가 정의한 파라미터" 와 "webhook이 실어 준 HTTP 컨텍스트" 는 개념적으로 다른 레이어입니다. 현재는 한 평면에 섞여 있어 `output.*` 자동완성을 볼 때 어떤 것이 내가 설정한 값인지 즉시 알기 어렵습니다. `parameters` vs `request` 로 분리하면 카테고리가 명확해집니다.
+- **Principle 1.1 (config ↔ output 직교성)**: `config.parameters` 는 실행 없이도 존재하는 **스키마 정의**이므로 `config` 에만 귀속. `output.parameters` 는 어댑터 input + `defaultValue` 병합 결과인 **런타임 값**이므로 `output` 에 귀속. 이름은 같지만 shape (`Array<{name,type,...}>` vs `Record<string, unknown>`) 이 다르므로 중복 echo 가 아닙니다. 이 구분을 문서로 명문화하여 오해를 제거합니다.
+- **사용자 멘탈 모델**: "내가 정의한 파라미터 스키마" 와 "webhook이 실어 준 HTTP 컨텍스트" 는 개념적으로 다른 레이어입니다. 현재는 한 평면에 섞여 있어 `output.*` 자동완성을 볼 때 어떤 것이 내가 설정한 값인지 즉시 알기 어렵습니다. `parameters` vs `request` 로 분리하면 카테고리가 명확해집니다.
 - **다른 노드와의 통일성**: `http_request` 노드는 이미 `output.response` 아래에 transport 응답을 모읍니다 (CONVENTIONS P8 표). 트리거도 "들어오는 transport" 를 `output.request` 아래에 모으면 **response ↔ request 대칭**이 성립하여 학습 비용이 줄어듭니다.
 - **디버깅 용이성**: `meta.source` 를 통해 "이 실행은 수동 테스트인가, 실제 webhook인가" 를 도메인 데이터와 섞지 않고 표현할 수 있습니다. 이는 P2(실행 메트릭/컨텍스트는 meta)와 정합적입니다.
 - **키 충돌 방지**: 사용자가 `parameters` 스키마에서 `headers`/`body`/`method` 같은 이름을 정의해도 transport 키와 겹치지 않으므로, 파라미터 네이밍에 추가 제약을 둘 필요가 없어집니다.
