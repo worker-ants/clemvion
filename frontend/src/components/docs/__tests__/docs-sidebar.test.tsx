@@ -1,5 +1,5 @@
-import { describe, it, expect, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { describe, it, expect, vi, beforeEach } from "vitest";
+import { render, screen, fireEvent } from "@testing-library/react";
 import type { DocsSection } from "@/lib/docs/registry";
 
 vi.mock("next/navigation", () => ({
@@ -57,6 +57,10 @@ const sections: DocsSection[] = [
 ];
 
 describe("DocsSidebar", () => {
+  beforeEach(() => {
+    window.localStorage.clear();
+  });
+
   it("섹션 레이블과 페이지 타이틀을 렌더해요", () => {
     render(<DocsSidebar sections={sections} />);
     expect(screen.getByText("시작하기")).toBeInTheDocument();
@@ -81,5 +85,66 @@ describe("DocsSidebar", () => {
     for (const link of links) {
       expect(link.getAttribute("href")).toMatch(/^\/docs\//);
     }
+  });
+
+  it("섹션 헤더 토글 버튼으로 섹션을 접을 수 있어요", () => {
+    render(<DocsSidebar sections={sections} />);
+    // Toggle a non-active section ('시작하기') — active section's pages
+    // remain forced open regardless of state.
+    const toggle = screen.getByRole("button", { name: /시작하기/ });
+    expect(toggle).toHaveAttribute("aria-expanded", "true");
+    expect(screen.queryByRole("link", { name: "제품 소개" })).not.toBeNull();
+
+    fireEvent.click(toggle);
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
+    expect(screen.queryByRole("link", { name: "제품 소개" })).toBeNull();
+
+    fireEvent.click(toggle);
+    expect(toggle).toHaveAttribute("aria-expanded", "true");
+    expect(screen.queryByRole("link", { name: "제품 소개" })).not.toBeNull();
+  });
+
+  it("활성 페이지가 속한 섹션은 저장된 접힘 상태와 무관하게 펼쳐져요", () => {
+    window.localStorage.setItem(
+      "docs-sidebar-collapsed",
+      JSON.stringify(["02-nodes"]),
+    );
+    render(<DocsSidebar sections={sections} />);
+    // Even though '02-nodes' is in the stored collapsed set, the active
+    // page lives there so links must remain visible.
+    expect(screen.queryByRole("link", { name: "AI 노드" })).not.toBeNull();
+    expect(screen.queryByRole("link", { name: "개요" })).not.toBeNull();
+  });
+
+  it("접힘 상태를 localStorage에 저장해요", () => {
+    render(<DocsSidebar sections={sections} />);
+    const toggle = screen.getByRole("button", { name: /시작하기/ });
+    fireEvent.click(toggle);
+    const raw = window.localStorage.getItem("docs-sidebar-collapsed");
+    expect(raw).not.toBeNull();
+    expect(JSON.parse(raw!)).toContain("01-getting-started");
+  });
+
+  it("활성 섹션 헤더는 접을 수 없도록 disabled 처리돼요", () => {
+    render(<DocsSidebar sections={sections} />);
+    const active = screen.getByRole("button", { name: /노드 가이드/ });
+    expect(active).toBeDisabled();
+    expect(active).toHaveAttribute("aria-expanded", "true");
+
+    // Clicking the disabled button should not flip state or write storage.
+    fireEvent.click(active);
+    expect(screen.queryByRole("link", { name: "AI 노드" })).not.toBeNull();
+    expect(
+      window.localStorage.getItem("docs-sidebar-collapsed"),
+    ).toBeNull();
+  });
+
+  it("활성 페이지 링크에 좌측 강조 테두리가 적용돼요", () => {
+    render(<DocsSidebar sections={sections} />);
+    const active = screen.getByRole("link", { name: "AI 노드" });
+    // The accent border uses the theme's `--primary` token via `border-[hsl(var(--primary))]`.
+    expect(active.className).toMatch(/border-\[hsl\(var\(--primary\)\)\]/);
+    const inactive = screen.getByRole("link", { name: "개요" });
+    expect(inactive.className).toMatch(/border-transparent/);
   });
 });
