@@ -14,6 +14,11 @@
   │   │   ├── */*.md            # 각 분야의 전문가들이 작성한 리뷰
   │   │   ├── SUMMARY.md        # 전문가들의 리뷰를 요약한 내용
   │   │   └── RESOLUTION.md     # 코드 리뷰의 이슈 조치 내용
+  ├── user_memo/                # 사용자가 남긴 자료 (설계 제안·노트 등)
+  │   └── node-specs-improvement/
+  │       ├── CONVENTIONS.md    # 노드 Output 통일 규약 (Principle 0~11). 핸들러 주석에서 "CONVENTIONS §N" 참조의 원전.
+  │       ├── INCONSISTENCY_MATRIX.md
+  │       └── <category>/<node>.md  # 노드별 개선안
   ├── frontend/                 # 클라이언트 (Next.js)
   │   ├── package.json
   │   ├── .env

@@ -151,9 +151,7 @@ describe("extractIeSnapshot", () => {
     expect(snapshot?.retry).toEqual({ count: 1, max: 3 });
   });
 
-  it("reads output.extracted from completed {port, data} envelope after unwrap", () => {
-    // In practice the engine strips the outer {port, data} wrapper before
-    // persisting — downstream code sees data.* shape. We model that here.
+  it("reads output.result.extracted from the post-Stage-1 shape", () => {
     const raw = {
       config: {
         schema: [
@@ -163,17 +161,37 @@ describe("extractIeSnapshot", () => {
         mode: "multi_turn",
       },
       output: {
-        extracted: { orderId: "O-1", amount: 10 },
-        endReason: "completed",
-        turnCount: 2,
+        result: {
+          extracted: { orderId: "O-1", amount: 10 },
+          endReason: "completed",
+          turnCount: 2,
+        },
       },
-      meta: { model: "gpt-5", interactionType: "ai_conversation" },
+      meta: { durationMs: 120, model: "gpt-5" },
+      port: "completed",
+      status: "ended",
     };
     const snapshot = extractIeSnapshot(raw);
     expect(snapshot?.inProgress).toBe(false);
     expect(snapshot?.fields.orderId).toBe("O-1");
     expect(snapshot?.schema).toHaveLength(2);
     expect(snapshot?.schema?.[0].name).toBe("orderId");
+  });
+
+  it("falls back to legacy output.extracted for pre-migration executions", () => {
+    // Historical run-history rows may still carry the pre-Stage-1 shape.
+    const raw = {
+      config: { schema: [{ name: "orderId", type: "string", required: true }], mode: "multi_turn" },
+      output: {
+        extracted: { orderId: "O-2" },
+        endReason: "completed",
+        turnCount: 1,
+      },
+      meta: { model: "gpt-5", interactionType: "ai_conversation" },
+    };
+    const snapshot = extractIeSnapshot(raw);
+    expect(snapshot?.inProgress).toBe(false);
+    expect(snapshot?.fields.orderId).toBe("O-2");
   });
 
   it("returns null for non-IE output (no extracted field anywhere)", () => {
@@ -258,5 +276,57 @@ describe("isConversationOutput / unwrapNodeOutput regression", () => {
   it("passes non-wrapped payload through as legacy", () => {
     const u = unwrapNodeOutput({ response: "hi" });
     expect(u.isStructured).toBe(false);
+  });
+
+  it("detects post-Stage-5 ai_agent terminal via output.result.messages + endReason", () => {
+    // `looksLikeConversationEnd` branch — new LLM shape wraps everything
+    // under `output.result.*` and drops `meta.interactionType`.
+    const raw = {
+      config: { mode: "multi_turn", model: "gpt-5" },
+      output: {
+        result: {
+          response: "bye",
+          messages: [
+            { role: "user", content: "hi" },
+            { role: "assistant", content: "bye" },
+          ],
+          turnCount: 1,
+          endReason: "completed",
+        },
+      },
+      meta: { durationMs: 120, model: "gpt-5", inputTokens: 10 },
+      port: "out",
+      status: "ended",
+    };
+    expect(isConversationOutput(raw)).toBe(true);
+  });
+
+  it("accepts every unified endReason as a conversation terminal", () => {
+    const endReasons = ["completed", "user_ended", "max_turns", "max_retries"] as const;
+    for (const endReason of endReasons) {
+      const raw = {
+        config: {},
+        output: {
+          result: {
+            messages: [{ role: "user", content: "x" }],
+            endReason,
+            turnCount: 1,
+          },
+        },
+        meta: { model: "m" },
+      };
+      expect(isConversationOutput(raw)).toBe(true);
+    }
+  });
+
+  it("rejects non-conversation shapes that happen to carry a result key", () => {
+    // A plain Information Extractor single-turn (no messages, no endReason)
+    // should not be mistaken for a conversation.
+    const raw = {
+      config: {},
+      output: { result: { extracted: { orderNumber: "ORD-1" } } },
+      meta: { model: "gpt-5" },
+    };
+    expect(isConversationOutput(raw)).toBe(false);
   });
 });

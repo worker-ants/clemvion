@@ -170,7 +170,8 @@ export class DatabaseQueryHandler
         config: configEcho,
         output: {
           error: {
-            code: err instanceof IntegrationError ? err.code : 'QUERY_FAILED',
+            code:
+              err instanceof IntegrationError ? err.code : 'DB_QUERY_FAILED',
             message: err instanceof Error ? err.message : String(err),
           },
         },

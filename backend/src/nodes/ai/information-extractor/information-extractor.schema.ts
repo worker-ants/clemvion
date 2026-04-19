@@ -123,54 +123,81 @@ export type InformationExtractorConfig = z.infer<
 /**
  * AUTOCOMPLETE HINT SCHEMA — not used for runtime validation.
  *
- * Runtime `$node["X"].output` value. The handler returns the legacy port
- * selector `{ port, data: { config, output, meta } }`, so the handler-output
- * adapter promotes `data` into the resolver-visible `output`. The upshot is
- * a NESTED shape — `$node["X"].output.output.extracted.<field>` — which is
- * INTENTIONALLY ASYMMETRIC with ai_agent and text_classifier's flat shapes.
- * This mismatch reflects the current handler contracts (legacy port-selector
- * vs bare object); aligning them would require a breaking handler refactor.
+ * Runtime `$node["X"]` matches the unified `NodeHandlerOutput` contract
+ * (`{ config, output, meta, port, status }`). The LLM-category convention
+ * (`output.result.*`) is shared across `ai_agent`, `text_classifier`, and
+ * `information_extractor` so downstream expressions like
+ * `$node["Extractor"].output.result.extracted.<name>` are uniform.
  *
- * User-defined extraction fields live at `.output.extracted.<name>` and are
- * enriched dynamically from each node instance's `config.outputSchema` on the
- * frontend (see `enrichInfoExtractorOutputSchema`).
+ * User-defined extraction fields are enriched into `.output.result.extracted`
+ * from each node instance's `config.outputSchema` on the frontend (see
+ * `enrichInfoExtractorOutputSchema`).
  */
 export const informationExtractorNodeOutputSchema = z
   .object({
     config: z
       .object({
+        mode: z.enum(['single_turn', 'multi_turn']).optional(),
+        model: z.string().optional(),
         schema: z.array(fieldDefSchema).optional(),
+        maxTurns: z.number().optional(),
+        maxCollectionRetries: z.number().optional(),
       })
       .partial()
       .passthrough()
       .optional(),
     output: z
       .object({
-        extracted: z.record(z.string(), z.unknown()).optional(),
-        error: z.string().optional(),
-        originalInput: z.string().optional(),
+        result: z
+          .object({
+            extracted: z.record(z.string(), z.unknown()).optional(),
+            endReason: z.string().optional(),
+            turnCount: z.number().optional(),
+            messages: z.array(z.record(z.string(), z.unknown())).optional(),
+            originalInput: z.string().optional(),
+          })
+          .partial()
+          .passthrough()
+          .optional(),
+        error: z
+          .object({
+            code: z.string(),
+            message: z.string(),
+            details: z.record(z.string(), z.unknown()).optional(),
+          })
+          .partial()
+          .passthrough()
+          .optional(),
       })
       .partial()
       .passthrough()
       .optional(),
     meta: z
       .object({
+        durationMs: z.number(),
         model: z.string(),
         inputTokens: z.number(),
         outputTokens: z.number(),
         totalTokens: z.number(),
         thinkingTokens: z.number(),
+        collectionRetryCount: z.number().optional(),
+        turnDebug: z.array(z.record(z.string(), z.unknown())).optional(),
       })
       .partial()
       .passthrough()
       .optional(),
-    // Multi-turn / waiting-for-input shape also surfaces through $node.output
+    // Waiting shape exposes `status:'waiting_for_input'` alongside the
+    // live conversation snapshot. The internal continuation state lives
+    // on `_resumeState` (renamed from the legacy `_multiTurnState` in
+    // Stage 2 — engine keeps a dual-read fallback until the next
+    // release). `output.messages` and `output.partial.*` are the
+    // canonical runtime fields (CONVENTIONS §4.3); `conversationConfig`
+    // is retained for WebSocket event-payload backward compatibility.
+    // Expression resolvers intentionally do not surface `_resumeState`.
     status: z.string().optional(),
+    port: z.string().optional(),
     interactionType: z.string().optional(),
     conversationConfig: z.record(z.string(), z.unknown()).optional(),
-    turnCount: z.number().optional(),
-    endReason: z.string().optional(),
-    partialResult: z.record(z.string(), z.unknown()).optional(),
   })
   .passthrough();
 

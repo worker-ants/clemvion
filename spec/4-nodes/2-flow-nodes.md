@@ -98,10 +98,20 @@
 - 간접 재귀(A→B→A)도 깊이 제한 적용
 - 깊이 초과 시 에러: "Maximum recursion depth exceeded"
 
+### 포트
+
+| 포트 | 방향 | 설명 |
+|------|------|------|
+| `in` | 입력 | 호출 시 input 데이터 |
+| `out` | 출력 (success) | 서브 워크플로우의 최종 출력 (sync) 또는 `{executionId}` (async) |
+| `error` | 출력 (error) | 서브 워크플로우 런타임 실패 시 라우팅. `output.error.code: 'SUB_WORKFLOW_FAILED'` + `output.error.details.{workflowId, mode}` (CONVENTIONS §3.2) |
+
+> `error` 포트에 엣지가 연결되지 않은 상태에서 서브 워크플로우 실패가 발생하면, 현재 엔진은 호출 노드 실행만 `failed` 로 기록하고 부모 Execution 은 계속 진행한다. `ERROR_PORT_FALLBACK` (Stop Workflow 폴백) 동작은 `spec/5-system/3-error-handling.md §3.2` 의 일반 정책이며, workflow 노드도 동일하게 따른다.
+
 ### 모니터링
 
-- **동기 모드**: 인라인 실행이므로 부모 Execution의 히스토리 타임라인에 서브 워크플로우 노드가 직접 표시됨. 에러는 호출 노드에 전파.
-- **비동기 모드**: 별도 Execution 생성. `parentExecutionId`로 부모 참조. 에러는 로그에만 기록.
+- **동기 모드**: 인라인 실행이므로 부모 Execution의 히스토리 타임라인에 서브 워크플로우 노드가 직접 표시됨. 런타임 에러는 `error` 포트로 라우팅; 미연결 시 Stop Workflow 폴백 (§3.2 정책)
+- **비동기 모드**: 별도 Execution 생성. `parentExecutionId`로 부모 참조. 큐 enqueue 실패 등은 `error` 포트로 라우팅, 런타임 이후 에러는 서브 Execution 의 로그에만 기록.
 - `recursionDepth`가 Execution 레코드(비동기) 또는 ExecutionContext(동기)에 기록되어 재귀 깊이 추적 가능
 
 ---

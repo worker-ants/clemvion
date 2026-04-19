@@ -85,7 +85,10 @@ export type SendEmailConfig = z.infer<typeof sendEmailNodeConfigSchema>;
 
 export const sendEmailNodePorts: NodePorts = {
   inputs: [{ id: 'in', label: 'Input', type: 'data' }],
-  outputs: [{ id: 'out', label: 'Output', type: 'data' }],
+  outputs: [
+    { id: 'out', label: 'Output', type: 'data' },
+    { id: 'error', label: 'Error', type: 'error' },
+  ],
 };
 
 export const sendEmailNodeMetadata: NodeComponentMetadata = {

@@ -89,20 +89,27 @@ export class WorkflowHandler implements NodeHandler {
       inputMapping.length > 0 ? subInput : (input as Record<string, unknown>);
 
     if (mode === 'async') {
-      const subExecutionId = await this.executionEngine.executeAsync(
-        workflowId,
-        effectiveInput,
-        {
-          parentExecutionId: context.executionId,
-          recursionDepth: currentDepth + 1,
-        },
-      );
+      try {
+        const subExecutionId = await this.executionEngine.executeAsync(
+          workflowId,
+          effectiveInput,
+          {
+            parentExecutionId: context.executionId,
+            recursionDepth: currentDepth + 1,
+          },
+        );
 
-      return {
-        config: { workflowId, mode: 'async' },
-        output: { executionId: subExecutionId },
-        meta: { status: 'started' },
-      };
+        return {
+          config: { workflowId, mode: 'async' },
+          output: { executionId: subExecutionId },
+          meta: { status: 'started' },
+        };
+      } catch (err) {
+        return this.buildSubWorkflowError(
+          { workflowId, mode: 'async' as const },
+          err,
+        );
+      }
     }
 
     // Sync mode: execute inline within the same execution context.
@@ -113,23 +120,63 @@ export class WorkflowHandler implements NodeHandler {
       throw new Error('Inline execution requires _executedNodes in context');
     }
 
-    const inlineResult = await this.executionEngine.executeInline(
-      workflowId,
-      effectiveInput,
-      {
-        executionId: context.executionId,
-        context,
-        executedNodes: context._executedNodes,
-        recursionDepth: currentDepth + 1,
-        // Tag every NodeExecution produced by this inline run with the
-        // workflow node's own row id, so the frontend timeline can render a
-        // Sub-Workflow card grouping its children.
-        parentNodeExecutionId: context.nodeExecutionId,
-      },
-    );
+    try {
+      const inlineResult = await this.executionEngine.executeInline(
+        workflowId,
+        effectiveInput,
+        {
+          executionId: context.executionId,
+          context,
+          executedNodes: context._executedNodes,
+          recursionDepth: currentDepth + 1,
+          // Tag every NodeExecution produced by this inline run with the
+          // workflow node's own row id, so the frontend timeline can render
+          // a Sub-Workflow card grouping its children.
+          parentNodeExecutionId: context.nodeExecutionId,
+        },
+      );
+      return {
+        config: { workflowId, mode: 'sync' },
+        output: inlineResult,
+      };
+    } catch (err) {
+      return this.buildSubWorkflowError(
+        { workflowId, mode: 'sync' as const },
+        err,
+      );
+    }
+  }
+
+  /**
+   * CONVENTIONS §3.2 — a sub-workflow runtime failure is a runtime error,
+   * not a pre-flight one, so it routes to the `error` port with a
+   * standardized envelope rather than propagating the exception.
+   */
+  private buildSubWorkflowError(
+    configEcho: { workflowId: string; mode: 'sync' | 'async' },
+    err: unknown,
+  ): {
+    config: { workflowId: string; mode: 'sync' | 'async' };
+    output: {
+      error: {
+        code: string;
+        message: string;
+        details?: Record<string, unknown>;
+      };
+    };
+    port: 'error';
+  } {
+    const message = err instanceof Error ? err.message : String(err);
     return {
-      config: { workflowId, mode: 'sync' },
-      output: inlineResult,
+      config: configEcho,
+      output: {
+        error: {
+          code: 'SUB_WORKFLOW_FAILED',
+          message,
+          details: { workflowId: configEcho.workflowId, mode: configEcho.mode },
+        },
+      },
+      port: 'error',
     };
   }
 }

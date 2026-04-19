@@ -68,6 +68,30 @@ export interface NodeHandlerOutput {
   meta?: Record<string, unknown>;
   port?: string | string[];
   status?: string;
+  /**
+   * Engine-internal resume continuation state (CONVENTIONS §4.3). Populated
+   * by multi-turn handlers (ai_agent, information_extractor) when they
+   * return `status: 'waiting_for_input'` — the engine passes it back in on
+   * the next user message. Deliberately outside `output` so expression
+   * resolver and UI autocomplete don't surface it to workflow authors.
+   *
+   * Non-resumable handlers should omit this field entirely — it's declared
+   * `?` here (rather than pushed onto a separate subtype) because adapter,
+   * flat-cache conversion, and engine resume lookup all need a single
+   * pass-through type. See {@link ResumableNodeHandlerOutput} for a
+   * narrowing helper.
+   */
+  _resumeState?: Record<string, unknown>;
+}
+
+/**
+ * Sub-type for handlers that DO emit resume state (multi-turn LLM nodes).
+ * Use in handler return signatures and test fixtures to assert
+ * `_resumeState` is present without having to guard against `undefined`.
+ */
+export interface ResumableNodeHandlerOutput extends NodeHandlerOutput {
+  _resumeState: Record<string, unknown>;
+  status: 'waiting_for_input';
 }
 
 export interface NodeHandler {

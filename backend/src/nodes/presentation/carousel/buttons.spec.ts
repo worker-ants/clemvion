@@ -74,13 +74,14 @@ describe('CarouselHandler - Buttons', () => {
         context,
       )) as Record<string, unknown>;
 
-      expect(result.output.type).toBe('carousel');
+      expect(result.output.type).toBeUndefined();
       expect(result.status).toBe('waiting_for_input');
       expect(result.meta?.interactionType).toBe('buttons');
       expect(result.config.buttonConfig).toEqual({ buttons });
-      // Should still include normal carousel output
+      // Layout literal is in config only (Principle 1.1); runtime items/rendered stay in output.
       expect(result.output.items).toBeDefined();
-      expect(result.output.layout).toBeDefined();
+      expect(result.output.layout).toBeUndefined();
+      expect(result.config.layout).toBeDefined();
       expect(result.output.rendered).toBeDefined();
     });
 
@@ -91,7 +92,7 @@ describe('CarouselHandler - Buttons', () => {
         context,
       )) as Record<string, unknown>;
 
-      expect(result.output.type).toBe('carousel');
+      expect(result.output.type).toBeUndefined();
       expect(result.status).toBeUndefined();
       expect(result.meta?.interactionType).toBeUndefined();
     });
@@ -103,7 +104,7 @@ describe('CarouselHandler - Buttons', () => {
         context,
       )) as Record<string, unknown>;
 
-      expect(result.output.type).toBe('carousel');
+      expect(result.output.type).toBeUndefined();
       expect(result.status).toBeUndefined();
     });
   });

@@ -1258,14 +1258,29 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
     });
 
     // Merge submitted form data into the structured NodeHandlerOutput.
-    // The form handler stored { config: formDeclaration, output: null, status:
-    // 'waiting_for_input', meta } in the structured cache on initial execute;
-    // here we replace `output` with the produced value and flip `status`.
+    // The form handler stored `{ config, output: {}, status:
+    // 'waiting_for_input', meta }` on the initial execute; here we populate
+    // `output.interaction.{type,data,receivedAt}` and flip `status` to the
+    // unified `'resumed'` value (CONVENTIONS §4.4 / §4.5).
     const prevStructured = context.structuredOutputCache?.[node.id];
+    const receivedAt = new Date().toISOString();
+    const interactionData =
+      formData === null ||
+      formData === undefined ||
+      typeof formData !== 'object'
+        ? {}
+        : (formData as Record<string, unknown>);
     const updatedStructured = {
       config: prevStructured?.config ?? node.config ?? {},
-      output: { submittedData: formData },
-      status: 'submitted',
+      output: {
+        interaction: {
+          type: 'form_submitted' as const,
+          data: interactionData,
+          receivedAt,
+        },
+      },
+      status: 'resumed',
+      port: 'out',
       ...(prevStructured?.meta !== undefined
         ? { meta: prevStructured.meta }
         : {}),
@@ -1403,7 +1418,12 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
       string,
       unknown
     >;
-    let multiTurnState = nodeOutput._multiTurnState as Record<string, unknown>;
+    // Post Phase-3 all handlers emit `_resumeState`. The legacy
+    // `_multiTurnState` fallback remains so in-flight executions persisted
+    // before the rename (live waiting-for-input sessions) can still resume
+    // correctly on re-attachment.
+    let resumeState = (nodeOutput._resumeState ??
+      nodeOutput._multiTurnState) as Record<string, unknown>;
 
     // Update execution status to waiting
     await this.updateExecutionStatus(
@@ -1424,15 +1444,29 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
       await this.nodeExecutionRepository.save(nodeExec);
     }
 
-    // Emit initial waiting event with the first AI response
-    // Filter system prompts from client-facing messages
-    const initialConvConfig = nodeOutput.conversationConfig as Record<
+    // Emit initial waiting event with the first AI response. Read the
+    // conversation snapshot from the new `output.messages` /
+    // `output.partial.*` shape (Principle 4.3), falling back to the legacy
+    // `conversationConfig` block for in-flight payloads that still carry it.
+    const structuredOutput = (context.structuredOutputCache?.[node.id]
+      ?.output ?? null) as Record<string, unknown> | null;
+    const outputMessages =
+      (structuredOutput?.messages as
+        | Array<Record<string, unknown>>
+        | undefined) ?? [];
+    const initialConvConfig = (nodeOutput.conversationConfig ?? {}) as Record<
       string,
       unknown
     >;
-    const initialClientMessages = (
-      initialConvConfig.messages as Array<Record<string, unknown>>
-    ).filter((m) => m.role !== 'system');
+    const legacyMessages =
+      (initialConvConfig.messages as
+        | Array<Record<string, unknown>>
+        | undefined) ?? [];
+    const allInitialMessages =
+      outputMessages.length > 0 ? outputMessages : legacyMessages;
+    const initialClientMessages = allInitialMessages.filter(
+      (m) => m.role !== 'system',
+    );
     this.websocketService.emitExecutionEvent(
       executionId,
       ExecutionEventType.EXECUTION_WAITING_FOR_INPUT,
@@ -1457,12 +1491,11 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
         // Include Turn 1 debug data for initial AI response
         turnDebug: {
           llmCalls:
-            ((multiTurnState.turnDebugHistory as unknown[]) ?? [])[0] ??
-            undefined,
+            ((resumeState.turnDebugHistory as unknown[]) ?? [])[0] ?? undefined,
           metadata: {
-            model: multiTurnState.model,
-            inputTokens: multiTurnState.totalInputTokens,
-            outputTokens: multiTurnState.totalOutputTokens,
+            model: resumeState.model,
+            inputTokens: resumeState.totalInputTokens,
+            outputTokens: resumeState.totalOutputTokens,
           },
         },
       },
@@ -1493,14 +1526,26 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
         };
 
         const finalOutput = handler.endMultiTurnConversation(
-          multiTurnState,
+          resumeState,
           endReason,
         );
 
+        // Normalize so that both the new NodeHandlerOutput shape (info
+        // extractor post Stage 1, which carries its own port/meta) and the
+        // legacy bare return (ai_agent) persist uniformly through the
+        // structured cache + port selector path.
+        const adaptedEnd = adaptHandlerReturn(finalOutput);
+        this.contextService.setStructuredOutput(
+          executionId,
+          node.id,
+          adaptedEnd,
+        );
+        const flatEnd = toEngineFlatShape(adaptedEnd);
+        const routedEnd = this.applyPortSelection(flatEnd);
         this.contextService.setNodeOutput(
           executionId,
           node.id,
-          finalOutput as Record<string, unknown>,
+          routedEnd as Record<string, unknown>,
         );
         conversationEnded = true;
       } else if (action.type === 'ai_message') {
@@ -1515,14 +1560,15 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
         };
         const result = await handler.processMultiTurnMessage(
           action.message as string,
-          multiTurnState,
+          resumeState,
         );
 
         const resultObj = result as Record<string, unknown>;
 
         if (resultObj.status === 'waiting_for_input') {
           // Update state for next turn
-          multiTurnState = resultObj._multiTurnState as Record<string, unknown>;
+          resumeState = (resultObj._resumeState ??
+            resultObj._multiTurnState) as Record<string, unknown>;
 
           // Emit AI response event (filter system prompts from client)
           const convConfig = resultObj.conversationConfig as Record<
@@ -1542,13 +1588,13 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
               turnCount: convConfig.turnCount,
               messages: clientMessages,
               metadata: {
-                model: multiTurnState.model,
-                inputTokens: multiTurnState.totalInputTokens,
-                outputTokens: multiTurnState.totalOutputTokens,
+                model: resumeState.model,
+                inputTokens: resumeState.totalInputTokens,
+                outputTokens: resumeState.totalOutputTokens,
               },
-              requestPayload: multiTurnState.lastTurnRequest,
-              responsePayload: multiTurnState.lastTurnResponse,
-              durationMs: multiTurnState.lastTurnDurationMs,
+              requestPayload: resumeState.lastTurnRequest,
+              responsePayload: resumeState.lastTurnResponse,
+              durationMs: resumeState.lastTurnDurationMs,
             },
           );
 
@@ -1584,39 +1630,85 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
               },
             },
           );
-        } else if ('port' in resultObj && 'data' in resultObj) {
-          // Condition triggered — emit final turn debug data, then apply port routing
-          const condData = resultObj.data as Record<string, unknown>;
-          const condMessages = Array.isArray(condData.messages)
-            ? (condData.messages as Array<Record<string, unknown>>).filter(
-                (m) => m.role !== 'system',
-              )
-            : [];
+        } else if (
+          resultObj.status === 'ended' ||
+          ('port' in resultObj && 'data' in resultObj)
+        ) {
+          // Terminal state — route to port. Supports both the new unified
+          // `{ config, output, meta, port, status:'ended' }` shape (used by
+          // information_extractor post Stage 1) and the legacy
+          // `{ port, data:{...} }` envelope (still used by ai_agent
+          // condition-triggered endings).
+          const isNewShape = resultObj.status === 'ended';
+
+          // Extract fields for the AI_MESSAGE websocket event. Both shapes
+          // expose `messages` / `response` / token counts under different
+          // paths, so normalize up-front.
+          const newOutput = isNewShape
+            ? ((resultObj.output as Record<string, unknown> | undefined) ?? {})
+            : {};
+          const newResult =
+            (newOutput.result as Record<string, unknown> | undefined) ?? {};
+          const legacyData = !isNewShape
+            ? ((resultObj.data as Record<string, unknown> | undefined) ?? {})
+            : {};
+          const sourceMessages = Array.isArray(newResult.messages)
+            ? (newResult.messages as Array<Record<string, unknown>>)
+            : Array.isArray(legacyData.messages)
+              ? (legacyData.messages as Array<Record<string, unknown>>)
+              : [];
+          const condMessages = sourceMessages.filter(
+            (m) => m.role !== 'system',
+          );
+          const responseText =
+            (newResult.response as string | undefined) ??
+            (legacyData.response as string | undefined) ??
+            '';
+          const turnCount =
+            (newResult.turnCount as number | undefined) ??
+            (legacyData.turnCount as number | undefined);
+          const metaSource = isNewShape
+            ? ((resultObj.meta as Record<string, unknown> | undefined) ?? {})
+            : ((legacyData.metadata as Record<string, unknown> | undefined) ??
+              {});
           const turnDebug = resultObj._turnDebug as
             | Record<string, unknown>
             | undefined;
+          const turnDebugArray =
+            (metaSource.turnDebug as
+              | Array<Record<string, unknown>>
+              | undefined) ?? [];
+          const lastTurnDebug =
+            turnDebugArray.length > 0
+              ? turnDebugArray[turnDebugArray.length - 1]
+              : undefined;
 
           this.websocketService.emitExecutionEvent(
             executionId,
             ExecutionEventType.AI_MESSAGE,
             {
               nodeId: node.id,
-              message: condData.response ?? '',
-              turnCount: condData.turnCount,
+              message: responseText,
+              turnCount,
               messages: condMessages,
               metadata: {
-                model: (condData.metadata as Record<string, unknown>)?.model,
-                inputTokens: (condData.metadata as Record<string, unknown>)
-                  ?.totalInputTokens,
-                outputTokens: (condData.metadata as Record<string, unknown>)
-                  ?.totalOutputTokens,
+                model: metaSource.model,
+                inputTokens:
+                  (metaSource.inputTokens as number | undefined) ??
+                  (metaSource.totalInputTokens as number | undefined),
+                outputTokens:
+                  (metaSource.outputTokens as number | undefined) ??
+                  (metaSource.totalOutputTokens as number | undefined),
               },
-              llmCalls: turnDebug?.llmCalls,
-              durationMs: turnDebug?.totalDurationMs,
+              llmCalls: turnDebug?.llmCalls ?? lastTurnDebug?.llmCalls,
+              durationMs:
+                (turnDebug?.totalDurationMs as number | undefined) ??
+                (lastTurnDebug?.totalDurationMs as number | undefined),
             },
           );
 
-          // Strip _turnDebug before persisting
+          // Strip _turnDebug before persisting (legacy shim — handlers no
+          // longer set this in the new shape).
           delete resultObj._turnDebug;
 
           const adaptedConv = adaptHandlerReturn(resultObj);
@@ -1680,6 +1772,7 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
       const finalOutput = {
         ...(context.nodeOutputCache[node.id] as Record<string, unknown>),
       };
+      delete finalOutput._resumeState;
       delete finalOutput._multiTurnState;
       nodeExec.outputData = finalOutput;
       nodeExec.finishedAt = new Date();
@@ -1828,6 +1921,20 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
       flatNodeOutput.items ??
       cleanNodeOutput.items) as unknown[] | undefined;
 
+    // `interactionData` carries the legacy wire-shape (interactionType +
+    // flat fields) used by the WS button event. `structuredInteraction`
+    // carries the unified `{type, data, receivedAt}` shape exposed through
+    // `$node["X"].output.interaction.*` (CONVENTIONS §4.5).
+    let structuredInteraction: {
+      type:
+        | 'form_submitted'
+        | 'button_click'
+        | 'button_continue'
+        | 'message_received';
+      data: Record<string, unknown>;
+      receivedAt: string;
+    };
+
     if (click.type === 'button_click') {
       const buttonId = click.buttonId!;
       const clickedButton = buttons.find((b) => b.id === buttonId);
@@ -1854,6 +1961,15 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
           buttonLabel: clickedButton.label,
           clickedAt: now,
         };
+        structuredInteraction = {
+          type: 'button_click',
+          data: {
+            buttonId,
+            buttonLabel: clickedButton.label,
+            ...(selectedItem !== undefined && { selectedItem }),
+          },
+          receivedAt: now,
+        };
         updatedOutput = {
           type: 'button_click',
           buttonId,
@@ -1870,6 +1986,16 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
           interactionType: 'button_continue',
           clickedAt: now,
         };
+        structuredInteraction = {
+          type: 'button_continue',
+          data: {
+            buttonId,
+            buttonLabel: clickedButton.label,
+            ...(clickedButton.url ? { url: clickedButton.url } : {}),
+            ...(selectedItem !== undefined && { selectedItem }),
+          },
+          receivedAt: now,
+        };
         updatedOutput = {
           type: 'button_continue',
           clickedAt: now,
@@ -1884,6 +2010,11 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
       interactionData = {
         interactionType: 'button_continue',
         clickedAt: now,
+      };
+      structuredInteraction = {
+        type: 'button_continue',
+        data: {},
+        receivedAt: now,
       };
       updatedOutput = {
         type: 'button_continue',
@@ -1921,40 +2052,25 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
             ),
           )
         : rawPrevOutput;
+    // Structured output at the resumed tick: previous runtime fields are
+    // retained (per CONVENTIONS §4.4 — "immutable snapshot") and
+    // `output.interaction` is appended with the unified `{type, data,
+    // receivedAt}` shape.
+    //
+    // `previousOutput` is a legacy transitional field (CONVENTIONS §4.2
+    // explicitly marks it for retirement). Do NOT add new consumers — use
+    // the top-level runtime fields directly. Removal is tracked as a
+    // Phase 3 precondition in `memory/node-specs-improvement-progress.md`.
     const structuredOutputPayload: Record<string, unknown> = {
-      interaction: interactionData,
+      ...(prevOutput as Record<string, unknown>),
+      interaction: structuredInteraction,
+      previousOutput: prevOutput,
     };
-    const itemIndexForStruct =
-      buttonItemMap != null && click.type === 'button_click' && click.buttonId
-        ? buttonItemMap[click.buttonId]
-        : undefined;
-    const structSelectedItem =
-      itemIndexForStruct != null &&
-      itemIndexForStruct >= 0 &&
-      outputItems &&
-      itemIndexForStruct < outputItems.length
-        ? outputItems[itemIndexForStruct]
-        : undefined;
-    if (structSelectedItem !== undefined) {
-      structuredOutputPayload.selectedItem = structSelectedItem;
-    }
-    structuredOutputPayload.previousOutput = prevOutput;
-    // `interactionType` is whitelist-validated at the ButtonInteractionData
-    // type boundary; narrow to a known set so downstream routing can't be
-    // coerced into unknown states.
-    const INTERACTION_STATUSES = ['button_click', 'button_continue'] as const;
-    type InteractionStatus = (typeof INTERACTION_STATUSES)[number];
-    const rawStatus = interactionData.interactionType as string;
-    const resolvedStatus: InteractionStatus = (
-      INTERACTION_STATUSES as readonly string[]
-    ).includes(rawStatus)
-      ? (rawStatus as InteractionStatus)
-      : 'button_continue';
     const updatedStructured: NodeHandlerOutput = {
       config: prevConfig,
       output: structuredOutputPayload,
       port: selectedPort,
-      status: resolvedStatus,
+      status: 'resumed',
       ...(prevMeta !== undefined ? { meta: prevMeta } : {}),
     };
     this.contextService.setStructuredOutput(
@@ -3268,14 +3384,15 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
 
     // Replace Parallel's output: `_selectedPort: ['done']` ensures only the
     // `done` port fires while branch_N edges stay suppressed. The `done`
-    // downstream node receives `{ branches: [...] }` after stripping.
+    // downstream node receives `{ branches, count }` (CONVENTIONS §9.2).
     context.nodeOutputCache[parallelNode.id] = {
       _selectedPort: ['done'],
       branches: branchResults,
+      count: branchResults.length,
     };
     this.contextService.setStructuredOutput(executionId, parallelNode.id, {
       config: resolvedConfig,
-      output: branchResults,
+      output: { branches: branchResults, count: branchResults.length },
       port: ['done'],
     });
 
@@ -3395,13 +3512,9 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
 
     const structured = context.structuredOutputCache?.[containerNode.id];
     const resolvedConfig = structured?.config ?? containerNode.config ?? {};
-    let results: unknown;
+    let structuredOutput: Record<string, unknown>;
 
-    if (containerNode.type === 'foreach' || containerNode.type === 'map') {
-      // Both ForEachHandler and MapHandler resolve the input array and store
-      // it under `output`. The collection semantics are identical — iterate
-      // items, run body per iter, collect emit outputs — so they share the
-      // same executor.
+    if (containerNode.type === 'foreach') {
       const handlerOutput = structured?.output;
       const array = Array.isArray(handlerOutput) ? handlerOutput : [];
       const collected = await this.foreachExecutor.execute(
@@ -3415,7 +3528,32 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
         context,
         runIter,
       );
-      results = collected;
+      // CONVENTIONS §9.2 — `foreach` finalises as `{ items, count }` so
+      // downstream expressions can uniformly read `output.items[i]` / .count
+      // across container kinds.
+      structuredOutput = {
+        items: collected,
+        count: Array.isArray(collected) ? collected.length : 0,
+      };
+    } else if (containerNode.type === 'map') {
+      const handlerOutput = structured?.output;
+      const array = Array.isArray(handlerOutput) ? handlerOutput : [];
+      const collected = await this.foreachExecutor.execute(
+        {
+          array,
+          errorPolicy:
+            (resolvedConfig.errorPolicy as 'stop' | 'skip' | 'continue') ??
+            'stop',
+          collectResults: true,
+        },
+        context,
+        runIter,
+      );
+      // CONVENTIONS §9.2 — `map` finalises as `{ mapped, count }`.
+      structuredOutput = {
+        mapped: collected,
+        count: Array.isArray(collected) ? collected.length : 0,
+      };
     } else if (containerNode.type === 'loop') {
       const count = Number(resolvedConfig.count ?? 0);
       const maxIterations = resolvedConfig.maxIterations as number | undefined;
@@ -3424,19 +3562,21 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
         context,
         runIter,
       );
-      results = collected.map((r) => r.output);
+      const iterations = collected.map((r) => r.output);
+      // CONVENTIONS §9.2 — `loop` finalises as `{ iterations, count }`.
+      structuredOutput = { iterations, count: iterations.length };
     } else {
       return;
     }
 
     this.contextService.setStructuredOutput(executionId, containerNode.id, {
       config: resolvedConfig,
-      output: results,
+      output: structuredOutput,
     });
     this.contextService.setNodeOutput(
       executionId,
       containerNode.id,
-      results as Record<string, unknown>,
+      structuredOutput,
     );
   }
 

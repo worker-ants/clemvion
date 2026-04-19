@@ -70,12 +70,10 @@ export class ChartHandler implements NodeHandler {
       ? this.aggregate(data, yAxis.aggregation)
       : data;
 
-    const payload = {
-      type: 'chart',
-      chartType,
-      title,
-      data: chartData,
-    };
+    // `output` holds only the runtime-aggregated dataset (Principle 1.1);
+    // chartType/title/xAxis/yAxis are literal config and live in `config`.
+    // Discriminator `type: 'chart'` removed (Principle 1.1.4).
+    const payload: Record<string, unknown> = { data: chartData };
     const configEcho: Record<string, unknown> = {
       chartType,
       title,
@@ -88,13 +86,14 @@ export class ChartHandler implements NodeHandler {
       return Promise.resolve({
         config: {
           ...configEcho,
+          buttons,
           buttonConfig: {
             buttons,
           },
         },
         output: payload,
         status: 'waiting_for_input',
-        meta: { interactionType: 'buttons' },
+        meta: { interactionType: 'buttons', durationMs: 0 },
       });
     }
 

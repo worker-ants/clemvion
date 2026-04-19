@@ -27,11 +27,11 @@ export class ExpressionResolverService {
   ): EngineContext {
     // Build $node label-to-output map with disambiguation and UUID fallback.
     // Note: nodeMap must be ordered by topological sort (execution order) for
-    // deterministic #N suffix assignment in buildDisambiguatedKeys.
-    // Values are the full {@link NodeHandlerOutput} structure when the
-    // handler has migrated (from `structuredOutputCache`), else a legacy
-    // compatibility shim `{ output: <flat> }` so pre-migration expressions
-    // like `$node["X"].output.field` keep resolving.
+    // deterministic #N suffix assignment in buildDisambiguatedKeys. The
+    // engine populates `structuredOutputCache` via the runtime path; test
+    // fixtures that only pre-seed `nodeOutputCache` (no structured entry)
+    // fall back to a `{ output: flat }` shim so expressions can still
+    // resolve `$node["X"].output.field`.
     const $node: Record<string, Record<string, unknown>> = {};
 
     const nodesWithOutput: Array<{ id: string; label: string }> = [];
@@ -47,7 +47,6 @@ export class ExpressionResolverService {
       const flat = executionContext.nodeOutputCache[nodeId];
       if (flat === undefined) continue;
 
-      // Prefer the structured view once the engine has populated it.
       const adapted = structured[nodeId];
       const entry: Record<string, unknown> = adapted
         ? {

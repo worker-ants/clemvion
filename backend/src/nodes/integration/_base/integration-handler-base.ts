@@ -145,3 +145,47 @@ export function sanitizeMessage(input: string): string {
   }
   return out;
 }
+
+/**
+ * Config-echo sanitisation. Handlers that emit `config` on
+ * `NodeHandlerOutput` should pass the echoed snapshot through this helper
+ * so `password` / `apiKey` / `token` / `secret` / `accessToken` fields
+ * never land in the structured cache, even if the caller carelessly
+ * spreads the original config. CONVENTIONS §7 — "자격증명 / 시크릿은 절대
+ * 노출 금지".
+ */
+const CREDENTIAL_KEYS = new Set([
+  'password',
+  'pwd',
+  'apiKey',
+  'api_key',
+  'apikey',
+  'token',
+  'accessToken',
+  'access_token',
+  'refreshToken',
+  'refresh_token',
+  'secret',
+  'clientSecret',
+  'client_secret',
+  'privateKey',
+  'private_key',
+]);
+
+export function sanitizeConfigEcho<T>(value: T): T {
+  if (value === null || value === undefined) return value;
+  if (Array.isArray(value)) {
+    const arr = value as unknown[];
+    return arr.map((v) => sanitizeConfigEcho(v)) as unknown as T;
+  }
+  if (typeof value !== 'object') return value;
+  const out: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
+    if (CREDENTIAL_KEYS.has(k)) {
+      out[k] = '***';
+    } else {
+      out[k] = sanitizeConfigEcho(v);
+    }
+  }
+  return out as unknown as T;
+}

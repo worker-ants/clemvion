@@ -166,8 +166,8 @@ describe('CarouselHandler', () => {
         context,
       )) as Record<string, unknown>;
 
-      expect(result.output.type).toBe('carousel');
-      expect(result.output.layout).toBe('card');
+      expect(result.output.type).toBeUndefined();
+      expect(result.config.layout).toBe('card');
 
       const items = result.output.items as Array<Record<string, unknown>>;
       expect(items).toHaveLength(2);
@@ -245,8 +245,8 @@ describe('CarouselHandler', () => {
         context,
       )) as Record<string, unknown>;
 
-      expect(result.output.type).toBe('carousel');
-      expect(result.output.layout).toBe('image');
+      expect(result.output.type).toBeUndefined();
+      expect(result.config.layout).toBe('image');
 
       const items = result.output.items as Array<Record<string, unknown>>;
       expect(items).toHaveLength(2);
@@ -325,30 +325,32 @@ describe('CarouselHandler', () => {
         context,
       )) as Record<string, unknown>;
 
-      expect(result.output.type).toBe('carousel');
+      expect(result.output.type).toBeUndefined();
       const items = result.output.items as Array<Record<string, unknown>>;
       expect(items[0].title).toBe('Test');
     });
 
-    // Layout
-    it('should default layout to card', async () => {
+    // Layout (config only — Principle 1.1)
+    it('should default layout to card in config', async () => {
       const result = (await handler.execute(
         null,
         { mode: 'static', items: [{ title: 'X' }] },
         context,
       )) as Record<string, unknown>;
 
-      expect(result.output.layout).toBe('card');
+      expect(result.config.layout).toBe('card');
+      expect(result.output.layout).toBeUndefined();
     });
 
-    it('should use specified layout', async () => {
+    it('should use specified layout (in config, not output)', async () => {
       const result = (await handler.execute(
         null,
         { mode: 'static', items: [{ title: 'X' }], layout: 'minimal' },
         context,
       )) as Record<string, unknown>;
 
-      expect(result.output.layout).toBe('minimal');
+      expect(result.config.layout).toBe('minimal');
+      expect(result.output.layout).toBeUndefined();
     });
 
     // Rendered HTML

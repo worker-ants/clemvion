@@ -1956,13 +1956,13 @@ describe('ExecutionEngineService', () => {
       expect(bodyHandler.execute).toHaveBeenCalledTimes(3);
       expect(bodyCalls).toEqual([{ n: 1 }, { n: 2 }, { n: 3 }]);
 
-      // Sink received the collected results on done port
+      // Sink received the collected results on done port.
+      // Stage 5: containers wrap results in `{ items|iterations|mapped, count }`.
       expect(sinkHandler.execute).toHaveBeenCalledTimes(1);
-      expect(sinkCalls[0]).toEqual([
-        { doubled: 2 },
-        { doubled: 4 },
-        { doubled: 6 },
-      ]);
+      expect(sinkCalls[0]).toEqual({
+        count: 3,
+        items: [{ doubled: 2 }, { doubled: 4 }, { doubled: 6 }],
+      });
     });
 
     it('executes Loop body N times', async () => {
@@ -2085,8 +2085,12 @@ describe('ExecutionEngineService', () => {
       await new Promise((r) => setTimeout(r, 200));
 
       expect(bodyHandler.execute).toHaveBeenCalledTimes(4);
+      // Stage 5: loop finalises as `{ iterations, count }`.
       expect(sinkCalls).toEqual([
-        [{ count: 1 }, { count: 2 }, { count: 3 }, { count: 4 }],
+        {
+          count: 4,
+          iterations: [{ count: 1 }, { count: 2 }, { count: 3 }, { count: 4 }],
+        },
       ]);
     });
 
@@ -2206,7 +2210,8 @@ describe('ExecutionEngineService', () => {
       await new Promise((r) => setTimeout(r, 200));
 
       expect(bodyHandler.execute).not.toHaveBeenCalled();
-      expect(sinkCalls[0]).toEqual([]);
+      // Stage 5: empty foreach still emits the `{ items, count }` envelope.
+      expect(sinkCalls[0]).toEqual({ count: 0, items: [] });
     });
 
     it('fails execution when container has no emit edge', async () => {
@@ -2552,11 +2557,11 @@ describe('ExecutionEngineService', () => {
       expect(bodyHandler.execute).toHaveBeenCalledTimes(3);
       expect(bodyCalls).toEqual([{ n: 2 }, { n: 3 }, { n: 4 }]);
       expect(sinkHandler.execute).toHaveBeenCalledTimes(1);
-      expect(sinkCalls[0]).toEqual([
-        { squared: 4 },
-        { squared: 9 },
-        { squared: 16 },
-      ]);
+      // Stage 5: map finalises as `{ mapped, count }`.
+      expect(sinkCalls[0]).toEqual({
+        count: 3,
+        mapped: [{ squared: 4 }, { squared: 9 }, { squared: 16 }],
+      });
     });
   });
 
@@ -2884,11 +2889,12 @@ describe('ExecutionEngineService', () => {
       // Sink received collected results via done port
       expect(sinkHandler.execute).toHaveBeenCalledTimes(1);
       expect(doneReceived.length).toBe(1);
-      // The done port output should contain branches array
+      // Stage 5 / CONVENTIONS §9.2: Parallel finalises as `{ branches, count }`.
       const received = doneReceived[0] as Record<string, unknown>;
       expect(received.branches).toBeDefined();
       expect(Array.isArray(received.branches)).toBe(true);
       expect((received.branches as unknown[]).length).toBe(2);
+      expect(received.count).toBe(2);
     });
   });
 });

@@ -11,6 +11,25 @@ import {
 import { IntegrationsService } from '../../../modules/integrations/integrations.service.js';
 import { assertSafeOutboundUrl } from './http-safety.js';
 
+/**
+ * Strip embedded `user:password@` credentials from a URL before echoing it
+ * on `NodeHandlerOutput.config` (CONVENTIONS §7 — sanitisation of URL-level
+ * credentials). If the URL fails to parse we fall back to a regex strip so
+ * malformed user input still gets redacted.
+ */
+function sanitizeUrlCredentials(raw: string): string {
+  try {
+    const parsed = new URL(raw);
+    if (parsed.username || parsed.password) {
+      parsed.username = '';
+      parsed.password = '';
+    }
+    return parsed.toString();
+  } catch {
+    return raw.replace(/^([a-zA-Z][\w+\-.]*:\/\/)[^/@]*@/, '$1');
+  }
+}
+
 export class HttpRequestHandler
   extends IntegrationHandlerBase
   implements NodeHandler
@@ -254,15 +273,40 @@ export class HttpRequestHandler
 
       const configEcho: Record<string, unknown> = {
         method,
-        url,
+        url: sanitizeUrlCredentials(url),
         authentication,
       };
       if (integrationId) configEcho.integrationId = integrationId;
+      if (res.ok) {
+        return {
+          config: configEcho,
+          output: { response: responseData },
+          meta,
+          port: 'success',
+        };
+      }
+      // Non-2xx: surface both the raw response (`output.response`) for
+      // inspection AND the standardized runtime-error envelope required by
+      // CONVENTIONS §3.2. Sanitize embedded credentials before echoing the
+      // URL into `details` so workflow authors reading `output.error` can't
+      // accidentally persist Basic Auth secrets.
       return {
         config: configEcho,
-        output: { response: responseData },
+        output: {
+          response: responseData,
+          error: {
+            code: res.status >= 500 ? 'HTTP_5XX' : 'HTTP_4XX',
+            message: `HTTP ${res.status} ${res.statusText}`,
+            details: {
+              statusCode: res.status,
+              statusText: res.statusText,
+              url: sanitizeUrlCredentials(url),
+              method,
+            },
+          },
+        },
         meta,
-        port: res.ok ? 'success' : 'error',
+        port: 'error',
       };
     } catch (error: unknown) {
       clearTimeout(timeoutId);
@@ -278,13 +322,20 @@ export class HttpRequestHandler
       }
       const configEcho: Record<string, unknown> = {
         method,
-        url,
+        url: sanitizeUrlCredentials(url),
         authentication,
       };
       if (integrationId) configEcho.integrationId = integrationId;
       return {
         config: configEcho,
-        output: { response: { error: message } },
+        output: {
+          response: { error: message },
+          error: {
+            code: 'HTTP_TRANSPORT_FAILED',
+            message,
+            details: { url: sanitizeUrlCredentials(url), method },
+          },
+        },
         meta: { statusCode: 0, duration },
         port: 'error',
       };

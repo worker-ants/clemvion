@@ -48,7 +48,7 @@ describe('ChartHandler - Buttons', () => {
         context,
       )) as Record<string, unknown>;
 
-      expect(result.output.type).toBe('chart');
+      expect(result.output.type).toBeUndefined();
       expect(result.status).toBe('waiting_for_input');
       expect(result.meta?.interactionType).toBe('buttons');
       expect(result.output.data).toBeDefined();
@@ -65,7 +65,7 @@ describe('ChartHandler - Buttons', () => {
         context,
       )) as Record<string, unknown>;
 
-      expect(result.output.type).toBe('chart');
+      expect(result.output.type).toBeUndefined();
       expect(result.status).toBeUndefined();
     });
   });

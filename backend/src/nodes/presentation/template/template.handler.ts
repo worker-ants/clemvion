@@ -28,22 +28,29 @@ export class TemplateHandler implements NodeHandler {
     const content = config.template as string;
     const outputFormat = (config.outputFormat as string) ?? 'text';
 
-    // config.template is already resolved by the expression engine
-    const payload = { type: 'template', format: outputFormat, content };
-    const configEcho: Record<string, unknown> = { outputFormat };
+    // `content` is the template string after the expression engine has
+    // resolved it — that's the runtime value. `outputFormat` and the raw
+    // template source stay in `config` only (Principle 1.1). Discriminator
+    // `type: 'template'` removed (Principle 1.1.4).
+    const payload: Record<string, unknown> = { rendered: content };
+    const configEcho: Record<string, unknown> = {
+      outputFormat,
+      template: config.template,
+    };
 
     const buttons = config.buttons as ButtonDef[] | undefined;
     if (Array.isArray(buttons) && buttons.length > 0) {
       return Promise.resolve({
         config: {
           ...configEcho,
+          buttons,
           buttonConfig: {
             buttons,
           },
         },
         output: payload,
         status: 'waiting_for_input',
-        meta: { interactionType: 'buttons' },
+        meta: { interactionType: 'buttons', durationMs: 0 },
       });
     }
 

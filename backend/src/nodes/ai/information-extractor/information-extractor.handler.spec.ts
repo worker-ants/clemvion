@@ -2,26 +2,35 @@ import { InformationExtractorHandler } from './information-extractor.handler';
 import { ExecutionContext } from '../../core/node-handler.interface';
 
 /**
- * Info Extractor returns `{ port, data: { config, output, meta } }` for
- * completed / single-turn success paths. The conversation waiting shape
- * (`{ status: 'waiting_for_input', conversationConfig, _multiTurnState }`)
- * is NOT wrapped. This helper normalises a completed result for tests.
+ * Handler now returns the unified NodeHandlerOutput shape
+ * `{ config, output, meta, port, status? }`. Waiting shape is still legacy
+ * (`{ status: 'waiting_for_input', conversationConfig, _resumeState }`)
+ * until Stage 3 aligns the conversation waiting/resumed shape with
+ * `output.interaction.*` (CONVENTIONS §4.3 / §4.5).
  */
-function unwrapFinal(raw: unknown): {
-  port: string;
+function asNodeHandlerOutput(raw: unknown): {
   config: Record<string, unknown>;
   output: Record<string, unknown>;
   meta: Record<string, unknown>;
+  port: string | undefined;
+  status: string | undefined;
 } {
-  const outer = raw as Record<string, unknown>;
-  const port = outer.port as string;
-  const data = outer.data as Record<string, unknown>;
+  const obj = raw as Record<string, unknown>;
   return {
-    port,
-    config: (data.config as Record<string, unknown>) ?? {},
-    output: (data.output as Record<string, unknown>) ?? {},
-    meta: (data.meta as Record<string, unknown>) ?? {},
+    config: (obj.config as Record<string, unknown>) ?? {},
+    output: (obj.output as Record<string, unknown>) ?? {},
+    meta: (obj.meta as Record<string, unknown>) ?? {},
+    port: obj.port as string | undefined,
+    status: obj.status as string | undefined,
   };
+}
+
+function getResult(output: Record<string, unknown>): Record<string, unknown> {
+  return (output.result as Record<string, unknown>) ?? {};
+}
+
+function getError(output: Record<string, unknown>): Record<string, unknown> {
+  return (output.error as Record<string, unknown>) ?? {};
 }
 
 /**
@@ -178,8 +187,8 @@ describe('InformationExtractorHandler', () => {
   });
 
   describe('execute (single_turn)', () => {
-    it('should extract and return structured data', async () => {
-      const result = await handler.execute(
+    it('extracts structured data and returns output.result.extracted', async () => {
+      const rawResult = await handler.execute(
         {},
         {
           inputField: 'Email from John about order ORD-123',
@@ -201,14 +210,33 @@ describe('InformationExtractorHandler', () => {
         context,
       );
 
-      const { port, output } = unwrapFinal(result);
+      const { config, output, meta, port, status } =
+        asNodeHandlerOutput(rawResult);
       expect(port).toBe('out');
-      const extracted = output.extracted as Record<string, unknown>;
+      expect(status).toBe('ended');
+      expect(config.mode).toBe('single_turn');
+
+      const result = getResult(output);
+      const extracted = result.extracted as Record<string, unknown>;
       expect(extracted.senderName).toBe('John');
       expect(extracted.orderNumber).toBe('ORD-123');
+      expect(result.endReason).toBe('out');
+      expect(result.turnCount).toBe(1);
+      expect(result.originalInput).toBe('Email from John about order ORD-123');
+
+      // Tokens / debug trace live on meta, not output.
+      expect(meta.model).toBe('gpt-4o');
+      expect(meta.totalTokens).toBe(120);
+      expect(Array.isArray(meta.turnDebug)).toBe(true);
+      expect(meta.interactionType).toBeUndefined();
+      expect(typeof meta.durationMs).toBe('number');
+
+      // Ensure the legacy nested paths are gone.
+      expect(output.extracted).toBeUndefined();
+      expect(output._llmCalls).toBeUndefined();
     });
 
-    it('should retry on JSON parse failure and succeed on subsequent attempt', async () => {
+    it('retries JSON parse failure and succeeds on subsequent attempt', async () => {
       mockLlmService.chat
         .mockResolvedValueOnce({
           content: 'not valid json',
@@ -223,7 +251,7 @@ describe('InformationExtractorHandler', () => {
           finishReason: 'stop',
         });
 
-      const result = await handler.execute(
+      const rawResult = await handler.execute(
         {},
         {
           inputField: 'Email from Alice',
@@ -239,14 +267,13 @@ describe('InformationExtractorHandler', () => {
         context,
       );
 
-      // Should have been called twice (first failed JSON parse, second succeeded)
       expect(mockLlmService.chat).toHaveBeenCalledTimes(2);
-      const { output } = unwrapFinal(result);
-      const extracted = output.extracted as Record<string, unknown>;
+      const { output } = asNodeHandlerOutput(rawResult);
+      const extracted = getResult(output).extracted as Record<string, unknown>;
       expect(extracted.senderName).toBe('Alice');
     });
 
-    it('should route to error port after exhausting all retries on JSON parse failure', async () => {
+    it('routes to error port with output.error after retries exhausted', async () => {
       mockLlmService.chat.mockResolvedValue({
         content: 'always invalid json {{{',
         usage: { inputTokens: 100, outputTokens: 20, totalTokens: 120 },
@@ -254,7 +281,7 @@ describe('InformationExtractorHandler', () => {
         finishReason: 'stop',
       });
 
-      const result = (await handler.execute(
+      const rawResult = await handler.execute(
         {},
         {
           inputField: 'test input',
@@ -268,16 +295,48 @@ describe('InformationExtractorHandler', () => {
           ],
         },
         context,
-      )) as Record<string, unknown>;
+      );
 
-      expect(result.port).toBe('error');
-      expect(result.data).toBeDefined();
-      const data = result.data as Record<string, unknown>;
-      const output = data.output as Record<string, unknown>;
-      expect(output.error).toBeDefined();
+      const { output, port, status } = asNodeHandlerOutput(rawResult);
+      expect(port).toBe('error');
+      expect(status).toBe('ended');
+
+      const err = getError(output);
+      expect(err.code).toBe('LLM_RESPONSE_INVALID');
+      expect(typeof err.message).toBe('string');
+      const details = err.details as Record<string, unknown>;
+      expect(details.attempts).toBe(3);
+      expect(details.originalInput).toBe('test input');
+      expect(output.result).toBeUndefined();
 
       // 1 initial + 2 retries = 3 calls total
       expect(mockLlmService.chat).toHaveBeenCalledTimes(3);
+    });
+
+    it('routes to error port with LLM_CALL_FAILED when provider throws', async () => {
+      mockLlmService.chat.mockRejectedValue(new Error('network down'));
+
+      const rawResult = await handler.execute(
+        {},
+        {
+          inputField: 'x',
+          outputSchema: [
+            {
+              name: 'field1',
+              type: 'string',
+              description: 'desc',
+              required: true,
+            },
+          ],
+        },
+        context,
+      );
+
+      const { output, port } = asNodeHandlerOutput(rawResult);
+      expect(port).toBe('error');
+      const err = getError(output);
+      expect(err.code).toBe('LLM_CALL_FAILED');
+      expect(err.message).toBe('network down');
     });
   });
 
@@ -303,12 +362,12 @@ describe('InformationExtractorHandler', () => {
       },
     ];
 
-    it('should complete in first turn when all required fields are filled', async () => {
+    it('completes in first turn with output.result shape', async () => {
       mockLlmService.chat.mockResolvedValue(
         finalizeCall({ senderName: 'John', orderNumber: 'ORD-123' }),
       );
 
-      const result = await handler.execute(
+      const rawResult = await handler.execute(
         {},
         {
           mode: 'multi_turn',
@@ -318,17 +377,24 @@ describe('InformationExtractorHandler', () => {
         context,
       );
 
-      const { port, output: outObj } = unwrapFinal(result);
+      const { output, port, status, meta } = asNodeHandlerOutput(rawResult);
       expect(port).toBe('completed');
-      const extracted = outObj.extracted as Record<string, unknown>;
+      expect(status).toBe('ended');
+
+      const result = getResult(output);
+      const extracted = result.extracted as Record<string, unknown>;
       expect(extracted.senderName).toBe('John');
       expect(extracted.orderNumber).toBe('ORD-123');
-      expect(outObj.endReason).toBe('completed');
-      expect(outObj.turnCount).toBe(1);
+      expect(result.endReason).toBe('completed');
+      expect(result.turnCount).toBe(1);
+      expect(Array.isArray(result.messages)).toBe(true);
+
+      expect(meta.collectionRetryCount).toBe(0);
+      expect(Array.isArray(meta.turnDebug)).toBe(true);
+      expect(meta.interactionType).toBeUndefined();
     });
 
-    it('should enter waiting_for_input when required fields are missing', async () => {
-      // LLM asks for the missing order number — content only, no tool call.
+    it('enters waiting_for_input when required fields are missing', async () => {
       mockLlmService.chat.mockResolvedValue(
         contentOnly('주문번호를 알려주세요'),
       );
@@ -346,19 +412,19 @@ describe('InformationExtractorHandler', () => {
 
       const output = result as Record<string, unknown>;
       expect(output.status).toBe('waiting_for_input');
+      // Stage 2 renamed `_multiTurnState` → `_resumeState`; the
+      // keep the legacy fields for now so the engine's resume loop still works.
       expect(output.interactionType).toBe('ai_conversation');
       const convConfig = output.conversationConfig as Record<string, unknown>;
       expect(convConfig.message).toBe('주문번호를 알려주세요');
       expect(convConfig.turnCount).toBe(1);
       expect(convConfig.maxTurns).toBe(5);
-      const state = output._multiTurnState as Record<string, unknown>;
+      const state = output._resumeState as Record<string, unknown>;
       expect(state.turnCount).toBe(1);
-      // Content-only responses don't touch partialResult — the LLM only
-      // populates fields via the finalize_extraction tool.
       expect(state.partialResult).toEqual({});
     });
 
-    it('should skip initial LLM call when inputField is empty', async () => {
+    it('skips initial LLM call when inputField is empty', async () => {
       const result = await handler.execute(
         {},
         {
@@ -373,19 +439,16 @@ describe('InformationExtractorHandler', () => {
       expect(mockLlmService.chat).not.toHaveBeenCalled();
       const output = result as Record<string, unknown>;
       expect(output.status).toBe('waiting_for_input');
-      expect(output.interactionType).toBe('ai_conversation');
       const convConfig = output.conversationConfig as Record<string, unknown>;
-      expect(convConfig.message).toBe('');
       expect(convConfig.turnCount).toBe(0);
-      const state = output._multiTurnState as Record<string, unknown>;
+      const state = output._resumeState as Record<string, unknown>;
       expect(state.turnCount).toBe(0);
-      expect(state.partialResult).toEqual({});
       const messages = state.messages as Array<Record<string, unknown>>;
       expect(messages).toHaveLength(1);
       expect(messages[0].role).toBe('system');
     });
 
-    it('should accept optional fields being empty and complete', async () => {
+    it('accepts optional fields being null and completes', async () => {
       mockLlmService.chat.mockResolvedValue(
         finalizeCall({
           senderName: 'John',
@@ -394,7 +457,7 @@ describe('InformationExtractorHandler', () => {
         }),
       );
 
-      const result = await handler.execute(
+      const rawResult = await handler.execute(
         {},
         {
           mode: 'multi_turn',
@@ -404,10 +467,11 @@ describe('InformationExtractorHandler', () => {
         context,
       );
 
-      const { output: outObj } = unwrapFinal(result);
-      const extracted = outObj.extracted as Record<string, unknown>;
+      const { output } = asNodeHandlerOutput(rawResult);
+      const result = getResult(output);
+      const extracted = result.extracted as Record<string, unknown>;
       expect(extracted.amount).toBeNull();
-      expect(outObj.endReason).toBe('completed');
+      expect(result.endReason).toBe('completed');
     });
   });
 
@@ -454,28 +518,27 @@ describe('InformationExtractorHandler', () => {
       };
     }
 
-    it('should complete when remaining required fields are filled', async () => {
-      // LLM calls finalize_extraction with the remaining required field.
-      // senderName from prior turn's partialResult is preserved by mergePartial.
+    it('completes when remaining required fields are filled', async () => {
       mockLlmService.chat.mockResolvedValue(
         finalizeCall({ senderName: 'John', orderNumber: 'ORD-999' }),
       );
 
-      const result = await handler.processMultiTurnMessage(
+      const rawResult = await handler.processMultiTurnMessage(
         'ORD-999 입니다',
         buildState(),
       );
 
-      const { port, output: outObj } = unwrapFinal(result);
+      const { output, port } = asNodeHandlerOutput(rawResult);
       expect(port).toBe('completed');
-      const extracted = outObj.extracted as Record<string, unknown>;
+      const result = getResult(output);
+      const extracted = result.extracted as Record<string, unknown>;
       expect(extracted.senderName).toBe('John');
       expect(extracted.orderNumber).toBe('ORD-999');
-      expect(outObj.endReason).toBe('completed');
-      expect(outObj.turnCount).toBe(2);
+      expect(result.endReason).toBe('completed');
+      expect(result.turnCount).toBe(2);
     });
 
-    it('should continue waiting when required fields still missing', async () => {
+    it('continues waiting when required fields still missing', async () => {
       mockLlmService.chat.mockResolvedValue(
         contentOnly('다시 주문번호를 알려주세요'),
       );
@@ -492,18 +555,19 @@ describe('InformationExtractorHandler', () => {
       expect(convConfig.turnCount).toBe(2);
     });
 
-    it('should return max_turns endReason when turnCount reaches maxTurns', async () => {
+    it('returns max_turns endReason when turnCount reaches maxTurns', async () => {
       mockLlmService.chat.mockResolvedValue(contentOnly('주문번호?'));
 
-      const result = await handler.processMultiTurnMessage(
+      const rawResult = await handler.processMultiTurnMessage(
         '모르겠어요',
         buildState({ turnCount: 4, maxTurns: 5 }),
       );
 
-      const { port, output: outObj } = unwrapFinal(result);
+      const { output, port } = asNodeHandlerOutput(rawResult);
       expect(port).toBe('max_turns');
-      const extracted = outObj.extracted as Record<string, unknown>;
-      expect(outObj.endReason).toBe('max_turns');
+      const result = getResult(output);
+      expect(result.endReason).toBe('max_turns');
+      const extracted = result.extracted as Record<string, unknown>;
       expect(extracted.senderName).toBe('John');
       expect(extracted.orderNumber).toBeNull();
     });
@@ -551,14 +615,12 @@ describe('InformationExtractorHandler', () => {
 
     it('feeds tool_result back and loops when finalize is called with missing required', async () => {
       mockLlmService.chat
-        // First: premature finalize missing orderNumber
         .mockResolvedValueOnce(
           finalizeCall(
             { senderName: 'John', orderNumber: null },
             { callId: 'c1' },
           ),
         )
-        // Retry iteration: LLM corrects and re-calls with all fields
         .mockResolvedValueOnce(
           finalizeCall(
             { senderName: 'John', orderNumber: 'O-42' },
@@ -566,32 +628,44 @@ describe('InformationExtractorHandler', () => {
           ),
         );
 
-      const result = await handler.processMultiTurnMessage(
+      const rawResult = await handler.processMultiTurnMessage(
         'ORD-42',
         retryState(),
       );
 
-      const { port, output: outObj } = unwrapFinal(result);
+      const { output, port } = asNodeHandlerOutput(rawResult);
       expect(port).toBe('completed');
-      const extracted = outObj.extracted as Record<string, unknown>;
+      const extracted = getResult(output).extracted as Record<string, unknown>;
       expect(extracted.orderNumber).toBe('O-42');
       expect(mockLlmService.chat).toHaveBeenCalledTimes(2);
     });
 
     it('routes to error port after exceeding maxCollectionRetries', async () => {
-      // Every finalize call leaves orderNumber null.
       mockLlmService.chat.mockResolvedValue(
         finalizeCall({ senderName: null, orderNumber: null }),
       );
 
-      const result = await handler.processMultiTurnMessage(
+      const rawResult = await handler.processMultiTurnMessage(
         'nope',
         retryState({ maxCollectionRetries: 2 }),
       );
 
-      const { port, output: outObj } = unwrapFinal(result);
+      const { output, port } = asNodeHandlerOutput(rawResult);
       expect(port).toBe('error');
-      expect(outObj.endReason).toBe('max_retries');
+
+      // Both error and result coexist on max_retries (partial result preserved).
+      const err = getError(output);
+      expect(err.code).toBe('MAX_COLLECTION_RETRIES_EXCEEDED');
+      const errDetails = err.details as Record<string, unknown>;
+      expect(errDetails.turnCount).toBe(2);
+      expect(errDetails.collectionRetryCount).toBe(3);
+      expect(Array.isArray(errDetails.missingFields)).toBe(true);
+
+      const result = getResult(output);
+      expect(result.endReason).toBe('max_retries');
+      const extracted = result.extracted as Record<string, unknown>;
+      expect(extracted.orderNumber).toBeNull();
+
       // initial + 2 retries = 3 chat calls total before giving up
       expect(mockLlmService.chat).toHaveBeenCalledTimes(3);
     });
@@ -611,13 +685,13 @@ describe('InformationExtractorHandler', () => {
           ),
         );
 
-      const result = await handler.processMultiTurnMessage(
+      const rawResult = await handler.processMultiTurnMessage(
         'sure',
         retryState(),
       );
 
-      const { output: outObj } = unwrapFinal(result);
-      const messages = outObj.messages as Array<{
+      const { output } = asNodeHandlerOutput(rawResult);
+      const messages = getResult(output).messages as Array<{
         role: string;
         content: string;
         toolCallId?: string;
@@ -650,7 +724,7 @@ describe('InformationExtractorHandler', () => {
   });
 
   describe('buildMultiTurnFinalOutput', () => {
-    it('should build output with user_ended reason', () => {
+    it('builds output with user_ended reason', () => {
       const state = {
         model: 'gpt-4o',
         outputSchema: [
@@ -664,21 +738,29 @@ describe('InformationExtractorHandler', () => {
         partialResult: { senderName: 'John' },
         messages: [{ role: 'user', content: 'John' }],
         turnCount: 2,
+        maxTurns: 10,
+        maxCollectionRetries: 3,
+        collectionRetryCount: 0,
         totalInputTokens: 100,
         totalOutputTokens: 30,
+        totalThinkingTokens: 0,
+        turnDebugHistory: [],
       };
 
-      const result = handler.buildMultiTurnFinalOutput(
+      const rawResult = handler.buildMultiTurnFinalOutput(
         state as never,
         'user_ended',
       );
 
-      const { port, output: outObj, meta } = unwrapFinal(result);
+      const { output, port, status, meta } = asNodeHandlerOutput(rawResult);
       expect(port).toBe('user_ended');
-      const extracted = outObj.extracted as Record<string, unknown>;
-      expect(outObj.endReason).toBe('user_ended');
+      expect(status).toBe('ended');
+      const result = getResult(output);
+      expect(result.endReason).toBe('user_ended');
+      const extracted = result.extracted as Record<string, unknown>;
       expect(extracted.senderName).toBe('John');
-      expect(meta.interactionType).toBe('ai_conversation');
+      expect(meta.interactionType).toBeUndefined();
+      expect(typeof meta.durationMs).toBe('number');
     });
   });
 });

@@ -1,17 +1,13 @@
 import { NodeHandlerOutput } from '../../nodes/core/node-handler.interface.js';
 
 /**
- * Narrow unknown handler return values into the canonical
- * {@link NodeHandlerOutput}. Accepts three legacy shapes during the
- * Phase 1 → Phase 3 migration:
+ * Normalize an opaque handler return into {@link NodeHandlerOutput}.
  *
- * 1. Already-migrated: `{ config, output, meta?, port?, status? }` — used as-is.
- * 2. Legacy port selector: `{ port, data, ...rest }` — data becomes `output`,
- *    remaining keys folded into `meta` (except `status`).
- * 3. Legacy bare: any other return value — wrapped as
- *    `{ config: {}, output: raw, status?, port? }`. Root-level `status` or
- *    `port` on objects is lifted so the engine's flow-control logic keeps
- *    functioning.
+ * Post Phase-3 (node-specs-improvement plan §Stage 7) all handlers emit the
+ * canonical `{ config, output, meta?, port?, status? }` shape. The adapter
+ * now only guarantees `config` defaults to `{}` and strips undefined control
+ * fields — the legacy `{port,data}` port-selector envelope and bare-object
+ * coercion branches have been removed.
  */
 export function adaptHandlerReturn(raw: unknown): NodeHandlerOutput {
   if (isNewShape(raw)) {
@@ -22,24 +18,15 @@ export function adaptHandlerReturn(raw: unknown): NodeHandlerOutput {
       ...(r.meta !== undefined ? { meta: r.meta } : {}),
       ...(r.port !== undefined ? { port: r.port } : {}),
       ...(r.status !== undefined ? { status: r.status } : {}),
+      ...(r._resumeState !== undefined ? { _resumeState: r._resumeState } : {}),
     };
   }
 
-  if (isLegacyPortSelector(raw)) {
-    const obj = raw as Record<string, unknown>;
-    const { port, data, status, ...rest } = obj;
-    const adapted: NodeHandlerOutput = {
-      config: {},
-      output: data,
-    };
-    if (typeof port === 'string' || Array.isArray(port))
-      adapted.port = port as string | string[];
-    if (typeof status === 'string') adapted.status = status;
-    if (Object.keys(rest).length > 0) adapted.meta = rest;
-    return adapted;
-  }
-
-  // Primitive / array / null / undefined
+  // Test fixtures and a handful of one-off mock handlers still return bare
+  // objects / primitives. Wrap them so the engine receives the expected
+  // shape. Production handlers are type-checked against
+  // {@link NodeHandlerOutput}; this branch is effectively reached only by
+  // legacy test doubles.
   if (raw === null || raw === undefined) {
     return { config: {}, output: raw };
   }
@@ -47,13 +34,20 @@ export function adaptHandlerReturn(raw: unknown): NodeHandlerOutput {
     return { config: {}, output: raw };
   }
 
-  // Legacy bare object — lift root-level `status` / `port` so the engine's
-  // blocking check and port-selector logic continues to behave identically.
   const obj = raw as Record<string, unknown>;
   const adapted: NodeHandlerOutput = { config: {}, output: raw };
   if (typeof obj.status === 'string') adapted.status = obj.status;
   if (typeof obj.port === 'string' || Array.isArray(obj.port))
     adapted.port = obj.port as string | string[];
+  // Lift `_resumeState` so the engine can find it on the flat cache even
+  // when a handler emits the legacy bare waiting shape.
+  if (
+    obj._resumeState !== null &&
+    typeof obj._resumeState === 'object' &&
+    !Array.isArray(obj._resumeState)
+  ) {
+    adapted._resumeState = obj._resumeState as Record<string, unknown>;
+  }
   return adapted;
 }
 
@@ -79,17 +73,25 @@ export function toEngineFlatShape(adapted: NodeHandlerOutput): unknown {
       Object.keys(adapted.config).length > 0;
     const hasControl =
       adapted.port !== undefined || adapted.status !== undefined;
-    if (hasConfig || hasControl) {
+    if (hasConfig || hasControl || adapted._resumeState !== undefined) {
       return {
         ...(hasConfig ? adapted.config : {}),
         ...(adapted.port !== undefined ? { port: adapted.port } : {}),
         ...(adapted.status !== undefined ? { status: adapted.status } : {}),
+        ...(adapted._resumeState !== undefined
+          ? { _resumeState: adapted._resumeState }
+          : {}),
       };
     }
     return output;
   }
   if (typeof output !== 'object' || Array.isArray(output)) {
-    if (adapted.port || adapted.status || adapted.meta) {
+    if (
+      adapted.port ||
+      adapted.status ||
+      adapted.meta ||
+      adapted._resumeState
+    ) {
       // Engine expects top-level `status` / port metadata on an object. Keep
       // the raw output under `data` and surface control fields to emulate
       // the legacy `{ port, data, status }` envelope.
@@ -97,6 +99,9 @@ export function toEngineFlatShape(adapted: NodeHandlerOutput): unknown {
         data: output,
         ...(adapted.port !== undefined ? { port: adapted.port } : {}),
         ...(adapted.status !== undefined ? { status: adapted.status } : {}),
+        ...(adapted._resumeState !== undefined
+          ? { _resumeState: adapted._resumeState }
+          : {}),
       };
     }
     return output;
@@ -116,6 +121,9 @@ export function toEngineFlatShape(adapted: NodeHandlerOutput): unknown {
       base.data = output;
     }
   }
+  if (adapted._resumeState !== undefined && base._resumeState === undefined) {
+    base._resumeState = adapted._resumeState;
+  }
   return base;
 }
 
@@ -126,17 +134,5 @@ function isNewShape(raw: unknown): raw is NodeHandlerOutput {
     !Array.isArray(raw) &&
     'config' in (raw as Record<string, unknown>) &&
     'output' in (raw as Record<string, unknown>)
-  );
-}
-
-function isLegacyPortSelector(raw: unknown): boolean {
-  return (
-    typeof raw === 'object' &&
-    raw !== null &&
-    !Array.isArray(raw) &&
-    'port' in (raw as Record<string, unknown>) &&
-    'data' in (raw as Record<string, unknown>) &&
-    !('config' in (raw as Record<string, unknown>)) &&
-    !('output' in (raw as Record<string, unknown>))
   );
 }

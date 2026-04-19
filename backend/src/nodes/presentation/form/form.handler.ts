@@ -20,14 +20,18 @@ export class FormHandler implements NodeHandler {
 
   execute(...[, config]: Parameters<NodeHandler['execute']>): Promise<unknown> {
     // Initial execution: transition to waiting_for_input. The engine's
-    // waitForFormSubmission() will overwrite the structured output with
-    // `{ config: <this>, output: { submittedData }, status: 'submitted' }`
-    // once the user submits the form.
+    // waitForFormSubmission() fills `output.interaction.{type,data,receivedAt}`
+    // and flips `status` to `'resumed'` once the user submits the form
+    // (CONVENTIONS §4.3 / §4.5).
+    //
+    // `output` is an empty object because form has no runtime value at the
+    // waiting tick — title / submitLabel / fields are literal config and
+    // must NOT be echoed here (Principle 1.1).
     return Promise.resolve({
       config,
-      output: null,
+      output: {},
       status: 'waiting_for_input',
-      meta: { interactionType: 'form' },
+      meta: { interactionType: 'form', durationMs: 0 },
     });
   }
 }

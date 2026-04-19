@@ -16,7 +16,7 @@ describe('FormHandler', () => {
   });
 
   describe('validate', () => {
-    it('should return valid when fields is a non-empty array', () => {
+    it('returns valid when fields is a non-empty array', () => {
       const result = handler.validate({
         fields: [{ name: 'email', type: 'text' }],
       });
@@ -24,7 +24,7 @@ describe('FormHandler', () => {
       expect(result.errors).toHaveLength(0);
     });
 
-    it('should reject missing fields', () => {
+    it('rejects missing fields', () => {
       const result = handler.validate({});
       expect(result.valid).toBe(false);
       expect(result.errors).toContain(
@@ -32,17 +32,17 @@ describe('FormHandler', () => {
       );
     });
 
-    it('should reject empty fields array', () => {
+    it('rejects empty fields array', () => {
       const result = handler.validate({ fields: [] });
       expect(result.valid).toBe(false);
     });
 
-    it('should reject non-array fields', () => {
+    it('rejects non-array fields', () => {
       const result = handler.validate({ fields: 'not-array' });
       expect(result.valid).toBe(false);
     });
 
-    it('should reject null fields', () => {
+    it('rejects null fields', () => {
       const result = handler.validate({ fields: null });
       expect(result.valid).toBe(false);
     });
@@ -55,37 +55,41 @@ describe('FormHandler', () => {
         { name: 'age', type: 'number' },
       ],
       title: 'Sign Up',
+      submitLabel: 'Submit',
     };
 
-    it('should return status waiting_for_input', async () => {
+    it('returns status waiting_for_input', async () => {
       const result = (await handler.execute(null, baseConfig, context)) as {
         status: string;
       };
       expect(result.status).toBe('waiting_for_input');
     });
 
-    it('should include interactionType form in meta', async () => {
+    it('includes interactionType + durationMs in meta', async () => {
       const result = (await handler.execute(null, baseConfig, context)) as {
         meta: Record<string, unknown>;
       };
-      expect(result.meta).toMatchObject({ interactionType: 'form' });
+      expect(result.meta).toMatchObject({
+        interactionType: 'form',
+        durationMs: 0,
+      });
     });
 
-    it('should echo the full config back', async () => {
+    it('echoes the full config back', async () => {
       const result = (await handler.execute(null, baseConfig, context)) as {
         config: Record<string, unknown>;
       };
       expect(result.config).toEqual(baseConfig);
     });
 
-    it('should return null output (submission fills it later)', async () => {
+    it('returns empty object output (Principle 4.3 — waiting form has no runtime value)', async () => {
       const result = (await handler.execute(null, baseConfig, context)) as {
         output: unknown;
       };
-      expect(result.output).toBeNull();
+      expect(result.output).toEqual({});
     });
 
-    it('should not depend on input', async () => {
+    it('does not depend on input', async () => {
       const result = (await handler.execute(
         { some: 'input' },
         baseConfig,

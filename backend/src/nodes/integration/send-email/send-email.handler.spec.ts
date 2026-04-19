@@ -207,24 +207,34 @@ describe('SendEmailHandler', () => {
       );
     });
 
-    it('logs a failed row and rethrows when SMTP fails', async () => {
+    // Post Stage 4 follow-up: runtime failures route to the `error` port with
+    // `output.error:{code,message,details}` instead of throwing (CONVENTIONS §3.2).
+    it('routes to error port with EMAIL_SEND_FAILED when SMTP rejects', async () => {
       const { service, logUsage } = makeService();
       sendMailMock.mockRejectedValue(new Error('connection refused'));
       const handler = new SendEmailHandler(service as never);
-      await expect(
-        handler.execute(null, baseConfig, makeContext()),
-      ).rejects.toThrow('connection refused');
+      const result = (await handler.execute(
+        null,
+        baseConfig,
+        makeContext(),
+      )) as {
+        port: string;
+        output: { error: { code: string; message: string } };
+      };
+      expect(result.port).toBe('error');
+      expect(result.output.error.code).toBe('EMAIL_SEND_FAILED');
+      expect(result.output.error.message).toContain('connection refused');
       expect(logUsage).toHaveBeenCalledWith(
         expect.objectContaining({
           status: 'failed',
-          error: expect.objectContaining({ code: 'SMTP_SEND_FAILED' }),
+          error: expect.objectContaining({ code: 'EMAIL_SEND_FAILED' }),
         }),
       );
       handler.shutdown();
       expect(closeMock).toHaveBeenCalled();
     });
 
-    it('rejects when integration type is not email', async () => {
+    it('routes to error port when integration type is not email', async () => {
       const { service, logUsage } = makeService({
         integration: {
           serviceType: 'http',
@@ -234,9 +244,25 @@ describe('SendEmailHandler', () => {
         },
       });
       const handler = new SendEmailHandler(service as never);
-      await expect(
-        handler.execute(null, baseConfig, makeContext()),
-      ).rejects.toThrow(/not "email"/);
+      const result = (await handler.execute(
+        null,
+        baseConfig,
+        makeContext(),
+      )) as {
+        port: string;
+        output: {
+          error: {
+            code: string;
+            message: string;
+            details: { integrationCode?: string };
+          };
+        };
+      };
+      expect(result.port).toBe('error');
+      expect(result.output.error.message).toMatch(/not "email"/);
+      expect(result.output.error.details.integrationCode).toBe(
+        'INTEGRATION_TYPE_MISMATCH',
+      );
       expect(logUsage).toHaveBeenCalledWith(
         expect.objectContaining({
           error: expect.objectContaining({ code: 'INTEGRATION_TYPE_MISMATCH' }),
@@ -244,7 +270,7 @@ describe('SendEmailHandler', () => {
       );
     });
 
-    it('rejects when integration is not connected', async () => {
+    it('routes to error port when integration is not connected', async () => {
       const { service, logUsage } = makeService({
         integration: {
           serviceType: 'email',
@@ -255,9 +281,21 @@ describe('SendEmailHandler', () => {
         },
       });
       const handler = new SendEmailHandler(service as never);
-      await expect(
-        handler.execute(null, baseConfig, makeContext()),
-      ).rejects.toThrow(/expired/);
+      const result = (await handler.execute(
+        null,
+        baseConfig,
+        makeContext(),
+      )) as {
+        port: string;
+        output: {
+          error: { message: string; details: { integrationCode?: string } };
+        };
+      };
+      expect(result.port).toBe('error');
+      expect(result.output.error.message).toMatch(/expired/);
+      expect(result.output.error.details.integrationCode).toBe(
+        'INTEGRATION_NOT_CONNECTED',
+      );
       expect(logUsage).toHaveBeenCalledWith(
         expect.objectContaining({
           error: expect.objectContaining({ code: 'INTEGRATION_NOT_CONNECTED' }),
@@ -265,7 +303,7 @@ describe('SendEmailHandler', () => {
       );
     });
 
-    it('reports missing SMTP fields', async () => {
+    it('routes to error port when SMTP credentials are incomplete', async () => {
       const { service, logUsage } = makeService({
         integration: {
           serviceType: 'email',
@@ -280,9 +318,21 @@ describe('SendEmailHandler', () => {
         },
       });
       const handler = new SendEmailHandler(service as never);
-      await expect(
-        handler.execute(null, baseConfig, makeContext()),
-      ).rejects.toThrow(/missing fields/);
+      const result = (await handler.execute(
+        null,
+        baseConfig,
+        makeContext(),
+      )) as {
+        port: string;
+        output: {
+          error: { message: string; details: { integrationCode?: string } };
+        };
+      };
+      expect(result.port).toBe('error');
+      expect(result.output.error.message).toMatch(/missing fields/);
+      expect(result.output.error.details.integrationCode).toBe(
+        'INTEGRATION_INCOMPLETE',
+      );
       expect(logUsage).toHaveBeenCalledWith(
         expect.objectContaining({
           error: expect.objectContaining({ code: 'INTEGRATION_INCOMPLETE' }),
@@ -290,14 +340,17 @@ describe('SendEmailHandler', () => {
       );
     });
 
-    it('throws clearly when workspace context is absent', async () => {
+    it('routes to error port when workspace context is absent', async () => {
       const { service } = makeService();
       const handler = new SendEmailHandler(service as never);
       const ctx = makeContext();
       ctx.variables = {};
-      await expect(handler.execute(null, baseConfig, ctx)).rejects.toThrow(
-        /workspace context/,
-      );
+      const result = (await handler.execute(null, baseConfig, ctx)) as {
+        port: string;
+        output: { error: { message: string } };
+      };
+      expect(result.port).toBe('error');
+      expect(result.output.error.message).toMatch(/workspace context/);
     });
   });
 });
