@@ -182,6 +182,13 @@ export interface UiHint {
   options?: { value: string; label: string }[];
   /** For 'code' widget — language hint (javascript, sql, json, handlebars). */
   language?: string;
+  /**
+   * For 'expression' / 'textarea' widgets — render as a multi-line editor
+   * instead of a single-line input. Pair with `rows` to control height.
+   */
+  multiline?: boolean;
+  /** Row count for multi-line inputs (`multiline: true` or textarea widgets). */
+  rows?: number;
   /** For array/object widgets — child item label. */
   itemLabel?: string;
   /** Default value for new items in array widgets. */

@@ -69,6 +69,13 @@ export type UiHint = {
     | { field: string; oneOf: readonly unknown[] };
   options?: { value: string; label: string }[];
   language?: string;
+  /**
+   * For 'expression' / 'textarea' widgets — render as a multi-line editor
+   * instead of a single-line input. Pair with `rows` to control height.
+   */
+  multiline?: boolean;
+  /** Row count for multi-line inputs (`multiline: true` or textarea widgets). */
+  rows?: number;
   itemLabel?: string;
   /** Default value for new items in array widgets. */
   itemDefault?: Record<string, unknown>;

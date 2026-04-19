@@ -92,6 +92,8 @@ export const aiAgentNodeConfigSchema = z
           widget: 'expression',
           placeholder: 'You are a helpful assistant...',
           hint: 'Supports markdown and expressions',
+          multiline: true,
+          rows: 6,
           order: 3,
         },
       }),
