@@ -41,10 +41,10 @@ describe('TemplateHandler - Buttons', () => {
         context,
       )) as Record<string, unknown>;
 
-      expect(result.output.type).toBe('template');
+      expect(result.output.type).toBeUndefined();
       expect(result.status).toBe('waiting_for_input');
       expect(result.meta.interactionType).toBe('buttons');
-      expect(result.output.content).toBe('<p>Hello</p>');
+      expect(result.output.rendered).toBe('<p>Hello</p>');
     });
 
     it('should return normal output without buttons', async () => {
@@ -54,7 +54,7 @@ describe('TemplateHandler - Buttons', () => {
         context,
       )) as Record<string, unknown>;
 
-      expect(result.output.type).toBe('template');
+      expect(result.output.type).toBeUndefined();
       expect(result.status).toBeUndefined();
     });
   });

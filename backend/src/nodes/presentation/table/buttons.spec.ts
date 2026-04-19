@@ -44,7 +44,7 @@ describe('TableHandler - Buttons', () => {
         context,
       )) as Record<string, unknown>;
 
-      expect(result.output.type).toBe('table');
+      expect(result.output.type).toBeUndefined();
       expect(result.status).toBe('waiting_for_input');
       expect(result.meta?.interactionType).toBe('buttons');
       expect(result.output.rows).toBeDefined();
@@ -58,7 +58,7 @@ describe('TableHandler - Buttons', () => {
         context,
       )) as Record<string, unknown>;
 
-      expect(result.output.type).toBe('table');
+      expect(result.output.type).toBeUndefined();
       expect(result.status).toBeUndefined();
     });
   });

@@ -40,6 +40,60 @@ pending → running ──┤                     └─ cancelled
 | waiting_for_input | running | 사용자 폼 제출, 버튼 클릭, 또는 AI 대화 메시지 수신/대화 종료 (실행 재개) |
 | waiting_for_input | cancelled | 사용자 취소 또는 타임아웃 |
 
+### 1.3 블로킹/재개 컨트랙트 (NodeHandlerOutput `status`)
+
+개별 노드는 `NodeHandlerOutput.status` 로 엔진 흐름 제어 디렉티브를 표현한다. 공통 블로킹/재개 컨트랙트 (CONVENTIONS Principle 4):
+
+| `status` | 의미 | 방출 시점 |
+|-----------|------|-----------|
+| `undefined` | 일반 완료 (대부분 노드) | 비블로킹 노드 최종 출력 |
+| `waiting_for_input` | 사용자 입력 대기 | Form · Carousel(button) · Chart(button) · Table(button) · Template(button) · AI Agent multi-turn · Information Extractor multi-turn |
+| `resumed` | 사용자 입력을 수신한 직후 | 재개 tick (observability-only, 라우팅 효과 없음) |
+| `ended` | multi-turn 종료 | LLM 대화가 `completed` / `user_ended` / `max_turns` / `max_retries` / `error` 중 하나로 최종 정산 시 |
+| `requires_integration` | 외부 통합이 연결되지 않아 준비 필요 | send_email 등 integration 미연결 시 (Stage 4) |
+| `requires_playwright` | PDF 렌더러 필요 | PDF 노드 |
+
+**재개 상태 (resumed) 구체 규약** — CONVENTIONS §4.1, 4.4, 4.5:
+
+```
+[노드 도달]
+   ↓
+ status: "waiting_for_input"
+ output: <런타임 계산값 only — Principle 1.1>
+   ↓ (사용자 입력 수신)
+ status: "resumed"
+ output: {
+   ...waiting 시점 런타임 필드,
+   interaction: {
+     type: "form_submitted" | "button_click" | "button_continue" | "message_received",
+     data: <type 별 payload>,
+     receivedAt: ISO8601
+   }
+ }
+   ↓ (multi-turn LLM 의 경우 종료 조건 도달 시)
+ status: "ended"
+ port: <end reason 기반 포트>
+ output: { result: {...} } 또는 { error: {...} }
+```
+
+**재개 state 직렬화 필드** (`NodeHandlerOutput.output._resumeState`):
+
+- AI 계열(ai_agent / information_extractor) multi-turn 핸들러가 다음 턴을 처리하기 위해 보관하는 내부 상태.
+- 실행 엔진은 `_resumeState` 를 우선 읽고, 없으면 레거시 `_multiTurnState` 로 fall-back 한다 (Stage 2 rename, Stage 5 에서 legacy 키 제거 예정).
+- expression resolver 는 이 필드를 expose 하지 않는다 (internal-only).
+- 최종 출력 저장 시 엔진이 `_resumeState` / `_multiTurnState` 양쪽 모두를 제거한다.
+
+**`interaction.data` payload 규격** (CONVENTIONS §4.5):
+
+| `interaction.type` | `data` 형태 | 적용 노드 |
+|---|---|---|
+| `form_submitted` | `{ [fieldName]: value }` | `form` |
+| `button_click` | `{ buttonId, buttonLabel, selectedItem? }` | `carousel` / `table` / `chart` / `template` |
+| `button_continue` | `{ buttonId, buttonLabel, url }` | link 타입 버튼 |
+| `message_received` | `{ content, role: "user" }` | `ai_agent` / `information_extractor` multi-turn |
+
+> 현재 엔진은 presentation 노드의 `status: 'submitted' | 'button_click' | 'button_continue'` 레거시 값을 유지한다. Stage 3(presentation Principle 1.1 재작성) 에서 모두 `resumed` 로 통일 예정.
+
 ### 1.2 NodeExecution 상태
 
 ```

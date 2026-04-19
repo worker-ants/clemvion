@@ -212,10 +212,43 @@ export class CodeHandler implements NodeHandler {
       overrideMessage ??
       (error instanceof Error ? error.message : String(error));
     const stack = error instanceof Error ? error.stack : undefined;
+    // Stack traces expose internal file paths, library versions and the
+    // sandboxed VM line numbers. Strip them from client-observable output
+    // in production; keep them on `meta` for server-side debugging only
+    // (log ingestion pipeline, not rendered by the run-results UI).
+    const exposeStack = process.env.NODE_ENV !== 'production';
+    // CONVENTIONS §3.2 — runtime failure routes to the `error` port with a
+    // standardized envelope. `meta.success` / `meta.error` / `meta.errorCode`
+    // are retained for the run-results "Logs" tab (pre-Stage-7 convention);
+    // downstream consumers should prefer `output.error.code` going forward.
+    // The two coexist intentionally for one release so observability
+    // dashboards keying on `meta.errorCode` keep working.
+    const normalizedCode =
+      errorCode === 'EXECUTION_TIMEOUT'
+        ? 'CODE_TIMEOUT'
+        : errorCode === 'CODE_RUNTIME_ERROR' ||
+            errorCode === 'CODE_SYNTAX_ERROR'
+          ? 'CODE_EXECUTION_FAILED'
+          : errorCode;
+    const outputDetails: Record<string, unknown> = { legacyCode: errorCode };
+    if (exposeStack && stack) outputDetails.stack = stack;
     return {
       config: { language: config.language ?? 'javascript' },
-      output: null,
-      meta: { success: false, error: message, errorCode, stack, logs },
+      output: {
+        error: {
+          code: normalizedCode,
+          message,
+          details: outputDetails,
+        },
+      },
+      meta: {
+        success: false,
+        error: message,
+        errorCode,
+        ...(stack ? { stack } : {}),
+        logs,
+      },
+      port: 'error',
     };
   }
 }

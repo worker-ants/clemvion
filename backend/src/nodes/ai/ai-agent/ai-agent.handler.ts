@@ -326,24 +326,46 @@ export class AiAgentHandler implements NodeHandler {
       }
     }
 
+    // CONVENTIONS §8 — LLM-category nodes surface their domain result under
+    // `output.result.*`. Single-turn AI Agent returns a final text/JSON
+    // response plus per-turn debug trace; tokens and tool-call counts move
+    // to `meta.*` (Principle 2).
+    const singleTurnDurationMs = Date.now() - singleTurnStartedAt;
     return {
-      response,
-      metadata: {
+      config: {
+        mode: 'single_turn' as const,
+        model: model ?? llmConfig.defaultModel,
+        systemPrompt,
+        userPrompt,
+        responseFormat,
+        ...(conditions.length > 0 ? { conditions } : {}),
+      },
+      output: {
+        result: {
+          response,
+          endReason: 'out' as const,
+          turnCount: 1,
+        },
+      },
+      meta: {
+        durationMs: singleTurnDurationMs,
         model: result.model,
         inputTokens: result.usage?.inputTokens ?? 0,
         outputTokens: result.usage?.outputTokens ?? 0,
         totalTokens: result.usage?.totalTokens ?? 0,
-        thinkingTokens: result.usage?.thinkingTokens,
+        thinkingTokens: result.usage?.thinkingTokens ?? 0,
         toolCalls: toolCallCount,
         ragSources,
+        turnDebug: [
+          {
+            turnIndex: 1,
+            llmCalls,
+            totalDurationMs: singleTurnDurationMs,
+          },
+        ],
       },
-      _turnDebugHistory: [
-        {
-          turnIndex: 1,
-          llmCalls,
-          totalDurationMs: Date.now() - singleTurnStartedAt,
-        },
-      ],
+      port: 'out',
+      status: 'ended',
     };
   }
 
@@ -431,7 +453,12 @@ export class AiAgentHandler implements NodeHandler {
           turnCount: 0,
           maxTurns,
         },
-        _multiTurnState: {
+        // CONVENTIONS §4.3 — runtime conversation snapshot mirrored at top
+        // level. `$node["X"].output.messages` resolves via the adapter's
+        // legacy-bare branch alongside `conversationConfig` (which will be
+        // retired once frontend consumers migrate).
+        messages,
+        _resumeState: {
           ...multiTurnStateBase,
           messages,
           turnCount: 0,
@@ -596,7 +623,9 @@ export class AiAgentHandler implements NodeHandler {
         turnCount: 1,
         maxTurns,
       },
-      _multiTurnState: {
+      // CONVENTIONS §4.3 — runtime conversation snapshot at top level.
+      messages,
+      _resumeState: {
         ...multiTurnStateBase,
         messages,
         turnCount: 1,
@@ -854,7 +883,9 @@ export class AiAgentHandler implements NodeHandler {
         turnCount,
         maxTurns,
       },
-      _multiTurnState: {
+      // CONVENTIONS §4.3 — runtime conversation snapshot at top level.
+      messages,
+      _resumeState: {
         ...state,
         messages,
         turnCount,
@@ -923,26 +954,34 @@ export class AiAgentHandler implements NodeHandler {
     },
     turnDebugHistory?: unknown[],
   ): unknown {
+    // CONVENTIONS §8 — wrap conversation result under `output.result.*`.
+    // Tokens + tool-call counts go to `meta.*` (Principle 2). The legacy
+    // `interactionType: 'ai_conversation'` marker moves to `meta.interactionType`
+    // so the run-results UI's conversation Preview tab keeps rendering.
     return {
-      // Marker for the run-results UI (`isConversationOutput`) to render the
-      // conversation Preview tab. Without this, the completed AI Agent output
-      // would only contain `messages` and fall back to the raw JSON view.
-      interactionType: 'ai_conversation',
-      response: lastResponse,
-      messages,
-      turnCount,
-      endReason,
-      metadata: {
+      config: { mode: 'multi_turn' as const, model: metadata.model },
+      output: {
+        result: {
+          response: lastResponse,
+          messages,
+          turnCount,
+          endReason,
+        },
+      },
+      meta: {
+        durationMs: turnDebug?.totalDurationMs ?? 0,
         model: metadata.model,
-        totalInputTokens: metadata.totalInputTokens,
-        totalOutputTokens: metadata.totalOutputTokens,
+        interactionType: 'ai_conversation',
+        inputTokens: metadata.totalInputTokens,
+        outputTokens: metadata.totalOutputTokens,
         totalTokens: metadata.totalInputTokens + metadata.totalOutputTokens,
         thinkingTokens: metadata.totalThinkingTokens ?? 0,
         toolCalls: metadata.toolCalls,
         ragSources: metadata.ragSources,
+        turnDebug: turnDebugHistory ?? [],
       },
-      ...(turnDebug && { _turnDebug: turnDebug }),
-      ...(turnDebugHistory?.length && { _turnDebugHistory: turnDebugHistory }),
+      port: 'out',
+      status: 'ended',
     };
   }
 
@@ -972,34 +1011,34 @@ export class AiAgentHandler implements NodeHandler {
     const lastResponse = lastMsg?.content ?? '';
 
     return {
-      port: condition.id,
-      data: {
-        // Marker for the conversation Preview tab — see buildMultiTurnFinalOutput.
-        interactionType: 'ai_conversation',
-        response: lastResponse,
-        messages,
-        turnCount,
-        endReason: 'condition',
-        condition: {
-          id: condition.id,
-          label: condition.label,
-          reason,
+      config: { mode: 'multi_turn' as const, model: metadata.model },
+      output: {
+        result: {
+          response: lastResponse,
+          messages,
+          turnCount,
+          endReason: 'condition' as const,
+          condition: {
+            id: condition.id,
+            label: condition.label,
+            reason,
+          },
         },
-        metadata: {
-          model: metadata.model,
-          totalInputTokens: metadata.totalInputTokens,
-          totalOutputTokens: metadata.totalOutputTokens,
-          totalTokens: metadata.totalInputTokens + metadata.totalOutputTokens,
-          thinkingTokens: metadata.totalThinkingTokens ?? 0,
-          toolCalls: metadata.toolCalls,
-          ragSources: metadata.ragSources,
-        },
-        // Persisted for parseHistoryMessages to read
-        ...(turnDebugHistory?.length && {
-          _turnDebugHistory: turnDebugHistory,
-        }),
       },
-      ...(turnDebug && { _turnDebug: turnDebug }),
+      meta: {
+        durationMs: turnDebug?.totalDurationMs ?? 0,
+        model: metadata.model,
+        interactionType: 'ai_conversation',
+        inputTokens: metadata.totalInputTokens,
+        outputTokens: metadata.totalOutputTokens,
+        totalTokens: metadata.totalInputTokens + metadata.totalOutputTokens,
+        thinkingTokens: metadata.totalThinkingTokens ?? 0,
+        toolCalls: metadata.toolCalls,
+        ragSources: metadata.ragSources,
+        turnDebug: turnDebugHistory ?? [],
+      },
+      port: condition.id,
+      status: 'ended',
     };
   }
 

@@ -68,19 +68,21 @@ describe('TemplateHandler', () => {
       nodeOutputCache: {},
     };
 
-    it('should return pre-resolved template content with html format', async () => {
+    // Principle 1.1: `rendered` (resolved template string) is runtime ⇒ output;
+    // `outputFormat` / `template` source are literal config ⇒ config.
+    it('should return rendered content under output.rendered with html format', async () => {
       const result = await handler.execute(
         {},
         { template: '<h1>Hello Alice</h1>', outputFormat: 'html' },
         context,
       );
       expect(result).toMatchObject({
-        output: {
-          type: 'template',
-          format: 'html',
-          content: '<h1>Hello Alice</h1>',
-        },
+        output: { rendered: '<h1>Hello Alice</h1>' },
+        config: { outputFormat: 'html', template: '<h1>Hello Alice</h1>' },
       });
+      expect(
+        (result as { output: Record<string, unknown> }).output.type,
+      ).toBeUndefined();
     });
 
     it('should default outputFormat to text', async () => {
@@ -90,11 +92,8 @@ describe('TemplateHandler', () => {
         context,
       );
       expect(result).toMatchObject({
-        output: {
-          type: 'template',
-          format: 'text',
-          content: 'Plain text content',
-        },
+        output: { rendered: 'Plain text content' },
+        config: { outputFormat: 'text' },
       });
     });
 
@@ -105,7 +104,8 @@ describe('TemplateHandler', () => {
         context,
       );
       expect(result).toMatchObject({
-        output: { type: 'template', format: 'markdown', content: '# Title' },
+        output: { rendered: '# Title' },
+        config: { outputFormat: 'markdown' },
       });
     });
 
@@ -116,11 +116,8 @@ describe('TemplateHandler', () => {
         context,
       );
       expect(result).toMatchObject({
-        output: {
-          type: 'template',
-          format: 'text',
-          content: 'Score: 95, User: Alice',
-        },
+        output: { rendered: 'Score: 95, User: Alice' },
+        config: { outputFormat: 'text' },
       });
     });
 
@@ -132,7 +129,8 @@ describe('TemplateHandler', () => {
         context,
       );
       expect(result).toMatchObject({
-        output: { type: 'template', format: 'html', content: template },
+        output: { rendered: template },
+        config: { outputFormat: 'html' },
       });
     });
   });

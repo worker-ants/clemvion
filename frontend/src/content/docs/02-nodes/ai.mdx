@@ -176,7 +176,7 @@ Multi Turn 모드에서 사용자 응답은 **무제한 대기**해요. 외부 c
 }
 
 // 다운스트림에서 참조
-{{ $node["Info Extractor"].output.extracted.orderNumber }}
+{{ $node["Info Extractor"].output.result.extracted.orderNumber }}
 ```
 </Example>
 
@@ -199,4 +199,10 @@ Multi Turn 모드에서 `inputField`를 비워 두면 LLM을 호출하지 않고
 - 도구 등록은 캔버스의 **Tool Area**에 노드를 끌어다 놓으면 끝이에요. AI Agent가 해당 노드를 도구로 호출할 수 있게 되고, 조건 도구는 일반 도구와 이름이 겹치지 않도록 자동으로 분리돼요.
 - LLM 프로바이더 연동은 [LLM 설정](/docs/05-integrations-and-config/llm-config)에서, Knowledge Base 구성은 [지식 저장소](/docs/05-integrations-and-config/knowledge-base)에서 관리해요.
 - Multi Turn 실행 이력은 Conversation Inspector로 턴별 요청/응답/토큰 사용량을 확인할 수 있어요. 자세한 동작은 [실행 결과](/docs/04-run-and-debug/run-results)를 참고해요.
-- 파워유저 팁: 응답 형식을 `json`으로 지정하면 LLM이 정의한 출력 스키마에 맞춘 구조로 돌려줘요. 필드를 추가·제거·이름 변경할 때는 다운스트림 노드의 `{{ $node["AI Agent"].output.field }}` 참조 경로도 같이 점검해요.
+- 파워유저 팁: 응답 형식을 `json`으로 지정하면 LLM이 정의한 출력 스키마에 맞춘 구조로 돌려줘요. 필드를 추가·제거·이름 변경할 때는 다운스트림 노드의 `{{ $node["AI Agent"].output.result.response.field }}` 참조 경로도 같이 점검해요.
+- 다운스트림 참조 경로 (신규, Principle 1.1/8):
+  - AI Agent 응답 본문: `$node["AI Agent"].output.result.response`
+  - Text Classifier 단일 결과: `$node["TC"].output.result.category` · multi-label: `$node["TC"].output.result.categories`
+  - Information Extractor 추출 결과: `$node["IE"].output.result.extracted.<fieldName>`
+  - 모델/토큰 메트릭: `$node["X"].meta.{model, inputTokens, outputTokens, totalTokens}`
+  - 에러 분기: `$node["X"].output.error?.code` / `$node["X"].port === 'error'`

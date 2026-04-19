@@ -1,6 +1,7 @@
 import {
   IntegrationError,
   IntegrationHandlerBase,
+  sanitizeConfigEcho,
   sanitizeMessage,
   toLogError,
 } from './integration-handler-base.js';
@@ -165,6 +166,54 @@ describe('toLogError', () => {
     expect(result.code).toBe('INTEGRATION_CALL_FAILED');
     expect(result.message).toContain('password=***');
     expect(result.message).not.toContain('supersecret');
+  });
+});
+
+describe('sanitizeConfigEcho (CONVENTIONS §7)', () => {
+  it('redacts every credential-like top-level key', () => {
+    const out = sanitizeConfigEcho({
+      url: 'https://api.example.com',
+      password: 'topsecret',
+      apiKey: 'sk-abc',
+      token: 'jwt.token',
+      refresh_token: 'r-1',
+      clientSecret: 'cs-1',
+    });
+    expect(out).toEqual({
+      url: 'https://api.example.com',
+      password: '***',
+      apiKey: '***',
+      token: '***',
+      refresh_token: '***',
+      clientSecret: '***',
+    });
+  });
+
+  it('recursively redacts nested credential keys', () => {
+    const out = sanitizeConfigEcho({
+      auth: {
+        type: 'oauth',
+        access_token: 'at-1',
+        scopes: ['read', 'write'],
+      },
+    });
+    expect((out.auth as Record<string, unknown>).access_token).toBe('***');
+    expect((out.auth as Record<string, unknown>).type).toBe('oauth');
+  });
+
+  it('preserves primitives and null', () => {
+    expect(sanitizeConfigEcho(null)).toBeNull();
+    expect(sanitizeConfigEcho(undefined)).toBeUndefined();
+    expect(sanitizeConfigEcho(42)).toBe(42);
+    expect(sanitizeConfigEcho('foo')).toBe('foo');
+    expect(sanitizeConfigEcho([1, 2, 'x'])).toEqual([1, 2, 'x']);
+  });
+
+  it('does not mutate the original object', () => {
+    const original = { password: 'orig', nested: { api_key: 'key' } };
+    sanitizeConfigEcho(original);
+    expect(original.password).toBe('orig');
+    expect(original.nested.api_key).toBe('key');
   });
 });
 

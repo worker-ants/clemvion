@@ -112,12 +112,30 @@ export function isConversationOutput(outputData: unknown): boolean {
   const output = unwrapped.output as Record<string, unknown> | null;
   if (!output || typeof output !== "object") return false;
 
-  const hasMessages = Array.isArray(output.messages);
+  // Information Extractor (post Stage 1) and AI Agent both emit `messages`
+  // inside `output.result.*` for terminal states. Fall back to `output.messages`
+  // for pre-migration payloads.
+  const result = output.result as Record<string, unknown> | undefined;
+  const hasResultMessages = !!result && Array.isArray(result.messages);
+  const hasLegacyMessages = Array.isArray(output.messages);
   const outputInteraction = output.interactionType === "ai_conversation";
   const metaInteraction = unwrapped.meta?.interactionType === "ai_conversation";
   const hasConvConfig = !!output.conversationConfig;
+  const endReason =
+    (result?.endReason as string | undefined) ??
+    (output.endReason as string | undefined);
+  const looksLikeConversationEnd =
+    hasResultMessages &&
+    (endReason === "completed" ||
+      endReason === "user_ended" ||
+      endReason === "max_turns" ||
+      endReason === "max_retries");
 
-  return (hasMessages && (outputInteraction || metaInteraction)) || hasConvConfig;
+  return (
+    (hasLegacyMessages && (outputInteraction || metaInteraction)) ||
+    hasConvConfig ||
+    looksLikeConversationEnd
+  );
 }
 
 function toRecord(value: unknown): Record<string, unknown> | null {
@@ -129,12 +147,14 @@ function toRecord(value: unknown): Record<string, unknown> | null {
 /**
  * Extract Information Extractor's collected fields from any output shape:
  *
- *  - Completed final: `{ config, output: { extracted }, meta }` via the
- *    `{ port, data }` engine envelope, unwrapped before storage.
- *  - Waiting (multi-turn not yet finalised): `{ interactionType,
- *    conversationConfig: { extracted, missingFields, collectionRetryCount,
- *    maxCollectionRetries, ... } }` returned by `buildWaitingResponse`.
- *  - Single-turn: `{ config, output: { extracted } }`.
+ *  - Completed final (current): `{ config, output: { result: { extracted } }, meta }`.
+ *  - Error with partial result (`max_retries`): `{ output: { error, result: { extracted } } }`.
+ *  - Legacy completed: `{ config, output: { extracted } }` — still rendered
+ *    for historical executions persisted before the Stage 1 migration.
+ *  - Waiting (multi-turn not yet finalised): `{ conversationConfig: {
+ *    extracted, missingFields, collectionRetryCount, maxCollectionRetries } }`
+ *    returned by `buildWaitingResponse`. Stage 2 will replace this with
+ *    `output.partial.*`.
  *
  * Returns null when the payload isn't an Information Extractor shape.
  */
@@ -155,7 +175,35 @@ export function extractIeSnapshot(raw: unknown): ExtractedSnapshot | null {
   if (!raw || typeof raw !== "object") return null;
   const asRecord = raw as Record<string, unknown>;
 
-  // Waiting shape (live): conversationConfig carries partial extraction.
+  // Waiting shape (live, CONVENTIONS §4.3) — `output.partial.*` is the
+  // canonical runtime snapshot emitted by information_extractor's
+  // `buildWaitingResponse`. Fall back to the legacy
+  // `conversationConfig.extracted` block so waiting payloads persisted
+  // before the Principle 4.3 refinement (or received via the WebSocket
+  // event path that still carries `conversationConfig`) render correctly.
+  const partialTopLevel = toRecord(asRecord.partial);
+  const partialNested = (() => {
+    const outputNode = toRecord(asRecord.output);
+    return outputNode ? toRecord(outputNode.partial) : null;
+  })();
+  const partial = partialTopLevel ?? partialNested;
+  if (partial && toRecord(partial.extracted)) {
+    const retryCount = partial.collectionRetryCount;
+    const retryMax =
+      (asRecord.config as Record<string, unknown> | undefined)
+        ?.maxCollectionRetries ??
+      (toRecord(asRecord.conversationConfig)?.maxCollectionRetries as
+        | number
+        | undefined);
+    return {
+      fields: (partial.extracted as Record<string, unknown>) ?? {},
+      retry:
+        typeof retryCount === "number" && typeof retryMax === "number"
+          ? { count: retryCount, max: retryMax }
+          : undefined,
+      inProgress: true,
+    };
+  }
   const convConfig = toRecord(asRecord.conversationConfig);
   if (convConfig && toRecord(convConfig.extracted)) {
     const retryCount = convConfig.collectionRetryCount;
@@ -170,10 +218,14 @@ export function extractIeSnapshot(raw: unknown): ExtractedSnapshot | null {
     };
   }
 
-  // Finalised shape: unwrap and look at output.extracted + config.schema
+  // Finalised shape: unwrap and look at output.result.extracted (or the
+  // legacy output.extracted path for pre-Stage-1 executions).
   const unwrapped = unwrapNodeOutput(raw);
   const output = toRecord(unwrapped.output);
-  const extracted = output ? toRecord(output.extracted) : null;
+  const result = output ? toRecord(output.result) : null;
+  const extracted =
+    (result ? toRecord(result.extracted) : null) ??
+    (output ? toRecord(output.extracted) : null);
   if (!extracted) return null;
 
   const config = unwrapped.config;
@@ -262,7 +314,11 @@ export function extractAiMetadata(raw: unknown): AiMetadata | null {
     "thinkingTokens" in meta;
   if (!hasAnyTokenField) return null;
 
-  const turnCountFromOutput = pickNumber(output, "turnCount");
+  // Post-Stage-5 ai_agent wraps domain data under `output.result.*`, so
+  // `turnCount` lives there. Legacy payloads kept it at the top of `output`.
+  const resultNode = output ? toRecord(output.result) : null;
+  const turnCountFromOutput =
+    pickNumber(resultNode, "turnCount") ?? pickNumber(output, "turnCount");
 
   return {
     model: pickString(meta, "model"),

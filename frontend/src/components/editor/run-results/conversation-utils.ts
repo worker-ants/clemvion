@@ -30,9 +30,9 @@ export function parseHistoryMessages(
   outputData: unknown,
 ): ConversationItem[] {
   const raw = outputData as Record<string, unknown> | null;
-  // Support both the legacy flat shape and the new
-  // `{ config, output, meta?, port?, status? }` wrapper.
-  const output =
+  // Support the current unified wrapper, the Stage-5 LLM `result` wrapper
+  // (messages live at `output.result.messages`), and the legacy flat shape.
+  const wrapper =
     raw &&
     typeof raw === "object" &&
     !Array.isArray(raw) &&
@@ -40,23 +40,46 @@ export function parseHistoryMessages(
     "output" in raw
       ? (raw.output as Record<string, unknown> | null)
       : raw;
-  if (!output?.messages) return [];
+  const resultNode =
+    wrapper && typeof wrapper === "object"
+      ? (wrapper.result as Record<string, unknown> | undefined)
+      : undefined;
+  // Prefer the post-Stage-5 `output.result.messages`; fall back to the
+  // legacy flat `output.messages`. Debug trace moved from
+  // `output._turnDebugHistory` to `meta.turnDebug` — check both.
+  const messagesSource =
+    (resultNode?.messages as unknown[] | undefined) ??
+    (wrapper?.messages as unknown[] | undefined);
+  if (!messagesSource) return [];
 
-  const messages = output.messages as Array<{
+  const messages = messagesSource as Array<{
     role: string;
     content: string;
     toolCalls?: unknown[];
   }>;
 
-  // Build turnIndex → debug lookup from persisted history
-  const debugHistory = (output._turnDebugHistory ?? []) as TurnDebugEntry[];
+  // Build turnIndex → debug lookup from persisted history. New shape lives
+  // under `meta.turnDebug`; legacy under `output._turnDebugHistory`.
+  const topMeta =
+    raw &&
+    typeof raw === "object" &&
+    !Array.isArray(raw) &&
+    "meta" in raw
+      ? (raw.meta as Record<string, unknown> | undefined)
+      : undefined;
+  const debugHistory = ((topMeta?.turnDebug as TurnDebugEntry[] | undefined) ??
+    (wrapper?._turnDebugHistory as TurnDebugEntry[] | undefined) ??
+    []) as TurnDebugEntry[];
   const debugByTurn = new Map<number, TurnDebugEntry>();
   for (const entry of debugHistory) {
     debugByTurn.set(entry.turnIndex, entry);
   }
 
-  // Metadata from the final output (shared model info)
-  const meta = output.metadata as Record<string, unknown> | undefined;
+  // Metadata from the final output (shared model info). Post-Stage-5 this
+  // lives on the top-level `meta`; legacy runs kept it on `output.metadata`.
+  const meta =
+    topMeta ??
+    (wrapper?.metadata as Record<string, unknown> | undefined);
 
   // Walk through messages, tracking which turn and which LLM call within the turn
   const items: ConversationItem[] = [];

@@ -218,8 +218,19 @@ export class CarouselHandler implements NodeHandler {
       }
     }
 
-    const payload = { type: 'carousel', items, layout, rendered };
+    // Runtime-only fields go into `output`; literal config (layout, mode,
+    // static items definition) is echoed in `config` only (Principle 1.1).
+    // The `type: 'carousel'` discriminator is dropped per Principle 1.1.4.
+    const payload: Record<string, unknown> = { items, rendered };
     const configEcho: Record<string, unknown> = { layout, mode };
+    if (Array.isArray(config.items)) configEcho.items = config.items;
+    if (config.titleField) configEcho.titleField = config.titleField;
+    if (config.descriptionField)
+      configEcho.descriptionField = config.descriptionField;
+    if (config.imageField) configEcho.imageField = config.imageField;
+    if (Array.isArray(config.buttons)) configEcho.buttons = config.buttons;
+    if (Array.isArray(config.itemButtons))
+      configEcho.itemButtons = config.itemButtons;
 
     if (allButtons.length > 0) {
       return Promise.resolve({
@@ -233,7 +244,7 @@ export class CarouselHandler implements NodeHandler {
         },
         output: payload,
         status: 'waiting_for_input',
-        meta: { interactionType: 'buttons' },
+        meta: { interactionType: 'buttons', durationMs: 0 },
       });
     }
 

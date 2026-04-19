@@ -86,6 +86,30 @@ describe('HttpRequestHandler', () => {
       global.fetch = originalFetch;
     });
 
+    it('sanitizes embedded URL credentials on config echo (CONVENTIONS §7)', async () => {
+      global.fetch = jest.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        text: jest.fn().mockResolvedValue('ok'),
+        json: jest.fn().mockResolvedValue({}),
+        headers: { get: jest.fn().mockReturnValue(null) },
+      }) as unknown as typeof fetch;
+
+      const result = (await handler.execute(
+        null,
+        {
+          method: 'GET',
+          url: 'https://secret:p4ss@api.example.com/data',
+          responseType: 'text',
+        },
+        context,
+      )) as { config: { url: string } };
+
+      expect(result.config.url).not.toContain('secret');
+      expect(result.config.url).not.toContain('p4ss');
+      expect(result.config.url).toContain('api.example.com');
+    });
+
     it('should return success port on 2xx response', async () => {
       const mockResponse = {
         ok: true,

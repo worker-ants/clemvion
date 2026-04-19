@@ -196,19 +196,47 @@ SMTP를 통해 이메일을 발송한다.
 | 포트 | 방향 | 식별자 | 설명 |
 |------|------|--------|------|
 | Input | 입력 | `in` | 입력 데이터 |
-| Output | 출력 | `out` | 발송 결과 |
+| Output | 출력 (success) | `out` | 발송 결과 |
+| Output | 출력 (error) | `error` | 전송 실패 — `EMAIL_SEND_FAILED` / `INTEGRATION_INCOMPLETE` / `INTEGRATION_TYPE_MISMATCH` / `INTEGRATION_NOT_CONNECTED` 등 (CONVENTIONS §3.2) |
 
 ### 4.3 출력 구조
 
+성공 시:
+
 ```json
 {
-  "data": {
+  "config": { "integrationId": "…", "to": [...], "cc": [...], "subject": "…", "bodyType": "text" },
+  "output": {
     "messageId": "<message-id@smtp.example.com>",
     "accepted": ["user@example.com"],
     "rejected": []
-  }
+  },
+  "meta": { "durationMs": 820, "deliveryStatus": "sent" }
 }
 ```
+
+실패 시 (`port: 'error'`):
+
+```json
+{
+  "config": { "integrationId": "…", "to": [...], "subject": "…" },
+  "output": {
+    "error": {
+      "code": "INTEGRATION_NOT_CONNECTED",
+      "message": "SMTP integration \"Company SMTP\" is in status \"expired\"",
+      "details": {
+        "to": ["user@example.com"],
+        "subject": "Welcome",
+        "integrationCode": "INTEGRATION_NOT_CONNECTED"
+      }
+    }
+  },
+  "meta": { "durationMs": 35, "deliveryStatus": "failed" },
+  "port": "error"
+}
+```
+
+> `IntegrationError` 의 원본 코드는 `output.error.code` 로 직접 노출되며 동일한 값이 `output.error.details.integrationCode` 에도 보존된다 (관찰성 대시보드 호환). 순수 SMTP 전송 실패는 `code: 'EMAIL_SEND_FAILED'`.
 
 ### 4.4 설정 UI
 

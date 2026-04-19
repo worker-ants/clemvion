@@ -83,7 +83,10 @@ export type WorkflowConfig = z.infer<typeof workflowNodeConfigSchema>;
 
 export const workflowNodePorts: NodePorts = {
   inputs: [{ id: 'in', label: 'Input', type: 'data' }],
-  outputs: [{ id: 'out', label: 'Output', type: 'data' }],
+  outputs: [
+    { id: 'out', label: 'Output', type: 'data' },
+    { id: 'error', label: 'Error', type: 'error' },
+  ],
 };
 
 export const workflowNodeMetadata: NodeComponentMetadata = {

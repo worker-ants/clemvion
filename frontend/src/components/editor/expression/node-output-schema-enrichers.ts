@@ -32,14 +32,15 @@ function isSafeFieldName(name: unknown): name is string {
 /**
  * Information Extractor declares user-configured output fields inside each
  * node instance's `config.outputSchema`. Project those names into the static
- * outputSchema so autocomplete can hint `.output.extracted.<name>` even
- * before the node has executed.
+ * outputSchema so autocomplete can hint `.output.result.extracted.<name>`
+ * even before the node has executed.
  *
  * Silent cases are intentionally tolerant because this feeds UX hints only:
  * an undefined base schema, an empty/absent fields array, or a schema that
- * doesn't expose `output.properties` all simply fall back to the base. When
- * the base schema shape prevents enrichment we log a warning so schema
- * drift between backend and frontend is noticed during development.
+ * doesn't expose `output.properties.result.properties` all simply fall back
+ * to the base. When the base schema shape prevents enrichment we log a
+ * warning so schema drift between backend and frontend is noticed during
+ * development.
  */
 export function enrichInfoExtractorOutputSchema(
   baseSchema: JsonSchemaNode | undefined,
@@ -82,14 +83,23 @@ export function enrichInfoExtractorOutputSchema(
   }
 
   if (!outputNode.properties) outputNode.properties = {};
-  const existing = outputNode.properties.extracted;
-  const existingProps =
-    existing && typeof existing === "object" && existing.properties
-      ? existing.properties
+  const existingResult = outputNode.properties.result;
+  const existingResultNode =
+    existingResult && typeof existingResult === "object"
+      ? existingResult
+      : ({ type: "object", properties: {} } as JsonSchemaNode);
+  if (!existingResultNode.properties) existingResultNode.properties = {};
+  const existingExtracted = existingResultNode.properties.extracted;
+  const existingExtractedProps =
+    existingExtracted &&
+    typeof existingExtracted === "object" &&
+    existingExtracted.properties
+      ? existingExtracted.properties
       : {};
-  outputNode.properties.extracted = {
+  existingResultNode.properties.extracted = {
     type: "object",
-    properties: { ...existingProps, ...userProps },
+    properties: { ...existingExtractedProps, ...userProps },
   };
+  outputNode.properties.result = existingResultNode;
   return cloned;
 }

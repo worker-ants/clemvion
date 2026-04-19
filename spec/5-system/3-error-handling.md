@@ -37,13 +37,11 @@
 
 ### 1.4 워크플로우 실행 에러
 
+엔진 수준 에러 (execution status → `failed`):
+
 | 코드 | 설명 |
 |------|------|
 | `EXECUTION_TIMEOUT` | 워크플로우 또는 노드 실행 타임아웃 |
-| `NODE_EXECUTION_FAILED` | 노드 실행 중 에러 |
-| `INTEGRATION_ERROR` | 외부 서비스 연동 실패 |
-| `LLM_ERROR` | LLM API 호출 실패 |
-| `LLM_RATE_LIMITED` | LLM 프로바이더 Rate Limit |
 | `RECURSION_DEPTH_EXCEEDED` | 서브 워크플로우 재귀 깊이 초과 |
 | `MAX_ITERATIONS_EXCEEDED` | Loop/ForEach 최대 반복 횟수 초과 |
 | `CYCLE_DETECTED` | 워크플로우 그래프에 순환 감지 |
@@ -51,6 +49,19 @@
 | `VARIABLE_NOT_FOUND` | 참조된 변수 없음 |
 | `TYPE_MISMATCH` | 데이터 타입 불일치 |
 | `ERROR_PORT_FALLBACK` | 에러 포트로 라우팅 시도했으나 연결된 엣지 없음 → Stop Workflow 폴백 |
+
+노드 수준 런타임 에러 (`output.error.code` 로 라우팅, §3.2 참조) — 정식 목록은 `backend/src/nodes/core/error-codes.ts` 의 `ErrorCode` enum. 주요 항목:
+
+| 카테고리 | 코드 |
+|----------|------|
+| HTTP | `HTTP_TRANSPORT_FAILED` · `HTTP_4XX` · `HTTP_5XX` · `HTTP_TIMEOUT` |
+| Database | `DB_QUERY_FAILED` · `DB_CONNECTION_FAILED` |
+| Email | `EMAIL_SEND_FAILED` (+ `details.integrationCode` 로 원본 `INTEGRATION_INCOMPLETE` / `INTEGRATION_TYPE_MISMATCH` / `INTEGRATION_NOT_CONNECTED` 보존) |
+| LLM | `LLM_CALL_FAILED` · `LLM_RATE_LIMITED` · `LLM_RESPONSE_INVALID` · `LLM_TIMEOUT` · `MAX_COLLECTION_RETRIES_EXCEEDED` |
+| Code 노드 | `CODE_EXECUTION_FAILED` · `CODE_TIMEOUT` |
+| Sub-workflow | `SUB_WORKFLOW_FAILED` |
+
+> 구 에러 코드 `NODE_EXECUTION_FAILED` / `INTEGRATION_ERROR` / `LLM_ERROR` 는 노드 수준 envelope 에 더 이상 사용하지 않는다. 엔진 레벨(노드 실패가 Stop Workflow 로 격상된 경우)에서만 `NodeExecution.error.message` 컨텍스트로 남는다.
 
 ---
 
@@ -136,36 +147,56 @@
 
 ### 3.2 Route to Error Port 상세
 
-에러 포트로 전달되는 데이터 구조:
+노드 핸들러가 **런타임 실패**를 `port: 'error'` 로 라우팅할 때의 통일된 envelope 규격 (CONVENTIONS §3.2). Pre-flight(config) 에러는 이 envelope 으로 래핑하지 않고 그대로 throw 되어 Execution 전체를 `failed` 로 전이시킨다.
 
 ```json
 {
-  "error": {
-    "code": "NODE_EXECUTION_FAILED",
-    "message": "LLM connection timeout",
-    "nodeId": "uuid-of-failed-node",
-    "nodeType": "ai_agent",
-    "timestamp": "2026-03-29T12:00:00.000Z",
-    "details": { ... },
-    "originalInput": { ... }
-  }
+  "config": { /* 해석된 노드 config echo (credentials 제외) */ },
+  "output": {
+    "error": {
+      "code": "HTTP_5XX",
+      "message": "HTTP 502 Bad Gateway",
+      "details": { "statusCode": 502, "url": "https://api.example.com/data", "method": "GET" }
+    }
+  },
+  "meta": { "durationMs": 812, "statusCode": 502 },
+  "port": "error",
+  "status": "ended"
 }
 ```
 
+**필드 정의** (`NodeHandlerOutput.output.error`):
+
 | 필드 | 타입 | 설명 |
 |------|------|------|
-| code | String | 에러 코드 (§1.4 참조) |
-| message | String | 사람이 읽을 수 있는 에러 메시지 |
-| nodeId | UUID | 에러가 발생한 노드 ID |
-| nodeType | String | 에러가 발생한 노드 타입 |
-| timestamp | Timestamp | 에러 발생 시각 |
-| details | Object? | 에러 상세 정보 (스택 트레이스 등) |
-| originalInput | Object | 에러 발생 노드에 전달되었던 원본 입력 데이터 |
+| code | String | UPPER_SNAKE_CASE 에러 코드 (`backend/src/nodes/core/error-codes.ts` 의 `ErrorCode` enum 참조) |
+| message | String | 사람이 읽을 수 있는 에러 메시지 (국제화 없음) |
+| details | Object? | 노드별 부가 정보 — stack / originalInput / attempts / missingFields 등. JSON 직렬화 가능해야 함 |
+
+**LLM 계열 노드의 특이 케이스** — `max_retries` / `max_turns` 같은 부분 성공 시나리오에서는 `output.error` 와 `output.result` 가 **공존** 한다. `output.error` 존재 여부로 에러/정상 분기를 판정하고, 부분 수집된 결과는 `output.result` 에서 소비한다.
+
+**대표 에러 코드** (후속 PR 에서 enum 확장):
+
+| 노드 카테고리 | 코드 |
+|----------------|------|
+| HTTP | `HTTP_TRANSPORT_FAILED`, `HTTP_4XX`, `HTTP_5XX`, `HTTP_TIMEOUT` |
+| Database | `DB_QUERY_FAILED`, `DB_CONNECTION_FAILED` |
+| Email | `EMAIL_SEND_FAILED` |
+| LLM | `LLM_CALL_FAILED`, `LLM_RATE_LIMITED`, `LLM_RESPONSE_INVALID`, `LLM_TIMEOUT`, `MAX_COLLECTION_RETRIES_EXCEEDED` |
+| Code | `CODE_EXECUTION_FAILED`, `CODE_TIMEOUT` |
+| Sub-workflow | `SUB_WORKFLOW_FAILED` |
+
+**에러 포트 보유 노드** (기본):
+
+`http_request`, `database_query`, `send_email`, `code`, `ai_agent`, `text_classifier`, `information_extractor`, `workflow`.
+
+`transform`, `if_else`, `switch` 등은 pre-flight 검증만 수행 → throw (런타임 에러 포트 없음).
 
 **동작 규칙:**
-- error 포트에 엣지가 연결되어 있으면 → 에러 데이터를 해당 엣지로 전달, 다음 노드 실행
+- error 포트에 엣지가 연결되어 있으면 → `output.error` 를 포함한 `output` 전체를 해당 엣지로 전달, 다음 노드 실행
 - error 포트에 엣지가 없으면 → `ERROR_PORT_FALLBACK` 에러 로깅 후 Stop Workflow 폴백
-- NodeExecution.status는 `failed`로 기록하되, Execution은 계속 진행
+- NodeExecution.status 는 `failed` 로 기록하되, Execution 은 계속 진행
+- 다운스트림 노드는 `$node["X"].output.error?.code` 로 분기하거나 `$node["X"].port === 'error'` 로 판정
 
 ### 3.3 Retry 설정
 

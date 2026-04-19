@@ -618,86 +618,233 @@ LLM을 사용하여 비정형 텍스트에서 구조화된 정보 추출.
 **Single Turn (기본)**
 1. outputSchema를 JSON Schema로 변환
 2. 추출 프롬프트 구성 (스키마 + 예시 + 지시사항)
-3. LLM 호출 (JSON 응답 형식 강제) — LLM API 오류 시 즉시 `error` 포트로 라우팅
+3. LLM 호출 (JSON 응답 형식 강제) — LLM API 호출 실패 시 `error` 포트 + `output.error.code: 'LLM_CALL_FAILED'`
 4. 응답 파싱 및 스키마 검증
-5. 검증 통과 시 추출 결과를 `out` 포트로 전달
-6. 검증 실패 시 재시도 (최대 2회), 재시도 소진 시 `error` 포트로 라우팅
+5. 검증 통과 시 추출 결과를 `output.result.extracted` 에 담고 `out` 포트로 라우팅
+6. 검증 실패 시 재시도 (최대 2회). 재시도 소진 시 `error` 포트 + `output.error.code: 'LLM_RESPONSE_INVALID'`
 
 **Multi Turn**
 1. `inputField`가 비어있으면 LLM을 호출하지 않고 system prompt만 준비한 뒤 바로 사용자 입력을 대기(`turnCount: 0`). 값이 있으면 그 값을 첫 user 메시지로 LLM에 전달한다. 설정 UI는 `multi_turn`일 때 Input Field 항목을 숨겨 이 UX를 강제한다.
-2. LLM은 확장된 JSON 스키마로 응답하며 다음 필드를 포함:
-   - 스키마에 정의된 모든 추출 필드 (매 턴 누적 값을 반복 포함해야 함)
-   - `_missingFields: string[]` — 아직 채워지지 않은 required 필드 이름
-   - `_followUpQuestion: string` — 사용자에게 물어볼 자연어 질문 (모두 채워지면 빈 문자열)
-3. 응답을 파싱하여 `partialResult`에 누적. LLM이 `null`을 반환한 필드는 기존 값을 보존.
-4. **재수집 판정**: `_missingFields=[]`로 완료가 보고되었지만 실제 `partialResult`에 required 필드가 비어 있는 경우:
-   - `collectionRetryCount`를 1 증가시키고 **assistant role**의 "Self-check" 독촉 메시지를 대화 스레드에 append
-   - 동일 턴 내에서 LLM을 다시 호출 (재시도 루프). 각 iteration은 `_turnDebugHistory`의 `llmCalls` 배열에 누적
-   - `maxCollectionRetries`(0 제외)를 초과하면 `endReason: 'max_retries'`로 **error 포트**로 라우팅
+2. LLM은 `finalize_extraction` 도구를 호출해 수집이 완료되었음을 알리거나, content-only 응답으로 후속 질문을 제시한다. 도구 인자에는 스키마에 정의된 모든 추출 필드가 포함되어야 한다.
+3. 도구 인자를 파싱하여 `partialResult`에 누적. LLM이 `null`을 반환한 필드는 기존 값을 보존.
+4. **재수집 판정**: 도구 호출이 왔지만 실제로 required 필드가 비어 있는 경우:
+   - `collectionRetryCount`를 1 증가시키고, `tool` role 의 피드백 메시지를 대화 스레드에 append 하여 누락 필드를 알린다
+   - 동일 턴 내에서 LLM을 다시 호출 (재시도 루프). 각 iteration 의 LLM 트레이스는 `meta.turnDebug[turnIndex].llmCalls` 에 누적
+   - `maxCollectionRetries`(0 제외)를 초과하면 **error 포트** + `output.error.code: 'MAX_COLLECTION_RETRIES_EXCEEDED'`
 5. 종료 조건 평가:
-   - 모든 `required: true` 필드가 채워졌으면 → `completed` 포트로 라우팅 (`endReason: 'completed'`).
-   - `turnCount >= maxTurns` (0이 아닐 때) → `max_turns` 포트로 라우팅 (`endReason: 'max_turns'`).
-   - 사용자가 대화 종료 → `user_ended` 포트로 라우팅 (`endReason: 'user_ended'`).
-   - 재수집 한도 초과 → `error` 포트로 라우팅 (`endReason: 'max_retries'`).
-6. 종료 조건을 만족하지 않으면 `interactionType: 'ai_conversation'`으로 `waiting_for_input` 반환. `conversationConfig`에 현재 `partialResult` 사본 (`extracted`), `missingFields`, `collectionRetryCount`, `maxCollectionRetries`를 포함해 UI가 실시간으로 수집 상태를 표시할 수 있도록 한다. 사용자의 응답을 받아 다음 턴을 진행.
+   - 모든 `required: true` 필드가 채워졌으면 → `completed` 포트 (`endReason: 'completed'`)
+   - `turnCount >= maxTurns` (0이 아닐 때) → `max_turns` 포트 (`endReason: 'max_turns'`)
+   - 사용자가 대화 종료 → `user_ended` 포트 (`endReason: 'user_ended'`)
+   - 재수집 한도 초과 → `error` 포트 (`endReason: 'max_retries'`)
+6. 종료 조건을 만족하지 않으면 `status: 'waiting_for_input'` 반환. waiting 시 `output` 에는 런타임 계산 값만 담는다 (Principle 1.1): `messages` 와 `partial.{extracted, missingFields, collectionRetryCount}`. `maxTurns` / `maxCollectionRetries` / `schema` 등 리터럴 설정값은 `output` 에 echo 하지 않으며 후속 노드 / UI 는 `$node["X"].config.*` 를 참조한다.
 7. 프론트엔드는 AI Agent multi-turn과 동일한 `ConversationInspector` UI로 대화를 렌더하고, Output 탭에서 `ExtractedFieldsCard`로 수집된 필드를 구조화해 보여준다.
 
-### 출력 구조
+### 출력 구조 (Principle 11 포맷)
 
-**Single Turn**
+LLM 3 노드는 `output.result.*` / `output.error.*` / `output.interaction.*` wrapper 를 공유한다. Information Extractor 의 **결과 wrapper 1차 필드**:
+
+| 필드 | 위치 | 설명 |
+| --- | --- | --- |
+| `output.result.extracted` | 성공 | schema 에 정의된 모든 필드. 미수집 required 필드는 `null` |
+| `output.result.endReason` | 성공 | `'out'`(single) / `'completed'`(multi) / `'user_ended'` / `'max_turns'` |
+| `output.result.turnCount` | 성공 | single 은 항상 1, multi 는 실제 진행한 턴 수 |
+| `output.result.messages` | 성공 (multi) | 누적 대화 스냅샷 |
+| `output.result.originalInput` | 성공 (single) | LLM 에 투입된 실제 입력 |
+| `output.error.code` | 에러 | `LLM_CALL_FAILED` / `LLM_RATE_LIMITED` / `LLM_RESPONSE_INVALID` / `MAX_COLLECTION_RETRIES_EXCEEDED` |
+| `output.error.message` | 에러 | 사람이 읽는 원문 메시지 |
+| `output.error.details` | 에러? | 노드별 부가 정보 (attempts, originalInput, missingFields 등) |
+| `meta.durationMs` | 필수 | 실행 소요 시간 |
+| `meta.{model, inputTokens, outputTokens, totalTokens, thinkingTokens}` | 필수 | 모델 / 토큰 사용량 |
+| `meta.collectionRetryCount` | multi | 재수집 누적 횟수 |
+| `meta.turnDebug` | 필수 | `[{ turnIndex, llmCalls, totalDurationMs }, ...]` 디버그 트레이스 |
+
+> 멀티턴에서 `max_retries` 로 종료 시에는 `output.error` 와 `output.result` 가 **병존**한다. 에러지만 부분 수집 결과가 있어 후속 노드가 활용할 수 있도록 둘 다 보존한다. `output.error` 존재 여부로 에러/정상을 판단한다.
+
+#### Case: Single Turn 성공
 
 ```json
 {
-  "config": { "schema": [...] },
+  "config": {
+    "mode": "single_turn",
+    "model": "claude-sonnet-4-6",
+    "schema": [
+      { "name": "senderName", "type": "string", "description": "발신자", "required": true },
+      { "name": "orderNumber", "type": "string", "description": "주문번호", "required": true },
+      { "name": "issueType", "type": "string", "description": "문제 유형", "required": true },
+      { "name": "amount", "type": "number", "description": "금액", "required": false }
+    ]
+  },
   "output": {
-    "extracted": {
-      "senderName": "김철수",
-      "orderNumber": "ORD-12345",
-      "issueType": "refund",
-      "amount": 29900
+    "result": {
+      "extracted": {
+        "senderName": "김철수",
+        "orderNumber": "ORD-12345",
+        "issueType": "refund",
+        "amount": 29900
+      },
+      "endReason": "out",
+      "turnCount": 1,
+      "originalInput": "환불 요청합니다. 주문번호 ORD-12345 …"
     }
   },
   "meta": {
+    "durationMs": 810,
     "model": "claude-sonnet-4-6",
     "inputTokens": 450,
     "outputTokens": 80,
-    "totalTokens": 530
-  }
+    "totalTokens": 530,
+    "thinkingTokens": 0,
+    "turnDebug": [{ "turnIndex": 1, "llmCalls": [/* … */], "totalDurationMs": 810 }]
+  },
+  "port": "out",
+  "status": "ended"
 }
 ```
 
-**Multi Turn**
+#### Case: Multi Turn 완료 (`completed`)
 
 ```json
 {
-  "config": { "schema": [...], "mode": "multi_turn" },
+  "config": { "mode": "multi_turn", "schema": [...], "maxTurns": 10, "maxCollectionRetries": 3 },
   "output": {
-    "extracted": {
-      "senderName": "김철수",
-      "orderNumber": "ORD-12345",
-      "issueType": "refund",
-      "amount": 29900
-    },
-    "messages": [
-      { "role": "system", "content": "..." },
-      { "role": "user", "content": "환불해주세요" },
-      { "role": "assistant", "content": "..." },
-      { "role": "user", "content": "주문번호는 ORD-12345입니다" }
-    ],
-    "endReason": "completed",
-    "turnCount": 2
+    "result": {
+      "extracted": {
+        "senderName": "김철수",
+        "orderNumber": "ORD-12345",
+        "issueType": "refund",
+        "amount": 29900
+      },
+      "endReason": "completed",
+      "turnCount": 2,
+      "messages": [/* … */]
+    }
   },
   "meta": {
+    "durationMs": 950,
     "model": "claude-sonnet-4-6",
     "inputTokens": 920,
     "outputTokens": 150,
     "totalTokens": 1070,
-    "interactionType": "ai_conversation"
-  }
+    "thinkingTokens": 0,
+    "collectionRetryCount": 0,
+    "turnDebug": [/* … */]
+  },
+  "port": "completed",
+  "status": "ended"
 }
 ```
 
-다운스트림 노드는 `$node["Info Extractor"].output.extracted.<필드명>`으로 추출된 값에 접근한다.
+#### Case: Multi Turn 대기 (`waiting_for_input`)
+
+```json
+{
+  "config": { "mode": "multi_turn", "schema": [...], "maxTurns": 10, "maxCollectionRetries": 3 },
+  "output": {
+    "messages": [{ "role": "assistant", "content": "주문번호를 알려주세요" }],
+    "partial": {
+      "extracted": { "senderName": "김철수", "orderNumber": null, "issueType": null, "amount": null },
+      "missingFields": ["orderNumber", "issueType"],
+      "collectionRetryCount": 0
+    }
+  },
+  "meta": {
+    "durationMs": 1500,
+    "model": "claude-sonnet-4-6",
+    "inputTokens": 100,
+    "outputTokens": 20,
+    "totalTokens": 120,
+    "thinkingTokens": 0,
+    "turnDebug": [/* … */]
+  },
+  "status": "waiting_for_input"
+}
+```
+
+> Waiting output 에는 런타임 값만 담는다 (Principle 1.1 / 4.3). `maxTurns`·`maxCollectionRetries`·`schema` 는 `config.*` 에서 읽는다. 노드 판별용 `type` / `interactionType` / `view` 래퍼는 사용하지 않는다 (Principle 1.1.4).
+
+#### Case: Multi Turn 재개 (`resumed`, Stage 2 에서 구현)
+
+사용자 메시지 수신 직후 종료 조건에 미도달 시 1회 emit 되는 observability-only 스냅샷. Stage 2 의 공통 resume 컨트랙트에서 도입된다.
+
+```json
+{
+  "output": {
+    "messages": [/* 사용자 메시지 append 직후 누적 */],
+    "partial": { /* 직전 대기 시점 스냅샷 */ },
+    "interaction": {
+      "type": "message_received",
+      "data": { "content": "ORD-12345 입니다", "role": "user" },
+      "receivedAt": "2026-04-19T06:45:12.480Z"
+    }
+  },
+  "status": "resumed"
+}
+```
+
+#### Case: Single Turn 에러 (LLM 호출/파싱 실패)
+
+```json
+{
+  "config": { "mode": "single_turn", "schema": [...] },
+  "output": {
+    "error": {
+      "code": "LLM_RESPONSE_INVALID",
+      "message": "Failed to parse JSON after 3 attempts",
+      "details": {
+        "attempts": 3,
+        "originalInput": "환불 요청합니다…",
+        "lastResponse": "…"
+      }
+    }
+  },
+  "meta": {
+    "durationMs": 3200,
+    "model": "claude-sonnet-4-6",
+    "turnDebug": [/* … */]
+  },
+  "port": "error",
+  "status": "ended"
+}
+```
+
+#### Case: Multi Turn 에러 (`max_retries`)
+
+```json
+{
+  "config": { "mode": "multi_turn", "schema": [...], "maxCollectionRetries": 3 },
+  "output": {
+    "error": {
+      "code": "MAX_COLLECTION_RETRIES_EXCEEDED",
+      "message": "LLM attempted finalize_extraction 3 times with missing required fields",
+      "details": {
+        "extracted": { "senderName": "김철수", "orderNumber": null },
+        "missingFields": ["orderNumber"],
+        "turnCount": 3,
+        "collectionRetryCount": 3
+      }
+    },
+    "result": {
+      "extracted": { "senderName": "김철수", "orderNumber": null },
+      "endReason": "max_retries",
+      "turnCount": 3,
+      "messages": [/* … */]
+    }
+  },
+  "meta": {
+    "durationMs": 5600,
+    "model": "claude-sonnet-4-6",
+    "inputTokens": 500,
+    "outputTokens": 150,
+    "totalTokens": 650,
+    "collectionRetryCount": 3,
+    "turnDebug": [/* … */]
+  },
+  "port": "error",
+  "status": "ended"
+}
+```
+
+다운스트림 노드는 `$node["Info Extractor"].output.result.extracted.<필드명>` 으로 추출 결과에 접근하고, `$node["Info Extractor"].output.error?.code` 로 에러 분기를 수행한다.
 
 ---
 

@@ -107,8 +107,8 @@ describe('TextClassifierHandler', () => {
       )) as Record<string, unknown>;
       expect((result as any).port).toBe('class_0');
       const data = result.output as Record<string, unknown>;
-      expect(data.category).toBe('Billing');
-      expect(data.confidence).toBe(0.95);
+      expect((data.result as any).category).toBe('Billing');
+      expect((data.result as any).confidence).toBe(0.95);
     });
 
     it('should route to second category port', async () => {
@@ -138,7 +138,7 @@ describe('TextClassifierHandler', () => {
       )) as Record<string, unknown>;
       expect((result as any).port).toBe('fallback');
       const data = result.output as Record<string, unknown>;
-      expect(data.category).toBeNull();
+      expect((data.result as any).category).toBeNull();
     });
 
     it('should route to fallback port when category does not match', async () => {
@@ -168,7 +168,7 @@ describe('TextClassifierHandler', () => {
       )) as Record<string, unknown>;
       expect((result as any).port).toBe('fallback');
       const data = result.output as Record<string, unknown>;
-      expect(data.category).toBeNull();
+      expect((data.result as any).category).toBeNull();
     });
 
     it('should extract category from text on JSON parse failure', async () => {
@@ -184,7 +184,7 @@ describe('TextClassifierHandler', () => {
       )) as Record<string, unknown>;
       expect((result as any).port).toBe('class_0');
       const data = result.output as Record<string, unknown>;
-      expect(data.category).toBe('Billing');
+      expect((data.result as any).category).toBe('Billing');
     });
 
     it('should preserve confidence of 0 (not treat as falsy)', async () => {
@@ -199,7 +199,7 @@ describe('TextClassifierHandler', () => {
         createContext(),
       )) as Record<string, unknown>;
       const data = result.output as Record<string, unknown>;
-      expect(data.confidence).toBe(0);
+      expect((data.result as any).confidence).toBe(0);
     });
 
     it('should include metadata in output', async () => {
@@ -222,7 +222,7 @@ describe('TextClassifierHandler', () => {
         createContext(),
       )) as Record<string, unknown>;
       const data = result.output as Record<string, unknown>;
-      expect(data.originalInput).toBe('I need a refund');
+      expect((data.result as any).originalInput).toBe('I need a refund');
     });
 
     it('should pass jsonSchema with category enum including __none__', async () => {
@@ -287,7 +287,9 @@ describe('TextClassifierHandler', () => {
       )) as Record<string, unknown>;
       expect((result as any).port).toBe('error');
       const data = result.output as Record<string, unknown>;
-      expect(data.error).toBe('API timeout');
+      const err = data.error as Record<string, unknown>;
+      expect(err.code).toBe('LLM_CALL_FAILED');
+      expect(err.message).toBe('API timeout');
     });
 
     it('should include fallback instruction in system prompt', async () => {
@@ -336,11 +338,11 @@ describe('TextClassifierHandler', () => {
       )) as Record<string, unknown>;
       expect((result as any).port).toEqual(['class_0', 'class_1']);
       const data = result.output as Record<string, unknown>;
-      expect(data.categories).toEqual([
+      expect((data.result as any).categories).toEqual([
         { name: 'Billing', confidence: 0.9 },
         { name: 'Tech', confidence: 0.85 },
       ]);
-      expect(data.originalInput).toBe(
+      expect((data.result as any).originalInput).toBe(
         'I need a refund and the app is crashing',
       );
     });
@@ -372,7 +374,7 @@ describe('TextClassifierHandler', () => {
       )) as Record<string, unknown>;
       expect((result as any).port).toBe('fallback');
       const data = result.output as Record<string, unknown>;
-      expect(data.categories).toEqual([]);
+      expect((data.result as any).categories).toEqual([]);
     });
 
     it('should filter out invalid category names from LLM response', async () => {
@@ -389,7 +391,9 @@ describe('TextClassifierHandler', () => {
       )) as Record<string, unknown>;
       expect((result as any).port).toEqual(['class_0']);
       const data = result.output as Record<string, unknown>;
-      expect(data.categories).toEqual([{ name: 'Billing', confidence: 0.9 }]);
+      expect((data.result as any).categories).toEqual([
+        { name: 'Billing', confidence: 0.9 },
+      ]);
     });
 
     it('should use multi-label prompt and schema', async () => {
@@ -440,7 +444,7 @@ describe('TextClassifierHandler', () => {
         createContext(),
       )) as Record<string, unknown>;
       const data = result.output as Record<string, unknown>;
-      expect(data.categories).toEqual([{ name: 'Billing' }]);
+      expect((data.result as any).categories).toEqual([{ name: 'Billing' }]);
 
       const chatCall = mockLlmService.chat.mock.calls[0][1];
       expect(
@@ -461,7 +465,7 @@ describe('TextClassifierHandler', () => {
       )) as Record<string, unknown>;
       expect((result as any).port).toEqual(['class_0', 'class_1']);
       const data = result.output as Record<string, unknown>;
-      expect(data.categories).toEqual([
+      expect((data.result as any).categories).toEqual([
         { name: 'Billing', confidence: 0 },
         { name: 'Tech', confidence: 0 },
       ]);
@@ -476,7 +480,9 @@ describe('TextClassifierHandler', () => {
       )) as Record<string, unknown>;
       expect((result as any).port).toBe('error');
       const data = result.output as Record<string, unknown>;
-      expect(data.error).toBe('Rate limited');
+      const err = data.error as Record<string, unknown>;
+      expect(err.code).toBe('LLM_CALL_FAILED');
+      expect(err.message).toBe('Rate limited');
     });
 
     it('should include multiLabel: true in config output', async () => {

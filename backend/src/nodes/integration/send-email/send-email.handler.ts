@@ -11,6 +11,10 @@ import {
   toLogError,
 } from '../_base/integration-handler-base.js';
 import { IntegrationsService } from '../../../modules/integrations/integrations.service.js';
+import {
+  maskEmailForErrorDetails,
+  truncateForErrorDetails,
+} from '../../core/error-codes.js';
 
 interface SmtpCredentials {
   host: string;
@@ -155,14 +159,44 @@ export class SendEmailHandler
       const logError =
         err instanceof IntegrationError
           ? toLogError(err)
-          : { code: 'SMTP_SEND_FAILED', message: safeMessage(err) };
+          : { code: 'EMAIL_SEND_FAILED', message: safeMessage(err) };
       await this.logUsage(context, {
         integrationId,
         status: 'failed',
         durationMs: Date.now() - start,
         error: logError,
       }).catch(() => {});
-      throw err;
+      // CONVENTIONS §3.2 — runtime failures route to the `error` port with
+      // a standardized `output.error.{code,message,details}` envelope.
+      // `IntegrationError` carries the precise cause (INTEGRATION_INCOMPLETE,
+      // INTEGRATION_TYPE_MISMATCH, INTEGRATION_NOT_CONNECTED, …); preserve
+      // that code directly, falling back to `EMAIL_SEND_FAILED` only for
+      // generic transport failures.
+      const code =
+        err instanceof IntegrationError ? err.code : 'EMAIL_SEND_FAILED';
+      // CONVENTIONS §7 — error details must not leak full recipient lists
+      // or arbitrarily large subject lines. Mask addresses and truncate
+      // subject before echoing for downstream consumption.
+      const details: Record<string, unknown> = {
+        to: to.map(maskEmailForErrorDetails),
+        subject: truncateForErrorDetails(subject, 200),
+      };
+      if (err instanceof IntegrationError) {
+        details.integrationCode = err.code;
+      }
+      const durationMs = Date.now() - start;
+      return {
+        config: { integrationId, to, cc, subject, bodyType },
+        output: {
+          error: {
+            code,
+            message: safeMessage(err),
+            details,
+          },
+        },
+        meta: { durationMs, deliveryStatus: 'failed' },
+        port: 'error',
+      };
     }
   }
 

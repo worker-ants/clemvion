@@ -396,9 +396,22 @@ function TemplateContent({ data, previewOnly = false }: { data: Record<string, u
 }
 
 function FormSubmittedContent({ data }: { data: Record<string, unknown> }) {
-  const submittedData = (data.submittedData ?? data.formData) as
+  // Form submission payload lives at `output.interaction.data` per
+  // CONVENTIONS §4.5 (Stage 3 of the node-specs-improvement rollout,
+  // completed). Legacy executions may still carry `submittedData`
+  // (pre-migration) or `formData` (earliest drafts); fall through those
+  // paths so historical run records render without a migration backfill.
+  const interaction = data.interaction as
+    | { data?: unknown }
+    | undefined;
+  const interactionData =
+    interaction && typeof interaction === "object"
+      ? (interaction.data as Record<string, unknown> | undefined)
+      : undefined;
+  const legacyData = (data.submittedData ?? data.formData) as
     | Record<string, unknown>
     | undefined;
+  const submittedData = interactionData ?? legacyData;
   if (!submittedData) return <JsonContent data={data} />;
   return (
     <div className="space-y-1 text-xs">

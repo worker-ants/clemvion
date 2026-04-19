@@ -82,59 +82,49 @@
 
 > **포트 라우팅 메타데이터**: 버튼 클릭 시 output에 `_selectedPort`가 설정되어 엣지 기반 라우팅에 사용된다. 이 메타데이터는 다운스트림 노드의 input으로 전달될 때 자동으로 제거되어, pass-through 노드(Variable 등)를 거쳐도 이후 노드가 잘못 skip되지 않는다.
 
-**출력 형식 (Non-blocking, 기존과 동일):**
+**출력 형식 (Principle 1.1 / 4.3 / 4.5 기준):**
+
+Non-blocking (버튼 없음) — `output` 에는 런타임 생성값(`items`, `rendered`) 만. `layout` / `mode` / `titleField` / `descriptionField` / `imageField` / `buttons` / `itemButtons` 등 리터럴 config 는 `config` 에서 읽는다 (판별자 `type: 'carousel'` 제거).
 
 ```json
 {
-  "type": "carousel",
-  "items": [
-    {
-      "title": "...",
-      "description": "...",
-      "image": "..."
-    }
-  ],
-  "layout": "card",
-  "rendered": "<html>..."
-}
-```
-
-**버튼 포트 출력 형식 (port 버튼 클릭 시):**
-
-```json
-{
-  "type": "button_click",
-  "buttonId": "uuid",
-  "buttonLabel": "승인",
-  "clickedAt": "2026-04-06T10:30:00Z",
-  "selectedItem": { "title": "...", "description": "..." },
-  "nodeOutput": {
-    "type": "carousel",
-    "items": [ ... ],
-    "layout": "card",
-    "rendered": "<html>..."
+  "config": { "layout": "card", "mode": "static", "items": [ /* static 모드 정의 */ ] },
+  "output": {
+    "items": [ { "title": "…", "description": "…", "image": "…" } ],
+    "rendered": "<html>…"
   }
 }
 ```
 
-> `selectedItem`은 아이템 버튼 클릭 시에만 포함된다. 글로벌 버튼 클릭 시에는 생략된다.
-```
+Waiting (버튼 포함) — `status:'waiting_for_input'` + 위 `output` 유지.
 
-**Continue 포트 출력 형식 (Continue 클릭 시):**
+Resumed (버튼 클릭 후) — CONVENTIONS §4.5 의 `interaction` 규격:
 
 ```json
 {
-  "type": "button_continue",
-  "clickedAt": "2026-04-06T10:30:00Z",
-  "clickedBy": "user-uuid",
-  "nodeOutput": {
-    "type": "carousel",
-    "items": [ ... ],
-    "layout": "card",
-    "rendered": "<html>..."
-  }
+  "config": { "layout": "card", "mode": "static", "items": [ /* … */ ], "buttons": [ /* … */ ] },
+  "output": {
+    "items": [ /* 이전 스냅샷 유지 */ ],
+    "rendered": "<html>…",
+    "interaction": {
+      "type": "button_click",
+      "data": {
+        "buttonId": "uuid",
+        "buttonLabel": "승인",
+        "selectedItem": { "title": "…" }
+      },
+      "receivedAt": "2026-04-06T10:30:00Z"
+    },
+    "previousOutput": { /* Stage 3 전환기 호환 필드 — Phase 3 에서 제거 예정 */ }
+  },
+  "status": "resumed",
+  "port": "uuid"
 }
 ```
+
+Link 타입 버튼 Continue 클릭 시 `interaction.type = "button_continue"` + `data: { buttonId, buttonLabel, url }`, `port: "continue"`.
+
+> `selectedItem` 은 per-item 버튼(동적 item 버튼) 클릭 시에만 `data` 에 포함된다. 엔진은 per-item 버튼 ID 를 `${buttonId}__item_${index}` 형태로 생성하고, 라우팅 시 접미사를 제거해 원본 포트(`buttonId`) 로 연결한다.
 
 ### 1.4 설정 UI
 
@@ -318,21 +308,28 @@ column의 `field`/`label`에서 `{{ }}` 표현식을 사용할 때 다음 변수
 
 기존 변수 (`$input`, `$var`, `$node`, `$execution` 등)도 함께 사용 가능하다.
 
-**출력 형식:**
+**출력 형식 (Principle 1.1 / 4.3 기준):**
+
+`output` 에는 per-row 필터링/표현식 평가의 런타임 결과인 `rows`, 그 페이지 길이 `totalRows`, 렌더링된 HTML `rendered` 만. 컬럼 정의 / mode / pageSize / sortBy 등 리터럴 config 는 `config` 에서 읽는다 (판별자 `type: 'table'` 제거).
 
 ```json
 {
-  "type": "table",
-  "columns": [
-    { "field": "name", "label": "이름", "width": "200px" }
-  ],
-  "rows": [
-    { "name": "Kim", "email": "kim@example.com" }
-  ],
-  "totalRows": 1,
-  "rendered": "<html>..."
+  "config": {
+    "mode": "dynamic",
+    "columns": [ { "field": "name", "label": "이름", "width": "200px" } ],
+    "pageSize": 20,
+    "sortBy": "score",
+    "sortOrder": "asc"
+  },
+  "output": {
+    "rows": [ { "name": "Kim", "email": "kim@example.com" } ],
+    "totalRows": 1,
+    "rendered": "<table>…</table>"
+  }
 }
 ```
+
+버튼이 설정된 경우 `status:'waiting_for_input'` → 클릭 후 `status:'resumed'` + `output.interaction.{type,data,receivedAt}` 가 추가된다 (CONVENTIONS §4.5, carousel 과 동일).
 
 ### 2.4 설정 UI
 
@@ -483,20 +480,26 @@ X축 값이 중복되는 경우(예: 동일 월이 여러 행에 존재) `yAxis.
 | null X축 값 | X축 값이 null/undefined인 행은 차트에서 제외 |
 | 빈 결과 | aggregation 후 데이터가 0건이면 빈 차트 렌더링 (축만 표시) |
 
-**출력 형식:**
+**출력 형식 (Principle 1.1 / 4.3 기준):**
+
+`output` 에는 런타임 집계된 `data` (`{x, y}` 쌍 배열) 만. chartType / title / xAxis / yAxis / groupBy 등 리터럴 config 는 `config` 에서 읽는다 (판별자 `type: 'chart'` 제거).
 
 ```json
 {
-  "type": "chart",
-  "chartType": "bar",
   "config": {
+    "chartType": "bar",
+    "title": "Monthly Revenue",
     "xAxis": { "field": "month", "label": "월" },
-    "yAxis": { "field": "revenue", "label": "매출", "aggregation": "sum" },
-    "data": [ ... ]
+    "yAxis": { "field": "revenue", "label": "매출", "aggregation": "sum" }
   },
-  "rendered": "<svg>...</svg>"
+  "output": {
+    "data": [ { "x": "Jan", "y": 1200 }, { "x": "Feb", "y": 1500 } ],
+    "rendered": "<svg>…</svg>"
+  }
 }
 ```
+
+Carousel/Table 와 대칭으로 `output.rendered` 는 엔진이 생성한 SVG/HTML 스냅샷이다 (프런트 프리뷰 및 스크린샷/PDF 경로에서 소비). 버튼이 설정된 경우 `status:'waiting_for_input'` → `status:'resumed'` + `output.interaction.*` 흐름을 따른다.
 
 ### 3.4 설정 UI
 
@@ -636,19 +639,45 @@ Carousel §1.5와 동일한 접이식 "Buttons" 섹션을 Chart 설정 UI 하단
 
 > 폼 submit 시까지 무제한 대기합니다. (외부 cancel/종료 외에는 타임아웃이 발생하지 않습니다.)
 
-**출력 형식:**
+**출력 형식 (Principle 1.1 / 4.3 / 4.5 기준):**
+
+Waiting 상태 — `output` 은 **빈 객체**. title/fields/submitLabel 등 리터럴 config 값은 `output` 에 echo 하지 않으며, 후속 노드와 프런트 렌더러는 `$node["F"].config.*` 를 직접 참조한다.
 
 ```json
 {
-  "type": "form",
-  "submittedData": {
-    "approval": "approved",
-    "comment": "Looks good"
+  "config": {
+    "title": "Approval Request",
+    "submitLabel": "Submit",
+    "fields": [
+      { "name": "approval", "type": "select", "label": "승인 여부", "required": true },
+      { "name": "comment", "type": "textarea", "label": "코멘트" }
+    ]
   },
-  "submittedAt": "2026-03-29T10:30:00Z",
-  "submittedBy": "user-uuid"
+  "output": {},
+  "status": "waiting_for_input",
+  "meta": { "interactionType": "form", "durationMs": 0 }
 }
 ```
+
+Resumed 상태 — 제출 데이터는 `output.interaction.{type, data, receivedAt}` 에 담긴다.
+
+```json
+{
+  "config": { "title": "Approval Request", "submitLabel": "Submit", "fields": [/* … */] },
+  "output": {
+    "interaction": {
+      "type": "form_submitted",
+      "data": { "approval": "approved", "comment": "Looks good" },
+      "receivedAt": "2026-03-29T10:30:00Z"
+    }
+  },
+  "status": "resumed",
+  "port": "out",
+  "meta": { "interactionType": "form", "durationMs": 12340 }
+}
+```
+
+> 이전 초안의 `output.type: 'form'`, `output.submittedData` 필드는 **폐기**. Principle 1.1.4 (판별자 금지) 와 §4.5 (interaction payload) 를 따른다.
 
 ### 4.4 실행 엔진 연동
 
@@ -758,15 +787,23 @@ Handlebars 스타일 템플릿으로 입력 데이터를 바인딩하여 리치 
 6. **Blocking Mode** (`buttons`가 비어있지 않은 경우): Carousel §1.3과 동일한 블로킹 실행 흐름 — `waiting_for_input` 진입, 버튼 클릭/Continue 대기, 해당 포트로 라우팅 (외부 cancel/종료 전까지 무제한 대기)
 7. **Non-blocking** (`buttons`가 비어있는 경우): `out` 포트로 출력 전달 (기존과 동일)
 
-**출력 형식:**
+**출력 형식 (Principle 1.1 / 4.3 기준):**
+
+`output.rendered` 는 expression resolver 가 치환한 **런타임** 결과. 원본 템플릿 문자열과 `outputFormat` 은 `config` 에 echo된다 (판별자 `type: 'template'` 과 `output.format`/`output.content` 제거).
 
 ```json
 {
-  "type": "template",
-  "format": "html",
-  "content": "<h1>Monthly Report</h1><p>Total: 1,234</p>..."
+  "config": {
+    "outputFormat": "html",
+    "template": "<h1>{{title}}</h1><p>Total: {{count}}</p>"
+  },
+  "output": {
+    "rendered": "<h1>Monthly Report</h1><p>Total: 1,234</p>…"
+  }
 }
 ```
+
+버튼이 설정된 경우 `status:'waiting_for_input'` → `status:'resumed'` + `output.interaction.*` 흐름 (CONVENTIONS §4.5) 을 따른다.
 
 ### 5.4 설정 UI
 

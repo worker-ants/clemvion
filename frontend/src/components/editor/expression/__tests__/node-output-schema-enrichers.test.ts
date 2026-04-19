@@ -2,16 +2,24 @@ import { describe, it, expect, vi, afterEach } from "vitest";
 import { enrichInfoExtractorOutputSchema } from "../node-output-schema-enrichers";
 import type { JsonSchemaNode } from "@/lib/node-definitions/types";
 
+// Post Stage 1 of the node-specs-improvement rollout: info_extractor emits
+// `output.result.extracted.<field>` rather than `output.extracted.<field>`.
+// The autocomplete enricher injects user-declared fields at the new path.
 const baseSchema: JsonSchemaNode = {
   type: "object",
   properties: {
     output: {
       type: "object",
       properties: {
-        extracted: {
+        result: {
           type: "object",
           properties: {
-            existingFromSchema: { type: "string" },
+            extracted: {
+              type: "object",
+              properties: {
+                existingFromSchema: { type: "string" },
+              },
+            },
           },
         },
       },
@@ -44,14 +52,15 @@ describe("enrichInfoExtractorOutputSchema", () => {
     ).toBe(baseSchema);
   });
 
-  it("injects user-declared fields under output.extracted.properties", () => {
+  it("injects user-declared fields under output.result.extracted.properties", () => {
     const result = enrichInfoExtractorOutputSchema(baseSchema, {
       outputSchema: [
         { name: "orderId", type: "string", description: "Order identifier" },
         { name: "amount", type: "number" },
       ],
     });
-    const extracted = result?.properties?.output?.properties?.extracted;
+    const extracted =
+      result?.properties?.output?.properties?.result?.properties?.extracted;
     expect(extracted?.properties).toEqual({
       existingFromSchema: { type: "string" },
       orderId: { type: "string", description: "Order identifier" },
@@ -74,7 +83,8 @@ describe("enrichInfoExtractorOutputSchema", () => {
         { name: "noType" },
       ],
     });
-    const extracted = result?.properties?.output?.properties?.extracted;
+    const extracted =
+      result?.properties?.output?.properties?.result?.properties?.extracted;
     expect(extracted?.properties?.unknownType).toEqual({ type: "string" });
     expect(extracted?.properties?.noType).toEqual({ type: "string" });
   });
@@ -87,7 +97,7 @@ describe("enrichInfoExtractorOutputSchema", () => {
         { name: 123, type: "string" },
       ],
     });
-    // None of the bad entries were added → extracted.properties unchanged
+    // None of the bad entries were added → base schema passed through.
     expect(result).toBe(baseSchema);
   });
 
@@ -100,7 +110,8 @@ describe("enrichInfoExtractorOutputSchema", () => {
         { name: "safeName", type: "string" },
       ],
     });
-    const extracted = result?.properties?.output?.properties?.extracted;
+    const extracted =
+      result?.properties?.output?.properties?.result?.properties?.extracted;
     expect(Object.keys(extracted?.properties ?? {})).toEqual([
       "existingFromSchema",
       "safeName",
@@ -116,7 +127,8 @@ describe("enrichInfoExtractorOutputSchema", () => {
         { name: "valid_name", type: "string" },
       ],
     });
-    const extracted = result?.properties?.output?.properties?.extracted;
+    const extracted =
+      result?.properties?.output?.properties?.result?.properties?.extracted;
     expect(Object.keys(extracted?.properties ?? {})).toEqual([
       "existingFromSchema",
       "valid_name",
@@ -138,7 +150,7 @@ describe("enrichInfoExtractorOutputSchema", () => {
     expect(warn).toHaveBeenCalled();
   });
 
-  it("initializes output.properties when absent on valid output node", () => {
+  it("creates output.result.extracted when intermediate nodes are missing", () => {
     const shape: JsonSchemaNode = {
       type: "object",
       properties: { output: { type: "object" } },
@@ -146,7 +158,8 @@ describe("enrichInfoExtractorOutputSchema", () => {
     const result = enrichInfoExtractorOutputSchema(shape, {
       outputSchema: [{ name: "newField", type: "number" }],
     });
-    const extracted = result?.properties?.output?.properties?.extracted;
+    const extracted =
+      result?.properties?.output?.properties?.result?.properties?.extracted;
     expect(extracted?.properties).toEqual({ newField: { type: "number" } });
   });
 });

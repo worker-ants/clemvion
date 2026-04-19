@@ -1,5 +1,6 @@
 import {
   NodeHandler,
+  NodeHandlerOutput,
   ExecutionContext,
   ValidationResult,
 } from '../../core/node-handler.interface';
@@ -32,6 +33,18 @@ type EndReason =
   | 'timeout'
   | 'max_retries'
   | 'error';
+
+/**
+ * Strip undefined entries so JSON snapshots and downstream consumers don't
+ * need to guard against the key being present with an undefined value.
+ */
+function defined<T extends Record<string, unknown>>(obj: T): T {
+  const out: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(obj)) {
+    if (v !== undefined) out[k] = v;
+  }
+  return out as T;
+}
 
 interface LlmCallTrace {
   requestPayload: unknown;
@@ -135,7 +148,7 @@ export class InformationExtractorHandler implements NodeHandler {
     _input: unknown,
     config: Record<string, unknown>,
     context: ExecutionContext,
-  ): Promise<unknown> {
+  ): Promise<NodeHandlerOutput> {
     const llmConfigId = config.llmConfigId as string | undefined;
     const model = config.model as string | undefined;
     const inputField = config.inputField as string;
@@ -156,9 +169,21 @@ export class InformationExtractorHandler implements NodeHandler {
     );
     const jsonSchema = this.buildJsonSchema(outputSchema, false);
 
+    const startedAt = Date.now();
     const maxRetries = 2;
     let lastError: Error | undefined;
+    let lastResponse: string | undefined;
+    let lastModel: string | undefined;
     const llmCalls: LlmCallTrace[] = [];
+    const totalAttempts = maxRetries + 1;
+    const configEcho = {
+      mode: 'single_turn' as const,
+      model: model ?? llmConfig.defaultModel,
+      schema: outputSchema,
+      instructions,
+      examples,
+      inputField,
+    };
 
     for (let attempt = 0; attempt <= maxRetries; attempt++) {
       let call: { result: ChatResult; trace: LlmCallTrace };
@@ -173,21 +198,24 @@ export class InformationExtractorHandler implements NodeHandler {
           jsonSchema,
         });
       } catch (error) {
-        return {
-          port: 'error',
-          data: {
-            config: { schema: outputSchema },
-            output: {
-              error: error instanceof Error ? error.message : String(error),
-              originalInput: inputField,
-              _llmCalls: llmCalls,
-            },
-            meta: {},
+        const errMessage =
+          error instanceof Error ? error.message : String(error);
+        return this.buildErrorOutput(configEcho, {
+          code: 'LLM_CALL_FAILED',
+          message: errMessage,
+          details: {
+            attempts: attempt + 1,
+            originalInput: inputField,
           },
-        };
+          durationMs: Date.now() - startedAt,
+          model: lastModel,
+          turnDebug: this.buildSingleTurnDebug(llmCalls, startedAt),
+        });
       }
       llmCalls.push(call.trace);
       const result = call.result;
+      lastResponse = result.content ?? undefined;
+      lastModel = result.model;
 
       try {
         const extracted = JSON.parse(result.content || '{}') as Record<
@@ -196,18 +224,26 @@ export class InformationExtractorHandler implements NodeHandler {
         >;
 
         return {
-          port: 'out',
-          data: {
-            config: { schema: outputSchema },
-            output: { extracted, _llmCalls: llmCalls },
-            meta: {
-              model: result.model,
-              inputTokens: result.usage?.inputTokens ?? 0,
-              outputTokens: result.usage?.outputTokens ?? 0,
-              totalTokens: result.usage?.totalTokens ?? 0,
-              thinkingTokens: result.usage?.thinkingTokens,
+          config: configEcho,
+          output: {
+            result: {
+              extracted,
+              endReason: 'out' as const,
+              turnCount: 1,
+              originalInput: inputField,
             },
           },
+          meta: defined({
+            durationMs: Date.now() - startedAt,
+            model: result.model,
+            inputTokens: result.usage?.inputTokens ?? 0,
+            outputTokens: result.usage?.outputTokens ?? 0,
+            totalTokens: result.usage?.totalTokens ?? 0,
+            thinkingTokens: result.usage?.thinkingTokens ?? 0,
+            turnDebug: this.buildSingleTurnDebug(llmCalls, startedAt),
+          }),
+          port: 'out',
+          status: 'ended',
         };
       } catch (error) {
         lastError = error instanceof Error ? error : new Error(String(error));
@@ -218,18 +254,18 @@ export class InformationExtractorHandler implements NodeHandler {
     }
 
     // All retries exhausted — route to error port instead of throwing
-    return {
-      port: 'error',
-      data: {
-        config: { schema: outputSchema },
-        output: {
-          error: lastError?.message || 'Failed to extract information',
-          originalInput: inputField,
-          _llmCalls: llmCalls,
-        },
-        meta: {},
+    return this.buildErrorOutput(configEcho, {
+      code: 'LLM_RESPONSE_INVALID',
+      message: lastError?.message || 'Failed to extract information',
+      details: {
+        attempts: totalAttempts,
+        originalInput: inputField,
+        lastResponse,
       },
-    };
+      durationMs: Date.now() - startedAt,
+      model: lastModel,
+      turnDebug: this.buildSingleTurnDebug(llmCalls, startedAt),
+    });
   }
 
   // ======================================================================
@@ -294,6 +330,7 @@ export class InformationExtractorHandler implements NodeHandler {
       return this.buildWaitingResponse(state, '');
     }
 
+    const multiTurnStartedAt = Date.now();
     const messages: ChatMessage[] = [
       { role: 'system', content: systemPrompt },
       { role: 'user', content: inputField },
@@ -318,17 +355,17 @@ export class InformationExtractorHandler implements NodeHandler {
     );
 
     if (runResult.kind === 'error') {
-      return {
-        port: 'error',
-        data: {
-          config: { schema: outputSchema, mode: 'multi_turn' },
-          output: {
-            error: runResult.error,
-            originalInput: inputField,
-          },
-          meta: {},
+      return this.buildErrorOutput(this.multiTurnConfigEcho(stateBase), {
+        code: 'LLM_CALL_FAILED',
+        message: runResult.error,
+        details: {
+          originalInput: inputField,
+          turnCount: 0,
         },
-      };
+        durationMs: Date.now() - multiTurnStartedAt,
+        model: resolvedModel,
+        turnDebug: [],
+      });
     }
 
     const turnDurationMs = Date.now() - turnStartedAt;
@@ -348,14 +385,17 @@ export class InformationExtractorHandler implements NodeHandler {
       turnDebugHistory,
     };
 
+    const durationMs = Date.now() - multiTurnStartedAt;
     if (runResult.forcedEnd) {
-      return this.buildMultiTurnFinalOutput(state, runResult.forcedEnd);
+      return this.buildMultiTurnFinalOutput(state, runResult.forcedEnd, {
+        durationMs,
+      });
     }
     if (this.isComplete(state.partialResult, outputSchema)) {
-      return this.buildMultiTurnFinalOutput(state, 'completed');
+      return this.buildMultiTurnFinalOutput(state, 'completed', { durationMs });
     }
     if (maxTurns > 0 && turnIndex >= maxTurns) {
-      return this.buildMultiTurnFinalOutput(state, 'max_turns');
+      return this.buildMultiTurnFinalOutput(state, 'max_turns', { durationMs });
     }
     return this.buildWaitingResponse(state, runResult.followUp);
   }
@@ -375,6 +415,7 @@ export class InformationExtractorHandler implements NodeHandler {
       { role: 'user', content: userMessage },
     ];
 
+    const processStartedAt = Date.now();
     const turnStartedAt = Date.now();
     const llmCalls: LlmCallTrace[] = [];
     const turnIndex = state.turnCount + 1;
@@ -394,7 +435,26 @@ export class InformationExtractorHandler implements NodeHandler {
     );
 
     if (runResult.kind === 'error') {
-      return this.buildMultiTurnFinalOutput({ ...state, messages }, 'error');
+      return this.buildErrorOutput(this.multiTurnConfigEcho(state), {
+        code: 'LLM_CALL_FAILED',
+        message: runResult.error,
+        details: {
+          turnCount: state.turnCount,
+          collectionRetryCount: state.collectionRetryCount,
+        },
+        durationMs: Date.now() - processStartedAt,
+        model: state.model,
+        turnDebug: state.turnDebugHistory,
+        result: {
+          extracted: this.buildExtractedSnapshot(
+            state.partialResult,
+            state.outputSchema,
+          ),
+          endReason: 'error',
+          turnCount: state.turnCount,
+          messages,
+        },
+      });
     }
 
     const turnDurationMs = Date.now() - turnStartedAt;
@@ -414,14 +474,21 @@ export class InformationExtractorHandler implements NodeHandler {
       ],
     };
 
+    const durationMs = Date.now() - processStartedAt;
     if (runResult.forcedEnd) {
-      return this.buildMultiTurnFinalOutput(nextState, runResult.forcedEnd);
+      return this.buildMultiTurnFinalOutput(nextState, runResult.forcedEnd, {
+        durationMs,
+      });
     }
     if (this.isComplete(nextState.partialResult, state.outputSchema)) {
-      return this.buildMultiTurnFinalOutput(nextState, 'completed');
+      return this.buildMultiTurnFinalOutput(nextState, 'completed', {
+        durationMs,
+      });
     }
     if (state.maxTurns > 0 && turnIndex >= state.maxTurns) {
-      return this.buildMultiTurnFinalOutput(nextState, 'max_turns');
+      return this.buildMultiTurnFinalOutput(nextState, 'max_turns', {
+        durationMs,
+      });
     }
     return this.buildWaitingResponse(nextState, runResult.followUp);
   }
@@ -637,41 +704,193 @@ export class InformationExtractorHandler implements NodeHandler {
   buildMultiTurnFinalOutput(
     state: MultiTurnState,
     endReason: EndReason,
-  ): unknown {
+    opts: { durationMs?: number } = {},
+  ): NodeHandlerOutput {
     const totalTokens = state.totalInputTokens + state.totalOutputTokens;
-
-    // Always emit every schema field under `extracted` so downstream nodes
-    // can reference `$node.output.extracted.<field>` unconditionally. Missing
-    // values become `null` rather than disappearing.
-    const extracted: Record<string, unknown> = {};
-    for (const field of state.outputSchema) {
-      const v = state.partialResult[field.name];
-      extracted[field.name] = v === undefined ? null : v;
-    }
-
+    const extracted = this.buildExtractedSnapshot(
+      state.partialResult,
+      state.outputSchema,
+    );
     const port = this.portForEndReason(endReason);
 
-    return {
-      port,
-      data: {
-        config: { schema: state.outputSchema, mode: 'multi_turn' },
+    const meta = defined({
+      durationMs: opts.durationMs ?? 0,
+      model: state.model,
+      inputTokens: state.totalInputTokens,
+      outputTokens: state.totalOutputTokens,
+      totalTokens,
+      thinkingTokens: state.totalThinkingTokens,
+      collectionRetryCount: state.collectionRetryCount,
+      turnDebug: state.turnDebugHistory,
+    });
+
+    // `max_retries` is an error path but with partial extraction preserved.
+    // Both `output.error` and `output.result` coexist per CONVENTIONS §3.2.
+    if (endReason === 'max_retries') {
+      const missingFields = this.computeMissingFields(
+        state.partialResult,
+        state.outputSchema,
+      );
+      return {
+        config: this.multiTurnConfigEcho(state),
         output: {
+          error: {
+            code: 'MAX_COLLECTION_RETRIES_EXCEEDED' as const,
+            message:
+              state.maxCollectionRetries > 0
+                ? `LLM attempted finalize_extraction ${state.maxCollectionRetries + 1} times with missing required fields`
+                : 'Max collection retries exceeded',
+            details: {
+              extracted,
+              missingFields,
+              turnCount: state.turnCount,
+              collectionRetryCount: state.collectionRetryCount,
+            },
+          },
+          result: {
+            extracted,
+            endReason,
+            turnCount: state.turnCount,
+            messages: state.messages,
+          },
+        },
+        meta,
+        port,
+        status: 'ended',
+      };
+    }
+
+    // `error` endReason (LLM call failure mid-conversation) routes to the
+    // error port with partial result preserved for observability.
+    if (endReason === 'error') {
+      return {
+        config: this.multiTurnConfigEcho(state),
+        output: {
+          error: {
+            code: 'LLM_CALL_FAILED' as const,
+            message: 'Conversation terminated due to LLM call failure',
+            details: {
+              turnCount: state.turnCount,
+              collectionRetryCount: state.collectionRetryCount,
+            },
+          },
+          result: {
+            extracted,
+            endReason,
+            turnCount: state.turnCount,
+            messages: state.messages,
+          },
+        },
+        meta,
+        port,
+        status: 'ended',
+      };
+    }
+
+    return {
+      config: this.multiTurnConfigEcho(state),
+      output: {
+        result: {
           extracted,
-          messages: state.messages,
           endReason,
           turnCount: state.turnCount,
-          collectionRetryCount: state.collectionRetryCount,
-          _turnDebugHistory: state.turnDebugHistory,
-        },
-        meta: {
-          model: state.model,
-          inputTokens: state.totalInputTokens,
-          outputTokens: state.totalOutputTokens,
-          totalTokens,
-          thinkingTokens: state.totalThinkingTokens,
-          interactionType: 'ai_conversation',
+          messages: state.messages,
         },
       },
+      meta,
+      port,
+      status: 'ended',
+    };
+  }
+
+  /**
+   * Snapshot the current partialResult across the full schema, replacing
+   * missing fields with `null` so downstream references are stable.
+   */
+  private buildExtractedSnapshot(
+    partialResult: Record<string, unknown>,
+    outputSchema: OutputField[],
+  ): Record<string, unknown> {
+    const extracted: Record<string, unknown> = {};
+    for (const field of outputSchema) {
+      const v = partialResult[field.name];
+      extracted[field.name] = v === undefined ? null : v;
+    }
+    return extracted;
+  }
+
+  private multiTurnConfigEcho(state: {
+    model: string;
+    outputSchema: OutputField[];
+    instructions: string;
+    examples: Example[];
+    maxTurns: number;
+    maxCollectionRetries: number;
+  }): Record<string, unknown> {
+    return defined({
+      mode: 'multi_turn' as const,
+      model: state.model,
+      schema: state.outputSchema,
+      instructions: state.instructions,
+      examples: state.examples,
+      maxTurns: state.maxTurns,
+      maxCollectionRetries: state.maxCollectionRetries,
+    });
+  }
+
+  private buildSingleTurnDebug(
+    llmCalls: LlmCallTrace[],
+    startedAt: number,
+  ): TurnDebugEntry[] {
+    if (llmCalls.length === 0) return [];
+    return [
+      {
+        turnIndex: 1,
+        llmCalls,
+        totalDurationMs: Date.now() - startedAt,
+      },
+    ];
+  }
+
+  private buildErrorOutput(
+    configEcho: Record<string, unknown>,
+    params: {
+      code: string;
+      message: string;
+      details?: Record<string, unknown>;
+      durationMs: number;
+      model?: string;
+      turnDebug?: unknown[];
+      collectionRetryCount?: number;
+      result?: {
+        extracted: Record<string, unknown>;
+        endReason: EndReason;
+        turnCount: number;
+        messages: ChatMessage[];
+      };
+    },
+  ): NodeHandlerOutput {
+    const outputBody: Record<string, unknown> = {
+      error: defined({
+        code: params.code,
+        message: params.message,
+        details: params.details,
+      }),
+    };
+    if (params.result) {
+      outputBody.result = params.result;
+    }
+    return {
+      config: configEcho,
+      output: outputBody,
+      meta: defined({
+        durationMs: params.durationMs,
+        model: params.model,
+        collectionRetryCount: params.collectionRetryCount,
+        turnDebug: params.turnDebug,
+      }),
+      port: 'error',
+      status: 'ended',
     };
   }
 
@@ -720,7 +939,19 @@ export class InformationExtractorHandler implements NodeHandler {
         collectionRetryCount: state.collectionRetryCount,
         maxCollectionRetries: state.maxCollectionRetries,
       },
-      _multiTurnState: state,
+      // CONVENTIONS §4.3 — runtime calculated fields mirrored at top level
+      // so `$node["X"].output.messages` / `$node["X"].output.partial.*`
+      // resolves via the adapter's legacy-bare branch. `conversationConfig`
+      // above is retained for the live WS event and the in-flight frontend
+      // ConversationInspector; both paths will converge once the frontend
+      // migrates (tracked in memory/node-specs-improvement-progress.md).
+      messages: state.messages,
+      partial: {
+        extracted,
+        missingFields,
+        collectionRetryCount: state.collectionRetryCount,
+      },
+      _resumeState: state,
     };
   }
 

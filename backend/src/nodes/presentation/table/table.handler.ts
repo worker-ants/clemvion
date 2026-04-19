@@ -154,9 +154,13 @@ export class TableHandler implements NodeHandler {
 
     const rendered = this.renderHtml(resolvedColumns, columns, dataRows);
 
-    const payload = {
-      type: 'table',
-      columns: resolvedColumns,
+    // Runtime-only output (Principle 1.1): `rows` is the column-filtered /
+    // expression-resolved row set, `totalRows` is the paged length, and
+    // `rendered` is the generated HTML snapshot. Column definitions are
+    // literal config and live in `config` only (the handler resolves
+    // expression labels at runtime, so `resolvedColumns` stays in config
+    // because the set of columns itself is author-declared).
+    const payload: Record<string, unknown> = {
       rows: dataRows,
       totalRows: dataRows.length,
       rendered,
@@ -173,13 +177,14 @@ export class TableHandler implements NodeHandler {
       return Promise.resolve({
         config: {
           ...configEcho,
+          buttons,
           buttonConfig: {
             buttons,
           },
         },
         output: payload,
         status: 'waiting_for_input',
-        meta: { interactionType: 'buttons' },
+        meta: { interactionType: 'buttons', durationMs: 0 },
       });
     }
 

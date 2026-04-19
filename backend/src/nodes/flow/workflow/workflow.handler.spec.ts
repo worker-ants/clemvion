@@ -156,14 +156,18 @@ describe('WorkflowHandler', () => {
       );
     });
 
-    it('should propagate error when executeInline throws', async () => {
+    it('routes to error port when executeInline throws (CONVENTIONS §3.2)', async () => {
       mockExecutor.executeInline.mockRejectedValue(
         new Error('Expression error in config'),
       );
 
-      await expect(handler.execute({}, syncConfig, context)).rejects.toThrow(
-        'Expression error',
-      );
+      const result = (await handler.execute({}, syncConfig, context)) as {
+        port: string;
+        output: { error: { code: string; message: string } };
+      };
+      expect(result.port).toBe('error');
+      expect(result.output.error.code).toBe('SUB_WORKFLOW_FAILED');
+      expect(result.output.error.message).toContain('Expression error');
     });
 
     it('should pass recursionDepth + 1 to inline execution', async () => {
@@ -358,24 +362,65 @@ describe('WorkflowHandler', () => {
   });
 
   describe('execute - error propagation', () => {
-    it('should propagate async execution errors', async () => {
+    // Post Stage 4 follow-up: sub-workflow runtime failures route to the
+    // `error` port with CONVENTIONS §3.2 `output.error` envelope instead
+    // of throwing.
+    it('routes to error port on async executeAsync failure', async () => {
       mockExecutor.executeAsync.mockRejectedValue(
         new Error('Workflow not found: sub-wf-1'),
       );
 
-      await expect(
-        handler.execute({}, { workflowId: 'sub-wf-1', mode: 'async' }, context),
-      ).rejects.toThrow('Workflow not found');
+      const result = (await handler.execute(
+        {},
+        { workflowId: 'sub-wf-1', mode: 'async' },
+        context,
+      )) as {
+        port: string;
+        output: {
+          error: {
+            code: string;
+            message: string;
+            details?: Record<string, unknown>;
+          };
+        };
+      };
+      expect(result.port).toBe('error');
+      expect(result.output.error.code).toBe('SUB_WORKFLOW_FAILED');
+      expect(result.output.error.message).toContain('Workflow not found');
+      expect(result.output.error.details).toMatchObject({
+        workflowId: 'sub-wf-1',
+        mode: 'async',
+      });
     });
 
-    it('should propagate inline execution errors', async () => {
+    it('routes to error port on inline executeInline failure', async () => {
       mockExecutor.executeInline.mockRejectedValue(
         new Error('Node "Transform" exceeded maximum iteration count'),
       );
 
-      await expect(
-        handler.execute({}, { workflowId: 'sub-wf-1', mode: 'sync' }, context),
-      ).rejects.toThrow('exceeded maximum iteration count');
+      const result = (await handler.execute(
+        {},
+        { workflowId: 'sub-wf-1', mode: 'sync' },
+        context,
+      )) as {
+        port: string;
+        output: {
+          error: {
+            code: string;
+            message: string;
+            details?: Record<string, unknown>;
+          };
+        };
+      };
+      expect(result.port).toBe('error');
+      expect(result.output.error.code).toBe('SUB_WORKFLOW_FAILED');
+      expect(result.output.error.message).toContain(
+        'exceeded maximum iteration count',
+      );
+      expect(result.output.error.details).toMatchObject({
+        workflowId: 'sub-wf-1',
+        mode: 'sync',
+      });
     });
   });
 });

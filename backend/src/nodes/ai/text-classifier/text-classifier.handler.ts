@@ -5,6 +5,7 @@ import {
 } from '../../core/node-handler.interface';
 import { LlmService } from '../../../modules/llm/llm.service';
 import { ChatResult } from '../../../modules/llm/interfaces/llm-client.interface';
+import { truncateForErrorDetails } from '../../core/error-codes';
 
 interface Category {
   name: string;
@@ -98,10 +99,18 @@ export class TextClassifierHandler implements NodeHandler {
     try {
       result = await this.llmService.chat(llmConfig, requestPayload);
     } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      // CONVENTIONS §7 — truncate originalInput so long user prompts /
+      // PII don't land full-length in error envelope details.
+      const truncatedInput = truncateForErrorDetails(inputField, 500);
       return {
         config: { categories, inputField, multiLabel },
         output: {
-          error: error instanceof Error ? error.message : String(error),
+          error: {
+            code: 'LLM_CALL_FAILED',
+            message,
+            details: { originalInput: truncatedInput },
+          },
           originalInput: inputField,
           _llmCalls: [
             {
@@ -265,10 +274,11 @@ Respond ONLY with the JSON object, no additional text.`;
     return {
       config: { categories, inputField, multiLabel: false },
       output: {
-        category: isFallback ? null : category,
-        ...(includeConfidence ? { confidence } : {}),
-        originalInput: inputField,
-        _llmCalls: llmCalls,
+        result: {
+          category: isFallback ? null : category,
+          ...(includeConfidence ? { confidence } : {}),
+          originalInput: inputField,
+        },
       },
       meta: {
         model: result.model,
@@ -276,6 +286,7 @@ Respond ONLY with the JSON object, no additional text.`;
         outputTokens: result.usage?.outputTokens ?? 0,
         totalTokens: result.usage?.totalTokens ?? 0,
         thinkingTokens: result.usage?.thinkingTokens,
+        llmCalls,
       },
       port,
     };
@@ -330,9 +341,10 @@ Respond ONLY with the JSON object, no additional text.`;
     return {
       config: { categories, inputField, multiLabel: true },
       output: {
-        categories: matchedCategories,
-        originalInput: inputField,
-        _llmCalls: llmCalls,
+        result: {
+          categories: matchedCategories,
+          originalInput: inputField,
+        },
       },
       meta: {
         model: result.model,
@@ -340,6 +352,7 @@ Respond ONLY with the JSON object, no additional text.`;
         outputTokens: result.usage?.outputTokens ?? 0,
         totalTokens: result.usage?.totalTokens ?? 0,
         thinkingTokens: result.usage?.thinkingTokens,
+        llmCalls,
       },
       port,
     };

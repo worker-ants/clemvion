@@ -373,14 +373,22 @@ describe('ChartHandler', () => {
     });
 
     describe('output shape', () => {
-      it('should include chart type, title, and data in output payload', async () => {
+      it('should include runtime-aggregated data in output and literal config in config', async () => {
         const result = (await handler.execute(
           [{ category: 'A', value: 1 }],
           { ...config, title: 'My Chart' },
           context,
-        )) as { output: Record<string, unknown> };
-        expect(result.output).toMatchObject({
-          type: 'chart',
+        )) as {
+          output: Record<string, unknown>;
+          config: Record<string, unknown>;
+        };
+        // Discriminator + literal config fields are no longer echoed in output (Principle 1.1).
+        expect(result.output.type).toBeUndefined();
+        expect(result.output.chartType).toBeUndefined();
+        expect(result.output.title).toBeUndefined();
+        expect(Array.isArray(result.output.data)).toBe(true);
+        // Literal config lives in config.*
+        expect(result.config).toMatchObject({
           chartType: 'bar',
           title: 'My Chart',
         });

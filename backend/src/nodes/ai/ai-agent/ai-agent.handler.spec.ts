@@ -107,9 +107,12 @@ describe('AiAgentHandler', () => {
       );
 
       expect(mockLlmService.chat).toHaveBeenCalled();
-      const output = result as Record<string, unknown>;
-      expect(output.response).toBe('Hello! I am an AI assistant.');
-      expect(output.metadata).toBeDefined();
+      const r = result as Record<string, unknown>;
+      const out = r.output as Record<string, unknown>;
+      const res = out.result as Record<string, unknown>;
+      expect(res.response).toBe('Hello! I am an AI assistant.');
+      expect(r.meta).toBeDefined();
+      expect(r.status).toBe('ended');
     });
 
     it('should invoke RAG when knowledgeBases are configured', async () => {
@@ -156,8 +159,10 @@ describe('AiAgentHandler', () => {
         baseContext,
       );
 
-      const output = result as Record<string, unknown>;
-      expect(output.response).toEqual({ answer: '42' });
+      const r = result as Record<string, unknown>;
+      const out = r.output as Record<string, unknown>;
+      const res = out.result as Record<string, unknown>;
+      expect(res.response).toEqual({ answer: '42' });
     });
 
     it('should fallback to raw string when JSON parse fails', async () => {
@@ -177,8 +182,10 @@ describe('AiAgentHandler', () => {
         baseContext,
       );
 
-      const output = result as Record<string, unknown>;
-      expect(output.response).toBe('not valid json {{{');
+      const r = result as Record<string, unknown>;
+      const out = r.output as Record<string, unknown>;
+      const res = out.result as Record<string, unknown>;
+      expect(res.response).toBe('not valid json {{{');
     });
 
     it('should handle tool calling loop', async () => {
@@ -213,10 +220,12 @@ describe('AiAgentHandler', () => {
       );
 
       expect(mockLlmService.chat).toHaveBeenCalledTimes(2);
-      const output = result as Record<string, unknown>;
-      expect(output.response).toBe('Final answer after tool use');
-      const metadata = output.metadata as Record<string, unknown>;
-      expect(metadata.toolCalls).toBe(1);
+      const r = result as Record<string, unknown>;
+      const out = r.output as Record<string, unknown>;
+      const res = out.result as Record<string, unknown>;
+      expect(res.response).toBe('Final answer after tool use');
+      const meta = r.meta as Record<string, unknown>;
+      expect(meta.toolCalls).toBe(1);
     });
 
     it('should default to single_turn when mode is not set', async () => {
@@ -226,9 +235,12 @@ describe('AiAgentHandler', () => {
         baseContext,
       );
 
-      const output = result as Record<string, unknown>;
-      expect(output.response).toBeDefined();
-      expect(output.status).toBeUndefined(); // single_turn doesn't return status
+      const r = result as Record<string, unknown>;
+      const out = r.output as Record<string, unknown>;
+      const res = out.result as Record<string, unknown>;
+      expect(res.response).toBeDefined();
+      // Stage 5: single_turn now emits `status:'ended'` for observability.
+      expect(r.status).toBe('ended');
     });
   });
 
@@ -256,7 +268,7 @@ describe('AiAgentHandler', () => {
       expect(convConfig.maxTurns).toBe(10);
       expect(convConfig.messages).toHaveLength(3); // system + user + assistant
 
-      const state = output._multiTurnState as Record<string, unknown>;
+      const state = output._resumeState as Record<string, unknown>;
       expect(state.turnCount).toBe(1);
       expect(state.totalInputTokens).toBe(100);
       expect(state.totalOutputTokens).toBe(50);
@@ -285,7 +297,7 @@ describe('AiAgentHandler', () => {
       expect(convConfig.message).toBe('');
       expect(convConfig.messages).toHaveLength(1); // system only
 
-      const state = output._multiTurnState as Record<string, unknown>;
+      const state = output._resumeState as Record<string, unknown>;
       expect(state.turnCount).toBe(0);
       expect(state.totalInputTokens).toBe(0);
     });
@@ -303,7 +315,7 @@ describe('AiAgentHandler', () => {
       );
 
       const output = result as Record<string, unknown>;
-      const state = output._multiTurnState as Record<string, unknown>;
+      const state = output._resumeState as Record<string, unknown>;
       expect(state.lastTurnRequest).toBeDefined();
       expect((state.lastTurnRequest as Record<string, unknown>).model).toBe(
         'gpt-4o',
@@ -333,7 +345,7 @@ describe('AiAgentHandler', () => {
       );
 
       const output = result as Record<string, unknown>;
-      const state = output._multiTurnState as Record<string, unknown>;
+      const state = output._resumeState as Record<string, unknown>;
       const ragSources = state.ragSources as unknown[];
       expect(ragSources).toHaveLength(1);
     });
@@ -383,7 +395,7 @@ describe('AiAgentHandler', () => {
       expect(convConfig.message).toBe('Sure, I can help with that.');
       expect(convConfig.turnCount).toBe(2);
 
-      const newState = output._multiTurnState as Record<string, unknown>;
+      const newState = output._resumeState as Record<string, unknown>;
       expect(newState.turnCount).toBe(2);
       expect(newState.totalInputTokens).toBe(250);
       expect(newState.totalOutputTokens).toBe(80);
@@ -424,7 +436,7 @@ describe('AiAgentHandler', () => {
       const result = await handler.processMultiTurnMessage('Hi again', state);
 
       const newState = (result as Record<string, unknown>)
-        ._multiTurnState as Record<string, unknown>;
+        ._resumeState as Record<string, unknown>;
       expect(newState.lastTurnRequest).toBeDefined();
       expect(newState.lastTurnRequest).toEqual(
         expect.objectContaining({
@@ -517,12 +529,15 @@ describe('AiAgentHandler', () => {
         state,
       );
 
-      const output = result as Record<string, unknown>;
-      expect(output.status).toBeUndefined(); // final output has no status
-      expect(output.response).toBe('Goodbye!');
-      expect(output.endReason).toBe('max_turns');
-      expect(output.turnCount).toBe(2);
-      expect(output.messages).toBeDefined();
+      const r = result as Record<string, unknown>;
+      // Stage 5: terminal multi-turn emits unified shape with status:'ended'.
+      expect(r.status).toBe('ended');
+      const out = r.output as Record<string, unknown>;
+      const res = out.result as Record<string, unknown>;
+      expect(res.response).toBe('Goodbye!');
+      expect(res.endReason).toBe('max_turns');
+      expect(res.turnCount).toBe(2);
+      expect(res.messages).toBeDefined();
     });
 
     it('should perform RAG search on follow-up messages', async () => {
@@ -595,18 +610,20 @@ describe('AiAgentHandler', () => {
         },
       );
 
-      const output = result as Record<string, unknown>;
-      expect(output.response).toBe('Hello!');
-      expect(output.turnCount).toBe(3);
-      expect(output.endReason).toBe('user_ended');
-      expect(output.messages).toHaveLength(3);
+      const r = result as Record<string, unknown>;
+      const out = r.output as Record<string, unknown>;
+      const res = out.result as Record<string, unknown>;
+      expect(res.response).toBe('Hello!');
+      expect(res.turnCount).toBe(3);
+      expect(res.endReason).toBe('user_ended');
+      expect(res.messages as unknown[]).toHaveLength(3);
 
-      const metadata = output.metadata as Record<string, unknown>;
-      expect(metadata.model).toBe('gpt-4o');
-      expect(metadata.totalInputTokens).toBe(500);
-      expect(metadata.totalOutputTokens).toBe(200);
-      expect(metadata.totalTokens).toBe(700);
-      expect(metadata.toolCalls).toBe(1);
+      const meta = r.meta as Record<string, unknown>;
+      expect(meta.model).toBe('gpt-4o');
+      expect(meta.inputTokens).toBe(500);
+      expect(meta.outputTokens).toBe(200);
+      expect(meta.totalTokens).toBe(700);
+      expect(meta.toolCalls).toBe(1);
     });
   });
 
@@ -794,10 +811,13 @@ describe('AiAgentHandler', () => {
       )) as Record<string, unknown>;
 
       expect(result.port).toBe('a1b2c3d4-refund');
-      expect(result.data).toBeDefined();
-      const data = result.data as Record<string, unknown>;
-      expect(data.condition).toBeDefined();
-      const condition = data.condition as Record<string, unknown>;
+      expect(result.status).toBe('ended');
+      // Stage 5: condition-triggered output follows unified shape:
+      // { output: { result: { ..., condition:{id,label,reason} } }, meta, port, status }
+      const out = result.output as Record<string, unknown>;
+      const res = out.result as Record<string, unknown>;
+      expect(res.condition).toBeDefined();
+      const condition = res.condition as Record<string, unknown>;
       expect(condition.id).toBe('a1b2c3d4-refund');
       expect(condition.label).toBe('Refund');
     });
@@ -881,9 +901,12 @@ describe('AiAgentHandler', () => {
         baseContext,
       )) as Record<string, unknown>;
 
-      // Default mock returns no toolCalls, so should go to normal output
-      expect(result.port).toBeUndefined();
-      expect(result.response).toBe('Hello! I am an AI assistant.');
+      // Default mock returns no toolCalls, so should go to the normal
+      // `out` port (single-turn unified shape).
+      expect(result.port).toBe('out');
+      const out = result.output as Record<string, unknown>;
+      const res = out.result as Record<string, unknown>;
+      expect(res.response).toBe('Hello! I am an AI assistant.');
     });
   });
 
@@ -939,10 +962,11 @@ describe('AiAgentHandler', () => {
       )) as Record<string, unknown>;
 
       expect(result.port).toBe('a1b2c3d4-refund');
-      expect(result.data).toBeDefined();
-      const data = result.data as Record<string, unknown>;
-      expect(data.endReason).toBe('condition');
-      expect(data.condition).toBeDefined();
+      expect(result.status).toBe('ended');
+      const out = result.output as Record<string, unknown>;
+      const res = out.result as Record<string, unknown>;
+      expect(res.endReason).toBe('condition');
+      expect(res.condition).toBeDefined();
     });
 
     it('should pass conditions to multiTurnState from execute', async () => {
@@ -959,7 +983,7 @@ describe('AiAgentHandler', () => {
         baseContext,
       )) as Record<string, unknown>;
 
-      const state = result._multiTurnState as Record<string, unknown>;
+      const state = result._resumeState as Record<string, unknown>;
       expect(state.conditions).toBeDefined();
       expect(state.conditions).toHaveLength(1);
     });
@@ -987,8 +1011,10 @@ describe('AiAgentHandler', () => {
         },
       );
 
-      const output = result as Record<string, unknown>;
-      expect(output.endReason).toBe('condition');
+      const r = result as Record<string, unknown>;
+      const out = r.output as Record<string, unknown>;
+      const res = out.result as Record<string, unknown>;
+      expect(res.endReason).toBe('condition');
     });
 
     it('should support error endReason', () => {
@@ -1000,8 +1026,10 @@ describe('AiAgentHandler', () => {
         ragSources: [],
       });
 
-      const output = result as Record<string, unknown>;
-      expect(output.endReason).toBe('error');
+      const r = result as Record<string, unknown>;
+      const out = r.output as Record<string, unknown>;
+      const res = out.result as Record<string, unknown>;
+      expect(res.endReason).toBe('error');
     });
   });
 });

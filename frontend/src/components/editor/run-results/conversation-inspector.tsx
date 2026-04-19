@@ -6,6 +6,7 @@ import { Loader2, Send, Square, Wrench, ChevronRight, ChevronDown } from "lucide
 import { cn } from "@/lib/utils/cn";
 import type { ConversationItem, ToolCallInfo } from "@/lib/stores/execution-store";
 import type { NodeResult } from "@/lib/stores/execution-store";
+import { resolveResultField } from "./resolve-result-field";
 
 function ToolCallBadge({ toolCalls }: { toolCalls: ToolCallInfo[] }) {
   const [open, setOpen] = useState(false);
@@ -253,11 +254,14 @@ function SummaryView({
       ? (rawOutput.output as Record<string, unknown> | null)
       : rawOutput;
 
-  // Full conversation thread (shown in both Live and History)
+  // Full conversation thread (shown in both Live and History). Post-Stage-5
+  // ai_agent writes messages at `output.result.messages`; legacy runs kept
+  // them at `output.messages`. `resolveResultField` handles both paths.
   const items = useMemo(() => {
     if (isLive) return conversationMessages;
-    if (!output?.messages) return conversationMessages;
-    const msgs = output.messages as Array<{ role: string; content: string }>;
+    const msgsRaw = resolveResultField<unknown[]>(output, "messages");
+    if (!Array.isArray(msgsRaw)) return conversationMessages;
+    const msgs = msgsRaw as Array<{ role: string; content: string }>;
     let turnCounter = 0;
     return msgs
       .filter((m) => m.role === "user" || m.role === "assistant")
@@ -275,11 +279,15 @@ function SummaryView({
     <div className="flex flex-col gap-4">
       {/* Turn counter */}
       <div className="text-xs font-medium text-[hsl(var(--muted-foreground))]">
-        {isLive
-          ? `Turn ${(config?.turnCount as number) ?? items.filter((m) => m.type === "user").length} / ${(config?.maxTurns as number) || "∞"}`
-          : output
-            ? `${output.turnCount as number} turns — ${output.endReason as string}`
-            : "Conversation"}
+        {(() => {
+          if (isLive) {
+            return `Turn ${(config?.turnCount as number) ?? items.filter((m) => m.type === "user").length} / ${(config?.maxTurns as number) || "∞"}`;
+          }
+          if (!output) return "Conversation";
+          const turnCount = resolveResultField<number>(output, "turnCount");
+          const endReason = resolveResultField<string>(output, "endReason");
+          return `${turnCount ?? "?"} turns — ${endReason ?? ""}`;
+        })()}
       </div>
 
       {/* Full conversation thread */}

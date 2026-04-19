@@ -1,0 +1,95 @@
+/**
+ * Canonical error-code enum for node handlers' `output.error.code`.
+ *
+ * CONVENTIONS §3.2 — runtime failures emitted by a node handler follow
+ * the shape `{ code, message, details? }` and route to the `error` port.
+ * Codes are UPPER_SNAKE_CASE and grouped by node category for grep-ability.
+ */
+export const ErrorCode = {
+  // HTTP
+  HTTP_TRANSPORT_FAILED: 'HTTP_TRANSPORT_FAILED',
+  HTTP_4XX: 'HTTP_4XX',
+  HTTP_5XX: 'HTTP_5XX',
+  HTTP_TIMEOUT: 'HTTP_TIMEOUT',
+  // Database
+  DB_QUERY_FAILED: 'DB_QUERY_FAILED',
+  DB_CONNECTION_FAILED: 'DB_CONNECTION_FAILED',
+  // Email
+  EMAIL_SEND_FAILED: 'EMAIL_SEND_FAILED',
+  // LLM
+  LLM_CALL_FAILED: 'LLM_CALL_FAILED',
+  LLM_RATE_LIMITED: 'LLM_RATE_LIMITED',
+  LLM_RESPONSE_INVALID: 'LLM_RESPONSE_INVALID',
+  LLM_TIMEOUT: 'LLM_TIMEOUT',
+  MAX_COLLECTION_RETRIES_EXCEEDED: 'MAX_COLLECTION_RETRIES_EXCEEDED',
+  // Code execution
+  CODE_EXECUTION_FAILED: 'CODE_EXECUTION_FAILED',
+  CODE_TIMEOUT: 'CODE_TIMEOUT',
+  // Workflow / sub-workflow
+  SUB_WORKFLOW_FAILED: 'SUB_WORKFLOW_FAILED',
+  // Interaction / blocking — user-cancellation & timeout on presentation
+  // or AI-conversation waits. Presentation node engine paths raise these
+  // when a `waitFor*` promise is rejected externally.
+  USER_CANCELLED: 'USER_CANCELLED',
+  INTERACTION_TIMEOUT: 'INTERACTION_TIMEOUT',
+} as const;
+
+export type ErrorCodeValue = (typeof ErrorCode)[keyof typeof ErrorCode];
+
+/**
+ * Build a standardized runtime-error `output.error` envelope. `details` is
+ * free-form per node; callers should ensure it's JSON-serializable.
+ */
+export function buildErrorEnvelope(
+  code: ErrorCodeValue,
+  message: string,
+  details?: Record<string, unknown>,
+): {
+  code: ErrorCodeValue;
+  message: string;
+  details?: Record<string, unknown>;
+} {
+  return details === undefined ? { code, message } : { code, message, details };
+}
+
+/**
+ * Truncate a user-supplied string before embedding it in an error envelope's
+ * `details`. LLM prompts, emails, form inputs etc. may exceed reasonable
+ * envelope sizes or leak PII when echoed verbatim. Default cap is 500 chars.
+ */
+export function truncateForErrorDetails(
+  value: unknown,
+  maxLen = 500,
+): string | undefined {
+  if (value === null || value === undefined) return undefined;
+  let str: string;
+  if (typeof value === 'string') {
+    str = value;
+  } else if (typeof value === 'number' || typeof value === 'boolean') {
+    str = String(value);
+  } else {
+    // Fallback for objects/arrays — JSON serialise so the result is
+    // readable and doesn't end up as "[object Object]".
+    try {
+      str = JSON.stringify(value);
+    } catch {
+      str = '[unserializable]';
+    }
+  }
+  if (str.length <= maxLen) return str;
+  return `${str.slice(0, maxLen)}…(+${str.length - maxLen} chars truncated)`;
+}
+
+/**
+ * Mask an email address for error `details`. Keeps the first character of
+ * the local-part + domain suffix so operators can recognise the account
+ * without exposing the full identifier. `alice@example.com` → `a***@example.com`.
+ */
+export function maskEmailForErrorDetails(email: string): string {
+  const at = email.indexOf('@');
+  if (at <= 0) return '***';
+  const local = email.slice(0, at);
+  const domain = email.slice(at + 1);
+  const masked = local.length <= 1 ? '***' : `${local[0]}***`;
+  return `${masked}@${domain}`;
+}

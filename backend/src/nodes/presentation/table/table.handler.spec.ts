@@ -139,7 +139,7 @@ describe('TableHandler', () => {
         context,
       )) as Record<string, unknown>;
 
-      expect(result.output.type).toBe('table');
+      expect(result.output.type).toBeUndefined();
       const rows = result.output.rows as Array<Record<string, unknown>>;
       expect(rows).toHaveLength(2);
       expect(rows[0]).toEqual({ name: 'Alice', email: 'alice@test.com' });
@@ -316,7 +316,7 @@ describe('TableHandler', () => {
         context,
       )) as Record<string, unknown>;
 
-      expect(result.output.type).toBe('table');
+      expect(result.output.type).toBeUndefined();
       const rows = result.output.rows as Array<Record<string, unknown>>;
       expect(rows).toHaveLength(2);
       expect(rows[0]).toEqual({ col0: 'User Count', col1: '42' });
@@ -402,7 +402,7 @@ describe('TableHandler', () => {
         context,
       )) as Record<string, unknown>;
 
-      expect(result.output.type).toBe('table');
+      expect(result.output.type).toBeUndefined();
       const rows = result.output.rows as Array<Record<string, unknown>>;
       expect(rows[0]).toEqual({ name: 'Test' });
     });
