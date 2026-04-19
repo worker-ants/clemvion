@@ -1,6 +1,7 @@
 import {
   adaptHandlerReturn,
   toEngineFlatShape,
+  wrapBareAsNodeHandlerOutput,
 } from './handler-output.adapter';
 
 describe('adaptHandlerReturn', () => {
@@ -42,6 +43,91 @@ describe('adaptHandlerReturn', () => {
         _resumeState: resumeState,
       });
       expect(result._resumeState).toBe(resumeState);
+    });
+  });
+
+  describe('production-strict mode (NODE_ENV=production)', () => {
+    const prevEnv = process.env.NODE_ENV;
+    beforeEach(() => {
+      process.env.NODE_ENV = 'production';
+    });
+    afterEach(() => {
+      process.env.NODE_ENV = prevEnv;
+    });
+
+    it('throws when a handler returns a bare object in production', () => {
+      expect(() => adaptHandlerReturn({ foo: 1 })).toThrow(
+        /NodeHandlerOutput contract/,
+      );
+    });
+
+    it('throws when a handler returns null in production', () => {
+      expect(() => adaptHandlerReturn(null)).toThrow(/contract/);
+    });
+
+    it('throws when a handler returns a primitive in production', () => {
+      expect(() => adaptHandlerReturn(42)).toThrow(/contract/);
+    });
+
+    it('throws when a handler returns legacy port-selector in production', () => {
+      expect(() => adaptHandlerReturn({ port: 'x', data: { y: 1 } })).toThrow(
+        /contract/,
+      );
+    });
+
+    it('still passes canonical shape through in production', () => {
+      const raw = {
+        config: { url: 'https://x' },
+        output: { response: 'ok' },
+        port: 'success',
+      };
+      expect(adaptHandlerReturn(raw)).toEqual(raw);
+    });
+
+    it('truncates long bare shapes in the error preview', () => {
+      const big = { a: 'x'.repeat(1000) };
+      expect(() => adaptHandlerReturn(big)).toThrow(/got \{[^]{1,220}/);
+    });
+
+    it('handles unserialisable values gracefully in the error message', () => {
+      const circular: Record<string, unknown> = { self: null };
+      circular.self = circular;
+      expect(() => adaptHandlerReturn(circular)).toThrow(/contract/);
+    });
+  });
+
+  describe('wrapBareAsNodeHandlerOutput (exported test helper)', () => {
+    it('wraps bare objects identically to the non-strict branch', () => {
+      expect(wrapBareAsNodeHandlerOutput({ a: 1 })).toEqual({
+        config: {},
+        output: { a: 1 },
+      });
+    });
+
+    it('lifts status / port / _resumeState from bare objects', () => {
+      const state = { turn: 1 };
+      const adapted = wrapBareAsNodeHandlerOutput({
+        status: 'waiting_for_input',
+        port: 'out',
+        _resumeState: state,
+        rest: true,
+      });
+      expect(adapted.status).toBe('waiting_for_input');
+      expect(adapted.port).toBe('out');
+      expect(adapted._resumeState).toBe(state);
+    });
+
+    it('is callable in production mode (bypasses strict guard)', () => {
+      const prevEnv = process.env.NODE_ENV;
+      process.env.NODE_ENV = 'production';
+      try {
+        expect(wrapBareAsNodeHandlerOutput({ foo: 1 })).toEqual({
+          config: {},
+          output: { foo: 1 },
+        });
+      } finally {
+        process.env.NODE_ENV = prevEnv;
+      }
     });
   });
 
