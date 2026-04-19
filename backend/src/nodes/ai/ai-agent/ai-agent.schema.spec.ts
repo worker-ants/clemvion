@@ -54,6 +54,10 @@ describe('aiAgentNodeConfigSchema', () => {
       group: 'Multi Turn Settings',
       visibleWhen: { field: 'mode', equals: 'multi_turn' },
     });
+    expect(jsonSchema.properties?.systemPrompt?.ui).toMatchObject({
+      widget: 'expression',
+      multiline: true,
+    });
   });
 });
 

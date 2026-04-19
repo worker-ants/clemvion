@@ -121,6 +121,9 @@ export function ExpressionWidget({ ui, label, value, onChange, required }: Widge
       value={value == null ? "" : String(value)}
       onChange={onChange}
       placeholder={translateBackendPlaceholder(ui?.placeholder, locale)}
+      hint={translateBackendHint(ui?.hint, locale)}
+      multiline={ui?.multiline}
+      rows={ui?.rows}
       required={required}
     />
   );
