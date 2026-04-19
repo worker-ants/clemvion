@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import { ChevronDown, ChevronRight } from "lucide-react";
 import type { JsonSchemaNode, UiHint } from "@/lib/node-definitions";
-import { isFieldVisible } from "./visibility";
+import { isFieldRequired, isFieldVisible } from "./visibility";
 import { humanize, pickWidget, applyClearFields } from "./utils";
 import {
   TextWidget,
@@ -154,6 +154,7 @@ export function SchemaForm({ schema, value, onChange }: SchemaFormProps) {
     if (!isFieldVisible(ui, value)) return null;
     const Widget = pickWidget<WidgetProps>(fieldSchema, ui, PRIMITIVES);
     const label = translateBackendLabel(ui?.label, locale) ?? humanize(key);
+    const required = isFieldRequired(ui, key, schema.required, value);
     return (
       <Widget
         key={key}
@@ -162,6 +163,7 @@ export function SchemaForm({ schema, value, onChange }: SchemaFormProps) {
         label={label}
         value={value[key]}
         onChange={(v) => update(key, v, ui)}
+        required={required}
       />
     );
   };

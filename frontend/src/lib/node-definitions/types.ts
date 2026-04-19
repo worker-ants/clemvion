@@ -51,6 +51,22 @@ export type UiHint = {
     | { field: string; equals: unknown }
     | { field: string; notEquals: unknown }
     | { field: string; oneOf: readonly unknown[] };
+  /**
+   * Marks the field as always required for UI purposes. Use when zod `.default(...)`
+   * makes a field optional in the JSON Schema's `required` array but the handler
+   * still treats it as mandatory (e.g. each carousel item's title).
+   */
+  required?: boolean;
+  /**
+   * Marks the field as required only when the rule matches the current config.
+   * Same shape as `visibleWhen`. Used for UI cues (asterisk) when zod's static
+   * `required` can't express a mode-dependent constraint — e.g. Carousel's
+   * `titleField` is only required in dynamic mode.
+   */
+  requiredWhen?:
+    | { field: string; equals: unknown }
+    | { field: string; notEquals: unknown }
+    | { field: string; oneOf: readonly unknown[] };
   options?: { value: string; label: string }[];
   language?: string;
   itemLabel?: string;

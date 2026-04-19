@@ -11,18 +11,34 @@ import { useT } from "@/lib/i18n";
 
 // Shared form field components for node config forms
 
+export function RequiredMark() {
+  return (
+    <span
+      className="ml-0.5 text-red-500"
+      aria-hidden="true"
+    >
+      *
+    </span>
+  );
+}
+
 export function FieldGroup({
   label,
   children,
   hint,
+  required,
 }: {
   label: React.ReactNode;
   children: React.ReactNode;
   hint?: string;
+  required?: boolean;
 }) {
   return (
     <div className="flex flex-col gap-1.5">
-      <Label className="text-xs">{label}</Label>
+      <Label className="text-xs">
+        {label}
+        {required && <RequiredMark />}
+      </Label>
       {children}
       {hint && (
         <span className="text-[10px] text-[hsl(var(--muted-foreground))]">
@@ -39,18 +55,21 @@ export function SelectField({
   onChange,
   options,
   hint,
+  required,
 }: {
   label: React.ReactNode;
   value: string;
   onChange: (value: string) => void;
   options: { value: string; label: string }[];
   hint?: string;
+  required?: boolean;
 }) {
   return (
-    <FieldGroup label={label} hint={hint}>
+    <FieldGroup label={label} hint={hint} required={required}>
       <select
         value={value}
         onChange={(e) => onChange(e.target.value)}
+        aria-required={required || undefined}
         className="h-8 rounded-md border border-[hsl(var(--input))] bg-transparent px-2 text-xs text-[hsl(var(--foreground))]"
       >
         {options.map((opt) => (
@@ -70,6 +89,7 @@ export function NumberField({
   min,
   max,
   hint,
+  required,
 }: {
   label: React.ReactNode;
   value: number;
@@ -77,15 +97,17 @@ export function NumberField({
   min?: number;
   max?: number;
   hint?: string;
+  required?: boolean;
 }) {
   return (
-    <FieldGroup label={label} hint={hint}>
+    <FieldGroup label={label} hint={hint} required={required}>
       <Input
         type="number"
         value={value}
         onChange={(e) => onChange(Number(e.target.value))}
         min={min}
         max={max}
+        aria-required={required || undefined}
         className="h-8 text-xs"
       />
     </FieldGroup>
@@ -100,6 +122,7 @@ export function TextAreaField({
   placeholder,
   hint,
   mono,
+  required,
 }: {
   label: string;
   value: string;
@@ -108,14 +131,16 @@ export function TextAreaField({
   placeholder?: string;
   hint?: string;
   mono?: boolean;
+  required?: boolean;
 }) {
   return (
-    <FieldGroup label={label} hint={hint}>
+    <FieldGroup label={label} hint={hint} required={required}>
       <textarea
         value={value}
         onChange={(e) => onChange(e.target.value)}
         rows={rows ?? 4}
         placeholder={placeholder}
+        aria-required={required || undefined}
         className={cn(
           "rounded-md border border-[hsl(var(--input))] bg-transparent px-3 py-2 text-xs text-[hsl(var(--foreground))] placeholder:text-[hsl(var(--muted-foreground))] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--ring))]",
           mono && "font-mono",
@@ -129,10 +154,12 @@ export function CheckboxField({
   label,
   checked,
   onChange,
+  required,
 }: {
   label: React.ReactNode;
   checked: boolean;
   onChange: (checked: boolean) => void;
+  required?: boolean;
 }) {
   const reactId = useId();
   const id =
@@ -146,10 +173,12 @@ export function CheckboxField({
         id={id}
         checked={checked}
         onChange={(e) => onChange(e.target.checked)}
+        aria-required={required || undefined}
         className="h-4 w-4 rounded border-[hsl(var(--input))]"
       />
       <Label htmlFor={id} className="text-xs">
         {label}
+        {required && <RequiredMark />}
       </Label>
     </div>
   );
@@ -162,6 +191,7 @@ export function KeyValueEditor({
   keyPlaceholder,
   valuePlaceholder,
   expressionValues,
+  required,
 }: {
   label: string;
   items: { key: string; value: string }[];
@@ -170,6 +200,7 @@ export function KeyValueEditor({
   valuePlaceholder?: string;
   /** When true, value fields render as ExpressionInput with autocomplete */
   expressionValues?: boolean;
+  required?: boolean;
 }) {
   const t = useT();
   const addItem = () => onChange([...items, { key: "", value: "" }]);
@@ -178,7 +209,7 @@ export function KeyValueEditor({
     onChange(items.map((item, idx) => (idx === i ? { ...item, [field]: val } : item)));
 
   return (
-    <FieldGroup label={label}>
+    <FieldGroup label={label} required={required}>
       <div className="flex flex-col gap-1">
         {items.map((item, i) => (
           <div key={i} className="flex gap-1">

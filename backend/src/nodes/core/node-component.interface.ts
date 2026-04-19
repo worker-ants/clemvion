@@ -162,6 +162,22 @@ export interface UiHint {
     | { field: string; equals: unknown }
     | { field: string; notEquals: unknown }
     | { field: string; oneOf: unknown[] };
+  /**
+   * Marks the field as always required for UI purposes. Use when zod `.default(...)`
+   * makes a field optional in the JSON Schema's `required` array but the handler
+   * still treats it as mandatory (e.g. each carousel item's title).
+   */
+  required?: boolean;
+  /**
+   * Required DSL for UI cues (asterisk) when zod's static `required` can't
+   * express a mode-dependent constraint — e.g. Carousel's `titleField` is
+   * only required in dynamic mode. Runtime enforcement still belongs to
+   * `NodeHandler.validate()`.
+   */
+  requiredWhen?:
+    | { field: string; equals: unknown }
+    | { field: string; notEquals: unknown }
+    | { field: string; oneOf: unknown[] };
   /** Options for `widget: 'select'` when not derivable from z.enum. */
   options?: { value: string; label: string }[];
   /** For 'code' widget — language hint (javascript, sql, json, handlebars). */

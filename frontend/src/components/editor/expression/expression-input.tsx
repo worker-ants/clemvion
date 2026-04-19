@@ -24,6 +24,8 @@ interface ExpressionInputProps {
   mono?: boolean;
   /** When true, renders only the input without label/wrapper/hint (for inline use) */
   bare?: boolean;
+  /** When true, renders a red asterisk after the label. */
+  required?: boolean;
 }
 
 const EXPR_BLOCK_RE = /\{\{.+?\}\}/g;
@@ -66,6 +68,7 @@ export function ExpressionInput({
   rows = 4,
   mono = false,
   bare = false,
+  required = false,
 }: ExpressionInputProps) {
   // Coerce non-string values (numbers, nulls from older configs) so callers
   // don't crash on `value.includes`. Upstream callers should pass strings —
@@ -352,7 +355,14 @@ export function ExpressionInput({
 
   return (
     <div className="flex flex-col gap-1.5" ref={containerRef}>
-      <Label className="text-xs">{fieldLabel}</Label>
+      <Label className="text-xs">
+        {fieldLabel}
+        {required && (
+          <span className="ml-0.5 text-red-500" aria-hidden="true">
+            *
+          </span>
+        )}
+      </Label>
       {inputContent}
 
       {syntaxError ? (

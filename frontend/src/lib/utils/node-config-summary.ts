@@ -167,6 +167,27 @@ function buttonSuffix(config: NodeConfig): string | null {
 function carouselSummary(config: NodeConfig): ConfigSummaryResult {
   const mode = (config.mode as string) ?? "dynamic";
   const layout = (config.layout as string) || "card";
+
+  // Mirror backend validate() (carousel.handler.ts). These checks run before
+  // the button suffix so the warning is never hidden by unrelated state.
+  if (mode === "dynamic") {
+    const titleField = config.titleField as string | undefined;
+    if (!titleField) return warning("Title field not set");
+  } else if (mode === "static") {
+    const items = Array.isArray(config.items) ? config.items : [];
+    if (items.length === 0) return warning("No items defined");
+    const missingTitle = items.some(
+      (it) =>
+        !it ||
+        typeof it !== "object" ||
+        typeof (it as Record<string, unknown>).title !== "string" ||
+        !((it as Record<string, unknown>).title as string),
+    );
+    if (missingTitle) return warning("Item title missing");
+  } else {
+    return warning("Mode not set");
+  }
+
   const btnSuffix = buttonSuffix(config);
   if (btnSuffix) {
     return { text: `${layout} \u00b7 ${btnSuffix}`, isWarning: false };
@@ -175,9 +196,7 @@ function carouselSummary(config: NodeConfig): ConfigSummaryResult {
     const items = Array.isArray(config.items) ? config.items : [];
     return { text: `${layout} \u00b7 ${items.length} items`, isWarning: false };
   }
-  const titleField = config.titleField as string | undefined;
-  if (titleField) return { text: `${layout} \u00b7 ${titleField}`, isWarning: false };
-  return { text: layout, isWarning: false };
+  return { text: `${layout} \u00b7 ${config.titleField as string}`, isWarning: false };
 }
 
 function tableSummary(config: NodeConfig): ConfigSummaryResult {
