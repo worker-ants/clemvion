@@ -424,6 +424,111 @@ describe("ResultDetail", () => {
     });
   });
 
+  describe("meta / port / status tabs", () => {
+    it("shows Meta tab with raw meta JSON when meta is present", () => {
+      render(
+        <ResultDetail
+          result={makeResult({
+            nodeType: "http_request",
+            nodeCategory: "integration",
+            outputData: {
+              config: {},
+              output: { body: "ok" },
+              meta: { durationMs: 123, statusCode: 200 },
+            },
+          })}
+          {...defaultProps}
+        />,
+      );
+
+      const metaTab = screen.getByRole("button", { name: "Meta" });
+      fireEvent.click(metaTab);
+      expect(screen.getByText(/durationMs/)).toBeDefined();
+      expect(screen.getByText(/statusCode/)).toBeDefined();
+    });
+
+    it("hides Meta tab when node has no meta", () => {
+      render(
+        <ResultDetail
+          result={makeResult({
+            nodeType: "http_request",
+            nodeCategory: "integration",
+            outputData: {
+              config: {},
+              output: { body: "ok" },
+            },
+          })}
+          {...defaultProps}
+        />,
+      );
+
+      expect(screen.queryByRole("button", { name: "Meta" })).toBeNull();
+    });
+
+    it("shows Port tab with the port value", () => {
+      render(
+        <ResultDetail
+          result={makeResult({
+            nodeType: "if_else",
+            nodeCategory: "logic",
+            outputData: {
+              config: {},
+              output: { matched: true },
+              port: "true",
+            },
+          })}
+          {...defaultProps}
+        />,
+      );
+
+      const portTab = screen.getByRole("button", { name: "Port" });
+      fireEvent.click(portTab);
+      expect(screen.getByText("true")).toBeDefined();
+    });
+
+    it("shows Status tab with the status value", () => {
+      render(
+        <ResultDetail
+          result={makeResult({
+            nodeType: "form",
+            nodeCategory: "presentation",
+            status: "waiting_for_input",
+            outputData: {
+              config: {},
+              output: null,
+              status: "waiting_for_input",
+            },
+          })}
+          {...defaultProps}
+        />,
+      );
+
+      const statusTab = screen.getByRole("button", { name: "Status" });
+      fireEvent.click(statusTab);
+      expect(screen.getByText("waiting_for_input")).toBeDefined();
+    });
+
+    it("hides Port / Status tabs when values are absent", () => {
+      render(
+        <ResultDetail
+          result={makeResult({
+            nodeType: "http_request",
+            nodeCategory: "integration",
+            outputData: {
+              config: {},
+              output: { body: "ok" },
+              meta: { durationMs: 1 },
+            },
+          })}
+          {...defaultProps}
+        />,
+      );
+
+      expect(screen.queryByRole("button", { name: "Port" })).toBeNull();
+      expect(screen.queryByRole("button", { name: "Status" })).toBeNull();
+    });
+  });
+
   it("does not show tabs for running nodes", () => {
     render(
       <ResultDetail

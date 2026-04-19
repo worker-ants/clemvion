@@ -21,7 +21,6 @@ import {
   isConversationOutput,
   extractAiMetadata,
   extractIeSnapshot,
-  AI_META_KEYS_IN_GRID,
   type AiMetadata,
 } from "./output-shape";
 import { ExtractedFieldsCard } from "./extracted-fields-card";
@@ -94,6 +93,9 @@ type DetailTab =
   | "preview"
   | "input"
   | "output"
+  | "meta"
+  | "port"
+  | "status"
   | "llm_usage"
   | "response"
   | "request"
@@ -156,6 +158,10 @@ function NodeDetailTabs({
   //   - LLM Usage: node-level aggregate for AI nodes, plus per-call usage
   //     when an assistant message is selected.
   //   - Error: only when result.error is set — node-level only.
+  const hasMeta = !messageLevel && !!unwrapped.meta && Object.keys(unwrapped.meta).length > 0;
+  const hasPort = !messageLevel && unwrapped.port != null;
+  const hasStatus = !messageLevel && unwrapped.status != null;
+
   const detailTabs: { id: DetailTab; label: string; show: boolean }[] = [
     { id: "preview", label: "Preview", show: showPreview },
     { id: "input", label: "Input", show: !messageLevel },
@@ -168,6 +174,9 @@ function NodeDetailTabs({
       show: aiNode && (!messageLevel || isAssistantSelected),
     },
     { id: "config", label: "Config", show: !messageLevel },
+    { id: "meta", label: "Meta", show: hasMeta },
+    { id: "port", label: "Port", show: hasPort },
+    { id: "status", label: "Status", show: hasStatus },
     { id: "error", label: "Error", show: !messageLevel && !!result.error },
   ];
   const visibleIds = new Set(
@@ -293,6 +302,26 @@ function NodeDetailTabs({
         {effectiveActiveTab === "config" && (
           <ConfigTabContent unwrapped={unwrapped} />
         )}
+        {effectiveActiveTab === "meta" && (
+          <MetaTabContent
+            meta={unwrapped.meta}
+            aiMetadata={extractAiMetadata(result.outputData)}
+          />
+        )}
+        {effectiveActiveTab === "port" && (
+          <SingleValueTab
+            label="Port"
+            value={unwrapped.port}
+            hint="Emitted output port id. Downstream edges attached to this port will fire."
+          />
+        )}
+        {effectiveActiveTab === "status" && (
+          <SingleValueTab
+            label="Status"
+            value={unwrapped.status}
+            hint="Engine directive from the handler (e.g. waiting_for_input, requires_integration)."
+          />
+        )}
         {effectiveActiveTab === "error" && (
           <JsonContent data={result.error} />
         )}
@@ -302,10 +331,11 @@ function NodeDetailTabs({
 }
 
 /**
- * Output tab — shows the actual produced value. Surfaces `meta`, `port`,
- * and `status` as small header pills when present. For AI nodes (AI Agent,
- * Text Classifier, Information Extractor), also renders a 2-column metadata
- * grid at the top with Model / Tokens / Turn Count / Tool Calls.
+ * Output tab — shows the actual produced value. `meta`, `port`, and `status`
+ * are surfaced as dedicated tabs (see `MetaTabContent` / `SingleValueTab`)
+ * rather than pills here, so each is inspectable as a first-class variable.
+ * For AI nodes, a 2-column metadata grid (Model / Tokens / Turn Count / Tool
+ * Calls) still anchors the top of this tab for scanability.
  */
 function OutputTabContent({
   unwrapped,
@@ -316,22 +346,6 @@ function OutputTabContent({
   aiMetadata: AiMetadata | null;
   ieSnapshot: ReturnType<typeof extractIeSnapshot>;
 }) {
-  const pills: Array<{ key: string; value: string }> = [];
-  if (unwrapped.port) pills.push({ key: "port", value: unwrapped.port });
-  if (unwrapped.status) pills.push({ key: "status", value: unwrapped.status });
-  if (unwrapped.meta) {
-    for (const [k, v] of Object.entries(unwrapped.meta)) {
-      if (v === null || v === undefined) continue;
-      // When the AI metadata grid is rendered, skip fields it already shows
-      // so the same number doesn't appear twice in different visual styles.
-      if (aiMetadata && AI_META_KEYS_IN_GRID.has(k)) continue;
-      pills.push({
-        key: k,
-        value: typeof v === "object" ? JSON.stringify(v) : String(v),
-      });
-    }
-  }
-
   return (
     <div className="space-y-3">
       {aiMetadata && <AiMetadataGrid meta={aiMetadata} />}
@@ -342,27 +356,66 @@ function OutputTabContent({
           retryInfo={ieSnapshot.retry}
         />
       )}
-      {pills.length > 0 && (
-        <div className="flex flex-wrap gap-1.5">
-          {pills.map((p) => (
-            <span
-              key={p.key}
-              className="inline-flex items-center gap-1 rounded-full bg-[hsl(var(--muted))] px-2 py-0.5 text-[10px] font-medium"
-            >
-              <span className="uppercase tracking-wide text-[hsl(var(--muted-foreground))]">
-                {p.key}
-              </span>
-              <span className="text-[hsl(var(--foreground))]">{p.value}</span>
-            </span>
-          ))}
-        </div>
-      )}
       <JsonContent data={unwrapped.output} />
       {!unwrapped.isStructured && (
         <p className="text-[10px] italic text-[hsl(var(--muted-foreground))]">
           Legacy output shape — config/meta not separately recorded.
         </p>
       )}
+    </div>
+  );
+}
+
+/**
+ * Meta tab — shows observability metadata (durationMs, statusCode, token
+ * counts, etc.). For AI nodes, surfaces the same 2-column grid as the Output
+ * tab so users who open Meta first still see canonical fields. The full raw
+ * JSON always renders below to expose every field handlers emit.
+ */
+function MetaTabContent({
+  meta,
+  aiMetadata,
+}: {
+  meta: Record<string, unknown> | null;
+  aiMetadata: AiMetadata | null;
+}) {
+  if (!meta) {
+    return (
+      <span className="text-xs text-[hsl(var(--muted-foreground))]">
+        This node didn&apos;t record meta — it may be a handler still on the
+        legacy output shape.
+      </span>
+    );
+  }
+  return (
+    <div className="space-y-3">
+      {aiMetadata && <AiMetadataGrid meta={aiMetadata} />}
+      <JsonContent data={meta} />
+    </div>
+  );
+}
+
+/** Simple label + value card for single-scalar tabs (Port, Status). */
+function SingleValueTab({
+  label,
+  value,
+  hint,
+}: {
+  label: string;
+  value: string | null;
+  hint: string;
+}) {
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center gap-2">
+        <span className="text-[10px] uppercase tracking-wide text-[hsl(var(--muted-foreground))]">
+          {label}
+        </span>
+        <code className="rounded bg-[hsl(var(--muted))] px-2 py-0.5 text-xs text-[hsl(var(--foreground))]">
+          {value ?? "—"}
+        </code>
+      </div>
+      <p className="text-[10px] text-[hsl(var(--muted-foreground))]">{hint}</p>
     </div>
   );
 }
