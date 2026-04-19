@@ -331,19 +331,3 @@ export function extractAiMetadata(raw: unknown): AiMetadata | null {
   };
 }
 
-/** Meta keys the Output tab's AI metadata grid already shows. Callers use
- * this to filter the generic `meta` pill list so values don't render twice. */
-export const AI_META_KEYS_IN_GRID = new Set([
-  "model",
-  "totalTokens",
-  "inputTokens",
-  "outputTokens",
-  "totalInputTokens",
-  "totalOutputTokens",
-  "thinkingTokens",
-  "totalThinkingTokens",
-  "turnCount",
-  "toolCalls",
-  "interactionType",
-  "ragSources",
-]);
