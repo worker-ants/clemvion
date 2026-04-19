@@ -147,9 +147,8 @@ describe("getConfigSummary", () => {
     }
   });
 
-  it("returns default summary for carousel with empty config (layout defaults to card)", () => {
-    const result = getConfigSummary("carousel", {});
-    expect(result).toEqual({ text: "card", isWarning: false });
+  it("warns for carousel with empty config (defaults to dynamic mode with no titleField)", () => {
+    expect(getConfigSummary("carousel", {})).toEqual(warningOf("Title field not set"));
   });
 });
 
@@ -599,11 +598,27 @@ describe("carousel summary", () => {
     })).toEqual({ text: "image \u00b7 2 items", isWarning: false });
   });
 
-  it("shows layout only when dynamic mode has no titleField", () => {
+  it("warns when dynamic mode has no titleField", () => {
     expect(getConfigSummary("carousel", {
       layout: "minimal",
       mode: "dynamic",
-    })).toEqual({ text: "minimal", isWarning: false });
+    })).toEqual(warningOf("Title field not set"));
+  });
+
+  it("warns when static mode has no items", () => {
+    expect(getConfigSummary("carousel", {
+      layout: "card",
+      mode: "static",
+      items: [],
+    })).toEqual(warningOf("No items defined"));
+  });
+
+  it("warns when static mode has an item with empty title", () => {
+    expect(getConfigSummary("carousel", {
+      layout: "card",
+      mode: "static",
+      items: [{ id: 1, title: "ok" }, { id: 2, title: "" }],
+    })).toEqual(warningOf("Item title missing"));
   });
 
   it("defaults layout to card when not set", () => {

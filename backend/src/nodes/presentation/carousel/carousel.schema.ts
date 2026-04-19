@@ -42,6 +42,7 @@ const itemDefSchema = z
           label: 'Title',
           widget: 'expression',
           placeholder: 'Slide title',
+          required: true,
         },
       }),
     description: z
@@ -110,6 +111,7 @@ export const carouselNodeConfigSchema = z
           order: 1,
           group: 'Items',
           visibleWhen: { field: 'mode', equals: 'static' },
+          requiredWhen: { field: 'mode', equals: 'static' },
         },
       }),
 
@@ -138,6 +140,7 @@ export const carouselNodeConfigSchema = z
           hint: 'Field path for slide title',
           order: 11,
           visibleWhen: { field: 'mode', equals: 'dynamic' },
+          requiredWhen: { field: 'mode', equals: 'dynamic' },
         },
       }),
     descriptionField: z

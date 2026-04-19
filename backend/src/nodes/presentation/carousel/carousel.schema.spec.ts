@@ -60,4 +60,32 @@ describe('carouselNodeConfigSchema', () => {
     expect(jsonSchema.properties?.buttons?.ui?.widget).toBe('button-list');
     expect(jsonSchema.properties?.itemButtons?.ui?.widget).toBe('button-list');
   });
+
+  it('marks titleField / items with mode-scoped requiredWhen', () => {
+    const jsonSchema = z.toJSONSchema(carouselNodeConfigSchema) as {
+      properties?: Record<string, { ui?: { requiredWhen?: unknown } }>;
+    };
+    expect(jsonSchema.properties?.titleField?.ui?.requiredWhen).toEqual({
+      field: 'mode',
+      equals: 'dynamic',
+    });
+    expect(jsonSchema.properties?.items?.ui?.requiredWhen).toEqual({
+      field: 'mode',
+      equals: 'static',
+    });
+  });
+
+  it('marks each static item title as required for UI cues', () => {
+    const jsonSchema = z.toJSONSchema(carouselNodeConfigSchema) as {
+      properties?: {
+        items?: {
+          items?: {
+            properties?: Record<string, { ui?: { required?: boolean } }>;
+          };
+        };
+      };
+    };
+    const titleUi = jsonSchema.properties?.items?.items?.properties?.title?.ui;
+    expect(titleUi?.required).toBe(true);
+  });
 });

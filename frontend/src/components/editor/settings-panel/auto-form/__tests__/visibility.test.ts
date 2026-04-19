@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { isFieldVisible } from "../visibility";
+import { isFieldRequired, isFieldVisible } from "../visibility";
 
 describe("isFieldVisible", () => {
   it("returns true when no visibleWhen rule is set", () => {
@@ -47,5 +47,42 @@ describe("isFieldVisible", () => {
     const numUi = { visibleWhen: { field: "count", equals: 0 } } as const;
     expect(isFieldVisible(numUi, { count: 0 })).toBe(true);
     expect(isFieldVisible(numUi, { count: 1 })).toBe(false);
+  });
+});
+
+describe("isFieldRequired", () => {
+  it("returns false when no hints or schema.required are provided", () => {
+    expect(isFieldRequired(undefined, "foo", undefined, {})).toBe(false);
+    expect(isFieldRequired({}, "foo", [], {})).toBe(false);
+  });
+
+  it("returns true when schema.required includes the key", () => {
+    expect(isFieldRequired(undefined, "name", ["name"], {})).toBe(true);
+  });
+
+  it("returns true when ui.required is set explicitly", () => {
+    expect(isFieldRequired({ required: true }, "title", [], {})).toBe(true);
+  });
+
+  it("applies requiredWhen equals", () => {
+    const ui = { requiredWhen: { field: "mode", equals: "dynamic" } } as const;
+    expect(isFieldRequired(ui, "titleField", [], { mode: "dynamic" })).toBe(true);
+    expect(isFieldRequired(ui, "titleField", [], { mode: "static" })).toBe(false);
+  });
+
+  it("applies requiredWhen oneOf", () => {
+    const ui = {
+      requiredWhen: { field: "status", oneOf: ["a", "b"] },
+    } as const;
+    expect(isFieldRequired(ui, "f", [], { status: "a" })).toBe(true);
+    expect(isFieldRequired(ui, "f", [], { status: "c" })).toBe(false);
+  });
+
+  it("prefers explicit ui.required over requiredWhen mismatch", () => {
+    const ui = {
+      required: true,
+      requiredWhen: { field: "mode", equals: "dynamic" },
+    } as const;
+    expect(isFieldRequired(ui, "f", [], { mode: "static" })).toBe(true);
   });
 });

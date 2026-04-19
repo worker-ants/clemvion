@@ -15,7 +15,7 @@ import { Button } from "@/components/ui/button";
 import { Plus, X } from "lucide-react";
 import type { JsonSchemaNode, UiHint } from "@/lib/node-definitions";
 import { humanize, pickWidget } from "./utils";
-import { isFieldVisible } from "./visibility";
+import { isFieldRequired, isFieldVisible } from "./visibility";
 import { useT, useLocale } from "@/lib/i18n";
 import {
   translateBackendHint,
@@ -31,24 +31,26 @@ export type WidgetProps = {
   label: string;
   value: unknown;
   onChange: (value: unknown) => void;
+  required?: boolean;
 };
 
 /** Widget that renders a string as plain text input. */
-export function TextWidget({ ui, label, value, onChange }: WidgetProps) {
+export function TextWidget({ ui, label, value, onChange, required }: WidgetProps) {
   const locale = useLocale();
   return (
-    <FieldGroup label={label} hint={translateBackendHint(ui?.hint, locale)}>
+    <FieldGroup label={label} hint={translateBackendHint(ui?.hint, locale)} required={required}>
       <Input
         value={(value as string) ?? ""}
         onChange={(e) => onChange(e.target.value)}
         placeholder={translateBackendPlaceholder(ui?.placeholder, locale)}
+        aria-required={required || undefined}
         className="h-8 text-xs"
       />
     </FieldGroup>
   );
 }
 
-export function TextAreaWidget({ ui, label, value, onChange }: WidgetProps) {
+export function TextAreaWidget({ ui, label, value, onChange, required }: WidgetProps) {
   const locale = useLocale();
   return (
     <TextAreaField
@@ -57,11 +59,12 @@ export function TextAreaWidget({ ui, label, value, onChange }: WidgetProps) {
       onChange={onChange}
       placeholder={translateBackendPlaceholder(ui?.placeholder, locale)}
       hint={translateBackendHint(ui?.hint, locale)}
+      required={required}
     />
   );
 }
 
-export function NumberWidget({ ui, label, value, onChange, schema }: WidgetProps) {
+export function NumberWidget({ ui, label, value, onChange, schema, required }: WidgetProps) {
   const locale = useLocale();
   return (
     <NumberField
@@ -71,21 +74,23 @@ export function NumberWidget({ ui, label, value, onChange, schema }: WidgetProps
       min={typeof schema.minimum === "number" ? schema.minimum : undefined}
       max={typeof schema.maximum === "number" ? schema.maximum : undefined}
       hint={translateBackendHint(ui?.hint, locale)}
+      required={required}
     />
   );
 }
 
-export function CheckboxWidget({ label, value, onChange }: WidgetProps) {
+export function CheckboxWidget({ label, value, onChange, required }: WidgetProps) {
   return (
     <CheckboxField
       label={label}
       checked={Boolean(value)}
       onChange={onChange}
+      required={required}
     />
   );
 }
 
-export function SelectWidget({ ui, label, value, onChange, schema }: WidgetProps) {
+export function SelectWidget({ ui, label, value, onChange, schema, required }: WidgetProps) {
   const locale = useLocale();
   const rawOptions =
     ui?.options ??
@@ -103,11 +108,12 @@ export function SelectWidget({ ui, label, value, onChange, schema }: WidgetProps
       onChange={onChange}
       options={options}
       hint={translateBackendHint(ui?.hint, locale)}
+      required={required}
     />
   );
 }
 
-export function ExpressionWidget({ ui, label, value, onChange }: WidgetProps) {
+export function ExpressionWidget({ ui, label, value, onChange, required }: WidgetProps) {
   const locale = useLocale();
   return (
     <ExpressionInput
@@ -115,12 +121,13 @@ export function ExpressionWidget({ ui, label, value, onChange }: WidgetProps) {
       value={value == null ? "" : String(value)}
       onChange={onChange}
       placeholder={translateBackendPlaceholder(ui?.placeholder, locale)}
+      required={required}
     />
   );
 }
 
 /** Key-value list where values accept either plain text or expressions. */
-export function KvExpressionWidget({ label, value, onChange }: WidgetProps) {
+export function KvExpressionWidget({ label, value, onChange, required }: WidgetProps) {
   const items = Array.isArray(value)
     ? (value as { key?: string; value?: string }[]).map((i) => ({
         key: i.key ?? "",
@@ -133,11 +140,12 @@ export function KvExpressionWidget({ label, value, onChange }: WidgetProps) {
       items={items}
       onChange={(next) => onChange(next)}
       expressionValues
+      required={required}
     />
   );
 }
 
-export function KvWidget({ label, value, onChange }: WidgetProps) {
+export function KvWidget({ label, value, onChange, required }: WidgetProps) {
   const items = Array.isArray(value)
     ? (value as { key?: string; value?: string }[]).map((i) => ({
         key: i.key ?? "",
@@ -145,12 +153,12 @@ export function KvWidget({ label, value, onChange }: WidgetProps) {
       }))
     : [];
   return (
-    <KeyValueEditor label={label} items={items} onChange={onChange} />
+    <KeyValueEditor label={label} items={items} onChange={onChange} required={required} />
   );
 }
 
 /** Monospaced multi-line editor for code/templates. */
-export function CodeWidget({ ui, label, value, onChange }: WidgetProps) {
+export function CodeWidget({ ui, label, value, onChange, required }: WidgetProps) {
   const t = useT();
   const locale = useLocale();
   return (
@@ -167,6 +175,7 @@ export function CodeWidget({ ui, label, value, onChange }: WidgetProps) {
           ? t("nodeConfigs.autoForm.codeLanguageHint", { language: ui.language })
           : undefined)
       }
+      required={required}
     />
   );
 }
@@ -260,6 +269,7 @@ function StructuredItemForm({
         const Widget = pickWidget<WidgetProps>(fieldSchema, ui, PRIMITIVES);
         const label =
           translateBackendLabel(ui?.label, locale) ?? humanize(key);
+        const required = isFieldRequired(ui, key, itemSchema.required, item);
         return (
           <Widget
             key={key}
@@ -268,6 +278,7 @@ function StructuredItemForm({
             label={label}
             value={item[key]}
             onChange={(v) => onChange({ ...item, [key]: v })}
+            required={required}
           />
         );
       })}
@@ -282,7 +293,7 @@ function StructuredItemForm({
  *   renders a structured sub-form per item with proper widgets.
  * - Otherwise, falls back to a raw JSON textarea per item.
  */
-export function FieldArrayWidget({ ui, label, value, onChange, schema }: WidgetProps) {
+export function FieldArrayWidget({ ui, label, value, onChange, schema, required }: WidgetProps) {
   const t = useT();
   const locale = useLocale();
   const items = Array.isArray(value) ? (value as unknown[]) : [];
@@ -306,7 +317,7 @@ export function FieldArrayWidget({ ui, label, value, onChange, schema }: WidgetP
     onChange(items.map((it, idx) => (idx === i ? v : it)));
 
   return (
-    <FieldGroup label={label} hint={translateBackendHint(ui?.hint, locale)}>
+    <FieldGroup label={label} hint={translateBackendHint(ui?.hint, locale)} required={required}>
       <div className="flex flex-col gap-2">
         {items.map((item, i) => {
           // Prefer a stable per-item id over array index so reorder / mid-list
@@ -373,12 +384,13 @@ export function FieldArrayWidget({ ui, label, value, onChange, schema }: WidgetP
 }
 
 /** Fallback for widgets that haven't been implemented yet. Shows a raw JSON viewer. */
-export function UnsupportedWidget({ label, value }: WidgetProps) {
+export function UnsupportedWidget({ label, value, required }: WidgetProps) {
   const t = useT();
   return (
     <FieldGroup
       label={label}
       hint={t("nodeConfigs.autoForm.unsupportedWidgetHint")}
+      required={required}
     >
       <pre className="rounded-md bg-[hsl(var(--muted))] p-2 text-[11px]">
         {JSON.stringify(value ?? null, null, 2)}
