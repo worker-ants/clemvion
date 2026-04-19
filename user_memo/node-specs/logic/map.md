@@ -1,100 +1,105 @@
 # Map (`map`)
 
-> 배열의 각 항목을 본문 서브그래프로 변환한 뒤 결과를 새 배열로 수집하는 컨테이너 노드. ForEach와 구조가 같지만 **각 항목의 변환 결과를 수집해서 배열로 반환**하는 점이 다릅니다.
+> 배열을 순회하며 각 항목을 body 서브그래프로 변환한 뒤 결과를 새 배열로 수집하는 컨테이너 노드. ForEach와 handler 로직은 거의 동일하지만, 의도는 **변환된 값 배열을 후속 단계로 넘기는 것**입니다.
 
 - **카테고리**: `logic`
-- **컨테이너**: yes (`isContainer: true`)
+- **컨테이너**: **yes** (`isContainer: true`)
 - **Blocking**: no
 - **동적 포트**: no
 
 ## Config 파라메터
 
+출처: `backend/src/nodes/logic/map/map.schema.ts`
+
 | 필드명 | 타입 | 필수 | 기본값 | 설명 | 표현식 |
 | --- | --- | --- | --- | --- | --- |
-| `inputField` | string (expression) | yes | `''` | 변환할 배열을 가리키는 dot-path 또는 inline 표현식 | yes |
-| `errorPolicy` | `'stop' \| 'skip' \| 'continue'` | no | `'stop'` | 항목 처리 중 에러 발생 시 동작 (ForEach와 동일) | no |
+| `inputField` | string \| unknown (expression) | yes | `''` | 순회할 배열. 문자열이면 input에 대한 dot-path, 그 외 타입은 이미 해석된 값으로 간주 | yes |
+| `errorPolicy` | `'stop' \| 'skip' \| 'continue'` | no | `'stop'` | body 에러 처리 정책. ForEach와 동일 | no |
 
 ## Ports
 
-| 방향 | id | label | 설명 |
-| --- | --- | --- | --- |
-| Input | `in` | Input | 외부 입력 (배열을 포함한 객체) |
-| Input | `emit` | Emit | body 끝단에서 변환 결과를 수집하는 지점 (정확히 1개 노드만 연결) |
-| Output | `body` | Body | 매 항목마다 본문 서브그래프 진입 |
-| Output | `done` | Done | 모든 항목 변환 완료 후 — **수집된 결과 배열**이 다음 노드 input으로 |
+출처: `backend/src/nodes/logic/map/map.schema.ts`
+
+| 방향 | id | label | type | 설명 |
+| --- | --- | --- | --- | --- |
+| Input | `in` | Input | data | 외부 데이터 |
+| Input | `emit` | Emit | data | body 서브그래프의 변환 결과 수집 지점 — **반드시 정확히 1개** 노드가 연결 |
+| Output | `body` | Body | data | 매 항목마다 body 진입 |
+| Output | `done` | Done | data | 모든 항목 처리 완료 후 활성화. output은 변환 결과 배열 |
 
 ## Input
 
-ForEach와 동일한 방식으로 `inputField`를 해석합니다.
-
-- dot-path면 input에서 추출
-- inline 표현식이면 미리 해석된 값이 들어옴
-- 결과가 배열이 아니면 `[]`로 처리
+이전 노드로부터 받은 데이터. 핸들러는 `resolveFieldValue(input, inputField)`로 배열을 해석합니다:
+- `inputField`가 문자열이면 dot-path 탐색
+- 이미 배열/값이 들어오면 그대로 사용
+- 결과가 배열이 아니면 **빈 배열로 fallback**
 
 ## Output
 
-### Case 1: 핸들러 반환
+### 1단계: 핸들러 반환
 
 ```json
 {
   "config": { "inputField": "items" },
+  "output": [{ "id": 1 }, { "id": 2 }]
+}
+```
+
+| 필드 | 설명 |
+| --- | --- |
+| `config.inputField` | 원본 `inputField` |
+| `output` | 해석된 원본 배열 (배열이 아니면 `[]`) |
+
+### 2단계: body 반복 (엔진의 ForEachExecutor 공유)
+
+`ForEachExecutor.execute`가 각 항목마다:
+- `context.itemContext = { item, index, isFirst, isLast }` 갱신
+- body 서브그래프 실행
+- 결과(= emit 포트로 도달한 값) 수집
+- `errorPolicy` 처리 방식은 ForEach와 동일
+
+### 3단계: 최종 output 재설정
+
+엔진이 수집된 변환 결과 배열로 Map의 output을 덮어씁니다:
+
+```json
+{
+  "config": { "inputField": "items", "errorPolicy": "stop" },
   "output": [
-    { "id": "p1", "qty": 2 },
-    { "id": "p2", "qty": 1 }
+    { "transformedItemFor": "items[0]" },
+    { "transformedItemFor": "items[1]" }
   ]
 }
 ```
 
-### Case 2: body 내부 컨텍스트 (ForEach와 동일)
-
-| 변수 | 설명 |
-| --- | --- |
-| `$item` | 현재 변환할 항목 |
-| `$itemIndex` | 인덱스 (0-based) |
-| `$loop.*` | 루프 메타 정보 |
-
-본문 서브그래프 끝단의 `emit` 포트에 연결된 노드의 출력값이 **항목별 변환 결과**로 수집됩니다.
-
-### Case 3: `done` 포트로 흐르는 값
-
-엔진이 모든 변환 완료 후 `done` 포트로 보냅니다. 다음 노드의 input은 **수집된 변환 결과 배열** (원본 인덱스 순서 유지). 정확한 형태는 `errorPolicy`에 따라:
-
-- `stop`: 첫 에러에서 중단, 노드 실패
-- `skip`: 에러 항목은 `{_skipped: true, error: "..."}` 로 채워짐
-- `continue`: 에러 항목도 빈 결과나 마지막 정상 결과로 포함 (엔진 구현)
+`done` 포트 하류 노드들이 이 변환 결과 배열을 input으로 받습니다.
 
 ## 변수로 접근 가능한 항목
 
-이 노드의 라벨이 `Transform Items`라고 가정.
+이 노드의 라벨이 `Map Items`라고 가정.
 
-**다른 노드(Map 외부)에서**:
+**다른 노드(루프 외부)에서**:
 
 | 표현식 | 값 예시 | 설명 |
 | --- | --- | --- |
-| `{{ $node["Transform Items"].output }}` | `[{...}, {...}]` | 추출된 입력 배열 (변환 시작 시점) |
-| `{{ $node["Transform Items"].config.inputField }}` | `"items"` | 입력 dot-path |
-
-> **중요**: `$node["Transform Items"].output`은 변환 **이전** 입력 배열입니다. 변환 결과 배열은 done 포트 다음 노드의 `$input`으로만 접근 가능합니다.
+| `{{ $node["Map Items"].config.inputField }}` | `"items"` | 설정된 경로 |
+| `{{ $node["Map Items"].output }}` | `[...변환결과]` | 최종 변환 결과 배열 |
+| `{{ $node["Map Items"].output.length }}` | `2` | 변환된 항목 수 |
+| `{{ $node["Map Items"].output[0].price }}` | `...` | 변환된 첫 항목의 필드 |
 
 **body 내부 노드에서**:
 
 | 표현식 | 값 예시 | 설명 |
 | --- | --- | --- |
-| `{{ $item }}` | `{ id: "p1", qty: 2 }` | 변환할 항목 |
-| `{{ $itemIndex }}` | `0`, `1`, ... | 인덱스 |
-
-## ForEach와의 차이
-
-| 측면 | ForEach | Map |
-| --- | --- | --- |
-| 본문에서 결과 수집 | 결과 무시 가능 (사이드이펙트 위주) | 각 항목의 변환 결과를 새 배열로 수집 |
-| 사용 사례 | API 호출 N번, 알림 발송 등 | 배열의 각 항목을 객체 변환, 필드 추가 등 |
-| `done` 포트 다음 input | (엔진이 ForEach 결과를 어떻게 만들지 결정 — 보통 입력 그대로 통과) | **변환된 배열** |
+| `{{ $item }}` | 원본 배열 항목 | 현재 변환 중인 입력 |
+| `{{ $item.name }}` | 항목 내부 필드 | |
+| `{{ $itemIndex }}` | `0`, `1`, ... | 0-based 인덱스 |
 
 ## 주의사항
 
-- `inputField` 누락 시 validation 실패.
-- 결과가 배열이 아니면 빈 배열로 fall-through (조용한 처리).
-- body 끝단 `emit` 노드는 정확히 1개여야 함.
-- body 내부 blocking 노드 금지.
-- `$node["Map 노드"].output`은 입력 배열입니다 — 변환 결과는 후속 노드의 `$input`으로 받으세요.
+- 배열이 아닌 값이 들어오면 빈 배열이 되어 body는 실행되지 않습니다.
+- body 서브그래프 끝단은 정확히 1개만 `emit` 포트에 연결되어야 합니다 (`CONTAINER_MISSING_EMIT` / `CONTAINER_MULTIPLE_EMIT`).
+- `errorPolicy: 'skip'` / `'continue'`는 결과 배열에 `{ _skipped: true, error: {...} }` 형태로 항목이 들어갑니다. 후속 노드에서 이를 걸러내야 할 수 있습니다.
+- body 내부에는 Blocking 노드를 둘 수 없습니다.
+- 의도가 side-effect(예: 각 항목을 외부 API로 전송)라면 **ForEach** 를, 변환 결과 자체가 필요하면 **Map** 을 쓰세요. handler 로직은 거의 같지만 문서/의미 분리를 위한 구분입니다.
+- 중첩 Map / ForEach는 외부 itemContext를 복원합니다.

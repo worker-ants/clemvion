@@ -1,141 +1,183 @@
 # Chart (`chart`)
 
-> 데이터를 차트로 시각화합니다. bar/line/pie/donut/area 타입을 지원하며, 집계(sum/count/avg/min/max)도 가능. 선택적 버튼 액션 포함.
+> 입력 데이터를 차트로 시각화합니다. `bar`/`line`/`pie`/`donut`/`area` 타입을 지원하고, `sum`/`avg`/`count`/`min`/`max` 집계를 제공합니다. 선택적 버튼 액션도 지원.
 
 - **카테고리**: `presentation`
 - **컨테이너**: no
-- **Blocking**: yes (버튼이 있을 때만)
-- **동적 포트**: yes (`presentation-buttons`)
+- **Blocking**: **조건부 yes** — `config.buttons`가 비어있지 않으면 `status: "waiting_for_input"` 반환
+- **동적 포트**: **yes** (`dynamicPorts.kind = "presentation-buttons"`, `continueId: "continue"`)
 
 ## Config 파라메터
 
+출처: `backend/src/nodes/presentation/chart/chart.schema.ts`
+
 | 필드명 | 타입 | 필수 | 기본값 | 설명 | 표현식 |
 | --- | --- | --- | --- | --- | --- |
-| `chartType` | `'bar' \| 'line' \| 'pie' \| 'donut' \| 'area'` | yes | `'bar'` | 차트 종류 | no |
-| `dataField` | string | no | `''` | input 객체에서 데이터 배열을 추출할 필드명 | no |
-| `xAxis.field` | string | yes | `''` | x축 데이터 필드 | no |
-| `xAxis.label` | string | no | (없음) | x축 라벨 | no |
-| `yAxis.field` | string | no | `''` | y축 데이터 필드 | no |
-| `yAxis.label` | string | no | (없음) | y축 라벨 | no |
-| `yAxis.aggregation` | `'sum' \| 'count' \| 'avg' \| 'min' \| 'max'` | no | (없음) | y값 집계 함수 | no |
-| `groupBy` | string | no | (없음) | (현재 핸들러는 `xAxis.field`로 자동 그룹화 — 별도 사용 안 함) | no |
-| `title` | string | no | (없음) | 차트 제목 | no |
-| `colors` | string[] | no | (없음) | 색상 팔레트 (UI에서 사용) | no |
-| `buttons` | `Button[]` | no | `[]` | 액션 버튼 | (label/url) |
+| `chartType` | `'bar' \| 'line' \| 'pie' \| 'donut' \| 'area'` | yes | `'bar'` | 차트 타입 (**handler validation은 `bar`/`line`/`pie`만 허용**. donut/area는 schema만 정의) | — |
+| `dataField` | string | no | `''` | `input`이 객체일 때 이 키로 배열을 꺼내 씀 (ex: `input.stats`) | yes |
+| `xAxis` | `{ field: string, label?: string }` | yes | `{ field: '' }` | X축 필드 정의 | yes |
+| `yAxis` | `{ field: string, label?: string, aggregation?: 'sum' \| 'count' \| 'avg' \| 'min' \| 'max' }` | no | `{ field: '' }` | Y축 필드 정의 + 집계 모드 | yes |
+| `groupBy` | string | no | (없음) | 그룹 필드 (현 handler에서는 미사용, UI/확장용) | yes |
+| `title` | string | no | (없음) | 차트 제목 | yes |
+| `colors` | string[] | no | (없음) | 팔레트 색상 배열 | — |
+| `buttons` | `ButtonDef[]` | no | `[]` | 차트 하단 버튼 (per-item 없음) | — |
 
-> validate는 `bar`/`line`/`pie`만 허용 (donut, area는 schema에는 있으나 validation에서 거부). 사용 가능한 타입은 실제로는 3종류.
+> 추가로 `config.dataSource`(schema에는 없지만 `passthrough()`로 통과)가 있으면 입력 해석에서 `input`보다 우선함. carousel/table의 `dataSource`와 같은 의미로 쓰이며, expression은 엔진이 이미 해석한 값으로 handler에 도달한다.
 
-`Button`: Carousel/Table과 동일.
+`ButtonDef`: carousel 문서 참조.
 
 ## Ports
 
-| 방향 | id | label | 설명 |
-| --- | --- | --- | --- |
-| Input | `in` | Input | 데이터 객체 또는 배열 |
-| Output | `out` | Output | (버튼 없을 때) 즉시 진행 |
-| Output | `<button.id>` | (button.label) | **동적** — 클릭된 버튼 |
-| Output | `continue` | Continue | link만 있을 때 |
+| 방향 | id | label | 타입 | 설명 |
+| --- | --- | --- | --- | --- |
+| Input | `in` | Input | data | 시각화 대상 데이터 |
+| Output (static) | `out` | Output | data | 버튼이 없을 때 |
+
+### 동적 포트 생성 규칙
+
+`presentationButtonPorts()` 기준:
+
+1. `config.buttons[*]` 중 `type === 'port'`마다 포트 추가
+2. 하나 이상 있으면 그것을 반환
+3. 없고 `link` 타입 버튼이 하나라도 존재 → `{ id: "continue", label: "Continue" }`
+4. 버튼 자체가 없으면 정적 `out`
 
 ## Input
 
-데이터 소스 결정 우선순위:
+입력 배열 결정 로직 (`chart.handler.ts`):
 
-1. `config.dataSource`(passthrough된 값)가 있으면 사용
-2. `dataField` + input이 객체이면 `input[dataField]`
-3. 그 외는 input 자체 (배열이면 그대로, 아니면 `[input]`)
+1. `config.dataSource != null` → 배열이면 그대로, 아니면 `[config.dataSource]`로 래핑
+2. else if `dataField` 지정 + `input`이 객체 → `input[dataField]`를 배열로 사용 (배열이 아니면 빈 배열)
+3. else `Array.isArray(input) ? input : [input]`
 
-각 데이터 항목에서 `xAxis.field`/`yAxis.field` 값을 추출해 `{x, y}` 형태의 점 배열로 변환.
+각 아이템에 대해:
+- `x = item[xAxis.field]`
+- `y = item[yAxis.field]` (yAxis가 지정된 경우에만)
+
+`yAxis.aggregation`이 있으면 같은 `x` 값끼리 묶어 집계 (`sum`/`avg`/`count`/`min`/`max`). `y`가 숫자로 변환되지 않으면 0으로 처리. 알 수 없는 aggregation 값은 `sum`으로 fallback.
 
 ## Output
 
-### Case 1: 단순 시각화 (집계 없음)
-
-input: `[{name:"A", value:10}, {name:"B", value:20}]`
-config: `{ chartType: "bar", xAxis: {field:"name"}, yAxis: {field:"value"}, title: "Sales" }`
+### Case 1: 버튼 없음 — non-blocking
 
 ```json
 {
   "config": {
     "chartType": "bar",
-    "title": "Sales",
-    "xAxis": { "field": "name" },
-    "yAxis": { "field": "value" }
+    "title": "Sales by Month",
+    "xAxis": { "field": "month" },
+    "yAxis": { "field": "revenue", "aggregation": "sum" }
   },
   "output": {
     "type": "chart",
     "chartType": "bar",
-    "title": "Sales",
+    "title": "Sales by Month",
     "data": [
-      { "x": "A", "y": 10 },
-      { "x": "B", "y": 20 }
+      { "x": "Jan", "y": 100 },
+      { "x": "Feb", "y": 250 }
     ]
   }
 }
 ```
 
-### Case 2: 집계 적용 (sum)
+- `title`이 미설정이면 `output.title`은 `undefined`.
+- `yAxis` 미지정 시 각 data point는 `{ x }`만 포함.
 
-input: `[{cat:"A", v:5}, {cat:"A", v:7}, {cat:"B", v:3}]`
-config: `{ chartType: "bar", xAxis: {field:"cat"}, yAxis: {field:"v", aggregation: "sum"} }`
-
-```json
-{
-  "config": { ... },
-  "output": {
-    "type": "chart",
-    "chartType": "bar",
-    "data": [
-      { "x": "A", "y": 12 },
-      { "x": "B", "y": 3 }
-    ]
-  }
-}
-```
-
-### Case 3: 버튼 있음 → 사용자 입력 대기
+### Case 2: 버튼 있음 — 초기 실행 (waiting_for_input)
 
 ```json
 {
   "config": {
-    ...,
+    "chartType": "bar",
+    "title": "…",
+    "xAxis": { "field": "month" },
+    "yAxis": { "field": "revenue" },
     "buttonConfig": {
-      "buttons": [{ "id": "btn_drill", "label": "Drill Down", "type": "port" }]
+      "buttons": [
+        { "id": "export", "label": "Export", "type": "port" }
+      ]
     }
   },
-  "output": { "type": "chart", "data": [...], ... },
+  "output": {
+    "type": "chart",
+    "chartType": "bar",
+    "title": "…",
+    "data": [ … ]
+  },
   "status": "waiting_for_input",
   "meta": { "interactionType": "buttons" }
 }
 ```
 
-| 필드 | 설명 |
-| --- | --- |
-| `output.type` | 항상 `"chart"` |
-| `output.chartType` | 사용된 차트 타입 |
-| `output.title` | (있으면) 제목 |
-| `output.data` | `{x, y}[]` 데이터 포인트 배열 |
-| `config.buttonConfig` | (버튼 있을 때) |
-| `status` | (버튼 있을 때) `"waiting_for_input"` |
-| `port` (제출 후) | 클릭된 버튼 ID |
+### Case 3: 사용자 버튼 클릭 후
+
+port 타입:
+
+```json
+{
+  "config": { … "buttonConfig": { "buttons": [ … ] } },
+  "output": {
+    "interaction": {
+      "interactionType": "button_click",
+      "buttonId": "export",
+      "buttonLabel": "Export",
+      "clickedAt": "2026-04-19T…"
+    },
+    "previousOutput": { "type": "chart", "chartType": "bar", "data": [ … ], … }
+  },
+  "port": "export",
+  "status": "button_click",
+  "meta": { "interactionType": "buttons" }
+}
+```
+
+link 타입(Continue):
+
+```json
+{
+  "output": {
+    "interaction": { "interactionType": "button_continue", "clickedAt": "…" },
+    "previousOutput": { "type": "chart", … }
+  },
+  "port": "continue",
+  "status": "button_continue",
+  "meta": { "interactionType": "buttons" }
+}
+```
 
 ## 변수로 접근 가능한 항목
 
-이 노드의 라벨이 `Sales Chart`라고 가정.
+이 노드의 라벨이 `Revenue Chart`라고 가정.
+
+### 버튼 없는 경우:
+
+| 표현식 | 값 | 설명 |
+| --- | --- | --- |
+| `{{ $node["Revenue Chart"].output.chartType }}` | `"bar"` | 차트 타입 |
+| `{{ $node["Revenue Chart"].output.title }}` | `"Sales by Month"` | 제목 (없으면 undefined) |
+| `{{ $node["Revenue Chart"].output.data }}` | `[{x,y}, …]` | 차트 데이터 포인트 배열 |
+| `{{ $node["Revenue Chart"].config.xAxis.field }}` | `"month"` | X축 필드 |
+| `{{ $node["Revenue Chart"].config.yAxis.aggregation }}` | `"sum"` | 집계 모드 |
+
+### 버튼 클릭 후 (AFTER interaction):
 
 | 표현식 | 값 예시 | 설명 |
 | --- | --- | --- |
-| `{{ $node["Sales Chart"].output.data }}` | `[{x:"A",y:10}, ...]` | 차트 데이터 포인트 |
-| `{{ $node["Sales Chart"].output.data[0].y }}` | `10` | 첫 포인트의 y값 |
-| `{{ $node["Sales Chart"].output.chartType }}` | `"bar"` | 차트 타입 |
-| `{{ $node["Sales Chart"].output.title }}` | `"Sales"` | 제목 |
-| `{{ $node["Sales Chart"].port }}` | `"btn_drill"` | (버튼 클릭 후) |
+| `{{ $node["Revenue Chart"].output.interaction.buttonId }}` | `"export"` | 클릭 버튼 ID |
+| `{{ $node["Revenue Chart"].output.interaction.buttonLabel }}` | `"Export"` | 클릭 버튼 라벨 |
+| `{{ $node["Revenue Chart"].output.interaction.interactionType }}` | `"button_click"` \| `"button_continue"` | 상호작용 종류 |
+| `{{ $node["Revenue Chart"].output.previousOutput.data }}` | `[ … ]` | 대기 시점의 차트 데이터 |
+| `{{ $node["Revenue Chart"].port }}` | `"export"` \| `"continue"` | 활성 포트 |
+| `{{ $node["Revenue Chart"].status }}` | `"button_click"` \| `"button_continue"` | 상태 |
 
 ## 주의사항
 
-- validation은 `bar`, `line`, `pie`만 허용. `donut`, `area`는 schema enum에는 있지만 validation을 통과하지 못합니다 (현재 단계에서는 사용 비권장).
-- `xAxis.field`만 필수. `yAxis.field`가 없으면 `point.y`는 `undefined`.
-- 집계 시 `xAxis.field` 값을 그룹 키로 사용 — 같은 x값을 가진 항목들끼리 묶임. y값을 `Number()`로 변환하며 NaN은 0 처리.
-- 집계의 기본값(스위치 default)도 sum.
-- `dataField`는 input이 객체일 때 배열을 꺼내는 키. 미지정 시 input 자체가 데이터로 간주.
-- 버튼 한 개라도 있으면 blocking.
-- `colors`, `groupBy`는 schema에 있지만 핸들러 출력에 직접 사용되지 않음 (UI 렌더러가 사용).
+- **`chartType` handler validation은 `bar`/`line`/`pie`만 허용** — schema는 `donut`/`area`까지 받지만 handler가 validation 단계에서 거부 (`'chartType is required and must be one of: bar, line, pie'`). donut/area를 쓰려면 handler 업데이트 필요.
+- `xAxis.field`는 필수. 누락 시 validation 실패.
+- `yAxis` 자체는 선택. 없으면 `data` 포인트에 `y` 키가 없음 (pie 차트에서 유용).
+- 집계 시 non-numeric `y`는 `0`으로 취급 (`Number(value) == NaN` → 0).
+- Handler는 `groupBy`, `colors`를 읽지 않으며 UI 렌더러에서 해석되어야 함.
+- **Blocking 조건**: `config.buttons`가 배열이면서 길이 > 0.
+- **Blocking 모드에서는 컨테이너 본문 내부에 배치 금지**.
+- per-item/per-bar 버튼은 지원하지 않음 (`supportsItems`/`supportsItemButtons` 모두 false). global buttons만.
+- `button.url`은 `javascript:`/`data:`/`vbscript:` 스킴 차단, `id`에 `__item_` 금지, 총 10개 이하.
