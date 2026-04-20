@@ -19,6 +19,24 @@ const INFO_EXTRACTOR_TYPE_MAP: Record<string, string> = {
   object: "object",
 };
 
+/**
+ * Matches the Form node's `config.fields[].type` enum (form.schema.ts).
+ * `date` and `file` are upstream-only UI types; at runtime they arrive as
+ * strings, so we surface a plain `string` hint for both. `checkbox` renders
+ * as a boolean; `select`/`radio` values are typically string identifiers.
+ */
+const FORM_FIELD_TYPE_MAP: Record<string, string> = {
+  text: "string",
+  email: "string",
+  textarea: "string",
+  number: "number",
+  checkbox: "boolean",
+  select: "string",
+  radio: "string",
+  date: "string",
+  file: "string",
+};
+
 /** Safe object property name — rejects `__proto__`, `constructor`, `prototype`, etc. */
 const SAFE_IDENTIFIER_RE = /^[a-zA-Z_][a-zA-Z0-9_]*$/;
 const UNSAFE_KEYS = new Set(["__proto__", "constructor", "prototype"]);
@@ -101,5 +119,75 @@ export function enrichInfoExtractorOutputSchema(
     properties: { ...existingExtractedProps, ...userProps },
   };
   outputNode.properties.result = existingResultNode;
+  return cloned;
+}
+
+/**
+ * Form node fills `output.interaction.data` at submission time with each
+ * user-declared field's submitted value (see backend/.../form.handler.ts +
+ * execution-engine.service.ts `waitForFormSubmission`). Project
+ * `config.fields[].name` into the static outputSchema so autocomplete can
+ * hint `.output.interaction.data.<field>` before the form is ever filled.
+ *
+ * Mirrors {@link enrichInfoExtractorOutputSchema}: tolerant fall-through when
+ * the base schema shape doesn't expose the expected nesting, and warns in dev
+ * so schema drift between backend and frontend is surfaced early.
+ */
+export function enrichFormOutputSchema(
+  baseSchema: JsonSchemaNode | undefined,
+  config: Record<string, unknown> | undefined,
+): JsonSchemaNode | undefined {
+  if (!baseSchema) return baseSchema;
+  const fields = config?.fields as
+    | Array<{ name?: unknown; type?: unknown; label?: unknown }>
+    | undefined;
+  if (!Array.isArray(fields) || fields.length === 0) return baseSchema;
+
+  const userProps: Record<string, JsonSchemaNode> = Object.create(null);
+  for (const f of fields) {
+    if (!isSafeFieldName(f?.name)) continue;
+    const declaredType = typeof f.type === "string" ? f.type : undefined;
+    userProps[f.name] = {
+      type: FORM_FIELD_TYPE_MAP[declaredType ?? "text"] ?? "string",
+      ...(typeof f.label === "string" && f.label
+        ? { description: f.label }
+        : {}),
+    };
+  }
+  if (Object.keys(userProps).length === 0) return baseSchema;
+
+  const cloned =
+    typeof structuredClone === "function"
+      ? structuredClone(baseSchema)
+      : (JSON.parse(JSON.stringify(baseSchema)) as JsonSchemaNode);
+  const outputNode = cloned.properties?.output;
+  if (!outputNode || typeof outputNode !== "object") {
+    if (process.env.NODE_ENV !== "production") {
+      console.warn(
+        "[expression-autocomplete] Form outputSchema missing `output` property; dynamic field hints skipped.",
+      );
+    }
+    return cloned;
+  }
+
+  if (!outputNode.properties) outputNode.properties = {};
+  const existingInteraction = outputNode.properties.interaction;
+  const interactionNode =
+    existingInteraction && typeof existingInteraction === "object"
+      ? existingInteraction
+      : ({ type: "object", properties: {} } as JsonSchemaNode);
+  if (!interactionNode.properties) interactionNode.properties = {};
+  const existingData = interactionNode.properties.data;
+  const existingDataProps =
+    existingData &&
+    typeof existingData === "object" &&
+    existingData.properties
+      ? existingData.properties
+      : {};
+  interactionNode.properties.data = {
+    type: "object",
+    properties: { ...existingDataProps, ...userProps },
+  };
+  outputNode.properties.interaction = interactionNode;
   return cloned;
 }

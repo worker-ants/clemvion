@@ -4,7 +4,10 @@ import { useExecutionStore } from "@/lib/stores/execution-store";
 import { useNodeDefinitionsStore } from "@/lib/stores/node-definitions-store";
 import type { JsonSchemaNode } from "@/lib/node-definitions/types";
 import { getAllFunctionNames, buildDisambiguatedKeys } from "@workflow/expression-engine";
-import { enrichInfoExtractorOutputSchema } from "./node-output-schema-enrichers";
+import {
+  enrichFormOutputSchema,
+  enrichInfoExtractorOutputSchema,
+} from "./node-output-schema-enrichers";
 import {
   getAncestorsInScope,
   getContainerChain,
@@ -168,6 +171,11 @@ export function useExpressionContext(selectedNodeId: string | null): ExpressionD
               inputSchema,
               sourceData?.config as Record<string, unknown> | undefined,
             );
+          } else if (inputSchema && sourceType === "form") {
+            inputSchema = enrichFormOutputSchema(
+              inputSchema,
+              sourceData?.config as Record<string, unknown> | undefined,
+            );
           }
         }
       } else if (incomingEdges.length > 1) {
@@ -208,6 +216,8 @@ export function useExpressionContext(selectedNodeId: string | null): ExpressionD
       let outputSchema = definition?.outputSchema;
       if (nodeType === "information_extractor") {
         outputSchema = enrichInfoExtractorOutputSchema(outputSchema, config);
+      } else if (nodeType === "form") {
+        outputSchema = enrichFormOutputSchema(outputSchema, config);
       }
       return {
         id: n.id,

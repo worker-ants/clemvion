@@ -69,6 +69,53 @@ const formFieldSchema = z
   })
   .passthrough();
 
+/**
+ * Runtime shape after the user submits the form (CONVENTIONS §4.3 / §4.5).
+ * The handler only writes `output: {}` at the waiting tick; the engine fills
+ * `output.interaction.{type, data, receivedAt}` on resume. User-declared
+ * fields inside `interaction.data` are projected by the frontend enricher
+ * `enrichFormOutputSchema` from `config.fields[].name`.
+ */
+export const formNodeOutputSchema = z
+  .object({
+    config: z
+      .object({
+        title: z.string().optional(),
+        description: z.string().optional(),
+        submitLabel: z.string().optional(),
+        fields: z.array(formFieldSchema).optional(),
+      })
+      .partial()
+      .passthrough()
+      .optional(),
+    output: z
+      .object({
+        interaction: z
+          .object({
+            type: z.literal('form_submitted').optional(),
+            data: z.record(z.string(), z.unknown()).optional(),
+            receivedAt: z.string().optional(),
+          })
+          .partial()
+          .passthrough()
+          .optional(),
+      })
+      .partial()
+      .passthrough()
+      .optional(),
+    meta: z
+      .object({
+        interactionType: z.literal('form').optional(),
+        durationMs: z.number().optional(),
+      })
+      .partial()
+      .passthrough()
+      .optional(),
+    port: z.string().optional(),
+    status: z.string().optional(),
+  })
+  .passthrough();
+
 export const formNodeConfigSchema = z
   .object({
     title: z
