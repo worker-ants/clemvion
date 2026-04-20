@@ -3,6 +3,7 @@ import {
   enrichFormOutputSchema,
   enrichInfoExtractorOutputSchema,
   enrichTableOutputSchema,
+  enrichTransformOutputSchema,
 } from "../node-output-schema-enrichers";
 import type { JsonSchemaNode } from "@/lib/node-definitions/types";
 
@@ -365,5 +366,76 @@ describe("enrichTableOutputSchema", () => {
       columns: [{ field: "x", label: "X" }],
     });
     expect(tableBaseSchema).toEqual(clone);
+  });
+});
+
+// Transform mutates input per operation sequence. Only top-level keys
+// explicitly created (set_field) or renamed (rename_field.to) are projected.
+const transformBaseSchema: JsonSchemaNode = {
+  type: "object",
+  properties: {
+    output: {}, // z.unknown() → no properties
+  },
+};
+
+describe("enrichTransformOutputSchema", () => {
+  it("returns undefined when baseSchema is undefined", () => {
+    expect(enrichTransformOutputSchema(undefined, {})).toBeUndefined();
+  });
+
+  it("returns base schema unchanged when operations is empty or missing", () => {
+    expect(enrichTransformOutputSchema(transformBaseSchema, undefined)).toBe(
+      transformBaseSchema,
+    );
+    expect(
+      enrichTransformOutputSchema(transformBaseSchema, { operations: [] }),
+    ).toBe(transformBaseSchema);
+  });
+
+  it("projects set_field and rename_field target names into output", () => {
+    const result = enrichTransformOutputSchema(transformBaseSchema, {
+      operations: [
+        { type: "set_field", field: "total", value: 42 },
+        { type: "rename_field", from: "old", to: "newName" },
+        { type: "remove_field", field: "tmp" },
+      ],
+    });
+    expect(result?.properties?.output?.properties).toEqual({
+      total: {},
+      newName: {},
+    });
+  });
+
+  it("skips nested paths (dot-containing field / to)", () => {
+    const result = enrichTransformOutputSchema(transformBaseSchema, {
+      operations: [
+        { type: "set_field", field: "user.name", value: "x" },
+        { type: "rename_field", from: "a", to: "parent.child" },
+      ],
+    });
+    expect(result).toBe(transformBaseSchema); // nothing projected → base returned
+  });
+
+  it("skips unsafe identifiers", () => {
+    const result = enrichTransformOutputSchema(transformBaseSchema, {
+      operations: [
+        { type: "set_field", field: "__proto__", value: "x" },
+        { type: "set_field", field: "has space", value: "x" },
+        { type: "set_field", field: "good", value: "x" },
+      ],
+    });
+    expect(Object.keys(result?.properties?.output?.properties ?? {})).toEqual([
+      "good",
+    ]);
+  });
+
+  it("does not mutate the base schema", () => {
+    const clone: JsonSchemaNode = JSON.parse(
+      JSON.stringify(transformBaseSchema),
+    );
+    enrichTransformOutputSchema(transformBaseSchema, {
+      operations: [{ type: "set_field", field: "x", value: 1 }],
+    });
+    expect(transformBaseSchema).toEqual(clone);
   });
 });
