@@ -4,6 +4,64 @@ import {
   NodePorts,
 } from '../../core/node-component.interface';
 
+/**
+ * Database Query output shape varies by driver and query type (SELECT vs
+ * INSERT/UPDATE/DELETE). Row columns are user-query-dependent and opaque.
+ * Tier 3 per node-jazzy-liskov plan.
+ */
+export const databaseQueryNodeOutputSchema = z
+  .object({
+    config: z
+      .object({
+        integrationId: z.string().optional(),
+        query: z.string().optional(),
+        queryType: z
+          .enum(['select', 'insert', 'update', 'delete', 'raw'])
+          .optional(),
+        parameters: z.union([z.array(z.unknown()), z.string()]).optional(),
+      })
+      .partial()
+      .passthrough()
+      .optional(),
+    output: z
+      .object({
+        rows: z.array(z.record(z.string(), z.unknown())).optional(),
+        rowCount: z.number().optional(),
+        insertId: z.number().optional(),
+        fields: z
+          .array(
+            z
+              .object({
+                name: z.string().optional(),
+                dataTypeID: z.number().optional(),
+              })
+              .passthrough(),
+          )
+          .optional(),
+        error: z
+          .object({
+            code: z.string().optional(),
+            message: z.string().optional(),
+          })
+          .partial()
+          .passthrough()
+          .optional(),
+      })
+      .partial()
+      .passthrough()
+      .optional(),
+    meta: z
+      .object({
+        durationMs: z.number().optional(),
+      })
+      .partial()
+      .passthrough()
+      .optional(),
+    port: z.enum(['success', 'error']).optional(),
+    status: z.string().optional(),
+  })
+  .passthrough();
+
 export const databaseQueryNodeConfigSchema = z
   .object({
     integrationId: z
