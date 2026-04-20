@@ -26,6 +26,26 @@ const triggerParameterSchema = z
   })
   .passthrough();
 
+export const manualTriggerOutputSchema = z
+  .object({
+    config: z
+      .object({
+        parameters: z.array(triggerParameterSchema).optional(),
+      })
+      .partial()
+      .passthrough()
+      .optional(),
+    output: z
+      .object({
+        parameters: z.record(z.string(), z.unknown()).optional(),
+      })
+      .passthrough()
+      .optional(),
+    port: z.string().optional(),
+    status: z.string().optional(),
+  })
+  .passthrough();
+
 export const manualTriggerConfigSchema = z
   .object({
     parameters: z
