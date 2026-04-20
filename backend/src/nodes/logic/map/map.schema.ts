@@ -4,6 +4,28 @@ import {
   NodePorts,
 } from '../../core/node-component.interface';
 
+/**
+ * Map handler returns the resolved source array; the body subgraph's `emit`
+ * outputs are collected by ForEachExecutor and flow through the `done` port
+ * — not visible on this node's output envelope at handler tick. Items are
+ * source-array-shaped (unknown).
+ */
+export const mapNodeOutputSchema = z
+  .object({
+    config: z
+      .object({
+        inputField: z.unknown().optional(),
+        errorPolicy: z.enum(['stop', 'skip', 'continue']).optional(),
+      })
+      .partial()
+      .passthrough()
+      .optional(),
+    output: z.array(z.unknown()).optional(),
+    port: z.string().optional(),
+    status: z.string().optional(),
+  })
+  .passthrough();
+
 export const mapNodeConfigSchema = z
   .object({
     inputField: z
