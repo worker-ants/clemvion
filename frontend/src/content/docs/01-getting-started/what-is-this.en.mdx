@@ -1,0 +1,51 @@
+This page explains what kind of tool this product is and what problems it solves.
+
+## In one sentence
+
+This product is a **visual builder that lets you create automation workflows without writing code**. Drop nodes onto the canvas one at a time, connect them with lines, and your repetitive work starts running on its own. Developers get advanced features like expressions, code editing, and custom nodes; non-developers get a smooth drag-and-drop experience.
+
+## What can you build
+
+- Automations that receive a request from an external service, then send an email or write to a database
+- Schedule-based jobs that run on a fixed cadence to produce reports
+- Flows where an AI classifies customer inquiries and routes them to the right team
+- Simple apps that collect user input through a form, process it, and return a table or chart
+
+## How a workflow flows
+
+<FlowDiagram steps={[
+  { title: "Trigger", sub: "Manual · Webhook · Schedule" },
+  { title: "Nodes", sub: "Logic · Integration · AI, ..." },
+  { title: "Output", sub: "Table · Chart · Email, ..." },
+]} />
+
+Each block is a node. Nodes receive input, do their job based on configuration, and hand the result to the next node. The trigger is the **start signal** of the workflow, and the last node's output becomes the **final result**.
+
+## Who solves what with it
+
+<FieldTable rows={[
+  {name: "Non-developers", required: false, type: "Marketing · Ops · CS", description: "Automate work you used to do with spreadsheets and copy-paste on a visual canvas. Once it's built, it runs every day without anyone's hands on it.", default: "-"},
+  {name: "Developers", required: false, type: "Back office · Automation", description: "Prototype fast, then reach for Code nodes and expressions when you need fine control. You can even add custom nodes.", default: "-"},
+  {name: "Teams", required: false, type: "Org-wide automation", description: "Share integration settings across the team and co-own common workflows.", default: "-"}
+]} />
+
+## Core building blocks
+
+- **Sidebar**: jump between the big menus — Dashboard, Workflows, Triggers, Schedules, Integrations, Statistics, and more.
+- **Workflow list**: see every automation you've built, toggle them on or off at a glance.
+- **Canvas editor**: the space where you actually draw and configure a workflow. Pull nodes from the palette on the left, drop them on the canvas in the center, and fill in the details in the settings panel on the right.
+- **Node system**: organized into seven categories — Trigger · Logic · Flow · AI · Integration · Data · Presentation.
+- **Expression language**: pull results from earlier nodes with syntax like `{{ $input.field }}`.
+- **Execution engine**: runs workflows safely and shows each node's state and result in real time.
+
+## What to read next
+
+<Callout type="tip">
+If this is your first time, we recommend this order. Get the lay of the land with the UI tour, then build your first workflow end to end.
+</Callout>
+
+## Tips & notes
+
+- Curious about the screen layout? Start with the [UI tour](/docs/01-getting-started/ui-tour) — it walks through the sidebar, list, and editor.
+- Want to build something right away? [Build your first workflow](/docs/01-getting-started/first-workflow) guides you through a 5-minute automation using Manual Trigger and HTTP Request.
+- Power-user tip: expressions are read-only, so infinite loops and outside side effects can't sneak in. That's why you can reuse them confidently across nodes. Syntax is covered in [Expression basics](/docs/03-expression-language/basics).

@@ -1,0 +1,103 @@
+This page explains how to call another workflow as a sub-workflow using the **Workflow node**. It's useful when you want to split a reusable sub-flow out for separate management, or break a long pipeline into manageable stages.
+
+## Workflow
+
+### When to use it
+
+- To **reuse common logic** across multiple workflows.
+- To **split a long flow into modules** for better readability.
+- To **fire and forget** another workflow asynchronously while your main flow continues.
+
+### Fields
+
+<FieldTable rows={[
+  {name: "workflowId", required: true, type: "UUID or expression", description: "ID of the target workflow. Auto-filled when picked from the dropdown; you can also type a UUID or expression.", default: "-"},
+  {name: "workflowName", required: false, type: "string", description: "The name picked from the dropdown. Shown in the canvas summary. Cleared automatically if you type a UUID directly.", default: "-"},
+  {name: "mode", required: true, type: "`sync` / `async`", description: "Synchronous or asynchronous invocation.", default: "sync"},
+  {name: "inputMapping", required: false, type: "MappingDef[]", description: "Input-parameter mapping. When empty, the parent input passes through as-is. Each entry has `target` (parameter name) and `source` (expression).", default: "[]"},
+  {name: "timeout", required: false, type: "integer (seconds)", description: "Timeout for synchronous calls. `0` means wait forever. Only meaningful when `mode=sync`.", default: "300"}
+]} />
+
+### Ports
+
+One input `in` and one output `out`. In sync mode the sub-workflow's final output is emitted; in async mode, invocation info (`executionId`, etc.) is emitted instead.
+
+### Sync mode behavior
+
+1. Compose the input via `inputMapping`. When empty, the parent input is passed through as-is.
+2. Load the target workflow's nodes and connections and **run them inline inside the parent Execution**.
+3. Sub-workflow nodes share the parent's `executionId`, node-result cache, and node map.
+4. In the run history, sub-workflow nodes appear right after the parent node on the timeline.
+5. The sub-workflow's final output leaves through the `out` port.
+6. The sub-workflow's trigger node is auto-skipped and simply passes the input data along.
+
+### Async mode behavior
+
+<FieldTable rows={[
+  {name: "Immediate return", required: false, type: "fire-and-forget", description: "Starts a new Execution for the target workflow and emits its execution ID on `out` immediately. The main flow continues without waiting.", default: "-"},
+  {name: "No error propagation", required: false, type: "-", description: "Errors in async sub-workflows do not reach the parent. They are logged only.", default: "-"},
+  {name: "Recursion tracking", required: false, type: "parentExecutionId", description: "The new Execution records `parentExecutionId` and `recursionDepth`.", default: "-"}
+]} />
+
+### Examples
+
+<Example title="Sync mode — reuse a shared pipeline">
+```ts
+// config
+{
+  "workflowId": "b6c7…-…-…",
+  "workflowName": "Data Pipeline",
+  "mode": "sync",
+  "inputMapping": [
+    { "target": "userId", "source": "{{ $input.user.id }}" },
+    { "target": "event",  "source": "{{ $input.type }}" }
+  ],
+  "timeout": 300
+}
+```
+</Example>
+
+<Example title="Async mode — fire a notification">
+```ts
+// config
+{
+  "workflowId": "{{ $var.notifyWorkflowId }}",
+  "mode": "async",
+  "inputMapping": [
+    { "target": "channel", "source": "{{ $input.channel }}" }
+  ]
+}
+
+// out port output
+{
+  "executionId": "9f2c-…-…",
+  "workflowId": "…",
+  "status": "started"
+}
+```
+</Example>
+
+### Recursion guard
+
+<FieldTable rows={[
+  {name: "Max recursion depth", required: false, type: "integer", description: "Defaults to 10. Directly self-calling is allowed, but indirect recursion (A→B→A) shares the same depth cap.", default: "10"},
+  {name: "On overflow", required: false, type: "error", description: "The run fails with `Maximum recursion depth exceeded`.", default: "-"}
+]} />
+
+<Callout type="warn">
+If the target workflow is deleted or deactivated, the settings panel shows a warning, and the canvas summary displays a `⚠ Missing workflow` badge.
+</Callout>
+
+<Callout type="tip">
+The dropdown only lists workflows in the same workspace and excludes the workflow you're currently editing. Inactive workflows appear with an `(inactive)` label.
+</Callout>
+
+## Canvas summary
+
+Displayed as `{workflowName or workflowId} · {mode}`. When a name is available it shows the name; otherwise the ID. Example: `Data Pipeline · sync`.
+
+## Tips & notes
+
+- When you invoke without an input mapping, the parent input is passed through whole. To forward only specific parameters, use `inputMapping`.
+- Results and logs of a sub-workflow are also visible in [Run results](/docs/04-run-and-debug/run-results).
+- Power-user tip: in sync mode the sub-workflow executes inside the same run, so you can reference its results right from the parent with `{{ $node["Sub Workflow"].output.field }}`, and the run timeline stays a single continuous line — great for debugging.

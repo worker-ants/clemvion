@@ -1,0 +1,127 @@
+This page covers the two data nodes. **Transform** chains visual transformation operations; **Code** lets you reshape data freely with sandboxed JavaScript.
+
+## Transform
+
+### When to use it
+
+- When you want to rename fields, set/remove values, or convert types **without writing code**.
+- Great for quick string/number/date ops, array filter/sort, and object pick/omit.
+
+### Fields
+
+<FieldTable rows={[
+  {name: "operations", required: true, type: "Operation[]", description: "Ordered chain of transformation operations. Each entry has `type` and type-specific `params`.", default: "[]"}
+]} />
+
+Supported operation types:
+
+<FieldTable rows={[
+  {name: "rename_field", required: false, type: "Rename key", description: "Rename a key from `from` to `to`.", default: "-"},
+  {name: "remove_field", required: false, type: "Remove field", description: "Delete the value at path `field`.", default: "-"},
+  {name: "set_field", required: false, type: "Set value", description: "Write `value` (expression allowed) to `field`. Overwrites existing values.", default: "-"},
+  {name: "type_convert", required: false, type: "Type convert", description: "Convert the value at `field` to `targetType` (string/number/boolean/array/object).", default: "-"},
+  {name: "string_op", required: false, type: "String op", description: "Pick one of trim / uppercase / lowercase / replace / split / join and set the required args.", default: "-"},
+  {name: "math_op", required: false, type: "Math op", description: "Pick add / subtract / multiply / divide / round / ceil / floor and set an `operand`.", default: "-"},
+  {name: "date_op", required: false, type: "Date op", description: "Supports format(pattern), add/subtract(amount+unit), diff(compareField+unit).", default: "-"},
+  {name: "array_filter", required: false, type: "Array filter", description: "Filter an array with a single-condition expression. For multiple conditions or branching, use the Filter node.", default: "-"},
+  {name: "array_sort", required: false, type: "Array sort", description: "Sort by `sortBy` with `order` (asc/desc).", default: "-"},
+  {name: "object_pick", required: false, type: "Pick keys", description: "Keep only the listed `keys`.", default: "-"},
+  {name: "object_omit", required: false, type: "Omit keys", description: "Remove the listed `keys`.", default: "-"}
+]} />
+
+### Example
+
+<Example title="Rename a field and derive a new one">
+```ts
+// operations
+[
+  { type: "rename_field", params: { from: "user.name", to: "userName" } },
+  { type: "set_field",    params: { field: "fullName", value: "{{ $input.first + ' ' + $input.last }}" } },
+  { type: "remove_field", params: { field: "tempData" } }
+]
+```
+</Example>
+
+<Callout type="note">
+All `field` parameters support dot/bracket nested paths (e.g. `user.profile.name`, `items[0].id`). If the path doesn't exist or the type doesn't match, the op leaves the value untouched and continues to the next one.
+</Callout>
+
+## Code
+
+### When to use it
+
+- For **complex logic** that Transform can't express cleanly.
+- Inline utility calculations, custom aggregation, conditional restructuring.
+
+### Fields
+
+<FieldTable rows={[
+  {name: "language", required: true, type: "enum", description: "Currently `javascript` only.", default: "javascript"},
+  {name: "code", required: true, type: "string", description: "The code to run in the sandbox. Use `return` to emit output.", default: "-"}
+]} />
+
+### Execution context
+
+The following globals are available inside the code:
+
+<FieldTable rows={[
+  {name: "$input", required: false, type: "object", description: "Output of the previous node.", default: "-"},
+  {name: "$vars", required: false, type: "object", description: "Workflow variable store. Readable and writable.", default: "-"},
+  {name: "$execution", required: false, type: "object", description: "Execution context, including `id` and `startedAt`.", default: "-"},
+  {name: "$node", required: false, type: "object", description: "Current node metadata, including `id` and `label`.", default: "-"},
+  {name: "$helpers", required: false, type: "object", description: "Built-in utilities: `date`, `crypto.hash`, `crypto.uuid`, `base64`, and more.", default: "-"}
+]} />
+
+### Example
+
+<Example title="Pick active items and reshape them">
+```ts
+// code
+const items = $input.data;
+
+const result = items
+  .filter((i) => i.active)
+  .map((i) => ({
+    id: i.id,
+    name: i.name.trim(),
+    score: i.score * 100,
+  }));
+
+console.log("filtered", result.length);
+
+return { items: result };
+```
+</Example>
+
+### Sandbox rules
+
+<FieldTable rows={[
+  {name: "Timeout", required: false, type: "1–120s", description: "Defaults to 30 seconds. Both synchronous infinite loops and async hangs are stopped.", default: "30s"},
+  {name: "Network", required: false, type: "Blocked", description: "`fetch`, `XMLHttpRequest`, `WebSocket`, etc. are not injected. For external calls, use the HTTP Request node.", default: "-"},
+  {name: "File system", required: false, type: "Blocked", description: "Node.js modules like `fs`, `path`, and `child_process` are unavailable.", default: "-"},
+  {name: "Module loading", required: false, type: "Blocked", description: "`require`, `import`, `eval`, and `new Function` are all blocked. Only utilities from `$helpers` are available.", default: "-"},
+  {name: "Allowed globals", required: false, type: "Basic JS", description: "Array, Object, String, Number, Boolean, Date, RegExp, Map, Set, Math, JSON, Promise, setTimeout (max 5s), and similar.", default: "-"}
+]} />
+
+<Callout type="warn">
+You can mutate `$vars` freely during code execution, but the real workflow variable store is updated **by full replacement only after the code finishes successfully**. If the code throws, the previous state is preserved.
+</Callout>
+
+### Error codes
+
+<FieldTable rows={[
+  {name: "EXECUTION_TIMEOUT", required: false, type: "code", description: "The configured timeout was exceeded.", default: "-"},
+  {name: "CODE_RUNTIME_ERROR", required: false, type: "code", description: "A runtime exception. The error details include the stack trace.", default: "-"},
+  {name: "CODE_SYNTAX_ERROR", required: false, type: "code", description: "Syntax error. The error location (line:column) is included.", default: "-"}
+]} />
+
+## Canvas summary
+
+- Transform: `{N} operations` (e.g. `3 operations`)
+- Code: `{language} · {N} lines` (e.g. `JavaScript · 12 lines`)
+
+## Tips & notes
+
+- Use Transform for simple reshaping and Code for complex logic — keeping them separated keeps things maintainable.
+- The division of labor between expressions and Code is discussed in [Expression basics](/docs/03-expression-language/basics) and the [cheatsheet](/docs/03-expression-language/cheatsheet).
+- Power-user tip: the Code node runs in a sandbox that blocks `require`, file system, and network access. The default timeout is 30 seconds, configurable in node settings. For external API calls, split them out into an HTTP Request node.

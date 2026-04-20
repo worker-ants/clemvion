@@ -1,0 +1,78 @@
+This page explains how to create a Knowledge Base, upload documents, and use it as RAG (Retrieval-Augmented Generation) context in an AI Agent.
+
+## Structure of a knowledge base
+
+A Knowledge Base is organized by **collection**. Each collection pins an embedding model and a chunking strategy; documents live inside. Uploads go through: parse → chunk → embed → vector-store persist.
+
+<FieldTable rows={[
+  { name: "Name", type: "string", required: "Required", description: "Collection name shown on the list card." },
+  { name: "Description", type: "string", required: "Optional", description: "Short purpose. Helpful for team collaboration." },
+  { name: "Embedding model", type: "LLM Config reference", required: "Required", description: "Pinned at creation. Changing it requires re-embedding everything." },
+  { name: "Chunk size", type: "integer (tokens)", required: "Optional", description: "Default 1000. Max tokens per chunk." },
+  { name: "Chunk overlap", type: "integer (tokens)", required: "Optional", description: "Default 200. Overlap between adjacent chunks." }
+]} />
+
+<Callout type="note">Only providers that support embeddings can be selected as the embedding model. Register a provider first — see [LLM configuration](/docs/05-integrations-and-config/llm-config).</Callout>
+
+## Creating a collection and uploading documents
+
+<Steps>
+<Step>At `/knowledge-bases`, click `[+ New Collection]` and fill in name, description, embedding model, and chunk parameters.</Step>
+<Step>Click the new collection to open its detail view. Use `[Upload Documents]` or drag-and-drop files.</Step>
+<Step>Supported formats: `.txt`, `.md`, `.pdf`, `.csv`. Multiple files at once are fine — embedding starts immediately.</Step>
+<Step>When each document's status flips from `🔄 Processing` to `✅ Ready`, it's searchable. Status streams in real time via WebSocket.</Step>
+<Step>Failures show `❌ Error`. Use the row's ⋮ menu → `Re-embed` to re-run the pipeline.</Step>
+</Steps>
+
+<Callout type="warn">CSV rows become independent chunks. Without a header, each cell loses context, so putting column names in the first row improves retrieval quality.</Callout>
+
+## Understanding embedding states
+
+Status badges appear both on the document list and on the collection card.
+
+<FieldTable rows={[
+  { name: "pending", type: "Status", required: "-", description: "Right after upload. The pipeline starts shortly." },
+  { name: "processing", type: "Status", required: "-", description: "Parsing → chunking → embedding in progress. Progress advances per chunk batch." },
+  { name: "completed", type: "Status", required: "-", description: "Included in search." },
+  { name: "error", type: "Status", required: "-", description: "Parse failure or embedding API error. Root cause in `metadata.error`." }
+]} />
+
+Concurrent document processing is capped at 3 by default. Bulk uploads queue some items as `pending` until earlier ones finish.
+
+## Referencing from an AI Agent
+
+The AI Agent node's settings panel has a multi-select `Knowledge Bases` field. Selected collections are searched by similarity against the user prompt at run time, and the results are injected under the system prompt.
+
+<Example title="KB reference in an AI Agent node">
+```ts
+{
+  "type": "aiAgent",
+  "config": {
+    "llmConfigId": "llm_01H...",
+    "systemPrompt": "You are a customer support assistant.",
+    "userPrompt": "{{ $run.input.question }}",
+    "knowledgeBases": [
+      "kb_01H...FAQ",
+      "kb_01H...POLICY"
+    ],
+    "rag": {
+      "topK": 5,           // max results (default 5)
+      "threshold": 0.7     // cosine similarity floor (default 0.7)
+    }
+  }
+}
+```
+</Example>
+
+After execution, the AI Agent result carries `metadata.ragSources` so you can see which chunks from which documents were referenced, and with what scores. You can also read them via expressions — e.g. `{{ $nodes.agent.metadata.ragSources[0].documentName }}`.
+
+<Callout type="tip">When the top match scores below `threshold`, the LLM is called without RAG context. If answers look weak, try lowering the threshold to about 0.6, or shrink chunk size and re-embed.</Callout>
+
+## Tips & notes
+
+- When multiple collections are selected, KBs sharing the same embedding model share a single query; others are queried independently and the results merged.
+- Injected context is auto-truncated to fit within 50% of the model's context window, dropping the lowest-scoring chunks first — top results are always kept.
+- Document preview shows every generated chunk. If a chunk looks off, edit the source and hit `Re-embed`.
+- To switch embedding model, create a new collection and move documents over. Swapping the model on an existing collection triggers a full re-embed of every chunk.
+- Expressions and node-result basics: [Variables and context](/docs/03-expression-language/variables-and-context).
+- Query/distance/error rules for RAG search live in `spec/5-system/9-rag-search.md`.

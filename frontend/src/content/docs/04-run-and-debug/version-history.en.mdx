@@ -1,0 +1,81 @@
+This page covers how to **create, diff, and restore workflow versions** right inside the editor. Great when you want to roll back to an earlier known-good state.
+
+## When are versions created
+
+Every `Save` automatically snapshots the canvas — **no extra button press**.
+
+- Immediately after the save transaction, the full state of nodes and edges is persisted as a `jsonb` snapshot.
+- Saved versions are **immutable**. Later edits to the canvas don't alter them.
+- If the save request includes a `changeSummary`, it shows up verbatim in the version history.
+
+<Callout type="tip">Press `Save` once before a risky change — you leave yourself a rollback point.</Callout>
+
+## Opening the Version History panel
+
+<Steps>
+  <Step>Open the `⋯` (More) menu in the editor's top-right toolbar.</Step>
+  <Step>Click `Version History`. A side panel opens on the right of the canvas.</Step>
+  <Step>Versions are listed newest-first (`v3, v2, v1`).</Step>
+  <Step>Each entry shows version number, author, creation time, change summary, and `view (👁)` / `restore (↺)` action buttons.</Step>
+</Steps>
+
+When there are no versions yet, the panel shows "No versions yet. Save the canvas to create the first version." One `Save` creates v1.
+
+## Viewing version details
+
+Click the `👁 (Eye)` button on a version to open a read-only detail dialog:
+
+- Workflow meta: name, description
+- Nodes: label, type, coordinates, disabled flag
+- Edges: `source:port → target:port` pairs
+
+Handy for checking "yes, this is the right version" before restoring.
+
+## Comparing two versions (Diff)
+
+Toggle Compare mode and checkboxes appear on each version.
+
+<Steps>
+  <Step>Enable the `☐ Compare versions` toggle at the top of the panel.</Step>
+  <Step>Pick two versions with the checkboxes. The lower version becomes `before`, the higher one `after`.</Step>
+  <Step>Click `Diff` to open the comparison dialog.</Step>
+</Steps>
+
+The Diff dialog shows:
+
+<FieldTable rows={[
+  { name: "Name change", type: "Meta", description: "Before/after highlights if the workflow name changed." },
+  { name: "Added nodes", type: "Nodes", description: "Newly added nodes." },
+  { name: "Removed nodes", type: "Nodes", description: "Deleted nodes." },
+  { name: "Modified nodes", type: "Nodes", description: "For the same id, which fields changed (label, type, position, config, isDisabled, description, containerId, toolOwnerId)." },
+  { name: "Added / Removed edges", type: "Edges", description: "Added or removed edges as `source:port → target:port`." }
+]} />
+
+## Restoring an older version
+
+Restoring **overwrites the current canvas** with the snapshot.
+
+<Steps>
+  <Step>Click `↺` (Restore) on the target version.</Step>
+  <Step>Read the confirmation dialog and click `Confirm`.</Step>
+  <Step>Once complete, the page reloads and the canvas matches the chosen version.</Step>
+</Steps>
+
+<Callout type="note">A restore is recorded as a **new version**. The change summary is always `Restored from vN`, so you can roll back *from* the restore too.</Callout>
+
+<Callout type="warn">Restoring overwrites your in-progress edits. If you have unsaved changes, `Save` first to pin the current state as its own version.</Callout>
+
+## Common scenarios
+
+<FieldTable rows={[
+  { name: "Accidentally deleted a node", type: "Recovery", description: "Open the closest previous version, review its details, then restore." },
+  { name: "Checkpoint before a big refactor", type: "Prevention", description: "Hit `Save` and include a meaningful `changeSummary` before you start." },
+  { name: "Compare configs across two points in time", type: "Audit", description: "Use the Compare toggle to see which node's config changed." }
+]} />
+
+## Tips & notes
+
+- Deleting a workflow cascades to all its versions (`ON DELETE CASCADE`).
+- `change_summary` of a restored version is always `Restored from vN`, so you can identify it at a glance.
+- Execution history is tracked separately from versions. See [Run results](/docs/04-run-and-debug/run-results) for per-run data.
+- Stopping and re-running: [Running a workflow](/docs/04-run-and-debug/running-a-workflow).

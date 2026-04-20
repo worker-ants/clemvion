@@ -1,6 +1,11 @@
 import fs from "node:fs";
 import path from "node:path";
 import matter from "gray-matter";
+import {
+  DEFAULT_LOCALE,
+  LOCALES,
+  type Locale,
+} from "@/lib/i18n/types";
 
 export interface DocFrontmatter {
   title: string;
@@ -14,19 +19,34 @@ export interface DocFrontmatter {
   draft?: boolean;
 }
 
+// Sibling translation files live next to the canonical KO file and carry the
+// `<slug>.<locale>.mdx` suffix. The default locale uses the plain `<slug>.mdx`
+// form, so `LOCALE_SUFFIX[DEFAULT_LOCALE]` is empty.
+const LOCALE_SUFFIX: Record<Locale, string> = { ko: "", en: ".en" };
+
 // Locale helpers live in ./locale (no node:fs/node:path imports, safe for client
-// bundles). Re-export them here so existing imports keep working.
-export {
+// bundles). Consumers should import them directly from `@/lib/docs/locale` —
+// intentionally NOT re-exported here to keep the module boundary clear: anything
+// re-exported from registry.ts carries node:fs into the caller.
+import {
+  localizedDocsHref,
   localizedSectionLabel,
-  localizedTitle,
   localizedSummary,
+  localizedTitle,
 } from "./locale";
 
 export interface DocMeta {
   slug: string[];
+  /** Canonical href without the locale prefix (e.g. `/docs/01-first/a`).
+   *  Locale-aware URLs are built at render time via `localizedDocsHref`. */
   href: string;
+  /** Absolute path to the canonical (default-locale) MDX file. */
   filePath: string;
   frontmatter: DocFrontmatter;
+  /** Locales for which a translated body exists on disk. Always contains the
+   *  default locale; secondary locales are added when a `<slug>.<locale>.mdx`
+   *  sibling is present. */
+  availableLocales: Locale[];
 }
 
 export interface DocsSection {
@@ -110,17 +130,61 @@ function listSectionDirs(root: string): string[] {
     .sort((a, b) => a.localeCompare(b));
 }
 
-// "_" 접두 파일은 내비게이션에서 제외해요 (예: _glossary.md, _meta.mdx).
+// "_" 접두 파일과 locale sibling(`foo.en.mdx` 등)을 내비게이션에서 제외해요.
+// sibling은 canonical KO 파일(`foo.mdx`)과 같은 슬러그를 쓰므로 중복 등록을
+// 방지하기 위함이에요.
 function listMdxFiles(sectionDir: string): string[] {
   if (!fs.existsSync(sectionDir)) return [];
   return fs
     .readdirSync(sectionDir, { withFileTypes: true })
     .filter(
       (d) =>
-        d.isFile() && d.name.endsWith(".mdx") && !d.name.startsWith("_"),
+        d.isFile() &&
+        d.name.endsWith(".mdx") &&
+        !d.name.startsWith("_") &&
+        !isLocaleSibling(d.name),
     )
     .map((d) => d.name)
     .sort((a, b) => a.localeCompare(b));
+}
+
+/** `foo.en.mdx` 와 같은 locale sibling 파일명인지 판정해요 (기본 locale 제외). */
+function isLocaleSibling(fileName: string): boolean {
+  // e.g. "foo.en.mdx" → base="foo", locale="en"
+  const match = /^(.+)\.([a-z]{2})\.mdx$/.exec(fileName);
+  if (!match) return false;
+  const locale = match[2];
+  return LOCALES.includes(locale as Locale) && locale !== DEFAULT_LOCALE;
+}
+
+/** canonical 파일명(`foo.mdx`)에서 같은 섹션 내 존재하는 번역 locale을 탐색해요. */
+function detectAvailableLocales(
+  sectionDir: string,
+  canonicalFileName: string,
+): Locale[] {
+  const slugName = canonicalFileName.replace(/\.mdx$/, "");
+  const available: Locale[] = [DEFAULT_LOCALE];
+  for (const locale of LOCALES) {
+    if (locale === DEFAULT_LOCALE) continue;
+    const siblingPath = path.join(
+      sectionDir,
+      `${slugName}${LOCALE_SUFFIX[locale]}.mdx`,
+    );
+    if (fs.existsSync(siblingPath)) available.push(locale);
+  }
+  return available;
+}
+
+/** canonical `<slug>.mdx`에 대응하는 locale별 실제 파일 경로를 반환해요.
+ *  sibling이 없으면 canonical 경로를 반환해서 호출부가 폴백을 따로 처리하지 않도록 해요. */
+export function resolveLocalizedDocPath(
+  canonicalFilePath: string,
+  locale: Locale,
+): string {
+  if (locale === DEFAULT_LOCALE) return canonicalFilePath;
+  const suffix = LOCALE_SUFFIX[locale];
+  const localized = canonicalFilePath.replace(/\.mdx$/, `${suffix}.mdx`);
+  return fs.existsSync(localized) ? localized : canonicalFilePath;
 }
 
 export function loadDocsIndex(
@@ -147,7 +211,14 @@ export function loadDocsIndex(
       const slugName = fileName.replace(/\.mdx$/, "");
       const slug = [sectionKey, slugName];
       const href = `/docs/${slug.join("/")}`;
-      const meta: DocMeta = { slug, href, filePath, frontmatter };
+      const availableLocales = detectAvailableLocales(sectionDir, fileName);
+      const meta: DocMeta = {
+        slug,
+        href,
+        filePath,
+        frontmatter,
+        availableLocales,
+      };
       pages.push(meta);
       byHref.set(href, meta);
     }
@@ -182,6 +253,7 @@ export function getAllSlugs(index: DocsIndex): string[][] {
 }
 
 export interface DocsSearchEntry {
+  /** Locale-prefixed href, ready to navigate to (`/docs/<locale>/<section>/<slug>`). */
   href: string;
   title: string;
   section: string;
@@ -203,29 +275,57 @@ export function extractHeadings(mdxSource: string): string[] {
 /**
  * 모든 문서에 대해 fuzzy 검색용 평면 인덱스를 반환해요.
  * 본문 전체 대신 title·summary·headings만 담아 클라이언트 번들 크기를 제한해요.
+ * `locale`에 해당하는 번역 sibling이 있으면 그 본문에서 heading을 뽑고,
+ * 없으면 canonical(KO) 본문에서 뽑아요. title·summary 역시 locale 프론트매터를 우선 사용.
+ *
+ * 결과는 `index` 객체 단위(= 같은 `getDocsIndex()` 반환값)로 캐시해요.
+ * production에서는 `getDocsIndex()`가 싱글턴이므로 `(locale, index)` 쌍당 1회만 디스크 I/O가 일어나요.
  */
-export function buildSearchIndex(index: DocsIndex): DocsSearchEntry[] {
+const searchIndexCache = new WeakMap<
+  DocsIndex,
+  Partial<Record<Locale, DocsSearchEntry[]>>
+>();
+
+export function buildSearchIndex(
+  index: DocsIndex,
+  locale: Locale = DEFAULT_LOCALE,
+): DocsSearchEntry[] {
+  const cached = searchIndexCache.get(index)?.[locale];
+  if (cached) return cached;
+
   const entries: DocsSearchEntry[] = [];
   for (const section of index.sections) {
+    const sectionLabel = localizedSectionLabel(section.key, locale);
     for (const page of section.pages) {
-      const source = fs.readFileSync(page.filePath, "utf8");
+      // availableLocales를 통해 sibling 존재 여부를 알 수 있으므로 불필요한
+      // existsSync syscall을 피해요. locale이 목록에 없으면 canonical 경로로 폴백.
+      const bodyPath =
+        locale === DEFAULT_LOCALE || !page.availableLocales.includes(locale)
+          ? page.filePath
+          : resolveLocalizedDocPath(page.filePath, locale);
+      const source = fs.readFileSync(bodyPath, "utf8");
       const parsed = matter(source, {
         engines: { javascript: () => ({}) },
       });
       const body =
         typeof parsed.content === "string" ? parsed.content : "";
       entries.push({
-        href: page.href,
-        title: page.frontmatter.title,
+        href: localizedDocsHref(page.slug, locale),
+        title: localizedTitle(page.frontmatter, locale),
         section: section.key,
-        sectionLabel: section.label,
-        summary: page.frontmatter.summary,
+        sectionLabel,
+        summary: localizedSummary(page.frontmatter, locale),
         headings: extractHeadings(body),
       });
     }
   }
+
+  const byLocale = searchIndexCache.get(index) ?? {};
+  byLocale[locale] = entries;
+  searchIndexCache.set(index, byLocale);
   return entries;
 }
+
 
 const DEFAULT_DOCS_ROOT = path.join(process.cwd(), "src", "content", "docs");
 

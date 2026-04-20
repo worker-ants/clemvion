@@ -1,0 +1,119 @@
+This page covers what a node is made of, which port rules it follows, and how data and errors flow. The full specs for individual nodes live on the category-specific pages that follow.
+
+## What is a node
+
+A node is a **unit of work** in a workflow. It takes input on the left, does its job based on configuration, and emits output on the right. Every node follows the same shared structure (type · category · input/output ports · config schema), so placing and connecting any node works the same way.
+
+- **Type and category** describe what the node does (e.g. `if_else` → logic, `ai_agent` → ai).
+- **Ports** define how data flows in and out.
+- **Config schema** drives the form fields and their validation. The palette and settings-panel UI are generated directly from this schema.
+
+## Categories
+
+Nodes are grouped into seven categories. Each has a distinct color that makes them easy to tell apart on the canvas.
+
+<FieldTable rows={[
+  {name: "Trigger", required: false, type: "Amber #F59E0B", description: "The entry point of a workflow — manual runs, webhooks, schedules.", default: "-"},
+  {name: "Logic", required: false, type: "Blue #3B82F6", description: "Controls data flow — branches, loops, variables, merges.", default: "-"},
+  {name: "Flow", required: false, type: "Purple #8B5CF6", description: "Calls other workflows as sub-workflows.", default: "-"},
+  {name: "AI", required: false, type: "Green #10B981", description: "LLM-powered agents, classification, and information extraction.", default: "-"},
+  {name: "Integration", required: false, type: "Orange #F97316", description: "Integrations with external services like HTTP, databases, email.", default: "-"},
+  {name: "Data", required: false, type: "Cyan #06B6D4", description: "Shape and transform data with Transform and Code nodes.", default: "-"},
+  {name: "Presentation", required: false, type: "Pink #EC4899", description: "Show results or collect input via carousel, chart, form, table, and template nodes.", default: "-"}
+]} />
+
+## Ports
+
+### Inputs and outputs
+
+- **Input ports** sit on the left, **output ports** on the right.
+- Default identifiers are `in` and `out`. Branching nodes use role-based IDs like `true`/`false` or `success`/`error`.
+- Dynamically-added ports (Switch cases, Text Classifier categories, Presentation button ports) get a **UUID v4** as their ID. Renaming or reordering leaves the ID untouched, so **existing connections keep working**.
+
+### Port types and colors
+
+<FieldTable rows={[
+  {name: "Data port", required: false, type: "Green ●", description: "Regular input/output. Most connections fall into this bucket.", default: "-"},
+  {name: "System port", required: false, type: "Blue ●", description: "A fixed output predeclared by the node itself, e.g. AI Agent's `user_ended` or `max_turns`.", default: "-"},
+  {name: "Error port", required: false, type: "Red ●", description: "Appears dynamically when the error policy is `Route to Error Port`, or exists statically on nodes like HTTP Request.", default: "-"},
+  {name: "emit port", required: false, type: "Purple ●", description: "The collection point for the body results of container nodes (Loop · ForEach · Map). Inner nodes connect to the container's `emit` input.", default: "-"}
+]} />
+
+<Callout type="note">
+Container nodes (Loop, ForEach, Map) start the inner subgraph from `body` and collect results back via the `emit` port. You must wire **exactly one** node to `emit`.
+</Callout>
+
+## Data flow
+
+Data passed between nodes is JSON. The previous node's output becomes the next node's input.
+
+<FieldTable rows={[
+  {name: "1:1 connection", required: false, type: "Default", description: "The output is handed to the next node's input as-is.", default: "-"},
+  {name: "1:N fan-out", required: false, type: "Copy", description: "The same output is duplicated and delivered to every connected node.", default: "-"},
+  {name: "N:1 merge", required: false, type: "Strategy", description: "Merged according to the Merge node's strategy (`wait_all` / `first` / `append`).", default: "-"},
+  {name: "Conditional branch", required: false, type: "If/Else, Switch", description: "Only the matching port receives data; the other ports stay idle.", default: "-"},
+  {name: "Error routing", required: false, type: "error port", description: "When the error policy is `Route to Error Port`, error data exits through the `error` port.", default: "-"}
+]} />
+
+Expression references look like this:
+
+<Example title="Cross-node references">
+```ts
+// Output of the directly connected previous node
+{{ $input.text }}
+
+// Reference a specific node by name
+{{ $node["Info Extractor"].output.result.extracted.amount }}
+
+// Variables, execution id, current time
+{{ $var.counter }}
+{{ $execution.id }}
+{{ $now }}
+```
+</Example>
+
+## Settings panel basics
+
+Selecting a node opens the settings panel on the right. It has three common tabs.
+
+<FieldTable rows={[
+  {name: "Settings", required: true, type: "Tab", description: "The node-specific configuration form. Open by default.", default: "-"},
+  {name: "Code", required: false, type: "Tab", description: "Edit the configuration as raw JSON. Handy for pasting many fields at once or diffing two nodes.", default: "-"},
+  {name: "Info", required: false, type: "Tab", description: "Shows a node description, tips, and a summary of recent runs.", default: "-"}
+]} />
+
+Common fields:
+
+<FieldTable rows={[
+  {name: "Name", required: false, type: "string", description: "Label shown on the canvas. Falls back to the default type name when empty.", default: "-"},
+  {name: "Error Handling", required: true, type: "enum", description: "Error policy. See the section below.", default: "Stop Workflow"},
+  {name: "Disable", required: false, type: "boolean", description: "When checked, this node is skipped during execution.", default: "false"},
+  {name: "Notes", required: false, type: "markdown", description: "Notes for yourself or your team.", default: "-"}
+]} />
+
+## Error policies
+
+Each node decides how to react to failures.
+
+<FieldTable rows={[
+  {name: "Stop Workflow", required: false, type: "Default", description: "Halts the entire run immediately and leaves it in the `failed` state.", default: "Selected"},
+  {name: "Skip Node", required: false, type: "Option", description: "Skips this node and continues. The output is `null`.", default: "-"},
+  {name: "Use Default Output", required: false, type: "Option", description: "Treats the failure as success using a default output you specify. A badge on the canvas indicates the default was used.", default: "-"},
+  {name: "Retry", required: false, type: "Option", description: "Retries with a configurable max count and delay.", default: "-"},
+  {name: "Route to Error Port", required: false, type: "Option", description: "Sends the error payload out through the `error` port. Selecting it dynamically adds the error port to the node.", default: "-"}
+]} />
+
+<Callout type="tip">
+With `Route to Error Port`, if nothing is connected to the error port, the node automatically falls back to `Stop Workflow`. Always wire a follow-up node onto the error path.
+</Callout>
+
+## Canvas summary
+
+The third line of the node body shows a one-line config summary. If required fields are empty, an amber `⚠ Not configured` badge appears. The summary hides when zoom drops below 50%.
+
+## Tips & notes
+
+- Category deep-dives live on the next pages: [Triggers](/docs/02-nodes/triggers) · [Logic](/docs/02-nodes/logic) · [Flow](/docs/02-nodes/flow) · [Data](/docs/02-nodes/data) · [AI](/docs/02-nodes/ai) · [Integrations](/docs/02-nodes/integrations) · [Presentation](/docs/02-nodes/presentation).
+- New to expressions? Start with [Expression basics](/docs/03-expression-language/basics).
+- How error policies translate to runtime behavior is covered in [Error handling](/docs/04-run-and-debug/error-handling).
+- Power-user tip: you can fetch every node type and its config schema with a single call to `GET /api/v1/nodes/definitions`. Great for auto-generating forms in external tools or validating workflow JSON in CI.

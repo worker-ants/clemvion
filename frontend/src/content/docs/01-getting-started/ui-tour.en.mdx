@@ -1,0 +1,149 @@
+This page walks through the three key screens of the product — the **sidebar**, the **workflow list**, and the **canvas editor** — in order. Getting familiar with where things live makes every later page easier to follow.
+
+## Overall layout
+
+<div className="my-4 flex gap-2 rounded-md border border-[hsl(var(--border))] bg-[hsl(var(--muted))/0.3] p-3 text-sm">
+  <div className="flex w-44 shrink-0 flex-col gap-2 rounded border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-3">
+    <div className="text-xs font-semibold text-[hsl(var(--muted-foreground))]">Sidebar (240px)</div>
+    <div className="font-medium">Logo</div>
+    <ul className="space-y-0.5 text-xs text-[hsl(var(--muted-foreground))]">
+      <li>Dashboard</li>
+      <li>Workflows</li>
+      <li>Triggers</li>
+      <li>Schedule</li>
+      <li>Integration</li>
+      <li>Authentication</li>
+      <li>Statistics</li>
+      <li>User Guide</li>
+    </ul>
+    <div className="mt-auto text-xs text-[hsl(var(--muted-foreground))]">Avatar · User</div>
+  </div>
+  <div className="flex flex-1 flex-col gap-2 rounded border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-3">
+    <div className="flex items-center justify-between text-xs font-semibold text-[hsl(var(--muted-foreground))]">
+      <span>Page Title</span>
+      <span>[ Action ]</span>
+    </div>
+    <div className="h-px bg-[hsl(var(--border))]" />
+    <div className="text-xs text-[hsl(var(--muted-foreground))]">
+      Main Content · the workflow list, editor, settings, and more all fill this area.
+    </div>
+  </div>
+</div>
+
+A fixed sidebar on the left handles navigation; the main area on the right fills with the current page. On narrower screens the sidebar auto-collapses or switches to a hamburger menu.
+
+## 1. Sidebar
+
+The sidebar lists the product's **top-level menus** in order. The page you're currently on is highlighted.
+
+<FieldTable rows={[
+  {name: "Dashboard", required: false, type: "Home", description: "The first screen you land on — a summary of recent activity and shortcuts.", default: "-"},
+  {name: "Workflows", required: false, type: "List", description: "Manage workflows you've created. You can create, duplicate, and delete them here.", default: "-"},
+  {name: "Triggers", required: false, type: "List", description: "The list of triggers that start workflows — manual, webhook, and schedule.", default: "-"},
+  {name: "Schedule", required: false, type: "Schedule", description: "Register workflows to run periodically on a cron schedule.", default: "-"},
+  {name: "Integration", required: false, type: "Integrations", description: "Stores auth settings for external services like HTTP, DB, and mail.", default: "-"},
+  {name: "Authentication", required: false, type: "Auth", description: "Issue API keys and tokens that external callers use to invoke your workflows.", default: "-"},
+  {name: "Statistics", required: false, type: "Stats", description: "See run counts, success/failure ratios, and average execution time.", default: "-"},
+  {name: "User Guide", required: false, type: "Manual", description: "The user manual you're reading right now.", default: "-"}
+]} />
+
+At the bottom of the sidebar you'll find your **avatar and username**. Clicking it opens profile, theme (light/dark), and log-out options.
+
+## 2. Workflow list
+
+Opening the `Workflows` menu shows every workflow you've built as cards or rows.
+
+<div className="my-4 overflow-hidden rounded-md border border-[hsl(var(--border))] bg-[hsl(var(--muted))/0.3] text-sm">
+  <div className="flex items-center justify-between border-b border-[hsl(var(--border))] px-4 py-2">
+    <span className="font-semibold">Workflows</span>
+    <span className="rounded bg-[hsl(var(--primary))] px-2 py-1 text-xs text-[hsl(var(--primary-foreground))]">+ New Workflow</span>
+  </div>
+  <div className="border-b border-[hsl(var(--border))] px-4 py-2 text-xs text-[hsl(var(--muted-foreground))]">🔍 Search · Status ▾ · Tags ▾</div>
+  <ul className="divide-y divide-[hsl(var(--border))]">
+    <li className="flex items-center justify-between px-4 py-2">
+      <span>● My First Workflow</span>
+      <span className="text-xs text-[hsl(var(--muted-foreground))]">Active · just now · ⋮</span>
+    </li>
+    <li className="flex items-center justify-between px-4 py-2">
+      <span>○ Lead Router</span>
+      <span className="text-xs text-[hsl(var(--muted-foreground))]">Inactive · 2d ago · ⋮</span>
+    </li>
+    <li className="flex items-center justify-between px-4 py-2">
+      <span>● Daily Report</span>
+      <span className="text-xs text-[hsl(var(--muted-foreground))]">Active · 1h ago · ⋮</span>
+    </li>
+  </ul>
+</div>
+
+Things you can do from the list:
+
+- **Search**: filter by name.
+- **Active/inactive toggle**: the circle on the left flips instantly. When a workflow is inactive, even incoming triggers won't run it.
+- **More (⋮)**: edit, duplicate, export (JSON), delete.
+- **Click an item**: jump to that workflow's **canvas editor**.
+
+## 3. Canvas editor
+
+This is where you actually draw a workflow. It has four regions.
+
+<div className="my-4 overflow-hidden rounded-md border border-[hsl(var(--border))] bg-[hsl(var(--muted))/0.3] text-sm">
+  <div className="flex items-center justify-between border-b border-[hsl(var(--border))] px-4 py-2 text-xs text-[hsl(var(--muted-foreground))]">
+    <span>← Workflows / My Workflow</span>
+    <span>[Save] · [▶ Run] · [⋮]</span>
+  </div>
+  <div className="flex min-h-[120px] divide-x divide-[hsl(var(--border))]">
+    <div className="w-28 shrink-0 bg-[hsl(var(--card))] p-3 text-xs text-[hsl(var(--muted-foreground))]">
+      <div className="font-semibold">Node Palette</div>
+      <div className="mt-1">Search · Trigger · Logic · Flow · AI · …</div>
+    </div>
+    <div className="flex flex-1 items-center justify-center bg-[hsl(var(--card))] p-4">
+      <div className="flex items-center gap-2 text-xs">
+        <span className="rounded border border-[hsl(var(--border))] px-2 py-1">Node A</span>
+        <span className="text-[hsl(var(--muted-foreground))]">→</span>
+        <span className="rounded border border-[hsl(var(--border))] px-2 py-1">Node B</span>
+      </div>
+    </div>
+    <div className="w-32 shrink-0 bg-[hsl(var(--card))] p-3 text-xs text-[hsl(var(--muted-foreground))]">
+      <div className="font-semibold">Setting Panel</div>
+      <div className="mt-1">Opens when a node is selected</div>
+    </div>
+  </div>
+  <div className="flex items-center justify-between border-t border-[hsl(var(--border))] bg-[hsl(var(--card))] px-4 py-2 text-xs text-[hsl(var(--muted-foreground))]">
+    <span>Run Results · visible only while running</span>
+    <span>[−] [✕]</span>
+  </div>
+  <div className="flex items-center justify-between border-t border-[hsl(var(--border))] px-4 py-2 text-xs text-[hsl(var(--muted-foreground))]">
+    <span>Zoom ━━━━●━━━━</span>
+    <span>Fit · Undo · Redo</span>
+  </div>
+</div>
+
+<Steps>
+  <Step>**Header**: back button, workflow name (inline-editable), Save, Run, and a more menu. `Ctrl+S` saves any time.</Step>
+  <Step>**Node palette (left)**: nodes grouped by category — Trigger · Logic · Flow · AI · Integration · Data · Presentation. The search at the top jumps to a node by name.</Step>
+  <Step>**Canvas (center)**: drag nodes from the palette to place them, then draw a **connection** from an output port to the next node's input port. Scroll to zoom, drag empty space to pan.</Step>
+  <Step>**Settings panel (right)**: opens when you click a node. Fields accept `{{ }}` expressions with autocomplete. Changes apply immediately.</Step>
+  <Step>**Run Results drawer (bottom)**: opens when you press Run. See per-node input, output, and errors; Presentation nodes show a rendered Preview tab.</Step>
+</Steps>
+
+### Common shortcuts
+
+<FieldTable rows={[
+  {name: "Ctrl+S", required: false, type: "Save", description: "Save the current workflow.", default: "-"},
+  {name: "Ctrl+C / Ctrl+V", required: false, type: "Copy/Paste", description: "Duplicate the selected nodes and their connections as a group.", default: "-"},
+  {name: "Ctrl+D", required: false, type: "Duplicate", description: "Copy the selected node right next to itself.", default: "-"},
+  {name: "Delete", required: false, type: "Delete", description: "Remove the selected node or connection.", default: "-"},
+  {name: "Ctrl+Z / Ctrl+Y", required: false, type: "Undo/Redo", description: "Undo or redo the last action.", default: "-"},
+  {name: "Fit", required: false, type: "Fit view", description: "Zoom to fit all nodes in view.", default: "-"}
+]} />
+
+<Callout type="tip">
+**Editor empty state**: when a workflow has no non-trigger nodes yet, a "Get started" card floats in the **top-right** of the canvas. It links to the matching section of the manual. The card disappears naturally once you add the first non-trigger node.
+</Callout>
+
+## Tips & notes
+
+- Clicking a manual link while you're in the editor opens it in a **new tab** — by design, so you don't lose your work context.
+- Power-user tip: the settings panel can flip between per-field forms and a **JSON/code edit mode**. Handy for pasting many fields at once, or diffing two node configs.
+- Next step: [Build your first workflow](/docs/01-getting-started/first-workflow). Place a real node and see its result.
+- Curious what kinds of nodes exist? See the [node overview](/docs/02-nodes/overview).

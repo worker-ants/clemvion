@@ -1,0 +1,135 @@
+This page covers **browsing execution history**, using the **Run Results drawer timeline**, checking **per-node I/O**, and interpreting **error messages**.
+
+## Run Results drawer
+
+Running a workflow auto-opens the Run Results drawer at the bottom of the editor. It uses a **two-pane layout**: timeline on the left, selected-node details on the right.
+
+<div className="my-4 overflow-hidden rounded-md border border-[hsl(var(--border))] bg-[hsl(var(--muted))/0.3] text-sm">
+  <div className="flex items-center justify-between border-b border-[hsl(var(--border))] px-4 py-2 text-xs text-[hsl(var(--muted-foreground))]">
+    <span>🔄 Running... · 3/10 nodes</span>
+    <span>[−] [✕]</span>
+  </div>
+  <div className="flex min-h-[160px] divide-x divide-[hsl(var(--border))]">
+    <div className="w-56 shrink-0 bg-[hsl(var(--card))] p-3 text-xs">
+      <div className="mb-2 font-semibold text-[hsl(var(--muted-foreground))]">Timeline (280px)</div>
+      <ul className="space-y-1">
+        <li>🟡 Trigger · ✓</li>
+        <li>🔵 If/Else · ✓</li>
+        <li>🟠 HTTP · ✓</li>
+        <li>🔵 Transform · ✓</li>
+        <li>🩷 Table · ✓</li>
+        <li className="text-[hsl(var(--muted-foreground))]">🩷 Form · ⏸</li>
+      </ul>
+    </div>
+    <div className="flex-1 bg-[hsl(var(--card))] p-3 text-xs">
+      <div className="mb-2 font-semibold text-[hsl(var(--muted-foreground))]">Detail (flex-1)</div>
+      <div>HTTP Request: "Fetch Users"</div>
+      <div className="text-[hsl(var(--muted-foreground))]">Status: completed (142ms)</div>
+      <div className="mt-2 text-[hsl(var(--muted-foreground))]">[Preview] · Input · Output · Error</div>
+      <pre className="mt-1 rounded bg-[hsl(var(--muted))/0.5] p-2 text-[11px]">{`{ "statusCode": 200, ... }`}</pre>
+    </div>
+  </div>
+</div>
+
+<Callout type="tip">`Ctrl + Shift + R` toggles the drawer any time. Drag the top handle to resize it — up to 60% of the viewport.</Callout>
+
+## Reading the timeline
+
+The left timeline lists **every executed node** in run order.
+
+<FieldTable rows={[
+  { name: "Category color dot", type: "Visual", description: "Shows the node's category: Trigger=🟡, Logic=🔵, Flow=🟣, AI=🟢, Integration=🟠, Data=🔵, Presentation=🩷" },
+  { name: "Status icon", type: "Status", description: "⏳ Running, ✅ Completed, ❌ Failed, ⏸ Waiting, — Skipped" },
+  { name: "Duration", type: "Duration", description: "Elapsed time such as 142ms or 1.2s." },
+  { name: "`(iter N)` suffix", type: "Iteration", description: "Each body iteration of Loop/ForEach/Map shows as its own entry." }
+]} />
+
+Clicking a timeline entry shows that node's result in the detail pane.
+
+## Node detail: sub-tabs
+
+For completed, failed, or waiting nodes, the detail pane exposes sub-tabs. The AI nodes (AI Agent, Information Extractor, Text Classifier) use the same tab UI.
+
+<FieldTable rows={[
+  { name: "Preview", type: "Conditional", description: "Visual preview for Table, Carousel, Chart, Template, and Form. For conversational AI nodes, shows the ConversationInspector and the form/button wait UI." },
+  { name: "Input", type: "Node-level", description: "Input JSON this node received. Sometimes it loads late via polling — a brief Loading indicator can appear." },
+  { name: "Output", type: "Node-level", description: "The node's output JSON. AI nodes show a summary grid (Model · Tokens · Turn Count · Tool Calls) at the top." },
+  { name: "LLM Usage", type: "AI nodes", description: "At the node level: whole-run aggregates (Model · Total/Request/Response/Thinking Tokens · Turn Count · Tool Calls · LLM Calls). At the message level: tokens and latency for the selected call." },
+  { name: "Config", type: "Node-level", description: "Echo of the node's config actually used at run time. Nodes that don't yet support the new output shape show an explanatory message." },
+  { name: "Error", type: "On failure", description: "Detailed error info as JSON." }
+]} />
+
+Default tab priority is `Error → Preview → Output`. If there's an error, the Error tab opens first.
+
+## AI node Multi Turn results
+
+AI Agent / Information Extractor runs in Multi Turn mode appear on the timeline as a collapsible tree. Expanding it shows **user messages, AI responses, and tool calls** inline as preview cards.
+
+- While the conversation is active, a message-input UI sticks to the bottom of the inspector.
+- After the conversation ends it reads like a chat thread. Clicking an item changes the detail panel's tabs:
+
+<FieldTable rows={[
+  { name: "Click user / tool entry", type: "Preview only", description: "Highlights that entry in ConversationInspector." },
+  { name: "Click AI (assistant) response", type: "Preview / Response / Request / LLM Usage", description: "Shows that turn's LLM payload and token usage across tabs. When a turn has multiple calls (tool loops, retries), switch between them with the Call selector at the top; selection persists across Response ↔ Request ↔ LLM Usage." },
+  { name: "Click the node itself (no message selected)", type: "Node-level tabs", description: "Node-wide token/call aggregates show up in the LLM Usage tab." }
+]} />
+
+<Callout type="tip">
+Text Classifier is a single-call node, so the timeline has no assistant messages for it. Instead, check the `LLM Usage` tab at the node level for token and model info.
+</Callout>
+
+## Browsing execution history
+
+You can re-open results after a run has finished.
+
+<Steps>
+  <Step>In the editor header menu (`⋯`) pick `Execution history`, or click `View All Executions` in the Run Results drawer.</Step>
+  <Step>On `/workflows/:id/executions`, narrow the list by status (All / Completed / Failed / Running / Cancelled / Waiting).</Step>
+  <Step>Clicking a row jumps to `/workflows/:id/executions/:executionId`.</Step>
+  <Step>From the detail page you can read the summary card, per-node results, errors, and navigate adjacent runs with `← Prev / Next →`.</Step>
+</Steps>
+
+You can also reach execution history from the Dashboard's Recent Executions widget and the Workflow List's context menu (`⋯ → Execution History`).
+
+## Tips for inspecting per-node I/O
+
+- **Copy buttons**: the Input/Output tabs expose `Copy Input` and `Copy Output` buttons. Paste the JSON straight into Run with Input to reproduce a run.
+- **Re-run with this input**: from the execution detail, start a new run using a specific run's input.
+- **Presentation node Preview**: Table, Chart, Carousel, and Template show a rendered preview rather than raw JSON. The JSON itself is still on the Output tab.
+
+## Interpreting error messages
+
+A failed node's Error tab is shaped like this:
+
+<Example title="Execution error response example">
+```json
+{
+  "error": {
+    "code": "NODE_EXECUTION_FAILED",
+    "message": "Node 'AI Agent' failed: LLM connection timeout",
+    "nodeId": "uuid-of-node",
+    "nodeName": "AI Agent",
+    "nodeType": "ai_agent",
+    "executionId": "uuid-of-execution"
+  }
+}
+```
+</Example>
+
+Typical error codes:
+
+<FieldTable rows={[
+  { name: "NODE_EXECUTION_FAILED", type: "Execution", description: "The node handler threw an exception. `message` holds a short cause summary." },
+  { name: "EXECUTION_TIMEOUT", type: "Timeout", description: "Per-node or overall workflow timeout exceeded." },
+  { name: "INVALID_EXPRESSION", type: "Expression", description: "Expression evaluation failed. Check syntax, null access, or type mismatches." },
+  { name: "INTEGRATION_ERROR", type: "Integration", description: "An external integration call failed. Verify auth, network, and response shape." },
+  { name: "LLM_RATE_LIMITED", type: "LLM", description: "Hit the LLM provider's rate limit. Wait and retry, or enable a Retry policy." },
+  { name: "MAX_ITERATIONS_EXCEEDED", type: "Iteration", description: "Exceeded a Loop/ForEach max iteration count." },
+  { name: "ERROR_PORT_FALLBACK", type: "Fallback", description: "Route to Error Port was configured but no edge connected — auto-fell back to Stop Workflow." }
+]} />
+
+## Tips & notes
+
+- To handle failures robustly, configure a per-node [error policy](/docs/04-run-and-debug/error-handling).
+- Roll back to an earlier state via [Version history](/docs/04-run-and-debug/version-history).
+- For expression-related errors, check [Expression basics](/docs/03-expression-language/basics) and [Variables and context](/docs/03-expression-language/variables-and-context) for likely causes.

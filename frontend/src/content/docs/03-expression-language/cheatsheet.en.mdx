@@ -1,0 +1,206 @@
+This page collects **battle-tested expression patterns** ready to copy into your node settings. Every example runs as-is against `@workflow/expression-engine`.
+
+## Conditionals
+
+<Example title="Default value via ternary">
+```ts
+{{ $input.name ? $input.name : "Anonymous" }}
+```
+</Example>
+
+<Example title="Falsy fallback with `||`">
+```ts
+{{ $input.title || "(no title)" }}
+```
+</Example>
+
+<Example title="Combined conditions (AND / OR)">
+```ts
+{{ $input.age >= 18 && $input.country == "KR" }}
+```
+</Example>
+
+<Example title="Check for emptiness">
+```ts
+{{ isEmpty($input.items) ? "No items" : "Has items" }}
+```
+</Example>
+
+<Callout type="note">`isEmpty()` treats `null`, `""`, `[]`, and `{}` as empty. Number `0` and `false` are **not** empty.</Callout>
+
+## String joining
+
+<Example title="Interpolation">
+```ts
+Hello, {{ $input.firstName }} {{ $input.lastName }}!
+```
+</Example>
+
+<Example title="Concatenation with `+`">
+```ts
+{{ "Order ID: " + $input.orderId }}
+```
+</Example>
+
+<Example title="Join an array with a separator">
+```ts
+{{ join($input.tags, ", ") }}
+```
+</Example>
+
+<Example title="Lowercase and trim">
+```ts
+{{ lowercase(trim($input.email)) }}
+```
+</Example>
+
+## Array access
+
+<Example title="Index access">
+```ts
+{{ $input.items[0].name }}
+```
+</Example>
+
+<Example title="First / last element">
+```ts
+{{ first($input.items) }}
+{{ last($input.items) }}
+```
+</Example>
+
+<Example title="Slice and inclusion">
+```ts
+{{ slice($input.items, 0, 5) }}
+{{ includes($input.tags, "urgent") }}
+```
+</Example>
+
+<Example title="Unique and null-drop">
+```ts
+{{ unique($input.categories) }}
+{{ compact($input.maybeValues) }}
+```
+</Example>
+
+## Field defaults · safe access
+
+<Example title="Null-safe access (ternary)">
+```ts
+{{ $input.user ? $input.user.name : "Unknown" }}
+```
+</Example>
+
+<Example title="`||` fallback">
+```ts
+{{ $input.retryCount || 0 }}
+```
+</Example>
+
+<Example title="Object merge to supply defaults">
+```ts
+{{ merge({ "status": "pending", "retries": 0 }, $input) }}
+```
+</Example>
+
+<Example title="Pick keys · omit keys">
+```ts
+{{ pick($input, ["id", "email"]) }}
+{{ omit($input, ["password", "token"]) }}
+```
+</Example>
+
+## Date formatting
+
+<Example title="ISO string → human-readable">
+```ts
+{{ formatDate($input.createdAt, "YYYY-MM-DD HH:mm") }}
+```
+</Example>
+
+<Example title="File name from today's date">
+```ts
+report-{{ $today }}.csv
+```
+</Example>
+
+<Example title="Add / subtract time">
+```ts
+{{ addTime($now, 7, "days") }}
+{{ subtractTime($now, 1, "hours") }}
+```
+</Example>
+
+<Example title="Difference between two dates">
+```ts
+{{ diffTime($input.endedAt, $input.startedAt, "minutes") }}
+```
+</Example>
+
+<Callout type="tip">Time units: `years`, `months`, `days`, `hours`, `minutes`, `seconds`. Format tokens: `YYYY`, `MM`, `DD`, `HH`, `mm`, `ss`, `ddd`.</Callout>
+
+## Numbers
+
+<Example title="Round and fixed decimals">
+```ts
+{{ round($input.price * 1.1, 2) }}
+{{ toFixed($input.rate, 4) }}
+```
+</Example>
+
+<Example title="Min · max · abs">
+```ts
+{{ min($input.a, $input.b, 100) }}
+{{ max($input.scores) }}
+{{ abs($input.delta) }}
+```
+</Example>
+
+<Example title="String → number">
+```ts
+{{ parseInt($input.countStr) }}
+{{ parseFloat($input.weightStr) }}
+```
+</Example>
+
+## Type conversion and JSON
+
+<Example title="Stringify and parse JSON">
+```ts
+{{ toJSON($input) }}
+{{ fromJSON($input.rawPayload) }}
+```
+</Example>
+
+<Example title="Check a type">
+```ts
+{{ typeOf($input.value) == "array" }}
+```
+</Example>
+
+## Dynamic configuration
+
+<Example title="Insert a path parameter into an HTTP URL">
+```ts
+https://api.example.com/users/{{ $input.userId }}/orders?from={{ $today }}
+```
+</Example>
+
+<Example title="Compose a Slack / email message">
+```ts
+🚨 {{ $node["AI Agent"].output.severity }} — {{ $input.summary }}
+Execution ID: {{ $execution.id }}
+```
+</Example>
+
+<Example title="Using index and item together inside a ForEach">
+```ts
+[{{ $itemIndex + 1 }}] {{ $item.title }} — {{ formatDate($item.createdAt, "MM/DD") }}
+```
+</Example>
+
+## Tips & notes
+
+- Full syntax and operator precedence: [Expression basics](/docs/03-expression-language/basics).
+- List of reference variables: [Variables and context](/docs/03-expression-language/variables-and-context).
+- When an expression fails, the node fails. Recovery strategies: [Error handling](/docs/04-run-and-debug/error-handling).

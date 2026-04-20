@@ -1,9 +1,10 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { afterEach, describe, it, expect, vi, beforeEach } from "vitest";
+import { cleanup, render, screen, fireEvent } from "@testing-library/react";
 import type { DocsSection } from "@/lib/docs/registry";
+import { useLocaleStore } from "@/lib/stores/locale-store";
 
 vi.mock("next/navigation", () => ({
-  usePathname: () => "/docs/02-nodes/ai",
+  usePathname: () => "/docs/ko/02-nodes/ai",
 }));
 
 import { DocsSidebar } from "../docs-sidebar";
@@ -23,6 +24,7 @@ const sections: DocsSection[] = [
           order: 1,
           summary: "",
         },
+        availableLocales: ["ko"],
       },
     ],
   },
@@ -40,6 +42,7 @@ const sections: DocsSection[] = [
           order: 1,
           summary: "",
         },
+        availableLocales: ["ko"],
       },
       {
         slug: ["02-nodes", "ai"],
@@ -51,6 +54,7 @@ const sections: DocsSection[] = [
           order: 2,
           summary: "",
         },
+        availableLocales: ["ko"],
       },
     ],
   },
@@ -59,6 +63,12 @@ const sections: DocsSection[] = [
 describe("DocsSidebar", () => {
   beforeEach(() => {
     window.localStorage.clear();
+    useLocaleStore.setState({ locale: "ko" });
+  });
+
+  afterEach(() => {
+    cleanup();
+    useLocaleStore.setState({ locale: "ko" });
   });
 
   it("섹션 레이블과 페이지 타이틀을 렌더해요", () => {
@@ -78,12 +88,20 @@ describe("DocsSidebar", () => {
     expect(inactive).not.toHaveAttribute("aria-current");
   });
 
-  it("모든 페이지 링크가 href를 갖고 있어요", () => {
+  it("모든 페이지 링크가 locale 프리픽스가 붙은 href를 갖고 있어요", () => {
     render(<DocsSidebar sections={sections} />);
     const links = screen.getAllByRole("link");
     expect(links.length).toBe(3);
     for (const link of links) {
-      expect(link.getAttribute("href")).toMatch(/^\/docs\//);
+      expect(link.getAttribute("href")).toMatch(/^\/docs\/(ko|en)\//);
+    }
+  });
+
+  it("locale이 'en'으로 바뀌면 hrefs도 /docs/en/... 로 갱신돼요", () => {
+    useLocaleStore.setState({ locale: "en" });
+    render(<DocsSidebar sections={sections} />);
+    for (const link of screen.getAllByRole("link")) {
+      expect(link.getAttribute("href")).toMatch(/^\/docs\/en\//);
     }
   });
 

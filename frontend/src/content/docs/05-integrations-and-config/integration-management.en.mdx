@@ -1,0 +1,87 @@
+This page covers how to centrally manage your third-party integrations. Nodes like HTTP Request and Send Email reuse the integrations you create here.
+
+## What an integration is
+
+An integration is a bundle of credentials for reaching an external service. Create one, and multiple nodes across multiple workflows can share the same account/key. Key rotation and re-auth happen in one place.
+
+Supported service types:
+
+<FieldTable rows={[
+  { name: "HTTP/REST", type: "API Key · Bearer · Basic · None", required: "Optional", description: "Generic HTTP calls. Set a base_url and shared headers." },
+  { name: "Database", type: "Connection String", required: "Optional", description: "Direct query against PostgreSQL or MySQL." },
+  { name: "Email (SMTP)", type: "SMTP", required: "Optional", description: "SMTP credentials for sending email." },
+  { name: "Webhook (Outbound)", type: "URL + Signing Secret", required: "Optional", description: "Call an external endpoint. Optional HMAC signing." },
+  { name: "Google / GitHub", type: "OAuth2 · PAT", required: "Optional", description: "OAuth popup flow or Personal Access Token." }
+]} />
+
+<Callout type="note">Inbound webhook URLs are not created here. For running a workflow from a webhook, see [Trigger nodes](/docs/02-nodes/triggers).</Callout>
+
+## Sharing inside a team workspace
+
+Integrations created in a team workspace are automatically usable by every member. Switching workspaces from the sidebar refreshes the integration list for the selected workspace.
+
+Permissions:
+
+<FieldTable rows={[
+  { name: "Viewer", type: "Role", required: "-", description: "Read-only. Cannot create, edit, delete, re-auth, or rotate credentials." },
+  { name: "Editor / Admin / Owner", type: "Role", required: "-", description: "Can add, edit, delete, test, re-auth, and rotate credentials." }
+]} />
+
+<Callout type="tip">Integrations in a personal workspace are visible only to the owner. To share with a team, create the integration inside the team workspace. The same external account is a separate record per workspace.</Callout>
+
+## Adding an integration
+
+Click `[+ Add Integration]` in the top-right of `/integrations`. Pick a service in the modal; the flow then transitions into a dedicated page starting from the auth step (`/integrations/new?service=...&step=auth`).
+
+<Steps>
+<Step>In the service-picker modal, click one of Google, GitHub, HTTP, Database, Email, Webhook.</Step>
+<Step>In Step 2, set an alias (`name`) and scope (Personal / Organization). In a team workspace, only admins can pick Organization scope.</Step>
+<Step>Enter service-specific credentials. OAuth services use scope checkboxes; click `[Connect with ...]` to authenticate through a popup.</Step>
+<Step>Step 3 auto-runs `POST /api/integrations/preview-test`. `[Save integration]` activates once the test passes.</Step>
+<Step>On save, you're redirected to the detail page (`/integrations/[id]`) with an `Integration created` toast.</Step>
+</Steps>
+
+<Callout type="warn">If the OAuth popup doesn't return within 5 minutes, the attempt times out. The credentials you entered aren't restored for safety reasons — restart from Step 2.</Callout>
+
+## Testing, editing, and rotating credentials
+
+The detail page tabs cover almost every operational task.
+
+<FieldTable rows={[
+  { name: "Overview", type: "Tab", required: "Always", description: "`Test connection`, rename alias, and re-auth from Quick actions." },
+  { name: "Security", type: "Tab", required: "Always", description: "Non-OAuth integrations: `Rotate credentials` form. The new values replace the old only after the connection test passes." },
+  { name: "Scope & Permissions", type: "Tab", required: "OAuth", description: "Inspect current scopes and request more. On `insufficient_scope` errors, missing items are flagged red." },
+  { name: "Usage", type: "Tab", required: "Always", description: "Lists workflows and nodes referencing this integration. `Open in editor` jumps you straight there." },
+  { name: "Danger zone", type: "Tab", required: "Admin", description: "Delete, or switch Personal ↔ Organization scope. Deletion is blocked when it's still in use." }
+]} />
+
+<Callout type="tip">When an integration flips to `expired` or `error`, the sidebar shows an attention badge and the list displays a `Need attention` banner. Clicking it jumps to the matching status filter.</Callout>
+
+## Choosing an integration from a node
+
+In the workflow editor, adding an HTTP Request, Send Email, or Database Query node exposes an `Integration` dropdown at the top of the settings panel. The dropdown lists only integrations whose service type matches.
+
+<Example title="Using an integration from an HTTP Request node">
+```ts
+// The values you pick in the settings panel are persisted in the node config.
+{
+  "type": "httpRequest",
+  "config": {
+    "integrationId": "int_01H...",   // integration id from integration management
+    "method": "POST",
+    "path": "/v1/orders",            // relative path joined to base_url
+    "body": "{{ $run.input }}"
+  }
+}
+```
+</Example>
+
+Send Email works the same way. The SMTP integration's `default_from` becomes the default sender; each node can still override it.
+
+## Tips & notes
+
+- Credentials are stored encrypted with AES-256-GCM. API responses return only masked previews like `****4f2a`.
+- For non-OAuth integrations, `Rotate credentials` only overwrites the existing secret after the new value passes the connection test. On failure, the existing credential is untouched.
+- To register multiple accounts for the same service, add separate integrations with different aliases. Aliases must be unique within a workspace.
+- An integration in use cannot be deleted. First switch the node's `integrationId` to another integration or remove the node.
+- Detailed status-transition rules are in `spec/2-navigation/4-integration.md`.

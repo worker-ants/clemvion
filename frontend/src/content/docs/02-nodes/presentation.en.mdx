@@ -1,0 +1,294 @@
+This page covers the five presentation nodes that either **visualize** a workflow's results or **collect user input**. Carousel, Table, Chart, and Template can also operate in Human-in-the-loop mode via buttons; Form is a blocking input node by default.
+
+## Shared pattern — buttons and blocking mode
+
+Carousel, Table, Chart, and Template share a `buttons` field. As soon as any button is configured, the run enters the **waiting_for_input** state and waits indefinitely for a user click.
+
+<FieldTable rows={[
+  {name: "No buttons", required: false, type: "Non-blocking", description: "Data flows through the single `out` port to the next node.", default: "-"},
+  {name: "port buttons", required: false, type: "Blocking", description: "The `out` port disappears and dynamic output ports matching each button's ID (UUID v4) appear.", default: "-"},
+  {name: "link buttons only", required: false, type: "Blocking + continue", description: "A `continue` port is auto-generated. Clicking Continue sends the rendered output through that port.", default: "-"},
+  {name: "Mixed", required: false, type: "port + link", description: "One dynamic port per port button; link buttons open external URLs without changing run state.", default: "-"}
+]} />
+
+**ButtonDef shape:**
+
+<FieldTable rows={[
+  {name: "id", required: false, type: "UUID v4 (auto)", description: "Immutable button identifier. For port buttons, also serves as the dynamic output port ID.", default: "auto"},
+  {name: "label", required: true, type: "expression", description: "Button label.", default: "-"},
+  {name: "type", required: true, type: "`link` / `port`", description: "link navigates to an external URL; port branches the workflow.", default: "port"},
+  {name: "url", required: false, type: "expression", description: "Required when `type=link`.", default: "-"},
+  {name: "style", required: false, type: "`primary` / `secondary` / `outline` / `danger`", description: "Button style.", default: "secondary"}
+]} />
+
+<Callout type="warn">
+Up to **10 buttons per node**. If a port button's dynamic port has no downstream connection, a warning is shown (not an error). The run waits indefinitely until a button is clicked — design for long waits.
+</Callout>
+
+## Carousel
+
+### When to use it
+
+- To present data as a **slideshow**.
+- Define slides by hand in **static** mode, or map an array automatically in **dynamic** mode.
+
+### Fields
+
+<FieldTable rows={[
+  {name: "mode", required: false, type: "`static` / `dynamic`", description: "Choose a static item list or dynamic array-based generation.", default: "dynamic"},
+  {name: "items", required: false, type: "ItemDef[]", description: "Slide list for static mode. Each has `title`, `description`, `image`, `buttons`.", default: "[]"},
+  {name: "source", required: false, type: "expression", description: "Expression returning an array for dynamic mode. Defaults to the input port data when empty.", default: "-"},
+  {name: "titleField", required: false, type: "string", description: "Path of the title field in dynamic mode.", default: "-"},
+  {name: "descriptionField", required: false, type: "string", description: "Path of the description field in dynamic mode.", default: "-"},
+  {name: "imageField", required: false, type: "string", description: "Path of the image URL field in dynamic mode.", default: "-"},
+  {name: "maxItems", required: false, type: "integer (1–100)", description: "Max slides in dynamic mode.", default: "10"},
+  {name: "itemButtons", required: false, type: "ButtonDef[]", description: "Buttons attached identically to every item in dynamic mode. Max 4.", default: "[]"},
+  {name: "layout", required: false, type: "`card` / `image` / `minimal`", description: "Layout.", default: "card"},
+  {name: "buttons", required: false, type: "ButtonDef[]", description: "Global buttons. Non-empty values enable blocking mode.", default: "[]"}
+]} />
+
+### Example
+
+<Example title="Dynamic mode + per-item buttons">
+```ts
+// config
+{
+  mode: "dynamic",
+  source: "{{ $node[\"API\"].output.results }}",
+  titleField: "name",
+  descriptionField: "summary",
+  imageField: "thumbnail",
+  maxItems: 10,
+  itemButtons: [
+    { label: "Select", type: "port", style: "primary" }
+  ],
+  layout: "card"
+}
+
+// Output via dynamic port when an item button is clicked
+{
+  type: "button_click",
+  buttonId: "…",
+  buttonLabel: "Select",
+  clickedAt: "…",
+  selectedItem: { title: "…", description: "…" },
+  nodeOutput: { type: "carousel", items: [...], layout: "card", rendered: "<html>…" }
+}
+```
+</Example>
+
+## Table
+
+### When to use it
+
+- To display data in a **table** with sorting and pagination.
+- Define rows by hand in static mode, or map from an array source in dynamic mode.
+
+### Fields
+
+<FieldTable rows={[
+  {name: "mode", required: false, type: "`static` / `dynamic`", description: "Static or dynamic mode.", default: "dynamic"},
+  {name: "dataSource", required: false, type: "expression", description: "Array data source in dynamic mode. Falls back to the previous node's input when empty.", default: "-"},
+  {name: "columns", required: true, type: "ColumnDef[]", description: "Column definitions. Each has `field`, `label`, `width`, `sortable`, `format`. `field` accepts a dot-path or per-item `{{ }}` expression.", default: "[]"},
+  {name: "rows", required: false, type: "RowDef[]", description: "Static-mode row data. Each row is an object keyed by column field.", default: "[]"},
+  {name: "pagination", required: false, type: "boolean", description: "Toggle pagination.", default: "true"},
+  {name: "pageSize", required: false, type: "integer (1–200)", description: "Rows per page.", default: "20"},
+  {name: "sortBy", required: false, type: "string", description: "Default sort column field.", default: "-"},
+  {name: "sortOrder", required: false, type: "`asc` / `desc`", description: "Default sort direction.", default: "asc"},
+  {name: "buttons", required: false, type: "ButtonDef[]", description: "Blocking buttons.", default: "[]"}
+]} />
+
+In dynamic-mode column expressions, `$dataSource`, `$sourceItem`, and `$sourceItemIndex` are available as per-item variables.
+
+### Example
+
+<Example title="Dynamic mode + per-item expression columns">
+```ts
+// config
+{
+  mode: "dynamic",
+  dataSource: "{{ $node[\"API\"].output.users }}",
+  columns: [
+    { field: "name", label: "Name", width: "200px" },
+    { field: "{{ $sourceItem.first + ' ' + $sourceItem.last }}", label: "Full name" },
+    { field: "score", label: "Score", sortable: true, format: "0,0.00" }
+  ],
+  pagination: true,
+  pageSize: 20,
+  sortBy: "score",
+  sortOrder: "desc"
+}
+```
+</Example>
+
+<Callout type="note">
+Table has pagination on by default. With a hard cap of 200 rows/page, large datasets are surfaced safely.
+</Callout>
+
+## Chart
+
+### When to use it
+
+- To visualize numeric data as a **bar, line, pie, donut, or area** chart.
+- Duplicate X values are combined via aggregation automatically.
+
+### Fields
+
+<FieldTable rows={[
+  {name: "chartType", required: true, type: "`bar` / `line` / `pie` / `donut` / `area`", description: "Chart type.", default: "bar"},
+  {name: "dataField", required: true, type: "string", description: "Path to the data array.", default: "-"},
+  {name: "xAxis", required: true, type: "AxisDef", description: "X-axis definition. `field` (required) and optional `label`.", default: "-"},
+  {name: "yAxis", required: true, type: "AxisDef", description: "Y-axis definition. `field`, `label`, `aggregation` (sum/count/avg/min/max).", default: "-"},
+  {name: "groupBy", required: false, type: "string", description: "Field to group by for multi-series charts.", default: "-"},
+  {name: "title", required: false, type: "string", description: "Chart title.", default: "-"},
+  {name: "colors", required: false, type: "string[]", description: "Custom color palette.", default: "-"},
+  {name: "buttons", required: false, type: "ButtonDef[]", description: "Blocking buttons.", default: "[]"}
+]} />
+
+### Aggregation rules
+
+<FieldTable rows={[
+  {name: "sum (default)", required: false, type: "Same X key", description: "Sum Y values mapped to the same X key. null/undefined are skipped.", default: "-"},
+  {name: "count", required: false, type: "Row count", description: "Count rows that share an X key, including null Y values.", default: "-"},
+  {name: "avg / min / max", required: false, type: "Average / min / max", description: "null/undefined Y values are skipped — and excluded from the denominator in avg.", default: "-"},
+  {name: "null X axis", required: false, type: "Excluded", description: "Rows with null/undefined X are dropped from the chart.", default: "-"}
+]} />
+
+### Example
+
+<Example title="Monthly revenue bar chart">
+```ts
+// config
+{
+  chartType: "bar",
+  title: "Monthly Revenue",
+  dataField: "sales",
+  xAxis: { field: "month", label: "Month" },
+  yAxis: { field: "revenue", label: "Revenue", aggregation: "sum" },
+  groupBy: "region",
+  colors: ["#3B82F6", "#10B981"]
+}
+```
+</Example>
+
+## Form
+
+### When to use it
+
+- When you need **user input** in the middle of a workflow (Human-in-the-loop).
+- Execution pauses, then resumes (after validation) when the form is submitted.
+
+### Fields
+
+<FieldTable rows={[
+  {name: "title", required: true, type: "string", description: "Form title.", default: "-"},
+  {name: "description", required: false, type: "markdown", description: "Form description.", default: "-"},
+  {name: "submitLabel", required: false, type: "string", description: "Submit button label.", default: "Submit"},
+  {name: "fields", required: true, type: "FormField[]", description: "Form fields. Each has `name`, `type`, `label`, `required`, `options`, `defaultValue`, `validation`.", default: "[]"}
+]} />
+
+Supported field types: `text`, `number`, `email`, `textarea`, `select`, `checkbox`, `radio`, `date`, `file`.
+
+File-field-specific settings:
+
+<FieldTable rows={[
+  {name: "allowedMimeTypes", required: false, type: "string[]", description: "Allowed MIME types. Defaults to images, PDFs, office docs, and text.", default: "spec default list"},
+  {name: "maxFileSize", required: false, type: "number (MB)", description: "Max size per file.", default: "10"},
+  {name: "maxTotalSize", required: false, type: "number (MB)", description: "Max total size across all files in the field.", default: "50"},
+  {name: "maxFiles", required: false, type: "number", description: "Max files per field.", default: "5"}
+]} />
+
+### Example
+
+<Example title="Approval request form">
+```ts
+// config
+{
+  title: "Approval Request",
+  description: "Review the details and choose whether to **approve**.",
+  submitLabel: "Submit",
+  fields: [
+    {
+      name: "approval", type: "select", label: "Decision", required: true,
+      options: [{ label: "Approve", value: "approved" }, { label: "Reject", value: "rejected" }]
+    },
+    { name: "comment", type: "textarea", label: "Comment", required: false,
+      validation: { maxLength: 500, message: "Please keep the comment under 500 characters" } }
+  ]
+}
+
+// Output via `out` port after submission
+{
+  type: "form",
+  submittedData: { approval: "approved", comment: "Looks good" },
+  submittedAt: "…",
+  submittedBy: "user-uuid"
+}
+```
+</Example>
+
+<Callout type="warn">
+Form runs wait **indefinitely until submission**. The run state flips to `waiting_for_input`; no timeout fires unless cancelled or ended externally. Executables (.exe, .sh), scripts (.js, .py), and archives (.zip) are not in the default allowed MIME list — extend it explicitly when needed.
+</Callout>
+
+## Template
+
+### When to use it
+
+- To generate HTML/Markdown/text content with a **Handlebars-style template**.
+- Useful for report bodies, HTML email bodies, and flexible notification messages.
+
+### Fields
+
+<FieldTable rows={[
+  {name: "template", required: true, type: "string", description: "Handlebars-style template source.", default: "-"},
+  {name: "outputFormat", required: false, type: "`html` / `markdown` / `text`", description: "Output format.", default: "html"},
+  {name: "helpers", required: false, type: "boolean", description: "Enable the built-in Handlebars helpers.", default: "true"},
+  {name: "buttons", required: false, type: "ButtonDef[]", description: "Blocking buttons.", default: "[]"}
+]} />
+
+### Built-in helpers
+
+<FieldTable rows={[
+  {name: "{{#if}}, {{#unless}}, {{#each}}", required: false, type: "Control", description: "Conditional rendering and iteration.", default: "-"},
+  {name: "formatDate", required: false, type: "Date", description: "`{{formatDate createdAt \"YYYY-MM-DD\"}}`.", default: "-"},
+  {name: "formatNumber", required: false, type: "Number", description: "`{{formatNumber price \"0,0.00\"}}`.", default: "-"},
+  {name: "truncate", required: false, type: "String", description: "Truncate to a given length.", default: "-"},
+  {name: "uppercase, lowercase", required: false, type: "String", description: "Case conversion.", default: "-"},
+  {name: "json", required: false, type: "Stringify", description: "Serialize an object to JSON.", default: "-"}
+]} />
+
+### Example
+
+<Example title="Monthly report template">
+```ts
+// template
+<h1>{{title}}</h1>
+<p>Generated: {{formatDate generatedAt "YYYY-MM-DD"}}</p>
+
+{{#each items}}
+  <div class="item">
+    <h2>{{this.name}}</h2>
+    <p>{{truncate this.desc 120}}</p>
+  </div>
+{{/each}}
+```
+</Example>
+
+<Callout type="note">
+HTML output is rendered inside a **sandboxed iframe** in the run-results viewer. External script execution is blocked — handle dynamic behavior outside the template when needed.
+</Callout>
+
+## Canvas summary
+
+- Carousel: `{layout} · {titleField}` or `{layout} · {N} buttons`
+- Table: `{N} columns · pagination` or `{N} columns · {N} buttons`
+- Chart: `{chartType} · {xAxis.field} / {yAxis.field}` or `{chartType} · {N} buttons`
+- Form: `{N} fields · "{title}"`
+- Template: `{outputFormat} · {N} lines` or `{outputFormat} · {N} buttons`
+
+## Tips & notes
+
+- How each presentation node renders in the run-results drawer is covered in [Run results](/docs/04-run-and-debug/run-results).
+- When button-blocking, form waits, or AI conversations combine in one workflow, the run flips to `waiting_for_input` and stays paused until the user clicks a button or submits the form — it resumes automatically on user action.
+- Power-user tip: Presentation nodes with buttons auto-create a dedicated output port per button. Only the clicked button's port carries the flow onward, so you can design per-button follow-ups independently.

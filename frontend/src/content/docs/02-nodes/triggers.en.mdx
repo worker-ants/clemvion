@@ -1,0 +1,82 @@
+This page covers the role of trigger nodes and how to configure them. Right now the only trigger you can place on the canvas is **Manual Trigger**; webhooks and schedules live in a separate trigger system that shares the same parameter schema.
+
+## Manual Trigger
+
+### When to use it
+
+- When you want to **define input parameters** for a workflow.
+- Every workflow that runs via the Run button or `POST /workflows/:id/execute` has one by default.
+- A new workflow automatically has one Manual Trigger, and it **cannot be deleted**. Exactly one is allowed per workflow.
+
+### Fields
+
+<FieldTable rows={[
+  {name: "parameters", required: false, type: "TriggerParameterDefinition[]", description: "Input parameter schema for this workflow. When empty, parameter handling is disabled and input data passes through unchanged.", default: "[]"}
+]} />
+
+Each parameter entry has these fields.
+
+<FieldTable rows={[
+  {name: "name", required: true, type: "string", description: "Parameter identifier. Letters, digits, and `_` only. Must be unique within the trigger node.", default: "-"},
+  {name: "type", required: true, type: "enum", description: "One of `string` / `number` / `boolean` / `object` / `array`. Values are auto-coerced at run time.", default: "string"},
+  {name: "required", required: false, type: "boolean", description: "When true, a missing value fails the run with `INVALID_INPUT`.", default: "false"},
+  {name: "defaultValue", required: false, type: "any", description: "Used when `required` is false and the value is missing.", default: "-"},
+  {name: "description", required: false, type: "string", description: "Shown as a hint in the Run dialog.", default: "-"}
+]} />
+
+### Example
+
+<Example title="Declaring a parameter schema and referencing it">
+```ts
+// Manual Trigger config
+{
+  "parameters": [
+    { "name": "email", "type": "string", "required": true, "description": "Target email" },
+    { "name": "count", "type": "number", "required": false, "defaultValue": 10 }
+  ]
+}
+
+// Referencing values in downstream nodes
+{{ $params.email }}           // short form (recommended)
+{{ $input.parameters.email }} // full path
+
+// Example execute request
+POST /workflows/:id/execute
+{ "parameterValues": { "email": "user@example.com", "count": "3" } }
+// → count arrives as "3" (string) but is coerced to number
+```
+</Example>
+
+<Callout type="warn">
+Duplicate parameter names fail validation and the run is rejected. Names must be made of **letters, digits, and underscores** only — no Korean characters, hyphens, or spaces.
+</Callout>
+
+### Ports
+
+Manual Trigger has no input port and a single output port `out`. The workflow's execution input is validated, defaulted, and coerced, then emitted as `{ parameters }`.
+
+## How webhooks and schedules plug in
+
+Webhooks and schedules are a **separate trigger system**. They map 1:1 to the canvas Manual Trigger and share its `parameters` schema as the **single source of truth**.
+
+<FieldTable rows={[
+  {name: "Manual", required: false, type: "Manual run", description: "Values are collected via the Run dialog or `POST /workflows/:id/execute`. `$input = { parameters }`", default: "-"},
+  {name: "Webhook", required: false, type: "HTTP POST", description: "Extracts top-level keys from the HTTP body that match parameter names. Fails with 400 Bad Request on validation errors. `$input = { parameters, body, headers, query, method }`", default: "-"},
+  {name: "Schedule", required: false, type: "Cron", description: "`parameterValues` saved on the schedule are resolved in a restricted expression context (`$now`, `$schedule`). `$input = { parameters }`", default: "-"}
+]} />
+
+All three paths deliver the same `{ parameters, ... }` shape to the execution engine. `$params` is the short form of `$input.parameters`.
+
+<Callout type="note">
+Webhook and schedule settings live under the Triggers/Schedules menus in the sidebar. Define the parameter schema on the Manual Trigger first, and all three trigger paths will follow that same contract.
+</Callout>
+
+## Canvas summary
+
+Manual Trigger shows the parameter count in its summary. When empty, it displays `(none)`.
+
+## Tips & notes
+
+- How to access parameter values is covered in detail in [Expression variables and context](/docs/03-expression-language/variables-and-context).
+- For execute request/response shapes, see [Running a workflow](/docs/04-run-and-debug/running-a-workflow).
+- Power-user tip: whatever path triggers the run — Manual, Webhook, or Schedule — defaulting and type coercion behave identically, so reusing the same workflow across trigger types gives you consistent inputs.
