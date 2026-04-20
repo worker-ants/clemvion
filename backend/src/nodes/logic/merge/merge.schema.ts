@@ -4,6 +4,26 @@ import {
   NodePorts,
 } from '../../core/node-component.interface';
 
+export const mergeNodeOutputSchema = z
+  .object({
+    config: z
+      .object({
+        strategy: z.enum(['wait_all', 'first', 'append']).optional(),
+        outputFormat: z.enum(['array', 'merge_object', 'indexed']).optional(),
+      })
+      .partial()
+      .passthrough()
+      .optional(),
+    // Shape varies by `config.outputFormat`:
+    //  - array         → unknown[]
+    //  - merge_object  → Record<string, unknown> (shallow-merged)
+    //  - indexed       → { in_0, in_1, ... }
+    output: z.unknown().optional(),
+    port: z.string().optional(),
+    status: z.string().optional(),
+  })
+  .passthrough();
+
 export const mergeNodeConfigSchema = z
   .object({
     strategy: z
