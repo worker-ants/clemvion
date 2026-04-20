@@ -46,6 +46,23 @@ export const conditionGroupSchema = z
   })
   .passthrough();
 
+export const ifElseOutputSchema = z
+  .object({
+    config: z
+      .object({
+        conditions: z.array(conditionGroupSchema).optional(),
+        combineMode: z.enum(['and', 'or']).optional(),
+        strictComparison: z.boolean().optional(),
+      })
+      .partial()
+      .passthrough()
+      .optional(),
+    output: z.unknown().optional(),
+    port: z.enum(['true', 'false']).optional(),
+    status: z.string().optional(),
+  })
+  .passthrough();
+
 export const ifElseConfigSchema = z
   .object({
     conditions: z
