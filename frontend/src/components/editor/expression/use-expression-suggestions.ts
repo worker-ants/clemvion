@@ -169,8 +169,17 @@ export function useExpressionSuggestions(
       );
       if (node) {
         const sample = accessor === "output" ? node.outputSample : {};
-        const schema =
+        // Each node's schemas are declared as the canonical envelope shape
+        // `{ config, output, meta, port, status }` — but `$node["X"].output.*`
+        // / `.config.*` references the *content* of that accessor, not the
+        // envelope root. Descend one level so schema-based suggestions align
+        // with the runtime sample (which Phase 1 already unwraps in
+        // use-expression-context).
+        const envelopeSchema =
           accessor === "output" ? node.outputSchema : node.configSchema;
+        const schema =
+          (envelopeSchema?.properties?.[accessor] as JsonSchemaNode | undefined) ??
+          envelopeSchema;
         const { suggestions, leafLength } = buildNestedSuggestions(
           sample,
           fieldPrefix,

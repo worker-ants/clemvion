@@ -189,6 +189,13 @@ export function useExpressionContext(selectedNodeId: string | null): ExpressionD
               sourceData?.config as Record<string, unknown> | undefined,
             );
           }
+          // `outputSchema` is declared as the canonical envelope shape
+          // `{ config, output, meta, port, status }`. `$input.*` binds to
+          // the predecessor's `.output` content (symmetry with the runtime
+          // resolver and Phase 1's sample unwrap), so descend one level.
+          if (inputSchema?.properties?.output) {
+            inputSchema = inputSchema.properties.output as JsonSchemaNode;
+          }
         }
       } else if (incomingEdges.length > 1) {
         // Multiple inputs — keys are source node IDs
