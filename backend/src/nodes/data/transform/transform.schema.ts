@@ -20,6 +20,30 @@ export const transformOperationSchema = z
   })
   .passthrough();
 
+/**
+ * Transform output is the input object mutated by `config.operations` in
+ * order. Its concrete shape depends on the operation sequence (rename /
+ * remove / set / array_* / object_* / type_convert / ...), so the static
+ * schema keeps `output` open and leaves per-instance field projection to
+ * the frontend enricher `enrichTransformOutputSchema` (which picks up
+ * top-level `set_field` / `rename_field` targets — nested paths are
+ * skipped).
+ */
+export const transformNodeOutputSchema = z
+  .object({
+    config: z
+      .object({
+        operations: z.array(transformOperationSchema).optional(),
+      })
+      .partial()
+      .passthrough()
+      .optional(),
+    output: z.unknown().optional(),
+    port: z.string().optional(),
+    status: z.string().optional(),
+  })
+  .passthrough();
+
 export const transformNodeConfigSchema = z
   .object({
     operations: z

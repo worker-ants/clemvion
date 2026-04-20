@@ -260,3 +260,55 @@ export function enrichTableOutputSchema(
   outputNode.properties.rows = rowsNode;
   return cloned;
 }
+
+/**
+ * Transform node mutates the input in place — its output shape is the input
+ * plus whatever `config.operations` explicitly create (`set_field`) or
+ * rename (`rename_field` → `to`). The enricher surfaces those top-level
+ * targets so `$node["Transform"].output.<name>` autocompletes pre-run.
+ *
+ * Nested paths ("user.name") are skipped: projecting only the top segment
+ * ("user") would over-claim — the key might be a shared ancestor for
+ * multiple operations — and walking into the path would duplicate work the
+ * runtime sample already handles.
+ */
+export function enrichTransformOutputSchema(
+  baseSchema: JsonSchemaNode | undefined,
+  config: Record<string, unknown> | undefined,
+): JsonSchemaNode | undefined {
+  if (!baseSchema) return baseSchema;
+  const operations = config?.operations as
+    | Array<Record<string, unknown>>
+    | undefined;
+  if (!Array.isArray(operations) || operations.length === 0) return baseSchema;
+
+  const userProps: Record<string, JsonSchemaNode> = Object.create(null);
+  for (const op of operations) {
+    const type = typeof op?.type === "string" ? op.type : undefined;
+    if (type === "set_field" && typeof op.field === "string") {
+      if (op.field.includes(".")) continue;
+      if (!isSafeFieldName(op.field)) continue;
+      userProps[op.field] = {};
+    } else if (type === "rename_field" && typeof op.to === "string") {
+      if (op.to.includes(".")) continue;
+      if (!isSafeFieldName(op.to)) continue;
+      userProps[op.to] = {};
+    }
+  }
+  if (Object.keys(userProps).length === 0) return baseSchema;
+
+  const cloned =
+    typeof structuredClone === "function"
+      ? structuredClone(baseSchema)
+      : (JSON.parse(JSON.stringify(baseSchema)) as JsonSchemaNode);
+  // Transform's `output` is declared as `z.unknown()` in the base schema
+  // (shape varies per-operation), so convert it to an object node here
+  // before attaching projected properties.
+  const outputNode: JsonSchemaNode = {
+    type: "object",
+    properties: { ...userProps },
+  };
+  if (!cloned.properties) cloned.properties = {};
+  cloned.properties.output = outputNode;
+  return cloned;
+}
