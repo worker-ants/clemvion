@@ -31,6 +31,31 @@ export const caseDefSchema = z
   })
   .passthrough();
 
+export const switchNodeOutputSchema = z
+  .object({
+    config: z
+      .object({
+        switchValue: z.unknown().optional(),
+        cases: z.array(caseDefSchema).optional(),
+      })
+      .partial()
+      .passthrough()
+      .optional(),
+    output: z.unknown().optional(),
+    meta: z
+      .object({
+        expression: z.string().optional(),
+        value: z.unknown().optional(),
+        matchedCase: z.string().optional(),
+      })
+      .partial()
+      .passthrough()
+      .optional(),
+    port: z.string().optional(),
+    status: z.string().optional(),
+  })
+  .passthrough();
+
 export const switchNodeConfigSchema = z
   .object({
     mode: z
