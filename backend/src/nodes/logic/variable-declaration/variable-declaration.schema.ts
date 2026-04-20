@@ -29,6 +29,27 @@ export const varDefSchema = z
   })
   .passthrough();
 
+/**
+ * Variable Declaration passes input through and only mutates the execution
+ * variable pool (`context.variables.<name>`) — the declared variables are
+ * surfaced to expressions via `$var.<name>`, NOT through this node's output.
+ * Hence the `output` schema mirrors the passthrough input with `unknown`.
+ */
+export const variableDeclarationNodeOutputSchema = z
+  .object({
+    config: z
+      .object({
+        variables: z.array(varDefSchema).optional(),
+      })
+      .partial()
+      .passthrough()
+      .optional(),
+    output: z.unknown().optional(),
+    port: z.string().optional(),
+    status: z.string().optional(),
+  })
+  .passthrough();
+
 export const variableDeclarationNodeConfigSchema = z
   .object({
     variables: z
