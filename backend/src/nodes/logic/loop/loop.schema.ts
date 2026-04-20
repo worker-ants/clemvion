@@ -5,6 +5,27 @@ import {
 } from '../../core/node-component.interface';
 import { conditionGroupSchema } from '../if-else/if-else.schema';
 
+/**
+ * Loop handler returns `output: null` at execute tick — iteration state
+ * lives on `$loop` context, not on the node's output envelope. body nodes
+ * reference `$loop.index` / `$loop.iteration` directly.
+ */
+export const loopNodeOutputSchema = z
+  .object({
+    config: z
+      .object({
+        count: z.number().optional(),
+        maxIterations: z.number().optional(),
+      })
+      .partial()
+      .passthrough()
+      .optional(),
+    output: z.null().optional(),
+    port: z.string().optional(),
+    status: z.string().optional(),
+  })
+  .passthrough();
+
 export const loopNodeConfigSchema = z
   .object({
     count: z
