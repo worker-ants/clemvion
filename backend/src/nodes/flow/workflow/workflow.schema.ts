@@ -29,6 +29,39 @@ export const mappingDefSchema = z
   })
   .passthrough();
 
+/**
+ * Sub-Workflow output is the invoked workflow's final output (sync mode) or
+ * a tracking envelope (async mode). Since the nested workflow can be any
+ * user-defined workflow, the concrete shape is unknowable from this node's
+ * config alone — Tier 3 per node-jazzy-liskov plan.
+ *
+ *  - sync  → `output: <nested workflow final output>` (unknown shape)
+ *  - async → `output: { executionId: string }` + `meta.status: 'started'`
+ *  - error → `output: { error: { code, message, details? } }` + `port: 'error'`
+ */
+export const workflowNodeOutputSchema = z
+  .object({
+    config: z
+      .object({
+        workflowId: z.string().optional(),
+        mode: z.enum(['sync', 'async']).optional(),
+      })
+      .partial()
+      .passthrough()
+      .optional(),
+    output: z.unknown().optional(),
+    meta: z
+      .object({
+        status: z.string().optional(),
+      })
+      .partial()
+      .passthrough()
+      .optional(),
+    port: z.enum(['out', 'error']).optional(),
+    status: z.string().optional(),
+  })
+  .passthrough();
+
 export const workflowNodeConfigSchema = z
   .object({
     workflowId: z
