@@ -5,6 +5,33 @@ import {
 } from '../../core/node-component.interface';
 import { conditionGroupSchema } from '../if-else/if-else.schema';
 
+const filterConditionSchema = z.record(z.string(), z.unknown());
+
+export const filterNodeOutputSchema = z
+  .object({
+    config: z
+      .object({
+        inputField: z.unknown().optional(),
+        conditions: z.array(filterConditionSchema).optional(),
+        combineMode: z.enum(['and', 'or']).optional(),
+        strictComparison: z.boolean().optional(),
+      })
+      .partial()
+      .passthrough()
+      .optional(),
+    output: z
+      .object({
+        match: z.array(z.unknown()).optional(),
+        unmatched: z.array(z.unknown()).optional(),
+      })
+      .partial()
+      .passthrough()
+      .optional(),
+    port: z.string().optional(),
+    status: z.string().optional(),
+  })
+  .passthrough();
+
 export const filterNodeConfigSchema = z
   .object({
     inputField: z
