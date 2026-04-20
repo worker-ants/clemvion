@@ -658,6 +658,96 @@ describe("useExpressionSuggestions - nested paths", () => {
       expect(suggestions.find((s) => s.label === "chartType")?.detail).toBe("string");
     });
 
+    // Every runtime node declares `outputSchema` as the canonical envelope
+    // shape `{ config, output, meta, port, status }`. `$node["X"].output.*`
+    // must surface the *content* of the envelope's `output` — not the
+    // envelope's top-level keys — so users don't end up with a spurious
+    // `.output.output.` drill-through (regression guard for the Carousel
+    // issue reported after Phase 2).
+    it("unwraps envelope-shaped outputSchema to the output accessor", () => {
+      const nodeData = {
+        availableNodes: [
+          {
+            id: "n1",
+            label: "Carousel",
+            resolvedKey: "Carousel",
+            type: "carousel",
+            outputFields: [],
+            outputSample: {},
+            outputSchema: {
+              type: "object",
+              properties: {
+                config: { type: "object" },
+                output: {
+                  type: "object",
+                  properties: {
+                    items: { type: "array" },
+                    rendered: { type: "string" },
+                    interaction: {
+                      type: "object",
+                      properties: {
+                        type: { type: "string" },
+                        data: { type: "object" },
+                      },
+                    },
+                  },
+                },
+                meta: { type: "object" },
+                port: { type: "string" },
+                status: { type: "string" },
+              },
+            },
+          },
+        ],
+      };
+      const expr = '{{ $node["Carousel"].output. }}';
+      const { suggestions } = makeSuggestions(
+        expr,
+        cursorAfterExpr(expr),
+        nodeData,
+      );
+      const labels = suggestions.map((s) => s.label);
+      expect(labels).toEqual(["items", "rendered", "interaction"]);
+      expect(labels).not.toContain("output");
+      expect(labels).not.toContain("config");
+      expect(labels).not.toContain("meta");
+    });
+
+    it("unwraps envelope-shaped configSchema to the config accessor", () => {
+      const nodeData = {
+        availableNodes: [
+          {
+            id: "n1",
+            label: "Carousel",
+            resolvedKey: "Carousel",
+            type: "carousel",
+            outputFields: [],
+            outputSample: {},
+            configSchema: {
+              type: "object",
+              properties: {
+                config: {
+                  type: "object",
+                  properties: {
+                    mode: { type: "string" },
+                    layout: { type: "string" },
+                  },
+                },
+                output: { type: "object" },
+              },
+            },
+          },
+        ],
+      };
+      const expr = '{{ $node["Carousel"].config. }}';
+      const { suggestions } = makeSuggestions(
+        expr,
+        cursorAfterExpr(expr),
+        nodeData,
+      );
+      expect(suggestions.map((s) => s.label)).toEqual(["mode", "layout"]);
+    });
+
     it('suggests config fields from configSchema', () => {
       const nodeData = {
         availableNodes: [

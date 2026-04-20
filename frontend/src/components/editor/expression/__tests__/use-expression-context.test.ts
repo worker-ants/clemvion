@@ -506,6 +506,52 @@ describe("useExpressionContext", () => {
       const { result } = renderHook(() => useExpressionContext("n2"));
       expect(result.current.inputSchema).toEqual(predecessorOutputSchema);
     });
+
+    // Predecessor nodes declare `outputSchema` as the envelope
+    // `{ config, output, meta, port, status }`. `$input.*` should see the
+    // envelope's `.output` content (mirrors the runtime resolver). Guards
+    // against the Phase-2 regression where `$input.output.interaction.data`
+    // hinted instead of `$input.interaction.data`.
+    it("unwraps envelope-shaped predecessor outputSchema for $input", () => {
+      const envelopeSchema = {
+        type: "object",
+        properties: {
+          config: { type: "object" },
+          output: {
+            type: "object",
+            properties: {
+              interaction: {
+                type: "object",
+                properties: { data: { type: "object" } },
+              },
+              rendered: { type: "string" },
+            },
+          },
+          meta: { type: "object" },
+          port: { type: "string" },
+          status: { type: "string" },
+        },
+      };
+      editorState = {
+        nodes: [
+          makeNode("c1", "carousel", "Carousel"),
+          makeNode("n1", "http_request", "HTTP Request"),
+        ],
+        edges: [makeEdge("c1", "n1")],
+      };
+      executionState = { nodeResults: [] };
+      nodeDefinitionsState = {
+        definitions: {
+          carousel: { type: "carousel", outputSchema: envelopeSchema },
+        },
+      };
+
+      const { result } = renderHook(() => useExpressionContext("n1"));
+      // Should be the envelope's `.output` property, not the envelope root.
+      expect(result.current.inputSchema).toEqual(envelopeSchema.properties.output);
+      expect(result.current.inputSchema?.properties).not.toHaveProperty("config");
+      expect(result.current.inputSchema?.properties).not.toHaveProperty("output");
+    });
   });
 
   describe("containerScope", () => {
