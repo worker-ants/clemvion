@@ -1,13 +1,16 @@
 import path from "node:path";
 import { describe, it, expect } from "vitest";
 import {
-  loadDocsIndex,
+  buildSearchIndex,
   getDocBySlug,
   getAllSlugs,
   humanize,
+  loadDocsIndex,
+  resolveLocalizedDocPath,
   sectionLabel,
   stripNumberPrefix,
 } from "../registry";
+import { localizedDocsHref } from "../locale";
 
 const fixturesRoot = path.resolve(__dirname, "fixtures");
 
@@ -124,5 +127,87 @@ describe("섹션 제외 규칙", () => {
     const index = loadDocsIndex(fixturesRoot);
     // _hidden 섹션은 이름 기반으로 제외돼 sections에 없어요
     expect(index.sections.some((s) => s.key === "_hidden")).toBe(false);
+  });
+});
+
+describe("locale sibling 감지", () => {
+  it(".en.mdx sibling이 존재하면 availableLocales에 'en'이 포함돼요", () => {
+    const index = loadDocsIndex(fixturesRoot, { includeDrafts: true });
+    const withEn = getDocBySlug(index, ["01-first", "a"]);
+    const withoutEn = getDocBySlug(index, ["01-first", "b"]);
+    expect(withEn?.availableLocales).toEqual(["ko", "en"]);
+    expect(withoutEn?.availableLocales).toEqual(["ko"]);
+  });
+
+  it("sibling `.en.mdx`는 별도 페이지로 등록되지 않아요", () => {
+    const index = loadDocsIndex(fixturesRoot, { includeDrafts: true });
+    const first = index.sections.find((s) => s.key === "01-first");
+    expect(first?.pages.map((p) => p.slug[1])).toEqual(["a", "b"]);
+  });
+
+  it("resolveLocalizedDocPath는 sibling이 있으면 그 경로를 반환, 없으면 canonical로 폴백해요", () => {
+    const index = loadDocsIndex(fixturesRoot, { includeDrafts: true });
+    const withEn = getDocBySlug(index, ["01-first", "a"])!;
+    const withoutEn = getDocBySlug(index, ["01-first", "b"])!;
+    expect(resolveLocalizedDocPath(withEn.filePath, "en")).toMatch(
+      /a\.en\.mdx$/,
+    );
+    expect(resolveLocalizedDocPath(withoutEn.filePath, "en")).toBe(
+      withoutEn.filePath,
+    );
+    expect(resolveLocalizedDocPath(withEn.filePath, "ko")).toBe(
+      withEn.filePath,
+    );
+  });
+});
+
+describe("localizedDocsHref", () => {
+  it("locale 프리픽스를 slug 앞에 붙여요", () => {
+    expect(localizedDocsHref(["01-first", "a"], "ko")).toBe(
+      "/docs/ko/01-first/a",
+    );
+    expect(localizedDocsHref(["01-first", "a"], "en")).toBe(
+      "/docs/en/01-first/a",
+    );
+  });
+});
+
+describe("buildSearchIndex(locale)", () => {
+  it("locale 인자를 생략하면 DEFAULT_LOCALE(ko) 동작과 동일해요", () => {
+    const index = loadDocsIndex(fixturesRoot, { includeDrafts: true });
+    const withoutLocale = buildSearchIndex(index);
+    const withKo = buildSearchIndex(index, "ko");
+    expect(withoutLocale).toEqual(withKo);
+  });
+
+  it("기본 locale(ko)에서는 한국어 title/summary/headings를 반환해요", () => {
+    const index = loadDocsIndex(fixturesRoot, { includeDrafts: true });
+    const entries = buildSearchIndex(index, "ko");
+    const a = entries.find((e) => e.href === "/docs/ko/01-first/a");
+    expect(a).toBeDefined();
+    expect(a?.title).toBe("첫 번째 페이지");
+    expect(a?.summary).toBe("첫 번째 섹션의 첫 번째 페이지");
+    expect(a?.headings).toContain("한국어 전용 헤딩");
+    // 번역되지 않은 섹션 레이블은 humanize 폴백
+    expect(a?.sectionLabel).toBe("First");
+  });
+
+  it("en locale에서는 sibling 본문의 heading과 locale 프론트매터를 사용해요", () => {
+    const index = loadDocsIndex(fixturesRoot, { includeDrafts: true });
+    const entries = buildSearchIndex(index, "en");
+    const a = entries.find((e) => e.href === "/docs/en/01-first/a");
+    expect(a).toBeDefined();
+    expect(a?.title).toBe("First page");
+    expect(a?.summary).toBe("First page of the first section");
+    expect(a?.headings).toContain("EN-only heading");
+    expect(a?.headings).not.toContain("한국어 전용 헤딩");
+  });
+
+  it("en 번역이 없으면 canonical 본문·프론트매터로 폴백해요", () => {
+    const index = loadDocsIndex(fixturesRoot, { includeDrafts: true });
+    const entries = buildSearchIndex(index, "en");
+    const b = entries.find((e) => e.href === "/docs/en/01-first/b");
+    expect(b).toBeDefined();
+    expect(b?.title).toBe("두 번째 페이지");
   });
 });

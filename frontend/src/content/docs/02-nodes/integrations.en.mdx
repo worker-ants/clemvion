@@ -1,0 +1,204 @@
+This page covers the three integration nodes that talk to external services. Most of them share a common pattern: they reference an **Integration entity** for reusable auth/connection info, and they route success and failure through separate output ports.
+
+## Shared patterns
+
+### Integration references
+
+Every integration node exposes an `integrationId` field that points to an Integration entity (sidebar → Integrations) holding the credentials. Credentials are automatically encrypted and decrypted with AES-256-GCM. If the connection is not in the `connected` state, the run fails with `INTEGRATION_NOT_CONNECTED`.
+
+### Common error codes
+
+<FieldTable rows={[
+  {name: "INTEGRATION_NOT_FOUND", required: false, type: "code", description: "Referenced an Integration that doesn't exist or doesn't belong to the current workspace.", default: "-"},
+  {name: "INTEGRATION_TYPE_MISMATCH", required: false, type: "code", description: "The referenced Integration's serviceType doesn't match what the node expects.", default: "-"},
+  {name: "INTEGRATION_NOT_CONNECTED", required: false, type: "code", description: "The Integration is in `expired` or `error` status.", default: "-"},
+  {name: "INTEGRATION_INCOMPLETE", required: false, type: "code", description: "A required credential field is missing for the service.", default: "-"},
+  {name: "INTEGRATION_CALL_FAILED", required: false, type: "code", description: "Uncategorized generic failure.", default: "-"}
+]} />
+
+## HTTP Request
+
+### When to use it
+
+- To **call an arbitrary HTTP API**.
+- Reference an Integration to auto-inject auth headers, or call without auth.
+
+### Fields
+
+<FieldTable rows={[
+  {name: "method", required: true, type: "enum", description: "GET / POST / PUT / PATCH / DELETE / HEAD / OPTIONS.", default: "GET"},
+  {name: "url", required: true, type: "expression", description: "Request URL. When the Integration defines `base_url`, you can use a relative path that gets automatically joined.", default: "-"},
+  {name: "authentication", required: true, type: "`none` / `integration` / `custom`", description: "Authentication mode.", default: "none"},
+  {name: "integrationId", required: false, type: "UUID", description: "Required when `authentication=integration`.", default: "-"},
+  {name: "headers", required: false, type: "KeyValue[]", description: "Request headers.", default: "[]"},
+  {name: "queryParams", required: false, type: "KeyValue[]", description: "URL query parameters.", default: "[]"},
+  {name: "body", required: false, type: "object", description: "Request body.", default: "-"},
+  {name: "bodyType", required: false, type: "enum", description: "`json` / `form-data` / `x-www-form-urlencoded` / `raw` / `binary`.", default: "json"},
+  {name: "responseType", required: false, type: "enum", description: "`json` / `text` / `binary`.", default: "json"},
+  {name: "timeout", required: false, type: "integer (ms)", description: "Request timeout.", default: "30000"},
+  {name: "followRedirects", required: false, type: "boolean", description: "Follow redirects.", default: "true"},
+  {name: "verifySsl", required: false, type: "boolean", description: "Verify SSL certificates.", default: "true"}
+]} />
+
+### Ports
+
+- `success` — HTTP 2xx response
+- `error` — 4xx/5xx or network failure
+
+### Example
+
+<Example title="Call an external API with a Bearer token">
+```ts
+// config
+{
+  method: "POST",
+  url: "/tickets",                 // joined automatically when base_url is set on the credential
+  authentication: "integration",
+  integrationId: "…",
+  headers:    [{ key: "Accept", value: "application/json" }],
+  bodyType:   "json",
+  body:       { title: "{{ $input.subject }}", body: "{{ $input.message }}" },
+  timeout:    30000
+}
+
+// success port
+{ data: { id: "TCK-1" }, meta: { statusCode: 201, headers: {...}, duration_ms: 250 } }
+
+// error port
+{ error: { statusCode: 500, message: "Internal Server Error", body: {...} }, meta: { duration_ms: 100 } }
+```
+</Example>
+
+<Callout type="tip">
+Based on the Integration's `auth_type`, headers/query params are auto-injected: api_key (header/query), bearer_token, and basic. Headers you set on the node **override** credential-injected headers (last wins).
+</Callout>
+
+## Database Query
+
+### When to use it
+
+- To **run SQL directly** against PostgreSQL or MySQL.
+- SELECT to read data, or INSERT/UPDATE/DELETE to write.
+
+### Fields
+
+<FieldTable rows={[
+  {name: "integrationId", required: true, type: "UUID", description: "Reference to a DB Integration. `driver` must be `postgres` or `mysql`.", default: "-"},
+  {name: "queryType", required: true, type: "enum", description: "`select` / `insert` / `update` / `delete` / `raw`.", default: "select"},
+  {name: "query", required: true, type: "expression", description: "SQL to execute. Bind values with `$1`, `$2`, ... (MySQL driver converts them to `?` internally).", default: "-"},
+  {name: "parameters", required: false, type: "array or JSON string", description: "Values bound to placeholders in order. A JSON string is auto-parsed into an array.", default: "[]"}
+]} />
+
+### Ports
+
+- `success` — query completed successfully
+- `error` — runtime failures (connection/query errors). Pre-flight errors don't go through this port; they fail the whole workflow.
+
+### Example
+
+<Example title="SELECT with parameter binding">
+```ts
+// config
+{
+  integrationId: "…",
+  queryType: "select",
+  query: "SELECT id, name FROM users WHERE tenant_id = $1 AND status = $2",
+  parameters: ["{{ $input.tenantId }}", "active"]
+}
+
+// success output
+{
+  rows: [{ id: 1, name: "Kim" }, ...],
+  rowCount: 42,
+  fields: [{ name: "id", dataTypeID: 23 }, ...],
+  query: "…",
+  queryType: "select",
+  durationMs: 18,
+  status: "ok"
+}
+```
+</Example>
+
+<Callout type="warn">
+Pre-flight errors (`INTEGRATION_INCOMPLETE`, `INVALID_PARAMETERS`, `INTEGRATION_SERVICE_UNAVAILABLE`) are **thrown and fail the entire run**. Runtime SQL errors are routed to the `error` port instead. If you want to branch-handle failures, wire something to the `error` port.
+</Callout>
+
+## Send Email
+
+### When to use it
+
+- To send emails via **SMTP**.
+- Supports To/CC/BCC, subject, body (text or HTML), and attachments.
+
+### Fields
+
+<FieldTable rows={[
+  {name: "integrationId", required: true, type: "UUID", description: "Reference to an SMTP Integration. host, port, secure, username, password, default_from are required.", default: "-"},
+  {name: "to", required: true, type: "string[]", description: "Recipient emails. Each entry accepts expressions.", default: "[]"},
+  {name: "cc", required: false, type: "string[]", description: "CC recipients.", default: "[]"},
+  {name: "bcc", required: false, type: "string[]", description: "BCC recipients.", default: "[]"},
+  {name: "subject", required: true, type: "expression", description: "Email subject.", default: "-"},
+  {name: "body", required: true, type: "expression", description: "Email body.", default: "-"},
+  {name: "bodyType", required: false, type: "`text` / `html`", description: "Body format.", default: "text"},
+  {name: "attachments", required: false, type: "Attachment[]", description: "Attachments. Each has `filename` and `content` (Base64 or URL).", default: "[]"}
+]} />
+
+### Ports
+
+- `out` — delivery result
+
+### Example
+
+<Example title="Send a welcome email">
+```ts
+// config
+{
+  integrationId: "smtp-integration-id",
+  to: ["{{ $input.user.email }}"],
+  subject: "Welcome, {{ $input.user.name }}",
+  body: "<h1>Hello</h1><p>Thanks for joining.</p>",
+  bodyType: "html"
+}
+
+// output
+{
+  data: {
+    messageId: "<…@smtp.example.com>",
+    accepted: ["user@example.com"],
+    rejected: [],
+    to: ["user@example.com"],
+    cc: [],
+    subject: "…",
+    bodyType: "html",
+    status: "sent",
+    durationMs: 412
+  }
+}
+```
+</Example>
+
+<Callout type="note">
+To/CC/BCC accept both arrays and comma-separated strings. Values are trimmed, blanks dropped, and if no valid recipient remains the run fails with `"No valid recipients"`.
+</Callout>
+
+### SMTP security modes
+
+<FieldTable rows={[
+  {name: "tls", required: false, type: "Integration credential", description: "TLS connection with `secure: true`.", default: "-"},
+  {name: "starttls", required: false, type: "Integration credential", description: "`secure: false, requireTLS: true`.", default: "-"},
+  {name: "none", required: false, type: "Integration credential", description: "Plain SMTP without TLS.", default: "-"}
+]} />
+
+## Canvas summary
+
+- HTTP Request: `{method} {url}` (URL trimmed at 35 chars)
+- Database Query: `{queryType} · {first line of the query}` (trimmed)
+- Send Email: `to: {recipient}` (with `+N` when there are more than 2)
+
+When the referenced Integration is deleted, a `⚠ Missing integration` badge appears on the canvas summary.
+
+## Tips & notes
+
+- Adding integrations and managing their status is covered in [Integration management](/docs/05-integrations-and-config/integration-management).
+- Each call is logged in the Usage log at run time. `status`, `durationMs`, and `error.code` help trace failure causes.
+- Power-user tip: HTTP Request headers follow **Integration default headers < node-specified headers** (last wins). When the Integration has a `base_url`, node URLs like `/users/123` are joined automatically.

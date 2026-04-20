@@ -1,0 +1,197 @@
+This page covers the three AI nodes: calling an LLM to generate answers, classifying text into categories, and pulling structured fields out of unstructured input.
+
+## AI Agent
+
+### When to use it
+
+- To send prompts to an LLM for **answer generation**, **RAG-backed queries**, or **tool calling**.
+- Enabling **Multi Turn** mode lets you run a blocking conversation where the user participates.
+- Defining **Conditions** lets the LLM detect specific situations and **branch out through a condition port**.
+
+### Fields
+
+<FieldTable rows={[
+  {name: "mode", required: true, type: "`single_turn` / `multi_turn`", description: "Single call vs. blocking conversation mode.", default: "single_turn"},
+  {name: "llmConfigId", required: false, type: "UUID", description: "LLM provider configuration to use. Managed from the LLM config in the sidebar.", default: "-"},
+  {name: "model", required: false, type: "string", description: "Overrides the provider's default model.", default: "-"},
+  {name: "systemPrompt", required: false, type: "string (markdown · expression)", description: "System prompt.", default: "-"},
+  {name: "userPrompt", required: false, type: "expression", description: "User prompt. Hidden in Multi Turn mode.", default: "-"},
+  {name: "responseFormat", required: false, type: "`text` / `json`", description: "Response format. When `json`, also set `jsonSchema`.", default: "text"},
+  {name: "jsonSchema", required: false, type: "JSONSchema", description: "Output schema when `responseFormat=json`.", default: "-"},
+  {name: "knowledgeBases", required: false, type: "UUID[]", description: "Knowledge Bases referenced by RAG.", default: "[]"},
+  {name: "ragTopK", required: false, type: "integer", description: "Top K results retrieved from RAG.", default: "5"},
+  {name: "ragThreshold", required: false, type: "float", description: "RAG similarity threshold (0–1).", default: "0.7"},
+  {name: "conditions", required: false, type: "ConditionDef[]", description: "Conditions. Each has `id`, `label`, and `prompt`, and each condition gets its own dynamic output port.", default: "[]"},
+  {name: "temperature", required: false, type: "float", description: "Overrides the LLMConfig default.", default: "-"},
+  {name: "maxTokens", required: false, type: "integer", description: "Max tokens.", default: "-"},
+  {name: "maxToolCalls", required: false, type: "integer", description: "Max tool calls.", default: "10"},
+  {name: "Tool nodes (Tool Area)", required: false, type: "Node list", description: "Nodes dropped into the canvas Tool Area are auto-registered as the agent's tools. Managed purely by drag and drop — no explicit setting.", default: "None"},
+  {name: "toolOverrides", required: false, type: "ToolOverride[]", description: "Per-tool name/description/input-mapping overrides.", default: "[]"},
+  {name: "conversationHistory", required: false, type: "`none` / `last_n` / `full`", description: "Conversation-history retention strategy.", default: "none"},
+  {name: "historyCount", required: false, type: "integer", description: "How many messages to keep with `last_n`.", default: "-"},
+  {name: "maxTurns", required: false, type: "integer", description: "Max conversation turns in Multi Turn mode. `0` means unlimited.", default: "20"}
+]} />
+
+### Ports
+
+<FieldTable rows={[
+  {name: "Single Turn", required: false, type: "out + error + condition ports", description: "Normal completion goes out `out`, a matching condition goes out its own port, and failures go out `error`.", default: "-"},
+  {name: "Multi Turn", required: false, type: "condition ports + user_ended + max_turns + error", description: "Multi Turn has no `out` port — it branches by termination reason. User-ended goes to `user_ended`, exceeding the turn cap goes to `max_turns`.", default: "-"}
+]} />
+
+<Callout type="note">
+Conditions are exposed to the LLM as special tools (`cond_*`). When the LLM calls only condition tools, the run branches to that port; when it calls them alongside regular tools, regular tools run first and the decision is re-evaluated. Up to 20 conditions allowed.
+</Callout>
+
+### Example
+
+<Example title="Customer inquiry — Single Turn with condition branching">
+```ts
+// config summary
+{
+  mode: "single_turn",
+  llmConfigId: "…",
+  systemPrompt: "You are a customer support agent.",
+  userPrompt: "{{ $input.message }}",
+  knowledgeBases: ["faq-kb-id"],
+  conditions: [
+    { id: "uuid-1", label: "Refund request detected",   prompt: "Customer asks for a refund or cancellation" },
+    { id: "uuid-2", label: "Tech escalation",           prompt: "Complex technical issue requiring a human agent" }
+  ]
+}
+
+// Output (on a condition port)
+{
+  response: "…",
+  condition: { id: "uuid-1", label: "Refund request detected", reason: "…" },
+  metadata: { model: "gpt-4o", totalTokens: 1600, toolCalls: 2, ragSources: [...] }
+}
+```
+</Example>
+
+<Callout type="warn">
+In Multi Turn mode, user responses are **awaited indefinitely**. No timeout fires unless something external cancels or ends the run — design for long-lived waits.
+</Callout>
+
+## Text Classifier
+
+### When to use it
+
+- To sort input text into **predefined categories**.
+- When you want to route each category to a different downstream node.
+
+### Fields
+
+<FieldTable rows={[
+  {name: "llmConfigId", required: false, type: "UUID", description: "LLM provider configuration.", default: "-"},
+  {name: "model", required: false, type: "string", description: "Model ID.", default: "-"},
+  {name: "inputField", required: false, type: "expression", description: "Expression for the text field to classify.", default: "-"},
+  {name: "categories", required: true, type: "CategoryDef[]", description: "Categories to classify into. Each has `name`, `description`, and `examples`.", default: "[]"},
+  {name: "instructions", required: false, type: "string", description: "Extra classification instructions.", default: "-"},
+  {name: "includeConfidence", required: false, type: "boolean", description: "Include a confidence score in the output.", default: "false"},
+  {name: "multiLabel", required: false, type: "boolean", description: "When true, multiple categories can match at once.", default: "false"}
+]} />
+
+### Ports
+
+- `class_0`, `class_1`, ... (dynamic per-category data ports)
+- `fallback` (when no category matches)
+- `error` (LLM API errors, timeouts, etc.)
+
+### Example
+
+<Example title="Classify inquiries and route">
+```ts
+// config
+{
+  llmConfigId: "…",
+  inputField: "{{ $input.text }}",
+  categories: [
+    { name: "Billing",   description: "Payment, refund, subscription", examples: ["Refund request"] },
+    { name: "Technical", description: "Bugs, technical issues",          examples: ["Cannot log in"] },
+    { name: "General",   description: "General questions, feature requests", examples: [] }
+  ],
+  includeConfidence: true
+}
+
+// Output (single-label)
+{ category: "Billing", confidence: 0.95, originalInput: "Please refund me" }
+```
+</Example>
+
+<Callout type="note">
+`__none__` is reserved and cannot be used as a category name. When the LLM returns `__none__` or nothing matches, the item leaves via the `fallback` port.
+</Callout>
+
+## Information Extractor
+
+### When to use it
+
+- To pull **schema-defined values** out of unstructured text (emails, messages) as structured JSON.
+- Enable Multi Turn to **converse with the user** until required fields are filled.
+
+### Fields
+
+<FieldTable rows={[
+  {name: "llmConfigId", required: false, type: "UUID", description: "LLM provider configuration.", default: "-"},
+  {name: "model", required: false, type: "string", description: "Model ID.", default: "-"},
+  {name: "inputField", required: false, type: "expression", description: "Text field to extract from. Hidden in the settings UI when `multi_turn`.", default: "-"},
+  {name: "outputSchema", required: true, type: "FieldDef[]", description: "Array of fields to extract. Each has `name`, `type`, `description`, `required`, `enumValues`.", default: "[]"},
+  {name: "examples", required: false, type: "ExampleDef[]", description: "Few-shot examples (input text and expected output).", default: "[]"},
+  {name: "instructions", required: false, type: "string", description: "Extra extraction instructions.", default: "-"},
+  {name: "mode", required: true, type: "`single_turn` / `multi_turn`", description: "Extraction mode.", default: "single_turn"},
+  {name: "maxTurns", required: false, type: "integer", description: "Max conversation turns in `multi_turn`. `0` means unlimited.", default: "10"}
+]} />
+
+### Ports
+
+- `out` (on successful completion)
+- `error` (LLM API errors, timeouts, or exhausted schema-validation retries)
+
+### Example
+
+<Example title="Extract fields from a refund email">
+```ts
+// config (single_turn)
+{
+  inputField: "{{ $input.emailBody }}",
+  outputSchema: [
+    { name: "senderName",  type: "string", description: "Sender name",      required: true  },
+    { name: "orderNumber", type: "string", description: "Order number",     required: true  },
+    { name: "issueType",   type: "string", description: "Issue type",       required: true,
+      enumValues: ["refund", "exchange", "question"] },
+    { name: "amount",      type: "number", description: "Related amount",   required: false }
+  ]
+}
+
+// Reference downstream
+{{ $node["Info Extractor"].output.result.extracted.orderNumber }}
+```
+</Example>
+
+<Callout type="tip">
+When schema validation fails, the node **retries up to 2 times**, then routes to the `error` port. Add `enumValues` to a field to force the LLM to pick only from the allowed values.
+</Callout>
+
+<Callout type="warn">
+In Multi Turn mode, leaving `inputField` empty skips the initial LLM call and waits for user input immediately (`turnCount: 0`). The settings UI hides that field to make the UX explicit. User responses are awaited indefinitely.
+</Callout>
+
+## Canvas summary
+
+- AI Agent: `{mode} · {model}` followed by `· {N} tools / {N} KB / {N} cond` (when applicable).
+- Text Classifier: `{model} · {N} categories`.
+- Info Extractor: `{model} · {N} fields` (prefixed with `Multi Turn` when applicable).
+
+## Tips & notes
+
+- Registering a tool is as simple as dropping the node into the canvas **Tool Area**. The AI Agent picks it up as a callable tool, and condition tools are auto-separated so their names don't clash with regular ones.
+- LLM provider connections are managed under [LLM config](/docs/05-integrations-and-config/llm-config); Knowledge Base setup lives in [Knowledge Base](/docs/05-integrations-and-config/knowledge-base).
+- Multi Turn execution history is inspectable per turn (request/response/token usage) via the Conversation Inspector. Details: [Run results](/docs/04-run-and-debug/run-results).
+- Power-user tip: when `responseFormat=json`, the LLM returns a structure matching your schema. If you add, remove, or rename fields, also check downstream `{{ $node["AI Agent"].output.result.response.field }}` references.
+- Downstream reference paths (Principle 1.1/8):
+  - AI Agent response body: `$node["AI Agent"].output.result.response`
+  - Text Classifier single result: `$node["TC"].output.result.category` · multi-label: `$node["TC"].output.result.categories`
+  - Information Extractor result: `$node["IE"].output.result.extracted.<fieldName>`
+  - Model/token metrics: `$node["X"].meta.{model, inputTokens, outputTokens, totalTokens}`
+  - Error branching: `$node["X"].output.error?.code` / `$node["X"].port === 'error'`

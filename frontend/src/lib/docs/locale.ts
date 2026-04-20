@@ -58,3 +58,12 @@ export function localizedSummary(
   if (locale === "en" && fm.summary_en) return fm.summary_en;
   return fm.summary;
 }
+
+/** slug과 locale을 받아 `/docs/<locale>/<section>/<slug>` 형태의 URL을 만들어요.
+ *  단일 catch-all 라우트(`/docs/[...slug]/page.tsx`)에서 slug[0]을 locale로 해석해요. */
+export function localizedDocsHref(
+  slug: readonly string[],
+  locale: Locale,
+): string {
+  return `/docs/${locale}/${slug.join("/")}`;
+}

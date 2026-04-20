@@ -1,0 +1,132 @@
+This page covers the **five error policies** that decide how a workflow continues when a node fails. Pick one from the `Error Handling` dropdown in the settings panel.
+
+## The five policies at a glance
+
+<FieldTable rows={[
+  { name: "Stop Workflow", type: "Default", description: "Immediately stops the entire run and records it as failed." },
+  { name: "Skip Node", type: "Skip", description: "Skips the failing node and passes `null` to the next node as input." },
+  { name: "Use Default Output", type: "Default output", description: "Emits a preset default value as if the node succeeded." },
+  { name: "Retry", type: "Retry", description: "Auto-retries up to a configurable number of times. If all fail, falls back to Stop Workflow." },
+  { name: "Route to Error Port", type: "Error port", description: "Sends the error payload out through a dedicated error port so a recovery branch can take over." }
+]} />
+
+## Stop Workflow
+
+The default policy. Execution halts the moment an error occurs.
+
+- `Execution.status = "failed"` is recorded.
+- The failing node is highlighted red on the canvas.
+- Downstream nodes of the failure do not run.
+
+**When to use it**: deterministic paths where bad data must never leak downstream — think payment approval flows when the auth node fails.
+
+## Skip Node
+
+The failing node is ignored; execution continues.
+
+- `NodeExecution.status = "skipped"`; error info is preserved on `NodeExecution.error`.
+- The output is `null`. The next node receives `null` as input.
+
+<Callout type="warn">If the next node can't handle `null` input, you might chain a failure. Pair with null checks or `||` default values.</Callout>
+
+**When to use it**: non-critical side steps like Slack/email notifications where the main flow must continue regardless.
+
+## Use Default Output
+
+Emits a **preset default value** in place of the failed output.
+
+Changing `Error Handling` to `Use Default Output` exposes a JSON editor.
+
+<Example title="Default Output value">
+```json
+{
+  "result": null,
+  "status": "fallback"
+}
+```
+</Example>
+
+- If you don't provide a default, a type-aware auto default is used.
+
+<FieldTable rows={[
+  { name: "Object", type: "Default", description: "`{}`" },
+  { name: "Array", type: "Default", description: "`[]`" },
+  { name: "String", type: "Default", description: "`\"\"`" },
+  { name: "Number", type: "Default", description: "`0`" },
+  { name: "Boolean", type: "Default", description: "`false`" },
+  { name: "Null/Unknown", type: "Default", description: "`null`" }
+]} />
+
+- `NodeExecution.status` is `completed`, but a warning is recorded alongside.
+
+**When to use it**: when an external API occasionally fails and a **safe fallback** keeps the flow healthy — e.g. returning an empty object when a cache lookup fails.
+
+## Retry
+
+Automatically retries the node a configurable number of times.
+
+<FieldTable rows={[
+  { name: "maxRetries", type: "Integer", description: "Max retry count. Default 3." },
+  { name: "retryInterval", type: "Integer (ms)", description: "Initial retry interval. Default 1000ms." },
+  { name: "backoffMultiplier", type: "Float", description: "Exponential backoff multiplier. Default 2.0." },
+  { name: "maxInterval", type: "Integer (ms)", description: "Cap on the retry interval. Default 30000ms." }
+]} />
+
+Intervals are computed with:
+
+<Example title="Retry interval formula">
+```ts
+interval = min(retryInterval * backoffMultiplier ^ attempt, maxInterval)
+```
+</Example>
+
+If every retry fails, falls back to **Stop Workflow**.
+
+**When to use it**: external calls that fail **transiently** — network blips, LLM rate limits, etc.
+
+## Route to Error Port
+
+Sends the error payload out the node's **error port**, letting a connected downstream node pick up recovery from there.
+
+- Selecting this policy dynamically adds a red circle (●) **error port** to the node's bottom-right.
+- With nothing connected to the error port, the run logs `ERROR_PORT_FALLBACK` and falls back to Stop Workflow.
+- `NodeExecution.status` is `failed`, but **the Execution as a whole keeps going**.
+
+Shape of the payload on the error port:
+
+<Example title="Error-port payload">
+```json
+{
+  "error": {
+    "code": "NODE_EXECUTION_FAILED",
+    "message": "LLM connection timeout",
+    "nodeId": "uuid-of-failed-node",
+    "nodeType": "ai_agent",
+    "timestamp": "2026-04-16T12:00:00.000Z",
+    "details": { },
+    "originalInput": { }
+  }
+}
+```
+</Example>
+
+**When to use it**: when failures should trigger a **separate recovery path** — admin alert, alternative LLM call, archiving the original input, etc.
+
+## Choosing a policy
+
+<FieldTable rows={[
+  { name: "Deterministic critical path", type: "Recommended", description: "Stop Workflow" },
+  { name: "Auxiliary notifications / logging", type: "Recommended", description: "Skip Node" },
+  { name: "Safe fallback value", type: "Recommended", description: "Use Default Output" },
+  { name: "Transient external failures", type: "Recommended", description: "Retry" },
+  { name: "Branched recovery flow", type: "Recommended", description: "Route to Error Port" }
+]} />
+
+<Callout type="tip">Retry and Route to Error Port can't be used together. If you need an alternative path when retries fail, pick the error-port flow instead of retries.</Callout>
+
+## Tips & notes
+
+- Workflow-wide auto retry (trigger/schedule driven) is configured separately in workflow settings — up to 5 retries.
+- See the "Interpreting error messages" section of [Run results](/docs/04-run-and-debug/run-results) for the error code catalog.
+- Common node fields and error-port behavior are covered in [Overview](/docs/02-nodes/overview).
+- Patterns for **validating inputs up front** so nodes don't fail: `isEmpty` and `||` examples in the [Expression cheatsheet](/docs/03-expression-language/cheatsheet).

@@ -1,0 +1,79 @@
+This page explains how to register the LLM providers used by AI Agent, Text Classifier, and Information Extractor, and how to set their default models and parameters. Knowledge Base embedding models also reuse the providers defined here.
+
+## Supported providers
+
+The LLM client abstraction layer normalizes provider differences, so AI nodes call them uniformly once the config is correct.
+
+<FieldTable rows={[
+  { name: "OpenAI", type: "Chat · Embedding", required: "API Key", description: "GPT-4o family chat, text-embedding-3-small/large embeddings." },
+  { name: "Anthropic", type: "Chat", required: "API Key", description: "Claude 4.x Messages API. No embeddings — register a separate provider for them." },
+  { name: "Google AI", type: "Chat · Embedding", required: "API Key", description: "Gemini models." },
+  { name: "Azure OpenAI", type: "Chat · Embedding", required: "API Key + Endpoint", description: "OpenAI-compatible. Enter the custom deployment name as the model ID." },
+  { name: "Local (Ollama/vLLM)", type: "Chat · Embedding", required: "Optional", description: "OpenAI-compatible API. Only `base_url` is required." }
+]} />
+
+<Callout type="note">Anthropic doesn't offer embeddings. If you plan to use Knowledge Base, also register an OpenAI / Google AI / Azure / Local provider.</Callout>
+
+## Adding a provider
+
+Click `[+ Add Provider]` at the top-right of `/llm-configs`. Required fields vary slightly by provider.
+
+<Steps>
+<Step>Pick a provider type from the dropdown: OpenAI · Anthropic · Google AI · Azure OpenAI · Local.</Step>
+<Step>Enter an alias and the API Key. For Azure / Local (custom endpoints), also enter a `Base URL`.</Step>
+<Step>Type a default model ID, or pick from the list after calling `List models`. (e.g. `gpt-4o`, `claude-sonnet-4-6`, `llama3`)</Step>
+<Step>Click `Test Connection` to verify a lightweight call (e.g. list-models) via `POST /api/llm-configs/:id/test`.</Step>
+<Step>Save. Mark your most-used provider as `⭐ Default` so newly-created AI nodes auto-select it.</Step>
+</Steps>
+
+<Callout type="warn">API Keys are encrypted with AES-256-GCM. API responses return only masked previews like `sk-...xxxx`, so keep the original key elsewhere (usually the provider console).</Callout>
+
+## Default model parameters
+
+Provider-level defaults are inherited as initial values by every AI node. Each node can override them independently.
+
+<FieldTable rows={[
+  { name: "temperature", type: "number (0.0–2.0)", required: "Optional", description: "Response creativity. Default 0.7." },
+  { name: "max_tokens", type: "integer", required: "Required for Anthropic", description: "Max output tokens. Default 2048." },
+  { name: "top_p", type: "number (0.0–1.0)", required: "Optional", description: "Cumulative-probability sampling. Default 1.0." },
+  { name: "frequency_penalty", type: "number", required: "Optional", description: "Suppress repeated tokens. Default 0.0." },
+  { name: "presence_penalty", type: "number", required: "Optional", description: "Encourage new tokens. Default 0.0." }
+]} />
+
+<Example title="Local (Ollama) provider example">
+```ts
+// POST /api/llm-configs request body
+{
+  "provider": "local",
+  "name": "Ollama (on prem)",
+  "baseUrl": "http://localhost:11434",
+  "apiKey": "",                      // empty string if not needed
+  "defaultModel": "llama3",
+  "defaultParams": {
+    "temperature": 0.5,
+    "maxTokens": 2048
+  },
+  "isDefault": false
+}
+```
+</Example>
+
+## Connection test and error codes
+
+`Test Connection` either lists models or sends a minimal request. Failure codes are normalized by the LLM client.
+
+<FieldTable rows={[
+  { name: "LLM_AUTH_ERROR", type: "401", required: "-", description: "API key is invalid or expired." },
+  { name: "LLM_RATE_LIMIT", type: "429", required: "-", description: "Rate-limited. The client retries with exponential backoff up to 3 times." },
+  { name: "LLM_MODEL_NOT_FOUND", type: "404", required: "-", description: "The default model ID doesn't exist on the provider." },
+  { name: "LLM_CONNECTION_ERROR", type: "-", required: "-", description: "Check Base URL and firewall." },
+  { name: "LLM_TIMEOUT", type: "-", required: "-", description: "Exceeded 120 seconds." }
+]} />
+
+## Tips & notes
+
+- Change the default provider with a single call to `PATCH /api/llm-configs/:id/set-default`. Existing AI nodes aren't affected — only newly created ones.
+- It's fine to leave a provider without embedding support as the default. Knowledge Bases pick the embedding model per collection, so there's no conflict. See [Knowledge Base](/docs/05-integrations-and-config/knowledge-base).
+- How to tune per-node parameters: [AI nodes](/docs/02-nodes/ai).
+- List models can also be fetched via `GET /api/llm-configs/:id/models`. The autocomplete UI uses the same endpoint.
+- For Azure OpenAI, the model ID must be the deployment name. Using the standard model ID returns 404.

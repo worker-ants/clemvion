@@ -1,0 +1,401 @@
+This page covers the logic nodes that shape data flow — conditional branches, loops, array processing, variable declaration and modification, and merges that bring parallel paths together.
+
+## If/Else
+
+### When to use it
+
+- When you want to **split into two branches** based on an input value.
+- You can combine multiple conditions with AND/OR to decide the final branch.
+
+### Fields
+
+<FieldTable rows={[
+  {name: "conditions", required: true, type: "ConditionGroup[]", description: "List of conditions to evaluate. Each entry has `field`, `operator`, and `value`.", default: "[]"},
+  {name: "combineMode", required: false, type: "`and` / `or`", description: "How the conditions combine.", default: "and"},
+  {name: "strictComparison", required: false, type: "boolean", description: "When true, compare strictly without type coercion.", default: "false"}
+]} />
+
+Supported operators: `eq`, `neq`, `gt`, `gte`, `lt`, `lte`, `contains`, `not_contains`, `starts_with`, `ends_with`, `is_empty`, `is_not_empty`, `regex`, `is_null`, `is_type`.
+
+### Example
+
+<Example title="Admin-check branch">
+```ts
+// conditions
+[
+  { field: "{{ $input.role }}", operator: "eq", value: "admin" },
+  { field: "{{ $input.age }}", operator: "gte", value: 18 }
+]
+// combineMode: "and"
+// → both true → `true` port, otherwise `false` port
+```
+</Example>
+
+<Callout type="note">
+The input data is forwarded **unchanged** regardless of which port it leaves on. To reshape the value, pair with a Transform or Code node.
+</Callout>
+
+## Switch
+
+### When to use it
+
+- When one value should route into **multiple paths**.
+- Pick value-based matching (`value` mode) or condition expressions (`expression` mode).
+
+### Fields
+
+<FieldTable rows={[
+  {name: "mode", required: true, type: "`value` / `expression`", description: "Case-matching style.", default: "value"},
+  {name: "switchValue", required: false, type: "expression", description: "The value to compare against when `mode=value`.", default: "-"},
+  {name: "cases", required: true, type: "CaseDef[]", description: "Case list. Each has a `label` plus `value` (value mode) or `condition` (expression mode).", default: "[]"},
+  {name: "hasDefault", required: false, type: "boolean", description: "When true, items matching no case go to the `default` port.", default: "false"},
+  {name: "strictComparison", required: false, type: "boolean", description: "When true, compare strictly without type coercion.", default: "false"}
+]} />
+
+### Example
+
+<Example title="Route by inquiry type">
+```ts
+// switchValue: "{{ $input.type }}"
+// cases:
+[
+  { label: "Billing", value: "billing" },
+  { label: "Tech", value: "tech" },
+  { label: "General", value: "general" }
+]
+// hasDefault: true
+// → no match → `default` port
+```
+</Example>
+
+<Callout type="tip">
+Case port IDs are pinned as UUID v4, so renaming labels or reordering cases keeps existing connections intact.
+</Callout>
+
+## Loop
+
+### When to use it
+
+- To repeat the same logic a **fixed number of times**.
+- Use `breakCondition` to exit early when a condition becomes true.
+
+### Fields
+
+<FieldTable rows={[
+  {name: "count", required: true, type: "expression", description: "Iteration count. Accepts integer literals or expressions.", default: "1"},
+  {name: "maxIterations", required: false, type: "integer", description: "Safety cap. Exceeding it aborts the run with an error.", default: "1000"},
+  {name: "breakCondition", required: false, type: "ConditionGroup", description: "Ends the loop early once this condition is met.", default: "-"}
+]} />
+
+Loop is a container node. It has two input ports (`in`, `emit`) and two output ports (`body`, `done`). Iteration runs inside `body`; the output of the node wired to `emit` is collected into an array on `done`.
+
+### Example
+
+<Example title="Call an API 3 times">
+```ts
+// count: "3"
+// Inside body, use $loop.index (0,1,2), $loop.isFirst, $loop.isLast
+// Wire one HTTP Request to emit → done yields [result0, result1, result2]
+```
+</Example>
+
+<Callout type="warn">
+A container's `emit` port must have **exactly one body node** connected. Wiring zero or multiple yields `CONTAINER_MISSING_EMIT` or `CONTAINER_MULTIPLE_EMIT`. Cycles (back-edges) and blocking nodes (Form, blocking button, AI multi-turn) are not allowed inside the body.
+</Callout>
+
+## ForEach
+
+### When to use it
+
+- To run the **body subgraph once per item** in an array, sequentially.
+- Same execution model as Map, but the semantics lean toward "do something per item" (side-effect oriented).
+
+### Fields
+
+<FieldTable rows={[
+  {name: "arrayField", required: true, type: "expression", description: "Path to the target array. Accepts a dot-path (`items`, `order.items`) or inline expression (`{{ $var.list }}`).", default: "-"},
+  {name: "errorPolicy", required: false, type: "`stop` / `skip` / `continue`", description: "Policy when an item's execution fails. Result array preserves original indices.", default: "stop"}
+]} />
+
+Inside the body you can reference `$item`, `$itemIndex`, `$item.isFirst`, `$item.isLast`.
+
+### Example
+
+<Example title="Process order items">
+```ts
+// arrayField: "$input.order.items"
+// Inside body, reference $item.value, $itemIndex
+// errorPolicy: "skip" → failed indices become { _skipped: true, error: {...} }
+```
+</Example>
+
+## Map
+
+### When to use it
+
+- To **transform each array item into a new value** and produce a new array.
+- Same execution model as ForEach, but the "transform" semantic is explicit.
+
+### Fields
+
+<FieldTable rows={[
+  {name: "inputField", required: true, type: "expression", description: "Path to the array being transformed.", default: "-"},
+  {name: "errorPolicy", required: false, type: "`stop` / `skip` / `continue`", description: "Per-item error policy.", default: "stop"}
+]} />
+
+### Example
+
+<Example title="Normalize user entries">
+```ts
+// inputField: "$input.users"
+// Inside body, receive $item and emit { id, name: $item.name.toUpperCase() }
+// done emits the normalized array
+```
+</Example>
+
+## Filter
+
+### When to use it
+
+- To **keep only items that match** a condition, with matching/non-matching items split into two ports.
+- Transform's `array_filter` is an inline single-condition op; use Filter when you need multiple conditions and a branching split.
+
+### Fields
+
+<FieldTable rows={[
+  {name: "inputField", required: true, type: "expression", description: "Path to the target array.", default: "-"},
+  {name: "conditions", required: true, type: "ConditionGroup[]", description: "Filter conditions. Reference the current item as `$item` in each `field`.", default: "[]"},
+  {name: "combineMode", required: false, type: "`and` / `or`", description: "Condition combination mode.", default: "and"},
+  {name: "strictComparison", required: false, type: "boolean", description: "Strict type comparison mode.", default: "false"}
+]} />
+
+Output ports are `match` (items that satisfy the conditions) and `unmatched` (items that don't).
+
+### Example
+
+<Example title="Keep only active users">
+```ts
+// inputField: "$input.users"
+// conditions:
+[
+  { field: "{{ $item.status }}", operator: "eq", value: "active" },
+  { field: "{{ $item.age }}", operator: "gte", value: 18 }
+]
+// match port: array of matching items
+// unmatched port: array of the rest
+```
+</Example>
+
+## Split
+
+### When to use it
+
+- To **normalize** an array into `[{ index, value }, ...]` form.
+- Pair with ForEach when you want to process each entry individually.
+
+### Fields
+
+<FieldTable rows={[
+  {name: "fieldPath", required: true, type: "expression", description: "Path to the array to split. Accepts dot-paths or inline expressions.", default: "-"}
+]} />
+
+### Example
+
+<Example title="Split + ForEach pattern">
+```ts
+// Split fieldPath: "$input.items"
+// Output: [{ index: 0, value: {...} }, { index: 1, value: {...} }]
+// → wire into ForEach to process each item in the body
+```
+</Example>
+
+<Callout type="note">
+Split's output does not include other fields from the source. Reference them directly from downstream nodes with forms like `$node["Previous Node"].output.id`.
+</Callout>
+
+## Merge
+
+### When to use it
+
+- When you need to **combine data from multiple paths** into one.
+- Useful when you want to wait for all inputs, or let only the first-arriving value through.
+
+### Fields
+
+<FieldTable rows={[
+  {name: "strategy", required: false, type: "`wait_all` / `first` / `append`", description: "Merge strategy. `wait_all` waits for all inputs, `first` takes whichever arrives first, `append` collects in arrival order.", default: "wait_all"},
+  {name: "outputFormat", required: false, type: "`array` / `merge_object` / `indexed`", description: "Output shape. Use `merge_object` for a shallow object merge.", default: "array"},
+  {name: "timeout", required: false, type: "integer (seconds)", description: "Timeout while waiting for inputs. `0` means wait forever. (Not enforced in the current version.)", default: "300"},
+  {name: "partialOnTimeout", required: false, type: "boolean", description: "On timeout, merge with whatever arrived. When false, fall back to the error policy. (Not enforced in the current version.)", default: "false"}
+]} />
+
+### Example
+
+<Example title="Combine Parallel branches with a custom strategy">
+```ts
+// Wire each Parallel branch's last node to Merge's in port
+// strategy: "wait_all", outputFormat: "merge_object"
+// → a single shallow-merged object across all branches
+```
+</Example>
+
+<Callout type="tip">
+If you just want the branch results as an array, Parallel's `done` port is simpler — no Merge needed. Reach for Merge when you need strategies like **object merge, first-arrival, or indexing**.
+</Callout>
+
+## Variable Declaration
+
+### When to use it
+
+- To **declare variables** in the workflow context and give them initial values.
+- After declaration, any node can reference them with `{{ $var.<name> }}`.
+
+### Fields
+
+<FieldTable rows={[
+  {name: "variables", required: true, type: "VarDef[]", description: "Variables to declare. Each has `name`, `type`, and `defaultValue`.", default: "[]"}
+]} />
+
+`type` is one of `string` / `number` / `boolean` / `array` / `object`. `defaultValue` can be an expression.
+
+### Example
+
+<Example title="Declare a counter and a collector array">
+```ts
+// variables:
+[
+  { name: "counter", type: "number", defaultValue: 0 },
+  { name: "collected", type: "array", defaultValue: [] }
+]
+// Reference from downstream nodes: {{ $var.counter }}, {{ $var.collected }}
+```
+</Example>
+
+## Variable Modification
+
+### When to use it
+
+- To **modify** previously declared variables. Supports overwrite, increment/decrement, array push/pop, and object set/delete.
+
+### Fields
+
+<FieldTable rows={[
+  {name: "modifications", required: true, type: "ModDef[]", description: "Modifications to apply. Each has `variable`, `operation`, and `value`.", default: "[]"}
+]} />
+
+Operations: `set`, `increment`, `decrement`, `append` (string), `push`/`pop` (array), `set_field`/`delete_field` (object).
+
+### Example
+
+<Example title="Increment counter and push to array">
+```ts
+// modifications:
+[
+  { variable: "counter", operation: "increment", value: 1 },
+  { variable: "collected", operation: "push", value: "{{ $input.id }}" }
+]
+```
+</Example>
+
+<Callout type="warn">
+Modifying a variable that has not been declared raises an error. Always declare with Variable Declaration first.
+</Callout>
+
+## Parallel
+
+### When to use it
+
+- To run multiple tasks **at the same time** and shrink end-to-end duration. Example: sending several API calls in parallel.
+
+### Fields
+
+<FieldTable rows={[
+  { name: "Branch Count", required: true, type: "number", description: "Number of branches to run in parallel. Between 2 and 16.", default: "2" },
+  { name: "Max Concurrency", required: false, type: "number", description: "Max branches running at once. `0` runs everything in parallel; 1–16 caps the concurrent count.", default: "0 (unlimited)" }
+]} />
+
+### Ports
+
+- **Input**: `in` — the same input is copied to every branch.
+- **Branch outputs**: `branch_0`, `branch_1`, ... — generated dynamically based on Branch Count. Connect the first node of each branch here.
+- **done output**: `done` — fires once every branch has finished, emitting a `{ branches: [branch0Result, branch1Result, ...] }` array.
+
+### Behavior
+
+- On input, **the same value is emitted simultaneously** to `branch_0`, `branch_1`, and so on.
+- When the env var `PARALLEL_ENGINE=v1` is set, branches run **truly in parallel**. Otherwise they execute sequentially as before.
+- Max Concurrency caps the number of concurrent branches to protect resources.
+- When every branch completes, each branch's last-node output is collected into `done.branches`.
+
+### Usage patterns
+
+**Pattern A — continue from the done port (simple)**
+
+Good when you want the branch results as a plain array. No Merge node needed.
+
+```
+Parallel(3)
+  ├── branch_0 → [API call A]
+  ├── branch_1 → [API call B]
+  ├── branch_2 → [API call C]
+  └── done → Downstream processing
+               ↑ { branches: [resultA, resultB, resultC] }
+```
+
+**Pattern B — reshape with Merge (advanced)**
+
+When you need strategies like object merging or first-arrival-wins, route each branch's last node into Merge.
+
+```
+Parallel(2)
+  ├── branch_0 → [A] ──┐
+  ├── branch_1 → [B] ──┼→ Merge(merge_object) → processing
+  └── done (unused)
+```
+
+Both patterns can coexist — use `done` for the full list and Merge for a reshaped version, fed into different downstream paths.
+
+### Example
+
+<Example title="Call three APIs in parallel and gather results">
+```ts
+// Branch Count: 3, Max Concurrency: 0
+// branch_0 → HTTP Request (service A)
+// branch_1 → HTTP Request (service B)
+// branch_2 → HTTP Request (service C)
+// done → Transform
+// In Transform, reference each branch as {{ $input.branches[0].data }} etc.
+```
+</Example>
+
+<Callout type="warn">
+Inside a Parallel branch you cannot use **blocking nodes** — Form, blocking buttons, AI multi-turn. Back-edges (cycles) and nesting Parallel inside another Parallel are not supported yet.
+</Callout>
+
+<Callout type="tip">
+The difference between Parallel and just drawing multiple lines from a single output port (1:N fan-out) is **intent**. Parallel says "these branches run at the same time" right in the node itself, so readers understand the design at a glance.
+</Callout>
+
+## Background
+
+Use this when a slow follow-up (sending emails, notifying external APIs, ...) should be detached from the main flow. When input arrives, Background **immediately proceeds downstream from the `main` port**, and at the same time runs the branch wired to the `background` port on a separate worker (BullMQ queue `background-execution`).
+
+- The body starts with a **snapshot** of variables and node outputs at enqueue time. Variable changes in the main flow don't reach the body afterwards (and vice versa).
+- A body failure does not affect the main workflow state. The failure is recorded in NodeExecution history and visible on the timeline.
+- The body's result does not flow back into the main run (fire-and-forget).
+
+<FieldTable rows={[
+  {name: "notes", required: false, type: "string", description: "A short note explaining what the body does, for your teammates. No runtime effect.", default: "''"},
+  {name: "notifyOnFailure", required: false, type: "boolean", description: "Send an in-app notification to workspace admins if the body fails.", default: "false"},
+  {name: "maxDurationMs", required: false, type: "number", description: "Kill the body if it runs past this duration. `0` disables the cap.", default: "300000 (5 min)"}
+]} />
+
+<Callout type="tip">
+After a server restart, BullMQ's default retry policy re-attempts pending background jobs. Since the original context may already be gone, make the body idempotent or re-triggerable from outside.
+</Callout>
+
+## Tips & notes
+
+- How to work with arrays and objects inside expressions is covered in the [Expression cheatsheet](/docs/03-expression-language/cheatsheet).
+- Variable scope and `$var` usage live in [Variables and context](/docs/03-expression-language/variables-and-context).
+- Power-user tip: ForEach returns an array of the iterated items themselves; Map returns an array of transformed items. Reach for ForEach when you're doing side-effectful work per item, Map when your goal is the transformed array.

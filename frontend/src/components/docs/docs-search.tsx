@@ -5,8 +5,9 @@ import { useRouter } from "next/navigation";
 import Fuse, { type IFuseOptions } from "fuse.js";
 import { Search } from "lucide-react";
 import type { DocsSearchEntry } from "@/lib/docs/registry";
+import type { Locale } from "@/lib/i18n/types";
 import { cn } from "@/lib/utils/cn";
-import { useT } from "@/lib/i18n";
+import { useLocale, useT } from "@/lib/i18n";
 
 const FUSE_OPTIONS: IFuseOptions<DocsSearchEntry> = {
   keys: [
@@ -20,8 +21,13 @@ const FUSE_OPTIONS: IFuseOptions<DocsSearchEntry> = {
   minMatchCharLength: 2,
 };
 
-export function DocsSearch({ entries }: { entries: DocsSearchEntry[] }) {
+export function DocsSearch({
+  entriesByLocale,
+}: {
+  entriesByLocale: Record<Locale, DocsSearchEntry[]>;
+}) {
   const t = useT();
+  const locale = useLocale();
   const router = useRouter();
   const inputRef = useRef<HTMLInputElement>(null);
   const [query, setQuery] = useState("");
@@ -29,6 +35,7 @@ export function DocsSearch({ entries }: { entries: DocsSearchEntry[] }) {
   const [activeIndex, setActiveIndex] = useState(0);
   const [prevQuery, setPrevQuery] = useState("");
 
+  const entries = entriesByLocale[locale];
   const fuse = useMemo(() => new Fuse(entries, FUSE_OPTIONS), [entries]);
 
   const results = useMemo(() => {

@@ -1,0 +1,93 @@
+This page explains what an **expression** is in a node's configuration form, and how to use one.
+
+## What is an expression
+
+An expression is a small inline language that **computes a value at run time** inside node configuration fields. Use it to pull in the previous node's result, evaluate a simple condition, or assemble a string.
+
+- Read-only — expressions never mutate external state.
+- Intentionally lightweight — do complex data reshaping in a **Transform node** or **Code node** instead.
+- Deterministic — the same input always produces the same result.
+
+## `{{ }}` syntax
+
+Expressions are always wrapped in double curly braces.
+
+<Example title="The whole field is an expression">
+```ts
+{{ $input.count + 1 }}
+```
+</Example>
+
+<Example title="Interpolating a value inside a string">
+```ts
+Hello, {{ $input.name }}!
+```
+</Example>
+
+Interpolation always produces a string. When a field contains only one `{{ ... }}`, however, the **original type** (number, object, array, ...) is preserved.
+
+<Callout type="tip">To use the literal `{{` characters, escape them with a backslash: `\{\{`.</Callout>
+
+## Where can you use them
+
+By default, expressions are supported in **every text input field of every node's settings panel**. Common spots include:
+
+- URL, headers, and body of an HTTP Request node
+- Conditions on an If/Else node
+- Recipients, subject, and body of a Send Email node
+- Mapping expressions in a Transform node
+- Prompts in an AI Agent node
+- Item bindings in Carousel, Table, and Template nodes
+
+Two exceptions:
+
+<FieldTable rows={[
+  { name: "Code node's `code` field", type: "Excluded", description: "Runs in the raw JavaScript runtime. Use `$input`, `$vars`, `$execution` directly — no `{{ }}`." },
+  { name: "Template node's `template` field", type: "Excluded", description: "Uses its own `{{ key }}` parser to reference input data." }
+]} />
+
+## Toggling between static values and expression mode
+
+Many fields in the settings panel support both **static values** and **expression values**. Toggle by clicking the `{}` icon next to the label, or start typing `{{` to switch automatically.
+
+<Steps>
+  <Step>Click the field.</Step>
+  <Step>For a static value, just type plain text: e.g. `https://api.example.com/users`</Step>
+  <Step>Wrap only the dynamic parts: e.g. `https://api.example.com/users/{{ $input.userId }}`</Step>
+  <Step>Autocomplete pops up right after `{{`. Navigate with arrow keys; pick with Enter or Tab.</Step>
+  <Step>The autocomplete list shows **only nodes and variables reachable from the current node**. Nodes outside the current branch are hidden, and outside loops/ForEach containers `$loop`, `$item`, `$itemIndex` are hidden too.</Step>
+  <Step>Expressions already referencing unreachable nodes get an **amber warning**. Syntax errors are shown in red.</Step>
+</Steps>
+
+## Quick examples
+
+<Example title="Simple arithmetic">
+```ts
+{{ $input.price * 1.1 }}
+```
+</Example>
+
+<Example title="Ternary">
+```ts
+{{ $input.score >= 80 ? "Pass" : "Fail" }}
+```
+</Example>
+
+<Example title="First array element">
+```ts
+{{ first($input.items).name }}
+```
+</Example>
+
+<Example title="Uppercase a string">
+```ts
+{{ uppercase($input.email) }}
+```
+</Example>
+
+## Tips & notes
+
+- Syntax errors show as a red underline in the editor. Execution isn't blocked at design time, but the node will fail at run time.
+- Accessing a property of `null` raises an error. Safe-access patterns are covered in [Variables and context](/docs/03-expression-language/variables-and-context).
+- Common patterns are collected in the [cheatsheet](/docs/03-expression-language/cheatsheet).
+- Error policies are covered in [Error handling](/docs/04-run-and-debug/error-handling).

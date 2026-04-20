@@ -1,0 +1,141 @@
+This page lists the **built-in reference variables** you can use inside expressions. They all start with `$` and are injected by the engine at execution time.
+
+## Built-in references at a glance
+
+<FieldTable rows={[
+  { name: "$input", type: "Object", description: "Output of the directly connected previous node. The most commonly used reference." },
+  { name: "$node[\"name\"]", type: "Object", description: "Result of a specific node by name (or UUID). Output lives under `.output`." },
+  { name: "$var", type: "Object", description: "Values of variables declared for this workflow." },
+  { name: "$execution", type: "Object", description: "Current execution context — ID, start time, execution mode, and more." },
+  { name: "$now", type: "String", description: "Current timestamp as an ISO 8601 string." },
+  { name: "$today", type: "String", description: "Today's date as `YYYY-MM-DD`." },
+  { name: "$env", type: "Object", description: "Environment variable object. Exposed via an allow-list in self-hosted deployments." },
+  { name: "$trigger", type: "Object", description: "Trigger payload — webhook body, schedule context, etc." },
+  { name: "$loop", type: "Object", description: "Loop-node inner context — index, iteration count, first/last flags." },
+  { name: "$item", type: "Any", description: "The current item inside a ForEach/Map container." },
+  { name: "$itemIndex", type: "Number", description: "Current ForEach index, 0-based." }
+]} />
+
+## `$input`: the previous node's result
+
+The most common reference. Points to the **data delivered to the current node's input port**.
+
+<Example title="Reference the previous node's email">
+```ts
+{{ $input.email }}
+```
+</Example>
+
+<Example title="Nested field access">
+```ts
+{{ $input.user.profile.nickname }}
+```
+</Example>
+
+<Callout type="warn">If any intermediate path is `null`, the access throws. Defend with a ternary or `||`. Example: `{{ $input.user ? $input.user.name : "unknown" }}`.</Callout>
+
+## `$node["name"]`: any node's result
+
+`$input` only reaches the previous node; `$node` reaches **any node** in the workflow.
+
+<Example title="Reference by label">
+```ts
+{{ $node["HTTP Request"].output.data.items[0] }}
+```
+</Example>
+
+<Example title="Reference by UUID (stable across renames)">
+```ts
+{{ $node["3f2a9b1c-...-uuid"].output.result }}
+```
+</Example>
+
+<Callout type="note">Node labels must be unique within a workflow. If you accidentally duplicate them, the engine appends suffixes like `Label#2`, `Label#3` based on execution order.</Callout>
+
+## `$var`: workflow variables
+
+Variables declared via Variable Declaration are read through `$var` and updated through Variable Modification.
+
+<Example title="Reference a counter">
+```ts
+{{ $var.counter + 1 }}
+```
+</Example>
+
+## `$execution`: execution context
+
+<FieldTable rows={[
+  { name: "$execution.id", type: "String", description: "UUID of the current execution." },
+  { name: "$execution.startedAt", type: "String", description: "Execution start time (ISO 8601)." },
+  { name: "$execution.mode", type: "String", description: "One of `manual`, `webhook`, `schedule`." },
+  { name: "$execution.workflowId", type: "String", description: "Workflow UUID." }
+]} />
+
+<Example title="Pass the execution ID to an external API">
+```ts
+{{ $execution.id }}
+```
+</Example>
+
+## `$now` and `$today`: time references
+
+Both are evaluated at execution time and stay the same across all uses within one run.
+
+<Example title="Current ISO timestamp">
+```ts
+{{ $now }}
+```
+</Example>
+
+<Example title="Build a file name from today's date">
+```ts
+report-{{ $today }}.csv
+```
+</Example>
+
+## `$env`: environment variables
+
+In self-hosted deployments, only keys that a workspace admin has allow-listed are exposed. Use it to reference API keys and external service URLs safely.
+
+<Example title="Reference an env var">
+```ts
+{{ $env.API_BASE_URL }}/users
+```
+</Example>
+
+## `$loop`, `$item`, `$itemIndex`: iteration context
+
+Available only inside the **body region** of container nodes — Loop, ForEach, Map.
+
+<FieldTable rows={[
+  { name: "$loop.index", type: "Number", description: "Current iteration index (0-based)." },
+  { name: "$loop.iteration", type: "Number", description: "Iteration count (1-based)." },
+  { name: "$loop.isFirst", type: "Boolean", description: "Whether this is the first iteration." },
+  { name: "$loop.isLast", type: "Boolean", description: "Whether this is the last iteration." },
+  { name: "$item", type: "Any", description: "Current ForEach/Map item." },
+  { name: "$itemIndex", type: "Number", description: "Current ForEach index." }
+]} />
+
+<Example title="Reference the current item in a ForEach body">
+```ts
+{{ $item.name }} (#{{ $itemIndex + 1 }})
+```
+</Example>
+
+## `$trigger`: trigger payload
+
+Access the raw data provided by Webhook, Schedule, or Manual triggers.
+
+<Example title="Read an event type from a webhook body">
+```ts
+{{ $trigger.body.event }}
+```
+</Example>
+
+## Tips & notes
+
+- Autocomplete uses the schema from the most recent run. In a workflow that hasn't run yet, suggestions are limited — we recommend running it once first.
+- Autocomplete only shows **ancestor nodes reachable from the current node and variables visible in this container scope**. Siblings in the other branch or nodes inside a different loop are filtered out.
+- Saved expressions that reference unreachable nodes, or use `$loop`, `$item`, `$itemIndex` outside a container, surface an **amber warning** below the field — catching likely blanks in production at design time.
+- Real-world patterns: [cheatsheet](/docs/03-expression-language/cheatsheet).
+- How to inspect inputs and outputs at run time: [Run results](/docs/04-run-and-debug/run-results).

@@ -5,7 +5,11 @@ import { usePathname } from "next/navigation";
 import { useMemo, useSyncExternalStore } from "react";
 import { ChevronDown, ChevronRight, Minus } from "lucide-react";
 import type { DocsSection } from "@/lib/docs/registry";
-import { localizedSectionLabel, localizedTitle } from "@/lib/docs/locale";
+import {
+  localizedDocsHref,
+  localizedSectionLabel,
+  localizedTitle,
+} from "@/lib/docs/locale";
 import { cn } from "@/lib/utils/cn";
 import { useLocale, useT } from "@/lib/i18n";
 
@@ -87,12 +91,16 @@ export function DocsSidebar({ sections }: { sections: DocsSection[] }) {
   );
 
   // Section containing the active page — always forced open so the user
-  // never loses their current position in a collapsed group.
+  // never loses their current position in a collapsed group. Compare against
+  // the locale-prefixed href because that is what the router exposes.
   const activeSectionKey = useMemo(
     () =>
-      sections.find((s) => s.pages.some((p) => p.href === pathname))?.key ??
-      null,
-    [sections, pathname],
+      sections.find((s) =>
+        s.pages.some(
+          (p) => localizedDocsHref(p.slug, locale) === pathname,
+        ),
+      )?.key ?? null,
+    [sections, pathname, locale],
   );
 
   const toggleSection = (key: string) => {
@@ -142,11 +150,12 @@ export function DocsSidebar({ sections }: { sections: DocsSection[] }) {
                 className="flex flex-col gap-0.5"
               >
                 {section.pages.map((page) => {
-                  const active = pathname === page.href;
+                  const href = localizedDocsHref(page.slug, locale);
+                  const active = pathname === href;
                   return (
                     <li key={page.href}>
                       <Link
-                        href={page.href}
+                        href={href}
                         className={cn(
                           // Extra left padding (pl-5 = 20px, matches chevron + gap width)
                           // makes the depth from section header visually unambiguous.

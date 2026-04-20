@@ -1,0 +1,90 @@
+This page explains the **three ways to run** a workflow from the editor, and how the experience differs per trigger type (Manual / Schedule / Webhook).
+
+## Three ways to run
+
+Pick one from the dropdown next to the `▶ Run` button in the editor's top toolbar.
+
+<FieldTable rows={[
+  { name: "Run", type: "Full run", description: "Run from the root with empty input (or the values configured as Mock Input). Shortcut: Ctrl+Enter." },
+  { name: "Run with Input", type: "Run with custom input", description: "Edit a test-input JSON and run. You can also load the input from a previous run or save it as a reusable test set." },
+  { name: "Run from Selected", type: "Partial run", description: "Run only from the selected node to the end. Reuse the input that node received last time, or provide one manually." }
+]} />
+
+There's also a **single-node run** via right-click menu. Handy for verifying one node in isolation.
+
+## Run with Input dialog
+
+Choosing `Run with Input` opens the test-input dialog.
+
+<Steps>
+  <Step>Type test data into the JSON editor. Validation happens live.</Step>
+  <Step>Use the `Load from History` dropdown to import input from a previous execution.</Step>
+  <Step>Save frequently used inputs with a name to reuse them with one click.</Step>
+  <Step>Hit `Run ▶` to start.</Step>
+</Steps>
+
+<Example title="Run-with-Input JSON example">
+```json
+{
+  "userId": 123,
+  "action": "signup",
+  "data": {
+    "email": "test@example.com"
+  }
+}
+```
+</Example>
+
+## Run from Selected
+
+Great when you want to iterate on a single debug target.
+
+<Steps>
+  <Step>Select the starting node on the canvas.</Step>
+  <Step>Right-click the node → choose `Run from here`.</Step>
+  <Step>The input that node received last time is auto-filled. You can edit it manually.</Step>
+  <Step>Only the selected node and its downstream graph execute.</Step>
+</Steps>
+
+<Callout type="tip">When a node is expensive to re-run (AI Agent, HTTP Request with paid APIs), partial-run from the **next** node to save time and cost.</Callout>
+
+## Trigger types and how they affect running
+
+A **trigger** is the condition that starts a workflow. The editor's Run button always runs manually regardless of trigger, but deployed workflows are started by their configured trigger.
+
+<FieldTable rows={[
+  { name: "Manual Trigger", type: "Manual", description: "Runs only when a user presses Run. Good for tests, debugging, and one-off work. `$execution.mode` = `manual`." },
+  { name: "Schedule", type: "Scheduled", description: "Runs periodically on a cron expression. For batch jobs, scheduled reports, data pulls. `$execution.mode` = `schedule`." },
+  { name: "Webhook", type: "Webhook", description: "Runs when an external system calls via HTTPS. Payload arrives as `$trigger.body`. For event-driven automations. `$execution.mode` = `webhook`." }
+]} />
+
+<Callout type="note">Pressing `Run` in the editor always runs in `manual` mode regardless of trigger type. If you need to simulate a webhook payload, paste it into `Run with Input`.</Callout>
+
+## Watching execution status
+
+Starting a run shows a status bar at the top of the editor.
+
+```
+▶ Running...   0.5s elapsed    [■ Stop]
+```
+
+- Currently running node: blue pulsing border
+- Completed node: green check + elapsed time
+- Edges: animated to show data flow
+- Branch nodes: only the taken path stays bold; untaken paths fade out
+
+The **Run Results drawer** expands automatically at the bottom, showing per-node input/output/status in a timeline. Details: [Run results](/docs/04-run-and-debug/run-results).
+
+## Stopping a run
+
+<FieldTable rows={[
+  { name: "Stop (graceful)", type: "Graceful", description: "Click `■ Stop` in the status bar. Stops after the currently running node finishes." },
+  { name: "Stop (force)", type: "Force", description: "Hold the Stop button for 3+ seconds. Stops immediately; run status is recorded as `cancelled`." }
+]} />
+
+## Tips & notes
+
+- Setting a breakpoint pauses execution right before a node so you can inspect its input.
+- Browsing run history and reading per-node I/O is covered in [Run results](/docs/04-run-and-debug/run-results).
+- Control per-node failure behavior in [Error handling](/docs/04-run-and-debug/error-handling).
+- Trigger-specific settings: [Triggers](/docs/02-nodes/triggers).
