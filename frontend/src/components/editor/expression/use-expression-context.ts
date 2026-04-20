@@ -74,6 +74,22 @@ function toRecord(data: unknown): Record<string, unknown> {
   return data as Record<string, unknown>;
 }
 
+/**
+ * Unwrap the backend's `NodeHandlerOutput` envelope `{ config, output, meta?,
+ * port?, status? }` into its payload so autocomplete sees the same shape the
+ * runtime binds to `$node["X"].output` / `$input`. Mirrors backend
+ * `expression-resolver.service.ts` and `handler-output.adapter.ts#isNewShape`
+ * — both `config` and `output` keys must be present for a value to qualify as
+ * the envelope (prevents collision with handler outputs that coincidentally
+ * have a top-level `output` field).
+ */
+function unwrapStructuredOutput(data: unknown): unknown {
+  if (!data || typeof data !== "object" || Array.isArray(data)) return data;
+  const obj = data as Record<string, unknown>;
+  if ("config" in obj && "output" in obj) return obj.output;
+  return data;
+}
+
 
 /**
  * Provides autocomplete data for ExpressionInput components.
@@ -92,8 +108,9 @@ export function useExpressionContext(selectedNodeId: string | null): ExpressionD
     const resultMap = new Map<string, Record<string, unknown>>();
     const rawResultMap = new Map<string, unknown>();
     for (const r of nodeResults) {
-      resultMap.set(r.nodeId, toRecord(r.outputData));
-      rawResultMap.set(r.nodeId, r.outputData);
+      const unwrapped = unwrapStructuredOutput(r.outputData);
+      resultMap.set(r.nodeId, toRecord(unwrapped));
+      rawResultMap.set(r.nodeId, unwrapped);
     }
     const nodeById = new Map(nodes.map((n) => [n.id, n]));
 
