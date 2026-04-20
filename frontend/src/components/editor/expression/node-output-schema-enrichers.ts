@@ -191,3 +191,72 @@ export function enrichFormOutputSchema(
   outputNode.properties.interaction = interactionNode;
   return cloned;
 }
+
+/**
+ * Table node populates `output.rows[i].<field>` from `config.columns[].field`
+ * at execute time. Project each column's `field` (when it's a plain
+ * identifier, not an expression) into the static outputSchema so
+ * `$node["Table"].output.rows[...].<field>` autocompletes pre-run.
+ *
+ * Expression-valued `field` entries (containing `{{ ... }}`) are skipped —
+ * their runtime key isn't derivable from config alone. Labels are noted as
+ * descriptions so the autocomplete hint surfaces them next to the key.
+ */
+export function enrichTableOutputSchema(
+  baseSchema: JsonSchemaNode | undefined,
+  config: Record<string, unknown> | undefined,
+): JsonSchemaNode | undefined {
+  if (!baseSchema) return baseSchema;
+  const columns = config?.columns as
+    | Array<{ field?: unknown; label?: unknown }>
+    | undefined;
+  if (!Array.isArray(columns) || columns.length === 0) return baseSchema;
+
+  const userProps: Record<string, JsonSchemaNode> = Object.create(null);
+  for (const c of columns) {
+    const fieldName = typeof c?.field === "string" ? c.field : undefined;
+    if (!fieldName) continue;
+    if (fieldName.includes("{{")) continue; // expression — unknowable key
+    if (!isSafeFieldName(fieldName)) continue;
+    userProps[fieldName] = {
+      ...(typeof c.label === "string" && c.label
+        ? { description: c.label }
+        : {}),
+    };
+  }
+  if (Object.keys(userProps).length === 0) return baseSchema;
+
+  const cloned =
+    typeof structuredClone === "function"
+      ? structuredClone(baseSchema)
+      : (JSON.parse(JSON.stringify(baseSchema)) as JsonSchemaNode);
+  const outputNode = cloned.properties?.output;
+  if (!outputNode || typeof outputNode !== "object") {
+    if (process.env.NODE_ENV !== "production") {
+      console.warn(
+        "[expression-autocomplete] Table outputSchema missing `output` property; column hints skipped.",
+      );
+    }
+    return cloned;
+  }
+  if (!outputNode.properties) outputNode.properties = {};
+  const existingRows = outputNode.properties.rows;
+  const rowsNode =
+    existingRows && typeof existingRows === "object"
+      ? existingRows
+      : ({ type: "array" } as JsonSchemaNode);
+  const existingItems =
+    rowsNode.items && typeof rowsNode.items === "object"
+      ? rowsNode.items
+      : ({ type: "object", properties: {} } as JsonSchemaNode);
+  const existingRowProps =
+    existingItems.properties && typeof existingItems.properties === "object"
+      ? existingItems.properties
+      : {};
+  rowsNode.items = {
+    type: "object",
+    properties: { ...existingRowProps, ...userProps },
+  };
+  outputNode.properties.rows = rowsNode;
+  return cloned;
+}

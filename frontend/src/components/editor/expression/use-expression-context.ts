@@ -7,6 +7,7 @@ import { getAllFunctionNames, buildDisambiguatedKeys } from "@workflow/expressio
 import {
   enrichFormOutputSchema,
   enrichInfoExtractorOutputSchema,
+  enrichTableOutputSchema,
 } from "./node-output-schema-enrichers";
 import {
   getAncestorsInScope,
@@ -176,6 +177,11 @@ export function useExpressionContext(selectedNodeId: string | null): ExpressionD
               inputSchema,
               sourceData?.config as Record<string, unknown> | undefined,
             );
+          } else if (inputSchema && sourceType === "table") {
+            inputSchema = enrichTableOutputSchema(
+              inputSchema,
+              sourceData?.config as Record<string, unknown> | undefined,
+            );
           }
         }
       } else if (incomingEdges.length > 1) {
@@ -218,6 +224,8 @@ export function useExpressionContext(selectedNodeId: string | null): ExpressionD
         outputSchema = enrichInfoExtractorOutputSchema(outputSchema, config);
       } else if (nodeType === "form") {
         outputSchema = enrichFormOutputSchema(outputSchema, config);
+      } else if (nodeType === "table") {
+        outputSchema = enrichTableOutputSchema(outputSchema, config);
       }
       return {
         id: n.id,
