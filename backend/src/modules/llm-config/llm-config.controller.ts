@@ -18,17 +18,26 @@ import {
   ApiBearerAuth,
   ApiOperation,
   ApiParam,
-  ApiOkResponse,
-  ApiCreatedResponse,
   ApiNoContentResponse,
   ApiBadRequestResponse,
   ApiUnauthorizedResponse,
+  ApiForbiddenResponse,
   ApiNotFoundResponse,
 } from '@nestjs/swagger';
+import {
+  ApiCreatedWrappedResponse,
+  ApiOkPaginatedResponse,
+  ApiOkWrappedResponse,
+} from '../../common/swagger';
 import { LlmConfigService } from './llm-config.service';
 import { LlmService } from '../llm/llm.service';
 import { CreateLlmConfigDto } from './dto/create-llm-config.dto';
 import { UpdateLlmConfigDto } from './dto/update-llm-config.dto';
+import {
+  LlmConfigDto,
+  LlmModelListDto,
+  LlmTestConnectionResultDto,
+} from './dto/responses/llm-config-response.dto';
 import { WorkspaceId } from '../../common/decorators';
 import { PaginationQueryDto } from '../../common/dto/pagination.dto';
 
@@ -48,22 +57,8 @@ export class LlmConfigController {
     description:
       '워크스페이스에 등록된 LLM Provider 설정 목록을 페이지네이션으로 조회합니다. API Key는 마스킹되어 반환됩니다.',
   })
-  @ApiOkResponse({
+  @ApiOkPaginatedResponse(LlmConfigDto, {
     description: 'LLM 설정 목록 및 페이지네이션 메타',
-    schema: {
-      type: 'object',
-      properties: {
-        data: {
-          type: 'object',
-          properties: {
-            data: { type: 'array', items: { type: 'object' } },
-            totalItems: { type: 'number' },
-            page: { type: 'number' },
-            limit: { type: 'number' },
-          },
-        },
-      },
-    },
   })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
   async findAll(
@@ -79,7 +74,7 @@ export class LlmConfigController {
     description: 'ID로 LLM 설정 상세를 조회합니다. API Key는 마스킹됩니다.',
   })
   @ApiParam({ name: 'id', description: 'LLM 설정 UUID', format: 'uuid' })
-  @ApiOkResponse({ description: 'LLM 설정 상세' })
+  @ApiOkWrappedResponse(LlmConfigDto, { description: 'LLM 설정 상세' })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
   @ApiNotFoundResponse({ description: '해당 LLM 설정을 찾을 수 없음' })
   async findOne(
@@ -97,9 +92,10 @@ export class LlmConfigController {
     description:
       '새 LLM Provider 설정을 등록합니다. API Key는 암호화되어 저장됩니다. isDefault=true 시 기존 기본 설정은 해제됩니다.',
   })
-  @ApiCreatedResponse({ description: '생성된 LLM 설정' })
+  @ApiCreatedWrappedResponse(LlmConfigDto, { description: '생성된 LLM 설정' })
   @ApiBadRequestResponse({ description: '입력값 검증 실패' })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
+  @ApiForbiddenResponse({ description: 'editor 이상 권한 필요' })
   async create(
     @WorkspaceId() workspaceId: string,
     @Body() dto: CreateLlmConfigDto,
@@ -115,9 +111,10 @@ export class LlmConfigController {
       'LLM 설정을 부분 수정합니다. API Key 미전달 시 기존 키가 유지되며, 수정 후 내부 클라이언트 캐시가 무효화됩니다.',
   })
   @ApiParam({ name: 'id', description: 'LLM 설정 UUID', format: 'uuid' })
-  @ApiOkResponse({ description: '수정된 LLM 설정' })
+  @ApiOkWrappedResponse(LlmConfigDto, { description: '수정된 LLM 설정' })
   @ApiBadRequestResponse({ description: '입력값 검증 실패' })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
+  @ApiForbiddenResponse({ description: 'editor 이상 권한 필요' })
   @ApiNotFoundResponse({ description: '해당 LLM 설정을 찾을 수 없음' })
   async update(
     @Param('id', ParseUUIDPipe) id: string,
@@ -140,6 +137,7 @@ export class LlmConfigController {
   @ApiParam({ name: 'id', description: 'LLM 설정 UUID', format: 'uuid' })
   @ApiNoContentResponse({ description: '기본 설정 변경 완료' })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
+  @ApiForbiddenResponse({ description: 'editor 이상 권한 필요' })
   @ApiNotFoundResponse({ description: '해당 LLM 설정을 찾을 수 없음' })
   async setDefault(
     @Param('id', ParseUUIDPipe) id: string,
@@ -155,21 +153,8 @@ export class LlmConfigController {
       '저장된 API Key로 Provider에 테스트 호출을 수행합니다. 응답 시간, 사용 가능 여부를 확인합니다.',
   })
   @ApiParam({ name: 'id', description: 'LLM 설정 UUID', format: 'uuid' })
-  @ApiOkResponse({
+  @ApiOkWrappedResponse(LlmTestConnectionResultDto, {
     description: '연결 테스트 결과',
-    schema: {
-      type: 'object',
-      properties: {
-        data: {
-          type: 'object',
-          properties: {
-            success: { type: 'boolean' },
-            latencyMs: { type: 'number' },
-            message: { type: 'string', nullable: true },
-          },
-        },
-      },
-    },
   })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
   @ApiNotFoundResponse({ description: '해당 LLM 설정을 찾을 수 없음' })
@@ -187,7 +172,9 @@ export class LlmConfigController {
       'Provider에서 사용 가능한 모델 목록을 실시간 조회해 반환합니다.',
   })
   @ApiParam({ name: 'id', description: 'LLM 설정 UUID', format: 'uuid' })
-  @ApiOkResponse({ description: '사용 가능한 모델 목록' })
+  @ApiOkWrappedResponse(LlmModelListDto, {
+    description: '사용 가능한 모델 목록',
+  })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
   @ApiNotFoundResponse({ description: '해당 LLM 설정을 찾을 수 없음' })
   async listModels(
@@ -208,6 +195,7 @@ export class LlmConfigController {
   @ApiParam({ name: 'id', description: 'LLM 설정 UUID', format: 'uuid' })
   @ApiNoContentResponse({ description: '삭제 성공' })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
+  @ApiForbiddenResponse({ description: 'editor 이상 권한 필요' })
   @ApiNotFoundResponse({ description: '해당 LLM 설정을 찾을 수 없음' })
   async remove(
     @Param('id', ParseUUIDPipe) id: string,

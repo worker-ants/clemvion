@@ -22,7 +22,6 @@ import {
   ApiOperation,
   ApiParam,
   ApiOkResponse,
-  ApiCreatedResponse,
   ApiNoContentResponse,
   ApiBadRequestResponse,
   ApiUnauthorizedResponse,
@@ -32,6 +31,20 @@ import {
   ApiTooManyRequestsResponse,
   ApiProduces,
 } from '@nestjs/swagger';
+import {
+  ApiCreatedWrappedResponse,
+  ApiOkPaginatedResponse,
+  ApiOkWrappedResponse,
+} from '../../common/swagger';
+import {
+  IntegrationActivityDto,
+  IntegrationDto,
+  IntegrationUsagesDto,
+  OAuthBeginResultDto,
+  PreviewTestResultDto,
+  ServiceCatalogDto,
+  TestConnectionResultDto,
+} from './dto/responses/integration-response.dto';
 import type { Response } from 'express';
 import { IntegrationsService } from './integrations.service';
 import {
@@ -71,22 +84,8 @@ export class IntegrationsController {
     description:
       '현재 워크스페이스에 등록된 통합 목록을 페이지네이션으로 조회합니다. 서비스 타입, 상태, 범위(개인/조직)로 필터링할 수 있습니다.',
   })
-  @ApiOkResponse({
+  @ApiOkPaginatedResponse(IntegrationDto, {
     description: '통합 목록 및 페이지네이션 메타',
-    schema: {
-      type: 'object',
-      properties: {
-        data: {
-          type: 'object',
-          properties: {
-            data: { type: 'array', items: { type: 'object' } },
-            totalItems: { type: 'number' },
-            page: { type: 'number' },
-            limit: { type: 'number' },
-          },
-        },
-      },
-    },
   })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
   async findAll(
@@ -102,7 +101,9 @@ export class IntegrationsController {
     description:
       '플랫폼이 통합 가능한 서비스 메타데이터(서비스 타입, 인증 방식, 스코프 등)를 반환합니다.',
   })
-  @ApiOkResponse({ description: '지원 서비스 카탈로그' })
+  @ApiOkWrappedResponse(ServiceCatalogDto, {
+    description: '지원 서비스 카탈로그',
+  })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
   getAvailableServices() {
     return this.integrationsService.getAvailableServices();
@@ -123,7 +124,9 @@ export class IntegrationsController {
     description:
       '자격 증명을 저장하기 전에 구조적 유효성을 검증합니다. 외부 네트워크 호출은 수행하지 않으며, 남용 방지를 위해 분당 20회로 제한됩니다.',
   })
-  @ApiOkResponse({ description: '검증 결과 (마스킹된 자격 증명 포함)' })
+  @ApiOkWrappedResponse(PreviewTestResultDto, {
+    description: '검증 결과 (마스킹된 자격 증명 포함)',
+  })
   @ApiBadRequestResponse({
     description:
       '지원하지 않는 serviceType/authType 조합 또는 자격 증명 검증 실패',
@@ -146,20 +149,8 @@ export class IntegrationsController {
     description:
       'OAuth 흐름을 시작해 인증 URL과 state 토큰을 반환합니다. new/reauthorize/request_scopes 모드를 지원합니다.',
   })
-  @ApiOkResponse({
+  @ApiOkWrappedResponse(OAuthBeginResultDto, {
     description: '인증 URL 및 state 토큰',
-    schema: {
-      type: 'object',
-      properties: {
-        data: {
-          type: 'object',
-          properties: {
-            authorizeUrl: { type: 'string' },
-            state: { type: 'string' },
-          },
-        },
-      },
-    },
   })
   @ApiBadRequestResponse({ description: '입력값 검증 실패 또는 미지원 서비스' })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
@@ -250,7 +241,9 @@ export class IntegrationsController {
       'ID로 통합 상세를 조회합니다. 자격 증명은 마스킹되어 반환됩니다.',
   })
   @ApiParam({ name: 'id', description: '통합 UUID', format: 'uuid' })
-  @ApiOkResponse({ description: '통합 상세 정보 (마스킹된 자격 증명 포함)' })
+  @ApiOkWrappedResponse(IntegrationDto, {
+    description: '통합 상세 정보 (마스킹된 자격 증명 포함)',
+  })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
   @ApiNotFoundResponse({ description: '해당 통합을 찾을 수 없음' })
   async findOne(
@@ -267,7 +260,9 @@ export class IntegrationsController {
       '해당 통합을 사용 중인 워크플로우·노드 목록을 반환합니다. 삭제 영향도 확인용.',
   })
   @ApiParam({ name: 'id', description: '통합 UUID', format: 'uuid' })
-  @ApiOkResponse({ description: '통합이 사용 중인 워크플로우·노드 목록' })
+  @ApiOkWrappedResponse(IntegrationUsagesDto, {
+    description: '통합이 사용 중인 워크플로우·노드 목록',
+  })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
   @ApiNotFoundResponse({ description: '해당 통합을 찾을 수 없음' })
   async listUsages(
@@ -284,7 +279,9 @@ export class IntegrationsController {
       '지정 기간(일) 동안의 호출 성공/실패 등 최근 활동 로그를 반환합니다.',
   })
   @ApiParam({ name: 'id', description: '통합 UUID', format: 'uuid' })
-  @ApiOkResponse({ description: '최근 활동 로그 목록' })
+  @ApiOkWrappedResponse(IntegrationActivityDto, {
+    description: '최근 활동 로그 목록',
+  })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
   @ApiNotFoundResponse({ description: '해당 통합을 찾을 수 없음' })
   async activity(
@@ -308,7 +305,9 @@ export class IntegrationsController {
     description:
       '자격 증명(API Key/토큰) 또는 OAuth preview 토큰을 사용해 새 통합을 생성합니다. scope=organization으로 생성하려면 관리자 권한이 필요합니다.',
   })
-  @ApiCreatedResponse({ description: '생성된 통합 정보 (자격 증명 마스킹)' })
+  @ApiCreatedWrappedResponse(IntegrationDto, {
+    description: '생성된 통합 정보 (자격 증명 마스킹)',
+  })
   @ApiBadRequestResponse({
     description: '입력값 검증 실패 또는 자격 증명 유효성 오류',
   })
@@ -334,9 +333,10 @@ export class IntegrationsController {
     description: '통합의 이름 등 메타 정보를 수정합니다.',
   })
   @ApiParam({ name: 'id', description: '통합 UUID', format: 'uuid' })
-  @ApiOkResponse({ description: '수정된 통합 정보' })
+  @ApiOkWrappedResponse(IntegrationDto, { description: '수정된 통합 정보' })
   @ApiBadRequestResponse({ description: '입력값 검증 실패' })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
+  @ApiForbiddenResponse({ description: 'editor 이상 권한 필요' })
   @ApiNotFoundResponse({ description: '해당 통합을 찾을 수 없음' })
   async update(
     @Param('id', ParseUUIDPipe) id: string,
@@ -354,7 +354,9 @@ export class IntegrationsController {
       '저장된 자격 증명을 사용해 실제 외부 서비스에 테스트 호출을 수행합니다.',
   })
   @ApiParam({ name: 'id', description: '통합 UUID', format: 'uuid' })
-  @ApiOkResponse({ description: '연결 테스트 결과 (성공 여부, 메타 정보)' })
+  @ApiOkWrappedResponse(TestConnectionResultDto, {
+    description: '연결 테스트 결과 (성공 여부, 메타 정보)',
+  })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
   @ApiNotFoundResponse({ description: '해당 통합을 찾을 수 없음' })
   async testConnection(
@@ -372,7 +374,9 @@ export class IntegrationsController {
       '저장된 자격 증명을 새 값으로 교체합니다. 관리자 권한이 필요할 수 있습니다.',
   })
   @ApiParam({ name: 'id', description: '통합 UUID', format: 'uuid' })
-  @ApiOkResponse({ description: '교체 후 통합 정보 (마스킹된 자격 증명)' })
+  @ApiOkWrappedResponse(IntegrationDto, {
+    description: '교체 후 통합 정보 (마스킹된 자격 증명)',
+  })
   @ApiBadRequestResponse({
     description: '입력값 검증 실패 또는 자격 증명 유효성 오류',
   })
@@ -405,7 +409,9 @@ export class IntegrationsController {
       '만료되었거나 오류 상태인 OAuth 통합에 대해 재인증 플로우를 트리거합니다.',
   })
   @ApiParam({ name: 'id', description: '통합 UUID', format: 'uuid' })
-  @ApiOkResponse({ description: '재인증 URL 및 state 토큰' })
+  @ApiOkWrappedResponse(OAuthBeginResultDto, {
+    description: '재인증 URL 및 state 토큰',
+  })
   @ApiBadRequestResponse({ description: 'OAuth 기반 통합이 아님' })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
   @ApiNotFoundResponse({ description: '해당 통합을 찾을 수 없음' })
@@ -424,7 +430,9 @@ export class IntegrationsController {
       '기존 OAuth 통합에 추가 스코프를 요청합니다. provider가 incremental auth를 지원해야 합니다.',
   })
   @ApiParam({ name: 'id', description: '통합 UUID', format: 'uuid' })
-  @ApiOkResponse({ description: '스코프 추가 인증 URL' })
+  @ApiOkWrappedResponse(OAuthBeginResultDto, {
+    description: '스코프 추가 인증 URL',
+  })
   @ApiBadRequestResponse({
     description: '입력값 검증 실패 또는 incremental auth 미지원',
   })
@@ -457,7 +465,9 @@ export class IntegrationsController {
       '개인(personal) ↔ 조직(organization) 범위를 변경합니다. 조직 범위로 올리려면 관리자 권한이 필요합니다.',
   })
   @ApiParam({ name: 'id', description: '통합 UUID', format: 'uuid' })
-  @ApiOkResponse({ description: '범위가 변경된 통합 정보' })
+  @ApiOkWrappedResponse(IntegrationDto, {
+    description: '범위가 변경된 통합 정보',
+  })
   @ApiBadRequestResponse({ description: '입력값 검증 실패' })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
   @ApiForbiddenResponse({ description: '범위 변경 권한 부족' })

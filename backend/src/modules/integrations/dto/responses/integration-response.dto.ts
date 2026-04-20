@@ -1,0 +1,166 @@
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+
+/** 통합(Integration) 응답 DTO. credentials 필드는 마스킹된 상태로 반환됩니다. */
+export class IntegrationDto {
+  /** 통합 UUID */
+  @ApiProperty({ format: 'uuid' })
+  id: string;
+
+  /** 소속 워크스페이스 UUID */
+  @ApiProperty({ format: 'uuid' })
+  workspaceId: string;
+
+  /** 서비스 타입 (예: slack, notion) */
+  @ApiProperty({ example: 'slack' })
+  serviceType: string;
+
+  /** 통합 이름 */
+  @ApiProperty()
+  name: string;
+
+  /** 인증 방식 (예: api_key, oauth2) */
+  @ApiProperty({ example: 'oauth2' })
+  authType: string;
+
+  /** 마스킹된 자격 증명 객체 */
+  @ApiProperty({ type: 'object', additionalProperties: true })
+  credentials: Record<string, unknown>;
+
+  /** 범위 (personal | organization) */
+  @ApiProperty({ enum: ['personal', 'organization'], example: 'personal' })
+  scope: string;
+
+  /** 상태 */
+  @ApiProperty({
+    enum: ['connected', 'expired', 'error'],
+    example: 'connected',
+  })
+  status: string;
+
+  /** 상태 사유 코드 */
+  @ApiPropertyOptional({ nullable: true })
+  statusReason?: string | null;
+
+  /** 마지막 확인 시각 */
+  @ApiPropertyOptional({ format: 'date-time', nullable: true })
+  lastCheckedAt?: string | null;
+
+  /** 만료 시각 */
+  @ApiPropertyOptional({ format: 'date-time', nullable: true })
+  expiresAt?: string | null;
+
+  /** 생성자 UUID */
+  @ApiProperty({ format: 'uuid' })
+  createdBy: string;
+
+  /** 생성 시각 */
+  @ApiProperty({ format: 'date-time' })
+  createdAt: string;
+
+  /** 수정 시각 */
+  @ApiProperty({ format: 'date-time' })
+  updatedAt: string;
+}
+
+/** 지원 서비스 카탈로그 엔트리 */
+export class ServiceCatalogEntryDto {
+  @ApiProperty({ example: 'slack' })
+  serviceType: string;
+
+  @ApiProperty({ example: 'Slack' })
+  label: string;
+
+  @ApiProperty({ type: [String], example: ['oauth2', 'webhook'] })
+  authTypes: string[];
+
+  @ApiPropertyOptional()
+  description?: string;
+
+  @ApiPropertyOptional({ type: [String] })
+  scopes?: string[];
+}
+
+/** 서비스 카탈로그 응답 */
+export class ServiceCatalogDto {
+  @ApiProperty({ type: [ServiceCatalogEntryDto] })
+  services: ServiceCatalogEntryDto[];
+}
+
+/** 자격 증명 사전 검증 결과 */
+export class PreviewTestResultDto {
+  @ApiProperty()
+  ok: boolean;
+
+  /** 마스킹된 자격 증명 */
+  @ApiProperty({ type: 'object', additionalProperties: true })
+  maskedCredentials: Record<string, unknown>;
+}
+
+/** OAuth 시작 결과 */
+export class OAuthBeginResultDto {
+  /** OAuth provider 인증 URL */
+  @ApiProperty()
+  authorizeUrl: string;
+
+  /** CSRF 방지용 state 토큰 */
+  @ApiProperty()
+  state: string;
+}
+
+/** 사용처 조회 응답 */
+export class IntegrationUsageItemDto {
+  @ApiProperty({ format: 'uuid' })
+  workflowId: string;
+
+  @ApiProperty()
+  workflowName: string;
+
+  @ApiProperty({ type: [Object] })
+  nodes: Array<{ id: string; label: string; type: string }>;
+}
+
+export class IntegrationUsagesDto {
+  @ApiProperty({ type: [IntegrationUsageItemDto] })
+  usages: IntegrationUsageItemDto[];
+}
+
+/** 최근 활동 로그 */
+export class IntegrationActivityItemDto {
+  @ApiProperty({ format: 'uuid' })
+  id: string;
+
+  @ApiProperty({ format: 'date-time' })
+  createdAt: string;
+
+  @ApiProperty({ enum: ['success', 'failure'], example: 'success' })
+  status: string;
+
+  @ApiPropertyOptional({ nullable: true })
+  errorMessage?: string | null;
+
+  @ApiPropertyOptional({ format: 'uuid', nullable: true })
+  executionId?: string | null;
+}
+
+export class IntegrationActivityDto {
+  @ApiProperty({ type: [IntegrationActivityItemDto] })
+  items: IntegrationActivityItemDto[];
+
+  @ApiProperty({ type: 'object', additionalProperties: true })
+  summary: Record<string, unknown>;
+}
+
+/** 연결 테스트 결과 */
+export class TestConnectionResultDto {
+  @ApiProperty()
+  success: boolean;
+
+  @ApiPropertyOptional()
+  latencyMs?: number;
+
+  @ApiPropertyOptional({ nullable: true })
+  message?: string | null;
+
+  @ApiPropertyOptional({ type: 'object', additionalProperties: true })
+  meta?: Record<string, unknown>;
+}

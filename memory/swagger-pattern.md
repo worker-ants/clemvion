@@ -186,3 +186,65 @@ async findAll(@Query() query: QueryWorkflowDto) { ... }
 4. 컨트롤러 클래스에 `@ApiTags`, `@ApiBearerAuth('access-token')` (보호된 경우)
 5. 각 엔드포인트에 `@ApiOperation`, 파라미터, 응답 데코레이터 추가
 6. `@Public()` 엔드포인트에는 `@ApiBearerAuth`를 생략 또는 설명으로 명시
+
+---
+
+## 5) 응답 DTO 규약
+
+**2026-04-20 도입**: 모든 성공 응답은 `@ApiOkResponse({ schema: ... })` 의 인라인 객체가 아닌 **응답 DTO 클래스 + 공용 래퍼 헬퍼** 를 사용합니다.
+
+### 5-1. 응답 DTO 위치
+- `backend/src/modules/<module>/dto/responses/*-response.dto.ts`
+- 엔티티(`entities/*.entity.ts`) 를 그대로 노출하지 말고, API 응답 형태에 맞춰 별도 DTO 를 만듭니다. 비밀값(credentials, passwordHash 등)은 마스킹하거나 제외합니다.
+- 중복 필드는 `PickType` / `OmitType` / `PartialType` (`@nestjs/swagger`) 로 재사용할 수 있습니다.
+
+### 5-2. 공용 래퍼 헬퍼
+`backend/src/common/swagger/` 에서 다음을 제공합니다 (import: `from '../../common/swagger'`).
+
+| 헬퍼 | 용도 | 반환 스키마 |
+|------|------|------------|
+| `ApiOkWrappedResponse(Dto)` | 단일 객체 200 OK | `{ data: <Dto> }` |
+| `ApiCreatedWrappedResponse(Dto)` | 단일 객체 201 Created | `{ data: <Dto> }` |
+| `ApiAcceptedWrappedResponse(Dto)` | 단일 객체 202 Accepted | `{ data: <Dto> }` |
+| `ApiOkWrappedArrayResponse(Dto)` | 배열 200 OK | `{ data: <Dto>[] }` |
+| `ApiOkPaginatedResponse(Dto)` | 페이지네이션 200 OK | `{ data: { data: <Dto>[], pagination: { page, limit, totalItems, totalPages } } }` (공용 `PaginatedResponseDto` 형태) |
+
+각 헬퍼는 내부에서 `ApiExtraModels(Dto)` + `getSchemaPath(Dto)` 를 자동 수행합니다.
+
+### 5-3. 사용 예
+```ts
+import {
+  ApiOkWrappedResponse,
+  ApiOkPaginatedResponse,
+  ApiCreatedWrappedResponse,
+} from '../../common/swagger';
+import { WorkflowDto } from './dto/responses/workflow-response.dto';
+
+@Get()
+@ApiOkPaginatedResponse(WorkflowDto, { description: '워크플로우 목록' })
+async findAll(...) { ... }
+
+@Get(':id')
+@ApiOkWrappedResponse(WorkflowDto, { description: '워크플로우 상세' })
+async findOne(...) { ... }
+
+@Post()
+@ApiCreatedWrappedResponse(WorkflowDto, { description: '생성된 워크플로우' })
+async create(...) { ... }
+```
+
+### 5-4. 새 엔드포인트 체크리스트
+- [ ] 응답 DTO 가 `dto/responses/` 에 있는지
+- [ ] DTO 필드에 JSDoc + 필요 시 `@ApiProperty` (enum/example/format/nullable)
+- [ ] `ApiOkWrappedResponse` / `ApiOkPaginatedResponse` 등 적절한 래퍼 사용
+- [ ] `@Roles(...)` 가 붙은 엔드포인트는 `@ApiForbiddenResponse` 도 추가
+- [ ] 경로 UUID 파라미터는 `@ApiParam({ format: 'uuid' })` 일관 적용
+
+### 5-5. 에러 응답 참조
+`backend/src/common/swagger/error-response.dto.ts` 의 `ErrorResponseDto` 는 `GlobalExceptionFilter` 출력을 1:1 로 표현합니다. 필요 시 `@ApiBadRequestResponse({ type: ErrorResponseDto })` 등으로 참조할 수 있습니다.
+
+---
+
+## 6) 레거시 패턴 제거
+- `@ApiOkResponse({ schema: { type: 'object', properties: { data: { type: 'object' } } } })` 같은 "빈 껍데기" 는 반드시 DTO 기반 래퍼로 교체하세요.
+- `{ data: { items, totalItems, page, limit } }` 처럼 서비스 실제 반환 형태(`{ data, pagination }`) 와 다른 스키마는 버그입니다 — `ApiOkPaginatedResponse` 로 교체.

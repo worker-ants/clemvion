@@ -4,12 +4,16 @@ import {
   ApiBearerAuth,
   ApiOperation,
   ApiParam,
-  ApiOkResponse,
   ApiUnauthorizedResponse,
   ApiNotFoundResponse,
 } from '@nestjs/swagger';
+import {
+  ApiOkWrappedArrayResponse,
+  ApiOkWrappedResponse,
+} from '../../common/swagger';
 import { WorkflowVersionsService } from './workflow-versions.service';
 import { WorkspaceId } from '../../common/decorators';
+import { WorkflowVersionDto } from './dto/responses/workflow-version-response.dto';
 
 @ApiTags('Workflow Versions')
 @ApiBearerAuth('access-token')
@@ -26,7 +30,9 @@ export class WorkflowVersionsController {
       '지정한 워크플로우의 버전 이력을 최신순(version DESC)으로 반환합니다. 각 버전에는 스냅샷과 변경 작성자 정보가 포함됩니다.',
   })
   @ApiParam({ name: 'wfId', description: '워크플로우 UUID', format: 'uuid' })
-  @ApiOkResponse({ description: '버전 이력 목록 (최신순)' })
+  @ApiOkWrappedArrayResponse(WorkflowVersionDto, {
+    description: '버전 이력 목록 (최신순)',
+  })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
   @ApiNotFoundResponse({
     description: '워크플로우가 현재 워크스페이스에 속하지 않음',
@@ -50,7 +56,9 @@ export class WorkflowVersionsController {
   })
   @ApiParam({ name: 'wfId', description: '워크플로우 UUID', format: 'uuid' })
   @ApiParam({ name: 'versionId', description: '버전 UUID', format: 'uuid' })
-  @ApiOkResponse({ description: '버전 상세 (snapshot 포함)' })
+  @ApiOkWrappedResponse(WorkflowVersionDto, {
+    description: '버전 상세 (snapshot 포함)',
+  })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
   @ApiNotFoundResponse({
     description: '해당 버전을 찾을 수 없거나 다른 워크스페이스 소속',

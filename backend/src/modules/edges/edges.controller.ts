@@ -14,15 +14,18 @@ import {
   ApiBearerAuth,
   ApiOperation,
   ApiParam,
-  ApiOkResponse,
-  ApiCreatedResponse,
   ApiNoContentResponse,
   ApiBadRequestResponse,
   ApiUnauthorizedResponse,
   ApiNotFoundResponse,
 } from '@nestjs/swagger';
+import {
+  ApiCreatedWrappedResponse,
+  ApiOkWrappedArrayResponse,
+} from '../../common/swagger';
 import { EdgesService } from './edges.service';
 import { CreateEdgeDto } from './dto/create-edge.dto';
+import { EdgeDto } from './dto/responses/edge-response.dto';
 
 @ApiTags('Edges')
 @ApiBearerAuth('access-token')
@@ -40,7 +43,7 @@ export class EdgesController {
     description: '워크플로우 UUID',
     format: 'uuid',
   })
-  @ApiOkResponse({ description: '엣지 목록' })
+  @ApiOkWrappedArrayResponse(EdgeDto, { description: '엣지 목록' })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
   async findByWorkflow(@Param('workflowId', ParseUUIDPipe) workflowId: string) {
     return this.edgesService.findByWorkflow(workflowId);
@@ -58,7 +61,7 @@ export class EdgesController {
     description: '워크플로우 UUID',
     format: 'uuid',
   })
-  @ApiCreatedResponse({ description: '생성된 엣지' })
+  @ApiCreatedWrappedResponse(EdgeDto, { description: '생성된 엣지' })
   @ApiBadRequestResponse({
     description: '입력값 검증 실패 또는 self-loop 시도',
   })

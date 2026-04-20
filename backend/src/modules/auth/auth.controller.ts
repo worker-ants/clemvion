@@ -19,15 +19,27 @@ import { Throttle } from '@nestjs/throttler';
 import {
   ApiTags,
   ApiOperation,
-  ApiOkResponse,
-  ApiCreatedResponse,
   ApiBadRequestResponse,
   ApiUnauthorizedResponse,
   ApiConflictResponse,
   ApiFoundResponse,
+  ApiBearerAuth,
   ApiParam,
   ApiQuery,
 } from '@nestjs/swagger';
+import {
+  ApiCreatedWrappedResponse,
+  ApiOkWrappedResponse,
+} from '../../common/swagger';
+import {
+  AccessTokenDto,
+  AuthMessageDto,
+  CheckEmailResultDto,
+  OauthProvidersDto,
+  TotpDisableResultDto,
+  TotpSetupDto,
+  TotpVerifyDto,
+} from './dto/responses/auth-response.dto';
 import { AuthService } from './auth.service';
 import { AuthOauthService, AUTH_OAUTH_PROVIDERS } from './auth-oauth.service';
 import { TotpService } from './totp.service';
@@ -57,6 +69,7 @@ const OAUTH_PROVIDER_ENUM = AUTH_OAUTH_PROVIDERS.reduce<Record<string, string>>(
 );
 
 @ApiTags('Auth')
+@ApiBearerAuth('access-token')
 @Controller('auth')
 export class AuthController {
   private readonly logger = new Logger(AuthController.name);
@@ -85,22 +98,8 @@ export class AuthController {
     description:
       '신규 사용자를 등록하고 이메일 검증 메일을 발송합니다. 비밀번호는 강도 요건(8자 이상, 3종 이상 문자)을 통과해야 합니다.',
   })
-  @ApiCreatedResponse({
+  @ApiCreatedWrappedResponse(AuthMessageDto, {
     description: '등록 성공 (이메일 검증 메일 발송)',
-    schema: {
-      type: 'object',
-      properties: {
-        data: {
-          type: 'object',
-          properties: {
-            message: {
-              type: 'string',
-              example: 'Registration successful. Please verify your email.',
-            },
-          },
-        },
-      },
-    },
   })
   @ApiBadRequestResponse({
     description: '입력값 검증 실패 또는 비밀번호 강도 미달',
@@ -118,20 +117,9 @@ export class AuthController {
     description:
       '이메일 인증 토큰을 검증하고 개인 워크스페이스를 생성하며, 즉시 액세스 토큰과 Refresh Token 쿠키를 발급합니다.',
   })
-  @ApiOkResponse({
+  @ApiOkWrappedResponse(AccessTokenDto, {
     description:
       '검증 성공 및 로그인 세션 생성 (Refresh Token은 httpOnly 쿠키로 전달)',
-    schema: {
-      type: 'object',
-      properties: {
-        data: {
-          type: 'object',
-          properties: {
-            accessToken: { type: 'string', description: 'JWT Access Token' },
-          },
-        },
-      },
-    },
   })
   @ApiBadRequestResponse({
     description: '토큰이 유효하지 않거나 만료됨',
@@ -153,22 +141,9 @@ export class AuthController {
     description:
       '이메일/비밀번호로 로그인합니다. 성공 시 Access Token을 본문으로, Refresh Token을 httpOnly 쿠키로 발급합니다. 비밀번호 5회 실패 시 10분간 계정이 잠깁니다.',
   })
-  @ApiOkResponse({
-    description: '로그인 성공',
-    schema: {
-      type: 'object',
-      properties: {
-        data: {
-          type: 'object',
-          properties: {
-            accessToken: {
-              type: 'string',
-              description: 'JWT Access Token (15분 유효)',
-            },
-          },
-        },
-      },
-    },
+  @ApiOkWrappedResponse(AccessTokenDto, {
+    description:
+      '로그인 성공. 2FA 가 활성화된 계정은 `{ requiresTotp, challengeToken }` 형태로 응답될 수 있어요.',
   })
   @ApiUnauthorizedResponse({
     description: '이메일/비밀번호 불일치, 이메일 미검증, 또는 계정 잠김',
@@ -198,7 +173,7 @@ export class AuthController {
     description:
       '`/auth/login`에서 받은 challengeToken과 6자리 인증 코드(또는 복구 코드)로 2단계 인증을 완료해 정식 토큰을 발급합니다.',
   })
-  @ApiOkResponse({ description: '2단계 인증 성공' })
+  @ApiOkWrappedResponse(AccessTokenDto, { description: '2단계 인증 성공' })
   @ApiUnauthorizedResponse({
     description: '인증 코드 불일치 또는 challenge 만료',
   })
@@ -223,6 +198,10 @@ export class AuthController {
     description:
       'TOTP secret을 발급하고 Authenticator 앱이 스캔할 수 있는 QR 코드(data URL)를 반환합니다. 검증 전까지 활성화되지 않습니다.',
   })
+  @ApiOkWrappedResponse(TotpSetupDto, {
+    description: 'TOTP secret 의 otpauth URL 및 QR 코드 data URL',
+  })
+  @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
   async setup2fa(@CurrentUser() user: JwtPayload) {
     const result = await this.totpService.setup(user.sub);
     return {
@@ -241,6 +220,11 @@ export class AuthController {
     description:
       'setup으로 발급한 secret과 일치하는 6자리 코드를 검증해 2FA를 활성화하고 복구 코드 10개를 반환합니다(일회성 표시).',
   })
+  @ApiOkWrappedResponse(TotpVerifyDto, {
+    description: '2FA 활성화 성공 및 복구 코드 반환 (일회성 표시)',
+  })
+  @ApiBadRequestResponse({ description: '입력값 검증 실패 또는 코드 불일치' })
+  @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
   async verify2fa(@CurrentUser() user: JwtPayload, @Body() dto: Verify2faDto) {
     const result = await this.totpService.verifyAndEnable(user.sub, dto.code);
     return { data: { recoveryCodes: result.recoveryCodes } };
@@ -253,6 +237,13 @@ export class AuthController {
     summary: '2FA 비활성',
     description:
       '비밀번호 재확인 후 2FA를 비활성화하고 복구 코드를 폐기합니다.',
+  })
+  @ApiOkWrappedResponse(TotpDisableResultDto, {
+    description: '2FA 비활성화 완료',
+  })
+  @ApiBadRequestResponse({ description: '입력값 검증 실패' })
+  @ApiUnauthorizedResponse({
+    description: '인증 실패, 토큰 만료, 또는 비밀번호 불일치',
   })
   async disable2fa(
     @CurrentUser() user: JwtPayload,
@@ -284,20 +275,7 @@ export class AuthController {
     description:
       '현재 세션의 Refresh Token 패밀리 전체를 무효화하고 Refresh Token 쿠키를 제거합니다. 쿠키가 없어도 200을 반환합니다.',
   })
-  @ApiOkResponse({
-    description: '로그아웃 처리 완료',
-    schema: {
-      type: 'object',
-      properties: {
-        data: {
-          type: 'object',
-          properties: {
-            message: { type: 'string', example: 'Logged out successfully' },
-          },
-        },
-      },
-    },
-  })
+  @ApiOkWrappedResponse(AuthMessageDto, { description: '로그아웃 처리 완료' })
   async logout(
     @Req() req: Express.Request,
     @Res({ passthrough: true }) res: Express.Response,
@@ -322,19 +300,8 @@ export class AuthController {
     description:
       'httpOnly 쿠키의 Refresh Token을 검증하고 새 Access Token · Refresh Token을 발급합니다. 재사용이 감지되면 해당 토큰 패밀리 전체가 무효화됩니다.',
   })
-  @ApiOkResponse({
+  @ApiOkWrappedResponse(AccessTokenDto, {
     description: '새 Access Token 발급 (Refresh Token 쿠키도 함께 갱신)',
-    schema: {
-      type: 'object',
-      properties: {
-        data: {
-          type: 'object',
-          properties: {
-            accessToken: { type: 'string' },
-          },
-        },
-      },
-    },
   })
   @ApiUnauthorizedResponse({
     description: 'Refresh Token 없음 · 만료 · 무효 또는 재사용 감지',
@@ -362,23 +329,8 @@ export class AuthController {
     description:
       '해당 이메일 계정이 존재할 경우 재설정 토큰(30분 유효) 이메일을 발송합니다. 이메일 열람 여부를 유출하지 않도록 존재 여부와 무관하게 동일한 응답을 반환합니다.',
   })
-  @ApiOkResponse({
+  @ApiOkWrappedResponse(AuthMessageDto, {
     description: '재설정 메일 발송 요청 접수',
-    schema: {
-      type: 'object',
-      properties: {
-        data: {
-          type: 'object',
-          properties: {
-            message: {
-              type: 'string',
-              example:
-                'If an account exists, a password reset link has been sent.',
-            },
-          },
-        },
-      },
-    },
   })
   @ApiBadRequestResponse({ description: '이메일 형식 오류' })
   async forgotPassword(@Body() dto: ForgotPasswordDto) {
@@ -393,23 +345,7 @@ export class AuthController {
     description:
       '재설정 토큰으로 비밀번호를 변경합니다. 성공 시 해당 사용자의 모든 Refresh Token을 무효화하여 재로그인을 요구합니다.',
   })
-  @ApiOkResponse({
-    description: '재설정 성공',
-    schema: {
-      type: 'object',
-      properties: {
-        data: {
-          type: 'object',
-          properties: {
-            message: {
-              type: 'string',
-              example: 'Password reset successful. Please sign in.',
-            },
-          },
-        },
-      },
-    },
-  })
+  @ApiOkWrappedResponse(AuthMessageDto, { description: '재설정 성공' })
   @ApiBadRequestResponse({
     description: '토큰이 유효하지 않거나 만료됨, 또는 비밀번호 강도 미달',
   })
@@ -427,23 +363,7 @@ export class AuthController {
     summary: '이메일 중복 확인',
     description: '회원가입 전 이메일 사용 가능 여부를 확인합니다.',
   })
-  @ApiOkResponse({
-    description: '사용 가능 여부',
-    schema: {
-      type: 'object',
-      properties: {
-        data: {
-          type: 'object',
-          properties: {
-            available: {
-              type: 'boolean',
-              description: 'true면 해당 이메일로 가입 가능',
-            },
-          },
-        },
-      },
-    },
-  })
+  @ApiOkWrappedResponse(CheckEmailResultDto, { description: '사용 가능 여부' })
   @ApiBadRequestResponse({ description: '이메일 형식 오류' })
   async checkEmail(@Body() dto: CheckEmailDto) {
     return this.authService.checkEmail(dto.email);
@@ -457,22 +377,8 @@ export class AuthController {
     description:
       '백엔드 환경에 자격증명이 설정된 provider 목록을 반환합니다. 클라이언트는 이 목록이 비어있으면 SSO UI를 표시하지 않습니다.',
   })
-  @ApiOkResponse({
+  @ApiOkWrappedResponse(OauthProvidersDto, {
     description: '활성화된 provider 목록',
-    schema: {
-      type: 'object',
-      properties: {
-        data: {
-          type: 'object',
-          properties: {
-            providers: {
-              type: 'array',
-              items: { type: 'string', enum: ['google', 'github'] },
-            },
-          },
-        },
-      },
-    },
   })
   @Header('Cache-Control', 'private, max-age=300')
   getOauthProviders() {

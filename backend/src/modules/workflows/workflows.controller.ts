@@ -21,15 +21,19 @@ import {
   ApiBearerAuth,
   ApiOperation,
   ApiParam,
-  ApiOkResponse,
-  ApiCreatedResponse,
-  ApiAcceptedResponse,
   ApiNoContentResponse,
   ApiBadRequestResponse,
   ApiUnauthorizedResponse,
+  ApiForbiddenResponse,
   ApiNotFoundResponse,
   ApiConflictResponse,
 } from '@nestjs/swagger';
+import {
+  ApiAcceptedWrappedResponse,
+  ApiCreatedWrappedResponse,
+  ApiOkPaginatedResponse,
+  ApiOkWrappedResponse,
+} from '../../common/swagger';
 import { Node } from '../nodes/entities/node.entity';
 import { WorkflowsService } from './workflows.service';
 import { ExecutionEngineService } from '../execution-engine/execution-engine.service';
@@ -41,6 +45,12 @@ import { UpdateWorkflowDto } from './dto/update-workflow.dto';
 import { QueryWorkflowDto } from './dto/query-workflow.dto';
 import { SaveCanvasDto } from './dto/save-canvas.dto';
 import { ImportWorkflowDto } from './dto/import-workflow.dto';
+import {
+  CanvasSaveResultDto,
+  ExecuteAcceptedDto,
+  ExportWorkflowDto,
+  WorkflowDto,
+} from './dto/responses/workflow-response.dto';
 import { CurrentUser, WorkspaceId } from '../../common/decorators';
 import type { JwtPayload } from '../../common/decorators';
 
@@ -64,20 +74,8 @@ export class WorkflowsController {
     description:
       '현재 워크스페이스의 워크플로우 목록을 페이지네이션/검색/태그/폴더 필터로 조회합니다.',
   })
-  @ApiOkResponse({
+  @ApiOkPaginatedResponse(WorkflowDto, {
     description: '워크플로우 목록 (페이지네이션 포함)',
-    schema: {
-      type: 'object',
-      properties: {
-        data: {
-          type: 'object',
-          properties: {
-            items: { type: 'array', items: { type: 'object' } },
-            pagination: { type: 'object' },
-          },
-        },
-      },
-    },
   })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
   async findAll(
@@ -94,7 +92,7 @@ export class WorkflowsController {
       '현재 워크스페이스에 속한 워크플로우의 상세 정보를 반환합니다.',
   })
   @ApiParam({ name: 'id', description: '워크플로우 UUID', format: 'uuid' })
-  @ApiOkResponse({ description: '워크플로우 상세' })
+  @ApiOkWrappedResponse(WorkflowDto, { description: '워크플로우 상세' })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
   @ApiNotFoundResponse({ description: '해당 워크플로우를 찾을 수 없음' })
   async findOne(
@@ -112,9 +110,12 @@ export class WorkflowsController {
     description:
       '새로운 워크플로우를 생성하고, 초기 시작 지점으로 Manual Trigger 노드를 함께 생성합니다.',
   })
-  @ApiCreatedResponse({ description: '생성된 워크플로우 정보' })
+  @ApiCreatedWrappedResponse(WorkflowDto, {
+    description: '생성된 워크플로우 정보',
+  })
   @ApiBadRequestResponse({ description: '입력값 검증 실패' })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
+  @ApiForbiddenResponse({ description: 'editor 이상 권한 필요' })
   async create(
     @WorkspaceId() workspaceId: string,
     @CurrentUser() user: JwtPayload,
@@ -131,9 +132,12 @@ export class WorkflowsController {
       '워크플로우의 이름·설명·태그·활성여부·폴더·설정을 부분 수정합니다.',
   })
   @ApiParam({ name: 'id', description: '워크플로우 UUID', format: 'uuid' })
-  @ApiOkResponse({ description: '수정된 워크플로우 정보' })
+  @ApiOkWrappedResponse(WorkflowDto, {
+    description: '수정된 워크플로우 정보',
+  })
   @ApiBadRequestResponse({ description: '입력값 검증 실패' })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
+  @ApiForbiddenResponse({ description: 'editor 이상 권한 필요' })
   @ApiNotFoundResponse({ description: '해당 워크플로우를 찾을 수 없음' })
   async update(
     @Param('id', ParseUUIDPipe) id: string,
@@ -154,6 +158,7 @@ export class WorkflowsController {
   @ApiParam({ name: 'id', description: '워크플로우 UUID', format: 'uuid' })
   @ApiNoContentResponse({ description: '삭제 완료' })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
+  @ApiForbiddenResponse({ description: 'editor 이상 권한 필요' })
   @ApiNotFoundResponse({ description: '해당 워크플로우를 찾을 수 없음' })
   async remove(
     @Param('id', ParseUUIDPipe) id: string,
@@ -171,8 +176,11 @@ export class WorkflowsController {
       '기존 워크플로우를 비활성(inactive) 상태의 새 워크플로우로 복제합니다. 이름은 "(Copy)"가 추가됩니다.',
   })
   @ApiParam({ name: 'id', description: '원본 워크플로우 UUID', format: 'uuid' })
-  @ApiCreatedResponse({ description: '복제된 워크플로우 정보' })
+  @ApiCreatedWrappedResponse(WorkflowDto, {
+    description: '복제된 워크플로우 정보',
+  })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
+  @ApiForbiddenResponse({ description: 'editor 이상 권한 필요' })
   @ApiNotFoundResponse({ description: '원본 워크플로우를 찾을 수 없음' })
   async duplicate(
     @Param('id', ParseUUIDPipe) id: string,
@@ -191,22 +199,12 @@ export class WorkflowsController {
       '워크플로우를 수동으로 실행 큐에 등록합니다. 트리거 파라미터는 노드 스키마에 따라 검증됩니다.',
   })
   @ApiParam({ name: 'id', description: '워크플로우 UUID', format: 'uuid' })
-  @ApiAcceptedResponse({
+  @ApiAcceptedWrappedResponse(ExecuteAcceptedDto, {
     description: '실행 큐 등록 완료 (비동기 실행)',
-    schema: {
-      type: 'object',
-      properties: {
-        data: {
-          type: 'object',
-          properties: {
-            executionId: { type: 'string', format: 'uuid' },
-          },
-        },
-      },
-    },
   })
   @ApiBadRequestResponse({ description: '트리거 파라미터 검증 실패' })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
+  @ApiForbiddenResponse({ description: 'editor 이상 권한 필요' })
   @ApiNotFoundResponse({ description: '해당 워크플로우를 찾을 수 없음' })
   async execute(
     @Param('id', ParseUUIDPipe) id: string,
@@ -267,26 +265,14 @@ export class WorkflowsController {
       '캔버스의 노드/엣지 전체 상태를 서버와 동기화합니다. 제출되지 않은 노드는 삭제되고 엣지는 전부 교체되며, Manual Trigger는 정확히 하나 존재해야 합니다.',
   })
   @ApiParam({ name: 'id', description: '워크플로우 UUID', format: 'uuid' })
-  @ApiOkResponse({
+  @ApiOkWrappedResponse(CanvasSaveResultDto, {
     description: '캔버스 저장 결과 (워크플로우/노드/엣지)',
-    schema: {
-      type: 'object',
-      properties: {
-        data: {
-          type: 'object',
-          properties: {
-            workflow: { type: 'object' },
-            nodes: { type: 'array', items: { type: 'object' } },
-            edges: { type: 'array', items: { type: 'object' } },
-          },
-        },
-      },
-    },
   })
   @ApiBadRequestResponse({
     description: 'Manual Trigger 누락/중복 또는 입력값 검증 실패',
   })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
+  @ApiForbiddenResponse({ description: 'editor 이상 권한 필요' })
   @ApiNotFoundResponse({ description: '해당 워크플로우를 찾을 수 없음' })
   @ApiConflictResponse({ description: '노드 라벨 중복' })
   async saveCanvas(
@@ -308,8 +294,11 @@ export class WorkflowsController {
   })
   @ApiParam({ name: 'id', description: '워크플로우 UUID', format: 'uuid' })
   @ApiParam({ name: 'versionId', description: '버전 UUID', format: 'uuid' })
-  @ApiOkResponse({ description: '복원 결과 (워크플로우/노드/엣지)' })
+  @ApiOkWrappedResponse(CanvasSaveResultDto, {
+    description: '복원 결과 (워크플로우/노드/엣지)',
+  })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
+  @ApiForbiddenResponse({ description: 'editor 이상 권한 필요' })
   @ApiNotFoundResponse({ description: '워크플로우 또는 버전을 찾을 수 없음' })
   @ApiConflictResponse({ description: '스냅샷 노드 라벨 충돌' })
   async restoreVersion(
@@ -333,14 +322,8 @@ export class WorkflowsController {
       '노드/엣지를 포함한 워크플로우 정의를 JSON 형태로 내보냅니다. 노드 참조는 인덱스로 치환되어 가져오기(import) 시 재사용 가능합니다.',
   })
   @ApiParam({ name: 'id', description: '워크플로우 UUID', format: 'uuid' })
-  @ApiOkResponse({
+  @ApiOkWrappedResponse(ExportWorkflowDto, {
     description: '내보내기 JSON 객체',
-    schema: {
-      type: 'object',
-      properties: {
-        data: { type: 'object' },
-      },
-    },
   })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
   @ApiNotFoundResponse({ description: '해당 워크플로우를 찾을 수 없음' })
@@ -359,9 +342,12 @@ export class WorkflowsController {
     description:
       '내보내기 JSON 포맷을 그대로 받아 새 워크플로우·노드·엣지를 생성합니다. 노드 라벨은 페이로드 내에서 유일해야 합니다.',
   })
-  @ApiCreatedResponse({ description: '생성된 워크플로우 정보' })
+  @ApiCreatedWrappedResponse(WorkflowDto, {
+    description: '생성된 워크플로우 정보',
+  })
   @ApiBadRequestResponse({ description: '입력값 검증 실패' })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
+  @ApiForbiddenResponse({ description: 'editor 이상 권한 필요' })
   @ApiConflictResponse({ description: '페이로드 내 노드 라벨 중복' })
   async importWorkflow(
     @WorkspaceId() workspaceId: string,
