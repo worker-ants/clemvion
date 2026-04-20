@@ -4,6 +4,28 @@ import {
   NodePorts,
 } from '../../core/node-component.interface';
 
+/**
+ * Parallel fans the input out to branch_0..branch_{N-1} ports. Its own
+ * `output` passes through the input (branch outputs are handled by
+ * ParallelExecutor). `port` is an array (multi-port routing).
+ */
+export const parallelNodeOutputSchema = z
+  .object({
+    config: z
+      .object({
+        branchCount: z.number().optional(),
+        maxConcurrency: z.number().optional(),
+        waitAll: z.boolean().optional(),
+      })
+      .partial()
+      .passthrough()
+      .optional(),
+    output: z.unknown().optional(),
+    port: z.union([z.string(), z.array(z.string())]).optional(),
+    status: z.string().optional(),
+  })
+  .passthrough();
+
 export const parallelNodeConfigSchema = z
   .object({
     branchCount: z
