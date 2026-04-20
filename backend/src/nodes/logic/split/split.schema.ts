@@ -4,6 +4,30 @@ import {
   NodePorts,
 } from '../../core/node-component.interface';
 
+export const splitNodeOutputSchema = z
+  .object({
+    config: z
+      .object({
+        fieldPath: z.unknown().optional(),
+      })
+      .partial()
+      .passthrough()
+      .optional(),
+    output: z
+      .array(
+        z
+          .object({
+            index: z.number(),
+            value: z.unknown(),
+          })
+          .passthrough(),
+      )
+      .optional(),
+    port: z.string().optional(),
+    status: z.string().optional(),
+  })
+  .passthrough();
+
 export const splitNodeConfigSchema = z
   .object({
     fieldPath: z
