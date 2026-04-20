@@ -32,6 +32,52 @@ const buttonDefSchema = z
   })
   .passthrough();
 
+/**
+ * Template renders a resolved string into `output.rendered`. With buttons,
+ * the engine decorates `output.interaction.{type, data, receivedAt}` on
+ * click. Shape is fully static — no enricher needed.
+ */
+export const templateNodeOutputSchema = z
+  .object({
+    config: z
+      .object({
+        template: z.string().optional(),
+        outputFormat: z.enum(['html', 'markdown', 'text']).optional(),
+        buttons: z.array(buttonDefSchema).optional(),
+        buttonConfig: z.record(z.string(), z.unknown()).optional(),
+      })
+      .partial()
+      .passthrough()
+      .optional(),
+    output: z
+      .object({
+        rendered: z.string().optional(),
+        interaction: z
+          .object({
+            type: z.string().optional(),
+            data: z.record(z.string(), z.unknown()).optional(),
+            receivedAt: z.string().optional(),
+          })
+          .partial()
+          .passthrough()
+          .optional(),
+      })
+      .partial()
+      .passthrough()
+      .optional(),
+    meta: z
+      .object({
+        interactionType: z.string().optional(),
+        durationMs: z.number().optional(),
+      })
+      .partial()
+      .passthrough()
+      .optional(),
+    port: z.string().optional(),
+    status: z.string().optional(),
+  })
+  .passthrough();
+
 export const templateNodeConfigSchema = z
   .object({
     template: z
