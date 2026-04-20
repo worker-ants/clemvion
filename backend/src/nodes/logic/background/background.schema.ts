@@ -4,6 +4,15 @@ import {
   NodePorts,
 } from '../../core/node-component.interface';
 
+export const backgroundNodeOutputSchema = z
+  .object({
+    config: z.record(z.string(), z.unknown()).optional(),
+    output: z.unknown().optional(),
+    port: z.literal('main').optional(),
+    status: z.string().optional(),
+  })
+  .passthrough();
+
 export const backgroundNodeConfigSchema = z
   .object({
     notes: z

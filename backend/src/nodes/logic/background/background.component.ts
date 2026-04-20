@@ -3,6 +3,7 @@ import { NodeComponent } from '../../core/node-component.interface';
 import {
   backgroundNodeConfigSchema,
   backgroundNodeMetadata,
+  backgroundNodeOutputSchema,
   backgroundNodePorts,
 } from './background.schema';
 
@@ -17,5 +18,6 @@ export const backgroundNodeComponent: NodeComponent = {
   metadata: backgroundNodeMetadata,
   ports: backgroundNodePorts,
   configSchema: backgroundNodeConfigSchema,
+  outputSchema: backgroundNodeOutputSchema,
   createHandler: () => new BackgroundHandler(),
 };
