@@ -9,6 +9,53 @@ const keyValueSchema = z.object({
   value: z.string().meta({ ui: { label: 'Value', widget: 'expression' } }),
 });
 
+/**
+ * HTTP Request output is opaque (user targets arbitrary APIs). The handler
+ * always wraps the raw body in `output.response` and surfaces a standardized
+ * `output.error` envelope on non-2xx / transport failures (CONVENTIONS §3.2).
+ * Tier 3 per node-jazzy-liskov plan — `output.response: unknown`.
+ */
+export const httpRequestNodeOutputSchema = z
+  .object({
+    config: z
+      .object({
+        method: z.string().optional(),
+        url: z.string().optional(),
+        authentication: z.string().optional(),
+        integrationId: z.string().optional(),
+      })
+      .partial()
+      .passthrough()
+      .optional(),
+    output: z
+      .object({
+        response: z.unknown().optional(),
+        error: z
+          .object({
+            code: z.string().optional(),
+            message: z.string().optional(),
+            details: z.record(z.string(), z.unknown()).optional(),
+          })
+          .partial()
+          .passthrough()
+          .optional(),
+      })
+      .partial()
+      .passthrough()
+      .optional(),
+    meta: z
+      .object({
+        statusCode: z.number().optional(),
+        duration: z.number().optional(),
+      })
+      .partial()
+      .passthrough()
+      .optional(),
+    port: z.enum(['success', 'error']).optional(),
+    status: z.string().optional(),
+  })
+  .passthrough();
+
 export const httpRequestNodeConfigSchema = z
   .object({
     method: z
