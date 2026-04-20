@@ -4,6 +4,28 @@ import {
   NodePorts,
 } from '../../core/node-component.interface';
 
+/**
+ * ForEach outputs the resolved array as `output` (items). Body branch
+ * receives each item via `$item` at runtime — not projected through the
+ * ForEach node's output envelope. Shape varies by source array, so items
+ * are `unknown`.
+ */
+export const foreachNodeOutputSchema = z
+  .object({
+    config: z
+      .object({
+        arrayField: z.unknown().optional(),
+        errorPolicy: z.enum(['stop', 'skip', 'continue']).optional(),
+      })
+      .partial()
+      .passthrough()
+      .optional(),
+    output: z.array(z.unknown()).optional(),
+    port: z.string().optional(),
+    status: z.string().optional(),
+  })
+  .passthrough();
+
 export const foreachNodeConfigSchema = z
   .object({
     arrayField: z
