@@ -81,6 +81,124 @@ describe("useExpressionContext", () => {
     expect(result.current.inputSample).toEqual({ status: 200, body: "ok" });
   });
 
+  describe("structured output envelope unwrapping", () => {
+    // Backend persists NodeExecution.outputData as the canonical
+    // { config, output, meta?, port?, status? } envelope. The autocomplete
+    // layer must see the unwrapped `.output` so its suggestions match what
+    // the runtime binds to $node["X"].output / $input.
+    it("unwraps availableNodes outputSample/outputFields from the envelope", () => {
+      editorState = {
+        nodes: [
+          makeNode("n1", "form", "Form_test"),
+          makeNode("n2", "code", "Code"),
+        ],
+        edges: [makeEdge("n1", "n2")],
+      };
+      executionState = {
+        nodeResults: [
+          {
+            nodeId: "n1",
+            outputData: {
+              config: { fields: [] },
+              output: {
+                interaction: { data: { useful: true } },
+                submittedAt: "2026-04-20T00:00:00Z",
+              },
+              status: "completed",
+              port: "out",
+            },
+          },
+        ],
+      };
+
+      const { result } = renderHook(() => useExpressionContext("n2"));
+      const form = result.current.availableNodes.find(
+        (n) => n.label === "Form_test",
+      );
+      expect(form?.outputFields).toEqual(["interaction", "submittedAt"]);
+      expect(form?.outputSample).toEqual({
+        interaction: { data: { useful: true } },
+        submittedAt: "2026-04-20T00:00:00Z",
+      });
+    });
+
+    it("unwraps inputSample when predecessor emits the envelope", () => {
+      editorState = {
+        nodes: [
+          makeNode("n1", "http_request", "HTTP"),
+          makeNode("n2", "code", "Code"),
+        ],
+        edges: [makeEdge("n1", "n2")],
+      };
+      executionState = {
+        nodeResults: [
+          {
+            nodeId: "n1",
+            outputData: {
+              config: {},
+              output: { status: 200, body: "ok" },
+            },
+          },
+        ],
+      };
+
+      const { result } = renderHook(() => useExpressionContext("n2"));
+      expect(result.current.inputFields).toEqual(["status", "body"]);
+      expect(result.current.inputSample).toEqual({ status: 200, body: "ok" });
+    });
+
+    it("unwraps array payload from the envelope for table dataSource preview", () => {
+      editorState = {
+        nodes: [
+          makeNode("n1", "http_request", "HTTP"),
+          makeNode("n2", "code", "DataProvider"),
+          makeNode("t1", "table", "Table", {
+            mode: "dynamic",
+            dataSource: '{{ $node["DataProvider"].output }}',
+          }),
+        ],
+        edges: [makeEdge("n1", "t1")],
+      };
+      executionState = {
+        nodeResults: [
+          {
+            nodeId: "n2",
+            outputData: {
+              config: {},
+              output: [
+                { id: 1, value: "a" },
+                { id: 2, value: "b" },
+              ],
+            },
+          },
+        ],
+      };
+
+      const { result } = renderHook(() => useExpressionContext("t1"));
+      expect(result.current.sourceItemSample).toEqual({ id: 1, value: "a" });
+    });
+
+    it("leaves non-envelope flat objects untouched (back-compat)", () => {
+      // Some legacy paths may still surface a flat object. A `.output` key
+      // alone (without `config`) must not be treated as the envelope.
+      editorState = {
+        nodes: [
+          makeNode("n1", "code", "Legacy"),
+          makeNode("n2", "code", "Code"),
+        ],
+        edges: [makeEdge("n1", "n2")],
+      };
+      executionState = {
+        nodeResults: [
+          { nodeId: "n1", outputData: { output: "raw string" } },
+        ],
+      };
+
+      const { result } = renderHook(() => useExpressionContext("n2"));
+      expect(result.current.inputSample).toEqual({ output: "raw string" });
+    });
+  });
+
   it("extracts variables from variable_declaration nodes", () => {
     editorState = {
       nodes: [
