@@ -39,6 +39,26 @@ export const modDefSchema = z
   })
   .passthrough();
 
+/**
+ * Variable Modification mutates `context.variables` in place and passes the
+ * input through as output. Like Variable Declaration, modified variables
+ * surface through `$var.<name>` — not the node's output envelope.
+ */
+export const variableModificationNodeOutputSchema = z
+  .object({
+    config: z
+      .object({
+        modifications: z.array(modDefSchema).optional(),
+      })
+      .partial()
+      .passthrough()
+      .optional(),
+    output: z.unknown().optional(),
+    port: z.string().optional(),
+    status: z.string().optional(),
+  })
+  .passthrough();
+
 export const variableModificationNodeConfigSchema = z
   .object({
     modifications: z
