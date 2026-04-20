@@ -2,6 +2,7 @@ import { describe, it, expect, vi, afterEach } from "vitest";
 import {
   enrichFormOutputSchema,
   enrichInfoExtractorOutputSchema,
+  enrichTableOutputSchema,
 } from "../node-output-schema-enrichers";
 import type { JsonSchemaNode } from "@/lib/node-definitions/types";
 
@@ -282,5 +283,87 @@ describe("enrichFormOutputSchema", () => {
     const data =
       result?.properties?.output?.properties?.interaction?.properties?.data;
     expect(data?.properties).toEqual({ newField: { type: "string" } });
+  });
+});
+
+// Table node's output.rows[].<field> is populated from config.columns[].field
+// at execute time. The enricher projects those field names into rows[].items
+// so autocomplete hints work pre-run.
+const tableBaseSchema: JsonSchemaNode = {
+  type: "object",
+  properties: {
+    output: {
+      type: "object",
+      properties: {
+        rows: {
+          type: "array",
+          items: { type: "object", properties: {} },
+        },
+      },
+    },
+  },
+};
+
+describe("enrichTableOutputSchema", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("returns undefined when baseSchema is undefined", () => {
+    expect(enrichTableOutputSchema(undefined, {})).toBeUndefined();
+  });
+
+  it("returns base schema unchanged when columns is empty or missing", () => {
+    expect(enrichTableOutputSchema(tableBaseSchema, undefined)).toBe(
+      tableBaseSchema,
+    );
+    expect(enrichTableOutputSchema(tableBaseSchema, { columns: [] })).toBe(
+      tableBaseSchema,
+    );
+  });
+
+  it("projects column fields into rows.items.properties with labels as descriptions", () => {
+    const result = enrichTableOutputSchema(tableBaseSchema, {
+      columns: [
+        { field: "name", label: "Name" },
+        { field: "status" },
+      ],
+    });
+    const items = result?.properties?.output?.properties?.rows?.items;
+    expect(items?.properties).toEqual({
+      name: { description: "Name" },
+      status: {},
+    });
+  });
+
+  it("skips expression-valued column fields", () => {
+    const result = enrichTableOutputSchema(tableBaseSchema, {
+      columns: [
+        { field: "{{ $sourceItem.x }}", label: "Expr" },
+        { field: "plainField", label: "Plain" },
+      ],
+    });
+    const items = result?.properties?.output?.properties?.rows?.items;
+    expect(Object.keys(items?.properties ?? {})).toEqual(["plainField"]);
+  });
+
+  it("skips unsafe prototype keys and malformed identifiers", () => {
+    const result = enrichTableOutputSchema(tableBaseSchema, {
+      columns: [
+        { field: "__proto__" },
+        { field: "has space" },
+        { field: "safe_name" },
+      ],
+    });
+    const items = result?.properties?.output?.properties?.rows?.items;
+    expect(Object.keys(items?.properties ?? {})).toEqual(["safe_name"]);
+  });
+
+  it("does not mutate the base schema", () => {
+    const clone: JsonSchemaNode = JSON.parse(JSON.stringify(tableBaseSchema));
+    enrichTableOutputSchema(tableBaseSchema, {
+      columns: [{ field: "x", label: "X" }],
+    });
+    expect(tableBaseSchema).toEqual(clone);
   });
 });

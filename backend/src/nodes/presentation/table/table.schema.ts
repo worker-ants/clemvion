@@ -59,6 +59,59 @@ const columnDefSchema = z
 
 const rowDefSchema = z.record(z.string(), z.string()).default({});
 
+/**
+ * Table runtime output. `rows[i].<field>` is populated from resolved columns
+ * (see handler): frontend enricher `enrichTableOutputSchema` projects
+ * `config.columns[].field` into `output.rows[]` items for autocomplete. When
+ * buttons are configured the engine fills `output.interaction.{type, data,
+ * receivedAt}` on click.
+ */
+export const tableNodeOutputSchema = z
+  .object({
+    config: z
+      .object({
+        mode: z.enum(['static', 'dynamic']).optional(),
+        columns: z.array(columnDefSchema).optional(),
+        pageSize: z.number().optional(),
+        sortBy: z.string().optional(),
+        sortOrder: z.enum(['asc', 'desc']).optional(),
+        buttons: z.array(buttonDefSchema).optional(),
+        buttonConfig: z.record(z.string(), z.unknown()).optional(),
+      })
+      .partial()
+      .passthrough()
+      .optional(),
+    output: z
+      .object({
+        rows: z.array(z.record(z.string(), z.unknown())).optional(),
+        totalRows: z.number().optional(),
+        rendered: z.string().optional(),
+        interaction: z
+          .object({
+            type: z.string().optional(),
+            data: z.record(z.string(), z.unknown()).optional(),
+            receivedAt: z.string().optional(),
+          })
+          .partial()
+          .passthrough()
+          .optional(),
+      })
+      .partial()
+      .passthrough()
+      .optional(),
+    meta: z
+      .object({
+        interactionType: z.string().optional(),
+        durationMs: z.number().optional(),
+      })
+      .partial()
+      .passthrough()
+      .optional(),
+    port: z.string().optional(),
+    status: z.string().optional(),
+  })
+  .passthrough();
+
 export const tableNodeConfigSchema = z
   .object({
     mode: z
