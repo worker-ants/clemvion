@@ -15,18 +15,22 @@ import {
   ApiBearerAuth,
   ApiOperation,
   ApiParam,
-  ApiOkResponse,
-  ApiCreatedResponse,
   ApiNoContentResponse,
   ApiBadRequestResponse,
   ApiUnauthorizedResponse,
   ApiNotFoundResponse,
   ApiConflictResponse,
 } from '@nestjs/swagger';
+import {
+  ApiCreatedWrappedResponse,
+  ApiOkWrappedArrayResponse,
+  ApiOkWrappedResponse,
+} from '../../common/swagger';
 import { FoldersService } from './folders.service';
 import { WorkspaceId } from '../../common/decorators';
 import { CreateFolderDto } from './dto/create-folder.dto';
 import { UpdateFolderDto } from './dto/update-folder.dto';
+import { FolderDto } from './dto/responses/folder-response.dto';
 import { Folder } from './entities/folder.entity';
 
 @ApiTags('Folders')
@@ -41,7 +45,7 @@ export class FoldersController {
     description:
       '현재 워크스페이스의 모든 폴더를 sortOrder→name 순으로 반환합니다. 계층 구조는 parentId로 구성됩니다.',
   })
-  @ApiOkResponse({ description: '폴더 목록' })
+  @ApiOkWrappedArrayResponse(FolderDto, { description: '폴더 목록' })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
   async findAll(@WorkspaceId() workspaceId: string) {
     return this.foldersService.findAll(workspaceId);
@@ -53,7 +57,7 @@ export class FoldersController {
     description: '현재 워크스페이스에 속한 폴더의 상세 정보를 반환합니다.',
   })
   @ApiParam({ name: 'id', description: '폴더 UUID', format: 'uuid' })
-  @ApiOkResponse({ description: '폴더 상세' })
+  @ApiOkWrappedResponse(FolderDto, { description: '폴더 상세' })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
   @ApiNotFoundResponse({ description: '해당 폴더를 찾을 수 없음' })
   async findOne(
@@ -70,7 +74,7 @@ export class FoldersController {
     description:
       '새 폴더를 생성합니다. parentId를 지정하면 해당 폴더의 하위로 생성되며, 최대 중첩 깊이는 5입니다.',
   })
-  @ApiCreatedResponse({ description: '생성된 폴더' })
+  @ApiCreatedWrappedResponse(FolderDto, { description: '생성된 폴더' })
   @ApiBadRequestResponse({
     description: '입력값 검증 실패 또는 중첩 깊이 초과',
   })
@@ -89,7 +93,7 @@ export class FoldersController {
     description: '폴더의 이름·부모·정렬 순서를 부분 수정합니다.',
   })
   @ApiParam({ name: 'id', description: '폴더 UUID', format: 'uuid' })
-  @ApiOkResponse({ description: '수정된 폴더' })
+  @ApiOkWrappedResponse(FolderDto, { description: '수정된 폴더' })
   @ApiBadRequestResponse({ description: '입력값 검증 실패' })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
   @ApiNotFoundResponse({ description: '해당 폴더를 찾을 수 없음' })

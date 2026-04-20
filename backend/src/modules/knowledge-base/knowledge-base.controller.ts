@@ -24,21 +24,31 @@ import {
   ApiParam,
   ApiConsumes,
   ApiBody,
-  ApiOkResponse,
-  ApiCreatedResponse,
   ApiNoContentResponse,
-  ApiAcceptedResponse,
   ApiBadRequestResponse,
   ApiUnauthorizedResponse,
+  ApiForbiddenResponse,
   ApiNotFoundResponse,
   ApiPayloadTooLargeResponse,
 } from '@nestjs/swagger';
+import {
+  ApiAcceptedWrappedResponse,
+  ApiCreatedWrappedResponse,
+  ApiOkPaginatedResponse,
+  ApiOkWrappedResponse,
+} from '../../common/swagger';
 import { KnowledgeBaseService } from './knowledge-base.service';
 import { EmbeddingService } from './embedding/embedding.service';
 import { RagSearchService } from './search/rag-search.service';
 import { CreateKnowledgeBaseDto } from './dto/create-knowledge-base.dto';
 import { UpdateKnowledgeBaseDto } from './dto/update-knowledge-base.dto';
 import { RagSearchDto } from './dto/rag-search.dto';
+import {
+  DocumentDto,
+  KnowledgeBaseDto,
+  RagSearchResultDto,
+  ReEmbedAcceptedDto,
+} from './dto/responses/knowledge-base-response.dto';
 import { WorkspaceId } from '../../common/decorators';
 import { PaginationQueryDto } from '../../common/dto/pagination.dto';
 
@@ -63,22 +73,8 @@ export class KnowledgeBaseController {
     description:
       '워크스페이스에 속한 지식 베이스 목록을 페이지네이션으로 조회합니다.',
   })
-  @ApiOkResponse({
+  @ApiOkPaginatedResponse(KnowledgeBaseDto, {
     description: '지식 베이스 목록 및 페이지네이션 메타',
-    schema: {
-      type: 'object',
-      properties: {
-        data: {
-          type: 'object',
-          properties: {
-            data: { type: 'array', items: { type: 'object' } },
-            totalItems: { type: 'number' },
-            page: { type: 'number' },
-            limit: { type: 'number' },
-          },
-        },
-      },
-    },
   })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
   async findAll(
@@ -94,7 +90,7 @@ export class KnowledgeBaseController {
     description: 'ID로 지식 베이스 상세를 조회합니다.',
   })
   @ApiParam({ name: 'id', description: '지식 베이스 UUID', format: 'uuid' })
-  @ApiOkResponse({ description: '지식 베이스 상세' })
+  @ApiOkWrappedResponse(KnowledgeBaseDto, { description: '지식 베이스 상세' })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
   @ApiNotFoundResponse({ description: '해당 지식 베이스를 찾을 수 없음' })
   async findOne(
@@ -112,9 +108,12 @@ export class KnowledgeBaseController {
     description:
       '새 지식 베이스를 생성합니다. 이후 문서 업로드 시 자동으로 청킹·임베딩이 수행됩니다.',
   })
-  @ApiCreatedResponse({ description: '생성된 지식 베이스' })
+  @ApiCreatedWrappedResponse(KnowledgeBaseDto, {
+    description: '생성된 지식 베이스',
+  })
   @ApiBadRequestResponse({ description: '입력값 검증 실패' })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
+  @ApiForbiddenResponse({ description: 'editor 이상 권한 필요' })
   async create(
     @WorkspaceId() workspaceId: string,
     @Body() dto: CreateKnowledgeBaseDto,
@@ -130,9 +129,10 @@ export class KnowledgeBaseController {
       '지식 베이스를 부분 수정합니다. chunkSize/chunkOverlap 변경 시 재임베딩이 필요합니다.',
   })
   @ApiParam({ name: 'id', description: '지식 베이스 UUID', format: 'uuid' })
-  @ApiOkResponse({ description: '수정된 지식 베이스' })
+  @ApiOkWrappedResponse(KnowledgeBaseDto, { description: '수정된 지식 베이스' })
   @ApiBadRequestResponse({ description: '입력값 검증 실패' })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
+  @ApiForbiddenResponse({ description: 'editor 이상 권한 필요' })
   @ApiNotFoundResponse({ description: '해당 지식 베이스를 찾을 수 없음' })
   async update(
     @Param('id', ParseUUIDPipe) id: string,
@@ -152,6 +152,7 @@ export class KnowledgeBaseController {
   @ApiParam({ name: 'id', description: '지식 베이스 UUID', format: 'uuid' })
   @ApiNoContentResponse({ description: '삭제 성공' })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
+  @ApiForbiddenResponse({ description: 'editor 이상 권한 필요' })
   @ApiNotFoundResponse({ description: '해당 지식 베이스를 찾을 수 없음' })
   async remove(
     @Param('id', ParseUUIDPipe) id: string,
@@ -168,7 +169,9 @@ export class KnowledgeBaseController {
     description: '지식 베이스에 속한 문서 목록을 페이지네이션으로 반환합니다.',
   })
   @ApiParam({ name: 'id', description: '지식 베이스 UUID', format: 'uuid' })
-  @ApiOkResponse({ description: '문서 목록 및 페이지네이션 메타' })
+  @ApiOkPaginatedResponse(DocumentDto, {
+    description: '문서 목록 및 페이지네이션 메타',
+  })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
   @ApiNotFoundResponse({ description: '해당 지식 베이스를 찾을 수 없음' })
   async findDocuments(
@@ -186,7 +189,9 @@ export class KnowledgeBaseController {
   })
   @ApiParam({ name: 'id', description: '지식 베이스 UUID', format: 'uuid' })
   @ApiParam({ name: 'docId', description: '문서 UUID', format: 'uuid' })
-  @ApiOkResponse({ description: '문서 상세 (청크/임베딩 상태 포함)' })
+  @ApiOkWrappedResponse(DocumentDto, {
+    description: '문서 상세 (청크/임베딩 상태 포함)',
+  })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
   @ApiNotFoundResponse({ description: '해당 문서를 찾을 수 없음' })
   async findDocument(
@@ -226,7 +231,7 @@ export class KnowledgeBaseController {
       required: ['file'],
     },
   })
-  @ApiCreatedResponse({
+  @ApiCreatedWrappedResponse(DocumentDto, {
     description: '생성된 문서 메타 (임베딩은 비동기 진행)',
   })
   @ApiBadRequestResponse({ description: '파일 누락 또는 지원하지 않는 포맷' })
@@ -259,6 +264,7 @@ export class KnowledgeBaseController {
   @ApiParam({ name: 'docId', description: '문서 UUID', format: 'uuid' })
   @ApiNoContentResponse({ description: '삭제 성공' })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
+  @ApiForbiddenResponse({ description: 'editor 이상 권한 필요' })
   @ApiNotFoundResponse({ description: '해당 문서를 찾을 수 없음' })
   async removeDocument(
     @Param('id', ParseUUIDPipe) id: string,
@@ -278,21 +284,11 @@ export class KnowledgeBaseController {
   })
   @ApiParam({ name: 'id', description: '지식 베이스 UUID', format: 'uuid' })
   @ApiParam({ name: 'docId', description: '문서 UUID', format: 'uuid' })
-  @ApiAcceptedResponse({
+  @ApiAcceptedWrappedResponse(ReEmbedAcceptedDto, {
     description: '재임베딩 작업이 큐잉됨',
-    schema: {
-      type: 'object',
-      properties: {
-        data: {
-          type: 'object',
-          properties: {
-            message: { type: 'string', example: 'Re-embedding started' },
-          },
-        },
-      },
-    },
   })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
+  @ApiForbiddenResponse({ description: 'editor 이상 권한 필요' })
   @ApiNotFoundResponse({ description: '해당 문서를 찾을 수 없음' })
   async reEmbed(
     @Param('id', ParseUUIDPipe) id: string,
@@ -316,29 +312,8 @@ export class KnowledgeBaseController {
     description:
       '지정한 지식 베이스들을 대상으로 벡터 유사도 기반 검색을 수행합니다. 디버깅/테스트 용도이며 실제 워크플로우 실행에서는 노드 엔진이 직접 호출합니다.',
   })
-  @ApiOkResponse({
+  @ApiOkWrappedResponse(RagSearchResultDto, {
     description: '검색 결과 (유사 청크 목록)',
-    schema: {
-      type: 'object',
-      properties: {
-        data: {
-          type: 'object',
-          properties: {
-            results: {
-              type: 'array',
-              items: {
-                type: 'object',
-                properties: {
-                  documentId: { type: 'string', format: 'uuid' },
-                  content: { type: 'string' },
-                  score: { type: 'number' },
-                },
-              },
-            },
-          },
-        },
-      },
-    },
   })
   @ApiBadRequestResponse({ description: '입력값 검증 실패' })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })

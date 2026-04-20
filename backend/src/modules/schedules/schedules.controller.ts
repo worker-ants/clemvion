@@ -19,17 +19,27 @@ import {
   ApiOperation,
   ApiParam,
   ApiQuery,
-  ApiOkResponse,
-  ApiCreatedResponse,
   ApiNoContentResponse,
   ApiBadRequestResponse,
   ApiUnauthorizedResponse,
+  ApiForbiddenResponse,
   ApiNotFoundResponse,
 } from '@nestjs/swagger';
+import {
+  ApiAcceptedWrappedResponse,
+  ApiCreatedWrappedResponse,
+  ApiOkPaginatedResponse,
+  ApiOkWrappedResponse,
+} from '../../common/swagger';
 import { SchedulesService } from './schedules.service';
 import { CreateScheduleDto } from './dto/create-schedule.dto';
 import { UpdateScheduleDto } from './dto/update-schedule.dto';
 import { PreviewExpressionDto } from './dto/preview-expression.dto';
+import {
+  CronPreviewDto,
+  ScheduleDto,
+  ScheduleRunNowResultDto,
+} from './dto/responses/schedule-response.dto';
 import { CurrentUser, WorkspaceId } from '../../common/decorators';
 import type { JwtPayload } from '../../common/decorators';
 import { PaginationQueryDto } from '../../common/dto/pagination.dto';
@@ -47,22 +57,8 @@ export class SchedulesController {
     description:
       '현재 워크스페이스의 스케줄 목록을 페이지네이션하여 반환합니다. 검색어(search)로 트리거 이름을 부분 일치 검색할 수 있습니다.',
   })
-  @ApiOkResponse({
+  @ApiOkPaginatedResponse(ScheduleDto, {
     description: '스케줄 목록 (페이지네이션)',
-    schema: {
-      type: 'object',
-      properties: {
-        data: {
-          type: 'object',
-          properties: {
-            items: { type: 'array', items: { type: 'object' } },
-            totalItems: { type: 'number' },
-            page: { type: 'number' },
-            limit: { type: 'number' },
-          },
-        },
-      },
-    },
   })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
   async findAll(
@@ -79,13 +75,7 @@ export class SchedulesController {
       '워크스페이스 내의 스케줄 상세 정보를 트리거 및 워크플로우 정보와 함께 반환합니다.',
   })
   @ApiParam({ name: 'id', description: '스케줄 UUID', format: 'uuid' })
-  @ApiOkResponse({
-    description: '스케줄 상세',
-    schema: {
-      type: 'object',
-      properties: { data: { type: 'object' } },
-    },
-  })
+  @ApiOkWrappedResponse(ScheduleDto, { description: '스케줄 상세' })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
   @ApiNotFoundResponse({ description: '해당 스케줄을 찾을 수 없음' })
   async findOne(
@@ -108,22 +98,8 @@ export class SchedulesController {
     description: '반환할 실행 시각 개수 (1~20, 기본 5)',
     example: 5,
   })
-  @ApiOkResponse({
+  @ApiOkWrappedResponse(CronPreviewDto, {
     description: '다음 실행 예정 시각 목록 (ISO 8601)',
-    schema: {
-      type: 'object',
-      properties: {
-        data: {
-          type: 'object',
-          properties: {
-            nextRuns: {
-              type: 'array',
-              items: { type: 'string', format: 'date-time' },
-            },
-          },
-        },
-      },
-    },
   })
   @ApiBadRequestResponse({ description: '유효하지 않은 cron 식' })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
@@ -146,22 +122,8 @@ export class SchedulesController {
     description:
       '임의의 cron 식과 타임존을 받아 다음 실행 시각을 계산합니다. 스케줄 생성 전 UI에서 검증 용도로 사용합니다.',
   })
-  @ApiOkResponse({
+  @ApiOkWrappedResponse(CronPreviewDto, {
     description: '다음 실행 예정 시각 목록 (ISO 8601)',
-    schema: {
-      type: 'object',
-      properties: {
-        data: {
-          type: 'object',
-          properties: {
-            nextRuns: {
-              type: 'array',
-              items: { type: 'string', format: 'date-time' },
-            },
-          },
-        },
-      },
-    },
   })
   @ApiBadRequestResponse({ description: '유효하지 않은 cron 식' })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
@@ -181,17 +143,12 @@ export class SchedulesController {
     description:
       '새 스케줄을 생성하고 연결된 schedule 타입 트리거를 자동 생성합니다. 활성 상태일 경우 BullMQ 반복 작업이 즉시 등록됩니다.',
   })
-  @ApiCreatedResponse({
-    description: '생성된 스케줄 정보',
-    schema: {
-      type: 'object',
-      properties: { data: { type: 'object' } },
-    },
-  })
+  @ApiCreatedWrappedResponse(ScheduleDto, { description: '생성된 스케줄 정보' })
   @ApiBadRequestResponse({
     description: '입력값 검증 실패 또는 유효하지 않은 cron 식',
   })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
+  @ApiForbiddenResponse({ description: 'editor 이상 권한 필요' })
   async create(
     @WorkspaceId() workspaceId: string,
     @Body() dto: CreateScheduleDto,
@@ -208,24 +165,14 @@ export class SchedulesController {
       '스케줄에 연결된 워크플로우를 즉시 한 번 실행합니다. 스케줄 자체의 다음 실행 주기는 변경되지 않습니다.',
   })
   @ApiParam({ name: 'id', description: '스케줄 UUID', format: 'uuid' })
-  @ApiOkResponse({
+  @ApiAcceptedWrappedResponse(ScheduleRunNowResultDto, {
     description: '실행 요청 접수 (생성된 실행 ID 반환)',
-    schema: {
-      type: 'object',
-      properties: {
-        data: {
-          type: 'object',
-          properties: {
-            executionId: { type: 'string', format: 'uuid' },
-          },
-        },
-      },
-    },
   })
   @ApiBadRequestResponse({
     description: '스케줄에 연결된 워크플로우가 없음',
   })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
+  @ApiForbiddenResponse({ description: 'editor 이상 권한 필요' })
   @ApiNotFoundResponse({ description: '해당 스케줄을 찾을 수 없음' })
   async runNow(
     @Param('id', ParseUUIDPipe) id: string,
@@ -243,17 +190,12 @@ export class SchedulesController {
       '스케줄의 이름·cron·타임존·활성화 상태·파라미터 값을 수정합니다. cron이나 타임존 변경 시 nextRunAt이 재계산되고 BullMQ 작업이 재등록됩니다.',
   })
   @ApiParam({ name: 'id', description: '스케줄 UUID', format: 'uuid' })
-  @ApiOkResponse({
-    description: '수정된 스케줄 정보',
-    schema: {
-      type: 'object',
-      properties: { data: { type: 'object' } },
-    },
-  })
+  @ApiOkWrappedResponse(ScheduleDto, { description: '수정된 스케줄 정보' })
   @ApiBadRequestResponse({
     description: '입력값 검증 실패 또는 유효하지 않은 cron 식',
   })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
+  @ApiForbiddenResponse({ description: 'editor 이상 권한 필요' })
   @ApiNotFoundResponse({ description: '해당 스케줄을 찾을 수 없음' })
   async update(
     @Param('id', ParseUUIDPipe) id: string,
@@ -274,6 +216,7 @@ export class SchedulesController {
   @ApiParam({ name: 'id', description: '스케줄 UUID', format: 'uuid' })
   @ApiNoContentResponse({ description: '삭제 성공 (본문 없음)' })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
+  @ApiForbiddenResponse({ description: 'editor 이상 권한 필요' })
   @ApiNotFoundResponse({ description: '해당 스케줄을 찾을 수 없음' })
   async remove(
     @Param('id', ParseUUIDPipe) id: string,

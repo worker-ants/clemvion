@@ -1,0 +1,60 @@
+import { ApiProperty } from '@nestjs/swagger';
+
+/** 액세스 토큰 본문 */
+export class AccessTokenDto {
+  /** JWT Access Token */
+  @ApiProperty({ description: 'JWT Access Token (15분 유효)' })
+  accessToken: string;
+}
+
+/** 2FA challenge 필요 응답 */
+export class LoginChallengeDto {
+  @ApiProperty({ example: true })
+  requiresTotp: boolean;
+
+  @ApiProperty()
+  challengeToken: string;
+}
+
+/** TOTP setup 결과 */
+export class TotpSetupDto {
+  @ApiProperty({ description: 'Authenticator 앱이 읽을 otpauth:// URL' })
+  otpauthUrl: string;
+
+  @ApiProperty({ description: 'QR 코드 이미지 (base64 data URL)' })
+  qrCodeDataUrl: string;
+}
+
+/** 2FA 검증·활성 결과 */
+export class TotpVerifyDto {
+  @ApiProperty({ type: [String], description: '복구 코드 10개 (일회성 표시)' })
+  recoveryCodes: string[];
+}
+
+/** 2FA 비활성 결과 */
+export class TotpDisableResultDto {
+  @ApiProperty({ example: true })
+  ok: boolean;
+}
+
+/** 단순 메시지 응답 */
+export class AuthMessageDto {
+  @ApiProperty()
+  message: string;
+}
+
+/** 이메일 사용 가능 여부 */
+export class CheckEmailResultDto {
+  @ApiProperty({ description: 'true면 해당 이메일로 가입 가능' })
+  available: boolean;
+}
+
+/** OAuth provider 목록 */
+export class OauthProvidersDto {
+  @ApiProperty({
+    type: [String],
+    enum: ['google', 'github'],
+    example: ['google', 'github'],
+  })
+  providers: string[];
+}

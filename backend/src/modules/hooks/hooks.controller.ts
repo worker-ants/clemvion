@@ -12,12 +12,13 @@ import {
   ApiTags,
   ApiOperation,
   ApiParam,
-  ApiAcceptedResponse,
   ApiNotFoundResponse,
   ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
+import { ApiAcceptedWrappedResponse } from '../../common/swagger';
 import { Public } from '../../common/decorators';
 import { HooksService } from './hooks.service';
+import { WebhookAcceptedDto } from './dto/responses/webhook-response.dto';
 
 @ApiTags('Hooks')
 @Controller('hooks')
@@ -37,22 +38,9 @@ export class HooksController {
     description: '트리거 등록 시 발급된 고유 엔드포인트 경로',
     example: 'abcd1234',
   })
-  @ApiAcceptedResponse({
-    description: '웹훅 접수 및 워크플로우 실행 시작',
-    schema: {
-      type: 'object',
-      properties: {
-        executionId: {
-          type: 'string',
-          format: 'uuid',
-          description: '시작된 실행의 ID',
-        },
-        message: {
-          type: 'string',
-          example: 'Webhook received, workflow execution started',
-        },
-      },
-    },
+  @ApiAcceptedWrappedResponse(WebhookAcceptedDto, {
+    description:
+      '웹훅 접수 및 워크플로우 실행 시작. 전역 TransformInterceptor 에 의해 `{ data: ... }` 로 래핑되어 반환됩니다.',
   })
   @ApiUnauthorizedResponse({
     description: '웹훅 서명/시크릿 검증 실패',

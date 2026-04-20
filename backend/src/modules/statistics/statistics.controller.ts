@@ -9,8 +9,21 @@ import {
   ApiProduces,
   ApiQuery,
 } from '@nestjs/swagger';
+import {
+  ApiOkWrappedArrayResponse,
+  ApiOkWrappedResponse,
+} from '../../common/swagger';
 import { StatisticsService } from './statistics.service';
 import { QueryStatisticsDto } from './dto/query-statistics.dto';
+import {
+  ErrorAggregationDto,
+  ExecutionPeriodItemDto,
+  LlmUsageSummaryDto,
+  LlmUsageTimeseriesDto,
+  NodeStatDto,
+  StatisticsSummaryDto,
+  TopWorkflowDto,
+} from './dto/responses/statistics-response.dto';
 import { WorkspaceId } from '../../common/decorators';
 
 @ApiTags('Statistics')
@@ -25,25 +38,7 @@ export class StatisticsController {
     description:
       '선택된 기간·워크플로우 기준으로 총 실행 건수, 상태별(성공/실패/취소) 건수, 성공률, 평균 실행 시간을 집계하여 반환합니다.',
   })
-  @ApiOkResponse({
-    description: '실행 통계 요약',
-    schema: {
-      type: 'object',
-      properties: {
-        data: {
-          type: 'object',
-          properties: {
-            totalExecutions: { type: 'integer', example: 230 },
-            successCount: { type: 'integer', example: 210 },
-            failedCount: { type: 'integer', example: 15 },
-            cancelledCount: { type: 'integer', example: 5 },
-            successRate: { type: 'number', example: 91.3 },
-            avgDurationMs: { type: 'integer', example: 1320 },
-          },
-        },
-      },
-    },
-  })
+  @ApiOkWrappedResponse(StatisticsSummaryDto, { description: '실행 통계 요약' })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
   async getSummary(
     @WorkspaceId() workspaceId: string,
@@ -58,26 +53,8 @@ export class StatisticsController {
     description:
       '선택된 기간 동안 일자별 실행 건수를 상태(전체/성공/실패/취소)로 집계하여 시계열 형태로 반환합니다.',
   })
-  @ApiOkResponse({
+  @ApiOkWrappedArrayResponse(ExecutionPeriodItemDto, {
     description: '일자별 실행 집계 배열',
-    schema: {
-      type: 'object',
-      properties: {
-        data: {
-          type: 'array',
-          items: {
-            type: 'object',
-            properties: {
-              date: { type: 'string', example: '2026-04-10' },
-              total: { type: 'integer', example: 32 },
-              completed: { type: 'integer', example: 30 },
-              failed: { type: 'integer', example: 1 },
-              cancelled: { type: 'integer', example: 1 },
-            },
-          },
-        },
-      },
-    },
   })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
   async getExecutionsByPeriod(
@@ -93,25 +70,8 @@ export class StatisticsController {
     description:
       '선택된 기간 내 실패한 실행을 워크플로우별로 집계합니다. 오류 건수 기준 내림차순, 상위 20건까지 반환합니다.',
   })
-  @ApiOkResponse({
+  @ApiOkWrappedArrayResponse(ErrorAggregationDto, {
     description: '오류 집계 목록',
-    schema: {
-      type: 'object',
-      properties: {
-        data: {
-          type: 'array',
-          items: {
-            type: 'object',
-            properties: {
-              workflowId: { type: 'string', format: 'uuid' },
-              workflowName: { type: 'string', example: '데이터 동기화' },
-              errorCount: { type: 'integer', example: 7 },
-              lastErrorAt: { type: 'string', format: 'date-time' },
-            },
-          },
-        },
-      },
-    },
   })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
   async getErrors(
@@ -127,26 +87,8 @@ export class StatisticsController {
     description:
       '선택된 기간 동안 실행 횟수 기준 상위 10개의 워크플로우와 성공률·평균 실행 시간을 반환합니다.',
   })
-  @ApiOkResponse({
+  @ApiOkWrappedArrayResponse(TopWorkflowDto, {
     description: '상위 워크플로우 목록',
-    schema: {
-      type: 'object',
-      properties: {
-        data: {
-          type: 'array',
-          items: {
-            type: 'object',
-            properties: {
-              workflowId: { type: 'string', format: 'uuid' },
-              workflowName: { type: 'string', example: '이메일 알림 플로우' },
-              executionCount: { type: 'integer', example: 85 },
-              successRate: { type: 'number', example: 97.65 },
-              avgDurationMs: { type: 'integer', example: 980 },
-            },
-          },
-        },
-      },
-    },
   })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
   async getTopWorkflows(
@@ -162,28 +104,7 @@ export class StatisticsController {
     description:
       '특정 워크플로우(workflowId 필수)의 노드별 실행 건수, 평균 실행 시간(ms), 오류율(%)을 반환합니다. workflowId 미지정 시 빈 배열을 반환합니다.',
   })
-  @ApiOkResponse({
-    description: '노드별 실행 집계',
-    schema: {
-      type: 'object',
-      properties: {
-        data: {
-          type: 'array',
-          items: {
-            type: 'object',
-            properties: {
-              nodeId: { type: 'string', format: 'uuid' },
-              nodeLabel: { type: 'string', example: 'HTTP 요청' },
-              nodeType: { type: 'string', example: 'http-request' },
-              executionCount: { type: 'integer', example: 120 },
-              avgDurationMs: { type: 'integer', example: 420 },
-              errorRate: { type: 'number', example: 1.67 },
-            },
-          },
-        },
-      },
-    },
-  })
+  @ApiOkWrappedArrayResponse(NodeStatDto, { description: '노드별 실행 집계' })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
   async getNodeStats(
     @WorkspaceId() workspaceId: string,
@@ -198,7 +119,7 @@ export class StatisticsController {
     description:
       '선택된 기간·워크플로우 기준으로 프로바이더×모델별 토큰 합계와 추정 비용(USD)을 반환합니다. 비용은 알려진 모델만 계산되며 미등록 모델은 null입니다.',
   })
-  @ApiOkResponse({ description: 'LLM 사용량 요약' })
+  @ApiOkWrappedResponse(LlmUsageSummaryDto, { description: 'LLM 사용량 요약' })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
   async getLlmUsageSummary(
     @WorkspaceId() workspaceId: string,
@@ -213,7 +134,9 @@ export class StatisticsController {
     description:
       '선택된 기간 동안 일자×프로바이더별 토큰 합계와 비용을 시계열로 반환합니다.',
   })
-  @ApiOkResponse({ description: '일자별 LLM 사용량' })
+  @ApiOkWrappedResponse(LlmUsageTimeseriesDto, {
+    description: '일자별 LLM 사용량',
+  })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
   async getLlmUsageTimeseries(
     @WorkspaceId() workspaceId: string,

@@ -53,7 +53,7 @@ async function bootstrap() {
         '',
         '### 응답 포맷',
         '- 모든 성공 응답은 `{ data: ... }` 래퍼 형태로 전달됩니다.',
-        '- 에러 응답은 `{ statusCode, message, error }` 형태를 따릅니다.',
+        '- 에러 응답은 `{ error: { code, message, requestId, details? } }` 형태를 따릅니다. `code`는 `VALIDATION_ERROR`, `AUTH_REQUIRED`, `FORBIDDEN`, `RESOURCE_NOT_FOUND`, `RESOURCE_CONFLICT`, `INVALID_STATE`, `RATE_LIMITED`, `INTERNAL_ERROR` 등의 문자열 상수이며, `requestId`는 요청 추적용 UUID입니다.',
       ].join('\n'),
     )
     .setVersion('1.0')
@@ -68,6 +68,7 @@ async function bootstrap() {
     )
     .addTag('Auth', '회원가입, 로그인, 토큰 갱신 등 인증 관련 API')
     .addTag('Users', '사용자 프로필')
+    .addTag('Workspaces', '팀 워크스페이스, 멤버 및 초대 관리')
     .addTag('Workflows', '워크플로우 CRUD 및 실행/복제/내보내기/가져오기')
     .addTag('Nodes', '워크플로우 노드 관리')
     .addTag('Edges', '워크플로우 엣지(연결선) 관리')
@@ -77,6 +78,7 @@ async function bootstrap() {
     .addTag('Schedules', '워크플로우 스케줄(크론) 관리')
     .addTag('Triggers', '웹훅/외부 트리거 관리')
     .addTag('Notifications', '알림 조회 및 읽음 처리')
+    .addTag('Alerts', '실행 실패율·지속시간·LLM 비용 기반 알림 규칙')
     .addTag('Audit Logs', '감사 로그')
     .addTag('Integrations', '외부 서비스 통합(OAuth/API Key) 관리')
     .addTag('Auth Configs', '하위 API용 커스텀 인증 설정')
