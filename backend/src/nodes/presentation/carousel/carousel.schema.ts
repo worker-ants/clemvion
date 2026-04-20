@@ -78,6 +78,71 @@ const itemDefSchema = z
   })
   .passthrough();
 
+/**
+ * Carousel runtime output: each item has title/description/image and
+ * optional buttons. When any button is configured the engine decorates
+ * `output.interaction.{type, data, receivedAt}` on click (same shape as
+ * Form/Table buttons). Static schema is sufficient — no dynamic projection
+ * from config is needed.
+ */
+export const carouselNodeOutputSchema = z
+  .object({
+    config: z
+      .object({
+        mode: z.enum(['static', 'dynamic']).optional(),
+        layout: z.enum(['card', 'image', 'minimal']).optional(),
+        items: z.array(itemDefSchema).optional(),
+        titleField: z.string().optional(),
+        descriptionField: z.string().optional(),
+        imageField: z.string().optional(),
+        buttons: z.array(buttonDefSchema).optional(),
+        itemButtons: z.array(buttonDefSchema).optional(),
+        buttonConfig: z.record(z.string(), z.unknown()).optional(),
+      })
+      .partial()
+      .passthrough()
+      .optional(),
+    output: z
+      .object({
+        items: z
+          .array(
+            z
+              .object({
+                title: z.string().optional(),
+                description: z.string().optional(),
+                image: z.string().optional(),
+                buttons: z.array(buttonDefSchema).optional(),
+              })
+              .passthrough(),
+          )
+          .optional(),
+        rendered: z.string().optional(),
+        interaction: z
+          .object({
+            type: z.string().optional(),
+            data: z.record(z.string(), z.unknown()).optional(),
+            receivedAt: z.string().optional(),
+          })
+          .partial()
+          .passthrough()
+          .optional(),
+      })
+      .partial()
+      .passthrough()
+      .optional(),
+    meta: z
+      .object({
+        interactionType: z.string().optional(),
+        durationMs: z.number().optional(),
+      })
+      .partial()
+      .passthrough()
+      .optional(),
+    port: z.string().optional(),
+    status: z.string().optional(),
+  })
+  .passthrough();
+
 export const carouselNodeConfigSchema = z
   .object({
     mode: z
