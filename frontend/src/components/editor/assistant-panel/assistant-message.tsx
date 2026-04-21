@@ -4,7 +4,7 @@ import { useMemo } from "react";
 import { AlertCircle, CheckCircle2, Info } from "lucide-react";
 import type { AssistantDisplayMessage } from "@/lib/stores/assistant-store";
 import { useT } from "@/lib/i18n";
-import { ToolCallBadge } from "./tool-call-badge";
+import { ToolCallBadge, groupToolCalls } from "./tool-call-badge";
 import { PlanCard } from "./plan-card";
 import { MarkdownRenderer } from "./markdown-renderer";
 import { sanitizeAssistantText } from "./harmony-filter";
@@ -65,8 +65,12 @@ export function AssistantMessageView({
       )}
       {message.toolCalls.length > 0 && (
         <div className="flex flex-wrap gap-1">
-          {message.toolCalls.map((call) => (
-            <ToolCallBadge key={call.id} call={call} />
+          {groupToolCalls(message.toolCalls).map((group) => (
+            <ToolCallBadge
+              key={group.representative.id}
+              call={group.representative}
+              count={group.count}
+            />
           ))}
         </div>
       )}
@@ -76,14 +80,14 @@ export function AssistantMessageView({
       {message.error && (
         <div
           role="alert"
-          className="flex items-start gap-1.5 rounded-md border border-red-500/40 bg-red-500/10 px-2.5 py-1.5 text-[11px] text-red-700 dark:text-red-300"
+          className="flex items-start gap-1.5 rounded-md border border-red-400/60 bg-red-50 px-2.5 py-1.5 text-[11px] text-red-900 dark:border-red-500/50 dark:bg-red-950/40 dark:text-red-100"
         >
           <AlertCircle size={14} className="mt-[2px] shrink-0" />
           <div className="min-w-0">
             <div className="font-medium">
               {t("assistant.errorBubbleTitle")}
             </div>
-            <div className="break-words text-[10px] text-red-700/80 dark:text-red-300/80">
+            <div className="break-words text-[10px] text-red-800 dark:text-red-200">
               <span className="font-mono">[{message.error.code}]</span>{" "}
               {message.error.message}
             </div>
@@ -92,10 +96,15 @@ export function AssistantMessageView({
       )}
       {message.systemHint && (
         <div
+          // 배경·테두리·텍스트 색의 대비를 충분히 주기 위해 light mode 는
+          // 50 톤 + 900 텍스트, dark mode 는 950/40 + 100 텍스트를 쓴다.
+          // inline `code` 는 MarkdownRenderer 기본 스타일(`--muted` 배경) 을
+          // 쓰지만 amber/emerald 배경 위에서도 식별이 되도록 텍스트는 더
+          // 진한 톤을 고른다.
           className={
             message.systemHint.kind === "success"
-              ? "flex items-start gap-1.5 rounded-md border border-emerald-500/30 bg-emerald-500/5 px-2.5 py-1.5 text-[11px] text-emerald-800 dark:text-emerald-200"
-              : "flex items-start gap-1.5 rounded-md border border-amber-500/30 bg-amber-500/5 px-2.5 py-1.5 text-[11px] text-amber-800 dark:text-amber-200"
+              ? "flex items-start gap-1.5 rounded-md border border-emerald-400/60 bg-emerald-50 px-2.5 py-1.5 text-[11px] text-emerald-900 dark:border-emerald-500/50 dark:bg-emerald-950/40 dark:text-emerald-100"
+              : "flex items-start gap-1.5 rounded-md border border-amber-400/60 bg-amber-50 px-2.5 py-1.5 text-[11px] text-amber-900 dark:border-amber-500/50 dark:bg-amber-950/40 dark:text-amber-100"
           }
         >
           {message.systemHint.kind === "success" ? (
