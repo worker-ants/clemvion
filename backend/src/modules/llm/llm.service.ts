@@ -6,6 +6,7 @@ import {
   LLMClient,
   ChatParams,
   ChatResult,
+  ChatStreamEvent,
   ModelInfo,
 } from './interfaces/llm-client.interface';
 import { LlmUsageLogService } from './llm-usage-log.service';
@@ -74,6 +75,53 @@ export class LlmService {
       usage: result.usage,
     });
     return result;
+  }
+
+  async *chatStream(
+    config: LlmConfig,
+    params: ChatParams,
+    context?: LlmCallContext,
+    signal?: AbortSignal,
+  ): AsyncIterable<ChatStreamEvent> {
+    const client = this.createClient(config);
+    if (!client.stream) {
+      throw new BadRequestException({
+        code: 'LLM_STREAMING_UNSUPPORTED',
+        message: `Provider '${config.provider}' does not support streaming in this release.`,
+      });
+    }
+    let lastUsage: { inputTokens: number; outputTokens: number; totalTokens: number; thinkingTokens?: number } | null = null;
+    let lastModel: string = config.defaultModel;
+    try {
+      for await (const event of client.stream(params, signal)) {
+        if (event.type === 'done') {
+          lastUsage = event.usage;
+          lastModel = event.model;
+        }
+        yield event;
+      }
+    } finally {
+      // done 이벤트에 usage가 실려왔을 때만 기록. abort/error 시에는 제공자 응답이
+      // 불완전할 수 있어 0건으로 기록되는 것을 피한다. fire-and-forget이지만
+      // 실패를 silent drop하지 않고 경고 로그를 남긴다.
+      if (lastUsage && lastUsage.totalTokens > 0) {
+        this.usageLogService
+          .record({
+            workspaceId: config.workspaceId,
+            workflowId: context?.workflowId,
+            executionId: context?.executionId,
+            nodeExecutionId: context?.nodeExecutionId,
+            llmConfigId: config.id,
+            provider: config.provider,
+            model: lastModel,
+            usage: lastUsage,
+          })
+          ?.catch?.((err: unknown) => {
+            const msg = err instanceof Error ? err.message : String(err);
+            this.logger.warn(`Usage log record failed: ${msg}`);
+          });
+      }
+    }
   }
 
   async embed(

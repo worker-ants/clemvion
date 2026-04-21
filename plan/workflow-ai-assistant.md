@@ -45,13 +45,34 @@
 - [x] `spec/0-overview.md` — §4 매핑표에 ED-AI-* 라인 추가
 - [x] `memory/workflow-ai-assistant-decisions.md` — 사용자 합의 기록
 
-## 후속 (developer 역할에서 수행)
+## 후속 (developer 역할에서 수행) — 완료 상태
 
-- Flyway 마이그레이션: `workflow_assistant_session`, `workflow_assistant_message`
-- Backend 모듈: `modules/workflow-assistant/` (session/message CRUD + SSE)
-- Backend LLM 스트리밍 구현: `OpenAIClient.stream`, `AnthropicClient.stream`, `LlmService.chatStream`
-- Frontend: `AssistantPanel`, `assistant-store`, SSE 클라이언트, i18n 키 (스펙 §13), editor-store dispatcher
-- 기존 기술 플랜(`~/.claude/plans/ui-partitioned-porcupine.md`) 대비 **서버 영속화 추가** 반영 필요. 메모: `memory/workflow-ai-assistant-decisions.md`
+- [x] Flyway 마이그레이션 `V019__workflow_assistant.sql`
+- [x] TypeORM 엔티티 `WorkflowAssistantSession`, `WorkflowAssistantMessage` + `app.module.ts` 등록
+- [x] LLM 스트리밍: `LLMClient.stream` 인터페이스 + `ChatStreamEvent` 유니언
+- [x] `OpenAIClient.stream()` + `AnthropicClient.stream()`
+- [x] `LlmService.chatStream()` + usage 로깅 fire-and-forget
+- [x] `ShadowWorkflow` 클래스 + 단위 테스트 16건 통과
+- [x] `workflow-assistant` 모듈 (controller/service/dto/prompts/tools)
+- [x] 세션 REST CRUD + 메시지 SSE 스트리밍 컨트롤러
+- [x] `ExploreToolsService` (list_integrations / list_workflows / get_workflow / get_node_schema / list_knowledge_bases)
+- [x] `WorkflowAssistantStreamService` 대화 루프 (Clarify/Plan/Execute)
+- [x] Frontend `assistant-store.ts` (Zustand) + `lib/api/assistant.ts` (SSE fetch)
+- [x] Frontend `AssistantPanel`, `PlanCard`, `MessageInput`, `AssistantMessageView`, `ToolCallBadge`
+- [x] 에디터 통합: toolbar의 🤖 버튼, `workflow-editor.tsx` 레이아웃, `editor-store.applyAssistantOperation` dispatcher, `Ctrl+/` 단축키
+- [x] i18n 키: `ko.ts` / `en.ts` (types.ts는 ko.ts로부터 자동 파생)
+
+## TEST WORKFLOW 결과
+
+- **Lint (frontend, 신규 파일)**: 통과
+- **Unit tests (backend)**: 44건 통과 (ShadowWorkflow 16건 신규 + 기존 llm 테스트 28건)
+- **Build (backend)**: 통과
+- **Build (frontend)**: 통과
+- **TypeScript check**: backend/frontend 모두 신규 소스 파일에서 에러 없음 (기존 `.spec.ts` 파일들의 타입 에러는 이번 feature와 무관)
+
+## 남은 작업
+
+- REVIEW WORKFLOW (`ai-review` skill) — 사용자 요청 시 실행. 필요하면 다음 턴에 진행
 
 ## 완료 기준 (달성)
 - PRD 요구사항(ED-AI-01~34) 각각이 Spec 섹션과 매칭됨 (스펙 §14 매핑표)

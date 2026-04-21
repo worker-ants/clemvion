@@ -7,18 +7,21 @@ import { useExecutionStore } from "@/lib/stores/execution-store";
 import { useExecutionEvents } from "@/lib/websocket/use-execution-events";
 import { getWsClient } from "@/lib/websocket/ws-client";
 import { getAccessToken } from "@/lib/api/client";
+import { useAssistantStore } from "@/lib/stores/assistant-store";
 import { EditorToolbar } from "./toolbar/editor-toolbar";
 import { NodePalette } from "./palette/node-palette";
 import { WorkflowCanvas } from "./canvas/workflow-canvas";
 import { NodeSettingsPanel } from "./settings-panel/node-settings-panel";
 import { RunResultsDrawer } from "./run-results/run-results-drawer";
 import { VersionHistoryPanel } from "./version-history/version-history-panel";
+import { AssistantPanel } from "./assistant-panel/assistant-panel";
 
 export function WorkflowEditor() {
   const undo = useEditorStore((s) => s.undo);
   const redo = useEditorStore((s) => s.redo);
   const saveWorkflow = useEditorStore((s) => s.saveWorkflow);
   const executionId = useExecutionStore((s) => s.executionId);
+  const toggleAssistant = useAssistantStore((s) => s.toggle);
 
   // Pre-connect WebSocket on editor mount for warm connection
   useEffect(() => {
@@ -49,8 +52,13 @@ export function WorkflowEditor() {
         e.preventDefault();
         void saveWorkflow();
       }
+
+      if (isMod && e.key === "/") {
+        e.preventDefault();
+        toggleAssistant();
+      }
     },
-    [undo, redo, saveWorkflow],
+    [undo, redo, saveWorkflow, toggleAssistant],
   );
 
   useEffect(() => {
@@ -77,6 +85,11 @@ export function WorkflowEditor() {
 
             {/* Right settings panel (conditional) */}
             <NodeSettingsPanel />
+
+            {/* AI Assistant panel (conditional). Mutually exclusive with
+                NodeSettingsPanel — AssistantPanel clears `selectedNodeId` on
+                open, and selecting a node closes the assistant. */}
+            <AssistantPanel />
 
             {/* Version history side panel (conditional) */}
             <VersionHistoryPanel />

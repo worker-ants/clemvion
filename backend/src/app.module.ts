@@ -41,6 +41,7 @@ import { WebsocketModule } from './modules/websocket/websocket.module';
 import { MailModule } from './modules/mail/mail.module';
 import { LlmConfigModule } from './modules/llm-config/llm-config.module';
 import { LlmModule } from './modules/llm/llm.module';
+import { WorkflowAssistantModule } from './modules/workflow-assistant/workflow-assistant.module';
 import { KnowledgeBaseModule } from './modules/knowledge-base/knowledge-base.module';
 import { HooksModule } from './modules/hooks/hooks.module';
 import { AlertsModule } from './modules/alerts/alerts.module';
@@ -75,6 +76,8 @@ import { LlmUsageLog } from './modules/llm/entities/llm-usage-log.entity';
 import { KnowledgeBase } from './modules/knowledge-base/entities/knowledge-base.entity';
 import { Document } from './modules/knowledge-base/entities/document.entity';
 import { DocumentChunk } from './modules/knowledge-base/entities/document-chunk.entity';
+import { WorkflowAssistantSession } from './modules/workflow-assistant/entities/workflow-assistant-session.entity';
+import { WorkflowAssistantMessage } from './modules/workflow-assistant/entities/workflow-assistant-message.entity';
 
 @Module({
   imports: [
@@ -133,6 +136,8 @@ import { DocumentChunk } from './modules/knowledge-base/entities/document-chunk.
           Document,
           DocumentChunk,
           AlertRule,
+          WorkflowAssistantSession,
+          WorkflowAssistantMessage,
         ],
         synchronize: false,
         logging: process.env.NODE_ENV === 'development',
@@ -182,6 +187,7 @@ import { DocumentChunk } from './modules/knowledge-base/entities/document-chunk.
     KnowledgeBaseModule,
     HooksModule,
     AlertsModule,
+    WorkflowAssistantModule,
   ],
   providers: [
     { provide: APP_FILTER, useClass: GlobalExceptionFilter },

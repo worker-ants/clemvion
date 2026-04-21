@@ -57,9 +57,43 @@ export interface ModelInfo {
   type: 'chat' | 'embedding';
 }
 
+/**
+ * Streaming event emitted by `LLMClient.stream()`.
+ *
+ * Providers accumulate `tool_call_delta` events for each tool call until the
+ * final `tool_call_end` signals the call is fully assembled. Callers can then
+ * parse `arguments` (JSON string) and dispatch. A terminal `done` event
+ * always closes the stream with usage/finishReason, unless an `error` event
+ * aborts it first.
+ */
+export type ChatStreamEvent =
+  | { type: 'text_delta'; delta: string }
+  | {
+      type: 'tool_call_delta';
+      id: string;
+      name?: string;
+      argumentsDelta: string;
+    }
+  | { type: 'tool_call_end'; id: string; name: string; arguments: string }
+  | {
+      type: 'done';
+      usage: TokenUsage;
+      model: string;
+      finishReason: ChatResult['finishReason'] | 'aborted';
+    }
+  | { type: 'error'; code: string; message: string };
+
 export interface LLMClient {
   chat(params: ChatParams): Promise<ChatResult>;
   embed(texts: string[], model?: string): Promise<number[][]>;
   listModels(): Promise<ModelInfo[]>;
   testConnection(): Promise<boolean>;
+  /**
+   * Streaming variant of {@link chat}. Optional — providers without streaming
+   * support must throw `LLM_STREAMING_UNSUPPORTED` synchronously when called.
+   */
+  stream?(
+    params: ChatParams,
+    signal?: AbortSignal,
+  ): AsyncIterable<ChatStreamEvent>;
 }
