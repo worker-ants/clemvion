@@ -173,9 +173,16 @@ function markIfCompleted(
   planStepIdSet: Set<string>,
   done: Set<string>,
 ): void {
-  if (!tc.planStepId || !planStepIdSet.has(tc.planStepId)) return;
   if (isExplicitFailure(tc.result)) return;
-  done.add(tc.planStepId);
+  // 단일 planStepId (legacy) 와 planStepIds 배열 둘 다 수용한다.
+  // 한 edit call 이 여러 step 을 cover 하는 경우 array 에 모두 기록된다.
+  const candidates: string[] = [];
+  if (tc.planStepId) candidates.push(tc.planStepId);
+  if (tc.planStepIds && tc.planStepIds.length > 0)
+    candidates.push(...tc.planStepIds);
+  for (const id of candidates) {
+    if (planStepIdSet.has(id)) done.add(id);
+  }
 }
 
 /**

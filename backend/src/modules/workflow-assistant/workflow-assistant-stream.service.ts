@@ -52,6 +52,11 @@ export type AssistantStreamEvent =
         result: unknown;
         kind: AssistantToolKind;
         planStepId?: string;
+        /**
+         * 여러 plan step 을 동시에 cover 하는 경우 채운다. 소비자(프론트)는
+         * `planStepId` + `planStepIds` 의 union 집합을 완료 처리해야 한다.
+         */
+        planStepIds?: string[];
       };
     }
   | {
@@ -357,16 +362,25 @@ export class WorkflowAssistantStreamService {
             }
 
             pendingResultsForLlm.push({ id: ev.id, result });
+            const parsedPlanStepId =
+              typeof parsed.planStepId === 'string'
+                ? parsed.planStepId
+                : undefined;
+            const parsedPlanStepIds = Array.isArray(parsed.planStepIds)
+              ? parsed.planStepIds.filter(
+                  (s): s is string => typeof s === 'string',
+                )
+              : undefined;
             pendingToolCalls.push({
               id: ev.id,
               name: ev.name,
               arguments: parsed,
               kind,
               result,
-              planStepId:
-                typeof parsed.planStepId === 'string'
-                  ? parsed.planStepId
-                  : undefined,
+              ...(parsedPlanStepId ? { planStepId: parsedPlanStepId } : {}),
+              ...(parsedPlanStepIds && parsedPlanStepIds.length > 0
+                ? { planStepIds: parsedPlanStepIds }
+                : {}),
               // Gemini thought_signature 등 provider opaque 서명. 다음 턴
               // history에서 동일 tool 호출에 반드시 echo 되어야 하므로 persist.
               ...(ev.signature ? { signature: ev.signature } : {}),
@@ -380,10 +394,10 @@ export class WorkflowAssistantStreamService {
                   arguments: parsed,
                   result,
                   kind,
-                  planStepId:
-                    typeof parsed.planStepId === 'string'
-                      ? parsed.planStepId
-                      : undefined,
+                  ...(parsedPlanStepId ? { planStepId: parsedPlanStepId } : {}),
+                  ...(parsedPlanStepIds && parsedPlanStepIds.length > 0
+                    ? { planStepIds: parsedPlanStepIds }
+                    : {}),
                 },
               };
             }

@@ -96,7 +96,7 @@ ${JSON.stringify(current)}
 - **Entry-point connectivity.** Every data path in the workflow must originate from \`manual_trigger\` (or another trigger node). When you \`add_node\`, you MUST also \`add_edge\` from an already-connected upstream node on the same turn — typically the previous node in your plan, or \`manual_trigger\` itself for the first node of a new branch. Never leave an island of nodes floating without an incoming edge from the trigger chain. If the first new node of a new workflow is being added, the \`add_edge\` source is \`manual_trigger\`.
 - **Dynamic-ports before edge.** See the \`[dynamic-ports]\` rule above — call \`get_node_schema\` first and pass the correct \`source_port\` to \`add_edge\`.
 - **openQuestions gating.** If your \`propose_plan\` included \`openQuestions\`, do NOT call \`finish\` until the user replies with answers. End the turn with a concise Korean message asking the remaining questions; wait for the user's next message before executing further steps.
-- **Plan completeness on finish.** Before calling \`finish\`, verify every \`propose_plan.steps[*]\` either has a matching executed edit tool (same \`planStepId\`) or a note explaining why it was skipped. The server will reject \`finish\` with \`PLAN_NOT_COMPLETE\` if pending steps remain; react by executing those steps and calling \`finish\` again.
+- **Plan completeness on finish.** Before calling \`finish\`, verify every \`propose_plan.steps[*]\` either (a) has a matching executed edit tool whose \`planStepId\` / \`planStepIds\` includes the step id, or (b) is marked \`{action: 'note'}\` via a follow-up \`propose_plan\` call. The server will reject \`finish\` with \`PLAN_NOT_COMPLETE\` if actionable steps remain; react by executing those steps, revising the plan, or tagging existing calls with \`planStepIds\` that cover the redundant step. **Do not silently skip a step** — the user sees the checklist and unchecked items look like a bug.
 
 ## Layout guidance
 
@@ -217,16 +217,25 @@ function renderActivePlanSection(ctx: ActivePlanContext | null): string {
   lines.push('');
   lines.push('RULES:');
   lines.push(
-    '1. Every turn starts here. Pick up at the first pending step. Do NOT re-execute already-done steps (check `[x]` markers above and `planStepId` history).',
+    '1. Every turn starts here. Pick up at the FIRST `[ ]` pending step listed above. Do NOT re-execute already-done steps (check `[x]` markers and `planStepId` history).',
   );
   lines.push(
-    "2. If the user's new message is clearly on an unrelated topic (e.g. suddenly asking about an entirely different workflow, or abandoning this work), call `clear_plan({reason})` FIRST, then handle the new request fresh.",
+    '2. **Execute pending steps in the listed order.** The user sees the checklist visually — jumping over a `[ ]` step to do a later one makes it look like the earlier step was skipped or lost. If you need to do a later step first for technical reasons, first explain briefly in Korean prose, then revise the plan via `propose_plan` to reflect the new order.',
   );
   lines.push(
-    '3. If the user is merely refining the same work (tweaking params, changing a label, adding a branch), keep the plan and optionally call `propose_plan` again with the revised step list — the active plan will be replaced, not cleared.',
+    "3. **Never leave a step silently `[ ]`.** If a step turns out to be unnecessary, already satisfied by an earlier tool call, or cannot be executed as written, call `propose_plan` again with the revised step list — merge the duplicate into the covering step, mark the redundant one as `{action: 'note'}` with a rationale, or remove it. Do NOT simply move past it.",
   );
   lines.push(
-    '4. NEVER call `finish` while actionable steps are `[ ]` pending or openQuestions remain — the server will reject it with `PLAN_NOT_COMPLETE`.',
+    "4. **A single edit tool call CAN satisfy multiple plan steps.** Use the `planStepIds: ['s1','s3']` array arg when an `add_node`'s `config` already pre-populates what a later `update_node` step was meant to set, etc. Both `planStepId` (single-id legacy shorthand) and `planStepIds` (array) are supported — prefer the array when more than one step is covered.",
+  );
+  lines.push(
+    "5. If the user's new message is clearly on an unrelated topic, call `clear_plan({reason})` FIRST, then handle the new request fresh.",
+  );
+  lines.push(
+    '6. If the user is merely refining the same work (tweaking params, changing a label, adding a branch), keep the plan and call `propose_plan` again with the revised step list — the active plan will be replaced, not cleared.',
+  );
+  lines.push(
+    '7. NEVER call `finish` while actionable steps are `[ ]` pending or openQuestions remain — the server will reject it with `PLAN_NOT_COMPLETE`.',
   );
   lines.push('');
   return lines.join('\n') + '\n';

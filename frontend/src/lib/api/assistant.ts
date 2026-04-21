@@ -32,9 +32,12 @@ export interface AssistantToolCallRecord {
   id: string;
   name: string;
   arguments: Record<string, unknown>;
-  kind: "explore" | "plan" | "edit";
+  kind: "explore" | "plan" | "edit" | "finish";
   result?: unknown;
+  /** 단일 step id (legacy 단축형). */
   planStepId?: string;
+  /** 한 tool call 이 여러 plan step 을 cover 할 때 사용. */
+  planStepIds?: string[];
 }
 
 export interface AssistantPlanStep {
@@ -99,6 +102,8 @@ export type AssistantSseEvent =
         result: unknown;
         kind: "explore" | "edit";
         planStepId?: string;
+        /** 한 tool call 이 여러 plan step 을 cover 할 때 사용. */
+        planStepIds?: string[];
       };
     }
   | {

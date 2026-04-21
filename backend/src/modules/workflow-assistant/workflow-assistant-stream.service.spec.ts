@@ -1365,6 +1365,60 @@ describe('WorkflowAssistantStreamService', () => {
     ).toBeUndefined();
   });
 
+  it('forwards planStepIds (array) alongside the single planStepId on edit tool_call events', async () => {
+    const { service, mocks } = makeService();
+    const addArgs = JSON.stringify({
+      type: 'http_request',
+      label: 'Merged',
+      position: { x: 500, y: 300 },
+      config: {},
+      planStepIds: ['s1', 's3'],
+    });
+    mocks.llmService.chatStream.mockImplementation(() =>
+      asyncIter<ChatStreamEvent>([
+        {
+          type: 'tool_call_end',
+          id: 'call_add',
+          name: 'add_node',
+          arguments: addArgs,
+        },
+        {
+          type: 'done',
+          usage: { inputTokens: 5, outputTokens: 2, totalTokens: 7 },
+          model: 'gpt-4o',
+          finishReason: 'stop',
+        },
+      ]),
+    );
+    const events = await collect(
+      service.streamMessage('sess-1', 'ws-1', 'u-1', baseDto as never),
+    );
+    const toolCall = events.find(
+      (e) =>
+        e.event === 'tool_call' &&
+        (e.data as { name: string }).name === 'add_node',
+    );
+    expect(toolCall).toBeDefined();
+    const data = toolCall!.data as {
+      planStepId?: string;
+      planStepIds?: string[];
+    };
+    expect(data.planStepIds).toEqual(['s1', 's3']);
+
+    // Persist 된 assistant row 의 toolCalls 에도 배열이 포함되어야 한다
+    // (다음 세션 rehydrate 시 step 체크에 사용).
+    const assistantCall = mocks.sessionService.appendMessage.mock.calls.find(
+      (c) => c[1].role === 'assistant',
+    );
+    const toolCalls = assistantCall![1].toolCalls as Array<{
+      name: string;
+      planStepId?: string;
+      planStepIds?: string[];
+    }>;
+    const persistedAdd = toolCalls.find((tc) => tc.name === 'add_node');
+    expect(persistedAdd?.planStepIds).toEqual(['s1', 's3']);
+  });
+
   it('returns ASSISTANT_NO_LLM_CONFIG error when config resolution fails', async () => {
     const { service, mocks } = makeService();
     mocks.llmService.resolveConfig.mockRejectedValue(new Error('no config'));
