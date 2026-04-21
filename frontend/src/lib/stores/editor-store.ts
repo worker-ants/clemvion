@@ -8,6 +8,7 @@ import { workflowsApi } from "@/lib/api/workflows";
 import { getNodeDefinition } from "@/lib/node-definitions";
 import { buildEdgeData } from "@/lib/utils/edge-utils";
 import { useCanvasHoverStore } from "./canvas-hover-store";
+import { registerAssistantEditorBridge } from "./assistant-editor-bridge";
 
 interface EditorState {
   // Workflow metadata
@@ -49,6 +50,19 @@ interface EditorState {
   pushUndo: () => void;
   undo: () => void;
   redo: () => void;
+  /**
+   * Dispatcher invoked by the AI Assistant (`assistant-store`) for each
+   * successful edit tool call streamed from the backend. Maps tool name →
+   * existing mutator. `add_node`/`remove_node`/`add_edge`/`remove_edge`
+   * already push undo via their respective mutators; `update_node` label
+   * or position-only patches also push undo explicitly here so the full set
+   * of Assistant-initiated edits can be reverted with Ctrl+Z.
+   */
+  applyAssistantOperation?: (
+    name: string,
+    args: Record<string, unknown>,
+    result: unknown,
+  ) => void;
 }
 
 const MAX_UNDO = 50;
@@ -457,6 +471,100 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   setSaving: (isSaving) => set({ isSaving }),
   setVersionHistoryOpen: (open) => set({ versionHistoryOpen: open }),
 
+  applyAssistantOperation: (name, args, result) => {
+    const res = (result ?? {}) as { ok?: boolean; id?: string };
+    if (!res.ok) return;
+    const s = get();
+    if (name === "add_node") {
+      const type = String(args.type ?? "");
+      if (!type || !res.id) return;
+      const def = getNodeDefinition(type);
+      const position = (args.position ?? {}) as { x?: number; y?: number };
+      const node: Node = {
+        id: res.id,
+        type: "custom",
+        position: { x: Number(position.x ?? 0), y: Number(position.y ?? 0) },
+        data: {
+          type,
+          label: String(args.label ?? type),
+          category: def?.category ?? "logic",
+          config: (args.config ?? {}) as Record<string, unknown>,
+          isDisabled: false,
+          containerId: null,
+        },
+      };
+      s.addNode(node);
+    } else if (name === "update_node") {
+      const id = String(args.id ?? "");
+      if (!id) return;
+      const patch = (args.patch ?? {}) as {
+        label?: string;
+        config?: Record<string, unknown>;
+        position?: { x?: number; y?: number };
+      };
+      // Push undo once for the whole patch so Ctrl+Z reverts every field at
+      // the same time (matches manual UI edits which save label/position/
+      // config together).
+      s.pushUndo();
+      if (patch.config) {
+        set((state) => ({
+          nodes: state.nodes.map((n) =>
+            n.id === id
+              ? { ...n, data: { ...n.data, config: patch.config } }
+              : n,
+          ),
+          isDirty: true,
+        }));
+      }
+      if (patch.label || patch.position) {
+        set((state) => ({
+          nodes: state.nodes.map((n) => {
+            if (n.id !== id) return n;
+            const next = { ...n };
+            if (patch.label) {
+              next.data = { ...next.data, label: patch.label };
+            }
+            if (patch.position) {
+              next.position = {
+                x: Number(patch.position.x ?? n.position.x),
+                y: Number(patch.position.y ?? n.position.y),
+              };
+            }
+            return next;
+          }),
+          isDirty: true,
+        }));
+      }
+    } else if (name === "remove_node") {
+      const id = String(args.id ?? "");
+      if (id) s.removeNode(id);
+    } else if (name === "add_edge") {
+      const sourceId = String(args.source_id ?? args.sourceId ?? "");
+      const targetId = String(args.target_id ?? args.targetId ?? "");
+      if (!sourceId || !targetId) return;
+      s.onConnect({
+        source: sourceId,
+        sourceHandle:
+          (args.source_port as string | undefined) ??
+          (args.sourcePort as string | undefined) ??
+          "out",
+        target: targetId,
+        targetHandle:
+          (args.target_port as string | undefined) ??
+          (args.targetPort as string | undefined) ??
+          "in",
+      });
+    } else if (name === "remove_edge") {
+      const edgeId = String(args.id ?? "");
+      if (!edgeId) return;
+      s.pushUndo();
+      set((state) => ({
+        edges: state.edges.filter((e) => e.id !== edgeId),
+        isDirty: true,
+      }));
+    }
+  },
+
   saveWorkflow: async () => {
     const { workflowId, workflowName, nodes, edges, isSaving } = get();
     if (!workflowId || isSaving) return false;
@@ -538,3 +646,10 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     }));
   },
 }));
+
+// Register the editor-side handler for Assistant edit operations so the
+// assistant-store can apply `tool_call` events via a shared registry without
+// either store importing the other directly.
+registerAssistantEditorBridge((name, args, result) => {
+  useEditorStore.getState().applyAssistantOperation?.(name, args, result);
+});

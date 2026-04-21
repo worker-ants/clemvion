@@ -4,11 +4,13 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useEditorStore } from "@/lib/stores/editor-store";
 import { useExecutionStore } from "@/lib/stores/execution-store";
+import { useAssistantStore } from "@/lib/stores/assistant-store";
 import { workflowsApi } from "@/lib/api/workflows";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
   ArrowLeft,
+  Bot,
   Undo2,
   Redo2,
   Save,
@@ -44,6 +46,9 @@ export function EditorToolbar() {
 
   const executionStatus = useExecutionStore((s) => s.status);
   const startExecution = useExecutionStore((s) => s.startExecution);
+
+  const toggleAssistant = useAssistantStore((s) => s.toggle);
+  const assistantOpen = useAssistantStore((s) => s.isOpen);
 
   const isRunning = executionStatus === "running";
 
@@ -237,6 +242,19 @@ export function EditorToolbar() {
             title={t("editor.redoTooltip")}
           >
             <Redo2 size={14} />
+          </Button>
+
+          {/* AI Assistant toggle */}
+          <Button
+            variant={assistantOpen ? "default" : "ghost"}
+            size="icon"
+            className="h-8 w-8"
+            onClick={toggleAssistant}
+            title={t("assistant.toggleButton")}
+            aria-label={t("assistant.toggleButton")}
+            aria-pressed={assistantOpen}
+          >
+            <Bot size={14} />
           </Button>
 
           {/* Save */}
