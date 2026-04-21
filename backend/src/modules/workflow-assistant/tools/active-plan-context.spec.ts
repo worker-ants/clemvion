@@ -1,4 +1,7 @@
 import {
+  DEFAULT_MAX_TOOL_CALLS_PER_TURN,
+  HARD_MAX_TOOL_CALLS_PER_TURN,
+  computeToolCallsBudget,
   findActivePlanContext,
   isExplicitFailure,
 } from './active-plan-context';
@@ -276,6 +279,73 @@ describe('findActivePlanContext', () => {
       },
     ];
     expect(findActivePlanContext(history, null, pending, '')).toBeNull();
+  });
+
+  describe('computeToolCallsBudget', () => {
+    it('returns the default budget when no plan is active', () => {
+      expect(computeToolCallsBudget(null)).toBe(
+        DEFAULT_MAX_TOOL_CALLS_PER_TURN,
+      );
+    });
+
+    it('falls back to the default when the plan is small (planBased < default)', () => {
+      // 5 actionable steps × 3 + 8 = 23 → default(48) wins
+      const plan = samplePlan({
+        steps: Array.from({ length: 5 }, (_, i) => ({
+          id: `s${i}`,
+          action: 'add_node' as const,
+          description: 'x',
+        })),
+      });
+      expect(computeToolCallsBudget(plan)).toBe(
+        DEFAULT_MAX_TOOL_CALLS_PER_TURN,
+      );
+    });
+
+    it('scales linearly with actionable step count', () => {
+      // 20 actionable × 3 + 8 = 68
+      const plan = samplePlan({
+        steps: Array.from({ length: 20 }, (_, i) => ({
+          id: `s${i}`,
+          action: 'add_node' as const,
+          description: 'x',
+        })),
+      });
+      expect(computeToolCallsBudget(plan)).toBe(68);
+    });
+
+    it('excludes note-action steps from the budget calculation', () => {
+      // 10 add_node + 5 note → 10 actionable × 3 + 8 = 38 → default(48) wins
+      const plan = samplePlan({
+        steps: [
+          ...Array.from({ length: 10 }, (_, i) => ({
+            id: `s${i}`,
+            action: 'add_node' as const,
+            description: 'x',
+          })),
+          ...Array.from({ length: 5 }, (_, i) => ({
+            id: `n${i}`,
+            action: 'note' as const,
+            description: 'memo',
+          })),
+        ],
+      });
+      expect(computeToolCallsBudget(plan)).toBe(
+        DEFAULT_MAX_TOOL_CALLS_PER_TURN,
+      );
+    });
+
+    it('caps at the hard maximum for very large plans (runaway safety)', () => {
+      // 100 actionable × 3 + 8 = 308 → capped at 200
+      const plan = samplePlan({
+        steps: Array.from({ length: 100 }, (_, i) => ({
+          id: `s${i}`,
+          action: 'add_node' as const,
+          description: 'x',
+        })),
+      });
+      expect(computeToolCallsBudget(plan)).toBe(HARD_MAX_TOOL_CALLS_PER_TURN);
+    });
   });
 
   describe('isExplicitFailure', () => {

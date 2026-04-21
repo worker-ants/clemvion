@@ -19,6 +19,7 @@ import {
 import { toWorkflowView } from './tools/workflow-view';
 import {
   ActivePlanContext,
+  computeToolCallsBudget,
   findActivePlanContext,
 } from './tools/active-plan-context';
 import { buildSystemPrompt } from './prompts/system-prompt';
@@ -83,10 +84,9 @@ export type AssistantStreamEvent =
   | { event: 'done'; data: { finishReason: string } }
   | { event: 'error'; data: { code: string; message: string } };
 
-// 한 turn 안에서 허용할 tool call 총합. 13-step 안팎의 중규모 plan
-// (add_node ≈ step 수 + add_edge ≈ step 수 + 탐색 몇 건) 이 한 번에 끝날 수
-// 있도록 32 로 여유를 둔다. 초과 시 ASSISTANT_TOO_MANY_TOOL_CALLS 로 탈출.
-const MAX_TOOL_CALLS_PER_TURN = 32;
+// 한 turn 안에서 허용할 tool call 총합은 활성 plan 의 규모에 따라 동적으로
+// 결정된다 (`computeToolCallsBudget`). 기본 48, plan 이 크면 그에 비례해
+// 확장, hard cap 200. 초과 시 ASSISTANT_TOO_MANY_TOOL_CALLS 로 탈출.
 const MAX_HISTORY_TURNS = 30;
 
 /**
@@ -207,6 +207,11 @@ export class WorkflowAssistantStreamService {
     const pendingToolCalls: AssistantToolCallRecord[] = [];
     let planForTurn: AssistantPlanRecord | null = null;
     let totalToolCallsThisTurn = 0;
+    // 이 턴의 tool-call budget. 턴 시작 시 활성 plan 크기에 맞춰 계산하고,
+    // 같은 턴에 새 plan 이 propose_plan 으로 발행되면 그때 재확장한다.
+    let toolCallsBudget = computeToolCallsBudget(
+      activePlanForPrompt?.plan ?? null,
+    );
     // 한 턴 안에서 finish 를 PLAN_NOT_COMPLETE 로 block 한 횟수. 같은 turn 에서
     // 2번 이상 block 하면 무한 루프 위험이 있으므로 두 번째 finish 는 허용한다.
     let finishBlockCount = 0;
@@ -247,12 +252,12 @@ export class WorkflowAssistantStreamService {
             yield { event: 'text', data: { delta: ev.delta } };
           } else if (ev.type === 'tool_call_end') {
             totalToolCallsThisTurn++;
-            if (totalToolCallsThisTurn > MAX_TOOL_CALLS_PER_TURN) {
+            if (totalToolCallsThisTurn > toolCallsBudget) {
               yield {
                 event: 'error',
                 data: {
                   code: 'ASSISTANT_TOO_MANY_TOOL_CALLS',
-                  message: 'Exceeded the per-turn tool call limit.',
+                  message: `Per-turn tool-call budget (${toolCallsBudget}) exhausted. Send a follow-up message (e.g. "이어서 진행해줘") to continue executing remaining plan steps.`,
                 },
               };
               hadError = true;
@@ -338,6 +343,13 @@ export class WorkflowAssistantStreamService {
                 planForTurn = plan;
                 // 새 plan 이 발행되면 이전 clear 상태는 자연스럽게 덮어씀.
                 planClearedThisTurn = false;
+                // 새 plan 의 크기에 맞춰 tool-call budget 을 재확장한다.
+                // 기존에 이미 소비한 totalToolCallsThisTurn 은 유지되지만
+                // budget 상한이 커지므로 실행 여유를 확보한다.
+                toolCallsBudget = Math.max(
+                  toolCallsBudget,
+                  computeToolCallsBudget(plan),
+                );
                 const planId = randomUUID();
                 yield {
                   event: 'plan',

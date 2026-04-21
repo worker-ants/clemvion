@@ -402,7 +402,7 @@ data: {"code": "LLM_RATE_LIMIT", "message": "..."}
 | 항목 | 기준 |
 |------|------|
 | 단일 턴 타임아웃 | LLM Client §6에 따라 120초 |
-| Tool 호출 최대 횟수 | 한 턴당 32회(안전 상한). 중규모 plan(10~13 step × add_node+add_edge) 이 한 턴에 실행되도록 여유 부여. 초과 시 `ASSISTANT_TOO_MANY_TOOL_CALLS` error 이벤트로 종료하고 사용자가 다음 턴에서 재시도 |
+| Tool 호출 최대 횟수 | 한 턴의 tool-call 상한은 활성 plan 크기에 맞춰 **동적** 으로 결정된다 (`computeToolCallsBudget`). plan 이 없으면 기본 48, plan 이 있으면 `actionable steps × 3 + 8` (note step 은 제외), 상한은 런어웨이 방어로 200 에 hard-cap. 같은 턴에 새 `propose_plan` 이 발행되면 budget 을 확대 재계산. 초과 시 `ASSISTANT_TOO_MANY_TOOL_CALLS` error 이벤트에 "이어서 진행해줘" 같은 follow-up 메시지 안내가 포함되어 사용자가 다음 턴에서 남은 step 을 계속 실행할 수 있다 |
 | `finish` guard 반복 block | 같은 턴 안에서는 최대 1회만 `PLAN_NOT_COMPLETE` 로 block. 두 번째 finish 는 정상 탈출(`finishReason: 'stop'`)로 허용해 LLM 의 해석 오류로 인한 무한 루프를 방지 |
 | 메시지 히스토리 크기 | 기본 최근 30턴만 LLM에 전달. 그 이전은 서버에는 저장되되 프롬프트에서 제외 |
 | 스트리밍 지연 허용치 | 첫 delta까지 3초 이내 권장 (SSE keep-alive: `: ping\n\n` 15초 간격) |
