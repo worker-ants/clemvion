@@ -3,11 +3,15 @@ import { ConfigService } from '@nestjs/config';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
 import { AuthOauthService } from './auth-oauth.service';
+import { TotpService } from './totp.service';
+import { UsersService } from '../users/users.service';
 
 describe('AuthController', () => {
   let controller: AuthController;
   let authService: jest.Mocked<AuthService>;
   let oauthService: jest.Mocked<AuthOauthService>;
+  let totpService: jest.Mocked<TotpService>;
+  let usersService: jest.Mocked<UsersService>;
 
   const mockRes = {
     cookie: jest.fn(),
@@ -35,10 +39,24 @@ describe('AuthController', () => {
       handleCallback: jest.fn(),
       getEnabledProviders: jest.fn(),
     } as unknown as jest.Mocked<AuthOauthService>;
+
+    totpService = {
+      setup: jest.fn(),
+      verifyAndEnable: jest.fn(),
+      verifyForLogin: jest.fn(),
+      disable: jest.fn(),
+    } as unknown as jest.Mocked<TotpService>;
+
+    usersService = {
+      findById: jest.fn(),
+    } as unknown as jest.Mocked<UsersService>;
+
     controller = new AuthController(
       authService,
       mockConfigService,
       oauthService,
+      totpService,
+      usersService,
     );
   });
 
