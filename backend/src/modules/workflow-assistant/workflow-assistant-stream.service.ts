@@ -366,11 +366,54 @@ export class WorkflowAssistantStreamService {
               }
             } else {
               // edit
-              const shadowResult = shadow.apply({
-                name: ev.name as ShadowToolName,
-                arguments: parsed,
-              });
-              result = shadowResult;
+              // plan-only turn 강제: 같은 턴에 propose_plan 이 호출되었는데
+              // approval 없이 바로 edit 을 시도하면 거부한다. LLM 은 한국어
+              // 프롬프트로 턴 종료하고 다음 턴(사용자 approve 이후) 에서
+              // 실행해야 한다.
+              if (planForTurn && !planForTurn.approvedAt) {
+                result = {
+                  ok: false,
+                  error: 'PLAN_AWAITING_APPROVAL',
+                  message:
+                    "You just proposed a new plan on this turn. Do NOT execute edit tools until the user approves. End this turn with a short Korean message asking the user to click the Approve button on the plan card. After approval, the user's next message will start a new turn where you can run the edits.",
+                };
+              } else {
+                const shadowResult = shadow.apply({
+                  name: ev.name as ShadowToolName,
+                  arguments: parsed,
+                });
+                // 활성 plan 이 있는데 planStepId / planStepIds 모두 누락이면
+                // 성공 결과에 warning 을 덧붙여 LLM 이 다음 호출부터 step 을
+                // 명시하도록 유도한다. 이미 선언된 parsed 변수는 이 블록보다
+                // 바깥에 있어 아래 pendingToolCalls.push 쪽의 parsedPlanStepId
+                // 계산을 여기서도 활용할 수 있지만 중복 선언을 피해 local
+                // 체크만 수행한다.
+                const hasStepId =
+                  typeof parsed.planStepId === 'string' ||
+                  (Array.isArray(parsed.planStepIds) &&
+                    parsed.planStepIds.length > 0);
+                const activePlan = findActivePlanContext(
+                  history,
+                  planForTurn,
+                  pendingToolCalls,
+                  dto.content,
+                );
+                if (
+                  shadowResult.ok &&
+                  activePlan &&
+                  activePlan.status === 'active' &&
+                  !hasStepId
+                ) {
+                  result = {
+                    ...shadowResult,
+                    warning: 'MISSING_PLAN_STEP_ID',
+                    warningMessage:
+                      "Edit succeeded but no planStepId/planStepIds was attached. The plan checklist won't tick off, making the user think nothing happened. Add planStepId or planStepIds (from the active plan above) to every edit call.",
+                  };
+                } else {
+                  result = shadowResult;
+                }
+              }
             }
 
             pendingResultsForLlm.push({ id: ev.id, result });

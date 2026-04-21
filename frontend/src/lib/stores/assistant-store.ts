@@ -35,6 +35,17 @@ export interface AssistantDisplayMessage {
   plan: AssistantPlanCard | null;
   streaming: boolean;
   createdAt: string;
+  /**
+   * 해당 턴에서 서버가 발행한 error 이벤트. toast 가 아니라 메시지 bubble
+   * 아래 빨간 박스로 렌더해 채팅 맥락에서 "왜 중단됐는지" 가 보이도록 한다.
+   */
+  error?: { code: string; message: string };
+  /**
+   * 서버·프론트가 자동 주입하는 안내 문구. 대표 사례: LLM 이 말없이 턴을
+   * 종료했는데 plan 에 pending step 이 남아있는 경우 → "이어서 진행해줘"
+   * 안내.
+   */
+  systemHint?: string;
 }
 
 interface AssistantState {
@@ -468,20 +479,77 @@ function handleSseEvent(
       ),
     }));
   } else if (event.event === "error") {
+    // toast 대신 assistant bubble 에 에러를 주입해 채팅 맥락에서 "왜 중단
+    // 됐는지" 가 보이도록 한다. 스토어의 `error` 필드는 상단 배너/배지 등
+    // 전역 표시 용도로 계속 유지.
     set((s) => ({
       messages: s.messages.map((m) =>
         m.id === assistantId
-          ? { ...m, streaming: false, content: m.content }
+          ? {
+              ...m,
+              streaming: false,
+              error: {
+                code: event.data.code,
+                message: event.data.message || "Assistant error",
+              },
+            }
           : m,
       ),
       error: event.data.code,
     }));
-    toast.error(event.data.message || "Assistant error");
   } else if (event.event === "done") {
-    set((s) => ({
-      messages: s.messages.map((m) =>
-        m.id === assistantId ? { ...m, streaming: false } : m,
-      ),
-    }));
+    set((s) => {
+      const messages = s.messages.map((m) => {
+        if (m.id !== assistantId) return m;
+        const updated: AssistantDisplayMessage = { ...m, streaming: false };
+        // 턴이 "stop" 으로 끝났는데 assistant 가 텍스트 없이 조용히 멈췄고
+        // (content 공백 + error 없음) 활성 plan 에 pending step 이 남아
+        // 있으면 사용자에게 다음 액션을 안내하는 힌트를 자동 주입한다.
+        const stalled =
+          !updated.content.trim() &&
+          !updated.error &&
+          hasPendingStep(updated, s.messages);
+        if (stalled) {
+          updated.systemHint = translate(
+            useLocaleStore.getState().locale,
+            "assistant.turnStalledHint",
+          );
+        }
+        return updated;
+      });
+      return { messages };
+    });
   }
+}
+
+/**
+ * "이 assistant 턴 종료 시점에 실행 가능한 pending step 이 남아있는가" 판별.
+ * - 해당 메시지 자체의 plan 이 있으면 그 plan 을 본다.
+ * - 없으면 history 에서 최신 plan 을 찾아 본다.
+ * - plan 이 **실제로 실행 중** (approved 버튼 클릭 OR 이미 done 된 step 이
+ *   하나 이상 있음 — 자연어 승인 후 LLM 이 진행 중인 경우) 일 때만 pending
+ *   검사를 한다. plan 발행만 한 "approve 대기" 상태 턴에는 plan 카드에 이미
+ *   "계획대로 진행" 버튼이 있으므로 힌트를 중복으로 띄우지 않는다.
+ * - note-action step 은 집계에서 제외.
+ */
+function hasPendingStep(
+  msg: AssistantDisplayMessage,
+  all: AssistantDisplayMessage[],
+): boolean {
+  let plan: AssistantPlanCard | null = msg.plan;
+  if (!plan) {
+    for (let i = all.length - 1; i >= 0; i--) {
+      if (all[i].plan) {
+        plan = all[i].plan;
+        break;
+      }
+    }
+  }
+  if (!plan) return false;
+  const hasStarted =
+    plan.approved || plan.steps.some((s) => s.status === "done");
+  if (!hasStarted) return false;
+  return plan.steps.some(
+    (s) => s.status === "pending" && s.action !== "note",
+  );
 }

@@ -1,7 +1,9 @@
 "use client";
 
 import { useMemo } from "react";
+import { AlertCircle, Info } from "lucide-react";
 import type { AssistantDisplayMessage } from "@/lib/stores/assistant-store";
+import { useT } from "@/lib/i18n";
 import { ToolCallBadge } from "./tool-call-badge";
 import { PlanCard } from "./plan-card";
 import { MarkdownRenderer } from "./markdown-renderer";
@@ -16,6 +18,7 @@ export function AssistantMessageView({
   message,
   onApprovePlan,
 }: AssistantMessageViewProps) {
+  const t = useT();
   // hooks must run unconditionally — so sanitize/memo before any early
   // return below. user 메시지 경로에서는 displayText 를 사용하지 않지만,
   // React Hooks 규칙을 지키려면 호출 순서가 매 렌더마다 동일해야 한다.
@@ -69,6 +72,29 @@ export function AssistantMessageView({
       )}
       {message.plan && (
         <PlanCard plan={message.plan} onApprove={onApprovePlan} canApprove />
+      )}
+      {message.error && (
+        <div
+          role="alert"
+          className="flex items-start gap-1.5 rounded-md border border-red-500/40 bg-red-500/10 px-2.5 py-1.5 text-[11px] text-red-700 dark:text-red-300"
+        >
+          <AlertCircle size={14} className="mt-[2px] shrink-0" />
+          <div className="min-w-0">
+            <div className="font-medium">
+              {t("assistant.errorBubbleTitle")}
+            </div>
+            <div className="break-words text-[10px] text-red-700/80 dark:text-red-300/80">
+              <span className="font-mono">[{message.error.code}]</span>{" "}
+              {message.error.message}
+            </div>
+          </div>
+        </div>
+      )}
+      {message.systemHint && (
+        <div className="flex items-start gap-1.5 rounded-md border border-amber-500/30 bg-amber-500/5 px-2.5 py-1.5 text-[11px] text-amber-800 dark:text-amber-200">
+          <Info size={14} className="mt-[2px] shrink-0" />
+          <MarkdownRenderer content={message.systemHint} />
+        </div>
       )}
     </div>
   );

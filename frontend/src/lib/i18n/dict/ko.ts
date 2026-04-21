@@ -1882,6 +1882,9 @@ export const ko = {
     planApproveConfirm: "계획대로 진행해 주세요.",
     planQuestionsTitle: "답변이 필요한 항목",
     planQuestionsHint: "아래 메시지 입력창에 답변을 적어 보내 주세요.",
+    turnStalledHint:
+      "진행이 중단됐어요. `이어서 진행해줘` 라고 답해 주시면 남은 단계를 계속 실행할게요.",
+    errorBubbleTitle: "요청 처리 중 문제가 발생했어요",
     emptyTitle: "무엇을 도와드릴까요?",
     emptySubtitle: "자연어로 원하는 워크플로우를 설명하면 함께 만들어드려요.",
     exampleAddCancelFlow: "주문 취소 프로세스 추가해줘",

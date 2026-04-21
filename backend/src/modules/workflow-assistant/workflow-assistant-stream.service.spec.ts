@@ -593,14 +593,32 @@ describe('WorkflowAssistantStreamService', () => {
     // tool_result 를 에러로 반환해 루프를 한 번 더 돌려, LLM 이 나머지
     // step 을 채우도록 유도해야 한다.
     const { service, mocks } = makeService();
-    const planArgs = JSON.stringify({
-      title: 'Two-step build',
-      summary: 'Two edits needed',
-      steps: [
-        { id: 's1', action: 'add_node', description: 'Add first node' },
-        { id: 's2', action: 'add_node', description: 'Add second node' },
-      ],
-    });
+    // history 에 이미 propose_plan 된 plan 이 approve 된 상태. 이번 턴은
+    // execute turn 이라 plan-only guard 가 발동하지 않는다.
+    mocks.sessionService.loadMessages.mockResolvedValue([
+      { role: 'user', content: '요청', toolCalls: null },
+      {
+        role: 'assistant',
+        content: '',
+        toolCalls: [
+          {
+            id: 'p0',
+            name: 'propose_plan',
+            arguments: {},
+            kind: 'plan',
+            result: { ok: true },
+          },
+        ],
+        plan: {
+          title: 'Two-step build',
+          summary: 'Two edits needed',
+          steps: [
+            { id: 's1', action: 'add_node', description: 'Add first node' },
+            { id: 's2', action: 'add_node', description: 'Add second node' },
+          ],
+        },
+      },
+    ]);
     const addA = JSON.stringify({
       type: 'http_request',
       label: 'First',
@@ -616,15 +634,9 @@ describe('WorkflowAssistantStreamService', () => {
       planStepId: 's2',
     });
 
-    // Round 1: plan + 첫 노드만 추가한 뒤 조기 finish 시도 → 서버가 block
+    // Round 1: 첫 노드만 추가한 뒤 조기 finish 시도 → 서버가 block
     mocks.llmService.chatStream.mockImplementationOnce(() =>
       asyncIter<ChatStreamEvent>([
-        {
-          type: 'tool_call_end',
-          id: 'call_plan',
-          name: 'propose_plan',
-          arguments: planArgs,
-        },
         {
           type: 'tool_call_end',
           id: 'call_a',
@@ -831,12 +843,31 @@ describe('WorkflowAssistantStreamService', () => {
     // pending step 이 0 이어도 openQuestions 가 남아있으면 사용자에게 답을
     // 받아야 하므로 finish 를 block 해야 한다. (spec §4.3)
     const { service, mocks } = makeService();
-    const planArgs = JSON.stringify({
-      title: 'Ask first',
-      summary: '',
-      steps: [{ id: 's1', action: 'add_node', description: 'the only step' }],
-      openQuestions: ['Which provider should we integrate with?'],
-    });
+    // Plan 은 history 에 이미 approved 된 상태로 준비 — 이번 턴은 execute turn.
+    mocks.sessionService.loadMessages.mockResolvedValue([
+      { role: 'user', content: '시작', toolCalls: null },
+      {
+        role: 'assistant',
+        content: '',
+        toolCalls: [
+          {
+            id: 'p0',
+            name: 'propose_plan',
+            arguments: {},
+            kind: 'plan',
+            result: { ok: true },
+          },
+        ],
+        plan: {
+          title: 'Ask first',
+          summary: '',
+          steps: [
+            { id: 's1', action: 'add_node', description: 'the only step' },
+          ],
+          openQuestions: ['Which provider should we integrate with?'],
+        },
+      },
+    ]);
     const addA = JSON.stringify({
       type: 'http_request',
       label: 'Only',
@@ -846,12 +877,6 @@ describe('WorkflowAssistantStreamService', () => {
     });
     mocks.llmService.chatStream.mockImplementationOnce(() =>
       asyncIter<ChatStreamEvent>([
-        {
-          type: 'tool_call_end',
-          id: 'call_plan',
-          name: 'propose_plan',
-          arguments: planArgs,
-        },
         {
           type: 'tool_call_end',
           id: 'call_a',
@@ -919,14 +944,30 @@ describe('WorkflowAssistantStreamService', () => {
     // note 는 설명 항목이라 대응 edit tool 호출이 없다. pending 으로 남기면
     // 영원히 block → LLM 이 불필요한 도구 호출을 시도한다.
     const { service, mocks } = makeService();
-    const planArgs = JSON.stringify({
-      title: 'Note + do',
-      summary: '',
-      steps: [
-        { id: 's_note', action: 'note', description: 'reminder only' },
-        { id: 's_do', action: 'add_node', description: 'real edit' },
-      ],
-    });
+    mocks.sessionService.loadMessages.mockResolvedValue([
+      { role: 'user', content: '시작', toolCalls: null },
+      {
+        role: 'assistant',
+        content: '',
+        toolCalls: [
+          {
+            id: 'p0',
+            name: 'propose_plan',
+            arguments: {},
+            kind: 'plan',
+            result: { ok: true },
+          },
+        ],
+        plan: {
+          title: 'Note + do',
+          summary: '',
+          steps: [
+            { id: 's_note', action: 'note', description: 'reminder only' },
+            { id: 's_do', action: 'add_node', description: 'real edit' },
+          ],
+        },
+      },
+    ]);
     const addDo = JSON.stringify({
       type: 'http_request',
       label: 'Doer',
@@ -936,12 +977,6 @@ describe('WorkflowAssistantStreamService', () => {
     });
     mocks.llmService.chatStream.mockImplementation(() =>
       asyncIter<ChatStreamEvent>([
-        {
-          type: 'tool_call_end',
-          id: 'call_plan',
-          name: 'propose_plan',
-          arguments: planArgs,
-        },
         {
           type: 'tool_call_end',
           id: 'call_do',
@@ -1505,6 +1540,127 @@ describe('WorkflowAssistantStreamService', () => {
     expect((errEvent!.data as { message: string }).message).toMatch(
       /follow-up message|budget/i,
     );
+  });
+
+  it('rejects edit tools with PLAN_AWAITING_APPROVAL when called in the same turn as propose_plan', async () => {
+    // LLM 이 propose_plan 직후 같은 턴에 add_node 를 호출하면 서버가
+    // 거부한다. UX 의 "계획 제시 → 사용자 승인 → 실행" 3단계 강제.
+    const { service, mocks } = makeService();
+    const planArgs = JSON.stringify({
+      title: 'Build',
+      summary: '',
+      steps: [{ id: 's1', action: 'add_node', description: 'step 1' }],
+    });
+    const addArgs = JSON.stringify({
+      type: 'http_request',
+      label: 'Premature',
+      position: { x: 500, y: 300 },
+      config: {},
+      planStepId: 's1',
+    });
+    mocks.llmService.chatStream.mockImplementation(() =>
+      asyncIter<ChatStreamEvent>([
+        {
+          type: 'tool_call_end',
+          id: 'call_plan',
+          name: 'propose_plan',
+          arguments: planArgs,
+        },
+        {
+          type: 'tool_call_end',
+          id: 'call_add',
+          name: 'add_node',
+          arguments: addArgs,
+        },
+        {
+          type: 'done',
+          usage: { inputTokens: 10, outputTokens: 5, totalTokens: 15 },
+          model: 'gpt-4o',
+          finishReason: 'stop',
+        },
+      ]),
+    );
+    const events = await collect(
+      service.streamMessage('sess-1', 'ws-1', 'u-1', baseDto as never),
+    );
+    const editEvent = events.find(
+      (e) =>
+        e.event === 'tool_call' &&
+        (e.data as { name: string }).name === 'add_node',
+    );
+    const result = (
+      editEvent!.data as { result: { ok: boolean; error?: string } }
+    ).result;
+    expect(result.ok).toBe(false);
+    expect(result.error).toBe('PLAN_AWAITING_APPROVAL');
+  });
+
+  it('attaches MISSING_PLAN_STEP_ID warning when active plan is present but edit has no step id', async () => {
+    // 활성 plan 이 있는데 edit 에 planStepId 가 없으면 shadow 는 성공시키되
+    // 결과에 warning 을 붙여 LLM 이 이후 호출부터 tag 를 붙이도록 유도.
+    const { service, mocks } = makeService();
+    mocks.sessionService.loadMessages.mockResolvedValue([
+      { role: 'user', content: '시작', toolCalls: null },
+      {
+        role: 'assistant',
+        content: '',
+        toolCalls: [
+          {
+            id: 'p1',
+            name: 'propose_plan',
+            arguments: {},
+            kind: 'plan',
+            result: { ok: true },
+          },
+        ],
+        plan: {
+          title: 'existing',
+          summary: '',
+          steps: [{ id: 's1', action: 'add_node', description: 'node' }],
+        },
+      },
+    ]);
+    mocks.llmService.chatStream.mockImplementation(() =>
+      asyncIter<ChatStreamEvent>([
+        {
+          type: 'tool_call_end',
+          id: 'call_add',
+          name: 'add_node',
+          // planStepId 를 의도적으로 누락
+          arguments: JSON.stringify({
+            type: 'http_request',
+            label: 'NoTag',
+            position: { x: 500, y: 300 },
+            config: {},
+          }),
+        },
+        {
+          type: 'done',
+          usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 },
+          model: 'gpt-4o',
+          finishReason: 'stop',
+        },
+      ]),
+    );
+    const events = await collect(
+      service.streamMessage('sess-1', 'ws-1', 'u-1', {
+        ...baseDto,
+        content: '진행',
+      } as never),
+    );
+    const editEvent = events.find(
+      (e) =>
+        e.event === 'tool_call' &&
+        (e.data as { name: string }).name === 'add_node',
+    );
+    const result = (
+      editEvent!.data as {
+        result: { ok: boolean; warning?: string; warningMessage?: string };
+      }
+    ).result;
+    expect(result.ok).toBe(true); // edit 은 성공
+    expect(result.warning).toBe('MISSING_PLAN_STEP_ID');
+    expect(result.warningMessage).toMatch(/planStepId/);
   });
 
   it('returns ASSISTANT_NO_LLM_CONFIG error when config resolution fails', async () => {
