@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo } from "react";
-import { AlertCircle, Info } from "lucide-react";
+import { AlertCircle, CheckCircle2, Info } from "lucide-react";
 import type { AssistantDisplayMessage } from "@/lib/stores/assistant-store";
 import { useT } from "@/lib/i18n";
 import { ToolCallBadge } from "./tool-call-badge";
@@ -91,9 +91,19 @@ export function AssistantMessageView({
         </div>
       )}
       {message.systemHint && (
-        <div className="flex items-start gap-1.5 rounded-md border border-amber-500/30 bg-amber-500/5 px-2.5 py-1.5 text-[11px] text-amber-800 dark:text-amber-200">
-          <Info size={14} className="mt-[2px] shrink-0" />
-          <MarkdownRenderer content={message.systemHint} />
+        <div
+          className={
+            message.systemHint.kind === "success"
+              ? "flex items-start gap-1.5 rounded-md border border-emerald-500/30 bg-emerald-500/5 px-2.5 py-1.5 text-[11px] text-emerald-800 dark:text-emerald-200"
+              : "flex items-start gap-1.5 rounded-md border border-amber-500/30 bg-amber-500/5 px-2.5 py-1.5 text-[11px] text-amber-800 dark:text-amber-200"
+          }
+        >
+          {message.systemHint.kind === "success" ? (
+            <CheckCircle2 size={14} className="mt-[2px] shrink-0" />
+          ) : (
+            <Info size={14} className="mt-[2px] shrink-0" />
+          )}
+          <MarkdownRenderer content={message.systemHint.text} />
         </div>
       )}
     </div>
