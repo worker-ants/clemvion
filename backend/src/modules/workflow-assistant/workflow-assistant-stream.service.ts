@@ -17,6 +17,10 @@ import {
   AssistantToolKind,
 } from './tools/tool-definitions';
 import { toWorkflowView } from './tools/workflow-view';
+import {
+  ActivePlanContext,
+  findActivePlanContext,
+} from './tools/active-plan-context';
 import { buildSystemPrompt } from './prompts/system-prompt';
 import { AssistantMessageRequestDto } from './dto/assistant-message-request.dto';
 import {
@@ -168,9 +172,21 @@ export class WorkflowAssistantStreamService {
     }
 
     // LLM messages 조립
+    // 세션 전반을 이어가는 "active plan" 컨텍스트 — history + 이번 턴 상태
+    // 로부터 매 턴 derive 한다. 사용자의 원 요청, 진행한 step, 남은 step,
+    // openQuestions 를 프롬프트에 고정으로 노출해 LLM 이 plan 을 잊지 않게
+    // 한다. 이 시점에는 pendingToolCalls 가 비어있으나, 이후 finish guard
+    // 등에서 재계산할 때는 해당 배열을 포함해 derive 한다.
+    const activePlanForPrompt = findActivePlanContext(
+      history,
+      null,
+      [],
+      dto.content,
+    );
     const systemPrompt = buildSystemPrompt(
       this.nodeRegistry.listDefinitions(),
       shadow.snapshot(),
+      activePlanForPrompt,
     );
     const recentHistory = history.slice(-MAX_HISTORY_TURNS * 3);
     const messages: ChatMessage[] = [
@@ -189,6 +205,9 @@ export class WorkflowAssistantStreamService {
     // 한 턴 안에서 finish 를 PLAN_NOT_COMPLETE 로 block 한 횟수. 같은 turn 에서
     // 2번 이상 block 하면 무한 루프 위험이 있으므로 두 번째 finish 는 허용한다.
     let finishBlockCount = 0;
+    // `clear_plan` 이 이번 턴에 호출되었는지. evaluateFinishGuard 에서 이
+    // 플래그가 켜져 있으면 pending step 이 남아도 finish 를 허용한다.
+    let planClearedThisTurn = false;
 
     // 루프 (tool_calls가 있으면 다시 호출)
     while (true) {
@@ -244,10 +263,12 @@ export class WorkflowAssistantStreamService {
               // 서버가 pending 을 감지해 tool_result 를 error 로 반환하면
               // LLM 이 다음 라운드에서 남은 step 을 채우도록 유도할 수 있다.
               const block = this.evaluateFinishGuard(
-                planForTurn,
                 history,
+                planForTurn,
                 pendingToolCalls,
                 finishBlockCount,
+                planClearedThisTurn,
+                dto.content,
               );
               if (block) {
                 finishBlockCount++;
@@ -301,21 +322,31 @@ export class WorkflowAssistantStreamService {
                 );
               }
             } else if (kind === 'plan') {
-              const plan = this.buildPlanFromArgs(parsed);
-              planForTurn = plan;
-              const planId = randomUUID();
-              yield {
-                event: 'plan',
-                data: {
-                  id: ev.id,
-                  planId,
-                  title: plan.title,
-                  summary: plan.summary,
-                  steps: plan.steps,
-                  openQuestions: plan.openQuestions,
-                },
-              };
-              result = { ok: true, planId };
+              if (ev.name === 'clear_plan') {
+                // Topic change marker: active plan context 는 다음 턴부터
+                // history 스캔에서 제외된다. tool_result 는 단순 ack 로
+                // 충분하며 SSE 로는 별도 발행하지 않아 UI 배지 오염을 피한다.
+                planClearedThisTurn = true;
+                result = { ok: true, cleared: true };
+              } else {
+                const plan = this.buildPlanFromArgs(parsed);
+                planForTurn = plan;
+                // 새 plan 이 발행되면 이전 clear 상태는 자연스럽게 덮어씀.
+                planClearedThisTurn = false;
+                const planId = randomUUID();
+                yield {
+                  event: 'plan',
+                  data: {
+                    id: ev.id,
+                    planId,
+                    title: plan.title,
+                    summary: plan.summary,
+                    steps: plan.steps,
+                    openQuestions: plan.openQuestions,
+                  },
+                };
+                result = { ok: true, planId };
+              }
             } else {
               // edit
               const shadowResult = shadow.apply({
@@ -531,79 +562,64 @@ export class WorkflowAssistantStreamService {
   }
 
   /**
-   * `finish` 호출 시점의 plan 완결성을 평가한다.
+   * `finish` 호출 시점의 plan 완결성을 평가한다. ActivePlanContext 기반으로
+   * 판단하며 — `cleared` 상태거나 completed 상태면 guard 가 발동하지 않는다.
+   * active 상태에서 pending step 또는 openQuestions 가 남아있을 때만
+   * PLAN_NOT_COMPLETE 를 반환한다.
    *
-   * 활성 plan(planForTurn, 없으면 히스토리 최근 plan) 의 step 중 실행되지 않은
-   * 것이 남아있거나, `openQuestions` 가 남아있으면 PLAN_NOT_COMPLETE 를 반환해
-   * LLM 이 다음 라운드에서 작업을 이어가도록 유도한다.
-   *
-   * 아래 조건이 하나라도 맞지 않으면 null(정상 finish 허용):
-   *   - 같은 턴에서 이미 한 번 block 했음 — 두 번째 finish 는 무한 루프 방지를
-   *     위해 그대로 통과 (안전 탈출)
-   *   - plan 이 없음
-   *   - 이번 턴이 실행 턴도 아니고 (= edit tool call 없음) plan 을 새로 발행한
-   *     턴도 아님. 단순 텍스트 응답 턴을 차단하면 정상 대화가 깨진다
-   *   - planForTurn 이 null(이전 턴 plan 을 재사용) 이고, 이번 턴 edit 중
-   *     해당 plan 의 step id 를 가진 게 하나도 없음. 이 경우 편집이 plan 과
-   *     무관한 단발 요청이므로 false positive 방지
-   *   - note 를 제외한 step 이 모두 완료됐고 openQuestions 도 비어있음
+   * 아래 조건이면 null(정상 finish):
+   *   - 같은 턴에 `clear_plan` 이 호출됨 — 사용자가 화제를 바꾼 것으로 간주
+   *   - 같은 턴에서 이미 1회 block 했음 — 무한 루프 방지
+   *   - activePlan 없음 or status !== 'active'
+   *   - 이번 턴이 실행 턴도 아니고 plan 을 새로 발행한 턴도 아님
+   *   - planForTurn 이 null 인데 이번 턴 편집이 active plan 과 전혀 매칭되지
+   *     않으면 단발성 편집으로 간주
    */
   private evaluateFinishGuard(
-    planForTurn: AssistantPlanRecord | null,
     history: WorkflowAssistantMessage[],
+    planForTurn: AssistantPlanRecord | null,
     pendingToolCalls: AssistantToolCallRecord[],
     finishBlockCount: number,
+    planClearedThisTurn: boolean,
+    pendingUserRequest: string,
   ): FinishGuardError | null {
+    if (planClearedThisTurn) return null;
     if (finishBlockCount > 0) return null;
-    // plan 만 발행하고 아무 편집도 하지 않은 턴(사용자 승인 대기 상태)은
-    // 정상 finish 로 취급한다 — 이 턴에서는 애초에 실행 의도가 없었다.
     const editThisTurn = pendingToolCalls.some((tc) => tc.kind === 'edit');
     if (!editThisTurn) return null;
 
-    const activePlan = planForTurn ?? this.findLatestPlanInHistory(history);
-    if (!activePlan) return null;
-
-    const thisTurnPlanStepIds = new Set(
-      pendingToolCalls
-        .map((tc) => tc.planStepId)
-        .filter((id): id is string => typeof id === 'string'),
+    const ctx: ActivePlanContext | null = findActivePlanContext(
+      history,
+      planForTurn,
+      pendingToolCalls,
+      pendingUserRequest,
     );
-    const activePlanStepIds = new Set(activePlan.steps.map((s) => s.id));
-    // planForTurn 이 null 이고 이번 턴 편집이 history plan 의 step 과 전혀
-    // 매칭되지 않으면, 이 편집은 plan 과 무관한 단발성 편집으로 간주하고
-    // guard 를 비활성화한다.
-    if (planForTurn === null) {
-      const linkedToHistoryPlan = [...thisTurnPlanStepIds].some((id) =>
-        activePlanStepIds.has(id),
+    if (!ctx || ctx.status !== 'active') return null;
+
+    // planForTurn 이 null 이면서 이번 턴 편집 중 active plan 의 step id 를
+    // 가진 게 하나도 없으면 무관한 편집으로 간주하고 guard 비활성.
+    if (!planForTurn) {
+      const activePlanStepIds = new Set(ctx.plan.steps.map((s) => s.id));
+      const linked = pendingToolCalls.some(
+        (tc) =>
+          typeof tc.planStepId === 'string' &&
+          activePlanStepIds.has(tc.planStepId),
       );
-      if (!linkedToHistoryPlan) return null;
+      if (!linked) return null;
     }
 
-    const completedStepIds = new Set<string>();
-    for (const m of history) {
-      if (m.role === 'assistant' && m.toolCalls) {
-        for (const tc of m.toolCalls) {
-          if (tc.planStepId) completedStepIds.add(tc.planStepId);
-        }
-      }
-    }
-    for (const id of thisTurnPlanStepIds) completedStepIds.add(id);
-
-    // note 스텝은 edit tool 호출이 존재하지 않는 설명 항목이라 planStepId 로
-    // 커버되는 일이 없다. guard 에서 제외해 note 만 남은 경우 무한 차단되지
-    // 않게 한다.
-    const pendingSteps = activePlan.steps
+    const pendingSteps = ctx.plan.steps
       .filter((s) => s.action !== 'note')
-      .filter((s) => !completedStepIds.has(s.id))
+      .filter((s) => !ctx.completedStepIds.has(s.id))
       .map((s) => ({ id: s.id, description: s.description }));
-    const openQuestions = activePlan.openQuestions ?? [];
+    const openQuestions = ctx.plan.openQuestions ?? [];
     if (pendingSteps.length === 0 && openQuestions.length === 0) return null;
 
     const hint =
       pendingSteps.length > 0 && openQuestions.length > 0
         ? 'The active plan has pending steps AND unanswered openQuestions. Ask the user the remaining questions in a Korean message, and execute the pending edit tools (with their planStepId) — especially add_edge calls that keep new nodes connected back to manual_trigger.'
         : pendingSteps.length > 0
-          ? 'The active plan has pending steps. Execute the remaining edit tools with their matching planStepId — especially add_edge calls that keep new nodes connected back to manual_trigger — or explain why a step should be skipped. Then call finish again.'
+          ? 'The active plan has pending steps. Execute the remaining edit tools with their matching planStepId — especially add_edge calls that keep new nodes connected back to manual_trigger — or explain why a step should be skipped. Then call finish again. If the user has moved on to unrelated work, call clear_plan first.'
           : 'The active plan still has unanswered openQuestions. Do NOT call finish. Instead, end this turn with a short Korean message asking the user the remaining questions.';
     return {
       ok: false,
@@ -612,16 +628,6 @@ export class WorkflowAssistantStreamService {
       openQuestions,
       message: `Finish blocked: ${hint}`,
     };
-  }
-
-  private findLatestPlanInHistory(
-    history: WorkflowAssistantMessage[],
-  ): AssistantPlanRecord | null {
-    for (let i = history.length - 1; i >= 0; i--) {
-      const m = history[i];
-      if (m.role === 'assistant' && m.plan) return m.plan;
-    }
-    return null;
   }
 
   // 같은 턴 안에서 edit 도구로 수정된 최신 shadow 를 LLM 에 되돌려준다.

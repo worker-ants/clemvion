@@ -3,11 +3,12 @@ import { ToolDef } from '../../llm/interfaces/llm-client.interface';
 /**
  * LLM에 전달될 function-calling 도구 목록.
  *
- * 세 가지 `kind`가 있다:
+ * `kind` 분류:
  * - **explore**: 읽기 전용. 캔버스에 영향을 주지 않음
- * - **plan**: `propose_plan` 단일 도구. 채팅 UI에만 영향
+ * - **plan**: `propose_plan` / `clear_plan` — 채팅 UI·세션 컨텍스트에만
+ *   영향, shadow workflow 변경 없음
  * - **edit**: shadow 검증 후 프론트 editor-store에 반영
- * - (추가) `finish`: 루프 종료 신호
+ * - **finish**: 루프 종료 신호. 활성 plan 의 미완 여부 guard 대상
  */
 export type AssistantToolKind = 'explore' | 'plan' | 'edit' | 'finish';
 
@@ -19,6 +20,7 @@ export const TOOL_KIND_BY_NAME: Record<string, AssistantToolKind> = {
   get_current_workflow: 'explore',
   list_knowledge_bases: 'explore',
   propose_plan: 'plan',
+  clear_plan: 'plan',
   add_node: 'edit',
   update_node: 'edit',
   remove_node: 'edit',
@@ -27,7 +29,7 @@ export const TOOL_KIND_BY_NAME: Record<string, AssistantToolKind> = {
   finish: 'finish',
 };
 
-export function buildAssistantTools(): ToolDef[] {
+function buildAssistantToolsInternal(): ToolDef[] {
   const position = {
     type: 'object',
     additionalProperties: false,
@@ -174,6 +176,23 @@ export function buildAssistantTools(): ToolDef[] {
         required: ['title', 'summary', 'steps'],
       },
     },
+    {
+      name: 'clear_plan',
+      description:
+        "Clear the active plan tracked across turns. Call this ONLY when the user's request has clearly moved on to unrelated work (topic change) or when you've determined the remaining steps are no longer valid. After this call, the Active plan context block will no longer appear in the system prompt and `finish` will not be blocked by leftover pending steps. If the user merely tweaks the current request, do NOT clear — resume the plan and optionally `propose_plan` again with adjustments.",
+      parameters: {
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          reason: {
+            type: 'string',
+            maxLength: 500,
+            description:
+              'Short sentence explaining why the plan is being cleared (topic change, user abandoned it, etc.). Stored on the assistant tool_calls row as audit trail. Max 500 chars.',
+          },
+        },
+      },
+    },
     // ─── Edit ─────────────────────────────────────────
     {
       name: 'add_node',
@@ -278,4 +297,17 @@ export function buildAssistantTools(): ToolDef[] {
       },
     },
   ];
+}
+
+/**
+ * 런타임에 변하지 않는 도구 정의 목록. 매 턴 재생성 비용을 피하려 모듈
+ * 상수로 한 번만 계산한다. 소비자는 `buildAssistantTools()` 를 호출해도
+ * 같은 배열 참조를 받는다.
+ */
+const ASSISTANT_TOOLS: readonly ToolDef[] = Object.freeze(
+  buildAssistantToolsInternal(),
+);
+
+export function buildAssistantTools(): ToolDef[] {
+  return ASSISTANT_TOOLS as ToolDef[];
 }

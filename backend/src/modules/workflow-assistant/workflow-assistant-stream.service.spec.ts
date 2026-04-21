@@ -1197,6 +1197,174 @@ describe('WorkflowAssistantStreamService', () => {
     ).toBe(true);
   });
 
+  it('allows `finish` after `clear_plan` even when the active plan has pending steps', async () => {
+    // 사용자가 화제를 바꿔 clear_plan 을 부른 뒤의 finish 는 pending step 과
+    // 무관하게 정상 종료되어야 한다.
+    const { service, mocks } = makeService();
+    // history 에 미완 plan 남아있음
+    mocks.sessionService.loadMessages.mockResolvedValue([
+      { role: 'user', content: '이전 요청', toolCalls: null },
+      {
+        role: 'assistant',
+        content: '',
+        toolCalls: [
+          {
+            id: 'p1',
+            name: 'propose_plan',
+            arguments: {},
+            kind: 'plan',
+            result: { ok: true },
+          },
+        ],
+        plan: {
+          title: 'old',
+          summary: '',
+          steps: [
+            { id: 'old_s1', action: 'add_node', description: 'never done' },
+            { id: 'old_s2', action: 'add_node', description: 'never done' },
+          ],
+        },
+      },
+    ]);
+    mocks.llmService.chatStream.mockImplementation(() =>
+      asyncIter<ChatStreamEvent>([
+        {
+          type: 'tool_call_end',
+          id: 'call_clear',
+          name: 'clear_plan',
+          arguments: '{"reason":"user changed topic"}',
+        },
+        {
+          type: 'tool_call_end',
+          id: 'call_add',
+          name: 'add_node',
+          arguments: JSON.stringify({
+            type: 'http_request',
+            label: 'Unrelated',
+            position: { x: 500, y: 300 },
+            config: {},
+          }),
+        },
+        {
+          type: 'tool_call_end',
+          id: 'call_fin',
+          name: 'finish',
+          arguments: '{}',
+        },
+        {
+          type: 'done',
+          usage: { inputTokens: 10, outputTokens: 5, totalTokens: 15 },
+          model: 'gpt-4o',
+          finishReason: 'tool_calls',
+        },
+      ]),
+    );
+
+    const events = await collect(
+      service.streamMessage('sess-1', 'ws-1', 'u-1', {
+        ...baseDto,
+        content: '이제 다른 작업 하자',
+      } as never),
+    );
+    // clear_plan 을 거쳤으므로 PLAN_NOT_COMPLETE block 없이 단일 round 종료.
+    expect(mocks.llmService.chatStream).toHaveBeenCalledTimes(1);
+    const done = events[events.length - 1];
+    expect(done).toMatchObject({
+      event: 'done',
+      data: { finishReason: 'stop' },
+    });
+  });
+
+  it('injects the Active plan context section into the system prompt when a prior plan is still active', async () => {
+    // 프롬프트에 사용자의 원 요청과 step 체크박스가 들어가는지 검증.
+    const { service, mocks } = makeService();
+    mocks.sessionService.loadMessages.mockResolvedValue([
+      { role: 'user', content: '주문 취소 프로세스 추가해줘', toolCalls: null },
+      {
+        role: 'assistant',
+        content: '',
+        toolCalls: [
+          {
+            id: 'p1',
+            name: 'propose_plan',
+            arguments: {},
+            kind: 'plan',
+            result: { ok: true },
+          },
+        ],
+        plan: {
+          title: '주문 취소 플로우',
+          summary: 'HTTP → If/Else',
+          steps: [
+            { id: 's1', action: 'add_node', description: 'HTTP 노드 추가' },
+            { id: 's2', action: 'add_node', description: 'If/Else 노드 추가' },
+          ],
+        },
+      },
+    ]);
+    mocks.llmService.chatStream.mockImplementation(() =>
+      asyncIter<ChatStreamEvent>([
+        { type: 'text_delta', delta: 'ok' },
+        {
+          type: 'done',
+          usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 },
+          model: 'gpt-4o',
+          finishReason: 'stop',
+        },
+      ]),
+    );
+
+    await collect(
+      service.streamMessage('sess-1', 'ws-1', 'u-1', {
+        ...baseDto,
+        content: '계속',
+      } as never),
+    );
+
+    const systemMsg = mocks.llmService.chatStream.mock.calls[0][1].messages[0];
+    expect(systemMsg.role).toBe('system');
+    expect(systemMsg.content).toMatch(/## Active plan context/);
+    expect(systemMsg.content).toMatch(
+      /<user-request>주문 취소 프로세스 추가해줘<\/user-request>/,
+    );
+    expect(systemMsg.content).toMatch(/\[ \] s1 · add_node/);
+    expect(systemMsg.content).toMatch(/\[ \] s2 · add_node/);
+  });
+
+  it('clear_plan does not emit a tool_call SSE event (UI badges stay silent)', async () => {
+    // clear_plan 은 채팅 UI 에 배지로 노출되지 않는다. plan 카드는 다음 턴의
+    // 부재로 자연스럽게 해제된 것으로 인지된다.
+    const { service, mocks } = makeService();
+    mocks.llmService.chatStream.mockImplementation(() =>
+      asyncIter<ChatStreamEvent>([
+        {
+          type: 'tool_call_end',
+          id: 'call_clear',
+          name: 'clear_plan',
+          arguments: '{"reason":"done with this topic"}',
+        },
+        {
+          type: 'done',
+          usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 },
+          model: 'gpt-4o',
+          finishReason: 'tool_calls',
+        },
+      ]),
+    );
+    const events = await collect(
+      service.streamMessage('sess-1', 'ws-1', 'u-1', {
+        ...baseDto,
+        content: '이제 다른 거 하자',
+      } as never),
+    );
+    const toolCallEvents = events.filter((e) => e.event === 'tool_call');
+    expect(
+      toolCallEvents.find(
+        (e) => (e.data as { name: string }).name === 'clear_plan',
+      ),
+    ).toBeUndefined();
+  });
+
   it('returns ASSISTANT_NO_LLM_CONFIG error when config resolution fails', async () => {
     const { service, mocks } = makeService();
     mocks.llmService.resolveConfig.mockRejectedValue(new Error('no config'));

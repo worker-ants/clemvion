@@ -1,22 +1,25 @@
 import { NodeDefinitionView } from '../../../nodes/core/node-component.registry';
 import { ShadowSnapshot } from '../tools/shadow-workflow';
 import { toWorkflowView } from '../tools/workflow-view';
+import type { ActivePlanContext } from '../tools/active-plan-context';
 
 /**
  * Assistant 시스템 프롬프트를 매 호출마다 동적으로 조립한다.
  *
  * 구성:
  *  1) Role + Clarify/Plan/Execute heuristic
- *  2) CONVENTIONS.md Principle 0/1.1/2/8 요약
- *  3) 노드 카탈로그 요약
- *  4) 현재 워크플로우 스냅샷 (nodes/edges 축약)
- *  5) 레이아웃·참조 표기 지침
- *  6) Few-shot 예시 5개 (간단 수정 / 현재 캔버스 조회 / 신규 워크플로우 /
+ *  2) **Active plan context** — 세션 전반의 장기 컨텍스트 (있을 때만)
+ *  3) CONVENTIONS.md Principle 0/1.1/2/8 요약
+ *  4) 노드 카탈로그 요약
+ *  5) 현재 워크플로우 스냅샷 (nodes/edges 축약)
+ *  6) 레이아웃·참조 표기 지침
+ *  7) Few-shot 예시 5개 (간단 수정 / 현재 캔버스 조회 / 신규 워크플로우 /
  *     동적 포트 분기 / 복잡 요청+openQuestions)
  */
 export function buildSystemPrompt(
   nodeDefs: NodeDefinitionView[],
   snapshot: ShadowSnapshot,
+  activePlanContext: ActivePlanContext | null = null,
 ): string {
   const catalog = nodeDefs
     .map((d) => {
@@ -43,6 +46,8 @@ export function buildSystemPrompt(
   // 상태.
   const current = toWorkflowView(snapshot);
 
+  const activePlanSection = renderActivePlanSection(activePlanContext);
+
   return `You are the Workflow AI Assistant embedded in the workflow editor. You help the user build and modify workflows via a chat interface.
 
 ## CRITICAL: How to invoke tools
@@ -64,7 +69,7 @@ Choose the right path for each user turn:
 - Once the user approves (explicit yes or the "Approve" button), run the edit tools in plan order. Tag each edit tool call with the matching \`planStepId\` so the UI can tick off progress.
 - When you are done, call the \`finish\` tool. Do not restate the plan in prose if the plan card is already visible.
 
-## Node output contract (from CONVENTIONS.md)
+${activePlanSection}## Node output contract (from CONVENTIONS.md)
 
 - **Principle 0** — every node returns \`{ config, output, meta?, port?, status? }\`.
 - **Principle 1.1** — \`config\` (user-set literals) and \`output\` (runtime values) stay orthogonal; never echo config into output.
@@ -140,4 +145,124 @@ Assistant:
 - If an edit tool returns ok:false, react to the error code (LABEL_CONFLICT → use the suggested label, NODE_NOT_FOUND → re-check the id or ask the user).
 - If \`finish\` returns ok:false with error=\`PLAN_NOT_COMPLETE\`, the server is signaling that your plan has uncovered steps or unanswered \`openQuestions\`. Inspect \`pendingSteps\` and \`openQuestions\` in the result; execute the missing edits or ask the user the remaining questions, then call \`finish\` again.
 `;
+}
+
+/**
+ * Active plan 이 있으면 프롬프트 최상단 근처에 고정 섹션을 삽입한다. 목표는
+ * LLM 이 매 턴 "사용자의 원 요청 + 지금까지 진행한 step + 남은 할 일 + 미답변
+ * 질문" 을 눈으로 보고 그대로 이어가도록 하는 것. 섹션이 없으면 빈 문자열을
+ * 돌려 템플릿에 아무것도 삽입되지 않는다.
+ */
+function renderActivePlanSection(ctx: ActivePlanContext | null): string {
+  if (!ctx) return '';
+
+  const lines: string[] = [];
+  lines.push('## Active plan context');
+  lines.push('');
+  if (ctx.status === 'completed') {
+    const titleSafe = sanitizeLabel(ctx.plan.title, 120);
+    const requestSafe = ctx.userRequest
+      ? `<user-request>${sanitizeUserText(ctx.userRequest, 200)}</user-request>`
+      : '(unknown request)';
+    lines.push(
+      `Your previous plan "${titleSafe}" for the request ${requestSafe} was completed successfully. Do not re-execute its steps. If the user's new message is related, offer a follow-up plan; otherwise move on.`,
+    );
+    lines.push('');
+    return lines.join('\n') + '\n';
+  }
+
+  // status === 'active'
+  const totalActionable = ctx.plan.steps.filter((s) => s.action !== 'note');
+  const doneCount = totalActionable.filter((s) =>
+    ctx.completedStepIds.has(s.id),
+  ).length;
+  lines.push(
+    'Ongoing work this session — **do NOT abandon or forget this unless the user clearly changes topic**. Resume from the first pending step.',
+  );
+  lines.push('');
+  if (ctx.userRequest) {
+    // 사용자 입력은 XML fence 로 감싸 "지시문" 과 분리한다 (Prompt injection
+    // 방어). 내부에서는 개행/백틱/마크다운 헤더/쿼트/꺾쇠 를 중화하고 200자로
+    // 절단한다.
+    lines.push(
+      `- User request: <user-request>${sanitizeUserText(ctx.userRequest, 200)}</user-request>`,
+    );
+  }
+  lines.push(
+    `- Plan: "${sanitizeLabel(ctx.plan.title, 120)}" — approved: ${ctx.approved ? 'yes ✅' : 'no (awaiting approval)'}`,
+  );
+  if (ctx.plan.summary) {
+    lines.push(`- Summary: ${sanitizeLabel(ctx.plan.summary, 200)}`);
+  }
+  lines.push(
+    `- Progress: ${doneCount} of ${totalActionable.length} actionable steps done`,
+  );
+  for (const s of ctx.plan.steps) {
+    const desc = sanitizeLabel(s.description, 200);
+    if (s.action === 'note') {
+      lines.push(`    • [note] ${desc}`);
+    } else if (ctx.completedStepIds.has(s.id)) {
+      lines.push(`    [x] ${s.id} · ${s.action} — ${desc}`);
+    } else {
+      lines.push(`    [ ] ${s.id} · ${s.action} — ${desc}`);
+    }
+  }
+  const openQuestions = ctx.plan.openQuestions ?? [];
+  if (openQuestions.length > 0) {
+    lines.push('- Open questions (awaiting user answer):');
+    for (const q of openQuestions) {
+      lines.push(`    ? ${sanitizeLabel(q, 200)}`);
+    }
+  }
+  lines.push('');
+  lines.push('RULES:');
+  lines.push(
+    '1. Every turn starts here. Pick up at the first pending step. Do NOT re-execute already-done steps (check `[x]` markers above and `planStepId` history).',
+  );
+  lines.push(
+    "2. If the user's new message is clearly on an unrelated topic (e.g. suddenly asking about an entirely different workflow, or abandoning this work), call `clear_plan({reason})` FIRST, then handle the new request fresh.",
+  );
+  lines.push(
+    '3. If the user is merely refining the same work (tweaking params, changing a label, adding a branch), keep the plan and optionally call `propose_plan` again with the revised step list — the active plan will be replaced, not cleared.',
+  );
+  lines.push(
+    '4. NEVER call `finish` while actionable steps are `[ ]` pending or openQuestions remain — the server will reject it with `PLAN_NOT_COMPLETE`.',
+  );
+  lines.push('');
+  return lines.join('\n') + '\n';
+}
+
+/**
+ * 사용자 자유 입력(userRequest) 을 프롬프트에 삽입할 때의 방어.
+ * LLM 이 사용자 메시지를 "자신의 지시문" 으로 오해할 소지가 있는 구조 문자·
+ * 제어 문자를 중화한다.
+ *  - 개행·연속 공백 → 단일 space
+ *  - 백틱·쿼트 → 단일 쿼트 (프롬프트 내 인용 경계를 깨지 않도록)
+ *  - `<` / `>` → `〈` / `〉` (XML fence 경계 오염 방지)
+ *  - 문두/개행 뒤 `#` → `· ` (마크다운 헤더 중화)
+ *  - 길이 절단 + 말줄임
+ */
+function sanitizeUserText(s: string, maxLen: number): string {
+  const condensed = s.replace(/\s+/g, ' ').trim();
+  const replaced = condensed
+    .replace(/`/g, "'")
+    .replace(/"/g, "'")
+    .replace(/</g, '〈')
+    .replace(/>/g, '〉')
+    .replace(/^#+\s?/, '· ')
+    .replace(/\n#+\s?/g, '\n· ');
+  return truncate(replaced, maxLen);
+}
+
+/**
+ * 시스템이 관리하는 label/summary/description (plan title, step description,
+ * openQuestions 등) 용 약한 순화. 줄바꿈·백틱 중화 + 길이 절단.
+ */
+function sanitizeLabel(s: string, maxLen: number): string {
+  return truncate(s.replace(/\s+/g, ' ').replace(/`/g, "'").trim(), maxLen);
+}
+
+function truncate(s: string, maxLen: number): string {
+  if (s.length <= maxLen) return s;
+  return s.slice(0, Math.max(0, maxLen - 1)) + '…';
 }
