@@ -349,4 +349,71 @@ describe("resolveDynamicPorts — unknown / default fallback", () => {
       expect(ports.length).toBe(17);
     });
   });
+
+  describe("port id deduplication (SSOT invariant)", () => {
+    /**
+     * 동적 포트 배열은 SSOT — 같은 id 가 두 번 나타나면 edge 연결·React key
+     * 양쪽에서 모호해진다. resolver 에서 첫 등장만 유지해 중복을 제거한다.
+     */
+    it("deduplicates switch cases that share an id (keeps first occurrence)", () => {
+      const d = def("switch", [], SWITCH_SPEC);
+      const ports = resolveDynamicPorts(
+        "switch",
+        {
+          cases: [
+            { id: "c1", label: "first" },
+            { id: "c1", label: "duplicate" },
+            { id: "c2", label: "second" },
+          ],
+        },
+        d,
+      );
+      const ids = ports.map((p) => p.id);
+      expect(new Set(ids).size).toBe(ids.length);
+      // 'default' 가 마지막에 붙어도 unique 유지
+      expect(ids.filter((id) => id === "c1").length).toBe(1);
+    });
+
+    it("deduplicates carousel buttons across items / itemButtons / globals", () => {
+      const d = def("carousel", [], CAROUSEL_SPEC);
+      const ports = resolveDynamicPorts(
+        "carousel",
+        {
+          mode: "static",
+          items: [
+            {
+              title: "Card A",
+              buttons: [{ id: "continue", label: "Go", type: "port" }],
+            },
+            {
+              title: "Card B",
+              buttons: [{ id: "continue", label: "Go too", type: "port" }],
+            },
+          ],
+          itemButtons: [{ id: "continue", label: "Shared Go", type: "port" }],
+          buttons: [{ id: "continue", label: "Global Go", type: "port" }],
+        },
+        d,
+      );
+      const ids = ports.map((p) => p.id);
+      expect(new Set(ids).size).toBe(ids.length);
+    });
+
+    it("deduplicates classifier categories whose index-derived id collides with fallback/error", () => {
+      // class_0 와 spec.fallbackId 가 같은 문자열이면 중복 발생 가능.
+      const spec: DynamicPortsSpec = {
+        kind: "classifier-categories",
+        fallbackId: "class_0",
+        errorId: "error",
+      };
+      const d = def("classifier", [], spec);
+      const ports = resolveDynamicPorts(
+        "classifier",
+        { categories: [{ name: "A" }, { name: "B" }] },
+        d,
+      );
+      const ids = ports.map((p) => p.id);
+      expect(new Set(ids).size).toBe(ids.length);
+    });
+  });
 });

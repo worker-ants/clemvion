@@ -251,8 +251,12 @@ function CustomNodeComponent({ id, data, selected }: NodeProps<CustomNodeType>) 
                 (port.type === "system" || port.type === "error");
               const showGlobalDivider = !showSystemDivider && index > 0 && prevGroup && !group;
 
+              // resolveDynamicPorts 가 id 를 dedupe 하지만, 그 전에 port.id
+              // 가 빈 문자열이 넘어오거나 미래의 새 dynamic-ports kind 가
+              // 중복을 허용할 가능성을 대비해 렌더 key 에도 index 를 함께
+              // 포함해 React key warning 이 재발하지 않게 한다.
               return (
-              <div key={port.id}>
+              <div key={`${port.id || "port"}-${index}`}>
                 {showGlobalDivider && (
                   <div className="border-t border-dashed border-[hsl(var(--border))] my-0.5" />
                 )}
@@ -272,7 +276,6 @@ function CustomNodeComponent({ id, data, selected }: NodeProps<CustomNodeType>) 
                     </span>
                   )}
                   <Handle
-                    key={port.id}
                     id={port.id}
                     type="source"
                     position={Position.Right}

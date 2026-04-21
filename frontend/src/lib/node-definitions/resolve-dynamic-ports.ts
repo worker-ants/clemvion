@@ -211,26 +211,48 @@ export function resolveDynamicPorts(
   const spec = definition?.dynamicPorts;
   const staticOutputs = definition?.outputs ?? [];
 
-  if (spec) {
-    switch (spec.kind) {
-      case "switch-cases":
-        return switchPorts(config);
-      case "classifier-categories":
-        return classifierCategoriesPorts(config, spec);
-      case "ai-agent-conditional":
-        return aiAgentConditionalPorts(config, spec);
-      case "info-extractor-mode":
-        return infoExtractorModePorts(config, spec);
-      case "presentation-buttons":
-        return presentationButtonPorts(config, spec, staticOutputs);
-      case "parallel-branches":
-        return parallelBranchPorts(config);
+  const resolved: DynamicPortDefinition[] = (() => {
+    if (spec) {
+      switch (spec.kind) {
+        case "switch-cases":
+          return switchPorts(config);
+        case "classifier-categories":
+          return classifierCategoriesPorts(config, spec);
+        case "ai-agent-conditional":
+          return aiAgentConditionalPorts(config, spec);
+        case "info-extractor-mode":
+          return infoExtractorModePorts(config, spec);
+        case "presentation-buttons":
+          return presentationButtonPorts(config, spec, staticOutputs);
+        case "parallel-branches":
+          return parallelBranchPorts(config);
+      }
     }
-  }
+    return staticOutputs.map((p) => ({
+      id: p.id,
+      label: p.label,
+      type: p.type as DynamicPortType,
+    }));
+  })();
 
-  return staticOutputs.map((p) => ({
-    id: p.id,
-    label: p.label,
-    type: p.type as DynamicPortType,
-  }));
+  // SSOT invariant: port id 는 노드 내 고유해야 한다. 중복이 들어가면
+  //  - edge 연결이 어느 포트에 붙었는지 모호해지고
+  //  - 캔버스 렌더의 React key 가 중복되어 경고·DOM 재사용 오류로 이어진다.
+  // 여러 출처(items × buttons, global buttons, fallback id 등) 에서 port 가
+  // 합쳐질 때 실수로 충돌하는 케이스를 막기 위해 **첫 등장만 유지** 하는
+  // dedupe 를 resolver 단에서 수행한다.
+  return dedupeById(resolved);
+}
+
+function dedupeById(
+  ports: DynamicPortDefinition[],
+): DynamicPortDefinition[] {
+  const seen = new Set<string>();
+  const out: DynamicPortDefinition[] = [];
+  for (const p of ports) {
+    if (!p.id || seen.has(p.id)) continue;
+    seen.add(p.id);
+    out.push(p);
+  }
+  return out;
 }
