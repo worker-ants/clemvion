@@ -84,8 +84,12 @@ function hydrateMessage(msg: AssistantMessageData): AssistantDisplayMessage {
     const doneSteps = new Set<string>();
     // For historical turns we cannot know which edits succeeded later, so we
     // optimistically mark a step 'done' if any tool call references it.
+    // Both planStepId (legacy single) and planStepIds (array) are aggregated.
     for (const tc of toolCalls) {
       if (tc.planStepId) doneSteps.add(tc.planStepId);
+      if (tc.planStepIds) {
+        for (const id of tc.planStepIds) doneSteps.add(id);
+      }
     }
     plan = {
       messageId: msg.id,
@@ -391,6 +395,7 @@ function handleSseEvent(
       kind: event.data.kind,
       result: event.data.result,
       planStepId: event.data.planStepId,
+      planStepIds: event.data.planStepIds,
     };
     // Apply edit tools to the editor store via the shared bridge. Using a
     // registry (not a direct import) keeps the two stores decoupled.
@@ -402,14 +407,19 @@ function handleSseEvent(
       );
     }
     set((s) => {
-      const stepId = event.data.planStepId;
+      // 단일 planStepId (legacy) + planStepIds (array) 모두 수용해 한 edit
+      // 이 여러 step 을 동시에 체크할 수 있게 한다.
+      const stepIds = new Set<string>();
+      if (event.data.planStepId) stepIds.add(event.data.planStepId);
+      if (event.data.planStepIds) {
+        for (const id of event.data.planStepIds) stepIds.add(id);
+      }
       const isEditSuccess =
         event.data.kind === "edit" &&
         ((event.data.result as { ok?: boolean } | null)?.ok ?? false);
       // Find the most recent plan-bearing message to tick off step progress.
-      // Immutable — create new step objects, new plan object, new message.
       let mostRecentPlanIdx = -1;
-      if (stepId && isEditSuccess) {
+      if (stepIds.size > 0 && isEditSuccess) {
         for (let i = s.messages.length - 1; i >= 0; i--) {
           if (s.messages[i].plan) {
             mostRecentPlanIdx = i;
@@ -428,7 +438,7 @@ function handleSseEvent(
               plan: {
                 ...m.plan,
                 steps: m.plan.steps.map((step) =>
-                  step.id === stepId && step.status === "pending"
+                  stepIds.has(step.id) && step.status === "pending"
                     ? { ...step, status: "done" }
                     : step,
                 ),

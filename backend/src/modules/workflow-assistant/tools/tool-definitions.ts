@@ -213,6 +213,12 @@ function buildAssistantToolsInternal(): ToolDef[] {
             additionalProperties: true,
           },
           planStepId: { type: 'string' },
+          planStepIds: {
+            type: 'array',
+            items: { type: 'string' },
+            description:
+              'Plan step ids this call completes. Use when one edit satisfies multiple steps (preferred over planStepId when more than one).',
+          },
         },
         required: ['type', 'label', 'position', 'config'],
       },
@@ -236,6 +242,12 @@ function buildAssistantToolsInternal(): ToolDef[] {
             },
           },
           planStepId: { type: 'string' },
+          planStepIds: {
+            type: 'array',
+            items: { type: 'string' },
+            description:
+              'Plan step ids this call completes. Use when one edit satisfies multiple steps (preferred over planStepId when more than one).',
+          },
         },
         required: ['id', 'patch'],
       },
@@ -249,6 +261,12 @@ function buildAssistantToolsInternal(): ToolDef[] {
         properties: {
           id: { type: 'string' },
           planStepId: { type: 'string' },
+          planStepIds: {
+            type: 'array',
+            items: { type: 'string' },
+            description:
+              'Plan step ids this call completes. Use when one edit satisfies multiple steps (preferred over planStepId when more than one).',
+          },
         },
         required: ['id'],
       },
@@ -266,6 +284,12 @@ function buildAssistantToolsInternal(): ToolDef[] {
           target_port: { type: 'string', default: 'in' },
           type: { type: 'string', enum: ['data', 'error'], default: 'data' },
           planStepId: { type: 'string' },
+          planStepIds: {
+            type: 'array',
+            items: { type: 'string' },
+            description:
+              'Plan step ids this call completes. Use when one edit satisfies multiple steps (preferred over planStepId when more than one).',
+          },
         },
         required: ['source_id', 'target_id'],
       },
@@ -279,6 +303,12 @@ function buildAssistantToolsInternal(): ToolDef[] {
         properties: {
           id: { type: 'string' },
           planStepId: { type: 'string' },
+          planStepIds: {
+            type: 'array',
+            items: { type: 'string' },
+            description:
+              'Plan step ids this call completes. Use when one edit satisfies multiple steps (preferred over planStepId when more than one).',
+          },
         },
         required: ['id'],
       },

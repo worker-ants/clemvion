@@ -296,6 +296,44 @@ describe('findActivePlanContext', () => {
     });
   });
 
+  it('collects completed steps from planStepIds (array) in addition to the legacy planStepId', () => {
+    // 한 tool_call 이 여러 step 을 cover 하는 경우, planStepIds 배열에
+    // 명시된 모든 id 가 완료 처리되어야 한다.
+    const plan = samplePlan({
+      steps: [
+        { id: 's1', action: 'add_node', description: 'a' },
+        { id: 's2', action: 'note', description: 'note-only' },
+        {
+          id: 's3',
+          action: 'update_node',
+          description: 'subsumed by s1 config',
+        },
+      ],
+    });
+    const history = [
+      userMsg('시작'),
+      assistantMsg({ plan }),
+      assistantMsg({
+        toolCalls: [
+          {
+            id: 'call-merge',
+            name: 'add_node',
+            arguments: {},
+            kind: 'edit',
+            // s1 이 기본 cover, s3 는 config 주입으로 함께 cover 되었음을 표현
+            planStepIds: ['s1', 's3'],
+            result: { ok: true, id: 'n1' },
+          },
+        ],
+      }),
+    ];
+    const ctx = findActivePlanContext(history, null, [], '계속');
+    expect(ctx!.completedStepIds.has('s1')).toBe(true);
+    expect(ctx!.completedStepIds.has('s3')).toBe(true);
+    // note 는 s_* 중 s2 이므로 guard 계산에서는 제외. completed 로 간주
+    expect(ctx!.status).toBe('completed');
+  });
+
   it('does not count failed tool calls as completed steps', () => {
     const plan = samplePlan({
       steps: [
