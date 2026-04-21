@@ -88,27 +88,37 @@
 
 ---
 
-## 4. 워크스페이스 관리 화면 (Admin 이상)
+## 4. 워크스페이스 관리 화면 (멤버 공통 · 권한에 따라 탭·액션 제한)
+
+`/workspace/settings` 한 페이지가 세 개의 탭(개요 · 멤버 · 위험 영역)으로 구성된다. 페이지 헤더에는 현재 워크스페이스의 타입 아이콘(개인=👤, 팀=👥)과 이름, 한 줄 설명이 표시되어 "지금 무엇을 관리하는지"를 즉시 알 수 있다.
 
 ```
 ┌──────────────────────────────────────────────────────────────┐
-│  Workspace: Team Alpha                                       │
+│  👥 Team Alpha                                               │
+│  멤버와 함께 협업하는 공간이에요                              │
 │                                                              │
-│  ── General ──                                               │
-│  Name:      [Team Alpha_______]                              │
-│  Slug:      team-alpha                                       │
-│  Timezone:  [Asia/Seoul ▼]                                   │
+│  [개요]  [멤버]  [위험 영역]                                 │
+│  ────────────────────────────────────────────────────────── │
 │                                                              │
-│  ── Members ──                                [+ Invite]     │
-│  ┌──────────────────────────────────────────────────────────┐│
-│  │ Gehrig Kim      gehrig@...     Owner           ⋮       ││
-│  │ Jane Doe        jane@...       Admin           ⋮       ││
-│  │ Bob Smith       bob@...        Editor          ⋮       ││
-│  │ Alice Lee       alice@...      Viewer          ⋮       ││
-│  └──────────────────────────────────────────────────────────┘│
+│  ── 개요 탭 ──                                                │
+│  Name:  [Team Alpha_______]          (Admin+: 편집 가능)     │
+│  Slug:  team-alpha                   (읽기 전용)             │
+│  Type:  [팀 워크스페이스]            Role:  [Owner]           │
 │                                                              │
-│  ── Danger Zone ──                                           │
-│  [Delete Workspace]                                          │
+│  ── 멤버 탭 (팀 워크스페이스 전용) ──                         │
+│  🟣 Owner 모든 권한 · 🔵 Admin 멤버 관리                     │
+│  🟢 Editor 워크플로 편집 · ⚪ Viewer 읽기만                  │
+│  ┌─────────────────────────────────────────────────────────┐│
+│  │ 멤버 초대하기: [email@...] [Role ▼] [초대]              ││
+│  │ 대기 중인 초대: new@... (Editor, 만료 2026-05-01)  [취소]││
+│  │ 현재 멤버:                                              ││
+│  │ Gehrig  gehrig@...  Owner                               ││
+│  │ Jane    jane@...    [Admin ▼]                  [🗑]    ││
+│  └─────────────────────────────────────────────────────────┘│
+│                                                              │
+│  ── 위험 영역 탭 ──                                           │
+│  [워크스페이스 나가기]   (owner가 아닌 모든 멤버)             │
+│  [워크스페이스 삭제]     (owner만, 이름 재입력 확인 필수)     │
 └──────────────────────────────────────────────────────────────┘
 ```
 
@@ -116,10 +126,12 @@
 
 | 액션 | 권한 | 설명 |
 |------|------|------|
-| 초대 | Admin+ | 이메일로 초대. 역할 선택 |
-| 역할 변경 | Admin+ (Owner만 Admin 부여 가능) | 드롭다운으로 역할 변경 |
+| 초대 | Admin+ | 이메일로 초대 토큰 발송. 수신자는 수락 페이지에서 합류 |
+| 초대 취소 | Admin+ | 대기 중인 초대 토큰 폐기 |
+| 역할 변경 | Admin+ (Owner 역할 부여/박탈은 별도 양도 흐름) | 드롭다운으로 역할 변경 |
 | 제거 | Admin+ | 멤버 제거 (확인 다이얼로그) |
-| 워크스페이스 삭제 | Owner | 모든 데이터 삭제 경고 후 확인 |
+| 나가기 | 본인 | 자가 탈퇴. 유일한 owner는 차단 — 먼저 다른 owner를 지정하거나 삭제로 이동 |
+| 워크스페이스 삭제 | Owner | 이름 재입력 확인 → 멤버·초대·워크스페이스 순으로 트랜잭션 삭제 |
 
 ### 4.2 역할 권한 매트릭스
 
@@ -200,13 +212,18 @@
 | GET | /api/users/me/sessions | 활성 세션 목록 |
 | DELETE | /api/users/me/sessions/:id | 세션 강제 종료 |
 | GET | /api/workspaces | 내 워크스페이스 목록 |
-| POST | /api/workspaces | 워크스페이스 생성 |
-| PATCH | /api/workspaces/:id | 워크스페이스 수정 |
-| DELETE | /api/workspaces/:id | 워크스페이스 삭제 |
+| POST | /api/workspaces | 팀 워크스페이스 생성 (요청자가 owner) |
+| PATCH | /api/workspaces/:id | 워크스페이스 이름 변경 (Admin+) |
+| DELETE | /api/workspaces/:id | 워크스페이스 삭제 (Owner, team 전용, 트랜잭션) |
+| POST | /api/workspaces/:id/leave | 자가 탈퇴 (본인, 유일한 owner는 차단) |
 | GET | /api/workspaces/:id/members | 멤버 목록 |
-| POST | /api/workspaces/:id/members/invite | 멤버 초대 |
-| PATCH | /api/workspaces/:id/members/:memberId | 역할 변경 |
-| DELETE | /api/workspaces/:id/members/:memberId | 멤버 제거 |
+| POST | /api/workspaces/:id/members | 이메일로 기존 가입자 즉시 추가 (Admin+) |
+| PATCH | /api/workspaces/:id/members/:memberId | 역할 변경 (Admin+) |
+| DELETE | /api/workspaces/:id/members/:memberId | 멤버 제거 (Admin+ / 자가 탈퇴 시 leave로 위임) |
+| GET | /api/workspaces/:id/invitations | 대기 중인 초대 목록 (Admin+) |
+| POST | /api/workspaces/:id/invitations | 미가입자 초대 토큰 발송 (Admin+) |
+| DELETE | /api/workspaces/:id/invitations/:invitationId | 초대 취소 (Admin+) |
+| POST | /api/workspaces/invitations/accept | 초대 수락 (본인 이메일과 매칭되는 토큰) |
 
 ### 6.2 알림 API
 

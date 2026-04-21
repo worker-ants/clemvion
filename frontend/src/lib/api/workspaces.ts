@@ -19,6 +19,19 @@ export const workspacesApi = {
     const { data } = await apiClient.post("/workspaces", { name });
     return data.data;
   },
+  update: async (
+    workspaceId: string,
+    patch: { name?: string },
+  ): Promise<WorkspaceSummary> => {
+    const { data } = await apiClient.patch(`/workspaces/${workspaceId}`, patch);
+    return data.data;
+  },
+  delete: async (workspaceId: string): Promise<void> => {
+    await apiClient.delete(`/workspaces/${workspaceId}`);
+  },
+  leave: async (workspaceId: string): Promise<void> => {
+    await apiClient.post(`/workspaces/${workspaceId}/leave`);
+  },
   listMembers: async (
     workspaceId: string,
   ): Promise<WorkspaceMemberSummary[]> => {

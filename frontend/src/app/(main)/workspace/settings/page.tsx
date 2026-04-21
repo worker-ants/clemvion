@@ -3,23 +3,67 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Loader2, Trash2, UserPlus } from "lucide-react";
+import {
+  Loader2,
+  Trash2,
+  UserPlus,
+  User as UserIcon,
+  Users,
+  LogOut,
+  AlertTriangle,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import {
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from "@/components/ui/tabs";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { RoleLegend } from "@/components/workspace/role-legend";
 import { useWorkspaceStore } from "@/lib/stores/workspace-store";
 import type { WorkspaceRole } from "@/lib/stores/workspace-store";
 import {
   workspacesApi,
+  type WorkspaceInvitationSummary,
   type WorkspaceMemberSummary,
 } from "@/lib/api/workspaces";
 import { useT } from "@/lib/i18n";
+import { roleLabelKey } from "@/lib/utils/workspace";
 
 const ROLE_OPTIONS: WorkspaceRole[] = ["admin", "editor", "viewer"];
 
 function isAdmin(role: WorkspaceRole | undefined): boolean {
   return role === "owner" || role === "admin";
+}
+
+/** Parse Nest-style error envelope: err.response.data.{code,message} | .error.{code,message}. */
+function parseApiError(err: unknown): { code?: string; message?: string } {
+  const e = err as {
+    response?: {
+      data?: {
+        code?: string;
+        message?: string;
+        error?: { code?: string; message?: string };
+      };
+    };
+  };
+  const data = e?.response?.data;
+  return {
+    code: data?.code ?? data?.error?.code,
+    message: data?.message ?? data?.error?.message,
+  };
 }
 
 export default function WorkspaceSettingsPage() {
@@ -32,17 +76,8 @@ export default function WorkspaceSettingsPage() {
 
   const currentWorkspace = workspaces.find((w) => w.id === currentWorkspaceId);
   const adminMode = isAdmin(currentWorkspace?.role);
-
-  const [newTeamName, setNewTeamName] = useState("");
-  const [memberEmail, setMemberEmail] = useState("");
-  const [memberRole, setMemberRole] = useState<WorkspaceRole>("editor");
-
-  const membersQuery = useQuery<WorkspaceMemberSummary[]>({
-    queryKey: ["workspace-members", currentWorkspaceId],
-    queryFn: () => workspacesApi.listMembers(currentWorkspaceId!),
-    enabled:
-      !!currentWorkspaceId && currentWorkspace?.type === "team",
-  });
+  const isOwner = currentWorkspace?.role === "owner";
+  const isTeam = currentWorkspace?.type === "team";
 
   const refreshWorkspaces = async () => {
     const list = await workspacesApi.list();
@@ -50,33 +85,254 @@ export default function WorkspaceSettingsPage() {
     queryClient.invalidateQueries({ queryKey: ["workspaces", "list"] });
   };
 
-  const createTeamMutation = useMutation({
-    mutationFn: (name: string) => workspacesApi.createTeam(name),
-    onSuccess: async (created) => {
-      toast.success(t("workspace.createSuccess", { name: created.name }));
-      setNewTeamName("");
-      await refreshWorkspaces();
-      switchWorkspace(created.id);
+  if (!currentWorkspace) {
+    return (
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-3xl font-bold">{t("workspace.pageTitle")}</h1>
+          <p className="mt-1 text-sm text-[hsl(var(--muted-foreground))]">
+            {t("workspace.noCurrentWorkspace")}
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  const TypeIcon = isTeam ? Users : UserIcon;
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-start gap-3">
+        <span className="mt-1 flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-[hsl(var(--primary))]/10 text-[hsl(var(--primary))]">
+          <TypeIcon className="h-5 w-5" />
+        </span>
+        <div>
+          <h1 className="text-2xl font-bold leading-tight">
+            {currentWorkspace.name}
+          </h1>
+          <p className="text-sm text-[hsl(var(--muted-foreground))]">
+            {isTeam
+              ? t("workspace.typeDescriptionTeam")
+              : t("workspace.typeDescriptionPersonal")}
+          </p>
+        </div>
+      </div>
+
+      <Tabs defaultValue="overview" className="w-full">
+        <TabsList>
+          <TabsTrigger value="overview">
+            {t("workspace.tabOverview")}
+          </TabsTrigger>
+          {isTeam && (
+            <TabsTrigger value="members">
+              {t("workspace.tabMembers")}
+            </TabsTrigger>
+          )}
+          <TabsTrigger value="danger">{t("workspace.tabDanger")}</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="overview">
+          <OverviewTab
+            key={currentWorkspace.id}
+            workspace={currentWorkspace}
+            canEdit={adminMode}
+            onRenamed={refreshWorkspaces}
+          />
+        </TabsContent>
+
+        {isTeam && (
+          <TabsContent value="members">
+            <MembersTab
+              workspaceId={currentWorkspace.id}
+              adminMode={adminMode}
+            />
+          </TabsContent>
+        )}
+
+        <TabsContent value="danger">
+          <DangerZoneTab
+            workspaceId={currentWorkspace.id}
+            workspaceName={currentWorkspace.name}
+            isTeam={isTeam}
+            isOwner={isOwner}
+            onAfterMutation={async (opts) => {
+              await refreshWorkspaces();
+              if (opts.switchAway) {
+                const list = await workspacesApi.list();
+                const first = list[0];
+                if (first) switchWorkspace(first.id);
+              }
+            }}
+          />
+        </TabsContent>
+      </Tabs>
+    </div>
+  );
+}
+
+interface OverviewTabProps {
+  workspace: {
+    id: string;
+    name: string;
+    slug: string;
+    type: "personal" | "team";
+    role: WorkspaceRole;
+  };
+  canEdit: boolean;
+  onRenamed: () => Promise<void>;
+}
+
+function OverviewTab({ workspace, canEdit, onRenamed }: OverviewTabProps) {
+  const t = useT();
+  const [name, setName] = useState(workspace.name);
+
+  const renameMutation = useMutation({
+    mutationFn: (value: string) =>
+      workspacesApi.update(workspace.id, { name: value }),
+    onSuccess: async () => {
+      toast.success(t("workspace.renamed"));
+      await onRenamed();
     },
     onError: (err: unknown) => {
-      const msg = err instanceof Error ? err.message : t("workspace.createGenericFailed");
+      const parsed = parseApiError(err);
+      toast.error(parsed.message ?? t("workspace.renameFailed"));
+    },
+  });
+
+  const submit = (e: React.FormEvent) => {
+    e.preventDefault();
+    const trimmed = name.trim();
+    if (trimmed.length < 2) {
+      toast.error(t("workspace.nameTooShort"));
+      return;
+    }
+    if (trimmed === workspace.name) return;
+    renameMutation.mutate(trimmed);
+  };
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-base font-semibold">
+          {t("workspace.overviewCardTitle")}
+        </CardTitle>
+      </CardHeader>
+      <CardContent>
+        <form onSubmit={submit} className="space-y-4">
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="space-y-1.5">
+              <Label htmlFor="ws-name">{t("workspace.overviewName")}</Label>
+              <Input
+                id="ws-name"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                disabled={!canEdit}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label>{t("workspace.overviewSlug")}</Label>
+              <Input value={workspace.slug} disabled readOnly />
+            </div>
+            <div className="space-y-1.5">
+              <Label>{t("workspace.overviewType")}</Label>
+              <div>
+                <Badge variant="outline">
+                  {workspace.type === "team"
+                    ? t("workspace.team")
+                    : t("workspace.personal")}
+                </Badge>
+              </div>
+            </div>
+            <div className="space-y-1.5">
+              <Label>{t("workspace.overviewRole")}</Label>
+              <div>
+                <Badge variant="outline">
+                  {t(roleLabelKey(workspace.role))}
+                </Badge>
+              </div>
+            </div>
+          </div>
+          {canEdit && (
+            <div className="flex justify-end">
+              <Button
+                type="submit"
+                disabled={
+                  renameMutation.isPending ||
+                  name.trim() === workspace.name ||
+                  name.trim().length < 2
+                }
+              >
+                {renameMutation.isPending && (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                )}
+                {t("workspace.saveNameBtn")}
+              </Button>
+            </div>
+          )}
+        </form>
+      </CardContent>
+    </Card>
+  );
+}
+
+interface MembersTabProps {
+  workspaceId: string;
+  adminMode: boolean;
+}
+
+function MembersTab({ workspaceId, adminMode }: MembersTabProps) {
+  const t = useT();
+  const queryClient = useQueryClient();
+  const [inviteEmail, setInviteEmail] = useState("");
+  const [inviteRole, setInviteRole] = useState<WorkspaceRole>("editor");
+
+  const membersQuery = useQuery<WorkspaceMemberSummary[]>({
+    queryKey: ["workspace-members", workspaceId],
+    queryFn: () => workspacesApi.listMembers(workspaceId),
+  });
+
+  const invitationsQuery = useQuery<WorkspaceInvitationSummary[]>({
+    queryKey: ["workspaces", "invitations", workspaceId],
+    queryFn: () => workspacesApi.listInvitations(workspaceId),
+    enabled: adminMode,
+  });
+
+  const inviteMutation = useMutation({
+    mutationFn: () =>
+      workspacesApi.invite(
+        workspaceId,
+        inviteEmail,
+        inviteRole as Exclude<WorkspaceRole, "owner">,
+      ),
+    onSuccess: () => {
+      toast.success(t("workspace.memberInvited"));
+      setInviteEmail("");
+      setInviteRole("editor");
+      queryClient.invalidateQueries({
+        queryKey: ["workspaces", "invitations", workspaceId],
+      });
+    },
+    onError: (err: unknown) => {
+      const msg =
+        err instanceof Error ? err.message : t("workspace.inviteFailed");
       toast.error(msg);
     },
   });
 
-  const addMemberMutation = useMutation({
-    mutationFn: () =>
-      workspacesApi.addMember(currentWorkspaceId!, memberEmail, memberRole),
+  const revokeMutation = useMutation({
+    mutationFn: (invitationId: string) =>
+      workspacesApi.revokeInvitation(workspaceId, invitationId),
     onSuccess: () => {
-      toast.success(t("workspace.memberAdded"));
-      setMemberEmail("");
-      setMemberRole("editor");
+      toast.success(t("workspace.inviteCancelled"));
       queryClient.invalidateQueries({
-        queryKey: ["workspace-members", currentWorkspaceId],
+        queryKey: ["workspaces", "invitations", workspaceId],
       });
     },
     onError: (err: unknown) => {
-      const msg = err instanceof Error ? err.message : t("workspace.addFailed");
+      const msg =
+        err instanceof Error
+          ? err.message
+          : t("workspace.cancelInviteFailed");
       toast.error(msg);
     },
   });
@@ -88,219 +344,435 @@ export default function WorkspaceSettingsPage() {
     }: {
       memberId: string;
       role: WorkspaceRole;
-    }) =>
-      workspacesApi.updateMemberRole(currentWorkspaceId!, memberId, role),
+    }) => workspacesApi.updateMemberRole(workspaceId, memberId, role),
     onSuccess: () => {
       toast.success(t("workspace.roleUpdated"));
       queryClient.invalidateQueries({
-        queryKey: ["workspace-members", currentWorkspaceId],
+        queryKey: ["workspace-members", workspaceId],
       });
     },
     onError: (err: unknown) => {
-      const msg = err instanceof Error ? err.message : t("workspace.roleUpdateFailedShort");
+      const msg =
+        err instanceof Error
+          ? err.message
+          : t("workspace.roleUpdateFailedShort");
       toast.error(msg);
     },
   });
 
   const removeMemberMutation = useMutation({
     mutationFn: (memberId: string) =>
-      workspacesApi.removeMember(currentWorkspaceId!, memberId),
+      workspacesApi.removeMember(workspaceId, memberId),
     onSuccess: () => {
       toast.success(t("workspace.memberRemoved"));
       queryClient.invalidateQueries({
-        queryKey: ["workspace-members", currentWorkspaceId],
+        queryKey: ["workspace-members", workspaceId],
       });
     },
     onError: (err: unknown) => {
-      const msg = err instanceof Error ? err.message : t("workspace.removeFailedShort");
+      const msg =
+        err instanceof Error ? err.message : t("workspace.removeFailedShort");
       toast.error(msg);
     },
   });
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold">{t("workspace.pageTitle")}</h1>
-        <p className="mt-1 text-sm text-[hsl(var(--muted-foreground))]">
-          {t("workspace.pageDescription")}
-        </p>
-      </div>
+    <div className="space-y-4">
+      <RoleLegend />
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base font-semibold">{t("workspace.currentCardTitle")}</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {currentWorkspace ? (
-            <div className="space-y-1 text-sm">
-              <div className="flex items-center gap-2">
-                <span className="font-medium">{currentWorkspace.name}</span>
-                <Badge variant="outline">{currentWorkspace.type}</Badge>
-                <Badge variant="outline">{currentWorkspace.role}</Badge>
-              </div>
-              <p className="text-xs text-[hsl(var(--muted-foreground))]">
-                slug: {currentWorkspace.slug}
-              </p>
-            </div>
-          ) : (
-            <p className="text-sm text-[hsl(var(--muted-foreground))]">
-              {t("workspace.noCurrentWorkspace")}
-            </p>
-          )}
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base font-semibold">{t("workspace.createTeamCardTitle")}</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <form
-            className="flex flex-col gap-2 sm:flex-row sm:items-center"
-            onSubmit={(e) => {
-              e.preventDefault();
-              if (newTeamName.trim().length < 2) {
-                toast.error(t("workspace.nameTooShort"));
-                return;
-              }
-              createTeamMutation.mutate(newTeamName.trim());
-            }}
-          >
-            <Input
-              value={newTeamName}
-              onChange={(e) => setNewTeamName(e.target.value)}
-              placeholder={t("workspace.createPlaceholder")}
-              className="sm:max-w-xs"
-            />
-            <Button type="submit" disabled={createTeamMutation.isPending}>
-              {createTeamMutation.isPending ? (
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              ) : null}
-              {t("workspace.createBtn")}
-            </Button>
-          </form>
-        </CardContent>
-      </Card>
-
-      {currentWorkspace?.type === "team" && (
+      {adminMode && (
         <Card>
           <CardHeader>
-            <CardTitle className="text-base font-semibold">{t("workspace.membersCardTitle")}</CardTitle>
+            <CardTitle className="text-base font-semibold">
+              {t("workspace.invite")}
+            </CardTitle>
           </CardHeader>
-          <CardContent className="space-y-4">
-            {adminMode && (
-              <form
-                className="flex flex-col gap-2 sm:flex-row sm:items-center"
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  if (!memberEmail.trim()) return;
-                  addMemberMutation.mutate();
-                }}
-              >
+          <CardContent>
+            <form
+              className="flex flex-col gap-2 sm:flex-row sm:items-end"
+              onSubmit={(e) => {
+                e.preventDefault();
+                if (!inviteEmail.trim()) return;
+                inviteMutation.mutate();
+              }}
+            >
+              <div className="flex-1 space-y-1.5">
+                <Label htmlFor="invite-email">
+                  {t("workspace.inviteEmail")}
+                </Label>
                 <Input
+                  id="invite-email"
                   type="email"
-                  value={memberEmail}
-                  onChange={(e) => setMemberEmail(e.target.value)}
+                  value={inviteEmail}
+                  onChange={(e) => setInviteEmail(e.target.value)}
                   placeholder={t("workspace.memberEmailPlaceholder")}
-                  className="sm:max-w-xs"
                 />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="invite-role">{t("workspace.inviteRole")}</Label>
                 <select
-                  value={memberRole}
+                  id="invite-role"
+                  value={inviteRole}
                   onChange={(e) =>
-                    setMemberRole(e.target.value as WorkspaceRole)
+                    setInviteRole(e.target.value as WorkspaceRole)
                   }
                   className="h-9 rounded-md border border-[hsl(var(--input))] bg-transparent px-2 text-sm"
                 >
                   {ROLE_OPTIONS.map((r) => (
                     <option key={r} value={r}>
-                      {r}
+                      {t(roleLabelKey(r))}
                     </option>
                   ))}
                 </select>
-                <Button
-                  type="submit"
-                  disabled={addMemberMutation.isPending}
-                  variant="outline"
-                >
+              </div>
+              <Button type="submit" disabled={inviteMutation.isPending}>
+                {inviteMutation.isPending ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
                   <UserPlus className="mr-2 h-4 w-4" />
-                  {t("workspace.addButton")}
-                </Button>
-              </form>
-            )}
+                )}
+                {t("workspace.inviteButton")}
+              </Button>
+            </form>
+          </CardContent>
+        </Card>
+      )}
 
-            {membersQuery.isLoading ? (
-              <div className="flex h-24 items-center justify-center">
+      {adminMode && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base font-semibold">
+              {t("workspace.invitePending")}
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {invitationsQuery.isLoading ? (
+              <div className="flex h-16 items-center justify-center">
                 <Loader2 className="h-5 w-5 animate-spin text-[hsl(var(--muted-foreground))]" />
               </div>
-            ) : !membersQuery.data?.length ? (
+            ) : !invitationsQuery.data?.length ? (
               <p className="text-sm text-[hsl(var(--muted-foreground))]">
-                {t("workspace.noMembers")}
+                {t("workspace.noPendingInvites")}
               </p>
             ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b border-[hsl(var(--border))]">
-                      <th className="py-2 pr-4 text-left font-medium text-[hsl(var(--muted-foreground))]">{t("workspace.columnName")}</th>
-                      <th className="py-2 pr-4 text-left font-medium text-[hsl(var(--muted-foreground))]">{t("workspace.columnEmail")}</th>
-                      <th className="py-2 pr-4 text-left font-medium text-[hsl(var(--muted-foreground))]">{t("workspace.columnRole")}</th>
-                      <th className="py-2 text-right font-medium text-[hsl(var(--muted-foreground))]"></th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {membersQuery.data.map((m) => (
-                      <tr
-                        key={m.id}
-                        className="border-b border-[hsl(var(--border))] last:border-b-0"
-                      >
-                        <td className="py-2 pr-4">{m.name}</td>
-                        <td className="py-2 pr-4 text-[hsl(var(--muted-foreground))]">
-                          {m.email}
-                        </td>
-                        <td className="py-2 pr-4">
-                          {adminMode && m.role !== "owner" ? (
-                            <select
-                              value={m.role}
-                              onChange={(e) =>
-                                updateRoleMutation.mutate({
-                                  memberId: m.id,
-                                  role: e.target.value as WorkspaceRole,
-                                })
-                              }
-                              className="h-8 rounded-md border border-[hsl(var(--input))] bg-transparent px-2 text-xs"
-                            >
-                              {ROLE_OPTIONS.map((r) => (
-                                <option key={r} value={r}>
-                                  {r}
-                                </option>
-                              ))}
-                            </select>
-                          ) : (
-                            <Badge variant="outline">{m.role}</Badge>
-                          )}
-                        </td>
-                        <td className="py-2 text-right">
-                          {adminMode && m.role !== "owner" && (
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-8 w-8"
-                              onClick={() => removeMemberMutation.mutate(m.id)}
-                              title={t("workspace.removeTooltip")}
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          )}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+              <ul className="divide-y divide-[hsl(var(--border))]">
+                {invitationsQuery.data.map((inv) => (
+                  <li
+                    key={inv.id}
+                    className="flex items-center justify-between gap-3 py-2 text-sm"
+                  >
+                    <div className="flex min-w-0 flex-col">
+                      <span className="truncate font-medium">{inv.email}</span>
+                      <span className="text-xs text-[hsl(var(--muted-foreground))]">
+                        <Badge variant="outline" className="mr-2">
+                          {t(roleLabelKey(inv.role))}
+                        </Badge>
+                        {t("workspace.inviteExpiresAt", {
+                          date: new Date(inv.expiresAt).toLocaleString(),
+                        })}
+                      </span>
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => revokeMutation.mutate(inv.id)}
+                    >
+                      {t("workspace.inviteRevoke")}
+                    </Button>
+                  </li>
+                ))}
+              </ul>
             )}
           </CardContent>
         </Card>
       )}
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base font-semibold">
+            {t("workspace.acceptedMembersTitle")}
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {membersQuery.isLoading ? (
+            <div className="flex h-24 items-center justify-center">
+              <Loader2 className="h-5 w-5 animate-spin text-[hsl(var(--muted-foreground))]" />
+            </div>
+          ) : !membersQuery.data?.length ? (
+            <p className="text-sm text-[hsl(var(--muted-foreground))]">
+              {t("workspace.noMembers")}
+            </p>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-[hsl(var(--border))]">
+                    <th className="py-2 pr-4 text-left font-medium text-[hsl(var(--muted-foreground))]">
+                      {t("workspace.columnName")}
+                    </th>
+                    <th className="py-2 pr-4 text-left font-medium text-[hsl(var(--muted-foreground))]">
+                      {t("workspace.columnEmail")}
+                    </th>
+                    <th className="py-2 pr-4 text-left font-medium text-[hsl(var(--muted-foreground))]">
+                      {t("workspace.columnRole")}
+                    </th>
+                    <th className="py-2 text-right font-medium text-[hsl(var(--muted-foreground))]"></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {membersQuery.data.map((m) => (
+                    <tr
+                      key={m.id}
+                      className="border-b border-[hsl(var(--border))] last:border-b-0"
+                    >
+                      <td className="py-2 pr-4">{m.name}</td>
+                      <td className="py-2 pr-4 text-[hsl(var(--muted-foreground))]">
+                        {m.email}
+                      </td>
+                      <td className="py-2 pr-4">
+                        {adminMode && m.role !== "owner" ? (
+                          <select
+                            value={m.role}
+                            onChange={(e) =>
+                              updateRoleMutation.mutate({
+                                memberId: m.id,
+                                role: e.target.value as WorkspaceRole,
+                              })
+                            }
+                            className="h-8 rounded-md border border-[hsl(var(--input))] bg-transparent px-2 text-xs"
+                          >
+                            {ROLE_OPTIONS.map((r) => (
+                              <option key={r} value={r}>
+                                {t(roleLabelKey(r))}
+                              </option>
+                            ))}
+                          </select>
+                        ) : (
+                          <Badge variant="outline">
+                            {t(roleLabelKey(m.role))}
+                          </Badge>
+                        )}
+                      </td>
+                      <td className="py-2 text-right">
+                        {adminMode && m.role !== "owner" && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8"
+                            onClick={() =>
+                              removeMemberMutation.mutate(m.id)
+                            }
+                            title={t("workspace.removeTooltip")}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+interface DangerZoneTabProps {
+  workspaceId: string;
+  workspaceName: string;
+  isTeam: boolean;
+  isOwner: boolean;
+  onAfterMutation: (opts: { switchAway: boolean }) => Promise<void>;
+}
+
+function DangerZoneTab({
+  workspaceId,
+  workspaceName,
+  isTeam,
+  isOwner,
+  onAfterMutation,
+}: DangerZoneTabProps) {
+  const t = useT();
+  const [leaveDialogOpen, setLeaveDialogOpen] = useState(false);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [confirmInput, setConfirmInput] = useState("");
+
+  const leaveMutation = useMutation({
+    mutationFn: () => workspacesApi.leave(workspaceId),
+    onSuccess: async () => {
+      toast.success(t("workspace.left"));
+      setLeaveDialogOpen(false);
+      await onAfterMutation({ switchAway: true });
+    },
+    onError: (err: unknown) => {
+      const parsed = parseApiError(err);
+      if (parsed.code === "SOLE_OWNER_CANNOT_LEAVE") {
+        toast.error(t("workspace.dangerLeaveOnlyOwner"));
+        return;
+      }
+      toast.error(parsed.message ?? t("workspace.leaveFailed"));
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: () => workspacesApi.delete(workspaceId),
+    onSuccess: async () => {
+      toast.success(t("workspace.deleted"));
+      setDeleteDialogOpen(false);
+      setConfirmInput("");
+      await onAfterMutation({ switchAway: true });
+    },
+    onError: (err: unknown) => {
+      const parsed = parseApiError(err);
+      toast.error(parsed.message ?? t("workspace.deleteFailed"));
+    },
+  });
+
+  const canLeave = isTeam && !isOwner;
+
+  return (
+    <div className="space-y-4">
+      {canLeave && (
+        <Card className="border-[hsl(var(--border))]">
+          <CardContent className="flex flex-col gap-3 pt-6 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-start gap-3">
+              <LogOut className="mt-0.5 h-5 w-5 shrink-0 text-[hsl(var(--muted-foreground))]" />
+              <div>
+                <p className="font-semibold">
+                  {t("workspace.dangerLeaveTitle")}
+                </p>
+                <p className="text-sm text-[hsl(var(--muted-foreground))]">
+                  {t("workspace.dangerLeaveDesc")}
+                </p>
+              </div>
+            </div>
+            <Button
+              variant="outline"
+              onClick={() => setLeaveDialogOpen(true)}
+              className="shrink-0"
+            >
+              {t("workspace.dangerLeaveBtn")}
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+
+      {isTeam && isOwner && (
+        <Card className="border-[hsl(var(--destructive))]/40">
+          <CardContent className="flex flex-col gap-3 pt-6 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-start gap-3">
+              <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-[hsl(var(--destructive))]" />
+              <div>
+                <p className="font-semibold">
+                  {t("workspace.dangerDeleteTitle")}
+                </p>
+                <p className="text-sm text-[hsl(var(--muted-foreground))]">
+                  {t("workspace.dangerDeleteDesc")}
+                </p>
+              </div>
+            </div>
+            <Button
+              variant="outline"
+              onClick={() => setDeleteDialogOpen(true)}
+              className="shrink-0 border-[hsl(var(--destructive))]/40 text-[hsl(var(--destructive))] hover:bg-[hsl(var(--destructive))]/10"
+            >
+              {t("workspace.dangerDeleteBtn")}
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+
+      {!isTeam && (
+        <p className="text-sm text-[hsl(var(--muted-foreground))]">
+          {t("workspace.typeDescriptionPersonal")}
+        </p>
+      )}
+
+      <Dialog open={leaveDialogOpen} onOpenChange={setLeaveDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{t("workspace.dangerLeaveTitle")}</DialogTitle>
+            <DialogDescription>{t("workspace.leaveConfirm")}</DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setLeaveDialogOpen(false)}
+            >
+              {t("common.cancel")}
+            </Button>
+            <Button
+              onClick={() => leaveMutation.mutate()}
+              disabled={leaveMutation.isPending}
+            >
+              {leaveMutation.isPending && (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              )}
+              {t("workspace.dangerLeaveBtn")}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={deleteDialogOpen}
+        onOpenChange={(open) => {
+          setDeleteDialogOpen(open);
+          if (!open) setConfirmInput("");
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{t("workspace.dangerDeleteTitle")}</DialogTitle>
+            <DialogDescription>
+              {t("workspace.dangerDeleteDesc")}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-1.5">
+            <Label htmlFor="delete-confirm">
+              {t("workspace.deleteConfirmPromptLabel", {
+                name: workspaceName,
+              })}
+            </Label>
+            <Input
+              id="delete-confirm"
+              value={confirmInput}
+              onChange={(e) => setConfirmInput(e.target.value)}
+              autoComplete="off"
+            />
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setDeleteDialogOpen(false)}
+            >
+              {t("common.cancel")}
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => {
+                if (confirmInput !== workspaceName) {
+                  toast.error(t("workspace.confirmMismatch"));
+                  return;
+                }
+                deleteMutation.mutate();
+              }}
+              disabled={
+                deleteMutation.isPending || confirmInput !== workspaceName
+              }
+              className="border-[hsl(var(--destructive))]/40 text-[hsl(var(--destructive))] hover:bg-[hsl(var(--destructive))]/10"
+            >
+              {deleteMutation.isPending && (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              )}
+              {t("workspace.dangerDeleteBtn")}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
