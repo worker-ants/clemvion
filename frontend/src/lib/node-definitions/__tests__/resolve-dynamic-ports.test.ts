@@ -350,6 +350,77 @@ describe("resolveDynamicPorts — unknown / default fallback", () => {
     });
   });
 
+  describe("button id fallback for presentation nodes", () => {
+    /**
+     * Carousel schema 의 button.id 가 optional 이라 LLM 이 id 없이 버튼을
+     * 생성하는 케이스가 실제로 발생한다. 이때 dedupeById 가 id 없는 포트를
+     * 전부 필터링하면 캔버스에서 outport 가 사라지므로, resolver 가
+     * 경로 기반의 deterministic fallback id 를 부여해 최소한의 포트를
+     * 제공한다.
+     */
+    it("assigns deterministic fallback ids to item buttons that omit id", () => {
+      const d = def("carousel", [], CAROUSEL_SPEC);
+      const ports = resolveDynamicPorts(
+        "carousel",
+        {
+          mode: "static",
+          items: [
+            {
+              title: "AI",
+              buttons: [{ label: "Agent", type: "port" }, { label: "Router", type: "port" }],
+            },
+            {
+              title: "Logic",
+              buttons: [{ label: "Switch", type: "port" }],
+            },
+          ],
+        },
+        d,
+      );
+      expect(ports.length).toBe(3);
+      expect(ports.map((p) => p.id)).toEqual([
+        "items_0_btn_0",
+        "items_0_btn_1",
+        "items_1_btn_0",
+      ]);
+      expect(ports.every((p) => p.id.length > 0)).toBe(true);
+    });
+
+    it("preserves explicit button ids when present, fills in only missing ones", () => {
+      const d = def("carousel", [], CAROUSEL_SPEC);
+      const ports = resolveDynamicPorts(
+        "carousel",
+        {
+          mode: "static",
+          items: [
+            {
+              title: "Cat",
+              buttons: [
+                { id: "btn_a", label: "A", type: "port" },
+                { label: "B", type: "port" },
+              ],
+            },
+          ],
+        },
+        d,
+      );
+      expect(ports.map((p) => p.id)).toEqual(["btn_a", "items_0_btn_1"]);
+    });
+
+    it("applies fallback ids to itemButtons and global buttons as well", () => {
+      const d = def("carousel", [], CAROUSEL_SPEC);
+      const ports = resolveDynamicPorts(
+        "carousel",
+        {
+          itemButtons: [{ label: "IB", type: "port" }],
+          buttons: [{ label: "G", type: "port" }],
+        },
+        d,
+      );
+      expect(ports.map((p) => p.id)).toEqual(["itemBtn_0", "btn_0"]);
+    });
+  });
+
   describe("port id deduplication (SSOT invariant)", () => {
     /**
      * 동적 포트 배열은 SSOT — 같은 id 가 두 번 나타나면 edge 연결·React key
