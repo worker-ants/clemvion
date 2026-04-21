@@ -319,6 +319,459 @@ describe('ShadowWorkflow', () => {
       expect(result.ok).toBe(false);
       expect(result.error).toBe('CYCLE_DETECTED');
     });
+
+    describe('container loopback (iteration control)', () => {
+      /**
+       * 컨테이너 (Loop/Foreach/Map 등) 내부 자식에서 자기 (또는 조상) 컨테이너
+       * 의 emit 포트로 되돌아가는 에지는 실행 엔진이 `back-edge` 로 해석하는
+       * 의도된 반복 로직이므로 Shadow 도 cycle 로 차단하지 않는다.
+       */
+      it('allows a child → its direct container edge (basic Loop)', () => {
+        const sw = new ShadowWorkflow(
+          {
+            nodes: [
+              TRIGGER_NODE,
+              {
+                id: 'loop',
+                type: 'loop',
+                category: 'logic',
+                label: 'Loop',
+                positionX: 0,
+                positionY: 0,
+                config: {},
+              },
+              {
+                id: 'child',
+                type: 'http_request',
+                category: 'integration',
+                label: 'Inner',
+                positionX: 0,
+                positionY: 0,
+                config: {},
+                containerId: 'loop',
+              },
+            ],
+            edges: [
+              {
+                id: 'e1',
+                sourceNodeId: 'loop',
+                sourcePort: 'body',
+                targetNodeId: 'child',
+                targetPort: 'in',
+                type: 'data',
+              },
+            ],
+          },
+          new Set(['loop', 'http_request']),
+        );
+        const result = sw.apply({
+          name: 'add_edge',
+          arguments: {
+            source_id: 'child',
+            source_port: 'out',
+            target_id: 'loop',
+            target_port: 'emit',
+          },
+        });
+        expect(result.ok).toBe(true);
+      });
+
+      it('allows nested children to loop back to an ancestor container', () => {
+        // Foreach > Loop > child → outer Foreach 로 점프 (조상 체인)
+        const sw = new ShadowWorkflow(
+          {
+            nodes: [
+              TRIGGER_NODE,
+              {
+                id: 'outer',
+                type: 'foreach',
+                category: 'logic',
+                label: 'Outer',
+                positionX: 0,
+                positionY: 0,
+                config: {},
+              },
+              {
+                id: 'inner',
+                type: 'loop',
+                category: 'logic',
+                label: 'Inner',
+                positionX: 0,
+                positionY: 0,
+                config: {},
+                containerId: 'outer',
+              },
+              {
+                id: 'grandchild',
+                type: 'http_request',
+                category: 'integration',
+                label: 'GC',
+                positionX: 0,
+                positionY: 0,
+                config: {},
+                containerId: 'inner',
+              },
+            ],
+            edges: [],
+          },
+          new Set(['foreach', 'loop', 'http_request']),
+        );
+        const result = sw.apply({
+          name: 'add_edge',
+          arguments: {
+            source_id: 'grandchild',
+            source_port: 'out',
+            target_id: 'outer',
+            target_port: 'emit',
+          },
+        });
+        expect(result.ok).toBe(true);
+      });
+
+      it('still rejects an edge from a child to an unrelated (non-ancestor) container', () => {
+        const sw = new ShadowWorkflow(
+          {
+            nodes: [
+              TRIGGER_NODE,
+              {
+                id: 'loopA',
+                type: 'loop',
+                category: 'logic',
+                label: 'A',
+                positionX: 0,
+                positionY: 0,
+                config: {},
+              },
+              {
+                id: 'loopB',
+                type: 'loop',
+                category: 'logic',
+                label: 'B',
+                positionX: 0,
+                positionY: 0,
+                config: {},
+              },
+              {
+                id: 'childA',
+                type: 'http_request',
+                category: 'integration',
+                label: 'CA',
+                positionX: 0,
+                positionY: 0,
+                config: {},
+                containerId: 'loopA',
+              },
+            ],
+            // cycle 을 형성하려면:
+            //   loopA.body → childA (container → child 명시)
+            //   loopB.out  → loopA.in (pre-existing)
+            //   childA.out → loopB.emit (이번에 추가 시도)
+            // = loopA → childA → loopB → loopA 회로.
+            // childA 의 조상은 loopA 뿐이라 loopB 는 예외 대상이 아님 →
+            // cycle 판정이 유지되어야 한다.
+            edges: [
+              {
+                id: 'pre1',
+                sourceNodeId: 'loopA',
+                sourcePort: 'body',
+                targetNodeId: 'childA',
+                targetPort: 'in',
+                type: 'data',
+              },
+              {
+                id: 'pre2',
+                sourceNodeId: 'loopB',
+                sourcePort: 'out',
+                targetNodeId: 'loopA',
+                targetPort: 'in',
+                type: 'data',
+              },
+            ],
+          },
+          new Set(['loop', 'http_request']),
+        );
+        const result = sw.apply({
+          name: 'add_edge',
+          arguments: {
+            source_id: 'childA',
+            source_port: 'out',
+            target_id: 'loopB', // loopA 의 조상이 아님
+            target_port: 'emit',
+          },
+        });
+        expect(result.ok).toBe(false);
+        expect(result.error).toBe('CYCLE_DETECTED');
+      });
+
+      it('rejects a child → container edge with non-emit target port', () => {
+        // 포트 한정: `emit` 이 아닌 입력(`in` 등) 으로 돌아오는 에지는
+        // iteration back-edge 의 의도가 아니라 일반 cycle 이므로 차단.
+        const sw = new ShadowWorkflow(
+          {
+            nodes: [
+              TRIGGER_NODE,
+              {
+                id: 'loop',
+                type: 'loop',
+                category: 'logic',
+                label: 'Loop',
+                positionX: 0,
+                positionY: 0,
+                config: {},
+              },
+              {
+                id: 'child',
+                type: 'http_request',
+                category: 'integration',
+                label: 'Inner',
+                positionX: 0,
+                positionY: 0,
+                config: {},
+                containerId: 'loop',
+              },
+            ],
+            edges: [
+              {
+                id: 'e1',
+                sourceNodeId: 'loop',
+                sourcePort: 'body',
+                targetNodeId: 'child',
+                targetPort: 'in',
+                type: 'data',
+              },
+            ],
+          },
+          new Set(['loop', 'http_request']),
+        );
+        const result = sw.apply({
+          name: 'add_edge',
+          arguments: {
+            source_id: 'child',
+            source_port: 'out',
+            target_id: 'loop',
+            target_port: 'in', // not emit
+          },
+        });
+        expect(result.ok).toBe(false);
+        expect(result.error).toBe('CYCLE_DETECTED');
+      });
+
+      it('keeps an existing loopback edge out of the reachability graph', () => {
+        // wouldCreateCycle 의 DFS skip 로직 직접 검증: 이미 child → loop.emit
+        // back-edge 가 있는 상태에서 "외부 노드 → loop" 에지를 새로 추가하면
+        // 허용되어야 한다. skip 이 없으면 외부→loop→body→child→emit→loop 을
+        // 따라가 loop 에 도달할 수 있어 오판 가능 (단 실제로는 loop 로 돌아가
+        // 도 source 인 외부 노드는 도달하지 않음). 본 테스트는 skip 로직이
+        // 정상 적용되는지 최소한으로 고정.
+        const sw = new ShadowWorkflow(
+          {
+            nodes: [
+              TRIGGER_NODE,
+              {
+                id: 'loop',
+                type: 'loop',
+                category: 'logic',
+                label: 'Loop',
+                positionX: 0,
+                positionY: 0,
+                config: {},
+              },
+              {
+                id: 'child',
+                type: 'http_request',
+                category: 'integration',
+                label: 'Inner',
+                positionX: 0,
+                positionY: 0,
+                config: {},
+                containerId: 'loop',
+              },
+              {
+                id: 'ext',
+                type: 'http_request',
+                category: 'integration',
+                label: 'Ext',
+                positionX: 0,
+                positionY: 0,
+                config: {},
+              },
+            ],
+            edges: [
+              {
+                id: 'body',
+                sourceNodeId: 'loop',
+                sourcePort: 'body',
+                targetNodeId: 'child',
+                targetPort: 'in',
+                type: 'data',
+              },
+              {
+                id: 'loopback',
+                sourceNodeId: 'child',
+                sourcePort: 'out',
+                targetNodeId: 'loop',
+                targetPort: 'emit',
+                type: 'data',
+              },
+            ],
+          },
+          new Set(['loop', 'http_request']),
+        );
+        const result = sw.apply({
+          name: 'add_edge',
+          arguments: {
+            source_id: 'ext',
+            source_port: 'out',
+            target_id: 'loop',
+            target_port: 'in',
+          },
+        });
+        expect(result.ok).toBe(true);
+        expect(sw.snapshot().edges).toHaveLength(3);
+      });
+
+      it('tolerates corrupted containerId chains (A.container = B, B.container = A)', () => {
+        const sw = new ShadowWorkflow(
+          {
+            nodes: [
+              TRIGGER_NODE,
+              {
+                id: 'A',
+                type: 'loop',
+                category: 'logic',
+                label: 'A',
+                positionX: 0,
+                positionY: 0,
+                config: {},
+                containerId: 'B',
+              },
+              {
+                id: 'B',
+                type: 'loop',
+                category: 'logic',
+                label: 'B',
+                positionX: 0,
+                positionY: 0,
+                config: {},
+                containerId: 'A',
+              },
+              {
+                id: 'X',
+                type: 'http_request',
+                category: 'integration',
+                label: 'X',
+                positionX: 0,
+                positionY: 0,
+                config: {},
+              },
+            ],
+            edges: [],
+          },
+          new Set(['loop', 'http_request']),
+        );
+        // 손상된 체인을 따라가도 무한 루프 없이 종료되고 통상 cycle 검사가
+        // 수행되어야 한다 (X → A 같은 안전한 에지는 허용).
+        const result = sw.apply({
+          name: 'add_edge',
+          arguments: { source_id: 'X', target_id: 'A' },
+        });
+        expect(result.ok).toBe(true);
+      });
+
+      it('records the loopback edge in the snapshot with correct ports', () => {
+        const sw = new ShadowWorkflow(
+          {
+            nodes: [
+              TRIGGER_NODE,
+              {
+                id: 'loop',
+                type: 'loop',
+                category: 'logic',
+                label: 'Loop',
+                positionX: 0,
+                positionY: 0,
+                config: {},
+              },
+              {
+                id: 'child',
+                type: 'http_request',
+                category: 'integration',
+                label: 'Inner',
+                positionX: 0,
+                positionY: 0,
+                config: {},
+                containerId: 'loop',
+              },
+            ],
+            edges: [],
+          },
+          new Set(['loop', 'http_request']),
+        );
+        const result = sw.apply({
+          name: 'add_edge',
+          arguments: {
+            source_id: 'child',
+            source_port: 'out',
+            target_id: 'loop',
+            target_port: 'emit',
+          },
+        });
+        expect(result.ok).toBe(true);
+        const edges = sw.snapshot().edges;
+        expect(edges).toHaveLength(1);
+        expect(edges[0]).toMatchObject({
+          sourceNodeId: 'child',
+          sourcePort: 'out',
+          targetNodeId: 'loop',
+          targetPort: 'emit',
+        });
+      });
+
+      it('still rejects genuine cycles among top-level nodes (regression)', () => {
+        const sw = new ShadowWorkflow(
+          {
+            nodes: [
+              TRIGGER_NODE,
+              {
+                id: 'A',
+                type: 'http_request',
+                category: 'integration',
+                label: 'A',
+                positionX: 0,
+                positionY: 0,
+                config: {},
+              },
+              {
+                id: 'B',
+                type: 'http_request',
+                category: 'integration',
+                label: 'B',
+                positionX: 0,
+                positionY: 0,
+                config: {},
+              },
+            ],
+            edges: [
+              {
+                id: 'e1',
+                sourceNodeId: 'A',
+                sourcePort: 'out',
+                targetNodeId: 'B',
+                targetPort: 'in',
+                type: 'data',
+              },
+            ],
+          },
+          new Set(['http_request']),
+        );
+        const result = sw.apply({
+          name: 'add_edge',
+          arguments: { source_id: 'B', target_id: 'A' },
+        });
+        expect(result.ok).toBe(false);
+        expect(result.error).toBe('CYCLE_DETECTED');
+      });
+    });
   });
 
   describe('remove_edge', () => {

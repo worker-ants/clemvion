@@ -71,6 +71,18 @@ export interface ShadowResult {
 }
 
 const MANUAL_TRIGGER = 'manual_trigger';
+
+/**
+ * cycle 검사에서 예외로 허용할 container input 포트. `emit` 은 Loop·Foreach·
+ * Map 등 컨테이너가 자식 노드의 iteration back-edge 를 받기 위해 선언하는
+ * 입력 포트 (nodes/logic/loop/loop.schema.ts 참고). 다른 포트(`in` 등) 로
+ * 돌아오는 에지는 정상 iteration 이 아니라 실수·악의적 조작 가능성이 있으니
+ * 기존 cycle 판정을 유지한다.
+ */
+const CONTAINER_LOOPBACK_PORTS: ReadonlySet<string> = new Set(['emit']);
+
+/** containerId 체인 순회 상한 — 데이터 손상 방어용. */
+const MAX_CONTAINER_DEPTH = 64;
 const DEFAULT_CATEGORY_BY_KNOWN_TYPES: Record<string, string> = {
   manual_trigger: 'trigger',
 };
@@ -252,7 +264,14 @@ export class ShadowWorkflow {
     if (!this.nodes.has(sourceId) || !this.nodes.has(targetId)) {
       return { ok: false, error: 'NODE_NOT_FOUND' };
     }
-    if (this.wouldCreateCycle(sourceId, targetId)) {
+    // 자식 → 조상 컨테이너의 `emit` 포트로 돌아가는 에지는 실행 엔진이
+    // iteration back-edge 로 해석하는 정상 반복 제어 흐름 (spec §4.4).
+    // 이 에지가 전체 그래프에서 만들 수 있는 "간접 cycle" 도 wouldCreateCycle
+    // 이 내부에서 일관되게 제외 처리한다 (동일 술어 재사용).
+    if (
+      !this.shouldBypassCycleCheck(sourceId, targetId, targetPort) &&
+      this.wouldCreateCycle(sourceId, targetId)
+    ) {
       return { ok: false, error: 'CYCLE_DETECTED' };
     }
     const id = randomUUID();
@@ -315,8 +334,11 @@ export class ShadowWorkflow {
   }
 
   private wouldCreateCycle(sourceId: string, targetId: string): boolean {
-    // Check if targetId can reach sourceId via existing edges → adding
-    // source → target would close the cycle.
+    // targetId 에서 출발해 기존 에지들을 따라 sourceId 에 도달 가능한지
+    // 검사. 도달 가능하면 `source → target` 추가 시 cycle 이 닫힌다.
+    // iteration back-edge (자식 → 조상 컨테이너 emit) 는 O(V×E) 재평가를
+    // 피하기 위해 미리 한 번에 계산해 제외한다.
+    const bypassEdgeIds = this.collectBypassableEdgeIds();
     const visited = new Set<string>();
     const stack = [targetId];
     while (stack.length) {
@@ -325,8 +347,80 @@ export class ShadowWorkflow {
       if (visited.has(cur)) continue;
       visited.add(cur);
       for (const edge of this.edges.values()) {
-        if (edge.sourceNodeId === cur) stack.push(edge.targetNodeId);
+        if (edge.sourceNodeId !== cur) continue;
+        if (bypassEdgeIds.has(edge.id)) continue;
+        stack.push(edge.targetNodeId);
       }
+    }
+    return false;
+  }
+
+  /**
+   * 기존 에지 중 "자식 → 조상 컨테이너의 iteration 포트" 형태인 것들의
+   * id 를 모은다. DFS 순회에서는 이 집합에 속한 에지를 건너뛰어 false
+   * positive 를 제거한다. cycle 판정이 자주 호출되는 hot path 가 아니므로
+   * 매 호출마다 O(E × depth) 한 번 계산해도 비용이 작지만, 동일 술어를
+   * pre-filter 로 풀어 DFS 내부의 재계산 폭주를 막는다.
+   */
+  private collectBypassableEdgeIds(): Set<string> {
+    const ids = new Set<string>();
+    for (const edge of this.edges.values()) {
+      if (
+        this.shouldBypassCycleCheck(
+          edge.sourceNodeId,
+          edge.targetNodeId,
+          edge.targetPort,
+        )
+      ) {
+        ids.add(edge.id);
+      }
+    }
+    return ids;
+  }
+
+  /**
+   * 단일 술어 — `addEdge` 의 사전 검사와 `wouldCreateCycle` 의 DFS 내부
+   * skip 판정을 한 곳에서 일관되게 다룬다. 조건: source 노드의 조상
+   * `containerId` 체인에 target 이 포함되어 있고, target 포트가 허용
+   * 포트(`emit`) 중 하나.
+   *
+   * @param sourceId  에지의 시작 노드 id
+   * @param targetId  에지의 끝 노드 id (컨테이너일 것으로 기대)
+   * @param targetPort 컨테이너 측 입력 포트 id
+   * @returns cycle 검사를 건너뛰어야 하면 true
+   */
+  private shouldBypassCycleCheck(
+    sourceId: string,
+    targetId: string,
+    targetPort: string,
+  ): boolean {
+    if (!CONTAINER_LOOPBACK_PORTS.has(targetPort)) return false;
+    return this.isAncestorContainer(sourceId, targetId);
+  }
+
+  /**
+   * `descendantId` 노드의 containerId 체인을 타고 올라가면서
+   * `candidateAncestorId` 를 찾는다. 데이터가 손상되어 체인이 스스로
+   * 순환하는 케이스를 방어하기 위해 visited Set 과 절대 상한
+   * (`MAX_CONTAINER_DEPTH`) 을 둔다.
+   *
+   * @param descendantId         자식 후보 노드 id
+   * @param candidateAncestorId  조상 후보 노드 id
+   * @returns `descendantId` 의 조상 체인에 `candidateAncestorId` 가 있으면 true
+   */
+  private isAncestorContainer(
+    descendantId: string,
+    candidateAncestorId: string,
+  ): boolean {
+    const visited = new Set<string>();
+    let current = this.nodes.get(descendantId)?.containerId ?? null;
+    let depth = 0;
+    while (current && depth < MAX_CONTAINER_DEPTH) {
+      if (current === candidateAncestorId) return true;
+      if (visited.has(current)) return false;
+      visited.add(current);
+      current = this.nodes.get(current)?.containerId ?? null;
+      depth++;
     }
     return false;
   }

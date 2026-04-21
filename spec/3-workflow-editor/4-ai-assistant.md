@@ -226,7 +226,7 @@ interface Step {
 | `add_edge`의 source·target이 존재해야 함 | `{ok: false, error: 'NODE_NOT_FOUND'}` |
 | Trigger 노드는 컨테이너 child가 될 수 없음 | `{ok: false, error: 'CONTAINER_INVALID_CHILD'}` |
 | Manual Trigger 노드는 삭제 불가 | `{ok: false, error: 'MANUAL_TRIGGER_PROTECTED'}` |
-| 순환(cycle) 유발 | `{ok: false, error: 'CYCLE_DETECTED'}` |
+| 순환(cycle) 유발 | `{ok: false, error: 'CYCLE_DETECTED'}`. 단, **source 노드의 조상 `containerId` 체인 중 하나와 target 이 일치**하고 **target 포트가 `emit`** 인 경우(=자식 → 자기·조상 컨테이너의 iteration back-edge) 는 정상 반복 제어 흐름으로 간주해 허용한다. 실행 엔진이 containerId 기반으로 컨테이너 내부 그래프를 분리해 처리하는 것과 의미 정합. `emit` 이 아닌 target 포트로 돌아오는 에지(예: `target_port: 'in'`)는 iteration 의도가 아니라 실수·비의도 조작으로 간주해 통상 cycle 판정을 유지 |
 | 같은 턴에 `propose_plan` 호출 이후 edit tool 시도 (plan-only turn 강제) | `{ok: false, error: 'PLAN_AWAITING_APPROVAL', message}` — LLM 은 한국어 메시지로 턴 종료하고 사용자 approve 대기 |
 
 실패 시 LLM은 tool_result를 받아 재시도하거나 사용자에게 상황을 보고한다.
