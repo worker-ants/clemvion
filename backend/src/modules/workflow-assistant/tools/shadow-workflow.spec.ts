@@ -73,11 +73,9 @@ describe('ShadowWorkflow', () => {
     });
 
     it('infers category from registry', () => {
-      const sw = new ShadowWorkflow(
-        baseSnapshot(),
-        new Set(['http_request']),
-        { http_request: 'integration' },
-      );
+      const sw = new ShadowWorkflow(baseSnapshot(), new Set(['http_request']), {
+        http_request: 'integration',
+      });
       const result = sw.apply({
         name: 'add_node',
         arguments: {

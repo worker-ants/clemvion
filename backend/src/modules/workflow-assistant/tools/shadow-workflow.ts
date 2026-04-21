@@ -157,13 +157,14 @@ export class ShadowWorkflow {
 
   private updateNode(args: Record<string, unknown>): ShadowResult {
     const id = typeof args.id === 'string' ? args.id : '';
-    const patch = (args.patch as
-      | {
-          label?: string;
-          config?: Record<string, unknown>;
-          position?: { x?: number; y?: number };
-        }
-      | undefined) ?? {};
+    const patch =
+      (args.patch as
+        | {
+            label?: string;
+            config?: Record<string, unknown>;
+            position?: { x?: number; y?: number };
+          }
+        | undefined) ?? {};
     const node = this.nodes.get(id);
     if (!node) return { ok: false, error: 'NODE_NOT_FOUND' };
 
@@ -182,8 +183,10 @@ export class ShadowWorkflow {
       node.config = { ...node.config, ...patch.config };
     }
     if (patch.position) {
-      if (patch.position.x !== undefined) node.positionX = Number(patch.position.x);
-      if (patch.position.y !== undefined) node.positionY = Number(patch.position.y);
+      if (patch.position.x !== undefined)
+        node.positionX = Number(patch.position.x);
+      if (patch.position.y !== undefined)
+        node.positionY = Number(patch.position.y);
     }
     this.nodes.set(id, node);
     return { ok: true, id };
@@ -228,8 +231,7 @@ export class ShadowWorkflow {
       (typeof args.target_port === 'string' ? args.target_port : undefined) ??
       (typeof args.targetPort === 'string' ? args.targetPort : undefined) ??
       'in';
-    const edgeType: 'data' | 'error' =
-      args.type === 'error' ? 'error' : 'data';
+    const edgeType: 'data' | 'error' = args.type === 'error' ? 'error' : 'data';
 
     if (!sourceId || !targetId) {
       return { ok: false, error: 'INVALID_ARGUMENTS' };

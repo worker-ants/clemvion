@@ -13,7 +13,7 @@ const REDACTED = '[REDACTED]';
 export function redactConfig<T>(value: T): T {
   if (value == null) return value;
   if (Array.isArray(value)) {
-    return value.map((v) => redactConfig(v)) as unknown as T;
+    return (value as unknown[]).map((v) => redactConfig(v)) as unknown as T;
   }
   if (typeof value === 'object') {
     const out: Record<string, unknown> = {};

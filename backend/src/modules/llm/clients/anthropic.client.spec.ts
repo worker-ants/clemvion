@@ -44,7 +44,11 @@ describe('AnthropicClient.stream', () => {
           usage: { input_tokens: 12 },
         },
       },
-      { type: 'content_block_start', index: 0, content_block: { type: 'text' } },
+      {
+        type: 'content_block_start',
+        index: 0,
+        content_block: { type: 'text' },
+      },
       {
         type: 'content_block_delta',
         index: 0,

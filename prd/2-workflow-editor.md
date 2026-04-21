@@ -167,7 +167,7 @@
 | ED-AI-06 | 패널 상단에서 워크스페이스 LLM Config 선택 가능 | 필수 |
 | ED-AI-07 | 선택 없으면 워크스페이스 default LLM Config 자동 사용 | 필수 |
 | ED-AI-08 | LLM Config도 default도 없으면 안내 메시지 + 설정 화면 딥링크 | 필수 |
-| ED-AI-09 | v1 스트리밍 지원: OpenAI, Anthropic. 미지원 provider 선택 시 명시적 에러 | 필수 |
+| ED-AI-09 | v1 스트리밍 지원: OpenAI, Anthropic, Google. 미지원 provider 선택 시 명시적 에러 | 필수 |
 
 ### 10.3 대화 루프 (Clarify / Plan / Execute)
 

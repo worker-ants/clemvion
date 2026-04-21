@@ -1,14 +1,8 @@
-import {
-  BadRequestException,
-  Injectable,
-  Logger,
-} from '@nestjs/common';
+import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
 import { LlmService } from '../llm/llm.service';
-import {
-  ChatMessage,
-  ChatStreamEvent,
-} from '../llm/interfaces/llm-client.interface';
+import { ChatMessage } from '../llm/interfaces/llm-client.interface';
+import { LlmConfig } from '../llm-config/entities/llm-config.entity';
 import { NodeComponentRegistry } from '../../nodes/core/node-component.registry';
 import { WorkflowAssistantSessionService } from './workflow-assistant-session.service';
 import { ExploreToolsService } from './tools/explore-tools.service';
@@ -107,8 +101,9 @@ export class WorkflowAssistantStreamService {
       userId,
     );
 
-    const configIdOverride = dto.llmConfigId ?? session.llmConfigId ?? undefined;
-    let llmConfig;
+    const configIdOverride =
+      dto.llmConfigId ?? session.llmConfigId ?? undefined;
+    let llmConfig: LlmConfig;
     try {
       llmConfig = await this.llmService.resolveConfig(
         configIdOverride,
@@ -143,7 +138,8 @@ export class WorkflowAssistantStreamService {
     });
     if (!session.title) {
       const derived = dto.content.trim().slice(0, 40);
-      if (derived) await this.sessionService.setTitleIfEmpty(sessionId, derived);
+      if (derived)
+        await this.sessionService.setTitleIfEmpty(sessionId, derived);
     }
 
     // LLM messages 조립
@@ -154,7 +150,7 @@ export class WorkflowAssistantStreamService {
     const recentHistory = history.slice(-MAX_HISTORY_TURNS * 3);
     const messages: ChatMessage[] = [
       { role: 'system', content: systemPrompt },
-      ...recentHistory.map(toChatMessage).filter((m): m is ChatMessage => !!m),
+      ...recentHistory.flatMap(toChatMessages),
       { role: 'user', content: dto.content },
     ];
     const tools = buildAssistantTools();
@@ -260,6 +256,9 @@ export class WorkflowAssistantStreamService {
                 typeof parsed.planStepId === 'string'
                   ? parsed.planStepId
                   : undefined,
+              // Gemini thought_signature 등 provider opaque 서명. 다음 턴
+              // history에서 동일 tool 호출에 반드시 echo 되어야 하므로 persist.
+              ...(ev.signature ? { signature: ev.signature } : {}),
             });
             if (kind === 'edit' || kind === 'explore') {
               yield {
@@ -332,10 +331,20 @@ export class WorkflowAssistantStreamService {
               id: found.id,
               name: found.name,
               arguments: JSON.stringify(found.arguments),
+              // 같은 턴 내 다음 round에서 Gemini 2.5+/3.x가 요구하는
+              // thought_signature를 echo하기 위해 포함.
+              ...(found.signature ? { signature: found.signature } : {}),
             };
           })
-          .filter((v): v is { id: string; name: string; arguments: string } =>
-            v !== null,
+          .filter(
+            (
+              v,
+            ): v is {
+              id: string;
+              name: string;
+              arguments: string;
+              signature?: string;
+            } => v !== null,
           );
         messages.push({
           role: 'assistant',
@@ -401,7 +410,7 @@ export class WorkflowAssistantStreamService {
   ): Promise<unknown> {
     switch (name) {
       case 'get_node_schema':
-        return this.exploreTools.getNodeSchema(String(args.type ?? ''));
+        return this.exploreTools.getNodeSchema(asString(args.type, ''));
       case 'list_integrations':
         return this.exploreTools.listIntegrations(
           workspaceId,
@@ -409,15 +418,14 @@ export class WorkflowAssistantStreamService {
         );
       case 'list_workflows':
         return this.exploreTools.listWorkflows(workspaceId, {
-          search:
-            typeof args.search === 'string' ? args.search : undefined,
+          search: typeof args.search === 'string' ? args.search : undefined,
           limit: typeof args.limit === 'number' ? args.limit : undefined,
           excludeId: currentWorkflowId,
         });
       case 'get_workflow':
         return this.exploreTools.getWorkflow(
           workspaceId,
-          String(args.id ?? ''),
+          asString(args.id, ''),
           args.mode === 'full' ? 'full' : 'summary',
         );
       case 'list_knowledge_bases':
@@ -427,18 +435,21 @@ export class WorkflowAssistantStreamService {
     }
   }
 
-  private buildPlanFromArgs(args: Record<string, unknown>): AssistantPlanRecord {
+  private buildPlanFromArgs(
+    args: Record<string, unknown>,
+  ): AssistantPlanRecord {
     const steps = Array.isArray(args.steps) ? args.steps : [];
     return {
-      title: String(args.title ?? 'Plan'),
-      summary: String(args.summary ?? ''),
+      title: asString(args.title, 'Plan'),
+      summary: asString(args.summary, ''),
       steps: steps.map((s) => {
         const step = s as Record<string, unknown>;
         return {
-          id: String(step.id ?? randomUUID()),
-          action: (step.action as AssistantPlanRecord['steps'][number]['action']) ??
+          id: asString(step.id, randomUUID()),
+          action:
+            (step.action as AssistantPlanRecord['steps'][number]['action']) ??
             'note',
-          description: String(step.description ?? ''),
+          description: asString(step.description, ''),
           rationale:
             typeof step.rationale === 'string' ? step.rationale : undefined,
         };
@@ -470,7 +481,7 @@ export class WorkflowAssistantStreamService {
         sourcePort: e.sourcePort ?? 'out',
         targetNodeId: e.targetNodeId,
         targetPort: e.targetPort ?? 'in',
-        type: (e.type ?? 'data') as 'data' | 'error',
+        type: e.type ?? 'data',
       })),
     };
   }
@@ -490,40 +501,86 @@ export class WorkflowAssistantStreamService {
   }
 }
 
-function toChatMessage(
+// 저장된 assistant 메시지 하나는 실제로는 여러 LLM 라운드(도구 호출 → 결과
+// 수신 → 최종 텍스트 응답)가 합쳐진 것이다. 다음 턴 LLM 호출 시 history에서
+// 다음 두 제약을 동시에 만족시켜야 한다:
+//   (1) functionCall 이 있으면 그 다음 user turn에 매칭되는 functionResponse
+//       가 있어야 함 (Gemini: `function call missing`)
+//   (2) 같은 메시지(Content) 안에서 functionResponse는 다른 part 타입과 섞일
+//       수 없음 (Gemini: `FunctionResponse cannot be mixed with other type of
+//       part`). 텍스트 응답과 functionResponse가 같은 user turn이 되지 않도록
+//       분리가 필요.
+// 이를 위해 assistant row를 3 파트로 분해한다:
+//   (A) toolCalls만 담은 assistant turn → model(functionCall)
+//   (B) tool result들 → user(functionResponse)
+//   (C) 원래 content(텍스트 응답) → model(text)
+// 이렇게 하면 이후 이어지는 새 user 텍스트 메시지가 (B)와 merge되지 않고
+// 독립된 user turn으로 남아 Gemini 규칙을 지킨다. OpenAI/Anthropic도 이 구조를
+// 문제없이 소비한다.
+function toChatMessages(
   msg: import('./entities/workflow-assistant-message.entity').WorkflowAssistantMessage,
-): ChatMessage | null {
+): ChatMessage[] {
   if (msg.role === 'user') {
-    return { role: 'user', content: msg.content ?? '' };
+    return [{ role: 'user', content: msg.content ?? '' }];
   }
   if (msg.role === 'assistant') {
-    const toolCalls = (msg.toolCalls ?? [])
-      .map((tc) => ({
-        id: tc.id,
-        name: tc.name,
-        arguments: JSON.stringify(tc.arguments ?? {}),
-      }));
-    return {
-      role: 'assistant',
-      content: msg.content ?? '',
-      toolCalls: toolCalls.length ? toolCalls : undefined,
-    };
+    const calls = msg.toolCalls ?? [];
+    if (calls.length === 0) {
+      return [{ role: 'assistant', content: msg.content ?? '' }];
+    }
+    const toolCalls = calls.map((tc) => ({
+      id: tc.id,
+      name: tc.name,
+      arguments: JSON.stringify(tc.arguments ?? {}),
+      ...(tc.signature ? { signature: tc.signature } : {}),
+    }));
+    const out: ChatMessage[] = [
+      // (A) assistant 메시지에는 toolCalls만 담는다. 텍스트는 (C)로 미룬다.
+      { role: 'assistant', content: '', toolCalls },
+    ];
+    for (const tc of calls) {
+      // (B) result가 persist되지 않은 legacy row는 빈 object로 대체해 쌍을
+      // 유지한다.
+      const result = tc.result === undefined ? { ok: true } : tc.result;
+      out.push({
+        role: 'tool',
+        content: JSON.stringify(result),
+        toolCallId: tc.id,
+      });
+    }
+    // (C) 최종 텍스트 응답. content가 비어 있더라도 terminal model turn을
+    // 유지해 user↔model alternation이 깨지지 않게 한다 (Gemini는 history가
+    // user functionResponse turn으로 끝난 상태에서 새 user text turn이 붙으면
+    // 두 turn을 합쳐 버리거나 거부한다).
+    out.push({ role: 'assistant', content: msg.content ?? '' });
+    return out;
   }
   if (msg.role === 'tool') {
-    return {
-      role: 'tool',
-      content: msg.content ?? '',
-      toolCallId: msg.toolCallId ?? undefined,
-    };
+    return [
+      {
+        role: 'tool',
+        content: msg.content ?? '',
+        toolCallId: msg.toolCallId ?? undefined,
+      },
+    ];
   }
-  return null;
+  return [];
 }
 
 function safeParse(raw: string): Record<string, unknown> {
   try {
-    const parsed = JSON.parse(raw);
-    return parsed && typeof parsed === 'object' ? parsed : {};
+    const parsed: unknown = JSON.parse(raw);
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed)
+      ? (parsed as Record<string, unknown>)
+      : {};
   } catch {
     return {};
   }
+}
+
+// args.X is `unknown`; `String(...)` on an object would yield "[object Object]".
+// 이 helper는 string 타입만 통과시키고, 그 외(객체·배열·null·number 등)는
+// fallback으로 대체한다.
+function asString(value: unknown, fallback: string): string {
+  return typeof value === 'string' ? value : fallback;
 }

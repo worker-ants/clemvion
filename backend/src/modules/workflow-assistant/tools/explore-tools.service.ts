@@ -9,6 +9,9 @@ import { KnowledgeBase } from '../../knowledge-base/entities/knowledge-base.enti
 import { NodeComponentRegistry } from '../../../nodes/core/node-component.registry';
 import { redactConfig } from './redact';
 
+const UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 /**
  * Read-only "Clarify" 도구들. 모두 `workspace_id` 스코프로 격리되어 있으며,
  * LLM이 사용자의 질문 수를 줄이거나 기존 자산을 참조하는 데 쓴다.
@@ -114,6 +117,18 @@ export class ExploreToolsService {
     id: string,
     mode: 'summary' | 'full' = 'summary',
   ): Promise<unknown> {
+    // Gemini는 schema에서 format:'uuid' 힌트가 sanitize로 제거된 상태라 종종
+    // 'current_workflow_id_placeholder' 같은 가짜 값을 넣어 호출한다. 이때
+    // 그대로 DB로 보내면 Postgres가 `invalid input syntax for type uuid` 500
+    // 을 뱉고 어시스턴트 전체 turn이 깨지므로, 여기서 방어적으로 검사해 LLM이
+    // 다음 턴에 복구할 수 있도록 tool_result로 반환한다.
+    if (!UUID_RE.test(id)) {
+      return {
+        ok: false,
+        error: 'INVALID_ID',
+        hint: 'id must be a UUID obtained from list_workflows(). Do not invent placeholders.',
+      };
+    }
     const workflow = await this.workflowRepo.findOne({
       where: { id, workspaceId },
     });
