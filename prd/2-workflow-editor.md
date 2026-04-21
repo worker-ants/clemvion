@@ -1,6 +1,6 @@
 # PRD: 워크플로우 에디터
 
-> 관련 문서: [제품 개요](./0-overview.md) · [노드 시스템](./3-node-system.md) · [Spec 캔버스](../spec/3-workflow-editor/0-canvas.md) · [Spec 실행/디버깅](../spec/3-workflow-editor/3-execution.md)
+> 관련 문서: [제품 개요](./0-overview.md) · [노드 시스템](./3-node-system.md) · [AI 플랫폼](./6-phase2-ai.md) · [Spec 캔버스](../spec/3-workflow-editor/0-canvas.md) · [Spec 실행/디버깅](../spec/3-workflow-editor/3-execution.md) · [Spec AI Assistant](../spec/3-workflow-editor/4-ai-assistant.md)
 
 ---
 
@@ -141,3 +141,85 @@
 - **생산성**: 키보드 단축키, 빠른 노드 검색, 자동완성으로 개발자 생산성 지원
 - **피드백**: 모든 사용자 액션에 즉각적인 시각적/인터랙션 피드백 제공
 - **실수 방지**: Undo/Redo(Ctrl+Z/Y) 지원, 유효하지 않은 연결 방지, 저장 전 변경사항 경고
+
+---
+
+## 10. AI Assistant (ED-AI-*)
+
+> 상세: [Spec AI Assistant](../spec/3-workflow-editor/4-ai-assistant.md) · 관련 [AI 플랫폼 §3.6](./6-phase2-ai.md#36-workflow-ai-assistant)
+
+워크플로우 에디터에 내장된 채팅형 AI 에이전트(**Workflow AI Assistant**)가 사용자의 자연어 요구사항을 받아 노드·엣지를 자동으로 생성·수정한다. 단순 지시("HTTP 헤더 추가")뿐 아니라 모호하고 큰 요청("주문 취소 프로세스 추가")도 대화로 구체화해 완성한다. LLM은 [LLM Config](./6-phase2-ai.md#31-llm-프로바이더-관리)에 등록된 모델을 사용한다.
+
+### 10.1 패널/접근성
+
+| ID | 요구사항 | 우선순위 |
+|----|----------|----------|
+| ED-AI-01 | 에디터 헤더의 AI Assistant 버튼(🤖)으로 우측 패널 토글 | 필수 |
+| ED-AI-02 | 동일 우측 슬롯의 Node Settings Panel과 상호 배타적 표시(동시 오픈 금지) | 필수 |
+| ED-AI-03 | 키보드 단축키 `Ctrl+/` 로 패널 토글 | 권장 |
+| ED-AI-04 | 국제화(ko/en) — 패널 내 모든 문자열을 기존 i18n 시스템으로 전환 | 필수 |
+| ED-AI-05 | 스크린 리더 지원 — 메시지 리스트 `aria-live="polite"`, 입력창·Plan 카드 적절한 aria 속성 | 필수 |
+
+### 10.2 LLM 모델 선택
+
+| ID | 요구사항 | 우선순위 |
+|----|----------|----------|
+| ED-AI-06 | 패널 상단에서 워크스페이스 LLM Config 선택 가능 | 필수 |
+| ED-AI-07 | 선택 없으면 워크스페이스 default LLM Config 자동 사용 | 필수 |
+| ED-AI-08 | LLM Config도 default도 없으면 안내 메시지 + 설정 화면 딥링크 | 필수 |
+| ED-AI-09 | v1 스트리밍 지원: OpenAI, Anthropic. 미지원 provider 선택 시 명시적 에러 | 필수 |
+
+### 10.3 대화 루프 (Clarify / Plan / Execute)
+
+| ID | 요구사항 | 우선순위 |
+|----|----------|----------|
+| ED-AI-10 | 단일 대화 창에서 탐색(질문·조회) → 계획 제안 → 즉시 편집의 3단계 루프 수행 | 필수 |
+| ED-AI-11 | 모호한 요청은 Assistant가 먼저 질문하거나 Plan 카드로 계획을 제시 | 필수 |
+| ED-AI-12 | Plan 카드에는 단계별 체크리스트 + 미해결 질문(openQuestions)을 표시 | 필수 |
+| ED-AI-13 | Plan 카드의 `Approve & execute` 버튼 또는 자연어 승인 후에만 실제 편집 도구 실행 | 필수 |
+| ED-AI-14 | 실행 중 각 편집 tool-call이 Plan step 체크박스에 ✓로 반영 | 필수 |
+| ED-AI-15 | 명확한 단일 편집("HTTP 헤더 추가")은 Plan 카드 없이 즉시 실행 허용 | 필수 |
+
+### 10.4 캔버스 편집
+
+| ID | 요구사항 | 우선순위 |
+|----|----------|----------|
+| ED-AI-16 | 편집은 에디터의 in-memory store에 즉시 반영되고 Undo 스택에 push | 필수 |
+| ED-AI-17 | 편집은 기존 자동 저장(§8) 및 수동 저장(Ctrl+S) 흐름을 그대로 이용 — Assistant가 DB를 직접 쓰지 않음 | 필수 |
+| ED-AI-18 | Assistant 편집에 대해서도 기존 Undo/Redo(Ctrl+Z/Y)가 정상 동작 | 필수 |
+| ED-AI-19 | 워크플로우 실행 중(Run 상태)에는 편집 도구가 거부되고 사용자에게 안내 | 필수 |
+| ED-AI-20 | 컨테이너/Tool Area/Manual Trigger 등 기존 제약(§11.2.2, §9.2)을 Shadow 검증에서 그대로 적용 | 필수 |
+
+### 10.5 탐색 & 추천
+
+| ID | 요구사항 | 우선순위 |
+|----|----------|----------|
+| ED-AI-21 | 워크스페이스 내 Integration·Knowledge Base·다른 워크플로우를 Assistant가 조회해 질문을 줄이거나 참고 | 필수 |
+| ED-AI-22 | 탐색 도구는 모두 워크스페이스 경계 내에서만 동작 (다른 워크스페이스 데이터 노출 금지) | 필수 |
+| ED-AI-23 | 탐색 결과는 채팅에 배지 형태로 표시해 사용자가 추적 가능 | 권장 |
+
+### 10.6 스트리밍 & 중단
+
+| ID | 요구사항 | 우선순위 |
+|----|----------|----------|
+| ED-AI-24 | LLM 응답 텍스트와 tool-call을 스트리밍으로 수신 (SSE) | 필수 |
+| ED-AI-25 | 스트리밍 중 Stop 버튼으로 사용자 중단 가능. 이미 적용된 편집은 유지되고 Undo로 되돌릴 수 있음 | 필수 |
+| ED-AI-26 | 네트워크 오류/Rate limit 시 사용자에게 재시도 안내 | 필수 |
+
+### 10.7 세션 관리
+
+| ID | 요구사항 | 우선순위 |
+|----|----------|----------|
+| ED-AI-27 | 채팅 기록은 서버에 영속되어 페이지 새로고침·재접속 시 이어서 진행 | 필수 |
+| ED-AI-28 | 워크플로우마다 활성 세션 하나를 자동 선택 (최근 업데이트 순) | 필수 |
+| ED-AI-29 | 사용자가 `새 세션` 버튼으로 새 대화를 시작할 수 있고, 이전 세션은 보존 | 필수 |
+| ED-AI-30 | 세션 삭제 API 제공. 워크플로우 삭제 시 cascade로 세션·메시지 삭제 | 필수 |
+| ED-AI-31 | 세션 제목은 첫 메시지로부터 자동 생성(40자 이내), 사용자 편집 가능 | 권장 |
+
+### 10.8 비용·성능
+
+| ID | 요구사항 | 기준 |
+|----|----------|------|
+| ED-AI-32 | 단일 턴 LLM 호출 타임아웃 | [NF-AI-01](./6-phase2-ai.md#5-비기능-요구사항)에 따라 120초 |
+| ED-AI-33 | 한 턴당 tool-call 상한 | 16회. 초과 시 Assistant가 자동 종료 후 재시도 유도 |
+| ED-AI-34 | 토큰 사용량은 기존 `llm_usage_log`에 `workflow_id`·`workspace_id`와 함께 기록 | 필수 |
