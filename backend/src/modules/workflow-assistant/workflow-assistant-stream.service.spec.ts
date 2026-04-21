@@ -1542,6 +1542,81 @@ describe('WorkflowAssistantStreamService', () => {
     );
   });
 
+  it('forwards optional width/height from the request snapshot into the system prompt JSON', async () => {
+    // React Flow 측정값이 DTO 로 전달되면 시스템 프롬프트의 Current workflow
+    // snapshot JSON 에도 그대로 포함되어 LLM 이 실제 노드 폭을 기준으로
+    // 레이아웃할 수 있다.
+    const { service, mocks } = makeService();
+    mocks.llmService.chatStream.mockImplementation(() =>
+      asyncIter<ChatStreamEvent>([
+        { type: 'text_delta', delta: 'ok' },
+        {
+          type: 'done',
+          usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 },
+          model: 'gpt-4o',
+          finishReason: 'stop',
+        },
+      ]),
+    );
+    await collect(
+      service.streamMessage('sess-1', 'ws-1', 'u-1', {
+        content: '측정된 노드',
+        currentWorkflow: {
+          nodes: [
+            {
+              id: 'trig-1',
+              type: 'manual_trigger',
+              category: 'trigger',
+              label: 'Start',
+              positionX: 100,
+              positionY: 200,
+              width: 240,
+              height: 60,
+              config: {},
+            },
+          ],
+          edges: [],
+        },
+      } as never),
+    );
+    const systemPrompt = (
+      mocks.llmService.chatStream.mock.calls[0][1].messages[0] as {
+        content: string;
+      }
+    ).content;
+    // JSON 블록 안에 width/height 가 들어 있어야 함.
+    expect(systemPrompt).toMatch(/"width":\s*240/);
+    expect(systemPrompt).toMatch(/"height":\s*60/);
+  });
+
+  it('omits width/height from the system prompt when the snapshot does not measure them', async () => {
+    // measured 가 아직 붙지 않은 노드(초기 렌더) 는 프롬프트 JSON 에도
+    // 필드가 아예 나타나지 않아 "null" 로 자리를 차지하지 않는다.
+    const { service, mocks } = makeService();
+    mocks.llmService.chatStream.mockImplementation(() =>
+      asyncIter<ChatStreamEvent>([
+        { type: 'text_delta', delta: 'ok' },
+        {
+          type: 'done',
+          usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 },
+          model: 'gpt-4o',
+          finishReason: 'stop',
+        },
+      ]),
+    );
+    await collect(
+      service.streamMessage('sess-1', 'ws-1', 'u-1', baseDto as never),
+    );
+    const systemPrompt = (
+      mocks.llmService.chatStream.mock.calls[0][1].messages[0] as {
+        content: string;
+      }
+    ).content;
+    // baseDto 는 width/height 를 주지 않음 → 어디에도 등장하지 않아야.
+    expect(systemPrompt).not.toMatch(/"width":/);
+    expect(systemPrompt).not.toMatch(/"height":/);
+  });
+
   it('rejects edit tools with PLAN_AWAITING_APPROVAL when called in the same turn as propose_plan', async () => {
     // LLM 이 propose_plan 직후 같은 턴에 add_node 를 호출하면 서버가
     // 거부한다. UX 의 "계획 제시 → 사용자 승인 → 실행" 3단계 강제.

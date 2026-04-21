@@ -7,7 +7,9 @@ import {
   IsOptional,
   IsString,
   IsUUID,
+  Max,
   MaxLength,
+  Min,
   ValidateNested,
 } from 'class-validator';
 import { Type } from 'class-transformer';
@@ -52,6 +54,30 @@ export class AssistantWorkflowNodeDto {
   @ApiProperty({ description: '캔버스 Y 좌표' })
   @IsNumber()
   positionY: number;
+
+  @ApiPropertyOptional({
+    description:
+      '렌더 완료 후 React Flow 가 측정한 노드 폭 (px). 초기 렌더 시점에는 undefined 일 수 있다. 0/음수는 LLM 레이아웃 공식(`??` 폴백)을 무력화하므로 서버 DTO 검증에서 거부한다.',
+    minimum: 1,
+    maximum: 10_000,
+  })
+  @IsOptional()
+  @IsNumber()
+  @Min(1)
+  @Max(10_000)
+  width?: number;
+
+  @ApiPropertyOptional({
+    description:
+      '렌더 완료 후 React Flow 가 측정한 노드 높이 (px). 초기 렌더 시점에는 undefined 일 수 있다. 0/음수는 거부된다.',
+    minimum: 1,
+    maximum: 10_000,
+  })
+  @IsOptional()
+  @IsNumber()
+  @Min(1)
+  @Max(10_000)
+  height?: number;
 
   @ApiPropertyOptional({
     description: '노드 설정 객체',

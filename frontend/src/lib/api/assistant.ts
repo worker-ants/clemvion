@@ -77,6 +77,14 @@ export interface AssistantWorkflowSnapshot {
     category: string;
     positionX: number;
     positionY: number;
+    /**
+     * React Flow 가 렌더 후 측정한 px 단위 크기. 초기 렌더 중이거나 새로
+     * 추가된 노드는 아직 측정 전이라 undefined 일 수 있다. 서버 측 layout
+     * guidance 는 이 값이 있으면 실제 폭 기준으로 배치하고, 없으면 250×80
+     * 폴백을 사용한다.
+     */
+    width?: number;
+    height?: number;
     config?: Record<string, unknown>;
     containerId?: string | null;
     toolOwnerId?: string | null;
