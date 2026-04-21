@@ -1886,6 +1886,9 @@ export const en: Dict = {
     planApproveConfirm: "Please proceed with this plan.",
     planQuestionsTitle: "Questions to answer",
     planQuestionsHint: "Type your answer in the message box below.",
+    turnStalledHint:
+      "The assistant stopped without a message. Send `Continue` and I'll keep executing the remaining steps.",
+    errorBubbleTitle: "Something went wrong with this turn",
     emptyTitle: "How can I help?",
     emptySubtitle: "Describe the workflow you want and I'll build it with you.",
     exampleAddCancelFlow: "Add an order cancellation flow",
