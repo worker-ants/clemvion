@@ -3,6 +3,7 @@
 import type { AssistantDisplayMessage } from "@/lib/stores/assistant-store";
 import { ToolCallBadge } from "./tool-call-badge";
 import { PlanCard } from "./plan-card";
+import { MarkdownRenderer } from "./markdown-renderer";
 
 interface AssistantMessageViewProps {
   message: AssistantDisplayMessage;
@@ -14,6 +15,9 @@ export function AssistantMessageView({
   onApprovePlan,
 }: AssistantMessageViewProps) {
   if (message.role === "user") {
+    // User text stays as plain preformatted content — we don't re-interpret
+    // the user's own input as markdown (surprising, and their raw words are
+    // what they typed).
     return (
       <div className="flex justify-end">
         <div className="max-w-[85%] whitespace-pre-wrap rounded-md bg-[hsl(var(--primary))] px-2.5 py-1.5 text-xs text-[hsl(var(--primary-foreground))]">
@@ -23,14 +27,20 @@ export function AssistantMessageView({
     );
   }
 
-  // assistant
+  // assistant — render markdown so LLM-authored **bold**, lists, fenced code
+  // blocks, tables, and links display properly. The blinking cursor is a
+  // sibling of the markdown block so it's never caught inside a code fence
+  // or other inline element during streaming.
   return (
     <div className="flex flex-col gap-1.5">
-      {message.content && (
-        <div className="whitespace-pre-wrap rounded-md bg-[hsl(var(--muted)/0.4)] px-2.5 py-1.5 text-xs text-[hsl(var(--foreground))]">
-          {message.content}
+      {(message.content || message.streaming) && (
+        <div className="rounded-md bg-[hsl(var(--muted)/0.4)] px-2.5 py-1.5 text-xs text-[hsl(var(--foreground))]">
+          {message.content && <MarkdownRenderer content={message.content} />}
           {message.streaming && (
-            <span className="ml-1 inline-block h-3 w-1 animate-pulse bg-current align-middle" />
+            <span
+              aria-hidden="true"
+              className="ml-0.5 inline-block h-3 w-1 animate-pulse bg-current align-[-2px]"
+            />
           )}
         </div>
       )}
