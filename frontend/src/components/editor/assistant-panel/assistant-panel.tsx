@@ -59,16 +59,33 @@ export function AssistantPanel() {
     }
   }, [isOpen, workflowId, setWorkflow]);
 
-  // Auto-scroll on new messages AND during streaming text growth. We watch
-  // the total content length of the last message so text_delta updates
-  // (which don't change message count) still trigger a scroll.
+  // Auto-scroll on any visible change to the last message. content length
+  // alone misses tool_call 배지 / plan 카드 추가 / plan step 체크 진행 등을
+  // — bubble 크기를 넓히는 모든 변화가 아래를 밀어내므로 signature 에 같이
+  // 포함해야 스크롤이 따라 내려간다. `filter` 로 만든 완료 step 수 계산이
+  // 매 렌더마다 돌지 않도록 useMemo 로 캐시한다.
   const listRef = useRef<HTMLDivElement>(null);
-  const lastMessageLength = messages[messages.length - 1]?.content.length ?? 0;
+  const last = messages[messages.length - 1];
+  const lastSignature = useMemo(() => {
+    if (!last) return "";
+    const doneSteps =
+      last.plan?.steps.reduce(
+        (n, s) => (s.status === "done" ? n + 1 : n),
+        0,
+      ) ?? 0;
+    return [
+      last.content.length,
+      last.toolCalls.length,
+      last.plan?.steps.length ?? 0,
+      doneSteps,
+      last.streaming ? 1 : 0,
+    ].join("|");
+  }, [last]);
   useEffect(() => {
-    if (listRef.current) {
-      listRef.current.scrollTop = listRef.current.scrollHeight;
-    }
-  }, [messages.length, lastMessageLength, isStreaming]);
+    const el = listRef.current;
+    if (!el) return;
+    el.scrollTop = el.scrollHeight;
+  }, [messages.length, lastSignature, isStreaming]);
 
   // Snapshot of the current canvas, normalized to the backend DTO shape.
   const snapshot: AssistantWorkflowSnapshot = useMemo(() => {
@@ -174,6 +191,10 @@ export function AssistantPanel() {
               key={m.id}
               message={m}
               onApprovePlan={() => void approveActivePlan(snapshot)}
+              onAnswerPlanQuestions={(answer) =>
+                void sendMessage(answer, snapshot)
+              }
+              isStreaming={isStreaming}
             />
           ))
         )}

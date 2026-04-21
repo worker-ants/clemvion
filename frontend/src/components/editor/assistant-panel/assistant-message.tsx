@@ -1,19 +1,38 @@
 "use client";
 
+import { useMemo } from "react";
 import type { AssistantDisplayMessage } from "@/lib/stores/assistant-store";
 import { ToolCallBadge } from "./tool-call-badge";
 import { PlanCard } from "./plan-card";
 import { MarkdownRenderer } from "./markdown-renderer";
+import { sanitizeAssistantText } from "./harmony-filter";
 
 interface AssistantMessageViewProps {
   message: AssistantDisplayMessage;
   onApprovePlan: () => void;
+  onAnswerPlanQuestions: (answer: string) => void;
+  isStreaming?: boolean;
 }
 
 export function AssistantMessageView({
   message,
   onApprovePlan,
+  onAnswerPlanQuestions,
+  isStreaming = false,
 }: AssistantMessageViewProps) {
+  // hooks must run unconditionally — so sanitize/memo before any early
+  // return below. user 메시지 경로에서는 displayText 를 사용하지 않지만,
+  // React Hooks 규칙을 지키려면 호출 순서가 매 렌더마다 동일해야 한다.
+  //
+  // harmony 제어 토큰만 leak 된 assistant 메시지(예: commentary/json 블록)는
+  // sanitize 후 빈 문자열이 되므로 bubble 자체를 렌더하지 않는다. 스트리밍
+  // 중이면 커서 애니메이션을 위해 bubble 을 유지한다. useMemo 로 content
+  // 변경 시에만 regex 가 돌도록 캐시한다.
+  const displayText = useMemo(
+    () => (message.content ? sanitizeAssistantText(message.content) : ""),
+    [message.content],
+  );
+
   if (message.role === "user") {
     // User text stays as plain preformatted content — we don't re-interpret
     // the user's own input as markdown (surprising, and their raw words are
@@ -31,11 +50,12 @@ export function AssistantMessageView({
   // blocks, tables, and links display properly. The blinking cursor is a
   // sibling of the markdown block so it's never caught inside a code fence
   // or other inline element during streaming.
+  const showBubble = displayText.length > 0 || message.streaming;
   return (
     <div className="flex flex-col gap-1.5">
-      {(message.content || message.streaming) && (
+      {showBubble && (
         <div className="rounded-md bg-[hsl(var(--muted)/0.4)] px-2.5 py-1.5 text-xs text-[hsl(var(--foreground))]">
-          {message.content && <MarkdownRenderer content={message.content} />}
+          {displayText && <MarkdownRenderer content={displayText} />}
           {message.streaming && (
             <span
               aria-hidden="true"
@@ -55,7 +75,9 @@ export function AssistantMessageView({
         <PlanCard
           plan={message.plan}
           onApprove={onApprovePlan}
+          onAnswerQuestions={onAnswerPlanQuestions}
           canApprove
+          isStreaming={isStreaming}
         />
       )}
     </div>

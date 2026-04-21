@@ -1,0 +1,128 @@
+{
+  "timestamp": "2026-04-22T00:41:58.408316",
+  "files": [
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/backend/src/modules/workflow-assistant/entities/workflow-assistant-message.entity.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/backend/src/modules/workflow-assistant/prompts/system-prompt.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/backend/src/modules/workflow-assistant/workflow-assistant-stream.service.spec.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/backend/src/modules/workflow-assistant/workflow-assistant-stream.service.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/frontend/src/components/editor/assistant-panel/assistant-message.tsx",
+      "change_type": "Review",
+      "file_extension": "tsx"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/frontend/src/components/editor/assistant-panel/assistant-panel.tsx",
+      "change_type": "Review",
+      "file_extension": "tsx"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/frontend/src/components/editor/assistant-panel/plan-card.tsx",
+      "change_type": "Review",
+      "file_extension": "tsx"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/frontend/src/lib/i18n/dict/en.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/frontend/src/lib/i18n/dict/ko.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/spec/3-workflow-editor/4-ai-assistant.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/backend/src/modules/workflow-assistant/prompts/system-prompt.spec.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    }
+  ],
+  "total_elapsed_seconds": 332.77,
+  "agents": [
+    {
+      "name": "dependency",
+      "status": "success",
+      "elapsed_seconds": 39.39
+    },
+    {
+      "name": "database",
+      "status": "success",
+      "elapsed_seconds": 47.14
+    },
+    {
+      "name": "maintainability",
+      "status": "success",
+      "elapsed_seconds": 66.52
+    },
+    {
+      "name": "documentation",
+      "status": "success",
+      "elapsed_seconds": 66.63
+    },
+    {
+      "name": "scope",
+      "status": "success",
+      "elapsed_seconds": 69.59
+    },
+    {
+      "name": "concurrency",
+      "status": "success",
+      "elapsed_seconds": 86.17
+    },
+    {
+      "name": "performance",
+      "status": "success",
+      "elapsed_seconds": 99.32
+    },
+    {
+      "name": "security",
+      "status": "success",
+      "elapsed_seconds": 99.5
+    },
+    {
+      "name": "testing",
+      "status": "success",
+      "elapsed_seconds": 100.66
+    },
+    {
+      "name": "architecture",
+      "status": "success",
+      "elapsed_seconds": 101.45
+    },
+    {
+      "name": "api_contract",
+      "status": "success",
+      "elapsed_seconds": 119.27
+    },
+    {
+      "name": "side_effect",
+      "status": "success",
+      "elapsed_seconds": 148.39
+    },
+    {
+      "name": "requirement",
+      "status": "success",
+      "elapsed_seconds": 169.91
+    }
+  ]
+}

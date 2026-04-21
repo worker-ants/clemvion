@@ -19,6 +19,10 @@ import type { ComponentProps } from "react";
  *   treated as untrusted external content.
  * - While streaming, partial/unclosed markdown is fine — react-markdown
  *   tolerates malformed input and renders progressively.
+ * - **Harmony sanitize is NOT done here.** The single owner of
+ *   `sanitizeAssistantText` is `AssistantMessageView` (it also decides
+ *   whether to render the bubble at all based on the sanitized length).
+ *   Keeping the sanitize there avoids running the regex twice per render.
  */
 export function MarkdownRenderer({ content }: { content: string }) {
   return (
