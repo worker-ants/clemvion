@@ -83,6 +83,7 @@
 
 | 영역 | 내용 |
 |------|------|
+| **Workflow AI Assistant** | 에디터 내 채팅형 AI로 자연어 요청 → 노드·엣지 자동 구성. Clarify → Plan → Execute 3단계 대화 루프, SSE 스트리밍, 세션 영속. 상세: [PRD 2 §10](./2-workflow-editor.md#10-ai-assistant-ed-ai-), [PRD 6 §3.6](./6-phase2-ai.md#36-workflow-ai-assistant). |
 | **Logic 확장 노드** | Parallel P2(중첩 Parallel, waitAll=false). Background 노드는 구현 완료. |
 | **마켓플레이스** | 워크플로우 템플릿·AI Agent 프리셋·Integration 플러그인·커스텀 노드 게시 기능. |
 | **배포 자동화 확장** | 공식 Docker/Kubernetes 배포 가이드, 셀프 호스팅 번들. |
@@ -129,6 +130,7 @@ spec/
 ├── 2-navigation/          — 내비게이션 화면별 상세 스펙
 │   └── 10-auth-flow.md    — 인증 UI 플로우 (로그인/가입/비밀번호 재설정)
 ├── 3-workflow-editor/     — 에디터 상세 스펙
+│   └── 4-ai-assistant.md  — Workflow AI Assistant 상세 (로드맵)
 ├── 4-nodes/               — 노드별 상세 스펙
 │   ├── 0-overview.md      — 노드 아키텍처/목록 개요
 │   ├── 1-logic-nodes.md   — Logic 노드 상세

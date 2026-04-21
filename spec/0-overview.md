@@ -181,6 +181,8 @@
 | [PRD 2: 에디터](../prd/2-workflow-editor.md) ED-EG-* | [Spec 3-workflow-editor/2: 엣지](./3-workflow-editor/2-edge.md) |
 | [PRD 2: 에디터](../prd/2-workflow-editor.md) ED-SP-* | [Spec 3-workflow-editor/1: 노드 공통](./3-workflow-editor/1-node-common.md) |
 | [PRD 2: 에디터](../prd/2-workflow-editor.md) ED-EX-*, ED-DB-* | [Spec 3-workflow-editor/3: 실행/디버깅](./3-workflow-editor/3-execution.md) |
+| [PRD 2: 에디터](../prd/2-workflow-editor.md) ED-AI-* | [Spec 3-workflow-editor/4: AI Assistant](./3-workflow-editor/4-ai-assistant.md) |
+| [PRD 6: AI 플랫폼](../prd/6-phase2-ai.md) §3.6 (Workflow AI Assistant) | [Spec 3-workflow-editor/4: AI Assistant](./3-workflow-editor/4-ai-assistant.md) + [Spec 5-system/7 §8: 스트리밍](./5-system/7-llm-client.md#8-스트리밍-streaming) |
 | [PRD 3: 노드 시스템](../prd/3-node-system.md) ND-CM-* | [Spec 4-nodes/0: 노드 개요](./4-nodes/0-overview.md) |
 | [PRD 3: 노드 시스템](../prd/3-node-system.md) ND-IF~ND-BG | [Spec 4-nodes/1: Logic 노드](./4-nodes/1-logic-nodes.md) |
 | [PRD 3: 노드 시스템](../prd/3-node-system.md) ND-WF-* | [Spec 4-nodes/2: Flow 노드](./4-nodes/2-flow-nodes.md) |

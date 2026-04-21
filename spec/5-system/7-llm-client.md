@@ -194,3 +194,77 @@ class LLMClientFactory {
 - **암호화 키**: 환경변수 `ENCRYPTION_KEY`
 - **API 응답**: 마스킹 처리 (`sk-...xxxx` 형태)
 - **로그**: API 키 절대 로깅 금지
+
+---
+
+## 8. 스트리밍 (Streaming)
+
+Workflow AI Assistant와 같이 **turn-level latency가 UX에 중요한 피처**를 위해, `LLMClient`는 선택적 `stream()` 메서드를 제공한다. 기존 `chat()`과 독립적으로 구현되며, 스트리밍 미지원 프로바이더는 해당 메서드 호출 시 명시적 에러를 던진다.
+
+### 8.1 인터페이스 확장
+
+```typescript
+interface LLMClient {
+  // 기존 chat / embed / listModels / testConnection 유지
+
+  /** 채팅 스트리밍. 미지원 프로바이더는 LLM_STREAMING_UNSUPPORTED 에러 throw */
+  stream?(params: ChatParams): AsyncIterable<ChatStreamEvent>;
+}
+
+type ChatStreamEvent =
+  | { type: 'text_delta'; delta: string }
+  | { type: 'tool_call_delta'; id: string; name?: string; argumentsDelta: string }
+  | { type: 'tool_call_end'; id: string }
+  | { type: 'done'; usage: TokenUsage; model: string; finishReason: ChatResponse['finishReason'] }
+  | { type: 'error'; code: string; message: string };
+```
+
+| 이벤트 | 의미 |
+|--------|------|
+| `text_delta` | assistant 텍스트의 부분 증분 |
+| `tool_call_delta` | tool_call 인자의 부분 증분. 같은 `id`로 여러 번 발행 후 최종 `tool_call_end`로 종료 |
+| `tool_call_end` | tool_call 한 건 완성 — 호출자가 shadow 실행/검증을 시작할 시점 |
+| `done` | 스트림 전체 종료. usage는 LLM 응답에 포함된 경우에만 정확, 누락 시 `0`으로 보고됨 |
+| `error` | 스트림 중단 사유 — 클라이언트는 이후 이벤트 수신 중단 |
+
+### 8.2 프로바이더별 구현
+
+| 프로바이더 | 지원 | 내부 매핑 |
+|-----------|------|-----------|
+| OpenAI | ✅ | `chat.completions.create({stream: true})` — `choices[0].delta.content` → text_delta, `choices[0].delta.tool_calls[].function.arguments` → tool_call_delta, `choices[0].finish_reason` → done |
+| Anthropic | ✅ | `messages.stream()` — `content_block_delta` (text_delta/input_json_delta), `content_block_start`/`content_block_stop`으로 tool_call_end 판정, `message_delta` 에서 usage 수집 |
+| Google AI | ❌ | v1 스코프 밖. 호출 시 `LLM_STREAMING_UNSUPPORTED` throw |
+| Azure OpenAI | ❌ | v1 스코프 밖. 동일 |
+| Local (Ollama/vLLM) | 🚧 | OpenAI 호환 API 사용 시 자동 지원 가능하나 MVP 검증 범위 밖 |
+
+### 8.3 서비스 레이어
+
+```typescript
+class LlmService {
+  // 기존 chat / embed / testConnection / resolveConfig 유지
+
+  /** 스트리밍 chat — client.stream 위임. done 이벤트에서 llmUsageLogService.record() fire-and-forget */
+  chatStream(
+    config: LlmConfig,
+    params: ChatParams,
+    context?: LlmCallContext,
+  ): AsyncIterable<ChatStreamEvent>;
+}
+```
+
+- 사용량 로깅(`llm_usage_log`)은 `done` 이벤트에서만 수행하며, 비동기 비차단.
+- 재시도(rate limit)는 스트리밍 중에는 적용하지 않는다. 시작 전 네트워크 초기화 단계에서만 기존 exponential backoff 규칙을 적용.
+
+### 8.4 에러 매핑
+
+| 케이스 | 이벤트 | 비고 |
+|--------|--------|------|
+| 429 rate limit (스트리밍 시작 전) | `error` (code=`LLM_RATE_LIMIT`) | 재시도 정책 §6 재사용 |
+| 시작 후 네트워크 단절 | `error` (code=`LLM_CONNECTION_ERROR`) | 클라이언트가 재시작하도록 안내 |
+| 클라이언트 abort (사용자 Stop) | `done` (finishReason=`aborted`) | 서버는 usage 확인되는 만큼만 기록 |
+| 미지원 프로바이더에 stream 요청 | throw `LLM_STREAMING_UNSUPPORTED` (스트림 시작 전) | 호출자가 non-streaming fallback 여부 판단 |
+
+### 8.5 기존 `chat()`과의 관계
+
+- `chat()`은 모든 프로바이더에서 그대로 필수 구현. Assistant 외 기존 AI 노드·임베딩·연결 테스트는 계속 `chat()` 사용.
+- `stream()`은 Assistant 한정 기능이며, 향후 AI Agent 노드의 `ND-AG-09 (스트리밍 응답)` 요구사항이 필수화될 때 확장 적용.

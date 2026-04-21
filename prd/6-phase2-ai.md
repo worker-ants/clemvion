@@ -1,8 +1,8 @@
 # PRD: AI & 지식 저장소
 
-> 관련 문서: [제품 개요](./0-overview.md) · [노드 시스템](./3-node-system.md#5-ai-노드) · [통합/연동](./4-integration.md#3-knowledge-base) · [내비게이션](./1-navigation.md#37-config--llm) · [Spec AI 노드](../spec/4-nodes/3-ai-nodes.md) · [Spec Knowledge Base](../spec/2-navigation/5-knowledge-base.md) · [Spec LLM Config](../spec/2-navigation/6-config.md)
+> 관련 문서: [제품 개요](./0-overview.md) · [워크플로우 에디터 §10](./2-workflow-editor.md#10-ai-assistant-ed-ai-) · [노드 시스템](./3-node-system.md#5-ai-노드) · [통합/연동](./4-integration.md#3-knowledge-base) · [내비게이션](./1-navigation.md#37-config--llm) · [Spec AI 노드](../spec/4-nodes/3-ai-nodes.md) · [Spec Knowledge Base](../spec/2-navigation/5-knowledge-base.md) · [Spec LLM Config](../spec/2-navigation/6-config.md) · [Spec AI Assistant](../spec/3-workflow-editor/4-ai-assistant.md)
 
-> **구현 상태**: 이 문서에서 정의한 AI 기능은 모두 **구현 완료(✅)**다. 팀 워크스페이스·RBAC·2FA는 별도 로드맵 항목으로 현재 백엔드 모듈만 존재한다.
+> **구현 상태**: 3.1~3.5의 AI 기능은 모두 **구현 완료(✅)**다. 3.6 **Workflow AI Assistant**는 로드맵(❌)이며, 상세 요구사항은 [PRD 2 §10](./2-workflow-editor.md#10-ai-assistant-ed-ai-)에 정의되어 있다. 팀 워크스페이스·RBAC·2FA는 별도 로드맵 항목으로 현재 백엔드 모듈만 존재한다.
 
 ---
 
@@ -20,14 +20,15 @@
 
 ## 2. 범위
 
-### 2.1 본 문서 범위 (모두 ✅ 구현됨)
+### 2.1 본 문서 범위
 
-| 영역 | 기능 |
-|------|------|
-| **LLM 설정** | 다중 프로바이더 관리 (OpenAI, Anthropic, Google, Azure, Local) |
-| **AI 노드 3종** | AI Agent, Text Classifier, Information Extractor |
-| **지식 저장소** | 컬렉션 관리, 문서 업로드, 벡터 임베딩, RAG 검색 |
-| **AI Agent 고급** | Tool Area (도구 호출), Knowledge Base 연동 |
+| 영역 | 상태 | 기능 |
+|------|------|------|
+| **LLM 설정** | ✅ | 다중 프로바이더 관리 (OpenAI, Anthropic, Google, Azure, Local) |
+| **AI 노드 3종** | ✅ | AI Agent, Text Classifier, Information Extractor |
+| **지식 저장소** | ✅ | 컬렉션 관리, 문서 업로드, 벡터 임베딩, RAG 검색 |
+| **AI Agent 고급** | ✅ | Tool Area (도구 호출), Knowledge Base 연동 |
+| **Workflow AI Assistant (§3.6)** | ❌ 로드맵 | 에디터 내 채팅형 AI로 워크플로우 자동 구성/수정 |
 
 ### 2.2 본 문서 범위 밖
 
@@ -123,6 +124,20 @@
 | KB-AG-01 | AI Agent 노드에서 Knowledge Base 컬렉션 선택 | 필수 |
 | KB-AG-02 | 유사도 임계값 설정 | 권장 |
 | KB-AG-03 | Top-K 검색 결과 수 설정 | 권장 |
+
+### 3.6 Workflow AI Assistant
+
+> **구현 상태**: ❌ 로드맵 · 상세 요구사항: [PRD 2 §10](./2-workflow-editor.md#10-ai-assistant-ed-ai-) (`ED-AI-*`) · 상세 스펙: [Spec 3-workflow-editor/4](../spec/3-workflow-editor/4-ai-assistant.md)
+
+워크플로우 에디터에 내장된 채팅형 AI 에이전트로, 사용자의 자연어 요청을 받아 노드·엣지를 자동 구성·수정한다. 단순 지시뿐 아니라 "주문 취소 프로세스 추가" 같은 모호한 요구를 **Clarify → Plan → Execute** 대화 루프로 구체화한다.
+
+| 목표 | 설명 |
+|------|------|
+| 사용자 가치 | 비개발자도 자연어 한 줄로 초기 워크플로우 초안을 얻을 수 있다 |
+| 제품 차별화 | Planner-first UX (질문·계획 제안 후 실행)로 LLM의 섣부른 편집 방지 |
+| 기존 자산 재사용 | LLM Config (§3.1), [LLM Client 스트리밍](../spec/5-system/7-llm-client.md#8-스트리밍-streaming), editor-store Undo 스택 |
+
+상세 요구사항은 [PRD 2 §10.1~§10.8](./2-workflow-editor.md#10-ai-assistant-ed-ai-) 참조.
 
 ---
 

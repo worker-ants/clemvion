@@ -1,6 +1,6 @@
 # Spec: 캔버스 인터랙션 상세
 
-> 관련 문서: [PRD 워크플로우 에디터](../../prd/2-workflow-editor.md) · [Spec 노드 공통](./1-node-common.md) · [Spec 엣지](./2-edge.md) · [Spec 실행/디버깅](./3-execution.md)
+> 관련 문서: [PRD 워크플로우 에디터](../../prd/2-workflow-editor.md) · [Spec 노드 공통](./1-node-common.md) · [Spec 엣지](./2-edge.md) · [Spec 실행/디버깅](./3-execution.md) · [Spec AI Assistant](./4-ai-assistant.md)
 
 ---
 
@@ -8,16 +8,16 @@
 
 ```
 ┌──────────────────────────────────────────────────────────────┐
-│  ← Workflows / My Workflow        [Save] [▶ Run] [⋮]       │
+│  ← Workflows / My Workflow       [🤖] [Save] [▶ Run] [⋮]    │
 │  ┌─────┬─────────────────────────────────────────┬────────┐ │
 │  │Node │                                         │Setting │ │
 │  │Palet│         Canvas                          │ Panel  │ │
-│  │te   │                                         │        │ │
-│  │     │    ┌──────┐    ┌──────┐                 │ (노드  │ │
-│  │Logic│    │Node A│───→│Node B│                 │ 선택시)│ │
-│  │ if  │    └──────┘    └──┬───┘                 │        │ │
-│  │ sw  │                   │                     │        │ │
-│  │ lp  │              ┌────▼───┐                 │        │ │
+│  │te   │                                         │   or   │ │
+│  │     │    ┌──────┐    ┌──────┐                 │   AI   │ │
+│  │Logic│    │Node A│───→│Node B│                 │Assist. │ │
+│  │ if  │    └──────┘    └──┬───┘                 │ Panel  │ │
+│  │ sw  │                   │                     │ (상호  │ │
+│  │ lp  │              ┌────▼───┐                 │ 배타)  │ │
 │  │ ... │              │Node C  │                 │        │ │
 │  │     │              └────────┘                 │        │ │
 │  │     │                                         │        │ │
@@ -37,6 +37,7 @@
 └──────────────────────────────────────────────────────────────┘
 
 > Run Results 드로어는 워크플로우 실행 시에만 표시된다. 상세는 [실행/디버깅 §10. Run Results Drawer](./3-execution.md#10-run-results-drawer) 참조.
+> 헤더의 🤖 버튼은 AI Assistant 패널 토글이다. 우측 사이드바는 Node Settings Panel과 상호 배타적으로 표시된다. 상세는 [AI Assistant §3.1](./4-ai-assistant.md#31-패널-위치크기) 참조.
 ```
 
 ---
@@ -48,6 +49,7 @@
 | 뒤로가기(←) | 워크플로우 목록으로 이동 (변경사항 있으면 저장 확인) |
 | 브레드크럼 | "Workflows / {워크플로우 이름}" |
 | 워크플로우 이름 | 인라인 편집 가능 (클릭 시 텍스트 필드 전환) |
+| AI Assistant 버튼 (🤖) | 우측 AI Assistant 패널 토글. 활성 상태 시 강조. 상세: [AI Assistant Spec](./4-ai-assistant.md) |
 | Save 버튼 | 수동 저장 (Ctrl+S). 변경사항 없으면 비활성 |
 | Run 버튼 | 워크플로우 실행. 드롭다운으로 실행 옵션 제공 |
 | 더보기(⋮) | 설정, 버전 히스토리, 내보내기, 가져오기, 삭제 |
@@ -532,6 +534,7 @@
 | Ctrl + 0 | 줌 100% |
 | Ctrl + 1 | Fit to View |
 | Ctrl + Shift + R | Run Results 드로어 토글 |
+| Ctrl + / | AI Assistant 패널 토글 (상세: [AI Assistant §3.5](./4-ai-assistant.md#35-키보드-단축키)) |
 
 ---
 
