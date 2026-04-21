@@ -1,4 +1,4 @@
-import { apiClient, getAccessToken } from "./client";
+import { apiClient, getAccessToken, refreshAccessToken } from "./client";
 import { getCurrentWorkspaceId } from "@/lib/stores/workspace-store";
 
 export interface AssistantSessionData {
@@ -183,6 +183,12 @@ export const assistantApi = {
    * because EventSource can only GET — we need POST with a JSON body.
    * `onEvent` is invoked for each parsed event; the returned promise resolves
    * when the stream closes (done or error).
+   *
+   * `fetch` bypasses the axios response interceptor, so access-token refresh
+   * on 401 is handled explicitly here: the initial request is retried once
+   * after `refreshAccessToken()` succeeds. Without this, a long conversation
+   * would surface an "already disconnected" state at the next user message
+   * whenever the in-memory access token had expired since the previous turn.
    */
   async streamMessage(
     sessionId: string,
@@ -196,23 +202,41 @@ export const assistantApi = {
   ): Promise<void> {
     const baseUrl =
       process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001/api";
-    const token = getAccessToken();
-    const workspaceId = getCurrentWorkspaceId();
+    const url = `${baseUrl}/workflow-assistant/sessions/${sessionId}/messages`;
+    const body = JSON.stringify(payload);
 
-    const response = await fetch(
-      `${baseUrl}/workflow-assistant/sessions/${sessionId}/messages`,
-      {
+    const openStream = async (): Promise<Response> => {
+      const token = getAccessToken();
+      const workspaceId = getCurrentWorkspaceId();
+      return fetch(url, {
         method: "POST",
         credentials: "include",
         headers: {
           "Content-Type": "application/json",
+          Accept: "text/event-stream",
           ...(token ? { Authorization: `Bearer ${token}` } : {}),
           ...(workspaceId ? { "X-Workspace-Id": workspaceId } : {}),
         },
-        body: JSON.stringify(payload),
+        body,
         signal,
-      },
-    );
+      });
+    };
+
+    let response = await openStream();
+
+    // 401 → refresh once → retry. Subsequent 401 is treated as a hard
+    // auth failure (user needs to sign in again).
+    if (response.status === 401 && !signal?.aborted) {
+      try {
+        const refreshed = await refreshAccessToken();
+        if (refreshed) {
+          response = await openStream();
+        }
+      } catch (error) {
+        // Fall through — the throw below will surface the original status.
+        console.warn("[assistant] access token refresh failed", error);
+      }
+    }
 
     if (!response.ok || !response.body) {
       throw new Error(
