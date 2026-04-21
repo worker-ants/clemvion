@@ -218,3 +218,30 @@ function findUserRequestForPlan(
   }
   return null;
 }
+
+/** 한 턴의 tool-call budget 에 쓰이는 상수. */
+export const DEFAULT_MAX_TOOL_CALLS_PER_TURN = 48;
+export const HARD_MAX_TOOL_CALLS_PER_TURN = 200;
+
+/**
+ * 활성 plan 의 규모에 맞춰 한 턴의 tool-call 상한을 동적으로 결정한다.
+ *
+ *  - plan 이 없으면 기본값 (48) 사용. 대부분의 단발성 요청·탐색 턴에 충분.
+ *  - plan 이 있으면 `actionable steps × 3 + 8` 만큼 확장. add_node + add_edge
+ *    쌍 + 탐색 1~2 건을 여유로 둔다.
+ *  - 상한은 HARD_MAX (200) 로 잘라 런어웨이 루프 방어.
+ *  - plan 이 이미 많이 실행된 상태라면 "남은 step" 기준이 아니라 **전체 step**
+ *    기준으로 계산한다. 같은 턴 안에서 이미 완료한 call 수도 counter 에 남아
+ *    있어 보수적으로 넉넉하게 잡는 편이 UX 상 안전하다.
+ */
+export function computeToolCallsBudget(
+  plan: AssistantPlanRecord | null,
+): number {
+  if (!plan) return DEFAULT_MAX_TOOL_CALLS_PER_TURN;
+  const actionable = plan.steps.filter((s) => s.action !== 'note').length;
+  const planBased = actionable * 3 + 8;
+  return Math.min(
+    HARD_MAX_TOOL_CALLS_PER_TURN,
+    Math.max(DEFAULT_MAX_TOOL_CALLS_PER_TURN, planBased),
+  );
+}

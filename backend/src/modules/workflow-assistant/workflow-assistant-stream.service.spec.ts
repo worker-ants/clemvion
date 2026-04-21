@@ -1419,6 +1419,94 @@ describe('WorkflowAssistantStreamService', () => {
     expect(persistedAdd?.planStepIds).toEqual(['s1', 's3']);
   });
 
+  it('expands the per-turn tool-call budget when a large plan is proposed in the same turn', async () => {
+    // 15-step plan 은 computeToolCallsBudget → 15*3+8 = 53 로 확장된다.
+    // 이전 고정값(32) 기준이었다면 propose + 15 add_node + 15 add_edge ≈ 31
+    // 에서 아슬아슬하지만, 중간에 get_node_schema 같은 탐색이 섞이면 32 를
+    // 쉽게 넘는다. 이 테스트는 50-회 tool_call 을 순차 실행한 뒤에도 error
+    // 이벤트가 발행되지 않아야 함을 보장한다.
+    const { service, mocks } = makeService();
+    const bigPlanSteps = Array.from({ length: 15 }, (_, i) => ({
+      id: `s${i}`,
+      action: 'add_node' as const,
+      description: `step ${i}`,
+    }));
+    const events: ChatStreamEvent[] = [
+      {
+        type: 'tool_call_end',
+        id: 'call_plan',
+        name: 'propose_plan',
+        arguments: JSON.stringify({
+          title: 'Big',
+          summary: '',
+          steps: bigPlanSteps,
+        }),
+      },
+    ];
+    // 이후 40 건의 add_node 호출 (15 step 을 초과해 pending 이 남아도 budget
+    // 초과 에러는 나지 않아야 함 — 완료 guard 는 별도).
+    for (let i = 0; i < 40; i++) {
+      events.push({
+        type: 'tool_call_end',
+        id: `call_${i}`,
+        name: 'add_node',
+        arguments: JSON.stringify({
+          type: 'http_request',
+          label: `N${i}`,
+          position: { x: 500 + i * 10, y: 300 },
+          config: {},
+          planStepId: i < 15 ? `s${i}` : undefined,
+        }),
+      });
+    }
+    events.push({
+      type: 'done',
+      usage: { inputTokens: 10, outputTokens: 5, totalTokens: 15 },
+      model: 'gpt-4o',
+      finishReason: 'stop',
+    });
+
+    mocks.llmService.chatStream.mockImplementation(() => asyncIter(events));
+
+    const out = await collect(
+      service.streamMessage('sess-1', 'ws-1', 'u-1', baseDto as never),
+    );
+    const errEvent = out.find((e) => e.event === 'error');
+    expect(errEvent).toBeUndefined();
+  });
+
+  it('still blocks runaway loops when the total tool-call count exceeds the hard cap', async () => {
+    // plan 이 없는 턴이라 budget=DEFAULT(48). 50 회 호출하면 상한을 넘어
+    // ASSISTANT_TOO_MANY_TOOL_CALLS 로 탈출되어야 한다.
+    const { service, mocks } = makeService();
+    const runaway: ChatStreamEvent[] = Array.from({ length: 50 }, (_, i) => ({
+      type: 'tool_call_end' as const,
+      id: `call_${i}`,
+      name: 'get_current_workflow',
+      arguments: '{}',
+    }));
+    runaway.push({
+      type: 'done',
+      usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 },
+      model: 'gpt-4o',
+      finishReason: 'stop',
+    });
+    mocks.llmService.chatStream.mockImplementation(() => asyncIter(runaway));
+
+    const out = await collect(
+      service.streamMessage('sess-1', 'ws-1', 'u-1', baseDto as never),
+    );
+    const errEvent = out.find((e) => e.event === 'error');
+    expect(errEvent).toBeDefined();
+    expect((errEvent!.data as { code: string }).code).toBe(
+      'ASSISTANT_TOO_MANY_TOOL_CALLS',
+    );
+    // 재시도 안내 문구가 포함되어야 함 (UX 친절화).
+    expect((errEvent!.data as { message: string }).message).toMatch(
+      /follow-up message|budget/i,
+    );
+  });
+
   it('returns ASSISTANT_NO_LLM_CONFIG error when config resolution fails', async () => {
     const { service, mocks } = makeService();
     mocks.llmService.resolveConfig.mockRejectedValue(new Error('no config'));
