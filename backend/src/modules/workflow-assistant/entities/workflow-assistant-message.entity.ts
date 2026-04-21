@@ -11,7 +11,7 @@ import { WorkflowAssistantSession } from './workflow-assistant-session.entity';
 
 export type AssistantMessageRole = 'user' | 'assistant' | 'tool';
 
-export type AssistantToolCallKind = 'explore' | 'plan' | 'edit';
+export type AssistantToolCallKind = 'explore' | 'plan' | 'edit' | 'finish';
 
 export interface AssistantToolCallRecord {
   id: string;

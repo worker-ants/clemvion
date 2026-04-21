@@ -16,12 +16,26 @@ import {
   TOOL_KIND_BY_NAME,
   AssistantToolKind,
 } from './tools/tool-definitions';
+import { toWorkflowView } from './tools/workflow-view';
 import { buildSystemPrompt } from './prompts/system-prompt';
 import { AssistantMessageRequestDto } from './dto/assistant-message-request.dto';
 import {
   AssistantToolCallRecord,
   AssistantPlanRecord,
+  WorkflowAssistantMessage,
 } from './entities/workflow-assistant-message.entity';
+
+/**
+ * `evaluateFinishGuard` 의 반환 payload. `finish` tool_result 로 그대로
+ * 직렬화되어 LLM 에 전달된다.
+ */
+interface FinishGuardError {
+  ok: false;
+  error: 'PLAN_NOT_COMPLETE';
+  pendingSteps: Array<{ id: string; description: string }>;
+  openQuestions: string[];
+  message: string;
+}
 
 export type AssistantStreamEvent =
   | { event: 'text'; data: { delta: string } }
@@ -60,7 +74,10 @@ export type AssistantStreamEvent =
   | { event: 'done'; data: { finishReason: string } }
   | { event: 'error'; data: { code: string; message: string } };
 
-const MAX_TOOL_CALLS_PER_TURN = 16;
+// 한 turn 안에서 허용할 tool call 총합. 13-step 안팎의 중규모 plan
+// (add_node ≈ step 수 + add_edge ≈ step 수 + 탐색 몇 건) 이 한 번에 끝날 수
+// 있도록 32 로 여유를 둔다. 초과 시 ASSISTANT_TOO_MANY_TOOL_CALLS 로 탈출.
+const MAX_TOOL_CALLS_PER_TURN = 32;
 const MAX_HISTORY_TURNS = 30;
 
 /**
@@ -71,10 +88,18 @@ const MAX_HISTORY_TURNS = 30;
  *  2. 사용자 메시지를 DB에 저장
  *  3. ShadowWorkflow에 현재 워크플로우 스냅샷 적재
  *  4. LlmService.chatStream 루프 — text/tool_call/done 이벤트 처리
- *       - explore: ExploreToolsService로 위임 → 결과를 tool_result 메시지로 주입
+ *       - explore: DB·registry 조회가 필요한 도구는 ExploreToolsService로
+ *         위임, `get_current_workflow` 만은 shadow 접근이 필요하므로 루프
+ *         안의 buildCurrentWorkflowResult() 로 선처리 (handleExploreCall 의
+ *         switch 에는 방어용 INTERNAL 응답이 남아 있음)
  *       - plan: PlanCard 이벤트만 SSE로 발행, shadow 변경 없음
  *       - edit: ShadowWorkflow 적용 → 성공 시 SSE로 발행, tool_result를 LLM에 반환
- *       - finish: 루프 종료
+ *       - finish: evaluateFinishGuard() 로 plan 완결성(남은 step, openQuestions)
+ *         을 검사. 미완이면 `PLAN_NOT_COMPLETE` tool_result 로 되돌려 루프를
+ *         한 번 더 돌린다. finishBlockCount 로 같은 턴 2회 block 을 막아
+ *         무한 루프를 방지하고, 두 번째 finish 는 정상 탈출로 허용한다.
+ *         성공·차단 모두 pendingToolCalls 에 persist 되어 이후 세션
+ *         rehydrate 시 "이미 완료된 plan" 으로 인식된다.
  *  5. assistant 턴이 종료되면 누적된 텍스트/toolCalls/plan을 DB에 저장
  */
 @Injectable()
@@ -161,6 +186,9 @@ export class WorkflowAssistantStreamService {
     const pendingToolCalls: AssistantToolCallRecord[] = [];
     let planForTurn: AssistantPlanRecord | null = null;
     let totalToolCallsThisTurn = 0;
+    // 한 턴 안에서 finish 를 PLAN_NOT_COMPLETE 로 block 한 횟수. 같은 turn 에서
+    // 2번 이상 block 하면 무한 루프 위험이 있으므로 두 번째 finish 는 허용한다.
+    let finishBlockCount = 0;
 
     // 루프 (tool_calls가 있으면 다시 호출)
     while (true) {
@@ -172,6 +200,10 @@ export class WorkflowAssistantStreamService {
       let finishReason: string = 'stop';
       let usageEvent: AssistantStreamEvent | null = null;
       let hadError = false;
+      // finish tool 호출이 이 라운드에서 처리되었는지. 처리된 뒤에도 stream
+      // 에서 오는 done 이벤트(usage 포함)를 계속 소비해야 usage 정보가
+      // 클라이언트에 전달되고 로그에 남는다.
+      let finishResolved = false;
 
       try {
         for await (const ev of this.llmService.chatStream(
@@ -207,19 +239,67 @@ export class WorkflowAssistantStreamService {
               TOOL_KIND_BY_NAME[ev.name] ?? 'edit';
 
             if (kind === 'finish') {
-              pendingResultsForLlm.push({ id: ev.id, result: { ok: true } });
-              finishReason = 'stop';
-              break;
+              // 실행 턴에서 LLM 이 plan 의 일부만 실행한 채로 finish 를
+              // 호출하는 경우, 사용자는 "다 끝났다"는 잘못된 신호를 받는다.
+              // 서버가 pending 을 감지해 tool_result 를 error 로 반환하면
+              // LLM 이 다음 라운드에서 남은 step 을 채우도록 유도할 수 있다.
+              const block = this.evaluateFinishGuard(
+                planForTurn,
+                history,
+                pendingToolCalls,
+                finishBlockCount,
+              );
+              if (block) {
+                finishBlockCount++;
+                pendingResultsForLlm.push({ id: ev.id, result: block });
+                pendingToolCalls.push({
+                  id: ev.id,
+                  name: ev.name,
+                  arguments: parsed,
+                  kind,
+                  result: block,
+                  ...(ev.signature ? { signature: ev.signature } : {}),
+                });
+                // tool_calls 로 전환해 루프를 한 번 더 돌린다.
+                finishReason = 'tool_calls';
+              } else {
+                const finishResult = { ok: true };
+                pendingResultsForLlm.push({ id: ev.id, result: finishResult });
+                // 성공적인 finish 도 history 에 함께 persist 해, 다음 세션이
+                // rehydrate 될 때 "plan 이 이미 완료된 상태" 라는 맥락을
+                // 이어갈 수 있게 한다. SSE 로는 kind='finish' 를 발행하지
+                // 않으므로 UI 에는 노출되지 않는다.
+                pendingToolCalls.push({
+                  id: ev.id,
+                  name: ev.name,
+                  arguments: parsed,
+                  kind,
+                  result: finishResult,
+                  ...(ev.signature ? { signature: ev.signature } : {}),
+                });
+                finishReason = 'stop';
+              }
+              // break 하지 않고 계속 읽어 done/usage 이벤트를 소비해야
+              // Round 1 의 usage 가 클라이언트·로그에 정상 전달된다.
+              finishResolved = true;
+              continue;
             }
 
             let result: unknown;
             if (kind === 'explore') {
-              result = await this.handleExploreCall(
-                ev.name,
-                parsed,
-                workspaceId,
-                session.workflowId,
-              );
+              // `get_current_workflow` 는 세션 외부 DB를 조회하지 않고 현재
+              // turn 의 shadow 스냅샷을 그대로 돌려준다. 같은 turn 안에서
+              // edit 도구를 먼저 호출한 뒤 최신 상태를 확인하기 위한 용도.
+              if (ev.name === 'get_current_workflow') {
+                result = this.buildCurrentWorkflowResult(shadow);
+              } else {
+                result = await this.handleExploreCall(
+                  ev.name,
+                  parsed,
+                  workspaceId,
+                  session.workflowId,
+                );
+              }
             } else if (kind === 'plan') {
               const plan = this.buildPlanFromArgs(parsed);
               planForTurn = plan;
@@ -277,7 +357,11 @@ export class WorkflowAssistantStreamService {
               };
             }
           } else if (ev.type === 'done') {
-            finishReason = ev.finishReason;
+            // finish tool 이 이미 해석된 라운드라면 우리가 세팅한
+            // finishReason('stop' 또는 'tool_calls')을 그대로 유지한다.
+            // 프로바이더의 finishReason 은 tool_calls 로 오는 경우가 많은데
+            // finish 후에는 그 값을 신뢰하지 않는다.
+            if (!finishResolved) finishReason = ev.finishReason;
             usageEvent = {
               event: 'usage',
               data: {
@@ -402,6 +486,9 @@ export class WorkflowAssistantStreamService {
     });
   }
 
+  // DB 혹은 registry 조회가 필요한 explore 도구들을 ExploreToolsService 로
+  // 위임한다. `get_current_workflow` 는 호출 루프에서 shadow 에 직접 접근해
+  // 선처리되므로 여기로 오면 안 된다 (도달 시 프로그래밍 오류).
   private async handleExploreCall(
     name: string,
     args: Record<string, unknown>,
@@ -430,9 +517,118 @@ export class WorkflowAssistantStreamService {
         );
       case 'list_knowledge_bases':
         return this.exploreTools.listKnowledgeBases(workspaceId);
+      case 'get_current_workflow':
+        // Safety net: should have been handled by caller with shadow access.
+        return {
+          ok: false,
+          error: 'INTERNAL',
+          message:
+            'get_current_workflow must be handled by the stream loop with shadow access.',
+        };
       default:
         return { ok: false, error: 'UNKNOWN_EXPLORE_TOOL' };
     }
+  }
+
+  /**
+   * `finish` 호출 시점의 plan 완결성을 평가한다.
+   *
+   * 활성 plan(planForTurn, 없으면 히스토리 최근 plan) 의 step 중 실행되지 않은
+   * 것이 남아있거나, `openQuestions` 가 남아있으면 PLAN_NOT_COMPLETE 를 반환해
+   * LLM 이 다음 라운드에서 작업을 이어가도록 유도한다.
+   *
+   * 아래 조건이 하나라도 맞지 않으면 null(정상 finish 허용):
+   *   - 같은 턴에서 이미 한 번 block 했음 — 두 번째 finish 는 무한 루프 방지를
+   *     위해 그대로 통과 (안전 탈출)
+   *   - plan 이 없음
+   *   - 이번 턴이 실행 턴도 아니고 (= edit tool call 없음) plan 을 새로 발행한
+   *     턴도 아님. 단순 텍스트 응답 턴을 차단하면 정상 대화가 깨진다
+   *   - planForTurn 이 null(이전 턴 plan 을 재사용) 이고, 이번 턴 edit 중
+   *     해당 plan 의 step id 를 가진 게 하나도 없음. 이 경우 편집이 plan 과
+   *     무관한 단발 요청이므로 false positive 방지
+   *   - note 를 제외한 step 이 모두 완료됐고 openQuestions 도 비어있음
+   */
+  private evaluateFinishGuard(
+    planForTurn: AssistantPlanRecord | null,
+    history: WorkflowAssistantMessage[],
+    pendingToolCalls: AssistantToolCallRecord[],
+    finishBlockCount: number,
+  ): FinishGuardError | null {
+    if (finishBlockCount > 0) return null;
+    // plan 만 발행하고 아무 편집도 하지 않은 턴(사용자 승인 대기 상태)은
+    // 정상 finish 로 취급한다 — 이 턴에서는 애초에 실행 의도가 없었다.
+    const editThisTurn = pendingToolCalls.some((tc) => tc.kind === 'edit');
+    if (!editThisTurn) return null;
+
+    const activePlan = planForTurn ?? this.findLatestPlanInHistory(history);
+    if (!activePlan) return null;
+
+    const thisTurnPlanStepIds = new Set(
+      pendingToolCalls
+        .map((tc) => tc.planStepId)
+        .filter((id): id is string => typeof id === 'string'),
+    );
+    const activePlanStepIds = new Set(activePlan.steps.map((s) => s.id));
+    // planForTurn 이 null 이고 이번 턴 편집이 history plan 의 step 과 전혀
+    // 매칭되지 않으면, 이 편집은 plan 과 무관한 단발성 편집으로 간주하고
+    // guard 를 비활성화한다.
+    if (planForTurn === null) {
+      const linkedToHistoryPlan = [...thisTurnPlanStepIds].some((id) =>
+        activePlanStepIds.has(id),
+      );
+      if (!linkedToHistoryPlan) return null;
+    }
+
+    const completedStepIds = new Set<string>();
+    for (const m of history) {
+      if (m.role === 'assistant' && m.toolCalls) {
+        for (const tc of m.toolCalls) {
+          if (tc.planStepId) completedStepIds.add(tc.planStepId);
+        }
+      }
+    }
+    for (const id of thisTurnPlanStepIds) completedStepIds.add(id);
+
+    // note 스텝은 edit tool 호출이 존재하지 않는 설명 항목이라 planStepId 로
+    // 커버되는 일이 없다. guard 에서 제외해 note 만 남은 경우 무한 차단되지
+    // 않게 한다.
+    const pendingSteps = activePlan.steps
+      .filter((s) => s.action !== 'note')
+      .filter((s) => !completedStepIds.has(s.id))
+      .map((s) => ({ id: s.id, description: s.description }));
+    const openQuestions = activePlan.openQuestions ?? [];
+    if (pendingSteps.length === 0 && openQuestions.length === 0) return null;
+
+    const hint =
+      pendingSteps.length > 0 && openQuestions.length > 0
+        ? 'The active plan has pending steps AND unanswered openQuestions. Ask the user the remaining questions in a Korean message, and execute the pending edit tools (with their planStepId) — especially add_edge calls that keep new nodes connected back to manual_trigger.'
+        : pendingSteps.length > 0
+          ? 'The active plan has pending steps. Execute the remaining edit tools with their matching planStepId — especially add_edge calls that keep new nodes connected back to manual_trigger — or explain why a step should be skipped. Then call finish again.'
+          : 'The active plan still has unanswered openQuestions. Do NOT call finish. Instead, end this turn with a short Korean message asking the user the remaining questions.';
+    return {
+      ok: false,
+      error: 'PLAN_NOT_COMPLETE',
+      pendingSteps,
+      openQuestions,
+      message: `Finish blocked: ${hint}`,
+    };
+  }
+
+  private findLatestPlanInHistory(
+    history: WorkflowAssistantMessage[],
+  ): AssistantPlanRecord | null {
+    for (let i = history.length - 1; i >= 0; i--) {
+      const m = history[i];
+      if (m.role === 'assistant' && m.plan) return m.plan;
+    }
+    return null;
+  }
+
+  // 같은 턴 안에서 edit 도구로 수정된 최신 shadow 를 LLM 에 되돌려준다.
+  // 시스템 프롬프트 스냅샷과 동일한 보안 정책(redactConfig) · 동일한 shape
+  // (`toWorkflowView`) 을 공유해 두 표현이 발산하지 않도록 한다.
+  private buildCurrentWorkflowResult(shadow: ShadowWorkflow): unknown {
+    return { ok: true, ...toWorkflowView(shadow.snapshot()) };
   }
 
   private buildPlanFromArgs(
@@ -517,9 +713,7 @@ export class WorkflowAssistantStreamService {
 // 이렇게 하면 이후 이어지는 새 user 텍스트 메시지가 (B)와 merge되지 않고
 // 독립된 user turn으로 남아 Gemini 규칙을 지킨다. OpenAI/Anthropic도 이 구조를
 // 문제없이 소비한다.
-function toChatMessages(
-  msg: import('./entities/workflow-assistant-message.entity').WorkflowAssistantMessage,
-): ChatMessage[] {
+function toChatMessages(msg: WorkflowAssistantMessage): ChatMessage[] {
   if (msg.role === 'user') {
     return [{ role: 'user', content: msg.content ?? '' }];
   }

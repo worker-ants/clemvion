@@ -16,6 +16,7 @@ export const TOOL_KIND_BY_NAME: Record<string, AssistantToolKind> = {
   list_integrations: 'explore',
   list_workflows: 'explore',
   get_workflow: 'explore',
+  get_current_workflow: 'explore',
   list_knowledge_bases: 'explore',
   propose_plan: 'plan',
   add_node: 'edit',
@@ -90,7 +91,7 @@ export function buildAssistantTools(): ToolDef[] {
     {
       name: 'get_workflow',
       description:
-        'Fetch a summary of another workflow (nodes, edges) to use as a reference. `id` MUST be a real UUID v4 obtained from a previous list_workflows() call — do not invent placeholder strings. To inspect the CURRENT workflow being edited, just read the snapshot the user provided in this conversation; do not call this tool for it.',
+        'Fetch a summary of ANOTHER workflow (nodes, edges) to use as a reference. `id` MUST be a real UUID v4 obtained from a previous list_workflows() call — do not invent placeholder strings. For the CURRENT workflow being edited, the snapshot is already in the system prompt; if you need the latest state after making edits in this turn, call `get_current_workflow` instead.',
       parameters: {
         type: 'object',
         additionalProperties: false,
@@ -108,6 +109,16 @@ export function buildAssistantTools(): ToolDef[] {
           },
         },
         required: ['id'],
+      },
+    },
+    {
+      name: 'get_current_workflow',
+      description:
+        'Return the up-to-date list of nodes and edges on the user\'s canvas, including any edits already applied in THIS turn. The turn-start snapshot is also embedded in the system prompt — for plain read-only questions like "what\'s on the canvas?" or "find nodes of type X", read that snapshot directly (no tool call needed). Call this tool ONLY after you have invoked edit tools and need to verify the resulting state, or when you are unsure whether the snapshot is current. Sensitive config values (apiKey, secret, token, etc.) are redacted to "[REDACTED]" in the response.',
+      parameters: {
+        type: 'object',
+        additionalProperties: false,
+        properties: {},
       },
     },
     {
