@@ -135,14 +135,24 @@ function presentationButtonPorts(
   const globalButtons = (config.buttons as ButtonEntry[] | undefined) ?? [];
   const portDefs: DynamicPortDefinition[] = [];
 
+  // button.id 가 schema 상 optional 이라 LLM 이 생략해 들어오는 경우가 있다.
+  // 빈 id 인 채로 두면 dedupeById 가 모두 필터해 캔버스에서 outport 가
+  // 사라진다. 경로 기반의 deterministic fallback id 를 부여한다. 사용자가
+  // 이후 설정 UI 에서 id 를 수정하면 explicit 값이 우선된다.
+  const resolveButtonId = (b: ButtonEntry, fallback: string): string =>
+    typeof b.id === "string" && b.id.length > 0 ? b.id : fallback;
+
   if (spec.supportsItems) {
     if (config.mode === "static" && Array.isArray(config.items)) {
-      for (const item of config.items as CarouselItem[]) {
+      const items = config.items as CarouselItem[];
+      for (let i = 0; i < items.length; i++) {
+        const item = items[i];
         if (!item.buttons) continue;
-        for (const b of item.buttons) {
+        for (let j = 0; j < item.buttons.length; j++) {
+          const b = item.buttons[j];
           if (b.type !== "port") continue;
           portDefs.push({
-            id: b.id,
+            id: resolveButtonId(b, `items_${i}_btn_${j}`),
             label: b.label || "Button",
             type: "data",
             group: item.title || "Item",
@@ -152,10 +162,12 @@ function presentationButtonPorts(
     }
   }
   if (spec.supportsItemButtons && Array.isArray(config.itemButtons)) {
-    for (const b of config.itemButtons as ButtonEntry[]) {
+    const itemButtons = config.itemButtons as ButtonEntry[];
+    for (let i = 0; i < itemButtons.length; i++) {
+      const b = itemButtons[i];
       if (b.type !== "port") continue;
       portDefs.push({
-        id: b.id,
+        id: resolveButtonId(b, `itemBtn_${i}`),
         label: b.label || "Button",
         type: "data",
         group: "Item",
@@ -163,9 +175,14 @@ function presentationButtonPorts(
     }
   }
 
-  for (const b of globalButtons) {
+  for (let i = 0; i < globalButtons.length; i++) {
+    const b = globalButtons[i];
     if (b.type !== "port") continue;
-    portDefs.push({ id: b.id, label: b.label || "Button", type: "data" });
+    portDefs.push({
+      id: resolveButtonId(b, `btn_${i}`),
+      label: b.label || "Button",
+      type: "data",
+    });
   }
 
   if (portDefs.length > 0) return portDefs;
