@@ -15,6 +15,13 @@ export interface ToolCall {
   id: string;
   name: string;
   arguments: string;
+  /**
+   * Provider-opaque signature that must be echoed back in subsequent history
+   * turns. Currently used by Gemini 2.5+/3.x (thought_signature) to validate
+   * that the same model that originated the tool call is still in the
+   * conversation. Other providers ignore this field.
+   */
+  signature?: string;
 }
 
 export interface ChatParams {
@@ -74,7 +81,18 @@ export type ChatStreamEvent =
       name?: string;
       argumentsDelta: string;
     }
-  | { type: 'tool_call_end'; id: string; name: string; arguments: string }
+  | {
+      type: 'tool_call_end';
+      id: string;
+      name: string;
+      arguments: string;
+      /**
+       * See {@link ToolCall.signature}. When present, consumers must persist
+       * it with the tool call and echo it back in history on subsequent
+       * turns.
+       */
+      signature?: string;
+    }
   | {
       type: 'done';
       usage: TokenUsage;

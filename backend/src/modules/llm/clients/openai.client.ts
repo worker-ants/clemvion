@@ -294,9 +294,7 @@ export class OpenAIClient implements LLMClient {
             if (choice.finish_reason === 'tool_calls') {
               finishReason = 'tool_calls';
               // 완성된 tool_call들을 방출
-              const sorted = [...toolAccum.entries()].sort(
-                ([a], [b]) => a - b,
-              );
+              const sorted = [...toolAccum.entries()].sort(([a], [b]) => a - b);
               for (const [, entry] of sorted) {
                 if (entry.id) {
                   yield {

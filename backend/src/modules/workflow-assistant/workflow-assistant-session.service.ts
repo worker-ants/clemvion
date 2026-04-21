@@ -109,11 +109,7 @@ export class WorkflowAssistantSessionService {
     return this.sessionRepo.save(session);
   }
 
-  async remove(
-    id: string,
-    workspaceId: string,
-    userId: string,
-  ): Promise<void> {
+  async remove(id: string, workspaceId: string, userId: string): Promise<void> {
     const session = await this.findOneForUser(id, workspaceId, userId);
     await this.sessionRepo.remove(session);
   }
@@ -139,7 +135,7 @@ export class WorkflowAssistantSessionService {
     if (session.userId !== userId) {
       throw new ForbiddenException({
         code: 'ASSISTANT_SESSION_NOT_YOURS',
-        message: 'You cannot access another user\'s Assistant session.',
+        message: "You cannot access another user's Assistant session.",
       });
     }
     return session;

@@ -22,7 +22,7 @@ Workflow AI Assistant(이하 "Assistant")는 워크플로우 에디터에 내장
 | 항목 | 사유 |
 |------|------|
 | 여러 워크플로우에 걸친 일괄 편집 | 현재 세션은 단일 워크플로우에 종속 |
-| Google/Gemini·Azure 스트리밍 | 툴 호출 포맷 차이로 후속 작업 |
+| Azure 스트리밍 | OpenAI 호환 엔드포인트의 스트리밍 검증 범위 밖 — 후속 작업 |
 | Assistant가 직접 워크플로우를 실행 | 실행은 사용자가 직접 `Run` 버튼으로 수행 |
 | 협업 공유 (세션을 다른 멤버와 공유) | 팀 워크스페이스 RBAC이 선행 필요 |
 
@@ -318,7 +318,7 @@ data: {"code": "LLM_RATE_LIMIT", "message": "..."}
 |------|------|---------------|
 | `ASSISTANT_NO_LLM_CONFIG` | LLM Config 없음 & workspace default도 없음 | "LLM 설정을 먼저 등록해 주세요." + 설정 화면 링크 |
 | `ASSISTANT_LLM_CONFIG_INVALID` | 지정 config 삭제되었거나 워크스페이스 밖 | "선택한 LLM 설정을 찾을 수 없어요. 다시 선택해 주세요." |
-| `ASSISTANT_STREAMING_UNSUPPORTED` | 해당 provider가 아직 스트리밍 미지원 (예: Google/Azure) | "이 모델은 현재 Assistant에서 지원하지 않아요. OpenAI/Anthropic를 사용해 주세요." |
+| `ASSISTANT_STREAMING_UNSUPPORTED` | 해당 provider가 아직 스트리밍 미지원 (예: Azure) | "이 모델은 현재 Assistant에서 지원하지 않아요. OpenAI/Anthropic/Google을 사용해 주세요." |
 | `LLM_RATE_LIMIT` | 429 (LLM Client §6 위임) | "잠시 후 다시 시도해 주세요." + 재시도 버튼 |
 | `LLM_TIMEOUT` | 120초 타임아웃 | "응답이 늦어지고 있어요. 다시 시도할까요?" |
 | `ASSISTANT_TOOL_FAILED` | 편집 도구가 shadow 검증 실패 | 배지에 구체 사유(§4.4) 표시 + LLM이 다음 턴에 복구 시도 |
@@ -378,7 +378,7 @@ data: {"code": "LLM_RATE_LIMIT", "message": "..."}
 |----------|------------------|
 | OpenAI | ✅ 필수 (chat.completions.stream + tool_calls delta 누적) |
 | Anthropic | ✅ 필수 (messages.stream + content_block delta 누적) |
-| Google (Gemini) | ❌ v1 제외 — 호출 시 `ASSISTANT_STREAMING_UNSUPPORTED` |
+| Google (Gemini) | ✅ 필수 (`ChatSession.sendMessageStream` + `EnhancedGenerateContentResponse.candidates[].content.parts` 순회. `functionCall` part는 인자가 한 번에 완결된 JSON으로 내려오므로 `tool_call_delta`+`tool_call_end`를 즉시 emit — OpenAI식 인자 조각 누적 단계 불필요) |
 | Azure OpenAI | ❌ v1 제외 |
 | Local (Ollama/vLLM) | 🚧 OpenAI 호환 API면 자동 지원 가능, MVP에서는 테스트 범위 밖 |
 
@@ -463,4 +463,4 @@ data: {"code": "LLM_RATE_LIMIT", "message": "..."}
 - 세션 공유/팀 협업 (팀 워크스페이스 RBAC 선행 필요)
 - 버전 롤백 제안 ("이 Assistant 편집을 한 묶음으로 버전 스냅샷에 포함할까요?")
 - 자동 테스트 케이스 생성 제안
-- Google/Azure 스트리밍 지원
+- Azure 스트리밍 지원

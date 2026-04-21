@@ -21,7 +21,10 @@ export class UpdateAssistantSessionDto {
     nullable: true,
   })
   // Allow explicit null to clear the pinned config; @IsUUID only runs on defined+non-null.
-  @ValidateIf((o: UpdateAssistantSessionDto) => o.llmConfigId !== null && o.llmConfigId !== undefined)
+  @ValidateIf(
+    (o: UpdateAssistantSessionDto) =>
+      o.llmConfigId !== null && o.llmConfigId !== undefined,
+  )
   @IsUUID()
   llmConfigId?: string | null;
 

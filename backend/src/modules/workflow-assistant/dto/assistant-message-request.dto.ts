@@ -16,11 +16,18 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 const MAX_NODES_PER_SNAPSHOT = 500;
 const MAX_EDGES_PER_SNAPSHOT = 2_000;
 const MAX_MESSAGE_CHARS = 8_000;
+// Frontend(ReactFlow)는 edge id를 기본적으로 composite key
+// `reactflow__edge-<sourceId>-<sourceHandle>-<targetId>-<targetHandle>` 형태로
+// 생성한다. UUID 두 개가 포함되면 쉽게 90+ 자가 되므로 256자까지 허용한다.
+const MAX_EDGE_ID_CHARS = 256;
+// 노드/엣지의 source/target 참조는 UUID(36) 또는 클라이언트 임시 ID(예:
+// `manual-<timestamp>`) 수준이므로 128자로 넉넉히 둔다.
+const MAX_NODE_ID_CHARS = 128;
 
 export class AssistantWorkflowNodeDto {
   @ApiProperty({ description: '노드 ID (UUID 또는 클라이언트 임시 ID)' })
   @IsString()
-  @MaxLength(64)
+  @MaxLength(MAX_NODE_ID_CHARS)
   id: string;
 
   @ApiProperty({ description: '노드 타입 식별자', example: 'http_request' })
@@ -76,12 +83,12 @@ export class AssistantWorkflowEdgeDto {
   @ApiPropertyOptional({ description: '엣지 식별자 (선택)' })
   @IsOptional()
   @IsString()
-  @MaxLength(64)
+  @MaxLength(MAX_EDGE_ID_CHARS)
   id?: string;
 
   @ApiProperty({ description: 'source 노드 ID' })
   @IsString()
-  @MaxLength(64)
+  @MaxLength(MAX_NODE_ID_CHARS)
   sourceNodeId: string;
 
   @ApiPropertyOptional({ description: 'source 포트', example: 'out' })
@@ -92,7 +99,7 @@ export class AssistantWorkflowEdgeDto {
 
   @ApiProperty({ description: 'target 노드 ID' })
   @IsString()
-  @MaxLength(64)
+  @MaxLength(MAX_NODE_ID_CHARS)
   targetNodeId: string;
 
   @ApiPropertyOptional({ description: 'target 포트', example: 'in' })

@@ -90,7 +90,12 @@ export class LlmService {
         message: `Provider '${config.provider}' does not support streaming in this release.`,
       });
     }
-    let lastUsage: { inputTokens: number; outputTokens: number; totalTokens: number; thinkingTokens?: number } | null = null;
+    let lastUsage: {
+      inputTokens: number;
+      outputTokens: number;
+      totalTokens: number;
+      thinkingTokens?: number;
+    } | null = null;
     let lastModel: string = config.defaultModel;
     try {
       for await (const event of client.stream(params, signal)) {

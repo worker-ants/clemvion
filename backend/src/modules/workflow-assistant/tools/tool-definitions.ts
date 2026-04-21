@@ -65,7 +65,8 @@ export function buildAssistantTools(): ToolDef[] {
         properties: {
           category: {
             type: 'string',
-            description: 'Optional category filter (http, smtp, database, ...).',
+            description:
+              'Optional category filter (http, smtp, database, ...).',
           },
         },
       },
@@ -89,12 +90,17 @@ export function buildAssistantTools(): ToolDef[] {
     {
       name: 'get_workflow',
       description:
-        'Fetch a summary of another workflow (nodes, edges) to use as a reference.',
+        'Fetch a summary of another workflow (nodes, edges) to use as a reference. `id` MUST be a real UUID v4 obtained from a previous list_workflows() call — do not invent placeholder strings. To inspect the CURRENT workflow being edited, just read the snapshot the user provided in this conversation; do not call this tool for it.',
       parameters: {
         type: 'object',
         additionalProperties: false,
         properties: {
-          id: { type: 'string', format: 'uuid' },
+          id: {
+            type: 'string',
+            format: 'uuid',
+            description:
+              'UUID of an existing workflow in this workspace. Obtain via list_workflows().',
+          },
           mode: {
             type: 'string',
             enum: ['summary', 'full'],
@@ -106,8 +112,13 @@ export function buildAssistantTools(): ToolDef[] {
     },
     {
       name: 'list_knowledge_bases',
-      description: 'List knowledge bases available for RAG-enabled AI Agent nodes.',
-      parameters: { type: 'object', additionalProperties: false, properties: {} },
+      description:
+        'List knowledge bases available for RAG-enabled AI Agent nodes.',
+      parameters: {
+        type: 'object',
+        additionalProperties: false,
+        properties: {},
+      },
     },
     // ─── Plan ─────────────────────────────────────────
     {

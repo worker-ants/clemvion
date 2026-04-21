@@ -61,11 +61,7 @@ export class WorkflowAssistantController {
     @CurrentUser('sub') userId: string,
     @Query('workflowId', ParseUUIDPipe) workflowId: string,
   ) {
-    return this.sessionService.listForWorkflow(
-      workspaceId,
-      userId,
-      workflowId,
-    );
+    return this.sessionService.listForWorkflow(workspaceId, userId, workflowId);
   }
 
   // NOTE: `sessions/latest` must be declared BEFORE `sessions/:id` — Nest

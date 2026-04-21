@@ -20,7 +20,9 @@ export function buildSystemPrompt(
   const catalog = nodeDefs
     .map((d) => {
       const ports = Array.isArray(d.ports?.outputs)
-        ? d.ports.outputs.map((p) => (typeof p === 'string' ? p : (p as { id: string }).id)).join(',')
+        ? d.ports.outputs
+            .map((p) => (typeof p === 'string' ? p : (p as { id: string }).id))
+            .join(',')
         : '';
       return `- ${d.metadata.type} (${d.metadata.category}): ${d.metadata.description ?? ''}${ports ? ` [out: ${ports}]` : ''}`;
     })

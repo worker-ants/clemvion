@@ -20,6 +20,12 @@ export interface AssistantToolCallRecord {
   kind: AssistantToolCallKind;
   result?: unknown;
   planStepId?: string;
+  /**
+   * Provider-opaque signature that must round-trip with the tool call across
+   * LLM invocations. Currently used by Gemini 2.5+/3.x (thought_signature).
+   * See `ToolCall.signature` in llm-client.interface.ts.
+   */
+  signature?: string;
 }
 
 export interface AssistantPlanStep {
@@ -75,7 +81,12 @@ export class WorkflowAssistantMessage {
   @Column({ name: 'tool_calls', type: 'jsonb', nullable: true })
   toolCalls: AssistantToolCallRecord[] | null;
 
-  @Column({ name: 'tool_call_id', length: 255, nullable: true, type: 'varchar' })
+  @Column({
+    name: 'tool_call_id',
+    length: 255,
+    nullable: true,
+    type: 'varchar',
+  })
   toolCallId: string | null;
 
   @Column({ type: 'jsonb', nullable: true })
@@ -84,7 +95,12 @@ export class WorkflowAssistantMessage {
   @Column({ type: 'jsonb', nullable: true })
   usage: AssistantUsageRecord | null;
 
-  @Column({ name: 'finish_reason', length: 30, nullable: true, type: 'varchar' })
+  @Column({
+    name: 'finish_reason',
+    length: 30,
+    nullable: true,
+    type: 'varchar',
+  })
   finishReason: string | null;
 
   @CreateDateColumn({ name: 'created_at', type: 'timestamptz' })

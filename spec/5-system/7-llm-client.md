@@ -233,7 +233,7 @@ type ChatStreamEvent =
 |-----------|------|-----------|
 | OpenAI | ✅ | `chat.completions.create({stream: true})` — `choices[0].delta.content` → text_delta, `choices[0].delta.tool_calls[].function.arguments` → tool_call_delta, `choices[0].finish_reason` → done |
 | Anthropic | ✅ | `messages.stream()` — `content_block_delta` (text_delta/input_json_delta), `content_block_start`/`content_block_stop`으로 tool_call_end 판정, `message_delta` 에서 usage 수집 |
-| Google AI | ❌ | v1 스코프 밖. 호출 시 `LLM_STREAMING_UNSUPPORTED` throw |
+| Google AI | ✅ | `ChatSession.sendMessageStream()`(멀티턴) 또는 `GenerativeModel.generateContentStream()` 사용. `EnhancedGenerateContentResponse.candidates[].content.parts`를 순회하여 `text` part → `text_delta`, `functionCall` part는 인자가 한 번에 완결된 JSON으로 도착하므로 `tool_call_delta`+`tool_call_end`를 즉시 같은 턴에 emit (OpenAI의 `arguments` 조각 누적 단계 불필요). usage는 `usageMetadata` (마지막 chunk 또는 aggregated `response` promise)에서 1회 수집 |
 | Azure OpenAI | ❌ | v1 스코프 밖. 동일 |
 | Local (Ollama/vLLM) | 🚧 | OpenAI 호환 API 사용 시 자동 지원 가능하나 MVP 검증 범위 밖 |
 
