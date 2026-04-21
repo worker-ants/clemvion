@@ -10,15 +10,11 @@ import { sanitizeAssistantText } from "./harmony-filter";
 interface AssistantMessageViewProps {
   message: AssistantDisplayMessage;
   onApprovePlan: () => void;
-  onAnswerPlanQuestions: (answer: string) => void;
-  isStreaming?: boolean;
 }
 
 export function AssistantMessageView({
   message,
   onApprovePlan,
-  onAnswerPlanQuestions,
-  isStreaming = false,
 }: AssistantMessageViewProps) {
   // hooks must run unconditionally — so sanitize/memo before any early
   // return below. user 메시지 경로에서는 displayText 를 사용하지 않지만,
@@ -72,13 +68,7 @@ export function AssistantMessageView({
         </div>
       )}
       {message.plan && (
-        <PlanCard
-          plan={message.plan}
-          onApprove={onApprovePlan}
-          onAnswerQuestions={onAnswerPlanQuestions}
-          canApprove
-          isStreaming={isStreaming}
-        />
+        <PlanCard plan={message.plan} onApprove={onApprovePlan} canApprove />
       )}
     </div>
   );

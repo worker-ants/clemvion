@@ -191,10 +191,6 @@ export function AssistantPanel() {
               key={m.id}
               message={m}
               onApprovePlan={() => void approveActivePlan(snapshot)}
-              onAnswerPlanQuestions={(answer) =>
-                void sendMessage(answer, snapshot)
-              }
-              isStreaming={isStreaming}
             />
           ))
         )}
