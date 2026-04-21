@@ -41,11 +41,12 @@ export interface AssistantDisplayMessage {
    */
   error?: { code: string; message: string };
   /**
-   * 서버·프론트가 자동 주입하는 안내 문구. 대표 사례: LLM 이 말없이 턴을
-   * 종료했는데 plan 에 pending step 이 남아있는 경우 → "이어서 진행해줘"
-   * 안내.
+   * 서버·프론트가 자동 주입하는 안내 문구. `kind` 는 렌더 박스 색을
+   * 결정한다. 대표 사례:
+   *  - `info`    : "이어서 진행해줘" (stalled plan)
+   *  - `success` : "작업을 완료했어요 — N개 단계 실행 성공"
    */
-  systemHint?: string;
+  systemHint?: { kind: "info" | "success"; text: string };
 }
 
 interface AssistantState {
@@ -499,21 +500,31 @@ function handleSseEvent(
     }));
   } else if (event.event === "done") {
     set((s) => {
+      const locale = useLocaleStore.getState().locale;
       const messages = s.messages.map((m) => {
         if (m.id !== assistantId) return m;
         const updated: AssistantDisplayMessage = { ...m, streaming: false };
-        // 턴이 "stop" 으로 끝났는데 assistant 가 텍스트 없이 조용히 멈췄고
-        // (content 공백 + error 없음) 활성 plan 에 pending step 이 남아
-        // 있으면 사용자에게 다음 액션을 안내하는 힌트를 자동 주입한다.
-        const stalled =
-          !updated.content.trim() &&
-          !updated.error &&
-          hasPendingStep(updated, s.messages);
-        if (stalled) {
-          updated.systemHint = translate(
-            useLocaleStore.getState().locale,
-            "assistant.turnStalledHint",
-          );
+        // 힌트 우선순위: error > stalled > completed. error 가 이미 있으면
+        // 그대로 둔다 (에러 bubble 이 렌더됨). 그렇지 않을 때 plan 진행도를
+        // 보고 두 경우를 분기:
+        //   - 남은 pending step 이 있음 → "이어서 진행해줘" 안내
+        //   - 모두 완료 (+openQuestions 없음) 이고 이번 턴에 실제 진행이
+        //     있었음 → 완료 알림
+        if (!updated.error) {
+          const completion = summarizePlanState(updated, s.messages);
+          if (completion.status === "pending" && !updated.content.trim()) {
+            updated.systemHint = {
+              kind: "info",
+              text: translate(locale, "assistant.turnStalledHint"),
+            };
+          } else if (completion.status === "completed") {
+            updated.systemHint = {
+              kind: "success",
+              text: translate(locale, "assistant.turnCompletedHint", {
+                count: completion.completedActionable,
+              }),
+            };
+          }
         }
         return updated;
       });
@@ -523,19 +534,27 @@ function handleSseEvent(
 }
 
 /**
- * "이 assistant 턴 종료 시점에 실행 가능한 pending step 이 남아있는가" 판별.
- * - 해당 메시지 자체의 plan 이 있으면 그 plan 을 본다.
- * - 없으면 history 에서 최신 plan 을 찾아 본다.
- * - plan 이 **실제로 실행 중** (approved 버튼 클릭 OR 이미 done 된 step 이
- *   하나 이상 있음 — 자연어 승인 후 LLM 이 진행 중인 경우) 일 때만 pending
- *   검사를 한다. plan 발행만 한 "approve 대기" 상태 턴에는 plan 카드에 이미
- *   "계획대로 진행" 버튼이 있으므로 힌트를 중복으로 띄우지 않는다.
- * - note-action step 은 집계에서 제외.
+ * Turn 종료 시점에 활성 plan 진행 상태를 요약한다.
+ *
+ *   - `none`      : 활성 plan 이 없거나, plan 이 아직 실행 시작 전(approve
+ *                    대기) — hint 불필요.
+ *   - `pending`   : plan 이 실행 중이고 actionable(!= note) step 이 남음.
+ *                    Turn 이 조용히 멈추면 "이어서 진행해줘" 힌트.
+ *   - `completed` : plan 의 모든 actionable step 이 done 이고 openQuestions
+ *                    도 없음. 이번 턴에 진행이 있었는지와 무관하게 완료
+ *                    알림을 띄워 사용자가 작업 종료를 즉시 인지하도록.
+ *
+ * plan 이 **시작되었는지(started)** 는 approve 버튼 클릭 또는 최소 1개 step
+ * 이 이미 done 인지로 판정한다 — 자연어 승인으로 LLM 이 진행 중인 경우를
+ * 포함.
  */
-function hasPendingStep(
+function summarizePlanState(
   msg: AssistantDisplayMessage,
   all: AssistantDisplayMessage[],
-): boolean {
+): {
+  status: "none" | "pending" | "completed";
+  completedActionable: number;
+} {
   let plan: AssistantPlanCard | null = msg.plan;
   if (!plan) {
     for (let i = all.length - 1; i >= 0; i--) {
@@ -545,11 +564,17 @@ function hasPendingStep(
       }
     }
   }
-  if (!plan) return false;
-  const hasStarted =
-    plan.approved || plan.steps.some((s) => s.status === "done");
-  if (!hasStarted) return false;
-  return plan.steps.some(
-    (s) => s.status === "pending" && s.action !== "note",
-  );
+  if (!plan) return { status: "none", completedActionable: 0 };
+  const actionable = plan.steps.filter((s) => s.action !== "note");
+  const completedActionable = actionable.filter(
+    (s) => s.status === "done",
+  ).length;
+  const hasStarted = plan.approved || completedActionable > 0;
+  if (!hasStarted) return { status: "none", completedActionable: 0 };
+  const hasPending = actionable.some((s) => s.status === "pending");
+  const openQuestions = plan.openQuestions ?? [];
+  if (!hasPending && openQuestions.length === 0) {
+    return { status: "completed", completedActionable };
+  }
+  return { status: "pending", completedActionable };
 }

@@ -1884,6 +1884,7 @@ export const ko = {
     planQuestionsHint: "아래 메시지 입력창에 답변을 적어 보내 주세요.",
     turnStalledHint:
       "진행이 중단됐어요. `이어서 진행해줘` 라고 답해 주시면 남은 단계를 계속 실행할게요.",
+    turnCompletedHint: "작업을 완료했어요 — {{count}}개 단계 실행 성공.",
     errorBubbleTitle: "요청 처리 중 문제가 발생했어요",
     emptyTitle: "무엇을 도와드릴까요?",
     emptySubtitle: "자연어로 원하는 워크플로우를 설명하면 함께 만들어드려요.",
