@@ -34,13 +34,16 @@ function parallelBranchPorts(config: Record<string, unknown>): DynamicPortDefini
 
 function switchPorts(config: Record<string, unknown>): DynamicPortDefinition[] {
   const cases = (config.cases as CaseEntry[] | undefined) ?? [];
-  const casePorts = cases
-    .filter((c) => c.id)
-    .map<DynamicPortDefinition>((c) => ({
-      id: c.id,
-      label: c.label || "Case",
-      type: "data",
-    }));
+  // id 누락 case 는 드롭하지 않고 `case_${i}` fallback id 를 부여한다 —
+  // 드롭하면 UI 에 out-port 핸들이 사라져 사용자가 배선 자체를 못 한다.
+  // fallback id 가 이후 유저 편집으로 커스텀 id 로 교체될 때까지 안정적인
+  // 포트 식별자를 제공한다.
+  const casePorts = cases.map<DynamicPortDefinition>((c, i) => ({
+    id:
+      typeof c.id === "string" && c.id.length > 0 ? c.id : `case_${i}`,
+    label: c.label || "Case",
+    type: "data",
+  }));
   return [...casePorts, { id: "default", label: "Default", type: "data" }];
 }
 
@@ -88,13 +91,16 @@ function aiAgentConditionalPorts(
 ): DynamicPortDefinition[] {
   const conditions =
     (config[spec.conditionsField] as ConditionEntry[] | undefined) ?? [];
-  const condPorts = conditions
-    .filter((c) => c.id)
-    .map<DynamicPortDefinition>((c) => ({
-      id: c.id,
-      label: c.label || "Condition",
-      type: "data",
-    }));
+  // switchPorts 와 동일한 정책: id 누락 condition 은 드롭하지 않고
+  // `cond_${i}` fallback 부여. "조건이 전혀 없음" 분기는 conditions 배열
+  // 길이 기준 — id 누락으로 fallback 처리된 경우도 실제 의도된 분기로
+  // 간주해 포트를 발행한다.
+  const condPorts = conditions.map<DynamicPortDefinition>((c, i) => ({
+    id:
+      typeof c.id === "string" && c.id.length > 0 ? c.id : `cond_${i}`,
+    label: c.label || "Condition",
+    type: "data",
+  }));
   const mode = config[spec.modeField] as string | undefined;
   const isMultiTurn = mode === spec.multiTurnValue;
 

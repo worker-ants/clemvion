@@ -56,13 +56,16 @@ describe("resolveDynamicPorts — switch", () => {
     expect(ports.every((p) => p.type === "data")).toBe(true);
   });
 
-  it("filters out cases with empty id", () => {
+  it("assigns a deterministic fallback id to cases that omit id (no longer dropped)", () => {
+    // Assistant / 사용자가 id 를 빠뜨려도 출력 포트는 반드시 생성되어야
+    // 한다 — 그래야 UI 핸들이 나타나고 배선이 가능하다. 인덱스 기반
+    // `case_${i}` 를 부여해 안정성 확보.
     const ports = resolveDynamicPorts(
       "switch",
       { cases: [{ id: "", label: "Skip" }, { id: "real", label: "Real" }] },
       def("switch", [], SWITCH_SPEC),
     );
-    expect(ports.map((p) => p.id)).toEqual(["real", "default"]);
+    expect(ports.map((p) => p.id)).toEqual(["case_0", "real", "default"]);
   });
 
   it("uses 'Case' as default label when empty", () => {
@@ -169,7 +172,7 @@ describe("resolveDynamicPorts — ai_agent (4 mode×condition combinations)", ()
     expect(ports.map((p) => p.id)).toEqual(["out", "error"]);
   });
 
-  it("drops conditions with empty id", () => {
+  it("assigns a deterministic fallback id to conditions that omit id", () => {
     const ports = resolveDynamicPorts(
       "ai_agent",
       {
@@ -178,7 +181,22 @@ describe("resolveDynamicPorts — ai_agent (4 mode×condition combinations)", ()
       },
       agentDef,
     );
-    expect(ports.map((p) => p.id)).toEqual(["good", "out", "error"]);
+    expect(ports.map((p) => p.id)).toEqual(["cond_0", "good", "out", "error"]);
+  });
+
+  it("keeps condition ports even when every condition omits id (does not fall back to no-condition branch)", () => {
+    // 기존 동작은 id 누락 condition 을 전부 떨어뜨려 조건 없음 분기로
+    // 퇴행했다. 이제는 cond_0, cond_1 fallback 으로 포트를 발행해 사용자가
+    // 의도한 분기 구조를 유지.
+    const ports = resolveDynamicPorts(
+      "ai_agent",
+      {
+        mode: "single_turn",
+        conditions: [{ id: "", label: "A" }, { id: "", label: "B" }],
+      },
+      agentDef,
+    );
+    expect(ports.map((p) => p.id)).toEqual(["cond_0", "cond_1", "out", "error"]);
   });
 });
 
