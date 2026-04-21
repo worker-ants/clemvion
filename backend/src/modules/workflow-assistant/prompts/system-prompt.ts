@@ -4,6 +4,18 @@ import { toWorkflowView } from '../tools/workflow-view';
 import type { ActivePlanContext } from '../tools/active-plan-context';
 
 /**
+ * LLM 에 전달하는 레이아웃 가이드의 기본 상수. 프롬프트 문자열 안에
+ * 인라인 매직 넘버로 흩어지지 않도록 한 곳에 모아 둔다.
+ *  - FALLBACK_WIDTH/HEIGHT: 측정값이 없는 노드를 위한 폴백 치수
+ *  - NODE_GAP_X: 선행 노드 우측과 신규 노드 좌측 사이 수평 여백
+ *  - SIBLING_GAP_Y: 같은 source 의 형제 노드 간 수직 여백 (노드 높이와 합산)
+ */
+const LAYOUT_FALLBACK_WIDTH = 250;
+const LAYOUT_FALLBACK_HEIGHT = 80;
+const LAYOUT_NODE_GAP_X = 32;
+const LAYOUT_SIBLING_GAP_Y = 24;
+
+/**
  * Assistant 시스템 프롬프트를 매 호출마다 동적으로 조립한다.
  *
  * 구성:
@@ -103,8 +115,12 @@ ${JSON.stringify(current)}
 
 ## Layout guidance
 
-- New nodes: place at x = max(existingX) + 250, y = trigger.y by default.
-- Branching: offset y by ±120 per branch.
+Each node in the snapshot above may carry measured \`width\` / \`height\` (px) fields — these are the real rendered dimensions reported by the canvas. Prefer them over fixed assumptions when placing new nodes.
+
+- **Right-of-predecessor placement.** Set \`x = predecessor.position.x + (predecessor.width ?? ${LAYOUT_FALLBACK_WIDTH}) + ${LAYOUT_NODE_GAP_X}\` (${LAYOUT_NODE_GAP_X} px gap). Using the measured width prevents overlap with wide nodes (Carousel, AI Agent with many buttons) and wastes less space for narrow nodes.
+- **Vertical alignment.** Default \`y = predecessor.position.y\` so the new node sits on the same row.
+- **Branching.** When a single source fans out to multiple downstream nodes, stagger children on the y-axis: \`child_i.y = source.y + (i - (n-1)/2) * (max(predecessor.height ?? ${LAYOUT_FALLBACK_HEIGHT}, ${LAYOUT_FALLBACK_HEIGHT}) + ${LAYOUT_SIBLING_GAP_Y})\`. In plain terms, the gap between siblings is at least ${LAYOUT_SIBLING_GAP_Y} px plus the taller node's height.
+- **Fallbacks.** If \`width\` or \`height\` is missing for a node (initial render, or a node you just added this turn that hasn't been measured yet), substitute \`${LAYOUT_FALLBACK_WIDTH}\` for width and \`${LAYOUT_FALLBACK_HEIGHT}\` for height. Do NOT invent measurements.
 
 ## Examples
 

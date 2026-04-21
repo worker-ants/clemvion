@@ -9,6 +9,7 @@ import { useT } from "@/lib/i18n";
 import { AssistantMessageView } from "./assistant-message";
 import { MessageInput } from "./message-input";
 import type { AssistantWorkflowSnapshot } from "@/lib/api/assistant";
+import { getNodeMeasuredSize } from "@/lib/utils/node-size";
 
 const EXAMPLE_KEYS = [
   "assistant.exampleAddCancelFlow",
@@ -99,6 +100,8 @@ export function AssistantPanel() {
           containerId?: string | null;
           toolOwnerId?: string | null;
         };
+        // React Flow measurement 는 util 에 위임 — measured > initial hint,
+        // 0/NaN 은 자동으로 필드 누락.
         return {
           id: n.id,
           type: data.type ?? "",
@@ -106,6 +109,7 @@ export function AssistantPanel() {
           category: data.category ?? "logic",
           positionX: n.position.x,
           positionY: n.position.y,
+          ...getNodeMeasuredSize(n),
           config: data.config ?? {},
           containerId: data.containerId ?? null,
           toolOwnerId: data.toolOwnerId ?? null,

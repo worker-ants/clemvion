@@ -7,6 +7,16 @@ export interface ShadowNode {
   label: string;
   positionX: number;
   positionY: number;
+  /**
+   * React Flow 가 렌더 후 측정한 노드 폭 (px). 초기 렌더 중이거나 Assistant
+   * 가 새로 추가한 노드는 아직 측정 전이라 undefined 일 수 있다. 있으면
+   * 레이아웃 계산에 사용, 없으면 250px 폴백.
+   */
+  width?: number;
+  /**
+   * 노드 높이 (px). width 와 동일한 정책으로, 없으면 80px 폴백.
+   */
+  height?: number;
   config: Record<string, unknown>;
   isDisabled?: boolean;
   description?: string | null;

@@ -256,8 +256,13 @@ interface Step {
 interface AssistantMessageRequest {
   content: string;                 // 사용자 메시지
   currentWorkflow: {               // 현재 에디터 스냅샷 (unsaved 포함)
-    nodes: Array<{id, type, label, position, config, containerId?, toolOwnerId?}>;
-    edges: Array<{id, sourceId, sourcePort, targetId, targetPort, type}>;
+    nodes: Array<{
+      id, type, label, position,
+      width?: number,              // React Flow 측정 폭 (px). 초기 렌더 전엔 생략
+      height?: number,             // React Flow 측정 높이 (px). 초기 렌더 전엔 생략
+      config, containerId?, toolOwnerId?,
+    }>;
+    edges: Array<{id, sourceNodeId, sourcePort, targetNodeId, targetPort, type}>;
   };
   llmConfigId?: UUID;              // 생략 시 세션 저장값 또는 workspace default
 }
@@ -387,7 +392,7 @@ data: {"code": "LLM_RATE_LIMIT", "message": "..."}
 | 워크플로우 조립 규칙 | 새 노드 추가 시 데이터 경로가 `manual_trigger` 에서 시작되도록 반드시 `add_edge` 로 연결, 고립 노드 금지. `isDynamicPorts` 노드에 연결하기 전에는 `get_node_schema` 로 실제 포트 목록을 먼저 확인. `openQuestions` 가 있는 plan 은 사용자 답변을 받기 전에 `finish` 호출 금지 |
 | I/O 규약 | [`CONVENTIONS.md`](../../user_memo/node-specs-improvement/CONVENTIONS.md) 의 Principle 0, 1.1, 2, 8 요약을 복사 투입 |
 | 현재 워크플로우 | `currentWorkflow` 요약 JSON. 섹션 앞에 "authoritative snapshot" 지침을 동반 — 단순 조회는 프롬프트에서 직접 답하고, 편집 이후 재확인에만 `get_current_workflow` 호출 |
-| 레이아웃 지침 | 기존 최우측 노드의 x + 250, 분기 시 y ±120 |
+| 레이아웃 지침 | 스냅샷의 노드별 측정값(`width`/`height`, px) 이 있으면 그것을 기준으로 `x = predecessor.x + (predecessor.width ?? 250) + 32` 배치. 분기 시 y offset 은 `max(predecessor.height ?? 80, 80) + 24` 기준. 측정값이 없는 노드(초기 렌더 전 또는 동일 턴에 방금 추가된 노드)는 250×80 px 를 폴백으로 가정 — "발명 금지" |
 | 참조 표기 | `$node["label"].output.*` 사용, label은 유일, `manual_trigger`가 진입점 |
 | Few-shot 3개 | ① "HTTP 헤더 추가" → 즉시 `update_node`. ② "템플릿/스위치 노드 찾아봐" → 스냅샷 참조만, 도구 호출 없음. ③ "주문 취소" → 탐색 + 질문 + Plan + 실행 |
 

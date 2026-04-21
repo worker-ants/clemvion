@@ -16,7 +16,7 @@ import {
   TOOL_KIND_BY_NAME,
   AssistantToolKind,
 } from './tools/tool-definitions';
-import { toWorkflowView } from './tools/workflow-view';
+import { spreadMeasured, toWorkflowView } from './tools/workflow-view';
 import {
   ActivePlanContext,
   computeToolCallsBudget,
@@ -742,6 +742,9 @@ export class WorkflowAssistantStreamService {
         label: n.label,
         positionX: n.positionX,
         positionY: n.positionY,
+        // React Flow 측정값. 초기 렌더 등 측정 전이면 undefined → 필드 누락.
+        // DTO 는 이미 0/음수/NaN 을 거부하지만 방어적으로 spreadMeasured 사용.
+        ...spreadMeasured(n),
         config: n.config ?? {},
         containerId: n.containerId ?? null,
         toolOwnerId: n.toolOwnerId ?? null,
