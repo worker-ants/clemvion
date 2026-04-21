@@ -3,6 +3,7 @@ import { getRepositoryToken } from '@nestjs/typeorm';
 import { WorkspacesService } from './workspaces.service';
 import { Workspace } from './entities/workspace.entity';
 import { WorkspaceMember } from './entities/workspace-member.entity';
+import { WorkspaceInvitation } from './entities/workspace-invitation.entity';
 import { User } from '../users/entities/user.entity';
 
 describe('WorkspacesService', () => {
@@ -11,11 +12,14 @@ describe('WorkspacesService', () => {
     create: jest.Mock;
     save: jest.Mock;
     findOne: jest.Mock;
+    remove: jest.Mock;
   };
   let memberRepo: {
     create: jest.Mock;
     save: jest.Mock;
     findOne: jest.Mock;
+    remove: jest.Mock;
+    find: jest.Mock;
   };
 
   const mockWorkspace = {
@@ -42,6 +46,7 @@ describe('WorkspacesService', () => {
               }),
             ),
             findOne: jest.fn(),
+            remove: jest.fn().mockResolvedValue(undefined),
           },
         },
         {
@@ -52,6 +57,8 @@ describe('WorkspacesService', () => {
               .fn()
               .mockImplementation((data: unknown) => Promise.resolve(data)),
             findOne: jest.fn(),
+            remove: jest.fn().mockResolvedValue(undefined),
+            find: jest.fn().mockResolvedValue([]),
           },
         },
         {
@@ -67,6 +74,42 @@ describe('WorkspacesService', () => {
     service = module.get<WorkspacesService>(WorkspacesService);
     workspaceRepo = module.get(getRepositoryToken(Workspace));
     memberRepo = module.get(getRepositoryToken(WorkspaceMember));
+
+    // Wire a transaction mock that delegates to the base repo mocks so the
+    // inner callback's getRepository() returns the same jest.fn() instances
+    // the tests inspect.
+    const invRepo = {
+      delete: jest.fn().mockResolvedValue({ affected: 0 }),
+    };
+    const fakeManager = {
+      getRepository: jest.fn().mockImplementation((entity: unknown) => {
+        if (entity === WorkspaceMember) return memberRepo;
+        if (entity === Workspace) return workspaceRepo;
+        if (entity === WorkspaceInvitation) return invRepo;
+        return {};
+      }),
+    };
+    (
+      memberRepo as unknown as {
+        manager: {
+          transaction: jest.Mock;
+        };
+      }
+    ).manager = {
+      transaction: jest
+        .fn()
+        .mockImplementation(
+          async (cb: (m: typeof fakeManager) => Promise<unknown>) =>
+            cb(fakeManager),
+        ),
+    };
+    // Also expose delete on workspace/member repos for cascade/deletes
+    (workspaceRepo as unknown as { delete: jest.Mock }).delete = jest
+      .fn()
+      .mockResolvedValue({ affected: 1 });
+    (memberRepo as unknown as { delete: jest.Mock }).delete = jest
+      .fn()
+      .mockResolvedValue({ affected: 0 });
   });
 
   it('should be defined', () => {
@@ -246,6 +289,168 @@ describe('WorkspacesService', () => {
 
       const result = await service.getMemberRole('ws-uuid-1', 'user-uuid-1');
       expect(result).toBeNull();
+    });
+  });
+
+  describe('renameWorkspace', () => {
+    it('renames when requester is admin and name is valid', async () => {
+      memberRepo.findOne.mockResolvedValue({ role: 'admin' });
+      workspaceRepo.findOne.mockResolvedValue({
+        ...mockWorkspace,
+        type: 'team',
+      });
+
+      const result = await service.renameWorkspace(
+        'ws-uuid-1',
+        'New Name',
+        'user-uuid-1',
+      );
+
+      expect(workspaceRepo.save).toHaveBeenCalledWith(
+        expect.objectContaining({ name: 'New Name' }),
+      );
+      expect(result.name).toBe('New Name');
+    });
+
+    it('throws when requester is viewer', async () => {
+      memberRepo.findOne.mockResolvedValue({ role: 'viewer' });
+
+      await expect(
+        service.renameWorkspace('ws-uuid-1', 'New Name', 'user-uuid-1'),
+      ).rejects.toMatchObject({ response: { code: 'ADMIN_REQUIRED' } });
+    });
+
+    it('throws when workspace not found', async () => {
+      memberRepo.findOne.mockResolvedValue({ role: 'owner' });
+      workspaceRepo.findOne.mockResolvedValue(null);
+
+      await expect(
+        service.renameWorkspace('ws-uuid-1', 'New Name', 'user-uuid-1'),
+      ).rejects.toMatchObject({ response: { code: 'WORKSPACE_NOT_FOUND' } });
+    });
+  });
+
+  describe('deleteWorkspace', () => {
+    it('deletes team workspace when requester is owner', async () => {
+      memberRepo.findOne.mockResolvedValue({ role: 'owner' });
+      workspaceRepo.findOne.mockResolvedValue({
+        ...mockWorkspace,
+        type: 'team',
+      });
+
+      await service.deleteWorkspace('ws-uuid-1', 'user-uuid-1');
+
+      expect(workspaceRepo.remove).toHaveBeenCalled();
+    });
+
+    it('throws when requester is admin (not owner)', async () => {
+      memberRepo.findOne.mockResolvedValue({ role: 'admin' });
+      workspaceRepo.findOne.mockResolvedValue({
+        ...mockWorkspace,
+        type: 'team',
+      });
+
+      await expect(
+        service.deleteWorkspace('ws-uuid-1', 'user-uuid-1'),
+      ).rejects.toMatchObject({ response: { code: 'OWNER_REQUIRED' } });
+    });
+
+    it('refuses to delete personal workspace', async () => {
+      memberRepo.findOne.mockResolvedValue({ role: 'owner' });
+      workspaceRepo.findOne.mockResolvedValue({
+        ...mockWorkspace,
+        type: 'personal',
+      });
+
+      await expect(
+        service.deleteWorkspace('ws-uuid-1', 'user-uuid-1'),
+      ).rejects.toMatchObject({
+        response: { code: 'CANNOT_DELETE_PERSONAL' },
+      });
+    });
+  });
+
+  describe('leaveWorkspace', () => {
+    it('removes my membership from team workspace', async () => {
+      workspaceRepo.findOne.mockResolvedValue({
+        ...mockWorkspace,
+        type: 'team',
+      });
+      memberRepo.findOne.mockResolvedValue({
+        id: 'mem-1',
+        role: 'editor',
+        userId: 'user-uuid-1',
+      });
+
+      await service.leaveWorkspace('ws-uuid-1', 'user-uuid-1');
+
+      expect(memberRepo.remove).toHaveBeenCalled();
+    });
+
+    it('refuses to leave personal workspace', async () => {
+      workspaceRepo.findOne.mockResolvedValue({
+        ...mockWorkspace,
+        type: 'personal',
+      });
+
+      await expect(
+        service.leaveWorkspace('ws-uuid-1', 'user-uuid-1'),
+      ).rejects.toMatchObject({
+        response: { code: 'CANNOT_LEAVE_PERSONAL' },
+      });
+    });
+
+    it('refuses when requester is the sole owner', async () => {
+      workspaceRepo.findOne.mockResolvedValue({
+        ...mockWorkspace,
+        type: 'team',
+      });
+      memberRepo.findOne.mockResolvedValue({
+        id: 'mem-1',
+        role: 'owner',
+        userId: 'user-uuid-1',
+      });
+      memberRepo.find.mockResolvedValue([
+        { id: 'mem-1', role: 'owner', userId: 'user-uuid-1' },
+      ]);
+
+      await expect(
+        service.leaveWorkspace('ws-uuid-1', 'user-uuid-1'),
+      ).rejects.toMatchObject({
+        response: { code: 'SOLE_OWNER_CANNOT_LEAVE' },
+      });
+    });
+
+    it('allows owner to leave when another owner exists', async () => {
+      workspaceRepo.findOne.mockResolvedValue({
+        ...mockWorkspace,
+        type: 'team',
+      });
+      memberRepo.findOne.mockResolvedValue({
+        id: 'mem-1',
+        role: 'owner',
+        userId: 'user-uuid-1',
+      });
+      memberRepo.find.mockResolvedValue([
+        { id: 'mem-1', role: 'owner', userId: 'user-uuid-1' },
+        { id: 'mem-2', role: 'owner', userId: 'user-uuid-2' },
+      ]);
+
+      await service.leaveWorkspace('ws-uuid-1', 'user-uuid-1');
+
+      expect(memberRepo.remove).toHaveBeenCalled();
+    });
+
+    it('throws when requester is not a member', async () => {
+      workspaceRepo.findOne.mockResolvedValue({
+        ...mockWorkspace,
+        type: 'team',
+      });
+      memberRepo.findOne.mockResolvedValue(null);
+
+      await expect(
+        service.leaveWorkspace('ws-uuid-1', 'user-uuid-1'),
+      ).rejects.toMatchObject({ response: { code: 'NOT_A_MEMBER' } });
     });
   });
 });

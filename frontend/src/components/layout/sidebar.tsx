@@ -18,10 +18,15 @@ import {
   ChevronLeft,
   ChevronRight,
   User,
+  Users,
   LogOut,
   Bell,
   Menu,
   X,
+  Check,
+  Plus,
+  Settings,
+  ChevronsUpDown,
 } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
 import { Button } from "@/components/ui/button";
@@ -31,8 +36,62 @@ import { useWorkspaceStore } from "@/lib/stores/workspace-store";
 import { authApi } from "@/lib/api/auth";
 import { workspacesApi } from "@/lib/api/workspaces";
 import { apiClient } from "@/lib/api/client";
-import { Building2, Check, Plus } from "lucide-react";
+import { CreateTeamWorkspaceDialog } from "@/components/workspace/create-team-workspace-dialog";
 import { useT, type TranslationKey } from "@/lib/i18n";
+
+import type {
+  WorkspaceRole,
+  WorkspaceSummary,
+} from "@/lib/stores/workspace-store";
+import { roleLabelKey } from "@/lib/utils/workspace";
+
+interface WorkspaceGroupProps {
+  title: string;
+  items: WorkspaceSummary[];
+  currentWorkspaceId: string | null;
+  onSelect: (id: string) => void;
+  typeLabel: string;
+  getRoleLabel: (role: WorkspaceRole) => string;
+}
+
+function renderWorkspaceGroup({
+  title,
+  items,
+  currentWorkspaceId,
+  onSelect,
+  typeLabel,
+  getRoleLabel,
+}: WorkspaceGroupProps) {
+  if (items.length === 0) return null;
+  return (
+    <div key={title}>
+      <div className="px-3 pb-1 pt-2 text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--muted-foreground))]">
+        {title}
+      </div>
+      {items.map((w) => (
+        <button
+          type="button"
+          key={w.id}
+          onClick={() => onSelect(w.id)}
+          className={cn(
+            "flex w-full items-center justify-between gap-2 px-3 py-2 text-left text-sm hover:bg-[hsl(var(--accent))]",
+            w.id === currentWorkspaceId && "bg-[hsl(var(--accent))]/60",
+          )}
+        >
+          <span className="flex min-w-0 flex-col">
+            <span className="truncate font-medium">{w.name}</span>
+            <span className="text-[10px] text-[hsl(var(--muted-foreground))]">
+              {typeLabel} · {getRoleLabel(w.role)}
+            </span>
+          </span>
+          {w.id === currentWorkspaceId && (
+            <Check className="h-4 w-4 shrink-0 text-[hsl(var(--primary))]" />
+          )}
+        </button>
+      ))}
+    </div>
+  );
+}
 
 const navItems = [
   { labelKey: "sidebar.dashboard", href: "/dashboard", icon: LayoutDashboard },
@@ -74,6 +133,7 @@ export function Sidebar() {
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
   const [workspaceMenuOpen, setWorkspaceMenuOpen] = useState(false);
+  const [createWorkspaceOpen, setCreateWorkspaceOpen] = useState(false);
   const userMenuRef = useRef<HTMLDivElement>(null);
   const notifRef = useRef<HTMLDivElement>(null);
   const workspaceMenuRef = useRef<HTMLDivElement>(null);
@@ -319,39 +379,51 @@ export function Sidebar() {
             ref={workspaceMenuRef}
           >
             {workspaceMenuOpen && (
-              <div className="absolute bottom-full left-2 right-2 mb-1 max-h-[280px] overflow-y-auto rounded-md border border-[hsl(var(--border))] bg-[hsl(var(--card))] py-1 shadow-lg">
+              <div className="absolute bottom-full left-2 right-2 mb-1 max-h-[340px] overflow-y-auto rounded-md border border-[hsl(var(--border))] bg-[hsl(var(--card))] py-1 shadow-lg">
                 <div className="border-b border-[hsl(var(--border))] px-3 py-2 text-xs font-semibold uppercase tracking-wider text-[hsl(var(--muted-foreground))]">
                   {t("sidebar.switchWorkspace")}
                 </div>
-                {workspaces.map((w) => (
+                {renderWorkspaceGroup({
+                  title: t("sidebar.yourWorkspaces"),
+                  items: workspaces.filter((w) => w.type === "personal"),
+                  currentWorkspaceId,
+                  onSelect: (id) => {
+                    switchWorkspace(id);
+                    setWorkspaceMenuOpen(false);
+                  },
+                  typeLabel: t("workspace.personal"),
+                  getRoleLabel: (r) => t(roleLabelKey(r)),
+                })}
+                {renderWorkspaceGroup({
+                  title: t("sidebar.teamWorkspaces"),
+                  items: workspaces.filter((w) => w.type === "team"),
+                  currentWorkspaceId,
+                  onSelect: (id) => {
+                    switchWorkspace(id);
+                    setWorkspaceMenuOpen(false);
+                  },
+                  typeLabel: t("workspace.team"),
+                  getRoleLabel: (r) => t(roleLabelKey(r)),
+                })}
+                <div className="border-t border-[hsl(var(--border))]">
                   <button
                     type="button"
-                    key={w.id}
                     onClick={() => {
-                      switchWorkspace(w.id);
                       setWorkspaceMenuOpen(false);
+                      setCreateWorkspaceOpen(true);
                     }}
-                    className="flex w-full items-center justify-between gap-2 px-3 py-2 text-left text-sm hover:bg-[hsl(var(--accent))]"
+                    className="flex w-full items-center gap-2 px-3 py-2 text-sm text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--accent))] hover:text-[hsl(var(--accent-foreground))]"
                   >
-                    <span className="flex min-w-0 flex-col">
-                      <span className="truncate font-medium">{w.name}</span>
-                      <span className="text-[10px] uppercase text-[hsl(var(--muted-foreground))]">
-                        {w.type} · {w.role}
-                      </span>
-                    </span>
-                    {w.id === currentWorkspaceId && (
-                      <Check className="h-4 w-4 shrink-0 text-[hsl(var(--primary))]" />
-                    )}
+                    <Plus className="h-4 w-4" />
+                    {t("sidebar.newTeamWorkspace")}
                   </button>
-                ))}
-                <div className="border-t border-[hsl(var(--border))]">
                   <Link
                     href="/workspace/settings"
                     onClick={() => setWorkspaceMenuOpen(false)}
                     className="flex items-center gap-2 px-3 py-2 text-sm text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--accent))] hover:text-[hsl(var(--accent-foreground))]"
                   >
-                    <Plus className="h-4 w-4" />
-                    {t("sidebar.manageWorkspaces")}
+                    <Settings className="h-4 w-4" />
+                    {t("sidebar.settingsHere")}
                   </Link>
                 </div>
               </div>
@@ -360,20 +432,50 @@ export function Sidebar() {
               type="button"
               onClick={() => setWorkspaceMenuOpen(!workspaceMenuOpen)}
               className={cn(
-                "flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm text-[hsl(var(--muted-foreground))] transition-colors hover:bg-[hsl(var(--accent))] hover:text-[hsl(var(--accent-foreground))]",
+                "group flex w-full items-center gap-2 rounded-md border border-transparent px-3 py-2 text-sm transition-colors",
+                "bg-[hsl(var(--accent))]/40 text-[hsl(var(--foreground))] hover:bg-[hsl(var(--accent))]",
                 collapsed && "justify-center px-2",
               )}
-              title={collapsed ? currentWorkspace?.name : undefined}
+              title={
+                collapsed && currentWorkspace
+                  ? `${currentWorkspace.name} · ${currentWorkspace.type === "team" ? t("workspace.team") : t("workspace.personal")}`
+                  : undefined
+              }
             >
-              <Building2 className="h-4 w-4 shrink-0" />
+              {(() => {
+                const Icon =
+                  currentWorkspace?.type === "team" ? Users : User;
+                return (
+                  <Icon className="h-4 w-4 shrink-0 text-[hsl(var(--primary))]" />
+                );
+              })()}
               {!collapsed && (
-                <span className="min-w-0 flex-1 truncate text-left font-medium">
-                  {currentWorkspace?.name ?? t("sidebar.workspace")}
-                </span>
+                <>
+                  <span className="flex min-w-0 flex-1 flex-col text-left">
+                    <span className="truncate text-sm font-semibold leading-tight">
+                      {currentWorkspace?.name ?? t("sidebar.workspace")}
+                    </span>
+                    {currentWorkspace && (
+                      <span className="truncate text-[10px] leading-tight text-[hsl(var(--muted-foreground))]">
+                        {currentWorkspace.type === "team"
+                          ? t("workspace.team")
+                          : t("workspace.personal")}
+                        {" · "}
+                        {t(roleLabelKey(currentWorkspace.role))}
+                      </span>
+                    )}
+                  </span>
+                  <ChevronsUpDown className="h-3.5 w-3.5 shrink-0 text-[hsl(var(--muted-foreground))]" />
+                </>
               )}
             </button>
           </div>
         )}
+
+        <CreateTeamWorkspaceDialog
+          open={createWorkspaceOpen}
+          onOpenChange={setCreateWorkspaceOpen}
+        />
 
         {/* User area */}
         <div

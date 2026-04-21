@@ -29,6 +29,7 @@ import {
 import { WorkspacesService } from './workspaces.service';
 import { WorkspaceInvitationsService } from './workspace-invitations.service';
 import { CreateWorkspaceDto } from './dto/create-workspace.dto';
+import { UpdateWorkspaceDto } from './dto/update-workspace.dto';
 import { AddMemberDto, UpdateMemberRoleDto } from './dto/add-member.dto';
 import { AcceptInvitationDto, CreateInvitationDto } from './dto/invitation.dto';
 import {
@@ -98,6 +99,74 @@ export class WorkspacesController {
     return {
       data: { id: ws.id, name: ws.name, type: ws.type, slug: ws.slug },
     };
+  }
+
+  @Patch(':id')
+  @ApiOperation({
+    summary: '워크스페이스 이름 변경(Admin+)',
+    description: '지정한 워크스페이스의 이름을 변경합니다.',
+  })
+  @ApiParam({ name: 'id', description: '워크스페이스 UUID', format: 'uuid' })
+  @ApiOkWrappedResponse(WorkspaceDto, { description: '변경된 워크스페이스' })
+  @ApiBadRequestResponse({ description: '입력값 검증 실패' })
+  @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
+  @ApiForbiddenResponse({ description: '권한 부족 (Admin+)' })
+  @ApiNotFoundResponse({ description: '해당 워크스페이스를 찾을 수 없음' })
+  async update(
+    @CurrentUser() user: JwtPayload,
+    @Param('id', new ParseUUIDPipe()) workspaceId: string,
+    @Body() dto: UpdateWorkspaceDto,
+  ) {
+    const ws = await this.workspacesService.renameWorkspace(
+      workspaceId,
+      dto.name,
+      user.sub,
+    );
+    return {
+      data: { id: ws.id, name: ws.name, type: ws.type, slug: ws.slug },
+    };
+  }
+
+  @Delete(':id')
+  @ApiOperation({
+    summary: '워크스페이스 삭제(Owner)',
+    description:
+      '팀 워크스페이스를 영구 삭제합니다. 멤버/초대 등 연관 리소스가 함께 정리됩니다. 개인 워크스페이스는 삭제할 수 없습니다.',
+  })
+  @ApiParam({ name: 'id', description: '워크스페이스 UUID', format: 'uuid' })
+  @ApiOkWrappedResponse(OkResultDto, { description: '삭제 결과' })
+  @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
+  @ApiForbiddenResponse({
+    description: '권한 부족(Owner) 또는 개인 워크스페이스',
+  })
+  @ApiNotFoundResponse({ description: '해당 워크스페이스를 찾을 수 없음' })
+  async remove(
+    @CurrentUser() user: JwtPayload,
+    @Param('id', new ParseUUIDPipe()) workspaceId: string,
+  ) {
+    await this.workspacesService.deleteWorkspace(workspaceId, user.sub);
+    return { data: { ok: true } };
+  }
+
+  @Post(':id/leave')
+  @ApiOperation({
+    summary: '워크스페이스 나가기(본인)',
+    description:
+      '팀 워크스페이스에서 본인의 멤버십을 제거합니다. 유일한 owner는 나갈 수 없습니다.',
+  })
+  @ApiParam({ name: 'id', description: '워크스페이스 UUID', format: 'uuid' })
+  @ApiOkWrappedResponse(OkResultDto, { description: '나가기 결과' })
+  @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
+  @ApiForbiddenResponse({
+    description: '개인 워크스페이스이거나 유일한 owner이거나 멤버가 아닌 경우',
+  })
+  @ApiNotFoundResponse({ description: '해당 워크스페이스를 찾을 수 없음' })
+  async leave(
+    @CurrentUser() user: JwtPayload,
+    @Param('id', new ParseUUIDPipe()) workspaceId: string,
+  ) {
+    await this.workspacesService.leaveWorkspace(workspaceId, user.sub);
+    return { data: { ok: true } };
   }
 
   @Get(':id/members')

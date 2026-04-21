@@ -5,6 +5,8 @@ import { useEffect, useState } from "react";
 import { toast, Toaster } from "sonner";
 import { useWorkspaceStore } from "@/lib/stores/workspace-store";
 import { LocaleSync } from "@/lib/i18n/locale-sync";
+import { translate } from "@/lib/i18n";
+import { useLocaleStore } from "@/lib/stores/locale-store";
 
 export function Providers({ children }: { children: React.ReactNode }) {
   const [queryClient] = useState(
@@ -43,6 +45,11 @@ export function Providers({ children }: { children: React.ReactNode }) {
       if (next !== prev && prev !== null && next !== null) {
         void queryClient.cancelQueries();
         void queryClient.resetQueries();
+        const ws = state.workspaces.find((w) => w.id === next);
+        if (ws) {
+          const locale = useLocaleStore.getState().locale;
+          toast.success(translate(locale, "workspace.switched", { name: ws.name }));
+        }
       }
       prev = next;
     });
