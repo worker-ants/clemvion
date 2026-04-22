@@ -29,23 +29,16 @@ export class TableHandler implements NodeHandler {
       errors.push('mode must be either "static" or "dynamic"');
     }
 
-    if (
-      !config.columns ||
-      !Array.isArray(config.columns) ||
-      config.columns.length === 0
-    ) {
-      errors.push('columns is required and must be a non-empty array');
+    // `columns` defaults to `[]` in the schema — treat undefined as "use
+    // default" (empty table), only reject non-array types.
+    if (config.columns !== undefined && !Array.isArray(config.columns)) {
+      errors.push('columns must be an array');
     }
 
     if (mode === 'static') {
-      if (
-        !config.rows ||
-        !Array.isArray(config.rows) ||
-        config.rows.length === 0
-      ) {
-        errors.push(
-          'rows is required and must be a non-empty array in static mode',
-        );
+      // `rows` also defaults to `[]`. Same rule applies in static mode.
+      if (config.rows !== undefined && !Array.isArray(config.rows)) {
+        errors.push('rows must be an array in static mode');
       }
     }
 
@@ -75,7 +68,11 @@ export class TableHandler implements NodeHandler {
     context: ExecutionContext,
   ): Promise<unknown> {
     const mode: TableMode = ((config.mode as string) ?? 'dynamic') as TableMode;
-    const columns = config.columns as ColumnConfig[];
+    // `columns` default is `[]` per schema — fall back so `for (const col of columns)`
+    // never dereferences undefined.
+    const columns = Array.isArray(config.columns)
+      ? (config.columns as ColumnConfig[])
+      : [];
     const pageSize = config.pageSize as number | undefined;
     const sortBy = config.sortBy as string | undefined;
     const sortOrder = (config.sortOrder as string) ?? 'asc';

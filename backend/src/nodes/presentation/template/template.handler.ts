@@ -8,8 +8,10 @@ export class TemplateHandler implements NodeHandler {
   validate(config: Record<string, unknown>): ValidationResult {
     const errors: string[] = [];
 
-    if (!config.template || typeof config.template !== 'string') {
-      errors.push('template is required and must be a string');
+    // `template` defaults to `''` in the schema, so treat undefined as
+    // "use default". Only reject non-string types.
+    if (config.template !== undefined && typeof config.template !== 'string') {
+      errors.push('template must be a string');
     }
 
     if (
@@ -25,7 +27,7 @@ export class TemplateHandler implements NodeHandler {
   }
 
   execute(...[, config]: Parameters<NodeHandler['execute']>): Promise<unknown> {
-    const content = config.template as string;
+    const content = typeof config.template === 'string' ? config.template : '';
     const outputFormat = (config.outputFormat as string) ?? 'text';
 
     // `content` is the template string after the expression engine has
@@ -35,7 +37,7 @@ export class TemplateHandler implements NodeHandler {
     const payload: Record<string, unknown> = { rendered: content };
     const configEcho: Record<string, unknown> = {
       outputFormat,
-      template: config.template,
+      template: content,
     };
 
     const buttons = config.buttons as ButtonDef[] | undefined;

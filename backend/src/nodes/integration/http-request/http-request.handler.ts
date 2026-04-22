@@ -41,23 +41,29 @@ export class HttpRequestHandler
   validate(config: Record<string, unknown>): ValidationResult {
     const errors: string[] = [];
 
-    if (!config.method || typeof config.method !== 'string') {
-      errors.push('method is required and must be a string');
-    } else {
-      const allowed = [
-        'GET',
-        'POST',
-        'PUT',
-        'PATCH',
-        'DELETE',
-        'HEAD',
-        'OPTIONS',
-      ];
-      if (!allowed.includes(config.method.toUpperCase())) {
-        errors.push(`method must be one of: ${allowed.join(', ')}`);
+    // `method` defaults to `'GET'` in the schema — treat undefined as
+    // "use default". Only validate when explicitly provided.
+    if (config.method !== undefined) {
+      if (typeof config.method !== 'string') {
+        errors.push('method must be a string');
+      } else {
+        const allowed = [
+          'GET',
+          'POST',
+          'PUT',
+          'PATCH',
+          'DELETE',
+          'HEAD',
+          'OPTIONS',
+        ];
+        if (!allowed.includes(config.method.toUpperCase())) {
+          errors.push(`method must be one of: ${allowed.join(', ')}`);
+        }
       }
     }
 
+    // `url` has no schema default (genuinely required — can't fire a request
+    // without one).
     if (!config.url || typeof config.url !== 'string') {
       errors.push('url is required and must be a string');
     }
@@ -86,7 +92,9 @@ export class HttpRequestHandler
     config: Record<string, unknown>,
     context: ExecutionContext,
   ): Promise<unknown> {
-    const method = (config.method as string).toUpperCase();
+    const method = (
+      (config.method as string | undefined) ?? 'GET'
+    ).toUpperCase();
     const initialUrl = config.url as string;
     const userHeaders = toKeyValueRecord(config.headers);
     const queryParams = toKeyValueRecord(config.queryParams);
