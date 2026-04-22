@@ -1,0 +1,664 @@
+import {
+  buildReviewChecklist,
+  checklistBlocks,
+  BuildReviewChecklistInput,
+  ReviewChecklistItem,
+} from './review-workflow';
+import { ShadowSnapshot } from './shadow-workflow';
+import {
+  AssistantPlanRecord,
+  AssistantToolCallRecord,
+} from '../entities/workflow-assistant-message.entity';
+import { PendingUserConfigField } from './detect-pending-user-config';
+
+const TRIGGER_ID = '00000000-0000-0000-0000-000000000001';
+
+function baseSnapshot(): ShadowSnapshot {
+  return {
+    nodes: [
+      {
+        id: TRIGGER_ID,
+        type: 'manual_trigger',
+        category: 'trigger',
+        label: 'Start',
+        positionX: 0,
+        positionY: 0,
+        config: {},
+      },
+    ],
+    edges: [],
+  };
+}
+
+function baseInput(
+  over: Partial<BuildReviewChecklistInput> = {},
+): BuildReviewChecklistInput {
+  return {
+    shadowSnapshot: baseSnapshot(),
+    pendingToolCalls: [],
+    plan: null,
+    originalRequest: '',
+    assistantText: '',
+    collectPendingUserConfig: () => [],
+    ...over,
+  };
+}
+
+describe('review-workflow.buildReviewChecklist', () => {
+  it('returns an empty checklist when there are no issues', () => {
+    const items = buildReviewChecklist(baseInput());
+    expect(items).toEqual([]);
+    expect(checklistBlocks(items)).toBe(false);
+  });
+
+  describe('UNRESOLVED_FAILED_CALLS', () => {
+    it('flags failed tool calls that are not recovered later in the turn', () => {
+      const failingCall: AssistantToolCallRecord = {
+        id: 'call-1',
+        name: 'add_node',
+        arguments: { type: 'error_message', label: 'ErrorMessage' },
+        kind: 'edit',
+        result: { ok: false, error: 'UNKNOWN_NODE_TYPE' },
+      };
+      const items = buildReviewChecklist(
+        baseInput({ pendingToolCalls: [failingCall] }),
+      );
+      expect(items).toHaveLength(1);
+      expect(items[0].code).toBe('UNRESOLVED_FAILED_CALLS');
+      expect(items[0].blocking).toBe(true);
+      const data = items[0].data as Array<{ label?: string; error?: string }>;
+      expect(data[0].label).toBe('ErrorMessage');
+      expect(data[0].error).toBe('UNKNOWN_NODE_TYPE');
+    });
+
+    it('does NOT flag a failed call that is later recovered with the same add_node label', () => {
+      const calls: AssistantToolCallRecord[] = [
+        {
+          id: 'c1',
+          name: 'add_node',
+          arguments: { type: 'error_message', label: 'InvalidPick' },
+          kind: 'edit',
+          result: { ok: false, error: 'UNKNOWN_NODE_TYPE' },
+        },
+        {
+          id: 'c2',
+          name: 'add_node',
+          arguments: { type: 'template', label: 'InvalidPick' },
+          kind: 'edit',
+          result: { ok: true, id: 'n-1' },
+        },
+      ];
+      const items = buildReviewChecklist(
+        baseInput({ pendingToolCalls: calls }),
+      );
+      expect(items).toEqual([]);
+    });
+
+    it('recognises add_edge recovery by matching source/target/port tuple', () => {
+      const calls: AssistantToolCallRecord[] = [
+        {
+          id: 'c1',
+          name: 'add_edge',
+          arguments: { source_id: 'a', target_id: 'b' },
+          kind: 'edit',
+          result: { ok: false, error: 'NODE_NOT_FOUND' },
+        },
+        {
+          id: 'c2',
+          name: 'add_edge',
+          arguments: { source_id: 'a', target_id: 'b' },
+          kind: 'edit',
+          result: { ok: true, id: 'e-1' },
+        },
+      ];
+      const items = buildReviewChecklist(
+        baseInput({ pendingToolCalls: calls }),
+      );
+      expect(items).toEqual([]);
+    });
+
+    it('ignores explore tool failures like REDUNDANT_SCHEMA_LOOKUP (those are anti-waste signals, not real failures)', () => {
+      const calls: AssistantToolCallRecord[] = [
+        {
+          id: 'c1',
+          name: 'get_node_schema',
+          arguments: { type: 'carousel' },
+          kind: 'explore',
+          result: { ok: false, error: 'REDUNDANT_SCHEMA_LOOKUP' },
+        },
+      ];
+      const items = buildReviewChecklist(
+        baseInput({ pendingToolCalls: calls }),
+      );
+      expect(items).toEqual([]);
+    });
+
+    it('recognises update_node recovery by matching id', () => {
+      const calls: AssistantToolCallRecord[] = [
+        {
+          id: 'c1',
+          name: 'update_node',
+          arguments: {
+            id: 'n-1',
+            patch: { config: { url: '{{ x ?? 1 }}' } },
+          },
+          kind: 'edit',
+          result: { ok: false, error: 'INVALID_EXPRESSION' },
+        },
+        {
+          id: 'c2',
+          name: 'update_node',
+          arguments: { id: 'n-1', patch: { config: { url: '{{ x || 1 }}' } } },
+          kind: 'edit',
+          result: { ok: true, id: 'n-1' },
+        },
+      ];
+      const items = buildReviewChecklist(
+        baseInput({ pendingToolCalls: calls }),
+      );
+      expect(items).toEqual([]);
+    });
+
+    it('recognises remove_node recovery by matching id', () => {
+      const calls: AssistantToolCallRecord[] = [
+        {
+          id: 'c1',
+          name: 'remove_node',
+          arguments: { id: 'bad-id' },
+          kind: 'edit',
+          result: { ok: false, error: 'NODE_NOT_FOUND' },
+        },
+        {
+          id: 'c2',
+          name: 'remove_node',
+          arguments: { id: 'bad-id' },
+          kind: 'edit',
+          result: { ok: true, id: 'bad-id' },
+        },
+      ];
+      const items = buildReviewChecklist(
+        baseInput({ pendingToolCalls: calls }),
+      );
+      expect(items).toEqual([]);
+    });
+
+    it('recognises add_edge recovery when the second attempt uses camelCase argument keys', () => {
+      // 일부 클라이언트는 sourceId/targetId (camelCase) 로 보낸다. snake_case
+      // 재시도와 동일 의미로 취급되어 false positive 가 생기지 않아야 한다.
+      const calls: AssistantToolCallRecord[] = [
+        {
+          id: 'c1',
+          name: 'add_edge',
+          arguments: { source_id: 'a', target_id: 'b' },
+          kind: 'edit',
+          result: { ok: false, error: 'NODE_NOT_FOUND' },
+        },
+        {
+          id: 'c2',
+          name: 'add_edge',
+          arguments: { sourceId: 'a', targetId: 'b' },
+          kind: 'edit',
+          result: { ok: true, id: 'e-1' },
+        },
+      ];
+      const items = buildReviewChecklist(
+        baseInput({ pendingToolCalls: calls }),
+      );
+      expect(items).toEqual([]);
+    });
+
+    it('ignores finish tool failures (those are review-guard responses, not real failures)', () => {
+      const calls: AssistantToolCallRecord[] = [
+        {
+          id: 'c1',
+          name: 'finish',
+          arguments: {},
+          kind: 'finish',
+          result: { ok: false, error: 'WORKFLOW_REVIEW_REQUIRED' },
+        },
+      ];
+      const items = buildReviewChecklist(
+        baseInput({ pendingToolCalls: calls }),
+      );
+      expect(items).toEqual([]);
+    });
+
+    it('caps the reported list at 10 entries', () => {
+      const calls: AssistantToolCallRecord[] = [];
+      for (let i = 0; i < 15; i++) {
+        calls.push({
+          id: `c${i}`,
+          name: 'add_node',
+          arguments: { type: 'x', label: `L${i}` },
+          kind: 'edit',
+          result: { ok: false, error: 'UNKNOWN_NODE_TYPE' },
+        });
+      }
+      const items = buildReviewChecklist(
+        baseInput({ pendingToolCalls: calls }),
+      );
+      expect(items).toHaveLength(1);
+      const data = items[0].data as unknown[];
+      expect(data).toHaveLength(10);
+    });
+  });
+
+  describe('ORPHAN_NODES', () => {
+    it('flags a node with no incoming edge from any trigger', () => {
+      const snap: ShadowSnapshot = {
+        nodes: [
+          ...baseSnapshot().nodes,
+          {
+            id: 'orphan-1',
+            type: 'http_request',
+            category: 'integration',
+            label: 'Lonely',
+            positionX: 0,
+            positionY: 0,
+            config: {},
+          },
+        ],
+        edges: [],
+      };
+      const items = buildReviewChecklist(baseInput({ shadowSnapshot: snap }));
+      const orphanItem = items.find((i) => i.code === 'ORPHAN_NODES');
+      expect(orphanItem).toBeDefined();
+      expect(orphanItem!.blocking).toBe(true);
+      const data = orphanItem!.data as Array<{ id: string; label: string }>;
+      expect(data).toEqual([
+        expect.objectContaining({ id: 'orphan-1', label: 'Lonely' }),
+      ]);
+    });
+
+    it('does not flag a node reachable via multi-hop edges from manual_trigger', () => {
+      const snap: ShadowSnapshot = {
+        nodes: [
+          ...baseSnapshot().nodes,
+          {
+            id: 'n1',
+            type: 'http_request',
+            category: 'integration',
+            label: 'HTTP',
+            positionX: 0,
+            positionY: 0,
+            config: {},
+          },
+          {
+            id: 'n2',
+            type: 'template',
+            category: 'presentation',
+            label: 'View',
+            positionX: 0,
+            positionY: 0,
+            config: {},
+          },
+        ],
+        edges: [
+          {
+            id: 'e1',
+            sourceNodeId: TRIGGER_ID,
+            sourcePort: 'out',
+            targetNodeId: 'n1',
+            targetPort: 'in',
+            type: 'data',
+          },
+          {
+            id: 'e2',
+            sourceNodeId: 'n1',
+            sourcePort: 'out',
+            targetNodeId: 'n2',
+            targetPort: 'in',
+            type: 'data',
+          },
+        ],
+      };
+      const items = buildReviewChecklist(baseInput({ shadowSnapshot: snap }));
+      expect(items.find((i) => i.code === 'ORPHAN_NODES')).toBeUndefined();
+    });
+
+    it('treats a loop child whose container ancestor is reachable as NOT orphan', () => {
+      const snap: ShadowSnapshot = {
+        nodes: [
+          ...baseSnapshot().nodes,
+          {
+            id: 'loop-1',
+            type: 'loop',
+            category: 'logic',
+            label: 'Loop',
+            positionX: 0,
+            positionY: 0,
+            config: {},
+          },
+          {
+            id: 'child-1',
+            type: 'http_request',
+            category: 'integration',
+            label: 'InnerHTTP',
+            positionX: 0,
+            positionY: 0,
+            config: {},
+            containerId: 'loop-1',
+          },
+        ],
+        edges: [
+          {
+            id: 'e1',
+            sourceNodeId: TRIGGER_ID,
+            sourcePort: 'out',
+            targetNodeId: 'loop-1',
+            targetPort: 'in',
+            type: 'data',
+          },
+        ],
+      };
+      const items = buildReviewChecklist(baseInput({ shadowSnapshot: snap }));
+      expect(items.find((i) => i.code === 'ORPHAN_NODES')).toBeUndefined();
+    });
+
+    it('returns no orphan item when the workflow has no trigger (cannot decide)', () => {
+      const snap: ShadowSnapshot = {
+        nodes: [
+          {
+            id: 'n1',
+            type: 'http_request',
+            category: 'integration',
+            label: 'HTTP',
+            positionX: 0,
+            positionY: 0,
+            config: {},
+          },
+        ],
+        edges: [],
+      };
+      const items = buildReviewChecklist(baseInput({ shadowSnapshot: snap }));
+      expect(items.find((i) => i.code === 'ORPHAN_NODES')).toBeUndefined();
+    });
+  });
+
+  describe('FAKE_STEP_COMPLETION', () => {
+    it('flags a step whose every linked tool call failed', () => {
+      const plan: AssistantPlanRecord = {
+        title: 'Survey flow',
+        summary: '...',
+        steps: [{ id: 's1', action: 'add_node', description: 'Add carousel' }],
+      };
+      const calls: AssistantToolCallRecord[] = [
+        {
+          id: 'c1',
+          name: 'add_node',
+          arguments: { type: 'carousel', label: 'X' },
+          kind: 'edit',
+          planStepId: 's1',
+          result: { ok: false, error: 'INVALID_EXPRESSION' },
+        },
+      ];
+      const items = buildReviewChecklist(
+        baseInput({ plan, pendingToolCalls: calls }),
+      );
+      const fake = items.find((i) => i.code === 'FAKE_STEP_COMPLETION');
+      expect(fake).toBeDefined();
+      expect(fake!.blocking).toBe(true);
+      const data = fake!.data as Array<{
+        stepId: string;
+        failedCallIds: string[];
+      }>;
+      expect(data[0]).toEqual({
+        stepId: 's1',
+        stepDescription: 'Add carousel',
+        failedCallIds: ['c1'],
+      });
+    });
+
+    it('does not flag a step if any linked call eventually succeeded', () => {
+      const plan: AssistantPlanRecord = {
+        title: 'x',
+        summary: 'y',
+        steps: [{ id: 's1', action: 'add_node', description: 'Add node' }],
+      };
+      const calls: AssistantToolCallRecord[] = [
+        {
+          id: 'c1',
+          name: 'add_node',
+          arguments: { type: 'x', label: 'L' },
+          kind: 'edit',
+          planStepId: 's1',
+          result: { ok: false, error: 'UNKNOWN_NODE_TYPE' },
+        },
+        {
+          id: 'c2',
+          name: 'add_node',
+          arguments: { type: 'template', label: 'L' },
+          kind: 'edit',
+          planStepId: 's1',
+          result: { ok: true, id: 'n-1' },
+        },
+      ];
+      const items = buildReviewChecklist(
+        baseInput({ plan, pendingToolCalls: calls }),
+      );
+      expect(
+        items.find((i) => i.code === 'FAKE_STEP_COMPLETION'),
+      ).toBeUndefined();
+    });
+
+    it('flags via planStepIds (array) covering a step whose every linked call failed', () => {
+      const plan: AssistantPlanRecord = {
+        title: 'Multi-cover',
+        summary: '',
+        steps: [
+          { id: 's1', action: 'add_node', description: 'first' },
+          { id: 's2', action: 'update_node', description: 'second' },
+        ],
+      };
+      const calls: AssistantToolCallRecord[] = [
+        {
+          id: 'c1',
+          name: 'add_node',
+          arguments: { type: 'x', label: 'Y' },
+          kind: 'edit',
+          planStepIds: ['s1', 's2'],
+          result: { ok: false, error: 'UNKNOWN_NODE_TYPE' },
+        },
+      ];
+      const items = buildReviewChecklist(
+        baseInput({ plan, pendingToolCalls: calls }),
+      );
+      const fake = items.find((i) => i.code === 'FAKE_STEP_COMPLETION');
+      expect(fake).toBeDefined();
+      const data = fake!.data as Array<{ stepId: string }>;
+      expect(data.map((d) => d.stepId).sort()).toEqual(['s1', 's2']);
+    });
+
+    it('skips note-action steps entirely', () => {
+      const plan: AssistantPlanRecord = {
+        title: 'x',
+        summary: 'y',
+        steps: [{ id: 'note1', action: 'note', description: 'just a note' }],
+      };
+      const items = buildReviewChecklist(baseInput({ plan }));
+      expect(
+        items.find((i) => i.code === 'FAKE_STEP_COMPLETION'),
+      ).toBeUndefined();
+    });
+  });
+
+  describe('PENDING_USER_CONFIG_UNMENTIONED', () => {
+    function makeSnapshotWithEmailNode(): ShadowSnapshot {
+      return {
+        nodes: [
+          ...baseSnapshot().nodes,
+          {
+            id: 'email-1',
+            type: 'send_email',
+            category: 'integration',
+            label: 'SendEmail',
+            positionX: 0,
+            positionY: 0,
+            config: {},
+          },
+        ],
+        edges: [
+          {
+            id: 'e1',
+            sourceNodeId: TRIGGER_ID,
+            sourcePort: 'out',
+            targetNodeId: 'email-1',
+            targetPort: 'in',
+            type: 'data',
+          },
+        ],
+      };
+    }
+
+    function integrationPending(): PendingUserConfigField[] {
+      return [
+        {
+          field: 'integrationId',
+          widget: 'integration-selector',
+          label: 'Integration',
+        },
+      ];
+    }
+
+    it('flags when a pending user-config node label is not mentioned in closing prose', () => {
+      const items = buildReviewChecklist(
+        baseInput({
+          shadowSnapshot: makeSnapshotWithEmailNode(),
+          assistantText: '설문조사 플로우를 만들었어요.',
+          collectPendingUserConfig: (nid) =>
+            nid === 'email-1' ? integrationPending() : [],
+        }),
+      );
+      const pending = items.find(
+        (i) => i.code === 'PENDING_USER_CONFIG_UNMENTIONED',
+      );
+      expect(pending).toBeDefined();
+      expect(pending!.blocking).toBe(true);
+      const data = pending!.data as Array<{ label: string }>;
+      expect(data[0].label).toBe('SendEmail');
+    });
+
+    it('does not flag when the node label IS mentioned verbatim', () => {
+      const items = buildReviewChecklist(
+        baseInput({
+          shadowSnapshot: makeSnapshotWithEmailNode(),
+          assistantText:
+            'SendEmail 노드의 Integration 은 사용자가 직접 연결해 주세요.',
+          collectPendingUserConfig: (nid) =>
+            nid === 'email-1' ? integrationPending() : [],
+        }),
+      );
+      expect(
+        items.find((i) => i.code === 'PENDING_USER_CONFIG_UNMENTIONED'),
+      ).toBeUndefined();
+    });
+  });
+
+  describe('REQUEST_COVERAGE_LOW (non-blocking)', () => {
+    it('warns with blocking=false when most user-intent tokens are absent from node labels', () => {
+      const snap: ShadowSnapshot = {
+        nodes: [
+          ...baseSnapshot().nodes,
+          {
+            id: 'n1',
+            type: 'http_request',
+            category: 'integration',
+            label: 'A',
+            positionX: 0,
+            positionY: 0,
+            config: {},
+          },
+        ],
+        edges: [
+          {
+            id: 'e1',
+            sourceNodeId: TRIGGER_ID,
+            sourcePort: 'out',
+            targetNodeId: 'n1',
+            targetPort: 'in',
+            type: 'data',
+          },
+        ],
+      };
+      const items = buildReviewChecklist(
+        baseInput({
+          shadowSnapshot: snap,
+          originalRequest: '설문조사를 구성해줘. 음식 종류별로 예제 보여줘.',
+        }),
+      );
+      const coverage = items.find((i) => i.code === 'REQUEST_COVERAGE_LOW');
+      expect(coverage).toBeDefined();
+      expect(coverage!.blocking).toBe(false);
+      expect(
+        checklistBlocks(items.filter((i) => i.code === 'REQUEST_COVERAGE_LOW')),
+      ).toBe(false);
+    });
+
+    it('stays silent when enough tokens overlap the node labels', () => {
+      const snap: ShadowSnapshot = {
+        nodes: [
+          ...baseSnapshot().nodes,
+          {
+            id: 'n1',
+            type: 'carousel',
+            category: 'presentation',
+            label: '설문조사 음식 종류',
+            positionX: 0,
+            positionY: 0,
+            config: {},
+          },
+        ],
+        edges: [
+          {
+            id: 'e1',
+            sourceNodeId: TRIGGER_ID,
+            sourcePort: 'out',
+            targetNodeId: 'n1',
+            targetPort: 'in',
+            type: 'data',
+          },
+        ],
+      };
+      const items = buildReviewChecklist(
+        baseInput({
+          shadowSnapshot: snap,
+          originalRequest: '설문조사를 구성해줘. 음식 종류 보여주세요.',
+        }),
+      );
+      expect(
+        items.find((i) => i.code === 'REQUEST_COVERAGE_LOW'),
+      ).toBeUndefined();
+    });
+
+    it('skips the coverage check for very short requests', () => {
+      const items = buildReviewChecklist(
+        baseInput({
+          originalRequest: '해줘',
+          shadowSnapshot: baseSnapshot(),
+        }),
+      );
+      expect(
+        items.find((i) => i.code === 'REQUEST_COVERAGE_LOW'),
+      ).toBeUndefined();
+    });
+  });
+
+  describe('checklistBlocks', () => {
+    it('returns true iff at least one item is blocking', () => {
+      const items: ReviewChecklistItem[] = [
+        {
+          code: 'REQUEST_COVERAGE_LOW',
+          blocking: false,
+          details: '...',
+        },
+      ];
+      expect(checklistBlocks(items)).toBe(false);
+      items.push({
+        code: 'ORPHAN_NODES',
+        blocking: true,
+        details: '...',
+      });
+      expect(checklistBlocks(items)).toBe(true);
+    });
+  });
+});

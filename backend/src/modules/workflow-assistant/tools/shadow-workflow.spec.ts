@@ -923,4 +923,267 @@ describe('ShadowWorkflow', () => {
       expect(result.invalidExpressions?.[0].path).toBe('cases[1].condition');
     });
   });
+
+  // LLM 이 자주 저지르는 3가지 실수 계열에 대해 에러 응답이 자체 복구 단서를
+  // 충분히 싣는지 고정한다 (assistant 자체 점검 플로우의 1차 방어선).
+  describe('error enrichment for UNKNOWN_NODE_TYPE / LABEL_CONFLICT / cascading NODE_NOT_FOUND', () => {
+    it('UNKNOWN_NODE_TYPE: maps common "error_message" alias to the template node with a clear hint', () => {
+      const sw = new ShadowWorkflow(
+        baseSnapshot(),
+        new Set(['template', 'http_request', 'switch']),
+      );
+      const result = sw.apply({
+        name: 'add_node',
+        arguments: {
+          type: 'error_message',
+          label: 'InvalidSelection',
+          position: { x: 0, y: 0 },
+          config: {},
+        },
+      });
+      expect(result.ok).toBe(false);
+      expect(result.error).toBe('UNKNOWN_NODE_TYPE');
+      expect(result.suggestedType).toBe('template');
+      expect(result.knownTypes).toEqual(
+        expect.arrayContaining(['template', 'http_request', 'switch']),
+      );
+      expect(result.hint).toMatch(/template/);
+      expect(result.hint).toMatch(/error_message/);
+    });
+
+    it('UNKNOWN_NODE_TYPE: returns Levenshtein-closest suggestion when no alias hit', () => {
+      const sw = new ShadowWorkflow(
+        baseSnapshot(),
+        new Set(['http_request', 'send_email', 'carousel']),
+      );
+      const result = sw.apply({
+        name: 'add_node',
+        arguments: {
+          type: 'send_mail', // 1 character off from send_email
+          label: 'Send',
+          position: { x: 0, y: 0 },
+          config: {},
+        },
+      });
+      expect(result.ok).toBe(false);
+      expect(result.error).toBe('UNKNOWN_NODE_TYPE');
+      expect(result.suggestedType).toBe('send_email');
+      expect(result.hint).toMatch(/send_email/);
+    });
+
+    it('UNKNOWN_NODE_TYPE: omits suggestedType when no known type is within edit-distance threshold', () => {
+      const sw = new ShadowWorkflow(baseSnapshot(), new Set(['http_request']));
+      const result = sw.apply({
+        name: 'add_node',
+        arguments: {
+          type: 'mystery_node_type_xyz',
+          label: 'X',
+          position: { x: 0, y: 0 },
+          config: {},
+        },
+      });
+      expect(result.ok).toBe(false);
+      expect(result.error).toBe('UNKNOWN_NODE_TYPE');
+      expect(result.suggestedType).toBeUndefined();
+      expect(result.hint).toMatch(/knownTypes/);
+      expect(result.knownTypes).toEqual(['http_request']);
+    });
+
+    it('UNKNOWN_NODE_TYPE: caps knownTypes at 40 entries to keep the payload compact', () => {
+      const many: string[] = [];
+      for (let i = 0; i < 60; i++) many.push(`node_type_${i}`);
+      const sw = new ShadowWorkflow(baseSnapshot(), new Set(many));
+      const result = sw.apply({
+        name: 'add_node',
+        arguments: {
+          type: 'completely_unrelated_payload_name',
+          label: 'X',
+          position: { x: 0, y: 0 },
+          config: {},
+        },
+      });
+      expect(result.ok).toBe(false);
+      expect(result.knownTypes).toHaveLength(40);
+    });
+
+    it('LABEL_CONFLICT: attaches repeatCount + hint when the SAME label conflicts twice in a row', () => {
+      const sw = new ShadowWorkflow(baseSnapshot(), new Set(['http_request']));
+      const first = sw.apply({
+        name: 'add_node',
+        arguments: {
+          type: 'http_request',
+          label: 'Start', // already taken by TRIGGER_NODE
+          position: { x: 0, y: 0 },
+          config: {},
+        },
+      });
+      expect(first.ok).toBe(false);
+      expect(first.error).toBe('LABEL_CONFLICT');
+      expect(first.repeatCount).toBeUndefined(); // first attempt, no escalation
+      const second = sw.apply({
+        name: 'add_node',
+        arguments: {
+          type: 'http_request',
+          label: 'Start',
+          position: { x: 0, y: 0 },
+          config: {},
+        },
+      });
+      expect(second.ok).toBe(false);
+      expect(second.error).toBe('LABEL_CONFLICT');
+      expect(second.repeatCount).toBe(2);
+      expect(second.hint).toMatch(/suggested/i);
+    });
+
+    it('NODE_NOT_FOUND on add_edge after a failed add_node: attaches a cascading-failure hint', () => {
+      const sw = new ShadowWorkflow(baseSnapshot(), new Set(['http_request']));
+      // Step 1: add_node fails due to UNKNOWN_NODE_TYPE.
+      const failed = sw.apply({
+        name: 'add_node',
+        arguments: {
+          type: 'ghost_type',
+          label: 'Ghost',
+          position: { x: 0, y: 0 },
+          config: {},
+        },
+      });
+      expect(failed.ok).toBe(false);
+      // Step 2: LLM forges ahead with add_edge using a fabricated UUID.
+      const edge = sw.apply({
+        name: 'add_edge',
+        arguments: {
+          source_id: TRIGGER_NODE.id,
+          target_id: '00000000-0000-0000-0000-dead0000dead',
+        },
+      });
+      expect(edge.ok).toBe(false);
+      expect(edge.error).toBe('NODE_NOT_FOUND');
+      expect(edge.hint).toMatch(/prior add_node failed/);
+      expect(edge.hint).toMatch(/Ghost/);
+    });
+
+    it('UNKNOWN_NODE_TYPE: falls through to Levenshtein when alias exists but not in knownTypes', () => {
+      // 별칭 맵은 hit 하지만 workspace 에 해당 타입이 등록되지 않은 환경이라면
+      // 별칭을 suggestedType 으로 제시하면 안 된다. Levenshtein fallback 으로
+      // 실제 등록 타입 중 가장 가까운 것을 제안해야 한다.
+      const sw = new ShadowWorkflow(
+        baseSnapshot(),
+        // `template` 이 registry 에 없음 - error_message alias 가 매핑 대상 상실
+        new Set(['http_request', 'send_email']),
+      );
+      const result = sw.apply({
+        name: 'add_node',
+        arguments: {
+          type: 'error_message',
+          label: 'X',
+          position: { x: 0, y: 0 },
+          config: {},
+        },
+      });
+      expect(result.ok).toBe(false);
+      expect(result.error).toBe('UNKNOWN_NODE_TYPE');
+      // alias 는 skip — suggestedType 은 없거나 registered 타입이어야 한다.
+      expect(result.suggestedType).not.toBe('template');
+      // knownTypes 에는 `template` 이 나오지 않는다 (registry 에 없으므로).
+      expect(result.knownTypes).not.toContain('template');
+    });
+
+    it('LABEL_CONFLICT does NOT poison the cascading NODE_NOT_FOUND hint', () => {
+      // LABEL_CONFLICT 는 "이름만 겹침" 상태. 이어지는 add_edge NODE_NOT_FOUND
+      // 힌트에 LABEL_CONFLICT 라벨이 끼면 "앞선 노드 생성 실패" 라는 틀린
+      // 진단을 주기 때문에 cascading window 에 기록하지 않아야 한다.
+      const sw = new ShadowWorkflow(baseSnapshot(), new Set(['http_request']));
+      const conflict = sw.apply({
+        name: 'add_node',
+        arguments: {
+          type: 'http_request',
+          label: 'Start', // trigger label 과 충돌
+          position: { x: 0, y: 0 },
+          config: {},
+        },
+      });
+      expect(conflict.ok).toBe(false);
+      expect(conflict.error).toBe('LABEL_CONFLICT');
+      // 이후 add_edge 가 NODE_NOT_FOUND 여도 hint 에 LABEL_CONFLICT 라벨이
+      // 실리지 않아야 한다.
+      const edge = sw.apply({
+        name: 'add_edge',
+        arguments: {
+          source_id: TRIGGER_NODE.id,
+          target_id: '00000000-0000-0000-0000-dead0000dead',
+        },
+      });
+      expect(edge.ok).toBe(false);
+      expect(edge.error).toBe('NODE_NOT_FOUND');
+      expect(edge.hint).toBeUndefined();
+    });
+
+    it('NODE_NOT_FOUND hint sanitizes user-provided labels (strips newlines, fullwidth-escapes angle brackets)', () => {
+      // 프롬프트 인젝션 방어: label 이 `\n## HACK` 이나 `<script>` 같은
+      // 문자열이면 JSON.stringify + sanitizer 로 중화되어야 한다.
+      const sw = new ShadowWorkflow(baseSnapshot(), new Set(['http_request']));
+      sw.apply({
+        name: 'add_node',
+        arguments: {
+          type: 'ghost',
+          label: 'Bad\n## HACK\n<script>alert(1)</script>',
+          position: { x: 0, y: 0 },
+          config: {},
+        },
+      });
+      const edge = sw.apply({
+        name: 'add_edge',
+        arguments: {
+          source_id: TRIGGER_NODE.id,
+          target_id: '00000000-0000-0000-0000-dead0000dead',
+        },
+      });
+      expect(edge.hint).toBeDefined();
+      // 개행이 제거되어 마크다운 헤더가 살아남지 못함
+      expect(edge.hint).not.toMatch(/\n/);
+      // 꺾쇠는 fullwidth 로 중화
+      expect(edge.hint).not.toMatch(/<script>/);
+    });
+
+    it('NODE_NOT_FOUND hint is cleared after the failing label is successfully re-added', () => {
+      const sw = new ShadowWorkflow(
+        baseSnapshot(),
+        new Set(['http_request', 'template']),
+      );
+      // Fail first.
+      sw.apply({
+        name: 'add_node',
+        arguments: {
+          type: 'ghost_type',
+          label: 'Recovered',
+          position: { x: 0, y: 0 },
+          config: {},
+        },
+      });
+      // Recover with a valid type.
+      const ok = sw.apply({
+        name: 'add_node',
+        arguments: {
+          type: 'template',
+          label: 'Recovered',
+          position: { x: 0, y: 0 },
+          config: {},
+        },
+      });
+      expect(ok.ok).toBe(true);
+      // Now a later edge still failing with NODE_NOT_FOUND should NOT name
+      // the recovered label in the cascading hint (it already succeeded).
+      const edge = sw.apply({
+        name: 'add_edge',
+        arguments: {
+          source_id: TRIGGER_NODE.id,
+          target_id: '00000000-0000-0000-0000-dead0000dead',
+        },
+      });
+      expect(edge.ok).toBe(false);
+      expect(edge.error).toBe('NODE_NOT_FOUND');
+      // No failed labels remaining → no hint.
+      expect(edge.hint).toBeUndefined();
+    });
+  });
 });

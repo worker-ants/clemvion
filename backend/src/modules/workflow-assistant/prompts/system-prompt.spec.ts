@@ -518,4 +518,51 @@ describe('buildSystemPrompt', () => {
       expect(prompt1).toBe(prompt2);
     });
   });
+
+  // 에러·낭비 줄이기 및 self-review UX 를 위해 시스템 프롬프트에 고정된 두
+  // 섹션이 있다. 프롬프트 재구조 시 실수로 빠지지 않도록 고정.
+  describe('Common pitfalls + Self-review sections', () => {
+    it('includes the Common pitfalls block teaching error_message → template alias', () => {
+      const prompt = buildSystemPrompt(defs as never, emptySnapshot);
+      expect(prompt).toMatch(/## Common pitfalls/);
+      // (a) error_message 같은 가짜 타입에 대한 명시적 금지 + template 안내
+      expect(prompt).toMatch(/error_message/);
+      expect(prompt).toMatch(/template/);
+      // (b) 표현식 문법 subset 경고
+      expect(prompt).toMatch(/arrow functions|\.map|\.filter/);
+      // (c) LABEL_CONFLICT 재시도 금지 교육
+      expect(prompt).toMatch(/LABEL_CONFLICT/);
+      // (d) 실패한 add_node 이후 add_edge 금지 교육
+      expect(prompt).toMatch(/fabricated UUID|failed add_node|prior add_node/i);
+      // (e) get_node_schema 재호출 억제
+      expect(prompt).toMatch(/REDUNDANT_SCHEMA_LOOKUP/);
+    });
+
+    it('teaches the 2-stage finish self-review routine with WORKFLOW_REVIEW_REQUIRED', () => {
+      const prompt = buildSystemPrompt(defs as never, emptySnapshot);
+      expect(prompt).toMatch(/## Self-review before finish/);
+      expect(prompt).toMatch(/WORKFLOW_REVIEW_REQUIRED/);
+      // checklist code 들을 한국어 마무리에서 다뤄야 함을 명시
+      expect(prompt).toMatch(/UNRESOLVED_FAILED_CALLS/);
+      expect(prompt).toMatch(/ORPHAN_NODES/);
+      expect(prompt).toMatch(/PENDING_USER_CONFIG_UNMENTIONED/);
+      // 두 번째 finish 는 재검토되지 않음 (루프 상한 안내)
+      expect(prompt).toMatch(
+        /second[\s\S]{0,20}finish[\s\S]{0,40}NOT re-reviewed/i,
+      );
+    });
+
+    it('documents the new error codes in the error-handling list', () => {
+      const prompt = buildSystemPrompt(defs as never, emptySnapshot);
+      // UNKNOWN_NODE_TYPE 에 suggestedType / knownTypes 힌트 사용 안내 (한 줄 내)
+      expect(prompt).toMatch(
+        /UNKNOWN_NODE_TYPE[^\n]*suggestedType[^\n]*knownTypes/,
+      );
+      // WORKFLOW_REVIEW_REQUIRED 안내 — 에러 코드 라인에 checklist 단어가 함께
+      // 있으면 OK
+      expect(prompt).toMatch(/WORKFLOW_REVIEW_REQUIRED[^\n]*checklist/);
+      // REDUNDANT_SCHEMA_LOOKUP 안내 포함
+      expect(prompt).toMatch(/REDUNDANT_SCHEMA_LOOKUP/);
+    });
+  });
 });
