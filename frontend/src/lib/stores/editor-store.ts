@@ -58,7 +58,7 @@ interface EditorState {
    * or position-only patches also push undo explicitly here so the full set
    * of Assistant-initiated edits can be reverted with Ctrl+Z.
    */
-  applyAssistantOperation?: (
+  applyAssistantOperation: (
     name: string,
     args: Record<string, unknown>,
     result: unknown,
@@ -662,5 +662,5 @@ export const useEditorStore = create<EditorState>((set, get) => ({
 // assistant-store can apply `tool_call` events via a shared registry without
 // either store importing the other directly.
 registerAssistantEditorBridge((name, args, result) => {
-  useEditorStore.getState().applyAssistantOperation?.(name, args, result);
+  useEditorStore.getState().applyAssistantOperation(name, args, result);
 });
