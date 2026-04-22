@@ -2,8 +2,10 @@ import {
   AssistantPlanRecord,
   AssistantToolCallRecord,
 } from '../entities/workflow-assistant-message.entity';
-import { ShadowSnapshot } from './shadow-workflow';
+import { ShadowSnapshot, sanitizeLlmProvidedString } from './shadow-workflow';
 import { PendingUserConfigField } from './detect-pending-user-config';
+import { resolveEffectiveOutputPorts } from './resolve-dynamic-ports';
+import type { NodeDefinitionView } from '../../../nodes/core/node-component.registry';
 
 /**
  * Assistant 가 `finish` 를 시도할 때 서버가 수행하는 **2단계 finish 자체 점검**
@@ -19,6 +21,10 @@ import { PendingUserConfigField } from './detect-pending-user-config';
  *    있음. UI 상 빨간 배지가 남아 사용자가 혼란.
  *  - **ORPHAN_NODES** : `manual_trigger` 혹은 다른 trigger category 노드에서
  *    출발해 도달 불가한 노드가 있음 — entry-point connectivity 위반.
+ *  - **DANGLING_OUTPUT_PORTS** : 사용자가 설정한 동적 출력 포트(switch cases /
+ *    carousel buttons / ai_agent conditions 등) 중 outgoing edge 가 없는 것 —
+ *    사용자에게 "클릭해도 아무 일도 안 일어나는 버튼" 을 남긴다. framework
+ *    synthesized 포트 (default/error/fallback/continue/static out) 는 제외.
  *  - **PENDING_USER_CONFIG_UNMENTIONED** : integration/LLM/KB/workflow selector
  *    가 비어있는 노드가 있는데 이번 턴 한국어 마무리 메세지(`assistantText`)에
  *    해당 노드 label 이 언급되지 않음 — 사용자가 설정 필요 사실을 모름.
@@ -30,6 +36,7 @@ import { PendingUserConfigField } from './detect-pending-user-config';
 export type ReviewChecklistCode =
   | 'UNRESOLVED_FAILED_CALLS'
   | 'ORPHAN_NODES'
+  | 'DANGLING_OUTPUT_PORTS'
   | 'PENDING_USER_CONFIG_UNMENTIONED'
   | 'FAKE_STEP_COMPLETION'
   | 'REQUEST_COVERAGE_LOW';
@@ -48,6 +55,7 @@ export interface ReviewChecklistItem {
    * code 별 구조화 세부. 참고 shape:
    *  - UNRESOLVED_FAILED_CALLS → `{ id, name, label?, nodeId?, error? }[]`
    *  - ORPHAN_NODES → `{ id, label, type }[]`
+   *  - DANGLING_OUTPUT_PORTS → `{ nodeId, nodeLabel, nodeType, portId, portLabel }[]`
    *  - FAKE_STEP_COMPLETION → `{ stepId, stepDescription, failedCallIds }[]`
    *  - PENDING_USER_CONFIG_UNMENTIONED → `{ nodeId, label, missingFields }[]`
    *  - REQUEST_COVERAGE_LOW → `{ hits, total, ratio, missed }`
@@ -65,6 +73,12 @@ export interface BuildReviewChecklistInput {
   assistantText: string;
   /** stream.service 의 `collectPendingUserConfig` 를 주입. DI / 계층 분리용. */
   collectPendingUserConfig: (nodeId: string) => PendingUserConfigField[];
+  /**
+   * 레지스트리에서 꺼낸 전체 노드 정의. `DANGLING_OUTPUT_PORTS` 검사 시 각
+   * 노드의 동적 포트를 해석하는 데 사용. stream.service 에서
+   * `this.nodeRegistry.listDefinitions()` 를 넘겨준다.
+   */
+  nodeDefs: NodeDefinitionView[];
 }
 
 /** 실패 tool call 의 간략 요약 한 건. */
@@ -79,8 +93,16 @@ interface UnresolvedFailureEntry {
 const TRIGGER_CATEGORY = 'trigger';
 const MAX_UNRESOLVED = 10;
 const MAX_ORPHANS = 20;
+const MAX_DANGLING_PORTS = 20;
 const MAX_PENDING_USER_CONFIG = 10;
 const REQUEST_COVERAGE_THRESHOLD = 0.3;
+/**
+ * DANGLING_OUTPUT_PORTS `details` 에 embed 하는 node label / port id / label 의
+ * 길이 상한. 클라이언트 DTO 에서 유래한 자유 텍스트이므로 `sanitizeLlmProvidedString`
+ * 과 함께 LLM tool_result 로 재주입되는 프롬프트 인젝션 표면을 제어한다.
+ */
+const DANGLING_PORT_LABEL_MAX_LEN = 80;
+const DANGLING_PORT_ID_MAX_LEN = 64;
 
 /**
  * 사용자 요청 토큰화 시 제외할 한국어 조사·기능어. 길이 1 한 글자는 "종류"
@@ -205,10 +227,11 @@ export function checklistBlocks(items: ReviewChecklistItem[]): boolean {
 }
 
 /**
- * 메인 진입점. 다섯 개 점검을 순차 실행하고 결과 배열을 돌려준다.
+ * 메인 진입점. 여섯 개 점검을 순차 실행하고 결과 배열을 돌려준다.
  * 순서는 UI 가독성을 고려해 "가장 즉각적인 이슈 → 넓은 범위" 순:
- *  1) UNRESOLVED_FAILED_CALLS, 2) ORPHAN_NODES, 3) FAKE_STEP_COMPLETION,
- *  4) PENDING_USER_CONFIG_UNMENTIONED, 5) REQUEST_COVERAGE_LOW.
+ *  1) UNRESOLVED_FAILED_CALLS, 2) ORPHAN_NODES, 3) DANGLING_OUTPUT_PORTS,
+ *  4) FAKE_STEP_COMPLETION, 5) PENDING_USER_CONFIG_UNMENTIONED,
+ *  6) REQUEST_COVERAGE_LOW.
  */
 export function buildReviewChecklist(
   input: BuildReviewChecklistInput,
@@ -232,6 +255,54 @@ export function buildReviewChecklist(
       blocking: true,
       details: `${orphans.length} node(s) have no path back to a trigger. Every node must be reachable from manual_trigger (or another trigger). Add an add_edge from an already-connected upstream node, or remove_node if the node should not exist.`,
       data: orphans,
+    });
+  }
+
+  const dangling = collectDanglingOutputPorts(
+    input.shadowSnapshot,
+    input.nodeDefs,
+  );
+  if (dangling.length > 0) {
+    // details 에 LLM 이 한 라운드에 교정 가능한 "어느 노드의 어떤 포트" 리스트를
+    // 실어준다. 포맷: `한식 메뉴 선택 (carousel): btn_bibimbap (비빔밥),
+    // btn_bulgogi (불고기)` — 노드별로 묶어 전체 길이는 통제.
+    //
+    // nodeLabel / portLabel / portId 는 모두 클라이언트 DTO 유래 자유 텍스트이므로
+    // `sanitizeLlmProvidedString` 으로 제어 문자·개행·백틱·꺾쇠를 중화하고 길이를
+    // 절단. 그대로 embed 하면 악의적으로 label 을 "Ignore prior instructions..."
+    // 로 설정해 WORKFLOW_REVIEW_REQUIRED tool_result 로 LLM 컨텍스트에 주입 가능
+    // (기존 `truncateReviewOriginalRequest` 와 동일 클래스 표면 확장 방지).
+    const byNode = new Map<string, DanglingPortEntry[]>();
+    for (const d of dangling) {
+      const arr = byNode.get(d.nodeId) ?? [];
+      arr.push(d);
+      byNode.set(d.nodeId, arr);
+    }
+    const summary = [...byNode.values()]
+      .map((ports) => {
+        const head = ports[0];
+        const portList = ports
+          .map(
+            (p) =>
+              `${sanitizeLlmProvidedString(p.portId, DANGLING_PORT_ID_MAX_LEN)} (${sanitizeLlmProvidedString(p.portLabel, DANGLING_PORT_LABEL_MAX_LEN)})`,
+          )
+          .join(', ');
+        const safeLabel = sanitizeLlmProvidedString(
+          head.nodeLabel,
+          DANGLING_PORT_LABEL_MAX_LEN,
+        );
+        const safeType = sanitizeLlmProvidedString(
+          head.nodeType,
+          DANGLING_PORT_ID_MAX_LEN,
+        );
+        return `${safeLabel} (${safeType}): ${portList}`;
+      })
+      .join('; ');
+    items.push({
+      code: 'DANGLING_OUTPUT_PORTS',
+      blocking: true,
+      details: `${dangling.length} user-configured output port(s) have no outgoing edge — each represents a choice the user will see that leads nowhere. ${summary}. Add an add_edge from each port (source_port must match the port id verbatim) to a downstream node — the next step, a "back" node, or an explicit end-state template (e.g. "처리 완료"). Do NOT remove the button/case to hide the problem unless it was genuinely unintended.`,
+      data: dangling,
     });
   }
 
@@ -469,7 +540,65 @@ function hasReachableAncestorContainer(
 }
 
 // ============================================================================
-// 점검 3) FAKE_STEP_COMPLETION
+// 점검 3) DANGLING_OUTPUT_PORTS
+// ============================================================================
+
+interface DanglingPortEntry {
+  nodeId: string;
+  nodeLabel: string;
+  nodeType: string;
+  portId: string;
+  portLabel: string;
+}
+
+/**
+ * 노드별로 `resolveEffectiveOutputPorts` 가 돌려주는 user-configured 포트 중
+ * outgoing edge 가 없는 것을 모은다. `ORPHAN_NODES` 와 상호 보완:
+ * ORPHAN_NODES 는 "입력" 방향 reachability, 이 검사는 "출력" 방향 connectivity.
+ *
+ * 왜 user-configured 포트만 보는가 — `default` (switch), `error` (대부분),
+ * `fallback` (classifier), `continue` (carousel link-only), 단일 static `out`
+ * 은 framework 이 자동 생성하는 포트라 사용자 UX 상 "클릭 가능한 버튼" 이
+ * 아니다. terminal 노드가 `out` 을 연결 안 해도 정상이므로 false positive 방지.
+ */
+function collectDanglingOutputPorts(
+  snapshot: ShadowSnapshot,
+  nodeDefs: NodeDefinitionView[],
+): DanglingPortEntry[] {
+  if (nodeDefs.length === 0) return []; // 레지스트리 비어있으면 판정 불가.
+  const defsByType = new Map(nodeDefs.map((d) => [d.metadata.type, d]));
+  // (sourceNodeId → Set<sourcePort>) 로 인덱싱해 O(E) 조회를 O(1) 로.
+  const outgoingPortsByNode = new Map<string, Set<string>>();
+  for (const edge of snapshot.edges) {
+    const set = outgoingPortsByNode.get(edge.sourceNodeId) ?? new Set<string>();
+    set.add(edge.sourcePort);
+    outgoingPortsByNode.set(edge.sourceNodeId, set);
+  }
+  const dangling: DanglingPortEntry[] = [];
+  for (const node of snapshot.nodes) {
+    if (node.category === TRIGGER_CATEGORY) continue;
+    const def = defsByType.get(node.type);
+    if (!def) continue; // 등록 안 된 타입은 판정 불가.
+    const ports = resolveEffectiveOutputPorts(node.config, def);
+    const connected = outgoingPortsByNode.get(node.id) ?? new Set<string>();
+    for (const port of ports) {
+      if (!port.isUserConfigured) continue; // weak 포트는 연결 안 해도 OK.
+      if (connected.has(port.id)) continue;
+      dangling.push({
+        nodeId: node.id,
+        nodeLabel: node.label,
+        nodeType: node.type,
+        portId: port.id,
+        portLabel: port.label,
+      });
+      if (dangling.length >= MAX_DANGLING_PORTS) return dangling;
+    }
+  }
+  return dangling;
+}
+
+// ============================================================================
+// 점검 4) FAKE_STEP_COMPLETION
 // ============================================================================
 
 interface FakeCompletionEntry {
@@ -511,7 +640,7 @@ function collectFakeStepCompletion(
 }
 
 // ============================================================================
-// 점검 4) PENDING_USER_CONFIG_UNMENTIONED
+// 점검 5) PENDING_USER_CONFIG_UNMENTIONED
 // ============================================================================
 
 interface UnmentionedPendingEntry {
@@ -541,7 +670,7 @@ function collectUnmentionedPendingUserConfig(
 }
 
 // ============================================================================
-// 점검 5) REQUEST_COVERAGE_LOW (non-blocking warn)
+// 점검 6) REQUEST_COVERAGE_LOW (non-blocking warn)
 // ============================================================================
 
 function checkRequestCoverage(

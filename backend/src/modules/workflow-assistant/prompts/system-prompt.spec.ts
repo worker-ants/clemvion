@@ -545,6 +545,7 @@ describe('buildSystemPrompt', () => {
       // checklist code 들을 한국어 마무리에서 다뤄야 함을 명시
       expect(prompt).toMatch(/UNRESOLVED_FAILED_CALLS/);
       expect(prompt).toMatch(/ORPHAN_NODES/);
+      expect(prompt).toMatch(/DANGLING_OUTPUT_PORTS/);
       expect(prompt).toMatch(/PENDING_USER_CONFIG_UNMENTIONED/);
       // 두 번째 finish 는 재검토되지 않음 (루프 상한 안내)
       expect(prompt).toMatch(
@@ -563,6 +564,49 @@ describe('buildSystemPrompt', () => {
       expect(prompt).toMatch(/WORKFLOW_REVIEW_REQUIRED[^\n]*checklist/);
       // REDUNDANT_SCHEMA_LOOKUP 안내 포함
       expect(prompt).toMatch(/REDUNDANT_SCHEMA_LOOKUP/);
+      // DANGLING_OUTPUT_PORTS 복구 가이드 — data 배열 구조 + add_edge 사용법.
+      expect(prompt).toMatch(/DANGLING_OUTPUT_PORTS/);
+      expect(prompt).toMatch(/DANGLING_OUTPUT_PORTS[\s\S]{0,400}source_port/);
+    });
+  });
+
+  // DANGLING_OUTPUT_PORTS 가드를 LLM 이 첫 시도부터 의식하도록 유도하는
+  // prompt 변경의 회귀 방어.
+  describe('Port connectivity rules', () => {
+    it('teaches outbound port connectivity in Entry-point connectivity section', () => {
+      const prompt = buildSystemPrompt(defs as never, emptySnapshot);
+      expect(prompt).toMatch(/### Entry-point connectivity/);
+      // Outbound 규칙이 섹션에 포함되고, 각 구성 가능한 포트 종류가 나열되어야.
+      expect(prompt).toMatch(/every user-configured output port/i);
+      expect(prompt).toMatch(/config\.cases/);
+      expect(prompt).toMatch(/config\.buttons/);
+      // 구체적 해결 경로 (end-state template) 힌트가 있어야.
+      expect(prompt).toMatch(/end-state template|잘못된 선택|처리 완료/);
+    });
+
+    it('includes a Common pitfalls item calling out dangling button/case ports', () => {
+      const prompt = buildSystemPrompt(defs as never, emptySnapshot);
+      expect(prompt).toMatch(/Unconnected button\/case ports/i);
+      // pitfall 라인에 DANGLING_OUTPUT_PORTS 가 함께 언급되어야 Self-review 와의
+      // 연결 고리가 명확.
+      expect(prompt).toMatch(
+        /Unconnected button\/case ports[\s\S]{0,500}DANGLING_OUTPUT_PORTS/,
+      );
+    });
+
+    it('Ex2 demonstrates wiring every button port (no dangling by design)', () => {
+      // Ex2 가 사용자의 실제 실패 시나리오 (3-way + 기타) 를 반영하며,
+      // 4 버튼 모두 add_edge 를 갖는 패턴을 명시해야 한다. dangling 이 허용
+      // 된다는 인상을 주는 "Leave ... with no outgoing edge" 류 문구는 제거됨.
+      const prompt = buildSystemPrompt(defs as never, emptySnapshot);
+      expect(prompt).toMatch(/### Ex2\./);
+      // 4 개의 btn_* 슬러그가 모두 등장
+      expect(prompt).toMatch(/btn_korean/);
+      expect(prompt).toMatch(/btn_western/);
+      expect(prompt).toMatch(/btn_chinese/);
+      expect(prompt).toMatch(/btn_other/);
+      // Ex2 가 "버튼을 미연결 상태로 두라" 는 이전 교육을 더이상 포함하지 않음
+      expect(prompt).not.toMatch(/Leave .*with no outgoing edge/i);
     });
   });
 });

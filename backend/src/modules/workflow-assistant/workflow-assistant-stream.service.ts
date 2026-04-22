@@ -545,12 +545,8 @@ export class WorkflowAssistantStreamService {
                 result = { ok: true, planId };
               }
             } else {
-              // edit
-              // plan-only turn 강제: 같은 턴에 propose_plan 이 호출되었는데
-              // approval 없이 바로 edit 을 시도하면 거부한다. LLM 은 한국어
-              // 프롬프트로 턴 종료하고 다음 턴(사용자 approve 이후) 에서
-              // 실행해야 한다.
-              if (planForTurn && !planForTurn.approvedAt) {
+              // edit — plan-only turn 에서는 approve 전까지 거부.
+              if (isPlanPendingApproval(planForTurn)) {
                 result = {
                   ok: false,
                   error: 'PLAN_AWAITING_APPROVAL',
@@ -729,14 +725,27 @@ export class WorkflowAssistantStreamService {
       //    budget 으로 차단. 단, edit 없이 explore / propose_plan 만 하고 stop
       //    으로 끝난 round 는 **round-trip 하지 않는다** — 그 경우 LLM 은 이번
       //    round 의 결과를 이미 다 본 상태라 추가 round 의 ROI 가 없다.
-      const hadSuccessfulEditThisRound = pendingResultsForLlm.some((r) => {
-        const found = pendingToolCalls.find((p) => p.id === r.id);
-        return (
-          found?.kind === 'edit' &&
-          (found.result as { ok?: boolean } | undefined)?.ok === true
-        );
-      });
+      // Plan-only 턴 강제 종료 (gemini-3-flash-preview 패턴 방어).
+      // 이 턴에 propose_plan 이 발행됐고 아직 미승인이면, 프로바이더가
+      // finishReason='tool_calls' 로 종료하더라도 round-trip 하지 않는다.
+      // 두 가지 덮어쓰기가 모두 필요하다:
+      //   (A) `finishReason = 'stop'` — 클라이언트 done 이벤트 payload 정정.
+      //   (B) `!planPending` 단락 — `hadSuccessfulEditThisRound` 경로로 재진입
+      //       하는 것까지 차단. edit 이 PAA 로 모두 실패하면 (A) 만으로도 안전
+      //       하지만, 혹시 edit 중 일부가 성공 경로를 타면 (B) 없이는 round-trip.
+      const planPending = isPlanPendingApproval(planForTurn);
+      if (planPending) finishReason = 'stop';
+      const hadSuccessfulEditThisRound =
+        !planPending &&
+        pendingResultsForLlm.some((r) => {
+          const found = pendingToolCalls.find((p) => p.id === r.id);
+          return (
+            found?.kind === 'edit' &&
+            (found.result as { ok?: boolean } | undefined)?.ok === true
+          );
+        });
       const shouldContinueLoop =
+        !planPending &&
         pendingResultsForLlm.length > 0 &&
         (finishReason === 'tool_calls' ||
           (!finishResolved && hadSuccessfulEditThisRound));
@@ -1025,6 +1034,7 @@ export class WorkflowAssistantStreamService {
       assistantText,
       collectPendingUserConfig: (nodeId) =>
         this.collectPendingUserConfig(shadow, nodeId),
+      nodeDefs: this.nodeRegistry.listDefinitions(),
     });
     if (!checklistBlocks(checklist)) return null;
 
@@ -1086,14 +1096,10 @@ export class WorkflowAssistantStreamService {
     pendingUserRequest: string,
   ): FinishGuardError | null {
     if (state.planClearedThisTurn) return null;
-    // Plan-only 턴 (이번 턴에 propose_plan 으로 새 plan 이 발행됐는데 아직
-    // 미승인) 은 정의상 사용자 approve 대기 상태다. 같은 턴에 LLM 이 edit 을
-    // 시도해도 PLAN_AWAITING_APPROVAL 차단으로 canvas 가 변경되지 않으며,
-    // 이때 finish 를 PLAN_NOT_COMPLETE 로 막으면 LLM 에게 "남은 step 실행"
-    // 신호가 가서 또다시 edit 을 시도하는 무한 핑퐁이 발생한다. 가드를 비활성
-    // 시키고 finish 를 정상 통과시켜 사용자가 plan card 의 "계획대로 진행"
-    // 으로 다음 턴을 시작하게 한다.
-    if (planForTurn && !planForTurn.approvedAt) return null;
+    // Plan-only 턴 — approve 전까지는 edit 이 어차피 PAA 로 차단되므로 finish 를
+    // PLAN_NOT_COMPLETE 로 막으면 LLM 에게 "남은 step 실행" 을 잘못 신호해 재시도
+    // 핑퐁을 유발한다. 가드 비활성 → finish 통과 → 다음 턴(approve 후) 에서 실행.
+    if (isPlanPendingApproval(planForTurn)) return null;
     // Stuck 탈출: block 후 LLM 이 어떤 진척도 못 만들고 다시 finish 호출.
     // 진척이 있었으면 (editsSinceLastFinishBlock > 0) 다시 평가해 끝까지 끌고
     // 간다. toolCallsBudget 과 MAX_TOOL_LOOP_ROUNDS 가 절대 상한.
@@ -1289,6 +1295,15 @@ function toChatMessages(msg: WorkflowAssistantMessage): ChatMessage[] {
     ];
   }
   return [];
+}
+
+/**
+ * Plan 이 "제안됐지만 아직 사용자 approve 전" 상태인지 판정. 서비스 내 3 곳
+ * (edit 핸들러, `evaluateFinishGuard`, 메인 루프의 plan-only 종료 가드) 에서
+ * 재사용. `approvedAt` 은 client 가 "계획대로 진행" 버튼을 누를 때 persist 된다.
+ */
+function isPlanPendingApproval(plan: AssistantPlanRecord | null): boolean {
+  return !!plan && !plan.approvedAt;
 }
 
 function safeParse(raw: string): Record<string, unknown> {
