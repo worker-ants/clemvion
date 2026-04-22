@@ -27,6 +27,7 @@ import {
   computeToolCallsBudget,
   findActivePlanContext,
 } from './tools/active-plan-context';
+import { recoverLeakedPlan } from './tools/recover-leaked-plan';
 import { buildSystemPrompt } from './prompts/system-prompt';
 import { AssistantMessageRequestDto } from './dto/assistant-message-request.dto';
 import {
@@ -138,6 +139,11 @@ const MAX_TOOL_LOOP_ROUNDS = 50;
  *         크기에 비례, hard cap 200) + 라운드 상한(`MAX_TOOL_LOOP_ROUNDS`).
  *         성공·차단 모두 pendingToolCalls 에 persist 되어 이후 세션
  *         rehydrate 시 "이미 완료된 plan" 으로 인식된다.
+ *  4.5 턴 종료 직전 **propose_plan JSON leak 복구** (option B): LLM 이 툴을
+ *      호출하지 않고 plan payload 를 text 로 뱉은 경우, 이 라운드 텍스트만
+ *      스캔해 `recoverLeakedPlan` 으로 시그니처를 검증하고 합성 plan 이벤트로
+ *      전환한다. edit tool 이 이미 applied 된 상태면 상태 일관성 보호를 위해
+ *      복구를 건너뛰고 경고 로그만 남긴다.
  *  5. assistant 턴이 종료되면 누적된 텍스트/toolCalls/plan을 DB에 저장
  */
 @Injectable()
@@ -634,6 +640,74 @@ export class WorkflowAssistantStreamService {
           });
         }
         continue;
+      }
+
+      // 턴 종료 전 propose_plan JSON leak 복구 (option B).
+      //
+      // 사례: LLM 이 `propose_plan` 툴을 호출하지 않고 plan payload 를 text
+      // 채널로 그대로 뱉는 일이 있다. 프롬프트 강화(option A) 로도 완전히 막지
+      // 못하므로, 이 턴에 실제 plan tool call 이 없고 text 에만 propose_plan
+      // 시그니처가 존재하면 서버가 합성 plan 이벤트로 전환한다.
+      //
+      // 스캔 범위는 **이 라운드의 텍스트(`roundText`) 만**. 턴 누적
+      // `assistantText` 를 스캔하면 과거 라운드의 설명 목적 예시 JSON 을
+      // 오탐해 마지막 라운드에서 부당 복구할 수 있어서다.
+      //
+      // **Edit tool 공존 가드**: 이 턴에 edit tool 이 이미 실행되어 캔버스
+      // 변경이 applied 된 상태라면 복구하지 않는다. 복구하면 planForTurn 이
+      // 세팅되어 "plan 승인 대기" 논리가 동작하는데, edit 은 이미 캔버스에
+      // 반영된 후라 상태 일관성이 깨진다. 이 경우 경고 로그만 남기고 leak 은
+      // 텍스트로 그대로 persist 한다 (사용자가 문제를 인지할 수 있도록).
+      const hasEditCallsAlready = pendingToolCalls.some(
+        (c) => c.kind === 'edit',
+      );
+
+      if (planForTurn === null && roundText) {
+        const leak = recoverLeakedPlan(roundText);
+        if (leak) {
+          if (hasEditCallsAlready) {
+            this.logger.warn(
+              `ASSISTANT_PROPOSE_PLAN_LEAK_DETECTED_WITH_EDITS: leak found but edits already applied; skipping recovery to avoid state inconsistency (sessionId=${sessionId})`,
+            );
+          } else {
+            this.logger.warn(
+              `ASSISTANT_PROPOSE_PLAN_LEAK_RECOVERED: LLM emitted plan as text; converted to synthetic tool call (sessionId=${sessionId}, title=${JSON.stringify(
+                String(leak.args.title).slice(0, 60),
+              )})`,
+            );
+            planForTurn = this.buildPlanFromArgs(leak.args);
+            const planId = randomUUID();
+            const syntheticCallId = `leak_${randomUUID()}`;
+            pendingToolCalls.push({
+              id: syntheticCallId,
+              name: 'propose_plan',
+              arguments: leak.args,
+              kind: 'plan',
+              // `recovered: true` 는 디버그 흔적이지만 history rehydration 시
+              // LLM 에 전달되면 안 되는 파생 상태. persist 전 strip 에 의존
+              // 하지 않고 여기서는 최소 payload 로만 기록한다.
+              result: { ok: true, planId },
+            });
+            // leak 블록만 제거 (주변 prose 는 보존). 연속 빈 줄 정리.
+            // `replace` 는 첫 매치만 치환하지만 recoverLeakedPlan 이 첫 블록만
+            // 돌려주므로 의도와 일치 (다중 leak 은 현실 관측 빈도 낮음).
+            assistantText = assistantText
+              .replace(leak.matched, '')
+              .replace(/\n{3,}/g, '\n\n')
+              .trim();
+            yield {
+              event: 'plan',
+              data: {
+                id: syntheticCallId,
+                planId,
+                title: planForTurn.title,
+                summary: planForTurn.summary,
+                steps: planForTurn.steps,
+                openQuestions: planForTurn.openQuestions,
+              },
+            };
+          }
+        }
       }
 
       // 턴 종료

@@ -39,15 +39,26 @@ export interface AssistantToolCallRecord {
   signature?: string;
 }
 
+/**
+ * Plan step 의 action enum. 문자열 유니온 대신 tuple 로 선언해 런타임에서도
+ * 값 목록을 공유할 수 있게 한다 (예: leak 복구 validator 가 `Set(PLAN_STEP_ACTIONS)`
+ * 로 파생). 새 action 추가 시 tuple 만 업데이트하면 타입·validator 가 동시에
+ * 커버된다.
+ */
+export const PLAN_STEP_ACTIONS = [
+  'add_node',
+  'update_node',
+  'remove_node',
+  'add_edge',
+  'remove_edge',
+  'note',
+] as const;
+
+export type AssistantStepAction = (typeof PLAN_STEP_ACTIONS)[number];
+
 export interface AssistantPlanStep {
   id: string;
-  action:
-    | 'add_node'
-    | 'update_node'
-    | 'remove_node'
-    | 'add_edge'
-    | 'remove_edge'
-    | 'note';
+  action: AssistantStepAction;
   description: string;
   rationale?: string;
 }
