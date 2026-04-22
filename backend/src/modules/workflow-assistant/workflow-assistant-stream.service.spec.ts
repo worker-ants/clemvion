@@ -1,5 +1,6 @@
 import { WorkflowAssistantStreamService } from './workflow-assistant-stream.service';
 import type { ChatStreamEvent } from '../llm/interfaces/llm-client.interface';
+import { z } from 'zod';
 
 /**
  * These tests drive the conversation loop end-to-end with mocked
@@ -269,6 +270,124 @@ describe('WorkflowAssistantStreamService', () => {
       .result;
     expect(result.ok).toBe(true);
     expect(result.id).toMatch(/[0-9a-f-]{36}/);
+  });
+
+  it('attaches pendingUserConfig to add_node result when integration-selector field is empty', async () => {
+    // 사용자 보고: 어시스턴트가 이메일/HTTP 노드를 추가해 놓고 Integration
+    // 선택 필요를 말해주지 않았다. 서버가 비어있는 selector 를 감지해
+    // tool_result 에 pendingUserConfig 로 실어주면 LLM 이 마무리 메세지에
+    // 자연스럽게 포함할 수 있다.
+    const { service, mocks } = makeService();
+    // getComponent 가 돌려주는 configSchema 는 zod 객체여야 하지만, 서비스는
+    // z.toJSONSchema() 로 JSON 스키마를 얻은 뒤 detectPendingUserConfig 에
+    // 넘기므로 여기서는 실제 zod 를 준비한다.
+    const httpRequestConfigSchema = z.object({
+      integrationId: z
+        .string()
+        .optional()
+        .meta({
+          ui: { label: 'Integration', widget: 'integration-selector' },
+        }),
+      method: z.string().default('GET'),
+    });
+    mocks.nodeRegistry.getComponent.mockImplementation((type: string) => {
+      if (type === 'http_request') {
+        return { configSchema: httpRequestConfigSchema };
+      }
+      return undefined;
+    });
+
+    const addNodeArgs = JSON.stringify({
+      type: 'http_request',
+      label: 'Fetch',
+      position: { x: 500, y: 300 },
+      config: { method: 'GET' }, // integrationId 는 비워둠
+    });
+    mocks.llmService.chatStream.mockImplementation(() =>
+      asyncIter<ChatStreamEvent>([
+        {
+          type: 'tool_call_end',
+          id: 'call_add',
+          name: 'add_node',
+          arguments: addNodeArgs,
+        },
+        {
+          type: 'done',
+          usage: { inputTokens: 30, outputTokens: 10, totalTokens: 40 },
+          model: 'gpt-4o',
+          finishReason: 'stop',
+        },
+      ]),
+    );
+
+    const events = await collect(
+      service.streamMessage('sess-1', 'ws-1', 'u-1', baseDto as never),
+    );
+    const toolCall = events.find((e) => e.event === 'tool_call');
+    const result = (
+      toolCall?.data as {
+        result: {
+          ok: boolean;
+          pendingUserConfig?: Array<{ field: string; widget: string }>;
+        };
+      }
+    ).result;
+    expect(result.ok).toBe(true);
+    expect(result.pendingUserConfig).toEqual([
+      expect.objectContaining({
+        field: 'integrationId',
+        widget: 'integration-selector',
+      }),
+    ]);
+  });
+
+  it('omits pendingUserConfig when the integration-selector field is filled', async () => {
+    const { service, mocks } = makeService();
+    const schema = z.object({
+      integrationId: z
+        .string()
+        .optional()
+        .meta({
+          ui: { label: 'Integration', widget: 'integration-selector' },
+        }),
+    });
+    mocks.nodeRegistry.getComponent.mockImplementation((type: string) =>
+      type === 'http_request' ? { configSchema: schema } : undefined,
+    );
+
+    const addNodeArgs = JSON.stringify({
+      type: 'http_request',
+      label: 'Fetch',
+      position: { x: 0, y: 0 },
+      config: { integrationId: 'int-42' },
+    });
+    mocks.llmService.chatStream.mockImplementation(() =>
+      asyncIter<ChatStreamEvent>([
+        {
+          type: 'tool_call_end',
+          id: 'call_add',
+          name: 'add_node',
+          arguments: addNodeArgs,
+        },
+        {
+          type: 'done',
+          usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 },
+          model: 'gpt-4o',
+          finishReason: 'stop',
+        },
+      ]),
+    );
+
+    const events = await collect(
+      service.streamMessage('sess-1', 'ws-1', 'u-1', baseDto as never),
+    );
+    const toolCall = events.find((e) => e.event === 'tool_call');
+    const result = (
+      toolCall?.data as {
+        result: { pendingUserConfig?: unknown };
+      }
+    ).result;
+    expect(result.pendingUserConfig).toBeUndefined();
   });
 
   it('rehydrates prior assistant toolCalls with their results as paired tool messages in history', async () => {

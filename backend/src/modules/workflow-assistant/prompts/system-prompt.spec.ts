@@ -245,6 +245,28 @@ describe('buildSystemPrompt', () => {
     expect(prompt).toMatch(/get_current_workflow/);
   });
 
+  it('requires a Korean closing message and surfaces user-action fields before finish', () => {
+    // Assistant 가 조용히 finish 만 부르고 사라져 "완료했어요" 소리도, "Integration은
+    // 직접 골라주세요" 안내도 주지 않던 사용자 보고에 대응한 프롬프트 규약.
+    const prompt = buildSystemPrompt(defs as never, emptySnapshot);
+    // (a) 전용 섹션 헤더
+    expect(prompt).toMatch(/## Closing the turn/);
+    // (b) 마무리 메세지 `finish` **이전** 에 emit 해야 함
+    expect(prompt.toLowerCase()).toMatch(/before .*finish/);
+    // (c) pendingUserConfig 개념이 명시되어 있음
+    expect(prompt).toMatch(/pendingUserConfig/);
+    // (d) 4가지 selector 위젯이 모두 열거됨
+    expect(prompt).toMatch(/integration-selector/);
+    expect(prompt).toMatch(/llm-config-selector/);
+    expect(prompt).toMatch(/kb-selector/);
+    expect(prompt).toMatch(/workflow-selector/);
+    // (e) 값을 추측하지 말라는 가드 — 자리표시자/한글 라벨 금지
+    expect(prompt.toLowerCase()).toMatch(/must not|do not/);
+    expect(prompt).toMatch(/TODO|placeholder/);
+    // (f) 기존 "Do not restate the plan in prose" 금지 문구는 제거됐는지
+    expect(prompt).not.toMatch(/Do not restate the plan in prose/);
+  });
+
   it('teaches the supported/unsupported expression language surface', () => {
     // Assistant 가 `??`, arrow func, template literal 등 JS 만의 문법을
     // 흘려보내지 않도록, 지원/미지원 구문과 INVALID_EXPRESSION 가드를
