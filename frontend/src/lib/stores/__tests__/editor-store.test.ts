@@ -168,4 +168,89 @@ describe("useEditorStore", () => {
       expect(useEditorStore.getState().isDirty).toBe(true);
     });
   });
+
+  describe("applyAssistantOperation (update_node)", () => {
+    // 어시스턴트가 일부 필드만 patch 해도 나머지 필드가 보존되어야 한다.
+    // 백엔드 ShadowWorkflow 는 shallow merge 이므로 프론트도 동일하게 맞춘다.
+    it("shallow-merges config patch, preserving untouched fields", () => {
+      useEditorStore.setState({
+        nodes: [
+          makeNode("node-1", {
+            data: {
+              type: "http_request",
+              label: "HTTP",
+              config: {
+                integrationId: "int-1",
+                url: "https://api.example.com",
+                timeout: 30,
+              },
+            },
+          }),
+        ],
+      });
+
+      useEditorStore.getState().applyAssistantOperation(
+        "update_node",
+        {
+          id: "node-1",
+          patch: { config: { headers: { Authorization: "Bearer x" } } },
+        },
+        { ok: true, id: "node-1" },
+      );
+
+      const node = useEditorStore.getState().nodes[0];
+      expect(node.data.config).toEqual({
+        integrationId: "int-1",
+        url: "https://api.example.com",
+        timeout: 30,
+        headers: { Authorization: "Bearer x" },
+      });
+    });
+
+    it("lets a patch overwrite a specific existing field", () => {
+      useEditorStore.setState({
+        nodes: [
+          makeNode("node-1", {
+            data: {
+              type: "http_request",
+              label: "HTTP",
+              config: { timeout: 30, retries: 3 },
+            },
+          }),
+        ],
+      });
+
+      useEditorStore.getState().applyAssistantOperation(
+        "update_node",
+        { id: "node-1", patch: { config: { timeout: 60 } } },
+        { ok: true, id: "node-1" },
+      );
+
+      expect(useEditorStore.getState().nodes[0].data.config).toEqual({
+        timeout: 60,
+        retries: 3,
+      });
+    });
+
+    it("skips the update when the result is not ok", () => {
+      const original = {
+        type: "http_request",
+        label: "HTTP",
+        config: { timeout: 30 },
+      };
+      useEditorStore.setState({
+        nodes: [makeNode("node-1", { data: original })],
+      });
+
+      useEditorStore.getState().applyAssistantOperation(
+        "update_node",
+        { id: "node-1", patch: { config: { timeout: 99 } } },
+        { ok: false },
+      );
+
+      expect(useEditorStore.getState().nodes[0].data.config).toEqual({
+        timeout: 30,
+      });
+    });
+  });
 });

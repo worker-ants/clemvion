@@ -244,4 +244,29 @@ describe('buildSystemPrompt', () => {
     expect(prompt).toMatch(/authoritative/);
     expect(prompt).toMatch(/get_current_workflow/);
   });
+
+  it('teaches keep-vs-change routine for existing node config edits', () => {
+    // Assistant 가 기존 노드를 수정할 때 현재 config 를 확인하지 않고
+    // 전체 치환해 사용자 설정을 날려먹는 실수, [REDACTED] 를 literal 로
+    // 되돌려 시크릿을 파괴하는 실수, 배열 필드를 partial 로 덮어써
+    // 기존 항목을 삭제하는 실수를 프롬프트에서 고정한다.
+    const prompt = buildSystemPrompt(defs as never, emptySnapshot);
+    // (a) 전용 섹션 헤더
+    expect(prompt).toMatch(/Editing an existing node's config/);
+    // (b) 현재 상태를 먼저 읽고 keep/change 를 판단하라는 지시
+    expect(prompt.toLowerCase()).toMatch(/read .*current config/);
+    expect(prompt.toLowerCase()).toMatch(/keep/);
+    // (c) 최소 패치 + shallow merge 규약 설명
+    expect(prompt.toLowerCase()).toMatch(/shallow[- ]merged?|shallow merge/);
+    expect(prompt.toLowerCase()).toMatch(/minimum patch|minimum.*patch/);
+    // (d) [REDACTED] 재기입 금지
+    expect(prompt).toMatch(/\[REDACTED\]/);
+    // (e) 중첩 배열/객체는 전체 대체 주의 — 대표 케이스가 예시로 있어야 함
+    expect(prompt.toLowerCase()).toMatch(/switch\.cases|cases/);
+    expect(prompt.toLowerCase()).toMatch(/buttons/);
+    // (f) 기존 id 보존 지침 (dynamic-ports 엣지 유지)
+    expect(prompt.toLowerCase()).toMatch(
+      /keep.*id|preserve.*id|id.*byte[- ]for[- ]byte/,
+    );
+  });
 });
