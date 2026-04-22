@@ -71,6 +71,25 @@ describe('buildSystemPrompt', () => {
     expect(prompt).toMatch(/get_node_schema/);
   });
 
+  it('teaches id vs label semantics and canonical downstream references for buttons/forms', () => {
+    // Assistant 가 버튼 label 자리에 표현식을, id 자리에 한글 라벨을 넣는 실수와,
+    // 하류 노드에서 `output.interaction.data["승인"]` / `["이메일 주소"]` 처럼
+    // 표시 라벨을 키로 참조하는 실수를 동시에 방지하는 프롬프트 교육을 고정한다.
+    const prompt = buildSystemPrompt(defs as never, emptySnapshot);
+    // (a) 신규 섹션 헤더가 존재
+    expect(prompt).toMatch(/Label vs identifier/);
+    // (b) canonical 슬러그 예시가 존재 (id 역할)
+    expect(prompt).toMatch(/btn_approve/);
+    // (c) display label 예시가 존재 (label 역할) — id 와 대비되는 사용자 문구
+    expect(prompt).toMatch(/승인/);
+    // (d) 버튼 클릭 하류 참조는 interaction.data.buttonId 를 키로 한다
+    expect(prompt).toMatch(/interaction\.data\.buttonId/);
+    // (e) 폼 제출 하류 참조는 field.name (예: .email) 을 키로 한다
+    expect(prompt).toMatch(/interaction\.data\.email/);
+    // (f) 반대로 "라벨을 키로 쓰지 말라" 는 금지 사례가 인용되어 있다
+    expect(prompt).toMatch(/data\["승인"\]|data\["이메일 주소"\]/);
+  });
+
   it('also recognizes metadata.dynamicPorts (without explicit isDynamicPorts) as a dynamic-ports node', () => {
     // 일부 노드는 isDynamicPorts 없이 dynamicPorts spec 만 선언한다.
     // 이 경우에도 catalog 마커가 붙어야 LLM 이 get_node_schema 를 먼저
