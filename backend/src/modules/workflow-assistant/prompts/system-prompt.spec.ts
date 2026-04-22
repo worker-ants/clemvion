@@ -267,6 +267,28 @@ describe('buildSystemPrompt', () => {
     expect(prompt).not.toMatch(/Do not restate the plan in prose/);
   });
 
+  it('explicitly exempts plan-only turns from the closing-prose requirement', () => {
+    // 사용자 보고: propose_plan 직후의 한국어 prose 가 plan card "계획대로
+    // 진행" 버튼과 중복돼 노이즈로 작동. 새 규약은 plan-only 턴을 명시적
+    // 예외로 두고, 클라이언트가 systemHint 로 안내를 자동 주입한다.
+    const prompt = buildSystemPrompt(defs as never, emptySnapshot);
+    // (a) 섹션 헤더에 "execution turn" 한정이 명시
+    expect(prompt).toMatch(/## Closing the turn .*execution turn/i);
+    // (b) plan-only 턴은 prose 를 emit 하지 말라는 명시적 금지문
+    expect(prompt.toLowerCase()).toMatch(
+      /plan[- ]only turn[s]?[^\n]*(?:do not|must not)\s+emit|(?:do not|must not)\s+emit[^\n]*plan[- ]only/,
+    );
+    // (c) 클라이언트가 자동 주입하는 hint 의 존재가 언급되어 LLM 이 자기
+    //     역할 분담을 인지하도록
+    expect(prompt.toLowerCase()).toMatch(
+      /client[^\n]*(auto[- ]?inject|inject)|approval[^\n]*hint/,
+    );
+    // (d) propose_plan 직후 finish 즉시 호출 지시
+    expect(prompt).toMatch(
+      /call\s+`finish`\s+immediately\s+after\s+`propose_plan`/i,
+    );
+  });
+
   it('teaches the supported/unsupported expression language surface', () => {
     // Assistant 가 `??`, arrow func, template literal 등 JS 만의 문법을
     // 흘려보내지 않도록, 지원/미지원 구문과 INVALID_EXPRESSION 가드를

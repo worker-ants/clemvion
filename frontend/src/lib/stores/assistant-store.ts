@@ -380,8 +380,10 @@ export const useAssistantStore = create<AssistantState>((set, get) => ({
  * Handle a single SSE event during an in-flight assistant turn.
  * Also calls into `applyAssistantOperation` on the editor store when an
  * edit tool succeeds.
+ *
+ * Exported for unit testing — production callers go through `sendMessage`.
  */
-function handleSseEvent(
+export function handleSseEvent(
   set: (updater: (s: AssistantState) => Partial<AssistantState>) => void,
   get: () => AssistantState,
   assistantId: string,
@@ -504,18 +506,40 @@ function handleSseEvent(
       const messages = s.messages.map((m) => {
         if (m.id !== assistantId) return m;
         const updated: AssistantDisplayMessage = { ...m, streaming: false };
-        // 힌트 우선순위: error > stalled > completed. error 가 이미 있으면
-        // 그대로 둔다 (에러 bubble 이 렌더됨). 그렇지 않을 때 plan 진행도를
-        // 보고 두 경우를 분기:
-        //   - 남은 pending step 이 있음 → "이어서 진행해줘" 안내
-        //   - 모두 완료 (+openQuestions 없음) 이고 이번 턴에 실제 진행이
-        //     있었음 → 완료 알림
+        // 힌트 우선순위: error > stalled > planApprove > completed.
+        // error 가 이미 있으면 그대로 둔다 (에러 bubble 이 렌더됨). 그렇지
+        // 않으면 plan 진행도와 이번 턴 형태를 보고 분기한다:
+        //   - 시작된 plan 에 pending step 이 남고 prose 도 비었음
+        //     → "이어서 진행해줘" 안내 (드물게 발생: 서버가 stuck 으로 판정)
+        //   - plan-only 턴 (propose_plan 만, edit 없음, prose 도 없음,
+        //     openQuestions 도 없음) → "계획대로 진행해 주세요." 자동 주입.
+        //     LLM 이 prose 를 생략하기로 약속한 케이스이므로 plan card 옆에
+        //     안내 박스가 자연스럽게 뜬다. openQuestions 가 있으면 plan card 가
+        //     "답변을 입력창에 적어 보내 주세요." 를 이미 노출하므로 hint 는
+        //     억제 (UX 메시지 충돌 방지).
+        //   - 모두 완료 (+openQuestions 없음) → 완료 알림
+        // else-if 순서는 위 우선순위와 동일하게 배치 — 향후 조건이 겹치게
+        // 변경되어도 의도한 순서가 자명하도록.
         if (!updated.error) {
           const completion = summarizePlanState(updated, s.messages);
+          const hasEditThisTurn = updated.toolCalls.some(
+            (tc) => tc.kind === "edit",
+          );
           if (completion.status === "pending" && !updated.content.trim()) {
             updated.systemHint = {
               kind: "info",
               text: translate(locale, "assistant.turnStalledHint"),
+            };
+          } else if (
+            updated.plan &&
+            !updated.plan.approved &&
+            !updated.plan.openQuestions?.length &&
+            !hasEditThisTurn &&
+            !updated.content.trim()
+          ) {
+            updated.systemHint = {
+              kind: "info",
+              text: translate(locale, "assistant.planApproveConfirm"),
             };
           } else if (completion.status === "completed") {
             updated.systemHint = {
@@ -548,7 +572,7 @@ function handleSseEvent(
  * 이 이미 done 인지로 판정한다 — 자연어 승인으로 LLM 이 진행 중인 경우를
  * 포함.
  */
-function summarizePlanState(
+export function summarizePlanState(
   msg: AssistantDisplayMessage,
   all: AssistantDisplayMessage[],
 ): {

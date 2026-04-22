@@ -47,6 +47,23 @@ interface FinishGuardError {
   message: string;
 }
 
+/**
+ * Turn-scoped guard 상태. progress-aware finish guard 가 라운드를 넘나들며
+ * 참조하는 카운터들을 한 곳에 모아 (a) 호출부의 시그니처를 평탄하게 유지하고
+ * (b) 새 block 사이클마다 reset 누락이 발생하지 않도록 한다.
+ */
+interface FinishGuardState {
+  /** 이 턴에서 PLAN_NOT_COMPLETE 로 finish 가 block 된 횟수. */
+  finishBlockCount: number;
+  /**
+   * 직전 finish block 이후 성공한 edit / plan tool call 수.
+   * 0 이면 LLM 이 진척 없이 finish 를 반복 시도하는 stuck 상태로 간주한다.
+   */
+  editsSinceLastFinishBlock: number;
+  /** `clear_plan` 이 이번 턴에 호출됐는지 — 화제 전환으로 guard 비활성. */
+  planClearedThisTurn: boolean;
+}
+
 export type AssistantStreamEvent =
   | { event: 'text'; data: { delta: string } }
   | {
@@ -93,6 +110,10 @@ export type AssistantStreamEvent =
 // 결정된다 (`computeToolCallsBudget`). 기본 48, plan 이 크면 그에 비례해
 // 확장, hard cap 200. 초과 시 ASSISTANT_TOO_MANY_TOOL_CALLS 로 탈출.
 const MAX_HISTORY_TURNS = 30;
+// progress-aware finish guard 가 LLM 을 다회 라운드 끌고 갈 수 있으므로,
+// tool-call budget 과 별개로 단일 턴당 LLM 호출 횟수의 명시적 상한을 둔다.
+// 50 라운드면 50-step plan 도 충분히 커버하면서 비용 폭주는 차단한다.
+const MAX_TOOL_LOOP_ROUNDS = 50;
 
 /**
  * Workflow AI Assistant의 대화 한 턴을 처리한다.
@@ -110,8 +131,11 @@ const MAX_HISTORY_TURNS = 30;
  *       - edit: ShadowWorkflow 적용 → 성공 시 SSE로 발행, tool_result를 LLM에 반환
  *       - finish: evaluateFinishGuard() 로 plan 완결성(남은 step, openQuestions)
  *         을 검사. 미완이면 `PLAN_NOT_COMPLETE` tool_result 로 되돌려 루프를
- *         한 번 더 돌린다. finishBlockCount 로 같은 턴 2회 block 을 막아
- *         무한 루프를 방지하고, 두 번째 finish 는 정상 탈출로 허용한다.
+ *         한 번 더 돌린다. **Progress-aware**: block 이후 LLM 이 edit/plan tool
+ *         을 추가 성공시키면 가드가 다시 발동해 plan 이 끝날 때까지 끌고 간다.
+ *         block 후 어떤 진척도 없이 또 finish 를 호출하면 stuck 으로 간주해
+ *         안전 탈출(정상 종료) 을 허용. 무한 루프 방어는 `toolCallsBudget`(plan
+ *         크기에 비례, hard cap 200) + 라운드 상한(`MAX_TOOL_LOOP_ROUNDS`).
  *         성공·차단 모두 pendingToolCalls 에 persist 되어 이후 세션
  *         rehydrate 시 "이미 완료된 plan" 으로 인식된다.
  *  5. assistant 턴이 종료되면 누적된 텍스트/toolCalls/plan을 DB에 저장
@@ -217,15 +241,45 @@ export class WorkflowAssistantStreamService {
     let toolCallsBudget = computeToolCallsBudget(
       activePlanForPrompt?.plan ?? null,
     );
-    // 한 턴 안에서 finish 를 PLAN_NOT_COMPLETE 로 block 한 횟수. 같은 turn 에서
-    // 2번 이상 block 하면 무한 루프 위험이 있으므로 두 번째 finish 는 허용한다.
-    let finishBlockCount = 0;
-    // `clear_plan` 이 이번 턴에 호출되었는지. evaluateFinishGuard 에서 이
-    // 플래그가 켜져 있으면 pending step 이 남아도 finish 를 허용한다.
-    let planClearedThisTurn = false;
+    // finish guard 의 turn-scoped 상태. 한 객체로 묶어 관련 변수가
+    // 흩어지지 않게 한다 (별도 reset 누락 위험 감소).
+    //  - `finishBlockCount` : 이 턴에서 PLAN_NOT_COMPLETE 로 finish 가 block 된 횟수.
+    //  - `editsSinceLastFinishBlock` : 직전 block 이후 성공한 edit/plan tool 수.
+    //    LLM 이 block 을 받고도 어떤 진척도 못 만든 채 다시 finish 를 호출하면
+    //    stuck 으로 간주해 탈출, 하나라도 진척이 있었다면 guard 가 다시 발동.
+    //  - `planClearedThisTurn` : `clear_plan` 호출 여부. 화제 전환 시 guard 비활성.
+    const guardState: FinishGuardState = {
+      finishBlockCount: 0,
+      editsSinceLastFinishBlock: 0,
+      planClearedThisTurn: false,
+    };
+    // LLM 호출 라운드 수 — toolCallsBudget 과 별개의 라운드 상한.
+    // progress-aware guard 가 N step plan 에서 N+ 라운드를 돌릴 수 있어 비용
+    // 폭주를 막기 위한 명시적 안전망.
+    let roundCount = 0;
 
     // 루프 (tool_calls가 있으면 다시 호출)
     while (true) {
+      roundCount++;
+      if (roundCount > MAX_TOOL_LOOP_ROUNDS) {
+        yield {
+          event: 'error',
+          data: {
+            code: 'ASSISTANT_TOO_MANY_TOOL_CALLS',
+            message: `Per-turn LLM round limit (${MAX_TOOL_LOOP_ROUNDS}) exceeded. Send a follow-up message (e.g. "이어서 진행해줘") to continue executing remaining plan steps.`,
+          },
+        };
+        await this.persistAssistantTurn(
+          sessionId,
+          assistantText,
+          pendingToolCalls,
+          planForTurn,
+          null,
+          'error',
+        );
+        yield { event: 'done', data: { finishReason: 'error' } };
+        return;
+      }
       // 각 라운드에서 assistant 메시지로 누적되는 text는 이 턴 전체에 대해
       // 계속 이어 붙이되, LLM에 피드백해야 하는 tool_result는 라운드별로만
       // 수집한다.
@@ -281,12 +335,13 @@ export class WorkflowAssistantStreamService {
                 history,
                 planForTurn,
                 pendingToolCalls,
-                finishBlockCount,
-                planClearedThisTurn,
+                guardState,
                 dto.content,
               );
               if (block) {
-                finishBlockCount++;
+                guardState.finishBlockCount++;
+                // 새 block 사이클 시작 — 진척 카운터 reset.
+                guardState.editsSinceLastFinishBlock = 0;
                 pendingResultsForLlm.push({ id: ev.id, result: block });
                 pendingToolCalls.push({
                   id: ev.id,
@@ -341,13 +396,13 @@ export class WorkflowAssistantStreamService {
                 // Topic change marker: active plan context 는 다음 턴부터
                 // history 스캔에서 제외된다. tool_result 는 단순 ack 로
                 // 충분하며 SSE 로는 별도 발행하지 않아 UI 배지 오염을 피한다.
-                planClearedThisTurn = true;
+                guardState.planClearedThisTurn = true;
                 result = { ok: true, cleared: true };
               } else {
                 const plan = this.buildPlanFromArgs(parsed);
                 planForTurn = plan;
                 // 새 plan 이 발행되면 이전 clear 상태는 자연스럽게 덮어씀.
-                planClearedThisTurn = false;
+                guardState.planClearedThisTurn = false;
                 // 새 plan 의 크기에 맞춰 tool-call budget 을 재확장한다.
                 // 기존에 이미 소비한 totalToolCallsThisTurn 은 유지되지만
                 // budget 상한이 커지므로 실행 여유를 확보한다.
@@ -443,6 +498,16 @@ export class WorkflowAssistantStreamService {
             }
 
             pendingResultsForLlm.push({ id: ev.id, result });
+            // 진척 카운터: edit / plan tool 이 성공한 경우만 카운트.
+            // explore (read-only) 와 실패 호출은 plan 의 미완 step 을 줄이지
+            // 못하므로 진척으로 간주하지 않는다. clear_plan / propose_plan 은
+            // plan 자체를 바꿔 미완 상태 자체를 해소할 수 있으므로 카운트.
+            if (
+              (kind === 'edit' || kind === 'plan') &&
+              (result as { ok?: boolean })?.ok === true
+            ) {
+              guardState.editsSinceLastFinishBlock++;
+            }
             const parsedPlanStepId =
               typeof parsed.planStepId === 'string'
                 ? parsed.planStepId
@@ -664,11 +729,20 @@ export class WorkflowAssistantStreamService {
    *
    * 아래 조건이면 null(정상 finish):
    *   - 같은 턴에 `clear_plan` 이 호출됨 — 사용자가 화제를 바꾼 것으로 간주
-   *   - 같은 턴에서 이미 1회 block 했음 — 무한 루프 방지
+   *   - 직전 block 이후 어떤 진척(edit/plan tool 성공)도 없이 또 finish 시도 —
+   *     LLM 이 진짜로 stuck 된 상태이므로 무한 루프 방지로 허용. 진척이 1회라도
+   *     있었다면 가드가 다시 발동해 남은 step 을 끝까지 끌고 간다.
    *   - activePlan 없음 or status !== 'active'
    *   - 이번 턴이 실행 턴도 아니고 plan 을 새로 발행한 턴도 아님
    *   - planForTurn 이 null 인데 이번 턴 편집이 active plan 과 전혀 매칭되지
    *     않으면 단발성 편집으로 간주
+   *
+   * @param history          DB 에서 로드된 같은 세션의 과거 메시지들
+   * @param planForTurn      이번 턴에 새로 propose 된 plan (없으면 null)
+   * @param pendingToolCalls 이번 턴에 지금까지 실행/시도된 tool call 들
+   * @param state            turn-scoped guard 카운터
+   *                         (`finishBlockCount`/`editsSinceLastFinishBlock`/`planClearedThisTurn`)
+   * @param pendingUserRequest 사용자 메시지 원문 — active plan derivation 에 사용
    */
   /**
    * add_node / update_node 가 성공한 뒤 노드의 "사용자 선택 필요" 필드
@@ -695,13 +769,31 @@ export class WorkflowAssistantStreamService {
     history: WorkflowAssistantMessage[],
     planForTurn: AssistantPlanRecord | null,
     pendingToolCalls: AssistantToolCallRecord[],
-    finishBlockCount: number,
-    planClearedThisTurn: boolean,
+    state: FinishGuardState,
     pendingUserRequest: string,
   ): FinishGuardError | null {
-    if (planClearedThisTurn) return null;
-    if (finishBlockCount > 0) return null;
-    const editThisTurn = pendingToolCalls.some((tc) => tc.kind === 'edit');
+    if (state.planClearedThisTurn) return null;
+    // Plan-only 턴 (이번 턴에 propose_plan 으로 새 plan 이 발행됐는데 아직
+    // 미승인) 은 정의상 사용자 approve 대기 상태다. 같은 턴에 LLM 이 edit 을
+    // 시도해도 PLAN_AWAITING_APPROVAL 차단으로 canvas 가 변경되지 않으며,
+    // 이때 finish 를 PLAN_NOT_COMPLETE 로 막으면 LLM 에게 "남은 step 실행"
+    // 신호가 가서 또다시 edit 을 시도하는 무한 핑퐁이 발생한다. 가드를 비활성
+    // 시키고 finish 를 정상 통과시켜 사용자가 plan card 의 "계획대로 진행"
+    // 으로 다음 턴을 시작하게 한다.
+    if (planForTurn && !planForTurn.approvedAt) return null;
+    // Stuck 탈출: block 후 LLM 이 어떤 진척도 못 만들고 다시 finish 호출.
+    // 진척이 있었으면 (editsSinceLastFinishBlock > 0) 다시 평가해 끝까지 끌고
+    // 간다. toolCallsBudget 과 MAX_TOOL_LOOP_ROUNDS 가 절대 상한.
+    if (state.finishBlockCount > 0 && state.editsSinceLastFinishBlock === 0)
+      return null;
+    // 성공한 edit 만 "이번 턴 실행 발생" 으로 간주한다. 실패한 edit (ok:false)
+    // 은 canvas 를 바꾸지 않으므로 plan checklist 도 진행시키지 않는다 — 이를
+    // 카운트하면 plan-only 턴이나 단발성 실패 후의 finish 가 잘못 막힌다.
+    const editThisTurn = pendingToolCalls.some(
+      (tc) =>
+        tc.kind === 'edit' &&
+        (tc.result as { ok?: boolean } | null | undefined)?.ok === true,
+    );
     if (!editThisTurn) return null;
 
     const ctx: ActivePlanContext | null = findActivePlanContext(
