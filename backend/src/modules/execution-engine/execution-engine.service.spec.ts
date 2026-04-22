@@ -1593,6 +1593,84 @@ describe('ExecutionEngineService', () => {
       expect(bInput).toEqual({ routed: true });
     });
 
+    it('should strip port / status / _resumeState control fields from downstream input', async () => {
+      // Regression: form/ai_agent style handlers emit canonical output with
+      // top-level port/status/_resumeState control fields. When that output
+      // is forwarded to a downstream node as input, the control fields
+      // previously leaked through (only `_selectedPort` was stripped),
+      // which caused pass-through successors (e.g. switch) to inherit the
+      // stale `port: "out"` and misroute every outgoing edge.
+      const emitterHandler: NodeHandler = {
+        validate: () => ({ valid: true, errors: [] }),
+        execute: jest.fn(async () => ({
+          config: {},
+          output: { interaction: { data: { food_type: '한식' } } },
+          status: 'resumed',
+          port: 'out',
+          _resumeState: { turnCount: 1 },
+        })),
+      };
+      const receiverHandler: NodeHandler = {
+        validate: () => ({ valid: true, errors: [] }),
+        execute: jest.fn(async (input: unknown) => ({ seen: input })),
+      };
+      handlerRegistry.register('ctl_emitter', emitterHandler);
+      handlerRegistry.register('ctl_receiver', receiverHandler);
+
+      const nodes: Partial<Node>[] = [
+        {
+          id: 'node-emit',
+          workflowId,
+          type: 'ctl_emitter',
+          category: NodeCategory.PRESENTATION,
+          label: 'Emit',
+          config: {},
+          isDisabled: false,
+          containerId: undefined as unknown as string,
+          toolOwnerId: undefined as unknown as string,
+        },
+        {
+          id: 'node-recv',
+          workflowId,
+          type: 'ctl_receiver',
+          category: NodeCategory.LOGIC,
+          label: 'Recv',
+          config: {},
+          isDisabled: false,
+          containerId: undefined as unknown as string,
+          toolOwnerId: undefined as unknown as string,
+        },
+      ];
+      const edges: Partial<Edge>[] = [
+        {
+          id: 'e-emit-recv',
+          workflowId,
+          sourceNodeId: 'node-emit',
+          sourcePort: 'out',
+          targetNodeId: 'node-recv',
+          targetPort: 'in',
+          type: EdgeType.DATA,
+        },
+      ];
+
+      mockNodeRepo.findBy.mockResolvedValue(nodes);
+      mockEdgeRepo.findBy.mockResolvedValue(edges);
+
+      await service.execute(workflowId, {});
+      await flushPromises();
+
+      expect(receiverHandler.execute).toHaveBeenCalledTimes(1);
+      const receivedInput = (receiverHandler.execute as jest.Mock).mock
+        .calls[0][0] as Record<string, unknown>;
+      expect(receivedInput).not.toHaveProperty('port');
+      expect(receivedInput).not.toHaveProperty('status');
+      expect(receivedInput).not.toHaveProperty('_resumeState');
+      expect(receivedInput).not.toHaveProperty('_selectedPort');
+      expect(receivedInput).toMatchObject({
+        interaction: { data: { food_type: '한식' } },
+      });
+    });
+
     it('should not execute nodes downstream of a disabled node', async () => {
       // A -> B(disabled) -> C — C should never execute
       const passHandler: NodeHandler = {

@@ -15,17 +15,24 @@ describe('SwitchHandler', () => {
     };
   });
 
+  // NOTE on contract:
+  // The expression engine pre-resolves `switchValue` templates (`{{ ... }}`)
+  // before the handler runs, so the handler always receives a final
+  // primitive/object in config.switchValue. It must NOT perform another
+  // path lookup on the input. See plan/switch-node-input-lucky-dove for
+  // the bug these tests guard against.
+
   describe('validate', () => {
-    it('should return valid for correct config', () => {
+    it('returns valid for minimal value-mode config', () => {
       const result = handler.validate({
-        switchValue: 'status',
+        switchValue: 'active',
         cases: [{ id: 'case-1', value: 'active' }],
       });
       expect(result.valid).toBe(true);
       expect(result.errors).toHaveLength(0);
     });
 
-    it('should return valid when switchValue is a non-string (expression-resolved)', () => {
+    it('accepts non-string switchValue (expression-resolved primitive)', () => {
       const result = handler.validate({
         switchValue: 42,
         cases: [{ id: 'case-1', value: 42 }],
@@ -33,55 +40,16 @@ describe('SwitchHandler', () => {
       expect(result.valid).toBe(true);
     });
 
-    it('should return invalid when switchValue is missing', () => {
+    it('rejects missing switchValue in value mode', () => {
       const result = handler.validate({
+        mode: 'value',
         cases: [{ id: 'case-1', value: 'a' }],
       });
       expect(result.valid).toBe(false);
       expect(result.errors).toContain('switchValue is required');
     });
 
-    it('should return invalid when cases is not an array', () => {
-      const result = handler.validate({
-        switchValue: 'field',
-        cases: 'not-array',
-      });
-      expect(result.valid).toBe(false);
-      expect(result.errors).toContain('cases must be a non-empty array');
-    });
-
-    it('should return invalid when a case has no id', () => {
-      const result = handler.validate({
-        switchValue: 'field',
-        cases: [{ value: 'a' }],
-      });
-      expect(result.valid).toBe(false);
-      expect(result.errors).toContain(
-        'cases[0].id is required and must be a string',
-      );
-    });
-
-    it('should return invalid when a case has empty string id', () => {
-      const result = handler.validate({
-        switchValue: 'field',
-        cases: [{ id: '', value: 'a' }],
-      });
-      expect(result.valid).toBe(false);
-      expect(result.errors).toContain(
-        'cases[0].id is required and must be a string',
-      );
-    });
-
-    it('should return invalid when cases is empty array', () => {
-      const result = handler.validate({
-        switchValue: 'field',
-        cases: [],
-      });
-      expect(result.valid).toBe(false);
-      expect(result.errors).toContain('cases must be a non-empty array');
-    });
-
-    it('should return invalid when switchValue is null', () => {
+    it('rejects null switchValue', () => {
       const result = handler.validate({
         switchValue: null,
         cases: [{ id: 'case-1', value: 'a' }],
@@ -90,17 +58,7 @@ describe('SwitchHandler', () => {
       expect(result.errors).toContain('switchValue is required');
     });
 
-    it('should return invalid when hasDefault is not a boolean', () => {
-      const result = handler.validate({
-        switchValue: 'field',
-        cases: [{ id: 'case-1', value: 'a' }],
-        hasDefault: 'yes',
-      });
-      expect(result.valid).toBe(false);
-      expect(result.errors).toContain('hasDefault must be a boolean');
-    });
-
-    it('should return invalid when switchValue is an empty string', () => {
+    it('rejects whitespace-only switchValue string', () => {
       const result = handler.validate({
         switchValue: '  ',
         cases: [{ id: 'case-1', value: 'a' }],
@@ -109,20 +67,73 @@ describe('SwitchHandler', () => {
       expect(result.errors).toContain('switchValue is required');
     });
 
-    it('should return invalid when valueType is not a valid type', () => {
+    it('does NOT require switchValue in expression mode', () => {
       const result = handler.validate({
-        switchValue: 'field',
-        cases: [{ id: 'case-1', value: 'a', valueType: 'integer' }],
+        mode: 'expression',
+        cases: [
+          {
+            id: 'case-1',
+            condition: { field: 'role', operator: 'eq', value: 'admin' },
+          },
+        ],
+      });
+      expect(result.valid).toBe(true);
+    });
+
+    it('requires condition on every case in expression mode', () => {
+      const result = handler.validate({
+        mode: 'expression',
+        cases: [{ id: 'case-1', value: 'a' }],
       });
       expect(result.valid).toBe(false);
       expect(result.errors).toContain(
-        'cases[0].valueType must be one of: string, number, boolean',
+        'cases[0].condition is required when mode is "expression"',
       );
     });
 
-    it('should return invalid when case ids are duplicated', () => {
+    it('rejects non-array cases', () => {
       const result = handler.validate({
-        switchValue: 'field',
+        switchValue: 'x',
+        cases: 'not-array',
+      });
+      expect(result.valid).toBe(false);
+      expect(result.errors).toContain('cases must be a non-empty array');
+    });
+
+    it('rejects empty cases array', () => {
+      const result = handler.validate({
+        switchValue: 'x',
+        cases: [],
+      });
+      expect(result.valid).toBe(false);
+      expect(result.errors).toContain('cases must be a non-empty array');
+    });
+
+    it('rejects case missing id', () => {
+      const result = handler.validate({
+        switchValue: 'x',
+        cases: [{ value: 'a' }],
+      });
+      expect(result.valid).toBe(false);
+      expect(result.errors).toContain(
+        'cases[0].id is required and must be a string',
+      );
+    });
+
+    it('rejects case with empty id', () => {
+      const result = handler.validate({
+        switchValue: 'x',
+        cases: [{ id: '', value: 'a' }],
+      });
+      expect(result.valid).toBe(false);
+      expect(result.errors).toContain(
+        'cases[0].id is required and must be a string',
+      );
+    });
+
+    it('rejects duplicate case ids', () => {
+      const result = handler.validate({
+        switchValue: 'x',
         cases: [
           { id: 'dup', value: 'a' },
           { id: 'dup', value: 'b' },
@@ -131,244 +142,231 @@ describe('SwitchHandler', () => {
       expect(result.valid).toBe(false);
       expect(result.errors).toContain("cases[1].id 'dup' is duplicated");
     });
+
+    it('rejects non-boolean hasDefault', () => {
+      const result = handler.validate({
+        switchValue: 'x',
+        cases: [{ id: 'case-1', value: 'a' }],
+        hasDefault: 'yes',
+      });
+      expect(result.valid).toBe(false);
+      expect(result.errors).toContain('hasDefault must be a boolean');
+    });
+
+    it('rejects non-boolean strictComparison', () => {
+      const result = handler.validate({
+        switchValue: 'x',
+        cases: [{ id: 'case-1', value: 'a' }],
+        strictComparison: 'yes',
+      });
+      expect(result.valid).toBe(false);
+      expect(result.errors).toContain('strictComparison must be a boolean');
+    });
+
+    it('rejects invalid mode', () => {
+      const result = handler.validate({
+        mode: 'neither',
+        switchValue: 'x',
+        cases: [{ id: 'case-1', value: 'a' }],
+      });
+      expect(result.valid).toBe(false);
+      expect(result.errors).toContain('mode must be "value" or "expression"');
+    });
+
+    it('rejects bad valueType', () => {
+      const result = handler.validate({
+        switchValue: 'x',
+        cases: [{ id: 'case-1', value: 'a', valueType: 'integer' }],
+      });
+      expect(result.valid).toBe(false);
+      expect(result.errors).toContain(
+        'cases[0].valueType must be one of: string, number, boolean',
+      );
+    });
   });
 
-  describe('execute', () => {
-    it('should match a case by string path lookup', async () => {
+  describe('execute — mode: value', () => {
+    const inputIgnored = { someField: 'ignored' };
+
+    it('matches a case whose value equals the resolved primitive', async () => {
       const result = await handler.execute(
-        { status: 'active' },
+        inputIgnored,
         {
-          switchValue: 'status',
+          switchValue: '한식',
           cases: [
-            { id: 'case-1', label: 'Active', value: 'active' },
-            { id: 'case-2', label: 'Inactive', value: 'inactive' },
+            { id: 'case_korean', label: '한식 선택', value: '한식' },
+            { id: 'case_western', label: '양식 선택', value: '양식' },
+            { id: 'case_chinese', label: '중식 선택', value: '중식' },
           ],
           hasDefault: true,
         },
         context,
       );
       expect(result).toMatchObject({
-        port: 'case-1',
-        output: { status: 'active' },
-        meta: { expression: 'status', value: 'active' },
+        port: 'case_korean',
+        output: inputIgnored,
+        meta: { mode: 'value', matchedCase: 'case_korean', value: '한식' },
       });
     });
 
-    it('should match a case by nested path lookup', async () => {
-      const result = await handler.execute(
-        { user: { role: 'admin' } },
+    it('passes input through untouched on match', async () => {
+      const input = { a: 1, b: [2, 3] };
+      const result = (await handler.execute(
+        input,
         {
-          switchValue: 'user.role',
-          cases: [
-            { id: 'case-1', label: 'Admin', value: 'admin' },
-            { id: 'case-2', label: 'User', value: 'user' },
-          ],
-          hasDefault: true,
+          switchValue: 'x',
+          cases: [{ id: 'c1', value: 'x' }],
         },
         context,
-      );
-      expect(result).toMatchObject({
-        port: 'case-1',
-        output: { user: { role: 'admin' } },
-        meta: { expression: 'user.role', value: 'admin' },
-      });
+      )) as Record<string, unknown>;
+      expect(result.output).toBe(input);
     });
 
-    it('should use non-string switchValue directly (expression-resolved)', async () => {
-      const result = await handler.execute(
-        { someField: 'ignored' },
-        {
-          switchValue: 2,
-          cases: [
-            { id: 'case-1', label: 'One', value: 1 },
-            { id: 'case-2', label: 'Two', value: 2 },
-            { id: 'case-3', label: 'Three', value: 3 },
-          ],
-          hasDefault: true,
-        },
-        context,
-      );
-      expect(result).toMatchObject({
-        port: 'case-2',
-        output: { someField: 'ignored' },
-        meta: { expression: undefined, value: 2 },
-      });
-    });
-
-    it('should fall through to default when no case matches', async () => {
+    it('matches number primitives directly', async () => {
       const result = await handler.execute(
         {},
         {
-          switchValue: 'missing',
-          cases: [{ id: 'case-1', label: 'A', value: 'a' }],
+          switchValue: 2,
+          cases: [
+            { id: 'one', value: 1 },
+            { id: 'two', value: 2 },
+            { id: 'three', value: 3 },
+          ],
           hasDefault: true,
         },
         context,
       );
-      expect(result).toMatchObject({
-        port: 'default',
-        output: {},
-        meta: { expression: 'missing', value: undefined },
-      });
+      expect(result).toMatchObject({ port: 'two' });
     });
 
-    it('should throw when no case matches and no default', async () => {
-      await expect(
-        handler.execute(
-          {},
-          {
-            switchValue: 'missing',
-            cases: [{ id: 'case-1', label: 'A', value: 'a' }],
-            hasDefault: false,
-          },
-          context,
-        ),
-      ).rejects.toThrow(
-        'No matching case found and no default case configured',
-      );
-    });
-
-    it('should handle boolean switchValue from expression resolution', async () => {
+    it('matches boolean primitives directly', async () => {
       const result = await handler.execute(
         {},
         {
           switchValue: true,
           cases: [
-            { id: 'case-1', label: 'True', value: true },
-            { id: 'case-2', label: 'False', value: false },
+            { id: 'yes', value: true },
+            { id: 'no', value: false },
           ],
           hasDefault: true,
         },
         context,
       );
-      expect(result).toMatchObject({
-        port: 'case-1',
-        output: {},
-        meta: { expression: undefined, value: true },
-      });
+      expect(result).toMatchObject({ port: 'yes' });
     });
 
-    it('should fall through to default when hasDefault is omitted', async () => {
-      const result = await handler.execute(
-        {},
-        {
-          switchValue: 'missing',
-          cases: [{ id: 'case-1', label: 'A', value: 'a' }],
-        },
-        context,
-      );
-      expect(result).toMatchObject({
-        port: 'default',
-        output: {},
-        meta: { expression: 'missing', value: undefined },
-      });
-    });
-
-    it('should handle null intermediate path gracefully', async () => {
-      const result = await handler.execute(
-        { user: null },
-        {
-          switchValue: 'user.role',
-          cases: [{ id: 'case-1', label: 'Admin', value: 'admin' }],
-          hasDefault: true,
-        },
-        context,
-      );
-      expect(result).toMatchObject({
-        port: 'default',
-        output: { user: null },
-        meta: { expression: 'user.role', value: undefined },
-      });
-    });
-
-    it('should match first case when duplicate values exist', async () => {
-      const result = await handler.execute(
-        { x: 1 },
-        {
-          switchValue: 'x',
-          cases: [
-            { id: 'first', label: 'First', value: 1 },
-            { id: 'second', label: 'Second', value: 1 },
-          ],
-          hasDefault: true,
-        },
-        context,
-      );
-      expect(result).toMatchObject({
-        port: 'first',
-        output: { x: 1 },
-        meta: { expression: 'x', value: 1 },
-      });
-    });
-
-    it('should match number via path lookup with valueType number', async () => {
-      const result = await handler.execute(
-        { x: 42 },
-        {
-          switchValue: 'x',
-          cases: [
-            {
-              id: 'case-1',
-              label: 'FortyTwo',
-              value: '42',
-              valueType: 'number',
-            },
-          ],
-          hasDefault: true,
-        },
-        context,
-      );
-      expect(result).toMatchObject({
-        port: 'case-1',
-        output: { x: 42 },
-        meta: { expression: 'x', value: 42 },
-      });
-    });
-
-    it('should use strict equality when valueType is not specified', async () => {
-      const result = await handler.execute(
-        { x: '1' },
-        {
-          switchValue: 'x',
-          cases: [{ id: 'case-1', label: 'Num', value: 1 }],
-          hasDefault: true,
-        },
-        context,
-      );
-      expect(result).toMatchObject({
-        port: 'default',
-        output: { x: '1' },
-        meta: { expression: 'x', value: '1' },
-      });
-    });
-
-    it('should handle falsy number switchValue (0)', async () => {
+    it('matches the falsy primitive 0 against a case with value 0', async () => {
       const result = await handler.execute(
         {},
         {
           switchValue: 0,
           cases: [
-            { id: 'case-0', label: 'Zero', value: 0 },
-            { id: 'case-1', label: 'One', value: 1 },
+            { id: 'zero', value: 0 },
+            { id: 'one', value: 1 },
+          ],
+          hasDefault: true,
+        },
+        context,
+      );
+      expect(result).toMatchObject({ port: 'zero' });
+    });
+
+    it('loose comparison (default) treats "1" and 1 as equal', async () => {
+      const result = await handler.execute(
+        {},
+        {
+          switchValue: '1',
+          cases: [{ id: 'num', value: 1 }],
+          hasDefault: true,
+        },
+        context,
+      );
+      expect(result).toMatchObject({ port: 'num' });
+    });
+
+    it('strict comparison rejects "1" vs 1', async () => {
+      const result = await handler.execute(
+        {},
+        {
+          switchValue: '1',
+          cases: [{ id: 'num', value: 1 }],
+          hasDefault: true,
+          strictComparison: true,
+        },
+        context,
+      );
+      expect(result).toMatchObject({ port: 'default' });
+    });
+
+    it('uses valueType to coerce case value before comparison', async () => {
+      const result = await handler.execute(
+        {},
+        {
+          switchValue: 42,
+          cases: [{ id: 'num', value: '42', valueType: 'number' }],
+          hasDefault: true,
+          strictComparison: true,
+        },
+        context,
+      );
+      expect(result).toMatchObject({ port: 'num' });
+    });
+
+    it('matches the first case when two cases share the same value', async () => {
+      const result = await handler.execute(
+        {},
+        {
+          switchValue: 1,
+          cases: [
+            { id: 'first', value: 1 },
+            { id: 'second', value: 1 },
+          ],
+          hasDefault: true,
+        },
+        context,
+      );
+      expect(result).toMatchObject({ port: 'first' });
+    });
+
+    it('falls through to default when no case matches and hasDefault=true', async () => {
+      const result = await handler.execute(
+        inputIgnored,
+        {
+          switchValue: '일식',
+          cases: [
+            { id: 'case_korean', value: '한식' },
+            { id: 'case_western', value: '양식' },
           ],
           hasDefault: true,
         },
         context,
       );
       expect(result).toMatchObject({
-        port: 'case-0',
-        output: {},
-        meta: { expression: undefined, value: 0 },
+        port: 'default',
+        output: inputIgnored,
+        meta: { mode: 'value', matchedCase: 'default' },
       });
     });
 
-    it('should throw when hasDefault is false and null intermediate path', async () => {
+    it('falls through to default when hasDefault is omitted (defaults to true per prior behavior)', async () => {
+      const result = await handler.execute(
+        {},
+        {
+          switchValue: 'missing',
+          cases: [{ id: 'c1', value: 'a' }],
+        },
+        context,
+      );
+      expect(result).toMatchObject({ port: 'default' });
+    });
+
+    it('throws when no case matches and hasDefault=false', async () => {
       await expect(
         handler.execute(
-          { user: null },
+          {},
           {
-            switchValue: 'user.role',
-            cases: [{ id: 'case-1', label: 'Admin', value: 'admin' }],
+            switchValue: 'missing',
+            cases: [{ id: 'c1', value: 'a' }],
             hasDefault: false,
           },
           context,
@@ -378,17 +376,133 @@ describe('SwitchHandler', () => {
       );
     });
 
-    it('should coerce case value to number when valueType is number', async () => {
+    describe('coerceCaseValue (via valueType)', () => {
+      it('coerces case value "42" → 42 when valueType=number (strict mode)', async () => {
+        const result = await handler.execute(
+          {},
+          {
+            switchValue: 42,
+            cases: [{ id: 'num', value: '42', valueType: 'number' }],
+            hasDefault: true,
+            strictComparison: true,
+          },
+          context,
+        );
+        expect(result).toMatchObject({ port: 'num' });
+      });
+
+      it('coerces case value "true" → true when valueType=boolean (strict mode)', async () => {
+        const result = await handler.execute(
+          {},
+          {
+            switchValue: true,
+            cases: [
+              { id: 'yes', value: 'true', valueType: 'boolean' },
+              { id: 'no', value: 'false', valueType: 'boolean' },
+            ],
+            hasDefault: true,
+            strictComparison: true,
+          },
+          context,
+        );
+        expect(result).toMatchObject({ port: 'yes' });
+      });
+
+      it('keeps original string when valueType=number coercion fails (NaN)', async () => {
+        const result = await handler.execute(
+          {},
+          {
+            switchValue: 'abc',
+            cases: [{ id: 'nan', value: 'abc', valueType: 'number' }],
+            hasDefault: true,
+            strictComparison: true,
+          },
+          context,
+        );
+        expect(result).toMatchObject({ port: 'nan' });
+      });
+
+      it('keeps original string when valueType=boolean gets a non-boolean token', async () => {
+        const result = await handler.execute(
+          {},
+          {
+            switchValue: 'yes',
+            cases: [{ id: 'literal', value: 'yes', valueType: 'boolean' }],
+            hasDefault: true,
+            strictComparison: true,
+          },
+          context,
+        );
+        expect(result).toMatchObject({ port: 'literal' });
+      });
+
+      it('skips coercion when valueType is omitted or "string"', async () => {
+        const result = await handler.execute(
+          {},
+          {
+            switchValue: 42,
+            cases: [{ id: 'str', value: '42', valueType: 'string' }],
+            hasDefault: true,
+            strictComparison: true,
+          },
+          context,
+        );
+        expect(result).toMatchObject({ port: 'default' });
+      });
+    });
+
+    describe('loose-equality boundary cases (default comparison)', () => {
+      it('matches "0" against case value 0 under loose comparison', async () => {
+        const result = await handler.execute(
+          {},
+          {
+            switchValue: '0',
+            cases: [{ id: 'zero', value: 0 }],
+            hasDefault: true,
+          },
+          context,
+        );
+        expect(result).toMatchObject({ port: 'zero' });
+      });
+
+      it('does NOT match null against case value undefined under strict', async () => {
+        const result = await handler.execute(
+          {},
+          {
+            switchValue: null,
+            cases: [{ id: 'undef', value: undefined }],
+            hasDefault: true,
+            strictComparison: true,
+          },
+          context,
+        );
+        expect(result).toMatchObject({ port: 'default' });
+      });
+    });
+  });
+
+  describe('execute — mode: expression', () => {
+    it('matches the first case whose condition is true', async () => {
       const result = await handler.execute(
-        {},
+        { user: { age: 20, role: 'admin' } },
         {
-          switchValue: 42,
+          mode: 'expression',
           cases: [
             {
-              id: 'case-1',
-              label: 'FortyTwo',
-              value: '42',
-              valueType: 'number',
+              id: 'minor',
+              condition: {
+                field: 'user.age',
+                operator: 'lt',
+                value: 18,
+              },
+            },
+            {
+              id: 'adult_admin',
+              condition: {
+                field: 'user.role',
+                operator: 'eq',
+                value: 'admin',
+              },
             },
           ],
           hasDefault: true,
@@ -396,121 +510,71 @@ describe('SwitchHandler', () => {
         context,
       );
       expect(result).toMatchObject({
-        port: 'case-1',
-        output: {},
-        meta: { expression: undefined, value: 42 },
+        port: 'adult_admin',
+        meta: { mode: 'expression', matchedCase: 'adult_admin' },
       });
     });
 
-    it('should coerce case value to boolean when valueType is boolean', async () => {
+    it('falls through to default when no condition is true', async () => {
       const result = await handler.execute(
-        {},
+        { user: { age: 10 } },
         {
-          switchValue: true,
+          mode: 'expression',
           cases: [
-            { id: 'case-1', label: 'Yes', value: 'true', valueType: 'boolean' },
-            { id: 'case-2', label: 'No', value: 'false', valueType: 'boolean' },
+            {
+              id: 'adult',
+              condition: {
+                field: 'user.age',
+                operator: 'gte',
+                value: 18,
+              },
+            },
           ],
           hasDefault: true,
         },
         context,
       );
-      expect(result).toMatchObject({
-        port: 'case-1',
-        output: {},
-        meta: { expression: undefined, value: true },
-      });
+      expect(result).toMatchObject({ port: 'default' });
     });
 
-    it('should not coerce when valueType is string (default)', async () => {
+    it('throws when no condition matches and hasDefault=false', async () => {
+      await expect(
+        handler.execute(
+          {},
+          {
+            mode: 'expression',
+            cases: [
+              {
+                id: 'c1',
+                condition: { field: 'x', operator: 'eq', value: 1 },
+              },
+            ],
+            hasDefault: false,
+          },
+          context,
+        ),
+      ).rejects.toThrow(
+        'No matching case found and no default case configured',
+      );
+    });
+
+    it('respects strictComparison in expression mode', async () => {
       const result = await handler.execute(
-        {},
+        { n: '42' },
         {
-          switchValue: 42,
+          mode: 'expression',
           cases: [
-            { id: 'case-1', label: 'Str42', value: '42', valueType: 'string' },
+            {
+              id: 'match',
+              condition: { field: 'n', operator: 'eq', value: 42 },
+            },
           ],
           hasDefault: true,
+          strictComparison: true,
         },
         context,
       );
-      expect(result).toMatchObject({
-        port: 'default',
-        output: {},
-        meta: { expression: undefined, value: 42 },
-      });
-    });
-
-    it('should not coerce when valueType is omitted', async () => {
-      const result = await handler.execute(
-        {},
-        {
-          switchValue: 42,
-          cases: [{ id: 'case-1', label: 'Str42', value: '42' }],
-          hasDefault: true,
-        },
-        context,
-      );
-      expect(result).toMatchObject({
-        port: 'default',
-        output: {},
-        meta: { expression: undefined, value: 42 },
-      });
-    });
-
-    it('should keep original string when number coercion fails', async () => {
-      const result = await handler.execute(
-        { x: 'abc' },
-        {
-          switchValue: 'x',
-          cases: [
-            { id: 'case-1', label: 'NaN', value: 'abc', valueType: 'number' },
-          ],
-          hasDefault: true,
-        },
-        context,
-      );
-      expect(result).toMatchObject({
-        port: 'case-1',
-        output: { x: 'abc' },
-        meta: { expression: 'x', value: 'abc' },
-      });
-    });
-
-    it('should keep original string when boolean coercion gets non-boolean string', async () => {
-      const result = await handler.execute(
-        { x: 'yes' },
-        {
-          switchValue: 'x',
-          cases: [
-            { id: 'case-1', label: 'Yes', value: 'yes', valueType: 'boolean' },
-          ],
-          hasDefault: true,
-        },
-        context,
-      );
-      expect(result).toMatchObject({
-        port: 'case-1',
-        output: { x: 'yes' },
-        meta: { expression: 'x', value: 'yes' },
-      });
-    });
-
-    it('should not traverse prototype properties', async () => {
-      const result = await handler.execute(
-        {},
-        {
-          switchValue: '__proto__.constructor',
-          cases: [{ id: 'case-1', label: 'Match', value: 'Function' }],
-          hasDefault: true,
-        },
-        context,
-      );
-      expect(result).toMatchObject({
-        port: 'default',
-        output: {},
-        meta: { expression: '__proto__.constructor', value: undefined },
-      });
+      expect(result).toMatchObject({ port: 'default' });
     });
   });
 });

@@ -2026,7 +2026,7 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
 
     // Update node output cache with port selection. The flat-shape
     // `updatedOutput` carries `_selectedPort` so existing routing logic
-    // (applyPortSelection / hasPortMismatch / stripSelectedPort) keeps
+    // (applyPortSelection / hasPortMismatch / stripControlFields) keeps
     // operating without changes.
     this.contextService.setNodeOutput(executionId, node.id, updatedOutput);
 
@@ -2473,7 +2473,7 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
         if (this.isPortFiltered(sourceOutput, incomingEdges[0].sourcePort)) {
           return undefined;
         }
-        return this.stripSelectedPort(sourceOutput);
+        return this.stripControlFields(sourceOutput);
       }
       // No executed predecessor (e.g., back-edge target on first run) → use workflow input
       return workflowInput;
@@ -2489,7 +2489,7 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
         if (this.isPortFiltered(sourceOutput, edge.sourcePort)) {
           continue;
         }
-        merged[edge.sourceNodeId] = this.stripSelectedPort(sourceOutput);
+        merged[edge.sourceNodeId] = this.stripControlFields(sourceOutput);
         hasAnyInput = true;
       }
     }
@@ -2547,22 +2547,51 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
   }
 
   /**
-   * Strip _selectedPort from output before passing as input to the next node.
-   * _selectedPort is routing metadata for the current node's edges only —
-   * it must not leak into downstream nodes, otherwise pass-through nodes
-   * (e.g. Variable) would cause their successors to be incorrectly skipped.
+   * Strip routing / lifecycle control fields from output before passing it
+   * as input to the next node.
+   *
+   * These fields are metadata for the current node's engine-level bookkeeping
+   * and must not leak into downstream `$input`:
+   *  - `_selectedPort`: routing marker for the current node's outgoing edges.
+   *    Leaking it causes pass-through successors (e.g. Variable) to have
+   *    their own successors incorrectly skipped.
+   *  - `port`: handler's declared output port. Leaking it into downstream
+   *    `output: input` pass-throughs makes the adapter think a stale port
+   *    is the new node's routing decision.
+   *  - `status`: lifecycle marker (`waiting_for_input` / `resumed` / `ended`).
+   *    Leaking `"resumed"` confuses blocking detection on successors.
+   *  - `_resumeState`: per-node interaction state. Strictly owned by the
+   *    node that emitted it.
+   *
+   * The `structuredOutputCache` (what `$node["X"].port` resolves against)
+   * is not touched — downstream expressions can still read the predecessor's
+   * control fields explicitly by node reference.
    */
-  private stripSelectedPort(output: unknown): unknown {
-    if (
-      output &&
-      typeof output === 'object' &&
-      '_selectedPort' in (output as Record<string, unknown>)
-    ) {
-      const { _selectedPort, ...rest } = output as Record<string, unknown>;
-      void _selectedPort;
-      return rest;
+  private stripControlFields(output: unknown): unknown {
+    if (!output || typeof output !== 'object' || Array.isArray(output)) {
+      return output;
     }
-    return output;
+    const o = output as Record<string, unknown>;
+    if (
+      !('_selectedPort' in o) &&
+      !('port' in o) &&
+      !('status' in o) &&
+      !('_resumeState' in o)
+    ) {
+      return output;
+    }
+    const {
+      _selectedPort: _sp,
+      port: _p,
+      status: _st,
+      _resumeState: _rs,
+      ...rest
+    } = o;
+    void _sp;
+    void _p;
+    void _st;
+    void _rs;
+    return rest;
   }
 
   /**
@@ -3379,7 +3408,7 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
       }
       const lastNodeId = branch.sortedNodeIds[branch.sortedNodeIds.length - 1];
       const rawOutput = context.nodeOutputCache[lastNodeId];
-      branchResults.push(this.stripSelectedPort(rawOutput));
+      branchResults.push(this.stripControlFields(rawOutput));
     }
 
     // Replace Parallel's output: `_selectedPort: ['done']` ensures only the

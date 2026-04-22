@@ -3,39 +3,23 @@ import {
   ValidationResult,
   ExecutionContext,
 } from '../../core/node-handler.interface.js';
-import { getNestedValue } from '../../core/nested-value.util.js';
-
-interface Condition {
-  field: string;
-  operator: string;
-  value: unknown;
-}
+import {
+  CONDITION_OPERATORS,
+  Condition,
+  evaluateCondition,
+} from '../../core/condition-evaluator.util.js';
 
 interface IfElseConfig {
   conditions: Condition[];
   combineMode: 'and' | 'or';
+  strictComparison?: boolean;
 }
-
-const VALID_OPERATORS = [
-  'eq',
-  'neq',
-  'gt',
-  'gte',
-  'lt',
-  'lte',
-  'contains',
-  'not_contains',
-  'starts_with',
-  'ends_with',
-  'is_empty',
-  'is_not_empty',
-  'is_null',
-] as const;
 
 export class IfElseHandler implements NodeHandler {
   validate(config: Record<string, unknown>): ValidationResult {
     const errors: string[] = [];
-    const { conditions, combineMode } = config as unknown as IfElseConfig;
+    const { conditions, combineMode, strictComparison } =
+      config as unknown as IfElseConfig;
 
     if (!conditions || !Array.isArray(conditions)) {
       errors.push('conditions must be a non-empty array');
@@ -50,14 +34,9 @@ export class IfElseHandler implements NodeHandler {
             `conditions[${i}].field is required and must be a string`,
           );
         }
-        if (
-          !cond.operator ||
-          !VALID_OPERATORS.includes(
-            cond.operator as (typeof VALID_OPERATORS)[number],
-          )
-        ) {
+        if (!cond.operator || !CONDITION_OPERATORS.includes(cond.operator)) {
           errors.push(
-            `conditions[${i}].operator must be one of: ${VALID_OPERATORS.join(', ')}`,
+            `conditions[${i}].operator must be one of: ${CONDITION_OPERATORS.join(', ')}`,
           );
         }
       }
@@ -65,6 +44,13 @@ export class IfElseHandler implements NodeHandler {
 
     if (combineMode && combineMode !== 'and' && combineMode !== 'or') {
       errors.push('combineMode must be "and" or "or"');
+    }
+
+    if (
+      strictComparison !== undefined &&
+      typeof strictComparison !== 'boolean'
+    ) {
+      errors.push('strictComparison must be a boolean');
     }
 
     return { valid: errors.length === 0, errors };
@@ -75,11 +61,15 @@ export class IfElseHandler implements NodeHandler {
     config: Record<string, unknown>,
     _context: ExecutionContext,
   ): Promise<unknown> {
-    const { conditions, combineMode = 'and' } =
-      config as unknown as IfElseConfig;
+    const {
+      conditions,
+      combineMode = 'and',
+      strictComparison,
+    } = config as unknown as IfElseConfig;
 
+    const options = { strict: strictComparison === true };
     const results = conditions.map((cond) =>
-      this.evaluateCondition(input, cond),
+      evaluateCondition(input, cond, options),
     );
 
     const passed =
@@ -90,63 +80,5 @@ export class IfElseHandler implements NodeHandler {
       output: input,
       port: passed ? 'true' : 'false',
     });
-  }
-
-  private evaluateCondition(input: unknown, condition: Condition): boolean {
-    const fieldValue = getNestedValue(input, condition.field);
-    const compareValue = condition.value;
-
-    switch (condition.operator) {
-      case 'eq':
-        return fieldValue === compareValue;
-      case 'neq':
-        return fieldValue !== compareValue;
-      case 'gt':
-        return Number(fieldValue) > Number(compareValue);
-      case 'gte':
-        return Number(fieldValue) >= Number(compareValue);
-      case 'lt':
-        return Number(fieldValue) < Number(compareValue);
-      case 'lte':
-        return Number(fieldValue) <= Number(compareValue);
-      case 'contains':
-        return typeof fieldValue === 'string' &&
-          typeof compareValue === 'string'
-          ? fieldValue.includes(compareValue)
-          : false;
-      case 'not_contains':
-        return typeof fieldValue === 'string' &&
-          typeof compareValue === 'string'
-          ? !fieldValue.includes(compareValue)
-          : true;
-      case 'starts_with':
-        return typeof fieldValue === 'string' &&
-          typeof compareValue === 'string'
-          ? fieldValue.startsWith(compareValue)
-          : false;
-      case 'ends_with':
-        return typeof fieldValue === 'string' &&
-          typeof compareValue === 'string'
-          ? fieldValue.endsWith(compareValue)
-          : false;
-      case 'is_empty':
-        return (
-          fieldValue === '' ||
-          fieldValue === null ||
-          fieldValue === undefined ||
-          (Array.isArray(fieldValue) && fieldValue.length === 0)
-        );
-      case 'is_not_empty':
-        return (
-          fieldValue !== '' &&
-          fieldValue !== null &&
-          fieldValue !== undefined &&
-          !(Array.isArray(fieldValue) && fieldValue.length === 0)
-        );
-      case 'is_null':
-        return fieldValue === null || fieldValue === undefined;
-      default:
-        return false;
-    }
   }
 }
