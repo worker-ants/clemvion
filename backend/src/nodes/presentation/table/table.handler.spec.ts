@@ -41,14 +41,18 @@ describe('TableHandler', () => {
       expect(result.valid).toBe(true);
     });
 
-    it('should fail when columns is missing in dynamic mode', () => {
+    it('should accept missing columns in dynamic mode (schema default is [])', () => {
       const result = handler.validate({});
-      expect(result.valid).toBe(false);
-      expect(result.errors[0]).toContain('columns');
+      expect(result.valid).toBe(true);
     });
 
-    it('should fail when columns is empty array in dynamic mode', () => {
+    it('should accept empty columns array (schema default)', () => {
       const result = handler.validate({ columns: [] });
+      expect(result.valid).toBe(true);
+    });
+
+    it('should fail when columns is not an array', () => {
+      const result = handler.validate({ columns: 'not-array' });
       expect(result.valid).toBe(false);
       expect(result.errors[0]).toContain('columns');
     });
@@ -64,32 +68,29 @@ describe('TableHandler', () => {
       expect(result.errors).toHaveLength(0);
     });
 
-    it('should fail when columns is missing in static mode', () => {
+    it('should accept missing columns in static mode (schema default is [])', () => {
       const result = handler.validate({
         mode: 'static',
         rows: [{ col0: 'Value' }],
       });
-      expect(result.valid).toBe(false);
-      expect(result.errors[0]).toContain('columns');
+      expect(result.valid).toBe(true);
     });
 
-    it('should fail when rows is missing in static mode', () => {
+    it('should accept missing rows in static mode (schema default is [])', () => {
       const result = handler.validate({
         mode: 'static',
         columns: [{ field: 'col0', label: 'Item' }],
       });
-      expect(result.valid).toBe(false);
-      expect(result.errors[0]).toContain('rows');
+      expect(result.valid).toBe(true);
     });
 
-    it('should fail when rows is empty in static mode', () => {
+    it('should accept empty rows in static mode (schema default)', () => {
       const result = handler.validate({
         mode: 'static',
         columns: [{ field: 'col0', label: 'Item' }],
         rows: [],
       });
-      expect(result.valid).toBe(false);
-      expect(result.errors[0]).toContain('rows');
+      expect(result.valid).toBe(true);
     });
 
     it('should fail when rows is not an array in static mode', () => {

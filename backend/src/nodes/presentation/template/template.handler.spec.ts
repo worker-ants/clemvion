@@ -22,20 +22,18 @@ describe('TemplateHandler', () => {
       expect(result.valid).toBe(true);
     });
 
-    it('should fail when template is missing', () => {
+    it('should accept missing template (schema default is empty string)', () => {
       const result = handler.validate({ outputFormat: 'html' });
-      expect(result.valid).toBe(false);
-      expect(result.errors[0]).toContain('template');
+      expect(result.valid).toBe(true);
+    });
+
+    it('should accept empty template string (schema default)', () => {
+      const result = handler.validate({ template: '' });
+      expect(result.valid).toBe(true);
     });
 
     it('should fail when template is not a string', () => {
       const result = handler.validate({ template: 123 });
-      expect(result.valid).toBe(false);
-      expect(result.errors[0]).toContain('template');
-    });
-
-    it('should fail when template is empty string', () => {
-      const result = handler.validate({ template: '' });
       expect(result.valid).toBe(false);
       expect(result.errors[0]).toContain('template');
     });

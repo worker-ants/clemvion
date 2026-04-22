@@ -24,10 +24,9 @@ describe('HttpRequestHandler', () => {
       expect(result.errors).toHaveLength(0);
     });
 
-    it('should fail when method is missing', () => {
+    it('should accept missing method (schema default is GET)', () => {
       const result = handler.validate({ url: 'https://api.example.com' });
-      expect(result.valid).toBe(false);
-      expect(result.errors[0]).toContain('method');
+      expect(result.valid).toBe(true);
     });
 
     it('should fail when url is missing', () => {
