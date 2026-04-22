@@ -27,6 +27,11 @@ import {
   computeToolCallsBudget,
   findActivePlanContext,
 } from './tools/active-plan-context';
+import {
+  buildReviewChecklist,
+  checklistBlocks,
+  ReviewChecklistItem,
+} from './tools/review-workflow';
 import { recoverLeakedPlan } from './tools/recover-leaked-plan';
 import { buildSystemPrompt } from './prompts/system-prompt';
 import { AssistantMessageRequestDto } from './dto/assistant-message-request.dto';
@@ -40,13 +45,22 @@ import {
  * `evaluateFinishGuard` 의 반환 payload. `finish` tool_result 로 그대로
  * 직렬화되어 LLM 에 전달된다.
  */
-interface FinishGuardError {
-  ok: false;
-  error: 'PLAN_NOT_COMPLETE';
-  pendingSteps: Array<{ id: string; description: string }>;
-  openQuestions: string[];
-  message: string;
-}
+type FinishGuardError =
+  | {
+      ok: false;
+      error: 'PLAN_NOT_COMPLETE';
+      pendingSteps: Array<{ id: string; description: string }>;
+      openQuestions: string[];
+      message: string;
+    }
+  | {
+      ok: false;
+      error: 'WORKFLOW_REVIEW_REQUIRED';
+      checklist: ReviewChecklistItem[];
+      originalRequest: string;
+      planTitle?: string;
+      message: string;
+    };
 
 /**
  * Turn-scoped guard 상태. progress-aware finish guard 가 라운드를 넘나들며
@@ -63,6 +77,15 @@ interface FinishGuardState {
   editsSinceLastFinishBlock: number;
   /** `clear_plan` 이 이번 턴에 호출됐는지 — 화제 전환으로 guard 비활성. */
   planClearedThisTurn: boolean;
+  /**
+   * 2-stage finish 의 첫 단계 (workflow self-review) 발동 여부.
+   * true 가 된 뒤의 finish 는 review 를 건너뛰고 기존 경로로 진행.
+   * 같은 턴에 MAX_REVIEW_ROUNDS (2) 를 초과해 review 가 발동하지 않도록
+   * `reviewRoundCount` 로 한 번 더 안전장치를 둔다.
+   */
+  reviewCompleted: boolean;
+  /** 이번 턴에 review block 이 발행된 횟수. 2 이상이면 더 이상 발동하지 않음. */
+  reviewRoundCount: number;
 }
 
 export type AssistantStreamEvent =
@@ -115,6 +138,17 @@ const MAX_HISTORY_TURNS = 30;
 // tool-call budget 과 별개로 단일 턴당 LLM 호출 횟수의 명시적 상한을 둔다.
 // 50 라운드면 50-step plan 도 충분히 커버하면서 비용 폭주는 차단한다.
 const MAX_TOOL_LOOP_ROUNDS = 50;
+// 같은 타입의 `get_node_schema` 가 한 턴에 `hits` 가 이 값 이상이 되면 LLM
+// 이 진전 없이 낭비 루프에 빠진 것으로 간주해 hard-stop 응답으로 바꾼다.
+// 카운트 규칙 (`cached.hits`): 첫 호출 직후 1, 두 번째 호출 2, 세 번째 3...
+// 3 이면 첫 호출 + cache hit 1회 (hits=2) 까지 warning, **세 번째 호출**
+// (hits===3) 부터 `ok:false, error: 'REDUNDANT_SCHEMA_LOOKUP'` 로 차단.
+const SCHEMA_LOOKUP_HARD_STOP = 3;
+// WORKFLOW_REVIEW_REQUIRED 응답의 `originalRequest` 필드에 실을 사용자 원문의
+// 최대 길이. 전체 원문은 system prompt 의 Active plan context 에 이미 XML fence
+// 로 중화되어 주입되므로 review tool_result 에는 요약만 싣는다. 프롬프트 인젝션
+// 표면 축소 + LLM 토큰 낭비 방지.
+const REVIEW_ORIGINAL_REQUEST_MAX_LEN = 200;
 
 /**
  * Workflow AI Assistant의 대화 한 턴을 처리한다.
@@ -258,7 +292,14 @@ export class WorkflowAssistantStreamService {
       finishBlockCount: 0,
       editsSinceLastFinishBlock: 0,
       planClearedThisTurn: false,
+      reviewCompleted: false,
+      reviewRoundCount: 0,
     };
+    // Turn-scoped cache for `get_node_schema` results. LLM 이 같은 노드 타입의
+    // 스키마를 여러 번 조회하는 낭비 패턴을 잡기 위해 첫 호출 결과를 캐시하고,
+    // 2회차부터는 cached 결과 + warning 을, SCHEMA_LOOKUP_HARD_STOP 을 넘기면
+    // error 로 되돌려 낭비 루프를 끊는다.
+    const schemaCache = new Map<string, { result: unknown; hits: number }>();
     // LLM 호출 라운드 수 — toolCallsBudget 과 별개의 라운드 상한.
     // progress-aware guard 가 N step plan 에서 N+ 라운드를 돌릴 수 있어 비용
     // 폭주를 막기 위한 명시적 안전망.
@@ -360,6 +401,44 @@ export class WorkflowAssistantStreamService {
                 // tool_calls 로 전환해 루프를 한 번 더 돌린다.
                 finishReason = 'tool_calls';
               } else {
+                // Plan 완결성은 통과 — 이제 2단계 finish 의 workflow self-review.
+                // execution 턴 (실제 성공 edit 이 있었던 경우) 에 한해 1회
+                // 자체 점검 체크리스트를 돌린다. blocking 이슈가 있으면
+                // `WORKFLOW_REVIEW_REQUIRED` 로 되돌려 LLM 이 수정 후 finish
+                // 를 다시 호출하도록 유도.
+                const reviewBlock = this.evaluateReviewGuard(
+                  history,
+                  planForTurn,
+                  pendingToolCalls,
+                  guardState,
+                  dto.content,
+                  assistantText,
+                  shadow,
+                );
+                if (reviewBlock) {
+                  guardState.reviewRoundCount++;
+                  guardState.editsSinceLastFinishBlock = 0;
+                  pendingResultsForLlm.push({
+                    id: ev.id,
+                    result: reviewBlock,
+                  });
+                  pendingToolCalls.push({
+                    id: ev.id,
+                    name: ev.name,
+                    arguments: parsed,
+                    kind,
+                    result: reviewBlock,
+                    ...(ev.signature ? { signature: ev.signature } : {}),
+                  });
+                  // 다음 번 finish 에서는 review 를 건너뛰도록 mark.
+                  guardState.reviewCompleted = true;
+                  finishReason = 'tool_calls';
+                  finishResolved = true;
+                  continue;
+                }
+                // review 가 skip 되었거나 blocking 이슈 없음 → 이후 finish 는
+                // 다시 review 를 돌리지 않도록 mark.
+                guardState.reviewCompleted = true;
                 const finishResult = { ok: true };
                 pendingResultsForLlm.push({ id: ev.id, result: finishResult });
                 // 성공적인 finish 도 history 에 함께 persist 해, 다음 세션이
@@ -389,6 +468,41 @@ export class WorkflowAssistantStreamService {
               // edit 도구를 먼저 호출한 뒤 최신 상태를 확인하기 위한 용도.
               if (ev.name === 'get_current_workflow') {
                 result = this.buildCurrentWorkflowResult(shadow);
+              } else if (ev.name === 'get_node_schema') {
+                // 같은 타입을 반복해서 조회하는 낭비 루프 방지. 첫 호출은 실제
+                // 실행 (hits=1), 두 번째 호출(hits=2) 은 cached 결과 + warning,
+                // 세 번째 호출(hits=3 ≥ SCHEMA_LOOKUP_HARD_STOP) 부터 error 로
+                // escalate.
+                const typeArg =
+                  typeof parsed.type === 'string' ? parsed.type : '';
+                const cached = typeArg ? schemaCache.get(typeArg) : undefined;
+                if (cached) {
+                  cached.hits += 1;
+                  if (cached.hits >= SCHEMA_LOOKUP_HARD_STOP) {
+                    result = {
+                      ok: false,
+                      error: 'REDUNDANT_SCHEMA_LOOKUP',
+                      message: `You have already fetched the schema for "${typeArg}" ${cached.hits} times this turn. Re-use the earlier result; do not call get_node_schema for this type again.`,
+                    };
+                  } else {
+                    result = {
+                      ...(cached.result as Record<string, unknown>),
+                      warning: 'REDUNDANT_SCHEMA_LOOKUP',
+                      warningMessage: `get_node_schema for "${typeArg}" already returned in this turn — reuse that result instead of re-calling.`,
+                      cached: true,
+                    };
+                  }
+                } else {
+                  result = await this.handleExploreCall(
+                    ev.name,
+                    parsed,
+                    workspaceId,
+                    session.workflowId,
+                  );
+                  if (typeArg) {
+                    schemaCache.set(typeArg, { result, hits: 1 });
+                  }
+                }
               } else {
                 result = await this.handleExploreCall(
                   ev.name,
@@ -839,6 +953,103 @@ export class WorkflowAssistantStreamService {
     return detectPendingUserConfig(jsonSchema, node.config ?? {});
   }
 
+  /**
+   * 2단계 finish 의 self-review. `evaluateFinishGuard` 가 통과한 상태에서만
+   * 호출된다 — 즉 plan 체크박스·openQuestions 수준의 완결성은 이미 OK.
+   * 여기서는 한 단계 더 들어가 **워크플로우 품질** 을 감사한다:
+   *  - 이번 턴에 실패한 tool call 이 회복되지 않은 채 남아있지 않은지
+   *  - 어떤 노드도 trigger 에서 도달 불가능하지 않은지
+   *  - pendingUserConfig 이 있는 노드를 마무리 한국어 메세지에 모두 언급했는지
+   *  - plan step 에 ok:false 호출만 연결된 "허위 완료" 가 있지 않은지
+   *  - 사용자 원 요청 토큰이 현재 노드 label 들과 거의 안 겹치면 soft warn
+   *
+   * 발동 조건 (비활성 상태):
+   *  - `state.reviewCompleted` 가 이미 true (이번 턴에 한 번 했거나 skip 됨)
+   *  - `state.reviewRoundCount >= 2` (상한)
+   *  - 이번 턴에 성공한 edit 이 하나도 없음 (질문 전용·plan-only 턴)
+   *  - 체크리스트가 비었거나 blocking 항목 없음
+   */
+  private evaluateReviewGuard(
+    history: WorkflowAssistantMessage[],
+    planForTurn: AssistantPlanRecord | null,
+    pendingToolCalls: AssistantToolCallRecord[],
+    state: FinishGuardState,
+    originalRequest: string,
+    assistantText: string,
+    shadow: ShadowWorkflow,
+  ): FinishGuardError | null {
+    // shadow.snapshot() 은 nodes/edges 전체를 shallow clone 하므로 한 번만 찍고
+    // skip 판정과 체크리스트에 공유한다.
+    const snapshot = shadow.snapshot();
+    if (this.shouldSkipReview(state, pendingToolCalls, snapshot)) return null;
+
+    // review 대상 plan: 이번 턴에 새로 propose 된 plan 우선, 없으면 history
+    // 에서 활성 plan 을 derive.
+    const planCtx = findActivePlanContext(
+      history,
+      planForTurn,
+      pendingToolCalls,
+      originalRequest,
+    );
+    const plan = planForTurn ?? planCtx?.plan ?? null;
+
+    const checklist = buildReviewChecklist({
+      shadowSnapshot: snapshot,
+      pendingToolCalls,
+      plan,
+      originalRequest,
+      assistantText,
+      collectPendingUserConfig: (nodeId) =>
+        this.collectPendingUserConfig(shadow, nodeId),
+    });
+    if (!checklistBlocks(checklist)) return null;
+
+    return {
+      ok: false,
+      error: 'WORKFLOW_REVIEW_REQUIRED',
+      checklist,
+      // 사용자 원문은 LLM 에게 tool_result 로 재주입되므로 프롬프트 인젝션
+      // 표면이 된다. 여기서는 요약 목적이라 첫 `REVIEW_ORIGINAL_REQUEST_MAX_LEN`
+      // 자만 잘라 싣는다. 전체 원문은 활성 plan 컨텍스트(system prompt) 에
+      // 이미 XML fence 로 중화되어 주입되므로 중복 노출도 방지.
+      originalRequest: truncateReviewOriginalRequest(originalRequest),
+      planTitle: plan?.title,
+      message:
+        "Before finishing: audit the built workflow against the user's original request. 1) Read the checklist items below. 2) Call get_current_workflow if you need the latest state. 3) Fix each blocking item with edit tools — unresolved failures, orphan nodes, unmentioned pendingUserConfig, or fake step completion. 4) Emit a short Korean '검토 완료' summary covering what you fixed, then call finish again. The second finish will pass through without re-running this review.",
+    };
+  }
+
+  /**
+   * review 건너뛰기 여부 판정. 조건이 많아서 복잡도를 낮추기 위해 분리.
+   * 다음 중 하나라도 참이면 review 는 발동하지 않는다:
+   *  - 이미 이번 턴에 review 가 끝났거나 (`reviewCompleted`) loop 상한 초과
+   *  - PLAN_NOT_COMPLETE 가 한 번이라도 fire — 이미 가드 피드백 1라운드 받음
+   *  - 같은 턴 `clear_plan` → 화제 전환으로 간주
+   *  - 이번 턴에 성공 edit 이 하나도 없음 — 실행 턴 아님
+   *  - non-trigger 노드 수 ≤ 1 — 단발성 trivial 편집
+   */
+  private shouldSkipReview(
+    state: FinishGuardState,
+    pendingToolCalls: AssistantToolCallRecord[],
+    snapshot: ShadowSnapshot,
+  ): boolean {
+    if (state.reviewCompleted) return true;
+    if (state.reviewRoundCount >= 2) return true;
+    if (state.finishBlockCount > 0) return true;
+    if (state.planClearedThisTurn) return true;
+    const hadSuccessfulEdit = pendingToolCalls.some(
+      (tc) =>
+        tc.kind === 'edit' &&
+        (tc.result as { ok?: boolean } | undefined)?.ok === true,
+    );
+    if (!hadSuccessfulEdit) return true;
+    const nonTriggerCount = snapshot.nodes.filter(
+      (n) => n.category !== 'trigger',
+    ).length;
+    if (nonTriggerCount <= 1) return true;
+    return false;
+  }
+
   private evaluateFinishGuard(
     history: WorkflowAssistantMessage[],
     planForTurn: AssistantPlanRecord | null,
@@ -1068,4 +1279,15 @@ function safeParse(raw: string): Record<string, unknown> {
 // fallback으로 대체한다.
 function asString(value: unknown, fallback: string): string {
   return typeof value === 'string' ? value : fallback;
+}
+
+/**
+ * WORKFLOW_REVIEW_REQUIRED tool_result 에 실을 사용자 원문 요약.
+ * 프롬프트 인젝션 표면 축소 + 토큰 낭비 방지를 위해 길이 상한만 적용한다
+ * (제어 문자 제거는 이후 LLM 이 context 파싱 시 문제되지 않는 수준이므로 생략).
+ */
+function truncateReviewOriginalRequest(req: string): string {
+  if (!req) return '';
+  if (req.length <= REVIEW_ORIGINAL_REQUEST_MAX_LEN) return req;
+  return req.slice(0, REVIEW_ORIGINAL_REQUEST_MAX_LEN - 1) + '…';
 }

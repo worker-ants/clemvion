@@ -2540,4 +2540,503 @@ describe('WorkflowAssistantStreamService', () => {
     // No message persistence when config missing.
     expect(mocks.sessionService.appendMessage).not.toHaveBeenCalled();
   });
+
+  // 2-stage finish: plan 완결성 가드 이후 서버가 한 번 더 workflow self-review
+  // 체크리스트를 돌려, orphan 노드·미해결 실패·pendingUserConfig 누락을 LLM 에게
+  // 되돌려준다. LLM 이 이슈를 고치고 `finish` 를 다시 부르면 두 번째 호출은
+  // review 를 건너뛰고 통과한다.
+  describe('workflow self-review before finish (2-stage)', () => {
+    it('blocks the first `finish` with WORKFLOW_REVIEW_REQUIRED when the turn leaves orphan nodes, then passes on the second', async () => {
+      const { service, mocks } = makeService();
+      const addOrphanA = JSON.stringify({
+        type: 'http_request',
+        label: 'OrphanA',
+        position: { x: 400, y: 200 },
+        config: {},
+      });
+      const addOrphanB = JSON.stringify({
+        type: 'http_request',
+        label: 'OrphanB',
+        position: { x: 700, y: 200 },
+        config: {},
+      });
+      // Round 1: 두 노드를 edge 없이 추가하고 finish. Review 가 ORPHAN_NODES
+      // 로 block 하고 round 2 로 넘어간다.
+      mocks.llmService.chatStream.mockImplementationOnce(() =>
+        asyncIter<ChatStreamEvent>([
+          {
+            type: 'tool_call_end',
+            id: 'call_a',
+            name: 'add_node',
+            arguments: addOrphanA,
+          },
+          {
+            type: 'tool_call_end',
+            id: 'call_b',
+            name: 'add_node',
+            arguments: addOrphanB,
+          },
+          {
+            type: 'tool_call_end',
+            id: 'call_fin_1',
+            name: 'finish',
+            arguments: '{}',
+          },
+          {
+            type: 'done',
+            usage: { inputTokens: 40, outputTokens: 5, totalTokens: 45 },
+            model: 'gpt-4o',
+            finishReason: 'tool_calls',
+          },
+        ]),
+      );
+      // Round 2: 두 번째 finish 는 review 를 건너뛰고 통과.
+      mocks.llmService.chatStream.mockImplementationOnce(() =>
+        asyncIter<ChatStreamEvent>([
+          { type: 'text_delta', delta: '검토 완료' },
+          {
+            type: 'tool_call_end',
+            id: 'call_fin_2',
+            name: 'finish',
+            arguments: '{}',
+          },
+          {
+            type: 'done',
+            usage: { inputTokens: 10, outputTokens: 3, totalTokens: 13 },
+            model: 'gpt-4o',
+            finishReason: 'stop',
+          },
+        ]),
+      );
+
+      const events = await collect(
+        service.streamMessage('sess-1', 'ws-1', 'u-1', baseDto as never),
+      );
+
+      expect(mocks.llmService.chatStream).toHaveBeenCalledTimes(2);
+
+      // Round 2 messages 에 첫 finish 의 WORKFLOW_REVIEW_REQUIRED tool_result
+      // 가 실려 있어야 한다.
+      const secondRoundMessages = mocks.llmService.chatStream.mock.calls[1][1]
+        .messages as Array<{
+        role: string;
+        content?: string;
+        toolCallId?: string;
+      }>;
+      const finishTool = secondRoundMessages.find(
+        (m) => m.role === 'tool' && m.toolCallId === 'call_fin_1',
+      );
+      expect(finishTool).toBeDefined();
+      const parsed = JSON.parse(finishTool!.content ?? 'null');
+      expect(parsed).toMatchObject({
+        ok: false,
+        error: 'WORKFLOW_REVIEW_REQUIRED',
+      });
+      const codes = (parsed.checklist as Array<{ code: string }>).map(
+        (c) => c.code,
+      );
+      expect(codes).toContain('ORPHAN_NODES');
+
+      const done = events[events.length - 1];
+      expect(done).toMatchObject({
+        event: 'done',
+        data: { finishReason: 'stop' },
+      });
+    });
+
+    it('does NOT re-fire review after the second finish even if issues remain (single review round per turn)', async () => {
+      // 한 턴에서 review 는 최대 1회만 발동. LLM 이 고쳐도 못고쳐도 두 번째
+      // finish 는 통과해 사용자가 다음 턴에서 후속 지시를 줄 수 있게 한다.
+      const { service, mocks } = makeService();
+      const addOrphan = JSON.stringify({
+        type: 'http_request',
+        label: 'Alpha',
+        position: { x: 400, y: 200 },
+        config: {},
+      });
+      const addAnotherOrphan = JSON.stringify({
+        type: 'http_request',
+        label: 'Beta',
+        position: { x: 700, y: 200 },
+        config: {},
+      });
+      mocks.llmService.chatStream.mockImplementationOnce(() =>
+        asyncIter<ChatStreamEvent>([
+          {
+            type: 'tool_call_end',
+            id: 'c1',
+            name: 'add_node',
+            arguments: addOrphan,
+          },
+          {
+            type: 'tool_call_end',
+            id: 'c2',
+            name: 'add_node',
+            arguments: addAnotherOrphan,
+          },
+          {
+            type: 'tool_call_end',
+            id: 'fin_1',
+            name: 'finish',
+            arguments: '{}',
+          },
+          {
+            type: 'done',
+            usage: { inputTokens: 40, outputTokens: 5, totalTokens: 45 },
+            model: 'gpt-4o',
+            finishReason: 'tool_calls',
+          },
+        ]),
+      );
+      // Round 2: LLM 이 의도적으로 아무것도 고치지 않고 다시 finish 만 호출.
+      mocks.llmService.chatStream.mockImplementationOnce(() =>
+        asyncIter<ChatStreamEvent>([
+          {
+            type: 'tool_call_end',
+            id: 'fin_2',
+            name: 'finish',
+            arguments: '{}',
+          },
+          {
+            type: 'done',
+            usage: { inputTokens: 10, outputTokens: 3, totalTokens: 13 },
+            model: 'gpt-4o',
+            finishReason: 'stop',
+          },
+        ]),
+      );
+
+      const events = await collect(
+        service.streamMessage('sess-1', 'ws-1', 'u-1', baseDto as never),
+      );
+      // Second finish passes without triggering another review loop.
+      expect(mocks.llmService.chatStream).toHaveBeenCalledTimes(2);
+      const done = events[events.length - 1];
+      expect(done).toMatchObject({
+        event: 'done',
+        data: { finishReason: 'stop' },
+      });
+    });
+
+    it('skips review entirely for trivial single-node turns', async () => {
+      // non-trigger 노드가 ≤ 1 개인 상태의 finish 는 review 를 건너뛰고 바로
+      // 통과. 사용자의 "HTTP 노드 하나만 추가" 같은 단발성 요청에서 불필요한
+      // 라운드를 돌지 않게 한다.
+      const { service, mocks } = makeService();
+      const addOne = JSON.stringify({
+        type: 'http_request',
+        label: 'Only',
+        position: { x: 400, y: 200 },
+        config: {},
+      });
+      mocks.llmService.chatStream.mockImplementation(() =>
+        asyncIter<ChatStreamEvent>([
+          {
+            type: 'tool_call_end',
+            id: 'c1',
+            name: 'add_node',
+            arguments: addOne,
+          },
+          {
+            type: 'tool_call_end',
+            id: 'fin',
+            name: 'finish',
+            arguments: '{}',
+          },
+          {
+            type: 'done',
+            usage: { inputTokens: 20, outputTokens: 5, totalTokens: 25 },
+            model: 'gpt-4o',
+            finishReason: 'stop',
+          },
+        ]),
+      );
+
+      await collect(
+        service.streamMessage('sess-1', 'ws-1', 'u-1', baseDto as never),
+      );
+      // 단일 round 로 종료 — review 발동 없음.
+      expect(mocks.llmService.chatStream).toHaveBeenCalledTimes(1);
+    });
+
+    it('skips review when PLAN_NOT_COMPLETE already fired in this turn (one guard feedback loop is enough)', async () => {
+      // plan guard 가 이미 한 번 block 했다면 LLM 은 이미 서버 피드백으로
+      // 보정 라운드를 거친 상태. 그 위에 review 까지 덧씌우면 턴 비용이 3+
+      // 라운드로 늘어나 ROI 가 낮다. 이 경우 review 는 skip.
+      const { service, mocks } = makeService();
+      mocks.sessionService.loadMessages.mockResolvedValue([
+        { role: 'user', content: '주문 취소 플로우', toolCalls: null },
+        {
+          role: 'assistant',
+          content: '',
+          toolCalls: [
+            {
+              id: 'p0',
+              name: 'propose_plan',
+              arguments: {},
+              kind: 'plan',
+              result: { ok: true },
+            },
+          ],
+          plan: {
+            title: 'Order cancel',
+            summary: '',
+            steps: [
+              {
+                id: 's1',
+                action: 'add_node',
+                description: 'first',
+              },
+              {
+                id: 's2',
+                action: 'add_node',
+                description: 'second',
+              },
+            ],
+          },
+        },
+      ]);
+      // Round 1: 첫 노드만 추가하고 조기 finish → PLAN_NOT_COMPLETE block.
+      mocks.llmService.chatStream.mockImplementationOnce(() =>
+        asyncIter<ChatStreamEvent>([
+          {
+            type: 'tool_call_end',
+            id: 'a',
+            name: 'add_node',
+            arguments: JSON.stringify({
+              type: 'http_request',
+              label: 'First',
+              position: { x: 0, y: 0 },
+              config: {},
+              planStepId: 's1',
+            }),
+          },
+          {
+            type: 'tool_call_end',
+            id: 'fin_1',
+            name: 'finish',
+            arguments: '{}',
+          },
+          {
+            type: 'done',
+            usage: { inputTokens: 20, outputTokens: 5, totalTokens: 25 },
+            model: 'gpt-4o',
+            finishReason: 'tool_calls',
+          },
+        ]),
+      );
+      // Round 2: 남은 step 을 채우고 finish → review skip, 바로 통과.
+      mocks.llmService.chatStream.mockImplementationOnce(() =>
+        asyncIter<ChatStreamEvent>([
+          {
+            type: 'tool_call_end',
+            id: 'b',
+            name: 'add_node',
+            arguments: JSON.stringify({
+              type: 'http_request',
+              label: 'Second',
+              position: { x: 0, y: 0 },
+              config: {},
+              planStepId: 's2',
+            }),
+          },
+          {
+            type: 'tool_call_end',
+            id: 'fin_2',
+            name: 'finish',
+            arguments: '{}',
+          },
+          {
+            type: 'done',
+            usage: { inputTokens: 30, outputTokens: 5, totalTokens: 35 },
+            model: 'gpt-4o',
+            finishReason: 'stop',
+          },
+        ]),
+      );
+
+      await collect(
+        service.streamMessage('sess-1', 'ws-1', 'u-1', baseDto as never),
+      );
+      // 정확히 2 라운드 — PLAN_NOT_COMPLETE + 성공 finish (review 미발동).
+      expect(mocks.llmService.chatStream).toHaveBeenCalledTimes(2);
+      // Round 2 messages 에 첫 finish 가 PLAN_NOT_COMPLETE 로 막힌 흔적이
+      // 실제로 실려 있는지 확인 — "review 미발동" 가정의 근거를 고정.
+      const secondRoundMessages = mocks.llmService.chatStream.mock.calls[1][1]
+        .messages as Array<{
+        role: string;
+        content?: string;
+        toolCallId?: string;
+      }>;
+      const firstFinishResult = secondRoundMessages.find(
+        (m) => m.role === 'tool' && m.toolCallId === 'fin_1',
+      );
+      expect(firstFinishResult).toBeDefined();
+      expect(JSON.parse(firstFinishResult!.content ?? 'null')).toMatchObject({
+        ok: false,
+        error: 'PLAN_NOT_COMPLETE',
+      });
+    });
+
+    it('skips review when clear_plan was called this turn (topic change)', async () => {
+      const { service, mocks } = makeService();
+      const addMany = JSON.stringify({
+        type: 'http_request',
+        label: 'N1',
+        position: { x: 0, y: 0 },
+        config: {},
+      });
+      const addMany2 = JSON.stringify({
+        type: 'http_request',
+        label: 'N2',
+        position: { x: 0, y: 0 },
+        config: {},
+      });
+      mocks.llmService.chatStream.mockImplementation(() =>
+        asyncIter<ChatStreamEvent>([
+          {
+            type: 'tool_call_end',
+            id: 'clr',
+            name: 'clear_plan',
+            arguments: '{"reason":"user changed topic"}',
+          },
+          {
+            type: 'tool_call_end',
+            id: 'n1',
+            name: 'add_node',
+            arguments: addMany,
+          },
+          {
+            type: 'tool_call_end',
+            id: 'n2',
+            name: 'add_node',
+            arguments: addMany2,
+          },
+          {
+            type: 'tool_call_end',
+            id: 'fin',
+            name: 'finish',
+            arguments: '{}',
+          },
+          {
+            type: 'done',
+            usage: { inputTokens: 20, outputTokens: 5, totalTokens: 25 },
+            model: 'gpt-4o',
+            finishReason: 'tool_calls',
+          },
+        ]),
+      );
+
+      await collect(
+        service.streamMessage('sess-1', 'ws-1', 'u-1', baseDto as never),
+      );
+      expect(mocks.llmService.chatStream).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  // 사용자 보고 케이스: `schema: carousel × 5` 처럼 같은 타입의 스키마를 한
+  // 턴에 다섯 번 조회하는 낭비 패턴. 첫 호출은 정상, 2~3회차는 cached+warning,
+  // 4회차부터 REDUNDANT_SCHEMA_LOOKUP 로 하드 스톱.
+  describe('get_node_schema redundant-call guard', () => {
+    it('returns cached result with warning on second call, hard-stops on the 3rd+', async () => {
+      const { service, mocks } = makeService();
+      mocks.exploreTools.getNodeSchema.mockResolvedValue({
+        ok: true,
+        type: 'carousel',
+        configSchema: { type: 'object' },
+      });
+      mocks.llmService.chatStream.mockImplementation(() =>
+        asyncIter<ChatStreamEvent>([
+          {
+            type: 'tool_call_end',
+            id: 'call_1',
+            name: 'get_node_schema',
+            arguments: JSON.stringify({ type: 'carousel' }),
+          },
+          {
+            type: 'tool_call_end',
+            id: 'call_2',
+            name: 'get_node_schema',
+            arguments: JSON.stringify({ type: 'carousel' }),
+          },
+          {
+            type: 'tool_call_end',
+            id: 'call_3',
+            name: 'get_node_schema',
+            arguments: JSON.stringify({ type: 'carousel' }),
+          },
+          {
+            type: 'done',
+            usage: { inputTokens: 10, outputTokens: 5, totalTokens: 15 },
+            model: 'gpt-4o',
+            finishReason: 'stop',
+          },
+        ]),
+      );
+
+      const events = await collect(
+        service.streamMessage('sess-1', 'ws-1', 'u-1', baseDto as never),
+      );
+
+      // DB / registry 호출은 첫 번째 tool_call 때 딱 한 번만.
+      expect(mocks.exploreTools.getNodeSchema).toHaveBeenCalledTimes(1);
+
+      const toolEvents = events.filter((e) => e.event === 'tool_call');
+      expect(toolEvents).toHaveLength(3);
+      const firstResult = (
+        toolEvents[0].data as { result: Record<string, unknown> }
+      ).result;
+      expect(firstResult).toMatchObject({ ok: true, type: 'carousel' });
+      expect(firstResult.warning).toBeUndefined();
+
+      const secondResult = (
+        toolEvents[1].data as { result: Record<string, unknown> }
+      ).result;
+      expect(secondResult.ok).toBe(true);
+      expect(secondResult.warning).toBe('REDUNDANT_SCHEMA_LOOKUP');
+      expect(secondResult.cached).toBe(true);
+
+      const thirdResult = (
+        toolEvents[2].data as { result: Record<string, unknown> }
+      ).result;
+      expect(thirdResult.ok).toBe(false);
+      expect(thirdResult.error).toBe('REDUNDANT_SCHEMA_LOOKUP');
+    });
+
+    it('does NOT share the cache across different node types', async () => {
+      const { service, mocks } = makeService();
+      mocks.exploreTools.getNodeSchema.mockImplementation(async () => ({
+        ok: true,
+      }));
+      mocks.llmService.chatStream.mockImplementation(() =>
+        asyncIter<ChatStreamEvent>([
+          {
+            type: 'tool_call_end',
+            id: 'call_1',
+            name: 'get_node_schema',
+            arguments: JSON.stringify({ type: 'carousel' }),
+          },
+          {
+            type: 'tool_call_end',
+            id: 'call_2',
+            name: 'get_node_schema',
+            arguments: JSON.stringify({ type: 'switch' }),
+          },
+          {
+            type: 'done',
+            usage: { inputTokens: 10, outputTokens: 5, totalTokens: 15 },
+            model: 'gpt-4o',
+            finishReason: 'stop',
+          },
+        ]),
+      );
+
+      await collect(
+        service.streamMessage('sess-1', 'ws-1', 'u-1', baseDto as never),
+      );
+
+      // 서로 다른 타입이므로 각각 한 번씩 실제 조회.
+      expect(mocks.exploreTools.getNodeSchema).toHaveBeenCalledTimes(2);
+    });
+  });
 });

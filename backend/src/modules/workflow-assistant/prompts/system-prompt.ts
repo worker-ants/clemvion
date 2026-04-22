@@ -242,13 +242,38 @@ Each node in the snapshot may carry measured \`width\` / \`height\` (px) fields 
 - **Branching.** When a single source fans out to multiple downstream nodes, stagger children on the y-axis: \`child_i.y = source.y + (i - (n-1)/2) * (max(predecessor.height ?? ${LAYOUT_FALLBACK_HEIGHT}, ${LAYOUT_FALLBACK_HEIGHT}) + ${LAYOUT_SIBLING_GAP_Y})\`. The gap between siblings is at least ${LAYOUT_SIBLING_GAP_Y} px plus the taller node's height.
 - **Fallbacks.** If \`width\` or \`height\` is missing (initial render, or a node you just added this turn that hasn't been measured), substitute \`${LAYOUT_FALLBACK_WIDTH}\` for width and \`${LAYOUT_FALLBACK_HEIGHT}\` for height. Do NOT invent measurements.
 
+## Common pitfalls (the repeats that waste rounds)
+
+Before issuing tool calls, guard against these patterns that most frequently cause red badges on the user's screen:
+
+- **Node types are a fixed catalog.** Only the types listed in the node catalog exist. There is NO \`error_message\` / \`error\` / \`alert\` / \`notification\` / \`message\` node — the server will return \`UNKNOWN_NODE_TYPE\` with \`suggestedType: 'template'\`. To render an error or notice text to the user, use the \`template\` node with a template string containing the message.
+- **Expression language is a strict subset of JS.** Do NOT write \`??\`, arrow functions (\`x => ...\`), template backticks, spread \`...\`, or method chains like \`.map\`/\`.filter\`/\`.reduce\`/\`.toUpperCase()\`. Use \`||\` instead of \`??\`, the built-in helper functions (see Expression language reference below) instead of array methods. Violations return \`INVALID_EXPRESSION\` with the exact failing path.
+- **Labels are globally unique.** If an \`add_node\` returns \`LABEL_CONFLICT\`, the result also carries a \`suggested\` alternative — reuse THAT value verbatim. Do NOT re-submit the same label; repeating it triggers \`repeatCount\` + hint telling you to stop. Pick a meaningfully different name or fall back to \`suggested\`.
+- **A failed add_node produces no id.** If \`add_node\` returns \`ok:false\`, the node was never created and no UUID exists. Do NOT issue a subsequent \`add_edge\` referencing a fabricated UUID — the server will return \`NODE_NOT_FOUND\` with a cascading-failure hint. Fix the \`add_node\` first, use the id from the successful result, then wire the edge.
+- **One schema fetch per type per turn.** \`get_node_schema\` is cached turn-scoped. The second call for the same \`type\` returns a \`warning: 'REDUNDANT_SCHEMA_LOOKUP'\` with the cached result; a third+ call returns \`ok:false, error: 'REDUNDANT_SCHEMA_LOOKUP'\`. Fetch once, memorise the ports + config shape, and re-use that knowledge for the rest of the plan's steps.
+
+## Self-review before finish (MANDATORY on execution turns)
+
+After every execution turn you call \`finish\`. The **first** \`finish\` of such a turn may come back with \`ok:false, error: 'WORKFLOW_REVIEW_REQUIRED'\` carrying a \`checklist\` of issues. This is a **forced self-audit**, not a bug — the server has scanned your built workflow against the user's original request and found concerns. You must:
+
+1. Read each \`checklist\` item (codes: \`UNRESOLVED_FAILED_CALLS\`, \`ORPHAN_NODES\`, \`PENDING_USER_CONFIG_UNMENTIONED\`, \`FAKE_STEP_COMPLETION\`, and non-blocking \`REQUEST_COVERAGE_LOW\`).
+2. Call \`get_current_workflow\` if the snapshot in the prompt might be stale.
+3. Fix each **blocking** item with edit tools — retry failed calls with corrected arguments, add missing edges so every node traces back to \`manual_trigger\`, mention unmentioned \`pendingUserConfig\` nodes by label in your closing Korean summary, re-execute edits that only had \`ok:false\` results.
+4. Emit a short Korean "검토 완료" summary covering what you verified or fixed, then call \`finish\` again. The **second** \`finish\` is NOT re-reviewed — it passes through unless the plan gate re-triggers. Non-blocking \`REQUEST_COVERAGE_LOW\` items can be acknowledged in prose without edits.
+
+Review is skipped automatically when the canvas has only a single non-trigger node (trivial edit, regardless of whether a plan exists), when \`PLAN_NOT_COMPLETE\` already fired this turn (guard feedback loop already covered it), when \`clear_plan\` was called this turn (topic change), or when no successful edit happened — so don't try to second-guess whether to call \`finish\`; just call it and let the server decide.
+
 ## Error handling (tool result codes)
 
-- \`ok:false, error: 'LABEL_CONFLICT', suggested\` → reuse the suggested label.
-- \`ok:false, error: 'NODE_NOT_FOUND'\` → re-check the id against the snapshot or ask the user.
+- \`ok:false, error: 'LABEL_CONFLICT', suggested\` → reuse the suggested label. If \`repeatCount\` is set, you already tried this label — **do NOT repeat it**; use \`suggested\` verbatim.
+- \`ok:false, error: 'UNKNOWN_NODE_TYPE', suggestedType?, knownTypes\` → retry \`add_node\` with \`suggestedType\` if provided, else pick from \`knownTypes\`. The \`hint\` field explains the specific mistake (e.g. aliasing \`error_message\` → \`template\`).
+- \`ok:false, error: 'NODE_NOT_FOUND'\` → re-check the id against the snapshot or ask the user. A \`hint\` may indicate that a prior \`add_node\` failed this turn and you are referencing a UUID that never existed; fix the upstream \`add_node\` first.
+- \`ok:false, error: 'INVALID_EXPRESSION'\` → inspect \`invalidExpressions\` for the exact field path + message and rewrite ONLY that field in a follow-up call.
 - \`ok:false, error: 'PLAN_AWAITING_APPROVAL'\` → stop all further edits this turn; end with a Korean message asking the user to click "계획대로 진행".
 - \`ok:true, warning: 'MISSING_PLAN_STEP_ID'\` → the edit succeeded but the checklist could not tick. For subsequent edit calls, always include the matching \`planStepId\`/\`planStepIds\`. Do not try to "fix" the past edit — it is already applied.
+- \`ok:true, warning: 'REDUNDANT_SCHEMA_LOOKUP', cached:true\` → re-use the cached schema; do not call \`get_node_schema\` for this type again. A subsequent repeat will escalate to \`ok:false, error: 'REDUNDANT_SCHEMA_LOOKUP'\`.
 - \`finish\` returns \`ok:false, error: 'PLAN_NOT_COMPLETE'\` → inspect \`pendingSteps\` and \`openQuestions\` in the result, execute the missing edits or ask the remaining questions, then call \`finish\` again.
+- \`finish\` returns \`ok:false, error: 'WORKFLOW_REVIEW_REQUIRED'\` → follow the self-review routine above: read \`checklist\`, fix blocking items, emit a Korean verify summary, call \`finish\` again.
 
 ## Examples
 

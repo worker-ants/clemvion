@@ -79,6 +79,33 @@ export interface ShadowResult {
    * 최대 5개까지 싣는다.
    */
   invalidExpressions?: ExpressionValidationIssue[];
+  /**
+   * `UNKNOWN_NODE_TYPE` 응답 시: 현재 등록된 노드 타입 중 최대 `KNOWN_TYPES_MAX`
+   * 개를 정렬해 싣는다. LLM 이 다음 라운드에서 올바른 타입을 고를 수 있도록.
+   */
+  knownTypes?: string[];
+  /**
+   * `UNKNOWN_NODE_TYPE` 응답 시: Levenshtein 거리 ≤ 3 이거나 `NODE_TYPE_ALIASES`
+   * 매핑에 해당하면 "가장 근접한" 한 개 제안. 예: `error_message` → `template`.
+   * 없으면 undefined.
+   */
+  suggestedType?: string;
+  /**
+   * `LABEL_CONFLICT` 가 같은 label 로 **반복 발생**한 누적 횟수. 2 이상이면
+   * `hint` 도 함께 실려 "suggested 값을 그대로 쓰라" 는 강한 신호를 준다.
+   */
+  repeatCount?: number;
+  /**
+   * 복구 지침 한-문장. 여러 에러 케이스에서 설정될 수 있다:
+   *  - `UNKNOWN_NODE_TYPE` — suggestedType 사용 안내 (alias 케이스는 특별 문구).
+   *  - `LABEL_CONFLICT` (repeatCount ≥ 2) — 재시도 멈춤 안내.
+   *  - `NODE_NOT_FOUND` (add_edge, 최근 실패한 add_node 가 있을 때) —
+   *    cascading 실패 안내 ("앞서 실패한 노드를 먼저 고치세요").
+   * 힌트 문자열은 LLM 제공 자유 텍스트(label/type) 를 그대로 embed 하지 않고
+   * `sanitizeLlmProvidedString` 을 거쳐 개행/제어 문자를 제거해 프롬프트
+   * 인젝션 표면을 좁힌다.
+   */
+  hint?: string;
 }
 
 const MANUAL_TRIGGER = 'manual_trigger';
@@ -99,6 +126,42 @@ const DEFAULT_CATEGORY_BY_KNOWN_TYPES: Record<string, string> = {
 };
 
 /**
+ * LLM 이 자주 만들어내는 "카탈로그에 없는" 노드 타입 → 실제 존재하는 최적
+ * 대안으로 라우팅하기 위한 별칭 맵. Levenshtein 검색보다 먼저 확인되며 hit 이
+ * 있으면 그 suggestedType 을 사용한다.
+ *
+ * 가장 흔한 오탐은 "ErrorMessage / Notification / Alert" 처럼 UI 메세지를 띄우기
+ * 위한 전용 노드가 있을 거라 가정하는 것. 실제로는 `template` 노드로 임의의
+ * 텍스트/HTML 을 렌더한다.
+ */
+const NODE_TYPE_ALIASES: Record<string, string> = {
+  error_message: 'template',
+  error: 'template',
+  alert: 'template',
+  notification: 'template',
+  message: 'template',
+  text: 'template',
+};
+
+/** UNKNOWN_NODE_TYPE 응답에 실을 knownTypes 배열의 최대 길이. */
+const KNOWN_TYPES_MAX = 40;
+/** 반복 LABEL_CONFLICT 를 "재시도 경고" 로 escalate 하는 임계값. */
+const LABEL_CONFLICT_REPEAT_THRESHOLD = 2;
+/**
+ * `recentFailedAddNodeLabels` 의 rolling window 크기. 실패한 add_node 의 label
+ * 을 FIFO 로 모아 이후 `add_edge` 가 `NODE_NOT_FOUND` 로 떨어질 때 cascading
+ * 힌트에 실어 보낸다.
+ */
+const FAILED_LABEL_WINDOW = 10;
+/**
+ * LLM 제공 문자열을 힌트 메세지에 embed 할 때 적용할 길이 상한. Levenshtein
+ * 계산 비용 방어 + 힌트 프롬프트가 터무니없이 길어져 토큰을 낭비하거나 프롬프트
+ * 인젝션에 악용되는 것을 막는다.
+ */
+const ATTEMPTED_TYPE_MAX_LEN = 64;
+const LABEL_HINT_MAX_LEN = 80;
+
+/**
  * In-memory replica of the editor's workflow state used by the AI Assistant
  * to validate and sequence tool calls before they are emitted to the client.
  *
@@ -109,6 +172,24 @@ const DEFAULT_CATEGORY_BY_KNOWN_TYPES: Record<string, string> = {
 export class ShadowWorkflow {
   private nodes: Map<string, ShadowNode>;
   private edges: Map<string, ShadowEdge>;
+  /**
+   * 같은 label 에 대한 LABEL_CONFLICT 누적 카운트. LLM 이 서버가 돌려준
+   * `suggested` 를 무시하고 같은 label 을 재시도하면 repeatCount 가 증가해
+   * hint 를 추가로 실어 보낸다.
+   */
+  private readonly labelConflictCounts = new Map<string, number>();
+  /**
+   * 최근 실패한 `add_node` 의 label FIFO 큐 (최대 `FAILED_LABEL_WINDOW`).
+   * 이후 `add_edge` 가 NODE_NOT_FOUND 를 뱉을 때 cascading 실패 힌트를 주기
+   * 위한 자료. `readonly` 는 배열 reference 고정 의미 — 내부 mutation 은 허용.
+   */
+  private readonly recentFailedAddNodeLabels: string[] = [];
+  /**
+   * UNKNOWN_NODE_TYPE 응답에 실을 정렬된 knownTypes 캐시. `knownNodeTypes` Set
+   * 은 constructor 이후 변하지 않으므로 lazy sort + 캐시로 매 호출마다의
+   * sort+spread 비용을 0 회로 만든다.
+   */
+  private sortedKnownTypesCache: string[] | null = null;
 
   constructor(
     snapshot: ShadowSnapshot,
@@ -155,26 +236,45 @@ export class ShadowWorkflow {
       return { ok: false, error: 'INVALID_ARGUMENTS' };
     }
     if (type !== MANUAL_TRIGGER && !this.knownNodeTypes.has(type)) {
-      return { ok: false, error: 'UNKNOWN_NODE_TYPE' };
+      this.recordFailedAddNode(label);
+      return this.buildUnknownNodeTypeResult(type);
     }
     const conflict = this.findByLabel(label);
     if (conflict) {
-      return {
+      const prev = this.labelConflictCounts.get(label) ?? 0;
+      const next = prev + 1;
+      this.labelConflictCounts.set(label, next);
+      // LABEL_CONFLICT 는 "노드 타입·config 는 타당하지만 이름만 이미 존재" 인
+      // 상태. cascading NODE_NOT_FOUND 힌트 대상이 아니므로 실패 FIFO 에
+      // 기록하지 않는다 (기록하면 "앞서 실패한 add_node 때문" 이라는 잘못된
+      // 힌트가 후속 add_edge 에 붙어 LLM 이 오인 진단한다).
+      const result: ShadowResult = {
         ok: false,
         error: 'LABEL_CONFLICT',
         suggested: this.suggestLabel(label),
       };
+      if (next >= LABEL_CONFLICT_REPEAT_THRESHOLD) {
+        result.repeatCount = next;
+        result.hint =
+          'You already hit LABEL_CONFLICT for this label. Use the `suggested` value as-is — do NOT re-submit the same label. If you want a cleaner name, call get_current_workflow to see existing labels and pick a distinctly different one.';
+      }
+      return result;
     }
     if (containerId) {
       const container = this.nodes.get(containerId);
-      if (!container) return { ok: false, error: 'NODE_NOT_FOUND' };
+      if (!container) {
+        this.recordFailedAddNode(label);
+        return { ok: false, error: 'NODE_NOT_FOUND' };
+      }
       if (this.isTriggerCategory(type)) {
+        this.recordFailedAddNode(label);
         return { ok: false, error: 'CONTAINER_INVALID_CHILD' };
       }
     }
 
     const exprCheck = validateConfigExpressions(config);
     if (!exprCheck.valid) {
+      this.recordFailedAddNode(label);
       return {
         ok: false,
         error: 'INVALID_EXPRESSION',
@@ -195,6 +295,10 @@ export class ShadowWorkflow {
       isDisabled: false,
       containerId,
     });
+    // 성공한 label 은 실패 롤링 윈도우에서 제거 — 이전에 같은 label 로 실패한
+    // 적이 있었다면 LLM 이 이번 라운드에서 복구한 것이므로 이후 add_edge 힌트에
+    // 여전히 끌려가지 않게 한다.
+    this.forgetFailedAddNode(label);
     return { ok: true, id };
   }
 
@@ -294,7 +398,20 @@ export class ShadowWorkflow {
       return { ok: false, error: 'CYCLE_DETECTED' };
     }
     if (!this.nodes.has(sourceId) || !this.nodes.has(targetId)) {
-      return { ok: false, error: 'NODE_NOT_FOUND' };
+      const result: ShadowResult = { ok: false, error: 'NODE_NOT_FOUND' };
+      if (this.recentFailedAddNodeLabels.length > 0) {
+        // label 은 LLM 이 자유 텍스트로 채운 값이라 JSON.stringify 로 embed
+        // + 길이 상한으로 프롬프트 인젝션 방어. 최근 5건만 노출해 힌트 길이
+        // 를 제어.
+        const recent = this.recentFailedAddNodeLabels
+          .slice(-5)
+          .map((l) =>
+            JSON.stringify(sanitizeLlmProvidedString(l, LABEL_HINT_MAX_LEN)),
+          )
+          .join(', ');
+        result.hint = `A prior add_node failed in this turn (labels: [${recent}]). The UUID you are referencing does not exist because that node was never created. Fix the upstream add_node failures first, then wire the edges.`;
+      }
+      return result;
     }
     // 자식 → 조상 컨테이너의 `emit` 포트로 돌아가는 에지는 실행 엔진이
     // iteration back-edge 로 해석하는 정상 반복 제어 흐름 (spec §4.4).
@@ -343,6 +460,96 @@ export class ShadowWorkflow {
       if (n.label === label) return n;
     }
     return undefined;
+  }
+
+  /**
+   * `UNKNOWN_NODE_TYPE` 응답에 suggestedType / knownTypes / hint 를 덧붙여
+   * LLM 이 올바른 타입으로 재시도할 수 있게 한다. 로직 순서:
+   *  1) `NODE_TYPE_ALIASES` hit → 해당 타입으로 즉시 제안 + hint.
+   *  2) 별칭 없음 → Levenshtein 거리 ≤ 3 중 최단 타입 제안 (있을 때만).
+   *  3) `knownTypes` 는 정렬 후 상한 `KNOWN_TYPES_MAX` 로 잘라 첨부 (모두 싣는
+   *     건 프롬프트 토큰 낭비; 카탈로그는 이미 system prompt 에 있음).
+   *
+   * LLM 이 만든 `attemptedType` 을 메세지에 embed 할 때는 길이 상한 + 제어 문자
+   * 제거를 거쳐 프롬프트 인젝션·토큰 낭비 위험을 차단한다.
+   */
+  private buildUnknownNodeTypeResult(attemptedType: string): ShadowResult {
+    const safeAttempted = sanitizeLlmProvidedString(
+      attemptedType,
+      ATTEMPTED_TYPE_MAX_LEN,
+    );
+    const trimmedKnown = this.getSortedKnownTypes().slice(0, KNOWN_TYPES_MAX);
+    const aliasHit = NODE_TYPE_ALIASES[attemptedType.toLowerCase()];
+    if (aliasHit && this.knownNodeTypes.has(aliasHit)) {
+      return {
+        ok: false,
+        error: 'UNKNOWN_NODE_TYPE',
+        suggestedType: aliasHit,
+        knownTypes: trimmedKnown,
+        hint: `There is no "${safeAttempted}" node type. To render a message or error text, use the "${aliasHit}" node with a template string.`,
+      };
+    }
+    const closest = this.closestKnownType(attemptedType);
+    const result: ShadowResult = {
+      ok: false,
+      error: 'UNKNOWN_NODE_TYPE',
+      knownTypes: trimmedKnown,
+    };
+    if (closest) {
+      result.suggestedType = closest;
+      result.hint = `Did you mean "${closest}"? The type "${safeAttempted}" is not in the node catalog. Retry add_node with a valid type from knownTypes below.`;
+    } else {
+      result.hint = `The type "${safeAttempted}" is not registered. Pick a type from knownTypes below (or review the node catalog in the system prompt).`;
+    }
+    return result;
+  }
+
+  /**
+   * 정렬된 knownTypes 를 lazy init 으로 캐시한다. `knownNodeTypes` 는 생성자
+   * 이후 변경되지 않는 불변 Set 이므로 첫 호출에서만 sort + spread 비용을
+   * 지불하면 이후 UNKNOWN_NODE_TYPE 호출마다의 추가 비용이 0.
+   */
+  private getSortedKnownTypes(): string[] {
+    if (this.sortedKnownTypesCache === null) {
+      this.sortedKnownTypesCache = [...this.knownNodeTypes].sort();
+    }
+    return this.sortedKnownTypesCache;
+  }
+
+  /**
+   * attemptedType 과 Levenshtein 거리 ≤ 3 인 knownTypes 중 가장 짧은 것을
+   * 반환. 동률이면 사전순 첫 번째. 후보가 없으면 undefined.
+   */
+  private closestKnownType(attemptedType: string): string | undefined {
+    let bestType: string | undefined;
+    let bestDistance = Infinity;
+    for (const candidate of this.knownNodeTypes) {
+      const d = levenshtein(attemptedType, candidate);
+      if (
+        d < bestDistance ||
+        (d === bestDistance && bestType && candidate < bestType)
+      ) {
+        bestDistance = d;
+        bestType = candidate;
+      }
+    }
+    return bestDistance <= 3 ? bestType : undefined;
+  }
+
+  /** 실패한 add_node label 을 FIFO 큐에 추가 (중복 제거, 상한 유지). */
+  private recordFailedAddNode(label: string): void {
+    const existingIdx = this.recentFailedAddNodeLabels.indexOf(label);
+    if (existingIdx >= 0) this.recentFailedAddNodeLabels.splice(existingIdx, 1);
+    this.recentFailedAddNodeLabels.push(label);
+    while (this.recentFailedAddNodeLabels.length > FAILED_LABEL_WINDOW) {
+      this.recentFailedAddNodeLabels.shift();
+    }
+  }
+
+  /** 성공 또는 복구 시 label 을 실패 큐에서 제거. */
+  private forgetFailedAddNode(label: string): void {
+    const idx = this.recentFailedAddNodeLabels.indexOf(label);
+    if (idx >= 0) this.recentFailedAddNodeLabels.splice(idx, 1);
   }
 
   private suggestLabel(base: string): string {
@@ -456,6 +663,56 @@ export class ShadowWorkflow {
     }
     return false;
   }
+}
+
+/**
+ * LLM 이 채운 자유 텍스트(label·type 등) 를 힌트 문자열에 embed 할 때 거치는
+ * 공통 sanitizer. 길이 상한 절단 + 제어 문자·개행·백틱·꺾쇠 중화.
+ *  - 길이 절단: 프롬프트 폭주·Levenshtein 계산 비용 방어.
+ *  - 개행 제거: LLM 이 힌트 안에 " ## HACK" 같은 마크다운 헤더를 끼워 넣는
+ *    간접 프롬프트 인젝션을 막는다.
+ *  - 백틱·꺾쇠 치환: XML fence / 코드 블록 경계 오염 방지.
+ */
+function sanitizeLlmProvidedString(s: string, maxLen: number): string {
+  // eslint-disable-next-line no-control-regex
+  const stripped = s.replace(/[\x00-\x1F\x7F]/g, ' ');
+  const compacted = stripped
+    .replace(/`/g, "'")
+    .replace(/</g, '〈')
+    .replace(/>/g, '〉')
+    .replace(/\s+/g, ' ')
+    .trim();
+  if (compacted.length <= maxLen) return compacted;
+  return compacted.slice(0, Math.max(0, maxLen - 1)) + '…';
+}
+
+/**
+ * 단순 Levenshtein 거리. 노드 타입 문자열은 짧고 (< 30자) 카탈로그도 수십 개
+ * 수준이라 반복 매 UNKNOWN_NODE_TYPE 호출마다 돌려도 비용이 미미하다.
+ * 외부 패키지 의존을 피해 로컬 구현.
+ */
+function levenshtein(a: string, b: string): number {
+  if (a === b) return 0;
+  if (!a.length) return b.length;
+  if (!b.length) return a.length;
+  // rolling two-row DP. 배열을 2개만 잡아 메모리 O(min(|a|,|b|)).
+  const [short, long] = a.length <= b.length ? [a, b] : [b, a];
+  let prev: number[] = new Array<number>(short.length + 1);
+  let curr: number[] = new Array<number>(short.length + 1);
+  for (let j = 0; j <= short.length; j++) prev[j] = j;
+  for (let i = 1; i <= long.length; i++) {
+    curr[0] = i;
+    for (let j = 1; j <= short.length; j++) {
+      const cost = long[i - 1] === short[j - 1] ? 0 : 1;
+      curr[j] = Math.min(
+        prev[j] + 1, // deletion
+        curr[j - 1] + 1, // insertion
+        prev[j - 1] + cost, // substitution
+      );
+    }
+    [prev, curr] = [curr, prev];
+  }
+  return prev[short.length];
 }
 
 /**
