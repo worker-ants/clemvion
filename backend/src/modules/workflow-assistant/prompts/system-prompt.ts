@@ -89,6 +89,21 @@ ${activePlanSection}## Node output contract (from CONVENTIONS.md)
 - **Principle 8** — no double nesting. Use \`output.result.*\` for LLM nodes, \`output.response\` for HTTP, \`output.rows\` for DB.
 - Reference downstream values with \`$node["Label"].output.*\`. Labels are unique within the workflow; \`manual_trigger\` is always the entry point.
 
+## Label vs identifier — how to set and how to reference
+
+Sub-entries of many node configs come in pairs of "display text" + "stable identifier". Mixing them is the single most common failure mode; treat the two roles as strictly separate.
+
+- **When SETTING sub-entries** (\`buttons[*]\`, \`cases[*]\`, \`conditions[*]\`, form \`fields[*]\`, select/radio \`options[*]\`):
+    - The identifier field — \`id\` on buttons/cases/conditions, \`name\` on form fields, \`value\` on options — is a canonical slug. snake_case ASCII (e.g. \`btn_approve\`, \`case_refund\`, \`email\`, \`approved\`). Never contains the user-visible text, Korean characters, spaces, or \`{{ }}\` expressions. The end user never sees this value.
+    - The \`label\` field is the user-visible UI text. Put the literal string the user asked for (e.g. \`"승인"\`, \`"이메일 주소"\`). Only embed a \`{{ ... }}\` expression when the user *explicitly* asked for dynamic wording. A schema marker \`widget: 'expression'\` means expressions are **allowed**, not **required** — a literal string is the correct default.
+
+- **When REFERENCING from a downstream node** (this is where most mistakes happen):
+    - Button click: \`$node["<NodeLabel>"].output.interaction.data.buttonId\` — its value equals the button's \`id\` slug (e.g. \`"btn_approve"\`). Do NOT key into \`data\` by the display label, e.g. \`data["승인"]\` is wrong; that key does not exist in the output. If you only need display text (e.g. to echo the clicked wording back to the user), also read \`data.buttonLabel\`, but routing decisions always compare against \`buttonId\`.
+    - Form submission: \`$node["<NodeLabel>"].output.interaction.data.<field.name>\` (e.g. \`.email\`, \`.approval\`). The field's \`label\` ("이메일 주소") is **not** a key in \`data\`; \`data["이메일 주소"]\` will be undefined.
+    - select/radio option comparisons: compare against the option's \`value\`, not its \`label\`.
+    - switch result: \`$node["<NodeLabel>"].output.port\` and \`output.meta.matchedCase\` hold the matched \`cases[*].id\` slug, never the \`label\`.
+    - Mnemonic: **"Write the label, reference by the id."**
+
 ## Node catalog
 
 ${catalog || '(no nodes registered)'}
@@ -151,6 +166,26 @@ Assistant:
 2. \`propose_plan\` steps: s1=add switch, s2=edge manual→switch, s3=add template A, s4=edge switch.case_0→template A, s5=add template B, s6=edge switch.case_1→template B.
 3. On approval, execute add_node/add_edge in order. When calling \`add_edge\` for the switch, PASS \`source_port\` explicitly (\`"case_0"\`, \`"case_1"\`) — do NOT rely on the default \`"out"\`.
 4. \`finish\`.
+
+### Buttons with port branch (label vs id)
+User: "캐러셀에 '승인' / '거절' 버튼 만들고, 승인 누르면 이메일 전송, 거절이면 종료"
+Assistant:
+1. Call \`get_node_schema\` on type=\`carousel\` to confirm the buttons schema and dynamic-port id rules.
+2. \`propose_plan\` steps:
+   - s1 = \`add_node\` carousel with \`config.buttons = [{ id: "btn_approve", label: "승인", type: "port" }, { id: "btn_reject", label: "거절", type: "port" }]\` — note the Korean strings go in \`label\`, the ASCII slugs go in \`id\`.
+   - s2 = edge manual_trigger → carousel.
+   - s3 = \`add_node\` email send.
+   - s4 = edge carousel → email send with \`source_port: "btn_approve"\` (the \`id\` slug, NOT "승인").
+   - Leave \`btn_reject\` with no outgoing edge so that branch terminates.
+3. If the email body needs to echo the clicked wording, reference \`{{ $node["Carousel"].output.interaction.data.buttonLabel }}\`; if a later node needs to branch on which button was clicked, compare \`$node["Carousel"].output.interaction.data.buttonId === "btn_approve"\`. Never key into \`data\` by the Korean label.
+4. \`finish\`.
+
+### Form field referenced downstream (name vs label)
+User: "폼으로 이메일을 받아서 그 이메일 주소로 Slack 메시지를 보내"
+Assistant:
+1. Plan: s1 = add form with \`config.fields = [{ name: "email", label: "이메일 주소", type: "email", required: true }]\` — slug in \`name\`, Korean text in \`label\`. s2 = edge manual_trigger → form. s3 = add slack_send. s4 = edge form → slack_send. s5 = update slack_send config.
+2. In the Slack node config, reference the submitted address as \`{{ $node["Form"].output.interaction.data.email }}\`. Do NOT write \`data["이메일 주소"]\` — that key is the human label, not the runtime key, and resolves to undefined.
+3. \`finish\`.
 
 ### Complex request with openQuestions
 User: "주문 취소 프로세스 추가해줘"
