@@ -5,37 +5,58 @@ import {
   ExecutionContext,
 } from '../../core/node-handler.interface.js';
 
+type MergeStrategy = 'wait_all' | 'first' | 'append';
+type MergeOutputFormat = 'array' | 'merge_object' | 'indexed';
+
 interface MergeConfig {
-  strategy: 'wait_all' | 'first' | 'append';
-  outputFormat: 'array' | 'merge_object' | 'indexed';
+  strategy?: MergeStrategy;
+  outputFormat?: MergeOutputFormat;
   timeout?: number;
   partialOnTimeout?: boolean;
 }
+
+const VALID_STRATEGIES: readonly MergeStrategy[] = [
+  'wait_all',
+  'first',
+  'append',
+] as const;
+const VALID_OUTPUT_FORMATS: readonly MergeOutputFormat[] = [
+  'array',
+  'merge_object',
+  'indexed',
+] as const;
+const DEFAULT_STRATEGY: MergeStrategy = 'wait_all';
+const DEFAULT_OUTPUT_FORMAT: MergeOutputFormat = 'array';
 
 export class MergeHandler implements NodeHandler {
   private readonly logger = new Logger(MergeHandler.name);
 
   validate(config: Record<string, unknown>): ValidationResult {
     const errors: string[] = [];
-    const { strategy, outputFormat, timeout } =
+    const { strategy, outputFormat, timeout, partialOnTimeout } =
       config as unknown as MergeConfig;
 
-    if (!strategy || !['wait_all', 'first', 'append'].includes(strategy)) {
-      errors.push('strategy must be one of: wait_all, first, append');
+    // `strategy` and `outputFormat` have documented defaults (spec §11:
+    // `wait_all` / `array`) and Zod defaults in `merge.schema.ts`. Missing
+    // values fall back to defaults at execute time — only reject EXPLICIT
+    // invalid enum values here.
+    if (strategy !== undefined && !VALID_STRATEGIES.includes(strategy)) {
+      errors.push(`strategy must be one of: ${VALID_STRATEGIES.join(', ')}`);
     }
 
     if (
-      !outputFormat ||
-      !['array', 'merge_object', 'indexed'].includes(outputFormat)
+      outputFormat !== undefined &&
+      !VALID_OUTPUT_FORMATS.includes(outputFormat)
     ) {
-      errors.push('outputFormat must be one of: array, merge_object, indexed');
+      errors.push(
+        `outputFormat must be one of: ${VALID_OUTPUT_FORMATS.join(', ')}`,
+      );
     }
 
     if (timeout !== undefined && (typeof timeout !== 'number' || timeout < 0)) {
       errors.push('timeout must be a non-negative number (0 = no timeout)');
     }
 
-    const { partialOnTimeout } = config as unknown as MergeConfig;
     if (
       partialOnTimeout !== undefined &&
       typeof partialOnTimeout !== 'boolean'
@@ -53,8 +74,12 @@ export class MergeHandler implements NodeHandler {
 
     _context: ExecutionContext,
   ): Promise<unknown> {
-    const { strategy, outputFormat, timeout, partialOnTimeout } =
-      config as unknown as MergeConfig;
+    const {
+      strategy = DEFAULT_STRATEGY,
+      outputFormat = DEFAULT_OUTPUT_FORMAT,
+      timeout,
+      partialOnTimeout,
+    } = config as unknown as MergeConfig;
 
     // Phase P1 runs on a sequential engine where all predecessors are
     // already resolved before Merge executes, so a barrier is unnecessary.
