@@ -97,7 +97,7 @@ export function wrapBareAsNodeHandlerOutput(raw: unknown): NodeHandlerOutput {
 /**
  * Collapses a {@link NodeHandlerOutput} back into the pre-migration flat
  * shape so that existing engine internals (`applyPortSelection`,
- * `stripSelectedPort`, downstream `$input.<field>` access) keep working
+ * `stripControlFields`, downstream `$input.<field>` access) keep working
  * without per-call-site refactors. Phase 3 will remove this function along
  * with the legacy cache.
  */
@@ -153,10 +153,17 @@ export function toEngineFlatShape(adapted: NodeHandlerOutput): unknown {
   const base = { ...(output as Record<string, unknown>) };
   // Surface control fields so the existing blocking check / port selector see
   // identical shapes to the pre-migration handler returns.
-  if (adapted.status !== undefined && base.status === undefined) {
+  //
+  // `port` and `status` are authoritative from the handler: when a handler
+  // explicitly declares them at the top level, they MUST win over any
+  // same-named field that was forwarded inside `output` (e.g. a switch that
+  // does `output: input` after a form resume inherits `port: "out"` /
+  // `status: "resumed"` from the upstream — those are control-field leaks,
+  // not the handler's routing decision).
+  if (adapted.status !== undefined) {
     base.status = adapted.status;
   }
-  if (adapted.port !== undefined && base.port === undefined) {
+  if (adapted.port !== undefined) {
     base.port = adapted.port;
     // For object outputs, `applyPortSelection` expects `{ port, data }`
     // — synthesise `data` if the handler didn't provide it explicitly.
@@ -164,6 +171,8 @@ export function toEngineFlatShape(adapted: NodeHandlerOutput): unknown {
       base.data = output;
     }
   }
+  // `_resumeState` is NOT treated as authoritative: handlers sometimes stash
+  // internal debugging state inside `output._resumeState` on purpose.
   if (adapted._resumeState !== undefined && base._resumeState === undefined) {
     base._resumeState = adapted._resumeState;
   }

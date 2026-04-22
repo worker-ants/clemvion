@@ -379,5 +379,66 @@ describe('IfElseHandler', () => {
         output: { a: 1, b: 2 },
       });
     });
+
+    describe('strictComparison (spec §3.2.1)', () => {
+      it('loose mode (default) treats "42" and 42 as equal', async () => {
+        const result = await handler.execute(
+          { n: '42' },
+          {
+            conditions: [{ field: 'n', operator: 'eq', value: 42 }],
+            combineMode: 'and',
+          },
+          context,
+        );
+        expect(result).toMatchObject({ port: 'true' });
+      });
+
+      it('strict mode rejects cross-type equality', async () => {
+        const result = await handler.execute(
+          { n: '42' },
+          {
+            conditions: [{ field: 'n', operator: 'eq', value: 42 }],
+            combineMode: 'and',
+            strictComparison: true,
+          },
+          context,
+        );
+        expect(result).toMatchObject({ port: 'false' });
+      });
+
+      it('strict mode still matches equal primitives of the same type', async () => {
+        const result = await handler.execute(
+          { n: 42 },
+          {
+            conditions: [{ field: 'n', operator: 'eq', value: 42 }],
+            combineMode: 'and',
+            strictComparison: true,
+          },
+          context,
+        );
+        expect(result).toMatchObject({ port: 'true' });
+      });
+    });
+  });
+
+  describe('validate — strictComparison', () => {
+    it('returns invalid when strictComparison is not a boolean', () => {
+      const result = handler.validate({
+        conditions: [{ field: 'x', operator: 'eq', value: 1 }],
+        combineMode: 'and',
+        strictComparison: 'yes',
+      });
+      expect(result.valid).toBe(false);
+      expect(result.errors).toContain('strictComparison must be a boolean');
+    });
+
+    it('accepts a valid boolean strictComparison', () => {
+      const result = handler.validate({
+        conditions: [{ field: 'x', operator: 'eq', value: 1 }],
+        combineMode: 'and',
+        strictComparison: true,
+      });
+      expect(result.valid).toBe(true);
+    });
   });
 });

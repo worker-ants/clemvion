@@ -271,4 +271,51 @@ describe('toEngineFlatShape', () => {
     // debugging state inside `output` are not stomped on.
     expect((flat as Record<string, unknown>)._resumeState).toBe(outputState);
   });
+
+  describe('control-field override (port/status are authoritative from handler)', () => {
+    // Regression: when a handler forwards an upstream object as `output`
+    // (e.g. switch does `output: input` after a form resume), the object
+    // carries inherited `port: "out"` / `status: "resumed"` control fields.
+    // The handler's declared `port`/`status` must override — otherwise the
+    // downstream port-routing sees the stale inherited port and filters
+    // every outgoing edge.
+    it('overrides inherited port from output object with adapted.port', () => {
+      const flat = toEngineFlatShape({
+        config: {},
+        output: { interaction: {}, port: 'out', status: 'resumed' },
+        port: 'default',
+      });
+      expect((flat as Record<string, unknown>).port).toBe('default');
+    });
+
+    it('overrides inherited status from output object with adapted.status', () => {
+      const flat = toEngineFlatShape({
+        config: {},
+        output: { interaction: {}, status: 'resumed' },
+        status: 'ended',
+      });
+      expect((flat as Record<string, unknown>).status).toBe('ended');
+    });
+
+    it('still preserves inherited port when adapted does not declare one', () => {
+      const flat = toEngineFlatShape({
+        config: {},
+        output: { interaction: {}, port: 'out' },
+      });
+      // Without a handler-declared port, a pass-through handler can still
+      // forward whatever port metadata rode in on the input.
+      expect((flat as Record<string, unknown>).port).toBe('out');
+    });
+
+    it('synthesises base.data when the handler declares a port and output has no data', () => {
+      const output = { interaction: {}, port: 'out' };
+      const flat = toEngineFlatShape({
+        config: {},
+        output,
+        port: 'case_korean',
+      }) as Record<string, unknown>;
+      expect(flat.port).toBe('case_korean');
+      expect(flat.data).toBe(output);
+    });
+  });
 });
