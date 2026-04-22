@@ -1,0 +1,88 @@
+{
+  "timestamp": "2026-04-23T01:29:02.213761",
+  "files": [
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/backend/src/modules/workflow-assistant/workflow-assistant-stream.service.spec.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/backend/src/modules/workflow-assistant/workflow-assistant-stream.service.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/memory/workflow-assistant-provider-quirks-and-review-always.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    }
+  ],
+  "total_elapsed_seconds": 195.2,
+  "agents": [
+    {
+      "name": "database",
+      "status": "success",
+      "elapsed_seconds": 18.92
+    },
+    {
+      "name": "dependency",
+      "status": "success",
+      "elapsed_seconds": 28.08
+    },
+    {
+      "name": "documentation",
+      "status": "success",
+      "elapsed_seconds": 30.86
+    },
+    {
+      "name": "scope",
+      "status": "success",
+      "elapsed_seconds": 35.47
+    },
+    {
+      "name": "api_contract",
+      "status": "success",
+      "elapsed_seconds": 40.93
+    },
+    {
+      "name": "performance",
+      "status": "success",
+      "elapsed_seconds": 44.6
+    },
+    {
+      "name": "concurrency",
+      "status": "success",
+      "elapsed_seconds": 57.72
+    },
+    {
+      "name": "security",
+      "status": "success",
+      "elapsed_seconds": 85.43
+    },
+    {
+      "name": "architecture",
+      "status": "success",
+      "elapsed_seconds": 88.4
+    },
+    {
+      "name": "maintainability",
+      "status": "success",
+      "elapsed_seconds": 104.13
+    },
+    {
+      "name": "testing",
+      "status": "success",
+      "elapsed_seconds": 109.32
+    },
+    {
+      "name": "side_effect",
+      "status": "success",
+      "elapsed_seconds": 121.55
+    },
+    {
+      "name": "requirement",
+      "status": "success",
+      "elapsed_seconds": 123.55
+    }
+  ]
+}

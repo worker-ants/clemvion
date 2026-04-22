@@ -2312,6 +2312,109 @@ describe('WorkflowAssistantStreamService', () => {
     expect(result.error).toBe('PLAN_AWAITING_APPROVAL');
   });
 
+  it('does NOT round-trip when a plan was proposed and is pending approval, even if the provider reports finishReason=tool_calls (gemini-3-flash-preview pattern)', async () => {
+    // 사용자 보고 (2026-04-23): gemini-3-flash-preview 가 propose_plan 직후
+    // 같은 턴에 다수의 edit 을 발사하고 `finish` 는 호출하지 않은 채 stream 이
+    // 끝난다. 프로바이더가 finishReason='tool_calls' 로 종료하면 서버는
+    // round-trip 해 Round 2 에서 LLM 에 PAA feedback 을 주는데, LLM 은 이걸
+    // 무시하고 또 edit 을 시도 → 핑퐁 루프 → MAX_TOOL_LOOP_ROUNDS 도달 후
+    // "진행이 중단됐어요" 에러. UI 에는 빨간 배지가 수십 개 뜬다.
+    //
+    // 새 규칙: propose_plan 이 발행됐고 아직 미승인이면, 같은 턴 내 round-trip
+    // 을 강제로 중단한다. 사용자가 approve 하기 전에는 edit 진행이 의미 없다.
+    const { service, mocks } = makeService();
+    const planArgs = JSON.stringify({
+      title: 'Survey',
+      summary: '',
+      steps: [
+        { id: 's1', action: 'add_node', description: 'type carousel' },
+        { id: 's2', action: 'add_edge', description: 'connect trigger' },
+      ],
+    });
+    const addArgs = (label: string) =>
+      JSON.stringify({
+        type: 'carousel',
+        label,
+        position: { x: 500, y: 300 },
+        config: {},
+        planStepId: 's1',
+      });
+    mocks.llmService.chatStream.mockImplementation(() =>
+      asyncIter<ChatStreamEvent>([
+        {
+          type: 'tool_call_end',
+          id: 'call_plan',
+          name: 'propose_plan',
+          arguments: planArgs,
+        },
+        // LLM 이 finish 없이 바로 여러 edit 을 발사 (gemini-3-flash 관찰 패턴).
+        {
+          type: 'tool_call_end',
+          id: 'call_add_1',
+          name: 'add_node',
+          arguments: addArgs('음식 종류 선택'),
+        },
+        {
+          type: 'tool_call_end',
+          id: 'call_add_2',
+          name: 'add_node',
+          arguments: addArgs('종류별 분기'),
+        },
+        {
+          type: 'tool_call_end',
+          id: 'call_add_3',
+          name: 'add_node',
+          arguments: addArgs('한식 메뉴 선택'),
+        },
+        {
+          type: 'done',
+          usage: { inputTokens: 10, outputTokens: 5, totalTokens: 15 },
+          model: 'gemini-3-flash-preview',
+          // 프로바이더가 tool_calls 로 종료 — 이 값이 루프 재진입의 트리거.
+          finishReason: 'tool_calls',
+        },
+      ]),
+    );
+
+    const events = await collect(
+      service.streamMessage('sess-1', 'ws-1', 'u-1', baseDto as never),
+    );
+
+    // 1 라운드 내에 턴 종료해야 한다 (핑퐁 루프 차단).
+    expect(mocks.llmService.chatStream).toHaveBeenCalledTimes(1);
+    const done = events[events.length - 1];
+    expect(done).toMatchObject({
+      event: 'done',
+      data: { finishReason: 'stop' },
+    });
+    // "진행이 중단됐어요" (ASSISTANT_TOO_MANY_TOOL_CALLS) 는 노출되면 안 됨.
+    const errorEvent = events.find((e) => e.event === 'error');
+    expect(errorEvent).toBeUndefined();
+    // 가드가 "올바른 이유" 로 동작했는지 확인 — 3개 edit 모두 PAA 로 거부되어야.
+    const editEvents = events.filter(
+      (e) =>
+        e.event === 'tool_call' &&
+        (e.data as { name: string }).name === 'add_node',
+    );
+    expect(editEvents).toHaveLength(3);
+    for (const editEvent of editEvents) {
+      const result = (
+        editEvent.data as { result: { ok?: boolean; error?: string } }
+      ).result;
+      expect(result.ok).toBe(false);
+      expect(result.error).toBe('PLAN_AWAITING_APPROVAL');
+    }
+    // assistant 턴 persist 시 finishReason='stop' 이 기록되어야 다음 턴
+    // rehydration 에서 "승인 대기" 상태로 복원된다.
+    const assistantPersist = mocks.sessionService.appendMessage.mock.calls.find(
+      (c) => c[1].role === 'assistant',
+    );
+    expect(assistantPersist?.[1]).toMatchObject({
+      role: 'assistant',
+      finishReason: 'stop',
+    });
+  });
+
   it('attaches MISSING_PLAN_STEP_ID warning when active plan is present but edit has no step id', async () => {
     // 활성 plan 이 있는데 edit 에 planStepId 가 없으면 shadow 는 성공시키되
     // 결과에 warning 을 붙여 LLM 이 이후 호출부터 tag 를 붙이도록 유도.
@@ -3250,6 +3353,216 @@ describe('WorkflowAssistantStreamService', () => {
 
       // 서로 다른 타입이므로 각각 한 번씩 실제 조회.
       expect(mocks.exploreTools.getNodeSchema).toHaveBeenCalledTimes(2);
+    });
+  });
+
+  // DANGLING_OUTPUT_PORTS: 사용자 스크린샷 (gemini-3-flash-preview) 에서
+  // carousel 버튼 중 일부만 edge 로 연결하고 finish 한 시나리오의 축소 재현.
+  // 서버의 self-review 가 미연결 포트를 잡아 LLM 에게 교정 기회를 준다.
+  describe('WORKFLOW_REVIEW_REQUIRED — DANGLING_OUTPUT_PORTS', () => {
+    it('surfaces DANGLING_OUTPUT_PORTS in the review checklist when a carousel button has no outgoing edge', async () => {
+      const { service, mocks } = makeService();
+      // carousel 정의를 주입해 resolveEffectiveOutputPorts 가 실제 동적 포트
+      // (버튼 → 포트) 를 계산할 수 있게 한다.
+      mocks.nodeRegistry.listDefinitions.mockReturnValue([
+        {
+          metadata: {
+            type: 'manual_trigger',
+            category: 'trigger',
+            description: 'Manual trigger',
+          },
+          ports: {
+            inputs: [],
+            outputs: [{ id: 'out', label: 'Output', type: 'data' }],
+          },
+        },
+        {
+          metadata: {
+            type: 'carousel',
+            category: 'presentation',
+            description: 'Carousel',
+            dynamicPorts: {
+              kind: 'presentation-buttons',
+              supportsItems: true,
+              supportsItemButtons: true,
+              continueId: 'continue',
+            },
+          },
+          ports: {
+            inputs: [{ id: 'in', label: 'Input', type: 'data' }],
+            outputs: [{ id: 'out', label: 'Output', type: 'data' }],
+          },
+        },
+        {
+          metadata: {
+            type: 'template',
+            category: 'presentation',
+            description: 'Template',
+          },
+          ports: {
+            inputs: [{ id: 'in', label: 'Input', type: 'data' }],
+            outputs: [{ id: 'out', label: 'Output', type: 'data' }],
+          },
+        },
+      ]);
+
+      // 초기 canvas: trigger → carousel(btn_a, btn_b) → template (btn_a only).
+      // btn_b 포트는 dangling. turn 안에서 LLM 이 update_node 로 아무 의미있는
+      // 변경 (성공 edit 1건 이상) 을 해야 review 가 발동 (nonTrigger ≤ 1 skip
+      // 조건 해제 + hadSuccessfulEdit 조건 만족).
+      const primedDto = {
+        content: '메뉴 선택 라벨을 업데이트해줘',
+        currentWorkflow: {
+          nodes: [
+            {
+              id: 'trig-1',
+              type: 'manual_trigger',
+              category: 'trigger',
+              label: 'Start',
+              positionX: 0,
+              positionY: 0,
+              config: {},
+            },
+            {
+              id: 'node-carousel',
+              type: 'carousel',
+              category: 'presentation',
+              label: '메뉴 선택',
+              positionX: 300,
+              positionY: 0,
+              config: {
+                mode: 'static',
+                items: [
+                  {
+                    title: '메뉴',
+                    buttons: [
+                      { id: 'btn_a', label: 'A', type: 'port' },
+                      { id: 'btn_b', label: 'B', type: 'port' },
+                    ],
+                  },
+                ],
+              },
+            },
+            {
+              id: 'node-template',
+              type: 'template',
+              category: 'presentation',
+              label: '결과 A',
+              positionX: 600,
+              positionY: 0,
+              config: { html: 'A' },
+            },
+          ],
+          edges: [
+            {
+              id: 'e-trig',
+              sourceNodeId: 'trig-1',
+              sourcePort: 'out',
+              targetNodeId: 'node-carousel',
+              targetPort: 'in',
+              type: 'data',
+            },
+            {
+              id: 'e-btn-a',
+              sourceNodeId: 'node-carousel',
+              sourcePort: 'btn_a',
+              targetNodeId: 'node-template',
+              targetPort: 'in',
+              type: 'data',
+            },
+          ],
+        },
+      };
+
+      // Round 1: label 수정 (성공 edit 1건) + finish → review 가 btn_b dangling
+      // 을 찾아 WORKFLOW_REVIEW_REQUIRED 로 block.
+      mocks.llmService.chatStream.mockImplementationOnce(() =>
+        asyncIter<ChatStreamEvent>([
+          {
+            type: 'tool_call_end',
+            id: 'call_upd',
+            name: 'update_node',
+            arguments: JSON.stringify({
+              id: 'node-template',
+              patch: { label: '결과 화면' },
+            }),
+          },
+          {
+            type: 'tool_call_end',
+            id: 'call_fin_1',
+            name: 'finish',
+            arguments: '{}',
+          },
+          {
+            type: 'done',
+            usage: { inputTokens: 10, outputTokens: 3, totalTokens: 13 },
+            model: 'gemini-3-flash-preview',
+            finishReason: 'stop',
+          },
+        ]),
+      );
+      // Round 2: "검토 완료" 코멘트 + 두 번째 finish — review 를 이미 1회 거쳤으므로
+      // skip 되어 통과.
+      mocks.llmService.chatStream.mockImplementationOnce(() =>
+        asyncIter<ChatStreamEvent>([
+          { type: 'text_delta', delta: '검토 완료.' },
+          {
+            type: 'tool_call_end',
+            id: 'call_fin_2',
+            name: 'finish',
+            arguments: '{}',
+          },
+          {
+            type: 'done',
+            usage: { inputTokens: 3, outputTokens: 2, totalTokens: 5 },
+            model: 'gemini-3-flash-preview',
+            finishReason: 'stop',
+          },
+        ]),
+      );
+
+      const events = await collect(
+        service.streamMessage('sess-1', 'ws-1', 'u-1', primedDto as never),
+      );
+
+      expect(mocks.llmService.chatStream).toHaveBeenCalledTimes(2);
+
+      // Round 2 messages 에 첫 finish 의 WORKFLOW_REVIEW_REQUIRED 가 실려 있어야
+      // 하고, checklist 에 DANGLING_OUTPUT_PORTS + btn_b 언급이 있어야 한다.
+      const secondRoundMessages = mocks.llmService.chatStream.mock.calls[1][1]
+        .messages as Array<{
+        role: string;
+        content?: string;
+        toolCallId?: string;
+      }>;
+      const reviewResult = secondRoundMessages.find(
+        (m) => m.role === 'tool' && m.toolCallId === 'call_fin_1',
+      );
+      expect(reviewResult).toBeDefined();
+      const parsed = JSON.parse(reviewResult!.content ?? 'null');
+      expect(parsed).toMatchObject({
+        ok: false,
+        error: 'WORKFLOW_REVIEW_REQUIRED',
+      });
+      const danglingItem = (
+        parsed.checklist as Array<{
+          code: string;
+          details: string;
+          data?: unknown;
+        }>
+      ).find((c) => c.code === 'DANGLING_OUTPUT_PORTS');
+      expect(danglingItem).toBeDefined();
+      expect(danglingItem?.details).toContain('btn_b');
+      expect(
+        (danglingItem?.data as Array<{ portId: string }>).map((d) => d.portId),
+      ).toEqual(['btn_b']);
+
+      // 최종적으로 정상 종료.
+      const done = events[events.length - 1];
+      expect(done).toMatchObject({
+        event: 'done',
+        data: { finishReason: 'stop' },
+      });
     });
   });
 });

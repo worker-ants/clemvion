@@ -706,7 +706,7 @@ export class ShadowWorkflow {
  *    간접 프롬프트 인젝션을 막는다.
  *  - 백틱·꺾쇠 치환: XML fence / 코드 블록 경계 오염 방지.
  */
-function sanitizeLlmProvidedString(s: string, maxLen: number): string {
+export function sanitizeLlmProvidedString(s: string, maxLen: number): string {
   // eslint-disable-next-line no-control-regex
   const stripped = s.replace(/[\x00-\x1F\x7F]/g, ' ');
   const compacted = stripped
