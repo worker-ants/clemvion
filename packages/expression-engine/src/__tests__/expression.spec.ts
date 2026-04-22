@@ -288,6 +288,83 @@ describe('Expression Engine', () => {
     });
   });
 
+  // 12.1 Optional chaining (?.)
+  // `?.` 는 체인 전체에 short-circuit 을 퍼뜨린다. 즉 `a?.b.c` 에서 a 가
+  // null 이면 .c 가 non-optional 이라도 throw 하지 않고 체인 결과가 null.
+  describe('Optional Chaining', () => {
+    const ctx: ExpressionContext = {
+      $input: {
+        user: { name: 'Alice', profile: { age: 30 } },
+        nullUser: null,
+        items: ['a', 'b'],
+      },
+      $node: {
+        '1depth 음식 종류': {
+          output: {
+            interaction: { data: { food_category: '한식' } },
+          },
+        },
+        MissingNode: null,
+      },
+    };
+
+    it('resolves member access when the head is present', () => {
+      expect(evaluate('{{ $input.user?.name }}', ctx)).toBe('Alice');
+    });
+
+    it('short-circuits to null when the head is null', () => {
+      expect(evaluate('{{ $input.nullUser?.name }}', ctx)).toBeNull();
+    });
+
+    it('propagates short-circuit through the rest of the chain (optional-only)', () => {
+      expect(evaluate('{{ $input.nullUser?.profile?.age }}', ctx)).toBeNull();
+    });
+
+    it('propagates short-circuit through a mixed optional/non-optional chain', () => {
+      // a?.b.c 에서 a 가 null 이면 .c 까지 통째로 short-circuit
+      expect(evaluate('{{ $input.nullUser?.profile.age }}', ctx)).toBeNull();
+    });
+
+    it('supports optional index access with ?.[]', () => {
+      expect(evaluate('{{ $input.nullUser?.["name"] }}', ctx)).toBeNull();
+      expect(evaluate('{{ $input.user?.["name"] }}', ctx)).toBe('Alice');
+    });
+
+    it('resolves the reported switchValue-style expression end-to-end', () => {
+      expect(
+        evaluate(
+          '{{ $node["1depth 음식 종류"]?.output?.interaction?.data?.food_category }}',
+          ctx,
+        ),
+      ).toBe('한식');
+      expect(
+        evaluate(
+          '{{ $node["MissingNode"]?.output?.interaction?.data?.food_category }}',
+          ctx,
+        ),
+      ).toBeNull();
+    });
+
+    it('still throws on a non-optional access after a non-null head', () => {
+      // user.profile 은 존재하지만 user.profile.missing 은 없다 → null
+      expect(evaluate('{{ $input.user?.profile.missing }}', ctx)).toBeNull();
+    });
+
+    it('does not confuse ?. with the ternary `?`', () => {
+      expect(
+        evaluate('{{ $input.user ? $input.user.name : "fallback" }}', ctx),
+      ).toBe('Alice');
+      expect(
+        evaluate('{{ $input.nullUser ? "yes" : "no" }}', ctx),
+      ).toBe('no');
+    });
+
+    it('reports a helpful syntax error on trailing ?.', () => {
+      // `{{ a?. }}` 식으로 뒤에 식별자/[ / ( 가 없는 경우
+      expect(() => evaluate('{{ $input?. }}', ctx)).toThrow();
+    });
+  });
+
   // 13. Date functions
   describe('Date Functions', () => {
     it('should format a date', () => {

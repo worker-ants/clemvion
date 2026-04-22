@@ -51,6 +51,12 @@ const DEFAULT_TIMEOUT = 100;
 const DEFAULT_MAX_DEPTH = 100;
 const MAX_STRING_RESULT = 1_048_576; // 1MB
 
+// Optional chain (ChainExpression) 안에서 LHS 가 null/undefined 로 판명되면
+// 이 sentinel 을 throw 해 바깥쪽 ChainExpression 까지 bubble 시킨다.
+// ExpressionError 계층과 별개라 error 래핑을 타지 않고, 일반 catch 로도
+// 걸리지 않도록 외부에 노출되지 않는다.
+class ShortCircuitSignal {}
+
 export class Evaluator {
   private context: ExpressionContext;
   private options: Required<EvalOptions>;
@@ -109,11 +115,30 @@ export class Evaluator {
       case 'Identifier':
         return this.evaluateIdentifier(node.name);
       case 'MemberExpression':
-        return this.evaluateMemberExpression(node.object, node.property);
+        return this.evaluateMemberExpression(
+          node.object,
+          node.property,
+          node.optional === true,
+        );
       case 'IndexExpression':
-        return this.evaluateIndexExpression(node.object, node.index);
+        return this.evaluateIndexExpression(
+          node.object,
+          node.index,
+          node.optional === true,
+        );
       case 'CallExpression':
-        return this.evaluateCallExpression(node.callee, node.args);
+        return this.evaluateCallExpression(
+          node.callee,
+          node.args,
+          node.optional === true,
+        );
+      case 'ChainExpression':
+        try {
+          return this.evaluate(node.expression);
+        } catch (e) {
+          if (e instanceof ShortCircuitSignal) return null;
+          throw e;
+        }
       case 'UnaryExpression':
         return this.evaluateUnaryExpression(node.operator, node.operand);
       case 'BinaryExpression':
@@ -158,10 +183,15 @@ export class Evaluator {
     throw new ReferenceError(`Undefined variable: ${name}`);
   }
 
-  private evaluateMemberExpression(objectNode: ASTNode, property: string): unknown {
+  private evaluateMemberExpression(
+    objectNode: ASTNode,
+    property: string,
+    optional: boolean,
+  ): unknown {
     const obj = this.evaluate(objectNode);
 
     if (obj === null || obj === undefined) {
+      if (optional) throw new ShortCircuitSignal();
       throw new ReferenceError(
         `Cannot read property '${property}' of ${obj}`,
       );
@@ -176,13 +206,19 @@ export class Evaluator {
     return (obj as Record<string, unknown>)[property] ?? null;
   }
 
-  private evaluateIndexExpression(objectNode: ASTNode, indexNode: ASTNode): unknown {
+  private evaluateIndexExpression(
+    objectNode: ASTNode,
+    indexNode: ASTNode,
+    optional: boolean,
+  ): unknown {
     const obj = this.evaluate(objectNode);
-    const index = this.evaluate(indexNode);
 
     if (obj === null || obj === undefined) {
+      if (optional) throw new ShortCircuitSignal();
       throw new ReferenceError(`Cannot index into ${obj}`);
     }
+
+    const index = this.evaluate(indexNode);
 
     if (Array.isArray(obj)) {
       if (typeof index !== 'number') {
@@ -201,9 +237,11 @@ export class Evaluator {
     throw new TypeError(`Cannot index into ${typeof obj}`);
   }
 
-  private evaluateCallExpression(calleeNode: ASTNode, argNodes: ASTNode[]): unknown {
-    const args = argNodes.map((a) => this.evaluate(a));
-
+  private evaluateCallExpression(
+    calleeNode: ASTNode,
+    argNodes: ASTNode[],
+    optional: boolean,
+  ): unknown {
     // Get function name
     let fnName: string;
     if (calleeNode.type === 'Identifier') {
@@ -214,8 +252,12 @@ export class Evaluator {
 
     const fn = getFunction(fnName);
     if (!fn) {
+      // `a?.()` 형태로 정의되지 않은 함수를 optional 호출한 경우는 체인 단락.
+      if (optional) throw new ShortCircuitSignal();
       throw new FunctionError(`Unknown function: ${fnName}`);
     }
+
+    const args = argNodes.map((a) => this.evaluate(a));
 
     try {
       return fn(...args);

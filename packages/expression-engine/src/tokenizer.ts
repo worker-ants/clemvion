@@ -168,6 +168,11 @@ function readExpressionToken(input: string, pos: number): Token {
         return { type: TokenType.And, value: '&&', position: pos };
       case '||':
         return { type: TokenType.Or, value: '||', position: pos };
+      case '?.':
+        // Optional chaining head. The following identifier / `[` / `(` is
+        // consumed by the parser as a member / index / call access with
+        // `optional: true`.
+        return { type: TokenType.QuestionDot, value: '?.', position: pos };
     }
   }
 

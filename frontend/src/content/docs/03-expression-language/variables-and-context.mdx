@@ -43,7 +43,7 @@ code: ["packages/expression-engine/src/evaluator.ts"]
 ```
 </Example>
 
-<Callout type="warn">중간 경로에 `null`이 있으면 에러가 나요. 삼항 연산이나 `||`로 방어해요. 예: `{{ $input.user ? $input.user.name : "unknown" }}`</Callout>
+<Callout type="warn">중간 경로에 `null`이 있으면 에러가 나요. 옵셔널 체이닝 `?.`을 쓰면 체인 중간에 `null`이 나와도 결과가 `null`로 short-circuit 돼요. 예: `{{ $input.user?.name }}`, `{{ $node["Fetch User"]?.output?.profile?.age }}`. 기본값이 필요하면 `{{ $input.user?.name || "unknown" }}` 또는 삼항 연산을 함께 써요.</Callout>
 
 ## `$node["이름"]`: 임의 노드 결과 참조
 

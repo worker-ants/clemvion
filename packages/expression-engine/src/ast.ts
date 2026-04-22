@@ -16,7 +16,8 @@ export type ASTNode =
   | TernaryExpression
   | ArrayLiteral
   | ObjectLiteral
-  | TemplateLiteral;
+  | TemplateLiteral
+  | ChainExpression;
 
 export interface NumberLiteral {
   type: 'NumberLiteral';
@@ -46,18 +47,32 @@ export interface MemberExpression {
   type: 'MemberExpression';
   object: ASTNode;
   property: string;
+  // `a?.b` 의 `.b` 단계만 true. 체인 전체의 short-circuit 은
+  // ChainExpression 이 담당한다.
+  optional?: boolean;
 }
 
 export interface IndexExpression {
   type: 'IndexExpression';
   object: ASTNode;
   index: ASTNode;
+  optional?: boolean;
 }
 
 export interface CallExpression {
   type: 'CallExpression';
   callee: ASTNode;
   args: ASTNode[];
+  optional?: boolean;
+}
+
+// Optional chaining (`?.`) 이 하나라도 포함된 postfix chain 을 감싸는 wrapper.
+// 평가 중 어느 optional 단계의 LHS 가 null/undefined 로 밝혀지면 체인 전체가
+// null 로 short-circuit 된다. `a?.b.c.d` 에서 a 가 null 이면 .c, .d 는
+// non-optional 이라도 throw 하지 않고 통째로 스킵된다는 JS 의미론을 구현한다.
+export interface ChainExpression {
+  type: 'ChainExpression';
+  expression: ASTNode;
 }
 
 export interface UnaryExpression {
