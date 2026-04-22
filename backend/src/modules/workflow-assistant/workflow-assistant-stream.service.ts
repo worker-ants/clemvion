@@ -1,5 +1,6 @@
 import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
+import { z } from 'zod';
 import { LlmService } from '../llm/llm.service';
 import { ChatMessage } from '../llm/interfaces/llm-client.interface';
 import { LlmConfig } from '../llm-config/entities/llm-config.entity';
@@ -17,6 +18,10 @@ import {
   AssistantToolKind,
 } from './tools/tool-definitions';
 import { spreadMeasured, toWorkflowView } from './tools/workflow-view';
+import {
+  detectPendingUserConfig,
+  PendingUserConfigField,
+} from './tools/detect-pending-user-config';
 import {
   ActivePlanContext,
   computeToolCallsBudget,
@@ -413,6 +418,27 @@ export class WorkflowAssistantStreamService {
                 } else {
                   result = shadowResult;
                 }
+                // add_node / update_node 성공 시 integration / llm-config /
+                // kb / workflow selector 처럼 사용자가 직접 골라야 하는
+                // 필드가 비어있으면 목록을 실어 LLM 에게 되돌린다. 시스템
+                // 프롬프트의 "Closing the turn" 규칙에 따라 LLM 은 finish
+                // 직전 마무리 메세지에서 이 항목을 안내해야 한다.
+                if (
+                  shadowResult.ok &&
+                  (ev.name === 'add_node' || ev.name === 'update_node') &&
+                  shadowResult.id
+                ) {
+                  const pending = this.collectPendingUserConfig(
+                    shadow,
+                    shadowResult.id,
+                  );
+                  if (pending.length > 0) {
+                    result = {
+                      ...(result as Record<string, unknown>),
+                      pendingUserConfig: pending,
+                    };
+                  }
+                }
               }
             }
 
@@ -644,6 +670,27 @@ export class WorkflowAssistantStreamService {
    *   - planForTurn 이 null 인데 이번 턴 편집이 active plan 과 전혀 매칭되지
    *     않으면 단발성 편집으로 간주
    */
+  /**
+   * add_node / update_node 가 성공한 뒤 노드의 "사용자 선택 필요" 필드
+   * (integration / LLM config / KB / workflow) 가 비었는지 감지한다.
+   * ShadowWorkflow 에는 schema 가 없으므로 이 클래스에서 nodeRegistry 로
+   * 조회해 값을 대조한다.
+   */
+  private collectPendingUserConfig(
+    shadow: ShadowWorkflow,
+    nodeId: string,
+  ): PendingUserConfigField[] {
+    const node = shadow.snapshot().nodes.find((n) => n.id === nodeId);
+    if (!node) return [];
+    const component = this.nodeRegistry.getComponent(node.type);
+    if (!component) return [];
+    // listDefinitions() 를 다시 돌리는 대신 zod 스키마에서 즉석 JSON 스키마를
+    // 꺼낸다. z.toJSONSchema 는 .meta() 를 `ui` 필드로 flatten 하므로
+    // detector 가 그대로 읽을 수 있다.
+    const jsonSchema = z.toJSONSchema(component.configSchema);
+    return detectPendingUserConfig(jsonSchema, node.config ?? {});
+  }
+
   private evaluateFinishGuard(
     history: WorkflowAssistantMessage[],
     planForTurn: AssistantPlanRecord | null,
