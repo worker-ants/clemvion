@@ -8,6 +8,53 @@ import {
   ToolCall,
 } from '../interfaces/llm-client.interface';
 
+/**
+ * gpt-oss / Harmony 포맷 제어 토큰. OpenAI 가 공식 제공하는 상위 모델에서는
+ * 나오지 않지만, 같은 OpenAI 호환 인터페이스를 쓰는 로컬/오픈소스 서빙
+ * (llama.cpp, vLLM 등으로 띄운 gpt-oss-120b 등) 에서 종종 출력에 섞여 내려와
+ * SSE chunk content / tool_call arguments 를 오염시킨다.
+ *
+ * Harmony 포맷 참고 (https://github.com/openai/harmony):
+ *  - `<|channel|>CHANNEL_NAME<|message|>...` : 채널 전환 preamble (CHANNEL_NAME
+ *    은 bare 토큰 `final` / `commentary` / `analysis` 등).
+ *  - 단독 제어 토큰: `<|start|>`, `<|end|>`, `<|return|>`, `<|constrain|>`.
+ *
+ * 처리 전략은 2단계:
+ *  1) 스트리밍 중 `delta.content` / tool_call args 에서 이 토큰을 **그대로 제거**
+ *     → 다운스트림 (assistant SSE · 프론트 뷰) 에 노출되지 않게 한다.
+ *  2) OpenAI SDK 가 SSE chunk 자체를 파싱하지 못해 throw 하는 경우 (이미 늦은
+ *     시점), catch 블록에서 에러 메세지를 sniff 해 `LLM_OUTPUT_MALFORMED` 로
+ *     분류하고 사용자 친화적 메세지로 치환한다.
+ */
+// 채널 preamble 전체: `<|channel|>channel_name<|message|>` 을 한 번에 제거 —
+// channel_name 자체가 delimiter 밖에 bare text 로 나오기 때문에 단순 delimiter
+// 제거만으로는 "final" / "commentary" 같은 잔여물이 남는다.
+const HARMONY_CHANNEL_PREAMBLE_REGEX = /<\|channel\|>[\s\S]*?<\|message\|>/g;
+// 남은 단독 제어 토큰: `<|start|>`, `<|end|>`, `<|return|>`, `<|constrain|>`,
+// 예외적으로 고립된 `<|channel|>`/`<|message|>` 등.
+const HARMONY_STANDALONE_TOKEN_REGEX =
+  /<\|(?:channel|start|end|message|return|constrain|system|developer|user|assistant|tool)\|>/g;
+
+/**
+ * 스트리밍 content/arguments 조각에서 harmony 제어 토큰과 채널 preamble 을
+ * 제거. 원문 의미는 그대로, 구조 토큰만 stripping.
+ */
+function stripHarmonyTokens(input: string): string {
+  if (!input) return input;
+  if (input.indexOf('<|') < 0) return input;
+  return input
+    .replace(HARMONY_CHANNEL_PREAMBLE_REGEX, '')
+    .replace(HARMONY_STANDALONE_TOKEN_REGEX, '');
+}
+
+/**
+ * SDK 파싱 실패 에러 메세지가 harmony 토큰 오염 케이스인지 판정.
+ * openai SDK 는 `Failed to parse input at pos N: <|channel|>...` 형태로 throw.
+ */
+function isHarmonyParseError(message: string): boolean {
+  return /<\|(channel|start|message|end|return)\|>/.test(message);
+}
+
 export class OpenAIClient implements LLMClient {
   protected client: OpenAI;
 
@@ -265,7 +312,8 @@ export class OpenAIClient implements LLMClient {
         if (choice) {
           const delta = choice.delta;
           if (delta?.content) {
-            yield { type: 'text_delta', delta: delta.content };
+            const cleaned = stripHarmonyTokens(delta.content);
+            if (cleaned) yield { type: 'text_delta', delta: cleaned };
           }
           if (delta?.tool_calls) {
             for (const tc of delta.tool_calls) {
@@ -277,7 +325,9 @@ export class OpenAIClient implements LLMClient {
               };
               if (tc.id) entry.id = tc.id;
               if (tc.function?.name) entry.name = tc.function.name;
-              const argsFragment = tc.function?.arguments ?? '';
+              const argsFragment = stripHarmonyTokens(
+                tc.function?.arguments ?? '',
+              );
               if (argsFragment) entry.argsParts.push(argsFragment);
               toolAccum.set(idx, entry);
               if (entry.id && (tc.function?.name || argsFragment)) {
@@ -330,13 +380,20 @@ export class OpenAIClient implements LLMClient {
       } else {
         const message =
           error instanceof Error ? error.message : 'Unknown stream error';
-        yield {
-          type: 'error',
-          code: message.includes('429')
-            ? 'LLM_RATE_LIMIT'
-            : 'LLM_CONNECTION_ERROR',
-          message,
-        };
+        const code = message.includes('429')
+          ? 'LLM_RATE_LIMIT'
+          : isHarmonyParseError(message)
+            ? 'LLM_OUTPUT_MALFORMED'
+            : 'LLM_CONNECTION_ERROR';
+        // harmony 토큰 오염 케이스는 사용자에게 원본 메세지를 그대로 보여주면
+        // 혼란스럽다 (내부 제어 토큰이 그대로 노출되어 깨진 텍스트처럼 보임).
+        // 사용자는 "서비스/설정 문제" 로 인식할 수 있는 톤의 안내문으로 치환한다.
+        // raw 메세지는 서버 로그에만 남긴다 (throw 위치에서 이미 기록됨).
+        const userMessage =
+          code === 'LLM_OUTPUT_MALFORMED'
+            ? '모델이 내부 harmony 제어 토큰을 응답에 노출해 처리를 중단했어요. 오픈소스 모델(gpt-oss 계열) 의 chat template 설정 문제일 수 있습니다. 다른 모델(OpenAI / Anthropic / Google) 로 전환하거나 서빙 설정을 확인해 주세요.'
+            : message;
+        yield { type: 'error', code, message: userMessage };
         return;
       }
     }

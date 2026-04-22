@@ -780,7 +780,8 @@ describe('WorkflowAssistantStreamService', () => {
         },
       ]),
     );
-    // Round 2: 서버 피드백을 받고 남은 step 수행 → finish 성공
+    // Round 2: 서버 피드백을 받고 남은 step 수행 → finish 시도 (review guard 가
+    // 이어서 발동해 WORKFLOW_REVIEW_REQUIRED 로 재차 block).
     mocks.llmService.chatStream.mockImplementationOnce(() =>
       asyncIter<ChatStreamEvent>([
         {
@@ -803,15 +804,34 @@ describe('WorkflowAssistantStreamService', () => {
         },
       ]),
     );
+    // Round 3: review 가 "orphan 노드 있음" 등으로 block 한 뒤, LLM 이
+    // 검토 완료 한국어 코멘트와 함께 두 번째 finish 를 호출 → 통과.
+    mocks.llmService.chatStream.mockImplementationOnce(() =>
+      asyncIter<ChatStreamEvent>([
+        { type: 'text_delta', delta: '검토 완료.' },
+        {
+          type: 'tool_call_end',
+          id: 'call_fin_3',
+          name: 'finish',
+          arguments: '{}',
+        },
+        {
+          type: 'done',
+          usage: { inputTokens: 10, outputTokens: 3, totalTokens: 13 },
+          model: 'gpt-4o',
+          finishReason: 'stop',
+        },
+      ]),
+    );
 
     const events = await collect(
       service.streamMessage('sess-1', 'ws-1', 'u-1', baseDto as never),
     );
 
-    // 루프가 2회 돌았어야 한다.
-    expect(mocks.llmService.chatStream).toHaveBeenCalledTimes(2);
+    // PLAN_NOT_COMPLETE + WORKFLOW_REVIEW_REQUIRED 각각 한 번씩 → 3 라운드.
+    expect(mocks.llmService.chatStream).toHaveBeenCalledTimes(3);
 
-    // 두 번째 라운드 messages 에 finish 의 PLAN_NOT_COMPLETE tool_result 가
+    // 두 번째 라운드 messages 에 첫 finish 의 PLAN_NOT_COMPLETE tool_result 가
     // 포함되어 있어야 한다.
     const secondRoundMessages = mocks.llmService.chatStream.mock.calls[1][1]
       .messages as Array<{
@@ -832,7 +852,24 @@ describe('WorkflowAssistantStreamService', () => {
       expect.objectContaining({ id: 's2' }),
     ]);
 
-    // 둘 다 실행된 상태로 종료되어야 한다.
+    // 세 번째 라운드에는 call_fin_2 의 WORKFLOW_REVIEW_REQUIRED tool_result 가
+    // 실려 있어야 한다 — plan 가드와 review 가드가 독립 계층임을 고정.
+    const thirdRoundMessages = mocks.llmService.chatStream.mock.calls[2][1]
+      .messages as Array<{
+      role: string;
+      content?: string;
+      toolCallId?: string;
+    }>;
+    const reviewResult = thirdRoundMessages.find(
+      (m) => m.role === 'tool' && m.toolCallId === 'call_fin_2',
+    );
+    expect(reviewResult).toBeDefined();
+    expect(JSON.parse(reviewResult!.content ?? 'null')).toMatchObject({
+      ok: false,
+      error: 'WORKFLOW_REVIEW_REQUIRED',
+    });
+
+    // 최종적으로 정상 종료되어야 한다.
     const done = events[events.length - 1];
     expect(done).toMatchObject({
       event: 'done',
@@ -1142,7 +1179,7 @@ describe('WorkflowAssistantStreamService', () => {
         },
       ]),
     );
-    // Round 3: s3 추가 후 finish → 모든 step 완료, 정상 종료
+    // Round 3: s3 추가 후 finish → plan 완료. review 가드가 orphan 등 감지해 재차 block.
     mocks.llmService.chatStream.mockImplementationOnce(() =>
       asyncIter<ChatStreamEvent>([
         {
@@ -1165,13 +1202,31 @@ describe('WorkflowAssistantStreamService', () => {
         },
       ]),
     );
+    // Round 4: 검토 완료 멘트 후 네 번째 finish → review 는 1회만 발동하므로 통과.
+    mocks.llmService.chatStream.mockImplementationOnce(() =>
+      asyncIter<ChatStreamEvent>([
+        { type: 'text_delta', delta: '검토 완료.' },
+        {
+          type: 'tool_call_end',
+          id: 'fin_4',
+          name: 'finish',
+          arguments: '{}',
+        },
+        {
+          type: 'done',
+          usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 },
+          model: 'gpt-4o',
+          finishReason: 'stop',
+        },
+      ]),
+    );
 
     const events = await collect(
       service.streamMessage('sess-1', 'ws-1', 'u-1', baseDto as never),
     );
 
-    // 3 라운드 — 새 가드가 두 번째 finish 까지 block.
-    expect(mocks.llmService.chatStream).toHaveBeenCalledTimes(3);
+    // 4 라운드 — PLAN_NOT_COMPLETE × 2 (fin_1, fin_2) + WORKFLOW_REVIEW_REQUIRED (fin_3) + 정상 finish (fin_4).
+    expect(mocks.llmService.chatStream).toHaveBeenCalledTimes(4);
 
     // Round 2 messages: round 1 의 fin_1 이 PLAN_NOT_COMPLETE 로 결과 통보됨
     const round2Messages = mocks.llmService.chatStream.mock.calls[1][1]
@@ -1712,7 +1767,7 @@ describe('WorkflowAssistantStreamService', () => {
         },
       ]),
     );
-    // Round 2: ps2 수행 후 정상 finish
+    // Round 2: ps2 수행 후 finish — review 가드가 orphan 등으로 재차 block.
     mocks.llmService.chatStream.mockImplementationOnce(() =>
       asyncIter<ChatStreamEvent>([
         {
@@ -1735,11 +1790,29 @@ describe('WorkflowAssistantStreamService', () => {
         },
       ]),
     );
+    // Round 3: 검토 완료 멘트 후 세 번째 finish — review 는 1회만 발동.
+    mocks.llmService.chatStream.mockImplementationOnce(() =>
+      asyncIter<ChatStreamEvent>([
+        { type: 'text_delta', delta: '검토 완료.' },
+        {
+          type: 'tool_call_end',
+          id: 'call_fin_3',
+          name: 'finish',
+          arguments: '{}',
+        },
+        {
+          type: 'done',
+          usage: { inputTokens: 5, outputTokens: 3, totalTokens: 8 },
+          model: 'gpt-4o',
+          finishReason: 'stop',
+        },
+      ]),
+    );
 
     await collect(
       service.streamMessage('sess-1', 'ws-1', 'u-1', baseDto as never),
     );
-    expect(mocks.llmService.chatStream).toHaveBeenCalledTimes(2);
+    expect(mocks.llmService.chatStream).toHaveBeenCalledTimes(3);
     // Round 2 에 전달된 finish 의 첫번째 결과가 PLAN_NOT_COMPLETE 여야 한다.
     const secondRoundMessages = mocks.llmService.chatStream.mock.calls[1][1]
       .messages as Array<{
@@ -2541,6 +2614,112 @@ describe('WorkflowAssistantStreamService', () => {
     expect(mocks.sessionService.appendMessage).not.toHaveBeenCalled();
   });
 
+  // gpt-oss-120b 같은 일부 프로바이더는 tool_call 을 emit 하면서도 round 를
+  // `stop` 으로 마감하고 `finish` tool 은 부르지 않는 프로토콜 이상 동작을 보인다.
+  // 이 경우 tool_result 를 LLM 에 돌려주지 않으면 사용자는 "진행 중" narrative
+  // 만 본 채 턴이 끊긴다. 이 describe 는 서버가 해당 케이스에서 loop 를 한 번 더
+  // 돌려 LLM 이 `finish` 를 명시 호출할 기회를 주는지를 고정한다.
+  describe('protocol-anomaly: tool_call without explicit finish (finishReason=stop)', () => {
+    it('round-trips tool results back to the LLM when the round ends with stop + tool_calls but no finish', async () => {
+      const { service, mocks } = makeService();
+      const addArgs = JSON.stringify({
+        type: 'http_request',
+        label: 'Orphan',
+        position: { x: 0, y: 0 },
+        config: {},
+      });
+      // Round 1: LLM 이 add_node 만 emit 하고 finish 없이 finishReason=stop 종료.
+      // 기존 구현이라면 여기서 턴이 끝났지만 새 로직에서는 round 2 가 이어짐.
+      mocks.llmService.chatStream.mockImplementationOnce(() =>
+        asyncIter<ChatStreamEvent>([
+          {
+            type: 'text_delta',
+            delta: '설문 폼 추가 완료. (다음 단계 진행 중)',
+          },
+          {
+            type: 'tool_call_end',
+            id: 'call_add',
+            name: 'add_node',
+            arguments: addArgs,
+          },
+          {
+            type: 'done',
+            usage: { inputTokens: 30, outputTokens: 5, totalTokens: 35 },
+            model: 'gpt-oss-120b',
+            finishReason: 'stop', // <- 프로토콜 이상: stop 인데 finish 안 부름
+          },
+        ]),
+      );
+      // Round 2: LLM 이 tool_result 를 보고 이번엔 finish 를 명시 호출.
+      mocks.llmService.chatStream.mockImplementationOnce(() =>
+        asyncIter<ChatStreamEvent>([
+          { type: 'text_delta', delta: '완료했어요.' },
+          {
+            type: 'tool_call_end',
+            id: 'call_fin',
+            name: 'finish',
+            arguments: '{}',
+          },
+          {
+            type: 'done',
+            usage: { inputTokens: 10, outputTokens: 3, totalTokens: 13 },
+            model: 'gpt-oss-120b',
+            finishReason: 'stop',
+          },
+        ]),
+      );
+
+      const events = await collect(
+        service.streamMessage('sess-1', 'ws-1', 'u-1', baseDto as never),
+      );
+
+      // Loop 가 2 라운드 돌아야 한다 — round 2 가 없으면 "진행 중" 후 턴이
+      // 끊기는 사용자 보고 케이스.
+      expect(mocks.llmService.chatStream).toHaveBeenCalledTimes(2);
+
+      // Round 2 메시지에 round 1 의 add_node tool_result 가 실려 LLM 에게
+      // feedback 되었는지 확인.
+      const round2Messages = mocks.llmService.chatStream.mock.calls[1][1]
+        .messages as Array<{
+        role: string;
+        toolCallId?: string;
+        content?: string;
+      }>;
+      const addToolResult = round2Messages.find(
+        (m) => m.role === 'tool' && m.toolCallId === 'call_add',
+      );
+      expect(addToolResult).toBeDefined();
+      expect(JSON.parse(addToolResult!.content ?? 'null')).toMatchObject({
+        ok: true,
+      });
+
+      const done = events[events.length - 1];
+      expect(done).toMatchObject({
+        event: 'done',
+        data: { finishReason: 'stop' },
+      });
+    });
+
+    it('does NOT round-trip when the round ended with stop but NO tool calls were made (pure chat)', async () => {
+      const { service, mocks } = makeService();
+      mocks.llmService.chatStream.mockImplementation(() =>
+        asyncIter<ChatStreamEvent>([
+          { type: 'text_delta', delta: '네, 확인했습니다.' },
+          {
+            type: 'done',
+            usage: { inputTokens: 10, outputTokens: 3, totalTokens: 13 },
+            model: 'gpt-oss-120b',
+            finishReason: 'stop',
+          },
+        ]),
+      );
+      await collect(
+        service.streamMessage('sess-1', 'ws-1', 'u-1', baseDto as never),
+      );
+      expect(mocks.llmService.chatStream).toHaveBeenCalledTimes(1);
+    });
+  });
+
   // 2-stage finish: plan 완결성 가드 이후 서버가 한 번 더 workflow self-review
   // 체크리스트를 돌려, orphan 노드·미해결 실패·pendingUserConfig 누락을 LLM 에게
   // 되돌려준다. LLM 이 이슈를 고치고 `finish` 를 다시 부르면 두 번째 호출은
@@ -2759,10 +2938,11 @@ describe('WorkflowAssistantStreamService', () => {
       expect(mocks.llmService.chatStream).toHaveBeenCalledTimes(1);
     });
 
-    it('skips review when PLAN_NOT_COMPLETE already fired in this turn (one guard feedback loop is enough)', async () => {
-      // plan guard 가 이미 한 번 block 했다면 LLM 은 이미 서버 피드백으로
-      // 보정 라운드를 거친 상태. 그 위에 review 까지 덧씌우면 턴 비용이 3+
-      // 라운드로 늘어나 ROI 가 낮다. 이 경우 review 는 skip.
+    it('ALSO fires review after PLAN_NOT_COMPLETE completes the plan (two guards are orthogonal — plan completeness ≠ workflow quality)', async () => {
+      // plan 가드와 review 가드는 서로 다른 계층의 검증이다. plan 체크박스
+      // 완료는 "LLM 이 계획한 step 들을 tool 호출에 대응시켰다" 를 뜻할 뿐
+      // 완성된 워크플로우가 품질 관점에서 문제 없다는 보장이 아니다. 따라서
+      // PLAN_NOT_COMPLETE 이후에도 review 는 독립적으로 발동한다.
       const { service, mocks } = makeService();
       mocks.sessionService.loadMessages.mockResolvedValue([
         { role: 'user', content: '주문 취소 플로우', toolCalls: null },
@@ -2825,7 +3005,7 @@ describe('WorkflowAssistantStreamService', () => {
           },
         ]),
       );
-      // Round 2: 남은 step 을 채우고 finish → review skip, 바로 통과.
+      // Round 2: 남은 step 을 채우고 finish → review 가드가 orphan 등 감지해 재차 block.
       mocks.llmService.chatStream.mockImplementationOnce(() =>
         asyncIter<ChatStreamEvent>([
           {
@@ -2854,14 +3034,32 @@ describe('WorkflowAssistantStreamService', () => {
           },
         ]),
       );
+      // Round 3: review 결과 확인 후 두 번째 finish — review 는 턴에 1회만
+      // 발동하므로 이번에는 통과.
+      mocks.llmService.chatStream.mockImplementationOnce(() =>
+        asyncIter<ChatStreamEvent>([
+          { type: 'text_delta', delta: '검토 완료.' },
+          {
+            type: 'tool_call_end',
+            id: 'fin_3',
+            name: 'finish',
+            arguments: '{}',
+          },
+          {
+            type: 'done',
+            usage: { inputTokens: 10, outputTokens: 3, totalTokens: 13 },
+            model: 'gpt-4o',
+            finishReason: 'stop',
+          },
+        ]),
+      );
 
       await collect(
         service.streamMessage('sess-1', 'ws-1', 'u-1', baseDto as never),
       );
-      // 정확히 2 라운드 — PLAN_NOT_COMPLETE + 성공 finish (review 미발동).
-      expect(mocks.llmService.chatStream).toHaveBeenCalledTimes(2);
-      // Round 2 messages 에 첫 finish 가 PLAN_NOT_COMPLETE 로 막힌 흔적이
-      // 실제로 실려 있는지 확인 — "review 미발동" 가정의 근거를 고정.
+      // PLAN_NOT_COMPLETE + WORKFLOW_REVIEW_REQUIRED 독립 발동 → 3 라운드.
+      expect(mocks.llmService.chatStream).toHaveBeenCalledTimes(3);
+      // Round 2 messages: 첫 finish 가 PLAN_NOT_COMPLETE 로 막힌 흔적.
       const secondRoundMessages = mocks.llmService.chatStream.mock.calls[1][1]
         .messages as Array<{
         role: string;
@@ -2875,6 +3073,21 @@ describe('WorkflowAssistantStreamService', () => {
       expect(JSON.parse(firstFinishResult!.content ?? 'null')).toMatchObject({
         ok: false,
         error: 'PLAN_NOT_COMPLETE',
+      });
+      // Round 3 messages: 두 번째 finish 가 WORKFLOW_REVIEW_REQUIRED 로 막힌 흔적.
+      const thirdRoundMessages = mocks.llmService.chatStream.mock.calls[2][1]
+        .messages as Array<{
+        role: string;
+        content?: string;
+        toolCallId?: string;
+      }>;
+      const reviewFinishResult = thirdRoundMessages.find(
+        (m) => m.role === 'tool' && m.toolCallId === 'fin_2',
+      );
+      expect(reviewFinishResult).toBeDefined();
+      expect(JSON.parse(reviewFinishResult!.content ?? 'null')).toMatchObject({
+        ok: false,
+        error: 'WORKFLOW_REVIEW_REQUIRED',
       });
     });
 

@@ -1062,6 +1062,36 @@ describe('ShadowWorkflow', () => {
       expect(edge.hint).toMatch(/Ghost/);
     });
 
+    it.each([
+      ['user_input', 'form'],
+      ['survey', 'form'],
+      ['choice', 'carousel'],
+      ['category', 'carousel'],
+      ['router', 'switch'],
+      ['email', 'send_email'],
+      ['display', 'template'],
+    ])(
+      'UNKNOWN_NODE_TYPE: maps common LLM-invented type %s → %s via alias map',
+      (attempted, expected) => {
+        const sw = new ShadowWorkflow(
+          baseSnapshot(),
+          new Set(['template', 'form', 'carousel', 'switch', 'send_email']),
+        );
+        const result = sw.apply({
+          name: 'add_node',
+          arguments: {
+            type: attempted,
+            label: `Test_${attempted}`,
+            position: { x: 0, y: 0 },
+            config: {},
+          },
+        });
+        expect(result.ok).toBe(false);
+        expect(result.error).toBe('UNKNOWN_NODE_TYPE');
+        expect(result.suggestedType).toBe(expected);
+      },
+    );
+
     it('UNKNOWN_NODE_TYPE: falls through to Levenshtein when alias exists but not in knownTypes', () => {
       // 별칭 맵은 hit 하지만 workspace 에 해당 타입이 등록되지 않은 환경이라면
       // 별칭을 suggestedType 으로 제시하면 안 된다. Levenshtein fallback 으로

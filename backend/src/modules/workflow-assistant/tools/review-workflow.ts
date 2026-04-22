@@ -250,10 +250,22 @@ export function buildReviewChecklist(
 
   const pending = collectUnmentionedPendingUserConfig(input);
   if (pending.length > 0) {
+    // 구체적 label 목록을 details 에 싣는다 — LLM 이 다음 라운드에서 한국어
+    // 마무리 메세지를 작성할 때 "어떤 노드의 어떤 selector" 를 언급해야 하는지
+    // 바로 알 수 있게 해, "Integration 설정 빼먹음" 같은 사용자 보고 케이스를
+    // 줄인다.
+    const summary = pending
+      .map((p) => {
+        const fields = p.missingFields
+          .map((f) => f.label || f.field)
+          .join(', ');
+        return `${p.label} (${fields})`;
+      })
+      .join('; ');
     items.push({
       code: 'PENDING_USER_CONFIG_UNMENTIONED',
       blocking: true,
-      details: `${pending.length} node(s) have required user-picked fields (Integration / LLM Config / Knowledge Base / Sub-workflow) that are still empty AND were NOT mentioned in your Korean closing message. Mention each node's label + which selector the user must fill, then call finish.`,
+      details: `${pending.length} node(s) still have empty user-picked fields (Integration / LLM Config / Knowledge Base / Sub-workflow) that you did NOT mention in your Korean closing message: ${summary}. In the next round, emit a Korean summary that names each listed node label verbatim and tells the user which selector to fill (e.g. "SendEmail 노드의 Integration을 직접 연결해 주세요."), then call finish.`,
       data: pending,
     });
   }
