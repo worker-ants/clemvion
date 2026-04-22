@@ -25,12 +25,16 @@ describe('MergeHandler', () => {
       expect(result.errors).toHaveLength(0);
     });
 
-    it('should return invalid when strategy is missing', () => {
+    it('should accept missing strategy (defaults to wait_all per schema)', () => {
       const result = handler.validate({ outputFormat: 'array' });
-      expect(result.valid).toBe(false);
-      expect(result.errors).toContain(
-        'strategy must be one of: wait_all, first, append',
-      );
+      expect(result.valid).toBe(true);
+      expect(result.errors).toHaveLength(0);
+    });
+
+    it('should accept an empty config (both defaults apply)', () => {
+      const result = handler.validate({});
+      expect(result.valid).toBe(true);
+      expect(result.errors).toHaveLength(0);
     });
 
     it('should return invalid for unknown strategy', () => {
@@ -44,12 +48,10 @@ describe('MergeHandler', () => {
       );
     });
 
-    it('should return invalid when outputFormat is missing', () => {
+    it('should accept missing outputFormat (defaults to array per schema)', () => {
       const result = handler.validate({ strategy: 'wait_all' });
-      expect(result.valid).toBe(false);
-      expect(result.errors).toContain(
-        'outputFormat must be one of: array, merge_object, indexed',
-      );
+      expect(result.valid).toBe(true);
+      expect(result.errors).toHaveLength(0);
     });
 
     it('should return invalid for unknown outputFormat', () => {
@@ -84,10 +86,37 @@ describe('MergeHandler', () => {
       );
     });
 
-    it('should collect multiple errors', () => {
-      const result = handler.validate({});
+    it('should collect multiple errors when multiple fields are invalid', () => {
+      const result = handler.validate({
+        strategy: 'unknown',
+        outputFormat: 'unknown',
+      });
       expect(result.valid).toBe(false);
       expect(result.errors).toHaveLength(2);
+    });
+  });
+
+  describe('execute — default config fallbacks', () => {
+    it('applies strategy=wait_all and outputFormat=array when config is empty', async () => {
+      const input = { nodeA: 'a', nodeB: 'b' };
+      const result = await handler.execute(input, {}, context);
+      expect(result).toMatchObject({
+        config: { strategy: 'wait_all', outputFormat: 'array' },
+        output: ['a', 'b'],
+      });
+    });
+
+    it('applies only the missing default while keeping provided values', async () => {
+      const input = { nodeA: 1, nodeB: 2 };
+      const result = await handler.execute(
+        input,
+        { outputFormat: 'indexed' },
+        context,
+      );
+      expect(result).toMatchObject({
+        config: { strategy: 'wait_all', outputFormat: 'indexed' },
+        output: { in_0: 1, in_1: 2 },
+      });
     });
   });
 
