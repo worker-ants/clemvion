@@ -25,6 +25,10 @@ import { z } from 'zod';
  *       • history plan with a matching planStepId → guard activates
  *   - successful finish is persisted (tool_calls row includes the finish call)
  *   - usage event from round 1 survives finish handling (drained, not dropped)
+ *   - **propose_plan JSON leak recovery** (server-side): text-channel leaks
+ *     are converted to a synthetic plan SSE event + scrubbed persisted
+ *     content; real tool calls are not duplicated; non-plan JSON prose is
+ *     not recovered; multi-delta split streaming is handled
  *   - missing LLM config → `error` event without touching history
  */
 
@@ -2301,6 +2305,224 @@ describe('WorkflowAssistantStreamService', () => {
     expect(result.ok).toBe(true); // edit 은 성공
     expect(result.warning).toBe('MISSING_PLAN_STEP_ID');
     expect(result.warningMessage).toMatch(/planStepId/);
+  });
+
+  describe('server-side plan leak recovery', () => {
+    // 실사례: GPT-4o 가 propose_plan 툴을 호출하지 않고 plan JSON 을 text 채널
+    // 로 뱉어 사용자가 raw JSON 을 보게 되던 사고. 서버가 종료 직전에 시그니처
+    // 를 감지해 합성 plan 이벤트로 전환한다.
+
+    const leakedPlan = JSON.stringify({
+      title: '설문조사 플로우 구성',
+      summary: '1depth 선택 → 2depth 음식 제시 → 결과',
+      steps: [
+        { id: 's1', action: 'add_node', description: 'form 노드' },
+        { id: 's2', action: 'add_edge', description: 'manual_trigger → form' },
+      ],
+      openQuestions: ['이메일 Integration ID 를 선택해 주세요.'],
+    });
+
+    // 서비스 내부 호출 순서에 의존하지 않도록 role 기반으로 assistant persist
+    // payload 를 찾는다.
+    function findAssistantPersist(
+      mocks: MockDeps,
+    ): { content: string; plan?: unknown; toolCalls?: unknown[] } | undefined {
+      const call = mocks.sessionService.appendMessage.mock.calls.find(
+        (args: unknown[]) => {
+          const msg = args[1] as { role?: string } | undefined;
+          return msg?.role === 'assistant';
+        },
+      );
+      return call
+        ? (call[1] as {
+            content: string;
+            plan?: unknown;
+            toolCalls?: unknown[];
+          })
+        : undefined;
+    }
+
+    it('emits a synthetic plan SSE event (with openQuestions + leak_ id prefix) when the LLM leaks propose_plan JSON as text', async () => {
+      const { service, mocks } = makeService();
+      mocks.llmService.chatStream.mockImplementation(() =>
+        asyncIter<ChatStreamEvent>([
+          { type: 'text_delta', delta: leakedPlan },
+          {
+            type: 'done',
+            usage: { inputTokens: 40, outputTokens: 30, totalTokens: 70 },
+            model: 'gpt-4o',
+            finishReason: 'stop',
+          },
+        ]),
+      );
+
+      const events = await collect(
+        service.streamMessage('sess-1', 'ws-1', 'u-1', baseDto as never),
+      );
+      const planEvent = events.find((e) => e.event === 'plan');
+      expect(planEvent).toBeDefined();
+      expect(planEvent!.data).toMatchObject({
+        title: '설문조사 플로우 구성',
+        summary: '1depth 선택 → 2depth 음식 제시 → 결과',
+        steps: [
+          expect.objectContaining({ id: 's1', action: 'add_node' }),
+          expect.objectContaining({ id: 's2', action: 'add_edge' }),
+        ],
+        // SSE 계약: openQuestions 도 이벤트에 함께 전달.
+        openQuestions: ['이메일 Integration ID 를 선택해 주세요.'],
+      });
+      // id 는 복구 경로임을 식별하는 `leak_` 접두사
+      expect((planEvent!.data as { id: string }).id).toMatch(/^leak_/);
+      expect(events[events.length - 1]).toMatchObject({ event: 'done' });
+    });
+
+    it('scrubs the leaked JSON from the persisted assistant text', async () => {
+      const { service, mocks } = makeService();
+      mocks.llmService.chatStream.mockImplementation(() =>
+        asyncIter<ChatStreamEvent>([
+          { type: 'text_delta', delta: '네 이렇게 진행하겠습니다.\n\n' },
+          { type: 'text_delta', delta: leakedPlan },
+          {
+            type: 'done',
+            usage: { inputTokens: 40, outputTokens: 30, totalTokens: 70 },
+            model: 'gpt-4o',
+            finishReason: 'stop',
+          },
+        ]),
+      );
+
+      await collect(
+        service.streamMessage('sess-1', 'ws-1', 'u-1', baseDto as never),
+      );
+      const persisted = findAssistantPersist(mocks);
+      expect(persisted).toBeDefined();
+      expect(persisted!.content).not.toMatch(/"title"\s*:\s*"설문조사/);
+      expect(persisted!.content).toMatch(/네 이렇게 진행하겠습니다/);
+      expect(persisted!.plan).toMatchObject({
+        title: '설문조사 플로우 구성',
+      });
+      const toolCalls = persisted!.toolCalls as Array<{
+        name: string;
+        kind: string;
+      }>;
+      expect(toolCalls.some((c) => c.name === 'propose_plan')).toBe(true);
+    });
+
+    it('handles JSON split across multiple text_delta chunks (real streaming pattern)', async () => {
+      // 실제 스트리밍은 JSON 을 한 번에 주지 않고 조각내어 보낸다. round 누적
+      // 텍스트에서 복원이 되는지 고정.
+      const { service, mocks } = makeService();
+      const chunks = [
+        '{ "title": "분할 ',
+        '플로우", "summary": "s", "steps": [',
+        '{"id":"s1","action":"add_node","description":"n1"}',
+        ',{"id":"s2","action":"add_edge","description":"e1"}] }',
+      ];
+      mocks.llmService.chatStream.mockImplementation(() =>
+        asyncIter<ChatStreamEvent>([
+          ...chunks.map(
+            (c) => ({ type: 'text_delta', delta: c }) as ChatStreamEvent,
+          ),
+          {
+            type: 'done',
+            usage: { inputTokens: 10, outputTokens: 10, totalTokens: 20 },
+            model: 'gpt-4o',
+            finishReason: 'stop',
+          },
+        ]),
+      );
+
+      const events = await collect(
+        service.streamMessage('sess-1', 'ws-1', 'u-1', baseDto as never),
+      );
+      const planEvent = events.find((e) => e.event === 'plan');
+      expect(planEvent).toBeDefined();
+      expect((planEvent!.data as { title: string }).title).toBe('분할 플로우');
+    });
+
+    it('does NOT trigger recovery when a real propose_plan tool call already fired', async () => {
+      const { service, mocks } = makeService();
+      const realPlanArgs = JSON.stringify({
+        title: 'Real plan via tool',
+        summary: '',
+        steps: [{ id: 's1', action: 'add_node', description: 'real step' }],
+      });
+      mocks.llmService.chatStream.mockImplementation(() =>
+        asyncIter<ChatStreamEvent>([
+          {
+            type: 'tool_call_end',
+            id: 'call_plan',
+            name: 'propose_plan',
+            arguments: realPlanArgs,
+          },
+          {
+            type: 'done',
+            usage: { inputTokens: 40, outputTokens: 20, totalTokens: 60 },
+            model: 'gpt-4o',
+            finishReason: 'stop',
+          },
+        ]),
+      );
+
+      const events = await collect(
+        service.streamMessage('sess-1', 'ws-1', 'u-1', baseDto as never),
+      );
+      const planEvents = events.filter((e) => e.event === 'plan');
+      expect(planEvents).toHaveLength(1);
+      expect((planEvents[0].data as { title: string }).title).toBe(
+        'Real plan via tool',
+      );
+      // 합성 id 접두사는 붙지 않아야 한다 (진짜 tool 호출 경로)
+      expect((planEvents[0].data as { id: string }).id).not.toMatch(/^leak_/);
+    });
+
+    it('ignores non-plan JSON-like prose (e.g. a user example inside an answer)', async () => {
+      const { service, mocks } = makeService();
+      const notAPlan =
+        '예를 들어 `{ "type": "http_request", "label": "API" }` 같은 인자로 호출해요.';
+      mocks.llmService.chatStream.mockImplementation(() =>
+        asyncIter<ChatStreamEvent>([
+          { type: 'text_delta', delta: notAPlan },
+          {
+            type: 'done',
+            usage: { inputTokens: 10, outputTokens: 5, totalTokens: 15 },
+            model: 'gpt-4o',
+            finishReason: 'stop',
+          },
+        ]),
+      );
+
+      const events = await collect(
+        service.streamMessage('sess-1', 'ws-1', 'u-1', baseDto as never),
+      );
+      expect(events.filter((e) => e.event === 'plan')).toHaveLength(0);
+      const persisted = findAssistantPersist(mocks);
+      expect(persisted!.content).toBe(notAPlan);
+    });
+
+    it('ignores a plan-shaped JSON with an empty steps array (shape strictly requires non-empty)', async () => {
+      const { service, mocks } = makeService();
+      const empty =
+        '설명 예시: `{ "title": "예시", "summary": "s", "steps": [] }` 같이 사용하세요.';
+      mocks.llmService.chatStream.mockImplementation(() =>
+        asyncIter<ChatStreamEvent>([
+          { type: 'text_delta', delta: empty },
+          {
+            type: 'done',
+            usage: { inputTokens: 10, outputTokens: 5, totalTokens: 15 },
+            model: 'gpt-4o',
+            finishReason: 'stop',
+          },
+        ]),
+      );
+
+      const events = await collect(
+        service.streamMessage('sess-1', 'ws-1', 'u-1', baseDto as never),
+      );
+      expect(events.filter((e) => e.event === 'plan')).toHaveLength(0);
+      const persisted = findAssistantPersist(mocks);
+      expect(persisted!.content).toBe(empty);
+    });
   });
 
   it('returns ASSISTANT_NO_LLM_CONFIG error when config resolution fails', async () => {
