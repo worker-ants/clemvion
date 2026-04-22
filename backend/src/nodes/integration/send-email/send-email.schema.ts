@@ -23,6 +23,7 @@ export const sendEmailNodeOutputSchema = z
         integrationId: z.string().optional(),
         to: z.array(z.string()).optional(),
         cc: z.array(z.string()).optional(),
+        bcc: z.array(z.string()).optional(),
         subject: z.string().optional(),
         bodyType: z.enum(['text', 'html']).optional(),
       })
