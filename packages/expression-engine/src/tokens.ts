@@ -28,6 +28,7 @@ export enum TokenType {
   And = 'And',               // &&
   Or = 'Or',                 // ||
   Question = 'Question',     // ?
+  QuestionDot = 'QuestionDot', // ?.  (optional chaining: ?. / ?.[ / ?.( )
   Colon = 'Colon',          // :
 
   // Delimiters

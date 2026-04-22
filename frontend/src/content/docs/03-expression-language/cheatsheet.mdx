@@ -96,8 +96,17 @@ code: ["packages/expression-engine/src/functions/"]
 
 ## 필드 기본값 · 안전 접근
 
-<Example title="null 안전 접근 (삼항)">
+<Example title="null 안전 접근 (옵셔널 체이닝 `?.`)">
 ```ts
+{{ $input.user?.name }}
+{{ $node["Fetch User"]?.output?.profile?.age }}
+{{ $input.items?.[0] }}
+```
+</Example>
+
+<Example title="null 안전 접근 (삼항 · 대체 값이 필요할 때)">
+```ts
+{{ $input.user?.name || "알 수 없음" }}
 {{ $input.user ? $input.user.name : "알 수 없음" }}
 ```
 </Example>

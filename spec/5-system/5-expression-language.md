@@ -141,7 +141,11 @@
 ### 3.3 Null 안전 접근
 
 - `$input.user.name`: `$input.user`가 null이면 → **에러 발생**
-- 안전 접근이 필요한 경우 삼항 연산 사용: `{{ $input.user ? $input.user.name : "unknown" }}`
+- **Optional chaining `?.` 지원** — 중간 값이 `null`/`undefined`면 체인 전체가 `null`로 short-circuit 된다.
+    - 멤버: `{{ $input.user?.name }}` — `user`가 null이면 결과 `null`
+    - 인덱스: `{{ $input.items?.[0] }}` — `items`가 null이면 결과 `null`
+    - 체인 전체 단락: `{{ $input.user?.profile.age }}` — `user`가 null이면 `.profile.age`는 throw하지 않고 결과 `null` (JS 의미론과 동일)
+- 삼항 연산도 여전히 사용 가능: `{{ $input.user ? $input.user.name : "unknown" }}`
 - `??` (nullish coalescing)은 현재 지원하지 않으며 `||`로 대체 가능
 
 ---

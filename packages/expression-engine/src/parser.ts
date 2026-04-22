@@ -202,9 +202,46 @@ export class Parser {
 
   private parsePostfix(): ASTNode {
     let node = this.parsePrimary();
+    let sawOptional = false;
 
     while (true) {
-      if (this.match(TokenType.Dot)) {
+      if (this.match(TokenType.QuestionDot)) {
+        // `?.` 뒤에는 식별자(member), `[` (index), 또는 `(` (call) 가 온다.
+        sawOptional = true;
+        const next = this.current();
+        if (next.type === TokenType.LBracket) {
+          this.advance();
+          const index = this.parseExpression();
+          this.expect(TokenType.RBracket, 'Expected ]');
+          node = {
+            type: 'IndexExpression',
+            object: node,
+            index,
+            optional: true,
+          };
+        } else if (next.type === TokenType.LParen) {
+          this.advance();
+          const args = this.parseArgList();
+          this.expect(TokenType.RParen, 'Expected )');
+          node = {
+            type: 'CallExpression',
+            callee: node,
+            args,
+            optional: true,
+          };
+        } else {
+          const propToken = this.expect(
+            TokenType.Identifier,
+            'Expected property name, "[", or "(" after ?.',
+          );
+          node = {
+            type: 'MemberExpression',
+            object: node,
+            property: propToken.value,
+            optional: true,
+          };
+        }
+      } else if (this.match(TokenType.Dot)) {
         const propToken = this.expect(
           TokenType.Identifier,
           'Expected property name after .',
@@ -225,6 +262,13 @@ export class Parser {
       } else {
         break;
       }
+    }
+
+    // Optional 이 한 번이라도 나왔다면 체인 전체를 ChainExpression 으로 감싸
+    // evaluator 가 중간 단계 null 을 잡아 체인 끝까지 전파(short-circuit)
+    // 하도록 한다. `a?.b.c.d` 에서 a 가 null 이면 결과는 null.
+    if (sawOptional) {
+      node = { type: 'ChainExpression', expression: node };
     }
 
     return node;
