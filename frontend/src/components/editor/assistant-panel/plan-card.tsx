@@ -59,8 +59,8 @@ export function PlanCard({ plan, onApprove, canApprove }: PlanCardProps) {
       {/* openQuestions 는 목록만 노출. 답변은 하단 메시지 입력창으로
           보내므로 여기에 별도 입력 UI 를 두지 않는다 (입력창 이중 노출 방지). */}
       {hasQuestions && (
-        <div className="mb-2 rounded-sm border border-amber-400/60 bg-amber-50 p-2 text-[11px] text-amber-900 dark:border-amber-500/50 dark:bg-amber-950/40 dark:text-amber-100">
-          <div className="mb-1 font-medium">
+        <div className="mb-2 rounded-sm border border-amber-400/70 bg-amber-50 p-2 text-[11px] font-medium text-amber-950 dark:border-amber-500/60 dark:bg-amber-950/70 dark:text-amber-50">
+          <div className="mb-1 font-semibold">
             ❓ {t("assistant.planQuestionsTitle")}
           </div>
           <ul className="list-disc pl-4">
@@ -68,7 +68,7 @@ export function PlanCard({ plan, onApprove, canApprove }: PlanCardProps) {
               <li key={i}>{q}</li>
             ))}
           </ul>
-          <p className="mt-1.5 text-[10px] text-amber-800/90 dark:text-amber-200/90">
+          <p className="mt-1.5 text-[10px] text-amber-900 dark:text-amber-100">
             {t("assistant.planQuestionsHint")}
           </p>
         </div>
