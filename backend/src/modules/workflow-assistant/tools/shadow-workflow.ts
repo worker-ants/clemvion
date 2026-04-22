@@ -1,4 +1,8 @@
 import { randomUUID } from 'node:crypto';
+import {
+  validateConfigExpressions,
+  ExpressionValidationIssue,
+} from './validate-expressions';
 
 export interface ShadowNode {
   id: string;
@@ -59,7 +63,8 @@ export type ShadowErrorCode =
   | 'MANUAL_TRIGGER_PROTECTED'
   | 'CONTAINER_INVALID_CHILD'
   | 'CYCLE_DETECTED'
-  | 'INVALID_ARGUMENTS';
+  | 'INVALID_ARGUMENTS'
+  | 'INVALID_EXPRESSION';
 
 export interface ShadowResult {
   ok: boolean;
@@ -68,6 +73,12 @@ export interface ShadowResult {
   error?: ShadowErrorCode;
   suggested?: string;
   message?: string;
+  /**
+   * `INVALID_EXPRESSION` 케이스에서 어떤 필드가 어떤 사유로 실패했는지
+   * 구조화된 세부 정보. LLM 이 해당 필드만 고쳐서 재시도할 수 있도록
+   * 최대 5개까지 싣는다.
+   */
+  invalidExpressions?: ExpressionValidationIssue[];
 }
 
 const MANUAL_TRIGGER = 'manual_trigger';
@@ -162,6 +173,16 @@ export class ShadowWorkflow {
       }
     }
 
+    const exprCheck = validateConfigExpressions(config);
+    if (!exprCheck.valid) {
+      return {
+        ok: false,
+        error: 'INVALID_EXPRESSION',
+        message: expressionIssuesMessage(exprCheck.issues),
+        invalidExpressions: exprCheck.issues.slice(0, 5),
+      };
+    }
+
     const id = randomUUID();
     this.nodes.set(id, {
       id,
@@ -202,6 +223,17 @@ export class ShadowWorkflow {
       node.label = patch.label;
     }
     if (patch.config) {
+      // 패치로 들어온 값만 검사. 기존 노드 config 는 이미 커밋된 상태라
+      // 이번 patch 가 유효한지 여부와 독립적이다.
+      const exprCheck = validateConfigExpressions(patch.config);
+      if (!exprCheck.valid) {
+        return {
+          ok: false,
+          error: 'INVALID_EXPRESSION',
+          message: expressionIssuesMessage(exprCheck.issues),
+          invalidExpressions: exprCheck.issues.slice(0, 5),
+        };
+      }
       node.config = { ...node.config, ...patch.config };
     }
     if (patch.position) {
@@ -424,4 +456,21 @@ export class ShadowWorkflow {
     }
     return false;
   }
+}
+
+/**
+ * INVALID_EXPRESSION 결과의 message 포맷터. LLM 이 자연어로 한 번에 이해하고
+ * 어느 필드를 고쳐야 할지 짚을 수 있도록 경로와 엔진 메세지를 함께 싣는다.
+ */
+function expressionIssuesMessage(issues: ExpressionValidationIssue[]): string {
+  const shown = issues.slice(0, 3);
+  const suffix =
+    issues.length > shown.length
+      ? ` (+${issues.length - shown.length} more)`
+      : '';
+  return (
+    'Invalid expression(s) in config: ' +
+    shown.map((i) => `${i.path}: ${i.message}`).join('; ') +
+    suffix
+  );
 }

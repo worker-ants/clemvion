@@ -1,3 +1,4 @@
+import { getAllFunctionNames } from '@workflow/expression-engine';
 import { NodeDefinitionView } from '../../../nodes/core/node-component.registry';
 import { ShadowSnapshot } from '../tools/shadow-workflow';
 import { toWorkflowView } from '../tools/workflow-view';
@@ -59,6 +60,7 @@ export function buildSystemPrompt(
   const current = toWorkflowView(snapshot);
 
   const activePlanSection = renderActivePlanSection(activePlanContext);
+  const expressionSection = renderExpressionReferenceSection();
 
   return `You are the Workflow AI Assistant embedded in the workflow editor. You help the user build and modify workflows via a chat interface.
 
@@ -132,7 +134,7 @@ ${JSON.stringify(current)}
     - \`carousel\` / \`table\` / \`chart\` / \`template\` → every entry under \`config.items[*].buttons\`, \`config.itemButtons\`, \`config.buttons\` (e.g. \`btn_ai\`, \`btn_logic\`, \`btn_data\`)
   These schemas mark the id as optional, but the canvas uses it as the handle id for the dynamic out-port. The server fills in a deterministic fallback (e.g. \`case_0\`, \`cond_0\`, \`items_0_btn_1\`) when you omit it, but **you should not rely on that** — the LLM cannot guess the fallback ids later for \`add_edge\`, so edge routing will break. Prefer short descriptive slugs (\`case_refund\`) over UUIDs so edges survive human edits.
 
-## Editing an existing node's config
+${expressionSection}## Editing an existing node's config
 
 When the user asks you to modify an already-placed node (change a field, add a header, tweak a prompt, add a new case, etc.), you are editing — not rebuilding. Wipe-and-rewrite is the single biggest failure mode here; the user's previously tuned values must survive.
 
@@ -351,4 +353,49 @@ function sanitizeLabel(s: string, maxLen: number): string {
 function truncate(s: string, maxLen: number): string {
   if (s.length <= maxLen) return s;
   return s.slice(0, Math.max(0, maxLen - 1)) + '…';
+}
+
+/**
+ * 표현식 언어 레퍼런스 섹션. 서버의 ShadowWorkflow.addNode/updateNode 가
+ * 커밋 전에 `expression-engine.validate()` 로 문법 검사를 수행하므로,
+ * LLM 이 JS 만의 문법(??, arrow fn, template literal, spread 등)을 섞으면
+ * `INVALID_EXPRESSION` 으로 실패한다. 레퍼런스를 프롬프트에 고정해 미연의
+ * 실수를 줄인다. 내장 함수 목록은 런타임에 engine 에서 끌어와 정합성을
+ * 유지한다.
+ */
+function renderExpressionReferenceSection(): string {
+  const functions = getAllFunctionNames().sort().join(', ');
+  return `## Expression language (what works inside \`{{ ... }}\`)
+
+Every expression you write in a config field is parsed by \`packages/expression-engine\`. The server runs \`validate()\` on all config strings before committing an \`add_node\` / \`update_node\`, so unsupported JS constructs are rejected up-front with \`ok: false, error: 'INVALID_EXPRESSION'\` — you get a second chance on the next tool round, but only if you fix the actual syntax. Stay strictly inside the grammar below.
+
+### Supported
+
+- **Literals**: numbers (\`42\`, \`3.14\`), strings (\`"..."\` / \`'...'\`), booleans (\`true\`/\`false\`), \`null\`, array (\`[1,2,3]\`), object (\`{ a: 1, "b": 2 }\`).
+- **Variables**: \`$input\`, \`$node["Label"]\`, \`$var\`, \`$execution\`, \`$now\`, \`$today\`, \`$env\`, \`$loop\`, \`$item\`, \`$itemIndex\`, \`$trigger\`, \`$dataSource\`, \`$sourceItem\`, \`$sourceItemIndex\`.
+- **Member / index / call**: \`a.b\`, \`a["key"]\`, \`a[0]\`, \`fn(args)\`.
+- **Optional chaining**: \`a?.b\`, \`a?.[0]\`, \`a?.b.c.d\` (short-circuits the whole tail to \`null\` when the head is null/undefined).
+- **Operators**: \`+  -  *  /  %\`, comparison \`==  !=  <  >  <=  >=\`, logical \`&&  ||  !\`, ternary \`cond ? a : b\`, unary \`-\`.
+- **Built-in functions** (call by name, no method syntax): ${functions}.
+
+### NOT supported — will fail \`validate()\`
+
+- \`??\` (nullish coalescing) — use \`||\` instead.
+- Arrow / anonymous functions — no \`x => x.name\`, no \`function (...)\`. Method chains like \`.filter\`, \`.map\`, \`.reduce\` are therefore out; call the built-in functions above on the array instead, or do the transform in an upstream node.
+- Template literals with backticks (\`\\\`\\\`\`) — only \`{{ ... }}\` delimits expressions; inside an expression use normal \`"..."\` / \`'...'\` strings.
+- Spread \`...\`, rest params, destructuring (\`const { a } = ...\`).
+- Method calls like \`"abc".toUpperCase()\` — use \`uppercase("abc")\`.
+- Assignment (\`=\`, \`+=\`), increment (\`++\`, \`--\`), \`typeof\`, \`instanceof\`, \`new\`, \`await\`, \`yield\`, regex literals.
+- Multi-statement blocks or \`;\`. An expression is a single value.
+
+### Patterns
+
+- **Safe chain**: \`{{ $node["Fetch User"]?.output?.profile?.age }}\` → null on any missing step.
+- **Default value**: \`{{ $input.user?.name || "unknown" }}\` (prefer \`||\` over \`??\`).
+- **Conditional string**: \`{{ $input.score >= 80 ? "pass" : "fail" }}\`.
+- **Label vs id in switch**: compare against the case \`id\` slug, not its label (see "Label vs identifier" above).
+
+When in doubt, prefer a shorter, flatter expression over clever one-liners. If you need logic the engine can't express, add an upstream \`variable_modification\` or \`information_extractor\` node and reference its output.
+
+`;
 }
