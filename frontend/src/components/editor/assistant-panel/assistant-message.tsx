@@ -96,15 +96,21 @@ export function AssistantMessageView({
       )}
       {message.systemHint && (
         <div
-          // 배경·테두리·텍스트 색의 대비를 충분히 주기 위해 light mode 는
-          // 50 톤 + 900 텍스트, dark mode 는 950/40 + 100 텍스트를 쓴다.
-          // inline `code` 는 MarkdownRenderer 기본 스타일(`--muted` 배경) 을
-          // 쓰지만 amber/emerald 배경 위에서도 식별이 되도록 텍스트는 더
-          // 진한 톤을 고른다.
+          // 배경·테두리·텍스트 색 대비를 확실히 확보한다. 11px 컴팩트 버블에서
+          // amber/emerald 계열은 채도가 낮은 shade 를 쓰면 "beige-on-beige"
+          // 로 읽혀 가독성이 급격히 떨어진다. 본문은 가장 짙은 950 (light) /
+          // 가장 옅은 50 (dark) 로 고정하고 font-medium 으로 stroke 를 실어
+          // 소형 글꼴에서도 또렷하게 한다. dark mode 배경은 `/70` 으로 parent
+          // bleed-through 를 줄인다.
+          //
+          // inline `<code>` 는 MarkdownRenderer 의 전역 `--muted` 회색 pill 이
+          // 기본값이지만, amber/emerald 바탕 위에서는 회색이 맥락을 깨뜨려
+          // pill 경계·글자 모두 흐려진다. 컨테이너 scope 에서만 `[&_code]`
+          // override 로 계열색을 입혀 대비 + 문맥 적합성을 동시에 얻는다.
           className={
             message.systemHint.kind === "success"
-              ? "flex items-start gap-1.5 rounded-md border border-emerald-400/60 bg-emerald-50 px-2.5 py-1.5 text-[11px] text-emerald-900 dark:border-emerald-500/50 dark:bg-emerald-950/40 dark:text-emerald-100"
-              : "flex items-start gap-1.5 rounded-md border border-amber-400/60 bg-amber-50 px-2.5 py-1.5 text-[11px] text-amber-900 dark:border-amber-500/50 dark:bg-amber-950/40 dark:text-amber-100"
+              ? "flex items-start gap-1.5 rounded-md border border-emerald-400/70 bg-emerald-50 px-2.5 py-1.5 text-[11px] font-medium text-emerald-950 dark:border-emerald-500/60 dark:bg-emerald-950/70 dark:text-emerald-50 [&_code]:border [&_code]:border-emerald-300/80 [&_code]:bg-emerald-200 [&_code]:text-emerald-950 dark:[&_code]:border-emerald-600/70 dark:[&_code]:bg-emerald-800 dark:[&_code]:text-emerald-50"
+              : "flex items-start gap-1.5 rounded-md border border-amber-400/70 bg-amber-50 px-2.5 py-1.5 text-[11px] font-medium text-amber-950 dark:border-amber-500/60 dark:bg-amber-950/70 dark:text-amber-50 [&_code]:border [&_code]:border-amber-300/80 [&_code]:bg-amber-200 [&_code]:text-amber-950 dark:[&_code]:border-amber-600/70 dark:[&_code]:bg-amber-800 dark:[&_code]:text-amber-50"
           }
         >
           {message.systemHint.kind === "success" ? (
