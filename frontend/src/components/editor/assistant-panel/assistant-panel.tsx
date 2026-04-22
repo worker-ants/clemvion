@@ -34,6 +34,7 @@ export function AssistantPanel() {
   const setLlmConfigId = useAssistantStore((s) => s.setLlmConfigId);
   const setWorkflow = useAssistantStore((s) => s.setWorkflow);
   const approveActivePlan = useAssistantStore((s) => s.approveActivePlan);
+  const continueAfterBudget = useAssistantStore((s) => s.continueAfterBudget);
 
   // Editor store (for snapshot)
   const workflowId = useEditorStore((s) => s.workflowId);
@@ -196,6 +197,7 @@ export function AssistantPanel() {
               key={m.id}
               message={m}
               onApprovePlan={() => void approveActivePlan(snapshot)}
+              onContinueAfterBudget={() => void continueAfterBudget(snapshot)}
             />
           ))
         )}

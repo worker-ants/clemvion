@@ -124,6 +124,85 @@ pending approval, even if the provider reports finishReason=tool_calls
 (Gemini-3-flash pattern)". `chatStream` 호출 횟수 1 + `finishReason=stop` + error
 이벤트 없음을 동시에 고정.
 
+## 7. Stall 자동 복구 (gpt-oss-120b 임의 중단)
+
+### 증상
+gpt-oss-120b 가 pending step 이 남은 plan 실행 턴에서 tool call 을 하지 않고
+텍스트만 뱉고 `finishReason: 'stop'` 으로 종료. 기존 "edit 성공 round 에만 round-trip"
+가드로는 cover 되지 않아 턴이 조용히 끝남. frontend 는 `turnStalledHint` 로
+"이어서 진행해줘" 안내를 띄우지만 사용자가 수동으로 follow-up 을 입력해야 했다.
+
+### 대응 (서버 자동 복구)
+`stream.service.ts` 의 기존 `shouldContinueLoop` 뒤에 **stall 복구 블록** 추가:
+
+```ts
+const hasPendingActionableSteps = (() => {
+  if (planPending || finishResolved) return false;
+  if (pendingResultsForLlm.length > 0) return false;  // 이미 위 경로가 cover
+  const ctx = findActivePlanContext(...);
+  if (!ctx || ctx.status !== 'active') return false;
+  return ctx.plan.steps
+    .filter(s => s.action !== 'note')
+    .some(s => !ctx.completedStepIds.has(s.id));
+})();
+if (hasPendingActionableSteps && consecutiveStallRounds < MAX_STALL_ROUNDS) {
+  consecutiveStallRounds++;
+  messages.push({ role: 'assistant', content: roundText });
+  messages.push({ role: 'user', content: '이어서 진행해줘.' });
+  continue;
+}
+```
+
+- Text-only stall + pending plan → 서버가 user 역할의 nudge "이어서 진행해줘." 를
+  messages 배열에 주입하고 루프 계속. LLM 은 다음 라운드에서 system prompt 의
+  Active plan context + user nudge 를 보고 `[ ]` pending step 부터 resume.
+- `MAX_STALL_ROUNDS = 2` 로 runaway 방지 — 2 번 연속 stall 하면 실제 막힌 상태로
+  간주해 턴 종료 (MAX_TOOL_LOOP_ROUNDS=50 전에 탈출).
+- 진척이 있는 라운드는 `consecutiveStallRounds = 0` 으로 리셋.
+- 이 값 조정 시 `stream.service.spec.ts` "gives up after MAX_STALL_ROUNDS..." 고정
+  테스트도 동시에 업데이트.
+
+### 호환성
+- Plan-only 턴 (미승인): `planPending` 단락으로 stall 가드도 건너뜀 — 사용자 approve
+  대기가 올바른 상태.
+- 이미 finish 성공: `finishResolved=true` 로 제외.
+- Pending step 없음: plan 완료 상태면 nudge 의미 없음 → 가드 비발동.
+- `pendingResultsForLlm.length > 0` 인 경우: 기존 shouldContinueLoop 가 이미 cover.
+
+### 회귀 테스트
+`stream.service.spec.ts` "auto-continue on stall with pending plan" describe:
+- "auto-nudges LLM when a round ends text-only + stop + plan has pending steps"
+- "gives up after MAX_STALL_ROUNDS (2) consecutive text-only stalls to prevent runaway loops"
+- "does NOT auto-continue when plan has no pending actionable steps"
+
+## 8. UX: plan-only 자동 안내 hint 제거 (2026-04-23)
+
+### 증상
+plan-only 턴에서 plan card 와 함께 "계획대로 진행해 주세요." systemHint 가 동시에
+노출 → plan card 의 "계획대로 진행" 버튼 + 동일 문구의 info 박스가 중복 메시지로
+인식. 사용자 피드백: 버튼이 이미 있으므로 hint 는 불필요.
+
+### 대응
+`frontend/src/lib/stores/assistant-store.ts` 의 done 이벤트 systemHint 분기에서
+`planApproveConfirm` 주입 조건을 제거. `turnStalledHint` / `turnCompletedHint` 만
+유지. i18n 문자열 자체는 `approveActivePlan` 이 user 메시지로 전송할 때 사용하므로
+유지.
+
+## 9. UX: 에러 버블에 "이어서 진행" 버튼 추가 (2026-04-23)
+
+### 증상
+`ASSISTANT_TOO_MANY_TOOL_CALLS` 에러 발생 시 사용자가 입력창에 "이어서 진행해줘"
+를 직접 타이핑해야 복구 가능.
+
+### 대응
+- `continueAfterBudget` action 을 `assistant-store.ts` 에 추가 — `sendMessage`
+  래퍼로 locale-aware 메시지 전송.
+- `assistant-message.tsx` 에 `RESUMABLE_ERROR_CODES` 집합 (현재 `ASSISTANT_TOO_MANY_TOOL_CALLS`
+  1 개) 을 정의, 에러 버블 아래에 "이어서 진행" 버튼 노출. `NO_LLM_CONFIG` /
+  `STREAM_FAILED` 는 resume 불가이므로 버튼 없음.
+- `assistant-panel.tsx` 가 `onContinueAfterBudget` 콜백을 `AssistantMessageView`
+  로 주입해 snapshot 결합 유지 (plan approve 버튼과 동일 패턴).
+
 ## 유지보수 체크리스트
 
 - `stripHarmonyTokens` 추가 제어 토큰 관찰 시 `HARMONY_STANDALONE_TOKEN_REGEX` 유니온에 추가.
@@ -132,4 +211,9 @@ pending approval, even if the provider reports finishReason=tool_calls
 - Error UI 스타일 변경 시 systemHint 와 스타일 일관성 유지 (dark/light 모두 950/50 대비 규약).
 - Plan-only 가드 (`planProposedPendingApproval`) 의 단락 조건 변경 시 위 "호환성" 3개 시나리오
   모두 회귀 테스트로 고정되어 있는지 확인. `stream.service.spec.ts` 에서 `finishReason=stop`
+- `MAX_STALL_ROUNDS` / stall 가드 조건 변경 시: "auto-continue on stall with pending plan"
+  describe 의 3 테스트 (auto-nudge / max-stall / no-pending-steps) 동시 업데이트.
+- `RESUMABLE_ERROR_CODES` 에 새 에러 코드 추가 시: (1) backend 가 실제로 해당 코드 발행하는지
+  확인, (2) "이어서 진행해줘" follow-up 이 의미있는 복구인지 재검토, (3) `continueAfterBudget`
+  대신 별도 resume 액션이 필요한지 판단.
   을 기대하는 기존 플래닝 관련 테스트들이 이 가드에 의해 영향받지 않아야 한다.

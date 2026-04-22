@@ -1887,6 +1887,8 @@ export const ko = {
       "진행이 중단됐어요. `이어서 진행해줘` 라고 답해 주시면 남은 단계를 계속 실행할게요.",
     turnCompletedHint: "작업을 완료했어요 — {{count}}개 단계 실행 성공.",
     errorBubbleTitle: "요청 처리 중 문제가 발생했어요",
+    continueAfterBudgetButton: "이어서 진행",
+    continueAfterBudget: "이어서 진행해줘.",
     emptyTitle: "무엇을 도와드릴까요?",
     emptySubtitle: "자연어로 원하는 워크플로우를 설명하면 함께 만들어드려요.",
     exampleAddCancelFlow: "주문 취소 프로세스 추가해줘",

@@ -149,6 +149,17 @@ const SCHEMA_LOOKUP_HARD_STOP = 3;
 // 로 중화되어 주입되므로 review tool_result 에는 요약만 싣는다. 프롬프트 인젝션
 // 표면 축소 + LLM 토큰 낭비 방지.
 const REVIEW_ORIGINAL_REQUEST_MAX_LEN = 200;
+/**
+ * LLM 이 tool call 없이 텍스트만 뱉고 `finishReason: 'stop'` 으로 턴을 끊는
+ * "stall" 라운드의 연속 상한. active plan 에 pending step 이 남은 경우 서버가
+ * 자동으로 user nudge ("이어서 진행해줘.") 를 주입해 한 라운드 더 시도한다.
+ * 2 번 연속 stall 하면 LLM 이 진짜 진척 불가라고 판단해 루프 종료.
+ *
+ * 이 값 조정 시: 기대 동작을 고정한 `stream.service.spec.ts` "auto-continues
+ * when LLM stalls with text-only output while plan has pending steps" 테스트도
+ * 동시에 업데이트.
+ */
+const MAX_STALL_ROUNDS = 2;
 
 /**
  * Workflow AI Assistant의 대화 한 턴을 처리한다.
@@ -304,6 +315,11 @@ export class WorkflowAssistantStreamService {
     // progress-aware guard 가 N step plan 에서 N+ 라운드를 돌릴 수 있어 비용
     // 폭주를 막기 위한 명시적 안전망.
     let roundCount = 0;
+    // 연속 stall 라운드 카운터 — LLM 이 tool call 없이 (text only) stop 으로 끝낸
+    // 라운드 중 active plan 에 pending step 이 남아있으면 서버가 fallback 으로
+    // 한 번 더 돌린다 (gpt-oss-120b 가 임의 중단하는 quirk 대응). 연속 stall 이
+    // `MAX_STALL_ROUNDS` 를 넘으면 LLM 이 실제로 막힌 상태로 간주해 루프 종료.
+    let consecutiveStallRounds = 0;
 
     // 루프 (tool_calls가 있으면 다시 호출)
     while (true) {
@@ -786,6 +802,60 @@ export class WorkflowAssistantStreamService {
             toolCallId: r.id,
           });
         }
+        // 진척이 있는 라운드는 stall 이 아니므로 카운터 리셋.
+        consecutiveStallRounds = 0;
+        continue;
+      }
+
+      // Stall 자동 복구 (gpt-oss-120b / 프롬프트 위반 대응).
+      //
+      // 시나리오: LLM 이 tool call 을 전혀 하지 않고 (pendingResultsForLlm 비어있음)
+      // 텍스트만 쓰고 `finishReason: 'stop'` 으로 끝냈는데 active plan 에 아직
+      // pending actionable step 이 남아있다. 기존에는 frontend 가 "이어서 진행해줘"
+      // 안내 hint 를 띄워 사용자가 수동으로 follow-up 을 보내야 했지만, 사용자
+      // 피드백에 따라 서버가 자동으로 한 라운드 더 돌려 남은 step 을 실행한다.
+      //
+      // 안전망:
+      //  - `!planPending`: plan-only 턴 (미승인) 에서는 승인 대기가 올바른 상태.
+      //  - `!finishResolved`: 이미 finish 가 실행된 턴은 종료가 의도적이므로 제외.
+      //  - `pendingResultsForLlm.length === 0`: 이 블록은 "tool call 없이 끊긴"
+      //    stall 전용. 위 `shouldContinueLoop` 가 cover 하지 못한 경로.
+      //  - `consecutiveStallRounds < MAX_STALL_ROUNDS`: 같은 stall 이 반복되면
+      //    LLM 이 진짜 막힌 상태로 간주해 탈출. 무한 루프 방어.
+      //  - MAX_TOOL_LOOP_ROUNDS + toolCallsBudget 도 상위 상한으로 작동.
+      const hasPendingActionableSteps = (() => {
+        if (planPending || finishResolved) return false;
+        if (pendingResultsForLlm.length > 0) return false;
+        const ctx = findActivePlanContext(
+          history,
+          planForTurn,
+          pendingToolCalls,
+          dto.content,
+        );
+        if (!ctx || ctx.status !== 'active') return false;
+        const actionable = ctx.plan.steps.filter((s) => s.action !== 'note');
+        return actionable.some((s) => !ctx.completedStepIds.has(s.id));
+      })();
+      if (
+        hasPendingActionableSteps &&
+        consecutiveStallRounds < MAX_STALL_ROUNDS
+      ) {
+        consecutiveStallRounds++;
+        // 이번 라운드의 assistant 텍스트는 history 에 pin 하고, 서버가 user
+        // 역할의 nudge 메시지 "이어서 진행해줘." 를 주입한다. LLM 은 active plan
+        // context (system prompt) 와 이 user 메시지를 함께 보고 남은 step 의
+        // 첫 `[ ]` 부터 resume 해야 한다.
+        messages.push({
+          role: 'assistant',
+          content: roundText,
+        });
+        messages.push({
+          role: 'user',
+          content: '이어서 진행해줘.',
+        });
+        this.logger.debug(
+          `ASSISTANT_STALL_AUTO_CONTINUE: round=${roundCount} stall=${consecutiveStallRounds}/${MAX_STALL_ROUNDS} sessionId=${sessionId}`,
+        );
         continue;
       }
 
