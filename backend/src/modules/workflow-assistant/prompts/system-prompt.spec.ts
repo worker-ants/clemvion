@@ -245,6 +245,28 @@ describe('buildSystemPrompt', () => {
     expect(prompt).toMatch(/get_current_workflow/);
   });
 
+  it('teaches the supported/unsupported expression language surface', () => {
+    // Assistant 가 `??`, arrow func, template literal 등 JS 만의 문법을
+    // 흘려보내지 않도록, 지원/미지원 구문과 INVALID_EXPRESSION 가드를
+    // 프롬프트에 명시했는지 고정한다. 내장 함수 목록은 engine 이 런타임에
+    // 공급하므로 대표 함수만 확인한다.
+    const prompt = buildSystemPrompt(defs as never, emptySnapshot);
+    // (a) 전용 섹션 헤더
+    expect(prompt).toMatch(/## Expression language/);
+    // (b) 가드 안내 — validate + INVALID_EXPRESSION
+    expect(prompt).toMatch(/validate\(\)/);
+    expect(prompt).toMatch(/INVALID_EXPRESSION/);
+    // (c) 핵심 지원 구문
+    expect(prompt).toMatch(/Optional chaining/);
+    expect(prompt).toMatch(/\?\./);
+    // (d) 핵심 미지원 구문 — 문자열 `??` 이 리터럴로 등장
+    expect(prompt).toMatch(/`\?\?`/);
+    expect(prompt).toMatch(/[Aa]rrow/);
+    expect(prompt).toMatch(/[Tt]emplate literal/);
+    // (e) 내장 함수 목록이 실제로 렌더된다 (대표 함수 한둘)
+    expect(prompt.toLowerCase()).toMatch(/uppercase|lowercase|length/);
+  });
+
   it('teaches keep-vs-change routine for existing node config edits', () => {
     // Assistant 가 기존 노드를 수정할 때 현재 config 를 확인하지 않고
     // 전체 치환해 사용자 설정을 날려먹는 실수, [REDACTED] 를 literal 로

@@ -833,4 +833,94 @@ describe('ShadowWorkflow', () => {
       expect(result.error).toBe('UNKNOWN_TOOL');
     });
   });
+
+  // Assistant 가 LLM 이 생성한 config 를 그대로 커밋하지 않도록,
+  // addNode/updateNode 커밋 전에 expression-engine.validate() 를 돌린다.
+  describe('expression validation guard', () => {
+    it('rejects add_node when config contains unsupported expression syntax', () => {
+      const sw = new ShadowWorkflow(baseSnapshot(), new Set(['http_request']));
+      const result = sw.apply({
+        name: 'add_node',
+        arguments: {
+          type: 'http_request',
+          label: 'Fetch',
+          position: { x: 0, y: 0 },
+          config: { url: '{{ $input.endpoint ?? "/default" }}' },
+        },
+      });
+      expect(result.ok).toBe(false);
+      expect(result.error).toBe('INVALID_EXPRESSION');
+      expect(result.invalidExpressions?.[0].path).toBe('url');
+      expect(result.message).toMatch(/Invalid expression/);
+      // 실패 시 shadow 상태는 그대로여야 한다.
+      expect(sw.snapshot().nodes).toHaveLength(1);
+    });
+
+    it('accepts add_node with optional chaining (supported syntax)', () => {
+      const sw = new ShadowWorkflow(baseSnapshot(), new Set(['http_request']));
+      const result = sw.apply({
+        name: 'add_node',
+        arguments: {
+          type: 'http_request',
+          label: 'Fetch',
+          position: { x: 0, y: 0 },
+          config: {
+            url: '{{ $node["Upstream"]?.output?.endpoint }}',
+          },
+        },
+      });
+      expect(result.ok).toBe(true);
+    });
+
+    it('rejects update_node patch containing invalid expression', () => {
+      const sw = new ShadowWorkflow(baseSnapshot(), new Set(['http_request']));
+      const add = sw.apply({
+        name: 'add_node',
+        arguments: {
+          type: 'http_request',
+          label: 'Fetch',
+          position: { x: 0, y: 0 },
+          config: { url: '/v1' },
+        },
+      });
+      expect(add.ok).toBe(true);
+      const before = sw.snapshot().nodes.find((n) => n.id === add.id)!.config;
+
+      const result = sw.apply({
+        name: 'update_node',
+        arguments: {
+          id: add.id!,
+          patch: {
+            config: { body: '{{ $input.items.map(x => x) }}' },
+          },
+        },
+      });
+      expect(result.ok).toBe(false);
+      expect(result.error).toBe('INVALID_EXPRESSION');
+
+      // 패치가 reject 되었으므로 config 는 수정되기 전 상태여야 한다.
+      const after = sw.snapshot().nodes.find((n) => n.id === add.id)!.config;
+      expect(after).toEqual(before);
+    });
+
+    it('surfaces deep field paths in the result', () => {
+      const sw = new ShadowWorkflow(baseSnapshot(), new Set(['switch']));
+      const result = sw.apply({
+        name: 'add_node',
+        arguments: {
+          type: 'switch',
+          label: 'Route',
+          position: { x: 0, y: 0 },
+          config: {
+            cases: [
+              { id: 'case_ok', condition: '{{ $input.ok == true }}' },
+              { id: 'case_bad', condition: '{{ $input.count ?? 0 }}' },
+            ],
+          },
+        },
+      });
+      expect(result.ok).toBe(false);
+      expect(result.invalidExpressions?.[0].path).toBe('cases[1].condition');
+    });
+  });
 });
