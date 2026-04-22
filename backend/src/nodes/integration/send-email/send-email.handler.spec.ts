@@ -93,6 +93,42 @@ describe('SendEmailHandler', () => {
 
     it('allows cc to be absent', () => {
       expect(handler.validate({ ...baseConfig, cc: '' }).valid).toBe(true);
+      expect(handler.validate({ ...baseConfig, cc: [] }).valid).toBe(true);
+      expect(handler.validate({ ...baseConfig, cc: undefined }).valid).toBe(
+        true,
+      );
+    });
+
+    it('rejects invalid cc type', () => {
+      const result = handler.validate({
+        ...baseConfig,
+        cc: 42 as unknown as string,
+      });
+      expect(result.valid).toBe(false);
+      expect(result.errors.join(' ')).toContain('cc');
+    });
+
+    it('allows bcc to be absent', () => {
+      expect(handler.validate({ ...baseConfig, bcc: '' }).valid).toBe(true);
+      expect(handler.validate({ ...baseConfig, bcc: [] }).valid).toBe(true);
+      expect(handler.validate({ ...baseConfig, bcc: undefined }).valid).toBe(
+        true,
+      );
+    });
+
+    it('accepts a non-empty array for bcc', () => {
+      expect(
+        handler.validate({ ...baseConfig, bcc: ['d@example.com'] }).valid,
+      ).toBe(true);
+    });
+
+    it('rejects invalid bcc type', () => {
+      const result = handler.validate({
+        ...baseConfig,
+        bcc: 42 as unknown as string,
+      });
+      expect(result.valid).toBe(false);
+      expect(result.errors.join(' ')).toContain('bcc');
     });
 
     it('rejects invalid bodyType', () => {
@@ -192,6 +228,42 @@ describe('SendEmailHandler', () => {
       // Transporter is now cached across calls; close() only fires on shutdown.
       handler.shutdown();
       expect(closeMock).toHaveBeenCalled();
+    });
+
+    it('passes bcc through to sendMail when provided', async () => {
+      const { service } = makeService();
+      const handler = new SendEmailHandler(service as never);
+      const out = (await handler.execute(
+        null,
+        { ...baseConfig, bcc: ['d@example.com', 'e@example.com'] },
+        makeContext(),
+      )) as { config: { bcc: string[] } };
+
+      expect(sendMailMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          bcc: ['d@example.com', 'e@example.com'],
+        }),
+      );
+      expect(out.config.bcc).toEqual(['d@example.com', 'e@example.com']);
+    });
+
+    it('omits bcc from sendMail when empty', async () => {
+      const { service } = makeService();
+      const handler = new SendEmailHandler(service as never);
+      await handler.execute(null, { ...baseConfig, bcc: [] }, makeContext());
+      const call = sendMailMock.mock.calls[0]?.[0] as { bcc?: unknown };
+      expect(call.bcc).toBeUndefined();
+    });
+
+    it('executes with empty cc array (regression for INVALID_NODE_CONFIG)', async () => {
+      const { service } = makeService();
+      const handler = new SendEmailHandler(service as never);
+      const out = (await handler.execute(
+        null,
+        { ...baseConfig, cc: [], bcc: [] },
+        makeContext(),
+      )) as { meta: { deliveryStatus: string } };
+      expect(out.meta.deliveryStatus).toBe('sent');
     });
 
     it('routes bodyType=html to html field', async () => {

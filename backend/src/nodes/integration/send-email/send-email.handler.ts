@@ -57,13 +57,12 @@ export class SendEmailHandler
       );
     }
 
-    if (
-      config.cc !== undefined &&
-      config.cc !== null &&
-      config.cc !== '' &&
-      !isRecipientsLike(config.cc)
-    ) {
+    if (isOptionalRecipientSet(config.cc) && !isRecipientsLike(config.cc)) {
       errors.push('cc must be a string or array of email addresses');
+    }
+
+    if (isOptionalRecipientSet(config.bcc) && !isRecipientsLike(config.bcc)) {
+      errors.push('bcc must be a string or array of email addresses');
     }
 
     if (!config.subject || typeof config.subject !== 'string') {
@@ -92,6 +91,7 @@ export class SendEmailHandler
     const integrationId = config.integrationId as string;
     const to = normalizeRecipients(config.to);
     const cc = normalizeRecipients(config.cc);
+    const bcc = normalizeRecipients(config.bcc);
     const subject = config.subject as string;
     const body = config.body as string;
     const bodyType = (config.bodyType as string) ?? 'text';
@@ -102,7 +102,7 @@ export class SendEmailHandler
 
     if (!this.integrationsService) {
       return {
-        config: { to, cc, subject, bodyType },
+        config: { to, cc, bcc, subject, bodyType },
         output: null,
         status: 'requires_integration',
       };
@@ -133,6 +133,7 @@ export class SendEmailHandler
         from: credentials.default_from,
         to,
         cc: cc.length > 0 ? cc : undefined,
+        bcc: bcc.length > 0 ? bcc : undefined,
         subject,
         ...(bodyType === 'html' ? { html: body } : { text: body }),
       })) as {
@@ -147,7 +148,7 @@ export class SendEmailHandler
         durationMs,
       }).catch(() => {});
       return {
-        config: { integrationId, to, cc, subject, bodyType },
+        config: { integrationId, to, cc, bcc, subject, bodyType },
         output: {
           messageId: info.messageId,
           accepted: info.accepted,
@@ -186,7 +187,7 @@ export class SendEmailHandler
       }
       const durationMs = Date.now() - start;
       return {
-        config: { integrationId, to, cc, subject, bodyType },
+        config: { integrationId, to, cc, bcc, subject, bodyType },
         output: {
           error: {
             code,
@@ -264,6 +265,16 @@ function safeMessage(err: unknown): string {
   // Reuse the sanitizer so passwords / auth headers don't leak from
   // nodemailer SMTP errors.
   return toLogError(new Error(msg)).message;
+}
+
+// cc/bcc는 optional 필드라 "미설정"으로 간주되는 값(undefined/null/빈 문자열/
+// 빈 배열)일 때는 검증을 건너뛴다. 스키마 default가 `[]`라 프론트엔드는 빈
+// 배열을 실어 보내므로 단순 truthy 체크로는 불충분하다.
+function isOptionalRecipientSet(value: unknown): boolean {
+  if (value === undefined || value === null) return false;
+  if (typeof value === 'string') return value.trim().length > 0;
+  if (Array.isArray(value)) return value.length > 0;
+  return true;
 }
 
 function isRecipientsLike(value: unknown): boolean {
