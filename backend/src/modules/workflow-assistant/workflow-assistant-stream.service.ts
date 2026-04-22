@@ -716,7 +716,31 @@ export class WorkflowAssistantStreamService {
       }
 
       // 계속 tool loop를 돌려야 하는가?
-      if (finishReason === 'tool_calls' && pendingResultsForLlm.length > 0) {
+      //  - `finishReason === 'tool_calls'` : 프로바이더가 명시적으로 추가 tool
+      //    호출을 기대 (OpenAI/Anthropic 정규 경로).
+      //  - `!finishResolved && hadSuccessfulEditThisRound` : 일부 프로바이더
+      //    (특히 gpt-oss-120b) 가 edit tool 을 emit 하고도 `stop` 으로 round 를
+      //    종료하는 프로토콜 이상 케이스. 이 상태에서 loop 를 그대로 종료하면
+      //    tool_result 가 LLM 에 feedback 되지 않아 LLM 은 "다음 단계 진행 중"
+      //    같은 내레이션을 남긴 채 턴이 끊긴 것처럼 보인다. finish 가 명시적으로
+      //    호출되지 않았고 실제 edit 이 발생했다면 이 round 의 tool_result 를
+      //    돌려주어 다음 round 에서 LLM 이 `finish` 를 부르거나 남은 edit 을
+      //    이어가도록 한다. 무한 루프는 `MAX_TOOL_LOOP_ROUNDS` + tool-call
+      //    budget 으로 차단. 단, edit 없이 explore / propose_plan 만 하고 stop
+      //    으로 끝난 round 는 **round-trip 하지 않는다** — 그 경우 LLM 은 이번
+      //    round 의 결과를 이미 다 본 상태라 추가 round 의 ROI 가 없다.
+      const hadSuccessfulEditThisRound = pendingResultsForLlm.some((r) => {
+        const found = pendingToolCalls.find((p) => p.id === r.id);
+        return (
+          found?.kind === 'edit' &&
+          (found.result as { ok?: boolean } | undefined)?.ok === true
+        );
+      });
+      const shouldContinueLoop =
+        pendingResultsForLlm.length > 0 &&
+        (finishReason === 'tool_calls' ||
+          (!finishResolved && hadSuccessfulEditThisRound));
+      if (shouldContinueLoop) {
         // assistant 메시지 + tool result들을 messages에 추가하고 다시 호출
         const assistantToolCalls = pendingResultsForLlm
           .map((r) => {
@@ -1020,13 +1044,18 @@ export class WorkflowAssistantStreamService {
   }
 
   /**
-   * review 건너뛰기 여부 판정. 조건이 많아서 복잡도를 낮추기 위해 분리.
-   * 다음 중 하나라도 참이면 review 는 발동하지 않는다:
+   * review 건너뛰기 여부 판정. 사용자의 "항상 강제" 요구(execution 턴 모두
+   * 점검) 에 맞춰 최소한의 안전 조건만 남긴다. 다음 중 하나라도 참이면 review
+   * 는 발동하지 않는다:
    *  - 이미 이번 턴에 review 가 끝났거나 (`reviewCompleted`) loop 상한 초과
-   *  - PLAN_NOT_COMPLETE 가 한 번이라도 fire — 이미 가드 피드백 1라운드 받음
-   *  - 같은 턴 `clear_plan` → 화제 전환으로 간주
-   *  - 이번 턴에 성공 edit 이 하나도 없음 — 실행 턴 아님
-   *  - non-trigger 노드 수 ≤ 1 — 단발성 trivial 편집
+   *  - 같은 턴 `clear_plan` → 화제 전환으로 "점검 대상" 이 아님
+   *  - 이번 턴에 성공한 edit 이 하나도 없음 — 실행 턴 아님 (질문·plan-only·
+   *    전량 실패 케이스)
+   *  - non-trigger 노드 수 ≤ 1 — 단발성 trivial 편집은 audit ROI 낮음
+   *
+   * 주의: PLAN_NOT_COMPLETE 가 이미 fire 한 경우에도 review 는 발동한다.
+   * plan 체크박스 충족 ≠ 워크플로우 품질 — 두 가드는 서로 다른 계층의
+   * 검증이므로 함께 발동해야 사용자가 기대하는 "완성도 점검" 이 일어난다.
    */
   private shouldSkipReview(
     state: FinishGuardState,
@@ -1035,7 +1064,6 @@ export class WorkflowAssistantStreamService {
   ): boolean {
     if (state.reviewCompleted) return true;
     if (state.reviewRoundCount >= 2) return true;
-    if (state.finishBlockCount > 0) return true;
     if (state.planClearedThisTurn) return true;
     const hadSuccessfulEdit = pendingToolCalls.some(
       (tc) =>

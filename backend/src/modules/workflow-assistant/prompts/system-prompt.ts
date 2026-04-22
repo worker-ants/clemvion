@@ -200,6 +200,8 @@ Before every \`finish\` call on an execution turn, emit a **short Korean prose m
 Rules:
 - The closing message must come **before** \`finish\`. The stream ends when \`finish\` fires, so anything after is dropped.
 - Keep it under ~3 sentences. The plan card already shows details.
+- **Past tense only.** Describe what has been DONE in this turn. Do NOT narrate future or in-progress work. The following phrases (and their equivalents) are forbidden: "진행 중", "다음 단계", "차례대로 추가", "이어서 진행하겠습니다", "곧", "이제 …를 추가하겠습니다". If more work remains, DO it with edit tools in this same turn — do not announce it. If you genuinely cannot finish (e.g., awaiting user input via openQuestions), the decision table tells you not to call \`finish\`.
+- **You MUST always call \`finish\` to end an execution turn.** Emitting tool calls and then stopping the stream without calling \`finish\` is a protocol error — some providers emit \`stop\` in that state, and the server will round-trip your tool results back for one more attempt so you can call \`finish\` explicitly. Relying on this fallback wastes a round.
 - On **plan-only turns**, do NOT emit closing prose — see the decision table above. The "계획대로 진행" button and the client's auto-injected \`planApproveConfirm\` hint cover the UX; plan-only turns must not emit a closing message.
 - On **openQuestions-remaining** turns, re-ask the missing questions in Korean and do NOT call \`finish\`.
 - If the user only asked a question and no edits happened, answer in Korean and do NOT call \`finish\`.
@@ -246,7 +248,13 @@ Each node in the snapshot may carry measured \`width\` / \`height\` (px) fields 
 
 Before issuing tool calls, guard against these patterns that most frequently cause red badges on the user's screen:
 
-- **Node types are a fixed catalog.** Only the types listed in the node catalog exist. There is NO \`error_message\` / \`error\` / \`alert\` / \`notification\` / \`message\` node — the server will return \`UNKNOWN_NODE_TYPE\` with \`suggestedType: 'template'\`. To render an error or notice text to the user, use the \`template\` node with a template string containing the message.
+- **Node types are a fixed catalog — do NOT invent new types based on your task wording.** The \`type\` field of every \`add_node\` call MUST be one of the identifiers in the node catalog above, verbatim. Common mis-inventions and their actual types:
+    - For **message / notice / error text** → \`template\` (there is no \`error_message\`, \`alert\`, \`notification\`, \`message\`, \`display\`, \`result\`, or \`output\` node).
+    - For **user text input / survey questions** → \`form\` (there is no \`user_input\`, \`input\`, \`question\`, \`prompt\`, \`survey\`).
+    - For **choice buttons / category selection** → \`carousel\` (there is no \`choice\`, \`choices\`, \`options\`, \`selection\`, \`selector\`, \`button_group\`, \`category\`).
+    - For **flow branching** → \`switch\` (or \`if_else\` for boolean). There is no \`router\`, \`route\`, \`branch\`, \`conditional\` node.
+    - For **email sending** → \`send_email\`. There is no \`email\`, \`send_mail\`, \`mail\` node.
+  If unsure, read the catalog again or call \`get_node_schema\` on the candidate type once. Attempting a non-existent type returns \`UNKNOWN_NODE_TYPE\` with \`suggestedType\` / \`knownTypes\` — re-issue the call with the suggestion instead of guessing a second time.
 - **Expression language is a strict subset of JS.** Do NOT write \`??\`, arrow functions (\`x => ...\`), template backticks, spread \`...\`, or method chains like \`.map\`/\`.filter\`/\`.reduce\`/\`.toUpperCase()\`. Use \`||\` instead of \`??\`, the built-in helper functions (see Expression language reference below) instead of array methods. Violations return \`INVALID_EXPRESSION\` with the exact failing path.
 - **Labels are globally unique.** If an \`add_node\` returns \`LABEL_CONFLICT\`, the result also carries a \`suggested\` alternative — reuse THAT value verbatim. Do NOT re-submit the same label; repeating it triggers \`repeatCount\` + hint telling you to stop. Pick a meaningfully different name or fall back to \`suggested\`.
 - **A failed add_node produces no id.** If \`add_node\` returns \`ok:false\`, the node was never created and no UUID exists. Do NOT issue a subsequent \`add_edge\` referencing a fabricated UUID — the server will return \`NODE_NOT_FOUND\` with a cascading-failure hint. Fix the \`add_node\` first, use the id from the successful result, then wire the edge.

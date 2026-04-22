@@ -135,12 +135,45 @@ const DEFAULT_CATEGORY_BY_KNOWN_TYPES: Record<string, string> = {
  * 텍스트/HTML 을 렌더한다.
  */
 const NODE_TYPE_ALIASES: Record<string, string> = {
+  // "UI 메세지 출력용 전용 노드" 가 있을 거라고 가정하는 패턴. 실제로는
+  // template 노드로 해결한다.
   error_message: 'template',
   error: 'template',
   alert: 'template',
   notification: 'template',
   message: 'template',
   text: 'template',
+  display: 'template',
+  show: 'template',
+  render: 'template',
+  result: 'template',
+  output: 'template',
+  // "사용자 입력 받는 전용 노드" 라고 가정하는 패턴. 실제로는 form 노드.
+  user_input: 'form',
+  input: 'form',
+  question: 'form',
+  prompt: 'form',
+  text_input: 'form',
+  survey: 'form',
+  // "선택지 / 버튼 묶음" 전용 노드라고 가정하는 패턴. 실제로는 carousel.
+  choice: 'carousel',
+  choices: 'carousel',
+  options: 'carousel',
+  selection: 'carousel',
+  selector: 'carousel',
+  button_group: 'carousel',
+  buttons: 'carousel',
+  category: 'carousel',
+  // "흐름 분기" 전용 노드라고 가정하는 패턴. 실제로는 switch.
+  router: 'switch',
+  route: 'switch',
+  branch: 'switch',
+  conditional: 'switch',
+  condition: 'if_else',
+  // "이메일 발송" 흔한 오명칭.
+  email: 'send_email',
+  send_mail: 'send_email',
+  mail: 'send_email',
 };
 
 /** UNKNOWN_NODE_TYPE 응답에 실을 knownTypes 배열의 최대 길이. */

@@ -80,16 +80,21 @@ export function AssistantMessageView({
       {message.error && (
         <div
           role="alert"
-          className="flex items-start gap-1.5 rounded-md border border-red-400/60 bg-red-50 px-2.5 py-1.5 text-[11px] text-red-900 dark:border-red-500/50 dark:bg-red-950/40 dark:text-red-100"
+          // 채도가 낮은 shade (red-800/200) 를 쓰면 배경에 묻혀 "beige-on-beige"
+          // 로 읽히고, 사용자는 에러 메세지를 스캔해야 할 순간에 판독 비용이
+          // 커진다. systemHint 와 같은 "가장 짙은 950 (light) / 가장 옅은 50
+          // (dark)" + `font-medium` 조합으로 작은 11px 글꼴에서도 또렷이
+          // 읽히게 한다. 에러 코드 pill 도 red-200/800 대비로 명확히.
+          className="flex items-start gap-1.5 rounded-md border border-red-400/70 bg-red-50 px-2.5 py-1.5 text-[11px] font-medium text-red-950 dark:border-red-500/60 dark:bg-red-950/70 dark:text-red-50"
         >
           <AlertCircle size={14} className="mt-[2px] shrink-0" />
-          <div className="min-w-0">
-            <div className="font-medium">
-              {t("assistant.errorBubbleTitle")}
-            </div>
-            <div className="break-words text-[10px] text-red-800 dark:text-red-200">
-              <span className="font-mono">[{message.error.code}]</span>{" "}
-              {message.error.message}
+          <div className="min-w-0 flex-1">
+            <div>{t("assistant.errorBubbleTitle")}</div>
+            <div className="mt-0.5 break-words text-[11px] font-normal leading-[1.45]">
+              <span className="mr-1 inline-block rounded border border-red-300/80 bg-red-200 px-1 font-mono text-[10px] font-medium text-red-950 dark:border-red-600/70 dark:bg-red-800 dark:text-red-50">
+                {message.error.code}
+              </span>
+              <span className="break-all">{message.error.message}</span>
             </div>
           </div>
         </div>
