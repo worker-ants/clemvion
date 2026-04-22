@@ -507,12 +507,23 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       // config together).
       s.pushUndo();
       if (patch.config) {
+        // 백엔드 ShadowWorkflow.updateNode 는 `{ ...node.config, ...patch.config }`
+        // 로 shallow merge 한다. 프론트가 전체 치환하면 LLM 이 일부 필드만
+        // 패치한 경우 나머지 필드가 캔버스에서 소실되고 저장 시 영구 유실된다.
+        const patchConfig = patch.config;
         set((state) => ({
-          nodes: state.nodes.map((n) =>
-            n.id === id
-              ? { ...n, data: { ...n.data, config: patch.config } }
-              : n,
-          ),
+          nodes: state.nodes.map((n) => {
+            if (n.id !== id) return n;
+            const prevConfig =
+              (n.data?.config as Record<string, unknown> | undefined) ?? {};
+            return {
+              ...n,
+              data: {
+                ...n.data,
+                config: { ...prevConfig, ...patchConfig },
+              },
+            };
+          }),
           isDirty: true,
         }));
       }

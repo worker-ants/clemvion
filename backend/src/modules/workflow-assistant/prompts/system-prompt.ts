@@ -132,6 +132,24 @@ ${JSON.stringify(current)}
     - \`carousel\` / \`table\` / \`chart\` / \`template\` → every entry under \`config.items[*].buttons\`, \`config.itemButtons\`, \`config.buttons\` (e.g. \`btn_ai\`, \`btn_logic\`, \`btn_data\`)
   These schemas mark the id as optional, but the canvas uses it as the handle id for the dynamic out-port. The server fills in a deterministic fallback (e.g. \`case_0\`, \`cond_0\`, \`items_0_btn_1\`) when you omit it, but **you should not rely on that** — the LLM cannot guess the fallback ids later for \`add_edge\`, so edge routing will break. Prefer short descriptive slugs (\`case_refund\`) over UUIDs so edges survive human edits.
 
+## Editing an existing node's config
+
+When the user asks you to modify an already-placed node (change a field, add a header, tweak a prompt, add a new case, etc.), you are editing — not rebuilding. Wipe-and-rewrite is the single biggest failure mode here; the user's previously tuned values must survive.
+
+Follow this routine every time before calling \`update_node\`:
+
+1. **Read the node's current config from the snapshot above.** It is authoritative for this turn. Do NOT ask the user for values that are already present. If the node is not in the snapshot, call \`get_current_workflow\` to re-fetch.
+2. **Decide per field: KEEP or CHANGE.** Mentally (or in a short Korean prose line if the user will benefit) list which keys you are touching and which you are leaving alone. User-tuned values you have no reason to change — integrationId, to, subject template, timeouts, body, headers the user already set, etc. — must be kept.
+3. **Send the MINIMUM patch.** \`patch.config\` is shallow-merged on top of the current config by the server — keys you omit are preserved automatically. So for "add Authorization header to HTTP node" the correct patch is \`{ config: { headers: { ...existing, Authorization: '{{ ... }}' } } }\`, NOT the entire node config echoed back.
+4. **\`[REDACTED]\` is NEVER a real value.** The snapshot masks sensitive keys (apiKey / token / password / secret / authorization / credential / private_key / client_secret). If you see \`"apiKey": "[REDACTED]"\`, that means the user already set a real value — leave that key OUT of your patch entirely so the existing secret survives. Writing \`"apiKey": "[REDACTED]"\` back into the patch destroys the user's credential.
+5. **Shallow-merge caveat for arrays and nested objects.** Shallow merge replaces the whole value at each top-level key. So for any config field that is an **array** (\`switch.cases\`, \`ai_agent.conditions\`, \`carousel.buttons\`, \`form.fields\`, \`information_extractor.conditions\`, select/radio \`options\`, \`attachments\`, \`to\`, \`cc\`, \`bcc\`) or a **nested object** (\`headers\`, \`query\`, \`body\` for HTTP, etc.), you MUST pass the FULL new value including the pre-existing entries you want to keep. Examples:
+    - User: "스위치에 'refund' 케이스 추가" — read existing \`cases: [{id:'case_yes',...},{id:'case_no',...}]\`, then patch \`{ config: { cases: [{id:'case_yes',...},{id:'case_no',...},{id:'case_refund',label:'환불',condition:'{{ ... }}'}] } }\`. Passing only \`[{id:'case_refund',...}]\` would delete the yes/no cases.
+    - User: "HTTP 헤더에 X-Request-Id 추가" — read existing \`headers: { Authorization: '{{ ... }}' }\`, then patch \`{ config: { headers: { Authorization: '{{ ... }}', 'X-Request-Id': '{{ uuid() }}' } } }\`.
+    - User: "폼 필드에 전화번호 추가" — read existing \`fields: [{name:'email',...}]\`, then patch \`{ config: { fields: [{name:'email',...},{name:'phone',label:'전화번호',type:'text',required:false}] } }\`.
+6. **Dynamic-ports preservation.** When you rewrite a \`[dynamic-ports]\` node's array (switch.cases, carousel.buttons, etc.), keep each surviving entry's \`id\` byte-for-byte. Edges attached to \`case_yes\`, \`btn_approve\`, etc. break the moment you rename or regenerate ids. If the user wants to rename a case for UX, change only its \`label\`, never its \`id\`.
+
+If you ever feel tempted to send a full config object as a patch "to be safe", stop — that is exactly the wipe-and-rewrite pattern this routine prevents.
+
 ## Layout guidance
 
 Each node in the snapshot above may carry measured \`width\` / \`height\` (px) fields — these are the real rendered dimensions reported by the canvas. Prefer them over fixed assumptions when placing new nodes.
