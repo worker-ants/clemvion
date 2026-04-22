@@ -1216,4 +1216,233 @@ describe('ShadowWorkflow', () => {
       expect(edge.hint).toBeUndefined();
     });
   });
+
+  // PORT_NOT_FOUND: 사용자가 설정한 동적 포트 (carousel 버튼 / switch case
+  // 등) 가 config 미완으로 생성되지 않은 상황에서 LLM 이 해당 port id 로
+  // add_edge 를 시도하는 케이스를 가드한다. portResolver 가 주입된 경우에만
+  // 작동. 기존 permissive 동작은 resolver 없이 호출되는 테스트 / 레거시
+  // 경로에서 유지된다.
+  describe('add_edge port validation (PORT_NOT_FOUND)', () => {
+    const twoCarouselSnap = (): ShadowSnapshot => ({
+      nodes: [
+        TRIGGER_NODE,
+        {
+          id: 'node-carousel',
+          type: 'carousel',
+          category: 'presentation',
+          label: '메뉴 선택',
+          positionX: 0,
+          positionY: 0,
+          // config 가 비어있음 → buttons 가 설정되지 않아 동적 포트 없음.
+          config: {},
+        },
+        {
+          id: 'node-target',
+          type: 'http_request',
+          category: 'integration',
+          label: '후속',
+          positionX: 0,
+          positionY: 0,
+          config: {},
+        },
+      ],
+      edges: [],
+    });
+    // Source / target 에 대해 "어떤 포트가 존재하는가" 를 돌려주는 mock.
+    // Carousel 은 config 기반으로 동적 — 여기서는 config 비어있어 out 단일.
+    // http_request 는 static out/error + in.
+    const makeResolver = (carouselOutputs: string[]) => {
+      return (node: { type: string }) => {
+        if (node.type === 'manual_trigger') {
+          return { outputs: ['out'], inputs: [] };
+        }
+        if (node.type === 'carousel') {
+          return { outputs: carouselOutputs, inputs: ['in'] };
+        }
+        if (node.type === 'http_request') {
+          return { outputs: ['out', 'error'], inputs: ['in'] };
+        }
+        return null;
+      };
+    };
+
+    it("rejects add_edge whose source_port is not in the node's resolved outputs", () => {
+      const sw = new ShadowWorkflow(
+        twoCarouselSnap(),
+        new Set(['carousel', 'http_request']),
+        {},
+        makeResolver(['out']), // btn_korean 없음
+      );
+      const result = sw.apply({
+        name: 'add_edge',
+        arguments: {
+          source_id: 'node-carousel',
+          source_port: 'btn_korean',
+          target_id: 'node-target',
+          target_port: 'in',
+        },
+      });
+      expect(result.ok).toBe(false);
+      expect(result.error).toBe('PORT_NOT_FOUND');
+      expect(result.portInfo).toEqual({
+        side: 'source',
+        attemptedPort: 'btn_korean',
+        nodeLabel: '메뉴 선택',
+        nodeType: 'carousel',
+        knownPorts: ['out'],
+      });
+      // hint 는 config 미완 시나리오를 가장 먼저 언급.
+      expect(result.hint).toMatch(/user-configured/);
+      expect(result.hint).toContain('btn_korean');
+    });
+
+    it("rejects add_edge whose target_port is not in the node's resolved inputs", () => {
+      const sw = new ShadowWorkflow(
+        twoCarouselSnap(),
+        new Set(['carousel', 'http_request']),
+        {},
+        makeResolver(['out']),
+      );
+      const result = sw.apply({
+        name: 'add_edge',
+        arguments: {
+          source_id: TRIGGER_NODE.id,
+          source_port: 'out',
+          target_id: 'node-target',
+          target_port: 'bogus_input',
+        },
+      });
+      expect(result.ok).toBe(false);
+      expect(result.error).toBe('PORT_NOT_FOUND');
+      expect(result.portInfo?.side).toBe('target');
+      expect(result.portInfo?.attemptedPort).toBe('bogus_input');
+    });
+
+    it('accepts add_edge when source_port matches a resolved dynamic port', () => {
+      // config 가 채워져 btn_a 포트가 생성된 carousel.
+      const sw = new ShadowWorkflow(
+        twoCarouselSnap(),
+        new Set(['carousel', 'http_request']),
+        {},
+        makeResolver(['btn_a', 'btn_b', 'out']),
+      );
+      const result = sw.apply({
+        name: 'add_edge',
+        arguments: {
+          source_id: 'node-carousel',
+          source_port: 'btn_a',
+          target_id: 'node-target',
+          target_port: 'in',
+        },
+      });
+      expect(result.ok).toBe(true);
+    });
+
+    it('skips port validation when resolver returns null for an unknown node type', () => {
+      // "예상치 못한 노드 타입" 을 만나면 null → 기존 permissive 동작 유지.
+      const sw = new ShadowWorkflow(
+        {
+          nodes: [
+            TRIGGER_NODE,
+            {
+              id: 'node-unknown',
+              type: 'custom_plugin_node',
+              category: 'integration',
+              label: 'Custom',
+              positionX: 0,
+              positionY: 0,
+              config: {},
+            },
+          ],
+          edges: [],
+        },
+        new Set(['custom_plugin_node']),
+        {},
+        () => null, // 모든 노드 해석 불가
+      );
+      const result = sw.apply({
+        name: 'add_edge',
+        arguments: {
+          source_id: TRIGGER_NODE.id,
+          source_port: 'anything',
+          target_id: 'node-unknown',
+          target_port: 'whatever',
+        },
+      });
+      expect(result.ok).toBe(true);
+    });
+
+    it('allows the `emit` container loopback target port even if resolver does not expose it (spec §4.4)', () => {
+      // Loop/foreach 자식 → 조상 컨테이너 emit 포트는 실행 엔진이 특별 처리.
+      // Resolver 가 emit 을 input 에 싣지 않아도 valid 로 간주되어야 한다.
+      const sw = new ShadowWorkflow(
+        {
+          nodes: [
+            TRIGGER_NODE,
+            {
+              id: 'loop-container',
+              type: 'loop',
+              category: 'logic',
+              label: 'Loop',
+              positionX: 0,
+              positionY: 0,
+              config: {},
+            },
+            {
+              id: 'loop-child',
+              type: 'http_request',
+              category: 'integration',
+              label: 'Fetch',
+              positionX: 0,
+              positionY: 0,
+              config: {},
+              // 자식이 조상 컨테이너를 containerId 로 참조.
+              containerId: 'loop-container',
+            },
+          ],
+          edges: [],
+        },
+        new Set(['loop', 'http_request']),
+        {},
+        (node) => {
+          if (node.type === 'loop')
+            return { outputs: ['iter'], inputs: ['in'] };
+          if (node.type === 'http_request')
+            return { outputs: ['out'], inputs: ['in'] };
+          if (node.type === 'manual_trigger')
+            return { outputs: ['out'], inputs: [] };
+          return null;
+        },
+      );
+      const result = sw.apply({
+        name: 'add_edge',
+        arguments: {
+          source_id: 'loop-child',
+          source_port: 'out',
+          target_id: 'loop-container',
+          target_port: 'emit',
+        },
+      });
+      expect(result.ok).toBe(true);
+    });
+
+    it('is skipped entirely when no portResolver is passed (legacy / test callers)', () => {
+      // 기존 호출자 호환성 — resolver 없이 생성된 ShadowWorkflow 는 예전처럼
+      // 임의 포트 이름을 허용한다.
+      const sw = new ShadowWorkflow(
+        twoCarouselSnap(),
+        new Set(['carousel', 'http_request']),
+      );
+      const result = sw.apply({
+        name: 'add_edge',
+        arguments: {
+          source_id: 'node-carousel',
+          source_port: 'btn_any_bogus_name',
+          target_id: 'node-target',
+          target_port: 'in',
+        },
+      });
+      expect(result.ok).toBe(true);
+    });
+  });
 });

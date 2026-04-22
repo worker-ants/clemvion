@@ -567,6 +567,12 @@ describe('buildSystemPrompt', () => {
       // DANGLING_OUTPUT_PORTS 복구 가이드 — data 배열 구조 + add_edge 사용법.
       expect(prompt).toMatch(/DANGLING_OUTPUT_PORTS/);
       expect(prompt).toMatch(/DANGLING_OUTPUT_PORTS[\s\S]{0,400}source_port/);
+      // PORT_NOT_FOUND 복구 가이드 — knownPorts 사용 + update_node 실패 원인 안내.
+      expect(prompt).toMatch(/PORT_NOT_FOUND/);
+      expect(prompt).toMatch(/PORT_NOT_FOUND[\s\S]{0,500}knownPorts/);
+      expect(prompt).toMatch(
+        /PORT_NOT_FOUND[\s\S]{0,800}update_node[\s\S]{0,100}failed/i,
+      );
     });
   });
 

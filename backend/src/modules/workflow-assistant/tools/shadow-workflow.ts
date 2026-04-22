@@ -64,7 +64,20 @@ export type ShadowErrorCode =
   | 'CONTAINER_INVALID_CHILD'
   | 'CYCLE_DETECTED'
   | 'INVALID_ARGUMENTS'
-  | 'INVALID_EXPRESSION';
+  | 'INVALID_EXPRESSION'
+  | 'PORT_NOT_FOUND';
+
+/**
+ * 노드 한 개에서 해석된 유효 포트 목록. `PORT_NOT_FOUND` 검사를 위해
+ * ShadowWorkflow 가 stream.service 로부터 주입받는 resolver 의 반환 shape.
+ * `resolveEffectiveOutputPorts` (config-aware) 를 기반으로 outputs 를, 정적
+ * `NodePorts.inputs` 를 기반으로 inputs 를 채운다.
+ */
+export interface ResolvedNodePorts {
+  outputs: string[];
+  inputs: string[];
+}
+export type NodePortResolver = (node: ShadowNode) => ResolvedNodePorts | null;
 
 export interface ShadowResult {
   ok: boolean;
@@ -90,6 +103,22 @@ export interface ShadowResult {
    * 없으면 undefined.
    */
   suggestedType?: string;
+  /**
+   * `PORT_NOT_FOUND` 응답에 실리는 구조화 세부 정보.
+   *  - `side`: 에러가 발생한 쪽 ('source' | 'target')
+   *  - `attemptedPort`: LLM 이 지정한 포트 id (sanitized)
+   *  - `nodeLabel` / `nodeType`: 대상 노드의 식별 정보
+   *  - `knownPorts`: 해당 쪽에서 실제로 존재하는 포트 id 목록. 사용자 설정
+   *    기반 동적 포트 (carousel.buttons / switch.cases 등) 가 config 미완
+   *    상태라 아직 생성되지 않았다면 여기에 빠져있음.
+   */
+  portInfo?: {
+    side: 'source' | 'target';
+    attemptedPort: string;
+    nodeLabel: string;
+    nodeType: string;
+    knownPorts: string[];
+  };
   /**
    * `LABEL_CONFLICT` 가 같은 label 로 **반복 발생**한 누적 횟수. 2 이상이면
    * `hint` 도 함께 실려 "suggested 값을 그대로 쓰라" 는 강한 신호를 준다.
@@ -228,6 +257,14 @@ export class ShadowWorkflow {
     snapshot: ShadowSnapshot,
     private readonly knownNodeTypes: Set<string>,
     private readonly categoryByType: Record<string, string> = {},
+    /**
+     * (옵션) 노드별 유효 포트 resolver. `add_edge` 시 source/target 포트가
+     * 실제 존재하는지 검사해 LLM 이 "config 미완으로 생성되지 않은 동적 포트"
+     * 에 edge 를 붙이는 실수를 조기에 포착한다. null/undefined 인 resolver 나
+     * 인자 (해석 불가 노드 타입) 는 skip — 검사 비활성 상태로 간주하고 기존
+     * permissive 동작을 유지한다. 테스트·레거시 호출자는 생략 가능.
+     */
+    private readonly portResolver?: NodePortResolver,
   ) {
     this.nodes = new Map(snapshot.nodes.map((n) => [n.id, { ...n }]));
     this.edges = new Map(snapshot.edges.map((e) => [e.id, { ...e }]));
@@ -446,6 +483,18 @@ export class ShadowWorkflow {
       }
       return result;
     }
+    // 포트 존재성 검사. `portResolver` 가 주입된 경우에만 작동해 테스트·레거시
+    // 경로의 기존 permissive 동작을 유지한다. 사용자가 설정한 동적 포트
+    // (carousel 버튼 / switch case / ai_agent condition 등) 가 config 미완으로
+    // 생성되지 않은 상황에서 LLM 이 그 포트 id 로 add_edge 하는 실수를 초기에
+    // 포착한다 (기존에는 silent 로 edge 가 생성되어 canvas 에 dead edge 가 남았음).
+    const portCheck = this.validateEdgePorts(
+      sourceId,
+      targetId,
+      sourcePort,
+      targetPort,
+    );
+    if (portCheck) return portCheck;
     // 자식 → 조상 컨테이너의 `emit` 포트로 돌아가는 에지는 실행 엔진이
     // iteration back-edge 로 해석하는 정상 반복 제어 흐름 (spec §4.4).
     // 이 에지가 전체 그래프에서 만들 수 있는 "간접 cycle" 도 wouldCreateCycle
@@ -695,6 +744,78 @@ export class ShadowWorkflow {
       depth++;
     }
     return false;
+  }
+
+  /**
+   * add_edge 시 source/target 포트가 실제 유효한지 검사. `portResolver` 가
+   * 주입되지 않았거나 해당 노드 타입이 해석 불가면 검사 skip (permissive).
+   *
+   * 예외: **컨테이너 loopback** — 자식 → 조상 컨테이너의 `emit` 포트는 실행
+   * 엔진이 특별 처리하므로 resolver 가 `emit` 을 포트 목록에 포함하지 않아도
+   * valid 로 간주한다 (shouldBypassCycleCheck 와 동일 의미의 특별 경로).
+   */
+  private validateEdgePorts(
+    sourceId: string,
+    targetId: string,
+    sourcePort: string,
+    targetPort: string,
+  ): ShadowResult | null {
+    if (!this.portResolver) return null;
+    const sourceNode = this.nodes.get(sourceId);
+    const targetNode = this.nodes.get(targetId);
+    if (!sourceNode || !targetNode) return null; // 앞선 NODE_NOT_FOUND 가 처리
+    const sourcePorts = this.portResolver(sourceNode);
+    const targetPorts = this.portResolver(targetNode);
+    if (sourcePorts && !sourcePorts.outputs.includes(sourcePort)) {
+      return this.buildPortNotFoundResult(
+        'source',
+        sourcePort,
+        sourceNode,
+        sourcePorts.outputs,
+      );
+    }
+    if (targetPorts && !targetPorts.inputs.includes(targetPort)) {
+      // 컨테이너 loopback exception: 자식 → 조상 컨테이너의 `emit` 포트.
+      if (
+        CONTAINER_LOOPBACK_PORTS.has(targetPort) &&
+        this.isAncestorContainer(sourceId, targetId)
+      ) {
+        return null;
+      }
+      return this.buildPortNotFoundResult(
+        'target',
+        targetPort,
+        targetNode,
+        targetPorts.inputs,
+      );
+    }
+    return null;
+  }
+
+  private buildPortNotFoundResult(
+    side: 'source' | 'target',
+    attempted: string,
+    node: ShadowNode,
+    knownPorts: string[],
+  ): ShadowResult {
+    const safeAttempted = sanitizeLlmProvidedString(attempted, 64);
+    const safeLabel = sanitizeLlmProvidedString(node.label, 80);
+    const sideText = side === 'source' ? 'output' : 'input';
+    // hint: LLM 이 한 라운드에 고칠 수 있는 구체 지침. "config 미완" 이 가장
+    // 흔한 원인이므로 먼저 언급.
+    const hint = `Port "${safeAttempted}" does not exist as an ${sideText} port on ${safeLabel} (${node.type}). Known ${sideText} ports: [${knownPorts.join(', ')}]. If you expected a user-configured port (carousel button, switch case, ai_agent condition, etc.), verify that the earlier add_node/update_node for that node actually succeeded with the button/case in its config — a failed update_node means the port was never created.`;
+    return {
+      ok: false,
+      error: 'PORT_NOT_FOUND',
+      hint,
+      portInfo: {
+        side,
+        attemptedPort: attempted,
+        nodeLabel: node.label,
+        nodeType: node.type,
+        knownPorts,
+      },
+    };
   }
 }
 
