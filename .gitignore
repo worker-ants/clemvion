@@ -4,6 +4,12 @@
 # packages
 node_modules/
 
+# build output — 빌드 산출물은 커밋하지 않는다. npm install 이 각 패키지의
+# `prepare` 스크립트로 재생성하므로 repo 에는 source 만 두면 충분하다. dist 가
+# stale 한 채로 workspace 임포트되는 사고(2026-04-22 expression-engine 사건)
+# 방지.
+dist/
+
 # env
 .env
 
