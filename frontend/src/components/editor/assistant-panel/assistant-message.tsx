@@ -12,11 +12,26 @@ import { sanitizeAssistantText } from "./harmony-filter";
 interface AssistantMessageViewProps {
   message: AssistantDisplayMessage;
   onApprovePlan: () => void;
+  /**
+   * `ASSISTANT_TOO_MANY_TOOL_CALLS` 복구 버튼 핸들러. Parent 가 workflow
+   * snapshot 을 쥐고 있으므로 bubble 에 직접 주입 대신 콜백을 넘겨받는다.
+   */
+  onContinueAfterBudget: () => void;
 }
+
+/**
+ * 에러 코드 중 "다음 turn 한 번으로 resume 가능" 한 것들. 이 집합에 속하면
+ * 에러 버블 아래에 "이어서 진행" 버튼을 노출해 사용자 타이핑을 줄인다.
+ *  - `ASSISTANT_TOO_MANY_TOOL_CALLS`: 턴당 tool-call / round 상한 초과. 서버가
+ *    명시적으로 "이어서 진행해줘" 메시지를 follow-up 으로 기대.
+ * 다른 코드 (NO_LLM_CONFIG / STREAM_FAILED) 는 resume 로 복구 불가이므로 제외.
+ */
+const RESUMABLE_ERROR_CODES = new Set(['ASSISTANT_TOO_MANY_TOOL_CALLS']);
 
 export function AssistantMessageView({
   message,
   onApprovePlan,
+  onContinueAfterBudget,
 }: AssistantMessageViewProps) {
   const t = useT();
   // hooks must run unconditionally — so sanitize/memo before any early
@@ -85,18 +100,34 @@ export function AssistantMessageView({
           // 커진다. systemHint 와 같은 "가장 짙은 950 (light) / 가장 옅은 50
           // (dark)" + `font-medium` 조합으로 작은 11px 글꼴에서도 또렷이
           // 읽히게 한다. 에러 코드 pill 도 red-200/800 대비로 명확히.
-          className="flex items-start gap-1.5 rounded-md border border-red-400/70 bg-red-50 px-2.5 py-1.5 text-[11px] font-medium text-red-950 dark:border-red-500/60 dark:bg-red-950/70 dark:text-red-50"
+          className="flex flex-col gap-1.5 rounded-md border border-red-400/70 bg-red-50 px-2.5 py-1.5 text-[11px] font-medium text-red-950 dark:border-red-500/60 dark:bg-red-950/70 dark:text-red-50"
         >
-          <AlertCircle size={14} className="mt-[2px] shrink-0" />
-          <div className="min-w-0 flex-1">
-            <div>{t("assistant.errorBubbleTitle")}</div>
-            <div className="mt-0.5 break-words text-[11px] font-normal leading-[1.45]">
-              <span className="mr-1 inline-block rounded border border-red-300/80 bg-red-200 px-1 font-mono text-[10px] font-medium text-red-950 dark:border-red-600/70 dark:bg-red-800 dark:text-red-50">
-                {message.error.code}
-              </span>
-              <span className="break-all">{message.error.message}</span>
+          <div className="flex items-start gap-1.5">
+            <AlertCircle size={14} className="mt-[2px] shrink-0" />
+            <div className="min-w-0 flex-1">
+              <div>{t("assistant.errorBubbleTitle")}</div>
+              <div className="mt-0.5 break-words text-[11px] font-normal leading-[1.45]">
+                <span className="mr-1 inline-block rounded border border-red-300/80 bg-red-200 px-1 font-mono text-[10px] font-medium text-red-950 dark:border-red-600/70 dark:bg-red-800 dark:text-red-50">
+                  {message.error.code}
+                </span>
+                <span className="break-all">{message.error.message}</span>
+              </div>
             </div>
           </div>
+          {RESUMABLE_ERROR_CODES.has(message.error.code) && (
+            // 버블 내부 버튼 — plan card 의 "계획대로 진행" 과 동일 패턴. 단
+            // 클릭으로 parent 가 "이어서 진행해줘" user turn 을 전송하고 서버
+            // active-plan-context 가 남은 step 을 이어간다. 에러 라벨 대비로
+            // 는 "text-red" 계열 배경을 쓰지 않고, plan approve 버튼과 동일한
+            // "고대비 primary" 스타일을 유지해 액션성이 드러나도록 한다.
+            <button
+              type="button"
+              onClick={onContinueAfterBudget}
+              className="ml-5 self-start rounded-md bg-[hsl(var(--primary))] px-2.5 py-1 text-[11px] font-semibold text-[hsl(var(--primary-foreground))] hover:opacity-90"
+            >
+              {t("assistant.continueAfterBudgetButton")}
+            </button>
+          )}
         </div>
       )}
       {message.systemHint && (

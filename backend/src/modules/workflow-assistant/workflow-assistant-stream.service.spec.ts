@@ -3565,4 +3565,185 @@ describe('WorkflowAssistantStreamService', () => {
       });
     });
   });
+
+  // Stall 자동 복구 (gpt-oss-120b 임의 중단 quirk 대응).
+  // 시나리오: history 에 approved plan 이 있고 아직 pending step 이 남아있는데
+  // LLM 이 tool call 없이 text 만 뱉고 stop 으로 종료. 서버가 auto-nudge 를
+  // 주입해 한 라운드 더 돌리고, 2라운드째에 edit 이 성공하면 정상 종료.
+  describe('auto-continue on stall with pending plan', () => {
+    // 1-step plan 을 쓰면 review guard 의 `nonTriggerCount <= 1` skip 조건이
+    // 만족되어 테스트의 primary assertion (stall auto-continue) 에만 집중할 수
+    // 있다. 2-step 이상은 orphan 검출이 별도 라운드를 유발해 stall 경로를 흐린다.
+    function primeApprovedPlan() {
+      return {
+        role: 'assistant' as const,
+        content: '',
+        toolCalls: [
+          {
+            id: 'p0',
+            name: 'propose_plan',
+            arguments: {},
+            kind: 'plan' as const,
+            result: { ok: true },
+          },
+        ],
+        plan: {
+          title: 'One-step build',
+          summary: '',
+          steps: [{ id: 's1', action: 'add_node' as const, description: 's1' }],
+          approvedAt: '2026-04-22T00:00:00Z',
+        },
+      };
+    }
+
+    it('auto-nudges LLM when a round ends text-only + stop + plan has pending steps', async () => {
+      const { service, mocks } = makeService();
+      mocks.sessionService.loadMessages.mockResolvedValue([
+        { role: 'user', content: '시작', toolCalls: null },
+        primeApprovedPlan(),
+      ]);
+      // Round 1: LLM 이 텍스트만 출력하고 stop (gpt-oss 임의 중단 시뮬레이션).
+      mocks.llmService.chatStream.mockImplementationOnce(() =>
+        asyncIter<ChatStreamEvent>([
+          { type: 'text_delta', delta: '다음 단계에서 이어가겠습니다.' },
+          {
+            type: 'done',
+            usage: { inputTokens: 5, outputTokens: 3, totalTokens: 8 },
+            model: 'gpt-oss-120b',
+            finishReason: 'stop',
+          },
+        ]),
+      );
+      // Round 2: 서버가 "이어서 진행해줘." user nudge 를 주입 후 LLM 호출 →
+      // 남은 step 을 edit + finish.
+      mocks.llmService.chatStream.mockImplementationOnce(() =>
+        asyncIter<ChatStreamEvent>([
+          {
+            type: 'tool_call_end',
+            id: 'call_add',
+            name: 'add_node',
+            arguments: JSON.stringify({
+              type: 'http_request',
+              label: 'First',
+              position: { x: 500, y: 300 },
+              config: {},
+              planStepId: 's1',
+            }),
+          },
+          {
+            type: 'tool_call_end',
+            id: 'call_fin',
+            name: 'finish',
+            arguments: '{}',
+          },
+          {
+            type: 'done',
+            usage: { inputTokens: 10, outputTokens: 5, totalTokens: 15 },
+            model: 'gpt-oss-120b',
+            finishReason: 'stop',
+          },
+        ]),
+      );
+
+      await collect(
+        service.streamMessage('sess-1', 'ws-1', 'u-1', baseDto as never),
+      );
+
+      // 2 라운드 내 종료.
+      expect(mocks.llmService.chatStream).toHaveBeenCalledTimes(2);
+
+      // Round 2 messages 에 서버가 주입한 user nudge "이어서 진행해줘." 가
+      // 포함되어 있어야 한다. 이게 LLM 에게 resume 신호를 준다.
+      const secondRoundMessages = mocks.llmService.chatStream.mock.calls[1][1]
+        .messages as Array<{ role: string; content?: string }>;
+      const nudge = secondRoundMessages
+        .slice()
+        .reverse()
+        .find((m) => m.role === 'user');
+      expect(nudge?.content).toBe('이어서 진행해줘.');
+    });
+
+    it('gives up after MAX_STALL_ROUNDS (2) consecutive text-only stalls to prevent runaway loops', async () => {
+      const { service, mocks } = makeService();
+      mocks.sessionService.loadMessages.mockResolvedValue([
+        { role: 'user', content: '시작', toolCalls: null },
+        primeApprovedPlan(),
+      ]);
+      // LLM 이 계속 텍스트만 뱉고 stop — 서버는 2회 nudge 후 포기.
+      const stallStream = () =>
+        asyncIter<ChatStreamEvent>([
+          { type: 'text_delta', delta: '다음에 이어갑니다.' },
+          {
+            type: 'done',
+            usage: { inputTokens: 3, outputTokens: 3, totalTokens: 6 },
+            model: 'gpt-oss-120b',
+            finishReason: 'stop',
+          },
+        ]);
+      mocks.llmService.chatStream.mockImplementation(stallStream);
+
+      await collect(
+        service.streamMessage('sess-1', 'ws-1', 'u-1', baseDto as never),
+      );
+
+      // 3 라운드 호출: Round 1 (stall=1), Round 2 (stall=2), Round 3 (포기).
+      // Round 3 도 stall 이지만 counter 가 MAX 에 도달해 더 이상 continue 안 함.
+      expect(mocks.llmService.chatStream).toHaveBeenCalledTimes(3);
+    });
+
+    it('does NOT auto-continue when plan has no pending actionable steps', async () => {
+      const { service, mocks } = makeService();
+      // 모든 step 이 completed 인 plan.
+      mocks.sessionService.loadMessages.mockResolvedValue([
+        { role: 'user', content: '시작', toolCalls: null },
+        {
+          role: 'assistant' as const,
+          content: '',
+          toolCalls: [
+            {
+              id: 'p0',
+              name: 'propose_plan',
+              arguments: {},
+              kind: 'plan' as const,
+              result: { ok: true },
+            },
+            {
+              id: 't1',
+              name: 'add_node',
+              arguments: {},
+              kind: 'edit' as const,
+              result: { ok: true, id: 'n-1' },
+              planStepId: 's1',
+            },
+          ],
+          plan: {
+            title: 'Done plan',
+            summary: '',
+            steps: [
+              { id: 's1', action: 'add_node' as const, description: 's1' },
+            ],
+            approvedAt: '2026-04-22T00:00:00Z',
+          },
+        },
+      ]);
+      mocks.llmService.chatStream.mockImplementationOnce(() =>
+        asyncIter<ChatStreamEvent>([
+          { type: 'text_delta', delta: '이미 완료된 plan 입니다.' },
+          {
+            type: 'done',
+            usage: { inputTokens: 3, outputTokens: 3, totalTokens: 6 },
+            model: 'gpt-4o',
+            finishReason: 'stop',
+          },
+        ]),
+      );
+
+      await collect(
+        service.streamMessage('sess-1', 'ws-1', 'u-1', baseDto as never),
+      );
+
+      // 단일 라운드로 종료 — pending step 이 없어 stall 가드가 발동 안 함.
+      expect(mocks.llmService.chatStream).toHaveBeenCalledTimes(1);
+    });
+  });
 });

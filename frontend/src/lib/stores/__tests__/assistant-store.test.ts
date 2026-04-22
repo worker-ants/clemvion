@@ -79,9 +79,9 @@ describe("assistant-store", () => {
   });
 
   describe("done event → systemHint injection", () => {
-    it("injects planApproveConfirm hint on a plan-only turn (propose_plan, no edits, no prose)", () => {
-      // 시나리오: LLM 이 propose_plan 후 텍스트 없이 곧장 finish.
-      // 새 규약상 LLM 은 prose 를 생략 → 클라이언트가 hint 자동 주입.
+    it("does NOT inject any hint on a plan-only turn (plan card's '계획대로 진행' button covers the UX)", () => {
+      // 2026-04-23 UX 피드백: plan card 가 렌더되면 이미 "계획대로 진행" 버튼이
+      // 표시되므로 같은 메시지를 다시 info hint 로 띄우는 것은 중복.
       seedAssistant({ plan: makePlan() });
 
       handleSseEvent(
@@ -92,60 +92,12 @@ describe("assistant-store", () => {
       );
 
       const msg = useAssistantStore.getState().messages[0];
-      expect(msg.systemHint).toEqual({
-        kind: "info",
-        text: "계획대로 진행해 주세요.",
-      });
+      expect(msg.systemHint).toBeUndefined();
       expect(msg.streaming).toBe(false);
     });
 
-    it("does NOT inject planApproveConfirm hint when LLM emitted prose alongside the plan", () => {
-      // LLM 이 (구 규약대로) prose 를 함께 내보냈을 때 hint 까지 띄우면 중복.
-      seedAssistant({
-        plan: makePlan(),
-        content: "계획대로 진행 버튼을 눌러주세요.",
-      });
-
-      handleSseEvent(
-        useAssistantStore.setState,
-        useAssistantStore.getState,
-        ASSISTANT_ID,
-        doneEvent,
-      );
-
-      const msg = useAssistantStore.getState().messages[0];
-      expect(msg.systemHint).toBeUndefined();
-    });
-
-    it("does NOT inject planApproveConfirm hint when an edit tool ran in the same turn", () => {
-      // edit 이 실행됐다면 plan-only 턴이 아니므로 다른 분기로 가야 한다.
-      // 이 케이스에서는 plan 이 시작되지 않았으니 어떤 hint 도 띄우지 않는다.
-      seedAssistant({
-        plan: makePlan(),
-        toolCalls: [
-          {
-            id: "tc-1",
-            name: "add_node",
-            arguments: {},
-            kind: "edit",
-            result: { ok: true, id: "node-1" },
-          },
-        ],
-      });
-
-      handleSseEvent(
-        useAssistantStore.setState,
-        useAssistantStore.getState,
-        ASSISTANT_ID,
-        doneEvent,
-      );
-
-      const msg = useAssistantStore.getState().messages[0];
-      expect(msg.systemHint).toBeUndefined();
-    });
-
-    it("does NOT inject planApproveConfirm hint when the plan is already approved", () => {
-      // approved=true 면 사용자는 이미 "진행" 을 결정했으므로 안내 hint 불필요.
+    it("does NOT inject any hint when the plan is already approved (plan-only hint was removed in 2026-04-23)", () => {
+      // approved=true + 모든 step pending → stalled hint 가 우선 발동.
       seedAssistant({ plan: makePlan({ approved: true }) });
 
       handleSseEvent(
@@ -156,8 +108,6 @@ describe("assistant-store", () => {
       );
 
       const msg = useAssistantStore.getState().messages[0];
-      // approved 인데 step 은 모두 pending → started=true, status=pending,
-      // content 비었으므로 stalled hint 가 우선 발동.
       expect(msg.systemHint?.kind).toBe("info");
       expect(msg.systemHint?.text).toContain("이어서 진행해줘");
     });
@@ -195,7 +145,7 @@ describe("assistant-store", () => {
       expect(msg.systemHint?.text).toContain("작업을 완료했어요");
     });
 
-    it("does NOT inject planApproveConfirm hint when the plan still has openQuestions (plan card shows answer-input guidance instead)", () => {
+    it("does NOT inject any hint when the plan still has openQuestions (plan card shows answer-input guidance instead)", () => {
       // openQuestions 가 있으면 plan card 안에 "답변을 입력창에 적어 보내
       // 주세요." 가 이미 노출되므로 systemHint 까지 띄우면 두 메시지가 충돌.
       seedAssistant({
@@ -358,6 +308,40 @@ describe("assistant-store", () => {
       const summary = summarizePlanState(msg, [msg]);
       // note 는 actionable 이 아니므로 이미 모두 done.
       expect(summary).toEqual({ status: "completed", completedActionable: 1 });
+    });
+  });
+
+  describe("continueAfterBudget action", () => {
+    it("sends '이어서 진행해줘' as a user message using the current locale", async () => {
+      // parent 가 workflow snapshot 을 넘기면 store 는 i18n 된 메시지를 그대로
+      // sendMessage 에 위임한다. RESUMABLE 에러의 "이어서 진행" 버튼이 이 action
+      // 을 호출하므로, 잘못된 메시지 문자열이 전송되면 서버 active-plan-context
+      // 가 resume 지시어를 인식하지 못한다.
+      let sent: { content: string; locale: string } | null = null;
+      useAssistantStore.setState({
+        // sendMessage 를 mock 해 실제 API 호출 없이 호출 인자만 캡처.
+        sendMessage: async (content) => {
+          sent = { content, locale: useLocaleStore.getState().locale };
+        },
+      });
+      const snapshot = { nodes: [], edges: [] };
+      await useAssistantStore.getState().continueAfterBudget(snapshot);
+      expect(sent).toEqual({ content: "이어서 진행해줘.", locale: "ko" });
+    });
+
+    it("uses English translation when locale is 'en'", async () => {
+      let sent: string | null = null;
+      useAssistantStore.setState({
+        sendMessage: async (content) => {
+          sent = content;
+        },
+      });
+      useLocaleStore.setState({ locale: "en" });
+      await useAssistantStore.getState().continueAfterBudget({
+        nodes: [],
+        edges: [],
+      });
+      expect(sent).toBe("Continue.");
     });
   });
 });

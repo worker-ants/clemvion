@@ -79,6 +79,13 @@ interface AssistantState {
     snapshot: AssistantWorkflowSnapshot,
   ) => Promise<void>;
   approveActivePlan: (snapshot: AssistantWorkflowSnapshot) => Promise<void>;
+  /**
+   * `ASSISTANT_TOO_MANY_TOOL_CALLS` 같은 "추가 turn 한 번으로 이어갈 수 있는"
+   * 에러에서 사용자가 버튼 한 번으로 resume 하게 하는 진입점. "이어서 진행해줘"
+   * 메시지를 새 user turn 으로 전송하며, 서버의 active-plan-context 가 남은
+   * step 을 이어 실행한다.
+   */
+  continueAfterBudget: (snapshot: AssistantWorkflowSnapshot) => Promise<void>;
   stop: () => void;
   reset: () => void;
 }
@@ -352,6 +359,16 @@ export const useAssistantStore = create<AssistantState>((set, get) => ({
     );
   },
 
+  continueAfterBudget: async (snapshot) => {
+    // `ASSISTANT_TOO_MANY_TOOL_CALLS` 복구 버튼의 한 줄 구현 — approveActivePlan
+    // 과 동일 패턴. 서버는 history 의 active plan 을 읽어 남은 step 을 이어간다.
+    const locale = useLocaleStore.getState().locale;
+    await get().sendMessage(
+      translate(locale, "assistant.continueAfterBudget"),
+      snapshot,
+    );
+  },
+
   stop: () => {
     const { abortController } = get();
     abortController?.abort();
@@ -511,35 +528,18 @@ export function handleSseEvent(
         // 않으면 plan 진행도와 이번 턴 형태를 보고 분기한다:
         //   - 시작된 plan 에 pending step 이 남고 prose 도 비었음
         //     → "이어서 진행해줘" 안내 (드물게 발생: 서버가 stuck 으로 판정)
-        //   - plan-only 턴 (propose_plan 만, edit 없음, prose 도 없음,
-        //     openQuestions 도 없음) → "계획대로 진행해 주세요." 자동 주입.
-        //     LLM 이 prose 를 생략하기로 약속한 케이스이므로 plan card 옆에
-        //     안내 박스가 자연스럽게 뜬다. openQuestions 가 있으면 plan card 가
-        //     "답변을 입력창에 적어 보내 주세요." 를 이미 노출하므로 hint 는
-        //     억제 (UX 메시지 충돌 방지).
         //   - 모두 완료 (+openQuestions 없음) → 완료 알림
-        // else-if 순서는 위 우선순위와 동일하게 배치 — 향후 조건이 겹치게
-        // 변경되어도 의도한 순서가 자명하도록.
+        //
+        // plan-only 턴 (propose_plan 만, 미승인) 에서는 plan card 자체에
+        // "계획대로 진행" 버튼이 이미 표시되므로 별도 안내 hint 를 띄우지 않는다.
+        // 동일 메시지가 버튼 + info 박스로 두 번 나오는 duplication 방지
+        // (2026-04-23 UX 피드백 반영).
         if (!updated.error) {
           const completion = summarizePlanState(updated, s.messages);
-          const hasEditThisTurn = updated.toolCalls.some(
-            (tc) => tc.kind === "edit",
-          );
           if (completion.status === "pending" && !updated.content.trim()) {
             updated.systemHint = {
               kind: "info",
               text: translate(locale, "assistant.turnStalledHint"),
-            };
-          } else if (
-            updated.plan &&
-            !updated.plan.approved &&
-            !updated.plan.openQuestions?.length &&
-            !hasEditThisTurn &&
-            !updated.content.trim()
-          ) {
-            updated.systemHint = {
-              kind: "info",
-              text: translate(locale, "assistant.planApproveConfirm"),
             };
           } else if (completion.status === "completed") {
             updated.systemHint = {
