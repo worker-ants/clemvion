@@ -672,6 +672,7 @@ export const en: Dict = {
     emptyStep3Desc: "Use the Run button at the top to execute and inspect the results.",
     emptyLearnMore: "Learn more",
     emptyOpenGuide: "Open start guide",
+    emptyClose: "Close start guide",
     versionHistoryTitle: "Version History",
     closeVersionHistory: "Close version history",
     compareVersions: "Compare versions",

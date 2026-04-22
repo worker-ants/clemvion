@@ -668,6 +668,7 @@ export const ko = {
     emptyStep3Desc: "상단의 Run 버튼으로 워크플로우를 실행하고 결과를 확인해요.",
     emptyLearnMore: "자세히",
     emptyOpenGuide: "시작 가이드 열기",
+    emptyClose: "시작 가이드 닫기",
     versionHistoryTitle: "버전 기록",
     closeVersionHistory: "버전 기록 닫기",
     compareVersions: "버전 비교",

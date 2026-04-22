@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, fireEvent } from "@testing-library/react";
 import { CanvasEmptyState } from "../canvas-empty-state";
 
 describe("CanvasEmptyState", () => {
@@ -55,6 +55,23 @@ describe("CanvasEmptyState", () => {
     expect(
       screen.getByRole("link", { name: /시작 가이드 열기/ }),
     ).toBeInTheDocument();
+  });
+
+  it("닫기 버튼을 누르면 카드가 숨겨져요", () => {
+    const { container } = render(<CanvasEmptyState visible={true} />);
+    const region = container.querySelector(
+      '[aria-label="시작하기"]',
+    ) as HTMLElement;
+    expect(region).toHaveAttribute("data-visible", "true");
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "시작 가이드 닫기" }),
+    );
+
+    expect(region).toHaveAttribute("data-visible", "false");
+    expect(region).toHaveAttribute("aria-hidden", "true");
+    expect(region.className).toContain("opacity-0");
+    expect(region.className).toContain("pointer-events-none");
   });
 
   it("visible=false로 바뀌면 aria-hidden + opacity-0로 숨겨지고 DOM은 유지돼요", () => {
