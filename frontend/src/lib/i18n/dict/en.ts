@@ -1895,6 +1895,7 @@ export const en: Dict = {
     exampleAddCancelFlow: "Add an order cancellation flow",
     exampleAddHeader: "Add an Authorization header to the HTTP node",
     exampleReview: "Review this workflow and suggest improvements",
+    exampleArrange: "Rearrange the nodes into a clean layout",
     errorNoLlmConfig: "Please register an LLM config first.",
     errorRateLimit: "Rate limited. Please retry in a moment.",
     errorTimeout: "Response is taking too long.",

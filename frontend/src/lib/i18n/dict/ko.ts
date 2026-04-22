@@ -1891,6 +1891,7 @@ export const ko = {
     exampleAddCancelFlow: "주문 취소 프로세스 추가해줘",
     exampleAddHeader: "HTTP 노드에 Authorization 헤더 추가",
     exampleReview: "현재 워크플로우를 검토하고 개선점 제안해줘",
+    exampleArrange: "노드를 예쁘게 재정렬해줘",
     errorNoLlmConfig: "LLM 설정을 먼저 등록해 주세요.",
     errorRateLimit: "잠시 후 다시 시도해 주세요.",
     errorTimeout: "응답이 늦어지고 있어요.",

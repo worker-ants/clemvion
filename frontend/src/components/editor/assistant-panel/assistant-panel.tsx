@@ -15,6 +15,7 @@ const EXAMPLE_KEYS = [
   "assistant.exampleAddCancelFlow",
   "assistant.exampleAddHeader",
   "assistant.exampleReview",
+  "assistant.exampleArrange",
 ] as const;
 
 export function AssistantPanel() {
