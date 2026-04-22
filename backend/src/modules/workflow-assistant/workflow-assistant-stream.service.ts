@@ -8,10 +8,12 @@ import { NodeComponentRegistry } from '../../nodes/core/node-component.registry'
 import { WorkflowAssistantSessionService } from './workflow-assistant-session.service';
 import { ExploreToolsService } from './tools/explore-tools.service';
 import {
+  ShadowNode,
   ShadowSnapshot,
   ShadowWorkflow,
   ShadowToolName,
 } from './tools/shadow-workflow';
+import { resolveEffectiveOutputPorts } from './tools/resolve-dynamic-ports';
 import {
   buildAssistantTools,
   TOOL_KIND_BY_NAME,
@@ -239,10 +241,29 @@ export class WorkflowAssistantStreamService {
 
     // history + shadow
     const history = await this.sessionService.loadMessages(sessionId);
+    // Port resolver: `add_edge` 의 source/target 포트가 실제 존재하는지 검사하기
+    // 위해 ShadowWorkflow 에 주입. resolveEffectiveOutputPorts 로 config-aware
+    // 출력 포트를, 정적 메타에서 inputs 를 꺼내 매 add_edge 시 참조된다.
+    // Registry 에 없는 타입은 null 을 돌려 permissive (skip) 로 작동.
+    const defsByType = new Map(
+      this.nodeRegistry
+        .listDefinitions()
+        .map((d) => [d.metadata.type, d] as const),
+    );
+    const portResolver = (node: ShadowNode) => {
+      const def = defsByType.get(node.type);
+      if (!def) return null;
+      const outputs = resolveEffectiveOutputPorts(node.config, def).map(
+        (p) => p.id,
+      );
+      const inputs = def.ports.inputs.map((p) => p.id);
+      return { outputs, inputs };
+    };
     const shadow = new ShadowWorkflow(
       this.toShadowSnapshot(dto.currentWorkflow),
       this.collectKnownNodeTypes(),
       this.collectCategoryByType(),
+      portResolver,
     );
 
     // user 메시지 저장 + session title 자동 생성

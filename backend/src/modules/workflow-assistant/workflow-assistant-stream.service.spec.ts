@@ -3746,4 +3746,144 @@ describe('WorkflowAssistantStreamService', () => {
       expect(mocks.llmService.chatStream).toHaveBeenCalledTimes(1);
     });
   });
+
+  // PORT_NOT_FOUND: stream.service 가 ShadowWorkflow 에 portResolver 를 주입해
+  // LLM 이 존재하지 않는 포트로 add_edge 시도할 때 초기에 reject 하는지 검증.
+  // 특히 사용자 스크린샷 (config 미완 → 동적 포트 없음 → edge 실패 × 18) 시나리오.
+  describe('add_edge port validation (PORT_NOT_FOUND)', () => {
+    it('rejects add_edge when source_port does not exist on a carousel (config missed the buttons)', async () => {
+      const { service, mocks } = makeService();
+      // Registry 에 carousel 정의 주입 — dynamicPorts: presentation-buttons.
+      mocks.nodeRegistry.listDefinitions.mockReturnValue([
+        {
+          metadata: {
+            type: 'manual_trigger',
+            category: 'trigger',
+            description: 'Manual trigger',
+          },
+          ports: {
+            inputs: [],
+            outputs: [{ id: 'out', label: 'Output', type: 'data' }],
+          },
+        },
+        {
+          metadata: {
+            type: 'carousel',
+            category: 'presentation',
+            description: 'Carousel',
+            dynamicPorts: {
+              kind: 'presentation-buttons',
+              supportsItems: true,
+              supportsItemButtons: true,
+              continueId: 'continue',
+            },
+          },
+          ports: {
+            inputs: [{ id: 'in', label: 'Input', type: 'data' }],
+            outputs: [{ id: 'out', label: 'Output', type: 'data' }],
+          },
+        },
+        {
+          metadata: {
+            type: 'template',
+            category: 'presentation',
+            description: 'Template',
+          },
+          ports: {
+            inputs: [{ id: 'in', label: 'Input', type: 'data' }],
+            outputs: [{ id: 'out', label: 'Output', type: 'data' }],
+          },
+        },
+      ]);
+      // 초기 canvas: trigger + carousel(config 비어있음 = 버튼 없음) + template.
+      const primedDto = {
+        content: '엣지 연결해줘',
+        currentWorkflow: {
+          nodes: [
+            {
+              id: 'trig-1',
+              type: 'manual_trigger',
+              category: 'trigger',
+              label: 'Start',
+              positionX: 0,
+              positionY: 0,
+              config: {},
+            },
+            {
+              id: 'n-c',
+              type: 'carousel',
+              category: 'presentation',
+              label: '메뉴 선택',
+              positionX: 300,
+              positionY: 0,
+              // buttons 설정 안 됨 → 동적 포트 없음 (fallback out 만).
+              config: {},
+            },
+            {
+              id: 'n-t',
+              type: 'template',
+              category: 'presentation',
+              label: '결과',
+              positionX: 600,
+              positionY: 0,
+              config: {},
+            },
+          ],
+          edges: [],
+        },
+      };
+      mocks.llmService.chatStream.mockImplementation(() =>
+        asyncIter<ChatStreamEvent>([
+          {
+            type: 'tool_call_end',
+            id: 'call_edge',
+            name: 'add_edge',
+            // LLM 이 btn_a 포트에 연결을 시도 — config 에 해당 버튼 없음.
+            arguments: JSON.stringify({
+              source_id: 'n-c',
+              source_port: 'btn_a',
+              target_id: 'n-t',
+              target_port: 'in',
+            }),
+          },
+          {
+            type: 'done',
+            usage: { inputTokens: 5, outputTokens: 3, totalTokens: 8 },
+            model: 'gpt-4o',
+            finishReason: 'stop',
+          },
+        ]),
+      );
+
+      const events = await collect(
+        service.streamMessage('sess-1', 'ws-1', 'u-1', primedDto as never),
+      );
+
+      const edgeEvent = events.find(
+        (e) =>
+          e.event === 'tool_call' &&
+          (e.data as { name: string }).name === 'add_edge',
+      );
+      expect(edgeEvent).toBeDefined();
+      const result = (
+        edgeEvent!.data as {
+          result: {
+            ok: boolean;
+            error?: string;
+            portInfo?: {
+              side: string;
+              attemptedPort: string;
+              knownPorts: string[];
+            };
+          };
+        }
+      ).result;
+      expect(result.ok).toBe(false);
+      expect(result.error).toBe('PORT_NOT_FOUND');
+      expect(result.portInfo?.side).toBe('source');
+      expect(result.portInfo?.attemptedPort).toBe('btn_a');
+      // carousel 의 config 가 비어 fallback static 'out' 만 노출됨.
+      expect(result.portInfo?.knownPorts).toEqual(['out']);
+    });
+  });
 });
