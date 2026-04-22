@@ -1,6 +1,7 @@
 "use client";
 
-import { ArrowRight, MousePointer2, Plug2, Play } from "lucide-react";
+import { useState } from "react";
+import { ArrowRight, MousePointer2, Plug2, Play, X } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
 import { DOCS } from "@/lib/docs/links";
 import { useT, type TranslationKey } from "@/lib/i18n";
@@ -37,20 +38,31 @@ interface Props {
 
 export function CanvasEmptyState({ visible }: Props) {
   const t = useT();
+  const [dismissed, setDismissed] = useState(false);
+  const shown = visible && !dismissed;
   return (
     <section
       role="region"
       aria-label={t("editor.emptyStateRegion")}
-      aria-hidden={!visible}
-      data-visible={visible ? "true" : "false"}
+      aria-hidden={!shown}
+      data-visible={shown ? "true" : "false"}
       className={cn(
-        "w-[340px] max-w-[90vw] rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-5 shadow-lg transition-opacity duration-300",
-        visible
+        "relative w-[340px] max-w-[90vw] rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-5 shadow-lg transition-opacity duration-300",
+        shown
           ? "pointer-events-auto opacity-100"
           : "pointer-events-none opacity-0",
       )}
     >
-      <h2 className="text-base font-semibold text-[hsl(var(--foreground))]">
+      <button
+        type="button"
+        onClick={() => setDismissed(true)}
+        aria-label={t("editor.emptyClose")}
+        tabIndex={shown ? 0 : -1}
+        className="absolute right-2 top-2 inline-flex h-7 w-7 items-center justify-center rounded-md text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--muted))] hover:text-[hsl(var(--foreground))] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--ring))]"
+      >
+        <X size={14} aria-hidden="true" />
+      </button>
+      <h2 className="pr-8 text-base font-semibold text-[hsl(var(--foreground))]">
         {t("editor.emptyStateTitle")}
       </h2>
       <p className="mt-1 text-xs text-[hsl(var(--muted-foreground))]">
@@ -85,7 +97,7 @@ export function CanvasEmptyState({ visible }: Props) {
                     href={step.href}
                     target="_blank"
                     rel="noopener noreferrer"
-                    tabIndex={visible ? 0 : -1}
+                    tabIndex={shown ? 0 : -1}
                     className="text-[hsl(var(--primary))] underline-offset-2 hover:underline"
                   >
                     {t("editor.emptyLearnMore")}
@@ -101,7 +113,7 @@ export function CanvasEmptyState({ visible }: Props) {
           href={DOCS.gettingStarted.firstWorkflow}
           target="_blank"
           rel="noopener noreferrer"
-          tabIndex={visible ? 0 : -1}
+          tabIndex={shown ? 0 : -1}
           className="inline-flex items-center gap-1 rounded-md bg-[hsl(var(--primary))] px-3 py-1.5 text-xs font-medium text-[hsl(var(--primary-foreground))] hover:opacity-90"
         >
           {t("editor.emptyOpenGuide")}
