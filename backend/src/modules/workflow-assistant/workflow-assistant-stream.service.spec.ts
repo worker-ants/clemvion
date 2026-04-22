@@ -882,38 +882,55 @@ describe('WorkflowAssistantStreamService', () => {
     });
   });
 
-  it('does not block `finish` twice in a row — second finish after PLAN_NOT_COMPLETE exits the loop', async () => {
-    // 안전 장치: 한 턴 안에서 finish 가 block 된 뒤에도 LLM 이 두 번째
-    // finish 를 호출하면 더 이상 막지 않고 탈출한다. 이 제한이 없으면 플랜
-    // 해석이 어긋날 때 무한 루프 위험.
+  it('does not block `finish` twice in a row when no progress is made between attempts (stuck-LLM escape)', async () => {
+    // 안전 장치: 같은 턴 안에서 finish 가 block 된 뒤에도 LLM 이 어떤 진척도
+    // 만들지 않고 다시 finish 만 호출하면 stuck 으로 간주해 탈출시킨다.
+    // 이 제한이 없으면 plan 해석이 어긋날 때 무한 루프 위험. 단, block 후
+    // 한 step 이라도 진행했다면 guard 가 다시 발동한다 (별도 테스트 참고).
+    // 시나리오: history 의 approved 2-step plan 에서 round 1 에 s1 만 처리한
+    // 채 finish → block. round 2 에 LLM 이 아무 진척도 없이 finish → 탈출.
     const { service, mocks } = makeService();
-    const planArgs = JSON.stringify({
-      title: 'x',
-      summary: '',
-      steps: [{ id: 's1', action: 'add_node', description: '…' }],
-    });
-    const addA = JSON.stringify({
+    mocks.sessionService.loadMessages.mockResolvedValue([
+      { role: 'user', content: '시작', toolCalls: null },
+      {
+        role: 'assistant',
+        content: '',
+        toolCalls: [
+          {
+            id: 'p0',
+            name: 'propose_plan',
+            arguments: {},
+            kind: 'plan',
+            result: { ok: true },
+          },
+        ],
+        plan: {
+          title: 'Two steps',
+          summary: '',
+          steps: [
+            { id: 's1', action: 'add_node', description: 'first' },
+            { id: 's2', action: 'add_node', description: 'second' },
+          ],
+          approvedAt: '2026-04-22T00:00:00Z',
+        },
+      },
+    ]);
+    const addS1 = JSON.stringify({
       type: 'http_request',
-      label: 'Only',
+      label: 'First',
       position: { x: 500, y: 300 },
       config: {},
-      // planStepId 를 일부러 매칭 안 되게 — 그래서 s1 이 pending 으로 남음
-      planStepId: 'ghost',
+      planStepId: 's1',
     });
 
+    // Round 1: s1 만 + 조기 finish → block (s2 미완)
     mocks.llmService.chatStream.mockImplementationOnce(() =>
       asyncIter<ChatStreamEvent>([
         {
           type: 'tool_call_end',
-          id: 'call_plan',
-          name: 'propose_plan',
-          arguments: planArgs,
-        },
-        {
-          type: 'tool_call_end',
           id: 'call_a',
           name: 'add_node',
-          arguments: addA,
+          arguments: addS1,
         },
         {
           type: 'tool_call_end',
@@ -929,7 +946,7 @@ describe('WorkflowAssistantStreamService', () => {
         },
       ]),
     );
-    // Round 2: LLM 이 아무것도 안 하고 바로 finish 재호출
+    // Round 2: LLM 이 아무것도 안 하고 바로 finish 재호출 → stuck 탈출
     mocks.llmService.chatStream.mockImplementationOnce(() =>
       asyncIter<ChatStreamEvent>([
         {
@@ -951,6 +968,435 @@ describe('WorkflowAssistantStreamService', () => {
       service.streamMessage('sess-1', 'ws-1', 'u-1', baseDto as never),
     );
     expect(mocks.llmService.chatStream).toHaveBeenCalledTimes(2);
+    const done = events[events.length - 1];
+    expect(done).toMatchObject({
+      event: 'done',
+      data: { finishReason: 'stop' },
+    });
+  });
+
+  it('plan-only turn: finish always succeeds even when LLM mistakenly tries edits that get PLAN_AWAITING_APPROVAL (no auto-retry loop before user approval)', async () => {
+    // 사용자 보고: 계획 수립 직후 LLM 이 유저 컨펌 없이 edit 을 시도해 자동
+    // 진행하려는 듯 보였다. 같은 턴에 propose_plan 이 발행됐다면 plan 은
+    // 미승인 상태이므로 PLAN_AWAITING_APPROVAL 로 edit 들이 거부되는데, 가드가
+    // PLAN_NOT_COMPLETE 로 finish 까지 막으면 LLM 이 "남은 step 실행하라" 고
+    // 잘못 해석해 edit 재시도 → 또 거부되는 핑퐁이 발생한다. 새 가드는
+    // plan-only 턴(planForTurn 미승인) 에서 finish 를 즉시 통과시켜 1라운드
+    // 안에 사용자 approve 대기 상태로 진입하게 한다.
+    const { service, mocks } = makeService();
+    const planArgs = JSON.stringify({
+      title: 'Cancel flow',
+      summary: '',
+      steps: [{ id: 's1', action: 'add_node', description: 'add HTTP' }],
+    });
+    const earlyAdd = JSON.stringify({
+      type: 'http_request',
+      label: 'HTTP',
+      position: { x: 500, y: 300 },
+      config: {},
+      planStepId: 's1',
+    });
+    mocks.llmService.chatStream.mockImplementation(() =>
+      asyncIter<ChatStreamEvent>([
+        {
+          type: 'tool_call_end',
+          id: 'call_plan',
+          name: 'propose_plan',
+          arguments: planArgs,
+        },
+        // LLM 이 같은 턴에 잘못 add_node 시도 — 서버가 PLAN_AWAITING_APPROVAL
+        // 로 거부 후, finish 호출이 즉시 통과해야 한다 (재시도 루프 금지).
+        {
+          type: 'tool_call_end',
+          id: 'call_early_add',
+          name: 'add_node',
+          arguments: earlyAdd,
+        },
+        {
+          type: 'tool_call_end',
+          id: 'call_fin',
+          name: 'finish',
+          arguments: '{}',
+        },
+        {
+          type: 'done',
+          usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 },
+          model: 'gpt-4o',
+          finishReason: 'tool_calls',
+        },
+      ]),
+    );
+
+    const events = await collect(
+      service.streamMessage('sess-1', 'ws-1', 'u-1', baseDto as never),
+    );
+
+    // 단일 라운드로 종료 — 가드가 plan-only 턴을 인식해 finish 를 통과시킴.
+    expect(mocks.llmService.chatStream).toHaveBeenCalledTimes(1);
+    const done = events[events.length - 1];
+    expect(done).toMatchObject({
+      event: 'done',
+      data: { finishReason: 'stop' },
+    });
+
+    // 부수 검증: 잘못된 add_node 가 PLAN_AWAITING_APPROVAL 로 거부됐어야 함.
+    const editToolEvent = events.find(
+      (e) => e.event === 'tool_call' && e.data.name === 'add_node',
+    );
+    expect(editToolEvent).toBeDefined();
+    expect(
+      (editToolEvent?.data.result as { ok?: boolean; error?: string }).error,
+    ).toBe('PLAN_AWAITING_APPROVAL');
+  });
+
+  it('keeps blocking `finish` across multiple rounds while LLM is still making progress (3-step plan, partial each round)', async () => {
+    // "진행이 중단됐어요…" 자주 노출되던 원인: LLM 이 step 일부만 끝내고
+    // finish 를 부르면 서버가 1회 block 후 두 번째 finish 는 그대로 통과시켜
+    // 사용자가 직접 "이어서 진행해줘" 를 입력해야 했다. 새 가드는 block 후에도
+    // **진척이 있었다면** 재차 block 해 plan 끝까지 끌고 간다.
+    // 시나리오: history 에 s1/s2/s3 plan 이 approved 된 상태. 라운드마다 한
+    // 노드씩만 추가하면서 finish — 두 번 더 block, 세 라운드째에 stop.
+    const { service, mocks } = makeService();
+    mocks.sessionService.loadMessages.mockResolvedValue([
+      { role: 'user', content: '요청', toolCalls: null },
+      {
+        role: 'assistant',
+        content: '',
+        toolCalls: [
+          {
+            id: 'p0',
+            name: 'propose_plan',
+            arguments: {},
+            kind: 'plan',
+            result: { ok: true },
+          },
+        ],
+        plan: {
+          title: 'Three-step build',
+          summary: '',
+          steps: [
+            { id: 's1', action: 'add_node', description: 'first' },
+            { id: 's2', action: 'add_node', description: 'second' },
+            { id: 's3', action: 'add_node', description: 'third' },
+          ],
+          approvedAt: '2026-04-22T00:00:00Z',
+        },
+      },
+    ]);
+    const addStep = (label: string, x: number, planStepId: string) =>
+      JSON.stringify({
+        type: 'http_request',
+        label,
+        position: { x, y: 300 },
+        config: {},
+        planStepId,
+      });
+    // Round 1: s1 만 + 조기 finish → block (s2, s3 pending)
+    mocks.llmService.chatStream.mockImplementationOnce(() =>
+      asyncIter<ChatStreamEvent>([
+        {
+          type: 'tool_call_end',
+          id: 'add_s1',
+          name: 'add_node',
+          arguments: addStep('First', 500, 's1'),
+        },
+        {
+          type: 'tool_call_end',
+          id: 'fin_1',
+          name: 'finish',
+          arguments: '{}',
+        },
+        {
+          type: 'done',
+          usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 },
+          model: 'gpt-4o',
+          finishReason: 'tool_calls',
+        },
+      ]),
+    );
+    // Round 2: 진척 (s2 추가) + 또 조기 finish → 새 가드는 다시 block
+    // (옛 가드라면 그냥 통과해 사용자 hint 노출되던 케이스)
+    mocks.llmService.chatStream.mockImplementationOnce(() =>
+      asyncIter<ChatStreamEvent>([
+        {
+          type: 'tool_call_end',
+          id: 'add_s2',
+          name: 'add_node',
+          arguments: addStep('Second', 750, 's2'),
+        },
+        {
+          type: 'tool_call_end',
+          id: 'fin_2',
+          name: 'finish',
+          arguments: '{}',
+        },
+        {
+          type: 'done',
+          usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 },
+          model: 'gpt-4o',
+          finishReason: 'tool_calls',
+        },
+      ]),
+    );
+    // Round 3: s3 추가 후 finish → 모든 step 완료, 정상 종료
+    mocks.llmService.chatStream.mockImplementationOnce(() =>
+      asyncIter<ChatStreamEvent>([
+        {
+          type: 'tool_call_end',
+          id: 'add_s3',
+          name: 'add_node',
+          arguments: addStep('Third', 1000, 's3'),
+        },
+        {
+          type: 'tool_call_end',
+          id: 'fin_3',
+          name: 'finish',
+          arguments: '{}',
+        },
+        {
+          type: 'done',
+          usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 },
+          model: 'gpt-4o',
+          finishReason: 'stop',
+        },
+      ]),
+    );
+
+    const events = await collect(
+      service.streamMessage('sess-1', 'ws-1', 'u-1', baseDto as never),
+    );
+
+    // 3 라운드 — 새 가드가 두 번째 finish 까지 block.
+    expect(mocks.llmService.chatStream).toHaveBeenCalledTimes(3);
+
+    // Round 2 messages: round 1 의 fin_1 이 PLAN_NOT_COMPLETE 로 결과 통보됨
+    const round2Messages = mocks.llmService.chatStream.mock.calls[1][1]
+      .messages as Array<{
+      role: string;
+      toolCallId?: string;
+      content?: string;
+    }>;
+    const fin1Result = round2Messages.find(
+      (m) => m.role === 'tool' && m.toolCallId === 'fin_1',
+    );
+    expect(fin1Result).toBeDefined();
+    expect(JSON.parse(fin1Result!.content ?? 'null')).toMatchObject({
+      ok: false,
+      error: 'PLAN_NOT_COMPLETE',
+    });
+
+    // Round 3 messages: round 2 의 fin_2 도 똑같이 block 되었어야 한다.
+    const round3Messages = mocks.llmService.chatStream.mock.calls[2][1]
+      .messages as Array<{
+      role: string;
+      toolCallId?: string;
+      content?: string;
+    }>;
+    const fin2Result = round3Messages.find(
+      (m) => m.role === 'tool' && m.toolCallId === 'fin_2',
+    );
+    expect(fin2Result).toBeDefined();
+    expect(JSON.parse(fin2Result!.content ?? 'null')).toMatchObject({
+      ok: false,
+      error: 'PLAN_NOT_COMPLETE',
+    });
+
+    const done = events[events.length - 1];
+    expect(done).toMatchObject({
+      event: 'done',
+      data: { finishReason: 'stop' },
+    });
+  });
+
+  it('does NOT treat a turn whose edits all failed (ok:false) as an "execution turn" — finish goes through immediately without a block', async () => {
+    // 회귀 가드: ok:false 인 edit (e.g. LABEL_CONFLICT) 은 canvas 를 바꾸지
+    // 못하므로 가드 입장에서는 "이번 턴에 실행 발생" 으로 간주하면 안 된다.
+    // 잘못 카운트하면 finish 가 막혀 LLM 이 같은 실패를 반복하는 핑퐁 발생.
+    // 가드는 실패 edit 만 있는 턴은 활성화 자체를 건너뛰고 finish 를 즉시
+    // 통과시켜야 한다.
+    const { service, mocks } = makeService();
+    mocks.sessionService.loadMessages.mockResolvedValue([
+      { role: 'user', content: '요청', toolCalls: null },
+      {
+        role: 'assistant',
+        content: '',
+        toolCalls: [
+          {
+            id: 'p0',
+            name: 'propose_plan',
+            arguments: {},
+            kind: 'plan',
+            result: { ok: true },
+          },
+        ],
+        plan: {
+          title: 'Conflict plan',
+          summary: '',
+          steps: [{ id: 's1', action: 'add_node', description: 'add Start' }],
+          approvedAt: '2026-04-22T00:00:00Z',
+        },
+      },
+    ]);
+    // 의도적으로 Start (이미 존재하는 manual_trigger 의 label) 와 충돌 →
+    // shadow 가 LABEL_CONFLICT 를 반환하도록.
+    const conflictingAdd = JSON.stringify({
+      type: 'http_request',
+      label: 'Start',
+      position: { x: 500, y: 300 },
+      config: {},
+      planStepId: 's1',
+    });
+
+    mocks.llmService.chatStream.mockImplementation(() =>
+      asyncIter<ChatStreamEvent>([
+        {
+          type: 'tool_call_end',
+          id: 'add_1',
+          name: 'add_node',
+          arguments: conflictingAdd,
+        },
+        {
+          type: 'tool_call_end',
+          id: 'fin_1',
+          name: 'finish',
+          arguments: '{}',
+        },
+        {
+          type: 'done',
+          usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 },
+          model: 'gpt-4o',
+          finishReason: 'tool_calls',
+        },
+      ]),
+    );
+
+    const events = await collect(
+      service.streamMessage('sess-1', 'ws-1', 'u-1', baseDto as never),
+    );
+
+    // 단일 라운드 — 가드가 "실행 발생 없음" 으로 인식해 finish 즉시 통과.
+    expect(mocks.llmService.chatStream).toHaveBeenCalledTimes(1);
+    const done = events[events.length - 1];
+    expect(done).toMatchObject({
+      event: 'done',
+      data: { finishReason: 'stop' },
+    });
+
+    // 부수 검증: add_node 가 LABEL_CONFLICT 로 거부됐어야 한다.
+    const addEvent = events.find(
+      (e) => e.event === 'tool_call' && e.data.name === 'add_node',
+    );
+    expect(addEvent).toBeDefined();
+    expect(
+      (addEvent?.data.result as { ok?: boolean; error?: string }).error,
+    ).toBe('LABEL_CONFLICT');
+  });
+
+  it('counts a successful `propose_plan` as progress, re-arming the finish guard for another block round', async () => {
+    // Plan tool 도 미완 step 을 줄일 수 있는 진척이다 (예: 불필요해진 step 을
+    // note 로 표시한 새 plan). guard 가 propose_plan 성공을 진척으로 인식하지
+    // 못하면 LLM 이 plan 을 다듬은 뒤에도 stuck 으로 즉시 탈출되어 plan
+    // 갱신 의도가 깨진다.
+    const { service, mocks } = makeService();
+    mocks.sessionService.loadMessages.mockResolvedValue([
+      { role: 'user', content: '시작', toolCalls: null },
+      {
+        role: 'assistant',
+        content: '',
+        toolCalls: [
+          {
+            id: 'p0',
+            name: 'propose_plan',
+            arguments: {},
+            kind: 'plan',
+            result: { ok: true },
+          },
+        ],
+        plan: {
+          title: 'Pre-revision plan',
+          summary: '',
+          steps: [
+            { id: 's1', action: 'add_node', description: 'first' },
+            { id: 's2', action: 'add_node', description: 'second' },
+          ],
+          approvedAt: '2026-04-22T00:00:00Z',
+        },
+      },
+    ]);
+    const addS1 = JSON.stringify({
+      type: 'http_request',
+      label: 'First',
+      position: { x: 500, y: 300 },
+      config: {},
+      planStepId: 's1',
+    });
+    // Round 1: s1 만 + finish → block (s2 pending)
+    mocks.llmService.chatStream.mockImplementationOnce(() =>
+      asyncIter<ChatStreamEvent>([
+        {
+          type: 'tool_call_end',
+          id: 'add_s1',
+          name: 'add_node',
+          arguments: addS1,
+        },
+        {
+          type: 'tool_call_end',
+          id: 'fin_1',
+          name: 'finish',
+          arguments: '{}',
+        },
+        {
+          type: 'done',
+          usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 },
+          model: 'gpt-4o',
+          finishReason: 'tool_calls',
+        },
+      ]),
+    );
+    // Round 2: s2 를 note 로 바꾼 새 propose_plan + finish — propose_plan 이
+    // 진척으로 카운트되면 가드가 재발동, 그러나 새 plan 의 actionable step
+    // 은 모두 done(s1) 이므로 finish 가 정상 통과해야 한다.
+    const revisedPlan = JSON.stringify({
+      title: 'Revised',
+      summary: 's2 was unnecessary',
+      steps: [
+        { id: 's1', action: 'add_node', description: 'first' },
+        { id: 's2', action: 'note', description: 'no longer needed' },
+      ],
+    });
+    mocks.llmService.chatStream.mockImplementationOnce(() =>
+      asyncIter<ChatStreamEvent>([
+        {
+          type: 'tool_call_end',
+          id: 'replan',
+          name: 'propose_plan',
+          arguments: revisedPlan,
+        },
+        {
+          type: 'tool_call_end',
+          id: 'fin_2',
+          name: 'finish',
+          arguments: '{}',
+        },
+        {
+          type: 'done',
+          usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 },
+          model: 'gpt-4o',
+          finishReason: 'stop',
+        },
+      ]),
+    );
+
+    const events = await collect(
+      service.streamMessage('sess-1', 'ws-1', 'u-1', baseDto as never),
+    );
+    expect(mocks.llmService.chatStream).toHaveBeenCalledTimes(2);
+    // 새 plan 이 SSE plan 이벤트로 발행되었어야 — propose_plan 이 round 2 에서
+    // 정상 처리됐음을 확인 (단순 stuck 탈출이 아님).
+    const round2PlanEvent = events.find(
+      (e) => e.event === 'plan' && e.data.title === 'Revised',
+    );
+    expect(round2PlanEvent).toBeDefined();
     const done = events[events.length - 1];
     expect(done).toMatchObject({
       event: 'done',
