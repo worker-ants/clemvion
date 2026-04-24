@@ -1,4 +1,5 @@
 import { apiClient } from "./client";
+import { unwrap } from "./unwrap";
 
 export interface LlmConfigData {
   id: string;
@@ -64,13 +65,13 @@ export const llmConfigsApi = {
   },
 
   async testConnection(id: string) {
-    const { data } = await apiClient.post(`/llm-configs/${id}/test`);
-    return data.data as { success: boolean; error?: string };
+    const response = await apiClient.post(`/llm-configs/${id}/test`);
+    return unwrap<{ success: boolean; error?: string }>(response);
   },
 
   async listModels(id: string) {
-    const { data } = await apiClient.get(`/llm-configs/${id}/models`);
-    return (data?.data ?? data) as ModelInfo[];
+    const response = await apiClient.get(`/llm-configs/${id}/models`);
+    return unwrap<ModelInfo[]>(response);
   },
 
   async previewModels(payload: {
@@ -78,11 +79,11 @@ export const llmConfigsApi = {
     apiKey: string;
     baseUrl?: string;
   }) {
-    const { data } = await apiClient.post(
+    const response = await apiClient.post(
       "/llm-configs/preview-models",
       payload,
     );
-    return (data?.data ?? data) as ModelInfo[];
+    return unwrap<ModelInfo[]>(response);
   },
 
   async remove(id: string) {
