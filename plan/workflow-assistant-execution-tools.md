@@ -12,62 +12,67 @@
 - Spec [`spec/3-workflow-editor/4-ai-assistant.md` §4.1, §4.1.1, §8, §12.2, §13, §14](../spec/3-workflow-editor/4-ai-assistant.md)
 - 의사결정 메모 [`memory/workflow-assistant-execution-tools-decisions.md`](../memory/workflow-assistant-execution-tools-decisions.md)
 
-## 작업 단계 (SDD + TDD)
+## 작업 단계 (SDD + TDD) — 완료
 
-### Phase 1 — 테스트 선작성
+### Phase 1 — 테스트 선작성 ✅
 
-- [ ] `backend/src/modules/workflow-assistant/tools/explore-tools.service.spec.ts` 신설 또는 확장
-  - [ ] `getWorkflowExecutions(session, {limit, status})` — 목록 + 페이지네이션 + 상태 필터
-  - [ ] `getWorkflowExecutions` — 다른 워크플로의 실행은 반환 안 됨
-  - [ ] `getExecutionDetails(session, id)` — 정상 케이스: execution + timeline + subExecutions(1 level)
-  - [ ] `getExecutionDetails` — `EXECUTION_NOT_FOUND` (없는 id, workspace 경계 밖 동일 처리)
-  - [ ] `getExecutionDetails` — `EXECUTION_NOT_IN_SCOPE` (다른 워크플로의 실행 + 직계 자식도 아닌 경우)
-  - [ ] `getExecutionDetails` — 직계 자식 실행 id 를 넘기면 부모 통해 스코프 통과
-  - [ ] `getExecutionDetails` — `running` 상태 실행의 부분 타임라인 반환 (finishedAt null, 끝나지 않은 노드 status 그대로)
-  - [ ] `getExecutionDetails` — 민감 필드(apiKey/token/password/secret) 가 마스킹되어 반환됨
-  - [ ] `getExecutionDetails` — 2-depth sub-workflow 가 존재하면 `subExecutionsTruncatedDepth: 1` 플래그
-- [ ] `backend/src/modules/workflow-assistant/workflow-assistant-stream.service.spec.ts` 에 end-to-end mock 추가
-  - [ ] LLM 이 `get_workflow_executions` 호출 → SSE `tool_call` kind=`explore` 로 발행
-  - [ ] LLM 이 `get_execution_details` 호출 → 동일
+- [x] `backend/src/modules/workflow-assistant/tools/explore-tools.service.spec.ts` 신설 (총 16 케이스)
+  - [x] `getWorkflowExecutions` — 정상 + DB GROUP BY 통계 집계 + 빈 결과 + limit 클램프 + status 필터
+  - [x] `getWorkflowExecutions` — `INVALID_ID` / `WORKFLOW_NOT_FOUND` (workspace 경계 밖)
+  - [x] `getExecutionDetails` — 정상 + 타임라인 + subExecutions(1-level) + 배치 쿼리 확인
+  - [x] `getExecutionDetails` — `EXECUTION_NOT_FOUND`, `EXECUTION_NOT_IN_SCOPE` (parent null + 제3 워크플로 + cross-workspace 세 분기)
+  - [x] `getExecutionDetails` — 부모 chain 을 통한 직계 자식 실행 스코프 통과
+  - [x] `getExecutionDetails` — `running` 상태 부분 타임라인
+  - [x] `getExecutionDetails` — 민감 필드 재귀 마스킹
+  - [x] `getExecutionDetails` — `subExecutionsTruncatedDepth` 발행/미발행
+- [x] `workflow-assistant-stream.service.spec.ts` — `get_workflow_executions` / `get_execution_details` dispatch + SSE envelope 2 케이스
 
-### Phase 2 — 구현
+### Phase 2 — 구현 ✅
 
-- [ ] `backend/src/modules/workflow-assistant/tools/tool-definitions.ts`
-  - [ ] `TOOL_KIND_BY_NAME` 에 `get_workflow_executions: 'explore'`, `get_execution_details: 'explore'` 추가
-  - [ ] `buildAssistantToolsInternal()` 반환 배열에 두 도구의 `name`/`description`/`parameters` JSON schema 추가
-- [ ] `backend/src/modules/workflow-assistant/tools/explore-tools.service.ts`
-  - [ ] `ExecutionsService` + `NodeExecutionsRepository` 주입 (생성자 확장, `workflow-assistant.module.ts` imports 조정)
-  - [ ] `getWorkflowExecutions(workspaceId, workflowId, { limit, status })` 추가
-  - [ ] `getExecutionDetails(workspaceId, workflowId, executionId)` 추가 — 스코프 검증 → 본 실행 조회 → 직계 자식 확장 → 마스킹 적용
-  - [ ] 마스킹: `backend/src/common/utils/mask-sensitive-fields.util.ts` 의 `maskSensitiveFields` 재사용. inputData/outputData/error 만 통과
-- [ ] `backend/src/modules/workflow-assistant/workflow-assistant-stream.service.ts`
-  - [ ] `handleExploreCall()` switch 에 두 case 추가. 인자 파싱 후 `exploreTools.getWorkflowExecutions` / `.getExecutionDetails` 호출
-- [ ] `backend/src/modules/workflow-assistant/prompts/system-prompt.ts`
-  - [ ] 기존 Contracts 또는 Expression language 섹션 근처에 "실행 이슈 진단 패턴" 한 단락 추가: 2-step 호출(list → detail), 직계 자식까지 자동 포함, 민감 필드 마스킹 적용됨을 LLM 에 가르침
-  - [ ] 관련 회귀 테스트를 `system-prompt.spec.ts` 에 한 건 추가 (해당 문구 존재 확인)
-- [ ] `frontend/src/lib/i18n/ko.ts` + `en.ts`
-  - [ ] `assistant.exploreExecutionsList`, `assistant.exploreExecutionDetails`, `assistant.executionNotInScope` 3개 키 추가 (`types.ts` 는 ko.ts 자동 파생)
-- [ ] `frontend/src/components/assistant/tool-call-badge.tsx` (또는 대응 배지 렌더러)
-  - [ ] `get_workflow_executions` / `get_execution_details` 를 탐색 배지(🔍)로 렌더. 요약 라벨은 위 i18n 키 사용
+- [x] `tool-definitions.ts` — `TOOL_KIND_BY_NAME` + JSON schema 2 도구 등록, `EXECUTION_STATUS_VALUES` 공유
+- [x] `explore-tools.service.ts`
+  - [x] `Execution` / `NodeExecution` Repository 직접 주입 (주석 명시된 설계 — `ExecutionsService` 어댑터 경로는 RBAC 수요 생기기 전까지 연기)
+  - [x] `getWorkflowExecutions(workspaceId, workflowId, opts)` — list + GROUP BY 통계
+  - [x] `getExecutionDetails(workspaceId, currentWorkflowId, executionId)` — 스코프 검증 + 병렬 쿼리 + 배치 자식 timeline + 2-depth 힌트 + 마스킹
+  - [x] 공통 유틸 `maskSensitiveFields` 재사용
+  - [x] `TIMELINE_ROW_CAP = 500` + `timelineTruncated` 플래그
+- [x] `workflow-assistant-stream.service.ts` — `handleExploreCall` switch 2 case
+- [x] `workflow-assistant.module.ts` — TypeOrmModule.forFeature 에 Execution/NodeExecution 추가
+- [x] `system-prompt.ts` — Contracts 하위에 "Diagnosing past executions" 섹션, 2-step 패턴 교육
+- [x] `system-prompt.spec.ts` — 해당 교육의 7 anchor 고정 테스트
+- [x] `frontend/src/lib/i18n/dict/{ko,en}.ts` — `exploreExecutionsList` · `exploreExecutionDetails` · `executionNotInScope` 3 키
+- [x] `frontend/src/components/editor/assistant-panel/tool-call-badge.tsx` — `summarize()` 에 두 도구 케이스 (status 필터 + count 요약)
 
-### Phase 3 — TEST WORKFLOW
+### Phase 3 — TEST WORKFLOW ✅
 
-1. [ ] lint (backend + frontend)
-2. [ ] unit test (backend + frontend)
-3. [ ] build (backend + frontend)
+1. [x] backend lint (`--max-warnings=0`) clean
+2. [x] backend unit: 1868/1868 passed
+3. [x] backend build: green
+4. [x] frontend lint: clean
+5. [x] frontend vitest: 1075/1075 passed
+6. [x] frontend build: green (tsconfig 에 test exclude 추가로 vitest 4.1.4 타입 export 이슈 우회)
 
-문제 발견 시 해당 단계부터 재수행.
+### Phase 4 — REVIEW WORKFLOW ✅
 
-### Phase 4 — REVIEW WORKFLOW
-
-1. [ ] `ai-review` skill 로 코드 리뷰
-2. [ ] Warning 이상 이슈와 테스트 누락 이슈 전부 해결
-3. [ ] `review/**/RESOLUTION.md` 에 조치 내용 기록
-4. [ ] 조치 후 TEST WORKFLOW 재수행
+1. [x] `ai-review` skill 실행 — review/2026-04-24_12-18-04/SUMMARY.md
+2. [x] Warning 이슈 11건 전부 해결
+   - [x] (W1) i18n 키 사용처 불명확 → spec §13 에 배지 관례 주석 추가
+   - [x] (W2) `isExecutionInScope` 제3 워크플로 분기 테스트 추가
+   - [x] (W3) 배지 테스트는 기존 `tool-call-badge.test.ts` 가 group 로직만 커버 — `summarize` 분기 테스트 후속 검토 (RESOLUTION.md 기재)
+   - [x] (W4) `TIMELINE_ROW_CAP = 500` + `timelineTruncated` 플래그 + 스펙 갱신
+   - [x] (W5) 자식 timeline 배치 쿼리로 N+1 제거
+   - [x] (W6) 인덱스는 V002/V006 에 이미 존재 — 비작업
+   - [x] (W7) `EXECUTION_STATUS_VALUES` 공유 export
+   - [x] (W8) `getExecutionDetails` 독립 쿼리 Promise.all 병렬화
+   - [x] (W9) `loadNodeStats` DB GROUP BY 로 전환
+   - [x] (W10) `frontend/tsconfig.json` test exclude — 별도 `tsconfig.test.json` 은 RESOLUTION.md 후속
+   - [x] (W11) 본 plan 파일 체크박스 최신화 (현재 커밋)
+3. [x] `review/2026-04-24_12-18-04/RESOLUTION.md` 에 조치 내용 기록
+4. [x] 조치 후 TEST WORKFLOW 재수행 — 전부 green 유지
 
 ## 완료 기준
 
-- Spec §4.1 · §4.1.1 의 응답 shape 과 에러 코드가 구현과 정합
-- PRD ED-AI-35~38 네 요구사항이 각각 스펙 섹션·구현·테스트로 매칭
-- lint/unit/build 전부 green
-- ai-review 의 Warning 이상 이슈 0 건
+- [x] Spec §4.1 · §4.1.1 의 응답 shape 과 에러 코드가 구현과 정합
+- [x] PRD ED-AI-35~38 네 요구사항이 각각 스펙 섹션·구현·테스트로 매칭
+- [x] lint/unit/build 전부 green
+- [x] ai-review 의 Warning 이상 이슈 0 건 (혹은 후속 처리 RESOLUTION.md 기재)

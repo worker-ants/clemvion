@@ -35,9 +35,9 @@ ExecutionDetailsResponse {
 - `EXECUTION_NOT_FOUND` — id 없음 or workspace 밖
 - `EXECUTION_NOT_IN_SCOPE` — id 는 있지만 현재 세션 워크플로의 실행/직계 자식이 아님
 
-## 구현 단계에서 유의 사항
+## 구현 단계에서 유의 사항 (실제 구현 반영)
 
-1. **기존 서비스 재사용.** `executions.service.ts:24-44` 의 `findById(id)` 가 이미 `nodeExecutions: NodeExecution[]` 을 `startedAt ASC` 로 포함해 반환. `findByWorkflow(workflowId, query)` 는 페이지네이션 + 상태 필터 지원. 새 DB 쿼리 없이 이 두 서비스 위에 얇은 어댑터(`explore-tools.service.ts` 에 메서드 추가) 만 얹으면 됨.
+1. **Repository 직접 주입으로 전환.** 기획 단계에서는 `executions.service.ts` 의 `findById` / `findByWorkflow` 를 어댑터로 감쌀 계획이었으나, 구현 시 다음 이유로 Repository 를 직접 주입했다: (a) `ExecutionsService.findById` 는 `NotFoundException` (Nest HTTP exception) 을 던져 tool-result envelope `{ok: false, error}` 와 맞지 않음. (b) `findByWorkflow` 는 컨트롤러용 DTO 래퍼(`PaginatedResponseDto`) 를 반환해 LLM 응답에는 오버스펙. (c) 기존 `listWorkflows`/`listIntegrations` 도 동일한 Repository 직접 주입 패턴. 향후 `ExecutionsService` 에 RBAC 같은 cross-cutting 규칙이 들어가면 그때 서비스 주입으로 전환한다 — `explore-tools.service.ts` 클래스 상단 주석에 이 trade-off 명시.
 2. **스코프 검증.** `get_execution_details` 는 다음 순서로 허용 여부 판정:
    a. `executions.findById(id)` — 없으면 `EXECUTION_NOT_FOUND`.
    b. `execution.workflowId === session.workflowId` 면 통과.

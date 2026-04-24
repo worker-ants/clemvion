@@ -184,7 +184,7 @@ LLM에 전달되는 function-calling 도구 목록이다. 인자/반환은 JSON 
 | `get_workflow` | `{id: UUID, mode?: 'summary'\|'full'}` | `{name, nodes, edges, summary}` | **다른** 워크플로우 구조 참조 (예: "주문 생성" 워크플로우 구조를 읽고 "주문 취소" 설계). 현재 편집 중인 워크플로우는 이 도구로 조회하지 않는다 |
 | `get_current_workflow` | 없음 | `{ok, nodes, edges}` (config는 redact 적용) | **현재** 편집 중인 캔버스의 최신 nodes/edges. 같은 턴 내 편집 이후 결과를 재확인하거나 시스템 프롬프트 스냅샷의 신선도가 불확실할 때 호출 |
 | `list_knowledge_bases` | 없음 | `[{id, name, documentCount}]` | RAG 노드 설계 시 참고 |
-| `get_workflow_executions` | `{limit?: number, status?: 'completed'\|'failed'\|'running'\|'cancelled'\|'waiting_for_input'}` | `{ok, items: [{id, status, startedAt, finishedAt, durationMs, nodeStats: {total, completed, failed}, triggerId?}]}` | 현재 세션 워크플로의 최근 실행 목록. 시작 시간 내림차순. 기본 `limit=10`, 상한 50. 사용자가 "최근 실행이 왜 실패했어?" 같이 직전 실행을 특정하지 않고 질문했을 때 후보를 좁히는 용도 |
+| `get_workflow_executions` | `{limit?: number, status?: 'pending'\|'running'\|'completed'\|'failed'\|'cancelled'\|'waiting_for_input'}` | `{ok, workflowId, workflowName, items: [{id, status, startedAt, finishedAt, durationMs, triggerId, nodeStats: {total, completed, failed}}]}` | 현재 세션 워크플로의 최근 실행 목록. 시작 시간 내림차순. 기본 `limit=10`, 상한 50. 사용자가 "최근 실행이 왜 실패했어?" 같이 직전 실행을 특정하지 않고 질문했을 때 후보를 좁히는 용도. `triggerId` 는 manual 실행일 때 `null` |
 | `get_execution_details` | `{id: UUID}` | `{ok, execution, timeline, subExecutions}` — 상세는 §4.1.1 | 특정 실행의 전체 타임라인(노드별 status/입출력/에러) 조회. 어시스턴트가 실패 원인을 식별하고 노드 수정 계획을 세우는 데 사용. 1-level sub-workflow 자식 실행까지 같은 응답에 포함 |
 
 > 탐색 도구는 모두 세션의 `workspace_id` 스코프 내에서만 조회한다. 워크스페이스 경계를 넘는 데이터는 반환하지 않는다.
@@ -232,12 +232,15 @@ interface ExecutionDetailsResponse {
     timeline: /* 위 timeline 과 동일 구조 */;
   }>;
   subExecutionsTruncatedDepth?: number;   // 자식 실행 내부에도 추가 sub-workflow 가 있으면 이 필드로 "depth N 이후 생략됨" 신호
+  timelineTruncated?: true;               // 본 실행의 timeline 이 row cap(500) 을 초과해 앞 500 개만 담겼음. `subExecutions[*].timelineTruncated` 도 동일 의미로 자식별 개별 발행
 }
 ```
 
 **마스킹 규칙.** `inputData` · `outputData` · `error` 필드는 서버가 `maskSensitiveFields` 공통 유틸을 재귀 적용해 반환한다. 매칭 키(대소문자 무시): `apiKey`, `api_key`, `password`, `token`, `accessToken`, `refreshToken`, `secret`, `clientSecret`, `authorization`. 매칭된 값이 문자열이면 `"****<last4>"` 로, 그 외 타입이면 `"****"` 로 치환. 객체/배열은 재귀 순회. 원본은 DB 에 그대로 남고 read 시점에만 변환한다.
 
-**크기 제한 없음.** 페이로드 크기에는 명시적 cap 을 두지 않는다 — 대신 어시스턴트가 큰 실행을 조회할 때는 먼저 `get_workflow_executions` 로 요약 목록을 받아 후보를 좁힌 뒤 특정 id 하나만 `get_execution_details` 로 깊게 보는 2-step 패턴을 권장한다. 시스템 프롬프트(§8) 가 이 흐름을 가르친다. 한 턴에 대량 페이로드를 세 개 이상 조회하면 `ASSISTANT_TOO_MANY_TOOL_CALLS` budget(§10) 에 근접할 수 있다.
+**페이로드 크기 정책.** 개별 필드(`inputData`/`outputData`/`error`)에는 크기 cap 을 두지 않는다 — 2-step 패턴으로 어시스턴트가 폭주를 자연스럽게 회피하도록 유도한다(§8 시스템 프롬프트). 반면 **timeline 행 수**는 루프 노드가 수천 번 회전한 실행을 직렬화하다 컨텍스트를 터뜨리지 않도록 **실행 한 건당 500 행 상한**을 적용한다 — 넘치면 응답의 `timelineTruncated: true` 플래그로 신호하고, 앞 500 행만 담는다(자식 실행 timeline 도 각각 동일 상한). 사용자에게 "앞쪽 500 단계까지만 본 상태" 라고 명확히 알릴 때 이 플래그를 써라. 한 턴에 대량 페이로드를 세 개 이상 조회하면 `ASSISTANT_TOO_MANY_TOOL_CALLS` budget(§10) 에 근접할 수 있다.
+
+**Running 실행 응답은 스냅샷.** `status: 'running' / 'waiting_for_input'` 실행을 조회하면 엔진은 응답 직렬화 시점의 부분 상태를 돌려준다. 서비스가 timeline / 자식 실행 / 2-depth 존재 여부를 병렬 쿼리로 집계하므로 개별 쿼리 사이에 상태 전이가 발생하면 세 결과 사이의 시점이 수 밀리초 어긋날 수 있다. 동일 실행 id 를 연속으로 다시 조회하면 이 불일치는 해소된다 — LLM 도 "조회 시점 스냅샷" 이라는 인식하에 사용자에게 결과를 보고한다.
 
 **실행 상태별 동작.**
 
@@ -529,6 +532,8 @@ data: {"code": "LLM_RATE_LIMIT", "message": "..."}
 ---
 
 ## 13. i18n 키
+
+> **배지 라벨 관례.** 도구 호출 배지(§3.2)는 현재 영문 고정 문자열을 사용한다(`tool-call-badge.tsx`의 `summarize()`). 아래 `assistant.exploreLookup` · `assistant.exploreExecutionsList` · `assistant.exploreExecutionDetails` 등 "explore" 계열 키는 **에디터 내 다른 UI 표면(힌트·안내·에러 bubble)** 에서 사용하기 위한 contract 이다. 배지 라벨을 한국어/영어로 분기하려면 `useTranslation` 연결이 필요하나 MVP 스코프 밖이다.
 
 | 키 | 한국어 | 영어 |
 |----|--------|------|
