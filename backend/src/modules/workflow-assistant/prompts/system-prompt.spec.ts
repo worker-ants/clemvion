@@ -698,5 +698,26 @@ describe('buildSystemPrompt', () => {
       // Ex2 가 "버튼을 미연결 상태로 두라" 는 이전 교육을 더이상 포함하지 않음
       expect(prompt).not.toMatch(/Leave .*with no outgoing edge/i);
     });
+
+    it('Ex2 carousel config sets mode=static with items so handler.validate passes', () => {
+      // carousel 이 "choice menu" 용도일 때 `{ config.buttons: [...] }` 만
+      // 주면 handler.validate 가 dynamic 분기로 진입해 titleField 오류를 낸다.
+      // 예시가 `mode: "static"` + 최소 1 개의 items 슬라이드를 명시해야
+      // canvas 렌더 + 저장 시 검증을 모두 통과한다.
+      const prompt = buildSystemPrompt(defs as never, emptySnapshot);
+      // Ex2 의 carousel config 블록이 mode/items/buttons 세 키를 동봉
+      expect(prompt).toMatch(
+        /carousel[\s\S]{0,200}mode:\s*"static"[\s\S]{0,200}items:[\s\S]{0,200}buttons:/,
+      );
+    });
+
+    it('pitfalls include a Carousel choice-menu pattern rule', () => {
+      const prompt = buildSystemPrompt(defs as never, emptySnapshot);
+      // 규칙 타이틀 + static/dynamic 두 shape 이 모두 언급되어야 한다
+      expect(prompt).toMatch(/Carousel: choice-menu pattern/);
+      expect(prompt).toMatch(/mode:\s*'static'/);
+      expect(prompt).toMatch(/Single-prompt, multi-button/);
+      expect(prompt).toMatch(/Card-per-choice/);
+    });
   });
 });
