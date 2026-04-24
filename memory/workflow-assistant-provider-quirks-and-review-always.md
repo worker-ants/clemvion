@@ -210,6 +210,63 @@ plan-only 턴에서 plan card 와 함께 "계획대로 진행해 주세요." sys
 - `assistant-panel.tsx` 가 `onContinueAfterBudget` 콜백을 `AssistantMessageView`
   로 주입해 snapshot 결합 유지 (plan approve 버튼과 동일 패턴).
 
+## 11. NODE_NOT_FOUND label-lookalike hint (2026-04-24)
+
+### 증상
+LLM 이 `update_node` / `remove_node` / `add_edge` 의 `id` / `source_id` / `target_id`
+자리에 사용자에게 보이는 **label** (예: `"SendEmail"`) 을 실수로 넣어
+`NODE_NOT_FOUND` 가 연쇄 발생. 이로 인해 config patch 도 전혀 반영 안 되는
+2차 증상까지 번짐.
+
+### 대응 (2-layer)
+1. **시스템 프롬프트 강화** (`system-prompt.ts`):
+   - Contracts 블록 "Label vs identifier" 섹션에 "Tool arguments: always
+     reference a node by its UUID, never by its label" 하위 문단 추가.
+     UUID 의 유일한 출처 2가지 (`result.id` / `currentWorkflow.nodes[*].id`)
+     명시 + 위반 예 (`update_node({id: "SendEmail"})`) 포함.
+   - "Labels are globally unique" 문장에 "유일성은 add_node 충돌 감지용 —
+     UUID 대체 근거 아님" 단서 병기.
+
+2. **서버 label-lookalike hint** (`shadow-workflow.ts`):
+   - `buildLabelAsIdHint(value)`: shadow 에 `node.label === value` 인 노드가
+     있으면 `[hint] Value "<label>" matches the label of an existing node
+     (id: <uuid>). ... [/hint]` 형태의 복구 문자열 반환. `findByLabel` 위임으로
+     순회 로직 중복 제거. `sanitizeLlmProvidedString` 으로 label 을
+     C0+C1+Bidi+zero-width 까지 중화 + `JSON.stringify` 로 escape.
+   - `updateNode` / `removeNode`: `NODE_NOT_FOUND` 분기에 바로 hint 부착.
+   - `addEdge`: **cascading failed-add_node FIFO 가 먼저**. 비었을 때만
+     source 우선 label-lookalike fallback (target 은 source 매치 없을 때만).
+     두 힌트가 섞이지 않도록 단일 hint.
+
+### 호환성·주의
+- `ShadowResult.hint` 는 기존부터 optional 필드. 기존 `NODE_NOT_FOUND` 소비자는
+  hint 없이도 동일 동작.
+- `value.length > LABEL_HINT_MAX_LEN * 4` 는 label 후보에서 제외 (Levenshtein
+  유사 방어).
+- `[hint] … [/hint]` 마커는 이번부터 label-lookalike 계열에만 적용. 기존
+  cascading 힌트 등은 기존 형식 유지.
+
+### 관련 spec
+- `spec/3-workflow-editor/4-ai-assistant.md` §4.4.1 "NODE_NOT_FOUND hint 규칙"
+  에 cascading / label-lookalike 의 발동 조건·우선순위·보안 정책 정리.
+- §8 "워크플로우 조립 규칙" 행에 "tool argument id 자리 UUID 전용" 한 문장
+  추가.
+
+### 회귀 테스트
+`shadow-workflow.spec.ts` → `NODE_NOT_FOUND label-lookalike hint` describe:
+- update/remove/add_edge source/target 별 hint 부착
+- 양측 label → source 단일 hint
+- 공백 전용 id → hint 없음
+- cascading FIFO 비어있을 때 label-lookalike fallback 반례
+- cascading 우선순위 (FIFO 있으면 cascading hint)
+- label sanitisation (newline, `<script>`)
+
+`system-prompt.spec.ts` → "teaches that tool-argument id slots need UUIDs,
+never node labels" 로 슬로건 고정 + `result.id` / `nodes[*].id` / "matches the
+label of" 매칭.
+
+관련 리뷰: `review/2026-04-24_18-27-09/`.
+
 ## 10. Stall 자동 복구 UX — 메시지 박스 분리 + `auto_resume` SSE 이벤트 (2026-04-24)
 
 ### 배경
