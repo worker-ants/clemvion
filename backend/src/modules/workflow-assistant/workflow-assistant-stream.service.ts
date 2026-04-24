@@ -7,6 +7,7 @@ import { LlmConfig } from '../llm-config/entities/llm-config.entity';
 import { NodeComponentRegistry } from '../../nodes/core/node-component.registry';
 import { WorkflowAssistantSessionService } from './workflow-assistant-session.service';
 import { ExploreToolsService } from './tools/explore-tools.service';
+import { CandidateLookupService } from './tools/candidate-lookup.service';
 import {
   ShadowNode,
   ShadowSnapshot,
@@ -255,6 +256,7 @@ export class WorkflowAssistantStreamService {
     private readonly sessionService: WorkflowAssistantSessionService,
     private readonly exploreTools: ExploreToolsService,
     private readonly nodeRegistry: NodeComponentRegistry,
+    private readonly candidateLookup: CandidateLookupService,
   ) {}
 
   async *streamMessage(
@@ -511,7 +513,7 @@ export class WorkflowAssistantStreamService {
                 // 자체 점검 체크리스트를 돌린다. blocking 이슈가 있으면
                 // `WORKFLOW_REVIEW_REQUIRED` 로 되돌려 LLM 이 수정 후 finish
                 // 를 다시 호출하도록 유도.
-                const reviewBlock = this.evaluateReviewGuard(
+                const reviewBlock = await this.evaluateReviewGuard(
                   history,
                   planForTurn,
                   pendingToolCalls,
@@ -519,6 +521,8 @@ export class WorkflowAssistantStreamService {
                   dto.content,
                   assistantText,
                   shadow,
+                  workspaceId,
+                  session.workflowId,
                 );
                 if (reviewBlock) {
                   guardState.reviewRoundCount++;
@@ -696,18 +700,23 @@ export class WorkflowAssistantStreamService {
                 }
                 // add_node / update_node 성공 시 integration / llm-config /
                 // kb / workflow selector 처럼 사용자가 직접 골라야 하는
-                // 필드가 비어있으면 목록을 실어 LLM 에게 되돌린다. 시스템
-                // 프롬프트의 "Closing the turn" 규칙에 따라 LLM 은 finish
-                // 직전 마무리 메세지에서 이 항목을 안내해야 한다.
+                // 필드가 비어있으면 목록을 실어 LLM·프런트에 되돌린다.
+                // ED-AI-39 이후 서버가 워크스페이스 후보까지 포함한
+                // `pendingUserConfig[i].candidates` 를 채워 보내며 (spec §4.3.1)
+                // 프런트가 edit 버블 내부에 picker 를 렌더한다. LLM 의 closing
+                // mention 은 candidates 가 비어있는 항목에만 요구된다.
                 if (
                   shadowResult.ok &&
                   (ev.name === 'add_node' || ev.name === 'update_node') &&
                   shadowResult.id
                 ) {
-                  const pending = this.collectPendingUserConfig(
-                    shadow,
-                    shadowResult.id,
-                  );
+                  const pending =
+                    await this.collectPendingUserConfigWithCandidates(
+                      shadow,
+                      shadowResult.id,
+                      workspaceId,
+                      session.workflowId,
+                    );
                   if (pending.length > 0) {
                     result = {
                       ...(result as Record<string, unknown>),
@@ -1229,6 +1238,28 @@ export class WorkflowAssistantStreamService {
   }
 
   /**
+   * `collectPendingUserConfig` 의 결과에 워크스페이스 후보 목록을 채워
+   * 돌려준다. Spec ED-AI-39 (§4.3.1) 의 candidate picker 용. detect 단계는
+   * sync, candidate 조회는 async 이므로 두 단계를 분리해 제공한다 —
+   * review guard 처럼 sync 가 필요한 경로에서는 전자를 쓰고 tool_result
+   * 에 실어 내려보낼 때만 후자로 fill.
+   */
+  private async collectPendingUserConfigWithCandidates(
+    shadow: ShadowWorkflow,
+    nodeId: string,
+    workspaceId: string,
+    currentWorkflowId: string,
+  ): Promise<PendingUserConfigField[]> {
+    const pending = this.collectPendingUserConfig(shadow, nodeId);
+    if (pending.length === 0) return pending;
+    return this.candidateLookup.fillCandidates(
+      workspaceId,
+      currentWorkflowId,
+      pending,
+    );
+  }
+
+  /**
    * 2단계 finish 의 self-review. `evaluateFinishGuard` 가 통과한 상태에서만
    * 호출된다 — 즉 plan 체크박스·openQuestions 수준의 완결성은 이미 OK.
    * 여기서는 한 단계 더 들어가 **워크플로우 품질** 을 감사한다:
@@ -1244,7 +1275,7 @@ export class WorkflowAssistantStreamService {
    *  - 이번 턴에 성공한 edit 이 하나도 없음 (질문 전용·plan-only 턴)
    *  - 체크리스트가 비었거나 blocking 항목 없음
    */
-  private evaluateReviewGuard(
+  private async evaluateReviewGuard(
     history: WorkflowAssistantMessage[],
     planForTurn: AssistantPlanRecord | null,
     pendingToolCalls: AssistantToolCallRecord[],
@@ -1252,7 +1283,9 @@ export class WorkflowAssistantStreamService {
     originalRequest: string,
     assistantText: string,
     shadow: ShadowWorkflow,
-  ): FinishGuardError | null {
+    workspaceId: string,
+    currentWorkflowId: string,
+  ): Promise<FinishGuardError | null> {
     // shadow.snapshot() 은 nodes/edges 전체를 shallow clone 하므로 한 번만 찍고
     // skip 판정과 체크리스트에 공유한다.
     const snapshot = shadow.snapshot();
@@ -1268,14 +1301,31 @@ export class WorkflowAssistantStreamService {
     );
     const plan = planForTurn ?? planCtx?.plan ?? null;
 
+    // ED-AI-39: `PENDING_USER_CONFIG_UNMENTIONED` 는 candidate 가 0 인 항목에
+    // 대해서만 발동해야 한다 (후보가 1+ 면 picker 가 UX 를 완결). review
+    // 내부 콜백이 sync 이므로, shadow 의 모든 non-trigger 노드에 대해
+    // 미리 async 로 pending+candidates 를 계산한 Map 을 만들고 콜백은
+    // Map lookup 만 수행한다. 조회 실패는 빈 배열로 degrade.
+    const pendingByNode = new Map<string, PendingUserConfigField[]>();
+    await Promise.all(
+      snapshot.nodes.map(async (n) => {
+        const pending = await this.collectPendingUserConfigWithCandidates(
+          shadow,
+          n.id,
+          workspaceId,
+          currentWorkflowId,
+        );
+        pendingByNode.set(n.id, pending);
+      }),
+    );
+
     const checklist = buildReviewChecklist({
       shadowSnapshot: snapshot,
       pendingToolCalls,
       plan,
       originalRequest,
       assistantText,
-      collectPendingUserConfig: (nodeId) =>
-        this.collectPendingUserConfig(shadow, nodeId),
+      collectPendingUserConfig: (nodeId) => pendingByNode.get(nodeId) ?? [],
       nodeDefs: this.nodeRegistry.listDefinitions(),
     });
     if (!checklistBlocks(checklist)) return null;

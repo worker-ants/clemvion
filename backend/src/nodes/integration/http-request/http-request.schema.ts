@@ -80,6 +80,8 @@ export const httpRequestNodeConfigSchema = z
           order: 4,
           visibleWhen: { field: 'authentication', equals: 'integration' },
         },
+        // Assistant candidate picker 의 후보 조회 범위 힌트 (`service_type=http`).
+        integrationServiceType: 'http',
       }),
     headers: z
       .array(keyValueSchema)

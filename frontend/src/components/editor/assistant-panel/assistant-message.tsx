@@ -3,11 +3,30 @@
 import { useMemo } from "react";
 import { AlertCircle, CheckCircle2, Info, RotateCw } from "lucide-react";
 import type { AssistantDisplayMessage } from "@/lib/stores/assistant-store";
+import type {
+  AssistantToolCallRecord,
+  PendingUserConfigField,
+  UserActionWidget,
+} from "@/lib/api/assistant";
 import { useT } from "@/lib/i18n";
+import { useEditorStore } from "@/lib/stores/editor-store";
 import { ToolCallBadge, groupToolCalls } from "./tool-call-badge";
+import { CandidatePicker } from "./candidate-picker";
 import { PlanCard } from "./plan-card";
 import { MarkdownRenderer } from "./markdown-renderer";
 import { sanitizeAssistantText } from "./harmony-filter";
+
+/**
+ * widget 별로 "후보가 0 일 때 사용자에게 안내할 Settings 경로" 매핑.
+ * Assistant 메시지 안의 picker 에서 사용자가 "등록하러 가기" 를 눌렀을 때
+ * 쓰인다 (spec ED-AI-39 §3.2 picker 동작).
+ */
+const SETTINGS_HREF: Record<UserActionWidget, string> = {
+  "integration-selector": "/integrations",
+  "llm-config-selector": "/llm-configs",
+  "kb-selector": "/knowledge-bases",
+  "workflow-selector": "/workflows",
+};
 
 interface AssistantMessageViewProps {
   message: AssistantDisplayMessage;
@@ -125,6 +144,13 @@ export function AssistantMessageView({
           ))}
         </div>
       )}
+      <CandidatePickers toolCalls={message.toolCalls} />
+      {/*
+        spec ED-AI-39 (§3.2 "Candidate picker") — edit tool_call 결과의
+        pendingUserConfig 가 있을 때 해당 버블 내부에 드롭다운 picker 를
+        렌더해 사용자의 명시적 확인을 받는다. plan 카드·error bubble 보다
+        위에 배치해 "먼저 처리해야 할 액션" 으로 시선을 모은다.
+      */}
       {message.plan && (
         <PlanCard plan={message.plan} onApprove={onApprovePlan} canApprove />
       )}
@@ -195,4 +221,88 @@ export function AssistantMessageView({
       )}
     </div>
   );
+}
+
+/**
+ * `message.toolCalls` 를 훑어 pendingUserConfig 가 실린 `add_node` /
+ * `update_node` call 별로 CandidatePicker 를 배치한다. 각 picker 는 해당
+ * 노드의 현재 canvas config 값을 읽어 rehydrate 상태(이미 설정됨)와
+ * interactive 상태(아직 비어있음) 를 구분한다. 사용자 Confirm 시
+ * editor-store.updateNodeConfigField 로 해당 필드에 선택 id 를 주입 —
+ * Undo 스택에 push 되어 Ctrl+Z 로 되돌릴 수 있다.
+ */
+function CandidatePickers({
+  toolCalls,
+}: {
+  toolCalls: AssistantToolCallRecord[];
+}) {
+  const entries = useMemo(() => collectPickerEntries(toolCalls), [toolCalls]);
+  const nodes = useEditorStore((s) => s.nodes);
+  const updateNodeConfigField = useEditorStore(
+    (s) => s.updateNodeConfigField,
+  );
+  if (entries.length === 0) return null;
+  return (
+    <div className="flex flex-col gap-1.5">
+      {entries.map(({ nodeId, field, key }) => {
+        const node = nodes.find((n) => n.id === nodeId);
+        const nodeData = (node?.data ?? {}) as {
+          config?: Record<string, unknown>;
+        };
+        const currentValue = nodeData.config?.[field.field];
+        return (
+          <CandidatePicker
+            key={key}
+            field={field}
+            currentValue={currentValue}
+            onConfirm={(selectedId) => {
+              updateNodeConfigField(nodeId, field.field, selectedId);
+            }}
+            settingsHref={SETTINGS_HREF[field.widget]}
+          />
+        );
+      })}
+    </div>
+  );
+}
+
+interface PickerEntry {
+  /** 대상 노드 id (add_node 면 result.id, update_node 면 args.id). */
+  nodeId: string;
+  field: PendingUserConfigField;
+  /** React key — toolCall id + field path. */
+  key: string;
+}
+
+/**
+ * toolCalls 배열에서 `add_node` / `update_node` 의 결과에 담긴
+ * `pendingUserConfig` 를 추출해 picker 렌더 목록으로 변환한다. 실패한
+ * (`ok:false`) call 은 건너뛴다.
+ */
+function collectPickerEntries(
+  toolCalls: AssistantToolCallRecord[],
+): PickerEntry[] {
+  const out: PickerEntry[] = [];
+  for (const call of toolCalls) {
+    if (call.name !== "add_node" && call.name !== "update_node") continue;
+    const result = (call.result ?? {}) as {
+      ok?: boolean;
+      id?: string;
+      pendingUserConfig?: PendingUserConfigField[];
+    };
+    if (!result.ok) continue;
+    // add_node 는 result.id, update_node 는 args.id 가 대상 노드.
+    const nodeId =
+      call.name === "add_node"
+        ? (result.id ?? "")
+        : String(call.arguments?.id ?? "");
+    if (!nodeId) continue;
+    const pending = Array.isArray(result.pendingUserConfig)
+      ? result.pendingUserConfig
+      : [];
+    for (const field of pending) {
+      out.push({ nodeId, field, key: `${call.id}:${field.field}` });
+    }
+  }
+  return out;
 }

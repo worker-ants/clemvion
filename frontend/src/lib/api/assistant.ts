@@ -51,6 +51,33 @@ export interface AssistantToolCallRecord {
   planStepIds?: string[];
 }
 
+/**
+ * Spec ED-AI-39 (§4.3.1) — `add_node`/`update_node` 성공 응답에 딸려오는
+ * "사용자 선택 필요" 필드 엔트리. 프런트는 해당 edit 메시지 버블에
+ * candidate picker 를 렌더해 사용자 확인을 받은 뒤 editor-store 로 주입한다.
+ */
+export type UserActionWidget =
+  | "integration-selector"
+  | "llm-config-selector"
+  | "kb-selector"
+  | "workflow-selector";
+
+export interface CandidateEntry {
+  id: string;
+  label: string;
+  sublabel?: string;
+}
+
+export interface PendingUserConfigField {
+  field: string;
+  widget: UserActionWidget;
+  label: string;
+  /** 서버가 채운 워크스페이스 후보 목록. 빈 배열은 "조회했으나 없음". */
+  candidates: CandidateEntry[];
+  /** schema meta 의 hint. frontend 가 해석할 일은 거의 없으나 debug 용으로 유지. */
+  integrationServiceType?: string;
+}
+
 export interface AssistantPlanStep {
   id: string;
   action:

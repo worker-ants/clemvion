@@ -34,11 +34,32 @@ describe('detectPendingUserConfig', () => {
   it('returns the integration field when it is empty', () => {
     const pending = detectPendingUserConfig(sendEmailSchema, { to: ['x@y.z'] });
     expect(pending).toHaveLength(1);
+    // detect 단계는 스키마만 보므로 candidates 는 빈 배열로 초기화되고
+    // CandidateLookupService 가 이후에 워크스페이스 후보를 채운다
+    // (ED-AI-39, spec §4.3.1).
     expect(pending[0]).toEqual({
       field: 'integrationId',
       widget: 'integration-selector',
       label: 'Integration',
+      candidates: [],
     });
+  });
+
+  it('surfaces `integrationServiceType` hint from schema meta for candidate lookup', () => {
+    const schemaWithHint = {
+      type: 'object',
+      properties: {
+        integrationId: {
+          type: 'string',
+          ui: { label: 'Integration', widget: 'integration-selector' },
+          integrationServiceType: 'email',
+        },
+      },
+    };
+    const pending = detectPendingUserConfig(schemaWithHint, {});
+    expect(pending).toHaveLength(1);
+    expect(pending[0].integrationServiceType).toBe('email');
+    expect(pending[0].candidates).toEqual([]);
   });
 
   it('returns nothing when the integration id is filled', () => {

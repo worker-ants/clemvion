@@ -1899,6 +1899,12 @@ export const en: Dict = {
     turnCompletedHint: "Done — {{count}} plan steps completed.",
     autoResumedHint: "Auto-resumed ({{attempt}}/{{max}})",
     autoResumedHintShort: "Auto-resumed (attempt {{attempt}})",
+    candidatePickerTitle: "Select {{label}}",
+    candidatePickerConfirm: "Use this",
+    candidatePickerSelected: "✓ {{label}}: {{selected}} set",
+    candidatePickerEmpty:
+      "No {{label}} available yet. Register one in Settings first.",
+    candidatePickerEmptyLink: "Open Settings",
     errorBubbleTitle: "Something went wrong with this turn",
     continueAfterBudgetButton: "Continue",
     continueAfterBudget: "Continue.",

@@ -1895,6 +1895,12 @@ export const ko = {
     turnCompletedHint: "작업을 완료했어요 — {{count}}개 단계 실행 성공.",
     autoResumedHint: "자동으로 이어서 진행했어요 ({{attempt}}/{{max}})",
     autoResumedHintShort: "자동으로 이어서 진행했어요 ({{attempt}}번째)",
+    candidatePickerTitle: "{{label}} 선택",
+    candidatePickerConfirm: "이 항목으로 설정",
+    candidatePickerSelected: "✓ {{label}}: {{selected}} 로 설정됨",
+    candidatePickerEmpty:
+      "사용 가능한 {{label}} 이(가) 없어요. Settings 에서 먼저 등록해 주세요.",
+    candidatePickerEmptyLink: "설정 화면으로 이동",
     errorBubbleTitle: "요청 처리 중 문제가 발생했어요",
     continueAfterBudgetButton: "이어서 진행",
     continueAfterBudget: "이어서 진행해줘.",

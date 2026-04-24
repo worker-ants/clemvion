@@ -123,13 +123,23 @@ function makeService(): {
     },
   };
 
+  // ED-AI-39: CandidateLookupService 는 워크스페이스에서 후보를 조회해
+  // pending 항목에 candidates 를 채운다. 테스트 기본값은 "그대로 pass-through"
+  // (candidates=[]) 로, 개별 케이스가 필요하면 mockImplementation 으로 override.
+  const candidateLookup = {
+    fillCandidates: jest.fn(
+      async (_ws: string, _wf: string, pending: unknown[]) => pending,
+    ),
+  };
+
   const service = new WorkflowAssistantStreamService(
     mocks.llmService as never,
     mocks.sessionService as never,
     mocks.exploreTools as never,
     mocks.nodeRegistry as never,
+    candidateLookup as never,
   );
-  return { service, mocks };
+  return { service, mocks: { ...mocks, candidateLookup } };
 }
 
 async function collect<T>(iter: AsyncIterable<T>): Promise<T[]> {
@@ -345,6 +355,88 @@ describe('WorkflowAssistantStreamService', () => {
         widget: 'integration-selector',
       }),
     ]);
+  });
+
+  it('fills pendingUserConfig[].candidates from CandidateLookupService (ED-AI-39)', async () => {
+    // Spec §4.3.1 — add_node 성공 직후 서버가 워크스페이스에서 후보를 조회해
+    // pendingUserConfig[i].candidates 에 실어야 한다. 프런트는 이 값으로
+    // 메시지 버블 내 picker 를 렌더한다.
+    const { service, mocks } = makeService();
+    const schema = z.object({
+      integrationId: z
+        .string()
+        .optional()
+        .meta({
+          ui: { label: 'Integration', widget: 'integration-selector' },
+          integrationServiceType: 'email',
+        }),
+    });
+    mocks.nodeRegistry.getComponent.mockImplementation((type: string) =>
+      type === 'http_request' ? { configSchema: schema } : undefined,
+    );
+    // CandidateLookupService 가 Integration 2개를 채워 돌려주도록 모킹.
+    mocks.candidateLookup.fillCandidates.mockImplementation(
+      async (_ws: string, _wf: string, pending: unknown[]) =>
+        (pending as Array<Record<string, unknown>>).map((p) => ({
+          ...p,
+          candidates: [
+            { id: 'int-1', label: 'Gmail SMTP', sublabel: 'email' },
+            { id: 'int-2', label: 'Mailgun', sublabel: 'email' },
+          ],
+        })),
+    );
+
+    mocks.llmService.chatStream.mockImplementation(() =>
+      asyncIter<ChatStreamEvent>([
+        {
+          type: 'tool_call_end',
+          id: 'call_add',
+          name: 'add_node',
+          arguments: JSON.stringify({
+            type: 'http_request',
+            label: 'Notify',
+            position: { x: 500, y: 300 },
+            config: {},
+          }),
+        },
+        {
+          type: 'done',
+          usage: { inputTokens: 5, outputTokens: 2, totalTokens: 7 },
+          model: 'gpt-4o',
+          finishReason: 'stop',
+        },
+      ]),
+    );
+
+    const events = await collect(
+      service.streamMessage('sess-1', 'ws-1', 'u-1', baseDto as never),
+    );
+    const toolCall = events.find((e) => e.event === 'tool_call');
+    const result = (
+      toolCall?.data as {
+        result: {
+          pendingUserConfig?: Array<{
+            field: string;
+            candidates: Array<{ id: string; label: string; sublabel?: string }>;
+          }>;
+        };
+      }
+    ).result;
+    expect(result.pendingUserConfig).toHaveLength(1);
+    expect(result.pendingUserConfig![0].field).toBe('integrationId');
+    expect(result.pendingUserConfig![0].candidates).toEqual([
+      { id: 'int-1', label: 'Gmail SMTP', sublabel: 'email' },
+      { id: 'int-2', label: 'Mailgun', sublabel: 'email' },
+    ]);
+    // CandidateLookupService 가 현재 세션의 workspaceId / workflowId 로
+    // 호출되었는지 — 경계 누수 방지.
+    expect(mocks.candidateLookup.fillCandidates).toHaveBeenCalledWith(
+      'ws-1',
+      'wf-1',
+      expect.arrayContaining([
+        expect.objectContaining({ widget: 'integration-selector' }),
+      ]),
+    );
   });
 
   it('omits pendingUserConfig when the integration-selector field is filled', async () => {

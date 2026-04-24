@@ -72,6 +72,11 @@ export const sendEmailNodeConfigSchema = z
           widget: 'integration-selector',
           order: 1,
         },
+        // Assistant candidate picker 의 후보 조회 범위 힌트.
+        // backend 의 CandidateLookupService 가 Integration 테이블을
+        // `service_type=email` 로 필터해 이 노드의 picker 에 전달한다.
+        // 값이 비면 connected 전체가 후보로 노출된다.
+        integrationServiceType: 'email',
       }),
     to: z
       .array(z.string())
