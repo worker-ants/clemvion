@@ -14,6 +14,12 @@ import { sanitizeLlmErrorMessage } from './utils/sanitize-error.util';
 import { withTimeout } from './utils/with-timeout.util';
 
 const LIST_MODELS_TIMEOUT_MS = 30_000;
+const LIST_MODELS_CACHE_TTL_MS = 5 * 60 * 1_000;
+
+interface ListModelsCacheEntry {
+  models: ModelInfo[];
+  fetchedAt: number;
+}
 
 /**
  * LLM 호출 시점의 실행 컨텍스트(선택).
@@ -30,6 +36,9 @@ export interface LlmCallContext {
 export class LlmService {
   private readonly logger = new Logger(LlmService.name);
   private readonly clientCache = new Map<string, LLMClient>();
+  // 저장 설정 기반 listModels 결과 5분 캐시. key: `${workspaceId}|${configId}`.
+  // preview 는 자격증명이 매번 달라 캐시하지 않는다 (spec §5.5).
+  private readonly listModelsCache = new Map<string, ListModelsCacheEntry>();
 
   constructor(
     private readonly llmConfigService: LlmConfigService,
@@ -57,6 +66,11 @@ export class LlmService {
 
   clearClientCache(configId: string): void {
     this.clientCache.delete(configId);
+    // config 수정/삭제 시 캐시된 모델 목록도 무효화 — 동일 config 의 추후
+    // listModels 가 새 자격증명/엔드포인트로 다시 조회하도록 한다.
+    for (const key of this.listModelsCache.keys()) {
+      if (key.endsWith(`|${configId}`)) this.listModelsCache.delete(key);
+    }
   }
 
   async chat(
@@ -173,13 +187,20 @@ export class LlmService {
     configId: string,
     workspaceId: string,
   ): Promise<ModelInfo[]> {
+    const cacheKey = `${workspaceId}|${configId}`;
+    const cached = this.listModelsCache.get(cacheKey);
+    if (cached && Date.now() - cached.fetchedAt < LIST_MODELS_CACHE_TTL_MS) {
+      return cached.models;
+    }
+
     const config = await this.llmConfigService.findEntity(
       configId,
       workspaceId,
     );
     const client = this.createClient(config);
+    let models: ModelInfo[];
     try {
-      return await withTimeout(
+      models = await withTimeout(
         (signal) => client.listModels(signal),
         LIST_MODELS_TIMEOUT_MS,
       );
@@ -192,6 +213,8 @@ export class LlmService {
         message: sanitized,
       });
     }
+    this.listModelsCache.set(cacheKey, { models, fetchedAt: Date.now() });
+    return models;
   }
 
   async resolveConfig(
