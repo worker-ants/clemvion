@@ -281,11 +281,11 @@ function CandidatePickers({
   );
 }
 
-interface PickerEntry {
+export interface PickerEntry {
   /** 대상 노드 id (add_node 면 result.id, update_node 면 args.id). */
   nodeId: string;
   field: PendingUserConfigField;
-  /** React key — toolCall id + field path. */
+  /** React key — `${nodeId}:${field.field}` (dedup 키와 동일). */
   key: string;
 }
 
@@ -293,11 +293,19 @@ interface PickerEntry {
  * toolCalls 배열에서 `add_node` / `update_node` 의 결과에 담긴
  * `pendingUserConfig` 를 추출해 picker 렌더 목록으로 변환한다. 실패한
  * (`ok:false`) call 은 건너뛴다.
+ *
+ * **Dedup 정책 (last-wins)**: 같은 `(nodeId, field)` 조합이 여러 tool_call 에
+ * 걸쳐 등장하면 **가장 마지막** entry 한 개만 유지한다. 서버는 노드 하나에
+ * 대한 add_node 1 회 + 후속 update_node N 회마다 매번 pendingUserConfig 를
+ * 실어 보내므로 (ED-AI-39 계약 — 매 편집 결과가 self-contained), 프런트가
+ * 그대로 누적 렌더하면 같은 Integration 선택 드롭다운이 N 개 노출된다.
+ * 마지막 entry 를 택하는 이유는 그것이 가장 최근 candidates snapshot 이고,
+ * 사용자는 "현재 상태" 만 보면 되기 때문.
  */
-function collectPickerEntries(
+export function collectPickerEntries(
   toolCalls: AssistantToolCallRecord[],
 ): PickerEntry[] {
-  const out: PickerEntry[] = [];
+  const byNodeField = new Map<string, PickerEntry>();
   for (const call of toolCalls) {
     if (call.name !== "add_node" && call.name !== "update_node") continue;
     const result = (call.result ?? {}) as {
@@ -319,8 +327,12 @@ function collectPickerEntries(
       ? result.pendingUserConfig
       : [];
     for (const field of pending) {
-      out.push({ nodeId, field, key: `${call.id}:${field.field}` });
+      // dedup key 는 nodeId+field.field (field.widget 은 field 당 일정).
+      // React key 로는 dedup key 를 그대로 사용 — 같은 노드·필드에 대한
+      // picker 는 1 개만 렌더되므로 안정적.
+      const dedupKey = `${nodeId}:${field.field}`;
+      byNodeField.set(dedupKey, { nodeId, field, key: dedupKey });
     }
   }
-  return out;
+  return Array.from(byNodeField.values());
 }
