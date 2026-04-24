@@ -93,6 +93,24 @@ describe('buildSystemPrompt', () => {
     expect(prompt).toMatch(/data\["승인"\]|data\["이메일 주소"\]/);
   });
 
+  it('teaches that tool-argument id slots need UUIDs, never node labels', () => {
+    // 사용자 보고: LLM 이 `update_node({id: "SendEmail", ...})` 처럼 노드
+    // label 을 id 자리에 실수로 넣어 NODE_NOT_FOUND 가 연쇄 발생. 프롬프트에
+    // "tool 인자의 id 자리는 UUID 만, label 금지" 규칙이 명시되어 있는지
+    // 고정한다. Contracts 블록의 "Label vs identifier" 섹션이 커버해야 한다.
+    const prompt = buildSystemPrompt(defs as never, emptySnapshot);
+    // (a) "UUID" 와 "never ... label" 표현이 인접 문맥에 있어야 한다.
+    expect(prompt).toMatch(/UUID/);
+    expect(prompt).toMatch(/never.*label|label.*never/i);
+    // (b) 대상 tool 세 가지가 모두 언급된다.
+    expect(prompt).toMatch(/update_node/);
+    expect(prompt).toMatch(/remove_node/);
+    expect(prompt).toMatch(/add_edge/);
+    // (c) add_node 성공 응답의 result.id / currentWorkflow 스냅샷 nodes[*].id
+    //     가 유일한 UUID 출처임이 명시된다.
+    expect(prompt).toMatch(/result\.id|nodes\[\*\]\.id/);
+  });
+
   it('teaches null-safe `?.output?.` chaining for per-branch $node references', () => {
     // 분기(switch/if_else/carousel/ai_agent conditions) 하류 노드를 template
     // 이나 send_email 에서 `||` 로 합치는 표현식이 `Expression error in

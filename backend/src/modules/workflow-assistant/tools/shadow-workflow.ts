@@ -383,7 +383,15 @@ export class ShadowWorkflow {
           }
         | undefined) ?? {};
     const node = this.nodes.get(id);
-    if (!node) return { ok: false, error: 'NODE_NOT_FOUND' };
+    if (!node) {
+      // "label 을 id 자리에 실수로 넣음" 실수 패턴을 자동 감지해 다음 라운드
+      // 복구를 돕는다. shadow 내에 label === id-값 인 노드가 있으면 그 노드의
+      // 실제 UUID 를 hint 로 알려준다.
+      const hint = this.labelLookalikeHint(id);
+      return hint
+        ? { ok: false, error: 'NODE_NOT_FOUND', hint }
+        : { ok: false, error: 'NODE_NOT_FOUND' };
+    }
 
     if (patch.label && patch.label !== node.label) {
       const conflict = this.findByLabel(patch.label);
@@ -423,7 +431,12 @@ export class ShadowWorkflow {
   private removeNode(args: Record<string, unknown>): ShadowResult {
     const id = typeof args.id === 'string' ? args.id : '';
     const node = this.nodes.get(id);
-    if (!node) return { ok: false, error: 'NODE_NOT_FOUND' };
+    if (!node) {
+      const hint = this.labelLookalikeHint(id);
+      return hint
+        ? { ok: false, error: 'NODE_NOT_FOUND', hint }
+        : { ok: false, error: 'NODE_NOT_FOUND' };
+    }
     if (node.type === MANUAL_TRIGGER) {
       return { ok: false, error: 'MANUAL_TRIGGER_PROTECTED' };
     }
@@ -480,6 +493,19 @@ export class ShadowWorkflow {
           )
           .join(', ');
         result.hint = `A prior add_node failed in this turn (labels: [${recent}]). The UUID you are referencing does not exist because that node was never created. Fix the upstream add_node failures first, then wire the edges.`;
+      } else {
+        // cascading 경로가 비어있을 때만 "label 을 id 자리에 실수" 케이스를
+        // fallback 으로 시도. source 쪽 우선, target 쪽은 source 가 매치
+        // 안 될 때만 확인 — 두 힌트가 동시에 섞이지 않도록.
+        const sourceHint = !this.nodes.has(sourceId)
+          ? this.labelLookalikeHint(sourceId)
+          : null;
+        const targetHint =
+          sourceHint === null && !this.nodes.has(targetId)
+            ? this.labelLookalikeHint(targetId)
+            : null;
+        const hint = sourceHint ?? targetHint;
+        if (hint) result.hint = hint;
       }
       return result;
     }
@@ -632,6 +658,31 @@ export class ShadowWorkflow {
   private forgetFailedAddNode(label: string): void {
     const idx = this.recentFailedAddNodeLabels.indexOf(label);
     if (idx >= 0) this.recentFailedAddNodeLabels.splice(idx, 1);
+  }
+
+  /**
+   * `update_node` / `remove_node` / `add_edge` 의 id 류 인자에 LLM 이 실수로
+   * 노드 **label** 을 넣었을 때 알려주는 hint 문자열을 생성한다. shadow 에
+   * label 이 정확히 일치하는 노드가 있으면 그 노드의 UUID 를 돌려줘 LLM 이
+   * 다음 라운드에서 곧장 정정할 수 있게 한다. 매치 없으면 null.
+   *
+   * LLM 제공 자유 텍스트(value, label) 는 `sanitizeLlmProvidedString` 으로
+   * 개행·꺾쇠·제어문자를 중화해 프롬프트 인젝션 표면을 좁힌다.
+   */
+  private labelLookalikeHint(value: string): string | null {
+    if (!value) return null;
+    for (const node of this.nodes.values()) {
+      if (node.label === value) {
+        const safeValue = JSON.stringify(
+          sanitizeLlmProvidedString(value, LABEL_HINT_MAX_LEN),
+        );
+        const safeLabel = JSON.stringify(
+          sanitizeLlmProvidedString(node.label, LABEL_HINT_MAX_LEN),
+        );
+        return `Value ${safeValue} matches the label of node ${safeLabel} (id: ${JSON.stringify(node.id)}). Tool arguments use UUIDs, not labels — use the id value from a prior add_node result or from currentWorkflow.nodes[*].id.`;
+      }
+    }
+    return null;
   }
 
   private suggestLabel(base: string): string {

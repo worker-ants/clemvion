@@ -1215,6 +1215,156 @@ describe('ShadowWorkflow', () => {
       // No failed labels remaining → no hint.
       expect(edge.hint).toBeUndefined();
     });
+
+    // ED-AI: LLM 이 `update_node({id: "SendEmail", ...})` 처럼 노드의 label
+    // 문자열을 id 자리에 실수로 넣는 실패 패턴. 서버가 "이건 label 이고
+    // 실제 id 는 <uuid> 입니다" 를 자동으로 hint 로 돌려줘 다음 라운드에서
+    // 곧장 정정되도록 유도한다.
+    describe('NODE_NOT_FOUND label-lookalike hint', () => {
+      function snapshotWithNamedNode(): ShadowSnapshot {
+        return {
+          nodes: [
+            TRIGGER_NODE,
+            {
+              id: '11111111-2222-3333-4444-555555555555',
+              type: 'send_email',
+              category: 'integration',
+              label: 'SendEmail',
+              positionX: 500,
+              positionY: 300,
+              config: {},
+            },
+          ],
+          edges: [],
+        };
+      }
+
+      it('update_node: attaches a hint when the id argument matches an existing node label', () => {
+        const sw = new ShadowWorkflow(
+          snapshotWithNamedNode(),
+          new Set(['send_email']),
+        );
+        const result = sw.apply({
+          name: 'update_node',
+          arguments: {
+            id: 'SendEmail', // label 을 id 자리에 넣은 실수
+            patch: { config: { subject: 'Hello' } },
+          },
+        });
+        expect(result.ok).toBe(false);
+        expect(result.error).toBe('NODE_NOT_FOUND');
+        expect(result.hint).toBeDefined();
+        expect(result.hint).toMatch(/label/);
+        expect(result.hint).toMatch(/SendEmail/);
+        expect(result.hint).toMatch(/11111111-2222-3333-4444-555555555555/);
+      });
+
+      it('remove_node: attaches the same hint on label-as-id mistakes', () => {
+        const sw = new ShadowWorkflow(
+          snapshotWithNamedNode(),
+          new Set(['send_email']),
+        );
+        const result = sw.apply({
+          name: 'remove_node',
+          arguments: { id: 'SendEmail' },
+        });
+        expect(result.ok).toBe(false);
+        expect(result.error).toBe('NODE_NOT_FOUND');
+        expect(result.hint).toMatch(/11111111-2222-3333-4444-555555555555/);
+      });
+
+      it('add_edge: hints on the source side when source_id matches a node label', () => {
+        const sw = new ShadowWorkflow(
+          snapshotWithNamedNode(),
+          new Set(['send_email']),
+        );
+        const result = sw.apply({
+          name: 'add_edge',
+          arguments: {
+            source_id: 'SendEmail', // label 실수
+            target_id: TRIGGER_NODE.id,
+          },
+        });
+        expect(result.error).toBe('NODE_NOT_FOUND');
+        expect(result.hint).toMatch(/SendEmail/);
+        expect(result.hint).toMatch(/11111111-2222-3333-4444-555555555555/);
+      });
+
+      it('no hint when the given value does not match any node label', () => {
+        const sw = new ShadowWorkflow(
+          snapshotWithNamedNode(),
+          new Set(['send_email']),
+        );
+        const result = sw.apply({
+          name: 'update_node',
+          arguments: {
+            id: '00000000-0000-0000-0000-dead0000dead', // 진짜 unknown UUID
+            patch: { config: {} },
+          },
+        });
+        expect(result.error).toBe('NODE_NOT_FOUND');
+        expect(result.hint).toBeUndefined();
+      });
+
+      it('add_edge: prefers cascading failed-add_node hint over label-lookalike when both could apply', () => {
+        // add_node 실패 → cascading FIFO 가 채워짐. 이후 add_edge 에서 label
+        // 실수까지 섞인 상황. cascading hint 가 더 구체적이므로 우선.
+        const sw = new ShadowWorkflow(
+          snapshotWithNamedNode(),
+          new Set(['send_email']),
+        );
+        sw.apply({
+          name: 'add_node',
+          arguments: {
+            type: 'ghost_type',
+            label: 'MissingNode',
+            position: { x: 0, y: 0 },
+            config: {},
+          },
+        });
+        const result = sw.apply({
+          name: 'add_edge',
+          arguments: {
+            source_id: 'SendEmail', // label 실수
+            target_id: '00000000-0000-0000-0000-dead0000dead', // fabricated UUID
+          },
+        });
+        expect(result.error).toBe('NODE_NOT_FOUND');
+        // cascading 힌트 먼저.
+        expect(result.hint).toMatch(/prior add_node failed/);
+      });
+
+      it('sanitizes label in the hint (newlines / angle brackets are neutralised)', () => {
+        const sw = new ShadowWorkflow(
+          {
+            nodes: [
+              TRIGGER_NODE,
+              {
+                id: '99999999-8888-7777-6666-555555555555',
+                type: 'template',
+                category: 'presentation',
+                label: 'Bad\n## HACK\n<script>alert(1)</script>',
+                positionX: 0,
+                positionY: 0,
+                config: {},
+              },
+            ],
+            edges: [],
+          },
+          new Set(['template']),
+        );
+        const result = sw.apply({
+          name: 'update_node',
+          arguments: {
+            id: 'Bad\n## HACK\n<script>alert(1)</script>',
+            patch: { config: {} },
+          },
+        });
+        expect(result.hint).toBeDefined();
+        expect(result.hint).not.toMatch(/\n/);
+        expect(result.hint).not.toMatch(/<script>/);
+      });
+    });
   });
 
   // PORT_NOT_FOUND: 사용자가 설정한 동적 포트 (carousel 버튼 / switch case
