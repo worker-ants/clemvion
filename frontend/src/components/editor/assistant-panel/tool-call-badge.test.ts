@@ -215,6 +215,36 @@ describe("groupToolCalls", () => {
       expect(groups[1].retried).toBeFalsy();
     });
 
+    // shadow add/update 에서 handler.validate 가 도메인 규칙 위반
+    // (버튼 수 상한 등) 을 거부했다가 LLM 이 같은 턴 내 수정해 성공한
+    // 경로. update_node 는 id 기반 매칭 가능.
+    it("collapses update_node INVALID_NODE_CONFIG → same id success", () => {
+      const calls: AssistantToolCallRecord[] = [
+        {
+          id: "u1",
+          name: "update_node",
+          arguments: { id: "node-X", patch: { config: { buttons: [] } } },
+          kind: "edit",
+          result: {
+            ok: false,
+            error: "INVALID_NODE_CONFIG",
+            invalidConfig: ["Maximum 10 buttons allowed per node"],
+          },
+        },
+        {
+          id: "u2",
+          name: "update_node",
+          arguments: { id: "node-X", patch: { config: { buttons: [] } } },
+          kind: "edit",
+          result: { ok: true },
+        },
+      ];
+      const groups = groupToolCalls(calls);
+      expect(groups).toHaveLength(1);
+      expect(groups[0].retried).toBe(true);
+      expect(groups[0].retriedFromError).toBe("INVALID_NODE_CONFIG");
+    });
+
     // review I-5: remove_node 도 NODE_NOT_FOUND 에 label-lookalike hint 가
     // 붙는 경로라 recovery 축약 대상. 같은 id 로 재시도 성공하면 1그룹.
     it("collapses remove_node NODE_NOT_FOUND → same id success", () => {
