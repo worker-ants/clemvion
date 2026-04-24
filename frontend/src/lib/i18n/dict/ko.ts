@@ -790,6 +790,8 @@ export const ko = {
       classifyPlaceholder: "추가 분류 가이드라인...",
       includeConfidence: "확신도 점수 포함",
       includeConfidenceHint: "카테고리별 확신도(0~1)를 결과에 함께 담아요. 다운스트림 노드에서 임계값 분기를 만들 때 유용해요.",
+      includeEvidence: "분류 근거 포함",
+      includeEvidenceHint: "각 카테고리 선정의 근거가 된 입력 단어/문장 목록을 결과에 함께 담아요. 설명력과 디버깅에 유용해요. 참고: 발췌는 입력 원문 그대로 포함되므로, 민감정보/PII 입력에서는 다운스트림 처리 검토 후 사용하세요.",
       multiLabel: "다중 레이블 분류",
       multiLabelHint: "하나의 입력이 여러 카테고리에 동시에 속할 수 있어요. 꺼두면 가장 확신도 높은 하나만 선택해요.",
       categories: "카테고리",

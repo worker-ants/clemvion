@@ -56,6 +56,12 @@ export const textClassifierNodeConfigSchema = z
       .meta({
         ui: { label: 'Include Confidence', widget: 'checkbox', order: 6 },
       }),
+    includeEvidence: z
+      .boolean()
+      .default(false)
+      .meta({
+        ui: { label: 'Include Evidence', widget: 'checkbox', order: 7 },
+      }),
     multiLabel: z
       .boolean()
       .default(false)
@@ -63,7 +69,7 @@ export const textClassifierNodeConfigSchema = z
         ui: {
           label: 'Multi-label Classification',
           widget: 'checkbox',
-          order: 7,
+          order: 8,
         },
       }),
   })
@@ -89,10 +95,12 @@ export const textClassifierNodeOutputSchema = z
         z.object({
           name: z.string(),
           confidence: z.number().optional(),
+          evidence: z.array(z.string()).optional(),
         }),
       )
       .optional(),
     confidence: z.number().optional(),
+    evidence: z.array(z.string()).optional(),
     originalInput: z.string().optional(),
     error: z.string().optional(),
   })

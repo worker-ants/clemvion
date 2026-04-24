@@ -433,7 +433,8 @@ Single-label (기본) 또는 Multi-label 모드를 지원.
 | inputField | Expression | 분류할 텍스트 필드 |
 | categories | CategoryDef[] | 분류 카테고리 목록 |
 | instructions | String? | 추가 분류 지시사항 |
-| includeConfidence | Boolean | 신뢰도 점수 포함 여부 |
+| includeConfidence | Boolean | 신뢰도 점수 포함 여부 (기본: false) |
+| includeEvidence | Boolean | 분류 근거(입력에서 발췌한 단어/문장) 포함 여부 (기본: false) |
 | multiLabel | Boolean | Multi-label 분류 모드 (기본: false) |
 
 **CategoryDef 구조:**
@@ -457,6 +458,7 @@ Single-label (기본) 또는 Multi-label 모드를 지원.
 │  Input: [{{ $input.text }}]              │
 │                                          │
 │  □ Include confidence score              │
+│  □ Include classification evidence       │
 │  □ Multi-label Classification            │
 │                                          │
 │  ── Categories ──                        │
@@ -503,31 +505,41 @@ Single-label (기본) 또는 Multi-label 모드를 지원.
 
 ### 출력 구조
 
+LLM 3개 노드 공통 규약(CONVENTIONS §8)에 따라 도메인 결과는 `output.result.*` wrapper 하위에 둔다.
+
 #### Single-label 모드
 
 ```json
 {
-  "category": "Billing",
-  "confidence": 0.95,
-  "originalInput": "환불 요청드립니다"
+  "result": {
+    "category": "Billing",
+    "confidence": 0.95,
+    "evidence": ["환불"],
+    "originalInput": "환불 요청드립니다"
+  }
 }
 ```
 
 - `category`는 매칭 실패 시 `null`
+- `confidence` 는 `includeConfidence: true` 일 때만 포함
+- `evidence` 는 `includeEvidence: true` 일 때만 포함. 매칭 실패(`category: null`) 또는 LLM이 비워서 반환한 경우 빈 배열 `[]`
 
 #### Multi-label 모드
 
 ```json
 {
-  "categories": [
-    { "name": "Billing", "confidence": 0.95 },
-    { "name": "General", "confidence": 0.7 }
-  ],
-  "originalInput": "환불 요청드립니다"
+  "result": {
+    "categories": [
+      { "name": "Billing", "confidence": 0.95, "evidence": ["환불"] },
+      { "name": "General", "confidence": 0.7, "evidence": ["요청"] }
+    ],
+    "originalInput": "환불 요청드립니다"
+  }
 }
 ```
 
 - `categories`는 매칭 없음 시 빈 배열 `[]`
+- 각 항목의 `confidence`/`evidence` 는 각각 `includeConfidence`/`includeEvidence` 가 `true` 일 때만 포함
 
 ---
 
