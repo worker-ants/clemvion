@@ -259,4 +259,140 @@ describe('AnthropicClient.stream', () => {
       code: 'LLM_CONNECTION_ERROR',
     });
   });
+
+  // 어시스턴트 시스템 프롬프트는 LLM 에게 독립 edit 을 단일 메시지에 batch 로
+  // 내도록 지시한다. Anthropic SDK 기본은 허용이지만, 명시적으로
+  // `disable_parallel_tool_use: false` 를 보내 향후 기본값 flip 이나 무심한
+  // 상위 변경에도 가이던스가 무력화되지 않게 잠근다. 이 어설션이 깨지면
+  // 어시스턴트 round-trip 이 조용히 직렬로 퇴행하므로 회귀 방어.
+  describe('tool_choice / disable_parallel_tool_use', () => {
+    function captureRequestParams(
+      client: AnthropicClient,
+      forStream: boolean,
+    ): jest.Mock {
+      const createMock = jest.fn().mockResolvedValue(
+        forStream
+          ? asyncIter([])
+          : {
+              content: [],
+              stop_reason: 'end_turn',
+              model: 'claude-haiku-4-5-20251001',
+              usage: { input_tokens: 1, output_tokens: 1 },
+            },
+      );
+      // @ts-expect-error — stub
+      client.client = { messages: { create: createMock } };
+      return createMock;
+    }
+
+    const toolDef = [
+      {
+        name: 'noop',
+        description: 'noop',
+        parameters: {
+          type: 'object',
+          additionalProperties: false,
+          properties: {},
+        },
+      },
+    ];
+
+    it.each([
+      { toolChoice: 'auto' as const, expectedType: 'auto' },
+      { toolChoice: undefined, expectedType: 'auto' },
+      { toolChoice: 'required' as const, expectedType: 'any' },
+    ])(
+      'streaming: sends tool_choice={type:$expectedType, disable_parallel_tool_use:false} when toolChoice=$toolChoice',
+      async ({ toolChoice, expectedType }) => {
+        const client = new AnthropicClient(
+          'sk-test',
+          'claude-haiku-4-5-20251001',
+        );
+        const createMock = captureRequestParams(client, true);
+        await collect(
+          client.stream({
+            model: 'claude-haiku-4-5-20251001',
+            messages: [{ role: 'user', content: 'hi' }],
+            tools: toolDef,
+            ...(toolChoice !== undefined ? { toolChoice } : {}),
+          }),
+        );
+        expect(createMock).toHaveBeenCalledTimes(1);
+        const req = createMock.mock.calls[0][0] as {
+          tool_choice: Record<string, unknown>;
+        };
+        expect(req.tool_choice).toEqual({
+          type: expectedType,
+          disable_parallel_tool_use: false,
+        });
+      },
+    );
+
+    it("streaming: sends tool_choice={type:'none'} without disable_parallel_tool_use when toolChoice='none'", async () => {
+      // 'none' 은 도구 사용 자체를 막으므로 parallel 여부는 의미 없음 —
+      // 플래그를 붙이면 오히려 SDK 에서 타입 불일치로 거부될 수 있다.
+      const client = new AnthropicClient(
+        'sk-test',
+        'claude-haiku-4-5-20251001',
+      );
+      const createMock = captureRequestParams(client, true);
+      await collect(
+        client.stream({
+          model: 'claude-haiku-4-5-20251001',
+          messages: [{ role: 'user', content: 'hi' }],
+          tools: toolDef,
+          toolChoice: 'none',
+        }),
+      );
+      const req = createMock.mock.calls[0][0] as {
+        tool_choice: Record<string, unknown>;
+      };
+      expect(req.tool_choice).toEqual({ type: 'none' });
+      expect(req.tool_choice.disable_parallel_tool_use).toBeUndefined();
+    });
+
+    it('streaming: omits tool_choice entirely when no tools are provided', async () => {
+      // tools 미제공 시 tool_choice 를 붙여 보내면 SDK 가 400 을 낸다.
+      const client = new AnthropicClient(
+        'sk-test',
+        'claude-haiku-4-5-20251001',
+      );
+      const createMock = captureRequestParams(client, true);
+      await collect(
+        client.stream({
+          model: 'claude-haiku-4-5-20251001',
+          messages: [{ role: 'user', content: 'hi' }],
+        }),
+      );
+      const req = createMock.mock.calls[0][0] as {
+        tool_choice?: unknown;
+        tools?: unknown;
+      };
+      expect(req.tool_choice).toBeUndefined();
+      expect(req.tools).toBeUndefined();
+    });
+
+    it('non-streaming chat(): mirrors the streaming tool_choice shape (auto + parallel enabled)', async () => {
+      // chat 경로와 stream 경로가 같은 헬퍼로 tool_choice 를 만들도록 보장 —
+      // 한쪽만 바뀌면 배포 채널에 따라 LLM 이 병렬을 잃는 silent regression
+      // 이 가능하므로 양쪽을 함께 고정한다.
+      const client = new AnthropicClient(
+        'sk-test',
+        'claude-haiku-4-5-20251001',
+      );
+      const createMock = captureRequestParams(client, false);
+      await client.chat({
+        model: 'claude-haiku-4-5-20251001',
+        messages: [{ role: 'user', content: 'hi' }],
+        tools: toolDef,
+      });
+      const req = createMock.mock.calls[0][0] as {
+        tool_choice: Record<string, unknown>;
+      };
+      expect(req.tool_choice).toEqual({
+        type: 'auto',
+        disable_parallel_tool_use: false,
+      });
+    });
+  });
 });

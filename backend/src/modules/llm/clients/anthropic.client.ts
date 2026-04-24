@@ -21,6 +21,31 @@ export class AnthropicClient implements LLMClient {
     });
   }
 
+  /**
+   * Build `tool_choice` for Anthropic's Messages API from our neutral
+   * `ChatParams.toolChoice` input.
+   *
+   * Parallel tool use is the default on Claude 4.x, but we set
+   * `disable_parallel_tool_use: false` explicitly so a future accidental
+   * override (SDK default flip, upstream change) can't silently force the
+   * workflow assistant back into one-call-per-round. The assistant's system
+   * prompt instructs the LLM to batch independent edits into a single
+   * message; that guidance is meaningless if the API suppresses parallel
+   * tool blocks. `type: 'none'` carries no parallelism semantics and
+   * therefore omits the flag.
+   */
+  private buildToolChoice(
+    toolChoice: ChatParams['toolChoice'],
+  ): Anthropic.ToolChoice {
+    if (toolChoice === 'none') {
+      return { type: 'none' };
+    }
+    if (toolChoice === 'required') {
+      return { type: 'any', disable_parallel_tool_use: false };
+    }
+    return { type: 'auto', disable_parallel_tool_use: false };
+  }
+
   async chat(params: ChatParams): Promise<ChatResult> {
     const systemMessages = params.messages.filter((m) => m.role === 'system');
     const system =
@@ -76,26 +101,7 @@ export class AnthropicClient implements LLMClient {
         description: t.description,
         input_schema: t.parameters as Anthropic.Tool.InputSchema,
       }));
-      // Parallel tool use is the default on Claude 4.x, but we set it
-      // explicitly so a future accidental override (SDK default flip, upstream
-      // change, etc.) can't silently force the workflow assistant back into
-      // one-call-per-round. The assistant's system prompt instructs LLMs to
-      // batch independent edits into a single message; that guidance is
-      // meaningless if the API rejects parallel tool blocks.
-      const base =
-        params.toolChoice === 'required'
-          ? { type: 'any' as const }
-          : params.toolChoice === 'none'
-            ? ({ type: 'none' } as never)
-            : { type: 'auto' as const };
-      if (params.toolChoice !== 'none') {
-        requestParams.tool_choice = {
-          ...base,
-          disable_parallel_tool_use: false,
-        };
-      } else {
-        requestParams.tool_choice = base;
-      }
+      requestParams.tool_choice = this.buildToolChoice(params.toolChoice);
     }
 
     const response = await this.client.messages.create(requestParams);
@@ -227,24 +233,7 @@ export class AnthropicClient implements LLMClient {
         description: t.description,
         input_schema: t.parameters as Anthropic.Tool.InputSchema,
       }));
-      // Parallel tool use is the default on Claude 4.x, but we set it
-      // explicitly so a future accidental override (SDK default flip, upstream
-      // change, etc.) can't silently force the workflow assistant back into
-      // one-call-per-round. Mirror of the non-streaming branch.
-      const base =
-        params.toolChoice === 'required'
-          ? { type: 'any' as const }
-          : params.toolChoice === 'none'
-            ? ({ type: 'none' } as never)
-            : { type: 'auto' as const };
-      if (params.toolChoice !== 'none') {
-        requestParams.tool_choice = {
-          ...base,
-          disable_parallel_tool_use: false,
-        };
-      } else {
-        requestParams.tool_choice = base;
-      }
+      requestParams.tool_choice = this.buildToolChoice(params.toolChoice);
     }
 
     // content_block_start/delta/stop 이벤트는 블록 index 단위로 그룹핑된다.
