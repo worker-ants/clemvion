@@ -67,30 +67,42 @@ export function AssistantMessageView({
   const showBubble = displayText.length > 0 || message.streaming;
   return (
     <div className="flex flex-col gap-1.5">
-      {message.autoResume && (
+      {message.autoResume && (() => {
         // Stall 자동 복구(§10) 로 버블이 분리된 경계. 위 버블과 이 버블 사이에
-        // 얇은 divider 로 "🔄 자동으로 이어서 진행했어요 (N/M)" 을 렌더한다.
+        // 얇은 divider 로 "🔄 자동으로 이어서 진행했어요" 를 렌더한다.
         // 동일 confirmation 문구가 한 버블에 쌓이는 gpt-oss-120b quirk 의 UX
         // 완화. divider 자체는 conversation 의 signal 이지 message 가 아니므로
         // muted 톤으로 유지해 assistant text 가독성을 침범하지 않는다.
-        <div
-          role="separator"
-          aria-label={t("assistant.autoResumedHint", {
-            attempt: message.autoResume.attempt,
-            max: message.autoResume.max,
-          })}
-          className="flex items-center gap-1.5 pt-1 text-[10px] font-medium text-[hsl(var(--muted-foreground))]"
-        >
-          <RotateCw size={11} className="shrink-0" aria-hidden="true" />
-          <span>
-            {t("assistant.autoResumedHint", {
-              attempt: message.autoResume.attempt,
-              max: message.autoResume.max,
-            })}
-          </span>
-          <span className="h-px flex-1 bg-[hsl(var(--border))]" aria-hidden="true" />
-        </div>
-      )}
+        //
+        // `max` 는 실시간 SSE 경로에서만 존재 (rehydrate 시에는 서버 상수 변경
+        // 대비 생략 — review W-10). 두 경로가 같은 문구를 공유하지 않고 각자
+        // 의미에 맞는 i18n 키를 고른다:
+        //   - max 있음 → "(1/2)" 식 진행도 표시 (`autoResumedHint`)
+        //   - max 없음 → "(1번째)" 식 순번만 표시 (`autoResumedHintShort`)
+        const hint =
+          message.autoResume.max !== undefined
+            ? t("assistant.autoResumedHint", {
+                attempt: message.autoResume.attempt,
+                max: message.autoResume.max,
+              })
+            : t("assistant.autoResumedHintShort", {
+                attempt: message.autoResume.attempt,
+              });
+        return (
+          <div
+            role="separator"
+            aria-label={hint}
+            className="flex items-center gap-1.5 pt-1 text-[10px] font-medium text-[hsl(var(--muted-foreground))]"
+          >
+            <RotateCw size={11} className="shrink-0" aria-hidden="true" />
+            <span>{hint}</span>
+            <span
+              className="h-px flex-1 bg-[hsl(var(--border))]"
+              aria-hidden="true"
+            />
+          </div>
+        );
+      })()}
       {showBubble && (
         <div className="rounded-md bg-[hsl(var(--muted)/0.4)] px-2.5 py-1.5 text-xs text-[hsl(var(--foreground))]">
           {displayText && <MarkdownRenderer content={displayText} />}

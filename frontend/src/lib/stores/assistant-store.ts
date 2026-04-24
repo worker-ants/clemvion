@@ -49,24 +49,37 @@ export interface AssistantDisplayMessage {
   systemHint?: { kind: "info" | "success"; text: string };
   /**
    * 이 row 가 서버의 stall 자동 복구로 인해 새로 시작된 row 인 경우의
-   * 메타. 렌더 시 버블 위에 "🔄 자동으로 이어서 진행했어요 (attempt/max)"
-   * divider 를 그리는 트리거. 서버 `auto_resume` SSE 이벤트로 실시간
-   * 주입되거나, rehydrate 시 persist 된 `autoResumed=true` row 에 맞춰
-   * 복원된다.
+   * 메타. 렌더 시 버블 위에 "🔄 자동으로 이어서 진행했어요" divider 를
+   * 그리는 트리거. 서버 `auto_resume` SSE 이벤트로 실시간 주입될 때는
+   * `max` 까지 포함된 "attempt/max" 포맷을 쓰고, rehydrate 경로에서는
+   * `max` 가 없어 "N번째" 포맷을 쓴다. 백엔드 `MAX_STALL_ROUNDS` 가 서버
+   * 쪽에서 변경돼도 rehydrate 표시가 어긋나지 않도록 프론트는 상수를
+   * 복제하지 않는다 (review W-10).
    */
   autoResume?: {
     reason: "stall_pending_steps";
     attempt: number;
-    max: number;
+    /** 실시간 SSE 이벤트로 생성된 row 에서만 세팅. rehydrate 시에는 undefined. */
+    max?: number;
   };
 }
 
 /**
- * `MAX_STALL_ROUNDS` 와 동일한 값. rehydrate 시 서버가 persist 한
- * `autoResumeAttempt` 만 가지고 divider 의 "N/M" 포맷을 만들 수 있도록
- * 프론트 상수로 복제. 백엔드에서 변경되면 같이 업데이트.
+ * `auto_resume` 이벤트·persist 된 `autoResumeReason` 이 실제로 화이트리스트
+ * 값인지 런타임에 확인해 타입 보장을 받는다. 서버 DB 에 예상 밖 값이 기록된
+ * 경우 (수동 데이터 주입·마이그레이션 등) `autoResume` 메타를 만들지 않고
+ * 조용히 생략한다 (review W-13).
  */
-const STALL_MAX_ATTEMPTS = 2;
+const VALID_AUTO_RESUME_REASONS = new Set(["stall_pending_steps"] as const);
+
+function toAutoResumeReason(
+  raw: string | null | undefined,
+): "stall_pending_steps" | null {
+  if (!raw) return null;
+  return VALID_AUTO_RESUME_REASONS.has(raw as "stall_pending_steps")
+    ? (raw as "stall_pending_steps")
+    : null;
+}
 
 interface AssistantState {
   isOpen: boolean;
@@ -115,7 +128,9 @@ interface AssistantState {
  * and step statuses are re-derived from tool_calls that reference the plan
  * step ids.
  */
-function hydrateMessage(msg: AssistantMessageData): AssistantDisplayMessage {
+export function hydrateMessage(
+  msg: AssistantMessageData,
+): AssistantDisplayMessage {
   const toolCalls = msg.toolCalls ?? [];
   let plan: AssistantPlanCard | null = null;
   if (msg.plan) {
@@ -144,15 +159,19 @@ function hydrateMessage(msg: AssistantMessageData): AssistantDisplayMessage {
   }
   // 서버가 persist 한 autoResumed 메타를 divider 렌더용 autoResume 로 복원.
   // 마이그레이션 이전 row 는 autoResumed 가 undefined/false 라 divider 없이
-  // 그대로 렌더된다 (호환성).
-  const autoResume =
-    msg.autoResumed && msg.autoResumeReason
-      ? {
-          reason: msg.autoResumeReason as "stall_pending_steps",
-          attempt: msg.autoResumeAttempt ?? 1,
-          max: STALL_MAX_ATTEMPTS,
-        }
-      : undefined;
+  // 그대로 렌더된다 (호환성). `autoResumeReason` 은 화이트리스트 validator
+  // 로 검증 — 예상 외 값은 무시하고 divider 생략 (review W-13).
+  // rehydrate 경로에는 `max` 를 실지 않는다. 서버 상수 변경 시 오표시되는
+  // 문제를 피하기 위해 문구 자체를 "N번째" 포맷으로 폴백 (review W-10).
+  const resumeReason = msg.autoResumed
+    ? toAutoResumeReason(msg.autoResumeReason)
+    : null;
+  const autoResume = resumeReason
+    ? {
+        reason: resumeReason,
+        attempt: msg.autoResumeAttempt ?? 1,
+      }
+    : undefined;
   return {
     id: msg.id,
     role: msg.role,
@@ -326,12 +345,18 @@ export const useAssistantStore = create<AssistantState>((set, get) => ({
     const abort = new AbortController();
     set({ abortController: abort });
 
+    // 이 turn 이 소유한 assistant row id 집합. stall 자동 복구(§10) 로
+    // `applyAutoResumeEvent` 가 새 id 를 반환할 때마다 여기에 추가된다.
+    // cleanup 시 이 집합에 속한 row 만 finalize 해, 다른 turn 이 이어서
+    // 시작된 streaming row 를 실수로 끊는 경쟁 조건을 방지한다 (review W-3/W-4).
+    const ownedIds = new Set<string>([assistantId]);
+    // currentAssistantId 는 try/catch 양쪽에서 읽을 수 있도록 바깥으로 끌어올린다.
+    // stall 복구 시 applyAutoResumeEvent 가 반환하는 새 id 로 교체되며,
+    // catch 블록은 "가장 최근" row 를 기준으로 에러 상태를 세팅해 에러와
+    // 실제 row 가 어긋나지 않게 한다 (review W-4).
+    let currentAssistantId = assistantId;
+
     try {
-      // stall 자동 복구(§10)로 서버가 `auto_resume` 이벤트를 발행할 때마다
-      // 이 `currentAssistantId` 가 새 row id 로 교체된다. 이후 delta/tool_call
-      // 은 새 row 로 누적되어 한 턴이 여러 버블로 분리 렌더된다. 반복 문구가
-      // 한 버블에 몰리는 UX 문제의 구조적 해소 지점.
-      let currentAssistantId = assistantId;
       await assistantApi.streamMessage(
         sessionId,
         {
@@ -346,6 +371,7 @@ export const useAssistantStore = create<AssistantState>((set, get) => ({
               currentAssistantId,
               event,
             );
+            ownedIds.add(currentAssistantId);
             return;
           }
           handleSseEvent(set, get, currentAssistantId, event);
@@ -353,38 +379,35 @@ export const useAssistantStore = create<AssistantState>((set, get) => ({
         abort.signal,
       );
     } catch (error) {
-      if (abort.signal.aborted) {
-        set({ isStreaming: false, streamingMessageId: null, abortController: null });
-        return;
+      if (!abort.signal.aborted) {
+        console.error("Assistant stream failed", error);
+        set((s) => ({
+          messages: s.messages.map((m) =>
+            m.id === currentAssistantId ? { ...m, streaming: false } : m,
+          ),
+          error: "ASSISTANT_STREAM_FAILED",
+        }));
+        toast.error("Assistant response failed. Please retry.");
       }
-      console.error("Assistant stream failed", error);
-      set((s) => ({
-        messages: s.messages.map((m) =>
-          m.id === assistantId ? { ...m, streaming: false } : m,
-        ),
-        isStreaming: false,
-        streamingMessageId: null,
-        abortController: null,
-        error: "ASSISTANT_STREAM_FAILED",
-      }));
-      toast.error("Assistant response failed. Please retry.");
+      // abort 이든 일반 에러든 아래 공통 cleanup 에서 streaming flag 을 정리.
     }
 
-    set({
+    // 공통 cleanup — abort / error / 정상 종료 모두 여기를 지난다.
+    //  (1) 소유 row 중 streaming=true 인 것만 false 로 확정. 전체 메시지
+    //      리스트를 훑지 않으므로, await refreshSessions() 이벤트 루프
+    //      양보 구간에서 다른 turn 이 이미 새 streaming row 를 push 했더라도
+    //      건드리지 않는다 (review W-3).
+    //  (2) isStreaming 플래그 / streamingMessageId / abortController 리셋.
+    //  (3) session list refresh.
+    set((s) => ({
       isStreaming: false,
       streamingMessageId: null,
       abortController: null,
-    });
-    await get().refreshSessions();
-    // Finalize streaming flag on any assistant message left streaming. 정상
-    // 흐름에서는 done 이벤트 / applyAutoResumeEvent 가 이미 처리했지만, 에러
-    // 경로에서 auto_resume 으로 새로 push 된 row 가 남아있을 수 있어 안전
-    // 장치로 일괄 스캔. (원래 `assistantId` 한 건만 찍던 경로를 확장)
-    set((s) => ({
       messages: s.messages.map((m) =>
-        m.streaming ? { ...m, streaming: false } : m,
+        ownedIds.has(m.id) && m.streaming ? { ...m, streaming: false } : m,
       ),
     }));
+    await get().refreshSessions();
   },
 
   approveActivePlan: async (snapshot) => {
@@ -459,6 +482,19 @@ export function applyAutoResumeEvent(
 ): string {
   const nextId = `local-${crypto.randomUUID().slice(0, 8)}`;
   const now = new Date().toISOString();
+  // SSE 페이로드 범위 검증 — 스트림 조작·버그로 `Infinity/NaN/음수` 등이
+  // UI 에 노출되지 않도록 정수 + 양수만 통과시키고, 나머지는 fallback.
+  const reason = toAutoResumeReason(event.data.reason) ?? "stall_pending_steps";
+  const rawAttempt = event.data.attempt;
+  const attempt =
+    typeof rawAttempt === "number" && Number.isFinite(rawAttempt) && rawAttempt >= 1
+      ? Math.floor(rawAttempt)
+      : 1;
+  const rawMax = event.data.max;
+  const max =
+    typeof rawMax === "number" && Number.isFinite(rawMax) && rawMax >= 1
+      ? Math.floor(rawMax)
+      : undefined;
   set((s) => ({
     messages: [
       ...s.messages.map((m) =>
@@ -473,9 +509,9 @@ export function applyAutoResumeEvent(
         streaming: true,
         createdAt: now,
         autoResume: {
-          reason: event.data.reason,
-          attempt: event.data.attempt,
-          max: event.data.max,
+          reason,
+          attempt,
+          ...(max !== undefined ? { max } : {}),
         },
       },
     ],
@@ -488,6 +524,10 @@ export function applyAutoResumeEvent(
  * Handle a single SSE event during an in-flight assistant turn.
  * Also calls into `applyAssistantOperation` on the editor store when an
  * edit tool succeeds.
+ *
+ * **`auto_resume` 은 여기서 처리하지 않는다** — 현재 스트리밍 버블의 id 를
+ * 교체해야 하므로 `sendMessage` 의 onEvent 콜백이 `applyAutoResumeEvent`
+ * 로 직접 분기한다. 이 함수에 새 분기를 추가하지 말 것.
  *
  * Exported for unit testing — production callers go through `sendMessage`.
  */

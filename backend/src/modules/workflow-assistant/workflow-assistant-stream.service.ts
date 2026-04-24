@@ -40,6 +40,8 @@ import { AssistantMessageRequestDto } from './dto/assistant-message-request.dto'
 import {
   AssistantToolCallRecord,
   AssistantPlanRecord,
+  AutoResumeReason,
+  FINISH_REASON_AUTO_RESUME_PENDING,
   WorkflowAssistantMessage,
 } from './entities/workflow-assistant-message.entity';
 
@@ -185,6 +187,34 @@ const REVIEW_ORIGINAL_REQUEST_MAX_LEN = 200;
  * 동시에 업데이트.
  */
 const MAX_STALL_ROUNDS = 2;
+
+/**
+ * `persistAssistantTurn` 이 요구하는 resumeMeta literal object 를 한 곳에서
+ * 생성한다. 기존에는 세 persist 경로(라운드 한도 초과 / 에러 / 최종 정상
+ * 종료) 에서 같은 삼항 패턴을 복붙하던 것을 통합 (review W-11).
+ *
+ * `stallRounds === 0` → 정상 턴으로 간주해 autoResumed=false 의 기본값 메타.
+ * `stallRounds > 0` → 이번 턴이 stall 복구로 한 번 이상 쪼개졌으므로 해당
+ *   row 는 "복구 이후 새로 시작된 row" 로 표시.
+ */
+function makeResumeMeta(stallRounds: number): {
+  autoResumed: boolean;
+  autoResumeReason: AutoResumeReason | null;
+  autoResumeAttempt: number | null;
+} {
+  if (stallRounds <= 0) {
+    return {
+      autoResumed: false,
+      autoResumeReason: null,
+      autoResumeAttempt: null,
+    };
+  }
+  return {
+    autoResumed: true,
+    autoResumeReason: 'stall_pending_steps',
+    autoResumeAttempt: stallRounds,
+  };
+}
 
 /**
  * Workflow AI Assistant의 대화 한 턴을 처리한다.
@@ -369,7 +399,15 @@ export class WorkflowAssistantStreamService {
     // 라운드 중 active plan 에 pending step 이 남아있으면 서버가 fallback 으로
     // 한 번 더 돌린다 (gpt-oss-120b 가 임의 중단하는 quirk 대응). 연속 stall 이
     // `MAX_STALL_ROUNDS` 를 넘으면 LLM 이 실제로 막힌 상태로 간주해 루프 종료.
+    // 진척이 있는 라운드에서는 0 으로 리셋되므로 **"이번 턴 전체에서 stall 이
+    // 한 번이라도 있었는지"** 의 판정에는 사용할 수 없다 — 그 목적은 아래
+    // `totalStallCount` 가 누적으로 추적한다.
     let consecutiveStallRounds = 0;
+    // 이번 턴에 stall 복구가 발동한 총 횟수. 진척 라운드로 리셋되지 않으므로
+    // 최종 row 에 `autoResumed=true` 를 실을지 판정하는 기준으로 쓴다. 복구가
+    // 1회 이상 발동했다면 row 가 이미 분리되어 있으므로 마지막 row 앞에도
+    // divider 가 그려져야 한다 (rehydrate 시 일관성 유지).
+    let totalStallCount = 0;
 
     // 루프 (tool_calls가 있으면 다시 호출)
     while (true) {
@@ -389,17 +427,7 @@ export class WorkflowAssistantStreamService {
           planPersisted ? null : planForTurn,
           null,
           'error',
-          consecutiveStallRounds > 0
-            ? {
-                autoResumed: true,
-                autoResumeReason: 'stall_pending_steps',
-                autoResumeAttempt: consecutiveStallRounds,
-              }
-            : {
-                autoResumed: false,
-                autoResumeReason: null,
-                autoResumeAttempt: null,
-              },
+          makeResumeMeta(totalStallCount),
         );
         yield { event: 'done', data: { finishReason: 'error' } };
         return;
@@ -783,17 +811,7 @@ export class WorkflowAssistantStreamService {
           planPersisted ? null : planForTurn,
           null,
           'error',
-          consecutiveStallRounds > 0
-            ? {
-                autoResumed: true,
-                autoResumeReason: 'stall_pending_steps',
-                autoResumeAttempt: consecutiveStallRounds,
-              }
-            : {
-                autoResumed: false,
-                autoResumeReason: null,
-                autoResumeAttempt: null,
-              },
+          makeResumeMeta(totalStallCount),
         );
         yield { event: 'done', data: { finishReason: 'error' } };
         return;
@@ -913,33 +931,45 @@ export class WorkflowAssistantStreamService {
         consecutiveStallRounds < MAX_STALL_ROUNDS
       ) {
         consecutiveStallRounds++;
+        totalStallCount++;
 
         // (A) 지금까지 누적된 assistant 텍스트·toolCalls 를 "중간 row" 로
         //     먼저 persist 하고 커서를 리셋한다. 이게 분리된 메시지 박스의
         //     핵심 — 프론트가 이 row 앞에서 렌더를 끊고, 이후 라운드 텍스트는
-        //     새 row 로 누적된다. `finishReason='auto_resume_pending'` 은
+        //     새 row 로 누적된다. `FINISH_REASON_AUTO_RESUME_PENDING` 은
         //     "턴이 아직 안 끝났지만 자동 복구 경계에서 분리 저장함" 을
         //     표시하는 마커.
         //
-        //     plan 은 최초 emit 된 row 에만 실리도록 `planPersisted` 로 가드.
-        //     이미 plan 이 저장되었다면 이번 중간 row 의 plan 은 null.
+        //     plan 은 "이번 턴에 최초 emit 된 plan" row 에만 실리도록
+        //     `planPersisted` 로 가드. 단, 복구 라운드 중에 LLM 이 새 plan 을
+        //     또 발행하면 `planForTurn` 이 교체되므로, 그 경우에도 새 plan 을
+        //     중간 row 에 실을 수 있도록 "이미 저장한 plan title·summary"
+        //     signature 기반으로 판단한다 (review W-2).
         const planForThisSegment = planPersisted ? null : planForTurn;
-        await this.persistAssistantTurn(
-          sessionId,
-          assistantText,
-          pendingToolCalls,
-          planForThisSegment,
-          null,
-          'auto_resume_pending',
-          {
-            autoResumed: false,
-            autoResumeReason: null,
-            autoResumeAttempt: null,
-          },
-        );
-        if (planForTurn) planPersisted = true;
-        assistantText = '';
-        pendingToolCalls = [];
+        // 중간 persist 가 throw 해도 커서(`assistantText`/`pendingToolCalls`)
+        // 가 리셋되지 않아 에러 경로 persist 에서 같은 텍스트가 또 저장되는
+        // 회귀를 막기 위해 try/finally 로 리셋을 보장한다 (review W-14).
+        let midRowPersistSucceeded = false;
+        try {
+          await this.persistAssistantTurn(
+            sessionId,
+            assistantText,
+            pendingToolCalls,
+            planForThisSegment,
+            null,
+            FINISH_REASON_AUTO_RESUME_PENDING,
+            makeResumeMeta(0),
+          );
+          midRowPersistSucceeded = true;
+        } finally {
+          // 성공이든 실패든 커서는 항상 리셋 — 실패 시 에러 경로 persist 가
+          // "이미 중간 row 에 담긴 내용" 을 다시 저장하는 이중 기록을 방지.
+          assistantText = '';
+          pendingToolCalls = [];
+          if (midRowPersistSucceeded && planForThisSegment) {
+            planPersisted = true;
+          }
+        }
 
         // (B) 프론트에 재개 신호. 구독자는 현재 스트리밍 중인 assistant
         //     버블을 확정(`streaming: false`) 하고 새 버블을 push 한다.
@@ -1042,18 +1072,6 @@ export class WorkflowAssistantStreamService {
       // 턴 종료. stall 복구로 여러 row 로 쪼개진 경우, 이 최종 row 는
       // "복구 이후 새로 시작된 row" 이므로 `autoResumed=true` 로 표시한다.
       // 프론트는 이 플래그를 보고 rehydrate 시 row 앞에 divider 를 렌더.
-      const finalResumeMeta =
-        consecutiveStallRounds > 0
-          ? {
-              autoResumed: true,
-              autoResumeReason: 'stall_pending_steps' as const,
-              autoResumeAttempt: consecutiveStallRounds,
-            }
-          : {
-              autoResumed: false,
-              autoResumeReason: null,
-              autoResumeAttempt: null,
-            };
       await this.persistAssistantTurn(
         sessionId,
         assistantText,
@@ -1061,7 +1079,7 @@ export class WorkflowAssistantStreamService {
         planPersisted ? null : planForTurn,
         usageEvent?.data ?? null,
         finishReason,
-        finalResumeMeta,
+        makeResumeMeta(totalStallCount),
       );
       yield { event: 'done', data: { finishReason } };
       return;
@@ -1090,13 +1108,9 @@ export class WorkflowAssistantStreamService {
     // 여기서 entity 필드명 그대로 전달하면 TypeORM 이 DB 컬럼에 기록한다.
     resumeMeta: {
       autoResumed: boolean;
-      autoResumeReason: string | null;
+      autoResumeReason: AutoResumeReason | null;
       autoResumeAttempt: number | null;
-    } = {
-      autoResumed: false,
-      autoResumeReason: null,
-      autoResumeAttempt: null,
-    },
+    } = makeResumeMeta(0),
   ): Promise<void> {
     await this.sessionService.appendMessage(sessionId, {
       role: 'assistant',

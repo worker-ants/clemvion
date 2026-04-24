@@ -2,12 +2,16 @@ import { beforeEach, describe, expect, it } from "vitest";
 import {
   applyAutoResumeEvent,
   handleSseEvent,
+  hydrateMessage,
   summarizePlanState,
   useAssistantStore,
   type AssistantDisplayMessage,
   type AssistantPlanCard,
 } from "../assistant-store";
-import type { AssistantSseEvent } from "@/lib/api/assistant";
+import type {
+  AssistantMessageData,
+  AssistantSseEvent,
+} from "@/lib/api/assistant";
 import { useLocaleStore } from "@/lib/stores/locale-store";
 
 /**
@@ -288,6 +292,80 @@ describe("assistant-store", () => {
       expect(state.messages[2].content).toBe("진행 중");
       // 새 row 에 attempt=2 메타.
       expect(state.messages[3].autoResume?.attempt).toBe(2);
+    });
+
+    // review INFO-1 / W-9: 스트림 조작이나 버그로 attempt/max 에 비정상 값이
+    // 실려 와도 UI 에 Infinity/NaN 등이 노출되지 않도록 화이트리스트 적용.
+    it("sanitizes non-finite attempt/max values to safe defaults", () => {
+      seedAssistant();
+      useAssistantStore.setState({ streamingMessageId: ASSISTANT_ID });
+
+      applyAutoResumeEvent(
+        useAssistantStore.setState,
+        ASSISTANT_ID,
+        {
+          event: "auto_resume",
+          data: {
+            reason: "stall_pending_steps",
+            attempt: Number.POSITIVE_INFINITY as unknown as number,
+            max: Number.NaN as unknown as number,
+          },
+        },
+      );
+      const meta = useAssistantStore.getState().messages[1].autoResume;
+      expect(meta?.attempt).toBe(1);
+      // NaN 은 화이트리스트에 실패하므로 max 는 생략 (rehydrate 폴백과 동일).
+      expect(meta?.max).toBeUndefined();
+    });
+  });
+
+  // review W-6: rehydrate 경로에서 서버의 `autoResumed=true` row 가 divider
+  // 렌더용 `autoResume` 메타로 복원되는지 고정. `STALL_MAX_ATTEMPTS` 이중
+  // 관리를 제거한 이후 max 는 생략되어야 한다.
+  describe("hydrateMessage — auto-resume metadata", () => {
+    const baseAssistantRow: AssistantMessageData = {
+      id: "row-1",
+      sessionId: "sess-1",
+      role: "assistant",
+      content: "이어서 진행 중",
+      toolCalls: null,
+      toolCallId: null,
+      plan: null,
+      usage: null,
+      finishReason: "stop",
+      createdAt: new Date().toISOString(),
+    };
+
+    it("restores autoResume meta without a max field (server-constant agnostic)", () => {
+      const hydrated = hydrateMessage({
+        ...baseAssistantRow,
+        autoResumed: true,
+        autoResumeReason: "stall_pending_steps",
+        autoResumeAttempt: 2,
+      });
+      expect(hydrated.autoResume).toEqual({
+        reason: "stall_pending_steps",
+        attempt: 2,
+      });
+    });
+
+    it("leaves autoResume undefined on legacy rows (autoResumed false/missing)", () => {
+      const hydrated = hydrateMessage({
+        ...baseAssistantRow,
+        // 마이그레이션 이전 row. 서버가 필드를 보내지 않아도 호환성 유지.
+      });
+      expect(hydrated.autoResume).toBeUndefined();
+    });
+
+    it("drops autoResume meta when the server sends an unknown reason (whitelist guard)", () => {
+      const hydrated = hydrateMessage({
+        ...baseAssistantRow,
+        autoResumed: true,
+        // @ts-expect-error — 의도적으로 화이트리스트 밖 값을 전달
+        autoResumeReason: "some_future_reason",
+        autoResumeAttempt: 1,
+      });
+      expect(hydrated.autoResume).toBeUndefined();
     });
   });
 
