@@ -1020,6 +1020,21 @@ export class WorkflowAssistantStreamService {
         );
       case 'list_knowledge_bases':
         return this.exploreTools.listKnowledgeBases(workspaceId);
+      case 'get_workflow_executions':
+        return this.exploreTools.getWorkflowExecutions(
+          workspaceId,
+          currentWorkflowId,
+          {
+            limit: typeof args.limit === 'number' ? args.limit : undefined,
+            status: typeof args.status === 'string' ? args.status : undefined,
+          },
+        );
+      case 'get_execution_details':
+        return this.exploreTools.getExecutionDetails(
+          workspaceId,
+          currentWorkflowId,
+          asString(args.id, ''),
+        );
       case 'get_current_workflow':
         // Safety net: should have been handled by caller with shadow access.
         return {

@@ -97,6 +97,8 @@ function makeService(): {
       listWorkflows: jest.fn(),
       getWorkflow: jest.fn(),
       listKnowledgeBases: jest.fn(),
+      getWorkflowExecutions: jest.fn(),
+      getExecutionDetails: jest.fn(),
     },
     nodeRegistry: {
       listDefinitions: jest.fn().mockReturnValue([
@@ -3884,6 +3886,115 @@ describe('WorkflowAssistantStreamService', () => {
       expect(result.portInfo?.attemptedPort).toBe('btn_a');
       // carousel 의 config 가 비어 fallback static 'out' 만 노출됨.
       expect(result.portInfo?.knownPorts).toEqual(['out']);
+    });
+  });
+
+  // 실행 조회 도구 2종이 dispatch → ExploreToolsService 위임 → SSE tool_call
+  // (kind=explore) 로 정상 래핑되는지 회귀 방어. 개별 메서드의 단위 테스트는
+  // explore-tools.service.spec.ts 에서 수행한다.
+  describe('execution read tools — get_workflow_executions / get_execution_details', () => {
+    it('delegates get_workflow_executions to ExploreToolsService with session workflowId and emits explore tool_call', async () => {
+      const { service, mocks } = makeService();
+      mocks.exploreTools.getWorkflowExecutions.mockResolvedValue({
+        ok: true,
+        workflowId: 'wf-1',
+        workflowName: 'WF',
+        items: [
+          {
+            id: 'ex-1',
+            status: 'failed',
+            startedAt: new Date().toISOString(),
+            finishedAt: new Date().toISOString(),
+            durationMs: 100,
+            nodeStats: { total: 3, completed: 2, failed: 1 },
+          },
+        ],
+      });
+      mocks.llmService.chatStream.mockImplementation(() =>
+        asyncIter<ChatStreamEvent>([
+          {
+            type: 'tool_call_end',
+            id: 'call_1',
+            name: 'get_workflow_executions',
+            arguments: JSON.stringify({ limit: 5, status: 'failed' }),
+          },
+          {
+            type: 'done',
+            usage: { inputTokens: 10, outputTokens: 5, totalTokens: 15 },
+            model: 'gpt-4o',
+            finishReason: 'stop',
+          },
+        ]),
+      );
+
+      const events = await collect(
+        service.streamMessage('sess-1', 'ws-1', 'u-1', baseDto as never),
+      );
+
+      expect(mocks.exploreTools.getWorkflowExecutions).toHaveBeenCalledWith(
+        'ws-1',
+        'wf-1',
+        { limit: 5, status: 'failed' },
+      );
+      const toolEvent = events.find(
+        (e) =>
+          e.event === 'tool_call' &&
+          (e.data as { name: string }).name === 'get_workflow_executions',
+      );
+      expect(toolEvent).toBeDefined();
+      expect((toolEvent!.data as { kind: string }).kind).toBe('explore');
+      const result = (
+        toolEvent!.data as { result: Record<string, unknown> }
+      ).result;
+      expect(result.ok).toBe(true);
+      expect((result.items as unknown[])[0]).toMatchObject({ id: 'ex-1' });
+    });
+
+    it('delegates get_execution_details to ExploreToolsService with the session workflowId scope', async () => {
+      const { service, mocks } = makeService();
+      mocks.exploreTools.getExecutionDetails.mockResolvedValue({
+        ok: true,
+        execution: { id: 'ex-1', status: 'failed' },
+        timeline: [
+          { nodeExecutionId: 'ne-1', nodeId: 'n-1', status: 'failed' },
+        ],
+        subExecutions: [],
+      });
+      mocks.llmService.chatStream.mockImplementation(() =>
+        asyncIter<ChatStreamEvent>([
+          {
+            type: 'tool_call_end',
+            id: 'call_1',
+            name: 'get_execution_details',
+            arguments: JSON.stringify({
+              id: '11111111-1111-4111-8111-111111111111',
+            }),
+          },
+          {
+            type: 'done',
+            usage: { inputTokens: 10, outputTokens: 5, totalTokens: 15 },
+            model: 'gpt-4o',
+            finishReason: 'stop',
+          },
+        ]),
+      );
+
+      const events = await collect(
+        service.streamMessage('sess-1', 'ws-1', 'u-1', baseDto as never),
+      );
+
+      expect(mocks.exploreTools.getExecutionDetails).toHaveBeenCalledWith(
+        'ws-1',
+        'wf-1',
+        '11111111-1111-4111-8111-111111111111',
+      );
+      const toolEvent = events.find(
+        (e) =>
+          e.event === 'tool_call' &&
+          (e.data as { name: string }).name === 'get_execution_details',
+      );
+      expect(toolEvent).toBeDefined();
+      expect((toolEvent!.data as { kind: string }).kind).toBe('explore');
     });
   });
 });
