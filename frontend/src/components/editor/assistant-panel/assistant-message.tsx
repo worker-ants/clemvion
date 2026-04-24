@@ -237,7 +237,15 @@ function CandidatePickers({
   toolCalls: AssistantToolCallRecord[];
 }) {
   const entries = useMemo(() => collectPickerEntries(toolCalls), [toolCalls]);
+  // review I-3: 전체 nodes 배열을 읽되, Map 변환을 useMemo 로 고정해
+  // picker 내부 `find` O(N) 스캔을 O(1) 로 줄인다. selector 비교는 nodes
+  // reference 기준이므로 리렌더 빈도는 기존과 동일하지만 연산은 압축된다.
   const nodes = useEditorStore((s) => s.nodes);
+  const nodesById = useMemo(() => {
+    const out = new Map<string, (typeof nodes)[number]>();
+    for (const n of nodes) out.set(n.id, n);
+    return out;
+  }, [nodes]);
   const updateNodeConfigField = useEditorStore(
     (s) => s.updateNodeConfigField,
   );
@@ -245,7 +253,7 @@ function CandidatePickers({
   return (
     <div className="flex flex-col gap-1.5">
       {entries.map(({ nodeId, field, key }) => {
-        const node = nodes.find((n) => n.id === nodeId);
+        const node = nodesById.get(nodeId);
         const nodeData = (node?.data ?? {}) as {
           config?: Record<string, unknown>;
         };
@@ -256,7 +264,12 @@ function CandidatePickers({
             field={field}
             currentValue={currentValue}
             onConfirm={(selectedId) => {
-              updateNodeConfigField(nodeId, field.field, selectedId);
+              // kb-selector 의 `knowledgeBaseIds` 는 string[] 필드이므로
+              // 단일 id 를 배열로 감싸 주입한다 (review Critical-1).
+              // 나머지 3종 widget 은 string 단일 필드라 id 그대로.
+              const value: unknown =
+                field.widget === "kb-selector" ? [selectedId] : selectedId;
+              updateNodeConfigField(nodeId, field.field, value);
             }}
             settingsHref={SETTINGS_HREF[field.widget]}
           />
@@ -292,10 +305,13 @@ function collectPickerEntries(
     };
     if (!result.ok) continue;
     // add_node 는 result.id, update_node 는 args.id 가 대상 노드.
-    const nodeId =
+    // 일부 클라이언트가 `nodeId` camelCase 로 보내는 방어를 위해 두 키를
+    // 모두 수용 (review W-11).
+    const rawNodeId =
       call.name === "add_node"
-        ? (result.id ?? "")
-        : String(call.arguments?.id ?? "");
+        ? result.id
+        : call.arguments?.id ?? call.arguments?.nodeId;
+    const nodeId = typeof rawNodeId === "string" ? rawNodeId : "";
     if (!nodeId) continue;
     const pending = Array.isArray(result.pendingUserConfig)
       ? result.pendingUserConfig

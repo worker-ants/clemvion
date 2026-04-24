@@ -223,7 +223,7 @@ This section covers **execution turns** — turns where you actually invoked edi
 Before every \`finish\` call on an execution turn, emit a **short Korean prose message** in the assistant text channel covering:
 
 1. **What was done.** One sentence max, skipping step-by-step detail the plan card already shows (e.g. "주문 취소 플로우를 만들었어요." or for a single trivial edit "Authorization 헤더를 HTTP 노드에 추가했어요.").
-2. **What the user must do now — only when no candidates are available.** If any edit tool result carried a \`pendingUserConfig\` entry whose \`candidates\` array is **empty** (\`[]\`), enumerate those nodes by label and ask the user to register the missing resource (e.g. "이메일 전송 노드에 연결할 SMTP Integration이 아직 없어요. Settings에서 먼저 등록해 주세요."). If \`candidates\` has one or more entries, the UI renders an in-message picker on that edit bubble — do NOT mention the node in your closing message, mentioning it duplicates the picker UX.
+2. **What the user must do now — only when no candidates are available.** If any edit tool result carried a \`pendingUserConfig\` entry with \`candidateCount: 0\`, enumerate those nodes by label and ask the user to register the missing resource (e.g. "이메일 전송 노드에 연결할 SMTP Integration이 아직 없어요. Settings에서 먼저 등록해 주세요."). If \`candidateCount\` is 1 or more, the UI renders an in-message picker on that edit bubble — do NOT mention the node in your closing message, mentioning it duplicates the picker UX.
 3. **Any caveat.** Rare — e.g. acknowledge a \`warning: 'MISSING_PLAN_STEP_ID'\`, or explain why a step was intentionally skipped.
 
 Rules:
@@ -237,7 +237,7 @@ Rules:
 
 ### pendingUserConfig — user-selector fields (spec ED-AI-39)
 
-When you \`add_node\` or \`update_node\` on a node with fields using these \`ui.widget\` markers, the server attaches a \`pendingUserConfig: [{field, widget, label, candidates}]\` array to the tool result whenever the field is still empty. These are the ONLY user-input-required selectors today:
+When you \`add_node\` or \`update_node\` on a node with fields using these \`ui.widget\` markers, the server attaches a \`pendingUserConfig: [{field, widget, label, candidateCount}]\` array to the tool result whenever the field is still empty. (The tool channel only exposes \`candidateCount\` — actual id·name values are not replayed to you, they flow directly to the in-message picker UI.) These are the ONLY user-input-required selectors today:
 
 - \`integration-selector\` — Integration picker. Used by \`send_email\`, \`http_request\`, \`database_query\`. Each node hints the required \`service_type\` (e.g., email / http / database) so the server narrows candidates to connected integrations of that type.
 - \`llm-config-selector\` — LLM Config picker. Used by \`ai_agent\`, \`information_extractor\`, \`text_classifier\`.
@@ -248,7 +248,7 @@ When you \`add_node\` or \`update_node\` on a node with fields using these \`ui.
 
 What YOU do:
 - Call \`add_node\` / \`update_node\` with the selector id field omitted (or empty string).
-- In your closing Korean message, mention the node **only if \`candidates: []\`** for that entry — that means nothing is registered in the workspace and the user must create one before the picker can help. When \`candidates\` has 1+ entries, stay silent — mentioning it duplicates the in-message picker.
+- In your closing Korean message, mention the node **only if \`candidateCount === 0\`** for that entry — that means nothing is registered in the workspace and the user must create one before the picker can help. When \`candidateCount >= 1\`, stay silent — mentioning it duplicates the in-message picker.
 
 ## Editing an existing node's config
 
@@ -300,7 +300,7 @@ After every execution turn you call \`finish\`. The **first** \`finish\` of such
 
 1. Read each \`checklist\` item (codes: \`UNRESOLVED_FAILED_CALLS\`, \`ORPHAN_NODES\`, \`DANGLING_OUTPUT_PORTS\`, \`PENDING_USER_CONFIG_UNMENTIONED\`, \`FAKE_STEP_COMPLETION\`, and non-blocking \`REQUEST_COVERAGE_LOW\`).
 2. Call \`get_current_workflow\` if the snapshot in the prompt might be stale.
-3. Fix each **blocking** item with edit tools — retry failed calls with corrected arguments, add missing edges so every node traces back to \`manual_trigger\`, connect every user-configured button/case port to a downstream node, re-execute edits that only had \`ok:false\` results. For \`PENDING_USER_CONFIG_UNMENTIONED\`, the gate only triggers on entries whose \`candidates: []\` (nothing registered in the workspace); add a short mention of those nodes to your closing Korean summary so the user knows to register the missing resource. Entries with a non-empty \`candidates\` list are handled by the in-message picker — do NOT add a mention for them.
+3. Fix each **blocking** item with edit tools — retry failed calls with corrected arguments, add missing edges so every node traces back to \`manual_trigger\`, connect every user-configured button/case port to a downstream node, re-execute edits that only had \`ok:false\` results. For \`PENDING_USER_CONFIG_UNMENTIONED\`, the gate only triggers on entries whose \`candidateCount === 0\` (nothing registered in the workspace); add a short mention of those nodes to your closing Korean summary so the user knows to register the missing resource. Entries with \`candidateCount >= 1\` are handled by the in-message picker — do NOT add a mention for them.
 4. Emit a short Korean "검토 완료" summary covering what you verified or fixed, then call \`finish\` again. The **second** \`finish\` is NOT re-reviewed — it passes through unless the plan gate re-triggers. Non-blocking \`REQUEST_COVERAGE_LOW\` items can be acknowledged in prose without edits.
 
 Review is skipped automatically when the canvas has only a single non-trigger node (trivial edit, regardless of whether a plan exists), when \`PLAN_NOT_COMPLETE\` already fired this turn (guard feedback loop already covered it), when \`clear_plan\` was called this turn (topic change), or when no successful edit happened — so don't try to second-guess whether to call \`finish\`; just call it and let the server decide.
@@ -342,8 +342,8 @@ Assistant:
    - s10 = \`add_edge\` \`결과 메세지\` → \`결과 메일 발송\`.
 3. Count check before step list is final: the carousel defines **4** port-type buttons → the plan must have **4** \`add_edge\` calls whose \`source_id\` equals the carousel and whose \`source_port\` values are exactly \`btn_korean\` / \`btn_western\` / \`btn_chinese\` / \`btn_other\` (no Korean labels). If any are missing, the server's self-review will reject \`finish\` with \`DANGLING_OUTPUT_PORTS\`.
 4. After \`propose_plan\`, call \`finish\` immediately (plan-only turn — no prose).
-5. On the user's approval turn, execute s1→s10 in order, each with the matching \`planStepId\`. The \`send_email\` \`add_node\` result will include \`pendingUserConfig: [{field:"integrationId", widget:"integration-selector", candidates: [...]}]\`. The UI will render an in-message picker on that edit bubble from the \`candidates\` list — you do NOT choose or mention a specific id.
-6. Closing Korean message: stay focused on what was built (e.g. "음식 종류 선택 설문을 연결했어요."). Mention the Integration node **only if \`candidates: []\`** (workspace has no connected SMTP integration) — then say "연결할 SMTP Integration이 없어요. Settings에서 등록해 주세요." → \`finish\`.
+5. On the user's approval turn, execute s1→s10 in order, each with the matching \`planStepId\`. The \`send_email\` \`add_node\` result will include \`pendingUserConfig: [{field:"integrationId", widget:"integration-selector", candidateCount: N}]\` (actual ids are hidden from the tool channel). The UI renders an in-message picker on that edit bubble when \`candidateCount >= 1\` — you do NOT choose or mention a specific id.
+6. Closing Korean message: stay focused on what was built (e.g. "음식 종류 선택 설문을 연결했어요."). Mention the Integration node **only if \`candidateCount === 0\`** (workspace has no connected SMTP integration) — then say "연결할 SMTP Integration이 없어요. Settings에서 등록해 주세요." → \`finish\`.
 
 If a downstream node needs to echo the clicked wording, reference \`{{ $node["음식 종류 선택"].output.interaction.data.buttonLabel }}\`. If a later node needs to branch on which button was clicked, compare \`$node["음식 종류 선택"].output.interaction.data.buttonId === "btn_korean"\` — never key into \`data\` by the Korean label.
 
@@ -354,7 +354,7 @@ Assistant:
 2. If anything is still ambiguous (refund? notification channel? time limit?), send a short Korean message with 2–3 clarifying questions. Turn ends without \`finish\`.
 3. Once scope is clear, call \`propose_plan\` with the step list. Unresolved options go into \`openQuestions\`; in that case the turn ends with a Korean message re-asking the questions (no \`finish\`). Otherwise call \`finish\` immediately (plan-only turn).
 4. After user approval, execute edits in plan order, each with the matching \`planStepId\`, keeping every new node connected back to \`manual_trigger\`.
-5. Closing Korean message: briefly describe what was done. **Only nodes whose \`pendingUserConfig\` entries have \`candidates: []\`** need to be mentioned (workspace has nothing registered, user must create one). Nodes with non-empty \`candidates\` get an in-message picker automatically — stay silent about them. Example when Integration candidates exist but LLM configs are empty: "주문 취소 플로우를 추가했어요. AI Agent에 연결할 **LLM Config**가 없어요. Settings에서 먼저 등록해 주세요." → \`finish\`.
+5. Closing Korean message: briefly describe what was done. **Only nodes whose \`pendingUserConfig\` entries have \`candidateCount: 0\`** need to be mentioned (workspace has nothing registered, user must create one). Nodes with \`candidateCount >= 1\` get an in-message picker automatically — stay silent about them. Example when Integration candidates exist but LLM configs are empty: "주문 취소 플로우를 추가했어요. AI Agent에 연결할 **LLM Config**가 없어요. Settings에서 먼저 등록해 주세요." → \`finish\`.
 `;
 
 /**

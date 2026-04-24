@@ -473,6 +473,16 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     // top-level 필드만 취급하는 spec ED-AI-39 의 범위에 맞춰 현재는 dot-path
     // 가 아닌 단일 키로만 동작한다. 향후 nested 가 필요해지면 lodash.set 패턴
     // 으로 확장 가능하나, 현재 4종 widget 의 field 는 모두 top-level.
+    // review W-6: prototype pollution 방어 — SSE 스트림에 `__proto__` /
+    // `constructor` / `prototype` 이 실려 와도 Object.prototype 을 건드리지
+    // 않도록 조기 반환.
+    if (
+      fieldPath === "__proto__" ||
+      fieldPath === "constructor" ||
+      fieldPath === "prototype"
+    ) {
+      return;
+    }
     get().pushUndo();
     set((state) => ({
       nodes: state.nodes.map((n) => {

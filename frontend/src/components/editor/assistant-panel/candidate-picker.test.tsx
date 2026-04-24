@@ -129,11 +129,80 @@ describe("CandidatePicker", () => {
     );
     // "✓ Integration: ... 로 설정됨" 이 role=status 로 표시.
     expect(screen.getByRole("status")).toBeDefined();
-    expect(screen.getByText(/Integration:/)).toBeDefined();
+    // rehydrate 시 후보 라벨을 보여줘야 한다 (raw id 가 아닌 label). W-10.
+    expect(screen.getByText(/Gmail SMTP/)).toBeDefined();
     // 드롭다운·Confirm 버튼은 렌더되지 않는다.
     expect(screen.queryByRole("combobox")).toBeNull();
     expect(
       screen.queryByRole("button", { name: /이 항목으로 설정/ }),
     ).toBeNull();
+  });
+
+  // review W-1: 레거시 DB 메시지(candidates 필드 부재) 가 rehydrate 되어도
+  // 패널 전체가 TypeError 로 크래시하지 않아야 한다. undefined 를 빈 배열로
+  // normalize 해 amber 안내 박스로 렌더.
+  it("survives a legacy payload with missing candidates (no TypeError)", () => {
+    render(
+      <CandidatePicker
+        // @ts-expect-error — legacy shape (candidates missing) simulation
+        field={{
+          field: "integrationId",
+          widget: "integration-selector",
+          label: "Integration",
+        }}
+        currentValue=""
+        onConfirm={vi.fn()}
+      />,
+    );
+    expect(screen.getByRole("note")).toBeDefined();
+  });
+
+  // review W-5: settingsHref 가 `/` 로 시작하지 않는 값 (외부 URL 또는
+  // javascript: URI) 이면 링크를 렌더하지 않는다.
+  it("refuses to render an external or javascript: settingsHref", () => {
+    const { rerender } = render(
+      <CandidatePicker
+        field={{
+          field: "integrationId",
+          widget: "integration-selector",
+          label: "Integration",
+          candidates: [],
+        }}
+        currentValue=""
+        onConfirm={vi.fn()}
+        settingsHref="javascript:alert(1)"
+      />,
+    );
+    expect(screen.queryByRole("link")).toBeNull();
+
+    rerender(
+      <CandidatePicker
+        field={{
+          field: "integrationId",
+          widget: "integration-selector",
+          label: "Integration",
+          candidates: [],
+        }}
+        currentValue=""
+        onConfirm={vi.fn()}
+        settingsHref="https://evil.example.com/steal"
+      />,
+    );
+    expect(screen.queryByRole("link")).toBeNull();
+
+    rerender(
+      <CandidatePicker
+        field={{
+          field: "integrationId",
+          widget: "integration-selector",
+          label: "Integration",
+          candidates: [],
+        }}
+        currentValue=""
+        onConfirm={vi.fn()}
+        settingsHref="/integrations"
+      />,
+    );
+    expect(screen.getByRole("link")).toBeDefined();
   });
 });

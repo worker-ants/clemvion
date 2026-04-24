@@ -27,6 +27,25 @@ const USER_ACTION_WIDGETS: ReadonlySet<string> = new Set<UserActionWidget>([
 ]);
 
 /**
+ * `integrationServiceType` hint 는 serviceType DB 필터로 직결되므로, schema
+ * meta 에 실릴 수 있는 값을 화이트리스트로 제한한다 (review W-4). 노드 스펙
+ * 에 새 integration 종류가 생기면 여기 tuple 에만 추가하면 양 단의 타입/
+ * validator 가 자동으로 갱신된다.
+ */
+export const SUPPORTED_INTEGRATION_SERVICE_TYPES = [
+  'email',
+  'http',
+  'database',
+] as const;
+
+export type IntegrationServiceType =
+  (typeof SUPPORTED_INTEGRATION_SERVICE_TYPES)[number];
+
+const SUPPORTED_INTEGRATION_SERVICE_TYPE_SET: ReadonlySet<string> = new Set(
+  SUPPORTED_INTEGRATION_SERVICE_TYPES,
+);
+
+/**
  * Candidate picker 에 표시할 개별 후보. ED-AI-39 (spec §4.3.1) 에 따라
  * 서버가 워크스페이스에서 조회해 `PendingUserConfigField.candidates` 에
  * 채워 내려준다.
@@ -51,9 +70,10 @@ export interface PendingUserConfigField {
    * widget 별 후보 조회 hint. 현재는 `integration-selector` 전용으로
    * schema meta 의 `integrationServiceType` 값(예: `'email'`/`'http'`) 이
    * 들어온다. CandidateLookupService 가 이 값으로 `Integration.service_type`
-   * 필터링한다. 값이 없으면 connected 전체가 후보.
+   * 필터링한다. 값이 없으면 connected 전체가 후보. 값은 화이트리스트
+   * (`SUPPORTED_INTEGRATION_SERVICE_TYPES`) 로 제한된다.
    */
-  integrationServiceType?: string;
+  integrationServiceType?: IntegrationServiceType;
   /**
    * 서버가 워크스페이스에서 조회한 후보 목록. `detectPendingUserConfig` 는
    * 빈 배열로만 초기화하고, 실제 조회는 `CandidateLookupService` 가 담당.
@@ -101,9 +121,16 @@ export function detectPendingUserConfig(
       // `detectPendingUserConfig` 단계에서는 스키마만 보고 "이 필드가
       // selector 인지" 만 판정한다. 실제 후보 목록은 `CandidateLookupService`
       // 가 워크스페이스 DB 를 조회해 채우므로, 여기서는 hint 만 통과시키고
-      // `candidates: []` 로 초기화한다.
-      ...(typeof propSchema?.integrationServiceType === 'string'
-        ? { integrationServiceType: propSchema.integrationServiceType }
+      // `candidates: []` 로 초기화한다. hint 는 화이트리스트 검증해서
+      // 임의 문자열이 DB 필터로 직결되지 않게 한다 (review W-4).
+      ...(typeof propSchema?.integrationServiceType === 'string' &&
+      SUPPORTED_INTEGRATION_SERVICE_TYPE_SET.has(
+        propSchema.integrationServiceType,
+      )
+        ? {
+            integrationServiceType:
+              propSchema.integrationServiceType as IntegrationServiceType,
+          }
         : {}),
       candidates: [],
     });

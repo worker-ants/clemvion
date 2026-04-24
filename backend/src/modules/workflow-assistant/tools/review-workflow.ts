@@ -663,6 +663,9 @@ function collectUnmentionedPendingUserConfig(
     // LLM 의 closing mention 은 candidate 가 0 인 항목에만 필요. 후보 목록이
     // 아직 조회되지 않은 legacy row (candidates field 미존재) 는 안전하게
     // "조회 안 됨" 으로 간주해 기존 동작(mention 강제) 을 유지한다.
+    // TODO(ED-AI-39): legacy fallback 은 기존 세션의 pre-ED-AI-39 row 를 위한
+    //   방어다. 세션 메시지가 회전(retention)되어 전부 새 shape 이 되면 조건의
+    //   `!Array.isArray(...)` 절을 제거해 의도를 명확히 하라.
     const needsMention = allPending.filter(
       (f) => !Array.isArray(f.candidates) || f.candidates.length === 0,
     );

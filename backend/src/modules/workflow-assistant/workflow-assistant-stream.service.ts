@@ -895,9 +895,10 @@ export class WorkflowAssistantStreamService {
           toolCalls: assistantToolCalls,
         });
         for (const r of pendingResultsForLlm) {
+          // 같은 턴 round-trip 에도 pendingUserConfig 축소 적용 (review W-7).
           messages.push({
             role: 'tool',
-            content: JSON.stringify(r.result),
+            content: JSON.stringify(stripCandidatesFromToolResult(r.result)),
             toolCallId: r.id,
           });
         }
@@ -1303,21 +1304,33 @@ export class WorkflowAssistantStreamService {
 
     // ED-AI-39: `PENDING_USER_CONFIG_UNMENTIONED` 는 candidate 가 0 인 항목에
     // 대해서만 발동해야 한다 (후보가 1+ 면 picker 가 UX 를 완결). review
-    // 내부 콜백이 sync 이므로, shadow 의 모든 non-trigger 노드에 대해
-    // 미리 async 로 pending+candidates 를 계산한 Map 을 만들고 콜백은
-    // Map lookup 만 수행한다. 조회 실패는 빈 배열로 degrade.
-    const pendingByNode = new Map<string, PendingUserConfigField[]>();
-    await Promise.all(
-      snapshot.nodes.map(async (n) => {
-        const pending = await this.collectPendingUserConfigWithCandidates(
-          shadow,
-          n.id,
+    // 내부 콜백이 sync 이므로 **모든 노드에 대해** 미리 pending 을 계산한
+    // Map 을 만들어 전달한다.
+    //
+    // review W-2 최적화: 매 self-review 라운드마다 모든 노드×모든 selector
+    // field 에 대해 DB 조회를 돌리면 N×M burst 가 발생한다. 우선 sync
+    // `collectPendingUserConfig` 로 pending 필드가 실제 있는 노드만 추린
+    // 뒤에만 async `fillCandidates` 를 호출해 불필요한 쿼리를 차단.
+    // pending 이 없는 노드는 빈 배열로 직행. 결과 Map 은 `Promise.all`
+    // 로 모은 entries 배열에서 new Map 으로 불변 생성 (review W-13).
+    const detectOnly = snapshot.nodes.map((n) => {
+      const pending = this.collectPendingUserConfig(shadow, n.id);
+      return { nodeId: n.id, pending };
+    });
+    const filled = await Promise.all(
+      detectOnly.map(async ({ nodeId, pending }) => {
+        if (pending.length === 0) {
+          return [nodeId, [] as PendingUserConfigField[]] as const;
+        }
+        const withCandidates = await this.candidateLookup.fillCandidates(
           workspaceId,
           currentWorkflowId,
+          pending,
         );
-        pendingByNode.set(n.id, pending);
+        return [nodeId, withCandidates] as const;
       }),
     );
+    const pendingByNode = new Map<string, PendingUserConfigField[]>(filled);
 
     const checklist = buildReviewChecklist({
       shadowSnapshot: snapshot,
@@ -1541,6 +1554,33 @@ export class WorkflowAssistantStreamService {
 // 이렇게 하면 이후 이어지는 새 user 텍스트 메시지가 (B)와 merge되지 않고
 // 독립된 user turn으로 남아 Gemini 규칙을 지킨다. OpenAI/Anthropic도 이 구조를
 // 문제없이 소비한다.
+/**
+ * Tool result 를 LLM 에 재주입할 때 `pendingUserConfig[*].candidates` 의
+ * 실제 id·name 을 히스토리에 노출하지 않도록 축소한다 (review W-7 —
+ * prompt injection 위험 완화). LLM 은 `candidateCount` 로 "후보가 있느냐
+ * 없느냐" 만 판단하면 되고, 실제 picker 는 프런트가 SSE / DB 원본으로
+ * 그대로 그린다.
+ *
+ * SSE 발행과 DB persist 에는 원본 result 를 그대로 사용하고, 이 함수는
+ * **LLM message channel 로 넘어가는 순간**에만 호출한다.
+ */
+function stripCandidatesFromToolResult(result: unknown): unknown {
+  if (!result || typeof result !== 'object') return result;
+  const r = result as Record<string, unknown>;
+  if (!Array.isArray(r.pendingUserConfig)) return result;
+  const pending = r.pendingUserConfig as Array<Record<string, unknown>>;
+  const scrubbed = pending.map((entry) => {
+    const candidates = entry.candidates;
+    const { candidates: _candidates, ...rest } = entry;
+    void _candidates;
+    return {
+      ...rest,
+      candidateCount: Array.isArray(candidates) ? candidates.length : 0,
+    };
+  });
+  return { ...r, pendingUserConfig: scrubbed };
+}
+
 function toChatMessages(msg: WorkflowAssistantMessage): ChatMessage[] {
   if (msg.role === 'user') {
     return [{ role: 'user', content: msg.content ?? '' }];
@@ -1562,11 +1602,12 @@ function toChatMessages(msg: WorkflowAssistantMessage): ChatMessage[] {
     ];
     for (const tc of calls) {
       // (B) result가 persist되지 않은 legacy row는 빈 object로 대체해 쌍을
-      // 유지한다.
+      // 유지한다. LLM 경로 재주입 시 candidate id·name 노출을 막기 위해
+      // `stripCandidatesFromToolResult` 로 pendingUserConfig 를 축소.
       const result = tc.result === undefined ? { ok: true } : tc.result;
       out.push({
         role: 'tool',
-        content: JSON.stringify(result),
+        content: JSON.stringify(stripCandidatesFromToolResult(result)),
         toolCallId: tc.id,
       });
     }
