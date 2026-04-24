@@ -12,6 +12,19 @@ import type { AssistantToolCallRecord } from "@/lib/api/assistant";
 import { useT } from "@/lib/i18n";
 
 /**
+ * `mergeRecoveryGroups` 가 "실패 → 같은 대상 성공" 을 1건으로 축약할지 판정
+ * 하는 에러 코드 화이트리스트 (review W-6/W-9 — 모듈 최상위로 승격해 렌더마다
+ * Set 재생성 비용 제거 + 에러 코드 문자열을 한 곳에 모음). 서버가 각각의
+ * 에러에 대해 `knownPorts` / cascading FIFO / label-lookalike 로 "다음 라운드
+ * 자연 복구" 를 설계한 경로만 포함 — `LABEL_CONFLICT` / `CYCLE_DETECTED` 처럼
+ * 사용자·디버거에게 실패를 명시적으로 보여주는 편이 유용한 코드는 제외.
+ */
+const RECOVERABLE_ERROR_CODES: ReadonlySet<string> = new Set([
+  "PORT_NOT_FOUND",
+  "NODE_NOT_FOUND",
+]);
+
+/**
  * Compact badge summarizing one tool call in the chat transcript. Edit tools
  * show the acted-upon label when available so the user doesn't have to match
  * UUIDs mentally. When the caller passes `count`, the badge renders in
@@ -39,9 +52,11 @@ export function ToolCallBadge({
   const ok = (call.result as { ok?: boolean } | null)?.ok ?? true;
   const failed = ok === false;
   const base = summarize(call);
-  const retrySuffix = retried
-    ? ` (${t("assistant.toolCallBadgeRetryRecovered")})`
-    : "";
+  // review I-3: retried 아닐 땐 i18n 함수 호출을 생략해 불필요한 lookup 회피.
+  const retrySuffixText = retried
+    ? t("assistant.toolCallBadgeRetryRecovered")
+    : null;
+  const retrySuffix = retrySuffixText ? ` (${retrySuffixText})` : "";
   const label =
     typeof count === "number" && count > 1
       ? `${base} × ${count}${retrySuffix}`
@@ -52,14 +67,16 @@ export function ToolCallBadge({
     : call.kind === "explore"
       ? "bg-[hsl(var(--muted))] text-[hsl(var(--muted-foreground))] border-[hsl(var(--border))]"
       : "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/30";
+  // review I-12: conditional spread 제거 — `title={undefined}` 는 DOM 에
+  // attribute 를 생성하지 않으므로 명시 할당이 안전하고 가독성 좋음.
   const title =
-    retried && retriedFromError
-      ? `${t("assistant.toolCallBadgeRetryRecovered")} — ${retriedFromError}`
+    retried && retriedFromError && retrySuffixText
+      ? `${retrySuffixText} — ${retriedFromError}`
       : undefined;
   return (
     <div
       className={`flex items-center gap-1.5 rounded border px-2 py-[3px] text-[11px] ${color}`}
-      {...(title ? { title } : {})}
+      title={title}
     >
       {iconName === "alert" && <AlertCircle size={12} className="shrink-0" />}
       {iconName === "plus" && <Plus size={12} className="shrink-0" />}
@@ -149,7 +166,6 @@ export function groupToolCalls(
  */
 function mergeRecoveryGroups(groups: ToolCallGroup[]): ToolCallGroup[] {
   if (groups.length < 2) return groups;
-  const RECOVERABLE = new Set(["PORT_NOT_FOUND", "NODE_NOT_FOUND"]);
   const out: ToolCallGroup[] = [];
   for (let i = 0; i < groups.length; i++) {
     const fail = groups[i];
@@ -159,7 +175,7 @@ function mergeRecoveryGroups(groups: ToolCallGroup[]): ToolCallGroup[] {
       fail.count === 1 &&
       isFailedCall(fail.representative) &&
       !isFailedCall(next.representative) &&
-      RECOVERABLE.has(errorCodeOf(fail.representative) ?? "") &&
+      RECOVERABLE_ERROR_CODES.has(errorCodeOf(fail.representative) ?? "") &&
       isSameEditTarget(fail.representative, next.representative)
     ) {
       out.push({
@@ -198,22 +214,26 @@ function isSameEditTarget(
       readEdgeEndpoint(a, "target") === readEdgeEndpoint(b, "target")
     );
   }
-  if (
-    a.name === "update_node" ||
-    a.name === "remove_node" ||
-    a.name === "add_node"
-  ) {
+  if (a.name === "update_node" || a.name === "remove_node") {
+    // review I-4: `add_node` 는 recovery 축약 대상에서 제외. add_node 의
+    // 성공 응답이 id 를 server 에서 발급하므로 "같은 id 의 재시도" 라는
+    // 개념이 성립하지 않고, label-기반 매칭도 `LABEL_CONFLICT → 재시도 성공`
+    // 같은 의도적 실패 경로와 섞이면 false positive 를 만든다.
     const aId = (a.arguments as { id?: unknown })?.id;
     const bId = (b.arguments as { id?: unknown })?.id;
-    if (typeof aId === "string" && aId.length > 0) return aId === bId;
-    // add_node 는 `arguments.id` 가 없는 게 정상. label 기반으로 매칭.
-    const aLabel = (a.arguments as { label?: unknown })?.label;
-    const bLabel = (b.arguments as { label?: unknown })?.label;
-    return typeof aLabel === "string" && aLabel === bLabel;
+    return (
+      typeof aId === "string" && aId.length > 0 && aId === bId
+    );
   }
   return false;
 }
 
+/**
+ * `add_edge` 의 source/target id 를 인자에서 꺼낸다. snake_case(`source_id`)
+ * 와 camelCase(`sourceId`) 를 모두 받는 이유: LLM provider 마다 arg 이름
+ * 케이스를 조금씩 다르게 내는 사례가 있어 양쪽 모두 수용해야 recovery
+ * 매칭이 안정적이다 (review I-13).
+ */
 function readEdgeEndpoint(
   call: AssistantToolCallRecord,
   side: "source" | "target",

@@ -10,9 +10,11 @@ import { ExploreToolsService } from './tools/explore-tools.service';
 import { CandidateLookupService } from './tools/candidate-lookup.service';
 import {
   ShadowNode,
+  ShadowRuntimePort,
   ShadowSnapshot,
   ShadowWorkflow,
   ShadowToolName,
+  sanitizeLlmProvidedString,
 } from './tools/shadow-workflow';
 import { resolveEffectiveOutputPorts } from './tools/resolve-dynamic-ports';
 import {
@@ -305,25 +307,15 @@ export class WorkflowAssistantStreamService {
         .listDefinitions()
         .map((d) => [d.metadata.type, d] as const),
     );
+    // ED-AI-40: validation 용 id 배열 + LLM/프런트용 runtime descriptor 를
+    // 한 resolver 에서 같이 돌려준다. 자세한 정규화 규칙은
+    // `toRuntimePortDescriptor` 참고.
+    const toPort = toRuntimePortDescriptor;
     const portResolver = (node: ShadowNode) => {
       const def = defsByType.get(node.type);
       if (!def) return null;
-      // ED-AI-40: validation 용 id 배열 + LLM/프런트용 runtime descriptor 를
-      // 한 resolver 에서 같이 돌려준다. `type` 은 spec §4.3.2 의 `'data'` /
-      // `'error'` 로 좁혀 (system/control 등은 data 로 정규화), `label` 은
-      // dynamic 포트에서 사용자가 지정한 표시 문자열 (예: carousel 버튼의
-      // 한글 label) 이 있을 때만 포함.
-      const outputs = resolveEffectiveOutputPorts(node.config, def).map(
-        (p) => ({
-          id: p.id,
-          type: p.type === 'error' ? ('error' as const) : ('data' as const),
-          ...(p.label ? { label: p.label } : {}),
-        }),
-      );
-      const inputs = def.ports.inputs.map((p) => ({
-        id: p.id,
-        type: p.type === 'error' ? ('error' as const) : ('data' as const),
-      }));
+      const outputs = resolveEffectiveOutputPorts(node.config, def).map(toPort);
+      const inputs = def.ports.inputs.map((p) => toPort(p));
       return { outputs, inputs };
     };
     const shadow = new ShadowWorkflow(
@@ -1678,4 +1670,32 @@ function truncateReviewOriginalRequest(req: string): string {
   if (!req) return '';
   if (req.length <= REVIEW_ORIGINAL_REQUEST_MAX_LEN) return req;
   return req.slice(0, REVIEW_ORIGINAL_REQUEST_MAX_LEN - 1) + '…';
+}
+
+/**
+ * ED-AI-40 §4.3.2: node registry 가 돌려주는 `ResolvedPort` / `NodePorts.inputs`
+ * 엔트리를 `ShadowRuntimePort` 로 정규화. 계약 요약:
+ *  - `type`: `'error'` 만 그대로 보존, 그 외 backend 내부 타입
+ *    (`'data'` / `'system'` / `'control'`) 은 모두 `'data'` 로 병합.
+ *  - `label`: 사용자 자유 입력이 섞일 수 있어 `sanitizeLlmProvidedString`
+ *    (80자 상한 · 개행·꺾쇠·제어문자 중화) 통과 후 실림 (review W-1).
+ *  - `label` 이 비어있으면 필드 자체 생략 (빈 object spread 제거, review I-2).
+ *
+ * 별도 helper 로 export 한 이유: service 내부 closure 안에만 두면 타입 정규화
+ * 로직이 unit test 대상에서 사라져 회귀 위험이 큼. 명시적 export + 단위
+ * 테스트로 `'system'`/`'control'` → `'data'` 매핑을 고정한다 (review W-3).
+ */
+export function toRuntimePortDescriptor(p: {
+  id: string;
+  label?: string;
+  type: string;
+}): ShadowRuntimePort {
+  const base: ShadowRuntimePort = {
+    id: p.id,
+    type: p.type === 'error' ? 'error' : 'data',
+  };
+  if (p.label) {
+    base.label = sanitizeLlmProvidedString(p.label, 80);
+  }
+  return base;
 }

@@ -72,8 +72,13 @@ export type ShadowErrorCode =
  * 성공 응답의 `result.ports` (§4.3.2) 로 LLM·프런트에 자동 노출된다.
  *  - `id`: add_edge 의 `source_port` / `target_port` 에 그대로 쓸 값.
  *  - `type`: `'data'` (기본) / `'error'`. error 포트는 `add_edge { type: 'error' }`.
+ *    **정규화 규칙** (review I-7): resolver 의 backend 내부 타입 중 `'error'`
+ *    만 그대로 싣고, `'data'` / `'system'` / `'control'` 은 모두 `'data'` 로
+ *    매핑해 외부 계약(§4.3.2) 에 맞춘다. LLM 은 edge 생성 시 `'error'` 여부만
+ *    알면 충분하고 내부 분류를 구별할 필요가 없다.
  *  - `label`: dynamic-ports 노드의 사용자 설정 label (예: carousel 버튼의 한글
- *             label). static 포트는 보통 label 없음.
+ *             label). static 포트는 보통 label 없음. 사용자 자유 입력이라
+ *             `sanitizeLlmProvidedString` 을 거쳐 실어진다.
  */
 export interface ShadowRuntimePort {
   id: string;
@@ -143,10 +148,21 @@ export interface ShadowResult {
    * `add_node` / `update_node` 성공 응답에 동봉되는 런타임 포트 목록
    * (spec ED-AI-40 §4.3.2). LLM 이 곧바로 `add_edge` 의 `source_port` /
    * `target_port` 를 정확한 값으로 채울 수 있도록 static + dynamic 포트를
-   * 같은 shape 으로 제공. 상한은 한 쪽당 50개. shadow 내부에서 생성되며
-   * portResolver 가 주입되지 않은 legacy/test 경로에서는 필드가 생략된다.
+   * 같은 shape 으로 제공. 상한은 한 쪽당 50개.
+   *
+   * 운영 경로(portResolver 주입) 에서는 **항상 present** 다 (review I-8).
+   * portResolver 가 주입되지 않은 legacy/test 경로에서만 필드가 생략된다.
+   * 상한에 걸려 절단된 경우 `portsTruncated: true` 가 함께 실려 "서버가 일부
+   * 포트를 생략했음" 을 신호한다 (review W-5).
    */
   ports?: ResolvedNodePorts;
+  /**
+   * `ports.outputs` 또는 `ports.inputs` 가 `RUNTIME_PORTS_MAX_PER_SIDE` (50)
+   * 상한에 걸려 잘린 경우 `true`. 필드 생략 시 `false` 로 간주한다. LLM 은
+   * 이 플래그가 켜졌을 때 `ports` 에 없는 port id 를 추측하지 말고
+   * `get_node_schema` 로 전체 목록을 조회해야 한다.
+   */
+  portsTruncated?: boolean;
   /**
    * 복구 지침 한-문장. 여러 에러 케이스에서 설정될 수 있다:
    *  - `UNKNOWN_NODE_TYPE` — suggestedType 사용 안내 (alias 케이스는 특별 문구).
@@ -406,8 +422,11 @@ export class ShadowWorkflow {
     // 적이 있었다면 LLM 이 이번 라운드에서 복구한 것이므로 이후 add_edge 힌트에
     // 여전히 끌려가지 않게 한다.
     this.forgetFailedAddNode(label);
-    const ports = this.buildRuntimePorts(id);
-    return ports ? { ok: true, id, ports } : { ok: true, id };
+    const portsInfo = this.buildRuntimePorts(id);
+    if (!portsInfo) return { ok: true, id };
+    return portsInfo.truncated
+      ? { ok: true, id, ports: portsInfo.ports, portsTruncated: true }
+      : { ok: true, id, ports: portsInfo.ports };
   }
 
   private updateNode(args: Record<string, unknown>): ShadowResult {
@@ -463,8 +482,11 @@ export class ShadowWorkflow {
         node.positionY = Number(patch.position.y);
     }
     this.nodes.set(id, node);
-    const ports = this.buildRuntimePorts(id);
-    return ports ? { ok: true, id, ports } : { ok: true, id };
+    const portsInfo = this.buildRuntimePorts(id);
+    if (!portsInfo) return { ok: true, id };
+    return portsInfo.truncated
+      ? { ok: true, id, ports: portsInfo.ports, portsTruncated: true }
+      : { ok: true, id, ports: portsInfo.ports };
   }
 
   private removeNode(args: Record<string, unknown>): ShadowResult {
@@ -708,18 +730,32 @@ export class ShadowWorkflow {
    * `add_node` / `update_node` 성공 응답에 실을 런타임 포트 목록을 만든다.
    * portResolver 가 주입되지 않은 legacy/test 경로에서는 `null` 반환 →
    * 응답에 ports 필드가 생략된다 (하위 호환). 한 쪽당 상한 50개.
+   * 상한에 걸려 잘린 경우 `truncated: true` 도 함께 돌려보내 호출부가
+   * `ShadowResult.portsTruncated` 를 세팅하도록 한다 (review W-5).
+   * 이미 50 이하인 배열은 원본을 그대로 돌려줘 불필요한 복사를 피한다
+   * (review I-1).
    * spec ED-AI-40 §4.3.2.
    */
-  private buildRuntimePorts(nodeId: string): ResolvedNodePorts | null {
+  private buildRuntimePorts(
+    nodeId: string,
+  ): { ports: ResolvedNodePorts; truncated: boolean } | null {
     if (!this.portResolver) return null;
     const node = this.nodes.get(nodeId);
     if (!node) return null;
     const resolved = this.portResolver(node);
     if (!resolved) return null;
-    return {
-      outputs: resolved.outputs.slice(0, RUNTIME_PORTS_MAX_PER_SIDE),
-      inputs: resolved.inputs.slice(0, RUNTIME_PORTS_MAX_PER_SIDE),
-    };
+    const truncated =
+      resolved.outputs.length > RUNTIME_PORTS_MAX_PER_SIDE ||
+      resolved.inputs.length > RUNTIME_PORTS_MAX_PER_SIDE;
+    const outputs =
+      resolved.outputs.length > RUNTIME_PORTS_MAX_PER_SIDE
+        ? resolved.outputs.slice(0, RUNTIME_PORTS_MAX_PER_SIDE)
+        : resolved.outputs;
+    const inputs =
+      resolved.inputs.length > RUNTIME_PORTS_MAX_PER_SIDE
+        ? resolved.inputs.slice(0, RUNTIME_PORTS_MAX_PER_SIDE)
+        : resolved.inputs;
+    return { ports: { outputs, inputs }, truncated };
   }
 
   /**
