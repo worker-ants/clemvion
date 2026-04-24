@@ -129,15 +129,15 @@
 
 > **구현 상태**: ❌ 로드맵 · 상세 요구사항: [PRD 2 §10](./2-workflow-editor.md#10-ai-assistant-ed-ai-) (`ED-AI-*`) · 상세 스펙: [Spec 3-workflow-editor/4](../spec/3-workflow-editor/4-ai-assistant.md)
 
-워크플로우 에디터에 내장된 채팅형 AI 에이전트로, 사용자의 자연어 요청을 받아 노드·엣지를 자동 구성·수정한다. 단순 지시뿐 아니라 "주문 취소 프로세스 추가" 같은 모호한 요구를 **Clarify → Plan → Execute** 대화 루프로 구체화한다.
+워크플로우 에디터에 내장된 채팅형 AI 에이전트로, 사용자의 자연어 요청을 받아 노드·엣지를 자동 구성·수정한다. 단순 지시뿐 아니라 "주문 취소 프로세스 추가" 같은 모호한 요구를 **Clarify → Plan → Execute** 대화 루프로 구체화한다. 실행(`Run`) 은 사용자가 수행하되, Assistant 는 실행 결과(노드별 입출력·에러·타임라인) 를 읽기 전용 탐색 도구로 조회해 실패 원인을 진단하고 해당 노드 수정을 제안한다 ([PRD 2 §10.9](./2-workflow-editor.md#109-실행-결과-조회-진단수정)).
 
 | 목표 | 설명 |
 |------|------|
-| 사용자 가치 | 비개발자도 자연어 한 줄로 초기 워크플로우 초안을 얻을 수 있다 |
+| 사용자 가치 | 비개발자도 자연어 한 줄로 초기 워크플로우 초안을 얻고, 실행 후 실패·오동작을 대화로 진단·수정 |
 | 제품 차별화 | Planner-first UX (질문·계획 제안 후 실행)로 LLM의 섣부른 편집 방지 |
-| 기존 자산 재사용 | LLM Config (§3.1), [LLM Client 스트리밍](../spec/5-system/7-llm-client.md#8-스트리밍-streaming), editor-store Undo 스택 |
+| 기존 자산 재사용 | LLM Config (§3.1), [LLM Client 스트리밍](../spec/5-system/7-llm-client.md#8-스트리밍-streaming), editor-store Undo 스택, [실행 내역 REST API](./7-execution-history.md) |
 
-상세 요구사항은 [PRD 2 §10.1~§10.8](./2-workflow-editor.md#10-ai-assistant-ed-ai-) 참조.
+상세 요구사항은 [PRD 2 §10.1~§10.9](./2-workflow-editor.md#10-ai-assistant-ed-ai-) 참조.
 
 ---
 
