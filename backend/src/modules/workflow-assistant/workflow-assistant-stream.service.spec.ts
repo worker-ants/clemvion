@@ -51,6 +51,10 @@ interface MockDeps {
     listDefinitions: jest.Mock;
     getComponent: jest.Mock;
   };
+  handlerRegistry: {
+    has: jest.Mock;
+    get: jest.Mock;
+  };
 }
 
 function asyncIter<T>(items: T[]): AsyncIterable<T> {
@@ -124,6 +128,13 @@ function makeService(): {
       ]),
       getComponent: jest.fn(),
     },
+    // handler.validate 는 shadow add/update 시점의 domain-rule 검사를
+    // 주입하는 브리지. 기본값은 permissive (has()=false 라 validator
+    // skip). 실패 경로를 테스트하려는 개별 케이스는 has/get 을 override.
+    handlerRegistry: {
+      has: jest.fn().mockReturnValue(false),
+      get: jest.fn(),
+    },
   };
 
   // ED-AI-39: CandidateLookupService 는 워크스페이스에서 후보를 조회해
@@ -140,6 +151,7 @@ function makeService(): {
     mocks.sessionService as never,
     mocks.exploreTools as never,
     mocks.nodeRegistry as never,
+    mocks.handlerRegistry as never,
     candidateLookup as never,
   );
   return { service, mocks: { ...mocks, candidateLookup } };
