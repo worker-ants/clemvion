@@ -11,8 +11,22 @@ import { ExploreToolsService } from './explore-tools.service';
 const WORKSPACE = 'ws-1';
 const CURRENT_WF = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 const OTHER_WF = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
+const THIRD_WF = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
 
 type Row = Record<string, unknown>;
+
+interface QueryBuilder {
+  select: jest.Mock;
+  addSelect: jest.Mock;
+  where: jest.Mock;
+  andWhere: jest.Mock;
+  orderBy: jest.Mock;
+  groupBy: jest.Mock;
+  addGroupBy: jest.Mock;
+  limit: jest.Mock;
+  getMany: jest.Mock;
+  getRawMany: jest.Mock;
+}
 
 interface FakeRepo {
   findOne: jest.Mock;
@@ -28,14 +42,20 @@ function makeRepo(): FakeRepo {
   };
 }
 
-function makeQueryBuilder(finalRows: Row[] = [], finalCount = 0) {
-  const qb = {
+function makeQueryBuilder(
+  opts: { many?: Row[]; raw?: Row[] } = {},
+): QueryBuilder {
+  const qb: QueryBuilder = {
+    select: jest.fn().mockReturnThis(),
+    addSelect: jest.fn().mockReturnThis(),
     where: jest.fn().mockReturnThis(),
     andWhere: jest.fn().mockReturnThis(),
     orderBy: jest.fn().mockReturnThis(),
+    groupBy: jest.fn().mockReturnThis(),
+    addGroupBy: jest.fn().mockReturnThis(),
     limit: jest.fn().mockReturnThis(),
-    getMany: jest.fn().mockResolvedValue(finalRows),
-    getCount: jest.fn().mockResolvedValue(finalCount),
+    getMany: jest.fn().mockResolvedValue(opts.many ?? []),
+    getRawMany: jest.fn().mockResolvedValue(opts.raw ?? []),
   };
   return qb;
 }
@@ -76,38 +96,43 @@ function makeService(): {
 
 describe('ExploreToolsService — execution read tools', () => {
   describe('getWorkflowExecutions', () => {
-    it('returns recent executions with node stats, scoped by workspace + workflow', async () => {
+    it('returns recent executions with node stats sourced from DB GROUP BY, scoped to workspace+workflow', async () => {
       const { svc, repos } = makeService();
       repos.workflow.findOne.mockResolvedValue({
         id: CURRENT_WF,
         workspaceId: WORKSPACE,
         name: 'Order Cancellation',
       });
-      const qb = makeQueryBuilder([
-        {
-          id: 'ex-1',
-          status: 'failed',
-          startedAt: new Date('2026-04-24T10:00:00Z'),
-          finishedAt: new Date('2026-04-24T10:00:03Z'),
-          durationMs: 3200,
-          triggerId: null,
-        },
-        {
-          id: 'ex-2',
-          status: 'completed',
-          startedAt: new Date('2026-04-24T09:00:00Z'),
-          finishedAt: new Date('2026-04-24T09:00:02Z'),
-          durationMs: 2100,
-          triggerId: null,
-        },
-      ]);
-      repos.execution.createQueryBuilder.mockReturnValue(qb);
-      repos.nodeExecution.find.mockResolvedValue([
-        { id: 'ne-1', executionId: 'ex-1', status: 'completed' },
-        { id: 'ne-2', executionId: 'ex-1', status: 'failed' },
-        { id: 'ne-3', executionId: 'ex-2', status: 'completed' },
-        { id: 'ne-4', executionId: 'ex-2', status: 'completed' },
-      ]);
+      const listQb = makeQueryBuilder({
+        many: [
+          {
+            id: 'ex-1',
+            status: 'failed',
+            startedAt: new Date('2026-04-24T10:00:00Z'),
+            finishedAt: new Date('2026-04-24T10:00:03Z'),
+            durationMs: 3200,
+            triggerId: null,
+          },
+          {
+            id: 'ex-2',
+            status: 'completed',
+            startedAt: new Date('2026-04-24T09:00:00Z'),
+            finishedAt: new Date('2026-04-24T09:00:02Z'),
+            durationMs: 2100,
+            triggerId: null,
+          },
+        ],
+      });
+      const statsQb = makeQueryBuilder({
+        raw: [
+          { executionId: 'ex-1', status: 'completed', count: '1' },
+          { executionId: 'ex-1', status: 'failed', count: '1' },
+          { executionId: 'ex-2', status: 'completed', count: '2' },
+        ],
+      });
+      // list 쿼리와 stats 쿼리는 각각 execution / nodeExecution 리포에서 호출.
+      repos.execution.createQueryBuilder.mockReturnValue(listQb);
+      repos.nodeExecution.createQueryBuilder.mockReturnValue(statsQb);
 
       const result = (await svc.getWorkflowExecutions(
         WORKSPACE,
@@ -116,10 +141,12 @@ describe('ExploreToolsService — execution read tools', () => {
 
       expect(result.ok).toBe(true);
       expect(result.workflowName).toBe('Order Cancellation');
-      expect(qb.where).toHaveBeenCalledWith('e.workflow_id = :workflowId', {
+      expect(listQb.where).toHaveBeenCalledWith('e.workflow_id = :workflowId', {
         workflowId: CURRENT_WF,
       });
-      expect(qb.limit).toHaveBeenCalledWith(10);
+      expect(listQb.limit).toHaveBeenCalledWith(10);
+      expect(statsQb.groupBy).toHaveBeenCalledWith('ne.execution_id');
+      expect(statsQb.addGroupBy).toHaveBeenCalledWith('ne.status');
       const items = result.items as Row[];
       expect(items).toHaveLength(2);
       expect(items[0]).toMatchObject({
@@ -127,7 +154,34 @@ describe('ExploreToolsService — execution read tools', () => {
         status: 'failed',
         nodeStats: { total: 2, completed: 1, failed: 1 },
       });
-      expect(items[1].nodeStats).toEqual({ total: 2, completed: 2, failed: 0 });
+      expect(items[1].nodeStats).toEqual({
+        total: 2,
+        completed: 2,
+        failed: 0,
+      });
+    });
+
+    it('returns an empty items array (with nodeStats fallback) when no executions exist', async () => {
+      const { svc, repos } = makeService();
+      repos.workflow.findOne.mockResolvedValue({
+        id: CURRENT_WF,
+        workspaceId: WORKSPACE,
+        name: 'Empty WF',
+      });
+      const listQb = makeQueryBuilder({ many: [] });
+      const statsQb = makeQueryBuilder({ raw: [] });
+      repos.execution.createQueryBuilder.mockReturnValue(listQb);
+      repos.nodeExecution.createQueryBuilder.mockReturnValue(statsQb);
+
+      const result = (await svc.getWorkflowExecutions(
+        WORKSPACE,
+        CURRENT_WF,
+      )) as Row;
+
+      expect(result.ok).toBe(true);
+      expect(result.items).toEqual([]);
+      // executionIds 가 비었을 때는 통계 쿼리 자체를 건너뛴다 — groupBy 미호출 확인.
+      expect(statsQb.groupBy).not.toHaveBeenCalled();
     });
 
     it('rejects non-UUID workflowId with INVALID_ID before touching DB', async () => {
@@ -160,9 +214,10 @@ describe('ExploreToolsService — execution read tools', () => {
         workspaceId: WORKSPACE,
         name: 'wf',
       });
-      const qb = makeQueryBuilder([]);
+      const qb = makeQueryBuilder({ many: [] });
+      const statsQb = makeQueryBuilder({ raw: [] });
       repos.execution.createQueryBuilder.mockReturnValue(qb);
-      repos.nodeExecution.find.mockResolvedValue([]);
+      repos.nodeExecution.createQueryBuilder.mockReturnValue(statsQb);
 
       await svc.getWorkflowExecutions(WORKSPACE, CURRENT_WF, {
         limit: 999,
@@ -240,19 +295,86 @@ describe('ExploreToolsService — execution read tools', () => {
       expect(result.error).toBe('EXECUTION_NOT_FOUND');
     });
 
-    it('returns EXECUTION_NOT_IN_SCOPE when id belongs to another workflow and has no parent link to current', async () => {
+    it('returns EXECUTION_NOT_IN_SCOPE when the execution has no parent link', async () => {
+      const { svc } = makeService();
+      const { repos } = makeService();
+      const freshRepos = repos;
+      const freshSvc = new ExploreToolsService(
+        freshRepos.workflow as never,
+        freshRepos.node as never,
+        freshRepos.edge as never,
+        freshRepos.integration as never,
+        freshRepos.kb as never,
+        freshRepos.execution as never,
+        freshRepos.nodeExecution as never,
+        { listDefinitions: jest.fn(), getComponent: jest.fn() } as never,
+      );
+      freshRepos.execution.findOne.mockResolvedValueOnce(
+        mockExecution({ workflowId: OTHER_WF, parentExecutionId: null }),
+      );
+      const result = (await freshSvc.getExecutionDetails(
+        WORKSPACE,
+        CURRENT_WF,
+        EX_ID,
+      )) as Row;
+      expect(result.ok).toBe(false);
+      expect(result.error).toBe('EXECUTION_NOT_IN_SCOPE');
+      // 부모 조회는 호출되지 않아야 한다 (parentExecutionId === null 일 때 short-circuit).
+      expect(freshRepos.execution.findOne).toHaveBeenCalledTimes(1);
+      expect(svc).toBeDefined();
+    });
+
+    it('returns EXECUTION_NOT_IN_SCOPE when the parent execution belongs to a third workflow', async () => {
+      // W2 review follow-up — 이전에는 parentExecutionId: null 경로만 검증했으나
+      // "부모가 존재하지만 부모의 workflowId 가 현재 세션 WF 가 아닌" 보안 경계
+      // 분기가 미검증이었다. 이 테스트가 그 누락된 경로를 덮는다.
       const { svc, repos } = makeService();
       repos.execution.findOne
         .mockResolvedValueOnce(
-          mockExecution({ workflowId: OTHER_WF, parentExecutionId: null }),
+          mockExecution({
+            workflowId: OTHER_WF,
+            parentExecutionId: PARENT_EX,
+          }),
         )
-        // 두 번째 findOne 은 parent lookup — 부모도 없는 케이스 보장
-        .mockResolvedValueOnce(null);
+        .mockResolvedValueOnce({
+          id: PARENT_EX,
+          workflowId: THIRD_WF,
+          workflow: { workspaceId: WORKSPACE },
+        });
+
       const result = (await svc.getExecutionDetails(
         WORKSPACE,
         CURRENT_WF,
         EX_ID,
       )) as Row;
+
+      expect(result.ok).toBe(false);
+      expect(result.error).toBe('EXECUTION_NOT_IN_SCOPE');
+      expect(repos.execution.findOne).toHaveBeenCalledTimes(2);
+    });
+
+    it('returns EXECUTION_NOT_IN_SCOPE when the parent execution is in a different workspace', async () => {
+      // 부모 chain 으로 cross-workspace 우회 시도 방어.
+      const { svc, repos } = makeService();
+      repos.execution.findOne
+        .mockResolvedValueOnce(
+          mockExecution({
+            workflowId: OTHER_WF,
+            parentExecutionId: PARENT_EX,
+          }),
+        )
+        .mockResolvedValueOnce({
+          id: PARENT_EX,
+          workflowId: CURRENT_WF,
+          workflow: { workspaceId: 'other-ws' },
+        });
+
+      const result = (await svc.getExecutionDetails(
+        WORKSPACE,
+        CURRENT_WF,
+        EX_ID,
+      )) as Row;
+
       expect(result.ok).toBe(false);
       expect(result.error).toBe('EXECUTION_NOT_IN_SCOPE');
     });
@@ -260,20 +382,22 @@ describe('ExploreToolsService — execution read tools', () => {
     it('accepts direct-child sub-workflow execution when parent belongs to current workflow', async () => {
       const { svc, repos } = makeService();
       repos.execution.findOne
-        // 1) 조회 대상 실행: 다른 workflowId 지만 parentExecutionId 가 현재 WF 의 실행
         .mockResolvedValueOnce(
           mockExecution({
             workflowId: OTHER_WF,
             parentExecutionId: PARENT_EX,
           }),
         )
-        // 2) 스코프 검사용 parent lookup — 현재 WF
         .mockResolvedValueOnce({
           id: PARENT_EX,
           workflowId: CURRENT_WF,
+          workflow: { workspaceId: WORKSPACE },
         });
       repos.nodeExecution.find.mockResolvedValue([]);
-      repos.execution.find.mockResolvedValue([]); // no children
+      repos.execution.find.mockResolvedValue([]);
+      repos.execution.createQueryBuilder.mockReturnValue(
+        makeQueryBuilder({ many: [] }),
+      );
 
       const result = (await svc.getExecutionDetails(
         WORKSPACE,
@@ -294,7 +418,7 @@ describe('ExploreToolsService — execution read tools', () => {
           durationMs: null,
         }),
       );
-      repos.nodeExecution.find.mockResolvedValue([
+      repos.nodeExecution.find.mockResolvedValueOnce([
         {
           id: 'ne-a',
           nodeId: 'n-a',
@@ -325,6 +449,9 @@ describe('ExploreToolsService — execution read tools', () => {
         },
       ]);
       repos.execution.find.mockResolvedValue([]);
+      repos.execution.createQueryBuilder.mockReturnValue(
+        makeQueryBuilder({ many: [] }),
+      );
 
       const result = (await svc.getExecutionDetails(
         WORKSPACE,
@@ -357,7 +484,7 @@ describe('ExploreToolsService — execution read tools', () => {
           error: null,
         }),
       );
-      repos.nodeExecution.find.mockResolvedValue([
+      repos.nodeExecution.find.mockResolvedValueOnce([
         {
           id: 'ne-1',
           nodeId: 'n-1',
@@ -374,6 +501,9 @@ describe('ExploreToolsService — execution read tools', () => {
         },
       ]);
       repos.execution.find.mockResolvedValue([]);
+      repos.execution.createQueryBuilder.mockReturnValue(
+        makeQueryBuilder({ many: [] }),
+      );
 
       const result = (await svc.getExecutionDetails(
         WORKSPACE,
@@ -393,10 +523,102 @@ describe('ExploreToolsService — execution read tools', () => {
       expect(((ne.error as Row).context as Row).apiKey).toBe('****9876');
     });
 
+    it('batches direct-child sub-workflow timelines into a single In() query and returns each child keyed by its own id', async () => {
+      // I15 review follow-up — 이전에는 자식 1건만 검증했으나, 실제로는 다수
+      // 자식 실행이 흔하고 (스위치 분기 per-case sub-workflow 등) 그때도 각
+      // 자식의 timeline 이 올바르게 그룹핑되어야 한다.
+      const { svc, repos } = makeService();
+      repos.execution.findOne.mockResolvedValueOnce(mockExecution());
+      // 본 실행 timeline (loadTimeline 의 첫 번째 find 호출)
+      repos.nodeExecution.find.mockResolvedValueOnce([]);
+      repos.execution.find.mockResolvedValueOnce([
+        {
+          id: 'child-a',
+          workflowId: OTHER_WF,
+          status: 'completed',
+          startedAt: new Date('2026-04-24T10:00:00Z'),
+          finishedAt: new Date('2026-04-24T10:00:01Z'),
+          durationMs: 1000,
+          inputData: null,
+          outputData: null,
+          error: null,
+          parentExecutionId: EX_ID,
+          recursionDepth: 1,
+          workflow: { name: 'WF-A' },
+        },
+        {
+          id: 'child-b',
+          workflowId: OTHER_WF,
+          status: 'failed',
+          startedAt: new Date('2026-04-24T10:00:02Z'),
+          finishedAt: new Date('2026-04-24T10:00:03Z'),
+          durationMs: 1000,
+          inputData: null,
+          outputData: null,
+          error: { message: 'fail' },
+          parentExecutionId: EX_ID,
+          recursionDepth: 1,
+          workflow: { name: 'WF-B' },
+        },
+      ]);
+      // loadTimelinesByExecutionIds 의 단일 배치 쿼리 (두 번째 nodeExecution.find)
+      repos.nodeExecution.find.mockResolvedValueOnce([
+        {
+          id: 'ne-ax',
+          executionId: 'child-a',
+          nodeId: 'n-ax',
+          status: 'completed',
+          startedAt: new Date('2026-04-24T10:00:00Z'),
+          finishedAt: new Date('2026-04-24T10:00:01Z'),
+          durationMs: 1000,
+          inputData: {},
+          outputData: { ok: true },
+          error: null,
+          retryCount: 0,
+          parentNodeExecutionId: null,
+          node: { label: 'AX', type: 'template' },
+        },
+        {
+          id: 'ne-bx',
+          executionId: 'child-b',
+          nodeId: 'n-bx',
+          status: 'failed',
+          startedAt: new Date('2026-04-24T10:00:02Z'),
+          finishedAt: new Date('2026-04-24T10:00:03Z'),
+          durationMs: 1000,
+          inputData: {},
+          outputData: null,
+          error: { message: 'child boom' },
+          retryCount: 0,
+          parentNodeExecutionId: null,
+          node: { label: 'BX', type: 'http_request' },
+        },
+      ]);
+      repos.execution.createQueryBuilder.mockReturnValue(
+        makeQueryBuilder({ many: [] }),
+      );
+
+      const result = (await svc.getExecutionDetails(
+        WORKSPACE,
+        CURRENT_WF,
+        EX_ID,
+      )) as Row;
+
+      expect(result.ok).toBe(true);
+      const subs = result.subExecutions as Row[];
+      expect(subs).toHaveLength(2);
+      expect((subs[0].execution as Row).workflowName as string).toBe('WF-A');
+      expect((subs[0].timeline as Row[])[0].nodeLabel).toBe('AX');
+      expect((subs[1].timeline as Row[])[0].nodeLabel).toBe('BX');
+      // 자식 timeline 조회는 `find` 를 두 번(본 + 배치) 만 호출. 자식 수에 비례한
+      // N+1 이 발생하지 않아야 한다.
+      expect(repos.nodeExecution.find).toHaveBeenCalledTimes(2);
+    });
+
     it('emits subExecutionsTruncatedDepth=1 when a direct child has deeper descendants', async () => {
       const { svc, repos } = makeService();
       repos.execution.findOne.mockResolvedValueOnce(mockExecution());
-      repos.nodeExecution.find.mockResolvedValue([]);
+      repos.nodeExecution.find.mockResolvedValueOnce([]); // 본 timeline
       repos.execution.find.mockResolvedValueOnce([
         {
           id: 'child-1',
@@ -413,10 +635,11 @@ describe('ExploreToolsService — execution read tools', () => {
           workflow: { name: 'Sub WF' },
         },
       ]);
-      // 자식 실행의 timeline 조회는 두 번째 nodeExecutionRepo.find 호출.
-      repos.nodeExecution.find.mockResolvedValue([]);
-      const deeperQb = makeQueryBuilder([], 1);
-      repos.execution.createQueryBuilder.mockReturnValue(deeperQb);
+      repos.nodeExecution.find.mockResolvedValueOnce([]); // 자식 timeline 배치
+      // 2-depth 자손 존재를 getMany 가 1건 반환으로 신호.
+      repos.execution.createQueryBuilder.mockReturnValue(
+        makeQueryBuilder({ many: [{ id: 'grandchild-1' }] }),
+      );
 
       const result = (await svc.getExecutionDetails(
         WORKSPACE,
@@ -434,7 +657,7 @@ describe('ExploreToolsService — execution read tools', () => {
     it('omits subExecutionsTruncatedDepth when children are leaves', async () => {
       const { svc, repos } = makeService();
       repos.execution.findOne.mockResolvedValueOnce(mockExecution());
-      repos.nodeExecution.find.mockResolvedValue([]);
+      repos.nodeExecution.find.mockResolvedValueOnce([]);
       repos.execution.find.mockResolvedValueOnce([
         {
           id: 'child-1',
@@ -451,8 +674,10 @@ describe('ExploreToolsService — execution read tools', () => {
           workflow: { name: 'Leaf' },
         },
       ]);
-      const deeperQb = makeQueryBuilder([], 0);
-      repos.execution.createQueryBuilder.mockReturnValue(deeperQb);
+      repos.nodeExecution.find.mockResolvedValueOnce([]);
+      repos.execution.createQueryBuilder.mockReturnValue(
+        makeQueryBuilder({ many: [] }),
+      );
 
       const result = (await svc.getExecutionDetails(
         WORKSPACE,
