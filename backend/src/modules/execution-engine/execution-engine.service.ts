@@ -1303,7 +1303,7 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
     // Update node execution to completed with merged output
     if (nodeExec) {
       nodeExec.status = NodeExecutionStatus.COMPLETED;
-      nodeExec.outputData = updatedOutput as unknown as Record<string, unknown>;
+      nodeExec.outputData = updatedOutput;
       nodeExec.finishedAt = new Date();
       nodeExec.durationMs =
         nodeExec.finishedAt.getTime() - nodeExec.startedAt.getTime();
@@ -1542,11 +1542,7 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
         );
         const flatEnd = toEngineFlatShape(adaptedEnd);
         const routedEnd = this.applyPortSelection(flatEnd);
-        this.contextService.setNodeOutput(
-          executionId,
-          node.id,
-          routedEnd as Record<string, unknown>,
-        );
+        this.contextService.setNodeOutput(executionId, node.id, routedEnd);
         conversationEnded = true;
       } else if (action.type === 'ai_message') {
         // Process user message via the node's own handler (so both ai_agent
@@ -1720,11 +1716,7 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
           const portRouted = this.applyPortSelection(
             toEngineFlatShape(adaptedConv),
           );
-          this.contextService.setNodeOutput(
-            executionId,
-            node.id,
-            portRouted as Record<string, unknown>,
-          );
+          this.contextService.setNodeOutput(executionId, node.id, portRouted);
           conversationEnded = true;
         } else {
           // maxTurns reached — emit final turn debug data, then end

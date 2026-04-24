@@ -48,7 +48,7 @@ export class OpenAIClient implements LLMClient {
 
     const requestParams: OpenAI.Chat.ChatCompletionCreateParamsNonStreaming = {
       model: params.model || this.defaultModel,
-      messages: messages as OpenAI.Chat.ChatCompletionMessageParam[],
+      messages: messages,
       temperature: params.temperature,
       max_tokens: params.maxTokens,
       top_p: params.topP,
@@ -152,10 +152,14 @@ export class OpenAIClient implements LLMClient {
     return response.data.map((d) => d.embedding);
   }
 
-  async listModels(): Promise<ModelInfo[]> {
-    const response = await this.client.models.list();
+  async listModels(signal?: AbortSignal): Promise<ModelInfo[]> {
+    const MAX_MODELS = 100;
+    const response = await this.client.models.list(
+      signal ? { signal } : undefined,
+    );
     const models: ModelInfo[] = [];
     for await (const m of response) {
+      if (models.length >= MAX_MODELS) break;
       const type = m.id.includes('embedding') ? 'embedding' : 'chat';
       models.push({ id: m.id, name: m.id, type });
     }
@@ -195,7 +199,7 @@ export class OpenAIClient implements LLMClient {
 
     const requestParams: OpenAI.Chat.ChatCompletionCreateParamsStreaming = {
       model: params.model || this.defaultModel,
-      messages: messages as OpenAI.Chat.ChatCompletionMessageParam[],
+      messages: messages,
       temperature: params.temperature,
       max_tokens: params.maxTokens,
       top_p: params.topP,

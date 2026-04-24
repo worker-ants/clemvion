@@ -17,7 +17,7 @@ export class UpdateLlmConfigDto {
     enum: LLM_PROVIDERS,
   })
   @IsOptional()
-  @IsIn(LLM_PROVIDERS as unknown as string[])
+  @IsIn(LLM_PROVIDERS)
   provider?: LlmProvider;
 
   /** 변경할 표시 이름 */

@@ -95,9 +95,17 @@ AI 노드에서 사용할 LLM 프로바이더와 모델을 관리한다.
 | 이름 | 사용자 지정 별칭 |
 | API Key | 프로바이더별 API 키 (마스킹 입력) |
 | Base URL | 커스텀 엔드포인트 (로컬 모델, Azure 등) |
-| 기본 모델 | 이 프로바이더에서 기본으로 사용할 모델 ID |
+| 기본 모델 | 프로바이더 모델 조회 API에서 받아온 목록에서 선택하거나 직접 입력. "모델 불러오기" 버튼으로 실시간 조회 |
 | 기본 파라미터 | Temperature, Max Tokens, Top-P 등 |
 | 기본 프로바이더 설정 | ⭐ 아이콘으로 표시. AI 노드 생성 시 기본 선택 |
+
+#### 기본 모델 선택 UX
+
+- **생성 플로우**: 프로바이더·API Key(로컬은 선택)·Base URL(Azure/Local 필수)을 입력한 뒤 "모델 불러오기" 버튼을 누르면 프로바이더 API(`listModels`)로 실시간 조회해 드롭다운 옵션으로 노출한다. API Key는 저장되지 않으며 요청 범위에서만 사용된다.
+- **수정 플로우**: API Key를 비워둔 경우 DB에 저장된 암호화 키로 기존 `/llm-configs/:id/models`를 호출하고, API Key를 재입력한 경우 미리보기 엔드포인트를 사용한다.
+- **목록 필터**: 응답 중 `type === 'chat'` 모델만 노출한다 (임베딩 모델은 제외).
+- **프로바이더별 구현**: OpenAI·Anthropic·Google·Azure·Local 모두 프로바이더 공식 모델 조회 API를 실시간 호출한다 (preview·신모델을 포함한 최신 목록 제공).
+- **Fallback**: 목록에 없는 모델 ID를 직접 타이핑할 수 있으며, 조회 실패 시에도 자유 입력이 가능하다.
 
 ### B.3 프로바이더 연결 테스트
 
@@ -143,6 +151,7 @@ AI 노드에서 사용할 LLM 프로바이더와 모델을 관리한다.
 | GET | /api/llm-configs/:id | 상세 조회 |
 | PATCH | /api/llm-configs/:id | 수정 |
 | POST | /api/llm-configs/:id/test | 연결 테스트 |
+| POST | /api/llm-configs/preview-models | 저장 전 폼 자격증명으로 모델 목록 미리보기 |
 | PATCH | /api/llm-configs/:id/set-default | 기본 프로바이더 설정 |
 | DELETE | /api/llm-configs/:id | 삭제 |
 | GET | /api/llm-configs/:id/models | 사용 가능한 모델 목록 조회 |

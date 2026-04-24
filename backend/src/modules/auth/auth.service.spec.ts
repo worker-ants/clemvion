@@ -358,11 +358,7 @@ describe('AuthService', () => {
 
       // Mail call must receive the RAW token (not the DB-persisted hash),
       // otherwise the reset link in the user's inbox would be unusable.
-      const mailCall = mailService.sendPasswordResetEmail.mock.calls[0] as [
-        string,
-        string,
-        string,
-      ];
+      const mailCall = mailService.sendPasswordResetEmail.mock.calls[0];
       expect(mailCall[0]).toBe(mockUser.email);
       expect(mailCall[1]).toBe(mockUser.name);
       expect(mailCall[2]).not.toBe(patch.passwordResetToken);

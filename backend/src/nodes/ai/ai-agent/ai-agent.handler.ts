@@ -216,7 +216,7 @@ export class AiAgentHandler implements NodeHandler {
     while (result.toolCalls?.length && toolCallCount < maxToolCalls) {
       // Classify tool calls into condition and normal
       const classification = this.classifyToolCalls(
-        result.toolCalls as ToolCall[],
+        result.toolCalls,
         conditions,
       );
 
@@ -226,7 +226,7 @@ export class AiAgentHandler implements NodeHandler {
         classification.matchedCondition
       ) {
         const reason = this.extractConditionReason(
-          result.toolCalls as ToolCall[],
+          result.toolCalls,
           classification.matchedCondition.id,
         );
         messages.push({ role: 'assistant', content: result.content || '' });
@@ -508,7 +508,7 @@ export class AiAgentHandler implements NodeHandler {
     let toolCallCount = 0;
     while (result.toolCalls?.length && toolCallCount < maxToolCalls) {
       const classification = this.classifyToolCalls(
-        result.toolCalls as ToolCall[],
+        result.toolCalls,
         conditions,
       );
 
@@ -518,7 +518,7 @@ export class AiAgentHandler implements NodeHandler {
         classification.matchedCondition
       ) {
         const reason = this.extractConditionReason(
-          result.toolCalls as ToolCall[],
+          result.toolCalls,
           classification.matchedCondition.id,
         );
         messages.push({ role: 'assistant', content: result.content || '' });
@@ -733,7 +733,7 @@ export class AiAgentHandler implements NodeHandler {
     // Handle tool calls with condition detection
     while (result.toolCalls?.length && toolCallCount < maxToolCalls) {
       const classification = this.classifyToolCalls(
-        result.toolCalls as ToolCall[],
+        result.toolCalls,
         conditions,
       );
 
@@ -743,7 +743,7 @@ export class AiAgentHandler implements NodeHandler {
         classification.matchedCondition
       ) {
         const reason = this.extractConditionReason(
-          result.toolCalls as ToolCall[],
+          result.toolCalls,
           classification.matchedCondition.id,
         );
         messages.push({ role: 'assistant', content: result.content || '' });

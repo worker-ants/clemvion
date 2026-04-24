@@ -162,16 +162,42 @@ class LLMClientFactory {
 |-----------|-------------|
 | `chat()` | `POST /v1/messages` |
 | `embed()` | ❌ 미지원 (OpenAI 임베딩 모델 사용 필요) |
-| `listModels()` | 하드코딩 목록 반환 |
+| `listModels()` | `client.models.list()` — Anthropic 모델 조회 API 실시간 호출 |
 | `messages[].role` | `system` → 별도 `system` 파라미터로 분리 |
 | `tools` | Anthropic tool_use 형식으로 변환 |
 | `maxTokens` | `max_tokens` (필수 파라미터) |
 
-### 5.3 Local (Ollama/vLLM)
+### 5.3 Google AI
+
+| 인터페이스 | Google API |
+|-----------|-----------|
+| `chat()` | `ai.models.generateContent()` (`@google/genai` SDK) |
+| `embed()` | `ai.models.embedContent()` 배치 지원 |
+| `listModels()` | `ai.models.list()` — Gemini 모델 조회 API 실시간 호출. `supportedActions`에 `generateContent` 포함 시 chat, `embedContent` 포함 시 embedding 으로 분류 |
+| `stream()` | `ai.models.generateContentStream()` (신 SDK는 flat AsyncGenerator 반환) |
+| `tools` | `functionDeclarations` 로 매핑, 스키마는 OpenAPI 3.0 서브셋으로 sanitize |
+
+### 5.4 Local (Ollama/vLLM)
 
 - OpenAI-compatible API 사용 (`base_url` + OpenAI 클라이언트)
 - `api_key`는 선택 (없으면 빈 문자열)
 - 모델 목록: `GET {base_url}/v1/models` 또는 Ollama `GET /api/tags`
+
+### 5.5 모델 목록 Preview (폼 자격증명 기반)
+
+LLM Config UI의 **기본 모델 선택** 지원을 위해, 아직 저장되지 않은 자격증명으로 `listModels`를 실행하는 preview 경로를 제공한다.
+
+- **경로**: `POST /api/llm-configs/preview-models`
+- **Body**: `{ provider, apiKey, baseUrl? }`
+- **동작**:
+  - `LlmService.previewModels`가 `LLMClientFactory`로 임시 클라이언트를 생성하고 `client.listModels()`를 1회 호출한다.
+  - 반환값은 저장된 설정용 `GET /api/llm-configs/:id/models`와 동일한 `ModelInfo[]`.
+  - 클라이언트 인스턴스는 per-config 캐시에 들어가지 않으며 요청 범위에서만 사용된다.
+  - 30초 timeout 및 `@Throttle(10/60s)` Rate limit 적용.
+- **권한**: `editor` 이상.
+- **에러 처리**: 프로바이더 원본 에러는 §6 sanitize 규칙에 따라 가공해 `400 BAD_REQUEST`로 반환된다 (키/엔드포인트 원문 노출 금지). `local` 외 프로바이더에서 `apiKey`가 비어 있으면 `LLM_CREDENTIALS_REQUIRED`.
+- **로깅 주의**: `apiKey`는 로그·응답·캐시 어디에도 기록하지 않는다.
+- **SSRF 가드**: `baseUrl` 이 loopback(`127.0.0.0/8`, `::1`), RFC1918(`10/8`·`172.16/12`·`192.168/16`), link-local(`169.254/16`, `fe80::/10`), IPv6 ULA(`fc00::/7`), IPv4-mapped IPv6, `0.0.0.0/8` 에 해당하면 `LLM_CONFIG_INVALID` 로 차단한다. **`local` 프로바이더는 예외** — self-hosted Ollama/vLLM 이 localhost·사설망에 있는 것이 정상 사용 사례. **한계**: DNS rebinding 은 현재 차단되지 않는다 (DNS 해석 비용 대비 공격 빈도가 낮고, rate limit + `editor` 권한으로 완화). 실차단이 필요하면 egress 방화벽·클라우드 네트워크 정책으로 보완한다.
 
 ---
 
@@ -185,6 +211,9 @@ class LLMClientFactory {
 | 컨텍스트 초과 | 400 | `LLM_CONTEXT_EXCEEDED` — 입력 토큰 줄이기 안내 |
 | 타임아웃 | - | `LLM_TIMEOUT` — 120초 초과 |
 | 네트워크 오류 | - | `LLM_CONNECTION_ERROR` — 엔드포인트 확인 안내 |
+| 자격증명 누락 | 400 | `LLM_CREDENTIALS_REQUIRED` — preview 요청에서 non-local 프로바이더에 apiKey 누락 시 |
+| 프로바이더 설정 오류 | 400 | `LLM_CONFIG_INVALID` — 팩토리 생성 실패 (예: azure/local baseUrl 누락, 알 수 없는 provider) |
+| 모델 목록 조회 실패 | 400 | `LLM_MODEL_LIST_FAILED` — preview/`:id/models` 호출 중 프로바이더 응답 실패. sanitize 된 메시지 노출 |
 
 ---
 

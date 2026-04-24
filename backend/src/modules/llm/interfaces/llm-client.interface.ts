@@ -104,7 +104,11 @@ export type ChatStreamEvent =
 export interface LLMClient {
   chat(params: ChatParams): Promise<ChatResult>;
   embed(texts: string[], model?: string): Promise<number[][]>;
-  listModels(): Promise<ModelInfo[]>;
+  /**
+   * Optional `signal` aborts the underlying HTTP request. Used by the service
+   * layer's timeout wrapper to release sockets when the deadline is exceeded.
+   */
+  listModels(signal?: AbortSignal): Promise<ModelInfo[]>;
   testConnection(): Promise<boolean>;
   /**
    * Streaming variant of {@link chat}. Optional — providers without streaming

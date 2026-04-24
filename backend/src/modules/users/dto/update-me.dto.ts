@@ -33,7 +33,7 @@ export class UpdateMeDto {
     example: 'ko',
   })
   @IsOptional()
-  @IsIn(USER_LOCALES as unknown as string[])
+  @IsIn(USER_LOCALES)
   locale?: UserLocale;
 
   @ApiPropertyOptional({
@@ -42,7 +42,7 @@ export class UpdateMeDto {
     example: 'light',
   })
   @IsOptional()
-  @IsIn(USER_THEMES as unknown as string[])
+  @IsIn(USER_THEMES)
   theme?: UserTheme;
 
   @ApiPropertyOptional({

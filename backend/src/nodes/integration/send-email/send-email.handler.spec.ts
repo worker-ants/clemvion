@@ -102,7 +102,7 @@ describe('SendEmailHandler', () => {
     it('rejects invalid cc type', () => {
       const result = handler.validate({
         ...baseConfig,
-        cc: 42 as unknown as string,
+        cc: 42,
       });
       expect(result.valid).toBe(false);
       expect(result.errors.join(' ')).toContain('cc');
@@ -125,7 +125,7 @@ describe('SendEmailHandler', () => {
     it('rejects invalid bcc type', () => {
       const result = handler.validate({
         ...baseConfig,
-        bcc: 42 as unknown as string,
+        bcc: 42,
       });
       expect(result.valid).toBe(false);
       expect(result.errors.join(' ')).toContain('bcc');

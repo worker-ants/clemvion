@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import { ModelCombobox } from "@/components/llm-config/model-combobox";
 import { RoleGate } from "@/components/auth/role-gate";
 import { toast } from "sonner";
 import {
@@ -248,9 +249,13 @@ export default function LlmConfigsPage() {
               )}
               <div>
                 <Label>{t("llmConfigs.defaultModel")}</Label>
-                <Input
+                <ModelCombobox
                   value={formModel}
-                  onChange={(e) => setFormModel(e.target.value)}
+                  onChange={setFormModel}
+                  provider={formProvider}
+                  apiKey={formApiKey}
+                  baseUrl={formBaseUrl}
+                  configId={editId ?? undefined}
                   placeholder={t("llmConfigs.modelPlaceholder")}
                 />
               </div>

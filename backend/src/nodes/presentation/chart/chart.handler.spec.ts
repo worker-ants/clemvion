@@ -55,7 +55,7 @@ describe('ChartHandler', () => {
 
     it('should reject non-string chartType', () => {
       const result = handler.validate({
-        chartType: 123 as unknown,
+        chartType: 123,
         xAxis: { field: 'x' },
       });
       expect(result.valid).toBe(false);
