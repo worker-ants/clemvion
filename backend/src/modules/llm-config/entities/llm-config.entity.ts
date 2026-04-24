@@ -6,10 +6,18 @@ import {
   UpdateDateColumn,
   ManyToOne,
   JoinColumn,
+  Index,
 } from 'typeorm';
 import { Workspace } from '../../workspaces/entities/workspace.entity';
 
+// workspace 당 `isDefault=true` 레코드는 최대 1개. 동시 요청으로 `setDefault` 가
+// 교차 실행되어 중복이 생기는 것을 DB 레이어에서 차단한다. Postgres partial
+// unique index 사용 — `is_default = false` 는 여러 개 허용.
 @Entity('llm_config')
+@Index('llm_config_workspace_default_unique', ['workspaceId'], {
+  unique: true,
+  where: '"is_default" = true',
+})
 export class LlmConfig {
   @PrimaryGeneratedColumn('uuid')
   id: string;
