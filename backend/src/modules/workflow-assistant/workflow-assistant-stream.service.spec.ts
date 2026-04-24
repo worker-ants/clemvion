@@ -3714,12 +3714,215 @@ describe('WorkflowAssistantStreamService', () => {
         autoResumeAttempt: 1,
       });
 
+      // planPersisted 가드 — 이번 턴에서 `planForTurn` 이 null (history 로부터
+      // 이어받은 plan 만 존재) 이므로 두 row 모두 plan=null. planPersisted 가
+      // 오동작해 중간 row 에 역주입되지 않는지 고정 (review W-5).
+      expect(persistCalls[0].plan).toBeNull();
+      expect(persistCalls[1].plan).toBeNull();
+
       // (3) 최종적으로 정상 종료.
       const done = events[events.length - 1];
       expect(done).toMatchObject({
         event: 'done',
         data: { finishReason: 'stop' },
       });
+    });
+
+    // review W-8: stall 이 발동하기 전에 성공한 edit 이 있는 경우 중간 row
+    // 에 그 toolCalls 가 포함되고, 재개 라운드의 row 에는 새 toolCalls 만
+    // 들어가는 경계 동작을 고정.
+    //
+    // 실제 stall 경로는 "tool call 없이 텍스트만" 으로 끝났을 때 발동하지만,
+    // 같은 턴의 **앞선 라운드**에서 성공한 edit 이 `pendingToolCalls` 에 쌓여
+    // 있을 수 있다. 본 케이스는 Round 1 에 edit 성공 → Round 2 에 text only
+    // stall → Round 3 에 마무리. Round 2 시점의 중간 persist 가 Round 1 의
+    // edit tool 을 담아야 하고, 최종 persist 는 Round 3 이후의 tool 만 담아야
+    // 한다.
+    it('persists prior-round tool calls in the intermediate row and resets pendingToolCalls for the resumed round', async () => {
+      const { service, mocks } = makeService();
+      // 2-step plan (step 2 개가 각 라운드에 나눠 실행됨).
+      mocks.sessionService.loadMessages.mockResolvedValue([
+        { role: 'user', content: '시작', toolCalls: null },
+        {
+          role: 'assistant' as const,
+          content: '',
+          toolCalls: [
+            {
+              id: 'p0',
+              name: 'propose_plan',
+              arguments: {},
+              kind: 'plan' as const,
+              result: { ok: true },
+            },
+          ],
+          plan: {
+            title: 'Two-step build',
+            summary: '',
+            steps: [
+              { id: 's1', action: 'add_node' as const, description: 's1' },
+              { id: 's2', action: 'add_node' as const, description: 's2' },
+            ],
+            approvedAt: '2026-04-22T00:00:00Z',
+          },
+        },
+      ]);
+      // Round 1: edit 성공 → round-trip.
+      mocks.llmService.chatStream.mockImplementationOnce(() =>
+        asyncIter<ChatStreamEvent>([
+          {
+            type: 'tool_call_end',
+            id: 'call_add_1',
+            name: 'add_node',
+            arguments: JSON.stringify({
+              type: 'http_request',
+              label: 'First',
+              position: { x: 500, y: 300 },
+              config: {},
+              planStepId: 's1',
+            }),
+          },
+          {
+            type: 'done',
+            usage: { inputTokens: 5, outputTokens: 3, totalTokens: 8 },
+            model: 'gpt-oss-120b',
+            finishReason: 'tool_calls',
+          },
+        ]),
+      );
+      // Round 2: text only stall — 서버 auto-resume.
+      mocks.llmService.chatStream.mockImplementationOnce(() =>
+        asyncIter<ChatStreamEvent>([
+          { type: 'text_delta', delta: '계속 진행해도 될까요?' },
+          {
+            type: 'done',
+            usage: { inputTokens: 3, outputTokens: 3, totalTokens: 6 },
+            model: 'gpt-oss-120b',
+            finishReason: 'stop',
+          },
+        ]),
+      );
+      // Round 3: nudge 수신 후 남은 step 실행 + finish.
+      mocks.llmService.chatStream.mockImplementationOnce(() =>
+        asyncIter<ChatStreamEvent>([
+          {
+            type: 'tool_call_end',
+            id: 'call_add_2',
+            name: 'add_node',
+            arguments: JSON.stringify({
+              type: 'http_request',
+              label: 'Second',
+              position: { x: 800, y: 300 },
+              config: {},
+              planStepId: 's2',
+            }),
+          },
+          {
+            type: 'tool_call_end',
+            id: 'call_fin',
+            name: 'finish',
+            arguments: '{}',
+          },
+          {
+            type: 'done',
+            usage: { inputTokens: 10, outputTokens: 5, totalTokens: 15 },
+            model: 'gpt-oss-120b',
+            finishReason: 'stop',
+          },
+        ]),
+      );
+
+      await collect(
+        service.streamMessage('sess-1', 'ws-1', 'u-1', baseDto as never),
+      );
+
+      const persistCalls = mocks.sessionService.appendMessage.mock.calls
+        .map((c) => c[1])
+        .filter(
+          (p): p is { role: string } & Record<string, unknown> =>
+            (p as { role?: string }).role === 'assistant',
+        ) as Array<{
+        content: string | null;
+        toolCalls: Array<{ id: string; name: string }> | null;
+        autoResumed: boolean;
+      }>;
+      expect(persistCalls).toHaveLength(2);
+
+      // 중간 row: Round 1 의 edit + Round 2 의 stall 텍스트.
+      //   toolCalls 에 call_add_1 은 반드시 있어야 하고, call_add_2/call_fin
+      //   은 최종 row 로 넘어가야 한다.
+      expect(persistCalls[0].content).toContain('계속 진행해도 될까요?');
+      expect((persistCalls[0].toolCalls ?? []).map((t) => t.id)).toEqual([
+        'call_add_1',
+      ]);
+
+      // 최종 row: Round 3 의 tool call 만. 중간 row 의 call_add_1 이 중복
+      // 저장되면 pendingToolCalls 리셋 누락을 의미.
+      expect((persistCalls[1].toolCalls ?? []).map((t) => t.id)).toEqual([
+        'call_add_2',
+        'call_fin',
+      ]);
+      expect(persistCalls[1].autoResumed).toBe(true);
+    });
+
+    // review W-7: stall 복구가 1회 이상 성공한 뒤 에러가 발생하면, 에러 경로의
+    // persist 도 `autoResumed=true` 메타를 실어야 한다. 그래야 rehydrate 시
+    // 에러 bubble 앞에 divider 가 그려져 "턴이 분리됐다" 는 시각 signal 이 유지.
+    it('carries autoResumed=true onto the error-path row when a stall already triggered at least once', async () => {
+      const { service, mocks } = makeService();
+      mocks.sessionService.loadMessages.mockResolvedValue([
+        { role: 'user', content: '시작', toolCalls: null },
+        primeApprovedPlan(),
+      ]);
+      // Round 1: text-only stall → auto-resume.
+      mocks.llmService.chatStream.mockImplementationOnce(() =>
+        asyncIter<ChatStreamEvent>([
+          { type: 'text_delta', delta: '잠시만요' },
+          {
+            type: 'done',
+            usage: { inputTokens: 3, outputTokens: 3, totalTokens: 6 },
+            model: 'gpt-oss-120b',
+            finishReason: 'stop',
+          },
+        ]),
+      );
+      // Round 2: provider 에러 이벤트.
+      mocks.llmService.chatStream.mockImplementationOnce(() =>
+        asyncIter<ChatStreamEvent>([
+          {
+            type: 'error',
+            code: 'LLM_RATE_LIMIT',
+            message: 'rate limited',
+          },
+        ]),
+      );
+
+      await collect(
+        service.streamMessage('sess-1', 'ws-1', 'u-1', baseDto as never),
+      );
+
+      const persistCalls = mocks.sessionService.appendMessage.mock.calls
+        .map((c) => c[1])
+        .filter(
+          (p): p is { role: string } & Record<string, unknown> =>
+            (p as { role?: string }).role === 'assistant',
+        ) as Array<{
+        finishReason: string | null;
+        autoResumed: boolean;
+        autoResumeReason: string | null;
+        autoResumeAttempt: number | null;
+      }>;
+
+      // 중간 row + 에러 경로 최종 row.
+      expect(persistCalls).toHaveLength(2);
+      expect(persistCalls[0].finishReason).toBe('auto_resume_pending');
+      expect(persistCalls[0].autoResumed).toBe(false);
+
+      // 에러 row: finishReason 은 'error' 지만 복구 맥락을 유지하기 위해
+      // autoResumed/attempt 는 실려 있어야 한다.
+      expect(persistCalls[1].finishReason).toBe('error');
+      expect(persistCalls[1].autoResumed).toBe(true);
+      expect(persistCalls[1].autoResumeReason).toBe('stall_pending_steps');
+      expect(persistCalls[1].autoResumeAttempt).toBe(1);
     });
 
     it('gives up after MAX_STALL_ROUNDS (2) consecutive text-only stalls to prevent runaway loops', async () => {
@@ -3754,8 +3957,9 @@ describe('WorkflowAssistantStreamService', () => {
       // continue 자체를 안 하므로 이벤트 없음.
       const autoResumeEvents = events.filter((e) => e.event === 'auto_resume');
       expect(autoResumeEvents).toHaveLength(2);
-      expect(autoResumeEvents.map((e) => (e.data as { attempt: number }).attempt))
-        .toEqual([1, 2]);
+      expect(
+        autoResumeEvents.map((e) => (e.data as { attempt: number }).attempt),
+      ).toEqual([1, 2]);
 
       // Assistant row 총 3회 persist: 중간 row 2개 (MAX 만큼 분리) + 최종
       // row 1개. 최종 row 는 autoResumed=true + attempt=MAX (2). user
@@ -3777,6 +3981,10 @@ describe('WorkflowAssistantStreamService', () => {
       expect(persistCalls[1].autoResumed).toBe(false);
       expect(persistCalls[2].autoResumed).toBe(true);
       expect(persistCalls[2].autoResumeAttempt).toBe(2);
+      // 향후 reason 이 추가되면 여기 토픽이 깨지도록 명시적 고정 (review INFO-6).
+      expect(
+        (persistCalls[2] as { autoResumeReason: string }).autoResumeReason,
+      ).toBe('stall_pending_steps');
     });
 
     it('does NOT auto-continue when plan has no pending actionable steps', async () => {

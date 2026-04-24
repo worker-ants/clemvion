@@ -56,6 +56,23 @@ export const PLAN_STEP_ACTIONS = [
 
 export type AssistantStepAction = (typeof PLAN_STEP_ACTIONS)[number];
 
+/**
+ * Stall 자동 복구로 한 턴이 여러 assistant row 로 분할 persist 될 때, 복구
+ * 직전 시점까지의 "중간 row" 가 쓰는 finishReason 마커. 턴 전체가 끝난
+ * 의미의 `'stop' / 'tool_calls' / 'error'` 와 구분해 rehydrate 시 해당 row
+ * 가 단독으로 "중단된 세션" 처럼 보이지 않도록 식별 키 역할을 한다.
+ */
+export const FINISH_REASON_AUTO_RESUME_PENDING = 'auto_resume_pending' as const;
+
+/**
+ * `autoResumeReason` 이 가질 수 있는 값 목록. 런타임 validator / 타입 추론
+ * 양쪽에서 재사용하기 위해 tuple 로 선언. 새 복구 경로가 생기면 여기 한 곳만
+ * 업데이트하면 백엔드 event union · frontend validator 가 같이 확장된다.
+ */
+export const AUTO_RESUME_REASONS = ['stall_pending_steps'] as const;
+
+export type AutoResumeReason = (typeof AUTO_RESUME_REASONS)[number];
+
 export interface AssistantPlanStep {
   id: string;
   action: AssistantStepAction;
@@ -117,6 +134,13 @@ export class WorkflowAssistantMessage {
   @Column({ type: 'jsonb', nullable: true })
   usage: AssistantUsageRecord | null;
 
+  /**
+   * 가능한 값:
+   *  - `'stop'` / `'tool_calls'` : provider 원본 finishReason (턴 종료).
+   *  - `'error'` : 턴 중 예외 또는 budget 초과로 종료.
+   *  - `FINISH_REASON_AUTO_RESUME_PENDING` : stall 복구 경계의 중간 row.
+   *  - `null` : legacy row.
+   */
   @Column({
     name: 'finish_reason',
     length: 30,
@@ -147,7 +171,7 @@ export class WorkflowAssistantMessage {
     nullable: true,
     type: 'varchar',
   })
-  autoResumeReason: string | null;
+  autoResumeReason: AutoResumeReason | null;
 
   /**
    * 같은 턴 내 자동 복구 시도 순번 (1부터 시작). `MAX_STALL_ROUNDS` 까지.
