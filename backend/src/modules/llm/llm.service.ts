@@ -318,8 +318,13 @@ export class LlmService {
   }
 
   // 타임아웃 시 AbortController 로 내부 HTTP 요청을 취소해 소켓이 백그라운드에
-  // 남지 않도록 하고, 동시에 Promise.race 로 즉시 타임아웃 에러를 던진다. SDK 가
-  // abort 에 반응하지 않는 경우에도 race 가 시간 보장을 담당한다.
+  // 남지 않도록 하고, 동시에 Promise.race 로 즉시 타임아웃 에러를 던진다.
+  //
+  // Promise.race 의미상 inner/timer 중 **먼저 settle 된 쪽의 결과만 전파** 된다:
+  // - inner 가 먼저 reject  → 원본 에러 (예: 401, ECONNREFUSED) 가 상위로 전달
+  // - timer 가 먼저 fire    → "Request timed out ..." 에러만 전달
+  //                           (이후 inner 의 지연 rejection 은 .catch 로 삼킴)
+  // 즉 "프로바이더가 빠르게 응답했는데 timeout 메시지로 오독되는" 경우는 발생하지 않는다.
   private async withTimeout<T>(
     run: (signal: AbortSignal) => Promise<T>,
     ms: number,

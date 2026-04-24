@@ -514,6 +514,27 @@ describe('LlmService', () => {
       }
     });
 
+    it('preserves the original provider error when rejection wins the race (no timeout substitution)', async () => {
+      // 프로바이더가 timeout 도래 전에 401 로 즉시 reject — 사용자는 "timeout" 이
+      // 아니라 "auth failed" sanitize 메시지를 받아야 한다.
+      mockClient.listModels.mockRejectedValue(new Error('401 Unauthorized'));
+      await expect(
+        service.previewModels({ provider: 'openai', apiKey: 'bad' }),
+      ).rejects.toMatchObject({
+        response: expect.objectContaining({
+          message: 'Authentication failed. Please check your API key.',
+        }),
+      });
+      // 타임아웃 메시지가 섞이지 않았는지 확인
+      await expect(
+        service.previewModels({ provider: 'openai', apiKey: 'bad' }),
+      ).rejects.not.toMatchObject({
+        response: expect.objectContaining({
+          message: expect.stringContaining('timed out'),
+        }),
+      });
+    });
+
     it('aborts the client call via AbortSignal on timeout (socket cleanup)', async () => {
       jest.useFakeTimers();
       try {
