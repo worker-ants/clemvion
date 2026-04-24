@@ -318,11 +318,20 @@ export class WorkflowAssistantStreamService {
       const inputs = def.ports.inputs.map((p) => toPort(p));
       return { outputs, inputs };
     };
+    // 노드 타입별 default config — 수동 add 경로 (`workflow-canvas.tsx`) 와
+    // 동일한 shape 을 shadow 도 보장하도록 주입. zod `.default(...)` 값이
+    // 누락된 LLM args 에 먼저 깔려 mode/layout/maxItems 등 schema-default
+    // 필드가 `undefined` 로 저장되는 regression 방지.
+    const defaultConfigByType: Record<string, Record<string, unknown>> = {};
+    for (const [type, def] of defsByType) {
+      defaultConfigByType[type] = def.defaultConfig;
+    }
     const shadow = new ShadowWorkflow(
       this.toShadowSnapshot(dto.currentWorkflow),
       this.collectKnownNodeTypes(),
       this.collectCategoryByType(),
       portResolver,
+      defaultConfigByType,
     );
 
     // user 메시지 저장 + session title 자동 생성

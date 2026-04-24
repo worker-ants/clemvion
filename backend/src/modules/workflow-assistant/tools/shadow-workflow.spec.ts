@@ -98,6 +98,75 @@ describe('ShadowWorkflow', () => {
       expect(added?.category).toBe('integration');
     });
 
+    // 수동 add (workflow-canvas.tsx) 경로가 `definition.defaultConfig` 를
+    // 깔고 저장하는 것과 대칭. 어시스턴트 add_node 가 schema default 를
+    // 누락한 채 raw 값을 그대로 저장해 mode/layout/maxItems 등 select/enum
+    // 필드가 `undefined` 로 남고 프런트 SelectWidget 이 잘못된 첫 option 을
+    // 시각적으로 보여주던 regression 을 막는다.
+    it('merges definition.defaultConfig under LLM-provided config', () => {
+      const sw = new ShadowWorkflow(
+        baseSnapshot(),
+        new Set(['carousel']),
+        {},
+        undefined,
+        {
+          carousel: {
+            mode: 'dynamic',
+            layout: 'card',
+            items: [],
+            maxItems: 10,
+            buttons: [],
+          },
+        },
+      );
+      const result = sw.apply({
+        name: 'add_node',
+        arguments: {
+          type: 'carousel',
+          label: '음식 종류 선택',
+          position: { x: 0, y: 0 },
+          config: {
+            buttons: [{ id: 'btn_korean', label: '한식', type: 'port' }],
+          },
+        },
+      });
+      expect(result.ok).toBe(true);
+      const added = sw.snapshot().nodes.find((n) => n.id === result.id);
+      expect(added?.config).toEqual({
+        mode: 'dynamic',
+        layout: 'card',
+        items: [],
+        maxItems: 10,
+        buttons: [{ id: 'btn_korean', label: '한식', type: 'port' }],
+      });
+    });
+
+    it('LLM 이 명시한 값은 default 를 override', () => {
+      const sw = new ShadowWorkflow(
+        baseSnapshot(),
+        new Set(['carousel']),
+        {},
+        undefined,
+        { carousel: { mode: 'dynamic', layout: 'card' } },
+      );
+      const result = sw.apply({
+        name: 'add_node',
+        arguments: {
+          type: 'carousel',
+          label: '정적 카루셀',
+          position: { x: 0, y: 0 },
+          config: { mode: 'static', items: [{ title: '첫 슬라이드' }] },
+        },
+      });
+      expect(result.ok).toBe(true);
+      const added = sw.snapshot().nodes.find((n) => n.id === result.id);
+      expect(added?.config).toMatchObject({
+        mode: 'static',
+        layout: 'card',
+        items: [{ title: '첫 슬라이드' }],
+      });
+    });
+
     // ED-AI-40 (spec §4.3.2): add_node 성공 응답에 runtime ports 가 자동
     // 포함되어, LLM 이 바로 다음 add_edge 에 올바른 source_port 를 채울 수
     // 있게 한다. static / dynamic-ports 모두 동일 shape.
