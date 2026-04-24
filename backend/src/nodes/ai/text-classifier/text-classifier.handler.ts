@@ -51,6 +51,7 @@ export class TextClassifierHandler implements NodeHandler {
     const categories = config.categories as Category[];
     const instructions = (config.instructions as string) || '';
     const includeConfidence = (config.includeConfidence as boolean) ?? false;
+    const includeEvidence = (config.includeEvidence as boolean) ?? false;
     const multiLabel = (config.multiLabel as boolean) ?? false;
 
     const workspaceId = (context.variables?.__workspaceId as string) || '';
@@ -77,12 +78,14 @@ export class TextClassifierHandler implements NodeHandler {
           categoryNames,
           instructions,
           includeConfidence,
+          includeEvidence,
         )
       : this.buildSingleLabelPrompt(
           categoryList,
           categoryNames,
           instructions,
           includeConfidence,
+          includeEvidence,
         );
 
     let result: ChatResult;
@@ -139,6 +142,7 @@ export class TextClassifierHandler implements NodeHandler {
         categories,
         inputField,
         includeConfidence,
+        includeEvidence,
         llmCalls,
       );
     }
@@ -147,6 +151,7 @@ export class TextClassifierHandler implements NodeHandler {
       categories,
       inputField,
       includeConfidence,
+      includeEvidence,
       llmCalls,
     );
   }
@@ -156,9 +161,22 @@ export class TextClassifierHandler implements NodeHandler {
     categoryNames: string[],
     instructions: string,
     includeConfidence: boolean,
+    includeEvidence: boolean,
   ) {
     const NONE = TextClassifierHandler.NONE_SENTINEL;
     const schemaEnum = [...categoryNames, NONE];
+
+    const responseFields = [
+      `- "category": the name of the chosen category (must be exactly one of: ${categoryNames.map((n) => `"${n}"`).join(', ')}) or "${NONE}" if no category fits`,
+      includeConfidence
+        ? '- "confidence": a number between 0.0 and 1.0 indicating your confidence'
+        : '',
+      includeEvidence
+        ? '- "evidence": an array of short word or phrase excerpts from the input that directly support the chosen category. Use [] when the input does not fit any category.'
+        : '',
+    ]
+      .filter(Boolean)
+      .join('\n');
 
     const systemPrompt = `You are a text classifier. Classify the given text into exactly one of the following categories:
 
@@ -168,18 +186,27 @@ ${instructions ? `Additional instructions: ${instructions}\n` : ''}
 If the text does not clearly fit any of the above categories, use "${NONE}" as the category.
 
 Respond with a JSON object containing:
-- "category": the name of the chosen category (must be exactly one of: ${categoryNames.map((n) => `"${n}"`).join(', ')}) or "${NONE}" if no category fits
-${includeConfidence ? '- "confidence": a number between 0.0 and 1.0 indicating your confidence' : ''}
+${responseFields}
 
 Respond ONLY with the JSON object, no additional text.`;
 
+    const properties: Record<string, unknown> = {
+      category: { type: 'string', enum: schemaEnum },
+    };
+    const required: string[] = ['category'];
+    if (includeConfidence) {
+      properties.confidence = { type: 'number' };
+      required.push('confidence');
+    }
+    if (includeEvidence) {
+      properties.evidence = { type: 'array', items: { type: 'string' } };
+      required.push('evidence');
+    }
+
     const jsonSchema: Record<string, unknown> = {
       type: 'object',
-      properties: {
-        category: { type: 'string', enum: schemaEnum },
-        ...(includeConfidence ? { confidence: { type: 'number' } } : {}),
-      },
-      required: includeConfidence ? ['category', 'confidence'] : ['category'],
+      properties,
+      required,
       additionalProperties: false,
     };
 
@@ -191,7 +218,20 @@ Respond ONLY with the JSON object, no additional text.`;
     categoryNames: string[],
     instructions: string,
     includeConfidence: boolean,
+    includeEvidence: boolean,
   ) {
+    const itemFields = [
+      `  - "name": the category name (must be one of: ${categoryNames.map((n) => `"${n}"`).join(', ')})`,
+      includeConfidence
+        ? '  - "confidence": a number between 0.0 and 1.0 indicating your confidence'
+        : '',
+      includeEvidence
+        ? '  - "evidence": an array of short word or phrase excerpts from the input that directly support THIS category'
+        : '',
+    ]
+      .filter(Boolean)
+      .join('\n');
+
     const systemPrompt = `You are a text classifier. Classify the given text into ALL applicable categories from the following list:
 
 ${categoryList}
@@ -201,16 +241,21 @@ Select every category that applies to the text. If no category fits, return an e
 
 Respond with a JSON object containing:
 - "categories": an array of matching categories. Each element is an object with:
-  - "name": the category name (must be one of: ${categoryNames.map((n) => `"${n}"`).join(', ')})
-${includeConfidence ? '  - "confidence": a number between 0.0 and 1.0 indicating your confidence' : ''}
+${itemFields}
 
 Respond ONLY with the JSON object, no additional text.`;
 
     const itemProperties: Record<string, unknown> = {
       name: { type: 'string', enum: categoryNames },
     };
+    const itemRequired: string[] = ['name'];
     if (includeConfidence) {
       itemProperties.confidence = { type: 'number' };
+      itemRequired.push('confidence');
+    }
+    if (includeEvidence) {
+      itemProperties.evidence = { type: 'array', items: { type: 'string' } };
+      itemRequired.push('evidence');
     }
 
     const jsonSchema: Record<string, unknown> = {
@@ -221,7 +266,7 @@ Respond ONLY with the JSON object, no additional text.`;
           items: {
             type: 'object',
             properties: itemProperties,
-            required: includeConfidence ? ['name', 'confidence'] : ['name'],
+            required: itemRequired,
             additionalProperties: false,
           },
         },
@@ -238,6 +283,7 @@ Respond ONLY with the JSON object, no additional text.`;
     categories: Category[],
     inputField: string,
     includeConfidence: boolean,
+    includeEvidence: boolean,
     llmCalls: Array<{
       requestPayload: unknown;
       responsePayload: unknown;
@@ -247,14 +293,19 @@ Respond ONLY with the JSON object, no additional text.`;
     const NONE = TextClassifierHandler.NONE_SENTINEL;
     let category = '';
     let confidence = 0;
+    let evidence: string[] = [];
 
     try {
       const parsed = JSON.parse(result.content || '{}') as {
         category?: string;
         confidence?: number;
+        evidence?: unknown;
       };
       category = parsed.category || '';
       confidence = parsed.confidence ?? 0;
+      if (includeEvidence) {
+        evidence = sanitizeEvidence(parsed.evidence);
+      }
     } catch {
       // Fallback: try to extract category name from text
       for (const c of categories) {
@@ -263,6 +314,7 @@ Respond ONLY with the JSON object, no additional text.`;
           break;
         }
       }
+      evidence = [];
     }
 
     const isFallback = !category || category === NONE;
@@ -277,6 +329,7 @@ Respond ONLY with the JSON object, no additional text.`;
         result: {
           category: isFallback ? null : category,
           ...(includeConfidence ? { confidence } : {}),
+          ...(includeEvidence ? { evidence: isFallback ? [] : evidence } : {}),
           originalInput: inputField,
         },
       },
@@ -297,17 +350,26 @@ Respond ONLY with the JSON object, no additional text.`;
     categories: Category[],
     inputField: string,
     includeConfidence: boolean,
+    includeEvidence: boolean,
     llmCalls: Array<{
       requestPayload: unknown;
       responsePayload: unknown;
       durationMs: number;
     }>,
   ) {
-    let matchedCategories: { name: string; confidence?: number }[] = [];
+    let matchedCategories: {
+      name: string;
+      confidence?: number;
+      evidence?: string[];
+    }[] = [];
 
     try {
       const parsed = JSON.parse(result.content || '{}') as {
-        categories?: { name?: string; confidence?: number }[];
+        categories?: {
+          name?: string;
+          confidence?: number;
+          evidence?: unknown;
+        }[];
       };
       const rawCategories = Array.isArray(parsed.categories)
         ? parsed.categories
@@ -317,6 +379,9 @@ Respond ONLY with the JSON object, no additional text.`;
         .map((c) => ({
           name: c.name!,
           ...(includeConfidence ? { confidence: c.confidence ?? 0 } : {}),
+          ...(includeEvidence
+            ? { evidence: sanitizeEvidence(c.evidence) }
+            : {}),
         }));
     } catch {
       // Fallback: try to extract category names from text
@@ -325,6 +390,7 @@ Respond ONLY with the JSON object, no additional text.`;
           matchedCategories.push({
             name: c.name,
             ...(includeConfidence ? { confidence: 0 } : {}),
+            ...(includeEvidence ? { evidence: [] } : {}),
           });
         }
       }
@@ -357,4 +423,21 @@ Respond ONLY with the JSON object, no additional text.`;
       port,
     };
   }
+}
+
+// Caps a manipulated/runaway LLM response so a single classifier call cannot
+// inflate the response payload, log line, or downstream node input without bound.
+const MAX_EVIDENCE_ITEMS = 20;
+const MAX_EVIDENCE_ITEM_LENGTH = 200;
+
+function sanitizeEvidence(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  const strings = value.filter((v): v is string => typeof v === 'string');
+  return strings
+    .slice(0, MAX_EVIDENCE_ITEMS)
+    .map((s) =>
+      s.length > MAX_EVIDENCE_ITEM_LENGTH
+        ? s.slice(0, MAX_EVIDENCE_ITEM_LENGTH)
+        : s,
+    );
 }

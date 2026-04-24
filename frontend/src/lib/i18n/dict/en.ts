@@ -794,6 +794,8 @@ export const en: Dict = {
       classifyPlaceholder: "Additional classification guidelines...",
       includeConfidence: "Include confidence scores",
       includeConfidenceHint: "Adds per-category confidence (0-1) to the result. Useful for threshold-based branching in downstream nodes.",
+      includeEvidence: "Include classification evidence",
+      includeEvidenceHint: "Adds words or phrases from the input that support each category. Useful for explainability and debugging. Note: excerpts include verbatim input text — avoid enabling on sensitive/PII payloads unless downstream handling is reviewed.",
       multiLabel: "Multi-label Classification",
       multiLabelHint: "One input can belong to multiple categories simultaneously. When off, only the highest confidence category is chosen.",
       categories: "Categories",

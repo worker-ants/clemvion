@@ -310,6 +310,164 @@ describe('TextClassifierHandler', () => {
       )) as Record<string, unknown>;
       expect((result as any).config.multiLabel).toBe(false);
     });
+
+    describe('includeEvidence', () => {
+      it('should omit evidence from output and jsonSchema by default', async () => {
+        const result = (await handler.execute(
+          {},
+          baseConfig,
+          createContext(),
+        )) as Record<string, unknown>;
+        const data = result.output as Record<string, unknown>;
+        expect(data.result).not.toHaveProperty('evidence');
+
+        const chatCall = mockLlmService.chat.mock.calls[0][1];
+        expect(chatCall.jsonSchema.properties).not.toHaveProperty('evidence');
+        expect(chatCall.jsonSchema.required).not.toContain('evidence');
+      });
+
+      it('should include evidence in jsonSchema when includeEvidence is true', async () => {
+        mockLlmService.chat.mockResolvedValueOnce({
+          content:
+            '{"category": "Billing", "confidence": 0.9, "evidence": ["refund"]}',
+          usage: { inputTokens: 50, outputTokens: 10, totalTokens: 60 },
+          model: 'gpt-4o-mini',
+        });
+        await handler.execute(
+          {},
+          { ...baseConfig, includeEvidence: true },
+          createContext(),
+        );
+        const chatCall = mockLlmService.chat.mock.calls[0][1];
+        expect(chatCall.jsonSchema.properties.evidence).toEqual({
+          type: 'array',
+          items: { type: 'string' },
+        });
+        expect(chatCall.jsonSchema.required).toContain('evidence');
+        const systemMessage = chatCall.messages[0].content;
+        expect(systemMessage).toContain('evidence');
+      });
+
+      it('should expose parsed evidence at output.result.evidence', async () => {
+        mockLlmService.chat.mockResolvedValueOnce({
+          content:
+            '{"category": "Billing", "confidence": 0.9, "evidence": ["refund", "payment"]}',
+          usage: { inputTokens: 50, outputTokens: 10, totalTokens: 60 },
+          model: 'gpt-4o-mini',
+        });
+        const result = (await handler.execute(
+          {},
+          { ...baseConfig, includeEvidence: true },
+          createContext(),
+        )) as Record<string, unknown>;
+        const data = result.output as Record<string, unknown>;
+        expect((data.result as any).evidence).toEqual(['refund', 'payment']);
+      });
+
+      it('should fall back to empty evidence array when LLM omits it', async () => {
+        mockLlmService.chat.mockResolvedValueOnce({
+          content: '{"category": "Billing", "confidence": 0.9}',
+          usage: { inputTokens: 50, outputTokens: 10, totalTokens: 60 },
+          model: 'gpt-4o-mini',
+        });
+        const result = (await handler.execute(
+          {},
+          { ...baseConfig, includeEvidence: true },
+          createContext(),
+        )) as Record<string, unknown>;
+        const data = result.output as Record<string, unknown>;
+        expect((data.result as any).evidence).toEqual([]);
+      });
+
+      it('should set evidence to empty array on fallback (__none__)', async () => {
+        mockLlmService.chat.mockResolvedValueOnce({
+          content:
+            '{"category": "__none__", "confidence": 0.1, "evidence": []}',
+          usage: { inputTokens: 50, outputTokens: 10, totalTokens: 60 },
+          model: 'gpt-4o-mini',
+        });
+        const result = (await handler.execute(
+          {},
+          { ...baseConfig, includeEvidence: true },
+          createContext(),
+        )) as Record<string, unknown>;
+        expect((result as any).port).toBe('fallback');
+        const data = result.output as Record<string, unknown>;
+        expect((data.result as any).category).toBeNull();
+        expect((data.result as any).evidence).toEqual([]);
+      });
+
+      it('should drop non-string evidence items to preserve string[] contract', async () => {
+        mockLlmService.chat.mockResolvedValueOnce({
+          content:
+            '{"category": "Billing", "confidence": 0.9, "evidence": ["valid", 42, null]}',
+          usage: { inputTokens: 50, outputTokens: 10, totalTokens: 60 },
+          model: 'gpt-4o-mini',
+        });
+        const result = (await handler.execute(
+          {},
+          { ...baseConfig, includeEvidence: true },
+          createContext(),
+        )) as Record<string, unknown>;
+        const data = result.output as Record<string, unknown>;
+        expect((data.result as any).evidence).toEqual(['valid']);
+      });
+
+      it('should cap evidence array length and per-item string length', async () => {
+        const oversized = Array.from({ length: 50 }, (_, i) => `e${i}`);
+        const longString = 'a'.repeat(500);
+        mockLlmService.chat.mockResolvedValueOnce({
+          content: JSON.stringify({
+            category: 'Billing',
+            confidence: 0.9,
+            evidence: [longString, ...oversized],
+          }),
+          usage: { inputTokens: 50, outputTokens: 10, totalTokens: 60 },
+          model: 'gpt-4o-mini',
+        });
+        const result = (await handler.execute(
+          {},
+          { ...baseConfig, includeEvidence: true },
+          createContext(),
+        )) as Record<string, unknown>;
+        const data = result.output as Record<string, unknown>;
+        const ev = (data.result as any).evidence as string[];
+        expect(ev).toHaveLength(20);
+        expect(ev[0]).toHaveLength(200);
+      });
+
+      it('should expose evidence even when includeConfidence is false', async () => {
+        mockLlmService.chat.mockResolvedValueOnce({
+          content: '{"category": "Billing", "evidence": ["refund"]}',
+          usage: { inputTokens: 50, outputTokens: 10, totalTokens: 60 },
+          model: 'gpt-4o-mini',
+        });
+        const result = (await handler.execute(
+          {},
+          { ...baseConfig, includeConfidence: false, includeEvidence: true },
+          createContext(),
+        )) as Record<string, unknown>;
+        const data = result.output as Record<string, unknown>;
+        expect(data.result).not.toHaveProperty('confidence');
+        expect((data.result as any).evidence).toEqual(['refund']);
+      });
+
+      it('should fall back to empty evidence on JSON parse failure', async () => {
+        mockLlmService.chat.mockResolvedValueOnce({
+          content: 'The answer is Billing because it relates to payment',
+          usage: { inputTokens: 50, outputTokens: 10, totalTokens: 60 },
+          model: 'gpt-4o-mini',
+        });
+        const result = (await handler.execute(
+          {},
+          { ...baseConfig, includeEvidence: true },
+          createContext(),
+        )) as Record<string, unknown>;
+        expect((result as any).port).toBe('class_0');
+        const data = result.output as Record<string, unknown>;
+        expect((data.result as any).evidence).toEqual([]);
+      });
+    });
   });
 
   describe('execute (multi-label)', () => {
@@ -515,6 +673,148 @@ describe('TextClassifierHandler', () => {
       expect(metadata.inputTokens).toBe(55);
       expect(metadata.outputTokens).toBe(15);
       expect(metadata.totalTokens).toBe(70);
+    });
+
+    describe('includeEvidence', () => {
+      it('should omit per-item evidence by default', async () => {
+        mockLlmService.chat.mockResolvedValueOnce({
+          content: '{"categories": [{"name": "Billing", "confidence": 0.9}]}',
+          usage: { inputTokens: 50, outputTokens: 10, totalTokens: 60 },
+          model: 'gpt-4o-mini',
+        });
+        const result = (await handler.execute(
+          {},
+          multiLabelConfig,
+          createContext(),
+        )) as Record<string, unknown>;
+        const data = result.output as Record<string, unknown>;
+        expect((data.result as any).categories[0]).not.toHaveProperty(
+          'evidence',
+        );
+
+        const chatCall = mockLlmService.chat.mock.calls[0][1];
+        expect(
+          chatCall.jsonSchema.properties.categories.items.properties,
+        ).not.toHaveProperty('evidence');
+      });
+
+      it('should include per-item evidence in jsonSchema when enabled', async () => {
+        mockLlmService.chat.mockResolvedValueOnce({
+          content:
+            '{"categories": [{"name": "Billing", "confidence": 0.9, "evidence": ["refund"]}]}',
+          usage: { inputTokens: 50, outputTokens: 10, totalTokens: 60 },
+          model: 'gpt-4o-mini',
+        });
+        await handler.execute(
+          {},
+          { ...multiLabelConfig, includeEvidence: true },
+          createContext(),
+        );
+        const chatCall = mockLlmService.chat.mock.calls[0][1];
+        const itemProps =
+          chatCall.jsonSchema.properties.categories.items.properties;
+        expect(itemProps.evidence).toEqual({
+          type: 'array',
+          items: { type: 'string' },
+        });
+        expect(
+          chatCall.jsonSchema.properties.categories.items.required,
+        ).toContain('evidence');
+        const systemMessage = chatCall.messages[0].content;
+        expect(systemMessage).toContain('evidence');
+      });
+
+      it('should expose per-item evidence in output.result.categories', async () => {
+        mockLlmService.chat.mockResolvedValueOnce({
+          content:
+            '{"categories": [' +
+            '{"name": "Billing", "confidence": 0.9, "evidence": ["refund"]},' +
+            '{"name": "Tech", "confidence": 0.85, "evidence": ["crashing", "app"]}' +
+            ']}',
+          usage: { inputTokens: 50, outputTokens: 20, totalTokens: 70 },
+          model: 'gpt-4o-mini',
+        });
+        const result = (await handler.execute(
+          {},
+          { ...multiLabelConfig, includeEvidence: true },
+          createContext(),
+        )) as Record<string, unknown>;
+        const data = result.output as Record<string, unknown>;
+        expect((data.result as any).categories).toEqual([
+          { name: 'Billing', confidence: 0.9, evidence: ['refund'] },
+          { name: 'Tech', confidence: 0.85, evidence: ['crashing', 'app'] },
+        ]);
+      });
+
+      it('should default missing per-item evidence to empty array', async () => {
+        mockLlmService.chat.mockResolvedValueOnce({
+          content: '{"categories": [{"name": "Billing", "confidence": 0.9}]}',
+          usage: { inputTokens: 50, outputTokens: 10, totalTokens: 60 },
+          model: 'gpt-4o-mini',
+        });
+        const result = (await handler.execute(
+          {},
+          { ...multiLabelConfig, includeEvidence: true },
+          createContext(),
+        )) as Record<string, unknown>;
+        const data = result.output as Record<string, unknown>;
+        expect((data.result as any).categories[0].evidence).toEqual([]);
+      });
+
+      it('should attach empty evidence on substring fallback when enabled', async () => {
+        mockLlmService.chat.mockResolvedValueOnce({
+          content: 'The text relates to Billing categories',
+          usage: { inputTokens: 50, outputTokens: 10, totalTokens: 60 },
+          model: 'gpt-4o-mini',
+        });
+        const result = (await handler.execute(
+          {},
+          { ...multiLabelConfig, includeEvidence: true },
+          createContext(),
+        )) as Record<string, unknown>;
+        const data = result.output as Record<string, unknown>;
+        expect((data.result as any).categories).toEqual([
+          { name: 'Billing', confidence: 0, evidence: [] },
+        ]);
+      });
+
+      it('should route to fallback with empty categories when LLM returns []', async () => {
+        mockLlmService.chat.mockResolvedValueOnce({
+          content: '{"categories": []}',
+          usage: { inputTokens: 50, outputTokens: 10, totalTokens: 60 },
+          model: 'gpt-4o-mini',
+        });
+        const result = (await handler.execute(
+          {},
+          { ...multiLabelConfig, includeEvidence: true },
+          createContext(),
+        )) as Record<string, unknown>;
+        expect((result as any).port).toBe('fallback');
+        const data = result.output as Record<string, unknown>;
+        expect((data.result as any).categories).toEqual([]);
+      });
+
+      it('should expose per-item evidence even when includeConfidence is false', async () => {
+        mockLlmService.chat.mockResolvedValueOnce({
+          content:
+            '{"categories": [{"name": "Billing", "evidence": ["refund"]}]}',
+          usage: { inputTokens: 50, outputTokens: 10, totalTokens: 60 },
+          model: 'gpt-4o-mini',
+        });
+        const result = (await handler.execute(
+          {},
+          {
+            ...multiLabelConfig,
+            includeConfidence: false,
+            includeEvidence: true,
+          },
+          createContext(),
+        )) as Record<string, unknown>;
+        const data = result.output as Record<string, unknown>;
+        expect((data.result as any).categories).toEqual([
+          { name: 'Billing', evidence: ['refund'] },
+        ]);
+      });
     });
   });
 });

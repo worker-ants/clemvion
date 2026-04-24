@@ -68,6 +68,19 @@ export function TextClassifierConfig({ config, onChange }: { config: Config; onC
       <CheckboxField
         label={
           <LabelWithHelp
+            text={t("nodeConfigs.ai.includeEvidence")}
+            help={{
+              summary: t("nodeConfigs.ai.includeEvidenceHint"),
+              docsHref: DOCS.nodes.ai,
+            }}
+          />
+        }
+        checked={(config.includeEvidence as boolean) ?? false}
+        onChange={(v) => onChange({ ...config, includeEvidence: v })}
+      />
+      <CheckboxField
+        label={
+          <LabelWithHelp
             text={t("nodeConfigs.ai.multiLabel")}
             help={{
               summary: t("nodeConfigs.ai.multiLabelHint"),
