@@ -1,5 +1,5 @@
 import { BadRequestException, Injectable, Logger } from '@nestjs/common';
-import { isPrivateHost } from '../../common/utils/ssrf.util';
+import { isPrivateHost, resolvesToPrivate } from '../../common/utils/ssrf.util';
 import { type LlmProvider } from '../llm-config/dto/create-llm-config.dto';
 import { LLMClientFactory } from './llm-client.factory';
 import {
@@ -33,16 +33,23 @@ export class LlmPreviewService {
         message: 'API key is required for this provider.',
       });
     }
-    if (
-      params.baseUrl &&
-      params.provider !== 'local' &&
-      isPrivateHost(params.baseUrl)
-    ) {
-      throw new BadRequestException({
-        code: 'LLM_CONFIG_INVALID',
-        message:
-          'Private/loopback addresses are only allowed for the local provider.',
-      });
+    if (params.baseUrl && params.provider !== 'local') {
+      if (isPrivateHost(params.baseUrl)) {
+        throw new BadRequestException({
+          code: 'LLM_CONFIG_INVALID',
+          message:
+            'Private/loopback addresses are only allowed for the local provider.',
+        });
+      }
+      // DNS rebinding 1차 방어 — 도메인이 사설 IP 로 해석되면 차단.
+      // 2차 (connect 시점 TTL 재해석) 는 egress 방화벽 필요 (spec §5.5).
+      if (await resolvesToPrivate(params.baseUrl)) {
+        throw new BadRequestException({
+          code: 'LLM_CONFIG_INVALID',
+          message:
+            'Hostname resolves to a private/loopback address; only the local provider may target such hosts.',
+        });
+      }
     }
     let client: LLMClient;
     try {

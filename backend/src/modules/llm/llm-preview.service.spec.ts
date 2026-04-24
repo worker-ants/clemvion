@@ -1,6 +1,20 @@
 import { BadRequestException } from '@nestjs/common';
 import { LlmPreviewService } from './llm-preview.service';
 
+jest.mock('node:dns', () => {
+  const actual = jest.requireActual<typeof import('node:dns')>('node:dns');
+  return {
+    ...actual,
+    promises: {
+      ...actual.promises,
+      lookup: jest.fn(),
+    },
+  };
+});
+
+import { promises as dns } from 'node:dns';
+const mockedDnsLookup = dns.lookup as unknown as jest.Mock;
+
 describe('LlmPreviewService', () => {
   let service: LlmPreviewService;
   let mockClient: Record<string, jest.Mock>;
@@ -14,6 +28,9 @@ describe('LlmPreviewService', () => {
       create: jest.fn().mockReturnValue(mockClient),
     };
     service = new LlmPreviewService(mockClientFactory as never);
+    // 기본적으로 DNS 조회는 public IP 로 해석된다고 가정 (대부분의 테스트는
+    // IP 리터럴 baseUrl 이라 lookup 이 호출되지도 않음).
+    mockedDnsLookup.mockResolvedValue([{ address: '1.2.3.4', family: 4 }]);
   });
 
   describe('previewModels', () => {
@@ -127,6 +144,53 @@ describe('LlmPreviewService', () => {
         baseUrl: 'http://172.32.0.1',
       });
       expect(mockClientFactory.create).toHaveBeenCalledTimes(2);
+    });
+
+    it('rejects a hostname that resolves to a private IP (DNS rebinding 1st pass)', async () => {
+      mockedDnsLookup.mockResolvedValueOnce([
+        { address: '10.1.2.3', family: 4 },
+      ]);
+      await expect(
+        service.previewModels({
+          provider: 'openai',
+          apiKey: 'k',
+          baseUrl: 'https://attacker.example.com',
+        }),
+      ).rejects.toMatchObject({
+        response: expect.objectContaining({
+          code: 'LLM_CONFIG_INVALID',
+          message: expect.stringContaining('resolves to a private'),
+        }),
+      });
+      expect(mockedDnsLookup).toHaveBeenCalledWith('attacker.example.com', {
+        all: true,
+      });
+    });
+
+    it('allows a hostname that resolves to a public IP', async () => {
+      mockedDnsLookup.mockResolvedValueOnce([
+        { address: '8.8.8.8', family: 4 },
+      ]);
+      await service.previewModels({
+        provider: 'openai',
+        apiKey: 'k',
+        baseUrl: 'https://api.openai.com',
+      });
+      expect(mockClientFactory.create).toHaveBeenCalled();
+    });
+
+    it('allows hostname lookup failure to pass through (not treated as SSRF)', async () => {
+      mockedDnsLookup.mockRejectedValueOnce(
+        Object.assign(new Error('ENOTFOUND'), { code: 'ENOTFOUND' }),
+      );
+      // 해석 실패는 SSRF 판단으로 오인하지 않고 하위 SDK 가 실제 네트워크 에러를
+      // 돌려보내도록 진행.
+      await service.previewModels({
+        provider: 'openai',
+        apiKey: 'k',
+        baseUrl: 'https://does-not-exist.example.com',
+      });
+      expect(mockClientFactory.create).toHaveBeenCalled();
     });
 
     it('rejects RFC1918 Class C (192.168.x.x) range', async () => {
