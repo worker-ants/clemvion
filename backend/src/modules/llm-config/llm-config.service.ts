@@ -4,7 +4,7 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { EntityManager, Repository } from 'typeorm';
 import { ConfigService } from '@nestjs/config';
 import { LlmConfig } from './entities/llm-config.entity';
 import { CreateLlmConfigDto } from './dto/create-llm-config.dto';
@@ -100,26 +100,13 @@ export class LlmConfigService {
       isDefault: dto.isDefault || false,
     };
 
-    // isDefault=true 인 경우, clearDefault + insert 사이에 다른 요청이 끼어들어
-    // `isDefault=true` 레코드가 2건 생성되는 걸 막기 위해 트랜잭션으로 감싼다.
-    // setDefault() 와 동일 패턴.
-    let saved: LlmConfig;
-    if (dto.isDefault) {
-      saved = await this.llmConfigRepository.manager.transaction(
-        async (manager) => {
-          await manager.update(
-            LlmConfig,
-            { workspaceId, isDefault: true },
-            { isDefault: false },
-          );
-          const entity = manager.create(LlmConfig, entityFields);
-          return manager.save(LlmConfig, entity);
-        },
-      );
-    } else {
-      const config = this.llmConfigRepository.create(entityFields);
-      saved = await this.llmConfigRepository.save(config);
-    }
+    const saved = dto.isDefault
+      ? await this.saveWithDefaultSwap(workspaceId, (manager) =>
+          manager.save(LlmConfig, manager.create(LlmConfig, entityFields)),
+        )
+      : await this.llmConfigRepository.save(
+          this.llmConfigRepository.create(entityFields),
+        );
     return this.maskApiKey(saved);
   }
 
@@ -150,25 +137,34 @@ export class LlmConfigService {
       config.isDefault = false;
     }
 
-    // isDefault=true 전환은 `create()` 와 동일한 이유로 트랜잭션 내에서 기존
-    // default 해제 + 본인 업데이트를 한 번에 수행한다.
     let saved: LlmConfig;
     if (dto.isDefault === true) {
       config.isDefault = true;
-      saved = await this.llmConfigRepository.manager.transaction(
-        async (manager) => {
-          await manager.update(
-            LlmConfig,
-            { workspaceId, isDefault: true },
-            { isDefault: false },
-          );
-          return manager.save(LlmConfig, config);
-        },
+      saved = await this.saveWithDefaultSwap(workspaceId, (manager) =>
+        manager.save(LlmConfig, config),
       );
     } else {
       saved = await this.llmConfigRepository.save(config);
     }
     return this.maskApiKey(saved);
+  }
+
+  /**
+   * `isDefault=true` 저장 시 기존 default 레코드 해제와 새 저장을 하나의 트랜잭션으로
+   * 묶어 동시 요청에 의한 중복 default 를 차단한다. `create()`·`update()` 가 공유.
+   */
+  private async saveWithDefaultSwap(
+    workspaceId: string,
+    write: (manager: EntityManager) => Promise<LlmConfig>,
+  ): Promise<LlmConfig> {
+    return this.llmConfigRepository.manager.transaction(async (manager) => {
+      await manager.update(
+        LlmConfig,
+        { workspaceId, isDefault: true },
+        { isDefault: false },
+      );
+      return write(manager);
+    });
   }
 
   async setDefault(id: string, workspaceId: string): Promise<void> {
