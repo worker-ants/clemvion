@@ -138,7 +138,7 @@ function buildAssistantToolsInternal(): ToolDef[] {
     {
       name: 'get_workflow_executions',
       description:
-        "List recent executions of the CURRENT workflow, ordered by start time (newest first). Each item is a summary: id, status, startedAt, finishedAt, durationMs, triggerId, nodeStats{total, completed, failed}. Use this FIRST when the user asks about a past run (\"왜 실패했어?\", \"최근 실행 봐줘\") to pick the right id, then call `get_execution_details` on that id for the full timeline. Scope is fixed to the current session's workflow — no workflowId argument exists because the server reads it from the session. Running / waiting_for_input executions are included and return partial data.",
+        'List recent executions of the CURRENT workflow, ordered by start time (newest first). Each item is a summary: id, status, startedAt, finishedAt, durationMs, triggerId, nodeStats{total, completed, failed}. Use this FIRST when the user asks about a past run ("왜 실패했어?", "최근 실행 봐줘") to pick the right id, then call `get_execution_details` on that id for the full timeline. Scope is fixed to the current session\'s workflow — no workflowId argument exists because the server reads it from the session. Running / waiting_for_input executions are included and return partial data.',
       parameters: {
         type: 'object',
         additionalProperties: false,

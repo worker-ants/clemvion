@@ -105,7 +105,9 @@ describe('buildSystemPrompt', () => {
     // (b) 정확한 런타임 에러 메시지 인용으로 LLM 이 증상-원인 연결을 학습
     expect(prompt).toMatch(/Cannot read property 'output' of null/);
     // (c) 긍정 예시 — `.output` 앞에 `?.` 이 붙은 형태
-    expect(prompt).toMatch(/\?\.output\?\.interaction\?\.data\?\.korean_option/);
+    expect(prompt).toMatch(
+      /\?\.output\?\.interaction\?\.data\?\.korean_option/,
+    );
     // (d) 부정 예시 — `.output` 을 plain dot 으로 쓰는 형태가 ❌ 로 표기됨
     expect(prompt).toMatch(/❌[\s\S]{0,400}\.output\.interaction\?\.data/);
     // (e) 룰 오브 썸 — upstream-of-branch 는 plain dot OK, 그 외는 `?.output?.`
