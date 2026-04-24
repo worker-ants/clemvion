@@ -1,16 +1,36 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { In, Repository } from 'typeorm';
 import { Workflow } from '../../workflows/entities/workflow.entity';
 import { Node } from '../../nodes/entities/node.entity';
 import { Edge } from '../../edges/entities/edge.entity';
 import { Integration } from '../../integrations/entities/integration.entity';
 import { KnowledgeBase } from '../../knowledge-base/entities/knowledge-base.entity';
+import { Execution } from '../../executions/entities/execution.entity';
+import { NodeExecution } from '../../node-executions/entities/node-execution.entity';
 import { NodeComponentRegistry } from '../../../nodes/core/node-component.registry';
+import { maskSensitiveFields } from '../../../common/utils/mask-sensitive-fields.util';
 import { redactConfig } from './redact';
 
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * `get_workflow_executions` 와 `get_execution_details` 에 대한 상한. spec
+ * §4.1 의 "기본 10, 상한 50" 규약을 한 자리에서 관리한다.
+ */
+const EXECUTIONS_LIST_DEFAULT_LIMIT = 10;
+const EXECUTIONS_LIST_MAX_LIMIT = 50;
+
+const EXECUTION_STATUS_VALUES = [
+  'pending',
+  'running',
+  'completed',
+  'failed',
+  'cancelled',
+  'waiting_for_input',
+] as const;
+type ExecutionStatusFilter = (typeof EXECUTION_STATUS_VALUES)[number];
 
 /**
  * Read-only "Clarify" 도구들. 모두 `workspace_id` 스코프로 격리되어 있으며,
@@ -39,6 +59,10 @@ export class ExploreToolsService {
     private readonly integrationRepo: Repository<Integration>,
     @InjectRepository(KnowledgeBase)
     private readonly kbRepo: Repository<KnowledgeBase>,
+    @InjectRepository(Execution)
+    private readonly executionRepo: Repository<Execution>,
+    @InjectRepository(NodeExecution)
+    private readonly nodeExecutionRepo: Repository<NodeExecution>,
     private readonly nodeRegistry: NodeComponentRegistry,
   ) {}
 
@@ -171,4 +195,246 @@ export class ExploreToolsService {
       items: rows.map((k) => ({ id: k.id, name: k.name })),
     };
   }
+
+  /**
+   * 현재 세션 워크플로의 최근 실행 목록을 요약 형태로 반환한다 (spec §4.1).
+   * 명시적으로 `workflowId` 를 인자로 받지 않는 이유는 스코프 경계를 한 곳에서
+   * 강제하기 위함이며, 호출자(stream service)가 세션의 `workflowId` 를 그대로
+   * 넘긴다. 토큰 경제상 각 항목은 detail 없이 상태/타이밍/노드 카운트 요약만
+   * 담는다; 사용자가 특정 id 를 특정하면 `getExecutionDetails` 로 깊이 파고든다.
+   */
+  async getWorkflowExecutions(
+    workspaceId: string,
+    workflowId: string,
+    opts: { limit?: number; status?: string } = {},
+  ): Promise<unknown> {
+    if (!UUID_RE.test(workflowId)) {
+      return {
+        ok: false,
+        error: 'INVALID_ID',
+        hint: 'workflowId must be a UUID from the current session context.',
+      };
+    }
+
+    // workspace 경계 확인 — 세션 workflowId 가 워크스페이스 밖이면 조회 자체를
+    // 거부해 cross-workspace 정보 누출을 원천 차단한다.
+    const workflow = await this.workflowRepo.findOne({
+      where: { id: workflowId, workspaceId },
+    });
+    if (!workflow) {
+      return { ok: false, error: 'WORKFLOW_NOT_FOUND' };
+    }
+
+    const limit = clampLimit(opts.limit);
+    const status = normalizeStatusFilter(opts.status);
+
+    const qb = this.executionRepo
+      .createQueryBuilder('e')
+      .where('e.workflow_id = :workflowId', { workflowId });
+    if (status) {
+      qb.andWhere('e.status = :status', { status });
+    }
+    qb.orderBy('e.started_at', 'DESC').limit(limit);
+    const executions = await qb.getMany();
+
+    // 노드 카운트를 한 번의 쿼리로 모아 N+1 을 피한다.
+    const executionIds = executions.map((e) => e.id);
+    const nodeStatsById = await this.loadNodeStats(executionIds);
+
+    return {
+      ok: true,
+      workflowId,
+      workflowName: workflow.name,
+      items: executions.map((e) => ({
+        id: e.id,
+        status: e.status,
+        startedAt: e.startedAt,
+        finishedAt: e.finishedAt ?? null,
+        durationMs: e.durationMs ?? null,
+        triggerId: e.triggerId ?? null,
+        nodeStats: nodeStatsById.get(e.id) ?? {
+          total: 0,
+          completed: 0,
+          failed: 0,
+        },
+      })),
+    };
+  }
+
+  /**
+   * 단일 실행의 전체 타임라인 + 직계 자식 sub-workflow 실행(depth 1) 을 묶어
+   * 반환한다 (spec §4.1.1). 스코프 허용 조건은 두 가지:
+   *   (a) execution.workflowId === 현재 세션 workflowId
+   *   (b) execution.parentExecutionId 의 부모가 현재 세션 workflowId 의 실행
+   * 둘 다 만족하지 못하면 EXECUTION_NOT_IN_SCOPE. workspace 경계 밖 id 는
+   * EXECUTION_NOT_FOUND 로 통합해 존재 여부 누출을 막는다.
+   *
+   * 자식 실행 내부에 추가 sub-workflow 자손이 존재할 경우, 응답을 2 단계 이상
+   * 펼치지 않고 `subExecutionsTruncatedDepth: 1` 힌트로 "더 깊은 자손이 있다"
+   * 고 신호한다; LLM 이 필요하면 해당 자식 실행 id 를 한 번 더 호출한다.
+   */
+  async getExecutionDetails(
+    workspaceId: string,
+    currentWorkflowId: string,
+    executionId: string,
+  ): Promise<unknown> {
+    if (!UUID_RE.test(executionId)) {
+      return {
+        ok: false,
+        error: 'INVALID_ID',
+        hint: 'id must be a UUID obtained from get_workflow_executions().',
+      };
+    }
+
+    const execution = await this.executionRepo.findOne({
+      where: { id: executionId },
+      relations: ['workflow'],
+    });
+    if (!execution || execution.workflow?.workspaceId !== workspaceId) {
+      // workspace 밖 id 도 NOT_FOUND 로 합쳐 존재 여부 추론을 막는다.
+      return { ok: false, error: 'EXECUTION_NOT_FOUND' };
+    }
+
+    const inScope = await this.isExecutionInScope(execution, currentWorkflowId);
+    if (!inScope) {
+      return { ok: false, error: 'EXECUTION_NOT_IN_SCOPE' };
+    }
+
+    const timeline = await this.loadTimeline(execution.id);
+
+    // 직계 자식 실행(1 depth) 을 그 자식의 timeline 까지 포함해 로드한다.
+    const directChildren = await this.executionRepo.find({
+      where: { parentExecutionId: execution.id },
+      relations: ['workflow'],
+      order: { startedAt: 'ASC' },
+    });
+
+    const subExecutions = await Promise.all(
+      directChildren.map(async (child) => ({
+        execution: this.toExecutionEnvelope(child, child.workflow?.name),
+        timeline: await this.loadTimeline(child.id),
+      })),
+    );
+
+    // 2-depth 자손 존재 여부를 한 번의 쿼리로 확인해 truncation 힌트를 발행.
+    let subExecutionsTruncatedDepth: number | undefined;
+    if (directChildren.length > 0) {
+      const deeperExists = await this.executionRepo
+        .createQueryBuilder('e')
+        .where('e.parent_execution_id IN (:...childIds)', {
+          childIds: directChildren.map((c) => c.id),
+        })
+        .limit(1)
+        .getCount();
+      if (deeperExists > 0) subExecutionsTruncatedDepth = 1;
+    }
+
+    return {
+      ok: true,
+      execution: this.toExecutionEnvelope(execution, execution.workflow?.name),
+      timeline,
+      subExecutions,
+      ...(subExecutionsTruncatedDepth !== undefined
+        ? { subExecutionsTruncatedDepth }
+        : {}),
+    };
+  }
+
+  private async isExecutionInScope(
+    execution: Execution,
+    currentWorkflowId: string,
+  ): Promise<boolean> {
+    if (execution.workflowId === currentWorkflowId) return true;
+    if (!execution.parentExecutionId) return false;
+    const parent = await this.executionRepo.findOne({
+      where: { id: execution.parentExecutionId },
+    });
+    return !!parent && parent.workflowId === currentWorkflowId;
+  }
+
+  private async loadTimeline(
+    executionId: string,
+  ): Promise<Array<Record<string, unknown>>> {
+    const rows = await this.nodeExecutionRepo.find({
+      where: { executionId },
+      relations: ['node'],
+      order: { startedAt: 'ASC' },
+    });
+    return rows.map((ne) => ({
+      nodeExecutionId: ne.id,
+      nodeId: ne.nodeId,
+      nodeLabel: ne.node?.label ?? null,
+      nodeType: ne.node?.type ?? null,
+      status: ne.status,
+      startedAt: ne.startedAt,
+      finishedAt: ne.finishedAt ?? null,
+      durationMs: ne.durationMs ?? null,
+      inputData: maskSensitiveFields(ne.inputData ?? null),
+      outputData: maskSensitiveFields(ne.outputData ?? null),
+      error: maskSensitiveFields(ne.error ?? null),
+      retryCount: ne.retryCount,
+      parentNodeExecutionId: ne.parentNodeExecutionId ?? null,
+    }));
+  }
+
+  private toExecutionEnvelope(
+    e: Execution,
+    workflowName: string | undefined,
+  ): Record<string, unknown> {
+    return {
+      id: e.id,
+      workflowId: e.workflowId,
+      workflowName: workflowName ?? null,
+      status: e.status,
+      startedAt: e.startedAt,
+      finishedAt: e.finishedAt ?? null,
+      durationMs: e.durationMs ?? null,
+      inputData: maskSensitiveFields(e.inputData ?? null),
+      outputData: maskSensitiveFields(e.outputData ?? null),
+      error: maskSensitiveFields(e.error ?? null),
+      parentExecutionId: e.parentExecutionId ?? null,
+      recursionDepth: e.recursionDepth ?? 0,
+    };
+  }
+
+  private async loadNodeStats(
+    executionIds: string[],
+  ): Promise<Map<string, { total: number; completed: number; failed: number }>> {
+    const map = new Map<
+      string,
+      { total: number; completed: number; failed: number }
+    >();
+    if (executionIds.length === 0) return map;
+    const rows = await this.nodeExecutionRepo.find({
+      where: { executionId: In(executionIds) },
+      select: { id: true, executionId: true, status: true },
+    });
+    for (const id of executionIds) {
+      map.set(id, { total: 0, completed: 0, failed: 0 });
+    }
+    for (const r of rows) {
+      const stat = map.get(r.executionId);
+      if (!stat) continue;
+      stat.total += 1;
+      if (r.status === 'completed') stat.completed += 1;
+      else if (r.status === 'failed') stat.failed += 1;
+    }
+    return map;
+  }
+}
+
+function clampLimit(requested: number | undefined): number {
+  if (typeof requested !== 'number' || !Number.isFinite(requested)) {
+    return EXECUTIONS_LIST_DEFAULT_LIMIT;
+  }
+  return Math.max(1, Math.min(Math.floor(requested), EXECUTIONS_LIST_MAX_LIMIT));
+}
+
+function normalizeStatusFilter(
+  status: string | undefined,
+): ExecutionStatusFilter | undefined {
+  if (!status) return undefined;
+  return (EXECUTION_STATUS_VALUES as readonly string[]).includes(status)
+    ? (status as ExecutionStatusFilter)
+    : undefined;
 }

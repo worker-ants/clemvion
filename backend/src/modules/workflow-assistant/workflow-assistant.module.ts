@@ -7,6 +7,8 @@ import { Node } from '../nodes/entities/node.entity';
 import { Edge } from '../edges/entities/edge.entity';
 import { Integration } from '../integrations/entities/integration.entity';
 import { KnowledgeBase } from '../knowledge-base/entities/knowledge-base.entity';
+import { Execution } from '../executions/entities/execution.entity';
+import { NodeExecution } from '../node-executions/entities/node-execution.entity';
 import { LlmModule } from '../llm/llm.module';
 import { LlmConfigModule } from '../llm-config/llm-config.module';
 import { ExecutionEngineModule } from '../execution-engine/execution-engine.module';
@@ -25,6 +27,8 @@ import { ExploreToolsService } from './tools/explore-tools.service';
       Edge,
       Integration,
       KnowledgeBase,
+      Execution,
+      NodeExecution,
     ]),
     LlmModule,
     LlmConfigModule,
