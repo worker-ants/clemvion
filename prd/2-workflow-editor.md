@@ -189,6 +189,7 @@
 | ED-AI-18 | Assistant 편집에 대해서도 기존 Undo/Redo(Ctrl+Z/Y)가 정상 동작 | 필수 |
 | ED-AI-19 | 워크플로우 실행 중(Run 상태)에는 편집 도구가 거부되고 사용자에게 안내 | 필수 |
 | ED-AI-20 | 컨테이너/Tool Area/Manual Trigger 등 기존 제약(§11.2.2, §9.2)을 Shadow 검증에서 그대로 적용 | 필수 |
+| ED-AI-39 | 사용자 선택이 필요한 필드(Integration / LLM Config / Knowledge Base / 다른 워크플로) 는 Assistant가 직접 id를 채우지 않는다. 서버가 워크스페이스에서 후보를 조회해 `pendingUserConfig` 에 실어 주고, 프런트는 해당 편집 메시지 버블 안에 드롭다운 picker 를 렌더한다. 사용자가 **명시적으로 확인**해야 editor-store 에 반영된다. 후보가 0개이면 picker 대신 "직접 등록 후 Settings Panel 에서 선택" 안내만 노출 | 필수 |
 
 ### 10.5 탐색 & 추천
 
