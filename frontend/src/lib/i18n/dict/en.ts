@@ -1913,5 +1913,8 @@ export const en: Dict = {
     edgeAdded: "Edge added",
     edgeRemoved: "Edge removed",
     exploreLookup: "{{count}} found",
+    exploreExecutionsList: "{{count}} executions found",
+    exploreExecutionDetails: "Execution detail — {{nodeCount}} nodes",
+    executionNotInScope: "This execution does not belong to the current workflow.",
   },
 };
