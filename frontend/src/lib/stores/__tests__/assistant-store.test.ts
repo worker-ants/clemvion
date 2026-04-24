@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import {
+  applyAutoResumeEvent,
   handleSseEvent,
   summarizePlanState,
   useAssistantStore,
@@ -180,6 +181,113 @@ describe("assistant-store", () => {
 
       const msg = useAssistantStore.getState().messages[0];
       expect(msg.systemHint).toBeUndefined();
+    });
+  });
+
+  describe("applyAutoResumeEvent", () => {
+    // Stall 자동 복구(§10) 로 서버가 `auto_resume` 이벤트를 발행하면 프론트는
+    // 현재 스트리밍 중인 assistant 버블을 확정하고 **새 버블**을 push 한다.
+    // 새 버블에 `autoResume` 메타가 실려 divider 렌더의 트리거가 되고,
+    // `streamingMessageId` 가 새 id 로 갱신되어 이후 delta/tool_call 이 새
+    // 버블로 쌓인다. 반복 confirmation 문구가 한 버블에 몰리는 gpt-oss-120b
+    // quirk 의 UX 문제를 구조적으로 해소하는 핵심 경로.
+    it("closes the current bubble and pushes a new one with autoResume meta", () => {
+      seedAssistant({ content: "계속 진행해도 될까요?" });
+      useAssistantStore.setState({ streamingMessageId: ASSISTANT_ID });
+
+      const nextId = applyAutoResumeEvent(
+        useAssistantStore.setState,
+        ASSISTANT_ID,
+        {
+          event: "auto_resume",
+          data: { reason: "stall_pending_steps", attempt: 1, max: 2 },
+        },
+      );
+
+      const state = useAssistantStore.getState();
+      expect(state.messages).toHaveLength(2);
+
+      // 첫 번째 row: streaming 확정, 텍스트는 그대로 보존 (서버가 이미
+      // 별도 row 로 persist 한 내용과 대응).
+      expect(state.messages[0].id).toBe(ASSISTANT_ID);
+      expect(state.messages[0].streaming).toBe(false);
+      expect(state.messages[0].content).toBe("계속 진행해도 될까요?");
+      expect(state.messages[0].autoResume).toBeUndefined();
+
+      // 두 번째 row: 새 버블, 비어있는 상태로 시작, autoResume 메타.
+      expect(state.messages[1].id).toBe(nextId);
+      expect(state.messages[1].streaming).toBe(true);
+      expect(state.messages[1].content).toBe("");
+      expect(state.messages[1].autoResume).toEqual({
+        reason: "stall_pending_steps",
+        attempt: 1,
+        max: 2,
+      });
+
+      // 이후 delta 가 새 버블로 쌓이도록 streamingMessageId 갱신.
+      expect(state.streamingMessageId).toBe(nextId);
+    });
+
+    it("preserves earlier messages and only splits at the current streaming bubble", () => {
+      // 앞선 user message + assistant 이력이 있는 상태에서 auto_resume 이
+      // 도착해도 그 앞의 메시지들은 건드리지 않는다.
+      const priorUser: AssistantDisplayMessage = {
+        id: "u1",
+        role: "user",
+        content: "시작",
+        toolCalls: [],
+        plan: null,
+        streaming: false,
+        createdAt: new Date().toISOString(),
+      };
+      const priorAssistant: AssistantDisplayMessage = {
+        id: "a-old",
+        role: "assistant",
+        content: "이전 턴 답변",
+        toolCalls: [],
+        plan: null,
+        streaming: false,
+        createdAt: new Date().toISOString(),
+      };
+      const current: AssistantDisplayMessage = {
+        id: ASSISTANT_ID,
+        role: "assistant",
+        content: "진행 중",
+        toolCalls: [],
+        plan: null,
+        streaming: true,
+        createdAt: new Date().toISOString(),
+      };
+      useAssistantStore.setState({
+        messages: [priorUser, priorAssistant, current],
+        streamingMessageId: ASSISTANT_ID,
+      });
+
+      applyAutoResumeEvent(
+        useAssistantStore.setState,
+        ASSISTANT_ID,
+        {
+          event: "auto_resume",
+          data: { reason: "stall_pending_steps", attempt: 2, max: 2 },
+        },
+      );
+
+      const state = useAssistantStore.getState();
+      expect(state.messages).toHaveLength(4);
+      expect(state.messages.map((m) => m.id)).toEqual([
+        "u1",
+        "a-old",
+        ASSISTANT_ID,
+        state.messages[3].id,
+      ]);
+      // 앞선 두 메시지는 그대로.
+      expect(state.messages[0]).toEqual(priorUser);
+      expect(state.messages[1]).toEqual(priorAssistant);
+      // 현재 스트리밍 row 만 streaming 이 끊기고 content 는 보존.
+      expect(state.messages[2].streaming).toBe(false);
+      expect(state.messages[2].content).toBe("진행 중");
+      // 새 row 에 attempt=2 메타.
+      expect(state.messages[3].autoResume?.attempt).toBe(2);
     });
   });
 

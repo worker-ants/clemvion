@@ -25,6 +25,17 @@ export interface AssistantMessageData {
   plan: AssistantPlanRecord | null;
   usage: AssistantUsageRecord | null;
   finishReason: string | null;
+  /**
+   * 이 row 가 서버의 stall 자동 복구로 인해 "새로 시작된" row 인지 여부.
+   * 한 턴이 복구로 여러 row 로 쪼개진 경우 복구 이후의 row 들이 true.
+   * 마이그레이션 이전에 쌓인 row 는 false 로 해석되어 호환성 유지.
+   * rehydrate 시 true row 앞에 "🔄 자동으로 이어서 진행했어요" divider 렌더.
+   */
+  autoResumed?: boolean;
+  /** `autoResumed=true` row 에서만 세팅. 현재 `'stall_pending_steps'` 한 종류. */
+  autoResumeReason?: string | null;
+  /** 같은 턴 내 복구 시도 순번 (1부터). autoResumed=false row 에서는 null. */
+  autoResumeAttempt?: number | null;
   createdAt: string;
 }
 
@@ -128,6 +139,23 @@ export type AssistantSseEvent =
   | {
       event: "usage";
       data: AssistantUsageRecord;
+    }
+  | {
+      /**
+       * 서버가 stall 자동 복구(spec §10) 로 다음 라운드를 시작함을 통지.
+       * 프론트는 현재 스트리밍 중인 assistant 버블을 확정하고 새 버블을
+       * push 해 이후 delta/tool_call 을 분리된 row 로 렌더한다.
+       * 반복 confirmation 문구가 한 박스에 쌓이는 UX 문제를 구조적으로
+       * 제거 (특히 gpt-oss-120b 임의 중단 quirk).
+       */
+      event: "auto_resume";
+      data: {
+        reason: "stall_pending_steps";
+        /** 이번 턴 내 자동 복구 시도 순번 (1부터). */
+        attempt: number;
+        /** 허용되는 최대 시도 횟수 (백엔드 `MAX_STALL_ROUNDS`). */
+        max: number;
+      };
     }
   | { event: "done"; data: { finishReason: string } }
   | { event: "error"; data: { code: string; message: string } };
