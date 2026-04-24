@@ -68,6 +68,15 @@ describe("resolveDynamicPorts — switch", () => {
     expect(ports.map((p) => p.id)).toEqual(["case_0", "real", "default"]);
   });
 
+  it("treats whitespace-only id as absent (trim → fallback)", () => {
+    const ports = resolveDynamicPorts(
+      "switch",
+      { cases: [{ id: "  ", label: "A" }, { id: "\t", label: "B" }] },
+      def("switch", [], SWITCH_SPEC),
+    );
+    expect(ports.map((p) => p.id)).toEqual(["case_0", "case_1", "default"]);
+  });
+
   it("uses 'Case' as default label when empty", () => {
     const ports = resolveDynamicPorts(
       "switch",

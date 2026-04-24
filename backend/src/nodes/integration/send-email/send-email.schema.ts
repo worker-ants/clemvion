@@ -111,6 +111,7 @@ export const sendEmailNodeConfigSchema = z
           order: 4,
         },
       }),
+    // `.default('')`: LLM 이 optional 로 오인해 인자 생략하는 것을 차단 (review I-4).
     subject: z
       .string()
       .default('')
