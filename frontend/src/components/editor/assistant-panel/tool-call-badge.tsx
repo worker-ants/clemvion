@@ -22,10 +22,6 @@ import { useT } from "@/lib/i18n";
 const RECOVERABLE_ERROR_CODES: ReadonlySet<string> = new Set([
   "PORT_NOT_FOUND",
   "NODE_NOT_FOUND",
-  // handler.validate 가 shadow add/update 에서 domain rule 위반 (버튼 수 상한,
-  // 필수 필드 누락 등) 을 거부한 케이스. LLM 이 같은 턴 내 수정 후 재시도로
-  // 자연 복구되는 경로라 retry-recovered 축약 대상에 포함.
-  "INVALID_NODE_CONFIG",
 ]);
 
 /**

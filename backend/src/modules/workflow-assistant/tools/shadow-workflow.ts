@@ -65,7 +65,6 @@ export type ShadowErrorCode =
   | 'CYCLE_DETECTED'
   | 'INVALID_ARGUMENTS'
   | 'INVALID_EXPRESSION'
-  | 'INVALID_NODE_CONFIG'
   | 'PORT_NOT_FOUND';
 
 /**
@@ -126,12 +125,14 @@ export interface ShadowResult {
    */
   invalidExpressions?: ExpressionValidationIssue[];
   /**
-   * `INVALID_NODE_CONFIG` 케이스에서 handler.validate 가 돌려준 domain-rule
-   * 위반 메시지. 최대 5개 (invalidExpressions 와 동형). LLM 이 같은 턴 내에
-   * 해당 필드만 고쳐 재시도할 수 있다. "Maximum 10 buttons allowed per node",
+   * `add_node` / `update_node` 성공 응답에 handler.validate 의 domain-rule
+   * 경고를 **비차단** 으로 싣는다 (최대 5개). 저장은 정상 진행되므로 LLM 이
+   * retry loop 에 빠지지 않는다 — 메시지만 받아서 다음 턴에 update_node
+   * 로 선택적으로 교정하거나, 실행 시점에 execution-engine 이 동일 rule 을
+   * 재검출해 최종 차단한다. "Maximum 10 buttons allowed per node",
    * "items is required ..." 같은 handler 고유 메시지가 그대로 실린다.
    */
-  invalidConfig?: string[];
+  configWarnings?: string[];
   /**
    * `UNKNOWN_NODE_TYPE` 응답 시: 현재 등록된 노드 타입 중 최대 `KNOWN_TYPES_MAX`
    * 개를 정렬해 싣는다. LLM 이 다음 라운드에서 올바른 타입을 고를 수 있도록.
@@ -453,21 +454,14 @@ export class ShadowWorkflow {
       };
     }
 
-    // handler.validate 조기 차단. execution 단계에서야 터지던 domain rule
-    // (버튼 수 상한, 필수 필드 누락, 중복 id 등) 을 같은 턴 내 재시도
-    // 가능한 지점에서 반환. validator 미주입 (테스트/legacy) 시 skip.
-    if (this.configValidator) {
-      const cfgCheck = this.configValidator(type, config);
-      if (!cfgCheck.valid) {
-        this.recordFailedAddNode(label);
-        return {
-          ok: false,
-          error: 'INVALID_NODE_CONFIG',
-          message: cfgCheck.errors.join('; '),
-          invalidConfig: cfgCheck.errors.slice(0, 5),
-        };
-      }
-    }
+    // handler.validate 는 **비차단 warning** 으로만 사용. 이전 안(hard
+    // reject) 은 LLM 이 같은 INVALID_NODE_CONFIG 를 교정하지 못하면 무한
+    // retry 에 빠지는 경로를 열어 실사용 세션에서 심각한 loop 를 유발했다.
+    // 현 정책: 저장은 정상 진행, result.configWarnings 로만 LLM 에 통지
+    // → 다음 턴에 선택적 교정 or 실행 시점의 execution-engine 가 최종 차단.
+    const configWarnings: string[] = this.configValidator
+      ? this.configValidator(type, config).errors.slice(0, 5)
+      : [];
 
     const id = randomUUID();
     this.nodes.set(id, {
@@ -486,10 +480,13 @@ export class ShadowWorkflow {
     // 여전히 끌려가지 않게 한다.
     this.forgetFailedAddNode(label);
     const portsInfo = this.buildRuntimePorts(id);
-    if (!portsInfo) return { ok: true, id };
-    return portsInfo.truncated
-      ? { ok: true, id, ports: portsInfo.ports, portsTruncated: true }
-      : { ok: true, id, ports: portsInfo.ports };
+    const result: ShadowResult = { ok: true, id };
+    if (portsInfo) {
+      result.ports = portsInfo.ports;
+      if (portsInfo.truncated) result.portsTruncated = true;
+    }
+    if (configWarnings.length > 0) result.configWarnings = configWarnings;
+    return result;
   }
 
   private updateNode(args: Record<string, unknown>): ShadowResult {
@@ -550,25 +547,22 @@ export class ShadowWorkflow {
       if (patch.position.y !== undefined)
         next.positionY = Number(patch.position.y);
     }
-    // config 을 건드린 patch 만 handler.validate 로 최종 shape 확인. label /
-    // position 만 바꾼 patch 는 domain rule 과 무관하므로 skip.
-    if (configPatched && this.configValidator) {
-      const cfgCheck = this.configValidator(next.type, next.config);
-      if (!cfgCheck.valid) {
-        return {
-          ok: false,
-          error: 'INVALID_NODE_CONFIG',
-          message: cfgCheck.errors.join('; '),
-          invalidConfig: cfgCheck.errors.slice(0, 5),
-        };
-      }
-    }
+    // config 을 건드린 patch 만 handler.validate 로 domain rule 을 체크해
+    // 비차단 warning 을 수집 — 결과적 저장은 무조건 진행. hard-reject 은
+    // LLM retry loop 를 유발해 제거됨 (addNode 와 동일 정책).
+    const configWarnings: string[] =
+      configPatched && this.configValidator
+        ? this.configValidator(next.type, next.config).errors.slice(0, 5)
+        : [];
     this.nodes.set(id, next);
     const portsInfo = this.buildRuntimePorts(id);
-    if (!portsInfo) return { ok: true, id };
-    return portsInfo.truncated
-      ? { ok: true, id, ports: portsInfo.ports, portsTruncated: true }
-      : { ok: true, id, ports: portsInfo.ports };
+    const result: ShadowResult = { ok: true, id };
+    if (portsInfo) {
+      result.ports = portsInfo.ports;
+      if (portsInfo.truncated) result.portsTruncated = true;
+    }
+    if (configWarnings.length > 0) result.configWarnings = configWarnings;
+    return result;
   }
 
   private removeNode(args: Record<string, unknown>): ShadowResult {
