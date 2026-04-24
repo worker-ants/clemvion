@@ -4416,6 +4416,348 @@ describe('WorkflowAssistantStreamService', () => {
       expect((toolEvent!.data as { kind: string }).kind).toBe('explore');
     });
   });
+
+  // LLM 이 한 메시지(=한 라운드)에 여러 tool_use 블록을 동시에 emit 하는
+  // 병렬 경로. 인프라(anthropic.client 스트림 디코더 + stream service 라운드
+  // 루프)는 이미 이 시나리오를 허용한다. 모델이 실제로 그렇게 냈을 때
+  // (a) 모두 shadow 에 순차 적용되고, (b) 단 한 번의 round-trip 으로 LLM 에
+  // 피드백되는지 (한 assistant 메시지에 여러 toolCalls + 짝지어진 role:'tool'
+  // 메시지) 고정한다. 그리고 연속 라운드에서 "노드 배치 → 엣지 배치" 의
+  // 계층화 시나리오도 각 라운드의 배치가 온전히 round-trip 되는지 확인한다.
+  describe('parallel tool calls (multiple tool_use blocks per round)', () => {
+    // 포트 검증 (validateEdgePorts) 이 known 포트를 인식하도록 object-form
+    // 으로 listDefinitions 를 내려줄 때 공통으로 쓰는 fixture.
+    const objectFormDefs = [
+      {
+        metadata: {
+          type: 'manual_trigger',
+          category: 'trigger',
+          description: 'Manual trigger',
+        },
+        ports: {
+          inputs: [],
+          outputs: [{ id: 'out', label: 'Output', type: 'data' }],
+        },
+      },
+      {
+        metadata: {
+          type: 'http_request',
+          category: 'integration',
+          description: 'HTTP request',
+        },
+        ports: {
+          inputs: [{ id: 'in', label: 'Input', type: 'data' }],
+          outputs: [
+            { id: 'out', label: 'Output', type: 'data' },
+            { id: 'error', label: 'Error', type: 'error' },
+          ],
+        },
+      },
+    ];
+
+    it('applies all add_node blocks in one round and round-trips them together', async () => {
+      const { service, mocks } = makeService();
+      mocks.nodeRegistry.listDefinitions.mockReturnValue(objectFormDefs);
+      // Round 1: add_node × 3 parallel → finishReason 'tool_calls'
+      // Round 2: text-only close (no tool calls) → loop exits naturally.
+      // 이 테스트는 "한 라운드의 다중 tool_use 가 배치로 shadow 에 적용되고
+      // 단일 round-trip 으로 LLM 에 되돌아간다" 만 검증한다. finish 는 review
+      // 가드 (orphan 노드 감지) 가 개입하는 별개 경로라 여기서는 배제.
+      mocks.llmService.chatStream.mockImplementation(() => {
+        const callIdx = mocks.llmService.chatStream.mock.calls.length;
+        if (callIdx === 1) {
+          return asyncIter<ChatStreamEvent>([
+            {
+              type: 'tool_call_end',
+              id: 'c_a',
+              name: 'add_node',
+              arguments: JSON.stringify({
+                type: 'http_request',
+                label: 'Fetch A',
+                position: { x: 400, y: 200 },
+                config: { method: 'GET' },
+              }),
+            },
+            {
+              type: 'tool_call_end',
+              id: 'c_b',
+              name: 'add_node',
+              arguments: JSON.stringify({
+                type: 'http_request',
+                label: 'Fetch B',
+                position: { x: 600, y: 200 },
+                config: { method: 'GET' },
+              }),
+            },
+            {
+              type: 'tool_call_end',
+              id: 'c_c',
+              name: 'add_node',
+              arguments: JSON.stringify({
+                type: 'http_request',
+                label: 'Fetch C',
+                position: { x: 800, y: 200 },
+                config: { method: 'GET' },
+              }),
+            },
+            {
+              type: 'done',
+              usage: { inputTokens: 40, outputTokens: 30, totalTokens: 70 },
+              model: 'gpt-4o',
+              finishReason: 'tool_calls',
+            },
+          ]);
+        }
+        return asyncIter<ChatStreamEvent>([
+          { type: 'text_delta', delta: 'ok' },
+          {
+            type: 'done',
+            usage: { inputTokens: 5, outputTokens: 2, totalTokens: 7 },
+            model: 'gpt-4o',
+            finishReason: 'stop',
+          },
+        ]);
+      });
+
+      const events = await collect(
+        service.streamMessage('sess-1', 'ws-1', 'u-1', baseDto as never),
+      );
+
+      // (a) 세 tool_call SSE 이벤트가 모두 emit, 각각 고유 UUID.
+      const toolEvents = events.filter(
+        (e) =>
+          e.event === 'tool_call' &&
+          (e.data as { name: string }).name === 'add_node',
+      );
+      expect(toolEvents).toHaveLength(3);
+      const resultIds = toolEvents.map(
+        (e) => (e.data as { result: { id?: string } }).result.id!,
+      );
+      expect(new Set(resultIds).size).toBe(3);
+      resultIds.forEach((id) => expect(id).toMatch(/[0-9a-f-]{36}/));
+
+      // (b) chatStream 은 정확히 두 번 호출 — 3 개의 tool_use 가 한 라운드에
+      //     모두 처리되고 round-trip 은 단 한 번.
+      expect(mocks.llmService.chatStream).toHaveBeenCalledTimes(2);
+
+      // (c) 두 번째 호출에 전달된 messages 는 assistant.toolCalls 3 개 +
+      //     role:'tool' 메시지 3 개 (id 로 paired) 를 포함.
+      const secondCallParams = mocks.llmService.chatStream.mock.calls[1][1] as {
+        messages: Array<{
+          role: string;
+          content?: string | null;
+          toolCalls?: Array<{ id: string; name: string }>;
+          toolCallId?: string;
+        }>;
+      };
+      const assistantMsg = secondCallParams.messages.find(
+        (m) => m.role === 'assistant' && m.toolCalls,
+      );
+      expect(assistantMsg).toBeDefined();
+      expect(assistantMsg!.toolCalls).toHaveLength(3);
+      const batchedIds = assistantMsg!.toolCalls!.map((t) => t.id).sort();
+      expect(batchedIds).toEqual(['c_a', 'c_b', 'c_c']);
+      const toolMsgs = secondCallParams.messages.filter(
+        (m) => m.role === 'tool',
+      );
+      expect(toolMsgs.map((m) => m.toolCallId).sort()).toEqual([
+        'c_a',
+        'c_b',
+        'c_c',
+      ]);
+
+      // (d) assistant DB row 에 3 edit tool_calls 가 모두 기록된다.
+      const assistantPersisted =
+        mocks.sessionService.appendMessage.mock.calls[1][1];
+      const editToolCalls = (
+        assistantPersisted.toolCalls as Array<{ kind: string; name: string }>
+      ).filter((t) => t.kind === 'edit');
+      expect(editToolCalls).toHaveLength(3);
+      expect(editToolCalls.map((t) => t.name)).toEqual([
+        'add_node',
+        'add_node',
+        'add_node',
+      ]);
+    });
+
+    it('batches add_node×2 then add_edge×2 across two rounds, each fully round-tripped in a single message', async () => {
+      const { service, mocks } = makeService();
+      mocks.nodeRegistry.listDefinitions.mockReturnValue(objectFormDefs);
+      // 서비스가 `messages` 배열을 mutable 하게 push 하므로 jest 의 mock.calls
+      // 는 같은 레퍼런스를 공유한다. 각 라운드 시점의 상태를 비교하려면 호출
+      // 시점에 deep clone 을 찍어둬야 한다.
+      const perRoundMessages: Array<
+        Array<{
+          role: string;
+          content?: string | null;
+          toolCalls?: Array<{ id: string; name: string }>;
+          toolCallId?: string;
+        }>
+      > = [];
+      // Round 1: add_node × 2 (둘 다 trig-1 에서 독립)
+      // Round 2: add_edge × 2 (라운드 1 에서 받은 UUID 로 엣지 2개 배치)
+      // Round 3: text-only close (review / finish 경로는 별개 테스트 영역).
+      mocks.llmService.chatStream.mockImplementation((_cfg, params) => {
+        perRoundMessages.push(
+          JSON.parse(
+            JSON.stringify(
+              (
+                params as {
+                  messages: unknown[];
+                }
+              ).messages,
+            ),
+          ),
+        );
+        const callIdx = mocks.llmService.chatStream.mock.calls.length;
+        if (callIdx === 1) {
+          return asyncIter<ChatStreamEvent>([
+            {
+              type: 'tool_call_end',
+              id: 'c_n1',
+              name: 'add_node',
+              arguments: JSON.stringify({
+                type: 'http_request',
+                label: 'N1',
+                position: { x: 400, y: 200 },
+                config: { method: 'GET' },
+              }),
+            },
+            {
+              type: 'tool_call_end',
+              id: 'c_n2',
+              name: 'add_node',
+              arguments: JSON.stringify({
+                type: 'http_request',
+                label: 'N2',
+                position: { x: 600, y: 200 },
+                config: { method: 'GET' },
+              }),
+            },
+            {
+              type: 'done',
+              usage: { inputTokens: 40, outputTokens: 30, totalTokens: 70 },
+              model: 'gpt-4o',
+              finishReason: 'tool_calls',
+            },
+          ]);
+        }
+        if (callIdx === 2) {
+          // 라운드 1 tool_result 에서 새 UUID 2 개를 추출 (실제 LLM 도 tool
+          // output 을 읽은 뒤 다음 라운드 add_edge 인자에 그 UUID 를 채운다).
+          const msgs = (
+            params as {
+              messages: Array<{
+                role: string;
+                content?: string | null;
+                toolCallId?: string;
+              }>;
+            }
+          ).messages;
+          const newIds = msgs
+            .filter(
+              (m) =>
+                m.role === 'tool' &&
+                (m.toolCallId === 'c_n1' || m.toolCallId === 'c_n2'),
+            )
+            .map((m) => JSON.parse(m.content as string).id as string);
+          expect(newIds).toHaveLength(2);
+          return asyncIter<ChatStreamEvent>([
+            {
+              type: 'tool_call_end',
+              id: 'c_e1',
+              name: 'add_edge',
+              arguments: JSON.stringify({
+                source_id: 'trig-1',
+                target_id: newIds[0],
+              }),
+            },
+            {
+              type: 'tool_call_end',
+              id: 'c_e2',
+              name: 'add_edge',
+              arguments: JSON.stringify({
+                source_id: newIds[0],
+                target_id: newIds[1],
+              }),
+            },
+            {
+              type: 'done',
+              usage: { inputTokens: 45, outputTokens: 20, totalTokens: 65 },
+              model: 'gpt-4o',
+              finishReason: 'tool_calls',
+            },
+          ]);
+        }
+        return asyncIter<ChatStreamEvent>([
+          { type: 'text_delta', delta: 'ok' },
+          {
+            type: 'done',
+            usage: { inputTokens: 5, outputTokens: 2, totalTokens: 7 },
+            model: 'gpt-4o',
+            finishReason: 'stop',
+          },
+        ]);
+      });
+
+      const events = await collect(
+        service.streamMessage('sess-1', 'ws-1', 'u-1', baseDto as never),
+      );
+
+      // (a) chatStream 은 정확히 세 번 — 두 번의 병렬 배치 + 종료 라운드.
+      expect(mocks.llmService.chatStream).toHaveBeenCalledTimes(3);
+
+      // (b) add_node × 2, add_edge × 2 가 모두 ok:true 로 기록된다.
+      const nodeEvents = events.filter(
+        (e) =>
+          e.event === 'tool_call' &&
+          (e.data as { name: string }).name === 'add_node',
+      );
+      const edgeEvents = events.filter(
+        (e) =>
+          e.event === 'tool_call' &&
+          (e.data as { name: string }).name === 'add_edge',
+      );
+      expect(nodeEvents).toHaveLength(2);
+      expect(edgeEvents).toHaveLength(2);
+      nodeEvents.forEach((e) =>
+        expect((e.data as { result: { ok: boolean } }).result.ok).toBe(true),
+      );
+      edgeEvents.forEach((e) =>
+        expect((e.data as { result: { ok: boolean } }).result.ok).toBe(true),
+      );
+
+      // (c) 라운드 2 의 전달된 messages 에서 assistant.toolCalls 가 2 개
+      //     (라운드 1 의 병렬 add_node) 와 role:'tool' 2 개가 짝 지어짐.
+      const r2Msgs = perRoundMessages[1];
+      const r2Assistant = r2Msgs.find(
+        (m) =>
+          m.role === 'assistant' &&
+          m.toolCalls?.length === 2 &&
+          m.toolCalls.every((t) => t.name === 'add_node'),
+      );
+      expect(r2Assistant).toBeDefined();
+      const r2ToolIds = r2Msgs
+        .filter((m) => m.role === 'tool')
+        .map((m) => m.toolCallId);
+      expect(new Set(r2ToolIds)).toEqual(new Set(['c_n1', 'c_n2']));
+
+      // (d) 라운드 3 의 전달된 messages 에는 라운드 2 의 병렬 add_edge 쌍이
+      //     배치된 assistant 메시지가 포함.
+      const r3Msgs = perRoundMessages[2];
+      const r3EdgeBatch = r3Msgs.find(
+        (m) =>
+          m.role === 'assistant' &&
+          m.toolCalls?.every((t) => t.name === 'add_edge') &&
+          m.toolCalls.length === 2,
+      );
+      expect(r3EdgeBatch).toBeDefined();
+      const r3EdgeToolIds = r3Msgs
+        .filter((m) => m.role === 'tool' && m.toolCallId?.startsWith('c_e'))
+        .map((m) => m.toolCallId);
+      expect(new Set(r3EdgeToolIds)).toEqual(new Set(['c_e1', 'c_e2']));
+    });
+  });
 });
 
 /**

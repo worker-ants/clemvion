@@ -241,7 +241,7 @@ function buildAssistantToolsInternal(): ToolDef[] {
     {
       name: 'add_node',
       description:
-        'Add a new node to the workflow. Returns the assigned UUID on success. Respect the node-type catalog and CONVENTIONS §1.1 (config ↔ output orthogonality).',
+        'Add a new node to the workflow. Returns the assigned UUID on success. Respect the node-type catalog and CONVENTIONS §1.1 (config ↔ output orthogonality). Multiple add_node calls for independent new nodes SHOULD be emitted as parallel tool calls in a single message — batch them, do not serialize across rounds.',
       parameters: {
         type: 'object',
         additionalProperties: false,
@@ -270,7 +270,7 @@ function buildAssistantToolsInternal(): ToolDef[] {
     {
       name: 'update_node',
       description:
-        'Patch an existing node. Only provided fields are changed. Config is shallow-merged.',
+        'Patch an existing node. Only provided fields are changed. Config is shallow-merged. Multiple update_node calls on different ids SHOULD be batched in parallel in a single message.',
       parameters: {
         type: 'object',
         additionalProperties: false,
@@ -298,7 +298,8 @@ function buildAssistantToolsInternal(): ToolDef[] {
     },
     {
       name: 'remove_node',
-      description: 'Delete a node and all connected edges.',
+      description:
+        'Delete a node and all connected edges. Multiple remove_node calls on different ids SHOULD be batched in parallel in a single message.',
       parameters: {
         type: 'object',
         additionalProperties: false,
@@ -317,7 +318,8 @@ function buildAssistantToolsInternal(): ToolDef[] {
     },
     {
       name: 'add_edge',
-      description: 'Connect two nodes via a data or error edge.',
+      description:
+        "Connect two nodes via a data or error edge. Multiple add_edge calls SHOULD be batched in parallel in a single message once every referenced node UUID already exists (either from the snapshot or from a prior round's add_node results) — do not emit edges in the same round as the add_node that produces their UUID.",
       parameters: {
         type: 'object',
         additionalProperties: false,
@@ -340,7 +342,8 @@ function buildAssistantToolsInternal(): ToolDef[] {
     },
     {
       name: 'remove_edge',
-      description: 'Delete an edge by id.',
+      description:
+        'Delete an edge by id. Multiple remove_edge calls SHOULD be batched in parallel in a single message — and with add_edge in the same batch when those additions reference already-known UUIDs.',
       parameters: {
         type: 'object',
         additionalProperties: false,
