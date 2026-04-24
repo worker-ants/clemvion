@@ -7,6 +7,16 @@ import { conditionGroupSchema } from '../if-else/if-else.schema';
 
 export const caseDefSchema = z
   .object({
+    // Dynamic-ports port id (spec §8 "Dynamic-ports — stable ids"). 비어있으면
+    // `resolve-dynamic-ports.ts` 의 `switchPorts` 가 `case_${i}` fallback 을
+    // 발행하지만, label 수정·케이스 재배치 시 index 가 밀려 기존 edge 가
+    // 깨질 위험이 있어 custom slug 를 권장. ai_agent/information_extractor 의
+    // `conditionDefSchema.id` 와 동일 패턴으로 `hidden: true` — LLM 과 edge
+    // 라우팅이 참조하지만 UI 상단 settings 패널에서는 노출하지 않는다.
+    id: z
+      .string()
+      .optional()
+      .meta({ ui: { label: 'ID', widget: 'text', hidden: true } }),
     label: z
       .string()
       .default('')
