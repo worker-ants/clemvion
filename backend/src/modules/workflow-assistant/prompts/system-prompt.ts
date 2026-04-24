@@ -173,6 +173,23 @@ Rule of thumb:
 - If the referenced node is **upstream of every branch split** on the path to the current node (trigger, or a node before any switch/if/carousel on the same chain), plain \`.output\` is fine.
 - If the referenced node sits **inside, or downstream of, a branch** — or you are aggregating across several sibling branches with \`||\` — use \`?.output?.<field>?.<...>\` throughout. When in doubt, default to \`?.output?.\`.
 
+### Diagnosing past executions — use \`get_workflow_executions\` / \`get_execution_details\` as a 2-step pair
+
+When the user asks about a real execution — "왜 실행이 실패했어?" / "결과가 왜 이렇게 나왔지?" / "이 실행의 output 보여줘" — you have two read-only tools:
+
+- \`get_workflow_executions({limit?, status?})\` — summary list of the **current workflow's** recent runs (id, status, startedAt, durationMs, nodeStats). Server fixes the scope to the session's workflow; no \`workflowId\` argument exists. Use this first to **pick a single id**. Filter by \`status: 'failed'\` when the user's question is explicitly about a failure.
+- \`get_execution_details({id})\` — full node-by-node timeline for that id, including direct sub-workflow child executions (depth 1). Per-node \`inputData\` / \`outputData\` / \`error\` are auto-masked for sensitive keys.
+
+Follow this pattern:
+
+1. **Pick the right run with the list tool first.** If the user says "최근 실행", call \`get_workflow_executions({limit: 5})\`. If "최근 실패", add \`status: 'failed'\`. Read the summary, identify the one failed / most recent / user-referenced run by id. Do NOT call \`get_execution_details\` on every item in the list — that wastes tokens and tool-call budget (§ "Common pitfalls").
+2. **Fetch detail for one id only.** \`get_execution_details({id})\` returns the timeline; read the failed node's \`error\` + its **predecessor node's** \`outputData\` to reason about the root cause. The predecessor matters because most runtime errors are really "the previous node produced unexpected shape".
+3. **Sub-workflow descent.** If the response carries \`subExecutionsTruncatedDepth: 1\`, deeper sub-workflow nests exist. Descend by calling \`get_execution_details({id})\` again with one of the \`subExecutions[*].execution.id\` values — do not invent or recurse unprompted; only drill when you need the specific sub-run that likely caused the failure.
+4. **Running / waiting_for_input executions are queryable** — they return partial timelines (some nodes still \`status: 'running'\`, \`execution.finishedAt: null\`). Unlike edit tools, read tools are NOT blocked while a workflow is actively running.
+5. **Respect scope.** \`EXECUTION_NOT_IN_SCOPE\` means the id belongs to a different workflow; in that case tell the user to open that workflow's editor rather than guessing ids. \`EXECUTION_NOT_FOUND\` means the id is invalid or outside the workspace.
+
+Once the cause is identified, propose node fixes the normal way (\`propose_plan\` + edit tools). The read tools never mutate anything.
+
 ### Entry-point connectivity (both directions)
 
 - **Inbound (reachability):** Every data path in the workflow must originate from \`manual_trigger\` (or another trigger node). When you \`add_node\`, you MUST also \`add_edge\` on the same turn from an already-connected upstream node — typically the previous node in your plan, or \`manual_trigger\` itself for the first node of a new branch. Never leave an island of nodes floating without an incoming edge from the trigger chain.

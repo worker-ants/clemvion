@@ -116,6 +116,32 @@ describe('buildSystemPrompt', () => {
     expect(prompt).toMatch(/Branch aggregation/);
   });
 
+  it('teaches the get_workflow_executions / get_execution_details 2-step diagnostic pattern', () => {
+    // 새 read-only 실행 조회 도구(spec/3-workflow-editor/4-ai-assistant.md §4.1)
+    // 가 프롬프트에 설명되어 LLM 이 "왜 실패했어?" 류 요청에 대해 list → detail
+    // 순으로 접근하고, 토큰 낭비(모든 항목 detail 호출) 를 피하며, 스코프 밖
+    // 실행 id 에 대한 반응을 이해하도록 고정한다.
+    const prompt = buildSystemPrompt(defs as never, emptySnapshot);
+    // (a) 전용 하위 섹션 헤더
+    expect(prompt).toMatch(/Diagnosing past executions/);
+    // (b) 두 도구 이름이 모두 등장
+    expect(prompt).toMatch(/get_workflow_executions/);
+    expect(prompt).toMatch(/get_execution_details/);
+    // (c) "list 먼저, detail 은 하나만" 의 2-step 지침이 명시
+    expect(prompt.toLowerCase()).toMatch(/list[^\n]*first|pick[^\n]*id/);
+    expect(prompt).toMatch(/one id|single id|only one/i);
+    // (d) 실패 분석 시 status: 'failed' 필터 사용 안내
+    expect(prompt).toMatch(/status:\s*['"]failed['"]/);
+    // (e) subExecutionsTruncatedDepth 힌트로 깊은 sub-workflow 드릴-다운 안내
+    expect(prompt).toMatch(/subExecutionsTruncatedDepth/);
+    // (f) 스코프 에러 코드에 대한 대응 지침 포함
+    expect(prompt).toMatch(/EXECUTION_NOT_IN_SCOPE/);
+    expect(prompt).toMatch(/EXECUTION_NOT_FOUND/);
+    // (g) running/waiting 실행도 read 가능 (edit 가드와 구분) 이 명시
+    expect(prompt).toMatch(/running[^\n]*partial|partial[^\n]*timeline/i);
+    expect(prompt).toMatch(/not blocked|not be blocked|NOT blocked/);
+  });
+
   it('also recognizes metadata.dynamicPorts (without explicit isDynamicPorts) as a dynamic-ports node', () => {
     // 일부 노드는 isDynamicPorts 없이 dynamicPorts spec 만 선언한다.
     // 이 경우에도 catalog 마커가 붙어야 LLM 이 get_node_schema 를 먼저
