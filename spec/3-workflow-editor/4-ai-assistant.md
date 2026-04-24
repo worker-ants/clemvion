@@ -393,13 +393,26 @@ interface RuntimePortDescriptor {
 |------|--------------|
 | `type`이 등록된 노드 타입이어야 함 | `{ok: false, error: 'UNKNOWN_NODE_TYPE'}` |
 | `label`은 워크플로우 내 유일해야 함 | `{ok: false, error: 'LABEL_CONFLICT', suggested?: string}` |
-| `add_edge`의 source·target이 존재해야 함 | `{ok: false, error: 'NODE_NOT_FOUND'}` |
+| `add_edge` 의 source·target, `update_node`·`remove_node` 의 `id` 가 존재해야 함 | `{ok: false, error: 'NODE_NOT_FOUND', hint?: string}` — hint 규칙은 §4.4.1 |
 | Trigger 노드는 컨테이너 child가 될 수 없음 | `{ok: false, error: 'CONTAINER_INVALID_CHILD'}` |
 | Manual Trigger 노드는 삭제 불가 | `{ok: false, error: 'MANUAL_TRIGGER_PROTECTED'}` |
 | 순환(cycle) 유발 | `{ok: false, error: 'CYCLE_DETECTED'}`. 단, **source 노드의 조상 `containerId` 체인 중 하나와 target 이 일치**하고 **target 포트가 `emit`** 인 경우(=자식 → 자기·조상 컨테이너의 iteration back-edge) 는 정상 반복 제어 흐름으로 간주해 허용한다. 실행 엔진이 containerId 기반으로 컨테이너 내부 그래프를 분리해 처리하는 것과 의미 정합. `emit` 이 아닌 target 포트로 돌아오는 에지(예: `target_port: 'in'`)는 iteration 의도가 아니라 실수·비의도 조작으로 간주해 통상 cycle 판정을 유지 |
 | 같은 턴에 `propose_plan` 호출 이후 edit tool 시도 (plan-only turn 강제) | `{ok: false, error: 'PLAN_AWAITING_APPROVAL', message}` — LLM 은 한국어 메시지로 턴 종료하고 사용자 approve 대기 |
 
 실패 시 LLM은 tool_result를 받아 재시도하거나 사용자에게 상황을 보고한다.
+
+#### 4.4.1 `NODE_NOT_FOUND` hint 규칙
+
+`update_node` / `remove_node` / `add_edge` 가 실패해 `NODE_NOT_FOUND` 를 반환할 때, 복구 가능성이 높은 두 패턴에 대해 서버가 복구 지침을 `hint` 필드로 덧붙인다. 힌트 문자열은 `sanitizeLlmProvidedString` (§ 부록) 으로 LLM 제공 자유 텍스트(label 등) 의 개행·제어 문자·`<>` 를 중화해 프롬프트 인젝션 표면을 좁히고, label-lookalike 계열은 추가로 `[hint] … [/hint]` 고정 마커로 감싸 LLM 이 hint 범위를 자연어 instruction 으로 오인하지 않게 한다.
+
+| 힌트 종류 | 발동 조건 | 대표 문구 |
+|-----------|-----------|-----------|
+| **Cascading failed-add_node** | `add_edge` 전용. 같은 턴 안에서 `add_node` 가 한 번이라도 실패했던 경우 | `A prior add_node failed in this turn (labels: […]). The UUID you are referencing does not exist because that node was never created. Fix the upstream add_node failures first, then wire the edges.` |
+| **Label-lookalike** | `update_node` / `remove_node` 는 항상, `add_edge` 는 cascading 대상 없을 때. 주어진 id 값이 shadow 내 어떤 노드의 `label` 과 정확히 일치하면 그 노드의 UUID 를 hint 에 싣는다 | `[hint] Value "SendEmail" matches the label of an existing node (id: 11111111-…). Tool arguments use UUIDs, not labels — use the id value from a prior add_node result or from currentWorkflow.nodes[*].id. [/hint]` |
+
+**우선순위** (`add_edge` 의 경우): cascading failed-add_node FIFO 가 비어있지 않으면 그 힌트를 우선. FIFO 가 비어있을 때만 label-lookalike 로 fallback — **source 쪽을 먼저** 검사하고 source 가 실제로 missing 이고 label 매치가 있으면 그 힌트를, 아니면 target 쪽을 확인. 두 힌트가 한 응답에 섞이지 않도록 **단일 hint** 만 내려가며, source/target 양쪽이 모두 label 실수인 경우에도 source 힌트 하나만 노출해 LLM 이 우선 source 정정 후 target 재시도하게 유도한다.
+
+**길이·보안 정책**: `value.length > LABEL_HINT_MAX_LEN * 4` 이면 label 후보에서 제외 (터무니없이 긴 값의 Levenshtein-유사 방어). label / value 문자열은 sanitize 후 `JSON.stringify` 로 escape. UUID 자체는 `[0-9a-f-]` 만 포함하므로 추가 escape 없이 그대로 보간. hint 는 기존 `NODE_NOT_FOUND` tool_result 의 optional 필드로만 추가되므로 legacy 소비자 영향 없음.
 
 **경고(warning)** — 성공이지만 UX 힌트가 필요한 경우:
 
@@ -589,7 +602,7 @@ data: {"code": "LLM_RATE_LIMIT", "message": "..."}
 | 판단 heuristic | §2.1 표를 자연어로 서술 |
 | **Active plan context** (있을 때만) | 활성 plan 이 있을 때 상단에 주입. 사용자의 원 요청·plan 제목/요약·승인 여부·step 체크박스(`[x]`/`[ ]`)·미답변 openQuestions·RULES(완료된 step 재실행 금지, 화제 전환 시 `clear_plan` 선호출, 미완 상태 `finish` 금지) 를 포함. `cleared` 상태면 섹션 생략, `completed` 상태면 한 줄 완료 요약만 유지 |
 | 노드 카탈로그 | `NodeComponentRegistry.listDefinitions()` 결과를 요약(type, category, description, 주요 config 필드, ports). `isDynamicPorts` 노드에는 `[dynamic-ports]` 마커를 붙여 "config 에 따라 실제 포트가 바뀐다" 는 맥락만 안내한다. **실제 port id 는 `add_node`/`update_node` 의 `result.ports` (§4.3.2)** 로 자동 내려오므로 `get_node_schema` 선행 호출은 거의 불필요 — 스냅샷에만 있고 이 턴에 편집하지 않은 노드에 edge 를 연결할 때만 on-demand 호출 |
-| 워크플로우 조립 규칙 | 새 노드 추가 시 데이터 경로가 `manual_trigger` 에서 시작되도록 반드시 `add_edge` 로 연결, 고립 노드 금지. **`add_edge` 의 port 값은 직전 `add_node`/`update_node` 성공 응답의 `result.ports.outputs[*].id` 를 그대로 사용** — 추측·하드코딩 금지. `openQuestions` 가 있는 plan 은 사용자 답변을 받기 전에 `finish` 호출 금지. **모든 dynamic-ports 노드의 sub-entry (`switch.cases`, `ai_agent/text_classifier/information_extractor.conditions`, `carousel/table/chart/template` 의 `items[*].buttons`·`itemButtons`·`buttons`) 는 안정적·고유한 `id` 가 필수** — 누락 시 resolver 가 `case_0` · `cond_0` · `items_0_btn_1` 같은 index 기반 fallback id 로 포트를 발행하며 `result.ports` 에도 같은 fallback id 가 내려온다. LLM 은 그 id 를 그대로 써도 동작하지만, 추후 사용자가 버튼 label 을 수정할 때 index 가 다시 맞춰지는 위험이 있으므로 가급적 안정적인 custom id 를 지정 |
+| 워크플로우 조립 규칙 | 새 노드 추가 시 데이터 경로가 `manual_trigger` 에서 시작되도록 반드시 `add_edge` 로 연결, 고립 노드 금지. **`add_edge` 의 port 값은 직전 `add_node`/`update_node` 성공 응답의 `result.ports.outputs[*].id` 를 그대로 사용** — 추측·하드코딩 금지. **`update_node` / `remove_node` / `add_edge` 의 `id` / `source_id` / `target_id` 자리에는 UUID 만 허용** — 사용자에게 보이는 node label 을 넣으면 `NODE_NOT_FOUND` 가 반환된다 (§4.4.1 label-lookalike hint 가 복구를 안내). UUID 의 유일한 출처는 직전 `add_node` 성공 응답의 `result.id` 또는 `currentWorkflow.nodes[*].id`. `openQuestions` 가 있는 plan 은 사용자 답변을 받기 전에 `finish` 호출 금지. **모든 dynamic-ports 노드의 sub-entry (`switch.cases`, `ai_agent/text_classifier/information_extractor.conditions`, `carousel/table/chart/template` 의 `items[*].buttons`·`itemButtons`·`buttons`) 는 안정적·고유한 `id` 가 필수** — 누락 시 resolver 가 `case_0` · `cond_0` · `items_0_btn_1` 같은 index 기반 fallback id 로 포트를 발행하며 `result.ports` 에도 같은 fallback id 가 내려온다. LLM 은 그 id 를 그대로 써도 동작하지만, 추후 사용자가 버튼 label 을 수정할 때 index 가 다시 맞춰지는 위험이 있으므로 가급적 안정적인 custom id 를 지정 |
 | I/O 규약 | [`CONVENTIONS.md`](../../user_memo/node-specs-improvement/CONVENTIONS.md) 의 Principle 0, 1.1, 2, 8 요약을 복사 투입 |
 | 현재 워크플로우 | `currentWorkflow` 요약 JSON. 섹션 앞에 "authoritative snapshot" 지침을 동반 — 단순 조회는 프롬프트에서 직접 답하고, 편집 이후 재확인에만 `get_current_workflow` 호출 |
 | 레이아웃 지침 | 스냅샷의 노드별 측정값(`width`/`height`, px) 이 있으면 그것을 기준으로 `x = predecessor.x + (predecessor.width ?? 250) + 32` 배치. 분기 시 y offset 은 `max(predecessor.height ?? 80, 80) + 24` 기준. 측정값이 없는 노드(초기 렌더 전 또는 동일 턴에 방금 추가된 노드)는 250×80 px 를 폴백으로 가정 — "발명 금지" |
