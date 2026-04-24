@@ -14,14 +14,17 @@
 
 ## Follow-up
 
-### F-1 (HIGH) text-classifier stable id 마이그레이션
+### F-1 (HIGH) text-classifier stable id + name/description default 마이그레이션
 
-**문제**: `categoryDefSchema` 에 `id` 필드 없음. LLM/UI 관점에서는 category 마다 고유 id 가 있는 게 자연스럽지만 현재는 인덱스 기반 `class_${i}` 로만 동작.
+**문제**: `categoryDefSchema` 에 `id` 필드가 없고 `name` / `description` 에도 default 가 없어 UI 에서 새 카테고리 추가 시 빈 입력 상태가 모호. LLM/UI 관점에서는 category 마다 고유 id + 기본 라벨이 있는 게 자연스럽지만 현재는 인덱스 기반 `class_${i}` 로만 동작.
 
 **스코프** (스키마 한 줄이 아님):
-1. `backend/src/nodes/ai/text-classifier/text-classifier.schema.ts` — `categoryDefSchema` 에 `id: z.string().optional().meta({ ui: { label: 'ID', widget: 'text', hidden: true } })` 추가 (ai_agent `conditionDefSchema.id` 패턴 참고).
-2. `backend/src/modules/workflow-assistant/tools/resolve-dynamic-ports.ts` — `classifierCategoriesPorts` 를 `c.id && c.id.length > 0 ? c.id : 'class_${i}'` 로 수정.
-3. `backend/src/nodes/ai/text-classifier/text-classifier.handler.ts:324,402` — `class_${portIndex}` 하드코딩을 `c.id` 우선 로직으로 교체. 라우팅 단에서 category → port id 매핑 테이블 필요.
+1. `backend/src/nodes/ai/text-classifier/text-classifier.schema.ts` — `categoryDefSchema` 에 다음 세 필드 추가 (ai_agent `conditionDefSchema.id` + switch `caseDefSchema.id` 패턴 참고):
+   - `id: z.string().regex(/^[a-zA-Z0-9_-]+$/).max(64).optional().meta({ ui: { label: 'ID', widget: 'text', hidden: true } })`
+   - `name: z.string().default('')` (현재 default 누락, 과거 F-5)
+   - `description: z.string().default('')` (현재 default 누락, 과거 F-5)
+2. `backend/src/modules/workflow-assistant/tools/resolve-dynamic-ports.ts` — `classifierCategoriesPorts` 의 id 계산을 `c.id?.trim() || 'class_${i}'` 패턴으로 (switch `switchPorts` 와 동일한 style. 공백 문자열 truthy 엣지 포함).
+3. `backend/src/nodes/ai/text-classifier/text-classifier.handler.ts` — 핸들러 내부의 `class_${portIndex}` 하드코딩 부분 (현재 `categories.map` 및 port 라우팅 결정 지점) 을 `c.id` 우선 로직으로 교체. 라우팅 단에서 category → port id 매핑 테이블 필요.
 4. Legacy 호환: 기존 canvas 에 이미 `class_0` edge 가 붙은 워크플로가 있다면 resolver 가 여전히 `class_${i}` fallback 을 내려줘 기존 edge 가 끊기지 않아야 함. "id 없으면 class_${i}" 로직이 그 역할.
 5. 테스트: `text-classifier.handler.spec.ts` 의 `class_0`/`class_1` 하드코딩 다수. 새 시나리오 (custom id 설정) 를 추가하고, 기존 legacy 시나리오도 유지.
 6. system-prompt 는 이미 "categories 에 id 지정 권장" 문구가 있어 추가 문서 동기화 불필요.
@@ -37,6 +40,8 @@
 - (b) required 로 강제. LLM 프롬프트와 UI 에 강제 입력 요구. 기존 워크플로는 migration 필요.
 - (a) 쪽이 하위 호환 우수, 복잡도 낮음.
 
+**결정 보류 — 2026-04-24 audit 시점**. (a) 안 우세이지만 spec §8 stable-id 정책이 "custom id 권장" 으로만 정의되어 있어 shadow auto-generate 동작을 명문화하려면 project-planner 경유 spec 개정이 필요. 사용자가 label 수정 → edge 깨짐 보고가 실측되면 (a) 로 확정 진행.
+
 ### F-3 (MEDIUM) `form.optionSchema.value` default 누락
 
 `backend/src/nodes/presentation/form/form.schema.ts` 의 select/radio 옵션. 현재 `z.unknown().optional()`. 기본값 없으면 UI 에서 새 옵션 추가 시 빈 입력 상태.
@@ -47,18 +52,14 @@
 
 `backend/src/nodes/integration/http-request/http-request.schema.ts` 의 headers / queryParams / cookies 공용 schema. sub-field 에 `.passthrough()` 가 없어 향후 shape 변경 시 zod 가 엄격히 거부. 다른 노드 (form/carousel) 는 이미 `.passthrough()` 붙여놓았음.
 
-조치: `keyValueSchema = z.object({...}).passthrough()` 로 보강.
+조치: `keyValueSchema = z.object({...}).passthrough()` 로 보강. 다음 schema 배치 커밋에 1줄 수정 포함.
 
-### F-5 (LOW) `text-classifier.categoryDefSchema` 의 `name` / `description` default 누락
-
-현재 `z.string().meta(...)` 만 있어 빈 입력 상태가 모호. 다른 노드의 label 필드는 대체로 `.default('')`. 통일성 회복.
-
-조치: `name: z.string().default('')`, `description: z.string().default('')`.
+<!-- F-5 (text-classifier category name/description default) 는 2026-04-24 audit 재평가로 F-1 본문 스코프에 병합. 개별 follow-up 섹션 제거. -->
 
 ---
 
 ## 우선순위
 
-- **F-1**: 실제 버그 가능성 있으므로 **사용자 보고 발생 시 즉시** 처리. 그 전에는 미뤄도 현 기능 영향 없음 (index 기반으로 정상 동작).
-- **F-2**: 사용자 UX 리스크 (label 수정 시 edge 깨짐) 가 실측되면. 현 spec §8 안내로는 LLM 도 id 를 붙여주므로 발생 빈도 낮음.
-- **F-3 / F-4 / F-5**: 소소한 일관성 개선. 별도 문서 필요 없이 1~2줄 수정. 다른 bug-fix 때 끼워 넣어 진행 가능.
+- **F-1**: 실제 버그 가능성 있으므로 **사용자 보고 발생 시 즉시** 처리. 그 전에는 미뤄도 현 기능 영향 없음 (index 기반으로 정상 동작). F-5 (name/description default) 도 이 스코프에 포함.
+- **F-2**: 사용자 UX 리스크 (label 수정 시 edge 깨짐) 가 실측되면. 현 spec §8 안내로는 LLM 도 id 를 붙여주므로 발생 빈도 낮음. 결정 자체는 보류 상태 (2026-04-24).
+- **F-3 / F-4**: 소소한 일관성 개선. 별도 문서 필요 없이 1~2줄 수정. 다른 bug-fix 때 끼워 넣어 진행 가능.

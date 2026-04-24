@@ -39,8 +39,9 @@ function switchPorts(config: Record<string, unknown>): DynamicPortDefinition[] {
   // fallback id 가 이후 유저 편집으로 커스텀 id 로 교체될 때까지 안정적인
   // 포트 식별자를 제공한다.
   const casePorts = cases.map<DynamicPortDefinition>((c, i) => ({
+    // trim() 로 공백만 담긴 id ('  ') 는 truthy 여도 fallback 발동.
     id:
-      typeof c.id === "string" && c.id.length > 0 ? c.id : `case_${i}`,
+      typeof c.id === "string" && c.id.trim().length > 0 ? c.id : `case_${i}`,
     label: c.label || "Case",
     type: "data",
   }));

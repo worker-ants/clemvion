@@ -66,7 +66,8 @@ function parallelBranchPorts(config: Record<string, unknown>): ResolvedPort[] {
 function switchPorts(config: Record<string, unknown>): ResolvedPort[] {
   const cases = (config.cases as CaseEntry[] | undefined) ?? [];
   const casePorts = cases.map<ResolvedPort>((c, i) => ({
-    id: typeof c.id === 'string' && c.id.length > 0 ? c.id : `case_${i}`,
+    // trim() 로 공백만 담긴 id (e.g. ' ') 는 truthy 여도 fallback 발동.
+    id: typeof c.id === 'string' && c.id.trim().length > 0 ? c.id : `case_${i}`,
     label: c.label || 'Case',
     type: 'data',
     isUserConfigured: true,

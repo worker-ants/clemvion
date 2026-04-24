@@ -90,6 +90,20 @@ describe('resolveEffectiveOutputPorts', () => {
       ]);
     });
 
+    it('falls back to case_${i} when id is whitespace-only (truthy edge)', () => {
+      const def = makeDef('switch', { dynamicPorts: { kind: 'switch-cases' } });
+      const ports = resolveEffectiveOutputPorts(
+        {
+          cases: [
+            { id: '  ', label: 'A' },
+            { id: '\t', label: 'B' },
+          ],
+        },
+        def,
+      );
+      expect(ports.slice(0, 2).map((p) => p.id)).toEqual(['case_0', 'case_1']);
+    });
+
     it('returns only the default port when cases is empty', () => {
       const def = makeDef('switch', { dynamicPorts: { kind: 'switch-cases' } });
       const ports = resolveEffectiveOutputPorts({ cases: [] }, def);
