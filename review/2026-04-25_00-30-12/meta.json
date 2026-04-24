@@ -1,0 +1,98 @@
+{
+  "timestamp": "2026-04-25T00:37:06.270344",
+  "files": [
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/backend/backend/src/modules/llm/clients/anthropic.client.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/backend/backend/src/modules/workflow-assistant/prompts/system-prompt.spec.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/backend/backend/src/modules/workflow-assistant/prompts/system-prompt.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/backend/backend/src/modules/workflow-assistant/tools/tool-definitions.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/backend/backend/src/modules/workflow-assistant/workflow-assistant-stream.service.spec.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    }
+  ],
+  "total_elapsed_seconds": 413.93,
+  "agents": [
+    {
+      "name": "database",
+      "status": "success",
+      "elapsed_seconds": 18.81
+    },
+    {
+      "name": "concurrency",
+      "status": "success",
+      "elapsed_seconds": 61.27
+    },
+    {
+      "name": "architecture",
+      "status": "success",
+      "elapsed_seconds": 68.54
+    },
+    {
+      "name": "dependency",
+      "status": "success",
+      "elapsed_seconds": 75.9
+    },
+    {
+      "name": "documentation",
+      "status": "success",
+      "elapsed_seconds": 76.28
+    },
+    {
+      "name": "maintainability",
+      "status": "success",
+      "elapsed_seconds": 78.76
+    },
+    {
+      "name": "api_contract",
+      "status": "success",
+      "elapsed_seconds": 83.44
+    },
+    {
+      "name": "performance",
+      "status": "success",
+      "elapsed_seconds": 87.23
+    },
+    {
+      "name": "security",
+      "status": "success",
+      "elapsed_seconds": 88.51
+    },
+    {
+      "name": "testing",
+      "status": "success",
+      "elapsed_seconds": 96.92
+    },
+    {
+      "name": "scope",
+      "status": "success",
+      "elapsed_seconds": 100.74
+    },
+    {
+      "name": "side_effect",
+      "status": "success",
+      "elapsed_seconds": 110.91
+    },
+    {
+      "name": "requirement",
+      "status": "success",
+      "elapsed_seconds": 124.01
+    }
+  ]
+}
