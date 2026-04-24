@@ -3943,9 +3943,8 @@ describe('WorkflowAssistantStreamService', () => {
       );
       expect(toolEvent).toBeDefined();
       expect((toolEvent!.data as { kind: string }).kind).toBe('explore');
-      const result = (
-        toolEvent!.data as { result: Record<string, unknown> }
-      ).result;
+      const result = (toolEvent!.data as { result: Record<string, unknown> })
+        .result;
       expect(result.ok).toBe(true);
       expect((result.items as unknown[])[0]).toMatchObject({ id: 'ex-1' });
     });

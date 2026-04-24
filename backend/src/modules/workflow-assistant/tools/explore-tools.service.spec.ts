@@ -186,7 +186,6 @@ describe('ExploreToolsService — execution read tools', () => {
 
   describe('getExecutionDetails', () => {
     const EX_ID = '11111111-1111-4111-8111-111111111111';
-    const OTHER_EX = '22222222-2222-4222-8222-222222222222';
     const PARENT_EX = '33333333-3333-4333-8333-333333333333';
 
     function mockExecution(overrides: Row = {}): Row {
@@ -340,14 +339,20 @@ describe('ExploreToolsService — execution read tools', () => {
       expect(execution.durationMs).toBeNull();
       const timeline = result.timeline as Row[];
       expect(timeline).toHaveLength(2);
-      expect(timeline[1]).toMatchObject({ status: 'running', durationMs: null });
+      expect(timeline[1]).toMatchObject({
+        status: 'running',
+        durationMs: null,
+      });
     });
 
     it('masks sensitive fields in inputData / outputData / error (recursive)', async () => {
       const { svc, repos } = makeService();
       repos.execution.findOne.mockResolvedValueOnce(
         mockExecution({
-          inputData: { apiKey: 'sk-abcd1234', headers: { Authorization: 'Bearer tok_xyz_0001' } },
+          inputData: {
+            apiKey: 'sk-abcd1234',
+            headers: { Authorization: 'Bearer tok_xyz_0001' },
+          },
           outputData: { nested: { token: 'shhhh_leaf_9999' } },
           error: null,
         }),

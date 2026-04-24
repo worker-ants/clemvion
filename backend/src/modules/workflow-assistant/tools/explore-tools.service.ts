@@ -7,7 +7,10 @@ import { Edge } from '../../edges/entities/edge.entity';
 import { Integration } from '../../integrations/entities/integration.entity';
 import { KnowledgeBase } from '../../knowledge-base/entities/knowledge-base.entity';
 import { Execution } from '../../executions/entities/execution.entity';
-import { NodeExecution } from '../../node-executions/entities/node-execution.entity';
+import {
+  NodeExecution,
+  NodeExecutionStatus,
+} from '../../node-executions/entities/node-execution.entity';
 import { NodeComponentRegistry } from '../../../nodes/core/node-component.registry';
 import { maskSensitiveFields } from '../../../common/utils/mask-sensitive-fields.util';
 import { redactConfig } from './redact';
@@ -399,7 +402,9 @@ export class ExploreToolsService {
 
   private async loadNodeStats(
     executionIds: string[],
-  ): Promise<Map<string, { total: number; completed: number; failed: number }>> {
+  ): Promise<
+    Map<string, { total: number; completed: number; failed: number }>
+  > {
     const map = new Map<
       string,
       { total: number; completed: number; failed: number }
@@ -416,8 +421,8 @@ export class ExploreToolsService {
       const stat = map.get(r.executionId);
       if (!stat) continue;
       stat.total += 1;
-      if (r.status === 'completed') stat.completed += 1;
-      else if (r.status === 'failed') stat.failed += 1;
+      if (r.status === NodeExecutionStatus.COMPLETED) stat.completed += 1;
+      else if (r.status === NodeExecutionStatus.FAILED) stat.failed += 1;
     }
     return map;
   }
@@ -427,7 +432,10 @@ function clampLimit(requested: number | undefined): number {
   if (typeof requested !== 'number' || !Number.isFinite(requested)) {
     return EXECUTIONS_LIST_DEFAULT_LIMIT;
   }
-  return Math.max(1, Math.min(Math.floor(requested), EXECUTIONS_LIST_MAX_LIMIT));
+  return Math.max(
+    1,
+    Math.min(Math.floor(requested), EXECUTIONS_LIST_MAX_LIMIT),
+  );
 }
 
 function normalizeStatusFilter(
