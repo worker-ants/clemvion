@@ -318,6 +318,17 @@ export class ShadowWorkflow {
      * permissive 동작을 유지한다. 테스트·레거시 호출자는 생략 가능.
      */
     private readonly portResolver?: NodePortResolver,
+    /**
+     * (옵션) 노드 타입별 기본 config. `add_node` 시 LLM 이 준 args.config 에
+     * 이 default 를 **먼저** 깔고 LLM 값을 덮어씌운다 — 수동 드래그 add 경로
+     * (`workflow-canvas.tsx`) 와 동일한 shape 을 보장해 mode/layout/maxItems
+     * 같은 schema-default 필드가 undefined 로 저장되는 것을 막는다. 생략
+     * 가능 — 그 경우 LLM 원본 그대로 저장되는 legacy 동작.
+     */
+    private readonly defaultConfigByType: Record<
+      string,
+      Record<string, unknown>
+    > = {},
   ) {
     this.nodes = new Map(snapshot.nodes.map((n) => [n.id, { ...n }]));
     this.edges = new Map(snapshot.edges.map((e) => [e.id, { ...e }]));
@@ -351,7 +362,15 @@ export class ShadowWorkflow {
     const type = typeof args.type === 'string' ? args.type : '';
     const label = typeof args.label === 'string' ? args.label : '';
     const position = args.position as { x?: number; y?: number } | undefined;
-    const config = (args.config as Record<string, unknown>) ?? {};
+    // Schema-default 채움: 수동 add 경로와 대칭. LLM 이 명시한 값은 default
+    // 를 덮어쓴다. defaultConfigByType 가 비어있으면 (테스트·레거시) 기존처럼
+    // raw args.config 만 사용.
+    const rawConfig = (args.config as Record<string, unknown>) ?? {};
+    const defaultForType = this.defaultConfigByType[type] ?? {};
+    const config: Record<string, unknown> = {
+      ...defaultForType,
+      ...rawConfig,
+    };
     const containerId =
       typeof args.containerId === 'string' ? args.containerId : null;
 
