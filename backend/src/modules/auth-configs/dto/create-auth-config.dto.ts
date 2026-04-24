@@ -38,7 +38,7 @@ export class CreateAuthConfigDto {
     enum: AUTH_CONFIG_TYPES,
     example: 'api_key',
   })
-  @IsIn(AUTH_CONFIG_TYPES as unknown as string[])
+  @IsIn(AUTH_CONFIG_TYPES)
   type: AuthConfigType;
 
   /**

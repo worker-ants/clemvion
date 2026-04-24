@@ -149,7 +149,7 @@ describe('AuthController', () => {
       oauthService.beginAuth.mockResolvedValue({ authUrl: 'https://p' });
       await controller.beginOauth(
         'github',
-        undefined as unknown as 'login',
+        undefined,
         undefined,
         mockRes as never,
       );

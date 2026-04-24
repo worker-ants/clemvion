@@ -92,7 +92,7 @@ describe('HttpRequestHandler', () => {
         text: jest.fn().mockResolvedValue('ok'),
         json: jest.fn().mockResolvedValue({}),
         headers: { get: jest.fn().mockReturnValue(null) },
-      }) as unknown as typeof fetch;
+      });
 
       const result = (await handler.execute(
         null,
@@ -115,9 +115,7 @@ describe('HttpRequestHandler', () => {
         status: 200,
         json: jest.fn().mockResolvedValue({ data: 'test' }),
       };
-      global.fetch = jest
-        .fn()
-        .mockResolvedValue(mockResponse) as unknown as typeof fetch;
+      global.fetch = jest.fn().mockResolvedValue(mockResponse);
 
       const result = (await handler.execute(
         null,
@@ -143,9 +141,7 @@ describe('HttpRequestHandler', () => {
         status: 404,
         json: jest.fn().mockResolvedValue({ error: 'not found' }),
       };
-      global.fetch = jest
-        .fn()
-        .mockResolvedValue(mockResponse) as unknown as typeof fetch;
+      global.fetch = jest.fn().mockResolvedValue(mockResponse);
 
       const result = (await handler.execute(
         null,
@@ -161,11 +157,7 @@ describe('HttpRequestHandler', () => {
     });
 
     it('should return error port on network failure', async () => {
-      global.fetch = jest
-        .fn()
-        .mockRejectedValue(
-          new Error('Network error'),
-        ) as unknown as typeof fetch;
+      global.fetch = jest.fn().mockRejectedValue(new Error('Network error'));
 
       const result = (await handler.execute(
         null,
@@ -187,9 +179,7 @@ describe('HttpRequestHandler', () => {
         status: 200,
         json: jest.fn().mockResolvedValue({}),
       };
-      global.fetch = jest
-        .fn()
-        .mockResolvedValue(mockResponse) as unknown as typeof fetch;
+      global.fetch = jest.fn().mockResolvedValue(mockResponse);
 
       await handler.execute(
         null,
@@ -215,9 +205,7 @@ describe('HttpRequestHandler', () => {
         status: 200,
         json: jest.fn().mockResolvedValue({}),
       };
-      global.fetch = jest
-        .fn()
-        .mockResolvedValue(mockResponse) as unknown as typeof fetch;
+      global.fetch = jest.fn().mockResolvedValue(mockResponse);
 
       await handler.execute(
         null,
@@ -247,9 +235,7 @@ describe('HttpRequestHandler', () => {
         status: 200,
         json: jest.fn().mockResolvedValue({}),
       };
-      global.fetch = jest
-        .fn()
-        .mockResolvedValue(mockResponse) as unknown as typeof fetch;
+      global.fetch = jest.fn().mockResolvedValue(mockResponse);
 
       await handler.execute(
         null,
@@ -277,9 +263,7 @@ describe('HttpRequestHandler', () => {
         status: 200,
         json: jest.fn().mockResolvedValue({}),
       };
-      global.fetch = jest
-        .fn()
-        .mockResolvedValue(mockResponse) as unknown as typeof fetch;
+      global.fetch = jest.fn().mockResolvedValue(mockResponse);
 
       await handler.execute(
         null,
@@ -306,9 +290,7 @@ describe('HttpRequestHandler', () => {
         status: 200,
         json: jest.fn().mockResolvedValue({}),
       };
-      global.fetch = jest
-        .fn()
-        .mockResolvedValue(mockResponse) as unknown as typeof fetch;
+      global.fetch = jest.fn().mockResolvedValue(mockResponse);
 
       await handler.execute(
         null,
@@ -333,9 +315,7 @@ describe('HttpRequestHandler', () => {
         status: 200,
         json: jest.fn().mockResolvedValue({}),
       };
-      global.fetch = jest
-        .fn()
-        .mockResolvedValue(mockResponse) as unknown as typeof fetch;
+      global.fetch = jest.fn().mockResolvedValue(mockResponse);
 
       await handler.execute(
         null,
@@ -360,9 +340,7 @@ describe('HttpRequestHandler', () => {
         status: 200,
         json: jest.fn().mockResolvedValue({}),
       };
-      global.fetch = jest
-        .fn()
-        .mockResolvedValue(mockResponse) as unknown as typeof fetch;
+      global.fetch = jest.fn().mockResolvedValue(mockResponse);
 
       await handler.execute(
         null,
@@ -387,9 +365,7 @@ describe('HttpRequestHandler', () => {
         status: 200,
         json: jest.fn().mockResolvedValue({}),
       };
-      global.fetch = jest
-        .fn()
-        .mockResolvedValue(mockResponse) as unknown as typeof fetch;
+      global.fetch = jest.fn().mockResolvedValue(mockResponse);
 
       await handler.execute(
         null,
@@ -414,9 +390,7 @@ describe('HttpRequestHandler', () => {
         status: 200,
         json: jest.fn().mockResolvedValue({}),
       };
-      global.fetch = jest
-        .fn()
-        .mockResolvedValue(mockResponse) as unknown as typeof fetch;
+      global.fetch = jest.fn().mockResolvedValue(mockResponse);
 
       await handler.execute(
         null,
@@ -442,9 +416,7 @@ describe('HttpRequestHandler', () => {
         status: 201,
         json: jest.fn().mockResolvedValue({ id: 1 }),
       };
-      global.fetch = jest
-        .fn()
-        .mockResolvedValue(mockResponse) as unknown as typeof fetch;
+      global.fetch = jest.fn().mockResolvedValue(mockResponse);
 
       await handler.execute(
         null,
@@ -467,9 +439,7 @@ describe('HttpRequestHandler', () => {
         status: 200,
         text: jest.fn().mockResolvedValue('plain text response'),
       };
-      global.fetch = jest
-        .fn()
-        .mockResolvedValue(mockResponse) as unknown as typeof fetch;
+      global.fetch = jest.fn().mockResolvedValue(mockResponse);
 
       const result = (await handler.execute(
         null,
@@ -516,7 +486,7 @@ describe('HttpRequestHandler', () => {
         ok: true,
         status: 200,
         json: jest.fn().mockResolvedValue({ ok: true }),
-      }) as unknown as typeof fetch;
+      });
     });
 
     it('attaches bearer token from integration credentials', async () => {
@@ -723,11 +693,7 @@ describe('HttpRequestHandler', () => {
 
     it('logs HTTP transport failure with HTTP_TRANSPORT_FAILED', async () => {
       const { service, logUsage } = makeService('bearer_token', { token: 't' });
-      global.fetch = jest
-        .fn()
-        .mockRejectedValue(
-          new Error('ECONNREFUSED'),
-        ) as unknown as typeof fetch;
+      global.fetch = jest.fn().mockRejectedValue(new Error('ECONNREFUSED'));
       const handler = new HttpRequestHandler(service as never);
       await handler.execute(
         null,
@@ -754,7 +720,7 @@ describe('HttpRequestHandler', () => {
         status: 500,
         statusText: 'Server Error',
         json: jest.fn().mockResolvedValue({ error: 'boom' }),
-      }) as unknown as typeof fetch;
+      });
       const handler = new HttpRequestHandler(service as never);
       await handler.execute(
         null,

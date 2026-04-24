@@ -54,7 +54,7 @@ function asyncIter<T>(items: T[]): AsyncIterable<T> {
         next: async () =>
           i < items.length
             ? { value: items[i++], done: false }
-            : { value: undefined as unknown as T, done: true },
+            : { value: undefined, done: true },
       };
     },
   };
@@ -427,7 +427,7 @@ describe('WorkflowAssistantStreamService', () => {
       service.streamMessage('sess-1', 'ws-1', 'u-1', {
         ...baseDto,
         content: '좋아 계속 진행해',
-      } as never),
+      }),
     );
 
     expect(mocks.llmService.chatStream).toHaveBeenCalledTimes(1);
@@ -625,7 +625,7 @@ describe('WorkflowAssistantStreamService', () => {
       service.streamMessage('sess-1', 'ws-1', 'u-1', {
         content: '지금 뭐 있어?',
         currentWorkflow: { nodes: [], edges: [] },
-      } as never),
+      }),
     );
 
     const toolCall = events.find(
@@ -1864,7 +1864,7 @@ describe('WorkflowAssistantStreamService', () => {
       service.streamMessage('sess-1', 'ws-1', 'u-1', {
         ...baseDto,
         content: '이제 다른 작업 하자',
-      } as never),
+      }),
     );
     // clear_plan 을 거쳤으므로 PLAN_NOT_COMPLETE block 없이 단일 round 종료.
     expect(mocks.llmService.chatStream).toHaveBeenCalledTimes(1);
@@ -1918,7 +1918,7 @@ describe('WorkflowAssistantStreamService', () => {
       service.streamMessage('sess-1', 'ws-1', 'u-1', {
         ...baseDto,
         content: '계속',
-      } as never),
+      }),
     );
 
     const systemMsg = mocks.llmService.chatStream.mock.calls[0][1].messages[0];
@@ -1955,7 +1955,7 @@ describe('WorkflowAssistantStreamService', () => {
       service.streamMessage('sess-1', 'ws-1', 'u-1', {
         ...baseDto,
         content: '이제 다른 거 하자',
-      } as never),
+      }),
     );
     const toolCallEvents = events.filter((e) => e.event === 'tool_call');
     expect(
@@ -2142,7 +2142,7 @@ describe('WorkflowAssistantStreamService', () => {
           ],
           edges: [],
         },
-      } as never),
+      }),
     );
     const systemPrompt = (
       mocks.llmService.chatStream.mock.calls[0][1].messages[0] as {
@@ -2286,7 +2286,7 @@ describe('WorkflowAssistantStreamService', () => {
       service.streamMessage('sess-1', 'ws-1', 'u-1', {
         ...baseDto,
         content: '진행',
-      } as never),
+      }),
     );
     const editEvent = events.find(
       (e) =>

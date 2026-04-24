@@ -8,12 +8,6 @@ import {
   ToolCall,
 } from '../interfaces/llm-client.interface';
 
-const ANTHROPIC_MODELS: ModelInfo[] = [
-  { id: 'claude-opus-4-20250514', name: 'Claude Opus 4', type: 'chat' },
-  { id: 'claude-sonnet-4-20250514', name: 'Claude Sonnet 4', type: 'chat' },
-  { id: 'claude-haiku-4-5-20251001', name: 'Claude Haiku 4.5', type: 'chat' },
-];
-
 export class AnthropicClient implements LLMClient {
   private readonly client: Anthropic;
 
@@ -138,8 +132,19 @@ export class AnthropicClient implements LLMClient {
     );
   }
 
-  listModels(): Promise<ModelInfo[]> {
-    return Promise.resolve(ANTHROPIC_MODELS);
+  async listModels(signal?: AbortSignal): Promise<ModelInfo[]> {
+    // Anthropic 는 임베딩 모델을 제공하지 않으므로 전체를 'chat' 으로 매핑.
+    // UI 드롭다운 용도의 상한 100개 — Google 과 동일 정책.
+    const MAX_MODELS = 100;
+    const models: ModelInfo[] = [];
+    for await (const m of this.client.models.list(
+      undefined,
+      signal ? { signal } : undefined,
+    )) {
+      if (models.length >= MAX_MODELS) break;
+      models.push({ id: m.id, name: m.display_name || m.id, type: 'chat' });
+    }
+    return models;
   }
 
   async testConnection(): Promise<boolean> {

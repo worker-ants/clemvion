@@ -33,7 +33,7 @@ function makeIntegration(overrides: Partial<Integration> = {}): Integration {
     createdAt: new Date(),
     updatedAt: new Date(),
   } as Integration;
-  return { ...base, ...overrides } as Integration;
+  return { ...base, ...overrides };
 }
 
 function makeQueryBuilder(result: {

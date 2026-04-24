@@ -1,0 +1,173 @@
+{
+  "timestamp": "2026-04-23T18:29:10.355221",
+  "files": [
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/backend/src/modules/llm-config/llm-config.controller.spec.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/frontend/src/components/llm-config/__tests__/model-combobox.test.tsx",
+      "change_type": "Review",
+      "file_extension": "tsx"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/frontend/src/components/llm-config/model-combobox.tsx",
+      "change_type": "Review",
+      "file_extension": "tsx"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/frontend/src/lib/api/__tests__/llm-configs.test.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/review/2026-04-23_15-26-28/RESOLUTION.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/review/2026-04-23_15-26-28/SUMMARY.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/review/2026-04-23_15-26-28/api_contract/review.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/review/2026-04-23_15-26-28/architecture/review.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/review/2026-04-23_15-26-28/concurrency/review.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/review/2026-04-23_15-26-28/database/review.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/review/2026-04-23_15-26-28/dependency/review.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/review/2026-04-23_15-26-28/documentation/review.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/review/2026-04-23_15-26-28/maintainability/review.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/review/2026-04-23_15-26-28/meta.json",
+      "change_type": "Review",
+      "file_extension": "json"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/review/2026-04-23_15-26-28/performance/review.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/review/2026-04-23_15-26-28/requirement/review.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/review/2026-04-23_15-26-28/scope/review.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/review/2026-04-23_15-26-28/security/review.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/review/2026-04-23_15-26-28/side_effect/review.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/review/2026-04-23_15-26-28/testing/review.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    }
+  ],
+  "total_elapsed_seconds": 355.31,
+  "agents": [
+    {
+      "name": "database",
+      "status": "success",
+      "elapsed_seconds": 11.73
+    },
+    {
+      "name": "scope",
+      "status": "success",
+      "elapsed_seconds": 51.63
+    },
+    {
+      "name": "documentation",
+      "status": "success",
+      "elapsed_seconds": 54.65
+    },
+    {
+      "name": "security",
+      "status": "success",
+      "elapsed_seconds": 58.56
+    },
+    {
+      "name": "dependency",
+      "status": "success",
+      "elapsed_seconds": 62.18
+    },
+    {
+      "name": "side_effect",
+      "status": "success",
+      "elapsed_seconds": 62.72
+    },
+    {
+      "name": "performance",
+      "status": "success",
+      "elapsed_seconds": 63.27
+    },
+    {
+      "name": "maintainability",
+      "status": "success",
+      "elapsed_seconds": 66.21
+    },
+    {
+      "name": "concurrency",
+      "status": "success",
+      "elapsed_seconds": 73.44
+    },
+    {
+      "name": "testing",
+      "status": "success",
+      "elapsed_seconds": 74.77
+    },
+    {
+      "name": "api_contract",
+      "status": "success",
+      "elapsed_seconds": 87.13
+    },
+    {
+      "name": "architecture",
+      "status": "success",
+      "elapsed_seconds": 96.08
+    },
+    {
+      "name": "requirement",
+      "status": "success",
+      "elapsed_seconds": 119.37
+    }
+  ]
+}

@@ -69,7 +69,7 @@ export class ListIntegrationsQueryDto extends PaginationQueryDto {
     example: 'connected',
   })
   @IsOptional()
-  @IsIn(INTEGRATION_STATUSES as unknown as string[])
+  @IsIn(INTEGRATION_STATUSES)
   status?: IntegrationStatusFilter;
 }
 

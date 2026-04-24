@@ -21,7 +21,7 @@ Click `[+ Add Provider]` at the top-right of `/llm-configs`. Required fields var
 <Steps>
 <Step>Pick a provider type from the dropdown: OpenAI · Anthropic · Google AI · Azure OpenAI · Local.</Step>
 <Step>Enter an alias and the API Key. For Azure / Local (custom endpoints), also enter a `Base URL`.</Step>
-<Step>Type a default model ID, or pick from the list after calling `List models`. (e.g. `gpt-4o`, `claude-sonnet-4-6`, `llama3`)</Step>
+<Step>Click `Load models` to fetch the provider's model list and pick from the dropdown, or type a default model ID directly (e.g. `gpt-4o`, `claude-sonnet-4-6`, `llama3`). The form can fetch the list before saving using the credentials you entered.</Step>
 <Step>Click `Test Connection` to verify a lightweight call (e.g. list-models) via `POST /api/llm-configs/:id/test`.</Step>
 <Step>Save. Mark your most-used provider as `⭐ Default` so newly-created AI nodes auto-select it.</Step>
 </Steps>
@@ -75,5 +75,5 @@ Provider-level defaults are inherited as initial values by every AI node. Each n
 - Change the default provider with a single call to `PATCH /api/llm-configs/:id/set-default`. Existing AI nodes aren't affected — only newly created ones.
 - It's fine to leave a provider without embedding support as the default. Knowledge Bases pick the embedding model per collection, so there's no conflict. See [Knowledge Base](/docs/05-integrations-and-config/knowledge-base).
 - How to tune per-node parameters: [AI nodes](/docs/02-nodes/ai).
-- List models can also be fetched via `GET /api/llm-configs/:id/models`. The autocomplete UI uses the same endpoint.
+- For saved configs, list models via `GET /api/llm-configs/:id/models`. Before saving (while still in the form), use `POST /api/llm-configs/preview-models` with `{ provider, apiKey, baseUrl? }` — the preview endpoint never persists the API key and only uses it for the current request.
 - For Azure OpenAI, the model ID must be the deployment name. Using the standard model ID returns 404.

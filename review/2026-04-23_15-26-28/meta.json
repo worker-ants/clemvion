@@ -1,0 +1,153 @@
+{
+  "timestamp": "2026-04-23T15:32:28.447652",
+  "files": [
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/backend/src/modules/llm-config/llm-config.controller.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/backend/src/modules/llm/llm.service.spec.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/backend/src/modules/llm/llm.service.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/frontend/src/app/(main)/llm-configs/page.tsx",
+      "change_type": "Review",
+      "file_extension": "tsx"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/frontend/src/content/docs/05-integrations-and-config/llm-config.en.mdx",
+      "change_type": "Review",
+      "file_extension": "mdx"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/frontend/src/content/docs/05-integrations-and-config/llm-config.mdx",
+      "change_type": "Review",
+      "file_extension": "mdx"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/frontend/src/lib/api/llm-configs.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/frontend/src/lib/i18n/dict/en.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/frontend/src/lib/i18n/dict/ko.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/spec/2-navigation/6-config.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/spec/5-system/7-llm-client.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/backend/src/modules/llm-config/dto/preview-llm-models.dto.spec.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/backend/src/modules/llm-config/dto/preview-llm-models.dto.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/backend/src/modules/llm-config/llm-config.controller.spec.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/frontend/src/components/llm-config/__tests__/model-combobox.test.tsx",
+      "change_type": "Review",
+      "file_extension": "tsx"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/frontend/src/components/llm-config/model-combobox.tsx",
+      "change_type": "Review",
+      "file_extension": "tsx"
+    }
+  ],
+  "total_elapsed_seconds": 360.07,
+  "agents": [
+    {
+      "name": "database",
+      "status": "success",
+      "elapsed_seconds": 21.26
+    },
+    {
+      "name": "scope",
+      "status": "success",
+      "elapsed_seconds": 43.31
+    },
+    {
+      "name": "concurrency",
+      "status": "success",
+      "elapsed_seconds": 43.72
+    },
+    {
+      "name": "dependency",
+      "status": "success",
+      "elapsed_seconds": 48.26
+    },
+    {
+      "name": "maintainability",
+      "status": "success",
+      "elapsed_seconds": 67.51
+    },
+    {
+      "name": "performance",
+      "status": "success",
+      "elapsed_seconds": 69.87
+    },
+    {
+      "name": "documentation",
+      "status": "success",
+      "elapsed_seconds": 71.89
+    },
+    {
+      "name": "security",
+      "status": "success",
+      "elapsed_seconds": 79.79
+    },
+    {
+      "name": "side_effect",
+      "status": "success",
+      "elapsed_seconds": 85.89
+    },
+    {
+      "name": "testing",
+      "status": "success",
+      "elapsed_seconds": 90.09
+    },
+    {
+      "name": "architecture",
+      "status": "success",
+      "elapsed_seconds": 97.18
+    },
+    {
+      "name": "api_contract",
+      "status": "success",
+      "elapsed_seconds": 98.5
+    },
+    {
+      "name": "requirement",
+      "status": "success",
+      "elapsed_seconds": 107.67
+    }
+  ]
+}

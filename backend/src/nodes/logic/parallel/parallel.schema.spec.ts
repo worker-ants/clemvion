@@ -80,7 +80,7 @@ describe('Parallel node', () => {
       expect(
         handler.validate({
           branchCount: 4,
-          waitAll: 'yes' as unknown as boolean,
+          waitAll: 'yes',
         }).valid,
       ).toBe(false);
     });
