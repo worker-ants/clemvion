@@ -17,6 +17,14 @@ function baseSnapshot(): ShadowSnapshot {
   };
 }
 
+/**
+ * port id 배열을 ResolvedNodePorts 의 descriptor 배열로 변환 (ED-AI-40 로
+ * 확장된 shape). port validation 만 검증하는 테스트들이 간결하게 id 만
+ * 적으면 되도록 파일 공용 헬퍼로 둔다 (review I-6 — 이전에 두 describe
+ * 스코프에 분산 정의됐던 것을 통합).
+ */
+const toDesc = (ids: string[]) => ids.map((id) => ({ id }));
+
 describe('ShadowWorkflow', () => {
   describe('add_node', () => {
     it('adds a node, assigns a new UUID, and returns ok', () => {
@@ -187,6 +195,9 @@ describe('ShadowWorkflow', () => {
       });
       expect(result.ports?.outputs).toHaveLength(50);
       expect(result.ports?.inputs).toHaveLength(50);
+      // review W-5: 상한에 걸려 잘린 경우 portsTruncated=true 로 "서버가
+      // 일부 포트를 생략했음" 을 LLM/프런트에 신호.
+      expect(result.portsTruncated).toBe(true);
     });
   });
 
@@ -260,6 +271,127 @@ describe('ShadowWorkflow', () => {
       });
       expect(result.ok).toBe(false);
       expect(result.error).toBe('LABEL_CONFLICT');
+    });
+
+    // ED-AI-40 mirror: update_node 도 성공 반환에 runtime ports 를 동봉해
+    // LLM 이 바로 다음 add_edge 에 정확한 port id 를 쓸 수 있게 한다.
+    // 사용 시나리오: carousel 의 buttons config 를 변경해 새 btn_id 가
+    // 생겼을 때, update_node 결과의 result.ports.outputs 에 그 id 가 바로
+    // 실려 내려와야 한다 (review W-2).
+    describe('ED-AI-40 runtime ports on success', () => {
+      const CAROUSEL_ID = 'node-1';
+      function snapshotWithCarousel(): ShadowSnapshot {
+        return {
+          nodes: [
+            TRIGGER_NODE,
+            {
+              id: CAROUSEL_ID,
+              type: 'carousel',
+              category: 'presentation',
+              label: 'Menu',
+              positionX: 0,
+              positionY: 0,
+              config: { buttons: [{ id: 'btn_old', label: '이전' }] },
+            },
+          ],
+          edges: [],
+        };
+      }
+
+      it('returns runtime ports after a config patch when a portResolver is injected', () => {
+        const sw = new ShadowWorkflow(
+          snapshotWithCarousel(),
+          new Set(['carousel']),
+          {},
+          (node) => {
+            if (node.type === 'manual_trigger') {
+              return { outputs: [{ id: 'out' }], inputs: [] };
+            }
+            if (node.type === 'carousel') {
+              // config.buttons 를 읽어 resolver 가 해당 port id 들을 돌려준다.
+              const cfg = node.config as {
+                buttons?: Array<{ id: string; label?: string }>;
+              };
+              const buttons = cfg.buttons ?? [];
+              return {
+                outputs: buttons.map((b) => ({
+                  id: b.id,
+                  type: 'data' as const,
+                  ...(b.label ? { label: b.label } : {}),
+                })),
+                inputs: [{ id: 'in' }],
+              };
+            }
+            return null;
+          },
+        );
+        const result = sw.apply({
+          name: 'update_node',
+          arguments: {
+            id: CAROUSEL_ID,
+            patch: {
+              config: {
+                buttons: [
+                  { id: 'btn_korean', label: '한식' },
+                  { id: 'btn_western', label: '양식' },
+                ],
+              },
+            },
+          },
+        });
+        expect(result.ok).toBe(true);
+        expect(result.ports?.outputs).toEqual([
+          { id: 'btn_korean', type: 'data', label: '한식' },
+          { id: 'btn_western', type: 'data', label: '양식' },
+        ]);
+        expect(result.ports?.inputs).toEqual([{ id: 'in' }]);
+        expect(result.portsTruncated).toBeUndefined();
+      });
+
+      it('omits ports on success when no portResolver is injected (legacy/test compatibility)', () => {
+        const sw = new ShadowWorkflow(
+          snapshotWithCarousel(),
+          new Set(['carousel']),
+        );
+        const result = sw.apply({
+          name: 'update_node',
+          arguments: { id: CAROUSEL_ID, patch: { position: { x: 9, y: 9 } } },
+        });
+        expect(result.ok).toBe(true);
+        expect(result.ports).toBeUndefined();
+        expect(result.portsTruncated).toBeUndefined();
+      });
+
+      it('caps outputs/inputs at 50 per side and sets portsTruncated=true', () => {
+        const sw = new ShadowWorkflow(
+          snapshotWithCarousel(),
+          new Set(['carousel']),
+          {},
+          (node) => {
+            if (node.type === 'manual_trigger') {
+              return { outputs: [{ id: 'out' }], inputs: [] };
+            }
+            if (node.type === 'carousel') {
+              return {
+                outputs: Array.from({ length: 60 }, (_, i) => ({
+                  id: `btn_${i}`,
+                })),
+                inputs: Array.from({ length: 55 }, (_, i) => ({
+                  id: `in_${i}`,
+                })),
+              };
+            }
+            return null;
+          },
+        );
+        const result = sw.apply({
+          name: 'update_node',
+          arguments: { id: CAROUSEL_ID, patch: { position: { x: 1, y: 1 } } },
+        });
+        expect(result.ports?.outputs).toHaveLength(50);
+        expect(result.ports?.inputs).toHaveLength(50);
+        expect(result.portsTruncated).toBe(true);
+      });
     });
   });
 
@@ -1603,9 +1735,8 @@ describe('ShadowWorkflow', () => {
     // http_request 는 static out/error + in.
     // Spec 이 호출하는 resolver 는 `ResolvedNodePorts = {outputs: [{id, ...}],
     // inputs: [{id, ...}]}` shape. ED-AI-40 로 `outputs` 를 string[] 에서
-    // descriptor 배열로 확장했다. 테스트 편의를 위해 id 배열을 받아 descriptor
-    // 로 정규화한다.
-    const toDesc = (ids: string[]) => ids.map((id) => ({ id }));
+    // descriptor 배열로 확장했다. 파일 최상위의 `toDesc` 헬퍼로 id 배열만
+    // 적으면 그대로 descriptor 로 감싸진다.
     const makeResolver = (carouselOutputs: string[]) => {
       return (node: { type: string }) => {
         if (node.type === 'manual_trigger') {
@@ -1766,13 +1897,12 @@ describe('ShadowWorkflow', () => {
         new Set(['loop', 'http_request']),
         {},
         (node) => {
-          const ids = (xs: string[]) => xs.map((id) => ({ id }));
           if (node.type === 'loop')
-            return { outputs: ids(['iter']), inputs: ids(['in']) };
+            return { outputs: toDesc(['iter']), inputs: toDesc(['in']) };
           if (node.type === 'http_request')
-            return { outputs: ids(['out']), inputs: ids(['in']) };
+            return { outputs: toDesc(['out']), inputs: toDesc(['in']) };
           if (node.type === 'manual_trigger')
-            return { outputs: ids(['out']), inputs: ids([]) };
+            return { outputs: toDesc(['out']), inputs: toDesc([]) };
           return null;
         },
       );

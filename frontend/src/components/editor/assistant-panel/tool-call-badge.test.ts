@@ -171,19 +171,40 @@ describe("groupToolCalls", () => {
       expect(groups[0].retriedFromError).toBe("NODE_NOT_FOUND");
     });
 
-    it("does NOT collapse other error codes like LABEL_CONFLICT", () => {
+    it("does NOT collapse other error codes like LABEL_CONFLICT (add_edge path)", () => {
+      // LABEL_CONFLICT 는 RECOVERABLE 에 없고, add_edge 의 실패→성공 재시도에서
+      // 발생할 일도 없지만, 혹시 모를 다른 에러 코드 축약 방지 회귀 가드로 쓴다.
+      // add_edge 에 LABEL_CONFLICT 는 발생 안 하므로 여기선 UNKNOWN 을 대신 사용.
+      const calls = [
+        addEdge("e1", "nA", "nB", {
+          ok: false,
+          port: "out",
+          error: "UNKNOWN_ERROR",
+        }),
+        addEdge("e2", "nA", "nB", { ok: true, port: "btn_x" }),
+      ];
+      const groups = groupToolCalls(calls);
+      expect(groups).toHaveLength(2);
+      expect(groups[0].retried).toBeFalsy();
+      expect(groups[1].retried).toBeFalsy();
+    });
+
+    // review I-4: add_node 는 recovery 축약 대상에서 제외. LABEL_CONFLICT
+    // 성공 경로 (suggested 반영) 를 "재시도 후 성공" 으로 오인하면 사용자
+    // 가 의도적으로 label 을 바꿔 생성한 워크플로우가 실패처럼 보인다.
+    it("does NOT collapse add_node failure → success pairs (I-4)", () => {
       const calls: AssistantToolCallRecord[] = [
         {
           id: "a1",
           name: "add_node",
-          arguments: { type: "http_request", label: "X" },
+          arguments: { type: "http_request", label: "Start" },
           kind: "edit",
           result: { ok: false, error: "LABEL_CONFLICT" },
         },
         {
           id: "a2",
           name: "add_node",
-          arguments: { type: "http_request", label: "X" },
+          arguments: { type: "http_request", label: "Start (2)" },
           kind: "edit",
           result: { ok: true, id: "aaa" },
         },
@@ -192,6 +213,31 @@ describe("groupToolCalls", () => {
       expect(groups).toHaveLength(2);
       expect(groups[0].retried).toBeFalsy();
       expect(groups[1].retried).toBeFalsy();
+    });
+
+    // review I-5: remove_node 도 NODE_NOT_FOUND 에 label-lookalike hint 가
+    // 붙는 경로라 recovery 축약 대상. 같은 id 로 재시도 성공하면 1그룹.
+    it("collapses remove_node NODE_NOT_FOUND → same id success", () => {
+      const calls: AssistantToolCallRecord[] = [
+        {
+          id: "r1",
+          name: "remove_node",
+          arguments: { id: "node-X" },
+          kind: "edit",
+          result: { ok: false, error: "NODE_NOT_FOUND" },
+        },
+        {
+          id: "r2",
+          name: "remove_node",
+          arguments: { id: "node-X" },
+          kind: "edit",
+          result: { ok: true },
+        },
+      ];
+      const groups = groupToolCalls(calls);
+      expect(groups).toHaveLength(1);
+      expect(groups[0].retried).toBe(true);
+      expect(groups[0].retriedFromError).toBe("NODE_NOT_FOUND");
     });
 
     it("does NOT collapse when source/target do not match (different edge)", () => {
@@ -229,6 +275,44 @@ describe("groupToolCalls", () => {
       const groups = groupToolCalls(calls);
       expect(groups).toHaveLength(1);
       expect(groups[0].retried).toBe(true);
+    });
+
+    // review W-4: [fail_A → success_A → fail_B → success_B] 시퀀스가 각
+     // 쌍을 독립된 retried 그룹으로 축약해야 한다 (count=2 가 아니라 2 그룹).
+    it("collapses two consecutive fail → success pairs into two independent retried groups", () => {
+      const calls = [
+        addEdge("e1", "nA", "nB", {
+          ok: false,
+          port: "out",
+          error: "PORT_NOT_FOUND",
+        }),
+        addEdge("e2", "nA", "nB", {
+          ok: true,
+          port: "btn_korean",
+        }),
+        addEdge("e3", "nC", "nD", {
+          ok: false,
+          port: "out",
+          error: "PORT_NOT_FOUND",
+        }),
+        addEdge("e4", "nC", "nD", {
+          ok: true,
+          port: "btn_western",
+        }),
+      ];
+      const groups = groupToolCalls(calls);
+      expect(groups).toHaveLength(2);
+      expect(groups[0].retried).toBe(true);
+      expect(groups[0].retriedFromError).toBe("PORT_NOT_FOUND");
+      expect(groups[1].retried).toBe(true);
+      expect(groups[1].retriedFromError).toBe("PORT_NOT_FOUND");
+      // 두 그룹이 각기 다른 edge target 이어야 함.
+      expect(
+        (groups[0].representative.arguments as { target_id: string }).target_id,
+      ).toBe("nB");
+      expect(
+        (groups[1].representative.arguments as { target_id: string }).target_id,
+      ).toBe("nD");
     });
 
     it("does NOT collapse when the failed group has count > 1 (real repeated failure)", () => {

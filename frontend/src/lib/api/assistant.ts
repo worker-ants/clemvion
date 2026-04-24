@@ -39,6 +39,31 @@ export interface AssistantMessageData {
   createdAt: string;
 }
 
+/**
+ * ED-AI-40 (§4.3.2) — `add_node` / `update_node` 성공 tool_result 에 동봉되는
+ * 단일 port descriptor. `AssistantToolCallRecord.result` 는 `unknown` 이라
+ * 직접 강제할 수 없지만, 소비자 (tool-call-badge 의 recovery 매칭 등) 가
+ * narrow cast 할 때 기준 타입으로 참조한다.
+ */
+export interface RuntimePortDescriptor {
+  id: string;
+  /** `'data'` (기본) / `'error'`. 내부 다른 타입은 서버가 'data' 로 정규화. */
+  type?: "data" | "error";
+  /** dynamic-ports 노드의 사용자 설정 label. 서버 sanitize 를 거쳐 실림. */
+  label?: string;
+}
+
+/**
+ * `add_node` / `update_node` 성공 응답의 `result.ports`. outputs/inputs 의
+ * 각 항목은 `add_edge` 의 `source_port` / `target_port` 에 그대로 쓸 수 있는
+ * id 를 포함. 운영 경로에서는 항상 present, legacy/test fixture 에서는
+ * 생략될 수 있다. 상한에 걸려 잘린 경우 `result.portsTruncated: true` 동반.
+ */
+export interface RuntimePorts {
+  outputs: RuntimePortDescriptor[];
+  inputs: RuntimePortDescriptor[];
+}
+
 export interface AssistantToolCallRecord {
   id: string;
   name: string;

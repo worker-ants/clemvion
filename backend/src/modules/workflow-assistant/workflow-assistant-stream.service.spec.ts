@@ -1,4 +1,7 @@
-import { WorkflowAssistantStreamService } from './workflow-assistant-stream.service';
+import {
+  WorkflowAssistantStreamService,
+  toRuntimePortDescriptor,
+} from './workflow-assistant-stream.service';
 import type { ChatStreamEvent } from '../llm/interfaces/llm-client.interface';
 import { z } from 'zod';
 
@@ -4400,5 +4403,46 @@ describe('WorkflowAssistantStreamService', () => {
       expect(toolEvent).toBeDefined();
       expect((toolEvent!.data as { kind: string }).kind).toBe('explore');
     });
+  });
+});
+
+/**
+ * ED-AI-40 §4.3.2 포트 type 정규화 계약. node registry 가 돌려주는
+ * `ResolvedPort.type` 은 `'data' | 'system' | 'error' | 'control'` 4종이지만,
+ * tool_result 의 `result.ports[*].type` 은 `'data' | 'error'` 2종으로 좁혀
+ * LLM 이 edge type 결정에만 집중하도록 한다. 이 테스트는 그 매핑을 고정한다
+ * (review W-3).
+ */
+describe('toRuntimePortDescriptor — runtime port type 정규화', () => {
+  it("preserves 'error' type as-is (edge type hint for LLM)", () => {
+    const p = toRuntimePortDescriptor({
+      id: 'err_out',
+      type: 'error',
+    });
+    expect(p.type).toBe('error');
+  });
+
+  it.each([['data'], ['system'], ['control'], ['unknown_future_type']])(
+    "coerces internal '%s' type to 'data' (external contract §4.3.2)",
+    (rawType) => {
+      const p = toRuntimePortDescriptor({ id: 'p', type: rawType });
+      expect(p.type).toBe('data');
+    },
+  );
+
+  it('sanitizes user-provided label (strips newlines and angle brackets)', () => {
+    const p = toRuntimePortDescriptor({
+      id: 'btn_x',
+      type: 'data',
+      label: 'Bad\n## HACK\n<script>alert(1)</script>',
+    });
+    expect(p.label).toBeDefined();
+    expect(p.label).not.toMatch(/\n/);
+    expect(p.label).not.toMatch(/<script>/);
+  });
+
+  it('omits label field entirely when source has none (no empty-object noise)', () => {
+    const p = toRuntimePortDescriptor({ id: 'out', type: 'data' });
+    expect('label' in p).toBe(false);
   });
 });

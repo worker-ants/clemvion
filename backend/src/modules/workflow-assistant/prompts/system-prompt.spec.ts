@@ -6,8 +6,11 @@ import {
 /**
  * buildSystemPrompt 는 매 턴마다 LLM 에 주입되는 계약 문자열이다.
  * 두 가지 핵심 지시가 구조적으로 살아있는지 테스트로 고정한다:
- *  1) 노드 카탈로그가 isDynamicPorts 노드를 표시해 LLM 이 이를 보고
- *     `get_node_schema` 선행 호출이 필요함을 인지할 수 있도록.
+ *  1) **ED-AI-40 기조**: `add_node` / `update_node` 성공 응답의 `result.ports`
+ *     가 dynamic-ports 노드(carousel 버튼, switch case 등) 의 실제 port id 를
+ *     바로 공급한다는 규칙. `get_node_schema` 선행 호출은 더 이상 필수 아니며,
+ *     이 턴에 편집하지 않은 (스냅샷에만 있는) 노드에 edge 를 연결할 때만
+ *     on-demand 호출.
  *  2) 현재 스냅샷 authoritative 문구와 "새 경로는 manual_trigger 에서
  *     시작" / "openQuestions 있으면 finish 금지" 강제 지시가 누락되지
  *     않도록.
