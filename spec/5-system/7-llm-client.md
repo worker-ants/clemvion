@@ -197,7 +197,9 @@ LLM Config UI의 **기본 모델 선택** 지원을 위해, 아직 저장되지 
 - **권한**: `editor` 이상.
 - **에러 처리**: 프로바이더 원본 에러는 §6 sanitize 규칙에 따라 가공해 `400 BAD_REQUEST`로 반환된다 (키/엔드포인트 원문 노출 금지). `local` 외 프로바이더에서 `apiKey`가 비어 있으면 `LLM_CREDENTIALS_REQUIRED`.
 - **로깅 주의**: `apiKey`는 로그·응답·캐시 어디에도 기록하지 않는다.
-- **SSRF 가드**: `baseUrl` 이 loopback(`127.0.0.0/8`, `::1`), RFC1918(`10/8`·`172.16/12`·`192.168/16`), link-local(`169.254/16`, `fe80::/10`), IPv6 ULA(`fc00::/7`), IPv4-mapped IPv6, `0.0.0.0/8` 에 해당하면 `LLM_CONFIG_INVALID` 로 차단한다. **`local` 프로바이더는 예외** — self-hosted Ollama/vLLM 이 localhost·사설망에 있는 것이 정상 사용 사례. **한계**: DNS rebinding 은 현재 차단되지 않는다 (DNS 해석 비용 대비 공격 빈도가 낮고, rate limit + `editor` 권한으로 완화). 실차단이 필요하면 egress 방화벽·클라우드 네트워크 정책으로 보완한다.
+  - 본 엔드포인트는 `apiKey` 를 request body 로 받는다. 운영 계약 상 **request body 는 로거·APM·에러 트래커가 캡처해서는 안 된다**. 향후 body logging 이 도입될 경우 `common/utils/mask-sensitive-fields.util.ts` 의 `maskSensitiveFields` 로 감싸 `apiKey`·`password`·`token` 계열 필드를 자동 마스킹해야 한다.
+  - 계약의 완전한 분리(body 가 아닌 전용 헤더로 키 전송 + TTL 기반 임시 config 프록시) 는 별도 PR 범위. 현 단계는 "body 는 존재하나 어떤 경로에도 기록되지 않는다" 로 유지.
+- **SSRF 가드**: `baseUrl` 이 loopback(`127.0.0.0/8`, `::1`), RFC1918(`10/8`·`172.16/12`·`192.168/16`), link-local(`169.254/16`, `fe80::/10`), IPv6 ULA(`fc00::/7`), IPv4-mapped IPv6, `0.0.0.0/8` 에 해당하면 `LLM_CONFIG_INVALID` 로 차단한다. 도메인 hostname 은 `dns.lookup` 으로 1차 해석 후 같은 규칙을 재적용 (DNS rebinding 1차 방어). **`local` 프로바이더는 예외** — self-hosted Ollama/vLLM 이 localhost·사설망에 있는 것이 정상 사용 사례. **한계**: DNS rebinding 2차(TTL 경과 후 재해석) 는 connect 시점 개입이 필요해 현재는 차단 대상 아님. 실차단이 필요하면 egress 방화벽·클라우드 네트워크 정책으로 보완한다.
 
 ---
 

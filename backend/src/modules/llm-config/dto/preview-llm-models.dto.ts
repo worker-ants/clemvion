@@ -14,6 +14,16 @@ const PROVIDERS_REQUIRING_BASE_URL: ReadonlyArray<LlmProvider> = [
   'local',
 ];
 
+/**
+ * 저장 전 폼 자격증명으로 프로바이더 모델 목록을 미리 조회한다.
+ *
+ * **보안 계약** — 본 DTO 의 `apiKey` 는 request body 에 평문으로 실려 오지만,
+ *   - 서비스는 this 값을 저장/캐시하지 않고 단일 요청 내에서만 사용한다.
+ *   - HTTP 로거·APM·에러 트래커는 **request body 를 캡처해서는 안 된다**.
+ *     body logging 도입 시 `common/utils/mask-sensitive-fields.util.ts` 를
+ *     적용해 `apiKey`·`password`·`token` 을 자동 마스킹.
+ *   - 키를 헤더 기반으로 완전히 분리하는 설계 변경은 별도 PR 로 이관.
+ */
 export class PreviewLlmModelsDto {
   @ApiProperty({
     description:
