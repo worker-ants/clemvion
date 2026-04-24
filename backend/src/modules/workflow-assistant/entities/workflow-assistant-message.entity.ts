@@ -125,6 +125,41 @@ export class WorkflowAssistantMessage {
   })
   finishReason: string | null;
 
+  /**
+   * 이 assistant row 가 서버의 **stall 자동 복구**(spec §10) 로 인해 새로
+   * 시작된 row 인지 여부. 기본값 false. 같은 턴이 stall 복구로 여러 row 로
+   * 쪼개진 경우, 복구 직전까지의 "중간 row" 는 false, 복구 이후 새로 시작된
+   * row 는 true. 프론트는 이 플래그가 true 인 row 앞에 divider("자동으로
+   * 이어서 진행했어요") 를 렌더링한다. 기존 row (마이그레이션 전) 는 false
+   * 로 해석되어 호환성 유지.
+   */
+  @Column({ name: 'auto_resumed', type: 'boolean', default: false })
+  autoResumed: boolean;
+
+  /**
+   * `autoResumed=true` row 에서만 세팅되는 복구 사유. 현재는
+   * `'stall_pending_steps'` 한 종류. 향후 다른 복구 경로가 생기면 여기에
+   * 추가.
+   */
+  @Column({
+    name: 'auto_resume_reason',
+    length: 40,
+    nullable: true,
+    type: 'varchar',
+  })
+  autoResumeReason: string | null;
+
+  /**
+   * 같은 턴 내 자동 복구 시도 순번 (1부터 시작). `MAX_STALL_ROUNDS` 까지.
+   * `autoResumed=false` row 에서는 null.
+   */
+  @Column({
+    name: 'auto_resume_attempt',
+    type: 'smallint',
+    nullable: true,
+  })
+  autoResumeAttempt: number | null;
+
   @CreateDateColumn({ name: 'created_at', type: 'timestamptz' })
   createdAt: Date;
 }

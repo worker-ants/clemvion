@@ -3647,7 +3647,7 @@ describe('WorkflowAssistantStreamService', () => {
         ]),
       );
 
-      await collect(
+      const events = await collect(
         service.streamMessage('sess-1', 'ws-1', 'u-1', baseDto as never),
       );
 
@@ -3663,6 +3663,63 @@ describe('WorkflowAssistantStreamService', () => {
         .reverse()
         .find((m) => m.role === 'user');
       expect(nudge?.content).toBe('이어서 진행해줘.');
+
+      // (1) SSE 스트림에 `auto_resume` 이벤트가 정확히 1회, attempt=1 로 발행.
+      //     이 이벤트는 프론트가 현재 assistant 버블을 확정하고 새 버블로
+      //     분리하는 트리거로 쓰인다.
+      const autoResumeEvents = events.filter((e) => e.event === 'auto_resume');
+      expect(autoResumeEvents).toHaveLength(1);
+      expect(autoResumeEvents[0]).toMatchObject({
+        event: 'auto_resume',
+        data: {
+          reason: 'stall_pending_steps',
+          attempt: 1,
+          max: 2,
+        },
+      });
+
+      // (2) Assistant row 가 2회 persist (중간 row + 최종 row). 반복 문구
+      //     가 한 박스에 몰리는 근본 원인 "한 턴 = 한 row" 가 해소됐는지
+      //     확인. (user message persist 는 별도 호출이라 `role` 필터링.)
+      const persistCalls = mocks.sessionService.appendMessage.mock.calls
+        .map((c) => c[1])
+        .filter(
+          (payload): payload is { role: string } & Record<string, unknown> =>
+            (payload as { role?: string }).role === 'assistant',
+        ) as Array<{
+        content: string | null;
+        finishReason: string | null;
+        autoResumed: boolean;
+        autoResumeReason: string | null;
+        autoResumeAttempt: number | null;
+        plan: unknown;
+      }>;
+      expect(persistCalls).toHaveLength(2);
+
+      // 중간 row: stall 직전까지의 텍스트. finishReason 마커 + autoResumed=false.
+      expect(persistCalls[0]).toMatchObject({
+        content: '다음 단계에서 이어가겠습니다.',
+        finishReason: 'auto_resume_pending',
+        autoResumed: false,
+        autoResumeReason: null,
+        autoResumeAttempt: null,
+      });
+
+      // 최종 row: 재개 후 라운드 텍스트 (이번 시나리오에서는 edit+finish 라
+      // text 가 없음). autoResumed=true + attempt=1 메타.
+      expect(persistCalls[1]).toMatchObject({
+        finishReason: 'stop',
+        autoResumed: true,
+        autoResumeReason: 'stall_pending_steps',
+        autoResumeAttempt: 1,
+      });
+
+      // (3) 최종적으로 정상 종료.
+      const done = events[events.length - 1];
+      expect(done).toMatchObject({
+        event: 'done',
+        data: { finishReason: 'stop' },
+      });
     });
 
     it('gives up after MAX_STALL_ROUNDS (2) consecutive text-only stalls to prevent runaway loops', async () => {
@@ -3684,13 +3741,42 @@ describe('WorkflowAssistantStreamService', () => {
         ]);
       mocks.llmService.chatStream.mockImplementation(stallStream);
 
-      await collect(
+      const events = await collect(
         service.streamMessage('sess-1', 'ws-1', 'u-1', baseDto as never),
       );
 
       // 3 라운드 호출: Round 1 (stall=1), Round 2 (stall=2), Round 3 (포기).
       // Round 3 도 stall 이지만 counter 가 MAX 에 도달해 더 이상 continue 안 함.
       expect(mocks.llmService.chatStream).toHaveBeenCalledTimes(3);
+
+      // `auto_resume` SSE 이벤트는 복구를 "시도" 한 횟수 만큼 발행
+      // (MAX_STALL_ROUNDS=2 → 2회, attempt 1, 2). 복구 포기 라운드(3번째)는
+      // continue 자체를 안 하므로 이벤트 없음.
+      const autoResumeEvents = events.filter((e) => e.event === 'auto_resume');
+      expect(autoResumeEvents).toHaveLength(2);
+      expect(autoResumeEvents.map((e) => (e.data as { attempt: number }).attempt))
+        .toEqual([1, 2]);
+
+      // Assistant row 총 3회 persist: 중간 row 2개 (MAX 만큼 분리) + 최종
+      // row 1개. 최종 row 는 autoResumed=true + attempt=MAX (2). user
+      // message persist 는 별도 호출이라 `role` 로 필터링.
+      const persistCalls = mocks.sessionService.appendMessage.mock.calls
+        .map((c) => c[1])
+        .filter(
+          (payload): payload is { role: string } & Record<string, unknown> =>
+            (payload as { role?: string }).role === 'assistant',
+        ) as Array<{
+        finishReason: string | null;
+        autoResumed: boolean;
+        autoResumeAttempt: number | null;
+      }>;
+      expect(persistCalls).toHaveLength(3);
+      expect(persistCalls[0].finishReason).toBe('auto_resume_pending');
+      expect(persistCalls[0].autoResumed).toBe(false);
+      expect(persistCalls[1].finishReason).toBe('auto_resume_pending');
+      expect(persistCalls[1].autoResumed).toBe(false);
+      expect(persistCalls[2].autoResumed).toBe(true);
+      expect(persistCalls[2].autoResumeAttempt).toBe(2);
     });
 
     it('does NOT auto-continue when plan has no pending actionable steps', async () => {
@@ -3740,12 +3826,31 @@ describe('WorkflowAssistantStreamService', () => {
         ]),
       );
 
-      await collect(
+      const events = await collect(
         service.streamMessage('sess-1', 'ws-1', 'u-1', baseDto as never),
       );
 
       // 단일 라운드로 종료 — pending step 이 없어 stall 가드가 발동 안 함.
       expect(mocks.llmService.chatStream).toHaveBeenCalledTimes(1);
+
+      // `auto_resume` 이벤트도 없고, assistant row 는 1회 persist,
+      // autoResumed=false 가 기본.
+      expect(events.filter((e) => e.event === 'auto_resume')).toHaveLength(0);
+      const assistantPersist = mocks.sessionService.appendMessage.mock.calls
+        .map((c) => c[1])
+        .filter(
+          (p): p is { role: string } & Record<string, unknown> =>
+            (p as { role?: string }).role === 'assistant',
+        );
+      expect(assistantPersist).toHaveLength(1);
+      const call = assistantPersist[0] as unknown as {
+        autoResumed: boolean;
+        autoResumeReason: string | null;
+        autoResumeAttempt: number | null;
+      };
+      expect(call.autoResumed).toBe(false);
+      expect(call.autoResumeReason).toBeNull();
+      expect(call.autoResumeAttempt).toBeNull();
     });
   });
 
