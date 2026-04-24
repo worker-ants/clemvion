@@ -9,6 +9,7 @@ import {
   AlertCircle,
 } from "lucide-react";
 import type { AssistantToolCallRecord } from "@/lib/api/assistant";
+import { useT } from "@/lib/i18n";
 
 /**
  * Compact badge summarizing one tool call in the chat transcript. Edit tools
@@ -16,28 +17,49 @@ import type { AssistantToolCallRecord } from "@/lib/api/assistant";
  * UUIDs mentally. When the caller passes `count`, the badge renders in
  * "group" mode with a `× N` suffix — used by the message view to collapse
  * long runs of identical operations (e.g. `update_node:position × 15`).
+ *
+ * `retried` 그룹은 "PORT_NOT_FOUND / NODE_NOT_FOUND 로 한 번 실패 후 곧바로
+ * 같은 source/target 에 대한 성공" 을 1건으로 묶은 케이스 (ED-AI-40 B안).
+ * 성공 색을 유지하면서 suffix 로 "재시도 후 성공" 을 덧붙이고, 제목(title)
+ * 에 원 실패 이유를 남겨 디버깅 정보를 보존한다.
  */
 export function ToolCallBadge({
   call,
   count,
+  retried,
+  retriedFromError,
 }: {
   call: AssistantToolCallRecord;
   count?: number;
+  retried?: boolean;
+  /** retried 일 때 tooltip 에 표시할 원본 실패 에러 코드 (예: 'PORT_NOT_FOUND'). */
+  retriedFromError?: string;
 }) {
+  const t = useT();
   const ok = (call.result as { ok?: boolean } | null)?.ok ?? true;
   const failed = ok === false;
   const base = summarize(call);
+  const retrySuffix = retried
+    ? ` (${t("assistant.toolCallBadgeRetryRecovered")})`
+    : "";
   const label =
-    typeof count === "number" && count > 1 ? `${base} × ${count}` : base;
+    typeof count === "number" && count > 1
+      ? `${base} × ${count}${retrySuffix}`
+      : `${base}${retrySuffix}`;
   const iconName = pickIconName(call.name, failed);
   const color = failed
     ? "bg-red-500/10 text-red-600 border-red-500/30"
     : call.kind === "explore"
       ? "bg-[hsl(var(--muted))] text-[hsl(var(--muted-foreground))] border-[hsl(var(--border))]"
       : "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/30";
+  const title =
+    retried && retriedFromError
+      ? `${t("assistant.toolCallBadgeRetryRecovered")} — ${retriedFromError}`
+      : undefined;
   return (
     <div
       className={`flex items-center gap-1.5 rounded border px-2 py-[3px] text-[11px] ${color}`}
+      {...(title ? { title } : {})}
     >
       {iconName === "alert" && <AlertCircle size={12} className="shrink-0" />}
       {iconName === "plus" && <Plus size={12} className="shrink-0" />}
@@ -78,6 +100,15 @@ function pickIconName(
 export interface ToolCallGroup {
   representative: AssistantToolCallRecord;
   count: number;
+  /**
+   * ED-AI-40 B 안: `PORT_NOT_FOUND` / `NODE_NOT_FOUND` 실패가 직후 같은
+   * source/target 성공으로 이어진 "자연 복구" 시퀀스를 한 그룹으로 묶은 경우.
+   * 렌더러는 성공 색 + "(재시도 후 성공)" suffix 로 표시해 "잦은 실패"
+   * 체감을 줄인다.
+   */
+  retried?: boolean;
+  /** retried 그룹일 때 tooltip 에 노출할 원본 실패 에러 코드. */
+  retriedFromError?: string;
 }
 
 export function groupToolCalls(
@@ -97,7 +128,101 @@ export function groupToolCalls(
       currentSig = sig;
     }
   }
-  return groups;
+  return mergeRecoveryGroups(groups);
+}
+
+/**
+ * 인접 그룹 쌍 중 **[count=1 실패 배지] → [성공 배지]** 패턴을 하나의
+ * "재시도 후 성공" 그룹으로 축약한다 (ED-AI-40 B 안).
+ *
+ * 대상 조건:
+ *  - 실패 그룹의 에러 코드가 `PORT_NOT_FOUND` 또는 `NODE_NOT_FOUND` (서버가
+ *    `knownPorts` / cascading FIFO 로 "다음 라운드 자연 복구" 를 설계한 경로).
+ *  - 같은 tool 이름이고 (`add_edge` / `update_node` / `remove_node` / `add_node`),
+ *    edit 대상 identity (add_edge: source_id+target_id, 그 외: id) 가 일치.
+ *  - 실패 그룹의 count 가 1 (여러 번 실패가 쌓인 그룹은 진짜 문제라 축약 안함).
+ *  - 직후 그룹이 같은 identity 의 성공. count 는 1+ (그룹 내 성공 연쇄는 그대로
+ *    계승되고 대표 배지는 성공 쪽으로 유지).
+ *
+ * 다른 에러 코드(LABEL_CONFLICT·CYCLE_DETECTED 등)는 축약하지 않는다 —
+ * 사용자·디버거가 실제 실패를 보는 가치가 더 크다.
+ */
+function mergeRecoveryGroups(groups: ToolCallGroup[]): ToolCallGroup[] {
+  if (groups.length < 2) return groups;
+  const RECOVERABLE = new Set(["PORT_NOT_FOUND", "NODE_NOT_FOUND"]);
+  const out: ToolCallGroup[] = [];
+  for (let i = 0; i < groups.length; i++) {
+    const fail = groups[i];
+    const next = groups[i + 1];
+    if (
+      next &&
+      fail.count === 1 &&
+      isFailedCall(fail.representative) &&
+      !isFailedCall(next.representative) &&
+      RECOVERABLE.has(errorCodeOf(fail.representative) ?? "") &&
+      isSameEditTarget(fail.representative, next.representative)
+    ) {
+      out.push({
+        representative: next.representative,
+        count: next.count,
+        retried: true,
+        retriedFromError: errorCodeOf(fail.representative) ?? undefined,
+      });
+      i++; // 다음 그룹은 이미 흡수됨.
+      continue;
+    }
+    out.push(fail);
+  }
+  return out;
+}
+
+function isFailedCall(call: AssistantToolCallRecord): boolean {
+  return (call.result as { ok?: boolean } | null)?.ok === false;
+}
+
+function errorCodeOf(call: AssistantToolCallRecord): string | null {
+  const r = call.result as { error?: unknown } | null;
+  return typeof r?.error === "string" ? r.error : null;
+}
+
+function isSameEditTarget(
+  a: AssistantToolCallRecord,
+  b: AssistantToolCallRecord,
+): boolean {
+  if (a.name !== b.name) return false;
+  if (a.name === "add_edge") {
+    // source/target 쌍이 완전히 같을 때만 "같은 간선의 재시도" 로 판정.
+    // port 값은 바뀌는 게 정상이라 무시.
+    return (
+      readEdgeEndpoint(a, "source") === readEdgeEndpoint(b, "source") &&
+      readEdgeEndpoint(a, "target") === readEdgeEndpoint(b, "target")
+    );
+  }
+  if (
+    a.name === "update_node" ||
+    a.name === "remove_node" ||
+    a.name === "add_node"
+  ) {
+    const aId = (a.arguments as { id?: unknown })?.id;
+    const bId = (b.arguments as { id?: unknown })?.id;
+    if (typeof aId === "string" && aId.length > 0) return aId === bId;
+    // add_node 는 `arguments.id` 가 없는 게 정상. label 기반으로 매칭.
+    const aLabel = (a.arguments as { label?: unknown })?.label;
+    const bLabel = (b.arguments as { label?: unknown })?.label;
+    return typeof aLabel === "string" && aLabel === bLabel;
+  }
+  return false;
+}
+
+function readEdgeEndpoint(
+  call: AssistantToolCallRecord,
+  side: "source" | "target",
+): string | undefined {
+  const args = call.arguments as Record<string, unknown>;
+  const snake = side === "source" ? "source_id" : "target_id";
+  const camel = side === "source" ? "sourceId" : "targetId";
+  const v = args[snake] ?? args[camel];
+  return typeof v === "string" ? v : undefined;
 }
 
 function signatureOf(call: AssistantToolCallRecord): string {

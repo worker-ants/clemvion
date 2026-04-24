@@ -140,6 +140,8 @@ export function AssistantMessageView({
               key={group.representative.id}
               call={group.representative}
               count={group.count}
+              retried={group.retried}
+              retriedFromError={group.retriedFromError}
             />
           ))}
         </div>

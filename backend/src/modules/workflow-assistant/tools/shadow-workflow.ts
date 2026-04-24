@@ -68,14 +68,29 @@ export type ShadowErrorCode =
   | 'PORT_NOT_FOUND';
 
 /**
+ * 노드 한 개에서 해석된 유효 포트 한 개의 디스크립터. `add_node`/`update_node`
+ * 성공 응답의 `result.ports` (§4.3.2) 로 LLM·프런트에 자동 노출된다.
+ *  - `id`: add_edge 의 `source_port` / `target_port` 에 그대로 쓸 값.
+ *  - `type`: `'data'` (기본) / `'error'`. error 포트는 `add_edge { type: 'error' }`.
+ *  - `label`: dynamic-ports 노드의 사용자 설정 label (예: carousel 버튼의 한글
+ *             label). static 포트는 보통 label 없음.
+ */
+export interface ShadowRuntimePort {
+  id: string;
+  type?: 'data' | 'error';
+  label?: string;
+}
+
+/**
  * 노드 한 개에서 해석된 유효 포트 목록. `PORT_NOT_FOUND` 검사를 위해
  * ShadowWorkflow 가 stream.service 로부터 주입받는 resolver 의 반환 shape.
  * `resolveEffectiveOutputPorts` (config-aware) 를 기반으로 outputs 를, 정적
- * `NodePorts.inputs` 를 기반으로 inputs 를 채운다.
+ * `NodePorts.inputs` 를 기반으로 inputs 를 채운다. 여기서 나온 동일 배열이
+ * `add_node`/`update_node` 성공 응답의 `result.ports` 로도 노출된다 (ED-AI-40).
  */
 export interface ResolvedNodePorts {
-  outputs: string[];
-  inputs: string[];
+  outputs: ShadowRuntimePort[];
+  inputs: ShadowRuntimePort[];
 }
 export type NodePortResolver = (node: ShadowNode) => ResolvedNodePorts | null;
 
@@ -124,6 +139,14 @@ export interface ShadowResult {
    * `hint` 도 함께 실려 "suggested 값을 그대로 쓰라" 는 강한 신호를 준다.
    */
   repeatCount?: number;
+  /**
+   * `add_node` / `update_node` 성공 응답에 동봉되는 런타임 포트 목록
+   * (spec ED-AI-40 §4.3.2). LLM 이 곧바로 `add_edge` 의 `source_port` /
+   * `target_port` 를 정확한 값으로 채울 수 있도록 static + dynamic 포트를
+   * 같은 shape 으로 제공. 상한은 한 쪽당 50개. shadow 내부에서 생성되며
+   * portResolver 가 주입되지 않은 legacy/test 경로에서는 필드가 생략된다.
+   */
+  ports?: ResolvedNodePorts;
   /**
    * 복구 지침 한-문장. 여러 에러 케이스에서 설정될 수 있다:
    *  - `UNKNOWN_NODE_TYPE` — suggestedType 사용 안내 (alias 케이스는 특별 문구).
@@ -229,6 +252,13 @@ const FAILED_LABEL_WINDOW = 10;
  */
 const ATTEMPTED_TYPE_MAX_LEN = 64;
 const LABEL_HINT_MAX_LEN = 80;
+/**
+ * `add_node` / `update_node` 성공 응답의 `result.ports.outputs|inputs` 한
+ * 쪽당 상한 (spec §4.3.2). 현실 시나리오에서 50개를 넘는 dynamic 버튼/케이스
+ * 는 사실상 없지만, 악의적·오류 config 로 응답이 폭주하는 것을 막기 위한
+ * 상수. 초과 시 `.slice(0, 50)` 로 잘라낸다.
+ */
+const RUNTIME_PORTS_MAX_PER_SIDE = 50;
 
 /**
  * In-memory replica of the editor's workflow state used by the AI Assistant
@@ -376,7 +406,8 @@ export class ShadowWorkflow {
     // 적이 있었다면 LLM 이 이번 라운드에서 복구한 것이므로 이후 add_edge 힌트에
     // 여전히 끌려가지 않게 한다.
     this.forgetFailedAddNode(label);
-    return { ok: true, id };
+    const ports = this.buildRuntimePorts(id);
+    return ports ? { ok: true, id, ports } : { ok: true, id };
   }
 
   private updateNode(args: Record<string, unknown>): ShadowResult {
@@ -432,7 +463,8 @@ export class ShadowWorkflow {
         node.positionY = Number(patch.position.y);
     }
     this.nodes.set(id, node);
-    return { ok: true, id };
+    const ports = this.buildRuntimePorts(id);
+    return ports ? { ok: true, id, ports } : { ok: true, id };
   }
 
   private removeNode(args: Record<string, unknown>): ShadowResult {
@@ -673,6 +705,24 @@ export class ShadowWorkflow {
   }
 
   /**
+   * `add_node` / `update_node` 성공 응답에 실을 런타임 포트 목록을 만든다.
+   * portResolver 가 주입되지 않은 legacy/test 경로에서는 `null` 반환 →
+   * 응답에 ports 필드가 생략된다 (하위 호환). 한 쪽당 상한 50개.
+   * spec ED-AI-40 §4.3.2.
+   */
+  private buildRuntimePorts(nodeId: string): ResolvedNodePorts | null {
+    if (!this.portResolver) return null;
+    const node = this.nodes.get(nodeId);
+    if (!node) return null;
+    const resolved = this.portResolver(node);
+    if (!resolved) return null;
+    return {
+      outputs: resolved.outputs.slice(0, RUNTIME_PORTS_MAX_PER_SIDE),
+      inputs: resolved.inputs.slice(0, RUNTIME_PORTS_MAX_PER_SIDE),
+    };
+  }
+
+  /**
    * `update_node` / `remove_node` / `add_edge` 의 id 류 인자에 LLM 이 실수로
    * 노드 **label** 을 넣었을 때 알려주는 hint 문자열을 생성한다. shadow 에
    * label 이 정확히 일치하는 노드가 있으면 그 노드의 UUID 를 돌려줘 LLM 이
@@ -834,15 +884,15 @@ export class ShadowWorkflow {
     if (!sourceNode || !targetNode) return null; // 앞선 NODE_NOT_FOUND 가 처리
     const sourcePorts = this.portResolver(sourceNode);
     const targetPorts = this.portResolver(targetNode);
-    if (sourcePorts && !sourcePorts.outputs.includes(sourcePort)) {
+    if (sourcePorts && !sourcePorts.outputs.some((p) => p.id === sourcePort)) {
       return this.buildPortNotFoundResult(
         'source',
         sourcePort,
         sourceNode,
-        sourcePorts.outputs,
+        sourcePorts.outputs.map((p) => p.id),
       );
     }
-    if (targetPorts && !targetPorts.inputs.includes(targetPort)) {
+    if (targetPorts && !targetPorts.inputs.some((p) => p.id === targetPort)) {
       // 컨테이너 loopback exception: 자식 → 조상 컨테이너의 `emit` 포트.
       if (
         CONTAINER_LOOPBACK_PORTS.has(targetPort) &&
@@ -854,7 +904,7 @@ export class ShadowWorkflow {
         'target',
         targetPort,
         targetNode,
-        targetPorts.inputs,
+        targetPorts.inputs.map((p) => p.id),
       );
     }
     return null;

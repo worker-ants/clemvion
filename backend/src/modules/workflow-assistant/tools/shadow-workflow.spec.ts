@@ -89,6 +89,105 @@ describe('ShadowWorkflow', () => {
       const added = sw.snapshot().nodes.find((n) => n.id === result.id);
       expect(added?.category).toBe('integration');
     });
+
+    // ED-AI-40 (spec §4.3.2): add_node 성공 응답에 runtime ports 가 자동
+    // 포함되어, LLM 이 바로 다음 add_edge 에 올바른 source_port 를 채울 수
+    // 있게 한다. static / dynamic-ports 모두 동일 shape.
+    it('returns runtime ports on success when a portResolver is injected', () => {
+      const sw = new ShadowWorkflow(
+        baseSnapshot(),
+        new Set(['carousel']),
+        {},
+        (node) => {
+          if (node.type === 'manual_trigger') {
+            return { outputs: [{ id: 'out' }], inputs: [] };
+          }
+          if (node.type === 'carousel') {
+            // presentation-buttons 동적 포트 + 정적 error 포트 혼합
+            return {
+              outputs: [
+                { id: 'btn_korean', type: 'data', label: '한식' },
+                { id: 'btn_western', type: 'data', label: '양식' },
+                { id: 'error', type: 'error' },
+              ],
+              inputs: [{ id: 'in' }],
+            };
+          }
+          return null;
+        },
+      );
+      const result = sw.apply({
+        name: 'add_node',
+        arguments: {
+          type: 'carousel',
+          label: '음식 종류 선택',
+          position: { x: 500, y: 300 },
+          config: {
+            buttons: [
+              { id: 'btn_korean', label: '한식' },
+              { id: 'btn_western', label: '양식' },
+            ],
+          },
+        },
+      });
+      expect(result.ok).toBe(true);
+      expect(result.ports).toBeDefined();
+      expect(result.ports?.outputs).toEqual([
+        { id: 'btn_korean', type: 'data', label: '한식' },
+        { id: 'btn_western', type: 'data', label: '양식' },
+        { id: 'error', type: 'error' },
+      ]);
+      expect(result.ports?.inputs).toEqual([{ id: 'in' }]);
+    });
+
+    it('omits ports on success when no portResolver is injected (legacy/test compatibility)', () => {
+      const sw = new ShadowWorkflow(baseSnapshot(), new Set(['http_request']));
+      const result = sw.apply({
+        name: 'add_node',
+        arguments: {
+          type: 'http_request',
+          label: 'Fetch',
+          position: { x: 0, y: 0 },
+          config: {},
+        },
+      });
+      expect(result.ok).toBe(true);
+      expect(result.ports).toBeUndefined();
+    });
+
+    it('caps outputs/inputs at 50 per side (defensive against runaway dynamic configs)', () => {
+      const sw = new ShadowWorkflow(
+        baseSnapshot(),
+        new Set(['carousel']),
+        {},
+        (node) => {
+          if (node.type === 'manual_trigger') {
+            return { outputs: [{ id: 'out' }], inputs: [] };
+          }
+          if (node.type === 'carousel') {
+            const manyOutputs = Array.from({ length: 60 }, (_, i) => ({
+              id: `btn_${i}`,
+            }));
+            const manyInputs = Array.from({ length: 55 }, (_, i) => ({
+              id: `in_${i}`,
+            }));
+            return { outputs: manyOutputs, inputs: manyInputs };
+          }
+          return null;
+        },
+      );
+      const result = sw.apply({
+        name: 'add_node',
+        arguments: {
+          type: 'carousel',
+          label: 'Too many buttons',
+          position: { x: 0, y: 0 },
+          config: {},
+        },
+      });
+      expect(result.ports?.outputs).toHaveLength(50);
+      expect(result.ports?.inputs).toHaveLength(50);
+    });
   });
 
   describe('update_node', () => {
@@ -1502,16 +1601,27 @@ describe('ShadowWorkflow', () => {
     // Source / target 에 대해 "어떤 포트가 존재하는가" 를 돌려주는 mock.
     // Carousel 은 config 기반으로 동적 — 여기서는 config 비어있어 out 단일.
     // http_request 는 static out/error + in.
+    // Spec 이 호출하는 resolver 는 `ResolvedNodePorts = {outputs: [{id, ...}],
+    // inputs: [{id, ...}]}` shape. ED-AI-40 로 `outputs` 를 string[] 에서
+    // descriptor 배열로 확장했다. 테스트 편의를 위해 id 배열을 받아 descriptor
+    // 로 정규화한다.
+    const toDesc = (ids: string[]) => ids.map((id) => ({ id }));
     const makeResolver = (carouselOutputs: string[]) => {
       return (node: { type: string }) => {
         if (node.type === 'manual_trigger') {
-          return { outputs: ['out'], inputs: [] };
+          return { outputs: toDesc(['out']), inputs: toDesc([]) };
         }
         if (node.type === 'carousel') {
-          return { outputs: carouselOutputs, inputs: ['in'] };
+          return {
+            outputs: toDesc(carouselOutputs),
+            inputs: toDesc(['in']),
+          };
         }
         if (node.type === 'http_request') {
-          return { outputs: ['out', 'error'], inputs: ['in'] };
+          return {
+            outputs: toDesc(['out', 'error']),
+            inputs: toDesc(['in']),
+          };
         }
         return null;
       };
@@ -1656,12 +1766,13 @@ describe('ShadowWorkflow', () => {
         new Set(['loop', 'http_request']),
         {},
         (node) => {
+          const ids = (xs: string[]) => xs.map((id) => ({ id }));
           if (node.type === 'loop')
-            return { outputs: ['iter'], inputs: ['in'] };
+            return { outputs: ids(['iter']), inputs: ids(['in']) };
           if (node.type === 'http_request')
-            return { outputs: ['out'], inputs: ['in'] };
+            return { outputs: ids(['out']), inputs: ids(['in']) };
           if (node.type === 'manual_trigger')
-            return { outputs: ['out'], inputs: [] };
+            return { outputs: ids(['out']), inputs: ids([]) };
           return null;
         },
       );

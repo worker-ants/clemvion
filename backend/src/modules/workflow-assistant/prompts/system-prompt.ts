@@ -66,7 +66,7 @@ ${STATIC_BLOCK_3_EDIT_PLAYBOOK}
 
 ${catalog || '(no nodes registered)'}
 
-Call the \`get_node_schema\` tool when the catalog summary is not detailed enough for a specific node type. The \`[dynamic-ports]\` marker above signals a node whose real output ports are synthesized from runtime config (switch cases, carousel buttons, etc.); the catalog only shows its static defaults.
+The \`[dynamic-ports]\` marker above signals a node whose real output ports are synthesized from runtime config (switch cases, carousel buttons, etc.). The catalog only shows its static defaults — the **live** port ids come back on every \`add_node\` / \`update_node\` success via \`result.ports.outputs[*].id\`, so use those for the next \`add_edge\`. Reserve \`get_node_schema\` for the rare case where you need full JSON Schema details on a node you are **not** editing this turn (a pre-existing node in the \`currentWorkflow\` snapshot).
 
 ${expressionSection}## Dynamic state — active plan & current canvas
 
@@ -203,9 +203,11 @@ Once the cause is identified, propose node fixes the normal way (\`propose_plan\
 - **Inbound (reachability):** Every data path in the workflow must originate from \`manual_trigger\` (or another trigger node). When you \`add_node\`, you MUST also \`add_edge\` on the same turn from an already-connected upstream node — typically the previous node in your plan, or \`manual_trigger\` itself for the first node of a new branch. Never leave an island of nodes floating without an incoming edge from the trigger chain.
 - **Outbound (port connectivity):** Every user-configured output port must have an outgoing edge. For \`[dynamic-ports]\` nodes, each entry you write into \`config.cases[*]\`, \`config.conditions[*]\`, \`config.categories[*]\`, \`config.buttons[*]\`, \`config.items[*].buttons[*]\`, or \`config.itemButtons[*]\` becomes a separate runtime output port. Every one of those ports needs an \`add_edge\` (with \`source_port\` set to the port's id slug) to a downstream node — the next step, a "back" navigation, or an explicit end-state template (e.g. "처리 완료" / "잘못된 선택입니다"). A button/case with no outgoing edge is a dead click for the user. The server's self-review rejects \`finish\` with \`DANGLING_OUTPUT_PORTS\` when any remain. Framework-synthesized ports (\`default\`, \`error\`, \`fallback\`, \`continue\`, a single static \`out\` on a terminal node) are NOT flagged — they are legitimately left unconnected for terminal flows.
 
-### Dynamic-ports — schema first, stable ids
+### Dynamic-ports — runtime ports come back with every edit, stable ids stay
 
-- **MANDATORY.** Before calling \`add_edge\` on any node that the catalog marks \`[dynamic-ports]\` (switch, category_carousel, and other branch/choice nodes), first call \`get_node_schema\` on that node type to learn its real runtime port ids (e.g. \`case_0\`, \`case_1\`, \`button_2\`). The catalog lists only static default ports; skipping this step makes \`add_edge\` attach to the wrong port (or miss entirely) and the new nodes end up floating.
+- **Every \`add_node\` / \`update_node\` success response carries \`result.ports\`** — the authoritative list of the node's live output + input ports after the edit. Shape: \`{ outputs: [{id, type?, label?}], inputs: [{id, type?}] }\`. Use those ids verbatim for the very next \`add_edge\` (\`source_port\` / \`target_port\`) on that node. This applies to static nodes (HTTP, manual_trigger, etc.) **and** \`[dynamic-ports]\` nodes (switch, category_carousel, presentation buttons) — the resolver inlines the user-configured port ids (\`case_yes\`, \`btn_bibimbap\`, …) right into the response, so a separate \`get_node_schema\` call is not needed.
+- \`get_node_schema\` is still useful for one case: the target node is a **pre-existing node** from the \`currentWorkflow\` snapshot that you are **not** editing this turn. In that case \`result.ports\` won't be produced (no edit), and the catalog may not include the dynamic ids, so fetch the schema once.
+- \`type: 'error'\` on an output port means it represents the node's error lane — wire it with \`add_edge({ type: 'error', ... })\`. All other types (\`data\` by default) use the standard \`data\` edge type.
 - **Sub-entry ids are required** for every array entry that produces an output port:
     - \`switch\` → \`config.cases[*].id\` (e.g. \`case_yes\`, \`case_refund\`)
     - \`ai_agent\` / \`information_extractor\` / \`text_classifier\` → \`config.conditions[*].id\` (e.g. \`cond_refund\`)
@@ -336,7 +338,7 @@ Assistant: call \`update_node\` with a minimum patch — \`{ config: { headers: 
 ### Ex2. Dynamic-ports branch with buttons (label vs id, port connectivity, pendingUserConfig)
 User: "한식/양식/중식 중 고르는 설문 만들어줘. 그 외를 선택하면 '잘못된 선택' 메세지 띄우고, 결과는 이메일 발송."
 Assistant:
-1. Call \`get_node_schema\` on \`carousel\` to learn the real dynamic output ports and button schema.
+1. No \`get_node_schema\` needed — every \`add_node\` on a carousel will echo back its runtime port list in \`result.ports.outputs\`, including the user-configured \`btn_*\` ids. The catalog entry already lists the static shape; just call \`add_node\` directly.
 2. Call \`propose_plan\` with steps that wire **every** user-configured port to a concrete downstream node — "no dangling ports" is the single hardest habit on complex branches:
    - s1 = \`add_node\` carousel labelled "음식 종류 선택" with \`config.buttons = [{ id: "btn_korean", label: "한식", type: "port" }, { id: "btn_western", label: "양식", type: "port" }, { id: "btn_chinese", label: "중식", type: "port" }, { id: "btn_other", label: "기타", type: "port" }]\` — Korean strings in \`label\`, ASCII slugs in \`id\`.
    - s2 = edge \`manual_trigger → 음식 종류 선택 (in)\`.
