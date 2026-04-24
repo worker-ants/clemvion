@@ -203,6 +203,82 @@ plan-only 턴에서 plan card 와 함께 "계획대로 진행해 주세요." sys
 - `assistant-panel.tsx` 가 `onContinueAfterBudget` 콜백을 `AssistantMessageView`
   로 주입해 snapshot 결합 유지 (plan approve 버튼과 동일 패턴).
 
+## 10. Stall 자동 복구 UX — 메시지 박스 분리 + `auto_resume` SSE 이벤트 (2026-04-24)
+
+### 배경
+§7 의 stall 복구가 발동하면 같은 `assistantText` 에 여러 라운드 텍스트가 누적되어
+단일 `WorkflowAssistantMessage` row 로 저장된다. gpt-oss-120b 는 라운드 종료 직전
+"계속 진행해도 될까요?" 같은 confirmation 문구를 반복적으로 뱉는 quirk 가 있어,
+stall 전·후 라운드의 같은 문구가 한 버블 안에서 2~3번 겹쳐 UX 가 지저분해진다.
+
+### 대응
+**구조적 해결** — 서버가 stall 복구로 추가 라운드를 시작하는 순간, 누적된 텍스트를
+별도 row 로 먼저 persist 하고 커서를 리셋한다. 이후 라운드는 새 row 에 누적된다.
+프론트에게는 `event: auto_resume` 을 발행해 "새 버블로 분리해 달라" 는 신호를 준다.
+
+**엔티티 변경** — `WorkflowAssistantMessage` 에 3개 필드 추가:
+- `autoResumed: boolean` — 이 row 가 복구로 인해 새로 시작된 row 이면 true
+- `autoResumeReason: string | null` — 현재 `'stall_pending_steps'` 한 종류
+- `autoResumeAttempt: number | null` — 1..MAX_STALL_ROUNDS
+
+마이그레이션 `V020__assistant_message_auto_resume.sql` 로 기본값 false / null 로
+기존 row 호환.
+
+**stream.service 변경** — stall 복구 블록 (§7) 에서:
+```ts
+// 1) 현재까지의 assistant 텍스트를 "중간 row" 로 먼저 persist
+await this.persistAssistantTurn(sessionId, assistantText, pendingToolCalls,
+  planPersisted ? null : planForTurn, null, 'auto_resume_pending',
+  /* resumeMeta */ { autoResumed: false, ... });
+if (planForTurn) planPersisted = true;
+// 2) 누적 커서 리셋 — 다음 라운드는 새 row
+assistantText = ''; pendingToolCalls = [];
+// 3) SSE 로 프론트에 신호
+yield { event: 'auto_resume', data: { reason, attempt, max } };
+// 4) 기존 nudge 주입 + continue
+```
+
+턴 종료 시점의 최종 persist 에는 `autoResumed: consecutiveStallRounds > 0` 를 전달.
+
+**`persistAssistantTurn` 시그니처 확장** — 마지막 파라미터로 `resumeMeta` 를 받고
+기본값으로 `{autoResumed: false, autoResumeReason: null, autoResumeAttempt: null}`
+를 쓴다. 기존 호출부 변경 최소.
+
+**Plan 중복 방지** — 같은 턴 안에 plan 이 최초로 emit 되는 row 에만 plan 을 싣고,
+그 뒤로 분리된 row 는 `plan=null` 로 persist. 로컬 `planPersisted` 플래그로 관리.
+
+### 프론트 변경
+- `AssistantSseEvent` union 에 `auto_resume` 추가 (api/assistant.ts)
+- `AssistantDisplayMessage` 에 `autoResume?: {reason, attempt, max}` 추가
+- `handleSseEvent` 는 그대로 유지하고, `sendMessage` 의 onEvent 콜백에서
+  `auto_resume` 이벤트를 가로채 현재 `currentAssistantId` 를 새 UUID 로 갱신하면서
+  새 assistant row 를 push.
+- `hydrateMessage` 에서 서버의 `autoResumed=true` row 를 `autoResume` 메타로 복원.
+- `assistant-message.tsx` 에서 `message.autoResume` 이 있으면 버블 위에 divider
+  렌더 ("🔄 자동으로 이어서 진행했어요 (N/M)"). i18n `assistant.autoResumedHint`.
+
+### 호환성
+- 기존 row (autoResumed=false) 는 divider 가 표시되지 않음 → 기존 세션 그대로.
+- 정상 턴 (stall 없음): `persistAssistantTurn` 이 한 번만 호출되어 row 1개.
+- stall 1회 복구: row 2개 (`auto_resume_pending` + 최종). 최종 row 에만 autoResumed=true.
+- stall 2회: row 3개. 최종 row 에 autoResumedAttempt=2.
+- `MAX_STALL_ROUNDS` 상한에 걸려 포기하는 경우: 마지막 row 도 autoResumed=true 로
+  persist (포기 직전 "이어서 진행해줘" 가 주입되지 않았지만 텍스트가 새 버블로
+  분리되는 것은 동일하게 유지 — 서버가 분리 persist 를 이미 수행했음).
+
+### 회귀 테스트
+`stream.service.spec.ts` "auto-continue on stall with pending plan" describe 의
+기존 3개 테스트에 다음 어서션 추가:
+- `appendMessage` 호출 횟수가 (stall N회) + 1 개 (최종) 임을 확인.
+- N+1 개 row 중 중간 row 들은 `finishReason='auto_resume_pending'`, `autoResumed=false`.
+- 최종 row 는 `autoResumed=true`, `autoResumeReason='stall_pending_steps'`,
+  `autoResumeAttempt=N`.
+- SSE 이벤트 스트림에 `event: 'auto_resume'` 이 N회 포함, attempt 가 1..N 순증.
+- plan 은 최초 emit 된 row 에만 실리고 이후 row 들의 plan=null.
+
+`assistant-store.test.ts` — `auto_resume` 이벤트 수신 시 messages 배열에 새 row 가
+추가되고 `streamingMessageId` 가 갱신되며, `autoResume` 메타가 세팅되는지 검증.
+
 ## 유지보수 체크리스트
 
 - `stripHarmonyTokens` 추가 제어 토큰 관찰 시 `HARMONY_STANDALONE_TOKEN_REGEX` 유니온에 추가.
@@ -212,7 +288,16 @@ plan-only 턴에서 plan card 와 함께 "계획대로 진행해 주세요." sys
 - Plan-only 가드 (`planProposedPendingApproval`) 의 단락 조건 변경 시 위 "호환성" 3개 시나리오
   모두 회귀 테스트로 고정되어 있는지 확인. `stream.service.spec.ts` 에서 `finishReason=stop`
 - `MAX_STALL_ROUNDS` / stall 가드 조건 변경 시: "auto-continue on stall with pending plan"
-  describe 의 3 테스트 (auto-nudge / max-stall / no-pending-steps) 동시 업데이트.
+  describe 의 3 테스트 (auto-nudge / max-stall / no-pending-steps) 동시 업데이트 +
+  §10 의 row 분리 / auto_resume 이벤트 어서션도 같이 업데이트.
+- `auto_resume` SSE event schema 변경 시: backend `AssistantStreamEvent` union,
+  frontend `AssistantSseEvent` union, controller 가 단순 JSON.stringify 하므로
+  별도 DTO 없음. `assistant.autoResumedHint` i18n 포맷 (`{{attempt}}/{{max}}`) 도
+  페이로드 shape 에 묶여있으니 payload key 이름 변경 시 placeholder 동시 업데이트.
+- `WorkflowAssistantMessage` 에 신규 필드 추가 시: migration SQL 과 entity 의
+  nullable/default 가 일치해야 한다 (autoResumed default false, 나머지 null).
+  `appendMessage` 의 `Partial<WorkflowAssistantMessage>` 수용 패턴 덕분에 서비스
+  계층 호출부 변경은 불필요.
 - `RESUMABLE_ERROR_CODES` 에 새 에러 코드 추가 시: (1) backend 가 실제로 해당 코드 발행하는지
   확인, (2) "이어서 진행해줘" follow-up 이 의미있는 복구인지 재검토, (3) `continueAfterBudget`
   대신 별도 resume 액션이 필요한지 판단.
