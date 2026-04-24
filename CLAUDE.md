@@ -66,6 +66,7 @@
 `prd/`·`spec/` 하위의 문서는 제품의 **최종 스펙**을 정의한다. history가 아닌 latest에 대한 기술이므로, 변경이 누적되어 정합성이 흐려질 경우 문서를 전체적으로 정리·재구성한다.
 
 ## 패키지 매니저
+
 frontend와 backend는 모두 npm을 사용한다. (yarn, pnpm 등을 사용하지 않는다.)
 
 ## README.md
