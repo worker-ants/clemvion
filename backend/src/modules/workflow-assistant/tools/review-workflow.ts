@@ -656,13 +656,22 @@ function collectUnmentionedPendingUserConfig(
   const out: UnmentionedPendingEntry[] = [];
   for (const node of input.shadowSnapshot.nodes) {
     if (node.category === TRIGGER_CATEGORY) continue;
-    const missing = input.collectPendingUserConfig(node.id);
-    if (missing.length === 0) continue;
+    const allPending = input.collectPendingUserConfig(node.id);
+    if (allPending.length === 0) continue;
+    // ED-AI-39 (spec §4.3.1 / §10) — candidate picker 가 도입되어, 워크스페이스
+    // 에 후보가 1건 이상 있는 selector 는 프런트 picker 가 UX 를 완결한다.
+    // LLM 의 closing mention 은 candidate 가 0 인 항목에만 필요. 후보 목록이
+    // 아직 조회되지 않은 legacy row (candidates field 미존재) 는 안전하게
+    // "조회 안 됨" 으로 간주해 기존 동작(mention 강제) 을 유지한다.
+    const needsMention = allPending.filter(
+      (f) => !Array.isArray(f.candidates) || f.candidates.length === 0,
+    );
+    if (needsMention.length === 0) continue;
     if (text && text.includes(node.label)) continue;
     out.push({
       nodeId: node.id,
       label: node.label,
-      missingFields: missing,
+      missingFields: needsMention,
     });
     if (out.length >= MAX_PENDING_USER_CONFIG) break;
   }

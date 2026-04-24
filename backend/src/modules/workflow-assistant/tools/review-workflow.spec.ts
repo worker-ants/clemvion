@@ -1034,6 +1034,22 @@ describe('review-workflow.buildReviewChecklist', () => {
           field: 'integrationId',
           widget: 'integration-selector',
           label: 'Integration',
+          // Legacy / 서버가 candidates 조회를 안 한 경로. 이 경우엔 기존 동작대로
+          // "mention 강제" 유지 (ED-AI-39 완화는 candidates 가 **명시적으로** 0 인
+          // 경우만 해당 없음 — missing 필드에서 candidates property 자체가
+          // 없으므로 legacy 로 처리).
+          candidates: [],
+        },
+      ];
+    }
+
+    function integrationPendingWithCandidates(): PendingUserConfigField[] {
+      return [
+        {
+          field: 'integrationId',
+          widget: 'integration-selector',
+          label: 'Integration',
+          candidates: [{ id: 'int-1', label: 'Gmail SMTP', sublabel: 'email' }],
         },
       ];
     }
@@ -1069,6 +1085,41 @@ describe('review-workflow.buildReviewChecklist', () => {
       expect(
         items.find((i) => i.code === 'PENDING_USER_CONFIG_UNMENTIONED'),
       ).toBeUndefined();
+    });
+
+    // ED-AI-39 (spec §10): candidate picker 가 도입되어, 후보가 1개 이상인
+    // selector 는 프런트 picker 가 UX 를 완결한다. 이 경우엔 closing message
+    // 에 node label 이 없어도 guard 가 발동하면 안 된다.
+    it('does not flag when candidates has 1+ entries (picker covers the UX)', () => {
+      const items = buildReviewChecklist(
+        baseInput({
+          shadowSnapshot: makeSnapshotWithEmailNode(),
+          assistantText: '설문조사 플로우를 만들었어요.',
+          collectPendingUserConfig: (nid) =>
+            nid === 'email-1' ? integrationPendingWithCandidates() : [],
+        }),
+      );
+      expect(
+        items.find((i) => i.code === 'PENDING_USER_CONFIG_UNMENTIONED'),
+      ).toBeUndefined();
+    });
+
+    it('STILL flags when candidates is explicitly empty (user must register first)', () => {
+      // 후보가 0 이면 picker 가 도움이 안 되므로 사용자에게 등록을 안내해야
+      // 한다 — 기존과 동일한 "mention 강제" 동작.
+      const items = buildReviewChecklist(
+        baseInput({
+          shadowSnapshot: makeSnapshotWithEmailNode(),
+          assistantText: '설문조사 플로우를 만들었어요.',
+          collectPendingUserConfig: (nid) =>
+            nid === 'email-1' ? integrationPending() : [],
+        }),
+      );
+      const pending = items.find(
+        (i) => i.code === 'PENDING_USER_CONFIG_UNMENTIONED',
+      );
+      expect(pending).toBeDefined();
+      expect(pending!.blocking).toBe(true);
     });
   });
 

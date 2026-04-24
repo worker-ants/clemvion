@@ -73,6 +73,8 @@ export const databaseQueryNodeConfigSchema = z
           widget: 'integration-selector',
           order: 1,
         },
+        // Assistant candidate picker 의 후보 조회 범위 힌트 (`service_type=database`).
+        integrationServiceType: 'database',
       }),
     queryType: z
       .enum(['select', 'insert', 'update', 'delete', 'raw'])

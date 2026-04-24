@@ -26,6 +26,20 @@ const USER_ACTION_WIDGETS: ReadonlySet<string> = new Set<UserActionWidget>([
   'workflow-selector',
 ]);
 
+/**
+ * Candidate picker 에 표시할 개별 후보. ED-AI-39 (spec §4.3.1) 에 따라
+ * 서버가 워크스페이스에서 조회해 `PendingUserConfigField.candidates` 에
+ * 채워 내려준다.
+ */
+export interface CandidateEntry {
+  /** 실제 id (integration.id · llm_config.id · knowledge_base.id · workflow.id). */
+  id: string;
+  /** 드롭다운에 표시할 주 텍스트. */
+  label: string;
+  /** 보조 텍스트 (예: integration 의 serviceType, LLM Config 의 model). */
+  sublabel?: string;
+}
+
 export interface PendingUserConfigField {
   /** 필드 경로 (현재는 top-level 만 지원 — 실제 사용자 선택 필드는 모두 top-level). */
   field: string;
@@ -33,6 +47,20 @@ export interface PendingUserConfigField {
   widget: UserActionWidget;
   /** schema 에 선언된 한글/영문 라벨. */
   label: string;
+  /**
+   * widget 별 후보 조회 hint. 현재는 `integration-selector` 전용으로
+   * schema meta 의 `integrationServiceType` 값(예: `'email'`/`'http'`) 이
+   * 들어온다. CandidateLookupService 가 이 값으로 `Integration.service_type`
+   * 필터링한다. 값이 없으면 connected 전체가 후보.
+   */
+  integrationServiceType?: string;
+  /**
+   * 서버가 워크스페이스에서 조회한 후보 목록. `detectPendingUserConfig` 는
+   * 빈 배열로만 초기화하고, 실제 조회는 `CandidateLookupService` 가 담당.
+   * 빈 배열(`[]`) 은 "조회했지만 후보가 없음" 의 명시적 신호라
+   * `undefined` 와 의미가 다르다.
+   */
+  candidates: CandidateEntry[];
 }
 
 interface JsonSchemaLike {
@@ -40,6 +68,8 @@ interface JsonSchemaLike {
   properties?: Record<string, JsonSchemaLike>;
   items?: JsonSchemaLike;
   ui?: { widget?: string; label?: string };
+  /** `.meta({ integrationServiceType })` 로 주입된 picker hint. */
+  integrationServiceType?: string;
   // z.toJSONSchema 는 draft-2020 형식을 쓰므로 `$ref` 등이 있을 수 있지만,
   // 노드 config 에서는 inline 객체만 써왔다. 필요 시 확장.
 }
@@ -68,6 +98,14 @@ export function detectPendingUserConfig(
       field: key,
       widget: widget as UserActionWidget,
       label: propSchema?.ui?.label ?? humanize(key),
+      // `detectPendingUserConfig` 단계에서는 스키마만 보고 "이 필드가
+      // selector 인지" 만 판정한다. 실제 후보 목록은 `CandidateLookupService`
+      // 가 워크스페이스 DB 를 조회해 채우므로, 여기서는 hint 만 통과시키고
+      // `candidates: []` 로 초기화한다.
+      ...(typeof propSchema?.integrationServiceType === 'string'
+        ? { integrationServiceType: propSchema.integrationServiceType }
+        : {}),
+      candidates: [],
     });
   }
   return pending;

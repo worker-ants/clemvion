@@ -41,6 +41,18 @@ interface EditorState {
   addNode: (node: Node) => void;
   removeNode: (id: string) => void;
   updateNodeConfig: (id: string, config: Record<string, unknown>) => void;
+  /**
+   * 단일 top-level config 필드 값을 병합 반영한다. `updateNodeConfig` 는
+   * config 전체를 교체하는 반면 본 action 은 기존 config 를 보존하고 지정
+   * 필드만 덮어쓴다. Assistant 의 candidate picker 에서 사용자가 선택한
+   * integration/LLM/KB/workflow id 를 주입하는 경로 (spec ED-AI-39).
+   * 호출 시 Undo 스택에 push 되므로 Ctrl+Z 로 되돌릴 수 있다.
+   */
+  updateNodeConfigField: (
+    id: string,
+    fieldPath: string,
+    value: unknown,
+  ) => void;
   setNodeContainer: (id: string, containerId: string | null) => void;
   selectNode: (id: string | null) => void;
   setDirty: (dirty: boolean) => void;
@@ -453,6 +465,28 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       nodes: state.nodes.map((n) =>
         n.id === id ? { ...n, data: { ...n.data, config } } : n,
       ),
+      isDirty: true,
+    }));
+  },
+
+  updateNodeConfigField: (id, fieldPath, value) => {
+    // top-level 필드만 취급하는 spec ED-AI-39 의 범위에 맞춰 현재는 dot-path
+    // 가 아닌 단일 키로만 동작한다. 향후 nested 가 필요해지면 lodash.set 패턴
+    // 으로 확장 가능하나, 현재 4종 widget 의 field 는 모두 top-level.
+    get().pushUndo();
+    set((state) => ({
+      nodes: state.nodes.map((n) => {
+        if (n.id !== id) return n;
+        const prevData = n.data as { config?: Record<string, unknown> };
+        const prevConfig = prevData.config ?? {};
+        return {
+          ...n,
+          data: {
+            ...n.data,
+            config: { ...prevConfig, [fieldPath]: value },
+          },
+        };
+      }),
       isDirty: true,
     }));
   },
