@@ -113,11 +113,11 @@ export const sendEmailNodeConfigSchema = z
       }),
     subject: z
       .string()
-      .optional()
+      .default('')
       .meta({ ui: { label: 'Subject', widget: 'expression', order: 5 } }),
     body: z
       .string()
-      .optional()
+      .default('')
       .meta({ ui: { label: 'Body', widget: 'expression', order: 6 } }),
     bodyType: z
       .enum(['text', 'html'])
