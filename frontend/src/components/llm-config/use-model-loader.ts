@@ -4,13 +4,10 @@ import { useMemo, useState } from "react";
 import { useMutation } from "@tanstack/react-query";
 import axios from "axios";
 import { llmConfigsApi, type ModelInfo } from "@/lib/api/llm-configs";
-
-// "" = no provider selected — treated like local (no key required) so that the
-// combobox does not block rendering before the user picks a provider.
-const LOCAL_PROVIDER = "local";
-// azure: deployment endpoint URL is part of the model path.
-// local : self-hosted runtime URL is mandatory for any call.
-const PROVIDERS_REQUIRING_BASE_URL = new Set(["azure", LOCAL_PROVIDER]);
+import {
+  LOCAL_PROVIDER,
+  PROVIDERS_REQUIRING_BASE_URL,
+} from "@/lib/llm-providers";
 
 function providerRequiresApiKey(provider: string) {
   return provider !== "" && provider !== LOCAL_PROVIDER;
