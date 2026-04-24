@@ -1909,6 +1909,9 @@ export const ko = {
     edgeAdded: "엣지 추가",
     edgeRemoved: "엣지 삭제",
     exploreLookup: "{{count}}건 조회됨",
+    exploreExecutionsList: "실행 이력 {{count}}건 조회",
+    exploreExecutionDetails: "실행 상세 조회 — {{nodeCount}}개 노드",
+    executionNotInScope: "이 실행은 현재 워크플로의 것이 아니에요.",
   },
 } as const;
 

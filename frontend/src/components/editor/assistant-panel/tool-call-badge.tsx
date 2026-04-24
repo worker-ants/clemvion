@@ -134,5 +134,23 @@ function summarize(call: AssistantToolCallRecord): string {
   if (call.name === "get_workflow") return "workflow ref";
   if (call.name === "get_node_schema") return `schema: ${String(args.type ?? "")}`;
   if (call.name === "list_knowledge_bases") return "knowledge bases";
+  if (call.name === "get_workflow_executions") {
+    // 요약 라벨에 "상태 필터 유무" 와 "돌려받은 건수" 를 동시에 담아 사용자가
+    // 배지만 보고 어시스턴트가 어떤 의도로 리스트를 뒤졌는지 파악할 수 있다.
+    const status = typeof args.status === "string" ? args.status : undefined;
+    const items =
+      (call.result as { items?: unknown[] } | null)?.items;
+    const count = Array.isArray(items) ? items.length : undefined;
+    const prefix = status ? `executions (${status})` : "executions";
+    return count !== undefined ? `${prefix}: ${count}` : prefix;
+  }
+  if (call.name === "get_execution_details") {
+    const timeline =
+      (call.result as { timeline?: unknown[] } | null)?.timeline;
+    const count = Array.isArray(timeline) ? timeline.length : undefined;
+    return count !== undefined
+      ? `execution detail: ${count} nodes`
+      : "execution detail";
+  }
   return call.name;
 }
