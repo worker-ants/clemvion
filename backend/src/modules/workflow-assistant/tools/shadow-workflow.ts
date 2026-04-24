@@ -128,11 +128,18 @@ export interface ShadowResult {
    * 복구 지침 한-문장. 여러 에러 케이스에서 설정될 수 있다:
    *  - `UNKNOWN_NODE_TYPE` — suggestedType 사용 안내 (alias 케이스는 특별 문구).
    *  - `LABEL_CONFLICT` (repeatCount ≥ 2) — 재시도 멈춤 안내.
-   *  - `NODE_NOT_FOUND` (add_edge, 최근 실패한 add_node 가 있을 때) —
+   *  - `NODE_NOT_FOUND` (`add_edge`, 최근 실패한 `add_node` 가 있을 때) —
    *    cascading 실패 안내 ("앞서 실패한 노드를 먼저 고치세요").
+   *  - `NODE_NOT_FOUND` (`update_node` / `remove_node`) — id 자리에 넣은 값이
+   *    shadow 내 어떤 노드의 label 과 일치하면 "이건 label 이고 실제 id 는
+   *    <uuid> 이다" 형태의 label-lookalike 안내.
+   *  - `NODE_NOT_FOUND` (`add_edge`, cascading FIFO 가 비어있을 때) — source
+   *    또는 target 값이 노드 label 과 매치되면 label-lookalike 안내 (source
+   *    우선). cascading 힌트가 먼저 실렸다면 label-lookalike 는 싣지 않는다.
    * 힌트 문자열은 LLM 제공 자유 텍스트(label/type) 를 그대로 embed 하지 않고
    * `sanitizeLlmProvidedString` 을 거쳐 개행/제어 문자를 제거해 프롬프트
-   * 인젝션 표면을 좁힌다.
+   * 인젝션 표면을 좁힌다. label-lookalike 계열은 추가로 `[hint] ... [/hint]`
+   * 마커로 감싸 LLM 이 hint 범위를 자연어 instruction 으로 오인하지 않게 한다.
    */
   hint?: string;
 }
@@ -387,7 +394,7 @@ export class ShadowWorkflow {
       // "label 을 id 자리에 실수로 넣음" 실수 패턴을 자동 감지해 다음 라운드
       // 복구를 돕는다. shadow 내에 label === id-값 인 노드가 있으면 그 노드의
       // 실제 UUID 를 hint 로 알려준다.
-      const hint = this.labelLookalikeHint(id);
+      const hint = this.buildLabelAsIdHint(id);
       return hint
         ? { ok: false, error: 'NODE_NOT_FOUND', hint }
         : { ok: false, error: 'NODE_NOT_FOUND' };
@@ -432,7 +439,10 @@ export class ShadowWorkflow {
     const id = typeof args.id === 'string' ? args.id : '';
     const node = this.nodes.get(id);
     if (!node) {
-      const hint = this.labelLookalikeHint(id);
+      // `updateNode` 와 동일 — "label 을 id 자리에 실수로 넣음" 케이스를 감지해
+      // 다음 라운드 복구를 돕는다. shadow 내 label === id-값 인 노드가 있으면
+      // 그 노드의 실제 UUID 를 hint 로 알려준다.
+      const hint = this.buildLabelAsIdHint(id);
       return hint
         ? { ok: false, error: 'NODE_NOT_FOUND', hint }
         : { ok: false, error: 'NODE_NOT_FOUND' };
@@ -480,7 +490,9 @@ export class ShadowWorkflow {
     if (sourceId === targetId) {
       return { ok: false, error: 'CYCLE_DETECTED' };
     }
-    if (!this.nodes.has(sourceId) || !this.nodes.has(targetId)) {
+    const sourceExists = this.nodes.has(sourceId);
+    const targetExists = this.nodes.has(targetId);
+    if (!sourceExists || !targetExists) {
       const result: ShadowResult = { ok: false, error: 'NODE_NOT_FOUND' };
       if (this.recentFailedAddNodeLabels.length > 0) {
         // label 은 LLM 이 자유 텍스트로 채운 값이라 JSON.stringify 로 embed
@@ -494,17 +506,17 @@ export class ShadowWorkflow {
           .join(', ');
         result.hint = `A prior add_node failed in this turn (labels: [${recent}]). The UUID you are referencing does not exist because that node was never created. Fix the upstream add_node failures first, then wire the edges.`;
       } else {
-        // cascading 경로가 비어있을 때만 "label 을 id 자리에 실수" 케이스를
-        // fallback 으로 시도. source 쪽 우선, target 쪽은 source 가 매치
-        // 안 될 때만 확인 — 두 힌트가 동시에 섞이지 않도록.
-        const sourceHint = !this.nodes.has(sourceId)
-          ? this.labelLookalikeHint(sourceId)
-          : null;
-        const targetHint =
-          sourceHint === null && !this.nodes.has(targetId)
-            ? this.labelLookalikeHint(targetId)
-            : null;
-        const hint = sourceHint ?? targetHint;
+        // cascading FIFO 가 비어있을 때만 "label 을 id 자리에 실수" 케이스를
+        // fallback 으로 시도. source 가 실제로 missing 이고 label 매치가 있으면
+        // 그 힌트 사용, 아니면 target 쪽을 시도. 두 힌트가 섞여 메시지가
+        // 모호해지지 않도록 **source 우선 단일 힌트**. source/target 양쪽이
+        // 모두 label 실수인 케이스도 source 힌트 하나만 내려 다음 라운드에서
+        // 사용자가 source 정정 후 target 재시도하게 유도.
+        let hint: string | null = null;
+        if (!sourceExists) hint = this.buildLabelAsIdHint(sourceId);
+        if (hint === null && !targetExists) {
+          hint = this.buildLabelAsIdHint(targetId);
+        }
         if (hint) result.hint = hint;
       }
       return result;
@@ -666,23 +678,28 @@ export class ShadowWorkflow {
    * label 이 정확히 일치하는 노드가 있으면 그 노드의 UUID 를 돌려줘 LLM 이
    * 다음 라운드에서 곧장 정정할 수 있게 한다. 매치 없으면 null.
    *
-   * LLM 제공 자유 텍스트(value, label) 는 `sanitizeLlmProvidedString` 으로
-   * 개행·꺾쇠·제어문자를 중화해 프롬프트 인젝션 표면을 좁힌다.
+   * LLM 제공 자유 텍스트(value == matched label) 는
+   * `sanitizeLlmProvidedString` 으로 개행·꺾쇠·제어문자를 중화해 prompt
+   * injection 표면을 좁히고, `[hint] ... [/hint]` 고정 마커로 감싸 LLM 이
+   * hint 범위를 다른 자연어 instruction 과 구분하도록 한다 (review W-7).
+   * 노드 UUID (`node.id`) 는 `[0-9a-f-]` 문자만 포함하므로 별도 이스케이프
+   * 없이 그대로 보간한다 (review I-4).
+   *
+   * Review W-4: label 매칭은 기존 `findByLabel` 에 위임해 순회 로직 중복을
+   * 제거한다. `node.label === value` 조건 진입 시 `value === node.label` 이
+   * 므로 sanitize 결과를 하나만 만들어 재사용 (review W-5).
+   *
+   * Review I-3: `value` 가 터무니없이 길면 (`LABEL_HINT_MAX_LEN * 4` 초과)
+   * label 과 일치하지 않는 노이즈로 간주해 조기 반환 — Levenshtein 유사 방어.
    */
-  private labelLookalikeHint(value: string): string | null {
-    if (!value) return null;
-    for (const node of this.nodes.values()) {
-      if (node.label === value) {
-        const safeValue = JSON.stringify(
-          sanitizeLlmProvidedString(value, LABEL_HINT_MAX_LEN),
-        );
-        const safeLabel = JSON.stringify(
-          sanitizeLlmProvidedString(node.label, LABEL_HINT_MAX_LEN),
-        );
-        return `Value ${safeValue} matches the label of node ${safeLabel} (id: ${JSON.stringify(node.id)}). Tool arguments use UUIDs, not labels — use the id value from a prior add_node result or from currentWorkflow.nodes[*].id.`;
-      }
-    }
-    return null;
+  private buildLabelAsIdHint(value: string): string | null {
+    if (!value || value.length > LABEL_HINT_MAX_LEN * 4) return null;
+    const node = this.findByLabel(value);
+    if (!node) return null;
+    const safeLabel = JSON.stringify(
+      sanitizeLlmProvidedString(node.label, LABEL_HINT_MAX_LEN),
+    );
+    return `[hint] Value ${safeLabel} matches the label of an existing node (id: ${node.id}). Tool arguments use UUIDs, not labels — use the id value from a prior add_node result or from currentWorkflow.nodes[*].id. [/hint]`;
   }
 
   private suggestLabel(base: string): string {
@@ -872,15 +889,33 @@ export class ShadowWorkflow {
 
 /**
  * LLM 이 채운 자유 텍스트(label·type 등) 를 힌트 문자열에 embed 할 때 거치는
- * 공통 sanitizer. 길이 상한 절단 + 제어 문자·개행·백틱·꺾쇠 중화.
+ * 공통 sanitizer. 길이 상한 절단 + 제어 문자·개행·백틱·꺾쇠·방향 제어 중화.
  *  - 길이 절단: 프롬프트 폭주·Levenshtein 계산 비용 방어.
  *  - 개행 제거: LLM 이 힌트 안에 " ## HACK" 같은 마크다운 헤더를 끼워 넣는
  *    간접 프롬프트 인젝션을 막는다.
  *  - 백틱·꺾쇠 치환: XML fence / 코드 블록 경계 오염 방지.
+ *  - C1 제어 문자(0x80–0x9F) 제거: C0 뿐 아니라 C1 도 제거해 "터미널 이스케이프
+ *    시퀀스로 hint 바깥 내용을 덮어쓰는" 우회를 차단 (review I-1).
+ *  - 유니코드 Bidi / 태그 / zero-width 제어 문자 제거: U+200B–U+200F (zero-width
+ *    + LRE/RLE/PDF), U+202A–U+202E (LRE/RLE/PDF/LRO/RLO), U+2066–U+2069
+ *    (LRI/RLI/FSI/PDI), U+2028–U+2029 (line/paragraph separator), U+FEFF
+ *    (BOM/zero-width no-break space) — 보이지 않는 문자로 hint 의미를 뒤집는
+ *    "Trojan source" 스타일 공격 완화 (review I-2).
  */
+
+// Regex 리터럴 안에 C0 제어 문자를 직접 넣으면 `no-control-regex` 경고가
+// 걸리므로 `new RegExp` 로 런타임 구성한다. 범위: C0 (0x00–0x1F) / DEL+C1
+// (0x7F–0x9F) / zero-width + Bidi 류 (U+200B–U+200F, U+2028–U+2029,
+// U+202A–U+202E, U+2066–U+2069, U+FEFF).
+
+const SANITIZE_REMOVE_RE = new RegExp(
+  // eslint-disable-next-line no-control-regex -- 의도적: C0/C1/Bidi/zero-width 스윕
+  '[\\u0000-\\u001F\\u007F-\\u009F\\u200B-\\u200F\\u2028-\\u2029\\u202A-\\u202E\\u2066-\\u2069\\uFEFF]',
+  'g',
+);
+
 export function sanitizeLlmProvidedString(s: string, maxLen: number): string {
-  // eslint-disable-next-line no-control-regex
-  const stripped = s.replace(/[\x00-\x1F\x7F]/g, ' ');
+  const stripped = s.replace(SANITIZE_REMOVE_RE, ' ');
   const compacted = stripped
     .replace(/`/g, "'")
     .replace(/</g, '〈')
