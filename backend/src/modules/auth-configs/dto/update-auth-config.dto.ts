@@ -29,7 +29,7 @@ export class UpdateAuthConfigDto {
     enum: AUTH_CONFIG_TYPES,
   })
   @IsOptional()
-  @IsIn(AUTH_CONFIG_TYPES as unknown as string[])
+  @IsIn(AUTH_CONFIG_TYPES)
   type?: AuthConfigType;
 
   /** 변경할 인증 상세 설정 */

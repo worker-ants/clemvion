@@ -9,7 +9,7 @@ function asyncIter<T>(items: T[]): AsyncIterable<T> {
         next: async () =>
           i < items.length
             ? { value: items[i++], done: false }
-            : { value: undefined as unknown as T, done: true },
+            : { value: undefined, done: true },
       };
     },
   };
@@ -144,6 +144,98 @@ describe('AnthropicClient.stream', () => {
     });
     expect(events.find((e) => e.type === 'done')).toMatchObject({
       finishReason: 'tool_calls',
+    });
+  });
+
+  it('lists models via SDK pagination and maps all as chat type', async () => {
+    const client = new AnthropicClient('sk-test', 'claude-haiku-4-5-20251001');
+    const sdkPage = asyncIter([
+      {
+        id: 'claude-sonnet-4-5-20250929',
+        display_name: 'Claude Sonnet 4.5',
+        type: 'model',
+      },
+      {
+        id: 'claude-opus-4-5-preview',
+        display_name: 'Claude Opus 4.5 (preview)',
+        type: 'model',
+      },
+    ]);
+    // @ts-expect-error — stub SDK client
+    client.client = {
+      models: { list: jest.fn().mockReturnValue(sdkPage) },
+    };
+
+    const models = await client.listModels();
+    expect(models).toEqual([
+      {
+        id: 'claude-sonnet-4-5-20250929',
+        name: 'Claude Sonnet 4.5',
+        type: 'chat',
+      },
+      {
+        id: 'claude-opus-4-5-preview',
+        name: 'Claude Opus 4.5 (preview)',
+        type: 'chat',
+      },
+    ]);
+  });
+
+  it('passes AbortSignal to the SDK models.list call', async () => {
+    const client = new AnthropicClient('sk-test', 'claude-haiku-4-5-20251001');
+    const list = jest.fn().mockReturnValue(asyncIter([]));
+    // @ts-expect-error — stub
+    client.client = { models: { list } };
+    const controller = new AbortController();
+    await client.listModels(controller.signal);
+    expect(list).toHaveBeenCalledWith(undefined, { signal: controller.signal });
+  });
+
+  it('caps the number of models returned at 100 to bound UI dropdown size', async () => {
+    const many = Array.from({ length: 150 }, (_, i) => ({
+      id: `claude-test-${i}`,
+      display_name: `Claude Test ${i}`,
+      type: 'model',
+    }));
+    const client = new AnthropicClient('sk-test', 'claude-haiku-4-5-20251001');
+    // @ts-expect-error — stub
+    client.client = {
+      models: { list: jest.fn().mockReturnValue(asyncIter(many)) },
+    };
+    const models = await client.listModels();
+    expect(models).toHaveLength(100);
+  });
+
+  it('propagates errors from the SDK models.list call', async () => {
+    const client = new AnthropicClient('sk-test', 'claude-haiku-4-5-20251001');
+    // @ts-expect-error — stub SDK client
+    client.client = {
+      models: {
+        list: jest.fn().mockImplementation(() => {
+          throw new Error('401 Unauthorized');
+        }),
+      },
+    };
+    await expect(client.listModels()).rejects.toThrow('401 Unauthorized');
+  });
+
+  it('falls back to id when display_name is missing', async () => {
+    const client = new AnthropicClient('sk-test', 'claude-haiku-4-5-20251001');
+    // @ts-expect-error — stub SDK client
+    client.client = {
+      models: {
+        list: jest
+          .fn()
+          .mockReturnValue(
+            asyncIter([{ id: 'claude-unknown', type: 'model' }]),
+          ),
+      },
+    };
+    const models = await client.listModels();
+    expect(models[0]).toEqual({
+      id: 'claude-unknown',
+      name: 'claude-unknown',
+      type: 'chat',
     });
   });
 

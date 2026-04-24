@@ -12,10 +12,12 @@ import {
   ParseUUIDPipe,
   UseGuards,
 } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
 import { Roles, RolesGuard } from '../../common/guards/roles.guard';
 import {
   ApiTags,
   ApiBearerAuth,
+  ApiBody,
   ApiOperation,
   ApiParam,
   ApiNoContentResponse,
@@ -33,6 +35,7 @@ import { LlmConfigService } from './llm-config.service';
 import { LlmService } from '../llm/llm.service';
 import { CreateLlmConfigDto } from './dto/create-llm-config.dto';
 import { UpdateLlmConfigDto } from './dto/update-llm-config.dto';
+import { PreviewLlmModelsDto } from './dto/preview-llm-models.dto';
 import {
   LlmConfigDto,
   LlmModelListDto,
@@ -146,7 +149,30 @@ export class LlmConfigController {
     await this.llmConfigService.setDefault(id, workspaceId);
   }
 
+  @Post('preview-models')
+  @HttpCode(HttpStatus.OK)
+  @Roles('editor')
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
+  @ApiOperation({
+    summary: 'Provider 모델 목록 미리보기',
+    description:
+      '저장되지 않은 폼 자격증명(provider/apiKey/baseUrl)으로 Provider 모델 목록을 실시간 조회합니다. apiKey는 저장되지 않으며 요청 범위에서만 사용됩니다.',
+  })
+  @ApiBody({ type: PreviewLlmModelsDto })
+  @ApiOkWrappedResponse(LlmModelListDto, {
+    description: '사용 가능한 모델 목록',
+  })
+  @ApiBadRequestResponse({
+    description: '자격증명 누락/검증 실패 또는 Provider 호출 실패',
+  })
+  @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
+  @ApiForbiddenResponse({ description: 'editor 이상 권한 필요' })
+  async previewModels(@Body() dto: PreviewLlmModelsDto) {
+    return this.llmService.previewModels(dto);
+  }
+
   @Post(':id/test')
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
   @ApiOperation({
     summary: 'LLM 연결 테스트',
     description:
@@ -166,6 +192,7 @@ export class LlmConfigController {
   }
 
   @Get(':id/models')
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
   @ApiOperation({
     summary: 'Provider 모델 목록 조회',
     description:
@@ -201,7 +228,9 @@ export class LlmConfigController {
     @Param('id', ParseUUIDPipe) id: string,
     @WorkspaceId() workspaceId: string,
   ) {
-    this.llmService.clearClientCache(id);
+    // DB 삭제 성공 후 캐시를 제거해 "캐시는 비었으나 DB 삭제 실패로 레코드 잔존"
+    // 으로 발생하는 재-로드 불일치를 방지한다.
     await this.llmConfigService.remove(id, workspaceId);
+    this.llmService.clearClientCache(id);
   }
 }

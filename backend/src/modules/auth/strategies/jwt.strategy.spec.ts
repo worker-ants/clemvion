@@ -82,7 +82,7 @@ describe('JwtStrategy', () => {
   });
 
   it('should throw UnauthorizedException when user not found', async () => {
-    usersService.findById.mockResolvedValue(null as never);
+    usersService.findById.mockResolvedValue(null);
 
     await expect(strategy.validate(validPayload)).rejects.toThrow(
       UnauthorizedException,
@@ -102,7 +102,7 @@ describe('JwtStrategy', () => {
 
   it('should throw UnauthorizedException when workspace not found', async () => {
     usersService.findById.mockResolvedValue(mockUser as never);
-    workspacesService.findPersonalWorkspace.mockResolvedValue(null as never);
+    workspacesService.findPersonalWorkspace.mockResolvedValue(null);
 
     await expect(strategy.validate(validPayload)).rejects.toThrow(
       UnauthorizedException,
@@ -114,7 +114,7 @@ describe('JwtStrategy', () => {
     workspacesService.findPersonalWorkspace.mockResolvedValue(
       mockWorkspace as never,
     );
-    workspacesService.getMemberRole.mockResolvedValue(null as never);
+    workspacesService.getMemberRole.mockResolvedValue(null);
 
     const result = await strategy.validate(validPayload);
 

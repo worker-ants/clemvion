@@ -30,7 +30,7 @@ describe('validateWithZod', () => {
   });
 
   it('aggregates multiple issues', () => {
-    const result = validate({ name: '', age: 'bad' as unknown as number });
+    const result = validate({ name: '', age: 'bad' });
     expect(result.valid).toBe(false);
     expect(result.errors.length).toBeGreaterThanOrEqual(2);
   });

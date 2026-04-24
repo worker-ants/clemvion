@@ -65,8 +65,8 @@ describe('ExecutionEngineService', () => {
       label: 'Node 1',
       config: {},
       isDisabled: false,
-      containerId: undefined as unknown as string,
-      toolOwnerId: undefined as unknown as string,
+      containerId: undefined,
+      toolOwnerId: undefined,
     },
     {
       id: 'node-2',
@@ -76,8 +76,8 @@ describe('ExecutionEngineService', () => {
       label: 'Node 2',
       config: {},
       isDisabled: false,
-      containerId: undefined as unknown as string,
-      toolOwnerId: undefined as unknown as string,
+      containerId: undefined,
+      toolOwnerId: undefined,
     },
     {
       id: 'node-3',
@@ -87,8 +87,8 @@ describe('ExecutionEngineService', () => {
       label: 'Node 3',
       config: {},
       isDisabled: false,
-      containerId: undefined as unknown as string,
-      toolOwnerId: undefined as unknown as string,
+      containerId: undefined,
+      toolOwnerId: undefined,
     },
   ];
 
@@ -687,8 +687,8 @@ describe('ExecutionEngineService', () => {
         label: 'Start',
         config: {},
         isDisabled: false,
-        containerId: undefined as unknown as string,
-        toolOwnerId: undefined as unknown as string,
+        containerId: undefined,
+        toolOwnerId: undefined,
       },
       {
         id: 'node-form',
@@ -701,8 +701,8 @@ describe('ExecutionEngineService', () => {
           title: 'Approval',
         },
         isDisabled: false,
-        containerId: undefined as unknown as string,
-        toolOwnerId: undefined as unknown as string,
+        containerId: undefined,
+        toolOwnerId: undefined,
       },
       {
         id: 'node-end',
@@ -712,8 +712,8 @@ describe('ExecutionEngineService', () => {
         label: 'End',
         config: {},
         isDisabled: false,
-        containerId: undefined as unknown as string,
-        toolOwnerId: undefined as unknown as string,
+        containerId: undefined,
+        toolOwnerId: undefined,
       },
     ];
 
@@ -892,8 +892,8 @@ describe('ExecutionEngineService', () => {
         label: 'Trigger',
         config: {},
         isDisabled: false,
-        containerId: undefined as unknown as string,
-        toolOwnerId: undefined as unknown as string,
+        containerId: undefined,
+        toolOwnerId: undefined,
       },
       {
         id: 'node-template',
@@ -907,8 +907,8 @@ describe('ExecutionEngineService', () => {
           outputFormat: 'text',
         },
         isDisabled: false,
-        containerId: undefined as unknown as string,
-        toolOwnerId: undefined as unknown as string,
+        containerId: undefined,
+        toolOwnerId: undefined,
       },
     ];
 
@@ -1104,8 +1104,8 @@ describe('ExecutionEngineService', () => {
           label: 'Node A',
           config: {},
           isDisabled: false,
-          containerId: undefined as unknown as string,
-          toolOwnerId: undefined as unknown as string,
+          containerId: undefined,
+          toolOwnerId: undefined,
         },
         {
           id: 'node-switch',
@@ -1115,8 +1115,8 @@ describe('ExecutionEngineService', () => {
           label: 'Switch',
           config: {},
           isDisabled: false,
-          containerId: undefined as unknown as string,
-          toolOwnerId: undefined as unknown as string,
+          containerId: undefined,
+          toolOwnerId: undefined,
         },
         {
           id: 'node-c',
@@ -1126,8 +1126,8 @@ describe('ExecutionEngineService', () => {
           label: 'Node C',
           config: {},
           isDisabled: false,
-          containerId: undefined as unknown as string,
-          toolOwnerId: undefined as unknown as string,
+          containerId: undefined,
+          toolOwnerId: undefined,
         },
       ];
 
@@ -1193,8 +1193,8 @@ describe('ExecutionEngineService', () => {
           label: 'Node A',
           config: {},
           isDisabled: false,
-          containerId: undefined as unknown as string,
-          toolOwnerId: undefined as unknown as string,
+          containerId: undefined,
+          toolOwnerId: undefined,
         },
         {
           id: 'node-b',
@@ -1204,8 +1204,8 @@ describe('ExecutionEngineService', () => {
           label: 'Node B',
           config: {},
           isDisabled: false,
-          containerId: undefined as unknown as string,
-          toolOwnerId: undefined as unknown as string,
+          containerId: undefined,
+          toolOwnerId: undefined,
         },
       ];
 
@@ -1293,8 +1293,8 @@ describe('ExecutionEngineService', () => {
           label: 'Node A',
           config: {},
           isDisabled: false,
-          containerId: undefined as unknown as string,
-          toolOwnerId: undefined as unknown as string,
+          containerId: undefined,
+          toolOwnerId: undefined,
         },
         {
           id: 'node-b',
@@ -1304,8 +1304,8 @@ describe('ExecutionEngineService', () => {
           label: 'Node B',
           config: {},
           isDisabled: false,
-          containerId: undefined as unknown as string,
-          toolOwnerId: undefined as unknown as string,
+          containerId: undefined,
+          toolOwnerId: undefined,
         },
         {
           id: 'node-end',
@@ -1315,8 +1315,8 @@ describe('ExecutionEngineService', () => {
           label: 'End',
           config: {},
           isDisabled: false,
-          containerId: undefined as unknown as string,
-          toolOwnerId: undefined as unknown as string,
+          containerId: undefined,
+          toolOwnerId: undefined,
         },
       ];
 
@@ -1418,8 +1418,8 @@ describe('ExecutionEngineService', () => {
           label: 'A',
           config: {},
           isDisabled: false,
-          containerId: undefined as unknown as string,
-          toolOwnerId: undefined as unknown as string,
+          containerId: undefined,
+          toolOwnerId: undefined,
         },
         {
           id: 'node-sw',
@@ -1429,8 +1429,8 @@ describe('ExecutionEngineService', () => {
           label: 'SW',
           config: {},
           isDisabled: false,
-          containerId: undefined as unknown as string,
-          toolOwnerId: undefined as unknown as string,
+          containerId: undefined,
+          toolOwnerId: undefined,
         },
         {
           id: 'node-c',
@@ -1440,8 +1440,8 @@ describe('ExecutionEngineService', () => {
           label: 'C',
           config: {},
           isDisabled: false,
-          containerId: undefined as unknown as string,
-          toolOwnerId: undefined as unknown as string,
+          containerId: undefined,
+          toolOwnerId: undefined,
         },
       ];
 
@@ -1533,8 +1533,8 @@ describe('ExecutionEngineService', () => {
           label: 'Router',
           config: {},
           isDisabled: false,
-          containerId: undefined as unknown as string,
-          toolOwnerId: undefined as unknown as string,
+          containerId: undefined,
+          toolOwnerId: undefined,
         },
         {
           id: 'node-b',
@@ -1544,8 +1544,8 @@ describe('ExecutionEngineService', () => {
           label: 'B',
           config: {},
           isDisabled: false,
-          containerId: undefined as unknown as string,
-          toolOwnerId: undefined as unknown as string,
+          containerId: undefined,
+          toolOwnerId: undefined,
         },
         {
           id: 'node-c',
@@ -1555,8 +1555,8 @@ describe('ExecutionEngineService', () => {
           label: 'C',
           config: {},
           isDisabled: false,
-          containerId: undefined as unknown as string,
-          toolOwnerId: undefined as unknown as string,
+          containerId: undefined,
+          toolOwnerId: undefined,
         },
       ];
       const edges: Partial<Edge>[] = [
@@ -1626,8 +1626,8 @@ describe('ExecutionEngineService', () => {
           label: 'Emit',
           config: {},
           isDisabled: false,
-          containerId: undefined as unknown as string,
-          toolOwnerId: undefined as unknown as string,
+          containerId: undefined,
+          toolOwnerId: undefined,
         },
         {
           id: 'node-recv',
@@ -1637,8 +1637,8 @@ describe('ExecutionEngineService', () => {
           label: 'Recv',
           config: {},
           isDisabled: false,
-          containerId: undefined as unknown as string,
-          toolOwnerId: undefined as unknown as string,
+          containerId: undefined,
+          toolOwnerId: undefined,
         },
       ];
       const edges: Partial<Edge>[] = [
@@ -1691,8 +1691,8 @@ describe('ExecutionEngineService', () => {
           label: 'A',
           config: {},
           isDisabled: false,
-          containerId: undefined as unknown as string,
-          toolOwnerId: undefined as unknown as string,
+          containerId: undefined,
+          toolOwnerId: undefined,
         },
         {
           id: 'node-b',
@@ -1702,8 +1702,8 @@ describe('ExecutionEngineService', () => {
           label: 'B',
           config: {},
           isDisabled: true,
-          containerId: undefined as unknown as string,
-          toolOwnerId: undefined as unknown as string,
+          containerId: undefined,
+          toolOwnerId: undefined,
         },
         {
           id: 'node-c',
@@ -1713,8 +1713,8 @@ describe('ExecutionEngineService', () => {
           label: 'C',
           config: {},
           isDisabled: false,
-          containerId: undefined as unknown as string,
-          toolOwnerId: undefined as unknown as string,
+          containerId: undefined,
+          toolOwnerId: undefined,
         },
       ];
       const edges: Partial<Edge>[] = [
@@ -1776,8 +1776,8 @@ describe('ExecutionEngineService', () => {
           label: 'Trigger',
           config: {},
           isDisabled: false,
-          containerId: undefined as unknown as string,
-          toolOwnerId: undefined as unknown as string,
+          containerId: undefined,
+          toolOwnerId: undefined,
         },
         {
           id: 'router',
@@ -1787,8 +1787,8 @@ describe('ExecutionEngineService', () => {
           label: 'Router',
           config: {},
           isDisabled: false,
-          containerId: undefined as unknown as string,
-          toolOwnerId: undefined as unknown as string,
+          containerId: undefined,
+          toolOwnerId: undefined,
         },
         {
           id: 'x',
@@ -1798,8 +1798,8 @@ describe('ExecutionEngineService', () => {
           label: 'X',
           config: {},
           isDisabled: false,
-          containerId: undefined as unknown as string,
-          toolOwnerId: undefined as unknown as string,
+          containerId: undefined,
+          toolOwnerId: undefined,
         },
         {
           id: 'y',
@@ -1809,8 +1809,8 @@ describe('ExecutionEngineService', () => {
           label: 'Y',
           config: {},
           isDisabled: false,
-          containerId: undefined as unknown as string,
-          toolOwnerId: undefined as unknown as string,
+          containerId: undefined,
+          toolOwnerId: undefined,
         },
         {
           id: 'p',
@@ -1820,8 +1820,8 @@ describe('ExecutionEngineService', () => {
           label: 'P',
           config: {},
           isDisabled: false,
-          containerId: undefined as unknown as string,
-          toolOwnerId: undefined as unknown as string,
+          containerId: undefined,
+          toolOwnerId: undefined,
         },
         {
           id: 'q',
@@ -1831,8 +1831,8 @@ describe('ExecutionEngineService', () => {
           label: 'Q',
           config: {},
           isDisabled: false,
-          containerId: undefined as unknown as string,
-          toolOwnerId: undefined as unknown as string,
+          containerId: undefined,
+          toolOwnerId: undefined,
         },
       ];
       const edges: Partial<Edge>[] = [
@@ -1947,8 +1947,8 @@ describe('ExecutionEngineService', () => {
           label: 'source',
           config: {},
           isDisabled: false,
-          containerId: null as unknown as string,
-          toolOwnerId: null as unknown as string,
+          containerId: null,
+          toolOwnerId: null,
         },
         {
           id: 'foreach',
@@ -1958,8 +1958,8 @@ describe('ExecutionEngineService', () => {
           label: 'foreach',
           config: { arrayField: 'items' },
           isDisabled: false,
-          containerId: null as unknown as string,
-          toolOwnerId: null as unknown as string,
+          containerId: null,
+          toolOwnerId: null,
         },
         {
           id: 'body',
@@ -1970,7 +1970,7 @@ describe('ExecutionEngineService', () => {
           config: {},
           isDisabled: false,
           containerId: 'foreach',
-          toolOwnerId: null as unknown as string,
+          toolOwnerId: null,
         },
         {
           id: 'sink',
@@ -1980,8 +1980,8 @@ describe('ExecutionEngineService', () => {
           label: 'sink',
           config: {},
           isDisabled: false,
-          containerId: null as unknown as string,
-          toolOwnerId: null as unknown as string,
+          containerId: null,
+          toolOwnerId: null,
         },
       ];
 
@@ -2079,8 +2079,8 @@ describe('ExecutionEngineService', () => {
           label: 'source',
           config: {},
           isDisabled: false,
-          containerId: null as unknown as string,
-          toolOwnerId: null as unknown as string,
+          containerId: null,
+          toolOwnerId: null,
         },
         {
           id: 'loop',
@@ -2090,8 +2090,8 @@ describe('ExecutionEngineService', () => {
           label: 'loop',
           config: { count: 4 },
           isDisabled: false,
-          containerId: null as unknown as string,
-          toolOwnerId: null as unknown as string,
+          containerId: null,
+          toolOwnerId: null,
         },
         {
           id: 'body',
@@ -2102,7 +2102,7 @@ describe('ExecutionEngineService', () => {
           config: {},
           isDisabled: false,
           containerId: 'loop',
-          toolOwnerId: null as unknown as string,
+          toolOwnerId: null,
         },
         {
           id: 'sink',
@@ -2112,8 +2112,8 @@ describe('ExecutionEngineService', () => {
           label: 'sink',
           config: {},
           isDisabled: false,
-          containerId: null as unknown as string,
-          toolOwnerId: null as unknown as string,
+          containerId: null,
+          toolOwnerId: null,
         },
       ];
 
@@ -2204,8 +2204,8 @@ describe('ExecutionEngineService', () => {
           label: 'source',
           config: {},
           isDisabled: false,
-          containerId: null as unknown as string,
-          toolOwnerId: null as unknown as string,
+          containerId: null,
+          toolOwnerId: null,
         },
         {
           id: 'foreach',
@@ -2215,8 +2215,8 @@ describe('ExecutionEngineService', () => {
           label: 'foreach',
           config: { arrayField: 'items' },
           isDisabled: false,
-          containerId: null as unknown as string,
-          toolOwnerId: null as unknown as string,
+          containerId: null,
+          toolOwnerId: null,
         },
         {
           id: 'body',
@@ -2227,7 +2227,7 @@ describe('ExecutionEngineService', () => {
           config: {},
           isDisabled: false,
           containerId: 'foreach',
-          toolOwnerId: null as unknown as string,
+          toolOwnerId: null,
         },
         {
           id: 'sink',
@@ -2237,8 +2237,8 @@ describe('ExecutionEngineService', () => {
           label: 'sink',
           config: {},
           isDisabled: false,
-          containerId: null as unknown as string,
-          toolOwnerId: null as unknown as string,
+          containerId: null,
+          toolOwnerId: null,
         },
       ];
 
@@ -2314,8 +2314,8 @@ describe('ExecutionEngineService', () => {
           label: 'source',
           config: {},
           isDisabled: false,
-          containerId: null as unknown as string,
-          toolOwnerId: null as unknown as string,
+          containerId: null,
+          toolOwnerId: null,
         },
         {
           id: 'foreach',
@@ -2325,8 +2325,8 @@ describe('ExecutionEngineService', () => {
           label: 'foreach',
           config: { arrayField: 'items' },
           isDisabled: false,
-          containerId: null as unknown as string,
-          toolOwnerId: null as unknown as string,
+          containerId: null,
+          toolOwnerId: null,
         },
         {
           id: 'body',
@@ -2337,7 +2337,7 @@ describe('ExecutionEngineService', () => {
           config: {},
           isDisabled: false,
           containerId: 'foreach',
-          toolOwnerId: null as unknown as string,
+          toolOwnerId: null,
         },
       ];
 
@@ -2405,8 +2405,8 @@ describe('ExecutionEngineService', () => {
           label: 'source',
           config: {},
           isDisabled: false,
-          containerId: null as unknown as string,
-          toolOwnerId: null as unknown as string,
+          containerId: null,
+          toolOwnerId: null,
         },
         {
           id: 'foreach',
@@ -2416,8 +2416,8 @@ describe('ExecutionEngineService', () => {
           label: 'foreach',
           config: { arrayField: 'items' },
           isDisabled: false,
-          containerId: null as unknown as string,
-          toolOwnerId: null as unknown as string,
+          containerId: null,
+          toolOwnerId: null,
         },
         {
           id: 'body-a',
@@ -2428,7 +2428,7 @@ describe('ExecutionEngineService', () => {
           config: {},
           isDisabled: false,
           containerId: 'foreach',
-          toolOwnerId: null as unknown as string,
+          toolOwnerId: null,
         },
         {
           id: 'body-b',
@@ -2439,7 +2439,7 @@ describe('ExecutionEngineService', () => {
           config: {},
           isDisabled: false,
           containerId: 'foreach',
-          toolOwnerId: null as unknown as string,
+          toolOwnerId: null,
         },
       ];
 
@@ -2549,8 +2549,8 @@ describe('ExecutionEngineService', () => {
           label: 'source',
           config: {},
           isDisabled: false,
-          containerId: null as unknown as string,
-          toolOwnerId: null as unknown as string,
+          containerId: null,
+          toolOwnerId: null,
         },
         {
           id: 'map',
@@ -2560,8 +2560,8 @@ describe('ExecutionEngineService', () => {
           label: 'map',
           config: { inputField: 'items' },
           isDisabled: false,
-          containerId: null as unknown as string,
-          toolOwnerId: null as unknown as string,
+          containerId: null,
+          toolOwnerId: null,
         },
         {
           id: 'body',
@@ -2572,7 +2572,7 @@ describe('ExecutionEngineService', () => {
           config: {},
           isDisabled: false,
           containerId: 'map',
-          toolOwnerId: null as unknown as string,
+          toolOwnerId: null,
         },
         {
           id: 'sink',
@@ -2582,8 +2582,8 @@ describe('ExecutionEngineService', () => {
           label: 'sink',
           config: {},
           isDisabled: false,
-          containerId: null as unknown as string,
-          toolOwnerId: null as unknown as string,
+          containerId: null,
+          toolOwnerId: null,
         },
       ];
 
@@ -2706,8 +2706,8 @@ describe('ExecutionEngineService', () => {
           label: 'Trigger',
           config: {},
           isDisabled: false,
-          containerId: undefined as unknown as string,
-          toolOwnerId: undefined as unknown as string,
+          containerId: undefined,
+          toolOwnerId: undefined,
         },
         {
           id: 'parallel-1',
@@ -2717,8 +2717,8 @@ describe('ExecutionEngineService', () => {
           label: 'Parallel',
           config: { branchCount: 2, maxConcurrency: 0, waitAll: true },
           isDisabled: false,
-          containerId: undefined as unknown as string,
-          toolOwnerId: undefined as unknown as string,
+          containerId: undefined,
+          toolOwnerId: undefined,
         },
         {
           id: 'branch-a',
@@ -2728,8 +2728,8 @@ describe('ExecutionEngineService', () => {
           label: 'Branch A',
           config: {},
           isDisabled: false,
-          containerId: undefined as unknown as string,
-          toolOwnerId: undefined as unknown as string,
+          containerId: undefined,
+          toolOwnerId: undefined,
         },
         {
           id: 'branch-b',
@@ -2739,8 +2739,8 @@ describe('ExecutionEngineService', () => {
           label: 'Branch B',
           config: {},
           isDisabled: false,
-          containerId: undefined as unknown as string,
-          toolOwnerId: undefined as unknown as string,
+          containerId: undefined,
+          toolOwnerId: undefined,
         },
         {
           id: 'merge-1',
@@ -2750,8 +2750,8 @@ describe('ExecutionEngineService', () => {
           label: 'Merge',
           config: { strategy: 'wait_all', outputFormat: 'array' },
           isDisabled: false,
-          containerId: undefined as unknown as string,
-          toolOwnerId: undefined as unknown as string,
+          containerId: undefined,
+          toolOwnerId: undefined,
         },
       ];
 
@@ -2868,8 +2868,8 @@ describe('ExecutionEngineService', () => {
           label: 'Trigger',
           config: {},
           isDisabled: false,
-          containerId: undefined as unknown as string,
-          toolOwnerId: undefined as unknown as string,
+          containerId: undefined,
+          toolOwnerId: undefined,
         },
         {
           id: 'par',
@@ -2879,8 +2879,8 @@ describe('ExecutionEngineService', () => {
           label: 'Parallel',
           config: { branchCount: 2, maxConcurrency: 0, waitAll: true },
           isDisabled: false,
-          containerId: undefined as unknown as string,
-          toolOwnerId: undefined as unknown as string,
+          containerId: undefined,
+          toolOwnerId: undefined,
         },
         {
           id: 'a',
@@ -2890,8 +2890,8 @@ describe('ExecutionEngineService', () => {
           label: 'A',
           config: {},
           isDisabled: false,
-          containerId: undefined as unknown as string,
-          toolOwnerId: undefined as unknown as string,
+          containerId: undefined,
+          toolOwnerId: undefined,
         },
         {
           id: 'b',
@@ -2901,8 +2901,8 @@ describe('ExecutionEngineService', () => {
           label: 'B',
           config: {},
           isDisabled: false,
-          containerId: undefined as unknown as string,
-          toolOwnerId: undefined as unknown as string,
+          containerId: undefined,
+          toolOwnerId: undefined,
         },
         {
           id: 'sink',
@@ -2912,8 +2912,8 @@ describe('ExecutionEngineService', () => {
           label: 'Sink',
           config: {},
           isDisabled: false,
-          containerId: undefined as unknown as string,
-          toolOwnerId: undefined as unknown as string,
+          containerId: undefined,
+          toolOwnerId: undefined,
         },
       ];
 

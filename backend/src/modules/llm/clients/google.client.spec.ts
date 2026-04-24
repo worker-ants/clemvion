@@ -9,7 +9,7 @@ function asyncIter<T>(items: T[]): AsyncIterable<T> {
         next: async () =>
           i < items.length
             ? { value: items[i++], done: false }
-            : { value: undefined as unknown as T, done: true },
+            : { value: undefined, done: true },
       };
     },
   };
@@ -28,22 +28,49 @@ interface FakeChunk {
   };
 }
 
-function makeClientWithStreamResult(
-  chunks: FakeChunk[],
-  aggregated?: FakeChunk,
-): { client: GoogleClient; sendMessageStream: jest.Mock } {
-  const client = new GoogleClient('test-key', 'gemini-2.5-flash');
-  const sendMessageStream = jest.fn().mockResolvedValue({
-    stream: asyncIter(chunks),
-    response: Promise.resolve(aggregated ?? chunks[chunks.length - 1] ?? {}),
-  });
-  // @ts-expect-error — overwrite the internal SDK client
-  client.genAI = {
-    getGenerativeModel: jest.fn().mockReturnValue({
-      startChat: jest.fn().mockReturnValue({ sendMessageStream }),
-    }),
+interface FakeModel {
+  name?: string;
+  displayName?: string;
+  supportedActions?: string[];
+}
+
+interface Stubs {
+  client: GoogleClient;
+  generateContent: jest.Mock;
+  generateContentStream: jest.Mock;
+  embedContent: jest.Mock;
+  list: jest.Mock;
+}
+
+function makeStubs(
+  overrides: Partial<{
+    streamChunks: FakeChunk[];
+    streamRejects: unknown;
+    generateContentResult: unknown;
+    models: FakeModel[];
+    embedResult: unknown;
+    defaultModel: string;
+  }> = {},
+): Stubs {
+  const client = new GoogleClient(
+    'test-key',
+    overrides.defaultModel ?? 'gemini-2.5-flash',
+  );
+  const generateContentStream = overrides.streamRejects
+    ? jest.fn().mockRejectedValue(overrides.streamRejects)
+    : jest.fn().mockResolvedValue(asyncIter(overrides.streamChunks ?? []));
+  const generateContent = jest
+    .fn()
+    .mockResolvedValue(overrides.generateContentResult ?? {});
+  const embedContent = jest
+    .fn()
+    .mockResolvedValue(overrides.embedResult ?? { embeddings: [] });
+  const list = jest.fn().mockResolvedValue(asyncIter(overrides.models ?? []));
+  // @ts-expect-error — overwrite internal SDK client with a minimal stub
+  client.ai = {
+    models: { generateContent, generateContentStream, embedContent, list },
   };
-  return { client, sendMessageStream };
+  return { client, generateContent, generateContentStream, embedContent, list };
 }
 
 async function collect(
@@ -56,18 +83,20 @@ async function collect(
 
 describe('GoogleClient.stream', () => {
   it('emits text_delta for text parts and a terminal done with usage', async () => {
-    const { client } = makeClientWithStreamResult([
-      { candidates: [{ content: { parts: [{ text: 'Hello ' }] } }] },
-      { candidates: [{ content: { parts: [{ text: 'world' }] } }] },
-      {
-        candidates: [{ content: { parts: [] }, finishReason: 'STOP' }],
-        usageMetadata: {
-          promptTokenCount: 12,
-          candidatesTokenCount: 4,
-          totalTokenCount: 16,
+    const { client } = makeStubs({
+      streamChunks: [
+        { candidates: [{ content: { parts: [{ text: 'Hello ' }] } }] },
+        { candidates: [{ content: { parts: [{ text: 'world' }] } }] },
+        {
+          candidates: [{ content: { parts: [] }, finishReason: 'STOP' }],
+          usageMetadata: {
+            promptTokenCount: 12,
+            candidatesTokenCount: 4,
+            totalTokenCount: 16,
+          },
         },
-      },
-    ]);
+      ],
+    });
 
     const events = await collect(
       client.stream({
@@ -89,30 +118,32 @@ describe('GoogleClient.stream', () => {
   });
 
   it('emits tool_call_delta+tool_call_end for functionCall parts and reports tool_calls finishReason', async () => {
-    const { client } = makeClientWithStreamResult([
-      {
-        candidates: [
-          {
-            content: {
-              parts: [
-                {
-                  functionCall: {
-                    name: 'add_node',
-                    args: { type: 'http_request', label: 'Get Order' },
+    const { client } = makeStubs({
+      streamChunks: [
+        {
+          candidates: [
+            {
+              content: {
+                parts: [
+                  {
+                    functionCall: {
+                      name: 'add_node',
+                      args: { type: 'http_request', label: 'Get Order' },
+                    },
                   },
-                },
-              ],
+                ],
+              },
+              finishReason: 'STOP',
             },
-            finishReason: 'STOP',
+          ],
+          usageMetadata: {
+            promptTokenCount: 20,
+            candidatesTokenCount: 10,
+            totalTokenCount: 30,
           },
-        ],
-        usageMetadata: {
-          promptTokenCount: 20,
-          candidatesTokenCount: 10,
-          totalTokenCount: 30,
         },
-      },
-    ]);
+      ],
+    });
 
     const events = await collect(
       client.stream({
@@ -129,7 +160,6 @@ describe('GoogleClient.stream', () => {
     const expectedArgs = '{"type":"http_request","label":"Get Order"}';
     const delta = events.find((e) => e.type === 'tool_call_delta');
     const end = events.find((e) => e.type === 'tool_call_end');
-    // type narrow는 expect에 넣어 mismatch 시 silent pass 되지 않도록 한다.
     expect(delta?.type).toBe('tool_call_delta');
     expect(end?.type).toBe('tool_call_end');
     if (delta?.type !== 'tool_call_delta' || end?.type !== 'tool_call_end') {
@@ -139,10 +169,7 @@ describe('GoogleClient.stream', () => {
       name: 'add_node',
       argumentsDelta: expectedArgs,
     });
-    expect(end).toMatchObject({
-      name: 'add_node',
-      arguments: expectedArgs,
-    });
+    expect(end).toMatchObject({ name: 'add_node', arguments: expectedArgs });
     expect(delta.id).toBe(end.id);
     expect(events.find((e) => e.type === 'done')).toMatchObject({
       finishReason: 'tool_calls',
@@ -150,33 +177,35 @@ describe('GoogleClient.stream', () => {
   });
 
   it('emits delta+end pairs in order for multiple functionCall parts in one chunk', async () => {
-    const { client } = makeClientWithStreamResult([
-      {
-        candidates: [
-          {
-            content: {
-              parts: [
-                {
-                  functionCall: { name: 'add_node', args: { type: 'http' } },
-                },
-                {
-                  functionCall: {
-                    name: 'add_edge',
-                    args: { from: 'a', to: 'b' },
+    const { client } = makeStubs({
+      streamChunks: [
+        {
+          candidates: [
+            {
+              content: {
+                parts: [
+                  {
+                    functionCall: { name: 'add_node', args: { type: 'http' } },
                   },
-                },
-              ],
+                  {
+                    functionCall: {
+                      name: 'add_edge',
+                      args: { from: 'a', to: 'b' },
+                    },
+                  },
+                ],
+              },
+              finishReason: 'STOP',
             },
-            finishReason: 'STOP',
+          ],
+          usageMetadata: {
+            promptTokenCount: 5,
+            candidatesTokenCount: 3,
+            totalTokenCount: 8,
           },
-        ],
-        usageMetadata: {
-          promptTokenCount: 5,
-          candidatesTokenCount: 3,
-          totalTokenCount: 8,
         },
-      },
-    ]);
+      ],
+    });
 
     const events = await collect(
       client.stream({
@@ -185,7 +214,6 @@ describe('GoogleClient.stream', () => {
       }),
     );
 
-    // delta+end 페어가 두 개씩 순서대로, 마지막에 done 한 번
     expect(events.map((e) => e.type)).toEqual([
       'tool_call_delta',
       'tool_call_end',
@@ -200,7 +228,6 @@ describe('GoogleClient.stream', () => {
     }
     expect(ends[0].name).toBe('add_node');
     expect(ends[1].name).toBe('add_edge');
-    // 두 tool_call의 id는 서로 다른 UUID여야 한다.
     expect(ends[0].id).not.toBe(ends[1].id);
     expect(events.find((e) => e.type === 'done')).toMatchObject({
       finishReason: 'tool_calls',
@@ -208,21 +235,23 @@ describe('GoogleClient.stream', () => {
   });
 
   it('maps Gemini MAX_TOKENS finishReason to "length"', async () => {
-    const { client } = makeClientWithStreamResult([
-      {
-        candidates: [
-          {
-            content: { parts: [{ text: 'partial' }] },
-            finishReason: 'MAX_TOKENS',
+    const { client } = makeStubs({
+      streamChunks: [
+        {
+          candidates: [
+            {
+              content: { parts: [{ text: 'partial' }] },
+              finishReason: 'MAX_TOKENS',
+            },
+          ],
+          usageMetadata: {
+            promptTokenCount: 5,
+            candidatesTokenCount: 3,
+            totalTokenCount: 8,
           },
-        ],
-        usageMetadata: {
-          promptTokenCount: 5,
-          candidatesTokenCount: 3,
-          totalTokenCount: 8,
         },
-      },
-    ]);
+      ],
+    });
 
     const events = await collect(
       client.stream({
@@ -237,16 +266,18 @@ describe('GoogleClient.stream', () => {
   });
 
   it('maps Gemini SAFETY finishReason to "content_filter"', async () => {
-    const { client } = makeClientWithStreamResult([
-      {
-        candidates: [{ content: { parts: [] }, finishReason: 'SAFETY' }],
-        usageMetadata: {
-          promptTokenCount: 5,
-          candidatesTokenCount: 0,
-          totalTokenCount: 5,
+    const { client } = makeStubs({
+      streamChunks: [
+        {
+          candidates: [{ content: { parts: [] }, finishReason: 'SAFETY' }],
+          usageMetadata: {
+            promptTokenCount: 5,
+            candidatesTokenCount: 0,
+            totalTokenCount: 5,
+          },
         },
-      },
-    ]);
+      ],
+    });
 
     const events = await collect(
       client.stream({
@@ -260,17 +291,23 @@ describe('GoogleClient.stream', () => {
     });
   });
 
-  it('falls back to aggregated response.usageMetadata when chunks omit usage', async () => {
-    const { client } = makeClientWithStreamResult(
-      [{ candidates: [{ content: { parts: [{ text: 'ok' }] } }] }],
-      {
-        usageMetadata: {
-          promptTokenCount: 7,
-          candidatesTokenCount: 1,
-          totalTokenCount: 8,
+  it('picks up usageMetadata from a later chunk even when earlier chunks omit it', async () => {
+    // 신 SDK 는 `{stream, response}` 분리를 제공하지 않으므로 aggregated response
+    // 폴백이 사라졌다. Gemini 가 마지막 청크에 usage 를 내려보내는 동작은 그대로라
+    // 스트림 순회 중 누적되는 값을 검증한다.
+    const { client } = makeStubs({
+      streamChunks: [
+        { candidates: [{ content: { parts: [{ text: 'ok' }] } }] },
+        {
+          candidates: [{ content: { parts: [] }, finishReason: 'STOP' }],
+          usageMetadata: {
+            promptTokenCount: 7,
+            candidatesTokenCount: 1,
+            totalTokenCount: 8,
+          },
         },
-      },
-    );
+      ],
+    });
 
     const events = await collect(
       client.stream({
@@ -285,19 +322,21 @@ describe('GoogleClient.stream', () => {
   });
 
   it('reports thoughtsTokenCount as thinkingTokens in the done event', async () => {
-    const { client } = makeClientWithStreamResult([
-      {
-        candidates: [
-          { content: { parts: [{ text: 'ans' }] }, finishReason: 'STOP' },
-        ],
-        usageMetadata: {
-          promptTokenCount: 10,
-          candidatesTokenCount: 2,
-          totalTokenCount: 12,
-          thoughtsTokenCount: 5,
+    const { client } = makeStubs({
+      streamChunks: [
+        {
+          candidates: [
+            { content: { parts: [{ text: 'ans' }] }, finishReason: 'STOP' },
+          ],
+          usageMetadata: {
+            promptTokenCount: 10,
+            candidatesTokenCount: 2,
+            totalTokenCount: 12,
+            thoughtsTokenCount: 5,
+          },
         },
-      },
-    ]);
+      ],
+    });
 
     const events = await collect(
       client.stream({
@@ -319,31 +358,28 @@ describe('GoogleClient.stream', () => {
   it('yields done with finishReason="aborted" when AbortSignal triggers mid-stream', async () => {
     const abort = new AbortController();
     const client = new GoogleClient('test-key', 'gemini-2.5-flash');
-    // 실제 SDK는 abort 시 DOMException(name='AbortError')를 throw하므로
-    // 동일 형태로 시뮬레이션해 구현이 `signal.aborted` 플래그(메시지 텍스트가
-    // 아닌)로 분기하는지 정확히 검증한다.
     const abortError = new DOMException(
       'The operation was aborted.',
       'AbortError',
     );
-    const sendMessageStream = jest.fn().mockResolvedValue({
-      stream: {
-        [Symbol.asyncIterator]() {
-          return {
-            next: async () => {
-              abort.abort();
-              throw abortError;
-            },
-          };
-        },
+    const generateContentStream = jest.fn().mockResolvedValue({
+      [Symbol.asyncIterator]() {
+        return {
+          next: async () => {
+            abort.abort();
+            throw abortError;
+          },
+        };
       },
-      response: Promise.resolve({}),
     });
     // @ts-expect-error — stub
-    client.genAI = {
-      getGenerativeModel: jest.fn().mockReturnValue({
-        startChat: jest.fn().mockReturnValue({ sendMessageStream }),
-      }),
+    client.ai = {
+      models: {
+        generateContent: jest.fn(),
+        generateContentStream,
+        embedContent: jest.fn(),
+        list: jest.fn(),
+      },
     };
 
     const events = await collect(
@@ -355,23 +391,15 @@ describe('GoogleClient.stream', () => {
         abort.signal,
       ),
     );
-    // abort 시 error 이벤트는 emit 되지 않고 done(aborted)만 emit 되어야 한다.
     expect(events.find((e) => e.type === 'error')).toBeUndefined();
     const done = events.find((e) => e.type === 'done');
     expect(done).toMatchObject({ type: 'done', finishReason: 'aborted' });
   });
 
-  it('yields an error event when sendMessageStream rejects', async () => {
-    const client = new GoogleClient('test-key', 'gemini-2.5-flash');
-    const sendMessageStream = jest
-      .fn()
-      .mockRejectedValue(new Error('401 Unauthorized'));
-    // @ts-expect-error — stub
-    client.genAI = {
-      getGenerativeModel: jest.fn().mockReturnValue({
-        startChat: jest.fn().mockReturnValue({ sendMessageStream }),
-      }),
-    };
+  it('yields an error event when generateContentStream rejects', async () => {
+    const { client } = makeStubs({
+      streamRejects: new Error('401 Unauthorized'),
+    });
 
     const events = await collect(
       client.stream({
@@ -386,16 +414,9 @@ describe('GoogleClient.stream', () => {
   });
 
   it('classifies 429 errors as LLM_RATE_LIMIT', async () => {
-    const client = new GoogleClient('test-key', 'gemini-2.5-flash');
-    const sendMessageStream = jest
-      .fn()
-      .mockRejectedValue(new Error('429 Too Many Requests'));
-    // @ts-expect-error — stub
-    client.genAI = {
-      getGenerativeModel: jest.fn().mockReturnValue({
-        startChat: jest.fn().mockReturnValue({ sendMessageStream }),
-      }),
-    };
+    const { client } = makeStubs({
+      streamRejects: new Error('429 Too Many Requests'),
+    });
 
     const events = await collect(
       client.stream({
@@ -409,20 +430,22 @@ describe('GoogleClient.stream', () => {
     });
   });
 
-  it('forwards AbortSignal to sendMessageStream requestOptions', async () => {
+  it('forwards AbortSignal via config.abortSignal', async () => {
     const abort = new AbortController();
-    const { client, sendMessageStream } = makeClientWithStreamResult([
-      {
-        candidates: [
-          { content: { parts: [{ text: 'ok' }] }, finishReason: 'STOP' },
-        ],
-        usageMetadata: {
-          promptTokenCount: 1,
-          candidatesTokenCount: 1,
-          totalTokenCount: 2,
+    const { client, generateContentStream } = makeStubs({
+      streamChunks: [
+        {
+          candidates: [
+            { content: { parts: [{ text: 'ok' }] }, finishReason: 'STOP' },
+          ],
+          usageMetadata: {
+            promptTokenCount: 1,
+            candidatesTokenCount: 1,
+            totalTokenCount: 2,
+          },
         },
-      },
-    ]);
+      ],
+    });
 
     await collect(
       client.stream(
@@ -434,21 +457,17 @@ describe('GoogleClient.stream', () => {
       ),
     );
 
-    expect(sendMessageStream).toHaveBeenCalledWith(
-      [{ text: 'x' }],
-      expect.objectContaining({ signal: abort.signal }),
-    );
+    const callArgs = generateContentStream.mock.calls[0][0];
+    expect(callArgs.config.abortSignal).toBe(abort.signal);
+    expect(callArgs.contents).toEqual([
+      { role: 'user', parts: [{ text: 'x' }] },
+    ]);
   });
 
   describe('history serialization (tool call / tool result round-trip)', () => {
-    function stubClient(): {
-      client: GoogleClient;
-      startChat: jest.Mock;
-      sendMessageStream: jest.Mock;
-    } {
-      const client = new GoogleClient('test-key', 'gemini-2.5-flash');
-      const sendMessageStream = jest.fn().mockResolvedValue({
-        stream: asyncIter([
+    it('flattens user/assistant/tool messages into a single contents array', async () => {
+      const { client, generateContentStream } = makeStubs({
+        streamChunks: [
           {
             candidates: [
               { content: { parts: [{ text: 'ok' }] }, finishReason: 'STOP' },
@@ -459,19 +478,8 @@ describe('GoogleClient.stream', () => {
               totalTokenCount: 2,
             },
           },
-        ]),
-        response: Promise.resolve({}),
+        ],
       });
-      const startChat = jest.fn().mockReturnValue({ sendMessageStream });
-      // @ts-expect-error — stub
-      client.genAI = {
-        getGenerativeModel: jest.fn().mockReturnValue({ startChat }),
-      };
-      return { client, startChat, sendMessageStream };
-    }
-
-    it('converts assistant.toolCalls to functionCall parts in history', async () => {
-      const { client, startChat, sendMessageStream } = stubClient();
       await collect(
         client.stream({
           model: 'gemini-2.5-flash',
@@ -497,8 +505,8 @@ describe('GoogleClient.stream', () => {
         }),
       );
 
-      const startChatArgs = startChat.mock.calls[0][0];
-      expect(startChatArgs.history).toEqual([
+      const contents = generateContentStream.mock.calls[0][0].contents;
+      expect(contents).toEqual([
         { role: 'user', parts: [{ text: 'add http' }] },
         {
           role: 'model',
@@ -507,28 +515,41 @@ describe('GoogleClient.stream', () => {
               functionCall: {
                 name: 'add_node',
                 args: { type: 'http_request', label: 'Get' },
+                id: 'call_1',
+              },
+            },
+          ],
+        },
+        {
+          role: 'function',
+          parts: [
+            {
+              functionResponse: {
+                name: 'add_node',
+                response: { ok: true, id: 'n1' },
+                id: 'call_1',
               },
             },
           ],
         },
       ]);
-      // 마지막 tool 결과는 sendMessageStream의 Part[] 인자로 전달되고
-      // SDK가 내부에서 role='function' Content로 래핑한다.
-      expect(sendMessageStream).toHaveBeenCalledWith(
-        [
-          {
-            functionResponse: {
-              name: 'add_node',
-              response: { ok: true, id: 'n1' },
-            },
-          },
-        ],
-        undefined,
-      );
     });
 
     it('wraps non-object tool results under `result` for Gemini functionResponse contract', async () => {
-      const { client, sendMessageStream } = stubClient();
+      const { client, generateContentStream } = makeStubs({
+        streamChunks: [
+          {
+            candidates: [
+              { content: { parts: [{ text: 'ok' }] }, finishReason: 'STOP' },
+            ],
+            usageMetadata: {
+              promptTokenCount: 1,
+              candidatesTokenCount: 1,
+              totalTokenCount: 2,
+            },
+          },
+        ],
+      });
       await collect(
         client.stream({
           model: 'gemini-2.5-flash',
@@ -543,23 +564,36 @@ describe('GoogleClient.stream', () => {
           ],
         }),
       );
-      const call = sendMessageStream.mock.calls[0][0];
-      expect(call).toEqual([
-        {
-          functionResponse: {
-            name: 'echo',
-            response: { result: 'just a string' },
+      const contents = generateContentStream.mock.calls[0][0].contents;
+      expect(contents[contents.length - 1]).toEqual({
+        role: 'function',
+        parts: [
+          {
+            functionResponse: {
+              name: 'echo',
+              response: { result: 'just a string' },
+              id: 'c1',
+            },
           },
-        },
-      ]);
+        ],
+      });
     });
 
     it('never merges functionResponse parts with plain-text user parts into the same turn', async () => {
-      // Regression: Gemini rejects messages that mix functionResponse with
-      // other part types. 이전엔 재수화된 tool 결과(user) + 새 user 메시지를
-      // 같은 turn으로 합쳐 "FunctionResponse cannot be mixed with other type
-      // of part" 400 이 발생했다.
-      const { client, startChat, sendMessageStream } = stubClient();
+      const { client, generateContentStream } = makeStubs({
+        streamChunks: [
+          {
+            candidates: [
+              { content: { parts: [{ text: 'ok' }] }, finishReason: 'STOP' },
+            ],
+            usageMetadata: {
+              promptTokenCount: 1,
+              candidatesTokenCount: 1,
+              totalTokenCount: 2,
+            },
+          },
+        ],
+      });
       await collect(
         client.stream({
           model: 'gemini-2.5-flash',
@@ -570,40 +604,33 @@ describe('GoogleClient.stream', () => {
               toolCalls: [{ id: 'c1', name: 'tool_a', arguments: '{}' }],
             },
             { role: 'tool', content: '{"ok":true}', toolCallId: 'c1' },
-            // terminal model turn(저장된 assistant 텍스트 응답)
             { role: 'assistant', content: 'Done' },
-            // 새 유저 메시지 — tool 결과와 같은 turn으로 merge되면 안 된다
             { role: 'user', content: '다음 단계 알려줘' },
           ],
         }),
       );
 
-      const history = startChat.mock.calls[0][0].history;
-      // model(functionCall) → function(functionResponse) → model(text 'Done')
-      // SDK/Gemini 3.x는 functionResponse turn에 role='function'을 요구한다.
-      expect(history).toEqual([
-        {
-          role: 'model',
-          parts: [{ functionCall: { name: 'tool_a', args: {} } }],
-        },
-        {
-          role: 'function',
-          parts: [
-            { functionResponse: { name: 'tool_a', response: { ok: true } } },
-          ],
-        },
-        { role: 'model', parts: [{ text: 'Done' }] },
-      ]);
-      // 새 user 메시지는 lastParts로 전달되며 functionResponse와 섞이지 않음
-      expect(sendMessageStream.mock.calls[0][0]).toEqual([
-        { text: '다음 단계 알려줘' },
-      ]);
+      const contents = generateContentStream.mock.calls[0][0].contents;
+      const roles = contents.map((c: { role: string }) => c.role);
+      expect(roles).toEqual(['model', 'function', 'model', 'user']);
+      expect(contents[3].parts).toEqual([{ text: '다음 단계 알려줘' }]);
     });
 
     it('emits a placeholder text part for an empty assistant turn to preserve alternation', async () => {
-      // 저장된 assistant content가 비어 있어도 terminal model turn을 유지해야
-      // 새 user 메시지가 앞 user(functionResponse) turn과 직접 인접하지 않는다.
-      const { client, startChat } = stubClient();
+      const { client, generateContentStream } = makeStubs({
+        streamChunks: [
+          {
+            candidates: [
+              { content: { parts: [{ text: 'ok' }] }, finishReason: 'STOP' },
+            ],
+            usageMetadata: {
+              promptTokenCount: 1,
+              candidatesTokenCount: 1,
+              totalTokenCount: 2,
+            },
+          },
+        ],
+      });
       await collect(
         client.stream({
           model: 'gemini-2.5-flash',
@@ -614,28 +641,20 @@ describe('GoogleClient.stream', () => {
               toolCalls: [{ id: 'c1', name: 't', arguments: '{}' }],
             },
             { role: 'tool', content: '{"ok":true}', toolCallId: 'c1' },
-            // 비어있는 terminal model turn (rehydrated)
             { role: 'assistant', content: '' },
             { role: 'user', content: 'next' },
           ],
         }),
       );
-      const history = startChat.mock.calls[0][0].history;
-      // 세 번째 turn은 빈 텍스트 part라도 model turn으로 포함되어야 한다
-      expect(history).toHaveLength(3);
-      expect(history[2]).toEqual({ role: 'model', parts: [{ text: '' }] });
+      const contents = generateContentStream.mock.calls[0][0].contents;
+      expect(contents).toHaveLength(4);
+      expect(contents[2]).toEqual({ role: 'model', parts: [{ text: '' }] });
     });
 
-    it('captures thoughtSignature from functionCall parts and echoes it back in history', async () => {
-      // Gemini 2.5+/3.x는 functionCall part에 thoughtSignature를 부여하고,
-      // 다음 턴 history의 동일 functionCall part에 이를 echo할 것을 요구한다.
-      // 없으면 `Function call is missing a thought_signature` 400.
-      const client = new GoogleClient(
-        'test-key',
-        'gemini-3.1-flash-lite-preview',
-      );
-      const sendMessageStream = jest.fn().mockResolvedValue({
-        stream: asyncIter([
+    it('captures thoughtSignature from functionCall parts and echoes it back', async () => {
+      const { client } = makeStubs({
+        defaultModel: 'gemini-3.1-flash-lite-preview',
+        streamChunks: [
           {
             candidates: [
               {
@@ -656,15 +675,8 @@ describe('GoogleClient.stream', () => {
               totalTokenCount: 2,
             },
           },
-        ]),
-        response: Promise.resolve({}),
+        ],
       });
-      // @ts-expect-error — stub
-      client.genAI = {
-        getGenerativeModel: jest.fn().mockReturnValue({
-          startChat: jest.fn().mockReturnValue({ sendMessageStream }),
-        }),
-      };
 
       const events = await collect(
         client.stream({
@@ -680,7 +692,20 @@ describe('GoogleClient.stream', () => {
     });
 
     it('injects thoughtSignature back into rehydrated functionCall parts', async () => {
-      const { client, startChat } = stubClient();
+      const { client, generateContentStream } = makeStubs({
+        streamChunks: [
+          {
+            candidates: [
+              { content: { parts: [{ text: 'ok' }] }, finishReason: 'STOP' },
+            ],
+            usageMetadata: {
+              promptTokenCount: 1,
+              candidatesTokenCount: 1,
+              totalTokenCount: 2,
+            },
+          },
+        ],
+      });
       await collect(
         client.stream({
           model: 'gemini-3.1-flash-lite-preview',
@@ -704,12 +729,11 @@ describe('GoogleClient.stream', () => {
           ],
         }),
       );
-      const history = startChat.mock.calls[0][0].history;
-      const modelTurn = history.find(
-        (t: { role: string }) => t.role === 'model',
+      const contents = generateContentStream.mock.calls[0][0].contents;
+      const modelTurn = contents.find(
+        (c: { role: string }) => c.role === 'model',
       );
       expect(modelTurn).toBeDefined();
-      // thoughtSignature가 functionCall part에 포함되어야 한다
       expect(modelTurn.parts[0]).toMatchObject({
         functionCall: { name: 'list_integrations' },
         thoughtSignature: 'SIG-abc123',
@@ -717,7 +741,20 @@ describe('GoogleClient.stream', () => {
     });
 
     it('omits thoughtSignature when the tool call has no signature', async () => {
-      const { client, startChat } = stubClient();
+      const { client, generateContentStream } = makeStubs({
+        streamChunks: [
+          {
+            candidates: [
+              { content: { parts: [{ text: 'ok' }] }, finishReason: 'STOP' },
+            ],
+            usageMetadata: {
+              promptTokenCount: 1,
+              candidatesTokenCount: 1,
+              totalTokenCount: 2,
+            },
+          },
+        ],
+      });
       await collect(
         client.stream({
           model: 'gemini-2.0-flash',
@@ -733,17 +770,31 @@ describe('GoogleClient.stream', () => {
           ],
         }),
       );
-      const modelTurn = startChat.mock.calls[0][0].history.find(
-        (t: { role: string }) => t.role === 'model',
+      const contents = generateContentStream.mock.calls[0][0].contents;
+      const modelTurn = contents.find(
+        (c: { role: string }) => c.role === 'model',
       );
       expect(modelTurn.parts[0]).toEqual({
-        functionCall: { name: 'tool', args: {} },
+        functionCall: { name: 'tool', args: {}, id: 'c' },
       });
       expect(modelTurn.parts[0]).not.toHaveProperty('thoughtSignature');
     });
 
     it('merges consecutive same-role messages into a single Gemini turn', async () => {
-      const { client, startChat, sendMessageStream } = stubClient();
+      const { client, generateContentStream } = makeStubs({
+        streamChunks: [
+          {
+            candidates: [
+              { content: { parts: [{ text: 'ok' }] }, finishReason: 'STOP' },
+            ],
+            usageMetadata: {
+              promptTokenCount: 1,
+              candidatesTokenCount: 1,
+              totalTokenCount: 2,
+            },
+          },
+        ],
+      });
       await collect(
         client.stream({
           model: 'gemini-2.5-flash',
@@ -762,37 +813,42 @@ describe('GoogleClient.stream', () => {
         }),
       );
 
-      // assistant 1턴 + tool 2건(같은 function-role 턴으로 합쳐짐).
-      // tool 결과 turn은 history의 마지막이므로 sendMessageStream으로 전송되며
-      // history에는 앞선 model turn만 남는다.
-      expect(startChat.mock.calls[0][0].history).toEqual([
+      const contents = generateContentStream.mock.calls[0][0].contents;
+      expect(contents).toEqual([
         {
           role: 'model',
           parts: [
-            { functionCall: { name: 'toolA', args: { x: 1 } } },
-            { functionCall: { name: 'toolB', args: { y: 2 } } },
+            { functionCall: { name: 'toolA', args: { x: 1 }, id: 'a' } },
+            { functionCall: { name: 'toolB', args: { y: 2 }, id: 'b' } },
           ],
         },
-      ]);
-      expect(sendMessageStream.mock.calls[0][0]).toEqual([
         {
-          functionResponse: { name: 'toolA', response: { okA: true } },
-        },
-        {
-          functionResponse: { name: 'toolB', response: { okB: true } },
+          role: 'function',
+          parts: [
+            {
+              functionResponse: {
+                name: 'toolA',
+                response: { okA: true },
+                id: 'a',
+              },
+            },
+            {
+              functionResponse: {
+                name: 'toolB',
+                response: { okB: true },
+                id: 'b',
+              },
+            },
+          ],
         },
       ]);
     });
   });
 
   describe('Gemini schema sanitization (tool parameters)', () => {
-    function stubClient(): {
-      client: GoogleClient;
-      getGenerativeModel: jest.Mock;
-    } {
-      const client = new GoogleClient('test-key', 'gemini-2.5-flash');
-      const sendMessageStream = jest.fn().mockResolvedValue({
-        stream: asyncIter([
+    it('strips additionalProperties, default, minimum/maximum, and unknown formats', async () => {
+      const { client, generateContentStream } = makeStubs({
+        streamChunks: [
           {
             candidates: [
               { content: { parts: [{ text: 'ok' }] }, finishReason: 'STOP' },
@@ -803,19 +859,8 @@ describe('GoogleClient.stream', () => {
               totalTokenCount: 2,
             },
           },
-        ]),
-        response: Promise.resolve({}),
+        ],
       });
-      const getGenerativeModel = jest.fn().mockReturnValue({
-        startChat: jest.fn().mockReturnValue({ sendMessageStream }),
-      });
-      // @ts-expect-error — stub
-      client.genAI = { getGenerativeModel };
-      return { client, getGenerativeModel };
-    }
-
-    it('strips additionalProperties, default, minimum/maximum, and unknown formats', async () => {
-      const { client, getGenerativeModel } = stubClient();
       await collect(
         client.stream({
           model: 'gemini-2.5-flash',
@@ -839,9 +884,8 @@ describe('GoogleClient.stream', () => {
         }),
       );
 
-      expect(getGenerativeModel).toHaveBeenCalled();
-      const modelParams = getGenerativeModel.mock.calls[0][0];
-      const fn = modelParams.tools[0].functionDeclarations[0];
+      const config = generateContentStream.mock.calls[0][0].config;
+      const fn = config.tools[0].functionDeclarations[0];
       expect(fn.parameters).toEqual({
         type: 'object',
         properties: {
@@ -855,7 +899,20 @@ describe('GoogleClient.stream', () => {
     });
 
     it('omits parameters entirely when the tool has no properties', async () => {
-      const { client, getGenerativeModel } = stubClient();
+      const { client, generateContentStream } = makeStubs({
+        streamChunks: [
+          {
+            candidates: [
+              { content: { parts: [{ text: 'ok' }] }, finishReason: 'STOP' },
+            ],
+            usageMetadata: {
+              promptTokenCount: 1,
+              candidatesTokenCount: 1,
+              totalTokenCount: 2,
+            },
+          },
+        ],
+      });
       await collect(
         client.stream({
           model: 'gemini-2.5-flash',
@@ -874,15 +931,29 @@ describe('GoogleClient.stream', () => {
         }),
       );
 
-      const modelParams = getGenerativeModel.mock.calls[0][0];
-      const fn = modelParams.tools[0].functionDeclarations[0];
+      const fn =
+        generateContentStream.mock.calls[0][0].config.tools[0]
+          .functionDeclarations[0];
       expect(fn.parameters).toBeUndefined();
       expect(fn.name).toBe('list_knowledge_bases');
       expect(fn.description).toBe('d');
     });
 
     it('recursively sanitizes nested array items and object properties', async () => {
-      const { client, getGenerativeModel } = stubClient();
+      const { client, generateContentStream } = makeStubs({
+        streamChunks: [
+          {
+            candidates: [
+              { content: { parts: [{ text: 'ok' }] }, finishReason: 'STOP' },
+            ],
+            usageMetadata: {
+              promptTokenCount: 1,
+              candidatesTokenCount: 1,
+              totalTokenCount: 2,
+            },
+          },
+        ],
+      });
       await collect(
         client.stream({
           model: 'gemini-2.5-flash',
@@ -919,7 +990,8 @@ describe('GoogleClient.stream', () => {
       );
 
       const fn =
-        getGenerativeModel.mock.calls[0][0].tools[0].functionDeclarations[0];
+        generateContentStream.mock.calls[0][0].config.tools[0]
+          .functionDeclarations[0];
       expect(fn.parameters).toEqual({
         type: 'object',
         properties: {
@@ -940,7 +1012,20 @@ describe('GoogleClient.stream', () => {
     });
 
     it('drops required entries whose underlying properties were removed', async () => {
-      const { client, getGenerativeModel } = stubClient();
+      const { client, generateContentStream } = makeStubs({
+        streamChunks: [
+          {
+            candidates: [
+              { content: { parts: [{ text: 'ok' }] }, finishReason: 'STOP' },
+            ],
+            usageMetadata: {
+              promptTokenCount: 1,
+              candidatesTokenCount: 1,
+              totalTokenCount: 2,
+            },
+          },
+        ],
+      });
       await collect(
         client.stream({
           model: 'gemini-2.5-flash',
@@ -949,9 +1034,6 @@ describe('GoogleClient.stream', () => {
             {
               name: 'weird',
               description: 'd',
-              // required에 나열되었지만 해당 property가 sanitize 되어 사라진 경우
-              // required 리스트에서도 함께 제거되어야 Gemini의 참조 무결성 검증을
-              // 통과한다.
               parameters: {
                 type: 'object',
                 properties: {
@@ -966,13 +1048,27 @@ describe('GoogleClient.stream', () => {
       );
 
       const fn =
-        getGenerativeModel.mock.calls[0][0].tools[0].functionDeclarations[0];
+        generateContentStream.mock.calls[0][0].config.tools[0]
+          .functionDeclarations[0];
       expect(fn.parameters.properties).toEqual({ a: { type: 'string' } });
       expect(fn.parameters.required).toEqual(['a']);
     });
 
     it('skips responseMimeType=application/json when tools are present', async () => {
-      const { client, getGenerativeModel } = stubClient();
+      const { client, generateContentStream } = makeStubs({
+        streamChunks: [
+          {
+            candidates: [
+              { content: { parts: [{ text: 'ok' }] }, finishReason: 'STOP' },
+            ],
+            usageMetadata: {
+              promptTokenCount: 1,
+              candidatesTokenCount: 1,
+              totalTokenCount: 2,
+            },
+          },
+        ],
+      });
       await collect(
         client.stream({
           model: 'gemini-2.5-flash',
@@ -991,12 +1087,25 @@ describe('GoogleClient.stream', () => {
           ],
         }),
       );
-      const modelParams = getGenerativeModel.mock.calls[0][0];
-      expect(modelParams.generationConfig.responseMimeType).toBeUndefined();
+      const config = generateContentStream.mock.calls[0][0].config;
+      expect(config.responseMimeType).toBeUndefined();
     });
 
     it('keeps responseMimeType=application/json when no tools are attached', async () => {
-      const { client, getGenerativeModel } = stubClient();
+      const { client, generateContentStream } = makeStubs({
+        streamChunks: [
+          {
+            candidates: [
+              { content: { parts: [{ text: 'ok' }] }, finishReason: 'STOP' },
+            ],
+            usageMetadata: {
+              promptTokenCount: 1,
+              candidatesTokenCount: 1,
+              totalTokenCount: 2,
+            },
+          },
+        ],
+      });
       await collect(
         client.stream({
           model: 'gemini-2.5-flash',
@@ -1004,21 +1113,53 @@ describe('GoogleClient.stream', () => {
           responseFormat: 'json',
         }),
       );
-      const modelParams = getGenerativeModel.mock.calls[0][0];
-      expect(modelParams.generationConfig.responseMimeType).toBe(
-        'application/json',
-      );
+      const config = generateContentStream.mock.calls[0][0].config;
+      expect(config.responseMimeType).toBe('application/json');
+    });
+  });
+
+  it('skips malformed stream chunks via type guard and continues processing', async () => {
+    const { client } = makeStubs({
+      // 두 번째 청크는 기대 형태와 다른 "형태불일치" — candidates 가 배열이 아닌 객체.
+      // 타입 가드가 skip 해야 하며 뒤이은 정상 청크는 처리되어야 한다.
+      streamChunks: [
+        { candidates: [{ content: { parts: [{ text: 'ok ' }] } }] },
+        // @ts-expect-error — intentionally malformed chunk for the type guard test
+        { candidates: { notAnArray: true } },
+        {
+          candidates: [
+            { content: { parts: [{ text: 'done' }] }, finishReason: 'STOP' },
+          ],
+          usageMetadata: {
+            promptTokenCount: 2,
+            candidatesTokenCount: 2,
+            totalTokenCount: 4,
+          },
+        },
+      ],
+    });
+
+    const events = await collect(
+      client.stream({
+        model: 'gemini-2.5-flash',
+        messages: [{ role: 'user', content: 'x' }],
+      }),
+    );
+    const textDeltas = events.filter((e) => e.type === 'text_delta');
+    expect(textDeltas).toHaveLength(2);
+    expect(events.find((e) => e.type === 'done')).toMatchObject({
+      usage: { inputTokens: 2, outputTokens: 2, totalTokens: 4 },
     });
   });
 
   it('yields done immediately when there is no user message to send', async () => {
-    const { client, sendMessageStream } = makeClientWithStreamResult([]);
+    const { client, generateContentStream } = makeStubs();
 
     const events = await collect(
       client.stream({ model: 'gemini-2.5-flash', messages: [] }),
     );
 
-    expect(sendMessageStream).not.toHaveBeenCalled();
+    expect(generateContentStream).not.toHaveBeenCalled();
     expect(events).toEqual([
       {
         type: 'done',
@@ -1027,5 +1168,240 @@ describe('GoogleClient.stream', () => {
         finishReason: 'stop',
       },
     ]);
+  });
+});
+
+describe('GoogleClient.listModels', () => {
+  it('maps SDK models to ModelInfo, classifying by supportedActions', async () => {
+    const { client } = makeStubs({
+      models: [
+        {
+          name: 'models/gemini-2.5-flash',
+          displayName: 'Gemini 2.5 Flash',
+          supportedActions: ['generateContent'],
+        },
+        {
+          name: 'models/gemini-3-flash-preview',
+          displayName: 'Gemini 3 Flash (preview)',
+          supportedActions: ['generateContent'],
+        },
+        {
+          name: 'models/text-embedding-004',
+          displayName: 'Text Embedding 004',
+          supportedActions: ['embedContent'],
+        },
+      ],
+    });
+    const models = await client.listModels();
+    expect(models).toEqual([
+      { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash', type: 'chat' },
+      {
+        id: 'gemini-3-flash-preview',
+        name: 'Gemini 3 Flash (preview)',
+        type: 'chat',
+      },
+      {
+        id: 'text-embedding-004',
+        name: 'Text Embedding 004',
+        type: 'embedding',
+      },
+    ]);
+  });
+
+  it('skips models that support neither generateContent nor embedContent', async () => {
+    const { client } = makeStubs({
+      models: [
+        {
+          name: 'models/unknown',
+          displayName: 'unknown',
+          supportedActions: ['someOther'],
+        },
+        {
+          name: 'models/gemini-2.5-flash',
+          displayName: 'Gemini 2.5 Flash',
+          supportedActions: ['generateContent'],
+        },
+      ],
+    });
+    const models = await client.listModels();
+    expect(models).toHaveLength(1);
+    expect(models[0].id).toBe('gemini-2.5-flash');
+  });
+
+  it('falls back to id when displayName is missing', async () => {
+    const { client } = makeStubs({
+      models: [
+        {
+          name: 'models/gemini-2.5-flash',
+          supportedActions: ['generateContent'],
+        },
+      ],
+    });
+    const models = await client.listModels();
+    expect(models[0]).toEqual({
+      id: 'gemini-2.5-flash',
+      name: 'gemini-2.5-flash',
+      type: 'chat',
+    });
+  });
+
+  it('caps the number of models returned at 100 to bound UI dropdown size', async () => {
+    const many = Array.from({ length: 150 }, (_, i) => ({
+      name: `models/gemini-test-${i}`,
+      displayName: `Gemini Test ${i}`,
+      supportedActions: ['generateContent'],
+    }));
+    const { client } = makeStubs({ models: many });
+    const result = await client.listModels();
+    expect(result).toHaveLength(100);
+  });
+
+  it('forwards AbortSignal via config.abortSignal to the SDK list call', async () => {
+    const { client, list } = makeStubs();
+    const controller = new AbortController();
+    await client.listModels(controller.signal);
+    expect(list).toHaveBeenCalledTimes(1);
+    const callArg = list.mock.calls[0][0];
+    // 내부 controller.signal 은 외부 signal 이 abort 될 때 함께 abort 되도록 연결됨
+    expect(callArg.config.abortSignal).toBeInstanceOf(AbortSignal);
+  });
+
+  it('propagates errors from the SDK list call', async () => {
+    const client = new GoogleClient('test-key', 'gemini-2.5-flash');
+    // @ts-expect-error — stub
+    client.ai = {
+      models: {
+        generateContent: jest.fn(),
+        generateContentStream: jest.fn(),
+        embedContent: jest.fn(),
+        list: jest.fn().mockRejectedValue(new Error('429 Too Many Requests')),
+      },
+    };
+    await expect(client.listModels()).rejects.toThrow('429 Too Many Requests');
+  });
+
+  it('skips entries with no name field', async () => {
+    const { client } = makeStubs({
+      models: [
+        { supportedActions: ['generateContent'] },
+        {
+          name: 'models/gemini-2.5-pro',
+          supportedActions: ['generateContent'],
+        },
+      ],
+    });
+    const models = await client.listModels();
+    expect(models).toHaveLength(1);
+    expect(models[0].id).toBe('gemini-2.5-pro');
+  });
+});
+
+describe('GoogleClient.embed', () => {
+  it('sends texts as a batch and extracts embedding values', async () => {
+    const { client, embedContent } = makeStubs({
+      embedResult: {
+        embeddings: [{ values: [0.1, 0.2] }, { values: [0.3, 0.4] }],
+      },
+    });
+    const result = await client.embed(['a', 'b']);
+    expect(embedContent).toHaveBeenCalledWith({
+      model: 'text-embedding-004',
+      contents: ['a', 'b'],
+    });
+    expect(result).toEqual([
+      [0.1, 0.2],
+      [0.3, 0.4],
+    ]);
+  });
+
+  it('uses the provided model id when given', async () => {
+    const { client, embedContent } = makeStubs({
+      embedResult: { embeddings: [{ values: [1] }] },
+    });
+    await client.embed(['x'], 'custom-embed-model');
+    expect(embedContent).toHaveBeenCalledWith({
+      model: 'custom-embed-model',
+      contents: ['x'],
+    });
+  });
+
+  it('throws when the SDK returns fewer vectors than inputs (no silent failure)', async () => {
+    const { client } = makeStubs({ embedResult: {} });
+    await expect(client.embed(['x'])).rejects.toThrow(/0 vectors for 1 inputs/);
+  });
+
+  it('throws when the SDK returns an empty values array for any input', async () => {
+    const { client } = makeStubs({
+      embedResult: {
+        embeddings: [{ values: [0.1] }, { values: [] }],
+      },
+    });
+    await expect(client.embed(['a', 'b'])).rejects.toThrow(
+      /empty vector at index 1/,
+    );
+  });
+});
+
+describe('GoogleClient.chat', () => {
+  it('returns content, usage, and stop finishReason', async () => {
+    const { client, generateContent } = makeStubs({
+      generateContentResult: {
+        candidates: [{ content: { parts: [{ text: 'hi there' }] } }],
+        usageMetadata: {
+          promptTokenCount: 3,
+          candidatesTokenCount: 2,
+          totalTokenCount: 5,
+        },
+      },
+    });
+    const result = await client.chat({
+      model: 'gemini-2.5-flash',
+      messages: [{ role: 'user', content: 'hi' }],
+    });
+    expect(result).toEqual({
+      content: 'hi there',
+      usage: { inputTokens: 3, outputTokens: 2, totalTokens: 5 },
+      model: 'gemini-2.5-flash',
+      finishReason: 'stop',
+    });
+    const args = generateContent.mock.calls[0][0];
+    expect(args.model).toBe('gemini-2.5-flash');
+    expect(args.contents).toEqual([{ role: 'user', parts: [{ text: 'hi' }] }]);
+  });
+
+  it('returns tool_calls finishReason when the model emits functionCall parts', async () => {
+    const { client } = makeStubs({
+      generateContentResult: {
+        candidates: [
+          {
+            content: {
+              parts: [
+                {
+                  functionCall: {
+                    name: 'do_it',
+                    args: { x: 1 },
+                  },
+                },
+              ],
+            },
+          },
+        ],
+        usageMetadata: {
+          promptTokenCount: 1,
+          candidatesTokenCount: 1,
+          totalTokenCount: 2,
+        },
+      },
+    });
+    const result = await client.chat({
+      model: 'gemini-2.5-flash',
+      messages: [{ role: 'user', content: 'run' }],
+    });
+    expect(result.finishReason).toBe('tool_calls');
+    expect(result.toolCalls).toHaveLength(1);
+    expect(result.toolCalls?.[0]).toMatchObject({
+      name: 'do_it',
+      arguments: '{"x":1}',
+    });
   });
 });

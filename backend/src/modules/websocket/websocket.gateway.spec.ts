@@ -1,6 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { JwtService } from '@nestjs/jwt';
-import { Socket, Server } from 'socket.io';
+import { Socket } from 'socket.io';
 import { WebsocketGateway } from './websocket.gateway';
 import { ExecutionEngineService } from '../execution-engine/execution-engine.service';
 import { ExecutionsService } from '../executions/executions.service';
@@ -270,7 +270,7 @@ describe('WebsocketGateway', () => {
       const mockServer = {
         to: jest.fn().mockReturnValue({ emit: emitFn }),
       };
-      setServer(mockServer as unknown as Server);
+      setServer(mockServer);
 
       gateway.broadcastToChannel('execution:exec-1', 'execution.started', {
         status: 'running',

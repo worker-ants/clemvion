@@ -106,7 +106,7 @@ describe('ScheduleRunnerService', () => {
         config: {},
       } as unknown as Node);
       const result = await service.resolveScheduleParameters(
-        { ...schedule, parameterValues: { foo: 'bar' } } as Schedule,
+        { ...schedule, parameterValues: { foo: 'bar' } },
         'wf1',
       );
       expect(result).toEqual({});
@@ -115,7 +115,7 @@ describe('ScheduleRunnerService', () => {
     it('returns empty object when parameterValues is empty', async () => {
       nodeRepo.findOne.mockResolvedValue(null);
       const result = await service.resolveScheduleParameters(
-        { ...schedule, parameterValues: {} } as Schedule,
+        { ...schedule, parameterValues: {} },
         'wf1',
       );
       expect(result).toEqual({});
@@ -139,7 +139,7 @@ describe('ScheduleRunnerService', () => {
         {
           ...schedule,
           parameterValues: { region: 'kr' },
-        } as Schedule,
+        },
         'wf1',
       );
       // Validation failure → falls back to schema-less resolver which returns {}
@@ -161,7 +161,7 @@ describe('ScheduleRunnerService', () => {
         {
           ...schedule,
           parameterValues: { note: '{{ $forbidden.access }}' },
-        } as Schedule,
+        },
         'wf1',
       );
       // Unknown variable → evaluate throws → we keep original string

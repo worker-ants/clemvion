@@ -12,7 +12,7 @@ function asyncIter<T>(items: T[]): AsyncIterable<T> {
         next: async () =>
           i < items.length
             ? { value: items[i++], done: false }
-            : { value: undefined as unknown as T, done: true },
+            : { value: undefined, done: true },
       };
     },
   };
@@ -357,5 +357,39 @@ describe('OpenAIClient.stream', () => {
       expect(err!.message).not.toMatch(/<\|channel\|>/);
       expect(err!.message).toMatch(/harmony|gpt-oss|제어 토큰/);
     });
+  });
+});
+
+describe('OpenAIClient.listModels', () => {
+  it('passes AbortSignal to the SDK models.list call', async () => {
+    const client = new OpenAIClient('sk-test', 'gpt-4o');
+    const list = jest.fn().mockResolvedValue(asyncIter([]));
+    // @ts-expect-error — stub
+    client.client = { models: { list } };
+    const controller = new AbortController();
+    await client.listModels(controller.signal);
+    expect(list).toHaveBeenCalledWith({ signal: controller.signal });
+  });
+
+  it('omits options when no signal is provided', async () => {
+    const client = new OpenAIClient('sk-test', 'gpt-4o');
+    const list = jest.fn().mockResolvedValue(asyncIter([]));
+    // @ts-expect-error — stub
+    client.client = { models: { list } };
+    await client.listModels();
+    expect(list).toHaveBeenCalledWith(undefined);
+  });
+
+  it('caps the number of models returned at 100 to bound UI dropdown size', async () => {
+    const many = Array.from({ length: 150 }, (_, i) => ({
+      id: `gpt-test-${String(i).padStart(3, '0')}`,
+    }));
+    const client = new OpenAIClient('sk-test', 'gpt-4o');
+    // @ts-expect-error — stub
+    client.client = {
+      models: { list: jest.fn().mockResolvedValue(asyncIter(many)) },
+    };
+    const models = await client.listModels();
+    expect(models).toHaveLength(100);
   });
 });

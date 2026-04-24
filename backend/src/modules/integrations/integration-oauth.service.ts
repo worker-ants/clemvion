@@ -299,10 +299,7 @@ export class IntegrationOAuthService {
     // credentials come back as a string. Normalize via the transformer.
     const creds =
       typeof preview.credentials === 'string'
-        ? (JSON.parse(preview.credentials as unknown as string) as Record<
-            string,
-            unknown
-          >)
+        ? (JSON.parse(preview.credentials) as Record<string, unknown>)
         : preview.credentials;
     return {
       credentials: creds,
