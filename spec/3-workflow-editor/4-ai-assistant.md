@@ -184,10 +184,75 @@ LLM에 전달되는 function-calling 도구 목록이다. 인자/반환은 JSON 
 | `get_workflow` | `{id: UUID, mode?: 'summary'\|'full'}` | `{name, nodes, edges, summary}` | **다른** 워크플로우 구조 참조 (예: "주문 생성" 워크플로우 구조를 읽고 "주문 취소" 설계). 현재 편집 중인 워크플로우는 이 도구로 조회하지 않는다 |
 | `get_current_workflow` | 없음 | `{ok, nodes, edges}` (config는 redact 적용) | **현재** 편집 중인 캔버스의 최신 nodes/edges. 같은 턴 내 편집 이후 결과를 재확인하거나 시스템 프롬프트 스냅샷의 신선도가 불확실할 때 호출 |
 | `list_knowledge_bases` | 없음 | `[{id, name, documentCount}]` | RAG 노드 설계 시 참고 |
+| `get_workflow_executions` | `{limit?: number, status?: 'completed'\|'failed'\|'running'\|'cancelled'\|'waiting_for_input'}` | `{ok, items: [{id, status, startedAt, finishedAt, durationMs, nodeStats: {total, completed, failed}, triggerId?}]}` | 현재 세션 워크플로의 최근 실행 목록. 시작 시간 내림차순. 기본 `limit=10`, 상한 50. 사용자가 "최근 실행이 왜 실패했어?" 같이 직전 실행을 특정하지 않고 질문했을 때 후보를 좁히는 용도 |
+| `get_execution_details` | `{id: UUID}` | `{ok, execution, timeline, subExecutions}` — 상세는 §4.1.1 | 특정 실행의 전체 타임라인(노드별 status/입출력/에러) 조회. 어시스턴트가 실패 원인을 식별하고 노드 수정 계획을 세우는 데 사용. 1-level sub-workflow 자식 실행까지 같은 응답에 포함 |
 
 > 탐색 도구는 모두 세션의 `workspace_id` 스코프 내에서만 조회한다. 워크스페이스 경계를 넘는 데이터는 반환하지 않는다.
 >
 > **현재 워크플로우 조회는 2-tier 구조다.** ① 매 턴 시작 시의 스냅샷이 시스템 프롬프트(§8)에 JSON으로 주입되어 있으므로, "현재 캔버스에 무엇이 있나?" 류의 단순 조회는 도구 호출 없이 프롬프트를 직접 읽어 답한다. ② 편집 도구를 호출한 뒤 결과 상태를 재확인해야 할 때만 `get_current_workflow`를 호출한다.
+>
+> **실행 조회는 `session.workflow_id` 에 스코프된다.** `get_workflow_executions` 는 명시적으로 `workflowId` 를 인자로 받지 않으며 — 세션의 현재 워크플로 실행만 돌려준다. `get_execution_details` 는 실행 id 를 받지만, 해당 id 가 (a) 현재 워크플로의 실행이거나 (b) 그 실행 트리의 직계 자식 실행(부모 실행의 `workflow` 노드에서 호출된 sub-workflow 의 자식 `Execution`) 중 하나여야 하며, 두 조건 모두에 해당하지 않으면 `EXECUTION_NOT_IN_SCOPE` 로 거부된다. 다른 워크플로의 독립 실행을 조회하려면 사용자가 해당 워크플로의 에디터·Assistant 로 이동해야 한다.
+
+#### 4.1.1 `get_execution_details` 응답 구조
+
+```typescript
+interface ExecutionDetailsResponse {
+  ok: true;
+  execution: {
+    id: UUID;
+    workflowId: UUID;
+    workflowName: string;
+    status: 'pending' | 'running' | 'completed' | 'failed' | 'cancelled' | 'waiting_for_input';
+    startedAt: string;            // ISO 8601
+    finishedAt: string | null;    // null while running/waiting_for_input
+    durationMs: number | null;
+    inputData: unknown;           // masked, see below
+    outputData: unknown | null;   // masked
+    error: unknown | null;        // masked
+    parentExecutionId: UUID | null;    // 현재 실행이 다른 실행의 sub-workflow 로 호출됐다면 그 부모 id
+    recursionDepth: number;       // 최상위 = 0
+  };
+  timeline: Array<{
+    nodeExecutionId: UUID;
+    nodeId: UUID;
+    nodeLabel: string;
+    nodeType: string;
+    status: 'pending' | 'running' | 'completed' | 'failed' | 'skipped' | 'waiting_for_input';
+    startedAt: string;
+    finishedAt: string | null;
+    durationMs: number | null;
+    inputData: unknown;           // masked
+    outputData: unknown | null;   // masked
+    error: unknown | null;        // masked
+    retryCount: number;
+    parentNodeExecutionId: UUID | null;   // 인라인 sub-workflow / 컨테이너 그룹핑
+  }>;
+  subExecutions: Array<{          // 이 실행 트리의 직계 자식 실행 (depth 1). 2 단계 이상은 각 자식 execution id 로 별도 호출.
+    execution: /* 위 execution 과 동일 필드 */;
+    timeline: /* 위 timeline 과 동일 구조 */;
+  }>;
+  subExecutionsTruncatedDepth?: number;   // 자식 실행 내부에도 추가 sub-workflow 가 있으면 이 필드로 "depth N 이후 생략됨" 신호
+}
+```
+
+**마스킹 규칙.** `inputData` · `outputData` · `error` 필드는 서버가 `maskSensitiveFields` 공통 유틸을 재귀 적용해 반환한다. 매칭 키(대소문자 무시): `apiKey`, `api_key`, `password`, `token`, `accessToken`, `refreshToken`, `secret`, `clientSecret`, `authorization`. 매칭된 값이 문자열이면 `"****<last4>"` 로, 그 외 타입이면 `"****"` 로 치환. 객체/배열은 재귀 순회. 원본은 DB 에 그대로 남고 read 시점에만 변환한다.
+
+**크기 제한 없음.** 페이로드 크기에는 명시적 cap 을 두지 않는다 — 대신 어시스턴트가 큰 실행을 조회할 때는 먼저 `get_workflow_executions` 로 요약 목록을 받아 후보를 좁힌 뒤 특정 id 하나만 `get_execution_details` 로 깊게 보는 2-step 패턴을 권장한다. 시스템 프롬프트(§8) 가 이 흐름을 가르친다. 한 턴에 대량 페이로드를 세 개 이상 조회하면 `ASSISTANT_TOO_MANY_TOOL_CALLS` budget(§10) 에 근접할 수 있다.
+
+**실행 상태별 동작.**
+
+| execution.status | 동작 |
+|------------------|------|
+| `completed` / `failed` / `cancelled` | 완결된 timeline 반환 |
+| `running` / `waiting_for_input` | 현재까지 기록된 부분 timeline 을 그대로 반환. 아직 실행 안 된 노드는 생략, 진행 중인 노드는 `status: 'running'`/`waiting_for_input` 으로 표시. 응답의 `execution.finishedAt` · `durationMs` 는 `null`. §12.2 의 "실행 중 편집 도구 거부" 는 **read 도구에는 적용되지 않는다** — Assistant 는 실행 중인 워크플로에 대해서도 진단 목적의 조회를 수행할 수 있다 |
+| `pending` | 아직 첫 노드도 시작되지 않은 경우 — timeline 은 빈 배열, execution 필드만 채워 반환 |
+
+**에러 코드.**
+
+| 코드 | 상황 |
+|------|------|
+| `EXECUTION_NOT_FOUND` | id 가 존재하지 않거나 workspace 경계 밖 |
+| `EXECUTION_NOT_IN_SCOPE` | id 는 존재하지만 현재 세션 워크플로의 실행도, 그 직계 자식 실행도 아님 |
 
 ### 4.2 계획 도구 (Plan, no-op on canvas)
 
@@ -396,6 +461,7 @@ data: {"code": "LLM_RATE_LIMIT", "message": "..."}
 | 현재 워크플로우 | `currentWorkflow` 요약 JSON. 섹션 앞에 "authoritative snapshot" 지침을 동반 — 단순 조회는 프롬프트에서 직접 답하고, 편집 이후 재확인에만 `get_current_workflow` 호출 |
 | 레이아웃 지침 | 스냅샷의 노드별 측정값(`width`/`height`, px) 이 있으면 그것을 기준으로 `x = predecessor.x + (predecessor.width ?? 250) + 32` 배치. 분기 시 y offset 은 `max(predecessor.height ?? 80, 80) + 24` 기준. 측정값이 없는 노드(초기 렌더 전 또는 동일 턴에 방금 추가된 노드)는 250×80 px 를 폴백으로 가정 — "발명 금지" |
 | 참조 표기 | `$node["label"].output.*` 사용, label은 유일, `manual_trigger`가 진입점 |
+| 실행 이슈 진단 패턴 | 사용자가 "실행이 실패했어 / 왜 이 결과가 나오지" 류의 질문을 하면, 먼저 `get_workflow_executions` 로 최근 실행 목록을 요약 받은 뒤 가장 가능성 높은 한 건만 `get_execution_details` 로 깊게 조회한다. 타임라인의 실패 노드·에러 메시지·직전 노드의 output을 읽어 원인을 가설화하고, 수정이 필요하면 `propose_plan` → 승인 → `update_node` 순으로 이어간다. 전체 목록을 한 번에 상세 조회하지 않는다 (토큰 낭비) |
 | Few-shot 3개 | ① "HTTP 헤더 추가" → 즉시 `update_node`. ② "템플릿/스위치 노드 찾아봐" → 스냅샷 참조만, 도구 호출 없음. ③ "주문 취소" → 탐색 + 질문 + Plan + 실행 |
 
 시스템 프롬프트는 `spec/5-system/7-llm-client.md`의 인터페이스를 그대로 따르며 별도의 모델 정책을 두지 않는다.
@@ -452,7 +518,8 @@ data: {"code": "LLM_RATE_LIMIT", "message": "..."}
 ### 12.2 실행/디버깅
 
 - Assistant는 워크플로우 실행 API를 호출하지 않는다. 실행은 사용자 몫이다.
-- 실행 중(Run Results 드로어 노출) 편집 도구는 shadow 단계에서 `ASSISTANT_WORKFLOW_RUNNING` 에러로 거부된다.
+- 실행 중(Run Results 드로어 노출) **편집 도구**는 shadow 단계에서 `ASSISTANT_WORKFLOW_RUNNING` 에러로 거부된다. 반면 **실행 조회 도구**(`get_workflow_executions` · `get_execution_details`, §4.1)는 read-only 이므로 실행 중에도 호출 가능하며, 진행 중인 실행에 대해선 현재까지의 부분 타임라인을 그대로 반환한다 (§4.1.1 의 "실행 상태별 동작" 표 참조).
+- Assistant 가 실행 이슈를 진단할 때는 먼저 `get_workflow_executions` 로 요약 목록을 받아 후보를 좁힌 뒤 하나의 id 만 `get_execution_details` 로 깊게 조회하는 2-step 패턴을 따른다(§8 시스템 프롬프트가 이를 가르친다). 한 턴에 여러 건을 동시에 상세 조회하면 tool-call budget(§10 `ASSISTANT_TOO_MANY_TOOL_CALLS`) 과 페이로드 크기 양쪽에서 낭비가 발생한다.
 
 ### 12.3 LLM Config
 
@@ -496,6 +563,9 @@ data: {"code": "LLM_RATE_LIMIT", "message": "..."}
 | `assistant.edgeAdded` | 엣지 추가 | Edge added |
 | `assistant.edgeRemoved` | 엣지 삭제 | Edge removed |
 | `assistant.exploreLookup` | {count}건 조회됨 | {count} found |
+| `assistant.exploreExecutionsList` | 실행 이력 {count}건 조회 | {count} executions found |
+| `assistant.exploreExecutionDetails` | 실행 상세 조회 — {nodeCount}개 노드 | Execution detail — {nodeCount} nodes |
+| `assistant.executionNotInScope` | 이 실행은 현재 워크플로의 것이 아니에요. | This execution does not belong to the current workflow. |
 
 ---
 
@@ -515,6 +585,10 @@ data: {"code": "LLM_RATE_LIMIT", "message": "..."}
 | ED-AI-10 (에러/중단 처리) | §5.4, §7 |
 | ED-AI-11 (i18n) | §13 |
 | ED-AI-12 (접근성) | §3.3 |
+| ED-AI-35 (실행 조회 도구 2종) | §4.1, §4.1.1 |
+| ED-AI-36 (조회 스코프 — 현재 워크플로 + 직계 자식) | §4.1 주석, §4.1.1 |
+| ED-AI-37 (민감 필드 마스킹) | §4.1.1 "마스킹 규칙" |
+| ED-AI-38 (실행 중에도 read 허용) | §4.1.1 "실행 상태별 동작", §12.2 |
 
 ---
 
