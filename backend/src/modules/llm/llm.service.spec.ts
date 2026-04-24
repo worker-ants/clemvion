@@ -232,6 +232,42 @@ describe('LlmService', () => {
         jest.useRealTimers();
       }
     });
+
+    it('caches successful results and serves the second call without hitting the provider', async () => {
+      mockClient.listModels.mockResolvedValue([
+        { id: 'gpt-4o', name: 'gpt-4o', type: 'chat' },
+      ]);
+      await service.listModels('config-1', 'ws-1');
+      await service.listModels('config-1', 'ws-1');
+      expect(mockClient.listModels).toHaveBeenCalledTimes(1);
+    });
+
+    it('serves a fresh call after TTL expiry (5 minutes)', async () => {
+      mockClient.listModels.mockResolvedValue([]);
+      const nowSpy = jest.spyOn(Date, 'now');
+      nowSpy.mockReturnValue(1_000_000);
+      await service.listModels('config-1', 'ws-1');
+      // 5분 + 1초 경과
+      nowSpy.mockReturnValue(1_000_000 + 5 * 60 * 1000 + 1000);
+      await service.listModels('config-1', 'ws-1');
+      expect(mockClient.listModels).toHaveBeenCalledTimes(2);
+      nowSpy.mockRestore();
+    });
+
+    it('invalidates the cache when clearClientCache is called for that config', async () => {
+      mockClient.listModels.mockResolvedValue([]);
+      await service.listModels('config-1', 'ws-1');
+      service.clearClientCache('config-1');
+      await service.listModels('config-1', 'ws-1');
+      expect(mockClient.listModels).toHaveBeenCalledTimes(2);
+    });
+
+    it('does not cross cache between different workspaces', async () => {
+      mockClient.listModels.mockResolvedValue([]);
+      await service.listModels('config-1', 'ws-1');
+      await service.listModels('config-1', 'ws-2');
+      expect(mockClient.listModels).toHaveBeenCalledTimes(2);
+    });
   });
 
   describe('withRetry', () => {
