@@ -169,6 +169,63 @@ describe("useEditorStore", () => {
     });
   });
 
+  // ED-AI-39: candidate picker 가 Confirm 시 호출하는 경로. 기존 config 를
+  // 보존하며 단일 필드만 덮어쓰고, Undo 스택에 푸시된다.
+  describe("updateNodeConfigField", () => {
+    it("merges a single field onto existing config and pushes Undo", () => {
+      useEditorStore.setState({
+        nodes: [
+          makeNode("node-1", {
+            data: {
+              type: "send_email",
+              label: "Notify",
+              category: "integration",
+              config: { to: ["x@y.z"], subject: "Hi" },
+              isDisabled: false,
+              containerId: null,
+            } as Node["data"],
+          }),
+        ],
+        undoStack: [],
+      });
+
+      useEditorStore
+        .getState()
+        .updateNodeConfigField("node-1", "integrationId", "int-42");
+
+      const node = useEditorStore.getState().nodes[0];
+      expect((node.data as { config?: Record<string, unknown> }).config).toEqual({
+        to: ["x@y.z"],
+        subject: "Hi",
+        integrationId: "int-42",
+      });
+      expect(useEditorStore.getState().isDirty).toBe(true);
+      // Undo stack 에 이전 상태가 push 되어 Ctrl+Z 로 되돌릴 수 있어야 한다.
+      expect(useEditorStore.getState().undoStack.length).toBe(1);
+    });
+
+    it("blocks prototype pollution keys (__proto__ / constructor / prototype)", () => {
+      // review W-6: SSE 스트림을 통해 악성 fieldPath 가 들어와도 Object
+      // prototype 을 건드리지 않도록 early return 해야 한다.
+      useEditorStore.setState({
+        nodes: [makeNode("node-1")],
+      });
+      useEditorStore
+        .getState()
+        .updateNodeConfigField("node-1", "__proto__", { polluted: true });
+      useEditorStore
+        .getState()
+        .updateNodeConfigField("node-1", "constructor", "oops");
+
+      const node = useEditorStore.getState().nodes[0];
+      const config = (node.data as { config?: Record<string, unknown> }).config ?? {};
+      expect(config).not.toHaveProperty("__proto__");
+      expect(config).not.toHaveProperty("constructor");
+      // 그리고 Object.prototype 이 오염되지 않았는지.
+      expect(({} as { polluted?: boolean }).polluted).toBeUndefined();
+    });
+  });
+
   describe("applyAssistantOperation (update_node)", () => {
     // 어시스턴트가 일부 필드만 patch 해도 나머지 필드가 보존되어야 한다.
     // 백엔드 ShadowWorkflow 는 shallow merge 이므로 프론트도 동일하게 맞춘다.

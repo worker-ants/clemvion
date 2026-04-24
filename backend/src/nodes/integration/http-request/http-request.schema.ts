@@ -80,7 +80,10 @@ export const httpRequestNodeConfigSchema = z
           order: 4,
           visibleWhen: { field: 'authentication', equals: 'integration' },
         },
-        // Assistant candidate picker 의 후보 조회 범위 힌트 (`service_type=http`).
+        // Assistant candidate picker 의 후보 조회 범위 힌트.
+        // backend 의 CandidateLookupService 가 Integration 테이블을
+        // `service_type=http` 로 필터해 이 노드의 picker 에 전달한다.
+        // 값이 비면 connected 전체가 후보로 노출된다.
         integrationServiceType: 'http',
       }),
     headers: z

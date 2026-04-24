@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Check, ChevronRight } from "lucide-react";
 import { useT } from "@/lib/i18n";
 import type {
@@ -39,6 +39,16 @@ function isFilled(value: unknown): boolean {
   return true;
 }
 
+/**
+ * 안전한 `settingsHref` 만 picker 에 전달한다 — 외부 URL / `javascript:` /
+ * 빈 문자열은 거부 (review W-5). 현재 모든 widget 은 에디터 내부 경로
+ * (`/integrations` 등) 만 사용한다.
+ */
+function sanitizeSettingsHref(href: string | undefined): string | undefined {
+  if (!href) return undefined;
+  return href.startsWith("/") ? href : undefined;
+}
+
 export function CandidatePicker({
   field,
   currentValue,
@@ -46,17 +56,39 @@ export function CandidatePicker({
   settingsHref,
 }: CandidatePickerProps) {
   const t = useT();
+  // review W-1: legacy row 또는 SSE 스트림 오류로 candidates 가 missing 일
+  // 수 있다. optional 로 받아 빈 배열로 normalize — rehydrate 시 panel 전체가
+  // `TypeError` 로 크래시하지 않도록 방어.
+  const candidates = Array.isArray(field.candidates) ? field.candidates : [];
+  const safeSettingsHref = sanitizeSettingsHref(settingsHref);
   const [selectedId, setSelectedId] = useState<string>(
     // 후보 1개여도 자동 선택은 하지 않는다 — 사용자가 명시적으로 드롭다운에서
     // 골라야 Confirm 이 활성화된다. `""` 는 "선택 안됨".
     "",
   );
   const [confirmed, setConfirmed] = useState<boolean>(isFilled(currentValue));
+  // review I-4: currentValue 가 외부(editor-store Undo/Redo, Settings Panel
+  // 직접 편집 등)에서 바뀌었을 때 confirmed 상태가 이중 진실 공급원이 되지
+  // 않도록 동기화. 값이 채워져 있으면 확정 상태, 비어있으면 interactive 로
+  // 복귀. 단 사용자가 이 세션 안에서 Confirm 한 직후에는 setConfirmed(true)
+  // 가 먼저 반영되므로 UX 에 영향 없음.
+  useEffect(() => {
+    setConfirmed(isFilled(currentValue));
+  }, [currentValue]);
 
   // 이미 값이 채워져 있거나, 이 세션에서 사용자가 Confirm 한 경우.
   if (confirmed) {
+    // review W-10: rehydrate 시 selectedId 는 "" 이라 find 가 undefined 를
+    // 돌려줘 raw id 가 화면에 노출될 수 있다. currentValue (canvas 에 저장된
+    // 실제 id) 를 후보 목록에서 찾아 라벨을 우선 표시, 매칭 실패 시에만
+    // currentValue 의 문자열 표현으로 폴백.
+    const matchedLabel = candidates.find(
+      (c) =>
+        c.id === selectedId ||
+        (typeof currentValue === "string" && c.id === currentValue),
+    )?.label;
     const selectedLabel =
-      field.candidates.find((c) => c.id === selectedId)?.label ??
+      matchedLabel ??
       (typeof currentValue === "string" ? currentValue : field.label);
     return (
       <div
@@ -75,7 +107,7 @@ export function CandidatePicker({
   }
 
   // 후보가 아예 없는 경우 — 사용자에게 "직접 등록하세요" 로 위임.
-  if (field.candidates.length === 0) {
+  if (candidates.length === 0) {
     return (
       <div
         role="note"
@@ -87,9 +119,9 @@ export function CandidatePicker({
         <span>
           {t("assistant.candidatePickerEmpty", { label: field.label })}
         </span>
-        {settingsHref && (
+        {safeSettingsHref && (
           <a
-            href={settingsHref}
+            href={safeSettingsHref}
             className="inline-flex items-center gap-0.5 self-start text-[11px] font-semibold underline hover:opacity-80"
           >
             {t("assistant.candidatePickerEmptyLink")}
@@ -125,7 +157,7 @@ export function CandidatePicker({
           className="min-w-0 flex-1 rounded-sm border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-1.5 py-0.5 text-[11px] text-[hsl(var(--foreground))] focus:outline-none focus:ring-1 focus:ring-[hsl(var(--primary))]"
         >
           <option value="">—</option>
-          {field.candidates.map((c: CandidateEntry) => (
+          {candidates.map((c: CandidateEntry) => (
             <option key={c.id} value={c.id}>
               {c.sublabel ? `${c.label} (${c.sublabel})` : c.label}
             </option>

@@ -49,7 +49,7 @@ export class CandidateLookupService {
     currentWorkflowId: string,
     pending: PendingUserConfigField[],
   ): Promise<PendingUserConfigField[]> {
-    if (pending.length === 0) return pending;
+    if (pending.length === 0) return [];
     return Promise.all(
       pending.map(async (field) => ({
         ...field,
@@ -80,10 +80,16 @@ export class CandidateLookupService {
           return [];
       }
     } catch (err) {
+      // 조회 실패는 `candidates: []` 로 degrade 해 UI 가 "등록된 것 없음"
+      // 상태로 뜬다. review guard 의 PENDING_USER_CONFIG_UNMENTIONED 도
+      // 동일 조건에서 발동 — 일시적 DB 장애가 "실제로 리소스 없음" 으로
+      // 오해석될 수 있다 (review W-3). 3-state 확장은 후속으로 미루고
+      // 지금은 warn 로그에 "review guard 오발동 가능" 시그널을 명시해
+      // 운영 모니터링으로 감지 가능하게 한다.
       this.logger.warn(
         `CANDIDATE_LOOKUP_FAILED widget=${field.widget} field=${field.field}: ${
           err instanceof Error ? err.message : String(err)
-        }`,
+        } (returning empty candidates — review guard may misfire)`,
       );
       return [];
     }
