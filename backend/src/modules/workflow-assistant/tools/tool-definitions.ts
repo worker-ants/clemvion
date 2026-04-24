@@ -1,4 +1,5 @@
 import { ToolDef } from '../../llm/interfaces/llm-client.interface';
+import { EXECUTION_STATUS_VALUES } from './explore-tools.service';
 
 /**
  * LLM에 전달될 function-calling 도구 목록.
@@ -151,14 +152,7 @@ function buildAssistantToolsInternal(): ToolDef[] {
           },
           status: {
             type: 'string',
-            enum: [
-              'pending',
-              'running',
-              'completed',
-              'failed',
-              'cancelled',
-              'waiting_for_input',
-            ],
+            enum: [...EXECUTION_STATUS_VALUES],
             description:
               "Optional status filter. Omit to see all statuses. For 'why failed' questions, filter by 'failed' to skip completed runs.",
           },
