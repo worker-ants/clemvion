@@ -47,7 +47,26 @@ export interface AssistantDisplayMessage {
    *  - `success` : "작업을 완료했어요 — N개 단계 실행 성공"
    */
   systemHint?: { kind: "info" | "success"; text: string };
+  /**
+   * 이 row 가 서버의 stall 자동 복구로 인해 새로 시작된 row 인 경우의
+   * 메타. 렌더 시 버블 위에 "🔄 자동으로 이어서 진행했어요 (attempt/max)"
+   * divider 를 그리는 트리거. 서버 `auto_resume` SSE 이벤트로 실시간
+   * 주입되거나, rehydrate 시 persist 된 `autoResumed=true` row 에 맞춰
+   * 복원된다.
+   */
+  autoResume?: {
+    reason: "stall_pending_steps";
+    attempt: number;
+    max: number;
+  };
 }
+
+/**
+ * `MAX_STALL_ROUNDS` 와 동일한 값. rehydrate 시 서버가 persist 한
+ * `autoResumeAttempt` 만 가지고 divider 의 "N/M" 포맷을 만들 수 있도록
+ * 프론트 상수로 복제. 백엔드에서 변경되면 같이 업데이트.
+ */
+const STALL_MAX_ATTEMPTS = 2;
 
 interface AssistantState {
   isOpen: boolean;
@@ -123,6 +142,17 @@ function hydrateMessage(msg: AssistantMessageData): AssistantDisplayMessage {
       approved: !!msg.plan.approvedAt,
     };
   }
+  // 서버가 persist 한 autoResumed 메타를 divider 렌더용 autoResume 로 복원.
+  // 마이그레이션 이전 row 는 autoResumed 가 undefined/false 라 divider 없이
+  // 그대로 렌더된다 (호환성).
+  const autoResume =
+    msg.autoResumed && msg.autoResumeReason
+      ? {
+          reason: msg.autoResumeReason as "stall_pending_steps",
+          attempt: msg.autoResumeAttempt ?? 1,
+          max: STALL_MAX_ATTEMPTS,
+        }
+      : undefined;
   return {
     id: msg.id,
     role: msg.role,
@@ -131,6 +161,7 @@ function hydrateMessage(msg: AssistantMessageData): AssistantDisplayMessage {
     plan,
     streaming: false,
     createdAt: msg.createdAt,
+    ...(autoResume ? { autoResume } : {}),
   };
 }
 
@@ -296,6 +327,11 @@ export const useAssistantStore = create<AssistantState>((set, get) => ({
     set({ abortController: abort });
 
     try {
+      // stall 자동 복구(§10)로 서버가 `auto_resume` 이벤트를 발행할 때마다
+      // 이 `currentAssistantId` 가 새 row id 로 교체된다. 이후 delta/tool_call
+      // 은 새 row 로 누적되어 한 턴이 여러 버블로 분리 렌더된다. 반복 문구가
+      // 한 버블에 몰리는 UX 문제의 구조적 해소 지점.
+      let currentAssistantId = assistantId;
       await assistantApi.streamMessage(
         sessionId,
         {
@@ -303,7 +339,17 @@ export const useAssistantStore = create<AssistantState>((set, get) => ({
           currentWorkflow: snapshot,
           llmConfigId: state.llmConfigId ?? undefined,
         },
-        (event) => handleSseEvent(set, get, assistantId, event),
+        (event) => {
+          if (event.event === "auto_resume") {
+            currentAssistantId = applyAutoResumeEvent(
+              set,
+              currentAssistantId,
+              event,
+            );
+            return;
+          }
+          handleSseEvent(set, get, currentAssistantId, event);
+        },
         abort.signal,
       );
     } catch (error) {
@@ -330,10 +376,13 @@ export const useAssistantStore = create<AssistantState>((set, get) => ({
       abortController: null,
     });
     await get().refreshSessions();
-    // Finalize streaming flag on final assistant message
+    // Finalize streaming flag on any assistant message left streaming. 정상
+    // 흐름에서는 done 이벤트 / applyAutoResumeEvent 가 이미 처리했지만, 에러
+    // 경로에서 auto_resume 으로 새로 push 된 row 가 남아있을 수 있어 안전
+    // 장치로 일괄 스캔. (원래 `assistantId` 한 건만 찍던 경로를 확장)
     set((s) => ({
       messages: s.messages.map((m) =>
-        m.id === assistantId ? { ...m, streaming: false } : m,
+        m.streaming ? { ...m, streaming: false } : m,
       ),
     }));
   },
@@ -392,6 +441,48 @@ export const useAssistantStore = create<AssistantState>((set, get) => ({
       abortController: null,
     }),
 }));
+
+/**
+ * 서버의 `auto_resume` SSE 이벤트를 받아 **현재 스트리밍 중인 assistant
+ * 버블을 확정**하고 **새 버블**을 push 한다. 새 버블에는 `autoResume`
+ * 메타가 실려 렌더 시 divider("🔄 자동으로 이어서 진행했어요") 를 그리는
+ * 트리거가 된다. `streamingMessageId` 도 새 id 로 갱신되어 이후 이벤트가
+ * 새 버블로 흘러가도록 한다.
+ *
+ * 반환값은 새로 만든 row id — caller(`sendMessage`) 가 `currentAssistantId`
+ * 를 업데이트할 때 사용한다. 테스트 편의를 위해 별도 export.
+ */
+export function applyAutoResumeEvent(
+  set: (updater: (s: AssistantState) => Partial<AssistantState>) => void,
+  currentAssistantId: string,
+  event: Extract<AssistantSseEvent, { event: "auto_resume" }>,
+): string {
+  const nextId = `local-${crypto.randomUUID().slice(0, 8)}`;
+  const now = new Date().toISOString();
+  set((s) => ({
+    messages: [
+      ...s.messages.map((m) =>
+        m.id === currentAssistantId ? { ...m, streaming: false } : m,
+      ),
+      {
+        id: nextId,
+        role: "assistant" as const,
+        content: "",
+        toolCalls: [],
+        plan: null,
+        streaming: true,
+        createdAt: now,
+        autoResume: {
+          reason: event.data.reason,
+          attempt: event.data.attempt,
+          max: event.data.max,
+        },
+      },
+    ],
+    streamingMessageId: nextId,
+  }));
+  return nextId;
+}
 
 /**
  * Handle a single SSE event during an in-flight assistant turn.

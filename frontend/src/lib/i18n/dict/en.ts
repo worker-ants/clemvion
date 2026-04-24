@@ -1897,6 +1897,7 @@ export const en: Dict = {
     turnStalledHint:
       "The assistant stopped without a message. Send `Continue` and I'll keep executing the remaining steps.",
     turnCompletedHint: "Done — {{count}} plan steps completed.",
+    autoResumedHint: "Auto-resumed ({{attempt}}/{{max}})",
     errorBubbleTitle: "Something went wrong with this turn",
     continueAfterBudgetButton: "Continue",
     continueAfterBudget: "Continue.",
