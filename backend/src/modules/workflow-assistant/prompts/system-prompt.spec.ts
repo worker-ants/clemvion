@@ -97,18 +97,27 @@ describe('buildSystemPrompt', () => {
     // 사용자 보고: LLM 이 `update_node({id: "SendEmail", ...})` 처럼 노드
     // label 을 id 자리에 실수로 넣어 NODE_NOT_FOUND 가 연쇄 발생. 프롬프트에
     // "tool 인자의 id 자리는 UUID 만, label 금지" 규칙이 명시되어 있는지
-    // 고정한다. Contracts 블록의 "Label vs identifier" 섹션이 커버해야 한다.
+    // 고정한다. Contracts 블록의 "Label vs identifier" 섹션
+    // (spec/3-workflow-editor/4-ai-assistant.md §8 "LLM 시스템 프롬프트 구성"
+    // → "CONTRACTS (MUST) / 출력 규약, label/id") 이 커버해야 한다.
     const prompt = buildSystemPrompt(defs as never, emptySnapshot);
-    // (a) "UUID" 와 "never ... label" 표현이 인접 문맥에 있어야 한다.
-    expect(prompt).toMatch(/UUID/);
-    expect(prompt).toMatch(/never.*label|label.*never/i);
+    // (a) review W-2: 독립 pattern 대신 정확한 slogan 한 줄을 고정해 두
+    //     표현이 별개 섹션에 있어도 통과하는 취약 매칭을 차단한다.
+    expect(prompt).toMatch(
+      /always reference a node by its UUID, never by its label/i,
+    );
     // (b) 대상 tool 세 가지가 모두 언급된다.
     expect(prompt).toMatch(/update_node/);
     expect(prompt).toMatch(/remove_node/);
     expect(prompt).toMatch(/add_edge/);
     // (c) add_node 성공 응답의 result.id / currentWorkflow 스냅샷 nodes[*].id
     //     가 유일한 UUID 출처임이 명시된다.
-    expect(prompt).toMatch(/result\.id|nodes\[\*\]\.id/);
+    expect(prompt).toMatch(/result\.id/);
+    expect(prompt).toMatch(/nodes\[\*\]\.id/);
+    // (d) 서버 hint 가 알려주는 형식을 프롬프트가 같이 안내해, LLM 이 응답
+    //     으로 받은 hint 를 해석할 수 있어야 한다 (shadow-workflow.ts 의
+    //     `buildLabelAsIdHint` 가 찍는 "matches the label of" 문구와 일치).
+    expect(prompt).toMatch(/matches the label of/);
   });
 
   it('teaches null-safe `?.output?.` chaining for per-branch $node references', () => {

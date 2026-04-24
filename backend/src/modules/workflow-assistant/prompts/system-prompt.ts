@@ -166,7 +166,7 @@ Sub-entries of many node configs come in pairs of "display text" + "stable ident
     - The \`result.id\` returned by a successful \`add_node\` earlier in this turn.
     - A \`nodes[*].id\` from the \`currentWorkflow\` snapshot that is injected into this prompt each turn.
 
-    Do NOT pass a label such as \`"SendEmail"\` or \`"음식 종류 선택"\` in those fields, even though labels are workspace-unique — uniqueness is a collision guard for \`add_node\`, not a license to substitute labels for UUIDs. Passing a label returns \`NODE_NOT_FOUND\`, which silently blocks the config patch or edge you intended. The server's hint on that error will call out "Value X matches the label of node Y (id: …)" when it detects the lookalike — use the id it gives you and retry with the corrected argument.
+    Do NOT pass a label such as \`"SendEmail"\` or \`"음식 종류 선택"\` in those fields, even though labels are workspace-unique — uniqueness is a collision guard for \`add_node\`, not a license to substitute labels for UUIDs. Passing a label returns \`NODE_NOT_FOUND\`, which silently blocks the config patch or edge you intended. The server's hint on that error is delivered wrapped in \`[hint] … [/hint]\` markers and reads \`Value "<label>" matches the label of an existing node (id: <uuid>). …\` when it detects the lookalike — use the id it gives you and retry with the corrected argument.
     - ✅ \`update_node({id: "11111111-2222-3333-4444-555555555555", patch: {...}})\` — UUID from the previous \`add_node\` result.
     - ❌ \`update_node({id: "SendEmail", patch: {...}})\` — label in the id slot.
 

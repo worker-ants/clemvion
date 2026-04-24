@@ -1254,7 +1254,12 @@ describe('ShadowWorkflow', () => {
         expect(result.ok).toBe(false);
         expect(result.error).toBe('NODE_NOT_FOUND');
         expect(result.hint).toBeDefined();
-        expect(result.hint).toMatch(/label/);
+        // review W-8: hint 포맷이 "[hint] ... matches the label ... [/hint]"
+        // 고정 마커 패턴을 따르는지 확정해 prompt 와 실제 출력이 드리프트
+        // 하지 않도록 한다.
+        expect(result.hint).toMatch(/^\[hint\] /);
+        expect(result.hint).toMatch(/matches the label of an existing node/);
+        expect(result.hint).toMatch(/ \[\/hint\]$/);
         expect(result.hint).toMatch(/SendEmail/);
         expect(result.hint).toMatch(/11111111-2222-3333-4444-555555555555/);
       });
@@ -1332,6 +1337,102 @@ describe('ShadowWorkflow', () => {
         expect(result.error).toBe('NODE_NOT_FOUND');
         // cascading 힌트 먼저.
         expect(result.hint).toMatch(/prior add_node failed/);
+      });
+
+      // review W-1: target 만 label 인 경로(source 는 실제 UUID) 가 fallback
+      // 분기에서 정상적으로 감지되는지 별도 고정.
+      it('add_edge: hints on the target side when only target_id matches a label', () => {
+        const sw = new ShadowWorkflow(
+          snapshotWithNamedNode(),
+          new Set(['send_email']),
+        );
+        const result = sw.apply({
+          name: 'add_edge',
+          arguments: {
+            source_id: TRIGGER_NODE.id,
+            target_id: 'SendEmail', // target 쪽 label 실수
+          },
+        });
+        expect(result.error).toBe('NODE_NOT_FOUND');
+        expect(result.hint).toMatch(/SendEmail/);
+        expect(result.hint).toMatch(/11111111-2222-3333-4444-555555555555/);
+      });
+
+      // review I-15: source / target 둘 다 label 인 케이스 — source 힌트
+      // 하나만 내려가 메시지가 모호해지지 않는다.
+      it('add_edge: emits only one hint (source) when both ends are labels', () => {
+        const sw = new ShadowWorkflow(
+          {
+            nodes: [
+              TRIGGER_NODE,
+              {
+                id: 'aaaa1111-0000-0000-0000-000000000001',
+                type: 'template',
+                category: 'presentation',
+                label: 'LabelA',
+                positionX: 0,
+                positionY: 0,
+                config: {},
+              },
+              {
+                id: 'bbbb2222-0000-0000-0000-000000000002',
+                type: 'template',
+                category: 'presentation',
+                label: 'LabelB',
+                positionX: 0,
+                positionY: 0,
+                config: {},
+              },
+            ],
+            edges: [],
+          },
+          new Set(['template']),
+        );
+        const result = sw.apply({
+          name: 'add_edge',
+          arguments: { source_id: 'LabelA', target_id: 'LabelB' },
+        });
+        expect(result.error).toBe('NODE_NOT_FOUND');
+        expect(result.hint).toMatch(/LabelA/);
+        // target 라벨은 노출되지 않는다 — 단일 source 힌트.
+        expect(result.hint).not.toMatch(/LabelB/);
+      });
+
+      // review I-13: 공백 전용 입력은 "empty-ish" 로 간주되어 hint 가 붙지
+      // 않아야 한다 (기존 호출부가 '   ' 값을 label 실수로 오인하지 않도록).
+      it('does not attach a hint for whitespace-only id values', () => {
+        const sw = new ShadowWorkflow(
+          snapshotWithNamedNode(),
+          new Set(['send_email']),
+        );
+        const result = sw.apply({
+          name: 'update_node',
+          arguments: { id: '   ', patch: { config: {} } },
+        });
+        expect(result.error).toBe('NODE_NOT_FOUND');
+        expect(result.hint).toBeUndefined();
+      });
+
+      // review I-14: cascading FIFO 가 비어있을 때 label-lookalike 가 실제로
+      // fallback 으로 선택되는 반례를 명시. (이미 앞 케이스들이 이 경로를
+      // 거치지만, "우선순위 역방향 증거" 로서 별도 고정.)
+      it('falls back to label-lookalike when the cascading FIFO is empty', () => {
+        const sw = new ShadowWorkflow(
+          snapshotWithNamedNode(),
+          new Set(['send_email']),
+        );
+        // 일부러 add_node 실패를 발생시키지 않음 → cascading FIFO 비어있음.
+        const result = sw.apply({
+          name: 'add_edge',
+          arguments: {
+            source_id: TRIGGER_NODE.id,
+            target_id: 'SendEmail',
+          },
+        });
+        expect(result.error).toBe('NODE_NOT_FOUND');
+        // cascading 힌트 메시지가 아니라 label-lookalike 힌트가 떠야 한다.
+        expect(result.hint).not.toMatch(/prior add_node failed/);
+        expect(result.hint).toMatch(/matches the label/);
       });
 
       it('sanitizes label in the hint (newlines / angle brackets are neutralised)', () => {
