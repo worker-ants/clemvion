@@ -712,10 +712,33 @@ export function summarizePlanState(
 } {
   let plan: AssistantPlanCard | null = msg.plan;
   if (!plan) {
+    // msg 이전 메시지에서 가장 가까운 plan 을 상속 — approve 후 multi-turn
+    // 에 걸쳐 execute 하는 경우를 지원한다 (턴 1 에 plan, 턴 2+ 에 step
+    // 실행 메시지가 plan 없이 옴). 단, **plan 이 이전 턴에서 이미 모두
+    // 완료된 상태**인데 새 user 메시지가 들어와 새 턴이 시작된 경우는
+    // 이어받으면 안 된다 — 그러면 이번 턴의 ad-hoc 편집에도 이전 턴의
+    // 완료 카운트("5개 단계 실행 성공") 가 그대로 재주입된다.
+    let planOwnerIndex = -1;
     for (let i = all.length - 1; i >= 0; i--) {
       if (all[i].plan) {
         plan = all[i].plan;
+        planOwnerIndex = i;
         break;
+      }
+    }
+    if (plan && planOwnerIndex >= 0) {
+      const msgIndex = all.findIndex((m) => m.id === msg.id);
+      if (msgIndex > planOwnerIndex) {
+        const hasUserTurnAfterPlan = all
+          .slice(planOwnerIndex + 1, msgIndex + 1)
+          .some((m) => m.role === "user");
+        if (hasUserTurnAfterPlan) {
+          const actionable = plan.steps.filter((s) => s.action !== "note");
+          const stillPending = actionable.some((s) => s.status === "pending");
+          // 이전 턴에서 이미 모두 done → 새 턴에는 이어받지 않는다.
+          // pending step 이 남아있으면 multi-turn 실행 중이므로 기존처럼 상속.
+          if (!stillPending) plan = null;
+        }
       }
     }
   }
