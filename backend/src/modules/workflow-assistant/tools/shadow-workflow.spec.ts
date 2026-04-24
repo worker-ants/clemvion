@@ -1224,6 +1224,249 @@ describe('ShadowWorkflow', () => {
     });
   });
 
+  // handler.validate 의 domain rule (버튼 수 상한, 필수 필드 누락, 중복 id 등)
+  // 을 shadow add/update 시점에 조기 차단하는 회귀. 이전에는 execution 시점에서야
+  // 발견돼 LLM 이 이미 `finish` 후였고 사용자가 수동으로 노드를 고쳐야 했다.
+  describe('INVALID_NODE_CONFIG (handler.validate bridge)', () => {
+    const maxButtonsValidator = (
+      _type: string,
+      config: Record<string, unknown>,
+    ) => {
+      const buttons = config.buttons as unknown[] | undefined;
+      if (buttons && buttons.length > 10) {
+        return {
+          valid: false,
+          errors: ['Maximum 10 buttons allowed per node'],
+        };
+      }
+      return { valid: true, errors: [] };
+    };
+
+    it('add_node: handler.validate 실패 시 노드 저장 안 되고 envelope 반환', () => {
+      const sw = new ShadowWorkflow(
+        baseSnapshot(),
+        new Set(['carousel']),
+        {},
+        undefined,
+        {},
+        maxButtonsValidator,
+      );
+      const result = sw.apply({
+        name: 'add_node',
+        arguments: {
+          type: 'carousel',
+          label: '11버튼 캐러셀',
+          position: { x: 0, y: 0 },
+          config: {
+            buttons: Array.from({ length: 11 }, (_, i) => ({
+              id: `btn_${i}`,
+              label: `B${i}`,
+              type: 'port',
+            })),
+          },
+        },
+      });
+      expect(result.ok).toBe(false);
+      expect(result.error).toBe('INVALID_NODE_CONFIG');
+      expect(result.invalidConfig).toEqual([
+        'Maximum 10 buttons allowed per node',
+      ]);
+      expect(result.message).toBe('Maximum 10 buttons allowed per node');
+      // 저장 거부 — 원래 1개 (manual_trigger) 만 남아있어야 한다.
+      expect(sw.snapshot().nodes).toHaveLength(1);
+    });
+
+    it('add_node: validator 성공 시 기존대로 저장', () => {
+      const sw = new ShadowWorkflow(
+        baseSnapshot(),
+        new Set(['carousel']),
+        {},
+        undefined,
+        {},
+        maxButtonsValidator,
+      );
+      const result = sw.apply({
+        name: 'add_node',
+        arguments: {
+          type: 'carousel',
+          label: '정상 캐러셀',
+          position: { x: 0, y: 0 },
+          config: { buttons: [{ id: 'btn_ok', label: 'OK', type: 'port' }] },
+        },
+      });
+      expect(result.ok).toBe(true);
+      expect(sw.snapshot().nodes).toHaveLength(2);
+    });
+
+    it('add_node: 실패 시 recordFailedAddNode 로 이후 add_edge cascade hint 활성화', () => {
+      const sw = new ShadowWorkflow(
+        baseSnapshot(),
+        new Set(['carousel']),
+        {},
+        undefined,
+        {},
+        maxButtonsValidator,
+      );
+      sw.apply({
+        name: 'add_node',
+        arguments: {
+          type: 'carousel',
+          label: '너무많음',
+          position: { x: 0, y: 0 },
+          config: {
+            buttons: Array.from({ length: 11 }, (_, i) => ({
+              id: `btn_${i}`,
+              label: `B${i}`,
+              type: 'port',
+            })),
+          },
+        },
+      });
+      // cascade hint 는 후속 add_edge 가 존재하지 않는 UUID 를 참조할 때 주입된다.
+      const edge = sw.apply({
+        name: 'add_edge',
+        arguments: {
+          source_id: '00000000-0000-0000-0000-000000000001',
+          target_id: 'manual-trigger-id',
+        },
+      });
+      expect(edge.ok).toBe(false);
+      expect(edge.error).toBe('NODE_NOT_FOUND');
+      expect(edge.hint ?? '').toMatch(/너무많음|A prior add_node failed/);
+    });
+
+    it('update_node: validator 실패 시 patch 전부 롤백 (config+label+position 미변경)', () => {
+      const sw = new ShadowWorkflow(
+        baseSnapshot(),
+        new Set(['carousel']),
+        {},
+        undefined,
+        {},
+        maxButtonsValidator,
+      );
+      const add = sw.apply({
+        name: 'add_node',
+        arguments: {
+          type: 'carousel',
+          label: '초기',
+          position: { x: 10, y: 20 },
+          config: { buttons: [{ id: 'btn_a', label: 'A', type: 'port' }] },
+        },
+      });
+      expect(add.ok).toBe(true);
+      const before = sw.snapshot().nodes.find((n) => n.id === add.id)!;
+
+      const result = sw.apply({
+        name: 'update_node',
+        arguments: {
+          id: add.id!,
+          patch: {
+            label: '새이름',
+            position: { x: 999, y: 999 },
+            config: {
+              buttons: Array.from({ length: 11 }, (_, i) => ({
+                id: `btn_${i}`,
+                label: `B${i}`,
+                type: 'port',
+              })),
+            },
+          },
+        },
+      });
+      expect(result.ok).toBe(false);
+      expect(result.error).toBe('INVALID_NODE_CONFIG');
+      expect(result.invalidConfig).toEqual([
+        'Maximum 10 buttons allowed per node',
+      ]);
+
+      // patch 는 전부 롤백. label / position / config 모두 이전 값 유지.
+      const after = sw.snapshot().nodes.find((n) => n.id === add.id)!;
+      expect(after.label).toBe(before.label);
+      expect(after.positionX).toBe(before.positionX);
+      expect(after.positionY).toBe(before.positionY);
+      expect(after.config).toEqual(before.config);
+    });
+
+    it('update_node: validator 성공 시 patch 적용', () => {
+      const sw = new ShadowWorkflow(
+        baseSnapshot(),
+        new Set(['carousel']),
+        {},
+        undefined,
+        {},
+        maxButtonsValidator,
+      );
+      const add = sw.apply({
+        name: 'add_node',
+        arguments: {
+          type: 'carousel',
+          label: '초기',
+          position: { x: 0, y: 0 },
+          config: { buttons: [{ id: 'btn_a', label: 'A', type: 'port' }] },
+        },
+      });
+      const result = sw.apply({
+        name: 'update_node',
+        arguments: {
+          id: add.id!,
+          patch: {
+            config: {
+              buttons: [
+                { id: 'btn_a', label: 'A', type: 'port' },
+                { id: 'btn_b', label: 'B', type: 'port' },
+              ],
+            },
+          },
+        },
+      });
+      expect(result.ok).toBe(true);
+      const after = sw.snapshot().nodes.find((n) => n.id === add.id)!;
+      expect((after.config.buttons as unknown[]).length).toBe(2);
+    });
+
+    it('update_node: label/position-only patch 는 validator skip (config 미변경)', () => {
+      // validator 호출 횟수를 추적해 label/position patch 에서는 한 번도
+      // 호출되지 않음을 확인. add 시 1 회, 아래 label-only patch 에서 0 회.
+      const calls: Array<Record<string, unknown>> = [];
+      const trackingValidator = (
+        _type: string,
+        config: Record<string, unknown>,
+      ) => {
+        calls.push(config);
+        return { valid: true, errors: [] };
+      };
+      const sw = new ShadowWorkflow(
+        baseSnapshot(),
+        new Set(['carousel']),
+        {},
+        undefined,
+        {},
+        trackingValidator,
+      );
+      const add = sw.apply({
+        name: 'add_node',
+        arguments: {
+          type: 'carousel',
+          label: '초기',
+          position: { x: 0, y: 0 },
+          config: { buttons: [] },
+        },
+      });
+      expect(add.ok).toBe(true);
+      expect(calls).toHaveLength(1);
+
+      const result = sw.apply({
+        name: 'update_node',
+        arguments: {
+          id: add.id!,
+          patch: { label: '새이름', position: { x: 100, y: 200 } },
+        },
+      });
+      expect(result.ok).toBe(true);
+      expect(calls).toHaveLength(1); // validator 가 또 호출되지 않음
+    });
+  });
+
   // LLM 이 자주 저지르는 3가지 실수 계열에 대해 에러 응답이 자체 복구 단서를
   // 충분히 싣는지 고정한다 (assistant 자체 점검 플로우의 1차 방어선).
   describe('error enrichment for UNKNOWN_NODE_TYPE / LABEL_CONFLICT / cascading NODE_NOT_FOUND', () => {

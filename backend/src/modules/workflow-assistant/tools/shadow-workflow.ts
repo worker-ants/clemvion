@@ -65,6 +65,7 @@ export type ShadowErrorCode =
   | 'CYCLE_DETECTED'
   | 'INVALID_ARGUMENTS'
   | 'INVALID_EXPRESSION'
+  | 'INVALID_NODE_CONFIG'
   | 'PORT_NOT_FOUND';
 
 /**
@@ -99,6 +100,18 @@ export interface ResolvedNodePorts {
 }
 export type NodePortResolver = (node: ShadowNode) => ResolvedNodePorts | null;
 
+/**
+ * Handler.validate 브리지. 실행 엔진의 `NodeHandlerRegistry` 가 돌려주는
+ * `ValidationResult` 를 그대로 미러. shadow add/update 시점에 호출되어 domain
+ * rule (버튼 수 상한, 필수 필드 누락, 중복 id 등) 을 조기 차단 — 저장 이후
+ * execution 단계에서야 발견되는 UX 회피. null/undefined 인 검증기 자리는
+ * skip (기존 permissive 동작 유지), 레거시 호출자·테스트용.
+ */
+export type NodeConfigValidator = (
+  type: string,
+  config: Record<string, unknown>,
+) => { valid: boolean; errors: string[] };
+
 export interface ShadowResult {
   ok: boolean;
   id?: string;
@@ -112,6 +125,13 @@ export interface ShadowResult {
    * 최대 5개까지 싣는다.
    */
   invalidExpressions?: ExpressionValidationIssue[];
+  /**
+   * `INVALID_NODE_CONFIG` 케이스에서 handler.validate 가 돌려준 domain-rule
+   * 위반 메시지. 최대 5개 (invalidExpressions 와 동형). LLM 이 같은 턴 내에
+   * 해당 필드만 고쳐 재시도할 수 있다. "Maximum 10 buttons allowed per node",
+   * "items is required ..." 같은 handler 고유 메시지가 그대로 실린다.
+   */
+  invalidConfig?: string[];
   /**
    * `UNKNOWN_NODE_TYPE` 응답 시: 현재 등록된 노드 타입 중 최대 `KNOWN_TYPES_MAX`
    * 개를 정렬해 싣는다. LLM 이 다음 라운드에서 올바른 타입을 고를 수 있도록.
@@ -329,6 +349,14 @@ export class ShadowWorkflow {
       string,
       Record<string, unknown>
     > = {},
+    /**
+     * (옵션) `handler.validate` 브리지. add_node 는 최종 merged config 를,
+     * update_node 는 merged (기존 + patch) config 전체를 검사. 실패 시
+     * `INVALID_NODE_CONFIG` 로 거부하고 **어떤 state mutation 도 일어나지
+     * 않는다** (update 는 patch 전부 롤백). 생략 시 검증 skip 으로 기존
+     * 동작 유지.
+     */
+    private readonly configValidator?: NodeConfigValidator,
   ) {
     this.nodes = new Map(snapshot.nodes.map((n) => [n.id, { ...n }]));
     this.edges = new Map(snapshot.edges.map((e) => [e.id, { ...e }]));
@@ -425,6 +453,22 @@ export class ShadowWorkflow {
       };
     }
 
+    // handler.validate 조기 차단. execution 단계에서야 터지던 domain rule
+    // (버튼 수 상한, 필수 필드 누락, 중복 id 등) 을 같은 턴 내 재시도
+    // 가능한 지점에서 반환. validator 미주입 (테스트/legacy) 시 skip.
+    if (this.configValidator) {
+      const cfgCheck = this.configValidator(type, config);
+      if (!cfgCheck.valid) {
+        this.recordFailedAddNode(label);
+        return {
+          ok: false,
+          error: 'INVALID_NODE_CONFIG',
+          message: cfgCheck.errors.join('; '),
+          invalidConfig: cfgCheck.errors.slice(0, 5),
+        };
+      }
+    }
+
     const id = randomUUID();
     this.nodes.set(id, {
       id,
@@ -469,6 +513,11 @@ export class ShadowWorkflow {
         : { ok: false, error: 'NODE_NOT_FOUND' };
     }
 
+    // INVALID_NODE_CONFIG 롤백을 위해 기존 노드를 직접 mutate 하지 않고
+    // 중간 사본 (next) 에 patch 를 applied 한 뒤, 모든 검사 통과 시에만
+    // 원본을 교체한다. domain-rule 위반 시 shadow state 는 변하지 않음.
+    const next: ShadowNode = { ...node };
+    let configPatched = false;
     if (patch.label && patch.label !== node.label) {
       const conflict = this.findByLabel(patch.label);
       if (conflict) {
@@ -478,7 +527,7 @@ export class ShadowWorkflow {
           suggested: this.suggestLabel(patch.label),
         };
       }
-      node.label = patch.label;
+      next.label = patch.label;
     }
     if (patch.config) {
       // 패치로 들어온 값만 검사. 기존 노드 config 는 이미 커밋된 상태라
@@ -492,15 +541,29 @@ export class ShadowWorkflow {
           invalidExpressions: exprCheck.issues.slice(0, 5),
         };
       }
-      node.config = { ...node.config, ...patch.config };
+      next.config = { ...node.config, ...patch.config };
+      configPatched = true;
     }
     if (patch.position) {
       if (patch.position.x !== undefined)
-        node.positionX = Number(patch.position.x);
+        next.positionX = Number(patch.position.x);
       if (patch.position.y !== undefined)
-        node.positionY = Number(patch.position.y);
+        next.positionY = Number(patch.position.y);
     }
-    this.nodes.set(id, node);
+    // config 을 건드린 patch 만 handler.validate 로 최종 shape 확인. label /
+    // position 만 바꾼 patch 는 domain rule 과 무관하므로 skip.
+    if (configPatched && this.configValidator) {
+      const cfgCheck = this.configValidator(next.type, next.config);
+      if (!cfgCheck.valid) {
+        return {
+          ok: false,
+          error: 'INVALID_NODE_CONFIG',
+          message: cfgCheck.errors.join('; '),
+          invalidConfig: cfgCheck.errors.slice(0, 5),
+        };
+      }
+    }
+    this.nodes.set(id, next);
     const portsInfo = this.buildRuntimePorts(id);
     if (!portsInfo) return { ok: true, id };
     return portsInfo.truncated

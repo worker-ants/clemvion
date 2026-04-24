@@ -5,6 +5,7 @@ import { LlmService } from '../llm/llm.service';
 import { ChatMessage } from '../llm/interfaces/llm-client.interface';
 import { LlmConfig } from '../llm-config/entities/llm-config.entity';
 import { NodeComponentRegistry } from '../../nodes/core/node-component.registry';
+import { NodeHandlerRegistry } from '../../nodes/core/node-handler.registry';
 import { WorkflowAssistantSessionService } from './workflow-assistant-session.service';
 import { ExploreToolsService } from './tools/explore-tools.service';
 import { CandidateLookupService } from './tools/candidate-lookup.service';
@@ -258,6 +259,7 @@ export class WorkflowAssistantStreamService {
     private readonly sessionService: WorkflowAssistantSessionService,
     private readonly exploreTools: ExploreToolsService,
     private readonly nodeRegistry: NodeComponentRegistry,
+    private readonly handlerRegistry: NodeHandlerRegistry,
     private readonly candidateLookup: CandidateLookupService,
   ) {}
 
@@ -326,12 +328,23 @@ export class WorkflowAssistantStreamService {
     for (const [type, def] of defsByType) {
       defaultConfigByType[type] = def.defaultConfig;
     }
+    // handler.validate 브리지 — shadow add/update 시점에 domain rule 검사.
+    // 등록되지 않은 타입은 permissive (valid:true) 로 넘어가 기존 UNKNOWN_NODE_TYPE
+    // 분기가 먼저 잡는다.
+    const configValidator = (
+      type: string,
+      config: Record<string, unknown>,
+    ): { valid: boolean; errors: string[] } => {
+      if (!this.handlerRegistry.has(type)) return { valid: true, errors: [] };
+      return this.handlerRegistry.get(type).validate(config);
+    };
     const shadow = new ShadowWorkflow(
       this.toShadowSnapshot(dto.currentWorkflow),
       this.collectKnownNodeTypes(),
       this.collectCategoryByType(),
       portResolver,
       defaultConfigByType,
+      configValidator,
     );
 
     // user 메시지 저장 + session title 자동 생성
