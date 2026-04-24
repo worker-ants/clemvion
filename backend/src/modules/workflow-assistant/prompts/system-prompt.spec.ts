@@ -603,6 +603,59 @@ describe('buildSystemPrompt', () => {
     });
   });
 
+  // LLM 이 독립적인 edit 을 한 번에 여러 개 병렬 호출하도록 유도하는 프롬프트
+  // 지침. Claude 4.x 기본 동작은 병렬을 허용하지만 명시 유도 없이는 보수적으로
+  // 직렬만 낸다. 무작위 재구조에서도 이 지침이 살아 있도록 존재/내용 양쪽을
+  // 고정한다.
+  describe('Parallel tool calls guidance', () => {
+    it('includes a dedicated Parallel tool calls section under the Tool calling protocol', () => {
+      const prompt = buildSystemPrompt(defs as never, emptySnapshot);
+      // (a) 전용 섹션 헤더
+      expect(prompt).toMatch(/Parallel tool calls/);
+      // (b) BLOCK 1 (Tool calling protocol) 안쪽에 위치해야 한다 — Contracts
+      //     블록보다 먼저 나와야 cache-friendly 순서 (BLOCK 1 → 2 → 3) 를
+      //     깨뜨리지 않는다.
+      const protoIdx = prompt.indexOf('## Tool calling protocol');
+      const parallelIdx = prompt.indexOf('Parallel tool calls');
+      const contractsIdx = prompt.indexOf('## Contracts');
+      expect(protoIdx).toBeGreaterThanOrEqual(0);
+      expect(parallelIdx).toBeGreaterThanOrEqual(0);
+      expect(contractsIdx).toBeGreaterThanOrEqual(0);
+      expect(parallelIdx).toBeGreaterThan(protoIdx);
+      expect(parallelIdx).toBeLessThan(contractsIdx);
+    });
+
+    it('teaches the canonical node-ops → edge-ops layering with explicit round labels', () => {
+      const prompt = buildSystemPrompt(defs as never, emptySnapshot);
+      // (a) 두 라운드 배치 패턴이 명시되어 있어야 한다.
+      expect(prompt).toMatch(/add_node/);
+      expect(prompt).toMatch(/add_edge/);
+      // (b) "single message" / "single assistant message" / "in one message"
+      //     같이 한 메시지에 묶어서 emit 하라는 지시문이 존재.
+      expect(prompt.toLowerCase()).toMatch(
+        /single (assistant )?message|in one message|one message/,
+      );
+      // (c) 의존성 경계에 대한 경고 — 같은 라운드의 add_node 결과 UUID 가
+      //     필요한 add_edge 는 같은 라운드에 묶지 말라는 지시.
+      expect(prompt.toLowerCase()).toMatch(
+        /uuid[\s\S]{0,80}(this|same) round|(this|same) round[\s\S]{0,80}uuid/,
+      );
+    });
+
+    it('enumerates the independent-edit groups the user can batch in parallel', () => {
+      const prompt = buildSystemPrompt(defs as never, emptySnapshot);
+      // 노드 그룹 (add_node / update_node / remove_node) 과 엣지 그룹
+      // (add_edge / remove_edge) 가 모두 병렬 섹션에서 언급되어야 한다.
+      const parallelIdx = prompt.indexOf('Parallel tool calls');
+      const block = prompt.slice(parallelIdx, parallelIdx + 1600);
+      expect(block).toMatch(/add_node/);
+      expect(block).toMatch(/update_node/);
+      expect(block).toMatch(/remove_node/);
+      expect(block).toMatch(/add_edge/);
+      expect(block).toMatch(/remove_edge/);
+    });
+  });
+
   // 에러·낭비 줄이기 및 self-review UX 를 위해 시스템 프롬프트에 고정된 두
   // 섹션이 있다. 프롬프트 재구조 시 실수로 빠지지 않도록 고정.
   describe('Common pitfalls + Self-review sections', () => {

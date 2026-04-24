@@ -76,13 +76,25 @@ export class AnthropicClient implements LLMClient {
         description: t.description,
         input_schema: t.parameters as Anthropic.Tool.InputSchema,
       }));
-      if (params.toolChoice) {
-        requestParams.tool_choice =
-          params.toolChoice === 'required'
-            ? { type: 'any' }
-            : params.toolChoice === 'none'
-              ? { type: 'none' as never }
-              : { type: 'auto' };
+      // Parallel tool use is the default on Claude 4.x, but we set it
+      // explicitly so a future accidental override (SDK default flip, upstream
+      // change, etc.) can't silently force the workflow assistant back into
+      // one-call-per-round. The assistant's system prompt instructs LLMs to
+      // batch independent edits into a single message; that guidance is
+      // meaningless if the API rejects parallel tool blocks.
+      const base =
+        params.toolChoice === 'required'
+          ? { type: 'any' as const }
+          : params.toolChoice === 'none'
+            ? ({ type: 'none' } as never)
+            : { type: 'auto' as const };
+      if (params.toolChoice !== 'none') {
+        requestParams.tool_choice = {
+          ...base,
+          disable_parallel_tool_use: false,
+        };
+      } else {
+        requestParams.tool_choice = base;
       }
     }
 
@@ -215,13 +227,23 @@ export class AnthropicClient implements LLMClient {
         description: t.description,
         input_schema: t.parameters as Anthropic.Tool.InputSchema,
       }));
-      if (params.toolChoice) {
-        requestParams.tool_choice =
-          params.toolChoice === 'required'
-            ? { type: 'any' }
-            : params.toolChoice === 'none'
-              ? ({ type: 'none' } as never)
-              : { type: 'auto' };
+      // Parallel tool use is the default on Claude 4.x, but we set it
+      // explicitly so a future accidental override (SDK default flip, upstream
+      // change, etc.) can't silently force the workflow assistant back into
+      // one-call-per-round. Mirror of the non-streaming branch.
+      const base =
+        params.toolChoice === 'required'
+          ? { type: 'any' as const }
+          : params.toolChoice === 'none'
+            ? ({ type: 'none' } as never)
+            : { type: 'auto' as const };
+      if (params.toolChoice !== 'none') {
+        requestParams.tool_choice = {
+          ...base,
+          disable_parallel_tool_use: false,
+        };
+      } else {
+        requestParams.tool_choice = base;
       }
     }
 
