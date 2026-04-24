@@ -26,7 +26,7 @@ export class CreateLlmConfigDto {
     enum: LLM_PROVIDERS,
     example: 'openai',
   })
-  @IsIn(LLM_PROVIDERS as unknown as string[])
+  @IsIn(LLM_PROVIDERS)
   provider: LlmProvider;
 
   /** LLM 설정 표시 이름 */

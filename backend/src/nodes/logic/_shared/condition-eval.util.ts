@@ -113,9 +113,7 @@ export function evaluateCondition(
     case 'regex':
       if (!compiledRegex) return false;
       return compiledRegex.test(
-        typeof fieldValue === 'string'
-          ? fieldValue
-          : String(fieldValue as string | number | boolean),
+        typeof fieldValue === 'string' ? fieldValue : String(fieldValue),
       );
     case 'is_null':
       return fieldValue === null || fieldValue === undefined;

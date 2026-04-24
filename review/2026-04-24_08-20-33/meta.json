@@ -1,0 +1,83 @@
+{
+  "timestamp": "2026-04-24T08:30:36.112279",
+  "files": [
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/review/2026-04-23_18-23-15/side_effect/review.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/review/2026-04-23_18-23-15/testing/review.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    }
+  ],
+  "total_elapsed_seconds": 602.25,
+  "agents": [
+    {
+      "name": "api_contract",
+      "status": "success",
+      "elapsed_seconds": 5.82
+    },
+    {
+      "name": "database",
+      "status": "success",
+      "elapsed_seconds": 6.58
+    },
+    {
+      "name": "side_effect",
+      "status": "success",
+      "elapsed_seconds": 35.11
+    },
+    {
+      "name": "scope",
+      "status": "success",
+      "elapsed_seconds": 39.51
+    },
+    {
+      "name": "architecture",
+      "status": "success",
+      "elapsed_seconds": 44.69
+    },
+    {
+      "name": "maintainability",
+      "status": "success",
+      "elapsed_seconds": 55.41
+    },
+    {
+      "name": "performance",
+      "status": "success",
+      "elapsed_seconds": 56.38
+    },
+    {
+      "name": "documentation",
+      "status": "success",
+      "elapsed_seconds": 60.74
+    },
+    {
+      "name": "security",
+      "status": "success",
+      "elapsed_seconds": 62.24
+    },
+    {
+      "name": "requirement",
+      "status": "success",
+      "elapsed_seconds": 65.82
+    },
+    {
+      "name": "dependency",
+      "status": "success",
+      "elapsed_seconds": 100.72
+    },
+    {
+      "name": "concurrency",
+      "status": "success",
+      "elapsed_seconds": 165.32
+    },
+    {
+      "name": "testing",
+      "status": "success",
+      "elapsed_seconds": 171.43
+    }
+  ]
+}

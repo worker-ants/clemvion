@@ -18,7 +18,7 @@ function makeRule(partial: Partial<AlertRule>): AlertRule {
     createdAt: new Date(),
     updatedAt: new Date(),
     ...partial,
-  } as AlertRule;
+  };
 }
 
 interface QbStub {

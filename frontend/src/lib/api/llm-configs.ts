@@ -70,7 +70,19 @@ export const llmConfigsApi = {
 
   async listModels(id: string) {
     const { data } = await apiClient.get(`/llm-configs/${id}/models`);
-    return data as ModelInfo[];
+    return (data?.data ?? data) as ModelInfo[];
+  },
+
+  async previewModels(payload: {
+    provider: string;
+    apiKey: string;
+    baseUrl?: string;
+  }) {
+    const { data } = await apiClient.post(
+      "/llm-configs/preview-models",
+      payload,
+    );
+    return (data?.data ?? data) as ModelInfo[];
   },
 
   async remove(id: string) {

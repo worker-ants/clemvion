@@ -127,7 +127,7 @@ describe('validateTriggerParameterSchema', () => {
   });
 
   it('rejects non-array schemas', () => {
-    const errs = validateTriggerParameterSchema({} as unknown);
+    const errs = validateTriggerParameterSchema({});
     expect(errs).toEqual([{ field: '(root)', reason: 'invalid_schema' }]);
   });
 

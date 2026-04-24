@@ -102,8 +102,8 @@ describe('UsersController', () => {
     it('should apply default values for locale and theme', async () => {
       const userWithNulls: Partial<User> = {
         ...mockUser,
-        locale: undefined as unknown as string,
-        theme: undefined as unknown as string,
+        locale: undefined,
+        theme: undefined,
       };
       jest.spyOn(service, 'findById').mockResolvedValue(userWithNulls as User);
 
@@ -193,10 +193,7 @@ describe('UsersController', () => {
       });
 
       expect(updateSpy).toHaveBeenCalledTimes(1);
-      const [userId, patch] = updateSpy.mock.calls[0] as [
-        string,
-        Partial<User>,
-      ];
+      const [userId, patch] = updateSpy.mock.calls[0];
       expect(userId).toBe('user-uuid');
       expect(patch.passwordHash).toBeDefined();
       expect(patch.passwordHash).not.toBe(userWithHash.passwordHash);

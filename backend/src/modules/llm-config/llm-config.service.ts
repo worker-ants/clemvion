@@ -89,12 +89,7 @@ export class LlmConfigService {
     }
 
     const encryptedKey = encrypt(dto.apiKey, this.encryptionKey);
-
-    if (dto.isDefault) {
-      await this.clearDefault(workspaceId);
-    }
-
-    const config = this.llmConfigRepository.create({
+    const entityFields = {
       workspaceId,
       provider: dto.provider,
       name: dto.name,
@@ -103,9 +98,28 @@ export class LlmConfigService {
       defaultModel: dto.defaultModel,
       defaultParams: dto.defaultParams || {},
       isDefault: dto.isDefault || false,
-    });
+    };
 
-    const saved = await this.llmConfigRepository.save(config);
+    // isDefault=true 인 경우, clearDefault + insert 사이에 다른 요청이 끼어들어
+    // `isDefault=true` 레코드가 2건 생성되는 걸 막기 위해 트랜잭션으로 감싼다.
+    // setDefault() 와 동일 패턴.
+    let saved: LlmConfig;
+    if (dto.isDefault) {
+      saved = await this.llmConfigRepository.manager.transaction(
+        async (manager) => {
+          await manager.update(
+            LlmConfig,
+            { workspaceId, isDefault: true },
+            { isDefault: false },
+          );
+          const entity = manager.create(LlmConfig, entityFields);
+          return manager.save(LlmConfig, entity);
+        },
+      );
+    } else {
+      const config = this.llmConfigRepository.create(entityFields);
+      saved = await this.llmConfigRepository.save(config);
+    }
     return this.maskApiKey(saved);
   }
 
@@ -132,14 +146,28 @@ export class LlmConfigService {
     if (dto.defaultParams !== undefined)
       config.defaultParams = dto.defaultParams;
 
-    if (dto.isDefault === true) {
-      await this.clearDefault(workspaceId);
-      config.isDefault = true;
-    } else if (dto.isDefault === false) {
+    if (dto.isDefault === false) {
       config.isDefault = false;
     }
 
-    const saved = await this.llmConfigRepository.save(config);
+    // isDefault=true 전환은 `create()` 와 동일한 이유로 트랜잭션 내에서 기존
+    // default 해제 + 본인 업데이트를 한 번에 수행한다.
+    let saved: LlmConfig;
+    if (dto.isDefault === true) {
+      config.isDefault = true;
+      saved = await this.llmConfigRepository.manager.transaction(
+        async (manager) => {
+          await manager.update(
+            LlmConfig,
+            { workspaceId, isDefault: true },
+            { isDefault: false },
+          );
+          return manager.save(LlmConfig, config);
+        },
+      );
+    } else {
+      saved = await this.llmConfigRepository.save(config);
+    }
     return this.maskApiKey(saved);
   }
 

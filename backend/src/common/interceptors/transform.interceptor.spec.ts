@@ -15,7 +15,7 @@ describe('TransformInterceptor', () => {
 
   it('should wrap plain objects in { data: ... }', (done) => {
     interceptor
-      .intercept(mockContext, createHandler({ success: true }) as any)
+      .intercept(mockContext, createHandler({ success: true }))
       .subscribe((result) => {
         expect(result).toEqual({ data: { success: true } });
         done();
@@ -26,7 +26,7 @@ describe('TransformInterceptor', () => {
     interceptor
       .intercept(
         mockContext,
-        createHandler({ success: false, error: 'test error' }) as any,
+        createHandler({ success: false, error: 'test error' }),
       )
       .subscribe((result) => {
         expect(result).toEqual({
@@ -39,7 +39,7 @@ describe('TransformInterceptor', () => {
   it('should pass through objects that already have data key', (done) => {
     const response = { data: [1, 2, 3], meta: { total: 3 } };
     interceptor
-      .intercept(mockContext, createHandler(response) as any)
+      .intercept(mockContext, createHandler(response))
       .subscribe((result) => {
         expect(result).toEqual(response);
         done();
@@ -48,7 +48,7 @@ describe('TransformInterceptor', () => {
 
   it('should wrap arrays in { data: ... }', (done) => {
     interceptor
-      .intercept(mockContext, createHandler([1, 2, 3]) as any)
+      .intercept(mockContext, createHandler([1, 2, 3]))
       .subscribe((result) => {
         expect(result).toEqual({ data: [1, 2, 3] });
         done();
@@ -57,7 +57,7 @@ describe('TransformInterceptor', () => {
 
   it('should wrap null in { data: null }', (done) => {
     interceptor
-      .intercept(mockContext, createHandler(null) as any)
+      .intercept(mockContext, createHandler(null))
       .subscribe((result) => {
         expect(result).toEqual({ data: null });
         done();
@@ -66,7 +66,7 @@ describe('TransformInterceptor', () => {
 
   it('should wrap primitives in { data: ... }', (done) => {
     interceptor
-      .intercept(mockContext, createHandler('hello') as any)
+      .intercept(mockContext, createHandler('hello'))
       .subscribe((result) => {
         expect(result).toEqual({ data: 'hello' });
         done();

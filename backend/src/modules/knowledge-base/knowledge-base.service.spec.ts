@@ -110,7 +110,7 @@ describe('KnowledgeBaseService', () => {
   describe('create', () => {
     it('should create a knowledge base with correct defaults', async () => {
       const dto = { name: 'New KB' };
-      const result = await service.create('ws-1', dto as any);
+      const result = await service.create('ws-1', dto);
 
       expect(mockKbRepo.create).toHaveBeenCalledWith({
         workspaceId: 'ws-1',

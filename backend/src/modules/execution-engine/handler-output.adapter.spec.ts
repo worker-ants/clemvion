@@ -18,9 +18,10 @@ describe('adaptHandlerReturn', () => {
     });
 
     it('defaults config to {} when null/undefined', () => {
-      expect(
-        adaptHandlerReturn({ config: null, output: 1 } as unknown),
-      ).toEqual({ config: {}, output: 1 });
+      expect(adaptHandlerReturn({ config: null, output: 1 })).toEqual({
+        config: {},
+        output: 1,
+      });
     });
 
     it('drops undefined control fields', () => {
