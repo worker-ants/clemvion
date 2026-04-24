@@ -33,6 +33,7 @@ import {
 } from '../../common/swagger';
 import { LlmConfigService } from './llm-config.service';
 import { LlmService } from '../llm/llm.service';
+import { LlmPreviewService } from '../llm/llm-preview.service';
 import { CreateLlmConfigDto } from './dto/create-llm-config.dto';
 import { UpdateLlmConfigDto } from './dto/update-llm-config.dto';
 import { PreviewLlmModelsDto } from './dto/preview-llm-models.dto';
@@ -52,6 +53,7 @@ export class LlmConfigController {
   constructor(
     private readonly llmConfigService: LlmConfigService,
     private readonly llmService: LlmService,
+    private readonly llmPreviewService: LlmPreviewService,
   ) {}
 
   @Get()
@@ -168,7 +170,7 @@ export class LlmConfigController {
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
   @ApiForbiddenResponse({ description: 'editor 이상 권한 필요' })
   async previewModels(@Body() dto: PreviewLlmModelsDto) {
-    return this.llmService.previewModels(dto);
+    return this.llmPreviewService.previewModels(dto);
   }
 
   @Post(':id/test')

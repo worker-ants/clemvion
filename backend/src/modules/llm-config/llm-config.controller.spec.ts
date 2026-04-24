@@ -3,11 +3,13 @@
 import { LlmConfigController } from './llm-config.controller';
 import type { LlmConfigService } from './llm-config.service';
 import type { LlmService } from '../llm/llm.service';
+import type { LlmPreviewService } from '../llm/llm-preview.service';
 
 type ServiceMethods = Pick<
   LlmService,
-  'testConnection' | 'listModels' | 'previewModels' | 'clearClientCache'
+  'testConnection' | 'listModels' | 'clearClientCache'
 >;
+type PreviewMethods = Pick<LlmPreviewService, 'previewModels'>;
 type ConfigMethods = Pick<
   LlmConfigService,
   'findAll' | 'findById' | 'create' | 'update' | 'setDefault' | 'remove'
@@ -17,6 +19,7 @@ describe('LlmConfigController', () => {
   let controller: LlmConfigController;
   let mockLlmConfigService: jest.Mocked<ConfigMethods>;
   let mockLlmService: jest.Mocked<ServiceMethods>;
+  let mockLlmPreviewService: jest.Mocked<PreviewMethods>;
 
   beforeEach(() => {
     mockLlmConfigService = {
@@ -30,31 +33,34 @@ describe('LlmConfigController', () => {
     mockLlmService = {
       testConnection: jest.fn(),
       listModels: jest.fn(),
-      previewModels: jest.fn(),
       clearClientCache: jest.fn(),
+    };
+    mockLlmPreviewService = {
+      previewModels: jest.fn(),
     };
     controller = new LlmConfigController(
       mockLlmConfigService as unknown as LlmConfigService,
       mockLlmService as unknown as LlmService,
+      mockLlmPreviewService as unknown as LlmPreviewService,
     );
   });
 
   describe('previewModels', () => {
-    it('delegates to LlmService.previewModels with the DTO payload', async () => {
+    it('delegates to LlmPreviewService.previewModels with the DTO payload', async () => {
       const models = [{ id: 'gpt-4o', name: 'gpt-4o', type: 'chat' as const }];
-      mockLlmService.previewModels.mockResolvedValue(models);
+      mockLlmPreviewService.previewModels.mockResolvedValue(models);
 
       const dto = { provider: 'openai' as const, apiKey: 'sk-xxx' };
       const result = await controller.previewModels(dto);
 
-      expect(mockLlmService.previewModels).toHaveBeenCalledWith(dto);
+      expect(mockLlmPreviewService.previewModels).toHaveBeenCalledWith(dto);
       expect(result).toBe(models);
       // preview 는 캐시에 클라이언트를 넣지 않으므로 cache clear 도 호출되지 않아야 한다.
       expect(mockLlmService.clearClientCache).not.toHaveBeenCalled();
     });
 
     it('forwards baseUrl for azure/local providers', async () => {
-      mockLlmService.previewModels.mockResolvedValue([]);
+      mockLlmPreviewService.previewModels.mockResolvedValue([]);
 
       const dto = {
         provider: 'local' as const,
@@ -63,12 +69,12 @@ describe('LlmConfigController', () => {
       };
       await controller.previewModels(dto);
 
-      expect(mockLlmService.previewModels).toHaveBeenCalledWith(dto);
+      expect(mockLlmPreviewService.previewModels).toHaveBeenCalledWith(dto);
     });
 
     it('propagates service-layer errors (e.g. BadRequest on sanitized auth failure)', async () => {
       const err = new Error('sanitized');
-      mockLlmService.previewModels.mockRejectedValue(err);
+      mockLlmPreviewService.previewModels.mockRejectedValue(err);
 
       await expect(
         controller.previewModels({ provider: 'openai', apiKey: 'bad' }),
