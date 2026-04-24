@@ -162,6 +162,17 @@ Sub-entries of many node configs come in pairs of "display text" + "stable ident
     - select/radio option comparisons: compare against the option's \`value\`, not its \`label\`.
     - switch result: \`$node["<NodeLabel>"].output.port\` and \`output.meta.matchedCase\` hold the matched \`cases[*].id\` slug, never the \`label\`.
 
+### Null-safe \`$node\` referencing across branches — always \`?.\` before \`.output\` on per-branch nodes
+
+In any branching flow (\`switch\`, \`if_else\`, \`ai_agent\` / \`information_extractor\` / \`text_classifier\` conditions, \`carousel\` / \`category_carousel\` buttons), only one downstream branch executes per run. References to the other branches evaluate \`$node["<OtherBranchLabel>"]\` to \`null\`, and the evaluator throws \`Cannot read property 'output' of null\` on the next non-optional dot. So when a later node — typically a \`template\`, \`send_email\`, \`variable_modification\`, or any place you aggregate values from multiple branches with \`||\` — references a node that sits **downstream of a branch split**, you MUST use optional chaining at every step, including before \`.output\`:
+
+- ✅ \`{{ $node["한식 세부 메뉴 선택"]?.output?.interaction?.data?.korean_option || $node["양식 세부 메뉴 선택"]?.output?.interaction?.data?.western_option || $node["기타 의견 입력"]?.output?.interaction?.data?.other_feedback }}\`
+- ❌ \`{{ $node["한식 세부 메뉴 선택"].output.interaction?.data?.korean_option || ... }}\` — the \`.output\` dot is non-optional, so as soon as the LHS is \`null\` (the branch didn't run this execution), the whole expression throws before \`||\` can fall through.
+
+Rule of thumb:
+- If the referenced node is **upstream of every branch split** on the path to the current node (trigger, or a node before any switch/if/carousel on the same chain), plain \`.output\` is fine.
+- If the referenced node sits **inside, or downstream of, a branch** — or you are aggregating across several sibling branches with \`||\` — use \`?.output?.<field>?.<...>\` throughout. When in doubt, default to \`?.output?.\`.
+
 ### Entry-point connectivity (both directions)
 
 - **Inbound (reachability):** Every data path in the workflow must originate from \`manual_trigger\` (or another trigger node). When you \`add_node\`, you MUST also \`add_edge\` on the same turn from an already-connected upstream node — typically the previous node in your plan, or \`manual_trigger\` itself for the first node of a new branch. Never leave an island of nodes floating without an incoming edge from the trigger chain.
@@ -361,6 +372,7 @@ Every expression you write in a config field is parsed by \`packages/expression-
 ### Patterns
 
 - **Safe chain**: \`{{ $node["Fetch User"]?.output?.profile?.age }}\` → null on any missing step.
+- **Branch aggregation**: \`{{ $node["A Branch"]?.output?.field || $node["B Branch"]?.output?.field }}\` — when nodes sit downstream of a branch split, \`?.output?.\` is mandatory; see "Null-safe \`$node\` referencing across branches" in Contracts.
 - **Default value**: \`{{ $input.user?.name || "unknown" }}\` (prefer \`||\` over \`??\`).
 - **Conditional string**: \`{{ $input.score >= 80 ? "pass" : "fail" }}\`.
 - **Label vs id in switch**: compare against the case \`id\` slug, not its label (see "Label vs identifier" in Contracts).

@@ -93,6 +93,29 @@ describe('buildSystemPrompt', () => {
     expect(prompt).toMatch(/data\["승인"\]|data\["이메일 주소"\]/);
   });
 
+  it('teaches null-safe `?.output?.` chaining for per-branch $node references', () => {
+    // 분기(switch/if_else/carousel/ai_agent conditions) 하류 노드를 template
+    // 이나 send_email 에서 `||` 로 합치는 표현식이 `Expression error in
+    // config.template: Cannot read property 'output' of null` 로 터지던
+    // 사용자 보고에 대응한 프롬프트 교육. Assistant 가 생성 시 `.output` 앞에도
+    // `?.` 을 붙이도록 규칙 + 긍정/부정 예시를 고정한다.
+    const prompt = buildSystemPrompt(defs as never, emptySnapshot);
+    // (a) 전용 하위 섹션 헤더
+    expect(prompt).toMatch(/Null-safe `\$node` referencing across branches/);
+    // (b) 정확한 런타임 에러 메시지 인용으로 LLM 이 증상-원인 연결을 학습
+    expect(prompt).toMatch(/Cannot read property 'output' of null/);
+    // (c) 긍정 예시 — `.output` 앞에 `?.` 이 붙은 형태
+    expect(prompt).toMatch(/\?\.output\?\.interaction\?\.data\?\.korean_option/);
+    // (d) 부정 예시 — `.output` 을 plain dot 으로 쓰는 형태가 ❌ 로 표기됨
+    expect(prompt).toMatch(/❌[\s\S]{0,400}\.output\.interaction\?\.data/);
+    // (e) 룰 오브 썸 — upstream-of-branch 는 plain dot OK, 그 외는 `?.output?.`
+    expect(prompt).toMatch(/upstream of every branch split/);
+    expect(prompt).toMatch(/default to `\?\.output\?\.`/);
+    // (f) Expression language Patterns 에도 cross-reference 한 줄이 들어가
+    //     레퍼런스 섹션만 보는 경로에서도 같은 규칙이 시야에 들어온다.
+    expect(prompt).toMatch(/Branch aggregation/);
+  });
+
   it('also recognizes metadata.dynamicPorts (without explicit isDynamicPorts) as a dynamic-ports node', () => {
     // 일부 노드는 isDynamicPorts 없이 dynamicPorts spec 만 선언한다.
     // 이 경우에도 catalog 마커가 붙어야 LLM 이 get_node_schema 를 먼저
