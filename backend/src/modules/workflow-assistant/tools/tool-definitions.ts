@@ -19,6 +19,8 @@ export const TOOL_KIND_BY_NAME: Record<string, AssistantToolKind> = {
   get_workflow: 'explore',
   get_current_workflow: 'explore',
   list_knowledge_bases: 'explore',
+  get_workflow_executions: 'explore',
+  get_execution_details: 'explore',
   propose_plan: 'plan',
   clear_plan: 'plan',
   add_node: 'edit',
@@ -131,6 +133,54 @@ function buildAssistantToolsInternal(): ToolDef[] {
         type: 'object',
         additionalProperties: false,
         properties: {},
+      },
+    },
+    {
+      name: 'get_workflow_executions',
+      description:
+        "List recent executions of the CURRENT workflow, ordered by start time (newest first). Each item is a summary: id, status, startedAt, finishedAt, durationMs, triggerId, nodeStats{total, completed, failed}. Use this FIRST when the user asks about a past run (\"왜 실패했어?\", \"최근 실행 봐줘\") to pick the right id, then call `get_execution_details` on that id for the full timeline. Scope is fixed to the current session's workflow — no workflowId argument exists because the server reads it from the session. Running / waiting_for_input executions are included and return partial data.",
+      parameters: {
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          limit: {
+            type: 'number',
+            minimum: 1,
+            maximum: 50,
+            description: 'Default 10. Capped at 50 server-side.',
+          },
+          status: {
+            type: 'string',
+            enum: [
+              'pending',
+              'running',
+              'completed',
+              'failed',
+              'cancelled',
+              'waiting_for_input',
+            ],
+            description:
+              "Optional status filter. Omit to see all statuses. For 'why failed' questions, filter by 'failed' to skip completed runs.",
+          },
+        },
+      },
+    },
+    {
+      name: 'get_execution_details',
+      description:
+        'Fetch the full node-by-node timeline for ONE execution (use ids from get_workflow_executions). Returns { execution, timeline, subExecutions }. `timeline` lists each node execution with status, startedAt, finishedAt, durationMs, inputData, outputData, error, retryCount — the primary source for diagnosing which node failed and why. Sensitive fields (apiKey, token, password, secret, authorization, etc.) are auto-masked server-side. `subExecutions` includes the direct child sub-workflow executions (depth 1 only); if deeper sub-workflow nests exist, the response carries `subExecutionsTruncatedDepth: 1` and you must call this tool again with each child id to descend. Scope: only executions of the current workflow, or direct child executions (parentExecutionId points at a current-workflow execution). Other ids return `EXECUTION_NOT_IN_SCOPE`.',
+      parameters: {
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          id: {
+            type: 'string',
+            format: 'uuid',
+            description:
+              'Execution UUID obtained from get_workflow_executions() or from a prior get_execution_details() subExecutions[*].execution.id. Do NOT invent placeholder strings.',
+          },
+        },
+        required: ['id'],
       },
     },
     // ─── Plan ─────────────────────────────────────────
