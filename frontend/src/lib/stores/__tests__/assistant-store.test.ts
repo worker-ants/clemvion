@@ -465,6 +465,118 @@ describe("assistant-store", () => {
       expect(summary).toEqual({ status: "pending", completedActionable: 1 });
     });
 
+    // 이전 턴에서 완료된 plan 을 다음 턴 메시지가 상속해 "5개 단계 실행
+    // 성공" 같은 이전 hint 가 반복 표시되던 버그 (2026-04-24 사용자 제보) 의
+    // 회귀 가드. plan 이후에 user 메시지가 끼어 있고 plan 의 모든 actionable
+    // step 이 이미 done 이면 새 메시지는 plan 을 이어받지 않는다.
+    it("does NOT inherit a previous turn's completed plan across a user message", () => {
+      const completedPlanMsg: AssistantDisplayMessage = {
+        id: "asst-prev",
+        role: "assistant",
+        content: "",
+        toolCalls: [],
+        plan: makePlan({
+          approved: true,
+          steps: [
+            {
+              id: "s1",
+              action: "add_node",
+              description: "a",
+              status: "done",
+            },
+            {
+              id: "s2",
+              action: "add_node",
+              description: "b",
+              status: "done",
+            },
+          ],
+        }),
+        streaming: false,
+        createdAt: new Date().toISOString(),
+      };
+      const newUserMsg: AssistantDisplayMessage = {
+        id: "user-2",
+        role: "user",
+        content: "오류잡아라",
+        toolCalls: [],
+        plan: null,
+        streaming: false,
+        createdAt: new Date().toISOString(),
+      };
+      const newAssistantMsg: AssistantDisplayMessage = {
+        id: "asst-new",
+        role: "assistant",
+        content: "",
+        toolCalls: [],
+        plan: null,
+        streaming: false,
+        createdAt: new Date().toISOString(),
+      };
+      const summary = summarizePlanState(newAssistantMsg, [
+        completedPlanMsg,
+        newUserMsg,
+        newAssistantMsg,
+      ]);
+      expect(summary.status).toBe("none");
+    });
+
+    it("inherits a previous turn's plan across a user message when actionable steps still pending", () => {
+      // Multi-turn execution 정상 경로: 턴 1 에 plan, 턴 2 에서 이어 실행.
+      // plan 에 pending actionable 이 남아있으면 이번 턴이 continuation 이라
+      // 판단해 그대로 상속 (기존 동작 유지).
+      const planMsg: AssistantDisplayMessage = {
+        id: "asst-prev",
+        role: "assistant",
+        content: "",
+        toolCalls: [],
+        plan: makePlan({
+          approved: true,
+          steps: [
+            {
+              id: "s1",
+              action: "add_node",
+              description: "a",
+              status: "done",
+            },
+            {
+              id: "s2",
+              action: "add_node",
+              description: "b",
+              status: "pending",
+            },
+          ],
+        }),
+        streaming: false,
+        createdAt: new Date().toISOString(),
+      };
+      const continueMsg: AssistantDisplayMessage = {
+        id: "user-2",
+        role: "user",
+        content: "계속 진행해줘",
+        toolCalls: [],
+        plan: null,
+        streaming: false,
+        createdAt: new Date().toISOString(),
+      };
+      const resumeMsg: AssistantDisplayMessage = {
+        id: "asst-new",
+        role: "assistant",
+        content: "",
+        toolCalls: [],
+        plan: null,
+        streaming: false,
+        createdAt: new Date().toISOString(),
+      };
+      const summary = summarizePlanState(resumeMsg, [
+        planMsg,
+        continueMsg,
+        resumeMsg,
+      ]);
+      expect(summary.status).toBe("pending");
+      expect(summary.completedActionable).toBe(1);
+    });
+
     it("ignores 'note'-action steps when counting actionable progress", () => {
       const msg: AssistantDisplayMessage = {
         id: ASSISTANT_ID,
