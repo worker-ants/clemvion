@@ -306,5 +306,42 @@ describe('IntegrationOAuthService', () => {
       expect(result.serviceType).toBe('google');
       expect(result.credentials.access_token).toBe('t');
     });
+
+    it('parses credentials when stored as a JSON string (normalized path)', async () => {
+      dataSource.query.mockResolvedValue([
+        {
+          previewToken: 'tmp_x',
+          workspaceId: 'ws-1',
+          userId: 'u-1',
+          serviceType: 'google',
+          credentials: JSON.stringify({ access_token: 't-str' }),
+          tokenExpiresAt: null,
+          expiresAt: new Date(Date.now() + 60_000),
+        },
+      ]);
+      const result = await service.consumePreviewToken('tmp_x', 'ws-1', 'u-1');
+      expect(result.credentials.access_token).toBe('t-str');
+    });
+
+    it('rejects with BadRequest when credentials string is corrupt (not unhandled 500)', async () => {
+      dataSource.query.mockResolvedValue([
+        {
+          previewToken: 'tmp_x',
+          workspaceId: 'ws-1',
+          userId: 'u-1',
+          serviceType: 'google',
+          credentials: '{ not-valid-json',
+          tokenExpiresAt: null,
+          expiresAt: new Date(Date.now() + 60_000),
+        },
+      ]);
+      await expect(
+        service.consumePreviewToken('tmp_x', 'ws-1', 'u-1'),
+      ).rejects.toMatchObject({
+        response: expect.objectContaining({
+          code: 'INTEGRATION_CREDENTIALS_INVALID',
+        }),
+      });
+    });
   });
 });

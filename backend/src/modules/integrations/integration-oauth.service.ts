@@ -297,10 +297,21 @@ export class IntegrationOAuthService {
 
     // Row was stored with the encrypted transformer; raw SQL bypasses it, so
     // credentials come back as a string. Normalize via the transformer.
-    const creds =
-      typeof preview.credentials === 'string'
-        ? (JSON.parse(preview.credentials) as Record<string, unknown>)
-        : preview.credentials;
+    // Corrupted rows (manual DB edits, partial decryption) could throw from
+    // JSON.parse — surface as 400 rather than unhandled 500.
+    let creds: Record<string, unknown>;
+    if (typeof preview.credentials === 'string') {
+      try {
+        creds = JSON.parse(preview.credentials) as Record<string, unknown>;
+      } catch {
+        throw new BadRequestException({
+          code: 'INTEGRATION_CREDENTIALS_INVALID',
+          message: 'OAuth preview credentials are corrupted',
+        });
+      }
+    } else {
+      creds = preview.credentials;
+    }
     return {
       credentials: creds,
       serviceType: preview.serviceType,
