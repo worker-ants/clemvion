@@ -308,10 +308,22 @@ export class WorkflowAssistantStreamService {
     const portResolver = (node: ShadowNode) => {
       const def = defsByType.get(node.type);
       if (!def) return null;
+      // ED-AI-40: validation 용 id 배열 + LLM/프런트용 runtime descriptor 를
+      // 한 resolver 에서 같이 돌려준다. `type` 은 spec §4.3.2 의 `'data'` /
+      // `'error'` 로 좁혀 (system/control 등은 data 로 정규화), `label` 은
+      // dynamic 포트에서 사용자가 지정한 표시 문자열 (예: carousel 버튼의
+      // 한글 label) 이 있을 때만 포함.
       const outputs = resolveEffectiveOutputPorts(node.config, def).map(
-        (p) => p.id,
+        (p) => ({
+          id: p.id,
+          type: p.type === 'error' ? ('error' as const) : ('data' as const),
+          ...(p.label ? { label: p.label } : {}),
+        }),
       );
-      const inputs = def.ports.inputs.map((p) => p.id);
+      const inputs = def.ports.inputs.map((p) => ({
+        id: p.id,
+        type: p.type === 'error' ? ('error' as const) : ('data' as const),
+      }));
       return { outputs, inputs };
     };
     const shadow = new ShadowWorkflow(

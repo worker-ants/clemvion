@@ -57,7 +57,7 @@ describe('buildSystemPrompt', () => {
     );
   });
 
-  it('embeds the three P0 guard rails (entry-point, openQuestions, dynamic-ports schema)', () => {
+  it('embeds the three P0 guard rails (entry-point, openQuestions, runtime ports after edits)', () => {
     const prompt = buildSystemPrompt(defs as never, emptySnapshot);
     // (a) manual_trigger 에서 시작하는 connection 강제
     expect(prompt).toMatch(/manual_trigger/);
@@ -69,8 +69,11 @@ describe('buildSystemPrompt', () => {
     expect(prompt.toLowerCase()).toMatch(
       /do ?not call .*finish|must not .*finish|without .*finish/,
     );
-    // (c) isDynamicPorts 노드는 get_node_schema 선행 호출
+    // (c) ED-AI-40: dynamic-ports 노드 포함 모든 edit 결과의 result.ports 를
+    //     바로 사용. get_node_schema 선행 호출은 더 이상 필수 아님 —
+    //     pre-existing 스냅샷 노드에만 필요하다는 잔존 설명은 유지.
     expect(prompt).toMatch(/dynamic-ports/);
+    expect(prompt).toMatch(/result\.ports/);
     expect(prompt).toMatch(/get_node_schema/);
   });
 

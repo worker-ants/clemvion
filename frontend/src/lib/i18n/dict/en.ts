@@ -1905,6 +1905,7 @@ export const en: Dict = {
     candidatePickerEmpty:
       "No {{label}} available yet. Register one in Settings first.",
     candidatePickerEmptyLink: "Open Settings",
+    toolCallBadgeRetryRecovered: "Retried and succeeded",
     errorBubbleTitle: "Something went wrong with this turn",
     continueAfterBudgetButton: "Continue",
     continueAfterBudget: "Continue.",
