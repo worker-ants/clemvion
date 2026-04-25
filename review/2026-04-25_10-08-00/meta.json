@@ -1,0 +1,98 @@
+{
+  "timestamp": "2026-04-25T10:14:12.371039",
+  "files": [
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/backend/backend/src/modules/workflow-assistant/prompts/system-prompt.spec.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/backend/backend/src/modules/workflow-assistant/prompts/system-prompt.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/backend/backend/src/modules/workflow-assistant/tools/review-workflow.spec.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/backend/backend/src/modules/workflow-assistant/tools/review-workflow.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/backend/backend/src/modules/workflow-assistant/workflow-assistant-stream.service.spec.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    }
+  ],
+  "total_elapsed_seconds": 371.42,
+  "agents": [
+    {
+      "name": "database",
+      "status": "success",
+      "elapsed_seconds": 16.87
+    },
+    {
+      "name": "api_contract",
+      "status": "success",
+      "elapsed_seconds": 21.08
+    },
+    {
+      "name": "concurrency",
+      "status": "success",
+      "elapsed_seconds": 44.39
+    },
+    {
+      "name": "dependency",
+      "status": "success",
+      "elapsed_seconds": 47.65
+    },
+    {
+      "name": "documentation",
+      "status": "success",
+      "elapsed_seconds": 75.19
+    },
+    {
+      "name": "architecture",
+      "status": "success",
+      "elapsed_seconds": 90.24
+    },
+    {
+      "name": "side_effect",
+      "status": "success",
+      "elapsed_seconds": 91.92
+    },
+    {
+      "name": "security",
+      "status": "success",
+      "elapsed_seconds": 110.5
+    },
+    {
+      "name": "maintainability",
+      "status": "success",
+      "elapsed_seconds": 112.33
+    },
+    {
+      "name": "scope",
+      "status": "success",
+      "elapsed_seconds": 112.91
+    },
+    {
+      "name": "performance",
+      "status": "success",
+      "elapsed_seconds": 118.23
+    },
+    {
+      "name": "testing",
+      "status": "success",
+      "elapsed_seconds": 130.55
+    },
+    {
+      "name": "requirement",
+      "status": "success",
+      "elapsed_seconds": 212.89
+    }
+  ]
+}
