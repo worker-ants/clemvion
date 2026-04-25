@@ -32,6 +32,13 @@ import type { NodeDefinitionView } from '../../../nodes/core/node-component.regi
  *    인데 결과는 `ok:false`. active-plan-context 가 이미 차단하지만 방어망.
  *  - **REQUEST_COVERAGE_LOW** : 사용자 원 요청의 의미 토큰과 현재 노드 label
  *    의 겹침이 낮음. 휴리스틱 경고이므로 blocking=false.
+ *  - **NODE_CONFIG_WARNINGS** : 마지막 add_node / update_node 결과의
+ *    `configWarnings` 가 비어있지 않은 노드. handler.validate 의 도메인 규칙
+ *    (버튼 수 상한, static/dynamic 필수 필드, 중복 id 등) 위반은 shadow 가
+ *    저장 자체는 허용하지만 (spec §4.4: 무한 retry loop 방지) 워크플로우
+ *    실행 시 execution-engine 이 동일 규칙으로 `INVALID_NODE_CONFIG` 런타임
+ *    실패를 낸다. 이 가드는 LLM 이 같은 턴에서 update_node 로 교정하지
+ *    않고 finish 하려는 시도를 막아 사용자가 런타임에 발견하기 전에 잡는다.
  */
 export type ReviewChecklistCode =
   | 'UNRESOLVED_FAILED_CALLS'
@@ -39,7 +46,8 @@ export type ReviewChecklistCode =
   | 'DANGLING_OUTPUT_PORTS'
   | 'PENDING_USER_CONFIG_UNMENTIONED'
   | 'FAKE_STEP_COMPLETION'
-  | 'REQUEST_COVERAGE_LOW';
+  | 'REQUEST_COVERAGE_LOW'
+  | 'NODE_CONFIG_WARNINGS';
 
 export interface ReviewChecklistItem {
   /** 이 항목이 가리키는 이슈 유형. 각 code 별로 data 의 shape 가 다르다. */
@@ -59,6 +67,7 @@ export interface ReviewChecklistItem {
    *  - FAKE_STEP_COMPLETION → `{ stepId, stepDescription, failedCallIds }[]`
    *  - PENDING_USER_CONFIG_UNMENTIONED → `{ nodeId, label, missingFields }[]`
    *  - REQUEST_COVERAGE_LOW → `{ hits, total, ratio, missed }`
+   *  - NODE_CONFIG_WARNINGS → `{ nodeId, nodeLabel?, warnings: string[] }[]`
    */
   data?: unknown;
 }
@@ -96,6 +105,10 @@ const MAX_ORPHANS = 20;
 const MAX_DANGLING_PORTS = 20;
 const MAX_PENDING_USER_CONFIG = 10;
 const REQUEST_COVERAGE_THRESHOLD = 0.3;
+/** 한 노드에 실릴 수 있는 configWarnings 의 최대 개수 (LLM 컨텍스트 + UI 가독성). */
+const MAX_NODE_CONFIG_WARNINGS_PER_NODE = 5;
+/** NODE_CONFIG_WARNINGS 항목 자체의 최대 노드 수. */
+const MAX_NODE_CONFIG_WARNING_NODES = 10;
 /**
  * DANGLING_OUTPUT_PORTS `details` 에 embed 하는 node label / port id / label 의
  * 길이 상한. 클라이언트 DTO 에서 유래한 자유 텍스트이므로 `sanitizeLlmProvidedString`
@@ -338,6 +351,32 @@ export function buildReviewChecklist(
       blocking: true,
       details: `${pending.length} node(s) still have empty user-picked fields (Integration / LLM Config / Knowledge Base / Sub-workflow) that you did NOT mention in your Korean closing message: ${summary}. In the next round, emit a Korean summary that names each listed node label verbatim and tells the user which selector to fill (e.g. "SendEmail 노드의 Integration을 직접 연결해 주세요."), then call finish.`,
       data: pending,
+    });
+  }
+
+  const configWarnings = collectNodeConfigWarnings(
+    input.pendingToolCalls,
+    input.shadowSnapshot,
+  );
+  if (configWarnings.length > 0) {
+    const summary = configWarnings
+      .map((c) => {
+        const labelStr = c.nodeLabel
+          ? sanitizeLlmProvidedString(c.nodeLabel, DANGLING_PORT_LABEL_MAX_LEN)
+          : c.nodeId;
+        const issuesStr = c.warnings
+          .map((w) =>
+            sanitizeLlmProvidedString(w, DANGLING_PORT_LABEL_MAX_LEN * 2),
+          )
+          .join('; ');
+        return `${labelStr}: ${issuesStr}`;
+      })
+      .join(' | ');
+    items.push({
+      code: 'NODE_CONFIG_WARNINGS',
+      blocking: true,
+      details: `${configWarnings.length} node(s) have configWarnings from handler.validate that you have not addressed: ${summary}. The shadow stored each node anyway, but execution-engine will run the same checks at runtime and reject the workflow with INVALID_NODE_CONFIG when the user runs it. Fix each one in this turn — call update_node on the node id with a corrected config (e.g. trim buttons to ≤10, supply the required mode/items/titleField, deduplicate ids) — then retry finish. Do NOT silently leave the warnings; the user has no way to see them on the canvas.`,
+      data: configWarnings,
     });
   }
 
@@ -682,7 +721,76 @@ function collectUnmentionedPendingUserConfig(
 }
 
 // ============================================================================
-// 점검 6) REQUEST_COVERAGE_LOW (non-blocking warn)
+// 점검 6) NODE_CONFIG_WARNINGS
+// ============================================================================
+
+interface NodeConfigWarningEntry {
+  nodeId: string;
+  nodeLabel?: string;
+  warnings: string[];
+}
+
+/**
+ * `pendingToolCalls` 에서 노드별로 가장 마지막 add_node / update_node 성공 결과
+ * 를 골라, 그 결과의 `configWarnings` 가 비어있지 않으면 모은다. 한 노드를
+ * 같은 턴에 여러 번 update 한 경우 마지막 결과만 본다 — LLM 이 후속 호출로
+ * 경고를 해소했다면 그 시점이 "최신 상태" 이기 때문.
+ *
+ * 노드 id 결정 규칙:
+ *  - add_node 성공 → `result.id` (서버가 발급한 UUID)
+ *  - update_node 성공 → `arguments.id` (LLM 이 지정한 UUID)
+ *
+ * 실패한 호출 (`ok:false`) 은 UNRESOLVED_FAILED_CALLS 의 영역이므로 여기서는
+ * 처리 대상 외. 노드 라벨은 shadow 스냅샷에서 조회 — update_node 의 args 는
+ * 라벨을 안 가지고, add_node args 의 라벨도 LABEL_CONFLICT 후 변경됐을 수
+ * 있으므로 스냅샷이 단일 진실 소스.
+ */
+function collectNodeConfigWarnings(
+  calls: AssistantToolCallRecord[],
+  snapshot: ShadowSnapshot,
+): NodeConfigWarningEntry[] {
+  const latest = new Map<string, AssistantToolCallRecord>();
+  for (const tc of calls) {
+    if (tc.kind !== 'edit') continue;
+    if (tc.name !== 'add_node' && tc.name !== 'update_node') continue;
+    const result = tc.result as
+      | { ok?: boolean; id?: string; configWarnings?: unknown }
+      | undefined;
+    if (result?.ok !== true) continue;
+    const nodeId =
+      tc.name === 'add_node'
+        ? typeof result.id === 'string'
+          ? result.id
+          : undefined
+        : typeof tc.arguments?.id === 'string'
+          ? tc.arguments.id
+          : undefined;
+    if (!nodeId) continue;
+    latest.set(nodeId, tc);
+  }
+  const labelById = new Map(snapshot.nodes.map((n) => [n.id, n.label]));
+  const out: NodeConfigWarningEntry[] = [];
+  for (const [nodeId, tc] of latest) {
+    const result = tc.result as { configWarnings?: unknown };
+    const raw = result.configWarnings;
+    if (!Array.isArray(raw) || raw.length === 0) continue;
+    const warnings = raw
+      .filter((w): w is string => typeof w === 'string')
+      .slice(0, MAX_NODE_CONFIG_WARNINGS_PER_NODE);
+    if (warnings.length === 0) continue;
+    const label = labelById.get(nodeId);
+    out.push({
+      nodeId,
+      ...(typeof label === 'string' && label ? { nodeLabel: label } : {}),
+      warnings,
+    });
+    if (out.length >= MAX_NODE_CONFIG_WARNING_NODES) break;
+  }
+  return out;
+}
+
+// ============================================================================
+// 점검 7) REQUEST_COVERAGE_LOW (non-blocking warn)
 // ============================================================================
 
 function checkRequestCoverage(

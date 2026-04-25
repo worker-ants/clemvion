@@ -684,9 +684,34 @@ describe('buildSystemPrompt', () => {
       expect(prompt).toMatch(/ORPHAN_NODES/);
       expect(prompt).toMatch(/DANGLING_OUTPUT_PORTS/);
       expect(prompt).toMatch(/PENDING_USER_CONFIG_UNMENTIONED/);
+      // 새로 추가된 NODE_CONFIG_WARNINGS 코드도 self-review 목록에 포함되어야
+      // LLM 이 review block 시 어떤 항목인지 인지하고 fix 경로를 탄다.
+      expect(prompt).toMatch(/NODE_CONFIG_WARNINGS/);
       // 두 번째 finish 는 재검토되지 않음 (루프 상한 안내)
       expect(prompt).toMatch(
         /second[\s\S]{0,20}finish[\s\S]{0,40}NOT re-reviewed/i,
+      );
+    });
+
+    it('teaches the configWarnings → same-turn fix policy (handler.validate non-blocking but execution-engine still rejects at runtime)', () => {
+      // Spec §4.4 — handler.validate 실패 (예: "Maximum 10 buttons allowed per
+      // node") 는 shadow 단계에서 hard-reject 하지 않고 result.configWarnings
+      // 로만 통지된다. 그러나 LLM 이 그 경고를 무시하고 finish 하면 사용자가
+      // 워크플로우를 실행할 때 execution-engine 이 같은 검증을 다시 돌려
+      // INVALID_NODE_CONFIG 로 런타임 실패하므로, 같은 턴 안에서 update_node
+      // 로 즉시 교정하라는 지침이 프롬프트에 명시되어야 한다.
+      const prompt = buildSystemPrompt(defs as never, emptySnapshot);
+      // (a) configWarnings 가 명시 등장
+      expect(prompt).toMatch(/configWarnings/);
+      // (b) "fix in the same turn" / "before finish" 톤의 즉시 교정 지시
+      expect(prompt.toLowerCase()).toMatch(
+        /(fix|correct|patch|update)[\s\S]{0,80}(same turn|before .*finish|this turn)/,
+      );
+      // (c) 런타임 재검증으로 실패한다는 인과 설명 — LLM 이 "그냥 무시해도
+      //     된다" 고 오해하지 않도록.
+      expect(prompt).toMatch(/INVALID_NODE_CONFIG/);
+      expect(prompt.toLowerCase()).toMatch(
+        /execution[ -]engine|run[ -]?time|at run time/,
       );
     });
 
