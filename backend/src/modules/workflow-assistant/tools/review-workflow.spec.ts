@@ -1212,6 +1212,265 @@ describe('review-workflow.buildReviewChecklist', () => {
     });
   });
 
+  // Spec §4.4 — handler.validate 가 실패한 add_node / update_node 는 `ok: true`
+  // 와 함께 `configWarnings: string[]` 를 동봉해 LLM 에게 통지한다 (저장은
+  // 비차단). 그러나 LLM 이 그 경고를 무시하고 finish 하면 사용자가 워크플로우
+  // 를 실행할 때 execution-engine 이 동일 검증을 다시 돌려 `INVALID_NODE_CONFIG:
+  // ...` 로 런타임 실패한다 (사용자 보고 케이스). 이 가드는 finish 시점에 마지막
+  // add_node / update_node 결과의 configWarnings 가 남아있는 노드를 잡아
+  // 사용자가 런타임에 발견하기 전에 LLM 이 같은 턴에서 교정하도록 강제한다.
+  describe('NODE_CONFIG_WARNINGS', () => {
+    const NODE_X = '11111111-1111-4111-8111-111111111111';
+    const NODE_Y = '22222222-2222-4222-8222-222222222222';
+
+    function snapshotWith(
+      nodes: Array<{ id: string; label: string; type?: string }>,
+    ): ShadowSnapshot {
+      const base = baseSnapshot();
+      base.nodes.push(
+        ...nodes.map((n) => ({
+          id: n.id,
+          type: n.type ?? 'carousel',
+          category: 'presentation',
+          label: n.label,
+          positionX: 0,
+          positionY: 0,
+          config: {},
+        })),
+      );
+      return base;
+    }
+
+    it('flags a node whose latest add_node result carried non-empty configWarnings', () => {
+      const calls: AssistantToolCallRecord[] = [
+        {
+          id: 'c1',
+          name: 'add_node',
+          arguments: {
+            type: 'carousel',
+            label: '메뉴 선택',
+            position: { x: 0, y: 0 },
+            config: {},
+          },
+          kind: 'edit',
+          result: {
+            ok: true,
+            id: NODE_X,
+            configWarnings: ['Maximum 10 buttons allowed per node'],
+          },
+        },
+      ];
+      const items = buildReviewChecklist(
+        baseInput({
+          pendingToolCalls: calls,
+          shadowSnapshot: snapshotWith([{ id: NODE_X, label: '메뉴 선택' }]),
+        }),
+      );
+      const item = items.find((i) => i.code === 'NODE_CONFIG_WARNINGS');
+      expect(item).toBeDefined();
+      expect(item!.blocking).toBe(true);
+      const data = item!.data as Array<{
+        nodeId: string;
+        nodeLabel?: string;
+        warnings: string[];
+      }>;
+      expect(data).toHaveLength(1);
+      expect(data[0].nodeId).toBe(NODE_X);
+      expect(data[0].nodeLabel).toBe('메뉴 선택');
+      expect(data[0].warnings).toEqual(['Maximum 10 buttons allowed per node']);
+    });
+
+    it('flags a node whose latest update_node result carried configWarnings', () => {
+      const calls: AssistantToolCallRecord[] = [
+        {
+          id: 'c1',
+          name: 'add_node',
+          arguments: {
+            type: 'carousel',
+            label: '메뉴 선택',
+            position: { x: 0, y: 0 },
+            config: {},
+          },
+          kind: 'edit',
+          result: { ok: true, id: NODE_X },
+        },
+        {
+          id: 'c2',
+          name: 'update_node',
+          arguments: { id: NODE_X, patch: { config: {} } },
+          kind: 'edit',
+          result: {
+            ok: true,
+            configWarnings: ['Maximum 10 buttons allowed per node'],
+          },
+        },
+      ];
+      const items = buildReviewChecklist(
+        baseInput({
+          pendingToolCalls: calls,
+          shadowSnapshot: snapshotWith([{ id: NODE_X, label: '메뉴 선택' }]),
+        }),
+      );
+      const item = items.find((i) => i.code === 'NODE_CONFIG_WARNINGS');
+      expect(item).toBeDefined();
+      const data = item!.data as Array<{ nodeId: string; warnings: string[] }>;
+      expect(data[0].nodeId).toBe(NODE_X);
+    });
+
+    it('does NOT flag when a later update_node successfully clears warnings', () => {
+      const calls: AssistantToolCallRecord[] = [
+        {
+          id: 'c1',
+          name: 'add_node',
+          arguments: {
+            type: 'carousel',
+            label: '메뉴 선택',
+            position: { x: 0, y: 0 },
+            config: {},
+          },
+          kind: 'edit',
+          result: {
+            ok: true,
+            id: NODE_X,
+            configWarnings: ['Maximum 10 buttons allowed per node'],
+          },
+        },
+        {
+          id: 'c2',
+          name: 'update_node',
+          arguments: { id: NODE_X, patch: { config: {} } },
+          kind: 'edit',
+          // 두 번째 호출이 경고 없이 성공 → "최신 상태" 는 깨끗.
+          result: { ok: true },
+        },
+      ];
+      const items = buildReviewChecklist(
+        baseInput({
+          pendingToolCalls: calls,
+          shadowSnapshot: snapshotWith([{ id: NODE_X, label: '메뉴 선택' }]),
+        }),
+      );
+      expect(
+        items.find((i) => i.code === 'NODE_CONFIG_WARNINGS'),
+      ).toBeUndefined();
+    });
+
+    it('does NOT flag a failed call (ok:false): UNRESOLVED_FAILED_CALLS already covers it', () => {
+      const calls: AssistantToolCallRecord[] = [
+        {
+          id: 'c1',
+          name: 'add_node',
+          arguments: {
+            type: 'carousel',
+            label: 'X',
+            position: { x: 0, y: 0 },
+            config: {},
+          },
+          kind: 'edit',
+          // 실패한 호출에 configWarnings 가 실려도 NODE_CONFIG_WARNINGS 는
+          // 경로 자체가 다르므로 발동 금지.
+          result: {
+            ok: false,
+            error: 'INVALID_ARGUMENTS',
+            configWarnings: ['Maximum 10 buttons allowed per node'],
+          },
+        },
+      ];
+      const items = buildReviewChecklist(
+        baseInput({ pendingToolCalls: calls }),
+      );
+      expect(
+        items.find((i) => i.code === 'NODE_CONFIG_WARNINGS'),
+      ).toBeUndefined();
+    });
+
+    it('groups warnings per node — separate nodes each appear once', () => {
+      const calls: AssistantToolCallRecord[] = [
+        {
+          id: 'c1',
+          name: 'add_node',
+          arguments: {
+            type: 'carousel',
+            label: 'A',
+            position: { x: 0, y: 0 },
+            config: {},
+          },
+          kind: 'edit',
+          result: {
+            ok: true,
+            id: NODE_X,
+            configWarnings: ['Maximum 10 buttons allowed per node'],
+          },
+        },
+        {
+          id: 'c2',
+          name: 'add_node',
+          arguments: {
+            type: 'carousel',
+            label: 'B',
+            position: { x: 0, y: 0 },
+            config: {},
+          },
+          kind: 'edit',
+          result: {
+            ok: true,
+            id: NODE_Y,
+            configWarnings: [
+              'buttons[0].label is required and must be a string',
+            ],
+          },
+        },
+      ];
+      const items = buildReviewChecklist(
+        baseInput({
+          pendingToolCalls: calls,
+          shadowSnapshot: snapshotWith([
+            { id: NODE_X, label: 'A' },
+            { id: NODE_Y, label: 'B' },
+          ]),
+        }),
+      );
+      const item = items.find((i) => i.code === 'NODE_CONFIG_WARNINGS');
+      expect(item).toBeDefined();
+      const data = item!.data as Array<{ nodeId: string }>;
+      expect(data.map((d) => d.nodeId).sort()).toEqual([NODE_X, NODE_Y].sort());
+    });
+
+    it('truncates per-node warnings list to at most 5 entries (LLM context budget)', () => {
+      const many = Array.from(
+        { length: 12 },
+        (_, i) => `buttons[${i}].id is required`,
+      );
+      const calls: AssistantToolCallRecord[] = [
+        {
+          id: 'c1',
+          name: 'add_node',
+          arguments: {
+            type: 'carousel',
+            label: 'manyButtons',
+            position: { x: 0, y: 0 },
+            config: {},
+          },
+          kind: 'edit',
+          result: {
+            ok: true,
+            id: NODE_X,
+            configWarnings: many,
+          },
+        },
+      ];
+      const items = buildReviewChecklist(
+        baseInput({
+          pendingToolCalls: calls,
+          shadowSnapshot: snapshotWith([{ id: NODE_X, label: 'manyButtons' }]),
+        }),
+      );
+      const item = items.find((i) => i.code === 'NODE_CONFIG_WARNINGS')!;
+      const data = item.data as Array<{ warnings: string[] }>;
+      expect(data[0].warnings).toHaveLength(5);
+    });
+  });
+
   describe('checklistBlocks', () => {
     it('returns true iff at least one item is blocking', () => {
       const items: ReviewChecklistItem[] = [

@@ -4417,6 +4417,275 @@ describe('WorkflowAssistantStreamService', () => {
     });
   });
 
+  // 사용자 보고: "Maximum 10 buttons allowed per node" 가 워크플로우 실행 시점에
+  // INVALID_NODE_CONFIG 로 떨어지는 케이스. 7487d49 가 shadow 단계 hard-reject 를
+  // 비차단 configWarnings 로 demote 했지만, LLM 이 그 경고를 인지·교정하도록
+  // 강제하는 finish 가드는 빠져 있었다. NODE_CONFIG_WARNINGS 체크리스트가
+  // 그 갭을 메우는지 end-to-end 로 고정한다.
+  describe('NODE_CONFIG_WARNINGS — finish gate for handler.validate non-blocking warnings', () => {
+    it('blocks the first finish when an add_node returned configWarnings, then passes after update_node clears them', async () => {
+      const { service, mocks } = makeService();
+      // Object-form ports 는 shadow 의 add_edge / dangling 검사가 정상 동작
+      // 하도록 보장. NODE_CONFIG_WARNINGS 와는 직접 무관하지만 review checklist
+      // 의 다른 항목이 잘못 fire 하지 않도록 baseline 을 깨끗이 둔다.
+      mocks.nodeRegistry.listDefinitions.mockReturnValue([
+        {
+          metadata: {
+            type: 'manual_trigger',
+            category: 'trigger',
+            description: 'Manual trigger',
+          },
+          ports: {
+            inputs: [],
+            outputs: [{ id: 'out', label: 'Output', type: 'data' }],
+          },
+        },
+        {
+          metadata: {
+            type: 'http_request',
+            category: 'integration',
+            description: 'HTTP request',
+          },
+          ports: {
+            inputs: [{ id: 'in', label: 'Input', type: 'data' }],
+            outputs: [{ id: 'out', label: 'Output', type: 'data' }],
+          },
+        },
+      ]);
+      // configValidator 브리지 — `handlerRegistry.has(type)` 가 true 이면
+      // `handlerRegistry.get(type).validate(config)` 가 시뮬레이션된다. 본
+      // 테스트에서는 http_request 노드의 config 에 `tooMany: true` 가 있을
+      // 때만 errors 를 반환해 "validate 실패 → configWarnings 동봉" 경로를
+      // 재현한다. update_node 로 false 로 바뀌면 깨끗.
+      mocks.handlerRegistry.has.mockImplementation(
+        (t: string) => t === 'http_request',
+      );
+      mocks.handlerRegistry.get.mockImplementation(() => ({
+        validate: (cfg: Record<string, unknown>) =>
+          cfg.tooMany === true
+            ? {
+                valid: false,
+                errors: ['Maximum 10 buttons allowed per node'],
+              }
+            : { valid: true, errors: [] },
+      }));
+
+      // Round 1: 두 노드 추가 (review skip 조건 nonTriggerCount<=1 회피용),
+      //          엣지 두 개 추가, finish 호출 → 첫 finish 는 NODE_CONFIG_WARNINGS
+      //          로 block.
+      // Round 2: LLM (mock) 이 update_node 로 config.tooMany 를 false 로 정정
+      //          한 뒤 finish 다시 호출 → review_completed 로 통과.
+      mocks.llmService.chatStream.mockImplementation((_cfg, params) => {
+        const round = mocks.llmService.chatStream.mock.calls.length;
+        if (round === 1) {
+          return asyncIter<ChatStreamEvent>([
+            {
+              type: 'tool_call_end',
+              id: 'add_warn',
+              name: 'add_node',
+              arguments: JSON.stringify({
+                type: 'http_request',
+                label: '메뉴 카드',
+                position: { x: 400, y: 200 },
+                config: { tooMany: true },
+              }),
+            },
+            {
+              type: 'tool_call_end',
+              id: 'add_clean',
+              name: 'add_node',
+              arguments: JSON.stringify({
+                type: 'http_request',
+                label: '결과',
+                position: { x: 600, y: 200 },
+                config: { tooMany: false },
+              }),
+            },
+            {
+              type: 'done',
+              usage: { inputTokens: 30, outputTokens: 20, totalTokens: 50 },
+              model: 'gpt-4o',
+              finishReason: 'tool_calls',
+            },
+          ]);
+        }
+        if (round === 2) {
+          // 라운드 1 의 add_node 결과에서 두 UUID 를 추출 — 엣지 연결과
+          // 후속 update_node 가 공통적으로 필요로 한다.
+          const msgs = (
+            params as {
+              messages: Array<{
+                role: string;
+                content?: string | null;
+                toolCallId?: string;
+              }>;
+            }
+          ).messages;
+          const idByCall = new Map<string, string>();
+          for (const m of msgs) {
+            if (m.role !== 'tool') continue;
+            if (!m.toolCallId) continue;
+            const parsed = JSON.parse(m.content as string) as {
+              id?: string;
+            };
+            if (typeof parsed.id === 'string') {
+              idByCall.set(m.toolCallId, parsed.id);
+            }
+          }
+          const warnId = idByCall.get('add_warn')!;
+          const cleanId = idByCall.get('add_clean')!;
+          expect(warnId).toMatch(/[0-9a-f-]{36}/);
+          return asyncIter<ChatStreamEvent>([
+            {
+              type: 'tool_call_end',
+              id: 'edge_a',
+              name: 'add_edge',
+              arguments: JSON.stringify({
+                source_id: 'trig-1',
+                target_id: warnId,
+              }),
+            },
+            {
+              type: 'tool_call_end',
+              id: 'edge_b',
+              name: 'add_edge',
+              arguments: JSON.stringify({
+                source_id: warnId,
+                target_id: cleanId,
+              }),
+            },
+            {
+              type: 'tool_call_end',
+              id: 'fin1',
+              name: 'finish',
+              arguments: '{}',
+            },
+            {
+              type: 'done',
+              usage: { inputTokens: 40, outputTokens: 8, totalTokens: 48 },
+              model: 'gpt-4o',
+              finishReason: 'tool_calls',
+            },
+          ]);
+        }
+        // Round 3: 검토 응답을 받은 LLM 이 update_node 로 교정 후 finish 재호출.
+        const msgs = (
+          params as {
+            messages: Array<{
+              role: string;
+              content?: string | null;
+              toolCallId?: string;
+            }>;
+          }
+        ).messages;
+        const finalAddResult = msgs.find(
+          (m) => m.role === 'tool' && m.toolCallId === 'add_warn',
+        );
+        const warnId = (
+          JSON.parse(finalAddResult!.content as string) as { id: string }
+        ).id;
+        return asyncIter<ChatStreamEvent>([
+          {
+            type: 'tool_call_end',
+            id: 'fix',
+            name: 'update_node',
+            arguments: JSON.stringify({
+              id: warnId,
+              patch: { config: { tooMany: false } },
+            }),
+          },
+          {
+            type: 'tool_call_end',
+            id: 'fin2',
+            name: 'finish',
+            arguments: '{}',
+          },
+          {
+            type: 'done',
+            usage: { inputTokens: 25, outputTokens: 6, totalTokens: 31 },
+            model: 'gpt-4o',
+            finishReason: 'stop',
+          },
+        ]);
+      });
+
+      const events = await collect(
+        service.streamMessage('sess-1', 'ws-1', 'u-1', baseDto as never),
+      );
+
+      // (a) 첫 add_node 결과에 configWarnings 가 실린다 (shadow 비차단 정책).
+      const addWarnEvent = events.find(
+        (e) =>
+          e.event === 'tool_call' &&
+          (e.data as { id: string }).id === 'add_warn',
+      );
+      expect(addWarnEvent).toBeDefined();
+      const addWarnResult = (
+        addWarnEvent!.data as {
+          result: { ok: boolean; configWarnings?: string[] };
+        }
+      ).result;
+      expect(addWarnResult.ok).toBe(true);
+      expect(addWarnResult.configWarnings).toEqual([
+        'Maximum 10 buttons allowed per node',
+      ]);
+
+      // (b) 첫 finish (fin1) 는 review block — fin1 의 tool_result 에
+      //     WORKFLOW_REVIEW_REQUIRED 가 포함되고 checklist 에 NODE_CONFIG_WARNINGS
+      //     가 있어야 한다.
+      const round3Messages = mocks.llmService.chatStream.mock.calls[2][1]
+        .messages as Array<{
+        role: string;
+        content?: string;
+        toolCallId?: string;
+      }>;
+      const fin1Result = round3Messages.find(
+        (m) => m.role === 'tool' && m.toolCallId === 'fin1',
+      );
+      expect(fin1Result).toBeDefined();
+      const parsed = JSON.parse(fin1Result!.content ?? 'null') as {
+        ok: boolean;
+        error?: string;
+        checklist?: Array<{ code: string; data?: unknown }>;
+      };
+      expect(parsed.ok).toBe(false);
+      expect(parsed.error).toBe('WORKFLOW_REVIEW_REQUIRED');
+      const codes = (parsed.checklist ?? []).map((c) => c.code);
+      expect(codes).toContain('NODE_CONFIG_WARNINGS');
+      const warnItem = parsed.checklist!.find(
+        (c) => c.code === 'NODE_CONFIG_WARNINGS',
+      )!;
+      const data = warnItem.data as Array<{
+        nodeId: string;
+        nodeLabel?: string;
+        warnings: string[];
+      }>;
+      expect(data).toHaveLength(1);
+      expect(data[0].nodeLabel).toBe('메뉴 카드');
+      expect(data[0].warnings).toEqual(['Maximum 10 buttons allowed per node']);
+
+      // (c) 두 번째 finish (fin2) 는 통과 — review_completed 로 재검증 skip.
+      //     스트림이 정상 종료(stop) 되었는지 확인.
+      const done = events[events.length - 1];
+      expect(done).toMatchObject({
+        event: 'done',
+        data: { finishReason: 'stop' },
+      });
+
+      // (d) update_node 로 교정 후 호출은 ok:true / configWarnings 없음.
+      const fixEvent = events.find(
+        (e) =>
+          e.event === 'tool_call' && (e.data as { id: string }).id === 'fix',
+      );
+      expect(fixEvent).toBeDefined();
+      const fixResult = (
+        fixEvent!.data as { result: { ok: boolean; configWarnings?: string[] } }
+      ).result;
+      expect(fixResult.ok).toBe(true);
+      expect(fixResult.configWarnings).toBeUndefined();
+    });
+  });
+
   // LLM 이 한 메시지(=한 라운드)에 여러 tool_use 블록을 동시에 emit 하는
   // 병렬 경로. 인프라(anthropic.client 스트림 디코더 + stream service 라운드
   // 루프)는 이미 이 시나리오를 허용한다. 모델이 실제로 그렇게 냈을 때
