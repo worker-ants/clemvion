@@ -110,12 +110,16 @@ const MAX_NODE_CONFIG_WARNINGS_PER_NODE = 5;
 /** NODE_CONFIG_WARNINGS 항목 자체의 최대 노드 수. */
 const MAX_NODE_CONFIG_WARNING_NODES = 10;
 /**
- * DANGLING_OUTPUT_PORTS `details` 에 embed 하는 node label / port id / label 의
- * 길이 상한. 클라이언트 DTO 에서 유래한 자유 텍스트이므로 `sanitizeLlmProvidedString`
- * 과 함께 LLM tool_result 로 재주입되는 프롬프트 인젝션 표면을 제어한다.
+ * checklist `details` 에 embed 하는 LLM 제공 자유 텍스트 (node label / port
+ * id·label / configWarnings 메시지 등) 의 길이 상한. 클라이언트 DTO 에서
+ * 유래한 값이므로 `sanitizeLlmProvidedString` 과 함께 LLM tool_result 로
+ * 재주입되는 프롬프트 인젝션 표면을 제어한다.
+ *
+ * `LABEL_MAX_LEN` 은 사람이 읽는 라벨 (노드 label, port label) 용. `ID_MAX_LEN`
+ * 은 슬러그 (port id, node type 등) 용 — 짧고 ASCII 위주라 더 좁은 상한.
  */
-const DANGLING_PORT_LABEL_MAX_LEN = 80;
-const DANGLING_PORT_ID_MAX_LEN = 64;
+const REVIEW_LABEL_MAX_LEN = 80;
+const REVIEW_ID_MAX_LEN = 64;
 
 /**
  * 사용자 요청 토큰화 시 제외할 한국어 조사·기능어. 길이 1 한 글자는 "종류"
@@ -240,11 +244,11 @@ export function checklistBlocks(items: ReviewChecklistItem[]): boolean {
 }
 
 /**
- * 메인 진입점. 여섯 개 점검을 순차 실행하고 결과 배열을 돌려준다.
+ * 메인 진입점. 일곱 개 점검을 순차 실행하고 결과 배열을 돌려준다.
  * 순서는 UI 가독성을 고려해 "가장 즉각적인 이슈 → 넓은 범위" 순:
  *  1) UNRESOLVED_FAILED_CALLS, 2) ORPHAN_NODES, 3) DANGLING_OUTPUT_PORTS,
  *  4) FAKE_STEP_COMPLETION, 5) PENDING_USER_CONFIG_UNMENTIONED,
- *  6) REQUEST_COVERAGE_LOW.
+ *  6) NODE_CONFIG_WARNINGS, 7) REQUEST_COVERAGE_LOW.
  */
 export function buildReviewChecklist(
   input: BuildReviewChecklistInput,
@@ -297,16 +301,16 @@ export function buildReviewChecklist(
         const portList = ports
           .map(
             (p) =>
-              `${sanitizeLlmProvidedString(p.portId, DANGLING_PORT_ID_MAX_LEN)} (${sanitizeLlmProvidedString(p.portLabel, DANGLING_PORT_LABEL_MAX_LEN)})`,
+              `${sanitizeLlmProvidedString(p.portId, REVIEW_ID_MAX_LEN)} (${sanitizeLlmProvidedString(p.portLabel, REVIEW_LABEL_MAX_LEN)})`,
           )
           .join(', ');
         const safeLabel = sanitizeLlmProvidedString(
           head.nodeLabel,
-          DANGLING_PORT_LABEL_MAX_LEN,
+          REVIEW_LABEL_MAX_LEN,
         );
         const safeType = sanitizeLlmProvidedString(
           head.nodeType,
-          DANGLING_PORT_ID_MAX_LEN,
+          REVIEW_ID_MAX_LEN,
         );
         return `${safeLabel} (${safeType}): ${portList}`;
       })
@@ -337,13 +341,21 @@ export function buildReviewChecklist(
     // 구체적 label 목록을 details 에 싣는다 — LLM 이 다음 라운드에서 한국어
     // 마무리 메세지를 작성할 때 "어떤 노드의 어떤 selector" 를 언급해야 하는지
     // 바로 알 수 있게 해, "Integration 설정 빼먹음" 같은 사용자 보고 케이스를
-    // 줄인다.
+    // 줄인다. node label / field label 은 클라이언트 DTO + zod meta 에서
+    // 유래한 자유 텍스트이므로 다른 항목 (DANGLING_OUTPUT_PORTS, NODE_CONFIG_WARNINGS)
+    // 와 동일하게 sanitizeLlmProvidedString 으로 중화 후 embed.
     const summary = pending
       .map((p) => {
         const fields = p.missingFields
-          .map((f) => f.label || f.field)
+          .map((f) =>
+            sanitizeLlmProvidedString(f.label || f.field, REVIEW_LABEL_MAX_LEN),
+          )
           .join(', ');
-        return `${p.label} (${fields})`;
+        const safeLabel = sanitizeLlmProvidedString(
+          p.label,
+          REVIEW_LABEL_MAX_LEN,
+        );
+        return `${safeLabel} (${fields})`;
       })
       .join('; ');
     items.push({
@@ -362,12 +374,10 @@ export function buildReviewChecklist(
     const summary = configWarnings
       .map((c) => {
         const labelStr = c.nodeLabel
-          ? sanitizeLlmProvidedString(c.nodeLabel, DANGLING_PORT_LABEL_MAX_LEN)
+          ? sanitizeLlmProvidedString(c.nodeLabel, REVIEW_LABEL_MAX_LEN)
           : c.nodeId;
         const issuesStr = c.warnings
-          .map((w) =>
-            sanitizeLlmProvidedString(w, DANGLING_PORT_LABEL_MAX_LEN * 2),
-          )
+          .map((w) => sanitizeLlmProvidedString(w, REVIEW_LABEL_MAX_LEN * 2))
           .join('; ');
         return `${labelStr}: ${issuesStr}`;
       })
