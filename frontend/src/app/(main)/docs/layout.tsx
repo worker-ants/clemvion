@@ -20,7 +20,7 @@ export default function DocsLayout({
     LOCALES.map((locale) => [locale, buildSearchIndex(index, locale)]),
   ) as Record<Locale, DocsSearchEntry[]>;
   return (
-    <div className="mx-auto flex w-full max-w-7xl gap-6 px-4 py-6 lg:px-8">
+    <div className="flex w-full gap-6 px-4 py-6 lg:px-8">
       <DocsLocaleUrlSync />
       <aside className="hidden w-60 shrink-0 lg:block">
         {/* Sidebar has its own scroll viewport so the TOC does not scroll
@@ -33,7 +33,7 @@ export default function DocsLayout({
           </div>
         </div>
       </aside>
-      <article className="docs-prose min-w-0 flex-1">{children}</article>
+      <article className="docs-prose min-w-0 max-w-4xl flex-1">{children}</article>
     </div>
   );
 }
