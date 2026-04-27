@@ -1,4 +1,5 @@
 import { ZodSchema } from 'zod';
+import type { WarningRule } from '@workflow/node-summary';
 import { NodeCategory } from '../../modules/nodes/entities/node.entity';
 import {
   ExecutionContext,
@@ -17,6 +18,8 @@ export type {
   NodeHandlerOutput,
   ValidationResult,
 };
+// Re-export so node component authors can import everything from one path.
+export type { WarningRule, WarningSeverity } from '@workflow/node-summary';
 
 export type NodePortKind = 'data' | 'error' | 'control';
 
@@ -102,8 +105,42 @@ export interface NodeComponentMetadata {
    * `warnWhen` syntax (any truthy match marks the summary as a warning):
    *  - `!path` / `!path.length`  — negation / empty-check
    *  - `path==value` / `path!=value` — equality comparisons
+   *
+   * For new code, prefer {@link warningRules} below — `summaryTemplate.warnWhen`
+   * only supports a single warning per node, while `warningRules` accepts a
+   * list with stable ids. Both keep working in parallel; `warningRules` fires
+   * the canvas badge AND the assistant's `NODE_CONFIG_WARNINGS` review at the
+   * same time, while `summaryTemplate.warnWhen` only affects display.
    */
   summaryTemplate?: string | SummaryTemplateSpec;
+  /**
+   * **SSOT for node config warnings** (Phase 6+).
+   *
+   * Each rule is evaluated by `@workflow/node-summary` `evaluateWarnings()`
+   * against the node's `config`. Both the frontend canvas badge (⚠️) and the
+   * backend `handler.validate()` / assistant `NODE_CONFIG_WARNINGS` review
+   * consume the same list, so the two surfaces cannot drift.
+   *
+   * Default `severity` is `blocking` — the assistant refuses `finish` while
+   * any blocking rule fires. Use `severity: 'advisory'` for soft hints that
+   * should appear on the canvas but not block the assistant.
+   *
+   * Rules that need cross-field business logic the mini-DSL can't express
+   * (regex, recursion) belong in {@link validateConfig} instead.
+   */
+  warningRules?: readonly WarningRule[];
+  /**
+   * Imperative escape hatch for warnings the {@link warningRules} mini-DSL
+   * cannot express. Returns Korean messages — same shape as
+   * `handler.validate(config).errors`. Per the SSOT contract, this lives on
+   * the same node component as the schema (no logic outside the node folder).
+   *
+   * Backend handlers automatically merge these into their `validate()` result
+   * via `evaluateMetadataValidation` (handler-helpers.ts). Frontend skips this
+   * field — it's backend-only because the imperative function may import
+   * server-side modules.
+   */
+  validateConfig?: (config: unknown) => string[];
   /**
    * Optional explicit default config. When omitted, the registry derives the
    * default by running `configSchema.parse({})` — fields with `.default(...)`

@@ -57,13 +57,29 @@ export class NodeComponentRegistry {
 
   listDefinitions(): NodeDefinitionView[] {
     return [...this.components.values()].map((c) => ({
-      metadata: c.metadata,
+      metadata: this.serializeMetadata(c.metadata),
       ports: c.ports,
       configSchema: z.toJSONSchema(c.configSchema),
       defaultConfig: this.resolveDefaultConfig(c),
       inputSchema: c.inputSchema ? z.toJSONSchema(c.inputSchema) : undefined,
       outputSchema: c.outputSchema ? z.toJSONSchema(c.outputSchema) : undefined,
     }));
+  }
+
+  /**
+   * Strip backend-only fields from metadata before shipping it to the
+   * frontend through `GET /nodes/definitions`. `validateConfig` is a
+   * function (not JSON-serializable) and represents imperative checks that
+   * only the backend `handler.validate()` runs. The frontend gets the
+   * declarative {@link WarningRule}[] in `warningRules` instead — that is
+   * the SSOT for the canvas badge.
+   */
+  private serializeMetadata(
+    metadata: NodeComponentMetadata,
+  ): NodeComponentMetadata {
+    const { validateConfig: _validateConfig, ...rest } = metadata;
+    void _validateConfig;
+    return rest as NodeComponentMetadata;
   }
 
   listCategories(): NodeCategoryMeta[] {
