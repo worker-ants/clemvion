@@ -350,6 +350,71 @@ export const aiAgentNodePorts: NodePorts = {
   outputs: [{ id: 'out', label: 'Output', type: 'data' }],
 };
 
+/**
+ * Imperative escape hatch — per-condition validation needs array iteration
+ * + reserved-port-id whitelist + 2000-char prompt cap. `maxTurns` ≥ 0 needs
+ * a numeric type guard combined with `< 0` that the mini-DSL can't pair
+ * with "only when mode=multi_turn" cleanly. Single-field "missing model" /
+ * "missing systemPrompt for multi-turn" / "too many conditions" checks live
+ * in `warningRules` below so the canvas badge fires.
+ *
+ * NOTE: the frontend `aiAgentSummary` warning ("Default provider not
+ * configured") relies on an external `hasDefaultLlmConfig` context flag —
+ * the canvas suppresses the warning when a workspace-default LLM exists.
+ * Backend `warningRules` cannot read that context, so the equivalent
+ * declarative rule fires whenever BOTH `model` and `llmConfigId` are
+ * missing. The frontend will continue to suppress the canvas badge using
+ * its context-aware formatter — no double-fire.
+ */
+const RESERVED_PORT_IDS = new Set([
+  'out',
+  'in',
+  'error',
+  'user_ended',
+  'max_turns',
+]);
+export function validateAiAgentConfig(config: unknown): string[] {
+  const c = (config ?? {}) as Record<string, unknown>;
+  const errors: string[] = [];
+  const mode = ((c.mode as string) ?? 'single_turn') as
+    | 'single_turn'
+    | 'multi_turn';
+
+  if (mode === 'multi_turn') {
+    const maxTurns = c.maxTurns;
+    if (
+      maxTurns !== undefined &&
+      (typeof maxTurns !== 'number' || maxTurns < 0)
+    ) {
+      errors.push('maxTurns must be 0 (unlimited) or a positive integer');
+    }
+  }
+
+  const conditions = c.conditions;
+  if (Array.isArray(conditions)) {
+    for (let i = 0; i < conditions.length; i++) {
+      const cond = (conditions[i] ?? {}) as Record<string, unknown>;
+      if (!cond.id || typeof cond.id !== 'string') {
+        errors.push(`conditions[${i}]: id is required`);
+      } else if (RESERVED_PORT_IDS.has(cond.id)) {
+        errors.push(
+          `conditions[${i}]: id '${cond.id}' conflicts with reserved port name`,
+        );
+      }
+      if (!cond.label || typeof cond.label !== 'string') {
+        errors.push(`conditions[${i}]: label is required`);
+      }
+      if (!cond.prompt || typeof cond.prompt !== 'string') {
+        errors.push(`conditions[${i}]: prompt is required`);
+      } else if (cond.prompt.length > 2000) {
+        errors.push(`conditions[${i}]: prompt must be 2000 characters or less`);
+      }
+    }
+  }
+
+  return errors;
+}
+
 export const aiAgentNodeMetadata: NodeComponentMetadata = {
   type: 'ai_agent',
   category: 'ai',
@@ -364,4 +429,39 @@ export const aiAgentNodeMetadata: NodeComponentMetadata = {
     conditionsField: 'conditions',
     multiTurnValue: 'multi_turn',
   },
+  // SSOT for warnings (frontend canvas + backend handler.validate).
+  // Mirror points:
+  //  - frontend `aiAgentSummary` warning ("Default provider not
+  //    configured") — see note on `validateAiAgentConfig` re: the
+  //    `hasDefaultLlmConfig` context split.
+  //  - backend handler.validate's "systemPrompt required for multi_turn"
+  //    / "either systemPrompt or userPrompt required" / "max 20
+  //    conditions" rules.
+  // Per-condition structural validation (reserved port ids, prompt 2000
+  // char cap, etc.) lives in `validateConfig` because the mini-DSL can't
+  // model array iteration + sub-string comparisons.
+  warningRules: [
+    {
+      id: 'ai_agent:no-llm-provider',
+      when: '!model && !llmConfigId',
+      message:
+        'LLM provider 또는 model 을 선택해야 합니다 (workspace 기본 provider 가 설정된 경우 캔버스에서 자동 처리).',
+    },
+    {
+      id: 'ai_agent:multi-turn-needs-system-prompt',
+      when: 'mode == multi_turn && !systemPrompt',
+      message: 'Multi Turn 모드에서는 System Prompt 가 필요합니다.',
+    },
+    {
+      id: 'ai_agent:single-turn-needs-prompt',
+      when: 'mode != multi_turn && !systemPrompt && !userPrompt',
+      message: 'System Prompt 또는 User Prompt 중 하나는 입력해야 합니다.',
+    },
+    {
+      id: 'ai_agent:too-many-conditions',
+      when: 'length(conditions) > 20',
+      message: 'Conditions 는 최대 20개까지 추가할 수 있습니다.',
+    },
+  ],
+  validateConfig: validateAiAgentConfig,
 };

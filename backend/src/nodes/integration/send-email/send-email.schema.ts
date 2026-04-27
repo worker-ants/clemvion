@@ -147,6 +147,54 @@ export const sendEmailNodePorts: NodePorts = {
   ],
 };
 
+/**
+ * Imperative escape hatch — recipient fields are sum types
+ * (`string | string[]`) where "set" means "non-empty trimmed string OR
+ * non-empty array of non-empty trimmed strings". The mini-DSL can't model
+ * that AND-OR shape, so all recipient validation lives here. The bare
+ * "is to empty?" canvas signal is approximated by the `length(to) == 0`
+ * declarative rule below — when the user is in the typical "array widget"
+ * UX, that catches the common empty case.
+ */
+function isRecipientsLike(value: unknown): boolean {
+  if (typeof value === 'string') return value.trim().length > 0;
+  if (Array.isArray(value)) {
+    return (
+      value.length > 0 &&
+      value.every((v) => typeof v === 'string' && v.trim().length > 0)
+    );
+  }
+  return false;
+}
+
+function isOptionalRecipientSet(value: unknown): boolean {
+  if (value === undefined || value === null) return false;
+  if (typeof value === 'string') return value.trim().length > 0;
+  if (Array.isArray(value)) return value.length > 0;
+  return true;
+}
+
+export function validateSendEmailConfig(config: unknown): string[] {
+  const c = (config ?? {}) as Record<string, unknown>;
+  const errors: string[] = [];
+
+  if (!isRecipientsLike(c.to)) {
+    errors.push(
+      'to is required and must be a non-empty string or array of email addresses',
+    );
+  }
+
+  if (isOptionalRecipientSet(c.cc) && !isRecipientsLike(c.cc)) {
+    errors.push('cc must be a string or array of email addresses');
+  }
+
+  if (isOptionalRecipientSet(c.bcc) && !isRecipientsLike(c.bcc)) {
+    errors.push('bcc must be a string or array of email addresses');
+  }
+
+  return errors;
+}
+
 export const sendEmailNodeMetadata: NodeComponentMetadata = {
   type: 'send_email',
   category: 'integration',
@@ -154,4 +202,36 @@ export const sendEmailNodeMetadata: NodeComponentMetadata = {
   description: 'Send emails via SMTP',
   icon: 'Mail',
   color: '#F97316',
+  // SSOT for warnings (frontend canvas + backend handler.validate).
+  // Mirror points:
+  //  - frontend `sendEmailSummary` warning ("Recipient not set" — covered
+  //    by `send_email:no-recipient` below as the empty-array case)
+  //  - backend handler.validate's "integrationId is required" / "subject is
+  //    required" / "body is required" rules.
+  // `bodyType` enum is bounded by zod (`'text' | 'html'`), so no extra rule
+  // is needed there. Recipient sum-type validation (string | string[]) lives
+  // in `validateConfig` because the mini-DSL can't model that shape.
+  warningRules: [
+    {
+      id: 'send_email:no-integration',
+      when: '!integrationId',
+      message: 'Email integration 을 선택해야 합니다.',
+    },
+    {
+      id: 'send_email:no-recipient',
+      when: 'length(to) == 0',
+      message: '수신자 (To) 를 한 명 이상 입력해야 합니다.',
+    },
+    {
+      id: 'send_email:no-subject',
+      when: '!subject',
+      message: '제목을 입력해야 합니다.',
+    },
+    {
+      id: 'send_email:no-body',
+      when: '!body',
+      message: '본문을 입력해야 합니다.',
+    },
+  ],
+  validateConfig: validateSendEmailConfig,
 };

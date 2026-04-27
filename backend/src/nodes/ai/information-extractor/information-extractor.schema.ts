@@ -209,6 +209,44 @@ export const informationExtractorNodePorts: NodePorts = {
   ],
 };
 
+/**
+ * Imperative escape hatch — per-field outputSchema validation needs array
+ * iteration (each field must have `name` AND `type`), and `maxTurns` ≥ 0
+ * combines a numeric type guard with a `< 0` predicate that the mini-DSL
+ * can't pair in a single rule. Top-level "no provider?" / "outputSchema
+ * empty?" / "single_turn needs inputField?" checks live in `warningRules`.
+ */
+export function validateInformationExtractorConfig(config: unknown): string[] {
+  const c = (config ?? {}) as Record<string, unknown>;
+  const errors: string[] = [];
+
+  const schema = c.outputSchema;
+  if (Array.isArray(schema)) {
+    for (let i = 0; i < schema.length; i++) {
+      const field = (schema[i] ?? {}) as Record<string, unknown>;
+      if (!field.name || typeof field.name !== 'string') {
+        errors.push(`Field ${i + 1}: name is required`);
+      }
+      if (!field.type || typeof field.type !== 'string') {
+        errors.push(`Field ${i + 1}: type is required`);
+      }
+    }
+  }
+
+  const mode = (c.mode as string) ?? 'single_turn';
+  if (mode === 'multi_turn') {
+    const maxTurns = c.maxTurns;
+    if (
+      maxTurns !== undefined &&
+      (typeof maxTurns !== 'number' || maxTurns < 0)
+    ) {
+      errors.push('maxTurns must be 0 (unlimited) or a positive integer');
+    }
+  }
+
+  return errors;
+}
+
 export const informationExtractorNodeMetadata: NodeComponentMetadata = {
   type: 'information_extractor',
   category: 'ai',
@@ -222,4 +260,34 @@ export const informationExtractorNodeMetadata: NodeComponentMetadata = {
     modeField: 'mode',
     multiTurnValue: 'multi_turn',
   },
+  // SSOT for warnings (frontend canvas + backend handler.validate).
+  // Mirror points:
+  //  - frontend `informationExtractorSummary` warnings ("Default provider
+  //    not configured" / "Output schema not defined") — provider check
+  //    has the same hasDefaultLlmConfig context split as ai_agent (see
+  //    that node's note); backend fires whenever both model + llmConfigId
+  //    are missing.
+  //  - backend handler.validate's "At least one output field is required"
+  //    + "inputField is required (single_turn)" rules.
+  // Per-field structural validation + maxTurns numeric range live in
+  // `validateConfig`.
+  warningRules: [
+    {
+      id: 'information_extractor:no-llm-provider',
+      when: '!model && !llmConfigId',
+      message:
+        'LLM provider 또는 model 을 선택해야 합니다 (workspace 기본 provider 가 설정된 경우 캔버스에서 자동 처리).',
+    },
+    {
+      id: 'information_extractor:no-output-schema',
+      when: 'length(outputSchema) == 0',
+      message: '하나 이상의 추출 필드를 정의해야 합니다.',
+    },
+    {
+      id: 'information_extractor:single-turn-needs-input-field',
+      when: 'mode != multi_turn && !inputField',
+      message: 'Single Turn 모드에서는 Input Field 를 입력해야 합니다.',
+    },
+  ],
+  validateConfig: validateInformationExtractorConfig,
 };

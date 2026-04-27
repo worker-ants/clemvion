@@ -1,8 +1,12 @@
 import { z } from 'zod';
+import { evaluateWarnings } from '@workflow/node-summary';
 import {
   aiAgentNodeConfigSchema,
+  aiAgentNodeMetadata,
   aiAgentNodeOutputSchema,
+  validateAiAgentConfig,
 } from './ai-agent.schema';
+import { evaluateMetadataBlockingErrors } from '../../core/metadata-validation';
 
 describe('aiAgentNodeConfigSchema', () => {
   it('applies defaults for empty input', () => {
@@ -143,5 +147,183 @@ describe('aiAgentNodeOutputSchema', () => {
     };
     const result = aiAgentNodeOutputSchema.safeParse(fixture);
     expect(result.success).toBe(false);
+  });
+});
+
+describe('aiAgentNodeMetadata.warningRules', () => {
+  const firedIds = (config: unknown) =>
+    evaluateWarnings(
+      config as Record<string, unknown>,
+      aiAgentNodeMetadata.warningRules,
+    ).map((w) => w.id);
+
+  describe('ai_agent:no-llm-provider', () => {
+    it('fires when both model and llmConfigId are missing', () => {
+      expect(firedIds({})).toContain('ai_agent:no-llm-provider');
+    });
+
+    it('does NOT fire when model is set', () => {
+      expect(firedIds({ model: 'gpt-4o' })).not.toContain(
+        'ai_agent:no-llm-provider',
+      );
+    });
+
+    it('does NOT fire when llmConfigId is set', () => {
+      expect(firedIds({ llmConfigId: 'cfg-1' })).not.toContain(
+        'ai_agent:no-llm-provider',
+      );
+    });
+  });
+
+  describe('ai_agent:multi-turn-needs-system-prompt', () => {
+    it('fires when mode=multi_turn and systemPrompt is missing', () => {
+      expect(firedIds({ mode: 'multi_turn' })).toContain(
+        'ai_agent:multi-turn-needs-system-prompt',
+      );
+    });
+
+    it('does NOT fire when systemPrompt is set', () => {
+      expect(
+        firedIds({ mode: 'multi_turn', systemPrompt: 'You are a bot' }),
+      ).not.toContain('ai_agent:multi-turn-needs-system-prompt');
+    });
+
+    it('does NOT fire when mode is single_turn', () => {
+      expect(firedIds({ mode: 'single_turn' })).not.toContain(
+        'ai_agent:multi-turn-needs-system-prompt',
+      );
+    });
+  });
+
+  describe('ai_agent:single-turn-needs-prompt', () => {
+    it('fires for default (single_turn) mode when both prompts are missing', () => {
+      expect(firedIds({})).toContain('ai_agent:single-turn-needs-prompt');
+    });
+
+    it('does NOT fire when systemPrompt is set', () => {
+      expect(firedIds({ systemPrompt: 'sys' })).not.toContain(
+        'ai_agent:single-turn-needs-prompt',
+      );
+    });
+
+    it('does NOT fire when userPrompt is set', () => {
+      expect(firedIds({ userPrompt: '{{ $input.q }}' })).not.toContain(
+        'ai_agent:single-turn-needs-prompt',
+      );
+    });
+
+    it('does NOT fire in multi_turn mode', () => {
+      expect(firedIds({ mode: 'multi_turn' })).not.toContain(
+        'ai_agent:single-turn-needs-prompt',
+      );
+    });
+  });
+
+  describe('ai_agent:too-many-conditions', () => {
+    it('fires when more than 20 conditions are added', () => {
+      const conditions = Array.from({ length: 21 }, (_, i) => ({
+        id: `c${i}`,
+        label: 'l',
+        prompt: 'p',
+      }));
+      expect(firedIds({ conditions })).toContain(
+        'ai_agent:too-many-conditions',
+      );
+    });
+
+    it('does NOT fire at exactly 20 conditions', () => {
+      const conditions = Array.from({ length: 20 }, (_, i) => ({
+        id: `c${i}`,
+        label: 'l',
+        prompt: 'p',
+      }));
+      expect(firedIds({ conditions })).not.toContain(
+        'ai_agent:too-many-conditions',
+      );
+    });
+  });
+});
+
+describe('validateAiAgentConfig (imperative)', () => {
+  it('returns [] for a fully valid single_turn config', () => {
+    expect(
+      validateAiAgentConfig({
+        mode: 'single_turn',
+        systemPrompt: 'sys',
+        model: 'gpt-4o',
+      }),
+    ).toEqual([]);
+  });
+
+  it('rejects negative maxTurns in multi_turn mode', () => {
+    expect(
+      validateAiAgentConfig({ mode: 'multi_turn', maxTurns: -1 }),
+    ).toContain('maxTurns must be 0 (unlimited) or a positive integer');
+  });
+
+  it('rejects non-numeric maxTurns in multi_turn mode', () => {
+    expect(
+      validateAiAgentConfig({ mode: 'multi_turn', maxTurns: '20' as never }),
+    ).toContain('maxTurns must be 0 (unlimited) or a positive integer');
+  });
+
+  it('skips maxTurns validation in single_turn mode', () => {
+    expect(
+      validateAiAgentConfig({ mode: 'single_turn', maxTurns: -5 as never }),
+    ).toEqual([]);
+  });
+
+  it('rejects condition with missing id', () => {
+    expect(
+      validateAiAgentConfig({
+        conditions: [{ label: 'l', prompt: 'p' }],
+      }),
+    ).toContain('conditions[0]: id is required');
+  });
+
+  it('rejects condition with reserved port id', () => {
+    expect(
+      validateAiAgentConfig({
+        conditions: [{ id: 'out', label: 'l', prompt: 'p' }],
+      }),
+    ).toContain("conditions[0]: id 'out' conflicts with reserved port name");
+  });
+
+  it('rejects condition with missing label / prompt', () => {
+    const errors = validateAiAgentConfig({
+      conditions: [{ id: 'c1' }],
+    });
+    expect(errors).toContain('conditions[0]: label is required');
+    expect(errors).toContain('conditions[0]: prompt is required');
+  });
+
+  it('rejects condition with prompt > 2000 chars', () => {
+    const longPrompt = 'a'.repeat(2001);
+    expect(
+      validateAiAgentConfig({
+        conditions: [{ id: 'c1', label: 'l', prompt: longPrompt }],
+      }),
+    ).toContain('conditions[0]: prompt must be 2000 characters or less');
+  });
+});
+
+describe('evaluateMetadataBlockingErrors integration (ai_agent)', () => {
+  it('emits the expected warnings on a freshly-created node', () => {
+    const errors = evaluateMetadataBlockingErrors(aiAgentNodeMetadata, {});
+    // both "no provider" and "single-turn needs prompt" should fire
+    expect(errors.some((e) => e.includes('LLM provider'))).toBe(true);
+    expect(errors).toContain(
+      'System Prompt 또는 User Prompt 중 하나는 입력해야 합니다.',
+    );
+  });
+
+  it('returns [] when fully configured', () => {
+    expect(
+      evaluateMetadataBlockingErrors(aiAgentNodeMetadata, {
+        mode: 'single_turn',
+        model: 'gpt-4o',
+        systemPrompt: 'sys',
+      }),
+    ).toEqual([]);
   });
 });
