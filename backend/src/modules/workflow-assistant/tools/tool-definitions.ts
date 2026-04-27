@@ -22,6 +22,11 @@ export const TOOL_KIND_BY_NAME: Record<string, AssistantToolKind> = {
   list_knowledge_bases: 'explore',
   get_workflow_executions: 'explore',
   get_execution_details: 'explore',
+  // verify_workflow 는 shadow 만 읽고 외부 자원 접근이 없는 read-only 도구라
+  // 'explore' 로 분류한다. 단, 호출 결과 ok:true 인 경우 service 가 review
+  // 가드(`state.reviewCompleted`)를 충족시켜 다음 `finish` 가 verify_required
+  // 로 다시 막히지 않도록 한다 (Phase 3).
+  verify_workflow: 'explore',
   propose_plan: 'plan',
   clear_plan: 'plan',
   add_node: 'edit',
@@ -175,6 +180,42 @@ function buildAssistantToolsInternal(): ToolDef[] {
           },
         },
         required: ['id'],
+      },
+    },
+    {
+      name: 'verify_workflow',
+      description:
+        "Externalize your self-review by reporting the node ids and edge ids you have explicitly walked, plus a one-sentence summary of how the canvas fulfils the user's request. Useful after a `WORKFLOW_VERIFY_REQUIRED` response when you want to be precise about coverage instead of just calling `finish` again. Returns `ok:true` when every node and edge currently in the workflow appears in your verifiedNodeIds / verifiedEdgeIds — and the server treats that success as having completed self-review, so the next `finish` will pass through. If anything is missing, returns `ok:false, error: 'VERIFY_INCOMPLETE', missingNodeIds, missingEdgeIds` so you know exactly what you skipped; walk those items, then call verify_workflow again with the complete arrays.",
+      parameters: {
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          verifiedNodeIds: {
+            type: 'array',
+            items: { type: 'string' },
+            description:
+              'Ids of every node you have explicitly inspected this turn. Must include every node currently in the workflow for the call to succeed.',
+          },
+          verifiedEdgeIds: {
+            type: 'array',
+            items: { type: 'string' },
+            description:
+              'Ids of every edge you have explicitly inspected. Must include every edge currently in the workflow.',
+          },
+          requestCoverage: {
+            type: 'string',
+            maxLength: 500,
+            description:
+              "1-2 sentence Korean or English summary of how the built workflow covers the user's original request. Stored on the tool_calls row for audit; not re-shown to the user verbatim.",
+          },
+          concerns: {
+            type: 'array',
+            items: { type: 'string', maxLength: 200 },
+            description:
+              'Optional. Open issues you spotted but decided to leave for the user (e.g. ambiguous spec, missing integration). Each entry max 200 chars.',
+          },
+        },
+        required: ['verifiedNodeIds', 'verifiedEdgeIds', 'requestCoverage'],
       },
     },
     // ─── Plan ─────────────────────────────────────────

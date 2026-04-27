@@ -648,6 +648,23 @@ export class WorkflowAssistantStreamService {
               // edit 도구를 먼저 호출한 뒤 최신 상태를 확인하기 위한 용도.
               if (ev.name === 'get_current_workflow') {
                 result = this.buildCurrentWorkflowResult(shadow);
+              } else if (ev.name === 'verify_workflow') {
+                // Phase 3: LLM 의 self-review 외부화. snapshot 의 모든 node/edge
+                // id 가 verifiedNodeIds / verifiedEdgeIds 에 포함되어야 ok:true.
+                // 성공 호출은 review/verify 가드를 충족해 다음 finish 가 verify
+                // 라운드로 다시 막히지 않는다 — Phase 2 의 "finish 두 번" 경로와
+                // 동등한 효과지만, LLM 이 "무엇을 봤는지" 를 명시화하는 더 엄격한
+                // 검증.
+                const verifyResult = this.buildVerifyWorkflowResult(
+                  shadow,
+                  parsed,
+                );
+                result = verifyResult;
+                if (
+                  (verifyResult as { ok?: boolean } | undefined)?.ok === true
+                ) {
+                  guardState.reviewCompleted = true;
+                }
               } else if (ev.name === 'get_node_schema') {
                 // 같은 타입을 반복해서 조회하는 낭비 루프 방지. 첫 호출은 실제
                 // 실행 (hits=1), 두 번째 호출(hits=2) 은 cached 결과 + warning,
@@ -1566,6 +1583,56 @@ export class WorkflowAssistantStreamService {
   // (`toWorkflowView`) 을 공유해 두 표현이 발산하지 않도록 한다.
   private buildCurrentWorkflowResult(shadow: ShadowWorkflow): unknown {
     return { ok: true, ...toWorkflowView(shadow.snapshot()) };
+  }
+
+  /**
+   * Phase 3: `verify_workflow` 도구의 결과 빌더. LLM 이 명시한 verifiedNodeIds /
+   * verifiedEdgeIds 가 현재 shadow 의 모든 node / edge id 를 포함하는지 검사.
+   *
+   * - 누락 있으면 `ok:false, error: 'VERIFY_INCOMPLETE', missingNodeIds, missingEdgeIds`
+   *   로 LLM 에게 정확히 무엇을 안 봤는지 알려준다 — LLM 은 그것들을 walk 한
+   *   뒤 verify_workflow 를 다시 호출하면 된다. snapshot 자체를 응답에 포함하지
+   *   않는 이유: WORKFLOW_VERIFY_REQUIRED 가 이미 토대로 currentWorkflow 를
+   *   주었거나, LLM 이 `get_current_workflow` 로 따로 받을 수 있어 중복 노출 방지.
+   * - 다 포함하면 `ok:true` + 검증된 카운트. 호출부에서 state.reviewCompleted
+   *   를 set 해 다음 finish 가 verify 가드로 다시 막히지 않게 한다.
+   */
+  private buildVerifyWorkflowResult(
+    shadow: ShadowWorkflow,
+    args: Record<string, unknown>,
+  ): unknown {
+    const verifiedNodeIds = new Set(
+      Array.isArray(args.verifiedNodeIds)
+        ? args.verifiedNodeIds.filter((v): v is string => typeof v === 'string')
+        : [],
+    );
+    const verifiedEdgeIds = new Set(
+      Array.isArray(args.verifiedEdgeIds)
+        ? args.verifiedEdgeIds.filter((v): v is string => typeof v === 'string')
+        : [],
+    );
+    const snapshot = shadow.snapshot();
+    const missingNodeIds = snapshot.nodes
+      .filter((n) => !verifiedNodeIds.has(n.id))
+      .map((n) => n.id);
+    const missingEdgeIds = snapshot.edges
+      .filter((e) => !verifiedEdgeIds.has(e.id))
+      .map((e) => e.id);
+    if (missingNodeIds.length > 0 || missingEdgeIds.length > 0) {
+      return {
+        ok: false,
+        error: 'VERIFY_INCOMPLETE',
+        missingNodeIds,
+        missingEdgeIds,
+        message:
+          'Your verifiedNodeIds / verifiedEdgeIds did not include every node/edge currently on the canvas. Walk the listed missing items, confirm each was intended, and call verify_workflow again with the COMPLETE arrays — or call finish if you decide they should be left as-is (the verify gate will only block once per turn).',
+      };
+    }
+    return {
+      ok: true,
+      verifiedNodeCount: snapshot.nodes.length,
+      verifiedEdgeCount: snapshot.edges.length,
+    };
   }
 
   private buildPlanFromArgs(

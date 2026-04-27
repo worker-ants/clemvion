@@ -59,6 +59,9 @@ describe('assistant tool definitions ↔ TOOL_KIND_BY_NAME sync', () => {
         'list_knowledge_bases',
         'get_workflow_executions',
         'get_execution_details',
+        // verify_workflow 는 read-only 도구이지만 ok:true 결과가 review/verify
+        // 게이트를 충족시키는 부수효과를 갖는다 (Phase 3). 분류 자체는 explore.
+        'verify_workflow',
       ].sort(),
     );
   });
