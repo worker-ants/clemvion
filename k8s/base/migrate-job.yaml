@@ -1,0 +1,53 @@
+# Flyway 기반 DB 스키마 마이그레이션 Job.
+#
+# 운영 패턴:
+# - ArgoCD 사용 시: PreSync hook + sync-wave로 backend Deployment 보다 먼저 실행.
+# - 수동 적용 시: kubectl apply 전에 기존 Job 삭제 (`kubectl delete job db-migrate -n idea-workflow`).
+#   Job spec은 immutable 이라 동일 이름 재적용이 거부됨. ttlSecondsAfterFinished=300 으로 자동 정리.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: db-migrate
+  labels:
+    app.kubernetes.io/name: idea-workflow
+    app.kubernetes.io/component: migrate
+  annotations:
+    argocd.argoproj.io/hook: PreSync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
+    argocd.argoproj.io/sync-wave: "-5"
+spec:
+  backoffLimit: 3
+  ttlSecondsAfterFinished: 300
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: idea-workflow
+        app.kubernetes.io/component: migrate
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: flyway
+          image: idea-workflow/migrate:latest
+          imagePullPolicy: IfNotPresent
+          envFrom:
+            - configMapRef:
+                name: backend-config
+            - secretRef:
+                name: backend-secret
+          command: ["sh", "-c"]
+          args:
+            - >
+              flyway
+              -url=jdbc:postgresql://${DB_HOST}:${DB_PORT}/${DB_DATABASE}
+              -user=${DB_USERNAME}
+              -password=${DB_PASSWORD}
+              -baselineOnMigrate=true
+              -connectRetries=20
+              migrate
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
