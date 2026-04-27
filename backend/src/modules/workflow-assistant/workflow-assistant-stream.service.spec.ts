@@ -4,6 +4,8 @@ import {
 } from './workflow-assistant-stream.service';
 import type { ChatStreamEvent } from '../llm/interfaces/llm-client.interface';
 import { z } from 'zod';
+import { carouselNodeMetadata } from '../../nodes/presentation/carousel/carousel.schema';
+import { evaluateMetadataBlockingErrors } from '../../nodes/core/metadata-validation';
 
 /**
  * These tests drive the conversation loop end-to-end with mocked
@@ -4603,6 +4605,218 @@ describe('WorkflowAssistantStreamService', () => {
       ).toEqual(['btn_b']);
 
       // 최종적으로 정상 종료.
+      const done = events[events.length - 1];
+      expect(done).toMatchObject({
+        event: 'done',
+        data: { finishReason: 'stop' },
+      });
+    });
+  });
+
+  // SSOT 통합 회귀 (frontend ⚠️ ↔ backend configWarnings)
+  // 사용자 보고 케이스: 캔버스에 ⚠️ 가 표시되는 노드 (예: dynamic carousel 인데
+  // titleField 가 비어있음) 를 어시스턴트가 만들고 finish 호출 시, schema 의
+  // metadata.warningRules SSOT 가 backend handler.validate → result.configWarnings
+  // → review NODE_CONFIG_WARNINGS 까지 자동으로 흘러야 한다. 이전 회귀에선
+  // frontend 만 ⚠️ 띄우고 backend 가 검증 못 해 review 통과해 사용자 결함 노출.
+  describe('WORKFLOW_REVIEW_REQUIRED — NODE_CONFIG_WARNINGS via warningRules SSOT', () => {
+    it('blocks finish when add_node creates a carousel in dynamic mode without titleField (warningRules SSOT bridges canvas ⚠️ → review)', async () => {
+      // 실제 nodeRegistry 가 mock 이라 carousel handler 가 없음. 대신 dto 에
+      // pre-existing trigger + carousel 노드를 박고, 단일 update_node 가 dynamic
+      // mode 로 patch 하면서 titleField 를 비워두는 시나리오로 단순화.
+      // schema 의 carousel:dynamic-mode-needs-title-field 가 fire 되어
+      // configWarnings 에 한국어 메시지가 실리고, review 가 NODE_CONFIG_WARNINGS
+      // 로 finish 차단.
+      // 단 mock nodeRegistry 의 handler 가 evaluateMetadataBlockingErrors 를 안
+      // 부르므로, 직접 carousel handler 를 sub 해 schema 의 warningRules 를
+      // 평가하도록 한다 — 이 통합 spec 의 핵심은 "configWarnings 가 review 로
+      // 흘러간다" 이므로 handler 자체가 schema 의 warningRules 를 evaluator 로
+      // 평가하는 동작은 별도 schema spec / metadata-validation spec 에서 이미
+      // 보호. 이 케이스는 그 흐름을 통합으로 한 번 더 잠그는 smoke.
+      const { service, mocks } = makeService();
+      // mock handlerRegistry 가 carousel 의 validate 를 evaluateMetadataBlockingErrors
+      // 로 평가하도록 wire — schema 측 warningRules 가 실제로 호출되는지 확인.
+      mocks.handlerRegistry.has.mockImplementation(
+        (type: string) => type === 'carousel',
+      );
+      mocks.handlerRegistry.get.mockImplementation((type: string) => {
+        if (type !== 'carousel') return undefined;
+        return {
+          validate(config: unknown) {
+            const errors = evaluateMetadataBlockingErrors(
+              carouselNodeMetadata,
+              config,
+            );
+            return { isValid: errors.length === 0, errors };
+          },
+        };
+      });
+      // mock nodeRegistry 에 carousel definition 도 등록 → add_node 가 type 인지.
+      mocks.nodeRegistry.listDefinitions.mockReturnValue([
+        {
+          metadata: {
+            type: 'http_request',
+            category: 'integration',
+            description: 'HTTP request',
+          },
+          ports: { inputs: ['in'], outputs: ['out', 'error'] },
+        },
+        {
+          metadata: {
+            type: 'manual_trigger',
+            category: 'trigger',
+            description: 'Manual trigger',
+          },
+          ports: { inputs: [], outputs: ['out'] },
+        },
+        {
+          metadata: {
+            type: 'carousel',
+            category: 'presentation',
+            description: 'Carousel',
+            isDynamicPorts: true,
+          },
+          ports: { inputs: ['in'], outputs: ['continue', 'error'] },
+        },
+      ]);
+
+      const dto = {
+        content: 'Hello',
+        currentWorkflow: {
+          nodes: [
+            {
+              id: 'trig-1',
+              type: 'manual_trigger',
+              category: 'trigger',
+              label: 'Start',
+              positionX: 250,
+              positionY: 300,
+              config: {},
+            },
+            {
+              id: 'http-1',
+              type: 'http_request',
+              category: 'integration',
+              label: 'CallApi',
+              positionX: 400,
+              positionY: 300,
+              config: {},
+            },
+          ],
+          edges: [
+            {
+              id: 'e1',
+              sourceNodeId: 'trig-1',
+              sourcePort: 'out',
+              targetNodeId: 'http-1',
+              targetPort: 'in',
+              type: 'data',
+            },
+          ],
+        },
+      };
+      // Round 1: dynamic carousel 추가하되 titleField 누락 → schema warningRule
+      // 가 fire 해 configWarnings 에 메시지가 실림 → review NODE_CONFIG_WARNINGS.
+      mocks.llmService.chatStream.mockImplementationOnce(() =>
+        asyncIter<ChatStreamEvent>([
+          {
+            type: 'tool_call_end',
+            id: 'add_carousel',
+            name: 'add_node',
+            arguments: JSON.stringify({
+              type: 'carousel',
+              label: 'PickItem',
+              position: { x: 700, y: 300 },
+              config: { mode: 'dynamic', source: '{{ $input.items }}' }, // titleField 없음
+            }),
+          },
+          {
+            type: 'tool_call_end',
+            id: 'fin_1',
+            name: 'finish',
+            arguments: '{}',
+          },
+          {
+            type: 'done',
+            usage: { inputTokens: 30, outputTokens: 5, totalTokens: 35 },
+            model: 'gpt-4o',
+            finishReason: 'tool_calls',
+          },
+        ]),
+      );
+      // Round 2: LLM 이 fix 안 하고 다시 finish — Phase 6 stuck 제거로 review 다시
+      // fire (round 3 필요).
+      mocks.llmService.chatStream.mockImplementationOnce(() =>
+        asyncIter<ChatStreamEvent>([
+          { type: 'text_delta', delta: '검토 완료.' },
+          {
+            type: 'tool_call_end',
+            id: 'fin_2',
+            name: 'finish',
+            arguments: '{}',
+          },
+          {
+            type: 'done',
+            usage: { inputTokens: 10, outputTokens: 3, totalTokens: 13 },
+            model: 'gpt-4o',
+            finishReason: 'tool_calls',
+          },
+        ]),
+      );
+      // Round 3: 상한 도달로 통과.
+      mocks.llmService.chatStream.mockImplementationOnce(() =>
+        asyncIter<ChatStreamEvent>([
+          { type: 'text_delta', delta: '검토 한계.' },
+          {
+            type: 'tool_call_end',
+            id: 'fin_3',
+            name: 'finish',
+            arguments: '{}',
+          },
+          {
+            type: 'done',
+            usage: { inputTokens: 8, outputTokens: 3, totalTokens: 11 },
+            model: 'gpt-4o',
+            finishReason: 'stop',
+          },
+        ]),
+      );
+
+      const events = await collect(
+        service.streamMessage('sess-1', 'ws-1', 'u-1', dto as never),
+      );
+      expect(mocks.llmService.chatStream).toHaveBeenCalledTimes(3);
+
+      // Round 2 messages: fin_1 결과가 review_required + checklist 에
+      // NODE_CONFIG_WARNINGS + carousel:dynamic-mode-needs-title-field 한국어 메시지.
+      const round2Msgs = mocks.llmService.chatStream.mock.calls[1][1]
+        .messages as Array<{
+        role: string;
+        content?: string;
+        toolCallId?: string;
+      }>;
+      const fin1 = round2Msgs.find(
+        (m) => m.role === 'tool' && m.toolCallId === 'fin_1',
+      );
+      expect(fin1).toBeDefined();
+      const parsed = JSON.parse(fin1!.content ?? 'null');
+      expect(parsed.error).toBe('WORKFLOW_REVIEW_REQUIRED');
+      const configWarningsItem = (
+        parsed.checklist as Array<{
+          code: string;
+          details?: string;
+          data?: Array<{ warnings: string[] }>;
+        }>
+      ).find((c) => c.code === 'NODE_CONFIG_WARNINGS');
+      expect(configWarningsItem).toBeDefined();
+      // schema 의 한국어 메시지가 그대로 전달됐는지 — frontend ⚠️ tooltip 과
+      // backend review 가 같은 문자열을 보는 SSOT 정합 검증.
+      const warningMessages = (configWarningsItem?.data ?? []).flatMap(
+        (d) => d.warnings,
+      );
+      expect(warningMessages.some((w) => w.includes('Title'))).toBe(true);
+
+      // 최종 정상 종료.
       const done = events[events.length - 1];
       expect(done).toMatchObject({
         event: 'done',
