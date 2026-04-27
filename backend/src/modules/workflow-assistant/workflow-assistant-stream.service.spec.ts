@@ -3730,6 +3730,243 @@ describe('WorkflowAssistantStreamService', () => {
       );
       expect(mocks.llmService.chatStream).toHaveBeenCalledTimes(1);
     });
+
+    it('Phase 3: verify_workflow returns VERIFY_INCOMPLETE when verifiedNodeIds miss any node currently on the canvas', async () => {
+      // dto 에 trigger + 2 노드 박고 verify_workflow 를 일부 id 만 포함해 호출.
+      // 서버는 missingNodeIds 를 정확히 돌려줘야 LLM 이 무엇을 안 봤는지 안다.
+      const { service, mocks } = makeService();
+      const dto = {
+        content: 'Hello',
+        currentWorkflow: {
+          nodes: [
+            {
+              id: 'trig-1',
+              type: 'manual_trigger',
+              category: 'trigger',
+              label: 'Start',
+              positionX: 250,
+              positionY: 300,
+              config: {},
+            },
+            {
+              id: 'node-x',
+              type: 'http_request',
+              category: 'integration',
+              label: 'X',
+              positionX: 400,
+              positionY: 200,
+              config: {},
+            },
+            {
+              id: 'node-y',
+              type: 'http_request',
+              category: 'integration',
+              label: 'Y',
+              positionX: 700,
+              positionY: 200,
+              config: {},
+            },
+          ],
+          edges: [
+            {
+              id: 'e1',
+              sourceNodeId: 'trig-1',
+              sourcePort: 'out',
+              targetNodeId: 'node-x',
+              targetPort: 'in',
+              type: 'data',
+            },
+          ],
+        },
+      };
+      mocks.llmService.chatStream.mockImplementation(() =>
+        asyncIter<ChatStreamEvent>([
+          {
+            type: 'tool_call_end',
+            id: 'v1',
+            name: 'verify_workflow',
+            arguments: JSON.stringify({
+              // node-y 와 e1 누락
+              verifiedNodeIds: ['trig-1', 'node-x'],
+              verifiedEdgeIds: [],
+              requestCoverage: 'half checked',
+            }),
+          },
+          {
+            type: 'tool_call_end',
+            id: 'fin',
+            name: 'finish',
+            arguments: '{}',
+          },
+          {
+            type: 'done',
+            usage: { inputTokens: 10, outputTokens: 3, totalTokens: 13 },
+            model: 'gpt-4o',
+            finishReason: 'stop',
+          },
+        ]),
+      );
+
+      const events = await collect(
+        service.streamMessage('sess-1', 'ws-1', 'u-1', dto as never),
+      );
+      const verifyEvent = events.find(
+        (e) =>
+          e.event === 'tool_call' &&
+          (e.data as { name: string }).name === 'verify_workflow',
+      );
+      expect(verifyEvent).toBeDefined();
+      const verifyResult = (
+        verifyEvent!.data as {
+          result: {
+            ok: boolean;
+            error?: string;
+            missingNodeIds?: string[];
+            missingEdgeIds?: string[];
+          };
+        }
+      ).result;
+      expect(verifyResult.ok).toBe(false);
+      expect(verifyResult.error).toBe('VERIFY_INCOMPLETE');
+      expect(verifyResult.missingNodeIds).toEqual(['node-y']);
+      expect(verifyResult.missingEdgeIds).toEqual(['e1']);
+    });
+
+    it('Phase 3: verify_workflow returns ok and lets the next finish pass through when every node and edge is covered', async () => {
+      // 같은 dto, 이번엔 모든 id 포함 → ok:true → state.reviewCompleted = true →
+      // 두 번째 finish (verify gate 가 노드 ≥ 3 일 때 재발동 가능) 도 통과.
+      const { service, mocks } = makeService();
+      const dto = {
+        content: 'Hello',
+        currentWorkflow: {
+          nodes: [
+            {
+              id: 'trig-1',
+              type: 'manual_trigger',
+              category: 'trigger',
+              label: 'Start',
+              positionX: 250,
+              positionY: 300,
+              config: {},
+            },
+            {
+              id: 'node-a',
+              type: 'http_request',
+              category: 'integration',
+              label: 'A',
+              positionX: 400,
+              positionY: 200,
+              config: {},
+            },
+            {
+              id: 'node-b',
+              type: 'http_request',
+              category: 'integration',
+              label: 'B',
+              positionX: 700,
+              positionY: 200,
+              config: {},
+            },
+            {
+              id: 'node-c',
+              type: 'http_request',
+              category: 'integration',
+              label: 'C',
+              positionX: 1000,
+              positionY: 200,
+              config: {},
+            },
+          ],
+          edges: [
+            {
+              id: 'eA',
+              sourceNodeId: 'trig-1',
+              sourcePort: 'out',
+              targetNodeId: 'node-a',
+              targetPort: 'in',
+              type: 'data',
+            },
+            {
+              id: 'eB',
+              sourceNodeId: 'node-a',
+              sourcePort: 'out',
+              targetNodeId: 'node-b',
+              targetPort: 'in',
+              type: 'data',
+            },
+            {
+              id: 'eC',
+              sourceNodeId: 'node-b',
+              sourcePort: 'out',
+              targetNodeId: 'node-c',
+              targetPort: 'in',
+              type: 'data',
+            },
+          ],
+        },
+      };
+      mocks.llmService.chatStream.mockImplementation(() =>
+        asyncIter<ChatStreamEvent>([
+          {
+            type: 'tool_call_end',
+            id: 'u1',
+            name: 'update_node',
+            arguments: JSON.stringify({
+              id: 'node-a',
+              patch: { label: 'A-renamed' },
+            }),
+          },
+          {
+            type: 'tool_call_end',
+            id: 'v1',
+            name: 'verify_workflow',
+            arguments: JSON.stringify({
+              verifiedNodeIds: ['trig-1', 'node-a', 'node-b', 'node-c'],
+              verifiedEdgeIds: ['eA', 'eB', 'eC'],
+              requestCoverage: 'all four nodes and three edges accounted for',
+            }),
+          },
+          {
+            type: 'tool_call_end',
+            id: 'fin',
+            name: 'finish',
+            arguments: '{}',
+          },
+          {
+            type: 'done',
+            usage: { inputTokens: 30, outputTokens: 5, totalTokens: 35 },
+            model: 'gpt-4o',
+            finishReason: 'stop',
+          },
+        ]),
+      );
+
+      const events = await collect(
+        service.streamMessage('sess-1', 'ws-1', 'u-1', dto as never),
+      );
+      // 단일 round — verify_workflow 의 ok:true 가 reviewCompleted 를 set 해
+      // 같은 round 내 finish 가 verify 게이트에 다시 막히지 않는다.
+      expect(mocks.llmService.chatStream).toHaveBeenCalledTimes(1);
+      const done = events[events.length - 1];
+      expect(done).toMatchObject({
+        event: 'done',
+        data: { finishReason: 'stop' },
+      });
+      // verify_workflow 호출이 SSE tool_call 이벤트로 발행되었고 result 가 ok:true.
+      const verifyEvent = events.find(
+        (e) =>
+          e.event === 'tool_call' &&
+          (e.data as { name: string }).name === 'verify_workflow',
+      );
+      expect(verifyEvent).toBeDefined();
+      const verifyResult = (
+        verifyEvent!.data as {
+          result: { ok: boolean; verifiedNodeCount: number };
+        }
+      ).result;
+      expect(verifyResult.ok).toBe(true);
+      expect(verifyResult.verifiedNodeCount).toBe(4);
+    });
   });
 
   // 사용자 보고 케이스: `schema: carousel × 5` 처럼 같은 타입의 스키마를 한

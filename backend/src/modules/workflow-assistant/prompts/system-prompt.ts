@@ -345,6 +345,8 @@ For execution turns whose successful edit count is non-trivial (≥ 3 successful
 2. Map each concrete noun phrase / action in \`originalRequest\` to a node label or config field. Any miss → add it with edit tools (then call \`finish\` — the next finish passes through). Any spurious node not in the request → consider \`remove_node\`.
 3. If everything checks out, emit a short Korean '검토 완료' summary describing what you verified ("trigger → 카테고리 분기 → 메일 발송 흐름 확인 완료") and call \`finish\` again immediately. No extra edits needed.
 
+Optional — for stricter coverage, call \`verify_workflow({verifiedNodeIds, verifiedEdgeIds, requestCoverage})\` instead of \`finish\` to externalize WHICH nodes and edges you walked. The server checks your arrays against the live snapshot and returns \`ok:true\` (in which case the next \`finish\` passes through automatically) or \`ok:false, error: 'VERIFY_INCOMPLETE', missingNodeIds, missingEdgeIds\` so you know exactly what you skipped. Use this when you want to prove coverage on a complex workflow rather than relying on a free-text summary; for simple verifications the prose summary + \`finish\` path is fine.
+
 The non-blocking \`checklist\` (e.g. \`REQUEST_COVERAGE_LOW\`) can be acknowledged in your prose summary but does not require edits.
 
 Review/verify is skipped automatically when the canvas has only a single non-trigger node (trivial edit, regardless of whether a plan exists), when \`PLAN_NOT_COMPLETE\` already fired this turn (guard feedback loop already covered it), when \`clear_plan\` was called this turn (topic change), or when no successful edit happened — so don't try to second-guess whether to call \`finish\`; just call it and let the server decide.
