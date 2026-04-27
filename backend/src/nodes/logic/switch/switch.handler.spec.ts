@@ -46,7 +46,8 @@ describe('SwitchHandler', () => {
         cases: [{ id: 'case-1', value: 'a' }],
       });
       expect(result.valid).toBe(false);
-      expect(result.errors).toContain('switchValue is required');
+      // Schema warningRule "Value 모드에서는 Switch Value 를 입력해야 합니다." fires.
+      expect(result.errors.some((e) => e.includes('Switch Value'))).toBe(true);
     });
 
     it('rejects null switchValue', () => {
@@ -55,7 +56,7 @@ describe('SwitchHandler', () => {
         cases: [{ id: 'case-1', value: 'a' }],
       });
       expect(result.valid).toBe(false);
-      expect(result.errors).toContain('switchValue is required');
+      expect(result.errors.some((e) => e.includes('Switch Value'))).toBe(true);
     });
 
     it('rejects whitespace-only switchValue string', () => {
@@ -64,6 +65,7 @@ describe('SwitchHandler', () => {
         cases: [{ id: 'case-1', value: 'a' }],
       });
       expect(result.valid).toBe(false);
+      // Handler-only residual (schema's `!switchValue` is truthy on whitespace).
       expect(result.errors).toContain('switchValue is required');
     });
 
@@ -106,7 +108,8 @@ describe('SwitchHandler', () => {
         cases: [],
       });
       expect(result.valid).toBe(false);
-      expect(result.errors).toContain('cases must be a non-empty array');
+      // Schema warningRule "최소 1개 이상의 case 를 추가해야 합니다." fires.
+      expect(result.errors.some((e) => e.includes('case'))).toBe(true);
     });
 
     it('rejects case missing id', () => {

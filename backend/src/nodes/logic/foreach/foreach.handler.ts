@@ -3,7 +3,9 @@ import {
   ValidationResult,
   ExecutionContext,
 } from '../../core/node-handler.interface.js';
+import { evaluateMetadataBlockingErrors } from '../../core/metadata-validation.js';
 import { resolveFieldValue } from '../../core/nested-value.util.js';
+import { foreachNodeMetadata } from './foreach.schema.js';
 
 interface ForEachConfig {
   // Either a dot-path string applied to `$input` (e.g. `"items"`) OR the
@@ -15,21 +17,19 @@ interface ForEachConfig {
 }
 
 export class ForEachHandler implements NodeHandler {
+  metadata = foreachNodeMetadata;
+
   validate(config: Record<string, unknown>): ValidationResult {
-    const errors: string[] = [];
-    const { arrayField, errorPolicy } = config as unknown as ForEachConfig;
-
-    if (arrayField === undefined || arrayField === null || arrayField === '') {
-      errors.push('arrayField is required');
-    }
-
+    // Schema SSOT (warningRules) covers arrayField. Handler keeps the
+    // errorPolicy enum guard for non-zod-parsed callers.
+    const errors = [...evaluateMetadataBlockingErrors(this.metadata, config)];
+    const { errorPolicy } = config as unknown as ForEachConfig;
     if (
       errorPolicy !== undefined &&
       !['stop', 'skip', 'continue'].includes(errorPolicy)
     ) {
       errors.push('errorPolicy must be one of: stop, skip, continue');
     }
-
     return { valid: errors.length === 0, errors };
   }
 

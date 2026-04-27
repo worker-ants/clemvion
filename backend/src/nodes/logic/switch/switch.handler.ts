@@ -3,12 +3,12 @@ import {
   ValidationResult,
   ExecutionContext,
 } from '../../core/node-handler.interface.js';
+import { evaluateMetadataBlockingErrors } from '../../core/metadata-validation.js';
 import {
   Condition,
   evaluateCondition,
 } from '../../core/condition-evaluator.util.js';
-
-const VALID_VALUE_TYPES = new Set(['string', 'number', 'boolean']);
+import { switchNodeMetadata } from './switch.schema.js';
 type CaseValueType = 'string' | 'number' | 'boolean';
 type SwitchMode = 'value' | 'expression';
 
@@ -29,55 +29,33 @@ interface SwitchConfig {
 }
 
 export class SwitchHandler implements NodeHandler {
+  metadata = switchNodeMetadata;
+
   validate(config: Record<string, unknown>): ValidationResult {
-    const errors: string[] = [];
+    // Schema SSOT (warningRules + validateConfig) covers value-mode
+    // switchValue (only the falsy case), cases empty, per-case id uniqueness +
+    // valueType whitelist + condition-required-in-expression-mode. Handler
+    // keeps mode/hasDefault/strictComparison enum-and-type guards plus the
+    // whitespace-only switchValue + non-array cases checks the warningRule
+    // mini-DSL can't express.
+    const errors = [...evaluateMetadataBlockingErrors(this.metadata, config)];
     const { mode, switchValue, cases, hasDefault, strictComparison } =
       config as unknown as SwitchConfig;
-
     const resolvedMode: SwitchMode = mode ?? 'value';
     if (mode !== undefined && mode !== 'value' && mode !== 'expression') {
       errors.push('mode must be "value" or "expression"');
     }
-
-    if (resolvedMode === 'value') {
-      if (
-        switchValue === undefined ||
-        switchValue === null ||
-        (typeof switchValue === 'string' && switchValue.trim() === '')
-      ) {
-        errors.push('switchValue is required');
-      }
+    if (
+      resolvedMode === 'value' &&
+      typeof switchValue === 'string' &&
+      switchValue.trim() === '' &&
+      switchValue !== ''
+    ) {
+      errors.push('switchValue is required');
     }
-
-    if (!cases || !Array.isArray(cases) || cases.length === 0) {
+    if (cases !== undefined && !Array.isArray(cases)) {
       errors.push('cases must be a non-empty array');
-    } else {
-      const seenIds = new Set<string>();
-      for (let i = 0; i < cases.length; i++) {
-        const c = cases[i];
-        if (!c.id || typeof c.id !== 'string') {
-          errors.push(`cases[${i}].id is required and must be a string`);
-        } else if (seenIds.has(c.id)) {
-          errors.push(`cases[${i}].id '${c.id}' is duplicated`);
-        } else {
-          seenIds.add(c.id);
-        }
-        if (c.valueType !== undefined && !VALID_VALUE_TYPES.has(c.valueType)) {
-          errors.push(
-            `cases[${i}].valueType must be one of: string, number, boolean`,
-          );
-        }
-        if (
-          resolvedMode === 'expression' &&
-          (c.condition === undefined || c.condition === null)
-        ) {
-          errors.push(
-            `cases[${i}].condition is required when mode is "expression"`,
-          );
-        }
-      }
     }
-
     if (hasDefault !== undefined && typeof hasDefault !== 'boolean') {
       errors.push('hasDefault must be a boolean');
     }
@@ -87,7 +65,6 @@ export class SwitchHandler implements NodeHandler {
     ) {
       errors.push('strictComparison must be a boolean');
     }
-
     return { valid: errors.length === 0, errors };
   }
 

@@ -4,6 +4,8 @@ import {
   ValidationResult,
   ExecutionContext,
 } from '../../core/node-handler.interface.js';
+import { evaluateMetadataBlockingErrors } from '../../core/metadata-validation.js';
+import { mergeNodeMetadata } from './merge.schema.js';
 
 type MergeStrategy = 'wait_all' | 'first' | 'append';
 type MergeOutputFormat = 'array' | 'merge_object' | 'indexed';
@@ -31,19 +33,20 @@ const DEFAULT_OUTPUT_FORMAT: MergeOutputFormat = 'array';
 export class MergeHandler implements NodeHandler {
   private readonly logger = new Logger(MergeHandler.name);
 
+  metadata = mergeNodeMetadata;
+
   validate(config: Record<string, unknown>): ValidationResult {
-    const errors: string[] = [];
+    // Schema SSOT (warningRules) catches the explicit "no strategy" case.
+    // The remaining type/enum guards stay handler-side because zod normally
+    // narrows them at parse time but raw fixtures and direct callers still
+    // exercise this path.
+    const errors = [...evaluateMetadataBlockingErrors(this.metadata, config)];
     const { strategy, outputFormat, timeout, partialOnTimeout } =
       config as unknown as MergeConfig;
 
-    // `strategy` and `outputFormat` have documented defaults (spec §11:
-    // `wait_all` / `array`) and Zod defaults in `merge.schema.ts`. Missing
-    // values fall back to defaults at execute time — only reject EXPLICIT
-    // invalid enum values here.
     if (strategy !== undefined && !VALID_STRATEGIES.includes(strategy)) {
       errors.push(`strategy must be one of: ${VALID_STRATEGIES.join(', ')}`);
     }
-
     if (
       outputFormat !== undefined &&
       !VALID_OUTPUT_FORMATS.includes(outputFormat)
@@ -52,11 +55,9 @@ export class MergeHandler implements NodeHandler {
         `outputFormat must be one of: ${VALID_OUTPUT_FORMATS.join(', ')}`,
       );
     }
-
     if (timeout !== undefined && (typeof timeout !== 'number' || timeout < 0)) {
       errors.push('timeout must be a non-negative number (0 = no timeout)');
     }
-
     if (
       partialOnTimeout !== undefined &&
       typeof partialOnTimeout !== 'boolean'

@@ -3,7 +3,9 @@ import {
   NodeHandler,
   ValidationResult,
 } from '../../core/node-handler.interface.js';
-import { ButtonDef, validateButtons } from '../_shared/button.types.js';
+import { evaluateMetadataBlockingErrors } from '../../core/metadata-validation.js';
+import { ButtonDef } from '../_shared/button.types.js';
+import { carouselNodeMetadata } from './carousel.schema.js';
 
 function toStr(value: unknown): string {
   if (value == null) return '';
@@ -19,101 +21,41 @@ function sanitizeUrl(url: string): string {
   return url;
 }
 
-function validateItemButtons(buttons: unknown[], prefix: string): string[] {
-  const errors: string[] = [];
-  if (buttons.length > 4) {
-    errors.push(`${prefix}: maximum 4 buttons per item`);
-  }
-  const ids = new Set<string>();
-  for (let j = 0; j < buttons.length; j++) {
-    const btn = buttons[j] as Record<string, unknown>;
-    if (!btn.id || typeof btn.id !== 'string') {
-      errors.push(`${prefix}.buttons[${j}].id is required`);
-    } else if (btn.id.includes('__item_')) {
-      errors.push(
-        `${prefix}.buttons[${j}].id must not contain reserved separator "__item_"`,
-      );
-    } else if (ids.has(btn.id)) {
-      errors.push(
-        `${prefix}.buttons[${j}].id must be unique (duplicate: ${btn.id})`,
-      );
-    } else {
-      ids.add(btn.id);
-    }
-    if (!btn.label || typeof btn.label !== 'string') {
-      errors.push(`${prefix}.buttons[${j}].label is required`);
-    }
-    if (!btn.type || !['link', 'port'].includes(btn.type as string)) {
-      errors.push(`${prefix}.buttons[${j}].type must be "link" or "port"`);
-    }
-    if (btn.type === 'link' && (!btn.url || typeof btn.url !== 'string')) {
-      errors.push(
-        `${prefix}.buttons[${j}].url is required for link type buttons`,
-      );
-    } else if (btn.type === 'link' && btn.url && typeof btn.url === 'string') {
-      const trimmedUrl = btn.url.trim().toLowerCase();
-      if (/^(javascript|data|vbscript):/i.test(trimmedUrl)) {
-        errors.push(
-          `${prefix}.buttons[${j}].url contains a disallowed URL scheme`,
-        );
-      }
-    }
-    if (btn.type === 'port' && btn.url) {
-      errors.push(
-        `${prefix}.buttons[${j}].url is not allowed for port type buttons`,
-      );
-    }
-  }
-  return errors;
-}
-
 export class CarouselHandler implements NodeHandler {
+  metadata = carouselNodeMetadata;
+
   validate(config: Record<string, unknown>): ValidationResult {
-    const errors: string[] = [];
-    const mode = (config.mode as string) ?? 'dynamic';
+    // Schema SSOT (warningRules + validateConfig) covers mode dispatch,
+    // titleField / items / itemButtons / per-item title + buttons + global
+    // buttons. We normalize `mode` to its zod default ('dynamic') before
+    // dispatching to the SSOT so a missing `mode` still fires the
+    // dynamic-mode warningRules (the rule's `mode == dynamic` predicate
+    // can't see the zod default, which is applied at parse time).
+    const normalized =
+      (config?.mode as string | undefined) === undefined
+        ? { ...config, mode: 'dynamic' }
+        : config;
+    const errors = [
+      ...evaluateMetadataBlockingErrors(this.metadata, normalized),
+    ];
 
-    if (mode === 'static') {
-      if (
-        !config.items ||
-        !Array.isArray(config.items) ||
-        config.items.length === 0
-      ) {
-        errors.push(
-          'items is required and must be a non-empty array in static mode',
-        );
-      } else {
-        for (let i = 0; i < (config.items as unknown[]).length; i++) {
-          const item = (config.items as Record<string, unknown>[])[i];
-          if (!item.title || typeof item.title !== 'string') {
-            errors.push(`items[${i}].title is required and must be a string`);
-          }
-          // Validate item-level buttons
-          if (item.buttons && Array.isArray(item.buttons)) {
-            errors.push(
-              ...validateItemButtons(item.buttons as unknown[], `items[${i}]`),
-            );
-          }
-        }
-      }
-    } else if (mode === 'dynamic') {
-      if (!config.titleField || typeof config.titleField !== 'string') {
-        errors.push('titleField is required and must be a string');
-      }
-      // Validate shared item buttons for dynamic mode
-      if (config.itemButtons && Array.isArray(config.itemButtons)) {
-        errors.push(
-          ...validateItemButtons(
-            config.itemButtons as unknown[],
-            'itemButtons',
-          ),
-        );
-      }
-    } else {
-      errors.push('mode must be either "static" or "dynamic"');
+    const mode = (normalized.mode as string) ?? 'dynamic';
+    if (
+      mode === 'dynamic' &&
+      config.titleField !== undefined &&
+      typeof config.titleField !== 'string'
+    ) {
+      errors.push('titleField is required and must be a string');
     }
-
-    // Validate global buttons
-    errors.push(...validateButtons(config));
+    // schema's `length(items)` happily returns the string length of a non-
+    // array `items`, so the warningRule misses `items: 'not-array'`. Catch it.
+    if (
+      mode === 'static' &&
+      config.items !== undefined &&
+      !Array.isArray(config.items)
+    ) {
+      errors.push('items must be an array in static mode');
+    }
 
     return { valid: errors.length === 0, errors };
   }

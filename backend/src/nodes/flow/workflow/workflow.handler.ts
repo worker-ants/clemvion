@@ -3,7 +3,9 @@ import {
   ValidationResult,
   ExecutionContext,
 } from '../../core/node-handler.interface.js';
+import { evaluateMetadataBlockingErrors } from '../../core/metadata-validation.js';
 import { WorkflowExecutor } from '../../core/workflow-executor.interface.js';
+import { workflowNodeMetadata } from './workflow.schema.js';
 
 interface MappingDef {
   paramName: string;
@@ -21,40 +23,22 @@ interface WorkflowConfig {
 const MAX_RECURSION_DEPTH = 10;
 
 export class WorkflowHandler implements NodeHandler {
+  metadata = workflowNodeMetadata;
+
   constructor(private readonly executionEngine: WorkflowExecutor) {}
 
   validate(config: Record<string, unknown>): ValidationResult {
-    const errors: string[] = [];
-    const { workflowId, mode, timeout, inputMapping } =
-      config as unknown as WorkflowConfig;
-
-    if (!workflowId || typeof workflowId !== 'string') {
+    // Schema SSOT (warningRules + validateConfig) covers workflowId-required +
+    // timeout numeric range + inputMapping per-item paramName. The mode enum
+    // guard remains handler-side as a defensive check for direct callers.
+    const errors = [...evaluateMetadataBlockingErrors(this.metadata, config)];
+    const { mode, workflowId } = config as unknown as WorkflowConfig;
+    if (workflowId !== undefined && typeof workflowId !== 'string') {
       errors.push('workflowId is required and must be a string');
     }
-
     if (mode && mode !== 'sync' && mode !== 'async') {
       errors.push('mode must be "sync" or "async"');
     }
-
-    if (timeout !== undefined && (typeof timeout !== 'number' || timeout < 0)) {
-      errors.push('timeout must be a non-negative number (0 = no timeout)');
-    }
-
-    if (inputMapping !== undefined) {
-      if (!Array.isArray(inputMapping)) {
-        errors.push('inputMapping must be an array');
-      } else {
-        for (let i = 0; i < inputMapping.length; i++) {
-          const mapping = inputMapping[i];
-          if (!mapping.paramName || typeof mapping.paramName !== 'string') {
-            errors.push(
-              `inputMapping[${i}].paramName is required and must be a string`,
-            );
-          }
-        }
-      }
-    }
-
     return { valid: errors.length === 0, errors };
   }
 

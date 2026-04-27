@@ -3,12 +3,14 @@ import {
   NodeHandler,
   ValidationResult,
 } from '../../core/node-handler.interface.js';
+import { evaluateMetadataBlockingErrors } from '../../core/metadata-validation.js';
 import {
   evaluate,
   ExpressionContext as EngineContext,
 } from '@workflow/expression-engine';
 import { getNestedValue } from '../../core/nested-value.util.js';
-import { ButtonDef, validateButtons } from '../_shared/button.types.js';
+import { ButtonDef } from '../_shared/button.types.js';
+import { tableNodeMetadata } from './table.schema.js';
 
 type TableMode = 'static' | 'dynamic';
 
@@ -21,44 +23,18 @@ interface ColumnConfig {
 }
 
 export class TableHandler implements NodeHandler {
+  metadata = tableNodeMetadata;
+
   validate(config: Record<string, unknown>): ValidationResult {
-    const errors: string[] = [];
-    const mode: TableMode = ((config.mode as string) ?? 'dynamic') as TableMode;
-
-    if (mode !== 'static' && mode !== 'dynamic') {
-      errors.push('mode must be either "static" or "dynamic"');
-    }
-
-    // `columns` defaults to `[]` in the schema — treat undefined as "use
-    // default" (empty table), only reject non-array types.
-    if (config.columns !== undefined && !Array.isArray(config.columns)) {
-      errors.push('columns must be an array');
-    }
-
-    if (mode === 'static') {
-      // `rows` also defaults to `[]`. Same rule applies in static mode.
-      if (config.rows !== undefined && !Array.isArray(config.rows)) {
-        errors.push('rows must be an array in static mode');
-      }
-    }
-
-    if (
-      config.sortBy &&
-      typeof config.sortBy === 'string' &&
-      Array.isArray(config.columns)
-    ) {
-      const columnFields = (config.columns as Array<{ field: string }>).map(
-        (c) => c.field,
-      );
-      if (!columnFields.includes(config.sortBy)) {
-        errors.push(
-          `sortBy "${config.sortBy}" must match one of the defined column fields`,
-        );
-      }
-    }
-
-    errors.push(...validateButtons(config));
-
+    // Schema SSOT (warningRules + validateConfig) covers no-columns + invalid
+    // mode + columns/rows/buttons type guards + sortBy↔columns cross-check.
+    // Mode normalization mirrors the zod default ('dynamic') so missing-mode
+    // configs still hit the static/dynamic-aware rules consistently.
+    const normalized =
+      (config?.mode as string | undefined) === undefined
+        ? { ...config, mode: 'dynamic' }
+        : config;
+    const errors = evaluateMetadataBlockingErrors(this.metadata, normalized);
     return { valid: errors.length === 0, errors };
   }
 

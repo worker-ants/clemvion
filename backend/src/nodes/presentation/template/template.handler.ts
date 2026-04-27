@@ -2,26 +2,30 @@ import {
   NodeHandler,
   ValidationResult,
 } from '../../core/node-handler.interface.js';
-import { ButtonDef, validateButtons } from '../_shared/button.types.js';
+import { evaluateMetadataBlockingErrors } from '../../core/metadata-validation.js';
+import { ButtonDef } from '../_shared/button.types.js';
+import { templateNodeMetadata } from './template.schema.js';
 
 export class TemplateHandler implements NodeHandler {
-  validate(config: Record<string, unknown>): ValidationResult {
-    const errors: string[] = [];
+  metadata = templateNodeMetadata;
 
-    // `template` defaults to `''` in the schema, so treat undefined as
-    // "use default". Only reject non-string types.
+  validate(config: Record<string, unknown>): ValidationResult {
+    // Schema SSOT (warningRules + validateConfig delegating to validateButtons)
+    // owns the empty-template + global buttons rules. The two remaining
+    // type guards below stay handler-side because zod typically narrows them
+    // before reaching us — they fire only for direct programmatic callers
+    // bypassing zod parsing (legacy fixtures, unit tests).
+    const errors = [...evaluateMetadataBlockingErrors(this.metadata, config)];
+
     if (config.template !== undefined && typeof config.template !== 'string') {
       errors.push('template must be a string');
     }
-
     if (
       config.outputFormat !== undefined &&
       !['html', 'markdown', 'text'].includes(config.outputFormat as string)
     ) {
       errors.push('outputFormat must be one of: html, markdown, text');
     }
-
-    errors.push(...validateButtons(config));
 
     return { valid: errors.length === 0, errors };
   }

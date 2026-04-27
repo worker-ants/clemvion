@@ -2,19 +2,21 @@ import {
   NodeHandler,
   ValidationResult,
 } from '../../core/node-handler.interface.js';
+import { evaluateMetadataBlockingErrors } from '../../core/metadata-validation.js';
+import { formNodeMetadata } from './form.schema.js';
 
 export class FormHandler implements NodeHandler {
+  metadata = formNodeMetadata;
+
   validate(config: Record<string, unknown>): ValidationResult {
-    const errors: string[] = [];
-
-    if (
-      !config.fields ||
-      !Array.isArray(config.fields) ||
-      config.fields.length === 0
-    ) {
-      errors.push('fields is required and must be a non-empty array');
+    // Schema SSOT (warningRules — no validateConfig) covers the empty-fields
+    // rule. The handler used to also flag a non-array `fields`, but the zod
+    // schema constrains it; the residual non-array type guard remains here
+    // for direct programmatic callers bypassing zod.
+    const errors = [...evaluateMetadataBlockingErrors(this.metadata, config)];
+    if (config.fields !== undefined && !Array.isArray(config.fields)) {
+      errors.push('fields must be an array');
     }
-
     return { valid: errors.length === 0, errors };
   }
 

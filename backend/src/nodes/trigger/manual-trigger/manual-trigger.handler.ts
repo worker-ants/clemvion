@@ -4,8 +4,10 @@ import type {
   ExecutionContext,
   NodeHandlerOutput,
 } from '../../core/node-handler.interface';
+import { evaluateMetadataBlockingErrors } from '../../core/metadata-validation';
 import type { TriggerParameterDefinition } from '../../../modules/execution-engine/types/trigger-parameter.types';
 import { validateTriggerParameterSchema } from '../../../modules/execution-engine/utils/resolve-trigger-parameters';
+import { manualTriggerMetadata } from './manual-trigger.schema';
 
 interface ManualTriggerConfig {
   parameters?: TriggerParameterDefinition[];
@@ -30,16 +32,23 @@ interface ManualTriggerInput {
  * (`$input.parameters.*`, `$params.*`) resolve predictably.
  */
 export class ManualTriggerHandler implements NodeHandler {
+  metadata = manualTriggerMetadata;
+
   validate(config: Record<string, unknown>): ValidationResult {
+    // Schema has no warningRules / validateConfig today (parameter slots are
+    // bounded by zod). The trigger-parameter schema check below stays
+    // handler-side because it depends on the runtime
+    // resolveTriggerParameters helper which we don't want to drag into the
+    // schema bundle (frontend would import it transitively).
+    const errors = [...evaluateMetadataBlockingErrors(this.metadata, config)];
     const cfg = config as ManualTriggerConfig;
-    if (cfg.parameters === undefined) {
-      return { valid: true, errors: [] };
+    if (cfg.parameters !== undefined) {
+      const schemaErrors = validateTriggerParameterSchema(cfg.parameters);
+      for (const e of schemaErrors) {
+        errors.push(`parameters.${e.field}: ${e.reason}`);
+      }
     }
-    const schemaErrors = validateTriggerParameterSchema(cfg.parameters);
-    return {
-      valid: schemaErrors.length === 0,
-      errors: schemaErrors.map((e) => `parameters.${e.field}: ${e.reason}`),
-    };
+    return { valid: errors.length === 0, errors };
   }
 
   execute(

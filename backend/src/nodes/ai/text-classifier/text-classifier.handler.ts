@@ -3,9 +3,11 @@ import {
   ExecutionContext,
   ValidationResult,
 } from '../../core/node-handler.interface';
+import { evaluateMetadataBlockingErrors } from '../../core/metadata-validation';
 import { LlmService } from '../../../modules/llm/llm.service';
 import { ChatResult } from '../../../modules/llm/interfaces/llm-client.interface';
 import { truncateForErrorDetails } from '../../core/error-codes';
+import { textClassifierNodeMetadata } from './text-classifier.schema';
 
 interface Category {
   name: string;
@@ -14,29 +16,17 @@ interface Category {
 }
 
 export class TextClassifierHandler implements NodeHandler {
+  metadata = textClassifierNodeMetadata;
+
   constructor(private readonly llmService: LlmService) {}
 
   static readonly NONE_SENTINEL = '__none__';
 
   validate(config: Record<string, unknown>): ValidationResult {
-    const errors: string[] = [];
-    const categories = config.categories as Category[] | undefined;
-    if (!categories?.length) {
-      errors.push('At least one category is required');
-    } else {
-      for (let i = 0; i < categories.length; i++) {
-        if (!categories[i].name) {
-          errors.push(`Category ${i + 1}: name is required`);
-        } else if (categories[i].name === TextClassifierHandler.NONE_SENTINEL) {
-          errors.push(
-            `Category ${i + 1}: "${TextClassifierHandler.NONE_SENTINEL}" is a reserved name`,
-          );
-        }
-      }
-    }
-    if (!config.inputField) {
-      errors.push('inputField is required');
-    }
+    // Schema SSOT (warningRules + validateConfig) covers no-llm-provider,
+    // no-categories, no-input-field, per-category name + reserved-name
+    // collision.
+    const errors = evaluateMetadataBlockingErrors(this.metadata, config);
     return { valid: errors.length === 0, errors };
   }
 

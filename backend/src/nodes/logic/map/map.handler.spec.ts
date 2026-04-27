@@ -33,7 +33,8 @@ describe('MapHandler', () => {
     it('should reject missing inputField', () => {
       const result = handler.validate({ errorPolicy: 'stop' });
       expect(result.valid).toBe(false);
-      expect(result.errors).toContain('inputField is required');
+      // Schema warningRule "Input 필드를 입력해야 합니다." fires.
+      expect(result.errors.some((e) => e.includes('Input'))).toBe(true);
     });
 
     it('should reject empty string inputField', () => {

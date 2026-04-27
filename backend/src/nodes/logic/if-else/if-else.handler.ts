@@ -3,11 +3,12 @@ import {
   ValidationResult,
   ExecutionContext,
 } from '../../core/node-handler.interface.js';
+import { evaluateMetadataBlockingErrors } from '../../core/metadata-validation.js';
 import {
-  CONDITION_OPERATORS,
   Condition,
   evaluateCondition,
 } from '../../core/condition-evaluator.util.js';
+import { ifElseMetadata } from './if-else.schema.js';
 
 interface IfElseConfig {
   conditions: Condition[];
@@ -16,43 +17,22 @@ interface IfElseConfig {
 }
 
 export class IfElseHandler implements NodeHandler {
+  metadata = ifElseMetadata;
+
   validate(config: Record<string, unknown>): ValidationResult {
-    const errors: string[] = [];
-    const { conditions, combineMode, strictComparison } =
-      config as unknown as IfElseConfig;
-
-    if (!conditions || !Array.isArray(conditions)) {
-      errors.push('conditions must be a non-empty array');
-    } else {
-      if (conditions.length === 0) {
-        errors.push('conditions must be a non-empty array');
-      }
-      for (let i = 0; i < conditions.length; i++) {
-        const cond = conditions[i];
-        if (!cond.field || typeof cond.field !== 'string') {
-          errors.push(
-            `conditions[${i}].field is required and must be a string`,
-          );
-        }
-        if (!cond.operator || !CONDITION_OPERATORS.includes(cond.operator)) {
-          errors.push(
-            `conditions[${i}].operator must be one of: ${CONDITION_OPERATORS.join(', ')}`,
-          );
-        }
-      }
-    }
-
+    // Schema SSOT (warningRules + validateConfig) covers conditions empty,
+    // first-condition.field, per-condition field+operator.
+    const errors = [...evaluateMetadataBlockingErrors(this.metadata, config)];
+    const { combineMode, strictComparison } = config as unknown as IfElseConfig;
     if (combineMode && combineMode !== 'and' && combineMode !== 'or') {
       errors.push('combineMode must be "and" or "or"');
     }
-
     if (
       strictComparison !== undefined &&
       typeof strictComparison !== 'boolean'
     ) {
       errors.push('strictComparison must be a boolean');
     }
-
     return { valid: errors.length === 0, errors };
   }
 

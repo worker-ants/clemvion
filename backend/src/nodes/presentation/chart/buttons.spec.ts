@@ -19,6 +19,7 @@ describe('ChartHandler - Buttons', () => {
       const result = handler.validate({
         chartType: 'bar',
         xAxis: { field: 'month' },
+        yAxis: { field: 'revenue' },
         buttons: [{ id: 'btn-1', label: 'Approve', type: 'port' }],
       });
       expect(result.valid).toBe(true);
@@ -28,6 +29,7 @@ describe('ChartHandler - Buttons', () => {
       const result = handler.validate({
         chartType: 'bar',
         xAxis: { field: 'month' },
+        yAxis: { field: 'revenue' },
         buttons: [{ id: 'btn-1', label: '', type: 'port' }],
       });
       expect(result.valid).toBe(false);

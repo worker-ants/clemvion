@@ -31,20 +31,26 @@ describe('TextClassifierHandler', () => {
 
   describe('validate', () => {
     it('should fail without categories', () => {
-      const result = handler.validate({ inputField: 'test' });
+      const result = handler.validate({ inputField: 'test', model: 'gpt-4' });
       expect(result.valid).toBe(false);
-      expect(result.errors).toContain('At least one category is required');
+      // Schema warningRule "하나 이상의 카테고리를 추가해야 합니다." fires.
+      expect(result.errors.some((e) => e.includes('카테고리'))).toBe(true);
     });
 
     it('should fail with empty categories array', () => {
-      const result = handler.validate({ inputField: 'test', categories: [] });
+      const result = handler.validate({
+        inputField: 'test',
+        model: 'gpt-4',
+        categories: [],
+      });
       expect(result.valid).toBe(false);
-      expect(result.errors).toContain('At least one category is required');
+      expect(result.errors.some((e) => e.includes('카테고리'))).toBe(true);
     });
 
     it('should fail when category name is empty', () => {
       const result = handler.validate({
         inputField: 'test',
+        model: 'gpt-4',
         categories: [{ name: '', description: 'desc' }],
       });
       expect(result.valid).toBe(false);
@@ -53,10 +59,12 @@ describe('TextClassifierHandler', () => {
 
     it('should fail without inputField', () => {
       const result = handler.validate({
+        model: 'gpt-4',
         categories: [{ name: 'A', description: 'Cat A' }],
       });
       expect(result.valid).toBe(false);
-      expect(result.errors).toContain('inputField is required');
+      // Schema warningRule "Input Field 를 입력해야 합니다." fires.
+      expect(result.errors.some((e) => e.includes('Input Field'))).toBe(true);
     });
 
     it('should collect multiple errors', () => {
@@ -67,6 +75,7 @@ describe('TextClassifierHandler', () => {
 
     it('should pass with valid config', () => {
       const result = handler.validate({
+        model: 'gpt-4',
         inputField: '{{ $input.text }}',
         categories: [
           { name: 'Billing', description: 'Payment questions' },
@@ -80,6 +89,7 @@ describe('TextClassifierHandler', () => {
     it('should reject __none__ as category name', () => {
       const result = handler.validate({
         inputField: 'test',
+        model: 'gpt-4',
         categories: [{ name: '__none__', description: 'Reserved' }],
       });
       expect(result.valid).toBe(false);

@@ -128,6 +128,7 @@ describe('InformationExtractorHandler', () => {
 
     it('should pass with valid config', () => {
       const result = handler.validate({
+        model: 'gpt-4',
         inputField: '{{ $input.text }}',
         outputSchema: [
           { name: 'senderName', type: 'string', description: 'Name' },
@@ -138,6 +139,7 @@ describe('InformationExtractorHandler', () => {
 
     it('should fail when multi_turn maxTurns is negative', () => {
       const result = handler.validate({
+        model: 'gpt-4',
         mode: 'multi_turn',
         inputField: '{{ $input.text }}',
         maxTurns: -1,
@@ -155,6 +157,7 @@ describe('InformationExtractorHandler', () => {
 
     it('should pass with valid multi_turn config', () => {
       const result = handler.validate({
+        model: 'gpt-4',
         mode: 'multi_turn',
         inputField: '{{ $input.text }}',
         maxTurns: 5,
@@ -172,6 +175,7 @@ describe('InformationExtractorHandler', () => {
 
     it('should allow multi_turn without inputField', () => {
       const result = handler.validate({
+        model: 'gpt-4',
         mode: 'multi_turn',
         outputSchema: [
           {

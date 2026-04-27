@@ -11,12 +11,14 @@ import {
   NodeHandler,
   ValidationResult,
 } from '../../core/node-handler.interface.js';
+import { evaluateMetadataBlockingErrors } from '../../core/metadata-validation.js';
 import {
   IntegrationError,
   IntegrationHandlerBase,
   toLogError,
 } from '../_base/integration-handler-base.js';
 import { IntegrationsService } from '../../../modules/integrations/integrations.service.js';
+import { databaseQueryNodeMetadata } from './database-query.schema.js';
 
 interface DbCredentials {
   driver: 'postgres' | 'mysql';
@@ -63,13 +65,15 @@ export class DatabaseQueryHandler
     super(integrationsService);
   }
 
-  validate(config: Record<string, unknown>): ValidationResult {
-    const errors: string[] = [];
+  metadata = databaseQueryNodeMetadata;
 
-    if (!config.integrationId || typeof config.integrationId !== 'string') {
-      errors.push('integrationId is required');
-    }
-    if (!config.query || typeof config.query !== 'string') {
+  validate(config: Record<string, unknown>): ValidationResult {
+    // Schema SSOT (warningRules + validateConfig) covers
+    // integrationId/query required + parameters sum-type guard. The query
+    // and queryType type/enum guards stay handler-side because zod's
+    // narrowing happens at parse time only.
+    const errors = [...evaluateMetadataBlockingErrors(this.metadata, config)];
+    if (config.query !== undefined && typeof config.query !== 'string') {
       errors.push('query is required and must be a string');
     }
     if (
@@ -82,15 +86,6 @@ export class DatabaseQueryHandler
         `queryType must be one of: ${ALLOWED_QUERY_TYPES.join(', ')}`,
       );
     }
-    if (
-      config.parameters !== undefined &&
-      config.parameters !== null &&
-      !Array.isArray(config.parameters) &&
-      typeof config.parameters !== 'string'
-    ) {
-      errors.push('parameters must be an array or a JSON array string');
-    }
-
     return { valid: errors.length === 0, errors };
   }
 

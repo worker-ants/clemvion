@@ -5,6 +5,7 @@ import {
   NodeHandler,
   ValidationResult,
 } from '../../core/node-handler.interface.js';
+import { evaluateMetadataBlockingErrors } from '../../core/metadata-validation.js';
 import {
   delNestedValue,
   getNestedValue,
@@ -13,10 +14,10 @@ import {
 } from '../../core/nested-value.util.js';
 import {
   Condition,
-  VALID_OPERATORS,
   compileRegexCache,
   evaluateCondition,
 } from '../../logic/_shared/condition-eval.util.js';
+import { transformNodeMetadata } from './transform.schema.js';
 
 function stringifyForSort(value: unknown): string {
   if (value === null || value === undefined) return '';
@@ -96,20 +97,10 @@ type TransformOperation =
   | { type: 'object_pick'; field?: string; keys: string[] }
   | { type: 'object_omit'; field?: string; keys: string[] };
 
-const VALID_TYPES = [
-  'rename_field',
-  'remove_field',
-  'set_field',
-  'type_convert',
-  'string_op',
-  'math_op',
-  'date_op',
-  'array_filter',
-  'array_sort',
-  'object_pick',
-  'object_omit',
-];
-
+// VALID_TYPES / STRING_OPS / MATH_OPS / DATE_OPS / CONVERT_TYPES were
+// removed alongside the inline validate() body — those whitelists are now
+// owned by transform.schema.ts (validateConfig). DATE_UNITS stays because
+// the executor's `dateOp` branch still uses it at runtime.
 const DATE_UNITS: DateUnit[] = [
   'years',
   'months',
@@ -119,115 +110,20 @@ const DATE_UNITS: DateUnit[] = [
   'seconds',
 ];
 
-const STRING_OPS = new Set([
-  'trim',
-  'uppercase',
-  'lowercase',
-  'replace',
-  'split',
-  'join',
-]);
-
-const MATH_OPS = new Set([
-  'add',
-  'subtract',
-  'multiply',
-  'divide',
-  'round',
-  'ceil',
-  'floor',
-]);
-
-const DATE_OPS = new Set(['format', 'add', 'subtract', 'diff']);
-
-const CONVERT_TYPES = new Set([
-  'string',
-  'number',
-  'boolean',
-  'array',
-  'object',
-]);
-
 export class TransformHandler implements NodeHandler {
+  metadata = transformNodeMetadata;
+
   validate(config: Record<string, unknown>): ValidationResult {
-    const errors: string[] = [];
-
-    if (!config.operations || !Array.isArray(config.operations)) {
+    // Schema SSOT (warningRules + validateConfig) covers operations-empty +
+    // per-op type/operation/field/keys checks. Handler retains an explicit
+    // "operations not an array" guard because the schema's `length(operations)`
+    // returns 0 for non-arrays as well, but that warningRule's Korean
+    // message is the same as for empty — both surface "no operations" to the
+    // user, which is fine.
+    const errors = [...evaluateMetadataBlockingErrors(this.metadata, config)];
+    if (config.operations !== undefined && !Array.isArray(config.operations)) {
       errors.push('operations is required and must be an array');
-      return { valid: false, errors };
     }
-
-    for (let i = 0; i < config.operations.length; i++) {
-      const op = config.operations[i] as TransformOperation;
-      const prefix = `operations[${i}]`;
-
-      if (!op || typeof op !== 'object' || !('type' in op)) {
-        errors.push(`${prefix} is invalid`);
-        continue;
-      }
-      if (!VALID_TYPES.includes(op.type)) {
-        errors.push(`${prefix}.type must be one of: ${VALID_TYPES.join(', ')}`);
-        continue;
-      }
-
-      switch (op.type) {
-        case 'rename_field':
-          if (!op.from || typeof op.from !== 'string')
-            errors.push(`${prefix}.from is required`);
-          if (!op.to || typeof op.to !== 'string')
-            errors.push(`${prefix}.to is required`);
-          break;
-        case 'remove_field':
-        case 'set_field':
-          if (!op.field || typeof op.field !== 'string')
-            errors.push(`${prefix}.field is required`);
-          break;
-        case 'type_convert':
-          if (!op.field) errors.push(`${prefix}.field is required`);
-          if (!CONVERT_TYPES.has(op.targetType))
-            errors.push(`${prefix}.targetType is invalid`);
-          break;
-        case 'string_op':
-          if (!op.field) errors.push(`${prefix}.field is required`);
-          if (!STRING_OPS.has(op.operation))
-            errors.push(`${prefix}.operation is invalid`);
-          break;
-        case 'math_op':
-          if (!op.field) errors.push(`${prefix}.field is required`);
-          if (!MATH_OPS.has(op.operation))
-            errors.push(`${prefix}.operation is invalid`);
-          break;
-        case 'date_op':
-          if (!op.field) errors.push(`${prefix}.field is required`);
-          if (!DATE_OPS.has(op.operation))
-            errors.push(`${prefix}.operation is invalid`);
-          break;
-        case 'array_filter':
-          if (!op.field) errors.push(`${prefix}.field is required`);
-          if (
-            !op.condition ||
-            typeof op.condition !== 'object' ||
-            !op.condition.field ||
-            !(VALID_OPERATORS as readonly string[]).includes(
-              op.condition.operator,
-            )
-          ) {
-            errors.push(`${prefix}.condition is invalid`);
-          }
-          break;
-        case 'array_sort':
-          if (!op.field) errors.push(`${prefix}.field is required`);
-          if (op.order !== 'asc' && op.order !== 'desc')
-            errors.push(`${prefix}.order must be "asc" or "desc"`);
-          break;
-        case 'object_pick':
-        case 'object_omit':
-          if (!Array.isArray(op.keys) || op.keys.length === 0)
-            errors.push(`${prefix}.keys must be a non-empty array`);
-          break;
-      }
-    }
-
     return { valid: errors.length === 0, errors };
   }
 

@@ -37,7 +37,8 @@ describe('ForEachHandler', () => {
     it('should reject missing arrayField', () => {
       const result = handler.validate({ errorPolicy: 'stop' });
       expect(result.valid).toBe(false);
-      expect(result.errors).toContain('arrayField is required');
+      // Schema warningRule "배열 필드를 입력해야 합니다." fires.
+      expect(result.errors.some((e) => e.includes('배열'))).toBe(true);
     });
 
     it('should reject empty string arrayField', () => {
