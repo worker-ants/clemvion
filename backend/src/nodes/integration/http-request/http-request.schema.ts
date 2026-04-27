@@ -147,6 +147,26 @@ export const httpRequestNodePorts: NodePorts = {
   ],
 };
 
+/**
+ * Imperative escape hatch — `timeout` numeric range needs `> 0` AND a
+ * non-numeric type guard the mini-DSL cannot model in a single rule. The
+ * "URL set?" / "integration auth needs integrationId" checks live in
+ * `warningRules` below so the canvas badge fires.
+ */
+export function validateHttpRequestConfig(config: unknown): string[] {
+  const c = (config ?? {}) as Record<string, unknown>;
+  const errors: string[] = [];
+
+  if (
+    c.timeout !== undefined &&
+    (typeof c.timeout !== 'number' || c.timeout <= 0)
+  ) {
+    errors.push('timeout must be a positive number');
+  }
+
+  return errors;
+}
+
 export const httpRequestNodeMetadata: NodeComponentMetadata = {
   type: 'http_request',
   category: 'integration',
@@ -154,9 +174,33 @@ export const httpRequestNodeMetadata: NodeComponentMetadata = {
   description: 'Make HTTP requests',
   icon: 'Globe',
   color: '#F97316',
+  // `summaryTemplate.warnWhen` retained for backward compat — `warningRules`
+  // is the new SSOT.
   summaryTemplate: {
     template: '{{method|default:GET}} {{url}}',
     warnWhen: '!url',
     warnMessage: 'URL not set',
   },
+  // SSOT for warnings (frontend canvas + backend handler.validate).
+  // Mirror points:
+  //  - legacy `summaryTemplate.warnWhen` (URL missing)
+  //  - backend handler.validate's "url is required" + "integrationId is
+  //    required when authentication is 'integration'" rules.
+  // `method` enum + `bodyType` / `responseType` enums are bounded by zod, so
+  // no extra rule is needed for those. `timeout` numeric range lives in
+  // `validateConfig` because the mini-DSL can't pair `> 0` with a type
+  // guard in a single expression.
+  warningRules: [
+    {
+      id: 'http_request:no-url',
+      when: '!url',
+      message: 'URL 을 입력해야 합니다.',
+    },
+    {
+      id: 'http_request:integration-auth-needs-integration-id',
+      when: 'authentication == integration && !integrationId',
+      message: 'Integration 인증을 사용하려면 integration 을 선택해야 합니다.',
+    },
+  ],
+  validateConfig: validateHttpRequestConfig,
 };

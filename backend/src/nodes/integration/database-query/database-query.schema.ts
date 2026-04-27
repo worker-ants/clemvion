@@ -117,6 +117,28 @@ export const databaseQueryNodePorts: NodePorts = {
   ],
 };
 
+/**
+ * Imperative escape hatch — `parameters` is a sum type (`array | JSON-array
+ * string`) that the mini-DSL cannot express in a single rule. Single-field
+ * "is integrationId set?" / "is query set?" checks live in `warningRules`
+ * below so the canvas badge fires.
+ */
+export function validateDatabaseQueryConfig(config: unknown): string[] {
+  const c = (config ?? {}) as Record<string, unknown>;
+  const errors: string[] = [];
+
+  if (
+    c.parameters !== undefined &&
+    c.parameters !== null &&
+    !Array.isArray(c.parameters) &&
+    typeof c.parameters !== 'string'
+  ) {
+    errors.push('parameters must be an array or a JSON array string');
+  }
+
+  return errors;
+}
+
 export const databaseQueryNodeMetadata: NodeComponentMetadata = {
   type: 'database_query',
   category: 'integration',
@@ -124,4 +146,24 @@ export const databaseQueryNodeMetadata: NodeComponentMetadata = {
   description: 'Execute SQL queries',
   icon: 'Database',
   color: '#F97316',
+  // SSOT for warnings (frontend canvas + backend handler.validate).
+  // Mirror points:
+  //  - frontend `databaseQuerySummary` warning ("Query not set")
+  //  - backend handler.validate's "integrationId is required" + "query is
+  //    required" rules.
+  // `queryType` enum is bounded by zod, so no extra rule is needed there.
+  // `parameters` sum-type guard lives in `validateConfig`.
+  warningRules: [
+    {
+      id: 'database_query:no-integration',
+      when: '!integrationId',
+      message: 'Database integration 을 선택해야 합니다.',
+    },
+    {
+      id: 'database_query:no-query',
+      when: '!query',
+      message: 'SQL query 를 입력해야 합니다.',
+    },
+  ],
+  validateConfig: validateDatabaseQueryConfig,
 };

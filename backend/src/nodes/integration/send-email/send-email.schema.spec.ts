@@ -1,9 +1,12 @@
+import { evaluateWarnings } from '@workflow/node-summary';
 import {
   sendEmailNodeConfigSchema,
   sendEmailNodeMetadata,
   sendEmailNodeOutputSchema,
   sendEmailNodePorts,
+  validateSendEmailConfig,
 } from './send-email.schema';
+import { evaluateMetadataBlockingErrors } from '../../core/metadata-validation';
 
 describe('Send Email node schema', () => {
   describe('sendEmailNodeConfigSchema defaults', () => {
@@ -126,6 +129,128 @@ describe('Send Email node schema', () => {
     it('metadata: type=send_email, category=integration', () => {
       expect(sendEmailNodeMetadata.type).toBe('send_email');
       expect(sendEmailNodeMetadata.category).toBe('integration');
+    });
+  });
+
+  describe('warningRules', () => {
+    const firedIds = (config: unknown) =>
+      evaluateWarnings(
+        config as Record<string, unknown>,
+        sendEmailNodeMetadata.warningRules,
+      ).map((w) => w.id);
+
+    describe('send_email:no-integration', () => {
+      it('fires when integrationId is missing', () => {
+        expect(firedIds({})).toContain('send_email:no-integration');
+      });
+
+      it('does NOT fire when integrationId is set', () => {
+        expect(firedIds({ integrationId: 'i-1' })).not.toContain(
+          'send_email:no-integration',
+        );
+      });
+    });
+
+    describe('send_email:no-recipient', () => {
+      it('fires when to is missing', () => {
+        expect(firedIds({})).toContain('send_email:no-recipient');
+      });
+
+      it('fires when to is empty array', () => {
+        expect(firedIds({ to: [] })).toContain('send_email:no-recipient');
+      });
+
+      it('does NOT fire when to has at least one element', () => {
+        expect(firedIds({ to: ['a@example.com'] })).not.toContain(
+          'send_email:no-recipient',
+        );
+      });
+    });
+
+    describe('send_email:no-subject', () => {
+      it('fires when subject is empty string', () => {
+        expect(firedIds({ subject: '' })).toContain('send_email:no-subject');
+      });
+
+      it('does NOT fire when subject is set', () => {
+        expect(firedIds({ subject: 'hi' })).not.toContain(
+          'send_email:no-subject',
+        );
+      });
+    });
+
+    describe('send_email:no-body', () => {
+      it('fires when body is empty string', () => {
+        expect(firedIds({ body: '' })).toContain('send_email:no-body');
+      });
+
+      it('does NOT fire when body is set', () => {
+        expect(firedIds({ body: 'hello' })).not.toContain('send_email:no-body');
+      });
+    });
+  });
+
+  describe('validateSendEmailConfig (imperative)', () => {
+    it('returns [] when to is a non-empty string', () => {
+      expect(validateSendEmailConfig({ to: 'a@example.com' })).toEqual([]);
+    });
+
+    it('returns [] when to is a non-empty array of strings', () => {
+      expect(
+        validateSendEmailConfig({ to: ['a@example.com', 'b@example.com'] }),
+      ).toEqual([]);
+    });
+
+    it('rejects to when missing', () => {
+      expect(validateSendEmailConfig({})).toContain(
+        'to is required and must be a non-empty string or array of email addresses',
+      );
+    });
+
+    it('rejects to when array contains empty / non-string entries', () => {
+      expect(validateSendEmailConfig({ to: [''] })).toContain(
+        'to is required and must be a non-empty string or array of email addresses',
+      );
+      expect(validateSendEmailConfig({ to: [123 as never] })).toContain(
+        'to is required and must be a non-empty string or array of email addresses',
+      );
+    });
+
+    it('skips cc/bcc validation when they are unset / empty', () => {
+      expect(
+        validateSendEmailConfig({ to: 'a@example.com', cc: [], bcc: '' }),
+      ).toEqual([]);
+    });
+
+    it('rejects cc when set but malformed (array with non-string)', () => {
+      const errors = validateSendEmailConfig({
+        to: 'a@example.com',
+        cc: [123 as never],
+      });
+      expect(errors).toContain(
+        'cc must be a string or array of email addresses',
+      );
+    });
+  });
+
+  describe('evaluateMetadataBlockingErrors integration (send_email)', () => {
+    it('emits all four declarative warnings on a freshly-created node', () => {
+      const errors = evaluateMetadataBlockingErrors(sendEmailNodeMetadata, {});
+      expect(errors).toContain('Email integration 을 선택해야 합니다.');
+      expect(errors).toContain('수신자 (To) 를 한 명 이상 입력해야 합니다.');
+      expect(errors).toContain('제목을 입력해야 합니다.');
+      expect(errors).toContain('본문을 입력해야 합니다.');
+    });
+
+    it('returns [] when fully configured', () => {
+      expect(
+        evaluateMetadataBlockingErrors(sendEmailNodeMetadata, {
+          integrationId: 'i-1',
+          to: ['a@example.com'],
+          subject: 'hi',
+          body: 'hello',
+        }),
+      ).toEqual([]);
     });
   });
 });

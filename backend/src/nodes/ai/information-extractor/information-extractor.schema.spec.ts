@@ -1,4 +1,10 @@
-import { informationExtractorNodeOutputSchema } from './information-extractor.schema';
+import { evaluateWarnings } from '@workflow/node-summary';
+import {
+  informationExtractorNodeMetadata,
+  informationExtractorNodeOutputSchema,
+  validateInformationExtractorConfig,
+} from './information-extractor.schema';
+import { evaluateMetadataBlockingErrors } from '../../core/metadata-validation';
 
 describe('informationExtractorNodeOutputSchema', () => {
   // Post Stage 1 of the node-specs-improvement rollout the handler emits the
@@ -108,5 +114,121 @@ describe('informationExtractorNodeOutputSchema', () => {
     };
     const result = informationExtractorNodeOutputSchema.safeParse(fixture);
     expect(result.success).toBe(false);
+  });
+});
+
+describe('informationExtractorNodeMetadata.warningRules', () => {
+  const firedIds = (config: unknown) =>
+    evaluateWarnings(
+      config as Record<string, unknown>,
+      informationExtractorNodeMetadata.warningRules,
+    ).map((w) => w.id);
+
+  describe('information_extractor:no-llm-provider', () => {
+    it('fires when both model and llmConfigId are missing', () => {
+      expect(firedIds({})).toContain('information_extractor:no-llm-provider');
+    });
+
+    it('does NOT fire when model is set', () => {
+      expect(firedIds({ model: 'gpt-4o' })).not.toContain(
+        'information_extractor:no-llm-provider',
+      );
+    });
+  });
+
+  describe('information_extractor:no-output-schema', () => {
+    it('fires when outputSchema is missing', () => {
+      expect(firedIds({})).toContain('information_extractor:no-output-schema');
+    });
+
+    it('fires when outputSchema is empty array', () => {
+      expect(firedIds({ outputSchema: [] })).toContain(
+        'information_extractor:no-output-schema',
+      );
+    });
+
+    it('does NOT fire when at least one field is defined', () => {
+      expect(
+        firedIds({ outputSchema: [{ name: 'orderId', type: 'string' }] }),
+      ).not.toContain('information_extractor:no-output-schema');
+    });
+  });
+
+  describe('information_extractor:single-turn-needs-input-field', () => {
+    it('fires for default mode (single_turn) when inputField is missing', () => {
+      expect(firedIds({})).toContain(
+        'information_extractor:single-turn-needs-input-field',
+      );
+    });
+
+    it('does NOT fire when inputField is set', () => {
+      expect(firedIds({ inputField: '$input.text' })).not.toContain(
+        'information_extractor:single-turn-needs-input-field',
+      );
+    });
+
+    it('does NOT fire in multi_turn mode', () => {
+      expect(firedIds({ mode: 'multi_turn' })).not.toContain(
+        'information_extractor:single-turn-needs-input-field',
+      );
+    });
+  });
+});
+
+describe('validateInformationExtractorConfig (imperative)', () => {
+  it('returns [] for a fully valid single_turn config', () => {
+    expect(
+      validateInformationExtractorConfig({
+        outputSchema: [{ name: 'orderId', type: 'string' }],
+      }),
+    ).toEqual([]);
+  });
+
+  it('flags missing field name / type', () => {
+    const errors = validateInformationExtractorConfig({
+      outputSchema: [{ description: 'x' }, { name: 'orderId' }],
+    });
+    expect(errors).toContain('Field 1: name is required');
+    expect(errors).toContain('Field 1: type is required');
+    expect(errors).toContain('Field 2: type is required');
+  });
+
+  it('rejects negative maxTurns in multi_turn mode', () => {
+    expect(
+      validateInformationExtractorConfig({
+        mode: 'multi_turn',
+        maxTurns: -1,
+      }),
+    ).toContain('maxTurns must be 0 (unlimited) or a positive integer');
+  });
+
+  it('skips maxTurns validation in single_turn mode', () => {
+    expect(
+      validateInformationExtractorConfig({ maxTurns: -5 as never }),
+    ).toEqual([]);
+  });
+});
+
+describe('evaluateMetadataBlockingErrors integration (information_extractor)', () => {
+  it('emits Korean warnings on a freshly-created node', () => {
+    const errors = evaluateMetadataBlockingErrors(
+      informationExtractorNodeMetadata,
+      {},
+    );
+    expect(errors.some((e) => e.includes('LLM provider'))).toBe(true);
+    expect(errors).toContain('하나 이상의 추출 필드를 정의해야 합니다.');
+    expect(errors).toContain(
+      'Single Turn 모드에서는 Input Field 를 입력해야 합니다.',
+    );
+  });
+
+  it('returns [] when fully configured', () => {
+    expect(
+      evaluateMetadataBlockingErrors(informationExtractorNodeMetadata, {
+        model: 'gpt-4o',
+        outputSchema: [{ name: 'orderId', type: 'string' }],
+        inputField: '$input.text',
+      }),
+    ).toEqual([]);
   });
 });

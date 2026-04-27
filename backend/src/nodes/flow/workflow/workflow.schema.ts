@@ -122,6 +122,47 @@ export const workflowNodePorts: NodePorts = {
   ],
 };
 
+/**
+ * Imperative escape hatch — `inputMapping` per-item `paramName` requires
+ * array iteration, and `timeout` numeric range needs `>= 0` AND non-numeric
+ * type guard the mini-DSL can't model in a single rule. Single-field
+ * "is workflowId set?" lives in `warningRules` so the canvas badge fires.
+ */
+export function validateWorkflowConfig(config: unknown): string[] {
+  const c = (config ?? {}) as Record<string, unknown>;
+  const errors: string[] = [];
+
+  if (
+    c.timeout !== undefined &&
+    (typeof c.timeout !== 'number' || c.timeout < 0)
+  ) {
+    errors.push('timeout must be a non-negative number (0 = no timeout)');
+  }
+
+  const inputMapping = c.inputMapping;
+  if (inputMapping !== undefined) {
+    if (!Array.isArray(inputMapping)) {
+      errors.push('inputMapping must be an array');
+    } else {
+      for (let i = 0; i < inputMapping.length; i++) {
+        const m = inputMapping[i] as Record<string, unknown>;
+        if (
+          !m ||
+          typeof m !== 'object' ||
+          typeof m.paramName !== 'string' ||
+          !m.paramName
+        ) {
+          errors.push(
+            `inputMapping[${i}].paramName is required and must be a string`,
+          );
+        }
+      }
+    }
+  }
+
+  return errors;
+}
+
 export const workflowNodeMetadata: NodeComponentMetadata = {
   type: 'workflow',
   category: 'flow',
@@ -129,4 +170,19 @@ export const workflowNodeMetadata: NodeComponentMetadata = {
   description: 'Call another workflow',
   icon: 'Workflow',
   color: '#8B5CF6',
+  // SSOT for warnings (frontend canvas + backend handler.validate).
+  // Mirror points:
+  //  - frontend `workflowSummary` warning ("Workflow not selected")
+  //  - backend handler.validate's "workflowId is required" rule.
+  // `mode` enum is bounded by zod, so no rule is needed there. `timeout`
+  // and per-item inputMapping validation live in `validateConfig` because
+  // they need numeric range / array iteration.
+  warningRules: [
+    {
+      id: 'workflow:no-workflow-selected',
+      when: '!workflowId',
+      message: '실행할 워크플로우를 선택해야 합니다.',
+    },
+  ],
+  validateConfig: validateWorkflowConfig,
 };

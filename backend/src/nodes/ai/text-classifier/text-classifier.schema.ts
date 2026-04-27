@@ -111,6 +111,34 @@ export const textClassifierNodePorts: NodePorts = {
   outputs: [],
 };
 
+/**
+ * Imperative escape hatch — per-category validation needs array iteration
+ * (each must have a `name` AND that name must not collide with the reserved
+ * `__none__` sentinel). Top-level "categories empty?" / "no provider?" /
+ * "no inputField?" checks live in `warningRules` so the canvas badge fires.
+ *
+ * NOTE: keep the sentinel in lockstep with `TextClassifierHandler.NONE_SENTINEL`
+ * — duplicating the value here avoids importing the handler module from the
+ * schema (handler can pull from this list once Step 4 slimming lands).
+ */
+const NONE_SENTINEL = '__none__';
+export function validateTextClassifierConfig(config: unknown): string[] {
+  const c = (config ?? {}) as Record<string, unknown>;
+  const errors: string[] = [];
+  const categories = c.categories;
+  if (Array.isArray(categories)) {
+    for (let i = 0; i < categories.length; i++) {
+      const cat = (categories[i] ?? {}) as Record<string, unknown>;
+      if (!cat.name || typeof cat.name !== 'string') {
+        errors.push(`Category ${i + 1}: name is required`);
+      } else if (cat.name === NONE_SENTINEL) {
+        errors.push(`Category ${i + 1}: "${NONE_SENTINEL}" is a reserved name`);
+      }
+    }
+  }
+  return errors;
+}
+
 export const textClassifierNodeMetadata: NodeComponentMetadata = {
   type: 'text_classifier',
   category: 'ai',
@@ -124,4 +152,33 @@ export const textClassifierNodeMetadata: NodeComponentMetadata = {
     fallbackId: 'fallback',
     errorId: 'error',
   },
+  // SSOT for warnings (frontend canvas + backend handler.validate).
+  // Mirror points:
+  //  - frontend `textClassifierSummary` warnings ("Default provider not
+  //    configured" / "Categories not defined") — the provider check has
+  //    the same hasDefaultLlmConfig context split as ai_agent (see that
+  //    node's note); backend fires whenever both model + llmConfigId
+  //    are missing.
+  //  - backend handler.validate's "At least one category is required"
+  //    + "inputField is required" rules.
+  // Per-category structural validation lives in `validateConfig`.
+  warningRules: [
+    {
+      id: 'text_classifier:no-llm-provider',
+      when: '!model && !llmConfigId',
+      message:
+        'LLM provider 또는 model 을 선택해야 합니다 (workspace 기본 provider 가 설정된 경우 캔버스에서 자동 처리).',
+    },
+    {
+      id: 'text_classifier:no-categories',
+      when: 'length(categories) == 0',
+      message: '하나 이상의 카테고리를 추가해야 합니다.',
+    },
+    {
+      id: 'text_classifier:no-input-field',
+      when: '!inputField',
+      message: 'Input Field 를 입력해야 합니다.',
+    },
+  ],
+  validateConfig: validateTextClassifierConfig,
 };

@@ -63,6 +63,33 @@ export const codeNodePorts: NodePorts = {
   outputs: [{ id: 'out', label: 'Output', type: 'data' }],
 };
 
+/**
+ * Imperative escape hatch — `timeout` numeric range (1..120) needs a `>=`
+ * AND `<=` AND finite-check combination plus a non-numeric guard the mini-DSL
+ * cannot express in a single rule. Per-field "is code written?" lives in
+ * `warningRules` below so it fires the canvas badge.
+ */
+const MIN_TIMEOUT_SEC = 1;
+const MAX_TIMEOUT_SEC = 120;
+export function validateCodeConfig(config: unknown): string[] {
+  const c = (config ?? {}) as Record<string, unknown>;
+  const errors: string[] = [];
+  if (c.timeout !== undefined) {
+    const t = c.timeout;
+    if (
+      typeof t !== 'number' ||
+      !Number.isFinite(t) ||
+      t < MIN_TIMEOUT_SEC ||
+      t > MAX_TIMEOUT_SEC
+    ) {
+      errors.push(
+        `timeout must be a number between ${MIN_TIMEOUT_SEC} and ${MAX_TIMEOUT_SEC} seconds`,
+      );
+    }
+  }
+  return errors;
+}
+
 export const codeNodeMetadata: NodeComponentMetadata = {
   type: 'code',
   category: 'data',
@@ -70,4 +97,18 @@ export const codeNodeMetadata: NodeComponentMetadata = {
   description: 'Run JavaScript code',
   icon: 'Code',
   color: '#06B6D4',
+  // SSOT for warnings (frontend canvas + backend handler.validate).
+  // Mirror points:
+  //  - frontend `codeSummary` warning ("Code not written")
+  //  - backend handler.validate's "code is required" rule.
+  // `language` is bounded by the zod enum (`javascript` only) so no rule
+  // is needed there. `timeout` numeric range lives in `validateConfig`.
+  warningRules: [
+    {
+      id: 'code:no-code',
+      when: '!code',
+      message: '실행할 코드를 입력해야 합니다.',
+    },
+  ],
+  validateConfig: validateCodeConfig,
 };
