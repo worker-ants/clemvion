@@ -3,6 +3,7 @@ import {
   NodeComponentMetadata,
   NodePorts,
 } from '../../core/node-component.interface';
+import { validateButtons } from '../_shared/button.types';
 
 const buttonDefSchema = z
   .object({
@@ -295,6 +296,106 @@ export const carouselNodePorts: NodePorts = {
   outputs: [{ id: 'out', label: 'Output', type: 'data' }],
 };
 
+/**
+ * Per-item button validation shared between static items[i].buttons and the
+ * dynamic-mode itemButtons array. Mirrors the legacy
+ * `validateItemButtons()` in carousel.handler.ts so the SSOT schema metadata
+ * owns the rule (the handler will be slimmed in Step 4).
+ */
+function validateCarouselItemButtons(
+  buttons: unknown[],
+  prefix: string,
+): string[] {
+  const errors: string[] = [];
+  if (buttons.length > 4) {
+    errors.push(`${prefix}: maximum 4 buttons per item`);
+  }
+  const ids = new Set<string>();
+  for (let j = 0; j < buttons.length; j++) {
+    const btn = (buttons[j] ?? {}) as Record<string, unknown>;
+    if (!btn.id || typeof btn.id !== 'string') {
+      errors.push(`${prefix}.buttons[${j}].id is required`);
+    } else if (btn.id.includes('__item_')) {
+      errors.push(
+        `${prefix}.buttons[${j}].id must not contain reserved separator "__item_"`,
+      );
+    } else if (ids.has(btn.id)) {
+      errors.push(
+        `${prefix}.buttons[${j}].id must be unique (duplicate: ${btn.id})`,
+      );
+    } else {
+      ids.add(btn.id);
+    }
+    if (!btn.label || typeof btn.label !== 'string') {
+      errors.push(`${prefix}.buttons[${j}].label is required`);
+    }
+    if (!btn.type || !['link', 'port'].includes(btn.type as string)) {
+      errors.push(`${prefix}.buttons[${j}].type must be "link" or "port"`);
+    }
+    if (btn.type === 'link' && (!btn.url || typeof btn.url !== 'string')) {
+      errors.push(
+        `${prefix}.buttons[${j}].url is required for link type buttons`,
+      );
+    } else if (btn.type === 'link' && btn.url && typeof btn.url === 'string') {
+      const trimmedUrl = btn.url.trim().toLowerCase();
+      if (/^(javascript|data|vbscript):/i.test(trimmedUrl)) {
+        errors.push(
+          `${prefix}.buttons[${j}].url contains a disallowed URL scheme`,
+        );
+      }
+    }
+    if (btn.type === 'port' && btn.url) {
+      errors.push(
+        `${prefix}.buttons[${j}].url is not allowed for port type buttons`,
+      );
+    }
+  }
+  return errors;
+}
+
+/**
+ * Imperative escape hatch for cross-field carousel rules the mini-DSL can't
+ * express:
+ *  - per-item title checks in static mode (need to iterate `items[]`)
+ *  - per-item buttons + shared itemButtons validation (regex + uniqueness)
+ *  - global `buttons` validation (delegated to the shared `validateButtons`).
+ *
+ * Single-field "is it set?" checks live in `warningRules` above so they fire
+ * the canvas badge.
+ */
+export function validateCarouselConfig(config: unknown): string[] {
+  const c = (config ?? {}) as Record<string, unknown>;
+  const errors: string[] = [];
+  const mode = (c.mode as string) ?? 'dynamic';
+
+  if (mode === 'static' && Array.isArray(c.items)) {
+    const items = c.items as Record<string, unknown>[];
+    for (let i = 0; i < items.length; i++) {
+      const item = items[i] ?? {};
+      if (!item.title || typeof item.title !== 'string') {
+        errors.push(`items[${i}].title is required and must be a string`);
+      }
+      if (Array.isArray(item.buttons)) {
+        errors.push(
+          ...validateCarouselItemButtons(
+            item.buttons as unknown[],
+            `items[${i}]`,
+          ),
+        );
+      }
+    }
+  }
+
+  if (mode === 'dynamic' && Array.isArray(c.itemButtons)) {
+    errors.push(
+      ...validateCarouselItemButtons(c.itemButtons as unknown[], 'itemButtons'),
+    );
+  }
+
+  errors.push(...validateButtons(c));
+  return errors;
+}
+
 export const carouselNodeMetadata: NodeComponentMetadata = {
   type: 'carousel',
   category: 'presentation',
@@ -309,4 +410,30 @@ export const carouselNodeMetadata: NodeComponentMetadata = {
     supportsItemButtons: true,
     continueId: 'continue',
   },
+  // SSOT for warnings (frontend canvas + backend handler.validate).
+  // Mirror points:
+  //  - frontend `carouselSummary` warning branches (titleField missing in
+  //    dynamic mode, items empty in static mode, invalid mode value)
+  //  - backend handler.validate's top-level structural checks
+  // Per-item content checks (item.title, per-item buttons, shared
+  // itemButtons, global buttons) live in `validateConfig` because they need
+  // array iteration / regex the mini-DSL can't express.
+  warningRules: [
+    {
+      id: 'carousel:dynamic-mode-needs-title-field',
+      when: 'mode == dynamic && !titleField',
+      message: 'Dynamic 모드에서는 Title 필드를 입력해야 합니다.',
+    },
+    {
+      id: 'carousel:static-mode-needs-items',
+      when: 'mode == static && length(items) == 0',
+      message: 'Static 모드에서는 최소 1개 이상의 슬라이드를 추가해야 합니다.',
+    },
+    {
+      id: 'carousel:invalid-mode',
+      when: 'mode != static && mode != dynamic',
+      message: 'Mode 는 static 또는 dynamic 이어야 합니다.',
+    },
+  ],
+  validateConfig: validateCarouselConfig,
 };

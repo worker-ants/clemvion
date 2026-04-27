@@ -3,6 +3,7 @@ import {
   NodeComponentMetadata,
   NodePorts,
 } from '../../core/node-component.interface';
+import { validateButtons } from '../_shared/button.types';
 
 const buttonDefSchema = z
   .object({
@@ -117,6 +118,16 @@ export const templateNodePorts: NodePorts = {
   outputs: [{ id: 'out', label: 'Output', type: 'data' }],
 };
 
+/**
+ * Imperative escape hatch — global `buttons` validation only (delegated to
+ * the shared `validateButtons`). Single-field "is template set?" check lives
+ * in `warningRules` above so it fires the canvas badge.
+ */
+export function validateTemplateConfig(config: unknown): string[] {
+  const c = (config ?? {}) as Record<string, unknown>;
+  return validateButtons(c);
+}
+
 export const templateNodeMetadata: NodeComponentMetadata = {
   type: 'template',
   category: 'presentation',
@@ -129,4 +140,18 @@ export const templateNodeMetadata: NodeComponentMetadata = {
     kind: 'presentation-buttons',
     continueId: 'continue',
   },
+  // SSOT for warnings (frontend canvas + backend handler.validate).
+  // Mirror points:
+  //  - frontend `templateSummary` warning (template missing)
+  //  - backend handler.validate's structural string check is already covered
+  //    by zod (.default('')), so the only domain rule worth surfacing is the
+  //    "template is empty" warning.
+  warningRules: [
+    {
+      id: 'template:no-template',
+      when: '!template',
+      message: 'Template 본문을 입력해야 합니다.',
+    },
+  ],
+  validateConfig: validateTemplateConfig,
 };
