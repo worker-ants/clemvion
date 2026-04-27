@@ -57,9 +57,22 @@ export const splitNodeMetadata: NodeComponentMetadata = {
   description: 'Split array items',
   icon: 'Split',
   color: '#3B82F6',
+  // `summaryTemplate.warnWhen` retained for backward compat — `warningRules`
+  // is the new SSOT.
   summaryTemplate: {
     template: '{{fieldPath}}',
     warnWhen: '!fieldPath',
     warnMessage: 'Field path not set',
   },
+  // SSOT for warnings (frontend canvas + backend handler.validate).
+  // Mirror points:
+  //  - legacy `summaryTemplate.warnWhen` (fieldPath missing)
+  //  - backend handler.validate's "fieldPath is required" rule.
+  warningRules: [
+    {
+      id: 'split:no-field-path',
+      when: '!fieldPath',
+      message: 'Field path 를 입력해야 합니다.',
+    },
+  ],
 };

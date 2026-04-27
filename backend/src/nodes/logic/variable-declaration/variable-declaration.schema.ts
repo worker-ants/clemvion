@@ -73,6 +73,31 @@ export const variableDeclarationNodePorts: NodePorts = {
   outputs: [{ id: 'out', label: 'Output', type: 'data' }],
 };
 
+/**
+ * Imperative escape hatch — per-variable name/type validation needs array
+ * iteration the mini-DSL can't express. Single-field "is variables empty?"
+ * / "first variable.name set?" checks live in `warningRules` below.
+ */
+export function validateVariableDeclarationConfig(config: unknown): string[] {
+  const c = (config ?? {}) as Record<string, unknown>;
+  const errors: string[] = [];
+  const variables = c.variables;
+
+  if (Array.isArray(variables)) {
+    for (let i = 0; i < variables.length; i++) {
+      const v = (variables[i] ?? {}) as Record<string, unknown>;
+      if (!v.name || typeof v.name !== 'string') {
+        errors.push(`variables[${i}].name is required and must be a string`);
+      }
+      if (!v.type || typeof v.type !== 'string') {
+        errors.push(`variables[${i}].type is required and must be a string`);
+      }
+    }
+  }
+
+  return errors;
+}
+
 export const variableDeclarationNodeMetadata: NodeComponentMetadata = {
   type: 'variable_declaration',
   category: 'logic',
@@ -80,4 +105,23 @@ export const variableDeclarationNodeMetadata: NodeComponentMetadata = {
   description: 'Declare variables',
   icon: 'Variable',
   color: '#3B82F6',
+  // SSOT for warnings (frontend canvas + backend handler.validate).
+  // Mirror points:
+  //  - frontend `variableDeclarationSummary` warning ("No variables defined" —
+  //    fires when variables[] is empty OR no variable has a name set)
+  //  - backend handler.validate's "variables non-empty" + per-variable
+  //    name/type rules. Per-item iteration lives in `validateConfig`.
+  warningRules: [
+    {
+      id: 'variable_declaration:no-variables',
+      when: 'length(variables) == 0',
+      message: '최소 1개 이상의 변수를 정의해야 합니다.',
+    },
+    {
+      id: 'variable_declaration:first-variable-name-empty',
+      when: 'length(variables) > 0 && !variables.0.name',
+      message: '첫 번째 변수의 이름을 입력해야 합니다.',
+    },
+  ],
+  validateConfig: validateVariableDeclarationConfig,
 };

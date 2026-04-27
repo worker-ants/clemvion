@@ -103,6 +103,39 @@ export const ifElsePorts: NodePorts = {
   ],
 };
 
+/**
+ * Imperative escape hatch — per-condition validation (operator whitelist,
+ * field presence) needs array iteration the mini-DSL can't express.
+ * Single-field "is conditions empty?" / "first condition.field set?" checks
+ * live in `warningRules` below so they fire the canvas badge.
+ */
+export function validateIfElseConfig(config: unknown): string[] {
+  const c = (config ?? {}) as Record<string, unknown>;
+  const errors: string[] = [];
+  const conditions = c.conditions;
+
+  if (Array.isArray(conditions)) {
+    for (let i = 0; i < conditions.length; i++) {
+      const cond = (conditions[i] ?? {}) as Record<string, unknown>;
+      if (!cond.field || typeof cond.field !== 'string') {
+        errors.push(`conditions[${i}].field is required and must be a string`);
+      }
+      if (
+        !cond.operator ||
+        !(conditionOperatorSchema.options as readonly string[]).includes(
+          cond.operator as string,
+        )
+      ) {
+        errors.push(
+          `conditions[${i}].operator must be one of: ${conditionOperatorSchema.options.join(', ')}`,
+        );
+      }
+    }
+  }
+
+  return errors;
+}
+
 export const ifElseMetadata: NodeComponentMetadata = {
   type: 'if_else',
   category: 'logic',
@@ -110,4 +143,24 @@ export const ifElseMetadata: NodeComponentMetadata = {
   description: 'Conditional branching',
   icon: 'GitBranch',
   color: '#3B82F6',
+  // SSOT for warnings (frontend canvas + backend handler.validate).
+  // Mirror points:
+  //  - frontend `ifElseSummary` warning ("Condition not set" — fires when
+  //    conditions[] is empty OR conditions[0].field is blank).
+  //  - backend handler.validate's structural checks: conditions must be
+  //    non-empty + each condition needs field + operator. Per-item operator
+  //    whitelist iterates `conditions[]`, so it lives in `validateConfig`.
+  warningRules: [
+    {
+      id: 'if_else:no-conditions',
+      when: 'length(conditions) == 0',
+      message: '최소 1개 이상의 조건을 추가해야 합니다.',
+    },
+    {
+      id: 'if_else:first-condition-field-empty',
+      when: 'length(conditions) > 0 && !conditions.0.field',
+      message: '첫 번째 조건의 필드를 입력해야 합니다.',
+    },
+  ],
+  validateConfig: validateIfElseConfig,
 };

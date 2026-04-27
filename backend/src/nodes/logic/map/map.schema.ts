@@ -66,9 +66,23 @@ export const mapNodeMetadata: NodeComponentMetadata = {
   icon: 'Map',
   color: '#3B82F6',
   isContainer: true,
+  // `summaryTemplate.warnWhen` retained for backward compat — `warningRules`
+  // is the new SSOT.
   summaryTemplate: {
     template: '{{inputField}}',
     warnWhen: '!inputField',
     warnMessage: 'Input field not set',
   },
+  // SSOT for warnings (frontend canvas + backend handler.validate).
+  // Mirror points:
+  //  - legacy `summaryTemplate.warnWhen` (inputField missing)
+  //  - backend handler.validate's "inputField is required" rule.
+  // `errorPolicy` is bounded by the zod enum, so no extra rule is needed.
+  warningRules: [
+    {
+      id: 'map:no-input-field',
+      when: '!inputField',
+      message: 'Input 필드를 입력해야 합니다.',
+    },
+  ],
 };

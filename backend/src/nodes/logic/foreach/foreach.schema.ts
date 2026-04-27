@@ -66,4 +66,16 @@ export const foreachNodeMetadata: NodeComponentMetadata = {
   icon: 'ListOrdered',
   color: '#3B82F6',
   isContainer: true,
+  // SSOT for warnings (frontend canvas + backend handler.validate).
+  // Mirror points:
+  //  - frontend `foreachSummary` warning ("Array field not set")
+  //  - backend handler.validate's "arrayField is required" rule.
+  // `errorPolicy` is bounded by the zod enum, so no extra rule is needed.
+  warningRules: [
+    {
+      id: 'foreach:no-array-field',
+      when: '!arrayField',
+      message: '배열 필드를 입력해야 합니다.',
+    },
+  ],
 };

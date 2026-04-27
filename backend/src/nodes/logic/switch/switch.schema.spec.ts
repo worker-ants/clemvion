@@ -1,10 +1,13 @@
+import { evaluateWarnings } from '@workflow/node-summary';
 import {
   caseDefSchema,
   switchNodeConfigSchema,
   switchNodeMetadata,
   switchNodeOutputSchema,
   switchNodePorts,
+  validateSwitchConfig,
 } from './switch.schema';
+import { evaluateMetadataBlockingErrors } from '../../core/metadata-validation';
 
 describe('Switch node schema', () => {
   describe('caseDefSchema', () => {
@@ -145,6 +148,118 @@ describe('Switch node schema', () => {
       expect(switchNodeMetadata.type).toBe('switch');
       expect(switchNodeMetadata.isDynamicPorts).toBe(true);
       expect(switchNodeMetadata.dynamicPorts).toEqual({ kind: 'switch-cases' });
+    });
+  });
+
+  describe('warningRules', () => {
+    const firedIds = (config: unknown) =>
+      evaluateWarnings(
+        config as Record<string, unknown>,
+        switchNodeMetadata.warningRules,
+      ).map((w) => w.id);
+
+    describe('switch:value-mode-needs-switch-value', () => {
+      it('fires for default mode (no mode set) when switchValue is missing', () => {
+        expect(firedIds({ cases: [{ id: 'a' }] })).toContain(
+          'switch:value-mode-needs-switch-value',
+        );
+      });
+
+      it('fires for explicit mode=value when switchValue is missing', () => {
+        expect(firedIds({ mode: 'value', cases: [{ id: 'a' }] })).toContain(
+          'switch:value-mode-needs-switch-value',
+        );
+      });
+
+      it('does NOT fire when mode=expression', () => {
+        expect(
+          firedIds({ mode: 'expression', cases: [{ id: 'a' }] }),
+        ).not.toContain('switch:value-mode-needs-switch-value');
+      });
+
+      it('does NOT fire when switchValue is set', () => {
+        expect(
+          firedIds({
+            mode: 'value',
+            switchValue: '{{ $input.kind }}',
+            cases: [{ id: 'a' }],
+          }),
+        ).not.toContain('switch:value-mode-needs-switch-value');
+      });
+    });
+
+    describe('switch:no-cases', () => {
+      it('fires when cases is empty', () => {
+        expect(firedIds({ cases: [] })).toContain('switch:no-cases');
+      });
+
+      it('fires when cases is missing entirely', () => {
+        expect(firedIds({})).toContain('switch:no-cases');
+      });
+
+      it('does NOT fire when at least one case is defined', () => {
+        expect(firedIds({ cases: [{ id: 'a' }] })).not.toContain(
+          'switch:no-cases',
+        );
+      });
+    });
+  });
+
+  describe('validateSwitchConfig (imperative)', () => {
+    it('returns [] for a valid value-mode config', () => {
+      expect(
+        validateSwitchConfig({
+          mode: 'value',
+          switchValue: 'x',
+          cases: [{ id: 'yes', value: true }],
+        }),
+      ).toEqual([]);
+    });
+
+    it('rejects duplicate case ids', () => {
+      const errors = validateSwitchConfig({
+        cases: [{ id: 'dup' }, { id: 'dup' }],
+      });
+      expect(errors).toContain("cases[1].id 'dup' is duplicated");
+    });
+
+    it('rejects unknown valueType', () => {
+      const errors = validateSwitchConfig({
+        cases: [{ id: 'a', valueType: 'date' }],
+      });
+      expect(errors).toContain(
+        'cases[0].valueType must be one of: string, number, boolean',
+      );
+    });
+
+    it('expression mode requires per-case condition', () => {
+      const errors = validateSwitchConfig({
+        mode: 'expression',
+        cases: [{ id: 'a' }],
+      });
+      expect(errors).toContain(
+        'cases[0].condition is required when mode is "expression"',
+      );
+    });
+  });
+
+  describe('evaluateMetadataBlockingErrors integration (switch)', () => {
+    it('emits both Korean warnings on a freshly-created node', () => {
+      const errors = evaluateMetadataBlockingErrors(switchNodeMetadata, {});
+      expect(errors).toContain(
+        'Value 모드에서는 Switch Value 를 입력해야 합니다.',
+      );
+      expect(errors).toContain('최소 1개 이상의 case 를 추가해야 합니다.');
+    });
+
+    it('returns [] when fully configured (value mode)', () => {
+      expect(
+        evaluateMetadataBlockingErrors(switchNodeMetadata, {
+          mode: 'value',
+          switchValue: '{{ $input.kind }}',
+          cases: [{ id: 'a', value: true }],
+        }),
+      ).toEqual([]);
     });
   });
 });
