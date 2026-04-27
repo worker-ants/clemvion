@@ -1,3 +1,4 @@
+import path from "node:path";
 import createMDX from "@next/mdx";
 import rehypeAutolinkHeadings from "rehype-autolink-headings";
 import rehypeSlug from "rehype-slug";
@@ -8,6 +9,10 @@ import type { NextConfig } from "next";
 const nextConfig: NextConfig = {
   pageExtensions: ["js", "jsx", "ts", "tsx", "md", "mdx"],
   poweredByHeader: false,
+  // Docker/k8s 배포용 — .next/standalone 에 server.js + 필요한 파일만 자동 복사.
+  output: "standalone",
+  // 모노레포(file:../packages/*) 트레이싱 루트는 repo 루트.
+  outputFileTracingRoot: path.join(import.meta.dirname, ".."),
   // Local symlinked package — transpile required for bundler resolution.
   // Build uses --webpack flag because Turbopack cannot follow symlinked local packages.
   transpilePackages: ["@workflow/expression-engine"],

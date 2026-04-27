@@ -32,3 +32,16 @@ npm run start:dev
 - `MAIL_*` - 이메일 발송 설정 (SMTP)
 - `APP_*` - 앱 포트, URL 설정
 - `ENCRYPTION_KEY` - 크레덴셜 암호화 키
+
+## Docker
+
+프로덕션 이미지는 `backend/Dockerfile`(멀티스테이지, non-root `node` 유저)로 빌드합니다. 빌드 컨텍스트는 **repo 루트** — `file:../packages/*` 의존성을 함께 가져오기 위함입니다.
+
+```bash
+# repo 루트에서
+docker build -f backend/Dockerfile -t idea-workflow/backend .
+```
+
+- 컨테이너 포트: `EXPOSE 3011` (실제 바인딩은 `APP_PORT` env로 제어, k8s에서 override 가능)
+- 헬스 엔드포인트: `GET /api/health` (DB·Redis 연결 상태 포함) — k8s readinessProbe 용도
+- DB 마이그레이션은 본 이미지에 포함되지 않습니다. 별도 Flyway 이미지 `backend/migrations/Dockerfile` 참고: [`migrations/README.md`](./migrations/README.md).

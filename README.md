@@ -198,6 +198,49 @@ npm run dev
 | 테스트 | `npm run test` | `npm run test` |
 | 테스트 (E2E) | - | `npm run test:e2e` |
 
+## Docker / Kubernetes 배포
+
+프로덕션 서빙은 세 개의 컨테이너 이미지로 구성됩니다.
+
+| 이미지 | Dockerfile | 역할 |
+| ----- | ---------- | ---- |
+| `backend` | `backend/Dockerfile` | NestJS API 서버 |
+| `frontend` | `frontend/Dockerfile` | Next.js 16 (standalone build) |
+| `migrate` | `backend/migrations/Dockerfile` | Flyway 기반 DB 스키마 마이그레이션 |
+
+### 빌드
+
+세 이미지 모두 **repo 루트가 빌드 컨텍스트**입니다 (`packages/*` 의 `file:` 의존성을 트래킹하기 위함).
+
+```bash
+# Backend
+docker build -f backend/Dockerfile -t idea-workflow/backend .
+
+# Frontend (NEXT_PUBLIC_*는 build-time에 client bundle에 인라인됨 — 환경별로 빌드)
+docker build -f frontend/Dockerfile \
+  --build-arg NEXT_PUBLIC_API_URL=https://api.example.com/api \
+  --build-arg NEXT_PUBLIC_WS_URL=https://api.example.com \
+  -t idea-workflow/frontend .
+
+# DB 마이그레이션
+docker build -f backend/migrations/Dockerfile -t idea-workflow/migrate .
+```
+
+### 런타임 환경변수 (k8s ConfigMap/Secret)
+
+**Backend** — `DB_*`, `REDIS_*`, `JWT_*`, `S3_*`, `APP_PORT`(기본 3011), `APP_URL`, `FRONTEND_URL`, `ENCRYPTION_KEY`, `INTEGRATION_ENCRYPTION_KEY`. 자세한 항목은 `backend/.env`의 키를 참고. `OAUTH_STUB_MODE=true`는 `NODE_ENV=production`과 함께 쓰면 부트스트랩이 거부합니다 (보안 가드).
+
+**Frontend** — `INTERNAL_API_URL` (예: `http://backend.<ns>.svc:3011/api`) 을 Server Component fetch 경로로 권장. `PORT`/`HOSTNAME`은 Dockerfile 기본값 사용.
+
+### Kubernetes 배치 권장
+
+- `migrate` 이미지: Job 또는 backend Deployment의 init container로 실행. `-baselineOnMigrate=true -connectRetries=10` args.
+- `backend` Deployment: 컨테이너 포트 3011, `readinessProbe: httpGet { path: /api/health, port: 3011 }`. `/api/health`는 DB·Redis 연결 상태를 체크합니다.
+- `frontend` Deployment: 컨테이너 포트 3000, `readinessProbe: httpGet { path: /api/health, port: 3000 }`.
+- `backend`/`frontend`는 비루트(`uid=1000`, `node` 유저)로 기동됩니다. k8s `securityContext.runAsNonRoot: true` 권장.
+
+> k8s manifest 자체(Deployment/Service/Ingress)는 본 저장소 범위 밖입니다. 운영 클러스터의 GitOps 저장소에서 관리하세요.
+
 # integration (SSO)
 ## Google OAuth 연동 설정
 
