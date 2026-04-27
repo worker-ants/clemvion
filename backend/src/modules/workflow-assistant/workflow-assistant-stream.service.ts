@@ -23,7 +23,11 @@ import {
   TOOL_KIND_BY_NAME,
   AssistantToolKind,
 } from './tools/tool-definitions';
-import { spreadMeasured, toWorkflowView } from './tools/workflow-view';
+import {
+  spreadMeasured,
+  toWorkflowView,
+  WorkflowView,
+} from './tools/workflow-view';
 import {
   detectPendingUserConfig,
   PendingUserConfigField,
@@ -67,6 +71,14 @@ type FinishGuardError =
       checklist: ReviewChecklistItem[];
       originalRequest: string;
       planTitle?: string;
+      /**
+       * Turn-end 시점의 권위 있는 캔버스 상태. system prompt 의 turn-start
+       * snapshot 과 LLM 의 누적 tool_result 기억보다 우선한다. `get_current_workflow`
+       * 와 동일한 `toWorkflowView` 직렬화 + redactConfig 정책을 공유하므로 두 표현이
+       * 발산하지 않는다. LLM 이 review fix 라운드에서 추가 tool 호출 없이 곧바로
+       * 최신 상태를 비교·교정할 수 있게 한다.
+       */
+      currentWorkflow: WorkflowView;
       message: string;
     };
 
@@ -1379,8 +1391,14 @@ export class WorkflowAssistantStreamService {
       // 이미 XML fence 로 중화되어 주입되므로 중복 노출도 방지.
       originalRequest: truncateReviewOriginalRequest(originalRequest),
       planTitle: plan?.title,
+      // turn-end 권위 snapshot. LLM 이 자기 누적 tool_result 기억이나 system
+      // prompt 의 turn-start snapshot 으로 fix 를 시도하면 같은 턴 내 다른 round
+      // 의 부수효과(예: 이전 update_node 의 configWarnings, dynamic port 의
+      // 실제 id) 를 놓쳐 회복 라운드가 추가로 든다. 같은 메서드 진입부에서
+      // 이미 한 번 찍은 `snapshot` 을 그대로 재사용해 직렬화 비용은 1회.
+      currentWorkflow: toWorkflowView(snapshot),
       message:
-        "Before finishing: audit the built workflow against the user's original request. 1) Read the checklist items below. 2) Call get_current_workflow if you need the latest state. 3) Fix each blocking item with edit tools — unresolved failures, orphan nodes, unmentioned pendingUserConfig, or fake step completion. 4) Emit a short Korean '검토 완료' summary covering what you fixed, then call finish again. The second finish will pass through without re-running this review.",
+        "Before finishing: audit the built workflow against the user's original request. The `currentWorkflow` field below is the AUTHORITATIVE turn-end state — trust it over the turn-start snapshot in the system prompt and over your own memory of prior tool results. 1) Walk every node in `currentWorkflow.nodes` and every edge in `currentWorkflow.edges` once and verify each was intended. 2) Read each blocking checklist item and fix it with edit tools — unresolved failures, orphan nodes, dangling output ports, unmentioned pendingUserConfig, fake step completion, or unaddressed configWarnings. 3) Re-call `get_current_workflow` ONLY after issuing NEW edit tool calls in this review round. 4) Emit a short Korean '검토 완료' summary covering what you fixed, then call finish again. The second finish will pass through without re-running this review.",
     };
   }
 
