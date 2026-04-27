@@ -94,6 +94,88 @@ client bundle 에 인라인되는 한계상 환경별 이미지 빌드. `fronten
 - `readOnlyRootFilesystem: true` + `/tmp` 는 emptyDir.
 - `capabilities.drop: ["ALL"]`, `allowPrivilegeEscalation: false`.
 
+## Placeholder 체크리스트 (배포 전 필수 교체)
+
+본 매니페스트는 환경 무관하게 commit 가능한 형태이므로, 실 클러스터에 적용하기 전 다음 placeholder 들을 환경에 맞게 교체해야 합니다. (`local` overlay 는 placeholder 없이 그대로 동작.)
+
+### 1. 이미지 레지스트리
+
+`base/kustomization.yaml` 의 `images:` 섹션 또는 overlay 의 `images:` 섹션에서 실 레지스트리 경로로 교체.
+
+```yaml
+# 예: ECR 사용 시
+images:
+  - name: idea-workflow/backend
+    newName: 123456789.dkr.ecr.us-east-1.amazonaws.com/idea-workflow-backend
+    newTag: <git-sha 또는 semver>
+```
+
+CI 파이프라인에서는 `kustomize edit set image idea-workflow/backend=<registry>/<repo>:<tag>` 를 사용해 자동 갱신.
+
+### 2. Secret 실 값
+
+`base/secret.example.yaml` 의 `stringData` 키들이 모두 `REPLACE_ME` placeholder. 실 환경에서는 동일 이름 (`backend-secret`) 의 Secret 을 별도로 공급:
+
+| 키 | 비고 |
+| -- | ---- |
+| `DB_USERNAME`, `DB_PASSWORD` | 외부 DB 자격증명 |
+| `JWT_SECRET` | 32 byte 이상 랜덤 |
+| `S3_ACCESS_KEY`, `S3_SECRET_KEY` | IAM 사용자 / MinIO 루트 |
+| `ENCRYPTION_KEY` | 정확히 32 byte hex (= 64 hex char) |
+| `INTEGRATION_ENCRYPTION_KEY` | 임의 길이, SHA-256 으로 파생됨 |
+| `MAIL_USER`, `MAIL_PASS` | `MAIL_TRANSPORT=smtp` 일 때만 |
+| `GOOGLE_*`, `GITHUB_*`, `SLACK_*` | OAuth 사용 시 |
+
+권장 공급 방식:
+- **SealedSecrets** — `kubeseal` 로 봉인된 매니페스트를 commit, 클러스터 controller 가 복호화.
+- **external-secrets-operator** — `ExternalSecret` CR 이 Vault / AWS Secrets Manager / GCP SM 에서 동기화.
+- 둘 다 `base/secret.example.yaml` 을 동기화 대상에서 제외 (Argo `.argocd-source.yaml` 의 exclude 또는 kustomize `patches` 로 삭제) 한 뒤 동등 이름의 봉인 매니페스트로 대체.
+
+### 3. 외부 DB / Redis / S3 endpoint
+
+`overlays/staging/kustomization.yaml`, `overlays/prod/kustomization.yaml` 의 다음 키:
+
+| 키 | 현재 placeholder | 채울 값 예 |
+| -- | --------------- | ---------- |
+| `DB_HOST` | `REPLACE_ME.rds.amazonaws.com` | RDS endpoint |
+| `REDIS_HOST` | `REPLACE_ME.cache.amazonaws.com` | ElastiCache 엔드포인트 |
+| `S3_ENDPOINT` | `https://s3.us-east-1.amazonaws.com` | 리전 맞춰서 (그대로 두거나 자체 호스팅 endpoint) |
+
+DB/Redis 포트, S3 버킷·리전은 base ConfigMap 기본값 사용. 다르면 같은 patch 블록에 추가.
+
+### 4. Ingress 호스트 & TLS
+
+`overlays/staging|prod/kustomization.yaml` 의 host patch:
+
+| 키 | 현재 placeholder | 채울 값 |
+| -- | --------------- | ------- |
+| `/spec/rules/0/host` | `staging.idea-workflow.example.com` 등 | 실 도메인 |
+| `/spec/tls/0/hosts/0` | 위와 동일 | 위와 동일 |
+| `tls.secretName` | `idea-workflow-tls` (base) | cert-manager 가 발급한 Secret 이름과 일치시킴 |
+
+TLS Secret 자체는 cert-manager (`Certificate` CR) 또는 외부 발급 후 import 로 별도 생성.
+
+### 5. HAProxy 컨트롤러 annotation
+
+`base/ingress.yaml` 의 annotation 은 `haproxytech/kubernetes-ingress` (prefix `haproxy.org/`) 기준으로 작성. `jcmoraisjr/haproxy-ingress` 사용 시 같은 파일 주석에 표시된 대안 (`haproxy-ingress.github.io/...`) 으로 교체.
+
+### 6. NEXT_PUBLIC_* — 환경별 frontend 이미지
+
+`NEXT_PUBLIC_API_URL`, `NEXT_PUBLIC_WS_URL` 은 build-time 에 client bundle 에 인라인됨 → staging / prod 별로 다른 이미지가 필요. CI 파이프라인 예:
+
+```bash
+docker build -f frontend/Dockerfile \
+  --build-arg NEXT_PUBLIC_API_URL=https://staging.idea-workflow.example.com/api \
+  --build-arg NEXT_PUBLIC_WS_URL=https://staging.idea-workflow.example.com \
+  -t <registry>/idea-workflow-frontend:staging .
+```
+
+### 7. (옵셔널) 자원 / 스케일링
+
+`base/*-deployment.yaml` 의 `resources` requests/limits 와 `replicas` 는 starter 값. 실 트래픽 측정 후 조정. HPA / KEDA 도입 시 `replicas` 는 minimum 으로만 사용.
+
+---
+
 ## Smoke 테스트
 
 ```bash
