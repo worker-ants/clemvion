@@ -914,7 +914,8 @@ describe('WorkflowAssistantStreamService', () => {
       ]),
     );
     // Round 3: review 가 "orphan 노드 있음" 등으로 block 한 뒤, LLM 이
-    // 검토 완료 한국어 코멘트와 함께 두 번째 finish 를 호출 → 통과.
+    // 검토 완료 한국어 코멘트와 함께 두 번째 finish 를 호출 → Phase 6 에서는
+    // fix 안 했으니 review 다시 fire (round 4 필요).
     mocks.llmService.chatStream.mockImplementationOnce(() =>
       asyncIter<ChatStreamEvent>([
         { type: 'text_delta', delta: '검토 완료.' },
@@ -928,6 +929,24 @@ describe('WorkflowAssistantStreamService', () => {
           type: 'done',
           usage: { inputTokens: 10, outputTokens: 3, totalTokens: 13 },
           model: 'gpt-4o',
+          finishReason: 'tool_calls',
+        },
+      ]),
+    );
+    // Round 4: reviewRoundCount = 2 도달로 finish 통과.
+    mocks.llmService.chatStream.mockImplementationOnce(() =>
+      asyncIter<ChatStreamEvent>([
+        { type: 'text_delta', delta: '검토 한계.' },
+        {
+          type: 'tool_call_end',
+          id: 'call_fin_4',
+          name: 'finish',
+          arguments: '{}',
+        },
+        {
+          type: 'done',
+          usage: { inputTokens: 8, outputTokens: 3, totalTokens: 11 },
+          model: 'gpt-4o',
           finishReason: 'stop',
         },
       ]),
@@ -937,8 +956,8 @@ describe('WorkflowAssistantStreamService', () => {
       service.streamMessage('sess-1', 'ws-1', 'u-1', baseDto as never),
     );
 
-    // PLAN_NOT_COMPLETE + WORKFLOW_REVIEW_REQUIRED 각각 한 번씩 → 3 라운드.
-    expect(mocks.llmService.chatStream).toHaveBeenCalledTimes(3);
+    // PLAN_NOT_COMPLETE + WORKFLOW_REVIEW_REQUIRED ×2 (Phase 6 stuck 제거) → 4 라운드.
+    expect(mocks.llmService.chatStream).toHaveBeenCalledTimes(4);
 
     // 두 번째 라운드 messages 에 첫 finish 의 PLAN_NOT_COMPLETE tool_result 가
     // 포함되어 있어야 한다.
@@ -1311,13 +1330,32 @@ describe('WorkflowAssistantStreamService', () => {
         },
       ]),
     );
-    // Round 4: 검토 완료 멘트 후 네 번째 finish → review 는 1회만 발동하므로 통과.
+    // Round 4: 검토 완료 멘트 후 네 번째 finish → Phase 6 stuck 제거로 review
+    // 가 다시 fire (round 5 필요).
     mocks.llmService.chatStream.mockImplementationOnce(() =>
       asyncIter<ChatStreamEvent>([
         { type: 'text_delta', delta: '검토 완료.' },
         {
           type: 'tool_call_end',
           id: 'fin_4',
+          name: 'finish',
+          arguments: '{}',
+        },
+        {
+          type: 'done',
+          usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 },
+          model: 'gpt-4o',
+          finishReason: 'tool_calls',
+        },
+      ]),
+    );
+    // Round 5: reviewRoundCount = 2 도달로 finish 통과.
+    mocks.llmService.chatStream.mockImplementationOnce(() =>
+      asyncIter<ChatStreamEvent>([
+        { type: 'text_delta', delta: '검토 한계.' },
+        {
+          type: 'tool_call_end',
+          id: 'fin_5',
           name: 'finish',
           arguments: '{}',
         },
@@ -1334,8 +1372,8 @@ describe('WorkflowAssistantStreamService', () => {
       service.streamMessage('sess-1', 'ws-1', 'u-1', baseDto as never),
     );
 
-    // 4 라운드 — PLAN_NOT_COMPLETE × 2 (fin_1, fin_2) + WORKFLOW_REVIEW_REQUIRED (fin_3) + 정상 finish (fin_4).
-    expect(mocks.llmService.chatStream).toHaveBeenCalledTimes(4);
+    // 5 라운드 — PLAN_NOT_COMPLETE × 2 (fin_1, fin_2) + WORKFLOW_REVIEW_REQUIRED × 2 (fin_3, fin_4) + 정상 finish (fin_5).
+    expect(mocks.llmService.chatStream).toHaveBeenCalledTimes(5);
 
     // Round 2 messages: round 1 의 fin_1 이 PLAN_NOT_COMPLETE 로 결과 통보됨
     const round2Messages = mocks.llmService.chatStream.mock.calls[1][1]
@@ -1899,13 +1937,32 @@ describe('WorkflowAssistantStreamService', () => {
         },
       ]),
     );
-    // Round 3: 검토 완료 멘트 후 세 번째 finish — review 는 1회만 발동.
+    // Round 3: 검토 완료 멘트 후 세 번째 finish — Phase 6 stuck 제거로 review
+    // 가 다시 fire (round 4 필요).
     mocks.llmService.chatStream.mockImplementationOnce(() =>
       asyncIter<ChatStreamEvent>([
         { type: 'text_delta', delta: '검토 완료.' },
         {
           type: 'tool_call_end',
           id: 'call_fin_3',
+          name: 'finish',
+          arguments: '{}',
+        },
+        {
+          type: 'done',
+          usage: { inputTokens: 5, outputTokens: 3, totalTokens: 8 },
+          model: 'gpt-4o',
+          finishReason: 'tool_calls',
+        },
+      ]),
+    );
+    // Round 4: 상한 도달로 통과.
+    mocks.llmService.chatStream.mockImplementationOnce(() =>
+      asyncIter<ChatStreamEvent>([
+        { type: 'text_delta', delta: '검토 한계.' },
+        {
+          type: 'tool_call_end',
+          id: 'call_fin_4',
           name: 'finish',
           arguments: '{}',
         },
@@ -1921,7 +1978,7 @@ describe('WorkflowAssistantStreamService', () => {
     await collect(
       service.streamMessage('sess-1', 'ws-1', 'u-1', baseDto as never),
     );
-    expect(mocks.llmService.chatStream).toHaveBeenCalledTimes(3);
+    expect(mocks.llmService.chatStream).toHaveBeenCalledTimes(4);
     // Round 2 에 전달된 finish 의 첫번째 결과가 PLAN_NOT_COMPLETE 여야 한다.
     const secondRoundMessages = mocks.llmService.chatStream.mock.calls[1][1]
       .messages as Array<{
@@ -2981,7 +3038,7 @@ describe('WorkflowAssistantStreamService', () => {
           },
         ]),
       );
-      // Round 2: 두 번째 finish 는 review 를 건너뛰고 통과.
+      // Round 2: LLM 이 fix 안 하고 finish 만 — Phase 6 정책으로 review 다시 fire.
       mocks.llmService.chatStream.mockImplementationOnce(() =>
         asyncIter<ChatStreamEvent>([
           { type: 'text_delta', delta: '검토 완료' },
@@ -2995,6 +3052,24 @@ describe('WorkflowAssistantStreamService', () => {
             type: 'done',
             usage: { inputTokens: 10, outputTokens: 3, totalTokens: 13 },
             model: 'gpt-4o',
+            finishReason: 'tool_calls',
+          },
+        ]),
+      );
+      // Round 3: 또 finish — reviewRoundCount = 2 도달로 통과.
+      mocks.llmService.chatStream.mockImplementationOnce(() =>
+        asyncIter<ChatStreamEvent>([
+          { type: 'text_delta', delta: '검토 한계.' },
+          {
+            type: 'tool_call_end',
+            id: 'call_fin_3',
+            name: 'finish',
+            arguments: '{}',
+          },
+          {
+            type: 'done',
+            usage: { inputTokens: 8, outputTokens: 3, totalTokens: 11 },
+            model: 'gpt-4o',
             finishReason: 'stop',
           },
         ]),
@@ -3004,7 +3079,7 @@ describe('WorkflowAssistantStreamService', () => {
         service.streamMessage('sess-1', 'ws-1', 'u-1', baseDto as never),
       );
 
-      expect(mocks.llmService.chatStream).toHaveBeenCalledTimes(2);
+      expect(mocks.llmService.chatStream).toHaveBeenCalledTimes(3);
 
       // Round 2 messages 에 첫 finish 의 WORKFLOW_REVIEW_REQUIRED tool_result
       // 가 실려 있어야 한다.
@@ -3139,11 +3214,12 @@ describe('WorkflowAssistantStreamService', () => {
       expect(JSON.stringify(parsed)).not.toContain('plaintext-secret-12345');
     });
 
-    it('Phase 5 stuck escape: LLM が fix 안 하고 finish 만 반복하면 second finish 통과 (사용자 비용 보호)', async () => {
-      // Phase 5 정책: review block 후 LLM 이 새 edit 없이 다시 finish 만 호출
-      // 하면 stuck escape (`reviewRoundCount > 0 && editsSinceLastFinishBlock
-      // === 0`) 로 통과시킨다. fix 의지가 없는 LLM 에게 추가 라운드를 부과해
-      // 사용자 비용을 늘리지 않기 위함.
+    it('Phase 6: LLM이 fix 안 하고 finish 만 반복해도 review가 한 번 더 fire (stuck escape 제거), 그 다음 finish는 상한으로 통과', async () => {
+      // Phase 5 의 stuck escape 가 사용자 의도("검증 자체가 일어나야 함")와
+      // 충돌해 Phase 6 에서 제거. LLM 이 review block 후 어떤 진척도 없이 그냥
+      // finish 만 호출해도 reviewRoundCount < MAX_REVIEW_ROUNDS 이면 다시 막아
+      // 검증 흔적이라도 남게 한다. 두 번째 block 후 (reviewRoundCount = 2)
+      // 에는 무한 루프 방지로 통과.
       const { service, mocks } = makeService();
       const addOrphan = JSON.stringify({
         type: 'http_request',
@@ -3185,7 +3261,7 @@ describe('WorkflowAssistantStreamService', () => {
           },
         ]),
       );
-      // Round 2: LLM 이 의도적으로 아무것도 고치지 않고 다시 finish 만 호출.
+      // Round 2: LLM 이 fix 안 하고 finish 만 — review 다시 fire 되어야.
       mocks.llmService.chatStream.mockImplementationOnce(() =>
         asyncIter<ChatStreamEvent>([
           {
@@ -3198,6 +3274,24 @@ describe('WorkflowAssistantStreamService', () => {
             type: 'done',
             usage: { inputTokens: 10, outputTokens: 3, totalTokens: 13 },
             model: 'gpt-4o',
+            finishReason: 'tool_calls',
+          },
+        ]),
+      );
+      // Round 3: 또 finish — 상한 도달로 통과.
+      mocks.llmService.chatStream.mockImplementationOnce(() =>
+        asyncIter<ChatStreamEvent>([
+          { type: 'text_delta', delta: '검토 한계.' },
+          {
+            type: 'tool_call_end',
+            id: 'fin_3',
+            name: 'finish',
+            arguments: '{}',
+          },
+          {
+            type: 'done',
+            usage: { inputTokens: 8, outputTokens: 3, totalTokens: 11 },
+            model: 'gpt-4o',
             finishReason: 'stop',
           },
         ]),
@@ -3206,8 +3300,22 @@ describe('WorkflowAssistantStreamService', () => {
       const events = await collect(
         service.streamMessage('sess-1', 'ws-1', 'u-1', baseDto as never),
       );
-      // Second finish passes via stuck escape (no new edit between blocks).
-      expect(mocks.llmService.chatStream).toHaveBeenCalledTimes(2);
+      // 3 라운드: round 1 review_required, round 2 review_required (재발동),
+      // round 3 통과.
+      expect(mocks.llmService.chatStream).toHaveBeenCalledTimes(3);
+      // Round 3 messages 의 fin_2 결과가 review_required 임을 검증.
+      const round3Msgs = mocks.llmService.chatStream.mock.calls[2][1]
+        .messages as Array<{
+        role: string;
+        content?: string;
+        toolCallId?: string;
+      }>;
+      const fin2 = round3Msgs.find(
+        (m) => m.role === 'tool' && m.toolCallId === 'fin_2',
+      );
+      expect(fin2).toBeDefined();
+      const parsed = JSON.parse(fin2!.content ?? 'null');
+      expect(parsed.error).toBe('WORKFLOW_REVIEW_REQUIRED');
       const done = events[events.length - 1];
       expect(done).toMatchObject({
         event: 'done',
@@ -3801,8 +3909,8 @@ describe('WorkflowAssistantStreamService', () => {
           },
         ]),
       );
-      // Round 3: review 결과 확인 후 두 번째 finish — review 는 턴에 1회만
-      // 발동하므로 이번에는 통과.
+      // Round 3: review 결과 확인 후 두 번째 finish — Phase 6 stuck 제거로
+      // 다시 fire (round 4 필요).
       mocks.llmService.chatStream.mockImplementationOnce(() =>
         asyncIter<ChatStreamEvent>([
           { type: 'text_delta', delta: '검토 완료.' },
@@ -3816,6 +3924,24 @@ describe('WorkflowAssistantStreamService', () => {
             type: 'done',
             usage: { inputTokens: 10, outputTokens: 3, totalTokens: 13 },
             model: 'gpt-4o',
+            finishReason: 'tool_calls',
+          },
+        ]),
+      );
+      // Round 4: 상한 도달로 통과.
+      mocks.llmService.chatStream.mockImplementationOnce(() =>
+        asyncIter<ChatStreamEvent>([
+          { type: 'text_delta', delta: '검토 한계.' },
+          {
+            type: 'tool_call_end',
+            id: 'fin_4',
+            name: 'finish',
+            arguments: '{}',
+          },
+          {
+            type: 'done',
+            usage: { inputTokens: 8, outputTokens: 3, totalTokens: 11 },
+            model: 'gpt-4o',
             finishReason: 'stop',
           },
         ]),
@@ -3824,8 +3950,8 @@ describe('WorkflowAssistantStreamService', () => {
       await collect(
         service.streamMessage('sess-1', 'ws-1', 'u-1', baseDto as never),
       );
-      // PLAN_NOT_COMPLETE + WORKFLOW_REVIEW_REQUIRED 독립 발동 → 3 라운드.
-      expect(mocks.llmService.chatStream).toHaveBeenCalledTimes(3);
+      // PLAN_NOT_COMPLETE + WORKFLOW_REVIEW_REQUIRED × 2 (Phase 6) → 4 라운드.
+      expect(mocks.llmService.chatStream).toHaveBeenCalledTimes(4);
       // Round 2 messages: 첫 finish 가 PLAN_NOT_COMPLETE 로 막힌 흔적.
       const secondRoundMessages = mocks.llmService.chatStream.mock.calls[1][1]
         .messages as Array<{
@@ -4402,8 +4528,8 @@ describe('WorkflowAssistantStreamService', () => {
           },
         ]),
       );
-      // Round 2: "검토 완료" 코멘트 + 두 번째 finish — review 를 이미 1회 거쳤으므로
-      // skip 되어 통과.
+      // Round 2: "검토 완료" 코멘트 + 두 번째 finish — Phase 6 stuck 제거로
+      // dangling 잔존이라 review 다시 fire.
       mocks.llmService.chatStream.mockImplementationOnce(() =>
         asyncIter<ChatStreamEvent>([
           { type: 'text_delta', delta: '검토 완료.' },
@@ -4417,6 +4543,24 @@ describe('WorkflowAssistantStreamService', () => {
             type: 'done',
             usage: { inputTokens: 3, outputTokens: 2, totalTokens: 5 },
             model: 'gemini-3-flash-preview',
+            finishReason: 'tool_calls',
+          },
+        ]),
+      );
+      // Round 3: 상한 도달로 통과.
+      mocks.llmService.chatStream.mockImplementationOnce(() =>
+        asyncIter<ChatStreamEvent>([
+          { type: 'text_delta', delta: '검토 한계.' },
+          {
+            type: 'tool_call_end',
+            id: 'call_fin_3',
+            name: 'finish',
+            arguments: '{}',
+          },
+          {
+            type: 'done',
+            usage: { inputTokens: 2, outputTokens: 1, totalTokens: 3 },
+            model: 'gemini-3-flash-preview',
             finishReason: 'stop',
           },
         ]),
@@ -4426,7 +4570,7 @@ describe('WorkflowAssistantStreamService', () => {
         service.streamMessage('sess-1', 'ws-1', 'u-1', primedDto as never),
       );
 
-      expect(mocks.llmService.chatStream).toHaveBeenCalledTimes(2);
+      expect(mocks.llmService.chatStream).toHaveBeenCalledTimes(3);
 
       // Round 2 messages 에 첫 finish 의 WORKFLOW_REVIEW_REQUIRED 가 실려 있어야
       // 하고, checklist 에 DANGLING_OUTPUT_PORTS + btn_b 언급이 있어야 한다.

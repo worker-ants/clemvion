@@ -235,12 +235,16 @@ const REVIEW_ORIGINAL_REQUEST_MAX_LEN = 200;
  */
 const MIN_NONTRIGGER_NODES_FOR_VERIFY = 3;
 /**
- * Phase 5: 한 턴에서 `WORKFLOW_REVIEW_REQUIRED` (blocking checklist) 가 LLM 을
- * 막을 수 있는 최대 라운드 수. 기존 1 → 2 로 늘려 LLM 이 첫 review 응답을
- * 무시하고 그냥 finish 를 다시 호출해도 새 edit 으로 진척이 있었으면 한 번 더
- * 막는다. 진척 (`editsSinceLastFinishBlock > 0`) 이 없으면 stuck escape 로
- * 통과해 사용자 비용 증가는 막는다 — 즉 정직하게 fix 시도하는 LLM 만 추가
- * 라운드를 받는다. verify_required 는 별도 1회 정책 (`verifyFiredOnce`).
+ * 한 턴에서 `WORKFLOW_REVIEW_REQUIRED` (blocking checklist) 가 LLM 을 막을 수
+ * 있는 최대 라운드 수. 변경 이력:
+ *   - Phase 5: 1 → 2 로 늘리되 stuck escape (LLM 이 진척 없이 finish 만
+ *     반복 호출하면 통과) 도입.
+ *   - Phase 6: stuck escape 제거. 사용자가 "검증 자체가 일어나길 원함" 으로
+ *     명시 — escape 가 fix 의지 없는 LLM 을 그냥 통과시켜 결함이 캔버스에
+ *     남는 케이스 (carousel button dangling, configWarnings 잔존 등) 를
+ *     부른다. 이제는 reviewRoundCount 가 이 상한에 도달할 때까지 LLM 이 fix
+ *     했든 안 했든 계속 막는다. 추가 비용은 LLM 토큰 1~2 라운드 (사용자 대기
+ *     시간 영향 미미). verify_required 는 별도 1회 정책 (`verifyFiredOnce`).
  */
 const MAX_REVIEW_ROUNDS = 2;
 /**
@@ -1506,20 +1510,23 @@ export class WorkflowAssistantStreamService {
   }
 
   /**
-   * review 건너뛰기 여부 판정. 사용자의 "항상 강제" 요구(execution 턴 모두
-   * 점검) 에 맞춰 최소한의 안전 조건만 남긴다. 다음 중 하나라도 참이면 review
-   * 는 발동하지 않는다:
+   * review 건너뛰기 여부 판정. 사용자의 "검증 자체가 일어나야 한다" 요구에
+   * 맞춰 LLM 의 fix 의지와 무관하게 reviewRoundCount 상한까지 막는다. 다음 중
+   * 하나라도 참이면 review 는 발동하지 않는다:
    *  - 이미 이번 턴에 review 가 완전히 끝났거나 (`reviewCompleted` — 통과 또는
    *    `verify_workflow` 외부화 검증 완료)
-   *  - `reviewRoundCount` 가 `MAX_REVIEW_ROUNDS` 도달 (Phase 5: fix 강제 상한)
-   *  - 이미 한 번 막혔는데 그 이후 새 edit 이 하나도 없음 (Phase 5: stuck escape
-   *    — LLM 이 fix 안 하고 finish 만 반복 호출하는 케이스를 통과시켜 추가
-   *    비용을 막는다. 정직하게 새 edit 으로 진척하는 LLM 만 추가 라운드를
-   *    받는다.)
+   *  - `reviewRoundCount` 가 `MAX_REVIEW_ROUNDS` 도달 — fix 강제 상한.
+   *    LLM 이 그 안에 fix 못 하면 통과시켜 사용자가 다음 턴에서 직접 지시
+   *    가능하게 한다 (무한 루프 방지).
    *  - 같은 턴 `clear_plan` → 화제 전환으로 "점검 대상" 이 아님
    *  - 이번 턴에 성공한 edit 이 하나도 없음 — 실행 턴 아님 (질문·plan-only·
    *    전량 실패 케이스)
    *  - non-trigger 노드 수 ≤ 1 — 단발성 trivial 편집은 audit ROI 낮음
+   *
+   * Phase 6 변경: 기존 stuck escape (`reviewRoundCount > 0 &&
+   * editsSinceLastFinishBlock === 0`) 제거. fix 의지가 없는 LLM 도 추가
+   * 라운드를 받아 검증 흔적이라도 남도록 강제. 사용자 보고 케이스
+   * (configWarnings 잔존한 채 그냥 통과) 의 직접 회귀 차단.
    *
    * 주의: PLAN_NOT_COMPLETE 가 이미 fire 한 경우에도 review 는 발동한다.
    * plan 체크박스 충족 ≠ 워크플로우 품질 — 두 가드는 서로 다른 계층의
@@ -1532,12 +1539,6 @@ export class WorkflowAssistantStreamService {
   ): boolean {
     if (state.reviewCompleted) return true;
     if (state.reviewRoundCount >= MAX_REVIEW_ROUNDS) return true;
-    // Stuck escape (Phase 5): 이미 한 번 막혔는데 그 이후 LLM 이 새 edit 없이
-    // 다시 finish 만 호출 → fix 의지가 없다고 보고 통과. editsSinceLastFinishBlock
-    // 은 review block 직후 0 으로 reset 되고 성공한 edit 마다 ++.
-    if (state.reviewRoundCount > 0 && state.editsSinceLastFinishBlock === 0) {
-      return true;
-    }
     if (state.planClearedThisTurn) return true;
     const hadSuccessfulEdit = pendingToolCalls.some(
       (tc) =>
