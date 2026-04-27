@@ -1,3 +1,8 @@
+import type {
+  SummaryTemplateSpec as SharedSummaryTemplateSpec,
+  WarningRule,
+} from "@workflow/node-summary";
+
 export type PortDefinition = {
   id: string;
   label: string;
@@ -102,13 +107,17 @@ export type JsonSchemaNode = {
   [key: string]: unknown;
 };
 
-export type SummaryTemplateSpec = {
-  template: string;
-  warnWhen?: string;
-  warnMessage?: string;
-};
+/**
+ * Re-export of the SSOT `SummaryTemplateSpec` from `@workflow/node-summary`.
+ * Kept as a local alias so existing imports
+ * (`import type { SummaryTemplateSpec } from "@/lib/node-definitions/types"`)
+ * continue to resolve unchanged.
+ */
+export type SummaryTemplateSpec = SharedSummaryTemplateSpec;
 
 export type SummaryTemplate = string | SummaryTemplateSpec;
+
+export type { WarningRule };
 
 export type DynamicPortsSpec =
   | { kind: "switch-cases" }
@@ -143,6 +152,15 @@ export type NodeMetadata = {
   isDynamicPorts?: boolean;
   dynamicPorts?: DynamicPortsSpec;
   summaryTemplate?: SummaryTemplate;
+  /**
+   * SSOT declarative warnings shipped from the backend node schema. The
+   * canvas badge is derived purely from running `evaluateWarnings(config,
+   * warningRules)` so the frontend warning matches the backend
+   * `handler.validate()` result. The backend strips `validateConfig`
+   * (function, imperative) before serializing, so this list is the only
+   * warning surface visible to the frontend.
+   */
+  warningRules?: readonly WarningRule[];
 };
 
 /** Shape returned by `GET /nodes/definitions`. */
@@ -169,6 +187,8 @@ export type NodeDefinition = {
   isDynamicPorts?: boolean;
   dynamicPorts?: DynamicPortsSpec;
   summaryTemplate?: SummaryTemplate;
+  /** See {@link NodeMetadata.warningRules}. */
+  warningRules?: readonly WarningRule[];
   defaultConfig: Record<string, unknown>;
   configSchema: JsonSchemaNode;
   inputSchema?: JsonSchemaNode;

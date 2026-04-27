@@ -28,6 +28,7 @@
     "@tailwindcss/postcss": "^4.2.2",
     "@tanstack/react-query": "^5.95.2",
     "@workflow/expression-engine": "file:../packages/expression-engine",
+    "@workflow/node-summary": "file:../packages/node-summary",
     "@xyflow/react": "^12.10.2",
     "axios": "^1.15.0",
     "clsx": "^2.1.1",

@@ -4,147 +4,49 @@ import {
   evalWarnWhen,
   renderSummaryTemplate,
 } from "../summary-template-interpreter";
+import {
+  evaluateWhen,
+  renderSummaryTemplate as sharedRenderSummaryTemplate,
+  renderTemplate as sharedRenderTemplate,
+} from "@workflow/node-summary";
 
-describe("renderTemplate", () => {
-  it("interpolates simple fields", () => {
-    expect(renderTemplate("{{method}} {{url}}", { method: "GET", url: "/foo" }))
-      .toBe("GET /foo");
+/**
+ * `summary-template-interpreter` is now a back-compat re-export shim over
+ * `@workflow/node-summary`. The interpreter itself is exhaustively tested
+ * in the package; this suite only verifies the shim correctly forwards the
+ * API surface so existing import paths keep working unchanged.
+ */
+describe("summary-template-interpreter shim", () => {
+  it("re-exports renderTemplate from @workflow/node-summary", () => {
+    expect(renderTemplate).toBe(sharedRenderTemplate);
+    expect(renderTemplate("{{method}} {{url}}", { method: "GET", url: "/x" }))
+      .toBe("GET /x");
   });
 
-  it("renders empty string for missing fields", () => {
-    expect(renderTemplate("{{missing}}", {})).toBe("");
-  });
-
-  it("walks dot-paths into nested objects", () => {
-    expect(
-      renderTemplate("{{request.url}}", { request: { url: "/nested" } }),
-    ).toBe("/nested");
-  });
-
-  it("supports array length", () => {
-    expect(
-      renderTemplate("{{items.length}} items", { items: [1, 2, 3] }),
-    ).toBe("3 items");
-  });
-
-  it("applies upper filter", () => {
-    expect(renderTemplate("{{method|upper}}", { method: "get" })).toBe("GET");
-  });
-
-  it("applies lower filter", () => {
-    expect(renderTemplate("{{method|lower}}", { method: "POST" })).toBe("post");
-  });
-
-  it("applies default filter when path is missing", () => {
-    expect(renderTemplate("{{method|default:GET}}", {})).toBe("GET");
-  });
-
-  it("applies default filter when path is empty string", () => {
-    expect(renderTemplate("{{method|default:GET}}", { method: "" })).toBe("GET");
-  });
-
-  it("ignores default filter when path is set", () => {
-    expect(
-      renderTemplate("{{method|default:GET}}", { method: "POST" }),
-    ).toBe("POST");
-  });
-
-  it("chains default then upper", () => {
-    expect(
-      renderTemplate("{{method|default:get|upper}}", {}),
-    ).toBe("GET");
-  });
-
-  it("tolerates whitespace inside delimiters", () => {
-    expect(renderTemplate("{{ url }}", { url: "x" })).toBe("x");
-  });
-
-  it("leaves unknown filters as passthrough", () => {
-    expect(renderTemplate("{{val|nonsense}}", { val: "keep" })).toBe("keep");
-  });
-});
-
-describe("evalWarnWhen", () => {
-  it("!path returns true when missing", () => {
-    expect(evalWarnWhen("!url", {})).toBe(true);
-    expect(evalWarnWhen("!url", { url: "" })).toBe(true);
-    expect(evalWarnWhen("!url", { url: "/foo" })).toBe(false);
-  });
-
-  it("!path.length returns true for empty arrays", () => {
-    expect(evalWarnWhen("!fields.length", { fields: [] })).toBe(true);
-    expect(evalWarnWhen("!fields.length", { fields: [1] })).toBe(false);
-  });
-
-  it("path==value compares as string", () => {
-    expect(evalWarnWhen("mode==static", { mode: "static" })).toBe(true);
-    expect(evalWarnWhen("mode==static", { mode: "dynamic" })).toBe(false);
-  });
-
-  it("path!=value compares as string", () => {
-    expect(evalWarnWhen("mode!=static", { mode: "dynamic" })).toBe(true);
-    expect(evalWarnWhen("mode!=static", { mode: "static" })).toBe(false);
-  });
-
-  it("bare path evaluates truthiness", () => {
-    expect(evalWarnWhen("flag", { flag: true })).toBe(true);
-    expect(evalWarnWhen("flag", { flag: false })).toBe(false);
-  });
-
-  it("returns false on empty expression", () => {
-    expect(evalWarnWhen("", { url: "x" })).toBe(false);
-  });
-});
-
-describe("renderSummaryTemplate", () => {
-  it("returns null when no template is provided", () => {
+  it("re-exports renderSummaryTemplate from @workflow/node-summary", () => {
+    expect(renderSummaryTemplate).toBe(sharedRenderSummaryTemplate);
     expect(renderSummaryTemplate(undefined, {})).toBeNull();
-  });
-
-  it("bare string template renders without warning", () => {
-    expect(renderSummaryTemplate("{{method}} {{url}}", { method: "GET", url: "/" }))
-      .toEqual({ text: "GET /", isWarning: false });
-  });
-
-  it("object spec without warnWhen renders without warning", () => {
     expect(
-      renderSummaryTemplate(
-        { template: "{{method}} {{url}}" },
-        { method: "POST", url: "/api" },
-      ),
-    ).toEqual({ text: "POST /api", isWarning: false });
+      renderSummaryTemplate("{{method}} {{url}}", { method: "GET", url: "/" }),
+    ).toEqual({ text: "GET /", isWarning: false });
   });
 
-  it("warnWhen match returns warning with ⚠ prefix and warnMessage", () => {
-    const result = renderSummaryTemplate(
-      {
-        template: "{{method}} {{url}}",
-        warnWhen: "!url",
-        warnMessage: "URL not set",
-      },
-      {},
-    );
-    expect(result).toEqual({ text: "⚠ URL not set", isWarning: true });
+  it("aliases evalWarnWhen to evaluateWhen", () => {
+    expect(evalWarnWhen).toBe(evaluateWhen);
+    expect(evalWarnWhen("!url", {})).toBe(true);
+    expect(evalWarnWhen("!url", { url: "/x" })).toBe(false);
   });
 
-  it("warnWhen match without warnMessage falls back to rendered template", () => {
-    const result = renderSummaryTemplate(
-      { template: "Missing {{url}}", warnWhen: "!url" },
-      {},
-    );
-    expect(result).toEqual({ text: "⚠ Missing ", isWarning: true });
-  });
-
-  it("warnWhen no-match renders template normally", () => {
+  it("warnWhen on a SummaryTemplateSpec still produces ⚠ prefixed text", () => {
     expect(
       renderSummaryTemplate(
         {
-          template: "{{method|default:GET}} {{url}}",
+          template: "{{method}} {{url}}",
           warnWhen: "!url",
           warnMessage: "URL not set",
         },
-        { url: "/x" },
+        {},
       ),
-    ).toEqual({ text: "GET /x", isWarning: false });
+    ).toEqual({ text: "⚠ URL not set", isWarning: true });
   });
 });

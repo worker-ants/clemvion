@@ -96,6 +96,13 @@ beforeAll(() => {
           { id: "body", label: "Body", type: "data" },
           { id: "done", label: "Done", type: "data" },
         ],
+        // Mirror what the backend `loop.schema.ts` ships through
+        // GET /nodes/definitions: a SSOT warningRule for the missing
+        // count + a summaryTemplate for the configured display.
+        summaryTemplate: { template: "{{count}}x" },
+        warningRules: [
+          { id: "loop:count-required", when: "!count", message: "Count not set" },
+        ],
       }),
       map: make("map", { isContainer: true }),
       foreach: make("foreach", { isContainer: true }),
@@ -118,7 +125,24 @@ beforeAll(() => {
         ],
       }),
       manual_trigger: make("manual_trigger", { category: "trigger", inputs: [] }),
-      variable_declaration: make("variable_declaration", {}),
+      // variable_declaration / code only ship `warningRules` from the
+      // backend schema (no summaryTemplate). The canvas shows no body
+      // summary text once configured — the tests below assert that.
+      variable_declaration: make("variable_declaration", {
+        warningRules: [
+          {
+            id: "variable_declaration:no-variables",
+            when: "length(variables) == 0",
+            message: "No variables defined",
+          },
+        ],
+      }),
+      code: make("code", {
+        category: "data",
+        warningRules: [
+          { id: "code:no-code", when: "!code", message: "Code not written" },
+        ],
+      }),
       ai_agent: make("ai_agent", {
         category: "ai",
         isDynamicPorts: true,
@@ -388,7 +412,10 @@ describe("CustomNode", () => {
     expect(screen.getByText("My Node")).toBeInTheDocument();
   });
 
-  it("renders variable declaration summary", () => {
+  it("renders no body summary for nodes that ship only warningRules (no summaryTemplate)", () => {
+    // variable_declaration backend schema ships only warningRules \u2014 once the
+    // config is valid (rule does NOT fire), there's no template to render so
+    // the canvas hides the body summary line entirely.
     renderNode({
       type: "variable_declaration",
       config: {
@@ -399,16 +426,18 @@ describe("CustomNode", () => {
       },
       category: "logic",
     });
-    expect(screen.getByText("x: number = 0, y: string")).toBeInTheDocument();
+    expect(screen.queryByText(/^\u26a0/)).not.toBeInTheDocument();
+    expect(screen.queryAllByText(/x:|y:/)).toHaveLength(0);
   });
 
-  it("renders code summary", () => {
+  it("renders no body summary for code node (warningRules only) when configured", () => {
     renderNode({
       type: "code",
       config: { language: "javascript", code: "const a = 1;\nreturn a;" },
       category: "data",
     });
-    expect(screen.getByText("JavaScript \u00b7 2 lines")).toBeInTheDocument();
+    expect(screen.queryByText(/JavaScript|line/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/^\u26a0/)).not.toBeInTheDocument();
   });
 
   // --- AI Agent dynamic ports ---
