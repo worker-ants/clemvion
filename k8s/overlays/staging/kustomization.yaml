@@ -1,0 +1,57 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: idea-workflow
+
+resources:
+  - ../../base
+  # Secret 은 SealedSecret / ExternalSecret 으로 별도 관리.
+  # 본 overlay 에서는 base/secret.example.yaml 의 placeholder 가 적용되므로,
+  # 실제 동기화 대상에서는 base/secret.example.yaml 을 제외하거나 SealedSecret 으로 교체.
+
+# 환경별 이미지 태그 (CI 가 빌드 후 newTag 갱신 PR 을 보내도록).
+images:
+  - name: idea-workflow/backend
+    newTag: staging
+  - name: idea-workflow/frontend
+    newTag: staging
+  - name: idea-workflow/migrate
+    newTag: staging
+
+# 외부 RDS / ElastiCache / S3 endpoint 로 교정.
+patches:
+  - patch: |
+      - op: replace
+        path: /data/APP_URL
+        value: "https://staging.idea-workflow.example.com"
+      - op: replace
+        path: /data/FRONTEND_URL
+        value: "https://staging.idea-workflow.example.com"
+      - op: replace
+        path: /data/DB_HOST
+        value: "REPLACE_ME.rds.amazonaws.com"
+      - op: replace
+        path: /data/REDIS_HOST
+        value: "REPLACE_ME.cache.amazonaws.com"
+      - op: replace
+        path: /data/S3_ENDPOINT
+        value: "https://s3.us-east-1.amazonaws.com"
+    target:
+      kind: ConfigMap
+      name: backend-config
+  - patch: |
+      - op: replace
+        path: /spec/rules/0/host
+        value: "staging.idea-workflow.example.com"
+      - op: replace
+        path: /spec/tls/0/hosts/0
+        value: "staging.idea-workflow.example.com"
+    target:
+      kind: Ingress
+      name: idea-workflow
+
+replicas:
+  - name: backend
+    count: 2
+  - name: frontend
+    count: 2

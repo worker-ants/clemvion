@@ -1,0 +1,31 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: idea-workflow
+
+resources:
+  - ../../base
+  - infra-postgres.yaml
+  - infra-redis.yaml
+  - infra-minio.yaml
+
+# base 의 placeholder 값을 dev seed 로 덮어씀.
+# Secret stringData / ConfigMap data 는 strategic merge 가 키 단위로 덮어쓴다.
+patches:
+  - path: secret.yaml
+    target:
+      kind: Secret
+      name: backend-secret
+  - path: configmap-patch.yaml
+
+# 로컬은 단일 인스턴스로 충분.
+replicas:
+  - name: backend
+    count: 1
+  - name: frontend
+    count: 1
+
+# 로컬에서는 Ingress 컨트롤러가 없을 수 있음 → port-forward 사용 권장:
+#   kubectl -n idea-workflow port-forward svc/frontend 3000:3000
+#   kubectl -n idea-workflow port-forward svc/backend  3011:3011
+# base 의 Ingress 리소스는 그대로 적용되지만 컨트롤러 없으면 no-op.

@@ -1,0 +1,59 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: idea-workflow
+
+resources:
+  - ../../base
+  # Secret 은 SealedSecret / ExternalSecret 으로 별도 관리.
+  # 실제 동기화 대상에서는 base/secret.example.yaml 을 제외하거나 SealedSecret 으로 교체.
+
+images:
+  - name: idea-workflow/backend
+    newTag: prod
+  - name: idea-workflow/frontend
+    newTag: prod
+  - name: idea-workflow/migrate
+    newTag: prod
+
+patches:
+  - patch: |
+      - op: replace
+        path: /data/APP_URL
+        value: "https://idea-workflow.example.com"
+      - op: replace
+        path: /data/FRONTEND_URL
+        value: "https://idea-workflow.example.com"
+      - op: replace
+        path: /data/DB_HOST
+        value: "REPLACE_ME.rds.amazonaws.com"
+      - op: replace
+        path: /data/REDIS_HOST
+        value: "REPLACE_ME.cache.amazonaws.com"
+      - op: replace
+        path: /data/S3_ENDPOINT
+        value: "https://s3.us-east-1.amazonaws.com"
+      - op: replace
+        path: /data/MAIL_TRANSPORT
+        value: "smtp"
+    target:
+      kind: ConfigMap
+      name: backend-config
+  - patch: |
+      - op: replace
+        path: /spec/rules/0/host
+        value: "idea-workflow.example.com"
+      - op: replace
+        path: /spec/tls/0/hosts/0
+        value: "idea-workflow.example.com"
+    target:
+      kind: Ingress
+      name: idea-workflow
+  # backend HPA 권장 (별도 도입 시):
+  # - HPA 또는 KEDA 로 CPU/메모리 또는 BullMQ 큐 길이 기반 스케일링.
+
+replicas:
+  - name: backend
+    count: 3
+  - name: frontend
+    count: 3

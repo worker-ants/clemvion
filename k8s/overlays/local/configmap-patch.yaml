@@ -1,0 +1,22 @@
+# 로컬 클러스터 내부 서비스 DNS 로 endpoint 교정 + OAuth 스텁 모드.
+# OAUTH_STUB_MODE=true 는 NODE_ENV=production 과 충돌하므로 NODE_ENV 도 development 로 patch.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: backend-config
+data:
+  NODE_ENV: "development"
+  APP_URL: "http://localhost:3011"
+  FRONTEND_URL: "http://localhost:3000"
+  DB_HOST: "postgres"
+  REDIS_HOST: "redis"
+  S3_ENDPOINT: "http://minio:9000"
+  OAUTH_STUB_MODE: "true"
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: frontend-config
+data:
+  NODE_ENV: "development"
+  INTERNAL_API_URL: "http://backend:3011/api"

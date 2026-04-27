@@ -1,0 +1,64 @@
+# HAProxy Ingress 라우팅:
+#   /api      → backend  (REST API)
+#   /socket.io → backend (WebSocket)
+#   /docs     → backend  (Swagger UI)
+#   그 외      → frontend
+#
+# Annotation 은 사용 중인 HAProxy 컨트롤러에 따라 다릅니다:
+# - haproxytech/kubernetes-ingress: `haproxy.org/...` prefix
+# - jcmoraisjr/haproxy-ingress     : `haproxy-ingress.github.io/...` prefix
+# 두 컨트롤러 모두 ingressClassName: haproxy 로 동작.
+#
+# WebSocket 은 보통 자동 인식되지만, idle timeout 늘리는 게 좋습니다 (예: 1h).
+# 호스트명은 환경별 overlay 에서 patch 하세요.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: idea-workflow
+  labels:
+    app.kubernetes.io/name: idea-workflow
+  annotations:
+    # haproxytech/kubernetes-ingress
+    haproxy.org/timeout-tunnel: "1h"
+    haproxy.org/load-balance: "leastconn"
+    # jcmoraisjr/haproxy-ingress (사용 시 위 annotation 대신 아래 활성화)
+    # haproxy-ingress.github.io/timeout-tunnel: "1h"
+    # haproxy-ingress.github.io/balance-algorithm: "leastconn"
+spec:
+  ingressClassName: haproxy
+  tls:
+    - hosts:
+        - idea-workflow.example.com
+      secretName: idea-workflow-tls
+  rules:
+    - host: idea-workflow.example.com
+      http:
+        paths:
+          - path: /api
+            pathType: Prefix
+            backend:
+              service:
+                name: backend
+                port:
+                  number: 3011
+          - path: /socket.io
+            pathType: Prefix
+            backend:
+              service:
+                name: backend
+                port:
+                  number: 3011
+          - path: /docs
+            pathType: Prefix
+            backend:
+              service:
+                name: backend
+                port:
+                  number: 3011
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: frontend
+                port:
+                  number: 3000

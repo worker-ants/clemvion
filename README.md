@@ -232,14 +232,20 @@ docker build -f backend/migrations/Dockerfile -t idea-workflow/migrate .
 
 **Frontend** — `INTERNAL_API_URL` (예: `http://backend.<ns>.svc:3011/api`) 을 Server Component fetch 경로로 권장. `PORT`/`HOSTNAME`은 Dockerfile 기본값 사용.
 
-### Kubernetes 배치 권장
+### Kubernetes 매니페스트
 
-- `migrate` 이미지: Job 또는 backend Deployment의 init container로 실행. `-baselineOnMigrate=true -connectRetries=10` args.
-- `backend` Deployment: 컨테이너 포트 3011, `readinessProbe: httpGet { path: /api/health, port: 3011 }`. `/api/health`는 DB·Redis 연결 상태를 체크합니다.
-- `frontend` Deployment: 컨테이너 포트 3000, `readinessProbe: httpGet { path: /api/health, port: 3000 }`.
-- `backend`/`frontend`는 비루트(`uid=1000`, `node` 유저)로 기동됩니다. k8s `securityContext.runAsNonRoot: true` 권장.
+Kustomize 기반 매니페스트가 [`k8s/`](./k8s) 에 포함되어 있습니다.
 
-> k8s manifest 자체(Deployment/Service/Ingress)는 본 저장소 범위 밖입니다. 운영 클러스터의 GitOps 저장소에서 관리하세요.
+- `k8s/base/` — 환경 공통 리소스 (Deployment, Service, ConfigMap, Secret 스키마, HAProxy Ingress, Flyway migration Job)
+- `k8s/overlays/local` — docker-desktop / kind / minikube 용 (in-cluster Postgres/Redis/MinIO 포함)
+- `k8s/overlays/staging`, `k8s/overlays/prod` — 외부 관리형 DB/캐시/S3 endpoint 와 환경별 image 태그
+
+```bash
+kubectl apply -k k8s/overlays/local      # 로컬
+kubectl apply -k k8s/overlays/staging    # 스테이징
+```
+
+자세한 사용법(SealedSecrets 통합, Ingress 컨트롤러별 annotation, ArgoCD PreSync hook 등)은 [`k8s/README.md`](./k8s/README.md) 를 참고하세요.
 
 # integration (SSO)
 ## Google OAuth 연동 설정
