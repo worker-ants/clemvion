@@ -3,6 +3,7 @@ import {
   NodeHandler,
   ValidationResult,
 } from '../../core/node-handler.interface.js';
+import { evaluateMetadataBlockingErrors } from '../../core/metadata-validation.js';
 import {
   IntegrationError,
   IntegrationHandlerBase,
@@ -10,6 +11,7 @@ import {
 } from '../_base/integration-handler-base.js';
 import { IntegrationsService } from '../../../modules/integrations/integrations.service.js';
 import { assertSafeOutboundUrl } from './http-safety.js';
+import { httpRequestNodeMetadata } from './http-request.schema.js';
 
 /**
  * Strip embedded `user:password@` credentials from a URL before echoing it
@@ -38,11 +40,15 @@ export class HttpRequestHandler
     super(integrationsService);
   }
 
-  validate(config: Record<string, unknown>): ValidationResult {
-    const errors: string[] = [];
+  metadata = httpRequestNodeMetadata;
 
-    // `method` defaults to `'GET'` in the schema — treat undefined as
-    // "use default". Only validate when explicitly provided.
+  validate(config: Record<string, unknown>): ValidationResult {
+    // Schema SSOT (warningRules + validateConfig) covers URL required,
+    // integration-auth-needs-integrationId, and timeout numeric guard. The
+    // method enum + non-string url + non-string integrationId guards stay
+    // handler-side because the mini-DSL can't express the case-folded enum
+    // membership and zod narrows them at parse time only.
+    const errors = [...evaluateMetadataBlockingErrors(this.metadata, config)];
     if (config.method !== undefined) {
       if (typeof config.method !== 'string') {
         errors.push('method must be a string');
@@ -61,29 +67,18 @@ export class HttpRequestHandler
         }
       }
     }
-
-    // `url` has no schema default (genuinely required — can't fire a request
-    // without one).
-    if (!config.url || typeof config.url !== 'string') {
+    if (config.url !== undefined && typeof config.url !== 'string') {
       errors.push('url is required and must be a string');
     }
-
-    if (
-      config.timeout !== undefined &&
-      (typeof config.timeout !== 'number' || config.timeout <= 0)
-    ) {
-      errors.push('timeout must be a positive number');
-    }
-
     if (
       config.authentication === 'integration' &&
-      (!config.integrationId || typeof config.integrationId !== 'string')
+      config.integrationId !== undefined &&
+      typeof config.integrationId !== 'string'
     ) {
       errors.push(
         'integrationId is required when authentication is "integration"',
       );
     }
-
     return { valid: errors.length === 0, errors };
   }
 

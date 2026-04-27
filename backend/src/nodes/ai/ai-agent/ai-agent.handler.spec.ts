@@ -44,28 +44,30 @@ describe('AiAgentHandler', () => {
     it('should fail when no prompts are provided', () => {
       const result = handler.validate({});
       expect(result.valid).toBe(false);
-      expect(result.errors).toContain(
-        'Either systemPrompt or userPrompt is required',
-      );
+      // Schema warningRule "ai_agent:single-turn-needs-prompt" fires.
+      expect(result.errors.some((e) => e.includes('System Prompt'))).toBe(true);
     });
 
-    it('should pass with systemPrompt', () => {
+    it('should pass with systemPrompt + provider', () => {
       const result = handler.validate({
         systemPrompt: 'You are helpful',
+        model: 'gpt-4',
       });
       expect(result.valid).toBe(true);
     });
 
-    it('should pass with userPrompt', () => {
+    it('should pass with userPrompt + provider', () => {
       const result = handler.validate({
         userPrompt: 'Hello',
+        model: 'gpt-4',
       });
       expect(result.valid).toBe(true);
     });
 
     it('should validate multi_turn mode with invalid maxTurns', () => {
       const result = handler.validate({
-        userPrompt: 'Hello',
+        systemPrompt: 'You are helpful',
+        model: 'gpt-4',
         mode: 'multi_turn',
         maxTurns: -1,
       });
@@ -78,6 +80,7 @@ describe('AiAgentHandler', () => {
     it('should pass multi_turn mode with valid settings', () => {
       const result = handler.validate({
         systemPrompt: 'You are helpful',
+        model: 'gpt-4',
         mode: 'multi_turn',
         maxTurns: 10,
       });
@@ -87,11 +90,11 @@ describe('AiAgentHandler', () => {
     it('should fail multi_turn without systemPrompt', () => {
       const result = handler.validate({
         mode: 'multi_turn',
+        model: 'gpt-4',
       });
       expect(result.valid).toBe(false);
-      expect(result.errors).toContain(
-        'systemPrompt is required for multi_turn mode',
-      );
+      // Schema warningRule "Multi Turn 모드에서는 System Prompt 가 필요합니다." fires.
+      expect(result.errors.some((e) => e.includes('Multi Turn'))).toBe(true);
     });
   });
 
@@ -633,6 +636,7 @@ describe('AiAgentHandler', () => {
     it('should pass with valid conditions', () => {
       const result = handler.validate({
         systemPrompt: 'You are helpful',
+        model: 'gpt-4',
         conditions: [
           {
             id: 'cond-uuid-1',
@@ -647,6 +651,7 @@ describe('AiAgentHandler', () => {
     it('should fail when condition is missing label', () => {
       const result = handler.validate({
         systemPrompt: 'You are helpful',
+        model: 'gpt-4',
         conditions: [
           { id: 'cond-uuid-1', label: '', prompt: 'Customer wants a refund' },
         ],
@@ -658,6 +663,7 @@ describe('AiAgentHandler', () => {
     it('should fail when condition is missing prompt', () => {
       const result = handler.validate({
         systemPrompt: 'You are helpful',
+        model: 'gpt-4',
         conditions: [{ id: 'cond-uuid-1', label: 'Refund', prompt: '' }],
       });
       expect(result.valid).toBe(false);
@@ -667,6 +673,7 @@ describe('AiAgentHandler', () => {
     it('should fail when condition is missing id', () => {
       const result = handler.validate({
         systemPrompt: 'You are helpful',
+        model: 'gpt-4',
         conditions: [
           { id: '', label: 'Refund', prompt: 'Customer wants a refund' },
         ],
@@ -678,6 +685,7 @@ describe('AiAgentHandler', () => {
     it('should fail when condition id conflicts with reserved port name', () => {
       const result = handler.validate({
         systemPrompt: 'You are helpful',
+        model: 'gpt-4',
         conditions: [{ id: 'out', label: 'Conflict', prompt: 'test' }],
       });
       expect(result.valid).toBe(false);
@@ -687,6 +695,7 @@ describe('AiAgentHandler', () => {
     it('should fail when prompt exceeds 2000 characters', () => {
       const result = handler.validate({
         systemPrompt: 'You are helpful',
+        model: 'gpt-4',
         conditions: [{ id: 'cond-1', label: 'Long', prompt: 'a'.repeat(2001) }],
       });
       expect(result.valid).toBe(false);
@@ -701,10 +710,12 @@ describe('AiAgentHandler', () => {
       }));
       const result = handler.validate({
         systemPrompt: 'You are helpful',
+        model: 'gpt-4',
         conditions,
       });
       expect(result.valid).toBe(false);
-      expect(result.errors[0]).toContain('maximum');
+      // Schema warningRule "Conditions 는 최대 20개까지 추가할 수 있습니다." fires.
+      expect(result.errors.some((e) => e.includes('20'))).toBe(true);
     });
   });
 

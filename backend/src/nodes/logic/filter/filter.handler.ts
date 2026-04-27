@@ -3,14 +3,14 @@ import {
   ValidationResult,
   ExecutionContext,
 } from '../../core/node-handler.interface.js';
+import { evaluateMetadataBlockingErrors } from '../../core/metadata-validation.js';
 import { resolveFieldValue } from '../../core/nested-value.util.js';
 import {
   Condition,
-  VALID_OPERATORS,
-  VALID_OPERATORS_STR,
   compileRegexCache,
   evaluateCondition,
 } from '../_shared/condition-eval.util.js';
+import { filterNodeMetadata } from './filter.schema.js';
 
 interface FilterConfig {
   // Either a dot-path string applied to `$input` (e.g. `"items"`) OR the
@@ -22,43 +22,18 @@ interface FilterConfig {
 }
 
 export class FilterHandler implements NodeHandler {
+  metadata = filterNodeMetadata;
+
   validate(config: Record<string, unknown>): ValidationResult {
-    const errors: string[] = [];
-    const { inputField, conditions, combineMode } =
-      config as unknown as FilterConfig;
-
-    if (inputField === undefined || inputField === null || inputField === '') {
-      errors.push('inputField is required');
-    }
-
-    if (!conditions || !Array.isArray(conditions)) {
-      errors.push('conditions must be a non-empty array');
-    } else {
-      if (conditions.length === 0) {
-        errors.push('conditions must be a non-empty array');
-      }
-      for (let i = 0; i < conditions.length; i++) {
-        const cond = conditions[i];
-        if (!cond.field || typeof cond.field !== 'string') {
-          errors.push(
-            `conditions[${i}].field is required and must be a string`,
-          );
-        }
-        if (
-          !cond.operator ||
-          !(VALID_OPERATORS as readonly string[]).includes(cond.operator)
-        ) {
-          errors.push(
-            `conditions[${i}].operator must be one of: ${VALID_OPERATORS_STR}`,
-          );
-        }
-      }
-    }
-
+    // Schema SSOT (warningRules + validateConfig) covers inputField,
+    // conditions empty / per-condition field+operator. The combineMode enum
+    // guard stays handler-side because zod's enum default narrows it; we
+    // keep the explicit reject so direct callers still fail loudly.
+    const errors = [...evaluateMetadataBlockingErrors(this.metadata, config)];
+    const { combineMode } = config as unknown as FilterConfig;
     if (combineMode && combineMode !== 'and' && combineMode !== 'or') {
       errors.push('combineMode must be "and" or "or"');
     }
-
     return { valid: errors.length === 0, errors };
   }
 

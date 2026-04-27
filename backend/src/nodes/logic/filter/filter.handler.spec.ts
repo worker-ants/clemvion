@@ -41,7 +41,8 @@ describe('FilterHandler', () => {
         combineMode: 'and',
       });
       expect(result.valid).toBe(false);
-      expect(result.errors).toContain('inputField is required');
+      // Schema warningRule "Input 필드를 입력해야 합니다." fires.
+      expect(result.errors.some((e) => e.includes('Input'))).toBe(true);
     });
 
     it('should return invalid when conditions is missing', () => {
@@ -50,7 +51,8 @@ describe('FilterHandler', () => {
         combineMode: 'and',
       });
       expect(result.valid).toBe(false);
-      expect(result.errors).toContain('conditions must be a non-empty array');
+      // Schema warningRule "최소 1개 이상의 조건을 추가해야 합니다." fires.
+      expect(result.errors.some((e) => e.includes('조건'))).toBe(true);
     });
 
     it('should return invalid when conditions is empty', () => {
@@ -60,7 +62,7 @@ describe('FilterHandler', () => {
         combineMode: 'and',
       });
       expect(result.valid).toBe(false);
-      expect(result.errors).toContain('conditions must be a non-empty array');
+      expect(result.errors.some((e) => e.includes('조건'))).toBe(true);
     });
 
     it('should return invalid for missing field in condition', () => {

@@ -3,6 +3,8 @@ import {
   NodeHandlerOutput,
   ValidationResult,
 } from '../../core/node-handler.interface';
+import { evaluateMetadataBlockingErrors } from '../../core/metadata-validation';
+import { backgroundNodeMetadata } from './background.schema';
 
 /**
  * Background 노드 핸들러.
@@ -13,8 +15,14 @@ import {
  * 대한 지식이 없도록 의도적으로 분리).
  */
 export class BackgroundHandler implements NodeHandler {
-  validate(): ValidationResult {
-    return { valid: true, errors: [] };
+  metadata = backgroundNodeMetadata;
+
+  validate(config: Record<string, unknown> = {}): ValidationResult {
+    // Schema has no warningRules / validateConfig — every field is bounded
+    // by zod. The helper call is wired so future schema rules flow through
+    // automatically without touching the handler.
+    const errors = evaluateMetadataBlockingErrors(this.metadata, config);
+    return { valid: errors.length === 0, errors };
   }
 
   // eslint-disable-next-line @typescript-eslint/require-await

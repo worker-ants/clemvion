@@ -40,7 +40,8 @@ describe('LoopHandler', () => {
     it('rejects missing count', () => {
       const result = handler.validate({});
       expect(result.valid).toBe(false);
-      expect(result.errors).toContain('count is required');
+      // Schema warningRule "Count 를 입력해야 합니다." fires.
+      expect(result.errors.some((e) => e.includes('Count'))).toBe(true);
     });
 
     it('rejects non-numeric string', () => {

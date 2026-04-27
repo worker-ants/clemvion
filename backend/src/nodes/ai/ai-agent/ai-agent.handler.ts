@@ -3,9 +3,11 @@ import {
   ExecutionContext,
   ValidationResult,
 } from '../../core/node-handler.interface';
+import { evaluateMetadataBlockingErrors } from '../../core/metadata-validation';
 import { LlmService } from '../../../modules/llm/llm.service';
 import { RagSearchService } from '../../../modules/knowledge-base/search/rag-search.service';
 import { ChatMessage } from '../../../modules/llm/interfaces/llm-client.interface';
+import { aiAgentNodeMetadata } from './ai-agent.schema';
 
 interface ConditionDef {
   id: string;
@@ -41,66 +43,19 @@ function condToolName(conditionId: string): string {
 }
 
 export class AiAgentHandler implements NodeHandler {
+  metadata = aiAgentNodeMetadata;
+
   constructor(
     private readonly llmService: LlmService,
     private readonly ragSearchService: RagSearchService,
   ) {}
 
   validate(config: Record<string, unknown>): ValidationResult {
-    const errors: string[] = [];
-    const mode = (config.mode as string) || 'single_turn';
-    if (mode === 'multi_turn') {
-      // Multi Turn: systemPrompt is sufficient (userPrompt comes from UI)
-      if (!config.systemPrompt) {
-        errors.push('systemPrompt is required for multi_turn mode');
-      }
-    } else {
-      if (!config.systemPrompt && !config.userPrompt) {
-        errors.push('Either systemPrompt or userPrompt is required');
-      }
-    }
-    if (mode === 'multi_turn') {
-      const maxTurns = config.maxTurns as number | undefined;
-      if (maxTurns !== undefined && maxTurns < 0) {
-        errors.push('maxTurns must be 0 (unlimited) or a positive integer');
-      }
-    }
-
-    // Validate conditions
-    const conditions = config.conditions as ConditionDef[] | undefined;
-    if (Array.isArray(conditions)) {
-      if (conditions.length > 20) {
-        errors.push('conditions: maximum 20 conditions allowed');
-      }
-      const reservedPortIds = new Set([
-        'out',
-        'in',
-        'error',
-        'user_ended',
-        'max_turns',
-      ]);
-      for (let i = 0; i < conditions.length; i++) {
-        const c = conditions[i];
-        if (!c.id) {
-          errors.push(`conditions[${i}]: id is required`);
-        } else if (reservedPortIds.has(c.id)) {
-          errors.push(
-            `conditions[${i}]: id '${c.id}' conflicts with reserved port name`,
-          );
-        }
-        if (!c.label) {
-          errors.push(`conditions[${i}]: label is required`);
-        }
-        if (!c.prompt) {
-          errors.push(`conditions[${i}]: prompt is required`);
-        } else if (c.prompt.length > 2000) {
-          errors.push(
-            `conditions[${i}]: prompt must be 2000 characters or less`,
-          );
-        }
-      }
-    }
-
+    // Schema SSOT (warningRules + validateConfig) covers no-llm-provider,
+    // multi-turn-needs-system-prompt, single-turn-needs-prompt,
+    // too-many-conditions, maxTurns numeric guard, per-condition
+    // id/label/prompt + reserved-port collision + 2000-char prompt cap.
+    const errors = evaluateMetadataBlockingErrors(this.metadata, config);
     return { valid: errors.length === 0, errors };
   }
 

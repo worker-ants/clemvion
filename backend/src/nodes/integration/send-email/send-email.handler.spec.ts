@@ -70,7 +70,8 @@ describe('SendEmailHandler', () => {
       void _drop;
       const result = handler.validate(rest);
       expect(result.valid).toBe(false);
-      expect(result.errors.join(' ')).toContain('integrationId');
+      // Schema warningRule "Email integration 을 선택해야 합니다." fires.
+      expect(result.errors.join(' ')).toContain('integration');
     });
 
     it('rejects missing to', () => {
@@ -78,7 +79,9 @@ describe('SendEmailHandler', () => {
       void _drop;
       const result = handler.validate(rest);
       expect(result.valid).toBe(false);
-      expect(result.errors.join(' ')).toContain('to');
+      // Schema warningRule "수신자 (To) 를 한 명 이상 입력해야 합니다." fires
+      // alongside the imperative recipient sum-type guard. Both contain "To".
+      expect(result.errors.join(' ')).toMatch(/to|To|수신자/);
     });
 
     it('rejects empty string for to', () => {

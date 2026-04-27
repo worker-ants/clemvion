@@ -3,6 +3,8 @@ import {
   ValidationResult,
   ExecutionContext,
 } from '../../core/node-handler.interface.js';
+import { evaluateMetadataBlockingErrors } from '../../core/metadata-validation.js';
+import { loopNodeMetadata } from './loop.schema.js';
 
 interface LoopConfig {
   count: number | string;
@@ -33,43 +35,13 @@ function parseNumeric(value: unknown): number | null {
   return null;
 }
 
-function looksLikeExpression(value: unknown): boolean {
-  return typeof value === 'string' && /\{\{.*\}\}/.test(value.trim());
-}
-
 export class LoopHandler implements NodeHandler {
+  metadata = loopNodeMetadata;
+
   validate(config: Record<string, unknown>): ValidationResult {
-    const errors: string[] = [];
-    const { count, maxIterations } = config as unknown as LoopConfig;
-
-    if (count === undefined || count === null || count === '') {
-      errors.push('count is required');
-    } else if (!looksLikeExpression(count)) {
-      const parsed = parseNumeric(count);
-      if (parsed === null) {
-        errors.push('count must be a number or expression');
-      } else if (parsed <= 0) {
-        errors.push('count must be greater than 0');
-      }
-    }
-
-    if (maxIterations !== undefined && maxIterations !== null) {
-      if (!looksLikeExpression(maxIterations)) {
-        const parsedMax = parseNumeric(maxIterations);
-        if (parsedMax === null) {
-          errors.push('maxIterations must be a number');
-        } else if (
-          typeof count === 'number' &&
-          !looksLikeExpression(count) &&
-          count > parsedMax
-        ) {
-          errors.push(
-            `count must be less than or equal to maxIterations (${parsedMax})`,
-          );
-        }
-      }
-    }
-
+    // Schema SSOT (warningRules + validateConfig) covers count-required +
+    // numeric parse + count-vs-maxIterations cross-field rule.
+    const errors = evaluateMetadataBlockingErrors(this.metadata, config);
     return { valid: errors.length === 0, errors };
   }
 

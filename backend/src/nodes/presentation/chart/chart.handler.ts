@@ -3,29 +3,31 @@ import {
   NodeHandler,
   ValidationResult,
 } from '../../core/node-handler.interface.js';
-import { ButtonDef, validateButtons } from '../_shared/button.types.js';
+import { evaluateMetadataBlockingErrors } from '../../core/metadata-validation.js';
+import { ButtonDef } from '../_shared/button.types.js';
+import { chartMetadata } from './chart.schema.js';
 
 export class ChartHandler implements NodeHandler {
+  metadata = chartMetadata;
+
   validate(config: Record<string, unknown>): ValidationResult {
-    const errors: string[] = [];
+    // Schema SSOT (warningRules + validateConfig) covers chartType /
+    // xAxis.field / yAxis.field / global buttons. Handler retains the
+    // chartType enum-membership guard because the warningRule only catches
+    // missing values; an invalid string like 'scatter' must still be
+    // rejected explicitly.
+    const errors = [...evaluateMetadataBlockingErrors(this.metadata, config)];
 
     const validTypes = ['bar', 'line', 'pie'];
     if (
-      !config.chartType ||
-      typeof config.chartType !== 'string' ||
-      !validTypes.includes(config.chartType)
+      config.chartType !== undefined &&
+      (typeof config.chartType !== 'string' ||
+        !validTypes.includes(config.chartType))
     ) {
       errors.push(
         `chartType is required and must be one of: ${validTypes.join(', ')}`,
       );
     }
-
-    const xAxis = config.xAxis as Record<string, unknown> | undefined;
-    if (!xAxis || !xAxis.field || typeof xAxis.field !== 'string') {
-      errors.push('xAxis.field is required and must be a string');
-    }
-
-    errors.push(...validateButtons(config));
 
     return { valid: errors.length === 0, errors };
   }

@@ -3,7 +3,9 @@ import {
   ValidationResult,
   ExecutionContext,
 } from '../../core/node-handler.interface.js';
+import { evaluateMetadataBlockingErrors } from '../../core/metadata-validation.js';
 import { resolveFieldValue } from '../../core/nested-value.util.js';
+import { splitNodeMetadata } from './split.schema.js';
 
 interface SplitConfig {
   // Either a dot-path string applied to `$input` (e.g. `"items"`) OR the
@@ -18,14 +20,10 @@ interface SplitItem {
 }
 
 export class SplitHandler implements NodeHandler {
+  metadata = splitNodeMetadata;
+
   validate(config: Record<string, unknown>): ValidationResult {
-    const errors: string[] = [];
-    const { fieldPath } = config as unknown as SplitConfig;
-
-    if (fieldPath === undefined || fieldPath === null || fieldPath === '') {
-      errors.push('fieldPath is required');
-    }
-
+    const errors = evaluateMetadataBlockingErrors(this.metadata, config);
     return { valid: errors.length === 0, errors };
   }
 

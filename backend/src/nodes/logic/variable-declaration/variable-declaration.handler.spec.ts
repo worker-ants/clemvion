@@ -30,13 +30,14 @@ describe('VariableDeclarationHandler', () => {
     it('should return invalid when variables is missing', () => {
       const result = handler.validate({});
       expect(result.valid).toBe(false);
-      expect(result.errors).toContain('variables must be an array');
+      // Schema warningRule "최소 1개 이상의 변수를 정의해야 합니다." fires.
+      expect(result.errors.some((e) => e.includes('변수'))).toBe(true);
     });
 
     it('should return invalid when variables is empty', () => {
       const result = handler.validate({ variables: [] });
       expect(result.valid).toBe(false);
-      expect(result.errors).toContain('variables must not be empty');
+      expect(result.errors.some((e) => e.includes('변수'))).toBe(true);
     });
 
     it('should return invalid when variable name is missing', () => {

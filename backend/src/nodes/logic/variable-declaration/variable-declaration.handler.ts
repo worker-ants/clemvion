@@ -3,7 +3,9 @@ import {
   ValidationResult,
   ExecutionContext,
 } from '../../core/node-handler.interface.js';
+import { evaluateMetadataBlockingErrors } from '../../core/metadata-validation.js';
 import { coerceToType } from '../../../modules/execution-engine/utils/coerce-type.js';
+import { variableDeclarationNodeMetadata } from './variable-declaration.schema.js';
 
 interface VariableDefinition {
   name: string;
@@ -16,27 +18,17 @@ interface VariableDeclarationConfig {
 }
 
 export class VariableDeclarationHandler implements NodeHandler {
+  metadata = variableDeclarationNodeMetadata;
+
   validate(config: Record<string, unknown>): ValidationResult {
-    const errors: string[] = [];
+    // Schema SSOT (warningRules + validateConfig) covers the empty-variables
+    // / first-variable-name / per-variable name+type rules. Handler retains
+    // the non-array type guard for raw fixtures bypassing zod.
+    const errors = [...evaluateMetadataBlockingErrors(this.metadata, config)];
     const { variables } = config as unknown as VariableDeclarationConfig;
-
-    if (!variables || !Array.isArray(variables)) {
+    if (variables !== undefined && !Array.isArray(variables)) {
       errors.push('variables must be an array');
-    } else {
-      if (variables.length === 0) {
-        errors.push('variables must not be empty');
-      }
-      for (let i = 0; i < variables.length; i++) {
-        const v = variables[i];
-        if (!v.name || typeof v.name !== 'string') {
-          errors.push(`variables[${i}].name is required and must be a string`);
-        }
-        if (!v.type || typeof v.type !== 'string') {
-          errors.push(`variables[${i}].type is required and must be a string`);
-        }
-      }
     }
-
     return { valid: errors.length === 0, errors };
   }
 

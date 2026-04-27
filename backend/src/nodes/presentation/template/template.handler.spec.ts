@@ -22,20 +22,22 @@ describe('TemplateHandler', () => {
       expect(result.valid).toBe(true);
     });
 
-    it('should accept missing template (schema default is empty string)', () => {
+    it('should warn when template is missing (schema warningRule)', () => {
       const result = handler.validate({ outputFormat: 'html' });
-      expect(result.valid).toBe(true);
+      expect(result.valid).toBe(false);
+      expect(result.errors[0]).toContain('Template');
     });
 
-    it('should accept empty template string (schema default)', () => {
+    it('should warn when template is empty string (schema warningRule)', () => {
       const result = handler.validate({ template: '' });
-      expect(result.valid).toBe(true);
+      expect(result.valid).toBe(false);
+      expect(result.errors[0]).toContain('Template');
     });
 
     it('should fail when template is not a string', () => {
       const result = handler.validate({ template: 123 });
       expect(result.valid).toBe(false);
-      expect(result.errors[0]).toContain('template');
+      expect(result.errors).toContain('template must be a string');
     });
 
     it('should fail for invalid outputFormat', () => {
@@ -44,7 +46,9 @@ describe('TemplateHandler', () => {
         outputFormat: 'pdf',
       });
       expect(result.valid).toBe(false);
-      expect(result.errors[0]).toContain('outputFormat');
+      expect(result.errors).toContain(
+        'outputFormat must be one of: html, markdown, text',
+      );
     });
 
     it('should accept all valid outputFormat values', () => {

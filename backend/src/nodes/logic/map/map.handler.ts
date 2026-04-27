@@ -3,7 +3,9 @@ import {
   ValidationResult,
   ExecutionContext,
 } from '../../core/node-handler.interface.js';
+import { evaluateMetadataBlockingErrors } from '../../core/metadata-validation.js';
 import { resolveFieldValue } from '../../core/nested-value.util.js';
+import { mapNodeMetadata } from './map.schema.js';
 
 /**
  * Map is a container node that iterates over an array and collects the body
@@ -22,21 +24,17 @@ interface MapConfig {
 }
 
 export class MapHandler implements NodeHandler {
+  metadata = mapNodeMetadata;
+
   validate(config: Record<string, unknown>): ValidationResult {
-    const errors: string[] = [];
-    const { inputField, errorPolicy } = config as unknown as MapConfig;
-
-    if (inputField === undefined || inputField === null || inputField === '') {
-      errors.push('inputField is required');
-    }
-
+    const errors = [...evaluateMetadataBlockingErrors(this.metadata, config)];
+    const { errorPolicy } = config as unknown as MapConfig;
     if (
       errorPolicy !== undefined &&
       !['stop', 'skip', 'continue'].includes(errorPolicy)
     ) {
       errors.push('errorPolicy must be one of: stop, skip, continue');
     }
-
     return { valid: errors.length === 0, errors };
   }
 

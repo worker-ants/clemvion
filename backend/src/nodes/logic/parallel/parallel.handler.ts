@@ -3,6 +3,8 @@ import {
   NodeHandlerOutput,
   ValidationResult,
 } from '../../core/node-handler.interface';
+import { evaluateMetadataBlockingErrors } from '../../core/metadata-validation';
+import { parallelNodeMetadata } from './parallel.schema';
 
 /**
  * Parallel 노드 핸들러.
@@ -13,38 +15,12 @@ import {
  * Feature flag off 모드에서는 엔진이 기존 순차 루프로 각 분기를 실행한다.
  */
 export class ParallelHandler implements NodeHandler {
+  metadata = parallelNodeMetadata;
+
   validate(config: Record<string, unknown>): ValidationResult {
-    const errors: string[] = [];
-
-    const rawBranch = config.branchCount;
-    const branchCount =
-      typeof rawBranch === 'number' && Number.isFinite(rawBranch)
-        ? rawBranch
-        : 2;
-    if (!Number.isInteger(branchCount)) {
-      errors.push('branchCount는 정수여야 합니다.');
-    }
-    if (branchCount < 2 || branchCount > 16) {
-      errors.push('branchCount는 2 이상 16 이하의 값이어야 합니다.');
-    }
-
-    if (config.maxConcurrency !== undefined) {
-      const rawMax = config.maxConcurrency;
-      if (typeof rawMax !== 'number' || !Number.isFinite(rawMax)) {
-        errors.push('maxConcurrency는 숫자여야 합니다.');
-      } else if (!Number.isInteger(rawMax)) {
-        errors.push('maxConcurrency는 정수여야 합니다.');
-      } else if (rawMax < 0 || rawMax > 16) {
-        errors.push(
-          'maxConcurrency는 0 이상 16 이하의 값이어야 합니다 (0 = 제한 없음).',
-        );
-      }
-    }
-
-    if (config.waitAll !== undefined && typeof config.waitAll !== 'boolean') {
-      errors.push('waitAll는 boolean이어야 합니다.');
-    }
-
+    // Schema SSOT (warningRules + validateConfig) mirrors all of handler's
+    // legacy inline rules verbatim (Korean messages preserved 1:1).
+    const errors = evaluateMetadataBlockingErrors(this.metadata, config);
     return { valid: errors.length === 0, errors };
   }
 

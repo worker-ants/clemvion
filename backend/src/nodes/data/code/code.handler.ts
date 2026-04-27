@@ -4,10 +4,10 @@ import {
   NodeHandler,
   ValidationResult,
 } from '../../core/node-handler.interface.js';
+import { evaluateMetadataBlockingErrors } from '../../core/metadata-validation.js';
+import { codeNodeMetadata } from './code.schema.js';
 
 const DEFAULT_TIMEOUT_SEC = 30;
-const MIN_TIMEOUT_SEC = 1;
-const MAX_TIMEOUT_SEC = 120;
 const MAX_CONSOLE_LINES = 100;
 
 interface CodeExecutionError extends Error {
@@ -89,27 +89,16 @@ function buildSandbox(
 }
 
 export class CodeHandler implements NodeHandler {
-  validate(config: Record<string, unknown>): ValidationResult {
-    const errors: string[] = [];
+  metadata = codeNodeMetadata;
 
-    if (!config.code || typeof config.code !== 'string') {
+  validate(config: Record<string, unknown>): ValidationResult {
+    // Schema SSOT (warningRules + validateConfig) covers code-required +
+    // timeout numeric range. The handler keeps a residual non-string code
+    // guard for raw fixtures bypassing zod's `.default('')` narrowing.
+    const errors = [...evaluateMetadataBlockingErrors(this.metadata, config)];
+    if (config.code !== undefined && typeof config.code !== 'string') {
       errors.push('code is required and must be a string');
     }
-
-    if (config.timeout !== undefined) {
-      const t = config.timeout;
-      if (
-        typeof t !== 'number' ||
-        !Number.isFinite(t) ||
-        t < MIN_TIMEOUT_SEC ||
-        t > MAX_TIMEOUT_SEC
-      ) {
-        errors.push(
-          `timeout must be a number between ${MIN_TIMEOUT_SEC} and ${MAX_TIMEOUT_SEC} seconds`,
-        );
-      }
-    }
-
     return { valid: errors.length === 0, errors };
   }
 

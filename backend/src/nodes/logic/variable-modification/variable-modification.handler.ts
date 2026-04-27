@@ -3,6 +3,8 @@ import {
   ValidationResult,
   ExecutionContext,
 } from '../../core/node-handler.interface.js';
+import { evaluateMetadataBlockingErrors } from '../../core/metadata-validation.js';
+import { variableModificationNodeMetadata } from './variable-modification.schema.js';
 
 interface Modification {
   variable: string;
@@ -14,46 +16,21 @@ interface VariableModificationConfig {
   modifications: Modification[];
 }
 
-const VALID_OPERATIONS = [
-  'set',
-  'increment',
-  'decrement',
-  'append',
-  'push',
-  'pop',
-] as const;
+// VALID_OPERATIONS was removed alongside the inline validate() body —
+// variable-modification.schema.ts owns the canonical whitelist now.
 
 export class VariableModificationHandler implements NodeHandler {
+  metadata = variableModificationNodeMetadata;
+
   validate(config: Record<string, unknown>): ValidationResult {
-    const errors: string[] = [];
+    // Schema SSOT (warningRules + validateConfig) covers empty-modifications,
+    // first-modification.variable, per-item variable+operation. The
+    // non-array type guard remains handler-side for raw fixtures.
+    const errors = [...evaluateMetadataBlockingErrors(this.metadata, config)];
     const { modifications } = config as unknown as VariableModificationConfig;
-
-    if (!modifications || !Array.isArray(modifications)) {
+    if (modifications !== undefined && !Array.isArray(modifications)) {
       errors.push('modifications must be an array');
-    } else {
-      if (modifications.length === 0) {
-        errors.push('modifications must not be empty');
-      }
-      for (let i = 0; i < modifications.length; i++) {
-        const m = modifications[i];
-        if (!m.variable || typeof m.variable !== 'string') {
-          errors.push(
-            `modifications[${i}].variable is required and must be a string`,
-          );
-        }
-        if (
-          !m.operation ||
-          !VALID_OPERATIONS.includes(
-            m.operation as (typeof VALID_OPERATIONS)[number],
-          )
-        ) {
-          errors.push(
-            `modifications[${i}].operation must be one of: ${VALID_OPERATIONS.join(', ')}`,
-          );
-        }
-      }
     }
-
     return { valid: errors.length === 0, errors };
   }
 

@@ -5,6 +5,7 @@ import {
   NodeHandler,
   ValidationResult,
 } from '../../core/node-handler.interface.js';
+import { evaluateMetadataBlockingErrors } from '../../core/metadata-validation.js';
 import {
   IntegrationError,
   IntegrationHandlerBase,
@@ -15,6 +16,7 @@ import {
   maskEmailForErrorDetails,
   truncateForErrorDetails,
 } from '../../core/error-codes.js';
+import { sendEmailNodeMetadata } from './send-email.schema.js';
 
 interface SmtpCredentials {
   host: string;
@@ -44,42 +46,26 @@ export class SendEmailHandler
     super(integrationsService);
   }
 
+  metadata = sendEmailNodeMetadata;
+
   validate(config: Record<string, unknown>): ValidationResult {
-    const errors: string[] = [];
-
-    if (!config.integrationId || typeof config.integrationId !== 'string') {
-      errors.push('integrationId is required');
-    }
-
-    if (!isRecipientsLike(config.to)) {
-      errors.push(
-        'to is required and must be a non-empty string or array of email addresses',
-      );
-    }
-
-    if (isOptionalRecipientSet(config.cc) && !isRecipientsLike(config.cc)) {
-      errors.push('cc must be a string or array of email addresses');
-    }
-
-    if (isOptionalRecipientSet(config.bcc) && !isRecipientsLike(config.bcc)) {
-      errors.push('bcc must be a string or array of email addresses');
-    }
-
-    if (!config.subject || typeof config.subject !== 'string') {
+    // Schema SSOT (warningRules + validateConfig) covers integrationId / to /
+    // subject / body required + cc/bcc sum-type guards. Handler retains the
+    // string type guards for subject/body and the bodyType enum guard
+    // because zod narrows them at parse time only.
+    const errors = [...evaluateMetadataBlockingErrors(this.metadata, config)];
+    if (config.subject !== undefined && typeof config.subject !== 'string') {
       errors.push('subject is required and must be a string');
     }
-
-    if (!config.body || typeof config.body !== 'string') {
+    if (config.body !== undefined && typeof config.body !== 'string') {
       errors.push('body is required and must be a string');
     }
-
     if (
       config.bodyType !== undefined &&
       !['text', 'html'].includes(config.bodyType as string)
     ) {
       errors.push('bodyType must be either "text" or "html"');
     }
-
     return { valid: errors.length === 0, errors };
   }
 
@@ -267,27 +253,9 @@ function safeMessage(err: unknown): string {
   return toLogError(new Error(msg)).message;
 }
 
-// cc/bcc는 optional 필드라 "미설정"으로 간주되는 값(undefined/null/빈 문자열/
-// 빈 배열)일 때는 검증을 건너뛴다. 스키마 default가 `[]`라 프론트엔드는 빈
-// 배열을 실어 보내므로 단순 truthy 체크로는 불충분하다.
-function isOptionalRecipientSet(value: unknown): boolean {
-  if (value === undefined || value === null) return false;
-  if (typeof value === 'string') return value.trim().length > 0;
-  if (Array.isArray(value)) return value.length > 0;
-  return true;
-}
-
-function isRecipientsLike(value: unknown): boolean {
-  if (typeof value === 'string') return value.trim().length > 0;
-  if (Array.isArray(value)) {
-    return (
-      value.length > 0 &&
-      value.every((v) => typeof v === 'string' && v.trim().length > 0)
-    );
-  }
-  return false;
-}
-
+// `isOptionalRecipientSet` / `isRecipientsLike` were removed from this file
+// when the inline validate() was replaced with the schema SSOT helper —
+// send-email.schema.ts owns the canonical implementations now.
 function normalizeRecipients(value: unknown): string[] {
   if (Array.isArray(value)) {
     return value

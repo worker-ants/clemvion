@@ -4,6 +4,7 @@ import {
   ExecutionContext,
   ValidationResult,
 } from '../../core/node-handler.interface';
+import { evaluateMetadataBlockingErrors } from '../../core/metadata-validation';
 import { LlmService } from '../../../modules/llm/llm.service';
 import {
   ChatMessage,
@@ -12,6 +13,7 @@ import {
   ToolDef,
 } from '../../../modules/llm/interfaces/llm-client.interface';
 import { Logger } from '@nestjs/common';
+import { informationExtractorNodeMetadata } from './information-extractor.schema';
 
 interface OutputField {
   name: string;
@@ -92,39 +94,15 @@ interface MultiTurnState {
 const FINALIZE_TOOL_NAME = 'finalize_extraction';
 
 export class InformationExtractorHandler implements NodeHandler {
+  metadata = informationExtractorNodeMetadata;
   private readonly logger = new Logger(InformationExtractorHandler.name);
   constructor(private readonly llmService: LlmService) {}
 
   validate(config: Record<string, unknown>): ValidationResult {
-    const errors: string[] = [];
-    const schema = config.outputSchema as OutputField[] | undefined;
-    if (!schema?.length) {
-      errors.push('At least one output field is required');
-    } else {
-      for (let i = 0; i < schema.length; i++) {
-        if (!schema[i].name) {
-          errors.push(`Field ${i + 1}: name is required`);
-        }
-        if (!schema[i].type) {
-          errors.push(`Field ${i + 1}: type is required`);
-        }
-      }
-    }
-    const mode = (config.mode as string) || 'single_turn';
-    // inputField is only required in single_turn mode. In multi_turn the
-    // user drives the first message from the UI, mirroring the AI Agent's
-    // optional userPrompt behavior.
-    if (mode !== 'multi_turn' && !config.inputField) {
-      errors.push('inputField is required');
-    }
-
-    if (mode === 'multi_turn') {
-      const maxTurns = config.maxTurns as number | undefined;
-      if (maxTurns !== undefined && maxTurns < 0) {
-        errors.push('maxTurns must be 0 (unlimited) or a positive integer');
-      }
-    }
-
+    // Schema SSOT (warningRules + validateConfig) covers no-llm-provider,
+    // no-output-schema, single-turn-needs-input-field, per-field name+type,
+    // multi-turn maxTurns numeric guard.
+    const errors = evaluateMetadataBlockingErrors(this.metadata, config);
     return { valid: errors.length === 0, errors };
   }
 

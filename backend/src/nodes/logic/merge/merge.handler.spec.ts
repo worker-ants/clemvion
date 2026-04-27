@@ -25,16 +25,16 @@ describe('MergeHandler', () => {
       expect(result.errors).toHaveLength(0);
     });
 
-    it('should accept missing strategy (defaults to wait_all per schema)', () => {
+    it('should warn when strategy is missing (schema warningRule)', () => {
       const result = handler.validate({ outputFormat: 'array' });
-      expect(result.valid).toBe(true);
-      expect(result.errors).toHaveLength(0);
+      expect(result.valid).toBe(false);
+      expect(result.errors.some((e) => e.includes('strategy'))).toBe(true);
     });
 
-    it('should accept an empty config (both defaults apply)', () => {
+    it('should warn when both fields are missing (schema warningRule)', () => {
       const result = handler.validate({});
-      expect(result.valid).toBe(true);
-      expect(result.errors).toHaveLength(0);
+      expect(result.valid).toBe(false);
+      expect(result.errors.some((e) => e.includes('strategy'))).toBe(true);
     });
 
     it('should return invalid for unknown strategy', () => {

@@ -20,6 +20,7 @@ describe('ChartHandler', () => {
       const result = handler.validate({
         chartType: 'bar',
         xAxis: { field: 'category' },
+        yAxis: { field: 'value' },
       });
       expect(result.valid).toBe(true);
       expect(result.errors).toHaveLength(0);
@@ -27,19 +28,26 @@ describe('ChartHandler', () => {
 
     it('should accept line and pie chart types', () => {
       expect(
-        handler.validate({ chartType: 'line', xAxis: { field: 'x' } }).valid,
+        handler.validate({
+          chartType: 'line',
+          xAxis: { field: 'x' },
+          yAxis: { field: 'y' },
+        }).valid,
       ).toBe(true);
       expect(
-        handler.validate({ chartType: 'pie', xAxis: { field: 'x' } }).valid,
+        handler.validate({
+          chartType: 'pie',
+          xAxis: { field: 'x' },
+          yAxis: { field: 'y' },
+        }).valid,
       ).toBe(true);
     });
 
     it('should reject missing chartType', () => {
       const result = handler.validate({ xAxis: { field: 'x' } });
       expect(result.valid).toBe(false);
-      expect(result.errors).toContain(
-        'chartType is required and must be one of: bar, line, pie',
-      );
+      // Schema warningRule fires when chartType is missing.
+      expect(result.errors.some((e) => e.includes('차트 타입'))).toBe(true);
     });
 
     it('should reject invalid chartType', () => {
@@ -48,6 +56,7 @@ describe('ChartHandler', () => {
         xAxis: { field: 'x' },
       });
       expect(result.valid).toBe(false);
+      // Handler-only enum guard fires for an invalid (non-listed) chartType.
       expect(result.errors).toContain(
         'chartType is required and must be one of: bar, line, pie',
       );
@@ -64,9 +73,8 @@ describe('ChartHandler', () => {
     it('should reject missing xAxis', () => {
       const result = handler.validate({ chartType: 'bar' });
       expect(result.valid).toBe(false);
-      expect(result.errors).toContain(
-        'xAxis.field is required and must be a string',
-      );
+      // Schema warningRule "X축 필드를 입력해야 합니다." fires.
+      expect(result.errors.some((e) => e.includes('X축'))).toBe(true);
     });
 
     it('should reject xAxis without field', () => {
@@ -102,6 +110,7 @@ describe('ChartHandler', () => {
       const result = handler.validate({
         chartType: 'bar',
         xAxis: { field: 'x' },
+        yAxis: { field: 'y' },
         buttons: [{ id: 'b1', label: 'Next', type: 'port' }],
       });
       expect(result.valid).toBe(true);
