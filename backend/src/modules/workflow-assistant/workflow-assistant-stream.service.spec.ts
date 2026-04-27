@@ -3139,9 +3139,11 @@ describe('WorkflowAssistantStreamService', () => {
       expect(JSON.stringify(parsed)).not.toContain('plaintext-secret-12345');
     });
 
-    it('does NOT re-fire review after the second finish even if issues remain (single review round per turn)', async () => {
-      // 한 턴에서 review 는 최대 1회만 발동. LLM 이 고쳐도 못고쳐도 두 번째
-      // finish 는 통과해 사용자가 다음 턴에서 후속 지시를 줄 수 있게 한다.
+    it('Phase 5 stuck escape: LLM が fix 안 하고 finish 만 반복하면 second finish 통과 (사용자 비용 보호)', async () => {
+      // Phase 5 정책: review block 후 LLM 이 새 edit 없이 다시 finish 만 호출
+      // 하면 stuck escape (`reviewRoundCount > 0 && editsSinceLastFinishBlock
+      // === 0`) 로 통과시킨다. fix 의지가 없는 LLM 에게 추가 라운드를 부과해
+      // 사용자 비용을 늘리지 않기 위함.
       const { service, mocks } = makeService();
       const addOrphan = JSON.stringify({
         type: 'http_request',
@@ -3204,8 +3206,188 @@ describe('WorkflowAssistantStreamService', () => {
       const events = await collect(
         service.streamMessage('sess-1', 'ws-1', 'u-1', baseDto as never),
       );
-      // Second finish passes without triggering another review loop.
+      // Second finish passes via stuck escape (no new edit between blocks).
       expect(mocks.llmService.chatStream).toHaveBeenCalledTimes(2);
+      const done = events[events.length - 1];
+      expect(done).toMatchObject({
+        event: 'done',
+        data: { finishReason: 'stop' },
+      });
+    });
+
+    it('Phase 5: re-fires WORKFLOW_REVIEW_REQUIRED on a second round when the LLM made progress but blocking issues remain', async () => {
+      // 사용자가 보고한 케이스의 회귀 보호. Round 1 에서 review_required 받고,
+      // round 2 에 LLM 이 일부 edit (예: orphan 한 개만 트리거에 잇고 다른
+      // orphan 은 그대로) 으로 진척했지만 blocking 이 여전히 남으면, stuck
+      // escape 가 발동하지 않고 review 가 한 번 더 fire 한다 (Phase 5
+      // MAX_REVIEW_ROUNDS = 2). 그 이후 round 3 finish 는 상한 도달로 통과.
+      const { service, mocks } = makeService();
+      // dto 에 trigger + 두 개의 orphan node 박기 → round 1 finish 가 ORPHAN
+      // 으로 막힘.
+      const dtoWithOrphans = {
+        content: 'Hello assistant',
+        currentWorkflow: {
+          nodes: [
+            {
+              id: 'trig-1',
+              type: 'manual_trigger',
+              category: 'trigger',
+              label: 'Start',
+              positionX: 250,
+              positionY: 300,
+              config: {},
+            },
+            {
+              id: 'orphan-x',
+              type: 'http_request',
+              category: 'integration',
+              label: 'OrphanX',
+              positionX: 400,
+              positionY: 200,
+              config: {},
+            },
+            {
+              id: 'orphan-y',
+              type: 'http_request',
+              category: 'integration',
+              label: 'OrphanY',
+              positionX: 700,
+              positionY: 200,
+              config: {},
+            },
+          ],
+          edges: [],
+        },
+      };
+      // Round 1: 진척 신호로 update_node 한 번 (성공한 edit) + finish.
+      // 두 orphan 이 그대로 남아 ORPHAN_NODES blocking → review_required 발동.
+      mocks.llmService.chatStream.mockImplementationOnce(() =>
+        asyncIter<ChatStreamEvent>([
+          {
+            type: 'tool_call_end',
+            id: 'u1',
+            name: 'update_node',
+            arguments: JSON.stringify({
+              id: 'orphan-x',
+              patch: { label: 'OrphanX-renamed' },
+            }),
+          },
+          {
+            type: 'tool_call_end',
+            id: 'fin_1',
+            name: 'finish',
+            arguments: '{}',
+          },
+          {
+            type: 'done',
+            usage: { inputTokens: 30, outputTokens: 5, totalTokens: 35 },
+            model: 'gpt-4o',
+            finishReason: 'tool_calls',
+          },
+        ]),
+      );
+      // Round 2: LLM 이 fix 시도하는 척 — 새 노드를 하나 더 추가 (성공한 edit
+      // 으로 진척 신호) 하지만 orphan 두 개는 여전히 그대로 → ORPHAN_NODES 가
+      // 다시 fire → review_required 재발동. (mock 환경의 add_edge 는
+      // PORT_NOT_FOUND 로 실패해 진척 신호로 안 잡히는 사정이 있어, 진척 신호로
+      // add_node 를 사용한다.)
+      mocks.llmService.chatStream.mockImplementationOnce(() =>
+        asyncIter<ChatStreamEvent>([
+          {
+            type: 'tool_call_end',
+            id: 'add_attempt',
+            name: 'add_node',
+            arguments: JSON.stringify({
+              type: 'http_request',
+              label: 'NoiseNode',
+              position: { x: 1100, y: 200 },
+              config: {},
+            }),
+          },
+          {
+            type: 'tool_call_end',
+            id: 'fin_2',
+            name: 'finish',
+            arguments: '{}',
+          },
+          {
+            type: 'done',
+            usage: { inputTokens: 30, outputTokens: 5, totalTokens: 35 },
+            model: 'gpt-4o',
+            finishReason: 'tool_calls',
+          },
+        ]),
+      );
+      // Round 3: LLM 이 fix 포기, finish 만 호출 → 상한 도달로 통과.
+      mocks.llmService.chatStream.mockImplementationOnce(() =>
+        asyncIter<ChatStreamEvent>([
+          { type: 'text_delta', delta: '검토 한계 도달.' },
+          {
+            type: 'tool_call_end',
+            id: 'fin_3',
+            name: 'finish',
+            arguments: '{}',
+          },
+          {
+            type: 'done',
+            usage: { inputTokens: 10, outputTokens: 3, totalTokens: 13 },
+            model: 'gpt-4o',
+            finishReason: 'stop',
+          },
+        ]),
+      );
+
+      const events = await collect(
+        service.streamMessage('sess-1', 'ws-1', 'u-1', dtoWithOrphans as never),
+      );
+      // 3 라운드 — round 1 review_required, round 2 review_required (재발동),
+      // round 3 통과.
+      expect(mocks.llmService.chatStream).toHaveBeenCalledTimes(3);
+
+      // Round 2 messages 에 round 1 의 fin_1 tool_result 가 review_required.
+      const round2Msgs = mocks.llmService.chatStream.mock.calls[1][1]
+        .messages as Array<{
+        role: string;
+        content?: string;
+        toolCallId?: string;
+      }>;
+      const fin1Result = round2Msgs.find(
+        (m) => m.role === 'tool' && m.toolCallId === 'fin_1',
+      );
+      expect(fin1Result).toBeDefined();
+      const parsed1 = JSON.parse(fin1Result!.content ?? 'null');
+      expect(parsed1.error).toBe('WORKFLOW_REVIEW_REQUIRED');
+
+      // Round 3 messages 에 round 2 의 fin_2 tool_result 가 review_required (재발동).
+      const round3Msgs = mocks.llmService.chatStream.mock.calls[2][1]
+        .messages as Array<{
+        role: string;
+        content?: string;
+        toolCallId?: string;
+      }>;
+      const fin2Result = round3Msgs.find(
+        (m) => m.role === 'tool' && m.toolCallId === 'fin_2',
+      );
+      expect(fin2Result).toBeDefined();
+      const parsed2 = JSON.parse(fin2Result!.content ?? 'null');
+      expect(parsed2.error).toBe('WORKFLOW_REVIEW_REQUIRED');
+      // round 2 의 review 는 진척 신호(NoiseNode 추가)가 있었음에도 원래의
+      // orphan-x / orphan-y 가 여전히 trigger 와 끊겨있어 ORPHAN_NODES 가 다시
+      // 잡혔음을 확인 (NoiseNode 도 orphan 으로 추가됨 → 3 노드 모두 orphan).
+      const orphanLabels = (
+        parsed2.checklist as Array<{ code: string; data?: unknown }>
+      )
+        .filter((c) => c.code === 'ORPHAN_NODES')
+        .flatMap(
+          (c) =>
+            (c.data as Array<{ label: string }> | undefined)?.map(
+              (d) => d.label,
+            ) ?? [],
+        );
+      expect(orphanLabels).toEqual(
+        expect.arrayContaining(['OrphanX-renamed', 'OrphanY', 'NoiseNode']),
+      );
+
       const done = events[events.length - 1];
       expect(done).toMatchObject({
         event: 'done',
