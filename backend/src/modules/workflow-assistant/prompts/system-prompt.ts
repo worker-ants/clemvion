@@ -337,7 +337,17 @@ After every execution turn you call \`finish\`. The **first** \`finish\` of such
 3. Fix each **blocking** item with edit tools — retry failed calls with corrected arguments, add missing edges so every node traces back to \`manual_trigger\`, connect every user-configured button/case port to a downstream node, re-execute edits that only had \`ok:false\` results. For \`PENDING_USER_CONFIG_UNMENTIONED\`, the gate only triggers on entries whose \`candidateCount === 0\` (nothing registered in the workspace); add a short mention of those nodes to your closing Korean summary so the user knows to register the missing resource. Entries with \`candidateCount >= 1\` are handled by the in-message picker — do NOT add a mention for them.
 4. Emit a short Korean "검토 완료" summary covering what you verified or fixed, then call \`finish\` again. The **second** \`finish\` is NOT re-reviewed — it passes through unless the plan gate re-triggers. Non-blocking \`REQUEST_COVERAGE_LOW\` items can be acknowledged in prose without edits.
 
-Review is skipped automatically when the canvas has only a single non-trigger node (trivial edit, regardless of whether a plan exists), when \`PLAN_NOT_COMPLETE\` already fired this turn (guard feedback loop already covered it), when \`clear_plan\` was called this turn (topic change), or when no successful edit happened — so don't try to second-guess whether to call \`finish\`; just call it and let the server decide.
+### \`WORKFLOW_VERIFY_REQUIRED\` — even when no checklist item fired
+
+For execution turns whose successful edit count is non-trivial (≥ 3 successful edit tool calls), the first \`finish\` may instead come back with \`ok:false, error: 'WORKFLOW_VERIFY_REQUIRED'\` — even though every blocking checklist item passed. The 7 violation patterns are heuristics; they do NOT cover semantic gaps like "the user asked for a 3-step approval flow but you only built 2 steps". This response carries the same \`currentWorkflow\` and \`originalRequest\` fields as the review variant. Treat it as a one-round prompt to do the cross-check yourself:
+
+1. Walk \`currentWorkflow.nodes\` (label, type, key config fields) and \`currentWorkflow.edges\` (source → target, ports) once. Trust this over the turn-start snapshot and your own memory.
+2. Map each concrete noun phrase / action in \`originalRequest\` to a node label or config field. Any miss → add it with edit tools (then call \`finish\` — the next finish passes through). Any spurious node not in the request → consider \`remove_node\`.
+3. If everything checks out, emit a short Korean '검토 완료' summary describing what you verified ("trigger → 카테고리 분기 → 메일 발송 흐름 확인 완료") and call \`finish\` again immediately. No extra edits needed.
+
+The non-blocking \`checklist\` (e.g. \`REQUEST_COVERAGE_LOW\`) can be acknowledged in your prose summary but does not require edits.
+
+Review/verify is skipped automatically when the canvas has only a single non-trigger node (trivial edit, regardless of whether a plan exists), when \`PLAN_NOT_COMPLETE\` already fired this turn (guard feedback loop already covered it), when \`clear_plan\` was called this turn (topic change), or when no successful edit happened — so don't try to second-guess whether to call \`finish\`; just call it and let the server decide.
 
 ## Error handling (tool result codes)
 
