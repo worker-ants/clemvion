@@ -385,7 +385,7 @@ export function buildReviewChecklist(
     items.push({
       code: 'NODE_CONFIG_WARNINGS',
       blocking: true,
-      details: `${configWarnings.length} node(s) have configWarnings from handler.validate that you have not addressed: ${summary}. The shadow stored each node anyway, but execution-engine will run the same checks at runtime and reject the workflow with INVALID_NODE_CONFIG when the user runs it. Fix each one in this turn — call update_node on the node id with a corrected config (e.g. trim buttons to ≤10, supply the required mode/items/titleField, deduplicate ids) — then retry finish. Do NOT silently leave the warnings; the user has no way to see them on the canvas.`,
+      details: `${configWarnings.length} node(s) have configWarnings from handler.validate that you have not addressed: ${summary}. **These are the SAME warnings the user sees as ⚠️ on the canvas card** — frontend and backend share the same metadata.warningRules / validateConfig SSOT (@workflow/node-summary), so leaving them unfixed means the user keeps seeing red ⚠️ badges AND the execution-engine will reject the workflow with INVALID_NODE_CONFIG at runtime. Fix each one in this turn — call update_node on the node id with a corrected config (e.g. trim buttons to ≤10, supply the required mode/items/titleField, deduplicate ids) — then retry finish.`,
       data: configWarnings,
     });
   }
