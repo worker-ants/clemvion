@@ -110,8 +110,29 @@ To learn more about Next.js, take a look at the following resources:
 
 You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
 
-## Deploy on Vercel
+## Deployment (Docker / Kubernetes)
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+프로덕션 이미지는 `frontend/Dockerfile`로 빌드합니다. Next.js의 `output: "standalone"` 모드를 사용해 `.next/standalone/server.js`를 직접 실행하는 슬림 이미지를 만듭니다 (`next.config.ts` 참고).
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+빌드 컨텍스트는 **repo 루트** — 모노레포(`file:../packages/*`) 의존성과 `outputFileTracingRoot` 트레이싱을 위함입니다.
+
+```bash
+# repo 루트에서
+docker build -f frontend/Dockerfile \
+  --build-arg NEXT_PUBLIC_API_URL=https://api.example.com/api \
+  --build-arg NEXT_PUBLIC_WS_URL=https://api.example.com \
+  -t idea-workflow/frontend .
+```
+
+### 환경변수
+
+| 변수 | 시점 | 비고 |
+| ---- | ---- | ---- |
+| `NEXT_PUBLIC_API_URL` | **build-time** | client bundle에 inline. `--build-arg`로 전달. 환경별 이미지 빌드 필요 |
+| `NEXT_PUBLIC_WS_URL` | **build-time** | 동일 |
+| `INTERNAL_API_URL` | runtime | Server Component fetch 시 우선 사용 (예: `http://backend.<ns>.svc:3011/api`) |
+| `PORT` / `HOSTNAME` | runtime | 기본 `3000` / `0.0.0.0` (Dockerfile에서 설정) |
+
+### 헬스체크
+
+`GET /api/health` → `{ status: "ok" }` 200 응답 (k8s `readinessProbe` 용).
