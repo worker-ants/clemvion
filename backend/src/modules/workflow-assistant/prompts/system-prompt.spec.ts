@@ -687,10 +687,11 @@ describe('buildSystemPrompt', () => {
       // 새로 추가된 NODE_CONFIG_WARNINGS 코드도 self-review 목록에 포함되어야
       // LLM 이 review block 시 어떤 항목인지 인지하고 fix 경로를 탄다.
       expect(prompt).toMatch(/NODE_CONFIG_WARNINGS/);
-      // 두 번째 finish 는 재검토되지 않음 (루프 상한 안내)
-      expect(prompt).toMatch(
-        /second[\s\S]{0,20}finish[\s\S]{0,40}NOT re-reviewed/i,
-      );
+      // Phase 5: 두 번째 finish 의 정책 안내 — fix 했으면 통과, fix 안 하고
+      // finish 만 반복하면 stuck escape 로 통과 (사용자 비용 보호), 새 edit
+      // 했는데 blocking 이 여전히 남아있으면 한 번 더 막힘.
+      expect(prompt).toMatch(/stuck escape/i);
+      expect(prompt).toMatch(/WORKFLOW_REVIEW_REQUIRED.{0,100}once more/i);
     });
 
     it('teaches the configWarnings → same-turn fix policy (handler.validate non-blocking but execution-engine still rejects at runtime)', () => {

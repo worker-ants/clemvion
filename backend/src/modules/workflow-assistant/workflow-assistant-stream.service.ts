@@ -122,14 +122,23 @@ interface FinishGuardState {
   /** `clear_plan` 이 이번 턴에 호출됐는지 — 화제 전환으로 guard 비활성. */
   planClearedThisTurn: boolean;
   /**
-   * 2-stage finish 의 첫 단계 (workflow self-review) 발동 여부.
-   * true 가 된 뒤의 finish 는 review 를 건너뛰고 기존 경로로 진행.
-   * 같은 턴에 MAX_REVIEW_ROUNDS (2) 를 초과해 review 가 발동하지 않도록
-   * `reviewRoundCount` 로 한 번 더 안전장치를 둔다.
+   * "검토가 완전히 끝났음" 마크. 다음 finish 부터는 review/verify 를 다시
+   * 평가하지 않고 통과시킨다. set 되는 케이스:
+   *   - review 가 통과 (blocking 0 + verify 임계값 미달)
+   *   - `verify_workflow` 가 ok:true 로 외부화된 검증을 마침 (Phase 3)
+   * Phase 5: review_required 가 발동했을 때는 set 하지 **않는다** —
+   * `reviewRoundCount` 와 stuck escape 가 추가 라운드 정책을 결정한다.
    */
   reviewCompleted: boolean;
-  /** 이번 턴에 review block 이 발행된 횟수. 2 이상이면 더 이상 발동하지 않음. */
+  /** 이번 턴에 review block 이 발행된 횟수. MAX_REVIEW_ROUNDS 도달 시 통과. */
   reviewRoundCount: number;
+  /**
+   * Phase 5: verify_required 분기는 LLM 에게 1 라운드 의미 검증을 강제하는
+   * 게 목적이라, 첫 발동 후엔 다시 발동하지 않는다 (반복 fire 시 무한 루프).
+   * review_required 와 달리 blocking 항목이 없는 케이스이므로 fix 강제도
+   * 의미가 약함.
+   */
+  verifyFiredOnce: boolean;
 }
 
 export type AssistantStreamEvent =
@@ -225,6 +234,15 @@ const REVIEW_ORIGINAL_REQUEST_MAX_LEN = 200;
  * 편집(노드 1~2개)은 verify 비용 > 정확도 이득.
  */
 const MIN_NONTRIGGER_NODES_FOR_VERIFY = 3;
+/**
+ * Phase 5: 한 턴에서 `WORKFLOW_REVIEW_REQUIRED` (blocking checklist) 가 LLM 을
+ * 막을 수 있는 최대 라운드 수. 기존 1 → 2 로 늘려 LLM 이 첫 review 응답을
+ * 무시하고 그냥 finish 를 다시 호출해도 새 edit 으로 진척이 있었으면 한 번 더
+ * 막는다. 진척 (`editsSinceLastFinishBlock > 0`) 이 없으면 stuck escape 로
+ * 통과해 사용자 비용 증가는 막는다 — 즉 정직하게 fix 시도하는 LLM 만 추가
+ * 라운드를 받는다. verify_required 는 별도 1회 정책 (`verifyFiredOnce`).
+ */
+const MAX_REVIEW_ROUNDS = 2;
 /**
  * LLM 이 tool call 없이 텍스트만 뱉고 `finishReason: 'stop'` 으로 턴을 끊는
  * "stall" 라운드의 연속 상한. active plan 에 pending step 이 남은 경우 서버가
@@ -458,6 +476,7 @@ export class WorkflowAssistantStreamService {
       planClearedThisTurn: false,
       reviewCompleted: false,
       reviewRoundCount: 0,
+      verifyFiredOnce: false,
     };
     // Turn-scoped cache for `get_node_schema` results. LLM 이 같은 노드 타입의
     // 스키마를 여러 번 조회하는 낭비 패턴을 잡기 위해 첫 호출 결과를 캐시하고,
@@ -610,8 +629,13 @@ export class WorkflowAssistantStreamService {
                     result: reviewBlock,
                     ...(ev.signature ? { signature: ev.signature } : {}),
                   });
-                  // 다음 번 finish 에서는 review 를 건너뛰도록 mark.
-                  guardState.reviewCompleted = true;
+                  // Phase 5: review_required 는 reviewCompleted 를 set 하지
+                  // 않는다 — 다음 finish 에서 reviewRoundCount 와 stuck escape
+                  // 가 추가 라운드 정책을 결정. verify_required 만 1회 정책으로
+                  // verifyFiredOnce 를 set 해 같은 분기 재발동을 막는다.
+                  if (reviewBlock.error === 'WORKFLOW_VERIFY_REQUIRED') {
+                    guardState.verifyFiredOnce = true;
+                  }
                   finishReason = 'tool_calls';
                   finishResolved = true;
                   continue;
@@ -1435,6 +1459,13 @@ export class WorkflowAssistantStreamService {
       // currentWorkflow ↔ originalRequest 를 1:1 로 대조한 뒤 finish 하도록 한
       // 라운드를 강제한다. checklist 휴리스틱이 못 잡는 "사용자 의도 vs 빌드
       // 결과" 의 의미적 격차를 LLM 자신의 추론으로 메우게 하는 단계.
+      //
+      // Phase 5: verify 는 1회 정책 — 한 번 fire 했으면 같은 턴에 다시 fire
+      // 하지 않는다 (review_required 와 달리 blocking 이 없는 상태이므로 fix
+      // 강제 의미가 약함). reviewRoundCount 만으로는 review_required 가 1회
+      // fire 한 뒤 verify 가 추가로 fire 하는 잘못된 시나리오를 막을 수 없어
+      // 별도 플래그가 필요.
+      if (state.verifyFiredOnce) return null;
       const nonTriggerNodeCount = snapshot.nodes.filter(
         (n) => n.category !== 'trigger',
       ).length;
@@ -1478,7 +1509,13 @@ export class WorkflowAssistantStreamService {
    * review 건너뛰기 여부 판정. 사용자의 "항상 강제" 요구(execution 턴 모두
    * 점검) 에 맞춰 최소한의 안전 조건만 남긴다. 다음 중 하나라도 참이면 review
    * 는 발동하지 않는다:
-   *  - 이미 이번 턴에 review 가 끝났거나 (`reviewCompleted`) loop 상한 초과
+   *  - 이미 이번 턴에 review 가 완전히 끝났거나 (`reviewCompleted` — 통과 또는
+   *    `verify_workflow` 외부화 검증 완료)
+   *  - `reviewRoundCount` 가 `MAX_REVIEW_ROUNDS` 도달 (Phase 5: fix 강제 상한)
+   *  - 이미 한 번 막혔는데 그 이후 새 edit 이 하나도 없음 (Phase 5: stuck escape
+   *    — LLM 이 fix 안 하고 finish 만 반복 호출하는 케이스를 통과시켜 추가
+   *    비용을 막는다. 정직하게 새 edit 으로 진척하는 LLM 만 추가 라운드를
+   *    받는다.)
    *  - 같은 턴 `clear_plan` → 화제 전환으로 "점검 대상" 이 아님
    *  - 이번 턴에 성공한 edit 이 하나도 없음 — 실행 턴 아님 (질문·plan-only·
    *    전량 실패 케이스)
@@ -1494,7 +1531,13 @@ export class WorkflowAssistantStreamService {
     snapshot: ShadowSnapshot,
   ): boolean {
     if (state.reviewCompleted) return true;
-    if (state.reviewRoundCount >= 2) return true;
+    if (state.reviewRoundCount >= MAX_REVIEW_ROUNDS) return true;
+    // Stuck escape (Phase 5): 이미 한 번 막혔는데 그 이후 LLM 이 새 edit 없이
+    // 다시 finish 만 호출 → fix 의지가 없다고 보고 통과. editsSinceLastFinishBlock
+    // 은 review block 직후 0 으로 reset 되고 성공한 edit 마다 ++.
+    if (state.reviewRoundCount > 0 && state.editsSinceLastFinishBlock === 0) {
+      return true;
+    }
     if (state.planClearedThisTurn) return true;
     const hadSuccessfulEdit = pendingToolCalls.some(
       (tc) =>
