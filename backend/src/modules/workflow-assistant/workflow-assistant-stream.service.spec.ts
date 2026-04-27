@@ -3213,6 +3213,275 @@ describe('WorkflowAssistantStreamService', () => {
       });
     });
 
+    it('Phase 2: blocks the first finish with WORKFLOW_VERIFY_REQUIRED when checklist passes but the workflow is non-trivial (≥3 non-trigger nodes)', async () => {
+      // dto 에 trigger + 3 노드 + 3 edges (모든 노드가 trigger 에서 도달 가능)
+      // 를 박은 상태로 시작 → ORPHAN/DANGLING 등 어떤 blocking 항목도 fire 안 함.
+      // round 1 에 update_node 로 단순 patch 만 성공시킨 뒤 finish 호출하면
+      // verify 가 한 라운드 막는다. 두 번째 finish 는 같은 reviewCompleted
+      // 플래그로 통과.
+      const { service, mocks } = makeService();
+      const dtoWithThreeNodes = {
+        content: 'Hello assistant',
+        currentWorkflow: {
+          nodes: [
+            {
+              id: 'trig-1',
+              type: 'manual_trigger',
+              category: 'trigger',
+              label: 'Start',
+              positionX: 250,
+              positionY: 300,
+              config: {},
+            },
+            {
+              id: 'node-a',
+              type: 'http_request',
+              category: 'integration',
+              label: 'StepA',
+              positionX: 400,
+              positionY: 200,
+              config: {},
+            },
+            {
+              id: 'node-b',
+              type: 'http_request',
+              category: 'integration',
+              label: 'StepB',
+              positionX: 700,
+              positionY: 200,
+              config: {},
+            },
+            {
+              id: 'node-c',
+              type: 'http_request',
+              category: 'integration',
+              label: 'StepC',
+              positionX: 1000,
+              positionY: 200,
+              config: {},
+            },
+          ],
+          edges: [
+            {
+              id: 'edge-1',
+              sourceNodeId: 'trig-1',
+              sourcePort: 'out',
+              targetNodeId: 'node-a',
+              targetPort: 'in',
+              type: 'data',
+            },
+            {
+              id: 'edge-2',
+              sourceNodeId: 'node-a',
+              sourcePort: 'out',
+              targetNodeId: 'node-b',
+              targetPort: 'in',
+              type: 'data',
+            },
+            {
+              id: 'edge-3',
+              sourceNodeId: 'node-b',
+              sourcePort: 'out',
+              targetNodeId: 'node-c',
+              targetPort: 'in',
+              type: 'data',
+            },
+          ],
+        },
+      };
+      // Round 1: update_node 로 작은 patch 한 번 + finish.
+      mocks.llmService.chatStream.mockImplementationOnce(() =>
+        asyncIter<ChatStreamEvent>([
+          {
+            type: 'tool_call_end',
+            id: 'u1',
+            name: 'update_node',
+            arguments: JSON.stringify({
+              id: 'node-a',
+              patch: { label: 'StepA-renamed' },
+            }),
+          },
+          {
+            type: 'tool_call_end',
+            id: 'fin_1',
+            name: 'finish',
+            arguments: '{}',
+          },
+          {
+            type: 'done',
+            usage: { inputTokens: 30, outputTokens: 5, totalTokens: 35 },
+            model: 'gpt-4o',
+            finishReason: 'tool_calls',
+          },
+        ]),
+      );
+      // Round 2: verify_required 후 두 번째 finish 는 통과.
+      mocks.llmService.chatStream.mockImplementationOnce(() =>
+        asyncIter<ChatStreamEvent>([
+          { type: 'text_delta', delta: '검토 완료' },
+          {
+            type: 'tool_call_end',
+            id: 'fin_2',
+            name: 'finish',
+            arguments: '{}',
+          },
+          {
+            type: 'done',
+            usage: { inputTokens: 10, outputTokens: 3, totalTokens: 13 },
+            model: 'gpt-4o',
+            finishReason: 'stop',
+          },
+        ]),
+      );
+
+      const events = await collect(
+        service.streamMessage(
+          'sess-1',
+          'ws-1',
+          'u-1',
+          dtoWithThreeNodes as never,
+        ),
+      );
+      expect(mocks.llmService.chatStream).toHaveBeenCalledTimes(2);
+
+      // Round 2 messages: fin_1 의 tool_result 는 WORKFLOW_VERIFY_REQUIRED.
+      const round2Msgs = mocks.llmService.chatStream.mock.calls[1][1]
+        .messages as Array<{
+        role: string;
+        content?: string;
+        toolCallId?: string;
+      }>;
+      const finishToolResult = round2Msgs.find(
+        (m) => m.role === 'tool' && m.toolCallId === 'fin_1',
+      );
+      expect(finishToolResult).toBeDefined();
+      const parsed = JSON.parse(finishToolResult!.content ?? 'null');
+      expect(parsed.error).toBe('WORKFLOW_VERIFY_REQUIRED');
+      // verify 응답에도 권위 snapshot 동봉 (Phase 1 정책과 동일).
+      expect(parsed.currentWorkflow).toBeDefined();
+      expect(Array.isArray(parsed.currentWorkflow.nodes)).toBe(true);
+      const labels = (
+        parsed.currentWorkflow.nodes as Array<{ label: string }>
+      ).map((n) => n.label);
+      expect(labels).toEqual(
+        expect.arrayContaining(['StepA-renamed', 'StepB', 'StepC']),
+      );
+      // blocking 은 비어있어야 — 만약 ORPHAN/DANGLING 이 잡혔다면 review 분기로
+      // 들어갔을 것.
+      const blockingCodes = (
+        parsed.checklist as Array<{ code: string; blocking: boolean }>
+      )
+        .filter((c) => c.blocking)
+        .map((c) => c.code);
+      expect(blockingCodes).toEqual([]);
+
+      const done = events[events.length - 1];
+      expect(done).toMatchObject({
+        event: 'done',
+        data: { finishReason: 'stop' },
+      });
+    });
+
+    it('Phase 2: skips verify when non-trigger node count is below threshold (≤2 nodes)', async () => {
+      // dto 에 trigger + 2 노드 (모두 trigger 에서 도달) 만 박기 → non-trigger 수
+      // = 2 < 3 → review/verify 둘 다 발동 안 하고 첫 finish 가 통과한다.
+      // 단순 편집(노드 1~2개)에 추가 라운드 비용을 부과하지 않는 정책 회귀 보호.
+      const { service, mocks } = makeService();
+      const dtoWithTwoNodes = {
+        content: 'Hello assistant',
+        currentWorkflow: {
+          nodes: [
+            {
+              id: 'trig-1',
+              type: 'manual_trigger',
+              category: 'trigger',
+              label: 'Start',
+              positionX: 250,
+              positionY: 300,
+              config: {},
+            },
+            {
+              id: 'node-x',
+              type: 'http_request',
+              category: 'integration',
+              label: 'OnlyX',
+              positionX: 400,
+              positionY: 200,
+              config: {},
+            },
+            {
+              id: 'node-y',
+              type: 'http_request',
+              category: 'integration',
+              label: 'OnlyY',
+              positionX: 700,
+              positionY: 200,
+              config: {},
+            },
+          ],
+          edges: [
+            {
+              id: 'e1',
+              sourceNodeId: 'trig-1',
+              sourcePort: 'out',
+              targetNodeId: 'node-x',
+              targetPort: 'in',
+              type: 'data',
+            },
+            {
+              id: 'e2',
+              sourceNodeId: 'node-x',
+              sourcePort: 'out',
+              targetNodeId: 'node-y',
+              targetPort: 'in',
+              type: 'data',
+            },
+          ],
+        },
+      };
+      mocks.llmService.chatStream.mockImplementationOnce(() =>
+        asyncIter<ChatStreamEvent>([
+          {
+            type: 'tool_call_end',
+            id: 'u1',
+            name: 'update_node',
+            arguments: JSON.stringify({
+              id: 'node-x',
+              patch: { label: 'OnlyX-renamed' },
+            }),
+          },
+          {
+            type: 'tool_call_end',
+            id: 'fin',
+            name: 'finish',
+            arguments: '{}',
+          },
+          {
+            type: 'done',
+            usage: { inputTokens: 30, outputTokens: 5, totalTokens: 35 },
+            model: 'gpt-4o',
+            finishReason: 'stop',
+          },
+        ]),
+      );
+
+      const events = await collect(
+        service.streamMessage(
+          'sess-1',
+          'ws-1',
+          'u-1',
+          dtoWithTwoNodes as never,
+        ),
+      );
+      // 단일 라운드만 — review/verify 둘 다 추가 round 없이 finish 통과.
+      expect(mocks.llmService.chatStream).toHaveBeenCalledTimes(1);
+      const done = events[events.length - 1];
+      expect(done).toMatchObject({
+        event: 'done',
+        data: { finishReason: 'stop' },
+      });
+    });
+
     it('skips review entirely for trivial single-node turns', async () => {
       // non-trigger 노드가 ≤ 1 개인 상태의 finish 는 review 를 건너뛰고 바로
       // 통과. 사용자의 "HTTP 노드 하나만 추가" 같은 단발성 요청에서 불필요한

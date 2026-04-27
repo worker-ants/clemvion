@@ -80,6 +80,30 @@ type FinishGuardError =
        */
       currentWorkflow: WorkflowView;
       message: string;
+    }
+  | {
+      /**
+       * Phase 2: checklist 의 7개 violation 패턴이 모두 통과한 경우에도, 성공
+       * edit 이 `MIN_EDITS_FOR_VERIFY` 이상인 non-trivial 턴에 한해 LLM 이
+       * "사용자 원 요청 ↔ 실제 캔버스" 를 1:1 로 대조한 뒤 finish 하도록
+       * 한 라운드를 강제한다. 이 응답을 받은 LLM 의 액션은 둘 중 하나:
+       *   1) currentWorkflow 가 originalRequest 를 충실히 반영함 → 짧은 한국어
+       *      '검토 완료' 메시지 emit 후 finish 다시 호출 (두 번째 finish 통과).
+       *   2) 누락/오류 발견 → edit tool 로 보강 후 finish 다시 호출.
+       * 같은 `state.reviewCompleted` 플래그를 공유해 두 번째 finish 는 review/
+       * verify 둘 다 다시 발동하지 않는다.
+       */
+      ok: false;
+      error: 'WORKFLOW_VERIFY_REQUIRED';
+      /**
+       * blocking 항목은 비어있고 (있다면 WORKFLOW_REVIEW_REQUIRED 로 갔을
+       * 것), `REQUEST_COVERAGE_LOW` 같은 non-blocking 항목만 실릴 수 있다.
+       */
+      checklist: ReviewChecklistItem[];
+      originalRequest: string;
+      planTitle?: string;
+      currentWorkflow: WorkflowView;
+      message: string;
     };
 
 /**
@@ -192,6 +216,15 @@ const SCHEMA_LOOKUP_HARD_STOP = 3;
 // 로 중화되어 주입되므로 review tool_result 에는 요약만 싣는다. 프롬프트 인젝션
 // 표면 축소 + LLM 토큰 낭비 방지.
 const REVIEW_ORIGINAL_REQUEST_MAX_LEN = 200;
+/**
+ * Phase 2: WORKFLOW_VERIFY_REQUIRED 발동 임계값. **non-trigger 노드 수** 가
+ * 이 값 이상일 때만 verify 라운드를 강제한다. edit 호출 수가 아니라 노드 수를
+ * 쓰는 이유: 회복 라운드에서 update_node 가 반복 호출되면 edit 수는 부풀지만
+ * 실제 캔버스 규모는 그대로다. 노드 수가 의미 검증 비용/이득의 더 정확한
+ * proxy. 3 노드 = "trigger → A → B" 같은 최소 분기 플로우 — 그 미만의 단순
+ * 편집(노드 1~2개)은 verify 비용 > 정확도 이득.
+ */
+const MIN_NONTRIGGER_NODES_FOR_VERIFY = 3;
 /**
  * LLM 이 tool call 없이 텍스트만 뱉고 `finishReason: 'stop'` 으로 턴을 끊는
  * "stall" 라운드의 연속 상한. active plan 에 pending step 이 남은 경우 서버가
@@ -1379,7 +1412,29 @@ export class WorkflowAssistantStreamService {
       collectPendingUserConfig: (nodeId) => pendingByNode.get(nodeId) ?? [],
       nodeDefs: this.nodeRegistry.listDefinitions(),
     });
-    if (!checklistBlocks(checklist)) return null;
+    if (!checklistBlocks(checklist)) {
+      // Phase 2: 7개 violation 패턴이 모두 통과해도 non-trivial 워크플로우
+      // (non-trigger 노드 ≥ MIN_NONTRIGGER_NODES_FOR_VERIFY) 에는 LLM 이
+      // currentWorkflow ↔ originalRequest 를 1:1 로 대조한 뒤 finish 하도록 한
+      // 라운드를 강제한다. checklist 휴리스틱이 못 잡는 "사용자 의도 vs 빌드
+      // 결과" 의 의미적 격차를 LLM 자신의 추론으로 메우게 하는 단계.
+      const nonTriggerNodeCount = snapshot.nodes.filter(
+        (n) => n.category !== 'trigger',
+      ).length;
+      if (nonTriggerNodeCount < MIN_NONTRIGGER_NODES_FOR_VERIFY) return null;
+      return {
+        ok: false,
+        error: 'WORKFLOW_VERIFY_REQUIRED',
+        // blocking 은 비어있고 (있으면 위 분기로 갔을 것) REQUEST_COVERAGE_LOW
+        // 같은 non-blocking 항목만 남는다 — LLM 이 참고 정도로 활용.
+        checklist,
+        originalRequest: truncateReviewOriginalRequest(originalRequest),
+        planTitle: plan?.title,
+        currentWorkflow: toWorkflowView(snapshot),
+        message:
+          "Before finishing: cross-check the built workflow against the user's original request one last time. The `currentWorkflow` field below is the AUTHORITATIVE turn-end state — trust it over the turn-start snapshot in the system prompt and over your own memory of prior tool results. 1) Walk every node in `currentWorkflow.nodes` and every edge in `currentWorkflow.edges` and confirm each was intended. 2) Compare against `originalRequest` — every concrete noun phrase or action the user mentioned should map to a node label or a config field. If something is missing, add it with edit tools (and re-call finish — the next finish will pass through). If everything checks out, emit a short Korean '검토 완료' summary describing what you verified and call finish again immediately.",
+      };
+    }
 
     return {
       ok: false,
