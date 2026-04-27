@@ -34,6 +34,7 @@ function normalizeResponse(raw: NodeDefinitionResponse): NodeDefinition {
     isDynamicPorts: raw.metadata.isDynamicPorts,
     dynamicPorts: raw.metadata.dynamicPorts,
     summaryTemplate: raw.metadata.summaryTemplate,
+    warningRules: raw.metadata.warningRules,
     defaultConfig: raw.defaultConfig ?? {},
     configSchema: raw.configSchema,
     inputSchema: raw.inputSchema,
