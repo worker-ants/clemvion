@@ -3028,11 +3028,115 @@ describe('WorkflowAssistantStreamService', () => {
       );
       expect(codes).toContain('ORPHAN_NODES');
 
+      // Phase 1: review_required 응답에 turn-end 권위 snapshot 이 동봉되어
+      // LLM 이 자기 누적 tool_result 기억에 의존하지 않고 곧바로 fix 가능.
+      // get_current_workflow 와 동일한 toWorkflowView shape 인지 확인.
+      expect(parsed.currentWorkflow).toBeDefined();
+      expect(Array.isArray(parsed.currentWorkflow.nodes)).toBe(true);
+      expect(Array.isArray(parsed.currentWorkflow.edges)).toBe(true);
+      const reviewLabels = (
+        parsed.currentWorkflow.nodes as Array<{ label: string }>
+      ).map((n) => n.label);
+      expect(reviewLabels).toEqual(
+        expect.arrayContaining(['OrphanA', 'OrphanB']),
+      );
+
       const done = events[events.length - 1];
       expect(done).toMatchObject({
         event: 'done',
         data: { finishReason: 'stop' },
       });
+    });
+
+    it('redacts secrets in the WORKFLOW_REVIEW_REQUIRED `currentWorkflow` payload (same policy as get_current_workflow)', async () => {
+      const { service, mocks } = makeService();
+      // Orphan 노드 두 개를 만들고 그 중 하나의 config 에 apiKey 평문을 박아둔다.
+      // review 가 ORPHAN_NODES 로 fire 한 응답의 currentWorkflow 에서 그 평문이
+      // [REDACTED] 로 치환되어 LLM 컨텍스트로 흘러나가지 않아야 한다.
+      const addSecret = JSON.stringify({
+        type: 'http_request',
+        label: 'SecretCaller',
+        position: { x: 400, y: 200 },
+        config: { apiKey: 'plaintext-secret-12345' },
+      });
+      const addOther = JSON.stringify({
+        type: 'http_request',
+        label: 'AnotherOrphan',
+        position: { x: 700, y: 200 },
+        config: {},
+      });
+      mocks.llmService.chatStream.mockImplementationOnce(() =>
+        asyncIter<ChatStreamEvent>([
+          {
+            type: 'tool_call_end',
+            id: 'call_a',
+            name: 'add_node',
+            arguments: addSecret,
+          },
+          {
+            type: 'tool_call_end',
+            id: 'call_b',
+            name: 'add_node',
+            arguments: addOther,
+          },
+          {
+            type: 'tool_call_end',
+            id: 'call_fin_1',
+            name: 'finish',
+            arguments: '{}',
+          },
+          {
+            type: 'done',
+            usage: { inputTokens: 40, outputTokens: 5, totalTokens: 45 },
+            model: 'gpt-4o',
+            finishReason: 'tool_calls',
+          },
+        ]),
+      );
+      mocks.llmService.chatStream.mockImplementationOnce(() =>
+        asyncIter<ChatStreamEvent>([
+          { type: 'text_delta', delta: '검토 완료' },
+          {
+            type: 'tool_call_end',
+            id: 'call_fin_2',
+            name: 'finish',
+            arguments: '{}',
+          },
+          {
+            type: 'done',
+            usage: { inputTokens: 10, outputTokens: 3, totalTokens: 13 },
+            model: 'gpt-4o',
+            finishReason: 'stop',
+          },
+        ]),
+      );
+
+      await collect(
+        service.streamMessage('sess-1', 'ws-1', 'u-1', baseDto as never),
+      );
+
+      const round2Messages = mocks.llmService.chatStream.mock.calls[1][1]
+        .messages as Array<{
+        role: string;
+        content?: string;
+        toolCallId?: string;
+      }>;
+      const finishTool = round2Messages.find(
+        (m) => m.role === 'tool' && m.toolCallId === 'call_fin_1',
+      );
+      expect(finishTool).toBeDefined();
+      const parsed = JSON.parse(finishTool!.content ?? 'null');
+      expect(parsed.error).toBe('WORKFLOW_REVIEW_REQUIRED');
+      const secretNode = (
+        parsed.currentWorkflow.nodes as Array<{
+          label: string;
+          config: Record<string, unknown>;
+        }>
+      ).find((n) => n.label === 'SecretCaller');
+      expect(secretNode).toBeDefined();
+      expect(secretNode!.config.apiKey).toBe('[REDACTED]');
+      // 평문이 응답 어느 곳에도 흘러나가지 않도록 stringify 한 전체에서도 미검출.
+      expect(JSON.stringify(parsed)).not.toContain('plaintext-secret-12345');
     });
 
     it('does NOT re-fire review after the second finish even if issues remain (single review round per turn)', async () => {
