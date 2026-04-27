@@ -31,7 +31,7 @@ import type { NodeComponentMetadata } from './node-component.interface';
  *     to blocking-only via {@link evaluateMetadataBlockingErrors}.
  */
 export function evaluateMetadataValidation(
-  metadata: Pick<NodeComponentMetadata, 'warningRules' | 'validateConfig'>,
+  metadata: Pick<NodeComponentMetadata, 'warningRules' | 'validateConfig' | 'type'>,
   config: unknown,
 ): { id: string; message: string; severity: 'blocking' | 'advisory' }[] {
   const declarative = evaluateWarnings(
@@ -72,7 +72,7 @@ export function evaluateMetadataValidation(
  * `severity` to take the default).
  */
 export function evaluateMetadataBlockingErrors(
-  metadata: Pick<NodeComponentMetadata, 'warningRules' | 'validateConfig'>,
+  metadata: Pick<NodeComponentMetadata, 'warningRules' | 'validateConfig' | 'type'>,
   config: unknown,
 ): string[] {
   return evaluateMetadataValidation(metadata, config)
