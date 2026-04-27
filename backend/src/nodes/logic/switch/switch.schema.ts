@@ -119,6 +119,55 @@ export const switchNodePorts: NodePorts = {
   outputs: [{ id: 'default', label: 'Default', type: 'data' }],
 };
 
+/**
+ * Imperative escape hatch — per-case validation needs array iteration the
+ * mini-DSL can't express:
+ *  - duplicate id detection (Set tracking)
+ *  - per-case `condition` required when mode === 'expression'
+ *  - per-case `valueType` enum whitelist
+ * Single-field "is switchValue set?" / "is cases empty?" checks live in
+ * `warningRules` below so they fire the canvas badge.
+ */
+const VALID_CASE_VALUE_TYPES = new Set(['string', 'number', 'boolean']);
+export function validateSwitchConfig(config: unknown): string[] {
+  const c = (config ?? {}) as Record<string, unknown>;
+  const errors: string[] = [];
+  const cases = c.cases;
+  const mode = ((c.mode as string) ?? 'value') as 'value' | 'expression';
+
+  if (Array.isArray(cases)) {
+    const seenIds = new Set<string>();
+    for (let i = 0; i < cases.length; i++) {
+      const item = (cases[i] ?? {}) as Record<string, unknown>;
+      if (!item.id || typeof item.id !== 'string') {
+        errors.push(`cases[${i}].id is required and must be a string`);
+      } else if (seenIds.has(item.id)) {
+        errors.push(`cases[${i}].id '${item.id}' is duplicated`);
+      } else {
+        seenIds.add(item.id);
+      }
+      if (
+        item.valueType !== undefined &&
+        !VALID_CASE_VALUE_TYPES.has(item.valueType as string)
+      ) {
+        errors.push(
+          `cases[${i}].valueType must be one of: string, number, boolean`,
+        );
+      }
+      if (
+        mode === 'expression' &&
+        (item.condition === undefined || item.condition === null)
+      ) {
+        errors.push(
+          `cases[${i}].condition is required when mode is "expression"`,
+        );
+      }
+    }
+  }
+
+  return errors;
+}
+
 export const switchNodeMetadata: NodeComponentMetadata = {
   type: 'switch',
   category: 'logic',
@@ -128,9 +177,34 @@ export const switchNodeMetadata: NodeComponentMetadata = {
   color: '#3B82F6',
   isDynamicPorts: true,
   dynamicPorts: { kind: 'switch-cases' },
+  // `summaryTemplate.warnWhen` retained for backward compat — `warningRules`
+  // is the new SSOT (richer set + stable ids + assistant gate integration).
   summaryTemplate: {
-    template: '{{switchValue}} \u2192 {{cases.length}} cases',
+    template: '{{switchValue}} → {{cases.length}} cases',
     warnWhen: '!switchValue',
     warnMessage: 'Switch value not set',
   },
+  // SSOT for warnings (frontend canvas + backend handler.validate).
+  // Mirror points:
+  //  - legacy `summaryTemplate.warnWhen` (switchValue missing in value mode)
+  //  - backend handler.validate's structural rules: cases non-empty,
+  //    switchValue required when mode='value'. Per-case rules (id uniqueness,
+  //    valueType whitelist, condition required in expression mode) live in
+  //    `validateConfig` because they need array iteration.
+  warningRules: [
+    {
+      // Default mode is 'value' (zod default), so the rule must also fire
+      // when `mode` is missing from a freshly-created config — using
+      // `mode != expression` instead of `mode == value` covers both.
+      id: 'switch:value-mode-needs-switch-value',
+      when: 'mode != expression && !switchValue',
+      message: 'Value 모드에서는 Switch Value 를 입력해야 합니다.',
+    },
+    {
+      id: 'switch:no-cases',
+      when: 'length(cases) == 0',
+      message: '최소 1개 이상의 case 를 추가해야 합니다.',
+    },
+  ],
+  validateConfig: validateSwitchConfig,
 };

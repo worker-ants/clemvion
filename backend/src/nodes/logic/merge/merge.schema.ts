@@ -71,4 +71,26 @@ export const mergeNodeMetadata: NodeComponentMetadata = {
   description: 'Combine inputs',
   icon: 'Merge',
   color: '#3B82F6',
+  // SSOT for warnings (frontend canvas + backend handler.validate).
+  // Mirror points:
+  //  - frontend `mergeSummary` warnings ("Strategy not set"). NOTE: the
+  //    formatter also references `config.inputCount` which is NOT in the
+  //    canonical schema (schema only has strategy / outputFormat / timeout /
+  //    partialOnTimeout — fan-in count is implicit from the predecessor
+  //    edges, not a config field). The schema is the SSOT, so we drop the
+  //    `inputCount` rule; the gap is reported in the migration notes and
+  //    will be reconciled in Step 5 when FORMATTERS is removed.
+  //  - backend handler.validate's enum guards (strategy / outputFormat /
+  //    timeout >= 0 / partialOnTimeout boolean) are enforced by the zod
+  //    schema, not as user-facing warnings — keeping them out of warningRules
+  //    matches the existing presentation-node pattern.
+  // `strategy` has a `.default('wait_all')` so this rule only fires when the
+  // user explicitly clears it (defensive — mirrors the legacy formatter).
+  warningRules: [
+    {
+      id: 'merge:no-strategy',
+      when: '!strategy',
+      message: 'Merge strategy 를 선택해야 합니다.',
+    },
+  ],
 };

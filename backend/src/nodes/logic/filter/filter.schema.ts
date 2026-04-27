@@ -82,6 +82,57 @@ export const filterNodePorts: NodePorts = {
   ],
 };
 
+/**
+ * Imperative escape hatch — per-condition operator/field validation needs
+ * array iteration the mini-DSL can't express. Single-field "is inputField
+ * set?" / "is conditions empty?" checks live in `warningRules` below so they
+ * fire the canvas badge.
+ *
+ * Imported lazily inside the function to avoid a top-level circular hint with
+ * the shared condition util — the schema file is loaded by both the
+ * frontend bundle (via @workflow/node-summary) and the backend.
+ */
+export function validateFilterConfig(config: unknown): string[] {
+  // Local copy of the operator whitelist — keeping it inline avoids a
+  // schema → handler-shared import which would pull server-side modules.
+  const VALID_OPS = new Set([
+    'eq',
+    'neq',
+    'gt',
+    'gte',
+    'lt',
+    'lte',
+    'contains',
+    'not_contains',
+    'starts_with',
+    'ends_with',
+    'is_empty',
+    'is_not_empty',
+    'regex',
+    'is_null',
+    'is_type',
+  ]);
+  const c = (config ?? {}) as Record<string, unknown>;
+  const errors: string[] = [];
+  const conditions = c.conditions;
+
+  if (Array.isArray(conditions)) {
+    for (let i = 0; i < conditions.length; i++) {
+      const cond = (conditions[i] ?? {}) as Record<string, unknown>;
+      if (!cond.field || typeof cond.field !== 'string') {
+        errors.push(`conditions[${i}].field is required and must be a string`);
+      }
+      if (!cond.operator || !VALID_OPS.has(cond.operator as string)) {
+        errors.push(
+          `conditions[${i}].operator must be one of: ${[...VALID_OPS].join(', ')}`,
+        );
+      }
+    }
+  }
+
+  return errors;
+}
+
 export const filterNodeMetadata: NodeComponentMetadata = {
   type: 'filter',
   category: 'logic',
@@ -89,4 +140,23 @@ export const filterNodeMetadata: NodeComponentMetadata = {
   description: 'Filter array by conditions',
   icon: 'Filter',
   color: '#3B82F6',
+  // SSOT for warnings (frontend canvas + backend handler.validate).
+  // Mirror points:
+  //  - frontend `filterSummary` warning ("Input field not set")
+  //  - backend handler.validate's "inputField required" + "conditions
+  //    non-empty" structural checks. Per-condition field/operator validation
+  //    iterates `conditions[]`, so it lives in `validateConfig`.
+  warningRules: [
+    {
+      id: 'filter:no-input-field',
+      when: '!inputField',
+      message: 'Input 필드를 입력해야 합니다.',
+    },
+    {
+      id: 'filter:no-conditions',
+      when: 'length(conditions) == 0',
+      message: '최소 1개 이상의 조건을 추가해야 합니다.',
+    },
+  ],
+  validateConfig: validateFilterConfig,
 };

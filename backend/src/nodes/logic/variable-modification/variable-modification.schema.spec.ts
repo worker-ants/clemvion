@@ -1,0 +1,99 @@
+import { evaluateWarnings } from '@workflow/node-summary';
+import {
+  validateVariableModificationConfig,
+  variableModificationNodeMetadata,
+} from './variable-modification.schema';
+import { evaluateMetadataBlockingErrors } from '../../core/metadata-validation';
+
+describe('variableModificationNodeMetadata.warningRules', () => {
+  const firedIds = (config: unknown) =>
+    evaluateWarnings(
+      config as Record<string, unknown>,
+      variableModificationNodeMetadata.warningRules,
+    ).map((w) => w.id);
+
+  describe('variable_modification:no-modifications', () => {
+    it('fires when modifications is missing', () => {
+      expect(firedIds({})).toContain('variable_modification:no-modifications');
+    });
+
+    it('fires when modifications is empty', () => {
+      expect(firedIds({ modifications: [] })).toContain(
+        'variable_modification:no-modifications',
+      );
+    });
+
+    it('does NOT fire when modifications has entries', () => {
+      expect(
+        firedIds({ modifications: [{ variable: 'x', operation: 'set' }] }),
+      ).not.toContain('variable_modification:no-modifications');
+    });
+  });
+
+  describe('variable_modification:first-variable-empty', () => {
+    it('fires when first modification has no variable', () => {
+      expect(firedIds({ modifications: [{ operation: 'set' }] })).toContain(
+        'variable_modification:first-variable-empty',
+      );
+    });
+
+    it('does NOT fire when first modification has a variable', () => {
+      expect(
+        firedIds({ modifications: [{ variable: 'x', operation: 'set' }] }),
+      ).not.toContain('variable_modification:first-variable-empty');
+    });
+  });
+});
+
+describe('validateVariableModificationConfig (imperative)', () => {
+  it('returns [] for a valid modification', () => {
+    expect(
+      validateVariableModificationConfig({
+        modifications: [{ variable: 'x', operation: 'set' }],
+      }),
+    ).toEqual([]);
+  });
+
+  it('rejects modification without variable', () => {
+    expect(
+      validateVariableModificationConfig({
+        modifications: [{ operation: 'set' }],
+      }),
+    ).toContain('modifications[0].variable is required and must be a string');
+  });
+
+  it('rejects unknown operation', () => {
+    const errors = validateVariableModificationConfig({
+      modifications: [{ variable: 'x', operation: 'sploosh' }],
+    });
+    expect(errors.some((e) => e.startsWith('modifications[0].operation'))).toBe(
+      true,
+    );
+  });
+
+  it('rejects schema-only operations (set_field/delete_field)', () => {
+    // The schema enum allows these but the handler whitelist rejects them —
+    // we mirror the handler so handler.validate parity is preserved.
+    expect(
+      validateVariableModificationConfig({
+        modifications: [{ variable: 'x', operation: 'set_field' }],
+      }).some((e) => e.startsWith('modifications[0].operation')),
+    ).toBe(true);
+  });
+});
+
+describe('evaluateMetadataBlockingErrors integration (variable_modification)', () => {
+  it('emits the Korean warning on a freshly-created node', () => {
+    expect(
+      evaluateMetadataBlockingErrors(variableModificationNodeMetadata, {}),
+    ).toContain('최소 1개 이상의 변경을 추가해야 합니다.');
+  });
+
+  it('returns [] when configured', () => {
+    expect(
+      evaluateMetadataBlockingErrors(variableModificationNodeMetadata, {
+        modifications: [{ variable: 'x', operation: 'set' }],
+      }),
+    ).toEqual([]);
+  });
+});

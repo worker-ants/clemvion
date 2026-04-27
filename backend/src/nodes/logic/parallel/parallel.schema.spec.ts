@@ -1,8 +1,11 @@
+import { evaluateWarnings } from '@workflow/node-summary';
 import { ParallelHandler } from './parallel.handler';
 import {
   parallelNodeConfigSchema,
   parallelNodeMetadata,
+  validateParallelConfig,
 } from './parallel.schema';
+import { evaluateMetadataBlockingErrors } from '../../core/metadata-validation';
 
 describe('Parallel node', () => {
   it('스키마 기본값: branchCount=2, maxConcurrency=0, waitAll=true', () => {
@@ -83,6 +86,91 @@ describe('Parallel node', () => {
           waitAll: 'yes',
         }).valid,
       ).toBe(false);
+    });
+  });
+
+  describe('warningRules', () => {
+    const firedIds = (config: unknown) =>
+      evaluateWarnings(
+        config as Record<string, unknown>,
+        parallelNodeMetadata.warningRules,
+      ).map((w) => w.id);
+
+    it('parallel:branch-count-out-of-range — fires for branchCount=1', () => {
+      expect(firedIds({ branchCount: 1 })).toContain(
+        'parallel:branch-count-out-of-range',
+      );
+    });
+
+    it('parallel:branch-count-out-of-range — fires for branchCount=17', () => {
+      expect(firedIds({ branchCount: 17 })).toContain(
+        'parallel:branch-count-out-of-range',
+      );
+    });
+
+    it('parallel:branch-count-out-of-range — does NOT fire for in-range', () => {
+      expect(firedIds({ branchCount: 4 })).not.toContain(
+        'parallel:branch-count-out-of-range',
+      );
+    });
+  });
+
+  describe('validateParallelConfig (imperative)', () => {
+    it('returns [] for a valid config', () => {
+      expect(
+        validateParallelConfig({
+          branchCount: 4,
+          maxConcurrency: 2,
+          waitAll: true,
+        }),
+      ).toEqual([]);
+    });
+
+    it('rejects branchCount=2.5 (non-integer)', () => {
+      expect(validateParallelConfig({ branchCount: 2.5 })).toContain(
+        'branchCount는 정수여야 합니다.',
+      );
+    });
+
+    it('rejects branchCount=1 (out of range)', () => {
+      expect(validateParallelConfig({ branchCount: 1 })).toContain(
+        'branchCount는 2 이상 16 이하의 값이어야 합니다.',
+      );
+    });
+
+    it('rejects maxConcurrency=-1', () => {
+      expect(
+        validateParallelConfig({ branchCount: 4, maxConcurrency: -1 }),
+      ).toContain(
+        'maxConcurrency는 0 이상 16 이하의 값이어야 합니다 (0 = 제한 없음).',
+      );
+    });
+
+    it('rejects waitAll being a non-boolean', () => {
+      expect(
+        validateParallelConfig({ branchCount: 4, waitAll: 'yes' }),
+      ).toContain('waitAll는 boolean이어야 합니다.');
+    });
+  });
+
+  describe('evaluateMetadataBlockingErrors integration (parallel)', () => {
+    it('returns [] for the schema default config', () => {
+      expect(
+        evaluateMetadataBlockingErrors(
+          parallelNodeMetadata,
+          parallelNodeConfigSchema.parse({}),
+        ),
+      ).toEqual([]);
+    });
+
+    it('surfaces both declarative and imperative messages for branchCount=1', () => {
+      const errors = evaluateMetadataBlockingErrors(parallelNodeMetadata, {
+        branchCount: 1,
+      });
+      expect(errors).toContain('branchCount 는 2 이상 16 이하여야 합니다.');
+      expect(errors).toContain(
+        'branchCount는 2 이상 16 이하의 값이어야 합니다.',
+      );
     });
   });
 

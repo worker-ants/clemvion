@@ -75,6 +75,48 @@ export const parallelNodePorts: NodePorts = {
   outputs: [{ id: 'done', label: 'Done', type: 'data' }],
 };
 
+/**
+ * Imperative escape hatch — the cross-field "maxConcurrency must be an
+ * integer in [0, 16]" + "branchCount must be an integer in [2, 16]" rules
+ * are already enforced by the zod schema (`int().min().max()`), so the
+ * remaining domain check is just the integer-ness guard for explicit values.
+ * Kept here to match handler.validate's Korean messages 1:1.
+ */
+export function validateParallelConfig(config: unknown): string[] {
+  const c = (config ?? {}) as Record<string, unknown>;
+  const errors: string[] = [];
+
+  const rawBranch = c.branchCount;
+  if (rawBranch !== undefined) {
+    if (typeof rawBranch !== 'number' || !Number.isFinite(rawBranch)) {
+      errors.push('branchCount는 정수여야 합니다.');
+    } else if (!Number.isInteger(rawBranch)) {
+      errors.push('branchCount는 정수여야 합니다.');
+    } else if (rawBranch < 2 || rawBranch > 16) {
+      errors.push('branchCount는 2 이상 16 이하의 값이어야 합니다.');
+    }
+  }
+
+  if (c.maxConcurrency !== undefined) {
+    const rawMax = c.maxConcurrency;
+    if (typeof rawMax !== 'number' || !Number.isFinite(rawMax)) {
+      errors.push('maxConcurrency는 숫자여야 합니다.');
+    } else if (!Number.isInteger(rawMax)) {
+      errors.push('maxConcurrency는 정수여야 합니다.');
+    } else if (rawMax < 0 || rawMax > 16) {
+      errors.push(
+        'maxConcurrency는 0 이상 16 이하의 값이어야 합니다 (0 = 제한 없음).',
+      );
+    }
+  }
+
+  if (c.waitAll !== undefined && typeof c.waitAll !== 'boolean') {
+    errors.push('waitAll는 boolean이어야 합니다.');
+  }
+
+  return errors;
+}
+
 export const parallelNodeMetadata: NodeComponentMetadata = {
   type: 'parallel',
   category: 'logic',
@@ -86,4 +128,20 @@ export const parallelNodeMetadata: NodeComponentMetadata = {
   isDynamicPorts: true,
   dynamicPorts: { kind: 'parallel-branches' },
   summaryTemplate: '{{branchCount}} branches',
+  // SSOT for warnings (frontend canvas + backend handler.validate).
+  // Mirror points:
+  //  - branchCount range/integer rules from handler.validate
+  //  - maxConcurrency range/integer rules from handler.validate
+  //  - waitAll type rule from handler.validate
+  // The mini-DSL rule below catches the most common mistake at canvas-badge
+  // level (out-of-range branchCount); the typed/integer/cross-field guards
+  // live in `validateConfig` because the mini-DSL has no Number.isInteger.
+  warningRules: [
+    {
+      id: 'parallel:branch-count-out-of-range',
+      when: 'branchCount < 2 || branchCount > 16',
+      message: 'branchCount 는 2 이상 16 이하여야 합니다.',
+    },
+  ],
+  validateConfig: validateParallelConfig,
 };
