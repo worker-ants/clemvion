@@ -3,6 +3,7 @@ import {
   NodeComponentMetadata,
   NodePorts,
 } from '../../core/node-component.interface';
+import { validateButtons } from '../_shared/button.types';
 
 const buttonDefSchema = z
   .object({
@@ -232,6 +233,46 @@ export const tableNodePorts: NodePorts = {
   outputs: [{ id: 'out', label: 'Output', type: 'data' }],
 };
 
+/**
+ * Imperative escape hatch for cross-field table rules the mini-DSL can't
+ * express:
+ *  - `sortBy` must reference one of `columns[].field` (cross-collection lookup)
+ *  - `rows` non-array in static mode (type guard zod can't easily express on
+ *    an `unknown` passthrough payload — kept for parity with the existing
+ *    handler check)
+ *  - global `buttons` validation (delegated to the shared `validateButtons`).
+ *
+ * Single-field "is it set?" checks live in `warningRules` above so they fire
+ * the canvas badge.
+ */
+export function validateTableConfig(config: unknown): string[] {
+  const c = (config ?? {}) as Record<string, unknown>;
+  const errors: string[] = [];
+  const mode = (c.mode as string) ?? 'dynamic';
+
+  if (c.columns !== undefined && !Array.isArray(c.columns)) {
+    errors.push('columns must be an array');
+  }
+
+  if (mode === 'static' && c.rows !== undefined && !Array.isArray(c.rows)) {
+    errors.push('rows must be an array in static mode');
+  }
+
+  if (c.sortBy && typeof c.sortBy === 'string' && Array.isArray(c.columns)) {
+    const columnFields = (c.columns as Array<{ field: string }>).map(
+      (col) => col.field,
+    );
+    if (!columnFields.includes(c.sortBy)) {
+      errors.push(
+        `sortBy "${c.sortBy}" must match one of the defined column fields`,
+      );
+    }
+  }
+
+  errors.push(...validateButtons(c));
+  return errors;
+}
+
 export const tableNodeMetadata: NodeComponentMetadata = {
   type: 'table',
   category: 'presentation',
@@ -244,4 +285,23 @@ export const tableNodeMetadata: NodeComponentMetadata = {
     kind: 'presentation-buttons',
     continueId: 'continue',
   },
+  // SSOT for warnings (frontend canvas + backend handler.validate).
+  // Mirror points:
+  //  - frontend `tableSummary` warning branches (no columns)
+  //  - backend handler.validate's mode validation
+  // Cross-field `sortBy ↔ columns[].field` and shared button rules live in
+  // `validateConfig`.
+  warningRules: [
+    {
+      id: 'table:no-columns',
+      when: 'length(columns) == 0',
+      message: '컬럼을 1개 이상 정의해야 합니다.',
+    },
+    {
+      id: 'table:invalid-mode',
+      when: 'mode != static && mode != dynamic',
+      message: 'Mode 는 static 또는 dynamic 이어야 합니다.',
+    },
+  ],
+  validateConfig: validateTableConfig,
 };

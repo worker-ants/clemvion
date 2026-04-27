@@ -156,4 +156,18 @@ export const formNodeMetadata: NodeComponentMetadata = {
   description: 'User input form',
   icon: 'FileInput',
   color: '#EC4899',
+  // SSOT for warnings (frontend canvas + backend handler.validate).
+  // Mirror points:
+  //  - frontend `formSummary` warning (no fields)
+  //  - backend handler.validate's `fields` non-empty check
+  // Form has no buttons array on its config, so no `validateConfig` is
+  // needed at this step — every active rule expresses cleanly in the
+  // mini-DSL.
+  warningRules: [
+    {
+      id: 'form:no-fields',
+      when: 'length(fields) == 0',
+      message: '최소 1개 이상의 필드를 정의해야 합니다.',
+    },
+  ],
 };

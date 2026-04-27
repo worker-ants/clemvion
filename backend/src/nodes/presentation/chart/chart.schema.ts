@@ -3,6 +3,7 @@ import {
   NodeComponentMetadata,
   NodePorts,
 } from '../../core/node-component.interface';
+import { validateButtons } from '../_shared/button.types';
 
 const buttonDefSchema = z
   .object({
@@ -121,6 +122,16 @@ export const chartPorts: NodePorts = {
   outputs: [{ id: 'out', label: 'Output', type: 'data' }],
 };
 
+/**
+ * Imperative escape hatch — global `buttons` validation only (delegated to
+ * the shared `validateButtons`). Single-field axis / chart-type "is it set?"
+ * checks live in `warningRules` above so they fire the canvas badge.
+ */
+export function validateChartConfig(config: unknown): string[] {
+  const c = (config ?? {}) as Record<string, unknown>;
+  return validateButtons(c);
+}
+
 export const chartMetadata: NodeComponentMetadata = {
   type: 'chart',
   category: 'presentation',
@@ -134,4 +145,30 @@ export const chartMetadata: NodeComponentMetadata = {
     kind: 'presentation-buttons',
     continueId: 'continue',
   },
+  // SSOT for warnings (frontend canvas + backend handler.validate).
+  // Mirror points:
+  //  - frontend `chartSummary` warnings (chartType missing, axis fields
+  //    missing) — note the legacy formatter read top-level `xAxisField` /
+  //    `yAxisField`, but the canonical schema paths are `xAxis.field` /
+  //    `yAxis.field`. We use the schema paths so the SSOT matches the
+  //    actual config shape and the formatter will be aligned in Step 4.
+  //  - backend handler.validate's chartType + xAxis.field checks
+  warningRules: [
+    {
+      id: 'chart:no-chart-type',
+      when: '!chartType',
+      message: '차트 타입을 선택해야 합니다.',
+    },
+    {
+      id: 'chart:no-x-axis-field',
+      when: '!xAxis.field',
+      message: 'X축 필드를 입력해야 합니다.',
+    },
+    {
+      id: 'chart:no-y-axis-field',
+      when: '!yAxis.field',
+      message: 'Y축 필드를 입력해야 합니다.',
+    },
+  ],
+  validateConfig: validateChartConfig,
 };
