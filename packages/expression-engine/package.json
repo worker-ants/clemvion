@@ -6,7 +6,7 @@
   "types": "dist/index.d.ts",
   "scripts": {
     "build": "tsc",
-    "prepare": "tsc",
+    "prepare": "[ -d dist ] || tsc",
     "test": "jest",
     "lint": "eslint src/**/*.ts"
   },
