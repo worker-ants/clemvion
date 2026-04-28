@@ -7,6 +7,7 @@ import {
   knowledgeBasesApi,
   type KnowledgeBaseData,
 } from "@/lib/api/knowledge-bases";
+import { normalizePagedResponse } from "@/lib/api/paginated";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -45,18 +46,14 @@ export default function KnowledgeBasesPage() {
 
   const { data, isLoading, isError } = useQuery({
     queryKey: ["knowledge-bases", page],
-    queryFn: () => knowledgeBasesApi.getAll({ page, limit: PAGE_SIZE }),
+    queryFn: async () => {
+      const body = await knowledgeBasesApi.getAll({ page, limit: PAGE_SIZE });
+      return normalizePagedResponse<KnowledgeBaseData>(body, page);
+    },
+    placeholderData: (prev) => prev,
   });
-  const collections: KnowledgeBaseData[] = Array.isArray(data?.data)
-    ? data.data
-    : Array.isArray(data)
-      ? data
-      : [];
-  const totalPages: number = Math.max(
-    1,
-    data?.pagination?.totalPages ??
-      Math.ceil((data?.pagination?.totalItems ?? collections.length) / PAGE_SIZE),
-  );
+  const collections: KnowledgeBaseData[] = data?.items ?? [];
+  const totalPages: number = data?.totalPages ?? 1;
 
   const createMutation = useMutation({
     mutationFn: () =>
@@ -81,6 +78,9 @@ export default function KnowledgeBasesPage() {
       queryClient.invalidateQueries({ queryKey: ["knowledge-bases"] });
       toast.success(t("knowledgeBases.collectionDeleted"));
       setDeleteTarget(null);
+      if (collections.length === 1 && page > 1) {
+        setPage(page - 1);
+      }
     },
     onError: () => toast.error(t("knowledgeBases.collectionDeleteFailed")),
   });

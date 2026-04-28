@@ -12,6 +12,7 @@ import { Copy, Loader2, Inbox, Plus, X } from "lucide-react";
 import Link from "next/link";
 import { TriggerDetailDrawer } from "@/components/triggers/trigger-detail-drawer";
 import { Pagination } from "@/components/ui/pagination";
+import { normalizePagedResponse } from "@/lib/api/paginated";
 import { usePageParam } from "@/lib/hooks/use-page-param";
 import { useT, type TranslationKey } from "@/lib/i18n";
 
@@ -80,6 +81,17 @@ export default function TriggersPage() {
   const [formBearerToken, setFormBearerToken] = useState("");
 
   const { page, setPage } = usePageParam();
+  // Raw row shape from /triggers — only the fields we map
+  interface RawTrigger {
+    id: string;
+    name: string;
+    type: "webhook" | "schedule" | "manual";
+    isActive: boolean;
+    workflowId?: string;
+    workflow?: { id?: string; name?: string };
+    endpointPath?: string;
+    lastTriggeredAt?: string;
+  }
   const triggersQuery = useQuery<{ items: Trigger[]; totalPages: number }>({
     queryKey: ["triggers", activeTab, statusFilter, page],
     queryFn: async () => {
@@ -91,14 +103,10 @@ export default function TriggersPage() {
       if (statusFilter === "active") params.status = "active";
       if (statusFilter === "inactive") params.status = "inactive";
       const res = await apiClient.get("/triggers", { params });
-      const body = res.data;
-      // Backend (api-convention §5.2): { data: Trigger[], pagination: {...} }
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const raw: any[] = Array.isArray(body?.data)
-        ? body.data
-        : Array.isArray(body)
-          ? body
-          : [];
+      const { items: raw, totalPages } = normalizePagedResponse<RawTrigger>(
+        res.data,
+        page,
+      );
       const items: Trigger[] = raw.map((t) => ({
         id: t.id,
         name: t.name,
@@ -109,15 +117,9 @@ export default function TriggersPage() {
         endpointPath: t.endpointPath,
         lastTriggeredAt: t.lastTriggeredAt,
       }));
-      const totalPages: number = Math.max(
-        1,
-        body?.pagination?.totalPages ??
-          Math.ceil(
-            (body?.pagination?.totalItems ?? items.length) / PAGE_SIZE,
-          ),
-      );
       return { items, totalPages };
     },
+    placeholderData: (prev) => prev,
   });
   const triggers: Trigger[] = triggersQuery.data?.items ?? [];
   const totalPages: number = triggersQuery.data?.totalPages ?? 1;

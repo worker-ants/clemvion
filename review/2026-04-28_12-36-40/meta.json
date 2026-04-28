@@ -1,0 +1,168 @@
+{
+  "timestamp": "2026-04-28T12:43:51.684624",
+  "files": [
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/frontend/src/app/(main)/integrations/page.tsx",
+      "change_type": "Review",
+      "file_extension": "tsx"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/frontend/src/app/(main)/knowledge-bases/page.tsx",
+      "change_type": "Review",
+      "file_extension": "tsx"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/frontend/src/app/(main)/llm-configs/page.tsx",
+      "change_type": "Review",
+      "file_extension": "tsx"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/frontend/src/app/(main)/schedules/page.tsx",
+      "change_type": "Review",
+      "file_extension": "tsx"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/frontend/src/app/(main)/triggers/page.tsx",
+      "change_type": "Review",
+      "file_extension": "tsx"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/frontend/src/app/(main)/workflows/[id]/executions/page.tsx",
+      "change_type": "Review",
+      "file_extension": "tsx"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/frontend/src/app/(main)/workflows/__tests__/workflows-page.test.tsx",
+      "change_type": "Review",
+      "file_extension": "tsx"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/frontend/src/app/(main)/workflows/page.tsx",
+      "change_type": "Review",
+      "file_extension": "tsx"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/frontend/src/components/ui/__tests__/pagination.test.tsx",
+      "change_type": "Review",
+      "file_extension": "tsx"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/frontend/src/components/ui/pagination.tsx",
+      "change_type": "Review",
+      "file_extension": "tsx"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/frontend/src/lib/hooks/__tests__/use-page-param.test.tsx",
+      "change_type": "Review",
+      "file_extension": "tsx"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/frontend/src/lib/hooks/use-page-param.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/frontend/src/lib/i18n/dict/en.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/frontend/src/lib/i18n/dict/ko.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/spec/2-navigation/1-workflow-list.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/spec/2-navigation/2-trigger-list.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/spec/2-navigation/3-schedule.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/spec/2-navigation/5-knowledge-base.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/spec/2-navigation/6-config.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    }
+  ],
+  "total_elapsed_seconds": 431.3,
+  "agents": [
+    {
+      "name": "dependency",
+      "status": "success",
+      "elapsed_seconds": 40.23
+    },
+    {
+      "name": "database",
+      "status": "success",
+      "elapsed_seconds": 44.97
+    },
+    {
+      "name": "architecture",
+      "status": "success",
+      "elapsed_seconds": 62.2
+    },
+    {
+      "name": "maintainability",
+      "status": "success",
+      "elapsed_seconds": 65.26
+    },
+    {
+      "name": "scope",
+      "status": "success",
+      "elapsed_seconds": 70.02
+    },
+    {
+      "name": "api_contract",
+      "status": "success",
+      "elapsed_seconds": 72.02
+    },
+    {
+      "name": "concurrency",
+      "status": "success",
+      "elapsed_seconds": 72.89
+    },
+    {
+      "name": "security",
+      "status": "success",
+      "elapsed_seconds": 81.48
+    },
+    {
+      "name": "testing",
+      "status": "success",
+      "elapsed_seconds": 86.96
+    },
+    {
+      "name": "documentation",
+      "status": "success",
+      "elapsed_seconds": 89.28
+    },
+    {
+      "name": "performance",
+      "status": "success",
+      "elapsed_seconds": 115.03
+    },
+    {
+      "name": "side_effect",
+      "status": "success",
+      "elapsed_seconds": 129.22
+    },
+    {
+      "name": "requirement",
+      "status": "success",
+      "elapsed_seconds": 159.46
+    }
+  ]
+}
