@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { useQueryClient } from "@tanstack/react-query";
 import { useEditorStore } from "@/lib/stores/editor-store";
 import { useExecutionStore } from "@/lib/stores/execution-store";
 import { useAssistantStore } from "@/lib/stores/assistant-store";
@@ -30,6 +31,7 @@ import { useT } from "@/lib/i18n";
 export function EditorToolbar() {
   const t = useT();
   const router = useRouter();
+  const queryClient = useQueryClient();
 
   const workflowId = useEditorStore((s) => s.workflowId);
   const workflowName = useEditorStore((s) => s.workflowName);
@@ -82,14 +84,26 @@ export function EditorToolbar() {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
+  // saveCanvas in the editor store updates the workflow's `name` (line ~630
+  // of editor-store.ts), so a save here can rename the workflow. The list
+  // page caches results for 60s — invalidate after every successful save so
+  // returning to /workflows shows the new name.
+  const saveAndInvalidate = useCallback(async (): Promise<boolean> => {
+    const saved = await saveWorkflow();
+    if (saved) {
+      queryClient.invalidateQueries({ queryKey: ["workflows"] });
+    }
+    return saved;
+  }, [saveWorkflow, queryClient]);
+
   const saveBeforeRun = useCallback(async (): Promise<boolean> => {
     if (!workflowId || isRunning) return false;
     if (isDirty) {
-      const saved = await saveWorkflow();
+      const saved = await saveAndInvalidate();
       if (!saved) return false;
     }
     return true;
-  }, [workflowId, isRunning, isDirty, saveWorkflow]);
+  }, [workflowId, isRunning, isDirty, saveAndInvalidate]);
 
   const handleRun = useCallback(async () => {
     const ready = await saveBeforeRun();
@@ -175,13 +189,17 @@ export function EditorToolbar() {
     if (!workflowId) return;
     try {
       await workflowsApi.delete(workflowId);
+      // Refresh the list + dashboard caches before navigating, otherwise the
+      // 60s default staleTime keeps the deleted row visible on the list.
+      queryClient.invalidateQueries({ queryKey: ["workflows"] });
+      queryClient.invalidateQueries({ queryKey: ["dashboard"] });
       router.push("/workflows");
     } catch (error) {
       console.error("Delete failed:", error);
     }
     setDeleteConfirmOpen(false);
     setMoreDropdownOpen(false);
-  }, [workflowId, router]);
+  }, [workflowId, router, queryClient]);
 
   return (
     <>
@@ -263,7 +281,7 @@ export function EditorToolbar() {
             size="sm"
             className="h-8 gap-1.5 text-xs"
             disabled={!isDirty || isSaving}
-            onClick={() => void saveWorkflow()}
+            onClick={() => void saveAndInvalidate()}
           >
             <Save size={14} />
             {t("common.save")}

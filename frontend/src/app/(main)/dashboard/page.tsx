@@ -1,6 +1,6 @@
 "use client";
 
-import { useQuery, useMutation } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import {
   GitBranch,
@@ -92,6 +92,7 @@ const statusIcon: Record<string, string> = {
 export default function DashboardPage() {
   const t = useT();
   const router = useRouter();
+  const queryClient = useQueryClient();
 
   const summaryQuery = useQuery<DashboardSummary>({
     queryKey: ["dashboard", "summary"],
@@ -125,6 +126,10 @@ export default function DashboardPage() {
       return data.data ?? data;
     },
     onSuccess: (workflow) => {
+      // Invalidate the workflows list + dashboard summary so the new entry
+      // shows up when the user returns within React Query's 60s staleTime.
+      queryClient.invalidateQueries({ queryKey: ["workflows"] });
+      queryClient.invalidateQueries({ queryKey: ["dashboard"] });
       router.push(`/workflows/${workflow.id}`);
     },
     onError: () => {

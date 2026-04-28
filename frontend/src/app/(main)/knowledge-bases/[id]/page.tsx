@@ -88,6 +88,8 @@ export default function KnowledgeBaseDetailPage({
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["kb-documents", id] });
       queryClient.invalidateQueries({ queryKey: ["knowledge-base", id] });
+      // The KB list shows `documentCount` per collection — keep it fresh.
+      queryClient.invalidateQueries({ queryKey: ["knowledge-bases"] });
       toast.success(t("knowledgeBases.documentUploaded"));
     },
     onError: () => toast.error(t("knowledgeBases.uploadFailedShort")),
@@ -98,6 +100,7 @@ export default function KnowledgeBaseDetailPage({
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["kb-documents", id] });
       queryClient.invalidateQueries({ queryKey: ["knowledge-base", id] });
+      queryClient.invalidateQueries({ queryKey: ["knowledge-bases"] });
       toast.success(t("knowledgeBases.documentDeleted"));
       setDeleteTarget(null);
     },
