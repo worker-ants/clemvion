@@ -60,6 +60,9 @@ export const ko = {
     cancelled: "취소됨",
     noResults: "결과가 없습니다",
     loadMore: "더 불러오기",
+    pagination: "페이지네이션",
+    previousPage: "이전 페이지",
+    nextPage: "다음 페이지",
   },
   sidebar: {
     dashboard: "대시보드",

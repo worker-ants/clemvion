@@ -64,6 +64,9 @@ export const en: Dict = {
     cancelled: "Cancelled",
     noResults: "No results",
     loadMore: "Load more",
+    pagination: "Pagination",
+    previousPage: "Previous page",
+    nextPage: "Next page",
   },
   sidebar: {
     dashboard: "Dashboard",
