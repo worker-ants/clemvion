@@ -11,9 +11,8 @@ import { ModelCombobox } from "@/components/llm-config/model-combobox";
 import { Pagination } from "@/components/ui/pagination";
 import { RoleGate } from "@/components/auth/role-gate";
 import { usePageParam } from "@/lib/hooks/use-page-param";
+import { normalizePagedResponse } from "@/lib/api/paginated";
 import { toast } from "sonner";
-
-const PAGE_SIZE = 20;
 import {
   Plus,
   Loader2,
@@ -25,6 +24,8 @@ import {
   Pencil,
 } from "lucide-react";
 import { useT } from "@/lib/i18n";
+
+const PAGE_SIZE = 20;
 
 const PROVIDERS = [
   { value: "openai", label: "OpenAI" },
@@ -60,18 +61,14 @@ export default function LlmConfigsPage() {
   const { page, setPage } = usePageParam();
   const { data, isLoading, isError } = useQuery({
     queryKey: ["llm-configs", page],
-    queryFn: () => llmConfigsApi.getAll({ page, limit: PAGE_SIZE }),
+    queryFn: async () => {
+      const body = await llmConfigsApi.getAll({ page, limit: PAGE_SIZE });
+      return normalizePagedResponse<LlmConfigData>(body, page);
+    },
+    placeholderData: (prev) => prev,
   });
-  const configs: LlmConfigData[] = Array.isArray(data?.data)
-    ? data.data
-    : Array.isArray(data)
-      ? data
-      : [];
-  const totalPages: number = Math.max(
-    1,
-    data?.pagination?.totalPages ??
-      Math.ceil((data?.pagination?.totalItems ?? configs.length) / PAGE_SIZE),
-  );
+  const configs: LlmConfigData[] = data?.items ?? [];
+  const totalPages: number = data?.totalPages ?? 1;
 
   const createMutation = useMutation({
     mutationFn: () =>
@@ -111,6 +108,9 @@ export default function LlmConfigsPage() {
       queryClient.invalidateQueries({ queryKey: ["llm-configs"] });
       toast.success(t("llmConfigs.providerDeleted"));
       setDeleteTarget(null);
+      if (configs.length === 1 && page > 1) {
+        setPage(page - 1);
+      }
     },
     onError: () => toast.error(t("llmConfigs.providerDeleteFailed")),
   });

@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { workflowsApi, type WorkflowData } from "@/lib/api/workflows";
+import { normalizePagedResponse } from "@/lib/api/paginated";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -47,14 +48,21 @@ export default function WorkflowsPage() {
   const menuRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Debounce search
+  // Debounce search. `setPage` from usePageParam changes identity whenever
+  // searchParams changes, so we keep it out of this effect's deps and route
+  // through a ref — otherwise setPage(1) → URL change → setPage identity flip
+  // → effect re-fires → cascading 300 ms debounces.
+  const setPageRef = useRef(setPage);
+  useEffect(() => {
+    setPageRef.current = setPage;
+  }, [setPage]);
   useEffect(() => {
     const timer = setTimeout(() => {
       setDebouncedSearch(search);
-      setPage(1);
+      setPageRef.current(1);
     }, 300);
     return () => clearTimeout(timer);
-  }, [search, setPage]);
+  }, [search]);
 
   // Close menu on outside click
   useEffect(() => {
@@ -82,15 +90,11 @@ export default function WorkflowsPage() {
       if (filter === "inactive") params.isActive = "false";
 
       const { data } = await workflowsApi.list(params);
-      // Backend shape (api-convention §5.2): { data: WorkflowData[], pagination: { totalItems, ... } }
-      const items: WorkflowData[] = Array.isArray(data?.data)
-        ? data.data
-        : Array.isArray(data)
-          ? data
-          : [];
-      const total: number =
-        data?.pagination?.totalItems ?? items.length;
-      return { items, total };
+      const { items, totalItems } = normalizePagedResponse<WorkflowData>(
+        data,
+        page,
+      );
+      return { items, total: totalItems };
     },
   });
 
@@ -115,6 +119,12 @@ export default function WorkflowsPage() {
       toast.success(t("workflows.deleted"));
       queryClient.invalidateQueries({ queryKey: ["workflows"] });
       setDeleteTarget(null);
+      // If we just removed the last item on a non-first page, the user would
+      // otherwise see an empty page. Step back so the next refetch lands on
+      // a page that still has rows.
+      if (workflows.length === 1 && page > 1) {
+        setPage(page - 1);
+      }
     },
     onError: () => {
       toast.error(t("workflows.deleteFailed"));

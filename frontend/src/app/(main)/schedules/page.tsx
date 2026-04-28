@@ -24,6 +24,7 @@ import {
 import cronstrue from "cronstrue";
 import { CronExpressionParser } from "cron-parser";
 import { Pagination } from "@/components/ui/pagination";
+import { normalizePagedResponse } from "@/lib/api/paginated";
 import { usePageParam } from "@/lib/hooks/use-page-param";
 import { useT, type TFunction, type TranslationKey } from "@/lib/i18n";
 
@@ -492,48 +493,80 @@ export default function SchedulesPage() {
   );
 
   const { page, setPage } = usePageParam();
-  const schedulesQuery = useQuery<{
-    items: Schedule[];
-    totalPages: number;
-  }>({
-    queryKey: ["schedules", page],
+  // Raw row shape from /schedules — only the fields we map
+  interface RawSchedule {
+    id: string;
+    name?: string;
+    cronExpression: string;
+    timezone: string;
+    isActive: boolean;
+    nextRunAt?: string;
+    parameterValues?: Record<string, unknown>;
+    trigger?: {
+      name?: string;
+      workflowId?: string;
+      workflow?: { name?: string };
+    };
+  }
+  function mapSchedule(s: RawSchedule): Schedule {
+    return {
+      id: s.id,
+      name: s.trigger?.name ?? s.name ?? "",
+      cronExpression: s.cronExpression,
+      timezone: s.timezone,
+      isActive: s.isActive,
+      nextRunAt: s.nextRunAt,
+      workflowId: s.trigger?.workflowId ?? "",
+      workflowName: s.trigger?.workflow?.name ?? "",
+      parameterValues: s.parameterValues ?? {},
+    };
+  }
+
+  // List view: paginated.
+  const schedulesQuery = useQuery<{ items: Schedule[]; totalPages: number }>({
+    queryKey: ["schedules", "list", page],
     queryFn: async () => {
       const res = await apiClient.get("/schedules", {
         params: { page, limit: PAGE_SIZE },
       });
-      const body = res.data;
-      // Backend (api-convention §5.2): { data: Schedule[], pagination: {...} }
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const raw: any[] = Array.isArray(body?.data)
-        ? body.data
-        : Array.isArray(body)
-          ? body
-          : [];
-      const items: Schedule[] = raw.map((s) => ({
-        id: s.id,
-        name: s.trigger?.name ?? s.name ?? "",
-        cronExpression: s.cronExpression,
-        timezone: s.timezone,
-        isActive: s.isActive,
-        nextRunAt: s.nextRunAt,
-        workflowId: s.trigger?.workflowId ?? "",
-        workflowName: s.trigger?.workflow?.name ?? "",
-        parameterValues: s.parameterValues ?? {},
-      }));
-      const totalPages: number = Math.max(
-        1,
-        body?.pagination?.totalPages ??
-          Math.ceil(
-            (body?.pagination?.totalItems ?? items.length) / PAGE_SIZE,
-          ),
+      const { items: raw, totalPages } = normalizePagedResponse<RawSchedule>(
+        res.data,
+        page,
       );
-      return { items, totalPages };
+      return { items: raw.map(mapSchedule), totalPages };
     },
+    enabled: viewMode === "list",
+    placeholderData: (prev) => prev,
   });
-  const schedules: Schedule[] = schedulesQuery.data?.items ?? [];
+
+  // Calendar view: needs every schedule to render run-day dots, so fetch with
+  // a large limit on the same endpoint. A dedicated unpaginated endpoint
+  // would be cleaner, but limit=200 covers realistic workspace sizes today.
+  const calendarSchedulesQuery = useQuery<Schedule[]>({
+    queryKey: ["schedules", "calendar"],
+    queryFn: async () => {
+      const res = await apiClient.get("/schedules", {
+        params: { page: 1, limit: 200 },
+      });
+      const { items } = normalizePagedResponse<RawSchedule>(res.data, 1);
+      return items.map(mapSchedule);
+    },
+    enabled: viewMode === "calendar",
+  });
+
+  const schedules: Schedule[] =
+    viewMode === "calendar"
+      ? (calendarSchedulesQuery.data ?? [])
+      : (schedulesQuery.data?.items ?? []);
   const totalPages: number = schedulesQuery.data?.totalPages ?? 1;
-  const isLoading = schedulesQuery.isLoading;
-  const isError = schedulesQuery.isError;
+  const isLoading =
+    viewMode === "calendar"
+      ? calendarSchedulesQuery.isLoading
+      : schedulesQuery.isLoading;
+  const isError =
+    viewMode === "calendar"
+      ? calendarSchedulesQuery.isError
+      : schedulesQuery.isError;
 
   const { data: workflows = [] } = useQuery<Workflow[]>({
     queryKey: ["workflows-list"],
@@ -609,6 +642,13 @@ export default function SchedulesPage() {
       queryClient.invalidateQueries({ queryKey: ["schedules"] });
       toast.success(t("schedules.deleted"));
       setDeleteTarget(null);
+      if (
+        viewMode === "list" &&
+        schedules.length === 1 &&
+        page > 1
+      ) {
+        setPage(page - 1);
+      }
     },
     onError: () => {
       toast.error(t("schedules.deleteFailed"));
