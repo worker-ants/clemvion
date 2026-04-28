@@ -134,7 +134,7 @@ AI 노드에서 사용할 LLM 프로바이더와 모델을 관리한다.
 
 | 메서드 | 경로 | 설명 |
 |--------|------|------|
-| GET | /api/auth-configs | 인증 설정 목록 |
+| GET | /api/auth-configs | 인증 설정 목록 (쿼리: page, limit, sort, order, search). 페이지네이션 응답 형식은 [API 규약 §5.2](../5-system/2-api-convention.md#52-목록-응답) 준수 |
 | POST | /api/auth-configs | 인증 설정 생성 |
 | GET | /api/auth-configs/:id | 상세 조회 |
 | PATCH | /api/auth-configs/:id | 수정 |
@@ -146,7 +146,7 @@ AI 노드에서 사용할 LLM 프로바이더와 모델을 관리한다.
 
 | 메서드 | 경로 | 설명 |
 |--------|------|------|
-| GET | /api/llm-configs | 프로바이더 목록 |
+| GET | /api/llm-configs | 프로바이더 목록 (쿼리: page, limit, sort, order, search). 페이지네이션 응답 형식은 [API 규약 §5.2](../5-system/2-api-convention.md#52-목록-응답) 준수 |
 | POST | /api/llm-configs | 프로바이더 추가 |
 | GET | /api/llm-configs/:id | 상세 조회 |
 | PATCH | /api/llm-configs/:id | 수정 |

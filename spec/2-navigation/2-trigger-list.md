@@ -78,7 +78,7 @@
 
 | 메서드 | 경로 | 설명 |
 |--------|------|------|
-| GET | /api/triggers | 목록 조회 (쿼리: type, status, search) |
+| GET | /api/triggers | 목록 조회 (쿼리: type, status, search, page, limit, sort, order). 페이지네이션 응답 형식은 [API 규약 §5.2](../5-system/2-api-convention.md#52-목록-응답) 준수 |
 | GET | /api/triggers/:id | 트리거 상세 조회 |
 | PATCH | /api/triggers/:id | 트리거 수정 |
 | PATCH | /api/triggers/:id/toggle | 활성/비활성 토글 |
