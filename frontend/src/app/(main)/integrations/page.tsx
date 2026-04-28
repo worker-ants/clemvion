@@ -6,8 +6,6 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import {
   AlertTriangle,
-  ChevronLeft,
-  ChevronRight,
   Inbox,
   Plus,
   Search,
@@ -16,6 +14,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { EmptyState } from "@/components/ui/empty-state";
+import { Pagination } from "@/components/ui/pagination";
 import { RoleGate } from "@/components/auth/role-gate";
 import { cn } from "@/lib/utils/cn";
 import {
@@ -301,7 +300,7 @@ export default function IntegrationsPage() {
       )}
 
       {pagination && pagination.totalPages > 1 && (
-        <div className="flex items-center justify-between border-t border-[hsl(var(--border))] pt-4 text-sm text-[hsl(var(--muted-foreground))]">
+        <div className="flex flex-wrap items-center justify-between gap-2 border-t border-[hsl(var(--border))] pt-4 text-sm text-[hsl(var(--muted-foreground))]">
           <span>
             {t("integrations.paginationSummary", {
               page: pagination.page,
@@ -309,24 +308,13 @@ export default function IntegrationsPage() {
               totalItems: pagination.totalItems,
             })}
           </span>
-          <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={pagination.page <= 1}
-              onClick={() => updateParam("page", String(pagination.page - 1))}
-            >
-              <ChevronLeft className="h-4 w-4" />
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={pagination.page >= pagination.totalPages}
-              onClick={() => updateParam("page", String(pagination.page + 1))}
-            >
-              <ChevronRight className="h-4 w-4" />
-            </Button>
-          </div>
+          <Pagination
+            page={pagination.page}
+            totalPages={pagination.totalPages}
+            onPageChange={(next) =>
+              updateParam("page", next > 1 ? String(next) : null)
+            }
+          />
         </div>
       )}
 

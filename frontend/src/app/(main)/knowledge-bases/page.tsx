@@ -10,7 +10,9 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Pagination } from "@/components/ui/pagination";
 import { RoleGate } from "@/components/auth/role-gate";
+import { usePageParam } from "@/lib/hooks/use-page-param";
 import { toast } from "sonner";
 import {
   Plus,
@@ -23,12 +25,15 @@ import {
 } from "lucide-react";
 import { useT } from "@/lib/i18n";
 
+const PAGE_SIZE = 20;
+
 export default function KnowledgeBasesPage() {
   const t = useT();
   const router = useRouter();
   const queryClient = useQueryClient();
   const [showDialog, setShowDialog] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
+  const { page, setPage } = usePageParam();
 
   const [formName, setFormName] = useState("");
   const [formDescription, setFormDescription] = useState("");
@@ -39,10 +44,19 @@ export default function KnowledgeBasesPage() {
   const [formChunkOverlap, setFormChunkOverlap] = useState("200");
 
   const { data, isLoading, isError } = useQuery({
-    queryKey: ["knowledge-bases"],
-    queryFn: () => knowledgeBasesApi.getAll(),
+    queryKey: ["knowledge-bases", page],
+    queryFn: () => knowledgeBasesApi.getAll({ page, limit: PAGE_SIZE }),
   });
-  const collections: KnowledgeBaseData[] = data?.data ?? data ?? [];
+  const collections: KnowledgeBaseData[] = Array.isArray(data?.data)
+    ? data.data
+    : Array.isArray(data)
+      ? data
+      : [];
+  const totalPages: number = Math.max(
+    1,
+    data?.pagination?.totalPages ??
+      Math.ceil((data?.pagination?.totalItems ?? collections.length) / PAGE_SIZE),
+  );
 
   const createMutation = useMutation({
     mutationFn: () =>
@@ -223,47 +237,54 @@ export default function KnowledgeBasesPage() {
         </div>
       )}
       {!isLoading && !isError && collections.length > 0 && (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {collections.map((kb) => (
-            <div
-              key={kb.id}
-              className="cursor-pointer rounded-lg border border-[hsl(var(--border))] p-4 transition-colors hover:border-[hsl(var(--primary))] hover:bg-[hsl(var(--muted)/0.3)]"
-              onClick={() => router.push(`/knowledge-bases/${kb.id}`)}
-            >
-              <div className="mb-3 flex items-start justify-between">
-                <div className="flex items-center gap-2">
-                  <BookOpen className="h-5 w-5 text-[hsl(var(--primary))]" />
-                  <h3 className="font-semibold">{kb.name}</h3>
+        <>
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {collections.map((kb) => (
+              <div
+                key={kb.id}
+                className="cursor-pointer rounded-lg border border-[hsl(var(--border))] p-4 transition-colors hover:border-[hsl(var(--primary))] hover:bg-[hsl(var(--muted)/0.3)]"
+                onClick={() => router.push(`/knowledge-bases/${kb.id}`)}
+              >
+                <div className="mb-3 flex items-start justify-between">
+                  <div className="flex items-center gap-2">
+                    <BookOpen className="h-5 w-5 text-[hsl(var(--primary))]" />
+                    <h3 className="font-semibold">{kb.name}</h3>
+                  </div>
+                  <RoleGate minRole="editor">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-7 w-7 text-[hsl(var(--destructive))]"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setDeleteTarget(kb.id);
+                      }}
+                    >
+                      <Trash2 className="h-3 w-3" />
+                    </Button>
+                  </RoleGate>
                 </div>
-                <RoleGate minRole="editor">
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-7 w-7 text-[hsl(var(--destructive))]"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setDeleteTarget(kb.id);
-                    }}
-                  >
-                    <Trash2 className="h-3 w-3" />
-                  </Button>
-                </RoleGate>
+                {kb.description && (
+                  <p className="mb-3 text-sm text-[hsl(var(--muted-foreground))]">
+                    {kb.description}
+                  </p>
+                )}
+                <div className="flex items-center gap-3 text-xs text-[hsl(var(--muted-foreground))]">
+                  <span className="flex items-center gap-1">
+                    <FileText className="h-3 w-3" />
+                    {t("knowledgeBases.docsCount", { count: kb.documentCount })}
+                  </span>
+                  <span className="font-mono">{kb.embeddingModel}</span>
+                </div>
               </div>
-              {kb.description && (
-                <p className="mb-3 text-sm text-[hsl(var(--muted-foreground))]">
-                  {kb.description}
-                </p>
-              )}
-              <div className="flex items-center gap-3 text-xs text-[hsl(var(--muted-foreground))]">
-                <span className="flex items-center gap-1">
-                  <FileText className="h-3 w-3" />
-                  {t("knowledgeBases.docsCount", { count: kb.documentCount })}
-                </span>
-                <span className="font-mono">{kb.embeddingModel}</span>
-              </div>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+          <Pagination
+            page={page}
+            totalPages={totalPages}
+            onPageChange={setPage}
+          />
+        </>
       )}
     </div>
   );

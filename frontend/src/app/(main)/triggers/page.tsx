@@ -11,7 +11,11 @@ import { toast } from "sonner";
 import { Copy, Loader2, Inbox, Plus, X } from "lucide-react";
 import Link from "next/link";
 import { TriggerDetailDrawer } from "@/components/triggers/trigger-detail-drawer";
+import { Pagination } from "@/components/ui/pagination";
+import { usePageParam } from "@/lib/hooks/use-page-param";
 import { useT, type TranslationKey } from "@/lib/i18n";
+
+const PAGE_SIZE = 20;
 
 interface Trigger {
   id: string;
@@ -75,17 +79,27 @@ export default function TriggersPage() {
   const [formHmacHeader, setFormHmacHeader] = useState("X-Hub-Signature-256");
   const [formBearerToken, setFormBearerToken] = useState("");
 
-  const { data: triggers = [], isLoading, isError } = useQuery<Trigger[]>({
-    queryKey: ["triggers", activeTab, statusFilter],
+  const { page, setPage } = usePageParam();
+  const triggersQuery = useQuery<{ items: Trigger[]; totalPages: number }>({
+    queryKey: ["triggers", activeTab, statusFilter, page],
     queryFn: async () => {
-      const params: Record<string, string> = {};
+      const params: Record<string, string | number> = {
+        page,
+        limit: PAGE_SIZE,
+      };
       if (activeTab !== "all") params.type = activeTab;
       if (statusFilter === "active") params.status = "active";
       if (statusFilter === "inactive") params.status = "inactive";
       const res = await apiClient.get("/triggers", { params });
-      const raw = res.data.data ?? res.data;
+      const body = res.data;
+      // Backend (api-convention §5.2): { data: Trigger[], pagination: {...} }
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      return (raw as any[]).map((t) => ({
+      const raw: any[] = Array.isArray(body?.data)
+        ? body.data
+        : Array.isArray(body)
+          ? body
+          : [];
+      const items: Trigger[] = raw.map((t) => ({
         id: t.id,
         name: t.name,
         type: t.type,
@@ -95,8 +109,20 @@ export default function TriggersPage() {
         endpointPath: t.endpointPath,
         lastTriggeredAt: t.lastTriggeredAt,
       }));
+      const totalPages: number = Math.max(
+        1,
+        body?.pagination?.totalPages ??
+          Math.ceil(
+            (body?.pagination?.totalItems ?? items.length) / PAGE_SIZE,
+          ),
+      );
+      return { items, totalPages };
     },
   });
+  const triggers: Trigger[] = triggersQuery.data?.items ?? [];
+  const totalPages: number = triggersQuery.data?.totalPages ?? 1;
+  const isLoading = triggersQuery.isLoading;
+  const isError = triggersQuery.isError;
 
   const { data: workflows = [] } = useQuery<Workflow[]>({
     queryKey: ["workflows-list"],
@@ -300,7 +326,10 @@ export default function TriggersPage() {
               key={tab}
               variant={activeTab === tab ? "default" : "outline"}
               size="sm"
-              onClick={() => setActiveTab(tab)}
+              onClick={() => {
+                setActiveTab(tab);
+                setPage(1);
+              }}
             >
               {t(FILTER_TAB_LABELS[tab])}
             </Button>
@@ -312,7 +341,10 @@ export default function TriggersPage() {
               key={status}
               variant={statusFilter === status ? "default" : "outline"}
               size="sm"
-              onClick={() => setStatusFilter(status)}
+              onClick={() => {
+                setStatusFilter(status);
+                setPage(1);
+              }}
             >
               {t(STATUS_FILTER_LABELS[status])}
             </Button>
@@ -340,8 +372,9 @@ export default function TriggersPage() {
       )}
 
       {!isLoading && !isError && triggers.length > 0 && (
-        <div className="overflow-x-auto rounded-lg border border-[hsl(var(--border))]">
-          <table className="w-full text-sm">
+        <>
+          <div className="overflow-x-auto rounded-lg border border-[hsl(var(--border))]">
+            <table className="w-full text-sm">
             <thead className="bg-[hsl(var(--muted))]">
               <tr>
                 <th className="px-4 py-3 text-left font-medium">{t("triggers.columnStatus")}</th>
@@ -439,7 +472,13 @@ export default function TriggersPage() {
               ))}
             </tbody>
           </table>
-        </div>
+          </div>
+          <Pagination
+            page={page}
+            totalPages={totalPages}
+            onPageChange={setPage}
+          />
+        </>
       )}
 
       <TriggerDetailDrawer

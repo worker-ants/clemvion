@@ -23,7 +23,11 @@ import {
 } from "lucide-react";
 import cronstrue from "cronstrue";
 import { CronExpressionParser } from "cron-parser";
+import { Pagination } from "@/components/ui/pagination";
+import { usePageParam } from "@/lib/hooks/use-page-param";
 import { useT, type TFunction, type TranslationKey } from "@/lib/i18n";
+
+const PAGE_SIZE = 20;
 
 interface Schedule {
   id: string;
@@ -487,17 +491,25 @@ export default function SchedulesPage() {
     null,
   );
 
-  const {
-    data: schedules = [],
-    isLoading,
-    isError,
-  } = useQuery<Schedule[]>({
-    queryKey: ["schedules"],
+  const { page, setPage } = usePageParam();
+  const schedulesQuery = useQuery<{
+    items: Schedule[];
+    totalPages: number;
+  }>({
+    queryKey: ["schedules", page],
     queryFn: async () => {
-      const res = await apiClient.get("/schedules");
-      const raw = res.data.data ?? res.data;
+      const res = await apiClient.get("/schedules", {
+        params: { page, limit: PAGE_SIZE },
+      });
+      const body = res.data;
+      // Backend (api-convention §5.2): { data: Schedule[], pagination: {...} }
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      return (raw as any[]).map((s) => ({
+      const raw: any[] = Array.isArray(body?.data)
+        ? body.data
+        : Array.isArray(body)
+          ? body
+          : [];
+      const items: Schedule[] = raw.map((s) => ({
         id: s.id,
         name: s.trigger?.name ?? s.name ?? "",
         cronExpression: s.cronExpression,
@@ -508,8 +520,20 @@ export default function SchedulesPage() {
         workflowName: s.trigger?.workflow?.name ?? "",
         parameterValues: s.parameterValues ?? {},
       }));
+      const totalPages: number = Math.max(
+        1,
+        body?.pagination?.totalPages ??
+          Math.ceil(
+            (body?.pagination?.totalItems ?? items.length) / PAGE_SIZE,
+          ),
+      );
+      return { items, totalPages };
     },
   });
+  const schedules: Schedule[] = schedulesQuery.data?.items ?? [];
+  const totalPages: number = schedulesQuery.data?.totalPages ?? 1;
+  const isLoading = schedulesQuery.isLoading;
+  const isError = schedulesQuery.isError;
 
   const { data: workflows = [] } = useQuery<Workflow[]>({
     queryKey: ["workflows-list"],
@@ -901,8 +925,9 @@ export default function SchedulesPage() {
       )}
 
       {!isLoading && !isError && schedules.length > 0 && viewMode === "list" && (
-        <div className="overflow-x-auto rounded-lg border border-[hsl(var(--border))]">
-          <table className="w-full text-sm">
+        <>
+          <div className="overflow-x-auto rounded-lg border border-[hsl(var(--border))]">
+            <table className="w-full text-sm">
             <thead className="bg-[hsl(var(--muted))]">
               <tr>
                 <th className="px-4 py-3 text-left font-medium">{t("schedules.columnStatus")}</th>
@@ -995,7 +1020,13 @@ export default function SchedulesPage() {
               })}
             </tbody>
           </table>
-        </div>
+          </div>
+          <Pagination
+            page={page}
+            totalPages={totalPages}
+            onPageChange={setPage}
+          />
+        </>
       )}
 
       {!isLoading &&

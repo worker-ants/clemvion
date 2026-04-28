@@ -8,8 +8,12 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { ModelCombobox } from "@/components/llm-config/model-combobox";
+import { Pagination } from "@/components/ui/pagination";
 import { RoleGate } from "@/components/auth/role-gate";
+import { usePageParam } from "@/lib/hooks/use-page-param";
 import { toast } from "sonner";
+
+const PAGE_SIZE = 20;
 import {
   Plus,
   Loader2,
@@ -53,11 +57,21 @@ export default function LlmConfigsPage() {
   const [formTemperature, setFormTemperature] = useState("0.7");
   const [formMaxTokens, setFormMaxTokens] = useState("4096");
 
+  const { page, setPage } = usePageParam();
   const { data, isLoading, isError } = useQuery({
-    queryKey: ["llm-configs"],
-    queryFn: () => llmConfigsApi.getAll(),
+    queryKey: ["llm-configs", page],
+    queryFn: () => llmConfigsApi.getAll({ page, limit: PAGE_SIZE }),
   });
-  const configs: LlmConfigData[] = data?.data ?? data ?? [];
+  const configs: LlmConfigData[] = Array.isArray(data?.data)
+    ? data.data
+    : Array.isArray(data)
+      ? data
+      : [];
+  const totalPages: number = Math.max(
+    1,
+    data?.pagination?.totalPages ??
+      Math.ceil((data?.pagination?.totalItems ?? configs.length) / PAGE_SIZE),
+  );
 
   const createMutation = useMutation({
     mutationFn: () =>
@@ -340,8 +354,9 @@ export default function LlmConfigsPage() {
         </div>
       )}
       {!isLoading && !isError && configs.length > 0 && (
-        <div className="overflow-x-auto rounded-lg border border-[hsl(var(--border))]">
-          <table className="w-full text-sm">
+        <>
+          <div className="overflow-x-auto rounded-lg border border-[hsl(var(--border))]">
+            <table className="w-full text-sm">
             <thead className="bg-[hsl(var(--muted))]">
               <tr>
                 <th className="px-4 py-3 text-left font-medium">{t("llmConfigs.columnName")}</th>
@@ -423,7 +438,13 @@ export default function LlmConfigsPage() {
               ))}
             </tbody>
           </table>
-        </div>
+          </div>
+          <Pagination
+            page={page}
+            totalPages={totalPages}
+            onPageChange={setPage}
+          />
+        </>
       )}
     </div>
   );
