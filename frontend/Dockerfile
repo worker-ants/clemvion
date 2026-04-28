@@ -5,7 +5,10 @@
 #     -t idea-workflow/frontend .
 
 # ---------- deps ----------
-FROM node:22-alpine AS deps
+# node:24-alpine ships with npm 11.x, which matches the npm version used to
+# author package-lock.json. Older majors (22/23) ship npm 10.x and cause
+# `npm ci` lockfile-shape mismatches.
+FROM node:24-alpine AS deps
 WORKDIR /app
 
 COPY packages/expression-engine/package.json packages/expression-engine/package-lock.json packages/expression-engine/tsconfig.json ./packages/expression-engine/
@@ -34,7 +37,7 @@ COPY frontend ./frontend
 RUN cd frontend && npm run build
 
 # ---------- runner: minimal standalone server ----------
-FROM node:22-alpine AS runner
+FROM node:24-alpine AS runner
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV PORT=3000
