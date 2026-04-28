@@ -98,7 +98,7 @@
 
 | 메서드 | 경로 | 설명 |
 |--------|------|------|
-| GET | /api/knowledge-bases | 컬렉션 목록 조회 |
+| GET | /api/knowledge-bases | 컬렉션 목록 조회 (쿼리: page, limit, sort, order, search). 페이지네이션 응답 형식은 [API 규약 §5.2](../5-system/2-api-convention.md#52-목록-응답) 준수 |
 | POST | /api/knowledge-bases | 컬렉션 생성 |
 | GET | /api/knowledge-bases/:id | 컬렉션 상세 조회 |
 | PATCH | /api/knowledge-bases/:id | 컬렉션 설정 수정 |

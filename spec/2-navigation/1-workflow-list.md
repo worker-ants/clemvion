@@ -95,7 +95,7 @@
 
 | 메서드 | 경로 | 설명 |
 |--------|------|------|
-| GET | /api/workflows | 목록 조회 (쿼리: search, status, tag, sort, page, limit) |
+| GET | /api/workflows | 목록 조회 (쿼리: search, status, tag, sort, order, page, limit). 페이지네이션 응답 형식은 [API 규약 §5.2](../5-system/2-api-convention.md#52-목록-응답) 준수 |
 | POST | /api/workflows | 새 워크플로우 생성 |
 | PATCH | /api/workflows/:id | 워크플로우 수정 (이름, 상태 등) |
 | POST | /api/workflows/:id/duplicate | 워크플로우 복제 |
