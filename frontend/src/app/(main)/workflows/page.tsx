@@ -106,6 +106,9 @@ export default function WorkflowsPage() {
       return data.data ?? data;
     },
     onSuccess: (workflow) => {
+      // Default staleTime is 60s (providers.tsx) — without this invalidate,
+      // returning to the list within that window shows stale cache.
+      queryClient.invalidateQueries({ queryKey: ["workflows"] });
       router.push(`/workflows/${workflow.id}`);
     },
     onError: () => {

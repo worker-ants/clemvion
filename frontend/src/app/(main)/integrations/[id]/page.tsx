@@ -86,6 +86,7 @@ export default function IntegrationDetailPage({
     mutationFn: () => integrationsApi.remove(id),
     onSuccess: () => {
       toast.success(t("integrations.deleted"));
+      queryClient.invalidateQueries({ queryKey: ["integrations"] });
       router.push("/integrations");
     },
     onError: (err: unknown) => {

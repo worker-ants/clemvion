@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { render, screen, act, cleanup } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useLocaleStore } from "@/lib/stores/locale-store";
 
@@ -13,11 +14,13 @@ vi.mock("next/navigation", () => ({
   useSearchParams: () => currentSearchParams,
 }));
 
-// Workflows API mock — controlled per test via setListResponse
+// Workflows API mock — controlled per test via setListResponse / setCreateResult
 let listResponse: unknown = {};
+const createMock = vi.fn();
 vi.mock("@/lib/api/workflows", () => ({
   workflowsApi: {
     list: vi.fn(() => Promise.resolve({ data: listResponse })),
+    create: (...args: unknown[]) => createMock(...args),
   },
 }));
 
@@ -27,10 +30,12 @@ function setListResponse(body: unknown) {
   listResponse = body;
 }
 
+let lastQueryClient: QueryClient | null = null;
 function createWrapper() {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   });
+  lastQueryClient = queryClient;
   return function Wrapper({ children }: { children: React.ReactNode }) {
     return (
       <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
@@ -89,6 +94,37 @@ describe("WorkflowsPage — pagination", () => {
     await screen.findByText("Only");
 
     expect(screen.queryByRole("navigation")).not.toBeInTheDocument();
+  });
+
+  it("invalidates the workflows query after create (regression for stale-cache bug)", async () => {
+    // The cause: createMutation.onSuccess pushed to /workflows/[id] without
+    // invalidating ["workflows"]. With the global staleTime: 60s, returning
+    // to the list within 60s would render stale cache.
+    setListResponse({
+      data: [],
+      pagination: { page: 1, limit: 10, totalItems: 0, totalPages: 0 },
+    });
+    createMock.mockResolvedValue({
+      data: { data: { id: "new-wf", name: "New", isActive: true, tags: [] } },
+    });
+
+    await renderPage();
+    const invalidateSpy = vi.spyOn(lastQueryClient!, "invalidateQueries");
+
+    // Empty state shows the "Create Workflow" CTA. The header "+ New" button
+    // is also present — both wire to createMutation.
+    const createBtn = await screen.findByRole("button", {
+      name: /Create Workflow/i,
+    });
+    await userEvent.click(createBtn);
+
+    await vi.waitFor(() => {
+      expect(createMock).toHaveBeenCalled();
+      expect(invalidateSpy).toHaveBeenCalledWith({
+        queryKey: ["workflows"],
+      });
+    });
+    expect(mockPush).toHaveBeenCalledWith("/workflows/new-wf");
   });
 
   it("tolerates legacy response shape (bare array under `data`)", async () => {

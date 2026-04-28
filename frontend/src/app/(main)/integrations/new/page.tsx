@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { ArrowLeft, CheckCircle2, Loader2, XCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -35,6 +35,7 @@ type Step = "auth" | "test";
 export default function NewIntegrationPage() {
   const t = useT();
   const router = useRouter();
+  const queryClient = useQueryClient();
   const params = useSearchParams();
   const serviceType = params.get("service") ?? "";
   const rawStep = params.get("step") ?? "auth";
@@ -99,6 +100,7 @@ export default function NewIntegrationPage() {
     },
     onSuccess: (created) => {
       toast.success(t("integrations.integrationCreatedToast"));
+      queryClient.invalidateQueries({ queryKey: ["integrations"] });
       router.push(`/integrations/${created.id}`);
     },
     onError: (err: unknown) => {
