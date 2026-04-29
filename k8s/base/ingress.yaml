@@ -1,22 +1,56 @@
-# HAProxy Ingress 라우팅:
-#   /api      → backend  (REST API)
-#   /socket.io → backend (WebSocket)
-#   /docs     → backend  (Swagger UI)
-#   그 외      → frontend
+# HAProxy Ingress 라우팅 (host 분리):
+#   app.example.com → frontend  (Next.js)
+#   api.example.com → backend   (REST API + WebSocket /socket.io + Swagger /docs)
+#
+# 두 host 모두 해당 서비스로 `/` (Prefix) 전체를 라우팅합니다.
+# backend host 에서 `/api`, `/socket.io`, `/docs` 가 모두 동일하게 노출됩니다.
 #
 # Annotation 은 사용 중인 HAProxy 컨트롤러에 따라 다릅니다:
 # - haproxytech/kubernetes-ingress: `haproxy.org/...` prefix
 # - jcmoraisjr/haproxy-ingress     : `haproxy-ingress.github.io/...` prefix
 # 두 컨트롤러 모두 ingressClassName: haproxy 로 동작.
 #
-# WebSocket 은 보통 자동 인식되지만, idle timeout 늘리는 게 좋습니다 (예: 1h).
+# WebSocket(`/socket.io`) 은 보통 자동 인식되지만, idle timeout 늘리는 게 좋습니다 (예: 1h).
+# → backend Ingress 에만 적용.
+#
 # 호스트명은 환경별 overlay 에서 patch 하세요.
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: idea-workflow
+  name: idea-workflow-frontend
   labels:
     app.kubernetes.io/name: idea-workflow
+    app.kubernetes.io/component: frontend
+  annotations:
+    # haproxytech/kubernetes-ingress
+    haproxy.org/load-balance: "leastconn"
+    # jcmoraisjr/haproxy-ingress (사용 시 위 annotation 대신 아래 활성화)
+    # haproxy-ingress.github.io/balance-algorithm: "leastconn"
+spec:
+  ingressClassName: haproxy
+  tls:
+    - hosts:
+        - app.example.com
+      secretName: idea-workflow-frontend-tls
+  rules:
+    - host: app.example.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: frontend
+                port:
+                  number: 3000
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: idea-workflow-backend
+  labels:
+    app.kubernetes.io/name: idea-workflow
+    app.kubernetes.io/component: backend
   annotations:
     # haproxytech/kubernetes-ingress
     haproxy.org/timeout-tunnel: "1h"
@@ -28,37 +62,16 @@ spec:
   ingressClassName: haproxy
   tls:
     - hosts:
-        - idea-workflow.example.com
-      secretName: idea-workflow-tls
+        - api.example.com
+      secretName: idea-workflow-backend-tls
   rules:
-    - host: idea-workflow.example.com
+    - host: api.example.com
       http:
         paths:
-          - path: /api
-            pathType: Prefix
-            backend:
-              service:
-                name: backend
-                port:
-                  number: 3011
-          - path: /socket.io
-            pathType: Prefix
-            backend:
-              service:
-                name: backend
-                port:
-                  number: 3011
-          - path: /docs
-            pathType: Prefix
-            backend:
-              service:
-                name: backend
-                port:
-                  number: 3011
           - path: /
             pathType: Prefix
             backend:
               service:
-                name: frontend
+                name: backend
                 port:
-                  number: 3000
+                  number: 3011

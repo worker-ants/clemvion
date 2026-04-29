@@ -8,9 +8,9 @@ metadata:
 data:
   NODE_ENV: "production"
   APP_PORT: "3011"
-  # 환경별 overlay에서 patch
-  APP_URL: "https://idea-workflow.example.com"
-  FRONTEND_URL: "https://idea-workflow.example.com"
+  # 환경별 overlay에서 patch (frontend/backend host 분리)
+  APP_URL: "https://api.example.com"
+  FRONTEND_URL: "https://app.example.com"
 
   # Database (password는 Secret)
   DB_HOST: "postgres"

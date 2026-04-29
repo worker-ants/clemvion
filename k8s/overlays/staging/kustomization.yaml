@@ -23,10 +23,10 @@ patches:
   - patch: |
       - op: replace
         path: /data/APP_URL
-        value: "https://staging.idea-workflow.example.com"
+        value: "https://api.staging.idea-workflow.example.com"
       - op: replace
         path: /data/FRONTEND_URL
-        value: "https://staging.idea-workflow.example.com"
+        value: "https://app.staging.idea-workflow.example.com"
       - op: replace
         path: /data/DB_HOST
         value: "REPLACE_ME.rds.amazonaws.com"
@@ -42,13 +42,23 @@ patches:
   - patch: |
       - op: replace
         path: /spec/rules/0/host
-        value: "staging.idea-workflow.example.com"
+        value: "app.staging.idea-workflow.example.com"
       - op: replace
         path: /spec/tls/0/hosts/0
-        value: "staging.idea-workflow.example.com"
+        value: "app.staging.idea-workflow.example.com"
     target:
       kind: Ingress
-      name: idea-workflow
+      name: idea-workflow-frontend
+  - patch: |
+      - op: replace
+        path: /spec/rules/0/host
+        value: "api.staging.idea-workflow.example.com"
+      - op: replace
+        path: /spec/tls/0/hosts/0
+        value: "api.staging.idea-workflow.example.com"
+    target:
+      kind: Ingress
+      name: idea-workflow-backend
 
 replicas:
   - name: backend
