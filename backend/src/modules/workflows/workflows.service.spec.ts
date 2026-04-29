@@ -11,6 +11,8 @@ import { Workflow } from './entities/workflow.entity';
 import { Node, NodeCategory } from '../nodes/entities/node.entity';
 import { Edge } from '../edges/entities/edge.entity';
 import { WorkflowVersionsService } from '../workflow-versions/workflow-versions.service';
+import { NodeComponentRegistry } from '../../nodes/core/node-component.registry';
+import { LlmConfigService } from '../llm-config/llm-config.service';
 
 describe('WorkflowsService', () => {
   let service: WorkflowsService;
@@ -85,6 +87,16 @@ describe('WorkflowsService', () => {
     findByWorkflow: jest.fn().mockResolvedValue([]),
   };
 
+  const mockRegistry = {
+    applyConfigDefaults: jest.fn(
+      (_type: string, raw: Record<string, unknown>) => raw,
+    ),
+  };
+
+  const mockLlmConfigService = {
+    findDefault: jest.fn().mockResolvedValue(null),
+  };
+
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -97,11 +109,17 @@ describe('WorkflowsService', () => {
           provide: WorkflowVersionsService,
           useValue: mockWorkflowVersionsService,
         },
+        { provide: NodeComponentRegistry, useValue: mockRegistry },
+        { provide: LlmConfigService, useValue: mockLlmConfigService },
       ],
     }).compile();
 
     service = module.get<WorkflowsService>(WorkflowsService);
     jest.clearAllMocks();
+    mockRegistry.applyConfigDefaults.mockImplementation(
+      (_type: string, raw: Record<string, unknown>) => raw,
+    );
+    mockLlmConfigService.findDefault.mockResolvedValue(null);
   });
 
   it('should be defined', () => {
@@ -544,6 +562,248 @@ describe('WorkflowsService', () => {
       await expect(
         service.importWorkflow('ws-uuid-1', 'user-uuid-1', dto),
       ).rejects.toThrow(ConflictException);
+    });
+  });
+
+  describe('importWorkflow — config defaults & LLM 주입', () => {
+    beforeEach(() => {
+      mockTransactionManager.update = jest.fn().mockResolvedValue(undefined);
+      mockTransactionManager.save = jest
+        .fn()
+        .mockImplementation((entity, data) => {
+          if (Array.isArray(data)) return Promise.resolve(data);
+          if (entity === Node) {
+            return Promise.resolve({ id: `new-${data.label}`, ...data });
+          }
+          return Promise.resolve({ id: 'new-wf-id', ...data });
+        });
+    });
+
+    const aiAgentNode = (overrides: Record<string, unknown> = {}) => ({
+      type: 'ai_agent',
+      category: NodeCategory.AI,
+      label: 'AI',
+      positionX: 0,
+      positionY: 0,
+      ...overrides,
+    });
+
+    const findSavedNode = (label: string) =>
+      mockTransactionManager.save.mock.calls.find(
+        ([entity, data]) =>
+          entity === Node && (data as { label: string }).label === label,
+      )?.[1] as { config: Record<string, unknown> } | undefined;
+
+    it('applies schema defaults via the registry', async () => {
+      mockRegistry.applyConfigDefaults.mockImplementation((type, raw) =>
+        type === 'ai_agent'
+          ? { ...(raw as object), mode: 'single_turn', ragTopK: 5 }
+          : (raw as Record<string, unknown>),
+      );
+
+      await service.importWorkflow('ws-uuid-1', 'user-uuid-1', {
+        name: 'Imported',
+        nodes: [
+          {
+            type: 'manual_trigger',
+            category: NodeCategory.TRIGGER,
+            label: 'Trig',
+            positionX: 0,
+            positionY: 0,
+          },
+          aiAgentNode({ config: {} }),
+        ],
+        edges: [],
+      });
+
+      expect(mockRegistry.applyConfigDefaults).toHaveBeenCalledWith(
+        'ai_agent',
+        {},
+      );
+      expect(findSavedNode('AI')?.config).toMatchObject({
+        mode: 'single_turn',
+        ragTopK: 5,
+      });
+    });
+
+    it('preserves explicit config values over defaults', async () => {
+      mockRegistry.applyConfigDefaults.mockImplementation(
+        (_type, raw) => raw as Record<string, unknown>,
+      );
+
+      await service.importWorkflow('ws-uuid-1', 'user-uuid-1', {
+        name: 'Imported',
+        nodes: [
+          {
+            type: 'manual_trigger',
+            category: NodeCategory.TRIGGER,
+            label: 'Trig',
+            positionX: 0,
+            positionY: 0,
+          },
+          aiAgentNode({
+            config: { mode: 'multi_turn', systemPrompt: 'x' },
+          }),
+        ],
+        edges: [],
+      });
+
+      expect(findSavedNode('AI')?.config).toEqual({
+        mode: 'multi_turn',
+        systemPrompt: 'x',
+      });
+    });
+
+    it('injects workspace default llmConfigId for AI nodes when missing', async () => {
+      mockLlmConfigService.findDefault.mockResolvedValue({
+        id: 'llm-default-1',
+      });
+
+      await service.importWorkflow('ws-uuid-1', 'user-uuid-1', {
+        name: 'Imported',
+        nodes: [
+          {
+            type: 'manual_trigger',
+            category: NodeCategory.TRIGGER,
+            label: 'Trig',
+            positionX: 0,
+            positionY: 0,
+          },
+          aiAgentNode({ config: {} }),
+        ],
+        edges: [],
+      });
+
+      expect(findSavedNode('AI')?.config).toMatchObject({
+        llmConfigId: 'llm-default-1',
+      });
+    });
+
+    it('does not overwrite an explicit llmConfigId', async () => {
+      mockLlmConfigService.findDefault.mockResolvedValue({
+        id: 'llm-default-1',
+      });
+
+      await service.importWorkflow('ws-uuid-1', 'user-uuid-1', {
+        name: 'Imported',
+        nodes: [
+          {
+            type: 'manual_trigger',
+            category: NodeCategory.TRIGGER,
+            label: 'Trig',
+            positionX: 0,
+            positionY: 0,
+          },
+          aiAgentNode({ config: { llmConfigId: 'explicit-1' } }),
+        ],
+        edges: [],
+      });
+
+      expect(findSavedNode('AI')?.config).toMatchObject({
+        llmConfigId: 'explicit-1',
+      });
+    });
+
+    it('leaves llmConfigId undefined when no workspace default', async () => {
+      mockLlmConfigService.findDefault.mockResolvedValue(null);
+
+      await service.importWorkflow('ws-uuid-1', 'user-uuid-1', {
+        name: 'Imported',
+        nodes: [
+          {
+            type: 'manual_trigger',
+            category: NodeCategory.TRIGGER,
+            label: 'Trig',
+            positionX: 0,
+            positionY: 0,
+          },
+          aiAgentNode({ config: {} }),
+        ],
+        edges: [],
+      });
+
+      expect(findSavedNode('AI')?.config).not.toHaveProperty('llmConfigId');
+    });
+
+    it('does not inject llmConfigId for non-AI nodes', async () => {
+      mockLlmConfigService.findDefault.mockResolvedValue({
+        id: 'llm-default-1',
+      });
+
+      await service.importWorkflow('ws-uuid-1', 'user-uuid-1', {
+        name: 'Imported',
+        nodes: [
+          {
+            type: 'manual_trigger',
+            category: NodeCategory.TRIGGER,
+            label: 'Trig',
+            positionX: 0,
+            positionY: 0,
+          },
+          {
+            type: 'http_request',
+            category: NodeCategory.INTEGRATION,
+            label: 'HTTP',
+            positionX: 0,
+            positionY: 0,
+            config: {},
+          },
+        ],
+        edges: [],
+      });
+
+      expect(findSavedNode('HTTP')?.config).not.toHaveProperty('llmConfigId');
+    });
+
+    it('falls back to raw config when registry returns it (parse failure case)', async () => {
+      const rawConfig = { mode: 42 as unknown as string };
+      mockRegistry.applyConfigDefaults.mockImplementation(
+        (_type, raw) => raw as Record<string, unknown>,
+      );
+
+      await service.importWorkflow('ws-uuid-1', 'user-uuid-1', {
+        name: 'Imported',
+        nodes: [
+          {
+            type: 'manual_trigger',
+            category: NodeCategory.TRIGGER,
+            label: 'Trig',
+            positionX: 0,
+            positionY: 0,
+          },
+          aiAgentNode({ config: rawConfig }),
+        ],
+        edges: [],
+      });
+
+      expect(findSavedNode('AI')?.config).toEqual(rawConfig);
+    });
+
+    it('looks up workspace default LLM only once per import (hoisting guard)', async () => {
+      mockLlmConfigService.findDefault.mockResolvedValue({
+        id: 'llm-default-1',
+      });
+
+      await service.importWorkflow('ws-uuid-1', 'user-uuid-1', {
+        name: 'Imported',
+        nodes: [
+          {
+            type: 'manual_trigger',
+            category: NodeCategory.TRIGGER,
+            label: 'Trig',
+            positionX: 0,
+            positionY: 0,
+          },
+          aiAgentNode({ label: 'A1', config: {} }),
+          aiAgentNode({ label: 'A2', config: {} }),
+          aiAgentNode({ label: 'A3', config: {} }),
+          aiAgentNode({ label: 'A4', config: {} }),
+          aiAgentNode({ label: 'A5', config: {} }),
+        ],
+        edges: [],
+      });
+
+      expect(mockLlmConfigService.findDefault).toHaveBeenCalledTimes(1);
     });
   });
 

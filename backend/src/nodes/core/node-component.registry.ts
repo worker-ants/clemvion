@@ -91,4 +91,29 @@ export class NodeComponentRegistry {
     const parsed = c.configSchema.safeParse({});
     return parsed.success ? parsed.data : {};
   }
+
+  /**
+   * Run a raw config object through the node's zod schema so `.default(...)`
+   * values get populated. Used by workflow import to match the canvas-creation
+   * default behavior.
+   *
+   * - Unknown nodeType: returns rawConfig unchanged (forward-compat).
+   * - Parse failure (hand-edited JSON, type mismatch): warns and returns
+   *   rawConfig unchanged so import stays permissive — user can fix in editor.
+   */
+  applyConfigDefaults(
+    nodeType: string,
+    rawConfig: Record<string, unknown>,
+  ): Record<string, unknown> {
+    const component = this.getComponent(nodeType);
+    if (!component) return rawConfig;
+    const parsed = component.configSchema.safeParse(rawConfig);
+    if (!parsed.success) {
+      this.logger.warn(
+        `applyConfigDefaults: parse failed for "${nodeType}", returning raw config (issues=${JSON.stringify(parsed.error.issues)})`,
+      );
+      return rawConfig;
+    }
+    return parsed.data as Record<string, unknown>;
+  }
 }

@@ -16,9 +16,21 @@ import { QueryWorkflowDto } from './dto/query-workflow.dto';
 import { SaveCanvasDto } from './dto/save-canvas.dto';
 import { PaginatedResponseDto } from '../../common/dto/paginated-response.dto';
 import { WorkflowVersionsService } from '../workflow-versions/workflow-versions.service';
+import { NodeComponentRegistry } from '../../nodes/core/node-component.registry';
+import { LlmConfigService } from '../llm-config/llm-config.service';
 
 const MANUAL_TRIGGER_TYPE = 'manual_trigger';
 const MANUAL_TRIGGER_DEFAULT_POSITION = { x: 250, y: 300 };
+
+/**
+ * Import 시 `llmConfigId`가 비어 있으면 워크스페이스 기본 LLM provider를
+ * 자동 주입할 노드 타입. 신규 AI 노드를 추가할 때 함께 등록한다.
+ */
+const AI_NODE_TYPES_WITH_LLM_CONFIG = new Set<string>([
+  'ai_agent',
+  'information_extractor',
+  'text_classifier',
+]);
 
 @Injectable()
 export class WorkflowsService {
@@ -31,6 +43,8 @@ export class WorkflowsService {
     private readonly edgeRepository: Repository<Edge>,
     private readonly dataSource: DataSource,
     private readonly workflowVersionsService: WorkflowVersionsService,
+    private readonly registry: NodeComponentRegistry,
+    private readonly llmConfigService: LlmConfigService,
   ) {}
 
   async findAll(
@@ -217,6 +231,11 @@ export class WorkflowsService {
       seen.add(nodeDto.label);
     }
 
+    // 워크스페이스 기본 LLM provider 는 모든 AI 노드가 공유하므로 트랜잭션
+    // 외부에서 1회만 조회한다 (loop 내 호출 방지 + write 트랜잭션에 read 미포함).
+    const defaultLlm = await this.llmConfigService.findDefault(workspaceId);
+    const defaultLlmId = defaultLlm?.id ?? null;
+
     return this.dataSource.transaction(async (manager) => {
       const workflow = manager.create(Workflow, {
         name: dto.name,
@@ -231,6 +250,17 @@ export class WorkflowsService {
       // Create nodes with new UUIDs, keeping a map from index to new ID
       const nodeIdMap: string[] = [];
       for (const nodeDto of dto.nodes) {
+        const withDefaults = this.registry.applyConfigDefaults(
+          nodeDto.type,
+          nodeDto.config ?? {},
+        );
+        const finalConfig =
+          defaultLlmId &&
+          AI_NODE_TYPES_WITH_LLM_CONFIG.has(nodeDto.type) &&
+          !withDefaults.llmConfigId
+            ? { ...withDefaults, llmConfigId: defaultLlmId }
+            : withDefaults;
+
         const node = manager.create(Node, {
           workflowId: savedWorkflow.id,
           type: nodeDto.type,
@@ -238,7 +268,7 @@ export class WorkflowsService {
           label: nodeDto.label,
           positionX: nodeDto.positionX,
           positionY: nodeDto.positionY,
-          config: nodeDto.config ?? {},
+          config: finalConfig,
           isDisabled: nodeDto.isDisabled ?? false,
           description: nodeDto.description,
         });
