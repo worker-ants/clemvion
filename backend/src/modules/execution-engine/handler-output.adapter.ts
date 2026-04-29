@@ -22,6 +22,13 @@ import { NodeHandlerOutput } from '../../nodes/core/node-handler.interface.js';
  *
  * If you need lenient coercion in production code (you almost certainly
  * don't), call {@link wrapBareAsNodeHandlerOutput} directly.
+ *
+ * **Use only at the handler-return boundary** — i.e. immediately after a
+ * `NodeHandler.execute()` call returns. Do NOT run this on values that have
+ * already been flattened by {@link toEngineFlatShape} / port-routed for the
+ * engine cache (those are intentionally bare and would throw under strict
+ * mode). For those callers (e.g. `ExecutionContextService.setNodeOutput`),
+ * use {@link wrapBareAsNodeHandlerOutput} instead.
  */
 export function adaptHandlerReturn(raw: unknown): NodeHandlerOutput {
   if (isNewShape(raw)) {

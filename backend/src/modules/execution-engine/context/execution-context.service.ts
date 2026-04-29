@@ -3,7 +3,7 @@ import {
   ExecutionContext,
   NodeHandlerOutput,
 } from '../../../nodes/core/node-handler.interface';
-import { adaptHandlerReturn } from '../handler-output.adapter';
+import { wrapBareAsNodeHandlerOutput } from '../handler-output.adapter';
 
 /**
  * In-memory execution context management for Phase 1.
@@ -71,11 +71,28 @@ export class ExecutionContextService {
     // multi-turn AI output, etc.). Engine paths that already call
     // `setStructuredOutput` with a richer NodeHandlerOutput will overwrite
     // this derivation afterwards.
+    //
+    // Use the lenient wrapper here — `setNodeOutput` receives already-flattened
+    // engine output (post `toEngineFlatShape` / `applyPortSelection`), which is
+    // intentionally bare (e.g. `{parameters: {}}`). Running the strict
+    // `adaptHandlerReturn` on a bare object would throw in production, even
+    // though the handler boundary at the call site already validated the
+    // canonical shape moments earlier. Strict contract enforcement belongs at
+    // the single handler-return boundary in execution-engine.service.ts, not
+    // here.
     if (!context.structuredOutputCache) {
       context.structuredOutputCache = {};
     }
     const existing = context.structuredOutputCache[nodeId];
-    const derived = adaptHandlerReturn(output);
+    const isCanonical =
+      typeof output === 'object' &&
+      output !== null &&
+      !Array.isArray(output) &&
+      'config' in (output as Record<string, unknown>) &&
+      'output' in (output as Record<string, unknown>);
+    const derived = isCanonical
+      ? (output as NodeHandlerOutput)
+      : wrapBareAsNodeHandlerOutput(output);
     context.structuredOutputCache[nodeId] = existing
       ? {
           // Preserve the echoed config from the handler's original return —
