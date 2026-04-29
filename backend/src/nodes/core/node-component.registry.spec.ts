@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { Test } from '@nestjs/testing';
+import { Logger } from '@nestjs/common';
 import { NodeHandlerRegistry } from './node-handler.registry';
 import { NodeComponentRegistry } from './node-component.registry';
 import {
@@ -143,6 +144,74 @@ describe('NodeComponentRegistry', () => {
         expect(c.color).toMatch(/^#[0-9A-Fa-f]{6}$/);
         expect(typeof c.order).toBe('number');
       }
+    });
+  });
+
+  describe('applyConfigDefaults', () => {
+    it('returns raw config unchanged for unknown nodeType', () => {
+      const raw = { foo: 'bar' };
+      const result = registry.applyConfigDefaults('missing-type', raw);
+      expect(result).toEqual({ foo: 'bar' });
+    });
+
+    it('applies zod .default(...) values when raw config is empty', () => {
+      registry.bootstrap(
+        [
+          makeComponent('with_defaults', {
+            configSchema: z.object({
+              mode: z.string().default('single_turn'),
+              ragTopK: z.number().default(5),
+            }),
+          }),
+        ],
+        deps,
+      );
+
+      const result = registry.applyConfigDefaults('with_defaults', {});
+      expect(result).toEqual({ mode: 'single_turn', ragTopK: 5 });
+    });
+
+    it('preserves explicit values over schema defaults', () => {
+      registry.bootstrap(
+        [
+          makeComponent('with_defaults', {
+            configSchema: z.object({
+              mode: z.string().default('single_turn'),
+            }),
+          }),
+        ],
+        deps,
+      );
+
+      const result = registry.applyConfigDefaults('with_defaults', {
+        mode: 'multi_turn',
+      });
+      expect(result).toEqual({ mode: 'multi_turn' });
+    });
+
+    it('returns raw config and warns when safeParse fails', () => {
+      const warnSpy = jest
+        .spyOn(Logger.prototype, 'warn')
+        .mockImplementation(() => {});
+
+      registry.bootstrap(
+        [
+          makeComponent('strict', {
+            configSchema: z.object({ x: z.string() }),
+          }),
+        ],
+        deps,
+      );
+
+      const raw = { x: 42 };
+      const result = registry.applyConfigDefaults('strict', raw);
+
+      expect(result).toEqual({ x: 42 });
+      expect(warnSpy).toHaveBeenCalledWith(
+        expect.stringContaining('applyConfigDefaults: parse failed for "strict"'),
+      );
+
+      warnSpy.mockRestore();
     });
   });
 });
