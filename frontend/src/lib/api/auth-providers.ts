@@ -1,7 +1,10 @@
 // Server-side fetch (used in Next.js Server Components) for the list of
-// OAuth providers that the backend has credentials for. Cached for 5 minutes
-// via Next.js' built-in fetch cache so the auth pages don't pay the cost on
-// every render.
+// OAuth providers that the backend has credentials for.
+//
+// Always uses { cache: "no-store" } to avoid Next.js' fetch-cache disk writes
+// (`.next/cache/...`) and prerender ISR writes (`.next/server/app/...`),
+// which fail under read-only container filesystems (EROFS/ENOENT). The auth
+// pages are also marked `dynamic = "force-dynamic"` for the same reason.
 //
 // Returns an empty list on failure so the UI gracefully degrades — SSO
 // buttons are simply hidden rather than blocking sign-in entirely.
@@ -19,16 +22,9 @@ const API_BASE_URL =
 
 export async function fetchEnabledOauthProviders(): Promise<OAuthProvider[]> {
   try {
-    // Dev: skip cache so backend env edits take effect on next page load.
-    // Prod: 5-min ISR cache to avoid an extra hop on every render.
-    const fetchOptions: RequestInit =
-      process.env.NODE_ENV === "development"
-        ? { cache: "no-store" }
-        : { next: { revalidate: 300 } };
-    const res = await fetch(
-      `${API_BASE_URL}/auth/oauth/providers`,
-      fetchOptions,
-    );
+    const res = await fetch(`${API_BASE_URL}/auth/oauth/providers`, {
+      cache: "no-store",
+    });
     if (!res.ok) return [];
     const body = (await res.json()) as {
       data?: { providers?: OAuthProvider[] };
