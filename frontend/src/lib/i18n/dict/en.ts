@@ -1657,6 +1657,8 @@ export const en: Dict = {
     entityDeleted: "Entity deleted",
     entityDeleteFailed: "Failed to delete entity",
     entityMentionedInChunks: "Mentioned in {{count}} chunk(s)",
+    entityChunksTruncated:
+      "Showing the most recent 100 chunks — older mentions are not displayed.",
     relationHead: "Head",
     relationPredicate: "Predicate",
     relationTail: "Tail",

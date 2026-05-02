@@ -1652,6 +1652,8 @@ export const ko = {
     entityDeleted: "Entity 를 삭제했어요",
     entityDeleteFailed: "Entity 삭제에 실패했어요",
     entityMentionedInChunks: "{{count}}개 청크에서 등장",
+    entityChunksTruncated:
+      "청크가 100건 한도를 초과해 일부만 보이고 있어요.",
     relationHead: "Head",
     relationPredicate: "관계",
     relationTail: "Tail",
