@@ -5,6 +5,7 @@ export interface KnowledgeBaseData {
   name: string;
   description?: string;
   embeddingModel: string;
+  embeddingDimension?: number | null;
   chunkSize: number;
   chunkOverlap: number;
   documentCount: number;
@@ -54,11 +55,19 @@ export const knowledgeBasesApi = {
     payload: Partial<{
       name: string;
       description: string;
+      embeddingModel: string;
       chunkSize: number;
       chunkOverlap: number;
     }>,
   ) {
     const { data } = await apiClient.patch(`/knowledge-bases/${id}`, payload);
+    return data;
+  },
+
+  async reEmbedAll(kbId: string) {
+    const { data } = await apiClient.post(
+      `/knowledge-bases/${kbId}/re-embed`,
+    );
     return data;
   },
 

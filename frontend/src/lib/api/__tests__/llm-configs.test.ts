@@ -27,9 +27,28 @@ describe("llmConfigsApi", () => {
         },
       });
       const result = await llmConfigsApi.listModels("abc");
-      expect(apiClient.get).toHaveBeenCalledWith("/llm-configs/abc/models");
+      expect(apiClient.get).toHaveBeenCalledWith("/llm-configs/abc/models", {
+        params: undefined,
+      });
       expect(result).toHaveLength(2);
       expect(result[0].id).toBe("gpt-4o");
+    });
+
+    it("forwards the type filter when given", async () => {
+      vi.mocked(apiClient.get).mockResolvedValue({
+        data: {
+          data: [
+            { id: "text-embedding-3-small", name: "Embed", type: "embedding" },
+          ],
+        },
+      });
+      const result = await llmConfigsApi.listModels("abc", {
+        type: "embedding",
+      });
+      expect(apiClient.get).toHaveBeenCalledWith("/llm-configs/abc/models", {
+        params: { type: "embedding" },
+      });
+      expect(result[0].type).toBe("embedding");
     });
 
     // TODO: response envelope 중앙화(axios 인터셉터) 적용 시 이 fallback 계약은 제거한다.

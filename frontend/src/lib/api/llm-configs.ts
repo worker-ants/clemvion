@@ -69,8 +69,10 @@ export const llmConfigsApi = {
     return unwrap<{ success: boolean; error?: string }>(response);
   },
 
-  async listModels(id: string) {
-    const response = await apiClient.get(`/llm-configs/${id}/models`);
+  async listModels(id: string, opts?: { type?: "chat" | "embedding" }) {
+    const response = await apiClient.get(`/llm-configs/${id}/models`, {
+      params: opts?.type ? { type: opts.type } : undefined,
+    });
     return unwrap<ModelInfo[]>(response);
   },
 

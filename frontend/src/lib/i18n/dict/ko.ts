@@ -1593,6 +1593,19 @@ export const ko = {
     reembedTooltip: "재임베딩",
     columnSize: "크기",
     columnChunks: "청크",
+    embeddingModelHint:
+      "기본 LLM 설정의 임베딩 모델 중에서 선택하거나 직접 입력할 수 있어요.",
+    embeddingDimension: "차원",
+    settingsTitle: "지식 베이스 설정",
+    settingsSave: "저장",
+    modelChangedNeedsReembed:
+      "임베딩 모델을 변경했어요. 검색 정확도를 위해 KB 재임베딩이 필요해요.",
+    kbReembedAll: "KB 전체 재임베딩",
+    kbReembedConfirmTitle: "KB 전체 재임베딩",
+    kbReembedConfirmMessage:
+      "모든 문서의 청크와 임베딩을 삭제하고 처음부터 다시 처리합니다. 진행하시겠어요?",
+    kbReembedStarted: "{{count}}개 문서의 재임베딩을 시작했어요",
+    kbReembedFailed: "KB 재임베딩 시작에 실패했어요",
   },
   llmConfigs: {
     title: "LLM 설정",
