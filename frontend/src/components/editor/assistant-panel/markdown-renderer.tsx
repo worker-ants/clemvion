@@ -5,7 +5,12 @@ import remarkGfm from "remark-gfm";
 import type { ComponentProps } from "react";
 
 /**
- * Renders an assistant chat message as markdown.
+ * Renders an assistant-style chat message as markdown.
+ *
+ * Originally built for the assistant-panel chat bubble, but also reused by the
+ * run-results conversation inspector to render AI Agent responses (Preview /
+ * chat thread). Sizing tuned for compact bubbles — works inside text-xs/text-sm
+ * containers without further configuration.
  *
  * Design choices:
  * - `remark-gfm` for GitHub flavored markdown (tables, strikethrough, task

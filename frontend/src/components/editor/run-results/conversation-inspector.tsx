@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils/cn";
 import type { ConversationItem, ToolCallInfo } from "@/lib/stores/execution-store";
 import type { NodeResult } from "@/lib/stores/execution-store";
 import { resolveResultField } from "./resolve-result-field";
+import { MarkdownRenderer } from "@/components/editor/assistant-panel/markdown-renderer";
 
 function ToolCallBadge({ toolCalls }: { toolCalls: ToolCallInfo[] }) {
   const [open, setOpen] = useState(false);
@@ -157,7 +158,9 @@ function SelectedItemDetail({ item }: { item: ConversationItem }) {
         </span>
       </div>
       {item.content && (
-        <div className="whitespace-pre-wrap text-sm">{item.content}</div>
+        <div className="text-sm">
+          <MarkdownRenderer content={item.content} />
+        </div>
       )}
       {hasToolCalls && (
         <ToolCallBadge toolCalls={item.assistantToolCalls!} />
@@ -295,33 +298,55 @@ function SummaryView({
         <div className="flex flex-col gap-2">
           {items.map((item, i) => {
             const isClickable = !!onSelectItem;
-            const Wrapper = isClickable ? "button" : "div";
+            // ReactMarkdown 출력은 block 요소를 포함할 수 있으므로 button 안에 nest 시
+            // HTML 무효 — div + role="button" 으로 keyboard 접근성 유지하며 block 요소 허용.
+            const handleClick = isClickable
+              ? () => onSelectItem(i)
+              : undefined;
+            const handleKeyDown = isClickable
+              ? (e: React.KeyboardEvent) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    onSelectItem(i);
+                  }
+                }
+              : undefined;
+            const isAssistant = item.type === "assistant";
             return (
-            <Wrapper
-              key={`${item.type}-${item.turnIndex}-${i}`}
-              type={isClickable ? "button" : undefined}
-              onClick={isClickable ? () => onSelectItem(i) : undefined}
-              className={cn(
-                "rounded px-3 py-2 text-xs whitespace-pre-wrap text-left",
-                item.type === "user"
-                  ? "bg-[hsl(var(--accent))] ml-6"
-                  : "bg-[hsl(var(--muted))] mr-6",
-                isClickable && "cursor-pointer transition-shadow hover:ring-1 hover:ring-[hsl(var(--primary))/0.3]",
-              )}
-            >
-              <div className="mb-1 text-[10px] font-medium text-[hsl(var(--muted-foreground))]">
-                {item.type === "user" ? "👤 User" : "🤖 AI"}
+              <div
+                key={`${item.type}-${item.turnIndex}-${i}`}
+                role={isClickable ? "button" : undefined}
+                tabIndex={isClickable ? 0 : undefined}
+                onClick={handleClick}
+                onKeyDown={handleKeyDown}
+                className={cn(
+                  "rounded px-3 py-2 text-xs text-left",
+                  // user 메시지는 plain text 줄바꿈 보존; AI 메시지는 MarkdownRenderer 가 처리.
+                  !isAssistant && "whitespace-pre-wrap",
+                  item.type === "user"
+                    ? "bg-[hsl(var(--accent))] ml-6"
+                    : "bg-[hsl(var(--muted))] mr-6",
+                  isClickable &&
+                    "cursor-pointer transition-shadow hover:ring-1 hover:ring-[hsl(var(--primary))/0.3] focus:outline-none focus:ring-1 focus:ring-[hsl(var(--ring))]",
+                )}
+              >
+                <div className="mb-1 text-[10px] font-medium text-[hsl(var(--muted-foreground))]">
+                  {item.type === "user" ? "👤 User" : "🤖 AI"}
+                </div>
+                {item.content ? (
+                  isAssistant ? (
+                    <MarkdownRenderer content={item.content} />
+                  ) : (
+                    item.content
+                  )
+                ) : item.assistantToolCalls?.length ? (
+                  <ToolCallBadge toolCalls={item.assistantToolCalls} />
+                ) : (
+                  <span className="italic text-[hsl(var(--muted-foreground))]">
+                    (empty)
+                  </span>
+                )}
               </div>
-              {item.content ? (
-                item.content
-              ) : item.assistantToolCalls?.length ? (
-                <ToolCallBadge toolCalls={item.assistantToolCalls} />
-              ) : (
-                <span className="italic text-[hsl(var(--muted-foreground))]">
-                  (empty)
-                </span>
-              )}
-            </Wrapper>
             );
           })}
         </div>
