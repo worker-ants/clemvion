@@ -10,6 +10,10 @@ import {
 } from "@/lib/api/knowledge-bases";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { EmbeddingModelCombobox } from "@/components/knowledge-base/embedding-model-combobox";
+import { RoleGate } from "@/components/auth/role-gate";
 import { toast } from "sonner";
 import {
   ArrowLeft,
@@ -21,6 +25,8 @@ import {
   CheckCircle,
   XCircle,
   Clock,
+  Settings,
+  X,
 } from "lucide-react";
 import { useT, type TranslationKey } from "@/lib/i18n";
 
@@ -68,6 +74,13 @@ export default function KnowledgeBaseDetailPage({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
   const [isDragging, setIsDragging] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
+  const [showKbReEmbedConfirm, setShowKbReEmbedConfirm] = useState(false);
+  const [formName, setFormName] = useState("");
+  const [formDescription, setFormDescription] = useState("");
+  const [formEmbeddingModel, setFormEmbeddingModel] = useState("");
+  const [formChunkSize, setFormChunkSize] = useState("1000");
+  const [formChunkOverlap, setFormChunkOverlap] = useState("200");
 
   const { data: kb, isLoading: kbLoading } = useQuery<KnowledgeBaseData>({
     queryKey: ["knowledge-base", id],
@@ -116,6 +129,75 @@ export default function KnowledgeBaseDetailPage({
     onError: () => toast.error(t("knowledgeBases.reembedFailed")),
   });
 
+  const updateMutation = useMutation({
+    mutationFn: (payload: {
+      name?: string;
+      description?: string;
+      embeddingModel?: string;
+      chunkSize?: number;
+      chunkOverlap?: number;
+    }) => knowledgeBasesApi.update(id, payload),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["knowledge-base", id] });
+      queryClient.invalidateQueries({ queryKey: ["knowledge-bases"] });
+      toast.success(t("knowledgeBases.updated"));
+      setShowSettings(false);
+    },
+    onError: () => toast.error(t("knowledgeBases.updateFailed")),
+  });
+
+  const kbReEmbedMutation = useMutation({
+    mutationFn: () => knowledgeBasesApi.reEmbedAll(id),
+    onSuccess: (res: unknown) => {
+      const payload = (res as { data?: { documentCount?: number } } | null)
+        ?.data;
+      const count =
+        (res as { documentCount?: number } | null)?.documentCount ??
+        payload?.documentCount ??
+        0;
+      queryClient.invalidateQueries({ queryKey: ["kb-documents", id] });
+      queryClient.invalidateQueries({ queryKey: ["knowledge-base", id] });
+      toast.success(t("knowledgeBases.kbReembedStarted", { count }));
+      setShowKbReEmbedConfirm(false);
+    },
+    onError: () => toast.error(t("knowledgeBases.kbReembedFailed")),
+  });
+
+  function openSettings() {
+    if (!kb) return;
+    setFormName(kb.name);
+    setFormDescription(kb.description ?? "");
+    setFormEmbeddingModel(kb.embeddingModel);
+    setFormChunkSize(String(kb.chunkSize));
+    setFormChunkOverlap(String(kb.chunkOverlap));
+    setShowSettings(true);
+  }
+
+  function handleSaveSettings() {
+    if (!kb) return;
+    if (!formName.trim()) {
+      toast.error(t("knowledgeBases.nameRequired"));
+      return;
+    }
+    const payload: Record<string, string | number> = {};
+    if (formName !== kb.name) payload.name = formName;
+    if ((formDescription ?? "") !== (kb.description ?? "")) {
+      payload.description = formDescription;
+    }
+    if (formEmbeddingModel !== kb.embeddingModel) {
+      payload.embeddingModel = formEmbeddingModel;
+    }
+    const cs = parseInt(formChunkSize, 10);
+    if (!Number.isNaN(cs) && cs !== kb.chunkSize) payload.chunkSize = cs;
+    const co = parseInt(formChunkOverlap, 10);
+    if (!Number.isNaN(co) && co !== kb.chunkOverlap) payload.chunkOverlap = co;
+    if (Object.keys(payload).length === 0) {
+      setShowSettings(false);
+      return;
+    }
+    updateMutation.mutate(payload);
+  }
+
   function handleFiles(files: FileList | null) {
     if (!files) return;
     for (let i = 0; i < files.length; i++) {
@@ -139,26 +221,56 @@ export default function KnowledgeBaseDetailPage({
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center gap-3">
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={() => router.push("/knowledge-bases")}
-        >
-          <ArrowLeft className="h-4 w-4" />
-        </Button>
-        <div>
-          <h1 className="text-2xl font-bold">{kb?.name}</h1>
-          {kb?.description && (
-            <p className="text-sm text-[hsl(var(--muted-foreground))]">
-              {kb.description}
-            </p>
-          )}
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => router.push("/knowledge-bases")}
+          >
+            <ArrowLeft className="h-4 w-4" />
+          </Button>
+          <div>
+            <h1 className="text-2xl font-bold">{kb?.name}</h1>
+            {kb?.description && (
+              <p className="text-sm text-[hsl(var(--muted-foreground))]">
+                {kb.description}
+              </p>
+            )}
+          </div>
         </div>
+        <RoleGate minRole="editor">
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowKbReEmbedConfirm(true)}
+              disabled={kbReEmbedMutation.isPending}
+            >
+              {kbReEmbedMutation.isPending ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <RefreshCw className="mr-2 h-4 w-4" />
+              )}
+              {t("knowledgeBases.kbReembedAll")}
+            </Button>
+            <Button variant="outline" size="sm" onClick={openSettings}>
+              <Settings className="mr-2 h-4 w-4" />
+              {t("knowledgeBases.settingsTitle")}
+            </Button>
+          </div>
+        </RoleGate>
       </div>
 
-      <div className="flex items-center gap-4 text-sm text-[hsl(var(--muted-foreground))]">
-        <span>{t("knowledgeBases.model")}: <code className="font-mono">{kb?.embeddingModel}</code></span>
+      <div className="flex flex-wrap items-center gap-4 text-sm text-[hsl(var(--muted-foreground))]">
+        <span>
+          {t("knowledgeBases.model")}: <code className="font-mono">{kb?.embeddingModel}</code>
+        </span>
+        {kb?.embeddingDimension != null && (
+          <span>
+            {t("knowledgeBases.embeddingDimension")}: {kb.embeddingDimension}
+          </span>
+        )}
         <span>{t("knowledgeBases.chunk")}: {kb?.chunkSize} / {t("knowledgeBases.overlap")}: {kb?.chunkOverlap}</span>
         <span>{t("knowledgeBases.documentsCount", { count: kb?.documentCount ?? 0 })}</span>
       </div>
@@ -203,6 +315,123 @@ export default function KnowledgeBaseDetailPage({
           onChange={(e) => handleFiles(e.target.files)}
         />
       </div>
+
+      {showSettings && kb && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+          <div className="w-full max-w-md rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-6 shadow-lg">
+            <div className="mb-4 flex items-center justify-between">
+              <h2 className="text-lg font-semibold">
+                {t("knowledgeBases.settingsTitle")}
+              </h2>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => setShowSettings(false)}
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+            <div className="space-y-4">
+              <div>
+                <Label>{t("knowledgeBases.name")}</Label>
+                <Input
+                  value={formName}
+                  onChange={(e) => setFormName(e.target.value)}
+                />
+              </div>
+              <div>
+                <Label>{t("common.description")}</Label>
+                <Input
+                  value={formDescription}
+                  onChange={(e) => setFormDescription(e.target.value)}
+                />
+              </div>
+              <div>
+                <Label>{t("knowledgeBases.embeddingModel")}</Label>
+                <EmbeddingModelCombobox
+                  value={formEmbeddingModel}
+                  onChange={setFormEmbeddingModel}
+                  placeholder="text-embedding-3-small"
+                />
+                {formEmbeddingModel !== kb.embeddingModel && (
+                  <p className="mt-1 text-xs text-[hsl(var(--warning,38_92%_50%))]">
+                    {t("knowledgeBases.modelChangedNeedsReembed")}
+                  </p>
+                )}
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <Label>{t("knowledgeBases.chunkSize")}</Label>
+                  <Input
+                    type="number"
+                    min="100"
+                    max="8000"
+                    value={formChunkSize}
+                    onChange={(e) => setFormChunkSize(e.target.value)}
+                  />
+                </div>
+                <div>
+                  <Label>{t("knowledgeBases.chunkOverlap")}</Label>
+                  <Input
+                    type="number"
+                    min="0"
+                    max="2000"
+                    value={formChunkOverlap}
+                    onChange={(e) => setFormChunkOverlap(e.target.value)}
+                  />
+                </div>
+              </div>
+              <div className="flex justify-end gap-2">
+                <Button
+                  variant="outline"
+                  onClick={() => setShowSettings(false)}
+                >
+                  {t("common.cancel")}
+                </Button>
+                <Button
+                  onClick={handleSaveSettings}
+                  disabled={updateMutation.isPending}
+                >
+                  {updateMutation.isPending && (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  )}
+                  {t("knowledgeBases.settingsSave")}
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showKbReEmbedConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+          <div className="w-full max-w-sm rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-6 shadow-lg">
+            <h2 className="mb-2 text-lg font-semibold">
+              {t("knowledgeBases.kbReembedConfirmTitle")}
+            </h2>
+            <p className="mb-4 text-sm text-[hsl(var(--muted-foreground))]">
+              {t("knowledgeBases.kbReembedConfirmMessage")}
+            </p>
+            <div className="flex justify-end gap-2">
+              <Button
+                variant="outline"
+                onClick={() => setShowKbReEmbedConfirm(false)}
+              >
+                {t("common.cancel")}
+              </Button>
+              <Button
+                disabled={kbReEmbedMutation.isPending}
+                onClick={() => kbReEmbedMutation.mutate()}
+              >
+                {kbReEmbedMutation.isPending && (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                )}
+                {t("knowledgeBases.kbReembedAll")}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {deleteTarget && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">

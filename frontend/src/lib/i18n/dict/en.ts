@@ -1597,6 +1597,19 @@ export const en: Dict = {
     reembedTooltip: "Re-embed",
     columnSize: "Size",
     columnChunks: "Chunks",
+    embeddingModelHint:
+      "Pick from the default LLM config's embedding models, or type a custom ID.",
+    embeddingDimension: "Dimension",
+    settingsTitle: "Knowledge base settings",
+    settingsSave: "Save",
+    modelChangedNeedsReembed:
+      "Embedding model changed. KB re-embedding is required to keep search accurate.",
+    kbReembedAll: "Re-embed entire KB",
+    kbReembedConfirmTitle: "Re-embed entire KB",
+    kbReembedConfirmMessage:
+      "All chunks and embeddings will be deleted and reprocessed. Continue?",
+    kbReembedStarted: "Started re-embedding {{count}} document(s)",
+    kbReembedFailed: "Failed to start KB re-embedding",
   },
   llmConfigs: {
     title: "LLM Config",

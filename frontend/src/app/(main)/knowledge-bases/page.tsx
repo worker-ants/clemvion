@@ -13,6 +13,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Pagination } from "@/components/ui/pagination";
 import { RoleGate } from "@/components/auth/role-gate";
+import { EmbeddingModelCombobox } from "@/components/knowledge-base/embedding-model-combobox";
 import { usePageParam } from "@/lib/hooks/use-page-param";
 import { toast } from "sonner";
 import {
@@ -143,9 +144,9 @@ export default function KnowledgeBasesPage() {
               </div>
               <div>
                 <Label>{t("knowledgeBases.embeddingModel")}</Label>
-                <Input
+                <EmbeddingModelCombobox
                   value={formEmbeddingModel}
-                  onChange={(e) => setFormEmbeddingModel(e.target.value)}
+                  onChange={setFormEmbeddingModel}
                   placeholder="text-embedding-3-small"
                 />
               </div>
@@ -269,12 +270,17 @@ export default function KnowledgeBasesPage() {
                     {kb.description}
                   </p>
                 )}
-                <div className="flex items-center gap-3 text-xs text-[hsl(var(--muted-foreground))]">
+                <div className="flex flex-wrap items-center gap-3 text-xs text-[hsl(var(--muted-foreground))]">
                   <span className="flex items-center gap-1">
                     <FileText className="h-3 w-3" />
                     {t("knowledgeBases.docsCount", { count: kb.documentCount })}
                   </span>
                   <span className="font-mono">{kb.embeddingModel}</span>
+                  {kb.embeddingDimension != null && (
+                    <span className="font-mono">
+                      {kb.embeddingDimension}d
+                    </span>
+                  )}
                 </div>
               </div>
             ))}
