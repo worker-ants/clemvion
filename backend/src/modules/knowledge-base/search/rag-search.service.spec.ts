@@ -280,7 +280,10 @@ describe('RagSearchService', () => {
       );
 
       const graphSql = mockDataSource.query.mock.calls[1][0] as string;
-      expect(graphSql).toContain('WITH seed AS');
+      // expanded_entities CTE 가 자기 자신을 참조하므로 WITH RECURSIVE 가 필수.
+      // PostgreSQL 은 RECURSIVE 가 없으면 self-reference 를 외부 relation 으로 해석해
+      // "relation 'expanded_entities' does not exist" 로 실패한다.
+      expect(graphSql).toContain('WITH RECURSIVE seed AS');
       expect(graphSql).toContain('expanded_entities');
       expect(graphSql).toContain('chunk_entity');
 
