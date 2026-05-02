@@ -14,8 +14,16 @@ export class KnowledgeBaseDto {
   @ApiPropertyOptional({ nullable: true })
   description?: string | null;
 
-  @ApiProperty({ example: 'text-embedding-ada-002' })
+  @ApiProperty({ example: 'text-embedding-3-small' })
   embeddingModel: string;
+
+  @ApiPropertyOptional({
+    example: 1536,
+    nullable: true,
+    description:
+      '저장된 청크들의 임베딩 차원. 첫 임베딩 후 자동으로 채워지며, 모델 변경 후 KB 재임베딩 시 재설정됩니다.',
+  })
+  embeddingDimension?: number | null;
 
   @ApiProperty({ example: 1000 })
   chunkSize: number;
@@ -97,4 +105,13 @@ export class RagSearchResultDto {
 export class ReEmbedAcceptedDto {
   @ApiProperty({ example: 'Re-embedding started' })
   message: string;
+}
+
+/** KB 단위 재임베딩 접수 결과 */
+export class KbReEmbedAcceptedDto {
+  @ApiProperty({ example: 'KB re-embedding started' })
+  message: string;
+
+  @ApiProperty({ example: 12, description: '큐잉된 문서 개수' })
+  documentCount: number;
 }

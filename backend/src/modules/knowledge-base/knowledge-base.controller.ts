@@ -45,6 +45,7 @@ import { UpdateKnowledgeBaseDto } from './dto/update-knowledge-base.dto';
 import { RagSearchDto } from './dto/rag-search.dto';
 import {
   DocumentDto,
+  KbReEmbedAcceptedDto,
   KnowledgeBaseDto,
   RagSearchResultDto,
   ReEmbedAcceptedDto,
@@ -140,6 +141,29 @@ export class KnowledgeBaseController {
     @Body() dto: UpdateKnowledgeBaseDto,
   ) {
     return this.kbService.update(id, workspaceId, dto);
+  }
+
+  @Post(':id/re-embed')
+  @HttpCode(HttpStatus.ACCEPTED)
+  @Roles('editor')
+  @ApiOperation({
+    summary: '지식 베이스 전체 재임베딩',
+    description:
+      '지식 베이스의 모든 문서 청크·임베딩을 삭제하고 처음부터 다시 처리합니다. embedding_dimension 도 초기화되며, 비동기로 수행되므로 즉시 202 를 반환합니다. 임베딩 모델을 변경했을 때 차원이 다를 수 있으므로 사용자가 명시적으로 호출합니다.',
+  })
+  @ApiParam({ name: 'id', description: '지식 베이스 UUID', format: 'uuid' })
+  @ApiAcceptedWrappedResponse(KbReEmbedAcceptedDto, {
+    description: 'KB 전체 재임베딩 작업이 큐잉됨',
+  })
+  @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
+  @ApiForbiddenResponse({ description: 'editor 이상 권한 필요' })
+  @ApiNotFoundResponse({ description: '해당 지식 베이스를 찾을 수 없음' })
+  async reEmbedAll(
+    @Param('id', ParseUUIDPipe) id: string,
+    @WorkspaceId() workspaceId: string,
+  ) {
+    const { documentCount } = await this.kbService.reEmbedAll(id, workspaceId);
+    return { message: 'KB re-embedding started', documentCount };
   }
 
   @Delete(':id')

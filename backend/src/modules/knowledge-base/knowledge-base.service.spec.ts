@@ -6,6 +6,7 @@ import { KnowledgeBaseService } from './knowledge-base.service';
 import { KnowledgeBase } from './entities/knowledge-base.entity';
 import { Document } from './entities/document.entity';
 import { S3Service } from '../../common/services/s3.service';
+import { EmbeddingService } from './embedding/embedding.service';
 
 describe('KnowledgeBaseService', () => {
   let service: KnowledgeBaseService;
@@ -13,6 +14,7 @@ describe('KnowledgeBaseService', () => {
   let mockDocRepo: Record<string, jest.Mock>;
   let mockS3Service: Record<string, jest.Mock>;
   let mockDataSource: Record<string, jest.Mock>;
+  let mockEmbeddingService: Record<string, jest.Mock>;
 
   beforeEach(async () => {
     const qbMock = {
@@ -64,6 +66,10 @@ describe('KnowledgeBaseService', () => {
       query: jest.fn().mockResolvedValue([]),
     };
 
+    mockEmbeddingService = {
+      processDocument: jest.fn().mockResolvedValue(undefined),
+    };
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         KnowledgeBaseService,
@@ -71,6 +77,7 @@ describe('KnowledgeBaseService', () => {
         { provide: getRepositoryToken(Document), useValue: mockDocRepo },
         { provide: S3Service, useValue: mockS3Service },
         { provide: DataSource, useValue: mockDataSource },
+        { provide: EmbeddingService, useValue: mockEmbeddingService },
       ],
     }).compile();
 
@@ -122,6 +129,73 @@ describe('KnowledgeBaseService', () => {
       });
       expect(mockKbRepo.save).toHaveBeenCalled();
       expect(result).toBeDefined();
+    });
+  });
+
+  describe('update', () => {
+    it('should apply embeddingModel change', async () => {
+      const existing = {
+        id: 'kb-1',
+        workspaceId: 'ws-1',
+        name: 'KB',
+        description: null,
+        embeddingModel: 'text-embedding-3-small',
+        embeddingDimension: 1536,
+        chunkSize: 1000,
+        chunkOverlap: 200,
+      };
+      mockKbRepo.findOne.mockResolvedValue(existing);
+      mockKbRepo.save.mockImplementation((e) => Promise.resolve(e));
+
+      const result = await service.update('kb-1', 'ws-1', {
+        embeddingModel: 'text-embedding-3-large',
+      });
+
+      expect(result.embeddingModel).toBe('text-embedding-3-large');
+      // embeddingDimension is left untouched until KB-wide re-embed runs
+      expect(result.embeddingDimension).toBe(1536);
+    });
+  });
+
+  describe('reEmbedAll', () => {
+    it('should reset embedding_dimension and queue re-embedding for every doc', async () => {
+      mockKbRepo.findOne.mockResolvedValue({
+        id: 'kb-1',
+        workspaceId: 'ws-1',
+      });
+      mockDocRepo.find.mockResolvedValue([{ id: 'd1' }, { id: 'd2' }]);
+
+      const result = await service.reEmbedAll('kb-1', 'ws-1');
+
+      expect(mockDataSource.query).toHaveBeenCalledWith(
+        expect.stringMatching(/UPDATE knowledge_base SET embedding_dimension/),
+        ['kb-1'],
+      );
+      expect(mockEmbeddingService.processDocument).toHaveBeenCalledTimes(2);
+      expect(mockEmbeddingService.processDocument).toHaveBeenNthCalledWith(
+        1,
+        'd1',
+        true,
+      );
+      expect(mockEmbeddingService.processDocument).toHaveBeenNthCalledWith(
+        2,
+        'd2',
+        true,
+      );
+      expect(result).toEqual({ documentCount: 2 });
+    });
+
+    it('should still succeed for empty KB', async () => {
+      mockKbRepo.findOne.mockResolvedValue({
+        id: 'kb-1',
+        workspaceId: 'ws-1',
+      });
+      mockDocRepo.find.mockResolvedValue([]);
+
+      const result = await service.reEmbedAll('kb-1', 'ws-1');
+
+      expect(mockEmbeddingService.processDocument).not.toHaveBeenCalled();
+      expect(result).toEqual({ documentCount: 0 });
     });
   });
 
