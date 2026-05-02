@@ -15,6 +15,7 @@ interface KbRow {
   id: string;
   embeddingModel: string;
   embeddingDimension: number | null;
+  embeddingLlmConfigId: string | null;
   ragMode: 'vector' | 'graph';
   maxHops: number;
   vectorSeedTopK: number;
@@ -34,6 +35,10 @@ type RawSearchRow = {
 interface VectorGroup {
   model: string;
   dim: number;
+  // KB 가 지정한 embeddingLlmConfigId. NULL 이면 워크스페이스 default 로 폴백.
+  // (model, dim, embeddingLlmConfigId) 조합이 같아야 같은 그룹 — 같은 모델 이름이라도
+  // LLMConfig endpoint 가 다르면 임베딩이 호환되지 않을 수 있으므로 분리한다.
+  embeddingLlmConfigId: string | null;
   kbIds: string[];
 }
 
@@ -92,6 +97,7 @@ export class RagSearchService {
         `SELECT id,
                 embedding_model AS "embeddingModel",
                 embedding_dimension AS "embeddingDimension",
+                embedding_llm_config_id AS "embeddingLlmConfigId",
                 rag_mode AS "ragMode",
                 max_hops AS "maxHops",
                 vector_seed_top_k AS "vectorSeedTopK",
@@ -102,34 +108,23 @@ export class RagSearchService {
       );
       if (kbs.length === 0) return { results: [] };
 
-      // KB 를 ragMode 로 분리: vector 는 (model, dim) 그룹화, graph 는 KB 단위 처리.
+      // KB 를 ragMode 로 분리: vector 는 (model, dim, llmConfig) 그룹화, graph 는 KB 단위 처리.
+      // 각 그룹 / 각 graph KB 가 자체 embeddingLlmConfigId 를 resolveConfig 로 풀어 query 임베딩
+      // 호출에 사용한다. 청크가 비-default LLMConfig 로 임베딩됐다면 query 도 같은 endpoint 로
+      // 임베딩해야 유사도가 맞기 때문.
       const vectorKbs = kbs.filter((kb) => kb.ragMode === 'vector');
       const graphKbs = kbs.filter((kb) => kb.ragMode === 'graph');
-
-      const llmConfig = await this.llmService.resolveConfig(
-        undefined,
-        workspaceId,
-      );
 
       const vectorGroups = this.groupVectorKbs(vectorKbs);
 
       const vectorTasks = Array.from(vectorGroups.values()).map((g) =>
-        this.searchVectorGroup(
-          g,
-          query,
-          llmConfig,
-          threshold,
-          topK,
-          workspaceId,
-        ),
+        this.searchVectorGroup(g, query, threshold, topK, workspaceId),
       );
 
       // graph KB 는 maxHops/seedTopK 가 KB 마다 다를 수 있어 KB 단위 분리 처리.
       const graphTasks = graphKbs
         .filter((kb) => this.isGraphKbSearchable(kb))
-        .map((kb) =>
-          this.searchGraphKb(kb, query, llmConfig, threshold, workspaceId),
-        );
+        .map((kb) => this.searchGraphKb(kb, query, threshold, workspaceId));
 
       const [vectorResults, graphResultsRaw] = await Promise.all([
         Promise.all(vectorTasks),
@@ -184,7 +179,10 @@ export class RagSearchService {
         );
         continue;
       }
-      const key = `${kb.embeddingModel}::${kb.embeddingDimension}`;
+      // (model, dim, embeddingLlmConfigId) 조합이 같아야 같은 그룹.
+      // null (워크스페이스 default) 도 별도 키 'default' 로 구분해 명확히 표기.
+      const cfgKey = kb.embeddingLlmConfigId ?? 'default';
+      const key = `${kb.embeddingModel}::${kb.embeddingDimension}::${cfgKey}`;
       const existing = groups.get(key);
       if (existing) {
         existing.kbIds.push(kb.id);
@@ -192,6 +190,7 @@ export class RagSearchService {
         groups.set(key, {
           model: kb.embeddingModel,
           dim: kb.embeddingDimension,
+          embeddingLlmConfigId: kb.embeddingLlmConfigId,
           kbIds: [kb.id],
         });
       }
@@ -213,12 +212,16 @@ export class RagSearchService {
   private async searchVectorGroup(
     group: VectorGroup,
     query: string,
-    llmConfig: Parameters<LlmService['embed']>[0],
     threshold: number,
     topK: number,
     workspaceId: string,
   ): Promise<SearchResult[]> {
-    const { model, dim, kbIds } = group;
+    const { model, dim, kbIds, embeddingLlmConfigId } = group;
+    // 그룹의 KB 들이 임베딩에 사용한 LLMConfig (null 이면 ws default) 로 query 임베딩.
+    const llmConfig = await this.llmService.resolveConfig(
+      embeddingLlmConfigId ?? undefined,
+      workspaceId,
+    );
     const embeddings = await this.llmService.embed(llmConfig, [query], model);
     const queryEmbedding = embeddings[0];
     if (!queryEmbedding || queryEmbedding.length !== dim) {
@@ -271,7 +274,6 @@ export class RagSearchService {
   private async searchGraphKb(
     kb: KbRow,
     query: string,
-    llmConfig: Parameters<LlmService['embed']>[0],
     threshold: number,
     workspaceId: string,
   ): Promise<GraphGroupResult> {
@@ -285,6 +287,11 @@ export class RagSearchService {
       };
     }
     const dim = kb.embeddingDimension;
+    // KB 가 청크 임베딩에 사용한 LLMConfig 로 query 임베딩 (mismatch 방지).
+    const llmConfig = await this.llmService.resolveConfig(
+      kb.embeddingLlmConfigId ?? undefined,
+      workspaceId,
+    );
     const embeddings = await this.llmService.embed(
       llmConfig,
       [query],
