@@ -33,6 +33,10 @@ export type EntityType = (typeof ENTITY_TYPES)[number];
  */
 @Entity('entity')
 @Index('idx_entity_kb_type', ['knowledgeBaseId', 'type'])
+// idx_entity_kb_mention 은 mention_count DESC 정렬 — TypeORM @Index 는
+// ASC/DESC 방향을 지원하지 않으므로 컬럼 목록만 선언으로 남기고 실제 정렬은
+// Flyway V025 에서 `mention_count DESC` 로 생성된 인덱스가 담당한다.
+@Index('idx_entity_kb_mention', ['knowledgeBaseId', 'mentionCount'])
 export class GraphEntity {
   @PrimaryGeneratedColumn('uuid')
   id: string;

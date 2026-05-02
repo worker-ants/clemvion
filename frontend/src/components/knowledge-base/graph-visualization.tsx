@@ -67,15 +67,22 @@ function arrangeOnCircle(
   });
 }
 
+// react-flow 의 edge label 은 SVG <text>/<rect> 로 렌더되므로, Tailwind 의 hsl(var(--…))
+// CSS 변수 참조가 SVG 색상 속성에서 동작하지 않는다. 디자인 토큰과 시각적으로 가까운 hex 를
+// inline 으로 박아 다크/라이트 모드 모두에서 가독성 있는 라벨이 나오게 한다.
+const EDGE_LABEL_FILL = "#71717a"; // muted-foreground 근사
+const EDGE_LABEL_BG = "#ffffff"; // 카드/배경 근사 (라벨 가독성 우선)
+const EDGE_STROKE = "rgba(120,120,120,0.6)";
+
 function toEdges(edges: GraphVisualizationData["edges"]): Edge[] {
   return edges.map((e) => ({
     id: e.id,
     source: e.source,
     target: e.target,
     label: e.predicate,
-    labelStyle: { fontSize: 10, fill: "var(--muted-foreground)" },
-    labelBgStyle: { fill: "var(--background)" },
-    style: { stroke: "rgba(120,120,120,0.6)", strokeWidth: Math.min(e.weight, 4) },
+    labelStyle: { fontSize: 10, fill: EDGE_LABEL_FILL },
+    labelBgStyle: { fill: EDGE_LABEL_BG },
+    style: { stroke: EDGE_STROKE, strokeWidth: Math.min(e.weight, 4) },
   }));
 }
 
