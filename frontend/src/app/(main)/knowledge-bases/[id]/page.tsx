@@ -14,7 +14,15 @@ import { Badge } from "@/components/ui/badge";
 import { ConfirmModal } from "@/components/ui/confirm-modal";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from "@/components/ui/tabs";
 import { EmbeddingModelCombobox } from "@/components/knowledge-base/embedding-model-combobox";
+import { EntityList } from "@/components/knowledge-base/entity-list";
+import { RelationList } from "@/components/knowledge-base/relation-list";
 import { RoleGate } from "@/components/auth/role-gate";
 import { toast } from "sonner";
 import {
@@ -373,47 +381,6 @@ export default function KnowledgeBaseDetailPage({
         </div>
       )}
 
-      <div
-        className={`flex flex-col items-center justify-center rounded-lg border-2 border-dashed p-8 transition-colors ${
-          isDragging
-            ? "border-[hsl(var(--primary))] bg-[hsl(var(--primary)/0.05)]"
-            : "border-[hsl(var(--border))]"
-        }`}
-        onDragOver={(e) => {
-          e.preventDefault();
-          setIsDragging(true);
-        }}
-        onDragLeave={() => setIsDragging(false)}
-        onDrop={handleDrop}
-      >
-        <Upload className="mb-2 h-8 w-8 text-[hsl(var(--muted-foreground))]" />
-        <p className="mb-1 text-sm text-[hsl(var(--muted-foreground))]">
-          {t("knowledgeBases.dragDropHere")}
-        </p>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => fileInputRef.current?.click()}
-          disabled={uploadMutation.isPending}
-        >
-          {uploadMutation.isPending && (
-            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-          )}
-          {t("knowledgeBases.browseFiles")}
-        </Button>
-        <p className="mt-2 text-xs text-[hsl(var(--muted-foreground))]">
-          {t("knowledgeBases.supportedTypes")}
-        </p>
-        <input
-          ref={fileInputRef}
-          type="file"
-          className="hidden"
-          accept=".txt,.md,.pdf,.csv"
-          multiple
-          onChange={(e) => handleFiles(e.target.files)}
-        />
-      </div>
-
       {showSettings && kb && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
           <div className="w-full max-w-md rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-6 shadow-lg">
@@ -537,84 +504,155 @@ export default function KnowledgeBaseDetailPage({
         destructive
       />
 
-      {docsLoading && (
-        <div className="flex items-center justify-center py-8">
-          <Loader2 className="h-5 w-5 animate-spin text-[hsl(var(--muted-foreground))]" />
-        </div>
-      )}
+      {(() => {
+        const documentsPanel = (
+          <div className="space-y-4">
+            <div
+              className={`flex flex-col items-center justify-center rounded-lg border-2 border-dashed p-8 transition-colors ${
+                isDragging
+                  ? "border-[hsl(var(--primary))] bg-[hsl(var(--primary)/0.05)]"
+                  : "border-[hsl(var(--border))]"
+              }`}
+              onDragOver={(e) => {
+                e.preventDefault();
+                setIsDragging(true);
+              }}
+              onDragLeave={() => setIsDragging(false)}
+              onDrop={handleDrop}
+            >
+              <Upload className="mb-2 h-8 w-8 text-[hsl(var(--muted-foreground))]" />
+              <p className="mb-1 text-sm text-[hsl(var(--muted-foreground))]">
+                {t("knowledgeBases.dragDropHere")}
+              </p>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={uploadMutation.isPending}
+              >
+                {uploadMutation.isPending && (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                )}
+                {t("knowledgeBases.browseFiles")}
+              </Button>
+              <p className="mt-2 text-xs text-[hsl(var(--muted-foreground))]">
+                {t("knowledgeBases.supportedTypes")}
+              </p>
+              <input
+                ref={fileInputRef}
+                type="file"
+                className="hidden"
+                accept=".txt,.md,.pdf,.csv"
+                multiple
+                onChange={(e) => handleFiles(e.target.files)}
+              />
+            </div>
 
-      {!docsLoading && documents.length === 0 && (
-        <p className="py-8 text-center text-sm text-[hsl(var(--muted-foreground))]">
-          {t("knowledgeBases.noDocumentsHint")}
-        </p>
-      )}
+            {docsLoading && (
+              <div className="flex items-center justify-center py-8">
+                <Loader2 className="h-5 w-5 animate-spin text-[hsl(var(--muted-foreground))]" />
+              </div>
+            )}
 
-      {!docsLoading && documents.length > 0 && (
-        <div className="overflow-x-auto rounded-lg border border-[hsl(var(--border))]">
-          <table className="w-full text-sm">
-            <thead className="bg-[hsl(var(--muted))]">
-              <tr>
-                <th className="px-4 py-3 text-left font-medium">{t("common.name")}</th>
-                <th className="px-4 py-3 text-left font-medium">{t("common.type")}</th>
-                <th className="px-4 py-3 text-left font-medium">{t("knowledgeBases.columnSize")}</th>
-                <th className="px-4 py-3 text-left font-medium">{t("common.status")}</th>
-                <th className="px-4 py-3 text-left font-medium">{t("knowledgeBases.columnChunks")}</th>
-                <th className="px-4 py-3 text-left font-medium">{t("common.actions")}</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-[hsl(var(--border))]">
-              {documents.map((doc) => {
-                const status = STATUS_CONFIG[doc.embeddingStatus] ?? STATUS_CONFIG.pending;
-                return (
-                  <tr key={doc.id}>
-                    <td className="px-4 py-3 font-medium">
-                      <div className="flex items-center gap-2">
-                        <FileText className="h-4 w-4 text-[hsl(var(--muted-foreground))]" />
-                        {doc.name}
-                      </div>
-                    </td>
-                    <td className="px-4 py-3 uppercase text-xs font-mono">
-                      {doc.fileType}
-                    </td>
-                    <td className="px-4 py-3 text-[hsl(var(--muted-foreground))]">
-                      {formatFileSize(doc.fileSize)}
-                    </td>
-                    <td className="px-4 py-3">
-                      <Badge variant={status.variant}>
-                        <span className="mr-1">{status.icon}</span>
-                        {t(status.labelKey)}
-                      </Badge>
-                    </td>
-                    <td className="px-4 py-3">{doc.chunkCount}</td>
-                    <td className="px-4 py-3">
-                      <div className="flex items-center gap-1">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-7 w-7"
-                          title={t("knowledgeBases.reembedTooltip")}
-                          disabled={reEmbedMutation.isPending}
-                          onClick={() => reEmbedMutation.mutate(doc.id)}
-                        >
-                          <RefreshCw className="h-3 w-3" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-7 w-7 text-[hsl(var(--destructive))]"
-                          onClick={() => setDeleteTarget(doc.id)}
-                        >
-                          <Trash2 className="h-3 w-3" />
-                        </Button>
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      )}
+            {!docsLoading && documents.length === 0 && (
+              <p className="py-8 text-center text-sm text-[hsl(var(--muted-foreground))]">
+                {t("knowledgeBases.noDocumentsHint")}
+              </p>
+            )}
+
+            {!docsLoading && documents.length > 0 && (
+              <div className="overflow-x-auto rounded-lg border border-[hsl(var(--border))]">
+                <table className="w-full text-sm">
+                  <thead className="bg-[hsl(var(--muted))]">
+                    <tr>
+                      <th className="px-4 py-3 text-left font-medium">{t("common.name")}</th>
+                      <th className="px-4 py-3 text-left font-medium">{t("common.type")}</th>
+                      <th className="px-4 py-3 text-left font-medium">{t("knowledgeBases.columnSize")}</th>
+                      <th className="px-4 py-3 text-left font-medium">{t("common.status")}</th>
+                      <th className="px-4 py-3 text-left font-medium">{t("knowledgeBases.columnChunks")}</th>
+                      <th className="px-4 py-3 text-left font-medium">{t("common.actions")}</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-[hsl(var(--border))]">
+                    {documents.map((doc) => {
+                      const status = STATUS_CONFIG[doc.embeddingStatus] ?? STATUS_CONFIG.pending;
+                      return (
+                        <tr key={doc.id}>
+                          <td className="px-4 py-3 font-medium">
+                            <div className="flex items-center gap-2">
+                              <FileText className="h-4 w-4 text-[hsl(var(--muted-foreground))]" />
+                              {doc.name}
+                            </div>
+                          </td>
+                          <td className="px-4 py-3 uppercase text-xs font-mono">
+                            {doc.fileType}
+                          </td>
+                          <td className="px-4 py-3 text-[hsl(var(--muted-foreground))]">
+                            {formatFileSize(doc.fileSize)}
+                          </td>
+                          <td className="px-4 py-3">
+                            <Badge variant={status.variant}>
+                              <span className="mr-1">{status.icon}</span>
+                              {t(status.labelKey)}
+                            </Badge>
+                          </td>
+                          <td className="px-4 py-3">{doc.chunkCount}</td>
+                          <td className="px-4 py-3">
+                            <div className="flex items-center gap-1">
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-7 w-7"
+                                title={t("knowledgeBases.reembedTooltip")}
+                                disabled={reEmbedMutation.isPending}
+                                onClick={() => reEmbedMutation.mutate(doc.id)}
+                              >
+                                <RefreshCw className="h-3 w-3" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-7 w-7 text-[hsl(var(--destructive))]"
+                                onClick={() => setDeleteTarget(doc.id)}
+                              >
+                                <Trash2 className="h-3 w-3" />
+                              </Button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        );
+
+        if (!isGraphMode) return documentsPanel;
+        return (
+          <Tabs defaultValue="documents">
+            <TabsList>
+              <TabsTrigger value="documents">
+                {t("knowledgeBases.tabDocuments")}
+              </TabsTrigger>
+              <TabsTrigger value="entities">
+                {t("knowledgeBases.tabEntities")}
+              </TabsTrigger>
+              <TabsTrigger value="relations">
+                {t("knowledgeBases.tabRelations")}
+              </TabsTrigger>
+            </TabsList>
+            <TabsContent value="documents">{documentsPanel}</TabsContent>
+            <TabsContent value="entities">
+              <EntityList kbId={id} />
+            </TabsContent>
+            <TabsContent value="relations">
+              <RelationList kbId={id} />
+            </TabsContent>
+          </Tabs>
+        );
+      })()}
     </div>
   );
 }

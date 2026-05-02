@@ -174,6 +174,79 @@ export class KbReExtractAcceptedDto {
   documentCount: number;
 }
 
+/** Graph entity (P1 entity 목록) */
+export class GraphEntityDto {
+  @ApiProperty({ format: 'uuid' })
+  id: string;
+
+  @ApiProperty({ example: 'acme corp' })
+  name: string;
+
+  @ApiProperty({ example: 'Acme Corp' })
+  displayName: string;
+
+  @ApiProperty({
+    enum: ['person', 'organization', 'concept', 'location', 'event', 'other'],
+  })
+  type: string;
+
+  @ApiPropertyOptional({ nullable: true })
+  description?: string | null;
+
+  @ApiProperty({ example: 12 })
+  mentionCount: number;
+
+  @ApiProperty({ format: 'date-time' })
+  createdAt: string;
+
+  @ApiProperty({ format: 'date-time' })
+  updatedAt: string;
+}
+
+/** entity 상세에서 함께 반환되는 등장 chunk 미리보기 */
+export class EntityChunkPreviewDto {
+  @ApiProperty({ format: 'uuid' })
+  chunkId: string;
+
+  @ApiProperty({ format: 'uuid' })
+  documentId: string;
+
+  @ApiProperty({ example: 'Acme Annual Report 2024' })
+  documentName: string;
+
+  @ApiProperty({ example: 'Acme Corp announced...' })
+  contentPreview: string;
+}
+
+export class GraphEntityDetailDto extends GraphEntityDto {
+  @ApiProperty({ type: [EntityChunkPreviewDto] })
+  mentionedInChunks: EntityChunkPreviewDto[];
+}
+
+/** Graph relation (P1 relation 목록) */
+export class GraphRelationDto {
+  @ApiProperty({ format: 'uuid' })
+  id: string;
+
+  @ApiProperty({ example: 'founded' })
+  predicate: string;
+
+  @ApiProperty({ example: 4 })
+  weight: number;
+
+  @ApiProperty({ type: GraphEntityDto, nullable: true })
+  headEntity: GraphEntityDto | null;
+
+  @ApiProperty({ type: GraphEntityDto, nullable: true })
+  tailEntity: GraphEntityDto | null;
+
+  @ApiProperty({ format: 'date-time' })
+  createdAt: string;
+
+  @ApiProperty({ format: 'date-time' })
+  updatedAt: string;
+}
+
 /** 그래프 통계 응답 */
 export class KbGraphStatsDto {
   @ApiProperty({ example: 1240, description: 'KB 내 entity 총 수' })

@@ -48,6 +48,46 @@ export interface KbGraphStats {
   reextractStatus: "idle" | "in_progress";
 }
 
+export type EntityType =
+  | "person"
+  | "organization"
+  | "concept"
+  | "location"
+  | "event"
+  | "other";
+
+export interface GraphEntity {
+  id: string;
+  name: string;
+  displayName: string;
+  type: EntityType;
+  description?: string | null;
+  mentionCount: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface EntityChunkPreview {
+  chunkId: string;
+  documentId: string;
+  documentName: string;
+  contentPreview: string;
+}
+
+export interface GraphEntityDetail extends GraphEntity {
+  mentionedInChunks: EntityChunkPreview[];
+}
+
+export interface GraphRelation {
+  id: string;
+  predicate: string;
+  weight: number;
+  headEntity: GraphEntity | null;
+  tailEntity: GraphEntity | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export const knowledgeBasesApi = {
   async getAll(params?: { page?: number; limit?: number; search?: string }) {
     const { data } = await apiClient.get("/knowledge-bases", { params });
@@ -160,5 +200,46 @@ export const knowledgeBasesApi = {
     );
     const body = (data as { data?: unknown })?.data ?? data;
     return body as KbGraphStats;
+  },
+
+  async getEntities(
+    kbId: string,
+    params?: {
+      page?: number;
+      limit?: number;
+      search?: string;
+      type?: EntityType;
+    },
+  ) {
+    const { data } = await apiClient.get(`/knowledge-bases/${kbId}/entities`, {
+      params,
+    });
+    return data;
+  },
+
+  async getEntityDetail(kbId: string, entityId: string) {
+    const { data } = await apiClient.get(
+      `/knowledge-bases/${kbId}/entities/${entityId}`,
+    );
+    const body = (data as { data?: unknown })?.data ?? data;
+    return body as GraphEntityDetail;
+  },
+
+  async deleteEntity(kbId: string, entityId: string) {
+    await apiClient.delete(`/knowledge-bases/${kbId}/entities/${entityId}`);
+  },
+
+  async getRelations(
+    kbId: string,
+    params?: { page?: number; limit?: number; search?: string },
+  ) {
+    const { data } = await apiClient.get(`/knowledge-bases/${kbId}/relations`, {
+      params,
+    });
+    return data;
+  },
+
+  async deleteRelation(kbId: string, relationId: string) {
+    await apiClient.delete(`/knowledge-bases/${kbId}/relations/${relationId}`);
   },
 };

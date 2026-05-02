@@ -40,11 +40,15 @@ import {
 } from '../../common/swagger';
 import { KnowledgeBaseService } from './knowledge-base.service';
 import { RagSearchService } from './search/rag-search.service';
+import { GraphQueryService } from './graph/graph-query.service';
 import { CreateKnowledgeBaseDto } from './dto/create-knowledge-base.dto';
 import { UpdateKnowledgeBaseDto } from './dto/update-knowledge-base.dto';
 import { RagSearchDto } from './dto/rag-search.dto';
 import {
   DocumentDto,
+  GraphEntityDetailDto,
+  GraphEntityDto,
+  GraphRelationDto,
   KbGraphStatsDto,
   KbReEmbedAcceptedDto,
   KbReExtractAcceptedDto,
@@ -65,6 +69,7 @@ export class KnowledgeBaseController {
   constructor(
     private readonly kbService: KnowledgeBaseService,
     private readonly ragSearchService: RagSearchService,
+    private readonly graphQueryService: GraphQueryService,
   ) {}
 
   // ── Knowledge Base CRUD ──
@@ -198,6 +203,114 @@ export class KnowledgeBaseController {
   ) {
     await this.kbService.reExtractDocument(docId, id, workspaceId);
     return { message: 'Graph re-extraction started' };
+  }
+
+  @Get(':id/entities')
+  @ApiOperation({
+    summary: 'Entity 목록 (graph 모드)',
+    description:
+      'graph 모드 KB 의 entity 목록. mention_count desc 정렬. type 필터 / name·display_name 검색 지원.',
+  })
+  @ApiParam({ name: 'id', description: '지식 베이스 UUID', format: 'uuid' })
+  @ApiOkPaginatedResponse(GraphEntityDto, {
+    description: 'Entity 목록 + 페이지네이션 메타',
+  })
+  @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
+  @ApiNotFoundResponse({ description: '해당 지식 베이스를 찾을 수 없음' })
+  async listEntities(
+    @Param('id', ParseUUIDPipe) id: string,
+    @WorkspaceId() workspaceId: string,
+    @Query() query: PaginationQueryDto,
+    @Query('type') type?: string,
+  ) {
+    return this.graphQueryService.listEntities(id, workspaceId, {
+      page: query.page,
+      limit: query.limit,
+      search: query.search,
+      type,
+    });
+  }
+
+  @Get(':id/entities/:entityId')
+  @ApiOperation({
+    summary: 'Entity 상세 (graph 모드) — 등장 chunk 포함',
+  })
+  @ApiParam({ name: 'id', description: '지식 베이스 UUID', format: 'uuid' })
+  @ApiParam({ name: 'entityId', description: 'Entity UUID', format: 'uuid' })
+  @ApiOkWrappedResponse(GraphEntityDetailDto, {
+    description: 'Entity 상세 + 등장 chunk 미리보기 (최대 100건)',
+  })
+  @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
+  @ApiNotFoundResponse({ description: '해당 entity 를 찾을 수 없음' })
+  async getEntity(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Param('entityId', ParseUUIDPipe) entityId: string,
+    @WorkspaceId() workspaceId: string,
+  ) {
+    return this.graphQueryService.getEntityDetail(id, entityId, workspaceId);
+  }
+
+  @Delete(':id/entities/:entityId')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @Roles('editor')
+  @ApiOperation({
+    summary: 'Entity 삭제 (graph 모드)',
+    description:
+      '관련 relation 및 chunk_entity 매핑은 CASCADE 로 함께 삭제됩니다. KB.entity_count / relation_count 캐시도 갱신.',
+  })
+  @ApiParam({ name: 'id', description: '지식 베이스 UUID', format: 'uuid' })
+  @ApiParam({ name: 'entityId', description: 'Entity UUID', format: 'uuid' })
+  @ApiNoContentResponse({ description: '삭제 성공' })
+  @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
+  @ApiForbiddenResponse({ description: 'editor 이상 권한 필요' })
+  @ApiNotFoundResponse({ description: '해당 entity 를 찾을 수 없음' })
+  async deleteEntity(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Param('entityId', ParseUUIDPipe) entityId: string,
+    @WorkspaceId() workspaceId: string,
+  ): Promise<void> {
+    await this.graphQueryService.deleteEntity(id, entityId, workspaceId);
+  }
+
+  @Get(':id/relations')
+  @ApiOperation({
+    summary: 'Relation 목록 (graph 모드)',
+    description: 'weight desc 정렬. predicate / head·tail entity name 검색 지원.',
+  })
+  @ApiParam({ name: 'id', description: '지식 베이스 UUID', format: 'uuid' })
+  @ApiOkPaginatedResponse(GraphRelationDto, {
+    description: 'Relation 목록 + 페이지네이션 메타',
+  })
+  @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
+  @ApiNotFoundResponse({ description: '해당 지식 베이스를 찾을 수 없음' })
+  async listRelations(
+    @Param('id', ParseUUIDPipe) id: string,
+    @WorkspaceId() workspaceId: string,
+    @Query() query: PaginationQueryDto,
+  ) {
+    return this.graphQueryService.listRelations(id, workspaceId, query);
+  }
+
+  @Delete(':id/relations/:relationId')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @Roles('editor')
+  @ApiOperation({ summary: 'Relation 삭제 (graph 모드)' })
+  @ApiParam({ name: 'id', description: '지식 베이스 UUID', format: 'uuid' })
+  @ApiParam({
+    name: 'relationId',
+    description: 'Relation UUID',
+    format: 'uuid',
+  })
+  @ApiNoContentResponse({ description: '삭제 성공' })
+  @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
+  @ApiForbiddenResponse({ description: 'editor 이상 권한 필요' })
+  @ApiNotFoundResponse({ description: '해당 relation 을 찾을 수 없음' })
+  async deleteRelation(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Param('relationId', ParseUUIDPipe) relationId: string,
+    @WorkspaceId() workspaceId: string,
+  ): Promise<void> {
+    await this.graphQueryService.deleteRelation(id, relationId, workspaceId);
   }
 
   @Get(':id/graph-stats')
