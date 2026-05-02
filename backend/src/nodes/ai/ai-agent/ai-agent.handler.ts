@@ -18,6 +18,23 @@ const MAX_REWRITE_QUERIES = 5;
 // 쿼리 rewrite 시 LLM 에 넘길 직전 대화 메시지 최대 개수 (user/assistant 합쳐서).
 const REWRITE_HISTORY_MESSAGES = 6;
 
+/**
+ * 한 turn 의 RAG 시도에 대한 진단. 노드 실행 결과의 `meta.ragDiagnostics` 로 노출되어
+ * 사용자가 "왜 RAG 가 안 잡혔는지" 즉시 파악할 수 있게 한다.
+ */
+interface RagDiagnostics {
+  /** RAG 가 실제로 search 호출까지 갔는지. false 면 진입 가드에서 스킵. */
+  attempted: boolean;
+  /** 시도된 KB 수 (config.knowledgeBases.length). */
+  searchedKbCount: number;
+  /** rewrite 가 생성한 실제 query 들. rewrite=false 거나 rewrite 실패 시 [originalUserMessage]. */
+  queriesUsed: string[];
+  /** 병합 + topK slice 후 최종 chunk 개수. */
+  resultCount: number;
+  /** attempted=false 이거나 resultCount=0 일 때 사유. 정상 결과면 생략. */
+  skipReason?: 'empty_user_prompt' | 'empty_kb_list' | 'no_results';
+}
+
 interface ConditionDef {
   id: string;
   label: string;
@@ -110,18 +127,23 @@ export class AiAgentHandler implements NodeHandler {
     // Build system prompt with RAG context + condition instructions
     let finalSystemPrompt = systemPrompt;
     let ragSources: unknown[] = [];
+    let ragQueriesUsed: string[] = [];
+    let ragResultCount = 0;
 
     if (knowledgeBases.length > 0 && userPrompt) {
-      const searchResults = await this.searchKnowledgeBasesWithRewrite({
-        llmConfig,
-        rewriteModel: model || llmConfig.defaultModel,
-        knowledgeBases,
-        workspaceId,
-        userMessage: userPrompt,
-        topK: ragTopK,
-        threshold: ragThreshold,
-        rewrite: ragQueryRewrite,
-      });
+      const { results: searchResults, queriesUsed } =
+        await this.searchKnowledgeBasesWithRewrite({
+          llmConfig,
+          rewriteModel: model || llmConfig.defaultModel,
+          knowledgeBases,
+          workspaceId,
+          userMessage: userPrompt,
+          topK: ragTopK,
+          threshold: ragThreshold,
+          rewrite: ragQueryRewrite,
+        });
+      ragQueriesUsed = queriesUsed;
+      ragResultCount = searchResults.length;
 
       if (searchResults.length > 0) {
         const ragContext = this.ragSearchService.buildContext(searchResults);
@@ -129,6 +151,12 @@ export class AiAgentHandler implements NodeHandler {
         ragSources = ragContext.sources;
       }
     }
+    const ragDiagnostics = buildRagDiagnostics({
+      kbCount: knowledgeBases.length,
+      userMessage: userPrompt,
+      queriesUsed: ragQueriesUsed,
+      resultCount: ragResultCount,
+    });
 
     // Inject condition instructions into system prompt
     if (conditions.length > 0) {
@@ -211,6 +239,7 @@ export class AiAgentHandler implements NodeHandler {
             totalThinkingTokens: result.usage?.thinkingTokens ?? 0,
             toolCalls: toolCallCount,
             ragSources,
+            ragDiagnostics,
           },
           {
             llmCalls,
@@ -325,6 +354,7 @@ export class AiAgentHandler implements NodeHandler {
         thinkingTokens: result.usage?.thinkingTokens ?? 0,
         toolCalls: toolCallCount,
         ragSources,
+        ragDiagnostics,
         turnDebug: [
           {
             turnIndex: 1,
@@ -366,18 +396,23 @@ export class AiAgentHandler implements NodeHandler {
     // Build system prompt with RAG context for the initial prompt
     let finalSystemPrompt = systemPrompt;
     let ragSources: unknown[] = [];
+    let ragQueriesUsed: string[] = [];
+    let ragResultCount = 0;
 
     if (knowledgeBases.length > 0 && userPrompt) {
-      const searchResults = await this.searchKnowledgeBasesWithRewrite({
-        llmConfig,
-        rewriteModel: model || llmConfig.defaultModel,
-        knowledgeBases,
-        workspaceId,
-        userMessage: userPrompt,
-        topK: ragTopK,
-        threshold: ragThreshold,
-        rewrite: ragQueryRewrite,
-      });
+      const { results: searchResults, queriesUsed } =
+        await this.searchKnowledgeBasesWithRewrite({
+          llmConfig,
+          rewriteModel: model || llmConfig.defaultModel,
+          knowledgeBases,
+          workspaceId,
+          userMessage: userPrompt,
+          topK: ragTopK,
+          threshold: ragThreshold,
+          rewrite: ragQueryRewrite,
+        });
+      ragQueriesUsed = queriesUsed;
+      ragResultCount = searchResults.length;
 
       if (searchResults.length > 0) {
         const ragContext = this.ragSearchService.buildContext(searchResults);
@@ -385,6 +420,12 @@ export class AiAgentHandler implements NodeHandler {
         ragSources = ragContext.sources;
       }
     }
+    const ragDiagnostics = buildRagDiagnostics({
+      kbCount: knowledgeBases.length,
+      userMessage: userPrompt,
+      queriesUsed: ragQueriesUsed,
+      resultCount: ragResultCount,
+    });
 
     // Inject condition instructions
     if (conditions.length > 0) {
@@ -442,6 +483,7 @@ export class AiAgentHandler implements NodeHandler {
           totalThinkingTokens: 0,
           toolCalls: 0,
           ragSources,
+          ragLastDiagnostics: ragDiagnostics,
         },
       };
     }
@@ -516,6 +558,7 @@ export class AiAgentHandler implements NodeHandler {
             totalThinkingTokens: result.usage?.thinkingTokens ?? 0,
             toolCalls: toolCallCount,
             ragSources,
+            ragDiagnostics,
           },
           {
             llmCalls: firstTurnLlmCalls,
@@ -609,6 +652,7 @@ export class AiAgentHandler implements NodeHandler {
         totalThinkingTokens,
         toolCalls: toolCallCount,
         ragSources,
+        ragLastDiagnostics: ragDiagnostics,
         lastTurnRequest: firstTurnRequest,
         lastTurnResponse: result,
         lastTurnDurationMs: firstTurnDurationMs,
@@ -660,18 +704,23 @@ export class AiAgentHandler implements NodeHandler {
     );
 
     // RAG search on new user message — query rewrite 활성 시 history 를 함께 넘겨 다중 쿼리 생성.
+    let ragQueriesUsed: string[] = [];
+    let ragResultCount = 0;
     if (knowledgeBases.length > 0 && userMessage) {
-      const searchResults = await this.searchKnowledgeBasesWithRewrite({
-        llmConfig: llmConfigForRag,
-        rewriteModel: state.model as string,
-        knowledgeBases,
-        workspaceId,
-        userMessage,
-        topK: ragTopK,
-        threshold: ragThreshold,
-        rewrite: ragQueryRewrite,
-        history: historyForRewrite,
-      });
+      const { results: searchResults, queriesUsed } =
+        await this.searchKnowledgeBasesWithRewrite({
+          llmConfig: llmConfigForRag,
+          rewriteModel: state.model as string,
+          knowledgeBases,
+          workspaceId,
+          userMessage,
+          topK: ragTopK,
+          threshold: ragThreshold,
+          rewrite: ragQueryRewrite,
+          history: historyForRewrite,
+        });
+      ragQueriesUsed = queriesUsed;
+      ragResultCount = searchResults.length;
 
       if (searchResults.length > 0) {
         const ragContext = this.ragSearchService.buildContext(searchResults);
@@ -680,6 +729,13 @@ export class AiAgentHandler implements NodeHandler {
         ragSources = [...ragSources, ...ragContext.sources];
       }
     }
+    // 직전 turn 의 RAG 시도 진단. 누적이 아닌 "방금 turn" 만 추적해 디버깅이 명확하다.
+    const ragDiagnostics = buildRagDiagnostics({
+      kbCount: knowledgeBases.length,
+      userMessage,
+      queriesUsed: ragQueriesUsed,
+      resultCount: ragResultCount,
+    });
     const llmConfig = llmConfigForRag;
     const model = state.model as string;
     const temperature = state.temperature as number | undefined;
@@ -760,6 +816,7 @@ export class AiAgentHandler implements NodeHandler {
             totalThinkingTokens,
             toolCalls: toolCallCount,
             ragSources,
+            ragDiagnostics,
           },
           { llmCalls, totalDurationMs: Date.now() - turnStartedAt },
           condTurnDebugHistory,
@@ -850,6 +907,7 @@ export class AiAgentHandler implements NodeHandler {
           totalThinkingTokens,
           toolCalls: toolCallCount,
           ragSources,
+          ragDiagnostics,
         },
         { llmCalls, totalDurationMs: turnDurationMs },
         turnDebugHistory,
@@ -879,6 +937,7 @@ export class AiAgentHandler implements NodeHandler {
         totalThinkingTokens,
         toolCalls: toolCallCount,
         ragSources,
+        ragLastDiagnostics: ragDiagnostics,
         lastTurnRequest: chatParams,
         lastTurnResponse: result,
         lastTurnDurationMs: turnDurationMs,
@@ -914,6 +973,7 @@ export class AiAgentHandler implements NodeHandler {
         totalThinkingTokens: (state.totalThinkingTokens as number) ?? 0,
         toolCalls: (state.toolCalls as number) ?? 0,
         ragSources: (state.ragSources as unknown[]) ?? [],
+        ragDiagnostics: state.ragLastDiagnostics as RagDiagnostics | undefined,
       },
       undefined,
       (state.turnDebugHistory as unknown[]) ?? [],
@@ -932,6 +992,7 @@ export class AiAgentHandler implements NodeHandler {
       totalThinkingTokens?: number;
       toolCalls: number;
       ragSources: unknown[];
+      ragDiagnostics?: RagDiagnostics;
     },
     turnDebug?: {
       llmCalls?: unknown[];
@@ -963,6 +1024,7 @@ export class AiAgentHandler implements NodeHandler {
         thinkingTokens: metadata.totalThinkingTokens ?? 0,
         toolCalls: metadata.toolCalls,
         ragSources: metadata.ragSources,
+        ragDiagnostics: metadata.ragDiagnostics,
         turnDebug: turnDebugHistory ?? [],
       },
       port: 'out',
@@ -985,6 +1047,7 @@ export class AiAgentHandler implements NodeHandler {
       totalThinkingTokens?: number;
       toolCalls: number;
       ragSources: unknown[];
+      ragDiagnostics?: RagDiagnostics;
     },
     turnDebug?: {
       llmCalls?: unknown[];
@@ -1020,6 +1083,7 @@ export class AiAgentHandler implements NodeHandler {
         thinkingTokens: metadata.totalThinkingTokens ?? 0,
         toolCalls: metadata.toolCalls,
         ragSources: metadata.ragSources,
+        ragDiagnostics: metadata.ragDiagnostics,
         turnDebug: turnDebugHistory ?? [],
       },
       port: condition.id,
@@ -1168,7 +1232,7 @@ export class AiAgentHandler implements NodeHandler {
     threshold: number;
     rewrite: boolean;
     history?: ChatMessage[];
-  }): Promise<SearchResult[]> {
+  }): Promise<{ results: SearchResult[]; queriesUsed: string[] }> {
     const {
       llmConfig,
       rewriteModel,
@@ -1180,7 +1244,9 @@ export class AiAgentHandler implements NodeHandler {
       rewrite,
       history,
     } = opts;
-    if (!knowledgeBases.length || !userMessage) return [];
+    if (!knowledgeBases.length || !userMessage) {
+      return { results: [], queriesUsed: [] };
+    }
 
     const queries = rewrite
       ? await this.rewriteQueriesForRag({
@@ -1201,7 +1267,10 @@ export class AiAgentHandler implements NodeHandler {
         }),
       ),
     );
-    return mergeRagResults(perQueryResults, topK);
+    return {
+      results: mergeRagResults(perQueryResults, topK),
+      queriesUsed: queries,
+    };
   }
 
   /**
@@ -1319,4 +1388,53 @@ function mergeRagResults(
   const merged = Array.from(byChunk.values());
   merged.sort((a, b) => b.score - a.score);
   return merged.slice(0, topK);
+}
+
+/**
+ * 한 turn 의 RAG 시도 결과를 진단 객체로 변환.
+ * - kbCount=0           → empty_kb_list (attempted=false)
+ * - userMessage 비었음   → empty_user_prompt (attempted=false)
+ * - 검색 시도했으나 0건  → no_results (attempted=true)
+ * - 정상                → skipReason 생략 (attempted=true)
+ */
+function buildRagDiagnostics(opts: {
+  kbCount: number;
+  userMessage: string;
+  queriesUsed: string[];
+  resultCount: number;
+}): RagDiagnostics {
+  const { kbCount, userMessage, queriesUsed, resultCount } = opts;
+  if (kbCount === 0) {
+    return {
+      attempted: false,
+      searchedKbCount: 0,
+      queriesUsed: [],
+      resultCount: 0,
+      skipReason: 'empty_kb_list',
+    };
+  }
+  if (!userMessage) {
+    return {
+      attempted: false,
+      searchedKbCount: kbCount,
+      queriesUsed: [],
+      resultCount: 0,
+      skipReason: 'empty_user_prompt',
+    };
+  }
+  if (resultCount === 0) {
+    return {
+      attempted: true,
+      searchedKbCount: kbCount,
+      queriesUsed,
+      resultCount: 0,
+      skipReason: 'no_results',
+    };
+  }
+  return {
+    attempted: true,
+    searchedKbCount: kbCount,
+    queriesUsed,
+    resultCount,
+  };
 }
