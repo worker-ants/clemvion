@@ -172,11 +172,13 @@ describe('RagSearchService', () => {
     });
 
     it('should skip KBs with unsupported embedding_dimension (no partial index)', async () => {
+      // 999 차원은 SUPPORTED_EMBEDDING_DIMS 에 없으므로 partial HNSW 인덱스가 없다.
+      // 새 차원이 추가되면 본 테스트는 다시 SUPPORTED 외 값으로 갱신한다.
       mockDataSource.query.mockResolvedValueOnce([
         makeKbRow({
           id: 'kb-1',
           embeddingModel: 'custom-model',
-          embeddingDimension: 512,
+          embeddingDimension: 999,
         }),
       ]);
 
