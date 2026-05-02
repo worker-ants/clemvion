@@ -109,13 +109,14 @@
 
 ### 3.5 Knowledge Base
 
-> 상세: [PRD 통합/연동 §3](./4-integration.md), [Spec Knowledge Base](../spec/2-navigation/5-knowledge-base.md)
+> 상세: [PRD 통합/연동 §3](./4-integration.md), [Spec Knowledge Base](../spec/2-navigation/5-knowledge-base.md). Graph RAG 검색 모드는 [PRD 9 Graph RAG](./9-graph-rag.md) 에 별도 정의.
 
 | ID | 요구사항 | 우선순위 |
 |----|----------|----------|
 | KB-DC-01 | Knowledge Base 컬렉션 생성/관리 | 필수 |
 | KB-DC-02 | 문서 업로드 (txt, md, pdf, csv) | 필수 |
 | KB-DC-03 | 문서 검색 및 미리보기 | 필수 |
+| KB-MD-01 | 검색 모드 (`vector` / `graph`) 선택 — 생성 시에만 결정 (불변). graph 상세: [PRD 9](./9-graph-rag.md) | 필수 |
 | KB-VE-01 | 문서 업로드 시 자동 벡터 임베딩 생성 | 필수 |
 | KB-VE-02 | 임베딩 모델 선택 (LLM Config 연동) | 필수 |
 | KB-VE-03 | 문서 수정 시 자동 재임베딩 | 필수 |

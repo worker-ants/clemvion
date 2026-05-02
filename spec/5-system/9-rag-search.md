@@ -1,12 +1,19 @@
 # Spec: RAG 검색 엔진
 
-> 관련 문서: [PRD AI & 지식 저장소](../../prd/6-phase2-ai.md) · [Spec AI 노드 §1](../4-nodes/3-ai-nodes.md) · [Spec 임베딩 파이프라인](./8-embedding-pipeline.md) · [Spec Knowledge Base](../2-navigation/5-knowledge-base.md)
+> 관련 문서: [PRD AI & 지식 저장소](../../prd/6-phase2-ai.md) · [Spec AI 노드 §1](../4-nodes/3-ai-nodes.md) · [Spec 임베딩 파이프라인](./8-embedding-pipeline.md) · [Spec Graph RAG](./10-graph-rag.md) · [Spec Knowledge Base](../2-navigation/5-knowledge-base.md)
 
 ---
 
 ## 1. 개요
 
 AI Agent 노드가 Knowledge Base의 관련 문서를 검색하여 LLM 컨텍스트에 추가하는 RAG(Retrieval-Augmented Generation) 검색 엔진.
+
+KB 의 `rag_mode` 에 따라 흐름이 분기된다:
+
+- `vector` (default): 본 문서에서 정의하는 vector 유사도 검색
+- `graph`: vector seed → 그래프 확장 → rerank 의 Hybrid 흐름. 상세는 [Spec Graph RAG §4](./10-graph-rag.md#4-검색-흐름-hybrid)
+
+복수 KB 를 동시에 검색할 때(`knowledgeBaseIds[]`) 각 KB 의 `rag_mode` 에 맞는 흐름으로 개별 검색한 뒤 결과를 score 기준으로 병합한다 (vector / graph KB 가 섞여도 동작).
 
 ---
 

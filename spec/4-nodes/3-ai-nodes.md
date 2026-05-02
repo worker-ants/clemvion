@@ -1,6 +1,6 @@
 # Spec: AI 노드 상세 (3종)
 
-> 관련 문서: [PRD 노드 시스템](../../prd/3-node-system.md#5-ai-노드) · [Spec 노드 개요](./0-overview.md) · [Spec Knowledge Base](../2-navigation/5-knowledge-base.md) · [Spec LLM Config](../2-navigation/6-config.md)
+> 관련 문서: [PRD 노드 시스템](../../prd/3-node-system.md#5-ai-노드) · [PRD Graph RAG](../../prd/9-graph-rag.md) · [Spec 노드 개요](./0-overview.md) · [Spec Knowledge Base](../2-navigation/5-knowledge-base.md) · [Spec RAG 검색](../5-system/9-rag-search.md) · [Spec Graph RAG](../5-system/10-graph-rag.md) · [Spec LLM Config](../2-navigation/6-config.md)
 
 ---
 
@@ -21,9 +21,9 @@ LLM 기반 AI Agent를 실행. 프롬프트, RAG, Tool Use를 지원. **Single T
 | maxTokens | Integer? | 오버라이드 |
 | responseFormat | Enum | `text` / `json` |
 | jsonSchema | JSONSchema? | responseFormat=json 시 출력 스키마 |
-| knowledgeBases | UUID[] | 참조할 Knowledge Base ID 목록 |
-| ragTopK | Integer | RAG 검색 결과 수 (기본: 5) |
-| ragThreshold | Float | RAG 유사도 임계값 (기본: 0.7) |
+| knowledgeBases | UUID[] | 참조할 Knowledge Base ID 목록. 모드(`vector` / `graph`) 는 KB 마다 다를 수 있으며 RagSearchService 가 KB 별로 흐름을 분기한다 |
+| ragTopK | Integer | RAG 검색 결과 수 (기본: 5). graph 모드 KB 에서도 동일하게 작용 (rerank 후 상위 K 만 컨텍스트에 주입) |
+| ragThreshold | Float | RAG 유사도 임계값 (기본: 0.7). graph 모드 KB 의 vector seed 단계에 적용 |
 | toolNodeIds | UUID[] | Tool Area에 등록된 도구 노드 ID 목록 (Tool Area에서 자동 관리) |
 | toolOverrides | ToolOverride[] | 도구별 이름/설명 오버라이드 (선택) |
 | maxToolCalls | Integer | 최대 도구 호출 횟수 (기본: 10) |
@@ -270,11 +270,20 @@ LLM 응답의 `toolCalls`를 순회할 때 다음 로직을 적용:
     "totalTokens": 1600,
     "toolCalls": 2,
     "ragSources": [
-      { "documentId": "uuid", "chunk": "관련 텍스트...", "score": 0.92 }
-    ]
+      { "documentId": "uuid", "chunk": "관련 텍스트...", "score": 0.92, "origin": "seed" }
+    ],
+    "graphTraversal": {
+      "mode": "graph",
+      "seedChunkCount": 5,
+      "traversedEntityCount": 12,
+      "maxDepth": 1,
+      "expandedChunkCount": 8
+    }
   }
 }
 ```
+
+> `graphTraversal` 객체는 검색에 참여한 KB 중 하나라도 `rag_mode = 'graph'` 일 때만 포함된다. 모두 `vector` 면 생략. `ragSources[].origin` 도 graph 모드일 때만 채워지며, `seed` (vector 결과) / `expanded` (그래프 확장 결과) 두 값을 가진다. 상세: [Spec Graph RAG §4.3](../5-system/10-graph-rag.md#43-출력-메타데이터)
 
 #### Single Turn 모드 — 조건 충족 시 (`{condition.id}` 포트)
 
