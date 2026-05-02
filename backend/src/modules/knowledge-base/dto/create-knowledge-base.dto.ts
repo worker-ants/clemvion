@@ -97,6 +97,16 @@ export class CreateKnowledgeBaseDto {
   @IsUUID()
   extractionLlmConfigId?: string;
 
+  /** 임베딩에 사용할 LLMConfig */
+  @ApiPropertyOptional({
+    description:
+      '임베딩에 사용할 LLMConfig. 미지정 시 워크스페이스 default LLMConfig 가 사용됩니다.',
+    format: 'uuid',
+  })
+  @IsOptional()
+  @IsUUID()
+  embeddingLlmConfigId?: string;
+
   /** graph 모드 검색 시 그래프 확장 깊이 (1 또는 2) */
   @ApiPropertyOptional({
     description: 'graph 모드 검색 시 그래프 확장 깊이 (1 또는 2, 기본 1).',

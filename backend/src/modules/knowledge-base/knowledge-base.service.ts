@@ -13,6 +13,9 @@ import { KnowledgeBase } from './entities/knowledge-base.entity';
 import { Document } from './entities/document.entity';
 import { CreateKnowledgeBaseDto } from './dto/create-knowledge-base.dto';
 import { UpdateKnowledgeBaseDto } from './dto/update-knowledge-base.dto';
+import { EmbeddingProbeDto } from './dto/embedding-probe.dto';
+import { LlmService } from '../llm/llm.service';
+import { sanitizeLlmErrorMessage } from '../llm/utils/sanitize-error.util';
 import { PaginatedResponseDto } from '../../common/dto/paginated-response.dto';
 import { PaginationQueryDto } from '../../common/dto/pagination.dto';
 import { S3Service } from '../../common/services/s3.service';
@@ -50,6 +53,7 @@ export class KnowledgeBaseService {
     private readonly embeddingQueue: Queue<DocumentEmbeddingJob>,
     @InjectQueue(GRAPH_EXTRACTION_QUEUE)
     private readonly graphQueue: Queue<GraphExtractionJob>,
+    private readonly llmService: LlmService,
   ) {}
 
   // ── Knowledge Base CRUD ──
@@ -99,6 +103,7 @@ export class KnowledgeBaseService {
       name: dto.name,
       description: dto.description || undefined,
       embeddingModel: dto.embeddingModel || 'text-embedding-3-small',
+      embeddingLlmConfigId: dto.embeddingLlmConfigId ?? null,
       chunkSize: dto.chunkSize || 1000,
       chunkOverlap: dto.chunkOverlap || 200,
       ragMode: dto.ragMode || 'vector',
@@ -134,6 +139,12 @@ export class KnowledgeBaseService {
     if (dto.extractionLlmConfigId !== undefined) {
       kb.extractionLlmConfigId = dto.extractionLlmConfigId;
     }
+    // 임베딩 LLMConfig 는 다음 임베딩부터 적용. 차원이 달라지면 첫 임베딩에서
+    // dimension mismatch 가 throw 되므로 사용자가 KB 재임베딩을 트리거하면 된다.
+    // (사전 안내는 frontend EmbeddingTestButton 의 인라인 경고가 담당.)
+    if (dto.embeddingLlmConfigId !== undefined) {
+      kb.embeddingLlmConfigId = dto.embeddingLlmConfigId;
+    }
     if (dto.maxHops !== undefined) kb.maxHops = dto.maxHops;
     if (dto.vectorSeedTopK !== undefined)
       kb.vectorSeedTopK = dto.vectorSeedTopK;
@@ -141,6 +152,45 @@ export class KnowledgeBaseService {
       kb.expandedChunkLimit = dto.expandedChunkLimit;
     }
     return this.kbRepository.save(kb);
+  }
+
+  // ── Embedding probe ──
+
+  /**
+   * 사용자가 고른 LLMConfig + 임베딩 모델 조합을 1회 embed("probe") 호출로 검증하고
+   * 실제 vector 차원을 측정해 반환한다. 자기호스팅/Azure 처럼 모델명이 같아도 차원이
+   * 다른 endpoint 를 KB 저장 전에 사용자에게 시각적으로 알리기 위한 라이브 probe.
+   *
+   * 자동 호출이 아니라 "임베딩 테스트" 버튼 클릭으로만 트리거되므로 LLM 비용 부담은
+   * 사용자 액션에 비례. provider 호출 실패는 BadRequest(EMBEDDING_PROBE_FAILED) 로
+   * 변환 + sanitize 해 내부 URL/API key 누출을 방지한다.
+   */
+  async probeEmbedding(
+    workspaceId: string,
+    dto: EmbeddingProbeDto,
+  ): Promise<{ dimension: number; provider: string }> {
+    const cfg = await this.llmService.resolveConfig(
+      dto.llmConfigId,
+      workspaceId,
+    );
+    let vectors: number[][];
+    try {
+      vectors = await this.llmService.embed(cfg, ['probe'], dto.embeddingModel);
+    } catch (e) {
+      const raw = e instanceof Error ? e.message : String(e);
+      throw new BadRequestException({
+        code: 'EMBEDDING_PROBE_FAILED',
+        message: sanitizeLlmErrorMessage(raw),
+      });
+    }
+    const dim = vectors[0]?.length ?? 0;
+    if (dim === 0) {
+      throw new BadRequestException({
+        code: 'EMBEDDING_PROBE_FAILED',
+        message: 'Embedding probe returned an empty vector',
+      });
+    }
+    return { dimension: dim, provider: cfg.provider };
   }
 
   // ── Graph RAG ──

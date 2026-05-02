@@ -21,9 +21,12 @@ import {
   TabsTrigger,
 } from "@/components/ui/tabs";
 import { EmbeddingModelCombobox } from "@/components/knowledge-base/embedding-model-combobox";
+import { EmbeddingTestButton } from "@/components/knowledge-base/embedding-test-button";
 import { EntityList } from "@/components/knowledge-base/entity-list";
 import { RelationList } from "@/components/knowledge-base/relation-list";
 import { GraphVisualization } from "@/components/knowledge-base/graph-visualization";
+import { NativeSelect } from "@/components/ui/native-select";
+import { llmConfigsApi, type LlmConfigData } from "@/lib/api/llm-configs";
 import { RoleGate } from "@/components/auth/role-gate";
 import { toast } from "sonner";
 import {
@@ -91,6 +94,7 @@ export default function KnowledgeBaseDetailPage({
   const [formName, setFormName] = useState("");
   const [formDescription, setFormDescription] = useState("");
   const [formEmbeddingModel, setFormEmbeddingModel] = useState("");
+  const [formEmbeddingLlmConfigId, setFormEmbeddingLlmConfigId] = useState("");
   const [formChunkSize, setFormChunkSize] = useState("1000");
   const [formChunkOverlap, setFormChunkOverlap] = useState("200");
 
@@ -107,6 +111,21 @@ export default function KnowledgeBaseDetailPage({
     queryFn: () => knowledgeBasesApi.getDocuments(id),
   });
   const documents: DocumentData[] = docsData?.data ?? docsData ?? [];
+
+  // settings 다이얼로그가 열렸을 때만 LLMConfig 목록을 fetch (임베딩/추출 select 둘 다 사용).
+  const { data: llmConfigsRes } = useQuery({
+    queryKey: ["llm-configs"],
+    queryFn: () => llmConfigsApi.getAll(),
+    staleTime: 30_000,
+    enabled: showSettings,
+  });
+  const llmConfigs: LlmConfigData[] = (() => {
+    const raw = (llmConfigsRes as { data?: LlmConfigData[] } | undefined)?.data;
+    if (Array.isArray(raw)) return raw;
+    return Array.isArray(llmConfigsRes)
+      ? (llmConfigsRes as LlmConfigData[])
+      : [];
+  })();
 
   // graph 모드 KB 의 추출 진행 상태 / 통계. 5초 polling 으로 추출 진행을 따라간다.
   // 추출이 끝나면 reextractStatus 가 idle 로 떨어지므로 사용자 액션 시점 외 polling 필요 없음.
@@ -163,6 +182,7 @@ export default function KnowledgeBaseDetailPage({
     name?: string;
     description?: string;
     embeddingModel?: string;
+    embeddingLlmConfigId?: string | null;
     chunkSize?: number;
     chunkOverlap?: number;
   };
@@ -210,6 +230,7 @@ export default function KnowledgeBaseDetailPage({
     setFormName(kb.name);
     setFormDescription(kb.description ?? "");
     setFormEmbeddingModel(kb.embeddingModel);
+    setFormEmbeddingLlmConfigId(kb.embeddingLlmConfigId ?? "");
     setFormChunkSize(String(kb.chunkSize));
     setFormChunkOverlap(String(kb.chunkOverlap));
     setShowSettings(true);
@@ -238,6 +259,10 @@ export default function KnowledgeBaseDetailPage({
     }
     if (formEmbeddingModel !== kb.embeddingModel) {
       payload.embeddingModel = formEmbeddingModel;
+    }
+    const newEmbCfg = formEmbeddingLlmConfigId || null;
+    if (newEmbCfg !== (kb.embeddingLlmConfigId ?? null)) {
+      payload.embeddingLlmConfigId = newEmbCfg;
     }
     if (cs !== kb.chunkSize) payload.chunkSize = cs;
     if (co !== kb.chunkOverlap) payload.chunkOverlap = co;
@@ -413,17 +438,47 @@ export default function KnowledgeBaseDetailPage({
                 />
               </div>
               <div>
+                <Label>{t("knowledgeBases.embeddingLlm")}</Label>
+                <NativeSelect
+                  value={formEmbeddingLlmConfigId}
+                  onChange={(e) =>
+                    setFormEmbeddingLlmConfigId(e.target.value)
+                  }
+                >
+                  <option value="">
+                    {t("nodeConfigs.llmConfigSelector.defaultOption")}
+                  </option>
+                  {llmConfigs.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name} ({c.defaultModel})
+                      {c.isDefault ? " *" : ""}
+                    </option>
+                  ))}
+                </NativeSelect>
+                <p className="mt-1 text-xs text-[hsl(var(--muted-foreground))]">
+                  {t("knowledgeBases.embeddingLlmHint")}
+                </p>
+              </div>
+              <div>
                 <Label>{t("knowledgeBases.embeddingModel")}</Label>
                 <EmbeddingModelCombobox
                   value={formEmbeddingModel}
                   onChange={setFormEmbeddingModel}
                   placeholder="text-embedding-3-small"
+                  llmConfigId={formEmbeddingLlmConfigId || undefined}
                 />
                 {formEmbeddingModel !== kb.embeddingModel && (
                   <p className="mt-1 text-xs text-[hsl(var(--warning,38_92%_50%))]">
                     {t("knowledgeBases.modelChangedNeedsReembed")}
                   </p>
                 )}
+                <div className="mt-2">
+                  <EmbeddingTestButton
+                    llmConfigId={formEmbeddingLlmConfigId || undefined}
+                    embeddingModel={formEmbeddingModel}
+                    currentDimension={kb.embeddingDimension}
+                  />
+                </div>
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>

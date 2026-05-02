@@ -20,6 +20,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { NativeSelect } from "@/components/ui/native-select";
 import { EmbeddingModelCombobox } from "@/components/knowledge-base/embedding-model-combobox";
+import { EmbeddingTestButton } from "@/components/knowledge-base/embedding-test-button";
 import { toast } from "sonner";
 import { useT } from "@/lib/i18n";
 
@@ -40,6 +41,7 @@ export function CreateKbFormDialog({
   const [formEmbeddingModel, setFormEmbeddingModel] = useState(
     "text-embedding-3-small",
   );
+  const [formEmbeddingLlmConfigId, setFormEmbeddingLlmConfigId] = useState("");
   const [formChunkSize, setFormChunkSize] = useState("1000");
   const [formChunkOverlap, setFormChunkOverlap] = useState("200");
   const [formRagMode, setFormRagMode] = useState<RagMode>("vector");
@@ -49,11 +51,13 @@ export function CreateKbFormDialog({
   const [formVectorSeedTopK, setFormVectorSeedTopK] = useState("5");
   const [formExpandedChunkLimit, setFormExpandedChunkLimit] = useState("15");
 
+  // 임베딩 LLMConfig select 가 vector 모드에서도 보여야 하므로 dialog 가 열려 있는 동안
+  // 항상 fetch. graph 모드의 extraction LLM select 도 같은 데이터를 공유한다.
   const { data: llmConfigsRes } = useQuery({
     queryKey: ["llm-configs"],
     queryFn: () => llmConfigsApi.getAll(),
     staleTime: 30_000,
-    enabled: open && formRagMode === "graph",
+    enabled: open,
   });
   const llmConfigs: LlmConfigData[] = (() => {
     const raw = (llmConfigsRes as { data?: LlmConfigData[] } | undefined)?.data;
@@ -67,6 +71,7 @@ export function CreateKbFormDialog({
     setFormName("");
     setFormDescription("");
     setFormEmbeddingModel("text-embedding-3-small");
+    setFormEmbeddingLlmConfigId("");
     setFormChunkSize("1000");
     setFormChunkOverlap("200");
     setFormRagMode("vector");
@@ -82,6 +87,7 @@ export function CreateKbFormDialog({
         name: formName,
         description: formDescription || undefined,
         embeddingModel: formEmbeddingModel,
+        embeddingLlmConfigId: formEmbeddingLlmConfigId || undefined,
         chunkSize: parseInt(formChunkSize) || 1000,
         chunkOverlap: parseInt(formChunkOverlap) || 200,
         ragMode: formRagMode,
@@ -157,12 +163,39 @@ export function CreateKbFormDialog({
             </p>
           </div>
           <div>
+            <Label>{t("knowledgeBases.embeddingLlm")}</Label>
+            <NativeSelect
+              value={formEmbeddingLlmConfigId}
+              onChange={(e) => setFormEmbeddingLlmConfigId(e.target.value)}
+            >
+              <option value="">
+                {t("nodeConfigs.llmConfigSelector.defaultOption")}
+              </option>
+              {llmConfigs.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name} ({c.defaultModel})
+                  {c.isDefault ? " *" : ""}
+                </option>
+              ))}
+            </NativeSelect>
+            <p className="mt-1 text-xs text-[hsl(var(--muted-foreground))]">
+              {t("knowledgeBases.embeddingLlmHint")}
+            </p>
+          </div>
+          <div>
             <Label>{t("knowledgeBases.embeddingModel")}</Label>
             <EmbeddingModelCombobox
               value={formEmbeddingModel}
               onChange={setFormEmbeddingModel}
               placeholder="text-embedding-3-small"
+              llmConfigId={formEmbeddingLlmConfigId || undefined}
             />
+            <div className="mt-2">
+              <EmbeddingTestButton
+                llmConfigId={formEmbeddingLlmConfigId || undefined}
+                embeddingModel={formEmbeddingModel}
+              />
+            </div>
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>

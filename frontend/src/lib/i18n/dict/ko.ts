@@ -1618,6 +1618,17 @@ export const ko = {
     extractionLlm: "그래프 추출 LLM",
     extractionLlmHint:
       "그래프 추출에 사용할 LLM 설정. 비워 두면 워크스페이스 기본 LLM 을 사용해요.",
+    embeddingLlm: "임베딩 LLM",
+    embeddingLlmHint:
+      "임베딩에 사용할 LLM 설정. 비워 두면 워크스페이스 기본 LLM 을 사용해요. LLM 설정만 바꾸는 경우 재임베딩이 필요 없지만, 결과 차원이 달라지면 KB 재임베딩이 필요해요.",
+    embeddingTestButton: "임베딩 테스트",
+    embeddingTestIdle: "테스트 버튼을 누르면 모델 호출 + 차원을 확인해요.",
+    embeddingTestPending: "테스트 중…",
+    embeddingTestFailed: "테스트 실패: {{message}}",
+    embeddingDimensionNew: "차원: {{dim}}",
+    embeddingDimensionSame: "차원: {{dim}} (기존과 동일)",
+    embeddingDimensionMismatch:
+      "차원이 {{old}}→{{new}} 으로 달라져요. 저장 후 KB 재임베딩이 필요해요.",
     graphSearchParams: "그래프 검색 파라미터",
     maxHops: "최대 확장 깊이 (1~2)",
     vectorSeedTopK: "Vector seed 개수",

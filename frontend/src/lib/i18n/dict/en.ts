@@ -1622,6 +1622,18 @@ export const en: Dict = {
     extractionLlm: "Graph extraction LLM",
     extractionLlmHint:
       "LLM config used for graph extraction. Leave empty to use the workspace default.",
+    embeddingLlm: "Embedding LLM",
+    embeddingLlmHint:
+      "LLM config used to fetch embeddings. Leave empty to use the workspace default. Changing only the LLM config doesn't require re-embedding; if the resulting dimension differs, KB re-embedding is required.",
+    embeddingTestButton: "Test embedding",
+    embeddingTestIdle:
+      "Tap the button to call the model and check the dimension.",
+    embeddingTestPending: "Testing…",
+    embeddingTestFailed: "Test failed: {{message}}",
+    embeddingDimensionNew: "Dimension: {{dim}}",
+    embeddingDimensionSame: "Dimension: {{dim}} (matches current)",
+    embeddingDimensionMismatch:
+      "Dimension changes from {{old}}→{{new}}. KB re-embedding will be required after save.",
     graphSearchParams: "Graph search parameters",
     maxHops: "Max hop depth (1–2)",
     vectorSeedTopK: "Vector seed top-K",
