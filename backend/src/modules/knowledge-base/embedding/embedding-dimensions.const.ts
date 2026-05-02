@@ -1,7 +1,7 @@
 // RAG 검색이 처리하는 임베딩 차원 화이트리스트.
 //
 // 차원별 인덱스 / cast 정책:
-//   - 384, 512, 768, 1024, 1536: V022 / V030 partial HNSW (vector 타입).
+//   - 384 / 512 / 768 / 1024 / 1536: vector 타입 partial HNSW (V022 / V030 / V031 / V032 / V033).
 //     pgvector vector 의 HNSW 차원 제한(≤ 2000) 안쪽이라 그대로 사용.
 //   - 3072: V023 partial HNSW (halfvec 타입, requires pgvector >= 0.7).
 //     vector HNSW 는 2000 초과를 못 다루므로 fp16 halfvec 으로 cast 해 부착.
@@ -9,14 +9,15 @@
 //
 // 새 차원 모델을 도입할 때:
 //   - 차원 ≤ 2000:    SUPPORTED_EMBEDDING_DIMS 에 추가 + V0xx vector partial HNSW 마이그레이션
+//                    (executeInTransaction=false 파일에는 CONCURRENTLY 한 개만 — README §5)
 //   - 2000 < 차원 ≤ 4000: SUPPORTED_EMBEDDING_DIMS 에 추가 + V0xx halfvec partial HNSW 마이그레이션
 //   - 차원 > 4000:    별도 전략 필요 (binary quantization, 시퀀셜 스캔 등)
 export const SUPPORTED_EMBEDDING_DIMS: ReadonlySet<number> = new Set([
   384, // sentence-transformers all-MiniLM-L6-v2, BGE small (vector HNSW, V030)
-  512, // sentence-transformers paraphrase-multilingual-MiniLM 류 (vector HNSW, V030)
+  512, // sentence-transformers paraphrase-multilingual-MiniLM 류 (vector HNSW, V032)
   768, // Google text-embedding-004 (vector HNSW, V022)
-  1024, // text-embedding-3-small dimensions:1024 / BGE 다국어 / Cohere embed-multilingual-v3 / voyage-3 (vector HNSW, V030)
-  1536, // OpenAI text-embedding-3-small, ada-002 (vector HNSW, V022)
+  1024, // text-embedding-3-small dimensions:1024 / BGE 다국어 / Cohere embed-multilingual-v3 / voyage-3 (vector HNSW, V033)
+  1536, // OpenAI text-embedding-3-small, ada-002 (vector HNSW, V031)
   3072, // OpenAI text-embedding-3-large (halfvec HNSW, V023)
 ]);
 
