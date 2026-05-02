@@ -247,6 +247,53 @@ export class GraphRelationDto {
   updatedAt: string;
 }
 
+/** Graph visualization node */
+export class GraphVizNodeDto {
+  @ApiProperty({ format: 'uuid' })
+  id: string;
+
+  @ApiProperty()
+  label: string;
+
+  @ApiProperty()
+  type: string;
+
+  @ApiProperty()
+  mentionCount: number;
+}
+
+/** Graph visualization edge */
+export class GraphVizEdgeDto {
+  @ApiProperty({ format: 'uuid' })
+  id: string;
+
+  @ApiProperty({ format: 'uuid' })
+  source: string;
+
+  @ApiProperty({ format: 'uuid' })
+  target: string;
+
+  @ApiProperty()
+  predicate: string;
+
+  @ApiProperty()
+  weight: number;
+}
+
+/** 그래프 시각화용 부분 페이로드 (P2) */
+export class GraphVisualizationDto {
+  @ApiProperty({ type: [GraphVizNodeDto] })
+  nodes: GraphVizNodeDto[];
+
+  @ApiProperty({ type: [GraphVizEdgeDto] })
+  edges: GraphVizEdgeDto[];
+
+  @ApiProperty({
+    description: 'true 면 entity 가 limit 을 초과해 잘렸음을 의미',
+  })
+  truncated: boolean;
+}
+
 /** 그래프 통계 응답 */
 export class KbGraphStatsDto {
   @ApiProperty({ example: 1240, description: 'KB 내 entity 총 수' })

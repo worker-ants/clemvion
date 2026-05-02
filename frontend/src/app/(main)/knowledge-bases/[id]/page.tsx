@@ -23,6 +23,7 @@ import {
 import { EmbeddingModelCombobox } from "@/components/knowledge-base/embedding-model-combobox";
 import { EntityList } from "@/components/knowledge-base/entity-list";
 import { RelationList } from "@/components/knowledge-base/relation-list";
+import { GraphVisualization } from "@/components/knowledge-base/graph-visualization";
 import { RoleGate } from "@/components/auth/role-gate";
 import { toast } from "sonner";
 import {
@@ -642,6 +643,9 @@ export default function KnowledgeBaseDetailPage({
               <TabsTrigger value="relations">
                 {t("knowledgeBases.tabRelations")}
               </TabsTrigger>
+              <TabsTrigger value="graph">
+                {t("knowledgeBases.tabGraph")}
+              </TabsTrigger>
             </TabsList>
             <TabsContent value="documents">{documentsPanel}</TabsContent>
             <TabsContent value="entities">
@@ -649,6 +653,9 @@ export default function KnowledgeBaseDetailPage({
             </TabsContent>
             <TabsContent value="relations">
               <RelationList kbId={id} />
+            </TabsContent>
+            <TabsContent value="graph">
+              <GraphVisualization kbId={id} />
             </TabsContent>
           </Tabs>
         );

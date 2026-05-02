@@ -1660,6 +1660,10 @@ export const ko = {
     relationDeleteMessage: "이 relation 을 영구 삭제합니다. 되돌릴 수 없어요.",
     relationDeleted: "Relation 을 삭제했어요",
     relationDeleteFailed: "Relation 삭제에 실패했어요",
+    tabGraph: "그래프",
+    graphVizLimit: "최대 노드 수",
+    graphVizTruncated: "노드 수가 한도를 초과해 일부만 표시 중",
+    graphVizEmpty: "표시할 entity 가 아직 없어요. 추출이 끝나면 그래프가 그려져요.",
   },
   llmConfigs: {
     title: "LLM 설정",

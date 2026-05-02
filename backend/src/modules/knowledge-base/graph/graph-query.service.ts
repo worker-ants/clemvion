@@ -41,6 +41,23 @@ export interface EntityDetail extends GraphEntity {
   }>;
 }
 
+export interface GraphVisualizationData {
+  nodes: Array<{
+    id: string;
+    label: string;
+    type: string;
+    mentionCount: number;
+  }>;
+  edges: Array<{
+    id: string;
+    source: string;
+    target: string;
+    predicate: string;
+    weight: number;
+  }>;
+  truncated: boolean;
+}
+
 @Injectable()
 export class GraphQueryService {
   constructor(
@@ -217,6 +234,70 @@ export class GraphQueryService {
     }
     await this.relationRepository.remove(relation);
     await this.refreshKbStats(kbId);
+  }
+
+  // 상위 mention_count entity 와 그 사이의 relation 만 추려 그래프 시각화에 보낼 페이로드를 만든다.
+  // entity 가 너무 많으면 시각화가 무거워지므로 상한(`limit`, default 50, max 200) 으로 자른다.
+  // 자른 경우 truncated=true 로 표기해 UI 가 안내할 수 있게 한다.
+  async getGraphVisualization(
+    kbId: string,
+    workspaceId: string,
+    rawLimit?: number,
+  ): Promise<GraphVisualizationData> {
+    await this.assertGraphKb(kbId, workspaceId);
+    const limit = Math.min(Math.max(rawLimit ?? 50, 1), 200);
+
+    const entities = await this.entityRepository
+      .createQueryBuilder('e')
+      .where('e.knowledge_base_id = :kbId', { kbId })
+      .orderBy('e.mention_count', 'DESC')
+      .addOrderBy('e.name', 'ASC')
+      .take(limit + 1)
+      .getMany();
+
+    const truncated = entities.length > limit;
+    const sliced = truncated ? entities.slice(0, limit) : entities;
+    const entityIds = sliced.map((e) => e.id);
+
+    if (entityIds.length === 0) {
+      return { nodes: [], edges: [], truncated: false };
+    }
+
+    // 양 끝이 모두 selected entity 안에 있는 relation 만 가져온다 (양쪽이 잘려 있으면 의미 없음).
+    const relations = await this.dataSource.query<
+      Array<{
+        id: string;
+        head_entity_id: string;
+        tail_entity_id: string;
+        predicate: string;
+        weight: number;
+      }>
+    >(
+      `SELECT id, head_entity_id, tail_entity_id, predicate, weight
+       FROM relation
+       WHERE knowledge_base_id = $1
+         AND head_entity_id = ANY($2::uuid[])
+         AND tail_entity_id = ANY($2::uuid[])
+       ORDER BY weight DESC`,
+      [kbId, entityIds],
+    );
+
+    return {
+      nodes: sliced.map((e) => ({
+        id: e.id,
+        label: e.displayName,
+        type: e.type,
+        mentionCount: e.mentionCount,
+      })),
+      edges: relations.map((r) => ({
+        id: r.id,
+        source: r.head_entity_id,
+        target: r.tail_entity_id,
+        predicate: r.predicate,
+        weight: r.weight,
+      })),
+      truncated,
+    };
   }
 
   // KB 의 entity_count / relation_count 캐시를 실제 COUNT 로 다시 계산.
