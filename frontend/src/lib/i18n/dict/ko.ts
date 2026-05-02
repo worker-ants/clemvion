@@ -1606,6 +1606,8 @@ export const ko = {
       "모든 문서의 청크와 임베딩을 삭제하고 처음부터 다시 처리합니다. 진행하시겠어요?",
     kbReembedStarted: "{{count}}개 문서의 재임베딩을 시작했어요",
     kbReembedFailed: "KB 재임베딩 시작에 실패했어요",
+    chunkSizeInvalid: "청크 크기는 100~8000 사이여야 해요",
+    chunkOverlapInvalid: "청크 오버랩은 0~2000 사이여야 해요",
   },
   llmConfigs: {
     title: "LLM 설정",

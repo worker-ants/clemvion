@@ -1610,6 +1610,8 @@ export const en: Dict = {
       "All chunks and embeddings will be deleted and reprocessed. Continue?",
     kbReembedStarted: "Started re-embedding {{count}} document(s)",
     kbReembedFailed: "Failed to start KB re-embedding",
+    chunkSizeInvalid: "Chunk size must be between 100 and 8000",
+    chunkOverlapInvalid: "Chunk overlap must be between 0 and 2000",
   },
   llmConfigs: {
     title: "LLM Config",

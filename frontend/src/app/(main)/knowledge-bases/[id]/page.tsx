@@ -129,14 +129,16 @@ export default function KnowledgeBaseDetailPage({
     onError: () => toast.error(t("knowledgeBases.reembedFailed")),
   });
 
+  type KbUpdatePayload = {
+    name?: string;
+    description?: string;
+    embeddingModel?: string;
+    chunkSize?: number;
+    chunkOverlap?: number;
+  };
   const updateMutation = useMutation({
-    mutationFn: (payload: {
-      name?: string;
-      description?: string;
-      embeddingModel?: string;
-      chunkSize?: number;
-      chunkOverlap?: number;
-    }) => knowledgeBasesApi.update(id, payload),
+    mutationFn: (payload: KbUpdatePayload) =>
+      knowledgeBasesApi.update(id, payload),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["knowledge-base", id] });
       queryClient.invalidateQueries({ queryKey: ["knowledge-bases"] });
@@ -148,16 +150,12 @@ export default function KnowledgeBaseDetailPage({
 
   const kbReEmbedMutation = useMutation({
     mutationFn: () => knowledgeBasesApi.reEmbedAll(id),
-    onSuccess: (res: unknown) => {
-      const payload = (res as { data?: { documentCount?: number } } | null)
-        ?.data;
-      const count =
-        (res as { documentCount?: number } | null)?.documentCount ??
-        payload?.documentCount ??
-        0;
+    onSuccess: ({ documentCount }) => {
       queryClient.invalidateQueries({ queryKey: ["kb-documents", id] });
       queryClient.invalidateQueries({ queryKey: ["knowledge-base", id] });
-      toast.success(t("knowledgeBases.kbReembedStarted", { count }));
+      toast.success(
+        t("knowledgeBases.kbReembedStarted", { count: documentCount }),
+      );
       setShowKbReEmbedConfirm(false);
     },
     onError: () => toast.error(t("knowledgeBases.kbReembedFailed")),
@@ -179,7 +177,17 @@ export default function KnowledgeBaseDetailPage({
       toast.error(t("knowledgeBases.nameRequired"));
       return;
     }
-    const payload: Record<string, string | number> = {};
+    const cs = parseInt(formChunkSize, 10);
+    if (Number.isNaN(cs) || cs < 100 || cs > 8000) {
+      toast.error(t("knowledgeBases.chunkSizeInvalid"));
+      return;
+    }
+    const co = parseInt(formChunkOverlap, 10);
+    if (Number.isNaN(co) || co < 0 || co > 2000) {
+      toast.error(t("knowledgeBases.chunkOverlapInvalid"));
+      return;
+    }
+    const payload: KbUpdatePayload = {};
     if (formName !== kb.name) payload.name = formName;
     if ((formDescription ?? "") !== (kb.description ?? "")) {
       payload.description = formDescription;
@@ -187,10 +195,8 @@ export default function KnowledgeBaseDetailPage({
     if (formEmbeddingModel !== kb.embeddingModel) {
       payload.embeddingModel = formEmbeddingModel;
     }
-    const cs = parseInt(formChunkSize, 10);
-    if (!Number.isNaN(cs) && cs !== kb.chunkSize) payload.chunkSize = cs;
-    const co = parseInt(formChunkOverlap, 10);
-    if (!Number.isNaN(co) && co !== kb.chunkOverlap) payload.chunkOverlap = co;
+    if (cs !== kb.chunkSize) payload.chunkSize = cs;
+    if (co !== kb.chunkOverlap) payload.chunkOverlap = co;
     if (Object.keys(payload).length === 0) {
       setShowSettings(false);
       return;

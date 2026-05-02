@@ -5,8 +5,10 @@ import {
   Min,
   Max,
   MaxLength,
+  Matches,
 } from 'class-validator';
 import { ApiPropertyOptional } from '@nestjs/swagger';
+import { EMBEDDING_MODEL_PATTERN } from '../embedding/embedding-dimensions.const';
 
 export class UpdateKnowledgeBaseDto {
   /** 변경할 지식 베이스 이름 */
@@ -38,6 +40,10 @@ export class UpdateKnowledgeBaseDto {
   @IsOptional()
   @IsString()
   @MaxLength(100)
+  @Matches(EMBEDDING_MODEL_PATTERN, {
+    message:
+      'embeddingModel must contain only letters, digits, ".", "_", ":", "/" or "-" (max 100 chars)',
+  })
   embeddingModel?: string;
 
   /** 변경할 청크 크기 (토큰 기준, 100~8000) */

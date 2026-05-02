@@ -123,9 +123,11 @@ export class EmbeddingService {
     );
 
     // 5. Batch embed (with dimension consistency check)
+    // 같은 KB 의 모든 청크는 동일 차원이어야 한다 (spec/5-system/8-embedding-pipeline.md §5.3).
+    // 첫 임베딩이면 첫 vector 의 차원을 채택, 이후엔 일관성을 강제한다.
     const batchSize = 20;
     const allEmbeddings: number[][] = [];
-    let expectedDim: number | null = kb.embeddingDimension ?? null;
+    let expectedDim: number | null = kb.embeddingDimension;
     for (let i = 0; i < chunks.length; i += batchSize) {
       const batch = chunks.slice(i, i + batchSize);
       const texts = batch.map((c) => c.content);
@@ -134,8 +136,6 @@ export class EmbeddingService {
         texts,
         kb.embeddingModel,
       );
-      // 같은 KB 의 모든 청크는 동일 차원이어야 한다 (spec 8-embedding-pipeline.md §5.3).
-      // 첫 임베딩이면 첫 vector 의 차원을 채택, 이후엔 일관성을 강제한다.
       for (const v of embeddings) {
         if (!v || v.length === 0) {
           throw new Error('Embedding vector is empty');
@@ -144,7 +144,7 @@ export class EmbeddingService {
           expectedDim = v.length;
         } else if (v.length !== expectedDim) {
           throw new Error(
-            `Embedding dimension mismatch for KB ${kb.id} (model=${kb.embeddingModel}): expected ${expectedDim}, got ${v.length}. KB 재임베딩이 필요합니다.`,
+            `Embedding dimension mismatch for KB ${kb.id} (model=${kb.embeddingModel}): expected ${expectedDim}, got ${v.length}. KB-wide re-embedding is required.`,
           );
         }
       }

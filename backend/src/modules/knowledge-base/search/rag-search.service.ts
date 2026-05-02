@@ -2,10 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { DataSource } from 'typeorm';
 import { LlmService } from '../../llm/llm.service';
 import { SearchResult, RagContext } from './search-result.interface';
-
-// V021 마이그레이션이 만들어 둔 partial HNSW 인덱스가 존재하는 차원만 허용한다.
-// 새 차원 모델을 도입할 때는 신규 마이그레이션 + 여기 SUPPORTED_DIMS 에 추가하는 것이 한 쌍.
-const SUPPORTED_DIMS = new Set([768, 1536, 3072]);
+import { SUPPORTED_EMBEDDING_DIMS } from '../embedding/embedding-dimensions.const';
 
 interface KbRow {
   id: string;
@@ -68,9 +65,10 @@ export class RagSearchService {
           // 아직 한 번도 임베딩이 안 된 KB 는 검색 대상에서 제외 (검색 결과 0건과 동일하게 처리)
           continue;
         }
-        if (!SUPPORTED_DIMS.has(kb.embeddingDimension)) {
-          this.logger.warn(
-            `Skipping KB ${kb.id}: dimension ${kb.embeddingDimension} has no partial HNSW index`,
+        if (!SUPPORTED_EMBEDDING_DIMS.has(kb.embeddingDimension)) {
+          // 마이그레이션과 SUPPORTED_EMBEDDING_DIMS 불일치는 운영 사고이므로 ERROR 로 격상.
+          this.logger.error(
+            `Skipping KB ${kb.id}: dimension ${kb.embeddingDimension} has no partial HNSW index. Add the dimension to SUPPORTED_EMBEDDING_DIMS and create a partial HNSW migration.`,
           );
           continue;
         }
@@ -96,56 +94,13 @@ export class RagSearchService {
         workspaceId,
       );
 
-      const merged: SearchResult[] = [];
-      for (const { model, dim, kbIds } of groups.values()) {
-        const embeddings = await this.llmService.embed(
-          llmConfig,
-          [query],
-          model,
-        );
-        const queryEmbedding = embeddings[0];
-        if (!queryEmbedding || queryEmbedding.length !== dim) {
-          this.logger.warn(
-            `Skipping group model=${model} dim=${dim}: returned embedding has unexpected dimension ${queryEmbedding?.length}`,
-          );
-          continue;
-        }
-        const vectorStr = `[${queryEmbedding.join(',')}]`;
-
-        // partial HNSW 인덱스를 타려면 인덱스 정의와 동일한 cast 표현식 + 차원 조건이 필요.
-        // dim 은 SUPPORTED_DIMS 화이트리스트 통과 직후라 SQL 인라인이 안전하다.
-        const rows = await this.dataSource.query<RawSearchRow[]>(
-          `SELECT
-            dc.id AS "chunkId",
-            dc.document_id AS "documentId",
-            d.name AS "documentName",
-            dc.content,
-            dc.metadata,
-            1 - (dc.embedding::vector(${dim}) <=> $1::vector(${dim})) AS score
-          FROM document_chunk dc
-          JOIN document d ON d.id = dc.document_id
-          JOIN knowledge_base kb ON kb.id = d.knowledge_base_id AND kb.workspace_id = $5
-          WHERE vector_dims(dc.embedding) = ${dim}
-            AND d.knowledge_base_id = ANY($2::uuid[])
-            AND d.embedding_status = 'completed'
-            AND dc.embedding IS NOT NULL
-            AND 1 - (dc.embedding::vector(${dim}) <=> $1::vector(${dim})) >= $3
-          ORDER BY score DESC
-          LIMIT $4`,
-          [vectorStr, kbIds, threshold, topK, workspaceId],
-        );
-
-        for (const r of rows) {
-          merged.push({
-            chunkId: r.chunkId,
-            documentId: r.documentId,
-            documentName: r.documentName,
-            content: r.content,
-            score: parseFloat(r.score),
-            metadata: r.metadata || {},
-          });
-        }
-      }
+      // 독립적인 (model, dim) 그룹은 병렬 처리. 그룹 내부는 embed → SQL 순서 보장.
+      const groupResults = await Promise.all(
+        Array.from(groups.values()).map((g) =>
+          this.searchGroup(g, query, llmConfig, threshold, topK, workspaceId),
+        ),
+      );
+      const merged: SearchResult[] = groupResults.flat();
 
       // 그룹 결과를 score 내림차순으로 통합 후 topK 슬라이스
       merged.sort((a, b) => b.score - a.score);
@@ -155,6 +110,58 @@ export class RagSearchService {
       this.logger.warn(`RAG search failed: ${message}`);
       return [];
     }
+  }
+
+  private async searchGroup(
+    group: { model: string; dim: number; kbIds: string[] },
+    query: string,
+    llmConfig: Parameters<LlmService['embed']>[0],
+    threshold: number,
+    topK: number,
+    workspaceId: string,
+  ): Promise<SearchResult[]> {
+    const { model, dim, kbIds } = group;
+    const embeddings = await this.llmService.embed(llmConfig, [query], model);
+    const queryEmbedding = embeddings[0];
+    if (!queryEmbedding || queryEmbedding.length !== dim) {
+      this.logger.warn(
+        `Skipping group model=${model} dim=${dim}: returned embedding has unexpected dimension ${queryEmbedding?.length}`,
+      );
+      return [];
+    }
+    const vectorStr = `[${queryEmbedding.join(',')}]`;
+
+    // partial HNSW 인덱스를 타려면 인덱스 정의와 동일한 cast 표현식 + 차원 조건이 필요.
+    // dim 은 SUPPORTED_EMBEDDING_DIMS 화이트리스트 통과 직후라 SQL 인라인이 안전하다.
+    const rows = await this.dataSource.query<RawSearchRow[]>(
+      `SELECT
+        dc.id AS "chunkId",
+        dc.document_id AS "documentId",
+        d.name AS "documentName",
+        dc.content,
+        dc.metadata,
+        1 - (dc.embedding::vector(${dim}) <=> $1::vector(${dim})) AS score
+      FROM document_chunk dc
+      JOIN document d ON d.id = dc.document_id
+      JOIN knowledge_base kb ON kb.id = d.knowledge_base_id AND kb.workspace_id = $5
+      WHERE vector_dims(dc.embedding) = ${dim}
+        AND d.knowledge_base_id = ANY($2::uuid[])
+        AND d.embedding_status = 'completed'
+        AND dc.embedding IS NOT NULL
+        AND 1 - (dc.embedding::vector(${dim}) <=> $1::vector(${dim})) >= $3
+      ORDER BY score DESC
+      LIMIT $4`,
+      [vectorStr, kbIds, threshold, topK, workspaceId],
+    );
+
+    return rows.map((r) => ({
+      chunkId: r.chunkId,
+      documentId: r.documentId,
+      documentName: r.documentName,
+      content: r.content,
+      score: parseFloat(r.score),
+      metadata: r.metadata || {},
+    }));
   }
 
   buildContext(results: SearchResult[]): RagContext {

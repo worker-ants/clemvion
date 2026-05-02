@@ -133,7 +133,7 @@ describe('KnowledgeBaseService', () => {
   });
 
   describe('update', () => {
-    it('should apply embeddingModel change', async () => {
+    it('should reset embeddingDimension when embeddingModel changes', async () => {
       const existing = {
         id: 'kb-1',
         workspaceId: 'ws-1',
@@ -152,7 +152,28 @@ describe('KnowledgeBaseService', () => {
       });
 
       expect(result.embeddingModel).toBe('text-embedding-3-large');
-      // embeddingDimension is left untouched until KB-wide re-embed runs
+      // 새 모델 첫 임베딩이 차원을 다시 채울 때까지 NULL 로 둔다
+      expect(result.embeddingDimension).toBeNull();
+    });
+
+    it('should keep embeddingDimension intact when embeddingModel is unchanged', async () => {
+      const existing = {
+        id: 'kb-1',
+        workspaceId: 'ws-1',
+        name: 'KB',
+        description: null,
+        embeddingModel: 'text-embedding-3-small',
+        embeddingDimension: 1536,
+        chunkSize: 1000,
+        chunkOverlap: 200,
+      };
+      mockKbRepo.findOne.mockResolvedValue(existing);
+      mockKbRepo.save.mockImplementation((e) => Promise.resolve(e));
+
+      const result = await service.update('kb-1', 'ws-1', {
+        embeddingModel: 'text-embedding-3-small',
+      });
+
       expect(result.embeddingDimension).toBe(1536);
     });
   });
@@ -172,13 +193,11 @@ describe('KnowledgeBaseService', () => {
         ['kb-1'],
       );
       expect(mockEmbeddingService.processDocument).toHaveBeenCalledTimes(2);
-      expect(mockEmbeddingService.processDocument).toHaveBeenNthCalledWith(
-        1,
+      expect(mockEmbeddingService.processDocument).toHaveBeenCalledWith(
         'd1',
         true,
       );
-      expect(mockEmbeddingService.processDocument).toHaveBeenNthCalledWith(
-        2,
+      expect(mockEmbeddingService.processDocument).toHaveBeenCalledWith(
         'd2',
         true,
       );
@@ -196,6 +215,48 @@ describe('KnowledgeBaseService', () => {
 
       expect(mockEmbeddingService.processDocument).not.toHaveBeenCalled();
       expect(result).toEqual({ documentCount: 0 });
+    });
+
+    it('should reject concurrent reEmbedAll for the same KB', async () => {
+      mockKbRepo.findOne.mockResolvedValue({
+        id: 'kb-1',
+        workspaceId: 'ws-1',
+      });
+      mockDocRepo.find.mockResolvedValue([{ id: 'd1' }]);
+      // processDocument 가 끝나지 않게 만들어 in-flight 상태를 유지
+      let resolveProc: () => void = () => {};
+      mockEmbeddingService.processDocument.mockImplementation(
+        () => new Promise<void>((r) => (resolveProc = r)),
+      );
+
+      const first = service.reEmbedAll('kb-1', 'ws-1');
+      // 첫 호출이 await 를 끝낸 뒤 곧바로 두 번째 호출이 들어와야 함
+      await Promise.resolve();
+      await Promise.resolve();
+
+      await expect(service.reEmbedAll('kb-1', 'ws-1')).rejects.toMatchObject({
+        response: expect.objectContaining({ code: 'KB_REEMBED_IN_PROGRESS' }),
+      });
+
+      resolveProc();
+      await first;
+    });
+
+    it('should swallow per-document failures so other docs keep running', async () => {
+      mockKbRepo.findOne.mockResolvedValue({
+        id: 'kb-1',
+        workspaceId: 'ws-1',
+      });
+      mockDocRepo.find.mockResolvedValue([{ id: 'd1' }, { id: 'd2' }]);
+      mockEmbeddingService.processDocument
+        .mockRejectedValueOnce(new Error('boom'))
+        .mockResolvedValueOnce(undefined);
+
+      const result = await service.reEmbedAll('kb-1', 'ws-1');
+
+      expect(result).toEqual({ documentCount: 2 });
+      // 두 문서 모두 큐잉되었음 (한쪽 실패가 다른 쪽을 막지 않음)
+      expect(mockEmbeddingService.processDocument).toHaveBeenCalledTimes(2);
     });
   });
 

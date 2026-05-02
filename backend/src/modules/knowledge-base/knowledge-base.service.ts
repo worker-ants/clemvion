@@ -2,10 +2,12 @@ import {
   Injectable,
   NotFoundException,
   BadRequestException,
+  ConflictException,
   Logger,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, Repository } from 'typeorm';
+import pLimit from 'p-limit';
 import { KnowledgeBase } from './entities/knowledge-base.entity';
 import { Document } from './entities/document.entity';
 import { CreateKnowledgeBaseDto } from './dto/create-knowledge-base.dto';
@@ -16,6 +18,10 @@ import { S3Service } from '../../common/services/s3.service';
 import { EmbeddingService } from './embedding/embedding.service';
 import { v4 as uuidv4 } from 'uuid';
 import * as path from 'path';
+
+// 동시 fire-and-forget 폭발 방지: KB 단위 재임베딩 시 한 번에 큐잉할 promise 수의 상한.
+// 초과분은 p-limit 큐에 대기하므로 메모리·이벤트루프 부담을 일정하게 유지.
+const REEMBED_DISPATCH_CONCURRENCY = 5;
 
 const ALLOWED_FILE_TYPES = ['txt', 'md', 'pdf', 'csv'];
 const CONTENT_TYPE_MAP: Record<string, string> = {
@@ -28,6 +34,9 @@ const CONTENT_TYPE_MAP: Record<string, string> = {
 @Injectable()
 export class KnowledgeBaseService {
   private readonly logger = new Logger(KnowledgeBaseService.name);
+  // 같은 프로세스 안에서 동일 KB 의 reEmbedAll 이 중복 진입하는 것을 차단한다.
+  // (다중 인스턴스 환경의 분산 잠금은 별도 후속 작업.)
+  private readonly inFlightReEmbeds = new Set<string>();
 
   constructor(
     @InjectRepository(KnowledgeBase)
@@ -100,40 +109,69 @@ export class KnowledgeBaseService {
     const kb = await this.findById(id, workspaceId);
     if (dto.name !== undefined) kb.name = dto.name;
     if (dto.description !== undefined) kb.description = dto.description;
-    if (dto.embeddingModel !== undefined)
-      kb.embeddingModel = dto.embeddingModel;
     if (dto.chunkSize !== undefined) kb.chunkSize = dto.chunkSize;
     if (dto.chunkOverlap !== undefined) kb.chunkOverlap = dto.chunkOverlap;
+    if (
+      dto.embeddingModel !== undefined &&
+      dto.embeddingModel !== kb.embeddingModel
+    ) {
+      // 모델이 실제로 바뀌면 차원도 새 모델 첫 임베딩으로 다시 결정해야 한다.
+      // dimension 을 미리 NULL 로 초기화해 두면, 재임베딩 전 신규 문서 업로드가
+      // 들어와도 EmbeddingService 가 새 모델 차원으로 자연스럽게 채울 수 있다.
+      kb.embeddingModel = dto.embeddingModel;
+      kb.embeddingDimension = null;
+    }
     return this.kbRepository.save(kb);
   }
 
   // 모델 변경 등으로 KB 전체 재임베딩이 필요할 때 호출.
   // - embedding_dimension 을 NULL 로 초기화 (다음 첫 청크 INSERT 에서 새 차원으로 채워짐)
-  // - 모든 문서를 비동기 재임베딩 큐에 던지고, 큐잉 개수만 즉시 반환
+  // - 모든 문서를 fire-and-forget 으로 재임베딩 (단, p-limit 으로 동시 큐잉 상한)
+  // - 같은 KB 의 중복 호출은 in-memory 잠금으로 차단해 청크 이중 삽입 레이스를 막는다
   async reEmbedAll(
     id: string,
     workspaceId: string,
   ): Promise<{ documentCount: number }> {
     await this.findById(id, workspaceId);
 
-    await this.dataSource.query(
-      `UPDATE knowledge_base SET embedding_dimension = NULL WHERE id = $1`,
-      [id],
-    );
-
-    const docs = await this.documentRepository.find({
-      where: { knowledgeBaseId: id },
-      select: ['id'],
-    });
-
-    for (const doc of docs) {
-      this.embeddingService.processDocument(doc.id, true).catch((err) => {
-        const msg = err instanceof Error ? err.message : String(err);
-        this.logger.error(
-          `KB re-embedding failed for document ${doc.id}: ${msg}`,
-        );
+    if (this.inFlightReEmbeds.has(id)) {
+      throw new ConflictException({
+        code: 'KB_REEMBED_IN_PROGRESS',
+        message: 'A KB re-embedding is already in progress',
       });
     }
+    this.inFlightReEmbeds.add(id);
+
+    let docs: Array<{ id: string }>;
+    try {
+      await this.dataSource.query(
+        `UPDATE knowledge_base SET embedding_dimension = NULL WHERE id = $1`,
+        [id],
+      );
+
+      docs = await this.documentRepository.find({
+        where: { knowledgeBaseId: id },
+        select: ['id'],
+      });
+    } catch (err) {
+      this.inFlightReEmbeds.delete(id);
+      throw err;
+    }
+
+    const limit = pLimit(REEMBED_DISPATCH_CONCURRENCY);
+    const tasks = docs.map((doc) =>
+      limit(() =>
+        this.embeddingService.processDocument(doc.id, true).catch((err) => {
+          const msg = err instanceof Error ? err.message : String(err);
+          this.logger.error(
+            `KB re-embedding failed for document ${doc.id}: ${msg}`,
+          );
+        }),
+      ),
+    );
+    void Promise.allSettled(tasks).finally(() => {
+      this.inFlightReEmbeds.delete(id);
+    });
 
     return { documentCount: docs.length };
   }
