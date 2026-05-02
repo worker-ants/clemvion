@@ -38,6 +38,14 @@ export class Document {
   @Column({ name: 'embedding_status', length: 20, default: 'pending' })
   embeddingStatus: string;
 
+  // graph 모드 KB 의 그래프 추출 진행 상태. vector 모드 KB 에서는 항상 'pending' (사용 안 함).
+  @Column({
+    name: 'graph_extraction_status',
+    type: 'text',
+    default: 'pending',
+  })
+  graphExtractionStatus: 'pending' | 'processing' | 'completed' | 'error';
+
   @Column({ name: 'chunk_count', type: 'int', default: 0 })
   chunkCount: number;
 

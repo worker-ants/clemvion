@@ -1,7 +1,11 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { DataSource } from 'typeorm';
 import { LlmService } from '../../llm/llm.service';
-import { SearchResult, RagContext } from './search-result.interface';
+import {
+  SearchResult,
+  RagContext,
+  GraphTraversalSummary,
+} from './search-result.interface';
 import {
   SUPPORTED_EMBEDDING_DIMS,
   getEmbeddingCastType,
@@ -11,6 +15,10 @@ interface KbRow {
   id: string;
   embeddingModel: string;
   embeddingDimension: number | null;
+  ragMode: 'vector' | 'graph';
+  maxHops: number;
+  vectorSeedTopK: number;
+  expandedChunkLimit: number;
 }
 
 type RawSearchRow = {
@@ -20,7 +28,22 @@ type RawSearchRow = {
   content: string;
   score: string;
   metadata: Record<string, unknown>;
+  origin?: string;
 };
+
+interface VectorGroup {
+  model: string;
+  dim: number;
+  kbIds: string[];
+}
+
+interface GraphGroupResult {
+  rows: SearchResult[];
+  seedChunkCount: number;
+  traversedEntityCount: number;
+  expandedChunkCount: number;
+  maxDepthUsed: number;
+}
 
 @Injectable()
 export class RagSearchService {
@@ -37,86 +60,158 @@ export class RagSearchService {
     workspaceId: string,
     options?: { topK?: number; threshold?: number },
   ): Promise<SearchResult[]> {
+    const { results } = await this.searchWithMeta(
+      query,
+      knowledgeBaseIds,
+      workspaceId,
+      options,
+    );
+    return results;
+  }
+
+  // graph 모드 KB 가 검색에 한 번이라도 참여했다면 graphTraversal 메타를 함께 반환.
+  // 호출부 (AI Agent 등) 가 응답 metadata 에 노출할 수 있다.
+  async searchWithMeta(
+    query: string,
+    knowledgeBaseIds: string[],
+    workspaceId: string,
+    options?: { topK?: number; threshold?: number },
+  ): Promise<{
+    results: SearchResult[];
+    graphTraversal?: GraphTraversalSummary;
+  }> {
     if (!knowledgeBaseIds?.length || !query.trim()) {
-      return [];
+      return { results: [] };
     }
 
     const topK = options?.topK ?? 5;
     const threshold = options?.threshold ?? 0.7;
 
     try {
-      // KB 메타데이터(embeddingModel, embeddingDimension)를 한 번에 로드
       const kbs = await this.dataSource.query<KbRow[]>(
-        `SELECT id, embedding_model AS "embeddingModel", embedding_dimension AS "embeddingDimension"
+        `SELECT id,
+                embedding_model AS "embeddingModel",
+                embedding_dimension AS "embeddingDimension",
+                rag_mode AS "ragMode",
+                max_hops AS "maxHops",
+                vector_seed_top_k AS "vectorSeedTopK",
+                expanded_chunk_limit AS "expandedChunkLimit"
          FROM knowledge_base
          WHERE id = ANY($1::uuid[]) AND workspace_id = $2`,
         [knowledgeBaseIds, workspaceId],
       );
+      if (kbs.length === 0) return { results: [] };
 
-      if (kbs.length === 0) {
-        return [];
-      }
-
-      // (model, dim) 조합으로 그룹핑 — 같은 그룹은 query 임베딩을 한 번만 계산하고
-      // 한 번의 SQL 로 처리한다 (spec 9-rag-search.md §6).
-      const groups = new Map<
-        string,
-        { model: string; dim: number; kbIds: string[] }
-      >();
-      for (const kb of kbs) {
-        if (kb.embeddingDimension == null) {
-          // 아직 한 번도 임베딩이 안 된 KB 는 검색 대상에서 제외 (검색 결과 0건과 동일하게 처리)
-          continue;
-        }
-        if (!SUPPORTED_EMBEDDING_DIMS.has(kb.embeddingDimension)) {
-          // 마이그레이션과 SUPPORTED_EMBEDDING_DIMS 불일치는 운영 사고이므로 ERROR 로 격상.
-          this.logger.error(
-            `Skipping KB ${kb.id}: dimension ${kb.embeddingDimension} has no partial HNSW index. Add the dimension to SUPPORTED_EMBEDDING_DIMS and create a partial HNSW migration.`,
-          );
-          continue;
-        }
-        const key = `${kb.embeddingModel}::${kb.embeddingDimension}`;
-        const existing = groups.get(key);
-        if (existing) {
-          existing.kbIds.push(kb.id);
-        } else {
-          groups.set(key, {
-            model: kb.embeddingModel,
-            dim: kb.embeddingDimension,
-            kbIds: [kb.id],
-          });
-        }
-      }
-
-      if (groups.size === 0) {
-        return [];
-      }
+      // KB 를 ragMode 로 분리: vector 는 (model, dim) 그룹화, graph 는 KB 단위 처리.
+      const vectorKbs = kbs.filter((kb) => kb.ragMode === 'vector');
+      const graphKbs = kbs.filter((kb) => kb.ragMode === 'graph');
 
       const llmConfig = await this.llmService.resolveConfig(
         undefined,
         workspaceId,
       );
 
-      // 독립적인 (model, dim) 그룹은 병렬 처리. 그룹 내부는 embed → SQL 순서 보장.
-      const groupResults = await Promise.all(
-        Array.from(groups.values()).map((g) =>
-          this.searchGroup(g, query, llmConfig, threshold, topK, workspaceId),
+      const vectorGroups = this.groupVectorKbs(vectorKbs);
+
+      const vectorTasks = Array.from(vectorGroups.values()).map((g) =>
+        this.searchVectorGroup(
+          g,
+          query,
+          llmConfig,
+          threshold,
+          topK,
+          workspaceId,
         ),
       );
-      const merged: SearchResult[] = groupResults.flat();
 
-      // 그룹 결과를 score 내림차순으로 통합 후 topK 슬라이스
+      // graph KB 는 maxHops/seedTopK 가 KB 마다 다를 수 있어 KB 단위 분리 처리.
+      const graphTasks = graphKbs
+        .filter((kb) => this.isGraphKbSearchable(kb))
+        .map((kb) =>
+          this.searchGraphKb(kb, query, llmConfig, threshold, workspaceId),
+        );
+
+      const [vectorResults, graphResultsRaw] = await Promise.all([
+        Promise.all(vectorTasks),
+        Promise.all(graphTasks),
+      ]);
+
+      const merged: SearchResult[] = [
+        ...vectorResults.flat(),
+        ...graphResultsRaw.flatMap((g) => g.rows),
+      ];
       merged.sort((a, b) => b.score - a.score);
-      return merged.slice(0, topK);
+      const sliced = merged.slice(0, topK);
+
+      let graphTraversal: GraphTraversalSummary | undefined;
+      if (graphResultsRaw.length > 0) {
+        graphTraversal = {
+          mode: 'graph',
+          seedChunkCount: graphResultsRaw.reduce(
+            (acc, g) => acc + g.seedChunkCount,
+            0,
+          ),
+          traversedEntityCount: graphResultsRaw.reduce(
+            (acc, g) => acc + g.traversedEntityCount,
+            0,
+          ),
+          maxDepth: graphResultsRaw.reduce(
+            (acc, g) => Math.max(acc, g.maxDepthUsed),
+            0,
+          ),
+          expandedChunkCount: graphResultsRaw.reduce(
+            (acc, g) => acc + g.expandedChunkCount,
+            0,
+          ),
+        };
+      }
+
+      return { results: sliced, graphTraversal };
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unknown error';
       this.logger.warn(`RAG search failed: ${message}`);
-      return [];
+      return { results: [] };
     }
   }
 
-  private async searchGroup(
-    group: { model: string; dim: number; kbIds: string[] },
+  private groupVectorKbs(kbs: KbRow[]): Map<string, VectorGroup> {
+    const groups = new Map<string, VectorGroup>();
+    for (const kb of kbs) {
+      if (kb.embeddingDimension == null) continue;
+      if (!SUPPORTED_EMBEDDING_DIMS.has(kb.embeddingDimension)) {
+        this.logger.error(
+          `Skipping KB ${kb.id}: dimension ${kb.embeddingDimension} has no partial HNSW index. Add the dimension to SUPPORTED_EMBEDDING_DIMS and create a partial HNSW migration.`,
+        );
+        continue;
+      }
+      const key = `${kb.embeddingModel}::${kb.embeddingDimension}`;
+      const existing = groups.get(key);
+      if (existing) {
+        existing.kbIds.push(kb.id);
+      } else {
+        groups.set(key, {
+          model: kb.embeddingModel,
+          dim: kb.embeddingDimension,
+          kbIds: [kb.id],
+        });
+      }
+    }
+    return groups;
+  }
+
+  private isGraphKbSearchable(kb: KbRow): boolean {
+    if (kb.embeddingDimension == null) return false;
+    if (!SUPPORTED_EMBEDDING_DIMS.has(kb.embeddingDimension)) {
+      this.logger.error(
+        `Skipping graph KB ${kb.id}: dimension ${kb.embeddingDimension} has no partial HNSW index.`,
+      );
+      return false;
+    }
+    return true;
+  }
+
+  private async searchVectorGroup(
+    group: VectorGroup,
     query: string,
     llmConfig: Parameters<LlmService['embed']>[0],
     threshold: number,
@@ -133,9 +228,6 @@ export class RagSearchService {
       return [];
     }
     const vectorStr = `[${queryEmbedding.join(',')}]`;
-    // partial HNSW 인덱스를 타려면 인덱스 정의와 동일한 cast 표현식 + 차원 조건이 필요.
-    // 차원이 vector HNSW 한계(2000) 를 넘으면 halfvec 인덱스로 라우팅.
-    // cast / dim 은 SUPPORTED_EMBEDDING_DIMS 화이트리스트 통과 직후라 SQL 인라인이 안전하다.
     const cast = getEmbeddingCastType(dim);
     const castExpr = `${cast}(${dim})`;
 
@@ -168,6 +260,198 @@ export class RagSearchService {
       score: parseFloat(r.score),
       metadata: r.metadata || {},
     }));
+  }
+
+  // graph 모드 KB 검색 — Hybrid 흐름:
+  // 1) vector seed top-K 회수 (해당 KB 단독)
+  // 2) seed chunk 가 언급한 entity 들에서 1~maxHops traversal (recursive CTE)
+  // 3) expanded entity 들이 등장한 chunk 추가 회수 (expandedChunkLimit 상한)
+  // 4) seed + expanded 통합. expanded 는 centrality 가중치를 적용.
+  // entity_count = 0 (추출 미완료) 이면 자동으로 vector seed 만 회수되어 graceful fallback.
+  private async searchGraphKb(
+    kb: KbRow,
+    query: string,
+    llmConfig: Parameters<LlmService['embed']>[0],
+    threshold: number,
+    workspaceId: string,
+  ): Promise<GraphGroupResult> {
+    if (kb.embeddingDimension == null) {
+      return {
+        rows: [],
+        seedChunkCount: 0,
+        traversedEntityCount: 0,
+        expandedChunkCount: 0,
+        maxDepthUsed: 0,
+      };
+    }
+    const dim = kb.embeddingDimension;
+    const embeddings = await this.llmService.embed(
+      llmConfig,
+      [query],
+      kb.embeddingModel,
+    );
+    const queryEmbedding = embeddings[0];
+    if (!queryEmbedding || queryEmbedding.length !== dim) {
+      this.logger.warn(
+        `Skipping graph KB ${kb.id}: returned embedding has unexpected dimension ${queryEmbedding?.length}`,
+      );
+      return {
+        rows: [],
+        seedChunkCount: 0,
+        traversedEntityCount: 0,
+        expandedChunkCount: 0,
+        maxDepthUsed: 0,
+      };
+    }
+    const vectorStr = `[${queryEmbedding.join(',')}]`;
+    const cast = getEmbeddingCastType(dim);
+    const castExpr = `${cast}(${dim})`;
+    const seedTopK = kb.vectorSeedTopK;
+    const expandLimit = kb.expandedChunkLimit;
+    const maxHops = kb.maxHops;
+
+    // 단일 SQL 로 seed + expansion + rerank 까지 처리.
+    // seed CTE: vector top-K (threshold 적용)
+    // seed_entities: chunk_entity 매핑으로 entity 집합 추출
+    // expanded_entities: recursive CTE 로 maxHops 깊이까지 head/tail 양방향 traversal
+    // expanded_chunks: expanded entity 들이 언급된 청크 (seed 제외) 상위 expandLimit 개
+    // 최종: seed (origin='seed') + expanded (origin='expanded') 통합. expanded 는
+    //       cosine score × log-scale centrality_weight 로 가중.
+    const rows = await this.dataSource.query<RawSearchRow[]>(
+      `WITH seed AS (
+         SELECT dc.id AS chunk_id, dc.document_id, d.name AS document_name, dc.content, dc.metadata,
+                1 - (dc.embedding::${castExpr} <=> $1::${castExpr}) AS score
+         FROM document_chunk dc
+         JOIN document d ON d.id = dc.document_id
+         JOIN knowledge_base kb ON kb.id = d.knowledge_base_id AND kb.workspace_id = $4
+         WHERE kb.id = $2
+           AND vector_dims(dc.embedding) = ${dim}
+           AND d.embedding_status = 'completed'
+           AND dc.embedding IS NOT NULL
+           AND 1 - (dc.embedding::${castExpr} <=> $1::${castExpr}) >= $3
+         ORDER BY score DESC
+         LIMIT $5
+       ),
+       seed_entities AS (
+         SELECT DISTINCT ce.entity_id
+         FROM chunk_entity ce
+         JOIN seed s ON s.chunk_id = ce.chunk_id
+       ),
+       expanded_entities AS (
+         SELECT entity_id, 0 AS depth FROM seed_entities
+         UNION
+         SELECT
+           CASE
+             WHEN r.head_entity_id = e.entity_id THEN r.tail_entity_id
+             ELSE r.head_entity_id
+           END AS entity_id,
+           e.depth + 1 AS depth
+         FROM expanded_entities e
+         JOIN relation r ON (r.head_entity_id = e.entity_id OR r.tail_entity_id = e.entity_id)
+         WHERE e.depth < $6 AND r.knowledge_base_id = $2
+       ),
+       max_mention AS (
+         SELECT GREATEST(COALESCE(MAX(mention_count), 1), 1) AS m
+         FROM entity WHERE knowledge_base_id = $2
+       ),
+       expanded_chunks AS (
+         SELECT DISTINCT ce.chunk_id,
+                MAX(ent.mention_count) AS mention_count
+         FROM chunk_entity ce
+         JOIN expanded_entities ee ON ee.entity_id = ce.entity_id
+         JOIN entity ent ON ent.id = ce.entity_id
+         WHERE ce.chunk_id NOT IN (SELECT chunk_id FROM seed)
+         GROUP BY ce.chunk_id
+       )
+       SELECT * FROM (
+         SELECT s.chunk_id AS "chunkId",
+                s.document_id AS "documentId",
+                s.document_name AS "documentName",
+                s.content,
+                s.metadata,
+                s.score,
+                'seed' AS origin
+         FROM seed s
+         UNION ALL
+         SELECT ec.chunk_id AS "chunkId",
+                d.id AS "documentId",
+                d.name AS "documentName",
+                dc.content,
+                dc.metadata,
+                (1 - (dc.embedding::${castExpr} <=> $1::${castExpr}))
+                  * (LOG(GREATEST(ec.mention_count, 1) + 1) / LOG((SELECT m FROM max_mention) + 1)) AS score,
+                'expanded' AS origin
+         FROM expanded_chunks ec
+         JOIN document_chunk dc ON dc.id = ec.chunk_id
+         JOIN document d ON d.id = dc.document_id
+         WHERE d.embedding_status = 'completed'
+           AND dc.embedding IS NOT NULL
+           AND vector_dims(dc.embedding) = ${dim}
+       ) t
+       ORDER BY t.score DESC
+       LIMIT $7`,
+      [
+        vectorStr,
+        kb.id,
+        threshold,
+        workspaceId,
+        seedTopK,
+        maxHops,
+        seedTopK + expandLimit,
+      ],
+    );
+
+    const seedRows: SearchResult[] = [];
+    const expandedRows: SearchResult[] = [];
+    for (const r of rows) {
+      const s: SearchResult = {
+        chunkId: r.chunkId,
+        documentId: r.documentId,
+        documentName: r.documentName,
+        content: r.content,
+        score: parseFloat(r.score),
+        metadata: r.metadata || {},
+        origin: r.origin === 'seed' ? 'seed' : 'expanded',
+      };
+      if (s.origin === 'seed') seedRows.push(s);
+      else expandedRows.push(s);
+    }
+
+    // 메타 추적: traversed entity 수는 별도 SQL 로 빠르게 조회 (위 CTE 안에서는 LIMIT 처리 후라 정확하지 않을 수 있음).
+    let traversedEntityCount = 0;
+    if (seedRows.length > 0) {
+      const entRows = await this.dataSource.query<{ count: number }[]>(
+        `WITH seed_entities AS (
+           SELECT DISTINCT ce.entity_id
+           FROM chunk_entity ce
+           WHERE ce.chunk_id = ANY($1::uuid[])
+         ),
+         expanded AS (
+           SELECT entity_id, 0 AS depth FROM seed_entities
+           UNION
+           SELECT
+             CASE
+               WHEN r.head_entity_id = e.entity_id THEN r.tail_entity_id
+               ELSE r.head_entity_id
+             END AS entity_id,
+             e.depth + 1 AS depth
+           FROM expanded e
+           JOIN relation r ON (r.head_entity_id = e.entity_id OR r.tail_entity_id = e.entity_id)
+           WHERE e.depth < $2 AND r.knowledge_base_id = $3
+         )
+         SELECT COUNT(DISTINCT entity_id)::int AS count FROM expanded`,
+        [seedRows.map((s) => s.chunkId), maxHops, kb.id],
+      );
+      traversedEntityCount = entRows[0]?.count ?? 0;
+    }
+
+    return {
+      rows: [...seedRows, ...expandedRows],
+      seedChunkCount: seedRows.length,
+      traversedEntityCount,
+      expandedChunkCount: expandedRows.length,
+      maxDepthUsed: maxHops,
+    };
   }
 
   buildContext(results: SearchResult[]): RagContext {

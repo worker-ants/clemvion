@@ -7,6 +7,7 @@ import {
   knowledgeBasesApi,
   type KnowledgeBaseData,
   type DocumentData,
+  type KbGraphStats,
 } from "@/lib/api/knowledge-bases";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -77,6 +78,7 @@ export default function KnowledgeBaseDetailPage({
   const [isDragging, setIsDragging] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [showKbReEmbedConfirm, setShowKbReEmbedConfirm] = useState(false);
+  const [showKbReExtractConfirm, setShowKbReExtractConfirm] = useState(false);
   const [formName, setFormName] = useState("");
   const [formDescription, setFormDescription] = useState("");
   const [formEmbeddingModel, setFormEmbeddingModel] = useState("");
@@ -96,6 +98,24 @@ export default function KnowledgeBaseDetailPage({
     queryFn: () => knowledgeBasesApi.getDocuments(id),
   });
   const documents: DocumentData[] = docsData?.data ?? docsData ?? [];
+
+  // graph 모드 KB 의 추출 진행 상태 / 통계. 5초 polling 으로 추출 진행을 따라간다.
+  // 추출이 끝나면 reextractStatus 가 idle 로 떨어지므로 사용자 액션 시점 외 polling 필요 없음.
+  const isGraphMode = kb?.ragMode === "graph";
+  const { data: graphStats } = useQuery<KbGraphStats>({
+    queryKey: ["kb-graph-stats", id],
+    queryFn: () => knowledgeBasesApi.getGraphStats(id),
+    enabled: isGraphMode,
+    refetchInterval: (query) => {
+      const data = query.state.data as KbGraphStats | undefined;
+      if (!data) return 5_000;
+      // 추출 진행 중이거나 일부 문서가 아직 처리 중이면 짧은 간격, 아니면 1분.
+      const stillProcessing =
+        data.reextractStatus === "in_progress" ||
+        data.extractedDocumentCount < data.totalDocumentCount;
+      return stillProcessing ? 5_000 : 60_000;
+    },
+  });
 
   const uploadMutation = useMutation({
     mutationFn: (file: File) => knowledgeBasesApi.uploadDocument(id, file),
@@ -160,6 +180,20 @@ export default function KnowledgeBaseDetailPage({
       setShowKbReEmbedConfirm(false);
     },
     onError: () => toast.error(t("knowledgeBases.kbReembedFailed")),
+  });
+
+  const kbReExtractMutation = useMutation({
+    mutationFn: () => knowledgeBasesApi.reExtractAll(id),
+    onSuccess: ({ documentCount }) => {
+      queryClient.invalidateQueries({ queryKey: ["kb-documents", id] });
+      queryClient.invalidateQueries({ queryKey: ["knowledge-base", id] });
+      queryClient.invalidateQueries({ queryKey: ["kb-graph-stats", id] });
+      toast.success(
+        t("knowledgeBases.kbReExtractStarted", { count: documentCount }),
+      );
+      setShowKbReExtractConfirm(false);
+    },
+    onError: () => toast.error(t("knowledgeBases.kbReExtractFailed")),
   });
 
   function openSettings() {
@@ -261,6 +295,21 @@ export default function KnowledgeBaseDetailPage({
               )}
               {t("knowledgeBases.kbReembedAll")}
             </Button>
+            {isGraphMode && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowKbReExtractConfirm(true)}
+                disabled={kbReExtractMutation.isPending}
+              >
+                {kbReExtractMutation.isPending ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <RefreshCw className="mr-2 h-4 w-4" />
+                )}
+                {t("knowledgeBases.kbReExtractAll")}
+              </Button>
+            )}
             <Button variant="outline" size="sm" onClick={openSettings}>
               <Settings className="mr-2 h-4 w-4" />
               {t("knowledgeBases.settingsTitle")}
@@ -270,6 +319,17 @@ export default function KnowledgeBaseDetailPage({
       </div>
 
       <div className="flex flex-wrap items-center gap-4 text-sm text-[hsl(var(--muted-foreground))]">
+        <span
+          className={`rounded px-2 py-0.5 font-mono text-xs ${
+            isGraphMode
+              ? "bg-[hsl(var(--primary)/0.15)] text-[hsl(var(--primary))]"
+              : "bg-[hsl(var(--muted))] text-[hsl(var(--muted-foreground))]"
+          }`}
+        >
+          {isGraphMode
+            ? t("knowledgeBases.graphBadge")
+            : t("knowledgeBases.vectorBadge")}
+        </span>
         <span>
           {t("knowledgeBases.model")}: <code className="font-mono">{kb?.embeddingModel}</code>
         </span>
@@ -281,6 +341,37 @@ export default function KnowledgeBaseDetailPage({
         <span>{t("knowledgeBases.chunk")}: {kb?.chunkSize} / {t("knowledgeBases.overlap")}: {kb?.chunkOverlap}</span>
         <span>{t("knowledgeBases.documentsCount", { count: kb?.documentCount ?? 0 })}</span>
       </div>
+
+      {isGraphMode && graphStats && (
+        <div className="rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--muted)/0.3)] p-4">
+          <div className="mb-2 text-sm font-medium">
+            {t("knowledgeBases.graphBuildStatus")}
+          </div>
+          <div className="flex flex-wrap items-center gap-4 text-sm">
+            <span className="flex items-center gap-2">
+              {graphStats.extractedDocumentCount ===
+              graphStats.totalDocumentCount ? (
+                <CheckCircle className="h-4 w-4 text-[hsl(var(--success,142_71%_45%))]" />
+              ) : (
+                <Loader2 className="h-4 w-4 animate-spin text-[hsl(var(--muted-foreground))]" />
+              )}
+              {t("knowledgeBases.graphExtractedDocs", {
+                count: graphStats.extractedDocumentCount,
+              })}{" "}
+              / {graphStats.totalDocumentCount}
+            </span>
+            <span className="font-mono">
+              {graphStats.entityCount} {t("knowledgeBases.graphEntities")} ·{" "}
+              {graphStats.relationCount} {t("knowledgeBases.graphRelations")}
+            </span>
+            {graphStats.reextractStatus === "in_progress" && (
+              <span className="text-xs text-[hsl(var(--muted-foreground))]">
+                {t("knowledgeBases.statusProcessing")}
+              </span>
+            )}
+          </div>
+        </div>
+      )}
 
       <div
         className={`flex flex-col items-center justify-center rounded-lg border-2 border-dashed p-8 transition-colors ${
@@ -419,6 +510,17 @@ export default function KnowledgeBaseDetailPage({
         onCancel={() => setShowKbReEmbedConfirm(false)}
         onConfirm={() => kbReEmbedMutation.mutate()}
         pending={kbReEmbedMutation.isPending}
+      />
+
+      <ConfirmModal
+        open={showKbReExtractConfirm}
+        title={t("knowledgeBases.kbReExtractConfirmTitle")}
+        message={t("knowledgeBases.kbReExtractConfirmMessage")}
+        confirmLabel={t("knowledgeBases.kbReExtractAll")}
+        cancelLabel={t("common.cancel")}
+        onCancel={() => setShowKbReExtractConfirm(false)}
+        onConfirm={() => kbReExtractMutation.mutate()}
+        pending={kbReExtractMutation.isPending}
       />
 
       <ConfirmModal

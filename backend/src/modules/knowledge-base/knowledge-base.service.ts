@@ -20,6 +20,10 @@ import {
   DOCUMENT_EMBEDDING_QUEUE,
   DocumentEmbeddingJob,
 } from './queues/document-embedding.queue';
+import {
+  GRAPH_EXTRACTION_QUEUE,
+  GraphExtractionJob,
+} from './queues/graph-extraction.queue';
 import { v4 as uuidv4 } from 'uuid';
 import * as path from 'path';
 
@@ -44,6 +48,8 @@ export class KnowledgeBaseService {
     private readonly dataSource: DataSource,
     @InjectQueue(DOCUMENT_EMBEDDING_QUEUE)
     private readonly embeddingQueue: Queue<DocumentEmbeddingJob>,
+    @InjectQueue(GRAPH_EXTRACTION_QUEUE)
+    private readonly graphQueue: Queue<GraphExtractionJob>,
   ) {}
 
   // ── Knowledge Base CRUD ──
@@ -95,6 +101,11 @@ export class KnowledgeBaseService {
       embeddingModel: dto.embeddingModel || 'text-embedding-3-small',
       chunkSize: dto.chunkSize || 1000,
       chunkOverlap: dto.chunkOverlap || 200,
+      ragMode: dto.ragMode || 'vector',
+      extractionLlmConfigId: dto.extractionLlmConfigId ?? null,
+      maxHops: dto.maxHops ?? 1,
+      vectorSeedTopK: dto.vectorSeedTopK ?? 5,
+      expandedChunkLimit: dto.expandedChunkLimit ?? 15,
     });
     return this.kbRepository.save(kb);
   }
@@ -119,7 +130,142 @@ export class KnowledgeBaseService {
       kb.embeddingModel = dto.embeddingModel;
       kb.embeddingDimension = null;
     }
+    // graph 검색 파라미터 / 추출 LLMConfig 는 검색 시점에 적용되므로 갱신만 한다.
+    if (dto.extractionLlmConfigId !== undefined) {
+      kb.extractionLlmConfigId = dto.extractionLlmConfigId;
+    }
+    if (dto.maxHops !== undefined) kb.maxHops = dto.maxHops;
+    if (dto.vectorSeedTopK !== undefined)
+      kb.vectorSeedTopK = dto.vectorSeedTopK;
+    if (dto.expandedChunkLimit !== undefined) {
+      kb.expandedChunkLimit = dto.expandedChunkLimit;
+    }
     return this.kbRepository.save(kb);
+  }
+
+  // ── Graph RAG ──
+
+  // KB graph 모드 검증 — graph 모드가 아닌 KB 에 그래프 API 호출 시 400.
+  private assertGraphMode(kb: KnowledgeBase): void {
+    if (kb.ragMode !== 'graph') {
+      throw new BadRequestException({
+        code: 'KB_NOT_GRAPH_MODE',
+        message: 'This API is only available for graph-mode knowledge bases',
+      });
+    }
+  }
+
+  // KB 전체 그래프 재추출 — 모든 entity/relation/chunk_entity 삭제 후 모든 문서를 재추출.
+  // atomic compare-and-swap (idle → in_progress) 으로 race-free 잠금.
+  async reExtractAll(
+    id: string,
+    workspaceId: string,
+  ): Promise<{ documentCount: number }> {
+    const kb = await this.findById(id, workspaceId);
+    this.assertGraphMode(kb);
+
+    const acquired = await this.dataSource.query<{ id: string }[]>(
+      `UPDATE knowledge_base
+       SET reextract_status = 'in_progress', entity_count = 0, relation_count = 0
+       WHERE id = $1 AND workspace_id = $2 AND reextract_status = 'idle'
+       RETURNING id`,
+      [id, workspaceId],
+    );
+    if (acquired.length === 0) {
+      throw new ConflictException({
+        code: 'KB_REEXTRACT_IN_PROGRESS',
+        message: 'A KB graph re-extraction is already in progress',
+      });
+    }
+
+    // 그래프 데이터 삭제 — entity 삭제 시 relation / chunk_entity 도 CASCADE.
+    await this.dataSource.query(
+      `DELETE FROM entity WHERE knowledge_base_id = $1`,
+      [id],
+    );
+    // 모든 문서 graph_extraction_status 를 pending 으로 reset.
+    await this.dataSource.query(
+      `UPDATE document SET graph_extraction_status = 'pending' WHERE knowledge_base_id = $1`,
+      [id],
+    );
+
+    const docs = await this.documentRepository.find({
+      where: { knowledgeBaseId: id },
+      select: ['id'],
+    });
+    if (docs.length === 0) {
+      // 빈 KB 는 child job 이 없어 finalize 가 트리거되지 않는다 → 즉시 idle 로 되돌림.
+      await this.dataSource.query(
+        `UPDATE knowledge_base SET reextract_status = 'idle' WHERE id = $1`,
+        [id],
+      );
+      return { documentCount: 0 };
+    }
+
+    await this.graphQueue.addBulk(
+      docs.map((doc) => ({
+        name: 'extract',
+        data: {
+          documentId: doc.id,
+          knowledgeBaseId: id,
+          isKbBatch: true,
+        },
+      })),
+    );
+    return { documentCount: docs.length };
+  }
+
+  // 문서 단건 그래프 재추출.
+  async reExtractDocument(
+    docId: string,
+    kbId: string,
+    workspaceId: string,
+  ): Promise<void> {
+    const kb = await this.findById(kbId, workspaceId);
+    this.assertGraphMode(kb);
+    const doc = await this.findDocument(docId, kbId, workspaceId);
+
+    await this.documentRepository.update(doc.id, {
+      graphExtractionStatus: 'pending',
+    });
+    await this.graphQueue.add('extract', {
+      documentId: doc.id,
+      knowledgeBaseId: kbId,
+    });
+  }
+
+  async getGraphStats(
+    id: string,
+    workspaceId: string,
+  ): Promise<{
+    entityCount: number;
+    relationCount: number;
+    extractedDocumentCount: number;
+    totalDocumentCount: number;
+    reextractStatus: 'idle' | 'in_progress';
+  }> {
+    const kb = await this.findById(id, workspaceId);
+    this.assertGraphMode(kb);
+
+    const rows = await this.dataSource.query<
+      {
+        extracted: number;
+        total: number;
+      }[]
+    >(
+      `SELECT
+         COUNT(*) FILTER (WHERE graph_extraction_status = 'completed')::int AS extracted,
+         COUNT(*)::int AS total
+       FROM document WHERE knowledge_base_id = $1`,
+      [id],
+    );
+    return {
+      entityCount: kb.entityCount,
+      relationCount: kb.relationCount,
+      extractedDocumentCount: rows[0]?.extracted ?? 0,
+      totalDocumentCount: rows[0]?.total ?? 0,
+      reextractStatus: kb.reextractStatus,
+    };
   }
 
   // 모델 변경 등으로 KB 전체 재임베딩이 필요할 때 호출.

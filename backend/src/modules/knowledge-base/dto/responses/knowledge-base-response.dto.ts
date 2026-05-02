@@ -33,6 +33,47 @@ export class KnowledgeBaseDto {
   })
   reembedStatus: 'idle' | 'in_progress';
 
+  @ApiProperty({
+    example: 'vector',
+    enum: ['vector', 'graph'],
+    description: '검색 모드. 생성 시 결정 후 불변.',
+  })
+  ragMode: 'vector' | 'graph';
+
+  @ApiPropertyOptional({
+    nullable: true,
+    format: 'uuid',
+    description:
+      'graph 모드 KB 의 추출 LLMConfig (NULL 이면 워크스페이스 default).',
+  })
+  extractionLlmConfigId?: string | null;
+
+  @ApiProperty({ example: 1, description: 'graph 검색 확장 깊이 (1 또는 2)' })
+  maxHops: number;
+
+  @ApiProperty({ example: 5, description: 'graph 검색 vector seed 개수' })
+  vectorSeedTopK: number;
+
+  @ApiProperty({
+    example: 15,
+    description: 'graph expansion 후 회수할 청크 상한',
+  })
+  expandedChunkLimit: number;
+
+  @ApiProperty({ example: 0, description: 'KB 의 entity 총 수 (캐시)' })
+  entityCount: number;
+
+  @ApiProperty({ example: 0, description: 'KB 의 relation 총 수 (캐시)' })
+  relationCount: number;
+
+  @ApiProperty({
+    example: 'idle',
+    enum: ['idle', 'in_progress'],
+    description:
+      'KB 전체 그래프 재추출 진행 상태. in_progress 동안 추가 호출은 409 로 거절됩니다.',
+  })
+  reextractStatus: 'idle' | 'in_progress';
+
   @ApiProperty({ example: 1000 })
   chunkSize: number;
 
@@ -122,4 +163,39 @@ export class KbReEmbedAcceptedDto {
 
   @ApiProperty({ example: 12, description: '큐잉된 문서 개수' })
   documentCount: number;
+}
+
+/** KB 단위 그래프 재추출 접수 결과 */
+export class KbReExtractAcceptedDto {
+  @ApiProperty({ example: 'KB graph re-extraction started' })
+  message: string;
+
+  @ApiProperty({ example: 12, description: '큐잉된 문서 개수' })
+  documentCount: number;
+}
+
+/** 그래프 통계 응답 */
+export class KbGraphStatsDto {
+  @ApiProperty({ example: 1240, description: 'KB 내 entity 총 수' })
+  entityCount: number;
+
+  @ApiProperty({ example: 3802, description: 'KB 내 relation 총 수' })
+  relationCount: number;
+
+  @ApiProperty({
+    example: 5,
+    description:
+      '그래프 추출이 완료된 문서 수 (graph_extraction_status = completed)',
+  })
+  extractedDocumentCount: number;
+
+  @ApiProperty({ example: 7, description: 'KB 의 총 문서 수' })
+  totalDocumentCount: number;
+
+  @ApiProperty({
+    example: 'idle',
+    enum: ['idle', 'in_progress'],
+    description: 'KB 전체 재추출 잠금 상태',
+  })
+  reextractStatus: 'idle' | 'in_progress';
 }

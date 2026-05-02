@@ -45,7 +45,9 @@ import { UpdateKnowledgeBaseDto } from './dto/update-knowledge-base.dto';
 import { RagSearchDto } from './dto/rag-search.dto';
 import {
   DocumentDto,
+  KbGraphStatsDto,
   KbReEmbedAcceptedDto,
+  KbReExtractAcceptedDto,
   KnowledgeBaseDto,
   RagSearchResultDto,
   ReEmbedAcceptedDto,
@@ -140,6 +142,81 @@ export class KnowledgeBaseController {
     @Body() dto: UpdateKnowledgeBaseDto,
   ) {
     return this.kbService.update(id, workspaceId, dto);
+  }
+
+  @Post(':id/re-extract')
+  @HttpCode(HttpStatus.ACCEPTED)
+  @Roles('editor')
+  @Throttle({ default: { limit: 3, ttl: 60_000 } })
+  @ApiOperation({
+    summary: '지식 베이스 전체 그래프 재추출 (graph 모드)',
+    description:
+      'graph 모드 KB 의 모든 entity/relation/chunk_entity 를 삭제하고 모든 문서를 처음부터 다시 추출합니다. ' +
+      'reextract_status atomic compare-and-swap 으로 잠금 (이미 진행 중이면 409). 비-graph 모드 KB 는 400 KB_NOT_GRAPH_MODE.',
+  })
+  @ApiParam({ name: 'id', description: '지식 베이스 UUID', format: 'uuid' })
+  @ApiAcceptedWrappedResponse(KbReExtractAcceptedDto, {
+    description: 'KB 전체 그래프 재추출 작업이 큐잉됨',
+  })
+  @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
+  @ApiForbiddenResponse({ description: 'editor 이상 권한 필요' })
+  @ApiNotFoundResponse({ description: '해당 지식 베이스를 찾을 수 없음' })
+  async reExtractAll(
+    @Param('id', ParseUUIDPipe) id: string,
+    @WorkspaceId() workspaceId: string,
+  ): Promise<KbReExtractAcceptedDto> {
+    const { documentCount } = await this.kbService.reExtractAll(
+      id,
+      workspaceId,
+    );
+    return {
+      message: 'KB graph re-extraction started',
+      documentCount,
+    } satisfies KbReExtractAcceptedDto;
+  }
+
+  @Post(':id/documents/:docId/re-extract')
+  @HttpCode(HttpStatus.ACCEPTED)
+  @Roles('editor')
+  @ApiOperation({
+    summary: '문서 단건 그래프 재추출 (graph 모드)',
+    description:
+      '문서 하나에 대해서만 그래프 추출을 다시 수행. graph 모드 KB 에서만 유효 (vector 모드는 400).',
+  })
+  @ApiParam({ name: 'id', description: '지식 베이스 UUID', format: 'uuid' })
+  @ApiParam({ name: 'docId', description: '문서 UUID', format: 'uuid' })
+  @ApiAcceptedWrappedResponse(ReEmbedAcceptedDto, {
+    description: '그래프 재추출 작업이 큐잉됨',
+  })
+  @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
+  @ApiForbiddenResponse({ description: 'editor 이상 권한 필요' })
+  @ApiNotFoundResponse({ description: '해당 문서를 찾을 수 없음' })
+  async reExtractDocument(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Param('docId', ParseUUIDPipe) docId: string,
+    @WorkspaceId() workspaceId: string,
+  ) {
+    await this.kbService.reExtractDocument(docId, id, workspaceId);
+    return { message: 'Graph re-extraction started' };
+  }
+
+  @Get(':id/graph-stats')
+  @ApiOperation({
+    summary: 'KB 그래프 통계 (graph 모드)',
+    description:
+      'entity / relation 카운트와 추출 진행 상태 요약. graph 모드 KB 에서만 유효.',
+  })
+  @ApiParam({ name: 'id', description: '지식 베이스 UUID', format: 'uuid' })
+  @ApiOkWrappedResponse(KbGraphStatsDto, {
+    description: '그래프 통계 + 추출 진행 상태',
+  })
+  @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
+  @ApiNotFoundResponse({ description: '해당 지식 베이스를 찾을 수 없음' })
+  async graphStats(
+    @Param('id', ParseUUIDPipe) id: string,
+    @WorkspaceId() workspaceId: string,
+  ): Promise<KbGraphStatsDto> {
+    return this.kbService.getGraphStats(id, workspaceId);
   }
 
   @Post(':id/re-embed')

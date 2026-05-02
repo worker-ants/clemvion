@@ -1,11 +1,20 @@
-import { OnWorkerEvent, Processor, WorkerHost } from '@nestjs/bullmq';
+import {
+  InjectQueue,
+  OnWorkerEvent,
+  Processor,
+  WorkerHost,
+} from '@nestjs/bullmq';
 import { Inject, Logger, forwardRef } from '@nestjs/common';
-import type { Job } from 'bullmq';
+import type { Job, Queue } from 'bullmq';
 import { DataSource } from 'typeorm';
 import {
   DOCUMENT_EMBEDDING_QUEUE,
   DocumentEmbeddingJob,
 } from './document-embedding.queue';
+import {
+  GRAPH_EXTRACTION_QUEUE,
+  GraphExtractionJob,
+} from './graph-extraction.queue';
 import { EmbeddingService } from '../embedding/embedding.service';
 
 /**
@@ -27,6 +36,8 @@ export class DocumentEmbeddingProcessor extends WorkerHost {
     @Inject(forwardRef(() => EmbeddingService))
     private readonly embeddingService: EmbeddingService,
     private readonly dataSource: DataSource,
+    @InjectQueue(GRAPH_EXTRACTION_QUEUE)
+    private readonly graphQueue: Queue<GraphExtractionJob>,
   ) {
     super();
   }
@@ -39,6 +50,10 @@ export class DocumentEmbeddingProcessor extends WorkerHost {
   @OnWorkerEvent('completed')
   async onCompleted(job: Job<DocumentEmbeddingJob>): Promise<void> {
     await this.maybeFinalizeKbBatch(job.data);
+    // graph 모드 KB 는 임베딩 완료 직후 graph-extraction 으로 chained dispatch.
+    // KB batch 일 때는 isKbBatch 플래그를 함께 전달해, 그래프 child 의 finalize 도
+    // KB.reextract_status 를 같이 끌어내릴 수 있게 한다.
+    await this.maybeChainGraphExtraction(job.data);
   }
 
   @OnWorkerEvent('failed')
@@ -69,6 +84,37 @@ export class DocumentEmbeddingProcessor extends WorkerHost {
       const msg = err instanceof Error ? err.message : String(err);
       this.logger.warn(
         `Failed to finalize KB batch for ${data.knowledgeBaseId}: ${msg}`,
+      );
+    }
+  }
+
+  // KB.rag_mode === 'graph' 인 경우 graph-extraction 큐로 child job 을 add 한다.
+  // documentId 만으로 KB.rag_mode 를 조회 — 작은 read 라 큐 처리량에 영향 없음.
+  private async maybeChainGraphExtraction(
+    data: DocumentEmbeddingJob | undefined,
+  ): Promise<void> {
+    if (!data?.documentId) return;
+    try {
+      const rows = await this.dataSource.query<
+        { rag_mode: string; knowledge_base_id: string }[]
+      >(
+        `SELECT kb.rag_mode AS rag_mode, d.knowledge_base_id AS knowledge_base_id
+         FROM document d
+         JOIN knowledge_base kb ON kb.id = d.knowledge_base_id
+         WHERE d.id = $1`,
+        [data.documentId],
+      );
+      const row = rows[0];
+      if (!row || row.rag_mode !== 'graph') return;
+      await this.graphQueue.add('extract', {
+        documentId: data.documentId,
+        knowledgeBaseId: row.knowledge_base_id,
+        isKbBatch: data.isKbBatch === true,
+      });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      this.logger.warn(
+        `Failed to chain graph extraction for document ${data.documentId}: ${msg}`,
       );
     }
   }

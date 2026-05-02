@@ -1,5 +1,29 @@
 import { RagSearchService } from './rag-search.service';
 
+// 테스트의 KB row mock 을 만들 때 새 컬럼 default 를 자동 채워주는 helper.
+// vector 모드 KB 가 기본. graph 모드 KB 는 ragMode='graph' 를 명시적으로 override.
+function makeKbRow(overrides: Partial<KbRowFixture>): KbRowFixture {
+  return {
+    embeddingModel: 'text-embedding-3-small',
+    embeddingDimension: 1536,
+    ragMode: 'vector',
+    maxHops: 1,
+    vectorSeedTopK: 5,
+    expandedChunkLimit: 15,
+    ...overrides,
+  } as KbRowFixture;
+}
+
+interface KbRowFixture {
+  id: string;
+  embeddingModel: string;
+  embeddingDimension: number | null;
+  ragMode: 'vector' | 'graph';
+  maxHops: number;
+  vectorSeedTopK: number;
+  expandedChunkLimit: number;
+}
+
 describe('RagSearchService', () => {
   let service: RagSearchService;
   let mockDataSource: Record<string, jest.Mock>;
@@ -25,7 +49,7 @@ describe('RagSearchService', () => {
     );
   });
 
-  describe('search', () => {
+  describe('search (vector mode)', () => {
     it('should return empty array for empty knowledgeBaseIds', async () => {
       const result = await service.search('query', [], 'ws-1');
       expect(result).toEqual([]);
@@ -39,13 +63,7 @@ describe('RagSearchService', () => {
     });
 
     it('should gracefully degrade on error and return empty array', async () => {
-      mockDataSource.query.mockResolvedValueOnce([
-        {
-          id: 'kb-1',
-          embeddingModel: 'text-embedding-3-small',
-          embeddingDimension: 1536,
-        },
-      ]);
+      mockDataSource.query.mockResolvedValueOnce([makeKbRow({ id: 'kb-1' })]);
       mockLlmService.resolveConfig.mockRejectedValue(
         new Error('Config not found'),
       );
@@ -57,11 +75,11 @@ describe('RagSearchService', () => {
     it("should pass each KB's embeddingModel to llmService.embed", async () => {
       mockDataSource.query
         .mockResolvedValueOnce([
-          {
+          makeKbRow({
             id: 'kb-1',
             embeddingModel: 'text-embedding-3-large',
             embeddingDimension: 3072,
-          },
+          }),
         ])
         .mockResolvedValueOnce([]);
       mockLlmService.embed.mockResolvedValue([new Array(3072).fill(0.1)]);
@@ -78,16 +96,12 @@ describe('RagSearchService', () => {
     it('should split KBs by (model, dimension) and embed each group separately', async () => {
       mockDataSource.query
         .mockResolvedValueOnce([
-          {
-            id: 'kb-1',
-            embeddingModel: 'text-embedding-3-small',
-            embeddingDimension: 1536,
-          },
-          {
+          makeKbRow({ id: 'kb-1' }),
+          makeKbRow({
             id: 'kb-2',
             embeddingModel: 'text-embedding-3-large',
             embeddingDimension: 3072,
-          },
+          }),
         ])
         .mockResolvedValueOnce([])
         .mockResolvedValueOnce([]);
@@ -115,11 +129,7 @@ describe('RagSearchService', () => {
 
     it('should skip KBs with null embedding_dimension (not yet embedded)', async () => {
       mockDataSource.query.mockResolvedValueOnce([
-        {
-          id: 'kb-1',
-          embeddingModel: 'text-embedding-3-small',
-          embeddingDimension: null,
-        },
+        makeKbRow({ id: 'kb-1', embeddingDimension: null }),
       ]);
 
       const result = await service.search('query', ['kb-1'], 'ws-1');
@@ -131,11 +141,11 @@ describe('RagSearchService', () => {
     it('should use halfvec cast for 3072-dim group (matches V023 partial index)', async () => {
       mockDataSource.query
         .mockResolvedValueOnce([
-          {
+          makeKbRow({
             id: 'kb-1',
             embeddingModel: 'text-embedding-3-large',
             embeddingDimension: 3072,
-          },
+          }),
         ])
         .mockResolvedValueOnce([]);
       mockLlmService.embed.mockResolvedValue([new Array(3072).fill(0.1)]);
@@ -150,13 +160,7 @@ describe('RagSearchService', () => {
 
     it('should use vector cast for sub-2000-dim groups (matches V022 partial indexes)', async () => {
       mockDataSource.query
-        .mockResolvedValueOnce([
-          {
-            id: 'kb-1',
-            embeddingModel: 'text-embedding-3-small',
-            embeddingDimension: 1536,
-          },
-        ])
+        .mockResolvedValueOnce([makeKbRow({ id: 'kb-1' })])
         .mockResolvedValueOnce([]);
       mockLlmService.embed.mockResolvedValue([new Array(1536).fill(0.1)]);
 
@@ -169,11 +173,11 @@ describe('RagSearchService', () => {
 
     it('should skip KBs with unsupported embedding_dimension (no partial index)', async () => {
       mockDataSource.query.mockResolvedValueOnce([
-        {
+        makeKbRow({
           id: 'kb-1',
           embeddingModel: 'custom-model',
-          embeddingDimension: 512, // not in SUPPORTED_EMBEDDING_DIMS
-        },
+          embeddingDimension: 512,
+        }),
       ]);
 
       const result = await service.search('query', ['kb-1'], 'ws-1');
@@ -185,16 +189,12 @@ describe('RagSearchService', () => {
     it('should merge results across groups and respect topK', async () => {
       mockDataSource.query
         .mockResolvedValueOnce([
-          {
-            id: 'kb-1',
-            embeddingModel: 'text-embedding-3-small',
-            embeddingDimension: 1536,
-          },
-          {
+          makeKbRow({ id: 'kb-1' }),
+          makeKbRow({
             id: 'kb-2',
             embeddingModel: 'text-embedding-3-large',
             embeddingDimension: 3072,
-          },
+          }),
         ])
         .mockImplementation((sql: string) => {
           if (sql.includes('vector_dims(dc.embedding) = 1536')) {
@@ -240,6 +240,86 @@ describe('RagSearchService', () => {
       expect(result).toHaveLength(1);
       expect(result[0].chunkId).toBe('c2');
       expect(result[0].score).toBeCloseTo(0.99);
+    });
+  });
+
+  describe('search (graph mode)', () => {
+    it('routes graph KB through searchGraphKb (Hybrid SQL with seed/expanded CTEs)', async () => {
+      mockDataSource.query
+        .mockResolvedValueOnce([
+          makeKbRow({
+            id: 'kb-1',
+            ragMode: 'graph',
+            maxHops: 2,
+            vectorSeedTopK: 3,
+            expandedChunkLimit: 7,
+          }),
+        ])
+        .mockResolvedValueOnce([
+          {
+            chunkId: 'c1',
+            documentId: 'd1',
+            documentName: 'A.txt',
+            content: 'seed chunk',
+            metadata: {},
+            score: '0.91',
+            origin: 'seed',
+          },
+        ])
+        .mockResolvedValueOnce([{ count: 5 }]); // traversed entity count
+
+      mockLlmService.embed.mockResolvedValue([new Array(1536).fill(0.1)]);
+
+      const { results, graphTraversal } = await service.searchWithMeta(
+        'query',
+        ['kb-1'],
+        'ws-1',
+        { topK: 5 },
+      );
+
+      const graphSql = mockDataSource.query.mock.calls[1][0] as string;
+      expect(graphSql).toContain('WITH seed AS');
+      expect(graphSql).toContain('expanded_entities');
+      expect(graphSql).toContain('chunk_entity');
+
+      expect(results).toHaveLength(1);
+      expect(results[0].origin).toBe('seed');
+      expect(graphTraversal).toEqual(
+        expect.objectContaining({
+          mode: 'graph',
+          seedChunkCount: 1,
+          traversedEntityCount: 5,
+          maxDepth: 2,
+        }),
+      );
+    });
+
+    it('skips graph KB with null embedding_dimension', async () => {
+      mockDataSource.query.mockResolvedValueOnce([
+        makeKbRow({
+          id: 'kb-1',
+          ragMode: 'graph',
+          embeddingDimension: null,
+        }),
+      ]);
+
+      const result = await service.search('query', ['kb-1'], 'ws-1');
+      expect(result).toEqual([]);
+      expect(mockLlmService.embed).not.toHaveBeenCalled();
+    });
+
+    it('returns empty graphTraversal when no graph KB participates', async () => {
+      mockDataSource.query
+        .mockResolvedValueOnce([makeKbRow({ id: 'kb-1' })])
+        .mockResolvedValueOnce([]);
+      mockLlmService.embed.mockResolvedValue([new Array(1536).fill(0.1)]);
+
+      const { graphTraversal } = await service.searchWithMeta(
+        'query',
+        ['kb-1'],
+        'ws-1',
+      );
+      expect(graphTraversal).toBeUndefined();
     });
   });
 
