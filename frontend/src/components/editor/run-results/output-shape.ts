@@ -259,6 +259,30 @@ export interface AiMetadata {
   thinkingTokens: number | null;
   turnCount: number | null;
   toolCalls: number | null;
+  /** RAG 검색 결과로 응답 생성에 활용된 chunk 목록 — 문서명/score/preview 포함 */
+  ragSources: RagSource[];
+  /** RAG 시도 진단 (시도 여부 / 사용된 query / 매칭 수 / skip 사유) */
+  ragDiagnostics: RagDiagnostics | null;
+}
+
+export interface RagSource {
+  chunkId: string;
+  documentId: string;
+  documentName: string;
+  /** 200자 미리보기 */
+  content: string;
+  /** 0~1 cosine 유사도 */
+  score: number;
+  /** graph 모드: 'seed' (vector top-K) 또는 'expanded' (그래프 확장) */
+  origin?: "seed" | "expanded";
+}
+
+export interface RagDiagnostics {
+  attempted: boolean;
+  searchedKbCount: number;
+  queriesUsed: string[];
+  resultCount: number;
+  skipReason?: "empty_user_prompt" | "empty_kb_list" | "no_results";
 }
 
 function pickNumber(
@@ -328,6 +352,51 @@ export function extractAiMetadata(raw: unknown): AiMetadata | null {
     thinkingTokens: pickNumber(meta, "thinkingTokens", "totalThinkingTokens"),
     turnCount: pickNumber(meta, "turnCount") ?? turnCountFromOutput,
     toolCalls: pickNumber(meta, "toolCalls"),
+    ragSources: extractRagSources(meta.ragSources),
+    ragDiagnostics: extractRagDiagnostics(meta.ragDiagnostics),
+  };
+}
+
+function extractRagSources(raw: unknown): RagSource[] {
+  if (!Array.isArray(raw)) return [];
+  const out: RagSource[] = [];
+  for (const entry of raw) {
+    const r = toRecord(entry);
+    if (!r) continue;
+    const documentId = typeof r.documentId === "string" ? r.documentId : null;
+    const documentName =
+      typeof r.documentName === "string" ? r.documentName : null;
+    const chunkId = typeof r.chunkId === "string" ? r.chunkId : null;
+    if (!documentId || !documentName || !chunkId) continue;
+    const content = typeof r.content === "string" ? r.content : "";
+    const score = typeof r.score === "number" ? r.score : 0;
+    const origin =
+      r.origin === "seed" || r.origin === "expanded" ? r.origin : undefined;
+    out.push({ chunkId, documentId, documentName, content, score, origin });
+  }
+  return out;
+}
+
+function extractRagDiagnostics(raw: unknown): RagDiagnostics | null {
+  const r = toRecord(raw);
+  if (!r) return null;
+  if (typeof r.attempted !== "boolean") return null;
+  const queriesUsed = Array.isArray(r.queriesUsed)
+    ? r.queriesUsed.filter((q): q is string => typeof q === "string")
+    : [];
+  const skipReasonValid =
+    r.skipReason === "empty_user_prompt" ||
+    r.skipReason === "empty_kb_list" ||
+    r.skipReason === "no_results";
+  return {
+    attempted: r.attempted,
+    searchedKbCount:
+      typeof r.searchedKbCount === "number" ? r.searchedKbCount : 0,
+    queriesUsed,
+    resultCount: typeof r.resultCount === "number" ? r.resultCount : 0,
+    ...(skipReasonValid
+      ? { skipReason: r.skipReason as RagDiagnostics["skipReason"] }
+      : {}),
   };
 }
 
