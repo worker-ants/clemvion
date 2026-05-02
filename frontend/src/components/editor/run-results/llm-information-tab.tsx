@@ -320,10 +320,146 @@ function RequestPane({ call }: { call: LlmCallTrace }) {
       </div>
     );
   }
+  const parsed = parseRequestPayload(call.requestPayload);
   return (
-    <pre className="rounded bg-[hsl(var(--muted))] p-2 text-xs overflow-x-auto max-h-[60vh] overflow-y-auto">
-      {JSON.stringify(call.requestPayload, null, 2)}
-    </pre>
+    <div className="space-y-3 text-xs">
+      {parsed.systemPrompts.length > 0 && (
+        <RequestSection
+          label={`System Prompt${parsed.systemPrompts.length > 1 ? `s (${parsed.systemPrompts.length})` : ""}`}
+        >
+          <div className="space-y-2">
+            {parsed.systemPrompts.map((sp, i) => (
+              <pre
+                key={i}
+                className="rounded bg-[hsl(var(--muted))] p-2 whitespace-pre-wrap break-words"
+              >
+                {sp}
+              </pre>
+            ))}
+          </div>
+        </RequestSection>
+      )}
+      {parsed.tools.length > 0 && (
+        <RequestSection label={`Tools (${parsed.tools.length})`}>
+          <div className="space-y-2">
+            {parsed.tools.map((tool, i) => (
+              <ToolSchemaCard key={`${tool.name}-${i}`} tool={tool} />
+            ))}
+          </div>
+        </RequestSection>
+      )}
+      <RequestSection
+        label={`Messages${parsed.nonSystemMessages.length > 0 ? ` (${parsed.nonSystemMessages.length})` : ""}`}
+      >
+        {parsed.nonSystemMessages.length === 0 ? (
+          <p className="italic text-[hsl(var(--muted-foreground))]">
+            (no user/assistant/tool messages)
+          </p>
+        ) : (
+          <pre className="rounded bg-[hsl(var(--muted))] p-2 overflow-x-auto whitespace-pre-wrap break-words">
+            {JSON.stringify(parsed.nonSystemMessages, null, 2)}
+          </pre>
+        )}
+      </RequestSection>
+      {Object.keys(parsed.params).length > 0 && (
+        <RequestSection label="Parameters">
+          <pre className="rounded bg-[hsl(var(--muted))] p-2 overflow-x-auto">
+            {JSON.stringify(parsed.params, null, 2)}
+          </pre>
+        </RequestSection>
+      )}
+    </div>
+  );
+}
+
+interface ParsedRequestTool {
+  name: string;
+  description?: string;
+  parameters?: unknown;
+}
+interface ParsedRequest {
+  systemPrompts: string[];
+  tools: ParsedRequestTool[];
+  nonSystemMessages: unknown[];
+  params: Record<string, unknown>;
+}
+
+function parseRequestPayload(raw: unknown): ParsedRequest {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
+    return { systemPrompts: [], tools: [], nonSystemMessages: [], params: {} };
+  }
+  const r = raw as Record<string, unknown>;
+  const messages = Array.isArray(r.messages) ? r.messages : [];
+  const systemPrompts: string[] = [];
+  const nonSystemMessages: unknown[] = [];
+  for (const m of messages) {
+    if (
+      m &&
+      typeof m === "object" &&
+      !Array.isArray(m) &&
+      (m as Record<string, unknown>).role === "system" &&
+      typeof (m as Record<string, unknown>).content === "string"
+    ) {
+      systemPrompts.push((m as { content: string }).content);
+    } else {
+      nonSystemMessages.push(m);
+    }
+  }
+  const tools: ParsedRequestTool[] = Array.isArray(r.tools)
+    ? (r.tools as unknown[]).flatMap((t) => {
+        if (!t || typeof t !== "object" || Array.isArray(t)) return [];
+        const obj = t as Record<string, unknown>;
+        const name = typeof obj.name === "string" ? obj.name : "";
+        if (!name) return [];
+        return [
+          {
+            name,
+            description:
+              typeof obj.description === "string" ? obj.description : undefined,
+            parameters: obj.parameters,
+          },
+        ];
+      })
+    : [];
+  // 기타 파라미터 (model / temperature / maxTokens / responseFormat / jsonSchema 등)
+  const { messages: _m, tools: _t, ...rest } = r;
+  void _m;
+  void _t;
+  return { systemPrompts, tools, nonSystemMessages, params: rest };
+}
+
+function RequestSection({
+  label,
+  children,
+}: {
+  label: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <details open className="rounded border border-[hsl(var(--border))]">
+      <summary className="cursor-pointer select-none px-2 py-1.5 text-xs font-medium text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--muted)/0.4)]">
+        {label}
+      </summary>
+      <div className="border-t border-[hsl(var(--border))] p-2">{children}</div>
+    </details>
+  );
+}
+
+function ToolSchemaCard({ tool }: { tool: ParsedRequestTool }) {
+  return (
+    <div className="rounded bg-[hsl(var(--muted))] p-2">
+      <div className="font-mono font-medium">{tool.name}</div>
+      {tool.description && (
+        <div className="mt-0.5 text-[hsl(var(--muted-foreground))]">
+          {tool.description}
+        </div>
+      )}
+      {tool.parameters !== undefined && (
+        <pre className="mt-1.5 overflow-x-auto rounded bg-[hsl(var(--background))] p-1.5 text-[10px]">
+          {JSON.stringify(tool.parameters, null, 2)}
+        </pre>
+      )}
+    </div>
   );
 }
 

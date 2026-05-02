@@ -138,7 +138,20 @@ export function ConversationInspector({
 // `llm-information-tab.tsx`). Preview here stays focused on the
 // conversation content for the selected message.
 
+// AI Agent 의 system role RAG context 메시지를 detect 하는 마커.
+// `RagSearchService.buildContext` (backend) 가 동일 prefix 로 만들어 보낸다.
+const RAG_CONTEXT_MARKER = "### Relevant Knowledge";
+
+function isRagContextContent(content: unknown): content is string {
+  return typeof content === "string" && content.includes(RAG_CONTEXT_MARKER);
+}
+
 function SelectedItemDetail({ item }: { item: ConversationItem }) {
+  // "rag" 타입은 store 의 ConversationItem 타입에는 없지만 SummaryView 가 system role
+  // 메시지를 담아 합성한다. 런타임 분기로 처리.
+  if ((item.type as string) === "rag") {
+    return <RagDetail item={item} />;
+  }
   if (item.type === "tool") {
     return <ToolDetail item={item} />;
   }
@@ -211,6 +224,28 @@ function ToolDetail({ item }: { item: ConversationItem }) {
   );
 }
 
+function RagDetail({ item }: { item: ConversationItem }) {
+  // content 첫 줄에서 chunk 개수 힌트, [Source: …] 패턴 빈도로 대략 회수 chunk 수 표시.
+  const sourceCount = (item.content.match(/\[Source: /g) ?? []).length;
+  return (
+    <div className="flex flex-col gap-3 p-3">
+      <div className="flex items-center gap-2">
+        <span>🔎</span>
+        <span className="text-xs font-medium text-[hsl(var(--muted-foreground))]">
+          KB Reference — Turn {item.turnIndex}
+          {sourceCount > 0 ? ` · ${sourceCount} chunk(s)` : ""}
+        </span>
+      </div>
+      <div className="text-sm">
+        <MarkdownRenderer content={item.content} />
+      </div>
+      <p className="text-[10px] italic text-[hsl(var(--muted-foreground))]">
+        지식베이스에서 검색한 청크가 시스템 메시지로 LLM 에 주입되었습니다.
+      </p>
+    </div>
+  );
+}
+
 function UserDetail({ item }: { item: ConversationItem }) {
   return (
     <div className="flex flex-col gap-3 p-3">
@@ -260,22 +295,40 @@ function SummaryView({
   // Full conversation thread (shown in both Live and History). Post-Stage-5
   // ai_agent writes messages at `output.result.messages`; legacy runs kept
   // them at `output.messages`. `resolveResultField` handles both paths.
+  // system role 메시지 중 RAG 컨텍스트(`### Relevant Knowledge`) 는 별도 "rag"
+  // 항목으로 노출해 KB 호출이 timeline 에 보이게 한다.
   const items = useMemo(() => {
     if (isLive) return conversationMessages;
     const msgsRaw = resolveResultField<unknown[]>(output, "messages");
     if (!Array.isArray(msgsRaw)) return conversationMessages;
     const msgs = msgsRaw as Array<{ role: string; content: string }>;
     let turnCounter = 0;
-    return msgs
-      .filter((m) => m.role === "user" || m.role === "assistant")
-      .map((m): ConversationItem => {
-        if (m.role === "user") turnCounter++;
-        return {
-          type: m.role as "user" | "assistant",
+    const out: ConversationItem[] = [];
+    for (const m of msgs) {
+      if (m.role === "user") {
+        turnCounter++;
+        out.push({
+          type: "user",
           content: m.content,
           turnIndex: turnCounter,
-        };
-      });
+        });
+      } else if (m.role === "assistant") {
+        out.push({
+          type: "assistant",
+          content: m.content,
+          turnIndex: turnCounter,
+        });
+      } else if (m.role === "system" && isRagContextContent(m.content)) {
+        // RAG context 는 직전 user message 의 turn 에 속하도록 turnCounter 사용 (이미
+        // user 가 처리되며 증가). 타입을 store 표준 외 "rag" 로 표시.
+        out.push({
+          type: "rag" as ConversationItem["type"],
+          content: m.content,
+          turnIndex: turnCounter,
+        });
+      }
+    }
+    return out;
   }, [isLive, conversationMessages, output]);
 
   return (
@@ -312,6 +365,10 @@ function SummaryView({
                 }
               : undefined;
             const isAssistant = item.type === "assistant";
+            const isRag = (item.type as string) === "rag";
+            const ragSourceCount = isRag
+              ? (item.content.match(/\[Source: /g) ?? []).length
+              : 0;
             return (
               <div
                 key={`${item.type}-${item.turnIndex}-${i}`}
@@ -321,21 +378,29 @@ function SummaryView({
                 onKeyDown={handleKeyDown}
                 className={cn(
                   "rounded px-3 py-2 text-xs text-left",
-                  // user 메시지는 plain text 줄바꿈 보존; AI 메시지는 MarkdownRenderer 가 처리.
-                  !isAssistant && "whitespace-pre-wrap",
+                  // user 메시지는 plain text 줄바꿈 보존; AI/RAG 메시지는 markdown / 요약으로 처리.
+                  !isAssistant && !isRag && "whitespace-pre-wrap",
                   item.type === "user"
                     ? "bg-[hsl(var(--accent))] ml-6"
-                    : "bg-[hsl(var(--muted))] mr-6",
+                    : isRag
+                      ? "bg-[hsl(var(--muted)/0.5)] border border-dashed border-[hsl(var(--border))] mx-3 italic"
+                      : "bg-[hsl(var(--muted))] mr-6",
                   isClickable &&
                     "cursor-pointer transition-shadow hover:ring-1 hover:ring-[hsl(var(--primary))/0.3] focus:outline-none focus:ring-1 focus:ring-[hsl(var(--ring))]",
                 )}
               >
                 <div className="mb-1 text-[10px] font-medium text-[hsl(var(--muted-foreground))]">
-                  {item.type === "user" ? "👤 User" : "🤖 AI"}
+                  {item.type === "user"
+                    ? "👤 User"
+                    : isRag
+                      ? `🔎 KB Reference${ragSourceCount > 0 ? ` · ${ragSourceCount} chunk(s)` : ""}`
+                      : "🤖 AI"}
                 </div>
                 {item.content ? (
                   isAssistant ? (
                     <MarkdownRenderer content={item.content} />
+                  ) : isRag ? (
+                    <RagBubbleSummary content={item.content} />
                   ) : (
                     item.content
                   )
@@ -352,6 +417,37 @@ function SummaryView({
         </div>
       )}
 
+    </div>
+  );
+}
+
+/**
+ * RAG bubble 의 짧은 요약 — 회수된 chunk 들의 문서명만 chip 으로 보여줘 한눈에 파악.
+ * 클릭하면 SelectedItemDetail 의 RagDetail 에서 본문 markdown 렌더 전체 노출.
+ */
+function RagBubbleSummary({ content }: { content: string }) {
+  const docNames = Array.from(
+    new Set(
+      Array.from(content.matchAll(/\[Source: ([^\]]+)\]/g), (m) => m[1].trim()),
+    ),
+  ).slice(0, 5);
+  if (docNames.length === 0) {
+    return (
+      <span className="text-[hsl(var(--muted-foreground))]">
+        (KB context retrieved)
+      </span>
+    );
+  }
+  return (
+    <div className="flex flex-wrap items-center gap-1">
+      {docNames.map((n) => (
+        <span
+          key={n}
+          className="rounded bg-[hsl(var(--background))] px-1.5 py-0.5 font-mono text-[10px] not-italic"
+        >
+          {n}
+        </span>
+      ))}
     </div>
   );
 }
