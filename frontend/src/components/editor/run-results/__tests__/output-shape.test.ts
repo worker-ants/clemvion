@@ -46,6 +46,8 @@ describe("extractAiMetadata", () => {
       thinkingTokens: 10,
       turnCount: 2,
       toolCalls: 2,
+      ragSources: [],
+      ragDiagnostics: null,
     });
   });
 
@@ -69,7 +71,75 @@ describe("extractAiMetadata", () => {
       thinkingTokens: null,
       turnCount: null,
       toolCalls: null,
+      ragSources: [],
+      ragDiagnostics: null,
     });
+  });
+
+  it("extracts ragSources and ragDiagnostics from AI Agent meta", () => {
+    const raw = {
+      config: {},
+      output: { result: { response: "ok" } },
+      meta: {
+        model: "openai/gpt-5",
+        inputTokens: 10,
+        outputTokens: 5,
+        totalTokens: 15,
+        ragSources: [
+          {
+            chunkId: "c1",
+            documentId: "d1",
+            documentName: "환불 정책.md",
+            content: "환불은 7일 이내…",
+            score: 0.83,
+            origin: "seed",
+          },
+          {
+            chunkId: "c2",
+            documentId: "d2",
+            documentName: "교환 정책.md",
+            content: "교환은 14일…",
+            score: 0.78,
+          },
+        ],
+        ragDiagnostics: {
+          attempted: true,
+          searchedKbCount: 1,
+          queriesUsed: ["환불 정책", "교환 정책"],
+          resultCount: 2,
+        },
+      },
+    };
+    const meta = extractAiMetadata(raw);
+    expect(meta?.ragSources).toHaveLength(2);
+    expect(meta?.ragSources[0]?.documentName).toBe("환불 정책.md");
+    expect(meta?.ragSources[0]?.origin).toBe("seed");
+    expect(meta?.ragDiagnostics?.attempted).toBe(true);
+    expect(meta?.ragDiagnostics?.queriesUsed).toEqual([
+      "환불 정책",
+      "교환 정책",
+    ]);
+  });
+
+  it("preserves skipReason in ragDiagnostics when search returns no chunks", () => {
+    const raw = {
+      config: {},
+      output: { result: { response: "ok" } },
+      meta: {
+        model: "openai/gpt-5",
+        inputTokens: 5,
+        outputTokens: 5,
+        ragDiagnostics: {
+          attempted: true,
+          searchedKbCount: 1,
+          queriesUsed: ["주문 취소"],
+          resultCount: 0,
+          skipReason: "no_results",
+        },
+      },
+    };
+    const meta = extractAiMetadata(raw);
+    expect(meta?.ragDiagnostics?.skipReason).toBe("no_results");
   });
 
   it("extracts Information Extractor single-turn meta", () => {

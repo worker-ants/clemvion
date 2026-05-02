@@ -22,6 +22,8 @@ import {
   extractAiMetadata,
   extractIeSnapshot,
   type AiMetadata,
+  type RagSource,
+  type RagDiagnostics,
 } from "./output-shape";
 import { ExtractedFieldsCard } from "./extracted-fields-card";
 import { LlmInformationTab } from "./llm-information-tab";
@@ -349,6 +351,12 @@ function OutputTabContent({
   return (
     <div className="space-y-3">
       {aiMetadata && <AiMetadataGrid meta={aiMetadata} />}
+      {aiMetadata && (
+        <RagReferencesSection
+          sources={aiMetadata.ragSources}
+          diagnostics={aiMetadata.ragDiagnostics}
+        />
+      )}
       {ieSnapshot && (
         <ExtractedFieldsCard
           fields={ieSnapshot.fields}
@@ -390,6 +398,12 @@ function MetaTabContent({
   return (
     <div className="space-y-3">
       {aiMetadata && <AiMetadataGrid meta={aiMetadata} />}
+      {aiMetadata && (
+        <RagReferencesSection
+          sources={aiMetadata.ragSources}
+          diagnostics={aiMetadata.ragDiagnostics}
+        />
+      )}
       <JsonContent data={meta} />
     </div>
   );
@@ -461,6 +475,101 @@ function AiMetadataGrid({ meta }: { meta: AiMetadata }) {
       ))}
     </div>
   );
+}
+
+/**
+ * RAG references — AI Agent 응답 생성에 활용된 KB 청크 목록과 진단을 한눈에 보여준다.
+ * 백엔드는 meta.ragSources / meta.ragDiagnostics 로 항상 채워서 보내므로, 사용자는
+ * "왜 KB 가 안 잡혔는지" 또는 "어떤 문서를 참조했는지" 를 즉시 확인할 수 있다.
+ */
+function RagReferencesSection({
+  sources,
+  diagnostics,
+}: {
+  sources: RagSource[];
+  diagnostics: RagDiagnostics | null;
+}) {
+  // 한 번도 RAG 가 시도되지 않았고 sources 도 없으면 섹션 숨김 (KB 미사용 노드).
+  if (!diagnostics && sources.length === 0) return null;
+  if (diagnostics && !diagnostics.attempted && sources.length === 0) {
+    return (
+      <div className="rounded border border-dashed border-[hsl(var(--border))] p-2 text-xs text-[hsl(var(--muted-foreground))]">
+        <div className="font-medium">References</div>
+        <div className="mt-1">
+          {ragSkipReasonLabel(diagnostics.skipReason)}
+        </div>
+      </div>
+    );
+  }
+  return (
+    <div className="space-y-2 rounded border border-[hsl(var(--border))] p-2">
+      <div className="flex items-center justify-between text-xs">
+        <span className="font-medium">References</span>
+        <span className="text-[hsl(var(--muted-foreground))]">
+          {sources.length} chunk(s)
+          {diagnostics ? ` · ${diagnostics.searchedKbCount} KB` : ""}
+        </span>
+      </div>
+      {diagnostics && diagnostics.queriesUsed.length > 0 && (
+        <div className="text-[10px] text-[hsl(var(--muted-foreground))]">
+          Queries used:{" "}
+          {diagnostics.queriesUsed.map((q, i) => (
+            <span
+              key={`${q}-${i}`}
+              className="ml-1 inline-block rounded bg-[hsl(var(--muted))] px-1 py-0.5 font-mono"
+            >
+              {q}
+            </span>
+          ))}
+        </div>
+      )}
+      {sources.length === 0 && diagnostics?.skipReason === "no_results" && (
+        <p className="text-xs text-[hsl(var(--muted-foreground))]">
+          {ragSkipReasonLabel("no_results")}
+        </p>
+      )}
+      {sources.length > 0 && (
+        <ul className="space-y-1.5">
+          {sources.map((s) => (
+            <li
+              key={s.chunkId}
+              className="rounded bg-[hsl(var(--muted)/0.4)] p-1.5 text-xs"
+            >
+              <div className="flex items-center gap-1.5">
+                <span className="truncate font-medium">{s.documentName}</span>
+                <span className="ml-auto shrink-0 font-mono text-[10px] text-[hsl(var(--muted-foreground))]">
+                  {s.score.toFixed(2)}
+                </span>
+                {s.origin && (
+                  <span className="shrink-0 rounded bg-[hsl(var(--background))] px-1 py-0.5 font-mono text-[10px] text-[hsl(var(--muted-foreground))]">
+                    {s.origin}
+                  </span>
+                )}
+              </div>
+              <div className="mt-1 line-clamp-3 whitespace-pre-wrap text-[hsl(var(--muted-foreground))]">
+                {s.content}
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+function ragSkipReasonLabel(
+  reason: RagDiagnostics["skipReason"] | undefined,
+): string {
+  switch (reason) {
+    case "empty_kb_list":
+      return "No knowledge bases configured for this node.";
+    case "empty_user_prompt":
+      return "User message was empty — RAG search skipped.";
+    case "no_results":
+      return "No matching chunks found above threshold.";
+    default:
+      return "RAG search did not run.";
+  }
 }
 
 /**
