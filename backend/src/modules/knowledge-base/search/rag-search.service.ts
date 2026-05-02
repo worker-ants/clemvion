@@ -430,8 +430,10 @@ export class RagSearchService {
     // 메타 추적: traversed entity 수는 별도 SQL 로 빠르게 조회 (위 CTE 안에서는 LIMIT 처리 후라 정확하지 않을 수 있음).
     let traversedEntityCount = 0;
     if (seedRows.length > 0) {
+      // expanded CTE 가 자기 자신을 참조하는 재귀 traversal 이므로 WITH RECURSIVE 필수
+      // (앞서 searchGraphKb 본 쿼리에서 동일 이슈로 "relation does not exist" 발생).
       const entRows = await this.dataSource.query<{ count: number }[]>(
-        `WITH seed_entities AS (
+        `WITH RECURSIVE seed_entities AS (
            SELECT DISTINCT ce.entity_id
            FROM chunk_entity ce
            WHERE ce.chunk_id = ANY($1::uuid[])

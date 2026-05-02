@@ -287,6 +287,12 @@ describe('RagSearchService', () => {
       expect(graphSql).toContain('expanded_entities');
       expect(graphSql).toContain('chunk_entity');
 
+      // traversed entity count 메타 SQL 도 동일하게 재귀 CTE — RECURSIVE 키워드 누락 시
+      // "relation 'expanded' does not exist" 로 실패한다.
+      const metaSql = mockDataSource.query.mock.calls[2][0] as string;
+      expect(metaSql).toContain('WITH RECURSIVE seed_entities AS');
+      expect(metaSql).toMatch(/expanded\s+AS/);
+
       expect(results).toHaveLength(1);
       expect(results[0].origin).toBe('seed');
       expect(graphTraversal).toEqual(
