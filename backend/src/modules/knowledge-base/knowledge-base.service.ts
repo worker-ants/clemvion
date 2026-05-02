@@ -38,6 +38,16 @@ const CONTENT_TYPE_MAP: Record<string, string> = {
   csv: 'text/csv',
 };
 
+/**
+ * Multer (busboy) 는 multipart/form-data 의 filename 헤더를 기본적으로 latin1 로 디코딩한다.
+ * 브라우저는 RFC 7578 에 따라 UTF-8 로 보내므로 latin1 한 바이트씩 잘려 깨져 보인다 (예: 한글이
+ * "á __ ¢á __" 처럼 출력). 원래 바이트열로 되돌려 UTF-8 로 재해석하고, macOS HFS/APFS 가 사용하는
+ * NFD (분리형) 를 NFC (결합형) 로 정규화해 전 OS 에서 동일한 글자로 보이게 한다.
+ */
+function decodeMulterFilename(originalname: string): string {
+  return Buffer.from(originalname, 'latin1').toString('utf8').normalize('NFC');
+}
+
 @Injectable()
 export class KnowledgeBaseService {
   private readonly logger = new Logger(KnowledgeBaseService.name);
@@ -502,7 +512,8 @@ export class KnowledgeBaseService {
   ): Promise<Document> {
     await this.findById(kbId, workspaceId);
 
-    const ext = file.originalname.split('.').pop()?.toLowerCase();
+    const filename = decodeMulterFilename(file.originalname);
+    const ext = filename.split('.').pop()?.toLowerCase();
     if (!ext || !ALLOWED_FILE_TYPES.includes(ext)) {
       throw new BadRequestException({
         code: 'INVALID_FILE_TYPE',
@@ -511,7 +522,7 @@ export class KnowledgeBaseService {
     }
 
     const docId = uuidv4();
-    const sanitizedFilename = path.basename(file.originalname);
+    const sanitizedFilename = path.basename(filename);
     const s3Key = `kb/${kbId}/${docId}/${sanitizedFilename}`;
     const contentType = CONTENT_TYPE_MAP[ext] || 'application/octet-stream';
 
@@ -520,7 +531,7 @@ export class KnowledgeBaseService {
     const doc = this.documentRepository.create({
       id: docId,
       knowledgeBaseId: kbId,
-      name: file.originalname,
+      name: filename,
       fileType: ext,
       fileUrl: s3Key,
       fileSize: file.size,
