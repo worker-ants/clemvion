@@ -8,7 +8,10 @@ import {
   HttpCode,
   HttpStatus,
   ParseUUIDPipe,
+  ParseIntPipe,
   UseGuards,
+  DefaultValuePipe,
+  BadRequestException,
 } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 import { Roles, RolesGuard } from '../../common/guards/roles.guard';
@@ -17,11 +20,13 @@ import {
   ApiBearerAuth,
   ApiOperation,
   ApiParam,
+  ApiQuery,
   ApiNoContentResponse,
   ApiUnauthorizedResponse,
   ApiForbiddenResponse,
   ApiNotFoundResponse,
 } from '@nestjs/swagger';
+import { ENTITY_TYPES } from './entities/entity.entity';
 import {
   ApiAcceptedWrappedResponse,
   ApiOkPaginatedResponse,
@@ -126,6 +131,12 @@ export class GraphController {
       'graph 모드 KB 의 entity 목록. mention_count desc 정렬. type 필터 / name·display_name 검색 지원.',
   })
   @ApiParam({ name: 'id', description: '지식 베이스 UUID', format: 'uuid' })
+  @ApiQuery({
+    name: 'type',
+    required: false,
+    enum: ENTITY_TYPES,
+    description: 'entity type 필터',
+  })
   @ApiOkPaginatedResponse(GraphEntityDto, {
     description: 'Entity 목록 + 페이지네이션 메타',
   })
@@ -236,6 +247,12 @@ export class GraphController {
       '시각화 컴포넌트(@xyflow/react 등) 가 직접 렌더링할 수 있는 nodes/edges 형태.',
   })
   @ApiParam({ name: 'id', description: '지식 베이스 UUID', format: 'uuid' })
+  @ApiQuery({
+    name: 'limit',
+    required: false,
+    schema: { type: 'integer', minimum: 1, maximum: 200, default: 50 },
+    description: '반환할 상위 entity 개수 (1~200)',
+  })
   @ApiOkWrappedResponse(GraphVisualizationDto, {
     description: '그래프 시각화 페이로드',
   })
@@ -244,14 +261,15 @@ export class GraphController {
   async graphVisualization(
     @Param('id', ParseUUIDPipe) id: string,
     @WorkspaceId() workspaceId: string,
-    @Query('limit') limit?: string,
+    @Query('limit', new DefaultValuePipe(50), ParseIntPipe) limit: number,
   ): Promise<GraphVisualizationDto> {
-    const parsedLimit = limit ? parseInt(limit, 10) : undefined;
-    return this.graphQueryService.getGraphVisualization(
-      id,
-      workspaceId,
-      Number.isNaN(parsedLimit) ? undefined : parsedLimit,
-    );
+    if (limit < 1 || limit > 200) {
+      throw new BadRequestException({
+        code: 'INVALID_LIMIT',
+        message: 'limit must be between 1 and 200',
+      });
+    }
+    return this.graphQueryService.getGraphVisualization(id, workspaceId, limit);
   }
 
   @Get('graph/stats')

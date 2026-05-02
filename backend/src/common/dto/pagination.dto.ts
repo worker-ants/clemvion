@@ -1,4 +1,12 @@
-import { IsOptional, IsInt, Min, Max, IsString, IsIn } from 'class-validator';
+import {
+  IsOptional,
+  IsInt,
+  Min,
+  Max,
+  IsString,
+  IsIn,
+  MaxLength,
+} from 'class-validator';
 import { Type } from 'class-transformer';
 import { ApiPropertyOptional } from '@nestjs/swagger';
 
@@ -55,8 +63,10 @@ export class PaginationQueryDto {
   @ApiPropertyOptional({
     description: '검색어 (부분 일치)',
     example: 'keyword',
+    maxLength: 200,
   })
   @IsOptional()
   @IsString()
+  @MaxLength(200)
   search?: string;
 }

@@ -6,6 +6,7 @@ import { Document } from '../entities/document.entity';
 import { DocumentChunk } from '../entities/document-chunk.entity';
 import { KnowledgeBase } from '../entities/knowledge-base.entity';
 import { LlmService } from '../../llm/llm.service';
+import { sanitizeLlmErrorMessage } from '../../llm/utils/sanitize-error.util';
 import { WebsocketService } from '../../websocket/websocket.service';
 import {
   GRAPH_EXTRACTION_SYSTEM_PROMPT,
@@ -165,15 +166,21 @@ export class GraphExtractionService {
         relationDelta: totalRelationDelta,
       });
     } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
+      const rawMessage = err instanceof Error ? err.message : String(err);
+      // 전체 로그에는 원문 메시지를 남겨 진단에 활용하되, document.metadata 와 WebSocket
+      // 페이로드는 사용자/외부에 노출되므로 sanitize 한 메시지를 저장해 내부 URL·키
+      // 같은 정보가 새지 않게 한다.
+      const safeMessage = sanitizeLlmErrorMessage(rawMessage);
       this.logger.error(
-        `Graph extraction failed for document ${documentId}: ${message}`,
+        `Graph extraction failed for document ${documentId}: ${rawMessage}`,
       );
       await this.documentRepository.update(documentId, {
         graphExtractionStatus: 'error',
-        metadata: { ...doc.metadata, graphExtractionError: message },
+        metadata: { ...doc.metadata, graphExtractionError: safeMessage },
       });
-      this.emitEvent(documentId, 'document:graph_error', { error: message });
+      this.emitEvent(documentId, 'document:graph_error', {
+        error: safeMessage,
+      });
     }
   }
 

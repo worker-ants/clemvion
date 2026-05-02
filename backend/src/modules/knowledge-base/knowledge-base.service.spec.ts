@@ -380,7 +380,10 @@ describe('KnowledgeBaseService', () => {
           },
         },
       ]);
-      expect(result).toEqual({ documentCount: 2, chainedGraphExtraction: false });
+      expect(result).toEqual({
+        documentCount: 2,
+        chainedGraphExtraction: false,
+      });
     });
 
     it('should immediately reset to idle for empty KB (no child job to finalize)', async () => {
@@ -396,7 +399,10 @@ describe('KnowledgeBaseService', () => {
         expect.stringMatching(/SET reembed_status = 'idle'/),
         ['kb-1'],
       );
-      expect(result).toEqual({ documentCount: 0, chainedGraphExtraction: false });
+      expect(result).toEqual({
+        documentCount: 0,
+        chainedGraphExtraction: false,
+      });
     });
 
     it('should throw 409 when reembed is already in progress (atomic 0 rows)', async () => {
