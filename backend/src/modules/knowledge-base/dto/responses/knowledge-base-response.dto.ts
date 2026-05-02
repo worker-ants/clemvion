@@ -163,6 +163,13 @@ export class KbReEmbedAcceptedDto {
 
   @ApiProperty({ example: 12, description: '큐잉된 문서 개수' })
   documentCount: number;
+
+  @ApiProperty({
+    example: false,
+    description:
+      'graph 모드 KB 인 경우 임베딩 완료 후 그래프 추출이 자동 chained 되어 추가 LLM 비용이 발생함을 의미합니다. UI 가 사용자에게 안내할 수 있도록 응답에 포함됩니다.',
+  })
+  chainedGraphExtraction: boolean;
 }
 
 /** KB 단위 그래프 재추출 접수 결과 */

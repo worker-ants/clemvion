@@ -169,10 +169,12 @@ export class KnowledgeBaseController {
     @Param('id', ParseUUIDPipe) id: string,
     @WorkspaceId() workspaceId: string,
   ): Promise<KbReEmbedAcceptedDto> {
-    const { documentCount } = await this.kbService.reEmbedAll(id, workspaceId);
+    const { documentCount, chainedGraphExtraction } =
+      await this.kbService.reEmbedAll(id, workspaceId);
     return {
       message: 'KB re-embedding started',
       documentCount,
+      chainedGraphExtraction,
     } satisfies KbReEmbedAcceptedDto;
   }
 

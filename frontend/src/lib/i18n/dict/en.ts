@@ -1608,6 +1608,8 @@ export const en: Dict = {
     kbReembedConfirmTitle: "Re-embed entire KB",
     kbReembedConfirmMessage:
       "All chunks and embeddings will be deleted and reprocessed. Continue?",
+    kbReembedConfirmMessageGraph:
+      "All chunks and embeddings will be deleted and reprocessed. Because this KB is in graph mode, graph extraction will also re-run automatically and incur additional LLM costs. Continue?",
     kbReembedStarted: "Started re-embedding {{count}} document(s)",
     kbReembedFailed: "Failed to start KB re-embedding",
     chunkSizeInvalid: "Chunk size must be between 100 and 8000",

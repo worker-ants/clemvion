@@ -472,7 +472,11 @@ export default function KnowledgeBaseDetailPage({
       <ConfirmModal
         open={showKbReEmbedConfirm}
         title={t("knowledgeBases.kbReembedConfirmTitle")}
-        message={t("knowledgeBases.kbReembedConfirmMessage")}
+        message={
+          isGraphMode
+            ? t("knowledgeBases.kbReembedConfirmMessageGraph")
+            : t("knowledgeBases.kbReembedConfirmMessage")
+        }
         confirmLabel={t("knowledgeBases.kbReembedAll")}
         cancelLabel={t("common.cancel")}
         onCancel={() => setShowKbReEmbedConfirm(false)}

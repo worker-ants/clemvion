@@ -155,11 +155,17 @@ export const knowledgeBasesApi = {
     return data;
   },
 
-  async reEmbedAll(
-    kbId: string,
-  ): Promise<{ message: string; documentCount: number }> {
+  async reEmbedAll(kbId: string): Promise<{
+    message: string;
+    documentCount: number;
+    chainedGraphExtraction: boolean;
+  }> {
     const response = await apiClient.post(`/knowledge-bases/${kbId}/re-embed`);
-    return unwrap<{ message: string; documentCount: number }>(response);
+    return unwrap<{
+      message: string;
+      documentCount: number;
+      chainedGraphExtraction: boolean;
+    }>(response);
   },
 
   async remove(id: string) {

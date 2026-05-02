@@ -291,7 +291,7 @@ export class KnowledgeBaseService {
   async reEmbedAll(
     id: string,
     workspaceId: string,
-  ): Promise<{ documentCount: number }> {
+  ): Promise<{ documentCount: number; chainedGraphExtraction: boolean }> {
     const kb = await this.findById(id, workspaceId);
 
     const acquired = await this.dataSource.query<{ id: string }[]>(
@@ -319,7 +319,10 @@ export class KnowledgeBaseService {
         `UPDATE knowledge_base SET reembed_status = 'idle' WHERE id = $1`,
         [id],
       );
-      return { documentCount: 0 };
+      return {
+        documentCount: 0,
+        chainedGraphExtraction: kb.ragMode === 'graph',
+      };
     }
 
     await this.embeddingQueue.addBulk(
@@ -336,7 +339,10 @@ export class KnowledgeBaseService {
       })),
     );
 
-    return { documentCount: docs.length };
+    return {
+      documentCount: docs.length,
+      chainedGraphExtraction: kb.ragMode === 'graph',
+    };
   }
 
   // BullMQ 'document-embedding' 큐에 단발 임베딩 작업을 추가.
