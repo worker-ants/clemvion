@@ -13,6 +13,7 @@ import { UpdateKnowledgeBaseDto } from './dto/update-knowledge-base.dto';
 import { PaginatedResponseDto } from '../../common/dto/paginated-response.dto';
 import { PaginationQueryDto } from '../../common/dto/pagination.dto';
 import { S3Service } from '../../common/services/s3.service';
+import { EmbeddingService } from './embedding/embedding.service';
 import { v4 as uuidv4 } from 'uuid';
 import * as path from 'path';
 
@@ -35,6 +36,7 @@ export class KnowledgeBaseService {
     private readonly documentRepository: Repository<Document>,
     private readonly s3Service: S3Service,
     private readonly dataSource: DataSource,
+    private readonly embeddingService: EmbeddingService,
   ) {}
 
   // ── Knowledge Base CRUD ──
@@ -98,9 +100,42 @@ export class KnowledgeBaseService {
     const kb = await this.findById(id, workspaceId);
     if (dto.name !== undefined) kb.name = dto.name;
     if (dto.description !== undefined) kb.description = dto.description;
+    if (dto.embeddingModel !== undefined)
+      kb.embeddingModel = dto.embeddingModel;
     if (dto.chunkSize !== undefined) kb.chunkSize = dto.chunkSize;
     if (dto.chunkOverlap !== undefined) kb.chunkOverlap = dto.chunkOverlap;
     return this.kbRepository.save(kb);
+  }
+
+  // 모델 변경 등으로 KB 전체 재임베딩이 필요할 때 호출.
+  // - embedding_dimension 을 NULL 로 초기화 (다음 첫 청크 INSERT 에서 새 차원으로 채워짐)
+  // - 모든 문서를 비동기 재임베딩 큐에 던지고, 큐잉 개수만 즉시 반환
+  async reEmbedAll(
+    id: string,
+    workspaceId: string,
+  ): Promise<{ documentCount: number }> {
+    await this.findById(id, workspaceId);
+
+    await this.dataSource.query(
+      `UPDATE knowledge_base SET embedding_dimension = NULL WHERE id = $1`,
+      [id],
+    );
+
+    const docs = await this.documentRepository.find({
+      where: { knowledgeBaseId: id },
+      select: ['id'],
+    });
+
+    for (const doc of docs) {
+      this.embeddingService.processDocument(doc.id, true).catch((err) => {
+        const msg = err instanceof Error ? err.message : String(err);
+        this.logger.error(
+          `KB re-embedding failed for document ${doc.id}: ${msg}`,
+        );
+      });
+    }
+
+    return { documentCount: docs.length };
   }
 
   async remove(id: string, workspaceId: string): Promise<void> {

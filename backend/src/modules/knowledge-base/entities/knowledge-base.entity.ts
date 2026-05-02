@@ -32,9 +32,12 @@ export class KnowledgeBase {
   @Column({
     name: 'embedding_model',
     length: 100,
-    default: 'text-embedding-ada-002',
+    default: 'text-embedding-3-small',
   })
   embeddingModel: string;
+
+  @Column({ name: 'embedding_dimension', type: 'int', nullable: true })
+  embeddingDimension: number | null;
 
   @Column({ name: 'chunk_size', type: 'int', default: 1000 })
   chunkSize: number;

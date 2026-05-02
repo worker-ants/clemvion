@@ -28,6 +28,18 @@ export class UpdateKnowledgeBaseDto {
   @IsString()
   description?: string;
 
+  /** 변경할 임베딩 모델 식별자 */
+  @ApiPropertyOptional({
+    description:
+      '변경할 임베딩 모델 식별자. 차원이 달라지면 기존 청크와 호환되지 않으므로 KB 재임베딩이 필요합니다.',
+    example: 'text-embedding-3-large',
+    maxLength: 100,
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  embeddingModel?: string;
+
   /** 변경할 청크 크기 (토큰 기준, 100~8000) */
   @ApiPropertyOptional({
     description: '변경할 문서 분할 청크 크기. 변경 후 재임베딩이 필요합니다.',

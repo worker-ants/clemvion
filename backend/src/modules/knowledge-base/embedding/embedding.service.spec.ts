@@ -1,0 +1,214 @@
+import { Test, TestingModule } from '@nestjs/testing';
+import { getRepositoryToken } from '@nestjs/typeorm';
+import { DataSource } from 'typeorm';
+import { EmbeddingService } from './embedding.service';
+import { Document } from '../entities/document.entity';
+import { DocumentChunk } from '../entities/document-chunk.entity';
+import { KnowledgeBase } from '../entities/knowledge-base.entity';
+import { S3Service } from '../../../common/services/s3.service';
+import { LlmService } from '../../llm/llm.service';
+import { WebsocketService } from '../../websocket/websocket.service';
+
+jest.mock('../parsers/parser.factory', () => ({
+  parseDocument: jest.fn().mockResolvedValue('parsed text body'),
+}));
+
+jest.mock('../chunking/text-chunker', () => ({
+  chunkText: jest.fn(() => [
+    { content: 'chunk-a', index: 0, tokenCount: 3 },
+    { content: 'chunk-b', index: 1, tokenCount: 3 },
+  ]),
+}));
+
+describe('EmbeddingService - dimension consistency', () => {
+  let service: EmbeddingService;
+  let mockDocRepo: Record<string, jest.Mock>;
+  let mockKbRepo: Record<string, jest.Mock>;
+  let mockChunkRepo: Record<string, jest.Mock>;
+  let mockS3: Record<string, jest.Mock>;
+  let mockLlm: Record<string, jest.Mock>;
+  let mockWs: Record<string, jest.Mock>;
+  let mockDataSource: Record<string, jest.Mock>;
+  let lastTransactionQueries: { sql: string; params: unknown[] }[];
+
+  const buildModule = async () => {
+    const module: TestingModule = await Test.createTestingModule({
+      providers: [
+        EmbeddingService,
+        { provide: getRepositoryToken(Document), useValue: mockDocRepo },
+        { provide: getRepositoryToken(DocumentChunk), useValue: mockChunkRepo },
+        { provide: getRepositoryToken(KnowledgeBase), useValue: mockKbRepo },
+        { provide: S3Service, useValue: mockS3 },
+        { provide: LlmService, useValue: mockLlm },
+        { provide: WebsocketService, useValue: mockWs },
+        { provide: DataSource, useValue: mockDataSource },
+      ],
+    }).compile();
+    service = module.get(EmbeddingService);
+  };
+
+  beforeEach(() => {
+    lastTransactionQueries = [];
+
+    mockDocRepo = {
+      findOne: jest.fn(),
+      update: jest.fn().mockResolvedValue(undefined),
+    };
+    mockKbRepo = {
+      findOne: jest.fn(),
+    };
+    mockChunkRepo = {
+      delete: jest.fn().mockResolvedValue(undefined),
+    };
+    mockS3 = {
+      download: jest.fn().mockResolvedValue(Buffer.from('hello')),
+    };
+    mockLlm = {
+      resolveConfig: jest.fn().mockResolvedValue({
+        id: 'cfg',
+        provider: 'openai',
+        workspaceId: 'ws-1',
+      }),
+      embed: jest.fn(),
+    };
+    mockWs = {
+      emitExecutionEvent: jest.fn(),
+    };
+
+    const txManager = {
+      query: jest
+        .fn()
+        .mockImplementation((sql: string, params: unknown[] = []) => {
+          lastTransactionQueries.push({ sql, params });
+          return Promise.resolve([]);
+        }),
+    };
+
+    mockDataSource = {
+      query: jest.fn().mockResolvedValue([]),
+      transaction: jest.fn().mockImplementation(async (cb: any) => {
+        return cb(txManager);
+      }),
+    };
+  });
+
+  it('persists embedding_dimension when KB has none yet', async () => {
+    mockDocRepo.findOne.mockResolvedValue({
+      id: 'd1',
+      knowledgeBaseId: 'kb-1',
+      fileUrl: 's3://x',
+      fileType: 'txt',
+    });
+    mockKbRepo.findOne.mockResolvedValue({
+      id: 'kb-1',
+      workspaceId: 'ws-1',
+      embeddingModel: 'text-embedding-3-small',
+      embeddingDimension: null,
+      chunkSize: 1000,
+      chunkOverlap: 200,
+    });
+    mockLlm.embed.mockResolvedValue([
+      [0.1, 0.2, 0.3], // dim 3
+      [0.4, 0.5, 0.6],
+    ]);
+
+    await buildModule();
+    await service.processDocument('d1');
+
+    const update = lastTransactionQueries.find((q) =>
+      q.sql.includes('UPDATE knowledge_base SET embedding_dimension'),
+    );
+    expect(update).toBeDefined();
+    expect(update?.params).toEqual([3, 'kb-1']);
+  });
+
+  it('does not overwrite embedding_dimension when KB already has one', async () => {
+    mockDocRepo.findOne.mockResolvedValue({
+      id: 'd1',
+      knowledgeBaseId: 'kb-1',
+      fileUrl: 's3://x',
+      fileType: 'txt',
+    });
+    mockKbRepo.findOne.mockResolvedValue({
+      id: 'kb-1',
+      workspaceId: 'ws-1',
+      embeddingModel: 'text-embedding-3-small',
+      embeddingDimension: 3,
+      chunkSize: 1000,
+      chunkOverlap: 200,
+    });
+    mockLlm.embed.mockResolvedValue([
+      [0.1, 0.2, 0.3],
+      [0.4, 0.5, 0.6],
+    ]);
+
+    await buildModule();
+    await service.processDocument('d1');
+
+    const update = lastTransactionQueries.find((q) =>
+      q.sql.includes('UPDATE knowledge_base SET embedding_dimension'),
+    );
+    expect(update).toBeUndefined();
+  });
+
+  it('marks document as error when embedding dimension does not match KB', async () => {
+    mockDocRepo.findOne.mockResolvedValue({
+      id: 'd1',
+      knowledgeBaseId: 'kb-1',
+      fileUrl: 's3://x',
+      fileType: 'txt',
+    });
+    mockKbRepo.findOne.mockResolvedValue({
+      id: 'kb-1',
+      workspaceId: 'ws-1',
+      embeddingModel: 'text-embedding-3-large',
+      embeddingDimension: 3072,
+      chunkSize: 1000,
+      chunkOverlap: 200,
+    });
+    mockLlm.embed.mockResolvedValue([
+      [0.1, 0.2, 0.3], // dim 3 ≠ 3072
+    ]);
+
+    await buildModule();
+    await service.processDocument('d1');
+
+    expect(mockDocRepo.update).toHaveBeenCalledWith(
+      'd1',
+      expect.objectContaining({
+        embeddingStatus: 'error',
+        metadata: expect.objectContaining({
+          error: expect.stringContaining('dimension mismatch'),
+        }),
+      }),
+    );
+  });
+
+  it('marks document as error when embedding vector is empty', async () => {
+    mockDocRepo.findOne.mockResolvedValue({
+      id: 'd1',
+      knowledgeBaseId: 'kb-1',
+      fileUrl: 's3://x',
+      fileType: 'txt',
+    });
+    mockKbRepo.findOne.mockResolvedValue({
+      id: 'kb-1',
+      workspaceId: 'ws-1',
+      embeddingModel: 'text-embedding-3-small',
+      embeddingDimension: null,
+      chunkSize: 1000,
+      chunkOverlap: 200,
+    });
+    mockLlm.embed.mockResolvedValue([[]]);
+
+    await buildModule();
+    await service.processDocument('d1');
+
+    expect(mockDocRepo.update).toHaveBeenCalledWith(
+      'd1',
+      expect.objectContaining({
+        embeddingStatus: 'error',
+      }),
+    );
+  });
+});

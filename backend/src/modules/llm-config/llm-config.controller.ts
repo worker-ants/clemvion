@@ -198,7 +198,7 @@ export class LlmConfigController {
   @ApiOperation({
     summary: 'Provider 모델 목록 조회',
     description:
-      'Provider에서 사용 가능한 모델 목록을 실시간 조회해 반환합니다.',
+      'Provider에서 사용 가능한 모델 목록을 실시간 조회해 반환합니다. `type` 쿼리로 chat/embedding 만 골라 받을 수 있습니다.',
   })
   @ApiParam({ name: 'id', description: 'LLM 설정 UUID', format: 'uuid' })
   @ApiOkWrappedResponse(LlmModelListDto, {
@@ -209,8 +209,13 @@ export class LlmConfigController {
   async listModels(
     @Param('id', ParseUUIDPipe) id: string,
     @WorkspaceId() workspaceId: string,
+    @Query('type') type?: string,
   ) {
-    return this.llmService.listModels(id, workspaceId);
+    const models = await this.llmService.listModels(id, workspaceId);
+    if (type === 'chat' || type === 'embedding') {
+      return models.filter((m) => m.type === type);
+    }
+    return models;
   }
 
   @Delete(':id')

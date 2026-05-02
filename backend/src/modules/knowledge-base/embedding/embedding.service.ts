@@ -122,9 +122,10 @@ export class EmbeddingService {
       kb.workspaceId,
     );
 
-    // 5. Batch embed
+    // 5. Batch embed (with dimension consistency check)
     const batchSize = 20;
     const allEmbeddings: number[][] = [];
+    let expectedDim: number | null = kb.embeddingDimension ?? null;
     for (let i = 0; i < chunks.length; i += batchSize) {
       const batch = chunks.slice(i, i + batchSize);
       const texts = batch.map((c) => c.content);
@@ -133,6 +134,20 @@ export class EmbeddingService {
         texts,
         kb.embeddingModel,
       );
+      // 같은 KB 의 모든 청크는 동일 차원이어야 한다 (spec 8-embedding-pipeline.md §5.3).
+      // 첫 임베딩이면 첫 vector 의 차원을 채택, 이후엔 일관성을 강제한다.
+      for (const v of embeddings) {
+        if (!v || v.length === 0) {
+          throw new Error('Embedding vector is empty');
+        }
+        if (expectedDim == null) {
+          expectedDim = v.length;
+        } else if (v.length !== expectedDim) {
+          throw new Error(
+            `Embedding dimension mismatch for KB ${kb.id} (model=${kb.embeddingModel}): expected ${expectedDim}, got ${v.length}. KB 재임베딩이 필요합니다.`,
+          );
+        }
+      }
       allEmbeddings.push(...embeddings);
 
       // Emit progress
@@ -144,6 +159,7 @@ export class EmbeddingService {
 
     // 6. Save chunks with embeddings using bulk INSERT for performance
     const batchInsertSize = 100;
+    const newDim = expectedDim;
     await this.dataSource.transaction(async (manager) => {
       for (let b = 0; b < chunks.length; b += batchInsertSize) {
         const batchChunks = chunks.slice(b, b + batchInsertSize);
@@ -177,6 +193,15 @@ export class EmbeddingService {
           `INSERT INTO document_chunk (document_id, knowledge_base_id, content, chunk_index, embedding, token_count, metadata)
            VALUES ${values.join(', ')}`,
           params,
+        );
+      }
+
+      // KB 의 embedding_dimension 이 비어 있을 때만 첫 임베딩 차원으로 채운다.
+      // (이미 값이 있다면 위의 일관성 검증이 통과한 상태이므로 변경 불필요)
+      if (kb.embeddingDimension == null && newDim != null) {
+        await manager.query(
+          `UPDATE knowledge_base SET embedding_dimension = $1 WHERE id = $2 AND embedding_dimension IS NULL`,
+          [newDim, kb.id],
         );
       }
     });
