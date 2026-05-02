@@ -165,6 +165,18 @@ export const aiAgentNodeConfigSchema = z
           group: 'Knowledge Base (RAG)',
         },
       }),
+    ragQueryRewrite: z
+      .boolean()
+      .default(true)
+      .meta({
+        ui: {
+          label: 'RAG Query Rewrite',
+          widget: 'boolean',
+          hint: 'Use the LLM to rewrite the user message into one or more focused search queries before hitting the knowledge base. Helpful for multi-intent messages (e.g. "exchange or refund"). Adds one small LLM call per turn.',
+          order: 13,
+          group: 'Knowledge Base (RAG)',
+        },
+      }),
 
     // ── Conditions ──
     conditions: z

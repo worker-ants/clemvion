@@ -1,3 +1,4 @@
+import { Logger } from '@nestjs/common';
 import {
   NodeHandler,
   ExecutionContext,
@@ -7,7 +8,15 @@ import { evaluateMetadataBlockingErrors } from '../../core/metadata-validation';
 import { LlmService } from '../../../modules/llm/llm.service';
 import { RagSearchService } from '../../../modules/knowledge-base/search/rag-search.service';
 import { ChatMessage } from '../../../modules/llm/interfaces/llm-client.interface';
+import { LlmConfig } from '../../../modules/llm-config/entities/llm-config.entity';
+import { SearchResult } from '../../../modules/knowledge-base/search/search-result.interface';
 import { aiAgentNodeMetadata } from './ai-agent.schema';
+
+// 멀티 쿼리 검색에서 LLM 이 생성할 수 있는 query 의 상한.
+// 메시지가 아무리 다중 의도라도 한 turn 에 5개 이상으로 쪼개면 LLM 비용/검색 응답이 비대해진다.
+const MAX_REWRITE_QUERIES = 5;
+// 쿼리 rewrite 시 LLM 에 넘길 직전 대화 메시지 최대 개수 (user/assistant 합쳐서).
+const REWRITE_HISTORY_MESSAGES = 6;
 
 interface ConditionDef {
   id: string;
@@ -88,6 +97,7 @@ export class AiAgentHandler implements NodeHandler {
     const knowledgeBases = (config.knowledgeBases as string[]) || [];
     const ragTopK = (config.ragTopK as number) || 5;
     const ragThreshold = (config.ragThreshold as number) || 0.7;
+    const ragQueryRewrite = (config.ragQueryRewrite as boolean) ?? true;
     const maxToolCalls = (config.maxToolCalls as number) || 10;
     const conditions = (config.conditions as ConditionDef[]) || [];
 
@@ -102,12 +112,16 @@ export class AiAgentHandler implements NodeHandler {
     let ragSources: unknown[] = [];
 
     if (knowledgeBases.length > 0 && userPrompt) {
-      const searchResults = await this.ragSearchService.search(
-        userPrompt,
+      const searchResults = await this.searchKnowledgeBasesWithRewrite({
+        llmConfig,
+        rewriteModel: model || llmConfig.defaultModel,
         knowledgeBases,
         workspaceId,
-        { topK: ragTopK, threshold: ragThreshold },
-      );
+        userMessage: userPrompt,
+        topK: ragTopK,
+        threshold: ragThreshold,
+        rewrite: ragQueryRewrite,
+      });
 
       if (searchResults.length > 0) {
         const ragContext = this.ragSearchService.buildContext(searchResults);
@@ -338,6 +352,7 @@ export class AiAgentHandler implements NodeHandler {
     const knowledgeBases = (config.knowledgeBases as string[]) || [];
     const ragTopK = (config.ragTopK as number) || 5;
     const ragThreshold = (config.ragThreshold as number) || 0.7;
+    const ragQueryRewrite = (config.ragQueryRewrite as boolean) ?? true;
     const maxToolCalls = (config.maxToolCalls as number) || 10;
     const maxTurns = (config.maxTurns as number) ?? 20;
     const conditions = (config.conditions as ConditionDef[]) || [];
@@ -353,12 +368,16 @@ export class AiAgentHandler implements NodeHandler {
     let ragSources: unknown[] = [];
 
     if (knowledgeBases.length > 0 && userPrompt) {
-      const searchResults = await this.ragSearchService.search(
-        userPrompt,
+      const searchResults = await this.searchKnowledgeBasesWithRewrite({
+        llmConfig,
+        rewriteModel: model || llmConfig.defaultModel,
         knowledgeBases,
         workspaceId,
-        { topK: ragTopK, threshold: ragThreshold },
-      );
+        userMessage: userPrompt,
+        topK: ragTopK,
+        threshold: ragThreshold,
+        rewrite: ragQueryRewrite,
+      });
 
       if (searchResults.length > 0) {
         const ragContext = this.ragSearchService.buildContext(searchResults);
@@ -387,6 +406,7 @@ export class AiAgentHandler implements NodeHandler {
       knowledgeBases,
       ragTopK,
       ragThreshold,
+      ragQueryRewrite,
       maxToolCalls,
       maxTurns,
       toolNodeIds: (config.toolNodeIds as string[]) || [],
@@ -618,6 +638,7 @@ export class AiAgentHandler implements NodeHandler {
     const knowledgeBases = (state.knowledgeBases as string[]) || [];
     const ragTopK = (state.ragTopK as number) || 5;
     const ragThreshold = (state.ragThreshold as number) || 0.7;
+    const ragQueryRewrite = (state.ragQueryRewrite as boolean) ?? true;
     const workspaceId = (state.workspaceId as string) || '';
     const conditions = (state.conditions as ConditionDef[]) || [];
     let totalInputTokens = state.totalInputTokens as number;
@@ -626,17 +647,31 @@ export class AiAgentHandler implements NodeHandler {
     let toolCallCount = state.toolCalls as number;
     let ragSources = state.ragSources as unknown[];
 
+    // 직전 대화 history 를 query rewrite LLM 에 컨텍스트로 넘기기 위해 user message 추가 전 스냅샷.
+    const historyForRewrite: ChatMessage[] = [...messages];
+
     // Add user message
     messages.push({ role: 'user', content: userMessage });
 
-    // RAG search on new user message
+    const llmConfigId = state.llmConfigId as string | undefined;
+    const llmConfigForRag = await this.llmService.resolveConfig(
+      llmConfigId,
+      workspaceId,
+    );
+
+    // RAG search on new user message — query rewrite 활성 시 history 를 함께 넘겨 다중 쿼리 생성.
     if (knowledgeBases.length > 0 && userMessage) {
-      const searchResults = await this.ragSearchService.search(
-        userMessage,
+      const searchResults = await this.searchKnowledgeBasesWithRewrite({
+        llmConfig: llmConfigForRag,
+        rewriteModel: state.model as string,
         knowledgeBases,
         workspaceId,
-        { topK: ragTopK, threshold: ragThreshold },
-      );
+        userMessage,
+        topK: ragTopK,
+        threshold: ragThreshold,
+        rewrite: ragQueryRewrite,
+        history: historyForRewrite,
+      });
 
       if (searchResults.length > 0) {
         const ragContext = this.ragSearchService.buildContext(searchResults);
@@ -645,12 +680,7 @@ export class AiAgentHandler implements NodeHandler {
         ragSources = [...ragSources, ...ragContext.sources];
       }
     }
-
-    const llmConfigId = state.llmConfigId as string | undefined;
-    const llmConfig = await this.llmService.resolveConfig(
-      llmConfigId,
-      workspaceId,
-    );
+    const llmConfig = llmConfigForRag;
     const model = state.model as string;
     const temperature = state.temperature as number | undefined;
     const maxTokens = state.maxTokens as number | undefined;
@@ -1116,4 +1146,177 @@ export class AiAgentHandler implements NodeHandler {
 
     return [...normalTools, ...conditionTools];
   }
+
+  // ── RAG: query rewrite + 다중 쿼리 동시 검색 ──
+
+  /**
+   * 한 turn 의 RAG 검색을 처리한다.
+   *
+   * `ragQueryRewrite` 가 켜져 있으면 LLM 으로 사용자 메시지를 1~N 개의 검색 쿼리로 재작성한 뒤,
+   * 각 쿼리를 KB 에 동시 검색하고 결과를 chunk 단위로 병합·정렬해 상위 topK 만 반환.
+   * 예: "교환 또는 환불 가능한가요?" → ["교환 정책", "환불 정책"] 두 쿼리 동시 검색.
+   *
+   * rewrite 가 꺼져 있거나 LLM rewrite 가 실패하면 원본 userMessage 단일 쿼리로 폴백.
+   */
+  private async searchKnowledgeBasesWithRewrite(opts: {
+    llmConfig: LlmConfig;
+    rewriteModel: string;
+    knowledgeBases: string[];
+    workspaceId: string;
+    userMessage: string;
+    topK: number;
+    threshold: number;
+    rewrite: boolean;
+    history?: ChatMessage[];
+  }): Promise<SearchResult[]> {
+    const {
+      llmConfig,
+      rewriteModel,
+      knowledgeBases,
+      workspaceId,
+      userMessage,
+      topK,
+      threshold,
+      rewrite,
+      history,
+    } = opts;
+    if (!knowledgeBases.length || !userMessage) return [];
+
+    const queries = rewrite
+      ? await this.rewriteQueriesForRag({
+          llmConfig,
+          model: rewriteModel,
+          userMessage,
+          history,
+        })
+      : [userMessage];
+
+    // 각 쿼리에 동일 topK/threshold 를 적용해 병렬 검색. 멀티 쿼리 케이스에서는 같은 chunk 가
+    // 여러 쿼리에 매칭될 수 있으므로 chunkId 단위로 dedupe + 최고점 score 채택.
+    const perQueryResults = await Promise.all(
+      queries.map((q) =>
+        this.ragSearchService.search(q, knowledgeBases, workspaceId, {
+          topK,
+          threshold,
+        }),
+      ),
+    );
+    return mergeRagResults(perQueryResults, topK);
+  }
+
+  /**
+   * userMessage + 직전 대화 history 를 LLM 에 넘겨 검색 쿼리 배열을 생성.
+   * 출력은 `responseFormat: 'json'` + `jsonSchema` 로 강제해 파싱 안정성 확보.
+   * 실패 / 빈 결과 / 파싱 실패 시 원본 userMessage 단일 쿼리 폴백.
+   */
+  private async rewriteQueriesForRag(opts: {
+    llmConfig: LlmConfig;
+    model: string;
+    userMessage: string;
+    history?: ChatMessage[];
+  }): Promise<string[]> {
+    const { llmConfig, model, userMessage, history } = opts;
+    const recentHistory = (history ?? [])
+      .filter((m) => m.role === 'user' || m.role === 'assistant')
+      .slice(-REWRITE_HISTORY_MESSAGES);
+    const historyText = recentHistory
+      .map((m) => {
+        const content = typeof m.content === 'string' ? m.content : '';
+        return `${m.role}: ${content}`;
+      })
+      .filter((line) => line.trim().length > 0)
+      .join('\n');
+
+    const systemPrompt =
+      'You generate concise knowledge base search queries from a user message.\n' +
+      'Look at the user intent and conversation context. If the user asks about multiple distinct topics ' +
+      '(e.g. "exchange or refund"), return one query per topic. If a single topic suffices, return one query.\n' +
+      'Rules:\n' +
+      `- Return at most ${MAX_REWRITE_QUERIES} queries.\n` +
+      '- Each query must be a short search phrase (not a full sentence) optimized for retrieval.\n' +
+      '- Use the same language as the user message.\n' +
+      '- If the user message is small-talk or has no information need, return just the original message as a single query.';
+    const userInput =
+      (historyText ? `Recent conversation:\n${historyText}\n\n` : '') +
+      `Latest user message:\n${userMessage}`;
+
+    try {
+      const result = await this.llmService.chat(llmConfig, {
+        model,
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: userInput },
+        ],
+        temperature: 0,
+        maxTokens: 200,
+        responseFormat: 'json',
+        jsonSchema: {
+          type: 'object',
+          properties: {
+            queries: {
+              type: 'array',
+              items: { type: 'string' },
+              minItems: 1,
+              maxItems: MAX_REWRITE_QUERIES,
+            },
+          },
+          required: ['queries'],
+          additionalProperties: false,
+        },
+      });
+      const queries = parseRewriteQueries(result.content ?? '');
+      if (queries.length === 0) return [userMessage];
+      return queries.slice(0, MAX_REWRITE_QUERIES);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      AiAgentHandler.logger.warn(`RAG query rewrite failed: ${msg}`);
+      return [userMessage];
+    }
+  }
+
+  private static readonly logger = new Logger('AiAgentHandler');
+}
+
+/** rewrite LLM 응답을 안전하게 string[] 로 파싱. 실패 시 빈 배열. */
+function parseRewriteQueries(text: string): string[] {
+  if (!text) return [];
+  try {
+    const parsed = JSON.parse(text) as unknown;
+    if (
+      parsed &&
+      typeof parsed === 'object' &&
+      Array.isArray((parsed as { queries?: unknown }).queries)
+    ) {
+      const arr = (parsed as { queries: unknown[] }).queries;
+      return arr
+        .filter((q): q is string => typeof q === 'string')
+        .map((q) => q.trim())
+        .filter((q) => q.length > 0);
+    }
+  } catch {
+    // ignore — fallthrough to []
+  }
+  return [];
+}
+
+/**
+ * 여러 쿼리에서 회수한 SearchResult[] 를 chunkId 단위로 dedupe + 최고점 score 채택.
+ * 정렬 후 상위 topK 만 반환.
+ */
+function mergeRagResults(
+  perQueryResults: SearchResult[][],
+  topK: number,
+): SearchResult[] {
+  const byChunk = new Map<string, SearchResult>();
+  for (const list of perQueryResults) {
+    for (const r of list) {
+      const existing = byChunk.get(r.chunkId);
+      if (!existing || r.score > existing.score) {
+        byChunk.set(r.chunkId, r);
+      }
+    }
+  }
+  const merged = Array.from(byChunk.values());
+  merged.sort((a, b) => b.score - a.score);
+  return merged.slice(0, topK);
 }
