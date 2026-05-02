@@ -112,7 +112,7 @@ export function GraphVisualization({ kbId }: GraphVisualizationProps) {
         </NativeSelect>
         {data?.truncated && (
           <span className="text-[hsl(var(--warning,38_92%_50%))]">
-            {t("knowledgeBases.graphVizTruncated")}
+            {t("knowledgeBases.graphVizTruncated", { limit })}
           </span>
         )}
         <div className="ml-auto flex items-center gap-3">

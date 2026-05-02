@@ -24,6 +24,13 @@ export const ENTITY_TYPES = [
 
 export type EntityType = (typeof ENTITY_TYPES)[number];
 
+/**
+ * 그래프 RAG 의 추출된 entity (knowledge_base 내 정규화 이름 단위).
+ *
+ * 클래스명에 `Graph` 접두를 둔 이유는 TypeORM `@Entity` 데코레이터/심볼과
+ * 도메인 단어(엔티티) 사이의 키워드 충돌을 피하기 위함이다.
+ * DB 테이블명(`entity`)은 변경 없이 유지된다.
+ */
 @Entity('entity')
 @Index('idx_entity_kb_type', ['knowledgeBaseId', 'type'])
 export class GraphEntity {

@@ -1671,7 +1671,8 @@ export const en: Dict = {
     relationDeleteFailed: "Failed to delete relation",
     tabGraph: "Graph",
     graphVizLimit: "Max nodes",
-    graphVizTruncated: "Truncated — showing top N entities only",
+    graphVizTruncated:
+      "Truncated — showing top {{limit}} entities only",
     graphVizEmpty: "No entities yet. Graph will appear once extraction completes.",
   },
   llmConfigs: {
