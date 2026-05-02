@@ -1,18 +1,36 @@
 // RAG 검색이 처리하는 임베딩 차원 화이트리스트.
-// 768/1536 은 V022 의 partial HNSW 인덱스를 타고, 3072 는 pgvector HNSW 의
-// vector 타입 차원 제한(≤ 2000) 때문에 인덱스 없이 partial 조건 시퀀셜 스캔으로
-// 동작한다. (halfvec 도입 시 인덱스 부착 가능 — 후속 작업.)
+//
+// 차원별 인덱스 / cast 정책:
+//   - 768, 1536: V022 partial HNSW (vector 타입). pgvector vector 의 HNSW
+//     차원 제한(≤ 2000) 안쪽이라 그대로 사용.
+//   - 3072: V023 partial HNSW (halfvec 타입, requires pgvector >= 0.7).
+//     vector HNSW 는 2000 초과를 못 다루므로 fp16 halfvec 으로 cast 해 부착.
+//     검색 SQL 도 동일한 cast (`embedding::halfvec(3072)`) 를 사용해야 인덱스를 탄다.
 //
 // 새 차원 모델을 도입할 때:
-//   - 차원 ≤ 2000: ① 본 상수에 추가 ② V0xx 마이그레이션으로 partial HNSW 인덱스 추가
-//   - 차원 > 2000: ① 본 상수에 추가 (인덱스는 부착 불가, 시퀀셜)
+//   - 차원 ≤ 2000:    SUPPORTED_EMBEDDING_DIMS 에 추가 + V0xx vector partial HNSW 마이그레이션
+//   - 2000 < 차원 ≤ 4000: SUPPORTED_EMBEDDING_DIMS 에 추가 + V0xx halfvec partial HNSW 마이그레이션
+//   - 차원 > 4000:    별도 전략 필요 (binary quantization, 시퀀셜 스캔 등)
 export const SUPPORTED_EMBEDDING_DIMS: ReadonlySet<number> = new Set([
-  768, // Google text-embedding-004 (HNSW indexed)
-  1536, // OpenAI text-embedding-3-small, ada-002 (HNSW indexed)
-  3072, // OpenAI text-embedding-3-large (no HNSW index — sequential scan)
+  768, // Google text-embedding-004 (vector HNSW)
+  1536, // OpenAI text-embedding-3-small, ada-002 (vector HNSW)
+  3072, // OpenAI text-embedding-3-large (halfvec HNSW)
 ]);
 
 // embeddingModel 식별자에 허용되는 문자 집합.
 // Provider 가 부여하는 모델 ID 는 영문/숫자/하이픈/점/슬래시(예: models/text-embedding-004)/콜론 구성.
 // 100자 이내 길이 제한은 컬럼 정의(VARCHAR(100))와 동기화.
 export const EMBEDDING_MODEL_PATTERN = /^[A-Za-z0-9._:/-]{1,100}$/;
+
+// pgvector vector 타입의 HNSW/IVFFlat 인덱스 차원 상한.
+// 이 값을 초과하면 halfvec(fp16, 최대 4000) 으로 fallback.
+const VECTOR_INDEX_MAX_DIM = 2000;
+
+export type EmbeddingCastType = 'vector' | 'halfvec';
+
+// RAG 검색 SQL 이 cast 와 partial 조건에 사용할 타입을 결정한다.
+// 본 함수가 반환하는 타입과 V0xx 마이그레이션의 인덱스 정의가 같은 차원에서
+// 일치해야 partial HNSW 인덱스를 탄다.
+export function getEmbeddingCastType(dim: number): EmbeddingCastType {
+  return dim > VECTOR_INDEX_MAX_DIM ? 'halfvec' : 'vector';
+}

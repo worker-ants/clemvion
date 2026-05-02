@@ -2,7 +2,10 @@ import { Injectable, Logger } from '@nestjs/common';
 import { DataSource } from 'typeorm';
 import { LlmService } from '../../llm/llm.service';
 import { SearchResult, RagContext } from './search-result.interface';
-import { SUPPORTED_EMBEDDING_DIMS } from '../embedding/embedding-dimensions.const';
+import {
+  SUPPORTED_EMBEDDING_DIMS,
+  getEmbeddingCastType,
+} from '../embedding/embedding-dimensions.const';
 
 interface KbRow {
   id: string;
@@ -130,9 +133,12 @@ export class RagSearchService {
       return [];
     }
     const vectorStr = `[${queryEmbedding.join(',')}]`;
-
     // partial HNSW 인덱스를 타려면 인덱스 정의와 동일한 cast 표현식 + 차원 조건이 필요.
-    // dim 은 SUPPORTED_EMBEDDING_DIMS 화이트리스트 통과 직후라 SQL 인라인이 안전하다.
+    // 차원이 vector HNSW 한계(2000) 를 넘으면 halfvec 인덱스로 라우팅.
+    // cast / dim 은 SUPPORTED_EMBEDDING_DIMS 화이트리스트 통과 직후라 SQL 인라인이 안전하다.
+    const cast = getEmbeddingCastType(dim);
+    const castExpr = `${cast}(${dim})`;
+
     const rows = await this.dataSource.query<RawSearchRow[]>(
       `SELECT
         dc.id AS "chunkId",
@@ -140,7 +146,7 @@ export class RagSearchService {
         d.name AS "documentName",
         dc.content,
         dc.metadata,
-        1 - (dc.embedding::vector(${dim}) <=> $1::vector(${dim})) AS score
+        1 - (dc.embedding::${castExpr} <=> $1::${castExpr}) AS score
       FROM document_chunk dc
       JOIN document d ON d.id = dc.document_id
       JOIN knowledge_base kb ON kb.id = d.knowledge_base_id AND kb.workspace_id = $5
@@ -148,7 +154,7 @@ export class RagSearchService {
         AND d.knowledge_base_id = ANY($2::uuid[])
         AND d.embedding_status = 'completed'
         AND dc.embedding IS NOT NULL
-        AND 1 - (dc.embedding::vector(${dim}) <=> $1::vector(${dim})) >= $3
+        AND 1 - (dc.embedding::${castExpr} <=> $1::${castExpr}) >= $3
       ORDER BY score DESC
       LIMIT $4`,
       [vectorStr, kbIds, threshold, topK, workspaceId],
