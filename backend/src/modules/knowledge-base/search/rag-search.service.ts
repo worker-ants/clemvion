@@ -324,8 +324,11 @@ export class RagSearchService {
     // expanded_chunks: expanded entity 들이 언급된 청크 (seed 제외) 상위 expandLimit 개
     // 최종: seed (origin='seed') + expanded (origin='expanded') 통합. expanded 는
     //       cosine score × log-scale centrality_weight 로 가중.
+    // expanded_entities CTE 가 자기 자신을 참조하는 재귀 traversal 이므로 WITH 절에 RECURSIVE
+    // 키워드가 반드시 필요하다. PostgreSQL 은 WITH RECURSIVE 가 없으면 self-reference 를
+    // 외부 relation 으로 해석해 "relation 'expanded_entities' does not exist" 로 실패한다.
     const rows = await this.dataSource.query<RawSearchRow[]>(
-      `WITH seed AS (
+      `WITH RECURSIVE seed AS (
          SELECT dc.id AS chunk_id, dc.document_id, d.name AS document_name, dc.content, dc.metadata,
                 1 - (dc.embedding::${castExpr} <=> $1::${castExpr}) AS score
          FROM document_chunk dc
