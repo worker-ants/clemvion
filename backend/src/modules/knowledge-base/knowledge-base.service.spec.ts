@@ -66,8 +66,17 @@ describe('KnowledgeBaseService', () => {
       delete: jest.fn().mockResolvedValue(undefined),
     };
 
+    // reExtractAll 이 트랜잭션 안에서 atomic 으로 잠금/삭제/조회를 수행하므로 mock 에
+    // transaction 을 추가. 테스트는 manager.query 호출을 dataSource.query 호출과 동일하게 캡처하기
+    // 위해 transaction 콜백에 같은 mock 을 넘겨준다.
+    const txManagerProxy = {
+      query: (...args: unknown[]) => mockDataSource.query(...args),
+    };
     mockDataSource = {
       query: jest.fn().mockResolvedValue([]),
+      transaction: jest
+        .fn()
+        .mockImplementation(async (cb: any) => cb(txManagerProxy)),
     };
 
     mockEmbeddingQueue = {
@@ -194,8 +203,16 @@ describe('KnowledgeBaseService', () => {
         workspaceId: 'ws-1',
         ragMode: 'graph',
       });
-      mockDataSource.query.mockResolvedValueOnce([{ id: 'kb-1' }]); // acquire
-      mockDocRepo.find.mockResolvedValue([{ id: 'd1' }, { id: 'd2' }]);
+      // 트랜잭션 내부 query 순서:
+      // 1) UPDATE knowledge_base ... acquire CAS
+      // 2) DELETE FROM entity ...
+      // 3) UPDATE document SET graph_extraction_status ...
+      // 4) SELECT id FROM document ...
+      mockDataSource.query
+        .mockResolvedValueOnce([{ id: 'kb-1' }])
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([{ id: 'd1' }, { id: 'd2' }]);
 
       const result = await service.reExtractAll('kb-1', 'ws-1');
 
@@ -203,6 +220,16 @@ describe('KnowledgeBaseService', () => {
         1,
         expect.stringMatching(/SET reextract_status = 'in_progress'/),
         ['kb-1', 'ws-1'],
+      );
+      expect(mockDataSource.query).toHaveBeenNthCalledWith(
+        2,
+        expect.stringMatching(/DELETE FROM entity/),
+        ['kb-1'],
+      );
+      expect(mockDataSource.query).toHaveBeenNthCalledWith(
+        3,
+        expect.stringMatching(/UPDATE document SET graph_extraction_status/),
+        ['kb-1'],
       );
       expect(mockGraphQueue.addBulk).toHaveBeenCalledWith([
         {

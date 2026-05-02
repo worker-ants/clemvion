@@ -217,7 +217,7 @@ export const knowledgeBasesApi = {
 
   async getGraphStats(kbId: string): Promise<KbGraphStats> {
     const { data } = await apiClient.get(
-      `/knowledge-bases/${kbId}/graph-stats`,
+      `/knowledge-bases/${kbId}/graph/stats`,
     );
     const body = (data as { data?: unknown })?.data ?? data;
     return body as KbGraphStats;

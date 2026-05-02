@@ -53,6 +53,7 @@ import {
   KbGraphStatsDto,
   KbReEmbedAcceptedDto,
   KbReExtractAcceptedDto,
+  KbReExtractDocumentAcceptedDto,
   KnowledgeBaseDto,
   RagSearchResultDto,
   ReEmbedAcceptedDto,
@@ -184,14 +185,15 @@ export class KnowledgeBaseController {
   @Post(':id/documents/:docId/re-extract')
   @HttpCode(HttpStatus.ACCEPTED)
   @Roles('editor')
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
   @ApiOperation({
     summary: '문서 단건 그래프 재추출 (graph 모드)',
     description:
-      '문서 하나에 대해서만 그래프 추출을 다시 수행. graph 모드 KB 에서만 유효 (vector 모드는 400).',
+      '문서 하나에 대해서만 그래프 추출을 다시 수행. graph 모드 KB 에서만 유효 (vector 모드는 400). KB 전체 재추출 진행 중에는 409.',
   })
   @ApiParam({ name: 'id', description: '지식 베이스 UUID', format: 'uuid' })
   @ApiParam({ name: 'docId', description: '문서 UUID', format: 'uuid' })
-  @ApiAcceptedWrappedResponse(ReEmbedAcceptedDto, {
+  @ApiAcceptedWrappedResponse(KbReExtractDocumentAcceptedDto, {
     description: '그래프 재추출 작업이 큐잉됨',
   })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
@@ -201,9 +203,11 @@ export class KnowledgeBaseController {
     @Param('id', ParseUUIDPipe) id: string,
     @Param('docId', ParseUUIDPipe) docId: string,
     @WorkspaceId() workspaceId: string,
-  ) {
+  ): Promise<KbReExtractDocumentAcceptedDto> {
     await this.kbService.reExtractDocument(docId, id, workspaceId);
-    return { message: 'Graph re-extraction started' };
+    return {
+      message: 'Graph re-extraction started',
+    } satisfies KbReExtractDocumentAcceptedDto;
   }
 
   @Get(':id/entities')
@@ -276,7 +280,8 @@ export class KnowledgeBaseController {
   @Get(':id/relations')
   @ApiOperation({
     summary: 'Relation 목록 (graph 모드)',
-    description: 'weight desc 정렬. predicate / head·tail entity name 검색 지원.',
+    description:
+      'weight desc 정렬. predicate / head·tail entity name 검색 지원.',
   })
   @ApiParam({ name: 'id', description: '지식 베이스 UUID', format: 'uuid' })
   @ApiOkPaginatedResponse(GraphRelationDto, {
@@ -340,7 +345,7 @@ export class KnowledgeBaseController {
     );
   }
 
-  @Get(':id/graph-stats')
+  @Get(':id/graph/stats')
   @ApiOperation({
     summary: 'KB 그래프 통계 (graph 모드)',
     description:

@@ -144,7 +144,6 @@ export function GraphVisualization({ kbId }: GraphVisualizationProps) {
             fitViewOptions={{ padding: 0.2 }}
             nodesConnectable={false}
             edgesReconnectable={false}
-            proOptions={{ hideAttribution: true }}
           >
             <Background gap={16} />
             <Controls />

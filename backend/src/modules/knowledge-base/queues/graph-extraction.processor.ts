@@ -11,13 +11,22 @@ import { GraphExtractionService } from '../graph/graph-extraction.service';
 /**
  * graph-extraction 큐 워커.
  *
- * - process: GraphExtractionService.extractDocument 위임
+ * - process: GraphExtractionService.extractDocument 위임 (내부에서 try-catch 로
+ *   document.graph_extraction_status 를 'error' 로 set 후 정상 종료. process() 자체가
+ *   throw 하는 경우는 DB 일시 단절 등 매우 드문 케이스이며 BullMQ 의 attempts/backoff 로
+ *   회복).
  * - completed/failed: KB batch 의 마지막 child 였다면 KB.reextract_status 를 idle 로 reset
- *   (해당 KB 의 graph_extraction_status 가 pending/processing 인 문서가 0 건일 때만)
+ *   (해당 KB 의 graph_extraction_status 가 pending/processing 인 문서가 0 건일 때만).
  *
- * Worker concurrency 는 LLM API rate limit 보호 차원에서 2 로 보수적 설정.
+ * Worker concurrency = 2 (LLM API rate limit 보호).
+ * stalledInterval = 30s — 워커 OOM/SIGKILL 등 강제 종료 시 BullMQ 가 stalled 로 감지해
+ * 자동 재처리. extract 로직은 idempotent (entity/relation 모두 UPSERT, chunk_entity 도
+ * (chunk_id, entity_id) PK 충돌 시 무시) 라 재처리에 안전.
  */
-@Processor(GRAPH_EXTRACTION_QUEUE, { concurrency: 2 })
+@Processor(GRAPH_EXTRACTION_QUEUE, {
+  concurrency: 2,
+  stalledInterval: 30_000,
+})
 export class GraphExtractionProcessor extends WorkerHost {
   private readonly logger = new Logger(GraphExtractionProcessor.name);
 

@@ -174,6 +174,12 @@ export class KbReExtractAcceptedDto {
   documentCount: number;
 }
 
+/** 문서 단건 그래프 재추출 접수 결과 */
+export class KbReExtractDocumentAcceptedDto {
+  @ApiProperty({ example: 'Graph re-extraction started' })
+  message: string;
+}
+
 /** Graph entity (P1 entity 목록) */
 export class GraphEntityDto {
   @ApiProperty({ format: 'uuid' })

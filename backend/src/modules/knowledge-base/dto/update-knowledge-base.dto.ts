@@ -7,6 +7,7 @@ import {
   Max,
   MaxLength,
   Matches,
+  ValidateIf,
 } from 'class-validator';
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { EMBEDDING_MODEL_PATTERN } from '../embedding/embedding-dimensions.const';
@@ -75,15 +76,17 @@ export class UpdateKnowledgeBaseDto {
 
   // rag_mode 는 생성 시 불변이므로 update 에 포함하지 않는다.
 
-  /** graph 모드 KB 의 추출 LLMConfig 변경 */
+  /** graph 모드 KB 의 추출 LLMConfig 변경. null 로 보내면 워크스페이스 default 로 되돌림. */
   @ApiPropertyOptional({
     description:
-      'graph 모드 KB 의 그래프 추출에 사용할 LLMConfig 변경. 적용은 다음 추출/재추출부터.',
+      'graph 모드 KB 의 그래프 추출에 사용할 LLMConfig 변경. null 로 보내면 워크스페이스 default LLMConfig 로 되돌립니다. 적용은 다음 추출/재추출부터.',
     format: 'uuid',
+    nullable: true,
   })
   @IsOptional()
+  @ValidateIf((_, value) => value !== null)
   @IsUUID()
-  extractionLlmConfigId?: string;
+  extractionLlmConfigId?: string | null;
 
   @ApiPropertyOptional({
     description: 'graph 모드 검색 시 그래프 확장 깊이 (1 또는 2).',

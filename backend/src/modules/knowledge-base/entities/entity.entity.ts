@@ -11,13 +11,18 @@ import {
 import { KnowledgeBase } from './knowledge-base.entity';
 import { DocumentChunk } from './document-chunk.entity';
 
-export type EntityType =
-  | 'person'
-  | 'organization'
-  | 'concept'
-  | 'location'
-  | 'event'
-  | 'other';
+// Entity 타입 단일 정의. 신규 타입 추가 시 본 배열만 갱신하면 prompt / DTO / DB CHECK 가
+// 일관되게 대응한다 (DB CHECK 갱신은 별도 마이그레이션 필요).
+export const ENTITY_TYPES = [
+  'person',
+  'organization',
+  'concept',
+  'location',
+  'event',
+  'other',
+] as const;
+
+export type EntityType = (typeof ENTITY_TYPES)[number];
 
 @Entity('entity')
 @Index('idx_entity_kb_type', ['knowledgeBaseId', 'type'])

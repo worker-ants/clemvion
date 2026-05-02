@@ -1,0 +1,223 @@
+{
+  "timestamp": "2026-05-02T16:22:30.472889",
+  "files": [
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/backend/migrations/V025__graph_rag.sql",
+      "change_type": "Review",
+      "file_extension": "sql"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/backend/src/modules/knowledge-base/dto/create-knowledge-base.dto.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/backend/src/modules/knowledge-base/dto/responses/knowledge-base-response.dto.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/backend/src/modules/knowledge-base/dto/update-knowledge-base.dto.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/backend/src/modules/knowledge-base/entities/chunk-entity.entity.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/backend/src/modules/knowledge-base/entities/document.entity.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/backend/src/modules/knowledge-base/entities/entity.entity.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/backend/src/modules/knowledge-base/entities/knowledge-base.entity.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/backend/src/modules/knowledge-base/entities/relation.entity.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/backend/src/modules/knowledge-base/graph/graph-extraction.prompt.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/backend/src/modules/knowledge-base/graph/graph-extraction.service.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/backend/src/modules/knowledge-base/graph/graph-query.service.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/backend/src/modules/knowledge-base/knowledge-base.controller.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/backend/src/modules/knowledge-base/knowledge-base.module.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/backend/src/modules/knowledge-base/knowledge-base.service.spec.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/backend/src/modules/knowledge-base/knowledge-base.service.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/backend/src/modules/knowledge-base/queues/document-embedding.processor.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/backend/src/modules/knowledge-base/queues/graph-extraction.processor.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/backend/src/modules/knowledge-base/queues/graph-extraction.queue.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/backend/src/modules/knowledge-base/search/rag-search.service.spec.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/backend/src/modules/knowledge-base/search/rag-search.service.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/backend/src/modules/knowledge-base/search/search-result.interface.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/frontend/src/app/(main)/knowledge-bases/[id]/page.tsx",
+      "change_type": "Review",
+      "file_extension": "tsx"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/frontend/src/app/(main)/knowledge-bases/page.tsx",
+      "change_type": "Review",
+      "file_extension": "tsx"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/frontend/src/components/knowledge-base/entity-list.tsx",
+      "change_type": "Review",
+      "file_extension": "tsx"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/frontend/src/components/knowledge-base/graph-visualization.tsx",
+      "change_type": "Review",
+      "file_extension": "tsx"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/frontend/src/components/knowledge-base/relation-list.tsx",
+      "change_type": "Review",
+      "file_extension": "tsx"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/frontend/src/lib/api/knowledge-bases.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/frontend/src/lib/i18n/dict/en.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/frontend/src/lib/i18n/dict/ko.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    }
+  ],
+  "total_elapsed_seconds": 638.52,
+  "agents": [
+    {
+      "name": "documentation",
+      "status": "success",
+      "elapsed_seconds": 59.78
+    },
+    {
+      "name": "scope",
+      "status": "success",
+      "elapsed_seconds": 67.26
+    },
+    {
+      "name": "architecture",
+      "status": "success",
+      "elapsed_seconds": 78.35
+    },
+    {
+      "name": "testing",
+      "status": "success",
+      "elapsed_seconds": 87.15
+    },
+    {
+      "name": "performance",
+      "status": "success",
+      "elapsed_seconds": 90.26
+    },
+    {
+      "name": "api_contract",
+      "status": "success",
+      "elapsed_seconds": 98.86
+    },
+    {
+      "name": "concurrency",
+      "status": "success",
+      "elapsed_seconds": 104.2
+    },
+    {
+      "name": "maintainability",
+      "status": "success",
+      "elapsed_seconds": 108.83
+    },
+    {
+      "name": "dependency",
+      "status": "success",
+      "elapsed_seconds": 120.42
+    },
+    {
+      "name": "security",
+      "status": "success",
+      "elapsed_seconds": 132.03
+    },
+    {
+      "name": "requirement",
+      "status": "success",
+      "elapsed_seconds": 148.3
+    },
+    {
+      "name": "side_effect",
+      "status": "success",
+      "elapsed_seconds": 167.25
+    },
+    {
+      "name": "database",
+      "status": "success",
+      "elapsed_seconds": 170.37
+    }
+  ]
+}

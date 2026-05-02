@@ -6,18 +6,15 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, Repository } from 'typeorm';
 import { KnowledgeBase } from '../entities/knowledge-base.entity';
-import { GraphEntity, EntityType } from '../entities/entity.entity';
+import {
+  GraphEntity,
+  EntityType,
+  ENTITY_TYPES,
+} from '../entities/entity.entity';
 import { GraphRelation } from '../entities/relation.entity';
 import { PaginatedResponseDto } from '../../../common/dto/paginated-response.dto';
 
-const ALLOWED_ENTITY_TYPES: EntityType[] = [
-  'person',
-  'organization',
-  'concept',
-  'location',
-  'event',
-  'other',
-];
+const ALLOWED_ENTITY_TYPES: ReadonlyArray<EntityType> = ENTITY_TYPES;
 
 interface ListEntitiesQuery {
   page?: number;
@@ -105,10 +102,9 @@ export class GraphQueryService {
       .where('e.knowledge_base_id = :kbId', { kbId });
 
     if (search) {
-      qb.andWhere(
-        '(e.name ILIKE :search OR e.display_name ILIKE :search)',
-        { search: `%${search}%` },
-      );
+      qb.andWhere('(e.name ILIKE :search OR e.display_name ILIKE :search)', {
+        search: `%${search}%`,
+      });
     }
     if (type) {
       if (!ALLOWED_ENTITY_TYPES.includes(type as EntityType)) {
@@ -320,4 +316,3 @@ export class GraphQueryService {
     );
   }
 }
-

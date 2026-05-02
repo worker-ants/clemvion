@@ -162,7 +162,8 @@ react-flow 등으로 노드/엣지 렌더링. 줌·드래그·노드 호버 시 
 | POST | /api/knowledge-bases/:id/re-embed | KB 전체 재임베딩 요청 (모든 문서 청크 삭제 후 재처리). `reembed_status` 가 `idle` 일 때만 진입, 진행 중이면 409 `KB_REEMBED_IN_PROGRESS` |
 | POST | /api/knowledge-bases/:id/documents/:docId/re-extract | (graph 모드) 문서 단건 그래프 재추출 |
 | POST | /api/knowledge-bases/:id/re-extract | (graph 모드) KB 전체 그래프 재추출. `reextract_status` atomic 잠금, 진행 중이면 409 `KB_REEXTRACT_IN_PROGRESS` |
-| GET | /api/knowledge-bases/:id/graph-stats | (graph 모드) entity/relation 카운트 + 추출 진행 요약 |
+| GET | /api/knowledge-bases/:id/graph/stats | (graph 모드) entity/relation 카운트 + 추출 진행 요약 |
+| GET | /api/knowledge-bases/:id/graph/visualization | (graph 모드, P2) 상위 mention_count entity + relation. 시각화 페이로드 |
 | GET | /api/knowledge-bases/:id/entities | (graph 모드, P1) entity 목록 (페이지네이션, 검색, 타입 필터) |
 | GET | /api/knowledge-bases/:id/entities/:entityId | (graph 모드, P1) entity 상세 + 등장 chunk 목록 |
 | DELETE | /api/knowledge-bases/:id/entities/:entityId | (graph 모드, P1) entity 삭제 (관련 relation, chunk_entity CASCADE) |
