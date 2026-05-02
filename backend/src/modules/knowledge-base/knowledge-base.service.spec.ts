@@ -412,19 +412,36 @@ describe('KnowledgeBaseService', () => {
   });
 
   describe('enqueueEmbedding', () => {
-    it('should add a job to the document-embedding queue', async () => {
+    it('should add a job and inject ragMode/knowledgeBaseId from DB', async () => {
+      // 호출자가 KB 정보를 안 넘기면 service 가 한 번 조회해 payload 에 채운다.
+      mockDataSource.query.mockResolvedValueOnce([
+        { rag_mode: 'graph', knowledge_base_id: 'kb-1' },
+      ]);
+
       await service.enqueueEmbedding('doc-1');
+
       expect(mockEmbeddingQueue.add).toHaveBeenCalledWith('embed', {
         documentId: 'doc-1',
         reEmbed: false,
+        ragMode: 'graph',
+        knowledgeBaseId: 'kb-1',
       });
     });
 
-    it('should propagate reEmbed flag', async () => {
-      await service.enqueueEmbedding('doc-1', true);
+    it('should propagate reEmbed and skip DB lookup when caller already has KB info', async () => {
+      await service.enqueueEmbedding('doc-1', {
+        reEmbed: true,
+        ragMode: 'vector',
+        knowledgeBaseId: 'kb-2',
+      });
+
+      // 호출자가 KB 정보를 모두 제공했으니 service 는 DB 조회를 하지 않는다.
+      expect(mockDataSource.query).not.toHaveBeenCalled();
       expect(mockEmbeddingQueue.add).toHaveBeenCalledWith('embed', {
         documentId: 'doc-1',
         reEmbed: true,
+        ragMode: 'vector',
+        knowledgeBaseId: 'kb-2',
       });
     });
   });

@@ -8,6 +8,7 @@ import { GraphEntity } from './entities/entity.entity';
 import { GraphRelation } from './entities/relation.entity';
 import { ChunkEntity } from './entities/chunk-entity.entity';
 import { KnowledgeBaseController } from './knowledge-base.controller';
+import { GraphController } from './graph.controller';
 import { KnowledgeBaseService } from './knowledge-base.service';
 import { EmbeddingService } from './embedding/embedding.service';
 import { RagSearchService } from './search/rag-search.service';
@@ -37,7 +38,7 @@ import { GraphExtractionProcessor } from './queues/graph-extraction.processor';
     BullModule.registerQueue({ name: DOCUMENT_EMBEDDING_QUEUE }),
     BullModule.registerQueue({ name: GRAPH_EXTRACTION_QUEUE }),
   ],
-  controllers: [KnowledgeBaseController],
+  controllers: [KnowledgeBaseController, GraphController],
   providers: [
     KnowledgeBaseService,
     EmbeddingService,
