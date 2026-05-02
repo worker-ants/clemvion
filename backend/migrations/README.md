@@ -104,3 +104,18 @@ backend/migrations/
 ```
 
 Dockerfile 에서 `*.conf` 도 함께 COPY 되어야 합니다 (이미 V022 도입 시 적용 완료).
+
+### 5. ⚠️ `executeInTransaction=false` 파일은 한 statement 만
+
+`.conf` 로 비-트랜잭션 모드를 켠 마이그레이션 파일에는 **`CREATE INDEX CONCURRENTLY` 를 정확히 한 개만** 둡니다. 두 개 이상이면 k8s job 이 2번째 statement 부터 무한 hang 합니다.
+
+**원인** — Flyway 는 마이그레이션 한 건이 진행되는 동안 별도 connection 으로 `flyway_schema_history` 추적 (advisory lock + 진행 기록) 을 유지합니다. 이 추적 세션에는 implicit snapshot 이 잡혀 있고, `CREATE INDEX CONCURRENTLY` 는 시작·종료 시점에 *같은 백엔드의 모든 transaction snapshot 이 advance 해야* 진행할 수 있는데, 추적 세션 snapshot 이 그 조건을 막아 무한 대기로 들어갑니다. 첫 statement 가 끝나도 추적 세션 snapshot 이 새로 잡히면서 두 번째도 다시 막힙니다. job 을 재시작하면 추적 세션이 리셋되어 한 statement 씩만 advance 합니다 (V022 → 2 restart, V030 → 3 restart 의 정확한 양상).
+
+빈 테이블이라 SQL 자체는 instant 인데도 hang 으로 보이는 이유. backend pod 를 scale=0 으로 내려도 풀리지 않습니다 — Flyway 자기 자신의 추적 세션이 원인이라.
+
+**규칙**:
+- 한 차원당 한 마이그레이션 파일 (예: V0xx_dim_768.sql, V0yy_dim_1024.sql).
+- 각 파일에 동일한 `.conf executeInTransaction=false` 동봉.
+- 같은 파일 안에 *transactional* statement (예: `ALTER TABLE`) 와 `CONCURRENTLY` 를 섞지 않습니다.
+
+**과거 적용된 V022 / V030 같은 멀티-statement 파일**: 이미 적용된 환경은 그대로 두고, 새 환경에서는 split 으로 재배포하거나 `flyway repair` 로 checksum 을 맞춥니다. 신규 마이그레이션부터는 본 규칙을 준수.
