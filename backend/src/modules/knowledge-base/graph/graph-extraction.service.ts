@@ -1,5 +1,6 @@
 import { Injectable, Logger, Inject, forwardRef } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
+import pLimit from 'p-limit';
 import { DataSource, Repository } from 'typeorm';
 import { Document } from '../entities/document.entity';
 import { DocumentChunk } from '../entities/document-chunk.entity';
@@ -11,8 +12,30 @@ import {
   GRAPH_EXTRACTION_JSON_SCHEMA,
   ExtractionResult,
 } from './graph-extraction.prompt';
+import { ENTITY_TYPES } from '../entities/entity.entity';
 
 const MAX_CHUNK_CHARS = 8_000; // chunk 본문이 매우 길면 LLM 호출 토큰 폭발 방지 차원에서 잘라낸다.
+
+// 청크 LLM 호출 동시성 상한. concurrency 너무 높으면 LLM rate limit 충돌, 낮으면 처리 시간 N배.
+// EmbeddingService 의 batch(20) 처리량 대비 절충선으로 3 채택.
+const CHUNK_LLM_CONCURRENCY = 3;
+
+// LLM 출력 길이 제한 — 악의적/오작동 LLM 이 거대 문자열을 반환할 때 스토리지 DoS 방지.
+const MAX_NAME_LEN = 200;
+const MAX_DISPLAY_NAME_LEN = 256;
+const MAX_DESCRIPTION_LEN = 1024;
+const MAX_PREDICATE_LEN = 100;
+
+// entity name / predicate 허용 문자셋. 한국어/영어/숫자/공백/구두점 + 하이픈/언더스코어.
+// 수상한 control char 를 거른다 (UPSERT 는 parameter 로 SQL injection 안전하지만
+// 사용자 노출 시점 사전 정규화 차원).
+const SAFE_TEXT_REGEX = /^[\p{L}\p{N}\p{P}\p{Z}\-_\s]+$/u;
+
+function safeSlice(value: string | null | undefined, max: number): string {
+  if (!value) return '';
+  const trimmed = value.trim().slice(0, max);
+  return trimmed;
+}
 
 /**
  * graph 모드 KB 의 문서에서 entity/relation 을 LLM 으로 추출하고 KB 단위로 dedup INSERT.
@@ -106,22 +129,28 @@ export class GraphExtractionService {
 
       let totalEntityDelta = 0;
       let totalRelationDelta = 0;
+      // 청크별 LLM 호출은 서로 독립이라 p-limit 으로 동시 실행. concurrency 는
+      // CHUNK_LLM_CONCURRENCY 로 제한해 LLM rate limit 보호.
+      const limit = pLimit(CHUNK_LLM_CONCURRENCY);
+      let processed = 0;
+      const tasks = chunks.map((chunk) =>
+        limit(async () => {
+          const result = await this.callLlmForChunk(llmConfig, chunk);
+          const { entitiesInserted, relationsInserted } =
+            await this.persistExtraction(kb.id, chunk.id, result);
+          totalEntityDelta += entitiesInserted;
+          totalRelationDelta += relationsInserted;
 
-      for (let i = 0; i < chunks.length; i++) {
-        const chunk = chunks[i];
-        const result = await this.callLlmForChunk(llmConfig, chunk);
-        const { entitiesInserted, relationsInserted } =
-          await this.persistExtraction(kb.id, chunk.id, result);
-        totalEntityDelta += entitiesInserted;
-        totalRelationDelta += relationsInserted;
-
-        const progress = Math.round(((i + 1) / chunks.length) * 100);
-        this.emitEvent(documentId, 'document:graph_progress', {
-          progress,
-          entityDelta: entitiesInserted,
-          relationDelta: relationsInserted,
-        });
-      }
+          processed += 1;
+          const progress = Math.round((processed / chunks.length) * 100);
+          this.emitEvent(documentId, 'document:graph_progress', {
+            progress,
+            entityDelta: entitiesInserted,
+            relationDelta: relationsInserted,
+          });
+        }),
+      );
+      await Promise.all(tasks);
 
       // KB 캐시 컬럼 갱신 (실제 카운트로 다시 계산해 drift 방지)
       await this.refreshKbStats(kb.id);
@@ -206,14 +235,33 @@ export class GraphExtractionService {
 
     return this.dataSource.transaction(async (manager) => {
       // 1) entity UPSERT — name 정규화는 LLM 측에서 해 주지만 추가로 lower/trim 한 번 더.
+      // LLM 출력 안전 가드: 길이 제한, 허용 문자셋, type enum 검증.
       const nameToEntityId = new Map<string, string>(); // key: `${name}::${type}`
       let entitiesInserted = 0;
       for (const e of result.entities) {
-        const normalizedName = e.name.trim().toLowerCase();
-        if (!normalizedName) continue;
+        const rawName = safeSlice(e.name?.toLowerCase(), MAX_NAME_LEN);
+        if (!rawName) continue;
+        if (!SAFE_TEXT_REGEX.test(rawName)) {
+          this.logger.warn(
+            `Drop entity name with disallowed characters (kb=${knowledgeBaseId}, chunk=${chunkId})`,
+          );
+          continue;
+        }
+        // ENTITY_TYPES 에 없는 타입은 'other' 로 fallback (DB CHECK 보호 + LLM 환각 방지)
+        const safeType = ENTITY_TYPES.includes(e.type as never)
+          ? e.type
+          : 'other';
+        const safeDisplayName =
+          safeSlice(e.displayName, MAX_DISPLAY_NAME_LEN) || rawName;
+        const safeDescription = e.description
+          ? safeSlice(e.description, MAX_DESCRIPTION_LEN)
+          : null;
+
         const upsertResult = await manager.query<
           { id: string; inserted: boolean }[]
         >(
+          // xmax = 0 은 PostgreSQL 의 INSERT 직후 row 식별 트릭 — 새로 INSERT 된 row 만 매칭.
+          // ON CONFLICT 로 UPDATE 된 행은 xmax 가 트랜잭션 ID 라 0 이 아니므로 inserted=false.
           `INSERT INTO entity (knowledge_base_id, name, display_name, type, description, mention_count, last_seen_chunk_id, created_at, updated_at)
            VALUES ($1, $2, $3, $4, $5, 1, $6, NOW(), NOW())
            ON CONFLICT (knowledge_base_id, name, type)
@@ -226,45 +274,55 @@ export class GraphExtractionService {
            RETURNING id, (xmax = 0) AS inserted`,
           [
             knowledgeBaseId,
-            normalizedName,
-            e.displayName,
-            e.type,
-            e.description ?? null,
+            rawName,
+            safeDisplayName,
+            safeType,
+            safeDescription,
             chunkId,
           ],
         );
         const row = upsertResult[0];
         if (!row) continue;
-        nameToEntityId.set(`${normalizedName}::${e.type}`, row.id);
+        nameToEntityId.set(`${rawName}::${safeType}`, row.id);
         if (row.inserted) entitiesInserted += 1;
       }
 
       // 2) chunk_entity 매핑 (PK 충돌 시 무시 — 같은 chunk 가 같은 entity 를 두 번 언급해도 1회만)
       for (const e of result.entities) {
-        const normalizedName = e.name.trim().toLowerCase();
-        const entityId = nameToEntityId.get(`${normalizedName}::${e.type}`);
+        const normalizedName = safeSlice(e.name?.toLowerCase(), MAX_NAME_LEN);
+        const safeType = ENTITY_TYPES.includes(e.type as never)
+          ? e.type
+          : 'other';
+        const entityId = nameToEntityId.get(`${normalizedName}::${safeType}`);
         if (!entityId) continue;
         await manager.query(
           `INSERT INTO chunk_entity (chunk_id, entity_id, mention_text)
            VALUES ($1, $2, $3)
            ON CONFLICT (chunk_id, entity_id) DO NOTHING`,
-          [chunkId, entityId, e.displayName],
+          [chunkId, entityId, safeSlice(e.displayName, MAX_DISPLAY_NAME_LEN)],
         );
       }
 
       // 3) relation UPSERT — head/tail 가 응답 entities 안에 존재해야 한다 (LLM 환각 방지)
       let relationsInserted = 0;
       for (const r of result.relations) {
-        const headName = r.head.trim().toLowerCase();
-        const tailName = r.tail.trim().toLowerCase();
-        if (!headName || !tailName) continue;
+        const headName = safeSlice(r.head?.toLowerCase(), MAX_NAME_LEN);
+        const tailName = safeSlice(r.tail?.toLowerCase(), MAX_NAME_LEN);
+        const predicate = safeSlice(r.predicate, MAX_PREDICATE_LEN);
+        if (!headName || !tailName || !predicate) continue;
+        if (!SAFE_TEXT_REGEX.test(predicate)) {
+          this.logger.warn(
+            `Drop relation predicate with disallowed characters (chunk ${chunkId})`,
+          );
+          continue;
+        }
         // 응답 안에서 head/tail 가 어떤 type 인지 결정 — 동일 name 의 type 후보가 여러 개면
         // 가장 먼저 매칭되는 entity 를 채택. (LLM 응답 entities 가 유일한 source of truth)
         const headEntry = result.entities.find(
-          (e) => e.name.trim().toLowerCase() === headName,
+          (e) => safeSlice(e.name?.toLowerCase(), MAX_NAME_LEN) === headName,
         );
         const tailEntry = result.entities.find(
-          (e) => e.name.trim().toLowerCase() === tailName,
+          (e) => safeSlice(e.name?.toLowerCase(), MAX_NAME_LEN) === tailName,
         );
         if (!headEntry || !tailEntry) {
           this.logger.warn(
@@ -272,8 +330,14 @@ export class GraphExtractionService {
           );
           continue;
         }
-        const headId = nameToEntityId.get(`${headName}::${headEntry.type}`);
-        const tailId = nameToEntityId.get(`${tailName}::${tailEntry.type}`);
+        const headType = ENTITY_TYPES.includes(headEntry.type as never)
+          ? headEntry.type
+          : 'other';
+        const tailType = ENTITY_TYPES.includes(tailEntry.type as never)
+          ? tailEntry.type
+          : 'other';
+        const headId = nameToEntityId.get(`${headName}::${headType}`);
+        const tailId = nameToEntityId.get(`${tailName}::${tailType}`);
         if (!headId || !tailId) continue;
 
         const upsertResult = await manager.query<
@@ -287,7 +351,7 @@ export class GraphExtractionService {
              evidence_chunk_id = COALESCE(relation.evidence_chunk_id, EXCLUDED.evidence_chunk_id),
              updated_at = NOW()
            RETURNING id, (xmax = 0) AS inserted`,
-          [knowledgeBaseId, headId, tailId, r.predicate, chunkId],
+          [knowledgeBaseId, headId, tailId, predicate, chunkId],
         );
         const row = upsertResult[0];
         if (row?.inserted) relationsInserted += 1;

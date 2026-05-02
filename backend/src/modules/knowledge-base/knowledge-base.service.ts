@@ -156,7 +156,8 @@ export class KnowledgeBaseService {
   }
 
   // KB 전체 그래프 재추출 — 모든 entity/relation/chunk_entity 삭제 후 모든 문서를 재추출.
-  // atomic compare-and-swap (idle → in_progress) 으로 race-free 잠금.
+  // atomic compare-and-swap (idle → in_progress) + DELETE + UPDATE + 문서 조회를
+  // 모두 단일 트랜잭션으로 묶어 도중 크래시 시 reextract_status 영구 교착을 막는다.
   async reExtractAll(
     id: string,
     workspaceId: string,
@@ -164,37 +165,40 @@ export class KnowledgeBaseService {
     const kb = await this.findById(id, workspaceId);
     this.assertGraphMode(kb);
 
-    const acquired = await this.dataSource.query<{ id: string }[]>(
-      `UPDATE knowledge_base
-       SET reextract_status = 'in_progress', entity_count = 0, relation_count = 0
-       WHERE id = $1 AND workspace_id = $2 AND reextract_status = 'idle'
-       RETURNING id`,
-      [id, workspaceId],
-    );
-    if (acquired.length === 0) {
-      throw new ConflictException({
-        code: 'KB_REEXTRACT_IN_PROGRESS',
-        message: 'A KB graph re-extraction is already in progress',
-      });
-    }
-
-    // 그래프 데이터 삭제 — entity 삭제 시 relation / chunk_entity 도 CASCADE.
-    await this.dataSource.query(
-      `DELETE FROM entity WHERE knowledge_base_id = $1`,
-      [id],
-    );
-    // 모든 문서 graph_extraction_status 를 pending 으로 reset.
-    await this.dataSource.query(
-      `UPDATE document SET graph_extraction_status = 'pending' WHERE knowledge_base_id = $1`,
-      [id],
-    );
-
-    const docs = await this.documentRepository.find({
-      where: { knowledgeBaseId: id },
-      select: ['id'],
+    const docIds = await this.dataSource.transaction(async (manager) => {
+      // 1) atomic CAS lock
+      const acquired = await manager.query<{ id: string }[]>(
+        `UPDATE knowledge_base
+         SET reextract_status = 'in_progress', entity_count = 0, relation_count = 0
+         WHERE id = $1 AND workspace_id = $2 AND reextract_status = 'idle'
+         RETURNING id`,
+        [id, workspaceId],
+      );
+      if (acquired.length === 0) {
+        throw new ConflictException({
+          code: 'KB_REEXTRACT_IN_PROGRESS',
+          message: 'A KB graph re-extraction is already in progress',
+        });
+      }
+      // 2) 그래프 데이터 삭제 (relation / chunk_entity 는 CASCADE)
+      await manager.query(`DELETE FROM entity WHERE knowledge_base_id = $1`, [
+        id,
+      ]);
+      // 3) 모든 문서 graph_extraction_status 를 'pending' 으로 reset
+      await manager.query(
+        `UPDATE document SET graph_extraction_status = 'pending' WHERE knowledge_base_id = $1`,
+        [id],
+      );
+      // 4) 문서 ID 회수 (트랜잭션 후 큐잉용)
+      const rows = await manager.query<{ id: string }[]>(
+        `SELECT id FROM document WHERE knowledge_base_id = $1`,
+        [id],
+      );
+      return rows.map((r) => r.id);
     });
-    if (docs.length === 0) {
-      // 빈 KB 는 child job 이 없어 finalize 가 트리거되지 않는다 → 즉시 idle 로 되돌림.
+
+    if (docIds.length === 0) {
+      // 빈 KB — finalize 트리거가 없어 즉시 idle 로 되돌림.
       await this.dataSource.query(
         `UPDATE knowledge_base SET reextract_status = 'idle' WHERE id = $1`,
         [id],
@@ -202,20 +206,21 @@ export class KnowledgeBaseService {
       return { documentCount: 0 };
     }
 
+    // 큐잉은 트랜잭션 외부 — DB 상태가 commit 된 뒤에만 worker 가 작업을 본다.
     await this.graphQueue.addBulk(
-      docs.map((doc) => ({
+      docIds.map((docId) => ({
         name: 'extract',
         data: {
-          documentId: doc.id,
+          documentId: docId,
           knowledgeBaseId: id,
           isKbBatch: true,
         },
       })),
     );
-    return { documentCount: docs.length };
+    return { documentCount: docIds.length };
   }
 
-  // 문서 단건 그래프 재추출.
+  // 문서 단건 그래프 재추출. KB 가 batch 재추출 중이면 409.
   async reExtractDocument(
     docId: string,
     kbId: string,
@@ -223,6 +228,14 @@ export class KnowledgeBaseService {
   ): Promise<void> {
     const kb = await this.findById(kbId, workspaceId);
     this.assertGraphMode(kb);
+    if (kb.reextractStatus === 'in_progress') {
+      // 배치 진행 중 단건 재추출이 들어오면 finalize 카운트 로직과 충돌해 status 영구 교착 가능.
+      throw new ConflictException({
+        code: 'KB_REEXTRACT_IN_PROGRESS',
+        message:
+          'KB graph re-extraction is in progress. Wait until it completes before re-extracting individual documents.',
+      });
+    }
     const doc = await this.findDocument(docId, kbId, workspaceId);
 
     await this.documentRepository.update(doc.id, {

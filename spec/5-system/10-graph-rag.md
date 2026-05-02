@@ -328,7 +328,8 @@ LIMIT $5;        -- ragTopK
 | DELETE | `/api/knowledge-bases/:kbId/entities/:entityId` | entity 삭제 (관련 relation, chunk_entity CASCADE) |
 | GET | `/api/knowledge-bases/:kbId/relations` | relation 목록 (페이지네이션, head/tail 검색) |
 | DELETE | `/api/knowledge-bases/:kbId/relations/:relationId` | relation 삭제 |
-| GET | `/api/knowledge-bases/:kbId/graph-stats` | entity_count / relation_count / 추출 진행 상태 요약 |
+| GET | `/api/knowledge-bases/:kbId/graph/stats` | entity_count / relation_count / 추출 진행 상태 요약 |
+| GET | `/api/knowledge-bases/:kbId/graph/visualization` | 상위 mention_count entity + relation 페이로드 (시각화 용) |
 
 ---
 

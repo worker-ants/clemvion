@@ -1,3 +1,5 @@
+import { ENTITY_TYPES } from '../entities/entity.entity';
+
 // 시스템 프롬프트와 LLM 응답 JSON Schema 를 한 곳에 모아 둔다.
 // 추출 품질 튜닝은 본 파일 한 곳만 수정하면 KB 전체에 일관 적용된다.
 
@@ -31,14 +33,7 @@ export const GRAPH_EXTRACTION_JSON_SCHEMA = {
           displayName: { type: 'string' },
           type: {
             type: 'string',
-            enum: [
-              'person',
-              'organization',
-              'concept',
-              'location',
-              'event',
-              'other',
-            ],
+            enum: ENTITY_TYPES,
           },
           description: { type: 'string' },
         },
@@ -61,17 +56,13 @@ export const GRAPH_EXTRACTION_JSON_SCHEMA = {
   required: ['entities', 'relations'],
 } as const;
 
+import type { EntityType } from '../entities/entity.entity';
+
 export interface ExtractionResult {
   entities: Array<{
     name: string;
     displayName: string;
-    type:
-      | 'person'
-      | 'organization'
-      | 'concept'
-      | 'location'
-      | 'event'
-      | 'other';
+    type: EntityType;
     description?: string;
   }>;
   relations: Array<{
