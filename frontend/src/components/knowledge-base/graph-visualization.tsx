@@ -17,6 +17,7 @@ import {
   type GraphVisualizationData,
 } from "@/lib/api/knowledge-bases";
 import { Loader2 } from "lucide-react";
+import { NativeSelect } from "@/components/ui/native-select";
 import { useT } from "@/lib/i18n";
 
 // Entity 타입별 색상. CSS 변수가 아닌 단색을 쓰는 이유는 react-flow 노드 스타일이
@@ -98,17 +99,17 @@ export function GraphVisualization({ kbId }: GraphVisualizationProps) {
         <span className="text-[hsl(var(--muted-foreground))]">
           {t("knowledgeBases.graphVizLimit")}
         </span>
-        <select
+        <NativeSelect
           value={limit}
           onChange={(e) => setLimit(parseInt(e.target.value, 10))}
-          className="h-7 rounded border border-[hsl(var(--input))] bg-transparent px-2 text-xs"
+          className="h-7 w-auto px-2 text-xs"
         >
           {[20, 50, 100, 200].map((n) => (
             <option key={n} value={n}>
               {n}
             </option>
           ))}
-        </select>
+        </NativeSelect>
         {data?.truncated && (
           <span className="text-[hsl(var(--warning,38_92%_50%))]">
             {t("knowledgeBases.graphVizTruncated")}

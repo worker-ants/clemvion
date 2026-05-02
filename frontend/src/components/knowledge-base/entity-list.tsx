@@ -10,11 +10,13 @@ import {
 import { normalizePagedResponse } from "@/lib/api/paginated";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { NativeSelect } from "@/components/ui/native-select";
 import { Pagination } from "@/components/ui/pagination";
 import { ConfirmModal } from "@/components/ui/confirm-modal";
-import { Loader2, Trash2, Search, X } from "lucide-react";
+import { Loader2, Trash2, Search } from "lucide-react";
 import { toast } from "sonner";
 import { useT } from "@/lib/i18n";
+import { EntityDetailDialog } from "@/components/knowledge-base/entity-detail-dialog";
 
 const PAGE_SIZE = 20;
 
@@ -69,15 +71,6 @@ export function EntityList({ kbId }: EntityListProps) {
     onError: () => toast.error(t("knowledgeBases.entityDeleteFailed")),
   });
 
-  const { data: detail, isLoading: detailLoading } = useQuery({
-    queryKey: ["kb-entity-detail", kbId, previewTarget?.id],
-    queryFn: () =>
-      previewTarget
-        ? knowledgeBasesApi.getEntityDetail(kbId, previewTarget.id)
-        : Promise.resolve(null),
-    enabled: !!previewTarget,
-  });
-
   return (
     <div className="space-y-3">
       <div className="flex items-center gap-2">
@@ -93,13 +86,13 @@ export function EntityList({ kbId }: EntityListProps) {
             className="pl-8"
           />
         </div>
-        <select
+        <NativeSelect
           value={typeFilter}
           onChange={(e) => {
             setTypeFilter(e.target.value as EntityType | "");
             setPage(1);
           }}
-          className="h-9 rounded-md border border-[hsl(var(--input))] bg-transparent px-2 text-sm focus:outline-none focus:ring-1 focus:ring-[hsl(var(--ring))]"
+          className="w-auto"
         >
           <option value="">{t("knowledgeBases.entityAllTypes")}</option>
           {ENTITY_TYPES.map((type) => (
@@ -107,7 +100,7 @@ export function EntityList({ kbId }: EntityListProps) {
               {type}
             </option>
           ))}
-        </select>
+        </NativeSelect>
       </div>
 
       {isLoading ? (
@@ -194,59 +187,11 @@ export function EntityList({ kbId }: EntityListProps) {
         destructive
       />
 
-      {previewTarget && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-          <div className="w-full max-w-2xl rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-6 shadow-lg">
-            <div className="mb-4 flex items-start justify-between">
-              <div>
-                <div className="text-lg font-semibold">
-                  {previewTarget.displayName}
-                </div>
-                <div className="text-xs font-mono text-[hsl(var(--muted-foreground))]">
-                  {previewTarget.name} · {previewTarget.type} ·{" "}
-                  {previewTarget.mentionCount} mentions
-                </div>
-              </div>
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={() => setPreviewTarget(null)}
-              >
-                <X className="h-4 w-4" />
-              </Button>
-            </div>
-            {detailLoading ? (
-              <div className="flex justify-center py-8">
-                <Loader2 className="h-5 w-5 animate-spin" />
-              </div>
-            ) : detail ? (
-              <div className="max-h-96 space-y-2 overflow-y-auto">
-                {detail.description && (
-                  <p className="rounded bg-[hsl(var(--muted)/0.3)] p-3 text-sm">
-                    {detail.description}
-                  </p>
-                )}
-                <div className="text-xs font-medium text-[hsl(var(--muted-foreground))]">
-                  {t("knowledgeBases.entityMentionedInChunks", {
-                    count: detail.mentionedInChunks.length,
-                  })}
-                </div>
-                {detail.mentionedInChunks.map((c) => (
-                  <div
-                    key={c.chunkId}
-                    className="rounded border border-[hsl(var(--border))] p-2 text-sm"
-                  >
-                    <div className="text-xs font-medium text-[hsl(var(--muted-foreground))]">
-                      {c.documentName}
-                    </div>
-                    <div className="mt-1 text-xs">{c.contentPreview}…</div>
-                  </div>
-                ))}
-              </div>
-            ) : null}
-          </div>
-        </div>
-      )}
+      <EntityDetailDialog
+        kbId={kbId}
+        entity={previewTarget}
+        onClose={() => setPreviewTarget(null)}
+      />
     </div>
   );
 }
