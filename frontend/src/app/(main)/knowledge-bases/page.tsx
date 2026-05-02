@@ -9,6 +9,7 @@ import {
 } from "@/lib/api/knowledge-bases";
 import { normalizePagedResponse } from "@/lib/api/paginated";
 import { Button } from "@/components/ui/button";
+import { ConfirmModal } from "@/components/ui/confirm-modal";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Pagination } from "@/components/ui/pagination";
@@ -191,35 +192,19 @@ export default function KnowledgeBasesPage() {
         </div>
       )}
 
-      {/* Delete Confirmation */}
-      {deleteTarget && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-          <div className="w-full max-w-sm rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-6 shadow-lg">
-            <h2 className="mb-2 text-lg font-semibold">{t("knowledgeBases.deleteTitle")}</h2>
-            <p className="mb-4 text-sm text-[hsl(var(--muted-foreground))]">
-              {t("knowledgeBases.deleteMessage")}
-            </p>
-            <div className="flex justify-end gap-2">
-              <Button
-                variant="outline"
-                onClick={() => setDeleteTarget(null)}
-              >
-                {t("common.cancel")}
-              </Button>
-              <Button
-                variant="destructive"
-                disabled={deleteMutation.isPending}
-                onClick={() => deleteMutation.mutate(deleteTarget)}
-              >
-                {deleteMutation.isPending && (
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                )}
-                {t("common.delete")}
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
+      <ConfirmModal
+        open={deleteTarget !== null}
+        title={t("knowledgeBases.deleteTitle")}
+        message={t("knowledgeBases.deleteMessage")}
+        confirmLabel={t("common.delete")}
+        cancelLabel={t("common.cancel")}
+        onCancel={() => setDeleteTarget(null)}
+        onConfirm={() =>
+          deleteTarget && deleteMutation.mutate(deleteTarget)
+        }
+        pending={deleteMutation.isPending}
+        destructive
+      />
 
       {isLoading && (
         <div className="flex items-center justify-center py-12">

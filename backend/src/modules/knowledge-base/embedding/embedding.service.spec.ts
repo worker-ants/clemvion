@@ -32,14 +32,17 @@ describe('EmbeddingService - dimension consistency', () => {
   let mockLlm: Record<string, jest.Mock>;
   let mockWs: Record<string, jest.Mock>;
   let mockDataSource: Record<string, jest.Mock>;
-  let lastTransactionQueries: { sql: string; params: unknown[] }[];
+
+  const findUpdateDimCall = (mock: jest.Mock) =>
+    mock.mock.calls.find((c) =>
+      String(c[0]).includes('UPDATE knowledge_base SET embedding_dimension'),
+    );
 
   beforeEach(async () => {
     chunkTextMock.mockReturnValue([
       { content: 'chunk-a', index: 0, tokenCount: 3 },
       { content: 'chunk-b', index: 1, tokenCount: 3 },
     ]);
-    lastTransactionQueries = [];
 
     mockDocRepo = {
       findOne: jest.fn(),
@@ -66,20 +69,8 @@ describe('EmbeddingService - dimension consistency', () => {
       emitExecutionEvent: jest.fn(),
     };
 
-    const txManager = {
-      query: jest
-        .fn()
-        .mockImplementation((sql: string, params: unknown[] = []) => {
-          lastTransactionQueries.push({ sql, params });
-          return Promise.resolve([]);
-        }),
-    };
-
     mockDataSource = {
       query: jest.fn().mockResolvedValue([]),
-      transaction: jest.fn().mockImplementation(async (cb: any) => {
-        return cb(txManager);
-      }),
     };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -119,11 +110,9 @@ describe('EmbeddingService - dimension consistency', () => {
 
     await service.processDocument('d1');
 
-    const update = lastTransactionQueries.find((q) =>
-      q.sql.includes('UPDATE knowledge_base SET embedding_dimension'),
-    );
+    const update = findUpdateDimCall(mockDataSource.query);
     expect(update).toBeDefined();
-    expect(update?.params).toEqual([3, 'kb-1']);
+    expect(update?.[1]).toEqual([3, 'kb-1']);
   });
 
   it('does not overwrite embedding_dimension when KB already has one', async () => {
@@ -148,10 +137,7 @@ describe('EmbeddingService - dimension consistency', () => {
 
     await service.processDocument('d1');
 
-    const update = lastTransactionQueries.find((q) =>
-      q.sql.includes('UPDATE knowledge_base SET embedding_dimension'),
-    );
-    expect(update).toBeUndefined();
+    expect(findUpdateDimCall(mockDataSource.query)).toBeUndefined();
   });
 
   it('marks document as error when embedding dimension does not match KB', async () => {

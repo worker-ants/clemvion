@@ -10,6 +10,7 @@ import {
 } from "@/lib/api/knowledge-bases";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { ConfirmModal } from "@/components/ui/confirm-modal";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { EmbeddingModelCombobox } from "@/components/knowledge-base/embedding-model-combobox";
@@ -409,64 +410,30 @@ export default function KnowledgeBaseDetailPage({
         </div>
       )}
 
-      {showKbReEmbedConfirm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-          <div className="w-full max-w-sm rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-6 shadow-lg">
-            <h2 className="mb-2 text-lg font-semibold">
-              {t("knowledgeBases.kbReembedConfirmTitle")}
-            </h2>
-            <p className="mb-4 text-sm text-[hsl(var(--muted-foreground))]">
-              {t("knowledgeBases.kbReembedConfirmMessage")}
-            </p>
-            <div className="flex justify-end gap-2">
-              <Button
-                variant="outline"
-                onClick={() => setShowKbReEmbedConfirm(false)}
-              >
-                {t("common.cancel")}
-              </Button>
-              <Button
-                disabled={kbReEmbedMutation.isPending}
-                onClick={() => kbReEmbedMutation.mutate()}
-              >
-                {kbReEmbedMutation.isPending && (
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                )}
-                {t("knowledgeBases.kbReembedAll")}
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
+      <ConfirmModal
+        open={showKbReEmbedConfirm}
+        title={t("knowledgeBases.kbReembedConfirmTitle")}
+        message={t("knowledgeBases.kbReembedConfirmMessage")}
+        confirmLabel={t("knowledgeBases.kbReembedAll")}
+        cancelLabel={t("common.cancel")}
+        onCancel={() => setShowKbReEmbedConfirm(false)}
+        onConfirm={() => kbReEmbedMutation.mutate()}
+        pending={kbReEmbedMutation.isPending}
+      />
 
-      {deleteTarget && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-          <div className="w-full max-w-sm rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-6 shadow-lg">
-            <h2 className="mb-2 text-lg font-semibold">{t("knowledgeBases.documentDeleteTitle")}</h2>
-            <p className="mb-4 text-sm text-[hsl(var(--muted-foreground))]">
-              {t("knowledgeBases.documentDeleteMessageFull")}
-            </p>
-            <div className="flex justify-end gap-2">
-              <Button
-                variant="outline"
-                onClick={() => setDeleteTarget(null)}
-              >
-                {t("common.cancel")}
-              </Button>
-              <Button
-                variant="destructive"
-                disabled={deleteMutation.isPending}
-                onClick={() => deleteMutation.mutate(deleteTarget)}
-              >
-                {deleteMutation.isPending && (
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                )}
-                {t("common.delete")}
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
+      <ConfirmModal
+        open={deleteTarget !== null}
+        title={t("knowledgeBases.documentDeleteTitle")}
+        message={t("knowledgeBases.documentDeleteMessageFull")}
+        confirmLabel={t("common.delete")}
+        cancelLabel={t("common.cancel")}
+        onCancel={() => setDeleteTarget(null)}
+        onConfirm={() =>
+          deleteTarget && deleteMutation.mutate(deleteTarget)
+        }
+        pending={deleteMutation.isPending}
+        destructive
+      />
 
       {docsLoading && (
         <div className="flex items-center justify-center py-8">
