@@ -1604,6 +1604,8 @@ export const ko = {
     kbReembedConfirmTitle: "KB 전체 재임베딩",
     kbReembedConfirmMessage:
       "모든 문서의 청크와 임베딩을 삭제하고 처음부터 다시 처리합니다. 진행하시겠어요?",
+    kbReembedConfirmMessageGraph:
+      "모든 문서의 청크와 임베딩을 삭제하고 처음부터 다시 처리합니다. graph 모드 KB 라 임베딩 완료 후 그래프 추출도 자동 실행되어 추가 LLM 비용이 발생해요. 진행하시겠어요?",
     kbReembedStarted: "{{count}}개 문서의 재임베딩을 시작했어요",
     kbReembedFailed: "KB 재임베딩 시작에 실패했어요",
     chunkSizeInvalid: "청크 크기는 100~8000 사이여야 해요",
