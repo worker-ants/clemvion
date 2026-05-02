@@ -90,26 +90,34 @@ export class DocumentEmbeddingProcessor extends WorkerHost {
   }
 
   // KB.rag_mode === 'graph' 인 경우 graph-extraction 큐로 child job 을 add 한다.
-  // documentId 만으로 KB.rag_mode 를 조회 — 작은 read 라 큐 처리량에 영향 없음.
+  // payload 에 ragMode 가 미리 주입돼 있으면 DB 조회 없이 분기 (99% no-op 케이스
+  // 회피). payload 가 비어 있는 레거시 job 은 fallback 으로 DB JOIN.
   private async maybeChainGraphExtraction(
     data: DocumentEmbeddingJob | undefined,
   ): Promise<void> {
     if (!data?.documentId) return;
     try {
-      const rows = await this.dataSource.query<
-        { rag_mode: string; knowledge_base_id: string }[]
-      >(
-        `SELECT kb.rag_mode AS rag_mode, d.knowledge_base_id AS knowledge_base_id
-         FROM document d
-         JOIN knowledge_base kb ON kb.id = d.knowledge_base_id
-         WHERE d.id = $1`,
-        [data.documentId],
-      );
-      const row = rows[0];
-      if (!row || row.rag_mode !== 'graph') return;
+      let ragMode = data.ragMode;
+      let knowledgeBaseId = data.knowledgeBaseId;
+      if (!ragMode || !knowledgeBaseId) {
+        const rows = await this.dataSource.query<
+          { rag_mode: 'vector' | 'graph'; knowledge_base_id: string }[]
+        >(
+          `SELECT kb.rag_mode AS rag_mode, d.knowledge_base_id AS knowledge_base_id
+           FROM document d
+           JOIN knowledge_base kb ON kb.id = d.knowledge_base_id
+           WHERE d.id = $1`,
+          [data.documentId],
+        );
+        const row = rows[0];
+        if (!row) return;
+        ragMode = row.rag_mode;
+        knowledgeBaseId = row.knowledge_base_id;
+      }
+      if (ragMode !== 'graph' || !knowledgeBaseId) return;
       await this.graphQueue.add('extract', {
         documentId: data.documentId,
-        knowledgeBaseId: row.knowledge_base_id,
+        knowledgeBaseId,
         isKbBatch: data.isKbBatch === true,
       });
     } catch (err) {

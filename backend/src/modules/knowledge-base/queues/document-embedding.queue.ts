@@ -17,6 +17,9 @@ export interface DocumentEmbeddingJob {
   reEmbed?: boolean;
   /** KB 전체 재임베딩으로 발사된 child job 일 때 true. */
   isKbBatch?: boolean;
-  /** isKbBatch=true 일 때만 채워진다. 마지막 child 가 끝났을 때 KB.reembed_status reset 에 사용. */
+  /** KB id (finalize / chained dispatch 양쪽에서 사용). enqueue 시점에 producer 가 채운다. */
   knowledgeBaseId?: string;
+  /** KB 의 ragMode. producer 가 미리 주입 — worker 가 매번 DB JOIN 으로 ragMode 를 조회하던
+   *  부담을 회피. payload 에 없으면(레거시 job) worker 가 fallback DB 조회. */
+  ragMode?: 'vector' | 'graph';
 }

@@ -292,7 +292,7 @@ export class KnowledgeBaseService {
     id: string,
     workspaceId: string,
   ): Promise<{ documentCount: number }> {
-    await this.findById(id, workspaceId);
+    const kb = await this.findById(id, workspaceId);
 
     const acquired = await this.dataSource.query<{ id: string }[]>(
       `UPDATE knowledge_base
@@ -330,6 +330,8 @@ export class KnowledgeBaseService {
           reEmbed: true,
           isKbBatch: true,
           knowledgeBaseId: id,
+          // 이미 KB 를 fetch 했으니 ragMode 도 같이 주입 — worker DB JOIN 회피.
+          ragMode: kb.ragMode,
         },
       })),
     );
@@ -339,8 +341,41 @@ export class KnowledgeBaseService {
 
   // BullMQ 'document-embedding' 큐에 단발 임베딩 작업을 추가.
   // 컨트롤러의 uploadDocument / 단건 reEmbed 진입점이 사용.
-  async enqueueEmbedding(documentId: string, reEmbed = false): Promise<void> {
-    await this.embeddingQueue.add('embed', { documentId, reEmbed });
+  // KB.ragMode 와 knowledgeBaseId 를 payload 에 미리 주입해 worker 가 chained dispatch
+  // 판단을 위해 매번 DB JOIN 하지 않도록 한다 (W5).
+  async enqueueEmbedding(
+    documentId: string,
+    options?: {
+      reEmbed?: boolean;
+      ragMode?: 'vector' | 'graph';
+      knowledgeBaseId?: string;
+    },
+  ): Promise<void> {
+    let { ragMode, knowledgeBaseId } = options ?? {};
+    if (!ragMode || !knowledgeBaseId) {
+      // 호출자가 KB 정보를 모르면 한 번 조회해 채운다 — payload 에 들어가야 worker 가
+      // chained dispatch 결정 시 DB 재조회를 회피.
+      const rows = await this.dataSource.query<
+        { rag_mode: 'vector' | 'graph'; knowledge_base_id: string }[]
+      >(
+        `SELECT kb.rag_mode AS rag_mode, d.knowledge_base_id AS knowledge_base_id
+         FROM document d
+         JOIN knowledge_base kb ON kb.id = d.knowledge_base_id
+         WHERE d.id = $1`,
+        [documentId],
+      );
+      const row = rows[0];
+      if (row) {
+        ragMode = ragMode ?? row.rag_mode;
+        knowledgeBaseId = knowledgeBaseId ?? row.knowledge_base_id;
+      }
+    }
+    await this.embeddingQueue.add('embed', {
+      documentId,
+      reEmbed: options?.reEmbed ?? false,
+      ragMode,
+      knowledgeBaseId,
+    });
   }
 
   async remove(id: string, workspaceId: string): Promise<void> {
