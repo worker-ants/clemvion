@@ -2,11 +2,13 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';
 import { NotFoundException, BadRequestException } from '@nestjs/common';
+import { getQueueToken } from '@nestjs/bullmq';
+import { ConflictException } from '@nestjs/common';
 import { KnowledgeBaseService } from './knowledge-base.service';
 import { KnowledgeBase } from './entities/knowledge-base.entity';
 import { Document } from './entities/document.entity';
 import { S3Service } from '../../common/services/s3.service';
-import { EmbeddingService } from './embedding/embedding.service';
+import { DOCUMENT_EMBEDDING_QUEUE } from './queues/document-embedding.queue';
 
 describe('KnowledgeBaseService', () => {
   let service: KnowledgeBaseService;
@@ -14,7 +16,7 @@ describe('KnowledgeBaseService', () => {
   let mockDocRepo: Record<string, jest.Mock>;
   let mockS3Service: Record<string, jest.Mock>;
   let mockDataSource: Record<string, jest.Mock>;
-  let mockEmbeddingService: Record<string, jest.Mock>;
+  let mockEmbeddingQueue: Record<string, jest.Mock>;
 
   beforeEach(async () => {
     const qbMock = {
@@ -66,8 +68,9 @@ describe('KnowledgeBaseService', () => {
       query: jest.fn().mockResolvedValue([]),
     };
 
-    mockEmbeddingService = {
-      processDocument: jest.fn().mockResolvedValue(undefined),
+    mockEmbeddingQueue = {
+      add: jest.fn().mockResolvedValue(undefined),
+      addBulk: jest.fn().mockResolvedValue([]),
     };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -77,7 +80,10 @@ describe('KnowledgeBaseService', () => {
         { provide: getRepositoryToken(Document), useValue: mockDocRepo },
         { provide: S3Service, useValue: mockS3Service },
         { provide: DataSource, useValue: mockDataSource },
-        { provide: EmbeddingService, useValue: mockEmbeddingService },
+        {
+          provide: getQueueToken(DOCUMENT_EMBEDDING_QUEUE),
+          useValue: mockEmbeddingQueue,
+        },
       ],
     }).compile();
 
@@ -179,84 +185,89 @@ describe('KnowledgeBaseService', () => {
   });
 
   describe('reEmbedAll', () => {
-    it('should reset embedding_dimension and queue re-embedding for every doc', async () => {
+    beforeEach(() => {
       mockKbRepo.findOne.mockResolvedValue({
         id: 'kb-1',
         workspaceId: 'ws-1',
       });
+    });
+
+    it('should atomically acquire reembed_status and enqueue all docs', async () => {
+      mockDataSource.query.mockResolvedValueOnce([{ id: 'kb-1' }]);
       mockDocRepo.find.mockResolvedValue([{ id: 'd1' }, { id: 'd2' }]);
 
       const result = await service.reEmbedAll('kb-1', 'ws-1');
 
       expect(mockDataSource.query).toHaveBeenCalledWith(
-        expect.stringMatching(/UPDATE knowledge_base SET embedding_dimension/),
-        ['kb-1'],
+        expect.stringMatching(/SET reembed_status = 'in_progress'/),
+        ['kb-1', 'ws-1'],
       );
-      expect(mockEmbeddingService.processDocument).toHaveBeenCalledTimes(2);
-      expect(mockEmbeddingService.processDocument).toHaveBeenCalledWith(
-        'd1',
-        true,
-      );
-      expect(mockEmbeddingService.processDocument).toHaveBeenCalledWith(
-        'd2',
-        true,
-      );
+      expect(mockEmbeddingQueue.addBulk).toHaveBeenCalledWith([
+        {
+          name: 'embed',
+          data: {
+            documentId: 'd1',
+            reEmbed: true,
+            isKbBatch: true,
+            knowledgeBaseId: 'kb-1',
+          },
+        },
+        {
+          name: 'embed',
+          data: {
+            documentId: 'd2',
+            reEmbed: true,
+            isKbBatch: true,
+            knowledgeBaseId: 'kb-1',
+          },
+        },
+      ]);
       expect(result).toEqual({ documentCount: 2 });
     });
 
-    it('should still succeed for empty KB', async () => {
-      mockKbRepo.findOne.mockResolvedValue({
-        id: 'kb-1',
-        workspaceId: 'ws-1',
-      });
+    it('should immediately reset to idle for empty KB (no child job to finalize)', async () => {
+      mockDataSource.query
+        .mockResolvedValueOnce([{ id: 'kb-1' }]) // acquire
+        .mockResolvedValueOnce([]); // reset to idle
       mockDocRepo.find.mockResolvedValue([]);
 
       const result = await service.reEmbedAll('kb-1', 'ws-1');
 
-      expect(mockEmbeddingService.processDocument).not.toHaveBeenCalled();
+      expect(mockEmbeddingQueue.addBulk).not.toHaveBeenCalled();
+      expect(mockDataSource.query).toHaveBeenLastCalledWith(
+        expect.stringMatching(/SET reembed_status = 'idle'/),
+        ['kb-1'],
+      );
       expect(result).toEqual({ documentCount: 0 });
     });
 
-    it('should reject concurrent reEmbedAll for the same KB', async () => {
-      mockKbRepo.findOne.mockResolvedValue({
-        id: 'kb-1',
-        workspaceId: 'ws-1',
-      });
-      mockDocRepo.find.mockResolvedValue([{ id: 'd1' }]);
-      // processDocument 가 끝나지 않게 만들어 in-flight 상태를 유지
-      let resolveProc: () => void = () => {};
-      mockEmbeddingService.processDocument.mockImplementation(
-        () => new Promise<void>((r) => (resolveProc = r)),
+    it('should throw 409 when reembed is already in progress (atomic 0 rows)', async () => {
+      // atomic compare-and-swap returns 0 rows → conflict
+      mockDataSource.query.mockResolvedValueOnce([]);
+
+      await expect(service.reEmbedAll('kb-1', 'ws-1')).rejects.toBeInstanceOf(
+        ConflictException,
       );
+      expect(mockEmbeddingQueue.addBulk).not.toHaveBeenCalled();
+      expect(mockDocRepo.find).not.toHaveBeenCalled();
+    });
+  });
 
-      const first = service.reEmbedAll('kb-1', 'ws-1');
-      // 첫 호출이 await 를 끝낸 뒤 곧바로 두 번째 호출이 들어와야 함
-      await Promise.resolve();
-      await Promise.resolve();
-
-      await expect(service.reEmbedAll('kb-1', 'ws-1')).rejects.toMatchObject({
-        response: expect.objectContaining({ code: 'KB_REEMBED_IN_PROGRESS' }),
+  describe('enqueueEmbedding', () => {
+    it('should add a job to the document-embedding queue', async () => {
+      await service.enqueueEmbedding('doc-1');
+      expect(mockEmbeddingQueue.add).toHaveBeenCalledWith('embed', {
+        documentId: 'doc-1',
+        reEmbed: false,
       });
-
-      resolveProc();
-      await first;
     });
 
-    it('should swallow per-document failures so other docs keep running', async () => {
-      mockKbRepo.findOne.mockResolvedValue({
-        id: 'kb-1',
-        workspaceId: 'ws-1',
+    it('should propagate reEmbed flag', async () => {
+      await service.enqueueEmbedding('doc-1', true);
+      expect(mockEmbeddingQueue.add).toHaveBeenCalledWith('embed', {
+        documentId: 'doc-1',
+        reEmbed: true,
       });
-      mockDocRepo.find.mockResolvedValue([{ id: 'd1' }, { id: 'd2' }]);
-      mockEmbeddingService.processDocument
-        .mockRejectedValueOnce(new Error('boom'))
-        .mockResolvedValueOnce(undefined);
-
-      const result = await service.reEmbedAll('kb-1', 'ws-1');
-
-      expect(result).toEqual({ documentCount: 2 });
-      // 두 문서 모두 큐잉되었음 (한쪽 실패가 다른 쪽을 막지 않음)
-      expect(mockEmbeddingService.processDocument).toHaveBeenCalledTimes(2);
     });
   });
 

@@ -25,6 +25,14 @@ export class KnowledgeBaseDto {
   })
   embeddingDimension?: number | null;
 
+  @ApiProperty({
+    example: 'idle',
+    enum: ['idle', 'in_progress'],
+    description:
+      'KB 전체 재임베딩 진행 상태. in_progress 동안에는 RAG 검색이 일시적으로 제외되고, 추가 reEmbedAll 호출은 409 로 거절됩니다.',
+  })
+  reembedStatus: 'idle' | 'in_progress';
+
   @ApiProperty({ example: 1000 })
   chunkSize: number;
 

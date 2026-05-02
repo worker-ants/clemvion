@@ -6,8 +6,9 @@ import {
   Logger,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
+import { InjectQueue } from '@nestjs/bullmq';
 import { DataSource, Repository } from 'typeorm';
-import pLimit from 'p-limit';
+import { Queue } from 'bullmq';
 import { KnowledgeBase } from './entities/knowledge-base.entity';
 import { Document } from './entities/document.entity';
 import { CreateKnowledgeBaseDto } from './dto/create-knowledge-base.dto';
@@ -15,13 +16,12 @@ import { UpdateKnowledgeBaseDto } from './dto/update-knowledge-base.dto';
 import { PaginatedResponseDto } from '../../common/dto/paginated-response.dto';
 import { PaginationQueryDto } from '../../common/dto/pagination.dto';
 import { S3Service } from '../../common/services/s3.service';
-import { EmbeddingService } from './embedding/embedding.service';
+import {
+  DOCUMENT_EMBEDDING_QUEUE,
+  DocumentEmbeddingJob,
+} from './queues/document-embedding.queue';
 import { v4 as uuidv4 } from 'uuid';
 import * as path from 'path';
-
-// 동시 fire-and-forget 폭발 방지: KB 단위 재임베딩 시 한 번에 큐잉할 promise 수의 상한.
-// 초과분은 p-limit 큐에 대기하므로 메모리·이벤트루프 부담을 일정하게 유지.
-const REEMBED_DISPATCH_CONCURRENCY = 5;
 
 const ALLOWED_FILE_TYPES = ['txt', 'md', 'pdf', 'csv'];
 const CONTENT_TYPE_MAP: Record<string, string> = {
@@ -34,9 +34,6 @@ const CONTENT_TYPE_MAP: Record<string, string> = {
 @Injectable()
 export class KnowledgeBaseService {
   private readonly logger = new Logger(KnowledgeBaseService.name);
-  // 같은 프로세스 안에서 동일 KB 의 reEmbedAll 이 중복 진입하는 것을 차단한다.
-  // (다중 인스턴스 환경의 분산 잠금은 별도 후속 작업.)
-  private readonly inFlightReEmbeds = new Set<string>();
 
   constructor(
     @InjectRepository(KnowledgeBase)
@@ -45,7 +42,8 @@ export class KnowledgeBaseService {
     private readonly documentRepository: Repository<Document>,
     private readonly s3Service: S3Service,
     private readonly dataSource: DataSource,
-    private readonly embeddingService: EmbeddingService,
+    @InjectQueue(DOCUMENT_EMBEDDING_QUEUE)
+    private readonly embeddingQueue: Queue<DocumentEmbeddingJob>,
   ) {}
 
   // ── Knowledge Base CRUD ──
@@ -125,55 +123,65 @@ export class KnowledgeBaseService {
   }
 
   // 모델 변경 등으로 KB 전체 재임베딩이 필요할 때 호출.
-  // - embedding_dimension 을 NULL 로 초기화 (다음 첫 청크 INSERT 에서 새 차원으로 채워짐)
-  // - 모든 문서를 fire-and-forget 으로 재임베딩 (단, p-limit 으로 동시 큐잉 상한)
-  // - 같은 KB 의 중복 호출은 in-memory 잠금으로 차단해 청크 이중 삽입 레이스를 막는다
+  // - reembed_status 를 atomic compare-and-swap (idle → in_progress) 으로 잠금
+  //   (race-free; 다른 요청이 in_progress 면 0행 RETURNING 으로 409 ConflictException)
+  // - embedding_dimension 도 같은 UPDATE 에서 NULL 로 초기화 (새 차원으로 다시 채워짐)
+  // - 모든 문서를 BullMQ 'document-embedding' 큐에 addBulk 으로 추가
+  // - 마지막 child job 의 completed/failed 시점에 DocumentEmbeddingProcessor 가
+  //   reembed_status 를 idle 로 reset
   async reEmbedAll(
     id: string,
     workspaceId: string,
   ): Promise<{ documentCount: number }> {
     await this.findById(id, workspaceId);
 
-    if (this.inFlightReEmbeds.has(id)) {
+    const acquired = await this.dataSource.query<{ id: string }[]>(
+      `UPDATE knowledge_base
+       SET reembed_status = 'in_progress', embedding_dimension = NULL
+       WHERE id = $1 AND workspace_id = $2 AND reembed_status = 'idle'
+       RETURNING id`,
+      [id, workspaceId],
+    );
+    if (acquired.length === 0) {
       throw new ConflictException({
         code: 'KB_REEMBED_IN_PROGRESS',
         message: 'A KB re-embedding is already in progress',
       });
     }
-    this.inFlightReEmbeds.add(id);
 
-    let docs: Array<{ id: string }>;
-    try {
-      await this.dataSource.query(
-        `UPDATE knowledge_base SET embedding_dimension = NULL WHERE id = $1`,
-        [id],
-      );
-
-      docs = await this.documentRepository.find({
-        where: { knowledgeBaseId: id },
-        select: ['id'],
-      });
-    } catch (err) {
-      this.inFlightReEmbeds.delete(id);
-      throw err;
-    }
-
-    const limit = pLimit(REEMBED_DISPATCH_CONCURRENCY);
-    const tasks = docs.map((doc) =>
-      limit(() =>
-        this.embeddingService.processDocument(doc.id, true).catch((err) => {
-          const msg = err instanceof Error ? err.message : String(err);
-          this.logger.error(
-            `KB re-embedding failed for document ${doc.id}: ${msg}`,
-          );
-        }),
-      ),
-    );
-    void Promise.allSettled(tasks).finally(() => {
-      this.inFlightReEmbeds.delete(id);
+    const docs = await this.documentRepository.find({
+      where: { knowledgeBaseId: id },
+      select: ['id'],
     });
 
+    if (docs.length === 0) {
+      // 빈 KB 는 child job 이 없어 finalize 가 트리거되지 않는다 → 즉시 idle 로 되돌림.
+      await this.dataSource.query(
+        `UPDATE knowledge_base SET reembed_status = 'idle' WHERE id = $1`,
+        [id],
+      );
+      return { documentCount: 0 };
+    }
+
+    await this.embeddingQueue.addBulk(
+      docs.map((doc) => ({
+        name: 'embed',
+        data: {
+          documentId: doc.id,
+          reEmbed: true,
+          isKbBatch: true,
+          knowledgeBaseId: id,
+        },
+      })),
+    );
+
     return { documentCount: docs.length };
+  }
+
+  // BullMQ 'document-embedding' 큐에 단발 임베딩 작업을 추가.
+  // 컨트롤러의 uploadDocument / 단건 reEmbed 진입점이 사용.
+  async enqueueEmbedding(documentId: string, reEmbed = false): Promise<void> {
+    await this.embeddingQueue.add('embed', { documentId, reEmbed });
   }
 
   async remove(id: string, workspaceId: string): Promise<void> {

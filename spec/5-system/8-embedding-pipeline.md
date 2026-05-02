@@ -157,32 +157,53 @@ CREATE INDEX idx_document_chunk_embedding
 
 ## 7. 비동기 처리
 
-### 7.1 In-process 비동기
+### 7.1 BullMQ 큐 기반 비동기
 
-큐 없이 `Promise` 기반 비동기 처리:
+문서 임베딩은 BullMQ 큐 `document-embedding` 으로 라우팅된다. 진입점은 세 곳:
+
+- 문서 업로드 직후 (`POST /api/knowledge-bases/:id/documents`)
+- 문서 단건 재임베딩 (`POST /api/knowledge-bases/:id/documents/:docId/re-embed`)
+- KB 전체 재임베딩 (`POST /api/knowledge-bases/:id/re-embed`)
 
 ```typescript
-// 문서 업로드 API에서
-const document = await this.documentRepository.save({ ... status: 'pending' });
-// 응답 즉시 반환
-this.embeddingService.processDocument(document.id).catch(err => {
-  this.logger.error(`Embedding failed for ${document.id}`, err);
-});
+// 문서 업로드 API 에서
+const document = await this.documentRepository.save({ ...status: 'pending' });
+await this.kbService.enqueueEmbedding(document.id);
 return document;
 ```
 
+큐를 사용하므로 ① 프로세스 재시작에도 작업이 유실되지 않고 ② 다중 인스턴스 환경에서 Redis 가 동시성/지속성을 분산 관리한다.
+
 ### 7.2 동시 처리 제한
 
-- `p-limit` 또는 세마포어 패턴으로 동시 임베딩 처리 수 제한
-- 기본 동시 처리: **3건**
+- `DocumentEmbeddingProcessor` 의 BullMQ Worker concurrency 로 제한
+- 기본 동시 처리: **3건** (`@Processor(QUEUE, { concurrency: 3 })`)
 - 목적: LLM API 속도 제한 대비, 메모리 사용량 제어
 
 ### 7.3 재임베딩
 
-`POST /api/knowledge-bases/:id/documents/:docId/re-embed`:
-1. 기존 DocumentChunk 전체 삭제
-2. Document.embedding_status → `pending`
-3. 파이프라인 재실행
+#### 7.3.1 문서 단건 — `POST /api/knowledge-bases/:id/documents/:docId/re-embed`
+
+1. 권한 검증 + 문서 존재 확인
+2. `document-embedding` 큐에 `{ documentId, reEmbed: true }` 추가 (응답 202)
+3. Worker 가 받아 기존 청크 삭제 → 재임베딩
+
+#### 7.3.2 KB 전체 — `POST /api/knowledge-bases/:id/re-embed`
+
+1. atomic compare-and-swap 으로 잠금 획득:
+   ```sql
+   UPDATE knowledge_base
+     SET reembed_status = 'in_progress', embedding_dimension = NULL
+     WHERE id = $1 AND workspace_id = $2 AND reembed_status = 'idle'
+     RETURNING id
+   ```
+   결과가 0행이면 `409 KB_REEMBED_IN_PROGRESS`.
+2. KB 의 모든 문서를 큐에 `addBulk` (각 child job 에 `isKbBatch: true, knowledgeBaseId: <kbId>` 포함)
+3. 응답 즉시 202 반환 (`{ documentCount }`)
+4. 마지막 child job 의 completed/failed 시점에 `DocumentEmbeddingProcessor` 가 KB 의 남은 pending/processing 문서가 0건임을 확인하면 `reembed_status = 'idle'` 로 reset
+5. 빈 KB 의 경우 `addBulk` 가 비어 있어 finalize 가 호출되지 않으므로, 진입 시 즉시 idle 로 되돌린다.
+
+`reembed_status` 가 `in_progress` 인 KB 는 `embedding_dimension` 이 NULL 이므로 `RagSearchService` 에서 자연스럽게 검색 대상에서 제외된다 (재임베딩 완료 후 다시 포함).
 
 ---
 

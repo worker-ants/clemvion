@@ -107,4 +107,5 @@
 | POST | /api/knowledge-bases/:id/documents | 문서 업로드 (multipart) |
 | GET | /api/knowledge-bases/:id/documents/:docId | 문서 상세/미리보기 |
 | DELETE | /api/knowledge-bases/:id/documents/:docId | 문서 삭제 |
-| POST | /api/knowledge-bases/:id/documents/:docId/re-embed | 재임베딩 요청 |
+| POST | /api/knowledge-bases/:id/documents/:docId/re-embed | 문서 단건 재임베딩 요청 |
+| POST | /api/knowledge-bases/:id/re-embed | KB 전체 재임베딩 요청 (모든 문서 청크 삭제 후 재처리). `reembed_status` 가 `idle` 일 때만 진입, 진행 중이면 409 `KB_REEMBED_IN_PROGRESS` |
