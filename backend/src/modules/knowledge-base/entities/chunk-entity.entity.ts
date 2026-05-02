@@ -2,9 +2,15 @@ import { Entity, PrimaryColumn, Column, ManyToOne, JoinColumn } from 'typeorm';
 import { DocumentChunk } from './document-chunk.entity';
 import { GraphEntity } from './entity.entity';
 
-// 청크가 언급한 entity 매핑. (chunk_id, entity_id) 복합 PK.
+/**
+ * 청크가 언급한 entity 매핑. (chunk_id, entity_id) 복합 PK.
+ *
+ * 클래스명에 `Graph` 접두를 둔 것은 TypeORM `@Entity` 데코레이터/심볼과
+ * 도메인 단어(엔티티)·다른 모듈의 ChunkEntity 후보들 사이의 키워드 충돌을
+ * 피하기 위함이다. DB 테이블명(`chunk_entity`)은 변경 없이 유지된다.
+ */
 @Entity('chunk_entity')
-export class ChunkEntity {
+export class GraphChunkEntity {
   @PrimaryColumn({ name: 'chunk_id', type: 'uuid' })
   chunkId: string;
 

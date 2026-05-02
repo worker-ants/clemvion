@@ -6,7 +6,7 @@ import { Document } from './entities/document.entity';
 import { DocumentChunk } from './entities/document-chunk.entity';
 import { GraphEntity } from './entities/entity.entity';
 import { GraphRelation } from './entities/relation.entity';
-import { ChunkEntity } from './entities/chunk-entity.entity';
+import { GraphChunkEntity } from './entities/chunk-entity.entity';
 import { KnowledgeBaseController } from './knowledge-base.controller';
 import { GraphController } from './graph.controller';
 import { KnowledgeBaseService } from './knowledge-base.service';
@@ -31,7 +31,7 @@ import { GraphExtractionProcessor } from './queues/graph-extraction.processor';
       DocumentChunk,
       GraphEntity,
       GraphRelation,
-      ChunkEntity,
+      GraphChunkEntity,
     ]),
     LlmModule,
     forwardRef(() => WebsocketModule),
