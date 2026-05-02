@@ -208,7 +208,9 @@ describe('NodeComponentRegistry', () => {
 
       expect(result).toEqual({ x: 42 });
       expect(warnSpy).toHaveBeenCalledWith(
-        expect.stringContaining('applyConfigDefaults: parse failed for "strict"'),
+        expect.stringContaining(
+          'applyConfigDefaults: parse failed for "strict"',
+        ),
       );
 
       warnSpy.mockRestore();
