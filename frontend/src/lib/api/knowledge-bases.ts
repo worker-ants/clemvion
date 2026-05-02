@@ -64,11 +64,13 @@ export const knowledgeBasesApi = {
     return data;
   },
 
-  async reEmbedAll(kbId: string) {
-    const { data } = await apiClient.post(
-      `/knowledge-bases/${kbId}/re-embed`,
-    );
-    return data;
+  async reEmbedAll(
+    kbId: string,
+  ): Promise<{ message: string; documentCount: number }> {
+    const { data } = await apiClient.post(`/knowledge-bases/${kbId}/re-embed`);
+    // 백엔드 응답이 `{ data: ... }` 봉투형/평형 양쪽으로 올 수 있어 둘 다 unwrap.
+    const body = (data as { data?: unknown })?.data ?? data;
+    return body as { message: string; documentCount: number };
   },
 
   async remove(id: string) {

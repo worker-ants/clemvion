@@ -15,6 +15,7 @@ import {
   Logger,
   UseGuards,
 } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
 import { Roles, RolesGuard } from '../../common/guards/roles.guard';
 import { FileInterceptor } from '@nestjs/platform-express';
 import {
@@ -146,10 +147,15 @@ export class KnowledgeBaseController {
   @Post(':id/re-embed')
   @HttpCode(HttpStatus.ACCEPTED)
   @Roles('editor')
+  @Throttle({ default: { limit: 3, ttl: 60_000 } })
   @ApiOperation({
     summary: '지식 베이스 전체 재임베딩',
     description:
-      '지식 베이스의 모든 문서 청크·임베딩을 삭제하고 처음부터 다시 처리합니다. embedding_dimension 도 초기화되며, 비동기로 수행되므로 즉시 202 를 반환합니다. 임베딩 모델을 변경했을 때 차원이 다를 수 있으므로 사용자가 명시적으로 호출합니다.',
+      '지식 베이스의 모든 문서 청크·임베딩을 삭제하고 처음부터 다시 처리합니다. ' +
+      '먼저 embedding_dimension 을 NULL 로 초기화한 뒤 문서별 재임베딩을 fire-and-forget 으로 큐잉하고 ' +
+      '큐잉된 문서 개수와 함께 즉시 202 를 반환합니다. ' +
+      '재임베딩이 완료되기 전까지 해당 KB 는 RAG 검색 대상에서 일시적으로 제외됩니다 ' +
+      '(차원 NULL → searchGroup 에서 skip). 동일 KB 에 동시 호출이 들어오면 409 가 반환됩니다.',
   })
   @ApiParam({ name: 'id', description: '지식 베이스 UUID', format: 'uuid' })
   @ApiAcceptedWrappedResponse(KbReEmbedAcceptedDto, {
@@ -161,9 +167,12 @@ export class KnowledgeBaseController {
   async reEmbedAll(
     @Param('id', ParseUUIDPipe) id: string,
     @WorkspaceId() workspaceId: string,
-  ) {
+  ): Promise<KbReEmbedAcceptedDto> {
     const { documentCount } = await this.kbService.reEmbedAll(id, workspaceId);
-    return { message: 'KB re-embedding started', documentCount };
+    return {
+      message: 'KB re-embedding started',
+      documentCount,
+    } satisfies KbReEmbedAcceptedDto;
   }
 
   @Delete(':id')

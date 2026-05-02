@@ -5,14 +5,6 @@ describe('RagSearchService', () => {
   let mockDataSource: Record<string, jest.Mock>;
   let mockLlmService: Record<string, jest.Mock>;
 
-  const buildKbsQueryReturn = (
-    rows: Array<{
-      id: string;
-      embeddingModel: string;
-      embeddingDimension: number | null;
-    }>,
-  ) => Promise.resolve(rows);
-
   beforeEach(() => {
     mockDataSource = {
       query: jest.fn(),
@@ -47,15 +39,13 @@ describe('RagSearchService', () => {
     });
 
     it('should gracefully degrade on error and return empty array', async () => {
-      mockDataSource.query.mockResolvedValueOnce(
-        buildKbsQueryReturn([
-          {
-            id: 'kb-1',
-            embeddingModel: 'text-embedding-3-small',
-            embeddingDimension: 1536,
-          },
-        ]),
-      );
+      mockDataSource.query.mockResolvedValueOnce([
+        {
+          id: 'kb-1',
+          embeddingModel: 'text-embedding-3-small',
+          embeddingDimension: 1536,
+        },
+      ]);
       mockLlmService.resolveConfig.mockRejectedValue(
         new Error('Config not found'),
       );
@@ -66,17 +56,14 @@ describe('RagSearchService', () => {
 
     it("should pass each KB's embeddingModel to llmService.embed", async () => {
       mockDataSource.query
-        .mockResolvedValueOnce(
-          // KB lookup
-          buildKbsQueryReturn([
-            {
-              id: 'kb-1',
-              embeddingModel: 'text-embedding-3-large',
-              embeddingDimension: 3072,
-            },
-          ]),
-        )
-        .mockResolvedValueOnce([]); // search query result
+        .mockResolvedValueOnce([
+          {
+            id: 'kb-1',
+            embeddingModel: 'text-embedding-3-large',
+            embeddingDimension: 3072,
+          },
+        ])
+        .mockResolvedValueOnce([]);
       mockLlmService.embed.mockResolvedValue([new Array(3072).fill(0.1)]);
 
       await service.search('query', ['kb-1'], 'ws-1');
@@ -90,26 +77,29 @@ describe('RagSearchService', () => {
 
     it('should split KBs by (model, dimension) and embed each group separately', async () => {
       mockDataSource.query
-        .mockResolvedValueOnce(
-          buildKbsQueryReturn([
-            {
-              id: 'kb-1',
-              embeddingModel: 'text-embedding-3-small',
-              embeddingDimension: 1536,
-            },
-            {
-              id: 'kb-2',
-              embeddingModel: 'text-embedding-3-large',
-              embeddingDimension: 3072,
-            },
-          ]),
-        )
+        .mockResolvedValueOnce([
+          {
+            id: 'kb-1',
+            embeddingModel: 'text-embedding-3-small',
+            embeddingDimension: 1536,
+          },
+          {
+            id: 'kb-2',
+            embeddingModel: 'text-embedding-3-large',
+            embeddingDimension: 3072,
+          },
+        ])
         .mockResolvedValueOnce([])
         .mockResolvedValueOnce([]);
 
-      mockLlmService.embed
-        .mockResolvedValueOnce([new Array(1536).fill(0.1)])
-        .mockResolvedValueOnce([new Array(3072).fill(0.1)]);
+      mockLlmService.embed.mockImplementation(
+        async (_cfg: unknown, _texts: string[], model: string) => {
+          if (model === 'text-embedding-3-small') {
+            return [new Array(1536).fill(0.1)];
+          }
+          return [new Array(3072).fill(0.1)];
+        },
+      );
 
       await service.search('query', ['kb-1', 'kb-2'], 'ws-1');
 
@@ -124,15 +114,28 @@ describe('RagSearchService', () => {
     });
 
     it('should skip KBs with null embedding_dimension (not yet embedded)', async () => {
-      mockDataSource.query.mockResolvedValueOnce(
-        buildKbsQueryReturn([
-          {
-            id: 'kb-1',
-            embeddingModel: 'text-embedding-3-small',
-            embeddingDimension: null,
-          },
-        ]),
-      );
+      mockDataSource.query.mockResolvedValueOnce([
+        {
+          id: 'kb-1',
+          embeddingModel: 'text-embedding-3-small',
+          embeddingDimension: null,
+        },
+      ]);
+
+      const result = await service.search('query', ['kb-1'], 'ws-1');
+
+      expect(result).toEqual([]);
+      expect(mockLlmService.embed).not.toHaveBeenCalled();
+    });
+
+    it('should skip KBs with unsupported embedding_dimension (no partial index)', async () => {
+      mockDataSource.query.mockResolvedValueOnce([
+        {
+          id: 'kb-1',
+          embeddingModel: 'custom-model',
+          embeddingDimension: 512, // not in SUPPORTED_EMBEDDING_DIMS
+        },
+      ]);
 
       const result = await service.search('query', ['kb-1'], 'ws-1');
 
@@ -142,44 +145,54 @@ describe('RagSearchService', () => {
 
     it('should merge results across groups and respect topK', async () => {
       mockDataSource.query
-        .mockResolvedValueOnce(
-          buildKbsQueryReturn([
-            {
-              id: 'kb-1',
-              embeddingModel: 'text-embedding-3-small',
-              embeddingDimension: 1536,
-            },
-            {
-              id: 'kb-2',
-              embeddingModel: 'text-embedding-3-large',
-              embeddingDimension: 3072,
-            },
-          ]),
-        )
         .mockResolvedValueOnce([
           {
-            chunkId: 'c1',
-            documentId: 'd1',
-            documentName: 'A.txt',
-            content: 'a',
-            metadata: {},
-            score: '0.95',
+            id: 'kb-1',
+            embeddingModel: 'text-embedding-3-small',
+            embeddingDimension: 1536,
+          },
+          {
+            id: 'kb-2',
+            embeddingModel: 'text-embedding-3-large',
+            embeddingDimension: 3072,
           },
         ])
-        .mockResolvedValueOnce([
-          {
-            chunkId: 'c2',
-            documentId: 'd2',
-            documentName: 'B.txt',
-            content: 'b',
-            metadata: {},
-            score: '0.99',
-          },
-        ]);
+        .mockImplementation((sql: string) => {
+          if (sql.includes('vector_dims(dc.embedding) = 1536')) {
+            return Promise.resolve([
+              {
+                chunkId: 'c1',
+                documentId: 'd1',
+                documentName: 'A.txt',
+                content: 'a',
+                metadata: {},
+                score: '0.95',
+              },
+            ]);
+          }
+          if (sql.includes('vector_dims(dc.embedding) = 3072')) {
+            return Promise.resolve([
+              {
+                chunkId: 'c2',
+                documentId: 'd2',
+                documentName: 'B.txt',
+                content: 'b',
+                metadata: {},
+                score: '0.99',
+              },
+            ]);
+          }
+          return Promise.resolve([]);
+        });
 
-      mockLlmService.embed
-        .mockResolvedValueOnce([new Array(1536).fill(0.1)])
-        .mockResolvedValueOnce([new Array(3072).fill(0.1)]);
+      mockLlmService.embed.mockImplementation(
+        async (_cfg: unknown, _texts: string[], model: string) => {
+          if (model === 'text-embedding-3-small') {
+            return [new Array(1536).fill(0.1)];
+          }
+          return [new Array(3072).fill(0.1)];
+        },
+      );
 
       const result = await service.search('query', ['kb-1', 'kb-2'], 'ws-1', {
         topK: 1,

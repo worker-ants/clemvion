@@ -186,34 +186,39 @@ export class LlmService {
   async listModels(
     configId: string,
     workspaceId: string,
+    opts?: { type?: 'chat' | 'embedding' },
   ): Promise<ModelInfo[]> {
     const cacheKey = `${workspaceId}|${configId}`;
     const cached = this.listModelsCache.get(cacheKey);
+    let models: ModelInfo[];
     if (cached && Date.now() - cached.fetchedAt < LIST_MODELS_CACHE_TTL_MS) {
-      return cached.models;
+      models = cached.models;
+    } else {
+      const config = await this.llmConfigService.findEntity(
+        configId,
+        workspaceId,
+      );
+      const client = this.createClient(config);
+      try {
+        models = await withTimeout(
+          (signal) => client.listModels(signal),
+          LIST_MODELS_TIMEOUT_MS,
+        );
+      } catch (error) {
+        const raw = error instanceof Error ? error.message : String(error);
+        const sanitized = sanitizeLlmErrorMessage(raw);
+        this.logger.warn(`LLM list models failed: ${sanitized}`);
+        throw new BadRequestException({
+          code: 'LLM_MODEL_LIST_FAILED',
+          message: sanitized,
+        });
+      }
+      this.listModelsCache.set(cacheKey, { models, fetchedAt: Date.now() });
     }
 
-    const config = await this.llmConfigService.findEntity(
-      configId,
-      workspaceId,
-    );
-    const client = this.createClient(config);
-    let models: ModelInfo[];
-    try {
-      models = await withTimeout(
-        (signal) => client.listModels(signal),
-        LIST_MODELS_TIMEOUT_MS,
-      );
-    } catch (error) {
-      const raw = error instanceof Error ? error.message : String(error);
-      const sanitized = sanitizeLlmErrorMessage(raw);
-      this.logger.warn(`LLM list models failed: ${sanitized}`);
-      throw new BadRequestException({
-        code: 'LLM_MODEL_LIST_FAILED',
-        message: sanitized,
-      });
+    if (opts?.type === 'chat' || opts?.type === 'embedding') {
+      return models.filter((m) => m.type === opts.type);
     }
-    this.listModelsCache.set(cacheKey, { models, fetchedAt: Date.now() });
     return models;
   }
 
