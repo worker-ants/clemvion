@@ -1,4 +1,5 @@
 import { apiClient } from "./client";
+import { unwrap } from "./unwrap";
 
 export type RagMode = "vector" | "graph";
 
@@ -157,10 +158,8 @@ export const knowledgeBasesApi = {
   async reEmbedAll(
     kbId: string,
   ): Promise<{ message: string; documentCount: number }> {
-    const { data } = await apiClient.post(`/knowledge-bases/${kbId}/re-embed`);
-    // 백엔드 응답이 `{ data: ... }` 봉투형/평형 양쪽으로 올 수 있어 둘 다 unwrap.
-    const body = (data as { data?: unknown })?.data ?? data;
-    return body as { message: string; documentCount: number };
+    const response = await apiClient.post(`/knowledge-bases/${kbId}/re-embed`);
+    return unwrap<{ message: string; documentCount: number }>(response);
   },
 
   async remove(id: string) {
@@ -201,11 +200,10 @@ export const knowledgeBasesApi = {
   async reExtractAll(
     kbId: string,
   ): Promise<{ message: string; documentCount: number }> {
-    const { data } = await apiClient.post(
+    const response = await apiClient.post(
       `/knowledge-bases/${kbId}/re-extract`,
     );
-    const body = (data as { data?: unknown })?.data ?? data;
-    return body as { message: string; documentCount: number };
+    return unwrap<{ message: string; documentCount: number }>(response);
   },
 
   async reExtractDocument(kbId: string, docId: string) {
@@ -216,11 +214,10 @@ export const knowledgeBasesApi = {
   },
 
   async getGraphStats(kbId: string): Promise<KbGraphStats> {
-    const { data } = await apiClient.get(
+    const response = await apiClient.get(
       `/knowledge-bases/${kbId}/graph/stats`,
     );
-    const body = (data as { data?: unknown })?.data ?? data;
-    return body as KbGraphStats;
+    return unwrap<KbGraphStats>(response);
   },
 
   async getEntities(
@@ -239,11 +236,10 @@ export const knowledgeBasesApi = {
   },
 
   async getEntityDetail(kbId: string, entityId: string) {
-    const { data } = await apiClient.get(
+    const response = await apiClient.get(
       `/knowledge-bases/${kbId}/entities/${entityId}`,
     );
-    const body = (data as { data?: unknown })?.data ?? data;
-    return body as GraphEntityDetail;
+    return unwrap<GraphEntityDetail>(response);
   },
 
   async deleteEntity(kbId: string, entityId: string) {
@@ -268,11 +264,10 @@ export const knowledgeBasesApi = {
     kbId: string,
     limit?: number,
   ): Promise<GraphVisualizationData> {
-    const { data } = await apiClient.get(
+    const response = await apiClient.get(
       `/knowledge-bases/${kbId}/graph/visualization`,
       { params: limit ? { limit } : undefined },
     );
-    const body = (data as { data?: unknown })?.data ?? data;
-    return body as GraphVisualizationData;
+    return unwrap<GraphVisualizationData>(response);
   },
 };
