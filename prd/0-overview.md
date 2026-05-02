@@ -84,6 +84,7 @@
 | 영역 | 내용 |
 |------|------|
 | **Workflow AI Assistant** | 에디터 내 채팅형 AI로 자연어 요청 → 노드·엣지 자동 구성. Clarify → Plan → Execute 3단계 대화 루프, SSE 스트리밍, 세션 영속. 상세: [PRD 2 §10](./2-workflow-editor.md#10-ai-assistant-ed-ai-), [PRD 6 §3.6](./6-phase2-ai.md#36-workflow-ai-assistant). |
+| **Graph RAG** | 기존 vector RAG 위에 entity/relation 그래프 검색을 더한 모드. KB 생성 시 모드를 선택해 점진 도입. 상세: [PRD 9](./9-graph-rag.md). |
 | **Logic 확장 노드** | Parallel P2(중첩 Parallel, waitAll=false). Background 노드는 구현 완료. |
 | **마켓플레이스** | 워크플로우 템플릿·AI Agent 프리셋·Integration 플러그인·커스텀 노드 게시 기능. |
 | **배포 자동화 확장** | 공식 Docker/Kubernetes 배포 가이드, 셀프 호스팅 번들. |
@@ -103,7 +104,9 @@
 | **Trigger** | 워크플로우의 실행을 시작하는 이벤트. Webhook, 스케줄(Cron), 수동 실행 등의 유형 존재 |
 | **Canvas** | 워크플로우를 시각적으로 편집하는 작업 공간 |
 | **Integration** | 외부 서비스(Google, GitHub 등)와의 연동 설정 |
-| **Knowledge Base** | AI Agent의 RAG(Retrieval-Augmented Generation)를 위한 지식 저장소 |
+| **Knowledge Base** | AI Agent의 RAG(Retrieval-Augmented Generation)를 위한 지식 저장소. KB 단위로 `vector` / `graph` 검색 모드를 선택할 수 있다 |
+| **Graph RAG** | 문서에서 추출한 entity / relation 으로 구성된 지식 그래프를 RAG 검색에 활용하는 방식. 본 제품에서는 vector seed → 그래프 확장 → rerank 의 Hybrid 흐름으로 동작한다 ([PRD 9](./9-graph-rag.md)) |
+| **Entity / Relation** | Graph RAG 의 구성 요소. Entity 는 문서 chunk 에서 추출한 의미 단위(인물·조직·개념·위치·이벤트). Relation 은 두 entity 사이의 방향성 있는 관계 (head, predicate, tail) |
 | **Execution** | 워크플로우의 한 번의 실행 인스턴스. 실행 상태, 각 노드별 입출력 데이터, 로그를 포함 |
 | **Workspace** | 사용자 또는 팀이 워크플로우, Integration, 설정 등을 관리하는 독립된 공간 |
 | **Marketplace** | Agent 설정, 워크플로우 템플릿, Integration 플러그인을 공유/설치하는 공간 |
@@ -122,7 +125,11 @@ prd/
 ├── 2-workflow-editor.md   — 워크플로우 에디터 핵심 요구사항
 ├── 3-node-system.md       — 노드 시스템 요구사항 (Logic/Flow/AI/Integration/Data/Presentation)
 ├── 4-integration.md       — 통합/연동, 마켓플레이스, Knowledge Base 요구사항
-└── 5-non-functional.md    — 비기능 요구사항 (성능, 보안, 확장성)
+├── 5-non-functional.md    — 비기능 요구사항 (성능, 보안, 확장성)
+├── 6-phase2-ai.md         — AI 플랫폼 요구사항 (LLM Config, AI 노드 3종, Knowledge Base, Workflow AI Assistant)
+├── 7-execution-history.md — 실행 이력
+├── 8-webhook.md           — Webhook 트리거
+└── 9-graph-rag.md         — Graph RAG (지식 그래프 기반 RAG)
 
 spec/
 ├── 0-overview.md          — 시스템 아키텍처 개요, PRD↔Spec 매핑

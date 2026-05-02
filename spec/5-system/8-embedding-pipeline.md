@@ -174,6 +174,10 @@ return document;
 
 큐를 사용하므로 ① 프로세스 재시작에도 작업이 유실되지 않고 ② 다중 인스턴스 환경에서 Redis 가 동시성/지속성을 분산 관리한다.
 
+### 7.1.1 Graph RAG 모드의 chained dispatch
+
+KB 의 `rag_mode` 가 `graph` 면 `document-embedding` worker 가 임베딩을 마치고 `embedding_status = 'completed'` 로 갱신한 직후 `graph-extraction` 큐로 child job 을 add 한다. 사용자 개입 없이 그래프 추출이 자동 시작된다. 상세 흐름은 [Spec Graph RAG §3](./10-graph-rag.md#3-그래프-추출-파이프라인) 참조.
+
 ### 7.2 동시 처리 제한
 
 - `DocumentEmbeddingProcessor` 의 BullMQ Worker concurrency 로 제한

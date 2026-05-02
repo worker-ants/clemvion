@@ -100,7 +100,15 @@
 | KB-DC-05 | 문서 추가/수정/삭제 | 필수 |
 | KB-DC-06 | 문서 메타데이터 관리 (태그, 설명) | 권장 |
 
-### 3.2 벡터 임베딩
+### 3.2 검색 모드
+
+| ID | 요구사항 | 우선순위 |
+|----|----------|----------|
+| KB-MD-01 | KB 생성 시 검색 모드를 `vector` (default) / `graph` 중 선택 | 필수 |
+| KB-MD-02 | 검색 모드는 **생성 시에만 결정, 사후 변경 불가** (모드 전환은 새 KB 생성으로 대체) | 필수 |
+| KB-MD-03 | `graph` 모드는 vector seed → 그래프 확장 → rerank 의 Hybrid 흐름. 상세는 [PRD Graph RAG](./9-graph-rag.md) | 필수 |
+
+### 3.3 벡터 임베딩
 
 | ID | 요구사항 | 우선순위 |
 |----|----------|----------|
@@ -110,13 +118,14 @@
 | KB-VE-04 | 임베딩 처리 상태 표시 (대기/처리 중/완료/오류) | 필수 |
 | KB-VE-05 | 청크(Chunk) 분할 전략 설정 (크기, 오버랩) | 권장 |
 
-### 3.3 AI Agent 연동
+### 3.4 AI Agent 연동
 
 | ID | 요구사항 | 우선순위 |
 |----|----------|----------|
-| KB-AG-01 | AI Agent 노드에서 참조할 Knowledge Base 컬렉션 선택 가능 | 필수 |
+| KB-AG-01 | AI Agent 노드에서 참조할 Knowledge Base 컬렉션 선택 가능. 모드(`vector` / `graph`) 와 무관하게 동일 인터페이스 | 필수 |
 | KB-AG-02 | 검색 시 유사도 임계값 설정 | 권장 |
 | KB-AG-03 | 검색 결과 수(Top-K) 설정 | 권장 |
+| KB-AG-04 | graph 모드 KB 의 그래프 검색 파라미터 (`maxHops`, `vectorSeedTopK`, `expandedChunkLimit`) 는 KB 단위에서만 제어. AI Agent 노드는 그대로 `ragTopK` / `ragThreshold` 만 노출 | 필수 |
 
 ---
 
