@@ -13,6 +13,7 @@ import { EmbeddingService } from './embedding/embedding.service';
 import { RagSearchService } from './search/rag-search.service';
 import { GraphExtractionService } from './graph/graph-extraction.service';
 import { GraphQueryService } from './graph/graph-query.service';
+import { KbStatsHelper } from './graph/kb-stats.helper';
 import { S3Service } from '../../common/services/s3.service';
 import { LlmModule } from '../llm/llm.module';
 import { WebsocketModule } from '../websocket/websocket.module';
@@ -43,6 +44,7 @@ import { GraphExtractionProcessor } from './queues/graph-extraction.processor';
     RagSearchService,
     GraphExtractionService,
     GraphQueryService,
+    KbStatsHelper,
     S3Service,
     DocumentEmbeddingProcessor,
     GraphExtractionProcessor,

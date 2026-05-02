@@ -13,6 +13,7 @@ import {
   ExtractionResult,
 } from './graph-extraction.prompt';
 import { ENTITY_TYPES } from '../entities/entity.entity';
+import { KbStatsHelper } from './kb-stats.helper';
 
 const MAX_CHUNK_CHARS = 8_000; // chunk 본문이 매우 길면 LLM 호출 토큰 폭발 방지 차원에서 잘라낸다.
 
@@ -64,6 +65,7 @@ export class GraphExtractionService {
     @Inject(forwardRef(() => WebsocketService))
     private readonly websocketService: WebsocketService,
     private readonly dataSource: DataSource,
+    private readonly kbStats: KbStatsHelper,
   ) {}
 
   async extractDocument(documentId: string): Promise<void> {
@@ -153,7 +155,7 @@ export class GraphExtractionService {
       await Promise.all(tasks);
 
       // KB 캐시 컬럼 갱신 (실제 카운트로 다시 계산해 drift 방지)
-      await this.refreshKbStats(kb.id);
+      await this.kbStats.refresh(kb.id);
 
       await this.documentRepository.update(documentId, {
         graphExtractionStatus: 'completed',
@@ -359,34 +361,6 @@ export class GraphExtractionService {
 
       return { entitiesInserted, relationsInserted };
     });
-  }
-
-  // KB 의 entity_count / relation_count 캐시를 실제 COUNT 로 다시 계산해 drift 를 막는다.
-  // 추출 진행 중에 호출되면 일시적으로 작은 값이 노출될 수 있지만, 다음 chunk 처리에서 다시 갱신.
-  private async refreshKbStats(knowledgeBaseId: string): Promise<void> {
-    const rows = await this.dataSource.query<
-      { entity_count: number; relation_count: number }[]
-    >(
-      `SELECT
-         (SELECT COUNT(*)::int FROM entity WHERE knowledge_base_id = $1) AS entity_count,
-         (SELECT COUNT(*)::int FROM relation WHERE knowledge_base_id = $1) AS relation_count`,
-      [knowledgeBaseId],
-    );
-    const entityCount = rows[0]?.entity_count ?? 0;
-    const relationCount = rows[0]?.relation_count ?? 0;
-    await this.dataSource.query(
-      `UPDATE knowledge_base SET entity_count = $1, relation_count = $2 WHERE id = $3`,
-      [entityCount, relationCount, knowledgeBaseId],
-    );
-    try {
-      this.websocketService.emitExecutionEvent(
-        `kb:${knowledgeBaseId}`,
-        'kb:graph_stats_updated' as never,
-        { knowledgeBaseId, entityCount, relationCount },
-      );
-    } catch {
-      // best-effort
-    }
   }
 
   private emitEvent(

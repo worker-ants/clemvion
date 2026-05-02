@@ -59,19 +59,21 @@ export class GraphExtractionProcessor extends WorkerHost {
   ): Promise<void> {
     if (!data?.isKbBatch || !data.knowledgeBaseId) return;
     try {
-      const rows = await this.dataSource.query<{ count: number }[]>(
-        `SELECT COUNT(*)::int AS count FROM document
-         WHERE knowledge_base_id = $1
-           AND graph_extraction_status IN ('pending', 'processing')`,
+      // SELECT remaining 후 UPDATE 패턴은 두 쿼리 사이 TOCTOU 가 발생할 수 있어
+      // 단일 atomic UPDATE 로 통합. NOT EXISTS 가 즉시 평가되므로 동시 child 가
+      // 끝나도 race-free 하게 reextract_status 가 idle 로 reset.
+      await this.dataSource.query(
+        `UPDATE knowledge_base
+           SET reextract_status = 'idle'
+         WHERE id = $1
+           AND reextract_status = 'in_progress'
+           AND NOT EXISTS (
+             SELECT 1 FROM document
+              WHERE knowledge_base_id = $1
+                AND graph_extraction_status IN ('pending', 'processing')
+           )`,
         [data.knowledgeBaseId],
       );
-      const remaining = rows[0]?.count ?? 0;
-      if (remaining === 0) {
-        await this.dataSource.query(
-          `UPDATE knowledge_base SET reextract_status = 'idle' WHERE id = $1`,
-          [data.knowledgeBaseId],
-        );
-      }
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       this.logger.warn(

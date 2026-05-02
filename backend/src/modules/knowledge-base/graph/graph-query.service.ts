@@ -13,6 +13,7 @@ import {
 } from '../entities/entity.entity';
 import { GraphRelation } from '../entities/relation.entity';
 import { PaginatedResponseDto } from '../../../common/dto/paginated-response.dto';
+import { KbStatsHelper } from './kb-stats.helper';
 
 const ALLOWED_ENTITY_TYPES: ReadonlyArray<EntityType> = ENTITY_TYPES;
 
@@ -65,6 +66,7 @@ export class GraphQueryService {
     @InjectRepository(GraphRelation)
     private readonly relationRepository: Repository<GraphRelation>,
     private readonly dataSource: DataSource,
+    private readonly kbStats: KbStatsHelper,
   ) {}
 
   private async assertGraphKb(
@@ -180,7 +182,7 @@ export class GraphQueryService {
     }
     await this.entityRepository.remove(entity);
     // 캐시 컬럼 갱신 (relation 도 CASCADE 로 삭제될 수 있어 같이 재계산).
-    await this.refreshKbStats(kbId);
+    await this.kbStats.refresh(kbId);
   }
 
   async listRelations(
@@ -229,7 +231,7 @@ export class GraphQueryService {
       });
     }
     await this.relationRepository.remove(relation);
-    await this.refreshKbStats(kbId);
+    await this.kbStats.refresh(kbId);
   }
 
   // 상위 mention_count entity 와 그 사이의 relation 만 추려 그래프 시각화에 보낼 페이로드를 만든다.
@@ -294,25 +296,5 @@ export class GraphQueryService {
       })),
       truncated,
     };
-  }
-
-  // KB 의 entity_count / relation_count 캐시를 실제 COUNT 로 다시 계산.
-  // GraphExtractionService 와 동일한 로직 — 별도 서비스가 의존성 없이 호출할 수 있어
-  // 본 클래스에 동일 helper 를 둔다.
-  private async refreshKbStats(knowledgeBaseId: string): Promise<void> {
-    const rows = await this.dataSource.query<
-      { entity_count: number; relation_count: number }[]
-    >(
-      `SELECT
-         (SELECT COUNT(*)::int FROM entity WHERE knowledge_base_id = $1) AS entity_count,
-         (SELECT COUNT(*)::int FROM relation WHERE knowledge_base_id = $1) AS relation_count`,
-      [knowledgeBaseId],
-    );
-    const entityCount = rows[0]?.entity_count ?? 0;
-    const relationCount = rows[0]?.relation_count ?? 0;
-    await this.dataSource.query(
-      `UPDATE knowledge_base SET entity_count = $1, relation_count = $2 WHERE id = $3`,
-      [entityCount, relationCount, knowledgeBaseId],
-    );
   }
 }
