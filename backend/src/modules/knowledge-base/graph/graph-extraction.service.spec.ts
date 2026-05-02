@@ -7,6 +7,7 @@ import { DocumentChunk } from '../entities/document-chunk.entity';
 import { KnowledgeBase } from '../entities/knowledge-base.entity';
 import { LlmService } from '../../llm/llm.service';
 import { WebsocketService } from '../../websocket/websocket.service';
+import { KbStatsHelper } from './kb-stats.helper';
 
 describe('GraphExtractionService', () => {
   let service: GraphExtractionService;
@@ -69,6 +70,10 @@ describe('GraphExtractionService', () => {
         .mockImplementation(async (cb: any) => cb(txManager)),
     };
 
+    const mockKbStats = {
+      refresh: jest.fn().mockResolvedValue(undefined),
+    };
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         GraphExtractionService,
@@ -78,6 +83,7 @@ describe('GraphExtractionService', () => {
         { provide: LlmService, useValue: mockLlm },
         { provide: WebsocketService, useValue: mockWs },
         { provide: DataSource, useValue: mockDataSource },
+        { provide: KbStatsHelper, useValue: mockKbStats },
       ],
     }).compile();
     service = module.get(GraphExtractionService);

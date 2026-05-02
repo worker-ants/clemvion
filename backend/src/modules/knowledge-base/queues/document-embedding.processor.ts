@@ -68,18 +68,19 @@ export class DocumentEmbeddingProcessor extends WorkerHost {
   ): Promise<void> {
     if (!data?.isKbBatch || !data.knowledgeBaseId) return;
     try {
-      const rows = await this.dataSource.query<{ count: number }[]>(
-        `SELECT COUNT(*)::int AS count FROM document
-         WHERE knowledge_base_id = $1 AND embedding_status IN ('pending', 'processing')`,
+      // graph batch 와 동일한 atomic 패턴 — SELECT/UPDATE 분리로 인한 TOCTOU 제거.
+      await this.dataSource.query(
+        `UPDATE knowledge_base
+           SET reembed_status = 'idle'
+         WHERE id = $1
+           AND reembed_status = 'in_progress'
+           AND NOT EXISTS (
+             SELECT 1 FROM document
+              WHERE knowledge_base_id = $1
+                AND embedding_status IN ('pending', 'processing')
+           )`,
         [data.knowledgeBaseId],
       );
-      const remaining = rows[0]?.count ?? 0;
-      if (remaining === 0) {
-        await this.dataSource.query(
-          `UPDATE knowledge_base SET reembed_status = 'idle' WHERE id = $1`,
-          [data.knowledgeBaseId],
-        );
-      }
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       this.logger.warn(

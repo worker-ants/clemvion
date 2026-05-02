@@ -40,44 +40,36 @@ describe('GraphExtractionProcessor', () => {
     expect(mockDataSource.query).not.toHaveBeenCalled();
   });
 
-  it('resets reextract_status to idle when last batch child finishes', async () => {
-    mockDataSource.query
-      .mockResolvedValueOnce([{ count: 0 }]) // remaining = 0
-      .mockResolvedValueOnce([]); // UPDATE
+  it('issues atomic finalize UPDATE on batch completion', async () => {
+    mockDataSource.query.mockResolvedValueOnce([]);
 
     await processor.onCompleted({
       data: { documentId: 'd1', knowledgeBaseId: 'kb-1', isKbBatch: true },
     } as never);
 
-    expect(mockDataSource.query).toHaveBeenNthCalledWith(
-      2,
+    // 단일 atomic UPDATE — NOT EXISTS 서브쿼리가 PostgreSQL 에서 평가되어
+    // 진행 중인 문서가 없으면 idle 로, 있으면 no-op.
+    expect(mockDataSource.query).toHaveBeenCalledTimes(1);
+    expect(mockDataSource.query).toHaveBeenCalledWith(
       expect.stringMatching(/SET reextract_status = 'idle'/),
       ['kb-1'],
     );
-  });
-
-  it('does not reset reextract_status when other batch docs are still pending', async () => {
-    mockDataSource.query.mockResolvedValueOnce([{ count: 3 }]); // remaining > 0
-
-    await processor.onCompleted({
-      data: { documentId: 'd1', knowledgeBaseId: 'kb-1', isKbBatch: true },
-    } as never);
-
-    // 두 번째 query (UPDATE) 가 호출되지 않아야 함
-    expect(mockDataSource.query).toHaveBeenCalledTimes(1);
+    const sql = mockDataSource.query.mock.calls[0][0] as string;
+    expect(sql).toContain('NOT EXISTS');
+    expect(sql).toContain(
+      "graph_extraction_status IN ('pending', 'processing')",
+    );
   });
 
   it('runs the same finalize logic on failed batch child', async () => {
-    mockDataSource.query
-      .mockResolvedValueOnce([{ count: 0 }])
-      .mockResolvedValueOnce([]);
+    mockDataSource.query.mockResolvedValueOnce([]);
 
     await processor.onFailed({
       data: { documentId: 'd1', knowledgeBaseId: 'kb-1', isKbBatch: true },
     } as never);
 
-    expect(mockDataSource.query).toHaveBeenNthCalledWith(
-      2,
+    expect(mockDataSource.query).toHaveBeenCalledTimes(1);
+    expect(mockDataSource.query).toHaveBeenCalledWith(
       expect.stringMatching(/SET reextract_status = 'idle'/),
       ['kb-1'],
     );

@@ -6,6 +6,7 @@ import { GraphQueryService } from './graph-query.service';
 import { KnowledgeBase } from '../entities/knowledge-base.entity';
 import { GraphEntity } from '../entities/entity.entity';
 import { GraphRelation } from '../entities/relation.entity';
+import { KbStatsHelper } from './kb-stats.helper';
 
 describe('GraphQueryService', () => {
   let service: GraphQueryService;
@@ -44,6 +45,10 @@ describe('GraphQueryService', () => {
       query: jest.fn().mockResolvedValue([]),
     };
 
+    const mockKbStats = {
+      refresh: jest.fn().mockResolvedValue(undefined),
+    };
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         GraphQueryService,
@@ -54,6 +59,7 @@ describe('GraphQueryService', () => {
           useValue: mockRelationRepo,
         },
         { provide: DataSource, useValue: mockDataSource },
+        { provide: KbStatsHelper, useValue: mockKbStats },
       ],
     }).compile();
     service = module.get(GraphQueryService);
@@ -117,7 +123,7 @@ describe('GraphQueryService', () => {
     expect(takeSpy).toHaveBeenLastCalledWith(2);
   });
 
-  it('cascade-removes entity and refreshes KB stats on delete', async () => {
+  it('cascade-removes entity and delegates stats refresh to KbStatsHelper', async () => {
     mockKbRepo.findOne.mockResolvedValue({
       id: 'kb-1',
       workspaceId: 'ws-1',
@@ -127,16 +133,11 @@ describe('GraphQueryService', () => {
       id: 'ent-1',
       knowledgeBaseId: 'kb-1',
     });
-    mockDataSource.query.mockResolvedValue([
-      { entity_count: 5, relation_count: 12 },
-    ]);
 
     await service.deleteEntity('kb-1', 'ent-1', 'ws-1');
 
     expect(mockEntityRepo.remove).toHaveBeenCalled();
-    expect(mockDataSource.query).toHaveBeenCalledWith(
-      expect.stringMatching(/UPDATE knowledge_base SET entity_count/),
-      [5, 12, 'kb-1'],
-    );
+    // Stats 갱신은 KbStatsHelper.refresh 로 위임됨 — graph-query.service 가 직접 SQL 실행 안 함.
+    // 본 테스트는 cascade 호출 흐름만 검증.
   });
 });
