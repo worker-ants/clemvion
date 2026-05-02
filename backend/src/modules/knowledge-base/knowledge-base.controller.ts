@@ -49,6 +49,7 @@ import {
   GraphEntityDetailDto,
   GraphEntityDto,
   GraphRelationDto,
+  GraphVisualizationDto,
   KbGraphStatsDto,
   KbReEmbedAcceptedDto,
   KbReExtractAcceptedDto,
@@ -311,6 +312,32 @@ export class KnowledgeBaseController {
     @WorkspaceId() workspaceId: string,
   ): Promise<void> {
     await this.graphQueryService.deleteRelation(id, relationId, workspaceId);
+  }
+
+  @Get(':id/graph/visualization')
+  @ApiOperation({
+    summary: '그래프 시각화 페이로드 (graph 모드, P2)',
+    description:
+      '상위 mention_count entity (default 50, max 200) 와 그 entity 사이의 relation 을 반환. ' +
+      '시각화 컴포넌트(@xyflow/react 등) 가 직접 렌더링할 수 있는 nodes/edges 형태.',
+  })
+  @ApiParam({ name: 'id', description: '지식 베이스 UUID', format: 'uuid' })
+  @ApiOkWrappedResponse(GraphVisualizationDto, {
+    description: '그래프 시각화 페이로드',
+  })
+  @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
+  @ApiNotFoundResponse({ description: '해당 지식 베이스를 찾을 수 없음' })
+  async graphVisualization(
+    @Param('id', ParseUUIDPipe) id: string,
+    @WorkspaceId() workspaceId: string,
+    @Query('limit') limit?: string,
+  ): Promise<GraphVisualizationDto> {
+    const parsedLimit = limit ? parseInt(limit, 10) : undefined;
+    return this.graphQueryService.getGraphVisualization(
+      id,
+      workspaceId,
+      Number.isNaN(parsedLimit) ? undefined : parsedLimit,
+    );
   }
 
   @Get(':id/graph-stats')

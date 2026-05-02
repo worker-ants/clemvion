@@ -88,6 +88,27 @@ export interface GraphRelation {
   updatedAt: string;
 }
 
+export interface GraphVizNode {
+  id: string;
+  label: string;
+  type: EntityType;
+  mentionCount: number;
+}
+
+export interface GraphVizEdge {
+  id: string;
+  source: string;
+  target: string;
+  predicate: string;
+  weight: number;
+}
+
+export interface GraphVisualizationData {
+  nodes: GraphVizNode[];
+  edges: GraphVizEdge[];
+  truncated: boolean;
+}
+
 export const knowledgeBasesApi = {
   async getAll(params?: { page?: number; limit?: number; search?: string }) {
     const { data } = await apiClient.get("/knowledge-bases", { params });
@@ -241,5 +262,17 @@ export const knowledgeBasesApi = {
 
   async deleteRelation(kbId: string, relationId: string) {
     await apiClient.delete(`/knowledge-bases/${kbId}/relations/${relationId}`);
+  },
+
+  async getGraphVisualization(
+    kbId: string,
+    limit?: number,
+  ): Promise<GraphVisualizationData> {
+    const { data } = await apiClient.get(
+      `/knowledge-bases/${kbId}/graph/visualization`,
+      { params: limit ? { limit } : undefined },
+    );
+    const body = (data as { data?: unknown })?.data ?? data;
+    return body as GraphVisualizationData;
   },
 };
