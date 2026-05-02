@@ -9,12 +9,10 @@ import { LlmService } from '../../llm/llm.service';
 import { WebsocketService } from '../../websocket/websocket.service';
 import { parseDocument } from '../parsers/parser.factory';
 import { chunkText } from '../chunking/text-chunker';
-const MAX_CONCURRENT = 3;
 
 @Injectable()
 export class EmbeddingService {
   private readonly logger = new Logger(EmbeddingService.name);
-  private activeTasks = 0;
 
   constructor(
     @InjectRepository(Document)
@@ -30,12 +28,10 @@ export class EmbeddingService {
     private readonly dataSource: DataSource,
   ) {}
 
+  // 동시 실행 상한은 BullMQ DocumentEmbeddingProcessor 의 worker concurrency 가
+  // 담당 (다중 인스턴스 환경에서도 Redis 가 분산 동시성을 제공).
+  // 본 메서드는 큐 워커 또는 테스트에서 직접 호출되는 단일 작업 처리 진입점.
   async processDocument(documentId: string, reEmbed = false): Promise<void> {
-    // Simple concurrency limiter
-    while (this.activeTasks >= MAX_CONCURRENT) {
-      await new Promise((resolve) => setTimeout(resolve, 500));
-    }
-    this.activeTasks++;
     try {
       await this.doProcess(documentId, reEmbed);
     } catch (error) {
@@ -50,8 +46,6 @@ export class EmbeddingService {
       this.emitEvent(documentId, 'document:embedding_error', {
         error: message,
       });
-    } finally {
-      this.activeTasks--;
     }
   }
 

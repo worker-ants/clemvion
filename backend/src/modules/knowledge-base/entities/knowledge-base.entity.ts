@@ -48,6 +48,11 @@ export class KnowledgeBase {
   @Column({ name: 'document_count', type: 'int', default: 0 })
   documentCount: number;
 
+  // KB 전체 재임베딩 잠금 상태. 'idle' | 'in_progress'.
+  // BullMQ child job 들이 모두 끝나면 EmbeddingProcessor 가 'idle' 로 reset.
+  @Column({ name: 'reembed_status', type: 'text', default: 'idle' })
+  reembedStatus: 'idle' | 'in_progress';
+
   @OneToMany(() => Document, (doc) => doc.knowledgeBase)
   documents: Document[];
 

@@ -37,9 +37,16 @@
 
 ## 후속 적용 (2026-05-02)
 
-- **V023 halfvec 인덱스** (commit 후속): pgvector 0.7+ 의 halfvec 으로 3072
-  차원에도 partial HNSW 인덱스 부착. `getEmbeddingCastType(dim)` 로 차원별
-  cast(vector/halfvec) 동적 결정, RagSearch SQL 이 인덱스 정의와 동일
-  표현식을 쓰도록 동기화. 정밀도 fp32 → fp16 손실은 RAG top-K 수준에서 무시 가능.
+- **V023 halfvec 인덱스**: pgvector 0.7+ 의 halfvec 으로 3072 차원에도 partial
+  HNSW 인덱스 부착. `getEmbeddingCastType(dim)` 로 차원별 cast(vector/halfvec)
+  동적 결정, RagSearch SQL 이 인덱스 정의와 동일 표현식을 쓰도록 동기화.
+- **V024 reembed_status + BullMQ 'document-embedding' 큐**: fire-and-forget
+  + in-memory 잠금을 BullMQ 큐 + DB 컬럼으로 교체. 세 진입점(uploadDocument/
+  단건 reEmbed/KB reEmbedAll) 모두 큐로 라우팅. KB reEmbedAll 잠금은 atomic
+  `UPDATE ... WHERE reembed_status='idle' RETURNING id` 으로 race-free.
+  Worker concurrency=3 이 EmbeddingService MAX_CONCURRENT 폴링을 대체.
+  마지막 child job 의 completed/failed 시점에 Processor 가 남은 pending/processing
+  문서 0건이면 reembed_status='idle' 로 reset. spec/5-system/8-embedding-pipeline.md
+  §7 / spec/1-data-model.md §2.11 / spec/2-navigation/5-knowledge-base.md API 표 갱신.
 
 리뷰 결과 및 조치 내역: `review/2026-05-02_13-18-24/SUMMARY.md` + `RESOLUTION.md`.

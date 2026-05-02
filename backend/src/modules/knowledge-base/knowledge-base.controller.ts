@@ -39,7 +39,6 @@ import {
   ApiOkWrappedResponse,
 } from '../../common/swagger';
 import { KnowledgeBaseService } from './knowledge-base.service';
-import { EmbeddingService } from './embedding/embedding.service';
 import { RagSearchService } from './search/rag-search.service';
 import { CreateKnowledgeBaseDto } from './dto/create-knowledge-base.dto';
 import { UpdateKnowledgeBaseDto } from './dto/update-knowledge-base.dto';
@@ -63,7 +62,6 @@ export class KnowledgeBaseController {
 
   constructor(
     private readonly kbService: KnowledgeBaseService,
-    private readonly embeddingService: EmbeddingService,
     private readonly ragSearchService: RagSearchService,
   ) {}
 
@@ -277,12 +275,8 @@ export class KnowledgeBaseController {
     @UploadedFile() file: Express.Multer.File,
   ) {
     const doc = await this.kbService.uploadDocument(id, workspaceId, file);
-    // Trigger async embedding
-    this.embeddingService.processDocument(doc.id).catch((err) => {
-      this.logger.error(
-        `Async embedding failed for document ${doc.id}: ${err instanceof Error ? err.message : err}`,
-      );
-    });
+    // BullMQ 큐로 라우팅 — 다중 인스턴스 / 프로세스 재시작 환경에서도 작업 유실 없음.
+    await this.kbService.enqueueEmbedding(doc.id);
     return doc;
   }
 
@@ -329,11 +323,7 @@ export class KnowledgeBaseController {
     @WorkspaceId() workspaceId: string,
   ) {
     await this.kbService.findDocument(docId, id, workspaceId);
-    this.embeddingService.processDocument(docId, true).catch((err) => {
-      this.logger.error(
-        `Async re-embedding failed for document ${docId}: ${err instanceof Error ? err.message : err}`,
-      );
-    });
+    await this.kbService.enqueueEmbedding(docId, true);
     return { message: 'Re-embedding started' };
   }
 
