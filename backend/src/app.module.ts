@@ -76,6 +76,9 @@ import { LlmUsageLog } from './modules/llm/entities/llm-usage-log.entity';
 import { KnowledgeBase } from './modules/knowledge-base/entities/knowledge-base.entity';
 import { Document } from './modules/knowledge-base/entities/document.entity';
 import { DocumentChunk } from './modules/knowledge-base/entities/document-chunk.entity';
+import { GraphEntity } from './modules/knowledge-base/entities/entity.entity';
+import { GraphRelation } from './modules/knowledge-base/entities/relation.entity';
+import { GraphChunkEntity } from './modules/knowledge-base/entities/chunk-entity.entity';
 import { WorkflowAssistantSession } from './modules/workflow-assistant/entities/workflow-assistant-session.entity';
 import { WorkflowAssistantMessage } from './modules/workflow-assistant/entities/workflow-assistant-message.entity';
 
@@ -135,6 +138,9 @@ import { WorkflowAssistantMessage } from './modules/workflow-assistant/entities/
           KnowledgeBase,
           Document,
           DocumentChunk,
+          GraphEntity,
+          GraphRelation,
+          GraphChunkEntity,
           AlertRule,
           WorkflowAssistantSession,
           WorkflowAssistantMessage,
