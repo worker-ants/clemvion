@@ -1,5 +1,7 @@
 import { apiClient } from "./client";
 
+export type RagMode = "vector" | "graph";
+
 export interface KnowledgeBaseData {
   id: string;
   name: string;
@@ -9,6 +11,15 @@ export interface KnowledgeBaseData {
   chunkSize: number;
   chunkOverlap: number;
   documentCount: number;
+  ragMode: RagMode;
+  extractionLlmConfigId?: string | null;
+  maxHops: number;
+  vectorSeedTopK: number;
+  expandedChunkLimit: number;
+  entityCount: number;
+  relationCount: number;
+  reembedStatus: "idle" | "in_progress";
+  reextractStatus: "idle" | "in_progress";
   createdAt: string;
   updatedAt: string;
 }
@@ -21,11 +32,20 @@ export interface DocumentData {
   fileUrl: string;
   fileSize: number;
   embeddingStatus: "pending" | "processing" | "completed" | "error";
+  graphExtractionStatus: "pending" | "processing" | "completed" | "error";
   chunkCount: number;
   tags: string[];
   metadata: Record<string, unknown>;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface KbGraphStats {
+  entityCount: number;
+  relationCount: number;
+  extractedDocumentCount: number;
+  totalDocumentCount: number;
+  reextractStatus: "idle" | "in_progress";
 }
 
 export const knowledgeBasesApi = {
@@ -45,6 +65,11 @@ export const knowledgeBasesApi = {
     embeddingModel?: string;
     chunkSize?: number;
     chunkOverlap?: number;
+    ragMode?: RagMode;
+    extractionLlmConfigId?: string;
+    maxHops?: number;
+    vectorSeedTopK?: number;
+    expandedChunkLimit?: number;
   }) {
     const { data } = await apiClient.post("/knowledge-bases", payload);
     return data;
@@ -58,6 +83,10 @@ export const knowledgeBasesApi = {
       embeddingModel: string;
       chunkSize: number;
       chunkOverlap: number;
+      extractionLlmConfigId: string;
+      maxHops: number;
+      vectorSeedTopK: number;
+      expandedChunkLimit: number;
     }>,
   ) {
     const { data } = await apiClient.patch(`/knowledge-bases/${id}`, payload);
@@ -105,5 +134,31 @@ export const knowledgeBasesApi = {
       `/knowledge-bases/${kbId}/documents/${docId}/re-embed`,
     );
     return data;
+  },
+
+  // ── Graph RAG (graph 모드 KB 전용) ──
+  async reExtractAll(
+    kbId: string,
+  ): Promise<{ message: string; documentCount: number }> {
+    const { data } = await apiClient.post(
+      `/knowledge-bases/${kbId}/re-extract`,
+    );
+    const body = (data as { data?: unknown })?.data ?? data;
+    return body as { message: string; documentCount: number };
+  },
+
+  async reExtractDocument(kbId: string, docId: string) {
+    const { data } = await apiClient.post(
+      `/knowledge-bases/${kbId}/documents/${docId}/re-extract`,
+    );
+    return data;
+  },
+
+  async getGraphStats(kbId: string): Promise<KbGraphStats> {
+    const { data } = await apiClient.get(
+      `/knowledge-bases/${kbId}/graph-stats`,
+    );
+    const body = (data as { data?: unknown })?.data ?? data;
+    return body as KbGraphStats;
   },
 };

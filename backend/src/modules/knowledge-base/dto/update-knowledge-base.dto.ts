@@ -2,6 +2,7 @@ import {
   IsString,
   IsOptional,
   IsInt,
+  IsUUID,
   Min,
   Max,
   MaxLength,
@@ -71,4 +72,49 @@ export class UpdateKnowledgeBaseDto {
   @Min(0)
   @Max(2000)
   chunkOverlap?: number;
+
+  // rag_mode 는 생성 시 불변이므로 update 에 포함하지 않는다.
+
+  /** graph 모드 KB 의 추출 LLMConfig 변경 */
+  @ApiPropertyOptional({
+    description:
+      'graph 모드 KB 의 그래프 추출에 사용할 LLMConfig 변경. 적용은 다음 추출/재추출부터.',
+    format: 'uuid',
+  })
+  @IsOptional()
+  @IsUUID()
+  extractionLlmConfigId?: string;
+
+  @ApiPropertyOptional({
+    description: 'graph 모드 검색 시 그래프 확장 깊이 (1 또는 2).',
+    minimum: 1,
+    maximum: 2,
+  })
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(2)
+  maxHops?: number;
+
+  @ApiPropertyOptional({
+    description: 'graph 모드 검색 시 vector seed 개수.',
+    minimum: 1,
+    maximum: 50,
+  })
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(50)
+  vectorSeedTopK?: number;
+
+  @ApiPropertyOptional({
+    description: 'graph expansion 후 회수할 청크 상한.',
+    minimum: 1,
+    maximum: 100,
+  })
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(100)
+  expandedChunkLimit?: number;
 }

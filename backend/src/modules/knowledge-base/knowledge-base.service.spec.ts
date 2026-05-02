@@ -9,6 +9,7 @@ import { KnowledgeBase } from './entities/knowledge-base.entity';
 import { Document } from './entities/document.entity';
 import { S3Service } from '../../common/services/s3.service';
 import { DOCUMENT_EMBEDDING_QUEUE } from './queues/document-embedding.queue';
+import { GRAPH_EXTRACTION_QUEUE } from './queues/graph-extraction.queue';
 
 describe('KnowledgeBaseService', () => {
   let service: KnowledgeBaseService;
@@ -17,6 +18,7 @@ describe('KnowledgeBaseService', () => {
   let mockS3Service: Record<string, jest.Mock>;
   let mockDataSource: Record<string, jest.Mock>;
   let mockEmbeddingQueue: Record<string, jest.Mock>;
+  let mockGraphQueue: Record<string, jest.Mock>;
 
   beforeEach(async () => {
     const qbMock = {
@@ -72,6 +74,10 @@ describe('KnowledgeBaseService', () => {
       add: jest.fn().mockResolvedValue(undefined),
       addBulk: jest.fn().mockResolvedValue([]),
     };
+    mockGraphQueue = {
+      add: jest.fn().mockResolvedValue(undefined),
+      addBulk: jest.fn().mockResolvedValue([]),
+    };
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -83,6 +89,10 @@ describe('KnowledgeBaseService', () => {
         {
           provide: getQueueToken(DOCUMENT_EMBEDDING_QUEUE),
           useValue: mockEmbeddingQueue,
+        },
+        {
+          provide: getQueueToken(GRAPH_EXTRACTION_QUEUE),
+          useValue: mockGraphQueue,
         },
       ],
     }).compile();
@@ -132,9 +142,130 @@ describe('KnowledgeBaseService', () => {
         embeddingModel: 'text-embedding-3-small',
         chunkSize: 1000,
         chunkOverlap: 200,
+        ragMode: 'vector',
+        extractionLlmConfigId: null,
+        maxHops: 1,
+        vectorSeedTopK: 5,
+        expandedChunkLimit: 15,
       });
       expect(mockKbRepo.save).toHaveBeenCalled();
       expect(result).toBeDefined();
+    });
+
+    it('should propagate graph mode parameters', async () => {
+      const dto = {
+        name: 'Graph KB',
+        ragMode: 'graph' as const,
+        extractionLlmConfigId: 'llm-cfg-1',
+        maxHops: 2,
+        vectorSeedTopK: 7,
+        expandedChunkLimit: 20,
+      };
+      await service.create('ws-1', dto);
+
+      expect(mockKbRepo.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          ragMode: 'graph',
+          extractionLlmConfigId: 'llm-cfg-1',
+          maxHops: 2,
+          vectorSeedTopK: 7,
+          expandedChunkLimit: 20,
+        }),
+      );
+    });
+  });
+
+  describe('reExtractAll', () => {
+    it('should reject for non-graph KB with KB_NOT_GRAPH_MODE', async () => {
+      mockKbRepo.findOne.mockResolvedValue({
+        id: 'kb-1',
+        workspaceId: 'ws-1',
+        ragMode: 'vector',
+      });
+
+      await expect(service.reExtractAll('kb-1', 'ws-1')).rejects.toMatchObject({
+        response: expect.objectContaining({ code: 'KB_NOT_GRAPH_MODE' }),
+      });
+    });
+
+    it('atomically acquires reextract_status, deletes entities, queues docs', async () => {
+      mockKbRepo.findOne.mockResolvedValue({
+        id: 'kb-1',
+        workspaceId: 'ws-1',
+        ragMode: 'graph',
+      });
+      mockDataSource.query.mockResolvedValueOnce([{ id: 'kb-1' }]); // acquire
+      mockDocRepo.find.mockResolvedValue([{ id: 'd1' }, { id: 'd2' }]);
+
+      const result = await service.reExtractAll('kb-1', 'ws-1');
+
+      expect(mockDataSource.query).toHaveBeenNthCalledWith(
+        1,
+        expect.stringMatching(/SET reextract_status = 'in_progress'/),
+        ['kb-1', 'ws-1'],
+      );
+      expect(mockGraphQueue.addBulk).toHaveBeenCalledWith([
+        {
+          name: 'extract',
+          data: { documentId: 'd1', knowledgeBaseId: 'kb-1', isKbBatch: true },
+        },
+        {
+          name: 'extract',
+          data: { documentId: 'd2', knowledgeBaseId: 'kb-1', isKbBatch: true },
+        },
+      ]);
+      expect(result).toEqual({ documentCount: 2 });
+    });
+
+    it('rejects concurrent re-extract with 409', async () => {
+      mockKbRepo.findOne.mockResolvedValue({
+        id: 'kb-1',
+        workspaceId: 'ws-1',
+        ragMode: 'graph',
+      });
+      mockDataSource.query.mockResolvedValueOnce([]); // 0 rows = already in progress
+
+      await expect(service.reExtractAll('kb-1', 'ws-1')).rejects.toMatchObject({
+        response: expect.objectContaining({ code: 'KB_REEXTRACT_IN_PROGRESS' }),
+      });
+    });
+  });
+
+  describe('reExtractDocument', () => {
+    it('rejects for non-graph KB', async () => {
+      mockKbRepo.findOne.mockResolvedValue({
+        id: 'kb-1',
+        workspaceId: 'ws-1',
+        ragMode: 'vector',
+      });
+
+      await expect(
+        service.reExtractDocument('d1', 'kb-1', 'ws-1'),
+      ).rejects.toMatchObject({
+        response: expect.objectContaining({ code: 'KB_NOT_GRAPH_MODE' }),
+      });
+    });
+
+    it('queues extract job and resets status to pending', async () => {
+      mockKbRepo.findOne.mockResolvedValue({
+        id: 'kb-1',
+        workspaceId: 'ws-1',
+        ragMode: 'graph',
+      });
+      mockDocRepo.findOne.mockResolvedValue({
+        id: 'd1',
+        knowledgeBaseId: 'kb-1',
+      });
+
+      await service.reExtractDocument('d1', 'kb-1', 'ws-1');
+
+      expect(mockDocRepo.update).toHaveBeenCalledWith('d1', {
+        graphExtractionStatus: 'pending',
+      });
+      expect(mockGraphQueue.add).toHaveBeenCalledWith('extract', {
+        documentId: 'd1',
+        knowledgeBaseId: 'kb-1',
+      });
     });
   });
 

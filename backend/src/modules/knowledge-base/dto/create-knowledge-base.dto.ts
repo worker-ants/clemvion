@@ -2,6 +2,8 @@ import {
   IsString,
   IsOptional,
   IsInt,
+  IsIn,
+  IsUUID,
   Min,
   Max,
   MaxLength,
@@ -72,4 +74,65 @@ export class CreateKnowledgeBaseDto {
   @Min(0)
   @Max(2000)
   chunkOverlap?: number;
+
+  /** 검색 모드 — 생성 시에만 결정. 사후 변경 불가 (모드 전환은 새 KB 생성). */
+  @ApiPropertyOptional({
+    description:
+      '검색 모드. `vector` (default) 는 유사도 기반 단순 검색, `graph` 는 entity/relation 추출 후 vector seed → 그래프 확장 → rerank Hybrid 검색. 생성 시에만 결정 (불변).',
+    enum: ['vector', 'graph'],
+    example: 'vector',
+  })
+  @IsOptional()
+  @IsString()
+  @IsIn(['vector', 'graph'])
+  ragMode?: 'vector' | 'graph';
+
+  /** graph 모드 일 때 그래프 추출에 사용할 LLMConfig */
+  @ApiPropertyOptional({
+    description:
+      'graph 모드 KB 의 그래프 추출에 사용할 LLMConfig 의 chat 모델. 미지정 시 워크스페이스 default LLMConfig.',
+    format: 'uuid',
+  })
+  @IsOptional()
+  @IsUUID()
+  extractionLlmConfigId?: string;
+
+  /** graph 모드 검색 시 그래프 확장 깊이 (1 또는 2) */
+  @ApiPropertyOptional({
+    description: 'graph 모드 검색 시 그래프 확장 깊이 (1 또는 2, 기본 1).',
+    minimum: 1,
+    maximum: 2,
+    example: 1,
+  })
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(2)
+  maxHops?: number;
+
+  /** graph 모드 검색 시 vector seed 개수 */
+  @ApiPropertyOptional({
+    description: 'graph 모드 검색 시 vector seed 개수 (기본 5).',
+    minimum: 1,
+    maximum: 50,
+    example: 5,
+  })
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(50)
+  vectorSeedTopK?: number;
+
+  /** graph expansion 후 회수할 청크 상한 */
+  @ApiPropertyOptional({
+    description: 'graph expansion 후 회수할 청크 상한 (기본 15).',
+    minimum: 1,
+    maximum: 100,
+    example: 15,
+  })
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(100)
+  expandedChunkLimit?: number;
 }
