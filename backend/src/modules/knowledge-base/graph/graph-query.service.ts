@@ -37,7 +37,11 @@ export interface EntityDetail extends GraphEntity {
     documentName: string;
     contentPreview: string;
   }>;
+  /** chunk LIMIT(100) 이 초과되어 일부만 포함됐는지 표시 */
+  truncated: boolean;
 }
+
+const ENTITY_DETAIL_CHUNK_LIMIT = 100;
 
 export interface GraphVisualizationData {
   nodes: Array<{
@@ -142,6 +146,7 @@ export class GraphQueryService {
         message: 'Entity not found',
       });
     }
+    // LIMIT + 1 로 조회해 ENTITY_DETAIL_CHUNK_LIMIT 초과 여부를 truncated 로 알린다.
     const chunks = await this.dataSource.query<
       Array<{
         chunkId: string;
@@ -159,10 +164,14 @@ export class GraphQueryService {
        JOIN document d ON d.id = dc.document_id
        WHERE ce.entity_id = $1 AND d.knowledge_base_id = $2
        ORDER BY dc.created_at DESC
-       LIMIT 100`,
-      [entityId, kbId],
+       LIMIT $3`,
+      [entityId, kbId, ENTITY_DETAIL_CHUNK_LIMIT + 1],
     );
-    return { ...entity, mentionedInChunks: chunks };
+    const truncated = chunks.length > ENTITY_DETAIL_CHUNK_LIMIT;
+    const sliced = truncated
+      ? chunks.slice(0, ENTITY_DETAIL_CHUNK_LIMIT)
+      : chunks;
+    return { ...entity, mentionedInChunks: sliced, truncated };
   }
 
   async deleteEntity(

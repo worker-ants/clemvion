@@ -234,6 +234,13 @@ export class EntityChunkPreviewDto {
 export class GraphEntityDetailDto extends GraphEntityDto {
   @ApiProperty({ type: [EntityChunkPreviewDto] })
   mentionedInChunks: EntityChunkPreviewDto[];
+
+  @ApiProperty({
+    example: false,
+    description:
+      'true 면 등장 chunk 가 100건 한계를 초과해 일부만 반환되었음을 의미합니다.',
+  })
+  truncated: boolean;
 }
 
 /** Graph relation (P1 relation 목록) */

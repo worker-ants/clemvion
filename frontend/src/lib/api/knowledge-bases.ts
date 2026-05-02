@@ -77,6 +77,7 @@ export interface EntityChunkPreview {
 
 export interface GraphEntityDetail extends GraphEntity {
   mentionedInChunks: EntityChunkPreview[];
+  truncated: boolean;
 }
 
 export interface GraphRelation {
