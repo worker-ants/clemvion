@@ -114,6 +114,6 @@ export class NodeComponentRegistry {
       );
       return rawConfig;
     }
-    return parsed.data as Record<string, unknown>;
+    return parsed.data;
   }
 }

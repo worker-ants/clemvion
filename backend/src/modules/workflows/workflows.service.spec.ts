@@ -598,7 +598,7 @@ describe('WorkflowsService', () => {
       mockRegistry.applyConfigDefaults.mockImplementation((type, raw) =>
         type === 'ai_agent'
           ? { ...(raw as object), mode: 'single_turn', ragTopK: 5 }
-          : (raw as Record<string, unknown>),
+          : raw,
       );
 
       await service.importWorkflow('ws-uuid-1', 'user-uuid-1', {
@@ -627,9 +627,7 @@ describe('WorkflowsService', () => {
     });
 
     it('preserves explicit config values over defaults', async () => {
-      mockRegistry.applyConfigDefaults.mockImplementation(
-        (_type, raw) => raw as Record<string, unknown>,
-      );
+      mockRegistry.applyConfigDefaults.mockImplementation((_type, raw) => raw);
 
       await service.importWorkflow('ws-uuid-1', 'user-uuid-1', {
         name: 'Imported',
@@ -757,9 +755,7 @@ describe('WorkflowsService', () => {
 
     it('falls back to raw config when registry returns it (parse failure case)', async () => {
       const rawConfig = { mode: 42 as unknown as string };
-      mockRegistry.applyConfigDefaults.mockImplementation(
-        (_type, raw) => raw as Record<string, unknown>,
-      );
+      mockRegistry.applyConfigDefaults.mockImplementation((_type, raw) => raw);
 
       await service.importWorkflow('ws-uuid-1', 'user-uuid-1', {
         name: 'Imported',

@@ -62,7 +62,7 @@ describe('ExecutionContextService', () => {
   });
 
   describe('setNodeOutput — existing structured cache preservation', () => {
-    it("keeps existing config when setStructuredOutput ran first", () => {
+    it('keeps existing config when setStructuredOutput ran first', () => {
       service.setStructuredOutput(executionId, nodeId, {
         config: { echoed: true },
         output: { initial: 1 },
