@@ -609,6 +609,32 @@ describe('KnowledgeBaseService', () => {
         service.uploadDocument('kb-1', 'ws-1', badFile),
       ).rejects.toThrow(BadRequestException);
     });
+
+    it('should re-decode latin1-mangled UTF-8 filenames (Multer/busboy quirk) and NFC-normalize macOS NFD', async () => {
+      // 시나리오: 사용자가 macOS Finder 에서 "한글파일.txt" 를 업로드.
+      // 1) macOS HFS/APFS 는 NFD (분리형) 로 저장 — '한' = U+1112 + U+1161 + U+11AB
+      // 2) 브라우저는 RFC 7578 에 따라 UTF-8 로 인코딩해 전송.
+      // 3) Multer/busboy 는 multipart filename 헤더를 latin1 로 디코딩 → 한 바이트씩 잘려 깨짐.
+      // 우리 코드는 latin1→UTF-8 재해석 + NFC 정규화로 원본 한글 + 결합형으로 복원해야 한다.
+      const nfd = '한글파일.txt'.normalize('NFD');
+      const utf8Bytes = Buffer.from(nfd, 'utf8');
+      const mangled = utf8Bytes.toString('latin1');
+      const macFile = {
+        originalname: mangled,
+        buffer: Buffer.from('hello'),
+        size: 5,
+      } as Express.Multer.File;
+
+      await service.uploadDocument('kb-1', 'ws-1', macFile);
+
+      expect(mockDocRepo.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          // NFC 결합형으로 정규화된 원본 파일명이 저장돼야 한다.
+          name: '한글파일.txt'.normalize('NFC'),
+          fileType: 'txt',
+        }),
+      );
+    });
   });
 
   describe('removeDocument', () => {
