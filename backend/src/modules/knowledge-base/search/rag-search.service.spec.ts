@@ -128,6 +128,45 @@ describe('RagSearchService', () => {
       expect(mockLlmService.embed).not.toHaveBeenCalled();
     });
 
+    it('should use halfvec cast for 3072-dim group (matches V023 partial index)', async () => {
+      mockDataSource.query
+        .mockResolvedValueOnce([
+          {
+            id: 'kb-1',
+            embeddingModel: 'text-embedding-3-large',
+            embeddingDimension: 3072,
+          },
+        ])
+        .mockResolvedValueOnce([]);
+      mockLlmService.embed.mockResolvedValue([new Array(3072).fill(0.1)]);
+
+      await service.search('query', ['kb-1'], 'ws-1');
+
+      const searchSql = mockDataSource.query.mock.calls[1][0] as string;
+      expect(searchSql).toContain('halfvec(3072)');
+      expect(searchSql).not.toContain('vector(3072)');
+      expect(searchSql).toContain('vector_dims(dc.embedding) = 3072');
+    });
+
+    it('should use vector cast for sub-2000-dim groups (matches V022 partial indexes)', async () => {
+      mockDataSource.query
+        .mockResolvedValueOnce([
+          {
+            id: 'kb-1',
+            embeddingModel: 'text-embedding-3-small',
+            embeddingDimension: 1536,
+          },
+        ])
+        .mockResolvedValueOnce([]);
+      mockLlmService.embed.mockResolvedValue([new Array(1536).fill(0.1)]);
+
+      await service.search('query', ['kb-1'], 'ws-1');
+
+      const searchSql = mockDataSource.query.mock.calls[1][0] as string;
+      expect(searchSql).toContain('vector(1536)');
+      expect(searchSql).not.toContain('halfvec(1536)');
+    });
+
     it('should skip KBs with unsupported embedding_dimension (no partial index)', async () => {
       mockDataSource.query.mockResolvedValueOnce([
         {

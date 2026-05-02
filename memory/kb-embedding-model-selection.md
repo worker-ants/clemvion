@@ -35,4 +35,11 @@
 - `allEmbeddings` 메모리 누적 → 배치 임베딩 직후 스트리밍 INSERT
 - 다중 인스턴스 환경의 reEmbedAll 분산 잠금 (advisory lock 또는 DB 컬럼)
 
+## 후속 적용 (2026-05-02)
+
+- **V023 halfvec 인덱스** (commit 후속): pgvector 0.7+ 의 halfvec 으로 3072
+  차원에도 partial HNSW 인덱스 부착. `getEmbeddingCastType(dim)` 로 차원별
+  cast(vector/halfvec) 동적 결정, RagSearch SQL 이 인덱스 정의와 동일
+  표현식을 쓰도록 동기화. 정밀도 fp32 → fp16 손실은 RAG top-K 수준에서 무시 가능.
+
 리뷰 결과 및 조치 내역: `review/2026-05-02_13-18-24/SUMMARY.md` + `RESOLUTION.md`.
