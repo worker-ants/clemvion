@@ -10,6 +10,7 @@ import { Document } from './entities/document.entity';
 import { S3Service } from '../../common/services/s3.service';
 import { DOCUMENT_EMBEDDING_QUEUE } from './queues/document-embedding.queue';
 import { GRAPH_EXTRACTION_QUEUE } from './queues/graph-extraction.queue';
+import { LlmService } from '../llm/llm.service';
 
 describe('KnowledgeBaseService', () => {
   let service: KnowledgeBaseService;
@@ -19,6 +20,7 @@ describe('KnowledgeBaseService', () => {
   let mockDataSource: Record<string, jest.Mock>;
   let mockEmbeddingQueue: Record<string, jest.Mock>;
   let mockGraphQueue: Record<string, jest.Mock>;
+  let mockLlmService: Record<string, jest.Mock>;
 
   beforeEach(async () => {
     const qbMock = {
@@ -87,6 +89,10 @@ describe('KnowledgeBaseService', () => {
       add: jest.fn().mockResolvedValue(undefined),
       addBulk: jest.fn().mockResolvedValue([]),
     };
+    mockLlmService = {
+      resolveConfig: jest.fn(),
+      embed: jest.fn(),
+    };
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -103,6 +109,7 @@ describe('KnowledgeBaseService', () => {
           provide: getQueueToken(GRAPH_EXTRACTION_QUEUE),
           useValue: mockGraphQueue,
         },
+        { provide: LlmService, useValue: mockLlmService },
       ],
     }).compile();
 
@@ -149,6 +156,7 @@ describe('KnowledgeBaseService', () => {
         name: 'New KB',
         description: undefined,
         embeddingModel: 'text-embedding-3-small',
+        embeddingLlmConfigId: null,
         chunkSize: 1000,
         chunkOverlap: 200,
         ragMode: 'vector',
@@ -179,6 +187,20 @@ describe('KnowledgeBaseService', () => {
           maxHops: 2,
           vectorSeedTopK: 7,
           expandedChunkLimit: 20,
+        }),
+      );
+    });
+
+    it('should propagate embeddingLlmConfigId when provided', async () => {
+      const dto = {
+        name: 'Custom Embed KB',
+        embeddingLlmConfigId: 'llm-cfg-emb',
+      };
+      await service.create('ws-1', dto);
+
+      expect(mockKbRepo.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          embeddingLlmConfigId: 'llm-cfg-emb',
         }),
       );
     });
@@ -339,6 +361,94 @@ describe('KnowledgeBaseService', () => {
       });
 
       expect(result.embeddingDimension).toBe(1536);
+    });
+
+    it('should set embeddingLlmConfigId when provided', async () => {
+      const existing = {
+        id: 'kb-1',
+        workspaceId: 'ws-1',
+        embeddingLlmConfigId: null,
+      };
+      mockKbRepo.findOne.mockResolvedValue(existing);
+      mockKbRepo.save.mockImplementation((e) => Promise.resolve(e));
+
+      const result = await service.update('kb-1', 'ws-1', {
+        embeddingLlmConfigId: 'llm-cfg-emb',
+      });
+
+      expect(result.embeddingLlmConfigId).toBe('llm-cfg-emb');
+    });
+
+    it('should reset embeddingLlmConfigId to null (back to ws default)', async () => {
+      const existing = {
+        id: 'kb-1',
+        workspaceId: 'ws-1',
+        embeddingLlmConfigId: 'llm-cfg-emb',
+      };
+      mockKbRepo.findOne.mockResolvedValue(existing);
+      mockKbRepo.save.mockImplementation((e) => Promise.resolve(e));
+
+      const result = await service.update('kb-1', 'ws-1', {
+        embeddingLlmConfigId: null,
+      });
+
+      expect(result.embeddingLlmConfigId).toBeNull();
+    });
+  });
+
+  describe('probeEmbedding', () => {
+    it('returns dimension and provider on successful embed', async () => {
+      mockLlmService.resolveConfig.mockResolvedValue({
+        id: 'cfg-1',
+        provider: 'openai',
+      });
+      mockLlmService.embed.mockResolvedValue([new Array(1536).fill(0.01)]);
+
+      const result = await service.probeEmbedding('ws-1', {
+        llmConfigId: 'cfg-1',
+        embeddingModel: 'text-embedding-3-small',
+      });
+
+      expect(result).toEqual({ dimension: 1536, provider: 'openai' });
+      expect(mockLlmService.embed).toHaveBeenCalledWith(
+        expect.objectContaining({ provider: 'openai' }),
+        ['probe'],
+        'text-embedding-3-small',
+      );
+    });
+
+    it('throws EMBEDDING_PROBE_FAILED with sanitized message on provider error', async () => {
+      mockLlmService.resolveConfig.mockResolvedValue({
+        id: 'cfg-1',
+        provider: 'openai',
+      });
+      mockLlmService.embed.mockRejectedValue(
+        new Error('Bad gateway https://internal.example.com/v1'),
+      );
+
+      await expect(
+        service.probeEmbedding('ws-1', {
+          embeddingModel: 'text-embedding-3-small',
+        }),
+      ).rejects.toMatchObject({
+        response: expect.objectContaining({ code: 'EMBEDDING_PROBE_FAILED' }),
+      });
+    });
+
+    it('throws EMBEDDING_PROBE_FAILED when provider returns empty vector', async () => {
+      mockLlmService.resolveConfig.mockResolvedValue({
+        id: 'cfg-1',
+        provider: 'openai',
+      });
+      mockLlmService.embed.mockResolvedValue([[]]);
+
+      await expect(
+        service.probeEmbedding('ws-1', {
+          embeddingModel: 'text-embedding-3-small',
+        }),
+      ).rejects.toMatchObject({
+        response: expect.objectContaining({ code: 'EMBEDDING_PROBE_FAILED' }),
+      });
     });
   });
 

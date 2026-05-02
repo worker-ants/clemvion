@@ -14,6 +14,7 @@ export interface KnowledgeBaseData {
   documentCount: number;
   ragMode: RagMode;
   extractionLlmConfigId?: string | null;
+  embeddingLlmConfigId?: string | null;
   maxHops: number;
   vectorSeedTopK: number;
   expandedChunkLimit: number;
@@ -126,6 +127,7 @@ export const knowledgeBasesApi = {
     name: string;
     description?: string;
     embeddingModel?: string;
+    embeddingLlmConfigId?: string;
     chunkSize?: number;
     chunkOverlap?: number;
     ragMode?: RagMode;
@@ -144,6 +146,7 @@ export const knowledgeBasesApi = {
       name: string;
       description: string;
       embeddingModel: string;
+      embeddingLlmConfigId: string | null;
       chunkSize: number;
       chunkOverlap: number;
       extractionLlmConfigId: string;
@@ -154,6 +157,17 @@ export const knowledgeBasesApi = {
   ) {
     const { data } = await apiClient.patch(`/knowledge-bases/${id}`, payload);
     return data;
+  },
+
+  async probeEmbedding(payload: {
+    llmConfigId?: string;
+    embeddingModel: string;
+  }): Promise<{ dimension: number; provider: string }> {
+    const response = await apiClient.post(
+      "/knowledge-bases/embedding-probe",
+      payload,
+    );
+    return unwrap<{ dimension: number; provider: string }>(response);
   },
 
   async reEmbedAll(kbId: string): Promise<{

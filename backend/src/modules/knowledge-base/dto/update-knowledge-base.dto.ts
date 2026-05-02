@@ -88,6 +88,18 @@ export class UpdateKnowledgeBaseDto {
   @IsUUID()
   extractionLlmConfigId?: string | null;
 
+  /** 임베딩 LLMConfig 변경. null 로 보내면 워크스페이스 default 로 되돌림. */
+  @ApiPropertyOptional({
+    description:
+      '임베딩에 사용할 LLMConfig 변경. null 로 보내면 워크스페이스 default LLMConfig 로 되돌립니다. 적용은 다음 임베딩부터. 차원이 달라지면 KB 재임베딩이 필요합니다.',
+    format: 'uuid',
+    nullable: true,
+  })
+  @IsOptional()
+  @ValidateIf((_, value) => value !== null)
+  @IsUUID()
+  embeddingLlmConfigId?: string | null;
+
   @ApiPropertyOptional({
     description: 'graph 모드 검색 시 그래프 확장 깊이 (1 또는 2).',
     minimum: 1,

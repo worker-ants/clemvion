@@ -110,9 +110,9 @@ export class EmbeddingService {
       return;
     }
 
-    // 4. Resolve embedding LLM config
+    // 4. Resolve embedding LLM config (KB 가 지정한 config 우선, 없으면 ws default)
     const llmConfig = await this.llmService.resolveConfig(
-      undefined,
+      kb.embeddingLlmConfigId ?? undefined,
       kb.workspaceId,
     );
 

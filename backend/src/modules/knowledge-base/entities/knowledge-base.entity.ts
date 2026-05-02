@@ -61,6 +61,11 @@ export class KnowledgeBase {
   @Column({ name: 'extraction_llm_config_id', type: 'uuid', nullable: true })
   extractionLlmConfigId: string | null;
 
+  // 임베딩에 사용할 LLMConfig. NULL 이면 워크스페이스 default LLMConfig.
+  // 자기호스팅/Azure 등 default 가 아닌 endpoint 의 임베딩 모델을 KB 마다 선택할 수 있게 한다.
+  @Column({ name: 'embedding_llm_config_id', type: 'uuid', nullable: true })
+  embeddingLlmConfigId: string | null;
+
   // graph 검색 시 그래프 확장 깊이 (1 또는 2). vector 모드에서는 무시.
   @Column({ name: 'max_hops', type: 'int', default: 1 })
   maxHops: number;

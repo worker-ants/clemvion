@@ -44,6 +44,10 @@ import { CreateKnowledgeBaseDto } from './dto/create-knowledge-base.dto';
 import { UpdateKnowledgeBaseDto } from './dto/update-knowledge-base.dto';
 import { RagSearchDto } from './dto/rag-search.dto';
 import {
+  EmbeddingProbeDto,
+  EmbeddingProbeResultDto,
+} from './dto/embedding-probe.dto';
+import {
   DocumentDto,
   KbReEmbedAcceptedDto,
   KnowledgeBaseDto,
@@ -119,6 +123,31 @@ export class KnowledgeBaseController {
     @Body() dto: CreateKnowledgeBaseDto,
   ) {
     return this.kbService.create(workspaceId, dto);
+  }
+
+  @Post('embedding-probe')
+  @HttpCode(HttpStatus.OK)
+  @Roles('editor')
+  @Throttle({ default: { limit: 30, ttl: 60_000 } })
+  @ApiOperation({
+    summary: '임베딩 모델/LLMConfig 라이브 probe',
+    description:
+      'KB 생성/설정 화면의 "임베딩 테스트" 버튼이 호출. 지정한 LLMConfig + 모델로 ' +
+      '1회 embed("probe") 호출을 수행해 실제 vector 차원과 provider 를 반환한다. ' +
+      '자기호스팅/Azure 처럼 모델명이 같아도 차원이 다른 endpoint 를 KB 저장 전에 ' +
+      '시각적으로 알리기 위함. 호출 실패는 400 EMBEDDING_PROBE_FAILED + sanitize 메시지.',
+  })
+  @ApiOkWrappedResponse(EmbeddingProbeResultDto, {
+    description: '실제 측정된 임베딩 차원과 provider',
+  })
+  @ApiBadRequestResponse({ description: '입력값 검증 실패 또는 probe 실패' })
+  @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
+  @ApiForbiddenResponse({ description: 'editor 이상 권한 필요' })
+  async probeEmbedding(
+    @WorkspaceId() workspaceId: string,
+    @Body() dto: EmbeddingProbeDto,
+  ): Promise<EmbeddingProbeResultDto> {
+    return this.kbService.probeEmbedding(workspaceId, dto);
   }
 
   @Patch(':id')

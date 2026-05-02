@@ -48,6 +48,13 @@ export class KnowledgeBaseDto {
   })
   extractionLlmConfigId?: string | null;
 
+  @ApiPropertyOptional({
+    nullable: true,
+    format: 'uuid',
+    description: '임베딩 LLMConfig (NULL 이면 워크스페이스 default).',
+  })
+  embeddingLlmConfigId?: string | null;
+
   @ApiProperty({ example: 1, description: 'graph 검색 확장 깊이 (1 또는 2)' })
   maxHops: number;
 
