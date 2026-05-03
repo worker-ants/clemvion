@@ -15,6 +15,7 @@ import {
 } from './common/config';
 import { GlobalExceptionFilter } from './common/filters/http-exception.filter';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
+import { RolesGuard } from './common/guards/roles.guard';
 import { TransformInterceptor } from './common/interceptors/transform.interceptor';
 import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
 import { CustomValidationPipe } from './common/pipes/validation.pipe';
@@ -202,6 +203,9 @@ import { WorkflowAssistantMessage } from './modules/workflow-assistant/entities/
     { provide: APP_INTERCEPTOR, useClass: LoggingInterceptor },
     { provide: APP_GUARD, useClass: ThrottlerGuard },
     { provide: APP_GUARD, useClass: JwtAuthGuard },
+    // RolesGuard 는 JwtAuthGuard 다음에 실행돼야 한다 (req.user 가 채워진 뒤 역할 검사).
+    // @Roles 가 붙지 않은 라우트는 default-allow 로 통과하므로 opt-in 시맨틱은 유지된다.
+    { provide: APP_GUARD, useClass: RolesGuard },
   ],
 })
 export class AppModule {}

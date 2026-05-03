@@ -10,10 +10,9 @@ import {
   HttpCode,
   HttpStatus,
   ParseUUIDPipe,
-  UseGuards,
 } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
-import { Roles, RolesGuard } from '../../common/guards/roles.guard';
+import { Roles } from '../../common/guards/roles.guard';
 import {
   ApiTags,
   ApiBearerAuth,
@@ -49,7 +48,6 @@ import { PaginationQueryDto } from '../../common/dto/pagination.dto';
 @ApiTags('LLM Config')
 @ApiBearerAuth('access-token')
 @Controller('llm-configs')
-@UseGuards(RolesGuard)
 export class LlmConfigController {
   constructor(
     private readonly llmConfigService: LlmConfigService,

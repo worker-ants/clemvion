@@ -12,10 +12,9 @@ import {
   ParseUUIDPipe,
   Res,
   BadRequestException,
-  UseGuards,
 } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
-import { Roles, RolesGuard } from '../../common/guards/roles.guard';
+import { Roles } from '../../common/guards/roles.guard';
 import {
   ApiTags,
   ApiBearerAuth,
@@ -71,7 +70,6 @@ import { renderCallbackHtml } from './services/oauth-callback.template';
 @ApiTags('Integrations')
 @ApiBearerAuth('access-token')
 @Controller('integrations')
-@UseGuards(RolesGuard)
 export class IntegrationsController {
   constructor(
     private readonly integrationsService: IntegrationsService,

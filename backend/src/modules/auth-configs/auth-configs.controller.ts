@@ -10,9 +10,8 @@ import {
   HttpCode,
   HttpStatus,
   ParseUUIDPipe,
-  UseGuards,
 } from '@nestjs/common';
-import { Roles, RolesGuard } from '../../common/guards/roles.guard';
+import { Roles } from '../../common/guards/roles.guard';
 import {
   ApiTags,
   ApiBearerAuth,
@@ -42,7 +41,6 @@ import {
 @ApiTags('Auth Configs')
 @ApiBearerAuth('access-token')
 @Controller('auth-configs')
-@UseGuards(RolesGuard)
 export class AuthConfigsController {
   constructor(private readonly authConfigsService: AuthConfigsService) {}
 
