@@ -1511,9 +1511,7 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
     const structuredOutput = structured?.output as
       | Record<string, unknown>
       | undefined;
-    const structuredConfig = (structured?.config ?? undefined) as
-      | Record<string, unknown>
-      | undefined;
+    const structuredConfig = structured?.config ?? undefined;
 
     const nodeExec = await this.nodeExecutionRepository.findOne({
       where: { executionId, nodeId: node.id },
@@ -1770,8 +1768,10 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
       // handler bug leaks it.
       const finalAdapted = context.structuredOutputCache?.[node.id];
       const finalOutput = {
-        ...((finalAdapted ??
-          context.nodeOutputCache[node.id]) as Record<string, unknown>),
+        ...((finalAdapted ?? context.nodeOutputCache[node.id]) as Record<
+          string,
+          unknown
+        >),
       };
       delete finalOutput._resumeState;
       nodeExec.outputData = finalOutput;

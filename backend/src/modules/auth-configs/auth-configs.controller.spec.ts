@@ -23,13 +23,22 @@ describe('AuthConfigsController — @Roles metadata', () => {
 
   it('read 엔드포인트(findAll/findOne/getUsage) 는 @Roles 미적용 — viewer 도 접근 가능', () => {
     expect(
-      reflector.get<string[]>(ROLES_KEY, AuthConfigsController.prototype.findAll),
+      reflector.get<string[]>(
+        ROLES_KEY,
+        AuthConfigsController.prototype.findAll,
+      ),
     ).toBeUndefined();
     expect(
-      reflector.get<string[]>(ROLES_KEY, AuthConfigsController.prototype.findOne),
+      reflector.get<string[]>(
+        ROLES_KEY,
+        AuthConfigsController.prototype.findOne,
+      ),
     ).toBeUndefined();
     expect(
-      reflector.get<string[]>(ROLES_KEY, AuthConfigsController.prototype.getUsage),
+      reflector.get<string[]>(
+        ROLES_KEY,
+        AuthConfigsController.prototype.getUsage,
+      ),
     ).toBeUndefined();
   });
 });
