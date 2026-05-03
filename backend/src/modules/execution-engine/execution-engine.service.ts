@@ -2402,6 +2402,21 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
    * 캔버스에서 hasDefaultLlmConfig === true 일 때 동일 경고를 억제하는 것과
    * 의미를 일치시키기 위함이다. 다른 에러 메시지가 함께 있으면 그대로 두고,
    * 후처리 후에도 남은 에러가 있으면 호출부에서 INVALID_NODE_CONFIG 로 throw 한다.
+   *
+   * @param nodeType 노드 타입 (AI 노드 3종이 아니면 즉시 통과)
+   * @param errors handler.validate 가 반환한 blocking error 배열
+   * @param context 실행 컨텍스트. `variables.__workspaceId` 에서 워크스페이스
+   *   ID 를 읽는다. 이 필드는 `runExecution` 이 DB 의 `workflow.workspaceId`
+   *   로부터 직접 채우며 (server-trusted), 사용자 입력으로 덮어쓰지 않는다 —
+   *   AI 핸들러들도 동일 출처를 쓴다.
+   *
+   * Fail-safe: hasDefaultLlmConfig 호출이 throw 하면 원본 errors 를 그대로
+   * 반환해 INVALID_NODE_CONFIG 가 정상 발사되도록 한다 (DB 장애가 노드 실행
+   * 오류로 "변형" 되는 것을 막는다 — 명시적 검증 실패가 더 안전).
+   *
+   * 캐싱: 동일 실행 안에서 N 개 AI 노드가 들어있어도 DB findDefault 는 1 회만
+   * 일어나도록 `context.variables[__hasDefaultLlmConfig:<wsId>]` 에 결과를
+   * 메모이즈한다 (N+1 회피).
    */
   private async filterAiNoLlmProviderError(
     nodeType: string,
@@ -2413,9 +2428,36 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
     const workspaceId =
       (context.variables?.__workspaceId as string | undefined) || '';
     if (!workspaceId) return errors;
-    const hasDefault = await this.llmService.hasDefaultLlmConfig(workspaceId);
+    let hasDefault: boolean;
+    try {
+      hasDefault = await this.resolveHasDefaultLlmConfigCached(
+        workspaceId,
+        context,
+      );
+    } catch (e) {
+      this.logger.warn(
+        `filterAiNoLlmProviderError: hasDefaultLlmConfig lookup failed (workspaceId=${workspaceId}); keeping original validation errors. ${
+          e instanceof Error ? e.message : String(e)
+        }`,
+      );
+      return errors;
+    }
     if (!hasDefault) return errors;
-    return errors.filter((e) => e !== AI_NO_LLM_PROVIDER_MESSAGE);
+    return errors.filter((err) => err !== AI_NO_LLM_PROVIDER_MESSAGE);
+  }
+
+  private async resolveHasDefaultLlmConfigCached(
+    workspaceId: string,
+    context: ExecutionContext,
+  ): Promise<boolean> {
+    const cacheKey = `__hasDefaultLlmConfig:${workspaceId}`;
+    const cached = context.variables?.[cacheKey];
+    if (typeof cached === 'boolean') return cached;
+    const hasDefault = await this.llmService.hasDefaultLlmConfig(workspaceId);
+    if (context.variables) {
+      context.variables[cacheKey] = hasDefault;
+    }
+    return hasDefault;
   }
 
   private async executeWithRetry(

@@ -31,6 +31,7 @@ import { NodeHandler } from '../../nodes/core/node-handler.interface';
 import { ForEachHandler } from '../../nodes/logic/foreach/foreach.handler';
 import { LoopHandler } from '../../nodes/logic/loop/loop.handler';
 import { MapHandler } from '../../nodes/logic/map/map.handler';
+import { AI_NO_LLM_PROVIDER_MESSAGE } from '../../nodes/ai/llm-provider-rule';
 
 // Helper to flush pending promises (allow background execution to complete)
 function flushPromises(): Promise<void> {
@@ -2980,9 +2981,8 @@ describe('ExecutionEngineService', () => {
   describe('AI no-llm-provider rule post-filter', () => {
     // 캔버스 hasDefaultLlmConfig 억제와 의미를 일치시키기 위한 후처리 검증.
     // execute 전체를 돌리는 대신 private 메서드를 직접 호출하여 분기를 검증한다.
-    const NO_LLM_MSG =
-      'LLM provider 또는 model 을 선택해야 합니다 (workspace 기본 provider 가 설정된 경우 캔버스에서 자동 처리).';
 
+    // keep in sync with filterAiNoLlmProviderError signature (subject + errors + context).
     type Filterable = {
       filterAiNoLlmProviderError: (
         nodeType: string,
@@ -2991,42 +2991,53 @@ describe('ExecutionEngineService', () => {
       ) => Promise<string[]>;
     };
 
-    const buildContext = (workspaceId?: string) =>
-      workspaceId === undefined
-        ? { variables: {} }
-        : { variables: { __workspaceId: workspaceId } };
+    let llm: { hasDefaultLlmConfig: jest.Mock };
+    const subject = () => service as unknown as Filterable;
+
+    const buildContext = (
+      workspaceId: string | undefined,
+      extraVariables: Record<string, unknown> = {},
+    ): { variables: Record<string, unknown> } => {
+      if (workspaceId === undefined) {
+        return { variables: { ...extraVariables } };
+      }
+      return {
+        variables: { __workspaceId: workspaceId, ...extraVariables },
+      };
+    };
+
+    beforeEach(() => {
+      llm = (
+        service as unknown as {
+          llmService: { hasDefaultLlmConfig: jest.Mock };
+        }
+      ).llmService;
+      llm.hasDefaultLlmConfig.mockReset();
+      llm.hasDefaultLlmConfig.mockResolvedValue(false);
+    });
 
     it('passes through errors for non-AI nodes', async () => {
-      const result = await (
-        service as unknown as Filterable
-      ).filterAiNoLlmProviderError(
+      const result = await subject().filterAiNoLlmProviderError(
         'http_request',
-        [NO_LLM_MSG, 'other error'],
+        [AI_NO_LLM_PROVIDER_MESSAGE, 'other error'],
         buildContext('ws-1'),
       );
-      expect(result).toEqual([NO_LLM_MSG, 'other error']);
+      expect(result).toEqual([AI_NO_LLM_PROVIDER_MESSAGE, 'other error']);
+      expect(llm.hasDefaultLlmConfig).not.toHaveBeenCalled();
     });
 
     it('keeps the no-llm-provider error when workspace has no default LLM', async () => {
-      const llm = (
-        service as unknown as { llmService: { hasDefaultLlmConfig: jest.Mock } }
-      ).llmService;
       llm.hasDefaultLlmConfig.mockResolvedValue(false);
 
-      const result = await (
-        service as unknown as Filterable
-      ).filterAiNoLlmProviderError(
+      const result = await subject().filterAiNoLlmProviderError(
         'ai_agent',
-        [NO_LLM_MSG],
+        [AI_NO_LLM_PROVIDER_MESSAGE],
         buildContext('ws-1'),
       );
-      expect(result).toEqual([NO_LLM_MSG]);
+      expect(result).toEqual([AI_NO_LLM_PROVIDER_MESSAGE]);
     });
 
     it('drops the no-llm-provider error when workspace has a default LLM', async () => {
-      const llm = (
-        service as unknown as { llmService: { hasDefaultLlmConfig: jest.Mock } }
-      ).llmService;
       llm.hasDefaultLlmConfig.mockResolvedValue(true);
 
       for (const type of [
@@ -3034,24 +3045,24 @@ describe('ExecutionEngineService', () => {
         'text_classifier',
         'information_extractor',
       ]) {
-        const result = await (
-          service as unknown as Filterable
-        ).filterAiNoLlmProviderError(type, [NO_LLM_MSG], buildContext('ws-1'));
+        const result = await subject().filterAiNoLlmProviderError(
+          type,
+          [AI_NO_LLM_PROVIDER_MESSAGE],
+          buildContext('ws-1'),
+        );
         expect(result).toEqual([]);
       }
     });
 
     it('preserves other AI validation errors when filtering no-llm-provider', async () => {
-      const llm = (
-        service as unknown as { llmService: { hasDefaultLlmConfig: jest.Mock } }
-      ).llmService;
       llm.hasDefaultLlmConfig.mockResolvedValue(true);
 
-      const result = await (
-        service as unknown as Filterable
-      ).filterAiNoLlmProviderError(
+      const result = await subject().filterAiNoLlmProviderError(
         'ai_agent',
-        [NO_LLM_MSG, 'maxTurns must be 0 (unlimited) or a positive integer'],
+        [
+          AI_NO_LLM_PROVIDER_MESSAGE,
+          'maxTurns must be 0 (unlimited) or a positive integer',
+        ],
         buildContext('ws-1'),
       );
       expect(result).toEqual([
@@ -3059,17 +3070,53 @@ describe('ExecutionEngineService', () => {
       ]);
     });
 
-    it('keeps the error when workspaceId is missing in context', async () => {
-      const llm = (
-        service as unknown as { llmService: { hasDefaultLlmConfig: jest.Mock } }
-      ).llmService;
+    it('keeps the error when workspaceId is empty string', async () => {
       llm.hasDefaultLlmConfig.mockResolvedValue(true);
 
-      const result = await (
-        service as unknown as Filterable
-      ).filterAiNoLlmProviderError('ai_agent', [NO_LLM_MSG], buildContext(''));
-      expect(result).toEqual([NO_LLM_MSG]);
+      const result = await subject().filterAiNoLlmProviderError(
+        'ai_agent',
+        [AI_NO_LLM_PROVIDER_MESSAGE],
+        buildContext(''),
+      );
+      expect(result).toEqual([AI_NO_LLM_PROVIDER_MESSAGE]);
       expect(llm.hasDefaultLlmConfig).not.toHaveBeenCalled();
+    });
+
+    it('keeps the error when __workspaceId is absent from variables', async () => {
+      llm.hasDefaultLlmConfig.mockResolvedValue(true);
+
+      const result = await subject().filterAiNoLlmProviderError(
+        'ai_agent',
+        [AI_NO_LLM_PROVIDER_MESSAGE],
+        buildContext(undefined),
+      );
+      expect(result).toEqual([AI_NO_LLM_PROVIDER_MESSAGE]);
+      expect(llm.hasDefaultLlmConfig).not.toHaveBeenCalled();
+    });
+
+    it('falls back to original errors when hasDefaultLlmConfig throws (DB error)', async () => {
+      llm.hasDefaultLlmConfig.mockRejectedValue(new Error('DB unavailable'));
+
+      const result = await subject().filterAiNoLlmProviderError(
+        'ai_agent',
+        [AI_NO_LLM_PROVIDER_MESSAGE],
+        buildContext('ws-1'),
+      );
+      expect(result).toEqual([AI_NO_LLM_PROVIDER_MESSAGE]);
+    });
+
+    it('caches hasDefaultLlmConfig result on the same context (no N+1)', async () => {
+      llm.hasDefaultLlmConfig.mockResolvedValue(true);
+
+      const ctx = buildContext('ws-1');
+      for (let i = 0; i < 5; i++) {
+        await subject().filterAiNoLlmProviderError(
+          'ai_agent',
+          [AI_NO_LLM_PROVIDER_MESSAGE],
+          ctx,
+        );
+      }
+      expect(llm.hasDefaultLlmConfig).toHaveBeenCalledTimes(1);
     });
   });
 });

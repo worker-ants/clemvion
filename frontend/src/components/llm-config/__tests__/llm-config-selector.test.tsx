@@ -5,10 +5,37 @@ import type { ReactNode } from "react";
 import { LlmConfigSelector } from "../llm-config-selector";
 import { llmConfigsApi } from "@/lib/api/llm-configs";
 
-vi.mock("@/lib/api/llm-configs", () => ({
-  llmConfigsApi: {
-    getAll: vi.fn(),
-  },
+vi.mock("@/lib/api/llm-configs", async () => {
+  const actual = await vi.importActual<typeof import("@/lib/api/llm-configs")>(
+    "@/lib/api/llm-configs",
+  );
+  return {
+    ...actual,
+    llmConfigsApi: {
+      getAll: vi.fn(),
+    },
+  };
+});
+
+// 기본 dictionary 가 한국어이므로 정규식이 ko/en 둘 다 매치하도록 작성한다.
+// 별도 i18n provider 가 없어도 테스트가 안정적으로 돌아가도록 useT 를 mock 처리.
+vi.mock("@/lib/i18n", () => ({
+  useT:
+    () =>
+    (key: string, vars?: Record<string, string | number>): string => {
+      switch (key) {
+        case "nodeConfigs.llmConfigSelector.label":
+          return "LLM Provider";
+        case "nodeConfigs.llmConfigSelector.defaultOption":
+          return "Default provider";
+        case "nodeConfigs.llmConfigSelector.defaultOptionWithResolved":
+          return `Default provider (currently: ${String(vars?.name ?? "")})`;
+        case "nodeConfigs.llmConfigSelector.noDefaultHint":
+          return "No workspace default LLM is configured.";
+        default:
+          return key;
+      }
+    },
 }));
 
 function wrap(ui: ReactNode) {
@@ -63,11 +90,10 @@ describe("LlmConfigSelector", () => {
     await waitFor(() => {
       const options = screen.getAllByRole("option");
       expect(options[0].textContent).not.toMatch(/currently|현재/i);
+      expect(
+        screen.getByText(/workspace default LLM|워크스페이스 기본 LLM/i),
+      ).toBeInTheDocument();
     });
-
-    expect(
-      screen.getByText(/workspace default LLM|워크스페이스 기본 LLM/i),
-    ).toBeInTheDocument();
   });
 
   it("does not show the no-default hint when a specific config is selected", async () => {
@@ -80,6 +106,22 @@ describe("LlmConfigSelector", () => {
     await waitFor(() => {
       expect(screen.getByRole("option", { name: /Custom/i })).toBeInTheDocument();
     });
+
+    expect(
+      screen.queryByText(/workspace default LLM|워크스페이스 기본 LLM/i),
+    ).not.toBeInTheDocument();
+  });
+
+  it("does not flash the no-default hint while the query is still loading", async () => {
+    // 쿼리가 영원히 pending 상태인 상황 — isLoading=true 동안 hint 가
+    // 깜빡이지 않아야 한다.
+    (llmConfigsApi.getAll as ReturnType<typeof vi.fn>).mockReturnValue(
+      new Promise(() => {
+        /* never resolves */
+      }),
+    );
+
+    wrap(<LlmConfigSelector value="" onChange={vi.fn()} />);
 
     expect(
       screen.queryByText(/workspace default LLM|워크스페이스 기본 LLM/i),

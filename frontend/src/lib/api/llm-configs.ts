@@ -1,6 +1,13 @@
 import { apiClient } from "./client";
 import { unwrap } from "./unwrap";
 
+/**
+ * React Query key for `llmConfigsApi.getAll()`. Shared across components
+ * (canvas pre-fill, selector dropdown, custom-node summary) so that a single
+ * fetch is reused via the query cache.
+ */
+export const LLM_CONFIGS_QUERY_KEY = ["llm-configs"] as const;
+
 export interface LlmConfigData {
   id: string;
   provider: string;
