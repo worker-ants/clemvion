@@ -2,6 +2,10 @@ import { describe, it, expect, beforeEach, vi } from "vitest";
 import { render, screen, act, cleanup } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useLocaleStore } from "@/lib/stores/locale-store";
+import {
+  useWorkspaceStore,
+  type WorkspaceRole,
+} from "@/lib/stores/workspace-store";
 
 const mockPush = vi.fn();
 const mockReplace = vi.fn();
@@ -48,11 +52,22 @@ function mockSchedulesResponse(body: unknown) {
   });
 }
 
+function setRole(role: WorkspaceRole) {
+  useWorkspaceStore.setState({
+    workspaces: [
+      { id: "ws-1", name: "Test", type: "team", slug: "team-1", role },
+    ],
+    currentWorkspaceId: "ws-1",
+    loaded: true,
+  });
+}
+
 describe("SchedulesPage — pagination", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     currentSearchParams = new URLSearchParams();
     useLocaleStore.setState({ locale: "en" });
+    setRole("editor");
     cleanup();
   });
 
@@ -90,5 +105,73 @@ describe("SchedulesPage — pagination", () => {
     await screen.findByText("Daily");
     expect(screen.getByRole("navigation")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "3" })).toBeInTheDocument();
+  });
+});
+
+describe("SchedulesPage — RBAC", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    currentSearchParams = new URLSearchParams();
+    useLocaleStore.setState({ locale: "en" });
+    cleanup();
+  });
+
+  function row() {
+    return {
+      data: [
+        {
+          id: "s1",
+          cronExpression: "0 9 * * *",
+          timezone: "UTC",
+          isActive: true,
+          trigger: {
+            name: "Daily",
+            workflowId: "w1",
+            workflow: { name: "WF" },
+          },
+        },
+      ],
+      pagination: { page: 1, limit: 20, totalItems: 1, totalPages: 1 },
+    };
+  }
+
+  it("Editor: Add schedule·toggle·edit·delete 모두 노출. Run now 도 노출", async () => {
+    setRole("editor");
+    mockSchedulesResponse(row());
+    await renderPage();
+    await screen.findByText("Daily");
+    expect(
+      screen.getByRole("button", { name: /add schedule/i }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /deactivate|activate/i }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /run now/i }),
+    ).toBeInTheDocument();
+    // edit / delete 는 icon-only 버튼 → title attribute 로 식별
+    expect(
+      document.querySelector('button[title*="Edit" i]'),
+    ).toBeTruthy();
+  });
+
+  it("Viewer: Add schedule·toggle·edit·delete 모두 비표시. Run now 는 노출", async () => {
+    setRole("viewer");
+    mockSchedulesResponse(row());
+    await renderPage();
+    await screen.findByText("Daily");
+    expect(
+      screen.queryByRole("button", { name: /add schedule/i }),
+    ).toBeNull();
+    expect(
+      screen.queryByRole("button", { name: /deactivate|activate/i }),
+    ).toBeNull();
+    expect(
+      document.querySelector('button[title*="Edit" i]'),
+    ).toBeFalsy();
+    // Run now 는 viewer 도 가능
+    expect(
+      screen.getByRole("button", { name: /run now/i }),
+    ).toBeInTheDocument();
   });
 });

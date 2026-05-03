@@ -2,6 +2,10 @@ import { describe, it, expect, beforeEach, vi } from "vitest";
 import { render, screen, act, cleanup } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useLocaleStore } from "@/lib/stores/locale-store";
+import {
+  useWorkspaceStore,
+  type WorkspaceRole,
+} from "@/lib/stores/workspace-store";
 
 const mockPush = vi.fn();
 const mockReplace = vi.fn();
@@ -53,11 +57,22 @@ function mockTriggersResponse(body: unknown) {
   });
 }
 
+function setRole(role: WorkspaceRole) {
+  useWorkspaceStore.setState({
+    workspaces: [
+      { id: "ws-1", name: "Test", type: "team", slug: "team-1", role },
+    ],
+    currentWorkspaceId: "ws-1",
+    loaded: true,
+  });
+}
+
 describe("TriggersPage — pagination", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     currentSearchParams = new URLSearchParams();
     useLocaleStore.setState({ locale: "en" });
+    setRole("editor");
     cleanup();
   });
 
@@ -92,5 +107,56 @@ describe("TriggersPage — pagination", () => {
     await screen.findByText("Hook A");
     expect(screen.getByRole("navigation")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "3" })).toBeInTheDocument();
+  });
+});
+
+describe("TriggersPage — RBAC", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    currentSearchParams = new URLSearchParams();
+    useLocaleStore.setState({ locale: "en" });
+    cleanup();
+  });
+
+  function row() {
+    return {
+      data: [
+        {
+          id: "t1",
+          name: "Hook A",
+          type: "webhook",
+          isActive: true,
+          workflowId: "w1",
+          workflow: { id: "w1", name: "WF" },
+        },
+      ],
+      pagination: { page: 1, limit: 20, totalItems: 1, totalPages: 1 },
+    };
+  }
+
+  it("Editor: Add webhook 버튼·토글 버튼 노출", async () => {
+    setRole("editor");
+    mockTriggersResponse(row());
+    await renderPage();
+    await screen.findByText("Hook A");
+    expect(
+      screen.getByRole("button", { name: /add webhook/i }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /deactivate|activate/i }),
+    ).toBeInTheDocument();
+  });
+
+  it("Viewer: Add webhook 버튼·토글 버튼 모두 비표시", async () => {
+    setRole("viewer");
+    mockTriggersResponse(row());
+    await renderPage();
+    await screen.findByText("Hook A");
+    expect(
+      screen.queryByRole("button", { name: /add webhook/i }),
+    ).toBeNull();
+    expect(
+      screen.queryByRole("button", { name: /deactivate|activate/i }),
+    ).toBeNull();
   });
 });
