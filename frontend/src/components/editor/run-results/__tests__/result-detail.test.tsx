@@ -676,6 +676,39 @@ describe("ResultDetail", () => {
       expect(screen.queryByText(/Queries used/)).toBeNull();
     });
 
+    it("renders chip + References tab during in-flight (waiting_for_input) multi-turn", () => {
+      // 진행 중 시나리오 — isWaitingConversation=true 분기. backend 가 nodeOutput.meta
+      // 에 turnDebug 를 채워보내야 chip / References 탭이 동작한다 (이 테스트가
+      // frontend 측 contract 검증).
+      Element.prototype.scrollIntoView = vi.fn() as never;
+      const ai = makeAiResult();
+      const waitingResult: NodeResult = {
+        ...ai,
+        status: "waiting_for_input",
+      };
+      const conversationMessages = [
+        { type: "user" as const, content: "환불 정책 알려줘", turnIndex: 1 },
+        {
+          type: "assistant" as const,
+          content: "7일 이내 환불 가능합니다.",
+          turnIndex: 1,
+        },
+      ];
+      render(
+        <ResultDetail
+          result={waitingResult}
+          {...defaultProps}
+          isWaitingConversation
+          conversationConfig={{ message: "", messages: [], turnCount: 1, maxTurns: 5 }}
+          conversationMessages={conversationMessages}
+        />,
+      );
+
+      // SummaryView assistant row 에 chip 노출 + References 탭 버튼 노출.
+      expect(screen.getAllByTitle("View in References tab").length).toBeGreaterThanOrEqual(1);
+      expect(screen.getByText("References")).toBeDefined();
+    });
+
     it("jumps to References tab when assistant message chip is clicked (completed multi-turn)", () => {
       // scrollIntoView 는 jsdom 에 없어서 mock.
       const scrollSpy = vi.fn();

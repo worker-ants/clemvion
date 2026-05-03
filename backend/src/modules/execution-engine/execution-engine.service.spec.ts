@@ -2,7 +2,10 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { getQueueToken } from '@nestjs/bullmq';
 import { BACKGROUND_EXECUTION_QUEUE } from './queues/background-execution.queue';
-import { ExecutionEngineService } from './execution-engine.service';
+import {
+  ExecutionEngineService,
+  buildConversationMetaFromResumeState,
+} from './execution-engine.service';
 import { NodeHandlerRegistry } from '../../nodes/core/node-handler.registry';
 import { NodeComponentRegistry } from '../../nodes/core/node-component.registry';
 import { ExecutionContextService } from './context/execution-context.service';
@@ -3125,5 +3128,79 @@ describe('ExecutionEngineService', () => {
       }
       expect(llm.hasDefaultLlmConfig).toHaveBeenCalledTimes(1);
     });
+  });
+});
+
+describe('buildConversationMetaFromResumeState', () => {
+  it('exposes turnDebug + ragSources from _resumeState for frontend References / LLM Usage tabs', () => {
+    const turnEntry = {
+      turnIndex: 1,
+      llmCalls: [],
+      totalDurationMs: 100,
+      ragSources: [
+        { chunkId: 'c1', documentId: 'd1', documentName: 'doc.md', score: 0.9 },
+      ],
+      ragDiagnostics: {
+        attempted: true,
+        searchedKbCount: 1,
+        queriesUsed: ['q'],
+        resultCount: 1,
+      },
+    };
+    const meta = buildConversationMetaFromResumeState({
+      model: 'gpt-4o',
+      totalInputTokens: 100,
+      totalOutputTokens: 50,
+      totalThinkingTokens: 5,
+      toolCalls: 1,
+      ragSources: [
+        { chunkId: 'c1', documentId: 'd1', documentName: 'doc.md', score: 0.9 },
+      ],
+      ragLastDiagnostics: {
+        attempted: true,
+        searchedKbCount: 1,
+        queriesUsed: ['q'],
+        resultCount: 1,
+      },
+      turnDebugHistory: [turnEntry],
+    });
+
+    expect(meta).toEqual({
+      interactionType: 'ai_conversation',
+      model: 'gpt-4o',
+      inputTokens: 100,
+      outputTokens: 50,
+      totalTokens: 150,
+      thinkingTokens: 5,
+      toolCalls: 1,
+      ragSources: [
+        { chunkId: 'c1', documentId: 'd1', documentName: 'doc.md', score: 0.9 },
+      ],
+      ragDiagnostics: {
+        attempted: true,
+        searchedKbCount: 1,
+        queriesUsed: ['q'],
+        resultCount: 1,
+      },
+      turnDebug: [turnEntry],
+    });
+  });
+
+  it('returns safe defaults when state lacks accumulators (initial waiting before first user message)', () => {
+    const meta = buildConversationMetaFromResumeState({ model: 'gpt-4o' });
+    expect(meta).toMatchObject({
+      interactionType: 'ai_conversation',
+      model: 'gpt-4o',
+      inputTokens: 0,
+      outputTokens: 0,
+      totalTokens: 0,
+      thinkingTokens: 0,
+      toolCalls: 0,
+      ragSources: [],
+      turnDebug: [],
+    });
+    // ragLastDiagnostics 가 없으면 ragDiagnostics 도 undefined — frontend 에서
+    // null 가드로 처리.
+    expect(meta.ragDiagnostics).toBeUndefined();
   });
 });
