@@ -34,6 +34,7 @@ import {
 import { RoleLegend } from "@/components/workspace/role-legend";
 import { useWorkspaceStore } from "@/lib/stores/workspace-store";
 import type { WorkspaceRole } from "@/lib/stores/workspace-store";
+import { RoleGate, useHasRole } from "@/components/auth/role-gate";
 import {
   workspacesApi,
   type WorkspaceInvitationSummary,
@@ -43,10 +44,6 @@ import { useT } from "@/lib/i18n";
 import { roleLabelKey } from "@/lib/utils/workspace";
 
 const ROLE_OPTIONS: WorkspaceRole[] = ["admin", "editor", "viewer"];
-
-function isAdmin(role: WorkspaceRole | undefined): boolean {
-  return role === "owner" || role === "admin";
-}
 
 /** Parse Nest-style error envelope: err.response.data.{code,message} | .error.{code,message}. */
 function parseApiError(err: unknown): { code?: string; message?: string } {
@@ -75,8 +72,6 @@ export default function WorkspaceSettingsPage() {
   const queryClient = useQueryClient();
 
   const currentWorkspace = workspaces.find((w) => w.id === currentWorkspaceId);
-  const adminMode = isAdmin(currentWorkspace?.role);
-  const isOwner = currentWorkspace?.role === "owner";
   const isTeam = currentWorkspace?.type === "team";
 
   const refreshWorkspaces = async () => {
@@ -135,17 +130,13 @@ export default function WorkspaceSettingsPage() {
           <OverviewTab
             key={currentWorkspace.id}
             workspace={currentWorkspace}
-            canEdit={adminMode}
             onRenamed={refreshWorkspaces}
           />
         </TabsContent>
 
         {isTeam && (
           <TabsContent value="members">
-            <MembersTab
-              workspaceId={currentWorkspace.id}
-              adminMode={adminMode}
-            />
+            <MembersTab workspaceId={currentWorkspace.id} />
           </TabsContent>
         )}
 
@@ -154,7 +145,6 @@ export default function WorkspaceSettingsPage() {
             workspaceId={currentWorkspace.id}
             workspaceName={currentWorkspace.name}
             isTeam={isTeam}
-            isOwner={isOwner}
             onAfterMutation={async (opts) => {
               await refreshWorkspaces();
               if (opts.switchAway) {
@@ -178,13 +168,13 @@ interface OverviewTabProps {
     type: "personal" | "team";
     role: WorkspaceRole;
   };
-  canEdit: boolean;
   onRenamed: () => Promise<void>;
 }
 
-function OverviewTab({ workspace, canEdit, onRenamed }: OverviewTabProps) {
+function OverviewTab({ workspace, onRenamed }: OverviewTabProps) {
   const t = useT();
   const [name, setName] = useState(workspace.name);
+  const canEdit = useHasRole("admin");
 
   const renameMutation = useMutation({
     mutationFn: (value: string) =>
@@ -252,7 +242,7 @@ function OverviewTab({ workspace, canEdit, onRenamed }: OverviewTabProps) {
               </div>
             </div>
           </div>
-          {canEdit && (
+          <RoleGate minRole="admin">
             <div className="flex justify-end">
               <Button
                 type="submit"
@@ -268,7 +258,7 @@ function OverviewTab({ workspace, canEdit, onRenamed }: OverviewTabProps) {
                 {t("workspace.saveNameBtn")}
               </Button>
             </div>
-          )}
+          </RoleGate>
         </form>
       </CardContent>
     </Card>
@@ -277,12 +267,12 @@ function OverviewTab({ workspace, canEdit, onRenamed }: OverviewTabProps) {
 
 interface MembersTabProps {
   workspaceId: string;
-  adminMode: boolean;
 }
 
-function MembersTab({ workspaceId, adminMode }: MembersTabProps) {
+function MembersTab({ workspaceId }: MembersTabProps) {
   const t = useT();
   const queryClient = useQueryClient();
+  const adminMode = useHasRole("admin");
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteRole, setInviteRole] = useState<WorkspaceRole>("editor");
 
@@ -380,7 +370,7 @@ function MembersTab({ workspaceId, adminMode }: MembersTabProps) {
     <div className="space-y-4">
       <RoleLegend />
 
-      {adminMode && (
+      <RoleGate minRole="admin">
         <Card>
           <CardHeader>
             <CardTitle className="text-base font-semibold">
@@ -436,9 +426,9 @@ function MembersTab({ workspaceId, adminMode }: MembersTabProps) {
             </form>
           </CardContent>
         </Card>
-      )}
+      </RoleGate>
 
-      {adminMode && (
+      <RoleGate minRole="admin">
         <Card>
           <CardHeader>
             <CardTitle className="text-base font-semibold">
@@ -485,7 +475,7 @@ function MembersTab({ workspaceId, adminMode }: MembersTabProps) {
             )}
           </CardContent>
         </Card>
-      )}
+      </RoleGate>
 
       <Card>
         <CardHeader>
@@ -584,7 +574,6 @@ interface DangerZoneTabProps {
   workspaceId: string;
   workspaceName: string;
   isTeam: boolean;
-  isOwner: boolean;
   onAfterMutation: (opts: { switchAway: boolean }) => Promise<void>;
 }
 
@@ -592,10 +581,10 @@ function DangerZoneTab({
   workspaceId,
   workspaceName,
   isTeam,
-  isOwner,
   onAfterMutation,
 }: DangerZoneTabProps) {
   const t = useT();
+  const isOwner = useHasRole("owner");
   const [leaveDialogOpen, setLeaveDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [confirmInput, setConfirmInput] = useState("");
@@ -660,29 +649,31 @@ function DangerZoneTab({
         </Card>
       )}
 
-      {isTeam && isOwner && (
-        <Card className="border-[hsl(var(--destructive))]/40">
-          <CardContent className="flex flex-col gap-3 pt-6 sm:flex-row sm:items-center sm:justify-between">
-            <div className="flex items-start gap-3">
-              <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-[hsl(var(--destructive))]" />
-              <div>
-                <p className="font-semibold">
-                  {t("workspace.dangerDeleteTitle")}
-                </p>
-                <p className="text-sm text-[hsl(var(--muted-foreground))]">
-                  {t("workspace.dangerDeleteDesc")}
-                </p>
+      {isTeam && (
+        <RoleGate minRole="owner">
+          <Card className="border-[hsl(var(--destructive))]/40">
+            <CardContent className="flex flex-col gap-3 pt-6 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex items-start gap-3">
+                <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-[hsl(var(--destructive))]" />
+                <div>
+                  <p className="font-semibold">
+                    {t("workspace.dangerDeleteTitle")}
+                  </p>
+                  <p className="text-sm text-[hsl(var(--muted-foreground))]">
+                    {t("workspace.dangerDeleteDesc")}
+                  </p>
+                </div>
               </div>
-            </div>
-            <Button
-              variant="outline"
-              onClick={() => setDeleteDialogOpen(true)}
-              className="shrink-0 border-[hsl(var(--destructive))]/40 text-[hsl(var(--destructive))] hover:bg-[hsl(var(--destructive))]/10"
-            >
-              {t("workspace.dangerDeleteBtn")}
-            </Button>
-          </CardContent>
-        </Card>
+              <Button
+                variant="outline"
+                onClick={() => setDeleteDialogOpen(true)}
+                className="shrink-0 border-[hsl(var(--destructive))]/40 text-[hsl(var(--destructive))] hover:bg-[hsl(var(--destructive))]/10"
+              >
+                {t("workspace.dangerDeleteBtn")}
+              </Button>
+            </CardContent>
+          </Card>
+        </RoleGate>
       )}
 
       {!isTeam && (
