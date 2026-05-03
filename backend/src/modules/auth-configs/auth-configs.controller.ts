@@ -10,7 +10,9 @@ import {
   HttpCode,
   HttpStatus,
   ParseUUIDPipe,
+  UseGuards,
 } from '@nestjs/common';
+import { Roles, RolesGuard } from '../../common/guards/roles.guard';
 import {
   ApiTags,
   ApiBearerAuth,
@@ -19,6 +21,7 @@ import {
   ApiNoContentResponse,
   ApiBadRequestResponse,
   ApiUnauthorizedResponse,
+  ApiForbiddenResponse,
   ApiNotFoundResponse,
 } from '@nestjs/swagger';
 import {
@@ -39,6 +42,7 @@ import {
 @ApiTags('Auth Configs')
 @ApiBearerAuth('access-token')
 @Controller('auth-configs')
+@UseGuards(RolesGuard)
 export class AuthConfigsController {
   constructor(private readonly authConfigsService: AuthConfigsService) {}
 
@@ -76,6 +80,7 @@ export class AuthConfigsController {
   }
 
   @Post()
+  @Roles('editor')
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({
     summary: '인증 설정 생성',
@@ -85,6 +90,7 @@ export class AuthConfigsController {
   @ApiCreatedWrappedResponse(AuthConfigDto, { description: '생성된 인증 설정' })
   @ApiBadRequestResponse({ description: '입력값 검증 실패' })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
+  @ApiForbiddenResponse({ description: 'Editor 미만 권한' })
   async create(
     @WorkspaceId() workspaceId: string,
     @Body() body: CreateAuthConfigDto,
@@ -93,6 +99,7 @@ export class AuthConfigsController {
   }
 
   @Patch(':id')
+  @Roles('editor')
   @ApiOperation({
     summary: '인증 설정 수정',
     description:
@@ -102,6 +109,7 @@ export class AuthConfigsController {
   @ApiOkWrappedResponse(AuthConfigDto, { description: '수정된 인증 설정' })
   @ApiBadRequestResponse({ description: '입력값 검증 실패' })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
+  @ApiForbiddenResponse({ description: 'Editor 미만 권한' })
   @ApiNotFoundResponse({ description: '해당 인증 설정을 찾을 수 없음' })
   async update(
     @Param('id', ParseUUIDPipe) id: string,
@@ -129,6 +137,7 @@ export class AuthConfigsController {
   }
 
   @Post(':id/regenerate')
+  @Roles('editor')
   @ApiOperation({
     summary: '인증 키/토큰 재발급',
     description:
@@ -139,6 +148,7 @@ export class AuthConfigsController {
     description: '재발급 후 인증 설정 (새 키/토큰 포함)',
   })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
+  @ApiForbiddenResponse({ description: 'Editor 미만 권한' })
   @ApiNotFoundResponse({ description: '해당 인증 설정을 찾을 수 없음' })
   async regenerate(
     @Param('id', ParseUUIDPipe) id: string,
@@ -148,6 +158,7 @@ export class AuthConfigsController {
   }
 
   @Delete(':id')
+  @Roles('editor')
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({
     summary: '인증 설정 삭제',
@@ -157,6 +168,7 @@ export class AuthConfigsController {
   @ApiParam({ name: 'id', description: '인증 설정 UUID', format: 'uuid' })
   @ApiNoContentResponse({ description: '삭제 성공' })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
+  @ApiForbiddenResponse({ description: 'Editor 미만 권한' })
   @ApiNotFoundResponse({ description: '해당 인증 설정을 찾을 수 없음' })
   async remove(
     @Param('id', ParseUUIDPipe) id: string,

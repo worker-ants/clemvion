@@ -9,7 +9,9 @@ import {
   HttpCode,
   HttpStatus,
   ParseUUIDPipe,
+  UseGuards,
 } from '@nestjs/common';
+import { Roles, RolesGuard } from '../../common/guards/roles.guard';
 import {
   ApiTags,
   ApiBearerAuth,
@@ -18,6 +20,7 @@ import {
   ApiNoContentResponse,
   ApiBadRequestResponse,
   ApiUnauthorizedResponse,
+  ApiForbiddenResponse,
   ApiNotFoundResponse,
   ApiConflictResponse,
 } from '@nestjs/swagger';
@@ -36,6 +39,7 @@ import { Folder } from './entities/folder.entity';
 @ApiTags('Folders')
 @ApiBearerAuth('access-token')
 @Controller('folders')
+@UseGuards(RolesGuard)
 export class FoldersController {
   constructor(private readonly foldersService: FoldersService) {}
 
@@ -68,6 +72,7 @@ export class FoldersController {
   }
 
   @Post()
+  @Roles('editor')
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({
     summary: '폴더 생성',
@@ -79,6 +84,7 @@ export class FoldersController {
     description: '입력값 검증 실패 또는 중첩 깊이 초과',
   })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
+  @ApiForbiddenResponse({ description: 'Editor 미만 권한' })
   @ApiConflictResponse({ description: '동일 부모 아래 이름 중복' })
   async create(
     @WorkspaceId() workspaceId: string,
@@ -88,6 +94,7 @@ export class FoldersController {
   }
 
   @Patch(':id')
+  @Roles('editor')
   @ApiOperation({
     summary: '폴더 수정',
     description: '폴더의 이름·부모·정렬 순서를 부분 수정합니다.',
@@ -96,6 +103,7 @@ export class FoldersController {
   @ApiOkWrappedResponse(FolderDto, { description: '수정된 폴더' })
   @ApiBadRequestResponse({ description: '입력값 검증 실패' })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
+  @ApiForbiddenResponse({ description: 'Editor 미만 권한' })
   @ApiNotFoundResponse({ description: '해당 폴더를 찾을 수 없음' })
   @ApiConflictResponse({ description: '동일 부모 아래 이름 중복' })
   async update(
@@ -107,6 +115,7 @@ export class FoldersController {
   }
 
   @Delete(':id')
+  @Roles('editor')
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({
     summary: '폴더 삭제',
@@ -116,6 +125,7 @@ export class FoldersController {
   @ApiParam({ name: 'id', description: '폴더 UUID', format: 'uuid' })
   @ApiNoContentResponse({ description: '삭제 완료' })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
+  @ApiForbiddenResponse({ description: 'Editor 미만 권한' })
   @ApiNotFoundResponse({ description: '해당 폴더를 찾을 수 없음' })
   async remove(
     @Param('id', ParseUUIDPipe) id: string,

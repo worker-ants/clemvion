@@ -15,6 +15,7 @@ import { Pagination } from "@/components/ui/pagination";
 import { normalizePagedResponse } from "@/lib/api/paginated";
 import { usePageParam } from "@/lib/hooks/use-page-param";
 import { useT, type TranslationKey } from "@/lib/i18n";
+import { RoleGate } from "@/components/auth/role-gate";
 
 const PAGE_SIZE = 20;
 
@@ -212,10 +213,12 @@ export default function TriggersPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-3xl font-bold">{t("triggers.title")}</h1>
-        <Button onClick={() => setShowDialog(true)}>
-          <Plus className="mr-2 h-4 w-4" />
-          {t("triggers.addWebhook")}
-        </Button>
+        <RoleGate minRole="editor">
+          <Button onClick={() => setShowDialog(true)}>
+            <Plus className="mr-2 h-4 w-4" />
+            {t("triggers.addWebhook")}
+          </Button>
+        </RoleGate>
       </div>
 
       {/* Create Webhook Dialog */}
@@ -455,20 +458,22 @@ export default function TriggersPage() {
                       : "-"}
                   </td>
                   <td className="px-4 py-3">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      disabled={toggleMutation.isPending}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        toggleMutation.mutate({
-                          id: trigger.id,
-                          isActive: !trigger.isActive,
-                        });
-                      }}
-                    >
-                      {trigger.isActive ? t("triggers.toggleDeactivate") : t("triggers.toggleActivate")}
-                    </Button>
+                    <RoleGate minRole="editor">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        disabled={toggleMutation.isPending}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          toggleMutation.mutate({
+                            id: trigger.id,
+                            isActive: !trigger.isActive,
+                          });
+                        }}
+                      >
+                        {trigger.isActive ? t("triggers.toggleDeactivate") : t("triggers.toggleActivate")}
+                      </Button>
+                    </RoleGate>
                   </td>
                 </tr>
               ))}

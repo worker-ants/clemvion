@@ -27,6 +27,7 @@ import { Pagination } from "@/components/ui/pagination";
 import { normalizePagedResponse } from "@/lib/api/paginated";
 import { usePageParam } from "@/lib/hooks/use-page-param";
 import { useT, type TFunction, type TranslationKey } from "@/lib/i18n";
+import { RoleGate } from "@/components/auth/role-gate";
 
 const PAGE_SIZE = 20;
 
@@ -759,10 +760,12 @@ export default function SchedulesPage() {
               {t("schedules.calendarView")}
             </Button>
           </div>
-          <Button onClick={() => setShowDialog(true)}>
-            <Plus className="mr-2 h-4 w-4" />
-            {t("schedules.addSchedule")}
-          </Button>
+          <RoleGate minRole="editor">
+            <Button onClick={() => setShowDialog(true)}>
+              <Plus className="mr-2 h-4 w-4" />
+              {t("schedules.addSchedule")}
+            </Button>
+          </RoleGate>
         </div>
       </div>
 
@@ -1023,36 +1026,38 @@ export default function SchedulesPage() {
                           <Play className="mr-1 h-3 w-3" />
                           {t("schedules.runNow")}
                         </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          disabled={toggleMutation.isPending}
-                          onClick={() =>
-                            toggleMutation.mutate({
-                              id: schedule.id,
-                              isActive: !schedule.isActive,
-                            })
-                          }
-                        >
-                          {schedule.isActive ? t("schedules.toggleDeactivate") : t("schedules.toggleActivate")}
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-8 w-8"
-                          onClick={() => openEdit(schedule)}
-                          title={t("schedules.editTooltip")}
-                        >
-                          <Pencil className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-8 w-8 text-[hsl(var(--destructive))]"
-                          onClick={() => setDeleteTarget(schedule.id)}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
+                        <RoleGate minRole="editor">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            disabled={toggleMutation.isPending}
+                            onClick={() =>
+                              toggleMutation.mutate({
+                                id: schedule.id,
+                                isActive: !schedule.isActive,
+                              })
+                            }
+                          >
+                            {schedule.isActive ? t("schedules.toggleDeactivate") : t("schedules.toggleActivate")}
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8"
+                            onClick={() => openEdit(schedule)}
+                            title={t("schedules.editTooltip")}
+                          >
+                            <Pencil className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 text-[hsl(var(--destructive))]"
+                            onClick={() => setDeleteTarget(schedule.id)}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </RoleGate>
                       </div>
                     </td>
                   </tr>
