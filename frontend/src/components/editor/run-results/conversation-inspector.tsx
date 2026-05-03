@@ -6,8 +6,47 @@ import { Loader2, Send, Square, Wrench, ChevronRight, ChevronDown } from "lucide
 import { cn } from "@/lib/utils/cn";
 import type { ConversationItem, ToolCallInfo } from "@/lib/stores/execution-store";
 import type { NodeResult } from "@/lib/stores/execution-store";
+import type { RagSource } from "./output-shape";
 import { resolveResultField } from "./resolve-result-field";
 import { MarkdownRenderer } from "@/components/editor/assistant-panel/markdown-renderer";
+
+/**
+ * 한 assistant 응답에서 사용된 KB 청크 요약 chip — 클릭 시 References 탭의
+ * 해당 turn 그룹으로 점프. 문서명 최대 2개까지 inline, 나머지는 +N 으로 축약.
+ * sources 가 비면 미렌더 (chrome 노이즈 방지).
+ */
+function ReferencesChip({
+  sources,
+  onClick,
+  compact,
+}: {
+  sources: RagSource[];
+  onClick: () => void;
+  compact?: boolean;
+}) {
+  if (sources.length === 0) return null;
+  const docNames = Array.from(new Set(sources.map((s) => s.documentName)));
+  const shown = docNames.slice(0, 2);
+  const extra = docNames.length - shown.length;
+  return (
+    <button
+      type="button"
+      onClick={(e) => {
+        e.stopPropagation();
+        onClick();
+      }}
+      title="View in References tab"
+      className={cn(
+        "inline-flex items-center gap-1 rounded bg-[hsl(var(--accent))] text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--accent))]/80 transition-colors",
+        compact ? "px-1 py-0 text-[10px]" : "px-1.5 py-0.5 text-[10px] font-medium",
+      )}
+    >
+      <span>📚</span>
+      <span className="font-mono">{shown.join(" · ")}</span>
+      {extra > 0 && <span>+{extra}</span>}
+    </button>
+  );
+}
 
 function ToolCallBadge({ toolCalls }: { toolCalls: ToolCallInfo[] }) {
   const [open, setOpen] = useState(false);
@@ -69,6 +108,16 @@ interface ConversationInspectorProps {
    * node-level view.
    */
   onBackToConversation?: () => void;
+  /**
+   * turnIndex → 그 턴에서 호출된 KB 청크. assistant 메시지마다 자기 turnIndex
+   * 로 lookup 해 ReferencesChip 을 렌더한다. 비어있으면 chip 미노출.
+   */
+  turnRefIndex?: Map<number, RagSource[]>;
+  /**
+   * chip 클릭 시 부모(`ResultDetail`)에 References 탭 점프 + 해당 turn 강조를
+   * 요청하는 콜백.
+   */
+  onJumpToReferences?: (turnIndex: number) => void;
 }
 
 export function ConversationInspector({
@@ -82,6 +131,8 @@ export function ConversationInspector({
   onEndConversation,
   onSelectMessage,
   onBackToConversation,
+  turnRefIndex,
+  onJumpToReferences,
 }: ConversationInspectorProps) {
   const selectedItem =
     selectedItemIndex != null
@@ -105,6 +156,8 @@ export function ConversationInspector({
             <SelectedItemDetail
               key={`${selectedItem.type}-${selectedItem.turnIndex}`}
               item={selectedItem}
+              turnRefIndex={turnRefIndex}
+              onJumpToReferences={onJumpToReferences}
             />
           </div>
         ) : (
@@ -115,6 +168,8 @@ export function ConversationInspector({
               isLive={isLive}
               conversationMessages={conversationMessages}
               onSelectItem={onSelectMessage}
+              turnRefIndex={turnRefIndex}
+              onJumpToReferences={onJumpToReferences}
             />
           </div>
         )}
@@ -146,7 +201,15 @@ function isRagContextContent(content: unknown): content is string {
   return typeof content === "string" && content.includes(RAG_CONTEXT_MARKER);
 }
 
-function SelectedItemDetail({ item }: { item: ConversationItem }) {
+function SelectedItemDetail({
+  item,
+  turnRefIndex,
+  onJumpToReferences,
+}: {
+  item: ConversationItem;
+  turnRefIndex?: Map<number, RagSource[]>;
+  onJumpToReferences?: (turnIndex: number) => void;
+}) {
   // "rag" 타입은 store 의 ConversationItem 타입에는 없지만 SummaryView 가 system role
   // 메시지를 담아 합성한다. 런타임 분기로 처리.
   if ((item.type as string) === "rag") {
@@ -160,6 +223,7 @@ function SelectedItemDetail({ item }: { item: ConversationItem }) {
   }
 
   const hasToolCalls = !!item.assistantToolCalls?.length;
+  const turnSources = turnRefIndex?.get(item.turnIndex) ?? [];
   return (
     <div className="flex flex-col gap-3 p-3">
       <div className="flex items-center gap-2">
@@ -177,6 +241,12 @@ function SelectedItemDetail({ item }: { item: ConversationItem }) {
       )}
       {hasToolCalls && (
         <ToolCallBadge toolCalls={item.assistantToolCalls!} />
+      )}
+      {turnSources.length > 0 && onJumpToReferences && (
+        <ReferencesChip
+          sources={turnSources}
+          onClick={() => onJumpToReferences(item.turnIndex)}
+        />
       )}
       <p className="text-[10px] italic text-[hsl(var(--muted-foreground))]">
         원문 요청 / 응답 / 사용량은 상단의 &ldquo;Request&rdquo; /
@@ -273,12 +343,16 @@ function SummaryView({
   isLive,
   conversationMessages,
   onSelectItem,
+  turnRefIndex,
+  onJumpToReferences,
 }: {
   result: NodeResult;
   conversationConfig: unknown;
   isLive: boolean;
   conversationMessages: ConversationItem[];
   onSelectItem?: (index: number) => void;
+  turnRefIndex?: Map<number, RagSource[]>;
+  onJumpToReferences?: (turnIndex: number) => void;
 }) {
   const config = conversationConfig as Record<string, unknown> | null;
   const rawOutput = result.outputData as Record<string, unknown> | null;
@@ -411,6 +485,17 @@ function SummaryView({
                     (empty)
                   </span>
                 )}
+                {isAssistant &&
+                  onJumpToReferences &&
+                  (turnRefIndex?.get(item.turnIndex)?.length ?? 0) > 0 && (
+                    <div className="mt-1.5">
+                      <ReferencesChip
+                        sources={turnRefIndex!.get(item.turnIndex)!}
+                        onClick={() => onJumpToReferences(item.turnIndex)}
+                        compact
+                      />
+                    </div>
+                  )}
               </div>
             );
           })}

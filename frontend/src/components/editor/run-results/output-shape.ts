@@ -263,6 +263,19 @@ export interface AiMetadata {
   ragSources: RagSource[];
   /** RAG 시도 진단 (시도 여부 / 사용된 query / 매칭 수 / skip 사유) */
   ragDiagnostics: RagDiagnostics | null;
+  /**
+   * Per-turn delta — 백엔드 `meta.turnDebug[]` 의 ragSources / ragDiagnostics
+   * 를 정규화한 결과. References 탭이 메시지(턴)별로 KB 사용처를 그룹핑한다.
+   * 단일턴은 길이 1, 멀티턴은 진행 턴 수만큼. legacy payload 면 빈 배열.
+   */
+  turnDebug: TurnDebugEntry[];
+}
+
+/** 한 턴 동안 호출된 KB tool 의 chunk delta + 진단. */
+export interface TurnDebugEntry {
+  turnIndex: number;
+  ragSources: RagSource[];
+  ragDiagnostics: RagDiagnostics | null;
 }
 
 export interface RagSource {
@@ -354,7 +367,30 @@ export function extractAiMetadata(raw: unknown): AiMetadata | null {
     toolCalls: pickNumber(meta, "toolCalls"),
     ragSources: extractRagSources(meta.ragSources),
     ragDiagnostics: extractRagDiagnostics(meta.ragDiagnostics),
+    turnDebug: extractTurnDebug(meta.turnDebug),
   };
+}
+
+/**
+ * Normalize `meta.turnDebug[]` into per-turn RAG entries — drops llmCalls /
+ * totalDurationMs (handled elsewhere) and tolerates legacy payloads where
+ * ragSources / ragDiagnostics are absent (returns [] / null fallback).
+ */
+export function extractTurnDebug(raw: unknown): TurnDebugEntry[] {
+  if (!Array.isArray(raw)) return [];
+  const out: TurnDebugEntry[] = [];
+  for (const entry of raw) {
+    const r = toRecord(entry);
+    if (!r) continue;
+    const turnIndex = typeof r.turnIndex === "number" ? r.turnIndex : null;
+    if (turnIndex == null) continue;
+    out.push({
+      turnIndex,
+      ragSources: extractRagSources(r.ragSources),
+      ragDiagnostics: extractRagDiagnostics(r.ragDiagnostics),
+    });
+  }
+  return out;
 }
 
 function extractRagSources(raw: unknown): RagSource[] {

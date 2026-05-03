@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   CheckCircle,
   XCircle,
@@ -102,6 +102,7 @@ type DetailTab =
   | "response"
   | "request"
   | "config"
+  | "references"
   | "error";
 
 const AI_NODE_TYPES = new Set([
@@ -133,6 +134,13 @@ interface NodeDetailTabsProps {
    * waiting sessions (where outputData lacks `_turnDebugHistory`).
    */
   conversationMessages?: ConversationItem[];
+  /** Lifted active tab — Preview chip 의 References 점프와 동기화하기 위해 controlled. */
+  activeTab: DetailTab;
+  onActiveTabChange: (tab: DetailTab) => void;
+  /** chip 점프 시 References 탭 안에서 자동 스크롤 + 강조할 turn. */
+  highlightTurnIndex: number | null;
+  /** 미리 계산된 AI 메타데이터 — Preview chip 과 References 탭이 동일 객체 공유. */
+  aiMetadata: AiMetadata | null;
 }
 
 function NodeDetailTabs({
@@ -141,6 +149,10 @@ function NodeDetailTabs({
   hasPreview,
   selectedMessage,
   conversationMessages,
+  activeTab,
+  onActiveTabChange,
+  highlightTurnIndex,
+  aiMetadata,
 }: NodeDetailTabsProps) {
   const isPresentation = result.nodeCategory === "presentation";
   const showPreview = hasPreview ?? (isPresentation && !!result.outputData);
@@ -159,10 +171,20 @@ function NodeDetailTabs({
   //     assistant message is selected (user / tool messages have no LLM call).
   //   - LLM Usage: node-level aggregate for AI nodes, plus per-call usage
   //     when an assistant message is selected.
+  //   - References: AI 노드에서 KB 가 시도된 경우만 (단일/멀티 모두). 메시지
+  //     선택 상태와 무관하게 항상 노출되어 chip 점프 후에도 사라지지 않는다.
   //   - Error: only when result.error is set — node-level only.
   const hasMeta = !messageLevel && !!unwrapped.meta && Object.keys(unwrapped.meta).length > 0;
   const hasPort = !messageLevel && unwrapped.port != null;
   const hasStatus = !messageLevel && unwrapped.status != null;
+  const hasReferences =
+    aiNode &&
+    !!aiMetadata &&
+    (aiMetadata.ragSources.length > 0 ||
+      !!aiMetadata.ragDiagnostics?.attempted ||
+      aiMetadata.turnDebug.some(
+        (t) => t.ragSources.length > 0 || !!t.ragDiagnostics?.attempted,
+      ));
 
   const detailTabs: { id: DetailTab; label: string; show: boolean }[] = [
     { id: "preview", label: "Preview", show: showPreview },
@@ -175,6 +197,7 @@ function NodeDetailTabs({
       label: "LLM Usage",
       show: aiNode && (!messageLevel || isAssistantSelected),
     },
+    { id: "references", label: "References", show: hasReferences },
     { id: "config", label: "Config", show: !messageLevel },
     { id: "meta", label: "Meta", show: hasMeta },
     { id: "port", label: "Port", show: hasPort },
@@ -185,20 +208,18 @@ function NodeDetailTabs({
     detailTabs.filter((t) => t.show).map((t) => t.id),
   );
 
-  const defaultTab: DetailTab = result.error
-    ? "error"
-    : showPreview
-      ? "preview"
-      : "output";
-
-  const [activeTab, setActiveTab] = useState<DetailTab>(defaultTab);
   // If the active tab disappears (e.g. user clicks a message and Output
-  // hides), fall back to Preview so the pane isn't blank.
-  const effectiveActiveTab = visibleIds.has(activeTab)
+  // hides), fall back through: hasPreview → "preview", else "output" if
+  // visible (default for non-presentation nodes that lack a preview), else
+  // the first visible tab. Keeps the lifted activeTab="preview" default
+  // working for both presentation and data-only nodes.
+  const effectiveActiveTab: DetailTab = visibleIds.has(activeTab)
     ? activeTab
     : showPreview
       ? "preview"
-      : (detailTabs.find((t) => t.show)?.id ?? activeTab);
+      : visibleIds.has("output")
+        ? "output"
+        : (detailTabs.find((t) => t.show)?.id ?? activeTab);
 
   // Lifted call-selector state — keeps the chosen call in sync across
   // Response ↔ Request ↔ LLM Usage tab switches (each mounts/unmounts
@@ -233,7 +254,7 @@ function NodeDetailTabs({
                   ? "border-b-2 border-[hsl(var(--primary))] text-[hsl(var(--foreground))]"
                   : "text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]",
               )}
-              onClick={() => setActiveTab(t.id)}
+              onClick={() => onActiveTabChange(t.id)}
             >
               {t.label}
             </button>
@@ -252,7 +273,7 @@ function NodeDetailTabs({
         {effectiveActiveTab === "output" && (
           <OutputTabContent
             unwrapped={unwrapped}
-            aiMetadata={extractAiMetadata(result.outputData)}
+            aiMetadata={aiMetadata}
             ieSnapshot={extractIeSnapshot(result.outputData)}
           />
         )}
@@ -301,13 +322,19 @@ function NodeDetailTabs({
             />
           )
         )}
+        {effectiveActiveTab === "references" && aiMetadata && (
+          <ReferencesTabContent
+            meta={aiMetadata}
+            highlightTurnIndex={highlightTurnIndex}
+          />
+        )}
         {effectiveActiveTab === "config" && (
           <ConfigTabContent unwrapped={unwrapped} />
         )}
         {effectiveActiveTab === "meta" && (
           <MetaTabContent
             meta={unwrapped.meta}
-            aiMetadata={extractAiMetadata(result.outputData)}
+            aiMetadata={aiMetadata}
           />
         )}
         {effectiveActiveTab === "port" && (
@@ -351,12 +378,6 @@ function OutputTabContent({
   return (
     <div className="space-y-3">
       {aiMetadata && <AiMetadataGrid meta={aiMetadata} />}
-      {aiMetadata && (
-        <RagReferencesSection
-          sources={aiMetadata.ragSources}
-          diagnostics={aiMetadata.ragDiagnostics}
-        />
-      )}
       {ieSnapshot && (
         <ExtractedFieldsCard
           fields={ieSnapshot.fields}
@@ -398,12 +419,6 @@ function MetaTabContent({
   return (
     <div className="space-y-3">
       {aiMetadata && <AiMetadataGrid meta={aiMetadata} />}
-      {aiMetadata && (
-        <RagReferencesSection
-          sources={aiMetadata.ragSources}
-          diagnostics={aiMetadata.ragDiagnostics}
-        />
-      )}
       <JsonContent data={meta} />
     </div>
   );
@@ -573,6 +588,121 @@ function ragSkipReasonLabel(
 }
 
 /**
+ * References 탭 — AI Agent / Information Extractor 응답 생성에 사용된 KB 청크를
+ * "노드 전체 누적 요약 + turn 단위 그룹" 으로 보여준다. Preview 탭 chip 에서
+ * 점프해 오는 진입점이며, `highlightTurnIndex` 가 주어지면 그 turn 그룹을
+ * 자동 스크롤 + 강조 outline 으로 사용자 시선을 안내한다.
+ */
+function ReferencesTabContent({
+  meta,
+  highlightTurnIndex,
+}: {
+  meta: AiMetadata;
+  highlightTurnIndex: number | null;
+}) {
+  const turnEntries = meta.turnDebug.filter(
+    (t) => t.ragSources.length > 0 || !!t.ragDiagnostics?.attempted,
+  );
+  const refMap = useRef(new Map<number, HTMLLIElement | null>());
+
+  useEffect(() => {
+    if (highlightTurnIndex == null) return;
+    const el = refMap.current.get(highlightTurnIndex);
+    if (el) {
+      el.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    }
+  }, [highlightTurnIndex]);
+
+  // turnDebug 가 비어있는 (legacy / 단일턴) 경우엔 노드 전체 누적만 단일 카드로.
+  if (turnEntries.length === 0) {
+    return (
+      <div className="space-y-3">
+        <RagReferencesSection
+          sources={meta.ragSources}
+          diagnostics={meta.ragDiagnostics}
+        />
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-3">
+      <NodeAggregateRagSummary
+        sources={meta.ragSources}
+        diagnostics={meta.ragDiagnostics}
+        turnCount={turnEntries.length}
+      />
+      <ul className="space-y-2">
+        {turnEntries.map((entry) => (
+          <li
+            key={entry.turnIndex}
+            ref={(el) => {
+              refMap.current.set(entry.turnIndex, el);
+            }}
+            className={cn(
+              "rounded border border-[hsl(var(--border))] p-2 transition-shadow",
+              highlightTurnIndex === entry.turnIndex &&
+                "border-[hsl(var(--primary))] shadow-[0_0_0_1px_hsl(var(--primary))]",
+            )}
+          >
+            <div className="mb-2 flex items-center justify-between text-xs">
+              <span className="font-medium">Turn {entry.turnIndex}</span>
+              <span className="text-[hsl(var(--muted-foreground))]">
+                {entry.ragSources.length} chunk(s)
+                {entry.ragDiagnostics
+                  ? ` · ${entry.ragDiagnostics.searchedKbCount} KB`
+                  : ""}
+              </span>
+            </div>
+            <RagReferencesSection
+              sources={entry.ragSources}
+              diagnostics={entry.ragDiagnostics}
+            />
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+/** 노드 전체 누적 RAG 요약 — References 탭의 상단 헤더 카드. */
+function NodeAggregateRagSummary({
+  sources,
+  diagnostics,
+  turnCount,
+}: {
+  sources: RagSource[];
+  diagnostics: RagDiagnostics | null;
+  turnCount: number;
+}) {
+  const totalChunks = sources.length;
+  return (
+    <div className="rounded border border-[hsl(var(--border))] bg-[hsl(var(--muted)/0.3)] p-2 text-xs">
+      <div className="flex items-center justify-between">
+        <span className="font-medium">Node total</span>
+        <span className="text-[hsl(var(--muted-foreground))]">
+          {totalChunks} chunk(s) across {turnCount} turn(s)
+          {diagnostics ? ` · ${diagnostics.searchedKbCount} KB` : ""}
+        </span>
+      </div>
+      {diagnostics && diagnostics.queriesUsed.length > 0 && (
+        <div className="mt-1 text-[10px] text-[hsl(var(--muted-foreground))]">
+          Queries:{" "}
+          {diagnostics.queriesUsed.map((q, i) => (
+            <span
+              key={`${q}-${i}`}
+              className="ml-1 inline-block rounded bg-[hsl(var(--background))] px-1 py-0.5 font-mono"
+            >
+              {q}
+            </span>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/**
  * Config tab — shows the resolved settings the node actually executed with.
  * Uses the handler-echoed `config` when the new shape is in effect; otherwise
  * reports that no config was captured (the node is still on the legacy shape).
@@ -688,6 +818,28 @@ export function ResultDetail({
     onConversationEnd();
   }, [executionId, result, commands, onConversationEnd]);
 
+  // Lifted active tab + highlight — Preview chip 의 References 탭 점프와
+  // 동기화하기 위해 ResultDetail 이 단일 source-of-truth 역할.
+  const [activeTab, setActiveTab] = useState<DetailTab>("preview");
+  const [activeTabNodeId, setActiveTabNodeId] = useState<string | null>(null);
+  const [highlightTurnIndex, setHighlightTurnIndex] = useState<number | null>(
+    null,
+  );
+  // 노드가 바뀌면 탭/하이라이트 초기화 (선택 노드별 독립).
+  if (result && activeTabNodeId !== result.nodeId) {
+    setActiveTabNodeId(result.nodeId);
+    setActiveTab(result.error ? "error" : "preview");
+    setHighlightTurnIndex(null);
+  }
+  const handleActiveTabChange = useCallback((tab: DetailTab) => {
+    setActiveTab(tab);
+    if (tab !== "references") setHighlightTurnIndex(null);
+  }, []);
+  const handleJumpToReferences = useCallback((turnIndex: number) => {
+    setActiveTab("references");
+    setHighlightTurnIndex(turnIndex);
+  }, []);
+
   if (!result) {
     return (
       <div className="flex h-full items-center justify-center text-sm text-[hsl(var(--muted-foreground))]">
@@ -699,6 +851,13 @@ export function ResultDetail({
   const definition = getNodeDefinition(result.nodeType);
   const categoryColor = getCategoryColor(result.nodeCategory);
   const isPresentation = result.nodeCategory === "presentation";
+
+  const aiMetadata = extractAiMetadata(result.outputData);
+  // turnIndex → 그 턴에서 사용된 KB 청크. ConversationInspector 의 chip 이
+  // assistant 메시지마다 자기 turnIndex 로 lookup 한다.
+  const turnRefIndex = new Map<number, RagSource[]>(
+    aiMetadata?.turnDebug.map((t) => [t.turnIndex, t.ragSources]) ?? [],
+  );
 
   const isCompletedConversation =
     result.status === "completed" && isConversationOutput(result.outputData);
@@ -734,6 +893,8 @@ export function ResultDetail({
       onEndConversation={handleEndConversation}
       onSelectMessage={handleSelectMessage}
       onBackToConversation={handleBackToConversation}
+      turnRefIndex={turnRefIndex}
+      onJumpToReferences={handleJumpToReferences}
     />
   ) : isCompletedConversation ? (
     <ConversationInspector
@@ -747,6 +908,8 @@ export function ResultDetail({
       onEndConversation={() => {}}
       onSelectMessage={handleSelectMessage}
       onBackToConversation={handleBackToConversation}
+      turnRefIndex={turnRefIndex}
+      onJumpToReferences={handleJumpToReferences}
     />
   ) : null;
 
@@ -828,6 +991,10 @@ export function ResultDetail({
             previewContent={previewContent}
             selectedMessage={selectedMessage}
             conversationMessages={effectiveConversationMessages}
+            activeTab={activeTab}
+            onActiveTabChange={handleActiveTabChange}
+            highlightTurnIndex={highlightTurnIndex}
+            aiMetadata={aiMetadata}
           />
         ) : (
           <div className="h-full overflow-y-auto p-3">
