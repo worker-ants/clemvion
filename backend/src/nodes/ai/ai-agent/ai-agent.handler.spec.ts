@@ -140,7 +140,7 @@ describe('AiAgentHandler', () => {
       );
 
       expect(mockRagService.search).not.toHaveBeenCalled();
-      const meta = (await readSingleTurnMeta(handler))(
+      const meta = readSingleTurnMeta(handler)(
         await handler.execute(
           {},
           {
@@ -367,7 +367,7 @@ describe('AiAgentHandler', () => {
       expect(mockRagService.search).toHaveBeenCalledTimes(2);
       const meta = (result.meta ?? {}) as Record<string, unknown>;
       const diag = meta.ragDiagnostics as Record<string, unknown>;
-      expect((diag.queriesUsed as string[])).toEqual(['first', 'refined']);
+      expect(diag.queriesUsed as string[]).toEqual(['first', 'refined']);
     });
 
     it('stops the tool loop once maxToolCalls is reached', async () => {
@@ -563,7 +563,9 @@ describe('AiAgentHandler', () => {
       expect(convConfig.turnCount).toBe(0);
       // 시스템 메시지만 있고 user 메시지는 push 되지 않는다.
       expect(convConfig.messages).toHaveLength(1);
-      const onlyMsg = (convConfig.messages as Array<Record<string, unknown>>)[0];
+      const onlyMsg = (
+        convConfig.messages as Array<Record<string, unknown>>
+      )[0];
       expect(onlyMsg.role).toBe('system');
     });
 
@@ -881,6 +883,127 @@ describe('AiAgentHandler', () => {
         ._resumeState as Record<string, unknown>;
       // Carries the previous ragSources entry plus the new one.
       expect((newState.ragSources as unknown[]).length).toBe(2);
+
+      // turnDebugHistory 의 최신 항목에는 이번 턴에 호출된 KB delta 만 담긴다
+      // (직전 턴의 c-prev 는 포함되지 않아 노드 누적과 분리 노출됨).
+      const history = newState.turnDebugHistory as Array<
+        Record<string, unknown>
+      >;
+      const lastTurn = history[history.length - 1];
+      expect(lastTurn.turnIndex).toBe(2);
+      const turnSources = lastTurn.ragSources as Array<Record<string, unknown>>;
+      expect(turnSources).toHaveLength(1);
+      expect(turnSources[0].chunkId).toBe('c2');
+      const turnDiag = lastTurn.ragDiagnostics as Record<string, unknown>;
+      expect(turnDiag.attempted).toBe(true);
+      expect(turnDiag.searchedKbCount).toBe(1);
+      expect(turnDiag.queriesUsed).toEqual(['X']);
+    });
+
+    it('emits turnDebug with empty ragSources when LLM does not call KB', async () => {
+      // small-talk 턴은 KB tool 을 호출하지 않으므로 turnDebug.ragSources = []
+      // 가 되어야 한다 (전체 누적과 무관하게 turn delta 만 분리 노출).
+      const state = {
+        llmConfigId: 'config-1',
+        model: 'gpt-4o',
+        knowledgeBases: ['kb-1'],
+        ragTopK: 5,
+        ragThreshold: 0.7,
+        maxToolCalls: 10,
+        maxTurns: 20,
+        messages: [
+          { role: 'system', content: 'You are helpful' },
+          { role: 'user', content: 'Hello' },
+          { role: 'assistant', content: 'Hi!' },
+        ],
+        turnCount: 1,
+        totalInputTokens: 100,
+        totalOutputTokens: 50,
+        toolCalls: 0,
+        ragSources: [{ chunkId: 'c-prev', score: 0.7 }],
+        workspaceId: 'ws-1',
+      };
+
+      mockLlmService.chat.mockResolvedValue({
+        content: 'Sure thing.',
+        usage: { inputTokens: 30, outputTokens: 10, totalTokens: 40 },
+        model: 'gpt-4o',
+        finishReason: 'stop',
+      });
+
+      const result = await handler.processMultiTurnMessage(
+        'Just chatting',
+        state,
+      );
+
+      const newState = (result as Record<string, unknown>)
+        ._resumeState as Record<string, unknown>;
+      // 노드 누적은 직전 턴의 c-prev 가 그대로 보존된다.
+      expect((newState.ragSources as unknown[]).length).toBe(1);
+      const history = newState.turnDebugHistory as Array<
+        Record<string, unknown>
+      >;
+      const lastTurn = history[history.length - 1];
+      expect(lastTurn.ragSources).toEqual([]);
+      const turnDiag = lastTurn.ragDiagnostics as Record<string, unknown>;
+      expect(turnDiag.attempted).toBe(false);
+    });
+  });
+
+  describe('single-turn turnDebug ragSources', () => {
+    it('exposes turn-level ragSources in turnDebug[0] for single_turn KB call', async () => {
+      mockRagService.search.mockResolvedValue([
+        {
+          chunkId: 'c1',
+          documentId: 'd1',
+          documentName: 'refund.md',
+          content: '14-day refund window.',
+          score: 0.9,
+          metadata: {},
+        },
+      ]);
+
+      mockLlmService.chat
+        .mockResolvedValueOnce({
+          content: null,
+          toolCalls: [
+            {
+              id: 'tc-kb-1',
+              name: kbToolName('kb-1'),
+              arguments: '{"query":"refund window"}',
+            },
+          ],
+          usage: { inputTokens: 50, outputTokens: 10, totalTokens: 60 },
+          model: 'gpt-4o',
+          finishReason: 'tool_calls',
+        })
+        .mockResolvedValueOnce({
+          content: 'You have 14 days.',
+          usage: { inputTokens: 80, outputTokens: 20, totalTokens: 100 },
+          model: 'gpt-4o',
+          finishReason: 'stop',
+        });
+
+      const result = (await handler.execute(
+        {},
+        {
+          systemPrompt: 'Helper',
+          userPrompt: 'When can I request a refund?',
+          knowledgeBases: ['kb-1'],
+        },
+        baseContext,
+      )) as Record<string, unknown>;
+
+      const meta = (result.meta ?? {}) as Record<string, unknown>;
+      const turnDebug = meta.turnDebug as Array<Record<string, unknown>>;
+      expect(turnDebug).toHaveLength(1);
+      expect(turnDebug[0].turnIndex).toBe(1);
+      const sources = turnDebug[0].ragSources as Array<Record<string, unknown>>;
+      expect(sources).toHaveLength(1);
+      expect(sources[0].chunkId).toBe('c1');
+      const diag = turnDebug[0].ragDiagnostics as Record<string, unknown>;
+      expect(diag.attempted).toBe(true);
+      expect(diag.searchedKbCount).toBe(1);
     });
   });
 
@@ -1344,8 +1467,5 @@ describe('AiAgentHandler', () => {
  */
 function readSingleTurnMeta(_handler: AiAgentHandler) {
   return (result: unknown) =>
-    (((result as Record<string, unknown>).meta ?? {}) as Record<
-      string,
-      unknown
-    >);
+    ((result as Record<string, unknown>).meta ?? {}) as Record<string, unknown>;
 }

@@ -147,7 +147,10 @@ export class KbToolProvider implements AgentToolProvider {
     return tools;
   }
 
-  async execute(call: ToolCall, ctx: ProviderExecCtx): Promise<AgentToolResult> {
+  async execute(
+    call: ToolCall,
+    ctx: ProviderExecCtx,
+  ): Promise<AgentToolResult> {
     const kbIds = (ctx.config.knowledgeBases as string[]) || [];
     const kbId = extractKbIdFromToolName(call.name, kbIds);
     if (!kbId) {

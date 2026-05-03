@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   extractAiMetadata,
   extractIeSnapshot,
+  extractTurnDebug,
   isConversationOutput,
   unwrapNodeOutput,
 } from "../output-shape";
@@ -48,6 +49,7 @@ describe("extractAiMetadata", () => {
       toolCalls: 2,
       ragSources: [],
       ragDiagnostics: null,
+      turnDebug: [],
     });
   });
 
@@ -73,6 +75,7 @@ describe("extractAiMetadata", () => {
       toolCalls: null,
       ragSources: [],
       ragDiagnostics: null,
+      turnDebug: [],
     });
   });
 
@@ -195,6 +198,128 @@ describe("extractAiMetadata", () => {
       },
     };
     expect(extractAiMetadata(raw)?.thinkingTokens).toBeNull();
+  });
+
+  it("extracts per-turn ragSources from meta.turnDebug", () => {
+    const raw = {
+      config: {},
+      output: { result: { response: "ok" } },
+      meta: {
+        model: "openai/gpt-5",
+        inputTokens: 10,
+        outputTokens: 5,
+        ragSources: [],
+        turnDebug: [
+          {
+            turnIndex: 1,
+            llmCalls: [],
+            totalDurationMs: 100,
+            ragSources: [
+              {
+                chunkId: "c1",
+                documentId: "d1",
+                documentName: "환불.md",
+                content: "환불은 7일",
+                score: 0.9,
+              },
+            ],
+            ragDiagnostics: {
+              attempted: true,
+              searchedKbCount: 1,
+              queriesUsed: ["환불"],
+              resultCount: 1,
+            },
+          },
+          {
+            turnIndex: 2,
+            llmCalls: [],
+            totalDurationMs: 80,
+            ragSources: [],
+            ragDiagnostics: {
+              attempted: false,
+              searchedKbCount: 0,
+              queriesUsed: [],
+              resultCount: 0,
+            },
+          },
+        ],
+      },
+    };
+    const meta = extractAiMetadata(raw);
+    expect(meta?.turnDebug).toHaveLength(2);
+    expect(meta?.turnDebug[0]?.turnIndex).toBe(1);
+    expect(meta?.turnDebug[0]?.ragSources).toHaveLength(1);
+    expect(meta?.turnDebug[0]?.ragSources[0]?.chunkId).toBe("c1");
+    expect(meta?.turnDebug[0]?.ragDiagnostics?.attempted).toBe(true);
+    expect(meta?.turnDebug[1]?.ragSources).toEqual([]);
+    expect(meta?.turnDebug[1]?.ragDiagnostics?.attempted).toBe(false);
+  });
+
+  it("falls back to empty turnDebug array when payload omits the field (legacy)", () => {
+    const raw = {
+      config: {},
+      output: { result: { response: "ok" } },
+      meta: {
+        model: "openai/gpt-5",
+        inputTokens: 10,
+        outputTokens: 5,
+      },
+    };
+    expect(extractAiMetadata(raw)?.turnDebug).toEqual([]);
+  });
+});
+
+describe("extractTurnDebug", () => {
+  it("returns [] for non-array input", () => {
+    expect(extractTurnDebug(null)).toEqual([]);
+    expect(extractTurnDebug(undefined)).toEqual([]);
+    expect(extractTurnDebug({})).toEqual([]);
+    expect(extractTurnDebug("nope")).toEqual([]);
+  });
+
+  it("skips entries without a numeric turnIndex", () => {
+    expect(
+      extractTurnDebug([
+        { turnIndex: "1", ragSources: [], ragDiagnostics: null },
+        null,
+        { ragSources: [] },
+        {
+          turnIndex: 2,
+          ragSources: [
+            {
+              chunkId: "c",
+              documentId: "d",
+              documentName: "name",
+              content: "x",
+              score: 0.5,
+            },
+          ],
+          ragDiagnostics: null,
+        },
+      ]),
+    ).toEqual([
+      {
+        turnIndex: 2,
+        ragSources: [
+          {
+            chunkId: "c",
+            documentId: "d",
+            documentName: "name",
+            content: "x",
+            score: 0.5,
+          },
+        ],
+        ragDiagnostics: null,
+      },
+    ]);
+  });
+
+  it("treats missing ragSources / ragDiagnostics as empty / null (legacy turn entries)", () => {
+    expect(
+      extractTurnDebug([
+        { turnIndex: 1, llmCalls: [], totalDurationMs: 12 },
+      ]),
+    ).toEqual([{ turnIndex: 1, ragSources: [], ragDiagnostics: null }]);
   });
 });
 

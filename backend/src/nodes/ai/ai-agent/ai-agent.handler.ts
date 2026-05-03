@@ -192,6 +192,9 @@ export class AiAgentHandler implements NodeHandler {
     );
 
     const ragAcc = new RagAccumulator(knowledgeBases.length);
+    // Single-turn 은 한 턴이라 turn delta = 노드 누적이지만, turnDebug[0]
+    // 도 동일 키로 노출해 멀티턴 출력과 스키마 일관성을 유지한다.
+    const turnRagAcc = new RagAccumulator(knowledgeBases.length);
 
     // System prompt: KB 검색은 더 이상 prefill 하지 않는다. LLM 이 능동 호출 결정.
     let finalSystemPrompt = systemPrompt;
@@ -288,6 +291,8 @@ export class AiAgentHandler implements NodeHandler {
               turnIndex: 1,
               llmCalls,
               totalDurationMs: Date.now() - singleTurnStartedAt,
+              ragSources: turnRagAcc.getSources(),
+              ragDiagnostics: turnRagAcc.getDiagnostics(),
             },
           ],
         );
@@ -309,6 +314,8 @@ export class AiAgentHandler implements NodeHandler {
         });
         ragAcc.pushSources(execResult.ragSourcesDelta);
         ragAcc.pushDiagnostic(execResult.ragDiagnosticsDelta);
+        turnRagAcc.pushSources(execResult.ragSourcesDelta);
+        turnRagAcc.pushDiagnostic(execResult.ragDiagnosticsDelta);
         messages.push({
           role: 'tool',
           content: execResult.content,
@@ -412,6 +419,8 @@ export class AiAgentHandler implements NodeHandler {
             turnIndex: 1,
             llmCalls,
             totalDurationMs: singleTurnDurationMs,
+            ragSources: turnRagAcc.getSources(),
+            ragDiagnostics: turnRagAcc.getDiagnostics(),
           },
         ],
       },
@@ -534,6 +543,9 @@ export class AiAgentHandler implements NodeHandler {
       knowledgeBases.length,
       (state.ragSources as unknown[]) ?? [],
     );
+    // 이번 턴에서만 호출된 KB delta — meta.turnDebug[].ragSources 로 노출되어
+    // run-results UI 가 "어느 응답이 어느 청크를 사용했는지" 를 매핑한다.
+    const turnRagAcc = new RagAccumulator(knowledgeBases.length);
 
     // Add user message
     messages.push({ role: 'user', content: userMessage });
@@ -614,6 +626,8 @@ export class AiAgentHandler implements NodeHandler {
             turnIndex: turnCount,
             llmCalls,
             totalDurationMs: Date.now() - turnStartedAt,
+            ragSources: turnRagAcc.getSources(),
+            ragDiagnostics: turnRagAcc.getDiagnostics(),
           },
         ];
 
@@ -650,6 +664,8 @@ export class AiAgentHandler implements NodeHandler {
         });
         ragAcc.pushSources(execResult.ragSourcesDelta);
         ragAcc.pushDiagnostic(execResult.ragDiagnosticsDelta);
+        turnRagAcc.pushSources(execResult.ragSourcesDelta);
+        turnRagAcc.pushDiagnostic(execResult.ragDiagnosticsDelta);
         messages.push({
           role: 'tool',
           content: execResult.content,
@@ -715,6 +731,8 @@ export class AiAgentHandler implements NodeHandler {
       turnIndex: turnCount,
       llmCalls,
       totalDurationMs: turnDurationMs,
+      ragSources: turnRagAcc.getSources(),
+      ragDiagnostics: turnRagAcc.getDiagnostics(),
     };
     const turnDebugHistory = [...prevHistory, currentTurnDebug];
 
@@ -935,7 +953,9 @@ export class AiAgentHandler implements NodeHandler {
     const normalToolCalls: ToolCall[] = [];
 
     for (const tc of toolCalls) {
-      const matchedProvider = this.toolProviders.find((p) => p.matches(tc.name));
+      const matchedProvider = this.toolProviders.find((p) =>
+        p.matches(tc.name),
+      );
       if (matchedProvider) {
         providerToolCalls.push({ provider: matchedProvider, call: tc });
       } else if (condNameToCondition.has(tc.name)) {
