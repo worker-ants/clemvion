@@ -78,12 +78,27 @@ class RagAccumulator {
   private resultCount = 0;
   private attempted = false;
   private readonly sources: unknown[] = [];
+  // Dedupe by chunkId — multi-turn conversations and parallel KB tool calls
+  // can return the same chunk multiple times. Keeping the first occurrence
+  // (highest score from its first match) keeps the References tab tidy and
+  // prevents React key collisions on `<li key={s.chunkId}>` in the UI.
+  private readonly seenChunkIds = new Set<string>();
 
   constructor(private readonly initialKbCount: number) {}
 
   pushSources(items: unknown[] | undefined): void {
     if (!items || items.length === 0) return;
-    this.sources.push(...items);
+    for (const item of items) {
+      const chunkId =
+        item && typeof item === 'object'
+          ? ((item as { chunkId?: unknown }).chunkId as string | undefined)
+          : undefined;
+      if (typeof chunkId === 'string') {
+        if (this.seenChunkIds.has(chunkId)) continue;
+        this.seenChunkIds.add(chunkId);
+      }
+      this.sources.push(item);
+    }
   }
 
   pushDiagnostic(d: KbSearchDiagnostic | undefined): void {
@@ -134,6 +149,15 @@ class RagAccumulator {
     existingSources: unknown[],
   ): RagAccumulator {
     const acc = new RagAccumulator(initialKbCount);
+    // Hydrate the dedupe set so subsequent pushSources() calls don't
+    // re-add chunks that were already collected on prior turns.
+    for (const item of existingSources) {
+      const chunkId =
+        item && typeof item === 'object'
+          ? ((item as { chunkId?: unknown }).chunkId as string | undefined)
+          : undefined;
+      if (typeof chunkId === 'string') acc.seenChunkIds.add(chunkId);
+    }
     acc.sources.push(...existingSources);
     return acc;
   }
