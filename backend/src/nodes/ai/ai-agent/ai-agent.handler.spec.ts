@@ -1,6 +1,7 @@
 import { AiAgentHandler } from './ai-agent.handler';
 import { ExecutionContext } from '../../core/node-handler.interface';
 import { KbToolProvider, kbToolName } from './tool-providers/kb-tool-provider';
+import { adaptHandlerReturn } from '../../../modules/execution-engine/handler-output.adapter';
 
 describe('AiAgentHandler', () => {
   let handler: AiAgentHandler;
@@ -525,14 +526,23 @@ describe('AiAgentHandler', () => {
 
       const output = result as Record<string, unknown>;
       expect(output.status).toBe('waiting_for_input');
-      expect(output.interactionType).toBe('ai_conversation');
-      expect(output.type).toBe('ai_conversation');
+      // Canonical NodeHandlerOutput shape — top-level type/conversationConfig
+      // are no longer present (CONVENTIONS §4.3 + Principle 0).
+      expect('type' in output).toBe(false);
+      expect('interactionType' in output).toBe(false);
+      expect('conversationConfig' in output).toBe(false);
+      const meta = output.meta as Record<string, unknown>;
+      expect(meta.interactionType).toBe('ai_conversation');
 
-      const convConfig = output.conversationConfig as Record<string, unknown>;
-      expect(convConfig.turnCount).toBe(0);
-      expect(convConfig.message).toBe('');
-      expect(convConfig.messages).toHaveLength(1); // system only
-      expect(convConfig.maxTurns).toBe(10);
+      const config = output.config as Record<string, unknown>;
+      expect(config.mode).toBe('multi_turn');
+      expect(config.maxTurns).toBe(10);
+
+      const conv = output.output as Record<string, unknown>;
+      expect(conv.turnCount).toBe(0);
+      expect(conv.message).toBe('');
+      expect(conv.messages).toHaveLength(1); // system only
+      expect(conv.maxTurns).toBe(10);
 
       const state = output._resumeState as Record<string, unknown>;
       expect(state.turnCount).toBe(0);
@@ -559,14 +569,29 @@ describe('AiAgentHandler', () => {
 
       const output = result as Record<string, unknown>;
       expect(output.status).toBe('waiting_for_input');
-      const convConfig = output.conversationConfig as Record<string, unknown>;
-      expect(convConfig.turnCount).toBe(0);
+      const conv = output.output as Record<string, unknown>;
+      expect(conv.turnCount).toBe(0);
       // 시스템 메시지만 있고 user 메시지는 push 되지 않는다.
-      expect(convConfig.messages).toHaveLength(1);
-      const onlyMsg = (
-        convConfig.messages as Array<Record<string, unknown>>
-      )[0];
+      expect(conv.messages).toHaveLength(1);
+      const onlyMsg = (conv.messages as Array<Record<string, unknown>>)[0];
       expect(onlyMsg.role).toBe('system');
+    });
+
+    it('canonical waiting shape passes adaptHandlerReturn under NODE_ENV=production', async () => {
+      // Regression: pre-migration the handler returned a bare object that
+      // failed the production-strict validation in adaptHandlerReturn.
+      const prevEnv = process.env.NODE_ENV;
+      process.env.NODE_ENV = 'production';
+      try {
+        const result = await handler.execute(
+          {},
+          { mode: 'multi_turn', systemPrompt: 'sp', maxTurns: 5 },
+          baseContext,
+        );
+        expect(() => adaptHandlerReturn(result)).not.toThrow();
+      } finally {
+        process.env.NODE_ENV = prevEnv;
+      }
     });
 
     it('does not pre-search KB on first turn even when KB is configured', async () => {
@@ -629,10 +654,13 @@ describe('AiAgentHandler', () => {
 
       const output = result as Record<string, unknown>;
       expect(output.status).toBe('waiting_for_input');
+      expect('conversationConfig' in output).toBe(false);
+      const meta = output.meta as Record<string, unknown>;
+      expect(meta.interactionType).toBe('ai_conversation');
 
-      const convConfig = output.conversationConfig as Record<string, unknown>;
-      expect(convConfig.message).toBe('Sure, I can help with that.');
-      expect(convConfig.turnCount).toBe(2);
+      const conv = output.output as Record<string, unknown>;
+      expect(conv.message).toBe('Sure, I can help with that.');
+      expect(conv.turnCount).toBe(2);
 
       const newState = output._resumeState as Record<string, unknown>;
       expect(newState.turnCount).toBe(2);

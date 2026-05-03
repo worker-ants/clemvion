@@ -1,12 +1,14 @@
 import { InformationExtractorHandler } from './information-extractor.handler';
 import { ExecutionContext } from '../../core/node-handler.interface';
+import { adaptHandlerReturn } from '../../../modules/execution-engine/handler-output.adapter';
 
 /**
- * Handler now returns the unified NodeHandlerOutput shape
- * `{ config, output, meta, port, status? }`. Waiting shape is still legacy
- * (`{ status: 'waiting_for_input', conversationConfig, _resumeState }`)
- * until Stage 3 aligns the conversation waiting/resumed shape with
- * `output.interaction.*` (CONVENTIONS §4.3 / §4.5).
+ * Handler returns the unified NodeHandlerOutput shape
+ * `{ config, output, meta, port?, status?, _resumeState? }` for both
+ * terminal and waiting states. Waiting carries
+ * `output: { messages, message, turnCount, maxTurns, partial? }` per
+ * CONVENTIONS §4.3 and `meta.interactionType: 'ai_conversation'` so the
+ * persisted outputData is recognisable as a conversation snapshot.
  */
 function asNodeHandlerOutput(raw: unknown): {
   config: Record<string, unknown>;
@@ -416,16 +418,47 @@ describe('InformationExtractorHandler', () => {
 
       const output = result as Record<string, unknown>;
       expect(output.status).toBe('waiting_for_input');
-      // Stage 2 renamed `_multiTurnState` → `_resumeState`; the
-      // keep the legacy fields for now so the engine's resume loop still works.
-      expect(output.interactionType).toBe('ai_conversation');
-      const convConfig = output.conversationConfig as Record<string, unknown>;
-      expect(convConfig.message).toBe('주문번호를 알려주세요');
-      expect(convConfig.turnCount).toBe(1);
-      expect(convConfig.maxTurns).toBe(5);
+      // Canonical NodeHandlerOutput shape (CONVENTIONS §4.3 + Principle 0).
+      expect('type' in output).toBe(false);
+      expect('interactionType' in output).toBe(false);
+      expect('conversationConfig' in output).toBe(false);
+      const meta = output.meta as Record<string, unknown>;
+      expect(meta.interactionType).toBe('ai_conversation');
+
+      const conv = output.output as Record<string, unknown>;
+      expect(conv.message).toBe('주문번호를 알려주세요');
+      expect(conv.turnCount).toBe(1);
+      expect(conv.maxTurns).toBe(5);
+      const partial = conv.partial as Record<string, unknown>;
+      expect(partial.extracted).toBeDefined();
       const state = output._resumeState as Record<string, unknown>;
       expect(state.turnCount).toBe(1);
       expect(state.partialResult).toEqual({});
+    });
+
+    it('canonical waiting shape passes adaptHandlerReturn under NODE_ENV=production', async () => {
+      // Regression: pre-migration the handler returned a bare object that
+      // failed the production-strict validation in adaptHandlerReturn.
+      mockLlmService.chat.mockResolvedValue(
+        contentOnly('주문번호를 알려주세요'),
+      );
+      const prevEnv = process.env.NODE_ENV;
+      process.env.NODE_ENV = 'production';
+      try {
+        const result = await handler.execute(
+          {},
+          {
+            mode: 'multi_turn',
+            inputField: 'John 입니다',
+            outputSchema: multiTurnSchema,
+            maxTurns: 5,
+          },
+          context,
+        );
+        expect(() => adaptHandlerReturn(result)).not.toThrow();
+      } finally {
+        process.env.NODE_ENV = prevEnv;
+      }
     });
 
     it('skips initial LLM call when inputField is empty', async () => {
@@ -443,8 +476,8 @@ describe('InformationExtractorHandler', () => {
       expect(mockLlmService.chat).not.toHaveBeenCalled();
       const output = result as Record<string, unknown>;
       expect(output.status).toBe('waiting_for_input');
-      const convConfig = output.conversationConfig as Record<string, unknown>;
-      expect(convConfig.turnCount).toBe(0);
+      const conv = output.output as Record<string, unknown>;
+      expect(conv.turnCount).toBe(0);
       const state = output._resumeState as Record<string, unknown>;
       expect(state.turnCount).toBe(0);
       const messages = state.messages as Array<Record<string, unknown>>;
@@ -554,9 +587,9 @@ describe('InformationExtractorHandler', () => {
 
       const output = result as Record<string, unknown>;
       expect(output.status).toBe('waiting_for_input');
-      const convConfig = output.conversationConfig as Record<string, unknown>;
-      expect(convConfig.message).toBe('다시 주문번호를 알려주세요');
-      expect(convConfig.turnCount).toBe(2);
+      const conv = output.output as Record<string, unknown>;
+      expect(conv.message).toBe('다시 주문번호를 알려주세요');
+      expect(conv.turnCount).toBe(2);
     });
 
     it('returns max_turns endReason when turnCount reaches maxTurns', async () => {
@@ -722,8 +755,9 @@ describe('InformationExtractorHandler', () => {
 
       const output = result as Record<string, unknown>;
       expect(output.status).toBe('waiting_for_input');
-      const convConfig = output.conversationConfig as Record<string, unknown>;
-      expect(convConfig.collectionRetryCount).toBe(0);
+      const conv = output.output as Record<string, unknown>;
+      const partial = conv.partial as Record<string, unknown>;
+      expect(partial.collectionRetryCount).toBe(0);
     });
   });
 
