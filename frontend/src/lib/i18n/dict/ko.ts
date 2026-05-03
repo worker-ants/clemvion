@@ -659,6 +659,7 @@ export const ko = {
     deleteWorkflowMessage: "'{{name}}'을(를) 삭제할까요? 되돌릴 수 없어요.",
     exportMenu: "내보내기",
     deleteMenu: "삭제",
+    moreMenu: "더보기",
     workflowsBreadcrumb: "워크플로우",
     emptyStateRegion: "시작하기",
     emptyStateTitle: "워크플로우를 이어서 완성해봐요",
@@ -1365,6 +1366,7 @@ export const ko = {
     toggleActivate: "활성화",
     toggleDeactivate: "비활성화",
     editTooltip: "수정",
+    deleteTooltip: "삭제",
   },
   integrations: {
     title: "인테그레이션",

@@ -113,9 +113,10 @@ describe("TriggersPage — pagination", () => {
 describe("TriggersPage — RBAC", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    cleanup();
     currentSearchParams = new URLSearchParams();
     useLocaleStore.setState({ locale: "en" });
-    cleanup();
+    useWorkspaceStore.getState().reset();
   });
 
   function row() {

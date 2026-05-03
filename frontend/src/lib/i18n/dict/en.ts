@@ -663,6 +663,7 @@ export const en: Dict = {
     deleteWorkflowMessage: "Are you sure you want to delete \"{{name}}\"? This action cannot be undone.",
     exportMenu: "Export",
     deleteMenu: "Delete",
+    moreMenu: "More options",
     workflowsBreadcrumb: "Workflows",
     emptyStateRegion: "Get started",
     emptyStateTitle: "Keep building your workflow",
@@ -1369,6 +1370,7 @@ export const en: Dict = {
     toggleActivate: "Activate",
     toggleDeactivate: "Deactivate",
     editTooltip: "Edit",
+    deleteTooltip: "Delete",
   },
   integrations: {
     title: "Integrations",

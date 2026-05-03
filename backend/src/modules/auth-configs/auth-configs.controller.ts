@@ -137,7 +137,8 @@ export class AuthConfigsController {
   }
 
   @Post(':id/regenerate')
-  @Roles('editor')
+  // 키 교체는 기존 토큰을 즉시 무효화해 외부 호출자 중단을 유발하므로 Admin+ 으로 제한.
+  @Roles('admin')
   @ApiOperation({
     summary: '인증 키/토큰 재발급',
     description:
@@ -148,7 +149,7 @@ export class AuthConfigsController {
     description: '재발급 후 인증 설정 (새 키/토큰 포함)',
   })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
-  @ApiForbiddenResponse({ description: 'Editor 미만 권한' })
+  @ApiForbiddenResponse({ description: 'Admin 미만 권한' })
   @ApiNotFoundResponse({ description: '해당 인증 설정을 찾을 수 없음' })
   async regenerate(
     @Param('id', ParseUUIDPipe) id: string,

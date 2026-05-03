@@ -111,9 +111,10 @@ describe("SchedulesPage — pagination", () => {
 describe("SchedulesPage — RBAC", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    cleanup();
     currentSearchParams = new URLSearchParams();
     useLocaleStore.setState({ locale: "en" });
-    cleanup();
+    useWorkspaceStore.getState().reset();
   });
 
   function row() {
@@ -149,10 +150,9 @@ describe("SchedulesPage — RBAC", () => {
     expect(
       screen.getByRole("button", { name: /run now/i }),
     ).toBeInTheDocument();
-    // edit / delete 는 icon-only 버튼 → title attribute 로 식별
-    expect(
-      document.querySelector('button[title*="Edit" i]'),
-    ).toBeTruthy();
+    // icon-only 버튼은 title 속성으로 식별
+    expect(screen.getByTitle(/^edit$/i)).toBeInTheDocument();
+    expect(screen.getByTitle(/^delete$/i)).toBeInTheDocument();
   });
 
   it("Viewer: Add schedule·toggle·edit·delete 모두 비표시. Run now 는 노출", async () => {
@@ -166,9 +166,8 @@ describe("SchedulesPage — RBAC", () => {
     expect(
       screen.queryByRole("button", { name: /deactivate|activate/i }),
     ).toBeNull();
-    expect(
-      document.querySelector('button[title*="Edit" i]'),
-    ).toBeFalsy();
+    expect(screen.queryByTitle(/^edit$/i)).toBeNull();
+    expect(screen.queryByTitle(/^delete$/i)).toBeNull();
     // Run now 는 viewer 도 가능
     expect(
       screen.getByRole("button", { name: /run now/i }),
