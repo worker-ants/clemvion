@@ -27,7 +27,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { useT } from "@/lib/i18n";
-import { RoleGate, useHasRole } from "@/components/auth/role-gate";
+import { useHasRole } from "@/components/auth/role-gate";
 
 export function EditorToolbar() {
   const t = useT();
@@ -222,7 +222,6 @@ export function EditorToolbar() {
           />
         </div>
 
-        {/* Center: editable name (Viewer 는 read-only 텍스트) */}
         <div className="ml-2 flex flex-1 items-center justify-center">
           {canEdit ? (
             <Input
@@ -283,8 +282,7 @@ export function EditorToolbar() {
             <Bot size={14} />
           </Button>
 
-          {/* Save (Editor+) */}
-          <RoleGate minRole="editor">
+          {canEdit && (
             <Button
               variant="outline"
               size="sm"
@@ -295,7 +293,7 @@ export function EditorToolbar() {
               <Save size={14} />
               {t("common.save")}
             </Button>
-          </RoleGate>
+          )}
 
           {/* Run split button */}
           <div className="relative" ref={runDropdownRef}>
@@ -365,12 +363,13 @@ export function EditorToolbar() {
             )}
           </div>
 
-          {/* More menu */}
           <div className="relative" ref={moreDropdownRef}>
             <Button
               variant="ghost"
               size="icon"
               className="h-8 w-8"
+              data-testid="editor-toolbar-more-menu"
+              aria-label={t("editor.moreMenu")}
               onClick={() => setMoreDropdownOpen((prev) => !prev)}
             >
               <MoreVertical size={16} />
@@ -395,19 +394,21 @@ export function EditorToolbar() {
                   <FileDown size={14} />
                   {t("editor.exportMenu")}
                 </button>
-                <RoleGate minRole="editor">
-                  <div className="my-1 border-t border-[hsl(var(--border))]" />
-                  <button
-                    className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-red-500 hover:bg-[hsl(var(--accent))]"
-                    onClick={() => {
-                      setMoreDropdownOpen(false);
-                      setDeleteConfirmOpen(true);
-                    }}
-                  >
-                    <Trash2 size={14} />
-                    {t("editor.deleteMenu")}
-                  </button>
-                </RoleGate>
+                {canEdit && (
+                  <>
+                    <div className="my-1 border-t border-[hsl(var(--border))]" />
+                    <button
+                      className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-red-500 hover:bg-[hsl(var(--accent))]"
+                      onClick={() => {
+                        setMoreDropdownOpen(false);
+                        setDeleteConfirmOpen(true);
+                      }}
+                    >
+                      <Trash2 size={14} />
+                      {t("editor.deleteMenu")}
+                    </button>
+                  </>
+                )}
               </div>
             )}
           </div>

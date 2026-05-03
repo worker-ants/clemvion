@@ -6,6 +6,9 @@ import {
   type WorkspaceRole,
 } from "@/lib/stores/workspace-store";
 
+// 역할 계층: viewer < editor < admin < owner.
+// `minRole` 은 ≥ 비교이므로, 예: minRole="editor" 이면 editor/admin/owner 모두 통과.
+// Backend `roles.guard.ts` 의 ROLE_HIERARCHY 와 반드시 동일한 순서를 유지해야 한다.
 const ROLE_LEVEL: Record<WorkspaceRole, number> = {
   viewer: 1,
   editor: 2,

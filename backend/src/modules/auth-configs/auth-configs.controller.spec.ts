@@ -8,7 +8,8 @@ describe('AuthConfigsController — @Roles metadata', () => {
   const cases: { method: keyof AuthConfigsController; expected: string[] }[] = [
     { method: 'create', expected: ['editor'] },
     { method: 'update', expected: ['editor'] },
-    { method: 'regenerate', expected: ['editor'] },
+    // regenerate 는 키 교체로 외부 호출자 중단을 유발하므로 Admin+ 가드.
+    { method: 'regenerate', expected: ['admin'] },
     { method: 'remove', expected: ['editor'] },
   ];
 

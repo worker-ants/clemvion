@@ -103,19 +103,14 @@ describe("EditorToolbar — RBAC", () => {
     setRole("editor");
     renderToolbar();
     expect(screen.queryByText(/delete/i)).toBeNull();
-    // 마지막 ghost icon 버튼이 More 트리거
-    const buttons = screen.getAllByRole("button");
-    const moreTrigger = buttons[buttons.length - 1];
-    moreTrigger.click();
+    screen.getByTestId("editor-toolbar-more-menu").click();
     expect(await screen.findByText(/delete/i)).toBeInTheDocument();
   });
 
   it("Viewer: More 메뉴를 펼쳐도 Delete 항목 비표시", async () => {
     setRole("viewer");
     renderToolbar();
-    const buttons = screen.getAllByRole("button");
-    const moreTrigger = buttons[buttons.length - 1];
-    moreTrigger.click();
+    screen.getByTestId("editor-toolbar-more-menu").click();
     // Export(read-only) 는 보이고, Delete 는 안 보여야 함
     expect(await screen.findByText(/export/i)).toBeInTheDocument();
     expect(screen.queryByText(/delete/i)).toBeNull();
