@@ -121,6 +121,35 @@ class ExecutionCancelledError extends Error {
   }
 }
 
+/**
+ * Conversation 노드가 진행 중일 때 frontend run-results UI 의 References /
+ * LLM Usage / Meta 탭이 동작하도록 _resumeState 의 누적 통계와 turn 단위 RAG
+ * delta 를 `meta.*` 로 펼쳐 노출한다. _resumeState 자체는 system prompt /
+ * llmConfigId 등 internal 필드를 포함하므로 client 에 그대로 보내지 않는다.
+ *
+ * 첫 waiting (사용자 첫 메시지 전) 에서는 turnCount=0 이고 turnDebugHistory
+ * 도 없으므로 turnDebug=[] / ragSources=[] 로 채워져 References 탭은 자동
+ * 숨김 (`hasReferences=false`).
+ */
+export function buildConversationMetaFromResumeState(
+  state: Record<string, unknown>,
+): Record<string, unknown> {
+  const inputTokens = (state.totalInputTokens as number) ?? 0;
+  const outputTokens = (state.totalOutputTokens as number) ?? 0;
+  return {
+    interactionType: 'ai_conversation',
+    model: state.model,
+    inputTokens,
+    outputTokens,
+    totalTokens: inputTokens + outputTokens,
+    thinkingTokens: (state.totalThinkingTokens as number) ?? 0,
+    toolCalls: (state.toolCalls as number) ?? 0,
+    ragSources: (state.ragSources as unknown[]) ?? [],
+    ragDiagnostics: state.ragLastDiagnostics,
+    turnDebug: (state.turnDebugHistory as unknown[]) ?? [],
+  };
+}
+
 @Injectable()
 export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
   private readonly logger = new Logger(ExecutionEngineService.name);
@@ -1494,6 +1523,11 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
             ...initialConvConfig,
             messages: initialClientMessages,
           },
+          // run-results UI 의 References / LLM Usage 탭이 진행 중에도 동작하도록
+          // _resumeState 의 누적치를 meta.* 로 펼쳐 노출. _resumeState 자체는
+          // system prompt / llmConfigId 등 internal 필드를 포함하므로 client 에
+          // 그대로 보내지 않는다.
+          meta: buildConversationMetaFromResumeState(resumeState),
         },
         // Include Turn 1 debug data for initial AI response
         turnDebug: {
@@ -1630,6 +1664,10 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
                   ...nextConvConfig,
                   messages: nextClientMessages,
                 },
+                // 진행 중에도 References / LLM Usage 탭이 동작하도록 누적
+                // 상태를 meta.* 로 노출. (turn 단위 ragSources 는 turnDebug[]
+                // 안에 들어 있어 References 탭이 메시지(턴)별로 그룹핑.)
+                meta: buildConversationMetaFromResumeState(resumeState),
               },
             },
           );
