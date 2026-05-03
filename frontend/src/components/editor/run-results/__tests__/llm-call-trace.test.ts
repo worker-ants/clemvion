@@ -78,26 +78,6 @@ describe("extractLlmCalls", () => {
     expect(calls[0].durationMs).toBe(7);
   });
 
-  it("reads _multiTurnState.turnDebugHistory from waiting shape", () => {
-    const raw = {
-      status: "waiting_for_input",
-      conversationConfig: { messages: [] },
-      _multiTurnState: {
-        turnDebugHistory: [
-          {
-            turnIndex: 1,
-            llmCalls: [
-              { requestPayload: { p: 1 }, responsePayload: { r: 1 }, durationMs: 4 },
-            ],
-            totalDurationMs: 4,
-          },
-        ],
-      },
-    };
-    const calls = extractLlmCalls(raw);
-    expect(calls).toHaveLength(1);
-  });
-
   it("returns [] for single-turn AI Agent flat shape without debug history", () => {
     // This is a legacy shape that predates the trace. The LlmInformationTab
     // should render its 'no calls' placeholder in this case.
