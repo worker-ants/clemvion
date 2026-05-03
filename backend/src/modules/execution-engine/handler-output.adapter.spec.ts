@@ -111,7 +111,11 @@ describe('adaptHandlerReturn', () => {
           message: '주문번호를 알려주세요',
           turnCount: 1,
           maxTurns: 5,
-          partial: { extracted: {}, missingFields: ['orderNumber'], collectionRetryCount: 0 },
+          partial: {
+            extracted: {},
+            missingFields: ['orderNumber'],
+            collectionRetryCount: 0,
+          },
         },
         meta: { interactionType: 'ai_conversation' },
         status: 'waiting_for_input',
