@@ -1,12 +1,23 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { renderHook, act } from "@testing-library/react";
 
-const emitMock = vi.fn();
+const { emitMock, onceMock, toastErrorMock } = vi.hoisted(() => ({
+  emitMock: vi.fn(),
+  onceMock: vi.fn(),
+  toastErrorMock: vi.fn(),
+}));
 
 vi.mock("../ws-client", () => ({
   getWsClient: () => ({
     emit: emitMock,
+    once: onceMock,
   }),
+}));
+
+vi.mock("sonner", () => ({
+  toast: {
+    error: toastErrorMock,
+  },
 }));
 
 import { useExecutionInteractionCommands } from "../use-execution-interaction-commands";
@@ -15,6 +26,8 @@ import { useExecutionStore } from "../../stores/execution-store";
 describe("useExecutionInteractionCommands", () => {
   beforeEach(() => {
     emitMock.mockReset();
+    onceMock.mockReset();
+    toastErrorMock.mockReset();
     useExecutionStore.getState().reset();
   });
 
@@ -114,6 +127,54 @@ describe("useExecutionInteractionCommands", () => {
       executionId: "exec-1",
       nodeId: "node-1",
     });
+  });
+
+  it("sendMessage releases isWaitingAiResponse and toasts on ack failure", () => {
+    const { result } = renderHook(() =>
+      useExecutionInteractionCommands("exec-1"),
+    );
+    act(() => {
+      result.current.sendMessage("node-1", "Hello");
+    });
+    expect(useExecutionStore.getState().isWaitingAiResponse).toBe(true);
+    // Replay the ack listener with a failure payload (gateway returns this
+    // when continueAiConversation throws — e.g. no pending continuation).
+    expect(onceMock).toHaveBeenCalledWith(
+      "execution.submit_message.ack",
+      expect.any(Function),
+    );
+    const ackHandler = onceMock.mock.calls[0][1] as (
+      ...args: unknown[]
+    ) => void;
+    act(() => {
+      ackHandler({
+        success: false,
+        error: "No pending continuation for execution: exec-1",
+      });
+    });
+    expect(useExecutionStore.getState().isWaitingAiResponse).toBe(false);
+    expect(toastErrorMock).toHaveBeenCalledWith(
+      "No pending continuation for execution: exec-1",
+    );
+  });
+
+  it("sendMessage keeps waiting state when ack reports success", () => {
+    const { result } = renderHook(() =>
+      useExecutionInteractionCommands("exec-1"),
+    );
+    act(() => {
+      result.current.sendMessage("node-1", "Hello");
+    });
+    const ackHandler = onceMock.mock.calls[0][1] as (
+      ...args: unknown[]
+    ) => void;
+    act(() => {
+      ackHandler({ success: true });
+    });
+    // Successful ack does not clear the waiting flag — the AI_MESSAGE event
+    // (handled elsewhere) is what resolves the conversation turn.
+    expect(useExecutionStore.getState().isWaitingAiResponse).toBe(true);
+    expect(toastErrorMock).not.toHaveBeenCalled();
   });
 
   it("no-ops when executionId is null", () => {

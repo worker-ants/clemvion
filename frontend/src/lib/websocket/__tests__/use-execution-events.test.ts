@@ -11,6 +11,7 @@ const mockClient = {
   unsubscribe: vi.fn(),
   on: vi.fn(),
   off: vi.fn(),
+  once: vi.fn(),
   emit: vi.fn(),
   isConnected: vi.fn(() => true),
   getSocket: vi.fn(),

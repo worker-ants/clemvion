@@ -216,10 +216,12 @@ export class WebsocketGateway
         data.formData,
       );
       return { event: 'execution.form_submitted', data: { success: true } };
-    } catch {
+    } catch (error: unknown) {
+      const message =
+        error instanceof Error ? error.message : 'Form submission failed';
       return {
         event: 'execution.form_submitted',
-        data: { success: false, error: 'Form submission failed' },
+        data: { success: false, error: message },
       };
     }
   }
@@ -303,10 +305,12 @@ export class WebsocketGateway
         data.message,
       );
       return { event: 'execution.submit_message.ack', data: { success: true } };
-    } catch {
+    } catch (error: unknown) {
+      const message =
+        error instanceof Error ? error.message : 'Message submission failed';
       return {
         event: 'execution.submit_message.ack',
-        data: { success: false, error: 'Message submission failed' },
+        data: { success: false, error: message },
       };
     }
   }
@@ -342,10 +346,12 @@ export class WebsocketGateway
         event: 'execution.end_conversation.ack',
         data: { success: true },
       };
-    } catch {
+    } catch (error: unknown) {
+      const message =
+        error instanceof Error ? error.message : 'End conversation failed';
       return {
         event: 'execution.end_conversation.ack',
-        data: { success: false, error: 'End conversation failed' },
+        data: { success: false, error: message },
       };
     }
   }

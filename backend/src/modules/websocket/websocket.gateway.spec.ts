@@ -260,7 +260,9 @@ describe('WebsocketGateway', () => {
         socket,
       );
       expect(result.data.success).toBe(false);
-      expect(result.data.error).toBe('Form submission failed');
+      // Surface the underlying engine error so the client can render a
+      // diagnostic toast instead of a generic placeholder.
+      expect(result.data.error).toBe('No pending continuation');
     });
   });
 
