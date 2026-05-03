@@ -1117,6 +1117,8 @@ export const en: Dict = {
     llmConfigSelector: {
       label: "LLM Provider",
       defaultOption: "Default provider",
+      defaultOptionWithResolved: "Default provider (currently: {{name}})",
+      noDefaultHint: "No workspace default LLM is configured. Set a default in LLM Settings, or pick one directly on this node.",
     },
     kbSelector: {
       label: "Knowledge Bases",

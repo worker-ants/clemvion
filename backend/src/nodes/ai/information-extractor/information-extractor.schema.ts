@@ -3,6 +3,7 @@ import {
   NodeComponentMetadata,
   NodePorts,
 } from '../../core/node-component.interface';
+import { AI_NO_LLM_PROVIDER_MESSAGE } from '../llm-provider-rule';
 
 const fieldDefSchema = z.object({
   name: z.string().meta({ ui: { label: 'Name', widget: 'text' } }),
@@ -275,8 +276,7 @@ export const informationExtractorNodeMetadata: NodeComponentMetadata = {
     {
       id: 'information_extractor:no-llm-provider',
       when: '!model && !llmConfigId',
-      message:
-        'LLM provider 또는 model 을 선택해야 합니다 (workspace 기본 provider 가 설정된 경우 캔버스에서 자동 처리).',
+      message: AI_NO_LLM_PROVIDER_MESSAGE,
     },
     {
       id: 'information_extractor:no-output-schema',

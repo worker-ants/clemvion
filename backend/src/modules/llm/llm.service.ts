@@ -233,10 +233,28 @@ export class LlmService {
     if (!defaultConfig) {
       throw new BadRequestException({
         code: 'LLM_CONFIG_NOT_FOUND',
-        message: 'No LLM config specified and no default provider configured',
+        // workspace 어긋남 / 기본값 미설정 / context 누락 을 사용자가 직접
+        // 식별할 수 있도록 workspaceId 를 메시지·payload 에 포함한다.
+        message: workspaceId
+          ? `워크스페이스(${workspaceId}) 에 기본 LLM 이 설정되어 있지 않습니다. LLM 설정 페이지에서 기본 제공자를 지정하거나 노드에서 직접 LLM 을 선택해 주세요.`
+          : '실행 컨텍스트에 워크스페이스 정보가 없어 기본 LLM 을 찾을 수 없습니다. 노드에서 LLM 을 직접 선택해 주세요.',
+        workspaceId,
       });
     }
     return defaultConfig;
+  }
+
+  /**
+   * 워크스페이스에 isDefault=true 인 LlmConfig 가 존재하는지만 확인.
+   *
+   * execution-engine 의 AI 노드 검증 후처리에서, no-llm-provider 규칙을
+   * 통과시킬지 여부를 결정하는 데 사용한다. resolveConfig 와 달리 throw 하지
+   * 않는다 (presence 체크 전용).
+   */
+  async hasDefaultLlmConfig(workspaceId: string): Promise<boolean> {
+    if (!workspaceId) return false;
+    const config = await this.llmConfigService.findDefault(workspaceId);
+    return config !== null;
   }
 
   private async withRetry<T>(fn: () => Promise<T>, maxRetries = 3): Promise<T> {

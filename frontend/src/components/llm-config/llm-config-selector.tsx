@@ -22,6 +22,15 @@ export function LlmConfigSelector({
     staleTime: 30_000,
   });
   const configs: LlmConfigData[] = data?.data ?? data ?? [];
+  const defaultConfig = configs.find((c) => c.isDefault);
+
+  // value="" 가 선택되었을 때(=동적 "기본 제공자") 어떤 LLM 으로 resolve 될지를
+  // 옵션 라벨에 노출해 UI 와 실행 결과의 신뢰 깨짐을 방지한다.
+  const defaultOptionLabel = defaultConfig
+    ? t("nodeConfigs.llmConfigSelector.defaultOptionWithResolved", {
+        name: defaultConfig.name,
+      })
+    : t("nodeConfigs.llmConfigSelector.defaultOption");
 
   return (
     <div className="flex flex-col gap-1">
@@ -33,13 +42,18 @@ export function LlmConfigSelector({
         value={value}
         onChange={(e) => onChange(e.target.value)}
       >
-        <option value="">{t("nodeConfigs.llmConfigSelector.defaultOption")}</option>
+        <option value="">{defaultOptionLabel}</option>
         {configs.map((c) => (
           <option key={c.id} value={c.id}>
             {c.name} ({c.defaultModel}){c.isDefault ? " *" : ""}
           </option>
         ))}
       </select>
+      {!defaultConfig && value === "" ? (
+        <p className="text-[11px] text-[hsl(var(--destructive))]">
+          {t("nodeConfigs.llmConfigSelector.noDefaultHint")}
+        </p>
+      ) : null}
     </div>
   );
 }

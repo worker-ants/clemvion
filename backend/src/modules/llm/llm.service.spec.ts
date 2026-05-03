@@ -198,6 +198,55 @@ describe('LlmService', () => {
         BadRequestException,
       );
     });
+
+    it('should include workspaceId in error message and payload', async () => {
+      mockLlmConfigService.findDefault.mockResolvedValue(null);
+
+      await expect(
+        service.resolveConfig(undefined, 'ws-42'),
+      ).rejects.toMatchObject({
+        response: {
+          code: 'LLM_CONFIG_NOT_FOUND',
+          workspaceId: 'ws-42',
+          message: expect.stringContaining('ws-42'),
+        },
+      });
+    });
+
+    it('should distinguish missing workspaceId case in error message', async () => {
+      mockLlmConfigService.findDefault.mockResolvedValue(null);
+
+      await expect(service.resolveConfig(undefined, '')).rejects.toMatchObject({
+        response: {
+          code: 'LLM_CONFIG_NOT_FOUND',
+          workspaceId: '',
+          message: expect.stringContaining('워크스페이스 정보가 없어'),
+        },
+      });
+    });
+  });
+
+  describe('hasDefaultLlmConfig', () => {
+    it('returns true when workspace has default config', async () => {
+      mockLlmConfigService.findDefault.mockResolvedValue({
+        id: 'default-1',
+        isDefault: true,
+      });
+
+      await expect(service.hasDefaultLlmConfig('ws-1')).resolves.toBe(true);
+      expect(mockLlmConfigService.findDefault).toHaveBeenCalledWith('ws-1');
+    });
+
+    it('returns false when workspace has no default', async () => {
+      mockLlmConfigService.findDefault.mockResolvedValue(null);
+
+      await expect(service.hasDefaultLlmConfig('ws-1')).resolves.toBe(false);
+    });
+
+    it('returns false without querying when workspaceId is empty', async () => {
+      await expect(service.hasDefaultLlmConfig('')).resolves.toBe(false);
+      expect(mockLlmConfigService.findDefault).not.toHaveBeenCalled();
+    });
   });
 
   describe('listModels (saved config)', () => {
