@@ -174,20 +174,32 @@ function NodeDetailTabs({
   //     assistant message is selected (user / tool messages have no LLM call).
   //   - LLM Usage: node-level aggregate for AI nodes, plus per-call usage
   //     when an assistant message is selected.
-  //   - References: AI 노드에서 KB 가 시도된 경우만 (단일/멀티 모두). 메시지
-  //     선택 상태와 무관하게 항상 노출되어 chip 점프 후에도 사라지지 않는다.
+  //   - References: AI 노드에서 KB 가 시도된 경우 노출. node-level (메시지
+  //     선택 없음) 과 assistant 메시지 선택 시 노출 — user/tool 메시지는 자체
+  //     references 가 없어 숨긴다 (Response/Request/LLM Usage 와 동일 정책).
   //   - Error: only when result.error is set — node-level only.
   const hasMeta = !messageLevel && !!unwrapped.meta && Object.keys(unwrapped.meta).length > 0;
   const hasPort = !messageLevel && unwrapped.port != null;
   const hasStatus = !messageLevel && unwrapped.status != null;
+  const selectedTurnRefs =
+    isAssistantSelected
+      ? aiMetadata?.turnDebug.find(
+          (t) => t.turnIndex === selectedMessage!.turnIndex,
+        ) ?? null
+      : null;
   const hasReferences =
     aiNode &&
     !!aiMetadata &&
-    (aiMetadata.ragSources.length > 0 ||
-      !!aiMetadata.ragDiagnostics?.attempted ||
-      aiMetadata.turnDebug.some(
-        (t) => t.ragSources.length > 0 || !!t.ragDiagnostics?.attempted,
-      ));
+    (messageLevel
+      ? isAssistantSelected &&
+        !!selectedTurnRefs &&
+        (selectedTurnRefs.ragSources.length > 0 ||
+          !!selectedTurnRefs.ragDiagnostics?.attempted)
+      : aiMetadata.ragSources.length > 0 ||
+        !!aiMetadata.ragDiagnostics?.attempted ||
+        aiMetadata.turnDebug.some(
+          (t) => t.ragSources.length > 0 || !!t.ragDiagnostics?.attempted,
+        ));
 
   const detailTabs: { id: DetailTab; label: string; show: boolean }[] = [
     { id: "preview", label: "Preview", show: showPreview },
@@ -330,6 +342,7 @@ function NodeDetailTabs({
             meta={aiMetadata}
             highlightTurnIndex={highlightTurnIndex}
             scrollKey={scrollKey}
+            selectedMessage={selectedMessage ?? null}
           />
         )}
         {effectiveActiveTab === "config" && (
@@ -602,19 +615,28 @@ function ragSkipReasonLabel(
  *
  * `scrollKey` 는 같은 turnIndex 로 재점프했을 때도 effect 를 재실행시키기 위한
  * 카운터 — chip 클릭마다 부모가 +1 한다.
+ *
+ * assistant 메시지가 선택된 경우(message-level) 에는 그 메시지의 turn 만 단일
+ * 그룹으로 보여주고 노드 전체 누적 요약은 생략한다 — 사용자가 "이 응답에서
+ * 사용된 references" 만 보고 싶어하는 흐름.
  */
 function ReferencesTabContent({
   meta,
   highlightTurnIndex,
   scrollKey,
+  selectedMessage,
 }: {
   meta: AiMetadata;
   highlightTurnIndex: number | null;
   scrollKey: number;
+  selectedMessage: ConversationItem | null;
 }) {
-  const turnEntries = meta.turnDebug.filter(
-    (t) => t.ragSources.length > 0 || !!t.ragDiagnostics?.attempted,
-  );
+  const isMessageLevel = selectedMessage?.type === "assistant";
+  const turnEntries = isMessageLevel
+    ? meta.turnDebug.filter((t) => t.turnIndex === selectedMessage!.turnIndex)
+    : meta.turnDebug.filter(
+        (t) => t.ragSources.length > 0 || !!t.ragDiagnostics?.attempted,
+      );
   const refMap = useRef(new Map<number, HTMLLIElement | null>());
 
   useEffect(() => {
@@ -639,11 +661,13 @@ function ReferencesTabContent({
 
   return (
     <div className="space-y-3">
-      <NodeAggregateRagSummary
-        sources={meta.ragSources}
-        diagnostics={meta.ragDiagnostics}
-        turnCount={turnEntries.length}
-      />
+      {!isMessageLevel && (
+        <NodeAggregateRagSummary
+          sources={meta.ragSources}
+          diagnostics={meta.ragDiagnostics}
+          turnCount={turnEntries.length}
+        />
+      )}
       <ul className="space-y-2">
         {turnEntries.map((entry) => (
           <li
