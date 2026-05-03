@@ -1686,6 +1686,9 @@ export const en: Dict = {
     graphVizTruncated:
       "Truncated — showing top {{limit}} entities only",
     graphVizEmpty: "No entities yet. Graph will appear once extraction completes.",
+    formTabBasic: "Basic",
+    formTabEmbedding: "Embedding",
+    formTabGraph: "Graph",
   },
   llmConfigs: {
     title: "LLM Config",

@@ -12,20 +12,26 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ConfirmModal } from "@/components/ui/confirm-modal";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import {
   Tabs,
   TabsContent,
   TabsList,
   TabsTrigger,
 } from "@/components/ui/tabs";
-import { EmbeddingModelCombobox } from "@/components/knowledge-base/embedding-model-combobox";
-import { EmbeddingTestButton } from "@/components/knowledge-base/embedding-test-button";
+import {
+  KbFormBody,
+  type KbFormTab,
+} from "@/components/knowledge-base/kb-form-body";
 import { EntityList } from "@/components/knowledge-base/entity-list";
 import { RelationList } from "@/components/knowledge-base/relation-list";
 import { GraphVisualization } from "@/components/knowledge-base/graph-visualization";
-import { NativeSelect } from "@/components/ui/native-select";
 import { llmConfigsApi, type LlmConfigData } from "@/lib/api/llm-configs";
 import { RoleGate } from "@/components/auth/role-gate";
 import { toast } from "sonner";
@@ -40,7 +46,6 @@ import {
   XCircle,
   Clock,
   Settings,
-  X,
 } from "lucide-react";
 import { useT, type TranslationKey } from "@/lib/i18n";
 
@@ -91,12 +96,18 @@ export default function KnowledgeBaseDetailPage({
   const [showSettings, setShowSettings] = useState(false);
   const [showKbReEmbedConfirm, setShowKbReEmbedConfirm] = useState(false);
   const [showKbReExtractConfirm, setShowKbReExtractConfirm] = useState(false);
+  const [settingsTab, setSettingsTab] = useState<KbFormTab>("basic");
   const [formName, setFormName] = useState("");
   const [formDescription, setFormDescription] = useState("");
   const [formEmbeddingModel, setFormEmbeddingModel] = useState("");
   const [formEmbeddingLlmConfigId, setFormEmbeddingLlmConfigId] = useState("");
   const [formChunkSize, setFormChunkSize] = useState("1000");
   const [formChunkOverlap, setFormChunkOverlap] = useState("200");
+  const [formExtractionLlmConfigId, setFormExtractionLlmConfigId] =
+    useState("");
+  const [formMaxHops, setFormMaxHops] = useState("1");
+  const [formVectorSeedTopK, setFormVectorSeedTopK] = useState("5");
+  const [formExpandedChunkLimit, setFormExpandedChunkLimit] = useState("15");
 
   const { data: kb, isLoading: kbLoading } = useQuery<KnowledgeBaseData>({
     queryKey: ["knowledge-base", id],
@@ -185,6 +196,10 @@ export default function KnowledgeBaseDetailPage({
     embeddingLlmConfigId?: string | null;
     chunkSize?: number;
     chunkOverlap?: number;
+    extractionLlmConfigId?: string;
+    maxHops?: number;
+    vectorSeedTopK?: number;
+    expandedChunkLimit?: number;
   };
   const updateMutation = useMutation({
     mutationFn: (payload: KbUpdatePayload) =>
@@ -227,30 +242,62 @@ export default function KnowledgeBaseDetailPage({
 
   function openSettings() {
     if (!kb) return;
+    setSettingsTab("basic");
     setFormName(kb.name);
     setFormDescription(kb.description ?? "");
     setFormEmbeddingModel(kb.embeddingModel);
     setFormEmbeddingLlmConfigId(kb.embeddingLlmConfigId ?? "");
     setFormChunkSize(String(kb.chunkSize));
     setFormChunkOverlap(String(kb.chunkOverlap));
+    setFormExtractionLlmConfigId(kb.extractionLlmConfigId ?? "");
+    setFormMaxHops(String(kb.maxHops));
+    setFormVectorSeedTopK(String(kb.vectorSeedTopK));
+    setFormExpandedChunkLimit(String(kb.expandedChunkLimit));
     setShowSettings(true);
   }
 
   function handleSaveSettings() {
     if (!kb) return;
     if (!formName.trim()) {
+      setSettingsTab("basic");
       toast.error(t("knowledgeBases.nameRequired"));
       return;
     }
     const cs = parseInt(formChunkSize, 10);
     if (Number.isNaN(cs) || cs < 100 || cs > 8000) {
+      setSettingsTab("embedding");
       toast.error(t("knowledgeBases.chunkSizeInvalid"));
       return;
     }
     const co = parseInt(formChunkOverlap, 10);
     if (Number.isNaN(co) || co < 0 || co > 2000) {
+      setSettingsTab("embedding");
       toast.error(t("knowledgeBases.chunkOverlapInvalid"));
       return;
+    }
+    const isGraph = kb.ragMode === "graph";
+    let mh = kb.maxHops;
+    let vsk = kb.vectorSeedTopK;
+    let ecl = kb.expandedChunkLimit;
+    if (isGraph) {
+      mh = parseInt(formMaxHops, 10);
+      if (Number.isNaN(mh) || mh < 1 || mh > 2) {
+        setSettingsTab("graph");
+        toast.error(t("knowledgeBases.maxHopsInvalid"));
+        return;
+      }
+      vsk = parseInt(formVectorSeedTopK, 10);
+      if (Number.isNaN(vsk) || vsk < 1 || vsk > 50) {
+        setSettingsTab("graph");
+        toast.error(t("knowledgeBases.vectorSeedTopKInvalid"));
+        return;
+      }
+      ecl = parseInt(formExpandedChunkLimit, 10);
+      if (Number.isNaN(ecl) || ecl < 1 || ecl > 100) {
+        setSettingsTab("graph");
+        toast.error(t("knowledgeBases.expandedChunkLimitInvalid"));
+        return;
+      }
     }
     const payload: KbUpdatePayload = {};
     if (formName !== kb.name) payload.name = formName;
@@ -266,6 +313,14 @@ export default function KnowledgeBaseDetailPage({
     }
     if (cs !== kb.chunkSize) payload.chunkSize = cs;
     if (co !== kb.chunkOverlap) payload.chunkOverlap = co;
+    if (isGraph) {
+      const newExtCfg = formExtractionLlmConfigId || "";
+      const curExtCfg = kb.extractionLlmConfigId ?? "";
+      if (newExtCfg !== curExtCfg) payload.extractionLlmConfigId = newExtCfg;
+      if (mh !== kb.maxHops) payload.maxHops = mh;
+      if (vsk !== kb.vectorSeedTopK) payload.vectorSeedTopK = vsk;
+      if (ecl !== kb.expandedChunkLimit) payload.expandedChunkLimit = ecl;
+    }
     if (Object.keys(payload).length === 0) {
       setShowSettings(false);
       return;
@@ -407,121 +462,59 @@ export default function KnowledgeBaseDetailPage({
         </div>
       )}
 
-      {showSettings && kb && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-          <div className="w-full max-w-md rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-6 shadow-lg">
-            <div className="mb-4 flex items-center justify-between">
-              <h2 className="text-lg font-semibold">
-                {t("knowledgeBases.settingsTitle")}
-              </h2>
+      {kb && (
+        <Dialog open={showSettings} onOpenChange={setShowSettings}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle>{t("knowledgeBases.settingsTitle")}</DialogTitle>
+            </DialogHeader>
+            <KbFormBody
+              activeTab={settingsTab}
+              onActiveTabChange={setSettingsTab}
+              ragMode={kb.ragMode}
+              formName={formName}
+              setFormName={setFormName}
+              formDescription={formDescription}
+              setFormDescription={setFormDescription}
+              formEmbeddingLlmConfigId={formEmbeddingLlmConfigId}
+              setFormEmbeddingLlmConfigId={setFormEmbeddingLlmConfigId}
+              formEmbeddingModel={formEmbeddingModel}
+              setFormEmbeddingModel={setFormEmbeddingModel}
+              formChunkSize={formChunkSize}
+              setFormChunkSize={setFormChunkSize}
+              formChunkOverlap={formChunkOverlap}
+              setFormChunkOverlap={setFormChunkOverlap}
+              formExtractionLlmConfigId={formExtractionLlmConfigId}
+              setFormExtractionLlmConfigId={setFormExtractionLlmConfigId}
+              formMaxHops={formMaxHops}
+              setFormMaxHops={setFormMaxHops}
+              formVectorSeedTopK={formVectorSeedTopK}
+              setFormVectorSeedTopK={setFormVectorSeedTopK}
+              formExpandedChunkLimit={formExpandedChunkLimit}
+              setFormExpandedChunkLimit={setFormExpandedChunkLimit}
+              llmConfigs={llmConfigs}
+              currentEmbeddingDimension={kb.embeddingDimension}
+              embeddingModelChanged={formEmbeddingModel !== kb.embeddingModel}
+            />
+            <DialogFooter>
               <Button
-                variant="ghost"
-                size="icon"
+                variant="outline"
                 onClick={() => setShowSettings(false)}
               >
-                <X className="h-4 w-4" />
+                {t("common.cancel")}
               </Button>
-            </div>
-            <div className="space-y-4">
-              <div>
-                <Label>{t("knowledgeBases.name")}</Label>
-                <Input
-                  value={formName}
-                  onChange={(e) => setFormName(e.target.value)}
-                />
-              </div>
-              <div>
-                <Label>{t("common.description")}</Label>
-                <Input
-                  value={formDescription}
-                  onChange={(e) => setFormDescription(e.target.value)}
-                />
-              </div>
-              <div>
-                <Label>{t("knowledgeBases.embeddingLlm")}</Label>
-                <NativeSelect
-                  value={formEmbeddingLlmConfigId}
-                  onChange={(e) =>
-                    setFormEmbeddingLlmConfigId(e.target.value)
-                  }
-                >
-                  <option value="">
-                    {t("nodeConfigs.llmConfigSelector.defaultOption")}
-                  </option>
-                  {llmConfigs.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.name} ({c.defaultModel})
-                      {c.isDefault ? " *" : ""}
-                    </option>
-                  ))}
-                </NativeSelect>
-                <p className="mt-1 text-xs text-[hsl(var(--muted-foreground))]">
-                  {t("knowledgeBases.embeddingLlmHint")}
-                </p>
-              </div>
-              <div>
-                <Label>{t("knowledgeBases.embeddingModel")}</Label>
-                <EmbeddingModelCombobox
-                  value={formEmbeddingModel}
-                  onChange={setFormEmbeddingModel}
-                  placeholder="text-embedding-3-small"
-                  llmConfigId={formEmbeddingLlmConfigId || undefined}
-                />
-                {formEmbeddingModel !== kb.embeddingModel && (
-                  <p className="mt-1 text-xs text-[hsl(var(--warning,38_92%_50%))]">
-                    {t("knowledgeBases.modelChangedNeedsReembed")}
-                  </p>
+              <Button
+                onClick={handleSaveSettings}
+                disabled={updateMutation.isPending}
+              >
+                {updateMutation.isPending && (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                 )}
-                <div className="mt-2">
-                  <EmbeddingTestButton
-                    llmConfigId={formEmbeddingLlmConfigId || undefined}
-                    embeddingModel={formEmbeddingModel}
-                    currentDimension={kb.embeddingDimension}
-                  />
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <Label>{t("knowledgeBases.chunkSize")}</Label>
-                  <Input
-                    type="number"
-                    min="100"
-                    max="8000"
-                    value={formChunkSize}
-                    onChange={(e) => setFormChunkSize(e.target.value)}
-                  />
-                </div>
-                <div>
-                  <Label>{t("knowledgeBases.chunkOverlap")}</Label>
-                  <Input
-                    type="number"
-                    min="0"
-                    max="2000"
-                    value={formChunkOverlap}
-                    onChange={(e) => setFormChunkOverlap(e.target.value)}
-                  />
-                </div>
-              </div>
-              <div className="flex justify-end gap-2">
-                <Button
-                  variant="outline"
-                  onClick={() => setShowSettings(false)}
-                >
-                  {t("common.cancel")}
-                </Button>
-                <Button
-                  onClick={handleSaveSettings}
-                  disabled={updateMutation.isPending}
-                >
-                  {updateMutation.isPending && (
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  )}
-                  {t("knowledgeBases.settingsSave")}
-                </Button>
-              </div>
-            </div>
-          </div>
-        </div>
+                {t("knowledgeBases.settingsSave")}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       )}
 
       <ConfirmModal

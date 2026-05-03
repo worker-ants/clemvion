@@ -16,11 +16,10 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { NativeSelect } from "@/components/ui/native-select";
-import { EmbeddingModelCombobox } from "@/components/knowledge-base/embedding-model-combobox";
-import { EmbeddingTestButton } from "@/components/knowledge-base/embedding-test-button";
+import {
+  KbFormBody,
+  type KbFormTab,
+} from "@/components/knowledge-base/kb-form-body";
 import { toast } from "sonner";
 import { useT } from "@/lib/i18n";
 
@@ -36,6 +35,7 @@ export function CreateKbFormDialog({
   const t = useT();
   const queryClient = useQueryClient();
 
+  const [activeTab, setActiveTab] = useState<KbFormTab>("basic");
   const [formName, setFormName] = useState("");
   const [formDescription, setFormDescription] = useState("");
   const [formEmbeddingModel, setFormEmbeddingModel] = useState(
@@ -68,6 +68,7 @@ export function CreateKbFormDialog({
   })();
 
   function resetForm() {
+    setActiveTab("basic");
     setFormName("");
     setFormDescription("");
     setFormEmbeddingModel("text-embedding-3-small");
@@ -111,10 +112,17 @@ export function CreateKbFormDialog({
 
   function handleCreate() {
     if (!formName.trim()) {
+      setActiveTab("basic");
       toast.error(t("knowledgeBases.nameRequired"));
       return;
     }
     createMutation.mutate();
+  }
+
+  function handleRagModeChange(next: RagMode) {
+    setFormRagMode(next);
+    // graph → vector 로 바꾸면 그래프 탭이 사라지므로 활성 탭이 graph 였을 경우 basic 으로 폴백.
+    if (next !== "graph" && activeTab === "graph") setActiveTab("basic");
   }
 
   function handleOpenChange(next: boolean) {
@@ -128,167 +136,33 @@ export function CreateKbFormDialog({
         <DialogHeader>
           <DialogTitle>{t("knowledgeBases.newCollection")}</DialogTitle>
         </DialogHeader>
-        <div className="space-y-4">
-          <div>
-            <Label>{t("knowledgeBases.name")}</Label>
-            <Input
-              value={formName}
-              onChange={(e) => setFormName(e.target.value)}
-              placeholder={t("knowledgeBases.createPlaceholder")}
-            />
-          </div>
-          <div>
-            <Label>{t("common.description")}</Label>
-            <Input
-              value={formDescription}
-              onChange={(e) => setFormDescription(e.target.value)}
-              placeholder={t("knowledgeBases.descriptionPlaceholderOptional")}
-            />
-          </div>
-          <div>
-            <Label>{t("knowledgeBases.ragMode")}</Label>
-            <NativeSelect
-              value={formRagMode}
-              onChange={(e) => setFormRagMode(e.target.value as RagMode)}
-            >
-              <option value="vector">
-                {t("knowledgeBases.ragModeVector")}
-              </option>
-              <option value="graph">
-                {t("knowledgeBases.ragModeGraph")}
-              </option>
-            </NativeSelect>
-            <p className="mt-1 text-xs text-[hsl(var(--muted-foreground))]">
-              {t("knowledgeBases.ragModeHint")}
-            </p>
-          </div>
-          <div>
-            <Label>{t("knowledgeBases.embeddingLlm")}</Label>
-            <NativeSelect
-              value={formEmbeddingLlmConfigId}
-              onChange={(e) => setFormEmbeddingLlmConfigId(e.target.value)}
-            >
-              <option value="">
-                {t("nodeConfigs.llmConfigSelector.defaultOption")}
-              </option>
-              {llmConfigs.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name} ({c.defaultModel})
-                  {c.isDefault ? " *" : ""}
-                </option>
-              ))}
-            </NativeSelect>
-            <p className="mt-1 text-xs text-[hsl(var(--muted-foreground))]">
-              {t("knowledgeBases.embeddingLlmHint")}
-            </p>
-          </div>
-          <div>
-            <Label>{t("knowledgeBases.embeddingModel")}</Label>
-            <EmbeddingModelCombobox
-              value={formEmbeddingModel}
-              onChange={setFormEmbeddingModel}
-              placeholder="text-embedding-3-small"
-              llmConfigId={formEmbeddingLlmConfigId || undefined}
-            />
-            <div className="mt-2">
-              <EmbeddingTestButton
-                llmConfigId={formEmbeddingLlmConfigId || undefined}
-                embeddingModel={formEmbeddingModel}
-              />
-            </div>
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <Label>{t("knowledgeBases.chunkSize")}</Label>
-              <Input
-                type="number"
-                min="100"
-                max="8000"
-                value={formChunkSize}
-                onChange={(e) => setFormChunkSize(e.target.value)}
-              />
-            </div>
-            <div>
-              <Label>{t("knowledgeBases.chunkOverlap")}</Label>
-              <Input
-                type="number"
-                min="0"
-                max="2000"
-                value={formChunkOverlap}
-                onChange={(e) => setFormChunkOverlap(e.target.value)}
-              />
-            </div>
-          </div>
-          {formRagMode === "graph" && (
-            <>
-              <div>
-                <Label>{t("knowledgeBases.extractionLlm")}</Label>
-                <NativeSelect
-                  value={formExtractionLlmConfigId}
-                  onChange={(e) =>
-                    setFormExtractionLlmConfigId(e.target.value)
-                  }
-                >
-                  <option value="">
-                    {t("nodeConfigs.llmConfigSelector.defaultOption")}
-                  </option>
-                  {llmConfigs.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.name} ({c.defaultModel})
-                      {c.isDefault ? " *" : ""}
-                    </option>
-                  ))}
-                </NativeSelect>
-                <p className="mt-1 text-xs text-[hsl(var(--muted-foreground))]">
-                  {t("knowledgeBases.extractionLlmHint")}
-                </p>
-              </div>
-              <div>
-                <Label>{t("knowledgeBases.graphSearchParams")}</Label>
-                <div className="grid grid-cols-3 gap-3">
-                  <div>
-                    <Label className="text-xs">
-                      {t("knowledgeBases.maxHops")}
-                    </Label>
-                    <Input
-                      type="number"
-                      min="1"
-                      max="2"
-                      value={formMaxHops}
-                      onChange={(e) => setFormMaxHops(e.target.value)}
-                    />
-                  </div>
-                  <div>
-                    <Label className="text-xs">
-                      {t("knowledgeBases.vectorSeedTopK")}
-                    </Label>
-                    <Input
-                      type="number"
-                      min="1"
-                      max="50"
-                      value={formVectorSeedTopK}
-                      onChange={(e) => setFormVectorSeedTopK(e.target.value)}
-                    />
-                  </div>
-                  <div>
-                    <Label className="text-xs">
-                      {t("knowledgeBases.expandedChunkLimit")}
-                    </Label>
-                    <Input
-                      type="number"
-                      min="1"
-                      max="100"
-                      value={formExpandedChunkLimit}
-                      onChange={(e) =>
-                        setFormExpandedChunkLimit(e.target.value)
-                      }
-                    />
-                  </div>
-                </div>
-              </div>
-            </>
-          )}
-        </div>
+        <KbFormBody
+          activeTab={activeTab}
+          onActiveTabChange={setActiveTab}
+          ragMode={formRagMode}
+          onRagModeChange={handleRagModeChange}
+          formName={formName}
+          setFormName={setFormName}
+          formDescription={formDescription}
+          setFormDescription={setFormDescription}
+          formEmbeddingLlmConfigId={formEmbeddingLlmConfigId}
+          setFormEmbeddingLlmConfigId={setFormEmbeddingLlmConfigId}
+          formEmbeddingModel={formEmbeddingModel}
+          setFormEmbeddingModel={setFormEmbeddingModel}
+          formChunkSize={formChunkSize}
+          setFormChunkSize={setFormChunkSize}
+          formChunkOverlap={formChunkOverlap}
+          setFormChunkOverlap={setFormChunkOverlap}
+          formExtractionLlmConfigId={formExtractionLlmConfigId}
+          setFormExtractionLlmConfigId={setFormExtractionLlmConfigId}
+          formMaxHops={formMaxHops}
+          setFormMaxHops={setFormMaxHops}
+          formVectorSeedTopK={formVectorSeedTopK}
+          setFormVectorSeedTopK={setFormVectorSeedTopK}
+          formExpandedChunkLimit={formExpandedChunkLimit}
+          setFormExpandedChunkLimit={setFormExpandedChunkLimit}
+          llmConfigs={llmConfigs}
+        />
         <DialogFooter>
           <Button variant="outline" onClick={() => handleOpenChange(false)}>
             {t("common.cancel")}
