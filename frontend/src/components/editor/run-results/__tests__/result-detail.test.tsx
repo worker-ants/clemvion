@@ -710,6 +710,132 @@ describe("ResultDetail", () => {
       expect(screen.getByText("References")).toBeDefined();
     });
 
+    // 멀티턴 + 모든 turn 에 RAG 가 있는 fixture — message-level 필터가
+    // 실제로 turn 을 골라내는지 검증할 때 사용한다.
+    function makeAiResultBothTurnsWithRag(): NodeResult {
+      const ragChunk = (id: string, name: string) => ({
+        chunkId: id,
+        documentId: `d-${id}`,
+        documentName: name,
+        content: `preview of ${id}`,
+        score: 0.85,
+      });
+      return makeResult({
+        nodeId: "ai-1",
+        nodeType: "ai_agent",
+        nodeCategory: "ai",
+        outputData: {
+          config: { mode: "multi_turn", model: "gpt-4o" },
+          output: {
+            result: {
+              response: "OK",
+              messages: [
+                { role: "user", content: "환불 정책 알려줘" },
+                { role: "assistant", content: "7일 이내 환불 가능합니다." },
+                { role: "user", content: "비용은?" },
+                { role: "assistant", content: "월 3만원입니다." },
+              ],
+              turnCount: 2,
+              endReason: "user_ended",
+            },
+          },
+          meta: {
+            model: "gpt-4o",
+            inputTokens: 100,
+            outputTokens: 50,
+            ragSources: [ragChunk("c1", "환불.md"), ragChunk("c2", "요금.md")],
+            ragDiagnostics: {
+              attempted: true,
+              searchedKbCount: 2,
+              queriesUsed: ["환불 정책", "요금"],
+              resultCount: 2,
+            },
+            turnDebug: [
+              {
+                turnIndex: 1,
+                llmCalls: [],
+                totalDurationMs: 100,
+                ragSources: [ragChunk("c1", "환불.md")],
+                ragDiagnostics: {
+                  attempted: true,
+                  searchedKbCount: 1,
+                  queriesUsed: ["환불 정책"],
+                  resultCount: 1,
+                },
+              },
+              {
+                turnIndex: 2,
+                llmCalls: [],
+                totalDurationMs: 80,
+                ragSources: [ragChunk("c2", "요금.md")],
+                ragDiagnostics: {
+                  attempted: true,
+                  searchedKbCount: 1,
+                  queriesUsed: ["요금"],
+                  resultCount: 1,
+                },
+              },
+            ],
+          },
+        },
+      });
+    }
+
+    it("filters References to selected assistant message's turn only (no Node total)", () => {
+      // 두 번째 assistant 메시지(turn 2) 선택 → Turn 2 의 references 만 노출.
+      // Node total 카드는 message-level 에서 숨겨진다.
+      render(
+        <ResultDetail
+          result={makeAiResultBothTurnsWithRag()}
+          {...defaultProps}
+          selectedConversationItemIndex={3}
+        />,
+      );
+      fireEvent.click(screen.getByText("References"));
+
+      expect(screen.queryByText(/Node total/)).toBeNull();
+      expect(screen.getByText("Turn 2")).toBeDefined();
+      expect(screen.queryByText("Turn 1")).toBeNull();
+      expect(screen.getByText("요금.md")).toBeDefined();
+      expect(screen.queryByText("환불.md")).toBeNull();
+    });
+
+    it("hides References tab when a user message is selected", () => {
+      // user 메시지에는 자체 references 가 없으므로 탭이 사라져야 한다.
+      render(
+        <ResultDetail
+          result={makeAiResultBothTurnsWithRag()}
+          {...defaultProps}
+          selectedConversationItemIndex={0}
+        />,
+      );
+      expect(screen.queryByText("References")).toBeNull();
+    });
+
+    it("restores node-level cumulative view when selection is cleared", () => {
+      const result = makeAiResultBothTurnsWithRag();
+      const { rerender } = render(
+        <ResultDetail
+          result={result}
+          {...defaultProps}
+          selectedConversationItemIndex={1}
+        />,
+      );
+      fireEvent.click(screen.getByText("References"));
+      expect(screen.queryByText(/Node total/)).toBeNull();
+
+      rerender(
+        <ResultDetail
+          result={result}
+          {...defaultProps}
+          selectedConversationItemIndex={null}
+        />,
+      );
+      expect(screen.getByText(/Node total/)).toBeDefined();
+      expect(screen.getByText("Turn 1")).toBeDefined();
+      expect(screen.getByText("Turn 2")).toBeDefined();
+    });
+
     it("jumps to References tab when assistant message chip is clicked (completed multi-turn)", () => {
       // scrollIntoView 는 jsdom 에 없어서 mock.
       const scrollSpy = vi.fn();
