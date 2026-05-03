@@ -375,6 +375,10 @@ export function extractAiMetadata(raw: unknown): AiMetadata | null {
  * Normalize `meta.turnDebug[]` into per-turn RAG entries — drops llmCalls /
  * totalDurationMs (handled elsewhere) and tolerates legacy payloads where
  * ragSources / ragDiagnostics are absent (returns [] / null fallback).
+ *
+ * Entries without a numeric `turnIndex` are silently dropped — the field is
+ * required for matching assistant messages back to their RAG delta, so a
+ * missing index would render the entry meaningless to the References tab.
  */
 export function extractTurnDebug(raw: unknown): TurnDebugEntry[] {
   if (!Array.isArray(raw)) return [];

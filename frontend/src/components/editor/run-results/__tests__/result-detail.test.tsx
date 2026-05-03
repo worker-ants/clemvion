@@ -544,4 +544,162 @@ describe("ResultDetail", () => {
     expect(screen.queryByText("Input")).toBeNull();
     expect(screen.queryByText("Output")).toBeNull();
   });
+
+  describe("References tab + Preview chip (KB)", () => {
+    // 멀티턴 AI Agent 결과: turn 1 은 KB 호출, turn 2 는 small-talk.
+    // Output 탭은 RAG 섹션을 더 이상 노출하지 않고 References 탭으로 이동했다.
+    function makeAiResult(): NodeResult {
+      const ragChunk = (id: string, name: string) => ({
+        chunkId: id,
+        documentId: `d-${id}`,
+        documentName: name,
+        content: `preview of ${id}`,
+        score: 0.85,
+      });
+      return makeResult({
+        nodeId: "ai-1",
+        nodeType: "ai_agent",
+        nodeCategory: "ai",
+        outputData: {
+          config: { mode: "multi_turn", model: "gpt-4o" },
+          output: {
+            result: {
+              response: "OK",
+              messages: [
+                { role: "user", content: "환불 정책 알려줘" },
+                { role: "assistant", content: "7일 이내 환불 가능합니다." },
+                { role: "user", content: "고마워" },
+                { role: "assistant", content: "천만에요." },
+              ],
+              turnCount: 2,
+              endReason: "user_ended",
+            },
+          },
+          meta: {
+            model: "gpt-4o",
+            inputTokens: 100,
+            outputTokens: 50,
+            ragSources: [ragChunk("c1", "환불.md")],
+            ragDiagnostics: {
+              attempted: true,
+              searchedKbCount: 1,
+              queriesUsed: ["환불 정책"],
+              resultCount: 1,
+            },
+            turnDebug: [
+              {
+                turnIndex: 1,
+                llmCalls: [],
+                totalDurationMs: 100,
+                ragSources: [ragChunk("c1", "환불.md")],
+                ragDiagnostics: {
+                  attempted: true,
+                  searchedKbCount: 1,
+                  queriesUsed: ["환불 정책"],
+                  resultCount: 1,
+                },
+              },
+              {
+                turnIndex: 2,
+                llmCalls: [],
+                totalDurationMs: 50,
+                ragSources: [],
+                ragDiagnostics: {
+                  attempted: false,
+                  searchedKbCount: 0,
+                  queriesUsed: [],
+                  resultCount: 0,
+                },
+              },
+            ],
+          },
+        },
+      });
+    }
+
+    it("shows References tab when AI node has RAG data", () => {
+      render(<ResultDetail result={makeAiResult()} {...defaultProps} />);
+      expect(screen.getByText("References")).toBeDefined();
+    });
+
+    it("hides References tab for AI node with no RAG attempt", () => {
+      const noRag = makeResult({
+        nodeId: "ai-2",
+        nodeType: "ai_agent",
+        nodeCategory: "ai",
+        outputData: {
+          config: { mode: "single_turn", model: "gpt-4o" },
+          output: { result: { response: "Hi", endReason: "out", turnCount: 1 } },
+          meta: {
+            model: "gpt-4o",
+            inputTokens: 10,
+            outputTokens: 5,
+            turnDebug: [
+              {
+                turnIndex: 1,
+                llmCalls: [],
+                totalDurationMs: 50,
+                ragSources: [],
+                ragDiagnostics: {
+                  attempted: false,
+                  searchedKbCount: 0,
+                  queriesUsed: [],
+                  resultCount: 0,
+                  skipReason: "empty_kb_list",
+                },
+              },
+            ],
+          },
+        },
+      });
+      render(<ResultDetail result={noRag} {...defaultProps} />);
+      expect(screen.queryByText("References")).toBeNull();
+    });
+
+    it("renders turn-grouped chunks inside the References tab", () => {
+      render(<ResultDetail result={makeAiResult()} {...defaultProps} />);
+      fireEvent.click(screen.getByText("References"));
+      // Aggregate header + turn-1 group must be rendered.
+      expect(screen.getByText(/Node total/)).toBeDefined();
+      expect(screen.getByText("Turn 1")).toBeDefined();
+      // turn 2 는 attempted=false + sources=[] 라 그룹에서 제외돼야 한다.
+      expect(screen.queryByText("Turn 2")).toBeNull();
+      expect(screen.getAllByText("환불.md").length).toBeGreaterThanOrEqual(1);
+    });
+
+    it("does NOT render the RAG section under the Output tab anymore", () => {
+      render(<ResultDetail result={makeAiResult()} {...defaultProps} />);
+      // Output 탭은 default 가 아니라 명시 클릭 (Preview chrome 없음 → fallback output 가능하지만 안전하게 클릭).
+      fireEvent.click(screen.getByText("Output"));
+      // RagReferencesSection 의 헤더 "References" 는 Output 탭에서 더 이상 보이지 않아야 한다 — 단,
+      // tab 버튼 자체는 항상 노출되므로 'Queries used' 같은 본문 marker 로 검증.
+      expect(screen.queryByText(/Queries used/)).toBeNull();
+    });
+
+    it("jumps to References tab when assistant message chip is clicked (completed multi-turn)", () => {
+      // scrollIntoView 는 jsdom 에 없어서 mock.
+      const scrollSpy = vi.fn();
+      Element.prototype.scrollIntoView = scrollSpy as never;
+
+      render(
+        <ResultDetail
+          result={{
+            ...makeAiResult(),
+            status: "completed",
+          }}
+          {...defaultProps}
+        />,
+      );
+
+      // Preview 탭의 SummaryView assistant row 에서 chip ("📚 환불.md") 노출 확인 후 클릭.
+      const chip = screen.getAllByTitle("View in References tab")[0];
+      expect(chip).toBeDefined();
+      fireEvent.click(chip);
+
+      // References 탭으로 전환되어 turn-1 그룹 헤더가 보여야 한다.
+      expect(screen.getByText("Turn 1")).toBeDefined();
+      // 그리고 scrollIntoView 가 호출돼 자동 스크롤이 일어났어야 한다.
+      expect(scrollSpy).toHaveBeenCalled();
+    });
+  });
 });

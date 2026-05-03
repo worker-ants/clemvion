@@ -44,11 +44,19 @@ interface ParsedKbArgs {
   threshold?: number;
 }
 
+/**
+ * LLM 이 보낸 query 의 최대 길이. 임베딩 비용 / 토큰 절약 / 악성 페이로드 차단
+ * 목적이며, 일반적인 사용자 질의는 100자를 거의 넘지 않으므로 충분히 여유 있다.
+ */
+const MAX_KB_QUERY_LENGTH = 2000;
+
 function parseKbArgs(rawArgs: string): ParsedKbArgs {
   if (!rawArgs) return { query: '' };
   try {
     const parsed = JSON.parse(rawArgs) as Record<string, unknown>;
-    const query = typeof parsed.query === 'string' ? parsed.query : '';
+    const rawQuery = typeof parsed.query === 'string' ? parsed.query : '';
+    // trim 후 상한 적용. 빈 문자열이면 호출부에서 'Missing required argument' 처리.
+    const query = rawQuery.trim().slice(0, MAX_KB_QUERY_LENGTH);
     const topK =
       typeof parsed.top_k === 'number' && parsed.top_k > 0
         ? Math.floor(parsed.top_k)
@@ -154,11 +162,14 @@ export class KbToolProvider implements AgentToolProvider {
     const kbIds = (ctx.config.knowledgeBases as string[]) || [];
     const kbId = extractKbIdFromToolName(call.name, kbIds);
     if (!kbId) {
+      // LLM 이 만든 tool 이름은 로그에만 남기고 다음 prompt context 에는 고정
+      // 코드만 흘려보낸다 (반사형 페이로드 노출 차단).
+      KbToolProvider.logger.warn(
+        `Unknown KB tool requested: ${call.name} (known=${kbIds.length})`,
+      );
       return {
         toolCallId: call.id,
-        content: JSON.stringify({
-          error: `Unknown knowledge base tool: ${call.name}`,
-        }),
+        content: JSON.stringify({ error: 'unknown_kb_tool' }),
       };
     }
 

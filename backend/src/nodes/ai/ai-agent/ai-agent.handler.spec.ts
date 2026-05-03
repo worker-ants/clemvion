@@ -900,6 +900,87 @@ describe('AiAgentHandler', () => {
       expect(turnDiag.queriesUsed).toEqual(['X']);
     });
 
+    it('accumulates multiple KB tool calls within the same turn into turnDebug delta', async () => {
+      mockRagService.search.mockImplementation((q: string) =>
+        Promise.resolve([
+          {
+            chunkId: `c-${q}`,
+            documentId: 'd1',
+            documentName: `doc-${q}`,
+            content: `payload for ${q}`,
+            score: 0.8,
+            metadata: {},
+          },
+        ]),
+      );
+
+      const state = {
+        llmConfigId: 'config-1',
+        model: 'gpt-4o',
+        knowledgeBases: ['kb-a', 'kb-b'],
+        ragTopK: 5,
+        ragThreshold: 0.7,
+        maxToolCalls: 10,
+        maxTurns: 20,
+        messages: [
+          { role: 'system', content: 'You are helpful' },
+          { role: 'user', content: 'Hello' },
+          { role: 'assistant', content: 'Hi!' },
+        ],
+        turnCount: 1,
+        totalInputTokens: 100,
+        totalOutputTokens: 50,
+        toolCalls: 0,
+        ragSources: [],
+        workspaceId: 'ws-1',
+      };
+
+      mockLlmService.chat
+        .mockResolvedValueOnce({
+          content: null,
+          toolCalls: [
+            {
+              id: 'tc-a',
+              name: kbToolName('kb-a'),
+              arguments: '{"query":"alpha"}',
+            },
+            {
+              id: 'tc-b',
+              name: kbToolName('kb-b'),
+              arguments: '{"query":"beta"}',
+            },
+          ],
+          usage: { inputTokens: 30, outputTokens: 5, totalTokens: 35 },
+          model: 'gpt-4o',
+          finishReason: 'tool_calls',
+        })
+        .mockResolvedValueOnce({
+          content: 'Combined.',
+          usage: { inputTokens: 50, outputTokens: 10, totalTokens: 60 },
+          model: 'gpt-4o',
+          finishReason: 'stop',
+        });
+
+      const result = await handler.processMultiTurnMessage(
+        'Tell me alpha and beta',
+        state,
+      );
+      const newState = (result as Record<string, unknown>)
+        ._resumeState as Record<string, unknown>;
+      const history = newState.turnDebugHistory as Array<
+        Record<string, unknown>
+      >;
+      const lastTurn = history[history.length - 1];
+      const turnSources = lastTurn.ragSources as Array<Record<string, unknown>>;
+      expect(turnSources).toHaveLength(2);
+      const turnDiag = lastTurn.ragDiagnostics as Record<string, unknown>;
+      expect(turnDiag.searchedKbCount).toBe(2);
+      expect((turnDiag.queriesUsed as string[]).sort()).toEqual([
+        'alpha',
+        'beta',
+      ]);
+    });
+
     it('emits turnDebug with empty ragSources when LLM does not call KB', async () => {
       // small-talk 턴은 KB tool 을 호출하지 않으므로 turnDebug.ragSources = []
       // 가 되어야 한다 (전체 누적과 무관하게 turn delta 만 분리 노출).
@@ -951,6 +1032,27 @@ describe('AiAgentHandler', () => {
   });
 
   describe('single-turn turnDebug ragSources', () => {
+    it('emits turnDebug[0] with empty ragSources when LLM responds directly (no KB)', async () => {
+      // small-talk 대화: knowledgeBases 가 비어있고 LLM 도 KB tool 을 호출하지
+      // 않는 경우 turnDebug[0].ragSources === [], ragDiagnostics.attempted === false
+      // 가 되어야 한다 (skipReason='empty_kb_list').
+      const result = (await handler.execute(
+        {},
+        {
+          systemPrompt: 'Helper',
+          userPrompt: 'Hi!',
+        },
+        baseContext,
+      )) as Record<string, unknown>;
+      const meta = (result.meta ?? {}) as Record<string, unknown>;
+      const turnDebug = meta.turnDebug as Array<Record<string, unknown>>;
+      expect(turnDebug).toHaveLength(1);
+      expect(turnDebug[0].ragSources).toEqual([]);
+      const diag = turnDebug[0].ragDiagnostics as Record<string, unknown>;
+      expect(diag.attempted).toBe(false);
+      expect(diag.skipReason).toBe('empty_kb_list');
+    });
+
     it('exposes turn-level ragSources in turnDebug[0] for single_turn KB call', async () => {
       mockRagService.search.mockResolvedValue([
         {

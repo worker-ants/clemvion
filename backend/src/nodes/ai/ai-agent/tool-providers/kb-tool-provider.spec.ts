@@ -175,7 +175,9 @@ describe('KbToolProvider', () => {
       expect(mockRagService.search).not.toHaveBeenCalled();
     });
 
-    it('returns error tool_result when KB id is unknown', async () => {
+    it('returns fixed-code tool_result when KB id is unknown (LLM-controlled name only logged)', async () => {
+      // 보안: LLM 이 만든 tool name 을 다음 prompt context 에 그대로 흘리지 않고
+      // 고정 코드 'unknown_kb_tool' 만 반환. 원본 name 은 logger.warn 으로 기록.
       const call: ToolCall = {
         id: 'tc-4',
         name: 'kb_unknown',
@@ -183,7 +185,7 @@ describe('KbToolProvider', () => {
       };
       const result = await provider.execute(call, baseCtx);
       const content = JSON.parse(result.content) as { error: string };
-      expect(content.error).toMatch(/Unknown/);
+      expect(content.error).toBe('unknown_kb_tool');
       expect(mockRagService.search).not.toHaveBeenCalled();
     });
 

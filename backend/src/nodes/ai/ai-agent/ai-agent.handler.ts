@@ -138,6 +138,28 @@ class RagAccumulator {
   }
 }
 
+/**
+ * 노드 누적과 turn delta 두 accumulator 를 동시에 갱신하는 thin wrapper.
+ * "delta 의 합 = 노드 전체 누적" 불변식을 호출자 규율 대신 타입 시스템 수준에서
+ * 강제한다. provider 결과를 한 번 push 하면 두 곳이 항상 동기 상태.
+ */
+class RagAccumulatorGroup {
+  constructor(
+    readonly node: RagAccumulator,
+    readonly turn: RagAccumulator,
+  ) {}
+
+  pushSources(items: unknown[] | undefined): void {
+    this.node.pushSources(items);
+    this.turn.pushSources(items);
+  }
+
+  pushDiagnostic(d: KbSearchDiagnostic | undefined): void {
+    this.node.pushDiagnostic(d);
+    this.turn.pushDiagnostic(d);
+  }
+}
+
 export class AiAgentHandler implements NodeHandler {
   metadata = aiAgentNodeMetadata;
 
@@ -195,6 +217,7 @@ export class AiAgentHandler implements NodeHandler {
     // Single-turn 은 한 턴이라 turn delta = 노드 누적이지만, turnDebug[0]
     // 도 동일 키로 노출해 멀티턴 출력과 스키마 일관성을 유지한다.
     const turnRagAcc = new RagAccumulator(knowledgeBases.length);
+    const ragGroup = new RagAccumulatorGroup(ragAcc, turnRagAcc);
 
     // System prompt: KB 검색은 더 이상 prefill 하지 않는다. LLM 이 능동 호출 결정.
     let finalSystemPrompt = systemPrompt;
@@ -305,17 +328,16 @@ export class AiAgentHandler implements NodeHandler {
         toolCalls: result.toolCalls,
       });
 
-      // Provider tools (KB 등) — 핸들러 내부 직접 실행, 결과 메시지 + ragAcc 누적.
+      // Provider tools (KB 등) — 핸들러 내부 직접 실행, 결과 메시지 + ragGroup
+      // 누적 (node total + turn delta 동시 갱신).
       for (const { provider, call } of classification.providerToolCalls) {
         toolCallCount++;
         const execResult = await provider.execute(call, {
           config,
           workspaceId,
         });
-        ragAcc.pushSources(execResult.ragSourcesDelta);
-        ragAcc.pushDiagnostic(execResult.ragDiagnosticsDelta);
-        turnRagAcc.pushSources(execResult.ragSourcesDelta);
-        turnRagAcc.pushDiagnostic(execResult.ragDiagnosticsDelta);
+        ragGroup.pushSources(execResult.ragSourcesDelta);
+        ragGroup.pushDiagnostic(execResult.ragDiagnosticsDelta);
         messages.push({
           role: 'tool',
           content: execResult.content,
@@ -546,6 +568,7 @@ export class AiAgentHandler implements NodeHandler {
     // 이번 턴에서만 호출된 KB delta — meta.turnDebug[].ragSources 로 노출되어
     // run-results UI 가 "어느 응답이 어느 청크를 사용했는지" 를 매핑한다.
     const turnRagAcc = new RagAccumulator(knowledgeBases.length);
+    const ragGroup = new RagAccumulatorGroup(ragAcc, turnRagAcc);
 
     // Add user message
     messages.push({ role: 'user', content: userMessage });
@@ -662,10 +685,8 @@ export class AiAgentHandler implements NodeHandler {
           config: turnConfig,
           workspaceId,
         });
-        ragAcc.pushSources(execResult.ragSourcesDelta);
-        ragAcc.pushDiagnostic(execResult.ragDiagnosticsDelta);
-        turnRagAcc.pushSources(execResult.ragSourcesDelta);
-        turnRagAcc.pushDiagnostic(execResult.ragDiagnosticsDelta);
+        ragGroup.pushSources(execResult.ragSourcesDelta);
+        ragGroup.pushDiagnostic(execResult.ragDiagnosticsDelta);
         messages.push({
           role: 'tool',
           content: execResult.content,

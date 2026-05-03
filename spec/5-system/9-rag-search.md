@@ -161,6 +161,7 @@ AI Agent 응답의 `meta.ragSources` 와 `meta.ragDiagnostics`:
 - `score`: 유사도 점수 (0.0 ~ 1.0)
 - KB tool 이 한 노드 실행 동안 여러 번 호출되면 모든 결과가 누적된다 (multi-turn 도 포함).
 - 멀티턴에서 "어느 응답이 어느 청크를 사용했는지"가 필요한 경우, 동일 항목이 turn 단위로 분리되어 `meta.turnDebug[].ragSources` / `meta.turnDebug[].ragDiagnostics` 에도 노출된다 — 노드 전체 누적은 `meta.ragSources` 그대로 유지하되, run-results UI 의 References 탭은 turn delta 를 메시지(턴)별 그룹으로 렌더한다.
+- run-results UI: AI 노드가 KB 호출을 시도한 경우(`ragDiagnostics.attempted=true` 또는 `ragSources.length > 0`) 별도 **References 탭**을 노출해 노드 전체 요약 + turn 단위 그룹을 보여준다. Output / Meta 탭은 더 이상 KB 청크를 중복 노출하지 않으며, 발견성을 위해 Preview 탭의 assistant 메시지 하단에 사용 문서명 chip 을 1줄로 표시하고 클릭 시 References 탭으로 점프한다.
 
 ### 4.2 ragDiagnostics (검색 동작 진단)
 

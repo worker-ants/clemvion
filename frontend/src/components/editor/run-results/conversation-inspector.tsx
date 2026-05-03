@@ -10,10 +10,17 @@ import type { RagSource } from "./output-shape";
 import { resolveResultField } from "./resolve-result-field";
 import { MarkdownRenderer } from "@/components/editor/assistant-panel/markdown-renderer";
 
+/** Chip 한 줄에 inline 으로 보일 최대 문서명 개수 (나머지는 `+N` 으로 축약). */
+const MAX_VISIBLE_DOC_NAMES = 2;
+
 /**
  * 한 assistant 응답에서 사용된 KB 청크 요약 chip — 클릭 시 References 탭의
- * 해당 turn 그룹으로 점프. 문서명 최대 2개까지 inline, 나머지는 +N 으로 축약.
- * sources 가 비면 미렌더 (chrome 노이즈 방지).
+ * 해당 turn 그룹으로 점프. 문서명은 dedup 후 {@link MAX_VISIBLE_DOC_NAMES} 개
+ * 까지 inline, 나머지는 `+N` 으로 축약. `sources` 가 비면 미렌더 (chrome
+ * 노이즈 방지).
+ *
+ * - `compact`: SummaryView 의 인라인 버블용 (padding / font-weight 축소). 기본
+ *   값은 SelectedItemDetail 의 standalone chip 용.
  */
 function ReferencesChip({
   sources,
@@ -26,7 +33,7 @@ function ReferencesChip({
 }) {
   if (sources.length === 0) return null;
   const docNames = Array.from(new Set(sources.map((s) => s.documentName)));
-  const shown = docNames.slice(0, 2);
+  const shown = docNames.slice(0, MAX_VISIBLE_DOC_NAMES);
   const extra = docNames.length - shown.length;
   return (
     <button
@@ -485,17 +492,21 @@ function SummaryView({
                     (empty)
                   </span>
                 )}
-                {isAssistant &&
-                  onJumpToReferences &&
-                  (turnRefIndex?.get(item.turnIndex)?.length ?? 0) > 0 && (
+                {(() => {
+                  if (!isAssistant || !onJumpToReferences) return null;
+                  const turnSources =
+                    turnRefIndex?.get(item.turnIndex) ?? [];
+                  if (turnSources.length === 0) return null;
+                  return (
                     <div className="mt-1.5">
                       <ReferencesChip
-                        sources={turnRefIndex!.get(item.turnIndex)!}
+                        sources={turnSources}
                         onClick={() => onJumpToReferences(item.turnIndex)}
                         compact
                       />
                     </div>
-                  )}
+                  );
+                })()}
               </div>
             );
           })}

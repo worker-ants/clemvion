@@ -321,6 +321,16 @@ describe("extractTurnDebug", () => {
       ]),
     ).toEqual([{ turnIndex: 1, ragSources: [], ragDiagnostics: null }]);
   });
+
+  it("preserves turnIndex: 0 (falsy but valid)", () => {
+    // typeof 0 === "number" 이라 turnIndex == null 가드를 통과해야 한다.
+    // 단일턴이 turnIndex=1 부터 시작하긴 하지만 future-proof 차원에서 0 도 보존.
+    expect(
+      extractTurnDebug([
+        { turnIndex: 0, ragSources: [], ragDiagnostics: null },
+      ]),
+    ).toEqual([{ turnIndex: 0, ragSources: [], ragDiagnostics: null }]);
+  });
 });
 
 describe("extractIeSnapshot", () => {
