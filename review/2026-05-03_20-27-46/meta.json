@@ -1,0 +1,103 @@
+{
+  "timestamp": "2026-05-03T20:33:06.152810",
+  "files": [
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/frontend/package-lock.json",
+      "change_type": "Review",
+      "file_extension": "json"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/frontend/package.json",
+      "change_type": "Review",
+      "file_extension": "json"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/frontend/src/components/knowledge-base/__tests__/graph-visualization.test.tsx",
+      "change_type": "Review",
+      "file_extension": "tsx"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/frontend/src/components/knowledge-base/graph-3d-renderer.tsx",
+      "change_type": "Review",
+      "file_extension": "tsx"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/frontend/src/components/knowledge-base/graph-visualization.tsx",
+      "change_type": "Review",
+      "file_extension": "tsx"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/spec/2-navigation/5-knowledge-base.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    }
+  ],
+  "total_elapsed_seconds": 319.6,
+  "agents": [
+    {
+      "name": "database",
+      "status": "success",
+      "elapsed_seconds": 18.58
+    },
+    {
+      "name": "api_contract",
+      "status": "success",
+      "elapsed_seconds": 43.81
+    },
+    {
+      "name": "concurrency",
+      "status": "success",
+      "elapsed_seconds": 55.55
+    },
+    {
+      "name": "scope",
+      "status": "success",
+      "elapsed_seconds": 56.07
+    },
+    {
+      "name": "architecture",
+      "status": "success",
+      "elapsed_seconds": 64.83
+    },
+    {
+      "name": "maintainability",
+      "status": "success",
+      "elapsed_seconds": 69.22
+    },
+    {
+      "name": "documentation",
+      "status": "success",
+      "elapsed_seconds": 71.57
+    },
+    {
+      "name": "testing",
+      "status": "success",
+      "elapsed_seconds": 72.31
+    },
+    {
+      "name": "side_effect",
+      "status": "success",
+      "elapsed_seconds": 76.54
+    },
+    {
+      "name": "requirement",
+      "status": "success",
+      "elapsed_seconds": 77.52
+    },
+    {
+      "name": "dependency",
+      "status": "success",
+      "elapsed_seconds": 82.66
+    },
+    {
+      "name": "security",
+      "status": "success",
+      "elapsed_seconds": 96.77
+    },
+    {
+      "name": "performance",
+      "status": "success",
+      "elapsed_seconds": 100.1
+    }
+  ]
+}

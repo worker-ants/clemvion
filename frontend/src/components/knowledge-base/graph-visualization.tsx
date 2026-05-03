@@ -6,45 +6,42 @@ import { useQuery } from "@tanstack/react-query";
 import { Loader2 } from "lucide-react";
 import {
   knowledgeBasesApi,
-  type EntityType,
   type GraphVisualizationData,
 } from "@/lib/api/knowledge-bases";
 import { NativeSelect } from "@/components/ui/native-select";
 import { useT } from "@/lib/i18n";
-
-// Entity 타입별 legend 색상. 3D 노드 material 과 동일 (graph-3d-renderer.tsx 의 TYPE_COLOR).
-const TYPE_COLOR: Record<EntityType, string> = {
-  person: "#3b82f6",
-  organization: "#a855f7",
-  concept: "#f97316",
-  location: "#22c55e",
-  event: "#ef4444",
-  other: "#6b7280",
-};
+import {
+  GRAPH_BG_COLOR,
+  TYPE_COLOR,
+  VIEWPORT_HEIGHT,
+} from "./graph-constants";
 
 // 3D 렌더러는 three.js / WebGL 의존성으로 SSR 환경에서 import 자체가 실패한다.
 // `ssr: false` 로 client 마운트 후에만 로드 + 첫 페인트는 가벼운 placeholder.
-const Graph3DRenderer = dynamic(() => import("./graph-3d-renderer"), {
-  ssr: false,
-  loading: () => (
+function Graph3DLoading() {
+  const t = useT();
+  return (
     <div className="flex h-full items-center justify-center text-xs text-[hsl(var(--muted-foreground))]">
       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-      Loading 3D graph…
+      {t("knowledgeBases.graphVizLoading3d")}
     </div>
-  ),
+  );
+}
+
+const Graph3DRenderer = dynamic(() => import("./graph-3d-renderer"), {
+  ssr: false,
+  loading: () => <Graph3DLoading />,
 });
 
 interface GraphVisualizationProps {
   kbId: string;
 }
 
-const VIEWPORT_HEIGHT = 600;
-
 export function GraphVisualization({ kbId }: GraphVisualizationProps) {
   const t = useT();
   const [limit, setLimit] = useState(50);
 
-  const { data, isLoading } = useQuery<GraphVisualizationData>({
+  const { data, isLoading, isError } = useQuery<GraphVisualizationData>({
     queryKey: ["kb-graph-viz", kbId, limit],
     queryFn: () => knowledgeBasesApi.getGraphVisualization(kbId, limit),
   });
@@ -102,12 +99,16 @@ export function GraphVisualization({ kbId }: GraphVisualizationProps) {
 
       <div
         ref={containerRef}
-        className="overflow-hidden rounded-lg border border-[hsl(var(--border))] bg-[#0b0d12]"
-        style={{ height: VIEWPORT_HEIGHT }}
+        className="overflow-hidden rounded-lg border border-[hsl(var(--border))]"
+        style={{ height: VIEWPORT_HEIGHT, background: GRAPH_BG_COLOR }}
       >
         {isLoading ? (
           <div className="flex h-full items-center justify-center text-[hsl(var(--muted-foreground))]">
             <Loader2 className="h-5 w-5 animate-spin" />
+          </div>
+        ) : isError ? (
+          <div className="flex h-full items-center justify-center text-sm text-[hsl(var(--destructive))]">
+            {t("knowledgeBases.graphVizLoadFailed")}
           </div>
         ) : !data || data.nodes.length === 0 ? (
           <div className="flex h-full items-center justify-center text-sm text-[hsl(var(--muted-foreground))]">
@@ -123,7 +124,7 @@ export function GraphVisualization({ kbId }: GraphVisualizationProps) {
       </div>
 
       <p className="text-[10px] text-[hsl(var(--muted-foreground))]">
-        드래그로 회전 · 휠로 줌 · 노드 클릭 시 카메라 이동
+        {t("knowledgeBases.graphVizControlsHint")}
       </p>
     </div>
   );

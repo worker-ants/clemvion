@@ -1688,6 +1688,9 @@ export const en: Dict = {
     graphVizTruncated:
       "Truncated — showing top {{limit}} entities only",
     graphVizEmpty: "No entities yet. Graph will appear once extraction completes.",
+    graphVizLoadFailed: "Failed to load graph. Try refreshing.",
+    graphVizLoading3d: "Loading 3D graph…",
+    graphVizControlsHint: "Drag to rotate · scroll to zoom · click a node to focus",
     formTabBasic: "Basic",
     formTabEmbedding: "Embedding",
     formTabGraph: "Graph",

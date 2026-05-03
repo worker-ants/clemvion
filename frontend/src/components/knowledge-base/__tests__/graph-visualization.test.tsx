@@ -1,10 +1,11 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { render, screen, waitFor, fireEvent } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { GraphVisualization } from "../graph-visualization";
 
 // 3D 렌더러는 three.js / WebGL 의존성 때문에 jsdom 에서 mount 불가 — chrome
-// (control bar / loader / empty / 3D 영역 진입) 만 검증하고 실제 그래프는 mock.
+// (control bar / loader / empty / error / 3D 영역 진입) 만 검증하고 실제
+// 그래프는 mock 으로 치환한다.
 vi.mock("../graph-3d-renderer", () => ({
   __esModule: true,
   default: ({
@@ -26,19 +27,36 @@ vi.mock("../graph-3d-renderer", () => ({
   ),
 }));
 
-// next/dynamic 은 컴포넌트를 lazy 로드 — vi.mock 대상이 dynamic 안의 import 라
-// vitest 기본 동작상 즉시 resolve 된다. 별도 mock 불필요.
+// next/dynamic 은 vitest 에서 즉시 resolve — 별도 mock 불필요.
 
-// ResizeObserver 는 jsdom 에 없음 — 가짜로 채워 contentRect.width=800 을 즉시
-// 보고하도록 한다 (3D 컨테이너 진입 조건).
+const apiMock = vi.hoisted(() => ({
+  getGraphVisualization: vi.fn(),
+}));
+vi.mock("@/lib/api/knowledge-bases", () => ({
+  knowledgeBasesApi: apiMock,
+}));
+
+vi.mock("@/lib/i18n", () => ({
+  useT:
+    () =>
+    (key: string, params?: Record<string, unknown>): string =>
+      params ? `${key} ${JSON.stringify(params)}` : key,
+}));
+
+// jsdom 은 ResizeObserver 가 없음 — contentRect.width=800 을 즉시 보고하는 mock.
+// afterEach 에서 원본으로 복원해 후속 테스트 파일에 누출되지 않게 한다.
+let originalResizeObserver: typeof ResizeObserver | undefined;
 beforeEach(() => {
+  originalResizeObserver = (
+    globalThis as { ResizeObserver?: typeof ResizeObserver }
+  ).ResizeObserver;
+
   class MockResizeObserver {
     callback: ResizeObserverCallback;
     constructor(cb: ResizeObserverCallback) {
       this.callback = cb;
     }
     observe(target: Element) {
-      // 마운트 다음 마이크로태스크에 한 번 호출.
       queueMicrotask(() => {
         this.callback(
           [
@@ -59,20 +77,18 @@ beforeEach(() => {
   ).ResizeObserver = MockResizeObserver as unknown as typeof ResizeObserver;
 });
 
-// API 모듈을 통째로 mock — 호출자별로 결과를 갈아끼우기 위해 module-scope state.
-const apiMock = vi.hoisted(() => ({
-  getGraphVisualization: vi.fn(),
-}));
-vi.mock("@/lib/api/knowledge-bases", () => ({
-  knowledgeBasesApi: apiMock,
-}));
-
-vi.mock("@/lib/i18n", () => ({
-  useT:
-    () =>
-    (key: string, params?: Record<string, unknown>): string =>
-      params ? `${key} ${JSON.stringify(params)}` : key,
-}));
+afterEach(() => {
+  if (originalResizeObserver) {
+    (
+      globalThis as { ResizeObserver: typeof ResizeObserver }
+    ).ResizeObserver = originalResizeObserver;
+  } else {
+    delete (
+      globalThis as { ResizeObserver?: typeof ResizeObserver }
+    ).ResizeObserver;
+  }
+  apiMock.getGraphVisualization.mockReset();
+});
 
 function renderWithQuery(ui: React.ReactElement) {
   const qc = new QueryClient({
@@ -87,7 +103,6 @@ describe("GraphVisualization (3D)", () => {
   it("shows loader before data resolves", async () => {
     apiMock.getGraphVisualization.mockReturnValue(new Promise(() => {}));
     renderWithQuery(<GraphVisualization kbId="kb-1" />);
-    // Limit selector 와 legend 는 항상 보이고, 본문엔 spinner 만.
     expect(screen.getByText("knowledgeBases.graphVizLimit")).toBeDefined();
     expect(screen.queryByTestId("graph-3d")).toBeNull();
   });
@@ -101,6 +116,17 @@ describe("GraphVisualization (3D)", () => {
     renderWithQuery(<GraphVisualization kbId="kb-2" />);
     await waitFor(() => {
       expect(screen.getByText("knowledgeBases.graphVizEmpty")).toBeDefined();
+    });
+    expect(screen.queryByTestId("graph-3d")).toBeNull();
+  });
+
+  it("renders error placeholder when API fails", async () => {
+    apiMock.getGraphVisualization.mockRejectedValue(new Error("boom"));
+    renderWithQuery(<GraphVisualization kbId="kb-err" />);
+    await waitFor(() => {
+      expect(
+        screen.getByText("knowledgeBases.graphVizLoadFailed"),
+      ).toBeDefined();
     });
     expect(screen.queryByTestId("graph-3d")).toBeNull();
   });
@@ -127,7 +153,6 @@ describe("GraphVisualization (3D)", () => {
     expect(renderer.getAttribute("data-node-count")).toBe("2");
     expect(renderer.getAttribute("data-edge-count")).toBe("1");
     expect(renderer.getAttribute("data-height")).toBe("600");
-    // ResizeObserver mock 이 800 을 보고함.
     expect(renderer.getAttribute("data-width")).toBe("800");
   });
 
@@ -143,5 +168,49 @@ describe("GraphVisualization (3D)", () => {
         screen.getByText(/knowledgeBases\.graphVizTruncated/),
       ).toBeDefined();
     });
+  });
+
+  it("re-fetches when limit changes via the selector", async () => {
+    apiMock.getGraphVisualization.mockResolvedValue({
+      nodes: [{ id: "n1", label: "x", type: "concept", mentionCount: 1 }],
+      edges: [],
+      truncated: false,
+    });
+    renderWithQuery(<GraphVisualization kbId="kb-5" />);
+    await screen.findByTestId("graph-3d");
+    // 첫 호출: default limit=50.
+    expect(apiMock.getGraphVisualization).toHaveBeenCalledWith("kb-5", 50);
+
+    fireEvent.change(screen.getByRole("combobox"), {
+      target: { value: "200" },
+    });
+
+    await waitFor(() => {
+      expect(apiMock.getGraphVisualization).toHaveBeenCalledWith("kb-5", 200);
+    });
+  });
+
+  it("withholds 3D mount until ResizeObserver reports a width", async () => {
+    // ResizeObserver 가 호출되지 않는 환경: observe 가 no-op 인 mock 으로 대체.
+    class StubResizeObserver {
+      observe() {}
+      unobserve() {}
+      disconnect() {}
+    }
+    (
+      globalThis as { ResizeObserver: typeof ResizeObserver }
+    ).ResizeObserver = StubResizeObserver as unknown as typeof ResizeObserver;
+
+    apiMock.getGraphVisualization.mockResolvedValue({
+      nodes: [{ id: "n1", label: "x", type: "concept", mentionCount: 1 }],
+      edges: [],
+      truncated: false,
+    });
+    renderWithQuery(<GraphVisualization kbId="kb-6" />);
+    // 데이터는 도착했지만 width=0 이라 3D 컨테이너는 렌더되지 않아야 한다.
+    await waitFor(() => {
+      expect(apiMock.getGraphVisualization).toHaveBeenCalled();
+    });
+    expect(screen.queryByTestId("graph-3d")).toBeNull();
   });
 });
