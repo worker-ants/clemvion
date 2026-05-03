@@ -32,8 +32,9 @@ vi.mock("@/lib/websocket/use-execution-events", () => ({
 }));
 
 const emitMock = vi.fn();
+const onceMock = vi.fn();
 vi.mock("@/lib/websocket/ws-client", () => ({
-  getWsClient: () => ({ emit: emitMock }),
+  getWsClient: () => ({ emit: emitMock, once: onceMock }),
 }));
 
 vi.mock("@/lib/node-definitions", () => ({

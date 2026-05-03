@@ -9,6 +9,7 @@ export interface WsClient {
   unsubscribe: (channel: string) => void;
   on: (event: string, handler: (...args: unknown[]) => void) => void;
   off: (event: string, handler: (...args: unknown[]) => void) => void;
+  once: (event: string, handler: (...args: unknown[]) => void) => void;
   emit: (event: string, data: unknown) => void;
   isConnected: () => boolean;
   getSocket: () => Socket | null;
@@ -72,6 +73,10 @@ export function createWsClient(): WsClient {
     socket?.off(event, handler);
   };
 
+  const once = (event: string, handler: (...args: unknown[]) => void) => {
+    socket?.once(event, handler);
+  };
+
   const emit = (event: string, data: unknown) => {
     socket?.emit(event, data);
   };
@@ -105,6 +110,7 @@ export function createWsClient(): WsClient {
     unsubscribe,
     on,
     off,
+    once,
     emit,
     isConnected,
     getSocket,

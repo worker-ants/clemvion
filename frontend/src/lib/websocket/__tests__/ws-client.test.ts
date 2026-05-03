@@ -39,6 +39,7 @@ describe("ws-client", () => {
       expect(client.unsubscribe).toBeDefined();
       expect(client.on).toBeDefined();
       expect(client.off).toBeDefined();
+      expect(client.once).toBeDefined();
       expect(client.isConnected).toBeDefined();
       expect(client.getSocket).toBeDefined();
       expect(client.waitForConnect).toBeDefined();

@@ -7,6 +7,7 @@ import type { NodeResult } from "@/lib/stores/execution-store";
 vi.mock("@/lib/websocket/ws-client", () => ({
   getWsClient: () => ({
     emit: vi.fn(),
+    once: vi.fn(),
   }),
 }));
 
