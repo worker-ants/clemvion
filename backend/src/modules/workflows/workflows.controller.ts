@@ -10,10 +10,9 @@ import {
   HttpCode,
   HttpStatus,
   ParseUUIDPipe,
-  UseGuards,
 } from '@nestjs/common';
 import { BadRequestException, Logger } from '@nestjs/common';
-import { Roles, RolesGuard } from '../../common/guards/roles.guard';
+import { Roles } from '../../common/guards/roles.guard';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import {
@@ -57,7 +56,6 @@ import type { JwtPayload } from '../../common/decorators';
 @ApiTags('Workflows')
 @ApiBearerAuth('access-token')
 @Controller('workflows')
-@UseGuards(RolesGuard)
 export class WorkflowsController {
   private readonly logger = new Logger(WorkflowsController.name);
 

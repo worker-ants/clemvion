@@ -10,9 +10,8 @@ import {
   HttpCode,
   HttpStatus,
   ParseUUIDPipe,
-  UseGuards,
 } from '@nestjs/common';
-import { Roles, RolesGuard } from '../../common/guards/roles.guard';
+import { Roles } from '../../common/guards/roles.guard';
 import {
   ApiTags,
   ApiBearerAuth,
@@ -47,7 +46,6 @@ import { PaginationQueryDto } from '../../common/dto/pagination.dto';
 @ApiTags('Schedules')
 @ApiBearerAuth('access-token')
 @Controller('schedules')
-@UseGuards(RolesGuard)
 export class SchedulesController {
   constructor(private readonly schedulesService: SchedulesService) {}
 

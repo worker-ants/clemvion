@@ -7,9 +7,10 @@ import { User } from '../users/entities/user.entity';
 import { WorkspacesService } from './workspaces.service';
 import { WorkspacesController } from './workspaces.controller';
 import { WorkspaceInvitationsService } from './workspace-invitations.service';
-import { RolesGuard } from '../../common/guards/roles.guard';
 import { MailModule } from '../mail/mail.module';
 
+// RolesGuard 는 AppModule 의 APP_GUARD 로 등록되어 전역에서 동작한다.
+// WorkspacesService 만 @Global 로 export 해두면 RolesGuard 의 DI 가 해결된다.
 @Global()
 @Module({
   imports: [
@@ -22,7 +23,7 @@ import { MailModule } from '../mail/mail.module';
     MailModule,
   ],
   controllers: [WorkspacesController],
-  providers: [WorkspacesService, WorkspaceInvitationsService, RolesGuard],
-  exports: [WorkspacesService, WorkspaceInvitationsService, RolesGuard],
+  providers: [WorkspacesService, WorkspaceInvitationsService],
+  exports: [WorkspacesService, WorkspaceInvitationsService],
 })
 export class WorkspacesModule {}

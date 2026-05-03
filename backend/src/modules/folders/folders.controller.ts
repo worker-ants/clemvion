@@ -9,9 +9,8 @@ import {
   HttpCode,
   HttpStatus,
   ParseUUIDPipe,
-  UseGuards,
 } from '@nestjs/common';
-import { Roles, RolesGuard } from '../../common/guards/roles.guard';
+import { Roles } from '../../common/guards/roles.guard';
 import {
   ApiTags,
   ApiBearerAuth,
@@ -39,7 +38,6 @@ import { Folder } from './entities/folder.entity';
 @ApiTags('Folders')
 @ApiBearerAuth('access-token')
 @Controller('folders')
-@UseGuards(RolesGuard)
 export class FoldersController {
   constructor(private readonly foldersService: FoldersService) {}
 

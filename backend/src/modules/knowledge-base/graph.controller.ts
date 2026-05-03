@@ -9,12 +9,11 @@ import {
   HttpStatus,
   ParseUUIDPipe,
   ParseIntPipe,
-  UseGuards,
   DefaultValuePipe,
   BadRequestException,
 } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
-import { Roles, RolesGuard } from '../../common/guards/roles.guard';
+import { Roles } from '../../common/guards/roles.guard';
 import {
   ApiTags,
   ApiBearerAuth,
@@ -58,7 +57,6 @@ import { PaginationQueryDto } from '../../common/dto/pagination.dto';
 @ApiTags('Knowledge Base / Graph')
 @ApiBearerAuth('access-token')
 @Controller('knowledge-bases/:id')
-@UseGuards(RolesGuard)
 export class GraphController {
   constructor(
     private readonly kbService: KnowledgeBaseService,

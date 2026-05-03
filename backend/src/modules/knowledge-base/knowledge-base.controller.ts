@@ -13,10 +13,9 @@ import {
   UseInterceptors,
   UploadedFile,
   Logger,
-  UseGuards,
 } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
-import { Roles, RolesGuard } from '../../common/guards/roles.guard';
+import { Roles } from '../../common/guards/roles.guard';
 import { FileInterceptor } from '@nestjs/platform-express';
 import {
   ApiTags,
@@ -60,7 +59,6 @@ import { PaginationQueryDto } from '../../common/dto/pagination.dto';
 @ApiTags('Knowledge Base')
 @ApiBearerAuth('access-token')
 @Controller('knowledge-bases')
-@UseGuards(RolesGuard)
 export class KnowledgeBaseController {
   private readonly logger = new Logger(KnowledgeBaseController.name);
 

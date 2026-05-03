@@ -13,7 +13,6 @@ import {
   Query,
   Req,
   Res,
-  UseGuards,
 } from '@nestjs/common';
 import type { Response } from 'express';
 import Express from 'express';
@@ -27,7 +26,7 @@ import {
   ApiQuery,
   ApiTags,
 } from '@nestjs/swagger';
-import { Roles, RolesGuard } from '../../common/guards/roles.guard';
+import { Roles } from '../../common/guards/roles.guard';
 import { WorkspaceId } from '../../common/decorators';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import type { JwtPayload } from '../../common/decorators/current-user.decorator';
@@ -40,7 +39,6 @@ import { AssistantMessageRequestDto } from './dto/assistant-message-request.dto'
 @ApiTags('Workflow AI Assistant')
 @ApiBearerAuth('access-token')
 @Controller('workflow-assistant')
-@UseGuards(RolesGuard)
 export class WorkflowAssistantController {
   private readonly logger = new Logger(WorkflowAssistantController.name);
 

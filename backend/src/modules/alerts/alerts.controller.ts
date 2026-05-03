@@ -9,7 +9,6 @@ import {
   ParseUUIDPipe,
   Patch,
   Post,
-  UseGuards,
 } from '@nestjs/common';
 import {
   ApiBadRequestResponse,
@@ -32,12 +31,11 @@ import { CreateAlertRuleDto, UpdateAlertRuleDto } from './dto/alert-rule.dto';
 import { AlertRuleDto } from './dto/responses/alert-rule-response.dto';
 import { CurrentUser, WorkspaceId } from '../../common/decorators';
 import type { JwtPayload } from '../../common/decorators';
-import { Roles, RolesGuard } from '../../common/guards/roles.guard';
+import { Roles } from '../../common/guards/roles.guard';
 
 @ApiTags('Alerts')
 @ApiBearerAuth('access-token')
 @Controller('alerts')
-@UseGuards(RolesGuard)
 export class AlertsController {
   constructor(private readonly alertsService: AlertsService) {}
 

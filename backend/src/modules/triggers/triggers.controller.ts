@@ -10,9 +10,8 @@ import {
   HttpCode,
   HttpStatus,
   ParseUUIDPipe,
-  UseGuards,
 } from '@nestjs/common';
-import { Roles, RolesGuard } from '../../common/guards/roles.guard';
+import { Roles } from '../../common/guards/roles.guard';
 import {
   ApiTags,
   ApiBearerAuth,
@@ -43,7 +42,6 @@ import {
 @ApiTags('Triggers')
 @ApiBearerAuth('access-token')
 @Controller('triggers')
-@UseGuards(RolesGuard)
 export class TriggersController {
   constructor(private readonly triggersService: TriggersService) {}
 
