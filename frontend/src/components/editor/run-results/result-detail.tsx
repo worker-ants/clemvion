@@ -549,9 +549,12 @@ function RagReferencesSection({
       )}
       {sources.length > 0 && (
         <ul className="space-y-1.5">
-          {sources.map((s) => (
+          {sources.map((s, i) => (
+            // Suffix the position so a duplicate `chunkId` (e.g. legacy run
+            // payloads persisted before the RagAccumulator dedupe was added)
+            // doesn't trigger a React key-collision warning.
             <li
-              key={s.chunkId}
+              key={`${s.chunkId}-${i}`}
               className="rounded bg-[hsl(var(--muted)/0.4)] p-1.5 text-xs"
             >
               <div className="flex items-center gap-1.5">

@@ -928,6 +928,78 @@ describe('AiAgentHandler', () => {
       expect(turnDiag.queriesUsed).toEqual(['X']);
     });
 
+    it('dedupes ragSources by chunkId across turns (no React key collision)', async () => {
+      // Multi-turn conversations where the LLM re-queries the same KB chunk
+      // used to push the duplicate into ragSources, which surfaced as a
+      // duplicate-key warning on `<li key={s.chunkId}>` in the References tab.
+      mockRagService.search.mockResolvedValue([
+        {
+          chunkId: 'c-prev',
+          documentId: 'd1',
+          documentName: 'doc',
+          content: 'Same chunk re-fetched',
+          score: 0.9,
+          metadata: {},
+        },
+      ]);
+
+      const state = {
+        llmConfigId: 'config-1',
+        model: 'gpt-4o',
+        knowledgeBases: ['kb-1'],
+        ragTopK: 5,
+        ragThreshold: 0.7,
+        maxToolCalls: 10,
+        maxTurns: 20,
+        messages: [
+          { role: 'system', content: 'You are helpful' },
+          { role: 'user', content: 'Hello' },
+          { role: 'assistant', content: 'Hi!' },
+        ],
+        turnCount: 1,
+        totalInputTokens: 100,
+        totalOutputTokens: 50,
+        toolCalls: 0,
+        ragSources: [{ chunkId: 'c-prev', score: 0.7 }],
+        workspaceId: 'ws-1',
+      };
+
+      mockLlmService.chat
+        .mockResolvedValueOnce({
+          content: null,
+          toolCalls: [
+            {
+              id: 'tc-dup',
+              name: kbToolName('kb-1'),
+              arguments: '{"query":"again"}',
+            },
+          ],
+          usage: { inputTokens: 30, outputTokens: 5, totalTokens: 35 },
+          model: 'gpt-4o',
+          finishReason: 'tool_calls',
+        })
+        .mockResolvedValueOnce({
+          content: 'OK',
+          usage: { inputTokens: 50, outputTokens: 20, totalTokens: 70 },
+          model: 'gpt-4o',
+          finishReason: 'stop',
+        });
+
+      const result = await handler.processMultiTurnMessage('Again', state);
+      const newState = (result as Record<string, unknown>)
+        ._resumeState as Record<string, unknown>;
+      // Node-level accumulator deduped: still just c-prev once.
+      expect((newState.ragSources as unknown[]).length).toBe(1);
+      // But the turn delta still records this turn's match for grouping.
+      const history = newState.turnDebugHistory as Array<
+        Record<string, unknown>
+      >;
+      const lastTurn = history[history.length - 1];
+      const turnSources = lastTurn.ragSources as Array<Record<string, unknown>>;
+      expect(turnSources).toHaveLength(1);
+      expect(turnSources[0].chunkId).toBe('c-prev');
+    });
+
     it('accumulates multiple KB tool calls within the same turn into turnDebug delta', async () => {
       mockRagService.search.mockImplementation((q: string) =>
         Promise.resolve([
