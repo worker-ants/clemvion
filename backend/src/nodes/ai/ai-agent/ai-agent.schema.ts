@@ -57,6 +57,11 @@ export const aiAgentNodeConfigSchema = z
           label: 'Mode',
           widget: 'select',
           order: 0,
+          // userPrompt 는 single_turn 전용 필드. mode 가 multi_turn 으로 바뀌면
+          // visibleWhen 으로 화면에서만 사라지고 config 값은 leak 되어 backend
+          // 가 의도치 않은 첫 LLM 호출을 trigger 한다 — frontend auto-form 의
+          // applyClearFields 로 mode 변경 시 userPrompt 키를 자동 제거한다.
+          clearFields: ['userPrompt'],
           options: [
             { value: 'single_turn', label: 'Single Turn' },
             { value: 'multi_turn', label: 'Multi Turn (Conversation)' },
@@ -130,6 +135,9 @@ export const aiAgentNodeConfigSchema = z
       }),
 
     // ── Knowledge Base (RAG) ──
+    // 선택한 KB 들은 LLM 에 `kb_<name>` tool 로 노출되어 LLM 이 능동적으로 검색을
+    // 호출한다. 다중 의도 메시지에서는 LLM 이 같은 응답에 여러 kb_* tool 을 동시
+    // 호출해 병렬 검색하며, 결과가 부족하면 다른 query 로 재호출한다.
     knowledgeBases: z
       .array(z.string())
       .default([])
@@ -137,6 +145,7 @@ export const aiAgentNodeConfigSchema = z
         ui: {
           label: 'Knowledge Bases',
           widget: 'kb-selector',
+          hint: '선택한 KB 가 LLM 에 검색 도구로 노출됩니다. LLM 이 사용자 의도를 보고 능동적으로 호출합니다.',
           order: 10,
           group: 'Knowledge Base (RAG)',
         },
@@ -147,9 +156,9 @@ export const aiAgentNodeConfigSchema = z
       .default(5)
       .meta({
         ui: {
-          label: 'RAG Top-K',
+          label: 'RAG Top-K (default)',
           widget: 'number',
-          hint: 'Number of chunks to retrieve',
+          hint: 'KB tool 호출 시 반환할 청크 수의 기본값 (LLM 이 호출 인자로 override 가능)',
           order: 11,
           group: 'Knowledge Base (RAG)',
         },
@@ -159,22 +168,10 @@ export const aiAgentNodeConfigSchema = z
       .default(0.7)
       .meta({
         ui: {
-          label: 'RAG Threshold',
+          label: 'RAG Threshold (default)',
           widget: 'number',
-          hint: 'Minimum similarity score (0-1)',
+          hint: '최소 유사도 임계값 (0-1) 의 기본값 (LLM 이 호출 인자로 override 가능)',
           order: 12,
-          group: 'Knowledge Base (RAG)',
-        },
-      }),
-    ragQueryRewrite: z
-      .boolean()
-      .default(true)
-      .meta({
-        ui: {
-          label: 'RAG Query Rewrite',
-          widget: 'boolean',
-          hint: 'Use the LLM to rewrite the user message into one or more focused search queries before hitting the knowledge base. Helpful for multi-intent messages (e.g. "exchange or refund"). Adds one small LLM call per turn.',
-          order: 13,
           group: 'Knowledge Base (RAG)',
         },
       }),

@@ -1404,4 +1404,46 @@ describe('GoogleClient.chat', () => {
       arguments: '{"x":1}',
     });
   });
+
+  it('captures part.thoughtSignature into ToolCall.signature on chat (non-streaming) path', async () => {
+    // Regression: Gemini 2.5+/3.x rejects multi-turn tool loops with
+    // INVALID_ARGUMENT "Function call is missing a thought_signature" when
+    // the assistant turn is echoed back without the original signature.
+    // The streaming path already lifts part.thoughtSignature into ToolCall.signature
+    // (L455-469); this test pins the same behavior on the non-streaming chat path.
+    const { client } = makeStubs({
+      generateContentResult: {
+        candidates: [
+          {
+            content: {
+              parts: [
+                {
+                  functionCall: {
+                    name: 'kb_lookup',
+                    args: { query: 'refund' },
+                    id: 'fc-1',
+                  },
+                  thoughtSignature: 'SIG-xyz',
+                },
+              ],
+            },
+          },
+        ],
+        usageMetadata: {
+          promptTokenCount: 1,
+          candidatesTokenCount: 1,
+          totalTokenCount: 2,
+        },
+      },
+    });
+    const result = await client.chat({
+      model: 'gemini-2.5-flash',
+      messages: [{ role: 'user', content: 'find refund policy' }],
+    });
+    expect(result.toolCalls?.[0]).toMatchObject({
+      name: 'kb_lookup',
+      arguments: '{"query":"refund"}',
+      signature: 'SIG-xyz',
+    });
+  });
 });

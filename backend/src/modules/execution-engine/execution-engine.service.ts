@@ -56,6 +56,7 @@ import {
   AI_NO_LLM_PROVIDER_MESSAGE,
 } from '../../nodes/ai/llm-provider-rule';
 import { RagSearchService } from '../knowledge-base/search/rag-search.service';
+import { KnowledgeBaseService } from '../knowledge-base/knowledge-base.service';
 import { IntegrationsService } from '../integrations/integrations.service';
 import {
   BACKGROUND_EXECUTION_QUEUE,
@@ -169,6 +170,7 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
     private readonly configService: ConfigService,
     private readonly llmService: LlmService,
     private readonly ragSearchService: RagSearchService,
+    private readonly knowledgeBaseService: KnowledgeBaseService,
     private readonly integrationsService: IntegrationsService,
     private readonly foreachExecutor: ForEachExecutor,
     private readonly loopExecutor: LoopExecutor,
@@ -214,6 +216,7 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
     this.componentRegistry.bootstrap(ALL_NODE_COMPONENTS, {
       llmService: this.llmService,
       ragSearchService: this.ragSearchService,
+      knowledgeBaseService: this.knowledgeBaseService,
       integrationsService: this.integrationsService,
       workflowExecutor: this,
     });

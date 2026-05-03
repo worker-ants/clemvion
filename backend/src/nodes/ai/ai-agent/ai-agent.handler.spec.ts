@@ -1,10 +1,13 @@
 import { AiAgentHandler } from './ai-agent.handler';
 import { ExecutionContext } from '../../core/node-handler.interface';
+import { KbToolProvider, kbToolName } from './tool-providers/kb-tool-provider';
 
 describe('AiAgentHandler', () => {
   let handler: AiAgentHandler;
   let mockLlmService: Record<string, jest.Mock>;
-  let mockRagService: Record<string, jest.Mock>;
+  let mockRagService: { search: jest.Mock };
+  let mockKbService: { findById: jest.Mock };
+  let kbProvider: KbToolProvider;
 
   beforeEach(() => {
     mockLlmService = {
@@ -22,15 +25,20 @@ describe('AiAgentHandler', () => {
       embed: jest.fn().mockResolvedValue([[0.1, 0.2, 0.3]]),
     };
 
-    mockRagService = {
-      search: jest.fn().mockResolvedValue([]),
-      buildContext: jest.fn().mockReturnValue({ context: '', sources: [] }),
+    mockRagService = { search: jest.fn().mockResolvedValue([]) };
+    mockKbService = {
+      findById: jest
+        .fn()
+        .mockImplementation((id: string) =>
+          Promise.resolve({ id, name: `KB ${id}`, description: '' }),
+        ),
     };
-
-    handler = new AiAgentHandler(
-      mockLlmService as never,
+    kbProvider = new KbToolProvider(
       mockRagService as never,
+      mockKbService as never,
     );
+
+    handler = new AiAgentHandler(mockLlmService as never, [kbProvider]);
   });
 
   const baseContext: ExecutionContext = {
@@ -118,31 +126,281 @@ describe('AiAgentHandler', () => {
       expect(r.status).toBe('ended');
     });
 
-    it('should invoke RAG when knowledgeBases are configured', async () => {
-      mockRagService.search.mockResolvedValue([
-        { chunkId: 'c1', content: 'KB content', score: 0.9 },
-      ]);
-      mockRagService.buildContext.mockReturnValue({
-        context: '\n### Relevant Knowledge\n...',
-        sources: [{ chunkId: 'c1', content: 'KB content', score: 0.9 }],
+    it('should NOT pre-search KB on first call (LLM decides via tool)', async () => {
+      // KB 가 등록돼도 핸들러는 더 이상 LLM 호출 전에 검색을 강제하지 않는다.
+      // LLM 이 small-talk 라고 판단해 toolCalls=[] 만 반환하면 검색은 0회.
+      await handler.execute(
+        {},
+        {
+          systemPrompt: 'Helper',
+          userPrompt: 'Hi',
+          knowledgeBases: ['kb-1'],
+        },
+        baseContext,
+      );
+
+      expect(mockRagService.search).not.toHaveBeenCalled();
+      const meta = (await readSingleTurnMeta(handler))(
+        await handler.execute(
+          {},
+          {
+            systemPrompt: 'Helper',
+            userPrompt: 'Hi',
+            knowledgeBases: ['kb-1'],
+          },
+          baseContext,
+        ),
+      );
+      const diag = meta.ragDiagnostics as Record<string, unknown>;
+      expect(diag.attempted).toBe(false);
+    });
+
+    it('exposes a kb_ tool to the LLM when knowledgeBases are configured', async () => {
+      mockKbService.findById.mockResolvedValueOnce({
+        id: 'kb-1',
+        name: 'Refund Policy',
+        description: 'How refunds work',
       });
 
       await handler.execute(
         {},
         {
           systemPrompt: 'Helper',
-          userPrompt: 'Question',
+          userPrompt: 'Anything refundable?',
           knowledgeBases: ['kb-1'],
         },
         baseContext,
       );
 
+      const chatCall = mockLlmService.chat.mock.calls[0];
+      const tools = chatCall[1].tools;
+      const kbTool = tools.find((t: { name: string }) =>
+        t.name.startsWith('kb_'),
+      );
+      expect(kbTool).toBeDefined();
+      expect(kbTool.name).toBe(kbToolName('kb-1'));
+      expect(kbTool.description).toContain('Refund Policy');
+    });
+
+    it('executes a kb_ tool call and feeds result back to the LLM', async () => {
+      mockRagService.search.mockResolvedValue([
+        {
+          chunkId: 'c1',
+          documentId: 'd1',
+          documentName: 'refund.md',
+          content: '14-day refund window.',
+          score: 0.9,
+          metadata: {},
+        },
+      ]);
+
+      mockLlmService.chat
+        .mockResolvedValueOnce({
+          content: null,
+          toolCalls: [
+            {
+              id: 'tc-kb-1',
+              name: kbToolName('kb-1'),
+              arguments: '{"query":"refund window"}',
+            },
+          ],
+          usage: { inputTokens: 50, outputTokens: 10, totalTokens: 60 },
+          model: 'gpt-4o',
+          finishReason: 'tool_calls',
+        })
+        .mockResolvedValueOnce({
+          content: 'You have 14 days to request a refund.',
+          usage: { inputTokens: 80, outputTokens: 20, totalTokens: 100 },
+          model: 'gpt-4o',
+          finishReason: 'stop',
+        });
+
+      const result = (await handler.execute(
+        {},
+        {
+          systemPrompt: 'Helper',
+          userPrompt: 'When can I request a refund?',
+          knowledgeBases: ['kb-1'],
+        },
+        baseContext,
+      )) as Record<string, unknown>;
+
       expect(mockRagService.search).toHaveBeenCalledWith(
-        'Question',
+        'refund window',
         ['kb-1'],
         'ws-1',
         { topK: 5, threshold: 0.7 },
       );
+
+      // 두 번째 LLM 호출에는 tool_result 메시지가 포함돼야 한다.
+      const secondCall = mockLlmService.chat.mock.calls[1];
+      const messages = secondCall[1].messages;
+      const toolMsg = messages.find((m: { role: string }) => m.role === 'tool');
+      expect(toolMsg).toBeDefined();
+      const toolPayload = JSON.parse(toolMsg.content);
+      expect(toolPayload.results[0].source).toBe('refund.md');
+
+      const meta = (result.meta ?? {}) as Record<string, unknown>;
+      expect(meta.toolCalls).toBe(1);
+      expect((meta.ragSources as unknown[]).length).toBe(1);
+      const diag = meta.ragDiagnostics as Record<string, unknown>;
+      expect(diag.attempted).toBe(true);
+      expect(diag.searchedKbCount).toBe(1);
+      expect(diag.resultCount).toBe(1);
+    });
+
+    it('runs parallel kb_ tool calls when LLM emits multiple in one response', async () => {
+      mockRagService.search.mockImplementation((q: string) =>
+        Promise.resolve([
+          {
+            chunkId: `c-${q}`,
+            documentId: 'd1',
+            documentName: `doc-${q}`,
+            content: `payload for ${q}`,
+            score: 0.8,
+            metadata: {},
+          },
+        ]),
+      );
+
+      mockLlmService.chat
+        .mockResolvedValueOnce({
+          content: null,
+          toolCalls: [
+            {
+              id: 'tc-a',
+              name: kbToolName('kb-a'),
+              arguments: '{"query":"alpha"}',
+            },
+            {
+              id: 'tc-b',
+              name: kbToolName('kb-b'),
+              arguments: '{"query":"beta"}',
+            },
+          ],
+          usage: { inputTokens: 10, outputTokens: 5, totalTokens: 15 },
+          model: 'gpt-4o',
+          finishReason: 'tool_calls',
+        })
+        .mockResolvedValueOnce({
+          content: 'Combined answer.',
+          usage: { inputTokens: 30, outputTokens: 15, totalTokens: 45 },
+          model: 'gpt-4o',
+          finishReason: 'stop',
+        });
+
+      const result = (await handler.execute(
+        {},
+        {
+          systemPrompt: 'Helper',
+          userPrompt: 'Tell me about alpha and beta',
+          knowledgeBases: ['kb-a', 'kb-b'],
+        },
+        baseContext,
+      )) as Record<string, unknown>;
+
+      expect(mockRagService.search).toHaveBeenCalledTimes(2);
+      const meta = (result.meta ?? {}) as Record<string, unknown>;
+      expect(meta.toolCalls).toBe(2);
+      const diag = meta.ragDiagnostics as Record<string, unknown>;
+      expect(diag.searchedKbCount).toBe(2);
+      expect((diag.queriesUsed as string[]).sort()).toEqual(['alpha', 'beta']);
+    });
+
+    it('supports re-search across iterations until maxToolCalls is reached', async () => {
+      mockRagService.search.mockResolvedValue([
+        {
+          chunkId: 'c1',
+          documentId: 'd1',
+          documentName: 'doc',
+          content: 'first',
+          score: 0.7,
+          metadata: {},
+        },
+      ]);
+
+      mockLlmService.chat
+        .mockResolvedValueOnce({
+          content: null,
+          toolCalls: [
+            {
+              id: 'tc-1',
+              name: kbToolName('kb-1'),
+              arguments: '{"query":"first"}',
+            },
+          ],
+          usage: { inputTokens: 10, outputTokens: 5, totalTokens: 15 },
+          model: 'gpt-4o',
+          finishReason: 'tool_calls',
+        })
+        .mockResolvedValueOnce({
+          content: null,
+          toolCalls: [
+            {
+              id: 'tc-2',
+              name: kbToolName('kb-1'),
+              arguments: '{"query":"refined"}',
+            },
+          ],
+          usage: { inputTokens: 20, outputTokens: 5, totalTokens: 25 },
+          model: 'gpt-4o',
+          finishReason: 'tool_calls',
+        })
+        .mockResolvedValueOnce({
+          content: 'Final.',
+          usage: { inputTokens: 25, outputTokens: 5, totalTokens: 30 },
+          model: 'gpt-4o',
+          finishReason: 'stop',
+        });
+
+      const result = (await handler.execute(
+        {},
+        {
+          systemPrompt: 'Helper',
+          userPrompt: 'Tell me',
+          knowledgeBases: ['kb-1'],
+          maxToolCalls: 5,
+        },
+        baseContext,
+      )) as Record<string, unknown>;
+
+      expect(mockRagService.search).toHaveBeenCalledTimes(2);
+      const meta = (result.meta ?? {}) as Record<string, unknown>;
+      const diag = meta.ragDiagnostics as Record<string, unknown>;
+      expect((diag.queriesUsed as string[])).toEqual(['first', 'refined']);
+    });
+
+    it('stops the tool loop once maxToolCalls is reached', async () => {
+      mockRagService.search.mockResolvedValue([]);
+      mockLlmService.chat.mockResolvedValue({
+        content: null,
+        toolCalls: [
+          {
+            id: 'tc-x',
+            name: kbToolName('kb-1'),
+            arguments: '{"query":"x"}',
+          },
+        ],
+        usage: { inputTokens: 10, outputTokens: 5, totalTokens: 15 },
+        model: 'gpt-4o',
+        finishReason: 'tool_calls',
+      });
+
+      const result = (await handler.execute(
+        {},
+        {
+          systemPrompt: 'Helper',
+          userPrompt: 'Q',
+          knowledgeBases: ['kb-1'],
+          maxToolCalls: 2,
+        },
+        baseContext,
+      )) as Record<string, unknown>;
+
+      // chat invoked: initial + 2 loop iterations (until count == max), then exits.
+      expect(mockLlmService.chat).toHaveBeenCalledTimes(3);
+      const meta = (result.meta ?? {}) as Record<string, unknown>;
+      expect(meta.toolCalls).toBe(2);
     });
 
     it('should parse JSON response when responseFormat is json', async () => {
@@ -191,7 +449,7 @@ describe('AiAgentHandler', () => {
       expect(res.response).toBe('not valid json {{{');
     });
 
-    it('should handle tool calling loop', async () => {
+    it('should handle external (tool_node) tool calling loop', async () => {
       mockLlmService.chat
         .mockResolvedValueOnce({
           content: null,
@@ -248,17 +506,22 @@ describe('AiAgentHandler', () => {
   });
 
   describe('execute - multi_turn', () => {
-    it('should return waiting_for_input on first turn', async () => {
+    // multi_turn 의 첫 메시지는 항상 사용자가 채팅 UI 에서 입력한다.
+    // config.userPrompt 는 single_turn 전용이며, 여기서 LLM 호출을 trigger
+    // 하지 않는다 (mode 전환 시 leak 된 값일 수도 있어 server-side 에서도
+    // 무시 — frontend clearFields 와 함께 두 계층에서 차단).
+    it('returns waiting_for_input immediately without calling LLM', async () => {
       const result = await handler.execute(
         {},
         {
           mode: 'multi_turn',
           systemPrompt: 'You are helpful',
-          userPrompt: 'Hello',
           maxTurns: 10,
         },
         baseContext,
       );
+
+      expect(mockLlmService.chat).not.toHaveBeenCalled();
 
       const output = result as Record<string, unknown>;
       expect(output.status).toBe('waiting_for_input');
@@ -266,91 +529,62 @@ describe('AiAgentHandler', () => {
       expect(output.type).toBe('ai_conversation');
 
       const convConfig = output.conversationConfig as Record<string, unknown>;
-      expect(convConfig.message).toBe('Hello! I am an AI assistant.');
-      expect(convConfig.turnCount).toBe(1);
-      expect(convConfig.maxTurns).toBe(10);
-      expect(convConfig.messages).toHaveLength(3); // system + user + assistant
-
-      const state = output._resumeState as Record<string, unknown>;
-      expect(state.turnCount).toBe(1);
-      expect(state.totalInputTokens).toBe(100);
-      expect(state.totalOutputTokens).toBe(50);
-    });
-
-    it('should skip LLM call and wait immediately when no userPrompt', async () => {
-      const result = await handler.execute(
-        {},
-        {
-          mode: 'multi_turn',
-          systemPrompt: 'You are helpful',
-          maxTurns: 10,
-        },
-        baseContext,
-      );
-
-      // Should NOT call LLM
-      expect(mockLlmService.chat).not.toHaveBeenCalled();
-
-      const output = result as Record<string, unknown>;
-      expect(output.status).toBe('waiting_for_input');
-      expect(output.interactionType).toBe('ai_conversation');
-
-      const convConfig = output.conversationConfig as Record<string, unknown>;
       expect(convConfig.turnCount).toBe(0);
       expect(convConfig.message).toBe('');
       expect(convConfig.messages).toHaveLength(1); // system only
+      expect(convConfig.maxTurns).toBe(10);
 
       const state = output._resumeState as Record<string, unknown>;
       expect(state.turnCount).toBe(0);
       expect(state.totalInputTokens).toBe(0);
+      expect(state.totalOutputTokens).toBe(0);
     });
 
-    it('should include debug fields in first turn state when userPrompt is provided', async () => {
+    it('ignores leaked userPrompt from a previous single_turn config', async () => {
+      // Regression: mode 를 single_turn → multi_turn 으로 전환 시 frontend
+      // clearFields 가 동작하지 않은 옛 워크플로 (또는 backend 직접 invoke)
+      // 의 leak 된 userPrompt 가 들어와도 LLM 호출이 trigger 되지 않아야 한다.
       const result = await handler.execute(
         {},
         {
           mode: 'multi_turn',
           systemPrompt: 'You are helpful',
-          userPrompt: 'Hello',
+          userPrompt: 'leaked prompt that must NOT trigger an LLM call',
           maxTurns: 10,
         },
         baseContext,
       );
 
+      expect(mockLlmService.chat).not.toHaveBeenCalled();
+
       const output = result as Record<string, unknown>;
-      const state = output._resumeState as Record<string, unknown>;
-      expect(state.lastTurnRequest).toBeDefined();
-      expect((state.lastTurnRequest as Record<string, unknown>).model).toBe(
-        'gpt-4o',
-      );
-      expect(state.lastTurnResponse).toBeDefined();
-      expect(typeof state.lastTurnDurationMs).toBe('number');
+      expect(output.status).toBe('waiting_for_input');
+      const convConfig = output.conversationConfig as Record<string, unknown>;
+      expect(convConfig.turnCount).toBe(0);
+      // 시스템 메시지만 있고 user 메시지는 push 되지 않는다.
+      expect(convConfig.messages).toHaveLength(1);
+      const onlyMsg = (convConfig.messages as Array<Record<string, unknown>>)[0];
+      expect(onlyMsg.role).toBe('system');
     });
 
-    it('should include RAG sources in multi_turn first turn', async () => {
-      mockRagService.search.mockResolvedValue([
-        { chunkId: 'c1', content: 'KB content', score: 0.9 },
-      ]);
-      mockRagService.buildContext.mockReturnValue({
-        context: '\nKnowledge context',
-        sources: [{ chunkId: 'c1', score: 0.9 }],
-      });
-
+    it('does not pre-search KB on first turn even when KB is configured', async () => {
+      // multi_turn 첫 turn 에서는 LLM 호출 자체가 없으므로 KB tool 호출도 0회.
+      // KB 검색은 사용자가 첫 메시지를 보낸 후 processMultiTurnMessage 에서
+      // LLM 이 능동 호출할 때 일어난다.
       const result = await handler.execute(
         {},
         {
           mode: 'multi_turn',
           systemPrompt: 'Helper',
-          userPrompt: 'Question',
           knowledgeBases: ['kb-1'],
         },
         baseContext,
       );
 
+      expect(mockRagService.search).not.toHaveBeenCalled();
       const output = result as Record<string, unknown>;
       const state = output._resumeState as Record<string, unknown>;
-      const ragSources = state.ragSources as unknown[];
-      expect(ragSources).toHaveLength(1);
+      expect((state.ragSources as unknown[]).length).toBe(0);
     });
   });
 
@@ -543,7 +777,7 @@ describe('AiAgentHandler', () => {
       expect(res.messages).toBeDefined();
     });
 
-    it('should perform RAG search on follow-up messages', async () => {
+    it('does NOT auto-search KB when user follows up — LLM decides via kb_ tool', async () => {
       const state = {
         llmConfigId: 'config-1',
         model: 'gpt-4o',
@@ -565,29 +799,88 @@ describe('AiAgentHandler', () => {
         workspaceId: 'ws-1',
       };
 
-      mockRagService.search.mockResolvedValue([
-        { chunkId: 'c2', content: 'New context', score: 0.85 },
-      ]);
-      mockRagService.buildContext.mockReturnValue({
-        context: '\nNew context',
-        sources: [{ chunkId: 'c2', score: 0.85 }],
-      });
-
       mockLlmService.chat.mockResolvedValue({
-        content: 'Based on the knowledge...',
+        content: 'Sure, I am here.',
         usage: { inputTokens: 200, outputTokens: 40, totalTokens: 240 },
         model: 'gpt-4o',
         finishReason: 'stop',
       });
 
-      await handler.processMultiTurnMessage('Tell me about X', state);
+      await handler.processMultiTurnMessage('Just chatting', state);
+
+      // No tool call from the LLM means no KB search happens.
+      expect(mockRagService.search).not.toHaveBeenCalled();
+    });
+
+    it('processes a follow-up kb_ tool call and accumulates ragSources across turns', async () => {
+      mockRagService.search.mockResolvedValue([
+        {
+          chunkId: 'c2',
+          documentId: 'd1',
+          documentName: 'doc',
+          content: 'New context',
+          score: 0.85,
+          metadata: {},
+        },
+      ]);
+
+      const state = {
+        llmConfigId: 'config-1',
+        model: 'gpt-4o',
+        knowledgeBases: ['kb-1'],
+        ragTopK: 5,
+        ragThreshold: 0.7,
+        maxToolCalls: 10,
+        maxTurns: 20,
+        messages: [
+          { role: 'system', content: 'You are helpful' },
+          { role: 'user', content: 'Hello' },
+          { role: 'assistant', content: 'Hi!' },
+        ],
+        turnCount: 1,
+        totalInputTokens: 100,
+        totalOutputTokens: 50,
+        toolCalls: 0,
+        ragSources: [{ chunkId: 'c-prev', score: 0.7 }],
+        workspaceId: 'ws-1',
+      };
+
+      mockLlmService.chat
+        .mockResolvedValueOnce({
+          content: null,
+          toolCalls: [
+            {
+              id: 'tc-x',
+              name: kbToolName('kb-1'),
+              arguments: '{"query":"X"}',
+            },
+          ],
+          usage: { inputTokens: 30, outputTokens: 5, totalTokens: 35 },
+          model: 'gpt-4o',
+          finishReason: 'tool_calls',
+        })
+        .mockResolvedValueOnce({
+          content: 'Based on KB...',
+          usage: { inputTokens: 50, outputTokens: 20, totalTokens: 70 },
+          model: 'gpt-4o',
+          finishReason: 'stop',
+        });
+
+      const result = await handler.processMultiTurnMessage(
+        'Tell me about X',
+        state,
+      );
 
       expect(mockRagService.search).toHaveBeenCalledWith(
-        'Tell me about X',
+        'X',
         ['kb-1'],
         'ws-1',
         { topK: 5, threshold: 0.7 },
       );
+      const newState = (result as Record<string, unknown>)
+        ._resumeState as Record<string, unknown>;
+      // Carries the previous ragSources entry plus the new one.
+      expect((newState.ragSources as unknown[]).length).toBe(2);
     });
   });
 
@@ -1044,3 +1337,15 @@ describe('AiAgentHandler', () => {
     });
   });
 });
+
+/**
+ * Compact helper to fish meta out of single-turn execute() output.
+ * Used in a couple of assertions that only need the diagnostic block.
+ */
+function readSingleTurnMeta(_handler: AiAgentHandler) {
+  return (result: unknown) =>
+    (((result as Record<string, unknown>).meta ?? {}) as Record<
+      string,
+      unknown
+    >);
+}

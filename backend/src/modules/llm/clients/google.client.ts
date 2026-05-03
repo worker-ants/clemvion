@@ -350,7 +350,15 @@ export class GoogleClient implements LLMClient {
           textContent += part.text;
         }
         if (part.functionCall) {
-          toolCalls.push(fnCallToToolCall(part.functionCall));
+          // Gemini 2.5+/3.x 는 functionCall part 옆에 thoughtSignature 를 별도
+          // sibling field 로 실어 보낸다. 다음 turn 에 동일 모델로 functionCall 을
+          // echo 할 때 이 signature 를 포함하지 않으면 INVALID_ARGUMENT(400)
+          // "Function call is missing a thought_signature" 가 떨어지므로,
+          // 여기서 ToolCall.signature 로 끌어올려 multi-turn tool loop 에서
+          // 손실되지 않게 한다 (스트리밍 경로는 L455 에서 동일 처리).
+          toolCalls.push(
+            fnCallToToolCall(part.functionCall, part.thoughtSignature),
+          );
         }
       }
     }
@@ -600,10 +608,16 @@ export class GoogleClient implements LLMClient {
   }
 }
 
-function fnCallToToolCall(fc: FunctionCall): ToolCall {
+function fnCallToToolCall(
+  fc: FunctionCall,
+  thoughtSignature?: string,
+): ToolCall {
   return {
     id: fc.id || generateToolCallId(),
     name: fc.name || '',
     arguments: JSON.stringify(fc.args ?? {}),
+    ...(typeof thoughtSignature === 'string' && thoughtSignature
+      ? { signature: thoughtSignature }
+      : {}),
   };
 }

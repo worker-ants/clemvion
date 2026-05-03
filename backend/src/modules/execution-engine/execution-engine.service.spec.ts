@@ -15,6 +15,7 @@ import { WebsocketService } from '../websocket/websocket.service';
 import { ConfigService } from '@nestjs/config';
 import { LlmService } from '../llm/llm.service';
 import { RagSearchService } from '../knowledge-base/search/rag-search.service';
+import { KnowledgeBaseService } from '../knowledge-base/knowledge-base.service';
 import { IntegrationsService } from '../integrations/integrations.service';
 import {
   Execution,
@@ -238,6 +239,12 @@ describe('ExecutionEngineService', () => {
             buildContext: jest
               .fn()
               .mockReturnValue({ context: '', sources: [] }),
+          },
+        },
+        {
+          provide: KnowledgeBaseService,
+          useValue: {
+            findById: jest.fn(),
           },
         },
         {
