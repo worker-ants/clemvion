@@ -141,7 +141,9 @@ KB 상세 화면에 그래프 통계/탐색 영역을 추가한다.
 
 #### 2.7.3 P2: 그래프 시각화 (선택)
 
-react-flow 등으로 노드/엣지 렌더링. 줌·드래그·노드 호버 시 등장 chunk 미리보기.
+3D force-directed 그래프로 노드/엣지를 렌더링한다 (`react-force-graph-3d` + `three.js`). 마우스 드래그로 자유 회전, 휠로 줌, 노드 색상은 entity type 별 (person/organization/concept/location/event/other), 노드 크기는 mention_count 비례. 라벨은 `three-spritetext` 의 카메라-페이싱 sprite. 200개 한도를 초과하면 상위 mention_count 기준으로 truncated.
+
+> 초기 구현은 단순 원형 배치 (2D React Flow) 였으나 노드 200+ 규모에서 라벨이 다닥다닥 겹쳐 가독성이 떨어졌다. 3D force layout 은 같은 정보량도 회전·줌으로 밀도를 분산해 유사한 entity 가 자연스럽게 군집을 형성한다.
 
 ---
 
