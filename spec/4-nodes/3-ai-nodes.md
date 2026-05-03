@@ -414,7 +414,16 @@ LLM 응답의 `toolCalls`를 순회할 때 다음 로직을 적용:
           "durationMs": 800
         }
       ],
-      "totalDurationMs": 2050
+      "totalDurationMs": 2050,
+      "ragSources": [
+        { "documentId": "uuid", "chunkId": "uuid", "documentName": "Refund Policy", "content": "14-day refund window…", "score": 0.92 }
+      ],
+      "ragDiagnostics": {
+        "attempted": true,
+        "searchedKbCount": 1,
+        "queriesUsed": ["refund window"],
+        "resultCount": 1
+      }
     }
   ]
 }

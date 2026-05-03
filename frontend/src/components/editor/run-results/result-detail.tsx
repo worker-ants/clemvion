@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   CheckCircle,
   XCircle,
@@ -139,6 +139,8 @@ interface NodeDetailTabsProps {
   onActiveTabChange: (tab: DetailTab) => void;
   /** chip 점프 시 References 탭 안에서 자동 스크롤 + 강조할 turn. */
   highlightTurnIndex: number | null;
+  /** 같은 turnIndex 로 재점프해도 scrollIntoView 재실행을 위한 카운터. */
+  scrollKey: number;
   /** 미리 계산된 AI 메타데이터 — Preview chip 과 References 탭이 동일 객체 공유. */
   aiMetadata: AiMetadata | null;
 }
@@ -152,6 +154,7 @@ function NodeDetailTabs({
   activeTab,
   onActiveTabChange,
   highlightTurnIndex,
+  scrollKey,
   aiMetadata,
 }: NodeDetailTabsProps) {
   const isPresentation = result.nodeCategory === "presentation";
@@ -326,6 +329,7 @@ function NodeDetailTabs({
           <ReferencesTabContent
             meta={aiMetadata}
             highlightTurnIndex={highlightTurnIndex}
+            scrollKey={scrollKey}
           />
         )}
         {effectiveActiveTab === "config" && (
@@ -592,13 +596,18 @@ function ragSkipReasonLabel(
  * "노드 전체 누적 요약 + turn 단위 그룹" 으로 보여준다. Preview 탭 chip 에서
  * 점프해 오는 진입점이며, `highlightTurnIndex` 가 주어지면 그 turn 그룹을
  * 자동 스크롤 + 강조 outline 으로 사용자 시선을 안내한다.
+ *
+ * `scrollKey` 는 같은 turnIndex 로 재점프했을 때도 effect 를 재실행시키기 위한
+ * 카운터 — chip 클릭마다 부모가 +1 한다.
  */
 function ReferencesTabContent({
   meta,
   highlightTurnIndex,
+  scrollKey,
 }: {
   meta: AiMetadata;
   highlightTurnIndex: number | null;
+  scrollKey: number;
 }) {
   const turnEntries = meta.turnDebug.filter(
     (t) => t.ragSources.length > 0 || !!t.ragDiagnostics?.attempted,
@@ -611,7 +620,7 @@ function ReferencesTabContent({
     if (el) {
       el.scrollIntoView({ behavior: "smooth", block: "nearest" });
     }
-  }, [highlightTurnIndex]);
+  }, [highlightTurnIndex, scrollKey]);
 
   // turnDebug 가 비어있는 (legacy / 단일턴) 경우엔 노드 전체 누적만 단일 카드로.
   if (turnEntries.length === 0) {
@@ -637,7 +646,8 @@ function ReferencesTabContent({
           <li
             key={entry.turnIndex}
             ref={(el) => {
-              refMap.current.set(entry.turnIndex, el);
+              if (el) refMap.current.set(entry.turnIndex, el);
+              else refMap.current.delete(entry.turnIndex);
             }}
             className={cn(
               "rounded border border-[hsl(var(--border))] p-2 transition-shadow",
@@ -820,17 +830,24 @@ export function ResultDetail({
 
   // Lifted active tab + highlight — Preview chip 의 References 탭 점프와
   // 동기화하기 위해 ResultDetail 이 단일 source-of-truth 역할.
+  // `scrollKey` 는 같은 turnIndex 로 재진입할 때도 effect 를 재트리거해
+  // References 탭이 스크롤 복원되도록 하는 카운터.
   const [activeTab, setActiveTab] = useState<DetailTab>("preview");
   const [activeTabNodeId, setActiveTabNodeId] = useState<string | null>(null);
   const [highlightTurnIndex, setHighlightTurnIndex] = useState<number | null>(
     null,
   );
-  // 노드가 바뀌면 탭/하이라이트 초기화 (선택 노드별 독립).
+  const [scrollKey, setScrollKey] = useState(0);
+  // React 권장 "Storing information from previous renders" 패턴 — prop 기반
+  // state 리셋은 useEffect 가 아니라 render 중 setState 로 즉시 적용해 한 사이클
+  // 깜빡임을 방지한다.
+  // https://react.dev/reference/react/useState#storing-information-from-previous-renders
   if (result && activeTabNodeId !== result.nodeId) {
     setActiveTabNodeId(result.nodeId);
     setActiveTab(result.error ? "error" : "preview");
     setHighlightTurnIndex(null);
   }
+
   const handleActiveTabChange = useCallback((tab: DetailTab) => {
     setActiveTab(tab);
     if (tab !== "references") setHighlightTurnIndex(null);
@@ -838,7 +855,22 @@ export function ResultDetail({
   const handleJumpToReferences = useCallback((turnIndex: number) => {
     setActiveTab("references");
     setHighlightTurnIndex(turnIndex);
+    setScrollKey((k) => k + 1);
   }, []);
+
+  const aiMetadata = useMemo(
+    () => (result ? extractAiMetadata(result.outputData) : null),
+    [result],
+  );
+  // turnIndex → 그 턴에서 사용된 KB 청크. ConversationInspector 의 chip 이
+  // assistant 메시지마다 자기 turnIndex 로 lookup 한다.
+  const turnRefIndex = useMemo<Map<number, RagSource[]>>(
+    () =>
+      new Map(
+        aiMetadata?.turnDebug.map((t) => [t.turnIndex, t.ragSources]) ?? [],
+      ),
+    [aiMetadata],
+  );
 
   if (!result) {
     return (
@@ -851,13 +883,6 @@ export function ResultDetail({
   const definition = getNodeDefinition(result.nodeType);
   const categoryColor = getCategoryColor(result.nodeCategory);
   const isPresentation = result.nodeCategory === "presentation";
-
-  const aiMetadata = extractAiMetadata(result.outputData);
-  // turnIndex → 그 턴에서 사용된 KB 청크. ConversationInspector 의 chip 이
-  // assistant 메시지마다 자기 turnIndex 로 lookup 한다.
-  const turnRefIndex = new Map<number, RagSource[]>(
-    aiMetadata?.turnDebug.map((t) => [t.turnIndex, t.ragSources]) ?? [],
-  );
 
   const isCompletedConversation =
     result.status === "completed" && isConversationOutput(result.outputData);
@@ -994,6 +1019,7 @@ export function ResultDetail({
             activeTab={activeTab}
             onActiveTabChange={handleActiveTabChange}
             highlightTurnIndex={highlightTurnIndex}
+            scrollKey={scrollKey}
             aiMetadata={aiMetadata}
           />
         ) : (
