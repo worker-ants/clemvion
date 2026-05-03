@@ -160,6 +160,7 @@ AI Agent 응답의 `meta.ragSources` 와 `meta.ragDiagnostics`:
 - `content`: 원본 청크 텍스트의 앞 200자 (미리보기용)
 - `score`: 유사도 점수 (0.0 ~ 1.0)
 - KB tool 이 한 노드 실행 동안 여러 번 호출되면 모든 결과가 누적된다 (multi-turn 도 포함).
+- 멀티턴에서 "어느 응답이 어느 청크를 사용했는지"가 필요한 경우, 동일 항목이 turn 단위로 분리되어 `meta.turnDebug[].ragSources` / `meta.turnDebug[].ragDiagnostics` 에도 노출된다 — 노드 전체 누적은 `meta.ragSources` 그대로 유지하되, run-results UI 의 References 탭은 turn delta 를 메시지(턴)별 그룹으로 렌더한다.
 
 ### 4.2 ragDiagnostics (검색 동작 진단)
 

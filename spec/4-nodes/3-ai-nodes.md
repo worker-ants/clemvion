@@ -425,6 +425,7 @@ LLM 응답의 `toolCalls`를 순회할 때 다음 로직을 적용:
 - 프론트엔드에서 각 assistant 메시지를 해당 턴의 N번째 LLM 호출과 매칭하여 디버그 정보를 표시
 - 실행 결과에 항상 포함됨 (워크플로우 소유자만 실행 결과 조회 가능하므로 별도 접근 제어 불필요)
 - `requestPayload`에 시스템 프롬프트 및 전체 대화 이력이 포함될 수 있음에 유의
+- 각 turn 항목에 `ragSources` (해당 턴에서 호출된 KB tool 의 chunk delta) 와 `ragDiagnostics` (해당 턴 한정 진단) 가 함께 채워진다. 노드 전체 누적은 `meta.ragSources` / `meta.ragDiagnostics` 를 사용한다 — 두 위치의 값은 turn delta 의 합 = 전체 누적 관계를 만족한다.
 
 ---
 
@@ -677,7 +678,7 @@ LLM 3 노드는 `output.result.*` / `output.error.*` / `output.interaction.*` wr
 | `meta.durationMs` | 필수 | 실행 소요 시간 |
 | `meta.{model, inputTokens, outputTokens, totalTokens, thinkingTokens}` | 필수 | 모델 / 토큰 사용량 |
 | `meta.collectionRetryCount` | multi | 재수집 누적 횟수 |
-| `meta.turnDebug` | 필수 | `[{ turnIndex, llmCalls, totalDurationMs }, ...]` 디버그 트레이스 |
+| `meta.turnDebug` | 필수 | `[{ turnIndex, llmCalls, totalDurationMs, ragSources?, ragDiagnostics? }, ...]` 디버그 트레이스. `ragSources` / `ragDiagnostics` 는 해당 턴에서 호출된 KB tool 결과 delta — 노드 전체 누적은 `meta.ragSources` / `meta.ragDiagnostics` 를 사용 |
 
 > 멀티턴에서 `max_retries` 로 종료 시에는 `output.error` 와 `output.result` 가 **병존**한다. 에러지만 부분 수집 결과가 있어 후속 노드가 활용할 수 있도록 둘 다 보존한다. `output.error` 존재 여부로 에러/정상을 판단한다.
 
