@@ -1679,6 +1679,9 @@ export const ko = {
     graphVizLimit: "최대 노드 수",
     graphVizTruncated: "노드 수가 {{limit}}개 한도를 초과해 일부만 표시 중",
     graphVizEmpty: "표시할 entity 가 아직 없어요. 추출이 끝나면 그래프가 그려져요.",
+    formTabBasic: "기본",
+    formTabEmbedding: "임베딩",
+    formTabGraph: "그래프",
   },
   llmConfigs: {
     title: "LLM 설정",
