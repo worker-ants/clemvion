@@ -44,3 +44,11 @@
 
 - Viewer 계정으로 로그인 시 편집 UI 숨김·API 403
 - Editor 계정으로 Integration 생성 시도 시 차단
+
+## 구현 진행
+
+- 인프라 (`RolesGuard`, `@Roles()`, `RoleGate`, `useHasRole`) 완료
+- 백엔드 가드: workflows / triggers / schedules / integrations / llm-configs / knowledge-bases / **auth-configs / folders** 까지 `@Roles('editor')` 적용 (이번 사이클)
+- 워크스페이스 자체 (rename / member-mgmt / leave / delete) 는 service-level role assertion 으로 admin/owner 분리 유지
+- 프론트 UI: 목록 페이지 (workflows / integrations / llm-configs / knowledge-bases / KB-detail / alerts) + **워크플로우 에디터 툴바 (save / delete / 이름 inline rename) + triggers (create / toggle) + schedules (create / edit / delete / toggle)** 모두 RoleGate 적용 (이번 사이클). 실행 동작 (Run, Run-now) 은 Viewer 가능이므로 비가드.
+- 미구현: Owner 이양 UI / API (별도 stage 로 분리)
