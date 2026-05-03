@@ -1,5 +1,6 @@
 import { AiAgentHandler } from './ai-agent.handler';
 import { NodeComponent } from '../../core/node-component.interface';
+import { KbToolProvider } from './tool-providers/kb-tool-provider';
 import {
   aiAgentNodeConfigSchema,
   aiAgentNodeMetadata,
@@ -13,5 +14,7 @@ export const aiAgentNodeComponent: NodeComponent = {
   configSchema: aiAgentNodeConfigSchema,
   outputSchema: aiAgentNodeOutputSchema,
   createHandler: (deps) =>
-    new AiAgentHandler(deps.llmService, deps.ragSearchService),
+    new AiAgentHandler(deps.llmService, [
+      new KbToolProvider(deps.ragSearchService, deps.knowledgeBaseService),
+    ]),
 };

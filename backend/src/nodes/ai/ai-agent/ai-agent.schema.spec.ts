@@ -27,6 +27,18 @@ describe('aiAgentNodeConfigSchema', () => {
     expect(result.mode).toBe('multi_turn');
   });
 
+  it('mode.clearFields includes userPrompt to prevent leak across mode switch', () => {
+    // single_turn 에서 입력한 userPrompt 가 multi_turn 으로 전환될 때 frontend
+    // auto-form 의 applyClearFields 로 자동 제거되어야 한다. visibleWhen 만으로는
+    // 화면에서 숨겨질 뿐 config 값은 남아 backend 가 의도치 않은 첫 LLM 호출을
+    // trigger 한다.
+    const jsonSchema = z.toJSONSchema(aiAgentNodeConfigSchema) as {
+      properties?: { mode?: { ui?: { clearFields?: string[] } } };
+    };
+    const clearFields = jsonSchema.properties?.mode?.ui?.clearFields ?? [];
+    expect(clearFields).toContain('userPrompt');
+  });
+
   it('accepts valid conditions with required id', () => {
     const cond = { id: 'cond-1', label: 'Refund', prompt: 'About refunds' };
     const result = aiAgentNodeConfigSchema.parse({ conditions: [cond] });

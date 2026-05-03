@@ -9,6 +9,7 @@ import {
 } from './node-handler.interface';
 import { LlmService } from '../../modules/llm/llm.service';
 import { RagSearchService } from '../../modules/knowledge-base/search/rag-search.service';
+import { KnowledgeBaseService } from '../../modules/knowledge-base/knowledge-base.service';
 import { IntegrationsService } from '../../modules/integrations/integrations.service';
 import { WorkflowExecutor } from './workflow-executor.interface';
 
@@ -245,6 +246,7 @@ export interface UiHint {
 export interface HandlerDependencies {
   llmService: LlmService;
   ragSearchService: RagSearchService;
+  knowledgeBaseService: KnowledgeBaseService;
   integrationsService: IntegrationsService;
   workflowExecutor: WorkflowExecutor;
 }
