@@ -150,6 +150,75 @@ export function buildConversationMetaFromResumeState(
   };
 }
 
+/**
+ * Build the WS-event `conversationConfig` block from a NodeHandlerOutput's
+ * `output`. System messages are filtered out for client display.
+ *
+ * `legacy` is consulted only as a fallback for in-flight waiting rows that
+ * were persisted before the canonical-shape migration (top-level
+ * `conversationConfig`). Remove after one release cycle.
+ */
+export function buildConversationConfigFromOutput(
+  output: Record<string, unknown> | undefined,
+  legacy?: Record<string, unknown> | undefined,
+): {
+  message: string;
+  turnCount: number;
+  maxTurns?: number;
+  messages: Array<Record<string, unknown>>;
+  extracted?: Record<string, unknown>;
+  missingFields?: string[];
+  collectionRetryCount?: number;
+  maxCollectionRetries?: number;
+} {
+  const o = output ?? {};
+  const l = legacy ?? {};
+  const partial = (o.partial as Record<string, unknown> | undefined) ?? {};
+  const messagesAll =
+    (o.messages as Array<Record<string, unknown>> | undefined) ??
+    (l.messages as Array<Record<string, unknown>> | undefined) ??
+    [];
+  const result: {
+    message: string;
+    turnCount: number;
+    maxTurns?: number;
+    messages: Array<Record<string, unknown>>;
+    extracted?: Record<string, unknown>;
+    missingFields?: string[];
+    collectionRetryCount?: number;
+    maxCollectionRetries?: number;
+  } = {
+    message:
+      (o.message as string | undefined) ??
+      (l.message as string | undefined) ??
+      '',
+    turnCount:
+      (o.turnCount as number | undefined) ??
+      (l.turnCount as number | undefined) ??
+      0,
+    messages: messagesAll.filter((m) => m.role !== 'system'),
+  };
+  const maxTurns =
+    (o.maxTurns as number | undefined) ??
+    (l.maxTurns as number | undefined);
+  if (maxTurns !== undefined) result.maxTurns = maxTurns;
+  if (partial.extracted !== undefined)
+    result.extracted = partial.extracted as Record<string, unknown>;
+  else if (l.extracted !== undefined)
+    result.extracted = l.extracted as Record<string, unknown>;
+  if (partial.missingFields !== undefined)
+    result.missingFields = partial.missingFields as string[];
+  else if (l.missingFields !== undefined)
+    result.missingFields = l.missingFields as string[];
+  if (partial.collectionRetryCount !== undefined)
+    result.collectionRetryCount = partial.collectionRetryCount as number;
+  else if (l.collectionRetryCount !== undefined)
+    result.collectionRetryCount = l.collectionRetryCount as number;
+  if (l.maxCollectionRetries !== undefined)
+    result.maxCollectionRetries = l.maxCollectionRetries as number;
+  return result;
+}
+
 @Injectable()
 export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
   private readonly logger = new Logger(ExecutionEngineService.name);
@@ -1467,42 +1536,44 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
       ExecutionStatus.WAITING_FOR_INPUT,
     );
 
+    // Source-of-truth for the waiting payload is `structuredOutputCache` —
+    // the canonical NodeHandlerOutput populated when the handler returned.
+    // `nodeOutputCache` is the flat view used by legacy expression resolution
+    // and is consulted as a fallback for in-flight rows persisted before the
+    // canonical-shape migration.
+    const structured = context.structuredOutputCache?.[node.id];
+    const structuredOutput = structured?.output as
+      | Record<string, unknown>
+      | undefined;
+    const structuredConfig = (structured?.config ?? undefined) as
+      | Record<string, unknown>
+      | undefined;
+    const legacyConvConfig = nodeOutput.conversationConfig as
+      | Record<string, unknown>
+      | undefined;
+
     const nodeExec = await this.nodeExecutionRepository.findOne({
       where: { executionId, nodeId: node.id },
       order: { startedAt: 'DESC' },
     });
     if (nodeExec) {
       nodeExec.status = NodeExecutionStatus.WAITING_FOR_INPUT;
-      // Persist the in-flight conversation state so REST polling
-      // reconciliation doesn't overwrite WS-delivered outputData with null
-      // while the user is typing a reply.
-      nodeExec.outputData = nodeOutput;
+      // Persist the canonical structured shape (config/output/meta/status/
+      // _resumeState) so REST polling reconciliation surfaces a NodeHandler-
+      // Output-compliant document. Falls back to the flat cache for legacy
+      // in-flight rows.
+      nodeExec.outputData = (structured ?? nodeOutput) as Record<
+        string,
+        unknown
+      >;
       await this.nodeExecutionRepository.save(nodeExec);
     }
 
-    // Emit initial waiting event with the first AI response. Read the
-    // conversation snapshot from the new `output.messages` /
-    // `output.partial.*` shape (Principle 4.3), falling back to the legacy
-    // `conversationConfig` block for in-flight payloads that still carry it.
-    const structuredOutput = (context.structuredOutputCache?.[node.id]
-      ?.output ?? null) as Record<string, unknown> | null;
-    const outputMessages =
-      (structuredOutput?.messages as
-        | Array<Record<string, unknown>>
-        | undefined) ?? [];
-    const initialConvConfig = (nodeOutput.conversationConfig ?? {}) as Record<
-      string,
-      unknown
-    >;
-    const legacyMessages =
-      (initialConvConfig.messages as
-        | Array<Record<string, unknown>>
-        | undefined) ?? [];
-    const allInitialMessages =
-      outputMessages.length > 0 ? outputMessages : legacyMessages;
-    const initialClientMessages = allInitialMessages.filter(
-      (m) => m.role !== 'system',
+    const initialConv = buildConversationConfigFromOutput(
+      structuredOutput,
+      legacyConvConfig,
     );
+
     this.websocketService.emitExecutionEvent(
       executionId,
       ExecutionEventType.EXECUTION_WAITING_FOR_INPUT,
@@ -1514,15 +1585,12 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
         nodeExecutionId: nodeExec?.id,
         nodeOutput: {
           interactionType: 'ai_conversation',
-          ...(nodeOutput.config
-            ? {
-                config: nodeOutput.config as Record<string, unknown>,
-              }
-            : {}),
-          conversationConfig: {
-            ...initialConvConfig,
-            messages: initialClientMessages,
-          },
+          ...(structuredConfig && Object.keys(structuredConfig).length > 0
+            ? { config: structuredConfig }
+            : nodeOutput.config
+              ? { config: nodeOutput.config as Record<string, unknown> }
+              : {}),
+          conversationConfig: initialConv,
           // run-results UI 의 References / LLM Usage 탭이 진행 중에도 동작하도록
           // _resumeState 의 누적치를 meta.* 로 펼쳐 노출. _resumeState 자체는
           // system prompt / llmConfigId 등 internal 필드를 포함하므로 client 에
@@ -1603,27 +1671,44 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
         const resultObj = result as Record<string, unknown>;
 
         if (resultObj.status === 'waiting_for_input') {
+          // Run the canonical adapter once so production-strict validation
+          // is enforced and the structured cache stays consistent for the
+          // next emit cycle / REST polling reconciliation.
+          const adaptedNext = adaptHandlerReturn(result);
+          this.contextService.setStructuredOutput(
+            executionId,
+            node.id,
+            adaptedNext,
+          );
+          const flatNext = this.applyPortSelection(
+            toEngineFlatShape(adaptedNext),
+          );
+          this.contextService.setNodeOutput(executionId, node.id, flatNext);
+
           // Update state for next turn
-          resumeState = (resultObj._resumeState ??
+          resumeState = (adaptedNext._resumeState ??
             resultObj._multiTurnState) as Record<string, unknown>;
 
-          // Emit AI response event (filter system prompts from client)
-          const convConfig = resultObj.conversationConfig as Record<
-            string,
-            unknown
-          >;
-          const clientMessages = (
-            convConfig.messages as Array<Record<string, unknown>>
-          ).filter((m) => m.role !== 'system');
+          const adaptedOutput = adaptedNext.output as
+            | Record<string, unknown>
+            | undefined;
+          const adaptedConfig = (adaptedNext.config ?? undefined) as
+            | Record<string, unknown>
+            | undefined;
+          const nextConv = buildConversationConfigFromOutput(
+            adaptedOutput,
+            undefined,
+          );
 
+          // Emit AI response event (filter system prompts from client)
           this.websocketService.emitExecutionEvent(
             executionId,
             ExecutionEventType.AI_MESSAGE,
             {
               nodeId: node.id,
-              message: convConfig.message,
-              turnCount: convConfig.turnCount,
-              messages: clientMessages,
+              message: nextConv.message,
+              turnCount: nextConv.turnCount,
+              messages: nextConv.messages,
               metadata: {
                 model: resumeState.model,
                 inputTokens: resumeState.totalInputTokens,
@@ -1635,14 +1720,7 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
             },
           );
 
-          // Emit waiting_for_input again (filter system prompts)
-          const nextConvConfig = resultObj.conversationConfig as Record<
-            string,
-            unknown
-          >;
-          const nextClientMessages = (
-            nextConvConfig.messages as Array<Record<string, unknown>>
-          ).filter((m) => m.role !== 'system');
+          // Emit waiting_for_input again
           this.websocketService.emitExecutionEvent(
             executionId,
             ExecutionEventType.EXECUTION_WAITING_FOR_INPUT,
@@ -1657,13 +1735,10 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
                 // Pass through handler's echoed node config so the Config
                 // tab can render during the waiting state. Conversation
                 // handlers (AI Agent / Info Extractor multi-turn) add this.
-                ...(resultObj.config
-                  ? { config: resultObj.config as Record<string, unknown> }
+                ...(adaptedConfig && Object.keys(adaptedConfig).length > 0
+                  ? { config: adaptedConfig }
                   : {}),
-                conversationConfig: {
-                  ...nextConvConfig,
-                  messages: nextClientMessages,
-                },
+                conversationConfig: nextConv,
                 // 진행 중에도 References / LLM Usage 탭이 동작하도록 누적
                 // 상태를 meta.* 로 노출. (turn 단위 ragSources 는 turnDebug[]
                 // 안에 들어 있어 References 탭이 메시지(턴)별로 그룹핑.)
@@ -1805,9 +1880,14 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
     // Update node execution to completed
     if (nodeExec) {
       nodeExec.status = NodeExecutionStatus.COMPLETED;
-      // Strip internal state from persisted output
+      // Prefer the canonical structured cache for persistence (terminal
+      // handler returns are already canonical {config,output,meta,port,
+      // status:'ended'} so no _resumeState is present); fall back to the
+      // flat cache for legacy paths (line 1874 maxTurns shim).
+      const finalAdapted = context.structuredOutputCache?.[node.id];
       const finalOutput = {
-        ...(context.nodeOutputCache[node.id] as Record<string, unknown>),
+        ...((finalAdapted ??
+          context.nodeOutputCache[node.id]) as Record<string, unknown>),
       };
       delete finalOutput._resumeState;
       delete finalOutput._multiTurnState;

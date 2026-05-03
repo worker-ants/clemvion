@@ -3,6 +3,7 @@ import {
   NodeHandler,
   ExecutionContext,
   ValidationResult,
+  ResumableNodeHandlerOutput,
 } from '../../core/node-handler.interface';
 import { evaluateMetadataBlockingErrors } from '../../core/metadata-validation';
 import { LlmService } from '../../../modules/llm/llm.service';
@@ -510,22 +511,20 @@ export class AiAgentHandler implements NodeHandler {
       workspaceId,
     };
 
-    return {
-      type: 'ai_conversation',
-      status: 'waiting_for_input',
-      interactionType: 'ai_conversation',
+    const waitingResult: ResumableNodeHandlerOutput = {
       config: { mode: 'multi_turn', maxTurns, maxToolCalls },
-      conversationConfig: {
-        message: '',
+      // CONVENTIONS §4.3 — waiting `output` carries the live conversation
+      // snapshot. `message` (current AI turn content) and `turnCount` are
+      // surfaced alongside `messages` so workflow authors can reference
+      // `$node["X"].output.message` / `.turnCount` while the node is paused.
+      output: {
         messages,
+        message: '',
         turnCount: 0,
         maxTurns,
       },
-      // CONVENTIONS §4.3 — runtime conversation snapshot mirrored at top
-      // level. `$node["X"].output.messages` resolves via the adapter's
-      // legacy-bare branch alongside `conversationConfig` (which will be
-      // retired once frontend consumers migrate).
-      messages,
+      meta: { interactionType: 'ai_conversation' },
+      status: 'waiting_for_input',
       _resumeState: {
         ...multiTurnStateBase,
         messages,
@@ -538,6 +537,7 @@ export class AiAgentHandler implements NodeHandler {
         ragLastDiagnostics: ragAcc.getDiagnostics(),
       },
     };
+    return waitingResult;
   }
 
   /**
@@ -779,19 +779,16 @@ export class AiAgentHandler implements NodeHandler {
       );
     }
 
-    return {
-      type: 'ai_conversation',
-      status: 'waiting_for_input',
-      interactionType: 'ai_conversation',
+    const waitingResult: ResumableNodeHandlerOutput = {
       config: { mode: 'multi_turn', maxTurns, maxToolCalls },
-      conversationConfig: {
-        message: result.content || '',
+      output: {
         messages,
+        message: result.content || '',
         turnCount,
         maxTurns,
       },
-      // CONVENTIONS §4.3 — runtime conversation snapshot at top level.
-      messages,
+      meta: { interactionType: 'ai_conversation' },
+      status: 'waiting_for_input',
       _resumeState: {
         ...state,
         messages,
@@ -808,6 +805,7 @@ export class AiAgentHandler implements NodeHandler {
         turnDebugHistory,
       },
     };
+    return waitingResult;
   }
 
   /**

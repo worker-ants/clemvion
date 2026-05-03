@@ -85,21 +85,23 @@ export function unwrapNodeOutput(raw: unknown): UnwrappedNodeOutput {
 
 /**
  * Detect whether outputData represents a multi-turn conversation result.
- * Handles all three shapes we emit:
+ * Handles all four shapes we emit:
  *   - Legacy flat completed (top-level `messages` + `interactionType`)
  *   - New wrapped completed (`{ config, output: { messages }, meta: { interactionType } }`)
- *   - Waiting (top-level `interactionType: 'ai_conversation'` + `conversationConfig`,
- *     with or without the new `config` echo — in which case `unwrapNodeOutput`
- *     returns `output: null`, so the top-level probe below is required)
+ *   - New wrapped waiting (`{ config, output: { messages, message, turnCount,
+ *     partial? }, meta: { interactionType: 'ai_conversation' },
+ *     status: 'waiting_for_input', _resumeState }`)
+ *   - Legacy waiting (top-level `interactionType: 'ai_conversation'` +
+ *     `conversationConfig`) — for in-flight rows persisted before the
+ *     canonical-shape migration.
  */
 export function isConversationOutput(outputData: unknown): boolean {
   if (!outputData || typeof outputData !== "object" || Array.isArray(outputData))
     return false;
   const raw = outputData as Record<string, unknown>;
 
-  // Waiting shape: the top-level object itself carries `interactionType`
-  // and/or `conversationConfig`. This also covers legacy flat-completed
-  // payloads that put `messages`/`interactionType` at the top level.
+  // Legacy waiting shape: top-level `interactionType` / `conversationConfig`.
+  // Also covers legacy flat-completed payloads that put `messages` at the top.
   if (
     raw.interactionType === "ai_conversation" ||
     raw.conversationConfig != null
@@ -107,14 +109,14 @@ export function isConversationOutput(outputData: unknown): boolean {
     return true;
   }
 
-  // New wrapped completed: conversation markers live inside output / meta.
+  // Canonical shapes: conversation markers live inside output / meta / status.
   const unwrapped = unwrapNodeOutput(outputData);
   const output = unwrapped.output as Record<string, unknown> | null;
   if (!output || typeof output !== "object") return false;
 
   // Information Extractor (post Stage 1) and AI Agent both emit `messages`
   // inside `output.result.*` for terminal states. Fall back to `output.messages`
-  // for pre-migration payloads.
+  // for pre-migration payloads and the new waiting shape.
   const result = output.result as Record<string, unknown> | undefined;
   const hasResultMessages = !!result && Array.isArray(result.messages);
   const hasLegacyMessages = Array.isArray(output.messages);
@@ -130,11 +132,18 @@ export function isConversationOutput(outputData: unknown): boolean {
       endReason === "user_ended" ||
       endReason === "max_turns" ||
       endReason === "max_retries");
+  // Canonical waiting shape: the structured envelope has
+  // `status === 'waiting_for_input'` and `output.messages` is the live
+  // conversation snapshot. This catches payloads where `meta.interactionType`
+  // is somehow stripped (defensive fallback).
+  const isCanonicalWaiting =
+    unwrapped.status === "waiting_for_input" && hasLegacyMessages;
 
   return (
     (hasLegacyMessages && (outputInteraction || metaInteraction)) ||
     hasConvConfig ||
-    looksLikeConversationEnd
+    looksLikeConversationEnd ||
+    isCanonicalWaiting
   );
 }
 

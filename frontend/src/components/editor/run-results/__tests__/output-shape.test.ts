@@ -403,6 +403,37 @@ describe("extractIeSnapshot", () => {
     expect(extractIeSnapshot({ rows: [] })).toBeNull();
     expect(extractIeSnapshot({ response: "hi" })).toBeNull();
   });
+
+  it("reads output.partial.extracted from the canonical waiting shape", () => {
+    // CONVENTIONS §4.3 — Information Extractor multi-turn waiting now emits
+    // `output: { messages, message, turnCount, maxTurns, partial: { extracted,
+    // missingFields, collectionRetryCount } }` inside the canonical envelope.
+    const raw = {
+      config: {
+        schema: [{ name: "orderId", type: "string", required: true }],
+        mode: "multi_turn",
+        maxCollectionRetries: 3,
+      },
+      output: {
+        messages: [],
+        message: "주문번호를 알려주세요",
+        turnCount: 1,
+        maxTurns: 5,
+        partial: {
+          extracted: { orderId: null, product: "A123" },
+          missingFields: ["orderId"],
+          collectionRetryCount: 1,
+        },
+      },
+      meta: { interactionType: "ai_conversation" },
+      status: "waiting_for_input",
+      _resumeState: { partialResult: {}, turnCount: 1 },
+    };
+    const snapshot = extractIeSnapshot(raw);
+    expect(snapshot?.inProgress).toBe(true);
+    expect(snapshot?.fields).toEqual({ orderId: null, product: "A123" });
+    expect(snapshot?.retry).toEqual({ count: 1, max: 3 });
+  });
 });
 
 describe("unwrapNodeOutput waiting shape (config echo)", () => {
@@ -474,6 +505,40 @@ describe("isConversationOutput / unwrapNodeOutput regression", () => {
       status: "waiting_for_input",
       interactionType: "ai_conversation",
       conversationConfig: { messages: [], turnCount: 0 },
+    };
+    expect(isConversationOutput(raw)).toBe(true);
+  });
+
+  it("detects canonical waiting shape (post-migration persisted outputData)", () => {
+    // After CONVENTIONS §4.3 migration, persisted waiting payloads carry
+    // `meta.interactionType: 'ai_conversation'` and `output.messages`.
+    // No top-level `interactionType` or `conversationConfig`.
+    const raw = {
+      config: { mode: "multi_turn", maxTurns: 0, maxToolCalls: 100 },
+      output: {
+        messages: [{ role: "user", content: "안녕" }],
+        message: "",
+        turnCount: 1,
+        maxTurns: 10,
+      },
+      meta: { interactionType: "ai_conversation" },
+      status: "waiting_for_input",
+      _resumeState: { messages: [], turnCount: 1 },
+    };
+    expect(isConversationOutput(raw)).toBe(true);
+  });
+
+  it("detects canonical waiting shape via status + output.messages alone", () => {
+    // Defensive fallback: even if meta.interactionType is somehow stripped,
+    // `status === 'waiting_for_input'` + `output.messages` array is enough.
+    const raw = {
+      config: { mode: "multi_turn" },
+      output: {
+        messages: [{ role: "user", content: "x" }],
+        message: "",
+        turnCount: 1,
+      },
+      status: "waiting_for_input",
     };
     expect(isConversationOutput(raw)).toBe(true);
   });

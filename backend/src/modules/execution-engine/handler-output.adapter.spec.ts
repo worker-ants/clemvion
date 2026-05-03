@@ -85,6 +85,43 @@ describe('adaptHandlerReturn', () => {
       expect(adaptHandlerReturn(raw)).toEqual(raw);
     });
 
+    it('passes conversation waiting shape (ai_agent / info_extractor) through in production', () => {
+      // Regression for the production-strict throw that fired on the legacy
+      // bare waiting shape. Both multi-turn handlers now return canonical
+      // shape with output.{messages,message,turnCount,maxTurns,partial?}
+      // and meta.interactionType === 'ai_conversation'.
+      const aiAgentWaiting = {
+        config: { mode: 'multi_turn', maxTurns: 0, maxToolCalls: 100 },
+        output: {
+          messages: [{ role: 'system', content: 'You are helpful' }],
+          message: '',
+          turnCount: 0,
+          maxTurns: 0,
+        },
+        meta: { interactionType: 'ai_conversation' },
+        status: 'waiting_for_input',
+        _resumeState: { messages: [], turnCount: 0 },
+      };
+      expect(() => adaptHandlerReturn(aiAgentWaiting)).not.toThrow();
+
+      const ieWaiting = {
+        config: { schema: [], mode: 'multi_turn', maxCollectionRetries: 3 },
+        output: {
+          messages: [],
+          message: '주문번호를 알려주세요',
+          turnCount: 1,
+          maxTurns: 5,
+          partial: { extracted: {}, missingFields: ['orderNumber'], collectionRetryCount: 0 },
+        },
+        meta: { interactionType: 'ai_conversation' },
+        status: 'waiting_for_input',
+        _resumeState: { partialResult: {}, turnCount: 1 },
+      };
+      const adapted = adaptHandlerReturn(ieWaiting);
+      expect(adapted.status).toBe('waiting_for_input');
+      expect(adapted._resumeState).toEqual({ partialResult: {}, turnCount: 1 });
+    });
+
     it('truncates long bare shapes in the error preview', () => {
       const big = { a: 'x'.repeat(1000) };
       expect(() => adaptHandlerReturn(big)).toThrow(/got \{[^]{1,220}/);

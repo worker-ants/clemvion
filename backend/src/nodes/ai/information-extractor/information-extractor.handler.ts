@@ -3,6 +3,7 @@ import {
   NodeHandlerOutput,
   ExecutionContext,
   ValidationResult,
+  ResumableNodeHandlerOutput,
 } from '../../core/node-handler.interface';
 import { evaluateMetadataBlockingErrors } from '../../core/metadata-validation';
 import { LlmService } from '../../../modules/llm/llm.service';
@@ -879,7 +880,7 @@ export class InformationExtractorHandler implements NodeHandler {
   private buildWaitingResponse(
     state: MultiTurnState,
     followUp: string,
-  ): unknown {
+  ): ResumableNodeHandlerOutput {
     // Surface partialResult + missingFields so the Output tab can show
     // what has been gathered so far while the node is still waiting for
     // user input. Frontend renders the same ExtractedFieldsCard against
@@ -895,9 +896,6 @@ export class InformationExtractorHandler implements NodeHandler {
     );
 
     return {
-      type: 'ai_conversation',
-      status: 'waiting_for_input',
-      interactionType: 'ai_conversation',
       // Echo node config so the UI's Config tab renders during waiting state
       // (same shape as the completed `data.config`). Without this, the
       // frontend's `unwrapNodeOutput` treats a waiting payload as legacy and
@@ -907,29 +905,23 @@ export class InformationExtractorHandler implements NodeHandler {
         mode: 'multi_turn',
         maxCollectionRetries: state.maxCollectionRetries,
       },
-      conversationConfig: {
-        message: followUp,
+      // CONVENTIONS §4.3 — waiting `output: { messages, partial? }` plus
+      // the live turn snapshot (`message`/`turnCount`/`maxTurns`) so engine
+      // can rebuild the WS event payload from a single canonical source.
+      output: {
         messages: state.messages,
+        message: followUp,
         turnCount: state.turnCount,
         maxTurns: state.maxTurns,
-        extracted,
-        missingFields,
-        collectionRetryCount: state.collectionRetryCount,
-        maxCollectionRetries: state.maxCollectionRetries,
+        partial: {
+          extracted,
+          missingFields,
+          collectionRetryCount: state.collectionRetryCount,
+        },
       },
-      // CONVENTIONS §4.3 — runtime calculated fields mirrored at top level
-      // so `$node["X"].output.messages` / `$node["X"].output.partial.*`
-      // resolves via the adapter's legacy-bare branch. `conversationConfig`
-      // above is retained for the live WS event and the in-flight frontend
-      // ConversationInspector; both paths will converge once the frontend
-      // migrates (tracked in memory/node-specs-improvement-progress.md).
-      messages: state.messages,
-      partial: {
-        extracted,
-        missingFields,
-        collectionRetryCount: state.collectionRetryCount,
-      },
-      _resumeState: state,
+      meta: { interactionType: 'ai_conversation' },
+      status: 'waiting_for_input',
+      _resumeState: state as unknown as Record<string, unknown>,
     };
   }
 
