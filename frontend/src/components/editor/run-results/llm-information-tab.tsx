@@ -34,8 +34,8 @@ interface LlmInformationTabProps {
   targetTurnIndex?: number;
   /**
    * Fallback data source. During live waiting sessions, `result.outputData`
-   * lacks `_turnDebugHistory` (engine strips `_multiTurnState` from WS
-   * events), but WS event handlers attach per-assistant
+   * lacks `_turnDebugHistory` (the engine strips `_resumeState` before
+   * persisting), but WS event handlers attach per-assistant
    * `requestPayload`/`responsePayload` directly onto these items. When the
    * primary extraction returns no calls, traces are derived from here.
    */

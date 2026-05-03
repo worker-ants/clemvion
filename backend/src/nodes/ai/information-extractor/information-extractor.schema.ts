@@ -189,9 +189,7 @@ export const informationExtractorNodeOutputSchema = z
       .optional(),
     // Waiting shape exposes `status:'waiting_for_input'` alongside the
     // live conversation snapshot. The internal continuation state lives
-    // on `_resumeState` (renamed from the legacy `_multiTurnState` in
-    // Stage 2 — engine keeps a dual-read fallback until the next
-    // release). `output.messages` and `output.partial.*` are the
+    // on `_resumeState`. `output.messages` and `output.partial.*` are the
     // canonical runtime fields (CONVENTIONS §4.3); `conversationConfig`
     // is retained for WebSocket event-payload backward compatibility.
     // Expression resolvers intentionally do not surface `_resumeState`.

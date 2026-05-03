@@ -43,13 +43,12 @@ function toRecord(value: unknown): Record<string, unknown> | null {
  *  - `output._turnDebugHistory` (AI Agent, Info Extractor multi-turn)
  *  - top-level `_turnDebugHistory` (legacy AI Agent flat shape)
  *  - `output._llmCalls` (Text Classifier, Info Extractor single-turn)
- *  - waiting shape with `_multiTurnState.turnDebugHistory`
  *
- * Live waiting sessions never ship `_multiTurnState` / `_turnDebugHistory`
- * over WebSocket (the engine strips them). For that case the caller can
- * pass `fallbackMessages` — per-assistant `requestPayload`/`responsePayload`
- * already attached by the WS event handler. Each matching assistant item
- * becomes one LlmCallTrace so the Response/Request/LLM Usage tabs still render.
+ * Live waiting sessions never ship `_turnDebugHistory` over WebSocket (the
+ * engine strips it). For that case the caller can pass `fallbackMessages` —
+ * per-assistant `requestPayload`/`responsePayload` already attached by the
+ * WS event handler. Each matching assistant item becomes one LlmCallTrace
+ * so the Response/Request/LLM Usage tabs still render.
  *
  * Returns [] when nothing is available so the tab can render a placeholder.
  */
@@ -68,12 +67,6 @@ export function extractLlmCalls(
 function extractFromOutputData(raw: unknown): LlmCallTrace[] {
   if (!raw || typeof raw !== "object") return [];
   const asRecord = raw as Record<string, unknown>;
-
-  // Waiting shape: inspect _multiTurnState.turnDebugHistory
-  const multiState = toRecord(asRecord._multiTurnState);
-  if (multiState && Array.isArray(multiState.turnDebugHistory)) {
-    return flattenTurnDebug(multiState.turnDebugHistory as RawTurnDebugEntry[]);
-  }
 
   // Legacy flat AI Agent shape has _turnDebugHistory at top level
   if (Array.isArray(asRecord._turnDebugHistory)) {
