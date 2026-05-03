@@ -1746,50 +1746,25 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
               },
             },
           );
-        } else if (
-          resultObj.status === 'ended' ||
-          ('port' in resultObj && 'data' in resultObj)
-        ) {
-          // Terminal state — route to port. Supports both the new unified
-          // `{ config, output, meta, port, status:'ended' }` shape (used by
-          // information_extractor post Stage 1) and the legacy
-          // `{ port, data:{...} }` envelope (still used by ai_agent
-          // condition-triggered endings).
-          const isNewShape = resultObj.status === 'ended';
-
-          // Extract fields for the AI_MESSAGE websocket event. Both shapes
-          // expose `messages` / `response` / token counts under different
-          // paths, so normalize up-front.
-          const newOutput = isNewShape
-            ? ((resultObj.output as Record<string, unknown> | undefined) ?? {})
-            : {};
+        } else {
+          // Terminal state — handlers always return canonical
+          // `{ config, output, meta, port, status:'ended' }` (built via
+          // buildMultiTurnFinalOutput / buildConditionOutput / buildErrorOutput).
+          // Route to port and emit the final AI_MESSAGE event.
+          const newOutput =
+            (resultObj.output as Record<string, unknown> | undefined) ?? {};
           const newResult =
             (newOutput.result as Record<string, unknown> | undefined) ?? {};
-          const legacyData = !isNewShape
-            ? ((resultObj.data as Record<string, unknown> | undefined) ?? {})
-            : {};
           const sourceMessages = Array.isArray(newResult.messages)
             ? (newResult.messages as Array<Record<string, unknown>>)
-            : Array.isArray(legacyData.messages)
-              ? (legacyData.messages as Array<Record<string, unknown>>)
-              : [];
+            : [];
           const condMessages = sourceMessages.filter(
             (m) => m.role !== 'system',
           );
-          const responseText =
-            (newResult.response as string | undefined) ??
-            (legacyData.response as string | undefined) ??
-            '';
-          const turnCount =
-            (newResult.turnCount as number | undefined) ??
-            (legacyData.turnCount as number | undefined);
-          const metaSource = isNewShape
-            ? ((resultObj.meta as Record<string, unknown> | undefined) ?? {})
-            : ((legacyData.metadata as Record<string, unknown> | undefined) ??
-              {});
-          const turnDebug = resultObj._turnDebug as
-            | Record<string, unknown>
-            | undefined;
+          const responseText = (newResult.response as string | undefined) ?? '';
+          const turnCount = newResult.turnCount as number | undefined;
+          const metaSource =
+            (resultObj.meta as Record<string, unknown> | undefined) ?? {};
           const turnDebugArray =
             (metaSource.turnDebug as
               | Array<Record<string, unknown>>
@@ -1809,23 +1784,13 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
               messages: condMessages,
               metadata: {
                 model: metaSource.model,
-                inputTokens:
-                  (metaSource.inputTokens as number | undefined) ??
-                  (metaSource.totalInputTokens as number | undefined),
-                outputTokens:
-                  (metaSource.outputTokens as number | undefined) ??
-                  (metaSource.totalOutputTokens as number | undefined),
+                inputTokens: metaSource.inputTokens as number | undefined,
+                outputTokens: metaSource.outputTokens as number | undefined,
               },
-              llmCalls: turnDebug?.llmCalls ?? lastTurnDebug?.llmCalls,
-              durationMs:
-                (turnDebug?.totalDurationMs as number | undefined) ??
-                (lastTurnDebug?.totalDurationMs as number | undefined),
+              llmCalls: lastTurnDebug?.llmCalls,
+              durationMs: lastTurnDebug?.totalDurationMs as number | undefined,
             },
           );
-
-          // Strip _turnDebug before persisting (legacy shim — handlers no
-          // longer set this in the new shape).
-          delete resultObj._turnDebug;
 
           const adaptedConv = adaptHandlerReturn(resultObj);
           this.contextService.setStructuredOutput(
@@ -1838,41 +1803,6 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
           );
           this.contextService.setNodeOutput(executionId, node.id, portRouted);
           conversationEnded = true;
-        } else {
-          // maxTurns reached — emit final turn debug data, then end
-          const turnDebug = resultObj._turnDebug as
-            | Record<string, unknown>
-            | undefined;
-          if (turnDebug) {
-            const meta = resultObj.metadata as
-              | Record<string, unknown>
-              | undefined;
-            const finalMessages = Array.isArray(resultObj.messages)
-              ? (resultObj.messages as Array<Record<string, unknown>>).filter(
-                  (m) => m.role !== 'system',
-                )
-              : [];
-            this.websocketService.emitExecutionEvent(
-              executionId,
-              ExecutionEventType.AI_MESSAGE,
-              {
-                nodeId: node.id,
-                message: resultObj.response ?? '',
-                turnCount: resultObj.turnCount,
-                messages: finalMessages,
-                metadata: {
-                  model: meta?.model,
-                  inputTokens: meta?.totalInputTokens,
-                  outputTokens: meta?.totalOutputTokens,
-                },
-                llmCalls: turnDebug.llmCalls,
-                durationMs: turnDebug.totalDurationMs,
-              },
-            );
-            delete resultObj._turnDebug;
-          }
-          this.contextService.setNodeOutput(executionId, node.id, resultObj);
-          conversationEnded = true;
         }
       }
     }
@@ -1880,10 +1810,10 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
     // Update node execution to completed
     if (nodeExec) {
       nodeExec.status = NodeExecutionStatus.COMPLETED;
-      // Prefer the canonical structured cache for persistence (terminal
-      // handler returns are already canonical {config,output,meta,port,
-      // status:'ended'} so no _resumeState is present); fall back to the
-      // flat cache for legacy paths (line 1874 maxTurns shim).
+      // Persist the canonical structured cache. Terminal handler returns
+      // (buildMultiTurnFinalOutput / buildConditionOutput / buildErrorOutput)
+      // do not carry _resumeState, but defensively strip it in case a future
+      // handler bug leaks it.
       const finalAdapted = context.structuredOutputCache?.[node.id];
       const finalOutput = {
         ...((finalAdapted ??
