@@ -51,6 +51,10 @@ import { ConfigService } from '@nestjs/config';
 import { InjectQueue } from '@nestjs/bullmq';
 import type { Queue } from 'bullmq';
 import { LlmService } from '../llm/llm.service';
+import {
+  AI_LLM_PROVIDER_NODE_TYPES,
+  AI_NO_LLM_PROVIDER_MESSAGE,
+} from '../../nodes/ai/llm-provider-rule';
 import { RagSearchService } from '../knowledge-base/search/rag-search.service';
 import { IntegrationsService } from '../integrations/integrations.service';
 import {
@@ -2157,10 +2161,20 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
       // Validate config
       const validationResult = handler.validate(node.config);
       if (!validationResult.valid) {
-        // noinspection ExceptionCaughtLocallyJS — intentional: delegates to the catch block's error policy handler
-        throw new Error(
-          `INVALID_NODE_CONFIG: ${validationResult.errors.join(', ')}`,
+        // AI 노드의 'no-llm-provider' 규칙은 schema-level 에서 워크스페이스
+        // 컨텍스트를 알 수 없어 항상 발사된다. 프론트엔드 캔버스가
+        // hasDefaultLlmConfig 으로 경고를 억제하는 것과 동일한 의미를
+        // 실행 시점에 부여하기 위해 워크스페이스에 기본 LLM 이 등록돼 있다면
+        // 이 메시지만 필터링한다. 다른 종류의 에러가 함께 있으면 그대로 throw.
+        const filteredErrors = await this.filterAiNoLlmProviderError(
+          node.type,
+          validationResult.errors,
+          context,
         );
+        if (filteredErrors.length > 0) {
+          // noinspection ExceptionCaughtLocallyJS — intentional: delegates to the catch block's error policy handler
+          throw new Error(`INVALID_NODE_CONFIG: ${filteredErrors.join(', ')}`);
+        }
       }
 
       // Resolve expressions in config
@@ -2378,6 +2392,30 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
           throw error;
       }
     }
+  }
+
+  /**
+   * AI 노드(ai_agent / text_classifier / information_extractor) 의 schema 가
+   * declarative 로 fire 시키는 `no-llm-provider` 메시지를, 워크스페이스에 기본
+   * LLM 이 등록돼 있을 때 한정해 필터링한다.
+   *
+   * 캔버스에서 hasDefaultLlmConfig === true 일 때 동일 경고를 억제하는 것과
+   * 의미를 일치시키기 위함이다. 다른 에러 메시지가 함께 있으면 그대로 두고,
+   * 후처리 후에도 남은 에러가 있으면 호출부에서 INVALID_NODE_CONFIG 로 throw 한다.
+   */
+  private async filterAiNoLlmProviderError(
+    nodeType: string,
+    errors: string[],
+    context: ExecutionContext,
+  ): Promise<string[]> {
+    if (!AI_LLM_PROVIDER_NODE_TYPES.has(nodeType)) return errors;
+    if (!errors.includes(AI_NO_LLM_PROVIDER_MESSAGE)) return errors;
+    const workspaceId =
+      (context.variables?.__workspaceId as string | undefined) || '';
+    if (!workspaceId) return errors;
+    const hasDefault = await this.llmService.hasDefaultLlmConfig(workspaceId);
+    if (!hasDefault) return errors;
+    return errors.filter((e) => e !== AI_NO_LLM_PROVIDER_MESSAGE);
   }
 
   private async executeWithRetry(

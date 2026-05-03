@@ -3,6 +3,7 @@ import {
   NodeComponentMetadata,
   NodePorts,
 } from '../../core/node-component.interface';
+import { AI_NO_LLM_PROVIDER_MESSAGE } from '../llm-provider-rule';
 
 const toolOverrideSchema = z.object({
   nodeId: z.string().meta({
@@ -456,8 +457,7 @@ export const aiAgentNodeMetadata: NodeComponentMetadata = {
     {
       id: 'ai_agent:no-llm-provider',
       when: '!model && !llmConfigId',
-      message:
-        'LLM provider 또는 model 을 선택해야 합니다 (workspace 기본 provider 가 설정된 경우 캔버스에서 자동 처리).',
+      message: AI_NO_LLM_PROVIDER_MESSAGE,
     },
     {
       id: 'ai_agent:multi-turn-needs-system-prompt',

@@ -30,7 +30,7 @@ export type SummaryContext = {
  * default LLM config. Keeps the backend review behavior unchanged — only
  * the canvas surface honors the context flag.
  */
-const LLM_PROVIDER_NODES = new Set([
+export const LLM_PROVIDER_NODES: ReadonlySet<string> = new Set([
   "ai_agent",
   "text_classifier",
   "information_extractor",

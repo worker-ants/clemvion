@@ -11,9 +11,13 @@ import {
 import type { ReactFlowInstance, Node as RFNode, Edge as RFEdge } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 
+import { useQuery } from "@tanstack/react-query";
+
 import { useEditorStore } from "@/lib/stores/editor-store";
 import { getNodeDefinition, useNodeDefinitionsStore } from "@/lib/node-definitions";
 import { generateUniqueLabel } from "@/lib/utils/generate-unique-label";
+import { LLM_PROVIDER_NODES } from "@/lib/utils/node-config-summary";
+import { llmConfigsApi, type LlmConfigData } from "@/lib/api/llm-configs";
 import { Button } from "@/components/ui/button";
 import {
   ZoomIn,
@@ -92,6 +96,39 @@ export function WorkflowCanvas() {
   const setHoveredEdge = useCanvasHoverStore((s) => s.setHoveredEdge);
 
   const { enhancedEdges, isFocusActive, hoveredEdgeNodes } = useEdgeHighlighting(edges);
+
+  // AI 노드(`ai_agent` / `text_classifier` / `information_extractor`) 가 추가될
+  // 때, 워크스페이스의 isDefault=true LLM Config 가 있으면 그 ID 를 노드의
+  // llmConfigId 에 미리 채운다 — 이렇게 해야 셀렉터가 "기본 제공자(공백)" 가
+  // 아니라 실제 LLM 이름으로 표시되어 사용자 인지와 실행 결과가 일치한다.
+  // CustomNode 가 동일 query key 로 이미 fetch 하므로 캐시 공유.
+  const { data: llmConfigsData } = useQuery({
+    queryKey: ["llm-configs"],
+    queryFn: () => llmConfigsApi.getAll(),
+    staleTime: 30_000,
+  });
+  const defaultLlmConfigId = useMemo<string | null>(() => {
+    const configs: LlmConfigData[] =
+      (llmConfigsData?.data as LlmConfigData[] | undefined) ??
+      (llmConfigsData as LlmConfigData[] | undefined) ??
+      [];
+    return configs.find((c) => c.isDefault)?.id ?? null;
+  }, [llmConfigsData]);
+
+  const buildInitialConfig = useCallback(
+    (nodeType: string, defaultConfig: Record<string, unknown> | undefined) => {
+      const config = { ...(defaultConfig ?? {}) };
+      if (
+        LLM_PROVIDER_NODES.has(nodeType) &&
+        defaultLlmConfigId &&
+        !config.llmConfigId
+      ) {
+        config.llmConfigId = defaultLlmConfigId;
+      }
+      return config;
+    },
+    [defaultLlmConfigId],
+  );
 
   // Apply glow className to source/target nodes when an edge is hovered
   const glowNodes = useMemo(() => {
@@ -345,7 +382,7 @@ export function WorkflowCanvas() {
         data: {
           type: nodeType,
           label: generateUniqueLabel(definition.label, existingLabels),
-          config: { ...(definition.defaultConfig ?? {}) },
+          config: buildInitialConfig(nodeType, definition.defaultConfig),
           category: definition.category,
           isDisabled: false,
         },
@@ -353,7 +390,7 @@ export function WorkflowCanvas() {
       addNode(newNode);
       setNodeSearchPopup(null);
     },
-    [nodeSearchPopup, nodes, pushUndo, addNode],
+    [nodeSearchPopup, nodes, pushUndo, addNode, buildInitialConfig],
   );
 
   const closeAllMenus = useCallback(() => {
@@ -401,7 +438,7 @@ export function WorkflowCanvas() {
         data: {
           type: nodeType,
           label: generateUniqueLabel(definition.label, existingLabels),
-          config: { ...(definition.defaultConfig ?? {}) },
+          config: buildInitialConfig(nodeType, definition.defaultConfig),
           category: definition.category,
           isDisabled: false,
         },
@@ -409,7 +446,7 @@ export function WorkflowCanvas() {
 
       addNode(newNode);
     },
-    [addNode, pushUndo, nodes],
+    [addNode, pushUndo, nodes, buildInitialConfig],
   );
 
   const onInit = useCallback((instance: ReactFlowInstance) => {
