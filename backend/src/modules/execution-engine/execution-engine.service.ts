@@ -152,13 +152,37 @@ export function buildConversationMetaFromResumeState(
 }
 
 /**
- * Extract per-turn LLM debug payload (`llmCalls` + `durationMs`) from the
- * last entry of `state.turnDebugHistory`, for the `execution.ai_message`
- * WebSocket event. Both the waiting_for_input emit and the terminal emit
- * use this so the two branches stay in lockstep — the frontend's debug
- * timeline (Response / Request / LLM Usage tabs) can match assistant
- * messages to their LLM calls regardless of whether the conversation is
- * still in flight.
+ * Single LLM call trace (request / response / latency) — one entry per call
+ * inside a turn. A turn produces multiple entries when tool loops occur.
+ * Mirrors `LlmCallTrace` defined in the AI handlers.
+ */
+interface LlmCallRecord {
+  requestPayload?: unknown;
+  responsePayload?: unknown;
+  durationMs?: number;
+}
+
+/** One entry of `state.turnDebugHistory`. `totalDurationMs` is the wall-clock
+ * sum across all LLM calls + tool calls in the turn; `durationMs` on each
+ * `llmCalls[]` item is the per-call latency. */
+interface TurnDebugEntry {
+  turnIndex: number;
+  llmCalls?: LlmCallRecord[];
+  totalDurationMs?: number;
+}
+
+/**
+ * Extract per-turn LLM debug payload from the last entry of
+ * `state.turnDebugHistory`, for the `execution.ai_message` WebSocket event.
+ * Both the waiting_for_input emit and the terminal emit use this so the two
+ * branches stay in lockstep — the frontend's debug timeline (Response /
+ * Request / LLM Usage tabs) can match assistant messages to their LLM calls
+ * regardless of whether the conversation is still in flight.
+ *
+ * Field mapping:
+ *  - `lastTurn.llmCalls` → `llmCalls` (shallow-copied so later turns mutating
+ *    the resumeState array can't retroactively change a buffered emit)
+ *  - `lastTurn.totalDurationMs` → top-level `durationMs` (turn total)
  *
  * Returns an object with optional fields so callers can spread it into
  * the event payload without emitting `llmCalls: undefined` keys when no
@@ -166,19 +190,24 @@ export function buildConversationMetaFromResumeState(
  */
 export function buildAiMessageDebugFromResumeState(
   state: Record<string, unknown>,
-): { llmCalls?: unknown[]; durationMs?: number } {
-  const turnDebugArray =
-    (state.turnDebugHistory as Array<Record<string, unknown>> | undefined) ??
-    [];
+): { llmCalls?: LlmCallRecord[]; durationMs?: number } {
+  const turnDebugArray = Array.isArray(state.turnDebugHistory)
+    ? (state.turnDebugHistory as TurnDebugEntry[])
+    : [];
   const lastTurnDebug =
     turnDebugArray.length > 0
       ? turnDebugArray[turnDebugArray.length - 1]
       : undefined;
-  const result: { llmCalls?: unknown[]; durationMs?: number } = {};
-  const llmCalls = lastTurnDebug?.llmCalls as unknown[] | undefined;
-  if (llmCalls !== undefined) result.llmCalls = llmCalls;
-  const durationMs = lastTurnDebug?.totalDurationMs as number | undefined;
-  if (durationMs !== undefined) result.durationMs = durationMs;
+  const result: { llmCalls?: LlmCallRecord[]; durationMs?: number } = {};
+  // Array.isArray rejects null / undefined / non-array values so `llmCalls:
+  // null` in resumeState (defensive against legacy state shapes) doesn't
+  // leak into the payload as a non-array value.
+  if (Array.isArray(lastTurnDebug?.llmCalls)) {
+    result.llmCalls = [...lastTurnDebug.llmCalls];
+  }
+  if (typeof lastTurnDebug?.totalDurationMs === 'number') {
+    result.durationMs = lastTurnDebug.totalDurationMs;
+  }
   return result;
 }
 
@@ -1691,6 +1720,10 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
           // Shape mirrors the terminal-emit branch below so the frontend
           // debug timeline (Response / Request / LLM Usage tabs) can match
           // assistant messages to their LLM calls during live waiting too.
+          // The earlier flat fields (lastTurnRequest / lastTurnResponse /
+          // lastTurnDurationMs on resumeState) are intentionally not emitted —
+          // turnDebugHistory's last entry already carries the same data and
+          // additionally preserves the per-call sequence in tool loops.
           this.websocketService.emitExecutionEvent(
             executionId,
             ExecutionEventType.AI_MESSAGE,
@@ -1753,15 +1786,10 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
           const turnCount = newResult.turnCount as number | undefined;
           const metaSource =
             (resultObj.meta as Record<string, unknown> | undefined) ?? {};
-          const turnDebugArray =
-            (metaSource.turnDebug as
-              | Array<Record<string, unknown>>
-              | undefined) ?? [];
-          const lastTurnDebug =
-            turnDebugArray.length > 0
-              ? turnDebugArray[turnDebugArray.length - 1]
-              : undefined;
 
+          // Shared shape with the waiting_for_input emit above — the helper
+          // reads `turnDebugHistory`; the terminal path stores the same array
+          // under `meta.turnDebug`, so we adapt the key in-line.
           this.websocketService.emitExecutionEvent(
             executionId,
             ExecutionEventType.AI_MESSAGE,
@@ -1775,8 +1803,9 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
                 inputTokens: metaSource.inputTokens as number | undefined,
                 outputTokens: metaSource.outputTokens as number | undefined,
               },
-              llmCalls: lastTurnDebug?.llmCalls,
-              durationMs: lastTurnDebug?.totalDurationMs as number | undefined,
+              ...buildAiMessageDebugFromResumeState({
+                turnDebugHistory: metaSource.turnDebug,
+              }),
             },
           );
 
