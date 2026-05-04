@@ -179,7 +179,9 @@ Access Token (15분) 만료 전에 연결을 유지하려면:
 | `execution.node.failed` | `{ executionId, nodeId, nodeExecutionId, nodeName, error }` | 노드 실행 실패 |
 | `execution.node.skipped` | `{ executionId, nodeId, nodeExecutionId, nodeName, reason }` | 노드 건너뜀 |
 | `execution.waiting_for_input` | `{ executionId, nodeId, nodeExecutionId, nodeType, interactionType, formConfig?, buttonConfig?, conversationConfig? }` | Form 노드, 버튼 Presentation 노드, 또는 AI Agent Multi Turn 노드에서 사용자 입력 대기. 재개 후 `execution.node.completed`도 동일한 `nodeExecutionId`로 발행되어 프론트 타임라인의 동일 row가 업데이트된다. 아래 §4.4 참조 |
-| `execution.ai_message` | `{ executionId, nodeId, message, turnCount, messages }` | AI Agent Multi Turn 모드에서 AI 응답 메시지 전달 |
+| `execution.ai_message` | `{ executionId, nodeId, message, turnCount, messages }` | AI Agent Multi Turn 모드에서 AI 응답 메시지 전달. `messages` 는 system 을 제외한 user / assistant / **tool** 메시지를 모두 포함하는 권위 있는 스냅샷 |
+| `execution.tool_call_started` | `{ executionId, nodeId, turnIndex, toolCallId, name, arguments }` | AI Agent 가 provider tool(KB/MCP 등)을 실행하기 시작했음을 알림. 디버깅 타임라인이 즉시 pending 상태의 tool 항목을 표시할 수 있도록 turn 종료 전에 발송 |
+| `execution.tool_call_completed` | `{ executionId, nodeId, turnIndex, toolCallId, content, status, error?, durationMs }` | provider tool 실행이 끝났음을 알림. `status` 는 `'success' \| 'error'`. provider 가 throw 한 경우 핸들러가 캐치해 `status: 'error'` 와 `error` 메시지를 채우고 LLM 에는 에러 content 를 그대로 넘겨 다음 턴에서 회복할 기회를 준다 |
 
 ### 4.2 실행 제어 명령 (Client → Server)
 
@@ -353,6 +355,63 @@ Access Token (15분) 만료 전에 연결을 유지하려면:
   }
 }
 ```
+
+**Tool 호출 시작 (`execution.tool_call_started`):**
+
+AI Agent 가 provider tool(KB·MCP 등)을 실행하기 직전에 발송한다. 디버깅 타임라인은 이 이벤트로 pending 상태의 tool 항목을 즉시 표시해 사용자에게 진행 상황을 보여준다. `arguments` 는 LLM 이 생성한 JSON 문자열 그대로 (parse 책임은 클라이언트).
+
+```json
+{
+  "type": "execution.tool_call_started",
+  "payload": {
+    "executionId": "uuid",
+    "nodeId": "uuid",
+    "turnIndex": 1,
+    "toolCallId": "call_abc123",
+    "name": "kb_workspace_main",
+    "arguments": "{\"query\":\"오늘의 날씨\"}"
+  }
+}
+```
+
+**Tool 호출 완료 (`execution.tool_call_completed`):**
+
+provider tool 실행이 끝나면 (성공·실패 무관) 발송한다. `status` 는 `success` 또는 `error`. 실패 시에도 핸들러는 LLM 에 에러 content 를 넘겨 회복 기회를 주므로 turn 자체는 계속 진행된다 — UI 는 이 이벤트로 항목을 success / error 상태로 전환한다.
+
+```json
+{
+  "type": "execution.tool_call_completed",
+  "payload": {
+    "executionId": "uuid",
+    "nodeId": "uuid",
+    "turnIndex": 1,
+    "toolCallId": "call_abc123",
+    "content": "{\"results\":[...]}",
+    "status": "success",
+    "durationMs": 1240
+  }
+}
+```
+
+실패 예시:
+
+```json
+{
+  "type": "execution.tool_call_completed",
+  "payload": {
+    "executionId": "uuid",
+    "nodeId": "uuid",
+    "turnIndex": 2,
+    "toolCallId": "call_def456",
+    "content": "{\"error\":\"MCP server timeout\"}",
+    "status": "error",
+    "error": "MCP server timeout",
+    "durationMs": 30000
+  }
+}
+```
+
+> **Reconciliation**: `tool_call_started` / `tool_call_completed` 가 손실되어도 turn 종료 시 도착하는 `execution.ai_message` 의 `messages` 스냅샷과 `meta.turnDebug[].toolCalls` 가 권위적이다. 클라이언트는 `toolCallId` 를 키로 dedup 한다.
 
 ---
 
