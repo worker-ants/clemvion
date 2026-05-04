@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { withTimeout } from '../../common/utils/with-timeout';
 import {
   McpAuthError,
   McpClientService,
@@ -87,7 +88,7 @@ export class McpTestConnectionService {
 
       if (capabilities.tools !== undefined) {
         try {
-          const list = await this.withTimeout(
+          const list = await withTimeout(
             session.listTools(),
             LIST_TIMEOUT_MS,
             'tools/list',
@@ -150,34 +151,5 @@ export class McpTestConnectionService {
     const detail = err instanceof Error ? err.message : String(err);
 
     console.warn(`[mcp:test] ${code}: ${detail}`);
-  }
-
-  /**
-   * Wraps a Promise with a timeout — the SDK's list/call methods don't
-   * accept an AbortSignal directly, so we race against `setTimeout`. This
-   * leaves the underlying RPC pending in the SDK after the timeout, but
-   * `session.close()` in the surrounding `finally` tears down the transport.
-   */
-  private withTimeout<T>(
-    promise: Promise<T>,
-    ms: number,
-    label: string,
-  ): Promise<T> {
-    return new Promise<T>((resolve, reject) => {
-      const timer = setTimeout(
-        () => reject(new Error(`${label} timed out after ${ms}ms`)),
-        ms,
-      );
-      promise.then(
-        (value) => {
-          clearTimeout(timer);
-          resolve(value);
-        },
-        (err) => {
-          clearTimeout(timer);
-          reject(err instanceof Error ? err : new Error(String(err)));
-        },
-      );
-    });
   }
 }

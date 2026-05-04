@@ -1,12 +1,10 @@
 import { Logger } from '@nestjs/common';
+import { withTimeout } from '../../../../common/utils/with-timeout';
 import {
   ToolCall,
   ToolDef,
 } from '../../../../modules/llm/interfaces/llm-client.interface';
-import {
-  IntegrationsService,
-  PublicIntegration,
-} from '../../../../modules/integrations/integrations.service';
+import { IntegrationsService } from '../../../../modules/integrations/integrations.service';
 import {
   McpClientService,
   McpConnectParams,
@@ -21,13 +19,20 @@ import {
   ProviderExecCtx,
 } from './agent-tool-provider.interface';
 
-const SID_LENGTH = 8;
+const SID_LENGTHS = [8, 12, 32] as const;
 const SEP = '__';
 const PREFIX = 'mcp_';
 const META_LIST_RESOURCES = 'list_resources';
 const META_READ_RESOURCE = 'read_resource';
 const META_LIST_PROMPTS = 'list_prompts';
 const META_GET_PROMPT = 'get_prompt';
+
+/** Cap for user-controlled identifier strings spliced into descriptions. */
+const MAX_DESCRIPTION_LEN = 500;
+const MAX_INTEGRATION_NAME_LEN = 80;
+
+/** Allowed authType strings — anything outside this set must be rejected. */
+const SUPPORTED_AUTH_TYPES = new Set(['bearer_token', 'api_key', 'none']);
 
 /**
  * Cap on the JSON-serialized tool_result content delivered to the LLM. Spec
@@ -39,6 +44,7 @@ const MAX_RESPONSE_BYTES =
 
 const CALL_TIMEOUT_MS = Number(process.env.MCP_CALL_TIMEOUT_MS) || 30_000;
 const LIST_TIMEOUT_MS = Number(process.env.MCP_LIST_TIMEOUT_MS) || 10_000;
+const CONNECT_TIMEOUT_MS = Number(process.env.MCP_CONNECT_TIMEOUT_MS) || 10_000;
 
 /** McpServerRef as declared in `aiAgentNodeConfigSchema.mcpServers`. */
 interface McpServerRefConfig {
@@ -50,26 +56,18 @@ interface McpServerRefConfig {
 }
 
 /**
- * Minimal Integration shape consumed here. The runtime value comes from
- * `IntegrationsService.getForExecution()` which returns the entity with
- * decrypted credentials.
- */
-type IntegrationLike = Pick<
-  Integration,
-  'id' | 'name' | 'serviceType' | 'authType' | 'credentials'
-> & {
-  credentials: Record<string, unknown>;
-};
-
-/**
  * Per-server runtime state inside a single node execution. `tools` lists the
  * server's `tools/list` response (filtered by allowlist) so `execute()` can
  * map a sanitized tool name back to the original MCP tool name without
  * re-listing on every call.
+ *
+ * `sid` is the LLM-visible short identifier — computed at buildTools time
+ * to be unique within the execution (collision-free across attached servers).
  */
 interface ServerEntry {
   integrationId: string;
   integrationName: string;
+  sid: string;
   /** Maps `<sanitized>` → original `<toolName>` for callTool dispatch. */
   toolNameMap: Map<string, string>;
   /** original tool name → MCP ToolDef captured at connect time. */
@@ -90,8 +88,18 @@ function sanitizeToolName(s: string): string {
   return s.replace(/[^a-zA-Z0-9_]/g, '_');
 }
 
-function shortIntegrationId(id: string): string {
-  return sanitizeToolName(id.slice(0, SID_LENGTH));
+/**
+ * Strip newlines & control characters from a user-controlled string spliced
+ * into LLM tool descriptions. CRLF in a description has no functional use
+ * for the LLM and removing it kills a class of prompt-injection vectors
+ * (review WARNING #3).
+ */
+function sanitizeDescriptionFragment(s: string, max: number): string {
+  return s.replace(/[\r\n\t]/g, ' ').slice(0, max);
+}
+
+function shortIdAt(integrationId: string, length: number): string {
+  return sanitizeToolName(integrationId.replace(/-/g, '').slice(0, length));
 }
 
 /**
@@ -100,7 +108,7 @@ function shortIntegrationId(id: string): string {
  * without re-implementing the rule.
  */
 export function mcpToolName(integrationId: string, toolName: string): string {
-  return `${PREFIX}${shortIntegrationId(integrationId)}${SEP}${sanitizeToolName(toolName)}`;
+  return `${PREFIX}${shortIdAt(integrationId, SID_LENGTHS[0])}${SEP}${sanitizeToolName(toolName)}`;
 }
 
 /**
@@ -122,27 +130,53 @@ export function parseMcpToolName(
 }
 
 /**
- * Wraps a Promise with a timeout. Same shape used by `McpTestConnectionService`
- * — duplicated here rather than shared because the two providers may diverge
- * in retry / abort behavior later (e.g. resumable streams).
+ * Validate the URL string at the provider boundary. Defense in depth on top
+ * of the same check inside `McpClientService.connect()` — this catches typos
+ * before we even call into the SDK.
  */
-function withTimeout<T>(p: Promise<T>, ms: number, label: string): Promise<T> {
-  return new Promise<T>((resolve, reject) => {
-    const timer = setTimeout(
-      () => reject(new Error(`${label} timed out after ${ms}ms`)),
-      ms,
-    );
-    p.then(
-      (v) => {
-        clearTimeout(timer);
-        resolve(v);
-      },
-      (e: unknown) => {
-        clearTimeout(timer);
-        reject(e instanceof Error ? e : new Error(String(e)));
-      },
-    );
-  });
+function assertHttpsUrl(url: unknown): asserts url is string {
+  if (typeof url !== 'string' || url.length === 0) {
+    throw new Error('MCP integration is missing a server URL');
+  }
+  let parsed: URL;
+  try {
+    parsed = new URL(url);
+  } catch {
+    throw new Error(`MCP integration URL is malformed: ${url}`);
+  }
+  if (parsed.protocol !== 'https:') {
+    throw new Error(`MCP integration URL must use https:// (got ${url})`);
+  }
+}
+
+/**
+ * Compute a collision-free short identifier (sid) for every attached server,
+ * preferring the shortest length that keeps every value distinct. Falls
+ * through to the full sanitized id if even that collides — at which point
+ * we have two integrations with literally the same id, an impossible state
+ * given the DB unique constraint.
+ */
+function assignSids(integrationIds: string[]): Map<string, string> {
+  for (const len of SID_LENGTHS) {
+    const candidates = new Map<string, string>();
+    const reverse = new Map<string, string>();
+    let collision = false;
+    for (const id of integrationIds) {
+      const sid = shortIdAt(id, len);
+      if (reverse.has(sid)) {
+        collision = true;
+        break;
+      }
+      reverse.set(sid, id);
+      candidates.set(id, sid);
+    }
+    if (!collision) return candidates;
+  }
+  // SID_LENGTHS already exhausts the full id length — should never reach.
+  /* istanbul ignore next */
+  throw new Error(
+    'Unable to assign unique MCP sids — duplicate integrationIds in mcpServers config',
+  );
 }
 
 /**
@@ -176,6 +210,15 @@ export class McpToolProvider implements AgentToolProvider {
     Map<string, ServerEntry>
   >();
 
+  /**
+   * In-flight openServer promises keyed by `${executionId}:${integrationId}`.
+   * Prevents the TOCTOU race where two concurrent buildTools calls (e.g.
+   * single-turn + a parallel watchdog) double-open a session and leak the
+   * loser. Once openServer resolves, the entry is moved to
+   * sessionsByExecution and the inflight slot is cleared.
+   */
+  private readonly inflight = new Map<string, Promise<ServerEntry>>();
+
   constructor(
     private readonly mcpClient: McpClientService,
     private readonly integrationsService: IntegrationsService,
@@ -188,13 +231,30 @@ export class McpToolProvider implements AgentToolProvider {
   async buildTools(ctx: ProviderBuildCtx): Promise<ToolDef[]> {
     const refs = this.parseRefs(ctx.config);
     if (refs.length === 0) return [];
+    if (!ctx.executionId) {
+      // Without an executionId we have no scope key to tie sessions to a
+      // node run, which would let them leak across executions. Emit one
+      // diagnostic and short-circuit rather than mis-attribute resources.
+      McpToolProvider.logger.warn(
+        'McpToolProvider.buildTools called without executionId — skipping MCP setup',
+      );
+      return [];
+    }
 
-    const execId = this.executionKey(ctx.executionId);
+    const execId = ctx.executionId;
     const sessions = this.getOrCreateSessionMap(execId);
+    const sidMap = assignSids(refs.map((r) => r.integrationId));
 
-    // For each server, ensure a session and collect its tool defs in parallel.
     const settled = await Promise.allSettled(
-      refs.map((ref) => this.materializeServer(ref, ctx, execId, sessions)),
+      refs.map((ref) =>
+        this.materializeServer(
+          ref,
+          ctx,
+          execId,
+          sessions,
+          sidMap.get(ref.integrationId)!,
+        ),
+      ),
     );
 
     const out: ToolDef[] = [];
@@ -226,8 +286,15 @@ export class McpToolProvider implements AgentToolProvider {
       );
     }
 
-    const execId = this.executionKey(ctx.executionId);
-    const sessions = this.sessionsByExecution.get(execId);
+    if (!ctx.executionId) {
+      return this.errorResult(
+        call.id,
+        'MCP_UNKNOWN_TOOL',
+        'No executionId on provider context — buildTools was likely skipped',
+      );
+    }
+
+    const sessions = this.sessionsByExecution.get(ctx.executionId);
     const entry = sessions
       ? this.findEntryBySid(sessions, parsed.sid)
       : undefined;
@@ -279,6 +346,20 @@ export class McpToolProvider implements AgentToolProvider {
         CALL_TIMEOUT_MS,
         `tools/call ${originalName}`,
       );
+      // Honor the MCP spec's `isError` flag so the LLM doesn't mistake an
+      // application-level failure for a successful call (review WARNING #17).
+      if (
+        result &&
+        typeof result === 'object' &&
+        (result as { isError?: unknown }).isError === true
+      ) {
+        return this.errorResult(
+          call.id,
+          'MCP_TOOL_ERROR',
+          'MCP tool reported an error',
+          { content: (result as { content?: unknown }).content },
+        );
+      }
       return this.successResult(call.id, result);
     } catch (e) {
       McpToolProvider.logger.warn(
@@ -295,13 +376,17 @@ export class McpToolProvider implements AgentToolProvider {
   }
 
   async cleanup(ctx: ProviderCleanupCtx): Promise<void> {
-    const execId = this.executionKey(ctx.executionId);
-    const sessions = this.sessionsByExecution.get(execId);
+    if (!ctx.executionId) {
+      // Without an executionId we cannot scope cleanup safely — refuse to
+      // close anything rather than blast every open session.
+      return;
+    }
+    const sessions = this.sessionsByExecution.get(ctx.executionId);
     if (!sessions) return;
 
     // Drop the map atomically so a concurrent buildTools sees a fresh slate
     // and we don't double-close on idempotent cleanup.
-    this.sessionsByExecution.delete(execId);
+    this.sessionsByExecution.delete(ctx.executionId);
 
     await Promise.allSettled(
       [...sessions.values()].map((entry) =>
@@ -320,13 +405,6 @@ export class McpToolProvider implements AgentToolProvider {
   // Internals
   // ------------------------------------------------------------------
 
-  private executionKey(id: string | undefined): string {
-    // When the handler can't supply an executionId we fall back to a single
-    // shared bucket; this means cleanup is global but it's the safe default
-    // since unbucketed sessions would otherwise leak forever.
-    return id ?? '__default__';
-  }
-
   private getOrCreateSessionMap(execId: string): Map<string, ServerEntry> {
     let m = this.sessionsByExecution.get(execId);
     if (!m) {
@@ -342,7 +420,8 @@ export class McpToolProvider implements AgentToolProvider {
     return raw.filter(
       (r): r is McpServerRefConfig =>
         !!r &&
-        typeof (r as { integrationId?: unknown }).integrationId === 'string',
+        typeof (r as { integrationId?: unknown }).integrationId === 'string' &&
+        (r as { integrationId: string }).integrationId.length > 0,
     );
   }
 
@@ -350,76 +429,118 @@ export class McpToolProvider implements AgentToolProvider {
    * Connect (or reuse) a session for one server and return its ToolDef list.
    * Throws on connection / list-tools failure — the caller wraps each call in
    * `Promise.allSettled` so one server's error does not poison the others.
+   *
+   * Concurrent builders on the same `(executionId, integrationId)` pair de-dup
+   * via the {@link inflight} cache so we never open two sessions for one slot.
    */
   private async materializeServer(
     ref: McpServerRefConfig,
     ctx: ProviderBuildCtx,
     execId: string,
     sessions: Map<string, ServerEntry>,
+    sid: string,
   ): Promise<ToolDef[]> {
-    let entry = sessions.get(ref.integrationId);
-    if (!entry) {
-      entry = await this.openServer(ref, ctx);
-      sessions.set(ref.integrationId, entry);
+    const existing = sessions.get(ref.integrationId);
+    if (existing) return this.buildToolDefsForEntry(ref, existing);
+
+    const inflightKey = `${execId}:${ref.integrationId}`;
+    let pending = this.inflight.get(inflightKey);
+    if (!pending) {
+      pending = this.openServer(ref, ctx, sid).finally(() => {
+        this.inflight.delete(inflightKey);
+      });
+      this.inflight.set(inflightKey, pending);
     }
+    const entry = await pending;
+    sessions.set(ref.integrationId, entry);
     return this.buildToolDefsForEntry(ref, entry);
   }
 
   private async openServer(
     ref: McpServerRefConfig,
     ctx: ProviderBuildCtx,
+    sid: string,
   ): Promise<ServerEntry> {
     const integration = await this.integrationsService.getForExecution(
       ref.integrationId,
       ctx.workspaceId,
     );
-    const i = integration as IntegrationLike & PublicIntegration;
-    if (i.serviceType !== 'mcp') {
+    if (integration.serviceType !== 'mcp') {
       throw new Error(
-        `Integration ${ref.integrationId} is not service_type='mcp' (got ${i.serviceType})`,
+        `Integration ${ref.integrationId} is not service_type='mcp' (got ${integration.serviceType})`,
+      );
+    }
+    if (integration.status !== 'connected') {
+      throw new Error(
+        `Integration ${ref.integrationId} is not connected (status=${integration.status})`,
       );
     }
 
-    const params = this.toConnectParams(i);
-    const session = await this.mcpClient.connect(params);
-    const list = await withTimeout(
-      session.listTools(),
-      LIST_TIMEOUT_MS,
-      `tools/list ${i.name}`,
+    const params = this.toConnectParams(integration);
+    const session = await withTimeout(
+      this.mcpClient.connect(params),
+      CONNECT_TIMEOUT_MS,
+      `connect ${integration.name}`,
     );
 
-    // Pre-build the sanitized → original map so execute() doesn't re-sanitize
-    // each call. Allowlist filtering happens here too — disallowed tools are
-    // never even surfaced to the LLM.
-    const allowlist = ref.enabledTools;
-    const allowAll = !allowlist || allowlist.includes('*');
-    const allowSet = new Set(allowlist ?? []);
-    const toolNameMap = new Map<string, string>();
-    const toolDefs = new Map<
-      string,
-      { name: string; description?: string; inputSchema: unknown }
-    >();
-    for (const t of list.tools) {
-      if (!allowAll && !allowSet.has(t.name)) continue;
-      toolNameMap.set(sanitizeToolName(t.name), t.name);
-      toolDefs.set(t.name, {
-        name: t.name,
-        description: t.description,
-        inputSchema: t.inputSchema,
-      });
-    }
+    // Once connected, *anything* that throws between here and the return must
+    // close the session — otherwise the listTools timeout (review WARNING #6)
+    // leaks an open SSE stream forever.
+    try {
+      const list = await withTimeout(
+        session.listTools(),
+        LIST_TIMEOUT_MS,
+        `tools/list ${integration.name}`,
+      );
 
-    return {
-      integrationId: i.id,
-      integrationName: i.name,
-      toolNameMap,
-      toolDefs,
-      session,
-      capabilities: {
-        resources: session.capabilities.resources !== undefined,
-        prompts: session.capabilities.prompts !== undefined,
-      },
-    };
+      const allowlist = ref.enabledTools;
+      const allowAll = !allowlist || allowlist.includes('*');
+      const allowSet = new Set(allowlist ?? []);
+      const toolNameMap = new Map<string, string>();
+      const toolDefs = new Map<
+        string,
+        { name: string; description?: string; inputSchema: unknown }
+      >();
+      for (const t of list.tools) {
+        if (!allowAll && !allowSet.has(t.name)) continue;
+        const sanitized = sanitizeToolName(t.name);
+        if (toolNameMap.has(sanitized)) {
+          // Two distinct upstream names sanitize to the same string — surface
+          // a warning and keep the first occurrence (review WARNING #18).
+          // The collision is improbable for typical MCP servers but worth
+          // flagging for operators.
+          McpToolProvider.logger.warn(
+            `MCP server "${integration.name}": tool name collision after sanitize ` +
+              `("${toolNameMap.get(sanitized)}" vs "${t.name}") — ignoring "${t.name}"`,
+          );
+          continue;
+        }
+        toolNameMap.set(sanitized, t.name);
+        toolDefs.set(t.name, {
+          name: t.name,
+          description: t.description,
+          inputSchema: t.inputSchema,
+        });
+      }
+
+      return {
+        integrationId: integration.id,
+        integrationName: integration.name,
+        sid,
+        toolNameMap,
+        toolDefs,
+        session,
+        capabilities: {
+          resources: session.capabilities.resources !== undefined,
+          prompts: session.capabilities.prompts !== undefined,
+        },
+      };
+    } catch (err) {
+      // Best-effort — if close itself throws we still want the original error
+      // to bubble up.
+      session.close().catch(() => undefined);
+      throw err;
+    }
   }
 
   /**
@@ -434,6 +555,10 @@ export class McpToolProvider implements AgentToolProvider {
     const overrides = new Map(
       (ref.toolOverrides ?? []).map((o) => [o.toolName, o]),
     );
+    const safeName = sanitizeDescriptionFragment(
+      entry.integrationName,
+      MAX_INTEGRATION_NAME_LEN,
+    );
 
     const out: ToolDef[] = [];
 
@@ -441,11 +566,13 @@ export class McpToolProvider implements AgentToolProvider {
       const def = entry.toolDefs.get(original);
       if (!def) continue;
       const ovr = overrides.get(original);
-      const baseDescription =
-        ovr?.description ?? def.description ?? `MCP tool ${original}`;
+      const baseDescription = sanitizeDescriptionFragment(
+        ovr?.description ?? def.description ?? `MCP tool ${original}`,
+        MAX_DESCRIPTION_LEN,
+      );
       out.push({
-        name: mcpToolName(entry.integrationId, original),
-        description: `${baseDescription}\n\n(via MCP server: ${entry.integrationName})`,
+        name: this.regularToolName(entry, original),
+        description: `${baseDescription} (via MCP server: ${safeName})`,
         parameters: (def.inputSchema as Record<string, unknown>) ?? {
           type: 'object',
           properties: {},
@@ -455,8 +582,8 @@ export class McpToolProvider implements AgentToolProvider {
 
     if (entry.capabilities.resources && ref.includeResources !== false) {
       out.push({
-        name: mcpToolName(entry.integrationId, META_LIST_RESOURCES),
-        description: `List available resources on MCP server "${entry.integrationName}".`,
+        name: this.metaToolName(entry, META_LIST_RESOURCES),
+        description: `List available resources on MCP server "${safeName}".`,
         parameters: {
           type: 'object',
           properties: {
@@ -468,8 +595,8 @@ export class McpToolProvider implements AgentToolProvider {
         },
       });
       out.push({
-        name: mcpToolName(entry.integrationId, META_READ_RESOURCE),
-        description: `Read a resource by URI from MCP server "${entry.integrationName}".`,
+        name: this.metaToolName(entry, META_READ_RESOURCE),
+        description: `Read a resource by URI from MCP server "${safeName}".`,
         parameters: {
           type: 'object',
           properties: {
@@ -482,8 +609,8 @@ export class McpToolProvider implements AgentToolProvider {
 
     if (entry.capabilities.prompts && ref.includePrompts !== false) {
       out.push({
-        name: mcpToolName(entry.integrationId, META_LIST_PROMPTS),
-        description: `List available prompt templates on MCP server "${entry.integrationName}".`,
+        name: this.metaToolName(entry, META_LIST_PROMPTS),
+        description: `List available prompt templates on MCP server "${safeName}".`,
         parameters: {
           type: 'object',
           properties: {
@@ -492,8 +619,8 @@ export class McpToolProvider implements AgentToolProvider {
         },
       });
       out.push({
-        name: mcpToolName(entry.integrationId, META_GET_PROMPT),
-        description: `Render a prompt template from MCP server "${entry.integrationName}". Returns a list of messages to incorporate into your reasoning.`,
+        name: this.metaToolName(entry, META_GET_PROMPT),
+        description: `Render a prompt template from MCP server "${safeName}". Returns a list of messages to incorporate into your reasoning.`,
         parameters: {
           type: 'object',
           properties: {
@@ -511,29 +638,72 @@ export class McpToolProvider implements AgentToolProvider {
     return out;
   }
 
-  private toConnectParams(i: IntegrationLike): McpConnectParams {
-    const url = i.credentials.url as string;
-    const defaultHeaders = i.credentials.default_headers as
+  private regularToolName(entry: ServerEntry, original: string): string {
+    return `${PREFIX}${entry.sid}${SEP}${sanitizeToolName(original)}`;
+  }
+
+  private metaToolName(
+    entry: ServerEntry,
+    meta:
+      | typeof META_LIST_RESOURCES
+      | typeof META_READ_RESOURCE
+      | typeof META_LIST_PROMPTS
+      | typeof META_GET_PROMPT,
+  ): string {
+    return `${PREFIX}${entry.sid}${SEP}${meta}`;
+  }
+
+  /**
+   * Map the validated `Integration.credentials` JSONB into the discriminated
+   * union {@link McpConnectParams}. Validates URL + credential presence at
+   * runtime — TypeScript's `as` casts are not load-bearing security here.
+   *
+   * Supported `authType` values: `bearer_token`, `api_key`, `none`. Anything
+   * else is a hard error (review CRITICAL #2 — silently falling through to
+   * `none` would let an unknown authType connect unauthenticated).
+   */
+  private toConnectParams(integration: Integration): McpConnectParams {
+    const creds = integration.credentials;
+    const url = creds.url;
+    assertHttpsUrl(url);
+    const defaultHeaders = creds.default_headers as
       | Record<string, string>
       | undefined;
-    if (i.authType === 'bearer_token') {
-      return {
-        authType: 'bearer_token',
-        url,
-        token: i.credentials.token as string,
-        defaultHeaders,
-      };
+
+    if (integration.authType === 'bearer_token') {
+      const token = creds.token;
+      if (typeof token !== 'string' || token.length === 0) {
+        throw new Error(
+          'MCP integration with auth_type=bearer_token is missing a token',
+        );
+      }
+      return { authType: 'bearer_token', url, token, defaultHeaders };
     }
-    if (i.authType === 'api_key') {
-      return {
-        authType: 'api_key',
-        url,
-        headerName: i.credentials.header_name as string,
-        value: i.credentials.value as string,
-        defaultHeaders,
-      };
+    if (integration.authType === 'api_key') {
+      const headerName = creds.header_name;
+      const value = creds.value;
+      if (typeof headerName !== 'string' || headerName.length === 0) {
+        throw new Error(
+          'MCP integration with auth_type=api_key is missing header_name',
+        );
+      }
+      if (typeof value !== 'string' || value.length === 0) {
+        throw new Error(
+          'MCP integration with auth_type=api_key is missing value',
+        );
+      }
+      return { authType: 'api_key', url, headerName, value, defaultHeaders };
     }
-    return { authType: 'none', url, defaultHeaders };
+    if (integration.authType === 'none') {
+      return { authType: 'none', url, defaultHeaders };
+    }
+    if (!SUPPORTED_AUTH_TYPES.has(integration.authType)) {
+      throw new Error(
+        `MCP integration uses unsupported auth_type "${integration.authType}"`,
+      );
+    }
+    /* istanbul ignore next — exhaustive by construction */
+    throw new Error('unreachable');
   }
 
   private routeMetaTool(
@@ -638,8 +808,9 @@ export class McpToolProvider implements AgentToolProvider {
     if (json.length <= MAX_RESPONSE_BYTES) {
       return { toolCallId, content: json };
     }
-    // Truncated payload — keep the JSON parseable so the LLM gets a structured
-    // hint that the response was clipped.
+    // Truncated payload — keep the JSON parseable and stream-friendly. We
+    // serialize once (we already needed the byte length) and emit a sliced
+    // base64 preview rather than re-allocating the full payload.
     const truncated = JSON.stringify({
       error: 'MCP_RESPONSE_TOO_LARGE',
       originalSizeBytes: json.length,
@@ -654,10 +825,11 @@ export class McpToolProvider implements AgentToolProvider {
     toolCallId: string,
     code: string,
     message: string,
+    extra?: Record<string, unknown>,
   ): AgentToolResult {
     return {
       toolCallId,
-      content: JSON.stringify({ error: code, message }),
+      content: JSON.stringify({ error: code, message, ...(extra ?? {}) }),
     };
   }
 
@@ -666,7 +838,7 @@ export class McpToolProvider implements AgentToolProvider {
     sid: string,
   ): ServerEntry | undefined {
     for (const entry of sessions.values()) {
-      if (shortIntegrationId(entry.integrationId) === sid) return entry;
+      if (entry.sid === sid) return entry;
     }
     return undefined;
   }

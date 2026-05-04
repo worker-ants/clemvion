@@ -26,6 +26,7 @@ const toolOverrideSchema = z.object({
 const mcpServerRefSchema = z.object({
   integrationId: z
     .string()
+    .min(1)
     .meta({ ui: { label: 'Integration ID', widget: 'text', hidden: true } }),
   enabledTools: z
     .array(z.string())
@@ -491,7 +492,7 @@ export const aiAgentNodeMetadata: NodeComponentMetadata = {
   type: 'ai_agent',
   category: 'ai',
   label: 'AI Agent',
-  description: 'Chat with LLM using RAG context',
+  description: 'Chat with LLM using KB search and MCP server tools',
   icon: 'Brain',
   color: '#10B981',
   isDynamicPorts: true,

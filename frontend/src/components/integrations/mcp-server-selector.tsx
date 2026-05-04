@@ -6,10 +6,19 @@ import { Plus, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useState } from "react";
 
+/** Bound on the MCP server list fetched for picker — matches API page limit. */
+const MCP_LIST_LIMIT = 100;
+
 /**
  * Shape of one entry in the AI Agent's `mcpServers` config field.
- * Mirrors `McpServerRef` in `backend/src/nodes/ai/ai-agent/ai-agent.schema.ts`
- * — kept as a local type so the UI does not couple to backend Zod inference.
+ *
+ * **Mirror of `McpServerRef` in
+ * `backend/src/nodes/ai/ai-agent/ai-agent.schema.ts` — keep in sync.**
+ *
+ * The two declarations are intentionally duplicated (no shared package)
+ * because the UI consumes the JSON-Schema-derived type for auto-form, but
+ * this selector needs the structural type up-front for typing the patch
+ * helpers. Any change to the backend schema must be reflected here.
  */
 export interface McpServerRef {
   integrationId: string;
@@ -35,10 +44,10 @@ export function McpServerSelector({ value, onChange }: Props) {
   const safe = Array.isArray(value) ? value : [];
   const [pickerOpen, setPickerOpen] = useState(false);
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError } = useQuery({
     queryKey: ["integrations", "mcp"],
     queryFn: () =>
-      integrationsApi.list({ serviceType: ["mcp"], limit: 100 }),
+      integrationsApi.list({ serviceType: ["mcp"], limit: MCP_LIST_LIMIT }),
     staleTime: 30_000,
   });
 
@@ -51,8 +60,8 @@ export function McpServerSelector({ value, onChange }: Props) {
       ...safe,
       {
         integrationId,
-        // Default to "expose everything the server reports" — matches spec
-        // §5.6 default_true semantics for these toggles.
+        // Default to "expose everything the server reports" — matches the
+        // default_true semantics in spec/5-system/11-mcp-client.md §5.6.
         includeResources: true,
         includePrompts: true,
       },
@@ -74,7 +83,12 @@ export function McpServerSelector({ value, onChange }: Props) {
 
   return (
     <div className="flex flex-col gap-1.5">
-      {safe.length === 0 && !isLoading && (
+      {isError && (
+        <p className="text-[10px] text-red-500">
+          Failed to load MCP servers. Check the integrations service and reload.
+        </p>
+      )}
+      {!isError && safe.length === 0 && !isLoading && (
         <p className="text-[10px] text-[hsl(var(--muted-foreground))]">
           {allMcp.length === 0
             ? "No MCP server registered. Visit Integrations → Add → MCP Server first."
