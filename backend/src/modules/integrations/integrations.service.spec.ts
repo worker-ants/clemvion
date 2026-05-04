@@ -85,6 +85,7 @@ describe('IntegrationsService', () => {
       save: jest
         .fn()
         .mockImplementation((entity) => Promise.resolve(entity as Integration)),
+      update: jest.fn().mockResolvedValue({ affected: 1 }),
       remove: jest.fn().mockResolvedValue(undefined),
       createQueryBuilder: jest
         .fn()
@@ -633,7 +634,6 @@ describe('IntegrationsService', () => {
   // -----------------------------------------------------------------
   describe('logUsage', () => {
     it('records success row and updates lastUsedAt', async () => {
-      integrationRepo.findOne.mockResolvedValue(makeIntegration());
       await service.logUsage({
         integrationId: 'int-1',
         nodeExecutionId: 'nex-1',
@@ -642,13 +642,13 @@ describe('IntegrationsService', () => {
         durationMs: 120,
       });
       expect(usageLogRepo.save).toHaveBeenCalled();
-      expect(integrationRepo.save).toHaveBeenCalledWith(
+      expect(integrationRepo.update).toHaveBeenCalledWith(
+        { id: 'int-1' },
         expect.objectContaining({ lastUsedAt: expect.any(Date) }),
       );
     });
 
     it('records lastError on failure', async () => {
-      integrationRepo.findOne.mockResolvedValue(makeIntegration());
       await service.logUsage({
         integrationId: 'int-1',
         nodeExecutionId: 'nex-1',
@@ -657,7 +657,8 @@ describe('IntegrationsService', () => {
         durationMs: 800,
         error: { code: 'auth_failed', message: '401' },
       });
-      expect(integrationRepo.save).toHaveBeenCalledWith(
+      expect(integrationRepo.update).toHaveBeenCalledWith(
+        { id: 'int-1' },
         expect.objectContaining({
           lastError: expect.objectContaining({ code: 'auth_failed' }),
         }),
@@ -678,8 +679,6 @@ describe('IntegrationsService', () => {
     });
 
     it('flips status to error(auth_failed) on MCP_AUTH_FAILED', async () => {
-      const i = makeIntegration({ status: 'connected', statusReason: null });
-      integrationRepo.findOne.mockResolvedValue(i);
       await service.logUsage({
         integrationId: 'int-1',
         nodeExecutionId: 'nex-1',
@@ -688,7 +687,8 @@ describe('IntegrationsService', () => {
         durationMs: 50,
         error: { code: 'MCP_AUTH_FAILED', message: '401' },
       });
-      expect(integrationRepo.save).toHaveBeenCalledWith(
+      expect(integrationRepo.update).toHaveBeenCalledWith(
+        { id: 'int-1' },
         expect.objectContaining({
           status: 'error',
           statusReason: 'auth_failed',
@@ -697,8 +697,6 @@ describe('IntegrationsService', () => {
     });
 
     it('does NOT flip status for non-auth failures', async () => {
-      const i = makeIntegration({ status: 'connected', statusReason: null });
-      integrationRepo.findOne.mockResolvedValue(i);
       await service.logUsage({
         integrationId: 'int-1',
         nodeExecutionId: 'nex-1',
@@ -707,9 +705,27 @@ describe('IntegrationsService', () => {
         durationMs: 50,
         error: { code: 'MCP_CALL_FAILED', message: 'transport hiccup' },
       });
-      expect(integrationRepo.save).toHaveBeenCalledWith(
-        expect.objectContaining({ status: 'connected' }),
-      );
+      // The patch must NOT touch status / statusReason for non-auth failures.
+      const patch = (
+        integrationRepo.update.mock.calls[0] as unknown[]
+      )[1] as Record<string, unknown>;
+      expect(patch.status).toBeUndefined();
+      expect(patch.statusReason).toBeUndefined();
+    });
+
+    it('clamps very long error messages before persisting', async () => {
+      const huge = 'x'.repeat(10_000);
+      await service.logUsage({
+        integrationId: 'int-1',
+        nodeExecutionId: 'nex-1',
+        workflowId: 'wf-1',
+        status: 'failed',
+        durationMs: 1,
+        error: { code: 'MCP_CALL_FAILED', message: huge },
+      });
+      const updateCall = integrationRepo.update.mock.calls[0] as unknown[];
+      const patch = updateCall[1] as { lastError?: { message?: string } };
+      expect(patch.lastError?.message?.length).toBeLessThanOrEqual(2048);
     });
   });
 });
