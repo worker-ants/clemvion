@@ -10,6 +10,12 @@ import {
   ArrowUpDown,
   ArrowUp,
   ArrowDown,
+  User,
+  Clock,
+  Webhook,
+  GitBranch,
+  HelpCircle,
+  type LucideIcon,
 } from "lucide-react";
 import { workflowsApi } from "@/lib/api/workflows";
 import {
@@ -17,6 +23,7 @@ import {
   type ExecutionData,
   type ExecutionStatus,
   type ExecutionListParams,
+  type ExecutionTriggerSource,
 } from "@/lib/api/executions";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -76,6 +83,22 @@ const FILTER_BUTTONS: { labelKey: TranslationKey; value: FilterValue }[] = [
   { labelKey: "executions.filterCancelled", value: "cancelled" },
   { labelKey: "executions.filterWaiting", value: "waiting_for_input" },
 ];
+
+const TRIGGER_ICON: Record<ExecutionTriggerSource, LucideIcon> = {
+  manual: User,
+  schedule: Clock,
+  webhook: Webhook,
+  subworkflow: GitBranch,
+  unknown: HelpCircle,
+};
+
+const TRIGGER_LABEL_KEY: Record<ExecutionTriggerSource, TranslationKey> = {
+  manual: "executions.triggerSource.manual",
+  schedule: "executions.triggerSource.schedule",
+  webhook: "executions.triggerSource.webhook",
+  subworkflow: "executions.triggerSource.subworkflow",
+  unknown: "executions.triggerSource.unknown",
+};
 
 export default function ExecutionListPage({
   params,
@@ -218,6 +241,9 @@ export default function ExecutionListPage({
                     </button>
                   </th>
                   <th className="px-4 py-3 text-left font-medium">
+                    {t("executions.columnTrigger")}
+                  </th>
+                  <th className="px-4 py-3 text-left font-medium">
                     <button
                       type="button"
                       className="inline-flex items-center hover:text-[hsl(var(--foreground))]"
@@ -273,6 +299,31 @@ export default function ExecutionListPage({
                             {getStatusLabel(execution.status)}
                           </Badge>
                         </div>
+                      </td>
+                      <td className="px-4 py-3">
+                        {(() => {
+                          const source: ExecutionTriggerSource =
+                            execution.triggerSource ?? "unknown";
+                          const Icon = TRIGGER_ICON[source];
+                          return (
+                            <div className="flex items-center gap-2">
+                              <Icon className="h-4 w-4 shrink-0 text-[hsl(var(--muted-foreground))]" />
+                              <div className="min-w-0">
+                                <div className="truncate">
+                                  {t(TRIGGER_LABEL_KEY[source])}
+                                </div>
+                                {execution.triggerLabel ? (
+                                  <div
+                                    className="truncate text-xs text-[hsl(var(--muted-foreground))]"
+                                    title={execution.triggerLabel}
+                                  >
+                                    {execution.triggerLabel}
+                                  </div>
+                                ) : null}
+                              </div>
+                            </div>
+                          );
+                        })()}
                       </td>
                       <td className="px-4 py-3 text-[hsl(var(--muted-foreground))]">
                         {formatDate(execution.startedAt, "datetime")}

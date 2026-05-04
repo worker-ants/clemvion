@@ -1,5 +1,14 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { ExecutionStatus } from '../../entities/execution.entity';
+import type { ExecutionTriggerSource } from '../../utils/execution-trigger';
+
+const EXECUTION_TRIGGER_SOURCES: ExecutionTriggerSource[] = [
+  'manual',
+  'schedule',
+  'webhook',
+  'subworkflow',
+  'unknown',
+];
 
 /** 실행(Execution) 요약 DTO */
 export class ExecutionDto {
@@ -11,9 +20,20 @@ export class ExecutionDto {
   @ApiProperty({ format: 'uuid' })
   workflowId: string;
 
-  /** 트리거 UUID (수동 실행은 null) */
+  /** 트리거 UUID (수동/서브워크플로우 실행은 null) */
   @ApiPropertyOptional({ format: 'uuid', nullable: true })
   triggerId?: string | null;
+
+  /**
+   * 실행 출처 분류 — 우선순위: subworkflow > manual > schedule > webhook > unknown.
+   * 자세한 판정 규칙은 spec/2-navigation/6-execution-history.md 의 "Trigger 출처 분류" 표 참조.
+   */
+  @ApiProperty({ enum: EXECUTION_TRIGGER_SOURCES, example: 'manual' })
+  triggerSource: ExecutionTriggerSource;
+
+  /** 출처 보조 라벨 (트리거명/실행자명/부모 워크플로명) */
+  @ApiPropertyOptional({ nullable: true, example: 'Alice' })
+  triggerLabel?: string | null;
 
   /** 실행 상태 */
   @ApiProperty({ enum: ExecutionStatus, enumName: 'ExecutionStatus' })
