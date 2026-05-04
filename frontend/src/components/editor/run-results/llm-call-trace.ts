@@ -11,7 +11,10 @@ import { unwrapNodeOutput } from "./output-shape";
  */
 export interface LlmCallTrace {
   turnIndex: number;
-  /** Index among assistant calls within the same turn (0-based). */
+  /** Index among assistant calls within the same turn (0-based). Tool loops
+   * produce N>1 calls per turn; the fallback path through
+   * `fromConversationMessages` assigns this in chronological order to match
+   * `flattenTurnDebug`. */
   callIndexInTurn: number;
   requestPayload: unknown;
   responsePayload: unknown;
@@ -48,7 +51,8 @@ function toRecord(value: unknown): Record<string, unknown> | null {
  * engine strips it). For that case the caller can pass `fallbackMessages` —
  * per-assistant `requestPayload`/`responsePayload` already attached by the
  * WS event handler. Each matching assistant item becomes one LlmCallTrace
- * so the Response/Request/LLM Usage tabs still render.
+ * so the Response/Request/LLM Usage tabs still render. Tool loops (multiple
+ * assistant items in one turn) get sequential `callIndexInTurn` per turn.
  *
  * Returns [] when nothing is available so the tab can render a placeholder.
  */
@@ -98,9 +102,9 @@ function fromConversationMessages(
   messages: ConversationItem[],
 ): LlmCallTrace[] {
   const traces: LlmCallTrace[] = [];
-  // tool loop produces multiple assistant items within one turn; each
-  // gets a sequential index so labelForCall renders "호출 1/N · 2/N · …"
-  // instead of the same suffix N times.
+  // Sequential index per turn → label "Turn N · 호출 1/M · 2/M · …".
+  // Caller must pass items in chronological order (same precondition the
+  // store guarantees).
   const callIndexByTurn = new Map<number, number>();
   for (const m of messages) {
     if (m.type !== "assistant") continue;
