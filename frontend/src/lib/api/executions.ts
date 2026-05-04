@@ -29,12 +29,15 @@ export interface NodeExecutionData {
   node?: { id: string; type: string; label: string };
 }
 
-export type ExecutionTriggerSource =
-  | "manual"
-  | "schedule"
-  | "webhook"
-  | "subworkflow"
-  | "unknown";
+export const EXECUTION_TRIGGER_SOURCES = [
+  "manual",
+  "schedule",
+  "webhook",
+  "subworkflow",
+  "unknown",
+] as const;
+
+export type ExecutionTriggerSource = (typeof EXECUTION_TRIGGER_SOURCES)[number];
 
 export interface ExecutionData {
   id: string;
@@ -46,8 +49,8 @@ export interface ExecutionData {
   startedAt: string;
   finishedAt: string | null;
   durationMs: number | null;
-  triggerSource?: ExecutionTriggerSource;
-  triggerLabel?: string | null;
+  triggerSource: ExecutionTriggerSource;
+  triggerLabel: string | null;
   nodeExecutions: NodeExecutionData[];
 }
 

@@ -1,24 +1,61 @@
 import { ExecutionsService } from './executions.service';
-import { Execution, ExecutionStatus } from './entities/execution.entity';
+import { ExecutionStatus } from './entities/execution.entity';
 
-type AnyExec = Partial<Execution> & {
-  trigger?: { id: string; type: string; name: string } | null;
-  executor?: { id: string; name: string | null; email: string | null } | null;
+/**
+ * 테스트용 entity-like 픽스처. `Partial<Execution>` 을 쓰면 nullable 컬럼 타입이 어긋나
+ * 캐스팅 지옥이 생기므로, 이 모듈 안에서만 쓰는 평탄 타입으로 정의한다.
+ * jest mock 의 반환 경계에서 unknown 으로 캐스팅해 service 가 Execution 으로 받아들이게 한다.
+ */
+type FakeExec = {
+  id: string;
+  workflowId: string;
+  triggerId: string | null;
+  executedBy: string | null;
+  parentExecutionId: string | null;
+  status: ExecutionStatus;
+  startedAt: Date;
+  finishedAt: Date | null;
+  durationMs: number | null;
+  inputData: Record<string, unknown> | null;
+  outputData: Record<string, unknown> | null;
+  error: Record<string, unknown> | null;
+  recursionDepth: number;
+  executionPath: string[];
+  trigger: { id: string; type: string; name: string } | null;
+  executor: { id: string; name: string | null } | null;
 };
+
+const baseFake = (overrides: Partial<FakeExec>): FakeExec => ({
+  id: 'e0',
+  workflowId: 'w1',
+  triggerId: null,
+  executedBy: null,
+  parentExecutionId: null,
+  status: ExecutionStatus.COMPLETED,
+  startedAt: new Date('2026-05-04T10:00:00.000Z'),
+  finishedAt: new Date('2026-05-04T10:00:01.000Z'),
+  durationMs: 1000,
+  inputData: null,
+  outputData: null,
+  error: null,
+  recursionDepth: 0,
+  executionPath: [],
+  trigger: null,
+  executor: null,
+  ...overrides,
+});
 
 describe('ExecutionsService', () => {
   let service: ExecutionsService;
   let executionRepo: {
     createQueryBuilder: jest.Mock;
-    find: jest.Mock;
     findOne: jest.Mock;
-    save: jest.Mock;
   };
   let nodeExecutionRepo: { find: jest.Mock };
   let engine: { cancelWaitingExecution: jest.Mock };
 
-  const buildQB = (rows: AnyExec[], total = rows.length) => {
-    const qb: Record<string, jest.Mock> = {} as Record<string, jest.Mock>;
+  const buildListQB = (rows: FakeExec[], total = rows.length) => {
+    const qb: Record<string, jest.Mock> = {};
     qb.leftJoin = jest.fn().mockReturnValue(qb);
     qb.addSelect = jest.fn().mockReturnValue(qb);
     qb.where = jest.fn().mockReturnValue(qb);
@@ -26,17 +63,24 @@ describe('ExecutionsService', () => {
     qb.orderBy = jest.fn().mockReturnValue(qb);
     qb.skip = jest.fn().mockReturnValue(qb);
     qb.take = jest.fn().mockReturnValue(qb);
-    qb.getCount = jest.fn().mockResolvedValue(total);
-    qb.getMany = jest.fn().mockResolvedValue(rows);
+    qb.getManyAndCount = jest.fn().mockResolvedValue([rows, total]);
+    return qb;
+  };
+
+  type ParentRawRow = { parent_id: string; workflow_name: string | null };
+  const buildParentNameQB = (rows: ParentRawRow[]) => {
+    const qb: Record<string, jest.Mock> = {};
+    qb.innerJoin = jest.fn().mockReturnValue(qb);
+    qb.select = jest.fn().mockReturnValue(qb);
+    qb.where = jest.fn().mockReturnValue(qb);
+    qb.getRawMany = jest.fn().mockResolvedValue(rows);
     return qb;
   };
 
   beforeEach(() => {
     executionRepo = {
       createQueryBuilder: jest.fn(),
-      find: jest.fn().mockResolvedValue([]),
       findOne: jest.fn(),
-      save: jest.fn(),
     };
     nodeExecutionRepo = { find: jest.fn() };
     engine = { cancelWaitingExecution: jest.fn() };
@@ -51,25 +95,17 @@ describe('ExecutionsService', () => {
     it('maps schedule-trigger execution with triggerSource=schedule and Trigger.name as label', async () => {
       const startedAt = new Date('2026-05-04T10:00:00.000Z');
       const finishedAt = new Date('2026-05-04T10:00:03.200Z');
-      const row: AnyExec = {
+      const row = baseFake({
         id: 'e1',
-        workflowId: 'w1',
         triggerId: 't1',
-        executedBy: null as never,
-        parentExecutionId: null as never,
-        status: ExecutionStatus.COMPLETED,
+        durationMs: 3200,
         startedAt,
         finishedAt,
-        durationMs: 3200,
-        inputData: null as never,
-        outputData: null as never,
-        error: null as never,
-        recursionDepth: 0,
-        executionPath: [],
         trigger: { id: 't1', type: 'schedule', name: '매일 오전 9시 보고서' },
-        executor: null,
-      };
-      executionRepo.createQueryBuilder.mockReturnValue(buildQB([row]));
+      });
+      executionRepo.createQueryBuilder.mockReturnValueOnce(
+        buildListQB([row]) as unknown,
+      );
 
       const result = await service.findByWorkflow('w1', {});
 
@@ -87,53 +123,61 @@ describe('ExecutionsService', () => {
       expect(result.data[0].finishedAt).toBe(finishedAt.toISOString());
     });
 
-    it('maps manual execution with executor name as label', async () => {
-      const row: AnyExec = {
+    it('maps webhook-trigger execution with triggerSource=webhook', async () => {
+      const row = baseFake({
+        id: 'e-wh',
+        triggerId: 't-wh',
+        trigger: { id: 't-wh', type: 'webhook', name: 'Stripe payment hook' },
+      });
+      executionRepo.createQueryBuilder.mockReturnValueOnce(
+        buildListQB([row]) as unknown,
+      );
+
+      const { data } = await service.findByWorkflow('w1', {});
+      expect(data[0].triggerSource).toBe('webhook');
+      expect(data[0].triggerLabel).toBe('Stripe payment hook');
+    });
+
+    it('maps manual execution with executor name as label and never exposes email', async () => {
+      const row = baseFake({
         id: 'e2',
-        workflowId: 'w1',
-        triggerId: null as never,
         executedBy: 'u1',
-        parentExecutionId: null as never,
         status: ExecutionStatus.RUNNING,
-        startedAt: new Date(),
-        finishedAt: null as never,
-        durationMs: null as never,
-        recursionDepth: 0,
-        executionPath: [],
-        executor: { id: 'u1', name: 'Alice', email: 'a@x.com' },
-        trigger: null,
-      };
-      executionRepo.createQueryBuilder.mockReturnValue(buildQB([row]));
+        finishedAt: null,
+        durationMs: null,
+        executor: { id: 'u1', name: 'Alice' },
+      });
+      executionRepo.createQueryBuilder.mockReturnValueOnce(
+        buildListQB([row]) as unknown,
+      );
 
       const { data } = await service.findByWorkflow('w1', {});
       expect(data[0].triggerSource).toBe('manual');
       expect(data[0].triggerLabel).toBe('Alice');
       expect(data[0].executedBy).toBe('u1');
+      // 라벨에 이메일 같은 PII 가 절대 들어가서는 안 된다.
+      expect(JSON.stringify(data[0])).not.toMatch(/@/);
     });
 
-    it('subworkflow execution loads parent workflow.name once via batch query and uses it as label', async () => {
-      const childA: AnyExec = {
+    it('subworkflow execution loads parent workflow.name once via batch QB and uses it as label', async () => {
+      const childA = baseFake({
         id: 'c1',
         workflowId: 'wChild',
-        triggerId: null as never,
-        executedBy: null as never,
         parentExecutionId: 'p1',
-        status: ExecutionStatus.COMPLETED,
-        startedAt: new Date(),
-        finishedAt: new Date(),
-        durationMs: 100,
         recursionDepth: 1,
-        executionPath: [],
-        trigger: null,
-        executor: null,
-      };
-      const childB: AnyExec = { ...childA, id: 'c2', parentExecutionId: 'p1' };
-      executionRepo.createQueryBuilder.mockReturnValue(
-        buildQB([childA, childB]),
-      );
-      executionRepo.find.mockResolvedValue([
-        { id: 'p1', workflow: { name: 'Parent Workflow' } },
+      });
+      const childB = baseFake({
+        id: 'c2',
+        workflowId: 'wChild',
+        parentExecutionId: 'p1',
+        recursionDepth: 1,
+      });
+      const parentNameQB = buildParentNameQB([
+        { parent_id: 'p1', workflow_name: 'Parent Workflow' },
       ]);
+      executionRepo.createQueryBuilder
+        .mockReturnValueOnce(buildListQB([childA, childB]) as unknown)
+        .mockReturnValueOnce(parentNameQB as unknown);
 
       const { data } = await service.findByWorkflow('wChild', {});
       expect(data).toHaveLength(2);
@@ -141,49 +185,80 @@ describe('ExecutionsService', () => {
         expect(d.triggerSource).toBe('subworkflow');
         expect(d.triggerLabel).toBe('Parent Workflow');
       }
-      // 부모 실행의 workflow.name 은 batch 1회만 조회 (N+1 방지)
-      expect(executionRepo.find).toHaveBeenCalledTimes(1);
+      // 부모 lookup 은 1회의 배치 쿼리만 (N+1 방지)
+      expect(parentNameQB.getRawMany).toHaveBeenCalledTimes(1);
+      expect(parentNameQB.where).toHaveBeenCalledWith(
+        'pe.id IN (:...ids)',
+        expect.objectContaining({ ids: ['p1'] }),
+      );
     });
 
-    it('does not query parent workflows when no subworkflow rows exist', async () => {
-      const row: AnyExec = {
+    it('handles mixed parentExecutionIds (multiple parents) in a single page', async () => {
+      const c1 = baseFake({
+        id: 'c1',
+        workflowId: 'wChild',
+        parentExecutionId: 'p1',
+      });
+      const c2 = baseFake({
+        id: 'c2',
+        workflowId: 'wChild',
+        parentExecutionId: 'p2',
+      });
+      const c3 = baseFake({
+        id: 'c3',
+        workflowId: 'wChild',
+        parentExecutionId: 'p1',
+      });
+      const parentNameQB = buildParentNameQB([
+        { parent_id: 'p1', workflow_name: 'Parent A' },
+        { parent_id: 'p2', workflow_name: 'Parent B' },
+      ]);
+      executionRepo.createQueryBuilder
+        .mockReturnValueOnce(buildListQB([c1, c2, c3]) as unknown)
+        .mockReturnValueOnce(parentNameQB as unknown);
+
+      const { data } = await service.findByWorkflow('wChild', {});
+      const labelById = Object.fromEntries(
+        data.map((d) => [d.id, d.triggerLabel]),
+      );
+      expect(labelById).toEqual({
+        c1: 'Parent A',
+        c2: 'Parent B',
+        c3: 'Parent A',
+      });
+      // 중복 제거되어 두 부모만 IN 절에 포함
+      expect(parentNameQB.where).toHaveBeenCalledWith(
+        'pe.id IN (:...ids)',
+        expect.objectContaining({
+          ids: expect.arrayContaining(['p1', 'p2']),
+        }),
+      );
+    });
+
+    it('does not run parent-name batch query when no subworkflow rows exist', async () => {
+      const row = baseFake({
         id: 'e3',
-        workflowId: 'w1',
-        triggerId: null as never,
         executedBy: 'u1',
-        parentExecutionId: null as never,
-        status: ExecutionStatus.COMPLETED,
-        startedAt: new Date(),
-        finishedAt: new Date(),
-        durationMs: 50,
-        recursionDepth: 0,
-        executionPath: [],
-        executor: { id: 'u1', name: 'Alice', email: 'a@x.com' },
-        trigger: null,
-      };
-      executionRepo.createQueryBuilder.mockReturnValue(buildQB([row]));
+        executor: { id: 'u1', name: 'Alice' },
+      });
+      executionRepo.createQueryBuilder.mockReturnValueOnce(
+        buildListQB([row]) as unknown,
+      );
 
       await service.findByWorkflow('w1', {});
-      expect(executionRepo.find).not.toHaveBeenCalled();
+      // list QB 1회만 생성, parent batch QB 미생성
+      expect(executionRepo.createQueryBuilder).toHaveBeenCalledTimes(1);
     });
 
     it('falls back to triggerSource=unknown when triggerId is set but Trigger relation is missing', async () => {
-      const row: AnyExec = {
+      const row = baseFake({
         id: 'e4',
-        workflowId: 'w1',
         triggerId: 't1',
-        executedBy: null as never,
-        parentExecutionId: null as never,
-        status: ExecutionStatus.COMPLETED,
-        startedAt: new Date(),
-        finishedAt: new Date(),
-        durationMs: 10,
-        recursionDepth: 0,
-        executionPath: [],
         trigger: null,
-        executor: null,
-      };
-      executionRepo.createQueryBuilder.mockReturnValue(buildQB([row]));
+      });
+      executionRepo.createQueryBuilder.mockReturnValueOnce(
+        buildListQB([row]) as unknown,
+      );
 
       const { data } = await service.findByWorkflow('w1', {});
       expect(data[0].triggerSource).toBe('unknown');

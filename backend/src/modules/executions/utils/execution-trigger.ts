@@ -1,9 +1,23 @@
-export type ExecutionTriggerSource =
-  | 'manual'
-  | 'schedule'
-  | 'webhook'
-  | 'subworkflow'
-  | 'unknown';
+/**
+ * 실행 출처(Trigger Source) 분류 헬퍼.
+ *
+ * Source-of-truth: `EXECUTION_TRIGGER_SOURCES` 배열을 단일 정의로 두고, DTO/타입 등 다른
+ * 모든 사용처는 이 배열에서 파생한다. 새 출처 추가 시 이 한 곳만 수정하면 된다.
+ *
+ * 우선순위: subworkflow > manual > schedule > webhook > unknown.
+ *
+ * 보안 노트: `manual` 라벨은 `User.name` 만 사용한다. 이메일 등 PII 는 라벨에 노출하지 않는다.
+ */
+
+export const EXECUTION_TRIGGER_SOURCES = [
+  'manual',
+  'schedule',
+  'webhook',
+  'subworkflow',
+  'unknown',
+] as const;
+
+export type ExecutionTriggerSource = (typeof EXECUTION_TRIGGER_SOURCES)[number];
 
 export interface ExecutionTriggerInfo {
   source: ExecutionTriggerSource;
@@ -19,31 +33,43 @@ type DerivableExecution = {
   executedBy?: string | null;
   parentExecutionId?: string | null;
   trigger?: { type: string; name?: string | null } | null;
-  executor?: { name?: string | null; email?: string | null } | null;
+  executor?: { name?: string | null } | null;
 };
 
-/**
- * 우선순위: subworkflow > manual > schedule > webhook > unknown.
- * `subworkflow` 라벨은 호출자가 부모 실행의 workflow.name 을 별도 batch 로 조회해 전달.
- */
+const trimToNull = (s: string | null | undefined): string | null => {
+  if (s == null) return null;
+  const t = s.trim();
+  return t.length > 0 ? t : null;
+};
+
 export function deriveExecutionTrigger(
   execution: DerivableExecution,
   parentWorkflowName?: string | null,
 ): ExecutionTriggerInfo {
   if (execution.parentExecutionId) {
-    return { source: 'subworkflow', label: parentWorkflowName ?? null };
+    return {
+      source: 'subworkflow',
+      label: trimToNull(parentWorkflowName ?? null),
+    };
   }
   if (execution.executedBy) {
-    const executor = execution.executor;
-    const label = executor?.name ?? executor?.email ?? null;
-    return { source: 'manual', label };
+    return {
+      source: 'manual',
+      label: trimToNull(execution.executor?.name ?? null),
+    };
   }
   if (execution.triggerId && execution.trigger) {
     if (execution.trigger.type === 'schedule') {
-      return { source: 'schedule', label: execution.trigger.name ?? null };
+      return {
+        source: 'schedule',
+        label: trimToNull(execution.trigger.name ?? null),
+      };
     }
     if (execution.trigger.type === 'webhook') {
-      return { source: 'webhook', label: execution.trigger.name ?? null };
+      return {
+        source: 'webhook',
+        label: trimToNull(execution.trigger.name ?? null),
+      };
     }
   }
   return { source: 'unknown', label: null };

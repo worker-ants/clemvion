@@ -100,6 +100,33 @@ const TRIGGER_LABEL_KEY: Record<ExecutionTriggerSource, TranslationKey> = {
   unknown: "executions.triggerSource.unknown",
 };
 
+function TriggerCell({
+  source,
+  label,
+}: {
+  source: ExecutionTriggerSource;
+  label: string | null;
+}) {
+  const t = useT();
+  const Icon = TRIGGER_ICON[source];
+  return (
+    <div className="flex items-center gap-2">
+      <Icon className="h-4 w-4 shrink-0 text-[hsl(var(--muted-foreground))]" />
+      <div className="min-w-0">
+        <div className="truncate">{t(TRIGGER_LABEL_KEY[source])}</div>
+        {label ? (
+          <div
+            className="truncate text-xs text-[hsl(var(--muted-foreground))]"
+            title={label}
+          >
+            {label}
+          </div>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
 export default function ExecutionListPage({
   params,
 }: {
@@ -301,29 +328,10 @@ export default function ExecutionListPage({
                         </div>
                       </td>
                       <td className="px-4 py-3">
-                        {(() => {
-                          const source: ExecutionTriggerSource =
-                            execution.triggerSource ?? "unknown";
-                          const Icon = TRIGGER_ICON[source];
-                          return (
-                            <div className="flex items-center gap-2">
-                              <Icon className="h-4 w-4 shrink-0 text-[hsl(var(--muted-foreground))]" />
-                              <div className="min-w-0">
-                                <div className="truncate">
-                                  {t(TRIGGER_LABEL_KEY[source])}
-                                </div>
-                                {execution.triggerLabel ? (
-                                  <div
-                                    className="truncate text-xs text-[hsl(var(--muted-foreground))]"
-                                    title={execution.triggerLabel}
-                                  >
-                                    {execution.triggerLabel}
-                                  </div>
-                                ) : null}
-                              </div>
-                            </div>
-                          );
-                        })()}
+                        <TriggerCell
+                          source={execution.triggerSource}
+                          label={execution.triggerLabel}
+                        />
                       </td>
                       <td className="px-4 py-3 text-[hsl(var(--muted-foreground))]">
                         {formatDate(execution.startedAt, "datetime")}
