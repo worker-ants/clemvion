@@ -5,6 +5,7 @@ import { Workspace } from './entities/workspace.entity';
 import { WorkspaceMember } from './entities/workspace-member.entity';
 import { WorkspaceInvitation } from './entities/workspace-invitation.entity';
 import { User } from '../users/entities/user.entity';
+import { AuditLogsService } from '../audit-logs/audit-logs.service';
 
 describe('WorkspacesService', () => {
   let service: WorkspacesService;
@@ -67,6 +68,10 @@ describe('WorkspacesService', () => {
             findOne: jest.fn(),
             find: jest.fn().mockResolvedValue([]),
           },
+        },
+        {
+          provide: AuditLogsService,
+          useValue: { record: jest.fn().mockResolvedValue(undefined) },
         },
       ],
     }).compile();
@@ -488,7 +493,7 @@ describe('WorkspacesService', () => {
       );
     }
 
-    it('atomically swaps roles: target → owner, current owner → admin, and updates workspace.ownerId', async () => {
+    it('atomically swaps roles in a single batch save and updates workspace.ownerId', async () => {
       workspaceRepo.findOne.mockResolvedValue(teamWorkspace);
       setupOwnerLookup('owner');
 
@@ -498,27 +503,64 @@ describe('WorkspacesService', () => {
         newOwnerMemberId,
       );
 
-      const saved = memberRepo.save.mock.calls.map(
-        (c) => c[0] as { id: string; role: string },
-      );
-      expect(saved).toEqual(
-        expect.arrayContaining([
-          {
-            id: newOwnerMemberId,
-            role: 'owner',
-            userId: newOwnerUserId,
-            workspaceId: 'ws-uuid-1',
-          },
-          {
-            id: 'mem-owner',
-            role: 'admin',
-            userId: requesterId,
-            workspaceId: 'ws-uuid-1',
-          },
-        ]),
-      );
+      // 두 멤버는 한 번의 save([target, requester]) 호출로 함께 갱신된다.
+      expect(memberRepo.save).toHaveBeenCalledWith([
+        expect.objectContaining({ id: newOwnerMemberId, role: 'owner' }),
+        expect.objectContaining({ id: 'mem-owner', role: 'admin' }),
+      ]);
       expect(workspaceRepo.save).toHaveBeenCalledWith(
         expect.objectContaining({ id: 'ws-uuid-1', ownerId: newOwnerUserId }),
+      );
+    });
+
+    it('locks workspace and members with pessimistic_write inside the transaction', async () => {
+      workspaceRepo.findOne.mockResolvedValue(teamWorkspace);
+      setupOwnerLookup('owner');
+
+      await service.transferOwnership(
+        'ws-uuid-1',
+        requesterId,
+        newOwnerMemberId,
+      );
+
+      expect(workspaceRepo.findOne).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: 'ws-uuid-1' },
+          lock: { mode: 'pessimistic_write' },
+        }),
+      );
+      const memberCalls = memberRepo.findOne.mock.calls.map(
+        (c) => c[0] as { lock?: unknown },
+      );
+      for (const call of memberCalls) {
+        expect(call.lock).toEqual({ mode: 'pessimistic_write' });
+      }
+    });
+
+    it('records an audit log entry after a successful transfer', async () => {
+      workspaceRepo.findOne.mockResolvedValue(teamWorkspace);
+      setupOwnerLookup('owner');
+      const audit = (
+        service as unknown as {
+          auditLogsService: { record: jest.Mock };
+        }
+      ).auditLogsService;
+
+      await service.transferOwnership(
+        'ws-uuid-1',
+        requesterId,
+        newOwnerMemberId,
+      );
+
+      expect(audit.record).toHaveBeenCalledWith(
+        expect.objectContaining({
+          workspaceId: 'ws-uuid-1',
+          userId: requesterId,
+          action: 'workspace.transfer_ownership',
+          resourceType: 'workspace',
+          resourceId: 'ws-uuid-1',
+          details: { newOwnerMemberId },
+        }),
       );
     });
 

@@ -1,5 +1,10 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { ForbiddenException, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  ForbiddenException,
+  NotFoundException,
+} from '@nestjs/common';
 import { WorkspacesController } from './workspaces.controller';
 import { WorkspacesService } from './workspaces.service';
 import { WorkspaceInvitationsService } from './workspace-invitations.service';
@@ -148,6 +153,50 @@ describe('WorkspacesController', () => {
           newOwnerMemberId: 'mem-2',
         }),
       ).rejects.toBeInstanceOf(ForbiddenException);
+    });
+
+    it('propagates ForbiddenException for personal workspace', async () => {
+      service.transferOwnership.mockRejectedValue(
+        new ForbiddenException({ code: 'CANNOT_TRANSFER_PERSONAL' }),
+      );
+      await expect(
+        controller.transferOwnership(user, 'ws-1', {
+          newOwnerMemberId: 'mem-2',
+        }),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+    });
+
+    it('propagates BadRequestException when target is self', async () => {
+      service.transferOwnership.mockRejectedValue(
+        new BadRequestException({ code: 'TARGET_IS_SELF' }),
+      );
+      await expect(
+        controller.transferOwnership(user, 'ws-1', {
+          newOwnerMemberId: 'mem-self',
+        }),
+      ).rejects.toBeInstanceOf(BadRequestException);
+    });
+
+    it('propagates NotFoundException when target member missing', async () => {
+      service.transferOwnership.mockRejectedValue(
+        new NotFoundException({ code: 'MEMBER_NOT_FOUND' }),
+      );
+      await expect(
+        controller.transferOwnership(user, 'ws-1', {
+          newOwnerMemberId: 'mem-2',
+        }),
+      ).rejects.toBeInstanceOf(NotFoundException);
+    });
+
+    it('propagates ConflictException when target already owner', async () => {
+      service.transferOwnership.mockRejectedValue(
+        new ConflictException({ code: 'TARGET_ALREADY_OWNER' }),
+      );
+      await expect(
+        controller.transferOwnership(user, 'ws-1', {
+          newOwnerMemberId: 'mem-2',
+        }),
+      ).rejects.toBeInstanceOf(ConflictException);
     });
   });
 });

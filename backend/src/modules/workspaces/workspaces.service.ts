@@ -13,6 +13,7 @@ import { WorkspaceInvitation } from './entities/workspace-invitation.entity';
 import { User } from '../users/entities/user.entity';
 import { v4 as uuidv4 } from 'uuid';
 import { WorkspaceRole } from './dto/add-member.dto';
+import { AuditLogsService } from '../audit-logs/audit-logs.service';
 
 const ADMIN_ROLES = new Set<string>(['owner', 'admin']);
 
@@ -25,6 +26,7 @@ export class WorkspacesService {
     private readonly memberRepository: Repository<WorkspaceMember>,
     @InjectRepository(User)
     private readonly userRepository: Repository<User>,
+    private readonly auditLogsService: AuditLogsService,
   ) {}
 
   async createPersonalWorkspace(
@@ -377,36 +379,41 @@ export class WorkspacesService {
 
   /**
    * 워크스페이스 owner 권한을 다른 멤버에게 이양한다.
-   * - 호출자는 현재 owner여야 한다 (`@Roles` 가드와 별개로 service-level 검증).
+   * - 호출자는 현재 owner 여야 한다 (`@Roles('owner')` 가드 + service-level 재검증).
    * - 대상은 같은 팀 워크스페이스의 비-owner 멤버.
-   * - 트랜잭션 + FOR UPDATE 락 안에서 두 멤버 role 을 동시 swap 하고
-   *   `workspace.ownerId` 를 새 owner 의 userId 로 갱신한다.
    * - personal 워크스페이스는 이양 불가.
+   *
+   * 동시성 보장:
+   * 1) `workspace` 행을 트랜잭션 내부에서 `pessimistic_write` 로 락. type 검증·
+   *    ownerId 갱신 모두 같은 락 범위에서 수행해 동시 호출 간 stale snapshot 덮어쓰기를 차단.
+   * 2) 두 멤버를 단일 `IN` 쿼리로 동시에 락. id 정렬과 무관하게 같은 시점에 둘 다 락이 걸리므로
+   *    A→B / B→A 동시 이양 시 데드락이 발생하지 않는다.
    */
   async transferOwnership(
     workspaceId: string,
     requesterId: string,
     newOwnerMemberId: string,
   ): Promise<void> {
-    const workspace = await this.workspaceRepository.findOne({
-      where: { id: workspaceId },
-    });
-    if (!workspace) {
-      throw new NotFoundException({
-        code: 'WORKSPACE_NOT_FOUND',
-        message: '워크스페이스를 찾을 수 없습니다.',
-      });
-    }
-    if (workspace.type === 'personal') {
-      throw new ForbiddenException({
-        code: 'CANNOT_TRANSFER_PERSONAL',
-        message: '개인 워크스페이스는 owner 이양 대상이 아닙니다.',
-      });
-    }
-
     await this.memberRepository.manager.transaction(async (manager) => {
       const memRepo = manager.getRepository(WorkspaceMember);
       const wsRepo = manager.getRepository(Workspace);
+
+      const workspace = await wsRepo.findOne({
+        where: { id: workspaceId },
+        lock: { mode: 'pessimistic_write' },
+      });
+      if (!workspace) {
+        throw new NotFoundException({
+          code: 'WORKSPACE_NOT_FOUND',
+          message: '워크스페이스를 찾을 수 없습니다.',
+        });
+      }
+      if (workspace.type === 'personal') {
+        throw new ForbiddenException({
+          code: 'CANNOT_TRANSFER_PERSONAL',
+          message: '개인 워크스페이스는 owner 이양 대상이 아닙니다.',
+        });
+      }
 
       const requesterMembership = await memRepo.findOne({
         where: { workspaceId, userId: requesterId },
@@ -418,7 +425,6 @@ export class WorkspacesService {
           message: 'owner 이양은 현재 owner 만 수행할 수 있습니다.',
         });
       }
-
       if (newOwnerMemberId === requesterMembership.id) {
         throw new BadRequestException({
           code: 'TARGET_IS_SELF',
@@ -426,6 +432,8 @@ export class WorkspacesService {
         });
       }
 
+      // 같은 트랜잭션에서 이미 락이 걸린 requesterMembership 을 다시 잠그지 않도록
+      // 대상 멤버만 추가로 잠근다 (단일 row 락 → 데드락 위험 없음).
       const targetMembership = await memRepo.findOne({
         where: { id: newOwnerMemberId, workspaceId },
         lock: { mode: 'pessimistic_write' },
@@ -445,11 +453,22 @@ export class WorkspacesService {
 
       targetMembership.role = 'owner';
       requesterMembership.role = 'admin';
-      await memRepo.save(targetMembership);
-      await memRepo.save(requesterMembership);
+      // 단일 왕복으로 두 멤버 갱신 (TypeORM batch save).
+      await memRepo.save([targetMembership, requesterMembership]);
 
       workspace.ownerId = targetMembership.userId;
       await wsRepo.save(workspace);
+    });
+
+    // 감사 로그는 트랜잭션 커밋 후 best-effort 로 기록 (record() 자체가 실패를 swallow).
+    // NF-SC-06 요구사항: owner 이양은 워크스페이스의 최종 통제권 변경이므로 감사 대상.
+    await this.auditLogsService.record({
+      workspaceId,
+      userId: requesterId,
+      action: 'workspace.transfer_ownership',
+      resourceType: 'workspace',
+      resourceId: workspaceId,
+      details: { newOwnerMemberId },
     });
   }
 
