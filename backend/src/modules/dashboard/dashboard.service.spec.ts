@@ -37,7 +37,7 @@ describe('DashboardService.getRecentExecutions', () => {
 
   const buildListQB = (rows: FakeExec[]) => {
     const qb: Record<string, jest.Mock> = {};
-    qb.innerJoinAndSelect = jest.fn().mockReturnValue(qb);
+    qb.innerJoin = jest.fn().mockReturnValue(qb);
     qb.leftJoin = jest.fn().mockReturnValue(qb);
     qb.addSelect = jest.fn().mockReturnValue(qb);
     qb.where = jest.fn().mockReturnValue(qb);
@@ -153,5 +153,50 @@ describe('DashboardService.getRecentExecutions', () => {
     const result = await service.getRecentExecutions('ws-1');
     expect(result).toEqual([]);
     expect(executionRepo.createQueryBuilder).toHaveBeenCalledTimes(1);
+  });
+
+  it('skips parent batch query when no row has parentExecutionId (hot path)', async () => {
+    const r = baseFake({
+      id: 'r',
+      executedBy: 'u1',
+      executor: { id: 'u1', name: 'A' },
+    });
+    const listQB = buildListQB([r]);
+    executionRepo.createQueryBuilder.mockReturnValueOnce(listQB as unknown);
+
+    await service.getRecentExecutions('ws-1');
+    // parent IN 쿼리는 만들어지지 않아야 한다 — list QB 만 1 회 생성.
+    expect(executionRepo.createQueryBuilder).toHaveBeenCalledTimes(1);
+  });
+
+  it('subworkflow with deleted parent → triggerSource=subworkflow, label=null', async () => {
+    const child = baseFake({
+      id: 'orphan',
+      workflowId: 'wChild',
+      parentExecutionId: 'p-deleted',
+    });
+    const parentQB = buildParentNameQB([]); // 부모를 못 찾음
+    executionRepo.createQueryBuilder
+      .mockReturnValueOnce(buildListQB([child]) as unknown)
+      .mockReturnValueOnce(parentQB as unknown);
+
+    const result = await service.getRecentExecutions('ws-1');
+    expect(result[0].triggerSource).toBe('subworkflow');
+    expect(result[0].triggerLabel).toBeNull();
+  });
+
+  it('triggerId set but Trigger relation missing → triggerSource=unknown', async () => {
+    const r = baseFake({
+      id: 'unk',
+      triggerId: 't-zombie',
+      trigger: null,
+    });
+    executionRepo.createQueryBuilder.mockReturnValueOnce(
+      buildListQB([r]) as unknown,
+    );
+
+    const result = await service.getRecentExecutions('ws-1');
+    expect(result[0].triggerSource).toBe('unknown');
+    expect(result[0].triggerLabel).toBeNull();
   });
 });

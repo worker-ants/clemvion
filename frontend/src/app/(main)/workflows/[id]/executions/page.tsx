@@ -78,7 +78,6 @@ const FILTER_BUTTONS: { labelKey: TranslationKey; value: FilterValue }[] = [
   { labelKey: "executions.filterWaiting", value: "waiting_for_input" },
 ];
 
-
 export default function ExecutionListPage({
   params,
 }: {
