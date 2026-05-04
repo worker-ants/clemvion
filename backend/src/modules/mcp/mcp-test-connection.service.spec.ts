@@ -103,16 +103,23 @@ describe('McpTestConnectionService', () => {
     expectFailure(result, 'MCP_AUTH_FAILED');
   });
 
-  it('translates network errors to MCP_CONNECT_FAILED', async () => {
+  it('translates network errors to MCP_CONNECT_FAILED with sanitized message', async () => {
     connect.mockRejectedValueOnce(
-      Object.assign(new Error('fetch failed'), { code: 'ECONNREFUSED' }),
+      // Internal SDK errors often include resolved IPs (e.g.
+      // "ECONNREFUSED 10.0.0.5:8080") — those must NOT reach the API
+      // response. The classifier replaces such messages with a generic one
+      // so internal network detail isn't leaked to workspace members.
+      Object.assign(new Error('ECONNREFUSED 10.0.0.5:8080'), {
+        code: 'ECONNREFUSED',
+      }),
     );
     const result = await service.test({
       url: 'https://mcp.example.com',
       authType: 'none',
     });
     expectFailure(result, 'MCP_CONNECT_FAILED');
-    expect(result.message).toContain('fetch failed');
+    expect(result.message).not.toContain('10.0.0.5');
+    expect(result.message).not.toContain('ECONNREFUSED');
   });
 
   it('translates initialize-time tools/list failure to MCP_LIST_FAILED', async () => {

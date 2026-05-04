@@ -32,10 +32,39 @@ import {
   validateCredentials,
 } from './services/service-registry';
 import {
+  ConnectionPreview,
   McpTestConnectionService,
-  TestConnectionResult as McpTestResult,
 } from '../mcp/mcp-test-connection.service';
-import { McpConnectParams } from '../mcp/mcp-client.service';
+import {
+  McpConnectParams,
+  ServerCapabilities,
+  ServerInfo,
+} from '../mcp/mcp-client.service';
+
+/**
+ * Public shape returned to the integrations UI for both `previewTest` and
+ * `testConnection`. `success`/`message` are universal; `capabilities`,
+ * `serverInfo`, `preview` are populated only for `service_type='mcp'`.
+ */
+export interface IntegrationTestResult {
+  success: boolean;
+  message: string;
+  /** Failure code in the `MCP_*` vocabulary; absent on success. */
+  code?: string;
+  capabilities?: ServerCapabilities;
+  serverInfo?: ServerInfo;
+  preview?: ConnectionPreview;
+}
+
+/**
+ * Strategy for performing the per-service transport test invoked from
+ * {@link IntegrationsService.dispatchTest}. New services register a tester
+ * here so {@link dispatchTest} stays closed against modification.
+ */
+type TransportTester = (
+  authType: string,
+  credentials: Record<string, unknown>,
+) => Promise<IntegrationTestResult>;
 
 const ADMIN_ROLES = new Set(['owner', 'admin']);
 
@@ -58,6 +87,12 @@ export type PublicIntegration = Omit<Integration, 'credentials'> & {
 
 @Injectable()
 export class IntegrationsService {
+  /**
+   * Map of `service_type` → transport-level test. Services without an entry
+   * fall back to the structural-only validation in {@link dispatchTest}.
+   */
+  private readonly transportTesters: Map<string, TransportTester>;
+
   constructor(
     @InjectRepository(Integration)
     private readonly integrationRepository: Repository<Integration>,
@@ -69,7 +104,11 @@ export class IntegrationsService {
     private readonly oauthService: IntegrationOAuthService,
     private readonly auditLogsService: AuditLogsService,
     private readonly mcpTestConnection: McpTestConnectionService,
-  ) {}
+  ) {
+    this.transportTesters = new Map<string, TransportTester>([
+      ['mcp', this.testMcpTransport.bind(this)],
+    ]);
+  }
 
   // ---------------------------------------------------------------
   // Listing
@@ -420,7 +459,7 @@ export class IntegrationsService {
   async testConnection(
     id: string,
     workspaceId: string,
-  ): Promise<{ success: boolean; message: string }> {
+  ): Promise<IntegrationTestResult> {
     const entity = await this.requireEntity(id, workspaceId);
     return this.dispatchTest(
       entity.serviceType,
@@ -429,9 +468,7 @@ export class IntegrationsService {
     );
   }
 
-  previewTest(
-    body: PreviewTestDto,
-  ): Promise<{ success: boolean; message: string }> {
+  previewTest(body: PreviewTestDto): Promise<IntegrationTestResult> {
     return this.dispatchTest(body.serviceType, body.authType, body.credentials);
   }
 
@@ -756,24 +793,47 @@ export class IntegrationsService {
     serviceType: string,
     authType: string,
     credentials: Record<string, unknown>,
-  ): Promise<{ success: boolean; message: string }> {
-    // Phase A: structural validation only — per-service transport testing
-    // lands in Phase C alongside OAuth begin/preview-test. The `mcp` service
-    // is the first to also exercise transport at registration time so that
-    // capability previews can be surfaced in the UI.
+  ): Promise<IntegrationTestResult> {
+    // Step 1: structural validation always runs first — the transport probe
+    // would just fail with a less-actionable error if required fields are
+    // missing.
     const errors = validateCredentials(serviceType, authType, credentials);
     if (errors.length) {
       return { success: false, message: errors.join('; ') };
     }
-    if (serviceType === 'mcp') {
-      const mcpResult = await this.mcpTestConnection.test(
-        this.toMcpConnectParams(authType, credentials),
-      );
-      return this.adaptMcpTestResult(mcpResult);
+    // Step 2: services with a registered transport tester perform a real
+    // round-trip; the rest fall back to the structural-only "ok" until a
+    // transport tester is added for them.
+    const tester = this.transportTesters.get(serviceType);
+    if (tester) {
+      return tester(authType, credentials);
     }
     return {
       success: true,
       message: 'Connection successful',
+    };
+  }
+
+  private async testMcpTransport(
+    authType: string,
+    credentials: Record<string, unknown>,
+  ): Promise<IntegrationTestResult> {
+    const result = await this.mcpTestConnection.test(
+      this.toMcpConnectParams(authType, credentials),
+    );
+    if (result.success) {
+      return {
+        success: true,
+        message: result.message,
+        capabilities: result.capabilities,
+        serverInfo: result.serverInfo,
+        preview: result.preview,
+      };
+    }
+    return {
+      success: false,
+      message: result.message,
+      code: result.code ?? 'MCP_CONNECT_FAILED',
     };
   }
 
@@ -787,9 +847,9 @@ export class IntegrationsService {
     credentials: Record<string, unknown>,
   ): McpConnectParams {
     const url = credentials.url as string;
-    const defaultHeaders =
-      (credentials.default_headers as Record<string, string> | undefined) ??
-      undefined;
+    const defaultHeaders = credentials.default_headers as
+      | Record<string, string>
+      | undefined;
     if (authType === 'bearer_token') {
       return {
         authType: 'bearer_token',
@@ -808,24 +868,6 @@ export class IntegrationsService {
       };
     }
     return { authType: 'none', url, defaultHeaders };
-  }
-
-  /**
-   * MCP `TestConnectionResult` carries success metadata (capabilities, preview)
-   * that is meaningful to the integration registration UI but the public
-   * `previewTest` contract only returns `{ success, message }`. We still pass
-   * a structured failure code through `message` so callers can surface the
-   * `MCP_*` vocabulary verbatim.
-   */
-  private adaptMcpTestResult(result: McpTestResult): {
-    success: boolean;
-    message: string;
-  } {
-    if (result.success) {
-      return { success: true, message: result.message };
-    }
-    const code = result.code ?? 'MCP_CONNECT_FAILED';
-    return { success: false, message: `[${code}] ${result.message}` };
   }
 
   async resolveRole(

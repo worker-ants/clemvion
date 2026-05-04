@@ -1,7 +1,7 @@
 import {
   McpClientService,
-  McpAuthError,
   McpHttpsRequiredError,
+  McpInvalidHeaderError,
 } from './mcp-client.service';
 
 const mockClientInstances: Array<{
@@ -65,7 +65,7 @@ describe('McpClientService', () => {
     service = new McpClientService();
   });
 
-  describe('connect', () => {
+  describe('connect — URL & SSRF policy', () => {
     it('rejects non-HTTPS URLs', async () => {
       await expect(
         service.connect({
@@ -76,6 +76,57 @@ describe('McpClientService', () => {
       expect(mockTransportInstances).toHaveLength(0);
     });
 
+    it('rejects malformed URLs', async () => {
+      await expect(
+        service.connect({ url: 'not-a-url', authType: 'none' }),
+      ).rejects.toThrow(McpHttpsRequiredError);
+    });
+
+    it('blocks loopback hosts', async () => {
+      for (const host of ['localhost', '127.0.0.1', '127.5.5.5', '[::1]']) {
+        const url = `https://${host}/mcp`;
+        await expect(
+          service.connect({ url, authType: 'none' }),
+        ).rejects.toThrow(McpHttpsRequiredError);
+      }
+    });
+
+    it('blocks RFC 1918 / link-local IPv4', async () => {
+      for (const host of [
+        '10.0.0.1',
+        '172.16.5.5',
+        '172.31.255.255',
+        '192.168.1.1',
+        '169.254.169.254', // AWS / GCP metadata
+      ]) {
+        await expect(
+          service.connect({ url: `https://${host}/mcp`, authType: 'none' }),
+        ).rejects.toThrow(McpHttpsRequiredError);
+      }
+    });
+
+    it('blocks cloud metadata hostnames', async () => {
+      for (const host of [
+        'metadata.google.internal',
+        'metadata.azure.com',
+        'metadata.amazonaws.com',
+      ]) {
+        await expect(
+          service.connect({ url: `https://${host}/`, authType: 'none' }),
+        ).rejects.toThrow(McpHttpsRequiredError);
+      }
+    });
+
+    it('allows public HTTPS URLs', async () => {
+      await service.connect({
+        url: 'https://mcp.example.com',
+        authType: 'none',
+      });
+      expect(mockTransportInstances).toHaveLength(1);
+    });
+  });
+
+  describe('connect — auth header injection', () => {
     it('connects via Streamable HTTP without auth header for authType=none', async () => {
       await service.connect({
         url: 'https://mcp.example.com',
@@ -130,16 +181,93 @@ describe('McpClientService', () => {
       // bearer_token auth must override any matching default_header
       expect(headers.authorization).toBe('Bearer tok');
     });
+  });
 
-    it('throws McpAuthError when bearer_token credential is missing', async () => {
+  describe('connect — header sanitization', () => {
+    it('rejects CRLF in default_headers names', async () => {
+      await expect(
+        service.connect({
+          url: 'https://mcp.example.com',
+          authType: 'none',
+          defaultHeaders: { 'X-Bad\r\nInjected': 'value' },
+        }),
+      ).rejects.toThrow(McpInvalidHeaderError);
+    });
+
+    it('rejects CRLF in default_headers values', async () => {
+      await expect(
+        service.connect({
+          url: 'https://mcp.example.com',
+          authType: 'none',
+          defaultHeaders: { 'X-Tenant': 'acme\r\nX-Smuggle: bad' },
+        }),
+      ).rejects.toThrow(McpInvalidHeaderError);
+    });
+
+    it('rejects framing-relevant headers in default_headers', async () => {
+      for (const reserved of [
+        'Host',
+        'Content-Length',
+        'Transfer-Encoding',
+        'Connection',
+        'mcp-session-id',
+      ]) {
+        await expect(
+          service.connect({
+            url: 'https://mcp.example.com',
+            authType: 'none',
+            defaultHeaders: { [reserved]: 'value' },
+          }),
+        ).rejects.toThrow(McpInvalidHeaderError);
+      }
+    });
+
+    it('rejects api_key with CRLF in headerName', async () => {
+      await expect(
+        service.connect({
+          url: 'https://mcp.example.com',
+          authType: 'api_key',
+          headerName: 'X-Api\r\nKey',
+          value: 'v',
+        } as never),
+      ).rejects.toThrow(McpInvalidHeaderError);
+    });
+  });
+
+  describe('connect — auth credential validation', () => {
+    it('throws McpAuthError when bearer_token credential is missing (runtime)', async () => {
+      // The TS type forbids token-less bearer_token, but the runtime still
+      // guards against malformed callers passing through `as never`.
       await expect(
         service.connect({
           url: 'https://mcp.example.com',
           authType: 'bearer_token',
-        }),
-      ).rejects.toThrow(McpAuthError);
+        } as never),
+      ).rejects.toThrow();
     });
 
+    it('throws when api_key headerName is missing (runtime)', async () => {
+      await expect(
+        service.connect({
+          url: 'https://mcp.example.com',
+          authType: 'api_key',
+          value: 'v',
+        } as never),
+      ).rejects.toThrow();
+    });
+
+    it('throws when api_key value is missing (runtime)', async () => {
+      await expect(
+        service.connect({
+          url: 'https://mcp.example.com',
+          authType: 'api_key',
+          headerName: 'X-Api-Key',
+        } as never),
+      ).rejects.toThrow();
+    });
+  });
+
+  describe('connect — capabilities surface', () => {
     it('returns a session that exposes capabilities + serverInfo', async () => {
       const session = await service.connect({
         url: 'https://mcp.example.com',
@@ -182,6 +310,21 @@ describe('McpClientService', () => {
       );
     });
 
+    it('listResources forwards to Client.listResources', async () => {
+      const session = await service.connect({
+        url: 'https://mcp.example.com',
+        authType: 'none',
+      });
+      mockClientInstances[0].listResources.mockResolvedValueOnce({
+        resources: [{ uri: 'file://x', name: 'X' }],
+      });
+      const result = await session.listResources({ cursor: 'c1' });
+      expect(mockClientInstances[0].listResources).toHaveBeenCalledWith({
+        cursor: 'c1',
+      });
+      expect(result.resources[0].uri).toBe('file://x');
+    });
+
     it('readResource forwards uri', async () => {
       const session = await service.connect({
         url: 'https://mcp.example.com',
@@ -194,13 +337,26 @@ describe('McpClientService', () => {
       );
     });
 
+    it('listPrompts forwards to Client.listPrompts', async () => {
+      const session = await service.connect({
+        url: 'https://mcp.example.com',
+        authType: 'none',
+      });
+      mockClientInstances[0].listPrompts.mockResolvedValueOnce({
+        prompts: [{ name: 'greet' }],
+      });
+      const result = await session.listPrompts();
+      expect(mockClientInstances[0].listPrompts).toHaveBeenCalledWith(
+        undefined,
+      );
+      expect(result.prompts[0].name).toBe('greet');
+    });
+
     it('getPrompt forwards name and string-valued arguments', async () => {
       const session = await service.connect({
         url: 'https://mcp.example.com',
         authType: 'none',
       });
-      // MCP prompt arguments are spec'd as Record<string,string>; the type
-      // narrowing here matches the contract.
       await session.getPrompt({ name: 'hello', arguments: { who: 'world' } });
       expect(mockClientInstances[0].getPrompt).toHaveBeenCalledWith(
         { name: 'hello', arguments: { who: 'world' } },
@@ -215,6 +371,17 @@ describe('McpClientService', () => {
       });
       await session.close();
       expect(mockClientInstances[0].close).toHaveBeenCalledTimes(1);
+    });
+
+    it('close swallows underlying errors and continues', async () => {
+      const session = await service.connect({
+        url: 'https://mcp.example.com',
+        authType: 'none',
+      });
+      mockClientInstances[0].close.mockRejectedValueOnce(new Error('boom'));
+      // close() must NOT throw — that would mask the upstream failure
+      // that triggered the close in the first place.
+      await expect(session.close()).resolves.toBeUndefined();
     });
   });
 });

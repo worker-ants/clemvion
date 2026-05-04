@@ -86,14 +86,48 @@ export class ServiceCatalogDto {
   services: ServiceCatalogEntryDto[];
 }
 
+/** MCP `tools/list` 미리보기 — 등록 UI 의 capability 카운트 표시용 */
+export class McpConnectionPreviewDto {
+  @ApiProperty({ required: false, description: '서버가 노출하는 도구 수' })
+  toolCount?: number;
+
+  @ApiProperty({ description: '서버가 resources capability 를 보고했는지' })
+  resourceSupported: boolean;
+
+  @ApiProperty({ description: '서버가 prompts capability 를 보고했는지' })
+  promptSupported: boolean;
+}
+
 /** 자격 증명 사전 검증 결과 */
 export class PreviewTestResultDto {
   @ApiProperty()
-  ok: boolean;
+  success: boolean;
 
-  /** 마스킹된 자격 증명 */
-  @ApiProperty({ type: 'object', additionalProperties: true })
-  maskedCredentials: Record<string, unknown>;
+  @ApiProperty()
+  message: string;
+
+  /**
+   * MCP service_type 한정 — 성공 시 서버가 보고한 capabilities 객체 그대로.
+   * 다른 service_type 에서는 생략된다.
+   */
+  @ApiProperty({
+    required: false,
+    additionalProperties: true,
+    description: 'MCP capabilities (mcp service_type only)',
+  })
+  capabilities?: Record<string, unknown>;
+
+  /** MCP service_type 한정 — 성공 시 서버 이름·버전 */
+  @ApiProperty({
+    required: false,
+    additionalProperties: true,
+    description: 'MCP server identity (mcp service_type only)',
+  })
+  serverInfo?: { name: string; version: string };
+
+  /** MCP service_type 한정 — 등록 UI 의 capability 미리보기 */
+  @ApiProperty({ required: false, type: McpConnectionPreviewDto })
+  preview?: McpConnectionPreviewDto;
 }
 
 /** OAuth 시작 결과 */
