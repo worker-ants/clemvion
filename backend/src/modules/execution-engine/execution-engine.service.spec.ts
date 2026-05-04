@@ -4,6 +4,7 @@ import { getQueueToken } from '@nestjs/bullmq';
 import { BACKGROUND_EXECUTION_QUEUE } from './queues/background-execution.queue';
 import {
   ExecutionEngineService,
+  buildAiMessageDebugFromResumeState,
   buildConversationMetaFromResumeState,
 } from './execution-engine.service';
 import { NodeHandlerRegistry } from '../../nodes/core/node-handler.registry';
@@ -3209,5 +3210,83 @@ describe('buildConversationMetaFromResumeState', () => {
     // ragLastDiagnostics 가 없으면 ragDiagnostics 도 undefined — frontend 에서
     // null 가드로 처리.
     expect(meta.ragDiagnostics).toBeUndefined();
+  });
+});
+
+describe('buildAiMessageDebugFromResumeState', () => {
+  // waiting_for_input emit 분기와 terminal emit 분기가 동일 shape (llmCalls / durationMs)
+  // 으로 직렬화하도록 보장하는 helper. spec/5-system/6-websocket-protocol.md 의
+  // execution.ai_message 명세 참고.
+  it('extracts llmCalls and durationMs from the last turn entry', () => {
+    const lastTurn = {
+      turnIndex: 2,
+      llmCalls: [
+        {
+          requestPayload: { messages: [] },
+          responsePayload: { content: 'a' },
+          durationMs: 100,
+        },
+        {
+          requestPayload: { messages: [] },
+          responsePayload: { content: 'b' },
+          durationMs: 200,
+        },
+      ],
+      totalDurationMs: 300,
+    };
+    const debug = buildAiMessageDebugFromResumeState({
+      turnDebugHistory: [
+        { turnIndex: 1, llmCalls: [], totalDurationMs: 50 },
+        lastTurn,
+      ],
+    });
+    expect(debug).toEqual({
+      llmCalls: lastTurn.llmCalls,
+      durationMs: 300,
+    });
+  });
+
+  it('preserves multi-call llm sequence for tool-loop turns', () => {
+    const llmCalls = [
+      {
+        requestPayload: { tool: 1 },
+        responsePayload: { content: '' },
+        durationMs: 80,
+      },
+      {
+        requestPayload: { tool: 2 },
+        responsePayload: { content: '' },
+        durationMs: 90,
+      },
+      {
+        requestPayload: { tool: 3 },
+        responsePayload: { content: 'final' },
+        durationMs: 120,
+      },
+    ];
+    const debug = buildAiMessageDebugFromResumeState({
+      turnDebugHistory: [{ turnIndex: 1, llmCalls, totalDurationMs: 290 }],
+    });
+    expect(debug.llmCalls).toEqual(llmCalls);
+    expect(debug.llmCalls).toHaveLength(3);
+    expect(debug.durationMs).toBe(290);
+  });
+
+  it('returns empty object when turnDebugHistory is missing (initial waiting)', () => {
+    const debug = buildAiMessageDebugFromResumeState({ model: 'gpt-4o' });
+    expect(debug).toEqual({});
+  });
+
+  it('returns empty object when turnDebugHistory is an empty array', () => {
+    const debug = buildAiMessageDebugFromResumeState({ turnDebugHistory: [] });
+    expect(debug).toEqual({});
+  });
+
+  it('omits llmCalls field when the last turn entry has none', () => {
+    const debug = buildAiMessageDebugFromResumeState({
+      turnDebugHistory: [{ turnIndex: 1, totalDurationMs: 50 }],
+    });
+    expect(debug.llmCalls).toBeUndefined();
+    expect(debug.durationMs).toBe(50);
   });
 });

@@ -152,6 +152,37 @@ export function buildConversationMetaFromResumeState(
 }
 
 /**
+ * Extract per-turn LLM debug payload (`llmCalls` + `durationMs`) from the
+ * last entry of `state.turnDebugHistory`, for the `execution.ai_message`
+ * WebSocket event. Both the waiting_for_input emit and the terminal emit
+ * use this so the two branches stay in lockstep — the frontend's debug
+ * timeline (Response / Request / LLM Usage tabs) can match assistant
+ * messages to their LLM calls regardless of whether the conversation is
+ * still in flight.
+ *
+ * Returns an object with optional fields so callers can spread it into
+ * the event payload without emitting `llmCalls: undefined` keys when no
+ * turns have run yet.
+ */
+export function buildAiMessageDebugFromResumeState(
+  state: Record<string, unknown>,
+): { llmCalls?: unknown[]; durationMs?: number } {
+  const turnDebugArray =
+    (state.turnDebugHistory as Array<Record<string, unknown>> | undefined) ??
+    [];
+  const lastTurnDebug =
+    turnDebugArray.length > 0
+      ? turnDebugArray[turnDebugArray.length - 1]
+      : undefined;
+  const result: { llmCalls?: unknown[]; durationMs?: number } = {};
+  const llmCalls = lastTurnDebug?.llmCalls as unknown[] | undefined;
+  if (llmCalls !== undefined) result.llmCalls = llmCalls;
+  const durationMs = lastTurnDebug?.totalDurationMs as number | undefined;
+  if (durationMs !== undefined) result.durationMs = durationMs;
+  return result;
+}
+
+/**
  * Build the WS-event `conversationConfig` block from a NodeHandlerOutput's
  * `output`. System messages are filtered out for client display.
  */
@@ -1656,7 +1687,10 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
             | undefined;
           const nextConv = buildConversationConfigFromOutput(adaptedOutput);
 
-          // Emit AI response event (filter system prompts from client)
+          // Emit AI response event (filter system prompts from client).
+          // Shape mirrors the terminal-emit branch below so the frontend
+          // debug timeline (Response / Request / LLM Usage tabs) can match
+          // assistant messages to their LLM calls during live waiting too.
           this.websocketService.emitExecutionEvent(
             executionId,
             ExecutionEventType.AI_MESSAGE,
@@ -1670,9 +1704,7 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
                 inputTokens: resumeState.totalInputTokens,
                 outputTokens: resumeState.totalOutputTokens,
               },
-              requestPayload: resumeState.lastTurnRequest,
-              responsePayload: resumeState.lastTurnResponse,
-              durationMs: resumeState.lastTurnDurationMs,
+              ...buildAiMessageDebugFromResumeState(resumeState),
             },
           );
 
