@@ -148,6 +148,8 @@ interface ExecutionState {
    * Append a tool ConversationItem if no item with the same `toolCallId`
    * exists; otherwise no-op. Used by `tool_call_started` to render the
    * pending state without duplicating across reconnects/snapshots.
+   * When `item.toolCallId` is undefined, falls back to a plain append
+   * without dedup — the caller must accept potential duplicates.
    */
   upsertToolItem: (item: ConversationItem) => void;
   /**
@@ -155,6 +157,13 @@ interface ExecutionState {
    * matching item is found (the snapshot path will recreate it later).
    */
   updateToolItem: (toolCallId: string, patch: Partial<ConversationItem>) => void;
+  /**
+   * Flip every pending tool item to `error`. Called when the execution or
+   * the AI Agent node terminates without sending matching
+   * `tool_call_completed` events (e.g. backend crash mid-call) so the
+   * timeline doesn't keep an infinite spinner.
+   */
+  flushPendingToolItemsAsError: (reason: string) => void;
   updateConversationConfig: (config: unknown) => void;
   setWaitingAiResponse: (value: boolean) => void;
   selectResultNode: (nodeId: string | null) => void;
@@ -397,6 +406,20 @@ export const useExecutionStore = create<ExecutionState>((set) => ({
         if (i.toolCallId === toolCallId) {
           touched = true;
           return { ...i, ...patch };
+        }
+        return i;
+      });
+      if (!touched) return {};
+      return { conversationMessages: next };
+    }),
+
+  flushPendingToolItemsAsError: (reason: string) =>
+    set((state) => {
+      let touched = false;
+      const next = state.conversationMessages.map((i) => {
+        if (i.type === "tool" && i.toolStatus === "pending") {
+          touched = true;
+          return { ...i, toolStatus: "error" as const, error: reason };
         }
         return i;
       });

@@ -173,6 +173,9 @@ describe('KbToolProvider', () => {
       const content = JSON.parse(result.content) as { error: string };
       expect(content.error).toMatch(/query/i);
       expect(mockRagService.search).not.toHaveBeenCalled();
+      // status='error' surfaces a red badge in the inspector.
+      expect(result.status).toBe('error');
+      expect(result.error).toMatch(/query/i);
     });
 
     it('returns fixed-code tool_result when KB id is unknown (LLM-controlled name only logged)', async () => {
@@ -187,6 +190,8 @@ describe('KbToolProvider', () => {
       const content = JSON.parse(result.content) as { error: string };
       expect(content.error).toBe('unknown_kb_tool');
       expect(mockRagService.search).not.toHaveBeenCalled();
+      expect(result.status).toBe('error');
+      expect(result.error).toBe('unknown_kb_tool');
     });
 
     it('returns search_failed tool_result and graceful diagnostic when RagSearchService throws', async () => {
@@ -205,6 +210,26 @@ describe('KbToolProvider', () => {
       expect(content.error).toBe('search_failed');
       expect(content.results).toEqual([]);
       expect(result.ragDiagnosticsDelta?.resultCount).toBe(0);
+      // The handler relies on this to flag the tool item as 'error' in the
+      // debugging timeline rather than mis-rendering as success.
+      expect(result.status).toBe('error');
+      expect(result.error).toBe('db down');
+    });
+
+    it('omits status (defaults to success) on a normal search result', async () => {
+      mockKbService.findById.mockResolvedValue({ id: 'kb-1', name: 'KB' });
+      mockRagService.search.mockResolvedValue([]);
+      const call: ToolCall = {
+        id: 'tc-ok',
+        name: kbToolName('kb-1'),
+        arguments: '{"query":"q"}',
+      };
+      const result = await provider.execute(call, baseCtx);
+      // Successful path leaves status undefined so the handler's default
+      // ('success') applies — explicit assertion ensures we don't accidentally
+      // start emitting status='error' on the happy path.
+      expect(result.status).toBeUndefined();
+      expect(result.error).toBeUndefined();
     });
   });
 });
