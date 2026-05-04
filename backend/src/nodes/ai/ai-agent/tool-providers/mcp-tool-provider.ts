@@ -10,6 +10,10 @@ import {
   McpConnectParams,
   McpSession,
 } from '../../../../modules/mcp/mcp-client.service';
+import {
+  MCP_ERROR_CODES,
+  sanitizeMcpErrorMessage,
+} from '../../../../modules/mcp/mcp-error-codes';
 import type { Integration } from '../../../../modules/integrations/entities/integration.entity';
 import {
   AgentToolProvider,
@@ -100,6 +104,32 @@ function sanitizeDescriptionFragment(s: string, max: number): string {
 
 function shortIdAt(integrationId: string, length: number): string {
   return sanitizeToolName(integrationId.replace(/-/g, '').slice(0, length));
+}
+
+/**
+ * Detect "the MCP server rejected our credentials" from an SDK error. The
+ * `@modelcontextprotocol/sdk` is not yet consistent about exposing HTTP
+ * status codes on its error objects, so we check structured fields first
+ * (`code`, `status`, `statusCode`) and fall back to a message regex covering
+ * the wording most providers leak.
+ */
+function isAuthFailure(err: unknown, message: string): boolean {
+  if (err && typeof err === 'object') {
+    const anyErr = err as {
+      code?: unknown;
+      status?: unknown;
+      statusCode?: unknown;
+    };
+    const status = anyErr.status ?? anyErr.statusCode;
+    if (status === 401 || status === 403) return true;
+    if (
+      typeof anyErr.code === 'string' &&
+      /unauthori[sz]ed|forbidden/i.test(anyErr.code)
+    ) {
+      return true;
+    }
+  }
+  return /\b40[13]\b|unauthori[sz]ed|forbidden/i.test(message);
 }
 
 /**
@@ -354,34 +384,33 @@ export class McpToolProvider implements AgentToolProvider {
         typeof result === 'object' &&
         (result as { isError?: unknown }).isError === true
       ) {
-        await this.logUsage(ctx, entry, callStartedAt, 'failed', {
-          code: 'MCP_TOOL_ERROR',
+        this.fireUsageLog(ctx, entry, callStartedAt, 'failed', {
+          code: MCP_ERROR_CODES.TOOL_ERROR,
           message: 'MCP tool reported an error',
         });
         return this.errorResult(
           call.id,
-          'MCP_TOOL_ERROR',
+          MCP_ERROR_CODES.TOOL_ERROR,
           'MCP tool reported an error',
           { content: (result as { content?: unknown }).content },
         );
       }
-      await this.logUsage(ctx, entry, callStartedAt, 'success');
+      this.fireUsageLog(ctx, entry, callStartedAt, 'success');
       return this.successResult(call.id, result);
     } catch (e) {
-      const message = e instanceof Error ? e.message : String(e);
+      const message = sanitizeMcpErrorMessage(e);
       McpToolProvider.logger.warn(
-        `MCP_CALL_FAILED ${entry.integrationId}/${originalName}: ${message}`,
+        `${MCP_ERROR_CODES.CALL_FAILED} ${entry.integrationId}/${originalName}: ${message}`,
       );
       // Auth failures (401/403 from the MCP server) trip the integration
       // into an `error` state so the UI can surface "needs reauthorization"
-      // instead of a silent retry-storm. The detection is best-effort —
-      // SDK error messages are not standardized; we look for status-code
-      // markers most providers leak.
-      const isAuthFailure = /\b40[13]\b|unauthori[sz]ed|forbidden/i.test(
-        message,
-      );
-      const code = isAuthFailure ? 'MCP_AUTH_FAILED' : 'MCP_CALL_FAILED';
-      await this.logUsage(ctx, entry, callStartedAt, 'failed', {
+      // instead of a silent retry-storm. SDK error structure isn't
+      // standardized — prefer a structured `code`/`status` field if the
+      // SDK exposes one, fall back to the original message regex.
+      const code = isAuthFailure(e, message)
+        ? MCP_ERROR_CODES.AUTH_FAILED
+        : MCP_ERROR_CODES.CALL_FAILED;
+      this.fireUsageLog(ctx, entry, callStartedAt, 'failed', {
         code,
         message,
       });
@@ -394,37 +423,37 @@ export class McpToolProvider implements AgentToolProvider {
   }
 
   /**
-   * Best-effort write to `IntegrationUsageLog` so the integration detail page
-   * can surface MCP call activity in the same Activity tab used by HTTP / DB
-   * / Email handlers. Skipped when the surrounding ExecutionContext didn't
-   * carry the foreign keys (e.g. internal builders that bypass the engine);
-   * the engine guarantees them for real workflow runs.
+   * Fire-and-forget IntegrationUsageLog write — execute() must not block on
+   * the database hit (review Stage 5 W-3). Errors from logUsage cannot bubble
+   * out (the integrations service swallows internally); we still attach a
+   * `.catch` to silence node's unhandled-rejection warning if the contract
+   * regresses. Skipped when the surrounding ExecutionContext didn't carry
+   * the foreign keys; the engine guarantees them for real workflow runs.
    */
-  private async logUsage(
+  private fireUsageLog(
     ctx: ProviderExecCtx,
     entry: ServerEntry,
     startedAt: number,
     status: 'success' | 'failed',
     error?: { code: string; message: string },
-  ): Promise<void> {
+  ): void {
     if (!ctx.nodeExecutionId || !ctx.workflowId) return;
-    try {
-      await this.integrationsService.logUsage({
+    void this.integrationsService
+      .logUsage({
         integrationId: entry.integrationId,
         nodeExecutionId: ctx.nodeExecutionId,
         workflowId: ctx.workflowId,
         status,
         durationMs: Date.now() - startedAt,
         error: error ?? null,
+      })
+      .catch((e: unknown) => {
+        McpToolProvider.logger.warn(
+          `MCP usage logging failed: ${
+            e instanceof Error ? e.message : String(e)
+          }`,
+        );
       });
-    } catch (e) {
-      // logUsage already swallows internally; an unexpected throw here is
-      // a code bug in our wrapper. Log but don't bubble — usage tracking
-      // must never break tool execution.
-      McpToolProvider.logger.warn(
-        `MCP usage logging failed: ${e instanceof Error ? e.message : String(e)}`,
-      );
-    }
   }
 
   async cleanup(ctx: ProviderCleanupCtx): Promise<void> {

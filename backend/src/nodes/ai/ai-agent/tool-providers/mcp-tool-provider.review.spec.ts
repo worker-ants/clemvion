@@ -567,14 +567,19 @@ describe('McpToolProvider — review issues', () => {
   describe('IntegrationUsageLog hooks', () => {
     let logUsage: jest.Mock<Promise<void>, [Record<string, unknown>]>;
 
+    /** Drain the microtask queue so fire-and-forget logUsage settles. */
+    const flushMicrotasks = () => new Promise((r) => setImmediate(r));
+
     beforeEach(() => {
       logUsage = jest.fn().mockResolvedValue(undefined);
-      // Re-create provider with the augmented integrations mock.
+      // Spread to avoid mutating the shared `integrations` mock object —
+      // keeps test isolation clean even if more tests are added later.
       provider = new McpToolProvider(
         mcpClient as unknown as McpClientService,
-        Object.assign(integrations, {
+        {
+          ...integrations,
           logUsage,
-        }) as unknown as IntegrationsService,
+        } as unknown as IntegrationsService,
       );
       integrations.getForExecution.mockResolvedValue(makeIntegration());
     });
@@ -597,13 +602,17 @@ describe('McpToolProvider — review issues', () => {
           workflowId: 'wf-1',
         },
       );
+      await flushMicrotasks();
 
       expect(logUsage).toHaveBeenCalledTimes(1);
-      const args = logUsage.mock.calls[0][0];
-      expect(args.integrationId).toBe(SAMPLE_ID);
-      expect(args.nodeExecutionId).toBe('ne-1');
-      expect(args.workflowId).toBe('wf-1');
-      expect(args.status).toBe('success');
+      expect(logUsage).toHaveBeenCalledWith(
+        expect.objectContaining({
+          integrationId: SAMPLE_ID,
+          nodeExecutionId: 'ne-1',
+          workflowId: 'wf-1',
+          status: 'success',
+        }),
+      );
     });
 
     it('logs failure with MCP_AUTH_FAILED on 401-shaped errors', async () => {
@@ -630,13 +639,139 @@ describe('McpToolProvider — review issues', () => {
           workflowId: 'wf-1',
         },
       );
+      await flushMicrotasks();
 
       const parsed = JSON.parse(result.content);
       expect(parsed.error).toBe('MCP_AUTH_FAILED');
       expect(logUsage).toHaveBeenCalledTimes(1);
-      const args = logUsage.mock.calls[0][0];
-      expect(args.status).toBe('failed');
-      expect((args.error as { code: string }).code).toBe('MCP_AUTH_FAILED');
+      expect(logUsage).toHaveBeenCalledWith(
+        expect.objectContaining({
+          status: 'failed',
+          error: expect.objectContaining({ code: 'MCP_AUTH_FAILED' }),
+        }),
+      );
+    });
+
+    it('logs MCP_AUTH_FAILED on 403/Forbidden as well', async () => {
+      mcpClient.connect.mockResolvedValueOnce(
+        makeSession({
+          callTool: jest
+            .fn()
+            .mockRejectedValue(new Error('Got 403 Forbidden from server')),
+        }),
+      );
+      await provider.buildTools({
+        config: { mcpServers: [{ integrationId: SAMPLE_ID }] },
+        workspaceId: 'ws-1',
+        executionId: 'exec-1',
+      });
+
+      await provider.execute(
+        { id: 'tc-1', name: 'mcp_aaaaaaaa__echo', arguments: '{}' },
+        {
+          config: { mcpServers: [{ integrationId: SAMPLE_ID }] },
+          workspaceId: 'ws-1',
+          executionId: 'exec-1',
+          nodeExecutionId: 'ne-1',
+          workflowId: 'wf-1',
+        },
+      );
+      await flushMicrotasks();
+      expect(logUsage).toHaveBeenCalledWith(
+        expect.objectContaining({
+          error: expect.objectContaining({ code: 'MCP_AUTH_FAILED' }),
+        }),
+      );
+    });
+
+    it('prefers SDK structured status over message regex for auth detection', async () => {
+      mcpClient.connect.mockResolvedValueOnce(
+        makeSession({
+          callTool: jest
+            .fn()
+            .mockRejectedValue(
+              Object.assign(new Error('rpc fail'), { status: 401 }),
+            ),
+        }),
+      );
+      await provider.buildTools({
+        config: { mcpServers: [{ integrationId: SAMPLE_ID }] },
+        workspaceId: 'ws-1',
+        executionId: 'exec-1',
+      });
+      await provider.execute(
+        { id: 'tc-1', name: 'mcp_aaaaaaaa__echo', arguments: '{}' },
+        {
+          config: { mcpServers: [{ integrationId: SAMPLE_ID }] },
+          workspaceId: 'ws-1',
+          executionId: 'exec-1',
+          nodeExecutionId: 'ne-1',
+          workflowId: 'wf-1',
+        },
+      );
+      await flushMicrotasks();
+      expect(logUsage).toHaveBeenCalledWith(
+        expect.objectContaining({
+          error: expect.objectContaining({ code: 'MCP_AUTH_FAILED' }),
+        }),
+      );
+    });
+
+    it('logs isError=true tool result as failed with MCP_TOOL_ERROR', async () => {
+      mcpClient.connect.mockResolvedValueOnce(
+        makeSession({
+          callTool: jest.fn().mockResolvedValue({
+            isError: true,
+            content: [{ type: 'text', text: 'tool failed' }],
+          }),
+        }),
+      );
+      await provider.buildTools({
+        config: { mcpServers: [{ integrationId: SAMPLE_ID }] },
+        workspaceId: 'ws-1',
+        executionId: 'exec-1',
+      });
+      await provider.execute(
+        { id: 'tc-1', name: 'mcp_aaaaaaaa__echo', arguments: '{}' },
+        {
+          config: { mcpServers: [{ integrationId: SAMPLE_ID }] },
+          workspaceId: 'ws-1',
+          executionId: 'exec-1',
+          nodeExecutionId: 'ne-1',
+          workflowId: 'wf-1',
+        },
+      );
+      await flushMicrotasks();
+      expect(logUsage).toHaveBeenCalledWith(
+        expect.objectContaining({
+          status: 'failed',
+          error: expect.objectContaining({ code: 'MCP_TOOL_ERROR' }),
+        }),
+      );
+    });
+
+    it('logUsage rejection does not bubble out of execute()', async () => {
+      mcpClient.connect.mockResolvedValueOnce(makeSession());
+      logUsage.mockRejectedValueOnce(new Error('db down'));
+      await provider.buildTools({
+        config: { mcpServers: [{ integrationId: SAMPLE_ID }] },
+        workspaceId: 'ws-1',
+        executionId: 'exec-1',
+      });
+      // execute() must resolve normally even when usage logging throws —
+      // the activity log is best-effort and must not break tool execution.
+      await expect(
+        provider.execute(
+          { id: 'tc-1', name: 'mcp_aaaaaaaa__echo', arguments: '{}' },
+          {
+            config: { mcpServers: [{ integrationId: SAMPLE_ID }] },
+            workspaceId: 'ws-1',
+            executionId: 'exec-1',
+            nodeExecutionId: 'ne-1',
+            workflowId: 'wf-1',
+          },
+        ),
+      ).resolves.toBeDefined();
     });
 
     it('skips logging when nodeExecutionId is missing', async () => {
@@ -655,6 +790,40 @@ describe('McpToolProvider — review issues', () => {
           // nodeExecutionId / workflowId omitted
         },
       );
+      await flushMicrotasks();
+      expect(logUsage).not.toHaveBeenCalled();
+    });
+
+    it('does NOT log meta tool calls (Stage 5 scope)', async () => {
+      // Meta tools (list_resources etc) are an internal MCP discovery
+      // mechanism rather than a direct external API call. Logging each
+      // metadata pull would dilute the Activity tab so it is intentionally
+      // excluded for now — see RESOLUTION 2026-05-04_14-21-57 W-6.
+      mcpClient.connect.mockResolvedValueOnce(
+        makeSession({
+          capabilities: { tools: {}, resources: {} },
+        }),
+      );
+      await provider.buildTools({
+        config: { mcpServers: [{ integrationId: SAMPLE_ID }] },
+        workspaceId: 'ws-1',
+        executionId: 'exec-1',
+      });
+      await provider.execute(
+        {
+          id: 'tc-1',
+          name: 'mcp_aaaaaaaa__list_resources',
+          arguments: '{}',
+        },
+        {
+          config: { mcpServers: [{ integrationId: SAMPLE_ID }] },
+          workspaceId: 'ws-1',
+          executionId: 'exec-1',
+          nodeExecutionId: 'ne-1',
+          workflowId: 'wf-1',
+        },
+      );
+      await flushMicrotasks();
       expect(logUsage).not.toHaveBeenCalled();
     });
   });

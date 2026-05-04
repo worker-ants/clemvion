@@ -1,0 +1,108 @@
+{
+  "timestamp": "2026-05-04T14:29:46.471956",
+  "files": [
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/backend/src/modules/integrations/integrations.service.spec.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/backend/src/modules/integrations/integrations.service.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/backend/src/nodes/ai/ai-agent/ai-agent.handler.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/backend/src/nodes/ai/ai-agent/tool-providers/agent-tool-provider.interface.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/backend/src/nodes/ai/ai-agent/tool-providers/mcp-tool-provider.review.spec.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/backend/src/nodes/ai/ai-agent/tool-providers/mcp-tool-provider.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/spec/4-nodes/3-ai-nodes.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    }
+  ],
+  "total_elapsed_seconds": 469.29,
+  "agents": [
+    {
+      "name": "scope",
+      "status": "success",
+      "elapsed_seconds": 47.73
+    },
+    {
+      "name": "dependency",
+      "status": "success",
+      "elapsed_seconds": 51.27
+    },
+    {
+      "name": "api_contract",
+      "status": "success",
+      "elapsed_seconds": 60.47
+    },
+    {
+      "name": "documentation",
+      "status": "success",
+      "elapsed_seconds": 66.85
+    },
+    {
+      "name": "maintainability",
+      "status": "success",
+      "elapsed_seconds": 68.63
+    },
+    {
+      "name": "architecture",
+      "status": "success",
+      "elapsed_seconds": 79.42
+    },
+    {
+      "name": "database",
+      "status": "success",
+      "elapsed_seconds": 79.78
+    },
+    {
+      "name": "testing",
+      "status": "success",
+      "elapsed_seconds": 80.61
+    },
+    {
+      "name": "performance",
+      "status": "success",
+      "elapsed_seconds": 83.1
+    },
+    {
+      "name": "concurrency",
+      "status": "success",
+      "elapsed_seconds": 91.05
+    },
+    {
+      "name": "security",
+      "status": "success",
+      "elapsed_seconds": 93.27
+    },
+    {
+      "name": "side_effect",
+      "status": "success",
+      "elapsed_seconds": 94.59
+    },
+    {
+      "name": "requirement",
+      "status": "success",
+      "elapsed_seconds": 123.6
+    }
+  ]
+}

@@ -36,6 +36,10 @@ import {
   McpTestConnectionService,
 } from '../mcp/mcp-test-connection.service';
 import {
+  MCP_ERROR_CODES,
+  MCP_ERROR_MESSAGE_MAX_LEN,
+} from '../mcp/mcp-error-codes';
+import {
   McpConnectParams,
   ServerCapabilities,
   ServerInfo,
@@ -67,6 +71,19 @@ type TransportTester = (
 ) => Promise<IntegrationTestResult>;
 
 const ADMIN_ROLES = new Set(['owner', 'admin']);
+
+/**
+ * Clamp a free-form error message to {@link MCP_ERROR_MESSAGE_MAX_LEN} so a
+ * misbehaving external server cannot inflate the `last_error` JSONB column.
+ * The same bound is applied to `IntegrationUsageLog.error.message` for
+ * consistency.
+ */
+function clampMessage(raw: string | undefined): string {
+  if (!raw) return 'Unknown error';
+  return raw.length > MCP_ERROR_MESSAGE_MAX_LEN
+    ? raw.slice(0, MCP_ERROR_MESSAGE_MAX_LEN)
+    : raw;
+}
 
 export interface IntegrationUsageNode {
   id: string;
@@ -474,7 +491,16 @@ export class IntegrationsService {
 
   /**
    * Record an integration call for activity tracking and error surfacing.
-   * Invoked by execution engine handlers after they complete an integration call.
+   * Invoked by execution engine handlers after they complete an integration
+   * call.
+   *
+   * **Side effect** — `error.code === MCP_AUTH_FAILED` flips
+   * `Integration.status` to `error` with `statusReason = 'auth_failed'` so
+   * the editor surfaces a "needs reauthorization" badge. Other failure codes
+   * only update `lastError`; transient errors do not transition status.
+   *
+   * **Never throws** — DB failures are swallowed with a console.warn so a
+   * logging hiccup cannot break the surrounding tool execution.
    */
   async logUsage(params: {
     integrationId: string;
@@ -492,34 +518,36 @@ export class IntegrationsService {
           workflowId: params.workflowId,
           status: params.status,
           durationMs: params.durationMs,
-          error: params.error ?? null,
+          error: params.error
+            ? {
+                code: params.error.code ?? 'unknown',
+                message: clampMessage(params.error.message),
+              }
+            : null,
         }),
       );
 
-      const integration = await this.integrationRepository.findOne({
-        where: { id: params.integrationId },
-      });
-      if (!integration) return;
-
-      integration.lastUsedAt = new Date();
+      // Single atomic UPDATE — avoids the read-modify-write race where a
+      // concurrent success call's save() would overwrite an in-flight
+      // status='error' transition. The patch only touches columns we
+      // actually want to update; relation fields are intentionally left
+      // out so TypeORM's QueryDeepPartialEntity stays satisfied.
+      const patch: Record<string, unknown> = { lastUsedAt: new Date() };
       if (params.status === 'failed') {
-        integration.lastError = {
+        patch.lastError = {
           code: params.error?.code ?? 'unknown',
-          message: params.error?.message ?? 'Unknown error',
+          message: clampMessage(params.error?.message),
           at: new Date().toISOString(),
         };
-        // Auth failures aren't transient — flip the integration into the
-        // `error(auth_failed)` state so the editor surfaces a "needs
-        // reauthorization" badge and the user can rotate credentials before
-        // the next run wastes another tool call. Limited to the MCP-coded
-        // auth failure for now; OAuth flows transition through their own
-        // service.status handling.
-        if (params.error?.code === 'MCP_AUTH_FAILED') {
-          integration.status = 'error';
-          integration.statusReason = 'auth_failed';
+        if (params.error?.code === MCP_ERROR_CODES.AUTH_FAILED) {
+          patch.status = 'error';
+          patch.statusReason = 'auth_failed';
         }
       }
-      await this.integrationRepository.save(integration);
+      await this.integrationRepository.update(
+        { id: params.integrationId },
+        patch,
+      );
     } catch (err) {
       // Usage logging must not break execution — swallow and continue.
       console.warn(
