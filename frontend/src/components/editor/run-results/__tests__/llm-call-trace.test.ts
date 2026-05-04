@@ -122,10 +122,8 @@ describe("extractLlmCalls", () => {
   });
 
   it("assigns sequential callIndexInTurn to same-turn assistant items in fallbackMessages (tool loop)", () => {
-    // A tool loop produces multiple assistant messages within a single
-    // conversation turn (one with tool calls, one with the final reply).
-    // Each must get its own callIndexInTurn so labelForCall renders
-    // "호출 1/2 / 2/2" instead of the same suffix twice.
+    // Tool loop: multiple assistant items in one turn must get distinct
+    // call indices so labels render "Turn 1 · 호출 1/2" / "Turn 1 · 호출 2/2".
     const raw = {
       type: "ai_conversation",
       status: "waiting_for_input",
@@ -157,12 +155,107 @@ describe("extractLlmCalls", () => {
     ] as Parameters<typeof extractLlmCalls>[1];
     const calls = extractLlmCalls(raw, fallback);
     expect(calls).toHaveLength(2);
-    expect(calls[0]).toMatchObject({ turnIndex: 1, callIndexInTurn: 0 });
-    expect(calls[1]).toMatchObject({ turnIndex: 1, callIndexInTurn: 1 });
+    expect(calls[0]).toMatchObject({
+      turnIndex: 1,
+      callIndexInTurn: 0,
+      durationMs: 30,
+    });
+    expect(calls[1]).toMatchObject({
+      turnIndex: 1,
+      callIndexInTurn: 1,
+      durationMs: 40,
+    });
 
     const counts = countCallsPerTurn(calls);
     expect(labelForCall(calls[0], counts)).toBe("Turn 1 · 호출 1/2");
     expect(labelForCall(calls[1], counts)).toBe("Turn 1 · 호출 2/2");
+  });
+
+  it("assigns sequential indices for ≥3 calls in a single turn (deeper tool loop)", () => {
+    const raw = {};
+    const fallback = [
+      { type: "user", content: "go", turnIndex: 1 },
+      ...[0, 1, 2].map((i) => ({
+        type: "assistant" as const,
+        content: "",
+        turnIndex: 1,
+        requestPayload: { i },
+        responsePayload: { i },
+        durationMs: 10 + i,
+      })),
+    ] as Parameters<typeof extractLlmCalls>[1];
+    const calls = extractLlmCalls(raw, fallback);
+    expect(calls.map((c) => c.callIndexInTurn)).toEqual([0, 1, 2]);
+    const counts = countCallsPerTurn(calls);
+    expect(labelForCall(calls[2], counts)).toBe("Turn 1 · 호출 3/3");
+  });
+
+  it("skips assistant items with no payload without breaking the per-turn counter", () => {
+    // A null-payload assistant (e.g. UI shell still loading) sandwiched
+    // between two valid traces must not advance the counter — the next
+    // valid trace continues at index 1, not 2.
+    const raw = {};
+    const fallback = [
+      {
+        type: "assistant",
+        content: "",
+        turnIndex: 1,
+        requestPayload: { i: 0 },
+        responsePayload: { i: 0 },
+      },
+      {
+        type: "assistant",
+        content: "",
+        turnIndex: 1,
+        requestPayload: null,
+        responsePayload: null,
+      },
+      {
+        type: "assistant",
+        content: "",
+        turnIndex: 1,
+        requestPayload: { i: 1 },
+        responsePayload: { i: 1 },
+      },
+    ] as Parameters<typeof extractLlmCalls>[1];
+    const calls = extractLlmCalls(raw, fallback);
+    expect(calls).toHaveLength(2);
+    expect(calls.map((c) => c.callIndexInTurn)).toEqual([0, 1]);
+  });
+
+  it("resets callIndexInTurn independently per turn", () => {
+    const raw = {};
+    const fallback = [
+      {
+        type: "assistant",
+        content: "",
+        turnIndex: 1,
+        requestPayload: { t: 1, i: 0 },
+        responsePayload: {},
+      },
+      {
+        type: "assistant",
+        content: "",
+        turnIndex: 1,
+        requestPayload: { t: 1, i: 1 },
+        responsePayload: {},
+      },
+      {
+        type: "assistant",
+        content: "",
+        turnIndex: 2,
+        requestPayload: { t: 2, i: 0 },
+        responsePayload: {},
+      },
+    ] as Parameters<typeof extractLlmCalls>[1];
+    const calls = extractLlmCalls(raw, fallback);
+    expect(calls.map((c) => ({ t: c.turnIndex, i: c.callIndexInTurn }))).toEqual(
+      [
+        { t: 1, i: 0 },
+        { t: 1, i: 1 },
+        { t: 2, i: 0 },
+      ],
+    );
   });
 
   it("prefers outputData trace over fallbackMessages when both are present", () => {
