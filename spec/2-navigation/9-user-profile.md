@@ -118,6 +118,7 @@
 │                                                              │
 │  ── 위험 영역 탭 ──                                           │
 │  [워크스페이스 나가기]   (owner가 아닌 모든 멤버)             │
+│  [Owner 이양]            (owner만, 새 owner 이메일 재입력 확인) │
 │  [워크스페이스 삭제]     (owner만, 이름 재입력 확인 필수)     │
 └──────────────────────────────────────────────────────────────┘
 ```
@@ -132,6 +133,7 @@
 | 제거 | Admin+ | 멤버 제거 (확인 다이얼로그) |
 | 나가기 | 본인 | 자가 탈퇴. 유일한 owner는 차단 — 먼저 다른 owner를 지정하거나 삭제로 이동 |
 | 워크스페이스 삭제 | Owner | 이름 재입력 확인 → 멤버·초대·워크스페이스 순으로 트랜잭션 삭제 |
+| Owner 이양 | Owner | 같은 워크스페이스의 비-owner 멤버 중 한 명을 선택. 새 owner 의 이메일을 재입력 확인 → 트랜잭션 내에서 두 멤버 role 동시 swap (대상 → owner, 기존 owner → admin) + `workspace.ownerId` 동기화 |
 
 ### 4.2 역할 권한 매트릭스
 
@@ -216,6 +218,7 @@
 | PATCH | /api/workspaces/:id | 워크스페이스 이름 변경 (Admin+) |
 | DELETE | /api/workspaces/:id | 워크스페이스 삭제 (Owner, team 전용, 트랜잭션) |
 | POST | /api/workspaces/:id/leave | 자가 탈퇴 (본인, 유일한 owner는 차단) |
+| POST | /api/workspaces/:id/transfer-ownership | Owner 이양 (현재 owner 만, 대상은 비-owner 멤버, 트랜잭션 내 role swap + ownerId 동기화) |
 | GET | /api/workspaces/:id/members | 멤버 목록 |
 | POST | /api/workspaces/:id/members | 이메일로 기존 가입자 즉시 추가 (Admin+) |
 | PATCH | /api/workspaces/:id/members/:memberId | 역할 변경 (Admin+) |
