@@ -179,7 +179,7 @@ Access Token (15분) 만료 전에 연결을 유지하려면:
 | `execution.node.failed` | `{ executionId, nodeId, nodeExecutionId, nodeName, error }` | 노드 실행 실패 |
 | `execution.node.skipped` | `{ executionId, nodeId, nodeExecutionId, nodeName, reason }` | 노드 건너뜀 |
 | `execution.waiting_for_input` | `{ executionId, nodeId, nodeExecutionId, nodeType, interactionType, formConfig?, buttonConfig?, conversationConfig? }` | Form 노드, 버튼 Presentation 노드, 또는 AI Agent Multi Turn 노드에서 사용자 입력 대기. 재개 후 `execution.node.completed`도 동일한 `nodeExecutionId`로 발행되어 프론트 타임라인의 동일 row가 업데이트된다. 아래 §4.4 참조 |
-| `execution.ai_message` | `{ executionId, nodeId, message, turnCount, messages }` | AI Agent Multi Turn 모드에서 AI 응답 메시지 전달. `messages` 는 system 을 제외한 user / assistant / **tool** 메시지를 모두 포함하는 권위 있는 스냅샷 |
+| `execution.ai_message` | `{ executionId, nodeId, message, turnCount, messages, metadata?, llmCalls?, durationMs? }` | AI Agent Multi Turn 모드에서 AI 응답 메시지 전달. `messages` 는 system 을 제외한 user / assistant / **tool** 메시지를 모두 포함하는 권위 있는 스냅샷. `llmCalls` 는 해당 턴에서 발생한 모든 LLM 호출(tool loop 포함)을 순서대로 담아 디버깅 타임라인의 Response/Request/LLM Usage 탭이 메시지 단위로 매칭하도록 한다. `waiting_for_input` 으로의 재개 시점과 종료 시점 두 분기 모두 동일 shape 으로 직렬화한다 |
 | `execution.tool_call_started` | `{ executionId, nodeId, turnIndex, toolCallId, name, arguments }` | AI Agent 가 provider tool(KB/MCP 등)을 실행하기 시작했음을 알림. 디버깅 타임라인이 즉시 pending 상태의 tool 항목을 표시할 수 있도록 turn 종료 전에 발송 |
 | `execution.tool_call_completed` | `{ executionId, nodeId, turnIndex, toolCallId, content, status, error?, durationMs }` | provider tool 실행이 끝났음을 알림. `status` 는 `'success' \| 'error'`. provider 가 throw 한 경우 핸들러가 캐치해 `status: 'error'` 와 `error` 메시지를 채우고 LLM 에는 에러 content 를 그대로 넘겨 다음 턴에서 회복할 기회를 준다 |
 
@@ -330,6 +330,8 @@ Access Token (15분) 만료 전에 연결을 유지하려면:
 
 서버가 LLM 응답을 처리한 후 클라이언트에 전달하는 이벤트. 종료 조건 미충족 시 `execution.waiting_for_input`이 다시 발송된다.
 
+`llmCalls` 는 해당 턴에서 발생한 모든 LLM 호출을 순서대로 담는다 (tool loop 으로 한 턴에 다회 호출되는 경우 모두 보존). 디버깅 타임라인의 Response / Request / LLM Usage 탭이 어시스턴트 메시지 단위로 매칭하기 위해 사용한다. `waiting_for_input` 으로 이어지는 진행 중 emit 과 대화 종료 후 final emit 두 분기 모두 동일 shape 으로 직렬화한다.
+
 ```json
 {
   "type": "execution.ai_message",
@@ -338,7 +340,20 @@ Access Token (15분) 만료 전에 연결을 유지하려면:
     "nodeId": "uuid",
     "message": "주문번호 ORD-12345는 현재 배송 중입니다.",
     "turnCount": 2,
-    "messages": [ ... ]
+    "messages": [ ... ],
+    "metadata": {
+      "model": "claude-sonnet-4-6",
+      "inputTokens": 512,
+      "outputTokens": 128
+    },
+    "llmCalls": [
+      {
+        "requestPayload": { "messages": [ ... ], "tools": [ ... ] },
+        "responsePayload": { "content": "...", "model": "...", "usage": { ... } },
+        "durationMs": 842
+      }
+    ],
+    "durationMs": 842
   }
 }
 ```
