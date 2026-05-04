@@ -13,6 +13,20 @@ const MCP_CLIENT_NAME = 'idea-workflow-backend';
 const MCP_CLIENT_VERSION = '1.0.0';
 
 /**
+ * Local-development escape hatch. When `MCP_ALLOW_INSECURE_URL=true` the
+ * URL safety checks (https-only + SSRF host blocklist) are bypassed —
+ * operator explicitly accepts http:// and loopback / RFC 1918 hosts.
+ *
+ * Read at call time (not module load) so a test can flip `process.env`
+ * with `process.env.MCP_ALLOW_INSECURE_URL = 'true'` without rewiring
+ * jest's module cache.
+ */
+export function isInsecureUrlAllowed(): boolean {
+  const v = process.env.MCP_ALLOW_INSECURE_URL;
+  return v === 'true' || v === '1';
+}
+
+/**
  * Connection parameters for an MCP server. Resolved from a workspace
  * Integration ({@link Integration}) of `service_type='mcp'`. The shape
  * mirrors the credentials JSONB schema declared in
@@ -294,9 +308,24 @@ export class McpClientService {
       parsed = new URL(raw);
     } catch {
       throw new McpHttpsRequiredError(
-        `MCP server URL must be a well-formed https:// URL`,
+        `MCP server URL must be a well-formed URL`,
       );
     }
+
+    // Local-development escape hatch. When set, the operator has explicitly
+    // accepted that http:// + private-network / loopback hosts may be used
+    // (e.g. running a sample MCP server on http://localhost:3001). The flag
+    // is read at call time so tests can flip it without resetModules.
+    if (isInsecureUrlAllowed()) {
+      // Still require http/https — file://, ftp://, ws:// etc. are never OK.
+      if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') {
+        throw new McpHttpsRequiredError(
+          `MCP server URL must use http(s):// (got ${parsed.protocol})`,
+        );
+      }
+      return parsed;
+    }
+
     if (parsed.protocol !== 'https:') {
       throw new McpHttpsRequiredError(
         `MCP server URL must use https:// (got ${parsed.protocol})`,
