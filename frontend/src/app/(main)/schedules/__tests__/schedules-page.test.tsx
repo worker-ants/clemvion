@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
-import { render, screen, act, cleanup } from "@testing-library/react";
+import { render, screen, act, cleanup, fireEvent } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useLocaleStore } from "@/lib/stores/locale-store";
 import {
@@ -153,6 +153,30 @@ describe("SchedulesPage — RBAC", () => {
     // icon-only 버튼은 title 속성으로 식별
     expect(screen.getByTitle(/^edit$/i)).toBeInTheDocument();
     expect(screen.getByTitle(/^delete$/i)).toBeInTheDocument();
+  });
+
+  it("Visual 탭으로 전환만 해도 기본 cron(0 9 * * *)이 즉시 emit 되어 'Generated expression' 미리보기가 노출", async () => {
+    setRole("editor");
+    mockSchedulesResponse({
+      data: [],
+      pagination: { page: 1, limit: 20, totalItems: 0, totalPages: 0 },
+    });
+    await renderPage();
+
+    // Add Schedule 다이얼로그 오픈
+    const addBtn = await screen.findByRole("button", { name: /add schedule/i });
+    await act(async () => {
+      fireEvent.click(addBtn);
+    });
+
+    // Visual 탭 클릭
+    const visualTab = await screen.findByRole("button", { name: /^visual$/i });
+    await act(async () => {
+      fireEvent.click(visualTab);
+    });
+
+    // 기본값(daily 09:00)에 해당하는 cron 식이 미리보기에 표시되어야 한다
+    expect(await screen.findByText("0 9 * * *")).toBeInTheDocument();
   });
 
   it("Viewer: Add schedule·toggle·edit·delete 모두 비표시. Run now 는 노출", async () => {

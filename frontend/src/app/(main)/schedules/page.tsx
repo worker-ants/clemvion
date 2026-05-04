@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api/client";
 import { Button } from "@/components/ui/button";
@@ -200,6 +200,14 @@ function VisualCronEditor({
     },
     [onChange],
   );
+
+  useEffect(() => {
+    if (!value) {
+      applyVisual(frequency, minute, hour, selectedDays, dayOfMonth);
+    }
+    // 최초 마운트 시 1회만 동기화 — 이후에는 사용자 입력으로만 갱신
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const handleFrequencyChange = (f: Frequency) => {
     setFrequency(f);
