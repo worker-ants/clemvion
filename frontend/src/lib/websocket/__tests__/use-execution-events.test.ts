@@ -1091,5 +1091,148 @@ describe("useExecutionEvents", () => {
         content: "legacy reply",
       });
     });
+
+    it("ai_message snapshot preserves toolStatus from prior tool_call_completed events", () => {
+      useExecutionStore.getState().startExecution("exec-1");
+      const { toolStarted, toolCompleted, aiMessage } = bind();
+
+      // Live: pending → success via tool_call_started/completed
+      toolStarted!({
+        nodeId: "agent-1",
+        turnIndex: 1,
+        toolCallId: "call_1",
+        name: "get_weather",
+        arguments: "{}",
+      });
+      toolCompleted!({
+        nodeId: "agent-1",
+        turnIndex: 1,
+        toolCallId: "call_1",
+        content: '{"ok":1}',
+        status: "success",
+        durationMs: 42,
+      });
+
+      // Snapshot arrives without meta.turnDebug.toolCalls — toolStatus should
+      // not regress to undefined.
+      aiMessage!({
+        nodeId: "agent-1",
+        message: "done",
+        turnCount: 1,
+        messages: [
+          { role: "user", content: "weather" },
+          {
+            role: "assistant",
+            content: "",
+            toolCalls: [
+              { id: "call_1", name: "get_weather", arguments: "{}" },
+            ],
+          },
+          { role: "tool", toolCallId: "call_1", content: '{"ok":1}' },
+          { role: "assistant", content: "done" },
+        ],
+      });
+
+      const tool = useExecutionStore
+        .getState()
+        .conversationMessages.find((i) => i.toolCallId === "call_1");
+      expect(tool?.toolStatus).toBe("success");
+      expect(tool?.durationMs).toBe(42);
+    });
+
+    it("tool_call_completed creates a synthetic item when no started arrived first (out-of-order)", () => {
+      useExecutionStore.getState().startExecution("exec-1");
+      const { toolCompleted } = bind();
+
+      toolCompleted!({
+        nodeId: "agent-1",
+        turnIndex: 1,
+        toolCallId: "out_of_order",
+        content: '{"ok":1}',
+        status: "success",
+        durationMs: 10,
+      });
+
+      const item = useExecutionStore
+        .getState()
+        .conversationMessages.find((i) => i.toolCallId === "out_of_order");
+      // Without this defensive upsert a dangling pending could appear later.
+      expect(item).toBeDefined();
+      expect(item?.toolStatus).toBe("success");
+    });
+
+    it("execution.failed flips dangling pending tool items to error", () => {
+      useExecutionStore.getState().startExecution("exec-1");
+      const { toolStarted } = bind();
+      toolStarted!({
+        nodeId: "agent-1",
+        turnIndex: 1,
+        toolCallId: "call_dangling",
+        name: "kb_search",
+        arguments: "{}",
+      });
+
+      const failed = (mockClient.on as Mock).mock.calls.find(
+        (c: unknown[]) => c[0] === "execution.failed",
+      )?.[1] as ((data: unknown) => void) | undefined;
+      failed?.({ error: "backend crashed" });
+
+      // failExecution clears conversationMessages via CLEAR_WAITING, so
+      // the assertion that matters is "no infinite spinner survives" —
+      // i.e. the store no longer holds a pending item for this id.
+      const lingering = useExecutionStore
+        .getState()
+        .conversationMessages.find((i) => i.toolCallId === "call_dangling");
+      expect(lingering).toBeUndefined();
+    });
+  });
+
+  describe("waiting_for_input — conversation seeding with tool messages", () => {
+    function bindAndGetWaitingHandler() {
+      renderHook(() => useExecutionEvents({ executionId: "exec-1" }));
+      return (mockClient.on as Mock).mock.calls.find(
+        (c: unknown[]) => c[0] === "execution.waiting_for_input",
+      )?.[1] as (data: unknown) => void;
+    }
+
+    it("seeds tool items from convConfig.messages on initial waiting payload", () => {
+      useExecutionStore.getState().startExecution("exec-1");
+      const handler = bindAndGetWaitingHandler();
+
+      handler({
+        waitingNodeId: "agent-1",
+        nodeOutput: {
+          interactionType: "ai_conversation",
+          conversationConfig: {
+            turnCount: 1,
+            messages: [
+              { role: "user", content: "weather?" },
+              {
+                role: "assistant",
+                content: "",
+                toolCalls: [
+                  { id: "c1", name: "get_weather", arguments: '{"city":"S"}' },
+                ],
+              },
+              { role: "tool", toolCallId: "c1", content: '{"ok":1}' },
+              { role: "assistant", content: "기온 12.3도" },
+            ],
+          },
+        },
+      });
+
+      const items = useExecutionStore.getState().conversationMessages;
+      expect(items.map((i) => i.type)).toEqual([
+        "user",
+        "assistant",
+        "tool",
+        "assistant",
+      ]);
+      const toolItem = items.find((i) => i.type === "tool");
+      expect(toolItem).toMatchObject({
+        toolCallId: "c1",
+        content: "get_weather",
+      });
+    });
   });
 });

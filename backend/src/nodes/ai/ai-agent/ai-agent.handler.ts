@@ -20,6 +20,8 @@ import {
 import { aiAgentNodeMetadata } from './ai-agent.schema';
 import {
   ExecutionEventType,
+  ToolCallCompletedPayload,
+  ToolCallStartedPayload,
   WebsocketService,
 } from '../../../modules/websocket/websocket.service';
 
@@ -36,6 +38,37 @@ export interface ToolCallTrace {
   status: 'success' | 'error';
   durationMs: number;
   error?: string;
+}
+
+/**
+ * Cap for tool_result preview broadcast over WebSocket (`tool_call_completed`).
+ * The full content is still recorded in `messages` (sent only via the
+ * `ai_message` snapshot at turn end) and persisted in `outputData`. The live
+ * event is informational — it just needs enough to identify the result.
+ * Limits exposure of KB chunks / MCP responses to passive WS subscribers.
+ */
+const TOOL_RESULT_PREVIEW_CHARS = 200;
+
+function previewContent(content: string): string {
+  if (content.length <= TOOL_RESULT_PREVIEW_CHARS) return content;
+  return content.slice(0, TOOL_RESULT_PREVIEW_CHARS) + '...';
+}
+
+/**
+ * Sanitize an exception message before exposing it via WS / UI / outputData.
+ * Internal exceptions can carry DB connection strings, internal hostnames,
+ * stack details, etc. We surface only a short user-facing summary; the full
+ * original message is kept in server logs (see Logger.warn paths in
+ * provider implementations).
+ */
+function sanitizeToolError(err: unknown): string {
+  const raw = err instanceof Error ? err.message : String(err);
+  // Strip long base64 / token-shaped substrings and truncate. The leading
+  // sentence is usually safe; very long messages are almost always
+  // serialized internals.
+  const firstLine = raw.split('\n')[0]?.trim() ?? raw;
+  if (firstLine.length > 200) return firstLine.slice(0, 200) + '...';
+  return firstLine || 'Tool execution failed';
 }
 
 /**
@@ -240,16 +273,17 @@ export class AiAgentHandler implements NodeHandler {
     const { provider, call, executionId, nodeId, turnIndex } = args;
     const startedAt = Date.now();
 
+    const startedPayload: ToolCallStartedPayload = {
+      nodeId,
+      turnIndex,
+      toolCallId: call.id,
+      name: call.name,
+      arguments: call.arguments,
+    };
     this.websocketService?.emitExecutionEvent(
       executionId,
       ExecutionEventType.TOOL_CALL_STARTED,
-      {
-        nodeId,
-        turnIndex,
-        toolCallId: call.id,
-        name: call.name,
-        arguments: call.arguments,
-      },
+      startedPayload,
     );
 
     let result: AgentToolResult;
@@ -267,17 +301,20 @@ export class AiAgentHandler implements NodeHandler {
       status = result.status ?? 'success';
       error = result.error;
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : String(err);
-      // Surface the failure to the LLM as the tool_result content so it can
-      // recover in the next turn (instead of failing the whole turn).
+      // Log the full original exception server-side for debugging and
+      // surface only a sanitized summary to client / LLM context.
+      const sanitized = sanitizeToolError(err);
+      AiAgentHandler.logger.warn(
+        `Provider "${provider.key}" tool ${call.name} failed: ${err instanceof Error ? err.message : String(err)}`,
+      );
       result = {
         toolCallId: call.id,
-        content: JSON.stringify({ error: message }),
+        content: JSON.stringify({ error: sanitized }),
         status: 'error',
-        error: message,
+        error: sanitized,
       };
       status = 'error';
-      error = message;
+      error = sanitized;
     }
 
     const durationMs = Date.now() - startedAt;
@@ -290,18 +327,27 @@ export class AiAgentHandler implements NodeHandler {
       ...(error !== undefined ? { error } : {}),
     };
 
+    if (status === 'error') {
+      AiAgentHandler.logger.warn(
+        `Tool call ${call.name} (${call.id}) finished with status=error in ${durationMs}ms: ${error}`,
+      );
+    }
+
+    const completedPayload: ToolCallCompletedPayload = {
+      nodeId,
+      turnIndex,
+      toolCallId: call.id,
+      // Preview only — full result lives in the messages snapshot sent via
+      // `ai_message` and in persisted outputData.
+      content: previewContent(result.content),
+      status,
+      ...(error !== undefined ? { error } : {}),
+      durationMs,
+    };
     this.websocketService?.emitExecutionEvent(
       executionId,
       ExecutionEventType.TOOL_CALL_COMPLETED,
-      {
-        nodeId,
-        turnIndex,
-        toolCallId: call.id,
-        content: result.content,
-        status,
-        ...(error !== undefined ? { error } : {}),
-        durationMs,
-      },
+      completedPayload,
     );
 
     return { result, trace };

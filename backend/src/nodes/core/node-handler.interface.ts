@@ -6,6 +6,10 @@ export interface ExecutionContext {
    * from {@link nodeExecutionId}, which is the per-row identifier — handlers
    * use this when emitting WS events that must be addressable by the static
    * graph node (e.g. AI Agent's tool_call_started/completed).
+   *
+   * Set by the engine before each handler call. May be absent in legacy
+   * resume state captured before this field existed; consumers should
+   * fall back to `''` and skip the side-effect rather than throw.
    */
   nodeId?: string;
   /** Current NodeExecution row id — set by the engine before each handler call. */

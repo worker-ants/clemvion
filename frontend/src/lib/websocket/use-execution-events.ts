@@ -5,20 +5,16 @@ import { getWsClient } from "./ws-client";
 import {
   useExecutionStore,
   NodeExecutionStatus,
+  type ConversationItem,
 } from "../stores/execution-store";
 import { getAccessToken } from "../api/client";
 import { ExecutionData, NodeExecutionData } from "../api/executions";
 import { getNodeDefinition } from "../node-definitions";
-import { messagesToConversationItems } from "@/components/editor/run-results/conversation-utils";
-
-function tryParseJson(value: unknown): unknown {
-  if (typeof value !== "string") return value;
-  try {
-    return JSON.parse(value);
-  } catch {
-    return value;
-  }
-}
+import {
+  messagesToConversationItems,
+  toolStatusMapFromItems,
+} from "@/lib/conversation/conversation-utils";
+import { tryParseJson } from "@/lib/utils/parse-json";
 
 interface UseExecutionEventsOptions {
   executionId: string | null;
@@ -104,6 +100,7 @@ export function useExecutionEvents({
     setConversationMessages,
     upsertToolItem,
     updateToolItem,
+    flushPendingToolItemsAsError,
     updateConversationConfig,
   } = useExecutionStore();
 
@@ -144,14 +141,20 @@ export function useExecutionEvents({
   const handleExecutionFailed = useCallback(
     (data: unknown) => {
       const payload = data as { error?: string };
+      // Flip dangling pending tool items so a backend crash mid-call doesn't
+      // leave the timeline with a forever-spinner.
+      flushPendingToolItemsAsError(
+        payload.error ?? "Execution failed before the tool completed",
+      );
       failExecution(payload.error);
     },
-    [failExecution],
+    [failExecution, flushPendingToolItemsAsError],
   );
 
   const handleExecutionCancelled = useCallback(() => {
+    flushPendingToolItemsAsError("Execution cancelled");
     failExecution("Execution cancelled");
-  }, [failExecution]);
+  }, [failExecution, flushPendingToolItemsAsError]);
 
   const handleWaitingForInput = useCallback(
     (data: unknown) => {
@@ -331,8 +334,17 @@ export function useExecutionEvents({
               ],
             ])
           : undefined;
+        // Preserve in-flight tool status from `tool_call_completed` events —
+        // without this, the snapshot replacement would briefly drop the
+        // success/error badge until backend's meta.turnDebug.toolCalls shape
+        // is wired into AI_MESSAGE payloads (only `messages` + `llmCalls`
+        // arrive today).
+        const previousItems =
+          useExecutionStore.getState().conversationMessages;
+        const toolStatusByCallId = toolStatusMapFromItems(previousItems);
         const items = messagesToConversationItems(payload.messages, {
           debugByTurn,
+          toolStatusByCallId,
           metaModel: payload.metadata?.model,
         });
         setConversationMessages(items);
@@ -401,13 +413,14 @@ export function useExecutionEvents({
     (data: unknown) => {
       const payload = data as {
         toolCallId?: string;
+        turnIndex?: number;
         content?: string;
         status?: "success" | "error";
         error?: string;
         durationMs?: number;
       };
       if (!payload.toolCallId) return;
-      const patch: Record<string, unknown> = {
+      const patch: Partial<ConversationItem> = {
         toolStatus: payload.status ?? "success",
         toolResult: tryParseJson(payload.content),
       };
@@ -417,9 +430,35 @@ export function useExecutionEvents({
       if (payload.error !== undefined) {
         patch.error = payload.error;
       }
+
+      // Defensive: when `tool_call_completed` arrives before the matching
+      // `tool_call_started` (re-ordered delivery, slow first emit), upsert
+      // a fresh item so we never leave a dangling pending elsewhere — but
+      // only when the store has no item with that toolCallId yet.
+      const existing = useExecutionStore
+        .getState()
+        .conversationMessages.find(
+          (i) => i.toolCallId === payload.toolCallId,
+        );
+      if (!existing) {
+        upsertToolItem({
+          type: "tool",
+          content: "(unknown tool)",
+          turnIndex: payload.turnIndex ?? 1,
+          toolCallId: payload.toolCallId,
+          toolStatus: payload.status ?? "success",
+          toolResult: tryParseJson(payload.content),
+          ...(payload.durationMs !== undefined
+            ? { durationMs: payload.durationMs }
+            : {}),
+          ...(payload.error !== undefined ? { error: payload.error } : {}),
+          timestamp: new Date().toISOString(),
+        });
+        return;
+      }
       updateToolItem(payload.toolCallId, patch);
     },
-    [updateToolItem],
+    [updateToolItem, upsertToolItem],
   );
 
   const handleNodeStarted = useCallback(

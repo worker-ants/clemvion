@@ -1922,6 +1922,81 @@ describe('AiAgentHandler', () => {
       expect(tc).toHaveLength(1);
       expect(tc[0].status).toBe('success');
     });
+
+    it('emits TOOL_CALL_* with the correct turnIndex on multi-turn resume', async () => {
+      // Resume into the second user turn — telemetry must report turnIndex=2,
+      // not 1, so the timeline UI can group the tool call under the right
+      // turn. Without this, multi-turn debugging mis-attributes tool events.
+      mockRagService.search.mockResolvedValue([]);
+      mockLlmService.chat
+        .mockResolvedValueOnce({
+          content: null,
+          toolCalls: [
+            {
+              id: 'tc-mt',
+              name: kbToolName('kb-1'),
+              arguments: '{"query":"x"}',
+            },
+          ],
+          usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 },
+          model: 'gpt-4o',
+          finishReason: 'tool_calls',
+        })
+        .mockResolvedValueOnce({
+          content: 'turn-2 done',
+          usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 },
+          model: 'gpt-4o',
+          finishReason: 'stop',
+        });
+
+      const resumeState = {
+        turnCount: 1,
+        maxTurns: 5,
+        maxToolCalls: 5,
+        knowledgeBases: ['kb-1'],
+        workspaceId: 'ws-1',
+        conditions: [],
+        totalInputTokens: 0,
+        totalOutputTokens: 0,
+        totalThinkingTokens: 0,
+        toolCalls: 0,
+        ragSources: [],
+        ragLastDiagnostics: undefined,
+        messages: [
+          { role: 'system', content: 'sys' },
+          { role: 'user', content: 'turn1' },
+          { role: 'assistant', content: 'ack' },
+        ],
+        executionId: 'exec-1',
+        nodeId: 'agent-1',
+        nodeExecutionId: 'ne-1',
+        workflowId: 'wf-1',
+        model: 'gpt-4o',
+        llmConfigId: 'config-1',
+        turnDebugHistory: [],
+      };
+
+      // Reach into the handler's resume path the way the engine does.
+      await (
+        handler as unknown as {
+          processMultiTurnMessage: (
+            msg: string,
+            state: Record<string, unknown>,
+          ) => Promise<unknown>;
+        }
+      ).processMultiTurnMessage('turn2 question', resumeState);
+
+      const events = emittedEvents();
+      const started = events.find(
+        (e) => e.type === 'execution.tool_call_started',
+      );
+      const completed = events.find(
+        (e) => e.type === 'execution.tool_call_completed',
+      );
+      expect(started?.payload.turnIndex).toBe(2);
+      expect(completed?.payload.turnIndex).toBe(2);
+      expect(started?.payload.nodeId).toBe('agent-1');
+    });
   });
 });
 
