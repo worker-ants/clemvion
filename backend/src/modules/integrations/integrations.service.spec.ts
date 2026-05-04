@@ -508,12 +508,17 @@ describe('IntegrationsService', () => {
       expect(result.message).toContain('required');
     });
 
-    it('delegates mcp service to McpTestConnectionService and translates auth_type', async () => {
+    it('delegates mcp service to McpTestConnectionService and exposes capability preview', async () => {
       mcpTestConnection.test.mockResolvedValueOnce({
         success: true,
         message: 'Connection successful',
-        capabilities: { tools: {} },
+        capabilities: { tools: {}, resources: {} },
         serverInfo: { name: 's', version: '1' },
+        preview: {
+          toolCount: 3,
+          resourceSupported: true,
+          promptSupported: false,
+        },
       });
       const result = await service.previewTest({
         serviceType: 'mcp',
@@ -524,6 +529,15 @@ describe('IntegrationsService', () => {
         },
       });
       expect(result.success).toBe(true);
+      // Critical-2 fix: capability data must be exposed to the registration
+      // UI rather than discarded.
+      expect(result.capabilities).toEqual({ tools: {}, resources: {} });
+      expect(result.serverInfo).toEqual({ name: 's', version: '1' });
+      expect(result.preview).toEqual({
+        toolCount: 3,
+        resourceSupported: true,
+        promptSupported: false,
+      });
       expect(mcpTestConnection.test).toHaveBeenCalledWith({
         authType: 'bearer_token',
         url: 'https://mcp.example.com',
@@ -532,11 +546,11 @@ describe('IntegrationsService', () => {
       });
     });
 
-    it('mcp transport failure surfaces with MCP_* code in message', async () => {
+    it('mcp transport failure surfaces MCP_* code in result.code (not message)', async () => {
       mcpTestConnection.test.mockResolvedValueOnce({
         success: false,
         code: 'MCP_AUTH_FAILED',
-        message: 'bad token',
+        message: 'invalid credentials',
       });
       const result = await service.previewTest({
         serviceType: 'mcp',
@@ -544,7 +558,27 @@ describe('IntegrationsService', () => {
         credentials: { url: 'https://mcp.example.com', token: 't' },
       });
       expect(result.success).toBe(false);
-      expect(result.message).toBe('[MCP_AUTH_FAILED] bad token');
+      expect(result.code).toBe('MCP_AUTH_FAILED');
+      // Message no longer carries an inline `[CODE]` prefix — clients use
+      // result.code for branching and result.message for display.
+      expect(result.message).toBe('invalid credentials');
+    });
+
+    it('falls back to MCP_CONNECT_FAILED when test result omits code', async () => {
+      // Defensive fallback — if the MCP layer ever returns a failure without
+      // a vocabulary code, the dispatch must still surface a stable code so
+      // the UI can branch deterministically.
+      mcpTestConnection.test.mockResolvedValueOnce({
+        success: false,
+        message: 'unspecified failure',
+      });
+      const result = await service.previewTest({
+        serviceType: 'mcp',
+        authType: 'none',
+        credentials: { url: 'https://mcp.example.com' },
+      });
+      expect(result.success).toBe(false);
+      expect(result.code).toBe('MCP_CONNECT_FAILED');
     });
 
     it('mcp structural validation runs before transport probe', async () => {

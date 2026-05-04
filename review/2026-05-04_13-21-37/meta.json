@@ -1,0 +1,163 @@
+{
+  "timestamp": "2026-05-04T13:26:24.886614",
+  "files": [
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/backend/package-lock.json",
+      "change_type": "Review",
+      "file_extension": "json"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/backend/package.json",
+      "change_type": "Review",
+      "file_extension": "json"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/backend/src/modules/integrations/integrations.module.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/backend/src/modules/integrations/integrations.service.spec.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/backend/src/modules/integrations/integrations.service.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/backend/src/modules/integrations/services/service-registry.spec.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/backend/src/modules/integrations/services/service-registry.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/backend/src/modules/mcp/mcp-client.service.spec.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/backend/src/modules/mcp/mcp-client.service.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/backend/src/modules/mcp/mcp-test-connection.service.spec.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/backend/src/modules/mcp/mcp-test-connection.service.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/backend/src/modules/mcp/mcp.module.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/frontend/src/app/(main)/integrations/_shared/service-icons.tsx",
+      "change_type": "Review",
+      "file_extension": "tsx"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/spec/1-data-model.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/spec/2-navigation/4-integration.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/spec/4-nodes/3-ai-nodes.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/spec/4-nodes/4-integration-nodes.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/spec/5-system/11-mcp-client.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    }
+  ],
+  "total_elapsed_seconds": 286.96,
+  "agents": [
+    {
+      "name": "database",
+      "status": "success",
+      "elapsed_seconds": 59.4
+    },
+    {
+      "name": "architecture",
+      "status": "success",
+      "elapsed_seconds": 74.09
+    },
+    {
+      "name": "concurrency",
+      "status": "success",
+      "elapsed_seconds": 76.03
+    },
+    {
+      "name": "scope",
+      "status": "success",
+      "elapsed_seconds": 79.45
+    },
+    {
+      "name": "documentation",
+      "status": "success",
+      "elapsed_seconds": 83.37
+    },
+    {
+      "name": "security",
+      "status": "success",
+      "elapsed_seconds": 86.57
+    },
+    {
+      "name": "api_contract",
+      "status": "success",
+      "elapsed_seconds": 91.18
+    },
+    {
+      "name": "maintainability",
+      "status": "success",
+      "elapsed_seconds": 93.89
+    },
+    {
+      "name": "dependency",
+      "status": "success",
+      "elapsed_seconds": 97.35
+    },
+    {
+      "name": "performance",
+      "status": "success",
+      "elapsed_seconds": 97.62
+    },
+    {
+      "name": "testing",
+      "status": "success",
+      "elapsed_seconds": 97.85
+    },
+    {
+      "name": "requirement",
+      "status": "success",
+      "elapsed_seconds": 117.95
+    },
+    {
+      "name": "side_effect",
+      "status": "success",
+      "elapsed_seconds": 126.56
+    }
+  ]
+}

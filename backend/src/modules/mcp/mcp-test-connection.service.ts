@@ -4,6 +4,8 @@ import {
   McpClientService,
   McpConnectParams,
   McpHttpsRequiredError,
+  McpInvalidHeaderError,
+  McpSession,
   ServerCapabilities,
   ServerInfo,
 } from './mcp-client.service';
@@ -31,66 +33,92 @@ export interface ConnectionPreview {
   promptSupported: boolean;
 }
 
+/**
+ * Vocabulary surfaced to the registration UI. `MCP_INITIALIZE_FAILED` is
+ * intentionally absent — the SDK fuses transport connect + JSON-RPC
+ * initialize into a single call so distinguishing them is not actionable
+ * for the user. Both surface as `MCP_CONNECT_FAILED`. See spec §8.2.
+ */
 export type McpFailureCode =
   | 'MCP_HTTPS_REQUIRED'
   | 'MCP_AUTH_FAILED'
   | 'MCP_CONNECT_FAILED'
-  | 'MCP_INITIALIZE_FAILED'
   | 'MCP_LIST_FAILED';
 
+/** Generic message bodies — keeps internal IPs / paths out of API responses. */
+const GENERIC_CONNECT_FAILURE_MESSAGE =
+  'Failed to connect to the MCP server. Verify the URL is reachable and the credentials are correct.';
+const GENERIC_LIST_FAILURE_MESSAGE =
+  'Connected to the MCP server but failed to list tools.';
+
+const LIST_TIMEOUT_MS = Number(process.env.MCP_LIST_TIMEOUT_MS) || 10_000;
+
 /**
- * Performs a one-shot connect → initialize → optional tools/list probe
- * against an MCP server, then disconnects. Any error along the way is
- * normalized to the {@link McpFailureCode} vocabulary so the integrations
- * UI can render a stable message regardless of which phase failed.
+ * Performs a one-shot connect → optional tools/list probe against an MCP
+ * server, then disconnects. Any error along the way is normalized to the
+ * {@link McpFailureCode} vocabulary so the integrations UI can render a
+ * stable code regardless of which phase failed.
  *
  * The session opened here is **always** closed (success or failure) so the
  * test endpoint can be invoked aggressively from the registration UI without
- * leaking connections.
+ * leaking connections or open SSE streams.
+ *
+ * Internal error messages are NOT echoed verbatim — the SDK can include
+ * resolved IPs / file paths / stack frames in its error strings, which
+ * would be a network reconnaissance leak if returned to the client. The
+ * detail is logged server-side; the response is generic.
  */
 @Injectable()
 export class McpTestConnectionService {
   constructor(private readonly client: McpClientService) {}
 
   async test(params: McpConnectParams): Promise<TestConnectionResult> {
-    let session: Awaited<ReturnType<McpClientService['connect']>> | null = null;
+    let session: McpSession | null = null;
     try {
-      session = await this.client.connect(params);
-    } catch (err) {
-      return this.classifyConnectError(err);
-    }
-
-    const capabilities = session.capabilities;
-    const serverInfo = session.serverInfo;
-    let toolCount: number | undefined;
-
-    try {
-      if (capabilities.tools !== undefined) {
-        const list = await session.listTools();
-        toolCount = list.tools.length;
+      try {
+        session = await this.client.connect(params);
+      } catch (err) {
+        return this.classifyConnectError(err);
       }
-    } catch (err) {
-      await session.close().catch(() => undefined);
+
+      const capabilities = session.capabilities;
+      const serverInfo = session.serverInfo;
+      let toolCount: number | undefined;
+
+      if (capabilities.tools !== undefined) {
+        try {
+          const list = await this.withTimeout(
+            session.listTools(),
+            LIST_TIMEOUT_MS,
+            'tools/list',
+          );
+          toolCount = list.tools.length;
+        } catch (err) {
+          this.logInternal('MCP_LIST_FAILED', err);
+          return {
+            success: false,
+            code: 'MCP_LIST_FAILED',
+            message: GENERIC_LIST_FAILURE_MESSAGE,
+          };
+        }
+      }
+
       return {
-        success: false,
-        code: 'MCP_LIST_FAILED',
-        message: this.errorMessage(err, 'Failed to list MCP tools'),
+        success: true,
+        message: 'Connection successful',
+        capabilities,
+        serverInfo,
+        preview: {
+          toolCount,
+          resourceSupported: capabilities.resources !== undefined,
+          promptSupported: capabilities.prompts !== undefined,
+        },
       };
+    } finally {
+      if (session) {
+        await session.close().catch(() => undefined);
+      }
     }
-
-    await session.close().catch(() => undefined);
-
-    return {
-      success: true,
-      message: 'Connection successful',
-      capabilities,
-      serverInfo,
-      preview: {
-        toolCount,
-        resourceSupported: capabilities.resources !== undefined,
-        promptSupported: capabilities.prompts !== undefined,
-      },
-    };
   }
 
   private classifyConnectError(err: unknown): TestConnectionResult {
@@ -98,26 +126,58 @@ export class McpTestConnectionService {
       return {
         success: false,
         code: 'MCP_HTTPS_REQUIRED',
+        // McpHttpsRequiredError messages are deterministic and don't carry
+        // network detail — safe to echo to the client.
         message: err.message,
       };
     }
-    if (err instanceof McpAuthError) {
+    if (err instanceof McpAuthError || err instanceof McpInvalidHeaderError) {
       return {
         success: false,
         code: 'MCP_AUTH_FAILED',
         message: err.message,
       };
     }
+    this.logInternal('MCP_CONNECT_FAILED', err);
     return {
       success: false,
       code: 'MCP_CONNECT_FAILED',
-      message: this.errorMessage(err, 'Failed to connect to MCP server'),
+      message: GENERIC_CONNECT_FAILURE_MESSAGE,
     };
   }
 
-  private errorMessage(err: unknown, fallback: string): string {
-    if (err instanceof Error && err.message) return err.message;
-    if (typeof err === 'string') return err;
-    return fallback;
+  private logInternal(code: McpFailureCode, err: unknown): void {
+    const detail = err instanceof Error ? err.message : String(err);
+
+    console.warn(`[mcp:test] ${code}: ${detail}`);
+  }
+
+  /**
+   * Wraps a Promise with a timeout — the SDK's list/call methods don't
+   * accept an AbortSignal directly, so we race against `setTimeout`. This
+   * leaves the underlying RPC pending in the SDK after the timeout, but
+   * `session.close()` in the surrounding `finally` tears down the transport.
+   */
+  private withTimeout<T>(
+    promise: Promise<T>,
+    ms: number,
+    label: string,
+  ): Promise<T> {
+    return new Promise<T>((resolve, reject) => {
+      const timer = setTimeout(
+        () => reject(new Error(`${label} timed out after ${ms}ms`)),
+        ms,
+      );
+      promise.then(
+        (value) => {
+          clearTimeout(timer);
+          resolve(value);
+        },
+        (err) => {
+          clearTimeout(timer);
+          reject(err instanceof Error ? err : new Error(String(err)));
+        },
+      );
+    });
   }
 }

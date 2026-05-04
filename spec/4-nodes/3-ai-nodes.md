@@ -26,7 +26,7 @@ LLM 기반 AI Agent를 실행. 프롬프트, RAG, Tool Use를 지원. **Single T
 | ragThreshold | Float | RAG 유사도 임계값 (기본: 0.7). graph 모드 KB 의 vector seed 단계에 적용 |
 | toolNodeIds | UUID[] | Tool Area에 등록된 도구 노드 ID 목록 (Tool Area에서 자동 관리) |
 | toolOverrides | ToolOverride[] | 도구별 이름/설명 오버라이드 (선택) |
-| mcpServers | McpServerRef[] | 활용할 MCP 서버 목록 (워크스페이스에 등록된 `service_type='mcp'` Integration 참조). 서버별로 도구 allowlist·resource/prompt 노출 여부 설정. 상세는 [Spec MCP Client](../5-system/11-mcp-client.md) |
+| mcpServers | McpServerRef[] | (Stage 2에서 핸들러 통합 예정) 활용할 MCP 서버 목록 (워크스페이스에 등록된 `service_type='mcp'` Integration 참조). 서버별로 도구 allowlist·resource/prompt 노출 여부 설정. 상세는 [Spec MCP Client](../5-system/11-mcp-client.md) |
 | maxToolCalls | Integer | 최대 도구 호출 횟수 (기본: 10). KB tool · MCP tool · 일반 tool 호출이 모두 합산됨 |
 | conversationHistory | Enum | `none` / `last_n` / `full` |
 | historyCount | Integer? | last_n 시 보관 대화 수 |

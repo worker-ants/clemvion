@@ -59,6 +59,74 @@ const HTTP_COMMON: CredentialField[] = [
   },
 ];
 
+/**
+ * Fields shared by every MCP auth variant: the server URL and optional
+ * default headers. Hoisted so the three auth variants stay structurally
+ * identical when we add or rename a shared field.
+ */
+const MCP_URL_FIELD: CredentialField = {
+  key: 'url',
+  label: 'Server URL',
+  type: 'string',
+  required: true,
+  placeholder: 'https://mcp.example.com',
+  description: 'Streamable HTTP endpoint of the MCP server. HTTPS is required.',
+};
+
+const MCP_DEFAULT_HEADERS_FIELD: CredentialField = {
+  key: 'default_headers',
+  label: 'Default Headers',
+  type: 'record',
+  required: false,
+};
+
+function buildMcpAuthVariants(): AuthVariant[] {
+  return [
+    {
+      authType: 'bearer_token',
+      label: 'Bearer Token',
+      fields: [
+        MCP_URL_FIELD,
+        {
+          key: 'token',
+          label: 'Bearer Token',
+          type: 'string',
+          required: true,
+          secret: true,
+        },
+        MCP_DEFAULT_HEADERS_FIELD,
+      ],
+    },
+    {
+      authType: 'api_key',
+      label: 'API Key (Custom Header)',
+      fields: [
+        MCP_URL_FIELD,
+        {
+          key: 'header_name',
+          label: 'Header Name',
+          type: 'string',
+          required: true,
+          placeholder: 'X-Api-Key',
+        },
+        {
+          key: 'value',
+          label: 'API Key',
+          type: 'string',
+          required: true,
+          secret: true,
+        },
+        MCP_DEFAULT_HEADERS_FIELD,
+      ],
+    },
+    {
+      authType: 'none',
+      label: 'No Authentication',
+      fields: [MCP_URL_FIELD, MCP_DEFAULT_HEADERS_FIELD],
+    },
+  ];
+}
+
 export const SERVICE_REGISTRY: ServiceDefinition[] = [
   {
     type: 'google',
@@ -332,92 +400,7 @@ export const SERVICE_REGISTRY: ServiceDefinition[] = [
   {
     type: 'mcp',
     name: 'MCP Server',
-    authVariants: [
-      {
-        authType: 'bearer_token',
-        label: 'Bearer Token',
-        fields: [
-          {
-            key: 'url',
-            label: 'Server URL',
-            type: 'string',
-            required: true,
-            placeholder: 'https://mcp.example.com',
-            description:
-              'Streamable HTTP endpoint of the MCP server. HTTPS is required.',
-          },
-          {
-            key: 'token',
-            label: 'Bearer Token',
-            type: 'string',
-            required: true,
-            secret: true,
-          },
-          {
-            key: 'default_headers',
-            label: 'Default Headers',
-            type: 'record',
-            required: false,
-          },
-        ],
-      },
-      {
-        authType: 'api_key',
-        label: 'API Key (Custom Header)',
-        fields: [
-          {
-            key: 'url',
-            label: 'Server URL',
-            type: 'string',
-            required: true,
-            placeholder: 'https://mcp.example.com',
-            description:
-              'Streamable HTTP endpoint of the MCP server. HTTPS is required.',
-          },
-          {
-            key: 'header_name',
-            label: 'Header Name',
-            type: 'string',
-            required: true,
-            placeholder: 'X-Api-Key',
-          },
-          {
-            key: 'value',
-            label: 'API Key',
-            type: 'string',
-            required: true,
-            secret: true,
-          },
-          {
-            key: 'default_headers',
-            label: 'Default Headers',
-            type: 'record',
-            required: false,
-          },
-        ],
-      },
-      {
-        authType: 'none',
-        label: 'No Authentication',
-        fields: [
-          {
-            key: 'url',
-            label: 'Server URL',
-            type: 'string',
-            required: true,
-            placeholder: 'https://mcp.example.com',
-            description:
-              'Streamable HTTP endpoint of the MCP server. HTTPS is required.',
-          },
-          {
-            key: 'default_headers',
-            label: 'Default Headers',
-            type: 'record',
-            required: false,
-          },
-        ],
-      },
-    ],
+    authVariants: buildMcpAuthVariants(),
   },
   {
     type: 'webhook',
