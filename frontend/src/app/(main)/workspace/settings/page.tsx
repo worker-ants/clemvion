@@ -11,6 +11,7 @@ import {
   Users,
   LogOut,
   AlertTriangle,
+  ArrowRightLeft,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -584,10 +585,25 @@ function DangerZoneTab({
   onAfterMutation,
 }: DangerZoneTabProps) {
   const t = useT();
+  const queryClient = useQueryClient();
   const isOwner = useHasRole("owner");
   const [leaveDialogOpen, setLeaveDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [confirmInput, setConfirmInput] = useState("");
+  const [transferDialogOpen, setTransferDialogOpen] = useState(false);
+  const [transferTargetId, setTransferTargetId] = useState("");
+  const [transferEmailInput, setTransferEmailInput] = useState("");
+
+  // owner 만 owner 이양을 수행할 수 있고, 대상 후보 (비-owner 멤버) 가 필요해
+  // 이 카드가 노출되는 경우에만 멤버 목록을 가져온다.
+  const transferEligible = isTeam && isOwner;
+  const membersQuery = useQuery<WorkspaceMemberSummary[]>({
+    queryKey: ["workspace-members", workspaceId],
+    queryFn: () => workspacesApi.listMembers(workspaceId),
+    enabled: transferEligible,
+  });
+  const candidates = (membersQuery.data ?? []).filter((m) => m.role !== "owner");
+  const transferTarget = candidates.find((m) => m.id === transferTargetId);
 
   const leaveMutation = useMutation({
     mutationFn: () => workspacesApi.leave(workspaceId),
@@ -620,6 +636,42 @@ function DangerZoneTab({
     },
   });
 
+  function resetTransferDialog() {
+    setTransferDialogOpen(false);
+    setTransferTargetId("");
+    setTransferEmailInput("");
+  }
+
+  const transferMutation = useMutation({
+    mutationFn: (memberId: string) =>
+      workspacesApi.transferOwnership(workspaceId, memberId),
+    onSuccess: async () => {
+      toast.success(t("workspace.transferOwnerSuccess"));
+      resetTransferDialog();
+      // 멤버 목록 캐시 무효화 (역할 변경 반영) + 워크스페이스 목록 새로고침으로
+      // 현재 사용자 역할이 admin 으로 강등된 상태가 RBAC UI 에 즉시 반영된다.
+      queryClient.invalidateQueries({
+        queryKey: ["workspace-members", workspaceId],
+      });
+      await onAfterMutation({ switchAway: false });
+    },
+    onError: (err: unknown) => {
+      const parsed = parseApiError(err);
+      const code = parsed.code;
+      if (code === "OWNER_REQUIRED") {
+        toast.error(t("workspace.transferOwnerOnlyOwner"));
+      } else if (code === "TARGET_IS_SELF") {
+        toast.error(t("workspace.transferOwnerSelfRejected"));
+      } else if (code === "TARGET_ALREADY_OWNER") {
+        toast.error(t("workspace.transferOwnerAlreadyOwner"));
+      } else if (code === "MEMBER_NOT_FOUND") {
+        toast.error(t("workspace.transferOwnerMemberNotFound"));
+      } else {
+        toast.error(parsed.message ?? t("workspace.transferOwnerFailed"));
+      }
+    },
+  });
+
   const canLeave = isTeam && !isOwner;
 
   return (
@@ -644,6 +696,31 @@ function DangerZoneTab({
               className="shrink-0"
             >
               {t("workspace.dangerLeaveBtn")}
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+
+      {transferEligible && (
+        <Card className="border-[hsl(var(--border))]">
+          <CardContent className="flex flex-col gap-3 pt-6 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-start gap-3">
+              <ArrowRightLeft className="mt-0.5 h-5 w-5 shrink-0 text-[hsl(var(--muted-foreground))]" />
+              <div>
+                <p className="font-semibold">
+                  {t("workspace.transferOwnerTitle")}
+                </p>
+                <p className="text-sm text-[hsl(var(--muted-foreground))]">
+                  {t("workspace.transferOwnerDesc")}
+                </p>
+              </div>
+            </div>
+            <Button
+              variant="outline"
+              onClick={() => setTransferDialogOpen(true)}
+              className="shrink-0"
+            >
+              {t("workspace.transferOwnerBtn")}
             </Button>
           </CardContent>
         </Card>
@@ -760,6 +837,97 @@ function DangerZoneTab({
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
               )}
               {t("workspace.dangerDeleteBtn")}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={transferDialogOpen}
+        onOpenChange={(open) => {
+          if (!open) resetTransferDialog();
+          else setTransferDialogOpen(true);
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{t("workspace.transferOwnerTitle")}</DialogTitle>
+            <DialogDescription>
+              {t("workspace.transferOwnerDesc")}
+            </DialogDescription>
+          </DialogHeader>
+
+          {candidates.length === 0 ? (
+            <p className="text-sm text-[hsl(var(--muted-foreground))]">
+              {t("workspace.transferOwnerNoCandidates")}
+            </p>
+          ) : (
+            <div className="space-y-3">
+              <div className="space-y-1.5">
+                <Label htmlFor="transfer-target">
+                  {t("workspace.transferOwnerSelectLabel")}
+                </Label>
+                <select
+                  id="transfer-target"
+                  value={transferTargetId}
+                  onChange={(e) => {
+                    setTransferTargetId(e.target.value);
+                    setTransferEmailInput("");
+                  }}
+                  className="h-9 w-full rounded-md border border-[hsl(var(--input))] bg-transparent px-2 text-sm"
+                >
+                  <option value="">
+                    {t("workspace.transferOwnerSelectPlaceholder")}
+                  </option>
+                  {candidates.map((m) => (
+                    <option key={m.id} value={m.id}>
+                      {m.name} ({m.email}) — {t(roleLabelKey(m.role))}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              {transferTarget && (
+                <div className="space-y-1.5">
+                  <Label htmlFor="transfer-email">
+                    {t("workspace.transferOwnerConfirmLabel", {
+                      email: transferTarget.email,
+                    })}
+                  </Label>
+                  <Input
+                    id="transfer-email"
+                    type="email"
+                    value={transferEmailInput}
+                    onChange={(e) => setTransferEmailInput(e.target.value)}
+                    autoComplete="off"
+                  />
+                </div>
+              )}
+            </div>
+          )}
+
+          <DialogFooter>
+            <Button variant="outline" onClick={resetTransferDialog}>
+              {t("common.cancel")}
+            </Button>
+            <Button
+              onClick={() => {
+                if (!transferTarget) return;
+                if (transferEmailInput !== transferTarget.email) {
+                  toast.error(t("workspace.transferOwnerEmailMismatch"));
+                  return;
+                }
+                transferMutation.mutate(transferTarget.id);
+              }}
+              disabled={
+                transferMutation.isPending ||
+                !transferTarget ||
+                transferEmailInput !== transferTarget?.email
+              }
+            >
+              {transferMutation.isPending && (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              )}
+              {t("workspace.transferOwnerBtn")}
             </Button>
           </DialogFooter>
         </DialogContent>

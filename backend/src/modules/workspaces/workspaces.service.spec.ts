@@ -453,4 +453,179 @@ describe('WorkspacesService', () => {
       ).rejects.toMatchObject({ response: { code: 'NOT_A_MEMBER' } });
     });
   });
+
+  describe('transferOwnership', () => {
+    const requesterId = 'user-owner';
+    const newOwnerMemberId = 'mem-new-owner';
+    const newOwnerUserId = 'user-new-owner';
+    const teamWorkspace = { ...mockWorkspace, type: 'team' as const };
+
+    function setupOwnerLookup(currentRole: string) {
+      // findOne is called twice in transferOwnership:
+      //   1) requester membership (by workspaceId+userId)
+      //   2) new owner membership (by id+workspaceId)
+      memberRepo.findOne.mockImplementation(
+        (opts: { where?: Record<string, unknown> }) => {
+          const where = opts?.where ?? {};
+          if (where.userId === requesterId) {
+            return Promise.resolve({
+              id: 'mem-owner',
+              role: currentRole,
+              userId: requesterId,
+              workspaceId: 'ws-uuid-1',
+            });
+          }
+          if (where.id === newOwnerMemberId) {
+            return Promise.resolve({
+              id: newOwnerMemberId,
+              role: 'editor',
+              userId: newOwnerUserId,
+              workspaceId: 'ws-uuid-1',
+            });
+          }
+          return Promise.resolve(null);
+        },
+      );
+    }
+
+    it('atomically swaps roles: target → owner, current owner → admin, and updates workspace.ownerId', async () => {
+      workspaceRepo.findOne.mockResolvedValue(teamWorkspace);
+      setupOwnerLookup('owner');
+
+      await service.transferOwnership(
+        'ws-uuid-1',
+        requesterId,
+        newOwnerMemberId,
+      );
+
+      const saved = memberRepo.save.mock.calls.map(
+        (c) => c[0] as { id: string; role: string },
+      );
+      expect(saved).toEqual(
+        expect.arrayContaining([
+          {
+            id: newOwnerMemberId,
+            role: 'owner',
+            userId: newOwnerUserId,
+            workspaceId: 'ws-uuid-1',
+          },
+          {
+            id: 'mem-owner',
+            role: 'admin',
+            userId: requesterId,
+            workspaceId: 'ws-uuid-1',
+          },
+        ]),
+      );
+      expect(workspaceRepo.save).toHaveBeenCalledWith(
+        expect.objectContaining({ id: 'ws-uuid-1', ownerId: newOwnerUserId }),
+      );
+    });
+
+    it('refuses when requester is not owner', async () => {
+      workspaceRepo.findOne.mockResolvedValue(teamWorkspace);
+      setupOwnerLookup('admin');
+
+      await expect(
+        service.transferOwnership('ws-uuid-1', requesterId, newOwnerMemberId),
+      ).rejects.toMatchObject({ response: { code: 'OWNER_REQUIRED' } });
+    });
+
+    it('refuses on personal workspace', async () => {
+      workspaceRepo.findOne.mockResolvedValue({
+        ...mockWorkspace,
+        type: 'personal',
+      });
+      setupOwnerLookup('owner');
+
+      await expect(
+        service.transferOwnership('ws-uuid-1', requesterId, newOwnerMemberId),
+      ).rejects.toMatchObject({
+        response: { code: 'CANNOT_TRANSFER_PERSONAL' },
+      });
+    });
+
+    it('refuses self-transfer', async () => {
+      workspaceRepo.findOne.mockResolvedValue(teamWorkspace);
+      memberRepo.findOne.mockImplementation(
+        (opts: { where?: Record<string, unknown> }) => {
+          const where = opts?.where ?? {};
+          const ownerMember = {
+            id: 'mem-owner',
+            role: 'owner',
+            userId: requesterId,
+            workspaceId: 'ws-uuid-1',
+          };
+          if (where.userId === requesterId) return Promise.resolve(ownerMember);
+          if (where.id === 'mem-owner') return Promise.resolve(ownerMember);
+          return Promise.resolve(null);
+        },
+      );
+
+      await expect(
+        service.transferOwnership('ws-uuid-1', requesterId, 'mem-owner'),
+      ).rejects.toMatchObject({ response: { code: 'TARGET_IS_SELF' } });
+    });
+
+    it('refuses when target member does not exist in workspace', async () => {
+      workspaceRepo.findOne.mockResolvedValue(teamWorkspace);
+      memberRepo.findOne.mockImplementation(
+        (opts: { where?: Record<string, unknown> }) => {
+          const where = opts?.where ?? {};
+          if (where.userId === requesterId) {
+            return Promise.resolve({
+              id: 'mem-owner',
+              role: 'owner',
+              userId: requesterId,
+              workspaceId: 'ws-uuid-1',
+            });
+          }
+          return Promise.resolve(null);
+        },
+      );
+
+      await expect(
+        service.transferOwnership('ws-uuid-1', requesterId, newOwnerMemberId),
+      ).rejects.toMatchObject({ response: { code: 'MEMBER_NOT_FOUND' } });
+    });
+
+    it('refuses when target is already owner', async () => {
+      workspaceRepo.findOne.mockResolvedValue(teamWorkspace);
+      memberRepo.findOne.mockImplementation(
+        (opts: { where?: Record<string, unknown> }) => {
+          const where = opts?.where ?? {};
+          if (where.userId === requesterId) {
+            return Promise.resolve({
+              id: 'mem-owner',
+              role: 'owner',
+              userId: requesterId,
+              workspaceId: 'ws-uuid-1',
+            });
+          }
+          if (where.id === newOwnerMemberId) {
+            return Promise.resolve({
+              id: newOwnerMemberId,
+              role: 'owner',
+              userId: newOwnerUserId,
+              workspaceId: 'ws-uuid-1',
+            });
+          }
+          return Promise.resolve(null);
+        },
+      );
+
+      await expect(
+        service.transferOwnership('ws-uuid-1', requesterId, newOwnerMemberId),
+      ).rejects.toMatchObject({ response: { code: 'TARGET_ALREADY_OWNER' } });
+    });
+
+    it('refuses when workspace not found', async () => {
+      workspaceRepo.findOne.mockResolvedValue(null);
+      setupOwnerLookup('owner');
+
+      await expect(
+        service.transferOwnership('ws-uuid-1', requesterId, newOwnerMemberId),
+      ).rejects.toMatchObject({ response: { code: 'WORKSPACE_NOT_FOUND' } });
+    });
+  });
 });

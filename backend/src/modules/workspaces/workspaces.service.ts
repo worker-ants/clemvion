@@ -375,6 +375,84 @@ export class WorkspacesService {
     });
   }
 
+  /**
+   * 워크스페이스 owner 권한을 다른 멤버에게 이양한다.
+   * - 호출자는 현재 owner여야 한다 (`@Roles` 가드와 별개로 service-level 검증).
+   * - 대상은 같은 팀 워크스페이스의 비-owner 멤버.
+   * - 트랜잭션 + FOR UPDATE 락 안에서 두 멤버 role 을 동시 swap 하고
+   *   `workspace.ownerId` 를 새 owner 의 userId 로 갱신한다.
+   * - personal 워크스페이스는 이양 불가.
+   */
+  async transferOwnership(
+    workspaceId: string,
+    requesterId: string,
+    newOwnerMemberId: string,
+  ): Promise<void> {
+    const workspace = await this.workspaceRepository.findOne({
+      where: { id: workspaceId },
+    });
+    if (!workspace) {
+      throw new NotFoundException({
+        code: 'WORKSPACE_NOT_FOUND',
+        message: '워크스페이스를 찾을 수 없습니다.',
+      });
+    }
+    if (workspace.type === 'personal') {
+      throw new ForbiddenException({
+        code: 'CANNOT_TRANSFER_PERSONAL',
+        message: '개인 워크스페이스는 owner 이양 대상이 아닙니다.',
+      });
+    }
+
+    await this.memberRepository.manager.transaction(async (manager) => {
+      const memRepo = manager.getRepository(WorkspaceMember);
+      const wsRepo = manager.getRepository(Workspace);
+
+      const requesterMembership = await memRepo.findOne({
+        where: { workspaceId, userId: requesterId },
+        lock: { mode: 'pessimistic_write' },
+      });
+      if (!requesterMembership || requesterMembership.role !== 'owner') {
+        throw new ForbiddenException({
+          code: 'OWNER_REQUIRED',
+          message: 'owner 이양은 현재 owner 만 수행할 수 있습니다.',
+        });
+      }
+
+      if (newOwnerMemberId === requesterMembership.id) {
+        throw new BadRequestException({
+          code: 'TARGET_IS_SELF',
+          message: '본인을 새 owner 로 지정할 수 없습니다.',
+        });
+      }
+
+      const targetMembership = await memRepo.findOne({
+        where: { id: newOwnerMemberId, workspaceId },
+        lock: { mode: 'pessimistic_write' },
+      });
+      if (!targetMembership) {
+        throw new NotFoundException({
+          code: 'MEMBER_NOT_FOUND',
+          message: '대상 멤버를 찾을 수 없습니다.',
+        });
+      }
+      if (targetMembership.role === 'owner') {
+        throw new ConflictException({
+          code: 'TARGET_ALREADY_OWNER',
+          message: '대상이 이미 owner 입니다.',
+        });
+      }
+
+      targetMembership.role = 'owner';
+      requesterMembership.role = 'admin';
+      await memRepo.save(targetMembership);
+      await memRepo.save(requesterMembership);
+
+      workspace.ownerId = targetMembership.userId;
+      await wsRepo.save(workspace);
+    });
+  }
+
   /** 멤버 제거(Admin+). 자기 자신 제거는 `leaveWorkspace`로 위임해 동일한 가드를 적용한다. */
   async removeMember(
     workspaceId: string,
