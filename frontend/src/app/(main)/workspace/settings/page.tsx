@@ -701,29 +701,31 @@ function DangerZoneTab({
         </Card>
       )}
 
-      {transferEligible && (
-        <Card className="border-[hsl(var(--border))]">
-          <CardContent className="flex flex-col gap-3 pt-6 sm:flex-row sm:items-center sm:justify-between">
-            <div className="flex items-start gap-3">
-              <ArrowRightLeft className="mt-0.5 h-5 w-5 shrink-0 text-[hsl(var(--muted-foreground))]" />
-              <div>
-                <p className="font-semibold">
-                  {t("workspace.transferOwnerTitle")}
-                </p>
-                <p className="text-sm text-[hsl(var(--muted-foreground))]">
-                  {t("workspace.transferOwnerDesc")}
-                </p>
+      {isTeam && (
+        <RoleGate minRole="owner">
+          <Card className="border-[hsl(var(--border))]">
+            <CardContent className="flex flex-col gap-3 pt-6 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex items-start gap-3">
+                <ArrowRightLeft className="mt-0.5 h-5 w-5 shrink-0 text-[hsl(var(--muted-foreground))]" />
+                <div>
+                  <p className="font-semibold">
+                    {t("workspace.transferOwnerTitle")}
+                  </p>
+                  <p className="text-sm text-[hsl(var(--muted-foreground))]">
+                    {t("workspace.transferOwnerDesc")}
+                  </p>
+                </div>
               </div>
-            </div>
-            <Button
-              variant="outline"
-              onClick={() => setTransferDialogOpen(true)}
-              className="shrink-0"
-            >
-              {t("workspace.transferOwnerBtn")}
-            </Button>
-          </CardContent>
-        </Card>
+              <Button
+                variant="outline"
+                onClick={() => setTransferDialogOpen(true)}
+                className="shrink-0"
+              >
+                {t("workspace.transferOwnerBtn")}
+              </Button>
+            </CardContent>
+          </Card>
+        </RoleGate>
       )}
 
       {isTeam && (

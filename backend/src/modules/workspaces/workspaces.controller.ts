@@ -46,6 +46,7 @@ import {
 import { CurrentUser } from '../../common/decorators';
 import type { JwtPayload } from '../../common/decorators';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
+import { Roles } from '../../common/guards/roles.guard';
 
 @ApiTags('Workspaces')
 @ApiBearerAuth('access-token')
@@ -171,6 +172,9 @@ export class WorkspacesController {
   }
 
   @Post(':id/transfer-ownership')
+  // 가드 + service-level 검증을 함께 둠. 가드는 첫 차단선, service 의 OWNER_REQUIRED 는
+  // 트랜잭션 내부에서 (락 보유 상태로) 동시 다른 owner-related 변경과의 경합을 차단.
+  @Roles('owner')
   @ApiOperation({
     summary: '워크스페이스 owner 이양 (Owner)',
     description:
