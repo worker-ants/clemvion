@@ -1,0 +1,83 @@
+{
+  "timestamp": "2026-05-05T00:32:47.246873",
+  "files": [
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/frontend/src/components/editor/run-results/__tests__/conversation-inspector.test.tsx",
+      "change_type": "Review",
+      "file_extension": "tsx"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/frontend/src/components/editor/run-results/conversation-inspector.tsx",
+      "change_type": "Review",
+      "file_extension": "tsx"
+    }
+  ],
+  "total_elapsed_seconds": 174.75,
+  "agents": [
+    {
+      "name": "api_contract",
+      "status": "success",
+      "elapsed_seconds": 7.54
+    },
+    {
+      "name": "database",
+      "status": "success",
+      "elapsed_seconds": 7.59
+    },
+    {
+      "name": "concurrency",
+      "status": "success",
+      "elapsed_seconds": 15.36
+    },
+    {
+      "name": "security",
+      "status": "success",
+      "elapsed_seconds": 30.79
+    },
+    {
+      "name": "documentation",
+      "status": "success",
+      "elapsed_seconds": 31.97
+    },
+    {
+      "name": "maintainability",
+      "status": "success",
+      "elapsed_seconds": 34.78
+    },
+    {
+      "name": "performance",
+      "status": "success",
+      "elapsed_seconds": 34.83
+    },
+    {
+      "name": "dependency",
+      "status": "success",
+      "elapsed_seconds": 37.44
+    },
+    {
+      "name": "scope",
+      "status": "success",
+      "elapsed_seconds": 54.73
+    },
+    {
+      "name": "side_effect",
+      "status": "success",
+      "elapsed_seconds": 80.12
+    },
+    {
+      "name": "architecture",
+      "status": "success",
+      "elapsed_seconds": 80.45
+    },
+    {
+      "name": "testing",
+      "status": "success",
+      "elapsed_seconds": 86.84
+    },
+    {
+      "name": "requirement",
+      "status": "success",
+      "elapsed_seconds": 93.58
+    }
+  ]
+}
