@@ -98,12 +98,18 @@ function fromConversationMessages(
   messages: ConversationItem[],
 ): LlmCallTrace[] {
   const traces: LlmCallTrace[] = [];
+  // tool loop produces multiple assistant items within one turn; each
+  // gets a sequential index so labelForCall renders "호출 1/N · 2/N · …"
+  // instead of the same suffix N times.
+  const callIndexByTurn = new Map<number, number>();
   for (const m of messages) {
     if (m.type !== "assistant") continue;
     if (m.requestPayload == null && m.responsePayload == null) continue;
+    const idx = callIndexByTurn.get(m.turnIndex) ?? 0;
+    callIndexByTurn.set(m.turnIndex, idx + 1);
     traces.push({
       turnIndex: m.turnIndex,
-      callIndexInTurn: 0,
+      callIndexInTurn: idx,
       requestPayload: m.requestPayload,
       responsePayload: m.responsePayload,
       durationMs: m.durationMs,

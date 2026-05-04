@@ -121,6 +121,50 @@ describe("extractLlmCalls", () => {
     expect(calls[1].turnIndex).toBe(2);
   });
 
+  it("assigns sequential callIndexInTurn to same-turn assistant items in fallbackMessages (tool loop)", () => {
+    // A tool loop produces multiple assistant messages within a single
+    // conversation turn (one with tool calls, one with the final reply).
+    // Each must get its own callIndexInTurn so labelForCall renders
+    // "호출 1/2 / 2/2" instead of the same suffix twice.
+    const raw = {
+      type: "ai_conversation",
+      status: "waiting_for_input",
+    };
+    const fallback = [
+      { type: "user", content: "hi", turnIndex: 1 },
+      {
+        type: "assistant",
+        content: "",
+        turnIndex: 1,
+        requestPayload: { m: "first call" },
+        responsePayload: { toolCalls: [{ id: "t1" }] },
+        durationMs: 30,
+      },
+      {
+        type: "tool",
+        content: "tool result",
+        turnIndex: 1,
+        toolCallId: "t1",
+      },
+      {
+        type: "assistant",
+        content: "final answer",
+        turnIndex: 1,
+        requestPayload: { m: "second call" },
+        responsePayload: { content: "final answer" },
+        durationMs: 40,
+      },
+    ] as Parameters<typeof extractLlmCalls>[1];
+    const calls = extractLlmCalls(raw, fallback);
+    expect(calls).toHaveLength(2);
+    expect(calls[0]).toMatchObject({ turnIndex: 1, callIndexInTurn: 0 });
+    expect(calls[1]).toMatchObject({ turnIndex: 1, callIndexInTurn: 1 });
+
+    const counts = countCallsPerTurn(calls);
+    expect(labelForCall(calls[0], counts)).toBe("Turn 1 · 호출 1/2");
+    expect(labelForCall(calls[1], counts)).toBe("Turn 1 · 호출 2/2");
+  });
+
   it("prefers outputData trace over fallbackMessages when both are present", () => {
     const raw = {
       _turnDebugHistory: [
