@@ -1,14 +1,15 @@
 import {
   deriveExecutionTrigger,
-  ExecutionTriggerSource,
+  EXECUTION_TRIGGER_SOURCES,
+  type ExecutionTriggerSource,
 } from './execution-trigger';
 
 type MakeArgs = {
   triggerId?: string | null;
   executedBy?: string | null;
   parentExecutionId?: string | null;
-  trigger?: { type: string; name: string } | null;
-  executor?: { name?: string | null; email?: string | null } | null;
+  trigger?: { type: string; name?: string | null } | null;
+  executor?: { name?: string | null } | null;
 };
 
 const makeExec = (a: MakeArgs = {}) => ({
@@ -17,6 +18,18 @@ const makeExec = (a: MakeArgs = {}) => ({
   parentExecutionId: a.parentExecutionId ?? null,
   trigger: a.trigger ?? null,
   executor: a.executor ?? null,
+});
+
+describe('EXECUTION_TRIGGER_SOURCES', () => {
+  it('lists all 5 known sources', () => {
+    expect([...EXECUTION_TRIGGER_SOURCES]).toEqual([
+      'manual',
+      'schedule',
+      'webhook',
+      'subworkflow',
+      'unknown',
+    ]);
+  });
 });
 
 describe('deriveExecutionTrigger', () => {
@@ -47,6 +60,14 @@ describe('deriveExecutionTrigger', () => {
       expect(result.label).toBeNull();
     });
 
+    it('whitespace-only parent name normalizes to null', () => {
+      const result = deriveExecutionTrigger(
+        makeExec({ parentExecutionId: 'p1' }),
+        '   ',
+      );
+      expect(result).toEqual({ source: 'subworkflow', label: null });
+    });
+
     it('subworkflow takes priority over manual/trigger fields', () => {
       const result = deriveExecutionTrigger(
         makeExec({
@@ -68,20 +89,39 @@ describe('deriveExecutionTrigger', () => {
       const result = deriveExecutionTrigger(
         makeExec({
           executedBy: 'user-1',
-          executor: { name: 'Alice', email: 'a@x.com' },
+          executor: { name: 'Alice' },
         }),
       );
       expect(result).toEqual({ source: 'manual', label: 'Alice' });
     });
 
-    it('falls back to executor.email when name is missing', () => {
+    it('does NOT fall back to email — PII must not surface in label', () => {
+      // executor 객체에 email 필드가 와도 라벨로 사용되지 않아야 한다.
+      // (입력 타입에 email 자체가 없지만, runtime 안전성도 보장)
       const result = deriveExecutionTrigger(
         makeExec({
           executedBy: 'user-1',
-          executor: { name: null, email: 'a@x.com' },
+          executor: { name: null } as unknown as {
+            name?: string | null;
+            email?: string | null;
+          },
         }),
       );
-      expect(result).toEqual({ source: 'manual', label: 'a@x.com' });
+      expect(result.source).toBe('manual');
+      expect(result.label).toBeNull();
+    });
+
+    it('empty / whitespace-only name normalizes to null label', () => {
+      expect(
+        deriveExecutionTrigger(
+          makeExec({ executedBy: 'u', executor: { name: '' } }),
+        ).label,
+      ).toBeNull();
+      expect(
+        deriveExecutionTrigger(
+          makeExec({ executedBy: 'u', executor: { name: '   ' } }),
+        ).label,
+      ).toBeNull();
     });
 
     it('null label when executor relation is not loaded', () => {
@@ -143,7 +183,6 @@ describe('deriveExecutionTrigger', () => {
       const result = deriveExecutionTrigger(
         makeExec({
           triggerId: 'trig-1',
-          // future/unknown trigger type
           trigger: { type: 'mystery', name: 'ignored' },
         }),
       );

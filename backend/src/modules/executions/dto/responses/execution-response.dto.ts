@@ -1,14 +1,9 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { ExecutionStatus } from '../../entities/execution.entity';
-import type { ExecutionTriggerSource } from '../../utils/execution-trigger';
-
-const EXECUTION_TRIGGER_SOURCES: ExecutionTriggerSource[] = [
-  'manual',
-  'schedule',
-  'webhook',
-  'subworkflow',
-  'unknown',
-];
+import {
+  EXECUTION_TRIGGER_SOURCES,
+  type ExecutionTriggerSource,
+} from '../../utils/execution-trigger';
 
 /** 실행(Execution) 요약 DTO */
 export class ExecutionDto {

@@ -120,7 +120,7 @@ describe('WebsocketGateway', () => {
       };
 
       const findByIdMock = jest.mocked(module.get(ExecutionsService).findById);
-      findByIdMock.mockResolvedValue(fakeExecution);
+      findByIdMock.mockResolvedValue(fakeExecution as never);
 
       gateway.handleSubscribe({ channel: 'execution:exec-abc' }, socket);
 
