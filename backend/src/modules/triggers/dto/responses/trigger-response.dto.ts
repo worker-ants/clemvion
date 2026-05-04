@@ -42,6 +42,18 @@ export class TriggerDto {
   @ApiPropertyOptional({ format: 'date-time', nullable: true })
   lastTriggeredAt?: string | null;
 
+  /** Cron 식 (schedule 타입 트리거 단건 조회 시에만 채워짐) */
+  @ApiPropertyOptional({ example: '0 9 * * 1-5' })
+  cronExpression?: string;
+
+  /** 타임존 (schedule 타입 트리거 단건 조회 시에만 채워짐) */
+  @ApiPropertyOptional({ example: 'Asia/Seoul' })
+  timezone?: string;
+
+  /** 다음 실행 예정 시각 (schedule 타입 트리거 단건 조회 시에만 채워짐) */
+  @ApiPropertyOptional({ format: 'date-time', nullable: true })
+  nextRunAt?: string | null;
+
   /** 생성 시각 */
   @ApiProperty({ format: 'date-time' })
   createdAt: string;

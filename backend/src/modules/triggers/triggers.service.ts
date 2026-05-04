@@ -3,10 +3,17 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Trigger } from './entities/trigger.entity';
 import { Execution } from '../executions/entities/execution.entity';
+import { Schedule } from '../schedules/entities/schedule.entity';
 import { CreateTriggerDto } from './dto/create-trigger.dto';
 import { UpdateTriggerDto } from './dto/update-trigger.dto';
 import { PaginatedResponseDto } from '../../common/dto/paginated-response.dto';
 import { PaginationQueryDto } from '../../common/dto/pagination.dto';
+
+export type TriggerDetail = Trigger & {
+  cronExpression?: string;
+  timezone?: string;
+  nextRunAt?: Date | null;
+};
 
 @Injectable()
 export class TriggersService {
@@ -15,6 +22,8 @@ export class TriggersService {
     private readonly triggerRepository: Repository<Trigger>,
     @InjectRepository(Execution)
     private readonly executionRepository: Repository<Execution>,
+    @InjectRepository(Schedule)
+    private readonly scheduleRepository: Repository<Schedule>,
   ) {}
 
   async findAll(
@@ -63,6 +72,20 @@ export class TriggersService {
       });
     }
     return trigger;
+  }
+
+  async findOneDetail(id: string, workspaceId: string): Promise<TriggerDetail> {
+    const trigger = await this.findById(id, workspaceId);
+    if (trigger.type !== 'schedule') return trigger;
+    const schedule = await this.scheduleRepository.findOne({
+      where: { triggerId: id, workspaceId },
+    });
+    if (!schedule) return trigger;
+    return Object.assign(trigger, {
+      cronExpression: schedule.cronExpression,
+      timezone: schedule.timezone,
+      nextRunAt: schedule.nextRunAt,
+    });
   }
 
   async create(workspaceId: string, dto: CreateTriggerDto): Promise<Trigger> {
