@@ -6,6 +6,8 @@
 
 ## 1. 공통 패턴
 
+> **본 문서의 범위**: 워크플로 캔버스에 직접 배치되는 Integration 노드(HTTP Request, Database Query, Send Email)의 정의만 다룬다. Integration 엔티티(`service_type='mcp'`)는 워크플로 노드로 노출되지 않고 AI Agent 노드 내부의 `mcpServers` 설정에서만 활용되며, 그 동작·도구 노출 모델은 [Spec MCP Client](../5-system/11-mcp-client.md) 와 [Spec AI 노드 §1](./3-ai-nodes.md#1-ai-agent) 에서 정의한다. 즉 Integration 엔티티는 (a) 본 문서의 노드와 (b) AI Agent MCP provider 두 가지 사용처를 가진다.
+
 ### 1.1 Integration 참조
 
 모든 서비스 특화 Integration 노드는 `integrationId` 설정을 통해 Integration 엔티티(spec/1-data-model.md §2.10)에 저장된 인증 정보를 참조한다.

@@ -71,6 +71,7 @@ describe('IntegrationsService', () => {
     consumePreviewToken: Mock;
   };
   let auditLogsService: { record: Mock };
+  let mcpTestConnection: { test: Mock };
   let integration: Integration;
 
   beforeEach(() => {
@@ -115,6 +116,11 @@ describe('IntegrationsService', () => {
       consumePreviewToken: jest.fn(),
     };
     auditLogsService = { record: jest.fn().mockResolvedValue(undefined) };
+    mcpTestConnection = {
+      test: jest
+        .fn()
+        .mockResolvedValue({ success: true, message: 'Connection successful' }),
+    };
 
     service = new IntegrationsService(
       integrationRepo as never,
@@ -123,6 +129,7 @@ describe('IntegrationsService', () => {
       workspacesService as never,
       oauthServiceMock as never,
       auditLogsService as never,
+      mcpTestConnection as never,
     );
   });
 
@@ -499,6 +506,56 @@ describe('IntegrationsService', () => {
       });
       expect(result.success).toBe(false);
       expect(result.message).toContain('required');
+    });
+
+    it('delegates mcp service to McpTestConnectionService and translates auth_type', async () => {
+      mcpTestConnection.test.mockResolvedValueOnce({
+        success: true,
+        message: 'Connection successful',
+        capabilities: { tools: {} },
+        serverInfo: { name: 's', version: '1' },
+      });
+      const result = await service.previewTest({
+        serviceType: 'mcp',
+        authType: 'bearer_token',
+        credentials: {
+          url: 'https://mcp.example.com',
+          token: 'abc',
+        },
+      });
+      expect(result.success).toBe(true);
+      expect(mcpTestConnection.test).toHaveBeenCalledWith({
+        authType: 'bearer_token',
+        url: 'https://mcp.example.com',
+        token: 'abc',
+        defaultHeaders: undefined,
+      });
+    });
+
+    it('mcp transport failure surfaces with MCP_* code in message', async () => {
+      mcpTestConnection.test.mockResolvedValueOnce({
+        success: false,
+        code: 'MCP_AUTH_FAILED',
+        message: 'bad token',
+      });
+      const result = await service.previewTest({
+        serviceType: 'mcp',
+        authType: 'bearer_token',
+        credentials: { url: 'https://mcp.example.com', token: 't' },
+      });
+      expect(result.success).toBe(false);
+      expect(result.message).toBe('[MCP_AUTH_FAILED] bad token');
+    });
+
+    it('mcp structural validation runs before transport probe', async () => {
+      const result = await service.previewTest({
+        serviceType: 'mcp',
+        authType: 'bearer_token',
+        credentials: { token: 't' }, // missing url
+      });
+      expect(result.success).toBe(false);
+      expect(result.message).toContain('url is required');
+      expect(mcpTestConnection.test).not.toHaveBeenCalled();
     });
   });
 

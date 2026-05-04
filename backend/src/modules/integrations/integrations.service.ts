@@ -31,6 +31,11 @@ import {
   maskCredentials,
   validateCredentials,
 } from './services/service-registry';
+import {
+  McpTestConnectionService,
+  TestConnectionResult as McpTestResult,
+} from '../mcp/mcp-test-connection.service';
+import { McpConnectParams } from '../mcp/mcp-client.service';
 
 const ADMIN_ROLES = new Set(['owner', 'admin']);
 
@@ -63,6 +68,7 @@ export class IntegrationsService {
     private readonly workspacesService: WorkspacesService,
     private readonly oauthService: IntegrationOAuthService,
     private readonly auditLogsService: AuditLogsService,
+    private readonly mcpTestConnection: McpTestConnectionService,
   ) {}
 
   // ---------------------------------------------------------------
@@ -746,21 +752,80 @@ export class IntegrationsService {
     }
   }
 
-  private dispatchTest(
+  private async dispatchTest(
     serviceType: string,
     authType: string,
     credentials: Record<string, unknown>,
   ): Promise<{ success: boolean; message: string }> {
     // Phase A: structural validation only — per-service transport testing
-    // lands in Phase C alongside OAuth begin/preview-test.
+    // lands in Phase C alongside OAuth begin/preview-test. The `mcp` service
+    // is the first to also exercise transport at registration time so that
+    // capability previews can be surfaced in the UI.
     const errors = validateCredentials(serviceType, authType, credentials);
     if (errors.length) {
-      return Promise.resolve({ success: false, message: errors.join('; ') });
+      return { success: false, message: errors.join('; ') };
     }
-    return Promise.resolve({
+    if (serviceType === 'mcp') {
+      const mcpResult = await this.mcpTestConnection.test(
+        this.toMcpConnectParams(authType, credentials),
+      );
+      return this.adaptMcpTestResult(mcpResult);
+    }
+    return {
       success: true,
       message: 'Connection successful',
-    });
+    };
+  }
+
+  /**
+   * Converts the validated `Integration.credentials` JSONB shape into the
+   * discriminated union {@link McpConnectParams} that {@link McpClientService}
+   * accepts. Validation has already ensured required fields exist.
+   */
+  private toMcpConnectParams(
+    authType: string,
+    credentials: Record<string, unknown>,
+  ): McpConnectParams {
+    const url = credentials.url as string;
+    const defaultHeaders =
+      (credentials.default_headers as Record<string, string> | undefined) ??
+      undefined;
+    if (authType === 'bearer_token') {
+      return {
+        authType: 'bearer_token',
+        url,
+        token: credentials.token as string,
+        defaultHeaders,
+      };
+    }
+    if (authType === 'api_key') {
+      return {
+        authType: 'api_key',
+        url,
+        headerName: credentials.header_name as string,
+        value: credentials.value as string,
+        defaultHeaders,
+      };
+    }
+    return { authType: 'none', url, defaultHeaders };
+  }
+
+  /**
+   * MCP `TestConnectionResult` carries success metadata (capabilities, preview)
+   * that is meaningful to the integration registration UI but the public
+   * `previewTest` contract only returns `{ success, message }`. We still pass
+   * a structured failure code through `message` so callers can surface the
+   * `MCP_*` vocabulary verbatim.
+   */
+  private adaptMcpTestResult(result: McpTestResult): {
+    success: boolean;
+    message: string;
+  } {
+    if (result.success) {
+      return { success: true, message: result.message };
+    }
+    const code = result.code ?? 'MCP_CONNECT_FAILED';
+    return { success: false, message: `[${code}] ${result.message}` };
   }
 
   async resolveRole(
