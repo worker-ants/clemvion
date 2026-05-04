@@ -2,6 +2,17 @@
 import './instrumentation';
 import { NestFactory } from '@nestjs/core';
 import { ConfigService } from '@nestjs/config';
+
+// DeprecationWarning 의 발생 위치를 추적하려면 stack 이 필요한데, 기본
+// process warning emitter 는 stack 을 한 줄로만 출력한다. 노드 옵션
+// `--trace-deprecation` 없이도 항상 전체 stack 을 남기도록 핸들러를 설치.
+process.on('warning', (warning: Error) => {
+  if (warning.name === 'DeprecationWarning') {
+    process.stderr.write(
+      `[DeprecationWarning] ${warning.message}\n${warning.stack ?? ''}\n`,
+    );
+  }
+});
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const cookieParser = require('cookie-parser') as () => (
