@@ -1074,22 +1074,56 @@ describe("useExecutionEvents", () => {
       expect(toolItems).toHaveLength(1);
     });
 
-    it("ai_message falls back to single-assistant append when payload.messages is absent (legacy)", () => {
+    it("ai_message ignores payloads missing the messages snapshot (invariant violation)", () => {
+      // spec/5-system/6-websocket-protocol.md §4.4 — backend always sends
+      // a messages snapshot; payloads without one are an invariant
+      // violation and are silently dropped (with a dev-only warning).
       useExecutionStore.getState().startExecution("exec-1");
       const { aiMessage } = bind();
 
-      aiMessage!({
-        nodeId: "agent-1",
-        message: "legacy reply",
-        turnCount: 1,
-      });
+      const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+      try {
+        aiMessage!({
+          nodeId: "agent-1",
+          message: "legacy reply",
+          turnCount: 1,
+        });
 
-      const items = useExecutionStore.getState().conversationMessages;
-      expect(items).toHaveLength(1);
-      expect(items[0]).toMatchObject({
-        type: "assistant",
-        content: "legacy reply",
-      });
+        const items = useExecutionStore.getState().conversationMessages;
+        expect(items).toHaveLength(0);
+        // The dev-only warning is the only visible signal — assert it fires
+        // and only carries non-sensitive identifiers (no raw payload).
+        expect(warnSpy).toHaveBeenCalledTimes(1);
+        expect(warnSpy).toHaveBeenCalledWith(
+          expect.stringContaining(
+            "execution.ai_message without messages snapshot",
+          ),
+          { nodeId: "agent-1", turnCount: 1 },
+        );
+      } finally {
+        warnSpy.mockRestore();
+      }
+    });
+
+    it("ai_message ignores payloads with messages: [] (empty snapshot)", () => {
+      useExecutionStore.getState().startExecution("exec-1");
+      const { aiMessage } = bind();
+
+      const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+      try {
+        aiMessage!({
+          nodeId: "agent-1",
+          message: "ignored",
+          turnCount: 1,
+          messages: [],
+        });
+
+        const items = useExecutionStore.getState().conversationMessages;
+        expect(items).toHaveLength(0);
+        expect(warnSpy).toHaveBeenCalledTimes(1);
+      } finally {
+        warnSpy.mockRestore();
+      }
     });
 
     it("ai_message snapshot preserves toolStatus from prior tool_call_completed events", () => {

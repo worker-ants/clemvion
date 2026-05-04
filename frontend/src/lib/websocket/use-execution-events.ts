@@ -96,7 +96,6 @@ export function useExecutionEvents({
     resumeFromButtons,
     pauseForConversation,
     resumeFromConversation,
-    addConversationMessage,
     setConversationMessages,
     upsertToolItem,
     updateToolItem,
@@ -310,80 +309,59 @@ export function useExecutionEvents({
           toolCalls?: number;
           ragChunks?: number;
         };
-        requestPayload?: unknown;
-        responsePayload?: unknown;
-        llmCalls?: Array<{ requestPayload?: unknown; responsePayload?: unknown; durationMs?: number }>;
+        // The legacy flat fields requestPayload / responsePayload were
+        // removed from this payload — per-call traces now live inside
+        // llmCalls[]. See spec/5-system/6-websocket-protocol.md §4.4.
+        llmCalls?: Array<{
+          requestPayload?: unknown;
+          responsePayload?: unknown;
+          durationMs?: number;
+        }>;
         durationMs?: number;
       };
       if (payload.message == null) return;
-
-      // When backend sends the full message array (current shape per
-      // execution-engine.service.ts), treat it as the authoritative snapshot
-      // — replace the entire conversation so user / assistant / tool items
-      // are consistent and any pending tool items dedup naturally.
-      if (Array.isArray(payload.messages) && payload.messages.length > 0) {
-        const turn = payload.turnCount ?? 1;
-        const debugByTurn = payload.llmCalls?.length
-          ? new Map([
-              [
-                turn,
-                {
-                  turnIndex: turn,
-                  llmCalls: payload.llmCalls,
-                },
-              ],
-            ])
-          : undefined;
-        // Preserve in-flight tool status from `tool_call_completed` events —
-        // without this, the snapshot replacement would briefly drop the
-        // success/error badge until backend's meta.turnDebug.toolCalls shape
-        // is wired into AI_MESSAGE payloads (only `messages` + `llmCalls`
-        // arrive today).
-        const previousItems =
-          useExecutionStore.getState().conversationMessages;
-        const toolStatusByCallId = toolStatusMapFromItems(previousItems);
-        const items = messagesToConversationItems(payload.messages, {
-          debugByTurn,
-          toolStatusByCallId,
-          metaModel: payload.metadata?.model,
-        });
-        setConversationMessages(items);
-        updateConversationConfig(payload);
+      // spec/5-system/6-websocket-protocol.md §4.4 — backend always emits
+      // a messages snapshot. A payload without one is an invariant
+      // violation; drop it (with a dev-only warning) so we don't fall back
+      // to a stale shape that hides the real bug.
+      if (
+        !Array.isArray(payload.messages) ||
+        payload.messages.length === 0
+      ) {
+        if (process.env.NODE_ENV !== "production") {
+          // Log only non-sensitive identifiers — payload.llmCalls would
+          // otherwise dump raw LLM request/response bodies into the console.
+          console.warn(
+            "[ws] execution.ai_message without messages snapshot — ignoring",
+            { nodeId: payload.nodeId, turnCount: payload.turnCount },
+          );
+        }
         return;
       }
 
-      // Legacy fallback: append a single assistant item.
-      const turnCount = payload.turnCount ?? 1;
-      const lastLlmCall = payload.llmCalls?.length
-        ? payload.llmCalls[payload.llmCalls.length - 1]
+      const turn = payload.turnCount ?? 1;
+      const debugByTurn = payload.llmCalls?.length
+        ? new Map([
+            [turn, { turnIndex: turn, llmCalls: payload.llmCalls }],
+          ])
         : undefined;
-
-      addConversationMessage({
-        type: "assistant",
-        content: payload.message ?? "",
-        turnIndex: turnCount,
-        timestamp: new Date().toISOString(),
-        durationMs: payload.durationMs ?? lastLlmCall?.durationMs,
-        requestPayload: payload.requestPayload ?? lastLlmCall?.requestPayload,
-        responsePayload: payload.responsePayload ?? lastLlmCall?.responsePayload,
-        metadata: payload.metadata
-          ? {
-              model: payload.metadata.model,
-              inputTokens: payload.metadata.inputTokens,
-              outputTokens: payload.metadata.outputTokens,
-              toolCalls: payload.metadata.toolCalls,
-              ragChunks: payload.metadata.ragChunks,
-            }
-          : undefined,
+      // Preserve in-flight tool status from `tool_call_completed` events —
+      // without this, the snapshot replacement would briefly drop the
+      // success/error badge until backend's meta.turnDebug.toolCalls shape
+      // is wired into AI_MESSAGE payloads (only `messages` + `llmCalls`
+      // arrive today).
+      const previousItems =
+        useExecutionStore.getState().conversationMessages;
+      const toolStatusByCallId = toolStatusMapFromItems(previousItems);
+      const items = messagesToConversationItems(payload.messages, {
+        debugByTurn,
+        toolStatusByCallId,
+        metaModel: payload.metadata?.model,
       });
-
+      setConversationMessages(items);
       updateConversationConfig(payload);
     },
-    [
-      addConversationMessage,
-      setConversationMessages,
-      updateConversationConfig,
-    ],
+    [setConversationMessages, updateConversationConfig],
   );
 
   const handleToolCallStarted = useCallback(
@@ -866,7 +844,6 @@ export function useExecutionEvents({
     resumeFromButtons,
     pauseForConversation,
     resumeFromConversation,
-    addConversationMessage,
     updateConversationConfig,
   ]);
 
