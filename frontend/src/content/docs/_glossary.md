@@ -34,9 +34,15 @@
 | Text Classifier | 텍스트 분류기 | 노드 이름은 "Text Classifier" 원문 유지, 본문에서는 "텍스트 분류기" 사용 가능 |
 | Information Extractor | 정보 추출기 | 위와 동일한 규칙 |
 | Knowledge Base | 지식 저장소 | 메뉴명과 동일 |
+| RAG | RAG | 한글화하지 않고 그대로. 본문에서는 "RAG(검색 보강)" 식으로 풀이 가능 |
+| Vector RAG | Vector RAG | KB의 기본 검색 모드. "벡터 모드"로 풀어 쓸 수 있어요 |
+| Graph RAG | Graph RAG | KB가 entity·relation까지 추출해 그래프와 벡터를 함께 검색하는 모드. "그래프 모드"로 풀어 쓸 수 있어요 |
 | LLM | LLM | 한글화하지 않고 그대로 사용 |
+| LLM Config | LLM 설정 | 메뉴명과 동일. AI 노드가 호출할 프로바이더·기본 모델·파라미터를 보관 |
 | Prompt | 프롬프트 | |
 | Tool | 도구 | AI Agent의 tool 개념 |
+| MCP | MCP | Model Context Protocol. 한글화하지 않고 그대로 사용 |
+| MCP Server | MCP 서버 | MCP를 통해 도구·리소스를 제공하는 외부 서버. AI Agent의 `MCP Servers` 필드로 연결 |
 | Version History | 버전 히스토리 | |
 
 ## 3. 문장 스타일

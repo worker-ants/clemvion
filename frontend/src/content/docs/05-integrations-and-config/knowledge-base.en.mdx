@@ -8,6 +8,7 @@ A Knowledge Base is organized by **collection**. Each collection pins an embeddi
   { name: "Name", type: "string", required: "Required", description: "Collection name shown on the list card." },
   { name: "Description", type: "string", required: "Optional", description: "Short purpose. Helpful for team collaboration." },
   { name: "Embedding model", type: "LLM Config reference", required: "Required", description: "Pinned at creation. Changing it requires re-embedding everything." },
+  { name: "RAG mode", type: "`vector` / `graph`", required: "Optional", description: "Defaults to `vector`. `graph` adds entity/relation extraction on top of chunk embeddings and runs combined graph + vector search at query time. It costs more time and tokens but helps when the documents revolve around people, organizations, or events. Pinned at collection creation — to change modes, create a new collection." },
   { name: "Chunk size", type: "integer (tokens)", required: "Optional", description: "Default 1000. Max tokens per chunk." },
   { name: "Chunk overlap", type: "integer (tokens)", required: "Optional", description: "Default 200. Overlap between adjacent chunks." }
 ]} />
@@ -39,6 +40,19 @@ Status badges appear both on the document list and on the collection card.
 
 Concurrent document processing is capped at 3 by default. Bulk uploads queue some items as `pending` until earlier ones finish.
 
+## Vector mode vs. Graph mode
+
+When you create a collection, the `RAG mode` field decides the retrieval strategy. The mode shapes the ingestion pipeline and the query path, so it can't be changed after creation — to switch modes, make a new collection and re-upload the documents.
+
+<FieldTable rows={[
+  { name: "Vector (default)", type: "Embedding + cosine similarity", required: "-", description: "Each chunk is embedded and stored in the vector store; queries return the chunks with the highest cosine similarity. Fast and cheap, ideal for FAQs and general document search." },
+  { name: "Graph", type: "Embedding + entity/relation extraction", required: "-", description: "Alongside vector embeddings, an LLM extracts entities (people, organizations, concepts) and relations between them and stores them in the graph store. Query-time runs a combined graph traversal and vector search (chained search), giving richer context whenever relationships matter. Embedding plus extraction take more time and LLM cost." }
+]} />
+
+<Callout type="tip">
+You can't mix the two modes inside a single collection. To use the same documents in both modes, create two collections and reference both from the AI Agent's `Knowledge Bases` field — collections sharing the same embedding model are batched into one query.
+</Callout>
+
 ## Referencing from an AI Agent
 
 The AI Agent node's settings panel has a multi-select `Knowledge Bases` field. Selected collections are searched by similarity against the user prompt at run time, and the results are injected under the system prompt.
@@ -46,25 +60,23 @@ The AI Agent node's settings panel has a multi-select `Knowledge Bases` field. S
 <Example title="KB reference in an AI Agent node">
 ```ts
 {
-  "type": "aiAgent",
+  "type": "ai_agent",
   "config": {
     "llmConfigId": "llm_01H...",
     "systemPrompt": "You are a customer support assistant.",
-    "userPrompt": "{{ $run.input.question }}",
+    "userPrompt": "{{ $input.parameters.question }}",
     "knowledgeBases": [
       "kb_01H...FAQ",
       "kb_01H...POLICY"
     ],
-    "rag": {
-      "topK": 5,           // max results (default 5)
-      "threshold": 0.7     // cosine similarity floor (default 0.7)
-    }
+    "ragTopK": 5,           // max results (default 5)
+    "ragThreshold": 0.7     // cosine similarity floor (default 0.7)
   }
 }
 ```
 </Example>
 
-After execution, the AI Agent result carries `metadata.ragSources` so you can see which chunks from which documents were referenced, and with what scores. You can also read them via expressions — e.g. `{{ $nodes.agent.metadata.ragSources[0].documentName }}`.
+After execution, the AI Agent result carries RAG-source metadata so you can see which chunks from which documents were referenced, and with what scores. You can also read them via expressions — e.g. `{{ $node["AI Agent"].meta.ragSources[0].documentName }}`.
 
 <Callout type="tip">When the top match scores below `threshold`, the LLM is called without RAG context. If answers look weak, try lowering the threshold to about 0.6, or shrink chunk size and re-embed.</Callout>
 

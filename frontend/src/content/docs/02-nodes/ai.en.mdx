@@ -21,6 +21,7 @@ This page covers the three AI nodes: calling an LLM to generate answers, classif
   {name: "knowledgeBases", required: false, type: "UUID[]", description: "Knowledge Bases referenced by RAG.", default: "[]"},
   {name: "ragTopK", required: false, type: "integer", description: "Top K results retrieved from RAG.", default: "5"},
   {name: "ragThreshold", required: false, type: "float", description: "RAG similarity threshold (0–1).", default: "0.7"},
+  {name: "mcpServers", required: false, type: "McpServerRef[]", description: "MCP (Model Context Protocol) servers to expose to the agent. Each entry takes a required `integrationId` plus optional `enabledTools`, `includeResources`, `includePrompts`, and `toolOverrides`. Tools from the registered servers become callable by the LLM automatically.", default: "[]"},
   {name: "conditions", required: false, type: "ConditionDef[]", description: "Conditions. Each has `id`, `label`, and `prompt`, and each condition gets its own dynamic output port.", default: "[]"},
   {name: "temperature", required: false, type: "float", description: "Overrides the LLMConfig default.", default: "-"},
   {name: "maxTokens", required: false, type: "integer", description: "Max tokens.", default: "-"},
@@ -54,6 +55,7 @@ Conditions are exposed to the LLM as special tools (`cond_*`). When the LLM call
   systemPrompt: "You are a customer support agent.",
   userPrompt: "{{ $input.message }}",
   knowledgeBases: ["faq-kb-id"],
+  mcpServers: [{ integrationId: "int_mcp_internal_search" }],
   conditions: [
     { id: "uuid-1", label: "Refund request detected",   prompt: "Customer asks for a refund or cancellation" },
     { id: "uuid-2", label: "Tech escalation",           prompt: "Complex technical issue requiring a human agent" }
@@ -186,7 +188,7 @@ In Multi Turn mode, leaving `inputField` empty skips the initial LLM call and wa
 ## Tips & notes
 
 - Registering a tool is as simple as dropping the node into the canvas **Tool Area**. The AI Agent picks it up as a callable tool, and condition tools are auto-separated so their names don't clash with regular ones.
-- LLM provider connections are managed under [LLM config](/docs/05-integrations-and-config/llm-config); Knowledge Base setup lives in [Knowledge Base](/docs/05-integrations-and-config/knowledge-base).
+- LLM provider connections are managed under [LLM config](/docs/05-integrations-and-config/llm-config); Knowledge Base setup lives in [Knowledge Base](/docs/05-integrations-and-config/knowledge-base); MCP server registration and tool-exposure policy is in [MCP server integration](/docs/05-integrations-and-config/mcp-servers).
 - Multi Turn execution history is inspectable per turn (request/response/token usage) via the Conversation Inspector. Details: [Run results](/docs/04-run-and-debug/run-results).
 - Power-user tip: when `responseFormat=json`, the LLM returns a structure matching your schema. If you add, remove, or rename fields, also check downstream `{{ $node["AI Agent"].output.result.response.field }}` references.
 - Downstream reference paths (Principle 1.1/8):
