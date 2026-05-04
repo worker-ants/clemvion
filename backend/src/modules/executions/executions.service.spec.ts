@@ -250,6 +250,30 @@ describe('ExecutionsService', () => {
       expect(executionRepo.createQueryBuilder).toHaveBeenCalledTimes(1);
     });
 
+    it('orderBy uses entity property names (camelCase), not DB column names', async () => {
+      // Regression: leftJoin + skip/take + orderBy(snake_case) 조합에서
+      // TypeORM 이 메타데이터 lookup 에 실패해 'databaseName' 에러를 일으켰던 케이스.
+      const row = baseFake({ id: 'eo' });
+      const listQB = buildListQB([row]);
+      executionRepo.createQueryBuilder.mockReturnValueOnce(listQB as unknown);
+
+      await service.findByWorkflow('w1', { sort: 'started_at', order: 'desc' });
+      expect(listQB.orderBy).toHaveBeenCalledWith('e.startedAt', 'DESC');
+
+      const listQB2 = buildListQB([row]);
+      executionRepo.createQueryBuilder.mockReturnValueOnce(listQB2 as unknown);
+      await service.findByWorkflow('w1', { sort: 'duration_ms', order: 'asc' });
+      expect(listQB2.orderBy).toHaveBeenCalledWith('e.durationMs', 'ASC');
+
+      const listQB3 = buildListQB([row]);
+      executionRepo.createQueryBuilder.mockReturnValueOnce(listQB3 as unknown);
+      await service.findByWorkflow('w1', {
+        sort: 'finished_at',
+        order: 'desc',
+      });
+      expect(listQB3.orderBy).toHaveBeenCalledWith('e.finishedAt', 'DESC');
+    });
+
     it('falls back to triggerSource=unknown when triggerId is set but Trigger relation is missing', async () => {
       const row = baseFake({
         id: 'e4',
