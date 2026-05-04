@@ -29,6 +29,13 @@ export interface NodeExecutionData {
   node?: { id: string; type: string; label: string };
 }
 
+export type ExecutionTriggerSource =
+  | "manual"
+  | "schedule"
+  | "webhook"
+  | "subworkflow"
+  | "unknown";
+
 export interface ExecutionData {
   id: string;
   workflowId: string;
@@ -39,6 +46,8 @@ export interface ExecutionData {
   startedAt: string;
   finishedAt: string | null;
   durationMs: number | null;
+  triggerSource?: ExecutionTriggerSource;
+  triggerLabel?: string | null;
   nodeExecutions: NodeExecutionData[];
 }
 
