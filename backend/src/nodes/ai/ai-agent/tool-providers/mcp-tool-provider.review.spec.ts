@@ -218,6 +218,34 @@ describe('McpToolProvider — review issues', () => {
       expect(tools).toEqual([]);
       expect(mcpClient.connect).not.toHaveBeenCalled();
     });
+
+    it('honors MCP_ALLOW_INSECURE_URL — provider-layer http URL passes through', async () => {
+      const originalFlag = process.env.MCP_ALLOW_INSECURE_URL;
+      process.env.MCP_ALLOW_INSECURE_URL = 'true';
+      try {
+        integrations.getForExecution.mockResolvedValue(
+          makeIntegration({
+            credentials: { url: 'http://localhost:3001', token: 't' },
+          }),
+        );
+        mcpClient.connect.mockResolvedValueOnce(makeSession());
+        const tools = await provider.buildTools({
+          config: { mcpServers: [{ integrationId: SAMPLE_ID }] },
+          workspaceId: 'ws-1',
+          executionId: 'exec-1',
+        });
+        expect(mcpClient.connect).toHaveBeenCalledWith(
+          expect.objectContaining({ url: 'http://localhost:3001' }),
+        );
+        expect(tools.length).toBeGreaterThan(0);
+      } finally {
+        if (originalFlag === undefined) {
+          delete process.env.MCP_ALLOW_INSECURE_URL;
+        } else {
+          process.env.MCP_ALLOW_INSECURE_URL = originalFlag;
+        }
+      }
+    });
   });
 
   // -------------------------------------------------------------------

@@ -6,6 +6,7 @@ import {
 } from '../../../../modules/llm/interfaces/llm-client.interface';
 import { IntegrationsService } from '../../../../modules/integrations/integrations.service';
 import {
+  isInsecureUrlAllowed,
   McpClientService,
   McpConnectParams,
   McpSession,
@@ -163,6 +164,10 @@ export function parseMcpToolName(
  * Validate the URL string at the provider boundary. Defense in depth on top
  * of the same check inside `McpClientService.connect()` — this catches typos
  * before we even call into the SDK.
+ *
+ * Honors the same `MCP_ALLOW_INSECURE_URL` escape hatch as the client layer
+ * so a local-dev operator does not see a different rule on either side of
+ * the call.
  */
 function assertHttpsUrl(url: unknown): asserts url is string {
   if (typeof url !== 'string' || url.length === 0) {
@@ -174,8 +179,13 @@ function assertHttpsUrl(url: unknown): asserts url is string {
   } catch {
     throw new Error(`MCP integration URL is malformed: ${url}`);
   }
-  if (parsed.protocol !== 'https:') {
-    throw new Error(`MCP integration URL must use https:// (got ${url})`);
+  const allowedProtocols = isInsecureUrlAllowed()
+    ? ['https:', 'http:']
+    : ['https:'];
+  if (!allowedProtocols.includes(parsed.protocol)) {
+    throw new Error(
+      `MCP integration URL must use ${allowedProtocols.join('/')} (got ${url})`,
+    );
   }
 }
 

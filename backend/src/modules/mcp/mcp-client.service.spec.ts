@@ -66,6 +66,15 @@ describe('McpClientService', () => {
   });
 
   describe('connect — URL & SSRF policy', () => {
+    const ORIGINAL_INSECURE = process.env.MCP_ALLOW_INSECURE_URL;
+    afterEach(() => {
+      if (ORIGINAL_INSECURE === undefined) {
+        delete process.env.MCP_ALLOW_INSECURE_URL;
+      } else {
+        process.env.MCP_ALLOW_INSECURE_URL = ORIGINAL_INSECURE;
+      }
+    });
+
     it('rejects non-HTTPS URLs', async () => {
       await expect(
         service.connect({
@@ -123,6 +132,52 @@ describe('McpClientService', () => {
         authType: 'none',
       });
       expect(mockTransportInstances).toHaveLength(1);
+    });
+
+    describe('MCP_ALLOW_INSECURE_URL escape hatch', () => {
+      it('allows http://localhost when set to "true"', async () => {
+        process.env.MCP_ALLOW_INSECURE_URL = 'true';
+        await service.connect({
+          url: 'http://localhost:3001/mcp',
+          authType: 'none',
+        });
+        expect(mockTransportInstances).toHaveLength(1);
+      });
+
+      it('also allows previously-blocked private IPs when set', async () => {
+        process.env.MCP_ALLOW_INSECURE_URL = 'true';
+        await service.connect({
+          url: 'http://10.0.0.5/mcp',
+          authType: 'none',
+        });
+        expect(mockTransportInstances).toHaveLength(1);
+      });
+
+      it('still rejects non-http(s) schemes (file://) even when set', async () => {
+        process.env.MCP_ALLOW_INSECURE_URL = 'true';
+        await expect(
+          service.connect({ url: 'file:///etc/passwd', authType: 'none' }),
+        ).rejects.toThrow(McpHttpsRequiredError);
+      });
+
+      it('"1" is also accepted as truthy', async () => {
+        process.env.MCP_ALLOW_INSECURE_URL = '1';
+        await service.connect({
+          url: 'http://localhost:3001/mcp',
+          authType: 'none',
+        });
+        expect(mockTransportInstances).toHaveLength(1);
+      });
+
+      it('any other value falls back to strict mode', async () => {
+        process.env.MCP_ALLOW_INSECURE_URL = 'yes-please';
+        await expect(
+          service.connect({
+            url: 'http://localhost:3001/mcp',
+            authType: 'none',
+          }),
+        ).rejects.toThrow(McpHttpsRequiredError);
+      });
     });
   });
 
