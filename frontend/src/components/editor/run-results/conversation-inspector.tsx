@@ -267,12 +267,34 @@ function SelectedItemDetail({
 // ── Tool / User detail ──
 
 function ToolDetail({ item }: { item: ConversationItem }) {
+  const statusBadge =
+    item.toolStatus === "pending"
+      ? { label: "Pending", className: "bg-[hsl(var(--muted))] text-[hsl(var(--muted-foreground))]" }
+      : item.toolStatus === "success"
+        ? { label: "Success", className: "bg-green-500/15 text-green-700 dark:text-green-300" }
+        : item.toolStatus === "error"
+          ? { label: "Error", className: "bg-red-500/15 text-red-700 dark:text-red-300" }
+          : null;
+
   return (
     <div className="flex flex-col gap-3 p-3">
       <div className="flex items-center gap-2">
         <span>🔧</span>
         <span className="font-mono text-sm font-medium">{item.content}</span>
+        {statusBadge && (
+          <span
+            className={`ml-auto rounded px-1.5 py-0.5 text-[10px] font-medium ${statusBadge.className}`}
+          >
+            {statusBadge.label}
+            {item.durationMs != null ? ` · ${item.durationMs}ms` : ""}
+          </span>
+        )}
       </div>
+      {item.error && (
+        <div className="rounded border border-red-500/30 bg-red-500/10 p-2 text-xs text-red-700 dark:text-red-300">
+          {item.error}
+        </div>
+      )}
       {item.toolArgs != null && (
         <div>
           <div className="mb-1 text-xs font-medium text-[hsl(var(--muted-foreground))]">

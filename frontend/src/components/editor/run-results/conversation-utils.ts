@@ -6,10 +6,23 @@ interface LlmCallEntry {
   durationMs?: number;
 }
 
+/** Provider tool execution metadata persisted on each turnDebug entry.
+ * The handler builds this in parallel with the LLM-facing tool messages
+ * so the UI can render success/error/pending without parsing tool content. */
+interface TurnToolCallEntry {
+  toolCallId: string;
+  name?: string;
+  providerKey?: string;
+  status: "success" | "error";
+  durationMs?: number;
+  error?: string;
+}
+
 interface TurnDebugEntry {
   turnIndex: number;
   /** All LLM calls in this turn (1 without tool calls, 2+ with tool calls) */
   llmCalls?: LlmCallEntry[];
+  toolCalls?: TurnToolCallEntry[];
   totalDurationMs?: number;
   /** Legacy: single request/response (backward compat) */
   requestPayload?: unknown;
@@ -17,14 +30,189 @@ interface TurnDebugEntry {
   durationMs?: number;
 }
 
+interface RawMessage {
+  role: string;
+  content?: string;
+  toolCalls?: Array<{ id?: string; name?: string; arguments?: string }>;
+  toolCallId?: string;
+}
+
+interface ToolStatusInfo {
+  status: "success" | "error";
+  durationMs?: number;
+  error?: string;
+}
+
+interface ConvertOptions {
+  debugByTurn?: Map<number, TurnDebugEntry>;
+  toolStatusByCallId?: Map<string, ToolStatusInfo>;
+  metaModel?: string;
+}
+
+function tryParseJson(value: unknown): unknown {
+  if (typeof value !== "string") return value;
+  try {
+    return JSON.parse(value);
+  } catch {
+    return value;
+  }
+}
+
+/**
+ * Convert a raw message array (chat history shape used by both live WS
+ * payloads and persisted outputData) into the inspector's ConversationItem
+ * shape. Tool messages are linked back to the assistant call that produced
+ * them via `toolCallId`, so each tool item knows its name and arguments
+ * even though the raw `role: 'tool'` message only carries the result content.
+ */
+export function messagesToConversationItems(
+  messages: RawMessage[],
+  options: ConvertOptions = {},
+): ConversationItem[] {
+  if (!Array.isArray(messages) || messages.length === 0) return [];
+
+  const { debugByTurn, toolStatusByCallId, metaModel } = options;
+  const items: ConversationItem[] = [];
+  let currentTurn = 0;
+  let assistantIdxInTurn = 0;
+  // Track the most recent assistant tool calls so subsequent tool messages
+  // can resolve their name / arguments by toolCallId.
+  const callInfoByCallId = new Map<
+    string,
+    { name: string; arguments?: string; turnIndex: number }
+  >();
+
+  for (const msg of messages) {
+    if (msg.role === "user") {
+      currentTurn++;
+      assistantIdxInTurn = 0;
+      items.push({
+        type: "user",
+        content: msg.content ?? "",
+        turnIndex: currentTurn,
+      });
+      continue;
+    }
+
+    if (msg.role === "assistant") {
+      const turn = currentTurn || 1;
+      const debug = debugByTurn?.get(turn);
+
+      let callDebug: LlmCallEntry | undefined;
+      if (debug?.llmCalls && debug.llmCalls.length > 0) {
+        callDebug = debug.llmCalls[assistantIdxInTurn];
+      } else if (debug && assistantIdxInTurn === 0) {
+        callDebug = {
+          requestPayload: debug.requestPayload,
+          responsePayload: debug.responsePayload,
+          durationMs: debug.durationMs,
+        };
+      }
+
+      const resp = callDebug?.responsePayload as
+        | Record<string, unknown>
+        | undefined;
+      const usage = resp?.usage as Record<string, unknown> | undefined;
+
+      const respToolCalls = resp?.toolCalls as
+        | Array<{ id?: string; name?: string; arguments?: string }>
+        | undefined;
+      const rawToolCalls = respToolCalls ?? msg.toolCalls;
+      const toolCalls = rawToolCalls?.map((tc) => ({
+        name: tc.name ?? "",
+        arguments: tc.arguments,
+      }));
+
+      // Remember each tool call so the next tool message can resolve its name.
+      if (rawToolCalls) {
+        for (const tc of rawToolCalls) {
+          if (!tc.id) continue;
+          callInfoByCallId.set(tc.id, {
+            name: tc.name ?? "",
+            arguments: tc.arguments,
+            turnIndex: turn,
+          });
+        }
+      }
+
+      items.push({
+        type: "assistant",
+        content: msg.content ?? "",
+        turnIndex: turn,
+        assistantToolCalls: toolCalls?.length ? toolCalls : undefined,
+        requestPayload: callDebug?.requestPayload,
+        responsePayload: callDebug?.responsePayload,
+        durationMs: callDebug?.durationMs,
+        metadata: {
+          model: (resp?.model as string) ?? metaModel,
+          inputTokens: (usage?.inputTokens as number) ?? undefined,
+          outputTokens: (usage?.outputTokens as number) ?? undefined,
+        },
+      });
+
+      assistantIdxInTurn++;
+      continue;
+    }
+
+    if (msg.role === "tool") {
+      const callId = msg.toolCallId;
+      const info = callId ? callInfoByCallId.get(callId) : undefined;
+      const status = callId ? toolStatusByCallId?.get(callId) : undefined;
+
+      const item: ConversationItem = {
+        type: "tool",
+        content: info?.name ?? "(unknown tool)",
+        turnIndex: info?.turnIndex ?? (currentTurn || 1),
+        toolCallId: callId,
+        toolArgs: info?.arguments ? tryParseJson(info.arguments) : undefined,
+        toolResult: tryParseJson(msg.content),
+      };
+      if (status) {
+        item.toolStatus = status.status;
+        if (status.durationMs !== undefined) item.durationMs = status.durationMs;
+        if (status.error !== undefined) item.error = status.error;
+      }
+      items.push(item);
+      continue;
+    }
+    // system messages and unknown roles are skipped.
+  }
+
+  return items;
+}
+
+/**
+ * Build a `toolCallId` → status map from `meta.turnDebug[].toolCalls`. Used
+ * by parseHistoryMessages and by the live event handler so success/error
+ * decoration is the same for both code paths.
+ */
+function toolStatusMapFromDebug(
+  debugHistory: TurnDebugEntry[],
+): Map<string, ToolStatusInfo> {
+  const map = new Map<string, ToolStatusInfo>();
+  for (const turn of debugHistory) {
+    for (const tc of turn.toolCalls ?? []) {
+      if (!tc.toolCallId) continue;
+      map.set(tc.toolCallId, {
+        status: tc.status,
+        durationMs: tc.durationMs,
+        error: tc.error,
+      });
+    }
+  }
+  return map;
+}
+
 /**
  * Parse conversation messages from a completed AI Agent node's outputData.
- * Filters out system/tool messages, maps to ConversationItem format,
- * and attaches per-LLM-call debug data from _turnDebugHistory.
+ * Maps user / assistant / tool messages to ConversationItem format and
+ * attaches per-LLM-call debug data + per-tool status from `meta.turnDebug`.
  *
- * When function calling occurs, a single turn produces multiple assistant messages
- * (one with tool calls, one with the final response). Each assistant message is
- * matched to the corresponding LLM call entry within the turn's llmCalls array.
+ * When function calling occurs, a single turn produces multiple assistant
+ * messages (one with tool calls, one with the final response) and one or
+ * more tool messages between them. Each assistant message is matched to
+ * the corresponding LLM call entry; each tool message is linked to the
+ * assistant call that produced it via toolCallId.
  */
 export function parseHistoryMessages(
   outputData: unknown,
@@ -52,11 +240,7 @@ export function parseHistoryMessages(
     (wrapper?.messages as unknown[] | undefined);
   if (!messagesSource) return [];
 
-  const messages = messagesSource as Array<{
-    role: string;
-    content: string;
-    toolCalls?: unknown[];
-  }>;
+  const messages = messagesSource as RawMessage[];
 
   // Build turnIndex → debug lookup from persisted history. New shape lives
   // under `meta.turnDebug`; legacy under `output._turnDebugHistory`.
@@ -74,74 +258,16 @@ export function parseHistoryMessages(
   for (const entry of debugHistory) {
     debugByTurn.set(entry.turnIndex, entry);
   }
+  const toolStatusByCallId = toolStatusMapFromDebug(debugHistory);
 
-  // Metadata from the final output (shared model info). Post-Stage-5 this
-  // lives on the top-level `meta`; legacy runs kept it on `output.metadata`.
   const meta =
     topMeta ??
     (wrapper?.metadata as Record<string, unknown> | undefined);
+  const metaModel = (meta?.model as string | undefined) ?? undefined;
 
-  // Walk through messages, tracking which turn and which LLM call within the turn
-  const items: ConversationItem[] = [];
-  let currentTurn = 0;
-  let assistantIdxInTurn = 0; // N-th assistant message within current turn
-
-  for (const msg of messages) {
-    if (msg.role === "user") {
-      currentTurn++;
-      assistantIdxInTurn = 0;
-      items.push({
-        type: "user",
-        content: msg.content,
-        turnIndex: currentTurn,
-      });
-    } else if (msg.role === "assistant") {
-      const turn = currentTurn || 1;
-      const debug = debugByTurn.get(turn);
-
-      let callDebug: LlmCallEntry | undefined;
-      if (debug?.llmCalls && debug.llmCalls.length > 0) {
-        // Match to the N-th LLM call in this turn
-        callDebug = debug.llmCalls[assistantIdxInTurn];
-      } else if (debug && assistantIdxInTurn === 0) {
-        // Legacy format: single request/response per turn
-        callDebug = {
-          requestPayload: debug.requestPayload,
-          responsePayload: debug.responsePayload,
-          durationMs: debug.durationMs,
-        };
-      }
-
-      // Extract token usage from the LLM response payload
-      const resp = callDebug?.responsePayload as Record<string, unknown> | undefined;
-      const usage = resp?.usage as Record<string, unknown> | undefined;
-
-      // Extract tool calls from the LLM response or the message itself
-      const toolCalls = (
-        (resp?.toolCalls ?? msg.toolCalls) as
-          | Array<{ name?: string; arguments?: string }>
-          | undefined
-      )?.map((tc) => ({ name: tc.name ?? "", arguments: tc.arguments }));
-
-      items.push({
-        type: "assistant",
-        content: msg.content,
-        turnIndex: turn,
-        assistantToolCalls: toolCalls?.length ? toolCalls : undefined,
-        requestPayload: callDebug?.requestPayload,
-        responsePayload: callDebug?.responsePayload,
-        durationMs: callDebug?.durationMs,
-        metadata: {
-          model: (resp?.model as string) ?? (meta?.model as string | undefined),
-          inputTokens: (usage?.inputTokens as number) ?? undefined,
-          outputTokens: (usage?.outputTokens as number) ?? undefined,
-        },
-      });
-
-      assistantIdxInTurn++;
-    }
-    // Skip system and tool messages
-  }
-
-  return items;
+  return messagesToConversationItems(messages, {
+    debugByTurn,
+    toolStatusByCallId,
+    metaModel,
+  });
 }

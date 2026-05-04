@@ -69,11 +69,22 @@ export interface ConversationItem {
   assistantToolCalls?: ToolCallInfo[];
   toolArgs?: unknown;
   toolResult?: unknown;
-  toolStatus?: "success" | "error";
+  /**
+   * `pending` is used live while the provider is executing; turns into
+   * `success` / `error` once the result is known. History rebuilds from
+   * `meta.turnDebug[].toolCalls` so completed runs only ever see
+   * success/error.
+   */
+  toolStatus?: "pending" | "success" | "error";
+  /** Matches assistant.toolCalls[].id and the tool message's toolCallId.
+   * Used by live event handlers to upsert/patch the right item. */
+  toolCallId?: string;
+  /** Human-readable error message when toolStatus is 'error'. */
+  error?: string;
   turnIndex: number;
   /** Timestamp when the message was sent/received */
   timestamp?: string;
-  /** Duration in ms (for assistant: LLM latency) */
+  /** Duration in ms (for assistant: LLM latency, for tool: provider exec time) */
   durationMs?: number;
   /** Raw request payload sent to LLM (assistant items only) */
   requestPayload?: unknown;
@@ -126,6 +137,24 @@ interface ExecutionState {
   pauseForConversation: (nodeId: string, config: unknown) => void;
   resumeFromConversation: () => void;
   addConversationMessage: (item: ConversationItem) => void;
+  /**
+   * Replace the entire conversation message list. Used when an authoritative
+   * snapshot arrives (e.g. `execution.ai_message` payload's `messages` array)
+   * so live + history representations stay in sync — including tool items
+   * that aren't surfaced via `addConversationMessage`.
+   */
+  setConversationMessages: (items: ConversationItem[]) => void;
+  /**
+   * Append a tool ConversationItem if no item with the same `toolCallId`
+   * exists; otherwise no-op. Used by `tool_call_started` to render the
+   * pending state without duplicating across reconnects/snapshots.
+   */
+  upsertToolItem: (item: ConversationItem) => void;
+  /**
+   * Patch the tool ConversationItem matching `toolCallId`. No-op if no
+   * matching item is found (the snapshot path will recreate it later).
+   */
+  updateToolItem: (toolCallId: string, patch: Partial<ConversationItem>) => void;
   updateConversationConfig: (config: unknown) => void;
   setWaitingAiResponse: (value: boolean) => void;
   selectResultNode: (nodeId: string | null) => void;
@@ -334,6 +363,46 @@ export const useExecutionStore = create<ExecutionState>((set) => ({
     set((state) => ({
       conversationMessages: [...state.conversationMessages, item],
     })),
+
+  setConversationMessages: (items: ConversationItem[]) =>
+    set((state) => {
+      const idx = state.selectedConversationItemIndex;
+      // Preserve the user's selection when the new array is at least as long;
+      // otherwise drop it so the inspector falls back to the node-level view.
+      const nextIndex =
+        idx != null && idx >= 0 && idx < items.length ? idx : null;
+      return {
+        conversationMessages: items,
+        selectedConversationItemIndex: nextIndex,
+      };
+    }),
+
+  upsertToolItem: (item: ConversationItem) =>
+    set((state) => {
+      if (!item.toolCallId) {
+        // Without an id we can't dedup, so fall back to plain append.
+        return { conversationMessages: [...state.conversationMessages, item] };
+      }
+      const exists = state.conversationMessages.some(
+        (i) => i.toolCallId === item.toolCallId,
+      );
+      if (exists) return {};
+      return { conversationMessages: [...state.conversationMessages, item] };
+    }),
+
+  updateToolItem: (toolCallId: string, patch: Partial<ConversationItem>) =>
+    set((state) => {
+      let touched = false;
+      const next = state.conversationMessages.map((i) => {
+        if (i.toolCallId === toolCallId) {
+          touched = true;
+          return { ...i, ...patch };
+        }
+        return i;
+      });
+      if (!touched) return {};
+      return { conversationMessages: next };
+    }),
 
   updateConversationConfig: (config: unknown) =>
     set((state) => {

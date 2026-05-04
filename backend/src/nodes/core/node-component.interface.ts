@@ -13,6 +13,7 @@ import { KnowledgeBaseService } from '../../modules/knowledge-base/knowledge-bas
 import { IntegrationsService } from '../../modules/integrations/integrations.service';
 import { McpClientService } from '../../modules/mcp/mcp-client.service';
 import { WorkflowExecutor } from './workflow-executor.interface';
+import { WebsocketService } from '../../modules/websocket/websocket.service';
 
 export type {
   ExecutionContext,
@@ -251,6 +252,9 @@ export interface HandlerDependencies {
   integrationsService: IntegrationsService;
   mcpClientService: McpClientService;
   workflowExecutor: WorkflowExecutor;
+  /** Optional — handlers that emit live debug WS events (e.g. AI Agent's
+   *  tool_call_started/completed) consume it. Other handlers ignore. */
+  websocketService?: WebsocketService;
 }
 
 /**

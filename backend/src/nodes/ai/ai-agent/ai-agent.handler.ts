@@ -14,9 +14,29 @@ import {
 } from '../../../modules/llm/interfaces/llm-client.interface';
 import {
   AgentToolProvider,
+  AgentToolResult,
   KbSearchDiagnostic,
 } from './tool-providers/agent-tool-provider.interface';
 import { aiAgentNodeMetadata } from './ai-agent.schema';
+import {
+  ExecutionEventType,
+  WebsocketService,
+} from '../../../modules/websocket/websocket.service';
+
+/**
+ * Per-tool execution metadata recorded into `meta.turnDebug[].toolCalls`. The
+ * UI uses this (rather than parsing tool message content) to render
+ * success / error badges and durations on each tool item in the timeline.
+ * Source-of-truth for the ConversationItem.toolStatus field on the client.
+ */
+export interface ToolCallTrace {
+  toolCallId: string;
+  name: string;
+  providerKey?: string;
+  status: 'success' | 'error';
+  durationMs: number;
+  error?: string;
+}
 
 /**
  * 한 번의 노드 실행에서 누적된 RAG 진단 정보. KB tool 호출이 일어날 때마다
@@ -191,7 +211,101 @@ export class AiAgentHandler implements NodeHandler {
   constructor(
     private readonly llmService: LlmService,
     private readonly toolProviders: AgentToolProvider[] = [],
+    /**
+     * Optional. When provided, each provider tool execution emits
+     * `tool_call_started` / `tool_call_completed` events on the WS channel
+     * `execution:{executionId}` so the debugging timeline can render
+     * pending → success / error transitions live. Test fixtures may omit
+     * this — the handler runs unchanged otherwise.
+     */
+    private readonly websocketService?: WebsocketService,
   ) {}
+
+  /**
+   * Run a provider tool with telemetry: emit started/completed WS events,
+   * catch exceptions so the LLM can still recover in the next turn, and
+   * record a {@link ToolCallTrace} for `meta.turnDebug[].toolCalls`.
+   */
+  private async runProviderTool(args: {
+    provider: AgentToolProvider;
+    call: ToolCall;
+    executionId: string;
+    nodeId: string;
+    nodeExecutionId?: string;
+    workflowId?: string;
+    workspaceId: string;
+    config: Record<string, unknown>;
+    turnIndex: number;
+  }): Promise<{ result: AgentToolResult; trace: ToolCallTrace }> {
+    const { provider, call, executionId, nodeId, turnIndex } = args;
+    const startedAt = Date.now();
+
+    this.websocketService?.emitExecutionEvent(
+      executionId,
+      ExecutionEventType.TOOL_CALL_STARTED,
+      {
+        nodeId,
+        turnIndex,
+        toolCallId: call.id,
+        name: call.name,
+        arguments: call.arguments,
+      },
+    );
+
+    let result: AgentToolResult;
+    let status: 'success' | 'error';
+    let error: string | undefined;
+
+    try {
+      result = await provider.execute(call, {
+        config: args.config,
+        workspaceId: args.workspaceId,
+        executionId,
+        nodeExecutionId: args.nodeExecutionId,
+        workflowId: args.workflowId,
+      });
+      status = result.status ?? 'success';
+      error = result.error;
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      // Surface the failure to the LLM as the tool_result content so it can
+      // recover in the next turn (instead of failing the whole turn).
+      result = {
+        toolCallId: call.id,
+        content: JSON.stringify({ error: message }),
+        status: 'error',
+        error: message,
+      };
+      status = 'error';
+      error = message;
+    }
+
+    const durationMs = Date.now() - startedAt;
+    const trace: ToolCallTrace = {
+      toolCallId: call.id,
+      name: call.name,
+      providerKey: provider.key,
+      status,
+      durationMs,
+      ...(error !== undefined ? { error } : {}),
+    };
+
+    this.websocketService?.emitExecutionEvent(
+      executionId,
+      ExecutionEventType.TOOL_CALL_COMPLETED,
+      {
+        nodeId,
+        turnIndex,
+        toolCallId: call.id,
+        content: result.content,
+        status,
+        ...(error !== undefined ? { error } : {}),
+        durationMs,
+      },
+    );
+
+    return { result, trace };
+  }
 
   validate(config: Record<string, unknown>): ValidationResult {
     // Schema SSOT (warningRules + validateConfig) covers no-llm-provider,
@@ -301,6 +415,7 @@ export class AiAgentHandler implements NodeHandler {
       responsePayload: unknown;
       durationMs: number;
     }> = [];
+    const toolCallTraces: ToolCallTrace[] = [];
     const singleTurnStartedAt = Date.now();
     const firstRequest = {
       model: model || llmConfig.defaultModel,
@@ -368,6 +483,9 @@ export class AiAgentHandler implements NodeHandler {
               turnIndex: 1,
               llmCalls,
               totalDurationMs: Date.now() - singleTurnStartedAt,
+              ...(toolCallTraces.length > 0
+                ? { toolCalls: [...toolCallTraces] }
+                : {}),
               ragSources: turnRagAcc.getSources(),
               ragDiagnostics: turnRagAcc.getDiagnostics(),
             },
@@ -383,16 +501,22 @@ export class AiAgentHandler implements NodeHandler {
       });
 
       // Provider tools (KB 등) — 핸들러 내부 직접 실행, 결과 메시지 + ragGroup
-      // 누적 (node total + turn delta 동시 갱신).
+      // 누적 (node total + turn delta 동시 갱신). throw 는 trace.error 로
+      // 잡혀 다음 LLM turn 에 에러 content 가 전달된다 (turn 자체는 회복).
       for (const { provider, call } of classification.providerToolCalls) {
         toolCallCount++;
-        const execResult = await provider.execute(call, {
-          config,
-          workspaceId,
+        const { result: execResult, trace } = await this.runProviderTool({
+          provider,
+          call,
           executionId: context.executionId,
+          nodeId: context.nodeId ?? '',
           nodeExecutionId: context.nodeExecutionId,
           workflowId: context.workflowId,
+          workspaceId,
+          config,
+          turnIndex: 1,
         });
+        toolCallTraces.push(trace);
         ragGroup.pushSources(execResult.ragSourcesDelta);
         ragGroup.pushDiagnostic(execResult.ragDiagnosticsDelta);
         messages.push({
@@ -498,6 +622,9 @@ export class AiAgentHandler implements NodeHandler {
             turnIndex: 1,
             llmCalls,
             totalDurationMs: singleTurnDurationMs,
+            ...(toolCallTraces.length > 0
+              ? { toolCalls: [...toolCallTraces] }
+              : {}),
             ragSources: turnRagAcc.getSources(),
             ragDiagnostics: turnRagAcc.getDiagnostics(),
           },
@@ -569,6 +696,7 @@ export class AiAgentHandler implements NodeHandler {
       conditions,
       workspaceId,
       executionId: context.executionId,
+      nodeId: context.nodeId,
       nodeExecutionId: context.nodeExecutionId,
       workflowId: context.workflowId,
     };
@@ -684,6 +812,7 @@ export class AiAgentHandler implements NodeHandler {
       responsePayload: unknown;
       durationMs: number;
     }> = [];
+    const toolCallTraces: ToolCallTrace[] = [];
     let callStart = Date.now();
     let result = await this.llmService.chat(llmConfig, {
       model,
@@ -727,6 +856,9 @@ export class AiAgentHandler implements NodeHandler {
             turnIndex: turnCount,
             llmCalls,
             totalDurationMs: Date.now() - turnStartedAt,
+            ...(toolCallTraces.length > 0
+              ? { toolCalls: [...toolCallTraces] }
+              : {}),
             ragSources: turnRagAcc.getSources(),
             ragDiagnostics: turnRagAcc.getDiagnostics(),
           },
@@ -759,17 +891,22 @@ export class AiAgentHandler implements NodeHandler {
 
       for (const { provider, call } of classification.providerToolCalls) {
         toolCallCount++;
-        const execResult = await provider.execute(call, {
-          config: turnConfig,
-          workspaceId,
-          executionId,
-          // Multi-turn resume doesn't carry the new turn's nodeExecutionId
-          // through state — usage logs from MCP calls during resume are
-          // attributed to the original waiting NodeExecution. Acceptable
-          // for activity-tab readability.
+        const { result: execResult, trace } = await this.runProviderTool({
+          provider,
+          call,
+          executionId: executionId ?? '',
+          // Multi-turn resume doesn't carry the new turn's nodeId / nodeExecutionId
+          // through state — usage logs and WS events from MCP calls during
+          // resume are attributed to the original waiting NodeExecution.
+          // Acceptable for activity-tab readability.
+          nodeId: (state.nodeId as string | undefined) ?? '',
           nodeExecutionId: state.nodeExecutionId as string | undefined,
           workflowId: state.workflowId as string | undefined,
+          workspaceId,
+          config: turnConfig,
+          turnIndex: turnCount,
         });
+        toolCallTraces.push(trace);
         ragGroup.pushSources(execResult.ragSourcesDelta);
         ragGroup.pushDiagnostic(execResult.ragDiagnosticsDelta);
         messages.push({
@@ -837,6 +974,7 @@ export class AiAgentHandler implements NodeHandler {
       turnIndex: turnCount,
       llmCalls,
       totalDurationMs: turnDurationMs,
+      ...(toolCallTraces.length > 0 ? { toolCalls: [...toolCallTraces] } : {}),
       ragSources: turnRagAcc.getSources(),
       ragDiagnostics: turnRagAcc.getDiagnostics(),
     };

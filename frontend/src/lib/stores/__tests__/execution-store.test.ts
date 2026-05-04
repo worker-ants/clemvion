@@ -23,6 +23,8 @@ const initialState = {
   waitingNodeId: null,
   waitingFormConfig: null,
   selectedResultNodeId: null,
+  conversationMessages: [],
+  selectedConversationItemIndex: null,
 };
 
 describe("useExecutionStore", () => {
@@ -291,6 +293,87 @@ describe("useExecutionStore", () => {
       expect(state.waitingNodeId).toBeNull();
       expect(state.waitingFormConfig).toBeNull();
       expect(state.selectedResultNodeId).toBeNull();
+    });
+  });
+
+  describe("conversation message tool actions", () => {
+    it("setConversationMessages replaces the array", () => {
+      useExecutionStore.getState().addConversationMessage({
+        type: "user",
+        content: "old",
+        turnIndex: 1,
+      });
+      useExecutionStore.getState().setConversationMessages([
+        { type: "user", content: "new1", turnIndex: 1 },
+        { type: "assistant", content: "new2", turnIndex: 1 },
+      ]);
+      expect(useExecutionStore.getState().conversationMessages).toHaveLength(2);
+      expect(
+        useExecutionStore.getState().conversationMessages[0].content,
+      ).toBe("new1");
+    });
+
+    it("upsertToolItem appends a new tool item when toolCallId is unseen", () => {
+      useExecutionStore.getState().upsertToolItem({
+        type: "tool",
+        content: "kb_search",
+        turnIndex: 1,
+        toolCallId: "call_1",
+        toolStatus: "pending",
+      });
+      const items = useExecutionStore.getState().conversationMessages;
+      expect(items).toHaveLength(1);
+      expect(items[0].toolCallId).toBe("call_1");
+    });
+
+    it("upsertToolItem is idempotent for the same toolCallId", () => {
+      const item = {
+        type: "tool" as const,
+        content: "kb_search",
+        turnIndex: 1,
+        toolCallId: "call_1",
+        toolStatus: "pending" as const,
+      };
+      useExecutionStore.getState().upsertToolItem(item);
+      useExecutionStore.getState().upsertToolItem(item);
+      expect(useExecutionStore.getState().conversationMessages).toHaveLength(1);
+    });
+
+    it("updateToolItem patches the matching tool item by toolCallId", () => {
+      useExecutionStore.getState().upsertToolItem({
+        type: "tool",
+        content: "kb_search",
+        turnIndex: 1,
+        toolCallId: "call_1",
+        toolStatus: "pending",
+      });
+      useExecutionStore.getState().updateToolItem("call_1", {
+        toolStatus: "success",
+        durationMs: 42,
+        toolResult: { ok: 1 },
+      });
+      const item = useExecutionStore
+        .getState()
+        .conversationMessages.find((i) => i.toolCallId === "call_1");
+      expect(item).toMatchObject({
+        toolStatus: "success",
+        durationMs: 42,
+      });
+      expect(item?.toolResult).toEqual({ ok: 1 });
+    });
+
+    it("updateToolItem is a no-op when no item matches the toolCallId", () => {
+      useExecutionStore
+        .getState()
+        .addConversationMessage({ type: "user", content: "x", turnIndex: 1 });
+      useExecutionStore
+        .getState()
+        .updateToolItem("missing", { toolStatus: "success" });
+      // unchanged
+      expect(useExecutionStore.getState().conversationMessages).toHaveLength(1);
+      expect(
+        useExecutionStore.getState().conversationMessages[0].type,
+      ).toBe("user");
     });
   });
 });

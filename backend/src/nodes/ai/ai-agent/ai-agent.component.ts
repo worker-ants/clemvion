@@ -15,8 +15,12 @@ export const aiAgentNodeComponent: NodeComponent = {
   configSchema: aiAgentNodeConfigSchema,
   outputSchema: aiAgentNodeOutputSchema,
   createHandler: (deps) =>
-    new AiAgentHandler(deps.llmService, [
-      new KbToolProvider(deps.ragSearchService, deps.knowledgeBaseService),
-      new McpToolProvider(deps.mcpClientService, deps.integrationsService),
-    ]),
+    new AiAgentHandler(
+      deps.llmService,
+      [
+        new KbToolProvider(deps.ragSearchService, deps.knowledgeBaseService),
+        new McpToolProvider(deps.mcpClientService, deps.integrationsService),
+      ],
+      deps.websocketService,
+    ),
 };
