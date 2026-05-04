@@ -305,7 +305,8 @@ export default function DashboardPage() {
                 </tr>
               </thead>
               <tbody>
-                {recentExecutionsQuery.data.slice(0, 10).map((execution) => (
+                {/* 백엔드에서 이미 LIMIT 10 으로 잘라 돌려준다 (DASHBOARD_RECENT_EXECUTIONS_LIMIT) */}
+                {recentExecutionsQuery.data.map((execution) => (
                   <tr
                     key={execution.id}
                     className="border-b border-[hsl(var(--border))] last:border-b-0 hover:bg-[hsl(var(--muted))/0.5] cursor-pointer"

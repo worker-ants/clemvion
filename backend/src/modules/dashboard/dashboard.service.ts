@@ -8,9 +8,9 @@ import {
 } from '../executions/entities/execution.entity';
 import {
   deriveExecutionTrigger,
+  loadParentWorkflowNames,
   type ExecutionTriggerSource,
-} from '../executions/utils/execution-trigger';
-import { loadParentWorkflowNames } from '../executions/utils/load-parent-workflow-names';
+} from '../executions/utils';
 
 export interface DashboardSummary {
   totalWorkflows: number;
@@ -34,11 +34,17 @@ export interface RecentExecution {
   workflowId: string;
   workflowName: string;
   status: ExecutionStatus;
+  /** 실행 소요 시간(ms). 실행 중이거나 미기록인 경우 null */
   durationMs: number | null;
   startedAt: Date;
+  /** 출처 분류 — manual/schedule/webhook/subworkflow/unknown */
   triggerSource: ExecutionTriggerSource;
+  /** 출처 보조 라벨(트리거명/실행자명/부모 워크플로명). 정보가 없을 때 null */
   triggerLabel: string | null;
 }
+
+/** 대시보드 최근 실행 목록의 최대 노출 건수 — 백엔드/프론트 단일 출처 */
+export const DASHBOARD_RECENT_EXECUTIONS_LIMIT = 10;
 
 @Injectable()
 export class DashboardService {
@@ -129,7 +135,7 @@ export class DashboardService {
       .createQueryBuilder('w')
       .select(['w.id', 'w.name', 'w.isActive', 'w.updatedAt'])
       .where('w.workspace_id = :workspaceId', { workspaceId })
-      .orderBy('w.updated_at', 'DESC')
+      .orderBy('w.updatedAt', 'DESC')
       .limit(5)
       .getMany();
 
@@ -143,22 +149,25 @@ export class DashboardService {
 
   async getRecentExecutions(workspaceId: string): Promise<RecentExecution[]> {
     // 안전 컬럼만 selective join — User.passwordHash 등 민감 필드 노출 방지.
+    // workflow 도 name 만 필요하므로 config 등 대형 JSON 컬럼은 적재하지 않는다.
     const executions = await this.executionRepository
       .createQueryBuilder('e')
-      .innerJoinAndSelect('e.workflow', 'w')
+      .innerJoin('e.workflow', 'w')
+      .addSelect(['w.id', 'w.name'])
       .leftJoin('e.trigger', 'trigger')
       .addSelect(['trigger.id', 'trigger.type', 'trigger.name'])
       .leftJoin('e.executor', 'executor')
       .addSelect(['executor.id', 'executor.name'])
       .where('w.workspace_id = :workspaceId', { workspaceId })
       .orderBy('e.startedAt', 'DESC')
-      .limit(10)
+      .limit(DASHBOARD_RECENT_EXECUTIONS_LIMIT)
       .getMany();
 
-    const parentNameMap = await loadParentWorkflowNames(
-      this.executionRepository,
-      executions,
-    );
+    // 페이지 안에 서브워크플로우 실행이 하나라도 있을 때만 부모 이름 배치 쿼리 실행.
+    const hasSubworkflow = executions.some((e) => !!e.parentExecutionId);
+    const parentNameMap = hasSubworkflow
+      ? await loadParentWorkflowNames(this.executionRepository, executions)
+      : new Map<string, string | null>();
 
     return executions.map((e) => {
       const parentName = e.parentExecutionId

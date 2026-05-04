@@ -26,9 +26,9 @@ export class ExecutionDto {
   @ApiProperty({ enum: EXECUTION_TRIGGER_SOURCES, example: 'manual' })
   triggerSource: ExecutionTriggerSource;
 
-  /** 출처 보조 라벨 (트리거명/실행자명/부모 워크플로명) */
-  @ApiPropertyOptional({ nullable: true, example: 'Alice' })
-  triggerLabel?: string | null;
+  /** 출처 보조 라벨 (트리거명/실행자명/부모 워크플로명). 정보가 없으면 null */
+  @ApiProperty({ nullable: true, type: String, example: 'Alice' })
+  triggerLabel: string | null;
 
   /** 실행 상태 */
   @ApiProperty({ enum: ExecutionStatus, enumName: 'ExecutionStatus' })
