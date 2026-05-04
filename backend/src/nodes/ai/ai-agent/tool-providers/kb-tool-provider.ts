@@ -170,6 +170,8 @@ export class KbToolProvider implements AgentToolProvider {
       return {
         toolCallId: call.id,
         content: JSON.stringify({ error: 'unknown_kb_tool' }),
+        status: 'error',
+        error: 'unknown_kb_tool',
       };
     }
 
@@ -180,6 +182,8 @@ export class KbToolProvider implements AgentToolProvider {
         content: JSON.stringify({
           error: 'Missing required argument: query',
         }),
+        status: 'error',
+        error: 'Missing required argument: query',
       };
     }
 
@@ -216,8 +220,11 @@ export class KbToolProvider implements AgentToolProvider {
           kb: kbName,
           query: args.query,
           error: 'search_failed',
+          message: msg,
           results: [],
         }),
+        status: 'error',
+        error: msg,
         ragDiagnosticsDelta: {
           kbId,
           query: args.query,

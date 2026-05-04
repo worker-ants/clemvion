@@ -10,6 +10,10 @@ export enum ExecutionEventType {
   EXECUTION_CANCELLED = 'execution.cancelled',
   EXECUTION_WAITING_FOR_INPUT = 'execution.waiting_for_input',
   AI_MESSAGE = 'execution.ai_message',
+  /** AI Agent provider tool 실행 시작. 디버깅 타임라인의 pending 표시용 */
+  TOOL_CALL_STARTED = 'execution.tool_call_started',
+  /** AI Agent provider tool 실행 완료. status: 'success' | 'error' */
+  TOOL_CALL_COMPLETED = 'execution.tool_call_completed',
   /** One-shot snapshot sent to the subscribing client right after it joins an `execution:*` channel */
   EXECUTION_SNAPSHOT = 'execution.snapshot',
 }

@@ -1,6 +1,13 @@
 export interface ExecutionContext {
   executionId: string;
   workflowId: string;
+  /**
+   * The logical node id (graph node UUID) for the handler invocation. Distinct
+   * from {@link nodeExecutionId}, which is the per-row identifier — handlers
+   * use this when emitting WS events that must be addressable by the static
+   * graph node (e.g. AI Agent's tool_call_started/completed).
+   */
+  nodeId?: string;
   /** Current NodeExecution row id — set by the engine before each handler call. */
   nodeExecutionId?: string;
   variables: Record<string, unknown>;

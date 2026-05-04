@@ -8,6 +8,7 @@ describe('AiAgentHandler', () => {
   let mockLlmService: Record<string, jest.Mock>;
   let mockRagService: { search: jest.Mock };
   let mockKbService: { findById: jest.Mock };
+  let mockWebsocketService: { emitExecutionEvent: jest.Mock };
   let kbProvider: KbToolProvider;
 
   beforeEach(() => {
@@ -39,7 +40,13 @@ describe('AiAgentHandler', () => {
       mockKbService as never,
     );
 
-    handler = new AiAgentHandler(mockLlmService as never, [kbProvider]);
+    mockWebsocketService = { emitExecutionEvent: jest.fn() };
+
+    handler = new AiAgentHandler(
+      mockLlmService as never,
+      [kbProvider],
+      mockWebsocketService as never,
+    );
   });
 
   const baseContext: ExecutionContext = {
@@ -1659,6 +1666,261 @@ describe('AiAgentHandler', () => {
       const out = r.output as Record<string, unknown>;
       const res = out.result as Record<string, unknown>;
       expect(res.endReason).toBe('error');
+    });
+  });
+
+  describe('tool call telemetry — WS emit + turnDebug.toolCalls', () => {
+    function lastTurnDebug(result: unknown) {
+      const meta = ((result as Record<string, unknown>).meta ?? {}) as Record<
+        string,
+        unknown
+      >;
+      const arr = (meta.turnDebug ?? []) as Array<Record<string, unknown>>;
+      return arr[arr.length - 1] ?? {};
+    }
+
+    function emittedEvents() {
+      return mockWebsocketService.emitExecutionEvent.mock.calls.map((c) => ({
+        executionId: c[0],
+        type: c[1],
+        payload: c[2],
+      }));
+    }
+
+    it('emits TOOL_CALL_STARTED + TOOL_CALL_COMPLETED around provider.execute', async () => {
+      mockRagService.search.mockResolvedValue([
+        {
+          chunkId: 'c1',
+          documentId: 'd1',
+          documentName: 'doc',
+          content: 'hello',
+          score: 0.9,
+          metadata: {},
+        },
+      ]);
+      mockLlmService.chat
+        .mockResolvedValueOnce({
+          content: null,
+          toolCalls: [
+            {
+              id: 'tc-1',
+              name: kbToolName('kb-1'),
+              arguments: '{"query":"hi"}',
+            },
+          ],
+          usage: { inputTokens: 10, outputTokens: 5, totalTokens: 15 },
+          model: 'gpt-4o',
+          finishReason: 'tool_calls',
+        })
+        .mockResolvedValueOnce({
+          content: 'final',
+          usage: { inputTokens: 20, outputTokens: 5, totalTokens: 25 },
+          model: 'gpt-4o',
+          finishReason: 'stop',
+        });
+
+      await handler.execute(
+        {},
+        {
+          systemPrompt: 'Helper',
+          userPrompt: 'hi',
+          knowledgeBases: ['kb-1'],
+        },
+        baseContext,
+      );
+
+      const events = emittedEvents();
+      const started = events.find(
+        (e) => e.type === 'execution.tool_call_started',
+      );
+      const completed = events.find(
+        (e) => e.type === 'execution.tool_call_completed',
+      );
+      expect(started).toBeDefined();
+      expect(started?.payload).toMatchObject({
+        toolCallId: 'tc-1',
+        name: kbToolName('kb-1'),
+        arguments: '{"query":"hi"}',
+        turnIndex: 1,
+      });
+      expect(completed).toBeDefined();
+      expect(completed?.payload).toMatchObject({
+        toolCallId: 'tc-1',
+        status: 'success',
+      });
+      expect(typeof completed?.payload.durationMs).toBe('number');
+    });
+
+    it('records turnDebug.toolCalls with status=success for the executed provider tool', async () => {
+      mockRagService.search.mockResolvedValue([
+        {
+          chunkId: 'c1',
+          documentId: 'd1',
+          documentName: 'doc',
+          content: 'x',
+          score: 0.9,
+          metadata: {},
+        },
+      ]);
+      mockLlmService.chat
+        .mockResolvedValueOnce({
+          content: null,
+          toolCalls: [
+            {
+              id: 'tc-1',
+              name: kbToolName('kb-1'),
+              arguments: '{"query":"x"}',
+            },
+          ],
+          usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 },
+          model: 'gpt-4o',
+          finishReason: 'tool_calls',
+        })
+        .mockResolvedValueOnce({
+          content: 'done',
+          usage: { inputTokens: 2, outputTokens: 1, totalTokens: 3 },
+          model: 'gpt-4o',
+          finishReason: 'stop',
+        });
+
+      const result = await handler.execute(
+        {},
+        {
+          systemPrompt: 'h',
+          userPrompt: 'x',
+          knowledgeBases: ['kb-1'],
+        },
+        baseContext,
+      );
+
+      const td = lastTurnDebug(result);
+      const tc = (td.toolCalls ?? []) as Array<Record<string, unknown>>;
+      expect(tc).toHaveLength(1);
+      expect(tc[0]).toMatchObject({
+        toolCallId: 'tc-1',
+        name: kbToolName('kb-1'),
+        status: 'success',
+      });
+      expect(typeof tc[0].durationMs).toBe('number');
+    });
+
+    it('catches provider.execute errors → status=error, LLM gets error content, turn continues', async () => {
+      // First LLM response asks for KB; provider then throws; second LLM call
+      // should still happen with the error content as a tool message.
+      mockRagService.search.mockRejectedValue(new Error('KB DOWN'));
+      mockLlmService.chat
+        .mockResolvedValueOnce({
+          content: null,
+          toolCalls: [
+            {
+              id: 'tc-err',
+              name: kbToolName('kb-1'),
+              arguments: '{"query":"q"}',
+            },
+          ],
+          usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 },
+          model: 'gpt-4o',
+          finishReason: 'tool_calls',
+        })
+        .mockResolvedValueOnce({
+          content: '죄송합니다. 검색에 실패했습니다.',
+          usage: { inputTokens: 2, outputTokens: 1, totalTokens: 3 },
+          model: 'gpt-4o',
+          finishReason: 'stop',
+        });
+
+      const result = await handler.execute(
+        {},
+        {
+          systemPrompt: 'h',
+          userPrompt: 'q',
+          knowledgeBases: ['kb-1'],
+        },
+        baseContext,
+      );
+
+      // Second LLM call must happen with a tool message in the messages array
+      expect(mockLlmService.chat).toHaveBeenCalledTimes(2);
+      const secondCall = mockLlmService.chat.mock.calls[1];
+      const messages = secondCall[1].messages as Array<{
+        role: string;
+        content: string;
+        toolCallId?: string;
+      }>;
+      const toolMsg = messages.find((m) => m.role === 'tool');
+      expect(toolMsg).toBeDefined();
+      expect(toolMsg?.toolCallId).toBe('tc-err');
+      expect(toolMsg?.content).toContain('KB DOWN');
+
+      // turnDebug carries the error
+      const td = lastTurnDebug(result);
+      const tc = (td.toolCalls ?? []) as Array<Record<string, unknown>>;
+      expect(tc[0]).toMatchObject({
+        toolCallId: 'tc-err',
+        status: 'error',
+        error: 'KB DOWN',
+      });
+
+      // WS event reports error too
+      const completed = emittedEvents().find(
+        (e) => e.type === 'execution.tool_call_completed',
+      );
+      expect(completed?.payload).toMatchObject({
+        toolCallId: 'tc-err',
+        status: 'error',
+        error: 'KB DOWN',
+      });
+
+      // Final assistant response is preserved (turn recovered)
+      const out = (result as Record<string, unknown>).output as Record<
+        string,
+        unknown
+      >;
+      const res = out.result as Record<string, unknown>;
+      expect(res.response).toBe('죄송합니다. 검색에 실패했습니다.');
+    });
+
+    it('does nothing for the WS service when websocketService is not provided (BC)', async () => {
+      const noWsHandler = new AiAgentHandler(mockLlmService as never, [
+        kbProvider,
+      ]);
+      mockRagService.search.mockResolvedValue([]);
+      mockLlmService.chat
+        .mockResolvedValueOnce({
+          content: null,
+          toolCalls: [
+            {
+              id: 'tc-x',
+              name: kbToolName('kb-1'),
+              arguments: '{"query":"q"}',
+            },
+          ],
+          usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 },
+          model: 'gpt-4o',
+          finishReason: 'tool_calls',
+        })
+        .mockResolvedValueOnce({
+          content: 'ok',
+          usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 },
+          model: 'gpt-4o',
+          finishReason: 'stop',
+        });
+
+      // Should not throw despite missing WS service.
+      const result = await noWsHandler.execute(
+        {},
+        {
+          systemPrompt: 'h',
+          userPrompt: 'q',
+          knowledgeBases: ['kb-1'],
+        },
+        baseContext,
+      );
+      const td = lastTurnDebug(result);
+      // turnDebug.toolCalls is still recorded.
+      const tc = (td.toolCalls ?? []) as Array<Record<string, unknown>>;
+      expect(tc).toHaveLength(1);
+      expect(tc[0].status).toBe('success');
     });
   });
 });

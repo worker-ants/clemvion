@@ -921,6 +921,8 @@ export class McpToolProvider implements AgentToolProvider {
     return {
       toolCallId,
       content: JSON.stringify({ error: code, message, ...(extra ?? {}) }),
+      status: 'error',
+      error: `${code}: ${message}`,
     };
   }
 

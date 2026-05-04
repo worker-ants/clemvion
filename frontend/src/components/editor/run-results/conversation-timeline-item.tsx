@@ -2,7 +2,7 @@
 
 import { cn } from "@/lib/utils/cn";
 import type { ConversationItem } from "@/lib/stores/execution-store";
-import { CheckCircle, XCircle, Wrench } from "lucide-react";
+import { CheckCircle, Loader2, XCircle, Wrench } from "lucide-react";
 
 interface ConversationTimelineItemProps {
   item: ConversationItem;
@@ -31,7 +31,9 @@ export function ConversationTimelineItem({
           <span className="truncate font-mono text-[11px] text-[hsl(var(--muted-foreground))]">
             {item.content}
           </span>
-          {item.toolStatus === "success" ? (
+          {item.toolStatus === "pending" ? (
+            <Loader2 className="ml-auto h-3 w-3 shrink-0 animate-spin text-[hsl(var(--muted-foreground))]" />
+          ) : item.toolStatus === "success" ? (
             <CheckCircle className="ml-auto h-3 w-3 shrink-0 text-green-500" />
           ) : item.toolStatus === "error" ? (
             <XCircle className="ml-auto h-3 w-3 shrink-0 text-red-500" />

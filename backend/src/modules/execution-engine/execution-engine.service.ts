@@ -294,6 +294,7 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
       integrationsService: this.integrationsService,
       mcpClientService: this.mcpClientService,
       workflowExecutor: this,
+      websocketService: this.websocketService,
     });
   }
 
@@ -2227,9 +2228,15 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
         resolvedConfig = node.config;
       }
 
-      // Thread the current NodeExecution id into the context so handlers can
-      // attribute side-effects (e.g. IntegrationUsageLog) to the row.
-      nodeContext = { ...nodeContext, nodeExecutionId: nodeExecution.id };
+      // Thread the current NodeExecution id + logical node id into the
+      // context so handlers can attribute side-effects (e.g.
+      // IntegrationUsageLog) to the row and emit WS events keyed by the
+      // graph node (AI Agent's tool_call_*).
+      nodeContext = {
+        ...nodeContext,
+        nodeId: node.id,
+        nodeExecutionId: nodeExecution.id,
+      };
 
       // Execute with potential retry
       const output = await this.executeWithRetry(

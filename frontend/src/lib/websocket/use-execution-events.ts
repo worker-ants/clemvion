@@ -9,6 +9,16 @@ import {
 import { getAccessToken } from "../api/client";
 import { ExecutionData, NodeExecutionData } from "../api/executions";
 import { getNodeDefinition } from "../node-definitions";
+import { messagesToConversationItems } from "@/components/editor/run-results/conversation-utils";
+
+function tryParseJson(value: unknown): unknown {
+  if (typeof value !== "string") return value;
+  try {
+    return JSON.parse(value);
+  } catch {
+    return value;
+  }
+}
 
 interface UseExecutionEventsOptions {
   executionId: string | null;
@@ -91,6 +101,9 @@ export function useExecutionEvents({
     pauseForConversation,
     resumeFromConversation,
     addConversationMessage,
+    setConversationMessages,
+    upsertToolItem,
+    updateToolItem,
     updateConversationConfig,
   } = useExecutionStore();
 
@@ -190,41 +203,55 @@ export function useExecutionEvents({
       if (interactionType === "ai_conversation") {
         const convConfig = nodeOutputObj?.conversationConfig as {
           message?: string;
-          messages?: Array<{ role: string; content: string }>;
+          messages?: Array<{
+            role: string;
+            content?: string;
+            toolCalls?: Array<{ id?: string; name?: string; arguments?: string }>;
+            toolCallId?: string;
+          }>;
           turnCount?: number;
           maxTurns?: number;
         } | undefined;
         pauseForConversation(payload.waitingNodeId, convConfig ?? null);
 
-        // Parse initial messages into ConversationItems
+        // Seed conversationMessages from the snapshot using the shared
+        // converter so user / assistant / tool items all flow through one
+        // path. Skip when the store already has messages (re-emit on
+        // reconnect would otherwise duplicate).
         if (convConfig?.messages) {
           const { conversationMessages } = useExecutionStore.getState();
-          // Only add if no messages yet (avoid duplicates on re-emit)
           if (conversationMessages.length === 0) {
-            const turnCount = convConfig.turnCount ?? 1;
-            // Extract Turn 1 debug data from event payload
-            const turnDebug = (payload as Record<string, unknown>).turnDebug as {
-              llmCalls?: { llmCalls?: Array<{ requestPayload?: unknown; responsePayload?: unknown; durationMs?: number }> };
-              metadata?: { model?: string; inputTokens?: number; outputTokens?: number };
-            } | undefined;
-            const llmCallEntries = turnDebug?.llmCalls?.llmCalls ?? [];
-
-            let assistantIdx = 0;
-            for (const msg of convConfig.messages) {
-              if (msg.role === "user" || msg.role === "assistant") {
-                const callDebug = msg.role === "assistant" ? llmCallEntries[assistantIdx++] : undefined;
-                addConversationMessage({
-                  type: msg.role,
-                  content: msg.content,
-                  turnIndex: turnCount,
-                  ...(callDebug ? {
-                    requestPayload: callDebug.requestPayload,
-                    responsePayload: callDebug.responsePayload,
-                    durationMs: callDebug.durationMs,
-                    metadata: turnDebug?.metadata,
-                  } : {}),
-                });
-              }
+            const turnDebug = (payload as Record<string, unknown>).turnDebug as
+              | {
+                  llmCalls?: {
+                    llmCalls?: Array<{
+                      requestPayload?: unknown;
+                      responsePayload?: unknown;
+                      durationMs?: number;
+                    }>;
+                  };
+                  metadata?: { model?: string };
+                }
+              | undefined;
+            // Legacy quirk: backend nests llmCalls under another `llmCalls`
+            // key here. Flatten to a Map<turn, entry> the converter expects.
+            const debugByTurn = turnDebug?.llmCalls?.llmCalls
+              ? new Map([
+                  [
+                    convConfig.turnCount ?? 1,
+                    {
+                      turnIndex: convConfig.turnCount ?? 1,
+                      llmCalls: turnDebug.llmCalls.llmCalls,
+                    },
+                  ],
+                ])
+              : undefined;
+            const items = messagesToConversationItems(convConfig.messages, {
+              debugByTurn,
+              metaModel: turnDebug?.metadata?.model,
+            });
+            if (items.length > 0) {
+              setConversationMessages(items);
             }
           }
         }
@@ -255,7 +282,7 @@ export function useExecutionEvents({
       pauseForForm,
       pauseForButtons,
       pauseForConversation,
-      addConversationMessage,
+      setConversationMessages,
       updateNodeStatus,
       addNodeResult,
     ],
@@ -267,7 +294,12 @@ export function useExecutionEvents({
         nodeId?: string;
         message?: string;
         turnCount?: number;
-        messages?: Array<{ role: string; content: string }>;
+        messages?: Array<{
+          role: string;
+          content?: string;
+          toolCalls?: Array<{ id?: string; name?: string; arguments?: string }>;
+          toolCallId?: string;
+        }>;
         metadata?: {
           model?: string;
           inputTokens?: number;
@@ -282,9 +314,34 @@ export function useExecutionEvents({
       };
       if (payload.message == null) return;
 
-      const turnCount = payload.turnCount ?? 1;
+      // When backend sends the full message array (current shape per
+      // execution-engine.service.ts), treat it as the authoritative snapshot
+      // — replace the entire conversation so user / assistant / tool items
+      // are consistent and any pending tool items dedup naturally.
+      if (Array.isArray(payload.messages) && payload.messages.length > 0) {
+        const turn = payload.turnCount ?? 1;
+        const debugByTurn = payload.llmCalls?.length
+          ? new Map([
+              [
+                turn,
+                {
+                  turnIndex: turn,
+                  llmCalls: payload.llmCalls,
+                },
+              ],
+            ])
+          : undefined;
+        const items = messagesToConversationItems(payload.messages, {
+          debugByTurn,
+          metaModel: payload.metadata?.model,
+        });
+        setConversationMessages(items);
+        updateConversationConfig(payload);
+        return;
+      }
 
-      // Use llmCalls (last entry) if available, fallback to legacy fields
+      // Legacy fallback: append a single assistant item.
+      const turnCount = payload.turnCount ?? 1;
       const lastLlmCall = payload.llmCalls?.length
         ? payload.llmCalls[payload.llmCalls.length - 1]
         : undefined;
@@ -310,7 +367,59 @@ export function useExecutionEvents({
 
       updateConversationConfig(payload);
     },
-    [addConversationMessage, updateConversationConfig],
+    [
+      addConversationMessage,
+      setConversationMessages,
+      updateConversationConfig,
+    ],
+  );
+
+  const handleToolCallStarted = useCallback(
+    (data: unknown) => {
+      const payload = data as {
+        nodeId?: string;
+        turnIndex?: number;
+        toolCallId?: string;
+        name?: string;
+        arguments?: string;
+      };
+      if (!payload.toolCallId || !payload.name) return;
+      upsertToolItem({
+        type: "tool",
+        content: payload.name,
+        turnIndex: payload.turnIndex ?? 1,
+        toolCallId: payload.toolCallId,
+        toolArgs: tryParseJson(payload.arguments),
+        toolStatus: "pending",
+        timestamp: new Date().toISOString(),
+      });
+    },
+    [upsertToolItem],
+  );
+
+  const handleToolCallCompleted = useCallback(
+    (data: unknown) => {
+      const payload = data as {
+        toolCallId?: string;
+        content?: string;
+        status?: "success" | "error";
+        error?: string;
+        durationMs?: number;
+      };
+      if (!payload.toolCallId) return;
+      const patch: Record<string, unknown> = {
+        toolStatus: payload.status ?? "success",
+        toolResult: tryParseJson(payload.content),
+      };
+      if (payload.durationMs !== undefined) {
+        patch.durationMs = payload.durationMs;
+      }
+      if (payload.error !== undefined) {
+        patch.error = payload.error;
+      }
+      updateToolItem(payload.toolCallId, patch);
+    },
+    [updateToolItem],
   );
 
   const handleNodeStarted = useCallback(
@@ -499,6 +608,8 @@ export function useExecutionEvents({
     client.on("execution.cancelled", handleExecutionCancelled);
     client.on("execution.waiting_for_input", handleWaitingForInput);
     client.on("execution.ai_message", handleAiMessage);
+    client.on("execution.tool_call_started", handleToolCallStarted);
+    client.on("execution.tool_call_completed", handleToolCallCompleted);
 
     // Bind node events
     client.on("execution.node.started", handleNodeStarted);
@@ -681,6 +792,8 @@ export function useExecutionEvents({
       client.off("execution.cancelled", handleExecutionCancelled);
       client.off("execution.waiting_for_input", handleWaitingForInput);
       client.off("execution.ai_message", handleAiMessage);
+      client.off("execution.tool_call_started", handleToolCallStarted);
+      client.off("execution.tool_call_completed", handleToolCallCompleted);
       client.off("execution.node.started", handleNodeStarted);
       client.off("execution.node.completed", handleNodeCompleted);
       client.off("execution.node.failed", handleNodeFailed);
@@ -698,6 +811,8 @@ export function useExecutionEvents({
     handleExecutionCancelled,
     handleWaitingForInput,
     handleAiMessage,
+    handleToolCallStarted,
+    handleToolCallCompleted,
     handleNodeStarted,
     handleNodeCompleted,
     handleNodeFailed,

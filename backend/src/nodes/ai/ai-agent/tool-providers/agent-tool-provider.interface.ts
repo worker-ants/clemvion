@@ -88,6 +88,16 @@ export interface ProviderCleanupCtx {
 export interface AgentToolResult {
   toolCallId: string;
   content: string;
+  /**
+   * 디버깅 UI 의 success / error 배지 출처. 미지정 시 `'success'` 로 간주.
+   * provider 는 LLM 에 넘길 content 에 에러 컨텍스트를 담으면서도 별도 status
+   * 로 실패임을 표시할 수 있다. 핸들러가 provider.execute 의 throw 를 캐치한
+   * 경우에도 이 필드가 `'error'` 로 채워진다.
+   */
+  status?: 'success' | 'error';
+  /** 사용자에게 보여줄 사람-읽는 에러 메시지. WS 이벤트 / turnDebug.toolCalls
+   *  에 그대로 전달돼 인스펙터에서 빨간 배지로 노출. */
+  error?: string;
   /** `meta.ragSources` 에 push 할 항목들. */
   ragSourcesDelta?: unknown[];
   /** `meta.ragDiagnostics` 누적용 — kbId 단위 검색 1회 기록. */

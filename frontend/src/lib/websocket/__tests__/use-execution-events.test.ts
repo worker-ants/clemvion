@@ -855,4 +855,241 @@ describe("useExecutionEvents", () => {
       expect(state.nodeResults).toHaveLength(0);
     });
   });
+
+  describe("tool call events", () => {
+    function bind() {
+      renderHook(() => useExecutionEvents({ executionId: "exec-1" }));
+      const onCalls = (mockClient.on as Mock).mock.calls;
+      const get = (name: string) =>
+        onCalls.find((c: unknown[]) => c[0] === name)?.[1] as
+          | ((data: unknown) => void)
+          | undefined;
+      return {
+        toolStarted: get("execution.tool_call_started"),
+        toolCompleted: get("execution.tool_call_completed"),
+        aiMessage: get("execution.ai_message"),
+      };
+    }
+
+    it("registers handlers for execution.tool_call_started/completed", () => {
+      renderHook(() => useExecutionEvents({ executionId: "exec-1" }));
+      const bound = (mockClient.on as Mock).mock.calls.map(
+        (c: unknown[]) => c[0],
+      );
+      expect(bound).toContain("execution.tool_call_started");
+      expect(bound).toContain("execution.tool_call_completed");
+    });
+
+    it("tool_call_started appends a pending tool item", () => {
+      useExecutionStore.getState().startExecution("exec-1");
+      const { toolStarted } = bind();
+      expect(toolStarted).toBeDefined();
+
+      toolStarted!({
+        nodeId: "agent-1",
+        turnIndex: 1,
+        toolCallId: "call_1",
+        name: "kb_search",
+        arguments: '{"query":"hi"}',
+      });
+
+      const items = useExecutionStore.getState().conversationMessages;
+      expect(items).toHaveLength(1);
+      expect(items[0]).toMatchObject({
+        type: "tool",
+        content: "kb_search",
+        toolStatus: "pending",
+        toolCallId: "call_1",
+        turnIndex: 1,
+      });
+      expect(items[0].toolArgs).toEqual({ query: "hi" });
+    });
+
+    it("tool_call_started ignores duplicate toolCallId (idempotent)", () => {
+      useExecutionStore.getState().startExecution("exec-1");
+      const { toolStarted } = bind();
+
+      const payload = {
+        nodeId: "agent-1",
+        turnIndex: 1,
+        toolCallId: "call_1",
+        name: "kb_search",
+        arguments: "{}",
+      };
+      toolStarted!(payload);
+      toolStarted!(payload);
+
+      expect(useExecutionStore.getState().conversationMessages).toHaveLength(1);
+    });
+
+    it("tool_call_completed flips pending → success and fills result/duration", () => {
+      useExecutionStore.getState().startExecution("exec-1");
+      const { toolStarted, toolCompleted } = bind();
+
+      toolStarted!({
+        nodeId: "agent-1",
+        turnIndex: 1,
+        toolCallId: "call_1",
+        name: "kb_search",
+        arguments: "{}",
+      });
+      toolCompleted!({
+        nodeId: "agent-1",
+        turnIndex: 1,
+        toolCallId: "call_1",
+        content: '{"ok":1}',
+        status: "success",
+        durationMs: 42,
+      });
+
+      const item = useExecutionStore
+        .getState()
+        .conversationMessages.find((i) => i.toolCallId === "call_1");
+      expect(item).toMatchObject({
+        toolStatus: "success",
+        durationMs: 42,
+      });
+      expect(item?.toolResult).toEqual({ ok: 1 });
+    });
+
+    it("tool_call_completed marks status='error' and stores error message", () => {
+      useExecutionStore.getState().startExecution("exec-1");
+      const { toolStarted, toolCompleted } = bind();
+
+      toolStarted!({
+        nodeId: "agent-1",
+        turnIndex: 1,
+        toolCallId: "c1",
+        name: "mcp_x",
+        arguments: "{}",
+      });
+      toolCompleted!({
+        nodeId: "agent-1",
+        turnIndex: 1,
+        toolCallId: "c1",
+        content: '{"error":"timeout"}',
+        status: "error",
+        error: "timeout",
+        durationMs: 30000,
+      });
+
+      const item = useExecutionStore
+        .getState()
+        .conversationMessages.find((i) => i.toolCallId === "c1");
+      expect(item).toMatchObject({
+        toolStatus: "error",
+        error: "timeout",
+      });
+    });
+
+    it("ai_message replaces conversationMessages with full snapshot (incl. tool items)", () => {
+      useExecutionStore.getState().startExecution("exec-1");
+      const { aiMessage } = bind();
+      expect(aiMessage).toBeDefined();
+
+      // Simulate optimistic user-side append from sendMessage
+      useExecutionStore.getState().addConversationMessage({
+        type: "user",
+        content: "오늘 날씨",
+        turnIndex: 1,
+      });
+
+      aiMessage!({
+        nodeId: "agent-1",
+        message: "기온 12.3도입니다.",
+        turnCount: 1,
+        messages: [
+          { role: "user", content: "오늘 날씨" },
+          {
+            role: "assistant",
+            content: "",
+            toolCalls: [
+              {
+                id: "call_1",
+                name: "get_weather",
+                arguments: '{"city":"Seoul"}',
+              },
+            ],
+          },
+          {
+            role: "tool",
+            toolCallId: "call_1",
+            content: '{"temperature":12.3}',
+          },
+          { role: "assistant", content: "기온 12.3도입니다." },
+        ],
+        metadata: { model: "gpt-5", inputTokens: 100, outputTokens: 50 },
+      });
+
+      const items = useExecutionStore.getState().conversationMessages;
+      expect(items.map((i) => i.type)).toEqual([
+        "user",
+        "assistant",
+        "tool",
+        "assistant",
+      ]);
+      expect(items[2]).toMatchObject({
+        type: "tool",
+        content: "get_weather",
+        toolCallId: "call_1",
+      });
+    });
+
+    it("ai_message snapshot supersedes prior pending tool items (dedup by toolCallId)", () => {
+      useExecutionStore.getState().startExecution("exec-1");
+      const { toolStarted, aiMessage } = bind();
+
+      // Pending tool from live event
+      toolStarted!({
+        nodeId: "agent-1",
+        turnIndex: 1,
+        toolCallId: "call_1",
+        name: "get_weather",
+        arguments: "{}",
+      });
+      expect(useExecutionStore.getState().conversationMessages).toHaveLength(1);
+
+      // Snapshot arrives — should fully replace
+      aiMessage!({
+        nodeId: "agent-1",
+        message: "done",
+        turnCount: 1,
+        messages: [
+          { role: "user", content: "u" },
+          {
+            role: "assistant",
+            content: "",
+            toolCalls: [
+              { id: "call_1", name: "get_weather", arguments: "{}" },
+            ],
+          },
+          { role: "tool", toolCallId: "call_1", content: '{"ok":1}' },
+          { role: "assistant", content: "done" },
+        ],
+      });
+
+      const items = useExecutionStore.getState().conversationMessages;
+      // No duplicate tool items — should only have the one from snapshot
+      const toolItems = items.filter((i) => i.toolCallId === "call_1");
+      expect(toolItems).toHaveLength(1);
+    });
+
+    it("ai_message falls back to single-assistant append when payload.messages is absent (legacy)", () => {
+      useExecutionStore.getState().startExecution("exec-1");
+      const { aiMessage } = bind();
+
+      aiMessage!({
+        nodeId: "agent-1",
+        message: "legacy reply",
+        turnCount: 1,
+      });
+
+      const items = useExecutionStore.getState().conversationMessages;
+      expect(items).toHaveLength(1);
+      expect(items[0]).toMatchObject({
+        type: "assistant",
+        content: "legacy reply",
+      });
+    });
+  });
 });
