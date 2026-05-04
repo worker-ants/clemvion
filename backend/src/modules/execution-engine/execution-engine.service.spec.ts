@@ -902,6 +902,216 @@ describe('ExecutionEngineService', () => {
     });
   });
 
+  describe('AI Agent multi-turn — execution.ai_message emit shape', () => {
+    // spec/5-system/6-websocket-protocol.md §4.4 — waiting_for_input emit
+    // must carry `llmCalls` (array) + `durationMs` and must NOT carry the
+    // legacy flat fields requestPayload / responsePayload that no shipping
+    // frontend reads. This is the contract a regression here would silently
+    // break; helper unit tests cover the transformation, this integration
+    // test covers the emit call site.
+    const aiNodes: Partial<Node>[] = [
+      {
+        id: 'node-agent',
+        workflowId,
+        type: 'ai_agent',
+        category: NodeCategory.AI,
+        label: 'Agent',
+        config: { mode: 'multi_turn' },
+        isDisabled: false,
+        containerId: undefined,
+        toolOwnerId: undefined,
+      },
+    ];
+
+    const aiEdges: Partial<Edge>[] = [];
+
+    function makeAiAgentHandler(processReturn: () => unknown): NodeHandler & {
+      processMultiTurnMessage: jest.Mock;
+      endMultiTurnConversation: jest.Mock;
+    } {
+      return {
+        validate: () => ({ valid: true, errors: [] }),
+        execute: jest.fn(async () => ({
+          config: { mode: 'multi_turn' },
+          output: { messages: [], message: '', turnCount: 0 },
+          meta: { interactionType: 'ai_conversation' },
+          status: 'waiting_for_input',
+          _resumeState: {
+            messages: [],
+            turnCount: 0,
+            turnDebugHistory: [],
+            model: 'test-model',
+            totalInputTokens: 0,
+            totalOutputTokens: 0,
+          },
+        })),
+        processMultiTurnMessage: jest.fn(async () => processReturn()),
+        endMultiTurnConversation: jest.fn(() => ({
+          config: { mode: 'multi_turn' },
+          output: {},
+          meta: {},
+          port: 'ended',
+          status: 'ended',
+        })),
+      } as unknown as NodeHandler & {
+        processMultiTurnMessage: jest.Mock;
+        endMultiTurnConversation: jest.Mock;
+      };
+    }
+
+    beforeEach(() => {
+      mockNodeRepo.findBy.mockResolvedValue(aiNodes);
+      mockEdgeRepo.findBy.mockResolvedValue(aiEdges);
+    });
+
+    it('emits messages snapshot, llmCalls, and durationMs (and omits removed flat fields) on resumed waiting turn', async () => {
+      // Distinct values for per-call vs turn-total durationMs so the test
+      // pinpoints which source the payload's top-level durationMs comes
+      // from (must be the turn total, not the last LLM call's latency).
+      const llmCall = {
+        requestPayload: { messages: [{ role: 'user', content: 'hi' }] },
+        responsePayload: {
+          content: 'hello',
+          model: 'test-model',
+          usage: { inputTokens: 5, outputTokens: 2 },
+        },
+        durationMs: 90,
+      };
+      const handler = makeAiAgentHandler(() => ({
+        config: { mode: 'multi_turn' },
+        output: {
+          messages: [
+            { role: 'user', content: 'hi' },
+            { role: 'assistant', content: 'hello' },
+          ],
+          message: 'hello',
+          turnCount: 1,
+        },
+        meta: { interactionType: 'ai_conversation' },
+        status: 'waiting_for_input',
+        _resumeState: {
+          messages: [
+            { role: 'user', content: 'hi' },
+            { role: 'assistant', content: 'hello' },
+          ],
+          turnCount: 1,
+          model: 'test-model',
+          totalInputTokens: 5,
+          totalOutputTokens: 2,
+          turnDebugHistory: [
+            {
+              turnIndex: 1,
+              llmCalls: [llmCall],
+              totalDurationMs: 120,
+            },
+          ],
+        },
+      }));
+      handlerRegistry.register('ai_agent', handler);
+
+      await service.execute(workflowId, {});
+      await flushPromises();
+      mockWebsocketService.emitExecutionEvent.mockClear();
+
+      service.continueAiConversation(executionId, 'hi');
+      await flushPromises();
+
+      const aiMessageCalls =
+        mockWebsocketService.emitExecutionEvent.mock.calls.filter(
+          (call: unknown[]) => call[1] === 'execution.ai_message',
+        );
+      expect(aiMessageCalls).toHaveLength(1);
+      const payload = aiMessageCalls[0][2] as Record<string, unknown>;
+
+      // Frontend drops payloads missing this field — assert the engine
+      // honors the contract (system role filtered, length > 0).
+      expect(payload).toHaveProperty('messages');
+      expect(Array.isArray(payload.messages)).toBe(true);
+      expect((payload.messages as unknown[]).length).toBeGreaterThan(0);
+
+      expect(payload).toMatchObject({
+        nodeId: 'node-agent',
+        message: 'hello',
+        turnCount: 1,
+        // turn-total (totalDurationMs), not the per-call llmCall.durationMs (90)
+        durationMs: 120,
+      });
+      expect(payload.llmCalls).toEqual([llmCall]);
+
+      // Dead fields removed in this branch alignment — guard against
+      // accidental reintroduction.
+      expect(payload).not.toHaveProperty('requestPayload');
+      expect(payload).not.toHaveProperty('responsePayload');
+    });
+
+    it('preserves the full llmCalls sequence for tool-loop turns', async () => {
+      const calls = [
+        {
+          requestPayload: { tool: 1 },
+          responsePayload: { content: '' },
+          durationMs: 30,
+        },
+        {
+          requestPayload: { tool: 2 },
+          responsePayload: { content: '' },
+          durationMs: 40,
+        },
+        {
+          requestPayload: { tool: 3 },
+          responsePayload: { content: 'final' },
+          durationMs: 50,
+        },
+      ];
+      const handler = makeAiAgentHandler(() => ({
+        config: { mode: 'multi_turn' },
+        output: {
+          messages: [
+            { role: 'user', content: 'hi' },
+            { role: 'assistant', content: 'final' },
+          ],
+          message: 'final',
+          turnCount: 1,
+        },
+        meta: { interactionType: 'ai_conversation' },
+        status: 'waiting_for_input',
+        _resumeState: {
+          messages: [
+            { role: 'user', content: 'hi' },
+            { role: 'assistant', content: 'final' },
+          ],
+          turnCount: 1,
+          model: 'test-model',
+          totalInputTokens: 0,
+          totalOutputTokens: 0,
+          turnDebugHistory: [
+            { turnIndex: 1, llmCalls: calls, totalDurationMs: 120 },
+          ],
+        },
+      }));
+      handlerRegistry.register('ai_agent', handler);
+
+      await service.execute(workflowId, {});
+      await flushPromises();
+      mockWebsocketService.emitExecutionEvent.mockClear();
+
+      service.continueAiConversation(executionId, 'hi');
+      await flushPromises();
+
+      const aiMessageCalls =
+        mockWebsocketService.emitExecutionEvent.mock.calls.filter(
+          (call: unknown[]) => call[1] === 'execution.ai_message',
+        );
+      expect(aiMessageCalls).toHaveLength(1);
+      const payload = aiMessageCalls[0][2] as Record<string, unknown>;
+      expect(payload).toHaveProperty('messages');
+      expect(Array.isArray(payload.messages)).toBe(true);
+      expect((payload.messages as unknown[]).length).toBeGreaterThan(0);
+      expect(payload.llmCalls).toEqual(calls);
+      expect(payload.llmCalls as unknown[]).toHaveLength(3);
+      expect(payload.durationMs).toBe(120);
+    });
+  });
+
   describe('Template node expression resolution', () => {
     const varDeclNodes: Partial<Node>[] = [
       {
