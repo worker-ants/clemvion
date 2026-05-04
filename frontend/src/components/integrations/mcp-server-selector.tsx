@@ -1,7 +1,7 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { integrationsApi, type Integration } from "@/lib/api/integrations";
+import { integrationsApi, type IntegrationDto } from "@/lib/api/integrations";
 import { Plus, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useState } from "react";
@@ -51,7 +51,7 @@ export function McpServerSelector({ value, onChange }: Props) {
     staleTime: 30_000,
   });
 
-  const allMcp: Integration[] = (data?.data ?? []) as Integration[];
+  const allMcp: IntegrationDto[] = (data?.data ?? []) as IntegrationDto[];
   const attached = new Set(safe.map((r) => r.integrationId));
   const available = allMcp.filter((i) => !attached.has(i.id));
 
