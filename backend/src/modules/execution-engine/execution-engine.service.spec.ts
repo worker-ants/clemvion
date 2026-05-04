@@ -3214,9 +3214,7 @@ describe('buildConversationMetaFromResumeState', () => {
 });
 
 describe('buildAiMessageDebugFromResumeState', () => {
-  // waiting_for_input emit 분기와 terminal emit 분기가 동일 shape (llmCalls / durationMs)
-  // 으로 직렬화하도록 보장하는 helper. spec/5-system/6-websocket-protocol.md 의
-  // execution.ai_message 명세 참고.
+  // spec/5-system/6-websocket-protocol.md §4.4 — execution.ai_message
   it('extracts llmCalls and durationMs from the last turn entry', () => {
     const lastTurn = {
       turnIndex: 2,
@@ -3288,5 +3286,50 @@ describe('buildAiMessageDebugFromResumeState', () => {
     });
     expect(debug.llmCalls).toBeUndefined();
     expect(debug.durationMs).toBe(50);
+  });
+
+  it('emits an empty array when the last turn has llmCalls: []', () => {
+    const debug = buildAiMessageDebugFromResumeState({
+      turnDebugHistory: [{ turnIndex: 1, llmCalls: [], totalDurationMs: 0 }],
+    });
+    // []는 의도된 값(이번 턴에 LLM 호출이 0건)이므로 보존한다 — undefined와
+    // 의미가 다르다.
+    expect(debug.llmCalls).toEqual([]);
+    expect(debug.durationMs).toBe(0);
+  });
+
+  it('drops llmCalls when the field is non-array (defensive against legacy null)', () => {
+    const debug = buildAiMessageDebugFromResumeState({
+      turnDebugHistory: [
+        // Array.isArray rejects null / undefined / non-array values
+        { turnIndex: 1, llmCalls: null, totalDurationMs: 50 },
+      ],
+    });
+    expect(debug.llmCalls).toBeUndefined();
+    expect(debug.durationMs).toBe(50);
+  });
+
+  it('returns empty object when turnDebugHistory is null', () => {
+    const debug = buildAiMessageDebugFromResumeState({
+      turnDebugHistory: null,
+    });
+    expect(debug).toEqual({});
+  });
+
+  it('shallow-copies llmCalls so later mutation of resumeState cannot retroactively change a buffered emit', () => {
+    const llmCalls = [
+      { requestPayload: { a: 1 }, responsePayload: {}, durationMs: 10 },
+    ];
+    const state = {
+      turnDebugHistory: [{ turnIndex: 1, llmCalls, totalDurationMs: 10 }],
+    };
+    const debug = buildAiMessageDebugFromResumeState(state);
+    // simulate the next turn pushing a new call into the source array
+    llmCalls.push({
+      requestPayload: { b: 2 },
+      responsePayload: {},
+      durationMs: 20,
+    });
+    expect(debug.llmCalls).toHaveLength(1);
   });
 });
