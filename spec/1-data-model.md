@@ -243,9 +243,9 @@ Schedule은 Trigger의 서브타입이다. 양쪽의 라이프사이클과 상�
 |------|------|------|
 | id | UUID | PK |
 | workspace_id | UUID | FK → Workspace |
-| service_type | String | 서비스 유형 (google, github, http, database, email, webhook) |
+| service_type | String | 서비스 유형 (google, github, http, database, email, webhook, mcp). `mcp` 의 사용처·credentials 스키마는 [Spec MCP Client](./5-system/11-mcp-client.md) · [Spec 통합 §5.6](./2-navigation/4-integration.md#56-mcp-server) |
 | name | String | 사용자 지정 별칭 |
-| auth_type | Enum | oauth2 / api_key / bearer_token / basic / connection_string / smtp / webhook_outbound |
+| auth_type | Enum | oauth2 / api_key / bearer_token / basic / connection_string / smtp / webhook_outbound / none. `none` 은 인증이 없는 공용 MCP 서버 등에 사용 |
 | credentials | JSONB (encrypted) | 인증 정보 (암호화 저장). OAuth의 경우 `scopes: string[]` 포함 |
 | scope | Enum | personal / organization |
 | status | Enum | connected / expired / error |

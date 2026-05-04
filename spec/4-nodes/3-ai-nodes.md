@@ -1,6 +1,6 @@
 # Spec: AI 노드 상세 (3종)
 
-> 관련 문서: [PRD 노드 시스템](../../prd/3-node-system.md#5-ai-노드) · [PRD Graph RAG](../../prd/9-graph-rag.md) · [Spec 노드 개요](./0-overview.md) · [Spec Knowledge Base](../2-navigation/5-knowledge-base.md) · [Spec RAG 검색](../5-system/9-rag-search.md) · [Spec Graph RAG](../5-system/10-graph-rag.md) · [Spec LLM Config](../2-navigation/6-config.md)
+> 관련 문서: [PRD 노드 시스템](../../prd/3-node-system.md#5-ai-노드) · [PRD Graph RAG](../../prd/9-graph-rag.md) · [Spec 노드 개요](./0-overview.md) · [Spec Knowledge Base](../2-navigation/5-knowledge-base.md) · [Spec RAG 검색](../5-system/9-rag-search.md) · [Spec Graph RAG](../5-system/10-graph-rag.md) · [Spec LLM Config](../2-navigation/6-config.md) · [Spec MCP Client](../5-system/11-mcp-client.md)
 
 ---
 
@@ -26,7 +26,8 @@ LLM 기반 AI Agent를 실행. 프롬프트, RAG, Tool Use를 지원. **Single T
 | ragThreshold | Float | RAG 유사도 임계값 (기본: 0.7). graph 모드 KB 의 vector seed 단계에 적용 |
 | toolNodeIds | UUID[] | Tool Area에 등록된 도구 노드 ID 목록 (Tool Area에서 자동 관리) |
 | toolOverrides | ToolOverride[] | 도구별 이름/설명 오버라이드 (선택) |
-| maxToolCalls | Integer | 최대 도구 호출 횟수 (기본: 10) |
+| mcpServers | McpServerRef[] | 활용할 MCP 서버 목록 (워크스페이스에 등록된 `service_type='mcp'` Integration 참조). 서버별로 도구 allowlist·resource/prompt 노출 여부 설정. 상세는 [Spec MCP Client](../5-system/11-mcp-client.md) |
+| maxToolCalls | Integer | 최대 도구 호출 횟수 (기본: 10). KB tool · MCP tool · 일반 tool 호출이 모두 합산됨 |
 | conversationHistory | Enum | `none` / `last_n` / `full` |
 | historyCount | Integer? | last_n 시 보관 대화 수 |
 | maxTurns | Integer? | Multi Turn 모드 시 최대 대화 턴 수 (기본: 20, 0=무제한) |
@@ -41,6 +42,18 @@ LLM 기반 AI Agent를 실행. 프롬프트, RAG, Tool Use를 지원. **Single T
 | id | UUID | 조건의 고유 식별자. 출력 포트 ID로 사용. LLM 도구 이름은 `cond_` 접두사 + 정제된 UUID로 자동 생성. 생성 시 UUID v4 할당, 이후 불변 |
 | label | String | 조건 이름 (UI 표시 및 포트 라벨) |
 | prompt | String | 조건 설명 (LLM 도구의 description으로 사용 — "언제 이 조건을 선택해야 하는지" 기술) |
+
+**McpServerRef 구조:**
+
+| 필드 | 타입 | 설명 |
+|------|------|------|
+| integrationId | UUID | FK → Integration (`service_type='mcp'`). 워크스페이스에 등록된 MCP 서버 |
+| enabledTools | String[]? | 일반 도구 allowlist. `['*']` 또는 미설정 = 전체 노출. 메타도구(resources/prompts)에는 영향 없음 |
+| includeResources | Boolean? | 서버가 `resources` capability 를 보고할 때 메타도구 노출 여부. 기본 `true` |
+| includePrompts | Boolean? | 서버가 `prompts` capability 를 보고할 때 메타도구 노출 여부. 기본 `true` |
+| toolOverrides | { toolName: string; description?: string }[]? | 도구별 description 오버라이드 (이름 변경 불가) |
+
+> 도구 이름·메타도구·실행 모델·에러 격리 정책의 단일 진실 공급원은 [Spec MCP Client](../5-system/11-mcp-client.md). 본 표는 노드 설정 측면의 요약일 뿐이다.
 
 ### 설정 UI
 
@@ -149,8 +162,10 @@ LLM 기반 AI Agent를 실행. 프롬프트, RAG, Tool Use를 지원. **Single T
 **도구 이름 규칙:**
 - 일반 도구: `tool_` 접두사 + 정제된 nodeId (예: `tool_abc1234_5678_...`)
 - 조건 도구: `cond_` 접두사 + 정제된 conditionId (예: `cond_def9012_3456_...`)
+- KB 검색 도구: `kb_` 접두사 + 정제된 KB id (상세: [Spec RAG 검색 §2.1](../5-system/9-rag-search.md#21-kb-tool-정의))
+- MCP 도구: `mcp_<sid>__<toolName>` — `<sid>` 는 Integration UUID 의 sanitized 8자, `__` 로 server ↔ toolName 분리. 메타도구는 `mcp_<sid>__list_resources`·`mcp_<sid>__read_resource`·`mcp_<sid>__list_prompts`·`mcp_<sid>__get_prompt` (상세: [Spec MCP Client §5.2](../5-system/11-mcp-client.md#52-도구-이름-규칙))
 - 정제(sanitize): UUID 내 `-` 등 비영숫자 문자를 `_`로 치환하여 LLM API 호환성 보장
-- 접두사로 일반 도구와 조건 도구를 명확히 구분하여 이름 충돌 방지
+- 접두사로 도구 카테고리(일반·조건·KB·MCP)를 명확히 구분하여 이름 충돌 방지
 - LLM은 도구의 `description`을 기반으로 도구를 선택한다 (이름의 의미를 해석하지 않도록 설계)
 
 **도구 설명 파생 규칙:**
@@ -210,16 +225,17 @@ LLM 응답의 `toolCalls`를 순회할 때 다음 로직을 적용:
 ### 실행 로직
 
 #### Single Turn 모드 (mode = `single_turn`)
-1. Knowledge Base가 설정된 경우:
-   a. userPrompt를 임베딩하여 유사 문서 검색 (Top-K, Threshold)
-   b. 검색 결과를 컨텍스트에 추가
-2. systemPrompt + 컨텍스트 + userPrompt로 LLM 호출
+1. Knowledge Base / MCP 서버 setup:
+   a. KB 도구(`kb_*`) 와 MCP 도구(`mcp_*`, 메타도구 포함)를 일반 도구·조건 도구와 함께 LLM 에 노출 — KB 검색은 [Spec RAG §2](../5-system/9-rag-search.md#2-검색-호출-흐름-llm-tool-calling), MCP 는 [Spec MCP Client §7](../5-system/11-mcp-client.md#7-실행-흐름-요약) 참조
+   b. KB 검색은 LLM 의 능동 호출 시에만 실행되며 prefill 하지 않음
+2. systemPrompt + userPrompt로 LLM 호출 (tools 파라미터에 위 도구들이 포함됨)
 3. LLM이 도구 호출을 요청하면:
-   a. `toolCalls`를 조건 도구와 일반 도구로 분류
+   a. `toolCalls`를 **조건 도구**(`cond_*`) / **KB 도구**(`kb_*`) / **MCP 도구**(`mcp_*`) / **일반 도구**(`tool_*`) 로 분류 — provider 의 `matches()` 가 우선 판정, 어디에도 매칭 안 되면 일반 도구로 분류
    b. **조건 도구만 존재:** 해당 조건 포트로 즉시 라우팅
-   c. **조건 도구 + 일반 도구 혼재:** 일반 도구를 먼저 실행, 결과를 LLM에 전달하여 재평가
-   d. **일반 도구만 존재:** 기존 로직대로 실행 후 반복
-   e. maxToolCalls 초과 전까지 반복
+   c. **조건 도구 + 비조건 도구 혼재:** 비조건 도구(KB·MCP·일반)를 먼저 실행, 결과를 LLM에 전달하여 재평가
+   d. **비조건 도구만 존재:** 각 provider가 자체 실행 (KB → 검색, MCP → MCP RPC, 일반 → Tool Area 호출), 결과를 합쳐 다음 turn에 주입
+   e. 한 서버·KB 의 실패는 격리되어 `meta.mcpDiagnostics.errors` / `meta.ragDiagnostics` 에 기록되며 LLM 대화는 계속됨 (graceful degradation)
+   f. maxToolCalls 초과 전까지 반복 (KB·MCP·일반 호출 모두 합산)
 4. 최종 응답을 출력 형식에 맞게 변환
 5. `out` 포트로 출력
 6. LLM 오류, 타임아웃, rate limit 발생 시 `error` 포트로 출력
@@ -278,12 +294,22 @@ LLM 응답의 `toolCalls`를 순회할 때 다음 로직을 적용:
       "traversedEntityCount": 12,
       "maxDepth": 1,
       "expandedChunkCount": 8
+    },
+    "mcpDiagnostics": {
+      "attempted": true,
+      "serverCount": 1,
+      "toolCalls": 1,
+      "resourceReads": 0,
+      "promptGets": 0,
+      "errors": []
     }
   }
 }
 ```
 
 > `graphTraversal` 객체는 검색에 참여한 KB 중 하나라도 `rag_mode = 'graph'` 일 때만 포함된다. 모두 `vector` 면 생략. `ragSources[].origin` 도 graph 모드일 때만 채워지며, `seed` (vector 결과) / `expanded` (그래프 확장 결과) 두 값을 가진다. 상세: [Spec Graph RAG §4.3](../5-system/10-graph-rag.md#43-출력-메타데이터)
+>
+> `mcpDiagnostics` 는 노드 config 의 `mcpServers` 가 1개 이상이거나 LLM 이 MCP 도구를 1번 이상 호출한 경우에만 포함된다. 필드 의미는 [Spec MCP Client §6.2](../5-system/11-mcp-client.md#62-진단-누적-mcpdiagnostics) 참조.
 
 #### Single Turn 모드 — 조건 충족 시 (`{condition.id}` 포트)
 
@@ -435,6 +461,7 @@ LLM 응답의 `toolCalls`를 순회할 때 다음 로직을 적용:
 - 실행 결과에 항상 포함됨 (워크플로우 소유자만 실행 결과 조회 가능하므로 별도 접근 제어 불필요)
 - `requestPayload`에 시스템 프롬프트 및 전체 대화 이력이 포함될 수 있음에 유의
 - 각 turn 항목에 `ragSources` (해당 턴에서 호출된 KB tool 의 chunk delta) 와 `ragDiagnostics` (해당 턴 한정 진단) 가 함께 채워진다. 노드 전체 누적은 `meta.ragSources` / `meta.ragDiagnostics` 를 사용한다 — 두 위치의 값은 turn delta 의 합 = 전체 누적 관계를 만족한다.
+- MCP 도구가 호출된 턴에는 동일한 delta-누적 관계로 `mcpDiagnostics` 도 turn 단위로 분리되어 노출된다. 노드 전체 누적은 `meta.mcpDiagnostics`.
 
 ---
 
@@ -883,6 +910,6 @@ LLM 3 노드는 `output.result.*` / `output.error.*` / `output.interaction.*` wr
 
 | 노드 | 요약 포맷 | 예시 |
 |------|-----------|------|
-| AI Agent | `{mode} · {model}`. Tool Area에 등록된 도구 수가 있으면 `· {N} tools`, Knowledge Base 연결 시 `· {N} KB`, 조건이 있으면 `· {N} cond` 추가. mode가 `multi_turn`이면 `Multi Turn` 표기, `single_turn`이면 생략 | `gpt-4o · 2 tools · 1 KB · 3 cond` (single) / `Multi Turn · gpt-4o · 1 KB · 2 cond` (multi) |
+| AI Agent | `{mode} · {model}`. Tool Area에 등록된 도구 수가 있으면 `· {N} tools`, Knowledge Base 연결 시 `· {N} KB`, MCP 서버가 있으면 `· {N} MCP`, 조건이 있으면 `· {N} cond` 추가. mode가 `multi_turn`이면 `Multi Turn` 표기, `single_turn`이면 생략 | `gpt-4o · 2 tools · 1 KB · 1 MCP · 3 cond` (single) / `Multi Turn · gpt-4o · 1 KB · 2 MCP · 2 cond` (multi) |
 | Text Classifier | `{model} · {N} categories` (카테고리 수) | `gpt-4o-mini · 3 categories` |
 | Info Extractor | `{model} · {N} fields` (outputSchema 필드 수). mode가 `multi_turn`이면 `Multi Turn` 접두어 추가 | `claude-sonnet · 4 fields` (single) / `Multi Turn · claude-sonnet · 4 fields` (multi) |

@@ -11,6 +11,7 @@ import { User } from '../users/entities/user.entity';
 import { WorkspacesModule } from '../workspaces/workspaces.module';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { AuditLogsModule } from '../audit-logs/audit-logs.module';
+import { McpModule } from '../mcp/mcp.module';
 import { IntegrationsController } from './integrations.controller';
 import { IntegrationsService } from './integrations.service';
 import { IntegrationOAuthService } from './integration-oauth.service';
@@ -37,6 +38,7 @@ import {
     WorkspacesModule,
     NotificationsModule,
     AuditLogsModule,
+    McpModule,
   ],
   controllers: [IntegrationsController],
   providers: [

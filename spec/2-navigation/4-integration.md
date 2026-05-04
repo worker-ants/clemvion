@@ -53,7 +53,7 @@
 | 상태 아이콘 | 🟢 connected / 🟡 expiring(7일 이내)·expired / 🔴 error(reason) |
 | 서비스 아이콘 | 서비스 유형별 로고 |
 | 별칭 | 사용자가 지정한 이름 (`Integration.name`) |
-| 인증 유형 | auth_type을 대문자/공백 정리하여 표시 (`OAuth2`, `API Key`, `Bearer Token`, `Basic`, `Connection String`, `SMTP`, `Webhook Outbound`) |
+| 인증 유형 | auth_type을 대문자/공백 정리하여 표시 (`OAuth2`, `API Key`, `Bearer Token`, `Basic`, `Connection String`, `SMTP`, `Webhook Outbound`). `service_type='mcp'` 인 경우 `MCP Server` 로 별도 라벨 |
 | 상태 텍스트 | `Connected` / `Expires in Nd` / `Expired` / `Error: <reason>` |
 | Scope 섹션 | Organization / Personal 2개 섹션. 각 섹션 내 최신 생성순 정렬 |
 | 더보기(⋮) | 상세 열기, 연결 테스트, 재인증(OAuth), 삭제(차단 시 비활성) |
@@ -88,7 +88,7 @@
 │  │Database │ │  Email  │ │ Webhook │   │
 │  └─────────┘ └─────────┘ └─────────┘   │
 │  ┌─────────┐                            │
-│  │ Webhook │                            │
+│  │   MCP   │                            │
 │  └─────────┘                            │
 └─────────────────────────────────────────┘
 ```
@@ -373,7 +373,45 @@ GitHub는 2개 `auth_type`을 선택 가능.
 
 테스트: SMTP 핸드셰이크 + `NOOP` 명령. 실제 메일은 전송하지 않음.
 
-### 5.6 Webhook (Outbound)
+### 5.6 MCP Server
+
+AI Agent 노드가 활용하는 외부 [Model Context Protocol](https://modelcontextprotocol.io) 서버를 워크스페이스에 등록한다. 워크플로 노드로는 직접 노출되지 않으며, AI Agent 의 `mcpServers` 설정에서 참조된다 — 상세 동작·도구 노출 모델은 [Spec MCP Client](../5-system/11-mcp-client.md).
+
+`auth_type`: `bearer_token` / `api_key` / `none` 중 선택.
+
+**공통 필드**
+
+| 필드 | 타입 | 필수 | 비밀 | 비고 |
+|------|------|------|------|------|
+| `url` | string | ✓ | × | Streamable HTTP 엔드포인트. **`https://` 강제** |
+| `default_headers` | Record<string,string>? | | × | 모든 요청에 추가될 헤더 |
+
+**bearer_token**
+
+| 필드 | 타입 | 필수 | 비밀 |
+|------|------|------|------|
+| `token` | string | ✓ | 🔒 |
+
+→ `Authorization: Bearer <token>` 자동 주입.
+
+**api_key**
+
+| 필드 | 타입 | 필수 | 비밀 |
+|------|------|------|------|
+| `header_name` | string | ✓ | × |
+| `value` | string | ✓ | 🔒 |
+
+→ `<header_name>: <value>` 자동 주입.
+
+**none**
+
+추가 필드 없음. 인증 없는 공용 MCP 서버용.
+
+**테스트**: connect → MCP `initialize` 호출 → `capabilities` 와 `serverInfo` 수신. 성공 시 응답에 `{ capabilities, serverInfo, preview: { toolCount, resourceSupported, promptSupported } }` 포함하여 등록 후 노드 설정 UI 의 미리보기에 활용 ([Spec MCP Client §9](../5-system/11-mcp-client.md#9-연결-테스트-test-connection)).
+
+> MCP 서버는 OAuth refresh token 을 보유하지 않으므로 `token_expires_at` 가 없고, 본 spec §11 만료 스캐너의 임계치 알림 흐름은 적용되지 않는다. 인증 실패(401/403)는 노드 실행 시점에 `error(auth_failed)` 로 격하되며 사용자가 rotate 를 통해 토큰을 교체한다.
+
+### 5.7 Webhook (Outbound)
 
 | 필드 | 타입 | 필수 | 비밀 |
 |------|------|------|------|
@@ -580,6 +618,8 @@ window.close();
 
 ## 11. 만료 스캐너 및 알림
 
+> `service_type='mcp'` Integration 은 OAuth refresh token 흐름이 아니므로 `token_expires_at` 가 항상 NULL → 본 §11 의 임계치 알림 흐름은 적용되지 않는다. MCP 인증 실패는 노드 실행 시점에 401/403 으로 감지되어 `error(auth_failed)` 로 격하되며, 사용자는 `Rotate credentials` 로 토큰을 교체한다 (상세 [Spec MCP Client §8](../5-system/11-mcp-client.md#8-에러-처리)).
+
 ### 11.1 스캐너 잡
 
 ```
@@ -680,7 +720,8 @@ Cron: 0 0 * * *   (워크스페이스 타임존 00:00)
 
 ### 14.2 워크플로우 에디터
 
-- 노드 설정 패널에서 Integration 선택은 `IntegrationSelector` 공용 드롭다운을 사용한다 — `serviceTypes` prop으로 목록을 필터(Send Email은 `email`, Database는 `database`, HTTP의 `authentication='integration'` 모드는 `http`).
+- 노드 설정 패널에서 Integration 선택은 `IntegrationSelector` 공용 드롭다운을 사용한다 — `serviceTypes` prop으로 목록을 필터(Send Email은 `email`, Database는 `database`, HTTP의 `authentication='integration'` 모드는 `http`, AI Agent 의 `mcpServers` 항목은 `mcp`).
+- AI Agent 노드는 Integration 노드와 달리 `mcpServers` 가 다중 선택 (multi-select) 이며, 서버별로 도구 allowlist·resource/prompt 노출 토글 UI 가 추가된다 ([Spec AI 노드 §1](../4-nodes/3-ai-nodes.md#1-ai-agent), [Spec MCP Client §5.6](../5-system/11-mcp-client.md#56-도구-allowlist)).
 - 연동 상태 배지를 함께 노출하며(§7.3), 해당 타입의 연동이 0건이면 `+ Create {Service} integration` CTA 링크를 select 아래에 표시(`/integrations/new?service=…&step=auth`).
 - 삭제된 integrationId가 저장돼 있으면 `{id앞8자}… (missing)` 옵션을 추가해 값 보존.
 

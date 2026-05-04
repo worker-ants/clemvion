@@ -5,6 +5,7 @@ import {
   Database,
   Mail,
   Webhook,
+  Plug,
   type LucideIcon,
 } from "lucide-react";
 
@@ -15,6 +16,7 @@ export const SERVICE_ICONS: Record<string, LucideIcon> = {
   database: Database,
   email: Mail,
   webhook: Webhook,
+  mcp: Plug,
 };
 
 export function getServiceIcon(type: string): LucideIcon {
@@ -41,6 +43,7 @@ export function prettyAuthType(authType: string): string {
     connection_string: "Connection",
     smtp: "SMTP",
     webhook_outbound: "Webhook Outbound",
+    none: "No Auth",
   };
   return map[authType] ?? authType;
 }

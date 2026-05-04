@@ -13,7 +13,8 @@ export type AuthType =
   | 'basic'
   | 'connection_string'
   | 'smtp'
-  | 'webhook_outbound';
+  | 'webhook_outbound'
+  | 'none';
 
 export interface CredentialField {
   key: string;
@@ -323,6 +324,96 @@ export const SERVICE_REGISTRY: ServiceDefinition[] = [
             type: 'string',
             required: true,
             placeholder: 'no-reply@example.com',
+          },
+        ],
+      },
+    ],
+  },
+  {
+    type: 'mcp',
+    name: 'MCP Server',
+    authVariants: [
+      {
+        authType: 'bearer_token',
+        label: 'Bearer Token',
+        fields: [
+          {
+            key: 'url',
+            label: 'Server URL',
+            type: 'string',
+            required: true,
+            placeholder: 'https://mcp.example.com',
+            description:
+              'Streamable HTTP endpoint of the MCP server. HTTPS is required.',
+          },
+          {
+            key: 'token',
+            label: 'Bearer Token',
+            type: 'string',
+            required: true,
+            secret: true,
+          },
+          {
+            key: 'default_headers',
+            label: 'Default Headers',
+            type: 'record',
+            required: false,
+          },
+        ],
+      },
+      {
+        authType: 'api_key',
+        label: 'API Key (Custom Header)',
+        fields: [
+          {
+            key: 'url',
+            label: 'Server URL',
+            type: 'string',
+            required: true,
+            placeholder: 'https://mcp.example.com',
+            description:
+              'Streamable HTTP endpoint of the MCP server. HTTPS is required.',
+          },
+          {
+            key: 'header_name',
+            label: 'Header Name',
+            type: 'string',
+            required: true,
+            placeholder: 'X-Api-Key',
+          },
+          {
+            key: 'value',
+            label: 'API Key',
+            type: 'string',
+            required: true,
+            secret: true,
+          },
+          {
+            key: 'default_headers',
+            label: 'Default Headers',
+            type: 'record',
+            required: false,
+          },
+        ],
+      },
+      {
+        authType: 'none',
+        label: 'No Authentication',
+        fields: [
+          {
+            key: 'url',
+            label: 'Server URL',
+            type: 'string',
+            required: true,
+            placeholder: 'https://mcp.example.com',
+            description:
+              'Streamable HTTP endpoint of the MCP server. HTTPS is required.',
+          },
+          {
+            key: 'default_headers',
+            label: 'Default Headers',
+            type: 'record',
+            required: false,
           },
         ],
       },
