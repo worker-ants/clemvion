@@ -76,7 +76,7 @@ export class TriggersController {
     @Param('id', ParseUUIDPipe) id: string,
     @WorkspaceId() workspaceId: string,
   ) {
-    return this.triggersService.findById(id, workspaceId);
+    return this.triggersService.findOneDetail(id, workspaceId);
   }
 
   @Post()
