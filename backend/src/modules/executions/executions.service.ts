@@ -262,13 +262,21 @@ export class ExecutionsService {
     return d instanceof Date ? d.toISOString() : d;
   }
 
+  /**
+   * QueryDto 의 snake_case 정렬 키를 TypeORM 엔티티 property 명으로 매핑한다.
+   *
+   * createQueryBuilder 의 `orderBy` 는 alias-path 를 entity property path 로 해석한다.
+   * 여기에 DB 컬럼명(snake_case)을 넘기면 leftJoin + skip/take 조합에서 TypeORM 이
+   * ORDER BY 를 inner SELECT 와 결합할 때 메타데이터 lookup 이 실패해
+   * `Cannot read properties of undefined (reading 'databaseName')` 가 발생한다.
+   */
   private getSortColumn(sort: string): string {
     const allowed: Record<string, string> = {
-      started_at: 'started_at',
-      finished_at: 'finished_at',
+      started_at: 'startedAt',
+      finished_at: 'finishedAt',
       status: 'status',
-      duration_ms: 'duration_ms',
+      duration_ms: 'durationMs',
     };
-    return allowed[sort] || 'started_at';
+    return allowed[sort] || 'startedAt';
   }
 }
