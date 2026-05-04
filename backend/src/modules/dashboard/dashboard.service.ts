@@ -6,6 +6,11 @@ import {
   Execution,
   ExecutionStatus,
 } from '../executions/entities/execution.entity';
+import {
+  deriveExecutionTrigger,
+  type ExecutionTriggerSource,
+} from '../executions/utils/execution-trigger';
+import { loadParentWorkflowNames } from '../executions/utils/load-parent-workflow-names';
 
 export interface DashboardSummary {
   totalWorkflows: number;
@@ -31,6 +36,8 @@ export interface RecentExecution {
   status: ExecutionStatus;
   durationMs: number | null;
   startedAt: Date;
+  triggerSource: ExecutionTriggerSource;
+  triggerLabel: string | null;
 }
 
 @Injectable()
@@ -135,21 +142,39 @@ export class DashboardService {
   }
 
   async getRecentExecutions(workspaceId: string): Promise<RecentExecution[]> {
+    // 안전 컬럼만 selective join — User.passwordHash 등 민감 필드 노출 방지.
     const executions = await this.executionRepository
       .createQueryBuilder('e')
       .innerJoinAndSelect('e.workflow', 'w')
+      .leftJoin('e.trigger', 'trigger')
+      .addSelect(['trigger.id', 'trigger.type', 'trigger.name'])
+      .leftJoin('e.executor', 'executor')
+      .addSelect(['executor.id', 'executor.name'])
       .where('w.workspace_id = :workspaceId', { workspaceId })
-      .orderBy('e.started_at', 'DESC')
+      .orderBy('e.startedAt', 'DESC')
       .limit(10)
       .getMany();
 
-    return executions.map((e) => ({
-      id: e.id,
-      workflowId: e.workflowId,
-      workflowName: e.workflow.name,
-      status: e.status,
-      durationMs: e.durationMs,
-      startedAt: e.startedAt,
-    }));
+    const parentNameMap = await loadParentWorkflowNames(
+      this.executionRepository,
+      executions,
+    );
+
+    return executions.map((e) => {
+      const parentName = e.parentExecutionId
+        ? (parentNameMap.get(e.parentExecutionId) ?? null)
+        : null;
+      const trigger = deriveExecutionTrigger(e, parentName);
+      return {
+        id: e.id,
+        workflowId: e.workflowId,
+        workflowName: e.workflow.name,
+        status: e.status,
+        durationMs: e.durationMs,
+        startedAt: e.startedAt,
+        triggerSource: trigger.source,
+        triggerLabel: trigger.label,
+      };
+    });
   }
 }

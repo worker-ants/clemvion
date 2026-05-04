@@ -1,4 +1,8 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import {
+  EXECUTION_TRIGGER_SOURCES,
+  type ExecutionTriggerSource,
+} from '../../../executions/utils/execution-trigger';
 
 /** 대시보드 요약 지표 */
 export class DashboardSummaryDto {
@@ -62,4 +66,15 @@ export class RecentExecutionDto {
 
   @ApiProperty({ format: 'date-time' })
   startedAt: string;
+
+  /**
+   * 실행 출처 분류. 분류 규칙은
+   * `backend/src/modules/executions/utils/execution-trigger.ts` 참조.
+   */
+  @ApiProperty({ enum: EXECUTION_TRIGGER_SOURCES, example: 'manual' })
+  triggerSource: ExecutionTriggerSource;
+
+  /** 출처 보조 라벨 (트리거명/실행자명/부모 워크플로명) */
+  @ApiPropertyOptional({ nullable: true, example: 'Alice' })
+  triggerLabel?: string | null;
 }
