@@ -2,7 +2,7 @@
 
 import { useState, useCallback, useRef, useEffect, useMemo } from "react";
 import { Button } from "@/components/ui/button";
-import { Loader2, Send, Square, Wrench, ChevronRight, ChevronDown } from "lucide-react";
+import { Loader2, Send, Square, Wrench, ChevronRight, ChevronDown, CheckCircle, XCircle } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
 import type { ConversationItem, ToolCallInfo } from "@/lib/stores/execution-store";
 import type { NodeResult } from "@/lib/stores/execution-store";
@@ -206,6 +206,56 @@ const RAG_CONTEXT_MARKER = "### Relevant Knowledge";
 
 function isRagContextContent(content: unknown): content is string {
   return typeof content === "string" && content.includes(RAG_CONTEXT_MARKER);
+}
+
+/**
+ * SummaryView 의 컴팩트 tool 시스템 라인에 노출할 결과 요약. 본문은 클릭 시
+ * ToolDetail 에서 그대로 노출되므로 여기서는 한눈에 파악 가능한 길이만 보인다.
+ *
+ * - 배열: `N items`
+ * - 객체: `{firstKey: value, +N}` (남은 키 개수)
+ * - 문자열: 80자 초과 시 truncate
+ * - null/undefined: 미노출 (빈 문자열 반환)
+ */
+function summarizeToolResult(result: unknown): string {
+  if (result == null) return "";
+  if (Array.isArray(result)) {
+    return `${result.length} item${result.length === 1 ? "" : "s"}`;
+  }
+  if (typeof result === "string") {
+    return result.length > 80 ? `${result.slice(0, 80)}…` : result;
+  }
+  if (typeof result === "object") {
+    const obj = result as Record<string, unknown>;
+    const keys = Object.keys(obj);
+    if (keys.length === 0) return "{}";
+    const v = obj[keys[0]];
+    const vStr =
+      typeof v === "string"
+        ? `"${v.length > 40 ? `${v.slice(0, 40)}…` : v}"`
+        : String(v).slice(0, 40);
+    return `{${keys[0]}: ${vStr}${keys.length > 1 ? `, +${keys.length - 1}` : ""}}`;
+  }
+  return String(result).slice(0, 80);
+}
+
+function ToolStatusIcon({
+  status,
+}: {
+  status: ConversationItem["toolStatus"];
+}) {
+  if (status === "pending") {
+    return (
+      <Loader2 className="h-3 w-3 shrink-0 animate-spin text-[hsl(var(--muted-foreground))]" />
+    );
+  }
+  if (status === "success") {
+    return <CheckCircle className="h-3 w-3 shrink-0 text-green-500" />;
+  }
+  if (status === "error") {
+    return <XCircle className="h-3 w-3 shrink-0 text-red-500" />;
+  }
+  return null;
 }
 
 function SelectedItemDetail({
@@ -469,9 +519,49 @@ function SummaryView({
               : undefined;
             const isAssistant = item.type === "assistant";
             const isRag = (item.type as string) === "rag";
+            const isTool = item.type === "tool";
             const ragSourceCount = isRag
               ? (item.content.match(/\[Source: /g) ?? []).length
               : 0;
+            // Tool 응답은 LLM 에 전달된 시스템 이벤트 — bubble 이 아닌 컴팩트 한 줄
+            // 라인으로 표시해 user/assistant 메시지와 시각적으로 분리한다. 클릭 시
+            // SelectedItemDetail 의 ToolDetail 로 진입해 Arguments / Result 전체 확인.
+            if (isTool) {
+              const summary = summarizeToolResult(item.toolResult);
+              return (
+                <div
+                  key={`${item.type}-${item.turnIndex}-${i}`}
+                  role={isClickable ? "button" : undefined}
+                  tabIndex={isClickable ? 0 : undefined}
+                  onClick={handleClick}
+                  onKeyDown={handleKeyDown}
+                  className={cn(
+                    "mx-3 flex items-center gap-2 border-l-2 border-dashed border-[hsl(var(--border))] py-1 pl-3 pr-2 text-[11px] text-[hsl(var(--muted-foreground))]",
+                    isClickable &&
+                      "cursor-pointer rounded-sm transition-colors hover:bg-[hsl(var(--accent))] focus:outline-none focus:ring-1 focus:ring-[hsl(var(--ring))]",
+                  )}
+                >
+                  <span aria-hidden className="text-[10px]">🔧</span>
+                  <span className="truncate font-mono text-[11px] text-[hsl(var(--foreground))]">
+                    {item.content}
+                  </span>
+                  <ToolStatusIcon status={item.toolStatus} />
+                  {summary && (
+                    <span className="truncate text-[10px]">· {summary}</span>
+                  )}
+                  {item.error && (
+                    <span className="truncate text-[10px] text-red-500">
+                      · {item.error}
+                    </span>
+                  )}
+                  {item.durationMs != null && (
+                    <span className="ml-auto shrink-0 text-[10px]">
+                      {item.durationMs}ms
+                    </span>
+                  )}
+                </div>
+              );
+            }
             return (
               <div
                 key={`${item.type}-${item.turnIndex}-${i}`}
