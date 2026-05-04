@@ -23,6 +23,8 @@ code: []
       <li>Triggers</li>
       <li>Schedule</li>
       <li>Integration</li>
+      <li>Knowledge Base</li>
+      <li>LLM Config</li>
       <li>Authentication</li>
       <li>Statistics</li>
       <li>User Guide</li>
@@ -52,7 +54,9 @@ code: []
   {name: "Workflows", required: false, type: "목록", description: "내가 만든 워크플로우를 관리해요. 생성·복제·삭제가 가능해요.", default: "-"},
   {name: "Triggers", required: false, type: "목록", description: "워크플로우를 시작시키는 트리거(수동·웹훅·스케줄) 목록이에요.", default: "-"},
   {name: "Schedule", required: false, type: "스케줄", description: "Cron 기반으로 워크플로우를 주기 실행하도록 등록해요.", default: "-"},
-  {name: "Integration", required: false, type: "연동", description: "HTTP·DB·메일 같은 외부 서비스 인증을 보관하는 곳이에요.", default: "-"},
+  {name: "Integration", required: false, type: "연동", description: "HTTP·DB·메일·MCP 서버 같은 외부 서비스 인증을 보관하는 곳이에요.", default: "-"},
+  {name: "Knowledge Base", required: false, type: "지식 저장소", description: "AI Agent의 RAG에 쓸 문서 컬렉션을 관리해요. Vector·Graph 두 모드를 지원해요.", default: "-"},
+  {name: "LLM Config", required: false, type: "LLM 설정", description: "AI 노드들이 호출할 LLM 프로바이더(OpenAI · Anthropic · Local 등)와 기본 모델·파라미터를 설정해요.", default: "-"},
   {name: "Authentication", required: false, type: "인증", description: "외부에서 내 워크플로우를 호출할 때 쓸 API Key·토큰을 발급해요.", default: "-"},
   {name: "Statistics", required: false, type: "통계", description: "실행 횟수, 성공/실패 비율, 평균 실행 시간을 볼 수 있어요.", default: "-"},
   {name: "User Guide", required: false, type: "매뉴얼", description: "지금 보고 있는 사용자 매뉴얼이에요.", default: "-"}

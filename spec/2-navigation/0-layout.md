@@ -25,8 +25,11 @@
 │ │  Triggers  │                                              │ │
 │ │  Schedule  │                                              │ │
 │ │  Integ.    │                                              │ │
+│ │  KB        │                                              │ │
+│ │  LLM Cfg   │                                              │ │
 │ │  Auth      │                                              │ │
 │ │  Stats     │                                              │ │
+│ │  User Gd   │                                              │ │
 │ │            │                                              │ │
 │ │  --------  │                                              │ │
 │ │  ┌──────┐  │                                              │ │
@@ -53,14 +56,16 @@
 
 | 순서 | 항목 | 아이콘 | 경로 | 비고 |
 |------|------|--------|------|------|
-| 1 | Dashboard | 홈 아이콘 | /dashboard | |
-| 2 | Workflows | 플로우차트 아이콘 | /workflows | |
-| 3 | Triggers | 번개 아이콘 | /triggers | |
-| 4 | Schedule | 달력 아이콘 | /schedules | |
-| 5 | Integration | 퍼즐 아이콘 | /integrations | |
-| 6 | Authentication | 자물쇠 아이콘 | /authentication | |
-| 7 | Statistics | 차트 아이콘 | /statistics | |
-| 8 | User Guide | 책 아이콘 (BookMarked) | /docs | 사용자 매뉴얼. 에디터·설정·노드 도움말. 상세는 [User Guide](./13-user-guide.md) 참조 |
+| 1 | Dashboard | 홈 아이콘 (LayoutDashboard) | /dashboard | |
+| 2 | Workflows | 플로우차트 아이콘 (GitBranch) | /workflows | |
+| 3 | Triggers | 번개 아이콘 (Zap) | /triggers | |
+| 4 | Schedule | 달력 아이콘 (Calendar) | /schedules | |
+| 5 | Integration | 퍼즐 아이콘 (Puzzle) | /integrations | HTTP·DB·Email·MCP 서버 등 외부 통합 |
+| 6 | Knowledge Base | 책 아이콘 (BookOpen) | /knowledge-bases | RAG용 컬렉션. Vector·Graph 모드 지원. 상세는 [Knowledge Base](./5-knowledge-base.md) |
+| 7 | LLM Config | 두뇌 아이콘 (Brain) | /llm-configs | AI 노드가 호출할 LLM 프로바이더·기본 모델·파라미터. 상세는 [Config](./6-config.md) Part B |
+| 8 | Authentication | 자물쇠 아이콘 (Lock) | /authentication | 외부 호출자용 API Key·Bearer·Basic 인증. 상세는 [Config](./6-config.md) Part A |
+| 9 | Statistics | 차트 아이콘 (BarChart3) | /statistics | |
+| 10 | User Guide | 책 아이콘 (BookMarked) | /docs | 사용자 매뉴얼. 에디터·설정·노드 도움말. 상세는 [User Guide](./13-user-guide.md) 참조 |
 
 <!-- 로드맵 — Marketplace는 아직 미구현이며, 구현 시 Statistics 아래에 배치한다. -->
 

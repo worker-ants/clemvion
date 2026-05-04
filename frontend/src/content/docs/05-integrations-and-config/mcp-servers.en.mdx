@@ -1,0 +1,91 @@
+This page covers how to register an external **MCP (Model Context Protocol) server** as a workspace integration and connect it to an AI Agent so the LLM can call the server's tools, resources, and prompts directly.
+
+## What MCP is, and when to use it
+
+MCP is a protocol that lets an LLM call **tools**, **resources**, and **prompts** hosted by external systems in a standard way. The difference from the regular workflow Tool Area (where you drag a node onto the canvas) is that **the tool itself lives in another system**.
+
+Good fits:
+
+- You want to expose a curated set of **externally operated tools** — internal wikis, search engines, ticketing — to the LLM all at once.
+- The same toolset (Slack search, GitHub issue lookup, internal approval system) is used by AI Agents in **multiple workflows**.
+- An external team owns the tool catalog and updates it on their side; you want the AI Agent to pick up new tools **without code changes**.
+
+## Registering an MCP server
+
+MCP servers are registered the same way as other integrations under `/integrations`. Just pick `MCP Server` as the service type.
+
+<Steps>
+  <Step>Click `[+ Add Integration]` in the top-right of `/integrations` and choose **MCP Server** in the service picker.</Step>
+  <Step>In Step 2, set the alias (`name`) and workspace scope. In a team workspace, only admins can pick Organization scope.</Step>
+  <Step>In Step 3, choose an auth method and enter credentials — one of `Bearer Token`, `API Key`, or `None`.</Step>
+  <Step>Right before save, `POST /api/integrations/preview-test` runs automatically. It connects to the server and shows the `tools/list` response and `serverInfo` (name, version, capabilities). `[Save integration]` activates only when the test passes.</Step>
+  <Step>On save you're redirected to the detail page (`/integrations/[id]`). The Overview tab shows the tools the server exposes and its capabilities (whether resources and prompts are supported).</Step>
+</Steps>
+
+<FieldTable rows={[
+  { name: "Bearer Token", type: "Auth", required: "Optional", description: "Sent as `Authorization: Bearer <token>`. Stored under the `token` secret key." },
+  { name: "API Key", type: "Auth", required: "Optional", description: "Sent in the header expected by the server, with the key value (`value`). Stored under the `value` secret key." },
+  { name: "None", type: "Auth", required: "Optional", description: "Used in trusted networks where no auth is needed. Plain-HTTP URLs are only allowed when `MCP_INSECURE_URL_ALLOWED` is enabled — otherwise calls are blocked." }
+]} />
+
+<Callout type="warn">
+If `preview-test` fails, save is blocked. Log messages from the server are partially redacted before display to prevent sensitive-data leakage; for the full reason check the server's own logs.
+</Callout>
+
+## Connecting to an AI Agent
+
+The AI Agent settings panel has an **MCP Servers** multi-select field. Each entry has fine-grained exposure controls.
+
+<FieldTable rows={[
+  { name: "integrationId", type: "Required", required: "Required", description: "ID of the registered MCP integration. Using the same `integrationId` twice in one node is rejected at save (avoids server-sid collisions)." },
+  { name: "enabledTools", type: "string[]", required: "Optional", description: "When empty, **every general tool** the server exposes is exposed to the LLM. Pass a list of tool names to expose only those." },
+  { name: "includeResources", type: "boolean", required: "Optional", description: "Defaults to `true`. When the server reports the resources capability, the `list_resources` and `read_resource` meta-tools are exposed." },
+  { name: "includePrompts", type: "boolean", required: "Optional", description: "Defaults to `true`. When the server reports the prompts capability, the `list_prompts` and `get_prompt` meta-tools are exposed." },
+  { name: "toolOverrides", type: "{ toolName, description? }[]", required: "Optional", description: "Override a specific tool's LLM-facing description. Useful for clarifying intent of tools the LLM frequently confuses." }
+]} />
+
+When the LLM calls a tool, the AI Agent uses the integration's credentials to call the MCP server and feeds the result back as `tool_result` in the next LLM request. Tool names are sanitized for LLM consumption as `mcp_<sid>__<toolName>` to avoid name collisions across servers.
+
+<Example title="Connecting two MCP servers to an AI Agent">
+```ts
+// excerpt from an AI Agent config
+{
+  mcpServers: [
+    {
+      integrationId: "int_mcp_internal_search",
+      enabledTools: ["search_wiki", "search_jira"],
+      includeResources: true,
+      includePrompts: false
+    },
+    {
+      integrationId: "int_mcp_slack",
+      // enabledTools omitted → expose every general tool the server lists
+      toolOverrides: [
+        { toolName: "post_message", description: "Use only for team-channel announcements. Do not use for 1:1 DMs." }
+      ]
+    }
+  ]
+}
+```
+</Example>
+
+## Re-auth and tool-catalog changes
+
+- Tools added or removed on the server are **picked up on the next run**. The AI Agent re-fetches `tools/list` per execution and rebuilds the LLM-facing tool catalog.
+- If credentials expire or the server can't be reached, the node routes to the `error` port. Rotate credentials (`Rotate credentials`) or re-authenticate from the integration's detail page.
+- In Multi Turn mode, the **first turn's `mcpServers` snapshot is preserved across subsequent turns**. Changing the integration configuration mid-conversation has no effect on that conversation; new runs pick up the change.
+
+## Constraints
+
+- **No duplicate `integrationId` in a single node.** Two entries pointing at the same server cause sid collisions, so the LLM can't disambiguate tools. The validator rejects this.
+- Tool responses are truncated to **100 KB by default** (`MCP_MAX_RESPONSE_BYTES`). For frequently large responses, raise the env var or paginate on the tool side.
+- A single tool call has a default **30-second** timeout (`MCP_CALL_TIMEOUT_MS`); `tools/list` is capped at 10 seconds and the initial connect at 10 seconds.
+- Auth methods are limited to `bearer_token`, `api_key`, and `none`. Anything else is rejected at registration.
+
+## Tips & notes
+
+- If the LLM keeps picking the wrong tool, narrow the catalog via `enabledTools` or clarify intent in `toolOverrides.description`.
+- `includeResources` and `includePrompts` only have effect when the server actually reports those capabilities. The integration detail page lists what the server supports.
+- To expose **internal workflow nodes** as tools, use the canvas Tool Area instead. External-system tools go through MCP; internal nodes go through Tool Area.
+- AI Agent condition branching, KB usage, and general tool behavior live in [AI nodes](/docs/02-nodes/ai).
+- Integration UI flow and permissions are described in [Managing integrations](/docs/05-integrations-and-config/integration-management).

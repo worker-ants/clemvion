@@ -64,6 +64,18 @@ The expression language is **read-only and infinite-loop-free** by design. For i
 
 Workflows are isolated per **workspace**. A personal workspace is auto-created on signup; team workspaces extend that with role-based access (RBAC). Check which workspace you're in via the user section at the bottom of the sidebar.
 
+## Q16. What's the difference between the Authentication and LLM Config menus?
+
+They cover opposite directions. **Authentication** issues and manages the auth methods (API Key, Bearer Token, Basic Auth) that **external callers** use to invoke your triggers or API. **LLM Config** stores the LLM providers (OpenAI, Anthropic, local, …) your AI nodes **call out to**, along with default models and parameters. "Incoming requests" and "outgoing calls" are different flows, which is why the menus are split. See [Managing integrations](/docs/05-integrations-and-config/integration-management) and [LLM configuration](/docs/05-integrations-and-config/llm-config) for the full flows.
+
+## Q17. How do I choose between Knowledge Base Vector mode and Graph mode?
+
+**Vector** is the default — chunk embeddings plus cosine-similarity retrieval, which is fast and cheap and is enough for most FAQ and document search. **Graph mode** also runs an LLM over each document to extract **entities and relations**, and queries combine graph traversal with vector search. It excels when the answer hinges on relationships between people, organizations, or events, but ingestion costs more time and tokens. The mode is fixed at collection creation; to switch, create a new collection and move documents over. See [Knowledge Base — Vector mode vs Graph mode](/docs/05-integrations-and-config/knowledge-base) for the full comparison.
+
+## Q18. How do I let an AI Agent call an external tool — e.g. an internal search engine?
+
+For **workflow-internal nodes**, drop them onto the canvas's Tool Area. For **external systems** (internal search, Slack, GitHub, etc.), connect them via an **MCP server**. Register the server under `/integrations`, then add it to the AI Agent's `MCP Servers` field. The LLM will then call the server's tools automatically. See [MCP server integration](/docs/05-integrations-and-config/mcp-servers).
+
 ## Tips & notes
 
 - If your question isn't here, start with the [Run & debug](/docs/04-run-and-debug/running-a-workflow) section — most operational issues are covered there.
