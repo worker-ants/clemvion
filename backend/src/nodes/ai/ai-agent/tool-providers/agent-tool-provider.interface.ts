@@ -65,6 +65,14 @@ export interface ProviderExecCtx {
   workspaceId: string;
   /** {@link ProviderBuildCtx.executionId} 와 동일 단위. */
   executionId?: string;
+  /**
+   * 호출이 발생한 NodeExecution 의 id — provider 가
+   * `IntegrationsService.logUsage` 등으로 사용 활동을 기록할 때 사용한다.
+   * Multi-turn waiting/resume 사이의 호출들은 다른 nodeExecutionId 를 갖는다.
+   */
+  nodeExecutionId?: string;
+  /** logUsage 외래키. nodeExecutionId 와 한 묶음으로 흐름을 따라간다. */
+  workflowId?: string;
 }
 
 export interface ProviderCleanupCtx {

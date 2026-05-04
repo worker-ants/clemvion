@@ -340,6 +340,7 @@ export class McpToolProvider implements AgentToolProvider {
       );
     }
 
+    const callStartedAt = Date.now();
     try {
       const result = await withTimeout(
         entry.session.callTool({ name: originalName, arguments: args }),
@@ -353,6 +354,10 @@ export class McpToolProvider implements AgentToolProvider {
         typeof result === 'object' &&
         (result as { isError?: unknown }).isError === true
       ) {
+        await this.logUsage(ctx, entry, callStartedAt, 'failed', {
+          code: 'MCP_TOOL_ERROR',
+          message: 'MCP tool reported an error',
+        });
         return this.errorResult(
           call.id,
           'MCP_TOOL_ERROR',
@@ -360,17 +365,64 @@ export class McpToolProvider implements AgentToolProvider {
           { content: (result as { content?: unknown }).content },
         );
       }
+      await this.logUsage(ctx, entry, callStartedAt, 'success');
       return this.successResult(call.id, result);
     } catch (e) {
+      const message = e instanceof Error ? e.message : String(e);
       McpToolProvider.logger.warn(
-        `MCP_CALL_FAILED ${entry.integrationId}/${originalName}: ${
-          e instanceof Error ? e.message : String(e)
-        }`,
+        `MCP_CALL_FAILED ${entry.integrationId}/${originalName}: ${message}`,
       );
+      // Auth failures (401/403 from the MCP server) trip the integration
+      // into an `error` state so the UI can surface "needs reauthorization"
+      // instead of a silent retry-storm. The detection is best-effort —
+      // SDK error messages are not standardized; we look for status-code
+      // markers most providers leak.
+      const isAuthFailure = /\b40[13]\b|unauthori[sz]ed|forbidden/i.test(
+        message,
+      );
+      const code = isAuthFailure ? 'MCP_AUTH_FAILED' : 'MCP_CALL_FAILED';
+      await this.logUsage(ctx, entry, callStartedAt, 'failed', {
+        code,
+        message,
+      });
       return this.errorResult(
         call.id,
-        'MCP_CALL_FAILED',
+        code,
         `MCP server "${entry.integrationName}" failed to execute the tool`,
+      );
+    }
+  }
+
+  /**
+   * Best-effort write to `IntegrationUsageLog` so the integration detail page
+   * can surface MCP call activity in the same Activity tab used by HTTP / DB
+   * / Email handlers. Skipped when the surrounding ExecutionContext didn't
+   * carry the foreign keys (e.g. internal builders that bypass the engine);
+   * the engine guarantees them for real workflow runs.
+   */
+  private async logUsage(
+    ctx: ProviderExecCtx,
+    entry: ServerEntry,
+    startedAt: number,
+    status: 'success' | 'failed',
+    error?: { code: string; message: string },
+  ): Promise<void> {
+    if (!ctx.nodeExecutionId || !ctx.workflowId) return;
+    try {
+      await this.integrationsService.logUsage({
+        integrationId: entry.integrationId,
+        nodeExecutionId: ctx.nodeExecutionId,
+        workflowId: ctx.workflowId,
+        status,
+        durationMs: Date.now() - startedAt,
+        error: error ?? null,
+      });
+    } catch (e) {
+      // logUsage already swallows internally; an unexpected throw here is
+      // a code bug in our wrapper. Log but don't bubble — usage tracking
+      // must never break tool execution.
+      McpToolProvider.logger.warn(
+        `MCP usage logging failed: ${e instanceof Error ? e.message : String(e)}`,
       );
     }
   }

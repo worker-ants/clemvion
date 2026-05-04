@@ -390,6 +390,8 @@ export class AiAgentHandler implements NodeHandler {
           config,
           workspaceId,
           executionId: context.executionId,
+          nodeExecutionId: context.nodeExecutionId,
+          workflowId: context.workflowId,
         });
         ragGroup.pushSources(execResult.ragSourcesDelta);
         ragGroup.pushDiagnostic(execResult.ragDiagnosticsDelta);
@@ -567,6 +569,8 @@ export class AiAgentHandler implements NodeHandler {
       conditions,
       workspaceId,
       executionId: context.executionId,
+      nodeExecutionId: context.nodeExecutionId,
+      workflowId: context.workflowId,
     };
 
     const waitingResult: ResumableNodeHandlerOutput = {
@@ -759,6 +763,12 @@ export class AiAgentHandler implements NodeHandler {
           config: turnConfig,
           workspaceId,
           executionId,
+          // Multi-turn resume doesn't carry the new turn's nodeExecutionId
+          // through state — usage logs from MCP calls during resume are
+          // attributed to the original waiting NodeExecution. Acceptable
+          // for activity-tab readability.
+          nodeExecutionId: state.nodeExecutionId as string | undefined,
+          workflowId: state.workflowId as string | undefined,
         });
         ragGroup.pushSources(execResult.ragSourcesDelta);
         ragGroup.pushDiagnostic(execResult.ragDiagnosticsDelta);

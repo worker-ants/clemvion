@@ -676,5 +676,40 @@ describe('IntegrationsService', () => {
         }),
       ).resolves.toBeUndefined();
     });
+
+    it('flips status to error(auth_failed) on MCP_AUTH_FAILED', async () => {
+      const i = makeIntegration({ status: 'connected', statusReason: null });
+      integrationRepo.findOne.mockResolvedValue(i);
+      await service.logUsage({
+        integrationId: 'int-1',
+        nodeExecutionId: 'nex-1',
+        workflowId: 'wf-1',
+        status: 'failed',
+        durationMs: 50,
+        error: { code: 'MCP_AUTH_FAILED', message: '401' },
+      });
+      expect(integrationRepo.save).toHaveBeenCalledWith(
+        expect.objectContaining({
+          status: 'error',
+          statusReason: 'auth_failed',
+        }),
+      );
+    });
+
+    it('does NOT flip status for non-auth failures', async () => {
+      const i = makeIntegration({ status: 'connected', statusReason: null });
+      integrationRepo.findOne.mockResolvedValue(i);
+      await service.logUsage({
+        integrationId: 'int-1',
+        nodeExecutionId: 'nex-1',
+        workflowId: 'wf-1',
+        status: 'failed',
+        durationMs: 50,
+        error: { code: 'MCP_CALL_FAILED', message: 'transport hiccup' },
+      });
+      expect(integrationRepo.save).toHaveBeenCalledWith(
+        expect.objectContaining({ status: 'connected' }),
+      );
+    });
   });
 });
