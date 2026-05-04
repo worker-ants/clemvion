@@ -26,6 +26,8 @@ import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
 import { timeAgo, formatDuration } from "@/lib/utils/date";
 import { useT, type TranslationKey } from "@/lib/i18n";
+import { TriggerCell } from "@/components/executions/trigger-cell";
+import type { ExecutionTriggerSource } from "@/lib/api/executions";
 
 interface DashboardSummary {
   totalWorkflows: number;
@@ -51,6 +53,8 @@ interface RecentExecution {
   status: string;
   durationMs: number | null;
   startedAt: string;
+  triggerSource: ExecutionTriggerSource;
+  triggerLabel: string | null;
 }
 
 function SummaryCardSkeleton() {
@@ -295,6 +299,7 @@ export default function DashboardPage() {
                 <tr className="border-b border-[hsl(var(--border))] bg-[hsl(var(--muted))]">
                   <th className="px-4 py-3 text-left font-medium">{t("dashboard.status")}</th>
                   <th className="px-4 py-3 text-left font-medium">{t("dashboard.workflow")}</th>
+                  <th className="px-4 py-3 text-left font-medium">{t("executions.columnTrigger")}</th>
                   <th className="px-4 py-3 text-left font-medium">{t("dashboard.duration")}</th>
                   <th className="px-4 py-3 text-left font-medium">{t("dashboard.time")}</th>
                 </tr>
@@ -317,6 +322,12 @@ export default function DashboardPage() {
                     </td>
                     <td className="px-4 py-3 font-medium">
                       {execution.workflowName}
+                    </td>
+                    <td className="px-4 py-3">
+                      <TriggerCell
+                        source={execution.triggerSource}
+                        label={execution.triggerLabel}
+                      />
                     </td>
                     <td className="px-4 py-3 text-[hsl(var(--muted-foreground))]">
                       {execution.durationMs != null ? formatDuration(execution.durationMs) : "—"}

@@ -144,7 +144,7 @@ describe('WebsocketGateway', () => {
       getSubscriptions().set('client-1', existing);
 
       const findByIdMock = jest.mocked(module.get(ExecutionsService).findById);
-      findByIdMock.mockResolvedValue({ id: 'exec-abc' });
+      findByIdMock.mockResolvedValue({ id: 'exec-abc' } as never);
 
       gateway.handleSubscribe({ channel: 'execution:exec-abc' }, socket);
       await new Promise((resolve) => setImmediate(resolve));

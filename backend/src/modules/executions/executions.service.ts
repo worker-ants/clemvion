@@ -15,6 +15,7 @@ import {
   deriveExecutionTrigger,
   type ExecutionTriggerSource,
 } from './utils/execution-trigger';
+import { loadParentWorkflowNames } from './utils/load-parent-workflow-names';
 
 /**
  * `findById` 응답 — 기존 entity 형태(websocket snapshot/frontend 호환)에
@@ -62,9 +63,9 @@ export class ExecutionsService {
     });
 
     const parentName = execution.parentExecutionId
-      ? (await this.loadParentWorkflowNames([execution])).get(
-          execution.parentExecutionId,
-        )
+      ? (
+          await loadParentWorkflowNames(this.executionRepository, [execution])
+        ).get(execution.parentExecutionId)
       : null;
     const trigger = deriveExecutionTrigger(execution, parentName);
 
@@ -113,7 +114,10 @@ export class ExecutionsService {
       .take(limit)
       .getManyAndCount();
 
-    const parentNameMap = await this.loadParentWorkflowNames(data);
+    const parentNameMap = await loadParentWorkflowNames(
+      this.executionRepository,
+      data,
+    );
     const dtoList = data.map((e) => this.toExecutionDto(e, parentNameMap));
     return PaginatedResponseDto.create(dtoList, totalItems, page, limit);
   }
@@ -182,37 +186,6 @@ export class ExecutionsService {
 
     const refreshed = await this.executionRepository.findOne({ where: { id } });
     return refreshed ?? execution;
-  }
-
-  /**
-   * 페이지 내 서브워크플로우 실행이 있을 때, 부모 실행의 workflow.name 을 한 번의 쿼리로
-   * 일괄 로드한다. 필요한 두 컬럼만 SELECT 한다 (Workflow.config 등 대형 JSON 미적재).
-   */
-  private async loadParentWorkflowNames(
-    executions: Execution[],
-  ): Promise<Map<string, string | null>> {
-    const parentIds = Array.from(
-      new Set(
-        executions
-          .map((e) => e.parentExecutionId)
-          .filter((v): v is string => !!v),
-      ),
-    );
-    const map = new Map<string, string | null>();
-    if (parentIds.length === 0) return map;
-
-    const rows = await this.executionRepository
-      .createQueryBuilder('pe')
-      .innerJoin('pe.workflow', 'wf')
-      .select(['pe.id AS parent_id', 'wf.name AS workflow_name'])
-      .where('pe.id IN (:...ids)', { ids: parentIds })
-      .getRawMany<{ parent_id: string; workflow_name: string | null }>();
-
-    for (const r of rows) {
-      map.set(r.parent_id, r.workflow_name ?? null);
-    }
-    // 부모를 못 찾은 경우(이미 삭제 등)는 unset 으로 두어 호출 측에서 null 처리.
-    return map;
   }
 
   private toExecutionDto(
