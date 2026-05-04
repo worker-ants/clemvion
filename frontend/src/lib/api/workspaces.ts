@@ -32,6 +32,15 @@ export const workspacesApi = {
   leave: async (workspaceId: string): Promise<void> => {
     await apiClient.post(`/workspaces/${workspaceId}/leave`);
   },
+  transferOwnership: async (
+    workspaceId: string,
+    newOwnerMemberId: string,
+  ): Promise<void> => {
+    await apiClient.post(
+      `/workspaces/${workspaceId}/transfer-ownership`,
+      { newOwnerMemberId },
+    );
+  },
   listMembers: async (
     workspaceId: string,
   ): Promise<WorkspaceMemberSummary[]> => {

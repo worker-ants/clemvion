@@ -32,6 +32,7 @@ import { CreateWorkspaceDto } from './dto/create-workspace.dto';
 import { UpdateWorkspaceDto } from './dto/update-workspace.dto';
 import { AddMemberDto, UpdateMemberRoleDto } from './dto/add-member.dto';
 import { AcceptInvitationDto, CreateInvitationDto } from './dto/invitation.dto';
+import { TransferOwnershipDto } from './dto/transfer-ownership.dto';
 import {
   InvitationAcceptResultDto,
   InvitationCreatedDto,
@@ -166,6 +167,38 @@ export class WorkspacesController {
     @Param('id', new ParseUUIDPipe()) workspaceId: string,
   ) {
     await this.workspacesService.leaveWorkspace(workspaceId, user.sub);
+    return { data: { ok: true } };
+  }
+
+  @Post(':id/transfer-ownership')
+  @ApiOperation({
+    summary: '워크스페이스 owner 이양 (Owner)',
+    description:
+      '같은 워크스페이스의 비-owner 멤버에게 owner 권한을 이양합니다. 트랜잭션 내에서 두 멤버 role 이 동시에 swap (대상 → owner, 기존 owner → admin) 되고 `workspace.ownerId` 도 갱신됩니다. 개인 워크스페이스는 이양 불가.',
+  })
+  @ApiParam({ name: 'id', description: '워크스페이스 UUID', format: 'uuid' })
+  @ApiOkWrappedResponse(OkResultDto, { description: '이양 결과' })
+  @ApiBadRequestResponse({
+    description: '입력값 검증 실패 또는 본인 지정 (TARGET_IS_SELF)',
+  })
+  @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
+  @ApiForbiddenResponse({
+    description: '권한 부족 (Owner 필요) 또는 개인 워크스페이스',
+  })
+  @ApiNotFoundResponse({
+    description: '워크스페이스 또는 대상 멤버를 찾을 수 없음',
+  })
+  @ApiConflictResponse({ description: '대상이 이미 owner 인 경우' })
+  async transferOwnership(
+    @CurrentUser() user: JwtPayload,
+    @Param('id', new ParseUUIDPipe()) workspaceId: string,
+    @Body() dto: TransferOwnershipDto,
+  ) {
+    await this.workspacesService.transferOwnership(
+      workspaceId,
+      user.sub,
+      dto.newOwnerMemberId,
+    );
     return { data: { ok: true } };
   }
 

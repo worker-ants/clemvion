@@ -31,6 +31,7 @@ describe('WorkspacesController', () => {
             addMemberByEmail: jest.fn(),
             updateMemberRole: jest.fn(),
             removeMember: jest.fn(),
+            transferOwnership: jest.fn(),
           },
         },
         {
@@ -119,6 +120,34 @@ describe('WorkspacesController', () => {
       await expect(controller.leave(user, 'ws-1')).rejects.toBeInstanceOf(
         ForbiddenException,
       );
+    });
+  });
+
+  describe('transferOwnership', () => {
+    it('delegates to transferOwnership and returns ok envelope', async () => {
+      service.transferOwnership.mockResolvedValue(undefined);
+
+      const result = await controller.transferOwnership(user, 'ws-1', {
+        newOwnerMemberId: 'mem-2',
+      });
+
+      expect(service.transferOwnership).toHaveBeenCalledWith(
+        'ws-1',
+        user.sub,
+        'mem-2',
+      );
+      expect(result).toEqual({ data: { ok: true } });
+    });
+
+    it('propagates ForbiddenException when requester is not owner', async () => {
+      service.transferOwnership.mockRejectedValue(
+        new ForbiddenException({ code: 'OWNER_REQUIRED' }),
+      );
+      await expect(
+        controller.transferOwnership(user, 'ws-1', {
+          newOwnerMemberId: 'mem-2',
+        }),
+      ).rejects.toBeInstanceOf(ForbiddenException);
     });
   });
 });
