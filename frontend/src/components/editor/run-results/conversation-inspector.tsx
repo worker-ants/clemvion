@@ -9,9 +9,13 @@ import type { NodeResult } from "@/lib/stores/execution-store";
 import type { RagSource } from "./output-shape";
 import { resolveResultField } from "./resolve-result-field";
 import { MarkdownRenderer } from "@/components/editor/assistant-panel/markdown-renderer";
+import { tryParseJson } from "@/lib/utils/parse-json";
 
 /** Chip 한 줄에 inline 으로 보일 최대 문서명 개수 (나머지는 `+N` 으로 축약). */
 const MAX_VISIBLE_DOC_NAMES = 2;
+/** Tool 결과 요약: 문자열·객체값 truncate 임계값 (테스트와 공유) */
+export const SUMMARY_STRING_MAX = 80;
+export const SUMMARY_VALUE_MAX = 40;
 
 /**
  * 한 assistant 응답에서 사용된 KB 청크 요약 chip — 클릭 시 References 탭의
@@ -90,6 +94,7 @@ function ToolCallBadge({ toolCalls }: { toolCalls: ToolCallInfo[] }) {
 
 interface ConversationInspectorProps {
   result: NodeResult;
+  /** Live: store 가 직접 주입. History: SummaryView 내 useMemo 가 outputData.messages 에서 재가공. */
   conversationMessages: ConversationItem[];
   /**
    * Index into `conversationMessages` for the currently-selected message, or
@@ -208,35 +213,34 @@ function isRagContextContent(content: unknown): content is string {
   return typeof content === "string" && content.includes(RAG_CONTEXT_MARKER);
 }
 
-/**
- * SummaryView 의 컴팩트 tool 시스템 라인에 노출할 결과 요약. 본문은 클릭 시
- * ToolDetail 에서 그대로 노출되므로 여기서는 한눈에 파악 가능한 길이만 보인다.
- *
- * - 배열: `N items`
- * - 객체: `{firstKey: value, +N}` (남은 키 개수)
- * - 문자열: 80자 초과 시 truncate
- * - null/undefined: 미노출 (빈 문자열 반환)
- */
-function summarizeToolResult(result: unknown): string {
+/** SummaryView 컴팩트 라인용 결과 요약 — 전체 본문은 ToolDetail 에서 노출. */
+export function summarizeToolResult(result: unknown): string {
   if (result == null) return "";
   if (Array.isArray(result)) {
     return `${result.length} item${result.length === 1 ? "" : "s"}`;
   }
   if (typeof result === "string") {
-    return result.length > 80 ? `${result.slice(0, 80)}…` : result;
+    return result.length > SUMMARY_STRING_MAX
+      ? `${result.slice(0, SUMMARY_STRING_MAX)}…`
+      : result;
   }
   if (typeof result === "object") {
     const obj = result as Record<string, unknown>;
     const keys = Object.keys(obj);
     if (keys.length === 0) return "{}";
     const v = obj[keys[0]];
-    const vStr =
-      typeof v === "string"
-        ? `"${v.length > 40 ? `${v.slice(0, 40)}…` : v}"`
-        : String(v).slice(0, 40);
+    let vStr: string;
+    if (v == null) vStr = String(v);
+    else if (typeof v === "object") vStr = Array.isArray(v) ? "[…]" : "{…}";
+    else {
+      const raw = String(v);
+      vStr = raw.length > SUMMARY_VALUE_MAX
+        ? `${raw.slice(0, SUMMARY_VALUE_MAX)}…`
+        : raw;
+    }
     return `{${keys[0]}: ${vStr}${keys.length > 1 ? `, +${keys.length - 1}` : ""}}`;
   }
-  return String(result).slice(0, 80);
+  return String(result).slice(0, SUMMARY_STRING_MAX);
 }
 
 function ToolStatusIcon({
@@ -454,9 +458,16 @@ function SummaryView({
     if (isLive) return conversationMessages;
     const msgsRaw = resolveResultField<unknown[]>(output, "messages");
     if (!Array.isArray(msgsRaw)) return conversationMessages;
-    const msgs = msgsRaw as Array<{ role: string; content: string }>;
+    const msgs = msgsRaw as Array<{
+      role: string;
+      content: string;
+      toolCalls?: Array<{ id?: string; name?: string; arguments?: string }>;
+      toolCallId?: string;
+    }>;
     let turnCounter = 0;
     const out: ConversationItem[] = [];
+    // toolCallId → name 매핑 (직전 assistant.toolCalls[].id 로 lookup).
+    const callNameById = new Map<string, string>();
     for (const m of msgs) {
       if (m.role === "user") {
         turnCounter++;
@@ -466,14 +477,35 @@ function SummaryView({
           turnIndex: turnCounter,
         });
       } else if (m.role === "assistant") {
+        if (m.toolCalls) {
+          for (const tc of m.toolCalls) {
+            if (tc.id) callNameById.set(tc.id, tc.name ?? "");
+          }
+        }
         out.push({
           type: "assistant",
           content: m.content,
           turnIndex: turnCounter,
+          assistantToolCalls: m.toolCalls?.length
+            ? m.toolCalls.map((tc) => ({
+                name: tc.name ?? "",
+                arguments: tc.arguments,
+              }))
+            : undefined,
+        });
+      } else if (m.role === "tool") {
+        const name = m.toolCallId
+          ? callNameById.get(m.toolCallId)
+          : undefined;
+        out.push({
+          type: "tool",
+          content: name ?? "(unknown tool)",
+          turnIndex: turnCounter || 1,
+          toolCallId: m.toolCallId,
+          toolResult: tryParseJson(m.content),
         });
       } else if (m.role === "system" && isRagContextContent(m.content)) {
-        // RAG context 는 직전 user message 의 turn 에 속하도록 turnCounter 사용 (이미
-        // user 가 처리되며 증가). 타입을 store 표준 외 "rag" 로 표시.
+        // RAG context 는 직전 user 의 turnCounter 에 속하도록 표시한다.
         out.push({
           type: "rag" as ConversationItem["type"],
           content: m.content,
@@ -520,12 +552,7 @@ function SummaryView({
             const isAssistant = item.type === "assistant";
             const isRag = (item.type as string) === "rag";
             const isTool = item.type === "tool";
-            const ragSourceCount = isRag
-              ? (item.content.match(/\[Source: /g) ?? []).length
-              : 0;
-            // Tool 응답은 LLM 에 전달된 시스템 이벤트 — bubble 이 아닌 컴팩트 한 줄
-            // 라인으로 표시해 user/assistant 메시지와 시각적으로 분리한다. 클릭 시
-            // SelectedItemDetail 의 ToolDetail 로 진입해 Arguments / Result 전체 확인.
+            // Tool 은 시스템 이벤트로 buble 이 아닌 컴팩트 한 줄로 분리.
             if (isTool) {
               const summary = summarizeToolResult(item.toolResult);
               return (
@@ -562,6 +589,9 @@ function SummaryView({
                 </div>
               );
             }
+            const ragSourceCount = isRag
+              ? (item.content.match(/\[Source: /g) ?? []).length
+              : 0;
             return (
               <div
                 key={`${item.type}-${item.turnIndex}-${i}`}

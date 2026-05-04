@@ -1,6 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
-import { ConversationInspector } from "../conversation-inspector";
+import {
+  ConversationInspector,
+  SUMMARY_STRING_MAX,
+  SUMMARY_VALUE_MAX,
+  summarizeToolResult,
+} from "../conversation-inspector";
 import type {
   ConversationItem,
   NodeResult,
@@ -25,20 +30,23 @@ const baseResult: NodeResult = {
   outputData: null,
 };
 
-const baseProps = {
-  result: baseResult,
-  selectedItemIndex: null,
-  isLive: true,
-  isWaitingAiResponse: false,
-  conversationConfig: { turnCount: 1, maxTurns: 5 },
-  onSendMessage: vi.fn(),
-  onEndConversation: vi.fn(),
-};
+function makeBaseProps() {
+  return {
+    result: baseResult,
+    conversationMessages: [] as ConversationItem[],
+    selectedItemIndex: null,
+    isLive: true,
+    isWaitingAiResponse: false,
+    conversationConfig: { turnCount: 1, maxTurns: 5 },
+    onSendMessage: vi.fn(),
+    onEndConversation: vi.fn(),
+  };
+}
 
 describe("ConversationInspector SummaryView — tool 메시지 렌더링", () => {
+  let baseProps: ReturnType<typeof makeBaseProps>;
   beforeEach(() => {
-    baseProps.onSendMessage.mockClear();
-    baseProps.onEndConversation.mockClear();
+    baseProps = makeBaseProps();
   });
 
   it("tool 아이템은 '🤖 AI' 라벨로 표시되지 않는다", () => {
@@ -61,12 +69,11 @@ describe("ConversationInspector SummaryView — tool 메시지 렌더링", () =>
       />,
     );
 
-    // 시스템 라인 어디에도 "🤖 AI" 라벨이 없어야 한다
     expect(screen.queryByText("🤖 AI")).toBeNull();
-    // 🔧 아이콘이 보여야 한다
     expect(screen.getByText("🔧")).toBeInTheDocument();
-    // 툴 이름이 보여야 한다
     expect(screen.getByText("kb_search")).toBeInTheDocument();
+    // durationMs 노출 검증
+    expect(screen.getByText("124ms")).toBeInTheDocument();
   });
 
   it("user/assistant/tool 가 섞여 있어도 'AI' 라벨은 assistant 에만 붙는다", () => {
@@ -100,67 +107,12 @@ describe("ConversationInspector SummaryView — tool 메시지 렌더링", () =>
       />,
     );
 
-    // 정확히 두 assistant 만 "🤖 AI" 라벨을 가져야 한다 (tool 은 제외)
     expect(screen.getAllByText("🤖 AI")).toHaveLength(2);
-    // user 라벨은 1 개
     expect(screen.getAllByText("👤 User")).toHaveLength(1);
-    // tool 시스템 라인의 🔧 는 1 개
     expect(screen.getAllByText("🔧")).toHaveLength(1);
   });
 
-  it("배열 결과는 'N items' 로 요약된다", () => {
-    const items: ConversationItem[] = [
-      makeItem({
-        type: "tool",
-        content: "kb_search",
-        toolStatus: "success",
-        toolResult: ["a", "b", "c", "d"],
-      }),
-    ];
-    render(
-      <ConversationInspector {...baseProps} conversationMessages={items} />,
-    );
-    expect(screen.getByText(/4 items/)).toBeInTheDocument();
-  });
-
-  it("객체 결과는 첫 키 + 잔여 키 개수로 요약된다", () => {
-    const items: ConversationItem[] = [
-      makeItem({
-        type: "tool",
-        content: "fetch_user",
-        toolStatus: "success",
-        toolResult: { id: 42, name: "Hong", email: "x@y.z" },
-      }),
-    ];
-    render(
-      <ConversationInspector {...baseProps} conversationMessages={items} />,
-    );
-    expect(screen.getByText(/\{id: 42, \+2\}/)).toBeInTheDocument();
-  });
-
-  it("문자열 결과는 80자 초과 시 truncate 된다", () => {
-    const long = "a".repeat(120);
-    const items: ConversationItem[] = [
-      makeItem({
-        type: "tool",
-        content: "echo",
-        toolStatus: "success",
-        toolResult: long,
-      }),
-    ];
-    render(
-      <ConversationInspector {...baseProps} conversationMessages={items} />,
-    );
-    // 80자 + 말줄임표 (prefix `· ` 포함된 한 텍스트 노드)
-    expect(
-      screen.getByText(new RegExp(`a{80}…$`)),
-    ).toBeInTheDocument();
-    expect(
-      screen.queryByText(new RegExp(`a{81}`)),
-    ).toBeNull();
-  });
-
-  it("error 상태 tool 은 에러 메시지를 표시한다", () => {
+  it("error 상태 tool 은 에러 메시지를 표시하고 XCircle 아이콘이 보인다", () => {
     const items: ConversationItem[] = [
       makeItem({
         type: "tool",
@@ -169,10 +121,94 @@ describe("ConversationInspector SummaryView — tool 메시지 렌더링", () =>
         error: "timeout after 30s",
       }),
     ];
-    render(
+    const { container } = render(
       <ConversationInspector {...baseProps} conversationMessages={items} />,
     );
     expect(screen.getByText(/timeout after 30s/)).toBeInTheDocument();
+    expect(container.querySelector(".lucide-circle-x")).not.toBeNull();
+    expect(container.querySelector(".lucide-circle-check-big")).toBeNull();
+  });
+
+  it("success 상태 tool 은 CheckCircle 아이콘을 표시한다", () => {
+    const items: ConversationItem[] = [
+      makeItem({
+        type: "tool",
+        content: "kb_search",
+        toolStatus: "success",
+        toolResult: ["x"],
+      }),
+    ];
+    const { container } = render(
+      <ConversationInspector {...baseProps} conversationMessages={items} />,
+    );
+    expect(container.querySelector(".lucide-circle-check-big")).not.toBeNull();
+    expect(container.querySelector(".lucide-loader-circle")).toBeNull();
+  });
+
+  it("pending 상태 tool 은 Loader2 (animate-spin) 아이콘을 표시하고 결과 요약은 미노출", () => {
+    const items: ConversationItem[] = [
+      makeItem({
+        type: "tool",
+        content: "kb_search",
+        toolStatus: "pending",
+        toolResult: undefined,
+      }),
+    ];
+    const { container } = render(
+      <ConversationInspector {...baseProps} conversationMessages={items} />,
+    );
+    const loader = container.querySelector(".lucide-loader-circle");
+    expect(loader).not.toBeNull();
+    expect(loader?.classList.contains("animate-spin")).toBe(true);
+    // 결과 요약 미노출 (· 로 시작하는 텍스트 노드 부재)
+    expect(screen.queryByText(/^· /)).toBeNull();
+  });
+
+  it("Enter / Space 키로 tool 라인을 활성화하면 onSelectMessage 가 호출된다", () => {
+    const onSelect = vi.fn();
+    const items: ConversationItem[] = [
+      makeItem({ type: "user", content: "hi" }),
+      makeItem({
+        type: "tool",
+        content: "kb_search",
+        toolStatus: "success",
+        toolResult: ["x"],
+      }),
+    ];
+    render(
+      <ConversationInspector
+        {...baseProps}
+        conversationMessages={items}
+        onSelectMessage={onSelect}
+      />,
+    );
+
+    const toolLine = screen.getByText("kb_search").closest("[role=button]");
+    expect(toolLine).not.toBeNull();
+    fireEvent.keyDown(toolLine!, { key: "Enter" });
+    expect(onSelect).toHaveBeenCalledWith(1);
+    onSelect.mockClear();
+    fireEvent.keyDown(toolLine!, { key: " " });
+    expect(onSelect).toHaveBeenCalledWith(1);
+  });
+
+  it("onSelectMessage 가 없으면 tool 라인이 button 역할을 갖지 않는다", () => {
+    const items: ConversationItem[] = [
+      makeItem({
+        type: "tool",
+        content: "kb_search",
+        toolStatus: "success",
+        toolResult: ["x"],
+      }),
+    ];
+    render(
+      <ConversationInspector
+        {...baseProps}
+        conversationMessages={items}
+      />,
+    );
+    const toolName = screen.getByText("kb_search");
+    expect(toolName.closest("[role=button]")).toBeNull();
   });
 
   it("tool 라인을 클릭하면 onSelectMessage 가 해당 인덱스로 호출된다", () => {
@@ -196,5 +232,98 @@ describe("ConversationInspector SummaryView — tool 메시지 렌더링", () =>
 
     fireEvent.click(screen.getByText("kb_search"));
     expect(onSelect).toHaveBeenCalledWith(1);
+  });
+
+  it("History 모드 (isLive=false) 에서도 tool 메시지가 표시된다 (Critical fix 회귀 방지)", () => {
+    const result: NodeResult = {
+      ...baseResult,
+      status: "completed",
+      outputData: {
+        result: {
+          messages: [
+            { role: "user", content: "hi" },
+            {
+              role: "assistant",
+              content: "",
+              toolCalls: [
+                { id: "call_1", name: "kb_search", arguments: "{}" },
+              ],
+            },
+            {
+              role: "tool",
+              content: '["chunk1","chunk2"]',
+              toolCallId: "call_1",
+            },
+            { role: "assistant", content: "done" },
+          ],
+        },
+      },
+    };
+
+    render(
+      <ConversationInspector
+        {...baseProps}
+        result={result}
+        conversationMessages={[]}
+        isLive={false}
+      />,
+    );
+
+    expect(screen.getByText("🔧")).toBeInTheDocument();
+    expect(screen.getByText("kb_search")).toBeInTheDocument();
+    expect(screen.getByText(/2 items/)).toBeInTheDocument();
+  });
+});
+
+describe("summarizeToolResult", () => {
+  it("null/undefined → 빈 문자열", () => {
+    expect(summarizeToolResult(null)).toBe("");
+    expect(summarizeToolResult(undefined)).toBe("");
+  });
+
+  it("배열 단수/복수 표현", () => {
+    expect(summarizeToolResult([])).toBe("0 items");
+    expect(summarizeToolResult(["a"])).toBe("1 item");
+    expect(summarizeToolResult(["a", "b", "c"])).toBe("3 items");
+  });
+
+  it("문자열 — 임계값 이하/초과 처리", () => {
+    expect(summarizeToolResult("hello")).toBe("hello");
+    const exact = "a".repeat(SUMMARY_STRING_MAX);
+    expect(summarizeToolResult(exact)).toBe(exact); // 임계 정확 일치 시 미truncate
+    const long = "a".repeat(SUMMARY_STRING_MAX + 5);
+    expect(summarizeToolResult(long)).toBe(`${"a".repeat(SUMMARY_STRING_MAX)}…`);
+  });
+
+  it("빈 객체 / 단일 키 / 다중 키", () => {
+    expect(summarizeToolResult({})).toBe("{}");
+    expect(summarizeToolResult({ id: 42 })).toBe("{id: 42}");
+    expect(summarizeToolResult({ id: 42, name: "Hong" })).toBe(
+      "{id: 42, +1}",
+    );
+  });
+
+  it("객체 값은 따옴표 없이 raw 출력 (number/string/boolean 일관)", () => {
+    expect(summarizeToolResult({ x: 42 })).toBe("{x: 42}");
+    expect(summarizeToolResult({ x: "Hong" })).toBe("{x: Hong}");
+    expect(summarizeToolResult({ x: true })).toBe("{x: true}");
+  });
+
+  it("객체 값이 nested object 면 [...] / {...} 로 방어", () => {
+    expect(summarizeToolResult({ x: { nested: 1 } })).toBe("{x: {…}}");
+    expect(summarizeToolResult({ x: [1, 2] })).toBe("{x: […]}");
+  });
+
+  it("객체 값이 SUMMARY_VALUE_MAX 초과 시 truncate", () => {
+    const long = "v".repeat(SUMMARY_VALUE_MAX + 5);
+    expect(summarizeToolResult({ x: long })).toBe(
+      `{x: ${"v".repeat(SUMMARY_VALUE_MAX)}…}`,
+    );
+  });
+
+  it("number / boolean 단독 값", () => {
+    expect(summarizeToolResult(42)).toBe("42");
+    expect(summarizeToolResult(true)).toBe("true");
+    expect(summarizeToolResult(false)).toBe("false");
   });
 });
