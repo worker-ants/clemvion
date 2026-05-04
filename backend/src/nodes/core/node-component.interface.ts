@@ -11,6 +11,7 @@ import { LlmService } from '../../modules/llm/llm.service';
 import { RagSearchService } from '../../modules/knowledge-base/search/rag-search.service';
 import { KnowledgeBaseService } from '../../modules/knowledge-base/knowledge-base.service';
 import { IntegrationsService } from '../../modules/integrations/integrations.service';
+import { McpClientService } from '../../modules/mcp/mcp-client.service';
 import { WorkflowExecutor } from './workflow-executor.interface';
 
 export type {
@@ -248,6 +249,7 @@ export interface HandlerDependencies {
   ragSearchService: RagSearchService;
   knowledgeBaseService: KnowledgeBaseService;
   integrationsService: IntegrationsService;
+  mcpClientService: McpClientService;
   workflowExecutor: WorkflowExecutor;
 }
 

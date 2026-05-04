@@ -20,6 +20,7 @@ import { LlmService } from '../llm/llm.service';
 import { RagSearchService } from '../knowledge-base/search/rag-search.service';
 import { KnowledgeBaseService } from '../knowledge-base/knowledge-base.service';
 import { IntegrationsService } from '../integrations/integrations.service';
+import { McpClientService } from '../mcp/mcp-client.service';
 import {
   Execution,
   ExecutionStatus,
@@ -255,6 +256,12 @@ describe('ExecutionEngineService', () => {
           useValue: {
             getForExecution: jest.fn(),
             logUsage: jest.fn().mockResolvedValue(undefined),
+          },
+        },
+        {
+          provide: McpClientService,
+          useValue: {
+            connect: jest.fn(),
           },
         },
         {

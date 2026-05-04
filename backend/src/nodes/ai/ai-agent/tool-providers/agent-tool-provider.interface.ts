@@ -10,9 +10,9 @@ import {
  *
  * 현재 구현체:
  *  - {@link KbToolProvider} — `kb_<sanitizedKbId>` tool 로 KB 검색을 노출
+ *  - {@link McpToolProvider} — `mcp_<sid>__<name>` tool 로 MCP 서버 도구 노출
  *
- * 추가 후보 (follow-up):
- *  - workspace 변수 조회, MCP server, 외부 vector store 등
+ * 추가 후보 (follow-up): workspace 변수 조회, 외부 vector store 등.
  */
 export interface AgentToolProvider {
   /** Provider 식별자 — 로깅/디버깅용. tool name prefix 와 별개. */
@@ -35,17 +35,41 @@ export interface AgentToolProvider {
    * `matches(call.name) === false` 일 때는 호출되지 않는다.
    */
   execute(call: ToolCall, ctx: ProviderExecCtx): Promise<AgentToolResult>;
+
+  /**
+   * 노드 실행이 끝났을 때 (또는 multi-turn `waiting_for_input` 으로 일시중단될 때)
+   * provider 가 보유한 외부 자원(MCP 세션, 임시 파일 등) 을 정리하는 hook.
+   *
+   * 핸들러는 single-turn `execute` 의 finally, multi-turn 의 매 turn 종료 지점
+   * (waiting_for_input · ended · error) 마다 모든 provider 의 cleanup 을 호출한다.
+   * 호출은 `executionId` 단위이며, 같은 execution 내에서 여러 번 호출되어도
+   * 안전(idempotent)해야 한다. 자원이 없는 provider 는 구현 생략 가능 (optional).
+   */
+  cleanup?(ctx: ProviderCleanupCtx): Promise<void>;
 }
 
 export interface ProviderBuildCtx {
   /** AI Agent 노드 config 또는 multi-turn resume state. */
   config: Record<string, unknown>;
   workspaceId: string;
+  /**
+   * 외부 자원 캐싱 단위. `executionId` 가 같은 buildTools/execute 호출은 같은
+   * 노드 실행에 속한다 — provider 는 이 키로 세션 등을 캐시해 한 노드 실행 내에서
+   * 외부 connect 가 1회만 일어나도록 보장한다 (spec/5-system/11-mcp-client.md §4.3).
+   */
+  executionId?: string;
 }
 
 export interface ProviderExecCtx {
   config: Record<string, unknown>;
   workspaceId: string;
+  /** {@link ProviderBuildCtx.executionId} 와 동일 단위. */
+  executionId?: string;
+}
+
+export interface ProviderCleanupCtx {
+  /** 정리할 자원의 scope key. `undefined` 이면 provider 의 모든 자원 정리. */
+  executionId?: string;
 }
 
 /**

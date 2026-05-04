@@ -209,10 +209,35 @@ export class AiAgentHandler implements NodeHandler {
   ): Promise<unknown> {
     const mode = (config.mode as string) || 'single_turn';
 
-    if (mode === 'multi_turn') {
-      return this.executeMultiTurn(input, config, context);
+    try {
+      if (mode === 'multi_turn') {
+        return await this.executeMultiTurn(input, config, context);
+      }
+      return await this.executeSingleTurn(input, config, context);
+    } finally {
+      // Cleanup hook fires on every execute() return — including the
+      // multi-turn `waiting_for_input` path. Sessions held by providers
+      // (e.g. MCP) are torn down here so the next turn rebuilds them
+      // deterministically from config. Cleanup errors are swallowed —
+      // they would mask the upstream success/failure that triggered the
+      // return.
+      await this.cleanupProviders(context.executionId);
     }
-    return this.executeSingleTurn(input, config, context);
+  }
+
+  private async cleanupProviders(executionId: string): Promise<void> {
+    await Promise.allSettled(
+      this.toolProviders.map((p) =>
+        p.cleanup
+          ? p.cleanup({ executionId }).catch((err: unknown) => {
+              const msg = err instanceof Error ? err.message : String(err);
+              AiAgentHandler.logger.warn(
+                `Provider "${p.key}" cleanup failed: ${msg}`,
+              );
+            })
+          : Promise.resolve(),
+      ),
+    );
   }
 
   private async executeSingleTurn(
@@ -262,7 +287,11 @@ export class AiAgentHandler implements NodeHandler {
       messages.push({ role: 'user', content: userPrompt });
     }
 
-    const tools = await this.buildTools(config, workspaceId);
+    const tools = await this.buildTools(
+      config,
+      workspaceId,
+      context.executionId,
+    );
 
     // Per-call trace so the frontend LlmInformationTab can inspect each
     // request/response/usage even for single-turn runs (tool loop commonly
@@ -360,6 +389,7 @@ export class AiAgentHandler implements NodeHandler {
         const execResult = await provider.execute(call, {
           config,
           workspaceId,
+          executionId: context.executionId,
         });
         ragGroup.pushSources(execResult.ragSourcesDelta);
         ragGroup.pushDiagnostic(execResult.ragDiagnosticsDelta);
@@ -531,8 +561,12 @@ export class AiAgentHandler implements NodeHandler {
       maxTurns,
       toolNodeIds: (config.toolNodeIds as string[]) || [],
       toolOverrides: (config.toolOverrides as unknown[]) || [],
+      // Persist mcpServers across multi-turn resumes so each post-resume turn
+      // re-materializes MCP sessions deterministically from the saved config.
+      mcpServers: (config.mcpServers as unknown[]) || [],
       conditions,
       workspaceId,
+      executionId: context.executionId,
     };
 
     const waitingResult: ResumableNodeHandlerOutput = {
@@ -569,6 +603,20 @@ export class AiAgentHandler implements NodeHandler {
    * Called by the execution engine when a user submits a message.
    */
   async processMultiTurnMessage(
+    userMessage: string,
+    state: Record<string, unknown>,
+  ): Promise<unknown> {
+    const stateExecutionId = state.executionId as string | undefined;
+    try {
+      return await this.processMultiTurnMessageInner(userMessage, state);
+    } finally {
+      if (stateExecutionId) {
+        await this.cleanupProviders(stateExecutionId);
+      }
+    }
+  }
+
+  private async processMultiTurnMessageInner(
     userMessage: string,
     state: Record<string, unknown>,
   ): Promise<unknown> {
@@ -612,9 +660,11 @@ export class AiAgentHandler implements NodeHandler {
       ragThreshold: state.ragThreshold,
       toolNodeIds: state.toolNodeIds,
       toolOverrides: state.toolOverrides,
+      mcpServers: state.mcpServers,
       conditions,
     };
-    const tools = await this.buildTools(turnConfig, workspaceId);
+    const executionId = state.executionId as string | undefined;
+    const tools = await this.buildTools(turnConfig, workspaceId, executionId);
 
     const turnStartedAt = Date.now();
     const toolsDef = tools.length > 0 ? tools : undefined;
@@ -708,6 +758,7 @@ export class AiAgentHandler implements NodeHandler {
         const execResult = await provider.execute(call, {
           config: turnConfig,
           workspaceId,
+          executionId,
         });
         ragGroup.pushSources(execResult.ragSourcesDelta);
         ragGroup.pushDiagnostic(execResult.ragDiagnosticsDelta);
@@ -1063,6 +1114,7 @@ export class AiAgentHandler implements NodeHandler {
   private async buildTools(
     config: Record<string, unknown>,
     workspaceId: string,
+    executionId?: string,
   ): Promise<ToolDef[]> {
     const toolNodeIds = (config.toolNodeIds as string[]) || [];
     const toolOverrides =
@@ -1073,11 +1125,15 @@ export class AiAgentHandler implements NodeHandler {
       }>) || [];
     const conditions = (config.conditions as ConditionDef[]) || [];
 
-    // Provider tools (KB 등) — 핸들러 내부 실행. 우선순위 가장 높음.
+    // Provider tools (KB / MCP 등) — 핸들러 내부 실행. 우선순위 가장 높음.
     const providerTools: ToolDef[] = [];
     for (const provider of this.toolProviders) {
       try {
-        const built = await provider.buildTools({ config, workspaceId });
+        const built = await provider.buildTools({
+          config,
+          workspaceId,
+          executionId,
+        });
         providerTools.push(...built);
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e);

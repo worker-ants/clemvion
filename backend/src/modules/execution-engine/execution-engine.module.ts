@@ -20,6 +20,7 @@ import { WebsocketModule } from '../websocket/websocket.module';
 import { LlmModule } from '../llm/llm.module';
 import { KnowledgeBaseModule } from '../knowledge-base/knowledge-base.module';
 import { IntegrationsModule } from '../integrations/integrations.module';
+import { McpModule } from '../mcp/mcp.module';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { BACKGROUND_EXECUTION_QUEUE } from './queues/background-execution.queue';
 import { BackgroundExecutionProcessor } from './queues/background-execution.processor';
@@ -32,6 +33,7 @@ import { BackgroundExecutionProcessor } from './queues/background-execution.proc
     LlmModule,
     KnowledgeBaseModule,
     IntegrationsModule,
+    McpModule,
     NotificationsModule,
     BullModule.registerQueue({ name: BACKGROUND_EXECUTION_QUEUE }),
   ],
