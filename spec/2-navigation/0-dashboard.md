@@ -72,8 +72,9 @@
 
 | 열 | 설명 |
 |----|------|
-| 워크플로우 이름 | 실행된 워크플로우 이름 |
 | 상태 | ✅ completed / ❌ failed / ⏳ running |
+| 워크플로우 이름 | 실행된 워크플로우 이름 |
+| 트리거 | 실행 출처(`subworkflow`/`manual`/`schedule`/`webhook`/`unknown`) 아이콘 + 라벨. 분류 규칙·보조 라벨 정책은 [실행 내역 spec §2.4 Trigger 출처 분류](./6-execution-history.md#trigger-출처-분류) 참조 |
 | 소요 시간 | 실행 소요 시간 (초/분) |
 | 시각 | 실행 완료 시각 (상대 시간 또는 HH:mm) |
 
