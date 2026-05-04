@@ -22,7 +22,7 @@
 | ID | 요구사항 | 우선순위 | 상태 |
 |----|----------|----------|-------|
 | NF-SC-01 | 사용자 인증 (이메일/비밀번호, OAuth 소셜 로그인) | 필수 | ✅ |
-| NF-SC-02 | 역할 기반 접근 제어 (RBAC) — Owner, Admin, Editor, Viewer | 필수 | ✅ (Workflows·Triggers·Schedules·Integrations·LLM Config·KB·Auth Configs·Folders 가드 적용 · 워크스페이스 멤버 관리는 Admin/Owner 분리) |
+| NF-SC-02 | 역할 기반 접근 제어 (RBAC) — Owner, Admin, Editor, Viewer | 필수 | ✅ (Workflows·Triggers·Schedules·Integrations·LLM Config·KB·Auth Configs·Folders 가드 적용 · 워크스페이스 멤버 관리는 Admin/Owner 분리 · Owner 이양 지원) |
 | NF-SC-03 | API Key, OAuth Token 등 민감 정보 암호화 저장 (AES-256 이상) | 필수 | ✅ |
 | NF-SC-04 | 전송 중 데이터 암호화 (TLS 1.2+) | 필수 | ✅ |
 | NF-SC-05 | CSRF, XSS, SQL Injection 등 OWASP Top 10 대응 | 필수 | ✅ |

@@ -51,4 +51,4 @@
 - 백엔드 가드: workflows / triggers / schedules / integrations / llm-configs / knowledge-bases / **auth-configs / folders** 까지 `@Roles('editor')` 적용 (이번 사이클). `auth-configs/regenerate` 는 외부 호출자 중단을 유발하는 키 교체이므로 `@Roles('admin')` 으로 격상.
 - 워크스페이스 자체 (rename / member-mgmt / leave / delete) 는 service-level role assertion 으로 admin/owner 분리 유지
 - 프론트 UI: 목록 페이지 (workflows / integrations / llm-configs / knowledge-bases / KB-detail / alerts) + **워크플로우 에디터 툴바 (save / delete / 이름 inline rename) + triggers (create / toggle) + schedules (create / edit / delete / toggle)** 모두 RoleGate 적용 (이번 사이클). 실행 동작 (Run, Run-now) 은 Viewer 가능이므로 비가드.
-- 미구현: Owner 이양 UI / API (별도 stage 로 분리)
+- Owner 이양: `POST /workspaces/:id/transfer-ownership` 엔드포인트 신설. 트랜잭션 + FOR UPDATE 락으로 두 멤버 role 동시 swap (대상 → owner, 기존 owner → admin), `workspace.ownerId` 동기화. UI 는 워크스페이스 settings 의 Danger Zone 에 별도 카드로 분리 — owner-only 노출, 대상은 같은 워크스페이스의 모든 비-owner 멤버, 새 owner 의 이메일을 타이핑해야 확인 활성화.
