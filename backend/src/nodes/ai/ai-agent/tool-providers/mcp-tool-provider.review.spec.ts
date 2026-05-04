@@ -560,6 +560,105 @@ describe('McpToolProvider — review issues', () => {
   // WARNING — description sanitization (newlines stripped, length capped)
   // -------------------------------------------------------------------
 
+  // -------------------------------------------------------------------
+  // Stage 5 — IntegrationUsageLog integration
+  // -------------------------------------------------------------------
+
+  describe('IntegrationUsageLog hooks', () => {
+    let logUsage: jest.Mock<Promise<void>, [Record<string, unknown>]>;
+
+    beforeEach(() => {
+      logUsage = jest.fn().mockResolvedValue(undefined);
+      // Re-create provider with the augmented integrations mock.
+      provider = new McpToolProvider(
+        mcpClient as unknown as McpClientService,
+        Object.assign(integrations, {
+          logUsage,
+        }) as unknown as IntegrationsService,
+      );
+      integrations.getForExecution.mockResolvedValue(makeIntegration());
+    });
+
+    it('logs success after a successful tools/call', async () => {
+      mcpClient.connect.mockResolvedValueOnce(makeSession());
+      await provider.buildTools({
+        config: { mcpServers: [{ integrationId: SAMPLE_ID }] },
+        workspaceId: 'ws-1',
+        executionId: 'exec-1',
+      });
+
+      await provider.execute(
+        { id: 'tc-1', name: 'mcp_aaaaaaaa__echo', arguments: '{}' },
+        {
+          config: { mcpServers: [{ integrationId: SAMPLE_ID }] },
+          workspaceId: 'ws-1',
+          executionId: 'exec-1',
+          nodeExecutionId: 'ne-1',
+          workflowId: 'wf-1',
+        },
+      );
+
+      expect(logUsage).toHaveBeenCalledTimes(1);
+      const args = logUsage.mock.calls[0][0];
+      expect(args.integrationId).toBe(SAMPLE_ID);
+      expect(args.nodeExecutionId).toBe('ne-1');
+      expect(args.workflowId).toBe('wf-1');
+      expect(args.status).toBe('success');
+    });
+
+    it('logs failure with MCP_AUTH_FAILED on 401-shaped errors', async () => {
+      mcpClient.connect.mockResolvedValueOnce(
+        makeSession({
+          callTool: jest
+            .fn()
+            .mockRejectedValue(new Error('HTTP 401 Unauthorized')),
+        }),
+      );
+      await provider.buildTools({
+        config: { mcpServers: [{ integrationId: SAMPLE_ID }] },
+        workspaceId: 'ws-1',
+        executionId: 'exec-1',
+      });
+
+      const result = await provider.execute(
+        { id: 'tc-1', name: 'mcp_aaaaaaaa__echo', arguments: '{}' },
+        {
+          config: { mcpServers: [{ integrationId: SAMPLE_ID }] },
+          workspaceId: 'ws-1',
+          executionId: 'exec-1',
+          nodeExecutionId: 'ne-1',
+          workflowId: 'wf-1',
+        },
+      );
+
+      const parsed = JSON.parse(result.content);
+      expect(parsed.error).toBe('MCP_AUTH_FAILED');
+      expect(logUsage).toHaveBeenCalledTimes(1);
+      const args = logUsage.mock.calls[0][0];
+      expect(args.status).toBe('failed');
+      expect((args.error as { code: string }).code).toBe('MCP_AUTH_FAILED');
+    });
+
+    it('skips logging when nodeExecutionId is missing', async () => {
+      mcpClient.connect.mockResolvedValueOnce(makeSession());
+      await provider.buildTools({
+        config: { mcpServers: [{ integrationId: SAMPLE_ID }] },
+        workspaceId: 'ws-1',
+        executionId: 'exec-1',
+      });
+      await provider.execute(
+        { id: 'tc-1', name: 'mcp_aaaaaaaa__echo', arguments: '{}' },
+        {
+          config: { mcpServers: [{ integrationId: SAMPLE_ID }] },
+          workspaceId: 'ws-1',
+          executionId: 'exec-1',
+          // nodeExecutionId / workflowId omitted
+        },
+      );
+      expect(logUsage).not.toHaveBeenCalled();
+    });
+  });
+
   it('strips newlines from integration name and tool description', async () => {
     integrations.getForExecution.mockResolvedValue(
       makeIntegration({

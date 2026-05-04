@@ -508,6 +508,16 @@ export class IntegrationsService {
           message: params.error?.message ?? 'Unknown error',
           at: new Date().toISOString(),
         };
+        // Auth failures aren't transient — flip the integration into the
+        // `error(auth_failed)` state so the editor surfaces a "needs
+        // reauthorization" badge and the user can rotate credentials before
+        // the next run wastes another tool call. Limited to the MCP-coded
+        // auth failure for now; OAuth flows transition through their own
+        // service.status handling.
+        if (params.error?.code === 'MCP_AUTH_FAILED') {
+          integration.status = 'error';
+          integration.statusReason = 'auth_failed';
+        }
       }
       await this.integrationRepository.save(integration);
     } catch (err) {
