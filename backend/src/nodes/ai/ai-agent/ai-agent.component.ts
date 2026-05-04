@@ -1,6 +1,7 @@
 import { AiAgentHandler } from './ai-agent.handler';
 import { NodeComponent } from '../../core/node-component.interface';
 import { KbToolProvider } from './tool-providers/kb-tool-provider';
+import { McpToolProvider } from './tool-providers/mcp-tool-provider';
 import {
   aiAgentNodeConfigSchema,
   aiAgentNodeMetadata,
@@ -16,5 +17,6 @@ export const aiAgentNodeComponent: NodeComponent = {
   createHandler: (deps) =>
     new AiAgentHandler(deps.llmService, [
       new KbToolProvider(deps.ragSearchService, deps.knowledgeBaseService),
+      new McpToolProvider(deps.mcpClientService, deps.integrationsService),
     ]),
 };

@@ -39,6 +39,7 @@ export type UiWidget =
   | "integration-selector"
   | "llm-config-selector"
   | "kb-selector"
+  | "mcp-server-selector"
   | "workflow-selector"
   | "condition-builder"
   | "field-array"

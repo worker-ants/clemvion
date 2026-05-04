@@ -17,6 +17,7 @@ import {
 import {
   LlmConfigSelectorWidget,
   KbSelectorWidget,
+  McpServerSelectorWidget,
 } from "./selector-widgets";
 import { ButtonListWidget } from "./button-list-widget";
 import { registerWidgets } from "./widget-resolver";
@@ -43,6 +44,7 @@ export const WIDGET_REGISTRY: Record<UiWidget, ComponentType<WidgetProps>> = {
   "integration-selector": UnsupportedWidget,
   "llm-config-selector": LlmConfigSelectorWidget,
   "kb-selector": KbSelectorWidget,
+  "mcp-server-selector": McpServerSelectorWidget,
   "workflow-selector": UnsupportedWidget,
   "condition-builder": UnsupportedWidget,
   "field-array": FieldArrayWidget,

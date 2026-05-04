@@ -23,6 +23,50 @@ const toolOverrideSchema = z.object({
     .meta({ ui: { label: 'Input Mapping', widget: 'field-array' } }),
 });
 
+const mcpServerRefSchema = z.object({
+  integrationId: z
+    .string()
+    .meta({ ui: { label: 'Integration ID', widget: 'text', hidden: true } }),
+  enabledTools: z
+    .array(z.string())
+    .optional()
+    .meta({
+      ui: {
+        label: 'Enabled Tools',
+        widget: 'field-array',
+        hint: '비워두면 서버의 모든 일반 도구를 LLM 에 노출합니다.',
+      },
+    }),
+  includeResources: z
+    .boolean()
+    .default(true)
+    .meta({
+      ui: {
+        label: 'Expose Resources',
+        widget: 'checkbox',
+        hint: '서버가 resources capability 를 보고할 때 list/read 메타도구를 노출',
+      },
+    }),
+  includePrompts: z
+    .boolean()
+    .default(true)
+    .meta({
+      ui: {
+        label: 'Expose Prompts',
+        widget: 'checkbox',
+        hint: '서버가 prompts capability 를 보고할 때 list/get 메타도구를 노출',
+      },
+    }),
+  toolOverrides: z
+    .array(
+      z.object({
+        toolName: z.string(),
+        description: z.string().optional(),
+      }),
+    )
+    .optional(),
+});
+
 const conditionDefSchema = z.object({
   id: z.string().meta({ ui: { label: 'ID', widget: 'text', hidden: true } }),
   label: z
@@ -173,6 +217,24 @@ export const aiAgentNodeConfigSchema = z
           hint: '최소 유사도 임계값 (0-1) 의 기본값 (LLM 이 호출 인자로 override 가능)',
           order: 12,
           group: 'Knowledge Base (RAG)',
+        },
+      }),
+
+    // ── MCP Servers ──
+    // Workspace 에 등록된 service_type='mcp' Integration 을 참조해 서버의 도구·
+    // resource·prompt 를 LLM 에 노출한다. 서버 단위 on/off + 도구별 allowlist.
+    // 상세: spec/5-system/11-mcp-client.md.
+    mcpServers: z
+      .array(mcpServerRefSchema)
+      .default([])
+      .meta({
+        ui: {
+          label: 'MCP Servers',
+          widget: 'mcp-server-selector',
+          itemLabel: 'MCP Server',
+          hint: '워크스페이스에 등록된 MCP 서버를 추가하면 LLM 이 해당 서버의 도구를 능동적으로 호출합니다.',
+          order: 15,
+          group: 'MCP Servers',
         },
       }),
 
