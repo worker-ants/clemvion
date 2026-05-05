@@ -5,7 +5,7 @@ import {
 } from '../../core/node-component.interface';
 import { AI_NO_LLM_PROVIDER_MESSAGE } from '../llm-provider-rule';
 
-const categoryDefSchema = z.object({
+export const categoryDefSchema = z.object({
   // spec §8 stable port id — 비면 resolver/handler 가 `class_${i}` fallback.
   // slug 형식(ASCII 영숫자/`_`/`-`, 최대 64) 만 허용 — switch.caseDefSchema.id 와
   // 동일 패턴으로 포트 라우팅 키 보호.
