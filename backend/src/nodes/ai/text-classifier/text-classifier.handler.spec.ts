@@ -495,7 +495,7 @@ describe('TextClassifierHandler', () => {
         expect((result as any).port).toBe('cat_refund');
       });
 
-      it('should fall back to class_${i} when id is missing (legacy)', async () => {
+      it('should fall back to class_N (index-based) when id is missing (legacy)', async () => {
         const result = (await handler.execute(
           {},
           baseConfig,
@@ -504,7 +504,7 @@ describe('TextClassifierHandler', () => {
         expect((result as any).port).toBe('class_0');
       });
 
-      it('should fall back to class_${i} when id is whitespace-only', async () => {
+      it('should fall back to class_N (index-based) when id is whitespace-only', async () => {
         const result = (await handler.execute(
           {},
           {
@@ -517,6 +517,29 @@ describe('TextClassifierHandler', () => {
           createContext(),
         )) as Record<string, unknown>;
         expect((result as any).port).toBe('class_0');
+      });
+
+      it('should route text-fallback (JSON parse failure) to custom id', async () => {
+        // Custom id 가 설정된 카테고리에서 LLM 응답이 JSON 파싱 실패 →
+        // 텍스트 substring fallback 으로 매칭되더라도 라우팅이 custom id 로
+        // 결정되어야 한다 (review/2026-05-05 W-2).
+        mockLlmService.chat.mockResolvedValueOnce({
+          content: 'The answer is Billing because it relates to payment',
+          usage: { inputTokens: 50, outputTokens: 10, totalTokens: 60 },
+          model: 'gpt-4o-mini',
+        });
+        const result = (await handler.execute(
+          {},
+          {
+            ...baseConfig,
+            categories: [
+              { id: 'cat_refund', name: 'Billing', description: 'Payment' },
+              { id: 'cat_tech', name: 'Tech', description: 'Technical' },
+            ],
+          },
+          createContext(),
+        )) as Record<string, unknown>;
+        expect((result as any).port).toBe('cat_refund');
       });
     });
   });
@@ -678,6 +701,28 @@ describe('TextClassifierHandler', () => {
         { name: 'Billing', confidence: 0 },
         { name: 'Tech', confidence: 0 },
       ]);
+    });
+
+    it('should route text-fallback (JSON parse failure) to custom ids', async () => {
+      // Multi-label 의 substring fallback 도 custom id 로 라우팅 (review W-2).
+      mockLlmService.chat.mockResolvedValueOnce({
+        content: 'The text relates to Billing and Tech categories',
+        usage: { inputTokens: 50, outputTokens: 10, totalTokens: 60 },
+        model: 'gpt-4o-mini',
+      });
+      const result = (await handler.execute(
+        {},
+        {
+          ...multiLabelConfig,
+          categories: [
+            { id: 'cat_billing', name: 'Billing', description: 'Payment' },
+            { id: 'cat_tech', name: 'Tech', description: 'Technical' },
+            { id: 'cat_general', name: 'General', description: 'General' },
+          ],
+        },
+        createContext(),
+      )) as Record<string, unknown>;
+      expect((result as any).port).toEqual(['cat_billing', 'cat_tech']);
     });
 
     it('should route to error port on LLM failure in multi-label mode', async () => {

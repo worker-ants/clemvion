@@ -318,6 +318,44 @@ describe('resolveEffectiveOutputPorts', () => {
         { id: 'error', strong: false },
       ]);
     });
+
+    it('uses category.id when set (stable port id)', () => {
+      const ports = resolveEffectiveOutputPorts(
+        {
+          categories: [
+            { id: 'cat_refund', name: 'Refund' },
+            { id: 'cat_complaint', name: 'Complaint' },
+          ],
+        },
+        def,
+      );
+      expect(ports.map((p) => p.id)).toEqual([
+        'cat_refund',
+        'cat_complaint',
+        'fallback',
+        'error',
+      ]);
+    });
+
+    it('falls back to class_${i} when id is missing or invalid', () => {
+      const ports = resolveEffectiveOutputPorts(
+        {
+          categories: [
+            { id: '   ', name: 'Whitespace' },
+            { id: 'invalid id!', name: 'BadSlug' },
+            { id: 'cat_ok', name: 'Good' },
+          ],
+        },
+        def,
+      );
+      expect(ports.map((p) => p.id)).toEqual([
+        'class_0',
+        'class_1',
+        'cat_ok',
+        'fallback',
+        'error',
+      ]);
+    });
   });
 
   describe('info-extractor-mode', () => {
