@@ -205,7 +205,8 @@ backend/src/modules/hooks/
    d. 실패 → 401 Unauthorized
 7. resolveTriggerParameters(workflow, body) 호출
    - required 누락 / coerce 실패 → 400 Bad Request (Execution 생성하지 않음)
-8. ExecutionEngineService.execute(trigger.workflowId, { parameters, body, headers, query, method })
+8. ExecutionEngineService.execute(trigger.workflowId, { parameters, body, headers, query, method }, { triggerId: trigger.id })
+   - 3번째 인자로 `triggerId`를 전달해야 생성되는 Execution 행의 `trigger_id` 컬럼이 채워지고, 결과적으로 "최근 실행" 화면에서 출처가 `webhook` 으로 분류된다.
 9. Trigger.lastTriggeredAt = now → DB 업데이트
 10. 202 Accepted + { executionId } 반환
 ```
