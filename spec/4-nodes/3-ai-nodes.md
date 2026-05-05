@@ -497,6 +497,7 @@ Single-label (기본) 또는 Multi-label 모드를 지원.
 
 | 필드 | 타입 | 설명 |
 |------|------|------|
+| id | String? | 카테고리 안정 id. 출력 포트 핸들 (`source_port`) 로 사용. 누락 시 `class_${i}` fallback. 형식: `[a-zA-Z0-9_-]+`, 최대 64자 |
 | name | String | 카테고리 이름 (출력 포트 라벨). `__none__`은 예약어로 사용 불가 |
 | description | String | 카테고리 설명 (LLM에게 제공) |
 | examples | String[] | 예시 텍스트 목록 |
@@ -538,7 +539,7 @@ Single-label (기본) 또는 Multi-label 모드를 지원.
 ### 포트
 - 입력: `in` (1개)
 - 출력:
-  - `class_0`, `class_1`, ... (카테고리별 동적 포트) — 데이터 타입
+  - `<category.id>` 또는 `class_${i}` (카테고리별 동적 포트) — 데이터 타입. `category.id` 가 지정되어 있으면 그 값을 그대로 사용, 누락 시 인덱스 기반 fallback (`class_0`, `class_1`, ...). resolver/handler 모두 동일 규칙으로 발급한다.
   - `fallback` (정적) — 어떤 카테고리에도 매칭되지 않을 때
   - `error` (정적) — LLM API 오류, 타임아웃 등 발생 시 (에러 타입)
 

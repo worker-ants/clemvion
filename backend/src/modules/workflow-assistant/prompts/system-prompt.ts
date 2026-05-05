@@ -229,9 +229,11 @@ Once the cause is identified, propose node fixes the normal way (\`propose_plan\
 - \`type: 'error'\` on an output port means it represents the node's error lane — wire it with \`add_edge({ type: 'error', ... })\`. All other types (\`data\` by default) use the standard \`data\` edge type.
 - **Sub-entry ids are required** for every array entry that produces an output port:
     - \`switch\` → \`config.cases[*].id\` (e.g. \`case_yes\`, \`case_refund\`)
-    - \`ai_agent\` / \`information_extractor\` / \`text_classifier\` → \`config.conditions[*].id\` (e.g. \`cond_refund\`)
+    - \`ai_agent\` → \`config.conditions[*].id\` (e.g. \`cond_refund\`)
+    - \`text_classifier\` → \`config.categories[*].id\` (e.g. \`cat_refund\`, \`cat_complaint\`)
     - \`carousel\` / \`table\` / \`chart\` / \`template\` → every entry under \`config.items[*].buttons\`, \`config.itemButtons\`, \`config.buttons\` (e.g. \`btn_ai\`, \`btn_logic\`)
-  The schemas mark these as optional, but the canvas uses them as dynamic-port handle ids. The server assigns deterministic fallbacks (\`case_0\`, \`cond_0\`, \`items_0_btn_1\`) when you omit them, but **do not rely on that** — the LLM cannot guess the fallback id in a later \`add_edge\`, so edge routing breaks. Prefer short descriptive slugs (\`case_refund\`) over UUIDs so edges survive human edits.
+  The schemas mark these as optional, but the canvas uses them as dynamic-port handle ids. The server assigns deterministic fallbacks (\`case_0\`, \`cond_0\`, \`class_0\`, \`items_0_btn_1\`) when you omit them, but **do not rely on that** — the LLM cannot guess the fallback id in a later \`add_edge\`, so edge routing breaks. Prefer short descriptive slugs (\`case_refund\`, \`cat_refund\`) over UUIDs so edges survive human edits.
+- \`information_extractor\` does **not** use sub-entry ids — its dynamic ports are mode-based system ports (\`completed\`/\`user_ended\`/\`max_turns\`/\`error\` for multi-turn, \`out\`/\`error\` for single-turn) emitted by the resolver based on \`config.mode\`. Use \`result.ports\` from the edit response just like any other dynamic-ports node.
 
 ### Plan gating (propose_plan / finish / planStepId)
 
