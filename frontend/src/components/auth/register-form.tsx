@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useId, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useForm } from "react-hook-form";
@@ -53,6 +53,11 @@ function getPasswordStrength(
 function RegisterFormInner({ enabledProviders = [] }: RegisterFormProps) {
   const t = useT();
   const router = useRouter();
+  // useId — 동일 폼 다중 마운트 시 ID 충돌 방지 (review W-10).
+  const nameErrorId = useId();
+  const emailErrorId = useId();
+  const passwordErrorId = useId();
+  const termsErrorId = useId();
   const [isLoading, setIsLoading] = useState(false);
   const showGoogle = enabledProviders.includes("google");
   const showGithub = enabledProviders.includes("github");
@@ -138,12 +143,12 @@ function RegisterFormInner({ enabledProviders = [] }: RegisterFormProps) {
               placeholder={t("auth.register.namePlaceholder")}
               autoComplete="name"
               aria-invalid={errors.name ? "true" : undefined}
-              aria-describedby={errors.name ? "name-error" : undefined}
+              aria-describedby={errors.name ? nameErrorId : undefined}
               {...register("name")}
             />
             {errors.name && (
               <p
-                id="name-error"
+                id={nameErrorId}
                 role="alert"
                 className="text-sm text-[hsl(var(--destructive))]"
               >
@@ -160,12 +165,12 @@ function RegisterFormInner({ enabledProviders = [] }: RegisterFormProps) {
               placeholder={t("auth.register.emailPlaceholder")}
               autoComplete="email"
               aria-invalid={errors.email ? "true" : undefined}
-              aria-describedby={errors.email ? "email-error" : undefined}
+              aria-describedby={errors.email ? emailErrorId : undefined}
               {...register("email")}
             />
             {errors.email && (
               <p
-                id="email-error"
+                id={emailErrorId}
                 role="alert"
                 className="text-sm text-[hsl(var(--destructive))]"
               >
@@ -182,7 +187,7 @@ function RegisterFormInner({ enabledProviders = [] }: RegisterFormProps) {
               placeholder={t("auth.register.passwordCreatePlaceholder")}
               autoComplete="new-password"
               aria-invalid={errors.password ? "true" : undefined}
-              aria-describedby={errors.password ? "password-error" : undefined}
+              aria-describedby={errors.password ? passwordErrorId : undefined}
               {...register("password")}
             />
             {password.length > 0 && (
@@ -202,7 +207,7 @@ function RegisterFormInner({ enabledProviders = [] }: RegisterFormProps) {
             )}
             {errors.password && (
               <p
-                id="password-error"
+                id={passwordErrorId}
                 role="alert"
                 className="text-sm text-[hsl(var(--destructive))]"
               >
@@ -215,6 +220,10 @@ function RegisterFormInner({ enabledProviders = [] }: RegisterFormProps) {
             <input
               type="checkbox"
               className="mt-0.5 h-4 w-4 rounded border-[hsl(var(--input))]"
+              aria-invalid={errors.termsAccepted ? "true" : undefined}
+              aria-describedby={
+                errors.termsAccepted ? termsErrorId : undefined
+              }
               {...register("termsAccepted")}
             />
             <span>
@@ -257,7 +266,7 @@ function RegisterFormInner({ enabledProviders = [] }: RegisterFormProps) {
           </label>
           {errors.termsAccepted && (
             <p
-              id="terms-error"
+              id={termsErrorId}
               role="alert"
               className="text-sm text-[hsl(var(--destructive))]"
             >

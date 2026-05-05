@@ -74,6 +74,8 @@ export const en: Dict = {
       zoomIn: "Zoom in",
       zoomOut: "Zoom out",
       fitToView: "Fit to view",
+      addIntegration: "Add integration",
+      removeIntegration: "Remove integration",
     },
   },
   sidebar: {

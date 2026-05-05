@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useId, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useForm } from "react-hook-form";
@@ -46,6 +46,8 @@ interface ResetPasswordFormProps {
 function ResetPasswordFormInner({ token }: ResetPasswordFormProps) {
   const t = useT();
   const router = useRouter();
+  const passwordErrorId = useId();
+  const confirmPasswordErrorId = useId();
   const [isLoading, setIsLoading] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
 
@@ -159,7 +161,7 @@ function ResetPasswordFormInner({ token }: ResetPasswordFormProps) {
               placeholder={t("auth.resetPassword.newPasswordPlaceholder")}
               autoComplete="new-password"
               aria-invalid={errors.password ? "true" : undefined}
-              aria-describedby={errors.password ? "password-error" : undefined}
+              aria-describedby={errors.password ? passwordErrorId : undefined}
               {...register("password")}
             />
             {password.length > 0 && (
@@ -179,7 +181,7 @@ function ResetPasswordFormInner({ token }: ResetPasswordFormProps) {
             )}
             {errors.password && (
               <p
-                id="password-error"
+                id={passwordErrorId}
                 role="alert"
                 className="text-sm text-[hsl(var(--destructive))]"
               >
@@ -197,13 +199,13 @@ function ResetPasswordFormInner({ token }: ResetPasswordFormProps) {
               autoComplete="new-password"
               aria-invalid={errors.confirmPassword ? "true" : undefined}
               aria-describedby={
-                errors.confirmPassword ? "confirm-password-error" : undefined
+                errors.confirmPassword ? confirmPasswordErrorId : undefined
               }
               {...register("confirmPassword")}
             />
             {errors.confirmPassword && (
               <p
-                id="confirm-password-error"
+                id={confirmPasswordErrorId}
                 role="alert"
                 className="text-sm text-[hsl(var(--destructive))]"
               >

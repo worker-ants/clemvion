@@ -2,6 +2,7 @@
 
 import { useSidebarStore, selectCollapsed } from "@/lib/stores/sidebar-store";
 import { cn } from "@/lib/utils/cn";
+import { MAIN_CONTENT_ID } from "@/lib/constants/a11y";
 
 export function MainContent({ children }: { children: React.ReactNode }) {
   const collapsed = useSidebarStore(selectCollapsed);
@@ -9,7 +10,7 @@ export function MainContent({ children }: { children: React.ReactNode }) {
 
   return (
     <main
-      id="main-content"
+      id={MAIN_CONTENT_ID}
       className={cn(
         "transition-all duration-200",
         isSmall ? "pl-0" : collapsed ? "pl-16" : "pl-60",

@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useId, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useForm } from "react-hook-form";
@@ -34,6 +34,10 @@ interface LoginFormProps {
 function LoginFormInner({ enabledProviders = [] }: LoginFormProps) {
   const t = useT();
   const router = useRouter();
+  // 페이지에 동일 폼이 두 번 마운트되어도 ID 충돌이 없도록 useId 사용
+  // (review W-10 — 고정 "email-error" 등은 axe duplicate-id 위반 위험).
+  const emailErrorId = useId();
+  const passwordErrorId = useId();
   const [isLoading, setIsLoading] = useState(false);
   const [challengeToken, setChallengeToken] = useState<string | null>(null);
   const [totpCode, setTotpCode] = useState("");
@@ -201,12 +205,12 @@ function LoginFormInner({ enabledProviders = [] }: LoginFormProps) {
               placeholder={t("auth.login.emailPlaceholder")}
               autoComplete="email"
               aria-invalid={errors.email ? "true" : undefined}
-              aria-describedby={errors.email ? "email-error" : undefined}
+              aria-describedby={errors.email ? emailErrorId : undefined}
               {...register("email")}
             />
             {errors.email && (
               <p
-                id="email-error"
+                id={emailErrorId}
                 role="alert"
                 className="text-sm text-[hsl(var(--destructive))]"
               >
@@ -223,12 +227,12 @@ function LoginFormInner({ enabledProviders = [] }: LoginFormProps) {
               placeholder={t("auth.login.passwordPlaceholder")}
               autoComplete="current-password"
               aria-invalid={errors.password ? "true" : undefined}
-              aria-describedby={errors.password ? "password-error" : undefined}
+              aria-describedby={errors.password ? passwordErrorId : undefined}
               {...register("password")}
             />
             {errors.password && (
               <p
-                id="password-error"
+                id={passwordErrorId}
                 role="alert"
                 className="text-sm text-[hsl(var(--destructive))]"
               >
