@@ -65,13 +65,26 @@ describe('FilterHandler', () => {
       expect(result.errors.some((e) => e.includes('조건'))).toBe(true);
     });
 
-    it('should return invalid for missing field in condition', () => {
+    it('should accept missing field as item-self sentinel', () => {
+      // Spec: empty/missing field means "compare item itself" — required for
+      // scalar arrays like [1, 2, 3] where there is no nested path to address.
       const result = handler.validate({
         inputField: 'items',
         conditions: [{ operator: 'eq', value: 1 }],
         combineMode: 'and',
       });
+      expect(result.valid).toBe(true);
+      expect(result.errors).toHaveLength(0);
+    });
+
+    it('should return invalid for non-string field', () => {
+      const result = handler.validate({
+        inputField: 'items',
+        conditions: [{ field: 123, operator: 'eq', value: 1 }],
+        combineMode: 'and',
+      });
       expect(result.valid).toBe(false);
+      expect(result.errors.some((e) => e.includes('field'))).toBe(true);
     });
 
     it('should return invalid for unknown operator', () => {
@@ -732,6 +745,173 @@ describe('FilterHandler', () => {
       // NaN > 5 is false, so only score: 10 matches
       expect(result.output.match).toHaveLength(1);
       expect(result.output.match[0]).toMatchObject({ score: 10 });
+    });
+  });
+
+  describe('per-item expression resolution and item-self sentinel', () => {
+    // spec/4-nodes/1-logic-nodes.md §8 line 367, 405:
+    // - `field` is an Expression (`{{ $item.status }}` etc.)
+    // - `$item` is bound to the current array item during evaluation.
+    // Combined with the C sentinel: empty/$item field means "item itself".
+
+    it('should match user case: field "{{ $item }}" + value "{{ 1 }}" on scalar array', async () => {
+      // Reproduces the exact bug report: gt comparison on [1, 2, 3] should
+      // return [2, 3] when comparing item to literal 1.
+      const result = await execFilter(
+        {},
+        {
+          inputField: [1, 2, 3],
+          conditions: [
+            { field: '{{ $item }}', operator: 'gt', value: '{{ 1 }}' },
+          ],
+          combineMode: 'and',
+        },
+      );
+
+      expect(result.output.match).toEqual([2, 3]);
+      expect(result.output.unmatched).toEqual([1]);
+    });
+
+    it('should match scalar array with empty-field sentinel and literal value', async () => {
+      const result = await execFilter(
+        {},
+        {
+          inputField: [1, 2, 3],
+          conditions: [{ field: '', operator: 'gt', value: 1 }],
+          combineMode: 'and',
+        },
+      );
+
+      expect(result.output.match).toEqual([2, 3]);
+      expect(result.output.unmatched).toEqual([1]);
+    });
+
+    it('should match scalar array with "$item" literal sentinel', async () => {
+      const result = await execFilter(
+        {},
+        {
+          inputField: ['a', 'b', 'c'],
+          conditions: [{ field: '$item', operator: 'eq', value: 'b' }],
+          combineMode: 'and',
+        },
+      );
+
+      expect(result.output.match).toEqual(['b']);
+      expect(result.output.unmatched).toEqual(['a', 'c']);
+    });
+
+    it('should resolve "{{ $item.<key> }}" expression per item (spec form)', async () => {
+      const data = [{ age: 10 }, { age: 20 }, { age: 30 }];
+      const result = await execFilter(
+        {},
+        {
+          inputField: data,
+          conditions: [
+            { field: '{{ $item.age }}', operator: 'gt', value: 15 },
+          ],
+          combineMode: 'and',
+        },
+      );
+
+      expect(result.output.match).toEqual([{ age: 20 }, { age: 30 }]);
+      expect(result.output.unmatched).toEqual([{ age: 10 }]);
+    });
+
+    it('should resolve per-item expressions on both field and value', async () => {
+      const data = [
+        { a: 5, b: 2 },
+        { a: 1, b: 3 },
+      ];
+      const result = await execFilter(
+        {},
+        {
+          inputField: data,
+          conditions: [
+            {
+              field: '{{ $item.a }}',
+              operator: 'gt',
+              value: '{{ $item.b }}',
+            },
+          ],
+          combineMode: 'and',
+        },
+      );
+
+      expect(result.output.match).toEqual([{ a: 5, b: 2 }]);
+      expect(result.output.unmatched).toEqual([{ a: 1, b: 3 }]);
+    });
+
+    it('should treat per-item expression eval failure as unmatched without throwing', async () => {
+      // {{ $item.deeply.missing }} resolves to undefined for a number item;
+      // eq comparison against literal 1 → false (no throw).
+      const result = await execFilter(
+        {},
+        {
+          inputField: [1, 2],
+          conditions: [
+            {
+              field: '{{ $item.deeply.missing }}',
+              operator: 'eq',
+              value: 1,
+            },
+          ],
+          combineMode: 'and',
+        },
+      );
+
+      expect(result.output.match).toEqual([]);
+      expect(result.output.unmatched).toEqual([1, 2]);
+    });
+
+    it('should honor strictComparison with item-self sentinel', async () => {
+      const items = [1, '1', 2];
+
+      const looseResult = await execFilter(
+        {},
+        {
+          inputField: items,
+          conditions: [{ field: '$item', operator: 'eq', value: 1 }],
+          combineMode: 'and',
+          strictComparison: false,
+        },
+      );
+      expect(looseResult.output.match).toEqual([1, '1']);
+
+      const strictResult = await execFilter(
+        {},
+        {
+          inputField: items,
+          conditions: [{ field: '$item', operator: 'eq', value: 1 }],
+          combineMode: 'and',
+          strictComparison: true,
+        },
+      );
+      expect(strictResult.output.match).toEqual([1]);
+    });
+
+    it('should compile regex patterns from per-item-resolved values', async () => {
+      // Regex pattern itself is a literal expression resolved before the
+      // loop (constant value); confirms the regex cache redesign still works
+      // under the per-item resolution flow.
+      const result = await execFilter(
+        {},
+        {
+          inputField: [{ name: 'Alice' }, { name: 'Bob' }, { name: 'Carol' }],
+          conditions: [
+            {
+              field: '{{ $item.name }}',
+              operator: 'regex',
+              value: '^[AC]',
+            },
+          ],
+          combineMode: 'and',
+        },
+      );
+
+      expect(result.output.match).toEqual([
+        { name: 'Alice' },
+        { name: 'Carol' },
+      ]);
     });
   });
 });

@@ -44,13 +44,24 @@ describe('validateFilterConfig (imperative)', () => {
     expect(validateFilterConfig({ inputField: 'a' })).toEqual([]);
   });
 
-  it('rejects condition without field', () => {
+  it('accepts condition without field (item-self sentinel)', () => {
+    // Empty/missing field maps to "compare the item itself", which is
+    // required for scalar arrays like [1, 2, 3].
     expect(
       validateFilterConfig({
         inputField: 'a',
         conditions: [{ operator: 'eq' }],
       }),
-    ).toContain('conditions[0].field is required and must be a string');
+    ).toEqual([]);
+  });
+
+  it('rejects non-string field', () => {
+    expect(
+      validateFilterConfig({
+        inputField: 'a',
+        conditions: [{ field: 123, operator: 'eq' }],
+      }),
+    ).toContain('conditions[0].field must be a string');
   });
 
   it('rejects unknown operator', () => {

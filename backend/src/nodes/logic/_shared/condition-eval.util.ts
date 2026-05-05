@@ -35,7 +35,10 @@ const VALID_TYPES = new Set([
 export const MAX_REGEX_LENGTH = 200;
 
 export interface Condition {
-  field: string;
+  // Authored value is a string (dot-path or expression). After per-item
+  // expression resolution it can be any type — `evaluateCondition` falls
+  // back to the item itself when this is not a usable path string.
+  field: unknown;
   operator: ConditionOperator;
   value: unknown;
 }
@@ -64,7 +67,15 @@ export function evaluateCondition(
   strict: boolean,
   compiledRegex?: RegExp,
 ): boolean {
-  const fieldValue = getNestedValue(item, condition.field);
+  // Item-self sentinel: empty string, literal "$item", or any non-string path
+  // (which can occur when a per-item expression resolves to a non-path value)
+  // means "compare the item itself" rather than a nested-field lookup. This
+  // unlocks scalar array filtering where there is no inner path to address.
+  const path = condition.field;
+  const fieldValue =
+    typeof path !== 'string' || path === '' || path === '$item'
+      ? item
+      : getNestedValue(item, path);
   const compareValue = condition.value;
 
   switch (condition.operator) {
