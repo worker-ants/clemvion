@@ -3,6 +3,10 @@ import {
   validateConfigExpressions,
   ExpressionValidationIssue,
 } from './validate-expressions';
+import {
+  isButtonNodeType,
+  normalizeNodeButtonIds,
+} from '../../../nodes/core/button-slug.util';
 
 export interface ShadowNode {
   id: string;
@@ -396,10 +400,17 @@ export class ShadowWorkflow {
     // raw args.config 만 사용.
     const rawConfig = (args.config as Record<string, unknown>) ?? {};
     const defaultForType = this.defaultConfigByType[type] ?? {};
-    const config: Record<string, unknown> = {
+    let config: Record<string, unknown> = {
       ...defaultForType,
       ...rawConfig,
     };
+    // F-2 — buttons[*].id 자동 부여 (label-slug + 충돌 시 suffix). 기존 id 는
+    // 보존되므로 다음 update_node 에서 label 만 수정해도 slug 가 재생성되지
+    // 않고 기존 edge 가 안정적으로 유지된다. carousel/chart/table/template 만
+    // 적용 (button-slug.util 의 BUTTON_NODE_TYPES).
+    if (isButtonNodeType(type)) {
+      config = normalizeNodeButtonIds(config) as Record<string, unknown>;
+    }
     const containerId =
       typeof args.containerId === 'string' ? args.containerId : null;
 
@@ -538,7 +549,14 @@ export class ShadowWorkflow {
           invalidExpressions: exprCheck.issues.slice(0, 5),
         };
       }
-      next.config = { ...node.config, ...patch.config };
+      let merged: Record<string, unknown> = { ...node.config, ...patch.config };
+      // addNode 와 동일 정책 — buttons[*].id 미설정 entry 만 자동 부여.
+      // 기존에 살아있던 id 는 보존되므로 label 만 수정한 update 는 id 가
+      // 그대로 유지되어 edge 가 안전.
+      if (isButtonNodeType(node.type)) {
+        merged = normalizeNodeButtonIds(merged) as Record<string, unknown>;
+      }
+      next.config = merged;
       configPatched = true;
     }
     if (patch.position) {
