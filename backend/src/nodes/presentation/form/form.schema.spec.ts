@@ -1,5 +1,5 @@
 import { evaluateWarnings } from '@workflow/node-summary';
-import { formNodeMetadata } from './form.schema';
+import { formNodeMetadata, optionSchema } from './form.schema';
 import { evaluateMetadataBlockingErrors } from '../../core/metadata-validation';
 
 describe('formNodeMetadata.warningRules', () => {
@@ -23,6 +23,35 @@ describe('formNodeMetadata.warningRules', () => {
         firedIds({ fields: [{ name: 'email', type: 'email' }] }),
       ).not.toContain('form:no-fields');
     });
+  });
+});
+
+describe('optionSchema (select/radio/checkbox 옵션)', () => {
+  it('value 가 누락되면 빈 문자열로 default', () => {
+    const parsed = optionSchema.parse({ label: 'Yes' });
+    expect(parsed.value).toBe('');
+  });
+
+  it('label 이 누락되면 빈 문자열로 default', () => {
+    const parsed = optionSchema.parse({});
+    expect(parsed.label).toBe('');
+    expect(parsed.value).toBe('');
+  });
+
+  it('명시적으로 설정한 value 는 보존 (boolean/number/string 모두)', () => {
+    expect(optionSchema.parse({ value: true }).value).toBe(true);
+    expect(optionSchema.parse({ value: 42 }).value).toBe(42);
+    expect(optionSchema.parse({ value: 'opt-1' }).value).toBe('opt-1');
+    expect(optionSchema.parse({ value: null }).value).toBeNull();
+  });
+
+  it('passthrough — 추가 메타 필드 보존', () => {
+    const parsed = optionSchema.parse({
+      label: 'A',
+      value: 'a',
+      description: 'extra',
+    } as Record<string, unknown>);
+    expect((parsed as Record<string, unknown>).description).toBe('extra');
   });
 });
 

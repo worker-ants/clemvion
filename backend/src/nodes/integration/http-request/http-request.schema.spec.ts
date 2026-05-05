@@ -1,9 +1,33 @@
 import { evaluateWarnings } from '@workflow/node-summary';
 import {
   httpRequestNodeMetadata,
+  keyValueSchema,
   validateHttpRequestConfig,
 } from './http-request.schema';
 import { evaluateMetadataBlockingErrors } from '../../core/metadata-validation';
+
+describe('keyValueSchema (headers / queryParams / cookies 공용)', () => {
+  it('필수 key/value 정상 파싱', () => {
+    const parsed = keyValueSchema.parse({
+      key: 'Authorization',
+      value: 'Bearer xyz',
+    });
+    expect(parsed.key).toBe('Authorization');
+    expect(parsed.value).toBe('Bearer xyz');
+  });
+
+  it('passthrough — 추가 메타 필드(description, enabled 등) 보존', () => {
+    const parsed = keyValueSchema.parse({
+      key: 'X-Custom',
+      value: 'foo',
+      description: 'optional metadata',
+      enabled: true,
+    } as Record<string, unknown>);
+    const extra = parsed as Record<string, unknown>;
+    expect(extra.description).toBe('optional metadata');
+    expect(extra.enabled).toBe(true);
+  });
+});
 
 describe('httpRequestNodeMetadata.warningRules', () => {
   const firedIds = (config: unknown) =>
