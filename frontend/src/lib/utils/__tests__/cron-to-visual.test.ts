@@ -259,4 +259,46 @@ describe("buildCronFromVisual", () => {
       }),
     ).toBe("30 14 15 * *");
   });
+
+  it("weekly: 비정렬 selectedDays 입력도 정렬해서 emit", () => {
+    expect(
+      buildCronFromVisual({
+        ...DEFAULT_VISUAL_STATE,
+        frequency: "weekly",
+        minute: 0,
+        hour: 9,
+        selectedDays: [5, 1, 3],
+      }),
+    ).toBe("0 9 * * 1,3,5");
+  });
+
+  it("weekly: Sunday(0) 단독 선택 경계값", () => {
+    expect(
+      buildCronFromVisual({
+        ...DEFAULT_VISUAL_STATE,
+        frequency: "weekly",
+        minute: 0,
+        hour: 9,
+        selectedDays: [0],
+      }),
+    ).toBe("0 9 * * 0");
+  });
+});
+
+describe("DEFAULT_VISUAL_STATE 불변성", () => {
+  it("Object.freeze 로 변이 차단 — 직접 변이 시 무시(strict)되거나 throw", () => {
+    expect(Object.isFrozen(DEFAULT_VISUAL_STATE)).toBe(true);
+    expect(Object.isFrozen(DEFAULT_VISUAL_STATE.selectedDays)).toBe(true);
+  });
+
+  it("parser 결과는 DEFAULT 와 다른 selectedDays 배열 참조를 갖는다 (호출자 mutate 안전)", () => {
+    // every-minute 분기는 cloneDefault 로 새 배열을 만들어야 한다.
+    const a = parseCronToVisualOrNull("* * * * *");
+    const b = parseCronToVisualOrNull("* * * * *");
+    expect(a?.selectedDays).not.toBe(DEFAULT_VISUAL_STATE.selectedDays);
+    expect(a?.selectedDays).not.toBe(b?.selectedDays);
+    // 그리고 호출자가 mutate 해도 DEFAULT 가 영향 받지 않는다
+    a?.selectedDays.push(99);
+    expect(DEFAULT_VISUAL_STATE.selectedDays).toEqual([1, 2, 3, 4, 5]);
+  });
 });

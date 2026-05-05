@@ -303,21 +303,24 @@ function VisualCronEditor({
         </div>
       )}
 
-      {cronExpression && (
-        <div className="rounded-md border border-[hsl(var(--border))] bg-[hsl(var(--muted))] p-3">
-          <p className="text-xs text-[hsl(var(--muted-foreground))]">
-            {t("schedules.generatedExpression")}
-          </p>
-          <code className="text-sm font-mono text-[hsl(var(--foreground))]">
-            {cronExpression}
-          </code>
-          {getCronDescription(cronExpression) && (
-            <p className="mt-1 text-xs text-[hsl(var(--muted-foreground))]">
-              {getCronDescription(cronExpression)}
+      {cronExpression && (() => {
+        const description = getCronDescription(cronExpression);
+        return (
+          <div className="rounded-md border border-[hsl(var(--border))] bg-[hsl(var(--muted))] p-3">
+            <p className="text-xs text-[hsl(var(--muted-foreground))]">
+              {t("schedules.generatedExpression")}
             </p>
-          )}
-        </div>
-      )}
+            <code className="text-sm font-mono text-[hsl(var(--foreground))]">
+              {cronExpression}
+            </code>
+            {description && (
+              <p className="mt-1 text-xs text-[hsl(var(--muted-foreground))]">
+                {description}
+              </p>
+            )}
+          </div>
+        );
+      })()}
     </div>
   );
 }
@@ -460,9 +463,8 @@ export default function SchedulesPage() {
   const [formName, setFormName] = useState("");
   const [formWorkflowId, setFormWorkflowId] = useState("");
   const [formCron, setFormCron] = useState("");
-  // visual 편집기 상태를 부모로 lift 해 두 모드 사이를 왕복해도 손실되지 않게
-  // 한다. expression 입력은 매번 parser 를 통해 visual state 를 동기화하고,
-  // visual 컨트롤 변경은 build 함수로 cron 을 재생성한다.
+  // visual state 를 부모로 lift — expression ↔ visual 왕복에서 손실되지
+  // 않게. 단일 진실 원천은 formCron, visual state 는 컨트롤 노출용 mirror.
   const [formVisualState, setFormVisualState] =
     useState<VisualState>(DEFAULT_VISUAL_STATE);
   const [formTimezone, setFormTimezone] = useState(
@@ -665,9 +667,6 @@ export default function SchedulesPage() {
     setFormName(schedule.name);
     setFormWorkflowId(schedule.workflowId);
     setFormCron(schedule.cronExpression);
-    // 편집 진입 시 cron 을 visual 로 분해 시도. 분해 실패(visual 표현 불가)
-    // 면 시각 편집 탭에서 안내가 표시되며, 마지막 시각 state(여기선 디폴트)
-    // 가 컨트롤 초기값으로 사용된다.
     setFormVisualState(
       parseCronToVisualOrNull(schedule.cronExpression) ?? DEFAULT_VISUAL_STATE,
     );
@@ -676,13 +675,11 @@ export default function SchedulesPage() {
       JSON.stringify(schedule.parameterValues ?? {}, null, 2),
     );
     setParameterValuesError(null);
+    setCronTab("expression");
     setEditTarget(schedule);
     setShowDialog(true);
   }
 
-  // expression input 변경 시 cron 을 visual state 로도 분해하여 두 모드를
-  // 단일 진실 원천으로 묶는다. 분해 실패 시 visual state 는 직전 값을
-  // 유지하며, VisualCronEditor 가 안내 문구를 표시한다.
   function handleCronInputChange(cron: string) {
     setFormCron(cron);
     const parsed = parseCronToVisualOrNull(cron);
@@ -694,12 +691,14 @@ export default function SchedulesPage() {
     setFormCron(buildCronFromVisual(next));
   }
 
-  // 새 스케줄에서 cron 입력 없이 시각 탭으로 진입하면 디폴트 시각 state 의
-  // cron 을 즉시 적용해 사용자가 별도 행동 없이도 저장 가능한 상태로 만든다.
   function handleSetCronTab(tab: CronEditorTab) {
     setCronTab(tab);
-    if (tab === "visual" && !formCron.trim()) {
-      setFormCron(buildCronFromVisual(formVisualState));
+    if (tab === "visual") {
+      // 빈 cron 으로 시각 탭 진입 시 디폴트 state cron 을 즉시 채워서
+      // 사용자가 추가 컨트롤 입력 없이도 저장 가능하게 한다.
+      setFormCron((prev) =>
+        prev.trim() ? prev : buildCronFromVisual(formVisualState),
+      );
     }
   }
 
@@ -743,6 +742,12 @@ export default function SchedulesPage() {
     () => getCronDescription(formCron),
     [formCron],
   );
+  // 표현 불가 cron 일 때만 시각 탭에 안내 메시지를 노출. parseCronToVisualOrNull
+  // 결과를 렌더당 1회로 제한해 불필요한 재계산을 막는다.
+  const cronCannotRepresent = useMemo(() => {
+    if (!formCron.trim()) return false;
+    return parseCronToVisualOrNull(formCron) === null;
+  }, [formCron]);
 
   return (
     <div className="space-y-6">
@@ -865,10 +870,7 @@ export default function SchedulesPage() {
                   <VisualCronEditor
                     state={formVisualState}
                     onChange={handleVisualStateChange}
-                    cronCannotRepresent={
-                      formCron.trim() !== "" &&
-                      parseCronToVisualOrNull(formCron) === null
-                    }
+                    cronCannotRepresent={cronCannotRepresent}
                     cronExpression={formCron}
                     t={t}
                   />

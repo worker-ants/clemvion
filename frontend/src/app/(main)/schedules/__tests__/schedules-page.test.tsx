@@ -52,6 +52,25 @@ function mockSchedulesResponse(body: unknown) {
   });
 }
 
+const EMPTY_RESPONSE = {
+  data: [],
+  pagination: { page: 1, limit: 20, totalItems: 0, totalPages: 0 },
+};
+
+async function openAddDialog() {
+  const addBtn = await screen.findByRole("button", { name: /add schedule/i });
+  await act(async () => {
+    fireEvent.click(addBtn);
+  });
+}
+
+async function clickTab(name: "expression" | "visual") {
+  const re = name === "expression" ? /^expression$/i : /^visual$/i;
+  await act(async () => {
+    fireEvent.click(screen.getByRole("button", { name: re }));
+  });
+}
+
 function setRole(role: WorkspaceRole) {
   useWorkspaceStore.setState({
     workspaces: [
@@ -161,108 +180,67 @@ describe("SchedulesPage — RBAC", () => {
 
   it("Visual 탭으로 전환만 해도 기본 cron(0 9 * * *)이 즉시 emit 되어 'Generated expression' 미리보기가 노출", async () => {
     setRole("editor");
-    mockSchedulesResponse({
-      data: [],
-      pagination: { page: 1, limit: 20, totalItems: 0, totalPages: 0 },
-    });
+    mockSchedulesResponse(EMPTY_RESPONSE);
     await renderPage();
-
-    // Add Schedule 다이얼로그 오픈
-    const addBtn = await screen.findByRole("button", { name: /add schedule/i });
-    await act(async () => {
-      fireEvent.click(addBtn);
-    });
-
-    // Visual 탭 클릭
-    const visualTab = await screen.findByRole("button", { name: /^visual$/i });
-    await act(async () => {
-      fireEvent.click(visualTab);
-    });
-
-    // 기본값(daily 09:00)에 해당하는 cron 식이 미리보기에 표시되어야 한다
+    await openAddDialog();
+    await clickTab("visual");
     expect(await screen.findByText("0 9 * * *")).toBeInTheDocument();
   });
 
-  it("expression 입력 → visual 전환 시 cron 이 시각 컨트롤로 분해되어 표시된다", async () => {
-    // 사용자가 Mon 자정 cron 을 직접 입력한 뒤 시각 탭으로 가면 weekly 가
-    // 선택되어 있고 Mon 만 선택된 상태로 표시되어야 한다 (parser 동기화).
+  it("expression 입력 → visual 전환 시 weekly + Mon 만 선택 + 미리보기 cron 보존", async () => {
     setRole("editor");
-    mockSchedulesResponse({
-      data: [],
-      pagination: { page: 1, limit: 20, totalItems: 0, totalPages: 0 },
-    });
+    mockSchedulesResponse(EMPTY_RESPONSE);
     await renderPage();
-
-    const addBtn = await screen.findByRole("button", { name: /add schedule/i });
-    await act(async () => {
-      fireEvent.click(addBtn);
-    });
+    await openAddDialog();
 
     // expression input 에 weekly Mon 자정 cron 입력
     const cronInput = await screen.findByPlaceholderText("0 * * * *");
     await act(async () => {
       fireEvent.change(cronInput, { target: { value: "0 0 * * 1" } });
     });
+    await clickTab("visual");
 
-    // visual 탭으로 전환
-    const visualTab = screen.getByRole("button", { name: /^visual$/i });
-    await act(async () => {
-      fireEvent.click(visualTab);
-    });
-
-    // frequency select 가 weekly 로 표시되는지
+    // frequency select 가 weekly 로
     const frequencySelect = screen.getByLabelText(/frequency/i) as HTMLSelectElement;
     expect(frequencySelect.value).toBe("weekly");
 
-    // generated expression 미리보기가 입력한 cron 그대로
+    // 요일 버튼 중 Mon 만 primary 클래스(selected) — selectedDays = [1]
+    const monBtn = screen.getByRole("button", { name: /^mon$/i });
+    expect(monBtn.className).toMatch(/bg-\[hsl\(var\(--primary\)\)\]/);
+    const tueBtn = screen.getByRole("button", { name: /^tue$/i });
+    expect(tueBtn.className).not.toMatch(/bg-\[hsl\(var\(--primary\)\)\]/);
+
+    // 미리보기 cron 그대로
     expect(screen.getByText("0 0 * * 1")).toBeInTheDocument();
+    // 변환 가능한 cron 이므로 안내 메시지는 노출되지 않아야 한다 (음성 경로)
+    expect(
+      screen.queryByText(/cannot be represented in the visual editor/i),
+    ).toBeNull();
   });
 
   it("visual 컨트롤로 monthly/15일 설정 → expression → 다시 visual 왕복 시 보존", async () => {
     setRole("editor");
-    mockSchedulesResponse({
-      data: [],
-      pagination: { page: 1, limit: 20, totalItems: 0, totalPages: 0 },
-    });
+    mockSchedulesResponse(EMPTY_RESPONSE);
     await renderPage();
+    await openAddDialog();
+    await clickTab("visual");
 
-    const addBtn = await screen.findByRole("button", { name: /add schedule/i });
-    await act(async () => {
-      fireEvent.click(addBtn);
-    });
-
-    // visual 탭 진입 → daily 디폴트 09:00
-    const visualTab = await screen.findByRole("button", { name: /^visual$/i });
-    await act(async () => {
-      fireEvent.click(visualTab);
-    });
-
-    // frequency = monthly 로 변경
     const frequencySelect = screen.getByLabelText(/frequency/i) as HTMLSelectElement;
     await act(async () => {
       fireEvent.change(frequencySelect, { target: { value: "monthly" } });
     });
-
-    // day-of-month = 15
     const domSelect = screen.getByLabelText(/day of month/i) as HTMLSelectElement;
     await act(async () => {
       fireEvent.change(domSelect, { target: { value: "15" } });
     });
 
-    // expression 탭으로 가서 cron 확인
-    const expressionTab = screen.getByRole("button", { name: /^expression$/i });
-    await act(async () => {
-      fireEvent.click(expressionTab);
-    });
+    await clickTab("expression");
     const cronInput = (await screen.findByPlaceholderText(
       "0 * * * *",
     )) as HTMLInputElement;
     expect(cronInput.value).toBe("0 9 15 * *");
 
-    // 다시 visual 탭으로 → monthly/15 가 그대로 보존되어야 한다
-    await act(async () => {
-      fireEvent.click(screen.getByRole("button", { name: /^visual$/i }));
-    });
+    await clickTab("visual");
     expect(
       (screen.getByLabelText(/frequency/i) as HTMLSelectElement).value,
     ).toBe("monthly");
@@ -271,42 +249,113 @@ describe("SchedulesPage — RBAC", () => {
     ).toBe("15");
   });
 
-  it("표현 불가 cron(*/5)을 입력하고 visual 로 가면 안내 텍스트가 노출된다", async () => {
+  it("표현 불가 cron(*/5)을 입력하고 visual 로 가면 안내 텍스트가 노출되고 cron 은 보존된다", async () => {
     setRole("editor");
-    mockSchedulesResponse({
-      data: [],
-      pagination: { page: 1, limit: 20, totalItems: 0, totalPages: 0 },
-    });
+    mockSchedulesResponse(EMPTY_RESPONSE);
     await renderPage();
-
-    const addBtn = await screen.findByRole("button", { name: /add schedule/i });
-    await act(async () => {
-      fireEvent.click(addBtn);
-    });
+    await openAddDialog();
 
     const cronInput = await screen.findByPlaceholderText("0 * * * *");
     await act(async () => {
       fireEvent.change(cronInput, { target: { value: "*/5 * * * *" } });
     });
+    await clickTab("visual");
 
-    await act(async () => {
-      fireEvent.click(screen.getByRole("button", { name: /^visual$/i }));
-    });
-
-    // 안내 메시지가 표시
     expect(
       screen.getByText(/cannot be represented in the visual editor/i),
     ).toBeInTheDocument();
 
-    // 그러나 cron 자체는 사용자가 visual 컨트롤을 만지기 전까지 보존
-    const expressionTab = screen.getByRole("button", { name: /^expression$/i });
-    await act(async () => {
-      fireEvent.click(expressionTab);
-    });
+    await clickTab("expression");
     const cronInputAfter = (await screen.findByPlaceholderText(
       "0 * * * *",
     )) as HTMLInputElement;
     expect(cronInputAfter.value).toBe("*/5 * * * *");
+  });
+
+  it("표현 불가 cron 이 expression 에 남아있어도 visual state(직전 값) 는 보존된다", async () => {
+    // 사용자가 visual 에서 monthly/15 설정 → expression 으로 가서 임의의
+    // 표현 불가 cron 으로 덮어 씀 → visual 로 돌아오면 monthly/15 그대로
+    // 유지되며 안내 메시지가 표시. (parser 가 null 을 반환하면 visual state
+    // 는 변경 안 됨)
+    setRole("editor");
+    mockSchedulesResponse(EMPTY_RESPONSE);
+    await renderPage();
+    await openAddDialog();
+    await clickTab("visual");
+
+    const frequencySelect = screen.getByLabelText(/frequency/i) as HTMLSelectElement;
+    await act(async () => {
+      fireEvent.change(frequencySelect, { target: { value: "monthly" } });
+    });
+    const domSelect = screen.getByLabelText(/day of month/i) as HTMLSelectElement;
+    await act(async () => {
+      fireEvent.change(domSelect, { target: { value: "15" } });
+    });
+
+    await clickTab("expression");
+    const cronInput = (await screen.findByPlaceholderText(
+      "0 * * * *",
+    )) as HTMLInputElement;
+    await act(async () => {
+      fireEvent.change(cronInput, { target: { value: "0 9-17 * * *" } });
+    });
+
+    await clickTab("visual");
+    // visual state 는 직전 값(monthly/15) 유지
+    expect(
+      (screen.getByLabelText(/frequency/i) as HTMLSelectElement).value,
+    ).toBe("monthly");
+    expect(
+      (screen.getByLabelText(/day of month/i) as HTMLSelectElement).value,
+    ).toBe("15");
+    // 안내 메시지도 동시에 노출
+    expect(
+      screen.getByText(/cannot be represented in the visual editor/i),
+    ).toBeInTheDocument();
+  });
+
+  it("openEdit: 표현 가능한 cron 의 schedule 편집 시 visual 탭에서 분해된 state 노출", async () => {
+    setRole("editor");
+    apiGetMock.mockImplementation((url: string) => {
+      if (url === "/workflows")
+        return Promise.resolve({
+          data: { data: [{ id: "w1", name: "WF" }] },
+        });
+      return Promise.resolve({
+        data: {
+          data: [
+            {
+              id: "s1",
+              cronExpression: "30 14 15 * *",
+              timezone: "UTC",
+              isActive: true,
+              trigger: {
+                name: "Monthly Report",
+                workflowId: "w1",
+                workflow: { name: "WF" },
+              },
+            },
+          ],
+          pagination: { page: 1, limit: 20, totalItems: 1, totalPages: 1 },
+        },
+      });
+    });
+    await renderPage();
+    await screen.findByText("Monthly Report");
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: /^edit$/i }));
+    });
+    await clickTab("visual");
+
+    expect(
+      (screen.getByLabelText(/frequency/i) as HTMLSelectElement).value,
+    ).toBe("monthly");
+    expect(
+      (screen.getByLabelText(/day of month/i) as HTMLSelectElement).value,
+    ).toBe("15");
+    expect(
+      (screen.getByLabelText(/^hour$/i) as HTMLSelectElement).value,
+    ).toBe("14");
   });
 
   it("Viewer: Add schedule·toggle·edit·delete 모두 비표시. Run now 는 노출", async () => {
