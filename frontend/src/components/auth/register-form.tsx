@@ -238,7 +238,7 @@ function RegisterFormInner({ enabledProviders = [] }: RegisterFormProps) {
                   <Link
                     key="first"
                     href={termsFirst ? "/terms" : "/privacy"}
-                    className="text-[hsl(var(--primary))] hover:underline"
+                    className="text-[hsl(var(--primary))] underline"
                   >
                     {termsFirst ? t("auth.register.termsOfService") : t("auth.register.privacyPolicy")}
                   </Link>
@@ -247,7 +247,7 @@ function RegisterFormInner({ enabledProviders = [] }: RegisterFormProps) {
                   <Link
                     key="second"
                     href={termsFirst ? "/privacy" : "/terms"}
-                    className="text-[hsl(var(--primary))] hover:underline"
+                    className="text-[hsl(var(--primary))] underline"
                   >
                     {termsFirst ? t("auth.register.privacyPolicy") : t("auth.register.termsOfService")}
                   </Link>
@@ -323,7 +323,7 @@ function RegisterFormInner({ enabledProviders = [] }: RegisterFormProps) {
 
         <p className="mt-6 text-center text-sm text-[hsl(var(--muted-foreground))]">
           {t("auth.register.haveAccountCta")}{" "}
-          <Link href="/login" className="text-[hsl(var(--primary))] hover:underline">
+          <Link href="/login" className="text-[hsl(var(--primary))] underline">
             {t("auth.login.submit")}
           </Link>
         </p>

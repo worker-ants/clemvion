@@ -220,7 +220,7 @@ function ResetPasswordFormInner({ token }: ResetPasswordFormProps) {
         </form>
 
         <p className="mt-6 text-center text-sm text-[hsl(var(--muted-foreground))]">
-          <Link href="/login" className="text-[hsl(var(--primary))] hover:underline">
+          <Link href="/login" className="text-[hsl(var(--primary))] underline">
             {t("auth.forgotPassword.backToLogin")}
           </Link>
         </p>
