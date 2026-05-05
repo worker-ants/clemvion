@@ -137,10 +137,18 @@ function RegisterFormInner({ enabledProviders = [] }: RegisterFormProps) {
               type="text"
               placeholder={t("auth.register.namePlaceholder")}
               autoComplete="name"
+              aria-invalid={errors.name ? "true" : undefined}
+              aria-describedby={errors.name ? "name-error" : undefined}
               {...register("name")}
             />
             {errors.name && (
-              <p className="text-sm text-[hsl(var(--destructive))]">{errors.name.message}</p>
+              <p
+                id="name-error"
+                role="alert"
+                className="text-sm text-[hsl(var(--destructive))]"
+              >
+                {errors.name.message}
+              </p>
             )}
           </div>
 
@@ -151,10 +159,18 @@ function RegisterFormInner({ enabledProviders = [] }: RegisterFormProps) {
               type="email"
               placeholder={t("auth.register.emailPlaceholder")}
               autoComplete="email"
+              aria-invalid={errors.email ? "true" : undefined}
+              aria-describedby={errors.email ? "email-error" : undefined}
               {...register("email")}
             />
             {errors.email && (
-              <p className="text-sm text-[hsl(var(--destructive))]">{errors.email.message}</p>
+              <p
+                id="email-error"
+                role="alert"
+                className="text-sm text-[hsl(var(--destructive))]"
+              >
+                {errors.email.message}
+              </p>
             )}
           </div>
 
@@ -165,6 +181,8 @@ function RegisterFormInner({ enabledProviders = [] }: RegisterFormProps) {
               type="password"
               placeholder={t("auth.register.passwordCreatePlaceholder")}
               autoComplete="new-password"
+              aria-invalid={errors.password ? "true" : undefined}
+              aria-describedby={errors.password ? "password-error" : undefined}
               {...register("password")}
             />
             {password.length > 0 && (
@@ -183,7 +201,13 @@ function RegisterFormInner({ enabledProviders = [] }: RegisterFormProps) {
               </div>
             )}
             {errors.password && (
-              <p className="text-sm text-[hsl(var(--destructive))]">{errors.password.message}</p>
+              <p
+                id="password-error"
+                role="alert"
+                className="text-sm text-[hsl(var(--destructive))]"
+              >
+                {errors.password.message}
+              </p>
             )}
           </div>
 
@@ -232,7 +256,13 @@ function RegisterFormInner({ enabledProviders = [] }: RegisterFormProps) {
             </span>
           </label>
           {errors.termsAccepted && (
-            <p className="text-sm text-[hsl(var(--destructive))]">{errors.termsAccepted.message}</p>
+            <p
+              id="terms-error"
+              role="alert"
+              className="text-sm text-[hsl(var(--destructive))]"
+            >
+              {errors.termsAccepted.message}
+            </p>
           )}
 
           <Button type="submit" className="w-full" disabled={isLoading}>

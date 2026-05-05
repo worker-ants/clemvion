@@ -200,10 +200,18 @@ function LoginFormInner({ enabledProviders = [] }: LoginFormProps) {
               type="email"
               placeholder={t("auth.login.emailPlaceholder")}
               autoComplete="email"
+              aria-invalid={errors.email ? "true" : undefined}
+              aria-describedby={errors.email ? "email-error" : undefined}
               {...register("email")}
             />
             {errors.email && (
-              <p className="text-sm text-[hsl(var(--destructive))]">{errors.email.message}</p>
+              <p
+                id="email-error"
+                role="alert"
+                className="text-sm text-[hsl(var(--destructive))]"
+              >
+                {errors.email.message}
+              </p>
             )}
           </div>
 
@@ -214,10 +222,18 @@ function LoginFormInner({ enabledProviders = [] }: LoginFormProps) {
               type="password"
               placeholder={t("auth.login.passwordPlaceholder")}
               autoComplete="current-password"
+              aria-invalid={errors.password ? "true" : undefined}
+              aria-describedby={errors.password ? "password-error" : undefined}
               {...register("password")}
             />
             {errors.password && (
-              <p className="text-sm text-[hsl(var(--destructive))]">{errors.password.message}</p>
+              <p
+                id="password-error"
+                role="alert"
+                className="text-sm text-[hsl(var(--destructive))]"
+              >
+                {errors.password.message}
+              </p>
             )}
           </div>
 

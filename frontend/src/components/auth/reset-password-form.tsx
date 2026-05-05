@@ -158,6 +158,8 @@ function ResetPasswordFormInner({ token }: ResetPasswordFormProps) {
               type="password"
               placeholder={t("auth.resetPassword.newPasswordPlaceholder")}
               autoComplete="new-password"
+              aria-invalid={errors.password ? "true" : undefined}
+              aria-describedby={errors.password ? "password-error" : undefined}
               {...register("password")}
             />
             {password.length > 0 && (
@@ -176,7 +178,13 @@ function ResetPasswordFormInner({ token }: ResetPasswordFormProps) {
               </div>
             )}
             {errors.password && (
-              <p className="text-sm text-[hsl(var(--destructive))]">{errors.password.message}</p>
+              <p
+                id="password-error"
+                role="alert"
+                className="text-sm text-[hsl(var(--destructive))]"
+              >
+                {errors.password.message}
+              </p>
             )}
           </div>
 
@@ -187,10 +195,18 @@ function ResetPasswordFormInner({ token }: ResetPasswordFormProps) {
               type="password"
               placeholder={t("auth.resetPassword.confirmPasswordPlaceholder")}
               autoComplete="new-password"
+              aria-invalid={errors.confirmPassword ? "true" : undefined}
+              aria-describedby={
+                errors.confirmPassword ? "confirm-password-error" : undefined
+              }
               {...register("confirmPassword")}
             />
             {errors.confirmPassword && (
-              <p className="text-sm text-[hsl(var(--destructive))]">
+              <p
+                id="confirm-password-error"
+                role="alert"
+                className="text-sm text-[hsl(var(--destructive))]"
+              >
                 {errors.confirmPassword.message}
               </p>
             )}
