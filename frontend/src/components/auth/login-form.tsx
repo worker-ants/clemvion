@@ -252,7 +252,7 @@ function LoginFormInner({ enabledProviders = [] }: LoginFormProps) {
             </label>
             <Link
               href="/forgot-password"
-              className="text-sm text-[hsl(var(--primary))] hover:underline"
+              className="text-sm text-[hsl(var(--primary))] underline"
             >
               {t("auth.login.forgotPassword")}
             </Link>
@@ -307,7 +307,7 @@ function LoginFormInner({ enabledProviders = [] }: LoginFormProps) {
 
         <p className="mt-6 text-center text-sm text-[hsl(var(--muted-foreground))]">
           {t("auth.login.noAccountCta")}{" "}
-          <Link href="/register" className="text-[hsl(var(--primary))] hover:underline">
+          <Link href="/register" className="text-[hsl(var(--primary))] underline">
             {t("auth.login.createAccount")}
           </Link>
         </p>

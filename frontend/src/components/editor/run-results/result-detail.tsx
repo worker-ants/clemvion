@@ -70,9 +70,9 @@ function StatusBadge({ status }: { status: string }) {
       return (
         <Badge
           variant="outline"
-          className="text-[10px] px-1.5 py-0 text-gray-500 border-gray-300"
+          className="text-[10px] px-1.5 py-0 text-gray-700 border-gray-300"
         >
-          <MinusCircle className="h-2.5 w-2.5 mr-0.5" />
+          <MinusCircle className="h-2.5 w-2.5 mr-0.5" aria-hidden="true" />
           Skipped
         </Badge>
       );
