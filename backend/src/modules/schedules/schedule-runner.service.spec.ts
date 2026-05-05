@@ -1,6 +1,7 @@
 import { Test } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { getQueueToken } from '@nestjs/bullmq';
+import { Job } from 'bullmq';
 import { Repository } from 'typeorm';
 import {
   ScheduleRunnerService,
@@ -13,6 +14,8 @@ import { ExecutionEngineService } from '../execution-engine/execution-engine.ser
 describe('ScheduleRunnerService', () => {
   let service: ScheduleRunnerService;
   let nodeRepo: jest.Mocked<Repository<Node>>;
+  let scheduleRepo: jest.Mocked<Repository<Schedule>>;
+  let engine: jest.Mocked<ExecutionEngineService>;
 
   beforeEach(async () => {
     const moduleRef = await Test.createTestingModule({
@@ -42,6 +45,8 @@ describe('ScheduleRunnerService', () => {
 
     service = moduleRef.get(ScheduleRunnerService);
     nodeRepo = moduleRef.get(getRepositoryToken(Node));
+    scheduleRepo = moduleRef.get(getRepositoryToken(Schedule));
+    engine = moduleRef.get(ExecutionEngineService);
   });
 
   describe('resolveScheduleParameters', () => {
@@ -166,6 +171,74 @@ describe('ScheduleRunnerService', () => {
       );
       // Unknown variable → evaluate throws → we keep original string
       expect(result.note).toBe('{{ $forbidden.access }}');
+    });
+  });
+
+  describe('process() — cron 자동 실행', () => {
+    // cron 발화로 만들어진 Execution 행은 schedule.triggerId 를 반드시 채워야
+    // "최근 실행" 화면이 출처를 schedule 로 분류한다 (deriveExecutionTrigger).
+
+    const baseSchedule: Schedule = {
+      id: 's1',
+      workspaceId: 'ws',
+      triggerId: 'trigger-uuid',
+      cronExpression: '*/5 * * * *',
+      timezone: 'Asia/Seoul',
+      isActive: true,
+      nextRunAt: new Date(),
+      lastRunAt: null as unknown as Date,
+      parameterValues: {},
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      workspace: undefined as never,
+      trigger: { workflowId: 'wf1' } as never,
+    };
+
+    const job = {
+      data: { scheduleId: 's1', workspaceId: 'ws' },
+    } as Job<{ scheduleId: string; workspaceId: string }>;
+
+    it('passes { triggerId: schedule.triggerId } to executionEngineService.execute', async () => {
+      scheduleRepo.findOne.mockResolvedValue(baseSchedule);
+      scheduleRepo.save.mockImplementation((s) => Promise.resolve(s as Schedule));
+      nodeRepo.findOne.mockResolvedValue({
+        id: 'n',
+        workflowId: 'wf1',
+        type: 'manual_trigger',
+        category: NodeCategory.TRIGGER,
+        config: {},
+      } as unknown as Node);
+      engine.execute.mockResolvedValue('exec-1');
+
+      await service.process(job);
+
+      expect(engine.execute).toHaveBeenCalledWith(
+        'wf1',
+        expect.objectContaining({ parameters: expect.any(Object) }),
+        { triggerId: 'trigger-uuid' },
+      );
+    });
+
+    it('skips when schedule is inactive', async () => {
+      scheduleRepo.findOne.mockResolvedValue({
+        ...baseSchedule,
+        isActive: false,
+      });
+
+      await service.process(job);
+
+      expect(engine.execute).not.toHaveBeenCalled();
+    });
+
+    it('skips when schedule has no associated workflow', async () => {
+      scheduleRepo.findOne.mockResolvedValue({
+        ...baseSchedule,
+        trigger: undefined as never,
+      });
+
+      await service.process(job);
+
+      expect(engine.execute).not.toHaveBeenCalled();
     });
   });
 });

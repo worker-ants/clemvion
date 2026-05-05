@@ -67,7 +67,7 @@ describe('WorkflowsController (execute endpoint)', () => {
       expect.objectContaining({
         parameters: { name: 'Alice', count: 5 },
       }),
-      'u1',
+      { executedBy: 'u1' },
     );
   });
 
@@ -106,7 +106,7 @@ describe('WorkflowsController (execute endpoint)', () => {
     expect(executeMock).toHaveBeenCalledWith(
       'wf1',
       expect.objectContaining({ parameters: { name: 'Bob' } }),
-      'u1',
+      { executedBy: 'u1' },
     );
   });
 

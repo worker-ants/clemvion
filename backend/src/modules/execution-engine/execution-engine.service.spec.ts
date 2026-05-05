@@ -561,6 +561,49 @@ describe('ExecutionEngineService', () => {
     expect(mockExecutionRepo.save).toHaveBeenCalled();
   });
 
+  describe('execute() — trigger metadata persistence', () => {
+    // 트리거 출처(수동/스케줄/웹훅)를 Execution 행의 executedBy/triggerId 컬럼에
+    // 정확히 기록해야 "최근 실행" 화면이 출처를 schedule/webhook 으로 분류할 수 있다
+    // (deriveExecutionTrigger 헬퍼 + spec/2-navigation/6-execution-history.md §2.4).
+
+    it('persists executedBy when options.executedBy is provided (manual run)', async () => {
+      await service.execute(workflowId, { data: 'test' }, { executedBy: 'u1' });
+      expect(mockExecutionRepo.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          workflowId,
+          executedBy: 'u1',
+          triggerId: undefined,
+        }),
+      );
+    });
+
+    it('persists triggerId when options.triggerId is provided (schedule/webhook run)', async () => {
+      await service.execute(
+        workflowId,
+        { parameters: {} },
+        { triggerId: 'trigger-uuid' },
+      );
+      expect(mockExecutionRepo.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          workflowId,
+          triggerId: 'trigger-uuid',
+          executedBy: undefined,
+        }),
+      );
+    });
+
+    it('leaves both executedBy and triggerId undefined when no options are provided', async () => {
+      await service.execute(workflowId, {});
+      expect(mockExecutionRepo.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          workflowId,
+          executedBy: undefined,
+          triggerId: undefined,
+        }),
+      );
+    });
+  });
+
   it('should execute all nodes in background after returning', async () => {
     await service.execute(workflowId, { data: 'test' });
 

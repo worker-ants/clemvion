@@ -81,7 +81,7 @@ describe('SchedulesService.runNow', () => {
     expect(executeMock).toHaveBeenCalledWith(
       'wf1',
       { parameters: { region: 'kr' } },
-      'user-1',
+      { executedBy: 'user-1' },
     );
   });
 });

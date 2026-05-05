@@ -250,7 +250,7 @@ export class WorkflowsController {
     const executionId = await this.executionEngineService.execute(
       id,
       executionInput,
-      user.sub,
+      { executedBy: user.sub },
     );
     return { executionId };
   }

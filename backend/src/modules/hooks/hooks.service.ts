@@ -96,6 +96,7 @@ export class HooksService {
     const executionId = await this.executionEngineService.execute(
       trigger.workflowId,
       { parameters, ...input },
+      { triggerId: trigger.id },
     );
 
     this.logger.log(
