@@ -1,5 +1,6 @@
 import { evaluateWarnings } from '@workflow/node-summary';
 import {
+  categoryDefSchema,
   textClassifierNodeConfigSchema,
   textClassifierNodeMetadata,
   textClassifierNodeOutputSchema,
@@ -24,6 +25,58 @@ describe('textClassifierNodeConfigSchema', () => {
     if (result.success) {
       expect(result.data.includeEvidence).toBe(true);
     }
+  });
+});
+
+describe('categoryDefSchema', () => {
+  it('id 는 optional — 생략 가능 (resolver 가 class_${i} fallback)', () => {
+    const parsed = categoryDefSchema.parse({ name: 'Billing' });
+    expect(parsed.id).toBeUndefined();
+    expect(parsed.name).toBe('Billing');
+  });
+
+  it('id 는 slug 형식 (a-z A-Z 0-9 _ -) 만 허용', () => {
+    expect(
+      categoryDefSchema.safeParse({ id: 'cat_refund', name: 'A' }).success,
+    ).toBe(true);
+    expect(
+      categoryDefSchema.safeParse({ id: 'cat-1', name: 'A' }).success,
+    ).toBe(true);
+    expect(
+      categoryDefSchema.safeParse({ id: 'CAT_X', name: 'A' }).success,
+    ).toBe(true);
+  });
+
+  it('id 에 공백·특수문자·엔티티가 포함되면 거부 (포트 라우팅 키 안전)', () => {
+    expect(
+      categoryDefSchema.safeParse({ id: 'cat refund', name: 'A' }).success,
+    ).toBe(false);
+    expect(
+      categoryDefSchema.safeParse({ id: '<script>', name: 'A' }).success,
+    ).toBe(false);
+    expect(
+      categoryDefSchema.safeParse({ id: 'cat.1', name: 'A' }).success,
+    ).toBe(false);
+    expect(
+      categoryDefSchema.safeParse({ id: '한글', name: 'A' }).success,
+    ).toBe(false);
+  });
+
+  it('id 길이 상한 64 — 65자 이상은 거부', () => {
+    const ok = 'a'.repeat(64);
+    const tooLong = 'a'.repeat(65);
+    expect(categoryDefSchema.safeParse({ id: ok, name: 'A' }).success).toBe(
+      true,
+    );
+    expect(
+      categoryDefSchema.safeParse({ id: tooLong, name: 'A' }).success,
+    ).toBe(false);
+  });
+
+  it('name / description 기본값은 빈 문자열', () => {
+    const parsed = categoryDefSchema.parse({});
+    expect(parsed.name).toBe('');
+    expect(parsed.description).toBe('');
   });
 });
 
