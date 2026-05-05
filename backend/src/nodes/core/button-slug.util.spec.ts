@@ -59,10 +59,15 @@ describe('uniqueSlug', () => {
     ).toBe('confirm-4');
   });
 
-  it('충돌 후 길이가 64자 넘으면 절단', () => {
+  it('base 가 정확히 64자면 접미사 만큼 줄여 결합 — uniqueness 보장 (W-1)', () => {
     const long = 'a'.repeat(64);
-    const result = uniqueSlug(long, new Set([long]));
-    expect(result.length).toBeLessThanOrEqual(64);
+    const r2 = uniqueSlug(long, new Set([long]));
+    const r3 = uniqueSlug(long, new Set([long, r2]));
+    expect(r2.length).toBeLessThanOrEqual(64);
+    expect(r3.length).toBeLessThanOrEqual(64);
+    expect(r2).not.toBe(r3); // 단순 slice 가 아닌 진짜로 다른 값
+    expect(r2.endsWith('-2')).toBe(true);
+    expect(r3.endsWith('-3')).toBe(true);
   });
 });
 
@@ -137,6 +142,30 @@ describe('normalizeNodeButtonIds', () => {
       };
       const result = normalizeNodeButtonIds(input);
       expect(result).toBe(input);
+    });
+
+    it('사용자 id 가 fallback prefix 와 동일해도 충돌 해소 (W-2)', () => {
+      // 사용자가 'btn_1' 을 명시했고 index 1 entry 가 비어있어 fallback
+      // prefix 도 'btn_1' 을 만든다 — 이전엔 silent 중복.
+      const result = normalizeNodeButtonIds({
+        buttons: [
+          { id: 'btn_1', label: 'Saved' }, // existing
+          {}, // new — fallback prefix yields btn_1, must dedupe
+          {},
+        ],
+      });
+      const ids = (result?.buttons as Array<{ id: string }>).map((b) => b.id);
+      expect(ids[0]).toBe('btn_1');
+      expect(ids[1]).not.toBe('btn_1');
+      expect(new Set(ids).size).toBe(3); // 모두 unique
+    });
+
+    it('null entry 방어 — 새 객체 생성 + fallback prefix (W-13)', () => {
+      const result = normalizeNodeButtonIds({
+        buttons: [null as unknown, { label: 'OK' }] as Array<unknown>,
+      } as Record<string, unknown>);
+      const ids = (result?.buttons as Array<{ id: string }>).map((b) => b.id);
+      expect(ids).toEqual(['btn_0', 'ok']);
     });
   });
 

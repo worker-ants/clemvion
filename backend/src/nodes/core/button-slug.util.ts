@@ -1,4 +1,4 @@
-import { PORT_ID_SLUG_REGEX } from './port-id.util';
+import { isValidStablePortId } from './port-id.util';
 
 /**
  * Auto-generated id for `carousel` / `chart` / `table` / `template` 노드의
@@ -34,10 +34,20 @@ export function labelToSlug(label: string): string {
 
 export function uniqueSlug(base: string, taken: Set<string>): string {
   if (!taken.has(base)) return base;
+  // 단순 slice(0,64) 는 base 가 64자일 때 base-2/-3 가 모두 동일하게 잘려
+  // uniqueness 가 깨진다 (review W-1). 접미사 길이만큼 base 를 미리 줄여서
+  // 결합한다.
   let n = 2;
-  while (taken.has(`${base}-${n}`)) n++;
-  const result = `${base}-${n}`;
-  return result.length > 64 ? result.slice(0, 64) : result;
+  while (true) {
+    const suffix = `-${n}`;
+    const headroom = 64 - suffix.length;
+    const candidate =
+      base.length <= headroom
+        ? `${base}${suffix}`
+        : `${base.slice(0, headroom)}${suffix}`;
+    if (!taken.has(candidate)) return candidate;
+    n++;
+  }
 }
 
 interface ButtonLike {
@@ -46,13 +56,9 @@ interface ButtonLike {
   [key: string]: unknown;
 }
 
-function isValidExistingId(id: unknown): id is string {
-  return (
-    typeof id === 'string' &&
-    id.trim().length > 0 &&
-    PORT_ID_SLUG_REGEX.test(id.trim())
-  );
-}
+// 단일 출처: port-id.util.isValidStablePortId. button-slug 와 마이그레이션
+// 스크립트가 모두 동일 정의를 사용 (review W-10).
+const isValidExistingId = isValidStablePortId;
 
 /**
  * 단일 buttons 배열을 정규화. 살아있는 id 는 그대로 두고 비어있는 entry 는
@@ -63,14 +69,23 @@ function normalizeButtonsArray(
   fallbackPrefix: (i: number) => string,
 ): { buttons: ButtonLike[]; changed: boolean } {
   const taken = new Set<string>();
-  // Pass 1: 살아있는 id 는 미리 reserve 해 충돌 회피.
+  // Pass 1: 살아있는 id 는 미리 reserve 해 충돌 회피. null/undefined entry 는
+  // skip — pass 2 에서 새 entry 로 대체된다 (review W-13).
   for (const b of buttons) {
-    if (isValidExistingId(b.id)) {
+    if (b && typeof b === 'object' && isValidExistingId(b.id)) {
       taken.add(b.id.trim());
     }
   }
   let changed = false;
   const result = buttons.map((b, i) => {
+    if (b == null || typeof b !== 'object') {
+      // null/undefined entry 방어 (review W-13). entry 자체가 invalid 면
+      // fallback prefix 로 채운 신규 객체를 만들어 반환한다.
+      changed = true;
+      const candidate = uniqueSlug(fallbackPrefix(i), taken);
+      taken.add(candidate);
+      return { id: candidate };
+    }
     if (isValidExistingId(b.id)) {
       // 살아있는 id 는 그대로. trim 결과를 정규화해 저장 — 외측 공백 제거.
       const trimmed = b.id.trim();
@@ -81,8 +96,11 @@ function normalizeButtonsArray(
       return b;
     }
     const labelSlug = typeof b.label === 'string' ? labelToSlug(b.label) : '';
-    const candidate =
-      labelSlug.length > 0 ? uniqueSlug(labelSlug, taken) : fallbackPrefix(i);
+    // label-slug, fallback prefix 모두 `uniqueSlug` 로 통과시켜 사용자가
+    // 명시한 id (e.g. `btn_1`) 와 fallback prefix (e.g. index 1 의 `btn_1`)
+    // 가 충돌해도 dedup 된다 (review W-2).
+    const seed = labelSlug.length > 0 ? labelSlug : fallbackPrefix(i);
+    const candidate = uniqueSlug(seed, taken);
     taken.add(candidate);
     changed = true;
     return { ...b, id: candidate };

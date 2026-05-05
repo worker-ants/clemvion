@@ -29,11 +29,16 @@
 import * as path from 'path';
 import * as dotenv from 'dotenv';
 import { DataSource } from 'typeorm';
+import { isValidStablePortId } from '../src/nodes/core/port-id.util';
 
-{
+/**
+ * `.env` 로드는 main() 진입 시에만 수행 — module import 만으로 process.env 가
+ * 오염되면 단위 테스트가 통제 불가능해진다 (review W-9).
+ */
+function loadDotenv(): void {
   const envPath = path.resolve(__dirname, '..', '.env');
   const result = dotenv.config({ path: envPath });
-  if (result.error && require.main === module) {
+  if (result.error) {
     console.warn(
       `[migrate-button-ids] .env not loaded at ${envPath} (${result.error.message}) — relying on process.env only.`,
     );
@@ -57,7 +62,6 @@ const CLI_WORKSPACE_ID = parseCliFlag('--workspace-id');
 const CLI_USER_ID = parseCliFlag('--user-id');
 
 const BUTTON_NODE_TYPES = new Set(['carousel', 'chart', 'table', 'template']);
-const PORT_ID_SLUG_REGEX = /^[a-zA-Z0-9_-]{1,64}$/;
 
 interface ButtonLike {
   id?: unknown;
@@ -76,13 +80,9 @@ interface NodeConfigLike {
   [key: string]: unknown;
 }
 
-function isValidExistingId(id: unknown): boolean {
-  return (
-    typeof id === 'string' &&
-    id.trim().length > 0 &&
-    PORT_ID_SLUG_REGEX.test(id.trim())
-  );
-}
+// 단일 출처: port-id.util.isValidStablePortId — runtime helper 와 마이그레이션
+// 스크립트가 동일 검사를 공유해 drift 방지 (review W-10).
+const isValidExistingId = isValidStablePortId;
 
 export interface BackfillHit {
   workflowId: string;
@@ -111,14 +111,17 @@ export function backfillButtonIds(
   if (Array.isArray(config.buttons)) {
     const buttons = config.buttons as ButtonLike[];
     const newButtons = buttons.map((b, i) => {
+      // null/undefined entry 방어 (review W-13). 빈 entry 는 fallback id 만 가진
+      // 새 객체로 대체.
+      if (b == null || typeof b !== 'object') {
+        const newId = `btn_${i}`;
+        hits.push({ workflowId, nodeId, location: `buttons[${i}]`, newId });
+        changed = true;
+        return { id: newId };
+      }
       if (isValidExistingId(b.id)) return b;
       const newId = `btn_${i}`;
-      hits.push({
-        workflowId,
-        nodeId,
-        location: `buttons[${i}]`,
-        newId,
-      });
+      hits.push({ workflowId, nodeId, location: `buttons[${i}]`, newId });
       changed = true;
       return { ...b, id: newId };
     });
@@ -129,14 +132,15 @@ export function backfillButtonIds(
     let itemBtnChanged = false;
     const buttons = config.itemButtons as ButtonLike[];
     const newButtons = buttons.map((b, i) => {
+      if (b == null || typeof b !== 'object') {
+        const newId = `itemBtn_${i}`;
+        hits.push({ workflowId, nodeId, location: `itemButtons[${i}]`, newId });
+        itemBtnChanged = true;
+        return { id: newId };
+      }
       if (isValidExistingId(b.id)) return b;
       const newId = `itemBtn_${i}`;
-      hits.push({
-        workflowId,
-        nodeId,
-        location: `itemButtons[${i}]`,
-        newId,
-      });
+      hits.push({ workflowId, nodeId, location: `itemButtons[${i}]`, newId });
       itemBtnChanged = true;
       return { ...b, id: newId };
     });
@@ -156,6 +160,17 @@ export function backfillButtonIds(
       let buttonsChanged = false;
       const buttons = item.buttons as ButtonLike[];
       const newButtons = buttons.map((b, j) => {
+        if (b == null || typeof b !== 'object') {
+          const newId = `items_${i}_btn_${j}`;
+          hits.push({
+            workflowId,
+            nodeId,
+            location: `items[${i}].buttons[${j}]`,
+            newId,
+          });
+          buttonsChanged = true;
+          return { id: newId };
+        }
         if (isValidExistingId(b.id)) return b;
         const newId = `items_${i}_btn_${j}`;
         hits.push({
@@ -183,15 +198,33 @@ export function backfillButtonIds(
 }
 
 async function main(): Promise<void> {
+  loadDotenv();
+  // DB_PASSWORD 는 fallback 두지 않는다 — 운영 환경에 dev 패스워드가 새는
+  // 사고 방지 (review W-3). 로컬 dev 는 backend/.env 에 명시.
+  const password = process.env.DB_PASSWORD;
+  if (!password) {
+    throw new Error(
+      'DB_PASSWORD is required — set it in backend/.env or as an env var before running this migration.',
+    );
+  }
   const ds = new DataSource({
     type: 'postgres',
     host: process.env.DB_HOST ?? 'localhost',
     port: Number(process.env.DB_PORT ?? 5432),
     username: process.env.DB_USERNAME ?? 'workflow',
-    password: process.env.DB_PASSWORD ?? 'workflow_dev',
+    password,
     database: process.env.DB_DATABASE ?? 'workflow',
   });
   await ds.initialize();
+  try {
+    await runMigration(ds);
+  } finally {
+    // ds.destroy() 누수 방지 (review W-8) — 예외가 나도 connection pool 종료.
+    await ds.destroy();
+  }
+}
+
+async function runMigration(ds: DataSource): Promise<void> {
 
   const rows = (await ds.query<
     Array<{
@@ -269,8 +302,6 @@ async function main(): Promise<void> {
   } else if (DRY_RUN) {
     console.log('\nDRY-RUN — no DB writes. Re-run with --apply to persist.');
   }
-
-  await ds.destroy();
 }
 
 if (require.main === module) {

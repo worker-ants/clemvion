@@ -1,0 +1,108 @@
+{
+  "timestamp": "2026-05-05T16:13:48.109706",
+  "files": [
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/backend/scripts/migrate-button-ids.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/backend/src/modules/workflow-assistant/tools/shadow-workflow.spec.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/backend/src/modules/workflow-assistant/tools/shadow-workflow.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/backend/src/nodes/core/button-slug.util.spec.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/backend/src/nodes/core/button-slug.util.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/backend/src/scripts/migrate-button-ids.spec.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/spec/3-workflow-editor/4-ai-assistant.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    }
+  ],
+  "total_elapsed_seconds": 377.33,
+  "agents": [
+    {
+      "name": "documentation",
+      "status": "success",
+      "elapsed_seconds": 43.48
+    },
+    {
+      "name": "scope",
+      "status": "success",
+      "elapsed_seconds": 45.03
+    },
+    {
+      "name": "database",
+      "status": "success",
+      "elapsed_seconds": 53.08
+    },
+    {
+      "name": "security",
+      "status": "success",
+      "elapsed_seconds": 55.57
+    },
+    {
+      "name": "dependency",
+      "status": "success",
+      "elapsed_seconds": 57.6
+    },
+    {
+      "name": "performance",
+      "status": "success",
+      "elapsed_seconds": 63.4
+    },
+    {
+      "name": "concurrency",
+      "status": "success",
+      "elapsed_seconds": 64.55
+    },
+    {
+      "name": "api_contract",
+      "status": "success",
+      "elapsed_seconds": 67.32
+    },
+    {
+      "name": "architecture",
+      "status": "success",
+      "elapsed_seconds": 83.07
+    },
+    {
+      "name": "maintainability",
+      "status": "success",
+      "elapsed_seconds": 83.9
+    },
+    {
+      "name": "side_effect",
+      "status": "success",
+      "elapsed_seconds": 121.91
+    },
+    {
+      "name": "testing",
+      "status": "success",
+      "elapsed_seconds": 142.15
+    },
+    {
+      "name": "requirement",
+      "status": "success",
+      "elapsed_seconds": 207.66
+    }
+  ]
+}
