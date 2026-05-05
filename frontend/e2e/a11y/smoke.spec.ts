@@ -32,6 +32,12 @@ test.describe("a11y smoke — login page", () => {
     expect(criticals).toEqual([]);
   });
 
+  test("h1 1개 존재 (페이지 heading 위계)", async ({ page }) => {
+    await page.goto("/login");
+    const h1Count = await page.locator("h1").count();
+    expect(h1Count).toBe(1);
+  });
+
   /**
    * baseline 단계 — 모든 위반 (critical 포함 minor/moderate/serious) 을 콘솔로
    * 보고하지만 전체를 expect 로 강제하지는 않는다. Step F (색 대비) 등에서
@@ -57,5 +63,22 @@ test.describe("a11y smoke — login page", () => {
     for (const [impact, count] of byImpact) {
       console.log(`  ${impact}: ${count}`);
     }
+  });
+});
+
+test.describe("a11y smoke — register page", () => {
+  test("axe scan: critical 위반 0", async ({ page }) => {
+    await page.goto("/register");
+    const results = await new AxeBuilder({ page })
+      .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"])
+      .analyze();
+    const criticals = results.violations.filter((v) => v.impact === "critical");
+    expect(criticals).toEqual([]);
+  });
+
+  test("h1 1개 존재", async ({ page }) => {
+    await page.goto("/register");
+    const h1Count = await page.locator("h1").count();
+    expect(h1Count).toBe(1);
   });
 });

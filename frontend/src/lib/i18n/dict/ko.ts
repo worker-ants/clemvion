@@ -89,6 +89,10 @@ export const ko = {
     collapse: "접기",
     user: "사용자",
     workflow: "Workflow",
+    aria: {
+      mainNav: "주 메뉴",
+      skipToMain: "본문으로 건너뛰기",
+    },
   },
   auth: {
     login: {

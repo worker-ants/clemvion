@@ -93,6 +93,10 @@ export const en: Dict = {
     collapse: "Collapse",
     user: "User",
     workflow: "Workflow",
+    aria: {
+      mainNav: "Main navigation",
+      skipToMain: "Skip to main content",
+    },
   },
   auth: {
     login: {

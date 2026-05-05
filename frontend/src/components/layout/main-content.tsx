@@ -9,6 +9,7 @@ export function MainContent({ children }: { children: React.ReactNode }) {
 
   return (
     <main
+      id="main-content"
       className={cn(
         "transition-all duration-200",
         isSmall ? "pl-0" : collapsed ? "pl-16" : "pl-60",

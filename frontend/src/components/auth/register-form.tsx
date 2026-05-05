@@ -125,7 +125,7 @@ function RegisterFormInner({ enabledProviders = [] }: RegisterFormProps) {
   return (
     <Card>
       <CardHeader className="text-center">
-        <CardTitle>{t("auth.register.createAccount")}</CardTitle>
+        <CardTitle as="h1">{t("auth.register.createAccount")}</CardTitle>
         <CardDescription>{t("auth.register.subtitleCta")}</CardDescription>
       </CardHeader>
       <CardContent>

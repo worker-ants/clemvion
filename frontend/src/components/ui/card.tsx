@@ -22,9 +22,27 @@ const CardHeader = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDiv
 );
 CardHeader.displayName = "CardHeader";
 
-const CardTitle = React.forwardRef<HTMLParagraphElement, React.HTMLAttributes<HTMLHeadingElement>>(
-  ({ className, ...props }, ref) => (
-    <h3 ref={ref} className={cn("text-2xl font-semibold leading-none tracking-tight", className)} {...props} />
+type CardTitleAs = "h1" | "h2" | "h3" | "h4" | "h5" | "h6";
+
+interface CardTitleProps extends React.HTMLAttributes<HTMLHeadingElement> {
+  /**
+   * 페이지/섹션의 heading 위계에 맞게 element 를 선택. default 는 `h3` —
+   * 카드가 페이지 내 단순 섹션일 때 적합. login/register 처럼 카드가
+   * 페이지 자체의 1차 콘텐츠일 땐 `as="h1"` 으로 올려 a11y 위계 정상화.
+   */
+  as?: CardTitleAs;
+}
+
+const CardTitle = React.forwardRef<HTMLHeadingElement, CardTitleProps>(
+  ({ className, as: As = "h3", ...props }, ref) => (
+    <As
+      ref={ref}
+      className={cn(
+        "text-2xl font-semibold leading-none tracking-tight",
+        className,
+      )}
+      {...props}
+    />
   ),
 );
 CardTitle.displayName = "CardTitle";

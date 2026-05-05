@@ -188,7 +188,7 @@ function LoginFormInner({ enabledProviders = [] }: LoginFormProps) {
   return (
     <Card>
       <CardHeader className="text-center">
-        <CardTitle>{t("auth.login.title")}</CardTitle>
+        <CardTitle as="h1">{t("auth.login.title")}</CardTitle>
         <CardDescription>{t("auth.login.welcomeBack")}</CardDescription>
       </CardHeader>
       <CardContent>
