@@ -57,9 +57,9 @@ describe('categoryDefSchema', () => {
     expect(
       categoryDefSchema.safeParse({ id: 'cat.1', name: 'A' }).success,
     ).toBe(false);
-    expect(
-      categoryDefSchema.safeParse({ id: '한글', name: 'A' }).success,
-    ).toBe(false);
+    expect(categoryDefSchema.safeParse({ id: '한글', name: 'A' }).success).toBe(
+      false,
+    );
   });
 
   it('id 길이 상한 64 — 65자 이상은 거부', () => {
