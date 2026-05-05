@@ -478,6 +478,47 @@ describe('TextClassifierHandler', () => {
         expect((data.result as any).evidence).toEqual([]);
       });
     });
+
+    describe('custom categories[*].id', () => {
+      it('should route to category.id when set', async () => {
+        const result = (await handler.execute(
+          {},
+          {
+            ...baseConfig,
+            categories: [
+              { id: 'cat_refund', name: 'Billing', description: 'Payment' },
+              { id: 'cat_tech', name: 'Tech', description: 'Technical' },
+            ],
+          },
+          createContext(),
+        )) as Record<string, unknown>;
+        expect((result as any).port).toBe('cat_refund');
+      });
+
+      it('should fall back to class_${i} when id is missing (legacy)', async () => {
+        const result = (await handler.execute(
+          {},
+          baseConfig,
+          createContext(),
+        )) as Record<string, unknown>;
+        expect((result as any).port).toBe('class_0');
+      });
+
+      it('should fall back to class_${i} when id is whitespace-only', async () => {
+        const result = (await handler.execute(
+          {},
+          {
+            ...baseConfig,
+            categories: [
+              { id: '   ', name: 'Billing', description: 'Payment' },
+              { id: 'cat_tech', name: 'Tech', description: 'Technical' },
+            ],
+          },
+          createContext(),
+        )) as Record<string, unknown>;
+        expect((result as any).port).toBe('class_0');
+      });
+    });
   });
 
   describe('execute (multi-label)', () => {
@@ -824,6 +865,52 @@ describe('TextClassifierHandler', () => {
         expect((data.result as any).categories).toEqual([
           { name: 'Billing', evidence: ['refund'] },
         ]);
+      });
+    });
+
+    describe('custom categories[*].id', () => {
+      it('should map matched categories to their custom ids', async () => {
+        mockLlmService.chat.mockResolvedValueOnce({
+          content:
+            '{"categories": [{"name": "Billing", "confidence": 0.9}, {"name": "Tech", "confidence": 0.85}]}',
+          usage: { inputTokens: 50, outputTokens: 20, totalTokens: 70 },
+          model: 'gpt-4o-mini',
+        });
+        const result = (await handler.execute(
+          {},
+          {
+            ...multiLabelConfig,
+            categories: [
+              { id: 'cat_billing', name: 'Billing', description: 'Payment' },
+              { id: 'cat_tech', name: 'Tech', description: 'Technical' },
+              { id: 'cat_general', name: 'General', description: 'General' },
+            ],
+          },
+          createContext(),
+        )) as Record<string, unknown>;
+        expect((result as any).port).toEqual(['cat_billing', 'cat_tech']);
+      });
+
+      it('should mix custom and fallback ids when only some have id', async () => {
+        mockLlmService.chat.mockResolvedValueOnce({
+          content:
+            '{"categories": [{"name": "Billing", "confidence": 0.9}, {"name": "Tech", "confidence": 0.85}]}',
+          usage: { inputTokens: 50, outputTokens: 20, totalTokens: 70 },
+          model: 'gpt-4o-mini',
+        });
+        const result = (await handler.execute(
+          {},
+          {
+            ...multiLabelConfig,
+            categories: [
+              { id: 'cat_billing', name: 'Billing', description: 'Payment' },
+              { name: 'Tech', description: 'Technical' },
+              { name: 'General', description: 'General' },
+            ],
+          },
+          createContext(),
+        )) as Record<string, unknown>;
+        expect((result as any).port).toEqual(['cat_billing', 'class_1']);
       });
     });
   });

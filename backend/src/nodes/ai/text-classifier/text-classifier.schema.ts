@@ -6,9 +6,22 @@ import {
 import { AI_NO_LLM_PROVIDER_MESSAGE } from '../llm-provider-rule';
 
 const categoryDefSchema = z.object({
-  name: z.string().meta({ ui: { label: 'Name', widget: 'text' } }),
+  // spec §8 stable port id — 비면 resolver/handler 가 `class_${i}` fallback.
+  // slug 형식(ASCII 영숫자/`_`/`-`, 최대 64) 만 허용 — switch.caseDefSchema.id 와
+  // 동일 패턴으로 포트 라우팅 키 보호.
+  id: z
+    .string()
+    .regex(/^[a-zA-Z0-9_-]+$/)
+    .max(64)
+    .optional()
+    .meta({ ui: { label: 'ID', widget: 'text', hidden: true } }),
+  name: z
+    .string()
+    .default('')
+    .meta({ ui: { label: 'Name', widget: 'text' } }),
   description: z
     .string()
+    .default('')
     .meta({ ui: { label: 'Description', widget: 'textarea' } }),
   examples: z
     .array(z.string())
