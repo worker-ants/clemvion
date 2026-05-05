@@ -1388,6 +1388,8 @@ export const en: Dict = {
     daysOfWeek: "Days of week",
     dayOfMonth: "Day of month",
     generatedExpression: "Generated expression",
+    expressionNotRepresentable:
+      "This expression cannot be represented in the visual editor. Changing any visual control will overwrite the expression.",
     dayShortSun: "Sun",
     dayShortMon: "Mon",
     dayShortTue: "Tue",
