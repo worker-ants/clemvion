@@ -2164,4 +2164,212 @@ describe('ShadowWorkflow', () => {
       expect(result.ok).toBe(true);
     });
   });
+
+  // F-2 (2026-05-05) — buttons[*].id 자동 부여 (label-slug + 충돌 시 -2 접미사).
+  // shadow-workflow 가 add_node / update_node 시 normalizeNodeButtonIds 를
+  // 호출해 LLM 이 id 를 빠뜨려도 안정적인 의미 기반 id 가 부여된다.
+  describe('F-2 buttons[*].id 자동 부여 (label-slug)', () => {
+    it('add_node carousel — 빈 button id 가 label-slug 으로 채워진다', () => {
+      const sw = new ShadowWorkflow(baseSnapshot(), new Set(['carousel']));
+      const result = sw.apply({
+        name: 'add_node',
+        arguments: {
+          type: 'carousel',
+          label: '메뉴 선택',
+          position: { x: 0, y: 0 },
+          config: {
+            buttons: [{ label: 'Confirm Order' }, { label: 'Cancel' }],
+          },
+        },
+      });
+      expect(result.ok).toBe(true);
+      const added = sw.snapshot().nodes.find((n) => n.id === result.id);
+      const buttons = (added?.config as { buttons: Array<{ id: string }> })
+        .buttons;
+      expect(buttons.map((b) => b.id)).toEqual(['confirm-order', 'cancel']);
+    });
+
+    it('add_node — LLM 이 명시한 id 는 보존', () => {
+      const sw = new ShadowWorkflow(baseSnapshot(), new Set(['carousel']));
+      const result = sw.apply({
+        name: 'add_node',
+        arguments: {
+          type: 'carousel',
+          label: 'Custom IDs',
+          position: { x: 0, y: 0 },
+          config: {
+            buttons: [
+              { id: 'btn_keep_1', label: 'A' },
+              { id: 'btn_keep_2', label: 'B' },
+            ],
+          },
+        },
+      });
+      const added = sw.snapshot().nodes.find((n) => n.id === result.id);
+      expect(
+        (added?.config as { buttons: Array<{ id: string }> }).buttons.map(
+          (b) => b.id,
+        ),
+      ).toEqual(['btn_keep_1', 'btn_keep_2']);
+    });
+
+    it('add_node — 동일 label 중복 시 -2 접미사로 충돌 해소', () => {
+      const sw = new ShadowWorkflow(baseSnapshot(), new Set(['carousel']));
+      const result = sw.apply({
+        name: 'add_node',
+        arguments: {
+          type: 'carousel',
+          label: 'Dup Test',
+          position: { x: 0, y: 0 },
+          config: {
+            buttons: [
+              { label: 'Submit' },
+              { label: 'Submit' },
+              { label: 'Submit' },
+            ],
+          },
+        },
+      });
+      const added = sw.snapshot().nodes.find((n) => n.id === result.id);
+      expect(
+        (added?.config as { buttons: Array<{ id: string }> }).buttons.map(
+          (b) => b.id,
+        ),
+      ).toEqual(['submit', 'submit-2', 'submit-3']);
+    });
+
+    it('add_node — label 이 한글/특수문자만이면 btn_${i} fallback', () => {
+      const sw = new ShadowWorkflow(baseSnapshot(), new Set(['carousel']));
+      const result = sw.apply({
+        name: 'add_node',
+        arguments: {
+          type: 'carousel',
+          label: '한글 라벨',
+          position: { x: 0, y: 0 },
+          config: {
+            buttons: [{ label: '한식' }, { label: '중식' }],
+          },
+        },
+      });
+      const added = sw.snapshot().nodes.find((n) => n.id === result.id);
+      expect(
+        (added?.config as { buttons: Array<{ id: string }> }).buttons.map(
+          (b) => b.id,
+        ),
+      ).toEqual(['btn_0', 'btn_1']);
+    });
+
+    it('update_node — label 만 수정해도 기존 slug 보존 (edge 안정성)', () => {
+      const sw = new ShadowWorkflow(baseSnapshot(), new Set(['carousel']));
+      const created = sw.apply({
+        name: 'add_node',
+        arguments: {
+          type: 'carousel',
+          label: 'Stable Test',
+          position: { x: 0, y: 0 },
+          config: { buttons: [{ label: 'Confirm' }] },
+        },
+      });
+      const id = created.id as string;
+
+      const updated = sw.apply({
+        name: 'update_node',
+        arguments: {
+          id,
+          patch: {
+            config: {
+              buttons: [{ id: 'confirm', label: 'Confirm Now' }], // label 만 수정, id 보존
+            },
+          },
+        },
+      });
+      expect(updated.ok).toBe(true);
+      const node = sw.snapshot().nodes.find((n) => n.id === id);
+      expect(
+        (node?.config as { buttons: Array<{ id: string; label: string }> })
+          .buttons[0],
+      ).toEqual({ id: 'confirm', label: 'Confirm Now' });
+    });
+
+    it('update_node — 신규 entry 만 새 slug 받고 기존 entry 는 그대로', () => {
+      const sw = new ShadowWorkflow(baseSnapshot(), new Set(['carousel']));
+      const created = sw.apply({
+        name: 'add_node',
+        arguments: {
+          type: 'carousel',
+          label: 'Mixed',
+          position: { x: 0, y: 0 },
+          config: { buttons: [{ id: 'confirm', label: 'Confirm' }] },
+        },
+      });
+      sw.apply({
+        name: 'update_node',
+        arguments: {
+          id: created.id,
+          patch: {
+            config: {
+              buttons: [
+                { id: 'confirm', label: 'Confirm' }, // 보존
+                { label: 'Cancel' }, // 신규 — slug 부여
+              ],
+            },
+          },
+        },
+      });
+      const node = sw.snapshot().nodes.find((n) => n.id === created.id);
+      expect(
+        (node?.config as { buttons: Array<{ id: string }> }).buttons.map(
+          (b) => b.id,
+        ),
+      ).toEqual(['confirm', 'cancel']);
+    });
+
+    it('button-less 노드 (e.g. http_request) 는 영향 없음', () => {
+      const sw = new ShadowWorkflow(baseSnapshot(), new Set(['http_request']));
+      const result = sw.apply({
+        name: 'add_node',
+        arguments: {
+          type: 'http_request',
+          label: 'Fetch',
+          position: { x: 0, y: 0 },
+          config: { url: 'https://api.example.com', method: 'GET' },
+        },
+      });
+      expect(result.ok).toBe(true);
+      const added = sw.snapshot().nodes.find((n) => n.id === result.id);
+      expect(added?.config).toMatchObject({
+        url: 'https://api.example.com',
+        method: 'GET',
+      });
+    });
+
+    it('carousel 의 itemButtons 와 items[*].buttons 도 함께 정규화', () => {
+      const sw = new ShadowWorkflow(baseSnapshot(), new Set(['carousel']));
+      const result = sw.apply({
+        name: 'add_node',
+        arguments: {
+          type: 'carousel',
+          label: 'Static Items',
+          position: { x: 0, y: 0 },
+          config: {
+            mode: 'static',
+            items: [
+              {
+                title: 'A',
+                buttons: [{ label: 'Buy' }, { label: 'Save' }],
+              },
+            ],
+            itemButtons: [{ label: 'Common' }],
+          },
+        },
+      });
+      const node = sw.snapshot().nodes.find((n) => n.id === result.id);
+      const cfg = node?.config as {
+        items: Array<{ buttons: Array<{ id: string }> }>;
+        itemButtons: Array<{ id: string }>;
+      };
+      expect(cfg.items[0].buttons.map((b) => b.id)).toEqual(['buy', 'save']);
+      expect(cfg.itemButtons.map((b) => b.id)).toEqual(['common']);
+    });
+  });
 });
