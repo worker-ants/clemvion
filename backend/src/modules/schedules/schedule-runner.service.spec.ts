@@ -200,7 +200,9 @@ describe('ScheduleRunnerService', () => {
 
     it('passes { triggerId: schedule.triggerId } to executionEngineService.execute', async () => {
       scheduleRepo.findOne.mockResolvedValue(baseSchedule);
-      scheduleRepo.save.mockImplementation((s) => Promise.resolve(s as Schedule));
+      scheduleRepo.save.mockImplementation((s) =>
+        Promise.resolve(s as Schedule),
+      );
       nodeRepo.findOne.mockResolvedValue({
         id: 'n',
         workflowId: 'wf1',

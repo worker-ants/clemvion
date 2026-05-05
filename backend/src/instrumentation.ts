@@ -20,8 +20,7 @@ const enabled = process.env.OTEL_ENABLED === 'true';
 if (enabled) {
   const sdk = new NodeSDK({
     resource: resourceFromAttributes({
-      [ATTR_SERVICE_NAME]:
-        process.env.OTEL_SERVICE_NAME ?? 'clemvion-backend',
+      [ATTR_SERVICE_NAME]: process.env.OTEL_SERVICE_NAME ?? 'clemvion-backend',
     }),
     traceExporter: new OTLPTraceExporter({
       url:
