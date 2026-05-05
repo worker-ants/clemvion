@@ -206,7 +206,7 @@ export class SchedulesService {
     const executionId = await this.executionEngineService.execute(
       workflowId,
       { parameters },
-      userId,
+      { executedBy: userId },
     );
     return { executionId };
   }

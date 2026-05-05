@@ -361,11 +361,15 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
   /**
    * Execute a workflow. Creates the execution record and starts execution
    * in the background so the caller gets the execution ID immediately.
+   *
+   * `options.executedBy` 는 수동 실행(사용자가 ▶ 누름)일 때, `options.triggerId`
+   * 는 schedule/webhook 트리거 발화일 때 채운다. 두 값은 Execution 행에 저장되어
+   * "최근 실행" 화면이 출처를 분류하는 데 쓰인다 (deriveExecutionTrigger).
    */
   async execute(
     workflowId: string,
     input?: unknown,
-    executedBy?: string,
+    options?: { executedBy?: string; triggerId?: string },
   ): Promise<string> {
     // 1. Validate workflow exists
     const workflow = await this.workflowRepository.findOneBy({
@@ -380,7 +384,8 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
       workflowId,
       status: ExecutionStatus.PENDING,
       inputData: (input as Record<string, unknown>) ?? {},
-      executedBy: executedBy ?? undefined,
+      executedBy: options?.executedBy ?? undefined,
+      triggerId: options?.triggerId ?? undefined,
       executionPath: [],
     });
     const savedExecution = await this.executionRepository.save(execution);

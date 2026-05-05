@@ -163,6 +163,7 @@ export class ScheduleRunnerService extends WorkerHost implements OnModuleInit {
       const executionId = await this.executionEngineService.execute(
         workflowId,
         { parameters },
+        { triggerId: schedule.triggerId },
       );
       this.logger.log(
         `Schedule ${scheduleId} triggered execution ${executionId}`,

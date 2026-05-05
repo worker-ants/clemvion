@@ -103,13 +103,17 @@ describe('HooksService', () => {
     const res = await service.handleWebhook('abc', input);
     expect(res).toEqual({ executionId: 'exec-1' });
     const executeMock = engine.execute;
-    expect(executeMock).toHaveBeenCalledWith('wf1', {
-      parameters: { orderId: 'o1', amount: 1500 },
-      body: input.body,
-      headers: input.headers,
-      query: input.query,
-      method: 'POST',
-    });
+    expect(executeMock).toHaveBeenCalledWith(
+      'wf1',
+      {
+        parameters: { orderId: 'o1', amount: 1500 },
+        body: input.body,
+        headers: input.headers,
+        query: input.query,
+        method: 'POST',
+      },
+      { triggerId: 't1' },
+    );
   });
 
   it('returns 400 when required parameter is missing', async () => {
@@ -179,6 +183,7 @@ describe('HooksService', () => {
     expect(executeMock).toHaveBeenCalledWith(
       'wf1',
       expect.objectContaining({ parameters: {} }),
+      { triggerId: 't1' },
     );
   });
 });
