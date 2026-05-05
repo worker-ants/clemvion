@@ -5,6 +5,7 @@ import { integrationsApi, type IntegrationDto } from "@/lib/api/integrations";
 import { Plus, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useState } from "react";
+import { useT } from "@/lib/i18n";
 
 /** Bound on the MCP server list fetched for picker — matches API page limit. */
 const MCP_LIST_LIMIT = 100;
@@ -41,6 +42,7 @@ interface Props {
  * controlling resource/prompt exposure is enough for the 80% case.
  */
 export function McpServerSelector({ value, onChange }: Props) {
+  const t = useT();
   const safe = Array.isArray(value) ? value : [];
   const [pickerOpen, setPickerOpen] = useState(false);
 
@@ -121,7 +123,7 @@ export function McpServerSelector({ value, onChange }: Props) {
                     size="icon"
                     className="ml-auto h-6 w-6"
                     onClick={() => remove(ref.integrationId)}
-                    aria-label="Remove"
+                    aria-label={t("common.aria.removeIntegration")}
                   >
                     <X className="h-3 w-3" aria-hidden="true" />
                   </Button>

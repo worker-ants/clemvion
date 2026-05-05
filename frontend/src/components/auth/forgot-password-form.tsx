@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useId, useMemo, useState } from "react";
 import Link from "next/link";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
@@ -22,6 +22,7 @@ import { useT, useLocale } from "@/lib/i18n";
 
 function ForgotPasswordFormInner() {
   const t = useT();
+  const emailErrorId = useId();
   const [isLoading, setIsLoading] = useState(false);
   const [isSubmitted, setIsSubmitted] = useState(false);
 
@@ -100,12 +101,12 @@ function ForgotPasswordFormInner() {
               placeholder={t("auth.forgotPassword.emailPlaceholder")}
               autoComplete="email"
               aria-invalid={errors.email ? "true" : undefined}
-              aria-describedby={errors.email ? "email-error" : undefined}
+              aria-describedby={errors.email ? emailErrorId : undefined}
               {...register("email")}
             />
             {errors.email && (
               <p
-                id="email-error"
+                id={emailErrorId}
                 role="alert"
                 className="text-sm text-[hsl(var(--destructive))]"
               >

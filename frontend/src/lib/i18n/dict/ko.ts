@@ -70,6 +70,8 @@ export const ko = {
       zoomIn: "확대",
       zoomOut: "축소",
       fitToView: "화면에 맞추기",
+      addIntegration: "Integration 추가",
+      removeIntegration: "Integration 제거",
     },
   },
   sidebar: {

@@ -1063,7 +1063,6 @@ export default function SchedulesPage() {
                             size="icon"
                             className="h-8 w-8"
                             onClick={() => openEdit(schedule)}
-                            title={t("schedules.editTooltip")}
                             aria-label={t("schedules.editTooltip")}
                           >
                             <Pencil className="h-4 w-4" aria-hidden="true" />
@@ -1073,7 +1072,6 @@ export default function SchedulesPage() {
                             size="icon"
                             className="h-8 w-8 text-[hsl(var(--destructive))]"
                             onClick={() => setDeleteTarget(schedule.id)}
-                            title={t("schedules.deleteTooltip")}
                             aria-label={t("schedules.deleteTooltip")}
                           >
                             <Trash2 className="h-4 w-4" aria-hidden="true" />

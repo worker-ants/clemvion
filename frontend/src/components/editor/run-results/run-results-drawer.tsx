@@ -285,17 +285,21 @@ export function RunResultsDrawer() {
 
       {/* Header bar */}
       <div className="flex h-9 items-center justify-between px-3 border-b border-[hsl(var(--border))]">
-        {/* role="status" + aria-live="polite" 로 실행 상태 변경(running →
-            completed → failed 등) 을 스크린 리더가 announce. status 텍스트와
-            노드 카운트를 한 그룹으로 묶어 한 번에 읽힌다 (Stage 10 NF-A11Y). */}
-        <div
-          role="status"
-          aria-live="polite"
-          aria-atomic="true"
-          className="flex items-center gap-2"
-        >
-          {statusIcon}
-          <span className="text-sm font-medium">{statusLabel}</span>
+        <div className="flex items-center gap-2">
+          {/* statusIcon 은 장식 — SR 은 텍스트 statusLabel 만 듣게 한다. */}
+          <span aria-hidden="true">{statusIcon}</span>
+          {/* role="status" + aria-live="polite" 로 실행 상태 변경(running →
+              completed → failed 등) 을 스크린 리더가 announce. 노드 카운트
+              span 은 빈번 업데이트로 announce 폭증 위험이 있어 aria-live
+              영역 밖으로 분리 (review I-5). */}
+          <span
+            role="status"
+            aria-live="polite"
+            aria-atomic="true"
+            className="text-sm font-medium"
+          >
+            {statusLabel}
+          </span>
           <span className="text-xs text-[hsl(var(--muted-foreground))]">
             {t("editor.nodesCount", { completed: completedCount, total: totalNodes })}
             {failedCount > 0 && t("editor.failedParen", { count: failedCount })}

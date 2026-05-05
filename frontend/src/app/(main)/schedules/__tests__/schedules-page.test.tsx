@@ -150,9 +150,13 @@ describe("SchedulesPage — RBAC", () => {
     expect(
       screen.getByRole("button", { name: /run now/i }),
     ).toBeInTheDocument();
-    // icon-only 버튼은 title 속성으로 식별
-    expect(screen.getByTitle(/^edit$/i)).toBeInTheDocument();
-    expect(screen.getByTitle(/^delete$/i)).toBeInTheDocument();
+    // icon-only 버튼은 aria-label 로 식별 (Stage 10 a11y — title 중복 제거).
+    expect(
+      screen.getByRole("button", { name: /^edit$/i }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /^delete$/i }),
+    ).toBeInTheDocument();
   });
 
   it("Visual 탭으로 전환만 해도 기본 cron(0 9 * * *)이 즉시 emit 되어 'Generated expression' 미리보기가 노출", async () => {
