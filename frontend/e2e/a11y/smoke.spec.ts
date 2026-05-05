@@ -82,26 +82,37 @@ test.describe("a11y smoke — register page", () => {
   });
 });
 
-test.describe("a11y smoke — forgot-password / reset-password", () => {
-  test("forgot-password axe scan: critical 위반 0", async ({ page }) => {
+test.describe("a11y smoke — forgot-password page", () => {
+  test("axe scan: critical 위반 0", async ({ page }) => {
     await page.goto("/forgot-password");
     const results = await new AxeBuilder({ page })
       .withTags([...WCAG_TAGS])
       .analyze();
     const criticals = results.violations.filter((v) => v.impact === "critical");
+    if (criticals.length > 0) {
+      console.log(
+        `\n[a11y smoke] forgot-password page — ${criticals.length} critical 위반:`,
+      );
+      for (const v of criticals) {
+        console.log(`  - ${v.id}: ${v.description}`);
+      }
+    }
     expect(criticals).toEqual([]);
   });
 
-  test("forgot-password 키보드 진입 — Tab 시 첫 focusable 이 skip-to-main 또는 입력", async ({
-    page,
-  }) => {
+  test("h1 1개 존재", async ({ page }) => {
     await page.goto("/forgot-password");
-    // skip-to-main 은 (auth) layout 에 없으므로 forgot-password 의 첫 Tab 이
-    // 폼 내부 첫 input(email) 으로 직접 도달.
+    const h1Count = await page.locator("h1").count();
+    expect(h1Count).toBe(1);
+  });
+
+  test("키보드 진입 — 첫 Tab 시 email 입력으로 직접 도달", async ({ page }) => {
+    await page.goto("/forgot-password");
+    // (auth) layout 은 skip-to-main 없음 — 첫 Tab 이 폼 첫 input 으로.
     await page.keyboard.press("Tab");
-    const focused = await page.evaluate(
+    const focusedTag = await page.evaluate(
       () => document.activeElement?.tagName ?? null,
     );
-    expect(["A", "INPUT", "BUTTON"]).toContain(focused);
+    expect(focusedTag).toBe("INPUT");
   });
 });

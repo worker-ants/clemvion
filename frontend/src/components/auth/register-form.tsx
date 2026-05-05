@@ -20,7 +20,8 @@ import {
   CardDescription,
   CardContent,
 } from "@/components/ui/card";
-import { useT, useLocale, type TFunction } from "@/lib/i18n";
+import { useT, useLocale } from "@/lib/i18n";
+import { getPasswordStrength } from "@/lib/utils/password";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3011/api";
 
@@ -30,24 +31,6 @@ function startOauth(provider: OAuthProvider) {
 
 interface RegisterFormProps {
   enabledProviders?: OAuthProvider[];
-}
-
-function getPasswordStrength(
-  password: string,
-  t: TFunction,
-): { score: number; label: string; color: string } {
-  let score = 0;
-  if (password.length >= 8) score++;
-  if (/[a-z]/.test(password)) score++;
-  if (/[A-Z]/.test(password)) score++;
-  if (/[0-9]/.test(password)) score++;
-  if (/[^a-zA-Z0-9]/.test(password)) score++;
-
-  if (score <= 1) return { score, label: t("auth.register.strengthWeak"), color: "bg-red-500" };
-  if (score <= 2) return { score, label: t("auth.register.strengthFair"), color: "bg-orange-500" };
-  if (score <= 3) return { score, label: t("auth.register.strengthGood"), color: "bg-yellow-500" };
-  if (score <= 4) return { score, label: t("auth.register.strengthStrong"), color: "bg-green-400" };
-  return { score, label: t("auth.register.strengthVeryStrong"), color: "bg-green-600" };
 }
 
 function RegisterFormInner({ enabledProviders = [] }: RegisterFormProps) {

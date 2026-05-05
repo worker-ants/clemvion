@@ -42,7 +42,10 @@ function StatusBadge({ status }: { status: string }) {
           variant="outline"
           className="text-[10px] px-1.5 py-0 text-blue-600 border-blue-300"
         >
-          <Loader2 className="h-2.5 w-2.5 mr-0.5 animate-spin" />
+          <Loader2
+            className="h-2.5 w-2.5 mr-0.5 animate-spin"
+            aria-hidden="true"
+          />
           Running
         </Badge>
       );
@@ -52,7 +55,7 @@ function StatusBadge({ status }: { status: string }) {
           variant="outline"
           className="text-[10px] px-1.5 py-0 text-green-600 border-green-300"
         >
-          <CheckCircle className="h-2.5 w-2.5 mr-0.5" />
+          <CheckCircle className="h-2.5 w-2.5 mr-0.5" aria-hidden="true" />
           Done
         </Badge>
       );
@@ -62,7 +65,7 @@ function StatusBadge({ status }: { status: string }) {
           variant="outline"
           className="text-[10px] px-1.5 py-0 text-red-600 border-red-300"
         >
-          <XCircle className="h-2.5 w-2.5 mr-0.5" />
+          <XCircle className="h-2.5 w-2.5 mr-0.5" aria-hidden="true" />
           Failed
         </Badge>
       );
@@ -82,7 +85,7 @@ function StatusBadge({ status }: { status: string }) {
           variant="outline"
           className="text-[10px] px-1.5 py-0 text-amber-600 border-amber-300"
         >
-          <PauseCircle className="h-2.5 w-2.5 mr-0.5" />
+          <PauseCircle className="h-2.5 w-2.5 mr-0.5" aria-hidden="true" />
           Waiting
         </Badge>
       );
