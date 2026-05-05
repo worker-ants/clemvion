@@ -27,11 +27,11 @@
 - **PRD/스펙 갱신**: 각 stage에서 관련 `prd/*.md`, `spec/**.md`의 상태 표기를 `🚧` 또는 `❌` → `✅`로 전환.
 - **매뉴얼 동기화**: 사용자 노출 기능이 추가되면 `frontend/src/content/docs/`의 해당 페이지를 업데이트.
 
-## 완료 정의 (Definition of Done)
+## 완료 정의 (Definition of Done — 각 stage 가 충족해야 했던 기준 템플릿)
 
-- [ ] 스펙·PRD가 실제 구현과 일치
-- [ ] 단위·통합 테스트 추가
-- [ ] lint / test / build 전부 통과
-- [ ] 관련 매뉴얼 페이지 갱신
-- [ ] ai-review 결과의 Critical·Warning 해소
-- [ ] RESOLUTION.md 작성(리뷰 수행 시)
+- 스펙·PRD가 실제 구현과 일치
+- 단위·통합 테스트 추가
+- lint / test / build 전부 통과
+- 관련 매뉴얼 페이지 갱신
+- ai-review 결과의 Critical·Warning 해소
+- RESOLUTION.md 작성(리뷰 수행 시)

@@ -80,7 +80,7 @@
 | NF-I18N-02 | 날짜/시간/숫자 형식의 로케일별 표시 | 필수 | ✅ |
 | NF-A11Y-01 | WCAG 2.1 AA 수준 접근성 준수 | 권장 | ✅ (Stage 10, 2026-05-05) — `frontend/e2e/a11y/smoke.spec.ts` 가 axe 위반 0 을 회귀 강제. semantic landmark, skip-to-main, 페이지 h1, 색 대비 (light/dark `--muted-foreground` 4.5:1+) 모두 정합. |
 | NF-A11Y-02 | 키보드 네비게이션 지원 | 필수 | ✅ |
-| NF-A11Y-03 | 스크린 리더 호환 | 권장 | ✅ (Stage 10, 2026-05-05) — 폼 입력 `aria-invalid` + `aria-describedby` 연결, icon-only 버튼 `aria-label`, 장식 아이콘 `aria-hidden`, SlideDrawer Radix `FocusScope` 트랩, 실행 상태 `aria-live="polite"` announce. VoiceOver 수동 검증 체크리스트: `review/2026-05-05_a11y/voiceover-notes.md`. |
+| NF-A11Y-03 | 스크린 리더 호환 | 권장 | 🚧 (Stage 10, 2026-05-05) — 폼 입력 `aria-invalid` + `aria-describedby` 연결, icon-only 버튼 `aria-label`, 장식 아이콘 `aria-hidden`, SlideDrawer Radix `FocusScope` 트랩, 실행 상태 `aria-live="polite"` announce 모두 적용 ✅. macOS VoiceOver 수동 검증 체크리스트(`review/2026-05-05_a11y/voiceover-notes.md`) 는 사용자 수행 대기 — 완료 시 ✅ 로 전환. |
 
 ---
 

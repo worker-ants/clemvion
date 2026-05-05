@@ -252,6 +252,9 @@ function LoginFormInner({ enabledProviders = [] }: LoginFormProps) {
             </label>
             <Link
               href="/forgot-password"
+              // WCAG 1.4.1 (link-in-text-block) — 본문과의 식별을 색에만
+              // 의존하지 않도록 underline 항시 노출. hover-only underline 으로
+              // 되돌리지 말 것.
               className="text-sm text-[hsl(var(--primary))] underline"
             >
               {t("auth.login.forgotPassword")}

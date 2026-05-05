@@ -69,7 +69,7 @@ function ForgotPasswordFormInner() {
     return (
       <Card>
         <CardHeader className="text-center">
-          <CardTitle>{t("auth.forgotPassword.submittedTitle")}</CardTitle>
+          <CardTitle as="h1">{t("auth.forgotPassword.submittedTitle")}</CardTitle>
           <CardDescription>
             {t("auth.forgotPassword.submittedDescription")}
           </CardDescription>
@@ -86,7 +86,7 @@ function ForgotPasswordFormInner() {
   return (
     <Card>
       <CardHeader className="text-center">
-        <CardTitle>{t("auth.forgotPassword.title")}</CardTitle>
+        <CardTitle as="h1">{t("auth.forgotPassword.title")}</CardTitle>
         <CardDescription>
           {t("auth.forgotPassword.subtitle")}
         </CardDescription>

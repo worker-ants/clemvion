@@ -1,5 +1,7 @@
 # VoiceOver 수동 검증 — Stage 10
 
+**상태**: 🚧 검증 미수행 (사용자 수행 대기)
+
 **대상**: macOS 기본 VoiceOver (Cmd+F5 토글). 본 단계는 axe 자동 검사가 잡지 못하는
 스크린 리더 흐름·낭독·landmark 인지를 사람이 점검한다.
 

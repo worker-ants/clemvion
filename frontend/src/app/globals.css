@@ -13,8 +13,9 @@
   --secondary: 210 40% 96.1%;
   --secondary-foreground: 222.2 47.4% 11.2%;
   --muted: 210 40% 96.1%;
-  /* WCAG 2.1 AA — 본문 텍스트 4.5:1 대비비 보장. light 46.9% 는 흰 배경에서
-     ~3.5:1 로 위반 위험. 35% 로 어둡게 (~5.7:1). (Stage 10 a11y) */
+  /* WCAG 2.1 AA — 본문 텍스트 ≥ 4.5:1 대비비 보장. lightness 35% 로
+     darkening (이전 46.9% 는 흰 배경에서 ~3.5:1 로 위반 위험), saturation
+     16.3% → 25% 로 살짝 강조해 가독성·구분력 보강. */
   --muted-foreground: 215.4 25% 35%;
   --accent: 210 40% 96.1%;
   --accent-foreground: 222.2 47.4% 11.2%;
@@ -40,8 +41,8 @@
   --secondary: 217.2 32.6% 17.5%;
   --secondary-foreground: 210 40% 98%;
   --muted: 217.2 32.6% 17.5%;
-  /* dark mode 65.1% 는 near-black 배경에서 4.5:1 경계에 가까움. 75% 로 밝게
-     (~7:1) 해 안전 마진 확보. (Stage 10 a11y) */
+  /* dark mode 본문 ≥ 4.5:1 보장. lightness 65.1% → 75% 로 밝혀 ~7:1
+     안전 마진. saturation 은 그대로 유지. */
   --muted-foreground: 215 20.2% 75%;
   --accent: 217.2 32.6% 17.5%;
   --accent-foreground: 210 40% 98%;
