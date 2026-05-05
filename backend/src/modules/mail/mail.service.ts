@@ -45,7 +45,7 @@ export class MailService {
     try {
       await this.mailerService.sendMail({
         to: email,
-        subject: 'Idea Workflow - 이메일 인증',
+        subject: 'Clemvion - 이메일 인증',
         html: this.buildVerificationHtml(name, verifyUrl),
         text: this.buildVerificationText(name, verifyUrl),
       });
@@ -79,7 +79,7 @@ export class MailService {
     <tr><td align="center">
       <table width="480" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:8px;padding:40px;">
         <tr><td>
-          <h1 style="margin:0 0 24px;font-size:24px;color:#111;">Idea Workflow</h1>
+          <h1 style="margin:0 0 24px;font-size:24px;color:#111;">Clemvion</h1>
           <p style="margin:0 0 16px;font-size:16px;color:#333;">안녕하세요, ${safeName}님!</p>
           <p style="margin:0 0 24px;font-size:14px;color:#555;">아래 버튼을 클릭하여 이메일 인증을 완료해 주세요.</p>
           <table cellpadding="0" cellspacing="0" style="margin:0 0 24px;">
@@ -99,7 +99,7 @@ export class MailService {
   }
 
   private buildVerificationText(name: string, verifyUrl: string): string {
-    return `안녕하세요, ${name}님!\n\nIdea Workflow에 가입해 주셔서 감사합니다.\n아래 링크를 클릭하여 이메일 인증을 완료해 주세요:\n\n${verifyUrl}\n\n이 링크는 24시간 동안 유효합니다.`;
+    return `안녕하세요, ${name}님!\n\nClemvion에 가입해 주셔서 감사합니다.\n아래 링크를 클릭하여 이메일 인증을 완료해 주세요:\n\n${verifyUrl}\n\n이 링크는 24시간 동안 유효합니다.`;
   }
 
   /**
@@ -118,7 +118,7 @@ export class MailService {
     try {
       await this.mailerService.sendMail({
         to: email,
-        subject: `Idea Workflow - "${workspaceName}" 워크스페이스 초대`,
+        subject: `Clemvion - "${workspaceName}" 워크스페이스 초대`,
         html: this.buildInvitationHtml(workspaceName, acceptUrl),
         text: this.buildInvitationText(workspaceName, acceptUrl),
       });
@@ -146,7 +146,7 @@ export class MailService {
     <tr><td align="center">
       <table width="480" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:8px;padding:40px;">
         <tr><td>
-          <h1 style="margin:0 0 24px;font-size:24px;color:#111;">Idea Workflow</h1>
+          <h1 style="margin:0 0 24px;font-size:24px;color:#111;">Clemvion</h1>
           <p style="margin:0 0 16px;font-size:16px;color:#333;"><strong>${safeWorkspace}</strong> 워크스페이스에 초대되었습니다.</p>
           <p style="margin:0 0 24px;font-size:14px;color:#555;">아래 버튼을 클릭하여 초대를 수락해 주세요. 가입되어 있지 않다면 가입 후 자동으로 멤버가 됩니다.</p>
           <table cellpadding="0" cellspacing="0" style="margin:0 0 24px;">
@@ -192,7 +192,7 @@ export class MailService {
     try {
       await this.mailerService.sendMail({
         to: email,
-        subject: 'Idea Workflow - 비밀번호 재설정',
+        subject: 'Clemvion - 비밀번호 재설정',
         html: this.buildPasswordResetHtml(name, resetUrl),
         text: this.buildPasswordResetText(name, resetUrl),
       });
@@ -217,7 +217,7 @@ export class MailService {
     <tr><td align="center">
       <table width="480" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:8px;padding:40px;">
         <tr><td>
-          <h1 style="margin:0 0 24px;font-size:24px;color:#111;">Idea Workflow</h1>
+          <h1 style="margin:0 0 24px;font-size:24px;color:#111;">Clemvion</h1>
           <p style="margin:0 0 16px;font-size:16px;color:#333;">안녕하세요, ${safeName}님!</p>
           <p style="margin:0 0 24px;font-size:14px;color:#555;">비밀번호 재설정을 요청하셨습니다. 아래 버튼을 클릭하여 새 비밀번호를 설정해 주세요.</p>
           <table cellpadding="0" cellspacing="0" style="margin:0 0 24px;">

@@ -11,7 +11,7 @@ import { createHash, randomBytes } from 'crypto';
 import { UsersService } from '../users/users.service';
 import { User } from '../users/entities/user.entity';
 
-const ISSUER = 'Idea Workflow';
+const ISSUER = 'Clemvion';
 const RECOVERY_CODE_COUNT = 10;
 
 function generateRecoveryCode(): string {

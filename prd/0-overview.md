@@ -1,14 +1,16 @@
-# PRD: 제품 개요
+# PRD: Clemvion 제품 개요
 
-> 관련 문서: [내비게이션](./1-navigation.md) · [워크플로우 에디터](./2-workflow-editor.md) · [노드 시스템](./3-node-system.md) · [통합/연동](./4-integration.md) · [비기능 요구사항](./5-non-functional.md) · [Spec 개요](../spec/0-overview.md) · [Spec Integration 노드](../spec/4-nodes/4-integration-nodes.md) · [Spec Data 노드](../spec/4-nodes/5-data-nodes.md) · [Spec Presentation 노드](../spec/4-nodes/6-presentation-nodes.md)
+> 관련 문서: [브랜드 가이드](./brand.md) · [내비게이션](./1-navigation.md) · [워크플로우 에디터](./2-workflow-editor.md) · [노드 시스템](./3-node-system.md) · [통합/연동](./4-integration.md) · [비기능 요구사항](./5-non-functional.md) · [Spec 개요](../spec/0-overview.md) · [Spec Integration 노드](../spec/4-nodes/4-integration-nodes.md) · [Spec Data 노드](../spec/4-nodes/5-data-nodes.md) · [Spec Presentation 노드](../spec/4-nodes/6-presentation-nodes.md)
 
 ---
 
 ## 1. 제품 비전
 
-**"누구나 자신만의 자동화 워크플로우를 만들고, AI와 함께 업무를 혁신한다."**
+**"흐름은 설계하는 것이 아니라, 자라나야 한다."**
 
-코딩 없이 시각적 캔버스에서 노드를 연결하여 복잡한 비즈니스 자동화를 구현하는 No-code Workflow Builder. 개발자에게는 고급 설정과 코드 편집 옵션을, 비개발자에게는 직관적인 드래그 앤 드롭 인터페이스를 제공한다.
+Clemvion은 AI 에이전트와 노코드 워크플로우 빌더를 통합한 실행 플랫폼이다. 시각적 캔버스에서 노드를 연결해 복잡한 비즈니스 자동화를 구현하되, 워크플로우 안에 AI 에이전트 노드를 삽입함으로써 각 단계가 단순 실행이 아닌 **판단과 적응**을 수행하게 한다. 개발자에게는 고급 설정과 코드 편집 옵션을, 비개발자에게는 직관적인 드래그 앤 드롭 인터페이스와 AI 어시스턴트와의 대화형 편집을 제공한다.
+
+브랜드 스토리·정체성은 [`brand.md`](./brand.md)를 참조한다.
 
 ---
 

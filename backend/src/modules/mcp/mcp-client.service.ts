@@ -9,7 +9,7 @@ import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/
  * downstream operators can correlate logs across deploys; bump the version
  * when the wire-level behavior of this client changes.
  */
-const MCP_CLIENT_NAME = 'idea-workflow-backend';
+const MCP_CLIENT_NAME = 'clemvion-backend';
 const MCP_CLIENT_VERSION = '1.0.0';
 
 /**

@@ -29,7 +29,7 @@ This project uses [`next/font`](https://nextjs.org/docs/app/building-your-applic
 
 The active locale is driven by the authenticated user's profile (`GET /users/me`
 → `user.locale`). Unauthenticated sessions fall back to whatever was stored in
-`localStorage` under `idea-workflow.locale`, and finally to the default (`ko`).
+`localStorage` under `clemvion.locale`, and finally to the default (`ko`).
 Changing the language on `/profile` persists to the API; on save success the
 client flips the store and the UI re-renders immediately.
 

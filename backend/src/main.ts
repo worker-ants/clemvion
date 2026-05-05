@@ -52,10 +52,10 @@ async function bootstrap() {
 
   // Swagger
   const swaggerConfig = new DocumentBuilder()
-    .setTitle('Idea Workflow API')
+    .setTitle('Clemvion API')
     .setDescription(
       [
-        '워크플로우 자동화 플랫폼 Idea Workflow의 REST API 문서입니다.',
+        '워크플로우 자동화 플랫폼 Clemvion의 REST API 문서입니다.',
         '',
         '### 인증',
         '- 대부분의 엔드포인트는 JWT Bearer 토큰 인증이 필요합니다.',

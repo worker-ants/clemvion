@@ -64,7 +64,7 @@ describe('MailService', () => {
       expect(mailerService.sendMail).toHaveBeenCalledWith(
         expect.objectContaining({
           to: 'test@example.com',
-          subject: 'Idea Workflow - 이메일 인증',
+          subject: 'Clemvion - 이메일 인증',
         }),
       );
 
@@ -136,7 +136,7 @@ describe('MailService', () => {
       expect(mailerService.sendMail).toHaveBeenCalledWith(
         expect.objectContaining({
           to: 'test@example.com',
-          subject: 'Idea Workflow - 비밀번호 재설정',
+          subject: 'Clemvion - 비밀번호 재설정',
         }),
       );
 

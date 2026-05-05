@@ -98,7 +98,7 @@ export const ko = {
     logout: "로그아웃",
     collapse: "접기",
     user: "사용자",
-    workflow: "Workflow",
+    productName: "Clemvion",
     aria: {
       mainNav: "주 메뉴",
       skipToMain: "본문으로 건너뛰기",

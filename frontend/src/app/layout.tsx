@@ -14,8 +14,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Workflow Builder",
-  description: "No-code workflow automation platform",
+  title: "Clemvion",
+  description: "AI가 엮고, 실행하고, 성장시키는 워크플로우 시스템",
 };
 
 export default function RootLayout({

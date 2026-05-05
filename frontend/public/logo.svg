@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 260 56" role="img" aria-label="Clemvion">
+  <title>Clemvion</title>
+  <g transform="translate(6 8)">
+    <path d="M36 6 C 22 2, 8 12, 8 22 C 8 32, 22 42, 36 38"
+          fill="none" stroke="#1F8A4C" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M16 14 Q 8 11 6 16 Q 12 19 16 14 Z" fill="#1F8A4C"/>
+    <path d="M30 32 Q 38 30 40 36 Q 34 39 30 32 Z" fill="#A8D86F"/>
+  </g>
+  <text x="64" y="40"
+        font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif"
+        font-size="32" font-weight="600" letter-spacing="-0.6" fill="#111111">Clemvion</text>
+</svg>

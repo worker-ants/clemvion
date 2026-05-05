@@ -102,7 +102,7 @@ export const en: Dict = {
     logout: "Logout",
     collapse: "Collapse",
     user: "User",
-    workflow: "Workflow",
+    productName: "Clemvion",
     aria: {
       mainNav: "Main navigation",
       skipToMain: "Skip to main content",
