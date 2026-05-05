@@ -81,3 +81,27 @@ test.describe("a11y smoke — register page", () => {
     expect(h1Count).toBe(1);
   });
 });
+
+test.describe("a11y smoke — forgot-password / reset-password", () => {
+  test("forgot-password axe scan: critical 위반 0", async ({ page }) => {
+    await page.goto("/forgot-password");
+    const results = await new AxeBuilder({ page })
+      .withTags([...WCAG_TAGS])
+      .analyze();
+    const criticals = results.violations.filter((v) => v.impact === "critical");
+    expect(criticals).toEqual([]);
+  });
+
+  test("forgot-password 키보드 진입 — Tab 시 첫 focusable 이 skip-to-main 또는 입력", async ({
+    page,
+  }) => {
+    await page.goto("/forgot-password");
+    // skip-to-main 은 (auth) layout 에 없으므로 forgot-password 의 첫 Tab 이
+    // 폼 내부 첫 input(email) 으로 직접 도달.
+    await page.keyboard.press("Tab");
+    const focused = await page.evaluate(
+      () => document.activeElement?.tagName ?? null,
+    );
+    expect(["A", "INPUT", "BUTTON"]).toContain(focused);
+  });
+});
