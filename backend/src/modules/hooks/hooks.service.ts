@@ -124,7 +124,8 @@ export class HooksService {
     if (authType === 'bearer') {
       const authHeader = headers['authorization'] ?? '';
       const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : '';
-      if (!token || token !== config.bearerToken) {
+      const expected = config.bearerToken ?? '';
+      if (!token || !expected || !this.constantTimeEquals(token, expected)) {
         throw new UnauthorizedException({
           code: 'AUTH_FAILED',
           message: 'Invalid bearer token',
@@ -153,9 +154,7 @@ export class HooksService {
         .update(rawBody)
         .digest('hex')}`;
 
-      if (
-        !crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(expected))
-      ) {
+      if (!this.constantTimeEquals(signature, expected)) {
         throw new UnauthorizedException({
           code: 'AUTH_FAILED',
           message: 'Invalid HMAC signature',
@@ -163,5 +162,18 @@ export class HooksService {
       }
       return;
     }
+  }
+
+  /**
+   * 길이가 다르면 즉시 false 를 반환한 뒤 길이가 같을 때만 timingSafeEqual 을
+   * 호출한다. timingSafeEqual 은 길이가 다르면 동기적으로 RangeError 를 던지므로
+   * 사전 길이 비교가 없으면 외부 입력으로 unhandled exception → 요청 단위 DoS 가
+   * 가능하다. 한 쌍의 길이만 노출되며 내용 비교는 일정 시간으로 수행된다.
+   */
+  private constantTimeEquals(a: string, b: string): boolean {
+    const aBuf = Buffer.from(a);
+    const bBuf = Buffer.from(b);
+    if (aBuf.length !== bBuf.length) return false;
+    return crypto.timingSafeEqual(aBuf, bBuf);
   }
 }

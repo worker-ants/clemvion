@@ -198,7 +198,7 @@ describe('ScheduleRunnerService', () => {
       data: { scheduleId: 's1', workspaceId: 'ws' },
     } as Job<{ scheduleId: string; workspaceId: string }>;
 
-    it('passes { triggerId: schedule.triggerId } to executionEngineService.execute', async () => {
+    it('passes { triggerId: schedule.triggerId } to executionEngineService.execute and updates lastRunAt/nextRunAt', async () => {
       scheduleRepo.findOne.mockResolvedValue(baseSchedule);
       scheduleRepo.save.mockImplementation((s) =>
         Promise.resolve(s as Schedule),
@@ -219,9 +219,35 @@ describe('ScheduleRunnerService', () => {
         expect.objectContaining({ parameters: expect.any(Object) }),
         { triggerId: 'trigger-uuid' },
       );
+      // 성공 시 lastRunAt/nextRunAt 이 갱신된 상태로 schedule row 가 저장돼야
+      // 다음 cron 발화 시각이 정확히 계산된다.
+      expect(scheduleRepo.save).toHaveBeenCalledWith(
+        expect.objectContaining({
+          id: 's1',
+          lastRunAt: expect.any(Date),
+          nextRunAt: expect.any(Date),
+        }),
+      );
     });
 
-    it('skips when schedule is inactive', async () => {
+    it('re-throws engine errors so BullMQ can retry the job', async () => {
+      scheduleRepo.findOne.mockResolvedValue(baseSchedule);
+      nodeRepo.findOne.mockResolvedValue({
+        id: 'n',
+        workflowId: 'wf1',
+        type: 'manual_trigger',
+        category: NodeCategory.TRIGGER,
+        config: {},
+      } as unknown as Node);
+      engine.execute.mockRejectedValue(new Error('engine boom'));
+
+      await expect(service.process(job)).rejects.toThrow('engine boom');
+      // 실패 시 schedule 의 lastRunAt 갱신은 일어나지 않아야 한다 (메타데이터
+      // 정합성: 실패 발화는 "정상적으로 마지막 실행됨"으로 기록하지 않음).
+      expect(scheduleRepo.save).not.toHaveBeenCalled();
+    });
+
+    it('skips when schedule is inactive (no engine call, no save)', async () => {
       scheduleRepo.findOne.mockResolvedValue({
         ...baseSchedule,
         isActive: false,
@@ -230,9 +256,10 @@ describe('ScheduleRunnerService', () => {
       await service.process(job);
 
       expect(engine.execute).not.toHaveBeenCalled();
+      expect(scheduleRepo.save).not.toHaveBeenCalled();
     });
 
-    it('skips when schedule has no associated workflow', async () => {
+    it('skips when schedule has no associated workflow (no engine call, no save)', async () => {
       scheduleRepo.findOne.mockResolvedValue({
         ...baseSchedule,
         trigger: undefined as never,
@@ -241,6 +268,7 @@ describe('ScheduleRunnerService', () => {
       await service.process(job);
 
       expect(engine.execute).not.toHaveBeenCalled();
+      expect(scheduleRepo.save).not.toHaveBeenCalled();
     });
   });
 });
