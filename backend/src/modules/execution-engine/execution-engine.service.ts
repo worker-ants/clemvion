@@ -254,6 +254,19 @@ export function buildConversationConfigFromOutput(
   return result;
 }
 
+/**
+ * `ExecutionEngineService.execute()` 호출 시점의 트리거 메타데이터.
+ *
+ * 판별 유니온으로 `executedBy` (수동 실행) 와 `triggerId` (schedule/webhook
+ * 발화) 가 동시에 truthy 로 전달되는 것을 컴파일 타임에 차단한다. 두 컬럼이
+ * 동시에 채워지면 deriveExecutionTrigger 분기가 manual 로 흐르며 트리거 출처
+ * 정보가 손실되기 때문.
+ */
+export type ExecuteOptions =
+  | { executedBy: string; triggerId?: never }
+  | { executedBy?: never; triggerId: string }
+  | { executedBy?: never; triggerId?: never };
+
 @Injectable()
 export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
   private readonly logger = new Logger(ExecutionEngineService.name);
@@ -365,11 +378,12 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
    * `options.executedBy` 는 수동 실행(사용자가 ▶ 누름)일 때, `options.triggerId`
    * 는 schedule/webhook 트리거 발화일 때 채운다. 두 값은 Execution 행에 저장되어
    * "최근 실행" 화면이 출처를 분류하는 데 쓰인다 (deriveExecutionTrigger).
+   * 판별 유니온이라 둘이 동시에 truthy 로 전달될 수 없다.
    */
   async execute(
     workflowId: string,
     input?: unknown,
-    options?: { executedBy?: string; triggerId?: string },
+    options?: ExecuteOptions,
   ): Promise<string> {
     // 1. Validate workflow exists
     const workflow = await this.workflowRepository.findOneBy({
@@ -384,8 +398,8 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
       workflowId,
       status: ExecutionStatus.PENDING,
       inputData: (input as Record<string, unknown>) ?? {},
-      executedBy: options?.executedBy ?? undefined,
-      triggerId: options?.triggerId ?? undefined,
+      executedBy: options?.executedBy,
+      triggerId: options?.triggerId,
       executionPath: [],
     });
     const savedExecution = await this.executionRepository.save(execution);
