@@ -1,0 +1,113 @@
+{
+  "timestamp": "2026-05-05T23:28:40.805610",
+  "files": [
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/frontend/src/app/(main)/schedules/__tests__/schedules-page.test.tsx",
+      "change_type": "Review",
+      "file_extension": "tsx"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/frontend/src/app/(main)/schedules/page.tsx",
+      "change_type": "Review",
+      "file_extension": "tsx"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/frontend/src/lib/i18n/dict/en.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/frontend/src/lib/i18n/dict/ko.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/frontend/src/lib/utils/__tests__/cron-to-visual.test.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/frontend/src/lib/utils/cron-to-visual.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/plan/in-progress/schedule-cron-visual-bidirectional.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/spec/2-navigation/3-schedule.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    }
+  ],
+  "total_elapsed_seconds": 333.51,
+  "agents": [
+    {
+      "name": "database",
+      "status": "success",
+      "elapsed_seconds": 15.1
+    },
+    {
+      "name": "performance",
+      "status": "success",
+      "elapsed_seconds": 29.28
+    },
+    {
+      "name": "api_contract",
+      "status": "success",
+      "elapsed_seconds": 31.93
+    },
+    {
+      "name": "architecture",
+      "status": "success",
+      "elapsed_seconds": 38.92
+    },
+    {
+      "name": "concurrency",
+      "status": "success",
+      "elapsed_seconds": 44.58
+    },
+    {
+      "name": "dependency",
+      "status": "success",
+      "elapsed_seconds": 51.04
+    },
+    {
+      "name": "documentation",
+      "status": "success",
+      "elapsed_seconds": 54.26
+    },
+    {
+      "name": "security",
+      "status": "success",
+      "elapsed_seconds": 58.39
+    },
+    {
+      "name": "maintainability",
+      "status": "success",
+      "elapsed_seconds": 60.92
+    },
+    {
+      "name": "scope",
+      "status": "success",
+      "elapsed_seconds": 74.61
+    },
+    {
+      "name": "testing",
+      "status": "success",
+      "elapsed_seconds": 83.4
+    },
+    {
+      "name": "side_effect",
+      "status": "success",
+      "elapsed_seconds": 89.97
+    },
+    {
+      "name": "requirement",
+      "status": "success",
+      "elapsed_seconds": 140.4
+    }
+  ]
+}

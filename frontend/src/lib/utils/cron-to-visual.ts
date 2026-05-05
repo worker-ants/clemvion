@@ -1,14 +1,14 @@
 /**
  * 스케줄 다이얼로그의 "Cron 표현식" ↔ "시각 편집기" 양방향 변환 유틸.
  *
- * 시각 편집기는 6개 단순 패턴만 produce 한다:
+ * 시각 편집기는 5개 단순 패턴만 produce 한다:
  *   - "* * * * *"           every-minute
  *   - "M * * * *"           hourly (M ∈ 0..59)
  *   - "M H * * *"           daily  (M ∈ 0..59, H ∈ 0..23)
  *   - "M H * * D[,D...]"    weekly (D ∈ 0..6, 0=Sun)
  *   - "M H D * *"           monthly (D ∈ 1..31)
  *
- * `parseCronToVisualOrNull` 는 위 6개 패턴에 정확히 일치하는 cron 만 분해
+ * `parseCronToVisualOrNull` 는 위 5개 패턴에 정확히 일치하는 cron 만 분해
  * 하고, 그 외(step `*\/N`, range `9-17`, list-with-range, month 지정 등)
  * 는 `null` 을 반환해 호출측이 안내 메시지를 표시할 수 있도록 한다.
  */
@@ -32,6 +32,9 @@ export interface VisualState {
   dayOfMonth: number;
 }
 
+// 새 스케줄 기본값: 평일(월~금) 오전 9시 — 가장 흔한 업무용 cron.
+// 공유 참조 변이로 인한 전역 오염을 차단하기 위해 deep freeze. 파서는 반환
+// 시 `cloneDefault` 로 새 배열을 emit 해 호출자가 자유롭게 mutate 할 수 있다.
 export const DEFAULT_VISUAL_STATE: VisualState = {
   frequency: "daily",
   minute: 0,
@@ -39,14 +42,19 @@ export const DEFAULT_VISUAL_STATE: VisualState = {
   selectedDays: [1, 2, 3, 4, 5],
   dayOfMonth: 1,
 };
+Object.freeze(DEFAULT_VISUAL_STATE);
+Object.freeze(DEFAULT_VISUAL_STATE.selectedDays);
+
+const cloneDefault = (): VisualState => ({
+  ...DEFAULT_VISUAL_STATE,
+  selectedDays: [...DEFAULT_VISUAL_STATE.selectedDays],
+});
 
 const isIntInRange = (token: string, min: number, max: number): boolean => {
   if (!/^\d+$/.test(token)) return false;
-  const n = Number(token);
+  const n = parseInt(token, 10);
   return Number.isFinite(n) && n >= min && n <= max;
 };
-
-const toInt = (token: string): number => Number(token);
 
 export function parseCronToVisualOrNull(
   expression: string,
@@ -61,7 +69,7 @@ export function parseCronToVisualOrNull(
 
   // every-minute
   if (m === "*" && h === "*" && dom === "*" && mon === "*" && dow === "*") {
-    return { ...DEFAULT_VISUAL_STATE, frequency: "every-minute" };
+    return { ...cloneDefault(), frequency: "every-minute" };
   }
 
   // hourly: M * * * *
@@ -72,7 +80,7 @@ export function parseCronToVisualOrNull(
     mon === "*" &&
     dow === "*"
   ) {
-    return { ...DEFAULT_VISUAL_STATE, frequency: "hourly", minute: toInt(m) };
+    return { ...cloneDefault(), frequency: "hourly", minute: parseInt(m, 10) };
   }
 
   // daily: M H * * *
@@ -84,10 +92,10 @@ export function parseCronToVisualOrNull(
     dow === "*"
   ) {
     return {
-      ...DEFAULT_VISUAL_STATE,
+      ...cloneDefault(),
       frequency: "daily",
-      minute: toInt(m),
-      hour: toInt(h),
+      minute: parseInt(m, 10),
+      hour: parseInt(h, 10),
     };
   }
 
@@ -103,14 +111,14 @@ export function parseCronToVisualOrNull(
     const numbers: number[] = [];
     for (const tk of tokens) {
       if (!isIntInRange(tk, 0, 6)) return null;
-      numbers.push(toInt(tk));
+      numbers.push(parseInt(tk, 10));
     }
     const unique = Array.from(new Set(numbers)).sort((a, b) => a - b);
     return {
-      ...DEFAULT_VISUAL_STATE,
+      ...cloneDefault(),
       frequency: "weekly",
-      minute: toInt(m),
-      hour: toInt(h),
+      minute: parseInt(m, 10),
+      hour: parseInt(h, 10),
       selectedDays: unique,
     };
   }
@@ -124,17 +132,22 @@ export function parseCronToVisualOrNull(
     dow === "*"
   ) {
     return {
-      ...DEFAULT_VISUAL_STATE,
+      ...cloneDefault(),
       frequency: "monthly",
-      minute: toInt(m),
-      hour: toInt(h),
-      dayOfMonth: toInt(dom),
+      minute: parseInt(m, 10),
+      hour: parseInt(h, 10),
+      dayOfMonth: parseInt(dom, 10),
     };
   }
 
   return null;
 }
 
+/**
+ * `parseCronToVisualOrNull` 의 역함수. VisualState 를 위 5개 표준 패턴 cron
+ * 으로 직렬화한다. weekly + 빈 selectedDays 는 fallback 으로 `*` 를 emit
+ * 하므로 round-trip 시 daily 로 분류된다(의도된 fallback).
+ */
 export function buildCronFromVisual(state: VisualState): string {
   const { frequency, minute, hour, selectedDays, dayOfMonth } = state;
   switch (frequency) {
