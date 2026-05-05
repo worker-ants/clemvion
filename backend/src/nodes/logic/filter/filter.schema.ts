@@ -53,7 +53,7 @@ export const filterNodeConfigSchema = z
           label: 'Conditions',
           widget: 'condition-builder',
           itemLabel: 'Condition',
-          hint: 'Use {{ $item.* }} to reference the current array item',
+          hint: '도트 경로(예: "name", "address.city") 또는 표현식("{{ $item.name }}"). 비워두거나 "$item" 으로 두면 item 자체와 비교합니다.',
         },
       }),
     combineMode: z
@@ -119,8 +119,12 @@ export function validateFilterConfig(config: unknown): string[] {
   if (Array.isArray(conditions)) {
     for (let i = 0; i < conditions.length; i++) {
       const cond = (conditions[i] ?? {}) as Record<string, unknown>;
-      if (!cond.field || typeof cond.field !== 'string') {
-        errors.push(`conditions[${i}].field is required and must be a string`);
+      // `field` is optional: missing/empty/"$item" all map to the item-self
+      // sentinel handled in evaluateCondition. Reject only when an explicit
+      // non-string value was authored (e.g. number/object) — that almost
+      // certainly indicates a UX mistake.
+      if (cond.field !== undefined && typeof cond.field !== 'string') {
+        errors.push(`conditions[${i}].field must be a string`);
       }
       if (!cond.operator || !VALID_OPS.has(cond.operator as string)) {
         errors.push(
