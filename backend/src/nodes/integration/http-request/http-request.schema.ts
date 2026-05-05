@@ -4,10 +4,17 @@ import {
   NodePorts,
 } from '../../core/node-component.interface';
 
-const keyValueSchema = z.object({
-  key: z.string().meta({ ui: { label: 'Key', widget: 'text' } }),
-  value: z.string().meta({ ui: { label: 'Value', widget: 'expression' } }),
-});
+/**
+ * `headers` / `queryParams` / `cookies` 의 공용 entry. 향후 메타 필드 (e.g.
+ * `description`, `enabled`) 가 추가되더라도 strip 되지 않도록 다른 노드 (form,
+ * carousel) 와 동일하게 `.passthrough()` 적용.
+ */
+export const keyValueSchema = z
+  .object({
+    key: z.string().meta({ ui: { label: 'Key', widget: 'text' } }),
+    value: z.string().meta({ ui: { label: 'Value', widget: 'expression' } }),
+  })
+  .passthrough();
 
 /**
  * HTTP Request output is opaque (user targets arbitrary APIs). The handler
