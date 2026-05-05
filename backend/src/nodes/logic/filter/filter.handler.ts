@@ -90,8 +90,9 @@ export class FilterHandler implements NodeHandler {
     const match: unknown[] = [];
     const unmatched: unknown[] = [];
 
-    for (let index = 0; index < array.length; index++) {
-      const item = array[index];
+    const items = array as unknown[];
+    for (let index = 0; index < items.length; index++) {
+      const item: unknown = items[index];
 
       // Per-item expression context (spec/4-nodes/1-logic-nodes.md §8 line
       // 405): bind `$item` / `$itemIndex` so condition expressions resolve

@@ -806,9 +806,7 @@ describe('FilterHandler', () => {
         {},
         {
           inputField: data,
-          conditions: [
-            { field: '{{ $item.age }}', operator: 'gt', value: 15 },
-          ],
+          conditions: [{ field: '{{ $item.age }}', operator: 'gt', value: 15 }],
           combineMode: 'and',
         },
       );
