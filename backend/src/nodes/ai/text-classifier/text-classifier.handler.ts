@@ -10,9 +10,24 @@ import { truncateForErrorDetails } from '../../core/error-codes';
 import { textClassifierNodeMetadata } from './text-classifier.schema';
 
 interface Category {
+  id?: string;
   name: string;
   description: string;
   examples?: string[];
+}
+
+/**
+ * Maps each category to the output port id used by the engine. Mirrors the
+ * resolver fallback in `classifierCategoriesPorts` (resolve-dynamic-ports.ts)
+ * so router decisions stay in sync with what the workflow-assistant emits.
+ * `class_${i}` fallback survives legacy workflows whose categories had no id.
+ */
+function buildCategoryPortIds(categories: Category[]): string[] {
+  return categories.map((c, i) =>
+    typeof c.id === 'string' && c.id.trim().length > 0
+      ? c.id.trim()
+      : `class_${i}`,
+  );
 }
 
 export class TextClassifierHandler implements NodeHandler {
@@ -311,7 +326,8 @@ Respond ONLY with the JSON object, no additional text.`;
     const portIndex = isFallback
       ? -1
       : categories.findIndex((c) => c.name === category);
-    const port = portIndex >= 0 ? `class_${portIndex}` : 'fallback';
+    const portIds = buildCategoryPortIds(categories);
+    const port = portIndex >= 0 ? portIds[portIndex] : 'fallback';
 
     return {
       config: { categories, inputField, multiLabel: false },
@@ -386,10 +402,11 @@ Respond ONLY with the JSON object, no additional text.`;
       }
     }
 
+    const portIds = buildCategoryPortIds(categories);
     const matchedPorts = matchedCategories
       .map((mc) => categories.findIndex((c) => c.name === mc.name))
       .filter((i) => i >= 0)
-      .map((i) => `class_${i}`);
+      .map((i) => portIds[i]);
 
     const port: string | string[] =
       matchedPorts.length > 0 ? matchedPorts : 'fallback';

@@ -40,7 +40,7 @@ export interface ResolvedPort {
 }
 
 type CaseEntry = { id?: string; label?: string };
-type CategoryEntry = { name?: string };
+type CategoryEntry = { id?: string; name?: string };
 type ConditionEntry = { id?: string; label?: string };
 type ButtonEntry = { id?: string; label?: string; type?: string };
 type CarouselItem = { title?: string; buttons?: ButtonEntry[] };
@@ -84,7 +84,11 @@ function classifierCategoriesPorts(
 ): ResolvedPort[] {
   const categories = (config.categories as CategoryEntry[] | undefined) ?? [];
   const catPorts = categories.map<ResolvedPort>((c, i) => ({
-    id: `class_${i}`,
+    // spec §8 stable port id — switchPorts 와 동일 trim 기반 fallback.
+    id:
+      typeof c.id === 'string' && c.id.trim().length > 0
+        ? c.id
+        : `class_${i}`,
     label: c.name || `Category ${i + 1}`,
     type: 'data',
     isUserConfigured: true,
