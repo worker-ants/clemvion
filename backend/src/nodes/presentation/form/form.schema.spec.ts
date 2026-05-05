@@ -27,9 +27,10 @@ describe('formNodeMetadata.warningRules', () => {
 });
 
 describe('optionSchema (select/radio/checkbox 옵션)', () => {
-  it('value 가 누락되면 빈 문자열로 default', () => {
+  it('value 가 누락되면 빈 문자열로 default (undefined → "")', () => {
     const parsed = optionSchema.parse({ label: 'Yes' });
     expect(parsed.value).toBe('');
+    expect(parsed.value).not.toBeUndefined();
   });
 
   it('label 이 누락되면 빈 문자열로 default', () => {
@@ -50,6 +51,8 @@ describe('optionSchema (select/radio/checkbox 옵션)', () => {
       label: 'A',
       value: 'a',
       description: 'extra',
+      // Zod passthrough 는 런타임에 추가 필드를 보존하지만 추론 타입에는
+      // 미반영되므로 cast 가 불가피.
     } as Record<string, unknown>);
     expect((parsed as Record<string, unknown>).description).toBe('extra');
   });

@@ -5,14 +5,26 @@ import {
 } from '../../core/node-component.interface';
 
 /**
- * `headers` / `queryParams` / `cookies` 의 공용 entry. 향후 메타 필드 (e.g.
- * `description`, `enabled`) 가 추가되더라도 strip 되지 않도록 다른 노드 (form,
- * carousel) 와 동일하게 `.passthrough()` 적용.
+ * `headers` / `queryParams` 의 공용 entry. 향후 메타 필드 (e.g. `description`,
+ * `enabled`) 가 추가되더라도 strip 되지 않도록 다른 노드 (form, carousel) 와
+ * 동일하게 `.passthrough()` 적용. handler 의 `toKeyValueRecord` 가 `{key,value}`
+ * 만 추출해 HTTP 요청에 전달하므로 추가 메타가 외부로 누출되지 않는다 (review W-3).
+ *
+ * `\r` / `\n` 가 포함된 입력은 schema 단계에서 거부 — header/query 인젝션 방어
+ * 의 1차 라인. 핸들러도 `stripCrlf` 로 다시 한 번 방어 (review W-1
+ * defense-in-depth).
  */
+const NO_CRLF_RE = /^[^\r\n]*$/;
 export const keyValueSchema = z
   .object({
-    key: z.string().meta({ ui: { label: 'Key', widget: 'text' } }),
-    value: z.string().meta({ ui: { label: 'Value', widget: 'expression' } }),
+    key: z
+      .string()
+      .regex(NO_CRLF_RE, 'CRLF characters are not allowed in key')
+      .meta({ ui: { label: 'Key', widget: 'text' } }),
+    value: z
+      .string()
+      .regex(NO_CRLF_RE, 'CRLF characters are not allowed in value')
+      .meta({ ui: { label: 'Value', widget: 'expression' } }),
   })
   .passthrough();
 

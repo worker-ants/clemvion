@@ -6,7 +6,7 @@ import {
 } from './http-request.schema';
 import { evaluateMetadataBlockingErrors } from '../../core/metadata-validation';
 
-describe('keyValueSchema (headers / queryParams / cookies 공용)', () => {
+describe('keyValueSchema (headers / queryParams 공용)', () => {
   it('필수 key/value 정상 파싱', () => {
     const parsed = keyValueSchema.parse({
       key: 'Authorization',
@@ -22,10 +22,29 @@ describe('keyValueSchema (headers / queryParams / cookies 공용)', () => {
       value: 'foo',
       description: 'optional metadata',
       enabled: true,
+      // Zod passthrough 는 런타임에 추가 필드를 보존하지만 추론 타입에는
+      // 미반영되므로 cast 가 불가피.
     } as Record<string, unknown>);
     const extra = parsed as Record<string, unknown>;
     expect(extra.description).toBe('optional metadata');
     expect(extra.enabled).toBe(true);
+  });
+
+  it('key/value 누락 시 거부', () => {
+    expect(keyValueSchema.safeParse({ key: 'X' }).success).toBe(false);
+    expect(keyValueSchema.safeParse({ value: 'v' }).success).toBe(false);
+  });
+
+  it('CRLF 가 포함된 key/value 는 거부 (header injection 방어, review W-1)', () => {
+    expect(
+      keyValueSchema.safeParse({ key: 'X\r\nInjected', value: 'foo' }).success,
+    ).toBe(false);
+    expect(
+      keyValueSchema.safeParse({ key: 'X', value: 'foo\nLF' }).success,
+    ).toBe(false);
+    expect(
+      keyValueSchema.safeParse({ key: 'X\rCR', value: 'foo' }).success,
+    ).toBe(false);
   });
 });
 
