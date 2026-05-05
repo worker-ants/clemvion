@@ -6,17 +6,17 @@
 
 | # | Stage | 의존성 | 예상 범위 |
 |---|-------|-------|-----------|
-| 1 | [LLM 토큰 사용량 추적](../complete/stages/01-llm-token-usage.md) ✅ | 없음 | backend 작음·frontend 작음 |
-| 2 | [Parallel 노드](../complete/stages/02-parallel-node.md) ✅ | 없음 | backend 작음 |
-| 3 | [Background 노드](../complete/stages/03-background-node.md) ✅ | 2(선택) | backend 중간 |
-| 4 | [팀 워크스페이스 UI](../complete/stages/04-team-workspace-ui.md) ✅ | 없음 (backend 모듈 존재) | backend 중간·frontend 큼 |
-| 5 | [RBAC 가드](../complete/stages/05-rbac-enforcement.md) ✅ | 4 | backend 큼·frontend 중간 |
-| 6 | [2FA](../complete/stages/06-2fa.md) ✅ | 없음 | backend 중간·frontend 중간 |
-| 7 | [조직 레벨 Integration 공유](../complete/stages/07-org-integration-sharing.md) ✅ | 4, 5 | backend 작음·frontend 작음 |
-| 8 | [OpenTelemetry 트레이싱](../complete/stages/08-otel-tracing.md) ✅ | 없음 | backend 중간·인프라 |
-| 9 | [알림 임계값](../complete/stages/09-alerting-thresholds.md) ✅ | 없음 | backend 중간·frontend 작음 (평가기 5분 cron 포함) |
+| 1 | [LLM 토큰 사용량 추적](../complete/feature-roadmap/01-llm-token-usage.md) ✅ | 없음 | backend 작음·frontend 작음 |
+| 2 | [Parallel 노드](../complete/feature-roadmap/02-parallel-node.md) ✅ | 없음 | backend 작음 |
+| 3 | [Background 노드](../complete/feature-roadmap/03-background-node.md) ✅ | 2(선택) | backend 중간 |
+| 4 | [팀 워크스페이스 UI](../complete/feature-roadmap/04-team-workspace-ui.md) ✅ | 없음 (backend 모듈 존재) | backend 중간·frontend 큼 |
+| 5 | [RBAC 가드](../complete/feature-roadmap/05-rbac-enforcement.md) ✅ | 4 | backend 큼·frontend 중간 |
+| 6 | [2FA](../complete/feature-roadmap/06-2fa.md) ✅ | 없음 | backend 중간·frontend 중간 |
+| 7 | [조직 레벨 Integration 공유](../complete/feature-roadmap/07-org-integration-sharing.md) ✅ | 4, 5 | backend 작음·frontend 작음 |
+| 8 | [OpenTelemetry 트레이싱](../complete/feature-roadmap/08-otel-tracing.md) ✅ | 없음 | backend 중간·인프라 |
+| 9 | [알림 임계값](../complete/feature-roadmap/09-alerting-thresholds.md) ✅ | 없음 | backend 중간·frontend 작음 (평가기 5분 cron 포함) |
 | 10 | [접근성 (WCAG AA)](./stages/10-a11y.md) 🚧 | 없음 | frontend 큼 |
-| 11 | [매뉴얼 검색](../complete/stages/11-docs-search.md) ✅ | 없음 | frontend 작음 |
+| 11 | [매뉴얼 검색](../complete/feature-roadmap/11-docs-search.md) ✅ | 없음 | frontend 작음 |
 
 ## 공통 원칙
 
