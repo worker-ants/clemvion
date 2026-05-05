@@ -34,11 +34,10 @@ const VALID_TYPES = new Set([
 
 export const MAX_REGEX_LENGTH = 200;
 
+export const EXPRESSION_PATTERN = /\{\{/;
+
 export interface Condition {
-  // Authored value is a string (dot-path or expression). After per-item
-  // expression resolution it can be any type — `evaluateCondition` falls
-  // back to the item itself when this is not a usable path string.
-  field: unknown;
+  field: string;
   operator: ConditionOperator;
   value: unknown;
 }
@@ -61,24 +60,24 @@ export function compileRegexCache(
   return cache;
 }
 
-export function evaluateCondition(
-  item: unknown,
-  condition: Condition,
+/**
+ * Evaluate the comparison operator against an already-resolved fieldValue.
+ *
+ * Used by callers that have already extracted the field value (e.g. Filter,
+ * which performs per-item expression resolution and item-self sentinel
+ * handling outside the shared evaluator). Keeping the operator semantics
+ * here lets all condition-evaluating nodes share a single source of truth
+ * for `eq`/`gt`/`regex`/etc. without coupling to a `path → fieldValue`
+ * lookup pattern that not every caller needs.
+ */
+export function evaluateResolvedCondition(
+  fieldValue: unknown,
+  operator: ConditionOperator,
+  compareValue: unknown,
   strict: boolean,
   compiledRegex?: RegExp,
 ): boolean {
-  // Item-self sentinel: empty string, literal "$item", or any non-string path
-  // (which can occur when a per-item expression resolves to a non-path value)
-  // means "compare the item itself" rather than a nested-field lookup. This
-  // unlocks scalar array filtering where there is no inner path to address.
-  const path = condition.field;
-  const fieldValue =
-    typeof path !== 'string' || path === '' || path === '$item'
-      ? item
-      : getNestedValue(item, path);
-  const compareValue = condition.value;
-
-  switch (condition.operator) {
+  switch (operator) {
     case 'eq':
       return strict ? fieldValue === compareValue : fieldValue == compareValue;
     case 'neq':
@@ -139,4 +138,25 @@ export function evaluateCondition(
     default:
       return false;
   }
+}
+
+/**
+ * Path-driven evaluator: looks up `condition.field` on `item` then defers to
+ * {@link evaluateResolvedCondition}. Used by callers (transform.array_filter)
+ * whose conditions are dot-paths over the item object.
+ */
+export function evaluateCondition(
+  item: unknown,
+  condition: Condition,
+  strict: boolean,
+  compiledRegex?: RegExp,
+): boolean {
+  const fieldValue = getNestedValue(item, condition.field);
+  return evaluateResolvedCondition(
+    fieldValue,
+    condition.operator,
+    condition.value,
+    strict,
+    compiledRegex,
+  );
 }

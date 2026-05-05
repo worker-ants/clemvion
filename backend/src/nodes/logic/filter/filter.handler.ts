@@ -14,21 +14,30 @@ import {
 } from '../../core/nested-value.util.js';
 import {
   Condition,
+  EXPRESSION_PATTERN,
   MAX_REGEX_LENGTH,
-  evaluateCondition,
+  evaluateResolvedCondition,
 } from '../_shared/condition-eval.util.js';
 import { filterNodeMetadata } from './filter.schema.js';
+
+interface AuthoredCondition {
+  // Authored value is always a string (dot-path or `{{ … }}` expression) at
+  // config time. Per-item resolution may produce any type, but that resolved
+  // value is held only inside the handler — the shared `Condition` type used
+  // by other consumers (transform.array_filter) keeps `field: string`.
+  field?: string;
+  operator: Condition['operator'];
+  value: unknown;
+}
 
 interface FilterConfig {
   // Either a dot-path string applied to `$input` (e.g. `"items"`) OR the
   // resolved value itself when an inline expression like `{{ $var.a }}` is used.
   inputField: unknown;
-  conditions: Condition[];
+  conditions: AuthoredCondition[];
   combineMode: 'and' | 'or';
   strictComparison?: boolean;
 }
-
-const EXPRESSION_PATTERN = /\{\{/;
 
 export class FilterHandler implements NodeHandler {
   metadata = filterNodeMetadata;
@@ -75,8 +84,10 @@ export class FilterHandler implements NodeHandler {
     const getRegex = (pattern: unknown): RegExp | undefined => {
       if (typeof pattern !== 'string') return undefined;
       if (pattern.length > MAX_REGEX_LENGTH) return undefined;
-      const cached = regexCache.get(pattern);
-      if (cached !== undefined) return cached ?? undefined;
+      if (regexCache.has(pattern)) {
+        // `null` marks a previously-failed compile so we don't retry it.
+        return regexCache.get(pattern) ?? undefined;
+      }
       try {
         const r = new RegExp(pattern);
         regexCache.set(pattern, r);
@@ -103,25 +114,23 @@ export class FilterHandler implements NodeHandler {
         $itemIndex: index,
       };
 
-      const evalOne = (cond: Condition): boolean => {
+      const evalOne = (cond: AuthoredCondition): boolean => {
         // Compute fieldValue per spec rules:
-        //  - empty / "$item" sentinel → the item itself (scalar arrays).
-        //  - inline expression `{{ ... }}` → evaluated value (per-item ctx).
+        //  - undefined / empty / "$item" sentinel → the item itself
+        //    (covers scalar arrays and missing-field shorthand).
+        //  - inline expression `{{ … }}` → evaluated value (per-item ctx).
         //  - plain string → dot-path lookup on the item.
-        //  - non-string (already-resolved upstream) → use as-is.
         const fieldValue = this.computeFieldValue(cond.field, item, itemCtx);
         const resolvedValue = this.resolveIfExpression(cond.value, itemCtx);
         const regex =
           cond.operator === 'regex' ? getRegex(resolvedValue) : undefined;
-        // Pass fieldValue as the `item` argument with `field: ''` so the
-        // sentinel branch in evaluateCondition surfaces it directly without
-        // an extra path lookup.
-        const stub: Condition = {
-          field: '',
-          operator: cond.operator,
-          value: resolvedValue,
-        };
-        return evaluateCondition(fieldValue, stub, strictComparison, regex);
+        return evaluateResolvedCondition(
+          fieldValue,
+          cond.operator,
+          resolvedValue,
+          strictComparison,
+          regex,
+        );
       };
 
       const passed =
@@ -143,18 +152,18 @@ export class FilterHandler implements NodeHandler {
   }
 
   private computeFieldValue(
-    field: unknown,
+    field: string | undefined,
     item: unknown,
     ctx: EngineContext,
   ): unknown {
-    if (field === '' || field === '$item') return item;
-    if (typeof field === 'string' && EXPRESSION_PATTERN.test(field)) {
+    // Item-self sentinel: missing/empty/"$item" all map to the item itself,
+    // unblocking scalar array filtering (e.g. `[1, 2, 3]`) where there is
+    // no nested path to address.
+    if (field === undefined || field === '' || field === '$item') return item;
+    if (EXPRESSION_PATTERN.test(field)) {
       return this.resolveIfExpression(field, ctx);
     }
-    if (typeof field === 'string') {
-      return getNestedValue(item, field);
-    }
-    return field;
+    return getNestedValue(item, field);
   }
 
   private resolveIfExpression(value: unknown, ctx: EngineContext): unknown {
@@ -163,10 +172,12 @@ export class FilterHandler implements NodeHandler {
     try {
       return evaluate(value, ctx);
     } catch {
-      // Per-item evaluation failure → null (mirrors TableHandler precedent);
-      // the item naturally falls through to `unmatched` via the comparison
-      // operators rather than crashing the whole filter.
-      return null;
+      // Per-item evaluation failure → undefined. Numeric comparators coerce
+      // it to NaN (always false) and `is_null` correctly reports "missing",
+      // mirroring the way `getNestedValue` returns undefined for absent
+      // paths. Returning `null` here would cause `Number(null) === 0` and
+      // silently match `gt`/`lt` against zero-anchored thresholds.
+      return undefined;
     }
   }
 }

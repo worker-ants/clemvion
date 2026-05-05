@@ -911,5 +911,174 @@ describe('FilterHandler', () => {
         { name: 'Carol' },
       ]);
     });
+
+    it('should treat undefined field at execute time as item-self sentinel', async () => {
+      // validate() accepts a condition without `field`; execute must agree
+      // and treat the missing key the same as `field: ""` rather than
+      // dropping every item to `unmatched`.
+      const result = await execFilter(
+        {},
+        {
+          inputField: [1, 2, 3],
+          conditions: [{ operator: 'eq', value: 2 }],
+          combineMode: 'and',
+        },
+      );
+
+      expect(result.output.match).toEqual([2]);
+      expect(result.output.unmatched).toEqual([1, 3]);
+    });
+
+    it('should expose $itemIndex in expression context (0-based)', async () => {
+      const result = await execFilter(
+        {},
+        {
+          inputField: ['a', 'b', 'c'],
+          conditions: [{ field: '{{ $itemIndex }}', operator: 'eq', value: 1 }],
+          combineMode: 'and',
+        },
+      );
+
+      expect(result.output.match).toEqual(['b']);
+    });
+
+    it('should evaluate per-item expressions with combineMode "or"', async () => {
+      const data = [
+        { a: 1, b: 10 },
+        { a: 5, b: 1 },
+        { a: 0, b: 0 },
+      ];
+      const result = await execFilter(
+        {},
+        {
+          inputField: data,
+          conditions: [
+            { field: '{{ $item.a }}', operator: 'gt', value: 3 },
+            { field: '{{ $item.b }}', operator: 'gt', value: 5 },
+          ],
+          combineMode: 'or',
+        },
+      );
+
+      // {a:1,b:10} → b>5 ✓; {a:5,b:1} → a>3 ✓; {a:0,b:0} → both fail.
+      expect(result.output.match).toEqual([
+        { a: 1, b: 10 },
+        { a: 5, b: 1 },
+      ]);
+      expect(result.output.unmatched).toEqual([{ a: 0, b: 0 }]);
+    });
+
+    it('should support per-item dynamic regex pattern (memoized cache)', async () => {
+      // Each item carries its own pattern; the cache is keyed by resolved
+      // pattern string so distinct items can have distinct regexes.
+      const data = [
+        { name: 'Alice', pat: '^Al' },
+        { name: 'Bob', pat: '^Z' },
+        { name: 'Carol', pat: '^Ca' },
+      ];
+      const result = await execFilter(
+        {},
+        {
+          inputField: data,
+          conditions: [
+            {
+              field: '{{ $item.name }}',
+              operator: 'regex',
+              value: '{{ $item.pat }}',
+            },
+          ],
+          combineMode: 'and',
+        },
+      );
+
+      expect(result.output.match).toEqual([
+        { name: 'Alice', pat: '^Al' },
+        { name: 'Carol', pat: '^Ca' },
+      ]);
+    });
+
+    it('should inherit workflow context variables in per-item expressions', async () => {
+      const ctxWithVars: ExecutionContext = {
+        ...context,
+        expressionContext: { $var: { threshold: 15 } },
+      };
+      const result = (await handler.execute(
+        {},
+        {
+          inputField: [10, 20, 30],
+          conditions: [
+            {
+              field: '$item',
+              operator: 'gt',
+              value: '{{ $var.threshold }}',
+            },
+          ],
+          combineMode: 'and',
+        },
+        ctxWithVars,
+      )) as FilterResult;
+
+      expect(result.output.match).toEqual([20, 30]);
+    });
+
+    it('should not silently match `is_null` on numeric thresholds when eval fails', async () => {
+      // resolveIfExpression must return `undefined` (not `null`) so
+      // `gt -1` does not silently match a failed-eval item via Number(null)=0.
+      const result = await execFilter(
+        {},
+        {
+          inputField: [1],
+          conditions: [
+            {
+              field: '{{ $item.deeply.missing }}',
+              operator: 'gt',
+              value: -1,
+            },
+          ],
+          combineMode: 'and',
+        },
+      );
+
+      expect(result.output.match).toEqual([]);
+      expect(result.output.unmatched).toEqual([1]);
+    });
+
+    it('should support is_type with per-item field expression', async () => {
+      const data = [{ val: 10 }, { val: 'hi' }, { val: true }];
+      const result = await execFilter(
+        {},
+        {
+          inputField: data,
+          conditions: [
+            {
+              field: '{{ $item.val }}',
+              operator: 'is_type',
+              value: 'number',
+            },
+          ],
+          combineMode: 'and',
+        },
+      );
+
+      expect(result.output.match).toEqual([{ val: 10 }]);
+    });
+
+    it('should accept regex pattern at the boundary length (200 chars)', async () => {
+      // Boundary guard for `MAX_REGEX_LENGTH = 200` — 200 is allowed,
+      // 201 is rejected (covered by the existing oversize test).
+      const exactly200 = 'a'.repeat(200);
+      const result = await execFilter(
+        {},
+        {
+          inputField: [{ name: exactly200 }],
+          conditions: [
+            { field: '{{ $item.name }}', operator: 'regex', value: exactly200 },
+          ],
+          combineMode: 'and',
+        },
+      );
+
+      expect(result.output.match).toHaveLength(1);
+    });
   });
 });
