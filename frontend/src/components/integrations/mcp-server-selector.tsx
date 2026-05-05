@@ -121,8 +121,9 @@ export function McpServerSelector({ value, onChange }: Props) {
                     size="icon"
                     className="ml-auto h-6 w-6"
                     onClick={() => remove(ref.integrationId)}
+                    aria-label="Remove"
                   >
-                    <X className="h-3 w-3" />
+                    <X className="h-3 w-3" aria-hidden="true" />
                   </Button>
                 </div>
                 <div className="mt-1.5 grid grid-cols-2 gap-1 text-[10px]">

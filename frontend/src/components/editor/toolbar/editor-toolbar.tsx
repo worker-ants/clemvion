@@ -209,8 +209,13 @@ export function EditorToolbar() {
         {/* Left section: back + breadcrumb */}
         <div className="flex items-center gap-1.5">
           <Link href="/workflows">
-            <Button variant="ghost" size="icon" className="h-8 w-8">
-              <ArrowLeft size={16} />
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8"
+              aria-label={t("common.back")}
+            >
+              <ArrowLeft size={16} aria-hidden="true" />
             </Button>
           </Link>
           <span className="text-xs text-[hsl(var(--muted-foreground))]">

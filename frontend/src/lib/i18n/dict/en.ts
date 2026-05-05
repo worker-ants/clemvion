@@ -67,6 +67,14 @@ export const en: Dict = {
     pagination: "Pagination",
     previousPage: "Previous page",
     nextPage: "Next page",
+    aria: {
+      moreOptions: "More options",
+      previousMonth: "Previous month",
+      nextMonth: "Next month",
+      zoomIn: "Zoom in",
+      zoomOut: "Zoom out",
+      fitToView: "Fit to view",
+    },
   },
   sidebar: {
     dashboard: "Dashboard",

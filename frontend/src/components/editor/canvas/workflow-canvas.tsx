@@ -658,6 +658,7 @@ export function WorkflowCanvas() {
 }
 
 function ZoomControls() {
+  const t = useT();
   const { zoomIn, zoomOut, fitView } = useReactFlow();
 
   return (
@@ -667,24 +668,27 @@ function ZoomControls() {
         size="icon"
         className="h-8 w-8"
         onClick={() => zoomIn()}
+        aria-label={t("common.aria.zoomIn")}
       >
-        <ZoomIn size={14} />
+        <ZoomIn size={14} aria-hidden="true" />
       </Button>
       <Button
         variant="outline"
         size="icon"
         className="h-8 w-8"
         onClick={() => zoomOut()}
+        aria-label={t("common.aria.zoomOut")}
       >
-        <ZoomOut size={14} />
+        <ZoomOut size={14} aria-hidden="true" />
       </Button>
       <Button
         variant="outline"
         size="icon"
         className="h-8 w-8"
         onClick={() => fitView({ padding: 0.2 })}
+        aria-label={t("common.aria.fitToView")}
       >
-        <Maximize size={14} />
+        <Maximize size={14} aria-hidden="true" />
       </Button>
     </Panel>
   );

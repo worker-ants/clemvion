@@ -357,8 +357,9 @@ export default function KnowledgeBaseDetailPage({
             variant="ghost"
             size="icon"
             onClick={() => router.push("/knowledge-bases")}
+            aria-label={t("common.back")}
           >
-            <ArrowLeft className="h-4 w-4" />
+            <ArrowLeft className="h-4 w-4" aria-hidden="true" />
           </Button>
           <div>
             <h1 className="text-2xl font-bold">{kb?.name}</h1>

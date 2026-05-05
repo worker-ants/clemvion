@@ -197,8 +197,13 @@ export default function AuthenticationPage() {
           <div className="w-full max-w-md rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-6 shadow-lg">
             <div className="mb-4 flex items-center justify-between">
               <h2 className="text-lg font-semibold">{t("authentication.addConfigDialogTitle")}</h2>
-              <Button variant="ghost" size="icon" onClick={resetForm}>
-                <X className="h-4 w-4" />
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={resetForm}
+                aria-label={t("common.close")}
+              >
+                <X className="h-4 w-4" aria-hidden="true" />
               </Button>
             </div>
             {generatedKey ? (

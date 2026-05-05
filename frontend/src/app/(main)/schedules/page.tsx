@@ -417,12 +417,22 @@ function CalendarView({
   return (
     <div className="rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-4">
       <div className="mb-4 flex items-center justify-between">
-        <Button variant="ghost" size="icon" onClick={prevMonth}>
-          <ChevronLeft className="h-4 w-4" />
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={prevMonth}
+          aria-label={t("common.aria.previousMonth")}
+        >
+          <ChevronLeft className="h-4 w-4" aria-hidden="true" />
         </Button>
         <span className="text-sm font-semibold">{monthName}</span>
-        <Button variant="ghost" size="icon" onClick={nextMonth}>
-          <ChevronRight className="h-4 w-4" />
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={nextMonth}
+          aria-label={t("common.aria.nextMonth")}
+        >
+          <ChevronRight className="h-4 w-4" aria-hidden="true" />
         </Button>
       </div>
       <div className="grid grid-cols-7 gap-px text-center text-xs">
@@ -1054,8 +1064,9 @@ export default function SchedulesPage() {
                             className="h-8 w-8"
                             onClick={() => openEdit(schedule)}
                             title={t("schedules.editTooltip")}
+                            aria-label={t("schedules.editTooltip")}
                           >
-                            <Pencil className="h-4 w-4" />
+                            <Pencil className="h-4 w-4" aria-hidden="true" />
                           </Button>
                           <Button
                             variant="ghost"
@@ -1063,8 +1074,9 @@ export default function SchedulesPage() {
                             className="h-8 w-8 text-[hsl(var(--destructive))]"
                             onClick={() => setDeleteTarget(schedule.id)}
                             title={t("schedules.deleteTooltip")}
+                            aria-label={t("schedules.deleteTooltip")}
                           >
-                            <Trash2 className="h-4 w-4" />
+                            <Trash2 className="h-4 w-4" aria-hidden="true" />
                           </Button>
                         </RoleGate>
                       </div>

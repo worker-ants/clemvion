@@ -153,8 +153,9 @@ export default function ExecutionListPage({
             variant="ghost"
             size="icon"
             onClick={() => router.back()}
+            aria-label={t("common.back")}
           >
-            <ArrowLeft className="h-4 w-4" />
+            <ArrowLeft className="h-4 w-4" aria-hidden="true" />
           </Button>
           <div>
             <h1 className="text-2xl font-bold">

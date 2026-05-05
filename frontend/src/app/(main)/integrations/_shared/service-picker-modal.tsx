@@ -30,8 +30,13 @@ export function ServicePickerModal({ services, onClose }: Props) {
       >
         <div className="mb-4 flex items-center justify-between">
           <h2 className="text-lg font-semibold">Add Integration</h2>
-          <Button variant="ghost" size="icon" onClick={onClose}>
-            <X className="h-4 w-4" />
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={onClose}
+            aria-label="Close"
+          >
+            <X className="h-4 w-4" aria-hidden="true" />
           </Button>
         </div>
         <p className="mb-4 text-sm text-[hsl(var(--muted-foreground))]">
