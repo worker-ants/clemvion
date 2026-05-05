@@ -4,7 +4,7 @@ import { create } from "zustand";
 import { DEFAULT_LOCALE, isLocale, type Locale } from "@/lib/i18n/types";
 import { LOCALE_COOKIE_NAME } from "@/lib/i18n/cookie";
 
-const STORAGE_KEY = "idea-workflow.locale";
+const STORAGE_KEY = "clemvion.locale";
 const COOKIE_MAX_AGE_SECONDS = 60 * 60 * 24 * 365; // 1 year
 
 /** 서버 컴포넌트가 SSR 시점에 locale을 판정할 수 있도록 쿠키에 미러링해요.

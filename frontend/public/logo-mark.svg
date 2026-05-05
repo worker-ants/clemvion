@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Clemvion mark">
+  <title>Clemvion mark</title>
+  <path d="M48 14 C 30 8, 12 20, 12 32 C 12 44, 30 56, 48 50"
+        fill="none" stroke="#1F8A4C" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M22 22 Q 14 18 11 24 Q 17 28 22 22 Z" fill="#1F8A4C"/>
+  <path d="M40 42 Q 48 40 50 46 Q 44 50 40 42 Z" fill="#A8D86F"/>
+</svg>

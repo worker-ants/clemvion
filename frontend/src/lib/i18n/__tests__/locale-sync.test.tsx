@@ -38,7 +38,7 @@ describe("LocaleSync", () => {
   });
 
   it("initializes from localStorage on mount and mirrors lang onto <html>", () => {
-    window.localStorage.setItem("idea-workflow.locale", "en");
+    window.localStorage.setItem("clemvion.locale", "en");
 
     render(<LocaleSync />);
 
@@ -58,7 +58,7 @@ describe("LocaleSync", () => {
   });
 
   it("ignores unknown locale values on the user object and falls back to storage", () => {
-    window.localStorage.setItem("idea-workflow.locale", "en");
+    window.localStorage.setItem("clemvion.locale", "en");
     render(<LocaleSync />);
 
     act(() => {
@@ -102,7 +102,7 @@ describe("LocaleSync", () => {
   });
 
   it("prefers the user.locale over a different localStorage value", () => {
-    window.localStorage.setItem("idea-workflow.locale", "ko");
+    window.localStorage.setItem("clemvion.locale", "ko");
 
     render(<LocaleSync />);
     act(() => {

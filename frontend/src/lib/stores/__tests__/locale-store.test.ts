@@ -1,8 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useLocaleStore } from "../locale-store";
 
-const STORAGE_KEY = "idea-workflow.locale";
-const COOKIE_KEY = "idea-workflow.locale";
+const STORAGE_KEY = "clemvion.locale";
+const COOKIE_KEY = "clemvion.locale";
 
 function resetStore() {
   useLocaleStore.setState({ locale: "ko" });

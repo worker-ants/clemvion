@@ -1,6 +1,6 @@
 # Kubernetes Manifests
 
-Idea Workflow 의 k8s 배포 매니페스트입니다. **Kustomize** 기반으로, 공통 base 와 환경별 overlay (`local`, `staging`, `prod`) 로 구성됩니다.
+Clemvion 의 k8s 배포 매니페스트입니다. **Kustomize** 기반으로, 공통 base 와 환경별 overlay (`local`, `staging`, `prod`) 로 구성됩니다. 매니페스트 안의 컨테이너 이미지 태그(`idea-workflow/*`)는 인프라 자산이라 그대로 유지됩니다.
 
 ## 구조
 

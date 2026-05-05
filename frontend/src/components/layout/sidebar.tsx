@@ -278,7 +278,7 @@ export function Sidebar() {
         <div className="flex h-14 items-center border-b border-[hsl(var(--border))] px-4">
           {!collapsed && (
             <Link href="/dashboard" className="text-lg font-semibold">
-              {t("sidebar.workflow")}
+              {t("sidebar.productName")}
             </Link>
           )}
           {collapsed && (
@@ -286,7 +286,7 @@ export function Sidebar() {
               href="/dashboard"
               className="mx-auto text-lg font-semibold"
             >
-              W
+              C
             </Link>
           )}
           {isSmall && mobileOpen && (

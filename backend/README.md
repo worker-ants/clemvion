@@ -1,6 +1,6 @@
-# Idea Workflow - Backend
+# Clemvion - Backend
 
-NestJS 기반 백엔드 API 서버입니다.
+NestJS 기반 백엔드 API 서버입니다. Docker 이미지 태그(`idea-workflow/backend`)는 인프라 자산이므로 그대로 유지됩니다.
 
 ## 실행
 

@@ -5,7 +5,7 @@
  * 환경 변수:
  *   - `OTEL_ENABLED=true` 일 때만 활성 (기본 비활성)
  *   - `OTEL_EXPORTER_OTLP_ENDPOINT` (기본: http://localhost:4318/v1/traces)
- *   - `OTEL_SERVICE_NAME` (기본: idea-workflow-backend)
+ *   - `OTEL_SERVICE_NAME` (기본: clemvion-backend)
  *
  * Collector 운영 예시: Jaeger / Tempo / Grafana Agent.
  */
@@ -21,7 +21,7 @@ if (enabled) {
   const sdk = new NodeSDK({
     resource: resourceFromAttributes({
       [ATTR_SERVICE_NAME]:
-        process.env.OTEL_SERVICE_NAME ?? 'idea-workflow-backend',
+        process.env.OTEL_SERVICE_NAME ?? 'clemvion-backend',
     }),
     traceExporter: new OTLPTraceExporter({
       url:
