@@ -285,7 +285,15 @@ export function RunResultsDrawer() {
 
       {/* Header bar */}
       <div className="flex h-9 items-center justify-between px-3 border-b border-[hsl(var(--border))]">
-        <div className="flex items-center gap-2">
+        {/* role="status" + aria-live="polite" 로 실행 상태 변경(running →
+            completed → failed 등) 을 스크린 리더가 announce. status 텍스트와
+            노드 카운트를 한 그룹으로 묶어 한 번에 읽힌다 (Stage 10 NF-A11Y). */}
+        <div
+          role="status"
+          aria-live="polite"
+          aria-atomic="true"
+          className="flex items-center gap-2"
+        >
           {statusIcon}
           <span className="text-sm font-medium">{statusLabel}</span>
           <span className="text-xs text-[hsl(var(--muted-foreground))]">
