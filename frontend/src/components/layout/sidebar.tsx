@@ -266,7 +266,8 @@ export function Sidebar() {
         />
       )}
 
-      <aside
+      <nav
+        aria-label={t("sidebar.aria.mainNav")}
         className={cn(
           "fixed inset-y-0 left-0 z-40 flex flex-col border-r border-[hsl(var(--border))] bg-[hsl(var(--card))] transition-all duration-200",
           collapsed ? "w-16" : "w-60",
@@ -547,7 +548,7 @@ export function Sidebar() {
             </Button>
           </div>
         )}
-      </aside>
+      </nav>
     </>
   );
 }
