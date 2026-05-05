@@ -17,6 +17,18 @@
 export const PORT_ID_SLUG_REGEX = /^[a-zA-Z0-9_-]{1,64}$/;
 
 /**
+ * `id` 가 stable port id 로 즉시 사용해도 안전한지 — trim 후 길이 ≥ 1 이고
+ * slug regex 를 통과해야 한다. resolveStablePortId 와 backend/scripts 가 모두
+ * 동일 정의를 쓸 수 있도록 단일 출처 (drift 방지).
+ */
+export function isValidStablePortId(id: unknown): id is string {
+  if (typeof id !== 'string') return false;
+  const trimmed = id.trim();
+  if (trimmed.length === 0) return false;
+  return PORT_ID_SLUG_REGEX.test(trimmed);
+}
+
+/**
  * Returns `id` (after `trim()`) if it is a valid slug; otherwise `fallback`.
  *
  * Why we re-validate here even though Zod already enforces the regex on
