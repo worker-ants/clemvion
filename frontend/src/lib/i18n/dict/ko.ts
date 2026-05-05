@@ -63,6 +63,14 @@ export const ko = {
     pagination: "페이지네이션",
     previousPage: "이전 페이지",
     nextPage: "다음 페이지",
+    aria: {
+      moreOptions: "더보기",
+      previousMonth: "이전 달",
+      nextMonth: "다음 달",
+      zoomIn: "확대",
+      zoomOut: "축소",
+      fitToView: "화면에 맞추기",
+    },
   },
   sidebar: {
     dashboard: "대시보드",

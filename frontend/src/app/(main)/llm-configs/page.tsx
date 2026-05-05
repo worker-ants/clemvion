@@ -214,8 +214,13 @@ export default function LlmConfigsPage() {
               <h2 className="text-lg font-semibold">
                 {editId ? t("llmConfigs.editProvider") : t("llmConfigs.addProvider")}
               </h2>
-              <Button variant="ghost" size="icon" onClick={resetForm}>
-                <X className="h-4 w-4" />
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={resetForm}
+                aria-label={t("common.close")}
+              >
+                <X className="h-4 w-4" aria-hidden="true" />
               </Button>
             </div>
             <div className="space-y-4">
@@ -420,16 +425,18 @@ export default function LlmConfigsPage() {
                           size="icon"
                           className="h-7 w-7"
                           onClick={() => openEdit(config)}
+                          aria-label={t("common.edit")}
                         >
-                          <Pencil className="h-3 w-3" />
+                          <Pencil className="h-3 w-3" aria-hidden="true" />
                         </Button>
                         <Button
                           variant="ghost"
                           size="icon"
                           className="h-7 w-7 text-[hsl(var(--destructive))]"
                           onClick={() => setDeleteTarget(config.id)}
+                          aria-label={t("common.delete")}
                         >
-                          <Trash2 className="h-3 w-3" />
+                          <Trash2 className="h-3 w-3" aria-hidden="true" />
                         </Button>
                       </RoleGate>
                     </div>

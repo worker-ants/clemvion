@@ -119,8 +119,9 @@ export default function KnowledgeBasesPage() {
                         e.stopPropagation();
                         setDeleteTarget(kb.id);
                       }}
+                      aria-label={t("common.delete")}
                     >
-                      <Trash2 className="h-3 w-3" />
+                      <Trash2 className="h-3 w-3" aria-hidden="true" />
                     </Button>
                   </RoleGate>
                 </div>

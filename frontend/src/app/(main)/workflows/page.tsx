@@ -419,8 +419,11 @@ export default function WorkflowsPage() {
                                 : workflow.id,
                             )
                           }
+                          aria-label={t("common.aria.moreOptions")}
+                          aria-haspopup="menu"
+                          aria-expanded={openMenuId === workflow.id}
                         >
-                          <MoreHorizontal className="h-4 w-4" />
+                          <MoreHorizontal className="h-4 w-4" aria-hidden="true" />
                         </Button>
                         {openMenuId === workflow.id && (
                           <div className="absolute right-0 top-full z-50 mt-1 w-48 rounded-md border border-[hsl(var(--border))] bg-[hsl(var(--popover))] py-1 shadow-lg">
