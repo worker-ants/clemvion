@@ -535,7 +535,7 @@ interface NodeHandlerRegistry {
 
 ### 6.1.1 트리거 입력 파라미터 seeding
 
-실행 엔진의 진입 API는 `execute(workflowId, input?)` 시그니처이며, `input`은 트리거 종류와 무관하게 아래 규약을 따른다.
+실행 엔진의 진입 API는 `execute(workflowId, input?, options?)` 시그니처이며, `input`은 트리거 종류와 무관하게 아래 규약을 따른다.
 
 ```typescript
 type TriggerExecutionInput = {
@@ -546,6 +546,13 @@ type TriggerExecutionInput = {
   query?: Record<string, string>;
   method?: string;
 };
+
+type ExecuteOptions = {
+  /** 수동 실행 시 사용자 UUID. 저장된 값은 `Execution.executed_by` 컬럼에 매핑. */
+  executedBy?: string;
+  /** schedule/webhook 트리거 발화 시 트리거 UUID. 저장된 값은 `Execution.trigger_id` 컬럼에 매핑. */
+  triggerId?: string;
+};
 ```
 
 - **공통 유틸** `resolveTriggerParameters(workflow, rawValues)`:
@@ -553,9 +560,12 @@ type TriggerExecutionInput = {
   2. required 누락 시 `InvalidInputError` (호출측이 400/실행 실패로 매핑)
   3. 기본값(defaultValue) 적용
   4. `coerceToType`로 타입 강제 변환 (variable-declaration 공용 유틸)
-- **Manual**: 컨트롤러가 `{ parameterValues }`를 수신 → `resolveTriggerParameters` 수행 → `{ parameters }` 형태로 `execute()` 호출
-- **Webhook**: `HooksService`가 `body`를 raw source로 사용하여 `resolveTriggerParameters` 수행. 실패 시 `400 Bad Request` 후 Execution 생성하지 않음. 성공 시 `{ parameters, body, headers, query, method }`로 `execute()` 호출
-- **Schedule**: `ScheduleRunnerService`가 `schedule.parameterValues`를 제한 컨텍스트(`{ $now, $schedule: { id, cronExpression, timezone } }`)로 ExpressionResolver에 통과시킨 뒤 `resolveTriggerParameters` 수행 → `{ parameters }`로 `execute()` 호출. `$node`, `$input`, `$var` 불가.
+- **Manual**: 컨트롤러가 `{ parameterValues }`를 수신 → `resolveTriggerParameters` 수행 → `{ parameters }` + `{ executedBy: user.sub }` 형태로 `execute()` 호출. 결과 Execution 행은 `executed_by` 컬럼이 채워져 출처가 `manual` 로 분류된다.
+- **Webhook**: `HooksService`가 `body`를 raw source로 사용하여 `resolveTriggerParameters` 수행. 실패 시 `400 Bad Request` 후 Execution 생성하지 않음. 성공 시 `{ parameters, body, headers, query, method }` + `{ triggerId: trigger.id }` 로 `execute()` 호출. 결과 Execution 행은 `trigger_id` 컬럼이 채워져 출처가 `webhook` 으로 분류된다.
+- **Schedule (cron 자동 발화)**: `ScheduleRunnerService.process()`가 `schedule.parameterValues`를 제한 컨텍스트(`{ $now, $schedule: { id, cronExpression, timezone } }`)로 ExpressionResolver에 통과시킨 뒤 `resolveTriggerParameters` 수행 → `{ parameters }` + `{ triggerId: schedule.triggerId }` 로 `execute()` 호출. `$node`, `$input`, `$var` 불가. 결과 Execution 행은 `trigger_id` 컬럼이 채워져 출처가 `schedule` 로 분류된다.
+- **Schedule "지금 실행"**: 사용자가 수동으로 즉시 실행 버튼을 누른 경우는 Manual 경로와 동일하게 `{ executedBy: userId }` 로 호출 — 출처는 `manual`.
+
+> 출처 분류 규칙(우선순위 + 라벨)은 [Spec 실행 내역 §2.4](../2-navigation/6-execution-history.md#24-테이블) 참조. 분류 헬퍼 구현은 `backend/src/modules/executions/utils/execution-trigger.ts` 의 `deriveExecutionTrigger`.
 
 Manual Trigger 핸들러의 `execute()` 출력은 항상 다음 형태이다:
 
