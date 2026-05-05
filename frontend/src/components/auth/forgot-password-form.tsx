@@ -99,10 +99,18 @@ function ForgotPasswordFormInner() {
               type="email"
               placeholder={t("auth.forgotPassword.emailPlaceholder")}
               autoComplete="email"
+              aria-invalid={errors.email ? "true" : undefined}
+              aria-describedby={errors.email ? "email-error" : undefined}
               {...register("email")}
             />
             {errors.email && (
-              <p className="text-sm text-[hsl(var(--destructive))]">{errors.email.message}</p>
+              <p
+                id="email-error"
+                role="alert"
+                className="text-sm text-[hsl(var(--destructive))]"
+              >
+                {errors.email.message}
+              </p>
             )}
           </div>
 
