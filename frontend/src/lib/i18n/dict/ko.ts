@@ -1384,6 +1384,8 @@ export const ko = {
     daysOfWeek: "요일",
     dayOfMonth: "일",
     generatedExpression: "생성된 표현식",
+    expressionNotRepresentable:
+      "현재 표현식은 시각 편집기로 변환할 수 없어요. 시각 컨트롤을 변경하면 표현식이 새로 작성됩니다.",
     dayShortSun: "일",
     dayShortMon: "월",
     dayShortTue: "화",

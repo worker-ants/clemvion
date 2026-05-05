@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useCallback, useEffect } from "react";
+import { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api/client";
 import { Button } from "@/components/ui/button";
@@ -28,6 +28,13 @@ import { normalizePagedResponse } from "@/lib/api/paginated";
 import { usePageParam } from "@/lib/hooks/use-page-param";
 import { useT, type TFunction, type TranslationKey } from "@/lib/i18n";
 import { RoleGate } from "@/components/auth/role-gate";
+import {
+  parseCronToVisualOrNull,
+  buildCronFromVisual,
+  DEFAULT_VISUAL_STATE,
+  type Frequency,
+  type VisualState,
+} from "@/lib/utils/cron-to-visual";
 
 const PAGE_SIZE = 20;
 
@@ -51,7 +58,6 @@ interface Workflow {
 
 type CronEditorTab = "expression" | "visual";
 type ViewMode = "list" | "calendar";
-type Frequency = "every-minute" | "hourly" | "daily" | "weekly" | "monthly";
 
 const DAYS_OF_WEEK: { labelKey: TranslationKey; value: number }[] = [
   { labelKey: "schedules.dayShortSun", value: 0 },
@@ -117,32 +123,6 @@ function getRunDaysInMonth(
   return days;
 }
 
-function buildCronFromVisual(
-  frequency: Frequency,
-  minute: number,
-  hour: number,
-  selectedDays: number[],
-  dayOfMonth: number,
-): string {
-  switch (frequency) {
-    case "every-minute":
-      return "* * * * *";
-    case "hourly":
-      return `${minute} * * * *`;
-    case "daily":
-      return `${minute} ${hour} * * *`;
-    case "weekly": {
-      const daysStr =
-        selectedDays.length > 0 ? selectedDays.sort().join(",") : "*";
-      return `${minute} ${hour} * * ${daysStr}`;
-    }
-    case "monthly":
-      return `${minute} ${hour} ${dayOfMonth} * *`;
-    default:
-      return "* * * * *";
-  }
-}
-
 function NextRunsPreview({
   expression,
   timezone,
@@ -179,72 +159,45 @@ function NextRunsPreview({
 }
 
 function VisualCronEditor({
-  value,
+  state,
   onChange,
+  cronCannotRepresent,
+  cronExpression,
   t,
 }: {
-  value: string;
-  onChange: (cron: string) => void;
+  state: VisualState;
+  onChange: (next: VisualState) => void;
+  cronCannotRepresent: boolean;
+  cronExpression: string;
   t: TFunction;
 }) {
-  const [frequency, setFrequency] = useState<Frequency>("daily");
-  const [minute, setMinute] = useState(0);
-  const [hour, setHour] = useState(9);
-  const [selectedDays, setSelectedDays] = useState<number[]>([1, 2, 3, 4, 5]);
-  const [dayOfMonth, setDayOfMonth] = useState(1);
-
-  const applyVisual = useCallback(
-    (f: Frequency, m: number, h: number, days: number[], dom: number) => {
-      const cron = buildCronFromVisual(f, m, h, days, dom);
-      onChange(cron);
-    },
-    [onChange],
-  );
-
-  useEffect(() => {
-    if (!value) {
-      applyVisual(frequency, minute, hour, selectedDays, dayOfMonth);
-    }
-    // 최초 마운트 시 1회만 동기화 — 이후에는 사용자 입력으로만 갱신
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  const handleFrequencyChange = (f: Frequency) => {
-    setFrequency(f);
-    applyVisual(f, minute, hour, selectedDays, dayOfMonth);
-  };
-
-  const handleMinuteChange = (m: number) => {
-    setMinute(m);
-    applyVisual(frequency, m, hour, selectedDays, dayOfMonth);
-  };
-
-  const handleHourChange = (h: number) => {
-    setHour(h);
-    applyVisual(frequency, minute, h, selectedDays, dayOfMonth);
-  };
+  const { frequency, minute, hour, selectedDays, dayOfMonth } = state;
+  const update = (patch: Partial<VisualState>) => onChange({ ...state, ...patch });
 
   const handleDayToggle = (day: number) => {
     const next = selectedDays.includes(day)
       ? selectedDays.filter((d) => d !== day)
-      : [...selectedDays, day];
-    setSelectedDays(next);
-    applyVisual(frequency, minute, hour, next, dayOfMonth);
-  };
-
-  const handleDayOfMonthChange = (dom: number) => {
-    setDayOfMonth(dom);
-    applyVisual(frequency, minute, hour, selectedDays, dom);
+      : [...selectedDays, day].sort((a, b) => a - b);
+    update({ selectedDays: next });
   };
 
   return (
     <div className="space-y-4">
+      {cronCannotRepresent && (
+        <div
+          role="status"
+          className="rounded-md border border-amber-300 bg-amber-50 p-3 text-xs text-amber-900"
+        >
+          {t("schedules.expressionNotRepresentable")}
+        </div>
+      )}
       <div>
-        <Label>{t("schedules.frequency")}</Label>
+        <Label htmlFor="visual-frequency">{t("schedules.frequency")}</Label>
         <select
+          id="visual-frequency"
           className="flex h-10 w-full rounded-md border border-[hsl(var(--input))] bg-transparent px-3 py-2 text-sm"
           value={frequency}
-          onChange={(e) => handleFrequencyChange(e.target.value as Frequency)}
+          onChange={(e) => update({ frequency: e.target.value as Frequency })}
         >
           <option value="every-minute">{t("schedules.frequencyEveryMinute")}</option>
           <option value="hourly">{t("schedules.frequencyHourly")}</option>
@@ -256,11 +209,12 @@ function VisualCronEditor({
 
       {frequency === "hourly" && (
         <div>
-          <Label>{t("schedules.atMinute")}</Label>
+          <Label htmlFor="visual-at-minute">{t("schedules.atMinute")}</Label>
           <select
+            id="visual-at-minute"
             className="flex h-10 w-full rounded-md border border-[hsl(var(--input))] bg-transparent px-3 py-2 text-sm"
             value={minute}
-            onChange={(e) => handleMinuteChange(Number(e.target.value))}
+            onChange={(e) => update({ minute: Number(e.target.value) })}
           >
             {Array.from({ length: 60 }, (_, i) => (
               <option key={i} value={i}>
@@ -276,11 +230,12 @@ function VisualCronEditor({
         frequency === "monthly") && (
         <div className="flex gap-3">
           <div className="flex-1">
-            <Label>{t("schedules.hour")}</Label>
+            <Label htmlFor="visual-hour">{t("schedules.hour")}</Label>
             <select
+              id="visual-hour"
               className="flex h-10 w-full rounded-md border border-[hsl(var(--input))] bg-transparent px-3 py-2 text-sm"
               value={hour}
-              onChange={(e) => handleHourChange(Number(e.target.value))}
+              onChange={(e) => update({ hour: Number(e.target.value) })}
             >
               {Array.from({ length: 24 }, (_, i) => (
                 <option key={i} value={i}>
@@ -290,11 +245,12 @@ function VisualCronEditor({
             </select>
           </div>
           <div className="flex-1">
-            <Label>{t("schedules.minute")}</Label>
+            <Label htmlFor="visual-minute">{t("schedules.minute")}</Label>
             <select
+              id="visual-minute"
               className="flex h-10 w-full rounded-md border border-[hsl(var(--input))] bg-transparent px-3 py-2 text-sm"
               value={minute}
-              onChange={(e) => handleMinuteChange(Number(e.target.value))}
+              onChange={(e) => update({ minute: Number(e.target.value) })}
             >
               {Array.from({ length: 60 }, (_, i) => (
                 <option key={i} value={i}>
@@ -331,11 +287,12 @@ function VisualCronEditor({
 
       {frequency === "monthly" && (
         <div>
-          <Label>{t("schedules.dayOfMonth")}</Label>
+          <Label htmlFor="visual-day-of-month">{t("schedules.dayOfMonth")}</Label>
           <select
+            id="visual-day-of-month"
             className="flex h-10 w-full rounded-md border border-[hsl(var(--input))] bg-transparent px-3 py-2 text-sm"
             value={dayOfMonth}
-            onChange={(e) => handleDayOfMonthChange(Number(e.target.value))}
+            onChange={(e) => update({ dayOfMonth: Number(e.target.value) })}
           >
             {Array.from({ length: 31 }, (_, i) => (
               <option key={i + 1} value={i + 1}>
@@ -346,17 +303,17 @@ function VisualCronEditor({
         </div>
       )}
 
-      {value && (
+      {cronExpression && (
         <div className="rounded-md border border-[hsl(var(--border))] bg-[hsl(var(--muted))] p-3">
           <p className="text-xs text-[hsl(var(--muted-foreground))]">
             {t("schedules.generatedExpression")}
           </p>
           <code className="text-sm font-mono text-[hsl(var(--foreground))]">
-            {value}
+            {cronExpression}
           </code>
-          {getCronDescription(value) && (
+          {getCronDescription(cronExpression) && (
             <p className="mt-1 text-xs text-[hsl(var(--muted-foreground))]">
-              {getCronDescription(value)}
+              {getCronDescription(cronExpression)}
             </p>
           )}
         </div>
@@ -503,6 +460,11 @@ export default function SchedulesPage() {
   const [formName, setFormName] = useState("");
   const [formWorkflowId, setFormWorkflowId] = useState("");
   const [formCron, setFormCron] = useState("");
+  // visual 편집기 상태를 부모로 lift 해 두 모드 사이를 왕복해도 손실되지 않게
+  // 한다. expression 입력은 매번 parser 를 통해 visual state 를 동기화하고,
+  // visual 컨트롤 변경은 build 함수로 cron 을 재생성한다.
+  const [formVisualState, setFormVisualState] =
+    useState<VisualState>(DEFAULT_VISUAL_STATE);
   const [formTimezone, setFormTimezone] = useState(
     Intl.DateTimeFormat().resolvedOptions().timeZone,
   );
@@ -690,6 +652,7 @@ export default function SchedulesPage() {
     setFormName("");
     setFormWorkflowId("");
     setFormCron("");
+    setFormVisualState(DEFAULT_VISUAL_STATE);
     setFormTimezone(Intl.DateTimeFormat().resolvedOptions().timeZone);
     setFormParameterValuesJson("{}");
     setParameterValuesError(null);
@@ -702,6 +665,12 @@ export default function SchedulesPage() {
     setFormName(schedule.name);
     setFormWorkflowId(schedule.workflowId);
     setFormCron(schedule.cronExpression);
+    // 편집 진입 시 cron 을 visual 로 분해 시도. 분해 실패(visual 표현 불가)
+    // 면 시각 편집 탭에서 안내가 표시되며, 마지막 시각 state(여기선 디폴트)
+    // 가 컨트롤 초기값으로 사용된다.
+    setFormVisualState(
+      parseCronToVisualOrNull(schedule.cronExpression) ?? DEFAULT_VISUAL_STATE,
+    );
     setFormTimezone(schedule.timezone);
     setFormParameterValuesJson(
       JSON.stringify(schedule.parameterValues ?? {}, null, 2),
@@ -709,6 +678,29 @@ export default function SchedulesPage() {
     setParameterValuesError(null);
     setEditTarget(schedule);
     setShowDialog(true);
+  }
+
+  // expression input 변경 시 cron 을 visual state 로도 분해하여 두 모드를
+  // 단일 진실 원천으로 묶는다. 분해 실패 시 visual state 는 직전 값을
+  // 유지하며, VisualCronEditor 가 안내 문구를 표시한다.
+  function handleCronInputChange(cron: string) {
+    setFormCron(cron);
+    const parsed = parseCronToVisualOrNull(cron);
+    if (parsed) setFormVisualState(parsed);
+  }
+
+  function handleVisualStateChange(next: VisualState) {
+    setFormVisualState(next);
+    setFormCron(buildCronFromVisual(next));
+  }
+
+  // 새 스케줄에서 cron 입력 없이 시각 탭으로 진입하면 디폴트 시각 state 의
+  // cron 을 즉시 적용해 사용자가 별도 행동 없이도 저장 가능한 상태로 만든다.
+  function handleSetCronTab(tab: CronEditorTab) {
+    setCronTab(tab);
+    if (tab === "visual" && !formCron.trim()) {
+      setFormCron(buildCronFromVisual(formVisualState));
+    }
   }
 
   function handleSubmit() {
@@ -836,7 +828,7 @@ export default function SchedulesPage() {
                         ? "bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))]"
                         : "bg-transparent text-[hsl(var(--foreground))] hover:bg-[hsl(var(--muted))]",
                     )}
-                    onClick={() => setCronTab("expression")}
+                    onClick={() => handleSetCronTab("expression")}
                   >
                     {t("schedules.expressionTab")}
                   </button>
@@ -848,7 +840,7 @@ export default function SchedulesPage() {
                         ? "bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))]"
                         : "bg-transparent text-[hsl(var(--foreground))] hover:bg-[hsl(var(--muted))]",
                     )}
-                    onClick={() => setCronTab("visual")}
+                    onClick={() => handleSetCronTab("visual")}
                   >
                     {t("schedules.visualTab")}
                   </button>
@@ -860,7 +852,7 @@ export default function SchedulesPage() {
                     <Input
                       id="schedule-cron"
                       value={formCron}
-                      onChange={(e) => setFormCron(e.target.value)}
+                      onChange={(e) => handleCronInputChange(e.target.value)}
                       placeholder="0 * * * *"
                     />
                     {formCronDescription && (
@@ -871,8 +863,13 @@ export default function SchedulesPage() {
                   </div>
                 ) : (
                   <VisualCronEditor
-                    value={formCron}
-                    onChange={setFormCron}
+                    state={formVisualState}
+                    onChange={handleVisualStateChange}
+                    cronCannotRepresent={
+                      formCron.trim() !== "" &&
+                      parseCronToVisualOrNull(formCron) === null
+                    }
+                    cronExpression={formCron}
                     t={t}
                   />
                 )}
