@@ -5,10 +5,15 @@ import {
 } from '../../core/node-component.interface';
 import { AI_NO_LLM_PROVIDER_MESSAGE } from '../llm-provider-rule';
 
+/**
+ * Single category definition for `text_classifier`.
+ *
+ * `id` 는 출력 포트 핸들로 그대로 사용된다 — `spec/3-workflow-editor/4-ai-assistant.md §8`
+ * stable-port-id 정책 + `switch.caseDefSchema.id` 와 동일 패턴. UI 는 hidden 이며
+ * AI Assistant 만 채워 넣는다. 누락·공백·invalid slug 일 경우 resolver/handler
+ * 모두 `class_${i}` index fallback (`port-id.util.ts` 참조).
+ */
 export const categoryDefSchema = z.object({
-  // spec §8 stable port id — 비면 resolver/handler 가 `class_${i}` fallback.
-  // slug 형식(ASCII 영숫자/`_`/`-`, 최대 64) 만 허용 — switch.caseDefSchema.id 와
-  // 동일 패턴으로 포트 라우팅 키 보호.
   id: z
     .string()
     .regex(/^[a-zA-Z0-9_-]+$/)
@@ -141,12 +146,28 @@ export function validateTextClassifierConfig(config: unknown): string[] {
   const errors: string[] = [];
   const categories = c.categories;
   if (Array.isArray(categories)) {
+    // 중복 id 는 resolver 가 dedupe 하면서 두 번째 포트를 silent 로 떨어뜨려
+    // handler 의 findIndex 결과와 어긋나 silent 오분류가 발생한다 (review W-4).
+    // schema 레벨에서 미리 차단.
+    const seenIds = new Set<string>();
     for (let i = 0; i < categories.length; i++) {
       const cat = (categories[i] ?? {}) as Record<string, unknown>;
       if (!cat.name || typeof cat.name !== 'string') {
         errors.push(`Category ${i + 1}: name is required`);
       } else if (cat.name === NONE_SENTINEL) {
         errors.push(`Category ${i + 1}: "${NONE_SENTINEL}" is a reserved name`);
+      }
+      if (typeof cat.id === 'string') {
+        const trimmedId = cat.id.trim();
+        if (trimmedId.length > 0) {
+          if (seenIds.has(trimmedId)) {
+            errors.push(
+              `Category ${i + 1}: duplicate id "${trimmedId}" — each category must have a unique id`,
+            );
+          } else {
+            seenIds.add(trimmedId);
+          }
+        }
       }
     }
   }

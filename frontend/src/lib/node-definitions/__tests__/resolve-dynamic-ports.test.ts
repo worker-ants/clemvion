@@ -126,6 +126,46 @@ describe("resolveDynamicPorts — text_classifier", () => {
     );
     expect(ports.map((p) => p.id)).toEqual(["fallback", "error"]);
   });
+
+  it("uses category.id when set (stable port id)", () => {
+    const ports = resolveDynamicPorts(
+      "text_classifier",
+      {
+        categories: [
+          { id: "cat_refund", name: "Refund" },
+          { id: "cat_complaint", name: "Complaint" },
+        ],
+      },
+      def("text_classifier", [], CLASSIFIER_SPEC),
+    );
+    expect(ports.map((p) => p.id)).toEqual([
+      "cat_refund",
+      "cat_complaint",
+      "fallback",
+      "error",
+    ]);
+  });
+
+  it("falls back to class_${i} when id is missing, whitespace, or invalid slug", () => {
+    const ports = resolveDynamicPorts(
+      "text_classifier",
+      {
+        categories: [
+          { id: "   ", name: "Whitespace" },
+          { id: "invalid id!", name: "BadSlug" },
+          { id: "cat_ok", name: "Good" },
+        ],
+      },
+      def("text_classifier", [], CLASSIFIER_SPEC),
+    );
+    expect(ports.map((p) => p.id)).toEqual([
+      "class_0",
+      "class_1",
+      "cat_ok",
+      "fallback",
+      "error",
+    ]);
+  });
 });
 
 describe("resolveDynamicPorts — ai_agent (4 mode×condition combinations)", () => {

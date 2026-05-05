@@ -3,6 +3,7 @@ import type {
   NodePort,
 } from '../../../nodes/core/node-component.interface';
 import type { NodeDefinitionView } from '../../../nodes/core/node-component.registry';
+import { resolveStablePortId } from '../../../nodes/core/port-id.util';
 
 /**
  * Backend mirror of `frontend/src/lib/node-definitions/resolve-dynamic-ports.ts`.
@@ -66,8 +67,7 @@ function parallelBranchPorts(config: Record<string, unknown>): ResolvedPort[] {
 function switchPorts(config: Record<string, unknown>): ResolvedPort[] {
   const cases = (config.cases as CaseEntry[] | undefined) ?? [];
   const casePorts = cases.map<ResolvedPort>((c, i) => ({
-    // trim() 로 공백만 담긴 id (e.g. ' ') 는 truthy 여도 fallback 발동.
-    id: typeof c.id === 'string' && c.id.trim().length > 0 ? c.id : `case_${i}`,
+    id: resolveStablePortId(c.id, `case_${i}`),
     label: c.label || 'Case',
     type: 'data',
     isUserConfigured: true,
@@ -84,9 +84,7 @@ function classifierCategoriesPorts(
 ): ResolvedPort[] {
   const categories = (config.categories as CategoryEntry[] | undefined) ?? [];
   const catPorts = categories.map<ResolvedPort>((c, i) => ({
-    // spec §8 stable port id — switchPorts 와 동일 trim 기반 fallback.
-    id:
-      typeof c.id === 'string' && c.id.trim().length > 0 ? c.id : `class_${i}`,
+    id: resolveStablePortId(c.id, `class_${i}`),
     label: c.name || `Category ${i + 1}`,
     type: 'data',
     isUserConfigured: true,
@@ -151,7 +149,7 @@ function aiAgentConditionalPorts(
   const conditions =
     (config[spec.conditionsField] as ConditionEntry[] | undefined) ?? [];
   const condPorts = conditions.map<ResolvedPort>((c, i) => ({
-    id: typeof c.id === 'string' && c.id.length > 0 ? c.id : `cond_${i}`,
+    id: resolveStablePortId(c.id, `cond_${i}`),
     label: c.label || 'Condition',
     type: 'data',
     isUserConfigured: true,

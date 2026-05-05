@@ -497,10 +497,12 @@ Single-label (기본) 또는 Multi-label 모드를 지원.
 
 | 필드 | 타입 | 설명 |
 |------|------|------|
-| id | String? | 카테고리 안정 id. 출력 포트 핸들 (`source_port`) 로 사용. 누락 시 `class_${i}` fallback. 형식: `[a-zA-Z0-9_-]+`, 최대 64자 |
+| id | String? | 카테고리 안정 id. 출력 포트 핸들 (`source_port`) 로 사용. 누락 시 `class_${i}` fallback. 형식: `[a-zA-Z0-9_-]+`, 최대 64자. **설정 UI 에 노출되지 않으며 (hidden) AI Assistant 가 자동 지정**. 카테고리 간 id 중복 금지 (resolver dedupe 가 두 번째 포트를 silent 로 떨어뜨려 핸들러 라우팅과 어긋남). |
 | name | String | 카테고리 이름 (출력 포트 라벨). `__none__`은 예약어로 사용 불가 |
 | description | String | 카테고리 설명 (LLM에게 제공) |
 | examples | String[] | 예시 텍스트 목록 |
+
+> ⚠ **마이그레이션 주의**: 기존 워크플로우의 카테고리에 후속으로 `id` 를 추가하면 출력 포트 id 가 `class_${i}` → 사용자 지정 id 로 바뀐다. 그 카테고리에 연결된 기존 엣지(`source_port: class_0` 등)는 dangling 상태가 되므로 엣지를 수동 재연결해야 한다. 신규 카테고리에는 처음부터 `id` 를 지정해 두면 안전.
 
 ### 설정 UI
 

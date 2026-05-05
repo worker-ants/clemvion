@@ -4,6 +4,7 @@ import {
   ValidationResult,
 } from '../../core/node-handler.interface';
 import { evaluateMetadataBlockingErrors } from '../../core/metadata-validation';
+import { resolveStablePortId } from '../../core/port-id.util';
 import { LlmService } from '../../../modules/llm/llm.service';
 import { ChatResult } from '../../../modules/llm/interfaces/llm-client.interface';
 import { truncateForErrorDetails } from '../../core/error-codes';
@@ -17,17 +18,13 @@ interface Category {
 }
 
 /**
- * Maps each category to the output port id used by the engine. Mirrors the
- * resolver fallback in `classifierCategoriesPorts` (resolve-dynamic-ports.ts)
- * so router decisions stay in sync with what the workflow-assistant emits.
- * `class_${i}` fallback survives legacy workflows whose categories had no id.
+ * Applies `resolveStablePortId` to each category so handler routing uses the
+ * exact same id the workflow-assistant resolver publishes. `class_${i}`
+ * fallback covers legacy workflows whose categories had no id and inputs that
+ * fail the slug regex (defense-in-depth — schema bypass paths).
  */
 function buildCategoryPortIds(categories: Category[]): string[] {
-  return categories.map((c, i) =>
-    typeof c.id === 'string' && c.id.trim().length > 0
-      ? c.id.trim()
-      : `class_${i}`,
-  );
+  return categories.map((c, i) => resolveStablePortId(c.id, `class_${i}`));
 }
 
 export class TextClassifierHandler implements NodeHandler {

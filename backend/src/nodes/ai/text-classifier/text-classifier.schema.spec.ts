@@ -29,7 +29,7 @@ describe('textClassifierNodeConfigSchema', () => {
 });
 
 describe('categoryDefSchema', () => {
-  it('id 는 optional — 생략 가능 (resolver 가 class_${i} fallback)', () => {
+  it('id 는 optional — 생략 가능 (resolver 가 class_N index-based fallback)', () => {
     const parsed = categoryDefSchema.parse({ name: 'Billing' });
     expect(parsed.id).toBeUndefined();
     expect(parsed.name).toBe('Billing');
@@ -77,6 +77,12 @@ describe('categoryDefSchema', () => {
     const parsed = categoryDefSchema.parse({});
     expect(parsed.name).toBe('');
     expect(parsed.description).toBe('');
+  });
+
+  it('빈 문자열 id 는 거부 (regex 가 1자 이상 요구하므로 명시적 보장)', () => {
+    expect(categoryDefSchema.safeParse({ id: '', name: 'A' }).success).toBe(
+      false,
+    );
   });
 });
 
@@ -221,6 +227,35 @@ describe('validateTextClassifierConfig (imperative)', () => {
     expect(
       validateTextClassifierConfig({ categories: [{ name: '__none__' }] }),
     ).toContain('Category 1: "__none__" is a reserved name');
+  });
+
+  it('rejects duplicate category ids (silent misroute prevention)', () => {
+    const errors = validateTextClassifierConfig({
+      categories: [
+        { id: 'cat_dup', name: 'A' },
+        { id: 'cat_dup', name: 'B' },
+        { id: 'cat_unique', name: 'C' },
+      ],
+    });
+    expect(
+      errors.some(
+        (e) =>
+          e.includes('Category 2') &&
+          e.includes('duplicate id') &&
+          e.includes('cat_dup'),
+      ),
+    ).toBe(true);
+  });
+
+  it('treats whitespace-only ids as fallback (no dup conflict)', () => {
+    expect(
+      validateTextClassifierConfig({
+        categories: [
+          { id: '   ', name: 'A' },
+          { id: '   ', name: 'B' },
+        ],
+      }),
+    ).toEqual([]);
   });
 });
 

@@ -14,8 +14,22 @@ export type DynamicPortDefinition = {
   group?: string;
 };
 
+/**
+ * Slug 형식의 stable port id 만 통과시키고, 그 외는 fallback 으로 떨어뜨린다.
+ * Backend `nodes/core/port-id.util.ts` 와 lockstep — schema 를 우회한 데이터
+ * (legacy import, 직접 DB 주입 등) 에서도 라우팅 키가 오염되지 않도록 한다.
+ */
+const PORT_ID_SLUG_REGEX = /^[a-zA-Z0-9_-]{1,64}$/;
+function resolveStableSlugId(id: unknown, fallback: string): string {
+  if (typeof id !== "string") return fallback;
+  const trimmed = id.trim();
+  if (trimmed.length === 0) return fallback;
+  if (!PORT_ID_SLUG_REGEX.test(trimmed)) return fallback;
+  return trimmed;
+}
+
 type CaseEntry = { id: string; label: string };
-type CategoryEntry = { name: string };
+type CategoryEntry = { id?: string; name: string };
 type ConditionEntry = { id: string; label: string };
 type ButtonEntry = { id: string; label: string; type: string };
 type CarouselItem = { title?: string; buttons?: ButtonEntry[] };
@@ -39,9 +53,7 @@ function switchPorts(config: Record<string, unknown>): DynamicPortDefinition[] {
   // fallback id 가 이후 유저 편집으로 커스텀 id 로 교체될 때까지 안정적인
   // 포트 식별자를 제공한다.
   const casePorts = cases.map<DynamicPortDefinition>((c, i) => ({
-    // trim() 로 공백만 담긴 id ('  ') 는 truthy 여도 fallback 발동.
-    id:
-      typeof c.id === "string" && c.id.trim().length > 0 ? c.id : `case_${i}`,
+    id: resolveStableSlugId(c.id, `case_${i}`),
     label: c.label || "Case",
     type: "data",
   }));
@@ -54,7 +66,9 @@ function classifierCategoriesPorts(
 ): DynamicPortDefinition[] {
   const categories = (config.categories as CategoryEntry[] | undefined) ?? [];
   const catPorts = categories.map<DynamicPortDefinition>((c, i) => ({
-    id: `class_${i}`,
+    // backend `resolve-dynamic-ports.ts` 와 lockstep — trim 기반 stable id +
+    // slug regex 검증으로 schema 우회 입력에서도 안전한 fallback.
+    id: resolveStableSlugId(c.id, `class_${i}`),
     label: c.name || `Category ${i + 1}`,
     type: "data",
   }));
@@ -97,8 +111,7 @@ function aiAgentConditionalPorts(
   // 길이 기준 — id 누락으로 fallback 처리된 경우도 실제 의도된 분기로
   // 간주해 포트를 발행한다.
   const condPorts = conditions.map<DynamicPortDefinition>((c, i) => ({
-    id:
-      typeof c.id === "string" && c.id.length > 0 ? c.id : `cond_${i}`,
+    id: resolveStableSlugId(c.id, `cond_${i}`),
     label: c.label || "Condition",
     type: "data",
   }));
