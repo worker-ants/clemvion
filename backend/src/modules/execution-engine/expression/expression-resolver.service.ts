@@ -88,7 +88,6 @@ export class ExpressionResolverService {
         mode: executionMeta?.mode ?? 'manual',
       },
       $now: now.toISOString(),
-      $today: now.toISOString().split('T')[0],
       $loop: executionContext.loopContext
         ? {
             index: executionContext.loopContext.index,

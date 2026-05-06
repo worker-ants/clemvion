@@ -20,7 +20,6 @@ describe('Expression Engine', () => {
       workflowId: 'wf-456',
     },
     $now: '2026-03-30T12:00:00.000Z',
-    $today: '2026-03-30',
     $env: { API_URL: 'https://api.example.com' },
     $loop: { index: 0, iteration: 1, isFirst: true, isLast: false },
     $item: { id: 1, name: 'Item1' },
@@ -42,9 +41,8 @@ describe('Expression Engine', () => {
       expect(evaluate('{{ $var.counter }}', defaultContext)).toBe(5);
     });
 
-    it('should access $now and $today', () => {
+    it('should access $now', () => {
       expect(evaluate('{{ $now }}', defaultContext)).toBe('2026-03-30T12:00:00.000Z');
-      expect(evaluate('{{ $today }}', defaultContext)).toBe('2026-03-30');
     });
 
     it('should access $loop properties', () => {

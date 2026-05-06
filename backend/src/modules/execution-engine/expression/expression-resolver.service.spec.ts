@@ -34,7 +34,6 @@ describe('ExpressionResolverService', () => {
         mode: 'manual',
       },
       $now: '2026-01-01T12:00:00Z',
-      $today: '2026-01-01',
     };
 
     it('resolves simple string expression', () => {
@@ -294,6 +293,21 @@ describe('ExpressionResolverService', () => {
       const ctx = service.buildExpressionContext(null, execContext, nodeMap);
       expect(ctx.$input).toEqual({});
       expect(ctx.$params).toEqual({});
+    });
+
+    it('exposes $now as UTC ISO and does not expose $today (timezone-ambiguous, removed)', () => {
+      const nodeMap = new Map<string, Node>();
+      const execContext: ExecutionContext = {
+        executionId: 'exec-1',
+        workflowId: 'wf-1',
+        variables: {},
+        nodeOutputCache: {},
+      };
+      const ctx = service.buildExpressionContext({}, execContext, nodeMap);
+
+      expect(typeof ctx.$now).toBe('string');
+      expect(ctx.$now).toMatch(/Z$/);
+      expect(ctx).not.toHaveProperty('$today');
     });
 
     it('exposes $params as alias for $input.parameters', () => {

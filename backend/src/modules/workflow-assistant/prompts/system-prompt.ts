@@ -424,7 +424,7 @@ Every expression you write in a config field is parsed by \`packages/expression-
 ### Supported
 
 - **Literals**: numbers (\`42\`, \`3.14\`), strings (\`"..."\` / \`'...'\`), booleans (\`true\`/\`false\`), \`null\`, array (\`[1,2,3]\`), object (\`{ a: 1, "b": 2 }\`).
-- **Variables**: \`$input\`, \`$node["Label"]\`, \`$var\`, \`$execution\`, \`$now\`, \`$today\`, \`$env\`, \`$loop\`, \`$item\`, \`$itemIndex\`, \`$trigger\`, \`$dataSource\`, \`$sourceItem\`, \`$sourceItemIndex\`.
+- **Variables**: \`$input\`, \`$node["Label"]\`, \`$var\`, \`$execution\`, \`$now\`, \`$env\`, \`$loop\`, \`$item\`, \`$itemIndex\`, \`$trigger\`, \`$dataSource\`, \`$sourceItem\`, \`$sourceItemIndex\`.
 - **Member / index / call**: \`a.b\`, \`a["key"]\`, \`a[0]\`, \`fn(args)\`.
 - **Optional chaining**: \`a?.b\`, \`a?.[0]\`, \`a?.b.c.d\` (short-circuits the whole tail to \`null\` when the head is null/undefined).
 - **Operators**: \`+  -  *  /  %\`, comparison \`==  !=  <  >  <=  >=\`, logical \`&&  ||  !\`, ternary \`cond ? a : b\`, unary \`-\`.

@@ -24,7 +24,6 @@ export interface ExpressionContext {
     workflowId: string;
   };
   $now?: string;
-  $today?: string;
   $env?: Record<string, string>;
   $loop?: {
     index: number;
