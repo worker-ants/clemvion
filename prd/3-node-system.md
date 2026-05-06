@@ -173,6 +173,8 @@
 
 ### 6.1 AI Agent
 
+> ⚠ **Feature Out (재작성 예정)** — `ND-AG-06`, `ND-AG-10`, `ND-AG-21` 은 도구 연결 입력 경로 재작성 시까지 **비활성**. 조건(`cond_*`) / KB(`kb_*`) / MCP(`mcp_*`) 도구는 영향 없음. 자세한 사유·복원 절차는 `plan/in-progress/ai-agent-tool-connection-rewrite.md`.
+
 | ID | 요구사항 | 우선순위 | 상태 |
 |----|----------|----------|-------|
 | ND-AG-01 | LLM 기반 AI Agent 실행 | 필수 | ✅ |
@@ -180,11 +182,11 @@
 | ND-AG-03 | 사용할 LLM 모델 선택 (Config에서 설정한 프로바이더/모델) | 필수 | ✅ |
 | ND-AG-04 | Temperature, Max Tokens 등 모델 파라미터 설정 | 필수 | ✅ |
 | ND-AG-05 | Knowledge Base 연결 (RAG) | 필수 | ✅ |
-| ND-AG-06 | Tool/Function 호출 지원 — 다른 노드를 도구로 연결 | 필수 | ✅ |
+| ND-AG-06 | Tool/Function 호출 지원 — 다른 노드를 도구로 연결 _(feature out)_ | 필수 | ✅ |
 | ND-AG-07 | 대화 히스토리(컨텍스트) 관리 | 필수 | ✅ |
 | ND-AG-08 | 응답 형식 지정 (텍스트, JSON 등) | 필수 | ✅ |
 | ND-AG-09 | 스트리밍 응답 지원 | 권장 | ✅ |
-| ND-AG-10 | Tool Area를 통한 도구 연결 — 캔버스에서 노드를 드래그하여 AI Agent의 Tool Area에 등록 | 필수 | ✅ |
+| ND-AG-10 | Tool Area를 통한 도구 연결 — 캔버스에서 노드를 드래그하여 AI Agent의 Tool Area에 등록 _(feature out)_ | 필수 | ✅ |
 | ND-AG-11 | 실행 모드 선택 — Single Turn(단일 호출) / Multi Turn(대화형 블로킹) 모드 지원 | 필수 | ✅ |
 | ND-AG-12 | Multi Turn 모드 시 워크플로우 실행을 일시 정지(blocking)하고, 사용자와 대화형 인터랙션 제공 | 필수 | ✅ |
 | ND-AG-13 | Multi Turn 모드의 종료 조건 설정 — 최대 턴 수, 타임아웃(→ error 포트로 통합), 사용자 명시적 종료 | 필수 | ✅ |
@@ -195,7 +197,7 @@
 | ND-AG-18 | 조건 도구 호출 시 AI Agent 종료 및 해당 포트 라우팅 | 필수 | ✅ |
 | ND-AG-19 | 종료 사유별 기본 출력 포트 제공 (user_ended, error, max_turns). timeout/rate limit는 error로 통합 | 필수 | ✅ |
 | ND-AG-20 | 조건의 동적 추가/삭제, 포트 ID 불변 유지 | 필수 | ✅ |
-| ND-AG-21 | 조건과 일반 도구 동시 호출 시 일반 도구 우선 실행 후 LLM 재평가 | 필수 | ✅ |
+| ND-AG-21 | 조건과 일반 도구 동시 호출 시 일반 도구 우선 실행 후 LLM 재평가 _(feature out — 일반 도구 입력 경로 비활성으로 시나리오 미발생)_ | 필수 | ✅ |
 | ND-AG-22 | 복수 조건 동시 호출 시 목록 순서 기준 첫 번째 조건 선택 | 필수 | ✅ |
 | ND-AG-23 | Single Turn 모드: 조건 포트 + `out` + `error`. 조건 0개 시 `out` + `error` | 필수 | ✅ |
 | ND-AG-24 | Multi Turn 모드: 조건 포트 + `user_ended` + `max_turns` + `error`. 조건 0개 시 `out` + `error` (하위 호환) | 필수 | ✅ |
