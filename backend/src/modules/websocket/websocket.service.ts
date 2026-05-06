@@ -63,6 +63,36 @@ export enum NodeEventType {
   NODE_SKIPPED = 'execution.node.skipped',
 }
 
+/**
+ * WARN #10 (Security) — credential-like 키를 가진 필드를 WS 이벤트 페이로드에서
+ * 마스킹. 핸들러가 echo 하지 말아야 할 자격증명 (password, apiKey, token, secret,
+ * credentials.access_token 등) 이 노드 output / meta 에 실수로 포함된 경우에
+ * 대비한 defense-in-depth. 채널 구독자 전원에게 평문 노출되는 것을 차단.
+ *
+ * 키 이름 패턴 매칭 방식 — 값 자체의 entropy 분석은 false positive 가 너무 많음.
+ */
+const CREDENTIAL_KEY_PATTERN =
+  /^(password|passwd|pwd|api[_-]?key|secret|token|access[_-]?token|refresh[_-]?token|private[_-]?key|client[_-]?secret|authorization|cookie)$/i;
+
+const MAX_SANITIZE_DEPTH = 10;
+
+function sanitizePayloadForWs(value: unknown, depth = 0): unknown {
+  if (depth > MAX_SANITIZE_DEPTH) return value;
+  if (value === null || typeof value !== 'object') return value;
+  if (Array.isArray(value)) {
+    return value.map((item) => sanitizePayloadForWs(item, depth + 1));
+  }
+  const result: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
+    if (CREDENTIAL_KEY_PATTERN.test(k)) {
+      result[k] = '[REDACTED]';
+    } else {
+      result[k] = sanitizePayloadForWs(v, depth + 1);
+    }
+  }
+  return result;
+}
+
 @Injectable()
 export class WebsocketService {
   constructor(private readonly gateway: WebsocketGateway) {}
@@ -73,11 +103,12 @@ export class WebsocketService {
     payload: unknown,
   ): void {
     const channel = `execution:${executionId}`;
+    const sanitizedPayload = sanitizePayloadForWs(payload);
     this.gateway.broadcastToChannel(channel, eventType, {
       executionId,
-      ...((payload && typeof payload === 'object'
-        ? payload
-        : { data: payload }) as Record<string, unknown>),
+      ...((sanitizedPayload && typeof sanitizedPayload === 'object'
+        ? sanitizedPayload
+        : { data: sanitizedPayload }) as Record<string, unknown>),
       timestamp: new Date().toISOString(),
     });
   }
@@ -89,12 +120,13 @@ export class WebsocketService {
     payload: unknown,
   ): void {
     const channel = `execution:${executionId}`;
+    const sanitizedPayload = sanitizePayloadForWs(payload);
     this.gateway.broadcastToChannel(channel, eventType, {
       executionId,
       nodeId,
-      ...((payload && typeof payload === 'object'
-        ? payload
-        : { data: payload }) as Record<string, unknown>),
+      ...((sanitizedPayload && typeof sanitizedPayload === 'object'
+        ? sanitizedPayload
+        : { data: sanitizedPayload }) as Record<string, unknown>),
       timestamp: new Date().toISOString(),
     });
   }

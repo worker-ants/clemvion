@@ -421,6 +421,36 @@ describe('ExecutionEngineService', () => {
     });
   });
 
+  // WARN #23 (Testing) — recoverStuckExecutions 가 미테스트 상태였다.
+  // WAITING_FOR_INPUT → FAILED 일괄 전환 (단일 atomic UPDATE) 검증.
+  describe('recoverStuckExecutions', () => {
+    it('marks WAITING_FOR_INPUT executions as FAILED in a single bulk UPDATE', async () => {
+      const updateExecuted = jest.fn().mockResolvedValue({ affected: 2 });
+      const where = jest.fn().mockReturnValue({ execute: updateExecuted });
+      const setMethod = jest.fn().mockReturnValue({ where });
+      const update = jest.fn().mockReturnValue({ set: setMethod });
+      mockExecutionRepo.createQueryBuilder = jest.fn().mockReturnValue({
+        update,
+      });
+
+      // Private 메서드를 호출 (테스트 전용 접근).
+      await (
+        service as unknown as { recoverStuckExecutions: () => Promise<void> }
+      ).recoverStuckExecutions();
+
+      expect(update).toHaveBeenCalled();
+      expect(setMethod).toHaveBeenCalled();
+      const setArg = setMethod.mock.calls[0][0] as Record<string, unknown>;
+      expect(setArg.status).toBe(ExecutionStatus.FAILED);
+      expect((setArg.error as { message: string }).message).toContain(
+        'server restarted',
+      );
+      expect(where).toHaveBeenCalledWith('status = :status', {
+        status: ExecutionStatus.WAITING_FOR_INPUT,
+      });
+    });
+  });
+
   // CRIT #5 — executeSync / executeAsync 가 Sub-Workflow handler 가 직접
   // 호출하는 public API 임에도 완전 미테스트 상태였다. workflow-not-found,
   // FAILED / CANCELLED 상태 전파, timeout 경로의 최소 커버리지를 확보한다.

@@ -67,7 +67,10 @@ export class ParallelExecutor {
         limit(async () => {
           const branchContext: ExecutionContext = {
             ...context,
-            variables: { ...context.variables },
+            // WARN #14 (Concurrency) — 중첩 객체를 두 브랜치가 await 경계를
+            // 넘어 쓰면 last-write-wins 비결정성 발생. structuredClone 으로
+            // deep clone 하여 브랜치 간 격리.
+            variables: structuredClone(context.variables),
             itemContext: undefined,
             loopContext: undefined,
           };

@@ -132,6 +132,8 @@ class ExecutionCancelledError extends Error {
  * 첫 waiting (사용자 첫 메시지 전) 에서는 turnCount=0 이고 turnDebugHistory
  * 도 없으므로 turnDebug=[] / ragSources=[] 로 채워져 References 탭은 자동
  * 숨김 (`hasReferences=false`).
+ *
+ * @internal — 테스트 보조용으로 공개. 외부 모듈에서 직접 import 하지 않는다.
  */
 export function buildConversationMetaFromResumeState(
   state: Record<string, unknown>,
@@ -188,6 +190,8 @@ interface TurnDebugEntry {
  * Returns an object with optional fields so callers can spread it into
  * the event payload without emitting `llmCalls: undefined` keys when no
  * turns have run yet.
+ *
+ * @internal — 테스트 보조용으로 공개. 외부 모듈에서 직접 import 하지 않는다.
  */
 export function buildAiMessageDebugFromResumeState(
   state: Record<string, unknown>,
@@ -296,6 +300,14 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
    */
   private readonly executionPathChain = new Map<string, Promise<void>>();
 
+  /**
+   * Sub-Workflow 재귀 호출 깊이 상한. WARN #9 (Security) — workflow A 가 자기
+   * 자신을 sub-workflow 로 부르면 무한 재귀 발생, 메모리·DB 폭주. spec/PRD 의
+   * 명시 한도가 없으므로 보수적으로 10. executeSync / executeAsync / 인라인
+   * 실행 경로 진입 시 검증.
+   */
+  private static readonly MAX_RECURSION_DEPTH = 10;
+
   constructor(
     @InjectRepository(Execution)
     private readonly executionRepository: Repository<Execution>,
@@ -337,26 +349,31 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
    * since their in-memory continuation Promises are lost.
    */
   private async recoverStuckExecutions(): Promise<void> {
-    const stuck = await this.executionRepository.find({
-      where: { status: ExecutionStatus.WAITING_FOR_INPUT },
-    });
-    if (stuck.length === 0) return;
+    // WARN #1 (DB) — N건의 개별 save (loop 도중 서버 재기동 시 부분 복구 위험)
+    // 대신 단일 atomic UPDATE 로 교체. SQL 단일 문장은 내부적으로 트랜잭션
+    // 이므로 정합성 보장. durationMs 는 stuck recovery 의 정확도가 중요하지
+    // 않아 일괄 NULL 유지 — 운영 대시보드는 finishedAt - startedAt 으로 별도
+    // 계산할 수 있다.
+    const finishedAt = new Date();
+    const updateResult = await this.executionRepository
+      .createQueryBuilder()
+      .update(Execution)
+      .set({
+        status: ExecutionStatus.FAILED,
+        error: {
+          message:
+            'Execution failed: server restarted while waiting for user input',
+        },
+        finishedAt,
+      })
+      .where('status = :status', { status: ExecutionStatus.WAITING_FOR_INPUT })
+      .execute();
 
-    this.logger.warn(
-      `Recovering ${stuck.length} execution(s) stuck in WAITING_FOR_INPUT`,
-    );
-    for (const execution of stuck) {
-      execution.status = ExecutionStatus.FAILED;
-      execution.error = {
-        message:
-          'Execution failed: server restarted while waiting for user input',
-      };
-      execution.finishedAt = new Date();
-      if (execution.startedAt) {
-        execution.durationMs =
-          execution.finishedAt.getTime() - execution.startedAt.getTime();
-      }
-      await this.executionRepository.save(execution);
+    const affected = updateResult.affected ?? 0;
+    if (affected > 0) {
+      this.logger.warn(
+        `Recovered ${affected} execution(s) stuck in WAITING_FOR_INPUT`,
+      );
     }
   }
 
@@ -709,6 +726,14 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
         this.logger.log(
           `[executeInline] Node "${node.label}" output status=${statusForLog}, execution=${execution ? 'found' : 'NULL'}`,
         );
+        // WARN #19 (Requirement) — execution 이 null 인데 노드가 blocking
+        // 상태로 진입하면 user interaction guard 가 통과되지 않아 silent skip.
+        // 명시적 에러로 fail-fast 하여 시스템 환경 문제를 빠르게 진단 가능하게.
+        if (!execution && nodeOutput?.status === 'waiting_for_input') {
+          throw new Error(
+            `[executeInline] Cannot enter blocking state for node "${node.label ?? node.type}": Execution record not found (executionId=${executionId}). Sub-workflow blocking nodes require an active Execution row.`,
+          );
+        }
         if (execution) {
           if (nodeOutput?.status === 'waiting_for_input') {
             this.logger.log(
@@ -782,12 +807,29 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
   /**
    * Execute a sub-workflow synchronously (blocking).
    * Creates an Execution record, runs it inline, and returns the output.
+   *
+   * **Timeout TOCTOU 주의 (WARN #13)**: timeout 분기에서 인-flight runExecution
+   * 은 즉시 중단되지 않고 백그라운드에서 계속 진행될 수 있다. 따라서 짧은 시점
+   * 동안:
+   *   1) executeSync 가 FAILED 로 마킹 → 호출부에 throw
+   *   2) 백그라운드 runExecution 이 완료되면 COMPLETED 로 다시 마킹
+   * 의 race window 가 존재한다. 현재는 timeout 후 reload → 상태 비교로 보호하나
+   * 완전 차단 X. 완전한 cancel 은 AbortSignal 주입 + 워커 협력이 필요하며 별도
+   * 인프라 PR (CRIT/WARN backlog) 로 분리.
    */
   async executeSync(
     workflowId: string,
     input?: unknown,
     options?: SubWorkflowOptions,
   ): Promise<SubWorkflowResult> {
+    // WARN #9 (Security) — recursion 폭주 차단.
+    const depth = options?.recursionDepth ?? 0;
+    if (depth > ExecutionEngineService.MAX_RECURSION_DEPTH) {
+      throw new Error(
+        `Sub-workflow recursion depth ${depth} exceeds maximum ${ExecutionEngineService.MAX_RECURSION_DEPTH}`,
+      );
+    }
+
     const workflow = await this.workflowRepository.findOneBy({
       id: workflowId,
     });
@@ -801,7 +843,7 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
       inputData: (input as Record<string, unknown>) ?? {},
       executionPath: [],
       parentExecutionId: options?.parentExecutionId ?? undefined,
-      recursionDepth: options?.recursionDepth ?? 0,
+      recursionDepth: depth,
     });
     const savedExecution = await this.executionRepository.save(execution);
 
@@ -886,6 +928,14 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
     input?: unknown,
     options?: Omit<SubWorkflowOptions, 'timeoutMs'>,
   ): Promise<string> {
+    // WARN #9 (Security) — recursion 폭주 차단.
+    const depth = options?.recursionDepth ?? 0;
+    if (depth > ExecutionEngineService.MAX_RECURSION_DEPTH) {
+      throw new Error(
+        `Sub-workflow recursion depth ${depth} exceeds maximum ${ExecutionEngineService.MAX_RECURSION_DEPTH}`,
+      );
+    }
+
     const workflow = await this.workflowRepository.findOneBy({
       id: workflowId,
     });
@@ -899,7 +949,7 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
       inputData: (input as Record<string, unknown>) ?? {},
       executionPath: [],
       parentExecutionId: options?.parentExecutionId ?? undefined,
-      recursionDepth: options?.recursionDepth ?? 0,
+      recursionDepth: depth,
     });
     const savedExecution = await this.executionRepository.save(execution);
     const executionId = savedExecution.id;
@@ -1292,10 +1342,16 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
 
       // Mark execution as failed
       savedExecution.status = ExecutionStatus.FAILED;
-      savedExecution.error = {
-        message: error instanceof Error ? error.message : String(error),
-        stack: error instanceof Error ? error.stack : undefined,
-      };
+      // WARN #7 (Security) — error.stack 은 파일 경로·모듈명·내부 구조를 노출하므로
+      // DB 에 저장하지 않는다. 디버깅이 필요한 stack 정보는 서버 로그로만 기록.
+      const errMessage = error instanceof Error ? error.message : String(error);
+      if (error instanceof Error && error.stack) {
+        this.logger.error(
+          `Execution ${savedExecution.id} failed: ${errMessage}`,
+          error.stack,
+        );
+      }
+      savedExecution.error = { message: errMessage };
       savedExecution.finishedAt = new Date();
       savedExecution.durationMs =
         savedExecution.finishedAt.getTime() -
@@ -1335,12 +1391,17 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
     const prior = this.executionPathChain.get(executionId) ?? Promise.resolve();
     const next = prior.then(async () => {
       try {
-        const execution = await this.executionRepository.findOneBy({
-          id: executionId,
-        });
-        if (!execution) return;
-        execution.executionPath = [...execution.executionPath, nodeId];
-        await this.executionRepository.save(execution);
+        // WARN #11 (Performance) — findOneBy + save 두 번의 DB 왕복 대신
+        // PostgreSQL `array_append` 를 사용한 단일 atomic UPDATE 로 교체. 10
+        // 노드 워크플로 기준 20회 → 10회 DB 호출, 그리고 read-modify-write
+        // 경쟁 조건도 SQL 레벨에서 격리됨.
+        await this.executionRepository
+          .createQueryBuilder()
+          .update(Execution)
+          .set({ executionPath: () => 'array_append("execution_path", :nid)' })
+          .where('id = :id', { id: executionId })
+          .setParameters({ nid: nodeId })
+          .execute();
       } catch (error) {
         this.logger.warn(
           `Failed to append executionPath for ${executionId}/${nodeId}: ${
@@ -1440,12 +1501,30 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
     // unified `'resumed'` value (CONVENTIONS §4.4 / §4.5).
     const prevStructured = context.structuredOutputCache?.[node.id];
     const receivedAt = new Date().toISOString();
-    const interactionData =
+    // WARN #8 (Security) — formData 가 node.config.fields 에 정의된 필드명만
+    // 통과하도록 화이트리스트 필터링. 미정의 키 (XSS payload, 외부 통합 키 등)
+    // 는 제거. 필드 type / required 는 form handler 의 도메인이므로 여기서는
+    // 화이트리스트만 적용 (defense-in-depth).
+    const rawData =
       formData === null ||
       formData === undefined ||
       typeof formData !== 'object'
         ? {}
         : (formData as Record<string, unknown>);
+    const fieldDefs = (node.config?.fields ?? []) as Array<{
+      name?: unknown;
+    }>;
+    const allowedFieldNames = new Set(
+      fieldDefs
+        .map((f) => f?.name)
+        .filter((n): n is string => typeof n === 'string'),
+    );
+    const interactionData: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(rawData)) {
+      if (allowedFieldNames.size === 0 || allowedFieldNames.has(key)) {
+        interactionData[key] = value;
+      }
+    }
     const updatedStructured = {
       config: prevStructured?.config ?? node.config ?? {},
       output: {
@@ -1594,14 +1673,18 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
       string,
       unknown
     >;
-    let resumeState = nodeOutput._resumeState as Record<string, unknown>;
+    // WARN #18 — resumeState 가 undefined 일 때 buildConversationMetaFromResumeState
+    // 호출이 TypeError 던지던 문제 해소. 핸들러가 _resumeState 를 누락한 비정상
+    // 상황에서도 빈 객체로 fallback 하여 nullable propagation 차단.
+    let resumeState =
+      (nodeOutput._resumeState as Record<string, unknown>) ?? {};
 
     // ENG-RC-* — multi-turn resume 핸들러는 ExecutionContext 가 아닌 state 만
     // 인자로 받으므로 (`processMultiTurnMessage(message, state)`), 첫 turn 이
     // waiting_for_input 으로 진입할 때 엔진이 raw config snapshot 을 state 에
     // 자동으로 합쳐 후속 turn 에서 `state.rawConfig` 로 일관되게 접근할 수 있게 한다.
     // 핸들러가 명시적으로 설정한 rawConfig 가 있다면 존중한다 (덮어쓰지 않음).
-    if (resumeState && !('rawConfig' in resumeState)) {
+    if (!('rawConfig' in resumeState)) {
       resumeState.rawConfig = Object.freeze({ ...(node.config ?? {}) });
     }
 
@@ -1625,14 +1708,18 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
     });
     if (nodeExec) {
       nodeExec.status = NodeExecutionStatus.WAITING_FOR_INPUT;
-      // Persist the canonical structured shape (config/output/meta/status/
-      // _resumeState) so REST polling reconciliation surfaces a NodeHandler-
-      // Output-compliant document. Falls back to the flat cache for legacy
-      // in-flight rows.
-      nodeExec.outputData = (structured ?? nodeOutput) as Record<
-        string,
-        unknown
-      >;
+      // Persist the canonical structured shape (config/output/meta/status)
+      // so REST polling reconciliation surfaces a NodeHandler-Output-compliant
+      // document. Falls back to the flat cache for legacy in-flight rows.
+      // WARN #6 (Security) — _resumeState 는 engine-internal 한 turn debug,
+      // model state, rawConfig (잠재 credential 포함) 등을 담으므로 DB 에
+      // 저장하지 않는다. Multi-turn 상태는 in-memory nodeOutputCache 에서만
+      // 유지되며 server restart 시 recoverStuckExecutions 가 FAILED 로 전환.
+      const persistedOutput: Record<string, unknown> = {
+        ...(structured ?? nodeOutput),
+      };
+      delete persistedOutput._resumeState;
+      nodeExec.outputData = persistedOutput;
       await this.nodeExecutionRepository.save(nodeExec);
     }
 
