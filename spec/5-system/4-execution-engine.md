@@ -344,7 +344,11 @@ interface NodeHandler {
 }
 
 interface NodeHandlerOutput {
-  /** 해석 완료된 입력 설정(echo). 민감 정보(credential 본체)는 포함하지 않는다. */
+  /**
+   * **원본(pre-evaluation) 입력 설정의 echo**. expression(`{{ ... }}`) 이 포함된 필드는
+   * 평가 전 형태 그대로 echo 하고, 평가 결과는 `output.*` 에 둔다 (CONVENTIONS Principle 7).
+   * 민감 정보(credential 본체) 는 포함하지 않는다.
+   */
   config: Record<string, unknown>;
 
   /** 실제 생산된 결과값 — 배열/객체/primitive 모두 허용. */
@@ -364,14 +368,15 @@ interface NodeHandlerOutput {
 | 메서드 | 설명 |
 |--------|------|
 | `validate(config)` | 노드 설정의 유효성 검사. 워크플로우 저장/실행 전에 호출. 에러 시 `{ valid: false, errors: [...] }` 반환 |
-| `execute(input, config, context)` | 노드 실행. 입력 데이터와 해석된 설정을 받아 `NodeHandlerOutput`을 반환한다 |
+| `execute(input, config, context)` | 노드 실행. `config` 는 expression 평가 후 값. `context.rawConfig` 로 평가 전 원본을 함께 받는다. `NodeHandlerOutput` 을 반환한다 |
 
-**config vs output 원칙**
+**config vs output 원칙** (CONVENTIONS Principle 1.1 / 7)
 
-- `config`는 "노드가 무엇을 하도록 설정됐는가"를 기록한다. 디버깅, 감사, downstream 표현식에서 설정값 재사용 용도.
-- `output`은 "노드가 무엇을 생산했는가"를 담는다. 다음 노드가 소비하는 주 데이터.
-- `meta`는 실행 부산물(시간, 외부 상태코드, 토큰 사용량). 비즈니스 로직이 아닌 관측 정보.
-- `port`, `status`는 엔진이 읽어 흐름을 결정하는 디렉티브 — 일반 downstream 참조는 권장하지 않는다.
+- `NodeHandlerOutput.config` 는 "노드가 **어떻게 설정됐는가**" — 워크플로 작성자가 입력한 **원본(pre-evaluation)** 형태. 후속 노드는 `$node["X"].config.<field>` 로 참조한다.
+- `output` 은 "노드가 **무엇을 생산/사용했는가**" — expression 평가 결과·실행 결과. 후속 노드는 `$node["X"].output.<field>` 로 참조한다.
+- 따라서 expression 이 포함된 필드는 두 영역에 서로 다른 값이 존재한다 (예: `config.subject = "Hello {{ name }}"`, `output.subject = "Hello Alice"`).
+- `meta` 는 실행 부산물(시간, 외부 상태코드, 토큰 사용량). 비즈니스 로직이 아닌 관측 정보.
+- `port`, `status` 는 엔진이 읽어 흐름을 결정하는 디렉티브 — 일반 downstream 참조는 권장하지 않는다.
 
 **민감 정보 정책**
 
@@ -391,11 +396,14 @@ $node[resolvedKey] = executionContext.nodeOutputCache[nodeId];
 | 표현식 | 반환 |
 |--------|------|
 | `$node["SendEmail"].output.messageId` | 메일 전송 결과 messageId |
-| `$node["SendEmail"].config.subject` | 노드가 실제 사용한 제목 (echoed config) |
+| `$node["SendEmail"].config.subject` | 노드 설정의 **원본** 제목 (예: `"Hello {{ name }}"` — expression 미평가 형태) |
+| `$node["SendEmail"].output.subject` | 실제 발송된 제목 (예: `"Hello Alice"` — expression 평가 결과) |
 | `$node["HTTP"].meta.statusCode` | HTTP 응답 상태코드 |
 | `$node["HTTP"].output.response` | 응답 본문 |
 | `$node["IfElse"].port` | 실행 시 선택된 포트 (`'true'` / `'false'`) |
 | `$node["Form"].status` | `'waiting_for_input'` 등 엔진 디렉티브 |
+
+expression 이 포함된 필드는 `.config.*` 에서 **원본** 을, `.output.*` 에서 **평가 결과** 를 얻는다. expression 이 포함되지 않은 필드(예: `mode`, `chartType`)는 두 영역의 값이 동일하므로 `.config.*` 만 사용해도 충분하다.
 
 `nodeKey`는 노드 라벨(중복 시 `#N` suffix)과 노드 UUID 두 방식 모두 지원한다. `.output`·`.config`·`.meta`·`.port`·`.status` 외의 필드는 정의되지 않는다.
 
@@ -428,20 +436,22 @@ interface NodeHandlerRegistry {
 - 마켓플레이스를 통해 설치된 커스텀 플러그인 노드도 동일 레지스트리에 등록
 - 미등록 nodeType 조회 시 `UNKNOWN_NODE_TYPE` 에러
 
-### 5.3 표현식 해석 단계
+### 5.5 표현식 해석 단계
 
-노드 실행 전, config 객체의 문자열 필드에 포함된 `{{ }}` 표현식을 해석한다.
+노드 실행 전, config 객체의 문자열 필드에 포함된 `{{ }}` 표현식을 해석한다. 엔진은 **원본(rawConfig) 과 평가 결과(resolvedConfig) 모두** 핸들러에 노출하여 핸들러가 echo 와 실행을 분리할 수 있게 한다.
 
 ```
-1. handler.validate(config) → 원본 config의 구조 유효성 검사
-2. resolvedConfig = ExpressionResolver.resolveConfig(config, exprContext, excludeKeys)
+1. handler.validate(rawConfig) → 원본 config의 구조 유효성 검사
+2. resolvedConfig = ExpressionResolver.resolveConfig(rawConfig, exprContext, nodeType)
    - config 객체를 재귀 순회하며 문자열 값의 {{ }} 패턴을 evaluate()
    - 전체가 {{ expr }}인 경우: 평가 결과의 원래 타입 유지 (number, object 등)
    - 혼합 텍스트 + 표현식: 결과는 항상 string
    - number, boolean, null: 패스스루
    - 1회 패스만 수행 (재귀 해석 없음)
-3. handler.execute(input, resolvedConfig, context) → output
+3. handler.execute(input, resolvedConfig, { ...context, rawConfig }) → output
 ```
+
+`context.rawConfig` 는 평가 전 원본 config 의 reference 다. 핸들러가 `NodeHandlerOutput.config` echo 시 사용한다 (CONVENTIONS Principle 7). 핸들러는 평가된 값으로 동작하지만 echo 는 원본을 보존하여 후속 노드의 `$node["X"].config.*` / `$node["X"].output.*` 직교성을 유지한다.
 
 **ExpressionContext 구성**:
 
@@ -465,20 +475,20 @@ interface NodeHandlerRegistry {
 
 > **상세**: 표현식 문법, 내장 함수, 타입 시스템은 [표현식 언어 스펙](./5-expression-language.md) 참조.
 
-### 5.4 Worker 실행 흐름
+### 5.6 Worker 실행 흐름
 
 ```
 1. Worker가 태스크 큐에서 태스크 메시지를 수신
 2. registry.get(nodeType) → handler 조회
-3. handler.validate(config) → 유효하지 않으면 즉시 실패 (INVALID_NODE_CONFIG)
-4. ExpressionResolver.resolveConfig(config) → resolvedConfig (§5.3)
-5. handler.execute(input, resolvedConfig, context) → output
+3. handler.validate(rawConfig) → 유효하지 않으면 즉시 실패 (INVALID_NODE_CONFIG)
+4. ExpressionResolver.resolveConfig(rawConfig) → resolvedConfig (§5.5)
+5. handler.execute(input, resolvedConfig, { ...context, rawConfig }) → output
 6. 출력 정규화: output이 JSON 직렬화 가능한지 확인
 7. NodeExecution 레코드에 input, output, status 기록
 8. 다음 노드 태스크 생성 (그래프 순회에 따라)
 ```
 
-### 5.4 노드 유형별 리트라이 정책
+### 5.7 노드 유형별 리트라이 정책
 
 | 카테고리 | 기본 리트라이 | 설정 가능 | 비고 |
 |----------|-------------|-----------|------|
@@ -502,6 +512,10 @@ interface NodeHandlerRegistry {
   "executionId": "uuid",
   "workflowId": "uuid",
   "nodeExecutionId": "uuid",
+  "rawConfig": {
+    "subject": "Hello {{ name }}",
+    "body": "Welcome, {{ user.firstName }}!"
+  },
   "variables": {
     "__workspaceId": "uuid",
     "myVar": "value"
@@ -530,6 +544,7 @@ interface NodeHandlerRegistry {
 | `executionId` | 실행 시작 시 고정 | Execution/NodeExecution 귀속 |
 | `workflowId` | 실행 시작 시 고정 | 표현식 컨텍스트, 사용처 확인 |
 | `nodeExecutionId` | 엔진이 handler.execute 호출 직전 주입, 노드별 갱신 | Integration 핸들러가 `IntegrationUsageLog.node_execution_id`로 기록 |
+| `rawConfig` | 엔진이 handler.execute 호출 직전 주입, 노드별 갱신 | 노드 정의에 저장된 **원본 config** (expression 미평가). 핸들러가 `NodeHandlerOutput.config` echo 에 사용 (Principle 7) |
 | `variables.__workspaceId` | 실행 시작 시 주입 (workflow.workspaceId) | Integration 조회, AI LLM 설정 조회 등 워크스페이스 단위 리소스 해소 |
 | `variables.*` (그 외) | 트리거·워크플로우 변수 | 표현식 `{{ $variables.X }}` 평가 |
 

@@ -249,8 +249,8 @@ execute(input: JSON, config: JSON, context: ExecutionContext) → JSON
 | 파라미터 | 설명 |
 |----------|------|
 | input | 이전 노드로부터 받은 입력 데이터 |
-| config | 노드 설정 패널에서 지정한 설정 값 |
-| context | 실행 컨텍스트 (변수, 실행 ID, Integration 접근 등) |
+| config | 노드 설정 패널에서 지정한 설정 값 (**expression 평가 후**) |
+| context | 실행 컨텍스트 (변수, 실행 ID, Integration 접근, **`rawConfig` (원본 config — `NodeHandlerOutput.config` echo 용)** 등). 상세는 [실행 엔진 §6.1](../5-system/4-execution-engine.md#61-컨텍스트-구조) |
 | 반환값 | 다음 노드로 전달할 출력 데이터 |
 
 ---

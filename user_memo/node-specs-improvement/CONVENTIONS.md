@@ -60,7 +60,7 @@
 - `form.config.title = "User Profile"` → `output` 에 **echo 금지**. 후속 노드가 필요하면 `$node["F"].config.title` 사용.
 - `carousel.config.layout = "card"` → `output` 에 echo 금지.
 - `chart.config.chartType = "bar"` → `output` 에 echo 금지. 반면 `output.data` 는 input을 집계한 런타임 값이므로 OK.
-- `template.config.content = "Hello {{ name }}"` → `output` 에 echo 금지. 반면 `output.rendered = "Hello Alice"` 는 expression resolver 가 해석한 런타임 결과이므로 OK.
+- `template.config.content = "Hello {{ name }}"` → `output` 에 echo 금지. 반면 `output.rendered = "Hello Alice"` 는 expression resolver 가 해석한 런타임 결과이므로 OK. **이 패턴은 Principle 7 (config echo 원칙) 과 정확히 정합한다 — `config` 는 원본 템플릿, `output` 은 평가 결과.**
 - `loop.config.count = 10` → `output` 에 echo 금지. 실제로 실행된 횟수는 `meta.iterations` 또는 `output.iterations.length`.
 
 ### 1.1.4. 예외 — `output.view` 타입 판별자 패턴은 **사용하지 않는다**
@@ -231,10 +231,16 @@ Waiting 시점 output 을 **그대로 유지** (immutable snapshot) 하고 `outp
 
 ## Principle 7 — `config` echo 원칙 (NodeHandlerOutput.config)
 
-> `NodeHandlerOutput.config` 는 워크플로우 작성자가 설정한 값을 **해석/치환 후** 그대로 echo 하는 필드입니다. 후속 노드가 `$node["X"].config.<field>` 로 접근할 수 있도록 합니다. **이는 `output` 과 독립된 저장 공간**이며, `config` 에 있는 값을 `output` 에 중복 복사하지 않는다는 Principle 1.1 의 전제 조건입니다.
+> `NodeHandlerOutput.config` 는 워크플로우 작성자가 설정한 **원본(pre-evaluation) 값** 을 그대로 echo 하는 필드입니다. expression(`{{ ... }}`) 이 포함된 필드는 평가 전 형태를 echo 하고, **평가 결과는 `output.*` 에 둡니다**.
+>
+> 후속 노드는:
+> - `$node["X"].config.<field>` — 노드가 **어떻게 설정됐는가** (원본 템플릿)
+> - `$node["X"].output.<field>` — 노드가 **무엇을 실제로 생산/사용했는가** (평가 결과)
+>
+> 두 영역의 직교성은 Principle 1.1 의 핵심 전제입니다. 핸들러가 `context.rawConfig` 를 echo 함으로써 이 직교성이 유지됩니다 (PRD `ENG-RC-*`, Spec [실행 엔진 §5.5](../../spec/5-system/4-execution-engine.md)).
 
-**항상 echo** (NodeHandlerOutput.config 에): 사용자가 UI에서 설정한 **비민감** 값
-- `method`, `url` (credential 제거된 버전), `queryType`, `mode`, `model`, `systemPrompt`, `fields`, `title`, `submitLabel`, `layout`, `items`, `columns`, `chartType`, `conditions`, `categories`, `iterationLimit`, `branchCount`, `maxTurns`, `maxCollectionRetries`, `outputFormat` 등.
+**항상 echo** (NodeHandlerOutput.config 에 raw 형태로): 사용자가 UI 에서 설정한 **비민감** 값
+- `method`, `url` (credential 제거된 raw 형태), `queryType`, `mode`, `model`, `systemPrompt` (raw — `{{ }}` 포함 가능), `userPrompt` (raw), `subject` (raw), `body` (raw), `fields`, `title`, `submitLabel`, `layout`, `items`, `columns`, `chartType`, `conditions`, `categories`, `iterationLimit`, `branchCount`, `maxTurns`, `maxCollectionRetries`, `outputFormat` 등.
 
 **절대 echo 금지**:
 - 자격증명 (password, apiKey, token, secret, oauth credentials).
@@ -246,10 +252,39 @@ Waiting 시점 output 을 **그대로 유지** (immutable snapshot) 하고 `outp
 - `form.config.fields` 가 매우 클 경우 → 그대로 echo (정의상 구조 정보).
 - `ai_agent.config.systemPrompt` 가 수천 줄일 경우에도 그대로 echo (디버깅 목적).
 
-**`config` ↔ `output` 관계 (Principle 1.1 재확인)**:
-- 위 모든 `config` 필드는 **`output` 에 복사되지 않습니다**.
-- 후속 노드는 설정값을 `$node["X"].config.title` 처럼 **직접 참조**합니다.
-- `output` 은 이 실행에서 계산된 값만 담습니다.
+**`config` (raw) ↔ `output` (evaluated) 관계** (Principle 1.1 재확인):
+- 모든 raw config 필드는 **`output` 에 복사되지 않습니다**.
+- expression 평가 결과는 `output.*` 에 단일 보존 (Principle 8.2 의 카테고리별 네이밍 원칙을 따름).
+- expression 미사용 필드 (예: `mode`, `chartType`) 는 raw 와 evaluated 가 동일하므로 본 변경의 영향 없음.
+
+### 핸들러 구현 가이드
+
+```ts
+// 표준 패턴 — 핸들러는 context.rawConfig 를 echo, evaluated 값으로 동작.
+async execute(input, config /* evaluated */, context /* { rawConfig, ... } */) {
+  const evaluatedSubject = config.subject as string;          // "Hello Alice"
+  const evaluatedBody = config.body as string;
+  await sendMail({ subject: evaluatedSubject, body: evaluatedBody, ... });
+
+  return {
+    config: {
+      // raw 를 echo. 사용자가 expression 으로 작성했다면 "{{ name }}" 을 그대로.
+      integrationId: context.rawConfig?.integrationId,
+      to: context.rawConfig?.to,
+      subject: context.rawConfig?.subject,                    // "Hello {{ name }}"
+      body: context.rawConfig?.body,
+      bodyType: context.rawConfig?.bodyType,
+    },
+    output: {
+      messageId: info.messageId,
+      // evaluated 값. 후속 노드가 실제 발송된 내용을 참조.
+      subject: evaluatedSubject,
+      body: evaluatedBody,
+      bodyType: config.bodyType,
+    },
+  };
+}
+```
 
 ---
 
@@ -268,9 +303,10 @@ Waiting 시점 output 을 **그대로 유지** (immutable snapshot) 하고 `outp
 | LLM의 응답 텍스트/객체 | `output.result.response` (ai_agent) |
 | 분류된 카테고리 | `output.result.category` (single) / `output.result.categories` (multi) |
 | 추출된 필드 | `output.result.extracted` |
-| HTTP 응답 본문 | `output.response` (그대로 유지, 이미 관용적) |
+| HTTP 응답 본문 | `output.response` (그대로 유지, 이미 관용적) + `output.responseHeaders` |
+| HTTP 요청 본문 (evaluated) | `output.requestBody`, `output.requestBodyType` (Principle 7 — config 의 raw 와 직교) |
 | DB 쿼리 결과 | `output.rows`, `output.rowCount`, `output.fields`, `output.insertId?` (그대로 유지) |
-| 이메일 전송 결과 | `output.messageId`, `output.accepted`, `output.rejected` (그대로 유지) |
+| 이메일 전송 결과 | `output.messageId`, `output.accepted`, `output.rejected`, `output.subject`, `output.body`, `output.bodyType` (subject·body 는 Principle 7 — config 의 raw 와 직교) |
 | 코드 실행 결과 | `output.result` |
 | 프레젠테이션 뷰 | `output.view` (Principle 4 참고) |
 

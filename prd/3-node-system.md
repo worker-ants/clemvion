@@ -372,3 +372,23 @@
 | ND-EX-02 | 노드 플러그인 표준 인터페이스 정의 | 필수 | 3 |
 | ND-EX-03 | 개발자가 커스텀 노드를 생성/게시할 수 있는 SDK 또는 가이드 제공 | 필수 | 3 |
 
+---
+
+## 11. 노드 핸들러 실행 컨텍스트 (Engine Contract)
+
+> 상세: [Spec 실행 엔진 §5–§6](../spec/5-system/4-execution-engine.md), [CONVENTIONS Principle 7](../user_memo/node-specs-improvement/CONVENTIONS.md)
+
+엔진과 노드 핸들러 사이의 계약. 워크플로 작성자가 입력한 **expression(`{{ ... }}`) 의 평가 전·후 두 값** 을 핸들러가 모두 활용할 수 있도록 명시한다. `config` echo 는 **원본(평가 전)**, `output.*` 는 **평가 결과** 라는 직교성을 보장하기 위한 요구사항이다.
+
+| ID | 요구사항 | 우선순위 | 상태 |
+|----|----------|----------|-------|
+| ENG-RC-01 | 엔진은 `node.config` 에 expression 이 포함될 경우 평가 전 원본을 별도로 보존하여 핸들러가 접근할 수 있도록 노출한다 (`ExecutionContext.rawConfig`) | 필수 | 🚧 |
+| ENG-RC-02 | 핸들러는 `NodeHandlerOutput.config` 에 **원본 config (rawConfig)** 를 echo 하고, expression 평가 결과는 `output.*` 에 둔다 (CONVENTIONS Principle 1.1.3 / Principle 7 정합) | 필수 | 🚧 |
+| ENG-RC-03 | 평가 전(`context.rawConfig`) / 평가 후(`config` 인자) 둘 다 핸들러 인자로 노출되어, 핸들러가 echo 와 실제 동작에 사용할 값을 명확히 분리할 수 있어야 한다 | 필수 | 🚧 |
+| ENG-RC-04 | 마이그레이션은 하드 스위치 — 모든 핸들러가 일관되게 신규 패턴을 따른다. expression 미사용 필드(예: `mode`, `chartType`)는 raw 와 evaluated 가 동일하므로 영향 없으며, expression 사용 필드(template/expression widget)만 의미가 변경된다 | 필수 | 🚧 |
+
+**영향 범위**:
+- 기존 워크플로의 `$node["X"].config.<expression-field>` 표현식이 평가된 값을 읽고 있다면 마이그레이션 후 원본 템플릿이 반환됨 (breaking — release note 필요).
+- 본 변경 이전에 저장된 `NodeExecution.outputData` 의 historical record 는 그대로 보존(백필 X) 하되, UI 의 실행 이력 표시에는 "기록 시점의 config 형태" 라는 안내가 필요할 수 있다.
+- API 클라이언트(외부 통합) 에서 응답 DTO 의 `config` 를 evaluated 로 가정한 코드는 영향 받음 — Phase 5(Swagger 검증) 에서 식별 후 CHANGELOG 반영.
+
