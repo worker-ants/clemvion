@@ -290,6 +290,9 @@ export const aiAgentNodeConfigSchema = z
           group: 'Advanced',
         },
       }),
+    // Feature out — 도구 연결 입력 경로 재작성 예정. UI 숨김 + 핸들러는 빈 배열 강제 처리.
+    // 스키마 자체는 유지하여 DB 에 이미 저장된 값을 보존한다 (재작성 시 자연 복원).
+    // 자세한 사유·복원 절차는 plan/in-progress/ai-agent-tool-connection-rewrite.md.
     toolNodeIds: z
       .array(z.string())
       .default([])
@@ -299,6 +302,8 @@ export const aiAgentNodeConfigSchema = z
           widget: 'field-array',
           order: 33,
           group: 'Advanced',
+          hidden: true,
+          hint: 'Feature out — 도구 연결 입력 경로 재작성 예정. 기존 값은 보존되지만 실행 시 무시됩니다.',
         },
       }),
     toolOverrides: z
@@ -311,6 +316,8 @@ export const aiAgentNodeConfigSchema = z
           itemLabel: 'Tool',
           order: 34,
           group: 'Advanced',
+          hidden: true,
+          hint: 'Feature out — 도구 연결 입력 경로 재작성 예정.',
         },
       }),
     conversationHistory: z
