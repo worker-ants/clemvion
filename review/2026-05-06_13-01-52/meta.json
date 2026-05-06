@@ -1,0 +1,88 @@
+{
+  "timestamp": "2026-05-06T13:10:31.206497",
+  "files": [
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/backend/src/nodes/ai/ai-agent/ai-agent.handler.spec.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/backend/src/nodes/ai/ai-agent/ai-agent.handler.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/backend/src/nodes/ai/ai-agent/ai-agent.schema.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    }
+  ],
+  "total_elapsed_seconds": 518.92,
+  "agents": [
+    {
+      "name": "database",
+      "status": "success",
+      "elapsed_seconds": 9.72
+    },
+    {
+      "name": "maintainability",
+      "status": "success",
+      "elapsed_seconds": 59.58
+    },
+    {
+      "name": "dependency",
+      "status": "success",
+      "elapsed_seconds": 63.55
+    },
+    {
+      "name": "concurrency",
+      "status": "success",
+      "elapsed_seconds": 81.53
+    },
+    {
+      "name": "architecture",
+      "status": "success",
+      "elapsed_seconds": 89.94
+    },
+    {
+      "name": "performance",
+      "status": "success",
+      "elapsed_seconds": 92.3
+    },
+    {
+      "name": "scope",
+      "status": "success",
+      "elapsed_seconds": 94.52
+    },
+    {
+      "name": "api_contract",
+      "status": "success",
+      "elapsed_seconds": 96.05
+    },
+    {
+      "name": "testing",
+      "status": "success",
+      "elapsed_seconds": 121.05
+    },
+    {
+      "name": "documentation",
+      "status": "success",
+      "elapsed_seconds": 127.48
+    },
+    {
+      "name": "security",
+      "status": "success",
+      "elapsed_seconds": 147.41
+    },
+    {
+      "name": "requirement",
+      "status": "success",
+      "elapsed_seconds": 156.66
+    },
+    {
+      "name": "side_effect",
+      "status": "success",
+      "elapsed_seconds": 174.7
+    }
+  ]
+}
