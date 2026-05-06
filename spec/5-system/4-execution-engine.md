@@ -544,7 +544,12 @@ interface NodeHandlerRegistry {
 | `executionId` | 실행 시작 시 고정 | Execution/NodeExecution 귀속 |
 | `workflowId` | 실행 시작 시 고정 | 표현식 컨텍스트, 사용처 확인 |
 | `nodeExecutionId` | 엔진이 handler.execute 호출 직전 주입, 노드별 갱신 | Integration 핸들러가 `IntegrationUsageLog.node_execution_id`로 기록 |
-| `rawConfig` | 엔진이 handler.execute 호출 직전 주입, 노드별 갱신 | 노드 정의에 저장된 **원본 config** (expression 미평가). 핸들러가 `NodeHandlerOutput.config` echo 에 사용 (Principle 7) |
+| `rawConfig` | 엔진이 handler.execute 호출 직전 주입, 노드별 갱신 | 노드 정의에 저장된 **원본 config** (expression 미평가). 핸들러가 `NodeHandlerOutput.config` echo 에 사용 (Principle 7). Shallow `Object.freeze` 적용 — top-level mutation 차단, 중첩 객체는 read-only 로 다룬다 |
+
+**Multi-turn 재개 시 `rawConfig` snapshot 정책**:
+- 첫 turn 의 `executeNode` 가 `waiting_for_input` 으로 진입하면 엔진이 `state.rawConfig = Object.freeze({ ...node.config })` 을 자동 snapshot 한다.
+- 후속 turn 의 `processMultiTurnMessage(message, state)` 는 state 만 받으므로 (ExecutionContext 미주입), 핸들러가 `state.rawConfig` 로 일관되게 접근한다.
+- **의도된 차이**: `context.rawConfig` 는 매 노드 실행 시점의 fresh DB read, `state.rawConfig` 는 첫 turn 시점의 frozen snapshot. 단일 multi-turn 실행 도중 사용자가 워크플로 정의를 변경해도 후속 turn 은 첫 turn 시점의 정의로 일관되게 동작한다 — replay reproducibility.
 | `variables.__workspaceId` | 실행 시작 시 주입 (workflow.workspaceId) | Integration 조회, AI LLM 설정 조회 등 워크스페이스 단위 리소스 해소 |
 | `variables.*` (그 외) | 트리거·워크플로우 변수 | 표현식 `{{ $variables.X }}` 평가 |
 

@@ -41,7 +41,13 @@ export interface ExecutionContext {
    * 노드 정의에 저장된 **원본 config** (expression 평가 전). 핸들러가
    * `NodeHandlerOutput.config` echo 에 사용한다 — `config` 인자는 평가 후 값
    * 이고, 본 필드는 워크플로 작성자가 입력한 raw 형태(`{{ ... }}` 포함) 그대로다.
-   * 엔진이 매 노드 호출 직전에 채우며 `Object.freeze` 로 mutation 을 차단한다.
+   *
+   * 엔진이 매 노드 호출 직전에 `Object.freeze` 적용한 shallow snapshot 을
+   * 주입한다. **Shallow freeze 임에 유의** — top-level 필드 mutation 은 strict
+   * 모드에서 TypeError 가 발생하지만, `rawConfig.headers.foo = '...'` 같은
+   * 중첩 객체 변이는 차단되지 않는다. 핸들러는 rawConfig 를 read-only 로
+   * 다루어야 하며, 변형이 필요한 경우 `structuredClone` 등으로 복제한다.
+   *
    * 상세: PRD `ENG-RC-*`, Spec `4-execution-engine.md` §5.5 / §6.1,
    * CONVENTIONS Principle 7.
    */
