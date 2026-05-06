@@ -125,4 +125,12 @@ describe("formatDate", () => {
     const result = formatDate(new Date("2026-06-20T00:00:00Z"), "iso");
     expect(result).toBe("2026-06-20T00:00:00.000Z");
   });
+
+  it("formats with time format (hour:minute, client TZ)", () => {
+    const result = formatDate("2026-01-15T12:00:00Z", "time", "en");
+    // Output is hour:minute in client local TZ (no exact value asserted because
+    // the test runner's TZ is environment-dependent), but it must look like a
+    // short time stamp and not include any date components.
+    expect(result).toMatch(/^\d{1,2}:\d{2}(\s?[AP]M)?$/i);
+  });
 });

@@ -10,6 +10,7 @@ import type { RagSource } from "./output-shape";
 import { resolveResultField } from "./resolve-result-field";
 import { MarkdownRenderer } from "@/components/editor/assistant-panel/markdown-renderer";
 import { tryParseJson } from "@/lib/utils/parse-json";
+import { formatDate } from "@/lib/utils/date";
 
 /** Chip 한 줄에 inline 으로 보일 최대 문서명 개수 (나머지는 `+N` 으로 축약). */
 const MAX_VISIBLE_DOC_NAMES = 2;
@@ -409,7 +410,7 @@ function UserDetail({ item }: { item: ConversationItem }) {
         </span>
         {item.timestamp && (
           <span className="text-[10px] text-[hsl(var(--muted-foreground))]">
-            {new Date(item.timestamp).toLocaleString()}
+            {formatDate(item.timestamp, "datetime")}
           </span>
         )}
       </div>

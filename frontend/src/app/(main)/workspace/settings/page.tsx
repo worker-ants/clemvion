@@ -42,6 +42,7 @@ import {
   type WorkspaceMemberSummary,
 } from "@/lib/api/workspaces";
 import { useT } from "@/lib/i18n";
+import { formatDate } from "@/lib/utils/date";
 import { roleLabelKey } from "@/lib/utils/workspace";
 
 const ROLE_OPTIONS: WorkspaceRole[] = ["admin", "editor", "viewer"];
@@ -459,7 +460,7 @@ function MembersTab({ workspaceId }: MembersTabProps) {
                           {t(roleLabelKey(inv.role))}
                         </Badge>
                         {t("workspace.inviteExpiresAt", {
-                          date: new Date(inv.expiresAt).toLocaleString(),
+                          date: formatDate(inv.expiresAt, "datetime"),
                         })}
                       </span>
                     </div>

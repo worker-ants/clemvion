@@ -57,9 +57,14 @@ export function formatDuration(ms: number, locale?: Locale): string {
 
 /**
  * Format a date with the user's locale. `format` accepts:
- *   - `"iso"` — ISO 8601 string (locale-agnostic).
- *   - `"datetime"` — short month + year + hour:minute.
- *   - `"date"` / undefined — short month + year (default).
+ *   - `"iso"` — ISO 8601 string (locale-agnostic, UTC).
+ *   - `"datetime"` — short month + year + hour:minute (client TZ).
+ *   - `"time"` — hour:minute only (client TZ).
+ *   - `"date"` / undefined — short month + year (default, client TZ).
+ *
+ * For non-`"iso"` formats the value is rendered in the **client's local
+ * timezone** because `toLocaleDateString` / `toLocaleTimeString` are called
+ * without an explicit `timeZone` option.
  */
 export function formatDate(date: string | Date, format?: string, locale?: Locale): string {
   const loc = locale ?? currentLocale();
@@ -75,6 +80,13 @@ export function formatDate(date: string | Date, format?: string, locale?: Locale
       year: "numeric",
       month: "short",
       day: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  }
+
+  if (format === "time") {
+    return d.toLocaleTimeString(intlLocale, {
       hour: "2-digit",
       minute: "2-digit",
     });
