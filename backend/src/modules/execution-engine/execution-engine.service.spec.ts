@@ -421,6 +421,80 @@ describe('ExecutionEngineService', () => {
     });
   });
 
+  // CRIT #5 — executeSync / executeAsync 가 Sub-Workflow handler 가 직접
+  // 호출하는 public API 임에도 완전 미테스트 상태였다. workflow-not-found,
+  // FAILED / CANCELLED 상태 전파, timeout 경로의 최소 커버리지를 확보한다.
+  describe('executeSync / executeAsync — Sub-Workflow public API', () => {
+    beforeEach(() => {
+      // 노드 0개로 단축 — runExecution 이 그래프 순회 없이 빠르게 끝나
+      // appendExecutionPath 의 findOneBy 호출이 발생하지 않는다. 본 describe
+      // 의 모든 테스트는 executeSync 의 후처리 경로 (status 분기 / timeout 경로)
+      // 만 검증하므로 노드 그래프는 무관하다.
+      mockNodeRepo.findBy.mockResolvedValue([]);
+      mockEdgeRepo.findBy.mockResolvedValue([]);
+    });
+
+    describe('executeSync', () => {
+      it('throws when workflow does not exist', async () => {
+        mockWorkflowRepo.findOneBy.mockResolvedValueOnce(null);
+        await expect(
+          service.executeSync('nonexistent-wf', {}, { timeoutMs: 0 }),
+        ).rejects.toThrow('Workflow not found: nonexistent-wf');
+      });
+
+      it('returns SubWorkflowResult shape on COMPLETED', async () => {
+        mockExecutionRepo.findOneBy.mockResolvedValue({
+          id: executionId,
+          status: ExecutionStatus.COMPLETED,
+          outputData: { final: 'value' },
+        });
+        const result = await service.executeSync(
+          workflowId,
+          { foo: 'bar' },
+          { timeoutMs: 0 },
+        );
+        expect(result.executionId).toBe(executionId);
+        expect(result.output).toEqual({ final: 'value' });
+        expect(result.status).toBe(ExecutionStatus.COMPLETED);
+      });
+
+      it('throws when sub-workflow status is FAILED', async () => {
+        mockExecutionRepo.findOneBy.mockResolvedValue({
+          id: executionId,
+          status: ExecutionStatus.FAILED,
+          error: { message: 'inner failure' },
+        });
+        await expect(
+          service.executeSync(workflowId, {}, { timeoutMs: 0 }),
+        ).rejects.toThrow('Sub-workflow execution failed: inner failure');
+      });
+
+      it('throws when sub-workflow status is CANCELLED', async () => {
+        mockExecutionRepo.findOneBy.mockResolvedValue({
+          id: executionId,
+          status: ExecutionStatus.CANCELLED,
+        });
+        await expect(
+          service.executeSync(workflowId, {}, { timeoutMs: 0 }),
+        ).rejects.toThrow('Sub-workflow execution was cancelled');
+      });
+    });
+
+    describe('executeAsync', () => {
+      it('throws when workflow does not exist', async () => {
+        mockWorkflowRepo.findOneBy.mockResolvedValueOnce(null);
+        await expect(
+          service.executeAsync('nonexistent-wf', {}),
+        ).rejects.toThrow('Workflow not found: nonexistent-wf');
+      });
+
+      it('returns executionId immediately (fire-and-forget)', async () => {
+        const result = await service.executeAsync(workflowId, { foo: 'bar' });
+        expect(result).toBe(executionId);
+      });
+    });
+  });
+
   describe('executeBackgroundSubgraph', () => {
     it('forks context: mutating snapshot vars must not affect job snapshot', async () => {
       const inlineSpy = jest
