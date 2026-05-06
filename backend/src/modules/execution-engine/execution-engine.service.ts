@@ -2319,8 +2319,10 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
 
       // ENG-RC-* — 핸들러가 `NodeHandlerOutput.config` 를 echo 할 때 사용할
       // **원본(pre-evaluation) config** 를 노출. shallow Object.freeze 로
-      // top-level mutation 을 차단한다 (CONVENTIONS Principle 7). expression
-      // 미사용 필드는 raw 와 resolved 가 동일하므로 본 변경의 영향이 없다.
+      // top-level mutation 을 차단한다 (CONVENTIONS Principle 7). 중첩 객체는
+      // freeze 되지 않으므로 핸들러는 rawConfig 를 read-only 로 다루어야 한다
+      // (필요 시 structuredClone 으로 복제). expression 미사용 필드는 raw 와
+      // resolved 가 동일하므로 본 변경의 영향이 없다.
       // Spec: 4-execution-engine.md §5.5 / §6.1.
       nodeContext = {
         ...nodeContext,

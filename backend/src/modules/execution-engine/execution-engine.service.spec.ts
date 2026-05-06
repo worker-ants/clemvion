@@ -33,7 +33,10 @@ import {
 import { Node, NodeCategory } from '../nodes/entities/node.entity';
 import { Edge, EdgeType } from '../edges/entities/edge.entity';
 import { Workflow } from '../workflows/entities/workflow.entity';
-import { NodeHandler } from '../../nodes/core/node-handler.interface';
+import {
+  ExecutionContext,
+  NodeHandler,
+} from '../../nodes/core/node-handler.interface';
 import { ForEachHandler } from '../../nodes/logic/foreach/foreach.handler';
 import { LoopHandler } from '../../nodes/logic/loop/loop.handler';
 import { MapHandler } from '../../nodes/logic/map/map.handler';
@@ -369,6 +372,52 @@ describe('ExecutionEngineService', () => {
 
       // finally block must restore regardless of success/failure.
       expect(context.parentNodeExecutionId).toBe('outer-parent');
+    });
+
+    // ENG-RC-* — executeInline 경로도 main path 와 동일하게 핸들러에 rawConfig 를
+    // 노출해야 한다. Sub-Workflow inline run 이 raw echo 패턴을 따를 수 있도록 보장.
+    it('exposes rawConfig in executeInline path (sub-workflow inline run)', async () => {
+      const inlineNode: Partial<Node> = {
+        id: 'inline-target',
+        workflowId,
+        type: 'template',
+        category: NodeCategory.PRESENTATION,
+        label: 'Inline Target',
+        config: { content: 'Hello {{ name }}' },
+        isDisabled: false,
+      };
+      mockNodeRepo.findBy.mockResolvedValue([inlineNode]);
+      mockEdgeRepo.findBy.mockResolvedValue([]);
+
+      const captureSpy = jest
+        .fn<
+          Promise<unknown>,
+          [unknown, Record<string, unknown>, ExecutionContext]
+        >()
+        .mockResolvedValue({ ok: true });
+      handlerRegistry.register('template', {
+        validate: () => ({ valid: true, errors: [] }),
+        execute: captureSpy,
+      });
+
+      const context = contextService.createContext(executionId, workflowId);
+      await service.executeInline(
+        workflowId,
+        { name: 'Alice' },
+        {
+          executionId,
+          context,
+          executedNodes: new Set<string>(),
+          recursionDepth: 1,
+          parentNodeExecutionId: 'inline-parent',
+        },
+      );
+
+      expect(captureSpy).toHaveBeenCalledTimes(1);
+      const ctxArg = captureSpy.mock.calls[0][2];
+      // executeInline 경로에서도 rawConfig 가 주입되어야 함
+      expect(ctxArg.rawConfig).toBeDefined();
+      expect(ctxArg.rawConfig?.content).toBe('Hello {{ name }}');
     });
   });
 
@@ -1464,7 +1513,7 @@ describe('ExecutionEngineService', () => {
       expect(ctx.rawConfig?.subject).toBe('Hello {{ name }}');
     });
 
-    it('still populates rawConfig when nodeMap is empty (no expression resolution path)', async () => {
+    it('still populates rawConfig when config has no expression placeholders', async () => {
       // expression-free config — engine still injects rawConfig (== node.config snapshot)
       const literalNode: Partial<Node> = {
         ...exprNode,
