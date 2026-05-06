@@ -24,8 +24,8 @@ LLM 기반 AI Agent를 실행. 프롬프트, RAG, Tool Use를 지원. **Single T
 | knowledgeBases | UUID[] | 참조할 Knowledge Base ID 목록. 모드(`vector` / `graph`) 는 KB 마다 다를 수 있으며 RagSearchService 가 KB 별로 흐름을 분기한다 |
 | ragTopK | Integer | RAG 검색 결과 수 (기본: 5). graph 모드 KB 에서도 동일하게 작용 (rerank 후 상위 K 만 컨텍스트에 주입) |
 | ragThreshold | Float | RAG 유사도 임계값 (기본: 0.7). graph 모드 KB 의 vector seed 단계에 적용 |
-| toolNodeIds | UUID[] | Tool Area에 등록된 도구 노드 ID 목록 (Tool Area에서 자동 관리) |
-| toolOverrides | ToolOverride[] | 도구별 이름/설명 오버라이드 (선택) |
+| toolNodeIds | UUID[] | _(feature out)_ Tool Area에 등록된 도구 노드 ID 목록. ↓ Feature Out 박스 참조 |
+| toolOverrides | ToolOverride[] | _(feature out)_ 도구별 이름/설명 오버라이드. ↓ Feature Out 박스 참조 |
 | mcpServers | McpServerRef[] | 활용할 MCP 서버 목록 (워크스페이스에 등록된 `service_type='mcp'` Integration 참조). 서버별로 도구 allowlist·resource/prompt 노출 여부 설정. 상세는 [Spec MCP Client](../5-system/11-mcp-client.md) |
 | maxToolCalls | Integer | 최대 도구 호출 횟수 (기본: 10). KB tool · MCP tool · 일반 tool 호출이 모두 합산됨 |
 | conversationHistory | Enum | `none` / `last_n` / `full` |
@@ -34,6 +34,13 @@ LLM 기반 AI Agent를 실행. 프롬프트, RAG, Tool Use를 지원. **Single T
 | conditions | ConditionDef[] | 조건 목록. 각 조건은 라벨과 프롬프트로 구성. 조건이 있으면 조건별 동적 출력 포트를 생성한다 |
 
 > Multi Turn 모드에서 사용자 응답은 무제한 대기합니다. (외부 cancel 외에는 타임아웃이 발생하지 않습니다.)
+
+> ⚠ **Feature Out (재작성 예정) — 도구 연결 입력 경로**
+>
+> `toolNodeIds`, `toolOverrides`, 그리고 §1.1 Tool Area 연동 / 캔버스 Tool Area UX(`spec/3-workflow-editor/0-canvas.md` §12) / 일반 도구 이름 규칙(`tool_*`) 은 현재 입력·실행 모두 비활성화 상태다. config 스키마에는 두 필드가 남아있어 이미 저장된 값을 보존하지만, 설정 UI에서 편집 불가하고 핸들러도 빈 배열로 강제 처리한다. 도구 연결 입력 경로 전체를 재설계 후 복원할 예정이다.
+>
+> 영향 범위: ND-AG-06 / ND-AG-10 / ND-AG-21.
+> 영향 없음: 조건 도구(`cond_*`, ND-AG-15~20·22), KB 도구(`kb_*`), MCP 도구(`mcp_*`).
 
 **ConditionDef 구조:**
 
@@ -157,10 +164,12 @@ LLM 기반 AI Agent를 실행. 프롬프트, RAG, Tool Use를 지원. **Single T
 
 ### Tool Area 연동
 
+> ⚠ **Feature Out (재작성 예정)** — 본 절(§Tool Area 연동·도구 이름 규칙 중 `tool_*` 항목·도구 설명 파생 규칙·ToolOverride 구조)은 현재 비활성. `toolNodeIds` / `toolOverrides` 입력 경로 재설계 후 복원. 조건(`cond_*`) / KB(`kb_*`) / MCP(`mcp_*`) 도구는 영향 없음.
+
 도구 관리는 캔버스의 [Tool Area](../3-workflow-editor/0-canvas.md#11-ai-agent-tool-area)에서 수행한다. 노드를 Tool Area에 드래그하여 등록하면 `toolNodeIds`에 자동 추가된다.
 
 **도구 이름 규칙:**
-- 일반 도구: `tool_` 접두사 + 정제된 nodeId (예: `tool_abc1234_5678_...`)
+- 일반 도구 _(feature out)_: `tool_` 접두사 + 정제된 nodeId (예: `tool_abc1234_5678_...`)
 - 조건 도구: `cond_` 접두사 + 정제된 conditionId (예: `cond_def9012_3456_...`)
 - KB 검색 도구: `kb_` 접두사 + 정제된 KB id (상세: [Spec RAG 검색 §2.1](../5-system/9-rag-search.md#21-kb-tool-정의))
 - MCP 도구: `mcp_<sid>__<toolName>` — `<sid>` 는 Integration UUID 의 sanitized 8자, `__` 로 server ↔ toolName 분리. 메타도구는 `mcp_<sid>__list_resources`·`mcp_<sid>__read_resource`·`mcp_<sid>__list_prompts`·`mcp_<sid>__get_prompt` (상세: [Spec MCP Client §5.2](../5-system/11-mcp-client.md#52-도구-이름-규칙))

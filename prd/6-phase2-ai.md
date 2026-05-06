@@ -54,6 +54,8 @@
 
 > 상세: [PRD 노드 시스템 §5.1](./3-node-system.md), [Spec AI 노드 §1](../spec/4-nodes/3-ai-nodes.md)
 
+> ⚠ **Feature Out (재작성 예정)** — `ND-AG-06`, `ND-AG-10`, `ND-AG-21` 은 도구 연결 입력 경로 재작성 시까지 **비활성**. 조건(`cond_*`) / KB(`kb_*`) / MCP(`mcp_*`) 도구 호출은 정상 동작. 자세한 사유·복원 절차는 `plan/in-progress/ai-agent-tool-connection-rewrite.md`.
+
 | ID | 요구사항 | 우선순위 |
 |----|----------|----------|
 | ND-AG-01 | LLM 기반 AI Agent 실행 | 필수 |
@@ -61,11 +63,11 @@
 | ND-AG-03 | LLM 모델 선택 (Config > LLM 연동) | 필수 |
 | ND-AG-04 | 모델 파라미터 오버라이드 (temperature, max_tokens) | 필수 |
 | ND-AG-05 | Knowledge Base 연결 (RAG) | 필수 |
-| ND-AG-06 | Tool/Function Calling 지원 | 필수 |
+| ND-AG-06 | Tool/Function Calling 지원 _(feature out)_ | 필수 |
 | ND-AG-07 | 대화 이력 관리 (none / last_n / full) | 권장 |
 | ND-AG-08 | 응답 형식 지정 (text / json + JSON Schema) | 필수 |
 | ND-AG-09 | 스트리밍 응답 | 권장 |
-| ND-AG-10 | Tool Area: 캔버스에서 드래그 앤 드롭으로 도구 등록 | 필수 |
+| ND-AG-10 | Tool Area: 캔버스에서 드래그 앤 드롭으로 도구 등록 _(feature out)_ | 필수 |
 | ND-AG-11 | 실행 모드 선택: Single Turn(단일 호출) / Multi Turn(대화형 블로킹) | 필수 |
 | ND-AG-12 | Multi Turn 모드 시 워크플로우 실행 일시 정지 후 사용자와 대화형 인터랙션 | 필수 |
 | ND-AG-13 | Multi Turn 종료 조건: 최대 턴 수, 타임아웃(→ error 포트로 통합), 사용자 명시적 종료 | 필수 |
@@ -76,7 +78,7 @@
 | ND-AG-18 | 조건 도구 호출 시 종료 및 라우팅 — LLM이 조건 도구만 호출하면 AI Agent를 completed 상태로 전환하고 해당 조건의 출력 포트로 라우팅한다. 일반 도구와 함께 호출된 경우에는 일반 도구를 먼저 실행하고 LLM 재평가 후 최종 결정한다 | 필수 |
 | ND-AG-19 | 종료 사유별 기본 출력 포트 — 사용자 종료, LLM 오류는 각각 전용 기본 포트로 출력하며, Multi Turn 모드에서는 `max_turns` 포트도 추가로 제공한다. timeout 및 rate limit는 `error` 포트로 통합 | 필수 |
 | ND-AG-20 | 조건 동적 추가/제거 — 사용자가 설정 패널에서 조건을 자유롭게 추가/삭제하며, 포트 ID는 생성 시 UUID v4로 할당되어 불변 유지된다 | 필수 |
-| ND-AG-21 | 조건과 일반 도구 동시 호출 시 일반 도구 우선 실행 — LLM이 하나의 응답에서 조건 도구와 일반 도구를 함께 호출한 경우, 일반 도구를 먼저 실행하고 결과를 LLM에 전달하여 재평가한다 (조건은 재평가 후 최종 결정) | 필수 |
+| ND-AG-21 | 조건과 일반 도구 동시 호출 시 일반 도구 우선 실행 — LLM이 하나의 응답에서 조건 도구와 일반 도구를 함께 호출한 경우, 일반 도구를 먼저 실행하고 결과를 LLM에 전달하여 재평가한다 (조건은 재평가 후 최종 결정) _(feature out — 일반 도구 입력 경로 비활성으로 현재 시나리오 자체가 발생하지 않음)_ | 필수 |
 | ND-AG-22 | 복수 조건 동시 호출 시 첫 번째 우선 — LLM이 여러 조건 도구를 동시에 호출한 경우, 조건 목록에서 먼저 정의된 조건을 선택한다 | 필수 |
 | ND-AG-23 | Single Turn 모드의 포트 구조 — 조건 포트 + 기본 `out` 포트 + `error` 포트. 조건 0개 시 `out` + `error` | 필수 |
 | ND-AG-24 | Multi Turn 모드의 포트 구조 — 조건 포트 + `user_ended` + `max_turns` + `error` (`out` 없음). 조건 0개 시 `out` + `error` 제공 (하위 호환). 상세: [Spec §1 포트](../spec/4-nodes/3-ai-nodes.md) | 필수 |
