@@ -11,15 +11,7 @@ import { VersionDetailDialog } from "./version-detail-dialog";
 import { VersionDiffDialog } from "./version-diff-dialog";
 import { RestoreConfirmDialog } from "./restore-confirm-dialog";
 import { useT } from "@/lib/i18n";
-
-function formatTimestamp(iso: string): string {
-  try {
-    const d = new Date(iso);
-    return d.toLocaleString();
-  } catch {
-    return iso;
-  }
-}
+import { formatDate } from "@/lib/utils/date";
 
 function creatorLabel(v: WorkflowVersionSummary): string {
   return v.creator?.name ?? v.creator?.email ?? v.createdBy;
@@ -173,7 +165,7 @@ export function VersionHistoryPanel() {
                         </span>
                       </div>
                       <div className="mt-0.5 text-[hsl(var(--muted-foreground))]">
-                        {formatTimestamp(v.createdAt)}
+                        {formatDate(v.createdAt, "datetime")}
                       </div>
                       {v.changeSummary && (
                         <div className="mt-1 truncate text-[hsl(var(--foreground))]">

@@ -18,6 +18,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils/cn";
+import { formatDate } from "@/lib/utils/date";
 import {
   integrationsApi,
   type IntegrationDto,
@@ -295,13 +296,13 @@ function OverviewTab({
       </div>
       <InfoRow
         label={t("integrations.createdAtLabel")}
-        value={new Date(integration.createdAt).toLocaleString()}
+        value={formatDate(integration.createdAt, "datetime")}
       />
       <InfoRow
         label={t("integrations.lastUsedLabel")}
         value={
           integration.lastUsedAt
-            ? new Date(integration.lastUsedAt).toLocaleString()
+            ? formatDate(integration.lastUsedAt, "datetime")
             : "—"
         }
       />
@@ -309,7 +310,7 @@ function OverviewTab({
         label={t("integrations.lastRotatedLabel")}
         value={
           integration.lastRotatedAt
-            ? new Date(integration.lastRotatedAt).toLocaleString()
+            ? formatDate(integration.lastRotatedAt, "datetime")
             : "—"
         }
       />
@@ -317,7 +318,7 @@ function OverviewTab({
         label={t("integrations.tokenExpiresLabel")}
         value={
           integration.tokenExpiresAt
-            ? new Date(integration.tokenExpiresAt).toLocaleString()
+            ? formatDate(integration.tokenExpiresAt, "datetime")
             : "—"
         }
       />
@@ -481,7 +482,7 @@ function SecurityTab({
         </div>
         <div className="mt-1 text-sm">
           {integration.lastRotatedAt
-            ? new Date(integration.lastRotatedAt).toLocaleString()
+            ? formatDate(integration.lastRotatedAt, "datetime")
             : t("integrations.never")}
         </div>
       </section>
@@ -767,7 +768,7 @@ function ActivityTab({ integrationId, t }: { integrationId: string; t: TFunction
             {data.items.map((row) => (
               <tr key={row.id}>
                 <td className="px-2 py-2">
-                  {new Date(row.at).toLocaleString()}
+                  {formatDate(row.at, "datetime")}
                 </td>
                 <td className="px-2 py-2">
                   <span

@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils/cn";
+import { formatDate } from "@/lib/utils/date";
 import { toast } from "sonner";
 import { Copy, Loader2, Inbox, Plus, X } from "lucide-react";
 import Link from "next/link";
@@ -459,7 +460,7 @@ export default function TriggersPage() {
                   </td>
                   <td className="px-4 py-3 text-[hsl(var(--muted-foreground))]">
                     {trigger.lastTriggeredAt
-                      ? new Date(trigger.lastTriggeredAt).toLocaleString()
+                      ? formatDate(trigger.lastTriggeredAt, "datetime")
                       : "-"}
                   </td>
                   <td className="px-4 py-3">

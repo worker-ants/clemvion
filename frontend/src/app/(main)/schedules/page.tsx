@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils/cn";
+import { formatDate } from "@/lib/utils/date";
 import { toast } from "sonner";
 import {
   Plus,
@@ -150,7 +151,7 @@ function NextRunsPreview({
             key={i}
             className="text-xs text-[hsl(var(--foreground))]"
           >
-            {run.toLocaleString()}
+            {formatDate(run, "datetime")}
           </li>
         ))}
       </ul>
@@ -1028,7 +1029,7 @@ export default function SchedulesPage() {
                     </td>
                     <td className="px-4 py-3 text-[hsl(var(--muted-foreground))]">
                       {schedule.nextRunAt
-                        ? new Date(schedule.nextRunAt).toLocaleString()
+                        ? formatDate(schedule.nextRunAt, "datetime")
                         : "-"}
                     </td>
                     <td className="px-4 py-3">{schedule.workflowName}</td>

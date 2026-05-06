@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { SlideDrawer } from "@/components/ui/slide-drawer";
 import { cn } from "@/lib/utils/cn";
+import { formatDate } from "@/lib/utils/date";
 import { toast } from "sonner";
 import { Plus, Loader2, Inbox, Trash2, X, RefreshCw, Copy } from "lucide-react";
 import { useT, type TranslationKey } from "@/lib/i18n";
@@ -391,7 +392,7 @@ export default function AuthenticationPage() {
                   </td>
                   <td className="px-4 py-3 text-[hsl(var(--muted-foreground))]">
                     {config.lastUsedAt
-                      ? new Date(config.lastUsedAt).toLocaleString()
+                      ? formatDate(config.lastUsedAt, "datetime")
                       : "-"}
                   </td>
                   <td className="px-4 py-3">
@@ -473,7 +474,7 @@ export default function AuthenticationPage() {
                 </p>
                 <p className="mt-1 text-sm font-medium">
                   {usageData.lastUsedAt
-                    ? new Date(usageData.lastUsedAt).toLocaleString()
+                    ? formatDate(usageData.lastUsedAt, "datetime")
                     : t("authentication.never")}
                 </p>
               </div>
@@ -518,7 +519,7 @@ export default function AuthenticationPage() {
                             </Badge>
                           </td>
                           <td className="px-3 py-2 text-[hsl(var(--muted-foreground))]">
-                            {new Date(call.startedAt).toLocaleString()}
+                            {formatDate(call.startedAt, "datetime")}
                           </td>
                         </tr>
                       ))}

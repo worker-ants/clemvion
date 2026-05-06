@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils/cn";
+import { formatDate } from "@/lib/utils/date";
 import { Loader2, Copy, ChevronDown, ChevronRight } from "lucide-react";
 import Link from "next/link";
 import { toast } from "sonner";
@@ -162,7 +163,7 @@ export function TriggerDetailDrawer({ triggerId, open, onClose }: TriggerDetailD
                     <div className="flex items-center justify-between">
                       <dt className="text-[hsl(var(--muted-foreground))]">Next Run</dt>
                       <dd className="font-medium">
-                        {new Date(trigger.nextRunAt).toLocaleString()}
+                        {formatDate(trigger.nextRunAt, "datetime")}
                       </dd>
                     </div>
                   )}
@@ -193,7 +194,7 @@ export function TriggerDetailDrawer({ triggerId, open, onClose }: TriggerDetailD
                       className="flex items-center justify-between rounded-md border border-[hsl(var(--border))] px-3 py-2 text-sm"
                     >
                       <span className="text-[hsl(var(--muted-foreground))]">
-                        {new Date(entry.startedAt).toLocaleString()}
+                        {formatDate(entry.startedAt, "datetime")}
                       </span>
                       <Badge
                         variant={

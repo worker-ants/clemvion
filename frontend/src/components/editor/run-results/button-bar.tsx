@@ -1,6 +1,7 @@
 import { useCallback, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils/cn";
+import { formatDate } from "@/lib/utils/date";
 import { ArrowRight, ExternalLink } from "lucide-react";
 
 interface ButtonDef {
@@ -94,7 +95,7 @@ export function ButtonBar({
           Button clicked: <span className="font-medium text-[hsl(var(--foreground))]">{clicked.label}</span>
         </p>
         <p className="text-[10px] text-[hsl(var(--muted-foreground))] mt-0.5">
-          {new Date(clicked.at).toLocaleTimeString()}
+          {formatDate(clicked.at, "time")}
         </p>
       </div>
     );
