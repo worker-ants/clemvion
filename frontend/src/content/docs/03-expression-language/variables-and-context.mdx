@@ -18,8 +18,7 @@ code: ["packages/expression-engine/src/evaluator.ts"]
   { name: "$node[\"이름\"]", type: "Object", description: "특정 노드의 결과를 이름(또는 UUID)으로 가리켜요. `.output` 아래에 출력이 들어 있어요." },
   { name: "$var", type: "Object", description: "워크플로우에 선언된 변수 값이에요." },
   { name: "$execution", type: "Object", description: "현재 실행 컨텍스트예요. ID, 시작 시각, 실행 모드 등을 담아요." },
-  { name: "$now", type: "String", description: "현재 타임스탬프 ISO 8601 문자열이에요." },
-  { name: "$today", type: "String", description: "오늘 날짜 `YYYY-MM-DD` 문자열이에요." },
+  { name: "$now", type: "String", description: "현재 타임스탬프 ISO 8601 문자열이에요. 항상 UTC(`...Z`) 기준이에요." },
   { name: "$env", type: "Object", description: "환경 변수 객체예요. 셀프 호스팅 환경에서 허용 목록 기반으로 노출돼요." },
   { name: "$trigger", type: "Object", description: "트리거 데이터예요. 웹훅 페이로드, 스케줄 컨텍스트 등이 들어가요." },
   { name: "$loop", type: "Object", description: "Loop 노드 내부 컨텍스트예요. 인덱스, 반복 횟수, 첫·마지막 여부를 담아요." },
@@ -88,9 +87,9 @@ Variable Declaration 노드로 선언한 변수는 `$var`로 읽고, Variable Mo
 ```
 </Example>
 
-## `$now`와 `$today`: 시간 참조
+## `$now`: 시간 참조
 
-실행 시점 기준으로 평가되고, 같은 실행 내에서는 동일한 값이 유지돼요.
+`$now`는 실행 시점 기준으로 한 번 평가되고, 같은 실행 내에서는 동일한 값이 유지돼요. 항상 **UTC(`...Z`)** 기준 ISO 8601 문자열이에요.
 
 <Example title="현재 ISO 타임스탬프">
 ```ts
@@ -98,11 +97,13 @@ Variable Declaration 노드로 선언한 변수는 `$var`로 읽고, Variable Mo
 ```
 </Example>
 
-<Example title="오늘 날짜로 파일 이름 만들기">
+<Example title="오늘 날짜로 파일 이름 만들기 (UTC 기준)">
 ```ts
-report-{{ $today }}.csv
+report-{{ formatDate($now, "YYYY-MM-DD") }}.csv
 ```
 </Example>
+
+<Callout type="note">예전에 제공되던 `$today` 변수는 항상 UTC 기준으로 산출돼 한국 시간대에서 자정 직전에 전날로 표시되는 문제가 있어 제거됐어요. 같은 결과는 `formatDate($now, "YYYY-MM-DD")`(UTC 기준) 또는 `today()`(서버 로컬 TZ 기준) 함수로 얻을 수 있어요.</Callout>
 
 ## `$env`: 환경 변수
 

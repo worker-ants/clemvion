@@ -118,9 +118,9 @@ Hello, {{ $input.firstName }} {{ $input.lastName }}!
 ```
 </Example>
 
-<Example title="File name from today's date">
+<Example title="File name from today's date (UTC)">
 ```ts
-report-{{ $today }}.csv
+report-{{ formatDate($now, "YYYY-MM-DD") }}.csv
 ```
 </Example>
 
@@ -182,7 +182,7 @@ report-{{ $today }}.csv
 
 <Example title="Insert a path parameter into an HTTP URL">
 ```ts
-https://api.example.com/users/{{ $input.userId }}/orders?from={{ $today }}
+https://api.example.com/users/{{ $input.userId }}/orders?from={{ formatDate($now, "YYYY-MM-DD") }}
 ```
 </Example>
 
