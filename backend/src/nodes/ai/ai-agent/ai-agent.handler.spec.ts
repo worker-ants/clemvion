@@ -457,47 +457,6 @@ describe('AiAgentHandler', () => {
       expect(res.response).toBe('not valid json {{{');
     });
 
-    // Feature out — toolNodeIds 입력 경로 재작성 시까지 비활성. 복원 시 unskip.
-    it.skip('should handle external (tool_node) tool calling loop', async () => {
-      mockLlmService.chat
-        .mockResolvedValueOnce({
-          content: null,
-          toolCalls: [
-            {
-              id: 'tc-1',
-              name: 'tool_abc12345',
-              arguments: '{"input":"data"}',
-            },
-          ],
-          usage: { inputTokens: 20, outputTokens: 10, totalTokens: 30 },
-          model: 'gpt-4o',
-          finishReason: 'tool_calls',
-        })
-        .mockResolvedValueOnce({
-          content: 'Final answer after tool use',
-          usage: { inputTokens: 40, outputTokens: 20, totalTokens: 60 },
-          model: 'gpt-4o',
-          finishReason: 'stop',
-        });
-
-      const result = await handler.execute(
-        {},
-        {
-          userPrompt: 'Use a tool',
-          toolNodeIds: ['abc12345-full-node-id'],
-        },
-        baseContext,
-      );
-
-      expect(mockLlmService.chat).toHaveBeenCalledTimes(2);
-      const r = result as Record<string, unknown>;
-      const out = r.output as Record<string, unknown>;
-      const res = out.result as Record<string, unknown>;
-      expect(res.response).toBe('Final answer after tool use');
-      const meta = r.meta as Record<string, unknown>;
-      expect(meta.toolCalls).toBe(1);
-    });
-
     it('should default to single_turn when mode is not set', async () => {
       const result = await handler.execute(
         {},
@@ -1346,21 +1305,6 @@ describe('AiAgentHandler', () => {
   });
 
   describe('buildTools - tool naming', () => {
-    // Feature out — 일반 도구(tool_*) 입력 경로 재작성 시까지 비활성. 복원 시 unskip.
-    it.skip('should use tool_ prefix with sanitized nodeId', async () => {
-      await handler.execute(
-        {},
-        {
-          userPrompt: 'Hello',
-          toolNodeIds: ['abc12345-full-node-id'],
-        },
-        baseContext,
-      );
-      const chatCall = mockLlmService.chat.mock.calls[0];
-      const tools = chatCall[1].tools;
-      expect(tools[0].name).toBe('tool_abc12345_full_node_id');
-    });
-
     it('should use cond_ prefix for condition tools', async () => {
       await handler.execute(
         {},
@@ -1383,11 +1327,12 @@ describe('AiAgentHandler', () => {
     });
   });
 
-  // Feature out 회귀 가드 — toolNodeIds/toolOverrides 가 config 에 남아 있어도
-  // 핸들러는 빈 배열로 강제 처리하여 일반 도구(`tool_*`)를 LLM 에 등록하지
-  // 않는다. 도구 연결 입력 경로 재작성 시 본 describe 블록을 제거한다.
-  describe('feature-out: tool connection inputs', () => {
-    it('ignores toolNodeIds in config (no normal tools registered to LLM)', async () => {
+  // 스키마 .passthrough() 호환성 가드 — 도구 연결 두 필드는 스키마에서 제거됐지만
+  // DB 의 legacy workflow 데이터에는 여전히 toolNodeIds/toolOverrides 가 남아 있을
+  // 수 있다. 핸들러는 이를 읽지 않고 일반 도구(`tool_*`)를 LLM 에 등록하지 않는다.
+  // 도구 연결 입력 경로 재작성 시 새 필드 기준으로 본 블록 갱신 또는 제거.
+  describe('legacy passthrough: tool connection inputs', () => {
+    it('ignores legacy toolNodeIds in config (no normal tools registered to LLM)', async () => {
       await handler.execute(
         {},
         {
@@ -1405,7 +1350,7 @@ describe('AiAgentHandler', () => {
       expect(tools.find((t) => t.name.startsWith('tool_'))).toBeUndefined();
     });
 
-    it('ignores toolOverrides in config', async () => {
+    it('ignores legacy toolOverrides in config', async () => {
       await handler.execute(
         {},
         {
@@ -1430,7 +1375,7 @@ describe('AiAgentHandler', () => {
       expect(tools.find((t) => t.name === 'custom_name')).toBeUndefined();
     });
 
-    it('preserves condition tools alongside feature-out (regression check)', async () => {
+    it('preserves condition tools alongside legacy passthrough (regression check)', async () => {
       await handler.execute(
         {},
         {
@@ -1529,57 +1474,6 @@ describe('AiAgentHandler', () => {
       const condition = res.condition as Record<string, unknown>;
       expect(condition.id).toBe('a1b2c3d4-refund');
       expect(condition.label).toBe('Refund');
-    });
-
-    // Feature out — 일반 도구 입력 경로 비활성으로 시나리오 미발생. 복원 시 unskip.
-    it.skip('should execute normal tools first when condition + normal tools are called together', async () => {
-      // First call: LLM calls both condition and normal tool
-      mockLlmService.chat
-        .mockResolvedValueOnce({
-          content: null,
-          toolCalls: [
-            {
-              id: 'tc-1',
-              name: 'tool_node_tool_uuid',
-              arguments: '{"input":"check"}',
-            },
-            {
-              id: 'tc-2',
-              name: 'cond_a1b2c3d4_refund',
-              arguments: '{"reason":"maybe refund"}',
-            },
-          ],
-          usage: { inputTokens: 100, outputTokens: 50, totalTokens: 150 },
-          model: 'gpt-4o',
-          finishReason: 'tool_calls',
-        })
-        // Second call: After re-evaluation, LLM calls only condition tool
-        .mockResolvedValueOnce({
-          content: 'Processing refund.',
-          toolCalls: [
-            {
-              id: 'tc-3',
-              name: 'cond_a1b2c3d4_refund',
-              arguments: '{"reason":"confirmed refund"}',
-            },
-          ],
-          usage: { inputTokens: 200, outputTokens: 30, totalTokens: 230 },
-          model: 'gpt-4o',
-          finishReason: 'tool_calls',
-        });
-
-      const result = (await handler.execute(
-        {},
-        {
-          ...conditionConfig,
-          toolNodeIds: ['node-tool-uuid'],
-        },
-        baseContext,
-      )) as Record<string, unknown>;
-
-      // LLM should have been called twice (first with mixed tools, then re-evaluation)
-      expect(mockLlmService.chat).toHaveBeenCalledTimes(2);
-      expect(result.port).toBe('a1b2c3d4-refund');
     });
 
     it('should select first-defined condition when multiple conditions are called', async () => {

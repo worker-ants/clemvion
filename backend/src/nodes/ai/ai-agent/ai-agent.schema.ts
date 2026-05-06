@@ -5,24 +5,6 @@ import {
 } from '../../core/node-component.interface';
 import { AI_NO_LLM_PROVIDER_MESSAGE } from '../llm-provider-rule';
 
-const toolOverrideSchema = z.object({
-  nodeId: z.string().meta({
-    ui: { label: 'Node ID', widget: 'text' },
-  }),
-  toolName: z
-    .string()
-    .optional()
-    .meta({ ui: { label: 'Tool Name', widget: 'text' } }),
-  toolDescription: z
-    .string()
-    .optional()
-    .meta({ ui: { label: 'Tool Description', widget: 'textarea' } }),
-  inputMapping: z
-    .array(z.record(z.string(), z.unknown()))
-    .optional()
-    .meta({ ui: { label: 'Input Mapping', widget: 'field-array' } }),
-});
-
 const mcpServerRefSchema = z.object({
   integrationId: z
     .string()
@@ -290,36 +272,11 @@ export const aiAgentNodeConfigSchema = z
           group: 'Advanced',
         },
       }),
-    // Feature out — 도구 연결 입력 경로 재작성 예정. UI 숨김 + 핸들러는 빈 배열 강제 처리.
-    // 스키마 자체는 유지하여 DB 에 이미 저장된 값을 보존한다 (재작성 시 자연 복원).
+    // 도구 연결 입력 경로 — 재작성 예정으로 스키마에서 제거.
+    // 스키마는 .passthrough() 이므로 DB 의 기존 toolNodeIds / toolOverrides
+    // 값은 silently 통과한다 (핸들러가 읽지 않으므로 결과적으로 무시됨).
+    // 재작성 시 새 입력 경로 디자인에 따라 신규 필드를 추가.
     // 자세한 사유·복원 절차는 plan/in-progress/ai-agent-tool-connection-rewrite.md.
-    toolNodeIds: z
-      .array(z.string())
-      .default([])
-      .meta({
-        ui: {
-          label: 'Tool Node IDs',
-          widget: 'field-array',
-          order: 33,
-          group: 'Advanced',
-          hidden: true,
-          hint: 'Feature out — 도구 연결 입력 경로 재작성 예정. 기존 값은 보존되지만 실행 시 무시됩니다.',
-        },
-      }),
-    toolOverrides: z
-      .array(toolOverrideSchema)
-      .default([])
-      .meta({
-        ui: {
-          label: 'Tool Overrides',
-          widget: 'field-array',
-          itemLabel: 'Tool',
-          order: 34,
-          group: 'Advanced',
-          hidden: true,
-          hint: 'Feature out — 도구 연결 입력 경로 재작성 예정.',
-        },
-      }),
     conversationHistory: z
       .enum(['none', 'last_n', 'full'])
       .default('none')
