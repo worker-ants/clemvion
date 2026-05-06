@@ -104,7 +104,7 @@
 | 노드 더블클릭 | 설정 패널 열기 (또는 단일 클릭으로) |
 | 우클릭 | 컨텍스트 메뉴 |
 | 컨테이너 멤버십 | **엣지 기반** — body/emit/chain 엣지로 자동 지정/해제. 드래그-드롭으로 컨테이너 안에 넣는 UX는 없음. 자세한 규칙은 §11.2.1 참조 |
-| Tool Area에 드래그 _(feature out)_ | 노드를 AI Agent의 Tool Area에 드롭 → Tool 등록 (tool_owner_id 설정). 기존 데이터 흐름 엣지 자동 제거. 현재 비활성 — §12 Feature Out 박스 참조 |
+| Tool Area에 드래그 _(제거됨)_ | 노드를 AI Agent의 Tool Area에 드롭 → Tool 등록 (tool_owner_id 설정). 기존 데이터 흐름 엣지 자동 제거. 현재 비활성 — §12 박스 참조 |
 
 ### 3.4 노드 컨텍스트 메뉴 (우클릭)
 
@@ -659,7 +659,7 @@ Loop, ForEach, Map, Background[🚧 미구현] 노드는 **컨테이너**로 렌
 
 ## 12. AI Agent Tool Area
 
-> ⚠ **Feature Out (재작성 예정)** — 본 섹션의 Tool Area 시각·인터랙션은 현재 비활성. 캔버스에서 AI Agent 노드 우측 점선 영역 및 드래그/드롭 인터랙션을 노출하지 않는다. AI Agent 의 `toolNodeIds` / `toolOverrides` 입력 경로 재설계 후 복원한다. 자세한 사유와 백엔드 영향은 `spec/4-nodes/3-ai-nodes.md` §1 Feature Out 박스 참조.
+> ⚠ **재작성 예정 (현재 제거됨)** — 본 섹션의 Tool Area 시각·인터랙션은 현재 비활성이며, AI Agent 의 도구 연결 config 필드(`toolNodeIds` / `toolOverrides`)도 스키마에서 제거됐다. 캔버스에서 AI Agent 노드 우측 점선 영역 및 드래그/드롭 인터랙션을 노출하지 않는다. 새 도구 연결 디자인이 결정될 때 갱신한다. 자세한 사유와 백엔드 영향은 `spec/4-nodes/3-ai-nodes.md` §1 박스 + `plan/in-progress/ai-agent-tool-connection-rewrite.md` 참조.
 
 AI Agent 노드에 연결된 도구 노드를 시각적으로 관리하는 전용 영역.
 
