@@ -128,3 +128,37 @@ export interface NodeHandler {
     context: ExecutionContext,
   ): Promise<NodeHandlerOutput> | Promise<unknown>;
 }
+
+/**
+ * Multi-turn 대화형 노드 (ai_agent, information_extractor) 가 구현해야 하는
+ * 추가 메서드. 엔진의 `waitForAiConversation` 가 이 메서드들을 호출하므로
+ * 핸들러는 두 메서드 모두를 반드시 구현해야 한다 (둘 다 optional 이 아님).
+ *
+ * `'processMultiTurnMessage' in handler` narrowing 가드로 일반 NodeHandler 와
+ * 분기한다 (CRIT #4 — duck-typing 의존 제거).
+ */
+export interface ResumableNodeHandler extends NodeHandler {
+  /** 사용자 메시지를 받아 다음 LLM turn 을 진행. waiting 또는 종료 결과 반환. */
+  processMultiTurnMessage(
+    userMessage: string,
+    state: Record<string, unknown>,
+  ): Promise<unknown>;
+
+  /** 사용자가 명시적으로 대화 종료 / max_turns 도달 / error 시 호출. 종료 결과 반환. */
+  endMultiTurnConversation(
+    state: Record<string, unknown>,
+    endReason: 'user_ended' | 'max_turns' | 'condition' | 'error',
+  ): unknown;
+}
+
+/** Type guard — `'processMultiTurnMessage' in handler` shorthand. */
+export function isResumableNodeHandler(
+  handler: NodeHandler,
+): handler is ResumableNodeHandler {
+  return (
+    typeof (handler as Partial<ResumableNodeHandler>)
+      .processMultiTurnMessage === 'function' &&
+    typeof (handler as Partial<ResumableNodeHandler>)
+      .endMultiTurnConversation === 'function'
+  );
+}

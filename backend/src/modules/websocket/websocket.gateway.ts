@@ -64,8 +64,14 @@ export class WebsocketGateway
         return;
       }
 
-      const payload: { sub: string } = this.jwtService.verify(token);
-      (client as Socket & { userId?: string }).userId = payload.sub;
+      const payload: { sub: string; workspaceId?: string } =
+        this.jwtService.verify(token);
+      const enrichedClient = client as Socket & {
+        userId?: string;
+        workspaceId?: string;
+      };
+      enrichedClient.userId = payload.sub;
+      enrichedClient.workspaceId = payload.workspaceId;
 
       this.subscriptions.set(client.id, new Set());
       this.logger.log(`Client connected: ${client.id} (user: ${payload.sub})`);
@@ -194,19 +200,35 @@ export class WebsocketGateway
   }
 
   @SubscribeMessage('execution.submit_form')
-  handleSubmitForm(
+  async handleSubmitForm(
     @MessageBody() data: { executionId: string; formData: unknown },
     @ConnectedSocket() client: Socket,
-  ): {
+  ): Promise<{
     event: string;
     data: { success: boolean; error?: string };
-  } {
+  }> {
     // Verify the client is authenticated
-    const userId = (client as Socket & { userId?: string }).userId;
-    if (!userId) {
+    const enriched = client as Socket & {
+      userId?: string;
+      workspaceId?: string;
+    };
+    if (!enriched.userId) {
       return {
         event: 'execution.form_submitted',
         data: { success: false, error: 'Not authenticated' },
+      };
+    }
+
+    // CRIT #1 — IDOR 차단.
+    try {
+      await this.executionsService.verifyOwnership(
+        data.executionId,
+        enriched.workspaceId ?? '',
+      );
+    } catch {
+      return {
+        event: 'execution.form_submitted',
+        data: { success: false, error: 'Not authorized for this execution' },
       };
     }
 
@@ -227,11 +249,11 @@ export class WebsocketGateway
   }
 
   @SubscribeMessage('execution.click_button')
-  handleClickButton(
+  async handleClickButton(
     @MessageBody()
     data: { executionId: string; nodeId?: string; buttonId: string },
     @ConnectedSocket() client: Socket,
-  ): {
+  ): Promise<{
     event: string;
     data: {
       success: boolean;
@@ -240,12 +262,28 @@ export class WebsocketGateway
       resumed?: boolean;
       error?: string;
     };
-  } {
-    const userId = (client as Socket & { userId?: string }).userId;
-    if (!userId) {
+  }> {
+    const enriched = client as Socket & {
+      userId?: string;
+      workspaceId?: string;
+    };
+    if (!enriched.userId) {
       return {
         event: 'execution.click_button.ack',
         data: { success: false, error: 'Not authenticated' },
+      };
+    }
+
+    // CRIT #1 — IDOR 차단. workspace 소유 검증.
+    try {
+      await this.executionsService.verifyOwnership(
+        data.executionId,
+        enriched.workspaceId ?? '',
+      );
+    } catch {
+      return {
+        event: 'execution.click_button.ack',
+        data: { success: false, error: 'Not authorized for this execution' },
       };
     }
 
@@ -274,25 +312,33 @@ export class WebsocketGateway
   }
 
   @SubscribeMessage('execution.submit_message')
-  handleSubmitMessage(
+  async handleSubmitMessage(
     @MessageBody()
     data: { executionId: string; nodeId: string; message: string },
     @ConnectedSocket() client: Socket,
-  ): {
+  ): Promise<{
     event: string;
     data: { success: boolean; error?: string };
-  } {
-    const userId = (client as Socket & { userId?: string }).userId;
-    if (!userId) {
+  }> {
+    const enriched = client as Socket & {
+      userId?: string;
+      workspaceId?: string;
+    };
+    if (!enriched.userId) {
       return {
         event: 'execution.submit_message.ack',
         data: { success: false, error: 'Not authenticated' },
       };
     }
 
-    // Verify client is subscribed to this execution's channel
-    const clientChannels = this.subscriptions.get(client.id);
-    if (!clientChannels?.has(`execution:${data.executionId}`)) {
+    // CRIT #1 — IDOR 차단. workspace 소유 검증 (subscription 체크는 첫 단계
+    // 방어, 실제 권한 검증은 verifyOwnership 가 담당).
+    try {
+      await this.executionsService.verifyOwnership(
+        data.executionId,
+        enriched.workspaceId ?? '',
+      );
+    } catch {
       return {
         event: 'execution.submit_message.ack',
         data: { success: false, error: 'Not authorized for this execution' },
@@ -316,24 +362,31 @@ export class WebsocketGateway
   }
 
   @SubscribeMessage('execution.end_conversation')
-  handleEndConversation(
+  async handleEndConversation(
     @MessageBody() data: { executionId: string; nodeId: string },
     @ConnectedSocket() client: Socket,
-  ): {
+  ): Promise<{
     event: string;
     data: { success: boolean; error?: string };
-  } {
-    const userId = (client as Socket & { userId?: string }).userId;
-    if (!userId) {
+  }> {
+    const enriched = client as Socket & {
+      userId?: string;
+      workspaceId?: string;
+    };
+    if (!enriched.userId) {
       return {
         event: 'execution.end_conversation.ack',
         data: { success: false, error: 'Not authenticated' },
       };
     }
 
-    // Verify client is subscribed to this execution's channel
-    const clientChannels = this.subscriptions.get(client.id);
-    if (!clientChannels?.has(`execution:${data.executionId}`)) {
+    // CRIT #1 — IDOR 차단.
+    try {
+      await this.executionsService.verifyOwnership(
+        data.executionId,
+        enriched.workspaceId ?? '',
+      );
+    } catch {
       return {
         event: 'execution.end_conversation.ack',
         data: { success: false, error: 'Not authorized for this execution' },

@@ -39,6 +39,7 @@ import {
 import { ExpressionResolverService } from './expression/expression-resolver.service';
 import {
   ExecutionContext,
+  isResumableNodeHandler,
   NodeHandler,
   NodeHandlerOutput,
 } from '../../nodes/core/node-handler.interface';
@@ -491,12 +492,17 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
       backEdgeMap.set(edge.sourceNodeId, list);
     }
 
-    // Build outgoing-edge lookup for O(1) propagation
+    // Build outgoing-edge lookup for O(1) propagation + incoming-edge lookup
+    // for O(1) gatherNodeInput (avoids O(N×M) filter on every node execution).
     const outgoingEdgeMap = new Map<string, GraphEdge[]>();
+    const incomingEdgeMap = new Map<string, GraphEdge[]>();
     for (const edge of graphEdges) {
-      const list = outgoingEdgeMap.get(edge.sourceNodeId) ?? [];
-      list.push(edge);
-      outgoingEdgeMap.set(edge.sourceNodeId, list);
+      const outList = outgoingEdgeMap.get(edge.sourceNodeId) ?? [];
+      outList.push(edge);
+      outgoingEdgeMap.set(edge.sourceNodeId, outList);
+      const inList = incomingEdgeMap.get(edge.targetNodeId) ?? [];
+      inList.push(edge);
+      incomingEdgeMap.set(edge.targetNodeId, inList);
     }
 
     // Use target-only nodeMap for expression resolution.
@@ -632,6 +638,7 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
           executedNodes,
           context.nodeOutputCache,
           cleanInput,
+          incomingEdgeMap,
         );
 
         // Execute the node using the parent execution's context but
@@ -965,9 +972,14 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
         backEdgeMap.set(edge.sourceNodeId, list);
       }
 
-      // Build outgoing-edge lookup for O(1) propagation
+      // Build outgoing-edge lookup for O(1) propagation + incoming-edge lookup
+      // for O(1) gatherNodeInput (avoids O(N×M) filter on every node execution).
       const outgoingEdgeMap = new Map<string, GraphEdge[]>();
+      const incomingEdgeMap = new Map<string, GraphEdge[]>();
       for (const edge of graphEdges) {
+        const inList = incomingEdgeMap.get(edge.targetNodeId) ?? [];
+        inList.push(edge);
+        incomingEdgeMap.set(edge.targetNodeId, inList);
         const list = outgoingEdgeMap.get(edge.sourceNodeId) ?? [];
         list.push(edge);
         outgoingEdgeMap.set(edge.sourceNodeId, list);
@@ -1080,6 +1092,7 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
           executedNodes,
           context.nodeOutputCache,
           input,
+          incomingEdgeMap,
         );
 
         // Execute the node
@@ -1143,6 +1156,7 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
             executedNodes,
             context.nodeOutputCache,
             input,
+            incomingEdgeMap,
           );
           await this.runParallel(
             node,
@@ -1675,12 +1689,16 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
       if (action.type === 'ai_end_conversation') {
         const endReason = 'user_ended';
 
-        const handler = this.handlerRegistry.get(node.type) as unknown as {
-          endMultiTurnConversation: (
-            state: Record<string, unknown>,
-            endReason: string,
-          ) => unknown;
-        };
+        // CRIT #4 — duck-typing 제거. ResumableNodeHandler 인터페이스로 narrow
+        // 하여 핸들러가 두 메서드를 구현하지 않으면 명시적 에러 발생.
+        const handler = this.handlerRegistry.get(node.type);
+        if (!isResumableNodeHandler(handler)) {
+          throw new Error(
+            `Node type "${node.type}" cannot end multi-turn conversation: ` +
+              'handler does not implement ResumableNodeHandler interface ' +
+              '(processMultiTurnMessage / endMultiTurnConversation)',
+          );
+        }
 
         const finalOutput = handler.endMultiTurnConversation(
           resumeState,
@@ -1705,12 +1723,14 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
         // Process user message via the node's own handler (so both ai_agent
         // and information_extractor can implement conversational extraction
         // with their own domain logic).
-        const handler = this.handlerRegistry.get(node.type) as unknown as {
-          processMultiTurnMessage: (
-            userMessage: string,
-            state: Record<string, unknown>,
-          ) => Promise<unknown>;
-        };
+        // CRIT #4 — duck-typing 제거. ResumableNodeHandler 인터페이스로 narrow.
+        const handler = this.handlerRegistry.get(node.type);
+        if (!isResumableNodeHandler(handler)) {
+          throw new Error(
+            `Node type "${node.type}" cannot process multi-turn message: ` +
+              'handler does not implement ResumableNodeHandler interface',
+          );
+        }
         const result = await handler.processMultiTurnMessage(
           action.message as string,
           resumeState,
@@ -2642,9 +2662,14 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
     executedNodes: Set<string>,
     nodeOutputCache: Record<string, unknown>,
     workflowInput: unknown,
+    incomingEdgeMap?: Map<string, GraphEdge[]>,
   ): unknown {
-    // Find all incoming edges
-    const incomingEdges = edges.filter((e) => e.targetNodeId === nodeId);
+    // Prefer pre-built map (O(1) lookup) — caller threads it from
+    // runExecution / executeInline / planContainerBody startup. Fallback to
+    // O(M) filter for legacy call sites that haven't been migrated.
+    const incomingEdges =
+      incomingEdgeMap?.get(nodeId) ??
+      edges.filter((e) => e.targetNodeId === nodeId);
 
     if (incomingEdges.length === 0) {
       // Start node - use workflow input

@@ -53,6 +53,9 @@ describe('WebsocketGateway', () => {
           provide: ExecutionsService,
           useValue: {
             findById: jest.fn().mockRejectedValue(new Error('not found')),
+            // CRIT #1 — IDOR 차단을 위해 verifyOwnership 호출. 테스트에서는
+            // 기본적으로 통과시키고, 거부 케이스를 별도 테스트에서 override.
+            verifyOwnership: jest.fn().mockResolvedValue(undefined),
           },
         },
       ],
@@ -224,10 +227,10 @@ describe('WebsocketGateway', () => {
   });
 
   describe('handleSubmitForm', () => {
-    it('should reject unauthenticated client', () => {
+    it('should reject unauthenticated client', async () => {
       const { socket } = createMockSocket({ id: 'no-auth' });
 
-      const result = gateway.handleSubmitForm(
+      const result = await gateway.handleSubmitForm(
         { executionId: 'exec-1', formData: { approved: true } },
         socket,
       );
@@ -235,27 +238,31 @@ describe('WebsocketGateway', () => {
       expect(result.data.error).toBe('Not authenticated');
     });
 
-    it('should call continueExecution on success', () => {
+    it('should call continueExecution on success', async () => {
       const { socket } = createMockSocket({ id: 'client-1' });
-      (socket as Socket & { userId?: string }).userId = 'user-1';
+      (socket as Socket & { userId?: string; workspaceId?: string }).userId =
+        'user-1';
+      (socket as Socket & { workspaceId?: string }).workspaceId = 'workspace-1';
 
-      const result = gateway.handleSubmitForm(
+      const result = await gateway.handleSubmitForm(
         { executionId: 'exec-1', formData: { approved: true } },
         socket,
       );
       expect(result.data.success).toBe(true);
     });
 
-    it('should return error when continueExecution throws', () => {
+    it('should return error when continueExecution throws', async () => {
       const { socket } = createMockSocket({ id: 'client-1' });
-      (socket as Socket & { userId?: string }).userId = 'user-1';
+      (socket as Socket & { userId?: string; workspaceId?: string }).userId =
+        'user-1';
+      (socket as Socket & { workspaceId?: string }).workspaceId = 'workspace-1';
 
       const mockEngine = module.get(ExecutionEngineService);
       (mockEngine.continueExecution as jest.Mock).mockImplementation(() => {
         throw new Error('No pending continuation');
       });
 
-      const result = gateway.handleSubmitForm(
+      const result = await gateway.handleSubmitForm(
         { executionId: 'non-existent', formData: {} },
         socket,
       );
@@ -263,6 +270,26 @@ describe('WebsocketGateway', () => {
       // Surface the underlying engine error so the client can render a
       // diagnostic toast instead of a generic placeholder.
       expect(result.data.error).toBe('No pending continuation');
+    });
+
+    it('should reject when ownership verification fails (IDOR guard)', async () => {
+      const { socket } = createMockSocket({ id: 'client-1' });
+      (socket as Socket & { userId?: string; workspaceId?: string }).userId =
+        'user-1';
+      (socket as Socket & { workspaceId?: string }).workspaceId =
+        'workspace-attacker';
+
+      const mockExecutions = module.get(ExecutionsService);
+      (mockExecutions.verifyOwnership as jest.Mock).mockRejectedValueOnce(
+        new Error('Execution not found'),
+      );
+
+      const result = await gateway.handleSubmitForm(
+        { executionId: 'exec-victim', formData: {} },
+        socket,
+      );
+      expect(result.data.success).toBe(false);
+      expect(result.data.error).toBe('Not authorized for this execution');
     });
   });
 

@@ -9,6 +9,7 @@ import {
   HttpStatus,
   ParseUUIDPipe,
 } from '@nestjs/common';
+import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import {
   ApiTags,
   ApiBearerAuth,
@@ -94,7 +95,12 @@ export class ExecutionsController {
   })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
   @ApiNotFoundResponse({ description: '해당 실행을 찾을 수 없음' })
-  async stop(@Param('id', ParseUUIDPipe) id: string) {
+  async stop(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser('workspaceId') workspaceId: string,
+  ) {
+    // CRIT #1 — IDOR 차단. 실행 소유 workspace 검증.
+    await this.executionsService.verifyOwnership(id, workspaceId);
     return this.executionsService.stop(id);
   }
 
@@ -111,10 +117,13 @@ export class ExecutionsController {
   })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
   @ApiNotFoundResponse({ description: '해당 실행을 찾을 수 없음' })
-  continueExecution(
+  async continueExecution(
     @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser('workspaceId') workspaceId: string,
     @Body() body?: { formData?: unknown },
   ) {
+    // CRIT #1 — IDOR 차단.
+    await this.executionsService.verifyOwnership(id, workspaceId);
     this.executionEngineService.continueExecution(id, body?.formData);
     return { success: true };
   }
