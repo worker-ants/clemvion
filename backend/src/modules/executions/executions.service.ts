@@ -37,6 +37,40 @@ export class ExecutionsService {
     private readonly executionEngineService: ExecutionEngineService,
   ) {}
 
+  /**
+   * IDOR 차단용 helper — execution 이 사용자의 workspace 에 속하는지 검증.
+   * 호출부 (controller / WS gateway) 가 사용자 인증 컨텍스트에서 workspaceId 를
+   * 추출해 전달한다. 일치하지 않으면 NotFound 로 통일하여 ID enumeration 도 방지.
+   *
+   * 사용 예: stop·continue·resume·cancel 같은 mutating endpoint 에서 호출.
+   */
+  async verifyOwnership(
+    executionId: string,
+    userWorkspaceId: string,
+  ): Promise<void> {
+    const row = await this.executionRepository
+      .createQueryBuilder('e')
+      .leftJoin('e.workflow', 'workflow')
+      .select(['e.id', 'workflow.workspaceId'])
+      .where('e.id = :id', { id: executionId })
+      .getOne();
+    if (!row) {
+      throw new NotFoundException({
+        code: 'RESOURCE_NOT_FOUND',
+        message: 'Execution not found',
+      });
+    }
+    const ownerWorkspaceId = row.workflow?.workspaceId;
+    if (!ownerWorkspaceId || ownerWorkspaceId !== userWorkspaceId) {
+      // 의도적으로 NotFound — Forbidden 으로 응답하면 attacker 가 ID 의 존재
+      // 여부를 추론할 수 있다 (CRIT #1).
+      throw new NotFoundException({
+        code: 'RESOURCE_NOT_FOUND',
+        message: 'Execution not found',
+      });
+    }
+  }
+
   async findById(id: string): Promise<ExecutionDetailWithTrigger> {
     // 안전 컬럼만 선택적으로 join — User.passwordHash 등 민감 필드 노출 방지.
     // executor.email 도 라벨 산출에 불필요하므로 제외 (PII 최소화).
