@@ -1,0 +1,113 @@
+{
+  "timestamp": "2026-05-06T14:12:03.139351",
+  "files": [
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/backend/src/nodes/ai/ai-agent/ai-agent.handler.spec.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/backend/src/nodes/ai/ai-agent/ai-agent.handler.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/backend/src/nodes/ai/ai-agent/ai-agent.schema.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/plan/in-progress/ai-agent-tool-connection-rewrite.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/prd/3-node-system.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/prd/6-phase2-ai.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/spec/3-workflow-editor/0-canvas.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/spec/4-nodes/3-ai-nodes.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    }
+  ],
+  "total_elapsed_seconds": 503.47,
+  "agents": [
+    {
+      "name": "database",
+      "status": "success",
+      "elapsed_seconds": 65.97
+    },
+    {
+      "name": "concurrency",
+      "status": "success",
+      "elapsed_seconds": 66.27
+    },
+    {
+      "name": "architecture",
+      "status": "success",
+      "elapsed_seconds": 73.0
+    },
+    {
+      "name": "security",
+      "status": "success",
+      "elapsed_seconds": 91.59
+    },
+    {
+      "name": "dependency",
+      "status": "success",
+      "elapsed_seconds": 94.5
+    },
+    {
+      "name": "performance",
+      "status": "success",
+      "elapsed_seconds": 99.96
+    },
+    {
+      "name": "maintainability",
+      "status": "success",
+      "elapsed_seconds": 105.8
+    },
+    {
+      "name": "side_effect",
+      "status": "success",
+      "elapsed_seconds": 107.18
+    },
+    {
+      "name": "scope",
+      "status": "success",
+      "elapsed_seconds": 111.58
+    },
+    {
+      "name": "testing",
+      "status": "success",
+      "elapsed_seconds": 121.69
+    },
+    {
+      "name": "documentation",
+      "status": "success",
+      "elapsed_seconds": 126.31
+    },
+    {
+      "name": "api_contract",
+      "status": "success",
+      "elapsed_seconds": 149.26
+    },
+    {
+      "name": "requirement",
+      "status": "success",
+      "elapsed_seconds": 167.46
+    }
+  ]
+}
