@@ -227,7 +227,8 @@
 
 | 참조 | 예시 | 설명 |
 |------|------|------|
-| 이전 노드 출력 | `{{ $node["Node A"].output.field }}` | 특정 노드의 출력 필드 |
+| 이전 노드 출력 | `{{ $node["Node A"].output.field }}` | 특정 노드의 출력 필드 (expression **평가 결과**) |
+| 이전 노드 설정 | `{{ $node["Node A"].config.field }}` | 특정 노드의 설정 필드 (expression **원본**, 미평가 형태) |
 | 직전 노드 출력 | `{{ $input.field }}` | 바로 이전 연결 노드의 출력 |
 | 변수 | `{{ $var.myVariable }}` | 선언된 변수 참조 |
 | 실행 컨텍스트 | `{{ $execution.id }}` | 현재 실행 ID |
@@ -236,6 +237,8 @@
 | Loop 인덱스 | `{{ $loop.index }}` | 현재 반복 인덱스 |
 | ForEach 항목 | `{{ $item }}` | ForEach의 현재 항목 |
 | JSON Path | `{{ $input.data[0].name }}` | 중첩 객체/배열 접근 |
+
+> **`.config.*` vs `.output.*`** — 노드의 설정 필드 중 expression(`{{ ... }}`)이 포함된 것 (예: Send Email 의 `subject`, `body`) 은 두 영역에 서로 다른 값을 노출한다. `.config.subject` 는 작성된 **원본 템플릿** (예: `"Hello {{ name }}"`), `.output.subject` 는 **평가 결과** (예: `"Hello Alice"`) 다. expression 미사용 필드 (예: `mode`, `chartType`) 는 두 값이 동일하므로 `.config.*` 만 사용해도 충분하다. 상세는 [실행 엔진 §5.1](../5-system/4-execution-engine.md#51-nodehandler-인터페이스), [CONVENTIONS Principle 7](../../user_memo/node-specs-improvement/CONVENTIONS.md) 참조.
 
 ### 3.3 표현식 에디터
 
