@@ -106,8 +106,10 @@ function sanitizeId(id: string): string {
   return id.replace(/[^a-zA-Z0-9_]/g, '_');
 }
 
-/** Build LLM tool name for a normal (Tool Area) node. */
-function toolName(nodeId: string): string {
+/** Build LLM tool name for a normal (Tool Area) node.
+ *  Feature out — 도구 연결 입력 경로 재작성 시 함께 복원하기 위해 함수는 유지.
+ *  underscore prefix 로 unused-vars 규칙 회피. */
+function _toolName(nodeId: string): string {
   return `tool_${sanitizeId(nodeId)}`;
 }
 
@@ -833,12 +835,12 @@ export class AiAgentHandler implements NodeHandler {
     const temperature = state.temperature as number | undefined;
     const maxTokens = state.maxTokens as number | undefined;
     // multi-turn resume 시 buildTools 에 전달할 config 은 turn-1 에서 수집한 state 를 사용.
+    // Feature out — toolNodeIds / toolOverrides 는 핸들러에서 무시하므로 turnConfig 에
+    // 포함하지 않는다 (state 는 호환성을 위해 빈 배열로 유지). 재작성 시 함께 복원.
     const turnConfig: Record<string, unknown> = {
       knowledgeBases,
       ragTopK: state.ragTopK,
       ragThreshold: state.ragThreshold,
-      toolNodeIds: state.toolNodeIds,
-      toolOverrides: state.toolOverrides,
       mcpServers: state.mcpServers,
       conditions,
     };
@@ -1311,13 +1313,10 @@ export class AiAgentHandler implements NodeHandler {
     workspaceId: string,
     executionId?: string,
   ): Promise<ToolDef[]> {
-    // Feature out — 도구 연결 재작성 예정. config 값을 무시하고 일반 도구를 등록하지 않음.
-    const toolNodeIds: string[] = [];
-    const toolOverrides: Array<{
-      nodeId: string;
-      toolName: string;
-      toolDescription: string;
-    }> = [];
+    // Feature out — 도구 연결 재작성 예정. config.toolNodeIds / config.toolOverrides
+    // 는 의도적으로 읽지 않으며 일반 도구(`tool_*`)를 LLM 에 등록하지 않는다.
+    // 재작성 시 toolName() 헬퍼와 normalTools 빌드 로직을 함께 복원한다.
+    const normalTools: ToolDef[] = [];
     const conditions = (config.conditions as ConditionDef[]) || [];
 
     // Provider tools (KB / MCP 등) — 핸들러 내부 실행. 우선순위 가장 높음.
@@ -1337,20 +1336,6 @@ export class AiAgentHandler implements NodeHandler {
         );
       }
     }
-
-    const normalTools: ToolDef[] = toolNodeIds.map((nodeId) => {
-      const override = toolOverrides.find((o) => o.nodeId === nodeId);
-      return {
-        name: override?.toolName || toolName(nodeId),
-        description: override?.toolDescription || `Execute node ${nodeId}`,
-        parameters: {
-          type: 'object',
-          properties: {
-            input: { type: 'string', description: 'Input for the tool' },
-          },
-        },
-      };
-    });
 
     const conditionTools: ToolDef[] = conditions.map((c) => ({
       name: condToolName(c.id),
