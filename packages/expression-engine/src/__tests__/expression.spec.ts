@@ -45,6 +45,15 @@ describe('Expression Engine', () => {
       expect(evaluate('{{ $now }}', defaultContext)).toBe('2026-03-30T12:00:00.000Z');
     });
 
+    // $today was removed because it was always derived in UTC, which surfaced
+    // off-by-one days in non-UTC zones. Workflows that previously used `$today`
+    // must migrate to `formatDate($now, "YYYY-MM-DD")` or `today()`. The
+    // evaluator must fail loudly (EXPR_REFERENCE_ERROR), not silently return
+    // undefined, so users notice the migration is needed.
+    it('should fail loudly with EXPR_REFERENCE_ERROR when $today is used (removed variable)', () => {
+      expect(() => evaluate('{{ $today }}', defaultContext)).toThrow(/Undefined variable: \$today/);
+    });
+
     it('should access $loop properties', () => {
       expect(evaluate('{{ $loop.index }}', defaultContext)).toBe(0);
       expect(evaluate('{{ $loop.isFirst }}', defaultContext)).toBe(true);
