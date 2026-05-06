@@ -37,6 +37,15 @@ export interface ExecutionContext {
     isLast: boolean;
   };
   expressionContext?: Record<string, unknown>;
+  /**
+   * 노드 정의에 저장된 **원본 config** (expression 평가 전). 핸들러가
+   * `NodeHandlerOutput.config` echo 에 사용한다 — `config` 인자는 평가 후 값
+   * 이고, 본 필드는 워크플로 작성자가 입력한 raw 형태(`{{ ... }}` 포함) 그대로다.
+   * 엔진이 매 노드 호출 직전에 채우며 `Object.freeze` 로 mutation 을 차단한다.
+   * 상세: PRD `ENG-RC-*`, Spec `4-execution-engine.md` §5.5 / §6.1,
+   * CONVENTIONS Principle 7.
+   */
+  rawConfig?: Readonly<Record<string, unknown>>;
   recursionDepth?: number;
   /**
    * When set, the engine will persist every NodeExecution created under this
