@@ -734,8 +734,9 @@ export class AiAgentHandler implements NodeHandler {
       ragThreshold,
       maxToolCalls,
       maxTurns,
-      toolNodeIds: (config.toolNodeIds as string[]) || [],
-      toolOverrides: (config.toolOverrides as unknown[]) || [],
+      // Feature out — 도구 연결 재작성 예정. 저장된 값은 유지하되 실행에서는 무시.
+      toolNodeIds: [] as string[],
+      toolOverrides: [] as unknown[],
       // Persist mcpServers across multi-turn resumes so each post-resume turn
       // re-materializes MCP sessions deterministically from the saved config.
       mcpServers: (config.mcpServers as unknown[]) || [],
@@ -1310,13 +1311,13 @@ export class AiAgentHandler implements NodeHandler {
     workspaceId: string,
     executionId?: string,
   ): Promise<ToolDef[]> {
-    const toolNodeIds = (config.toolNodeIds as string[]) || [];
-    const toolOverrides =
-      (config.toolOverrides as Array<{
-        nodeId: string;
-        toolName: string;
-        toolDescription: string;
-      }>) || [];
+    // Feature out — 도구 연결 재작성 예정. config 값을 무시하고 일반 도구를 등록하지 않음.
+    const toolNodeIds: string[] = [];
+    const toolOverrides: Array<{
+      nodeId: string;
+      toolName: string;
+      toolDescription: string;
+    }> = [];
     const conditions = (config.conditions as ConditionDef[]) || [];
 
     // Provider tools (KB / MCP 등) — 핸들러 내부 실행. 우선순위 가장 높음.

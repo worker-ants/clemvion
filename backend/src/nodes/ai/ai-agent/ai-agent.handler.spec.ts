@@ -457,7 +457,8 @@ describe('AiAgentHandler', () => {
       expect(res.response).toBe('not valid json {{{');
     });
 
-    it('should handle external (tool_node) tool calling loop', async () => {
+    // Feature out — toolNodeIds 입력 경로 재작성 시까지 비활성. 복원 시 unskip.
+    it.skip('should handle external (tool_node) tool calling loop', async () => {
       mockLlmService.chat
         .mockResolvedValueOnce({
           content: null,
@@ -1345,7 +1346,8 @@ describe('AiAgentHandler', () => {
   });
 
   describe('buildTools - tool naming', () => {
-    it('should use tool_ prefix with sanitized nodeId', async () => {
+    // Feature out — 일반 도구(tool_*) 입력 경로 재작성 시까지 비활성. 복원 시 unskip.
+    it.skip('should use tool_ prefix with sanitized nodeId', async () => {
       await handler.execute(
         {},
         {
@@ -1378,6 +1380,77 @@ describe('AiAgentHandler', () => {
       );
       expect(condTool).toBeDefined();
       expect(condTool.description).toBe('Test condition');
+    });
+  });
+
+  // Feature out 회귀 가드 — toolNodeIds/toolOverrides 가 config 에 남아 있어도
+  // 핸들러는 빈 배열로 강제 처리하여 일반 도구(`tool_*`)를 LLM 에 등록하지
+  // 않는다. 도구 연결 입력 경로 재작성 시 본 describe 블록을 제거한다.
+  describe('feature-out: tool connection inputs', () => {
+    it('ignores toolNodeIds in config (no normal tools registered to LLM)', async () => {
+      await handler.execute(
+        {},
+        {
+          userPrompt: 'Hello',
+          toolNodeIds: ['abc12345-full-node-id'],
+        },
+        baseContext,
+      );
+      const tools =
+        (
+          mockLlmService.chat.mock.calls[0][1] as {
+            tools?: Array<{ name: string }>;
+          }
+        ).tools ?? [];
+      expect(tools.find((t) => t.name.startsWith('tool_'))).toBeUndefined();
+    });
+
+    it('ignores toolOverrides in config', async () => {
+      await handler.execute(
+        {},
+        {
+          userPrompt: 'Hello',
+          toolNodeIds: ['abc12345-full-node-id'],
+          toolOverrides: [
+            {
+              nodeId: 'abc12345-full-node-id',
+              toolName: 'custom_name',
+              toolDescription: 'custom desc',
+            },
+          ],
+        },
+        baseContext,
+      );
+      const tools =
+        (
+          mockLlmService.chat.mock.calls[0][1] as {
+            tools?: Array<{ name: string }>;
+          }
+        ).tools ?? [];
+      expect(tools.find((t) => t.name === 'custom_name')).toBeUndefined();
+    });
+
+    it('preserves condition tools alongside feature-out (regression check)', async () => {
+      await handler.execute(
+        {},
+        {
+          userPrompt: 'Hello',
+          systemPrompt: 'Be helpful',
+          toolNodeIds: ['abc12345-full-node-id'],
+          conditions: [
+            { id: 'cond-x', label: 'Test', prompt: 'Test condition' },
+          ],
+        },
+        baseContext,
+      );
+      const tools =
+        (
+          mockLlmService.chat.mock.calls[0][1] as {
+            tools?: Array<{ name: string }>;
+          }
+        ).tools ?? [];
+      expect(tools.find((t) => t.name === 'cond_cond_x')).toBeDefined();
+      expect(tools.find((t) => t.name.startsWith('tool_'))).toBeUndefined();
     });
   });
 
@@ -1458,7 +1531,8 @@ describe('AiAgentHandler', () => {
       expect(condition.label).toBe('Refund');
     });
 
-    it('should execute normal tools first when condition + normal tools are called together', async () => {
+    // Feature out — 일반 도구 입력 경로 비활성으로 시나리오 미발생. 복원 시 unskip.
+    it.skip('should execute normal tools first when condition + normal tools are called together', async () => {
       // First call: LLM calls both condition and normal tool
       mockLlmService.chat
         .mockResolvedValueOnce({
