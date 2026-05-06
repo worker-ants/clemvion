@@ -160,8 +160,7 @@
 | `$node["이름"]` | Object | 특정 노드의 출력. `.output`으로 접근. UUID로도 접근 가능 | `{{ $node["Fetch User"].output.id }}` |
 | `$var` | Object | 워크플로우 선언 변수 | `{{ $var.counter }}` |
 | `$execution` | Object | 현재 실행 컨텍스트 | `{{ $execution.id }}` |
-| `$now` | String | 현재 타임스탬프 (ISO 8601) | `{{ $now }}` |
-| `$today` | String | 오늘 날짜 (YYYY-MM-DD) | `{{ $today }}` |
+| `$now` | String | 현재 타임스탬프 (ISO 8601, UTC) | `{{ $now }}` |
 | `$env` | Object | 환경 변수 (셀프 호스팅) | `{{ $env.API_URL }}` |
 | `$loop` | Object | Loop 노드 내부 컨텍스트 | `{{ $loop.index }}` |
 | `$item` | Object/Any | ForEach 현재 항목 | `{{ $item.name }}` |

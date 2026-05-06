@@ -7,8 +7,7 @@ This page lists the **built-in reference variables** you can use inside expressi
   { name: "$node[\"name\"]", type: "Object", description: "Result of a specific node by name (or UUID). Output lives under `.output`." },
   { name: "$var", type: "Object", description: "Values of variables declared for this workflow." },
   { name: "$execution", type: "Object", description: "Current execution context — ID, start time, execution mode, and more." },
-  { name: "$now", type: "String", description: "Current timestamp as an ISO 8601 string." },
-  { name: "$today", type: "String", description: "Today's date as `YYYY-MM-DD`." },
+  { name: "$now", type: "String", description: "Current timestamp as an ISO 8601 string. Always in UTC (`...Z`)." },
   { name: "$env", type: "Object", description: "Environment variable object. Exposed via an allow-list in self-hosted deployments." },
   { name: "$trigger", type: "Object", description: "Trigger payload — webhook body, schedule context, etc." },
   { name: "$loop", type: "Object", description: "Loop-node inner context — index, iteration count, first/last flags." },
@@ -77,9 +76,9 @@ Variables declared via Variable Declaration are read through `$var` and updated 
 ```
 </Example>
 
-## `$now` and `$today`: time references
+## `$now`: time reference
 
-Both are evaluated at execution time and stay the same across all uses within one run.
+`$now` is evaluated once at execution time and stays the same across all uses within one run. It is always an ISO 8601 string in **UTC (`...Z`)**.
 
 <Example title="Current ISO timestamp">
 ```ts
@@ -87,11 +86,13 @@ Both are evaluated at execution time and stay the same across all uses within on
 ```
 </Example>
 
-<Example title="Build a file name from today's date">
+<Example title="Build a file name from today's date (UTC)">
 ```ts
-report-{{ $today }}.csv
+report-{{ formatDate($now, "YYYY-MM-DD") }}.csv
 ```
 </Example>
+
+<Callout type="note">The `$today` variable was removed because it was always derived in UTC, which surfaced as off-by-one days in non-UTC zones (for example KST near midnight). Use `formatDate($now, "YYYY-MM-DD")` for UTC-based dates, or `today()` for the server's local timezone.</Callout>
 
 ## `$env`: environment variables
 

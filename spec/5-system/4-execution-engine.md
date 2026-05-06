@@ -452,7 +452,7 @@ interface NodeHandlerRegistry {
 | `$node` | nodeMap + nodeOutputCache → 노드 라벨 키 맵. `$node["Label"].output` 형태로 접근 |
 | `$var` | context.variables (Variable Declaration/Modification으로 관리) |
 | `$execution` | `{ id, workflowId, startedAt, mode }` |
-| `$now`, `$today` | 현재 시각/날짜 |
+| `$now` | 실행 시점의 현재 시각 (ISO 8601, UTC). 같은 실행 안에서는 동일한 값으로 고정 |
 | `$loop` | loopContext (Loop 컨테이너 내부) |
 | `$item`, `$itemIndex` | itemContext (ForEach 컨테이너 내부) |
 

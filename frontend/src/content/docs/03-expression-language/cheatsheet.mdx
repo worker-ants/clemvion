@@ -138,9 +138,9 @@ code: ["packages/expression-engine/src/functions/"]
 ```
 </Example>
 
-<Example title="오늘 날짜로 파일명 만들기">
+<Example title="오늘 날짜로 파일명 만들기 (UTC 기준)">
 ```ts
-report-{{ $today }}.csv
+report-{{ formatDate($now, "YYYY-MM-DD") }}.csv
 ```
 </Example>
 
@@ -202,7 +202,7 @@ report-{{ $today }}.csv
 
 <Example title="HTTP URL에 경로 파라미터 끼우기">
 ```ts
-https://api.example.com/users/{{ $input.userId }}/orders?from={{ $today }}
+https://api.example.com/users/{{ $input.userId }}/orders?from={{ formatDate($now, "YYYY-MM-DD") }}
 ```
 </Example>
 

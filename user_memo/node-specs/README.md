@@ -50,8 +50,7 @@ interface NodeHandlerOutput {
 | `$execution.workflowId` | 워크플로우 ID | |
 | `$execution.startedAt` | 실행 시작 시각 (ISO 8601) | |
 | `$execution.mode` | 실행 모드 (`manual`, `webhook`, `schedule` 등) | |
-| `$now` | 현재 시각 ISO 8601 문자열 | `{{ $now }}` → `2026-04-18T12:34:56.789Z` |
-| `$today` | 오늘 날짜 (`YYYY-MM-DD`) | `{{ $today }}` → `2026-04-18` |
+| `$now` | 현재 시각 ISO 8601 문자열 (UTC) | `{{ $now }}` → `2026-04-18T12:34:56.789Z` |
 | `$loop` | Loop 노드 내부에서만 노출. `{ index, iteration, isFirst, isLast }` | `{{ $loop.iteration }}` |
 | `$item` | ForEach/Map 본문 내부에서만 노출. 현재 항목 값 | `{{ $item.title }}` |
 | `$itemIndex` | ForEach/Map 본문 내부에서만 노출. 현재 항목 인덱스(0-based) | `{{ $itemIndex }}` |
