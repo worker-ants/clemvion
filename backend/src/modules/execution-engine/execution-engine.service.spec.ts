@@ -1341,6 +1341,231 @@ describe('ExecutionEngineService', () => {
     });
   });
 
+  // ENG-RC-* — 엔진이 핸들러에 노출하는 ExecutionContext.rawConfig 가
+  // expression 평가 전 원본을 그대로 담고 mutation 으로부터 보호되어야 한다.
+  // 핸들러는 NodeHandlerOutput.config echo 시 rawConfig 를 사용하여
+  // CONVENTIONS Principle 1.1 / Principle 7 의 직교성을 유지한다.
+  describe('ENG-RC-* — ExecutionContext.rawConfig exposure', () => {
+    const wf = workflowId;
+
+    const triggerNode: Partial<Node> = {
+      id: 'rc-trigger',
+      workflowId: wf,
+      type: 'test_node',
+      category: NodeCategory.LOGIC,
+      label: 'Trigger',
+      config: {},
+      isDisabled: false,
+    };
+    // 'template' 노드 타입을 활용 — 런타임 NodeComponentRegistry 에 이미 등록되어
+    // 있어 엔진이 경로를 인식한다. 본 테스트는 ExecutionContext.rawConfig 노출
+    // 동작만 검증하므로 노드 타입의 도메인 의미와는 무관.
+    const exprNode: Partial<Node> = {
+      id: 'rc-expr',
+      workflowId: wf,
+      type: 'template',
+      category: NodeCategory.PRESENTATION,
+      label: 'Expr Target',
+      config: {
+        subject: 'Hello {{ name }}',
+        bodyType: 'text',
+        body: 'Greeting: {{ $node["Trigger"].output.greeting }}',
+      },
+      isDisabled: false,
+    };
+    const rcEdges: Partial<Edge>[] = [
+      {
+        id: 'rc-edge',
+        workflowId: wf,
+        sourceNodeId: 'rc-trigger',
+        sourcePort: 'out',
+        targetNodeId: 'rc-expr',
+        targetPort: 'in',
+        type: EdgeType.DATA,
+      },
+    ];
+
+    let captureSpy: jest.Mock<
+      Promise<unknown>,
+      [unknown, Record<string, unknown>, ExecutionContextLike]
+    >;
+
+    type ExecutionContextLike = {
+      rawConfig?: Readonly<Record<string, unknown>>;
+      [key: string]: unknown;
+    };
+
+    beforeEach(() => {
+      mockNodeRepo.findBy.mockResolvedValue([triggerNode, exprNode]);
+      mockEdgeRepo.findBy.mockResolvedValue(rcEdges);
+
+      handlerRegistry.register('test_node', {
+        validate: () => ({ valid: true, errors: [] }),
+        execute: jest
+          .fn()
+          .mockResolvedValue({ name: 'Alice', greeting: 'Hi there' }),
+      });
+
+      captureSpy = jest
+        .fn<
+          Promise<unknown>,
+          [unknown, Record<string, unknown>, ExecutionContextLike]
+        >()
+        .mockResolvedValue({ ok: true });
+      handlerRegistry.register('template', {
+        validate: () => ({ valid: true, errors: [] }),
+        execute: captureSpy,
+      });
+    });
+
+    it('exposes rawConfig with pre-evaluation template strings (config arg has evaluated values)', async () => {
+      await service.execute(wf, {});
+      await flushPromises();
+
+      expect(captureSpy).toHaveBeenCalledTimes(1);
+      const [, evaluatedConfig, ctx] = captureSpy.mock.calls[0];
+
+      // config arg is post-evaluation (placeholders resolved)
+      expect(evaluatedConfig.subject).toBe('Hello Alice');
+      expect(evaluatedConfig.body).toBe('Greeting: Hi there');
+
+      // rawConfig is pre-evaluation (placeholders preserved)
+      expect(ctx.rawConfig).toBeDefined();
+      expect(ctx.rawConfig?.subject).toBe('Hello {{ name }}');
+      expect(ctx.rawConfig?.body).toBe(
+        'Greeting: {{ $node["Trigger"].output.greeting }}',
+      );
+      // Non-expression fields are identical in raw and evaluated
+      expect(ctx.rawConfig?.bodyType).toBe('text');
+      expect(evaluatedConfig.bodyType).toBe('text');
+    });
+
+    it('freezes rawConfig — mutation attempts at top level throw in strict mode', async () => {
+      let mutationError: unknown = null;
+      captureSpy.mockImplementationOnce(
+        async (_input, _config, ctx: ExecutionContextLike) => {
+          try {
+            // Cast away Readonly to simulate misbehaving handler.
+            (ctx.rawConfig as Record<string, unknown>).subject = 'hacked';
+          } catch (err) {
+            mutationError = err;
+          }
+          return { ok: true };
+        },
+      );
+
+      await service.execute(wf, {});
+      await flushPromises();
+
+      // Strict mode (TS / NestJS default) throws TypeError on frozen-property assign.
+      expect(mutationError).toBeInstanceOf(TypeError);
+      // Underlying object remains untouched.
+      const ctx = captureSpy.mock.calls[0][2];
+      expect(ctx.rawConfig?.subject).toBe('Hello {{ name }}');
+    });
+
+    it('still populates rawConfig when nodeMap is empty (no expression resolution path)', async () => {
+      // expression-free config — engine still injects rawConfig (== node.config snapshot)
+      const literalNode: Partial<Node> = {
+        ...exprNode,
+        config: { subject: 'Static Subject', bodyType: 'html', body: 'Plain' },
+      };
+      mockNodeRepo.findBy.mockResolvedValue([triggerNode, literalNode]);
+
+      await service.execute(wf, {});
+      await flushPromises();
+
+      expect(captureSpy).toHaveBeenCalledTimes(1);
+      const [, evaluatedConfig, ctx] = captureSpy.mock.calls[0];
+
+      // No expression placeholders — raw and evaluated are equivalent in content.
+      expect(evaluatedConfig.subject).toBe('Static Subject');
+      expect(ctx.rawConfig?.subject).toBe('Static Subject');
+      expect(ctx.rawConfig?.bodyType).toBe('html');
+    });
+
+    it('snapshots rawConfig into state when handler returns waiting_for_input (multi-turn resume hook)', async () => {
+      // Multi-turn 핸들러는 ExecutionContext 가 아닌 state 만 받으므로 (resume),
+      // 첫 turn 이 waiting_for_input 으로 진입할 때 엔진이 state.rawConfig 를
+      // 자동으로 snapshot 한다. 후속 turn 의 processMultiTurnMessage(message, state)
+      // 가 state.rawConfig 로 일관되게 접근할 수 있다.
+      const aiNode: Partial<Node> = {
+        id: 'rc-ai',
+        workflowId: wf,
+        type: 'ai_agent',
+        category: NodeCategory.AI,
+        label: 'Agent',
+        config: {
+          mode: 'multi_turn',
+          // expression-free literal — engine 의 raw snapshot 자체가 검증 대상.
+          // expression 평가 에러로 waiting 상태에 진입조차 못하는 부수 문제를 회피.
+          systemPrompt: 'You are a helpful assistant',
+        },
+        isDisabled: false,
+      };
+      mockNodeRepo.findBy.mockResolvedValue([aiNode]);
+      mockEdgeRepo.findBy.mockResolvedValue([]);
+
+      const processSpy = jest.fn(async () => ({
+        config: { mode: 'multi_turn' },
+        output: { messages: [], message: '', turnCount: 1 },
+        meta: { interactionType: 'ai_conversation' },
+        status: 'waiting_for_input',
+        _resumeState: {
+          messages: [],
+          turnCount: 1,
+          model: 'test-model',
+          totalInputTokens: 0,
+          totalOutputTokens: 0,
+          turnDebugHistory: [],
+        },
+      }));
+
+      handlerRegistry.register('ai_agent', {
+        validate: () => ({ valid: true, errors: [] }),
+        execute: jest.fn(async () => ({
+          config: { mode: 'multi_turn' },
+          output: { messages: [], message: '', turnCount: 0 },
+          meta: { interactionType: 'ai_conversation' },
+          status: 'waiting_for_input',
+          _resumeState: {
+            messages: [],
+            turnCount: 0,
+            model: 'test-model',
+            totalInputTokens: 0,
+            totalOutputTokens: 0,
+            turnDebugHistory: [],
+          },
+        })),
+        processMultiTurnMessage: processSpy,
+        endMultiTurnConversation: jest.fn(() => ({
+          config: { mode: 'multi_turn' },
+          output: {},
+          meta: {},
+          port: 'ended',
+          status: 'ended',
+        })),
+      } as unknown as NodeHandler);
+
+      await service.execute(wf, {});
+      await flushPromises();
+
+      service.continueAiConversation(executionId, 'hello');
+      await flushPromises();
+
+      expect(processSpy).toHaveBeenCalledTimes(1);
+      const stateArg = processSpy.mock.calls[0][1] as Record<string, unknown>;
+      const snapshot = stateArg.rawConfig as
+        | Record<string, unknown>
+        | undefined;
+      expect(snapshot).toBeDefined();
+      // 노드 정의의 원본 config 가 state.rawConfig 로 보존되어 후속 turn 의
+      // processMultiTurnMessage 가 일관되게 접근할 수 있다.
+      expect(snapshot?.systemPrompt).toBe('You are a helpful assistant');
+      expect(snapshot?.mode).toBe('multi_turn');
+    });
+  });
+
   describe('Cyclic workflow execution (back-edge support)', () => {
     it('should execute a cyclic workflow when back-edge port is conditionally selected', async () => {
       // A -> Switch -> case1 back to A, case2 forward to C

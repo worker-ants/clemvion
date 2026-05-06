@@ -1582,6 +1582,15 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
     >;
     let resumeState = nodeOutput._resumeState as Record<string, unknown>;
 
+    // ENG-RC-* — multi-turn resume 핸들러는 ExecutionContext 가 아닌 state 만
+    // 인자로 받으므로 (`processMultiTurnMessage(message, state)`), 첫 turn 이
+    // waiting_for_input 으로 진입할 때 엔진이 raw config snapshot 을 state 에
+    // 자동으로 합쳐 후속 turn 에서 `state.rawConfig` 로 일관되게 접근할 수 있게 한다.
+    // 핸들러가 명시적으로 설정한 rawConfig 가 있다면 존중한다 (덮어쓰지 않음).
+    if (resumeState && !('rawConfig' in resumeState)) {
+      resumeState.rawConfig = Object.freeze({ ...(node.config ?? {}) });
+    }
+
     // Update execution status to waiting
     await this.updateExecutionStatus(
       savedExecution,
@@ -2307,6 +2316,16 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
       } else {
         resolvedConfig = node.config;
       }
+
+      // ENG-RC-* — 핸들러가 `NodeHandlerOutput.config` 를 echo 할 때 사용할
+      // **원본(pre-evaluation) config** 를 노출. shallow Object.freeze 로
+      // top-level mutation 을 차단한다 (CONVENTIONS Principle 7). expression
+      // 미사용 필드는 raw 와 resolved 가 동일하므로 본 변경의 영향이 없다.
+      // Spec: 4-execution-engine.md §5.5 / §6.1.
+      nodeContext = {
+        ...nodeContext,
+        rawConfig: Object.freeze({ ...(node.config ?? {}) }),
+      };
 
       // Thread the current NodeExecution id + logical node id into the
       // context so handlers can attribute side-effects (e.g.
