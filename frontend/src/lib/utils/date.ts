@@ -55,6 +55,8 @@ export function formatDuration(ms: number, locale?: Locale): string {
   return translate(loc, "time.minutesSeconds", { minutes, seconds });
 }
 
+export type DateFormat = "iso" | "date" | "datetime" | "time" | "month-year";
+
 /**
  * Format a date with the user's locale. `format` accepts:
  *   - `"iso"` — ISO 8601 string (locale-agnostic, UTC).
@@ -63,20 +65,28 @@ export function formatDuration(ms: number, locale?: Locale): string {
  *   - `"date"` / undefined — short month + year (default, client TZ).
  *
  * For non-`"iso"` formats the value is rendered in the **client's local
- * timezone** because `toLocaleDateString` / `toLocaleTimeString` are called
+ * timezone** because `toLocaleString` / `toLocaleTimeString` are called
  * without an explicit `timeZone` option.
+ *
+ * Returns `"—"` when the input is missing or unparseable, so screens never
+ * surface raw `"Invalid Date"` text.
  */
-export function formatDate(date: string | Date, format?: string, locale?: Locale): string {
+export function formatDate(date: string | Date, format?: DateFormat, locale?: Locale): string {
   const loc = locale ?? currentLocale();
   const intlLocale = loc === "ko" ? "ko-KR" : "en-US";
   const d = new Date(date);
+
+  if (Number.isNaN(d.getTime())) return "—";
 
   if (format === "iso") {
     return d.toISOString();
   }
 
   if (format === "datetime") {
-    return d.toLocaleDateString(intlLocale, {
+    // `toLocaleString` (not `toLocaleDateString`) so the time components are
+    // always present — some engines drop the time part when only date options
+    // are given to the date-only API.
+    return d.toLocaleString(intlLocale, {
       year: "numeric",
       month: "short",
       day: "numeric",
@@ -89,6 +99,13 @@ export function formatDate(date: string | Date, format?: string, locale?: Locale
     return d.toLocaleTimeString(intlLocale, {
       hour: "2-digit",
       minute: "2-digit",
+    });
+  }
+
+  if (format === "month-year") {
+    return d.toLocaleDateString(intlLocale, {
+      month: "long",
+      year: "numeric",
     });
   }
 

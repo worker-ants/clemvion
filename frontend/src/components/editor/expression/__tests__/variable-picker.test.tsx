@@ -74,4 +74,16 @@ describe("VariablePicker container scope gating", () => {
     expect(queryByText("$item")).not.toBeNull();
     expect(queryByText("$itemIndex")).not.toBeNull();
   });
+
+  // $today was removed from the expression context because it always evaluated
+  // to the UTC date. This test guards against accidentally reintroducing the
+  // autocomplete entry — the picker must not advertise a variable that the
+  // evaluator no longer provides.
+  it("does not advertise the removed $today variable", () => {
+    const { getByText, queryByText } = renderPicker(
+      makeData({ containerScope: { hasLoop: true, hasItem: true } }),
+    );
+    fireEvent.click(getByText("Built-in"));
+    expect(queryByText("$today")).toBeNull();
+  });
 });

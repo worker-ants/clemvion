@@ -1,0 +1,203 @@
+{
+  "timestamp": "2026-05-06T11:10:21.353238",
+  "files": [
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/frontend/backend/src/modules/execution-engine/expression/expression-resolver.service.spec.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/frontend/backend/src/modules/execution-engine/expression/expression-resolver.service.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/frontend/backend/src/modules/workflow-assistant/prompts/system-prompt.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/frontend/frontend/AGENTS.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/frontend/frontend/src/app/(main)/authentication/page.tsx",
+      "change_type": "Review",
+      "file_extension": "tsx"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/frontend/frontend/src/app/(main)/integrations/[id]/page.tsx",
+      "change_type": "Review",
+      "file_extension": "tsx"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/frontend/frontend/src/app/(main)/schedules/page.tsx",
+      "change_type": "Review",
+      "file_extension": "tsx"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/frontend/frontend/src/app/(main)/triggers/page.tsx",
+      "change_type": "Review",
+      "file_extension": "tsx"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/frontend/frontend/src/app/(main)/workspace/settings/page.tsx",
+      "change_type": "Review",
+      "file_extension": "tsx"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/frontend/frontend/src/components/editor/expression/expression-constants.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/frontend/frontend/src/components/editor/run-results/button-bar.tsx",
+      "change_type": "Review",
+      "file_extension": "tsx"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/frontend/frontend/src/components/editor/run-results/conversation-inspector.tsx",
+      "change_type": "Review",
+      "file_extension": "tsx"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/frontend/frontend/src/components/editor/version-history/version-history-panel.tsx",
+      "change_type": "Review",
+      "file_extension": "tsx"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/frontend/frontend/src/components/triggers/trigger-detail-drawer.tsx",
+      "change_type": "Review",
+      "file_extension": "tsx"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/frontend/frontend/src/content/docs/03-expression-language/cheatsheet.en.mdx",
+      "change_type": "Review",
+      "file_extension": "mdx"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/frontend/frontend/src/content/docs/03-expression-language/cheatsheet.mdx",
+      "change_type": "Review",
+      "file_extension": "mdx"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/frontend/frontend/src/content/docs/03-expression-language/variables-and-context.en.mdx",
+      "change_type": "Review",
+      "file_extension": "mdx"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/frontend/frontend/src/content/docs/03-expression-language/variables-and-context.mdx",
+      "change_type": "Review",
+      "file_extension": "mdx"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/frontend/frontend/src/lib/utils/__tests__/date.test.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/frontend/frontend/src/lib/utils/date.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/frontend/packages/expression-engine/src/__tests__/expression.spec.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/frontend/packages/expression-engine/src/evaluator.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/frontend/plan/in-progress/today-removal-and-client-tz-display.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/frontend/spec/5-system/4-execution-engine.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/frontend/spec/5-system/5-expression-language.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/frontend/user_memo/node-specs/README.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    }
+  ],
+  "total_elapsed_seconds": 647.93,
+  "agents": [
+    {
+      "name": "database",
+      "status": "success",
+      "elapsed_seconds": 11.18
+    },
+    {
+      "name": "api_contract",
+      "status": "success",
+      "elapsed_seconds": 93.19
+    },
+    {
+      "name": "performance",
+      "status": "success",
+      "elapsed_seconds": 122.66
+    },
+    {
+      "name": "side_effect",
+      "status": "success",
+      "elapsed_seconds": 147.51
+    },
+    {
+      "name": "concurrency",
+      "status": "success",
+      "elapsed_seconds": 151.01
+    },
+    {
+      "name": "documentation",
+      "status": "success",
+      "elapsed_seconds": 164.68
+    },
+    {
+      "name": "dependency",
+      "status": "success",
+      "elapsed_seconds": 166.91
+    },
+    {
+      "name": "testing",
+      "status": "success",
+      "elapsed_seconds": 172.74
+    },
+    {
+      "name": "architecture",
+      "status": "success",
+      "elapsed_seconds": 179.92
+    },
+    {
+      "name": "requirement",
+      "status": "success",
+      "elapsed_seconds": 187.33
+    },
+    {
+      "name": "scope",
+      "status": "success",
+      "elapsed_seconds": 192.27
+    },
+    {
+      "name": "security",
+      "status": "success",
+      "elapsed_seconds": 194.05
+    },
+    {
+      "name": "maintainability",
+      "status": "success",
+      "elapsed_seconds": 220.49
+    }
+  ]
+}

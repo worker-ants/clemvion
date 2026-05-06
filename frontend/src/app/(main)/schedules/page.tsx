@@ -365,10 +365,7 @@ function CalendarView({
   const prevMonth = () => setViewDate(new Date(year, month - 1, 1));
   const nextMonth = () => setViewDate(new Date(year, month + 1, 1));
 
-  const monthName = viewDate.toLocaleString("default", {
-    month: "long",
-    year: "numeric",
-  });
+  const monthName = formatDate(viewDate, "month-year");
 
   const cells: (number | null)[] = [];
   for (let i = 0; i < firstDay; i++) cells.push(null);
