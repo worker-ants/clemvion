@@ -1016,7 +1016,12 @@ export class AiAgentHandler implements NodeHandler {
       ragSources: turnRagAcc.getSources(),
       ragDiagnostics: turnRagAcc.getDiagnostics(),
     };
-    const turnDebugHistory = [...prevHistory, currentTurnDebug];
+    // WARN #5 (DB) — turnDebugHistory 가 무제한 누적되어 outputData JSONB 가
+    // 수십 MB 까지 증가하던 문제. 직전 N 턴만 유지 (보통 디버깅·재실행 UI 용도).
+    const MAX_TURN_DEBUG_HISTORY = 50;
+    const turnDebugHistory = [...prevHistory, currentTurnDebug].slice(
+      -MAX_TURN_DEBUG_HISTORY,
+    );
 
     const isLastTurn = maxTurns > 0 && turnCount >= maxTurns;
 

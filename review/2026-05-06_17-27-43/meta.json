@@ -1,0 +1,88 @@
+{
+  "timestamp": "2026-05-06T17:41:07.505476",
+  "files": [
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/backend/src/modules/execution-engine/execution-engine.service.spec.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/backend/src/modules/execution-engine/execution-engine.service.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/backend/src/nodes/core/node-handler.interface.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    }
+  ],
+  "total_elapsed_seconds": 804.49,
+  "agents": [
+    {
+      "name": "api_contract",
+      "status": "success",
+      "elapsed_seconds": 85.15
+    },
+    {
+      "name": "side_effect",
+      "status": "success",
+      "elapsed_seconds": 88.41
+    },
+    {
+      "name": "scope",
+      "status": "success",
+      "elapsed_seconds": 91.43
+    },
+    {
+      "name": "database",
+      "status": "success",
+      "elapsed_seconds": 109.15
+    },
+    {
+      "name": "security",
+      "status": "success",
+      "elapsed_seconds": 122.13
+    },
+    {
+      "name": "performance",
+      "status": "success",
+      "elapsed_seconds": 126.14
+    },
+    {
+      "name": "architecture",
+      "status": "success",
+      "elapsed_seconds": 127.53
+    },
+    {
+      "name": "testing",
+      "status": "success",
+      "elapsed_seconds": 139.49
+    },
+    {
+      "name": "dependency",
+      "status": "success",
+      "elapsed_seconds": 140.1
+    },
+    {
+      "name": "documentation",
+      "status": "success",
+      "elapsed_seconds": 144.2
+    },
+    {
+      "name": "requirement",
+      "status": "success",
+      "elapsed_seconds": 166.33
+    },
+    {
+      "name": "maintainability",
+      "status": "success",
+      "elapsed_seconds": 167.73
+    },
+    {
+      "name": "concurrency",
+      "status": "success",
+      "elapsed_seconds": 219.37
+    }
+  ]
+}
