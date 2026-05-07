@@ -342,11 +342,12 @@ describe('buildSystemPrompt', () => {
     expect(prompt.toLowerCase()).toMatch(/before .*finish/);
     // (c) pendingUserConfig 개념이 명시되어 있음
     expect(prompt).toMatch(/pendingUserConfig/);
-    // (d) 4가지 selector 위젯이 모두 열거됨
+    // (d) 5가지 selector 위젯이 모두 열거됨
     expect(prompt).toMatch(/integration-selector/);
     expect(prompt).toMatch(/llm-config-selector/);
     expect(prompt).toMatch(/kb-selector/);
     expect(prompt).toMatch(/workflow-selector/);
+    expect(prompt).toMatch(/mcp-server-selector/);
     // (e) 값을 추측하지 말라는 가드 — 자리표시자/한글 라벨 금지
     expect(prompt.toLowerCase()).toMatch(/must not|do not/);
     expect(prompt).toMatch(/TODO|placeholder/);

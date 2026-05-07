@@ -11,7 +11,10 @@ import type {
 import { useT } from "@/lib/i18n";
 import { useEditorStore } from "@/lib/stores/editor-store";
 import { ToolCallBadge, groupToolCalls } from "./tool-call-badge";
-import { CandidatePicker } from "./candidate-picker";
+import {
+  CandidatePicker,
+  type CandidatePickerSubmission,
+} from "./candidate-picker";
 import { PlanCard } from "./plan-card";
 import { MarkdownRenderer } from "./markdown-renderer";
 import { sanitizeAssistantText } from "./harmony-filter";
@@ -26,7 +29,39 @@ const SETTINGS_HREF: Record<UserActionWidget, string> = {
   "llm-config-selector": "/llm-configs",
   "kb-selector": "/knowledge-bases",
   "workflow-selector": "/workflows",
+  // MCP 서버는 워크스페이스 service_type='mcp' Integration 으로 등록되므로
+  // 기존 Integrations 화면을 그대로 재사용한다 (별도 라우트 없음).
+  "mcp-server-selector": "/integrations",
 };
+
+/**
+ * picker Confirm payload 를 노드 config 필드에 주입할 값으로 변환한다.
+ *  - scalar widget (integration / llm-config / workflow) → 단일 string id.
+ *  - kb-selector → string[].
+ *  - mcp-server-selector → `{integrationId, includeResources, includePrompts}[]`
+ *    (settings panel `McpServerSelector.add()` 의 default 와 동치, see
+ *    `frontend/src/components/integrations/mcp-server-selector.tsx`).
+ *
+ * 본 헬퍼는 widget 종류별 데이터 모양을 단일 출처로 모아둔다 — picker UI 와
+ * settings panel UI 가 같은 default 를 공유하도록.
+ */
+export function buildPickerSubmissionValue(
+  widget: UserActionWidget,
+  selection: CandidatePickerSubmission,
+): unknown {
+  if (selection.mode === "single") return selection.id;
+  if (widget === "kb-selector") return selection.ids;
+  if (widget === "mcp-server-selector") {
+    return selection.ids.map((integrationId) => ({
+      integrationId,
+      includeResources: true,
+      includePrompts: true,
+    }));
+  }
+  // multi 모드인데 widget 이 scalar 라면 비정상 — 첫 번째 id 만 사용해 fallback.
+  // (실제로는 detector 가 widget→mode 매핑을 강제하므로 여기 도달하지 않는다.)
+  return selection.ids[0] ?? "";
+}
 
 interface AssistantMessageViewProps {
   message: AssistantDisplayMessage;
@@ -265,12 +300,8 @@ function CandidatePickers({
             key={key}
             field={field}
             currentValue={currentValue}
-            onConfirm={(selectedId) => {
-              // kb-selector 의 `knowledgeBaseIds` 는 string[] 필드이므로
-              // 단일 id 를 배열로 감싸 주입한다 (review Critical-1).
-              // 나머지 3종 widget 은 string 단일 필드라 id 그대로.
-              const value: unknown =
-                field.widget === "kb-selector" ? [selectedId] : selectedId;
+            onConfirm={(selection) => {
+              const value = buildPickerSubmissionValue(field.widget, selection);
               updateNodeConfigField(nodeId, field.field, value);
             }}
             settingsHref={SETTINGS_HREF[field.widget]}

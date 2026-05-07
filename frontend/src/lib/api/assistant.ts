@@ -85,7 +85,8 @@ export type UserActionWidget =
   | "integration-selector"
   | "llm-config-selector"
   | "kb-selector"
-  | "workflow-selector";
+  | "workflow-selector"
+  | "mcp-server-selector";
 
 export interface CandidateEntry {
   id: string;
@@ -99,6 +100,14 @@ export interface PendingUserConfigField {
   label: string;
   /** 서버가 채운 워크스페이스 후보 목록. 빈 배열은 "조회했으나 없음". */
   candidates: CandidateEntry[];
+  /**
+   * picker 의 선택 모드. 백엔드 detector 가 widget 종류로 매핑해 채워준다:
+   *  - scalar 필드 (`integration` / `llm-config` / `workflow` selector) → `'single'`
+   *  - 배열 필드 (`kb-selector` / `mcp-server-selector`) → `'multi'`
+   * `undefined` 는 legacy 응답 (마이그레이션 이전 DB row) 으로 picker 는
+   * `'single'` 로 fallback 한다.
+   */
+  selectionMode?: "single" | "multi";
   /** schema meta 의 hint. frontend 가 해석할 일은 거의 없으나 debug 용으로 유지. */
   integrationServiceType?: string;
 }

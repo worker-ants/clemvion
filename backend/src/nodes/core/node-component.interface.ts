@@ -162,7 +162,7 @@ export interface NodeComponentMetadata {
  *  - expression          — renders ExpressionInput (template syntax + autocomplete)
  *  - kv / kv-expression  — key-value list editor (expression-aware variant)
  *  - code                — monospaced multiline editor
- *  - integration-selector / llm-config-selector / kb-selector / workflow-selector
+ *  - integration-selector / llm-config-selector / kb-selector / workflow-selector / mcp-server-selector
  *  - condition-builder   — array-of-ConditionGroup editor (operators per spec §1.1)
  *  - field-array         — generic ordered array-of-object editor
  */
@@ -184,6 +184,7 @@ export interface UiHint {
     | 'llm-config-selector'
     | 'kb-selector'
     | 'workflow-selector'
+    | 'mcp-server-selector'
     | 'condition-builder'
     | 'field-array'
     | 'button-list'

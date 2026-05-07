@@ -26,6 +26,11 @@ const aiAgentSchema = {
       items: { type: 'string' },
       ui: { label: 'Knowledge Bases', widget: 'kb-selector' },
     },
+    mcpServers: {
+      type: 'array',
+      items: { type: 'object' },
+      ui: { label: 'MCP Servers', widget: 'mcp-server-selector' },
+    },
     systemPrompt: { type: 'string' },
   },
 };
@@ -41,6 +46,7 @@ describe('detectPendingUserConfig', () => {
       field: 'integrationId',
       widget: 'integration-selector',
       label: 'Integration',
+      selectionMode: 'single',
       candidates: [],
     });
   });
@@ -82,6 +88,7 @@ describe('detectPendingUserConfig', () => {
     const pending = detectPendingUserConfig(aiAgentSchema, {
       llmConfigId: 'cfg-1',
       knowledgeBaseIds: [],
+      mcpServers: [{ integrationId: 'int-1' }],
     });
     expect(pending).toHaveLength(1);
     expect(pending[0].field).toBe('knowledgeBaseIds');
@@ -91,7 +98,72 @@ describe('detectPendingUserConfig', () => {
   it('returns multiple pending fields when several selectors are empty', () => {
     const pending = detectPendingUserConfig(aiAgentSchema, {});
     const fields = pending.map((p) => p.field).sort();
-    expect(fields).toEqual(['knowledgeBaseIds', 'llmConfigId']);
+    expect(fields).toEqual(['knowledgeBaseIds', 'llmConfigId', 'mcpServers']);
+  });
+
+  describe('mcp-server-selector', () => {
+    it('flags an empty mcpServers array as pending', () => {
+      const pending = detectPendingUserConfig(aiAgentSchema, {
+        llmConfigId: 'cfg-1',
+        knowledgeBaseIds: ['kb-1'],
+        mcpServers: [],
+      });
+      expect(pending).toHaveLength(1);
+      expect(pending[0].field).toBe('mcpServers');
+      expect(pending[0].widget).toBe('mcp-server-selector');
+    });
+
+    it('skips mcpServers when it already has at least one ref', () => {
+      const pending = detectPendingUserConfig(aiAgentSchema, {
+        llmConfigId: 'cfg-1',
+        knowledgeBaseIds: ['kb-1'],
+        mcpServers: [{ integrationId: 'int-1' }],
+      });
+      expect(pending.map((p) => p.field)).not.toContain('mcpServers');
+    });
+  });
+
+  describe('selectionMode', () => {
+    it('marks scalar selectors (integration/llm-config/workflow) as single', () => {
+      const schema = {
+        type: 'object',
+        properties: {
+          integrationId: {
+            type: 'string',
+            ui: { label: 'Integration', widget: 'integration-selector' },
+          },
+          llmConfigId: {
+            type: 'string',
+            ui: { label: 'LLM', widget: 'llm-config-selector' },
+          },
+          workflowId: {
+            type: 'string',
+            ui: { label: 'Sub-workflow', widget: 'workflow-selector' },
+          },
+        },
+      };
+      const pending = detectPendingUserConfig(schema, {});
+      const modes = Object.fromEntries(
+        pending.map((p) => [p.field, p.selectionMode]),
+      );
+      expect(modes).toEqual({
+        integrationId: 'single',
+        llmConfigId: 'single',
+        workflowId: 'single',
+      });
+    });
+
+    it('marks array selectors (kb / mcp-server) as multi', () => {
+      const pending = detectPendingUserConfig(aiAgentSchema, {});
+      const modes = Object.fromEntries(
+        pending.map((p) => [p.field, p.selectionMode]),
+      );
+      expect(modes).toEqual({
+        llmConfigId: 'single',
+        knowledgeBaseIds: 'multi',
+        mcpServers: 'multi',
+      });
+    });
   });
 
   it('ignores non user-action widgets like expression', () => {
