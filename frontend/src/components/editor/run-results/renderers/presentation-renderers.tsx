@@ -167,20 +167,6 @@ function CarouselContent({ data, selectedButtonId, onPortButtonClick, onLinkButt
     | Array<{ title?: string; description?: string; image?: string; buttons?: Array<{ id: string; label: string; type?: string; url?: string; style?: string }> }>
     | undefined;
 
-  // If rendered HTML has actual content (not just an empty wrapper), use it
-  const rendered = data.rendered as string | undefined;
-  const hasRenderedContent =
-    rendered && /<[^>]+>[^<]+/.test(rendered); // has text inside tags
-
-  if (hasRenderedContent && (!items || items.every((it) => !it.buttons?.length))) {
-    return (
-      <div
-        className="overflow-auto"
-        dangerouslySetInnerHTML={{ __html: sanitizeHtml(rendered) }}
-      />
-    );
-  }
-
   if (!items || items.length === 0) {
     return (
       <div className="rounded border border-dashed border-[hsl(var(--border))] p-4 text-center text-xs text-[hsl(var(--muted-foreground))]">
