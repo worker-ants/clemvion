@@ -545,22 +545,38 @@ export class AiAgentHandler implements NodeHandler {
         toolCalls: result.toolCalls,
       });
 
-      // Provider tools (KB 등) — 핸들러 내부 직접 실행, 결과 메시지 + ragGroup
-      // 누적 (node total + turn delta 동시 갱신). throw 는 trace.error 로
-      // 잡혀 다음 LLM turn 에 에러 content 가 전달된다 (turn 자체는 회복).
-      for (const { provider, call } of classification.providerToolCalls) {
+      // Provider tools (KB 등) — 핸들러 내부 직접 실행. 같은 turn 의 N 개
+      // tool_use 는 Promise.all 로 병렬 실행해 latency 가 max(N) 으로 단축.
+      // post-merge 는 입력 순서대로 직렬 적용해 trace / messages / ragGroup
+      // 누적이 결정적이다 (chunkId dedup 안전). throw 는 runProviderTool 내부
+      // try/catch 가 trace.error 로 잡으므로 Promise.all 사용 가능.
+      // maxToolCalls batch truncate: 잔여 한도를 초과하는 호출은 앞쪽부터만
+      // 실행하고 나머지는 'tool_call_budget_exceeded' tool_result 로 회신
+      // (Anthropic 의 모든 tool_use ↔ tool_result 매칭 요건 충족).
+      const providerBudget = Math.max(0, maxToolCalls - toolCallCount);
+      const providerToRun = classification.providerToolCalls.slice(
+        0,
+        providerBudget,
+      );
+      const providerTruncated =
+        classification.providerToolCalls.slice(providerBudget);
+      const providerBatchResults = await Promise.all(
+        providerToRun.map(({ provider, call }) =>
+          this.runProviderTool({
+            provider,
+            call,
+            executionId: context.executionId,
+            nodeId: context.nodeId ?? '',
+            nodeExecutionId: context.nodeExecutionId,
+            workflowId: context.workflowId,
+            workspaceId,
+            config,
+            turnIndex: 1,
+          }),
+        ),
+      );
+      for (const { result: execResult, trace } of providerBatchResults) {
         toolCallCount++;
-        const { result: execResult, trace } = await this.runProviderTool({
-          provider,
-          call,
-          executionId: context.executionId,
-          nodeId: context.nodeId ?? '',
-          nodeExecutionId: context.nodeExecutionId,
-          workflowId: context.workflowId,
-          workspaceId,
-          config,
-          turnIndex: 1,
-        });
         toolCallTraces.push(trace);
         ragGroup.pushSources(execResult.ragSourcesDelta);
         ragGroup.pushDiagnostic(execResult.ragDiagnosticsDelta);
@@ -568,6 +584,13 @@ export class AiAgentHandler implements NodeHandler {
           role: 'tool',
           content: execResult.content,
           toolCallId: execResult.toolCallId,
+        });
+      }
+      for (const { call } of providerTruncated) {
+        messages.push({
+          role: 'tool',
+          content: JSON.stringify({ error: 'tool_call_budget_exceeded' }),
+          toolCallId: call.id,
         });
       }
 
@@ -931,23 +954,37 @@ export class AiAgentHandler implements NodeHandler {
         toolCalls: result.toolCalls,
       });
 
-      for (const { provider, call } of classification.providerToolCalls) {
+      // Multi-turn resume: provider tool 들도 single-turn 과 동일하게 병렬
+      // 실행 + batch truncate. resume state 는 새 turn 의 nodeId/nodeExecutionId
+      // 를 운반하지 않으므로 fallback 처리만 single-turn 과 다르다.
+      const providerBudget = Math.max(0, maxToolCalls - toolCallCount);
+      const providerToRun = classification.providerToolCalls.slice(
+        0,
+        providerBudget,
+      );
+      const providerTruncated =
+        classification.providerToolCalls.slice(providerBudget);
+      const providerBatchResults = await Promise.all(
+        providerToRun.map(({ provider, call }) =>
+          this.runProviderTool({
+            provider,
+            call,
+            executionId: executionId ?? '',
+            // Multi-turn resume doesn't carry the new turn's nodeId / nodeExecutionId
+            // through state — usage logs and WS events from MCP calls during
+            // resume are attributed to the original waiting NodeExecution.
+            // Acceptable for activity-tab readability.
+            nodeId: (state.nodeId as string | undefined) ?? '',
+            nodeExecutionId: state.nodeExecutionId as string | undefined,
+            workflowId: state.workflowId as string | undefined,
+            workspaceId,
+            config: turnConfig,
+            turnIndex: turnCount,
+          }),
+        ),
+      );
+      for (const { result: execResult, trace } of providerBatchResults) {
         toolCallCount++;
-        const { result: execResult, trace } = await this.runProviderTool({
-          provider,
-          call,
-          executionId: executionId ?? '',
-          // Multi-turn resume doesn't carry the new turn's nodeId / nodeExecutionId
-          // through state — usage logs and WS events from MCP calls during
-          // resume are attributed to the original waiting NodeExecution.
-          // Acceptable for activity-tab readability.
-          nodeId: (state.nodeId as string | undefined) ?? '',
-          nodeExecutionId: state.nodeExecutionId as string | undefined,
-          workflowId: state.workflowId as string | undefined,
-          workspaceId,
-          config: turnConfig,
-          turnIndex: turnCount,
-        });
         toolCallTraces.push(trace);
         ragGroup.pushSources(execResult.ragSourcesDelta);
         ragGroup.pushDiagnostic(execResult.ragDiagnosticsDelta);
@@ -955,6 +992,13 @@ export class AiAgentHandler implements NodeHandler {
           role: 'tool',
           content: execResult.content,
           toolCallId: execResult.toolCallId,
+        });
+      }
+      for (const { call } of providerTruncated) {
+        messages.push({
+          role: 'tool',
+          content: JSON.stringify({ error: 'tool_call_budget_exceeded' }),
+          toolCallId: call.id,
         });
       }
 

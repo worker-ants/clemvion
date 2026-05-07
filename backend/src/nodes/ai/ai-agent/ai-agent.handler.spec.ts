@@ -411,6 +411,223 @@ describe('AiAgentHandler', () => {
       expect(meta.toolCalls).toBe(2);
     });
 
+    it('executes provider tool calls within a turn concurrently (Promise.all)', async () => {
+      // 능동적 의도 분해(agentic RAG) 의 latency 핵심: LLM 이 한 응답에 N 개 tool_use
+      // 를 emit 했을 때 핸들러가 직렬이 아닌 동시 실행하는지 확인. inFlight 카운터의
+      // 최대값이 1 이면 직렬, 2 이상이면 병렬.
+      let inFlight = 0;
+      let maxInFlight = 0;
+      mockRagService.search.mockImplementation(async (q: string) => {
+        inFlight++;
+        maxInFlight = Math.max(maxInFlight, inFlight);
+        await new Promise<void>((resolve) => setTimeout(resolve, 30));
+        inFlight--;
+        return [
+          {
+            chunkId: `c-${q}`,
+            documentId: 'd1',
+            documentName: `doc-${q}`,
+            content: `payload for ${q}`,
+            score: 0.8,
+            metadata: {},
+          },
+        ];
+      });
+
+      mockLlmService.chat
+        .mockResolvedValueOnce({
+          content: null,
+          toolCalls: [
+            {
+              id: 'tc-a',
+              name: kbToolName('kb-a'),
+              arguments: '{"query":"alpha"}',
+            },
+            {
+              id: 'tc-b',
+              name: kbToolName('kb-b'),
+              arguments: '{"query":"beta"}',
+            },
+            {
+              id: 'tc-c',
+              name: kbToolName('kb-a'),
+              arguments: '{"query":"gamma"}',
+            },
+          ],
+          usage: { inputTokens: 10, outputTokens: 5, totalTokens: 15 },
+          model: 'gpt-4o',
+          finishReason: 'tool_calls',
+        })
+        .mockResolvedValueOnce({
+          content: 'Combined answer.',
+          usage: { inputTokens: 30, outputTokens: 15, totalTokens: 45 },
+          model: 'gpt-4o',
+          finishReason: 'stop',
+        });
+
+      await handler.execute(
+        {},
+        {
+          systemPrompt: 'Helper',
+          userPrompt: 'Tell me about alpha, beta, and gamma',
+          knowledgeBases: ['kb-a', 'kb-b'],
+        },
+        baseContext,
+      );
+
+      expect(mockRagService.search).toHaveBeenCalledTimes(3);
+      expect(maxInFlight).toBeGreaterThanOrEqual(2);
+    });
+
+    it('truncates within-batch when remaining budget < emitted tool_use count', async () => {
+      // batch 부분 truncate: maxToolCalls 잔여 R 보다 emit 된 tool_use 가 많으면
+      // 앞쪽 R 건만 실제 실행하고, 나머지는 'tool_call_budget_exceeded' 코드의
+      // tool_result 로 회신해야 한다 (Anthropic tool_use ↔ tool_result 매칭 요건).
+      mockRagService.search.mockResolvedValue([]);
+
+      mockLlmService.chat
+        .mockResolvedValueOnce({
+          content: null,
+          toolCalls: [
+            {
+              id: 'tc-1',
+              name: kbToolName('kb-1'),
+              arguments: '{"query":"q1"}',
+            },
+            {
+              id: 'tc-2',
+              name: kbToolName('kb-1'),
+              arguments: '{"query":"q2"}',
+            },
+            {
+              id: 'tc-3',
+              name: kbToolName('kb-1'),
+              arguments: '{"query":"q3"}',
+            },
+          ],
+          usage: { inputTokens: 10, outputTokens: 5, totalTokens: 15 },
+          model: 'gpt-4o',
+          finishReason: 'tool_calls',
+        })
+        .mockResolvedValueOnce({
+          content: 'final',
+          usage: { inputTokens: 20, outputTokens: 5, totalTokens: 25 },
+          model: 'gpt-4o',
+          finishReason: 'stop',
+        });
+
+      const result = (await handler.execute(
+        {},
+        {
+          systemPrompt: 'Helper',
+          userPrompt: 'three things',
+          knowledgeBases: ['kb-1'],
+          maxToolCalls: 2,
+        },
+        baseContext,
+      )) as Record<string, unknown>;
+
+      // 잔여 한도 2 만큼만 실제 검색 수행
+      expect(mockRagService.search).toHaveBeenCalledTimes(2);
+
+      // 2번째 LLM 호출의 messages 에는 모든 3 개 tool_use 에 대응되는
+      // tool_result 메시지가 포함돼야 함 (Anthropic 의 매칭 요건).
+      const secondCall = mockLlmService.chat.mock.calls[1];
+      const messages = secondCall[1].messages as Array<{
+        role: string;
+        toolCallId?: string;
+        content: string;
+      }>;
+      const toolMsgs = messages.filter((m) => m.role === 'tool');
+      expect(toolMsgs).toHaveLength(3);
+      const ids = toolMsgs.map((m) => m.toolCallId).sort();
+      expect(ids).toEqual(['tc-1', 'tc-2', 'tc-3']);
+
+      const budgetMsg = toolMsgs.find((m) => m.toolCallId === 'tc-3');
+      expect(budgetMsg).toBeDefined();
+      const budgetBody = JSON.parse(budgetMsg!.content) as {
+        error?: string;
+      };
+      expect(budgetBody.error).toBe('tool_call_budget_exceeded');
+
+      const meta = (result.meta ?? {}) as Record<string, unknown>;
+      expect(meta.toolCalls).toBe(2);
+    });
+
+    it('isolates partial failures across parallel kb_ tool calls', async () => {
+      // 병렬 호출 중 한 건이 실패해도 나머지는 성공 결과로 누적되며,
+      // 실패한 건은 search_failed tool_result 로 LLM 에 전달된다.
+      mockRagService.search.mockImplementation(async (q: string) => {
+        if (q === 'fail') throw new Error('db down');
+        return [
+          {
+            chunkId: `c-${q}`,
+            documentId: 'd1',
+            documentName: `doc-${q}`,
+            content: `data for ${q}`,
+            score: 0.85,
+            metadata: {},
+          },
+        ];
+      });
+
+      mockLlmService.chat
+        .mockResolvedValueOnce({
+          content: null,
+          toolCalls: [
+            {
+              id: 'tc-ok',
+              name: kbToolName('kb-1'),
+              arguments: '{"query":"ok"}',
+            },
+            {
+              id: 'tc-bad',
+              name: kbToolName('kb-1'),
+              arguments: '{"query":"fail"}',
+            },
+          ],
+          usage: { inputTokens: 10, outputTokens: 5, totalTokens: 15 },
+          model: 'gpt-4o',
+          finishReason: 'tool_calls',
+        })
+        .mockResolvedValueOnce({
+          content: 'partial answer',
+          usage: { inputTokens: 20, outputTokens: 5, totalTokens: 25 },
+          model: 'gpt-4o',
+          finishReason: 'stop',
+        });
+
+      const result = (await handler.execute(
+        {},
+        {
+          systemPrompt: 'Helper',
+          userPrompt: 'two things',
+          knowledgeBases: ['kb-1'],
+        },
+        baseContext,
+      )) as Record<string, unknown>;
+
+      // 성공 호출의 ragSources 가 누적됨
+      const meta = (result.meta ?? {}) as Record<string, unknown>;
+      const sources = meta.ragSources as Array<{ chunkId: string }>;
+      expect(sources).toHaveLength(1);
+      expect(sources[0].chunkId).toBe('c-ok');
+
+      // 실패 호출은 search_failed 로 LLM 에 회신
+      const secondCall = mockLlmService.chat.mock.calls[1];
+      const toolMsgs = (
+        secondCall[1].messages as Array<{
+          role: string;
+          toolCallId?: string;
+          content: string;
+        }>
+      ).filter((m) => m.role === 'tool');
+      const failMsg = toolMsgs.find((m) => m.toolCallId === 'tc-bad');
+      expect(failMsg).toBeDefined();
+      const failBody = JSON.parse(failMsg!.content) as { error?: string };
+      expect(failBody.error).toBe('search_failed');
+    });
+
     it('should parse JSON response when responseFormat is json', async () => {
       mockLlmService.chat.mockResolvedValue({
         content: '{"answer": "42"}',
