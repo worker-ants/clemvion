@@ -241,9 +241,10 @@ LLM 응답의 `toolCalls`를 순회할 때 다음 로직을 적용:
    a. `toolCalls`를 **조건 도구**(`cond_*`) / **KB 도구**(`kb_*`) / **MCP 도구**(`mcp_*`) / **일반 도구**(`tool_*`) 로 분류 — provider 의 `matches()` 가 우선 판정, 어디에도 매칭 안 되면 일반 도구로 분류
    b. **조건 도구만 존재:** 해당 조건 포트로 즉시 라우팅
    c. **조건 도구 + 비조건 도구 혼재:** 비조건 도구(KB·MCP·일반)를 먼저 실행, 결과를 LLM에 전달하여 재평가
-   d. **비조건 도구만 존재:** 각 provider가 자체 실행 (KB → 검색, MCP → MCP RPC, 일반 → Tool Area 호출), 결과를 합쳐 다음 turn에 주입
+   d. **비조건 도구만 존재:** 각 provider가 자체 실행 (KB → 검색, MCP → MCP RPC, 일반 → Tool Area 호출). 각 호출의 결과는 분리된 tool_result 메시지로 LLM 에 그대로 전달된다 (호출 간 score 병합·재정렬 없음 — 에이전트가 직접 종합).
    e. 한 서버·KB 의 실패는 격리되어 `meta.mcpDiagnostics.errors` / `meta.ragDiagnostics` 에 기록되며 LLM 대화는 계속됨 (graceful degradation)
-   f. maxToolCalls 초과 전까지 반복 (KB·MCP·일반 호출 모두 합산)
+   f. **provider 도구 (KB·MCP) 는 동일 turn 내 `Promise.all` 로 병렬 실행** — LLM 이 한 응답에 여러 `tool_use` 를 emit 하면 latency 가 max(N) 으로 단축됨. tool_result message push 순서는 Promise.all 결과 순서대로 직렬 적용해 누적이 결정적이다.
+   g. maxToolCalls 초과 전까지 반복 (KB·MCP·일반 호출 모두 합산). batch 진입 시 잔여 한도를 초과하는 호출은 앞쪽부터 truncate 하고 잔여분에 대해 `tool_call_budget_exceeded` tool_result 회신 (Anthropic 의 tool_use ↔ tool_result 매칭 요건 충족).
 4. 최종 응답을 출력 형식에 맞게 변환
 5. `out` 포트로 출력
 6. LLM 오류, 타임아웃, rate limit 발생 시 `error` 포트로 출력
