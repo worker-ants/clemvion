@@ -57,7 +57,7 @@ AI 어시스턴트 (workflow-assistant) 의 in-message candidate picker (spec ED
 - [x] frontend 구현
 - [x] TEST WORKFLOW (lint / unit / build) backend + frontend
 - [x] REVIEW WORKFLOW (ai-review + RESOLUTION.md)
-- [ ] plan/complete 로 이동 (`git mv`) — 모든 항목 완료 후
+- [x] plan/complete 로 이동 (`git mv`)
 
 ## 주의
 
