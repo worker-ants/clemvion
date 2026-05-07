@@ -97,7 +97,7 @@ Client (Next.js SPA)
 │           └── ...             #   users, workspaces, notifications 등
 ├── packages/
 │   └── expression-engine/      # Expression Language 엔진
-├── docker-compose.yml          # 인프라 (PostgreSQL, Redis, MinIO)
+├── docker-compose.yml          # 인프라(PostgreSQL/Redis/MinIO) + (--profile app 시) backend/frontend/migrate
 └── README.md
 ```
 
@@ -110,11 +110,31 @@ Client (Next.js SPA)
 
 ### 1. 인프라 실행
 
+`docker-compose.yml` 은 두 가지 모드로 동작합니다.
+
+**A. 인프라만** — host 에서 `npm run dev` 로 backend/frontend 를 직접 띄우는 워크플로용.
+
 ```bash
 docker compose up -d
 ```
 
-PostgreSQL(5432), Redis(6379), MinIO(9000/9001)가 실행됩니다.
+PostgreSQL(5432), Redis(6379), MinIO(9000/9001) + MinIO 버킷 초기화가 실행됩니다.
+
+**B. 풀스택 dev** — 마이그레이션·backend·frontend 까지 컨테이너로 일괄 기동.
+
+```bash
+docker compose --profile app up
+```
+
+기동 순서: postgres/redis/minio healthy → createbuckets → **migrate(Flyway)** → **backend(`nest start --watch`, :3011)** → **frontend(`next dev`, :3012)**.
+
+- 소스코드는 host bind-mount 로 라이브 편집됩니다 (`./backend`, `./frontend` 그대로 반영).
+- `dist`, `.next`, `node_modules` 는 named volume(`backend_node_modules`, `backend_dist`, `frontend_node_modules`, `frontend_next`)으로 host 와 격리되어 macOS native 모듈(예: bcrypt)이 컨테이너로 새지 않습니다.
+- 컨테이너에 의존성을 추가할 때는 `docker compose exec backend npm install <pkg>` 로 컨테이너 안에서 실행하고, named volume 재시드가 필요하면 `docker volume rm idea-workflow_backend_node_modules` 후 `docker compose --profile app up --build`.
+- `packages/expression-engine`·`packages/node-summary` 는 이미지에 baked-in. 변경 시 `docker compose build backend frontend` 로 재빌드.
+- 마이그레이션만 재실행: `docker compose --profile app run --rm migrate`.
+
+> 풀스택 dev 모드를 쓰면 아래 「3. 의존성 설치 및 실행」 단계는 건너뛸 수 있습니다 (host-mode dev 는 여전히 지원).
 
 ### 2. 환경 변수 설정
 
@@ -203,6 +223,8 @@ npm run dev
 | 테스트 (E2E) | - | `npm run test:e2e` |
 
 ## Docker / Kubernetes 배포
+
+> 로컬 dev 풀스택 기동은 `docker compose --profile app up` 으로 대체할 수 있습니다 (위 「1. 인프라 실행」의 모드 B 참고). 아래 절차는 **프로덕션 이미지 빌드/배포** 용입니다.
 
 프로덕션 서빙은 세 개의 컨테이너 이미지로 구성됩니다.
 

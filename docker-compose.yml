@@ -56,7 +56,103 @@ services:
       exit 0;
       "
 
+  # ---------------- App stack (opt-in via `--profile app`) ----------------
+  # `docker compose --profile app up` 으로만 기동. profile 없는 `docker compose up`
+  # 은 인프라(postgres/redis/minio/createbuckets)만 띄워 host-mode dev와 호환.
+
+  migrate:
+    profiles: ["app"]
+    build:
+      context: .
+      dockerfile: backend/migrations/Dockerfile
+    depends_on:
+      postgres:
+        condition: service_healthy
+    # 배열 형태: 셸 파싱을 거치지 않으므로 JDBC URL의 ':' / '=' 가 안전.
+    command:
+      - migrate
+      - -url=jdbc:postgresql://postgres:5432/${POSTGRES_DB}
+      - -user=${POSTGRES_USER}
+      - -password=${POSTGRES_PASSWORD}
+      - -baselineOnMigrate=true
+      - -connectRetries=20
+    restart: "no"
+
+  backend:
+    profiles: ["app"]
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+      target: deps
+    working_dir: /app/backend
+    command: ["npm", "run", "start:dev"]
+    env_file:
+      - ./backend/.env
+    # @nestjs/config 는 process.env 에 이미 있는 키를 덮어쓰지 않으므로,
+    # 여기 environment 가 backend/.env 의 동명 키를 항상 이긴다.
+    environment:
+      NODE_ENV: development
+      APP_PORT: "3011"
+      DB_HOST: postgres
+      DB_PORT: "5432"
+      DB_USERNAME: ${POSTGRES_USER}
+      DB_PASSWORD: ${POSTGRES_PASSWORD}
+      DB_DATABASE: ${POSTGRES_DB}
+      REDIS_HOST: redis
+      REDIS_PORT: "6379"
+      S3_ENDPOINT: http://minio:9000
+      S3_ACCESS_KEY: ${MINIO_ROOT_USER}
+      S3_SECRET_KEY: ${MINIO_ROOT_PASSWORD}
+      S3_BUCKET: workflow-storage
+      # macOS Docker Desktop 의 bind-mount 는 inotify 가 100% 신뢰되지 않아 폴링 활성화.
+      CHOKIDAR_USEPOLLING: "true"
+      CHOKIDAR_INTERVAL: "500"
+    ports:
+      - "3011:3011"
+    volumes:
+      - ./backend:/app/backend
+      - backend_node_modules:/app/backend/node_modules
+      - backend_dist:/app/backend/dist
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      createbuckets:
+        condition: service_completed_successfully
+      migrate:
+        condition: service_completed_successfully
+
+  frontend:
+    profiles: ["app"]
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+      target: deps
+    working_dir: /app/frontend
+    # package.json 의 `dev` 는 `source .env 2>/dev/null; next dev …` 형태이므로
+    # 컨테이너에 주입할 값은 host frontend/.env 에 직접 작성한다.
+    # (compose `environment:` 로 줘도 `source` 가 덮어쓸 수 있음 — 폴링 변수만 예외적으로 둠)
+    command: ["npm", "run", "dev"]
+    env_file:
+      - ./frontend/.env
+    environment:
+      WATCHPACK_POLLING: "true"
+    ports:
+      - "3012:3012"
+    volumes:
+      - ./frontend:/app/frontend
+      - frontend_node_modules:/app/frontend/node_modules
+      - frontend_next:/app/frontend/.next
+    depends_on:
+      backend:
+        condition: service_started
+
 volumes:
   postgres_data:
   redis_data:
   minio_data:
+  backend_node_modules:
+  backend_dist:
+  frontend_node_modules:
+  frontend_next:
