@@ -1,7 +1,5 @@
 # AI 어시스턴트 Pending Config picker — MCP 누락 / 다중선택 미지원 개선
 
-승인된 계획 원본: `~/.claude/plans/ai-sleepy-garden.md` (요약 사본)
-
 ## Context
 
 AI 어시스턴트 (workflow-assistant) 의 in-message candidate picker (spec ED-AI-39 §4.3.1) 는
@@ -20,57 +18,49 @@ AI 어시스턴트 (workflow-assistant) 의 in-message candidate picker (spec ED
 - `backend/src/modules/workflow-assistant/tools/detect-pending-user-config.ts`
   - `UserActionWidget` 에 `'mcp-server-selector'` 추가
   - `USER_ACTION_WIDGETS` Set 갱신
-  - `selectionMode: 'single' | 'multi'` 추가 + `MULTI_SELECT_WIDGETS` 헬퍼
+  - `selectionMode?: 'single' | 'multi'` 추가 + `MULTI_SELECT_WIDGETS` 헬퍼
   - 헤더 docstring 의 예시에 MCP 추가
 - `backend/src/modules/workflow-assistant/tools/candidate-lookup.service.ts`
   - `mcp-server-selector` 분기 추가 — `IntegrationsService.findAll` 을
     `serviceType: ['mcp'], status: 'connected'` 로 호출 (별도 메서드 `lookupMcpServers`)
-  - 클래스 docstring 갱신
 - `backend/src/modules/workflow-assistant/tools/review-workflow.ts`
   - `PENDING_USER_CONFIG_UNMENTIONED` 의 주석에 MCP 서버 추가
 - `backend/src/modules/workflow-assistant/prompts/system-prompt.ts`
-  - selector 종류 열거 (line 273-276) 에 `mcp-server-selector` 추가
+  - selector 종류 열거에 `mcp-server-selector` 추가
 - `backend/src/nodes/core/node-component.interface.ts`
-  - `UiHint.widget` union 에 `'mcp-server-selector'` 추가 (현재 누락)
-- `backend/src/modules/workflow-assistant/tools/detect-pending-user-config.spec.ts`
-  - mcp-server-selector pickup + selectionMode 케이스
-- `backend/src/modules/workflow-assistant/tools/candidate-lookup.service.spec.ts`
-  - mcp-server-selector lookup 케이스
-- `backend/src/modules/workflow-assistant/prompts/system-prompt.spec.ts`
-  - selector 열거에 mcp-server-selector 가 등장하는지 assert
+  - `UiHint.widget` union 에 `'mcp-server-selector'` 추가
+- 관련 spec 파일 (`detect-pending-user-config.spec.ts`,
+  `candidate-lookup.service.spec.ts`, `system-prompt.spec.ts`) 갱신
 
 ### Frontend
 - `frontend/src/lib/api/assistant.ts`
   - `UserActionWidget` 에 `'mcp-server-selector'` 추가
-  - `PendingUserConfigField` 에 `selectionMode: 'single' | 'multi'` 추가
+  - `PendingUserConfigField.selectionMode` 옵셔널 필드 (legacy 'single' fallback)
 - `frontend/src/components/editor/assistant-panel/candidate-picker.tsx`
-  - `selectionMode === 'multi'` 분기 → 체크박스 리스트 + Confirm
-  - `onConfirm` 시그니처를 union 으로 확장
+  - `selectionMode === 'multi'` → 체크박스 리스트, 한 번의 Confirm 으로 ids[] 주입
+  - `onConfirm` 시그니처: `(selection: CandidatePickerSubmission) => void` (union)
+  - Undo 시 미확정 선택 상태도 함께 리셋
 - `frontend/src/components/editor/assistant-panel/assistant-message.tsx`
-  - `onConfirm` 콜백 분기:
-    - single → 기존 `updateNodeConfigField(nodeId, field.field, id)`
-    - multi + kb-selector → `updateNodeConfigField(nodeId, field.field, ids)` (string[])
-    - multi + mcp-server-selector → `ids.map(id => ({ integrationId: id, includeResources: true, includePrompts: true }))`
-  - 기존 `[selectedId]` 핫픽스 제거
-- `frontend/src/components/editor/assistant-panel/candidate-picker.test.tsx`
-  - multi 모드 다중 선택 / 0개 선택 시 disabled / rehydrate (배열 currentValue) 케이스
-- `frontend/src/components/editor/assistant-panel/assistant-message.test.ts`
-  - mcp-server-selector multi-confirm 시 McpServerRef 객체 배열로 매핑되는지
+  - `buildPickerSubmissionValue(widget, selection)` 헬퍼로 widget 별 페이로드 build
+    - kb → string[], mcp → `McpServerRef[]` (MCP_SERVER_REF_DEFAULTS 공유)
+- `frontend/src/components/integrations/mcp-server-selector.tsx`
+  - `MCP_SERVER_REF_DEFAULTS` 공유 상수 추출 (settings panel 과 picker 의 단일 출처)
+- 관련 spec 파일 (`candidate-picker.test.tsx`, `assistant-message.test.ts`) 갱신
 
 ## TODO
 
 - [x] in-progress plan 문서 생성
-- [ ] 검증: `node-component.interface.ts` 의 widget union 에 mcp-server-selector 누락 확인
-- [ ] backend 테스트 선작성
-- [ ] backend 구현
-- [ ] frontend 테스트 선작성
-- [ ] frontend 구현
-- [ ] TEST WORKFLOW (lint / unit / build) backend + frontend
-- [ ] REVIEW WORKFLOW (ai-review + RESOLUTION.md)
-- [ ] plan/complete 로 이동 (`git mv`)
+- [x] `node-component.interface.ts` widget union 누락 확인 + 추가
+- [x] backend 테스트 선작성
+- [x] backend 구현
+- [x] frontend 테스트 선작성
+- [x] frontend 구현
+- [x] TEST WORKFLOW (lint / unit / build) backend + frontend
+- [x] REVIEW WORKFLOW (ai-review + RESOLUTION.md)
+- [ ] plan/complete 로 이동 (`git mv`) — 모든 항목 완료 후
 
 ## 주의
 
 - spec §6 의 selector 정책 표(`spec/3-workflow-editor/4-ai-assistant.md` line 612) 는
-  spec 변경 영역이라 **수정하지 않는다** (`project-planner` 영역). 본 변경 후 spec 정합성
-  점검은 verification 마지막에 한 번 수행하고, 격차가 있으면 사용자에게 보고한다.
+  spec 변경 영역이라 본 PR 에서 **수정하지 않는다** (`project-planner` 영역).
+  마지막에 사용자에게 spec 갱신 필요 사실을 보고한다.

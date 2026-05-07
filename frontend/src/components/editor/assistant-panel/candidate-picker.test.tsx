@@ -202,6 +202,66 @@ describe("CandidatePicker", () => {
       expect(screen.queryByRole("status")).toBeNull();
       expect(screen.getByRole("checkbox", { name: /GitHub MCP/ })).toBeDefined();
     });
+
+    it("rehydrate: mcp-server-selector currentValue ({integrationId}[]) shows '✓ 설정됨' with matched labels", () => {
+      render(
+        <CandidatePicker
+          field={{
+            field: "mcpServers",
+            widget: "mcp-server-selector",
+            label: "MCP Servers",
+            selectionMode: "multi",
+            candidates: [
+              { id: "int-mcp-1", label: "GitHub MCP" },
+              { id: "int-mcp-2", label: "Linear MCP" },
+            ],
+          }}
+          currentValue={[
+            { integrationId: "int-mcp-1", includeResources: true },
+            { integrationId: "int-mcp-2", includeResources: true },
+          ]}
+          onConfirm={vi.fn()}
+        />,
+      );
+      // 후보 라벨이 콤마 결합되어 status 박스에 표시되어야 한다 (raw id 노출 금지).
+      expect(screen.getByRole("status")).toBeDefined();
+      expect(screen.getByText(/GitHub MCP/)).toBeDefined();
+      expect(screen.getByText(/Linear MCP/)).toBeDefined();
+      expect(screen.queryByRole("checkbox")).toBeNull();
+    });
+
+    it("toggling a previously selected checkbox off re-disables Confirm", async () => {
+      const user = userEvent.setup();
+      const onConfirm = vi.fn();
+      render(
+        <CandidatePicker
+          field={{
+            field: "knowledgeBaseIds",
+            widget: "kb-selector",
+            label: "Knowledge Bases",
+            selectionMode: "multi",
+            candidates: [
+              { id: "kb-1", label: "Product docs" },
+              { id: "kb-2", label: "Onboarding" },
+            ],
+          }}
+          currentValue={[]}
+          onConfirm={onConfirm}
+        />,
+      );
+      const kb1 = screen.getByRole("checkbox", { name: /Product docs/ });
+      const confirmBtn = screen.getByRole("button", {
+        name: /이 항목으로 설정/,
+      }) as HTMLButtonElement;
+      // 선택 → 활성 → 다시 해제 → 비활성.
+      await user.click(kb1);
+      expect(confirmBtn.disabled).toBe(false);
+      await user.click(kb1);
+      expect(confirmBtn.disabled).toBe(true);
+      // 해제된 상태로는 onConfirm 이 호출되지 않는다.
+      await user.click(confirmBtn);
+      expect(onConfirm).not.toHaveBeenCalled();
+    });
   });
 
   it("enters the confirmed state directly when currentValue is already filled (rehydrate)", () => {

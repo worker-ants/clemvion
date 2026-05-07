@@ -2,9 +2,10 @@ import { CandidateLookupService } from './candidate-lookup.service';
 import type { PendingUserConfigField } from './detect-pending-user-config';
 
 /**
- * 본 spec 은 4 widget 각각에 대해 `fillCandidates` 가 알맞은 서비스로
- * 위임하고, 결과를 `CandidateEntry[]` shape 으로 맵핑하는지, 20개 상한과
- * serviceType 필터가 동작하는지 고정한다 (ED-AI-39, spec §4.3.1).
+ * 본 spec 은 5 widget (integration / llm-config / kb / workflow / mcp-server)
+ * 각각에 대해 `fillCandidates` 가 알맞은 서비스로 위임하고, 결과를
+ * `CandidateEntry[]` shape 으로 맵핑하는지, 20개 상한과 serviceType 필터가
+ * 동작하는지 고정한다 (ED-AI-39, spec §4.3.1).
  */
 
 function makeService() {

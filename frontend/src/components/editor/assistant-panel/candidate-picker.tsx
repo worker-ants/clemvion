@@ -25,6 +25,12 @@ import type {
  *  - 후보가 0 개 → amber 안내 박스 + Settings 딥링크.
  *  - 후보가 1+ 개 → picker + Confirm. 후보가 1 개여도 **자동 선택 금지**,
  *    사용자가 반드시 Confirm 을 눌러야 반영된다 (ED-AI-39 "명시적 확인").
+ *
+ * **Breaking change history**:
+ *  - 2026-05: `onConfirm` 시그니처가 `(selectedId: string)` →
+ *    `(selection: CandidatePickerSubmission)` 으로 확장됐다 — multi-select
+ *    지원을 위해 single/multi 두 모드의 confirm payload 를 discriminated union
+ *    으로 분리. 새 호출자는 `selection.mode` 를 분기해 처리해야 한다.
  */
 export type CandidatePickerSubmission =
   | { mode: "single"; id: string }
@@ -58,18 +64,17 @@ function sanitizeSettingsHref(href: string | undefined): string | undefined {
 }
 
 /**
- * `currentValue` 의 모양에서 selected id 집합을 뽑는다. multi 모드는 array
- * 일부 element 를 string id 로 취급한다 — KB 는 string[], MCP 는
- * `{integrationId: string, ...}[]` 라 두 모양을 모두 수용한다.
+ * `currentValue` 의 모양에서 picker 가 라벨을 매칭할 string id 배열을 뽑는다.
+ *
+ * KB-shape (`string[]`) 는 그대로 통과시키고, MCP-shape (`McpServerRef[]`,
+ * `{integrationId: string, ...}` 객체 배열) 는 widget 별 unpacker 로 위임한다.
+ * 도메인 schema 가 늘어날 때마다 본 정규화 함수가 부풀지 않게 picker 는
+ * "string 후보"만 알도록 layering 한다.
  */
-function extractSelectedIds(value: unknown): string[] {
-  if (typeof value === "string") return value.length > 0 ? [value] : [];
-  if (!Array.isArray(value)) return [];
+function extractMcpRefIds(value: unknown[]): string[] {
   const out: string[] = [];
   for (const entry of value) {
-    if (typeof entry === "string") {
-      if (entry.length > 0) out.push(entry);
-    } else if (
+    if (
       entry &&
       typeof entry === "object" &&
       "integrationId" in entry &&
@@ -79,6 +84,22 @@ function extractSelectedIds(value: unknown): string[] {
     }
   }
   return out;
+}
+
+function extractSelectedIds(
+  widget: PendingUserConfigField["widget"],
+  value: unknown,
+): string[] {
+  if (typeof value === "string") return value.length > 0 ? [value] : [];
+  if (!Array.isArray(value)) return [];
+  // string[] (KB 등 단순 id 배열) — 비어있는 entry 만 걸러 그대로 사용.
+  if (value.every((v) => typeof v === "string")) {
+    return (value as string[]).filter((v) => v.length > 0);
+  }
+  // 객체 배열 — widget 별 unpacker. 새 array-of-object widget 이 추가되면
+  // 여기 분기를 늘리고 picker 표시 라벨을 맞출 수 있다.
+  if (widget === "mcp-server-selector") return extractMcpRefIds(value);
+  return [];
 }
 
 export function CandidatePicker({
@@ -102,7 +123,8 @@ export function CandidatePicker({
   const [confirmed, setConfirmed] = useState<boolean>(isFilled(currentValue));
   // review I-4: currentValue 가 외부(editor-store Undo/Redo, Settings Panel
   // 직접 편집 등)에서 바뀌었을 때 confirmed 상태가 이중 진실 공급원이 되지
-  // 않도록 동기화.
+  // 않도록 동기화. 단 사용자가 이 세션 안에서 Confirm 한 직후에는 setConfirmed(true)
+  // 가 먼저 반영되므로 UX 에 영향 없음.
   useEffect(() => {
     setConfirmed(isFilled(currentValue));
   }, [currentValue]);
@@ -112,7 +134,7 @@ export function CandidatePicker({
     // single 은 W-10 라벨 매칭 (raw id 노출 방지).
     const selectedLabel = (() => {
       if (mode === "multi") {
-        const ids = extractSelectedIds(currentValue);
+        const ids = extractSelectedIds(field.widget, currentValue);
         const labels = ids.map(
           (id) => candidates.find((c) => c.id === id)?.label ?? id,
         );

@@ -1,0 +1,138 @@
+{
+  "timestamp": "2026-05-07T14:39:51.713334",
+  "files": [
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/backend/src/modules/workflow-assistant/prompts/system-prompt.spec.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/backend/src/modules/workflow-assistant/prompts/system-prompt.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/backend/src/modules/workflow-assistant/tools/candidate-lookup.service.spec.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/backend/src/modules/workflow-assistant/tools/candidate-lookup.service.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/backend/src/modules/workflow-assistant/tools/detect-pending-user-config.spec.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/backend/src/modules/workflow-assistant/tools/detect-pending-user-config.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/backend/src/modules/workflow-assistant/tools/review-workflow.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/backend/src/nodes/core/node-component.interface.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/frontend/src/components/editor/assistant-panel/assistant-message.tsx",
+      "change_type": "Review",
+      "file_extension": "tsx"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/frontend/src/components/editor/assistant-panel/candidate-picker.test.tsx",
+      "change_type": "Review",
+      "file_extension": "tsx"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/frontend/src/components/editor/assistant-panel/candidate-picker.tsx",
+      "change_type": "Review",
+      "file_extension": "tsx"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/frontend/src/lib/api/assistant.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/plan/in-progress/ai-assistant-pending-config-mcp-multi.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    }
+  ],
+  "total_elapsed_seconds": 205.81,
+  "agents": [
+    {
+      "name": "database",
+      "status": "success",
+      "elapsed_seconds": 42.83
+    },
+    {
+      "name": "dependency",
+      "status": "success",
+      "elapsed_seconds": 49.33
+    },
+    {
+      "name": "concurrency",
+      "status": "success",
+      "elapsed_seconds": 60.76
+    },
+    {
+      "name": "performance",
+      "status": "success",
+      "elapsed_seconds": 61.59
+    },
+    {
+      "name": "security",
+      "status": "success",
+      "elapsed_seconds": 62.68
+    },
+    {
+      "name": "documentation",
+      "status": "success",
+      "elapsed_seconds": 65.77
+    },
+    {
+      "name": "architecture",
+      "status": "success",
+      "elapsed_seconds": 68.28
+    },
+    {
+      "name": "scope",
+      "status": "success",
+      "elapsed_seconds": 68.52
+    },
+    {
+      "name": "api_contract",
+      "status": "success",
+      "elapsed_seconds": 74.79
+    },
+    {
+      "name": "testing",
+      "status": "success",
+      "elapsed_seconds": 75.84
+    },
+    {
+      "name": "maintainability",
+      "status": "success",
+      "elapsed_seconds": 75.85
+    },
+    {
+      "name": "side_effect",
+      "status": "success",
+      "elapsed_seconds": 90.35
+    },
+    {
+      "name": "requirement",
+      "status": "success",
+      "elapsed_seconds": 108.5
+    }
+  ]
+}
