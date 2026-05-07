@@ -126,14 +126,14 @@ export class KbToolProvider implements AgentToolProvider {
         : kb.name;
       tools.push({
         name: kbToolName(kbId),
-        description: `Search the "${desc}" knowledge base. Call this when the user's question requires information from this KB. You may call multiple kb_* tools in parallel for multi-intent questions, and re-call with refined queries if results are insufficient.`,
+        description: `Search the "${desc}" knowledge base. Do NOT pass the user's raw question — first decompose it into the atomic knowledge units needed to answer, then call this tool once per unit (one topic per call). Emit multiple parallel calls in the same turn whenever distinct facts are needed; each call's results are returned separately to you (no cross-call merging). Re-call with refined queries if results are insufficient.`,
         parameters: {
           type: 'object',
           properties: {
             query: {
               type: 'string',
               description:
-                'Short search phrase optimized for retrieval, in the same language as the user message.',
+                "Single-topic search phrase (one knowledge unit per call) optimized for semantic retrieval, in the same language as the user message. Do not concatenate multiple topics with 'and / 와 / 및' — split into separate parallel calls instead.",
             },
             top_k: {
               type: 'integer',
