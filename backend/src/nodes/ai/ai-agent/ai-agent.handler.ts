@@ -111,6 +111,18 @@ function condToolName(conditionId: string): string {
   return `cond_${sanitizeId(conditionId)}`;
 }
 
+/**
+ * multi-turn `_resumeState.ragSources` 의 최대 보존 개수. 노드 출력 메타용
+ * `meta.ragSources` 와 별개로 resume state 에는 직전 N 건만 유지해, 장기 대화
+ * 에서 outputData JSONB 가 무제한으로 비대해지는 것을 막는다. 같은 의도로
+ * `MAX_TURN_DEBUG_HISTORY` 가 turnDebug 누적에 적용되어 있다.
+ *
+ * resume 직후 RagAccumulator.fromState 가 이 배열을 hydrate 해 chunkId dedup
+ * 셋을 재구성하므로, 잘려 나간 더 오래된 청크는 향후 turn 의 dedup 에서 제외된다
+ * (이는 의도된 trade-off — 장기 대화의 메모리 안정성 우선).
+ */
+const MAX_RESUME_RAG_SOURCES = 200;
+
 const KB_TOOL_GUIDANCE =
   '\n\n[Knowledge Base] 사용자 질문이 지식 조회를 필요로 하면 등록된 `kb_*` 도구를 호출하세요. ' +
   '사용자 입력을 그대로 query 로 쓰지 말고, 답변에 필요한 **지식 단위** 로 분해해 능동적으로 검색하세요. ' +
@@ -352,6 +364,72 @@ export class AiAgentHandler implements NodeHandler {
     return { result, trace };
   }
 
+  /**
+   * 한 turn 의 provider tool 호출 묶음을 Promise.all 로 병렬 실행하고 결과를
+   * 입력 순서대로 messages·trace·ragGroup 에 결정적으로 누적한다. 잔여 한도를
+   * 초과하는 호출은 'tool_call_budget_exceeded' tool_result 로 회신해 모든
+   * tool_use ↔ tool_result 매칭 요건(Anthropic) 을 만족시킨다.
+   *
+   * single-turn / multi-turn resume 양쪽에서 동일 정책을 보장하기 위한 단일
+   * 진입점 — 이 메서드를 거치지 않고 provider 를 직접 실행하는 신규 경로는
+   * 추가하지 않는다.
+   */
+  private async executeProviderToolBatch(args: {
+    calls: Array<{ provider: AgentToolProvider; call: ToolCall }>;
+    remainingBudget: number;
+    executionId: string;
+    nodeId: string;
+    nodeExecutionId?: string;
+    workflowId?: string;
+    workspaceId: string;
+    config: Record<string, unknown>;
+    turnIndex: number;
+    ragGroup: RagAccumulatorGroup;
+    toolCallTraces: ToolCallTrace[];
+    messages: ChatMessage[];
+  }): Promise<{ executedCount: number }> {
+    const safeBudget = Math.max(0, args.remainingBudget);
+    const toRun = args.calls.slice(0, safeBudget);
+    const truncated = args.calls.slice(safeBudget);
+
+    const batchResults = await Promise.all(
+      toRun.map(({ provider, call }) =>
+        this.runProviderTool({
+          provider,
+          call,
+          executionId: args.executionId,
+          nodeId: args.nodeId,
+          nodeExecutionId: args.nodeExecutionId,
+          workflowId: args.workflowId,
+          workspaceId: args.workspaceId,
+          config: args.config,
+          turnIndex: args.turnIndex,
+        }),
+      ),
+    );
+
+    for (const { result: execResult, trace } of batchResults) {
+      args.toolCallTraces.push(trace);
+      args.ragGroup.pushSources(execResult.ragSourcesDelta);
+      args.ragGroup.pushDiagnostic(execResult.ragDiagnosticsDelta);
+      args.messages.push({
+        role: 'tool',
+        content: execResult.content,
+        toolCallId: execResult.toolCallId,
+      });
+    }
+
+    for (const { call } of truncated) {
+      args.messages.push({
+        role: 'tool',
+        content: JSON.stringify({ error: 'tool_call_budget_exceeded' }),
+        toolCallId: call.id,
+      });
+    }
+
+    return { executedCount: batchResults.length };
+  }
+
   validate(config: Record<string, unknown>): ValidationResult {
     // Schema SSOT (warningRules + validateConfig) covers no-llm-provider,
     // multi-turn-needs-system-prompt, single-turn-needs-prompt,
@@ -545,54 +623,26 @@ export class AiAgentHandler implements NodeHandler {
         toolCalls: result.toolCalls,
       });
 
-      // Provider tools (KB 등) — 핸들러 내부 직접 실행. 같은 turn 의 N 개
-      // tool_use 는 Promise.all 로 병렬 실행해 latency 가 max(N) 으로 단축.
-      // post-merge 는 입력 순서대로 직렬 적용해 trace / messages / ragGroup
-      // 누적이 결정적이다 (chunkId dedup 안전). throw 는 runProviderTool 내부
-      // try/catch 가 trace.error 로 잡으므로 Promise.all 사용 가능.
-      // maxToolCalls batch truncate: 잔여 한도를 초과하는 호출은 앞쪽부터만
-      // 실행하고 나머지는 'tool_call_budget_exceeded' tool_result 로 회신
-      // (Anthropic 의 모든 tool_use ↔ tool_result 매칭 요건 충족).
-      const providerBudget = Math.max(0, maxToolCalls - toolCallCount);
-      const providerToRun = classification.providerToolCalls.slice(
-        0,
-        providerBudget,
-      );
-      const providerTruncated =
-        classification.providerToolCalls.slice(providerBudget);
-      const providerBatchResults = await Promise.all(
-        providerToRun.map(({ provider, call }) =>
-          this.runProviderTool({
-            provider,
-            call,
-            executionId: context.executionId,
-            nodeId: context.nodeId ?? '',
-            nodeExecutionId: context.nodeExecutionId,
-            workflowId: context.workflowId,
-            workspaceId,
-            config,
-            turnIndex: 1,
-          }),
-        ),
-      );
-      for (const { result: execResult, trace } of providerBatchResults) {
-        toolCallCount++;
-        toolCallTraces.push(trace);
-        ragGroup.pushSources(execResult.ragSourcesDelta);
-        ragGroup.pushDiagnostic(execResult.ragDiagnosticsDelta);
-        messages.push({
-          role: 'tool',
-          content: execResult.content,
-          toolCallId: execResult.toolCallId,
+      // Provider tool 호출은 같은 turn 내 Promise.all 로 병렬 실행 + budget
+      // 부분 truncate 까지 일괄 처리하는 단일 진입점을 사용 (single-turn /
+      // multi-turn resume 두 경로의 정책 일관성 보장). 상세 동작은
+      // {@link executeProviderToolBatch} 주석 참조.
+      const { executedCount: providerExecuted } =
+        await this.executeProviderToolBatch({
+          calls: classification.providerToolCalls,
+          remainingBudget: maxToolCalls - toolCallCount,
+          executionId: context.executionId,
+          nodeId: context.nodeId ?? '',
+          nodeExecutionId: context.nodeExecutionId,
+          workflowId: context.workflowId,
+          workspaceId,
+          config,
+          turnIndex: 1,
+          ragGroup,
+          toolCallTraces,
+          messages,
         });
-      }
-      for (const { call } of providerTruncated) {
-        messages.push({
-          role: 'tool',
-          content: JSON.stringify({ error: 'tool_call_budget_exceeded' }),
-          toolCallId: call.id,
-        });
-      }
+      toolCallCount += providerExecuted;
 
       for (const tc of classification.conditionToolCalls) {
         // Condition tool: send deferral message (does not count toward toolCallCount).
@@ -606,7 +656,20 @@ export class AiAgentHandler implements NodeHandler {
         });
       }
 
+      // 일반 도구도 maxToolCalls 합산 대상이므로 잔여 한도를 초과한 항목은
+      // budget_exceeded 로 회신해 LLM 의 다음 turn 에서 모든 tool_use 가
+      // tool_result 와 매칭되도록 한다. 현재 일반 도구는 stub 결과만 만들므로
+      // 실제 외부 호출 비용은 없으나, maxToolCalls 합산 시맨틱은 spec §3.f-g
+      // 와 일치시킨다.
       for (const tc of classification.normalToolCalls) {
+        if (toolCallCount >= maxToolCalls) {
+          messages.push({
+            role: 'tool',
+            content: JSON.stringify({ error: 'tool_call_budget_exceeded' }),
+            toolCallId: tc.id,
+          });
+          continue;
+        }
         toolCallCount++;
         messages.push({
           role: 'tool',
@@ -789,7 +852,7 @@ export class AiAgentHandler implements NodeHandler {
         totalOutputTokens: 0,
         totalThinkingTokens: 0,
         toolCalls: 0,
-        ragSources: ragAcc.getSources(),
+        ragSources: ragAcc.getSources().slice(-MAX_RESUME_RAG_SOURCES),
         ragLastDiagnostics: ragAcc.getDiagnostics(),
       },
     };
@@ -954,53 +1017,25 @@ export class AiAgentHandler implements NodeHandler {
         toolCalls: result.toolCalls,
       });
 
-      // Multi-turn resume: provider tool 들도 single-turn 과 동일하게 병렬
-      // 실행 + batch truncate. resume state 는 새 turn 의 nodeId/nodeExecutionId
-      // 를 운반하지 않으므로 fallback 처리만 single-turn 과 다르다.
-      const providerBudget = Math.max(0, maxToolCalls - toolCallCount);
-      const providerToRun = classification.providerToolCalls.slice(
-        0,
-        providerBudget,
-      );
-      const providerTruncated =
-        classification.providerToolCalls.slice(providerBudget);
-      const providerBatchResults = await Promise.all(
-        providerToRun.map(({ provider, call }) =>
-          this.runProviderTool({
-            provider,
-            call,
-            executionId: executionId ?? '',
-            // Multi-turn resume doesn't carry the new turn's nodeId / nodeExecutionId
-            // through state — usage logs and WS events from MCP calls during
-            // resume are attributed to the original waiting NodeExecution.
-            // Acceptable for activity-tab readability.
-            nodeId: (state.nodeId as string | undefined) ?? '',
-            nodeExecutionId: state.nodeExecutionId as string | undefined,
-            workflowId: state.workflowId as string | undefined,
-            workspaceId,
-            config: turnConfig,
-            turnIndex: turnCount,
-          }),
-        ),
-      );
-      for (const { result: execResult, trace } of providerBatchResults) {
-        toolCallCount++;
-        toolCallTraces.push(trace);
-        ragGroup.pushSources(execResult.ragSourcesDelta);
-        ragGroup.pushDiagnostic(execResult.ragDiagnosticsDelta);
-        messages.push({
-          role: 'tool',
-          content: execResult.content,
-          toolCallId: execResult.toolCallId,
+      // single-turn 과 동일하게 단일 진입점을 사용. resume state 는 새 turn 의
+      // nodeId/nodeExecutionId 를 운반하지 않으므로 ?? '' fallback 만 다르다.
+      // (usage logs / WS 이벤트는 원래 waiting NodeExecution 에 귀속)
+      const { executedCount: providerExecuted } =
+        await this.executeProviderToolBatch({
+          calls: classification.providerToolCalls,
+          remainingBudget: maxToolCalls - toolCallCount,
+          executionId: executionId ?? '',
+          nodeId: (state.nodeId as string | undefined) ?? '',
+          nodeExecutionId: state.nodeExecutionId as string | undefined,
+          workflowId: state.workflowId as string | undefined,
+          workspaceId,
+          config: turnConfig,
+          turnIndex: turnCount,
+          ragGroup,
+          toolCallTraces,
+          messages,
         });
-      }
-      for (const { call } of providerTruncated) {
-        messages.push({
-          role: 'tool',
-          content: JSON.stringify({ error: 'tool_call_budget_exceeded' }),
-          toolCallId: call.id,
-        });
-      }
+      toolCallCount += providerExecuted;
 
       for (const tc of classification.conditionToolCalls) {
         toolCallCount++;
@@ -1015,6 +1050,14 @@ export class AiAgentHandler implements NodeHandler {
       }
 
       for (const tc of classification.normalToolCalls) {
+        if (toolCallCount >= maxToolCalls) {
+          messages.push({
+            role: 'tool',
+            content: JSON.stringify({ error: 'tool_call_budget_exceeded' }),
+            toolCallId: tc.id,
+          });
+          continue;
+        }
         toolCallCount++;
         messages.push({
           role: 'tool',
@@ -1111,7 +1154,7 @@ export class AiAgentHandler implements NodeHandler {
         totalOutputTokens,
         totalThinkingTokens,
         toolCalls: toolCallCount,
-        ragSources: ragAcc.getSources(),
+        ragSources: ragAcc.getSources().slice(-MAX_RESUME_RAG_SOURCES),
         ragLastDiagnostics: ragAcc.getDiagnostics(),
         lastTurnRequest: chatParams,
         lastTurnResponse: result,

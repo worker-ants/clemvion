@@ -205,15 +205,72 @@ describe('KbToolProvider', () => {
       const result = await provider.execute(call, baseCtx);
       const content = JSON.parse(result.content) as {
         error?: string;
+        message?: string;
         results: unknown[];
       };
       expect(content.error).toBe('search_failed');
       expect(content.results).toEqual([]);
+      // tool_result content 는 LLM 다음 turn 의 user-facing 영역에 흘러갈 수
+      // 있으므로 원시 예외 메시지("db down") 를 노출하면 안 된다. 고정된 사용자
+      // 안내만 포함되어야 함. 원시 메시지는 result.error 와 logger.warn 에만 보존.
+      expect(content.message).toMatch(/일시적으로/);
+      expect(result.content).not.toContain('db down');
       expect(result.ragDiagnosticsDelta?.resultCount).toBe(0);
       // The handler relies on this to flag the tool item as 'error' in the
       // debugging timeline rather than mis-rendering as success.
       expect(result.status).toBe('error');
       expect(result.error).toBe('db down');
+    });
+
+    it('reuses KB metadata cached by buildTools instead of re-querying findById', async () => {
+      // 같은 노드 실행(executionId) 안에서 buildTools 가 KB 메타를 미리
+      // 모았으면 후속 execute() 들은 findById 를 재호출하지 않아야 한다.
+      // Promise.all 병렬 호출 시 N+1 DB 쿼리 방지의 회귀 가드.
+      mockKbService.findById.mockResolvedValueOnce({
+        id: 'kb-1',
+        name: 'Refund Policy',
+        description: 'desc',
+      });
+      mockRagService.search.mockResolvedValue([]);
+
+      // 1) buildTools 가 1회 findById (warm cache).
+      await provider.buildTools({
+        config: { knowledgeBases: ['kb-1'] },
+        workspaceId: 'ws-1',
+        executionId: 'exec-cache-1',
+      });
+      expect(mockKbService.findById).toHaveBeenCalledTimes(1);
+
+      // 2) execute() 3회 — 같은 executionId. 모두 cache hit 이어야 한다.
+      const ctx = {
+        config: { knowledgeBases: ['kb-1'], ragTopK: 5, ragThreshold: 0.7 },
+        workspaceId: 'ws-1',
+        executionId: 'exec-cache-1',
+      };
+      for (let i = 0; i < 3; i++) {
+        await provider.execute(
+          {
+            id: `tc-${i}`,
+            name: kbToolName('kb-1'),
+            arguments: '{"query":"q"}',
+          },
+          ctx,
+        );
+      }
+      expect(mockKbService.findById).toHaveBeenCalledTimes(1);
+
+      // 3) cleanup 후에는 cache 가 비워져야 한다.
+      await provider.cleanup({ executionId: 'exec-cache-1' });
+      await provider.execute(
+        {
+          id: 'tc-after',
+          name: kbToolName('kb-1'),
+          arguments: '{"query":"q"}',
+        },
+        ctx,
+      );
+      // cache miss 이므로 findById 가 1회 추가 발생.
+      expect(mockKbService.findById).toHaveBeenCalledTimes(2);
     });
 
     it('omits status (defaults to success) on a normal search result', async () => {
