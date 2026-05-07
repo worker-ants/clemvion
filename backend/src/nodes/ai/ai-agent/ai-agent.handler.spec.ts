@@ -554,6 +554,71 @@ describe('AiAgentHandler', () => {
       expect(meta.toolCalls).toBe(2);
     });
 
+    it('dedupes ragSources by chunkId across parallel kb_ tool calls in the same batch', async () => {
+      // 같은 turn 의 두 병렬 호출이 동일 chunkId 를 반환하면 (예: 두 query 가
+      // 같은 청크에 매칭) meta.ragSources 는 하나만 남아야 한다. References
+      // 탭의 React key collision 방지 + 사용자에게 중복 청크 노출 차단.
+      mockRagService.search.mockImplementation(async (q: string) => [
+        {
+          chunkId: 'c-shared',
+          documentId: 'd-shared',
+          documentName: 'shared.md',
+          content: `result for ${q}`,
+          score: q === 'a' ? 0.95 : 0.85,
+          metadata: {},
+        },
+      ]);
+
+      mockLlmService.chat
+        .mockResolvedValueOnce({
+          content: null,
+          toolCalls: [
+            {
+              id: 'tc-a',
+              name: kbToolName('kb-1'),
+              arguments: '{"query":"a"}',
+            },
+            {
+              id: 'tc-b',
+              name: kbToolName('kb-1'),
+              arguments: '{"query":"b"}',
+            },
+          ],
+          usage: { inputTokens: 10, outputTokens: 5, totalTokens: 15 },
+          model: 'gpt-4o',
+          finishReason: 'tool_calls',
+        })
+        .mockResolvedValueOnce({
+          content: 'done',
+          usage: { inputTokens: 20, outputTokens: 5, totalTokens: 25 },
+          model: 'gpt-4o',
+          finishReason: 'stop',
+        });
+
+      const result = (await handler.execute(
+        {},
+        {
+          systemPrompt: 'Helper',
+          userPrompt: 'two queries hitting same chunk',
+          knowledgeBases: ['kb-1'],
+        },
+        baseContext,
+      )) as Record<string, unknown>;
+
+      expect(mockRagService.search).toHaveBeenCalledTimes(2);
+
+      const meta = (result.meta ?? {}) as Record<string, unknown>;
+      const sources = meta.ragSources as Array<{ chunkId: string }>;
+      // Same chunkId returned by both parallel calls → deduped.
+      expect(sources).toHaveLength(1);
+      expect(sources[0].chunkId).toBe('c-shared');
+
+      // 진단은 양쪽 query 호출을 모두 기록.
+      const diag = meta.ragDiagnostics as Record<string, unknown>;
+      expect((diag.queriesUsed as string[]).sort()).toEqual(['a', 'b']);
+      expect(diag.resultCount).toBe(2);
+    });
+
     it('isolates partial failures across parallel kb_ tool calls', async () => {
       // 병렬 호출 중 한 건이 실패해도 나머지는 성공 결과로 누적되며,
       // 실패한 건은 search_failed tool_result 로 LLM 에 전달된다.
@@ -2106,6 +2171,95 @@ describe('AiAgentHandler', () => {
       const tc = (td.toolCalls ?? []) as Array<Record<string, unknown>>;
       expect(tc).toHaveLength(1);
       expect(tc[0].status).toBe('success');
+    });
+
+    it('runs provider tools in parallel on multi-turn resume too', async () => {
+      // single-turn 과 동일한 Promise.all 병렬 실행이 multi-turn resume
+      // 경로(processMultiTurnMessage) 에서도 동작해야 한다. inFlight 카운터
+      // 의 최대값이 2 이상이면 병렬, 1 이면 직렬 회귀.
+      let inFlight = 0;
+      let maxInFlight = 0;
+      mockRagService.search.mockImplementation(async (q: string) => {
+        inFlight++;
+        maxInFlight = Math.max(maxInFlight, inFlight);
+        await new Promise<void>((resolve) => setTimeout(resolve, 30));
+        inFlight--;
+        return [
+          {
+            chunkId: `c-${q}`,
+            documentId: 'd1',
+            documentName: `doc-${q}`,
+            content: `payload for ${q}`,
+            score: 0.8,
+            metadata: {},
+          },
+        ];
+      });
+
+      mockLlmService.chat
+        .mockResolvedValueOnce({
+          content: null,
+          toolCalls: [
+            {
+              id: 'tc-r1',
+              name: kbToolName('kb-1'),
+              arguments: '{"query":"alpha"}',
+            },
+            {
+              id: 'tc-r2',
+              name: kbToolName('kb-1'),
+              arguments: '{"query":"beta"}',
+            },
+          ],
+          usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 },
+          model: 'gpt-4o',
+          finishReason: 'tool_calls',
+        })
+        .mockResolvedValueOnce({
+          content: 'combined',
+          usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 },
+          model: 'gpt-4o',
+          finishReason: 'stop',
+        });
+
+      const resumeState = {
+        turnCount: 1,
+        maxTurns: 5,
+        maxToolCalls: 5,
+        knowledgeBases: ['kb-1'],
+        workspaceId: 'ws-1',
+        conditions: [],
+        totalInputTokens: 0,
+        totalOutputTokens: 0,
+        totalThinkingTokens: 0,
+        toolCalls: 0,
+        ragSources: [],
+        ragLastDiagnostics: undefined,
+        messages: [
+          { role: 'system', content: 'sys' },
+          { role: 'user', content: 'turn1' },
+          { role: 'assistant', content: 'ack' },
+        ],
+        executionId: 'exec-1',
+        nodeId: 'agent-1',
+        nodeExecutionId: 'ne-1',
+        workflowId: 'wf-1',
+        model: 'gpt-4o',
+        llmConfigId: 'config-1',
+        turnDebugHistory: [],
+      };
+
+      await (
+        handler as unknown as {
+          processMultiTurnMessage: (
+            msg: string,
+            state: Record<string, unknown>,
+          ) => Promise<unknown>;
+        }
+      ).processMultiTurnMessage('turn2 question', resumeState);
+
+      expect(mockRagService.search).toHaveBeenCalledTimes(2);
+      expect(maxInFlight).toBeGreaterThanOrEqual(2);
     });
 
     it('emits TOOL_CALL_* with the correct turnIndex on multi-turn resume', async () => {
