@@ -38,6 +38,7 @@ describe('CandidateLookupService', () => {
           field: 'integrationId',
           widget: 'integration-selector',
           label: 'Integration',
+          selectionMode: 'single',
           integrationServiceType: 'email',
           candidates: [],
         },
@@ -69,6 +70,7 @@ describe('CandidateLookupService', () => {
           field: 'integrationId',
           widget: 'integration-selector',
           label: 'Integration',
+          selectionMode: 'single',
           candidates: [],
         },
       ]);
@@ -90,6 +92,7 @@ describe('CandidateLookupService', () => {
           field: 'integrationId',
           widget: 'integration-selector',
           label: 'Integration',
+          selectionMode: 'single',
           integrationServiceType: 'email',
           candidates: [],
         },
@@ -112,6 +115,7 @@ describe('CandidateLookupService', () => {
           field: 'llmConfigId',
           widget: 'llm-config-selector',
           label: 'LLM Config',
+          selectionMode: 'single',
           candidates: [],
         },
       ]);
@@ -133,12 +137,65 @@ describe('CandidateLookupService', () => {
           field: 'knowledgeBaseIds',
           widget: 'kb-selector',
           label: 'Knowledge Bases',
+          selectionMode: 'multi',
           candidates: [],
         },
       ]);
       expect(out[0].candidates).toEqual([
         { id: 'kb-1', label: 'Product docs' },
       ]);
+    });
+  });
+
+  describe('mcp-server-selector', () => {
+    it('looks up workspace integrations of service_type=mcp and maps to {id, label}', async () => {
+      const { service, mocks } = makeService();
+      mocks.integrations.findAll.mockResolvedValue({
+        data: [
+          { id: 'int-mcp-1', name: 'GitHub MCP', serviceType: 'mcp' },
+          { id: 'int-mcp-2', name: 'Linear MCP', serviceType: 'mcp' },
+        ],
+      });
+      const out = await service.fillCandidates('ws-1', 'wf-1', [
+        {
+          field: 'mcpServers',
+          widget: 'mcp-server-selector',
+          label: 'MCP Servers',
+          selectionMode: 'multi',
+          candidates: [],
+        },
+      ]);
+      expect(mocks.integrations.findAll).toHaveBeenCalledWith(
+        'ws-1',
+        expect.objectContaining({
+          status: 'connected',
+          serviceType: ['mcp'],
+        }),
+      );
+      expect(out[0].candidates).toEqual([
+        { id: 'int-mcp-1', label: 'GitHub MCP' },
+        { id: 'int-mcp-2', label: 'Linear MCP' },
+      ]);
+    });
+
+    it('caps MCP candidates at 20', async () => {
+      const { service, mocks } = makeService();
+      const many = Array.from({ length: 25 }, (_, i) => ({
+        id: `int-mcp-${i}`,
+        name: `MCP ${i}`,
+        serviceType: 'mcp',
+      }));
+      mocks.integrations.findAll.mockResolvedValue({ data: many });
+      const out = await service.fillCandidates('ws-1', 'wf-1', [
+        {
+          field: 'mcpServers',
+          widget: 'mcp-server-selector',
+          label: 'MCP Servers',
+          selectionMode: 'multi',
+          candidates: [],
+        },
+      ]);
+      expect(out[0].candidates).toHaveLength(20);
     });
   });
 
@@ -157,6 +214,7 @@ describe('CandidateLookupService', () => {
           field: 'workflowId',
           widget: 'workflow-selector',
           label: 'Sub-workflow',
+          selectionMode: 'single',
           candidates: [],
         },
       ]);
@@ -180,6 +238,7 @@ describe('CandidateLookupService', () => {
           field: 'integrationId',
           widget: 'integration-selector',
           label: 'Integration',
+          selectionMode: 'single',
           integrationServiceType: 'email',
           candidates: [],
         },

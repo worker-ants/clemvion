@@ -13,15 +13,16 @@ import type {
 /**
  * Spec ED-AI-39 (§4.3.1) — Assistant 가 `add_node` / `update_node` 를 실행해
  * 사용자 선택 필드(`integration-selector` · `llm-config-selector` ·
- * `kb-selector` · `workflow-selector`) 가 비어있을 때, 워크스페이스에서
- * 후보를 조회해 picker 드롭다운 데이터를 채워 돌려준다.
+ * `kb-selector` · `workflow-selector` · `mcp-server-selector`) 가 비어있을 때,
+ * 워크스페이스에서 후보를 조회해 picker 드롭다운 데이터를 채워 돌려준다.
  *
  * 후보 조회 스코프와 정렬은 spec §4.3.1 표를 그대로 구현한다:
- *   - integration-selector: connected Integration, `integrationServiceType`
+ *   - integration-selector : connected Integration, `integrationServiceType`
  *     힌트가 있으면 해당 service_type 만 필터.
- *   - llm-config-selector : 워크스페이스 LlmConfig 전체 (최근 수정순).
- *   - kb-selector        : 워크스페이스 KnowledgeBase 전체.
- *   - workflow-selector  : 같은 워크스페이스 워크플로 + 현재 편집 중 워크플로 제외.
+ *   - llm-config-selector  : 워크스페이스 LlmConfig 전체 (최근 수정순).
+ *   - kb-selector          : 워크스페이스 KnowledgeBase 전체.
+ *   - workflow-selector    : 같은 워크스페이스 워크플로 + 현재 편집 중 워크플로 제외.
+ *   - mcp-server-selector  : connected Integration 중 service_type='mcp' 만.
  *
  * 상한은 widget 당 20개. 조회 실패 시 warn 로그 + 빈 배열로 degrade 해서
  * picker 는 "등록된 것이 없음" 으로 동작한다 (리뷰 가드는 candidate 0
@@ -76,6 +77,8 @@ export class CandidateLookupService {
           return await this.lookupKnowledgeBases(workspaceId);
         case 'workflow-selector':
           return await this.lookupWorkflows(workspaceId, currentWorkflowId);
+        case 'mcp-server-selector':
+          return await this.lookupMcpServers(workspaceId);
         default:
           return [];
       }
@@ -141,6 +144,28 @@ export class CandidateLookupService {
             : undefined;
       return { id, label, sublabel };
     });
+  }
+
+  /**
+   * MCP 서버는 워크스페이스에 등록된 service_type='mcp' Integration 으로
+   * 표현된다 (spec/5-system/11-mcp-client.md). connected 상태만 후보로
+   * 노출해 picker 가 "당장 쓸 수 있는" 서버만 보이도록 한다. sublabel 은
+   * 표시하지 않음 — 모두 동일하게 'mcp' 라 중복 정보다.
+   */
+  private async lookupMcpServers(
+    workspaceId: string,
+  ): Promise<CandidateEntry[]> {
+    const query: ListIntegrationsQueryDto = {
+      page: 1,
+      limit: MAX_CANDIDATES,
+      status: 'connected',
+      serviceType: ['mcp'],
+    };
+    const result = await this.integrations.findAll(workspaceId, query);
+    return result.data.slice(0, MAX_CANDIDATES).map((i) => ({
+      id: i.id,
+      label: i.name,
+    }));
   }
 
   private async lookupKnowledgeBases(

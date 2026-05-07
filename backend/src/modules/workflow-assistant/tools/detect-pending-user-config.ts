@@ -2,29 +2,47 @@
  * 노드 config 에는 LLM 이 값을 모르는 — 그래서 사용자가 직접 골라야만 하는 —
  * 필드가 있다. 예: `send_email.integrationId` (사용자 워크스페이스의 SMTP
  * Integration), `ai_agent.llmConfigId` (LLM 설정), `ai_agent.knowledgeBaseIds`
- * (KB 자원), `workflow.workflowId` (참조할 워크플로우). 어시스턴트가 노드를
- * 심어 놓고도 이 필드를 비워둔 채 대화를 끝내면 사용자는 실행 시점에 와서야
- * 알게 된다.
+ * (KB 자원), `ai_agent.mcpServers` (MCP 서버 통합), `workflow.workflowId`
+ * (참조할 워크플로우). 어시스턴트가 노드를 심어 놓고도 이 필드를 비워둔 채
+ * 대화를 끝내면 사용자는 실행 시점에 와서야 알게 된다.
  *
  * 이 헬퍼는 노드의 `configSchema` (zod → JSON Schema 로 변환된 객체) 를 순회해
  * `ui.widget` 마커가 "사용자 입력 필요" 계열인 필드를 찾고, 현재 config 에서
  * 비어있는 것만 리스트로 반환한다. 리턴된 리스트는 tool_result 에 실려 LLM 에게
  * 되돌아가고, LLM 은 턴을 마치기 전 사용자에게 "X는 직접 설정해 주세요" 로
  * 안내해야 한다 (시스템 프롬프트에 연결된 규칙).
+ *
+ * `selectionMode` 는 widget 의 데이터 모델 모양에 따라 채워진다:
+ *  - scalar 필드 (`integration-selector` / `llm-config-selector` / `workflow-selector`)
+ *    → `'single'`. picker 한 번에 하나의 id 만 받는다.
+ *  - 배열 필드 (`kb-selector` / `mcp-server-selector`) → `'multi'`. picker 가
+ *    체크박스로 여러 후보를 한 번에 받아 배열로 주입한다.
+ * 프런트는 `selectionMode` 가 누락된 legacy 응답을 만나면 `'single'` 로
+ * 가정해 호환성을 유지한다 (DB 에 저장된 이전 row).
  */
 
 export type UserActionWidget =
   | 'integration-selector'
   | 'llm-config-selector'
   | 'kb-selector'
-  | 'workflow-selector';
+  | 'workflow-selector'
+  | 'mcp-server-selector';
 
 const USER_ACTION_WIDGETS: ReadonlySet<string> = new Set<UserActionWidget>([
   'integration-selector',
   'llm-config-selector',
   'kb-selector',
   'workflow-selector',
+  'mcp-server-selector',
 ]);
+
+/**
+ * widget 별 데이터 모델 형태. 배열 필드는 picker 에서 다중 선택을 받아 한 번의
+ * Confirm 으로 모두 주입한다. 새 widget 을 추가할 때 여기에 등록 누락되면
+ * picker 가 단일 선택으로 동작하므로 array 필드 widget 은 반드시 추가한다.
+ */
+const MULTI_SELECT_WIDGETS: ReadonlySet<UserActionWidget> =
+  new Set<UserActionWidget>(['kb-selector', 'mcp-server-selector']);
 
 /**
  * `integrationServiceType` hint 는 serviceType DB 필터로 직결되므로, schema
@@ -66,6 +84,12 @@ export interface PendingUserConfigField {
   widget: UserActionWidget;
   /** schema 에 선언된 한글/영문 라벨. */
   label: string;
+  /**
+   * picker 의 선택 모드. scalar 필드는 `'single'`, 배열 필드는 `'multi'`.
+   * detector 는 widget 종류로 매핑해 항상 채워 내려준다. legacy 응답(예전 DB row)
+   * 에서 누락될 수 있으므로 frontend 는 `undefined` 를 `'single'` 로 해석한다.
+   */
+  selectionMode?: 'single' | 'multi';
   /**
    * widget 별 후보 조회 hint. 현재는 `integration-selector` 전용으로
    * schema meta 의 `integrationServiceType` 값(예: `'email'`/`'http'`) 이
@@ -114,10 +138,12 @@ export function detectPendingUserConfig(
     const widget = propSchema?.ui?.widget;
     if (!widget || !USER_ACTION_WIDGETS.has(widget)) continue;
     if (!isEmptyValue(config[key])) continue;
+    const typedWidget = widget as UserActionWidget;
     pending.push({
       field: key,
-      widget: widget as UserActionWidget,
+      widget: typedWidget,
       label: propSchema?.ui?.label ?? humanize(key),
+      selectionMode: MULTI_SELECT_WIDGETS.has(typedWidget) ? 'multi' : 'single',
       // `detectPendingUserConfig` 단계에서는 스키마만 보고 "이 필드가
       // selector 인지" 만 판정한다. 실제 후보 목록은 `CandidateLookupService`
       // 가 워크스페이스 DB 를 조회해 채우므로, 여기서는 hint 만 통과시키고

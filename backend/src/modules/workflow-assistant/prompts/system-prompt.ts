@@ -272,8 +272,9 @@ When you \`add_node\` or \`update_node\` on a node with fields using these \`ui.
 
 - \`integration-selector\` — Integration picker. Used by \`send_email\`, \`http_request\`, \`database_query\`. Each node hints the required \`service_type\` (e.g., email / http / database) so the server narrows candidates to connected integrations of that type.
 - \`llm-config-selector\` — LLM Config picker. Used by \`ai_agent\`, \`information_extractor\`, \`text_classifier\`.
-- \`kb-selector\` — Knowledge Base picker. Used by \`ai_agent\` (optional \`knowledgeBaseIds\`).
+- \`kb-selector\` — Knowledge Base picker. Used by \`ai_agent\` (optional \`knowledgeBaseIds\`). Multi-select — the picker accepts several KBs in one Confirm.
 - \`workflow-selector\` — Sub-workflow picker. Used by the \`workflow\` (sub-workflow) node.
+- \`mcp-server-selector\` — MCP server picker. Used by \`ai_agent\` (optional \`mcpServers\`). Server narrows candidates to workspace integrations of \`service_type='mcp'\`. Multi-select — the picker accepts several MCP servers in one Confirm.
 
 **You must leave these ids EMPTY in your tool arguments.** Do not guess, invent, or copy ids from other turns. Do not substitute Korean label strings or placeholders like \`"TODO"\`. The server owns candidate lookup — each \`pendingUserConfig\` entry carries a \`candidates\` array (the matching workspace resources) which the frontend renders as an in-message dropdown picker on that edit bubble. The user confirms their choice via the picker; the picker state does not feed back to you — treat it as UI-only.
 

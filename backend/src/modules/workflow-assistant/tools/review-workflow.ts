@@ -25,9 +25,10 @@ import type { NodeDefinitionView } from '../../../nodes/core/node-component.regi
  *    carousel buttons / ai_agent conditions 등) 중 outgoing edge 가 없는 것 —
  *    사용자에게 "클릭해도 아무 일도 안 일어나는 버튼" 을 남긴다. framework
  *    synthesized 포트 (default/error/fallback/continue/static out) 는 제외.
- *  - **PENDING_USER_CONFIG_UNMENTIONED** : integration/LLM/KB/workflow selector
- *    가 비어있는 노드가 있는데 이번 턴 한국어 마무리 메세지(`assistantText`)에
- *    해당 노드 label 이 언급되지 않음 — 사용자가 설정 필요 사실을 모름.
+ *  - **PENDING_USER_CONFIG_UNMENTIONED** : integration/LLM/KB/workflow/MCP-server
+ *    selector 가 비어있는 노드가 있는데 이번 턴 한국어 마무리 메세지
+ *    (`assistantText`) 에 해당 노드 label 이 언급되지 않음 — 사용자가 설정
+ *    필요 사실을 모름.
  *  - **FAKE_STEP_COMPLETION** : `planStepId`/`planStepIds` 가 붙은 tool call
  *    인데 결과는 `ok:false`. active-plan-context 가 이미 차단하지만 방어망.
  *  - **REQUEST_COVERAGE_LOW** : 사용자 원 요청의 의미 토큰과 현재 노드 label
