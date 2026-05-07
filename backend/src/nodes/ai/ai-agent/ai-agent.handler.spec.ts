@@ -617,6 +617,7 @@ describe('AiAgentHandler', () => {
       const diag = meta.ragDiagnostics as Record<string, unknown>;
       expect((diag.queriesUsed as string[]).sort()).toEqual(['a', 'b']);
       expect(diag.resultCount).toBe(2);
+      expect(meta.toolCalls).toBe(2);
     });
 
     it('isolates partial failures across parallel kb_ tool calls', async () => {
@@ -691,6 +692,105 @@ describe('AiAgentHandler', () => {
       expect(failMsg).toBeDefined();
       const failBody = JSON.parse(failMsg!.content) as { error?: string };
       expect(failBody.error).toBe('search_failed');
+
+      // 양쪽 호출 모두 toolCalls 카운트 + 진단에 누적되어야 함.
+      expect(meta.toolCalls).toBe(2);
+      const diag = meta.ragDiagnostics as Record<string, unknown>;
+      expect((diag.queriesUsed as string[]).sort()).toEqual(['fail', 'ok']);
+      // 실패 호출의 resultCount=0 + 성공 호출의 resultCount=1 = 합 1.
+      expect(diag.resultCount).toBe(1);
+    });
+
+    it('truncates within-batch on multi-turn resume too (parity with single-turn)', async () => {
+      // multi-turn resume 경로도 single-turn 과 동일 헬퍼(executeProviderToolBatch)
+      // 를 사용하므로 잔여 한도 < emit 수 시 동일하게 truncate 해야 한다. 한쪽만
+      // 수정될 경우의 회귀를 가드.
+      mockRagService.search.mockResolvedValue([]);
+      mockLlmService.chat
+        .mockResolvedValueOnce({
+          content: null,
+          toolCalls: [
+            {
+              id: 'tc-r1',
+              name: kbToolName('kb-1'),
+              arguments: '{"query":"q1"}',
+            },
+            {
+              id: 'tc-r2',
+              name: kbToolName('kb-1'),
+              arguments: '{"query":"q2"}',
+            },
+            {
+              id: 'tc-r3',
+              name: kbToolName('kb-1'),
+              arguments: '{"query":"q3"}',
+            },
+          ],
+          usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 },
+          model: 'gpt-4o',
+          finishReason: 'tool_calls',
+        })
+        .mockResolvedValueOnce({
+          content: 'final',
+          usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 },
+          model: 'gpt-4o',
+          finishReason: 'stop',
+        });
+
+      const resumeState = {
+        turnCount: 1,
+        maxTurns: 5,
+        maxToolCalls: 2,
+        knowledgeBases: ['kb-1'],
+        workspaceId: 'ws-1',
+        conditions: [],
+        totalInputTokens: 0,
+        totalOutputTokens: 0,
+        totalThinkingTokens: 0,
+        toolCalls: 0,
+        ragSources: [],
+        ragLastDiagnostics: undefined,
+        messages: [
+          { role: 'system', content: 'sys' },
+          { role: 'user', content: 'turn1' },
+          { role: 'assistant', content: 'ack' },
+        ],
+        executionId: 'exec-1',
+        nodeId: 'agent-1',
+        nodeExecutionId: 'ne-1',
+        workflowId: 'wf-1',
+        model: 'gpt-4o',
+        llmConfigId: 'config-1',
+        turnDebugHistory: [],
+      };
+
+      await (
+        handler as unknown as {
+          processMultiTurnMessage: (
+            msg: string,
+            state: Record<string, unknown>,
+          ) => Promise<unknown>;
+        }
+      ).processMultiTurnMessage('turn2', resumeState);
+
+      // 잔여 한도 2 만큼만 실제 검색 수행.
+      expect(mockRagService.search).toHaveBeenCalledTimes(2);
+
+      // 모든 3개 tool_use 가 tool_result 와 매칭되어야 함 (Anthropic 요건).
+      const secondCall = mockLlmService.chat.mock.calls[1];
+      const toolMsgs = (
+        secondCall[1].messages as Array<{
+          role: string;
+          toolCallId?: string;
+          content: string;
+        }>
+      ).filter((m) => m.role === 'tool');
+      expect(toolMsgs).toHaveLength(3);
+      const budgetMsg = toolMsgs.find((m) => m.toolCallId === 'tc-r3');
+      expect(budgetMsg).toBeDefined();
+      expect(JSON.parse(budgetMsg!.content).error).toBe(
+        'tool_call_budget_exceeded',
+      );
     });
 
     it('should parse JSON response when responseFormat is json', async () => {
@@ -2100,7 +2200,14 @@ describe('AiAgentHandler', () => {
       const toolMsg = messages.find((m) => m.role === 'tool');
       expect(toolMsg).toBeDefined();
       expect(toolMsg?.toolCallId).toBe('tc-err');
-      expect(toolMsg?.content).toContain('KB DOWN');
+      // tool_result content 는 사용자 가시 영역(LLM 응답에 인용 가능)이므로
+      // 원시 예외 메시지("KB DOWN") 가 포함되면 안 된다. 고정된 한국어 안내
+      // 만 노출되어야 함. 원시 메시지는 turnDebug.toolCalls[].error 와 WS
+      // tool_call_completed payload 의 error 필드, logger.warn 에만 보존된다.
+      expect(toolMsg?.content).not.toContain('KB DOWN');
+      expect(toolMsg?.content).toContain('search_failed');
+      const toolBody = JSON.parse(toolMsg!.content) as { message?: string };
+      expect(toolBody.message).toMatch(/일시적으로/);
 
       // turnDebug carries the error
       const td = lastTurnDebug(result);
