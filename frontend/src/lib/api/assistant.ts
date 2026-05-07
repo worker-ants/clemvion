@@ -81,6 +81,15 @@ export interface AssistantToolCallRecord {
  * "사용자 선택 필요" 필드 엔트리. 프런트는 해당 edit 메시지 버블에
  * candidate picker 를 렌더해 사용자 확인을 받은 뒤 editor-store 로 주입한다.
  */
+/**
+ * **양단 동기화 필수**: 본 union 은 backend
+ * `detect-pending-user-config.ts` 의 `UserActionWidget` 을 그대로 미러한다.
+ * 새 widget 을 추가할 때는 backend 의 `USER_ACTION_WIDGETS` /
+ * `MULTI_SELECT_WIDGETS` / `CandidateLookupService.lookup` switch 와 함께
+ * frontend 의 `SETTINGS_HREF` / `buildPickerSubmissionValue`
+ * (`assistant-message.tsx`) 도 동시에 갱신해야 한다. 누락되면 picker 가
+ * 빈 화면을 보이거나 confirm payload 가 fallback 으로 추락한다.
+ */
 export type UserActionWidget =
   | "integration-selector"
   | "llm-config-selector"

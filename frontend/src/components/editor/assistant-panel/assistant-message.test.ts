@@ -1,6 +1,10 @@
 import { describe, it, expect } from "vitest";
-import { collectPickerEntries } from "./assistant-message";
+import {
+  buildPickerSubmissionValue,
+  collectPickerEntries,
+} from "./assistant-message";
 import type { AssistantToolCallRecord } from "@/lib/api/assistant";
+import { MCP_SERVER_REF_DEFAULTS } from "@/components/integrations/mcp-server-selector";
 
 /**
  * 서버는 `add_node` / `update_node` 성공 응답마다 pendingUserConfig 를 실어
@@ -152,5 +156,83 @@ describe("collectPickerEntries", () => {
     const entries = collectPickerEntries(calls);
     expect(entries).toHaveLength(1);
     expect(entries[0].nodeId).toBe("node-A");
+  });
+});
+
+/**
+ * `buildPickerSubmissionValue` 는 picker Confirm payload 를 노드 config 필드에
+ * 주입할 값으로 변환한다. widget 별 데이터 모양 (scalar string / KB string[] /
+ * MCP `McpServerRef[]`) 의 단일 출처이므로 4 케이스 (single / kb-multi /
+ * mcp-multi / scalar-multi fallback) 를 모두 고정한다.
+ */
+describe("buildPickerSubmissionValue", () => {
+  it("single 모드는 widget 종류와 무관하게 id 문자열을 그대로 반환", () => {
+    expect(
+      buildPickerSubmissionValue("integration-selector", {
+        mode: "single",
+        id: "int-1",
+      }),
+    ).toBe("int-1");
+    expect(
+      buildPickerSubmissionValue("llm-config-selector", {
+        mode: "single",
+        id: "cfg-1",
+      }),
+    ).toBe("cfg-1");
+    expect(
+      buildPickerSubmissionValue("workflow-selector", {
+        mode: "single",
+        id: "wf-1",
+      }),
+    ).toBe("wf-1");
+  });
+
+  it("kb-selector + multi → string[] (그대로 통과)", () => {
+    expect(
+      buildPickerSubmissionValue("kb-selector", {
+        mode: "multi",
+        ids: ["kb-1", "kb-2"],
+      }),
+    ).toEqual(["kb-1", "kb-2"]);
+    // 빈 배열도 허용 — confirm 단계는 picker 가 막지만 본 함수는 순수.
+    expect(
+      buildPickerSubmissionValue("kb-selector", { mode: "multi", ids: [] }),
+    ).toEqual([]);
+  });
+
+  it("mcp-server-selector + multi → McpServerRef[] (settings panel 과 동일한 default 적용)", () => {
+    const out = buildPickerSubmissionValue("mcp-server-selector", {
+      mode: "multi",
+      ids: ["int-mcp-1", "int-mcp-2"],
+    });
+    expect(out).toEqual([
+      { integrationId: "int-mcp-1", ...MCP_SERVER_REF_DEFAULTS },
+      { integrationId: "int-mcp-2", ...MCP_SERVER_REF_DEFAULTS },
+    ]);
+    // default 가 settings panel 과 어긋나지 않음을 명시적으로 고정.
+    expect((out as Array<Record<string, unknown>>)[0].includeResources).toBe(
+      true,
+    );
+    expect((out as Array<Record<string, unknown>>)[0].includePrompts).toBe(
+      true,
+    );
+  });
+
+  it("scalar widget + multi 는 비정상 입력이지만 fallback 으로 첫 id 만 단일 사용 (방어)", () => {
+    // 실제로는 detector 가 widget→mode 매핑을 강제해 도달하지 않는 경로지만,
+    // 새 multi widget 추가 시 본 함수 분기 누락이면 여기로 빠진다 — 명시적
+    // 안전망 동작을 고정.
+    expect(
+      buildPickerSubmissionValue("integration-selector", {
+        mode: "multi",
+        ids: ["int-1", "int-2"],
+      }),
+    ).toBe("int-1");
+    expect(
+      buildPickerSubmissionValue("integration-selector", {
+        mode: "multi",
+        ids: [],
+      }),
+    ).toBe("");
   });
 });

@@ -15,6 +15,10 @@ import {
   CandidatePicker,
   type CandidatePickerSubmission,
 } from "./candidate-picker";
+import {
+  MCP_SERVER_REF_DEFAULTS,
+  type McpServerRef,
+} from "@/components/integrations/mcp-server-selector";
 import { PlanCard } from "./plan-card";
 import { MarkdownRenderer } from "./markdown-renderer";
 import { sanitizeAssistantText } from "./harmony-filter";
@@ -38,28 +42,33 @@ const SETTINGS_HREF: Record<UserActionWidget, string> = {
  * picker Confirm payload 를 노드 config 필드에 주입할 값으로 변환한다.
  *  - scalar widget (integration / llm-config / workflow) → 단일 string id.
  *  - kb-selector → string[].
- *  - mcp-server-selector → `{integrationId, includeResources, includePrompts}[]`
- *    (settings panel `McpServerSelector.add()` 의 default 와 동치, see
- *    `frontend/src/components/integrations/mcp-server-selector.tsx`).
+ *  - mcp-server-selector → `McpServerRef[]`. `MCP_SERVER_REF_DEFAULTS` 를
+ *    공유해 settings panel `McpServerSelector.add()` 와 동일한 ref shape
+ *    을 만든다 (둘이 어긋나면 동일 노드의 config 가 입력 경로에 따라
+ *    달라지는 사일런트 회귀가 생긴다).
  *
- * 본 헬퍼는 widget 종류별 데이터 모양을 단일 출처로 모아둔다 — picker UI 와
- * settings panel UI 가 같은 default 를 공유하도록.
+ * **새 multi widget 추가 시 주의**: backend `MULTI_SELECT_WIDGETS`
+ * (`detect-pending-user-config.ts`) 와 본 함수의 분기를 **반드시 동시에**
+ * 갱신해야 한다. backend 에 추가했는데 여기를 잊으면 picker 가 multi 로
+ * 동작하지만 confirm payload 는 fallback 으로 추락한다.
  */
 export function buildPickerSubmissionValue(
   widget: UserActionWidget,
   selection: CandidatePickerSubmission,
-): unknown {
+): string | string[] | McpServerRef[] {
   if (selection.mode === "single") return selection.id;
   if (widget === "kb-selector") return selection.ids;
   if (widget === "mcp-server-selector") {
-    return selection.ids.map((integrationId) => ({
-      integrationId,
-      includeResources: true,
-      includePrompts: true,
-    }));
+    return selection.ids.map(
+      (integrationId): McpServerRef => ({
+        integrationId,
+        ...MCP_SERVER_REF_DEFAULTS,
+      }),
+    );
   }
   // multi 모드인데 widget 이 scalar 라면 비정상 — 첫 번째 id 만 사용해 fallback.
-  // (실제로는 detector 가 widget→mode 매핑을 강제하므로 여기 도달하지 않는다.)
+  // (실제로는 detector 가 widget→mode 매핑을 강제하므로 여기 도달하지 않는다.
+  // 새 multi widget 추가 시 본 함수에 분기를 추가하지 않으면 여기로 빠진다.)
   return selection.ids[0] ?? "";
 }
 

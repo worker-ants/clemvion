@@ -29,6 +29,21 @@ export interface McpServerRef {
   toolOverrides?: Array<{ toolName: string; description?: string }>;
 }
 
+/**
+ * Defaults for a freshly attached `McpServerRef` — "expose everything the
+ * server reports" per spec/5-system/11-mcp-client.md §5.6 default_true semantics.
+ * Shared with the workflow-assistant in-message picker
+ * (`buildPickerSubmissionValue` in assistant-message.tsx) so both UIs produce
+ * identical config shapes when the user picks an MCP server.
+ */
+export const MCP_SERVER_REF_DEFAULTS: Pick<
+  McpServerRef,
+  "includeResources" | "includePrompts"
+> = {
+  includeResources: true,
+  includePrompts: true,
+};
+
 interface Props {
   value: McpServerRef[];
   onChange: (value: McpServerRef[]) => void;
@@ -60,13 +75,7 @@ export function McpServerSelector({ value, onChange }: Props) {
   function add(integrationId: string) {
     onChange([
       ...safe,
-      {
-        integrationId,
-        // Default to "expose everything the server reports" — matches the
-        // default_true semantics in spec/5-system/11-mcp-client.md §5.6.
-        includeResources: true,
-        includePrompts: true,
-      },
+      { integrationId, ...MCP_SERVER_REF_DEFAULTS },
     ]);
     setPickerOpen(false);
   }

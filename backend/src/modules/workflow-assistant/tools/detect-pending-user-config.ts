@@ -49,6 +49,10 @@ const MULTI_SELECT_WIDGETS: ReadonlySet<UserActionWidget> =
  * meta 에 실릴 수 있는 값을 화이트리스트로 제한한다 (review W-4). 노드 스펙
  * 에 새 integration 종류가 생기면 여기 tuple 에만 추가하면 양 단의 타입/
  * validator 가 자동으로 갱신된다.
+ *
+ * **`'mcp'` 는 의도적으로 제외**: MCP 서버는 별도 widget
+ * (`mcp-server-selector`) 과 별도 lookup 메서드 (`lookupMcpServers`) 를 통해
+ * 직접 `service_type='mcp'` 로 필터되므로 이 hint 경로를 거치지 않는다.
  */
 export const SUPPORTED_INTEGRATION_SERVICE_TYPES = [
   'email',
