@@ -67,6 +67,7 @@ import { IntegrationExpiryDispatch } from './modules/integrations/entities/integ
 import { AuthConfig } from './modules/auth-configs/entities/auth-config.entity';
 import { Execution } from './modules/executions/entities/execution.entity';
 import { NodeExecution } from './modules/node-executions/entities/node-execution.entity';
+import { ExecutionNodeLog } from './modules/execution-engine/entities/execution-node-log.entity';
 import { WorkflowVersion } from './modules/workflow-versions/entities/workflow-version.entity';
 import { Notification } from './modules/notifications/entities/notification.entity';
 import { AuditLog } from './modules/audit-logs/entities/audit-log.entity';
@@ -82,6 +83,51 @@ import { GraphRelation } from './modules/knowledge-base/entities/relation.entity
 import { GraphChunkEntity } from './modules/knowledge-base/entities/chunk-entity.entity';
 import { WorkflowAssistantSession } from './modules/workflow-assistant/entities/workflow-assistant-session.entity';
 import { WorkflowAssistantMessage } from './modules/workflow-assistant/entities/workflow-assistant-message.entity';
+
+/**
+ * TypeORM root metadata 등록 대상. forFeature 로 module 이 Repository 를
+ * inject 받으려면 본 배열에도 entity 가 있어야 한다 (`autoLoadEntities`
+ * 미사용 정책). 새 entity 를 forFeature 에 등록하면 본 배열과
+ * `app.module.spec.ts` 의 REQUIRED 목록 두 곳을 함께 갱신한다 — 누락 시
+ * `No metadata for "<EntityName>" was found` 회귀 발생.
+ */
+export const ROOT_ENTITIES = [
+  User,
+  Workspace,
+  WorkspaceMember,
+  WorkspaceInvitation,
+  Workflow,
+  Folder,
+  Node,
+  Edge,
+  Trigger,
+  Schedule,
+  Integration,
+  IntegrationUsageLog,
+  IntegrationOAuthState,
+  IntegrationOAuthPreview,
+  IntegrationExpiryDispatch,
+  AuthConfig,
+  Execution,
+  NodeExecution,
+  ExecutionNodeLog,
+  WorkflowVersion,
+  Notification,
+  AuditLog,
+  RefreshToken,
+  AuthOAuthState,
+  LlmConfig,
+  LlmUsageLog,
+  KnowledgeBase,
+  Document,
+  DocumentChunk,
+  GraphEntity,
+  GraphRelation,
+  GraphChunkEntity,
+  AlertRule,
+  WorkflowAssistantSession,
+  WorkflowAssistantMessage,
+] as const;
 
 @Module({
   imports: [
@@ -110,42 +156,7 @@ import { WorkflowAssistantMessage } from './modules/workflow-assistant/entities/
         username: configService.get<string>('database.username'),
         password: configService.get<string>('database.password'),
         database: configService.get<string>('database.database'),
-        entities: [
-          User,
-          Workspace,
-          WorkspaceMember,
-          WorkspaceInvitation,
-          Workflow,
-          Folder,
-          Node,
-          Edge,
-          Trigger,
-          Schedule,
-          Integration,
-          IntegrationUsageLog,
-          IntegrationOAuthState,
-          IntegrationOAuthPreview,
-          IntegrationExpiryDispatch,
-          AuthConfig,
-          Execution,
-          NodeExecution,
-          WorkflowVersion,
-          Notification,
-          AuditLog,
-          RefreshToken,
-          AuthOAuthState,
-          LlmConfig,
-          LlmUsageLog,
-          KnowledgeBase,
-          Document,
-          DocumentChunk,
-          GraphEntity,
-          GraphRelation,
-          GraphChunkEntity,
-          AlertRule,
-          WorkflowAssistantSession,
-          WorkflowAssistantMessage,
-        ],
+        entities: [...ROOT_ENTITIES],
         synchronize: false,
         logging: process.env.NODE_ENV === 'development',
       }),
