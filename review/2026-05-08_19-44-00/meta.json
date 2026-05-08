@@ -1,0 +1,118 @@
+{
+  "timestamp": "2026-05-08T19:52:36.772981",
+  "files": [
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/backend/src/modules/execution-engine/context/execution-context.service.spec.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/backend/src/modules/execution-engine/context/execution-context.service.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/backend/src/modules/execution-engine/execution-engine.service.spec.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/backend/src/modules/execution-engine/execution-engine.service.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/backend/src/modules/execution-engine/utils/coerce-container-param.spec.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/backend/src/modules/execution-engine/utils/coerce-container-param.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/backend/src/nodes/core/node-handler.interface.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/plan/in-progress/expression-config-bug.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/spec/5-system/4-execution-engine.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    }
+  ],
+  "total_elapsed_seconds": 515.96,
+  "agents": [
+    {
+      "name": "database",
+      "status": "success",
+      "elapsed_seconds": 28.74
+    },
+    {
+      "name": "dependency",
+      "status": "success",
+      "elapsed_seconds": 56.22
+    },
+    {
+      "name": "architecture",
+      "status": "success",
+      "elapsed_seconds": 61.94
+    },
+    {
+      "name": "api_contract",
+      "status": "success",
+      "elapsed_seconds": 69.23
+    },
+    {
+      "name": "maintainability",
+      "status": "success",
+      "elapsed_seconds": 78.78
+    },
+    {
+      "name": "performance",
+      "status": "success",
+      "elapsed_seconds": 78.93
+    },
+    {
+      "name": "scope",
+      "status": "success",
+      "elapsed_seconds": 80.29
+    },
+    {
+      "name": "concurrency",
+      "status": "success",
+      "elapsed_seconds": 82.05
+    },
+    {
+      "name": "security",
+      "status": "success",
+      "elapsed_seconds": 88.44
+    },
+    {
+      "name": "documentation",
+      "status": "success",
+      "elapsed_seconds": 101.63
+    },
+    {
+      "name": "side_effect",
+      "status": "success",
+      "elapsed_seconds": 119.47
+    },
+    {
+      "name": "requirement",
+      "status": "success",
+      "elapsed_seconds": 133.78
+    },
+    {
+      "name": "testing",
+      "status": "success",
+      "elapsed_seconds": 200.73
+    }
+  ]
+}

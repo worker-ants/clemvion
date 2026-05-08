@@ -9,7 +9,22 @@
  * (Loop) or fallback-to-default (Parallel typeof guard).
  */
 
+/**
+ * Greedy `{{...}}` detector — any string containing the template marker
+ * pair anywhere is treated as an unresolved expression. This is intentional:
+ * a partially evaluated mixed string (e.g. `"prefix {{x}} suffix"`) cannot
+ * legally drive a typed action parameter and must surface an error rather
+ * than be silently coerced.
+ */
 const UNRESOLVED_EXPRESSION_PATTERN = /\{\{.*\}\}/;
+
+const INVALID_PARAM_PREFIX = 'INVALID_CONTAINER_PARAM';
+/** Truncate raw values in error messages to avoid leaking large secrets. */
+const ERROR_VALUE_PREVIEW_LIMIT = 100;
+
+function previewValue(value: unknown): string {
+  return JSON.stringify(value).slice(0, ERROR_VALUE_PREVIEW_LIMIT);
+}
 
 function unresolvedExpressionError(
   nodeType: string,
@@ -17,8 +32,8 @@ function unresolvedExpressionError(
   value: unknown,
 ): Error {
   return new Error(
-    `INVALID_CONTAINER_PARAM: ${nodeType}.${fieldName} carries an unresolved expression ` +
-      `${JSON.stringify(value)}. The engine expected an evaluated value but received the raw ` +
+    `${INVALID_PARAM_PREFIX}: ${nodeType}.${fieldName} carries an unresolved expression ` +
+      `${previewValue(value)}. The engine expected an evaluated value but received the raw ` +
       `template — engineResolvedConfigCache miss or expression-resolver bypass.`,
   );
 }
@@ -44,18 +59,23 @@ export function coerceContainerNumber(
     }
     if (trimmed === '') {
       throw new Error(
-        `INVALID_CONTAINER_PARAM: ${nodeType}.${fieldName} is an empty string.`,
+        `${INVALID_PARAM_PREFIX}: ${nodeType}.${fieldName} is an empty string.`,
       );
     }
     const n = Number(trimmed);
     if (Number.isFinite(n)) return n;
   }
   throw new Error(
-    `INVALID_CONTAINER_PARAM: ${nodeType}.${fieldName} = ${JSON.stringify(value)} is not a finite number.`,
+    `${INVALID_PARAM_PREFIX}: ${nodeType}.${fieldName} = ${previewValue(value)} is not a finite number.`,
   );
 }
 
-/** Same as {@link coerceContainerNumber} but returns `undefined` when the value is missing. */
+/**
+ * Same as {@link coerceContainerNumber} but returns `undefined` when the
+ * value is `undefined` or `null`. Note: the literal `0` is a valid finite
+ * number and DOES round-trip through the helper unchanged (not treated as
+ * "missing").
+ */
 export function coerceContainerNumberOptional(
   value: unknown,
   fieldName: string,
@@ -103,7 +123,7 @@ export function coerceErrorPolicy(
     }
   }
   throw new Error(
-    `INVALID_CONTAINER_PARAM: ${nodeType}.${fieldName} = ${JSON.stringify(value)} ` +
+    `${INVALID_PARAM_PREFIX}: ${nodeType}.${fieldName} = ${previewValue(value)} ` +
       `is not a valid error policy (expected one of: ${ERROR_POLICY_VALUES.join(', ')}).`,
   );
 }
@@ -135,6 +155,6 @@ export function coerceContainerBoolean(
     if (trimmed === 'false') return false;
   }
   throw new Error(
-    `INVALID_CONTAINER_PARAM: ${nodeType}.${fieldName} = ${JSON.stringify(value)} is not a boolean.`,
+    `${INVALID_PARAM_PREFIX}: ${nodeType}.${fieldName} = ${previewValue(value)} is not a boolean.`,
   );
 }

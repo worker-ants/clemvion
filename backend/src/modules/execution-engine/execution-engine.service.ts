@@ -92,6 +92,17 @@ interface ContainerBodyPlan {
 }
 
 /**
+ * Bounds for Parallel node config fields. `branchCount` is min 2 (single-
+ * branch Parallel makes no sense) and max 16 (sane upper bound on
+ * concurrent branch fan-out). `maxConcurrency` allows 0 as "unbounded
+ * within branchCount" (the executor maps 0 → branchCount internally).
+ */
+const PARALLEL_BRANCH_COUNT_MIN = 2;
+const PARALLEL_BRANCH_COUNT_MAX = 16;
+const PARALLEL_MAX_CONCURRENCY_MIN = 0;
+const PARALLEL_MAX_CONCURRENCY_MAX = 16;
+
+/**
  * Per-branch subgraph plan for the Parallel logic node.
  *
  * `bodyNodeIds` — nodes exclusive to this branch (reachable from this
@@ -2467,12 +2478,12 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
       // expressions; the flat cache preserves pre-migration engine internals.
       const adapted = adaptHandlerReturn(output);
       this.contextService.setStructuredOutput(executionId, node.id, adapted);
-      // engine-config-bug — Echo channel (structured.config = raw per
-      // Principle 7) and engine-side action-parameter channel are now
-      // separated. Container paths (runContainer/runParallel) read the
-      // evaluated snapshot from this cache instead of `structured.config`,
-      // which would otherwise be raw `{{...}}` and Number()/typeof checks
-      // would fail (Loop count → NaN, Parallel branchCount → silent default).
+      // Echo channel (structured.config = raw per Principle 7) and engine-
+      // side action-parameter channel are now separated. Container paths
+      // (runContainer/runParallel) read the evaluated snapshot from this
+      // cache instead of `structured.config`, which would otherwise be raw
+      // `{{...}}` and Number()/typeof checks would fail (Loop count → NaN,
+      // Parallel branchCount → silent default).
       this.contextService.setEngineResolvedConfig(
         executionId,
         node.id,
@@ -3629,6 +3640,28 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
    * sequential behavior applies (branch edges activate via `propagateReachability`
    * and run one-by-one through the main pointer loop).
    */
+
+  /**
+   * Read the post-expression-evaluation config snapshot for a container
+   * node. In the happy path the engine populated this cache right after the
+   * handler returned; if a caller bypasses `executeNode` (rare in prod but
+   * possible in test fixtures or future code paths) we fall back to the raw
+   * `node.config` and emit a warning so the regression is observable rather
+   * than silently coercing raw `{{...}}` templates downstream.
+   */
+  private readEngineResolvedConfig(
+    context: ExecutionContext,
+    node: Node,
+  ): Record<string, unknown> {
+    const cached = context.engineResolvedConfigCache?.[node.id];
+    if (cached) return cached;
+    this.logger.warn(
+      `engineResolvedConfigCache miss for node "${node.label ?? node.type}" (${node.id}); ` +
+        `falling back to raw node.config — expression-bearing fields will fail strict coercion.`,
+    );
+    return node.config ?? {};
+  }
+
   private async runParallel(
     parallelNode: Node,
     allNodes: Node[],
@@ -3644,24 +3677,24 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
     input: unknown,
   ): Promise<void> {
     const structured = context.structuredOutputCache?.[parallelNode.id];
-    // engine-config-bug — `structured?.config` carries the handler's raw
-    // echo per CONVENTIONS Principle 7 (`{{...}}` preserved). Reading raw
-    // here used to fail every typeof guard and silently fall back to
-    // defaults (branchCount=2, maxConcurrency=0, waitAll=true) for any
-    // expression input. The engine-resolved cache holds the evaluated values.
+    // `structured?.config` carries the handler's raw echo per CONVENTIONS
+    // Principle 7 (`{{...}}` preserved). Reading raw here used to fail every
+    // typeof guard and silently fall back to defaults (branchCount=2,
+    // maxConcurrency=0, waitAll=true) for any expression input. The engine-
+    // resolved cache holds the evaluated values.
     const echoConfig = structured?.config ?? parallelNode.config ?? {};
-    const engineResolvedConfig =
-      context.engineResolvedConfigCache?.[parallelNode.id] ??
-      parallelNode.config ??
-      {};
+    const engineResolvedConfig = this.readEngineResolvedConfig(
+      context,
+      parallelNode,
+    );
 
     const branchCount = Math.max(
-      2,
+      PARALLEL_BRANCH_COUNT_MIN,
       Math.min(
-        16,
+        PARALLEL_BRANCH_COUNT_MAX,
         Math.floor(
           coerceContainerNumber(
-            engineResolvedConfig.branchCount ?? 2,
+            engineResolvedConfig.branchCount ?? PARALLEL_BRANCH_COUNT_MIN,
             'branchCount',
             'parallel',
           ),
@@ -3675,8 +3708,14 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
     );
     const maxConcurrency =
       maxConcurrencyRaw === undefined
-        ? 0
-        : Math.max(0, Math.min(16, Math.floor(maxConcurrencyRaw)));
+        ? PARALLEL_MAX_CONCURRENCY_MIN
+        : Math.max(
+            PARALLEL_MAX_CONCURRENCY_MIN,
+            Math.min(
+              PARALLEL_MAX_CONCURRENCY_MAX,
+              Math.floor(maxConcurrencyRaw),
+            ),
+          );
     const waitAll = coerceContainerBoolean(
       engineResolvedConfig.waitAll,
       'waitAll',
@@ -3879,19 +3918,19 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
     };
 
     const structured = context.structuredOutputCache?.[containerNode.id];
-    // engine-config-bug — Two distinct config views are needed here:
-    //   * `echoConfig` (raw `{{ ... }}` per CONVENTIONS Principle 7) — preserved
-    //     in the final structuredOutputCache so `$node["X"].config` expressions
-    //     keep returning the original templates.
+    // Two distinct config views are needed here:
+    //   * `echoConfig` (raw `{{ ... }}` per CONVENTIONS Principle 7) —
+    //     preserved in the final structuredOutputCache so `$node["X"].config`
+    //     expressions keep returning the original templates.
     //   * `engineResolvedConfig` (expression-evaluated) — drives iteration
     //     parameters (`count`, `maxIterations`, `errorPolicy`). Reading raw
     //     here would feed Number()/typeof guards the un-evaluated string and
     //     produce NaN (Loop) or silent default fallback (Parallel).
     const echoConfig = structured?.config ?? containerNode.config ?? {};
-    const engineResolvedConfig =
-      context.engineResolvedConfigCache?.[containerNode.id] ??
-      containerNode.config ??
-      {};
+    const engineResolvedConfig = this.readEngineResolvedConfig(
+      context,
+      containerNode,
+    );
     let structuredOutput: Record<string, unknown>;
 
     if (containerNode.type === 'foreach') {

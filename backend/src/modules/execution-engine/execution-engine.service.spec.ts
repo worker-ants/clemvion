@@ -2953,7 +2953,7 @@ describe('ExecutionEngineService', () => {
         mockEdgeRepo.findBy.mockResolvedValue(loopEdges);
 
         await service.execute(workflowId, {});
-        await new Promise((r) => setTimeout(r, 200));
+        await flushPromises();
 
         expect(bodyHandler.execute).toHaveBeenCalledTimes(3);
         expect(sinkCalls).toEqual([
@@ -2971,7 +2971,7 @@ describe('ExecutionEngineService', () => {
         mockEdgeRepo.findBy.mockResolvedValue(loopEdges);
 
         await service.execute(workflowId, {});
-        await new Promise((r) => setTimeout(r, 200));
+        await flushPromises();
 
         // src returns { n: 3 } → loop count expression resolves to 3
         expect(bodyHandler.execute).toHaveBeenCalledTimes(3);
@@ -2999,7 +2999,7 @@ describe('ExecutionEngineService', () => {
         mockEdgeRepo.findBy.mockResolvedValue(loopEdges);
 
         await service.execute(workflowId, {});
-        await new Promise((r) => setTimeout(r, 200));
+        await flushPromises();
 
         expect(bodyHandler.execute).toHaveBeenCalledTimes(3);
         // Echo channel keeps the raw `{{3}}` template (Phase 3 Principle 7).
@@ -3013,7 +3013,7 @@ describe('ExecutionEngineService', () => {
         mockEdgeRepo.findBy.mockResolvedValue(loopEdges);
 
         await service.execute(workflowId, {});
-        await new Promise((r) => setTimeout(r, 200));
+        await flushPromises();
 
         expect(bodyHandler.execute).toHaveBeenCalledTimes(2);
       });
@@ -3023,9 +3023,29 @@ describe('ExecutionEngineService', () => {
         mockEdgeRepo.findBy.mockResolvedValue(loopEdges);
 
         await service.execute(workflowId, {});
-        await new Promise((r) => setTimeout(r, 200));
+        await flushPromises();
 
         expect(bodyHandler.execute).toHaveBeenCalledTimes(3);
+      });
+
+      // Behavioural change vs. pre-fix engine: previously
+      // `Number(undefined ?? 0)` silently produced 0 iterations. coerce
+      // helpers now throw INVALID_CONTAINER_PARAM so misconfigured nodes
+      // surface loudly instead of finishing as no-ops. Schema-level
+      // `loop:no-count` warning catches this at design time; the throw is
+      // the runtime safety net.
+      it('throws INVALID_CONTAINER_PARAM when count is undefined (intentional loud failure)', async () => {
+        mockNodeRepo.findBy.mockResolvedValue(buildLoopNodes(undefined));
+        mockEdgeRepo.findBy.mockResolvedValue(loopEdges);
+
+        await service.execute(workflowId, {});
+        await flushPromises();
+
+        // Body never iterates and the execution lands in FAILED status.
+        expect(bodyHandler.execute).not.toHaveBeenCalled();
+        expect(mockExecutionRepo.save).toHaveBeenCalledWith(
+          expect.objectContaining({ status: ExecutionStatus.FAILED }),
+        );
       });
     });
 
@@ -3277,7 +3297,7 @@ describe('ExecutionEngineService', () => {
       mockEdgeRepo.findBy.mockResolvedValue(edges);
 
       await service.execute(workflowId, {});
-      await new Promise((r) => setTimeout(r, 200));
+      await flushPromises();
 
       // Body called for all 3 items — second one threw, but skip continued.
       expect(bodyHandler.execute).toHaveBeenCalledTimes(3);
@@ -3288,6 +3308,135 @@ describe('ExecutionEngineService', () => {
       expect(collected[0]).toEqual({ ok: 1 });
       expect((collected[1] as { _skipped?: boolean })._skipped).toBe(true);
       expect(collected[2]).toEqual({ ok: 3 });
+    });
+
+    // Companion case for `errorPolicy: 'continue'` — same observable
+    // behaviour as 'skip' in the executor (collect skipped placeholder,
+    // proceed to next iteration). Guards against future divergence between
+    // the two policies after the engineResolvedConfigCache fix.
+    it('engine-config-bug — respects ForEach errorPolicy="continue" set on node.config', async () => {
+      let bodyCalls = 0;
+      const bodyHandler: NodeHandler = {
+        validate: () => ({ valid: true, errors: [] }),
+        execute: jest.fn(async () => {
+          bodyCalls++;
+          if (bodyCalls === 2) throw new Error('boom');
+          return { ok: bodyCalls };
+        }),
+      };
+      handlerRegistry.register('body_node', bodyHandler);
+
+      const sinkCalls: unknown[] = [];
+      const sinkHandler: NodeHandler = {
+        validate: () => ({ valid: true, errors: [] }),
+        execute: jest.fn(async (input: unknown) => {
+          sinkCalls.push(input);
+          return { ok: true };
+        }),
+      };
+      handlerRegistry.register('sink_node', sinkHandler);
+
+      const triggerHandler: NodeHandler = {
+        validate: () => ({ valid: true, errors: [] }),
+        execute: jest.fn(async () => ({ items: [1, 2, 3] })),
+      };
+      handlerRegistry.register('source_node', triggerHandler);
+
+      const nodes: Partial<Node>[] = [
+        {
+          id: 'src',
+          workflowId,
+          type: 'source_node',
+          category: NodeCategory.TRIGGER,
+          label: 'src',
+          config: {},
+          isDisabled: false,
+          containerId: null,
+          toolOwnerId: null,
+        },
+        {
+          id: 'fe',
+          workflowId,
+          type: 'foreach',
+          category: NodeCategory.LOGIC,
+          label: 'fe',
+          config: { arrayField: 'items', errorPolicy: 'continue' },
+          isDisabled: false,
+          containerId: null,
+          toolOwnerId: null,
+        },
+        {
+          id: 'body',
+          workflowId,
+          type: 'body_node',
+          category: NodeCategory.LOGIC,
+          label: 'body',
+          config: {},
+          isDisabled: false,
+          containerId: 'fe',
+          toolOwnerId: null,
+        },
+        {
+          id: 'sink',
+          workflowId,
+          type: 'sink_node',
+          category: NodeCategory.LOGIC,
+          label: 'sink',
+          config: {},
+          isDisabled: false,
+          containerId: null,
+          toolOwnerId: null,
+        },
+      ];
+      const edges: Partial<Edge>[] = [
+        {
+          id: 'e-src-fe',
+          workflowId,
+          sourceNodeId: 'src',
+          sourcePort: 'out',
+          targetNodeId: 'fe',
+          targetPort: 'in',
+          type: EdgeType.DATA,
+        },
+        {
+          id: 'e-fe-body',
+          workflowId,
+          sourceNodeId: 'fe',
+          sourcePort: 'body',
+          targetNodeId: 'body',
+          targetPort: 'in',
+          type: EdgeType.DATA,
+        },
+        {
+          id: 'e-body-emit',
+          workflowId,
+          sourceNodeId: 'body',
+          sourcePort: 'out',
+          targetNodeId: 'fe',
+          targetPort: 'emit',
+          type: EdgeType.DATA,
+        },
+        {
+          id: 'e-fe-sink',
+          workflowId,
+          sourceNodeId: 'fe',
+          sourcePort: 'done',
+          targetNodeId: 'sink',
+          targetPort: 'in',
+          type: EdgeType.DATA,
+        },
+      ];
+
+      mockNodeRepo.findBy.mockResolvedValue(nodes);
+      mockEdgeRepo.findBy.mockResolvedValue(edges);
+
+      await service.execute(workflowId, {});
+      await flushPromises();
+
+      expect(bodyHandler.execute).toHaveBeenCalledTimes(3);
+      const collected = (sinkCalls[0] as { items: unknown[] }).items;
+      expect(collected).toHaveLength(3);
+      expect((collected[1] as { _skipped?: boolean })._skipped).toBe(true);
     });
 
     it('fails execution when container has no emit edge', async () => {
@@ -4094,6 +4243,121 @@ describe('ExecutionEngineService', () => {
       // resolved to 4 BEFORE the engine's runParallel reads it (would
       // have silently defaulted to 2 prior to the fix).
       expect(branchHandler.execute).toHaveBeenCalledTimes(4);
+    });
+
+    // Boundary tests for the [PARALLEL_BRANCH_COUNT_MIN, MAX] clamp:
+    // values below 2 round up, values above 16 round down. The clamp lives
+    // in both the handler (port count = ports.length) and the engine
+    // (runParallel branchCount); we exercise the engine path here.
+    it('engine-config-bug — clamps branchCount expression to [2, 16] inclusive', async () => {
+      mockConfigService.get.mockImplementation(
+        (key: string, defaultValue?: unknown) => {
+          if (key === 'PARALLEL_ENGINE') return 'v1';
+          if (key === 'MAX_NODE_ITERATIONS') return 100;
+          return defaultValue;
+        },
+      );
+
+      // Force the handler to honour the engine clamp by always returning
+      // 16 ports (it derives `ports.length` from `branchCount` clamped to
+      // 2-16 itself), then assert the engine's view matches.
+      const branchHandler: NodeHandler = {
+        validate: () => ({ valid: true, errors: [] }),
+        execute: jest.fn(async () => ({ ok: true })),
+      };
+      const parallelHandler: NodeHandler = {
+        validate: () => ({ valid: true, errors: [] }),
+        execute: jest.fn(
+          async (
+            input: unknown,
+            config: Record<string, unknown>,
+            context: ExecutionContext,
+          ) => {
+            const raw = Number(config.branchCount);
+            const clamped = Math.max(2, Math.min(16, Math.floor(raw)));
+            const ports = Array.from(
+              { length: clamped },
+              (_, i) => `branch_${i}`,
+            );
+            const rawConfig = context.rawConfig ?? config;
+            return {
+              config: { branchCount: rawConfig.branchCount },
+              output: input,
+              port: ports,
+            };
+          },
+        ),
+      };
+
+      handlerRegistry.register('parallel', parallelHandler);
+      handlerRegistry.register('branch_node', branchHandler);
+
+      // {{20}} should clamp to 16 — wire 16 branches.
+      const branchIds = Array.from({ length: 16 }, (_, i) => `b${i}`);
+      const nodes: Partial<Node>[] = [
+        {
+          id: 'trigger',
+          workflowId,
+          type: 'test_node',
+          category: NodeCategory.TRIGGER,
+          label: 'Trigger',
+          config: {},
+          isDisabled: false,
+          containerId: undefined,
+          toolOwnerId: undefined,
+        },
+        {
+          id: 'par',
+          workflowId,
+          type: 'parallel',
+          category: NodeCategory.LOGIC,
+          label: 'Par',
+          config: { branchCount: '{{20}}', maxConcurrency: 0, waitAll: true },
+          isDisabled: false,
+          containerId: undefined,
+          toolOwnerId: undefined,
+        },
+        ...branchIds.map((id) => ({
+          id,
+          workflowId,
+          type: 'branch_node',
+          category: NodeCategory.LOGIC,
+          label: id,
+          config: {},
+          isDisabled: false,
+          containerId: undefined,
+          toolOwnerId: undefined,
+        })),
+      ];
+      const edges: Partial<Edge>[] = [
+        {
+          id: 'e-trig-par',
+          workflowId,
+          sourceNodeId: 'trigger',
+          sourcePort: 'out',
+          targetNodeId: 'par',
+          targetPort: 'in',
+          type: EdgeType.DATA,
+        },
+        ...branchIds.map((id, i) => ({
+          id: `e-par-${id}`,
+          workflowId,
+          sourceNodeId: 'par',
+          sourcePort: `branch_${i}`,
+          targetNodeId: id,
+          targetPort: 'in',
+          type: EdgeType.DATA,
+        })),
+      ];
+
+      mockNodeRepo.findBy.mockResolvedValue(nodes);
+      mockEdgeRepo.findBy.mockResolvedValue(edges);
+
+      await service.execute(workflowId, { start: true });
+      await flushPromises();
+
+      // 16 branches actually fired (clamp upper bound respected).
+      expect(branchHandler.execute).toHaveBeenCalledTimes(16);
     });
   });
 

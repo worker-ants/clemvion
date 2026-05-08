@@ -36,8 +36,17 @@ export interface ExecutionContext {
    *
    * NOT exposed to expression context: `$node[X].config` continues to surface
    * the raw echo so downstream templates preserve original `{{...}}` strings.
+   * The omission is enforced inside
+   * {@link ExpressionResolverService.buildExpressionContext} — handlers must
+   * never receive this field via the `$node[...]` namespace.
+   *
+   * Marked `Readonly` at both layers so handlers cannot mutate the cache
+   * (compile-time block in TS-strict; engine writes through the dedicated
+   * setter on `ExecutionContextService`).
    */
-  engineResolvedConfigCache?: Record<string, Record<string, unknown>>;
+  readonly engineResolvedConfigCache?: Readonly<
+    Record<string, Readonly<Record<string, unknown>>>
+  >;
   loopContext?: {
     index: number;
     count: number;

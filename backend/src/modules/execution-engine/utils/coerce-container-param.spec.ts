@@ -46,11 +46,14 @@ describe('coerceContainerNumber', () => {
     );
   });
 
-  it('throws for NaN / Infinity', () => {
+  it('throws for NaN / Infinity / -Infinity', () => {
     expect(() => coerceContainerNumber(NaN, 'count', 'loop')).toThrow(
       /not a finite number/,
     );
     expect(() => coerceContainerNumber(Infinity, 'count', 'loop')).toThrow(
+      /not a finite number/,
+    );
+    expect(() => coerceContainerNumber(-Infinity, 'count', 'loop')).toThrow(
       /not a finite number/,
     );
   });
@@ -63,15 +66,16 @@ describe('coerceContainerNumber', () => {
   });
 
   it('error message includes node type, field name, and value for debugging', () => {
-    try {
-      coerceContainerNumber('{{$var.n}}', 'branchCount', 'parallel');
-      fail('expected to throw');
-    } catch (e) {
-      const msg = (e as Error).message;
-      expect(msg).toContain('parallel');
-      expect(msg).toContain('branchCount');
-      expect(msg).toContain('{{$var.n}}');
-    }
+    expect.assertions(3);
+    expect(() =>
+      coerceContainerNumber('{{$var.n}}', 'branchCount', 'parallel'),
+    ).toThrow(/parallel/);
+    expect(() =>
+      coerceContainerNumber('{{$var.n}}', 'branchCount', 'parallel'),
+    ).toThrow(/branchCount/);
+    expect(() =>
+      coerceContainerNumber('{{$var.n}}', 'branchCount', 'parallel'),
+    ).toThrow(/\{\{\$var\.n\}\}/);
   });
 });
 
@@ -83,6 +87,17 @@ describe('coerceContainerNumberOptional', () => {
     expect(
       coerceContainerNumberOptional(null, 'maxIterations', 'loop'),
     ).toBeUndefined();
+  });
+
+  it('returns 0 unchanged (literal zero is NOT treated as missing)', () => {
+    // Guard against the falsy-trap: `value || undefined` would mistakenly
+    // drop a legitimate 0 (e.g. maxConcurrency=0 means "unbounded").
+    expect(coerceContainerNumberOptional(0, 'maxConcurrency', 'parallel')).toBe(
+      0,
+    );
+    expect(
+      coerceContainerNumberOptional('0', 'maxConcurrency', 'parallel'),
+    ).toBe(0);
   });
 
   it('delegates to coerceContainerNumber for all other inputs', () => {
@@ -141,6 +156,18 @@ describe('coerceContainerBoolean', () => {
     ).toThrow(/not a boolean/);
     expect(() =>
       coerceContainerBoolean('1', 'waitAll', 'parallel', false),
+    ).toThrow(/not a boolean/);
+  });
+
+  it('is case-sensitive — "TRUE"/"False" are rejected (avoid silent locale bugs)', () => {
+    // Document the contract explicitly: only the lowercase literals
+    // 'true' and 'false' parse. Anything else throws so case-insensitive
+    // string comparisons cannot leak in unnoticed.
+    expect(() =>
+      coerceContainerBoolean('TRUE', 'waitAll', 'parallel', false),
+    ).toThrow(/not a boolean/);
+    expect(() =>
+      coerceContainerBoolean('False', 'waitAll', 'parallel', true),
     ).toThrow(/not a boolean/);
   });
 
