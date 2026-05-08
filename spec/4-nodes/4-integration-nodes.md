@@ -72,31 +72,60 @@
 
 ### 2.3 출력 구조
 
+CONVENTIONS Principle 7 — `config` 는 워크플로 작성자가 입력한 **raw** 설정 (URL credential strip, `{{ ... }}` 보존), 평가 결과는 `output.*` 에 둔다 ([실행 엔진 §5.5 / §6.1](../5-system/4-execution-engine.md), [PRD ENG-RC-*](../../prd/3-node-system.md#11-노드-핸들러-실행-컨텍스트-engine-contract)). `output.requestBody` 는 실제로 wire 에 나간 평가된 본문 (256KB cap, 초과 시 `output.bodyTruncated: true`). `output.responseHeaders` 는 응답 헤더 — 자격증명-shape 헤더 (`Authorization`, `Cookie`, `Set-Cookie`, `X-Api-Key` 외 패턴) 의 값은 `[REDACTED]` 로 마스킹되어 노출.
+
 **Success 포트:**
 ```json
 {
-  "data": { "response_body": "..." },
-  "meta": {
-    "statusCode": 200,
-    "headers": { ... },
-    "duration_ms": 250
-  }
+  "config": {
+    "method": "POST",
+    "url": "https://api.example.com/users",
+    "authentication": "integration",
+    "integrationId": "…",
+    "body": { "user": "{{ $input.name }}" },
+    "bodyType": "json",
+    "headers": [],
+    "queryParams": [],
+    "responseType": "json",
+    "timeout": 30000,
+    "followRedirects": true,
+    "verifySsl": true
+  },
+  "output": {
+    "response": { "id": 42 },
+    "requestBody": { "user": "Alice" },
+    "requestBodyType": "json",
+    "responseHeaders": {
+      "content-type": "application/json",
+      "authorization": "[REDACTED]"
+    }
+  },
+  "meta": { "statusCode": 200, "duration": 250 },
+  "port": "success"
 }
 ```
 
-**Error 포트:**
+**Error 포트** (CONVENTIONS §3.2 — 표준 envelope, 본문은 디버깅 용이성을 위해 보존):
 ```json
 {
-  "error": {
-    "statusCode": 500,
-    "message": "Internal Server Error",
-    "body": { ... }
+  "config": { "method": "POST", "url": "https://api.example.com/users", "body": "{{ $input }}", "bodyType": "json" },
+  "output": {
+    "response": { "error": "boom" },
+    "requestBody": { "user": "Alice" },
+    "requestBodyType": "json",
+    "responseHeaders": { "content-type": "application/json" },
+    "error": {
+      "code": "HTTP_5XX",
+      "message": "HTTP 500 Internal Server Error",
+      "details": { "statusCode": 500, "statusText": "Internal Server Error", "url": "https://api.example.com/users", "method": "POST" }
+    }
   },
-  "meta": {
-    "duration_ms": 100
-  }
+  "meta": { "statusCode": 500, "duration": 100 },
+  "port": "error"
 }
 ```
+
+> Transport 실패 (네트워크 / 타임아웃) 시 `output.error.code = 'HTTP_TRANSPORT_FAILED'`, `meta.statusCode = 0`. Response 가 없으므로 `output.responseHeaders` 는 미포함하고 `output.requestBody` / `output.requestBodyType` 만 echo 된다.
 
 ### 2.4 설정 UI
 
@@ -203,31 +232,48 @@ SMTP를 통해 이메일을 발송한다.
 
 ### 4.3 출력 구조
 
+CONVENTIONS Principle 7 — `config` 는 워크플로 작성자가 입력한 **raw** 설정 (`{{ ... }}` 보존, 사용자가 입력한 string/array 형태 그대로), 평가 결과는 `output.*` 에 둔다. `output.subject` / `output.body` / `output.bodyType` 는 실제로 SMTP 에 보낸 평가된 값. `output.body` 는 256KB cap 이며 초과 시 `output.bodyTruncated: true`.
+
 성공 시:
 
 ```json
 {
-  "config": { "integrationId": "…", "to": [...], "cc": [...], "subject": "…", "bodyType": "text" },
+  "config": {
+    "integrationId": "…",
+    "to": "{{ $input.email }}",
+    "cc": [],
+    "bcc": [],
+    "subject": "Hello {{ $input.name }}",
+    "body": "Welcome {{ $input.name }}!",
+    "bodyType": "text",
+    "attachments": []
+  },
   "output": {
     "messageId": "<message-id@smtp.example.com>",
-    "accepted": ["user@example.com"],
-    "rejected": []
+    "accepted": ["alice@example.com"],
+    "rejected": [],
+    "subject": "Hello Alice",
+    "body": "Welcome Alice!",
+    "bodyType": "text"
   },
   "meta": { "durationMs": 820, "deliveryStatus": "sent" }
 }
 ```
 
-실패 시 (`port: 'error'`):
+실패 시 (`port: 'error'` — 본문은 디버깅 용이성을 위해 보존):
 
 ```json
 {
-  "config": { "integrationId": "…", "to": [...], "subject": "…" },
+  "config": { "integrationId": "…", "to": "{{ $input.email }}", "subject": "Hello {{ $input.name }}", "body": "Welcome {{ $input.name }}!", "bodyType": "text" },
   "output": {
+    "subject": "Hello Alice",
+    "body": "Welcome Alice!",
+    "bodyType": "text",
     "error": {
       "code": "INTEGRATION_NOT_CONNECTED",
       "message": "SMTP integration \"Company SMTP\" is in status \"expired\"",
       "details": {
-        "to": ["user@example.com"],
+        "to": ["alice@example.com"],
         "subject": "Welcome",
         "integrationCode": "INTEGRATION_NOT_CONNECTED"
       }
