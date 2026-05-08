@@ -697,7 +697,7 @@ Manual Trigger 핸들러의 `execute()` 출력은 항상 다음 형태이다:
 
 ## 10. Integration Handler 계약
 
-Integration 노드(HTTP, Database, Send Email, 등)를 처리하는 핸들러는 공통 베이스(`IntegrationHandlerBase`)를 통해 credential을 해소하고 호출 이력을 기록한다. 노드별 세부 동작은 [Spec Integration 노드 §10](../4-nodes/4-integration-nodes.md#10-handler-실행-세멘틱) 참조.
+Integration 노드(HTTP, Database, Send Email, 등)를 처리하는 핸들러는 공통 베이스(`IntegrationHandlerBase`)를 통해 credential을 해소하고 호출 이력을 기록한다. 노드별 세부 동작은 [Spec Integration 공통 §4](../4-nodes/4-integration/0-common.md#4-handler-실행-세멘틱) 참조.
 
 ### 10.1 IntegrationsService API (실행 엔진용)
 
@@ -747,7 +747,7 @@ class IntegrationHandlerBase {
 }
 ```
 
-`resolveIntegration` 실패 시 `IntegrationError(code, message)`를 throw하며 `code`는 [Spec Integration 노드 §10.2](../4-nodes/4-integration-nodes.md#102-공통-에러-코드) 공통 vocabulary를 사용한다.
+`resolveIntegration` 실패 시 `IntegrationError(code, message)`를 throw하며 `code`는 [Spec Integration 공통 §4.2](../4-nodes/4-integration/0-common.md#42-공통-에러-코드) 공통 vocabulary를 사용한다.
 
 ### 10.3 호출 순서
 

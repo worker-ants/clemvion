@@ -1,6 +1,6 @@
 # PRD: 노드 시스템
 
-> 관련 문서: [제품 개요](./0-overview.md) · [워크플로우 에디터](./2-workflow-editor.md) · [Spec 노드 개요](../spec/4-nodes/0-overview.md) · [Spec Logic 노드](../spec/4-nodes/1-logic-nodes.md) · [Spec Flow 노드](../spec/4-nodes/2-flow-nodes.md) · [Spec AI 노드](../spec/4-nodes/3-ai-nodes.md) · [Spec Integration 노드](../spec/4-nodes/4-integration-nodes.md) · [Spec Data 노드](../spec/4-nodes/5-data-nodes.md) · [Spec Presentation 노드](../spec/4-nodes/6-presentation-nodes.md)
+> 관련 문서: [제품 개요](./0-overview.md) · [워크플로우 에디터](./2-workflow-editor.md) · [Spec 노드 개요](../spec/4-nodes/0-overview.md) · [Spec Logic 노드](../spec/4-nodes/1-logic/0-common.md) · [Spec Flow 노드](../spec/4-nodes/2-flow/1-workflow.md) · [Spec AI 노드](../spec/4-nodes/3-ai/0-common.md) · [Spec Integration 노드](../spec/4-nodes/4-integration/0-common.md) · [Spec Data 노드](../spec/4-nodes/5-data/0-common.md) · [Spec Presentation 노드](../spec/4-nodes/6-presentation/0-common.md)
 
 ---
 

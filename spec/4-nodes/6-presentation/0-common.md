@@ -1,0 +1,197 @@
+# Spec: Presentation 노드 공통 규약
+
+> 관련 문서: [PRD Presentation 노드](../../../prd/3-node-system.md#8-presentation-노드-6종) · [Spec 노드 개요](../0-overview.md) · [Spec 노드 공통](../../3-workflow-editor/1-node-common.md) · [Spec 실행 엔진](../../5-system/4-execution-engine.md) · [Spec 실행/디버깅 §10 Run Results Drawer](../../3-workflow-editor/3-execution.md#10-run-results-drawer)
+
+본 문서는 Presentation 카테고리 노드 전체에 공통되는 규약을 정의한다. 노드별 동작·설정은 각 노드 문서를 참조한다.
+
+- [Carousel](./1-carousel.md)
+- [Table](./2-table.md)
+- [Chart](./3-chart.md)
+- [Form](./4-form.md)
+- [Template](./5-template.md)
+
+---
+
+## 1. ButtonDef 구조
+
+Carousel / Table / Chart / Template 노드가 공통으로 사용하는 버튼 정의 (Form 노드는 자체 FormField 구조를 사용).
+
+| 필드 | 타입 | 필수 | 설명 |
+|------|------|------|------|
+| id | String (UUID v4) | 자동 생성 | 불변 버튼 식별자. `port` 타입일 경우 동적 출력 포트 ID로 사용 |
+| label | String | ✓ | 버튼 텍스트 (`{{ }}` 표현식 지원) |
+| type | Enum | ✓ | `link` (외부 URL) / `port` (노드 포트 연결) |
+| url | String | type=link 시 ✓ | 외부 URL (`{{ }}` 표현식 지원) |
+| style | Enum | ✗ | `primary` / `secondary` / `outline` / `danger` (기본: `secondary`) |
+
+### 1.1 유효성 검증
+
+| 규칙 | 설명 |
+|------|------|
+| 버튼 라벨 필수 | 각 ButtonDef의 `label`은 비어있을 수 없음 |
+| link URL 필수 | `type: "link"`는 `url`이 필수 |
+| port에 URL 불가 | `type: "port"`는 `url` 설정 불가 |
+| 최대 버튼 수 | 노드당 최대 10개 |
+| 버튼 ID 고유 | 노드 내 모든 버튼 ID 유일 |
+| 미연결 port 경고 | port 타입 버튼의 동적 포트에 엣지 미연결 시 경고 (에러 아님) |
+
+## 2. 포트 토폴로지 (Non-blocking vs Blocking)
+
+ButtonDef 사용 노드(Carousel / Table / Chart / Template)는 `buttons` 배열의 유무로 포트 구성이 달라진다.
+
+**버튼 미설정 시 (기본):**
+
+| 포트 | 방향 | 식별자 | 설명 |
+|------|------|--------|------|
+| Input | 입력 | `in` | 입력 데이터 |
+| Output | 출력 | `out` | 노드 결과 출력 |
+
+**버튼 설정 시:**
+
+| 포트 | 방향 | 식별자 | 설명 |
+|------|------|--------|------|
+| Input | 입력 | `in` | 입력 데이터 |
+| Global Button Port | 출력 | `{button.id}` | 글로벌 port 타입 버튼마다 동적 생성 |
+| Item Button Port (Static) | 출력 | `{button.id}` | (Carousel) Static 모드: 각 아이템의 port 타입 버튼마다 개별 포트 생성. 포트 라벨: `"아이템 제목 › 버튼 라벨"` |
+| Item Button Port (Dynamic) | 출력 | `{itemButton.id}` | (Carousel) Dynamic 모드: `itemButtons` 정의의 port 타입 버튼마다 포트 생성. 런타임에 아이템별 고유 ID(`{id}__item_{idx}`)가 생성되나, 포트 라우팅은 원래 정의 ID로 수행 |
+| Continue | 출력 | `continue` | **link 타입 버튼만 존재**할 경우 자동 생성 |
+
+> `out` 포트는 버튼 설정 시 **제거**된다. port 타입 버튼의 동적 포트가 출력을 대체한다. link 타입 버튼만 존재할 경우 `continue` 포트가 `out`을 대체한다.
+
+## 3. Blocking Mode 실행 흐름
+
+ButtonDef 사용 노드는 `buttons`(또는 Carousel 의 아이템 버튼)이 하나라도 있으면 **Blocking Mode** 로 진입한다.
+
+1. 글로벌 버튼 + 모든 아이템 버튼을 합쳐서 `buttonConfig.buttons`에 포함
+2. (Carousel 의 동적 모드) 아이템 버튼 ID → 아이템 인덱스 매핑을 `buttonConfig.buttonItemMap`에 저장
+3. 렌더링 출력을 `NodeExecution.output_data`에 저장
+4. `NodeExecution.status` = `waiting_for_input`, `Execution.status` = `waiting_for_input`
+5. WS 이벤트 `execution.waiting_for_input` 발행 (`interactionType: "buttons"`, `buttonConfig` 포함)
+6. 사용자 인터랙션 대기 (외부 cancel/종료 전까지 무제한 대기):
+   - **글로벌 port 버튼 클릭** → 해당 버튼의 동적 포트(`{button.id}`)로 데이터 전달
+   - **아이템 port 버튼 클릭** → 해당 포트로 데이터 전달 + `selectedItem` 필드에 아이템 데이터 포함. Dynamic 모드의 경우 런타임 ID(`{id}__item_{idx}`)에서 원래 정의 ID를 추출하여 포트 라우팅에 사용
+   - **Continue 클릭** (link 전용 시) → `continue` 포트로 렌더링 출력 전달
+7. `NodeExecution.interaction_data`에 클릭 정보 기록
+8. `buttonConfig`는 실행 결과에 보존하여 실행 내역 페이지에서 모든 버튼을 표시 가능
+
+> **포트 라우팅 메타데이터**: 버튼 클릭 시 output에 `_selectedPort`가 설정되어 엣지 기반 라우팅에 사용된다. 이 메타데이터는 다운스트림 노드의 input으로 전달될 때 자동으로 제거되어, pass-through 노드(Variable 등)를 거쳐도 이후 노드가 잘못 skip되지 않는다.
+
+## 4. 출력 포맷 (Principle 1.1 / 4.3 / 4.5)
+
+Presentation 노드 출력은 다음 원칙을 따른다:
+
+- `output` 에는 **런타임 생성값** (items / rows / data / rendered 등) 만 담는다. layout / mode / titleField / pageSize / chartType 등 **리터럴 config 값은 echo 하지 않는다**. 후속 노드/UI 는 `$node["X"].config.*` 에서 읽는다.
+- 노드 판별용 `type: 'carousel' | 'table' | 'chart' | 'form' | 'template'` 래퍼는 사용하지 않는다 (Principle 1.1.4).
+
+### 4.1 Waiting (Blocking 모드 진입)
+
+`status:'waiting_for_input'` + 위 `output` 유지. Form 노드는 `output: {}` (빈 객체).
+
+### 4.2 Resumed (버튼 클릭 / 폼 제출 후)
+
+CONVENTIONS §4.5 의 `interaction` 규격:
+
+```json
+{
+  "output": {
+    /* 직전 스냅샷 유지 */
+    "interaction": {
+      "type": "button_click | button_continue | form_submitted",
+      "data": { /* 노드별 클릭/제출 데이터 */ },
+      "receivedAt": "2026-04-06T10:30:00Z"
+    }
+  },
+  "status": "resumed",
+  "port": "<port-id>"
+}
+```
+
+| `interaction.type` | 트리거 | `data` 예시 |
+|---------------------|--------|-------------|
+| `button_click` | port 타입 버튼 클릭 | `{ buttonId, buttonLabel, selectedItem? }` |
+| `button_continue` | link 전용 시 Continue 클릭 | `{ buttonId, buttonLabel, url }` |
+| `form_submitted` | Form 제출 | `{ <field>: <value>, ... }` |
+
+> `selectedItem` 은 per-item 버튼(동적 item 버튼) 클릭 시에만 `data` 에 포함된다. 엔진은 per-item 버튼 ID 를 `${buttonId}__item_${index}` 형태로 생성하고, 라우팅 시 접미사를 제거해 원본 포트(`buttonId`) 로 연결한다.
+
+> 이전 초안의 `output.type: 'form'`, `output.submittedData`, `output.format`, `output.content`, `previousOutput` 등의 필드는 **폐기**. Principle 1.1.4 (판별자 금지) 와 §4.5 (interaction payload) 를 따른다.
+
+---
+
+## 5. 캔버스 요약
+
+각 Presentation 노드가 캔버스에 표시하는 설정 요약 텍스트 포맷. ([캔버스 §5.3](../../3-workflow-editor/0-canvas.md#53-노드-설정-요약-configuration-summary) 참조)
+
+| 노드 | 요약 포맷 | 예시 |
+|------|-----------|------|
+| Carousel (버튼 없음) | `{layout} · {titleField}` | `card · name` |
+| Carousel (버튼 있음) | `{layout} · {N} buttons` | `card · 3 buttons` |
+| Table (버튼 없음) | `{N} columns`. pagination 활성화 시 `· pagination` 추가 | `3 columns · pagination` |
+| Table (버튼 있음) | `{N} columns · {N} buttons` | `3 columns · 2 buttons` |
+| Chart (버튼 없음) | `{chartType} · {xAxis.field} / {yAxis.field}` | `bar · month / revenue` |
+| Chart (버튼 있음) | `{chartType} · {N} buttons` | `bar · 2 buttons` |
+| Form | `{N} fields · "{title}"` (필드 수 + 폼 제목) | `3 fields · "Approval"` |
+| Template (버튼 없음) | `{outputFormat} · {N} lines` (템플릿 줄 수) | `html · 9 lines` |
+| Template (버튼 있음) | `{outputFormat} · {N} buttons` | `html · 2 buttons` |
+
+---
+
+## 6. Run Results Drawer 렌더링
+
+각 Presentation 노드가 실행 완료 후 Run Results Drawer의 **채팅형 히스토리 항목**으로 렌더링되는 방식. 히스토리는 실행 순서대로 누적되며, 각 항목은 접기/펼치기 가능하다. ([실행/디버깅 §10 Run Results Drawer](../../3-workflow-editor/3-execution.md#10-run-results-drawer) 참조)
+
+### 6.1 Carousel
+
+| 항목 | 설명 |
+|------|------|
+| 렌더링 | `output.items` 배열을 `layout` 설정에 따라 카드/이미지/미니멀 형태로 표시 |
+| 인터랙션 | 좌/우 화살표로 슬라이드 탐색. 현재 슬라이드 인디케이터 (예: 3/10) |
+| 이미지 | `imageField` 지정 시 이미지 렌더링. 로드 실패 시 placeholder |
+| 빈 데이터 | "No items to display" 메시지 |
+| **버튼 대기 중** (`waiting_for_input`) | 카드 리스트 아래 **버튼 바** 표시. port 버튼 클릭 시 `execution.click_button` WS 명령 전송 → 해당 포트로 실행 재개. link 버튼 클릭 시 새 탭에서 URL 열기 (실행 상태 변경 없음). link 전용 시 `[Continue →]` 암시적 버튼 표시 → `__continue__` ID로 WS 명령. 버튼 클릭 시까지 무제한 대기 (외부 cancel/종료 외에는 타임아웃 없음) |
+| **버튼 클릭 후** | "Button clicked: {label}" + 클릭 시각, 클릭자 정보 표시 |
+
+### 6.2 Table
+
+| 항목 | 설명 |
+|------|------|
+| 렌더링 | `output.columns`와 `output.rows`를 테이블로 표시 |
+| 인터랙션 | `sortable` 컬럼 헤더 클릭 시 정렬 토글 (asc/desc). 페이지네이션 컨트롤 |
+| 포맷팅 | `format` 지정된 컬럼은 날짜/숫자 포맷 적용 |
+| 빈 데이터 | 컬럼 헤더만 표시 + "No data" 행 |
+| 대량 데이터 | 페이지네이션 강제 (최대 200행/페이지) |
+| **버튼 대기 중** (`waiting_for_input`) | 테이블 아래 **버튼 바** 표시. Carousel §6.1 버튼 대기와 동일한 인터랙션 |
+| **버튼 클릭 후** | Carousel §6.1 버튼 클릭 후와 동일 |
+
+### 6.3 Chart
+
+| 항목 | 설명 |
+|------|------|
+| 렌더링 | `output.rendered` SVG를 인터랙티브 차트로 표시 |
+| 인터랙션 | 데이터 포인트 호버 시 값 툴팁. 범례 표시. 축 라벨 |
+| 차트 타입 | bar/line/area: X-Y 축 차트. pie/donut: 라벨-값 차트 |
+| 빈 데이터 | 축만 표시된 빈 차트 + "No data" 메시지 |
+| 리사이즈 | 드로어 크기 변경 시 차트 반응형 리사이즈 |
+| **버튼 대기 중** (`waiting_for_input`) | 차트 아래 **버튼 바** 표시. Carousel §6.1 버튼 대기와 동일한 인터랙션 |
+| **버튼 클릭 후** | Carousel §6.1 버튼 클릭 후와 동일 |
+
+### 6.4 Form
+
+| 항목 | 설명 |
+|------|------|
+| 대기 중 (`waiting_for_input`) | 실제 폼 UI 렌더링 — 제목, 설명(Markdown), 필드 목록, 제출 버튼. 필드 유효성 검증 실시간 적용 |
+| 파일 업로드 | `type: file` 필드는 드래그앤드롭 + 파일 선택 UI. MIME/크기 제한 실시간 검증 |
+| 제출 | 제출 버튼 클릭 → `execution.submit_form` WebSocket 명령 전송 → 검증 실패 시 에러 표시, 성공 시 실행 재개 |
+| 제출 후 | 제출된 데이터를 키-값 테이블로 표시. 제출 시각, 제출자 정보 포함 |
+| 대기 정책 | 폼 submit 시까지 무제한 대기 (외부 cancel/종료 외에는 타임아웃이 발생하지 않음) |
+
+### 6.5 Template
+
+| 항목 | 설명 |
+|------|------|
+| HTML 출력 | 샌드박스 iframe 내에서 렌더링. 외부 스크립트 실행 차단 |
+| Markdown 출력 | Markdown → HTML 변환 후 렌더링 |
+| Text 출력 | 코드 블록(`<pre>`) 형태로 표시 |
+| 빈 결과 | "Empty output" 메시지 |
+| **버튼 대기 중** (`waiting_for_input`) | 렌더링된 콘텐츠 아래 **버튼 바** 표시. Carousel §6.1 버튼 대기와 동일한 인터랙션 |
+| **버튼 클릭 후** | Carousel §6.1 버튼 클릭 후와 동일 |

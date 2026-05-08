@@ -72,11 +72,11 @@ PRD 에서는 `ENG-RC-01` (엔진의 `rawConfig` 노출), `ENG-RC-02` (핸들러
 - `schema.ts` — output schema 에 12개 raw config 필드 + 4개 신규 output 필드 반영.
 - `handler.spec.ts` — 56 + ENG-RC-* describe 7 케이스 (raw vs evaluated 직교성, GET no-body / body:null / x-www-form-urlencoded, 민감 헤더 마스킹, 256KB cap, non-2xx + transport-error 의 본문 보존).
 
-**Spec 갱신** (`spec/4-nodes/4-integration-nodes.md`):
-- §1.3 공통 출력 구조 — 평탄 `data`/`meta` 표기를 nested `config`/`output`/`meta`/`port` envelope 로 교정.
-- §2.3 HTTP Request — outdated `data`/`error` 표기 nested 형태로 교정 + requestBody / requestBodyType / responseHeaders 신규 필드 반영. transport-error 시 responseHeaders 미포함 명시.
-- §4.3 Send Email — config raw / output evaluated 직교성 + subject/body/bodyType 추가.
-- §6.3 Send Email Handler — transport 캐시 재사용 정정 + 반환 shape 를 §4.3 정본 참조로 대체.
+**Spec 갱신** (`spec/4-nodes/4-integration/`):
+- `0-common.md` §3 공통 출력 구조 — 평탄 `data`/`meta` 표기를 nested `config`/`output`/`meta`/`port` envelope 로 교정.
+- `1-http-request.md` §3 — outdated `data`/`error` 표기 nested 형태로 교정 + requestBody / requestBodyType / responseHeaders 신규 필드 반영. transport-error 시 responseHeaders 미포함 명시.
+- `3-send-email.md` §3 — config raw / output evaluated 직교성 + subject/body/bodyType 추가.
+- `3-send-email.md` §5 Handler — transport 캐시 재사용 정정 + 반환 shape 를 §3 정본 참조로 대체.
 
 **검증**: lint clean / 169 suite 2778 unit pass / build clean. ai-review 결과 — Critical 0 / Warning 16 / Info 15 중 Phase 2 scope 내 12건 즉시 조치 (Security 2 + Requirement 1 + Architecture 3 + Testing 4 + Documentation 4) + 9건 deferred (정책 결정 / 광범위 리팩터 / 미세 최적화). 상세는 `review/2026-05-08_15-05-03/RESOLUTION.md`.
 

@@ -184,12 +184,12 @@
 | [PRD 2: 에디터](../prd/2-workflow-editor.md) ED-AI-* | [Spec 3-workflow-editor/4: AI Assistant](./3-workflow-editor/4-ai-assistant.md) |
 | [PRD 6: AI 플랫폼](../prd/6-phase2-ai.md) §3.6 (Workflow AI Assistant) | [Spec 3-workflow-editor/4: AI Assistant](./3-workflow-editor/4-ai-assistant.md) + [Spec 5-system/7 §8: 스트리밍](./5-system/7-llm-client.md#8-스트리밍-streaming) |
 | [PRD 3: 노드 시스템](../prd/3-node-system.md) ND-CM-* | [Spec 4-nodes/0: 노드 개요](./4-nodes/0-overview.md) |
-| [PRD 3: 노드 시스템](../prd/3-node-system.md) ND-IF~ND-BG | [Spec 4-nodes/1: Logic 노드](./4-nodes/1-logic-nodes.md) |
-| [PRD 3: 노드 시스템](../prd/3-node-system.md) ND-WF-* | [Spec 4-nodes/2: Flow 노드](./4-nodes/2-flow-nodes.md) |
-| [PRD 3: 노드 시스템](../prd/3-node-system.md) ND-AG~ND-IE | [Spec 4-nodes/3: AI 노드](./4-nodes/3-ai-nodes.md) |
-| [PRD 3: 노드 시스템](../prd/3-node-system.md) ND-HR~ND-GD | [Spec 4-nodes/4: Integration 노드](./4-nodes/4-integration-nodes.md) |
-| [PRD 3: 노드 시스템](../prd/3-node-system.md) ND-TF~ND-CD | [Spec 4-nodes/5: Data 노드](./4-nodes/5-data-nodes.md) |
-| [PRD 3: 노드 시스템](../prd/3-node-system.md) ND-CL~ND-PD | [Spec 4-nodes/6: Presentation 노드](./4-nodes/6-presentation-nodes.md) |
+| [PRD 3: 노드 시스템](../prd/3-node-system.md) ND-IF~ND-BG | [Spec 4-nodes/1-logic](./4-nodes/1-logic/0-common.md) |
+| [PRD 3: 노드 시스템](../prd/3-node-system.md) ND-WF-* | [Spec 4-nodes/2-flow](./4-nodes/2-flow/1-workflow.md) |
+| [PRD 3: 노드 시스템](../prd/3-node-system.md) ND-AG~ND-IE | [Spec 4-nodes/3-ai](./4-nodes/3-ai/0-common.md) |
+| [PRD 3: 노드 시스템](../prd/3-node-system.md) ND-HR~ND-GD | [Spec 4-nodes/4-integration](./4-nodes/4-integration/0-common.md) |
+| [PRD 3: 노드 시스템](../prd/3-node-system.md) ND-TF~ND-CD | [Spec 4-nodes/5-data](./4-nodes/5-data/0-common.md) |
+| [PRD 3: 노드 시스템](../prd/3-node-system.md) ND-CL~ND-PD | [Spec 4-nodes/6-presentation](./4-nodes/6-presentation/0-common.md) |
 | [PRD 4: 통합/연동](../prd/4-integration.md) INT-*, KB-*, MP-* | Spec 2-navigation 해당 화면 + [Spec 1: 데이터 모델](./1-data-model.md) |
 | [PRD 5: 비기능](../prd/5-non-functional.md) NF-SC-* | [Spec 5-system/1: 인증/인가](./5-system/1-auth.md) |
 | [PRD 5: 비기능](../prd/5-non-functional.md) NF-* | [Spec 5-system/2: API 규칙](./5-system/2-api-convention.md), [Spec 5-system/3: 에러 처리](./5-system/3-error-handling.md) |
