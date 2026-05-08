@@ -16,17 +16,53 @@ import { assertSafeOutboundUrl } from './http-safety.js';
 import { httpRequestNodeMetadata } from './http-request.schema.js';
 
 /**
- * Strip embedded `user:password@` credentials from a URL before echoing it
- * on `NodeHandlerOutput.config` (CONVENTIONS §7 — sanitisation of URL-level
- * credentials). If the URL fails to parse we fall back to a regex strip so
- * malformed user input still gets redacted.
+ * Strip URL-borne credentials before echoing on `NodeHandlerOutput.config`
+ * or inside `output.error.details.url` (CONVENTIONS §7).
+ *
+ * Two attack surfaces:
+ *  1. `user:password@host` userinfo segment — replaced with empty strings.
+ *  2. `?api_key=…` / `?token=…` style query-string secrets — many APIs
+ *     accept credentials this way (Stripe webhook signing, S3 presigned
+ *     URLs, etc.). Without this redaction, a 4xx/5xx response would land
+ *     the raw secret on the NodeExecution row, expression cache, and
+ *     websocket event.
+ *
+ * Falls back to a regex userinfo strip on parse failure so malformed input
+ * still gets some protection.
  */
+const QUERY_PARAM_BLACKLIST = new Set<string>([
+  'api_key',
+  'apikey',
+  'access_token',
+  'accesstoken',
+  'auth_token',
+  'authtoken',
+  'token',
+  'secret',
+  'password',
+  'sig',
+  'signature',
+  'x-amz-security-token',
+  'x-amz-signature',
+]);
+
 function sanitizeUrlCredentials(raw: string): string {
   try {
     const parsed = new URL(raw);
     if (parsed.username || parsed.password) {
       parsed.username = '';
       parsed.password = '';
+    }
+    if (parsed.searchParams.size > 0) {
+      // Mutating searchParams during iteration is awkward; collect the
+      // sensitive keys first.
+      const sensitive: string[] = [];
+      for (const key of parsed.searchParams.keys()) {
+        if (QUERY_PARAM_BLACKLIST.has(key.toLowerCase())) sensitive.push(key);
+      }
+      for (const key of sensitive) {
+        parsed.searchParams.set(key, '[REDACTED]');
+      }
     }
     return parsed.toString();
   } catch {
@@ -113,20 +149,9 @@ export class HttpRequestHandler
       typeof rawConfig.url === 'string'
         ? sanitizeUrlCredentials(rawConfig.url)
         : rawConfig.url;
-    const buildConfigEcho = (): Record<string, unknown> => ({
-      method: rawConfig.method,
-      url: rawUrl,
-      authentication: rawConfig.authentication,
-      integrationId: rawConfig.integrationId,
-      headers: rawConfig.headers,
-      queryParams: rawConfig.queryParams,
-      body: rawConfig.body,
-      bodyType: rawConfig.bodyType,
-      responseType: rawConfig.responseType,
-      timeout: rawConfig.timeout,
-      followRedirects: rawConfig.followRedirects,
-      verifySsl: rawConfig.verifySsl,
-    });
+    // Spread + URL override — adding a new schema field is automatically
+    // echoed without a maintenance step here (review W-6).
+    const configEcho: Record<string, unknown> = { ...rawConfig, url: rawUrl };
 
     // The evaluated body reflects what was actually sent (after expression
     // substitution). For `form-data` we record the multipart parts as a
@@ -308,25 +333,16 @@ export class HttpRequestHandler
         });
       }
 
-      const configEcho = buildConfigEcho();
       const responseHeaders = sanitizeResponseHeaders(res.headers);
-      const requestBodyOutput = (): Record<string, unknown> => ({
-        ...(cappedRequestBody.value !== undefined
-          ? { requestBody: cappedRequestBody.value }
-          : {}),
-        ...(rawConfig.bodyType !== undefined
-          ? { requestBodyType: rawConfig.bodyType }
-          : {}),
-        ...(cappedRequestBody.truncated ? { bodyTruncated: true } : {}),
+      const bodyFields = buildBodyOutputFields(
+        cappedRequestBody,
+        bodyType,
         responseHeaders,
-      });
+      );
       if (res.ok) {
         return {
           config: configEcho,
-          output: {
-            response: responseData,
-            ...requestBodyOutput(),
-          },
+          output: { response: responseData, ...bodyFields },
           meta,
           port: 'success',
         };
@@ -340,7 +356,7 @@ export class HttpRequestHandler
         config: configEcho,
         output: {
           response: responseData,
-          ...requestBodyOutput(),
+          ...bodyFields,
           error: {
             code: res.status >= 500 ? 'HTTP_5XX' : 'HTTP_4XX',
             message: `HTTP ${res.status} ${res.statusText}`,
@@ -367,21 +383,15 @@ export class HttpRequestHandler
           error: { code: 'HTTP_TRANSPORT_FAILED', message },
         });
       }
-      const configEcho = buildConfigEcho();
+      // Transport failures don't carry a Response, so `responseHeaders` is
+      // omitted. Downstream nodes can detect this via `port === 'error'`
+      // + `error.code === 'HTTP_TRANSPORT_FAILED'`.
+      const bodyFields = buildBodyOutputFields(cappedRequestBody, bodyType);
       return {
         config: configEcho,
         output: {
           response: { error: message },
-          ...(cappedRequestBody.value !== undefined
-            ? { requestBody: cappedRequestBody.value }
-            : {}),
-          ...(rawConfig.bodyType !== undefined
-            ? { requestBodyType: rawConfig.bodyType }
-            : {}),
-          ...(cappedRequestBody.truncated ? { bodyTruncated: true } : {}),
-          // Transport failures don't carry a Response, so responseHeaders is
-          // absent. Downstream nodes can detect this via `port === 'error'`
-          // + `error.code === 'HTTP_TRANSPORT_FAILED'`.
+          ...bodyFields,
           error: {
             code: 'HTTP_TRANSPORT_FAILED',
             message,
@@ -393,6 +403,26 @@ export class HttpRequestHandler
       };
     }
   }
+}
+
+/**
+ * Shared `output.*` body-related fields builder. Used at all three return
+ * sites (success / non-2xx / transport error) so the contract stays
+ * lock-step. `requestBodyType` carries the **evaluated** type (with the
+ * `'json'` schema default applied) — Principle 7 + review W-5.
+ */
+function buildBodyOutputFields(
+  capped: { value: unknown; truncated: boolean },
+  evaluatedBodyType: string,
+  responseHeaders?: Record<string, string>,
+): Record<string, unknown> {
+  const fields: Record<string, unknown> = {
+    requestBodyType: evaluatedBodyType,
+  };
+  if (capped.value !== undefined) fields.requestBody = capped.value;
+  if (capped.truncated) fields.bodyTruncated = true;
+  if (responseHeaders !== undefined) fields.responseHeaders = responseHeaders;
+  return fields;
 }
 
 /**

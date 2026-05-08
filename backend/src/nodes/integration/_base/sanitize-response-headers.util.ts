@@ -30,6 +30,10 @@ const EXACT_BLACKLIST = new Set<string>([
   'x-auth-token',
   'x-csrf-token',
   'x-amz-security-token',
+  // 3xx redirect target — surfacing the next URL on `output.responseHeaders`
+  // would re-introduce the URL-credential leak that sanitizeUrlCredentials
+  // guards against on `output.error.details.url`. Keep symmetry.
+  'location',
 ]);
 
 const SUBSTRING_BLACKLIST = [
