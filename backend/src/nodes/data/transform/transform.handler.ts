@@ -130,7 +130,7 @@ export class TransformHandler implements NodeHandler {
   execute(
     input: unknown,
     config: Record<string, unknown>,
-    _context: ExecutionContext,
+    context: ExecutionContext,
   ): Promise<unknown> {
     const operations = config.operations as TransformOperation[];
     let data = structuredClone(input) as Record<string, unknown>;
@@ -139,7 +139,17 @@ export class TransformHandler implements NodeHandler {
       data = this.applyOperation(data, op);
     }
 
-    return Promise.resolve({ config: { operations }, output: data });
+    // CONVENTIONS Principle 7 — config echoes raw operations (per-op `field`
+    // / `value` / `args` may carry `{{ ... }}` templates). The runtime
+    // mutations above used the evaluated `operations` from the resolved
+    // `config`.
+    const rawConfig = (context.rawConfig ?? config) as {
+      operations?: TransformOperation[];
+    };
+    return Promise.resolve({
+      config: { operations: rawConfig.operations ?? operations },
+      output: data,
+    });
   }
 
   private applyOperation(
