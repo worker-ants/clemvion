@@ -2461,6 +2461,17 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
       // expressions; the flat cache preserves pre-migration engine internals.
       const adapted = adaptHandlerReturn(output);
       this.contextService.setStructuredOutput(executionId, node.id, adapted);
+      // engine-config-bug — Echo channel (structured.config = raw per
+      // Principle 7) and engine-side action-parameter channel are now
+      // separated. Container paths (runContainer/runParallel) read the
+      // evaluated snapshot from this cache instead of `structured.config`,
+      // which would otherwise be raw `{{...}}` and Number()/typeof checks
+      // would fail (Loop count → NaN, Parallel branchCount → silent default).
+      this.contextService.setEngineResolvedConfig(
+        executionId,
+        node.id,
+        resolvedConfig,
+      );
       const flatForCache = toEngineFlatShape(adapted);
 
       // If handler returned port-based output ({ port, data }), set _selectedPort
