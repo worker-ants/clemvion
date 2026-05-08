@@ -494,6 +494,15 @@ export class AiAgentHandler implements NodeHandler {
     const maxToolCalls = (config.maxToolCalls as number) || 10;
     const conditions = (config.conditions as ConditionDef[]) || [];
 
+    // CONVENTIONS Principle 7 — config echoes raw user input
+    // (systemPrompt / userPrompt / per-condition prompt may be `{{ ... }}`
+    // templates). Engine resolves expressions before dispatch so the local
+    // variables hold evaluated values for runtime LLM calls. Tool-connection
+    // fields (`toolNodeIds` / `toolOverrides`) are out of scope per the
+    // tool-connection-rewrite plan; the rest of the config schema is
+    // covered.
+    const rawConfig = context.rawConfig ?? config;
+
     const workspaceId = (context.variables?.__workspaceId as string) || '';
     const llmConfig = await this.llmService.resolveConfig(
       llmConfigId,
@@ -725,11 +734,18 @@ export class AiAgentHandler implements NodeHandler {
     return {
       config: {
         mode: 'single_turn' as const,
-        model: model ?? llmConfig.defaultModel,
-        systemPrompt,
-        userPrompt,
-        responseFormat,
-        ...(conditions.length > 0 ? { conditions } : {}),
+        model: rawConfig.model ?? model ?? llmConfig.defaultModel,
+        systemPrompt: rawConfig.systemPrompt ?? systemPrompt,
+        userPrompt: rawConfig.userPrompt ?? userPrompt,
+        responseFormat: rawConfig.responseFormat ?? responseFormat,
+        ...(rawConfig.conditions !== undefined
+          ? Array.isArray(rawConfig.conditions) &&
+            (rawConfig.conditions as unknown[]).length > 0
+            ? { conditions: rawConfig.conditions }
+            : {}
+          : conditions.length > 0
+            ? { conditions }
+            : {}),
       },
       output: {
         result: {
@@ -783,6 +799,11 @@ export class AiAgentHandler implements NodeHandler {
     const maxTurns = (config.maxTurns as number) ?? 20;
     const conditions = (config.conditions as ConditionDef[]) || [];
 
+    // CONVENTIONS Principle 7 — config echoes raw user input on the
+    // initial waiting tick (multi-turn resume snapshots `state.rawConfig`
+    // separately, see Phase 1).
+    const rawConfig = context.rawConfig ?? config;
+
     const workspaceId = (context.variables?.__workspaceId as string) || '';
     const llmConfig = await this.llmService.resolveConfig(
       llmConfigId,
@@ -831,7 +852,25 @@ export class AiAgentHandler implements NodeHandler {
     };
 
     const waitingResult: ResumableNodeHandlerOutput = {
-      config: { mode: 'multi_turn', maxTurns, maxToolCalls },
+      config: {
+        mode: 'multi_turn' as const,
+        model: rawConfig.model ?? model ?? llmConfig.defaultModel,
+        systemPrompt: rawConfig.systemPrompt ?? systemPrompt,
+        maxTurns: rawConfig.maxTurns ?? maxTurns,
+        maxToolCalls: rawConfig.maxToolCalls ?? maxToolCalls,
+        ...(rawConfig.knowledgeBases !== undefined
+          ? { knowledgeBases: rawConfig.knowledgeBases }
+          : knowledgeBases.length > 0
+            ? { knowledgeBases }
+            : {}),
+        ...(rawConfig.conditions !== undefined &&
+        Array.isArray(rawConfig.conditions) &&
+        (rawConfig.conditions as unknown[]).length > 0
+          ? { conditions: rawConfig.conditions }
+          : conditions.length > 0
+            ? { conditions }
+            : {}),
+      },
       // CONVENTIONS §4.3 — waiting `output` carries the live conversation
       // snapshot. `message` (current AI turn content) and `turnCount` are
       // surfaced alongside `messages` so workflow authors can reference
@@ -1136,8 +1175,32 @@ export class AiAgentHandler implements NodeHandler {
       );
     }
 
+    // CONVENTIONS Principle 7 — multi-turn resume echo. Engine snapshots
+    // `state.rawConfig` (frozen) at the first turn (Phase 1), so the
+    // post-resume waiting tick echoes from that snapshot rather than the
+    // resolved per-turn `config`.
+    const turnRawConfig =
+      (state.rawConfig as Record<string, unknown> | undefined) ?? {};
     const waitingResult: ResumableNodeHandlerOutput = {
-      config: { mode: 'multi_turn', maxTurns, maxToolCalls },
+      config: {
+        mode: 'multi_turn' as const,
+        model: turnRawConfig.model ?? model,
+        systemPrompt: turnRawConfig.systemPrompt,
+        maxTurns: turnRawConfig.maxTurns ?? maxTurns,
+        maxToolCalls: turnRawConfig.maxToolCalls ?? maxToolCalls,
+        ...(turnRawConfig.knowledgeBases !== undefined
+          ? { knowledgeBases: turnRawConfig.knowledgeBases }
+          : knowledgeBases.length > 0
+            ? { knowledgeBases }
+            : {}),
+        ...(turnRawConfig.conditions !== undefined &&
+        Array.isArray(turnRawConfig.conditions) &&
+        (turnRawConfig.conditions as unknown[]).length > 0
+          ? { conditions: turnRawConfig.conditions }
+          : conditions.length > 0
+            ? { conditions }
+            : {}),
+      },
       output: {
         messages,
         message: result.content || '',
