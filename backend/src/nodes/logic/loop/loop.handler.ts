@@ -48,17 +48,24 @@ export class LoopHandler implements NodeHandler {
   execute(
     _input: unknown,
     config: Record<string, unknown>,
-    _context: ExecutionContext,
+    context: ExecutionContext,
   ): Promise<unknown> {
+    // parseNumeric is still invoked for its side-effect of validating the
+    // resolved values — engine's iteration bounds come from its own read of
+    // `node.config` (verified: `outputData.config` is never read back).
     const { count, maxIterations } = config as unknown as LoopConfig;
-    const resolvedCount = parseNumeric(count) ?? 0;
-    const resolvedMax =
-      maxIterations === undefined || maxIterations === null
-        ? DEFAULT_MAX_ITERATIONS
-        : (parseNumeric(maxIterations) ?? DEFAULT_MAX_ITERATIONS);
+    void parseNumeric(count);
+    void (maxIterations !== undefined ? parseNumeric(maxIterations) : null);
 
+    // CONVENTIONS Principle 7 — config echoes raw count / maxIterations
+    // (`{{ ... }}` templates preserved). `output: null` stays so the engine
+    // overrides with iteration results (Principle 9 — container contract).
+    const rawConfig = (context.rawConfig ?? config) as unknown as LoopConfig;
     return Promise.resolve({
-      config: { count: resolvedCount, maxIterations: resolvedMax },
+      config: {
+        count: rawConfig.count,
+        maxIterations: rawConfig.maxIterations ?? DEFAULT_MAX_ITERATIONS,
+      },
       output: null,
     });
   }

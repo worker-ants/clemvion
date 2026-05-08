@@ -36,15 +36,19 @@ export class ForEachHandler implements NodeHandler {
   execute(
     input: unknown,
     config: Record<string, unknown>,
-    _context: ExecutionContext,
+    context: ExecutionContext,
   ): Promise<unknown> {
     const { arrayField } = config as unknown as ForEachConfig;
 
     const resolved = resolveFieldValue(input, arrayField);
     const items = Array.isArray(resolved) ? resolved : [];
 
+    // CONVENTIONS Principle 7 — config echoes the raw arrayField template
+    // (`{{ ... }}` preserved). resolved items still flow as the body
+    // iteration source (engine override per Principle 9).
+    const rawConfig = (context.rawConfig ?? config) as unknown as ForEachConfig;
     return Promise.resolve({
-      config: { arrayField },
+      config: { arrayField: rawConfig.arrayField },
       output: items,
     });
   }

@@ -72,8 +72,7 @@ export class MergeHandler implements NodeHandler {
   async execute(
     input: unknown,
     config: Record<string, unknown>,
-
-    _context: ExecutionContext,
+    context: ExecutionContext,
   ): Promise<unknown> {
     const {
       strategy = DEFAULT_STRATEGY,
@@ -106,8 +105,16 @@ export class MergeHandler implements NodeHandler {
         ? this.formatOutput([inputs[0]], outputFormat)
         : this.formatOutput(inputs, outputFormat);
 
+    // CONVENTIONS Principle 7 — config echoes raw strategy / outputFormat.
+    // merge config fields are bounded enums (no `{{ ... }}` templates), so
+    // raw === evaluated in the common case; rawConfig is still used for
+    // consistency.
+    const rawConfig = (context.rawConfig ?? config) as unknown as MergeConfig;
     return {
-      config: { strategy, outputFormat },
+      config: {
+        strategy: rawConfig.strategy ?? DEFAULT_STRATEGY,
+        outputFormat: rawConfig.outputFormat ?? DEFAULT_OUTPUT_FORMAT,
+      },
       output: formatted,
     };
   }

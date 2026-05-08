@@ -1,4 +1,5 @@
 import {
+  ExecutionContext,
   NodeHandler,
   NodeHandlerOutput,
   ValidationResult,
@@ -29,9 +30,14 @@ export class BackgroundHandler implements NodeHandler {
   async execute(
     input: unknown,
     config: Record<string, unknown>,
+    context: ExecutionContext,
   ): Promise<NodeHandlerOutput> {
+    // CONVENTIONS Principle 7 — config echoes the raw user input.
+    // Background is a pass-through, so the shape of `config` mirrors what
+    // the workflow author entered (`{{ ... }}` preserved if any).
+    const rawConfig = context.rawConfig ?? config;
     return {
-      config,
+      config: { ...rawConfig },
       output: input,
       port: 'main',
     };

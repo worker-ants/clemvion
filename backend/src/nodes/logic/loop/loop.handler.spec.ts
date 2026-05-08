@@ -69,13 +69,17 @@ describe('LoopHandler', () => {
   });
 
   describe('execute', () => {
-    it('coerces string count into the resolved config', async () => {
+    it('echoes raw count under config (Principle 7 — raw template preserved)', async () => {
       const result = (await handler.execute(
         {},
         { count: '10' },
         context,
       )) as Record<string, unknown>;
-      expect(result.config).toEqual({ count: 10, maxIterations: 1000 });
+      // Principle 7 — config echoes the raw value the workflow author typed,
+      // not the parsed number. Engine's iteration bound logic reads
+      // `node.config` directly (not `outputData.config`), so the echo is
+      // free to keep the raw form.
+      expect(result.config).toEqual({ count: '10', maxIterations: 1000 });
       expect(result.output).toBeNull();
     });
 
@@ -87,6 +91,20 @@ describe('LoopHandler', () => {
       )) as Record<string, unknown>;
       const config = result.config as Record<string, unknown>;
       expect(config.maxIterations).toBe(1000);
+    });
+
+    it('preserves `{{ ... }}` count template on config', async () => {
+      const result = (await handler.execute(
+        {},
+        { count: 5 },
+        {
+          ...context,
+          rawConfig: Object.freeze({ count: '{{ $input.count }}' }),
+        },
+      )) as Record<string, unknown>;
+      const cfg = result.config as Record<string, unknown>;
+      expect(cfg.count).toBe('{{ $input.count }}');
+      expect(result.output).toBeNull();
     });
   });
 });

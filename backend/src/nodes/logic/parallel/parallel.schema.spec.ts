@@ -208,17 +208,21 @@ describe('Parallel node', () => {
       expect(Array.isArray(result.port) ? result.port.length : 0).toBe(16);
     });
 
-    it('maxConcurrency 음수·초과 값은 0..16 으로 클램프', async () => {
+    it('maxConcurrency 음수·초과 값은 raw 그대로 echo (clamping 은 engine 내부)', async () => {
+      // CONVENTIONS Principle 7 — config echoes the raw user input. The 0..16
+      // clamping policy is an engine-side branch-count concern; observable
+      // clamping is via `result.port.length` (always 2..16) rather than the
+      // echoed config field.
       const result = await handler.execute(
         {},
         { branchCount: 4, maxConcurrency: 100 },
       );
-      expect(result.config.maxConcurrency).toBe(16);
+      expect(result.config.maxConcurrency).toBe(100);
       const result2 = await handler.execute(
         {},
         { branchCount: 4, maxConcurrency: -3 },
       );
-      expect(result2.config.maxConcurrency).toBe(0);
+      expect(result2.config.maxConcurrency).toBe(-3);
     });
   });
 });

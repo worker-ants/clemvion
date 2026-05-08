@@ -41,15 +41,19 @@ export class MapHandler implements NodeHandler {
   execute(
     input: unknown,
     config: Record<string, unknown>,
-    _context: ExecutionContext,
+    context: ExecutionContext,
   ): Promise<unknown> {
     const { inputField } = config as unknown as MapConfig;
 
     const resolved = resolveFieldValue(input, inputField);
     const items = Array.isArray(resolved) ? resolved : [];
 
+    // CONVENTIONS Principle 7 — config echoes the raw inputField template
+    // (`{{ ... }}` preserved). resolved items still flow as the body
+    // iteration source (engine override per Principle 9).
+    const rawConfig = (context.rawConfig ?? config) as unknown as MapConfig;
     return Promise.resolve({
-      config: { inputField },
+      config: { inputField: rawConfig.inputField },
       output: items,
     });
   }
