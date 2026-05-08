@@ -664,6 +664,60 @@ Manual Trigger 핸들러의 `execute()` 출력은 항상 다음 형태이다:
 - Worker는 실행 전 taskId 중복 확인 (이미 완료된 태스크는 스킵)
 - 외부 API 호출 노드(Integration)의 멱등성은 노드 설정에서 관리
 
+### 7.4 분산 실행 (Multi-instance)
+
+LB 뒤에 backend 인스턴스 N개를 두는 수평 확장 환경에서의 실행 정합성 정책. 단일 인스턴스 환경에서도 모든 메커니즘이 동일하게 동작하므로 운영 토폴로지에 따른 분기는 없다.
+
+**`execution_node_log` append-only 모델**
+
+이전 모델 (`execution.execution_path` UUID 배열, `array_append()` 로 갱신) 은 DB 수준 atomic 추가는 가능했으나 다중 인스턴스에서 동시 INSERT 시 인스턴스 간 절대 순서가 보장되지 않았다. PR-B 부터:
+
+- `execution_node_log (id BIGSERIAL, execution_id UUID, node_id UUID, created_at TIMESTAMPTZ)` 테이블에 노드 실행이 append.
+- BIGSERIAL `id` 는 PostgreSQL sequence 가 부여하므로 인스턴스 동시성 안전. `(execution_id, id)` 정렬이 곧 실행 순서.
+- `Execution.executionPath` 컬럼 제거. 외부 API 응답의 `executionPath: string[]` 시그니처는 유지 — `findById` 가 본 테이블의 정렬 쿼리로 채운다. 목록 조회 응답에서는 N+1 회피 위해 빈 배열로 반환한다.
+- 이행 마이그레이션 (V035) 은 기존 배열 데이터를 `UNNEST WITH ORDINALITY` 로 옮긴 뒤 컬럼을 drop 한다. 큰 운영 DB 에서 단일 트랜잭션 실행이 부담될 경우 V035a (이행) / V035b (drop) 로 분리 검토.
+
+**Continuation Bus (사용자 입력 fan-out)**
+
+`pendingContinuations` Map (Promise resolver 보관) 은 인스턴스 로컬에 머물고, 사용자 입력 이벤트만 Redis pub/sub 으로 모든 인스턴스에 전파된다.
+
+| 항목 | 값 |
+|------|-----|
+| Redis 채널 | `execution:continuation` |
+| 메시지 타입 | `continue` / `cancel` / `button_click` / `ai_message` / `ai_end_conversation` |
+| 메시지 스키마 | `{ type: ContinuationType, executionId: string, payload?: unknown }` |
+| Connection 분리 | publisher / subscriber 별개 ioredis 인스턴스 (pub/sub 모드는 read-only command 만 받음) |
+
+```
+[client] → controller / WS gateway
+            ↓
+        bus.publish(msg)
+            ↓
+   ─── Redis pub/sub ───
+   ↓                  ↓
+instance A         instance B
+  ↓                  ↓
+dispatch          dispatch
+  ↓                  ↓
+pendingMap?       pendingMap?
+  hit                miss
+  ↓                  ↓
+resolve()        silent skip
+```
+
+- 모든 진입점은 항상 `bus.publish` 한다. 자기 인스턴스에 로컬 Map 키가 있어도 마찬가지 — "내 Map 에 있으면 직접" 분기는 race window 가 생긴다.
+- 메시지 수신 시 로컬 `pendingContinuations` Map 에 키가 있는 인스턴스 한 곳만 실제 resolve. 키가 없는 인스턴스는 silent skip.
+- `continueExecution` / `cancelWaitingExecution` / `continueButtonClick` / `continueAiConversation` / `endAiConversation` 모두 동일 패턴. "No pending continuation" 즉시 throw 는 단일 인스턴스에서 정확히 판단 불가하므로 폐기된다.
+- WAITING_FOR_INPUT 상태의 사전 검증 (controller / WS gateway) 은 publisher 측 책임.
+
+**Recovery (`recoverStuckExecutions`)**
+
+다중 인스턴스에서 신규 기동한 인스턴스가 다른 인스턴스에서 정상 처리 중인 WAITING_FOR_INPUT 을 잘못 FAIL 시키지 않도록 보수적 가드.
+
+- **분산 lock**: `redis SET 'exec:recover:lock' <pid> EX 60 NX` — 60초 TTL. 획득 실패 시 본 인스턴스는 skip.
+- **Stale 임계값**: `started_at < now() - 30분` 인 row 만 FAIL UPDATE. 30분 미만의 신규 대기는 보존된다.
+- 두 가드를 함께 적용해, 동시 부팅·진행 중 부팅 어떤 시나리오에서도 정상 대기를 잃지 않는다.
+
 ---
 
 ## 8. 동시 실행 제한
