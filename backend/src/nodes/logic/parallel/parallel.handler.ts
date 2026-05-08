@@ -29,7 +29,7 @@ export class ParallelHandler implements NodeHandler {
   async execute(
     input: unknown,
     config: Record<string, unknown>,
-    context?: ExecutionContext,
+    context: ExecutionContext,
   ): Promise<NodeHandlerOutput> {
     const branchCount =
       typeof config.branchCount === 'number' &&
@@ -44,7 +44,7 @@ export class ParallelHandler implements NodeHandler {
     // (numeric / boolean) so raw and evaluated are identical in the
     // common case; rawConfig is still used for consistency + so future
     // expression-templated fields (if added) auto-flow through.
-    const rawConfig = context?.rawConfig ?? config;
+    const rawConfig = context.rawConfig ?? config;
     return {
       config: {
         branchCount: rawConfig.branchCount,

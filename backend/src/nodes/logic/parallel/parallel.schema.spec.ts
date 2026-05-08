@@ -176,11 +176,18 @@ describe('Parallel node', () => {
 
   describe('handler.execute', () => {
     const handler = new ParallelHandler();
+    const ctx = {
+      executionId: 'exec-1',
+      workflowId: 'wf-1',
+      variables: {},
+      nodeOutputCache: {},
+    };
 
     it('branchCount만큼 branch_N 포트를 모두 활성화', async () => {
       const result = await handler.execute(
         { hello: 'world' },
         { branchCount: 3 },
+        ctx,
       );
       expect(result.output).toEqual({ hello: 'world' });
       expect(result.port).toEqual(['branch_0', 'branch_1', 'branch_2']);
@@ -190,6 +197,7 @@ describe('Parallel node', () => {
       const result = await handler.execute(
         {},
         { branchCount: 4, maxConcurrency: 2, waitAll: true },
+        ctx,
       );
       expect(result.config).toEqual({
         branchCount: 4,
@@ -199,12 +207,12 @@ describe('Parallel node', () => {
     });
 
     it('branchCount 누락 시 기본 2', async () => {
-      const result = await handler.execute({ x: 1 }, {});
+      const result = await handler.execute({ x: 1 }, {}, ctx);
       expect(result.port).toEqual(['branch_0', 'branch_1']);
     });
 
     it('16 초과 값은 16으로 클램프', async () => {
-      const result = await handler.execute({}, { branchCount: 100 });
+      const result = await handler.execute({}, { branchCount: 100 }, ctx);
       expect(Array.isArray(result.port) ? result.port.length : 0).toBe(16);
     });
 
@@ -216,11 +224,13 @@ describe('Parallel node', () => {
       const result = await handler.execute(
         {},
         { branchCount: 4, maxConcurrency: 100 },
+        ctx,
       );
       expect(result.config.maxConcurrency).toBe(100);
       const result2 = await handler.execute(
         {},
         { branchCount: 4, maxConcurrency: -3 },
+        ctx,
       );
       expect(result2.config.maxConcurrency).toBe(-3);
     });

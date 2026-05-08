@@ -1178,14 +1178,17 @@ export class AiAgentHandler implements NodeHandler {
     // CONVENTIONS Principle 7 — multi-turn resume echo. Engine snapshots
     // `state.rawConfig` (frozen) at the first turn (Phase 1), so the
     // post-resume waiting tick echoes from that snapshot rather than the
-    // resolved per-turn `config`.
+    // resolved per-turn `config`. State persisted from before Phase 1 may
+    // not have rawConfig — fall back to evaluated state values for both
+    // model and systemPrompt to avoid `undefined` echo (review CRIT #1).
     const turnRawConfig =
       (state.rawConfig as Record<string, unknown> | undefined) ?? {};
+    const stateSystemPrompt = (state.systemPrompt as string | undefined) ?? '';
     const waitingResult: ResumableNodeHandlerOutput = {
       config: {
         mode: 'multi_turn' as const,
         model: turnRawConfig.model ?? model,
-        systemPrompt: turnRawConfig.systemPrompt,
+        systemPrompt: turnRawConfig.systemPrompt ?? stateSystemPrompt,
         maxTurns: turnRawConfig.maxTurns ?? maxTurns,
         maxToolCalls: turnRawConfig.maxToolCalls ?? maxToolCalls,
         ...(turnRawConfig.knowledgeBases !== undefined
