@@ -153,5 +153,19 @@ describe('MapHandler', () => {
       )) as { config: { inputField: unknown } };
       expect(result.config.inputField).toBe('items');
     });
+
+    // ENG-RC-* — Phase 3 raw-echo migration.
+    it('preserves `{{ ... }}` inputField template on config', async () => {
+      const result = (await handler.execute(
+        { items: [1, 2] },
+        { inputField: 'items' },
+        {
+          ...context,
+          rawConfig: Object.freeze({ inputField: '{{ $input.items }}' }),
+        },
+      )) as { config: { inputField: unknown }; output: unknown };
+      expect(result.config.inputField).toBe('{{ $input.items }}');
+      expect(result.output).toEqual([1, 2]);
+    });
   });
 });

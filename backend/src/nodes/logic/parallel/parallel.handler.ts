@@ -1,4 +1,5 @@
 import {
+  ExecutionContext,
   NodeHandler,
   NodeHandlerOutput,
   ValidationResult,
@@ -28,6 +29,7 @@ export class ParallelHandler implements NodeHandler {
   async execute(
     input: unknown,
     config: Record<string, unknown>,
+    context?: ExecutionContext,
   ): Promise<NodeHandlerOutput> {
     const branchCount =
       typeof config.branchCount === 'number' &&
@@ -35,18 +37,20 @@ export class ParallelHandler implements NodeHandler {
         ? Math.max(2, Math.min(16, Math.floor(config.branchCount)))
         : 2;
 
-    const maxConcurrency =
-      typeof config.maxConcurrency === 'number' &&
-      Number.isFinite(config.maxConcurrency)
-        ? Math.max(0, Math.min(16, Math.floor(config.maxConcurrency)))
-        : 0;
-
-    const waitAll = typeof config.waitAll === 'boolean' ? config.waitAll : true;
-
     const ports = Array.from({ length: branchCount }, (_, i) => `branch_${i}`);
 
+    // CONVENTIONS Principle 7 — config echoes raw branchCount /
+    // maxConcurrency / waitAll. parallel's fields are bounded literals
+    // (numeric / boolean) so raw and evaluated are identical in the
+    // common case; rawConfig is still used for consistency + so future
+    // expression-templated fields (if added) auto-flow through.
+    const rawConfig = context?.rawConfig ?? config;
     return {
-      config: { branchCount, maxConcurrency, waitAll },
+      config: {
+        branchCount: rawConfig.branchCount,
+        maxConcurrency: rawConfig.maxConcurrency,
+        waitAll: rawConfig.waitAll,
+      },
       output: input,
       port: ports,
     };

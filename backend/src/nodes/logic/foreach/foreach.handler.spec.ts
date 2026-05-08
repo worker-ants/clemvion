@@ -152,5 +152,19 @@ describe('ForEachHandler', () => {
       )) as { config: { arrayField: unknown } };
       expect(result.config.arrayField).toBe('items');
     });
+
+    // ENG-RC-* — Phase 3 raw-echo migration.
+    it('preserves `{{ ... }}` arrayField template on config', async () => {
+      const result = (await handler.execute(
+        { items: [1, 2] },
+        { arrayField: 'items' },
+        {
+          ...context,
+          rawConfig: Object.freeze({ arrayField: '{{ $input.items }}' }),
+        },
+      )) as { config: { arrayField: unknown }; output: unknown };
+      expect(result.config.arrayField).toBe('{{ $input.items }}');
+      expect(result.output).toEqual([1, 2]);
+    });
   });
 });
