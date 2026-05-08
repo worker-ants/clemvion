@@ -37,12 +37,10 @@ export class ChartHandler implements NodeHandler {
     config: Record<string, unknown>,
     context: ExecutionContext,
   ): Promise<unknown> {
-    const chartType = config.chartType as string;
     const xAxis = config.xAxis as { field: string };
     const yAxis = config.yAxis as
       | { field: string; aggregation?: string }
       | undefined;
-    const title = config.title as string | undefined;
     const dataField = config.dataField as string | undefined;
 
     let inputArray: unknown[];
@@ -74,8 +72,6 @@ export class ChartHandler implements NodeHandler {
     // CONVENTIONS Principle 7 — config echoes raw chartType / title / xAxis
     // / yAxis (`title` may include `{{ ... }}` templates the engine resolved
     // before dispatch). evaluated chart data lives in output.
-    void chartType;
-    void title;
     const rawConfig = context.rawConfig ?? config;
     const payload: Record<string, unknown> = { data: chartData };
     const configEcho: Record<string, unknown> = {
@@ -86,11 +82,13 @@ export class ChartHandler implements NodeHandler {
     };
 
     const buttons = config.buttons as ButtonDef[] | undefined;
+    const rawButtons =
+      (rawConfig.buttons as ButtonDef[] | undefined) ?? buttons;
     if (Array.isArray(buttons) && buttons.length > 0) {
       return Promise.resolve({
         config: {
           ...configEcho,
-          buttons,
+          buttons: rawButtons,
           buttonConfig: {
             buttons,
           },

@@ -714,5 +714,36 @@ describe('TableHandler', () => {
       const rows = result.output.rows as Array<Record<string, unknown>>;
       expect(rows[0]).toEqual({ col0: 'plain value' });
     });
+
+    // ENG-RC-* — Phase 3 raw-echo migration. Resolved column labels (label
+    // expression evaluated) move from `config.columns` to `output.columns`;
+    // `config.columns` keeps the raw label templates.
+    it('puts raw column definitions on config and resolved labels on output', async () => {
+      const rawColumns = [
+        {
+          field: 'name',
+          label: '{{ $var.locale === "ko" ? "이름" : "Name" }}',
+        },
+      ];
+      const evaluatedColumns = [{ field: 'name', label: 'Name' }];
+      const result = (await handler.execute(
+        [{ name: 'Alice' }],
+        { mode: 'dynamic', columns: evaluatedColumns },
+        {
+          ...context,
+          rawConfig: Object.freeze({ mode: 'dynamic', columns: rawColumns }),
+        },
+      )) as Record<string, unknown>;
+
+      const cfg = result.config as Record<string, unknown>;
+      const out = result.output as Record<string, unknown>;
+      // config.columns keeps the raw label template
+      expect(cfg.columns).toEqual(rawColumns);
+      // output.columns surfaces the resolved (label-evaluated) columns. Since
+      // the resolver pre-evaluated the label expression upstream of the test
+      // (we passed `evaluatedColumns` as `config.columns`), the handler's
+      // `resolveColumnLabels` no-ops on already-literal labels.
+      expect(out.columns).toEqual(evaluatedColumns);
+    });
   });
 });

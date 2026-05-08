@@ -32,12 +32,17 @@ export class BackgroundHandler implements NodeHandler {
     config: Record<string, unknown>,
     context: ExecutionContext,
   ): Promise<NodeHandlerOutput> {
-    // CONVENTIONS Principle 7 — config echoes the raw user input.
-    // Background is a pass-through, so the shape of `config` mirrors what
-    // the workflow author entered (`{{ ... }}` preserved if any).
+    // CONVENTIONS Principle 7 — config echoes the raw user input. Echo only
+    // the schema-declared fields explicitly to avoid silently leaking any
+    // future credential-shaped passthrough fields the schema may add
+    // (review WARN — Background spread risk).
     const rawConfig = context.rawConfig ?? config;
     return {
-      config: { ...rawConfig },
+      config: {
+        notes: rawConfig.notes,
+        notifyOnFailure: rawConfig.notifyOnFailure,
+        maxDurationMs: rawConfig.maxDurationMs,
+      },
       output: input,
       port: 'main',
     };
