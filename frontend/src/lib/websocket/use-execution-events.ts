@@ -162,6 +162,9 @@ export function useExecutionEvents({
         waitingNodeType?: string;
         waitingNodeLabel?: string;
         nodeExecutionId?: string;
+        // ISO 8601 — backend 가 NodeExecution.startedAt 을 동봉. NODE_STARTED
+        // race miss 시에도 store 가 row 정렬 키를 잃지 않도록 한다.
+        startedAt?: string;
         interactionType?: "form" | "buttons" | "ai_conversation";
         nodeOutput?: unknown;
         buttonConfig?: unknown;
@@ -193,6 +196,11 @@ export function useExecutionEvents({
         nodeType,
         nodeCategory,
         status: "waiting_for_input",
+        // 워크플로 첫 노드는 `Run` 직후 도달해 ws subscribe 완료 전 NODE_STARTED
+        // 를 놓칠 race window 가 있다. backend 가 동봉한 startedAt 으로 store
+        // row 를 채워 sortByStartedAt 이 첫 노드를 timeline 마지막으로 보내는
+        // 회귀를 차단한다.
+        startedAt: payload.startedAt,
         outputData: resolvedOutput,
       });
 

@@ -192,6 +192,58 @@ describe("useExecutionStore", () => {
       const results = useExecutionStore.getState().nodeResults;
       expect(results[0].parentNodeExecutionId).toBe("workflow-node-1");
     });
+
+    // Timeline-ordering 회귀 (워크플로 첫 노드의 NODE_STARTED 가 ws subscribe
+    // 완료 전 emit 되어 손실되고, 사용자 입력 대기 중 EXECUTION_WAITING_FOR_INPUT
+    // 이 첫 도달 이벤트가 되는 race window 시나리오. 이전에는 startedAt 이
+    // undefined 인 row 가 timeline 마지막으로 정렬됐다).
+    it("ranks waiting-only result with startedAt before later-arriving rows", () => {
+      // 카테고리 선택 (첫 노드) — NODE_STARTED 놓침, waiting payload 가 첫 이벤트.
+      useExecutionStore.getState().addNodeResult(
+        makeResult({
+          nodeExecutionId: "n1-ne",
+          nodeId: "n1",
+          status: "waiting_for_input",
+          startedAt: "2026-05-08T15:28:53.487Z",
+        }),
+      );
+      // 사용자 클릭 후 도달한 후속 노드들.
+      useExecutionStore.getState().addNodeResult(
+        makeResult({
+          nodeExecutionId: "n2-ne",
+          nodeId: "n2",
+          startedAt: "2026-05-08T15:28:54.834Z",
+        }),
+      );
+      useExecutionStore.getState().addNodeResult(
+        makeResult({
+          nodeExecutionId: "n3-ne",
+          nodeId: "n3",
+          startedAt: "2026-05-08T15:28:55.615Z",
+        }),
+      );
+      const ids = useExecutionStore
+        .getState()
+        .nodeResults.map((r) => r.nodeId);
+      expect(ids).toEqual(["n1", "n2", "n3"]);
+    });
+
+    it("waiting-only result without startedAt sinks to the timeline end (defensive sort)", () => {
+      // backend startedAt 동봉 누락 시나리오 (구버전 호환). undefined startedAt
+      // 은 sortByStartedAt 정의상 마지막으로. 본 PR fix 가 적용된 backend 는
+      // 항상 startedAt 을 동봉하므로 production 에서는 발생하지 않으나
+      // store 정렬의 defensive 동작을 보장.
+      useExecutionStore.getState().addNodeResult(
+        makeResult({ nodeId: "n1", status: "waiting_for_input" }),
+      );
+      useExecutionStore.getState().addNodeResult(
+        makeResult({ nodeId: "n2", startedAt: "2026-05-08T15:28:54.000Z" }),
+      );
+      const ids = useExecutionStore
+        .getState()
+        .nodeResults.map((r) => r.nodeId);
+      expect(ids).toEqual(["n2", "n1"]);
+    });
   });
 
   describe("completeExecution", () => {
