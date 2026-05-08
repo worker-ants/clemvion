@@ -173,7 +173,7 @@
 
 ### 6.1 AI Agent
 
-> ⚠ **재작성 예정 (현재 제거됨)** — `ND-AG-06`, `ND-AG-10`, `ND-AG-21` 의 도구 연결 입력 경로(`toolNodeIds` / `toolOverrides`)는 config 스키마에서 **제거**됐다. 새 도구 연결 디자인이 결정될 때까지 비활성. 조건(`cond_*`) / KB(`kb_*`) / MCP(`mcp_*`) 도구는 영향 없음. 자세한 사유·복원 절차: `plan/in-progress/ai-agent-tool-connection-rewrite.md`.
+> ⚠ **재작성 예정 (현재 제거됨)** — `ND-AG-06`, `ND-AG-10`, `ND-AG-21` 의 도구 연결 입력 경로(`toolNodeIds` / `toolOverrides`)는 config 스키마에서 **제거**됐다. 새 도구 연결 디자인이 결정될 때까지 비활성. 조건(`cond_*`) / KB(`kb_*`) / MCP(`mcp_*`) 도구는 영향 없음. 자세한 사유·복원 절차: `plan/complete/ai-agent-tool-connection-rewrite.md`.
 
 | ID | 요구사항 | 우선순위 | 상태 |
 |----|----------|----------|-------|

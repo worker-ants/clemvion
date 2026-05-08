@@ -39,7 +39,7 @@ LLM 기반 AI Agent를 실행. 프롬프트, RAG, Tool Use를 지원. **Single T
 >
 > 영향 범위: ND-AG-06 / ND-AG-10 / ND-AG-21.
 > 영향 없음: 조건 도구(`cond_*`, ND-AG-15~20·22), KB 도구(`kb_*`), MCP 도구(`mcp_*`).
-> 자세한 사유·복원 절차: `plan/in-progress/ai-agent-tool-connection-rewrite.md`.
+> 자세한 사유·복원 절차: `plan/complete/ai-agent-tool-connection-rewrite.md`.
 
 **ConditionDef 구조:**
 
