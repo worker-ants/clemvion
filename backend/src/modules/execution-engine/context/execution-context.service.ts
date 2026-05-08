@@ -25,6 +25,7 @@ export class ExecutionContextService {
       variables: { ...initialVariables },
       nodeOutputCache: {},
       structuredOutputCache: {},
+      engineResolvedConfigCache: {},
       recursionDepth: recursionDepth ?? 0,
     };
     this.contexts.set(executionId, context);
@@ -42,6 +43,25 @@ export class ExecutionContextService {
       context.structuredOutputCache = {};
     }
     context.structuredOutputCache[nodeId] = adapted;
+  }
+
+  /**
+   * Store the expression-resolved (evaluated) config for a node so engine
+   * paths (runContainerInner / runParallel) can read iteration parameters
+   * without re-evaluating expressions. Separated from `structuredOutputCache`
+   * which carries the handler's raw echo per CONVENTIONS Principle 7.
+   */
+  setEngineResolvedConfig(
+    executionId: string,
+    nodeId: string,
+    resolvedConfig: Record<string, unknown>,
+  ): void {
+    const context = this.contexts.get(executionId);
+    if (!context) return;
+    if (!context.engineResolvedConfigCache) {
+      context.engineResolvedConfigCache = {};
+    }
+    context.engineResolvedConfigCache[nodeId] = resolvedConfig;
   }
 
   getContext(executionId: string): ExecutionContext | undefined {

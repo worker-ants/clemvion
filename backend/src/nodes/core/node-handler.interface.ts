@@ -24,6 +24,20 @@ export interface ExecutionContext {
    * existing test fixtures that don't pre-populate it.
    */
   structuredOutputCache?: Record<string, NodeHandlerOutput>;
+  /**
+   * Per-node fully resolved (expression-evaluated) config snapshot. Populated
+   * by the engine right after expression resolution, before handler invocation.
+   *
+   * Distinct from {@link rawConfig} (pre-evaluation, frozen) and from
+   * `structuredOutputCache[nodeId].config` (handler's raw echo per CONVENTIONS
+   * Principle 7). Container engine paths (`runContainerInner` / `runParallel`)
+   * read this when computing iteration parameters — they cannot read
+   * `structuredOutputCache` because handlers echo raw `{{...}}` templates.
+   *
+   * NOT exposed to expression context: `$node[X].config` continues to surface
+   * the raw echo so downstream templates preserve original `{{...}}` strings.
+   */
+  engineResolvedConfigCache?: Record<string, Record<string, unknown>>;
   loopContext?: {
     index: number;
     count: number;

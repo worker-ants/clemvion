@@ -61,6 +61,71 @@ describe('ExecutionContextService', () => {
     });
   });
 
+  // engine-config-bug — Loop/Parallel 컨테이너가 표현식으로 입력된 동작
+  // 파라미터를 NaN/silent default 로 처리하던 회귀 차단. structured.config 는
+  // raw echo 전용(Phase 3 Principle 7), 동작 파라미터용 평가된 config 는
+  // 별도 슬롯에 저장한다.
+  describe('setEngineResolvedConfig — evaluated config snapshot for engine reads', () => {
+    it('initializes engineResolvedConfigCache as {} in createContext', () => {
+      const ctx = service.getContext(executionId);
+      expect(ctx?.engineResolvedConfigCache).toEqual({});
+    });
+
+    it('stores per-node resolved config and exposes it via getContext', () => {
+      service.setEngineResolvedConfig(executionId, nodeId, {
+        count: 3,
+        maxIterations: 1000,
+      });
+
+      const ctx = service.getContext(executionId);
+      expect(ctx?.engineResolvedConfigCache?.[nodeId]).toEqual({
+        count: 3,
+        maxIterations: 1000,
+      });
+    });
+
+    it('overwrites prior entry for the same node (per-node fresh resolve)', () => {
+      service.setEngineResolvedConfig(executionId, nodeId, { count: 2 });
+      service.setEngineResolvedConfig(executionId, nodeId, { count: 5 });
+
+      const ctx = service.getContext(executionId);
+      expect(ctx?.engineResolvedConfigCache?.[nodeId]).toEqual({ count: 5 });
+    });
+
+    it('keeps independent entries for different nodes', () => {
+      service.setEngineResolvedConfig(executionId, 'loop-1', { count: 3 });
+      service.setEngineResolvedConfig(executionId, 'parallel-1', {
+        branchCount: 4,
+      });
+
+      const cache = service.getContext(executionId)?.engineResolvedConfigCache;
+      expect(cache?.['loop-1']).toEqual({ count: 3 });
+      expect(cache?.['parallel-1']).toEqual({ branchCount: 4 });
+    });
+
+    it('is a no-op for unknown executionId (mirrors setStructuredOutput)', () => {
+      expect(() =>
+        service.setEngineResolvedConfig('nonexistent', nodeId, { count: 1 }),
+      ).not.toThrow();
+    });
+
+    it('does not mutate structuredOutputCache (echo channel stays untouched)', () => {
+      service.setStructuredOutput(executionId, nodeId, {
+        config: { count: '{{3}}' },
+        output: null,
+      });
+      service.setEngineResolvedConfig(executionId, nodeId, { count: 3 });
+
+      const ctx = service.getContext(executionId);
+      // Raw echo preserved
+      expect(ctx?.structuredOutputCache?.[nodeId]?.config).toEqual({
+        count: '{{3}}',
+      });
+      // Engine-side evaluated value separated
+      expect(ctx?.engineResolvedConfigCache?.[nodeId]).toEqual({ count: 3 });
+    });
+  });
+
   describe('setNodeOutput — existing structured cache preservation', () => {
     it('keeps existing config when setStructuredOutput ran first', () => {
       service.setStructuredOutput(executionId, nodeId, {
