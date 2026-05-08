@@ -12,20 +12,32 @@ const attachmentSchema = z.object({
 });
 
 /**
- * Send Email output: on success surfaces nodemailer's messageId / accepted /
- * rejected lists + deliveryStatus. On failure routes to `port: 'error'` with
- * the standardized `output.error.{code, message, details}` envelope.
+ * Send Email output. CONVENTIONS Principle 7 — `config` echoes the **raw**
+ * template the workflow author entered (`{{ ... }}` preserved); `output`
+ * surfaces the evaluated subject / body / bodyType alongside nodemailer's
+ * messageId / accepted / rejected lists + deliveryStatus. On failure routes
+ * to `port: 'error'` with the standardized
+ * `output.error.{code, message, details}` envelope — body is still echoed so
+ * a downstream node can branch on the failed payload.
+ *
+ * `to` / `cc` / `bcc` are intentionally typed as `unknown` because the raw
+ * form may be either a comma-separated string template or an array of
+ * email-shaped strings (the user-facing widget supports both shapes). The
+ * normalised array is not echoed on `config` — `output.accepted` /
+ * `output.rejected` (from nodemailer) carry the actually delivered list.
  */
 export const sendEmailNodeOutputSchema = z
   .object({
     config: z
       .object({
         integrationId: z.string().optional(),
-        to: z.array(z.string()).optional(),
-        cc: z.array(z.string()).optional(),
-        bcc: z.array(z.string()).optional(),
+        to: z.unknown().optional(),
+        cc: z.unknown().optional(),
+        bcc: z.unknown().optional(),
         subject: z.string().optional(),
+        body: z.string().optional(),
         bodyType: z.enum(['text', 'html']).optional(),
+        attachments: z.array(z.unknown()).optional(),
       })
       .partial()
       .passthrough()
@@ -35,6 +47,10 @@ export const sendEmailNodeOutputSchema = z
         messageId: z.string().optional(),
         accepted: z.array(z.string()).optional(),
         rejected: z.array(z.string()).optional(),
+        subject: z.string().optional(),
+        body: z.unknown().optional(),
+        bodyType: z.enum(['text', 'html']).optional(),
+        bodyTruncated: z.boolean().optional(),
         error: z
           .object({
             code: z.string().optional(),

@@ -11,6 +11,7 @@ import {
   IntegrationHandlerBase,
   toLogError,
 } from '../_base/integration-handler-base.js';
+import { truncateBodyForOutput } from '../_base/truncate-body.util.js';
 import { IntegrationsService } from '../../../modules/integrations/integrations.service.js';
 import {
   maskEmailForErrorDetails,
@@ -82,14 +83,41 @@ export class SendEmailHandler
     const body = config.body as string;
     const bodyType = (config.bodyType as string) ?? 'text';
 
+    // CONVENTIONS Principle 7 — `config` echo is the **raw** template the
+    // workflow author entered (`{{ ... }}` preserved). evaluated bodies are
+    // surfaced on `output.subject` / `output.body` so downstream nodes can
+    // read either side without ambiguity. Engine populates `rawConfig` for
+    // every dispatch (Phase 1); the `?? config` fallback is solely for unit
+    // tests that don't go through the engine.
+    const rawConfig = (context.rawConfig ?? config) as Record<string, unknown>;
+    const configEcho: Record<string, unknown> = {
+      integrationId: rawConfig.integrationId,
+      to: rawConfig.to,
+      cc: rawConfig.cc,
+      bcc: rawConfig.bcc,
+      subject: rawConfig.subject,
+      body: rawConfig.body,
+      bodyType: rawConfig.bodyType,
+      attachments: rawConfig.attachments,
+    };
+
+    // Cap the evaluated body before it lands on `output.body` — multi-MB
+    // HTML bodies would balloon NodeExecution rows otherwise.
+    const cappedBody = truncateBodyForOutput(body);
+
     if (to.length === 0) {
       throw new Error('No valid recipients after normalizing the `to` field');
     }
 
     if (!this.integrationsService) {
       return {
-        config: { to, cc, bcc, subject, bodyType },
-        output: null,
+        config: configEcho,
+        output: {
+          subject,
+          body: cappedBody.value,
+          bodyType,
+          ...(cappedBody.truncated ? { bodyTruncated: true } : {}),
+        },
         status: 'requires_integration',
       };
     }
@@ -134,11 +162,15 @@ export class SendEmailHandler
         durationMs,
       }).catch(() => {});
       return {
-        config: { integrationId, to, cc, bcc, subject, bodyType },
+        config: configEcho,
         output: {
           messageId: info.messageId,
           accepted: info.accepted,
           rejected: info.rejected,
+          subject,
+          body: cappedBody.value,
+          bodyType,
+          ...(cappedBody.truncated ? { bodyTruncated: true } : {}),
         },
         meta: { durationMs, deliveryStatus: 'sent' },
       };
@@ -173,8 +205,12 @@ export class SendEmailHandler
       }
       const durationMs = Date.now() - start;
       return {
-        config: { integrationId, to, cc, bcc, subject, bodyType },
+        config: configEcho,
         output: {
+          subject,
+          body: cappedBody.value,
+          bodyType,
+          ...(cappedBody.truncated ? { bodyTruncated: true } : {}),
           error: {
             code,
             message: safeMessage(err),
