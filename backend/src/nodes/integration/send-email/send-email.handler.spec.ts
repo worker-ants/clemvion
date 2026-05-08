@@ -11,18 +11,14 @@ jest.mock('nodemailer', () => ({
   })),
 }));
 
-function makeContext(
-  rawConfig?: Record<string, unknown>,
-): ExecutionContext {
+function makeContext(rawConfig?: Record<string, unknown>): ExecutionContext {
   return {
     executionId: 'exec-1',
     workflowId: 'wf-1',
     nodeExecutionId: 'ne-1',
     variables: { __workspaceId: 'ws-1' },
     nodeOutputCache: {},
-    ...(rawConfig
-      ? { rawConfig: Object.freeze({ ...rawConfig }) }
-      : {}),
+    ...(rawConfig ? { rawConfig: Object.freeze({ ...rawConfig }) } : {}),
   };
 }
 

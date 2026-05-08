@@ -108,11 +108,11 @@ export class HttpRequestHandler
     // observe the bytes that actually went on the wire. Engine populates
     // `rawConfig` for every dispatch (Phase 1); fallback to evaluated config
     // is purely for unit tests that bypass the engine.
-    const rawConfig = (context.rawConfig ?? config) as Record<string, unknown>;
+    const rawConfig = context.rawConfig ?? config;
     const rawUrl =
       typeof rawConfig.url === 'string'
         ? sanitizeUrlCredentials(rawConfig.url)
-        : (rawConfig.url as unknown);
+        : rawConfig.url;
     const buildConfigEcho = (): Record<string, unknown> => ({
       method: rawConfig.method,
       url: rawUrl,
@@ -402,10 +402,7 @@ export class HttpRequestHandler
  * `FormData` isn't JSON-serialisable so we record the {key,value} entries
  * the user supplied (after `toKeyValueEntries` would normalise them).
  */
-function serializeEvaluatedBody(
-  body: unknown,
-  bodyType: string,
-): unknown {
+function serializeEvaluatedBody(body: unknown, bodyType: string): unknown {
   if (body === undefined) return undefined;
   if (bodyType === 'form-data') {
     const entries: Record<string, string> = {};

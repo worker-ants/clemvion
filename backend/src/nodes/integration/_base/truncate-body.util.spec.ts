@@ -26,9 +26,9 @@ describe('truncateBodyForOutput', () => {
     const result = truncateBodyForOutput(big);
     expect(result.truncated).toBe(true);
     expect(typeof result.value).toBe('string');
-    expect(Buffer.byteLength(result.value as string, 'utf8')).toBeLessThanOrEqual(
-      256 * 1024,
-    );
+    expect(
+      Buffer.byteLength(result.value as string, 'utf8'),
+    ).toBeLessThanOrEqual(256 * 1024);
   });
 
   it('truncates objects whose JSON serialization exceeds the byte cap', () => {
@@ -54,9 +54,9 @@ describe('truncateBodyForOutput', () => {
   it('honours a custom maxBytes', () => {
     const result = truncateBodyForOutput('hello world', 5);
     expect(result.truncated).toBe(true);
-    expect(Buffer.byteLength(result.value as string, 'utf8')).toBeLessThanOrEqual(
-      5,
-    );
+    expect(
+      Buffer.byteLength(result.value as string, 'utf8'),
+    ).toBeLessThanOrEqual(5);
   });
 
   it('does not split a multi-byte UTF-8 codepoint at the boundary', () => {
