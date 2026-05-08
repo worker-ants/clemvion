@@ -241,6 +241,7 @@ describe('ExecutionEngineService', () => {
                 return 1;
               }),
               acquireLock: jest.fn().mockResolvedValue(true),
+              releaseLock: jest.fn().mockResolvedValue(true),
             };
           })(),
         },
@@ -623,6 +624,109 @@ describe('ExecutionEngineService', () => {
       });
       // 어떤 에러도 던지지 않음. 추가 resolve 도 일어나지 않음 (resolveSpy 횟수 1).
       expect(resolveSpy).toHaveBeenCalledTimes(1);
+    });
+
+    const findHandler = (type: string): ((msg: unknown) => void) => {
+      const call = mockBus.on.mock.calls.find((c: unknown[]) => c[0] === type);
+      expect(call).toBeDefined();
+      return call![1] as (msg: unknown) => void;
+    };
+
+    it('cancel 핸들러 — 로컬 Map 키 없으면 silent skip (review W12)', () => {
+      const handler = findHandler('cancel');
+      const pendings = (
+        service as unknown as {
+          pendingContinuations: Map<string, unknown>;
+        }
+      ).pendingContinuations;
+      pendings.clear();
+
+      // 미등록 executionId — 어떤 에러도 던지지 않음.
+      expect(() =>
+        handler({ type: 'cancel', executionId: 'exec-not-here' }),
+      ).not.toThrow();
+      expect(pendings.size).toBe(0);
+    });
+
+    it('button_click 핸들러 — payload 누락 시 buttonId: undefined 로 resolve (review I9)', () => {
+      const handler = findHandler('button_click');
+      const resolveSpy = jest.fn();
+      const pendings = (
+        service as unknown as {
+          pendingContinuations: Map<
+            string,
+            { nodeId: string; resolve: jest.Mock; reject: jest.Mock }
+          >;
+        }
+      ).pendingContinuations;
+      pendings.set('exec-btn', {
+        nodeId: 'n1',
+        resolve: resolveSpy,
+        reject: jest.fn(),
+      });
+
+      handler({ type: 'button_click', executionId: 'exec-btn' });
+      expect(resolveSpy).toHaveBeenCalledWith({
+        type: 'button_click',
+        buttonId: undefined,
+      });
+    });
+
+    it('ai_message 핸들러 — 길이 초과 메시지는 silent drop (Redis 직접 publish 우회 방지)', () => {
+      const handler = findHandler('ai_message');
+      const resolveSpy = jest.fn();
+      const pendings = (
+        service as unknown as {
+          pendingContinuations: Map<
+            string,
+            { nodeId: string; resolve: jest.Mock; reject: jest.Mock }
+          >;
+        }
+      ).pendingContinuations;
+      pendings.set('exec-ai', {
+        nodeId: 'n1',
+        resolve: resolveSpy,
+        reject: jest.fn(),
+      });
+
+      const oversized = 'x'.repeat(10_001);
+      handler({
+        type: 'ai_message',
+        executionId: 'exec-ai',
+        payload: { message: oversized },
+      });
+      expect(resolveSpy).not.toHaveBeenCalled();
+      // Map 은 그대로 — 호스트 인스턴스의 다른 정상 메시지를 기다릴 수 있도록.
+      expect(pendings.has('exec-ai')).toBe(true);
+    });
+  });
+
+  // review W11 — appendExecutionPath 의 best-effort catch 경로 검증.
+  describe('appendExecutionPath best-effort 동작 (review W11)', () => {
+    it('insert 실패 시 logger.warn 호출 후 흐름 중단 없이 계속 진행', async () => {
+      const repo = (
+        service as unknown as {
+          executionNodeLogRepository: { insert: jest.Mock };
+        }
+      ).executionNodeLogRepository;
+      const logger = (service as unknown as { logger: { warn: jest.Mock } })
+        .logger;
+      const warnSpy = jest.spyOn(logger, 'warn');
+
+      repo.insert.mockRejectedValueOnce(new Error('connection refused'));
+      await expect(
+        (
+          service as unknown as {
+            appendExecutionPath: (e: string, n: string) => Promise<void>;
+          }
+        ).appendExecutionPath('exec-flaky', 'node-x'),
+      ).resolves.toBeUndefined();
+
+      expect(warnSpy).toHaveBeenCalled();
+      const msg = String(warnSpy.mock.calls[0][0]);
+      expect(msg).toContain('exec-flaky');
+      expect(msg).toContain('node-x');
+      warnSpy.mockRestore();
     });
   });
 

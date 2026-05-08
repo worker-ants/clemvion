@@ -714,9 +714,10 @@ resolve()        silent skip
 
 다중 인스턴스에서 신규 기동한 인스턴스가 다른 인스턴스에서 정상 처리 중인 WAITING_FOR_INPUT 을 잘못 FAIL 시키지 않도록 보수적 가드.
 
-- **분산 lock**: `redis SET 'exec:recover:lock' <pid> EX 60 NX` — 60초 TTL. 획득 실패 시 본 인스턴스는 skip.
+- **분산 lock**: `redis SET 'exec:recover:lock' <hostname:uuid-token> EX 60 NX` — 60초 TTL. 획득 실패 시 본 인스턴스는 skip. 컨테이너에서 PID 가 충돌해도 `hostname + UUID` 로 owner 식별 보장.
+- **명시적 release**: 작업 종료 시 owner 검증 Lua script 로 lock 을 즉시 해제 — TTL 만료 대기 없이 다음 인스턴스가 처리 가능. owner 가 다르면 (이미 expire 후 다른 인스턴스가 잡은 lock) 절대 삭제하지 않는다.
 - **Stale 임계값**: `started_at < now() - 30분` 인 row 만 FAIL UPDATE. 30분 미만의 신규 대기는 보존된다.
-- 두 가드를 함께 적용해, 동시 부팅·진행 중 부팅 어떤 시나리오에서도 정상 대기를 잃지 않는다.
+- 세 가드를 함께 적용해, 동시 부팅·진행 중 부팅 어떤 시나리오에서도 정상 대기를 잃지 않는다.
 
 ---
 
@@ -767,6 +768,10 @@ resolve()        silent skip
 | `core:{wsId}:rate:{userId}` | API Rate Limit 카운터 | 60초 |
 | `ws:{wsId}:session:{connId}` | WebSocket 세션 정보 | 세션 유지 시간 |
 | `exec:{wsId}:queue:priority` | 우선순위 큐 (Sorted Set) | 영구 (큐 소비 시 삭제) |
+| `execution:continuation` (Pub/Sub) | 분산 인스턴스 사용자 입력 fan-out 채널 — 워크스페이스 단위가 아닌 **전역**. cross-cutting 라우팅 성격으로 §9.1 패턴의 예외 (§7.4 참조) | 채널 (TTL 없음) |
+| `exec:recover:lock` | 부팅 시 stuck recovery 분산 lock — 워크스페이스 단위가 아닌 **전역**. 단일 인스턴스만 recovery UPDATE 를 수행하도록 보장 (§7.4 참조) | 60초 |
+
+> 두 전역 키 (`execution:continuation`, `exec:recover:lock`) 는 §9.1 의 `{service}:{workspaceId}:{resource}` 패턴을 따르지 않는다. 각각 인스턴스 간 메시징 / 부팅 단일 진입 가드라는 **워크스페이스에 종속되지 않는** 책임을 가지므로 전역 키로 둔다.
 
 ---
 

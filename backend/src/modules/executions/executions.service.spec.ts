@@ -20,7 +20,8 @@ type FakeExec = {
   outputData: Record<string, unknown> | null;
   error: Record<string, unknown> | null;
   recursionDepth: number;
-  executionPath: string[];
+  // executionPath 컬럼은 V035 에서 제거됐으며 별도 execution_node_log 테이블로
+  // 이행됐다. fixture 에는 더 이상 포함하지 않는다.
   trigger: { id: string; type: string; name: string } | null;
   executor: { id: string; name: string | null } | null;
 };
@@ -39,7 +40,6 @@ const baseFake = (overrides: Partial<FakeExec>): FakeExec => ({
   outputData: null,
   error: null,
   recursionDepth: 0,
-  executionPath: [],
   trigger: null,
   executor: null,
   ...overrides,
@@ -290,6 +290,71 @@ describe('ExecutionsService', () => {
       const { data } = await service.findByWorkflow('w1', {});
       expect(data[0].triggerSource).toBe('unknown');
       expect(data[0].triggerLabel).toBeNull();
+    });
+  });
+
+  // PR-B — findById 가 V035 의 execution_node_log 에서 (execution_id, id)
+  // 정렬로 executionPath 를 채운다. 기존 list 응답은 N+1 회피로 빈 배열.
+  describe('findById → execution_node_log 기반 executionPath 채움', () => {
+    const buildSingleQB = (row: FakeExec | null) => {
+      const qb: Record<string, jest.Mock> = {};
+      qb.leftJoinAndSelect = jest.fn().mockReturnValue(qb);
+      qb.leftJoin = jest.fn().mockReturnValue(qb);
+      qb.addSelect = jest.fn().mockReturnValue(qb);
+      qb.where = jest.fn().mockReturnValue(qb);
+      qb.getOne = jest.fn().mockResolvedValue(row);
+      return qb;
+    };
+
+    it('executionNodeLogRepo.find 결과의 nodeId 배열을 executionPath 로 노출', async () => {
+      const row = baseFake({ id: 'eF1' });
+      executionRepo.createQueryBuilder.mockReturnValueOnce(
+        buildSingleQB(row) as unknown,
+      );
+      nodeExecutionRepo.find.mockResolvedValue([]);
+      executionNodeLogRepo.find.mockResolvedValue([
+        { nodeId: 'n1' },
+        { nodeId: 'n2' },
+        { nodeId: 'n3' },
+      ]);
+
+      const result = (await service.findById('eF1')) as {
+        executionPath: string[];
+      };
+      expect(result.executionPath).toEqual(['n1', 'n2', 'n3']);
+      expect(executionNodeLogRepo.find).toHaveBeenCalledWith({
+        where: { executionId: 'eF1' },
+        order: { id: 'ASC' },
+        select: { nodeId: true },
+      });
+    });
+
+    it('execution_node_log 비어있으면 executionPath 는 빈 배열', async () => {
+      const row = baseFake({ id: 'eF2' });
+      executionRepo.createQueryBuilder.mockReturnValueOnce(
+        buildSingleQB(row) as unknown,
+      );
+      nodeExecutionRepo.find.mockResolvedValue([]);
+      executionNodeLogRepo.find.mockResolvedValue([]);
+
+      const result = (await service.findById('eF2')) as {
+        executionPath: string[];
+      };
+      expect(result.executionPath).toEqual([]);
+    });
+
+    it('list 응답 (findByWorkflow) 의 executionPath 는 N+1 회피로 빈 배열', async () => {
+      const row = baseFake({ id: 'eL1' });
+      executionRepo.createQueryBuilder.mockReturnValueOnce(
+        buildListQB([row]) as unknown,
+      );
+      // 의도적으로 log 에 데이터가 있어도 list 는 호출하지 않음.
+      executionNodeLogRepo.find.mockResolvedValue([{ nodeId: 'n9' }]);
+
+      const { data } = await service.findByWorkflow('w1', {});
+      expect(data[0].executionPath).toEqual([]);
+      // list 경로에서는 log repo 가 호출되지 않아야 한다 (N+1 회피).
+      expect(executionNodeLogRepo.find).not.toHaveBeenCalled();
     });
   });
 });
