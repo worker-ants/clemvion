@@ -813,7 +813,7 @@ describe('HttpRequestHandler', () => {
       );
     });
 
-    it('omits requestBody for GET (no body)', async () => {
+    it('omits requestBody for GET (no body) but still emits requestBodyType', async () => {
       global.fetch = jest.fn().mockResolvedValue({
         ok: true,
         status: 200,
@@ -825,9 +825,70 @@ describe('HttpRequestHandler', () => {
         null,
         { method: 'GET', url: 'https://api.example.com/x' },
         makeContext(),
-      )) as { output: { requestBody?: unknown } };
+      )) as { output: { requestBody?: unknown; requestBodyType: string } };
 
       expect(result.output.requestBody).toBeUndefined();
+      // requestBodyType uses the evaluated default ('json') even when no
+      // body was sent — review W-5 (Principle 7 — output is evaluated).
+      expect(result.output.requestBodyType).toBe('json');
+    });
+
+    it('omits requestBody for body: null', async () => {
+      global.fetch = jest.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: jest.fn().mockResolvedValue({}),
+        headers: new Headers(),
+      });
+
+      // `body: null` is treated identically to `body: undefined` in the
+      // wire-encoding path (`fetchOptions.body` stays unset). The output
+      // contract should mirror that — `requestBody` is null per the cap
+      // helper's null-passthrough rule.
+      const result = (await handler.execute(
+        null,
+        {
+          method: 'POST',
+          url: 'https://api.example.com/x',
+          body: null,
+          bodyType: 'json',
+        },
+        makeContext(),
+      )) as { output: { requestBody?: unknown; requestBodyType: string } };
+
+      // `truncateBodyForOutput(null) → { value: null, truncated: false }`,
+      // so `null` is emitted explicitly; `undefined` would be omitted.
+      expect(result.output.requestBody).toBeNull();
+      expect(result.output.requestBodyType).toBe('json');
+    });
+
+    it('records x-www-form-urlencoded body verbatim on requestBody', async () => {
+      global.fetch = jest.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: jest.fn().mockResolvedValue({}),
+        headers: new Headers(),
+      });
+
+      const result = (await handler.execute(
+        null,
+        {
+          method: 'POST',
+          url: 'https://api.example.com/form',
+          bodyType: 'x-www-form-urlencoded',
+          body: { name: 'alice', age: 30 },
+        },
+        makeContext(),
+      )) as {
+        output: { requestBody: unknown; requestBodyType: string };
+      };
+
+      // The wire format is `name=alice&age=30` (URLSearchParams), but the
+      // echoed `requestBody` is the structured input the user passed —
+      // intentional, since the round-trip serialisation is lossy for booleans
+      // and the Principle-7 contract is "evaluated value", not "wire bytes".
+      expect(result.output.requestBody).toEqual({ name: 'alice', age: 30 });
+      expect(result.output.requestBodyType).toBe('x-www-form-urlencoded');
     });
 
     it('records form-data entries on requestBody', async () => {
