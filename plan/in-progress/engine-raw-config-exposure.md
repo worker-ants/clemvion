@@ -28,7 +28,7 @@
 | Phase 3 — 나머지 핸들러 마이그레이션 | 완료 | `c29ee55b` (PR-3a) + `75ec5eb6` (PR-3b) + `05b69896` (PR-3c) + `71e4fa7a` (PR-3d) + `6eeeb095` (PR-3e) + `7f7a9d3d` (PR-3f) — 25/25 핸들러 마이그레이션 |
 | Phase 4 — Frontend 자동완성 회귀 점검 | 완료 | verification only — 코드 변경 없음 (`use-expression-suggestions.test.ts:667` envelope unwrap 가드가 회귀 차단) |
 | Phase 5 — Swagger / OpenAPI 영향 검증 | 완료 | DTO 주석 갱신만 — 응답 schema 자체는 generic object 로 추상화돼 변경 영향 0. CHANGELOG 통합은 Phase 6 에서 |
-| Phase 6 — DB / 실행 이력 호환성 검증 | 미진행 | |
+| Phase 6 — DB / 실행 이력 호환성 검증 | 완료 | spec §6.3 Replay Policy 박스 신설 + PRD §11 영향 범위 한 줄 + CHANGELOG #14~16 + Replay/View Policy 절. UI tooltip 은 skip (CHANGELOG/spec 안내로 충분) |
 | Phase 7 — 정리 / 클로저 | 미진행 | |
 
 PRD 에서는 `ENG-RC-01` (엔진의 `rawConfig` 노출), `ENG-RC-02` (핸들러 echo 패턴), `ENG-RC-03` (raw + evaluated 양쪽 노출), `ENG-RC-04` (전체 핸들러 마이그레이션) 모두 ✅ — 25/25 핸들러 모두 raw-echo 패턴 적용 (AI Agent 의 final 출력 echo 두 곳은 후속 보강 후보 지만, 핵심 echo 지점은 모두 rawConfig 기반).
@@ -158,11 +158,29 @@ PRD 에서는 `ENG-RC-01` (엔진의 `rawConfig` 노출), `ENG-RC-02` (핸들러
 
 **CHANGELOG 통합**: 본 phase 에서는 release note 초안을 작성하지 않고 Phase 6 의 통합 작성 단계로 미룬다 (Replay Policy 와 함께 단일 항목으로 묶음).
 
-### Phase 6 — DB / 실행 이력 호환성 검증
+### Phase 6 — DB / 실행 이력 호환성 + Replay 정책 명시 (완료)
 
-NodeExecution.outputData JSONB 의 의미 변화에 대한 호환성 + UI 표시 안내. DDL 변경 없음 확인 (JSONB 그대로). 옛 NodeExecution rows 는 config = evaluated 형태 (배포 전), 새 rows 는 config = raw 형태 — historical 보존 (백필 X) 정책을 spec/PRD 또는 release note 에 명시. replay (재실행) 의 입력 경로가 raw 를 다시 evaluate 하는지 vs 저장된 evaluated 를 재사용하는지 확정. frontend execution-history UI 의 config 표시 부분에 "기록 시점의 config 형태" 안내 한 줄 (필요 시). 기존 워크플로 expression `$node["X"].config.<expression-field>` 가 옛 실행 caching 환경에서 동작 차이 발생하는지 확인.
+**결정 (사용자 응답)**: 옵션 C — Hybrid (View + Re-run 분리). spec/PRD/CHANGELOG 에 정책만 박고 Re-run 실제 구현은 future PRD 로 분리.
 
-**PR 분할 권장**: 1건 (DDL 무변경 → release note + UI 안내만).
+**작업 결과**:
+
+1. **DDL 변경 없음 재확인** — JSONB 그대로, 백필 없음.
+
+2. **`spec/5-system/4-execution-engine.md` §6.3 신설** — "재실행/조회 정책 (Replay Policy)" 박스. View / Re-run / Multi-turn resume 의 의미·구현 상태·외부 부수효과·expression 평가를 표로 정리. 옛 NodeExecution row 호환성 (백필 X, historical record, expression cross-execution 참조 없음) 별도 단락으로 명시.
+
+3. **`prd/3-node-system.md` §11 영향 범위** — Replay 정책 한 줄 추가, spec §6.3 cross-link.
+
+4. **`CHANGELOG.md`** —
+   - 항목 #14 추가: `NodeHandlerOutput.config` echoes raw template (PRD `ENG-RC-*`, CONVENTIONS Principle 7). 마이그레이션 가이드 포함.
+   - 항목 #15 추가: Send Email new `output` fields (subject / body / bodyType / bodyTruncated, additive).
+   - 항목 #16 추가: HTTP Request new `output` fields (requestBody / requestBodyType / responseHeaders / bodyTruncated, additive).
+   - **"Replay / View Policy (new)"** 절 신설 — View 는 zero side effect, Re-run 은 미구현 (future PRD), Multi-turn resume 은 replay 가 아님. 옛 row 호환성 한 단락.
+
+5. **CONVENTIONS / PRD 정합 점검** — Principle 7 (`config` echo 원칙) / 1.1.3 / 8.2 가 Replay Policy 와 모순 없음 확인. ENG-RC-05 신설은 plan 권장대로 skip — 본문 한 줄 추가로 끝냄.
+
+6. **Frontend execution-history UI tooltip** — skip (CHANGELOG / spec §6.3 안내로 충분, UI 노이즈 회피).
+
+**검증**: backend lint clean / frontend lint clean / docs-only 변경이라 unit·build 재실행 불필요 (전 phase 에서 green 확인됨).
 
 ### Phase 7 — 정리 / 클로저
 

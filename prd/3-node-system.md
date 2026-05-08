@@ -391,4 +391,5 @@
 - 기존 워크플로의 `$node["X"].config.<expression-field>` 표현식이 평가된 값을 읽고 있다면 마이그레이션 후 원본 템플릿이 반환됨 (breaking — release note 필요).
 - 본 변경 이전에 저장된 `NodeExecution.outputData` 의 historical record 는 그대로 보존(백필 X) 하되, UI 의 실행 이력 표시에는 "기록 시점의 config 형태" 라는 안내가 필요할 수 있다.
 - API 클라이언트(외부 통합) 에서 응답 DTO 의 `config` 를 evaluated 로 가정한 코드는 영향 받음 — Phase 5(Swagger 검증) 에서 식별 후 CHANGELOG 반영.
+- **Replay 정책**: 본 버전에는 진정한 replay (재실행) 기능이 미구현. 향후 도입 시 **View** (저장된 evaluated 단순 조회 — 외부 부수효과 없음) 와 **Re-run** (현재 워크플로 정의의 raw config 를 재평가해 새 Execution 시작 — 외부 부수효과 재트리거) 두 모드로 분리한다. Multi-turn resume 은 replay 가 아닌 같은 실행의 다음 turn 진행. 자세한 정책은 [Spec 실행 엔진 §6.3](../spec/5-system/4-execution-engine.md#63-재실행조회-정책-replay-policy) 참조.
 
