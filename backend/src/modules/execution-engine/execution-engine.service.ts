@@ -1582,6 +1582,10 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
         waitingNodeType: node.type,
         waitingNodeLabel: node.label ?? node.type,
         nodeExecutionId: nodeExec?.id,
+        // 프론트엔드 store 가 NODE_STARTED 를 ws subscribe 완료 전에 놓친
+        // 시나리오에서도 row 의 startedAt 을 채울 수 있도록 항상 동봉한다 —
+        // 누락 시 sortByStartedAt 이 해당 row 를 timeline 마지막으로 보냄.
+        startedAt: nodeExec?.startedAt?.toISOString?.(),
         nodeOutput,
       },
     );
@@ -1834,6 +1838,9 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
         waitingNodeType: node.type,
         waitingNodeLabel: node.label ?? node.type,
         nodeExecutionId: nodeExec?.id,
+        // 프론트엔드 store 가 NODE_STARTED 를 놓친 경우에도 row 의 startedAt
+        // 을 채울 수 있도록 동봉 (sortByStartedAt 정렬 정합성 보장).
+        startedAt: nodeExec?.startedAt?.toISOString?.(),
         nodeOutput: {
           interactionType: 'ai_conversation',
           ...(structuredConfig && Object.keys(structuredConfig).length > 0
@@ -1986,6 +1993,9 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
               waitingNodeType: node.type,
               waitingNodeLabel: node.label ?? node.type,
               nodeExecutionId: nodeExec?.id,
+              // sortByStartedAt 정합성 — store 가 prior NODE_STARTED 를
+              // 놓친 시나리오 대비 항상 동봉.
+              startedAt: nodeExec?.startedAt?.toISOString?.(),
               nodeOutput: {
                 interactionType: 'ai_conversation',
                 // Pass through handler's echoed node config so the Config
@@ -2177,6 +2187,11 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
         // the same timeline entry created by NODE_STARTED, preventing a
         // phantom duplicate row when execution resumes.
         nodeExecutionId: nodeExec?.id,
+        // 워크플로 첫 노드는 사용자 "Run" 직후 도달해 ws subscribe 완료 전
+        // NODE_STARTED 를 놓칠 race window 가 있다. 그 경우에도 store row 의
+        // startedAt 이 채워지도록 항상 동봉 — sortByStartedAt 이 startedAt
+        // 미정 row 를 timeline 마지막으로 보내는 것을 방지.
+        startedAt: nodeExec?.startedAt?.toISOString?.(),
         interactionType: 'buttons',
         buttonConfig: {
           buttons,

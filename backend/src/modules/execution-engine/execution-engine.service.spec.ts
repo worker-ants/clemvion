@@ -1257,7 +1257,10 @@ describe('ExecutionEngineService', () => {
       await service.execute(workflowId, { data: 'test' });
       await flushPromises();
 
-      // Should emit waiting_for_input event
+      // Should emit waiting_for_input event — payload 가 startedAt (ISO) 을
+      // 동봉해야 한다. 프론트엔드 store 가 NODE_STARTED race miss 시에도
+      // sortByStartedAt 정렬 정합성을 유지하기 위해서 (timeline-ordering
+      // bug fix).
       expect(mockWebsocketService.emitExecutionEvent).toHaveBeenCalledWith(
         executionId,
         'execution.waiting_for_input',
@@ -1265,6 +1268,7 @@ describe('ExecutionEngineService', () => {
           status: 'waiting_for_input',
           waitingNodeId: 'node-form',
           waitingNodeType: 'form',
+          startedAt: expect.any(String),
         }),
       );
 
