@@ -41,6 +41,7 @@ import {
   coerceContainerBoolean,
   coerceContainerNumber,
   coerceContainerNumberOptional,
+  coerceErrorPolicy,
 } from './utils/coerce-container-param';
 import {
   ExecutionContext,
@@ -3899,11 +3900,12 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
       const collected = await this.foreachExecutor.execute(
         {
           array,
-          errorPolicy:
-            (engineResolvedConfig.errorPolicy as
-              | 'stop'
-              | 'skip'
-              | 'continue') ?? 'stop',
+          errorPolicy: coerceErrorPolicy(
+            engineResolvedConfig.errorPolicy,
+            'errorPolicy',
+            containerNode.type,
+            'stop',
+          ),
           collectResults: true,
         },
         context,
@@ -3922,11 +3924,12 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
       const collected = await this.foreachExecutor.execute(
         {
           array,
-          errorPolicy:
-            (engineResolvedConfig.errorPolicy as
-              | 'stop'
-              | 'skip'
-              | 'continue') ?? 'stop',
+          errorPolicy: coerceErrorPolicy(
+            engineResolvedConfig.errorPolicy,
+            'errorPolicy',
+            containerNode.type,
+            'stop',
+          ),
           collectResults: true,
         },
         context,
