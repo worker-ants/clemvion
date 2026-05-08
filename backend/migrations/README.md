@@ -105,13 +105,24 @@ backend/migrations/
 
 Dockerfile 에서 `*.conf` 도 함께 COPY 되어야 합니다 (이미 V022 도입 시 적용 완료).
 
-### 5. ⚠️ `executeInTransaction=false` 파일은 한 statement 만
+> **중요 — `FLYWAY_POSTGRESQL_TRANSACTIONAL_LOCK=false`**
+>
+> 마이그 이미지 (`backend/migrations/Dockerfile`) 에 `ENV FLYWAY_POSTGRESQL_TRANSACTIONAL_LOCK=false` 가 박혀 있다. Flyway 9.1.2 부터 schema-history 추적 락이 **transactional advisory lock** (`pg_try_advisory_xact_lock`) 으로 바뀌었는데, 이 락이 잡힌 트랜잭션은 마이그레이션이 끝날 때까지 열려 있어 **transaction snapshot 이 advance 하지 않는다**. `CREATE INDEX CONCURRENTLY` 는 두 차례의 scan 사이에 *해당 백엔드의 모든 transaction snapshot 이 advance 해야* 진행되므로, 추적 트랜잭션 snapshot 에 막혀 무한 hang 한다.
+>
+> 이 옵션은 락을 9.0.4 이전과 동일한 **session-level** (`pg_advisory_lock`) 로 폴백시킨다. session lock 은 트랜잭션이 아니므로 snapshot 을 잡지 않고, CONCURRENTLY 가 정상 진행한다. 직접 PostgreSQL 또는 session-pool 환경에서는 안전하다.
+>
+> **PgBouncer transaction-pool 환경에서만** 주의 — session lock 이 statement 사이에 유실될 수 있다. 그 경우 `-e FLYWAY_POSTGRESQL_TRANSACTIONAL_LOCK=true` 로 다시 켜고, 마이그레이션은 직접 PostgreSQL 또는 session-pool 로 돌려야 한다.
 
-`.conf` 로 비-트랜잭션 모드를 켠 마이그레이션 파일에는 **`CREATE INDEX CONCURRENTLY` 를 정확히 한 개만** 둡니다. 두 개 이상이면 k8s job 이 2번째 statement 부터 무한 hang 합니다.
+### 5. `executeInTransaction=false` 파일은 한 statement 만 (컨벤션)
 
-**원인** — Flyway 는 마이그레이션 한 건이 진행되는 동안 별도 connection 으로 `flyway_schema_history` 추적 (advisory lock + 진행 기록) 을 유지합니다. 이 추적 세션에는 implicit snapshot 이 잡혀 있고, `CREATE INDEX CONCURRENTLY` 는 시작·종료 시점에 *같은 백엔드의 모든 transaction snapshot 이 advance 해야* 진행할 수 있는데, 추적 세션 snapshot 이 그 조건을 막아 무한 대기로 들어갑니다. 첫 statement 가 끝나도 추적 세션 snapshot 이 새로 잡히면서 두 번째도 다시 막힙니다. job 을 재시작하면 추적 세션이 리셋되어 한 statement 씩만 advance 합니다 (V022 → 2 restart, V030 → 3 restart 의 정확한 양상).
+`.conf` 로 비-트랜잭션 모드를 켠 마이그레이션 파일에는 **`CREATE INDEX CONCURRENTLY` 를 정확히 한 개만** 두는 것을 컨벤션으로 둡니다.
 
-빈 테이블이라 SQL 자체는 instant 인데도 hang 으로 보이는 이유. backend pod 를 scale=0 으로 내려도 풀리지 않습니다 — Flyway 자기 자신의 추적 세션이 원인이라.
+> **근본 원인은 §4 의 `FLYWAY_POSTGRESQL_TRANSACTIONAL_LOCK=false` 로 해결되어 있습니다.** 과거에는 같은 파일에 두 개 이상이면 두 번째부터 hang 하던 이슈 (V022 / V030 split 의 배경) 가 있었으나, transactional advisory lock 이 session lock 으로 폴백되어 더 이상 발생하지 않습니다.
+>
+> 그럼에도 한 파일 한 statement 컨벤션을 유지하는 이유:
+> - **롤백 단위가 명확**합니다 — 파일 = atomic forward step.
+> - **checksum / 적용 추적이 단순**합니다 — 차원·인덱스별 분리가 history 에 그대로 드러납니다.
+> - 같은 파일에 *transactional* statement (예: `ALTER TABLE`) 와 `CONCURRENTLY` 를 섞으면 PostgreSQL 자체 제약 (CONCURRENTLY 는 트랜잭션 안에서 실행 불가) 에 걸립니다.
 
 **규칙**:
 - 한 차원당 한 마이그레이션 파일 (예: V0xx_dim_768.sql, V0yy_dim_1024.sql).
