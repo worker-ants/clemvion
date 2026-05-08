@@ -3831,6 +3831,129 @@ describe('ExecutionEngineService', () => {
       expect((received.branches as unknown[]).length).toBe(2);
       expect(received.count).toBe(2);
     });
+
+    // engine-config-bug — Parallel 의 typeof number 가드는 raw 표현식 문자열을
+    // 받으면 false 가 되어 silent default fallback (branchCount=2) 으로
+    // 떨어졌다. engineResolvedConfigCache 도입 이후 expression 입력이 evaluated
+    // 값으로 컨테이너 동작에 도달해야 한다.
+    it('engine-config-bug — uses evaluated branchCount when input is expression {{N}}', async () => {
+      mockConfigService.get.mockImplementation(
+        (key: string, defaultValue?: unknown) => {
+          if (key === 'PARALLEL_ENGINE') return 'v1';
+          if (key === 'MAX_NODE_ITERATIONS') return 100;
+          return defaultValue;
+        },
+      );
+
+      const branchCalls: number[] = [];
+      const branchHandler: NodeHandler = {
+        validate: () => ({ valid: true, errors: [] }),
+        execute: jest.fn(async () => {
+          branchCalls.push(branchCalls.length);
+          return { ok: true };
+        }),
+      };
+      // Use a handler that echoes raw branchCount (mirrors the real
+      // ParallelHandler's Phase 3 raw-echo) so the bug surface is exercised.
+      const parallelHandler: NodeHandler = {
+        validate: () => ({ valid: true, errors: [] }),
+        execute: jest.fn(
+          async (
+            input: unknown,
+            config: Record<string, unknown>,
+            context: ExecutionContext,
+          ) => {
+            const branchCount =
+              typeof config.branchCount === 'number' ? config.branchCount : 2;
+            const ports = Array.from(
+              { length: branchCount },
+              (_, i) => `branch_${i}`,
+            );
+            const rawConfig = context.rawConfig ?? config;
+            return {
+              config: {
+                branchCount: rawConfig.branchCount,
+                maxConcurrency: rawConfig.maxConcurrency,
+                waitAll: rawConfig.waitAll,
+              },
+              output: input,
+              port: ports,
+            };
+          },
+        ),
+      };
+
+      handlerRegistry.register('parallel', parallelHandler);
+      handlerRegistry.register('branch_node', branchHandler);
+
+      const nodes: Partial<Node>[] = [
+        {
+          id: 'trigger',
+          workflowId,
+          type: 'test_node',
+          category: NodeCategory.TRIGGER,
+          label: 'Trigger',
+          config: {},
+          isDisabled: false,
+          containerId: undefined,
+          toolOwnerId: undefined,
+        },
+        {
+          id: 'par',
+          workflowId,
+          type: 'parallel',
+          category: NodeCategory.LOGIC,
+          label: 'Par',
+          config: { branchCount: '{{4}}', maxConcurrency: 0, waitAll: true },
+          isDisabled: false,
+          containerId: undefined,
+          toolOwnerId: undefined,
+        },
+        ...['a', 'b', 'c', 'd'].map((id) => ({
+          id,
+          workflowId,
+          type: 'branch_node',
+          category: NodeCategory.LOGIC,
+          label: id.toUpperCase(),
+          config: {},
+          isDisabled: false,
+          containerId: undefined,
+          toolOwnerId: undefined,
+        })),
+      ];
+
+      const edges: Partial<Edge>[] = [
+        {
+          id: 'e0',
+          workflowId,
+          sourceNodeId: 'trigger',
+          sourcePort: 'out',
+          targetNodeId: 'par',
+          targetPort: 'in',
+          type: EdgeType.DATA,
+        },
+        ...['a', 'b', 'c', 'd'].map((id, i) => ({
+          id: `e-par-${id}`,
+          workflowId,
+          sourceNodeId: 'par',
+          sourcePort: `branch_${i}`,
+          targetNodeId: id,
+          targetPort: 'in',
+          type: EdgeType.DATA,
+        })),
+      ];
+
+      mockNodeRepo.findBy.mockResolvedValue(nodes);
+      mockEdgeRepo.findBy.mockResolvedValue(edges);
+
+      await service.execute(workflowId, { start: true });
+      await flushPromises();
+
+      // 4 branch handler invocations — confirms branchCount={{4}} is
+      // resolved to 4 BEFORE the engine's runParallel reads it (would
+      // have silently defaulted to 2 prior to the fix).
+      expect(branchHandler.execute).toHaveBeenCalledTimes(4);
+    });
   });
 
   describe('AI no-llm-provider rule post-filter', () => {
