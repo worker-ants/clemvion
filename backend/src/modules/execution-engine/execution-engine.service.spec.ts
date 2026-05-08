@@ -3149,6 +3149,147 @@ describe('ExecutionEngineService', () => {
       expect(sinkCalls[0]).toEqual({ count: 0, items: [] });
     });
 
+    // engine-config-bug — Phase 3 raw-echo refactor에서 foreach 핸들러는
+    // arrayField 만 echo 했고, 엔진은 structured.config 에서 errorPolicy 를
+    // 읽어 항상 'stop' 으로 default fallback 됐다 (사용자 설정 무시). PR-2 의
+    // engineResolvedConfigCache 분리 + PR-4 의 coerceErrorPolicy 가드로
+    // 이제 사용자 설정이 실제로 동작에 반영된다.
+    it('engine-config-bug — respects ForEach errorPolicy="skip" set on node.config', async () => {
+      let bodyCalls = 0;
+      const bodyHandler: NodeHandler = {
+        validate: () => ({ valid: true, errors: [] }),
+        execute: jest.fn(async () => {
+          bodyCalls++;
+          // Throw on the second item only — verifies skip handler captures
+          // and continues to the third instead of aborting (which would be
+          // the stop policy's behaviour).
+          if (bodyCalls === 2) {
+            throw new Error('boom');
+          }
+          return { ok: bodyCalls };
+        }),
+      };
+      handlerRegistry.register('body_node', bodyHandler);
+
+      const sinkCalls: unknown[] = [];
+      const sinkHandler: NodeHandler = {
+        validate: () => ({ valid: true, errors: [] }),
+        execute: jest.fn(async (input: unknown) => {
+          sinkCalls.push(input);
+          return { ok: true };
+        }),
+      };
+      handlerRegistry.register('sink_node', sinkHandler);
+
+      const triggerHandler: NodeHandler = {
+        validate: () => ({ valid: true, errors: [] }),
+        execute: jest.fn(async () => ({ items: [1, 2, 3] })),
+      };
+      handlerRegistry.register('source_node', triggerHandler);
+
+      const nodes: Partial<Node>[] = [
+        {
+          id: 'src',
+          workflowId,
+          type: 'source_node',
+          category: NodeCategory.TRIGGER,
+          label: 'src',
+          config: {},
+          isDisabled: false,
+          containerId: null,
+          toolOwnerId: null,
+        },
+        {
+          id: 'fe',
+          workflowId,
+          type: 'foreach',
+          category: NodeCategory.LOGIC,
+          label: 'fe',
+          config: { arrayField: 'items', errorPolicy: 'skip' },
+          isDisabled: false,
+          containerId: null,
+          toolOwnerId: null,
+        },
+        {
+          id: 'body',
+          workflowId,
+          type: 'body_node',
+          category: NodeCategory.LOGIC,
+          label: 'body',
+          config: {},
+          isDisabled: false,
+          containerId: 'fe',
+          toolOwnerId: null,
+        },
+        {
+          id: 'sink',
+          workflowId,
+          type: 'sink_node',
+          category: NodeCategory.LOGIC,
+          label: 'sink',
+          config: {},
+          isDisabled: false,
+          containerId: null,
+          toolOwnerId: null,
+        },
+      ];
+
+      const edges: Partial<Edge>[] = [
+        {
+          id: 'e-src-fe',
+          workflowId,
+          sourceNodeId: 'src',
+          sourcePort: 'out',
+          targetNodeId: 'fe',
+          targetPort: 'in',
+          type: EdgeType.DATA,
+        },
+        {
+          id: 'e-fe-body',
+          workflowId,
+          sourceNodeId: 'fe',
+          sourcePort: 'body',
+          targetNodeId: 'body',
+          targetPort: 'in',
+          type: EdgeType.DATA,
+        },
+        {
+          id: 'e-body-emit',
+          workflowId,
+          sourceNodeId: 'body',
+          sourcePort: 'out',
+          targetNodeId: 'fe',
+          targetPort: 'emit',
+          type: EdgeType.DATA,
+        },
+        {
+          id: 'e-fe-sink',
+          workflowId,
+          sourceNodeId: 'fe',
+          sourcePort: 'done',
+          targetNodeId: 'sink',
+          targetPort: 'in',
+          type: EdgeType.DATA,
+        },
+      ];
+
+      mockNodeRepo.findBy.mockResolvedValue(nodes);
+      mockEdgeRepo.findBy.mockResolvedValue(edges);
+
+      await service.execute(workflowId, {});
+      await new Promise((r) => setTimeout(r, 200));
+
+      // Body called for all 3 items — second one threw, but skip continued.
+      expect(bodyHandler.execute).toHaveBeenCalledTimes(3);
+      // Sink received the collected items: 1st OK, 2nd skipped placeholder, 3rd OK.
+      expect(sinkCalls).toHaveLength(1);
+      const collected = (sinkCalls[0] as { items: unknown[] }).items;
+      expect(collected).toHaveLength(3);
+      expect(collected[0]).toEqual({ ok: 1 });
+      expect((collected[1] as { _skipped?: boolean })._skipped).toBe(true);
+      expect(collected[2]).toEqual({ ok: 3 });
+    });
+
     it('fails execution when container has no emit edge', async () => {
       const bodyHandler: NodeHandler = {
         validate: () => ({ valid: true, errors: [] }),

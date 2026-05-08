@@ -2,6 +2,7 @@ import {
   coerceContainerBoolean,
   coerceContainerNumber,
   coerceContainerNumberOptional,
+  coerceErrorPolicy,
 } from './coerce-container-param';
 
 describe('coerceContainerNumber', () => {
@@ -150,5 +151,62 @@ describe('coerceContainerBoolean', () => {
     expect(() =>
       coerceContainerBoolean({}, 'waitAll', 'parallel', false),
     ).toThrow(/not a boolean/);
+  });
+});
+
+describe('coerceErrorPolicy', () => {
+  it('passes through valid enum values', () => {
+    expect(coerceErrorPolicy('stop', 'errorPolicy', 'foreach', 'stop')).toBe(
+      'stop',
+    );
+    expect(coerceErrorPolicy('skip', 'errorPolicy', 'foreach', 'stop')).toBe(
+      'skip',
+    );
+    expect(
+      coerceErrorPolicy('continue', 'errorPolicy', 'foreach', 'stop'),
+    ).toBe('continue');
+  });
+
+  it('trims whitespace before matching', () => {
+    expect(
+      coerceErrorPolicy('  skip  ', 'errorPolicy', 'foreach', 'stop'),
+    ).toBe('skip');
+  });
+
+  it('returns default when value is undefined or null', () => {
+    expect(coerceErrorPolicy(undefined, 'errorPolicy', 'foreach', 'stop')).toBe(
+      'stop',
+    );
+    expect(coerceErrorPolicy(null, 'errorPolicy', 'foreach', 'continue')).toBe(
+      'continue',
+    );
+  });
+
+  it('throws for unresolved expression strings', () => {
+    expect(() =>
+      coerceErrorPolicy('{{$var.policy}}', 'errorPolicy', 'foreach', 'stop'),
+    ).toThrow(/unresolved expression/);
+  });
+
+  it('throws for invalid string values (no silent default)', () => {
+    expect(() =>
+      coerceErrorPolicy('crash', 'errorPolicy', 'foreach', 'stop'),
+    ).toThrow(/not a valid error policy/);
+    // Empty string is rejected too — trimmed empty is not in enum.
+    expect(() =>
+      coerceErrorPolicy('', 'errorPolicy', 'foreach', 'stop'),
+    ).toThrow(/not a valid error policy/);
+  });
+
+  it('throws for non-string primitives and objects', () => {
+    expect(() =>
+      coerceErrorPolicy(1, 'errorPolicy', 'foreach', 'stop'),
+    ).toThrow(/not a valid error policy/);
+    expect(() =>
+      coerceErrorPolicy(true, 'errorPolicy', 'foreach', 'stop'),
+    ).toThrow(/not a valid error policy/);
+    expect(() =>
+      coerceErrorPolicy({}, 'errorPolicy', 'foreach', 'stop'),
+    ).toThrow(/not a valid error policy/);
   });
 });

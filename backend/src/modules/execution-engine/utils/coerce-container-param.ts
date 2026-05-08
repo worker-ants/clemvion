@@ -65,6 +65,49 @@ export function coerceContainerNumberOptional(
   return coerceContainerNumber(value, fieldName, nodeType);
 }
 
+export type ContainerErrorPolicy = 'stop' | 'skip' | 'continue';
+
+const ERROR_POLICY_VALUES: readonly ContainerErrorPolicy[] = [
+  'stop',
+  'skip',
+  'continue',
+];
+
+/**
+ * Coerce an evaluated container config field to a {@link ContainerErrorPolicy}
+ * enum value, falling back to `defaultValue` when the field is absent.
+ *
+ * - 'stop' / 'skip' / 'continue' → pass through
+ * - undefined / null → defaultValue
+ * - unresolved expression string → throw
+ * - everything else → throw
+ *
+ * Stricter than the previous `as` cast: an out-of-range value used to
+ * fall through the executor's switch silently (treated as a no-op around
+ * caught errors).
+ */
+export function coerceErrorPolicy(
+  value: unknown,
+  fieldName: string,
+  nodeType: string,
+  defaultValue: ContainerErrorPolicy,
+): ContainerErrorPolicy {
+  if (value === undefined || value === null) return defaultValue;
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    if (UNRESOLVED_EXPRESSION_PATTERN.test(trimmed)) {
+      throw unresolvedExpressionError(nodeType, fieldName, value);
+    }
+    if (ERROR_POLICY_VALUES.includes(trimmed as ContainerErrorPolicy)) {
+      return trimmed as ContainerErrorPolicy;
+    }
+  }
+  throw new Error(
+    `INVALID_CONTAINER_PARAM: ${nodeType}.${fieldName} = ${JSON.stringify(value)} ` +
+      `is not a valid error policy (expected one of: ${ERROR_POLICY_VALUES.join(', ')}).`,
+  );
+}
+
 /**
  * Coerce an evaluated container config field to a boolean, falling back to
  * `defaultValue` when the field is absent.
