@@ -7,6 +7,7 @@ import { NodeExecution } from '../node-executions/entities/node-execution.entity
 import { Node } from '../nodes/entities/node.entity';
 import { Edge } from '../edges/entities/edge.entity';
 import { Workflow } from '../workflows/entities/workflow.entity';
+import { ExecutionNodeLog } from './entities/execution-node-log.entity';
 import { ExecutionEngineService } from './execution-engine.service';
 import { NodeHandlerRegistry } from '../../nodes/core/node-handler.registry';
 import { NodeComponentRegistry } from '../../nodes/core/node-component.registry';
@@ -28,7 +29,14 @@ import { BackgroundExecutionProcessor } from './queues/background-execution.proc
 @Module({
   imports: [
     ConfigModule,
-    TypeOrmModule.forFeature([Execution, NodeExecution, Node, Edge, Workflow]),
+    TypeOrmModule.forFeature([
+      Execution,
+      NodeExecution,
+      Node,
+      Edge,
+      Workflow,
+      ExecutionNodeLog,
+    ]),
     forwardRef(() => WebsocketModule),
     LlmModule,
     KnowledgeBaseModule,

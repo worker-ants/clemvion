@@ -7,6 +7,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Execution, ExecutionStatus } from './entities/execution.entity';
 import { NodeExecution } from '../node-executions/entities/node-execution.entity';
+import { ExecutionNodeLog } from '../execution-engine/entities/execution-node-log.entity';
 import { ExecutionEngineService } from '../execution-engine/execution-engine.service';
 import { QueryExecutionDto } from './dto/query-execution.dto';
 import { PaginatedResponseDto } from '../../common/dto/paginated-response.dto';
@@ -19,12 +20,15 @@ import { loadParentWorkflowNames } from './utils/load-parent-workflow-names';
 
 /**
  * `findById` 응답 — 기존 entity 형태(websocket snapshot/frontend 호환)에
- * triggerSource/triggerLabel 두 필드를 추가한 shape.
+ * triggerSource/triggerLabel 두 필드를 추가한 shape. `executionPath` 는
+ * `execution_node_log` 의 (execution_id, id) 정렬 결과로 채워진다 — entity
+ * 컬럼이 사라졌으므로 service 가 외부 API 호환성을 위해 별도 채움.
  */
 export type ExecutionDetailWithTrigger = Execution & {
   nodeExecutions: NodeExecution[];
   triggerSource: ExecutionTriggerSource;
   triggerLabel: string | null;
+  executionPath: string[];
 };
 
 @Injectable()
@@ -34,6 +38,8 @@ export class ExecutionsService {
     private readonly executionRepository: Repository<Execution>,
     @InjectRepository(NodeExecution)
     private readonly nodeExecutionRepository: Repository<NodeExecution>,
+    @InjectRepository(ExecutionNodeLog)
+    private readonly executionNodeLogRepository: Repository<ExecutionNodeLog>,
     private readonly executionEngineService: ExecutionEngineService,
   ) {}
 
@@ -96,6 +102,16 @@ export class ExecutionsService {
       order: { startedAt: 'ASC' },
     });
 
+    // executionPath 는 execution_node_log 의 (execution_id, id) 순서로 채운다.
+    // BIGSERIAL `id` 가 단조증가이므로 다중 인스턴스 환경에서도 단일 source of
+    // truth 를 유지한다.
+    const pathRows = await this.executionNodeLogRepository.find({
+      where: { executionId: id },
+      order: { id: 'ASC' },
+      select: { nodeId: true },
+    });
+    const executionPath = pathRows.map((r) => r.nodeId);
+
     const parentName = execution.parentExecutionId
       ? (
           await loadParentWorkflowNames(this.executionRepository, [execution])
@@ -109,6 +125,7 @@ export class ExecutionsService {
       nodeExecutions,
       triggerSource: trigger.source,
       triggerLabel: trigger.label,
+      executionPath,
     };
   }
 
@@ -248,7 +265,9 @@ export class ExecutionsService {
       executedBy: execution.executedBy ?? null,
       parentExecutionId: execution.parentExecutionId ?? null,
       recursionDepth: execution.recursionDepth ?? 0,
-      executionPath: execution.executionPath ?? [],
+      // list 응답에서는 N+1 회피를 위해 빈 배열로 유지. 단건 조회 (`findById`)
+      // 는 별도 경로로 execution_node_log 를 채워서 응답한다.
+      executionPath: [],
     };
   }
 

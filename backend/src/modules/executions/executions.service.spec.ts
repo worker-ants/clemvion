@@ -52,6 +52,7 @@ describe('ExecutionsService', () => {
     findOne: jest.Mock;
   };
   let nodeExecutionRepo: { find: jest.Mock };
+  let executionNodeLogRepo: { find: jest.Mock };
   let engine: { cancelWaitingExecution: jest.Mock };
 
   const buildListQB = (rows: FakeExec[], total = rows.length) => {
@@ -83,10 +84,12 @@ describe('ExecutionsService', () => {
       findOne: jest.fn(),
     };
     nodeExecutionRepo = { find: jest.fn() };
+    executionNodeLogRepo = { find: jest.fn().mockResolvedValue([]) };
     engine = { cancelWaitingExecution: jest.fn() };
     service = new ExecutionsService(
       executionRepo as never,
       nodeExecutionRepo as never,
+      executionNodeLogRepo as never,
       engine as never,
     );
   });
