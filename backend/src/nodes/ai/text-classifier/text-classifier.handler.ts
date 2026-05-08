@@ -56,6 +56,24 @@ export class TextClassifierHandler implements NodeHandler {
     const includeEvidence = (config.includeEvidence as boolean) ?? false;
     const multiLabel = (config.multiLabel as boolean) ?? false;
 
+    // CONVENTIONS Principle 7 — config echoes raw inputField (`{{ ... }}`
+    // template preserved) and raw categories. Engine resolves expressions
+    // before dispatch so the local variables above hold evaluated values
+    // for runtime use.
+    const rawConfig = context.rawConfig ?? config;
+    const configEcho = {
+      categories: (rawConfig.categories as Category[]) ?? categories,
+      inputField: rawConfig.inputField ?? inputField,
+      multiLabel: rawConfig.multiLabel ?? multiLabel,
+      ...(rawConfig.llmConfigId !== undefined
+        ? { llmConfigId: rawConfig.llmConfigId }
+        : {}),
+      ...(rawConfig.model !== undefined ? { model: rawConfig.model } : {}),
+      ...(rawConfig.instructions !== undefined
+        ? { instructions: rawConfig.instructions }
+        : {}),
+    };
+
     const workspaceId = (context.variables?.__workspaceId as string) || '';
     const llmConfig = await this.llmService.resolveConfig(
       llmConfigId,
@@ -109,7 +127,7 @@ export class TextClassifierHandler implements NodeHandler {
       // PII don't land full-length in error envelope details.
       const truncatedInput = truncateForErrorDetails(inputField, 500);
       return {
-        config: { categories, inputField, multiLabel },
+        config: configEcho,
         output: {
           error: {
             code: 'LLM_CALL_FAILED',
@@ -146,6 +164,7 @@ export class TextClassifierHandler implements NodeHandler {
         includeConfidence,
         includeEvidence,
         llmCalls,
+        configEcho,
       );
     }
     return this.processSingleLabelResult(
@@ -155,6 +174,7 @@ export class TextClassifierHandler implements NodeHandler {
       includeConfidence,
       includeEvidence,
       llmCalls,
+      configEcho,
     );
   }
 
@@ -291,6 +311,7 @@ Respond ONLY with the JSON object, no additional text.`;
       responsePayload: unknown;
       durationMs: number;
     }>,
+    configEcho: Record<string, unknown>,
   ) {
     const NONE = TextClassifierHandler.NONE_SENTINEL;
     let category = '';
@@ -327,7 +348,7 @@ Respond ONLY with the JSON object, no additional text.`;
     const port = portIndex >= 0 ? portIds[portIndex] : 'fallback';
 
     return {
-      config: { categories, inputField, multiLabel: false },
+      config: configEcho,
       output: {
         result: {
           category: isFallback ? null : category,
@@ -359,6 +380,7 @@ Respond ONLY with the JSON object, no additional text.`;
       responsePayload: unknown;
       durationMs: number;
     }>,
+    configEcho: Record<string, unknown>,
   ) {
     let matchedCategories: {
       name: string;
@@ -409,7 +431,7 @@ Respond ONLY with the JSON object, no additional text.`;
       matchedPorts.length > 0 ? matchedPorts : 'fallback';
 
     return {
-      config: { categories, inputField, multiLabel: true },
+      config: configEcho,
       output: {
         result: {
           categories: matchedCategories,

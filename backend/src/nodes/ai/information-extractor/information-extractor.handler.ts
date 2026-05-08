@@ -155,13 +155,18 @@ export class InformationExtractorHandler implements NodeHandler {
     let lastModel: string | undefined;
     const llmCalls: LlmCallTrace[] = [];
     const totalAttempts = maxRetries + 1;
+    // CONVENTIONS Principle 7 — config echoes raw inputField / model /
+    // schema / instructions / examples (`{{ ... }}` templates preserved on
+    // user-authored fields). Engine resolves expressions before dispatch
+    // so the local variables hold evaluated values for runtime LLM calls.
+    const rawConfig = context.rawConfig ?? config;
     const configEcho = {
       mode: 'single_turn' as const,
-      model: model ?? llmConfig.defaultModel,
-      schema: outputSchema,
-      instructions,
-      examples,
-      inputField,
+      model: rawConfig.model ?? model ?? llmConfig.defaultModel,
+      schema: rawConfig.outputSchema ?? outputSchema,
+      instructions: rawConfig.instructions ?? instructions,
+      examples: rawConfig.examples ?? examples,
+      inputField: rawConfig.inputField ?? inputField,
     };
 
     for (let attempt = 0; attempt <= maxRetries; attempt++) {
