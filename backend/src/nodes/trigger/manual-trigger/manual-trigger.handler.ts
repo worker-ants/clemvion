@@ -56,9 +56,11 @@ export class ManualTriggerHandler implements NodeHandler {
     config: Record<string, unknown>,
     context: ExecutionContext,
   ): Promise<NodeHandlerOutput> {
-    void context;
-    const cfg = config as ManualTriggerConfig;
-    const parameters = cfg.parameters ?? [];
+    // CONVENTIONS Principle 7 — `config` echoes raw parameter definitions
+    // (defaultValue templates preserved). `output.parameters` carries the
+    // already-resolved values produced by `resolveTriggerParameters` upstream.
+    const rawConfig = (context.rawConfig ?? config) as ManualTriggerConfig;
+    const rawParameters = rawConfig.parameters ?? [];
 
     const typedInput =
       input && typeof input === 'object' && !Array.isArray(input)
@@ -76,7 +78,7 @@ export class ManualTriggerHandler implements NodeHandler {
     void _omit;
 
     return Promise.resolve({
-      config: { parameters },
+      config: { parameters: rawParameters },
       output: {
         parameters: resolvedParameters,
         ...rest,

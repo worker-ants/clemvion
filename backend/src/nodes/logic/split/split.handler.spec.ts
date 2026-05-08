@@ -131,4 +131,24 @@ describe('SplitHandler', () => {
       });
     });
   });
+
+  // ENG-RC-* — Phase 3 raw-echo migration.
+  describe('config echoes rawConfig templates over evaluated config', () => {
+    it('preserves `{{ ... }}` fieldPath template', async () => {
+      const result = (await handler.execute(
+        { items: ['a', 'b'] },
+        { fieldPath: 'items' },
+        {
+          ...context,
+          rawConfig: Object.freeze({ fieldPath: '{{ $input.items }}' }),
+        },
+      )) as { config: { fieldPath: unknown }; output: unknown[] };
+
+      expect(result.config.fieldPath).toBe('{{ $input.items }}');
+      expect(result.output).toEqual([
+        { index: 0, value: 'a' },
+        { index: 1, value: 'b' },
+      ]);
+    });
+  });
 });

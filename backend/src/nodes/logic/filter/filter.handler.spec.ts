@@ -1081,4 +1081,35 @@ describe('FilterHandler', () => {
       expect(result.output.match).toHaveLength(1);
     });
   });
+
+  // ENG-RC-* — Phase 3 raw-echo migration.
+  describe('config echoes rawConfig templates over evaluated config', () => {
+    it('preserves raw inputField + condition.value templates', async () => {
+      const result = (await handler.execute(
+        { items: [1, 2, 3] },
+        {
+          inputField: 'items',
+          conditions: [{ field: '$item', operator: 'gt', value: 1 }],
+          combineMode: 'and',
+          strictComparison: false,
+        },
+        {
+          ...context,
+          rawConfig: Object.freeze({
+            inputField: '{{ $input.items }}',
+            conditions: [
+              { field: '$item', operator: 'gt', value: '{{ $threshold }}' },
+            ],
+            combineMode: 'and',
+            strictComparison: false,
+          }),
+        },
+      )) as { config: { inputField: unknown; conditions: unknown[] } };
+
+      expect(result.config.inputField).toBe('{{ $input.items }}');
+      expect((result.config.conditions[0] as { value: unknown }).value).toBe(
+        '{{ $threshold }}',
+      );
+    });
+  });
 });

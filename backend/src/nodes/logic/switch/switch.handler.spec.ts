@@ -580,4 +580,31 @@ describe('SwitchHandler', () => {
       expect(result).toMatchObject({ port: 'default' });
     });
   });
+
+  // ENG-RC-* — Phase 3 raw-echo migration.
+  describe('config echoes rawConfig over evaluated config', () => {
+    it('preserves `{{ ... }}` switchValue template', async () => {
+      const result = (await handler.execute(
+        { region: 'asia' },
+        {
+          mode: 'value',
+          switchValue: 'asia',
+          cases: [{ id: 'asia', value: 'asia' }],
+          hasDefault: true,
+        },
+        {
+          ...context,
+          rawConfig: Object.freeze({
+            mode: 'value',
+            switchValue: '{{ $input.region }}',
+            cases: [{ id: 'asia', value: 'asia' }],
+            hasDefault: true,
+          }),
+        },
+      )) as { config: { switchValue: unknown }; port: string };
+
+      expect(result.port).toBe('asia');
+      expect(result.config.switchValue).toBe('{{ $input.region }}');
+    });
+  });
 });

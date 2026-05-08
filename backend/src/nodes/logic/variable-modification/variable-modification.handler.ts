@@ -45,8 +45,13 @@ export class VariableModificationHandler implements NodeHandler {
       this.applyModification(context, mod);
     }
 
+    // CONVENTIONS Principle 7 — config echoes raw modifications (`value`
+    // templates preserved); runtime mutations above use the evaluated
+    // `mod.value` from the resolved `config`.
+    const rawConfig = (context.rawConfig ??
+      config) as unknown as VariableModificationConfig;
     return Promise.resolve({
-      config: { modifications },
+      config: { modifications: rawConfig.modifications },
       output: input,
     });
   }
