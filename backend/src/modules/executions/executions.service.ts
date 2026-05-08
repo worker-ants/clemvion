@@ -96,20 +96,23 @@ export class ExecutionsService {
       });
     }
 
-    const nodeExecutions = await this.nodeExecutionRepository.find({
-      where: { executionId: id },
-      relations: ['node'],
-      order: { startedAt: 'ASC' },
-    });
-
-    // executionPath 는 execution_node_log 의 (execution_id, id) 순서로 채운다.
-    // BIGSERIAL `id` 가 단조증가이므로 다중 인스턴스 환경에서도 단일 source of
-    // truth 를 유지한다.
-    const pathRows = await this.executionNodeLogRepository.find({
-      where: { executionId: id },
-      order: { id: 'ASC' },
-      select: { nodeId: true },
-    });
+    // nodeExecutions 와 executionPath 조회는 서로 독립적이므로 RTT 단축을
+    // 위해 병렬로 실행한다.
+    const [nodeExecutions, pathRows] = await Promise.all([
+      this.nodeExecutionRepository.find({
+        where: { executionId: id },
+        relations: ['node'],
+        order: { startedAt: 'ASC' },
+      }),
+      // executionPath 는 execution_node_log 의 (execution_id, id) 순서로
+      // 채운다. BIGSERIAL `id` 가 단조증가이므로 다중 인스턴스 환경에서도
+      // 단일 source of truth 를 유지한다.
+      this.executionNodeLogRepository.find({
+        where: { executionId: id },
+        order: { id: 'ASC' },
+        select: { nodeId: true },
+      }),
+    ]);
     const executionPath = pathRows.map((r) => r.nodeId);
 
     const parentName = execution.parentExecutionId
@@ -198,10 +201,10 @@ export class ExecutionsService {
     }
 
     if (execution.status === ExecutionStatus.WAITING_FOR_INPUT) {
-      // cancelWaitingExecution 은 동기 함수로 pendingContinuation.reject() 만 트리거한다.
-      // 실제 DB 상태 전환은 reject 핸들러가 비동기로 수행하므로, 여기서 즉시 re-fetch 한
-      // 결과는 아직 PENDING/RUNNING 일 수 있다. 클라이언트는 websocket 으로 후속
-      // CANCELLED 이벤트를 수신해 화면을 갱신한다.
+      // cancelWaitingExecution 은 ContinuationBusService.publish 로 fan-out
+      // 한다 — 호스팅 인스턴스가 reject 핸들러를 비동기 수행하므로 여기서
+      // 즉시 re-fetch 한 결과는 아직 PENDING/RUNNING 일 수 있다. 클라이언트는
+      // websocket 으로 후속 CANCELLED 이벤트를 수신해 화면을 갱신한다 (PR-B).
       this.executionEngineService.cancelWaitingExecution(id);
       const updated = await this.executionRepository.findOne({ where: { id } });
       return updated ?? execution;

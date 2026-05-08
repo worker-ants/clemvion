@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import {
   ContinuationBusService,
   ContinuationMessage,
+  CONTINUATION_CHANNEL,
 } from './continuation-bus.service';
 
 /**
@@ -13,6 +14,8 @@ import {
 type MessageListener = (channel: string, raw: string) => void;
 
 const subscribers = new Map<string, MessageListener[]>();
+// SET NX 시뮬레이션용 in-memory key store (TTL 무시 — 본 테스트는 ms 내 검증).
+const kvStore = new Map<string, string>();
 
 class FakeRedis {
   private listeners: MessageListener[] = [];
@@ -49,6 +52,42 @@ class FakeRedis {
     return count;
   }
 
+  /**
+   * SET NX 시뮬레이션 — `set(key, value, 'EX', ttl, 'NX')` 시그니처를
+   * 단순화해서 NX 분기만 처리. 이미 존재하면 null, 신규는 'OK' 반환.
+   * 다른 옵션 조합은 본 테스트 scope 밖.
+   */
+  async set(
+    key: string,
+    value: string,
+    ..._args: unknown[]
+  ): Promise<'OK' | null> {
+    const hasNX = _args.some((a) => a === 'NX');
+    if (hasNX && kvStore.has(key)) return null;
+    kvStore.set(key, value);
+    return 'OK';
+  }
+
+  /**
+   * Lua eval 시뮬레이션 — releaseLock 의 owner 검증 패턴만 처리.
+   */
+  async eval(
+    script: string,
+    _numKeys: number,
+    key: string,
+    arg: string,
+  ): Promise<number> {
+    if (script.includes("call('get', KEYS[1]) == ARGV[1]")) {
+      const stored = kvStore.get(key);
+      if (stored === arg) {
+        kvStore.delete(key);
+        return 1;
+      }
+      return 0;
+    }
+    return 0;
+  }
+
   async quit(): Promise<'OK'> {
     for (const ch of this.subscribedChannels) {
       const list = subscribers.get(ch) ?? [];
@@ -73,6 +112,7 @@ describe('ContinuationBusService', () => {
 
   beforeEach(async () => {
     subscribers.clear();
+    kvStore.clear();
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         ContinuationBusService,
@@ -95,6 +135,8 @@ describe('ContinuationBusService', () => {
 
   afterEach(async () => {
     await bus.onModuleDestroy();
+    subscribers.clear();
+    kvStore.clear();
   });
 
   it('publish → subscribe round-trip 으로 등록된 핸들러를 호출한다', async () => {
@@ -172,8 +214,66 @@ describe('ContinuationBusService', () => {
     await bus.onModuleDestroy();
 
     // 원본 publisher 는 quit 됐고, 채널의 listener 는 비워졌다.
-    const remaining = subscribers.get('execution:continuation') ?? [];
+    const remaining = subscribers.get(CONTINUATION_CHANNEL) ?? [];
     expect(remaining).toHaveLength(0);
     expect(handler).not.toHaveBeenCalled();
+  });
+
+  it('CONTINUATION_CHANNEL 상수와 동일한 채널을 구독한다 (테스트 하드코딩 제거)', () => {
+    expect(CONTINUATION_CHANNEL).toBe('execution:continuation');
+    expect(subscribers.get(CONTINUATION_CHANNEL) ?? []).not.toHaveLength(0);
+  });
+
+  describe('acquireLock / releaseLock', () => {
+    it('SET NX semantics — 첫 획득 true, 보유 중 재획득 false', async () => {
+      expect(await bus.acquireLock('test-lock', 60)).toBe(true);
+      expect(await bus.acquireLock('test-lock', 60)).toBe(false);
+    });
+
+    it('releaseLock 후 다시 acquire 가능', async () => {
+      expect(await bus.acquireLock('test-lock', 60)).toBe(true);
+      expect(await bus.releaseLock('test-lock')).toBe(true);
+      expect(await bus.acquireLock('test-lock', 60)).toBe(true);
+    });
+
+    it('releaseLock 은 owner token 미일치 시 삭제하지 않는다', async () => {
+      // bus 가 lock 획득 후, 다른 인스턴스가 잡은 것처럼 store 의 값을 변조.
+      expect(await bus.acquireLock('test-lock', 60)).toBe(true);
+      kvStore.set('test-lock', 'someone-else-token');
+
+      // owner mismatch — Lua script 가 0 반환.
+      expect(await bus.releaseLock('test-lock')).toBe(false);
+      // 변조된 값은 그대로 유지.
+      expect(kvStore.get('test-lock')).toBe('someone-else-token');
+    });
+
+    it('publisher 에러 시 acquireLock 은 false 를 반환한다 (process crash X)', async () => {
+      const publisher = (bus as unknown as { publisher: { set: jest.Mock } })
+        .publisher;
+      const original = publisher.set;
+      publisher.set = jest.fn().mockRejectedValue(new Error('redis down'));
+      try {
+        expect(await bus.acquireLock('flaky-lock', 60)).toBe(false);
+      } finally {
+        publisher.set = original;
+      }
+    });
+  });
+
+  describe('publish 에러 처리', () => {
+    it('publisher.publish reject 가 호출자에게 전달되지 않고 null 로 흡수된다', async () => {
+      const publisher = (
+        bus as unknown as { publisher: { publish: jest.Mock } }
+      ).publisher;
+      const original = publisher.publish;
+      publisher.publish = jest.fn().mockRejectedValue(new Error('redis down'));
+      try {
+        await expect(
+          bus.publish({ type: 'continue', executionId: 'exec-down' }),
+        ).resolves.toBeNull();
+      } finally {
+        publisher.publish = original;
+      }
+    });
   });
 });

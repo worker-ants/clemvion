@@ -74,4 +74,8 @@ export class Execution {
 
   @Column({ name: 'recursion_depth', default: 0 })
   recursionDepth: number;
+
+  // 노드 실행 순서는 V035 부터 별도 `execution_node_log` 테이블에 append-only
+  // 로 기록된다. ExecutionsService.findById 가 (execution_id, id) 정렬 쿼리로
+  // executionPath: string[] 응답 필드를 채운다. 본 entity 에 컬럼은 없다.
 }

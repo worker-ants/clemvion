@@ -22,6 +22,7 @@ import { ExecutionNodeLog } from './entities/execution-node-log.entity';
 import {
   ContinuationBusService,
   ContinuationMessage,
+  RECOVERY_LOCK_KEY,
 } from './continuation/continuation-bus.service';
 import { buildGraph, GraphEdge } from './graph/graph-builder';
 import { topologicalSort } from './graph/topological-sort';
@@ -370,48 +371,63 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
    */
   private registerContinuationHandlers(): void {
     this.continuationBus.on('continue', (msg) => {
-      const pending = this.pendingContinuations.get(msg.executionId);
-      if (!pending) return;
-      this.pendingContinuations.delete(msg.executionId);
-      pending.resolve(msg.payload);
+      this.resolvePending(msg.executionId, msg.payload);
     });
 
     this.continuationBus.on('cancel', (msg) => {
-      const pending = this.pendingContinuations.get(msg.executionId);
-      if (!pending) return;
-      this.pendingContinuations.delete(msg.executionId);
-      pending.reject(new ExecutionCancelledError());
+      this.rejectPending(msg.executionId, new ExecutionCancelledError());
     });
 
     this.continuationBus.on('button_click', (msg) => {
-      const pending = this.pendingContinuations.get(msg.executionId);
-      if (!pending) return;
-      this.pendingContinuations.delete(msg.executionId);
-      pending.resolve({
-        type: 'button_click',
-        buttonId: (msg.payload as { buttonId?: string } | undefined)?.buttonId,
-      });
+      const buttonId = (msg.payload as { buttonId?: string } | undefined)
+        ?.buttonId;
+      this.resolvePending(msg.executionId, { type: 'button_click', buttonId });
     });
 
     this.continuationBus.on('ai_message', (msg) => {
-      const pending = this.pendingContinuations.get(msg.executionId);
-      if (!pending) return;
-      this.pendingContinuations.delete(msg.executionId);
-      pending.resolve({
-        type: 'ai_message',
-        message: (msg.payload as { message?: string } | undefined)?.message,
-      });
+      const message = (msg.payload as { message?: string } | undefined)
+        ?.message;
+      // 서비스 레이어와 별개로 핸들러 내부에서도 길이 재검증 — Redis 직접
+      // publish 우회 시에도 가드. 초과 메시지는 silent drop.
+      if (
+        typeof message === 'string' &&
+        message.length > ExecutionEngineService.MAX_MESSAGE_LENGTH
+      ) {
+        this.logger.warn(
+          `ai_message 길이 초과로 drop — execution=${msg.executionId}, length=${message.length}`,
+        );
+        return;
+      }
+      this.resolvePending(msg.executionId, { type: 'ai_message', message });
     });
 
     this.continuationBus.on(
       'ai_end_conversation',
       (msg: ContinuationMessage) => {
-        const pending = this.pendingContinuations.get(msg.executionId);
-        if (!pending) return;
-        this.pendingContinuations.delete(msg.executionId);
-        pending.resolve({ type: 'ai_end_conversation' });
+        this.resolvePending(msg.executionId, { type: 'ai_end_conversation' });
       },
     );
+  }
+
+  /**
+   * 로컬 `pendingContinuations` Map 의 resolver 호출 헬퍼. 키가 없으면
+   * silent skip — 다른 인스턴스가 호스팅 중이거나 이미 처리된 상태.
+   */
+  private resolvePending(executionId: string, value: unknown): void {
+    const pending = this.pendingContinuations.get(executionId);
+    if (!pending) return;
+    this.pendingContinuations.delete(executionId);
+    pending.resolve(value);
+  }
+
+  /**
+   * 로컬 `pendingContinuations` Map 의 reject 헬퍼. 키가 없으면 silent skip.
+   */
+  private rejectPending(executionId: string, error: Error): void {
+    const pending = this.pendingContinuations.get(executionId);
+    if (!pending) return;
+    this.pendingContinuations.delete(executionId);
+    pending.reject(error);
   }
 
   /**
@@ -439,7 +455,7 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
    */
   private async recoverStuckExecutions(): Promise<void> {
     const acquired = await this.continuationBus.acquireLock(
-      'exec:recover:lock',
+      RECOVERY_LOCK_KEY,
       ExecutionEngineService.RECOVERY_LOCK_TTL_SECONDS,
     );
     if (!acquired) {
@@ -448,33 +464,42 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
       return;
     }
 
-    // WARN #1 (DB) — N건의 개별 save 대신 단일 atomic UPDATE. SQL 단일
-    // 문장은 내부적으로 트랜잭션 이므로 정합성 보장. durationMs 는 stuck
-    // recovery 의 정확도가 중요하지 않아 일괄 NULL 유지.
-    const finishedAt = new Date();
-    const staleThreshold = new Date(
-      finishedAt.getTime() - ExecutionEngineService.STUCK_RECOVERY_STALE_MS,
-    );
-    const updateResult = await this.executionRepository
-      .createQueryBuilder()
-      .update(Execution)
-      .set({
-        status: ExecutionStatus.FAILED,
-        error: {
-          message:
-            'Execution failed: server restarted while waiting for user input',
-        },
-        finishedAt,
-      })
-      .where('status = :status', { status: ExecutionStatus.WAITING_FOR_INPUT })
-      .andWhere('started_at < :threshold', { threshold: staleThreshold })
-      .execute();
-
-    const affected = updateResult.affected ?? 0;
-    if (affected > 0) {
-      this.logger.warn(
-        `Recovered ${affected} stale execution(s) (>30min) stuck in WAITING_FOR_INPUT`,
+    try {
+      // WARN #1 (DB) — N건의 개별 save 대신 단일 atomic UPDATE. SQL 단일
+      // 문장은 내부적으로 트랜잭션 이므로 정합성 보장. durationMs 는 stuck
+      // recovery 의 정확도가 중요하지 않아 일괄 NULL 유지.
+      const finishedAt = new Date();
+      const staleThreshold = new Date(
+        finishedAt.getTime() - ExecutionEngineService.STUCK_RECOVERY_STALE_MS,
       );
+      const updateResult = await this.executionRepository
+        .createQueryBuilder()
+        .update(Execution)
+        .set({
+          status: ExecutionStatus.FAILED,
+          error: {
+            message:
+              'Execution failed: server restarted while waiting for user input',
+          },
+          finishedAt,
+        })
+        .where('status = :status', {
+          status: ExecutionStatus.WAITING_FOR_INPUT,
+        })
+        .andWhere('started_at < :threshold', { threshold: staleThreshold })
+        .execute();
+
+      const affected = updateResult.affected ?? 0;
+      if (affected > 0) {
+        this.logger.warn(
+          `Recovered ${affected} stale execution(s) (>30min) stuck in WAITING_FOR_INPUT`,
+        );
+      }
+    } finally {
+      // 작업 완료 후 lock 을 명시 해제 — TTL 60초 만료 대기 없이 다음
+      // 인스턴스가 즉시 처리할 수 있다. owner 검증이 들어가 있어 이미
+      // expire 되어 다른 인스턴스가 잡은 lock 은 절대 삭제하지 않는다.
+      await this.continuationBus.releaseLock(RECOVERY_LOCK_KEY);
     }
   }
 
