@@ -96,7 +96,6 @@ export class DatabaseQueryHandler
   ): Promise<unknown> {
     const integrationId = config.integrationId as string;
     const query = config.query as string;
-    const queryType = (config.queryType as string) ?? 'select';
     const parameters = parseParameters(config.parameters);
 
     if (!this.integrationsService) {
@@ -107,7 +106,16 @@ export class DatabaseQueryHandler
     }
 
     const start = Date.now();
-    const configEcho = { integrationId, query, queryType, parameters };
+    // CONVENTIONS Principle 7 — config echoes raw integrationId / query /
+    // queryType / parameters (`query` and per-parameter values may carry
+    // `{{ ... }}` templates that the engine resolved before dispatch).
+    const rawConfig = context.rawConfig ?? config;
+    const configEcho = {
+      integrationId: rawConfig.integrationId,
+      query: rawConfig.query,
+      queryType: rawConfig.queryType ?? 'select',
+      parameters: rawConfig.parameters,
+    };
 
     // Pre-flight configuration errors throw (halt workflow). Runtime
     // execution errors route to the `error` port so authors can branch.

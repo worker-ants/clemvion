@@ -72,6 +72,20 @@ export class WorkflowHandler implements NodeHandler {
     const effectiveInput =
       inputMapping.length > 0 ? subInput : (input as Record<string, unknown>);
 
+    // CONVENTIONS Principle 7 — config echoes raw workflowId / mode /
+    // inputMapping (`mapping.expression` may be a `{{ ... }}` template that
+    // the engine resolved before dispatch). The runtime sub-input above
+    // uses the evaluated values from the resolved `config`.
+    const rawConfig = (context.rawConfig ??
+      config) as unknown as WorkflowConfig;
+    const configEcho = {
+      workflowId: rawConfig.workflowId,
+      workflowName: rawConfig.workflowName,
+      mode: rawConfig.mode ?? 'sync',
+      inputMapping: rawConfig.inputMapping,
+      timeout: rawConfig.timeout,
+    };
+
     if (mode === 'async') {
       try {
         const subExecutionId = await this.executionEngine.executeAsync(
@@ -84,15 +98,12 @@ export class WorkflowHandler implements NodeHandler {
         );
 
         return {
-          config: { workflowId, mode: 'async' },
+          config: configEcho,
           output: { executionId: subExecutionId },
           meta: { status: 'started' },
         };
       } catch (err) {
-        return this.buildSubWorkflowError(
-          { workflowId, mode: 'async' as const },
-          err,
-        );
+        return this.buildSubWorkflowError(configEcho, err);
       }
     }
 
@@ -120,14 +131,11 @@ export class WorkflowHandler implements NodeHandler {
         },
       );
       return {
-        config: { workflowId, mode: 'sync' },
+        config: configEcho,
         output: inlineResult,
       };
     } catch (err) {
-      return this.buildSubWorkflowError(
-        { workflowId, mode: 'sync' as const },
-        err,
-      );
+      return this.buildSubWorkflowError(configEcho, err);
     }
   }
 
@@ -137,10 +145,10 @@ export class WorkflowHandler implements NodeHandler {
    * standardized envelope rather than propagating the exception.
    */
   private buildSubWorkflowError(
-    configEcho: { workflowId: string; mode: 'sync' | 'async' },
+    configEcho: Record<string, unknown>,
     err: unknown,
   ): {
-    config: { workflowId: string; mode: 'sync' | 'async' };
+    config: Record<string, unknown>;
     output: {
       error: {
         code: string;
@@ -157,7 +165,10 @@ export class WorkflowHandler implements NodeHandler {
         error: {
           code: 'SUB_WORKFLOW_FAILED',
           message,
-          details: { workflowId: configEcho.workflowId, mode: configEcho.mode },
+          details: {
+            workflowId: configEcho.workflowId,
+            mode: configEcho.mode,
+          },
         },
       },
       port: 'error',

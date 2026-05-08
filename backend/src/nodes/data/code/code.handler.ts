@@ -169,8 +169,16 @@ export class CodeHandler implements NodeHandler {
 
       context.variables = varsClone;
 
+      // CONVENTIONS Principle 7 — config echoes raw `code` source + language
+      // (the `code` field is widget:'code' but its content may include
+      // `{{ ... }}` templates that the engine resolved before dispatch).
+      const rawConfig = context.rawConfig ?? config;
       return {
-        config: { language: config.language ?? 'javascript' },
+        config: {
+          code: rawConfig.code,
+          language: rawConfig.language ?? 'javascript',
+          timeout: rawConfig.timeout,
+        },
         output: result,
         meta: { success: true, logs },
       };
