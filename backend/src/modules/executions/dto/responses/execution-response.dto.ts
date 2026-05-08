@@ -46,7 +46,7 @@ export class ExecutionDto {
   @ApiPropertyOptional({ nullable: true, example: 1820 })
   durationMs?: number | null;
 
-  /** 입력 데이터 */
+  /** 입력 데이터 — 트리거가 워크플로우에 주입한 input (manual parameters / webhook body / schedule context) */
   @ApiPropertyOptional({
     type: 'object',
     additionalProperties: true,
@@ -54,7 +54,7 @@ export class ExecutionDto {
   })
   inputData?: Record<string, unknown> | null;
 
-  /** 출력 데이터 */
+  /** 출력 데이터 — 워크플로우 최종 결과. 노드별 envelope 는 nodeExecutions[i].outputData 참조 */
   @ApiPropertyOptional({
     type: 'object',
     additionalProperties: true,
@@ -117,7 +117,16 @@ export class NodeExecutionSummaryDto {
   @ApiPropertyOptional({ nullable: true })
   durationMs?: number | null;
 
-  /** 출력 데이터 */
+  /**
+   * 노드 실행 출력 — `NodeHandlerOutput` envelope 직렬화.
+   * - `config`: 노드 정의의 **원본 template** (CONVENTIONS Principle 7 — `{{ ... }}` 보존된 raw)
+   * - `output`: expression 평가가 끝난 결과값 (subject / body / requestBody 등 실제 동작 입력)
+   * - `meta`: 부수 정보 (durationMs, statusCode 등)
+   * - `port`: 어느 출력 포트로 라우팅됐는지 (`out` / `error` / `success` 등)
+   *
+   * `_resumeState` 등 engine-internal 필드는 저장 시 제거된다.
+   * 본 라이브 릴리즈 이전 실행 row 는 `config` 가 evaluated 형태로 남아있을 수 있다 (백필 X, historical record).
+   */
   @ApiPropertyOptional({
     type: 'object',
     additionalProperties: true,

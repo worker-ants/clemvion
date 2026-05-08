@@ -27,7 +27,7 @@
 | Phase 2 — Send Email + HTTP Request 트리거 | 완료 | `e1ecbc1f` (helpers) + `e516d3e1` (send-email) + `2ffdf058` (http-request) + `ef15242c` (spec) + `198bbefe` (style) + `104d1bb9` (ai-review 조치 12/16) |
 | Phase 3 — 나머지 핸들러 마이그레이션 | 완료 | `c29ee55b` (PR-3a) + `75ec5eb6` (PR-3b) + `05b69896` (PR-3c) + `71e4fa7a` (PR-3d) + `6eeeb095` (PR-3e) + `7f7a9d3d` (PR-3f) — 25/25 핸들러 마이그레이션 |
 | Phase 4 — Frontend 자동완성 회귀 점검 | 완료 | verification only — 코드 변경 없음 (`use-expression-suggestions.test.ts:667` envelope unwrap 가드가 회귀 차단) |
-| Phase 5 — Swagger / OpenAPI 영향 검증 | 미진행 | |
+| Phase 5 — Swagger / OpenAPI 영향 검증 | 완료 | DTO 주석 갱신만 — 응답 schema 자체는 generic object 로 추상화돼 변경 영향 0. CHANGELOG 통합은 Phase 6 에서 |
 | Phase 6 — DB / 실행 이력 호환성 검증 | 미진행 | |
 | Phase 7 — 정리 / 클로저 | 미진행 | |
 
@@ -141,11 +141,22 @@ PRD 에서는 `ENG-RC-01` (엔진의 `rawConfig` 노출), `ENG-RC-02` (핸들러
 - `npm test -- --run` — 1217/1217 pass (103 suite).
 - `npm run build` — success.
 
-### Phase 5 — Backend Swagger / OpenAPI 영향 검증
+### Phase 5 — Backend Swagger / OpenAPI 영향 검증 (완료)
 
-API 클라이언트 (외부 통합) 에서 응답 DTO 의 `config` 형태가 raw 로 변경되는 의미를 검증·노출. Swagger 가 노출하는 endpoint 식별 (`execution-history`, `node-execution`, `executions/:id` 등 실행 결과 조회 경로 — `grep -rn "@ApiProperty" backend/src/modules/`), 응답 DTO 에 `NodeHandlerOutput.config` / `output` 형태가 직간접 포함되는지 확인. 영향이 있다면 `@ApiProperty` 주석·타입 갱신 + Swagger 예시 갱신. CHANGELOG / API release note — "이 버전부터 `NodeExecution.outputData.config` 는 expression 평가 전 원본을 담는다. evaluated 값은 `outputData.output.*` 에서 얻을 수 있다. expression 미사용 필드는 동일." 기존 API 테스트 (e2e / integration) 의 응답 shape 검증 영향 확인.
+**검증 결과**: 응답 DTO 의 `outputData` / `inputData` 가 `Record<string, unknown> | null` 로 추상화되어 Swagger schema 는 generic object 로 노출. 따라서 envelope 의미 변화는 schema 차원에서 추가 노출이 불필요. **JSDoc 주석만 보강**해서 OpenAPI description 에 envelope 의미를 명시화.
 
-**PR 분할 권장**: 1건.
+**갱신 위치** (`backend/src/modules/executions/dto/responses/execution-response.dto.ts`):
+- `ExecutionDto.inputData` 주석 — 트리거 input (manual / webhook / schedule) 의미.
+- `ExecutionDto.outputData` 주석 — workflow-level final 결과 / nodeExecutions cross-reference.
+- `NodeExecutionSummaryDto.outputData` 주석 — `NodeHandlerOutput` envelope 직렬화 명시 (config = raw template, output = evaluated, meta, port). 옛 row 의 config = evaluated 형태 호환성 한 줄 안내.
+
+**검증**:
+- backend `npm run lint` clean.
+- `npm run test -- --testPathPatterns=executions` — 4 suite 33/33 pass.
+- `npm run build` — clean.
+- e2e 검증: `backend/test/` 내 e2e 테스트는 `outputData` 응답 shape 를 직접 검증하지 않음 (`grep -rn "outputData" backend/test/` → 0 hit). 회귀 위험 없음.
+
+**CHANGELOG 통합**: 본 phase 에서는 release note 초안을 작성하지 않고 Phase 6 의 통합 작성 단계로 미룬다 (Replay Policy 와 함께 단일 항목으로 묶음).
 
 ### Phase 6 — DB / 실행 이력 호환성 검증
 
