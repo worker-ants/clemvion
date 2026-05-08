@@ -28,11 +28,11 @@
 
 ## Stage 2 — `@anthropic-ai/sdk` 0.82 → 0.95.x
 
-- [ ] `npm install @anthropic-ai/sdk@latest`
-- [ ] build / lint / test / test:e2e 통과
-- [ ] `npm audit` → 0 vulnerabilities
-- [ ] Stage 2 커밋
+- [x] `npm install @anthropic-ai/sdk@latest`
+- [x] build / lint / jest(2830 pass) / test:e2e 통과 (코드 수정 불필요)
+- [x] `npm audit` → 0 vulnerabilities
+- [x] Stage 2 커밋
 
 ## 마무리
 
-- [ ] `git mv` 로 `plan/complete/` 이관
+- [x] `git mv` 로 `plan/complete/` 이관
