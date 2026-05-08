@@ -295,6 +295,47 @@ describe('ExpressionResolverService', () => {
       expect(ctx.$params).toEqual({});
     });
 
+    // Invariant: `engineResolvedConfigCache` exists on ExecutionContext for
+    // engine-internal lookup (container action parameters) but MUST NOT leak
+    // into the expression context — `$node["X"].config` keeps returning the
+    // raw echo (Phase 3 / CONVENTIONS Principle 7), and there is no
+    // `$node["X"].engineResolvedConfig` namespace.
+    it('does not surface engineResolvedConfigCache via $node namespace', () => {
+      const nodeMap = new Map<string, Node>();
+      nodeMap.set('n1', makeNode('n1', 'Loop'));
+
+      const execContext: ExecutionContext = {
+        executionId: 'exec-1',
+        workflowId: 'wf-1',
+        variables: {},
+        nodeOutputCache: { n1: { iterations: [], count: 0 } },
+        structuredOutputCache: {
+          n1: {
+            // raw echo per Principle 7 — `{{3}}` template, NOT 3
+            config: { count: '{{3}}' },
+            output: { iterations: [], count: 0 },
+          },
+        },
+        engineResolvedConfigCache: {
+          // evaluated form used by runContainerInner only — must be invisible
+          // to expression resolution.
+          n1: { count: 3 },
+        },
+      };
+
+      const ctx = service.buildExpressionContext({}, execContext, nodeMap);
+      const loopEntry = (ctx.$node as Record<string, Record<string, unknown>>)[
+        'Loop'
+      ];
+
+      // $node["Loop"].config exposes the raw echo only.
+      expect(loopEntry.config).toEqual({ count: '{{3}}' });
+      // The engine-resolved cache must not appear under any namespace.
+      expect(loopEntry).not.toHaveProperty('engineResolvedConfigCache');
+      expect(loopEntry).not.toHaveProperty('engineResolvedConfig');
+      expect(ctx).not.toHaveProperty('$engineResolvedConfig');
+    });
+
     it('exposes $now as UTC ISO and does not expose $today (timezone-ambiguous, removed)', () => {
       const nodeMap = new Map<string, Node>();
       const execContext: ExecutionContext = {

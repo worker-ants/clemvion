@@ -6,6 +6,18 @@ import {
 import { wrapBareAsNodeHandlerOutput } from '../handler-output.adapter';
 
 /**
+ * Engine-internal alias that drops the public `Readonly` qualifier on
+ * `engineResolvedConfigCache` so the cache can be populated through the
+ * dedicated setter while handlers still see the read-only public shape.
+ */
+type MutableExecutionContext = Omit<
+  ExecutionContext,
+  'engineResolvedConfigCache'
+> & {
+  engineResolvedConfigCache?: Record<string, Record<string, unknown>>;
+};
+
+/**
  * In-memory execution context management for Phase 1.
  * In production, this would be backed by Redis.
  */
@@ -50,18 +62,27 @@ export class ExecutionContextService {
    * paths (runContainerInner / runParallel) can read iteration parameters
    * without re-evaluating expressions. Separated from `structuredOutputCache`
    * which carries the handler's raw echo per CONVENTIONS Principle 7.
+   *
+   * Shallow-copies the input so callers can keep mutating their local
+   * `resolvedConfig` reference without leaking changes into the cache.
    */
   setEngineResolvedConfig(
     executionId: string,
     nodeId: string,
     resolvedConfig: Record<string, unknown>,
   ): void {
-    const context = this.contexts.get(executionId);
+    const context = this.contexts.get(executionId) as
+      | MutableExecutionContext
+      | undefined;
     if (!context) return;
+    // `createContext` initialises the slot to `{}`, so the runtime guard
+    // here is for hypothetical legacy contexts deserialised without it
+    // (e.g. when this layer is moved to Redis). Cheap to keep; defends
+    // against future plumbing regressions.
     if (!context.engineResolvedConfigCache) {
       context.engineResolvedConfigCache = {};
     }
-    context.engineResolvedConfigCache[nodeId] = resolvedConfig;
+    context.engineResolvedConfigCache[nodeId] = { ...resolvedConfig };
   }
 
   getContext(executionId: string): ExecutionContext | undefined {
