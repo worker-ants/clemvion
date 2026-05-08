@@ -26,7 +26,7 @@
 | Phase 1 — 엔진 plumbing | 완료 | `6953cafb` + 후속 quality gate `ce059405` |
 | Phase 2 — Send Email + HTTP Request 트리거 | 완료 | `e1ecbc1f` (helpers) + `e516d3e1` (send-email) + `2ffdf058` (http-request) + `ef15242c` (spec) + `198bbefe` (style) + `104d1bb9` (ai-review 조치 12/16) |
 | Phase 3 — 나머지 핸들러 마이그레이션 | 완료 | `c29ee55b` (PR-3a) + `75ec5eb6` (PR-3b) + `05b69896` (PR-3c) + `71e4fa7a` (PR-3d) + `6eeeb095` (PR-3e) + `7f7a9d3d` (PR-3f) — 25/25 핸들러 마이그레이션 |
-| Phase 4 — Frontend 자동완성 회귀 점검 | 미진행 | |
+| Phase 4 — Frontend 자동완성 회귀 점검 | 완료 | verification only — 코드 변경 없음 (`use-expression-suggestions.test.ts:667` envelope unwrap 가드가 회귀 차단) |
 | Phase 5 — Swagger / OpenAPI 영향 검증 | 미진행 | |
 | Phase 6 — DB / 실행 이력 호환성 검증 | 미진행 | |
 | Phase 7 — 정리 / 클로저 | 미진행 | |
@@ -124,11 +124,22 @@ PRD 에서는 `ENG-RC-01` (엔진의 `rawConfig` 노출), `ENG-RC-02` (핸들러
 
 진행되지 않은 phase 들을 한 단락으로 모은다. 각 phase 의 범위·출력물·PR 단위는 그대로 유효하지만, 실행은 Phase 4 → Phase 5 → Phase 6 → Phase 7 순서로 트리거 한다 (Phase 4~6 은 병렬 가능, Phase 7 은 마지막).
 
-### Phase 4 — Frontend Expression Auto-complete 회귀 점검
+### Phase 4 — Frontend Expression Auto-complete 회귀 점검 (완료)
 
-backend `*OutputSchema` 가 SSOT 이므로 자동 반영 예상. expression 자동완성 후보의 `$node["X"].config.<expression-field>` 가 raw 표시인지, `$node["X"].output.<신규-field>` (`output.subject`, `output.body`, `output.requestBody` 등) 가 자동완성에 노출되는지 확인. 기존 워크플로 expression 의 type-check / lint 가 깨지지 않는지 schema diff 후 회귀 테스트. 영향 발견 시 `frontend/src/components/editor/expression-editor/` 또는 `frontend/src/lib/node-definitions/` 의 type derivation 코드를 점검·갱신. frontend lint·unit·build green 확인.
+**검증 결과**: 영향 0 — 코드 변경 없이 verification 만 수행.
 
-**PR 분할 권장**: 1건 (영향 없으면 verification commit, 있으면 fix commit).
+**메커니즘 확인**:
+- Backend SSOT (`backend/src/nodes/integration/send-email/send-email.schema.ts`, `http-request/http-request.schema.ts` 등) 의 zod `*OutputSchema` 는 `node-component.registry.ts:65` 에서 `z.toJSONSchema()` 로 JSONSchema 변환되어 `/api/node-definitions` 응답에 노출.
+- Frontend store (`frontend/src/lib/stores/node-definitions-store.ts:41`) 가 그대로 `outputSchema` 필드에 저장.
+- `frontend/src/components/editor/expression/use-expression-suggestions.ts:178-187` 가 envelope `{config, output, meta, port, status}` 를 한 단계 unwrap 해서 `$node["X"].output.<inner>` / `$node["X"].config.<inner>` 후보로 노출.
+- 회귀 가드: `use-expression-suggestions.test.ts:667` "unwraps envelope-shaped outputSchema to the output accessor" — Carousel envelope 패턴으로 검증되어 있음. 신규 필드 (Send Email `output.subject`/`body`/`bodyType`/`bodyTruncated`, HTTP Request `output.requestBody`/`requestBodyType`/`responseHeaders`/`bodyTruncated`) 도 동일 메커니즘으로 자동 노출.
+
+**`node-output-schema-enrichers.ts` 호환성**: Phase 2/3 의 schema 변경이 `output: z.object({...}).partial().passthrough().optional()` envelope 형태를 유지하므로 Information Extractor / Form / Table / Transform 의 동적 enrichment 메커니즘 영향 없음.
+
+**검증 명령**:
+- `cd frontend && npm run lint` — clean.
+- `npm test -- --run` — 1217/1217 pass (103 suite).
+- `npm run build` — success.
 
 ### Phase 5 — Backend Swagger / OpenAPI 영향 검증
 
