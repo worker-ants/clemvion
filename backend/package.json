@@ -20,7 +20,7 @@
     "test:e2e": "jest --config ./test/jest-e2e.json"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.82.0",
+    "@anthropic-ai/sdk": "^0.95.1",
     "@aws-sdk/client-s3": "^3.1045.0",
     "@google/genai": "^1.50.1",
     "@modelcontextprotocol/sdk": "^1.29.0",
