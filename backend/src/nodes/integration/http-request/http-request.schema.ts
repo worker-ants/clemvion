@@ -29,10 +29,16 @@ export const keyValueSchema = z
   .passthrough();
 
 /**
- * HTTP Request output is opaque (user targets arbitrary APIs). The handler
- * always wraps the raw body in `output.response` and surfaces a standardized
- * `output.error` envelope on non-2xx / transport failures (CONVENTIONS §3.2).
- * Tier 3 per node-jazzy-liskov plan — `output.response: unknown`.
+ * HTTP Request output. CONVENTIONS Principle 7 — `config` echoes the **raw**
+ * request settings the workflow author entered (URL credentials stripped,
+ * `{{ ... }}` preserved). `output.response` carries the parsed response
+ * body (opaque — the user targets arbitrary APIs); `output.requestBody`
+ * carries the evaluated request body that hit the wire (capped at 256KB
+ * with `bodyTruncated`). `output.responseHeaders` echoes the response
+ * headers with credential-shaped values redacted. The standardized
+ * `output.error` envelope still appears on non-2xx / transport failures
+ * (CONVENTIONS §3.2). Tier 3 per node-jazzy-liskov plan —
+ * `output.response: unknown`.
  */
 export const httpRequestNodeOutputSchema = z
   .object({
@@ -42,6 +48,14 @@ export const httpRequestNodeOutputSchema = z
         url: z.string().optional(),
         authentication: z.string().optional(),
         integrationId: z.string().optional(),
+        headers: z.array(z.unknown()).optional(),
+        queryParams: z.array(z.unknown()).optional(),
+        body: z.unknown().optional(),
+        bodyType: z.string().optional(),
+        responseType: z.string().optional(),
+        timeout: z.number().optional(),
+        followRedirects: z.boolean().optional(),
+        verifySsl: z.boolean().optional(),
       })
       .partial()
       .passthrough()
@@ -49,6 +63,10 @@ export const httpRequestNodeOutputSchema = z
     output: z
       .object({
         response: z.unknown().optional(),
+        requestBody: z.unknown().optional(),
+        requestBodyType: z.string().optional(),
+        responseHeaders: z.record(z.string(), z.string()).optional(),
+        bodyTruncated: z.boolean().optional(),
         error: z
           .object({
             code: z.string().optional(),
