@@ -1,8 +1,8 @@
--- V035b: execution.execution_path 컬럼 DROP
+-- V036: execution.execution_path 컬럼 DROP
 --
--- V035a 가 신규 테이블 + 데이터 이행을 끝낸 뒤 별도 배포에서 적용한다.
+-- V035 가 신규 테이블 + 데이터 이행을 끝낸 뒤 별도 배포에서 적용한다.
 -- 본 마이그레이션 직전에 application 코드는 이미 execution_path 컬럼을
--- 읽지 않는 상태여야 한다 (V035a 시점에 새 코드도 함께 배포되므로 이행
+-- 읽지 않는 상태여야 한다 (V035 시점에 새 코드도 함께 배포되므로 이행
 -- 직후부터 컬럼은 application 차원에서 dead column).
 --
 -- DROP COLUMN 은 PostgreSQL 에서 AccessExclusiveLock 을 걸지만 메타데이터
