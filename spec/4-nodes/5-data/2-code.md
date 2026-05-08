@@ -1,123 +1,19 @@
-# Spec: Data 노드
+# Spec: Code
 
-> 관련 문서: [PRD Data 노드](../../prd/3-node-system.md#7-data-노드-2종) · [Spec 노드 개요](./0-overview.md) · [Spec 노드 공통](../3-workflow-editor/1-node-common.md) · [Spec 노드 샌드박싱](./0-overview.md#5-노드-실행-샌드박싱)
-
----
-
-## 1. Transform
-
-입력 데이터에 변환 연산(operations)을 순차적으로 적용하여 출력한다. 코딩 없이 시각적 빌더 UI를 통해 데이터를 재구조화할 수 있다.
-
-### 1.1 Config
-
-| 필드 | 타입 | 필수 | 기본값 | 설명 |
-|------|------|------|--------|------|
-| operations | Operation[] | ✓ | [] | 변환 연산 체인 (순차 적용) |
-
-### 1.2 Operation 정의
-
-각 Operation은 `type`과 해당 타입별 `params`로 구성된다.
-
-| type | params | 설명 |
-|------|--------|------|
-| `rename_field` | `from` (String), `to` (String) | 필드 이름 변경 |
-| `remove_field` | `field` (String) | 필드 제거 |
-| `set_field` | `field` (String), `value` (표현식) | 필드 값 설정 (신규 생성 또는 덮어쓰기) |
-| `type_convert` | `field` (String), `targetType` (string / number / boolean / array / object) | 타입 변환 |
-| `string_op` | `field` (String), `operation` (trim / uppercase / lowercase / replace / split / join), `args` (Object) | 문자열 조작 |
-| `math_op` | `field` (String), `operation` (add / subtract / multiply / divide / round / ceil / floor), `operand` (Number, 표현식) | 수학 연산 |
-| `date_op` | `field` (String), `operation` (format / add / subtract / diff), `args` (Object) | 날짜 조작 |
-| `array_filter` | `field` (String), `condition` (조건 표현식) | 배열 필터링. 다중 조건 필터링이나 매칭/비매칭 분기가 필요하면 [Filter 노드](./1-logic-nodes.md#8-filter) 사용 |
-| `array_sort` | `field` (String), `sortBy` (String?), `order` (asc / desc) | 배열 정렬 |
-| `object_pick` | `field` (String?), `keys` (String[]) | 객체에서 특정 키만 선택 |
-| `object_omit` | `field` (String?), `keys` (String[]) | 객체에서 특정 키만 제거 |
-
-**string_op args:**
-
-| operation | args |
-|-----------|------|
-| trim | — |
-| uppercase | — |
-| lowercase | — |
-| replace | `search` (String), `replacement` (String), `all` (Boolean, 기본 true), `regex` (Boolean, 기본 false) |
-| split | `separator` (String) |
-| join | `separator` (String) |
-
-**date_op args:**
-
-| operation | args |
-|-----------|------|
-| format | `pattern` (String, 예: "YYYY-MM-DD HH:mm:ss") |
-| add | `amount` (Number), `unit` (years / months / days / hours / minutes / seconds) |
-| subtract | `amount` (Number), `unit` |
-| diff | `compareField` (String), `unit` |
-
-### 1.3 포트 정의
-
-| 포트 | 방향 | 식별자 | 설명 |
-|------|------|--------|------|
-| Input | 입력 | `in` | 입력 데이터 |
-| Output | 출력 | `out` | 변환 완료된 데이터 |
-
-### 1.4 실행 로직
-
-1. 입력 데이터를 복제 (원본 불변)
-2. `operations` 배열을 순서대로 적용
-3. 각 연산은 이전 연산의 결과를 입력으로 받음
-4. 최종 결과를 출력 포트로 전달
-5. 모든 `field` 파라미터는 dot/bracket 중첩 경로를 지원한다 (예: `user.profile.name`, `items[0].id`). 대상 필드·객체가 없거나 타입이 맞지 않으면 해당 연산은 원값을 유지하고 다음 연산으로 넘어간다.
-
-### 1.5 설정 UI — 시각적 빌더
-
-```
-┌──────────────────────────────────────┐
-│  Transform Operations                │
-│  ────────────────────────────────── │
-│  1. [rename_field ▼] from → to       │
-│     [user.name___] → [userName___]   │
-│                              [✕] [↕] │
-│  ────────────────────────────────── │
-│  2. [set_field ▼]                    │
-│     field: [fullName___]             │
-│     value: [{{ $input.first + " "... │
-│                              [✕] [↕] │
-│  ────────────────────────────────── │
-│  3. [remove_field ▼]                 │
-│     field: [tempData___]             │
-│                              [✕] [↕] │
-│  ────────────────────────────────── │
-│  [+ Add Operation]                   │
-│                                      │
-│  ─── Preview ───────────────────── │
-│  Input:  { "user": { "name": "Kim" } │
-│  Step 1: { "userName": "Kim" }       │
-│  Step 2: { "userName": "Kim",        │
-│            "fullName": "Kim ..." }   │
-│  Step 3: { "userName": "Kim",        │
-│            "fullName": "Kim ..." }   │
-└──────────────────────────────────────┘
-```
-
-- 각 연산을 카드 형태로 표시
-- 드래그로 순서 변경 가능 (`[↕]` 핸들)
-- 각 카드 삭제 버튼 (`[✕]`)
-- `+ Add Operation` 버튼으로 연산 추가
-- 하단 Preview: 마지막 실행 데이터 기준으로 각 단계별 결과 미리보기
-
----
-
-## 2. Code
+> 관련 문서: [Data 공통 규약](./0-common.md) · [Spec 노드 개요](../0-overview.md) · [노드 실행 샌드박싱](../0-overview.md#5-노드-실행-샌드박싱)
 
 JavaScript 코드를 작성하여 자유로운 데이터 처리를 수행한다. Transform 노드로 표현하기 어려운 복잡한 로직에 사용한다.
 
-### 2.1 Config
+---
+
+## 1. Config
 
 | 필드 | 타입 | 필수 | 기본값 | 설명 |
 |------|------|------|--------|------|
 | language | Enum | ✓ | javascript | javascript (현재 유일 지원) |
 | code | String | ✓ | — | 실행할 코드 |
 
-### 2.2 실행 컨텍스트
+## 2. 실행 컨텍스트
 
 코드 내에서 사용 가능한 전역 객체:
 
@@ -128,7 +24,7 @@ JavaScript 코드를 작성하여 자유로운 데이터 처리를 수행한다.
 | `$execution` | Object | 실행 컨텍스트 (`id`, `startedAt`) |
 | `$node` | Object | 현재 노드 메타데이터 (`id`, `label`) |
 
-### 2.3 코드 작성 규칙
+## 3. 코드 작성 규칙
 
 - `return` 문으로 출력 데이터를 반환해야 함
 - `return`이 없으면 출력은 `null`
@@ -136,7 +32,7 @@ JavaScript 코드를 작성하여 자유로운 데이터 처리를 수행한다.
 - 외부 네트워크 접근 불가 (샌드박싱)
 - `require`/`import` 불가 (내장 유틸리티만 사용)
 
-### 2.4 내장 유틸리티
+## 4. 내장 유틸리티
 
 | 유틸리티 | 설명 |
 |----------|------|
@@ -147,14 +43,14 @@ JavaScript 코드를 작성하여 자유로운 데이터 처리를 수행한다.
 | `$helpers.base64.decode(data)` | Base64 디코딩 |
 | `console.log(...)` | 디버그 로그 (실행 로그에 기록) |
 
-### 2.5 포트 정의
+## 5. 포트 정의
 
 | 포트 | 방향 | 식별자 | 설명 |
 |------|------|--------|------|
 | Input | 입력 | `in` | 입력 데이터 |
 | Output | 출력 | `out` | return 값 |
 
-### 2.6 실행 로직
+## 6. 실행 로직
 
 1. 입력 데이터를 `$input`에 바인딩
 2. 워크플로우 변수를 `$vars`에 바인딩
@@ -162,11 +58,11 @@ JavaScript 코드를 작성하여 자유로운 데이터 처리를 수행한다.
 4. `return` 값을 출력 포트로 전달
 5. 에러 발생 시 스택 트레이스를 에러 정보에 포함
 
-### 2.7 샌드박싱
+## 7. 샌드박싱
 
-노드 실행 샌드박싱 정책(spec/4-nodes/0-overview.md §5)을 동일하게 적용한다.
+[노드 실행 샌드박싱 정책](../0-overview.md#5-노드-실행-샌드박싱) 을 동일하게 적용한다.
 
-#### 2.7.1 격리 방식
+### 7.1 격리 방식
 
 Code 노드의 JavaScript 실행은 **Node.js `node:vm` 모듈 기반의 격리 context**로 실행한다.
 
@@ -177,7 +73,7 @@ Code 노드의 JavaScript 실행은 **Node.js `node:vm` 모듈 기반의 격리 
 
 > **선택 근거**: `node:vm`은 네이티브 빌드(node-gyp) 의존성이 없어 배포/개발 환경 구성이 단순하고, 전역 미주입 + `codeGeneration` 차단으로 스펙상의 모듈 로드/네트워크/파일 시스템 차단 요구를 달성한다. 단, 메모리 하드 리밋과 완벽한 sandbox escape 방어는 불가하며, 필요 시 추후 `isolated-vm` 등으로 재검토한다.
 
-#### 2.7.2 리소스 제한
+### 7.2 리소스 제한
 
 | 항목 | 제한 | 설명 |
 |------|------|------|
@@ -188,14 +84,14 @@ Code 노드의 JavaScript 실행은 **Node.js `node:vm` 모듈 기반의 격리 
 | 모듈 | require/import 불가 | 모듈 로더 미제공. 내장 유틸리티만 전역 객체로 주입 |
 | 전역 객체 | 제한된 전역만 허용 | 아래 허용/차단 목록 참조 |
 
-#### 2.7.3 허용/차단 API 목록
+### 7.3 허용/차단 API 목록
 
 **허용 (전역 주입):**
 
 | API | 설명 |
 |-----|------|
 | `$input`, `$vars`, `$execution`, `$node` | 실행 컨텍스트 객체 (읽기 전용 프록시로 주입) |
-| `$helpers` | 내장 유틸리티 (§2.4 참조) |
+| `$helpers` | 내장 유틸리티 (§4 참조) |
 | `console.log`, `console.warn`, `console.error` | 디버그 로그 (실행 로그에 기록, 최대 100줄) |
 | `JSON.parse`, `JSON.stringify` | JSON 처리 |
 | `Array`, `Object`, `String`, `Number`, `Boolean`, `Date`, `RegExp`, `Map`, `Set` | 기본 JavaScript 내장 객체 |
@@ -215,7 +111,7 @@ Code 노드의 JavaScript 실행은 **Node.js `node:vm` 모듈 기반의 격리 
 | `process`, `global` (Node.js) | 런타임 환경 접근 차단 |
 | `Proxy`, `Reflect` (사용자 코드 내) | 샌드박스 탈출 방지 |
 
-#### 2.7.4 에러 처리
+### 7.4 에러 처리
 
 | 에러 유형 | 동작 |
 |-----------|------|
@@ -224,7 +120,7 @@ Code 노드의 JavaScript 실행은 **Node.js `node:vm` 모듈 기반의 격리 
 | 런타임 에러 | `CODE_RUNTIME_ERROR` 에러 + 스택 트레이스 (Isolate 내부 라인 번호 매핑) |
 | 구문 에러 | `CODE_SYNTAX_ERROR` 에러 + 에러 위치 (line:column) |
 
-#### 2.7.5 `$vars` 쓰기 처리 (Deep Clone + 전체 교체)
+### 7.5 `$vars` 쓰기 처리 (Deep Clone + 전체 교체)
 
 `$vars`는 읽기/쓰기 가능하지만, 변경은 Isolate 내부 복제본에서 이루어지며 실행 완료 후 메인 컨텍스트로 **원자적으로** 동기화된다:
 
@@ -234,7 +130,7 @@ Code 노드의 JavaScript 실행은 **Node.js `node:vm` 모듈 기반의 격리 
 
 > **설계 근거**: Proxy 기반 변경 추적 방식 대비 구현이 단순하고, 코드 실행 중 예외 발생 시 원본 `$vars`가 보존되는(롤백) 장점이 있다. 성능 부담은 `$vars` 크기가 통상적으로 작기 때문에 무시할 수 있다.
 
-### 2.8 설정 UI — 코드 에디터
+## 8. 설정 UI — 코드 에디터
 
 ```
 ┌──────────────────────────────────────┐
@@ -269,12 +165,3 @@ Code 노드의 JavaScript 실행은 **Node.js `node:vm` 모듈 기반의 격리 
 - 하단 Console Output: 마지막 실행의 `console.log` 출력 표시
 - 하단 Result Preview: 마지막 실행의 return 값 JSON 표시
 - 에러 발생 시 에디터 내 인라인 에러 표시 + 스택 트레이스
-
----
-
-## 3. 캔버스 요약
-
-| 노드 | 요약 포맷 | 예시 |
-|------|-----------|------|
-| Transform | `{N} operations` (operations 배열의 길이) | `3 operations` |
-| Code | `{language} · {N} lines` (코드 줄 수) | `JavaScript · 12 lines` |

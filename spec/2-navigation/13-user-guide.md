@@ -72,7 +72,7 @@ title: "AI 노드"
 section: "02-nodes"
 order: 6
 summary: "자연어 처리·분류·추출 노드의 사용법을 알아봐요."
-spec: ["spec/4-nodes/3-ai-nodes.md", "spec/5-system/7-llm-client.md"]
+spec: ["spec/4-nodes/3-ai/0-common.md", "spec/5-system/7-llm-client.md"]
 code: ["backend/src/nodes/ai/**", "frontend/src/components/editor/settings-panel/node-configs/ai-configs.tsx"]
 ---
 ```

@@ -32,7 +32,7 @@
 
 - 신규: `prd/9-graph-rag.md`, `spec/5-system/10-graph-rag.md`
 - 갱신: `prd/0-overview.md`, `prd/4-integration.md`, `prd/6-phase2-ai.md`
-- 갱신: `spec/1-data-model.md`, `spec/5-system/9-rag-search.md`, `spec/5-system/8-embedding-pipeline.md`, `spec/2-navigation/5-knowledge-base.md`, `spec/4-nodes/3-ai-nodes.md`
+- 갱신: `spec/1-data-model.md`, `spec/5-system/9-rag-search.md`, `spec/5-system/8-embedding-pipeline.md`, `spec/2-navigation/5-knowledge-base.md`, `spec/4-nodes/3-ai/1-ai-agent.md`
 - 작업 plan: `plan/complete/ai-knowledge-base/graph-rag-prd.md`
 
 ## 비-목표 (이번 PRD 범위 밖)

@@ -1,6 +1,6 @@
 # PRD: AI & 지식 저장소
 
-> 관련 문서: [제품 개요](./0-overview.md) · [워크플로우 에디터 §10](./2-workflow-editor.md#10-ai-assistant-ed-ai-) · [노드 시스템](./3-node-system.md#5-ai-노드) · [통합/연동](./4-integration.md#3-knowledge-base) · [내비게이션](./1-navigation.md#37-config--llm) · [Spec AI 노드](../spec/4-nodes/3-ai-nodes.md) · [Spec Knowledge Base](../spec/2-navigation/5-knowledge-base.md) · [Spec LLM Config](../spec/2-navigation/6-config.md) · [Spec AI Assistant](../spec/3-workflow-editor/4-ai-assistant.md)
+> 관련 문서: [제품 개요](./0-overview.md) · [워크플로우 에디터 §10](./2-workflow-editor.md#10-ai-assistant-ed-ai-) · [노드 시스템](./3-node-system.md#5-ai-노드) · [통합/연동](./4-integration.md#3-knowledge-base) · [내비게이션](./1-navigation.md#37-config--llm) · [Spec AI 노드](../spec/4-nodes/3-ai/0-common.md) · [Spec Knowledge Base](../spec/2-navigation/5-knowledge-base.md) · [Spec LLM Config](../spec/2-navigation/6-config.md) · [Spec AI Assistant](../spec/3-workflow-editor/4-ai-assistant.md)
 
 > **구현 상태**: 3.1~3.5의 AI 기능은 모두 **구현 완료(✅)**다. 3.6 **Workflow AI Assistant**는 로드맵(❌)이며, 상세 요구사항은 [PRD 2 §10](./2-workflow-editor.md#10-ai-assistant-ed-ai-)에 정의되어 있다. 팀 워크스페이스·RBAC·2FA는 별도 로드맵 항목으로 현재 백엔드 모듈만 존재한다.
 
@@ -52,7 +52,7 @@
 
 ### 3.2 AI Agent 노드
 
-> 상세: [PRD 노드 시스템 §5.1](./3-node-system.md), [Spec AI 노드 §1](../spec/4-nodes/3-ai-nodes.md)
+> 상세: [PRD 노드 시스템 §5.1](./3-node-system.md), [Spec AI Agent](../spec/4-nodes/3-ai/1-ai-agent.md)
 
 > ⚠ **재작성 예정 (현재 제거됨)** — `ND-AG-06`, `ND-AG-10`, `ND-AG-21` 의 도구 연결 입력 경로(`toolNodeIds` / `toolOverrides`)는 config 스키마에서 **제거**됐다. 새 도구 연결 디자인이 결정될 때까지 비활성. 조건(`cond_*`) / KB(`kb_*`) / MCP(`mcp_*`) 도구 호출은 정상 동작. 자세한 사유·복원 절차: `plan/complete/ai-agent-tool-connection-rewrite.md`.
 
@@ -81,11 +81,11 @@
 | ND-AG-21 | 조건과 일반 도구 동시 호출 시 일반 도구 우선 실행 — LLM이 하나의 응답에서 조건 도구와 일반 도구를 함께 호출한 경우, 일반 도구를 먼저 실행하고 결과를 LLM에 전달하여 재평가한다 (조건은 재평가 후 최종 결정) _(제거됨 — 일반 도구 입력 경로 부재로 시나리오 미발생)_ | 필수 |
 | ND-AG-22 | 복수 조건 동시 호출 시 첫 번째 우선 — LLM이 여러 조건 도구를 동시에 호출한 경우, 조건 목록에서 먼저 정의된 조건을 선택한다 | 필수 |
 | ND-AG-23 | Single Turn 모드의 포트 구조 — 조건 포트 + 기본 `out` 포트 + `error` 포트. 조건 0개 시 `out` + `error` | 필수 |
-| ND-AG-24 | Multi Turn 모드의 포트 구조 — 조건 포트 + `user_ended` + `max_turns` + `error` (`out` 없음). 조건 0개 시 `out` + `error` 제공 (하위 호환). 상세: [Spec §1 포트](../spec/4-nodes/3-ai-nodes.md) | 필수 |
+| ND-AG-24 | Multi Turn 모드의 포트 구조 — 조건 포트 + `user_ended` + `max_turns` + `error` (`out` 없음). 조건 0개 시 `out` + `error` 제공 (하위 호환). 상세: [Spec AI Agent 포트](../spec/4-nodes/3-ai/1-ai-agent.md#3-포트) | 필수 |
 
 ### 3.3 Text Classifier 노드
 
-> 상세: [PRD 노드 시스템 §5.2](./3-node-system.md), [Spec AI 노드 §2](../spec/4-nodes/3-ai-nodes.md)
+> 상세: [PRD 노드 시스템 §5.2](./3-node-system.md), [Spec Text Classifier](../spec/4-nodes/3-ai/2-text-classifier.md)
 
 | ID | 요구사항 | 우선순위 |
 |----|----------|----------|
@@ -98,7 +98,7 @@
 
 ### 3.4 Information Extractor 노드
 
-> 상세: [PRD 노드 시스템 §5.3](./3-node-system.md), [Spec AI 노드 §3](../spec/4-nodes/3-ai-nodes.md)
+> 상세: [PRD 노드 시스템 §5.3](./3-node-system.md), [Spec Information Extractor](../spec/4-nodes/3-ai/3-information-extractor.md)
 
 | ID | 요구사항 | 우선순위 |
 |----|----------|----------|

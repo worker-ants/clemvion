@@ -1,6 +1,6 @@
 # Spec: RAG 검색 엔진
 
-> 관련 문서: [PRD AI & 지식 저장소](../../prd/6-phase2-ai.md) · [Spec AI 노드 §1](../4-nodes/3-ai-nodes.md) · [Spec 임베딩 파이프라인](./8-embedding-pipeline.md) · [Spec Graph RAG](./10-graph-rag.md) · [Spec Knowledge Base](../2-navigation/5-knowledge-base.md)
+> 관련 문서: [PRD AI & 지식 저장소](../../prd/6-phase2-ai.md) · [Spec AI Agent](../4-nodes/3-ai/1-ai-agent.md) · [Spec 임베딩 파이프라인](./8-embedding-pipeline.md) · [Spec Graph RAG](./10-graph-rag.md) · [Spec Knowledge Base](../2-navigation/5-knowledge-base.md)
 
 ---
 

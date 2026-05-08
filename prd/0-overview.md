@@ -1,6 +1,6 @@
 # PRD: Clemvion 제품 개요
 
-> 관련 문서: [브랜드 가이드](./brand.md) · [내비게이션](./1-navigation.md) · [워크플로우 에디터](./2-workflow-editor.md) · [노드 시스템](./3-node-system.md) · [통합/연동](./4-integration.md) · [비기능 요구사항](./5-non-functional.md) · [Spec 개요](../spec/0-overview.md) · [Spec Integration 노드](../spec/4-nodes/4-integration-nodes.md) · [Spec Data 노드](../spec/4-nodes/5-data-nodes.md) · [Spec Presentation 노드](../spec/4-nodes/6-presentation-nodes.md)
+> 관련 문서: [브랜드 가이드](./brand.md) · [내비게이션](./1-navigation.md) · [워크플로우 에디터](./2-workflow-editor.md) · [노드 시스템](./3-node-system.md) · [통합/연동](./4-integration.md) · [비기능 요구사항](./5-non-functional.md) · [Spec 개요](../spec/0-overview.md) · [Spec Integration 노드](../spec/4-nodes/4-integration/0-common.md) · [Spec Data 노드](../spec/4-nodes/5-data/0-common.md) · [Spec Presentation 노드](../spec/4-nodes/6-presentation/0-common.md)
 
 ---
 
@@ -142,12 +142,13 @@ spec/
 │   └── 4-ai-assistant.md  — Workflow AI Assistant 상세 (로드맵)
 ├── 4-nodes/               — 노드별 상세 스펙
 │   ├── 0-overview.md      — 노드 아키텍처/목록 개요
-│   ├── 1-logic-nodes.md   — Logic 노드 상세
-│   ├── 2-flow-nodes.md    — Flow 노드 상세
-│   ├── 3-ai-nodes.md      — AI 노드 상세
-│   ├── 4-integration-nodes.md — Integration 노드 상세
-│   ├── 5-data-nodes.md    — Data 노드 상세
-│   └── 6-presentation-nodes.md — Presentation 노드 상세
+│   ├── 1-logic/           — Logic 카테고리 (12 노드 + 0-common.md)
+│   ├── 2-flow/            — Flow 카테고리 (1 노드)
+│   ├── 3-ai/              — AI 카테고리 (3 노드 + 0-common.md)
+│   ├── 4-integration/     — Integration 카테고리 (3 노드 + 0-common.md)
+│   ├── 5-data/            — Data 카테고리 (2 노드 + 0-common.md)
+│   ├── 6-presentation/    — Presentation 카테고리 (5 노드 + 0-common.md)
+│   └── 7-trigger/         — Trigger 카테고리 (1 노드 + 0-common.md)
 └── 5-system/              — 시스템 공통 스펙
     ├── 5-expression-language.md — 표현식 언어 문법/함수/타입
     └── 6-websocket-protocol.md  — WebSocket 채널/인증/재연결

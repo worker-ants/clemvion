@@ -19,7 +19,7 @@
 ## Stage 1 — information_extractor 이중 중첩 + LLM 에러 컨트랙트 (P0) ✅
 
 ### Spec / 문서
-- [x] `spec/4-nodes/3-ai-nodes.md` information_extractor 섹션 재작성 (Principle 11 포맷)
+- [x] `spec/4-nodes/3-ai/3-information-extractor.md` 재작성 (Principle 11 포맷)
 - [ ] `spec/5-system/3-error-handling.md` 에 `output.error` 표준 shape 명시 추가 (Stage 4 에서 확장 예정)
 
 ### 테스트
@@ -101,7 +101,7 @@
 ## Stage 3 — Presentation 5 노드 Principle 1.1 + waiting/resumed 재작성 (P0) ✅
 
 ### Spec
-- [x] `spec/4-nodes/6-presentation-nodes.md` form 섹션 재작성 (waiting/resumed shape, interaction payload)
+- [x] `spec/4-nodes/6-presentation/4-form.md` 재작성 (waiting/resumed shape, interaction payload)
 - [ ] carousel/chart/table/template 섹션 Principle 11 포맷 업데이트 (Stage 3 추가 정비 대상)
 
 ### 테스트 (각 노드)
@@ -186,8 +186,8 @@
 ## Stage 5 — P1: LLM `output.result.*` + Container 오버라이트 구조화 (P1) ✅ (부분)
 
 ### Spec
-- [ ] `spec/4-nodes/1-logic-nodes.md` container 섹션 Principle 9 반영 (후속)
-- [ ] `spec/4-nodes/3-ai-nodes.md` text_classifier 섹션 `output.result.*` 반영 (후속)
+- [ ] `spec/4-nodes/1-logic/{3-loop,7-map,9-foreach,10-parallel}.md` container 섹션 Principle 9 반영 (후속)
+- [ ] `spec/4-nodes/3-ai/2-text-classifier.md` `output.result.*` 반영 (후속)
 - [ ] `spec/5-system/4-execution-engine.md` container override 컨트랙트 명문화 (후속)
 
 ### 테스트
@@ -318,8 +318,8 @@
 
 ### 후속 4: Spec 잔여 정비
 - `spec/5-system/3-error-handling.md` — `output.error` 표준 shape + 에러 포트 정책 재작성
-- `spec/4-nodes/6-presentation-nodes.md` — carousel/chart/table/template 섹션을 Principle 11 포맷으로 (form 은 완료)
-- `spec/4-nodes/1-logic-nodes.md` — container 섹션 §9.2 반영
+- `spec/4-nodes/6-presentation/{1-carousel,2-table,3-chart,5-template}.md` — Principle 11 포맷으로 (form 은 완료)
+- `spec/4-nodes/1-logic/{3-loop,7-map,9-foreach,10-parallel}.md` — container 섹션 §9.2 반영
 - `spec/5-system/6-websocket-protocol.md` — `interaction.{type,data,receivedAt}` 기반 이벤트 필드 업데이트
 
 ### 후속 5: Stage 7 실행

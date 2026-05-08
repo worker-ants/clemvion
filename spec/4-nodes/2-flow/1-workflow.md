@@ -1,6 +1,6 @@
-# Spec: Flow 노드 상세
+# Spec: Flow 노드 — Workflow
 
-> 관련 문서: [PRD 노드 시스템](../../prd/3-node-system.md#4-flow-노드) · [Spec 노드 개요](./0-overview.md)
+> 관련 문서: [PRD 노드 시스템](../../../prd/3-node-system.md#4-flow-노드) · [Spec 노드 개요](../0-overview.md)
 
 ---
 
