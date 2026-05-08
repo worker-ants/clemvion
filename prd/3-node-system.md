@@ -382,9 +382,9 @@
 
 | ID | 요구사항 | 우선순위 | 상태 |
 |----|----------|----------|-------|
-| ENG-RC-01 | 엔진은 `node.config` 에 expression 이 포함될 경우 평가 전 원본을 별도로 보존하여 핸들러가 접근할 수 있도록 노출한다 (`ExecutionContext.rawConfig`) | 필수 | 🚧 |
+| ENG-RC-01 | 엔진은 `node.config` 에 expression 이 포함될 경우 평가 전 원본을 별도로 보존하여 핸들러가 접근할 수 있도록 노출한다 (`ExecutionContext.rawConfig`) | 필수 | ✅ |
 | ENG-RC-02 | 핸들러는 `NodeHandlerOutput.config` 에 **원본 config (rawConfig)** 를 echo 하고, expression 평가 결과는 `output.*` 에 둔다 (CONVENTIONS Principle 1.1.3 / Principle 7 정합) | 필수 | 🚧 |
-| ENG-RC-03 | 평가 전(`context.rawConfig`) / 평가 후(`config` 인자) 둘 다 핸들러 인자로 노출되어, 핸들러가 echo 와 실제 동작에 사용할 값을 명확히 분리할 수 있어야 한다 | 필수 | 🚧 |
+| ENG-RC-03 | 평가 전(`context.rawConfig`) / 평가 후(`config` 인자) 둘 다 핸들러 인자로 노출되어, 핸들러가 echo 와 실제 동작에 사용할 값을 명확히 분리할 수 있어야 한다 | 필수 | ✅ |
 | ENG-RC-04 | 마이그레이션은 하드 스위치 — 모든 핸들러가 일관되게 신규 패턴을 따른다. expression 미사용 필드(예: `mode`, `chartType`)는 raw 와 evaluated 가 동일하므로 영향 없으며, expression 사용 필드(template/expression widget)만 의미가 변경된다 | 필수 | 🚧 |
 
 **영향 범위**:

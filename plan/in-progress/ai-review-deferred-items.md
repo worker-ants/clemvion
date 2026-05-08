@@ -4,11 +4,21 @@
 
 ai-review 2026-05-06_17-27-43 에서 발견된 51건 중 본 PR (Phase 1 quality + 후속 조치) 에서 처리하지 못한 23건의 후속 처리 백로그. 자세한 내용은 `review/2026-05-06_17-27-43/SUMMARY.md` + `RESOLUTION.md`.
 
-## 우선순위 분류
+## 현재 상태 (2026-05-08)
+
+본 plan 작성(2026-05-06) 이후 23건 deferred 항목 모두 **미진행**. 이후 commit 들 (`4a481984`, `d187131f`, `a73242bd`, `daeaa1f3`, `a659c631`, `67f232fd`, `b69b72a3`, `cec5bdf2`, `5a15b313`, `1ebdc8a4`) 은 ai-agent / workflow-assistant / compose / migration 등 별도 영역으로, 본 백로그의 engine 항목과 직접 매칭되지 않는다.
+
+각 PR 완료 시 본 문서의 해당 항목을 제거하고, 모든 항목 처리 완료 시 본 문서 자체를 `plan/complete/` 로 `git mv`.
+
+---
+
+## 남은 작업
+
+진행되지 않은 23건 전체. 우선순위 분류와 권장 PR 분할을 함께 정리한다.
 
 ### P0 — Security / Correctness (즉시 별도 PR)
 
-- **CRIT #5 (timeout 경로 테스트)** — executeSync 의 timeout 분기 테스트. graph traversal hang 셋업 필요.
+- **CRIT #5 (timeout 경로 테스트)** — `executeSync` 의 timeout 분기 테스트. graph traversal hang 셋업 필요.
 - **WARN #4** — RUNNING ↔ WAITING_FOR_INPUT 상태 전이 트랜잭션. `DataSource` 주입 + 영향 범위 전수 검토.
 - **WARN #2** — `executionPathChain` 분산 환경 대응. 별도 테이블 / 낙관적 잠금 / Redis pub-sub. 인프라 결정 + DB 스키마 변경.
 
@@ -43,16 +53,14 @@ ai-review 2026-05-06_17-27-43 에서 발견된 51건 중 본 PR (Phase 1 quality
 - **INFO #17** — executeInline trigger pass-through 정리.
 - **INFO #19** — executeSync findOneBy 인메모리 활용.
 
+---
+
 ## PR 분할 권장
 
-- **PR-A (P0 Security)**: CRIT #5 timeout + WARN #4 트랜잭션 (~1일)
-- **PR-B (P0 분산)**: WARN #2 + WARN #15 (인프라 결정 후 ~3일)
-- **PR-C (P1 Engine 리팩토링)**: CRIT #2 + WARN #25 (~5일)
-- **PR-D (P1 OCP)**: CRIT #3 (~3일)
-- **PR-E (P1 Event 추상화)**: WARN #16 + WARN #26 (~2일)
-- **PR-F (P2 Testing 보강)**: WARN #21, #22, #24 + INFO #14~16 (~2일)
-- **PR-G (P3 일괄 정리)**: INFO 항목들 일괄 (~1일)
-
-## 클로저
-
-각 PR 완료 시 본 문서의 해당 섹션을 체크 후 `plan/complete/` 로 git mv. 모든 PR 완료 시 본 문서 자체도 완료 이동.
+- **PR-A (P0 Security)**: CRIT #5 timeout + WARN #4 트랜잭션 (~1일).
+- **PR-B (P0 분산)**: WARN #2 + WARN #15 (인프라 결정 후 ~3일).
+- **PR-C (P1 Engine 리팩토링)**: CRIT #2 + WARN #25 (~5일).
+- **PR-D (P1 OCP)**: CRIT #3 (~3일).
+- **PR-E (P1 Event 추상화)**: WARN #16 + WARN #26 (~2일).
+- **PR-F (P2 Testing 보강)**: WARN #21, #22, #24 + INFO #14~16 (~2일).
+- **PR-G (P3 일괄 정리)**: INFO 항목들 일괄 (~1일).
