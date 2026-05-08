@@ -19,29 +19,29 @@
 | Error 포트 본문 포함 | 포함 — 디버깅 용이성 (이전 결정 #4) |
 | Legacy DB 데이터 | historical record 보존, 백필 X (배포 전 NodeExecution rows 의 config 는 evaluated 형태로 남아있음) |
 
-## Phase 1 — 엔진 plumbing
+## Phase 1 — 엔진 plumbing ✅ 완료 (`6953cafb`)
 
 **범위**: 엔진이 핸들러에 raw config 를 노출. 행동 변화 0 — 모든 핸들러는 여전히 evaluated config 만 사용 (이전 PR 호환 유지).
 
 ### 작업 항목
 
-- [ ] `backend/src/nodes/core/node-handler.interface.ts` — `ExecutionContext` 인터페이스에 `rawConfig?: Record<string, unknown>` 필드 추가
-- [ ] `backend/src/modules/execution-engine/execution-engine.service.ts:2298` 분기 — `nodeContext` 에 `rawConfig: node.config` 주입
-- [ ] resume 경로 (`processResume`, multi-turn 재진입) 에서도 `rawConfig` 동일 주입 — `processResume` 내 `nodeContext` 구성 지점 식별 후 적용
-- [ ] `nodeMap === undefined` (legacy / 테스트 경로) 분기에서도 `rawConfig` 채움 (이 경우 `node.config === resolvedConfig` 이므로 동일 값 주입)
-- [ ] `ExpressionResolverService.resolveConfig` 시그니처 변경 없음 (입력은 여전히 raw, 출력은 resolved)
-- [ ] 단위 테스트 — `execution-engine.service.spec.ts` 에 케이스 추가:
-  - 일반 경로: handler 가 raw 와 evaluated 둘 다 받는지
-  - resume 경로: 동일 검증
-  - expression 미사용 노드: raw === evaluated 검증
-- [ ] frontend / API 영향 없음 확인 (engine 내부 변경)
+- [x] `backend/src/nodes/core/node-handler.interface.ts` — `ExecutionContext` 인터페이스에 `rawConfig?: Readonly<Record<string, unknown>>` 필드 추가 (line 54)
+- [x] `backend/src/modules/execution-engine/execution-engine.service.ts` — 메인 경로 `nodeContext` 에 `rawConfig: Object.freeze({ ...(node.config ?? {}) })` 주입 (line 2434–2437)
+- [x] resume 경로 (`processResume`, multi-turn 재진입) 에서도 `rawConfig` 동일 주입 (line 1687: `resumeState.rawConfig` 보존 + freeze)
+- [x] `nodeMap === undefined` (legacy / 테스트 경로) 분기에서도 `rawConfig` 채움 — if/else 이후 무조건 주입이므로 자동 커버
+- [x] `ExpressionResolverService.resolveConfig` 시그니처 변경 없음 (입력은 여전히 raw, 출력은 resolved)
+- [x] 단위 테스트 — `execution-engine.service.spec.ts` 케이스 추가:
+  - 메인 경로 + executeInline 경로 rawConfig 노출 검증
+  - shallow freeze (top-level mutation strict-mode throw) 검증
+  - expression 미사용 노드 rawConfig 채움 검증
+- [x] frontend / API 영향 없음 확인 (engine 내부 변경 — Phase 1 후속 quality gate `ce059405` 에서 검증)
 
 ### 검증
-- backend lint·unit·build green
-- 기존 모든 핸들러 unit test pass (행동 변화 0 확인)
+- [x] backend lint·unit·build green (167 suite, 2732/2732 pass — RESOLUTION 기록)
+- [x] 기존 모든 핸들러 unit test pass (행동 변화 0 확인)
 
 ### 별도 PR 단위
-1건. `feat(engine): expose rawConfig to node handlers via ExecutionContext`
+1건. `feat(engine): expose rawConfig to node handlers via ExecutionContext` ✅ `6953cafb` (후속 quality gate `ce059405` 에서 INFO #3 / WARN #17 / WARN #20 / INFO #18 추가 처리)
 
 ---
 
