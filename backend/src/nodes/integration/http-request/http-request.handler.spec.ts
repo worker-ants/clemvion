@@ -1,6 +1,18 @@
 import { HttpRequestHandler } from './http-request.handler.js';
 import { ExecutionContext } from '../../core/node-handler.interface.js';
 
+function makeContext(rawConfig?: Record<string, unknown>): ExecutionContext {
+  return {
+    executionId: 'exec-1',
+    workflowId: 'wf-1',
+    variables: {},
+    nodeOutputCache: {},
+    ...(rawConfig
+      ? { rawConfig: Object.freeze({ ...rawConfig }) }
+      : {}),
+  };
+}
+
 describe('HttpRequestHandler', () => {
   let handler: HttpRequestHandler;
   const context: ExecutionContext = {
@@ -739,6 +751,230 @@ describe('HttpRequestHandler', () => {
           error: expect.objectContaining({ code: 'HTTP_500' }),
         }),
       );
+    });
+  });
+
+  // ENG-RC-* — Phase 2 raw-echo migration. Verifies that `config` carries
+  // the **raw** (pre-evaluation) settings the workflow author entered,
+  // `output.requestBody` carries the evaluated body that hit the wire, and
+  // `output.responseHeaders` carries the response headers with credential-
+  // shaped values redacted.
+  describe('ENG-RC-* — raw config echo + output.requestBody / responseHeaders', () => {
+    let originalFetch: typeof global.fetch;
+
+    beforeEach(() => {
+      originalFetch = global.fetch;
+    });
+
+    afterEach(() => {
+      global.fetch = originalFetch;
+    });
+
+    it('echoes rawConfig templates on config and evaluated body on output', async () => {
+      const rawConfig = {
+        method: 'POST',
+        url: '{{ $input.endpoint }}',
+        body: { user: '{{ $input.name }}' },
+        bodyType: 'json',
+      };
+      const evaluated = {
+        method: 'POST',
+        url: 'https://api.example.com/users',
+        body: { user: 'Alice' },
+        bodyType: 'json',
+      };
+      global.fetch = jest.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: jest.fn().mockResolvedValue({ ok: true }),
+        headers: new Headers({ 'Content-Type': 'application/json' }),
+      });
+
+      const result = (await handler.execute(
+        null,
+        evaluated,
+        makeContext(rawConfig),
+      )) as {
+        config: { url: string; body: unknown; method: string };
+        output: {
+          requestBody: unknown;
+          requestBodyType: string;
+          responseHeaders: Record<string, string>;
+        };
+      };
+
+      // config echoes the raw template
+      expect(result.config.url).toBe('{{ $input.endpoint }}');
+      expect(result.config.body).toEqual({ user: '{{ $input.name }}' });
+      expect(result.config.method).toBe('POST');
+      // output surfaces the evaluated body
+      expect(result.output.requestBody).toEqual({ user: 'Alice' });
+      expect(result.output.requestBodyType).toBe('json');
+      expect(result.output.responseHeaders['content-type']).toBe(
+        'application/json',
+      );
+    });
+
+    it('omits requestBody for GET (no body)', async () => {
+      global.fetch = jest.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: jest.fn().mockResolvedValue({}),
+        headers: new Headers(),
+      });
+
+      const result = (await handler.execute(
+        null,
+        { method: 'GET', url: 'https://api.example.com/x' },
+        makeContext(),
+      )) as { output: { requestBody?: unknown } };
+
+      expect(result.output.requestBody).toBeUndefined();
+    });
+
+    it('records form-data entries on requestBody', async () => {
+      global.fetch = jest.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: jest.fn().mockResolvedValue({}),
+        headers: new Headers(),
+      });
+
+      const result = (await handler.execute(
+        null,
+        {
+          method: 'POST',
+          url: 'https://api.example.com/upload',
+          bodyType: 'form-data',
+          body: { field: 'value' },
+        },
+        makeContext(),
+      )) as {
+        output: { requestBody: Record<string, string>; requestBodyType: string };
+      };
+
+      expect(result.output.requestBodyType).toBe('form-data');
+      expect(result.output.requestBody).toEqual({ field: 'value' });
+    });
+
+    it('redacts sensitive response headers', async () => {
+      global.fetch = jest.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: jest.fn().mockResolvedValue({}),
+        headers: new Headers({
+          'Content-Type': 'application/json',
+          Authorization: 'Bearer leaked',
+          'Set-Cookie': 'sid=abc',
+          'X-Custom-Token': 't',
+        }),
+      });
+
+      const result = (await handler.execute(
+        null,
+        { method: 'GET', url: 'https://api.example.com/x' },
+        makeContext(),
+      )) as { output: { responseHeaders: Record<string, string> } };
+
+      expect(result.output.responseHeaders['content-type']).toBe(
+        'application/json',
+      );
+      expect(result.output.responseHeaders.authorization).toBe('[REDACTED]');
+      expect(result.output.responseHeaders['set-cookie']).toBe('[REDACTED]');
+      expect(result.output.responseHeaders['x-custom-token']).toBe(
+        '[REDACTED]',
+      );
+    });
+
+    it('caps oversized request bodies and sets bodyTruncated', async () => {
+      global.fetch = jest.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: jest.fn().mockResolvedValue({}),
+        headers: new Headers(),
+      });
+
+      const huge = 'x'.repeat(300 * 1024);
+      const result = (await handler.execute(
+        null,
+        {
+          method: 'POST',
+          url: 'https://api.example.com/x',
+          body: huge,
+          bodyType: 'raw',
+        },
+        makeContext(),
+      )) as {
+        output: { requestBody: string; bodyTruncated?: boolean };
+      };
+
+      expect(result.output.bodyTruncated).toBe(true);
+      expect(typeof result.output.requestBody).toBe('string');
+      expect(
+        Buffer.byteLength(result.output.requestBody, 'utf8'),
+      ).toBeLessThanOrEqual(256 * 1024);
+    });
+
+    it('still surfaces requestBody on non-2xx error port', async () => {
+      global.fetch = jest.fn().mockResolvedValue({
+        ok: false,
+        status: 500,
+        statusText: 'boom',
+        json: jest.fn().mockResolvedValue({ error: 'boom' }),
+        headers: new Headers({ 'Content-Type': 'application/json' }),
+      });
+
+      const result = (await handler.execute(
+        null,
+        {
+          method: 'POST',
+          url: 'https://api.example.com/x',
+          body: { x: 1 },
+          bodyType: 'json',
+        },
+        makeContext(),
+      )) as {
+        port: string;
+        output: {
+          requestBody: unknown;
+          requestBodyType: string;
+          responseHeaders: Record<string, string>;
+        };
+      };
+
+      expect(result.port).toBe('error');
+      expect(result.output.requestBody).toEqual({ x: 1 });
+      expect(result.output.requestBodyType).toBe('json');
+      expect(result.output.responseHeaders['content-type']).toBe(
+        'application/json',
+      );
+    });
+
+    it('surfaces requestBody on transport-error port (no responseHeaders)', async () => {
+      global.fetch = jest.fn().mockRejectedValue(new Error('ECONNREFUSED'));
+
+      const result = (await handler.execute(
+        null,
+        {
+          method: 'POST',
+          url: 'https://api.example.com/x',
+          body: { ping: 1 },
+          bodyType: 'json',
+        },
+        makeContext(),
+      )) as {
+        port: string;
+        output: {
+          requestBody: unknown;
+          requestBodyType: string;
+          responseHeaders?: Record<string, string>;
+        };
+      };
+
+      expect(result.port).toBe('error');
+      expect(result.output.requestBody).toEqual({ ping: 1 });
+      expect(result.output.requestBodyType).toBe('json');
+      expect(result.output.responseHeaders).toBeUndefined();
     });
   });
 });

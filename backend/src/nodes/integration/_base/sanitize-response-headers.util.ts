@@ -57,29 +57,48 @@ type HeaderEntries = Iterable<[string, string]>;
  * Multi-valued headers (e.g. multiple `Set-Cookie`) are concatenated by the
  * source `Headers` object before reaching us, which is acceptable here —
  * the value is redacted regardless.
+ *
+ * Returns an empty object for `null` / `undefined` and for mock-like inputs
+ * that lack the iteration protocol — callers (handlers in test harnesses)
+ * may pass partial mocks that only stub `.get()`.
  */
 export function sanitizeResponseHeaders(
-  source: Headers | Record<string, string> | HeaderEntries,
+  source:
+    | Headers
+    | Record<string, string>
+    | HeaderEntries
+    | null
+    | undefined,
 ): Record<string, string> {
   const out: Record<string, string> = {};
-  for (const [name, value] of iterateHeaders(source)) {
-    out[name] = isSensitiveHeaderName(name) ? REDACTED : value;
+  const entries = iterateHeaders(source);
+  if (entries === null) return out;
+  for (const [name, value] of entries) {
+    out[name] = isSensitiveHeaderName(name) ? REDACTED : String(value);
   }
   return out;
 }
 
 function iterateHeaders(
-  source: Headers | Record<string, string> | HeaderEntries,
-): Iterable<[string, string]> {
+  source:
+    | Headers
+    | Record<string, string>
+    | HeaderEntries
+    | null
+    | undefined,
+): Iterable<[string, string]> | null {
+  if (source === null || source === undefined) return null;
   if (typeof Headers !== 'undefined' && source instanceof Headers) {
     return source.entries();
   }
   if (
-    source !== null &&
     typeof source === 'object' &&
     Symbol.iterator in (source as object)
   ) {
     return source as HeaderEntries;
   }
-  return Object.entries(source as Record<string, string>);
+  if (typeof source === 'object') {
+    return Object.entries(source as Record<string, string>);
+  }
+  return null;
 }

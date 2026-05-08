@@ -9,6 +9,8 @@ import {
   IntegrationHandlerBase,
   toLogError,
 } from '../_base/integration-handler-base.js';
+import { truncateBodyForOutput } from '../_base/truncate-body.util.js';
+import { sanitizeResponseHeaders } from '../_base/sanitize-response-headers.util.js';
 import { IntegrationsService } from '../../../modules/integrations/integrations.service.js';
 import { assertSafeOutboundUrl } from './http-safety.js';
 import { httpRequestNodeMetadata } from './http-request.schema.js';
@@ -99,6 +101,38 @@ export class HttpRequestHandler
     const timeout = (config.timeout as number) ?? 30000;
     const authentication = (config.authentication as string) ?? 'none';
     const integrationId = config.integrationId as string | undefined;
+
+    // CONVENTIONS Principle 7 — config echo carries the **raw** user input
+    // (`{{ ... }}` preserved, URL credentials stripped). evaluated request
+    // body is surfaced on `output.requestBody` so a downstream node can
+    // observe the bytes that actually went on the wire. Engine populates
+    // `rawConfig` for every dispatch (Phase 1); fallback to evaluated config
+    // is purely for unit tests that bypass the engine.
+    const rawConfig = (context.rawConfig ?? config) as Record<string, unknown>;
+    const rawUrl =
+      typeof rawConfig.url === 'string'
+        ? sanitizeUrlCredentials(rawConfig.url)
+        : (rawConfig.url as unknown);
+    const buildConfigEcho = (): Record<string, unknown> => ({
+      method: rawConfig.method,
+      url: rawUrl,
+      authentication: rawConfig.authentication,
+      integrationId: rawConfig.integrationId,
+      headers: rawConfig.headers,
+      queryParams: rawConfig.queryParams,
+      body: rawConfig.body,
+      bodyType: rawConfig.bodyType,
+      responseType: rawConfig.responseType,
+      timeout: rawConfig.timeout,
+      followRedirects: rawConfig.followRedirects,
+      verifySsl: rawConfig.verifySsl,
+    });
+
+    // The evaluated body reflects what was actually sent (after expression
+    // substitution). For `form-data` we record the multipart parts as a
+    // plain object since `FormData` itself isn't JSON-serializable.
+    const evaluatedRequestBody = serializeEvaluatedBody(body, bodyType);
+    const cappedRequestBody = truncateBodyForOutput(evaluatedRequestBody);
 
     const start = Date.now();
 
@@ -274,16 +308,25 @@ export class HttpRequestHandler
         });
       }
 
-      const configEcho: Record<string, unknown> = {
-        method,
-        url: sanitizeUrlCredentials(url),
-        authentication,
-      };
-      if (integrationId) configEcho.integrationId = integrationId;
+      const configEcho = buildConfigEcho();
+      const responseHeaders = sanitizeResponseHeaders(res.headers);
+      const requestBodyOutput = (): Record<string, unknown> => ({
+        ...(cappedRequestBody.value !== undefined
+          ? { requestBody: cappedRequestBody.value }
+          : {}),
+        ...(rawConfig.bodyType !== undefined
+          ? { requestBodyType: rawConfig.bodyType }
+          : {}),
+        ...(cappedRequestBody.truncated ? { bodyTruncated: true } : {}),
+        responseHeaders,
+      });
       if (res.ok) {
         return {
           config: configEcho,
-          output: { response: responseData },
+          output: {
+            response: responseData,
+            ...requestBodyOutput(),
+          },
           meta,
           port: 'success',
         };
@@ -297,6 +340,7 @@ export class HttpRequestHandler
         config: configEcho,
         output: {
           response: responseData,
+          ...requestBodyOutput(),
           error: {
             code: res.status >= 500 ? 'HTTP_5XX' : 'HTTP_4XX',
             message: `HTTP ${res.status} ${res.statusText}`,
@@ -323,16 +367,21 @@ export class HttpRequestHandler
           error: { code: 'HTTP_TRANSPORT_FAILED', message },
         });
       }
-      const configEcho: Record<string, unknown> = {
-        method,
-        url: sanitizeUrlCredentials(url),
-        authentication,
-      };
-      if (integrationId) configEcho.integrationId = integrationId;
+      const configEcho = buildConfigEcho();
       return {
         config: configEcho,
         output: {
           response: { error: message },
+          ...(cappedRequestBody.value !== undefined
+            ? { requestBody: cappedRequestBody.value }
+            : {}),
+          ...(rawConfig.bodyType !== undefined
+            ? { requestBodyType: rawConfig.bodyType }
+            : {}),
+          ...(cappedRequestBody.truncated ? { bodyTruncated: true } : {}),
+          // Transport failures don't carry a Response, so responseHeaders is
+          // absent. Downstream nodes can detect this via `port === 'error'`
+          // + `error.code === 'HTTP_TRANSPORT_FAILED'`.
           error: {
             code: 'HTTP_TRANSPORT_FAILED',
             message,
@@ -344,6 +393,28 @@ export class HttpRequestHandler
       };
     }
   }
+}
+
+/**
+ * Best-effort serialisation of the request body for echoing on
+ * `output.requestBody`. Mirrors the shape that hit the wire — JSON / form /
+ * raw all become inspectable values without re-parsing the network frame.
+ * `FormData` isn't JSON-serialisable so we record the {key,value} entries
+ * the user supplied (after `toKeyValueEntries` would normalise them).
+ */
+function serializeEvaluatedBody(
+  body: unknown,
+  bodyType: string,
+): unknown {
+  if (body === undefined) return undefined;
+  if (bodyType === 'form-data') {
+    const entries: Record<string, string> = {};
+    for (const [k, v] of toKeyValueEntries(body)) {
+      entries[k] = v;
+    }
+    return entries;
+  }
+  return body;
 }
 
 /**
