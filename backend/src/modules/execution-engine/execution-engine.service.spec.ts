@@ -2823,6 +2823,212 @@ describe('ExecutionEngineService', () => {
       ]);
     });
 
+    // engine-config-bug — Phase 3 raw-echo 리팩터링 이후 핸들러가 echo 한
+    // raw `{{ ... }}` 을 엔진이 컨테이너 동작 파라미터로 다시 읽으면서 깨졌다.
+    // 표현식이 evaluated 값으로 컨테이너 동작에 도달하면서, 동시에 raw echo 가
+    // 후속 expression 노드의 `$node["loop"].config.*` 에 보존되는지 검증.
+    describe('engine-config-bug — Loop count expression handling', () => {
+      const buildLoopNodes = (countConfig: unknown): Partial<Node>[] => [
+        {
+          id: 'src',
+          workflowId,
+          type: 'source_node',
+          category: NodeCategory.TRIGGER,
+          label: 'src',
+          config: {},
+          isDisabled: false,
+          containerId: null,
+          toolOwnerId: null,
+        },
+        {
+          id: 'loop',
+          workflowId,
+          type: 'loop',
+          category: NodeCategory.LOGIC,
+          label: 'loop',
+          config: { count: countConfig },
+          isDisabled: false,
+          containerId: null,
+          toolOwnerId: null,
+        },
+        {
+          id: 'body',
+          workflowId,
+          type: 'body_node',
+          category: NodeCategory.LOGIC,
+          label: 'body',
+          config: {},
+          isDisabled: false,
+          containerId: 'loop',
+          toolOwnerId: null,
+        },
+        {
+          id: 'sink',
+          workflowId,
+          type: 'sink_node',
+          category: NodeCategory.LOGIC,
+          label: 'sink',
+          config: {},
+          isDisabled: false,
+          containerId: null,
+          toolOwnerId: null,
+        },
+      ];
+
+      const loopEdges: Partial<Edge>[] = [
+        {
+          id: 'e-src-loop',
+          workflowId,
+          sourceNodeId: 'src',
+          sourcePort: 'out',
+          targetNodeId: 'loop',
+          targetPort: 'in',
+          type: EdgeType.DATA,
+        },
+        {
+          id: 'e-loop-body',
+          workflowId,
+          sourceNodeId: 'loop',
+          sourcePort: 'body',
+          targetNodeId: 'body',
+          targetPort: 'in',
+          type: EdgeType.DATA,
+        },
+        {
+          id: 'e-body-emit',
+          workflowId,
+          sourceNodeId: 'body',
+          sourcePort: 'out',
+          targetNodeId: 'loop',
+          targetPort: 'emit',
+          type: EdgeType.DATA,
+        },
+        {
+          id: 'e-loop-sink',
+          workflowId,
+          sourceNodeId: 'loop',
+          sourcePort: 'done',
+          targetNodeId: 'sink',
+          targetPort: 'in',
+          type: EdgeType.DATA,
+        },
+      ];
+
+      let bodyCount = 0;
+      let bodyHandler: NodeHandler;
+      let sinkCalls: unknown[];
+      let sinkHandler: NodeHandler;
+      let triggerHandler: NodeHandler;
+
+      beforeEach(() => {
+        bodyCount = 0;
+        bodyHandler = {
+          validate: () => ({ valid: true, errors: [] }),
+          execute: jest.fn(async () => {
+            bodyCount++;
+            return { iter: bodyCount };
+          }),
+        };
+        handlerRegistry.register('body_node', bodyHandler);
+
+        sinkCalls = [];
+        sinkHandler = {
+          validate: () => ({ valid: true, errors: [] }),
+          execute: jest.fn(async (input: unknown) => {
+            sinkCalls.push(input);
+            return { ok: true };
+          }),
+        };
+        handlerRegistry.register('sink_node', sinkHandler);
+
+        triggerHandler = {
+          validate: () => ({ valid: true, errors: [] }),
+          execute: jest.fn(async () => ({ n: 3 })),
+        };
+        handlerRegistry.register('source_node', triggerHandler);
+      });
+
+      it('iterates N times when count is a pure expression literal {{3}}', async () => {
+        mockNodeRepo.findBy.mockResolvedValue(buildLoopNodes('{{3}}'));
+        mockEdgeRepo.findBy.mockResolvedValue(loopEdges);
+
+        await service.execute(workflowId, {});
+        await new Promise((r) => setTimeout(r, 200));
+
+        expect(bodyHandler.execute).toHaveBeenCalledTimes(3);
+        expect(sinkCalls).toEqual([
+          {
+            count: 3,
+            iterations: [{ iter: 1 }, { iter: 2 }, { iter: 3 }],
+          },
+        ]);
+      });
+
+      it('iterates per upstream output when count references a node expression', async () => {
+        mockNodeRepo.findBy.mockResolvedValue(
+          buildLoopNodes('{{ $node["src"].output.n }}'),
+        );
+        mockEdgeRepo.findBy.mockResolvedValue(loopEdges);
+
+        await service.execute(workflowId, {});
+        await new Promise((r) => setTimeout(r, 200));
+
+        // src returns { n: 3 } → loop count expression resolves to 3
+        expect(bodyHandler.execute).toHaveBeenCalledTimes(3);
+      });
+
+      it('preserves raw echo on $node["loop"].config (Phase 3 Principle 7 invariant)', async () => {
+        let capturedEchoCount: unknown = 'NOT_CAPTURED';
+        let capturedEngineCount: unknown = 'NOT_CAPTURED';
+        // Inspect from within the sink handler — the engine deletes the
+        // execution context in a `finally` block after run completion, so
+        // post-await getContext() returns undefined. Sinks run after the
+        // loop's final setStructuredOutput, giving us the post-iteration view.
+        sinkHandler.execute = jest.fn(
+          async (_input: unknown, _config: unknown, ctx: ExecutionContext) => {
+            capturedEchoCount =
+              ctx.structuredOutputCache?.['loop']?.config?.count;
+            capturedEngineCount =
+              ctx.engineResolvedConfigCache?.['loop']?.count;
+            return { ok: true };
+          },
+        );
+        handlerRegistry.register('sink_node', sinkHandler);
+
+        mockNodeRepo.findBy.mockResolvedValue(buildLoopNodes('{{3}}'));
+        mockEdgeRepo.findBy.mockResolvedValue(loopEdges);
+
+        await service.execute(workflowId, {});
+        await new Promise((r) => setTimeout(r, 200));
+
+        expect(bodyHandler.execute).toHaveBeenCalledTimes(3);
+        // Echo channel keeps the raw `{{3}}` template (Phase 3 Principle 7).
+        expect(capturedEchoCount).toBe('{{3}}');
+        // Engine-side cache holds the evaluated value (drives iteration).
+        expect(capturedEngineCount).toBe(3);
+      });
+
+      it('still works for legacy literal-number config (no regression)', async () => {
+        mockNodeRepo.findBy.mockResolvedValue(buildLoopNodes(2));
+        mockEdgeRepo.findBy.mockResolvedValue(loopEdges);
+
+        await service.execute(workflowId, {});
+        await new Promise((r) => setTimeout(r, 200));
+
+        expect(bodyHandler.execute).toHaveBeenCalledTimes(2);
+      });
+
+      it('still works for legacy numeric-string config "3" (schema accepts it)', async () => {
+        mockNodeRepo.findBy.mockResolvedValue(buildLoopNodes('3'));
+        mockEdgeRepo.findBy.mockResolvedValue(loopEdges);
+
+        await service.execute(workflowId, {});
+        await new Promise((r) => setTimeout(r, 200));
+
+        expect(bodyHandler.execute).toHaveBeenCalledTimes(3);
+      });
+    });
+
     it('produces empty array when ForEach array is empty', async () => {
       const bodyHandler: NodeHandler = {
         validate: () => ({ valid: true, errors: [] }),

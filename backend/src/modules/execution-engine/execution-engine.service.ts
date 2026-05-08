@@ -38,6 +38,10 @@ import {
 } from './error/error-policy.handler';
 import { ExpressionResolverService } from './expression/expression-resolver.service';
 import {
+  coerceContainerNumber,
+  coerceContainerNumberOptional,
+} from './utils/coerce-container-param';
+import {
   ExecutionContext,
   isResumableNodeHandler,
   NodeHandler,
@@ -3850,7 +3854,19 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
     };
 
     const structured = context.structuredOutputCache?.[containerNode.id];
-    const resolvedConfig = structured?.config ?? containerNode.config ?? {};
+    // engine-config-bug — Two distinct config views are needed here:
+    //   * `echoConfig` (raw `{{ ... }}` per CONVENTIONS Principle 7) — preserved
+    //     in the final structuredOutputCache so `$node["X"].config` expressions
+    //     keep returning the original templates.
+    //   * `engineResolvedConfig` (expression-evaluated) — drives iteration
+    //     parameters (`count`, `maxIterations`, `errorPolicy`). Reading raw
+    //     here would feed Number()/typeof guards the un-evaluated string and
+    //     produce NaN (Loop) or silent default fallback (Parallel).
+    const echoConfig = structured?.config ?? containerNode.config ?? {};
+    const engineResolvedConfig =
+      context.engineResolvedConfigCache?.[containerNode.id] ??
+      containerNode.config ??
+      {};
     let structuredOutput: Record<string, unknown>;
 
     if (containerNode.type === 'foreach') {
@@ -3860,8 +3876,10 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
         {
           array,
           errorPolicy:
-            (resolvedConfig.errorPolicy as 'stop' | 'skip' | 'continue') ??
-            'stop',
+            (engineResolvedConfig.errorPolicy as
+              | 'stop'
+              | 'skip'
+              | 'continue') ?? 'stop',
           collectResults: true,
         },
         context,
@@ -3881,8 +3899,10 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
         {
           array,
           errorPolicy:
-            (resolvedConfig.errorPolicy as 'stop' | 'skip' | 'continue') ??
-            'stop',
+            (engineResolvedConfig.errorPolicy as
+              | 'stop'
+              | 'skip'
+              | 'continue') ?? 'stop',
           collectResults: true,
         },
         context,
@@ -3894,8 +3914,16 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
         count: Array.isArray(collected) ? collected.length : 0,
       };
     } else if (containerNode.type === 'loop') {
-      const count = Number(resolvedConfig.count ?? 0);
-      const maxIterations = resolvedConfig.maxIterations as number | undefined;
+      const count = coerceContainerNumber(
+        engineResolvedConfig.count,
+        'count',
+        'loop',
+      );
+      const maxIterations = coerceContainerNumberOptional(
+        engineResolvedConfig.maxIterations,
+        'maxIterations',
+        'loop',
+      );
       const collected = await this.loopExecutor.execute(
         { count, maxIterations },
         context,
@@ -3909,7 +3937,7 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
     }
 
     this.contextService.setStructuredOutput(executionId, containerNode.id, {
-      config: resolvedConfig,
+      config: echoConfig,
       output: structuredOutput,
     });
     this.contextService.setNodeOutput(
