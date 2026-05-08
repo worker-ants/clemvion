@@ -33,6 +33,7 @@ import {
 import { Node, NodeCategory } from '../nodes/entities/node.entity';
 import { Edge, EdgeType } from '../edges/entities/edge.entity';
 import { Workflow } from '../workflows/entities/workflow.entity';
+import { ExecutionNodeLog } from './entities/execution-node-log.entity';
 import {
   ExecutionContext,
   NodeHandler,
@@ -138,6 +139,7 @@ describe('ExecutionEngineService', () => {
   let mockNodeRepo: Record<string, jest.Mock>;
   let mockEdgeRepo: Record<string, jest.Mock>;
   let mockWorkflowRepo: Record<string, jest.Mock>;
+  let mockExecutionNodeLogRepo: Record<string, jest.Mock>;
 
   beforeEach(async () => {
     const savedExecution: Partial<Execution> = {
@@ -145,7 +147,6 @@ describe('ExecutionEngineService', () => {
       workflowId,
       status: ExecutionStatus.PENDING,
       inputData: {},
-      executionPath: [],
       startedAt: new Date(),
     };
 
@@ -154,9 +155,7 @@ describe('ExecutionEngineService', () => {
       save: jest.fn().mockImplementation((entity: Partial<Execution>) => {
         return Promise.resolve({ ...savedExecution, ...entity });
       }),
-      findOneBy: jest
-        .fn()
-        .mockResolvedValue({ ...savedExecution, executionPath: [] }),
+      findOneBy: jest.fn().mockResolvedValue({ ...savedExecution }),
       find: jest.fn().mockResolvedValue([]),
     };
 
@@ -196,6 +195,11 @@ describe('ExecutionEngineService', () => {
       findOneBy: jest.fn().mockResolvedValue(mockWorkflow),
     };
 
+    mockExecutionNodeLogRepo = {
+      insert: jest.fn().mockResolvedValue({ identifiers: [{ id: '1' }] }),
+      find: jest.fn().mockResolvedValue([]),
+    };
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         ExecutionEngineService,
@@ -215,6 +219,10 @@ describe('ExecutionEngineService', () => {
         { provide: getRepositoryToken(Node), useValue: mockNodeRepo },
         { provide: getRepositoryToken(Edge), useValue: mockEdgeRepo },
         { provide: getRepositoryToken(Workflow), useValue: mockWorkflowRepo },
+        {
+          provide: getRepositoryToken(ExecutionNodeLog),
+          useValue: mockExecutionNodeLogRepo,
+        },
         {
           provide: WebsocketService,
           useValue: {

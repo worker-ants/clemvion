@@ -18,6 +18,7 @@ import {
 import { Node, NodeCategory } from '../nodes/entities/node.entity';
 import { Edge } from '../edges/entities/edge.entity';
 import { Workflow } from '../workflows/entities/workflow.entity';
+import { ExecutionNodeLog } from './entities/execution-node-log.entity';
 import { buildGraph, GraphEdge } from './graph/graph-builder';
 import { topologicalSort } from './graph/topological-sort';
 import { identifyBackEdges } from './graph/back-edge-identifier';
@@ -307,17 +308,6 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
   >();
 
   /**
-   * Per-execution async mutex for the `executionPath` append write.
-   *
-   * Under ParallelExecutor (PARALLEL_ENGINE=v1), multiple branches may finish
-   * around the same event-loop tick and race on the read-modify-write sequence
-   * at the bottom of {@link executeNode}, causing a last-write-wins loss of
-   * node ids from the recorded path. Serializing writes per execution keeps
-   * the path ordered and complete.
-   */
-  private readonly executionPathChain = new Map<string, Promise<void>>();
-
-  /**
    * Sub-Workflow 재귀 호출 깊이 상한. WARN #9 (Security) — workflow A 가 자기
    * 자신을 sub-workflow 로 부르면 무한 재귀 발생, 메모리·DB 폭주. spec/PRD 의
    * 명시 한도가 없으므로 보수적으로 10. executeSync / executeAsync / 인라인
@@ -336,6 +326,8 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
     private readonly edgeRepository: Repository<Edge>,
     @InjectRepository(Workflow)
     private readonly workflowRepository: Repository<Workflow>,
+    @InjectRepository(ExecutionNodeLog)
+    private readonly executionNodeLogRepository: Repository<ExecutionNodeLog>,
     private readonly handlerRegistry: NodeHandlerRegistry,
     private readonly componentRegistry: NodeComponentRegistry,
     private readonly contextService: ExecutionContextService,
@@ -435,7 +427,6 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
       inputData: (input as Record<string, unknown>) ?? {},
       executedBy: options?.executedBy,
       triggerId: options?.triggerId,
-      executionPath: [],
     });
     const savedExecution = await this.executionRepository.save(execution);
     const executionId = savedExecution.id;
@@ -858,7 +849,6 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
       workflowId,
       status: ExecutionStatus.PENDING,
       inputData: (input as Record<string, unknown>) ?? {},
-      executionPath: [],
       parentExecutionId: options?.parentExecutionId ?? undefined,
       recursionDepth: depth,
     });
@@ -964,7 +954,6 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
       workflowId,
       status: ExecutionStatus.PENDING,
       inputData: (input as Record<string, unknown>) ?? {},
-      executionPath: [],
       parentExecutionId: options?.parentExecutionId ?? undefined,
       recursionDepth: depth,
     });
@@ -1383,52 +1372,30 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
         },
       );
     } finally {
-      // Drain the serialized executionPath queue before disposing in-memory
-      // state, otherwise a pending append could outlive the execution record.
-      const pending = this.executionPathChain.get(executionId);
-      if (pending) {
-        await pending.catch(() => undefined);
-        this.executionPathChain.delete(executionId);
-      }
       this.pendingContinuations.delete(executionId);
       this.contextService.deleteContext(executionId);
     }
   }
 
   /**
-   * Serialize the `execution.executionPath` read-modify-write across
-   * concurrent callers (ParallelExecutor branches) by chaining onto the
-   * per-execution promise. Errors are caught locally so one failing append
-   * cannot poison subsequent appends.
+   * Append a node id to the execution's ordered log. Each row's BIGSERIAL
+   * `id` is concurrency-safe across instances, so the (execution_id, id)
+   * order is the canonical execution sequence. Errors are caught locally so
+   * one failing append cannot poison subsequent appends.
    */
-  private appendExecutionPath(
+  private async appendExecutionPath(
     executionId: string,
     nodeId: string,
   ): Promise<void> {
-    const prior = this.executionPathChain.get(executionId) ?? Promise.resolve();
-    const next = prior.then(async () => {
-      try {
-        // WARN #11 (Performance) — findOneBy + save 두 번의 DB 왕복 대신
-        // PostgreSQL `array_append` 를 사용한 단일 atomic UPDATE 로 교체. 10
-        // 노드 워크플로 기준 20회 → 10회 DB 호출, 그리고 read-modify-write
-        // 경쟁 조건도 SQL 레벨에서 격리됨.
-        await this.executionRepository
-          .createQueryBuilder()
-          .update(Execution)
-          .set({ executionPath: () => 'array_append("execution_path", :nid)' })
-          .where('id = :id', { id: executionId })
-          .setParameters({ nid: nodeId })
-          .execute();
-      } catch (error) {
-        this.logger.warn(
-          `Failed to append executionPath for ${executionId}/${nodeId}: ${
-            error instanceof Error ? error.message : String(error)
-          }`,
-        );
-      }
-    });
-    this.executionPathChain.set(executionId, next);
-    return next;
+    try {
+      await this.executionNodeLogRepository.insert({ executionId, nodeId });
+    } catch (error) {
+      this.logger.warn(
+        `Failed to append executionPath for ${executionId}/${nodeId}: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
+    }
   }
 
   /**

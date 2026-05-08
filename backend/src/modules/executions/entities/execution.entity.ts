@@ -74,12 +74,4 @@ export class Execution {
 
   @Column({ name: 'recursion_depth', default: 0 })
   recursionDepth: number;
-
-  @Column({
-    name: 'execution_path',
-    type: 'uuid',
-    array: true,
-    default: () => "'{}'",
-  })
-  executionPath: string[];
 }
