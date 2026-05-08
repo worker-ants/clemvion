@@ -194,3 +194,33 @@ PR-1 만 머지되면 PR-2~4 는 독립 진행 가능.
 ## 다음 단계
 
 이 plan 을 검토 후, 채택 여부 / PR 분할 / 우선순위 / 추가 고려사항 알려주세요. 채택되면 SDD+TDD 로 PR-1 부터 진행.
+
+---
+
+## 구현 진행 (2026-05-08)
+
+| PR | 커밋 | 상태 | 변경 요약 |
+| --- | --- | --- | --- |
+| PR-1 (인프라) | `e5bd43b7` | 완료 | `ExecutionContext.engineResolvedConfigCache` 슬롯 + setter + executeNode 가 핸들러 호출 직후 평가된 config snapshot 저장. 행동 변화 0 (소비자 없음). |
+| PR-2 (Loop fix) | `ea0b9294` | 완료 | `runContainerInner` 가 `engineResolvedConfigCache` 에서 동작 파라미터를 읽음. `Number(resolvedConfig.count)` → `coerceContainerNumber(...)` 로 명시적 검증. 5건 회귀 테스트 (`{{3}}`, `{{$node["src"].output.n}}`, raw echo invariant, literal number, literal string). |
+| PR-3 (Parallel fix) | `2cc3cbb2` | 완료 | `runParallel` 도 `engineResolvedConfigCache` 사용. `typeof` silent fallback → `coerceContainerNumber/Boolean` 로 명시 검증. branchCount/maxConcurrency/waitAll 표현식 입력 정상 동작. 1건 e2e 회귀 테스트 (`branchCount: '{{4}}'` → 4 분기). |
+| PR-4 (errorPolicy) | `66c18bce` | 완료 | `coerceErrorPolicy` 헬퍼 + ForEach/Map 에 적용. PR-2 의 cache 분리 덕분에 사용자가 설정한 `errorPolicy: 'skip'` 가 비로소 동작에 반영됨 (latent bug 함께 수정). 1건 e2e 회귀 테스트 (`errorPolicy: 'skip'` → 두번째 item throw 후에도 다음 iteration 진행). |
+
+### TEST WORKFLOW 결과
+
+- lint: clean (auto-fix 적용)
+- unit test: **170 suite / 2824 pass** (engine module 13 suite / 264 pass — 신규 helper 23건 + Loop expression 5건 + Parallel expression 1건 + ForEach errorPolicy 1건 = 30건 추가)
+- build: clean
+
+### Spec 갱신
+
+`spec/5-system/4-execution-engine.md` §6.1 컨텍스트 구조 표에 `engineResolvedConfigCache` 행 추가 — 핸들러 종료 후 컨테이너 동작 파라미터 재평가 경로의 source 임을 명시. expression context 에는 노출하지 않음을 강조 (Principle 7 보존).
+
+### 핸들러 변경 없음 (검증)
+
+Phase 3 raw-echo 패턴(`rawConfig.X` echo) 무수정. 13+ 컨테이너 + 일반 노드 핸들러 모두 코드 그대로.
+
+### 잔여 항목
+
+- 본 plan 의 모든 항목 완료 → 다음 turn 에 `git mv plan/in-progress/expression-config-bug.md plan/complete/expression-config-bug.md` 로 이동.
+- ai-review (REVIEW WORKFLOW) 결과에서 추가 이슈 발견 시 보강.

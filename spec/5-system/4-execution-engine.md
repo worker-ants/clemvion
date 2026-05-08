@@ -545,6 +545,7 @@ interface NodeHandlerRegistry {
 | `workflowId` | 실행 시작 시 고정 | 표현식 컨텍스트, 사용처 확인 |
 | `nodeExecutionId` | 엔진이 handler.execute 호출 직전 주입, 노드별 갱신 | Integration 핸들러가 `IntegrationUsageLog.node_execution_id`로 기록 |
 | `rawConfig` | 엔진이 handler.execute 호출 직전 주입, 노드별 갱신 | 노드 정의에 저장된 **원본 config** (expression 미평가). 핸들러가 `NodeHandlerOutput.config` echo 에 사용 (Principle 7). Shallow `Object.freeze` 적용 — top-level mutation 차단, 중첩 객체는 read-only 로 다룬다 |
+| `engineResolvedConfigCache` | 엔진이 expression 평가 직후, 노드별로 누적 갱신 | 노드별로 **expression 평가가 끝난 config** 의 snapshot. `runContainerInner` / `runParallel` 같이 핸들러 종료 후 별도 단계에서 동작 파라미터(Loop `count`, Parallel `branchCount`/`maxConcurrency`/`waitAll`, ForEach `errorPolicy` 등) 를 다시 읽어야 하는 경로가 사용한다. **expression 컨텍스트에는 노출하지 않는다** — `$node["X"].config` 는 여전히 raw echo 를 반환해야 한다 (Principle 7 보존). 핸들러가 raw 만 echo 하는 컨테이너의 동작 파라미터가 silent default fallback 되거나 `Number("{{...}}")` 가 NaN 이 되던 문제를 차단 |
 
 **Multi-turn 재개 시 `rawConfig` snapshot 정책**:
 - 첫 turn 의 `executeNode` 가 `waiting_for_input` 으로 진입하면 엔진이 `state.rawConfig = Object.freeze({ ...node.config })` 을 자동 snapshot 한다.
