@@ -72,12 +72,21 @@ export class SwitchHandler implements NodeHandler {
   async execute(
     input: unknown,
     config: Record<string, unknown>,
-    _context: ExecutionContext,
+    context: ExecutionContext,
   ): Promise<unknown> {
     const { mode, switchValue, cases, hasDefault, strictComparison } =
       config as unknown as SwitchConfig;
     const resolvedMode: SwitchMode = mode ?? 'value';
     const strict = strictComparison === true;
+    // CONVENTIONS Principle 7 — config echoes raw switchValue / cases
+    // (templates preserved). Engine populates `rawConfig`; unit-test
+    // fallback to evaluated config.
+    const rawConfig = (context.rawConfig ?? config) as unknown as SwitchConfig;
+    const configEcho = {
+      switchValue: rawConfig.switchValue,
+      cases: rawConfig.cases,
+      mode: rawConfig.mode ?? 'value',
+    };
 
     // The expression engine pre-resolves `switchValue` templates (`{{ ... }}`)
     // to primitives before this handler is invoked, so we use the value
@@ -95,7 +104,7 @@ export class SwitchHandler implements NodeHandler {
 
     if (matchedCase) {
       return {
-        config: { switchValue, cases, mode: resolvedMode },
+        config: configEcho,
         output: input,
         meta: {
           mode: resolvedMode,
@@ -108,7 +117,7 @@ export class SwitchHandler implements NodeHandler {
 
     if (hasDefault !== false) {
       return {
-        config: { switchValue, cases, mode: resolvedMode },
+        config: configEcho,
         output: input,
         meta: {
           mode: resolvedMode,

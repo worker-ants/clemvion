@@ -30,10 +30,14 @@ export class SplitHandler implements NodeHandler {
   execute(
     input: unknown,
     config: Record<string, unknown>,
-    _context: ExecutionContext,
+    context: ExecutionContext,
   ): Promise<unknown> {
     const { fieldPath } = config as unknown as SplitConfig;
-    const baseConfig = { fieldPath };
+    // CONVENTIONS Principle 7 — config echoes raw fieldPath (`{{ ... }}`
+    // template preserved); resolveFieldValue still operates on the
+    // evaluated `fieldPath` from `config`.
+    const rawConfig = (context.rawConfig ?? config) as unknown as SplitConfig;
+    const baseConfig = { fieldPath: rawConfig.fieldPath };
 
     const arrayValue = resolveFieldValue(input, fieldPath);
 

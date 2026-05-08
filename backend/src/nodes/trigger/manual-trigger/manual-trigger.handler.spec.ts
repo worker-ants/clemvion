@@ -1,6 +1,16 @@
 import { ManualTriggerHandler } from './manual-trigger.handler';
 import type { ExecutionContext } from '../../core/node-handler.interface';
 
+function makeContext(rawConfig?: Record<string, unknown>): ExecutionContext {
+  return {
+    executionId: 'exec-1',
+    workflowId: 'wf-1',
+    variables: {},
+    nodeOutputCache: {},
+    ...(rawConfig ? { rawConfig: Object.freeze({ ...rawConfig }) } : {}),
+  };
+}
+
 describe('ManualTriggerHandler', () => {
   let handler: ManualTriggerHandler;
 
@@ -110,6 +120,24 @@ describe('ManualTriggerHandler', () => {
         mockContext,
       )) as { config: { parameters: unknown } };
       expect(result.config.parameters).toEqual(schema);
+    });
+
+    it('echoes rawConfig.parameters (raw defaultValue templates) over evaluated config', async () => {
+      // Workflow author entered `defaultValue: '{{ $today }}'`; engine
+      // evaluated it to a concrete date before dispatching. Principle 7
+      // requires `config` echo to keep the raw template.
+      const rawSchema = [
+        { name: 'date', type: 'string', defaultValue: '{{ $today }}' },
+      ];
+      const evaluatedSchema = [
+        { name: 'date', type: 'string', defaultValue: '2026-05-08' },
+      ];
+      const result = (await handler.execute(
+        { parameters: { date: '2026-05-08' } },
+        { parameters: evaluatedSchema },
+        makeContext({ parameters: rawSchema }),
+      )) as { config: { parameters: unknown } };
+      expect(result.config.parameters).toEqual(rawSchema);
     });
   });
 });

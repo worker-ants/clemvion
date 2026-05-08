@@ -145,8 +145,18 @@ export class FilterHandler implements NodeHandler {
       }
     }
 
+    // CONVENTIONS Principle 7 — config echoes raw inputField / conditions
+    // (per-condition `field` and `value` may be `{{ ... }}` templates). The
+    // per-item evaluation above uses the resolved values; only the echo
+    // changes to raw.
+    const rawConfig = (context.rawConfig ?? config) as unknown as FilterConfig;
     return Promise.resolve({
-      config: { inputField, conditions, combineMode, strictComparison },
+      config: {
+        inputField: rawConfig.inputField,
+        conditions: rawConfig.conditions,
+        combineMode: rawConfig.combineMode ?? 'and',
+        strictComparison: rawConfig.strictComparison ?? false,
+      },
       output: { match, unmatched },
     });
   }

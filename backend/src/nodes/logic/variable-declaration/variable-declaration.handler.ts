@@ -46,8 +46,13 @@ export class VariableDeclarationHandler implements NodeHandler {
       }
     }
 
+    // CONVENTIONS Principle 7 — config echoes raw variable definitions
+    // (defaultValue templates preserved). The runtime coercion above uses
+    // the evaluated `defaultValue` from the resolved `config`.
+    const rawConfig = (context.rawConfig ??
+      config) as unknown as VariableDeclarationConfig;
     return Promise.resolve({
-      config: { variables },
+      config: { variables: rawConfig.variables },
       output: input,
     });
   }

@@ -236,4 +236,28 @@ describe('VariableDeclarationHandler', () => {
       expect(context.variables['d']).toMatchObject([1, 2]);
     });
   });
+
+  // ENG-RC-* — Phase 3 raw-echo migration.
+  describe('config echoes rawConfig defaultValue templates', () => {
+    it('preserves `{{ ... }}` defaultValue templates', async () => {
+      const rawVariables = [
+        { name: 'today', type: 'string', defaultValue: '{{ $today }}' },
+      ];
+      const evaluatedVariables = [
+        { name: 'today', type: 'string', defaultValue: '2026-05-08' },
+      ];
+      const result = (await handler.execute(
+        {},
+        { variables: evaluatedVariables },
+        {
+          ...context,
+          rawConfig: Object.freeze({ variables: rawVariables }),
+        },
+      )) as { config: { variables: unknown } };
+
+      expect(result.config.variables).toEqual(rawVariables);
+      // Evaluated value still flows into context.variables for runtime use.
+      expect(context.variables.today).toBe('2026-05-08');
+    });
+  });
 });

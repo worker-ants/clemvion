@@ -380,4 +380,28 @@ describe('VariableModificationHandler', () => {
       });
     });
   });
+
+  // ENG-RC-* — Phase 3 raw-echo migration.
+  describe('config echoes rawConfig modification.value templates', () => {
+    it('preserves `{{ ... }}` value templates while applying evaluated values', async () => {
+      context.variables.counter = 0;
+      const rawMods = [
+        { variable: 'counter', operation: 'increment', value: '{{ $delta }}' },
+      ];
+      const evaluatedMods = [
+        { variable: 'counter', operation: 'increment', value: 5 },
+      ];
+      const result = (await handler.execute(
+        {},
+        { modifications: evaluatedMods },
+        {
+          ...context,
+          rawConfig: Object.freeze({ modifications: rawMods }),
+        },
+      )) as { config: { modifications: unknown } };
+
+      expect(result.config.modifications).toEqual(rawMods);
+      expect(context.variables.counter).toBe(5);
+    });
+  });
 });

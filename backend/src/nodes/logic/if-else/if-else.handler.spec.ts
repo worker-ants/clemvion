@@ -442,4 +442,30 @@ describe('IfElseHandler', () => {
       expect(result.valid).toBe(true);
     });
   });
+
+  // ENG-RC-* — Phase 3 raw-echo migration.
+  describe('config echoes rawConfig templates over evaluated config', () => {
+    it('preserves `{{ ... }}` template strings in conditions', async () => {
+      const rawConditions = [
+        { field: 'amount', operator: 'gt', value: '{{ $threshold }}' },
+      ];
+      const evaluatedConditions = [
+        { field: 'amount', operator: 'gt', value: 100 },
+      ];
+      const result = (await handler.execute(
+        { amount: 200 },
+        { conditions: evaluatedConditions, combineMode: 'and' },
+        {
+          ...context,
+          rawConfig: Object.freeze({
+            conditions: rawConditions,
+            combineMode: 'and',
+          }),
+        },
+      )) as { config: { conditions: unknown }; port: string };
+
+      expect(result.port).toBe('true');
+      expect(result.config.conditions).toEqual(rawConditions);
+    });
+  });
 });

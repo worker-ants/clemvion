@@ -39,7 +39,7 @@ export class IfElseHandler implements NodeHandler {
   execute(
     input: unknown,
     config: Record<string, unknown>,
-    _context: ExecutionContext,
+    context: ExecutionContext,
   ): Promise<unknown> {
     const {
       conditions,
@@ -55,8 +55,15 @@ export class IfElseHandler implements NodeHandler {
     const passed =
       combineMode === 'and' ? results.every(Boolean) : results.some(Boolean);
 
+    // CONVENTIONS Principle 7 — config echoes raw conditions (template
+    // strings preserved). Engine populates `rawConfig`; fallback to evaluated
+    // config keeps unit tests that bypass the engine working.
+    const rawConfig = (context.rawConfig ?? config) as unknown as IfElseConfig;
     return Promise.resolve({
-      config: { conditions, combineMode },
+      config: {
+        conditions: rawConfig.conditions,
+        combineMode: rawConfig.combineMode ?? 'and',
+      },
       output: input,
       port: passed ? 'true' : 'false',
     });
