@@ -21,7 +21,7 @@
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.82.0",
-    "@aws-sdk/client-s3": "^3.1025.0",
+    "@aws-sdk/client-s3": "^3.1045.0",
     "@google/genai": "^1.50.1",
     "@modelcontextprotocol/sdk": "^1.29.0",
     "@nestjs-modules/mailer": "^2.3.4",
@@ -46,7 +46,7 @@
     "@workflow/expression-engine": "file:../packages/expression-engine",
     "@workflow/node-summary": "file:../packages/node-summary",
     "bcrypt": "^6.0.0",
-    "bullmq": "^5.71.1",
+    "bullmq": "^5.76.6",
     "class-transformer": "^0.5.1",
     "class-validator": "^0.15.1",
     "cookie-parser": "^1.4.7",
@@ -69,7 +69,7 @@
     "rxjs": "^7.8.1",
     "socket.io": "^4.8.3",
     "typeorm": "^0.3.28",
-    "uuid": "^13.0.0",
+    "uuid": "^13.0.2",
     "zod": "^4.3.6"
   },
   "devDependencies": {
@@ -109,6 +109,9 @@
   },
   "overrides": {
     "lodash": "^4.18.0",
-    "picomatch": "^4.0.4"
+    "picomatch": "^4.0.4",
+    "liquidjs": "^10.25.7",
+    "ip-address": "^10.2.0",
+    "express-rate-limit": "^8.5.1"
   }
 }
