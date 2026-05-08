@@ -24,14 +24,14 @@
 | Phase | 상태 | 비고 |
 | --- | --- | --- |
 | Phase 1 — 엔진 plumbing | 완료 | `6953cafb` + 후속 quality gate `ce059405` |
-| Phase 2 — Send Email + HTTP Request 트리거 | 미진행 | HTTP Request 에 `configEcho` 가 일부 존재하나 `context.rawConfig` 를 사용하지 않음. Send Email 은 미착수 |
+| Phase 2 — Send Email + HTTP Request 트리거 | 완료 | `e1ecbc1f` (helpers) + `e516d3e1` (send-email) + `2ffdf058` (http-request) + `ef15242c` (spec) + `198bbefe` (style) + `104d1bb9` (ai-review 조치 12/16) |
 | Phase 3 — 나머지 핸들러 마이그레이션 | 미진행 | |
 | Phase 4 — Frontend 자동완성 회귀 점검 | 미진행 | |
 | Phase 5 — Swagger / OpenAPI 영향 검증 | 미진행 | |
 | Phase 6 — DB / 실행 이력 호환성 검증 | 미진행 | |
 | Phase 7 — 정리 / 클로저 | 미진행 | |
 
-PRD 에서는 `ENG-RC-01` (엔진의 `rawConfig` 노출), `ENG-RC-03` (raw + evaluated 양쪽 노출) 가 ✅ 로, `ENG-RC-02` (핸들러 echo 패턴), `ENG-RC-04` (전체 핸들러 마이그레이션) 가 🚧 로 정렬되어 있다.
+PRD 에서는 `ENG-RC-01` (엔진의 `rawConfig` 노출), `ENG-RC-03` (raw + evaluated 양쪽 노출) 가 ✅ 로, `ENG-RC-02` (핸들러 echo 패턴), `ENG-RC-04` (전체 핸들러 마이그레이션) 가 🚧 로 정렬되어 있다 — 2/26 핸들러만 마이그레이션됐기 때문에 Phase 3 완료 시 ✅.
 
 ## 구현 완료 — Phase 1: 엔진 plumbing
 
@@ -53,35 +53,46 @@ PRD 에서는 `ENG-RC-01` (엔진의 `rawConfig` 노출), `ENG-RC-03` (raw + eva
 - `ce059405 refactor(engine): ai-review 조치 — Phase 1 quality gate (Doc 1 + Test 2 + Spec 1)` — INFO #3 (shallow freeze 한계 명시) / WARN #17 (`context.rawConfig` vs `state.rawConfig` 의도된 차이 spec 박스) / WARN #20 (`executeInline` rawConfig 검증) / INFO #18 (테스트명 정정) 일괄 반영.
 - 추가 후속 정리: `f8bb87df` (CRITICAL — IDOR + duck-typing + edge map), `64d928df` (CRIT #5 partial — executeSync/Async 미테스트), `62f369ac` (Warning + INFO 28/51 일괄). 51건 review 결과 중 28건 즉시 처리 + 23건 deferred (`plan/in-progress/ai-review-deferred-items.md`).
 
+## 구현 완료 — Phase 2: Send Email + HTTP Request 마이그레이션
+
+두 트리거 노드를 raw-echo 패턴으로 마이그레이션 + output 에 평가 결과 신규 필드 추가. 결정 사항 (256KB cap UTF-8 byte length / responseHeaders sanitize hybrid blacklist) 모두 보강 후 진입.
+
+**공통 헬퍼** (`backend/src/nodes/integration/_base/`):
+- `truncate-body.util.ts` — `truncateBodyForOutput(value, maxBytes = 256 * 1024)` 신설. 문자열·Buffer·객체 모두 `Buffer.byteLength` UTF-8 기준으로 cap, 멀티바이트 코드포인트 boundary 안전 절단. cyclic 객체는 `'[Unserializable]'` 플레이스홀더.
+- `sanitize-response-headers.util.ts` — fetch `Headers` / `Record` / iterable / null·undefined / partial Headers-like mock 모두 처리. `EXACT_BLACKLIST` (authorization / cookie / set-cookie / x-api-key / location 등 11개) + 패턴 매칭 (auth / token / api-key / secret / cookie / credential / password). 매칭 시 값 `'[REDACTED]'`.
+- `sanitizeUrlCredentials` 확장 (`http-request.handler.ts`) — `?api_key=…` / `?token=…` 스타일 query-string 자격증명 13개 키 마스킹.
+
+**Send Email** (`backend/src/nodes/integration/send-email/`):
+- `handler.ts` — `context.rawConfig` 를 사용해 integrationId / to / cc / bcc / subject / body / bodyType / attachments raw echo. output 에 subject (evaluated) / body (evaluated, 256KB cap) / bodyType + bodyTruncated 추가. 성공·`requires_integration`·error 포트 모두 동일 본문 echo.
+- `schema.ts` — output schema 에 신규 필드 반영. `to`/`cc`/`bcc` 는 string|array sum-type → `z.unknown()`.
+- `handler.spec.ts` — 55 pass (raw vs evaluated 직교성, html, 256KB cap, error 포트 본문 포함).
+
+**HTTP Request** (`backend/src/nodes/integration/http-request/`):
+- `handler.ts` — `{ ...rawConfig, url: rawUrl }` spread 로 12개 필드 자동 echo. output 에 requestBody (evaluated, 256KB cap) / requestBodyType (evaluated `'json'` 기본 포함) / responseHeaders (sanitized) / bodyTruncated. 3개 리턴 지점은 모듈 레벨 `buildBodyOutputFields(...)` 헬퍼로 통합. transport-error 분기는 `responseHeaders` 미포함 (Response 없음).
+- `schema.ts` — output schema 에 12개 raw config 필드 + 4개 신규 output 필드 반영.
+- `handler.spec.ts` — 56 + ENG-RC-* describe 7 케이스 (raw vs evaluated 직교성, GET no-body / body:null / x-www-form-urlencoded, 민감 헤더 마스킹, 256KB cap, non-2xx + transport-error 의 본문 보존).
+
+**Spec 갱신** (`spec/4-nodes/4-integration-nodes.md`):
+- §1.3 공통 출력 구조 — 평탄 `data`/`meta` 표기를 nested `config`/`output`/`meta`/`port` envelope 로 교정.
+- §2.3 HTTP Request — outdated `data`/`error` 표기 nested 형태로 교정 + requestBody / requestBodyType / responseHeaders 신규 필드 반영. transport-error 시 responseHeaders 미포함 명시.
+- §4.3 Send Email — config raw / output evaluated 직교성 + subject/body/bodyType 추가.
+- §6.3 Send Email Handler — transport 캐시 재사용 정정 + 반환 shape 를 §4.3 정본 참조로 대체.
+
+**검증**: lint clean / 169 suite 2778 unit pass / build clean. ai-review 결과 — Critical 0 / Warning 16 / Info 15 중 Phase 2 scope 내 12건 즉시 조치 (Security 2 + Requirement 1 + Architecture 3 + Testing 4 + Documentation 4) + 9건 deferred (정책 결정 / 광범위 리팩터 / 미세 최적화). 상세는 `review/2026-05-08_15-05-03/RESOLUTION.md`.
+
+**커밋**:
+- `e1ecbc1f feat(integration): truncate-body + sanitize-response-headers 헬퍼` — 19개 단위 테스트 포함.
+- `e516d3e1 refactor(send-email): config raw echo + output subject/body/bodyType (Phase 2)`.
+- `2ffdf058 refactor(http-request): config raw echo + output requestBody/responseHeaders (Phase 2)`.
+- `ef15242c docs(spec): integration 노드 §2.3 + §4.3 raw-echo / output 신규 필드 반영`.
+- `198bbefe style(integration): Phase 2 prettier / lint --fix 자동 정리`.
+- `104d1bb9 refactor(integration): ai-review Phase 2 조치 — Warning 11 + Info 1 (12/16)`.
+
 ---
 
 ## 남은 작업
 
-진행되지 않은 phase 들을 한 단락으로 모은다. 각 phase 의 범위·출력물·PR 단위는 그대로 유효하지만, 실행은 Phase 2 → Phase 3 순서로 트리거 한다 (Phase 4~6 은 Phase 3 진행 중·이후 병렬 가능, Phase 7 은 마지막).
-
-### Phase 2 — Send Email + HTTP Request 마이그레이션 (트리거 작업)
-
-두 노드를 raw-echo 패턴으로 마이그레이션하면서 output 에 평가 결과 신규 필드를 추가한다.
-
-**Send Email** (`backend/src/nodes/integration/send-email/`):
-- `send-email.handler.ts` — `config` echo 를 `context.rawConfig` 기반으로 전환해 `{integrationId, to, cc, bcc, subject, body, bodyType, attachments}` 의 **원본** 을 그대로 echo. `output` 에 `subject` (evaluated), `body` (evaluated, 256KB cap), `bodyType` 신규 필드 추가. error 포트 리턴값에도 동일 필드 포함.
-- `send-email.schema.ts` — `sendEmailNodeOutputSchema.config` 에 모든 raw 필드 표기 (subject·body 도 raw 표시), `output` 에 `subject?`, `body?`, `bodyType?`, `bodyTruncated?` 추가.
-- `send-email.handler.spec.ts` — 성공 케이스의 `output.subject/body/bodyType` 검증, expression 평가 (`{{ $input.name }}`) 케이스에서 `config.subject` 가 raw / `output.subject` 가 evaluated 인지 검증, HTML 본문 케이스 (bodyType=html), 256KB cap 케이스 (`bodyTruncated: true` 포함), error 포트의 본문 포함 검증.
-
-**HTTP Request** (`backend/src/nodes/integration/http-request/`):
-- `http-request.handler.ts` — `configEcho` 를 `context.rawConfig` 로 교체해 method, url (sanitize), authentication, integrationId, headers, queryParams, body (raw), bodyType, responseType, timeout, followRedirects, verifySsl 의 **원본** echo. `output` 에 `requestBody` (evaluated, 256KB cap), `requestBodyType`, `responseHeaders` 추가. 세 리턴 지점 (success / non-2xx / transport error) 모두 적용. sensitive header (`Authorization`, `Cookie`, `X-Api-Key`, `X-Auth-Token`) 는 `responseHeaders` 에서 mask 또는 제외.
-- `http-request.schema.ts` — `httpRequestNodeOutputSchema.output` 에 `requestBody?`, `requestBodyType?`, `responseHeaders?`, `bodyTruncated?` 추가.
-- `http-request.handler.spec.ts` — POST + JSON body 의 `output.requestBody` 검증, form-data / form-urlencoded / raw 별 `output.requestBodyType` 검증, GET (no body) 의 `output.requestBody` undefined 검증, error 케이스 (4xx/5xx, transport) 의 신규 필드 포함 검증, response header sanitize 검증, 256KB cap 검증.
-
-**공통 헬퍼**:
-- `backend/src/nodes/integration/_base/truncate-body.util.ts` 신규 — `truncateBodyForOutput(value, maxBytes = 256 * 1024): { value, truncated }` 시그니처. JSON / string / Buffer 모두 처리.
-
-**Spec 갱신**:
-- `spec/4-nodes/4-integration-nodes.md` §2.3 (HTTP Request 출력 구조) — 현재 outdated 한 평탄 `data`/`error` 표기를 nested CONVENTIONS §8 형태로 교정 + 신규 필드 반영.
-- `spec/4-nodes/4-integration-nodes.md` §4.3 (Send Email 출력 구조) — `output.subject/body/bodyType` 추가.
-- `user_memo/node-specs-improvement/integration/send_email.md` 및 `user_memo/node-specs/integration/send_email.md` (선택, 일관성).
-
-**PR 분할 권장**: 2~3건. (1) `refactor(send-email): config raw echo + output subject/body/bodyType`, (2) `refactor(http-request): config raw echo + output requestBody/responseHeaders`, (3) `refactor(integration): truncate-body helper + spec output examples`.
+진행되지 않은 phase 들을 한 단락으로 모은다. 각 phase 의 범위·출력물·PR 단위는 그대로 유효하지만, 실행은 Phase 3 → Phase 4 순서로 트리거 한다 (Phase 4~6 은 Phase 3 진행 중·이후 병렬 가능, Phase 7 은 마지막).
 
 ### Phase 3 — 나머지 핸들러 마이그레이션
 
@@ -135,8 +146,8 @@ NodeExecution.outputData JSONB 의 의미 변화에 대한 호환성 + UI 표시
 
 | Phase | Rollback 방법 |
 | --- | --- |
-| Phase 1 | `ExecutionContext.rawConfig` 제거. 행동 변화 없으니 단순 revert (현재 배포된 상태 — Phase 2 트리거 시 의미 발생) |
-| Phase 2 | Send Email / HTTP Request handler revert. legacy 워크플로의 `$node["X"].config.subject` 가 evaluated 로 되돌아감 |
+| Phase 1 | `ExecutionContext.rawConfig` 제거. (배포 완료 — Phase 2 가 이미 의존하므로 단독 rollback 시 Phase 2 도 함께 revert 필요) |
+| Phase 2 | Send Email / HTTP Request handler revert. legacy 워크플로의 `$node["X"].config.subject` 가 evaluated 로 되돌아감. (배포 완료) |
 | Phase 3 | 카테고리별 revert |
 | Phase 4 | frontend 변경 revert (영향 있을 경우) |
 | Phase 5 | API release note 정정 |
