@@ -11,13 +11,18 @@ jest.mock('nodemailer', () => ({
   })),
 }));
 
-function makeContext(): ExecutionContext {
+function makeContext(
+  rawConfig?: Record<string, unknown>,
+): ExecutionContext {
   return {
     executionId: 'exec-1',
     workflowId: 'wf-1',
     nodeExecutionId: 'ne-1',
     variables: { __workspaceId: 'ws-1' },
     nodeOutputCache: {},
+    ...(rawConfig
+      ? { rawConfig: Object.freeze({ ...rawConfig }) }
+      : {}),
   };
 }
 
@@ -146,12 +151,22 @@ describe('SendEmailHandler', () => {
   describe('execute (no integrations service)', () => {
     it('falls back to requires_integration stub', async () => {
       const handler = new SendEmailHandler();
-      const out = (await handler.execute(null, baseConfig, makeContext())) as {
+      const out = (await handler.execute(
+        null,
+        baseConfig,
+        makeContext(baseConfig),
+      )) as {
         status: string;
-        config: { to: string[] };
+        config: { to: unknown };
+        output: { subject?: string; body?: string; bodyType?: string };
       };
       expect(out.status).toBe('requires_integration');
-      expect(out.config.to).toEqual(['recipient@example.com']);
+      // Principle 7 — `config.to` echoes the **raw** value the user entered,
+      // not the normalised array.
+      expect(out.config.to).toBe('recipient@example.com');
+      expect(out.output.subject).toBe('hi');
+      expect(out.output.body).toBe('hello');
+      expect(out.output.bodyType).toBe('text');
     });
   });
 
@@ -193,17 +208,23 @@ describe('SendEmailHandler', () => {
     it('sends the email and logs a success usage row', async () => {
       const { service, logUsage } = makeService();
       const handler = new SendEmailHandler(service as never);
+      const sendConfig = {
+        ...baseConfig,
+        to: 'a@example.com, b@example.com',
+        cc: 'c@example.com',
+      };
       const out = (await handler.execute(
         null,
-        {
-          ...baseConfig,
-          to: 'a@example.com, b@example.com',
-          cc: 'c@example.com',
-        },
-        makeContext(),
+        sendConfig,
+        makeContext(sendConfig),
       )) as {
-        config: { to: string[]; cc: string[] };
-        output: { messageId: string };
+        config: { to: unknown; cc: unknown };
+        output: {
+          messageId: string;
+          subject: string;
+          body: string;
+          bodyType: string;
+        };
         meta: { durationMs: number; deliveryStatus: string };
       };
 
@@ -218,8 +239,13 @@ describe('SendEmailHandler', () => {
       );
       expect(out.meta.deliveryStatus).toBe('sent');
       expect(out.output.messageId).toBe('msg-123');
-      expect(out.config.to).toEqual(['a@example.com', 'b@example.com']);
-      expect(out.config.cc).toEqual(['c@example.com']);
+      // Principle 7 — config echoes the raw template (string), evaluated
+      // values are surfaced on output.*.
+      expect(out.config.to).toBe('a@example.com, b@example.com');
+      expect(out.config.cc).toBe('c@example.com');
+      expect(out.output.subject).toBe('hi');
+      expect(out.output.body).toBe('hello');
+      expect(out.output.bodyType).toBe('text');
       expect(logUsage).toHaveBeenCalledWith(
         expect.objectContaining({
           status: 'success',
@@ -236,10 +262,14 @@ describe('SendEmailHandler', () => {
     it('passes bcc through to sendMail when provided', async () => {
       const { service } = makeService();
       const handler = new SendEmailHandler(service as never);
+      const sendConfig = {
+        ...baseConfig,
+        bcc: ['d@example.com', 'e@example.com'],
+      };
       const out = (await handler.execute(
         null,
-        { ...baseConfig, bcc: ['d@example.com', 'e@example.com'] },
-        makeContext(),
+        sendConfig,
+        makeContext(sendConfig),
       )) as { config: { bcc: string[] } };
 
       expect(sendMailMock).toHaveBeenCalledWith(
@@ -272,13 +302,71 @@ describe('SendEmailHandler', () => {
     it('routes bodyType=html to html field', async () => {
       const { service } = makeService();
       const handler = new SendEmailHandler(service as never);
-      await handler.execute(
-        null,
-        { ...baseConfig, bodyType: 'html', body: '<b>hi</b>' },
-        makeContext(),
-      );
+      const cfg = { ...baseConfig, bodyType: 'html', body: '<b>hi</b>' };
+      const out = (await handler.execute(null, cfg, makeContext(cfg))) as {
+        output: { body?: string; bodyType?: string };
+      };
       expect(sendMailMock).toHaveBeenCalledWith(
         expect.objectContaining({ html: '<b>hi</b>' }),
+      );
+      expect(out.output.body).toBe('<b>hi</b>');
+      expect(out.output.bodyType).toBe('html');
+    });
+
+    // Principle 7 — config echoes raw templates (`{{ name }}` preserved),
+    // output surfaces evaluated values. Engine resolves expressions before
+    // dispatching, so `config` arg has evaluated values; `context.rawConfig`
+    // carries the unresolved snapshot.
+    it('echoes rawConfig templates on config and evaluated values on output', async () => {
+      const { service } = makeService();
+      const handler = new SendEmailHandler(service as never);
+      const rawConfig = {
+        integrationId: 'int-1',
+        to: '{{ $input.email }}',
+        subject: 'Hello {{ $input.name }}',
+        body: 'Welcome {{ $input.name }}!',
+        bodyType: 'text',
+      };
+      // What `config` arg looks like after the engine evaluates expressions.
+      const evaluated = {
+        ...rawConfig,
+        to: 'alice@example.com',
+        subject: 'Hello Alice',
+        body: 'Welcome Alice!',
+      };
+      const out = (await handler.execute(
+        null,
+        evaluated,
+        makeContext(rawConfig),
+      )) as {
+        config: { subject: string; body: string; to: unknown };
+        output: { subject: string; body: string };
+      };
+
+      expect(out.config.to).toBe('{{ $input.email }}');
+      expect(out.config.subject).toBe('Hello {{ $input.name }}');
+      expect(out.config.body).toBe('Welcome {{ $input.name }}!');
+      expect(out.output.subject).toBe('Hello Alice');
+      expect(out.output.body).toBe('Welcome Alice!');
+    });
+
+    it('caps oversized bodies at 256KB and sets bodyTruncated', async () => {
+      const { service } = makeService();
+      const handler = new SendEmailHandler(service as never);
+      const huge = 'x'.repeat(300 * 1024);
+      const cfg = { ...baseConfig, body: huge };
+      const out = (await handler.execute(null, cfg, makeContext(cfg))) as {
+        output: { body: string; bodyTruncated?: boolean };
+      };
+      // sendMail still receives the full body — truncation only bounds the
+      // echoed `output.body`.
+      expect(sendMailMock).toHaveBeenCalledWith(
+        expect.objectContaining({ text: huge }),
+      );
+      expect(out.output.bodyTruncated).toBe(true);
+      expect(typeof out.output.body).toBe('string');
+      expect(Buffer.byteLength(out.output.body, 'utf8')).toBeLessThanOrEqual(
+        256 * 1024,
       );
     });
 
@@ -291,14 +379,23 @@ describe('SendEmailHandler', () => {
       const result = (await handler.execute(
         null,
         baseConfig,
-        makeContext(),
+        makeContext(baseConfig),
       )) as {
         port: string;
-        output: { error: { code: string; message: string } };
+        output: {
+          subject?: string;
+          body?: string;
+          bodyType?: string;
+          error: { code: string; message: string };
+        };
       };
       expect(result.port).toBe('error');
       expect(result.output.error.code).toBe('EMAIL_SEND_FAILED');
       expect(result.output.error.message).toContain('connection refused');
+      // Error port still surfaces the evaluated body for downstream debugging.
+      expect(result.output.subject).toBe('hi');
+      expect(result.output.body).toBe('hello');
+      expect(result.output.bodyType).toBe('text');
       expect(logUsage).toHaveBeenCalledWith(
         expect.objectContaining({
           status: 'failed',
