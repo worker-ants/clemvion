@@ -63,8 +63,7 @@ export class CarouselHandler implements NodeHandler {
   execute(
     input: unknown,
     config: Record<string, unknown>,
-
-    _context: ExecutionContext,
+    context: ExecutionContext,
   ): Promise<unknown> {
     const mode = (config.mode as string) ?? 'dynamic';
     const layout = (config.layout as string) ?? 'card';
@@ -160,19 +159,25 @@ export class CarouselHandler implements NodeHandler {
       }
     }
 
-    // Runtime-only fields go into `output`; literal config (layout, mode,
-    // static items definition) is echoed in `config` only (Principle 1.1).
-    // The `type: 'carousel'` discriminator is dropped per Principle 1.1.4.
+    // CONVENTIONS Principle 7 — config echoes raw user-entered settings
+    // (per-item title / description / image, button labels, titleField etc.
+    // may carry `{{ ... }}` templates that the engine resolved before
+    // dispatch). evaluated rendered items live in output.
+    const rawConfig = context.rawConfig ?? config;
     const payload: Record<string, unknown> = { items, rendered };
-    const configEcho: Record<string, unknown> = { layout, mode };
-    if (Array.isArray(config.items)) configEcho.items = config.items;
-    if (config.titleField) configEcho.titleField = config.titleField;
-    if (config.descriptionField)
-      configEcho.descriptionField = config.descriptionField;
-    if (config.imageField) configEcho.imageField = config.imageField;
-    if (Array.isArray(config.buttons)) configEcho.buttons = config.buttons;
-    if (Array.isArray(config.itemButtons))
-      configEcho.itemButtons = config.itemButtons;
+    const configEcho: Record<string, unknown> = {
+      layout: rawConfig.layout ?? layout,
+      mode: rawConfig.mode ?? mode,
+    };
+    if (Array.isArray(rawConfig.items)) configEcho.items = rawConfig.items;
+    if (rawConfig.titleField) configEcho.titleField = rawConfig.titleField;
+    if (rawConfig.descriptionField)
+      configEcho.descriptionField = rawConfig.descriptionField;
+    if (rawConfig.imageField) configEcho.imageField = rawConfig.imageField;
+    if (Array.isArray(rawConfig.buttons))
+      configEcho.buttons = rawConfig.buttons;
+    if (Array.isArray(rawConfig.itemButtons))
+      configEcho.itemButtons = rawConfig.itemButtons;
 
     if (allButtons.length > 0) {
       return Promise.resolve({

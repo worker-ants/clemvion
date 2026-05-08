@@ -1,4 +1,5 @@
 import {
+  ExecutionContext,
   NodeHandler,
   ValidationResult,
 } from '../../core/node-handler.interface.js';
@@ -20,7 +21,11 @@ export class FormHandler implements NodeHandler {
     return { valid: errors.length === 0, errors };
   }
 
-  execute(...[, config]: Parameters<NodeHandler['execute']>): Promise<unknown> {
+  execute(
+    _input: unknown,
+    config: Record<string, unknown>,
+    context: ExecutionContext,
+  ): Promise<unknown> {
     // Initial execution: transition to waiting_for_input. The engine's
     // waitForFormSubmission() fills `output.interaction.{type,data,receivedAt}`
     // and flips `status` to `'resumed'` once the user submits the form
@@ -29,8 +34,13 @@ export class FormHandler implements NodeHandler {
     // `output` is an empty object because form has no runtime value at the
     // waiting tick — title / submitLabel / fields are literal config and
     // must NOT be echoed here (Principle 1.1).
+    //
+    // CONVENTIONS Principle 7 — config echoes raw user input (form fields'
+    // defaultValue / label may carry `{{ ... }}` templates that the engine
+    // resolved before dispatch).
+    const rawConfig = context.rawConfig ?? config;
     return Promise.resolve({
-      config,
+      config: { ...rawConfig },
       output: {},
       status: 'waiting_for_input',
       meta: { interactionType: 'form', durationMs: 0 },

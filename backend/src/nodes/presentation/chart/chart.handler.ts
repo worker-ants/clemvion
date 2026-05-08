@@ -35,8 +35,7 @@ export class ChartHandler implements NodeHandler {
   execute(
     input: unknown,
     config: Record<string, unknown>,
-
-    _context: ExecutionContext,
+    context: ExecutionContext,
   ): Promise<unknown> {
     const chartType = config.chartType as string;
     const xAxis = config.xAxis as { field: string };
@@ -72,15 +71,18 @@ export class ChartHandler implements NodeHandler {
       ? this.aggregate(data, yAxis.aggregation)
       : data;
 
-    // `output` holds only the runtime-aggregated dataset (Principle 1.1);
-    // chartType/title/xAxis/yAxis are literal config and live in `config`.
-    // Discriminator `type: 'chart'` removed (Principle 1.1.4).
+    // CONVENTIONS Principle 7 — config echoes raw chartType / title / xAxis
+    // / yAxis (`title` may include `{{ ... }}` templates the engine resolved
+    // before dispatch). evaluated chart data lives in output.
+    void chartType;
+    void title;
+    const rawConfig = context.rawConfig ?? config;
     const payload: Record<string, unknown> = { data: chartData };
     const configEcho: Record<string, unknown> = {
-      chartType,
-      title,
-      xAxis,
-      yAxis,
+      chartType: rawConfig.chartType,
+      title: rawConfig.title,
+      xAxis: rawConfig.xAxis ?? xAxis,
+      yAxis: rawConfig.yAxis ?? yAxis,
     };
 
     const buttons = config.buttons as ButtonDef[] | undefined;

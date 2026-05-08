@@ -127,22 +127,32 @@ export class TableHandler implements NodeHandler {
 
     const rendered = this.renderHtml(resolvedColumns, columns, dataRows);
 
-    // Runtime-only output (Principle 1.1): `rows` is the column-filtered /
-    // expression-resolved row set, `totalRows` is the paged length, and
-    // `rendered` is the generated HTML snapshot. Column definitions are
-    // literal config and live in `config` only (the handler resolves
-    // expression labels at runtime, so `resolvedColumns` stays in config
-    // because the set of columns itself is author-declared).
+    // CONVENTIONS Principle 7 — config echoes raw column definitions
+    // (per-column `field` / `label` may be `{{ ... }}` templates the engine
+    // resolved before dispatch). evaluated rows + resolved column labels
+    // live in output.
+    const rawConfig = context.rawConfig ?? config;
     const payload: Record<string, unknown> = {
       rows: dataRows,
       totalRows: dataRows.length,
       rendered,
+      // Surface resolved (label-evaluated) columns on output for downstream
+      // nodes that want the post-evaluation view.
+      columns: resolvedColumns,
     };
     const configEcho: Record<string, unknown> = {
-      mode,
-      columns: resolvedColumns,
-      ...(pageSize !== undefined ? { pageSize } : {}),
-      ...(sortBy !== undefined ? { sortBy, sortOrder } : {}),
+      mode: rawConfig.mode ?? mode,
+      columns: rawConfig.columns ?? columns,
+      ...(rawConfig.pageSize !== undefined
+        ? { pageSize: rawConfig.pageSize }
+        : pageSize !== undefined
+          ? { pageSize }
+          : {}),
+      ...(rawConfig.sortBy !== undefined
+        ? { sortBy: rawConfig.sortBy, sortOrder: rawConfig.sortOrder }
+        : sortBy !== undefined
+          ? { sortBy, sortOrder }
+          : {}),
     };
 
     const buttons = config.buttons as ButtonDef[] | undefined;
