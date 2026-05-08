@@ -146,10 +146,34 @@ NodeExecution.outputData JSONB 의 의미 변화에 대한 호환성 + UI 표시
 
 ---
 
+## 결정 보강 (Phase 2 진입 전)
+
+### HTTP responseHeaders sanitize 정책
+
+산업 표준 hybrid blacklist + 패턴 마스킹. 헤더 이름은 case-insensitive 비교, 매칭 시 값을 `'[REDACTED]'` 로 치환하고 헤더 이름 자체는 유지 (관찰성 — 어떤 헤더가 mask 됐는지 알 수 있도록).
+
+**Exact-match 블랙리스트** (lowercased): `authorization`, `proxy-authorization`, `www-authenticate`, `proxy-authenticate`, `cookie`, `set-cookie`, `x-api-key`, `x-auth-token`, `x-csrf-token`, `x-amz-security-token`.
+
+**패턴 매칭** (lowercased name 에 다음 substring 중 하나 포함 시 mask): `auth`, `token`, `api-key`, `apikey`, `secret`, `cookie`, `credential`, `password`.
+
+### 256KB cap 의 측정 단위
+
+UTF-8 byte length 기준. 헬퍼 시그니처: `truncateBodyForOutput(value, maxBytes = 256 * 1024): { value, truncated }`.
+
+- 문자열 → `Buffer.byteLength(value, 'utf8')`.
+- `Buffer` → `.length`.
+- 객체 → `JSON.stringify` 후 byte length 측정. 직렬화 실패 시 `[Unserializable]` 문자열로 대체.
+- 그 외 → `String(value)` 후 동일 처리.
+- 임계 초과 시 `value` 를 byte 단위에서 안전하게 자른 문자열 + `truncated: true` 반환 (절단 위치는 마지막 완전한 UTF-8 코드포인트 경계 — `Buffer.slice` + 끝부분 `�` 절단 정리).
+
+### Replay 시 raw 재평가 vs 저장된 evaluated 재사용
+
+Phase 6 검증 단계에서 결정 후 spec 에 명시. Phase 2 와 무관 — 보류.
+
+---
+
 ## 미해결 설계 질문
 
-- **HTTP responseHeaders sanitize 정책** — 어떤 헤더를 mask 할지 정확한 화이트리스트 / 블랙리스트 결정 필요. Phase 2 진입 전 보안 리뷰.
-- **256KB cap 의 정확한 측정** — UTF-8 byte length 기준인지 character length 기준인지. 헬퍼 구현 시 명시.
-- **Replay 시 raw 재평가 vs 저장된 evaluated 재사용** — Phase 6 검증에서 결정 후 spec 에 명시.
+위 두 결정이 보강된 상태. Replay 정책만 Phase 6 진입 전 결정이 필요하다.
 
 이 질문들이 결정되어 모든 phase 가 끝난 순간 본 문서를 `plan/complete/` 로 옮긴다.
