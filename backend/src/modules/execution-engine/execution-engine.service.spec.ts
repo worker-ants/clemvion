@@ -1276,6 +1276,26 @@ describe('ExecutionEngineService', () => {
       expect(mockHandler.execute).toHaveBeenCalledTimes(1); // only start node
     });
 
+    it('persists outputData.meta.interactionType="form" so snapshot reconcile hydrates store correctly', async () => {
+      // 페이지 재마운트 시 execution.snapshot reconcile (frontend) 이 이
+      // 필드로 store 의 waitingInteractionType 을 set. 누락 시 Preview 탭
+      // 버튼이 callback 없이 disabled 로 그려지는 회귀 발생 (PR-B Part C).
+      await service.execute(workflowId, { data: 'test' });
+      await flushPromises();
+
+      const saveCalls = mockNodeExecutionRepo.save.mock.calls;
+      const waitingSave = saveCalls.find(
+        (c: unknown[]) =>
+          (c[0] as { status?: string })?.status ===
+          NodeExecutionStatus.WAITING_FOR_INPUT,
+      );
+      expect(waitingSave).toBeDefined();
+      const persisted = (waitingSave as unknown[])[0] as {
+        outputData?: { meta?: { interactionType?: string } };
+      };
+      expect(persisted.outputData?.meta?.interactionType).toBe('form');
+    });
+
     it('should resume after continueExecution and complete all nodes', async () => {
       await service.execute(workflowId, { data: 'test' });
       await flushPromises();

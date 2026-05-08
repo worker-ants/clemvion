@@ -108,6 +108,26 @@ const PARALLEL_BRANCH_COUNT_MAX = 16;
 const PARALLEL_MAX_CONCURRENCY_MIN = 0;
 const PARALLEL_MAX_CONCURRENCY_MAX = 16;
 
+type WaitingInteractionType = 'form' | 'buttons' | 'ai_conversation';
+
+/**
+ * NodeExecution.outputData (envelope `{config, output, meta?, port?, status?}`)
+ * 의 `meta.interactionType` 을 명시 보장. 페이지 재마운트 시
+ * `execution.snapshot` reconcile (frontend) 이 이 필드로 store 의
+ * `waitingInteractionType` 을 set 해 form/buttons/ai_conversation 분기를
+ * 정확히 hydrate 한다. 누락 시 카테고리 선택 (Carousel) 의 Preview 탭
+ * 버튼이 callback 없이 disabled 로 그려지는 회귀가 발생.
+ */
+function withInteractionMeta(
+  output: Record<string, unknown>,
+  interactionType: WaitingInteractionType,
+): Record<string, unknown> {
+  const next = { ...output };
+  const prevMeta = (next.meta as Record<string, unknown> | undefined) ?? {};
+  next.meta = { ...prevMeta, interactionType };
+  return next;
+}
+
 /**
  * Per-branch subgraph plan for the Parallel logic node.
  *
@@ -1570,7 +1590,15 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
     });
     if (nodeExec) {
       nodeExec.status = NodeExecutionStatus.WAITING_FOR_INPUT;
-      nodeExec.outputData = nodeOutput as Record<string, unknown>;
+      // outputData 의 meta.interactionType 을 명시 보장 — 페이지 재마운트 시
+      // execution.snapshot reconcile (use-execution-events.ts) 이 이 필드로
+      // store 의 waitingInteractionType 을 set. 누락 시 prev/page 마운트 race
+      // 에서 'buttons'/'form'/'ai_conversation' 분기를 못 잡아 Preview 탭의
+      // 버튼이 disabled 로 그려진다.
+      nodeExec.outputData = withInteractionMeta(
+        nodeOutput as Record<string, unknown>,
+        'form',
+      );
       await this.nodeExecutionRepository.save(nodeExec);
     }
     this.websocketService.emitExecutionEvent(
@@ -1823,7 +1851,12 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
         ...(structured ?? nodeOutput),
       };
       delete persistedOutput._resumeState;
-      nodeExec.outputData = persistedOutput;
+      // meta.interactionType='ai_conversation' 명시 — snapshot reconcile 이
+      // 정확한 분기로 hydrate.
+      nodeExec.outputData = withInteractionMeta(
+        persistedOutput,
+        'ai_conversation',
+      );
       await this.nodeExecutionRepository.save(nodeExec);
     }
 
@@ -2170,7 +2203,13 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
     });
     if (nodeExec) {
       nodeExec.status = NodeExecutionStatus.WAITING_FOR_INPUT;
-      nodeExec.outputData = nodeOutputForEvent as Record<string, unknown>;
+      // meta.interactionType='buttons' 명시 — snapshot reconcile 이 store 의
+      // waitingInteractionType 을 'buttons' 로 hydrate 해 Preview 탭 버튼이
+      // 콜백을 받아 interactive 가 되도록 한다.
+      nodeExec.outputData = withInteractionMeta(
+        nodeOutputForEvent as Record<string, unknown>,
+        'buttons',
+      );
       await this.nodeExecutionRepository.save(nodeExec);
     }
 
