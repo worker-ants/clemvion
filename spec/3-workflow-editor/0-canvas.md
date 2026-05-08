@@ -659,7 +659,7 @@ Loop, ForEach, Map, Background[🚧 미구현] 노드는 **컨테이너**로 렌
 
 ## 12. AI Agent Tool Area
 
-> ⚠ **재작성 예정 (현재 제거됨)** — 본 섹션의 Tool Area 시각·인터랙션은 현재 비활성이며, AI Agent 의 도구 연결 config 필드(`toolNodeIds` / `toolOverrides`)도 스키마에서 제거됐다. 캔버스에서 AI Agent 노드 우측 점선 영역 및 드래그/드롭 인터랙션을 노출하지 않는다. 새 도구 연결 디자인이 결정될 때 갱신한다. 자세한 사유와 백엔드 영향은 `spec/4-nodes/3-ai-nodes.md` §1 박스 + `plan/in-progress/ai-agent-tool-connection-rewrite.md` 참조.
+> ⚠ **재작성 예정 (현재 제거됨)** — 본 섹션의 Tool Area 시각·인터랙션은 현재 비활성이며, AI Agent 의 도구 연결 config 필드(`toolNodeIds` / `toolOverrides`)도 스키마에서 제거됐다. 캔버스에서 AI Agent 노드 우측 점선 영역 및 드래그/드롭 인터랙션을 노출하지 않는다. 새 도구 연결 디자인이 결정될 때 갱신한다. 자세한 사유와 백엔드 영향은 `spec/4-nodes/3-ai-nodes.md` §1 박스 + `plan/complete/ai-agent-tool-connection-rewrite.md` 참조.
 
 AI Agent 노드에 연결된 도구 노드를 시각적으로 관리하는 전용 영역.
 
