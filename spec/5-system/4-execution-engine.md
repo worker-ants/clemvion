@@ -611,6 +611,27 @@ Manual Trigger 핸들러의 `execute()` 출력은 항상 다음 형태이다:
 | 노드 완료 시 | Redis + PostgreSQL | nodeOutputCache 업데이트(Redis), NodeExecution 레코드 저장(PostgreSQL) |
 | 실행 완료 시 | PostgreSQL | 전체 컨텍스트를 PostgreSQL에 영구 저장, Redis에서 삭제 |
 
+### 6.3 재실행/조회 정책 (Replay Policy)
+
+저장된 실행 이력을 사용자가 다시 활용하는 시나리오의 정책. 의미가 다른 두 모드를 분리해 정의한다 — 한쪽은 외부 부수효과 0, 다른 쪽은 새 실행으로 부수효과 재트리거.
+
+| 모드 | 의미 | 구현 상태 | 외부 부수효과 | expression 평가 |
+|------|------|-----------|---------------|-----------------|
+| **View** | 실행 이력 조회 — `NodeExecution.outputData` 를 그대로 표시 | ✅ 구현됨 (execution-history UI) | ❌ 없음 | ❌ 없음 |
+| **Re-run** | 새 Execution 시작 — 현재 워크플로 정의의 raw config 를 다시 평가 | 🚧 미구현 (future PRD) | ✅ 재트리거 — 이메일 재발송, HTTP 재호출 등 | ✅ `$now` / `random()` 등 새 실행 시점 재고정 |
+| **Multi-turn resume** | 같은 실행의 다음 turn 진행 — `state.rawConfig` frozen snapshot 사용 | ✅ 구현됨 (§1.3 / `executions/:id/continue`) | 해당 노드 한정 (`processMultiTurnMessage`) | 해당 노드 한정 |
+
+**핵심 직교성**:
+- **View 와 Multi-turn resume 은 replay 가 아니다**. View 는 historical record 조회, Multi-turn resume 은 진행 중 실행의 다음 turn.
+- **Re-run 은 새 Execution row 를 생성**한다 — 기존 row 의 input 을 복사할 수 있으나, 실행 결과는 현재 워크플로 정의 + 현재 시각 + 외부 응답에 따라 달라진다.
+- Re-run 도입 시 외부 부수효과 가드 (확인 모달 / dry-run 모드 / 멱등성 키) 는 별도 PRD 에서 설계한다 — 본 spec 의 정책 범위 밖.
+
+**옛 NodeExecution row 호환성** (raw config exposure 도입 이전):
+- 옛 row 는 `outputData.config` 가 expression **평가 후** 형태 (예: `{ subject: "Hello Alice" }`). 새 row 는 평가 **전** 형태 (예: `{ subject: "Hello {{ name }}" }`).
+- 백필하지 않는다 — historical record 로 보존.
+- expression 컨텍스트의 cross-execution 참조는 없다 (각 실행은 자기 nodeOutputCache 만 사용). 따라서 옛 row 의 의미 차이는 **UI 표시 차이만** — 실행 동작에는 영향 없음.
+- View 는 best-effort — 옛 실행의 Send Email · HTTP Request 는 신규 `output.{subject, body, requestBody, responseHeaders, bodyTruncated}` 필드가 부재할 수 있다.
+
 ---
 
 ## 7. 장애 복구
