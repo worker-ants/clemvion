@@ -47,6 +47,31 @@ function getCategoryForType(nodeType: string): string {
   return getNodeDefinition(nodeType)?.category ?? "unknown";
 }
 
+/**
+ * snapshot reconcile 의 마지막 안전망 — backend 가 envelope `meta.interactionType`
+ * 을 빠뜨려도 nodeType 으로 분기를 유추해 store 의 waitingInteractionType 을
+ * 정확히 set 한다. 누락 시 page.tsx 의 `isWaitingButtons` 가 false 로 떨어져
+ * Preview 탭의 버튼이 콜백 없이 disabled 로 그려지는 회귀가 발생한다.
+ */
+function inferInteractionTypeFromNodeType(
+  nodeType: string | undefined,
+): "form" | "buttons" | "ai_conversation" | undefined {
+  if (!nodeType) return undefined;
+  if (nodeType === "form") return "form";
+  if (
+    nodeType === "carousel" ||
+    nodeType === "chart" ||
+    nodeType === "table" ||
+    nodeType === "template"
+  ) {
+    return "buttons";
+  }
+  if (nodeType === "ai_agent" || nodeType === "information_extractor") {
+    return "ai_conversation";
+  }
+  return undefined;
+}
+
 const UUID_REGEX =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -758,10 +783,21 @@ export function useExecutionEvents({
             ? (raw.meta as Record<string, unknown> | undefined)
             : undefined;
 
+          // 추출 우선 순위: envelope.meta.interactionType (정식) → envelope
+          // .output.interactionType (legacy nested) → top-level (legacy flat)
+          // → raw.type==='form' → nodeType 기반 fallback. 마지막 fallback 은
+          // backend 가 meta 를 빠뜨려도 카테고리/AI/Form 노드 타입으로
+          // 정확히 hydrate 되도록 보장 (page.tsx 의 isWaitingButtons 등이
+          // 정확히 true 가 되어 Preview 탭 버튼이 콜백을 받음).
+          const envelopeOutput = isStructured
+            ? (raw.output as Record<string, unknown> | undefined)
+            : undefined;
           const interactionType =
             (meta?.interactionType as string | undefined) ??
+            (envelopeOutput?.interactionType as string | undefined) ??
             (raw.interactionType as string | undefined) ??
-            (raw.type === "form" ? "form" : undefined);
+            (raw.type === "form" ? "form" : undefined) ??
+            inferInteractionTypeFromNodeType(waitingNode.node?.type);
 
           if (interactionType === "ai_conversation") {
             const convConfig = isStructured

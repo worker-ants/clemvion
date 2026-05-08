@@ -531,6 +531,85 @@ describe("useExecutionEvents", () => {
     });
   });
 
+  // PR-B hotfix #3 — meta.interactionType 누락 시 nodeType 기반 fallback 으로
+  // store 의 waitingInteractionType 이 정확히 hydrate 되어야 한다. 누락 시
+  // page.tsx 의 isWaitingButtons=false 가 되어 Carousel Preview 탭의 버튼이
+  // 콜백 없이 disabled 로 그려지는 회귀 발생.
+  it("infers buttons interaction from carousel nodeType when meta.interactionType is missing", () => {
+    const btnConfig = {
+      buttons: [{ id: "b1", label: "Logic 노드 테스트", type: "port" }],
+    };
+    useExecutionStore.getState().startExecution("exec-1");
+    renderHook(() => useExecutionEvents({ executionId: "exec-1" }));
+
+    emitSnapshot(
+      createMockExecution({
+        status: "waiting_for_input",
+        nodeExecutions: [
+          {
+            id: "ne-1",
+            executionId: "exec-1",
+            nodeId: "carousel-node",
+            status: "waiting_for_input",
+            durationMs: null,
+            error: null,
+            startedAt: "2026-04-01T00:00:00Z",
+            finishedAt: null,
+            // meta.interactionType 누락 — backend 가 빠뜨린 시나리오. envelope
+            // shape 만으로는 'buttons' 분기를 알 수 없으나 nodeType==='carousel'
+            // 로 fallback 하여 정확히 판정.
+            outputData: {
+              config: btnConfig,
+              output: null,
+              status: "waiting_for_input",
+            },
+            node: {
+              id: "carousel-node",
+              type: "carousel",
+              label: "카테고리 선택",
+            },
+          },
+        ],
+      }),
+    );
+
+    expect(useExecutionStore.getState().waitingInteractionType).toBe("buttons");
+    expect(useExecutionStore.getState().waitingButtonConfig).toEqual(btnConfig);
+  });
+
+  it("infers ai_conversation interaction from ai_agent nodeType fallback", () => {
+    useExecutionStore.getState().startExecution("exec-1");
+    renderHook(() => useExecutionEvents({ executionId: "exec-1" }));
+
+    emitSnapshot(
+      createMockExecution({
+        status: "waiting_for_input",
+        nodeExecutions: [
+          {
+            id: "ne-1",
+            executionId: "exec-1",
+            nodeId: "ai-node",
+            status: "waiting_for_input",
+            durationMs: null,
+            error: null,
+            startedAt: "2026-04-01T00:00:00Z",
+            finishedAt: null,
+            outputData: {
+              config: { mode: "multi_turn" },
+              output: null,
+              status: "waiting_for_input",
+            },
+            node: { id: "ai-node", type: "ai_agent", label: "AI Agent" },
+          },
+        ],
+      }),
+    );
+
+    expect(useExecutionStore.getState().waitingInteractionType).toBe(
+      "ai_conversation",
+    );
+  });
+
   it("unsubscribes and removes handlers on cleanup without disconnecting", async () => {
     const { unmount } = renderHook(() =>
       useExecutionEvents({ executionId: "exec-1" }),
