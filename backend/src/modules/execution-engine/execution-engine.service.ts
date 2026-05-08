@@ -38,6 +38,7 @@ import {
 } from './error/error-policy.handler';
 import { ExpressionResolverService } from './expression/expression-resolver.service';
 import {
+  coerceContainerBoolean,
   coerceContainerNumber,
   coerceContainerNumberOptional,
 } from './utils/coerce-container-param';
@@ -3642,22 +3643,45 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
     input: unknown,
   ): Promise<void> {
     const structured = context.structuredOutputCache?.[parallelNode.id];
-    const resolvedConfig = structured?.config ?? parallelNode.config ?? {};
+    // engine-config-bug — `structured?.config` carries the handler's raw
+    // echo per CONVENTIONS Principle 7 (`{{...}}` preserved). Reading raw
+    // here used to fail every typeof guard and silently fall back to
+    // defaults (branchCount=2, maxConcurrency=0, waitAll=true) for any
+    // expression input. The engine-resolved cache holds the evaluated values.
+    const echoConfig = structured?.config ?? parallelNode.config ?? {};
+    const engineResolvedConfig =
+      context.engineResolvedConfigCache?.[parallelNode.id] ??
+      parallelNode.config ??
+      {};
 
-    const branchCount =
-      typeof resolvedConfig.branchCount === 'number' &&
-      Number.isFinite(resolvedConfig.branchCount)
-        ? Math.max(2, Math.min(16, Math.floor(resolvedConfig.branchCount)))
-        : 2;
+    const branchCount = Math.max(
+      2,
+      Math.min(
+        16,
+        Math.floor(
+          coerceContainerNumber(
+            engineResolvedConfig.branchCount ?? 2,
+            'branchCount',
+            'parallel',
+          ),
+        ),
+      ),
+    );
+    const maxConcurrencyRaw = coerceContainerNumberOptional(
+      engineResolvedConfig.maxConcurrency,
+      'maxConcurrency',
+      'parallel',
+    );
     const maxConcurrency =
-      typeof resolvedConfig.maxConcurrency === 'number' &&
-      Number.isFinite(resolvedConfig.maxConcurrency)
-        ? Math.max(0, Math.min(16, Math.floor(resolvedConfig.maxConcurrency)))
-        : 0;
-    const waitAll =
-      typeof resolvedConfig.waitAll === 'boolean'
-        ? resolvedConfig.waitAll
-        : true;
+      maxConcurrencyRaw === undefined
+        ? 0
+        : Math.max(0, Math.min(16, Math.floor(maxConcurrencyRaw)));
+    const waitAll = coerceContainerBoolean(
+      engineResolvedConfig.waitAll,
+      'waitAll',
+      'parallel',
+      true,
+    );
     if (!waitAll) {
       this.logger.warn(
         `Parallel node "${parallelNode.label ?? parallelNode.type}" has waitAll=false, but Phase P1 always waits for all branches. ` +
@@ -3734,7 +3758,7 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
       count: branchResults.length,
     };
     this.contextService.setStructuredOutput(executionId, parallelNode.id, {
-      config: resolvedConfig,
+      config: echoConfig,
       output: { branches: branchResults, count: branchResults.length },
       port: ['done'],
     });
