@@ -34,6 +34,7 @@ import { Node, NodeCategory } from '../nodes/entities/node.entity';
 import { Edge, EdgeType } from '../edges/entities/edge.entity';
 import { Workflow } from '../workflows/entities/workflow.entity';
 import { ExecutionNodeLog } from './entities/execution-node-log.entity';
+import { ContinuationBusService } from './continuation/continuation-bus.service';
 import {
   ExecutionContext,
   NodeHandler,
@@ -224,6 +225,26 @@ describe('ExecutionEngineService', () => {
           useValue: mockExecutionNodeLogRepo,
         },
         {
+          // 분산 메시지 fan-out 을 in-memory 로 시뮬레이트 — `publish(msg)`
+          // 가 같은 메시지를 즉시 등록된 핸들러로 dispatch 한다. 단일
+          // 인스턴스 환경에서의 round-trip 동등성을 보장.
+          provide: ContinuationBusService,
+          useValue: (() => {
+            const handlers = new Map<string, (msg: unknown) => void>();
+            return {
+              on: jest.fn((type: string, handler: (msg: unknown) => void) => {
+                handlers.set(type, handler);
+              }),
+              publish: jest.fn(async (msg: { type: string }) => {
+                const h = handlers.get(msg.type);
+                if (h) h(msg);
+                return 1;
+              }),
+              acquireLock: jest.fn().mockResolvedValue(true),
+            };
+          })(),
+        },
+        {
           provide: WebsocketService,
           useValue: {
             emitExecutionEvent: jest.fn(),
@@ -289,6 +310,14 @@ describe('ExecutionEngineService', () => {
     handlerRegistry = module.get<NodeHandlerRegistry>(NodeHandlerRegistry);
     mockWebsocketService = module.get(WebsocketService);
     mockConfigService = module.get(ConfigService);
+
+    // Test module 은 onModuleInit 을 자동 호출하지 않으므로, continuation
+    // 핸들러 등록은 명시적으로 트리거한다 (PR-B). 이로써 form / AI 재개
+    // 시나리오의 publish → dispatch round-trip 이 단일 인스턴스 mock bus
+    // 안에서 정상 동작한다.
+    (
+      service as unknown as { registerContinuationHandlers: () => void }
+    ).registerContinuationHandlers();
 
     // Register mock handler (clear previous calls)
     (mockHandler.execute as jest.Mock).mockClear();
@@ -431,21 +460,36 @@ describe('ExecutionEngineService', () => {
 
   // WARN #23 (Testing) — recoverStuckExecutions 가 미테스트 상태였다.
   // WAITING_FOR_INPUT → FAILED 일괄 전환 (단일 atomic UPDATE) 검증.
+  // PR-B 추가 — SET NX 분산 lock + startedAt < now()-30분 보수 mark.
   describe('recoverStuckExecutions', () => {
-    it('marks WAITING_FOR_INPUT executions as FAILED in a single bulk UPDATE', async () => {
-      const updateExecuted = jest.fn().mockResolvedValue({ affected: 2 });
-      const where = jest.fn().mockReturnValue({ execute: updateExecuted });
-      const setMethod = jest.fn().mockReturnValue({ where });
-      const update = jest.fn().mockReturnValue({ set: setMethod });
+    let updateExecuted: jest.Mock;
+    let andWhere: jest.Mock;
+    let where: jest.Mock;
+    let setMethod: jest.Mock;
+    let update: jest.Mock;
+    let mockBus: { acquireLock: jest.Mock };
+
+    beforeEach(() => {
+      updateExecuted = jest.fn().mockResolvedValue({ affected: 2 });
+      andWhere = jest.fn().mockReturnValue({ execute: updateExecuted });
+      where = jest.fn().mockReturnValue({ andWhere });
+      setMethod = jest.fn().mockReturnValue({ where });
+      update = jest.fn().mockReturnValue({ set: setMethod });
       mockExecutionRepo.createQueryBuilder = jest.fn().mockReturnValue({
         update,
       });
+      mockBus = (service as unknown as { continuationBus: typeof mockBus })
+        .continuationBus;
+      mockBus.acquireLock.mockResolvedValue(true);
+    });
 
-      // Private 메서드를 호출 (테스트 전용 접근).
+    it('SET NX lock 획득 후 stale (>30분) WAITING_FOR_INPUT 만 FAILED 처리', async () => {
+      const before = Date.now();
       await (
         service as unknown as { recoverStuckExecutions: () => Promise<void> }
       ).recoverStuckExecutions();
 
+      expect(mockBus.acquireLock).toHaveBeenCalledWith('exec:recover:lock', 60);
       expect(update).toHaveBeenCalled();
       expect(setMethod).toHaveBeenCalled();
       const setArg = setMethod.mock.calls[0][0] as Record<string, unknown>;
@@ -456,6 +500,129 @@ describe('ExecutionEngineService', () => {
       expect(where).toHaveBeenCalledWith('status = :status', {
         status: ExecutionStatus.WAITING_FOR_INPUT,
       });
+      expect(andWhere).toHaveBeenCalledWith(
+        'started_at < :threshold',
+        expect.objectContaining({ threshold: expect.any(Date) }),
+      );
+      // threshold 가 호출 시점 - 30분 근처인지 (±몇 초) 검증.
+      const arg = (andWhere.mock.calls[0][1] as { threshold: Date }).threshold;
+      const expected = before - 30 * 60 * 1000;
+      expect(Math.abs(arg.getTime() - expected)).toBeLessThan(5_000);
+    });
+
+    it('lock 획득 실패 시 update 를 호출하지 않는다 (다른 인스턴스가 처리 중)', async () => {
+      mockBus.acquireLock.mockResolvedValueOnce(false);
+      await (
+        service as unknown as { recoverStuckExecutions: () => Promise<void> }
+      ).recoverStuckExecutions();
+
+      expect(mockBus.acquireLock).toHaveBeenCalledTimes(1);
+      expect(update).not.toHaveBeenCalled();
+    });
+  });
+
+  // PR-B (WARN #15) — 5개 continuation 진입점이 ContinuationBusService.publish
+  // 로 fan-out 되는지 + bus 핸들러 등록 시 로컬 Map 의 resolver 가 호출되는지.
+  describe('continuation entry points → bus.publish (PR-B)', () => {
+    let mockBus: {
+      on: jest.Mock;
+      publish: jest.Mock;
+      acquireLock: jest.Mock;
+    };
+
+    beforeEach(() => {
+      mockBus = (service as unknown as { continuationBus: typeof mockBus })
+        .continuationBus;
+      mockBus.publish.mockClear();
+    });
+
+    it('continueExecution → bus.publish({type:"continue", payload:formData})', () => {
+      service.continueExecution('exec-1', { name: 'Alice' });
+      expect(mockBus.publish).toHaveBeenCalledWith({
+        type: 'continue',
+        executionId: 'exec-1',
+        payload: { name: 'Alice' },
+      });
+    });
+
+    it('cancelWaitingExecution → bus.publish({type:"cancel"})', () => {
+      service.cancelWaitingExecution('exec-2');
+      expect(mockBus.publish).toHaveBeenCalledWith({
+        type: 'cancel',
+        executionId: 'exec-2',
+      });
+    });
+
+    it('continueButtonClick → bus.publish({type:"button_click", payload:{buttonId}})', () => {
+      service.continueButtonClick('exec-3', 'btn-confirm');
+      expect(mockBus.publish).toHaveBeenCalledWith({
+        type: 'button_click',
+        executionId: 'exec-3',
+        payload: { buttonId: 'btn-confirm' },
+      });
+    });
+
+    it('continueAiConversation → bus.publish({type:"ai_message", payload:{message}})', () => {
+      service.continueAiConversation('exec-4', 'hi');
+      expect(mockBus.publish).toHaveBeenCalledWith({
+        type: 'ai_message',
+        executionId: 'exec-4',
+        payload: { message: 'hi' },
+      });
+    });
+
+    it('continueAiConversation 은 10000자 초과 시 throw 하고 publish 하지 않는다', () => {
+      const tooLong = 'x'.repeat(10_001);
+      expect(() => service.continueAiConversation('exec-5', tooLong)).toThrow(
+        /Message exceeds maximum length/,
+      );
+      expect(mockBus.publish).not.toHaveBeenCalled();
+    });
+
+    it('endAiConversation → bus.publish({type:"ai_end_conversation"})', () => {
+      service.endAiConversation('exec-6');
+      expect(mockBus.publish).toHaveBeenCalledWith({
+        type: 'ai_end_conversation',
+        executionId: 'exec-6',
+      });
+    });
+
+    it('등록된 continue 핸들러 — 로컬 Map 키 있으면 resolve, 없으면 silent skip', () => {
+      // onModuleInit 이 5개 핸들러를 등록했다. mockBus.on 호출 인자로부터
+      // continue 핸들러를 꺼내 직접 호출해 검증.
+      const continueCall = mockBus.on.mock.calls.find(
+        (c: unknown[]) => c[0] === 'continue',
+      );
+      expect(continueCall).toBeDefined();
+      const handler = continueCall![1] as (msg: unknown) => void;
+
+      const resolveSpy = jest.fn();
+      const pendings = (
+        service as unknown as {
+          pendingContinuations: Map<
+            string,
+            { nodeId: string; resolve: jest.Mock; reject: jest.Mock }
+          >;
+        }
+      ).pendingContinuations;
+      pendings.set('exec-1', {
+        nodeId: 'n1',
+        resolve: resolveSpy,
+        reject: jest.fn(),
+      });
+
+      handler({ type: 'continue', executionId: 'exec-1', payload: { ok: 1 } });
+      expect(resolveSpy).toHaveBeenCalledWith({ ok: 1 });
+      expect(pendings.has('exec-1')).toBe(false);
+
+      // 키가 없는 메시지 — silent skip.
+      handler({
+        type: 'continue',
+        executionId: 'exec-not-here',
+        payload: undefined,
+      });
+      // 어떤 에러도 던지지 않음. 추가 resolve 도 일어나지 않음 (resolveSpy 횟수 1).
+      expect(resolveSpy).toHaveBeenCalledTimes(1);
     });
   });
 
@@ -1066,10 +1233,11 @@ describe('ExecutionEngineService', () => {
       );
     });
 
-    it('should throw when continueExecution called without pending continuation', async () => {
-      expect(() => service.continueExecution('non-existent', {})).toThrow(
-        'No pending continuation',
-      );
+    it('should silently skip continueExecution without local pending continuation (multi-instance safe)', () => {
+      // PR-B — 다중 인스턴스에서 다른 인스턴스가 호스팅 중일 수 있으므로
+      // "No pending continuation" 즉시 throw 는 폐기됐다. publish 만 수행하고
+      // 키가 있는 인스턴스만 실제 resolve 한다.
+      expect(() => service.continueExecution('non-existent', {})).not.toThrow();
     });
 
     it('should throw when continueAiConversation receives oversized message', async () => {
@@ -1083,10 +1251,11 @@ describe('ExecutionEngineService', () => {
       ).toThrow('Message exceeds maximum length');
     });
 
-    it('should throw when continueAiConversation called without pending continuation', () => {
+    it('should silently skip continueAiConversation without local pending continuation (multi-instance safe)', () => {
+      // PR-B — 위와 동일 사유. publish 만 수행하고 silent skip.
       expect(() =>
         service.continueAiConversation('non-existent', 'hello'),
-      ).toThrow('No pending continuation');
+      ).not.toThrow();
     });
 
     it('should handle cancellation of waiting execution', async () => {

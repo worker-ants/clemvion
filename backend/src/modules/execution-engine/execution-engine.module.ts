@@ -25,6 +25,7 @@ import { McpModule } from '../mcp/mcp.module';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { BACKGROUND_EXECUTION_QUEUE } from './queues/background-execution.queue';
 import { BackgroundExecutionProcessor } from './queues/background-execution.processor';
+import { ContinuationBusService } from './continuation/continuation-bus.service';
 
 @Module({
   imports: [
@@ -56,6 +57,7 @@ import { BackgroundExecutionProcessor } from './queues/background-execution.proc
     ForEachExecutor,
     ParallelExecutor,
     BackgroundExecutionProcessor,
+    ContinuationBusService,
   ],
   exports: [
     ExecutionEngineService,

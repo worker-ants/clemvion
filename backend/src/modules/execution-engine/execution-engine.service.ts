@@ -19,6 +19,10 @@ import { Node, NodeCategory } from '../nodes/entities/node.entity';
 import { Edge } from '../edges/entities/edge.entity';
 import { Workflow } from '../workflows/entities/workflow.entity';
 import { ExecutionNodeLog } from './entities/execution-node-log.entity';
+import {
+  ContinuationBusService,
+  ContinuationMessage,
+} from './continuation/continuation-bus.service';
 import { buildGraph, GraphEdge } from './graph/graph-builder';
 import { topologicalSort } from './graph/topological-sort';
 import { identifyBackEdges } from './graph/back-edge-identifier';
@@ -346,24 +350,111 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
     private readonly parallelExecutor: ParallelExecutor,
     @InjectQueue(BACKGROUND_EXECUTION_QUEUE)
     private readonly backgroundQueue: Queue<BackgroundExecutionJob>,
+    private readonly continuationBus: ContinuationBusService,
   ) {}
 
   async onModuleInit() {
     this.registerHandlers();
+    this.registerContinuationHandlers();
     await this.recoverStuckExecutions();
   }
 
   /**
-   * On server restart, mark any executions stuck in WAITING_FOR_INPUT as FAILED
-   * since their in-memory continuation Promises are lost.
+   * 다중 인스턴스 환경에서 사용자 입력 (form / button / ai-message / cancel)
+   * 은 어느 인스턴스로도 들어올 수 있다. ContinuationBusService 가 모든
+   * 인스턴스로 메시지를 fan-out 하고, 로컬 `pendingContinuations` Map 에
+   * 키가 있는 인스턴스만 실제 resolve 를 수행한다 (호스팅 인스턴스).
+   *
+   * Map 에 키가 없는 인스턴스는 silent skip — 같은 메시지를 두 곳에서
+   * 처리하지 않도록 보장한다.
+   */
+  private registerContinuationHandlers(): void {
+    this.continuationBus.on('continue', (msg) => {
+      const pending = this.pendingContinuations.get(msg.executionId);
+      if (!pending) return;
+      this.pendingContinuations.delete(msg.executionId);
+      pending.resolve(msg.payload);
+    });
+
+    this.continuationBus.on('cancel', (msg) => {
+      const pending = this.pendingContinuations.get(msg.executionId);
+      if (!pending) return;
+      this.pendingContinuations.delete(msg.executionId);
+      pending.reject(new ExecutionCancelledError());
+    });
+
+    this.continuationBus.on('button_click', (msg) => {
+      const pending = this.pendingContinuations.get(msg.executionId);
+      if (!pending) return;
+      this.pendingContinuations.delete(msg.executionId);
+      pending.resolve({
+        type: 'button_click',
+        buttonId: (msg.payload as { buttonId?: string } | undefined)?.buttonId,
+      });
+    });
+
+    this.continuationBus.on('ai_message', (msg) => {
+      const pending = this.pendingContinuations.get(msg.executionId);
+      if (!pending) return;
+      this.pendingContinuations.delete(msg.executionId);
+      pending.resolve({
+        type: 'ai_message',
+        message: (msg.payload as { message?: string } | undefined)?.message,
+      });
+    });
+
+    this.continuationBus.on(
+      'ai_end_conversation',
+      (msg: ContinuationMessage) => {
+        const pending = this.pendingContinuations.get(msg.executionId);
+        if (!pending) return;
+        this.pendingContinuations.delete(msg.executionId);
+        pending.resolve({ type: 'ai_end_conversation' });
+      },
+    );
+  }
+
+  /**
+   * Recovery 의 stale 임계값 — WAITING_FOR_INPUT 가 이 시간보다 오래되면
+   * 정상적으로 진행 중인 입력 대기로 보지 않고 stuck 으로 간주한다. 다중
+   * 인스턴스 환경에서 다른 인스턴스가 활발히 처리 중인 정상 대기를 잘못
+   * FAIL 시키는 것을 방지하는 보수적 가드.
+   */
+  private static readonly STUCK_RECOVERY_STALE_MS = 30 * 60 * 1000;
+
+  /**
+   * 분산 lock 의 TTL (초). 부팅 동시 진행 시 다른 인스턴스가 lock 을 획득해
+   * 본 인스턴스의 recovery 가 skip 되더라도, lock 보유자가 죽었을 때 60초
+   * 후 lock 이 expire 되어 다음 부팅에서 다시 시도 가능.
+   */
+  private static readonly RECOVERY_LOCK_TTL_SECONDS = 60;
+
+  /**
+   * On server restart, mark executions stuck in WAITING_FOR_INPUT as FAILED.
+   * 다중 인스턴스 환경에서:
+   * - SET NX 분산 lock 으로 동시에 여러 인스턴스가 recovery 를 수행하지 않게
+   *   가드.
+   * - `startedAt < now() - 30분` 인 row 만 FAIL 처리 — 다른 인스턴스가 정상
+   *   처리 중인 신규 대기는 보존한다.
    */
   private async recoverStuckExecutions(): Promise<void> {
-    // WARN #1 (DB) — N건의 개별 save (loop 도중 서버 재기동 시 부분 복구 위험)
-    // 대신 단일 atomic UPDATE 로 교체. SQL 단일 문장은 내부적으로 트랜잭션
-    // 이므로 정합성 보장. durationMs 는 stuck recovery 의 정확도가 중요하지
-    // 않아 일괄 NULL 유지 — 운영 대시보드는 finishedAt - startedAt 으로 별도
-    // 계산할 수 있다.
+    const acquired = await this.continuationBus.acquireLock(
+      'exec:recover:lock',
+      ExecutionEngineService.RECOVERY_LOCK_TTL_SECONDS,
+    );
+    if (!acquired) {
+      // 다른 인스턴스가 이미 처리 중. 본 인스턴스는 skip — lock 이 expire
+      // 된 다음 부팅이나 다른 인스턴스의 후속 호출에서 처리된다.
+      return;
+    }
+
+    // WARN #1 (DB) — N건의 개별 save 대신 단일 atomic UPDATE. SQL 단일
+    // 문장은 내부적으로 트랜잭션 이므로 정합성 보장. durationMs 는 stuck
+    // recovery 의 정확도가 중요하지 않아 일괄 NULL 유지.
     const finishedAt = new Date();
+    const staleThreshold = new Date(
+      finishedAt.getTime() - ExecutionEngineService.STUCK_RECOVERY_STALE_MS,
+    );
     const updateResult = await this.executionRepository
       .createQueryBuilder()
       .update(Execution)
@@ -376,12 +467,13 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
         finishedAt,
       })
       .where('status = :status', { status: ExecutionStatus.WAITING_FOR_INPUT })
+      .andWhere('started_at < :threshold', { threshold: staleThreshold })
       .execute();
 
     const affected = updateResult.affected ?? 0;
     if (affected > 0) {
       this.logger.warn(
-        `Recovered ${affected} execution(s) stuck in WAITING_FOR_INPUT`,
+        `Recovered ${affected} stale execution(s) (>30min) stuck in WAITING_FOR_INPUT`,
       );
     }
   }
@@ -1576,26 +1668,29 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
 
   /**
    * Resume a paused execution by submitting form data.
-   * Called from WebSocket handler or REST endpoint.
+   *
+   * 다중 인스턴스 환경에서 호출자가 어느 인스턴스로 라우팅됐는지 모르므로,
+   * 항상 ContinuationBusService 를 통해 모든 인스턴스에 publish 한다. 실제
+   * resolve 는 `pendingContinuations` Map 에 키가 있는 단일 호스팅 인스턴스
+   * 에서만 일어난다 (registerContinuationHandlers).
+   *
+   * "No pending continuation" 즉시 에러는 단일 인스턴스 어디에서도 정확히
+   * 판단할 수 없으므로 폐기됐다. WAITING_FOR_INPUT 상태 검증은 publisher
+   * 측 (controller / WS gateway) 의 책임이다.
    */
   continueExecution(executionId: string, formData?: unknown): void {
-    const pending = this.pendingContinuations.get(executionId);
-    if (!pending) {
-      throw new Error(`No pending continuation for execution: ${executionId}`);
-    }
-    this.pendingContinuations.delete(executionId);
-    pending.resolve(formData);
+    void this.continuationBus.publish({
+      type: 'continue',
+      executionId,
+      payload: formData,
+    });
   }
 
   /**
    * Cancel a waiting execution by rejecting the pending continuation.
    */
   cancelWaitingExecution(executionId: string): void {
-    const pending = this.pendingContinuations.get(executionId);
-    if (pending) {
-      this.pendingContinuations.delete(executionId);
-      pending.reject(new ExecutionCancelledError());
-    }
+    void this.continuationBus.publish({ type: 'cancel', executionId });
   }
 
   /**
@@ -1603,12 +1698,11 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
    * Called from WebSocket handler.
    */
   continueButtonClick(executionId: string, buttonId: string): void {
-    const pending = this.pendingContinuations.get(executionId);
-    if (!pending) {
-      throw new Error(`No pending continuation for execution: ${executionId}`);
-    }
-    this.pendingContinuations.delete(executionId);
-    pending.resolve({ type: 'button_click', buttonId });
+    void this.continuationBus.publish({
+      type: 'button_click',
+      executionId,
+      payload: { buttonId },
+    });
   }
 
   /**
@@ -1617,29 +1711,26 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
   private static readonly MAX_MESSAGE_LENGTH = 10_000;
 
   continueAiConversation(executionId: string, message: string): void {
-    const pending = this.pendingContinuations.get(executionId);
-    if (!pending) {
-      throw new Error(`No pending continuation for execution: ${executionId}`);
-    }
     if (message.length > ExecutionEngineService.MAX_MESSAGE_LENGTH) {
       throw new Error(
         `Message exceeds maximum length of ${ExecutionEngineService.MAX_MESSAGE_LENGTH} characters`,
       );
     }
-    this.pendingContinuations.delete(executionId);
-    pending.resolve({ type: 'ai_message', message });
+    void this.continuationBus.publish({
+      type: 'ai_message',
+      executionId,
+      payload: { message },
+    });
   }
 
   /**
    * End a multi-turn AI conversation.
    */
   endAiConversation(executionId: string): void {
-    const pending = this.pendingContinuations.get(executionId);
-    if (!pending) {
-      throw new Error(`No pending continuation for execution: ${executionId}`);
-    }
-    this.pendingContinuations.delete(executionId);
-    pending.resolve({ type: 'ai_end_conversation' });
+    void this.continuationBus.publish({
+      type: 'ai_end_conversation',
+      executionId,
+    });
   }
 
   /**
