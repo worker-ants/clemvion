@@ -25,13 +25,13 @@
 | --- | --- | --- |
 | Phase 1 — 엔진 plumbing | 완료 | `6953cafb` + 후속 quality gate `ce059405` |
 | Phase 2 — Send Email + HTTP Request 트리거 | 완료 | `e1ecbc1f` (helpers) + `e516d3e1` (send-email) + `2ffdf058` (http-request) + `ef15242c` (spec) + `198bbefe` (style) + `104d1bb9` (ai-review 조치 12/16) |
-| Phase 3 — 나머지 핸들러 마이그레이션 | 미진행 | |
+| Phase 3 — 나머지 핸들러 마이그레이션 | 완료 | `c29ee55b` (PR-3a) + `75ec5eb6` (PR-3b) + `05b69896` (PR-3c) + `71e4fa7a` (PR-3d) + `6eeeb095` (PR-3e) + `7f7a9d3d` (PR-3f) — 25/25 핸들러 마이그레이션 |
 | Phase 4 — Frontend 자동완성 회귀 점검 | 미진행 | |
 | Phase 5 — Swagger / OpenAPI 영향 검증 | 미진행 | |
 | Phase 6 — DB / 실행 이력 호환성 검증 | 미진행 | |
 | Phase 7 — 정리 / 클로저 | 미진행 | |
 
-PRD 에서는 `ENG-RC-01` (엔진의 `rawConfig` 노출), `ENG-RC-03` (raw + evaluated 양쪽 노출) 가 ✅ 로, `ENG-RC-02` (핸들러 echo 패턴), `ENG-RC-04` (전체 핸들러 마이그레이션) 가 🚧 로 정렬되어 있다 — 2/26 핸들러만 마이그레이션됐기 때문에 Phase 3 완료 시 ✅.
+PRD 에서는 `ENG-RC-01` (엔진의 `rawConfig` 노출), `ENG-RC-02` (핸들러 echo 패턴), `ENG-RC-03` (raw + evaluated 양쪽 노출), `ENG-RC-04` (전체 핸들러 마이그레이션) 모두 ✅ — 25/25 핸들러 모두 raw-echo 패턴 적용 (AI Agent 의 final 출력 echo 두 곳은 후속 보강 후보 지만, 핵심 echo 지점은 모두 rawConfig 기반).
 
 ## 구현 완료 — Phase 1: 엔진 plumbing
 
@@ -88,31 +88,41 @@ PRD 에서는 `ENG-RC-01` (엔진의 `rawConfig` 노출), `ENG-RC-03` (raw + eva
 - `198bbefe style(integration): Phase 2 prettier / lint --fix 자동 정리`.
 - `104d1bb9 refactor(integration): ai-review Phase 2 조치 — Warning 11 + Info 1 (12/16)`.
 
+## 구현 완료 — Phase 3: 나머지 핸들러 마이그레이션
+
+25개 핸들러 (Trigger 1 + Logic 12 + Data 2 + Flow 1 + Integration 1 + Presentation 5 + AI 3) 모두 raw-echo 패턴 적용. 카테고리 단위로 6개 PR 로 분할 진행 — 각 PR 마다 backend lint·unit·build green 확인.
+
+**적용 패턴** (모든 핸들러 공통):
+- `const rawConfig = (context.rawConfig ?? config) as ...` — Phase 1 이 주입한 frozen rawConfig 를 사용, 단위 테스트가 engine 미경유로 호출하는 경로는 evaluated config 로 fallback.
+- `config: { ...rawConfig fields }` 또는 spread — 사용자 입력 raw 그대로 echo.
+- 평가 결과는 동작 로직에서만 사용 (LLM 호출 / DB 쿼리 / iteration 카운트 / 조건 평가 / 변수 할당 등).
+- Container 노드 (loop / foreach / map / parallel / background) 는 `output: null` 또는 raw items 유지 — engine 이 iteration 결과로 덮어씀 (Principle 9 contract).
+
+**카테고리별 결과**:
+
+| PR | 핸들러 | 핵심 변경 |
+| --- | --- | --- |
+| `c29ee55b` PR-3a | manual-trigger / if-else / switch / filter / split / variable-declaration / variable-modification (7) | 단순 echo 마이그레이션 + ENG-RC-* 직교성 회귀 테스트 6건 |
+| `75ec5eb6` PR-3b | loop / foreach / map / parallel / background / merge (6) | container Principle 9 contract 검증 + parallel 의 maxConcurrency 클램프 의미 정정 (raw 그대로 echo, observable 클램프는 `result.port.length`) |
+| `05b69896` PR-3c | transform / code / workflow / database-query (4) | DB query / Code source / Sub-workflow inputMapping 의 raw expression 보존 |
+| `71e4fa7a` PR-3d | form / carousel / chart / table / template (5) | Table 의 `resolvedColumns` (label expression 평가 결과) 를 `config.columns` stamp 에서 `output.columns` 로 이전 — Principle 1.1 위반 정정. Template 의 `config.template = evaluated content` 정정 |
+| `6eeeb095` PR-3e | text-classifier / information-extractor (2) | 3개 echo 지점 (LLM 실패 / single / multi) 통합. Extractor 단일 turn 의 inputField/schema/instructions/examples raw echo |
+| `7f7a9d3d` PR-3f | ai-agent (1) | non-tool 필드만 마이그레이션 (single-turn 종료 + multi-turn initial waiting + multi-turn resume waiting). multi-turn resume 는 `state.rawConfig` snapshot 사용 (Phase 1) |
+
+**검증**:
+- 모든 PR 에서 backend `npm run lint` clean / `npm run test` 169 suite 2788 / 2788 pass / `npm run build` clean.
+- 누적 신규 테스트: 11건 (PR-3a 6건 + PR-3b 5건 ENG-RC-* 직교성 + parallel 의미 정정).
+- 행동 회귀 0 — 기존 모든 테스트가 통과한 채 echo 의 의미만 raw 로 변경됨.
+
+**남은 후속 보강** (Phase 7 또는 별도 PR):
+- AI Agent 의 `buildMultiTurnFinalOutput` / `buildConditionOutput` 가 현재 `{mode, model}` 만 echo. `state.rawConfig` 를 helper 시그니처에 plumbing 하면 raw 전체 echo 가능 — 기능 회귀 없으므로 follow-up.
+- Carousel / Table 의 256KB cap 적용 — 현재 cap 미적용. Phase 7 에서 검토.
+
 ---
 
 ## 남은 작업
 
-진행되지 않은 phase 들을 한 단락으로 모은다. 각 phase 의 범위·출력물·PR 단위는 그대로 유효하지만, 실행은 Phase 3 → Phase 4 순서로 트리거 한다 (Phase 4~6 은 Phase 3 진행 중·이후 병렬 가능, Phase 7 은 마지막).
-
-### Phase 3 — 나머지 핸들러 마이그레이션
-
-25 핸들러를 카테고리별로 raw-echo 패턴으로 마이그레이션. expression-widget 필드를 식별 → `output.*` 로 노출.
-
-**영향 매트릭스**:
-
-| 카테고리 | 노드 | expression 사용 필드 (output 신설 후보) | echo 정책 영향도 |
-| --- | --- | --- | --- |
-| Presentation (5) | Form, Carousel, Chart, Table, Template | items, columns, template, fields 의 표현식 부분 | 높음 — config 가 광범위하게 echo 됨 |
-| AI (3) | Agent, Classifier, Extractor | systemPrompt, userPrompt, knowledgeBases (UUID) 등 | 중 — `output.result.*` 하위에 평가 결과 정착 |
-| Logic (12) | If/Else, Switch, Loop, Variable, Map, ForEach, Filter, Parallel, Merge, Background, Split | 조건식, count, target | 낮음 — 대다수 echo 안 함 |
-| Data (2) | Transform, Code | operations (Transform), code (Code 는 expression-exclusions) | 낮음 |
-| Trigger (1) | Manual Trigger | (없음) | 영향 없음 |
-| Flow (1) | Workflow | parameters | 중 |
-| Integration (1) | Database Query | query, parameters | 중 |
-
-**작업 흐름** (각 노드별): handler 의 echo 를 `context.rawConfig` 기반으로 변경 → expression 사용 필드의 evaluated 값을 `output.*` 로 노출 (Principle 8.2 의 카테고리 명명 규칙) → schema `*OutputSchema` 갱신 → unit test 갱신 → 노드별 spec 출력 예시 갱신.
-
-**PR 분할 권장**: 카테고리 단위 PR (Presentation 1건, AI 1건, Logic 1건, Data 1건, Flow 1건, DB Query 1건 — 총 ~6건). 각 PR 내부에서 노드별 commit 분리.
+진행되지 않은 phase 들을 한 단락으로 모은다. 각 phase 의 범위·출력물·PR 단위는 그대로 유효하지만, 실행은 Phase 4 → Phase 5 → Phase 6 → Phase 7 순서로 트리거 한다 (Phase 4~6 은 병렬 가능, Phase 7 은 마지막).
 
 ### Phase 4 — Frontend Expression Auto-complete 회귀 점검
 
@@ -146,9 +156,9 @@ NodeExecution.outputData JSONB 의 의미 변화에 대한 호환성 + UI 표시
 
 | Phase | Rollback 방법 |
 | --- | --- |
-| Phase 1 | `ExecutionContext.rawConfig` 제거. (배포 완료 — Phase 2 가 이미 의존하므로 단독 rollback 시 Phase 2 도 함께 revert 필요) |
+| Phase 1 | `ExecutionContext.rawConfig` 제거. (배포 완료 — Phase 2/3 가 이미 의존하므로 단독 rollback 시 함께 revert 필요) |
 | Phase 2 | Send Email / HTTP Request handler revert. legacy 워크플로의 `$node["X"].config.subject` 가 evaluated 로 되돌아감. (배포 완료) |
-| Phase 3 | 카테고리별 revert |
+| Phase 3 | 카테고리별 revert (PR-3a~3f 단위 — 6개 commit). (배포 완료) |
 | Phase 4 | frontend 변경 revert (영향 있을 경우) |
 | Phase 5 | API release note 정정 |
 | Phase 6 | DB 변경 없으므로 rollback 불필요 |
