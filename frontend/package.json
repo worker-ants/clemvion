@@ -33,17 +33,17 @@
     "@workflow/expression-engine": "file:../packages/expression-engine",
     "@workflow/node-summary": "file:../packages/node-summary",
     "@xyflow/react": "^12.10.2",
-    "axios": "^1.15.0",
+    "axios": "^1.16.0",
     "clsx": "^2.1.1",
     "cron-parser": "^5.5.0",
     "cronstrue": "^3.14.0",
     "dayjs": "^1.11.20",
-    "dompurify": "^3.3.3",
+    "dompurify": "^3.4.2",
     "fuse.js": "^7.3.0",
     "gray-matter": "^4.0.3",
     "lucide-react": "^1.7.0",
     "next": "^16.2.3",
-    "postcss": "^8.5.8",
+    "postcss": "^8.5.14",
     "react": "19.2.4",
     "react-dom": "19.2.4",
     "react-force-graph-3d": "^1.29.1",
@@ -82,5 +82,11 @@
     "jsdom": "^29.0.1",
     "typescript": "^5",
     "vitest": "^4.1.4"
+  },
+  "overrides": {
+    "next": {
+      "postcss": "^8.5.14"
+    },
+    "eslint-plugin-react-hooks": "7.0.1"
   }
 }
