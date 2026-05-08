@@ -1,4 +1,5 @@
 import {
+  ExecutionContext,
   NodeHandler,
   ValidationResult,
 } from '../../core/node-handler.interface.js';
@@ -30,18 +31,24 @@ export class TemplateHandler implements NodeHandler {
     return { valid: errors.length === 0, errors };
   }
 
-  execute(...[, config]: Parameters<NodeHandler['execute']>): Promise<unknown> {
+  execute(
+    _input: unknown,
+    config: Record<string, unknown>,
+    context: ExecutionContext,
+  ): Promise<unknown> {
     const content = typeof config.template === 'string' ? config.template : '';
     const outputFormat = (config.outputFormat as string) ?? 'text';
 
-    // `content` is the template string after the expression engine has
-    // resolved it — that's the runtime value. `outputFormat` and the raw
-    // template source stay in `config` only (Principle 1.1). Discriminator
-    // `type: 'template'` removed (Principle 1.1.4).
+    // CONVENTIONS Principle 7 — config echoes the **raw** template source
+    // (`{{ ... }}` preserved); `output.rendered` carries the evaluated
+    // content the engine produced. This corrects the prior behavior of
+    // stamping the evaluated `content` into `config.template`, which broke
+    // the raw / evaluated orthogonality (Principle 1.1).
+    const rawConfig = context.rawConfig ?? config;
     const payload: Record<string, unknown> = { rendered: content };
     const configEcho: Record<string, unknown> = {
-      outputFormat,
-      template: content,
+      outputFormat: rawConfig.outputFormat ?? outputFormat,
+      template: rawConfig.template,
     };
 
     const buttons = config.buttons as ButtonDef[] | undefined;
@@ -49,7 +56,7 @@ export class TemplateHandler implements NodeHandler {
       return Promise.resolve({
         config: {
           ...configEcho,
-          buttons,
+          buttons: rawConfig.buttons ?? buttons,
           buttonConfig: {
             buttons,
           },
