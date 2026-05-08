@@ -89,7 +89,7 @@ export class SendEmailHandler
     // read either side without ambiguity. Engine populates `rawConfig` for
     // every dispatch (Phase 1); the `?? config` fallback is solely for unit
     // tests that don't go through the engine.
-    const rawConfig = (context.rawConfig ?? config) as Record<string, unknown>;
+    const rawConfig = context.rawConfig ?? config;
     const configEcho: Record<string, unknown> = {
       integrationId: rawConfig.integrationId,
       to: rawConfig.to,

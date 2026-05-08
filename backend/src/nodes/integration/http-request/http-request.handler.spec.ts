@@ -7,9 +7,7 @@ function makeContext(rawConfig?: Record<string, unknown>): ExecutionContext {
     workflowId: 'wf-1',
     variables: {},
     nodeOutputCache: {},
-    ...(rawConfig
-      ? { rawConfig: Object.freeze({ ...rawConfig }) }
-      : {}),
+    ...(rawConfig ? { rawConfig: Object.freeze({ ...rawConfig }) } : {}),
   };
 }
 
@@ -850,7 +848,10 @@ describe('HttpRequestHandler', () => {
         },
         makeContext(),
       )) as {
-        output: { requestBody: Record<string, string>; requestBodyType: string };
+        output: {
+          requestBody: Record<string, string>;
+          requestBodyType: string;
+        };
       };
 
       expect(result.output.requestBodyType).toBe('form-data');

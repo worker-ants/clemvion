@@ -63,12 +63,7 @@ type HeaderEntries = Iterable<[string, string]>;
  * may pass partial mocks that only stub `.get()`.
  */
 export function sanitizeResponseHeaders(
-  source:
-    | Headers
-    | Record<string, string>
-    | HeaderEntries
-    | null
-    | undefined,
+  source: Headers | Record<string, string> | HeaderEntries | null | undefined,
 ): Record<string, string> {
   const out: Record<string, string> = {};
   const entries = iterateHeaders(source);
@@ -80,21 +75,13 @@ export function sanitizeResponseHeaders(
 }
 
 function iterateHeaders(
-  source:
-    | Headers
-    | Record<string, string>
-    | HeaderEntries
-    | null
-    | undefined,
+  source: Headers | Record<string, string> | HeaderEntries | null | undefined,
 ): Iterable<[string, string]> | null {
   if (source === null || source === undefined) return null;
   if (typeof Headers !== 'undefined' && source instanceof Headers) {
     return source.entries();
   }
-  if (
-    typeof source === 'object' &&
-    Symbol.iterator in (source as object)
-  ) {
+  if (typeof source === 'object' && Symbol.iterator in (source as object)) {
     return source as HeaderEntries;
   }
   if (typeof source === 'object') {
