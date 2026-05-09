@@ -665,6 +665,91 @@ describe("useExecutionEvents", () => {
     expect(useExecutionStore.getState().waitingButtonConfig).toEqual(btnConfig);
   });
 
+  // Loop body 가 같은 nodeId 의 여러 NodeExecution row (iter 1/2/3) 를
+  // 가질 때 snapshot reconcile 이 nodeStatuses 가드로 후속 iter row 의
+  // addNodeResult 까지 차단하던 회귀 가드 (PR-B hotfix #5 — handleNodeStarted
+  // 와 같은 패턴이 snapshot 경로에도 존재).
+  it("rehydrates every iteration row from snapshot (Loop body, same nodeId)", () => {
+    const ITER1 = "164fd9d1-5f54-4789-8277-4e210f1969e8";
+    const ITER2 = "85f48254-e3f1-44e5-80ae-1fc3c1e990ed";
+    const ITER3 = "e2606475-733b-4b92-b72e-e8e41dad9fa0";
+    const DONE = "3c3390ae-5995-43d0-bd54-041a7fa0f9c9";
+
+    useExecutionStore.getState().startExecution("exec-1");
+    renderHook(() => useExecutionEvents({ executionId: "exec-1" }));
+
+    emitSnapshot(
+      createMockExecution({
+        status: "completed",
+        nodeExecutions: [
+          {
+            id: ITER1,
+            executionId: "exec-1",
+            nodeId: "loop-body",
+            status: "completed",
+            durationMs: 4,
+            error: null,
+            startedAt: "2026-05-09T00:20:38.972Z",
+            finishedAt: "2026-05-09T00:20:38.976Z",
+            outputData: { iter: 1 },
+            node: { id: "loop-body", type: "transform", label: "반복 브릿지" },
+          },
+          {
+            id: ITER2,
+            executionId: "exec-1",
+            nodeId: "loop-body",
+            status: "completed",
+            durationMs: 3,
+            error: null,
+            startedAt: "2026-05-09T00:20:38.982Z",
+            finishedAt: "2026-05-09T00:20:38.985Z",
+            outputData: { iter: 2 },
+            node: { id: "loop-body", type: "transform", label: "반복 브릿지" },
+          },
+          {
+            id: ITER3,
+            executionId: "exec-1",
+            nodeId: "loop-body",
+            status: "completed",
+            durationMs: 3,
+            error: null,
+            startedAt: "2026-05-09T00:20:38.990Z",
+            finishedAt: "2026-05-09T00:20:38.993Z",
+            outputData: { iter: 3 },
+            node: { id: "loop-body", type: "transform", label: "반복 브릿지" },
+          },
+          {
+            id: DONE,
+            executionId: "exec-1",
+            nodeId: "result-display",
+            status: "completed",
+            durationMs: 4,
+            error: null,
+            startedAt: "2026-05-09T00:20:38.999Z",
+            finishedAt: "2026-05-09T00:20:39.003Z",
+            outputData: { final: true },
+            node: { id: "result-display", type: "template", label: "결과 표시" },
+          },
+        ],
+      }),
+    );
+
+    const results = useExecutionStore.getState().nodeResults;
+    // iter 별 row 모두 보존 (총 4개) — guard 가 후속 iter 를 skip 하면 2개만 남음.
+    expect(results).toHaveLength(4);
+
+    // 모든 row 의 startedAt 정상 hydrate.
+    for (const r of results) expect(r.startedAt).toBeTruthy();
+
+    // sortByStartedAt 결과가 backend 의 ASC 순서대로.
+    expect(results.map((r) => r.nodeExecutionId)).toEqual([
+      ITER1,
+      ITER2,
+      ITER3,
+      DONE,
+    ]);
+  });
+
   it("infers ai_conversation interaction from ai_agent nodeType fallback", () => {
     useExecutionStore.getState().startExecution("exec-1");
     renderHook(() => useExecutionEvents({ executionId: "exec-1" }));
