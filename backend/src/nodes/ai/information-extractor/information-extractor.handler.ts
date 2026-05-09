@@ -84,6 +84,11 @@ interface MultiTurnState {
   /** Persisted per-turn LLM trace — mirrors the shape AI Agent uses so the
    * frontend LlmInformationTab can render both node types uniformly. */
   turnDebugHistory: TurnDebugEntry[];
+  /** Frozen snapshot of the user-authored config (templates preserved). The
+   * engine merges `node.config` into the resume state on the first waiting
+   * tick so subsequent turns read raw values from `state.rawConfig` rather
+   * than the per-turn evaluated `config`. CONVENTIONS Principle 7. */
+  rawConfig?: Record<string, unknown>;
   // Unused by this handler but kept so the engine can pass generic state fields
   toolCalls?: number;
   ragSources?: unknown[];
@@ -283,6 +288,14 @@ export class InformationExtractorHandler implements NodeHandler {
       examples,
     );
 
+    // CONVENTIONS Principle 7 — capture rawConfig so the multi-turn ended
+    // echo (multiTurnConfigEcho) and downstream resume turns surface
+    // user-authored templates rather than engine-resolved values. The
+    // engine ALSO merges node.config into resumeState on first waiting tick
+    // (execution-engine.service.ts), but storing it here too keeps the
+    // initial-turn ended path (forcedEnd / completed / max_turns within
+    // executeMultiTurn) consistent before any waiting tick has happened.
+    const rawConfig: Record<string, unknown> = context.rawConfig ?? config;
     const stateBase = {
       llmConfigId,
       model: resolvedModel,
@@ -292,6 +305,7 @@ export class InformationExtractorHandler implements NodeHandler {
       examples,
       maxTurns,
       maxCollectionRetries,
+      rawConfig,
     };
 
     // No inputField: skip initial LLM call and wait for the user's first
@@ -810,15 +824,27 @@ export class InformationExtractorHandler implements NodeHandler {
     examples: Example[];
     maxTurns: number;
     maxCollectionRetries: number;
+    rawConfig?: Record<string, unknown>;
   }): Record<string, unknown> {
+    // CONVENTIONS Principle 7 — multi-turn ended echo surfaces the frozen
+    // rawConfig (engine merges it into both `context.rawConfig` and
+    // `state.rawConfig`) so downstream nodes see user-authored templates,
+    // not engine-resolved values. Falls back to evaluated state values when
+    // a legacy state row was persisted before rawConfig plumbing existed.
+    const raw = state.rawConfig ?? {};
     return defined({
-      mode: 'multi_turn' as const,
-      model: state.model,
-      schema: state.outputSchema,
-      instructions: state.instructions,
-      examples: state.examples,
-      maxTurns: state.maxTurns,
-      maxCollectionRetries: state.maxCollectionRetries,
+      mode: (raw.mode as string | undefined) ?? 'multi_turn',
+      model: (raw.model as string | undefined) ?? state.model,
+      schema:
+        (raw.outputSchema as OutputField[] | undefined) ?? state.outputSchema,
+      instructions:
+        (raw.instructions as string | undefined) ?? state.instructions,
+      examples: (raw.examples as Example[] | undefined) ?? state.examples,
+      inputField: raw.inputField as string | undefined,
+      maxTurns: (raw.maxTurns as number | undefined) ?? state.maxTurns,
+      maxCollectionRetries:
+        (raw.maxCollectionRetries as number | undefined) ??
+        state.maxCollectionRetries,
     });
   }
 
@@ -1253,6 +1279,7 @@ You: (call ${FINALIZE_TOOL_NAME} with order_id="312321-1331231", product_id="XYZ
       totalThinkingTokens: (raw.totalThinkingTokens as number) || 0,
       turnDebugHistory:
         (raw.turnDebugHistory as TurnDebugEntry[] | undefined) ?? [],
+      rawConfig: raw.rawConfig as Record<string, unknown> | undefined,
     };
   }
 

@@ -131,6 +131,8 @@ LLM 3 노드는 `output.result.*` / `output.error.*` / `output.interaction.*` wr
 
 > 멀티턴에서 `max_retries` 로 종료 시에는 `output.error` 와 `output.result` 가 **병존**한다. 에러지만 부분 수집 결과가 있어 후속 노드가 활용할 수 있도록 둘 다 보존한다. `output.error` 존재 여부로 에러/정상을 판단한다.
 
+> **Config echo 정책 (CONVENTIONS Principle 7)**: single-turn / multi-turn waiting / multi-turn ended (`completed`·`max_turns`·`user_ended`·`error`·`max_retries`) 의 모든 종결 시점에서 `output.config` 는 **유저가 입력한 raw 값** (template `{{ ... }}` 보존) 을 echo 한다. 엔진이 dispatch 직전 평가한 값이 아니다. 멀티턴 첫 턴 이후의 resumed 턴에서도 동일 — 엔진이 `state.rawConfig` 로 frozen snapshot 을 운반하므로 후속 노드의 `$node["X"].config.{model, schema, instructions, examples, inputField, maxTurns, maxCollectionRetries}` 는 수명 내내 raw 값을 본다.
+
 ### 5.1 Case: Single Turn 성공
 
 ```json

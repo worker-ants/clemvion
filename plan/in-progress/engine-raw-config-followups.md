@@ -6,24 +6,21 @@
 
 본 PR (raw config exposure) 의 25개 핸들러 마이그레이션 (Phase 3) 에서 다음 두 항목은 회귀 위험·범위 한정성 때문에 follow-up 으로 분리됐다.
 
-## Follow-up 1 — AI Agent multi-turn helper rawConfig plumbing
+## Follow-up 1 — AI Agent multi-turn helper rawConfig plumbing — ✅ 완료 (2026-05-09)
 
-**현황** (2026-05-09 재확인):
-- `backend/src/nodes/ai/ai-agent/ai-agent.handler.ts` 의 `buildMultiTurnFinalOutput` (L1265) / `buildConditionOutput` (L1320) 가 `config: { mode, model }` 만 echo. 다른 echo 지점 (line 735 single-turn / line 855 initial waiting / line 1188 resumed) 은 이미 `state.rawConfig` 또는 `context.rawConfig` 에서 systemPrompt / userPrompt / maxTurns / conditions / knowledgeBases 등 raw 전체 echo. **호출자 사이트 4 곳** (`buildMultiTurnFinalOutput` 2 + `buildConditionOutput` 2).
-- `backend/src/nodes/ai/information-extractor/information-extractor.handler.ts:813` 부근의 `multiTurnConfigEcho` 가 `state.{model, outputSchema, instructions, examples, maxTurns, maxCollectionRetries}` 를 echo — state 안의 평가된 필드 사용. raw 가 아님.
+**현황** (2026-05-09 재확인 → 조치 완료):
+- `backend/src/nodes/ai/ai-agent/ai-agent.handler.ts` 의 `buildMultiTurnFinalOutput` / `buildConditionOutput` 에 `rawConfig?: Record<string, unknown>` 파라미터 추가, 새 private helper `buildMultiTurnConfigEcho` 가 mode/model 외 systemPrompt·userPrompt·maxTurns·maxToolCalls·responseFormat·knowledgeBases·conditions 를 raw 그대로 echo. 호출자 4 곳 (line 595/1034 buildConditionOutput, line 1159 buildMultiTurnFinalOutput, line 1246 endMultiTurnConversation) 모두 `context.rawConfig` 또는 `state.rawConfig` 를 전달.
+- `backend/src/nodes/ai/information-extractor/information-extractor.handler.ts` 의 `MultiTurnState` 에 `rawConfig?` 필드 추가, `executeMultiTurn` 의 stateBase 에 `context.rawConfig ?? config` 저장, `hydrateState` 가 raw.rawConfig 를 hydrate. `multiTurnConfigEcho` 가 raw 의 model·outputSchema·instructions·examples·inputField·maxTurns·maxCollectionRetries 를 우선 echo (state 평가값은 fallback).
+- 엔진 `execution-engine.service.ts:1838` 가 첫 waiting tick 에 node.config 를 frozen snapshot 으로 resumeState 에 자동 merge — 라이프사이클상 multi-turn waiting → resumed → ended 모두 동일한 raw snapshot 을 본다 (handler 가 명시 설정한 rawConfig 가 있으면 존중).
 
-**왜 follow-up 인가**:
-- helper 시그니처에 `rawConfig` plumbing 시 multi-turn waiting → resumed → ended 의 nodeOutputCache 라이프사이클이 어느 시점의 echo 를 expose 하는지 분석 필요.
-- 첫 turn waiting 의 outputData 가 raw 를 echo 하더라도 ended turn 이 cache 를 덮어쓰면 후속 노드의 `$node["AI_Agent"].config.systemPrompt` 가 수명 동안 raw 인지 evaluated 인지 시점별로 달라질 수 있다. 회귀 영향 분석 + 테스트 보강 필요.
+**테스트 보강**:
+- `ai-agent.handler.spec.ts` — `buildMultiTurnFinalOutput` 에 raw echo 통과 + fallback 케이스 2 건, condition-triggered execute() 의 `output.config` 가 `context.rawConfig` 의 systemPrompt/conditions 를 echo 하는지 검증 1 건.
+- `information-extractor.handler.spec.ts` — `buildMultiTurnFinalOutput` 의 raw echo (template 보존) + 평가값 fallback 케이스 2 건.
+- TEST WORKFLOW: backend lint clean, 2908 unit tests green, build green.
 
-**작업 범위**:
-1. `state.rawConfig` 의 라이프사이클 정리 (engine 의 multi-turn cache flush 시점 spec 점검).
-2. `buildMultiTurnFinalOutput` / `buildConditionOutput` / `multiTurnConfigEcho` 시그니처에 raw 인자 추가 + 호출자 4~6 곳 수정.
-3. multi-turn ended 시점의 outputData echo 를 raw 로 통일.
-4. 단위 테스트 + ai-agent / information-extractor handler.spec 보강.
-5. spec/4-nodes/3-ai/1-ai-agent.md 와 3-information-extractor.md 의 config 예시에 raw 패턴 명시.
-
-**완료 기준**: 4 개 echo 지점 (single-turn + multi-turn initial + multi-turn ended + condition-trigger) 모두 raw 전체 echo, backend lint·unit·build green, ai-review 1회.
+**Spec 갱신**:
+- `spec/4-nodes/3-ai/1-ai-agent.md` §7 머리 — Principle 7 raw echo 정책 명시.
+- `spec/4-nodes/3-ai/3-information-extractor.md` §5 머리 — single/multi-turn waiting/ended 모두 raw echo 명시.
 
 ## Follow-up 2 — Carousel / Table output 256KB cap
 
