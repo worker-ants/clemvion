@@ -1588,7 +1588,7 @@ export class ExecutionEngineService
       // 에서 'buttons'/'form'/'ai_conversation' 분기를 못 잡아 Preview 탭의
       // 버튼이 disabled 로 그려진다.
       nodeExec.outputData = withInteractionMeta(
-        nodeOutput as Record<string, unknown>,
+        nodeOutput as unknown as Record<string, unknown>,
         'form',
       );
     }
@@ -2220,7 +2220,8 @@ export class ExecutionEngineService
       // handler bug leaks it.
       const finalAdapted = context.structuredOutputCache?.[node.id];
       const finalOutput = {
-        ...((finalAdapted ?? context.nodeOutputCache[node.id]) as Record<
+        ...((finalAdapted ??
+          context.nodeOutputCache[node.id]) as unknown as Record<
           string,
           unknown
         >),

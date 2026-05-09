@@ -1,6 +1,7 @@
 import { Logger } from '@nestjs/common';
 import {
   NodeHandler,
+  NodeHandlerOutput,
   ValidationResult,
   ExecutionContext,
 } from '../../core/node-handler.interface.js';
@@ -73,7 +74,7 @@ export class MergeHandler implements NodeHandler {
     input: unknown,
     config: Record<string, unknown>,
     context: ExecutionContext,
-  ): Promise<unknown> {
+  ): Promise<NodeHandlerOutput> {
     const {
       strategy = DEFAULT_STRATEGY,
       outputFormat = DEFAULT_OUTPUT_FORMAT,

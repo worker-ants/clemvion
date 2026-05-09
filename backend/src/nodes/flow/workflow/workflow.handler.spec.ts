@@ -18,6 +18,8 @@ describe('WorkflowHandler', () => {
       workflowId: 'parent-wf-1',
       variables: {},
       nodeOutputCache: {},
+      structuredOutputCache: {},
+      engineResolvedConfigCache: {},
       recursionDepth: 0,
       _executedNodes: new Set<string>(),
     };
@@ -160,7 +162,11 @@ describe('WorkflowHandler', () => {
         new Error('Expression error in config'),
       );
 
-      const result = (await handler.execute({}, syncConfig, context)) as {
+      const result = (await handler.execute(
+        {},
+        syncConfig,
+        context,
+      )) as unknown as {
         port: string;
         output: { error: { code: string; message: string } };
       };
@@ -373,7 +379,7 @@ describe('WorkflowHandler', () => {
         {},
         { workflowId: 'sub-wf-1', mode: 'async' },
         context,
-      )) as {
+      )) as unknown as {
         port: string;
         output: {
           error: {
@@ -401,7 +407,7 @@ describe('WorkflowHandler', () => {
         {},
         { workflowId: 'sub-wf-1', mode: 'sync' },
         context,
-      )) as {
+      )) as unknown as {
         port: string;
         output: {
           error: {

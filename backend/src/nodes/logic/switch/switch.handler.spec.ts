@@ -12,6 +12,9 @@ describe('SwitchHandler', () => {
       workflowId: 'test-wf-1',
       variables: {},
       nodeOutputCache: {},
+      structuredOutputCache: {},
+      engineResolvedConfigCache: {},
+      recursionDepth: 0,
     };
   });
 
@@ -221,7 +224,7 @@ describe('SwitchHandler', () => {
           cases: [{ id: 'c1', value: 'x' }],
         },
         context,
-      )) as Record<string, unknown>;
+      )) as unknown as Record<string, unknown>;
       expect(result.output).toBe(input);
     });
 
@@ -601,7 +604,7 @@ describe('SwitchHandler', () => {
             hasDefault: true,
           }),
         },
-      )) as { config: { switchValue: unknown }; port: string };
+      )) as unknown as { config: { switchValue: unknown }; port: string };
 
       expect(result.port).toBe('asia');
       expect(result.config.switchValue).toBe('{{ $input.region }}');

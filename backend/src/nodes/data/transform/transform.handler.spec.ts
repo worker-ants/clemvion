@@ -8,6 +8,9 @@ describe('TransformHandler', () => {
     workflowId: 'wf-1',
     variables: {},
     nodeOutputCache: {},
+    structuredOutputCache: {},
+    engineResolvedConfigCache: {},
+    recursionDepth: 0,
   };
 
   beforeEach(() => {
@@ -113,7 +116,7 @@ describe('TransformHandler', () => {
           ],
         },
         context,
-      )) as { output: Record<string, unknown> };
+      )) as unknown as { output: Record<string, unknown> };
       expect(result.output.num).toBe('42');
     });
 
@@ -126,7 +129,7 @@ describe('TransformHandler', () => {
           ],
         },
         context,
-      )) as { output: Record<string, unknown> };
+      )) as unknown as { output: Record<string, unknown> };
       expect(result.output.str).toBe(42);
     });
 
@@ -139,7 +142,7 @@ describe('TransformHandler', () => {
           ],
         },
         context,
-      )) as { output: Record<string, unknown> };
+      )) as unknown as { output: Record<string, unknown> };
       expect(result.output.val).toBe(true);
     });
 
@@ -165,7 +168,7 @@ describe('TransformHandler', () => {
           operations: [{ type: 'string_op', field: 'text', operation: 'trim' }],
         },
         context,
-      )) as { output: Record<string, unknown> };
+      )) as unknown as { output: Record<string, unknown> };
       expect(result.output.text).toBe('hello');
     });
 
@@ -178,7 +181,7 @@ describe('TransformHandler', () => {
           ],
         },
         context,
-      )) as { output: Record<string, unknown> };
+      )) as unknown as { output: Record<string, unknown> };
       expect(result.output.text).toBe('HELLO');
     });
 
@@ -191,7 +194,7 @@ describe('TransformHandler', () => {
           ],
         },
         context,
-      )) as { output: Record<string, unknown> };
+      )) as unknown as { output: Record<string, unknown> };
       expect(result.output.text).toBe('hello');
     });
 
@@ -209,7 +212,7 @@ describe('TransformHandler', () => {
           ],
         },
         context,
-      )) as { output: Record<string, unknown> };
+      )) as unknown as { output: Record<string, unknown> };
       expect(result.output.text).toBe('hello there');
     });
   });
@@ -224,7 +227,7 @@ describe('TransformHandler', () => {
           ],
         },
         context,
-      )) as { output: Record<string, unknown> };
+      )) as unknown as { output: Record<string, unknown> };
       expect(result.output.val).toBe(15);
     });
 
@@ -242,7 +245,7 @@ describe('TransformHandler', () => {
           ],
         },
         context,
-      )) as { output: Record<string, unknown> };
+      )) as unknown as { output: Record<string, unknown> };
       expect(result.output.val).toBe(7);
     });
 
@@ -260,7 +263,7 @@ describe('TransformHandler', () => {
           ],
         },
         context,
-      )) as { output: Record<string, unknown> };
+      )) as unknown as { output: Record<string, unknown> };
       expect(result.output.val).toBe(12);
     });
 
@@ -273,7 +276,7 @@ describe('TransformHandler', () => {
           ],
         },
         context,
-      )) as { output: Record<string, unknown> };
+      )) as unknown as { output: Record<string, unknown> };
       expect(result.output.val).toBe(5);
     });
 
@@ -286,7 +289,7 @@ describe('TransformHandler', () => {
           ],
         },
         context,
-      )) as { output: Record<string, unknown> };
+      )) as unknown as { output: Record<string, unknown> };
       expect(result.output.val).toBe(10);
     });
 
@@ -295,7 +298,7 @@ describe('TransformHandler', () => {
         { val: 3.7 },
         { operations: [{ type: 'math_op', field: 'val', operation: 'round' }] },
         context,
-      )) as { output: Record<string, unknown> };
+      )) as unknown as { output: Record<string, unknown> };
       expect(result.output.val).toBe(4);
     });
   });
@@ -350,7 +353,7 @@ describe('TransformHandler', () => {
           ],
         },
         context,
-      )) as { output: Record<string, unknown> };
+      )) as unknown as { output: Record<string, unknown> };
       expect(result.output).toEqual({ user: { profile: {}, years: 31 } });
     });
 
@@ -361,7 +364,7 @@ describe('TransformHandler', () => {
           operations: [{ type: 'set_field', field: 'items[0].v', value: 99 }],
         },
         context,
-      )) as { output: Record<string, unknown> };
+      )) as unknown as { output: Record<string, unknown> };
       expect(result.output).toEqual({ items: [{ v: 99 }, { v: 2 }] });
     });
   });
@@ -381,7 +384,7 @@ describe('TransformHandler', () => {
           ],
         },
         context,
-      )) as { output: Record<string, unknown> };
+      )) as unknown as { output: Record<string, unknown> };
       expect(result.output.csv).toEqual(['a', 'b', 'c']);
     });
 
@@ -399,7 +402,7 @@ describe('TransformHandler', () => {
           ],
         },
         context,
-      )) as { output: Record<string, unknown> };
+      )) as unknown as { output: Record<string, unknown> };
       expect(result.output.parts).toBe('x-y-z');
     });
 
@@ -417,7 +420,7 @@ describe('TransformHandler', () => {
           ],
         },
         context,
-      )) as { output: Record<string, unknown> };
+      )) as unknown as { output: Record<string, unknown> };
       expect(result.output.text).toBe('Z-a-a');
     });
 
@@ -435,7 +438,7 @@ describe('TransformHandler', () => {
           ],
         },
         context,
-      )) as { output: Record<string, unknown> };
+      )) as unknown as { output: Record<string, unknown> };
       expect(result.output.text).toBe('abc#xyz');
     });
   });
@@ -446,7 +449,7 @@ describe('TransformHandler', () => {
         { val: 3.2 },
         { operations: [{ type: 'math_op', field: 'val', operation: 'ceil' }] },
         context,
-      )) as { output: Record<string, unknown> };
+      )) as unknown as { output: Record<string, unknown> };
       expect(result.output.val).toBe(4);
     });
 
@@ -457,7 +460,7 @@ describe('TransformHandler', () => {
           operations: [{ type: 'math_op', field: 'val', operation: 'floor' }],
         },
         context,
-      )) as { output: Record<string, unknown> };
+      )) as unknown as { output: Record<string, unknown> };
       expect(result.output.val).toBe(3);
     });
   });
@@ -472,7 +475,7 @@ describe('TransformHandler', () => {
           ],
         },
         context,
-      )) as { output: Record<string, unknown> };
+      )) as unknown as { output: Record<string, unknown> };
       expect(result.output.raw).toEqual([1, 2, 3]);
     });
 
@@ -485,7 +488,7 @@ describe('TransformHandler', () => {
           ],
         },
         context,
-      )) as { output: Record<string, unknown> };
+      )) as unknown as { output: Record<string, unknown> };
       expect(result.output.raw).toEqual({ a: 1 });
     });
 
@@ -498,7 +501,7 @@ describe('TransformHandler', () => {
           ],
         },
         context,
-      )) as { output: Record<string, unknown> };
+      )) as unknown as { output: Record<string, unknown> };
       expect(result.output.raw).toBe('not-json');
     });
   });
@@ -518,7 +521,7 @@ describe('TransformHandler', () => {
           ],
         },
         context,
-      )) as { output: Record<string, unknown> };
+      )) as unknown as { output: Record<string, unknown> };
       expect(result.output.d).toBe('2024-01-15');
     });
 
@@ -536,7 +539,7 @@ describe('TransformHandler', () => {
           ],
         },
         context,
-      )) as { output: Record<string, unknown> };
+      )) as unknown as { output: Record<string, unknown> };
       expect(result.output.d).toBe('2024-01-20T00:00:00.000Z');
     });
 
@@ -554,7 +557,7 @@ describe('TransformHandler', () => {
           ],
         },
         context,
-      )) as { output: Record<string, unknown> };
+      )) as unknown as { output: Record<string, unknown> };
       expect(result.output.d).toBe('2024-01-15T03:00:00.000Z');
     });
 
@@ -572,7 +575,7 @@ describe('TransformHandler', () => {
           ],
         },
         context,
-      )) as { output: Record<string, unknown> };
+      )) as unknown as { output: Record<string, unknown> };
       expect(result.output.start).toBe(5);
     });
 
@@ -590,7 +593,7 @@ describe('TransformHandler', () => {
           ],
         },
         context,
-      )) as { output: Record<string, unknown> };
+      )) as unknown as { output: Record<string, unknown> };
       expect(result.output.d).toBe('not-a-date');
     });
   });
@@ -609,7 +612,7 @@ describe('TransformHandler', () => {
           ],
         },
         context,
-      )) as { output: Record<string, unknown> };
+      )) as unknown as { output: Record<string, unknown> };
       expect(result.output.items).toEqual([{ active: true }, { active: true }]);
     });
 
@@ -626,7 +629,7 @@ describe('TransformHandler', () => {
           ],
         },
         context,
-      )) as { output: Record<string, unknown> };
+      )) as unknown as { output: Record<string, unknown> };
       expect(result.output.nums).toEqual([{ v: 5 }, { v: 10 }]);
     });
 
@@ -643,7 +646,7 @@ describe('TransformHandler', () => {
           ],
         },
         context,
-      )) as { output: Record<string, unknown> };
+      )) as unknown as { output: Record<string, unknown> };
       expect(result.output.items).toBe('not-array');
     });
   });
@@ -656,7 +659,7 @@ describe('TransformHandler', () => {
           operations: [{ type: 'array_sort', field: 'nums', order: 'asc' }],
         },
         context,
-      )) as { output: Record<string, unknown> };
+      )) as unknown as { output: Record<string, unknown> };
       expect(result.output.nums).toEqual([1, 2, 3]);
     });
 
@@ -674,7 +677,7 @@ describe('TransformHandler', () => {
           ],
         },
         context,
-      )) as { output: Record<string, unknown> };
+      )) as unknown as { output: Record<string, unknown> };
       expect(result.output.items).toEqual([{ v: 3 }, { v: 2 }, { v: 1 }]);
     });
 
@@ -685,7 +688,7 @@ describe('TransformHandler', () => {
           operations: [{ type: 'array_sort', field: 'words', order: 'asc' }],
         },
         context,
-      )) as { output: Record<string, unknown> };
+      )) as unknown as { output: Record<string, unknown> };
       expect(result.output.words).toEqual(['apple', 'banana', 'cherry']);
     });
   });
@@ -698,7 +701,7 @@ describe('TransformHandler', () => {
           operations: [{ type: 'object_pick', keys: ['a', 'c'] }],
         },
         context,
-      )) as { output: Record<string, unknown> };
+      )) as unknown as { output: Record<string, unknown> };
       expect(result.output).toEqual({ a: 1, c: 3 });
     });
 
@@ -711,7 +714,7 @@ describe('TransformHandler', () => {
           ],
         },
         context,
-      )) as { output: Record<string, unknown> };
+      )) as unknown as { output: Record<string, unknown> };
       expect(result.output).toEqual({ user: { name: 'Kim', age: 30 } });
     });
   });
@@ -724,7 +727,7 @@ describe('TransformHandler', () => {
           operations: [{ type: 'object_omit', keys: ['b'] }],
         },
         context,
-      )) as { output: Record<string, unknown> };
+      )) as unknown as { output: Record<string, unknown> };
       expect(result.output).toEqual({ a: 1, c: 3 });
     });
 
@@ -737,7 +740,7 @@ describe('TransformHandler', () => {
           ],
         },
         context,
-      )) as { output: Record<string, unknown> };
+      )) as unknown as { output: Record<string, unknown> };
       expect(result.output).toEqual({ user: { name: 'Kim' } });
     });
   });
@@ -768,7 +771,7 @@ describe('TransformHandler', () => {
           ],
         },
         context,
-      )) as { output: Record<string, unknown> };
+      )) as unknown as { output: Record<string, unknown> };
       expect(result.output).toEqual({});
     });
 
@@ -790,7 +793,7 @@ describe('TransformHandler', () => {
           ],
         },
         context,
-      )) as { output: Record<string, unknown> };
+      )) as unknown as { output: Record<string, unknown> };
       expect(result.output.xs).toEqual([]);
     });
 
@@ -813,7 +816,7 @@ describe('TransformHandler', () => {
           ],
         },
         context,
-      )) as { output: Record<string, unknown> };
+      )) as unknown as { output: Record<string, unknown> };
       expect(result.output.text).toBe('aaa');
     });
   });
@@ -845,7 +848,7 @@ describe('TransformHandler', () => {
           ],
         },
         context,
-      )) as { output: Record<string, unknown> };
+      )) as unknown as { output: Record<string, unknown> };
       expect(result.output.users).toEqual([
         { name: 'D', score: 90, active: true, email: 'd@e' },
         { name: 'C', score: 70, active: true, email: 'c@e' },

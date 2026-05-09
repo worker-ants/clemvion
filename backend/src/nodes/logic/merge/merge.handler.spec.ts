@@ -12,6 +12,9 @@ describe('MergeHandler', () => {
       workflowId: 'test-wf-1',
       variables: {},
       nodeOutputCache: {},
+      structuredOutputCache: {},
+      engineResolvedConfigCache: {},
+      recursionDepth: 0,
     };
   });
 

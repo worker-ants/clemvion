@@ -113,6 +113,9 @@ describe('InformationExtractorHandler', () => {
     workflowId: 'wf-1',
     variables: { __workspaceId: 'ws-1' },
     nodeOutputCache: {},
+    structuredOutputCache: {},
+    engineResolvedConfigCache: {},
+    recursionDepth: 0,
   };
 
   describe('validate', () => {
@@ -416,7 +419,7 @@ describe('InformationExtractorHandler', () => {
         context,
       );
 
-      const output = result as Record<string, unknown>;
+      const output = result as unknown as Record<string, unknown>;
       expect(output.status).toBe('waiting_for_input');
       // Canonical NodeHandlerOutput shape (CONVENTIONS §4.3 + Principle 0).
       expect('type' in output).toBe(false);
@@ -474,7 +477,7 @@ describe('InformationExtractorHandler', () => {
       );
 
       expect(mockLlmService.chat).not.toHaveBeenCalled();
-      const output = result as Record<string, unknown>;
+      const output = result as unknown as Record<string, unknown>;
       expect(output.status).toBe('waiting_for_input');
       const conv = output.output as Record<string, unknown>;
       expect(conv.turnCount).toBe(0);

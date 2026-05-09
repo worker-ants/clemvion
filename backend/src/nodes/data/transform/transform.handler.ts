@@ -3,6 +3,7 @@ import customParseFormat from 'dayjs/plugin/customParseFormat.js';
 import {
   ExecutionContext,
   NodeHandler,
+  NodeHandlerOutput,
   ValidationResult,
 } from '../../core/node-handler.interface.js';
 import { evaluateMetadataBlockingErrors } from '../../core/metadata-validation.js';
@@ -131,7 +132,7 @@ export class TransformHandler implements NodeHandler {
     input: unknown,
     config: Record<string, unknown>,
     context: ExecutionContext,
-  ): Promise<unknown> {
+  ): Promise<NodeHandlerOutput> {
     const operations = config.operations as TransformOperation[];
     let data = structuredClone(input) as Record<string, unknown>;
 

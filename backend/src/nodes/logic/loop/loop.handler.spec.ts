@@ -13,6 +13,9 @@ describe('LoopHandler', () => {
     workflowId: 'wf-1',
     variables: {},
     nodeOutputCache: {},
+    structuredOutputCache: {},
+    engineResolvedConfigCache: {},
+    recursionDepth: 0,
   };
 
   describe('validate', () => {
@@ -74,7 +77,7 @@ describe('LoopHandler', () => {
         {},
         { count: '10' },
         context,
-      )) as Record<string, unknown>;
+      )) as unknown as Record<string, unknown>;
       // Principle 7 — config echoes the raw value the workflow author typed,
       // not the parsed number. Engine's iteration bound logic reads
       // `node.config` directly (not `outputData.config`), so the echo is
@@ -88,7 +91,7 @@ describe('LoopHandler', () => {
         {},
         { count: 3 },
         context,
-      )) as Record<string, unknown>;
+      )) as unknown as Record<string, unknown>;
       const config = result.config as Record<string, unknown>;
       expect(config.maxIterations).toBe(1000);
     });
@@ -101,7 +104,7 @@ describe('LoopHandler', () => {
           ...context,
           rawConfig: Object.freeze({ count: '{{ $input.count }}' }),
         },
-      )) as Record<string, unknown>;
+      )) as unknown as Record<string, unknown>;
       const cfg = result.config as Record<string, unknown>;
       expect(cfg.count).toBe('{{ $input.count }}');
       expect(result.output).toBeNull();

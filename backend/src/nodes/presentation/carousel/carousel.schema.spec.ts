@@ -22,7 +22,7 @@ describe('carouselNodeConfigSchema', () => {
     // Regression: earlier iteration wiped `items` on mode switch, causing data
     // loss. This test guards against that behaviour re-appearing via schema
     // metadata.
-    const jsonSchema = z.toJSONSchema(carouselNodeConfigSchema) as {
+    const jsonSchema = z.toJSONSchema(carouselNodeConfigSchema) as unknown as {
       properties?: Record<string, { ui?: { clearFields?: string[] } }>;
     };
     const clearFields = jsonSchema.properties?.mode?.ui?.clearFields ?? [];
@@ -31,7 +31,7 @@ describe('carouselNodeConfigSchema', () => {
   });
 
   it('marks static-only fields with visibleWhen=static', () => {
-    const jsonSchema = z.toJSONSchema(carouselNodeConfigSchema) as {
+    const jsonSchema = z.toJSONSchema(carouselNodeConfigSchema) as unknown as {
       properties?: Record<string, { ui?: { visibleWhen?: unknown } }>;
     };
     expect(jsonSchema.properties?.items?.ui?.visibleWhen).toEqual({
@@ -41,7 +41,7 @@ describe('carouselNodeConfigSchema', () => {
   });
 
   it('marks dynamic-only fields with visibleWhen=dynamic', () => {
-    const jsonSchema = z.toJSONSchema(carouselNodeConfigSchema) as {
+    const jsonSchema = z.toJSONSchema(carouselNodeConfigSchema) as unknown as {
       properties?: Record<string, { ui?: { visibleWhen?: unknown } }>;
     };
     for (const key of [
@@ -60,7 +60,7 @@ describe('carouselNodeConfigSchema', () => {
   });
 
   it('uses `button-list` widget for buttons', () => {
-    const jsonSchema = z.toJSONSchema(carouselNodeConfigSchema) as {
+    const jsonSchema = z.toJSONSchema(carouselNodeConfigSchema) as unknown as {
       properties?: Record<string, { ui?: { widget?: string } }>;
     };
     expect(jsonSchema.properties?.buttons?.ui?.widget).toBe('button-list');
@@ -68,7 +68,7 @@ describe('carouselNodeConfigSchema', () => {
   });
 
   it('marks titleField / items with mode-scoped requiredWhen', () => {
-    const jsonSchema = z.toJSONSchema(carouselNodeConfigSchema) as {
+    const jsonSchema = z.toJSONSchema(carouselNodeConfigSchema) as unknown as {
       properties?: Record<string, { ui?: { requiredWhen?: unknown } }>;
     };
     expect(jsonSchema.properties?.titleField?.ui?.requiredWhen).toEqual({
@@ -82,7 +82,7 @@ describe('carouselNodeConfigSchema', () => {
   });
 
   it('marks each static item title as required for UI cues', () => {
-    const jsonSchema = z.toJSONSchema(carouselNodeConfigSchema) as {
+    const jsonSchema = z.toJSONSchema(carouselNodeConfigSchema) as unknown as {
       properties?: {
         items?: {
           items?: {

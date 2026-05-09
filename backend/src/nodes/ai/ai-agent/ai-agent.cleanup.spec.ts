@@ -31,7 +31,7 @@ function makeMockLlmService() {
 function makeProvider(): AgentToolProvider & {
   cleanup: jest.Mock<Promise<void>, [ProviderCleanupCtx]>;
 } {
-  const cleanup = jest.fn(async () => undefined);
+  const cleanup = jest.fn<Promise<void>, [ProviderCleanupCtx]>(async () => {});
   return {
     key: 'mock',
     matches: () => false,
@@ -46,6 +46,9 @@ const baseContext: ExecutionContext = {
   workflowId: 'wf-1',
   variables: { __workspaceId: 'ws-1' },
   nodeOutputCache: {},
+  structuredOutputCache: {},
+  engineResolvedConfigCache: {},
+  recursionDepth: 0,
 };
 
 describe('AiAgentHandler cleanup hook', () => {

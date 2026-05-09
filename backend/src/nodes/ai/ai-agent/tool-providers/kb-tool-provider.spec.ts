@@ -128,7 +128,7 @@ describe('KbToolProvider', () => {
         { topK: 5, threshold: 0.7 },
       );
       expect(result.toolCallId).toBe('tc-1');
-      const content = JSON.parse(result.content) as {
+      const content = JSON.parse(result.content) as unknown as {
         kb: string;
         query: string;
         results: Array<{ source: string; score: number; content: string }>;
@@ -170,7 +170,9 @@ describe('KbToolProvider', () => {
         arguments: '{"top_k":5}',
       };
       const result = await provider.execute(call, baseCtx);
-      const content = JSON.parse(result.content) as { error: string };
+      const content = JSON.parse(result.content) as unknown as {
+        error: string;
+      };
       expect(content.error).toMatch(/query/i);
       expect(mockRagService.search).not.toHaveBeenCalled();
       // status='error' surfaces a red badge in the inspector.
@@ -187,7 +189,9 @@ describe('KbToolProvider', () => {
         arguments: '{"query":"x"}',
       };
       const result = await provider.execute(call, baseCtx);
-      const content = JSON.parse(result.content) as { error: string };
+      const content = JSON.parse(result.content) as unknown as {
+        error: string;
+      };
       expect(content.error).toBe('unknown_kb_tool');
       expect(mockRagService.search).not.toHaveBeenCalled();
       expect(result.status).toBe('error');
@@ -203,7 +207,7 @@ describe('KbToolProvider', () => {
         arguments: '{"query":"x"}',
       };
       const result = await provider.execute(call, baseCtx);
-      const content = JSON.parse(result.content) as {
+      const content = JSON.parse(result.content) as unknown as {
         error?: string;
         message?: string;
         results: unknown[];

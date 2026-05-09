@@ -27,6 +27,9 @@ describe('TextClassifierHandler', () => {
     workflowId: 'wf-1',
     variables: { __workspaceId: 'ws-1' },
     nodeOutputCache: {},
+    structuredOutputCache: {},
+    engineResolvedConfigCache: {},
+    recursionDepth: 0,
   });
 
   describe('validate', () => {
@@ -114,7 +117,7 @@ describe('TextClassifierHandler', () => {
         {},
         baseConfig,
         createContext(),
-      )) as Record<string, unknown>;
+      )) as unknown as Record<string, unknown>;
       expect((result as any).port).toBe('class_0');
       const data = result.output as Record<string, unknown>;
       expect((data.result as any).category).toBe('Billing');
@@ -131,7 +134,7 @@ describe('TextClassifierHandler', () => {
         {},
         baseConfig,
         createContext(),
-      )) as Record<string, unknown>;
+      )) as unknown as Record<string, unknown>;
       expect((result as any).port).toBe('class_1');
     });
 
@@ -145,7 +148,7 @@ describe('TextClassifierHandler', () => {
         {},
         baseConfig,
         createContext(),
-      )) as Record<string, unknown>;
+      )) as unknown as Record<string, unknown>;
       expect((result as any).port).toBe('fallback');
       const data = result.output as Record<string, unknown>;
       expect((data.result as any).category).toBeNull();
@@ -161,7 +164,7 @@ describe('TextClassifierHandler', () => {
         {},
         baseConfig,
         createContext(),
-      )) as Record<string, unknown>;
+      )) as unknown as Record<string, unknown>;
       expect((result as any).port).toBe('fallback');
     });
 
@@ -175,7 +178,7 @@ describe('TextClassifierHandler', () => {
         {},
         baseConfig,
         createContext(),
-      )) as Record<string, unknown>;
+      )) as unknown as Record<string, unknown>;
       expect((result as any).port).toBe('fallback');
       const data = result.output as Record<string, unknown>;
       expect((data.result as any).category).toBeNull();
@@ -191,7 +194,7 @@ describe('TextClassifierHandler', () => {
         {},
         baseConfig,
         createContext(),
-      )) as Record<string, unknown>;
+      )) as unknown as Record<string, unknown>;
       expect((result as any).port).toBe('class_0');
       const data = result.output as Record<string, unknown>;
       expect((data.result as any).category).toBe('Billing');
@@ -207,7 +210,7 @@ describe('TextClassifierHandler', () => {
         {},
         baseConfig,
         createContext(),
-      )) as Record<string, unknown>;
+      )) as unknown as Record<string, unknown>;
       const data = result.output as Record<string, unknown>;
       expect((data.result as any).confidence).toBe(0);
     });
@@ -217,7 +220,7 @@ describe('TextClassifierHandler', () => {
         {},
         baseConfig,
         createContext(),
-      )) as Record<string, unknown>;
+      )) as unknown as Record<string, unknown>;
       const metadata = result.meta as Record<string, unknown>;
       expect(metadata.model).toBe('gpt-4o-mini');
       expect(metadata.inputTokens).toBe(50);
@@ -230,7 +233,7 @@ describe('TextClassifierHandler', () => {
         {},
         baseConfig,
         createContext(),
-      )) as Record<string, unknown>;
+      )) as unknown as Record<string, unknown>;
       const data = result.output as Record<string, unknown>;
       expect((data.result as any).originalInput).toBe('I need a refund');
     });
@@ -283,7 +286,7 @@ describe('TextClassifierHandler', () => {
         {},
         { ...baseConfig, includeConfidence: false },
         createContext(),
-      )) as Record<string, unknown>;
+      )) as unknown as Record<string, unknown>;
       const data = result.output as Record<string, unknown>;
       expect(data).not.toHaveProperty('confidence');
     });
@@ -294,7 +297,7 @@ describe('TextClassifierHandler', () => {
         {},
         baseConfig,
         createContext(),
-      )) as Record<string, unknown>;
+      )) as unknown as Record<string, unknown>;
       expect((result as any).port).toBe('error');
       const data = result.output as Record<string, unknown>;
       const err = data.error as Record<string, unknown>;
@@ -317,7 +320,7 @@ describe('TextClassifierHandler', () => {
         {},
         baseConfig,
         createContext(),
-      )) as Record<string, unknown>;
+      )) as unknown as Record<string, unknown>;
       expect((result as any).config.multiLabel).toBe(false);
     });
 
@@ -327,7 +330,7 @@ describe('TextClassifierHandler', () => {
           {},
           baseConfig,
           createContext(),
-        )) as Record<string, unknown>;
+        )) as unknown as Record<string, unknown>;
         const data = result.output as Record<string, unknown>;
         expect(data.result).not.toHaveProperty('evidence');
 
@@ -369,7 +372,7 @@ describe('TextClassifierHandler', () => {
           {},
           { ...baseConfig, includeEvidence: true },
           createContext(),
-        )) as Record<string, unknown>;
+        )) as unknown as Record<string, unknown>;
         const data = result.output as Record<string, unknown>;
         expect((data.result as any).evidence).toEqual(['refund', 'payment']);
       });
@@ -384,7 +387,7 @@ describe('TextClassifierHandler', () => {
           {},
           { ...baseConfig, includeEvidence: true },
           createContext(),
-        )) as Record<string, unknown>;
+        )) as unknown as Record<string, unknown>;
         const data = result.output as Record<string, unknown>;
         expect((data.result as any).evidence).toEqual([]);
       });
@@ -400,7 +403,7 @@ describe('TextClassifierHandler', () => {
           {},
           { ...baseConfig, includeEvidence: true },
           createContext(),
-        )) as Record<string, unknown>;
+        )) as unknown as Record<string, unknown>;
         expect((result as any).port).toBe('fallback');
         const data = result.output as Record<string, unknown>;
         expect((data.result as any).category).toBeNull();
@@ -418,7 +421,7 @@ describe('TextClassifierHandler', () => {
           {},
           { ...baseConfig, includeEvidence: true },
           createContext(),
-        )) as Record<string, unknown>;
+        )) as unknown as Record<string, unknown>;
         const data = result.output as Record<string, unknown>;
         expect((data.result as any).evidence).toEqual(['valid']);
       });
@@ -439,7 +442,7 @@ describe('TextClassifierHandler', () => {
           {},
           { ...baseConfig, includeEvidence: true },
           createContext(),
-        )) as Record<string, unknown>;
+        )) as unknown as Record<string, unknown>;
         const data = result.output as Record<string, unknown>;
         const ev = (data.result as any).evidence as string[];
         expect(ev).toHaveLength(20);
@@ -456,7 +459,7 @@ describe('TextClassifierHandler', () => {
           {},
           { ...baseConfig, includeConfidence: false, includeEvidence: true },
           createContext(),
-        )) as Record<string, unknown>;
+        )) as unknown as Record<string, unknown>;
         const data = result.output as Record<string, unknown>;
         expect(data.result).not.toHaveProperty('confidence');
         expect((data.result as any).evidence).toEqual(['refund']);
@@ -472,7 +475,7 @@ describe('TextClassifierHandler', () => {
           {},
           { ...baseConfig, includeEvidence: true },
           createContext(),
-        )) as Record<string, unknown>;
+        )) as unknown as Record<string, unknown>;
         expect((result as any).port).toBe('class_0');
         const data = result.output as Record<string, unknown>;
         expect((data.result as any).evidence).toEqual([]);
@@ -491,7 +494,7 @@ describe('TextClassifierHandler', () => {
             ],
           },
           createContext(),
-        )) as Record<string, unknown>;
+        )) as unknown as Record<string, unknown>;
         expect((result as any).port).toBe('cat_refund');
       });
 
@@ -500,7 +503,7 @@ describe('TextClassifierHandler', () => {
           {},
           baseConfig,
           createContext(),
-        )) as Record<string, unknown>;
+        )) as unknown as Record<string, unknown>;
         expect((result as any).port).toBe('class_0');
       });
 
@@ -515,7 +518,7 @@ describe('TextClassifierHandler', () => {
             ],
           },
           createContext(),
-        )) as Record<string, unknown>;
+        )) as unknown as Record<string, unknown>;
         expect((result as any).port).toBe('class_0');
       });
 
@@ -538,7 +541,7 @@ describe('TextClassifierHandler', () => {
             ],
           },
           createContext(),
-        )) as Record<string, unknown>;
+        )) as unknown as Record<string, unknown>;
         expect((result as any).port).toBe('cat_refund');
       });
     });
@@ -567,7 +570,7 @@ describe('TextClassifierHandler', () => {
         {},
         multiLabelConfig,
         createContext(),
-      )) as Record<string, unknown>;
+      )) as unknown as Record<string, unknown>;
       expect((result as any).port).toEqual(['class_0', 'class_1']);
       const data = result.output as Record<string, unknown>;
       expect((data.result as any).categories).toEqual([
@@ -589,7 +592,7 @@ describe('TextClassifierHandler', () => {
         {},
         multiLabelConfig,
         createContext(),
-      )) as Record<string, unknown>;
+      )) as unknown as Record<string, unknown>;
       expect((result as any).port).toEqual(['class_2']);
     });
 
@@ -603,7 +606,7 @@ describe('TextClassifierHandler', () => {
         {},
         multiLabelConfig,
         createContext(),
-      )) as Record<string, unknown>;
+      )) as unknown as Record<string, unknown>;
       expect((result as any).port).toBe('fallback');
       const data = result.output as Record<string, unknown>;
       expect((data.result as any).categories).toEqual([]);
@@ -620,7 +623,7 @@ describe('TextClassifierHandler', () => {
         {},
         multiLabelConfig,
         createContext(),
-      )) as Record<string, unknown>;
+      )) as unknown as Record<string, unknown>;
       expect((result as any).port).toEqual(['class_0']);
       const data = result.output as Record<string, unknown>;
       expect((data.result as any).categories).toEqual([
@@ -674,7 +677,7 @@ describe('TextClassifierHandler', () => {
         {},
         { ...multiLabelConfig, includeConfidence: false },
         createContext(),
-      )) as Record<string, unknown>;
+      )) as unknown as Record<string, unknown>;
       const data = result.output as Record<string, unknown>;
       expect((data.result as any).categories).toEqual([{ name: 'Billing' }]);
 
@@ -694,7 +697,7 @@ describe('TextClassifierHandler', () => {
         {},
         multiLabelConfig,
         createContext(),
-      )) as Record<string, unknown>;
+      )) as unknown as Record<string, unknown>;
       expect((result as any).port).toEqual(['class_0', 'class_1']);
       const data = result.output as Record<string, unknown>;
       expect((data.result as any).categories).toEqual([
@@ -721,7 +724,7 @@ describe('TextClassifierHandler', () => {
           ],
         },
         createContext(),
-      )) as Record<string, unknown>;
+      )) as unknown as Record<string, unknown>;
       expect((result as any).port).toEqual(['cat_billing', 'cat_tech']);
     });
 
@@ -731,7 +734,7 @@ describe('TextClassifierHandler', () => {
         {},
         multiLabelConfig,
         createContext(),
-      )) as Record<string, unknown>;
+      )) as unknown as Record<string, unknown>;
       expect((result as any).port).toBe('error');
       const data = result.output as Record<string, unknown>;
       const err = data.error as Record<string, unknown>;
@@ -749,7 +752,7 @@ describe('TextClassifierHandler', () => {
         {},
         multiLabelConfig,
         createContext(),
-      )) as Record<string, unknown>;
+      )) as unknown as Record<string, unknown>;
       expect((result as any).config.multiLabel).toBe(true);
     });
 
@@ -763,7 +766,7 @@ describe('TextClassifierHandler', () => {
         {},
         multiLabelConfig,
         createContext(),
-      )) as Record<string, unknown>;
+      )) as unknown as Record<string, unknown>;
       const metadata = result.meta as Record<string, unknown>;
       expect(metadata.model).toBe('gpt-4o-mini');
       expect(metadata.inputTokens).toBe(55);
@@ -782,7 +785,7 @@ describe('TextClassifierHandler', () => {
           {},
           multiLabelConfig,
           createContext(),
-        )) as Record<string, unknown>;
+        )) as unknown as Record<string, unknown>;
         const data = result.output as Record<string, unknown>;
         expect((data.result as any).categories[0]).not.toHaveProperty(
           'evidence',
@@ -834,7 +837,7 @@ describe('TextClassifierHandler', () => {
           {},
           { ...multiLabelConfig, includeEvidence: true },
           createContext(),
-        )) as Record<string, unknown>;
+        )) as unknown as Record<string, unknown>;
         const data = result.output as Record<string, unknown>;
         expect((data.result as any).categories).toEqual([
           { name: 'Billing', confidence: 0.9, evidence: ['refund'] },
@@ -852,7 +855,7 @@ describe('TextClassifierHandler', () => {
           {},
           { ...multiLabelConfig, includeEvidence: true },
           createContext(),
-        )) as Record<string, unknown>;
+        )) as unknown as Record<string, unknown>;
         const data = result.output as Record<string, unknown>;
         expect((data.result as any).categories[0].evidence).toEqual([]);
       });
@@ -867,7 +870,7 @@ describe('TextClassifierHandler', () => {
           {},
           { ...multiLabelConfig, includeEvidence: true },
           createContext(),
-        )) as Record<string, unknown>;
+        )) as unknown as Record<string, unknown>;
         const data = result.output as Record<string, unknown>;
         expect((data.result as any).categories).toEqual([
           { name: 'Billing', confidence: 0, evidence: [] },
@@ -884,7 +887,7 @@ describe('TextClassifierHandler', () => {
           {},
           { ...multiLabelConfig, includeEvidence: true },
           createContext(),
-        )) as Record<string, unknown>;
+        )) as unknown as Record<string, unknown>;
         expect((result as any).port).toBe('fallback');
         const data = result.output as Record<string, unknown>;
         expect((data.result as any).categories).toEqual([]);
@@ -905,7 +908,7 @@ describe('TextClassifierHandler', () => {
             includeEvidence: true,
           },
           createContext(),
-        )) as Record<string, unknown>;
+        )) as unknown as Record<string, unknown>;
         const data = result.output as Record<string, unknown>;
         expect((data.result as any).categories).toEqual([
           { name: 'Billing', evidence: ['refund'] },
@@ -932,7 +935,7 @@ describe('TextClassifierHandler', () => {
             ],
           },
           createContext(),
-        )) as Record<string, unknown>;
+        )) as unknown as Record<string, unknown>;
         expect((result as any).port).toEqual(['cat_billing', 'cat_tech']);
       });
 
@@ -954,7 +957,7 @@ describe('TextClassifierHandler', () => {
             ],
           },
           createContext(),
-        )) as Record<string, unknown>;
+        )) as unknown as Record<string, unknown>;
         expect((result as any).port).toEqual(['cat_billing', 'class_1']);
       });
     });

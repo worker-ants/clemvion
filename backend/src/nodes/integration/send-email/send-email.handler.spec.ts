@@ -18,6 +18,9 @@ function makeContext(rawConfig?: Record<string, unknown>): ExecutionContext {
     nodeExecutionId: 'ne-1',
     variables: { __workspaceId: 'ws-1' },
     nodeOutputCache: {},
+    structuredOutputCache: {},
+    engineResolvedConfigCache: {},
+    recursionDepth: 0,
     ...(rawConfig ? { rawConfig: Object.freeze({ ...rawConfig }) } : {}),
   };
 }
@@ -151,7 +154,7 @@ describe('SendEmailHandler', () => {
         null,
         baseConfig,
         makeContext(baseConfig),
-      )) as {
+      )) as unknown as {
         status: string;
         config: { to: unknown };
         output: { subject?: string; body?: string; bodyType?: string };
@@ -213,7 +216,7 @@ describe('SendEmailHandler', () => {
         null,
         sendConfig,
         makeContext(sendConfig),
-      )) as {
+      )) as unknown as {
         config: { to: unknown; cc: unknown };
         output: {
           messageId: string;
@@ -266,7 +269,7 @@ describe('SendEmailHandler', () => {
         null,
         sendConfig,
         makeContext(sendConfig),
-      )) as { config: { bcc: string[] } };
+      )) as unknown as { config: { bcc: string[] } };
 
       expect(sendMailMock).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -291,7 +294,7 @@ describe('SendEmailHandler', () => {
         null,
         { ...baseConfig, cc: [], bcc: [] },
         makeContext(),
-      )) as { meta: { deliveryStatus: string } };
+      )) as unknown as { meta: { deliveryStatus: string } };
       expect(out.meta.deliveryStatus).toBe('sent');
     });
 
@@ -299,7 +302,11 @@ describe('SendEmailHandler', () => {
       const { service } = makeService();
       const handler = new SendEmailHandler(service as never);
       const cfg = { ...baseConfig, bodyType: 'html', body: '<b>hi</b>' };
-      const out = (await handler.execute(null, cfg, makeContext(cfg))) as {
+      const out = (await handler.execute(
+        null,
+        cfg,
+        makeContext(cfg),
+      )) as unknown as {
         output: { body?: string; bodyType?: string };
       };
       expect(sendMailMock).toHaveBeenCalledWith(
@@ -334,7 +341,7 @@ describe('SendEmailHandler', () => {
         null,
         evaluated,
         makeContext(rawConfig),
-      )) as {
+      )) as unknown as {
         config: { subject: string; body: string; to: unknown };
         output: { subject: string; body: string };
       };
@@ -351,7 +358,11 @@ describe('SendEmailHandler', () => {
       const handler = new SendEmailHandler(service as never);
       const huge = 'x'.repeat(300 * 1024);
       const cfg = { ...baseConfig, body: huge };
-      const out = (await handler.execute(null, cfg, makeContext(cfg))) as {
+      const out = (await handler.execute(
+        null,
+        cfg,
+        makeContext(cfg),
+      )) as unknown as {
         output: { body: string; bodyTruncated?: boolean };
       };
       // sendMail still receives the full body — truncation only bounds the
@@ -376,7 +387,7 @@ describe('SendEmailHandler', () => {
         null,
         baseConfig,
         makeContext(baseConfig),
-      )) as {
+      )) as unknown as {
         port: string;
         output: {
           subject?: string;
@@ -416,7 +427,7 @@ describe('SendEmailHandler', () => {
         null,
         baseConfig,
         makeContext(),
-      )) as {
+      )) as unknown as {
         port: string;
         output: {
           error: {
@@ -453,7 +464,7 @@ describe('SendEmailHandler', () => {
         null,
         baseConfig,
         makeContext(),
-      )) as {
+      )) as unknown as {
         port: string;
         output: {
           error: { message: string; details: { integrationCode?: string } };
@@ -490,7 +501,7 @@ describe('SendEmailHandler', () => {
         null,
         baseConfig,
         makeContext(),
-      )) as {
+      )) as unknown as {
         port: string;
         output: {
           error: { message: string; details: { integrationCode?: string } };
@@ -513,7 +524,11 @@ describe('SendEmailHandler', () => {
       const handler = new SendEmailHandler(service as never);
       const ctx = makeContext();
       ctx.variables = {};
-      const result = (await handler.execute(null, baseConfig, ctx)) as {
+      const result = (await handler.execute(
+        null,
+        baseConfig,
+        ctx,
+      )) as unknown as {
         port: string;
         output: { error: { message: string } };
       };

@@ -12,6 +12,9 @@ describe('MapHandler', () => {
       workflowId: 'wf-1',
       variables: {},
       nodeOutputCache: {},
+      structuredOutputCache: {},
+      engineResolvedConfigCache: {},
+      recursionDepth: 0,
     };
   });
 
@@ -86,7 +89,7 @@ describe('MapHandler', () => {
         input,
         { inputField: 'items' },
         context,
-      )) as { output: unknown[] };
+      )) as unknown as { output: unknown[] };
       expect(result.output).toEqual(['a', 'b', 'c']);
     });
 
@@ -96,7 +99,7 @@ describe('MapHandler', () => {
         input,
         { inputField: 'data.items' },
         context,
-      )) as { output: unknown[] };
+      )) as unknown as { output: unknown[] };
       expect(result.output).toEqual([1, 2]);
     });
 
@@ -105,7 +108,7 @@ describe('MapHandler', () => {
         null,
         { inputField: [1, 2, 3] },
         context,
-      )) as { output: unknown[] };
+      )) as unknown as { output: unknown[] };
       expect(result.output).toEqual([1, 2, 3]);
     });
 
@@ -114,7 +117,7 @@ describe('MapHandler', () => {
         { items: 'not-array' },
         { inputField: 'items' },
         context,
-      )) as { output: unknown[] };
+      )) as unknown as { output: unknown[] };
       expect(result.output).toEqual([]);
     });
 
@@ -123,7 +126,7 @@ describe('MapHandler', () => {
         { other: [] },
         { inputField: 'items' },
         context,
-      )) as { output: unknown[] };
+      )) as unknown as { output: unknown[] };
       expect(result.output).toEqual([]);
     });
 
@@ -132,7 +135,7 @@ describe('MapHandler', () => {
         { items: [] },
         { inputField: 'items' },
         context,
-      )) as { output: unknown[] };
+      )) as unknown as { output: unknown[] };
       expect(result.output).toEqual([]);
     });
 
@@ -141,7 +144,7 @@ describe('MapHandler', () => {
         null,
         { inputField: 'items' },
         context,
-      )) as { output: unknown[] };
+      )) as unknown as { output: unknown[] };
       expect(result.output).toEqual([]);
     });
 
@@ -150,7 +153,7 @@ describe('MapHandler', () => {
         { items: [1] },
         { inputField: 'items' },
         context,
-      )) as { config: { inputField: unknown } };
+      )) as unknown as { config: { inputField: unknown } };
       expect(result.config.inputField).toBe('items');
     });
 
@@ -163,7 +166,7 @@ describe('MapHandler', () => {
           ...context,
           rawConfig: Object.freeze({ inputField: '{{ $input.items }}' }),
         },
-      )) as { config: { inputField: unknown }; output: unknown };
+      )) as unknown as { config: { inputField: unknown }; output: unknown };
       expect(result.config.inputField).toBe('{{ $input.items }}');
       expect(result.output).toEqual([1, 2]);
     });

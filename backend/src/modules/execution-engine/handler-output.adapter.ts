@@ -2,27 +2,19 @@ import { NodeHandlerOutput } from '../../nodes/core/node-handler.interface.js';
 import { maskSensitiveFields } from '../../common/utils/mask-sensitive-fields.util';
 
 /**
- * Normalize an opaque handler return into {@link NodeHandlerOutput}.
+ * Normalize a handler return into {@link NodeHandlerOutput}.
  *
- * Post-Phase-3 (node-specs-improvement plan §Stage 7) production handlers
- * MUST emit the canonical `{ config, output, meta?, port?, status?,
- * _resumeState? }` shape. The TypeScript `NodeHandler.execute` return type
- * enforces this at compile time; this function enforces it at runtime.
+ * Production handlers MUST emit the canonical `{ config, output, meta?,
+ * port?, status?, _resumeState? }` shape. The TypeScript
+ * `NodeHandler.execute` return type enforces this at compile time; this
+ * function enforces it at runtime — **always strict**, regardless of
+ * `NODE_ENV`. Any non-canonical return throws synchronously with the
+ * handler's actual return shape in the error message so a handler bug
+ * fails loudly at the engine boundary rather than silently being wrapped.
  *
- * Modes:
- *
- *  - `NODE_ENV === 'production'` — strict. Any non-canonical return
- *    throws synchronously with the handler's actual return shape in the
- *    error message. This guarantees a production handler bug fails
- *    loudly at the engine boundary rather than silently being wrapped.
- *
- *  - Otherwise (test / development) — lenient. Bare objects / primitives
- *    are wrapped via {@link wrapBareAsNodeHandlerOutput} so the 39
- *    fixtures in `execution-engine.service.spec.ts` (and similar test
- *    doubles) keep working without per-test boilerplate.
- *
- * If you need lenient coercion in production code (you almost certainly
- * don't), call {@link wrapBareAsNodeHandlerOutput} directly.
+ * If you need lenient coercion (e.g. wrapping an already-flattened engine
+ * value at a non-handler boundary), call {@link wrapBareAsNodeHandlerOutput}
+ * directly.
  *
  * **Use only at the handler-return boundary** — i.e. immediately after a
  * `NodeHandler.execute()` call returns. Do NOT run this on values that have
@@ -52,27 +44,23 @@ export function adaptHandlerReturn(raw: unknown): NodeHandlerOutput {
     };
   }
 
-  if (process.env.NODE_ENV === 'production') {
-    let preview: string;
-    if (raw === null || raw === undefined) {
-      preview = String(raw);
-    } else {
-      try {
-        preview = JSON.stringify(raw).slice(0, 200);
-      } catch {
-        preview = '[unserializable]';
-      }
+  let preview: string;
+  if (raw === null || raw === undefined) {
+    preview = String(raw);
+  } else {
+    try {
+      preview = JSON.stringify(raw).slice(0, 200);
+    } catch {
+      preview = '[unserializable]';
     }
-    throw new Error(
-      'Node handler return violates the NodeHandlerOutput contract. ' +
-        `Expected { config, output, ... }; got ${preview}. ` +
-        "This indicates a handler bug — fix the handler's return value. " +
-        'If the return shape is intentionally legacy (e.g. a one-off ' +
-        'test double), call wrapBareAsNodeHandlerOutput() explicitly.',
-    );
   }
-
-  return wrapBareAsNodeHandlerOutput(raw);
+  throw new Error(
+    'Node handler return violates the NodeHandlerOutput contract. ' +
+      `Expected { config, output, ... }; got ${preview}. ` +
+      "This indicates a handler bug — fix the handler's return value. " +
+      'If the return shape is intentionally legacy (e.g. a one-off ' +
+      'test double), call wrapBareAsNodeHandlerOutput() explicitly.',
+  );
 }
 
 /**

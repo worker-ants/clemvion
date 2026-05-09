@@ -68,6 +68,9 @@ describe('TemplateHandler', () => {
       workflowId: 'wf-1',
       variables: {},
       nodeOutputCache: {},
+      structuredOutputCache: {},
+      engineResolvedConfigCache: {},
+      recursionDepth: 0,
     };
 
     // Principle 1.1: `rendered` (resolved template string) is runtime ⇒ output;

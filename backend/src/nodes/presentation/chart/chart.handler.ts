@@ -1,6 +1,7 @@
 import {
   ExecutionContext,
   NodeHandler,
+  NodeHandlerOutput,
   ValidationResult,
 } from '../../core/node-handler.interface.js';
 import { evaluateMetadataBlockingErrors } from '../../core/metadata-validation.js';
@@ -36,7 +37,7 @@ export class ChartHandler implements NodeHandler {
     input: unknown,
     config: Record<string, unknown>,
     context: ExecutionContext,
-  ): Promise<unknown> {
+  ): Promise<NodeHandlerOutput> {
     const xAxis = config.xAxis as { field: string };
     const yAxis = config.yAxis as
       | { field: string; aggregation?: string }

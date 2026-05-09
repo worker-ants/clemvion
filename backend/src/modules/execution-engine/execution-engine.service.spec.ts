@@ -39,7 +39,9 @@ import { ContinuationBusService } from './continuation/continuation-bus.service'
 import {
   ExecutionContext,
   NodeHandler,
+  NodeHandlerOutput,
 } from '../../nodes/core/node-handler.interface';
+import { mockOutput } from './__test__/mock-output';
 import { ForEachHandler } from '../../nodes/logic/foreach/foreach.handler';
 import { LoopHandler } from '../../nodes/logic/loop/loop.handler';
 import { MapHandler } from '../../nodes/logic/map/map.handler';
@@ -129,10 +131,12 @@ describe('ExecutionEngineService', () => {
   // Mock handler
   const mockHandler: NodeHandler = {
     validate: () => ({ valid: true, errors: [] }),
-    execute: jest.fn(async (input: unknown) => ({
-      processed: true,
-      input,
-    })),
+    execute: jest.fn(async (input: unknown) =>
+      mockOutput({
+        processed: true,
+        input,
+      }),
+    ),
   };
 
   // Mock repositories
@@ -457,10 +461,10 @@ describe('ExecutionEngineService', () => {
 
       const captureSpy = jest
         .fn<
-          Promise<unknown>,
+          Promise<NodeHandlerOutput>,
           [unknown, Record<string, unknown>, ExecutionContext]
         >()
-        .mockResolvedValue({ ok: true });
+        .mockResolvedValue(mockOutput({ ok: true }));
       handlerRegistry.register('template', {
         validate: () => ({ valid: true, errors: [] }),
         execute: captureSpy,
@@ -1280,7 +1284,7 @@ describe('ExecutionEngineService', () => {
       validate: () => ({ valid: true, errors: [] }),
       execute: jest.fn(async (input: unknown) => {
         calls.push(input);
-        return { step: calls.length, previousInput: input };
+        return mockOutput({ step: calls.length, previousInput: input });
       }),
     };
     handlerRegistry.register('test_node', tracingHandler);
@@ -1437,19 +1441,23 @@ describe('ExecutionEngineService', () => {
 
     const formHandler: NodeHandler = {
       validate: () => ({ valid: true, errors: [] }),
-      execute: jest.fn(async () => ({
-        type: 'form',
-        status: 'waiting_for_input',
-        formConfig: {
-          fields: [{ name: 'approved', type: 'checkbox', label: 'Approved' }],
-          title: 'Approval',
-        },
-      })),
+      execute: jest.fn(async () =>
+        mockOutput({
+          type: 'form',
+          status: 'waiting_for_input',
+          formConfig: {
+            fields: [{ name: 'approved', type: 'checkbox', label: 'Approved' }],
+            title: 'Approval',
+          },
+        }),
+      ),
     };
 
     beforeEach(() => {
       // Reset the test_node handler implementation (may have been overridden by previous tests)
-      (mockHandler.execute as jest.Mock).mockResolvedValue({ processed: true });
+      (mockHandler.execute as jest.Mock).mockResolvedValue(
+        mockOutput({ processed: true }),
+      );
       mockNodeRepo.findBy.mockResolvedValue(formNodes);
       mockEdgeRepo.findBy.mockResolvedValue(formEdges);
       // PR-G — metadata 동봉 등록. 엔진의 dispatch 가 `kind === 'blocking' &&
@@ -1956,10 +1964,9 @@ describe('ExecutionEngineService', () => {
       // Trigger node outputs { name: 'Alice', greeting: 'Hi' }
       const triggerHandler: NodeHandler = {
         validate: () => ({ valid: true, errors: [] }),
-        execute: jest.fn().mockResolvedValue({
-          name: 'Alice',
-          greeting: 'Hi',
-        }),
+        execute: jest
+          .fn()
+          .mockResolvedValue(mockOutput({ name: 'Alice', greeting: 'Hi' })),
       };
       handlerRegistry.register('test_node', triggerHandler);
 
@@ -2021,7 +2028,7 @@ describe('ExecutionEngineService', () => {
       // Make trigger return an array
       const arrayHandler: NodeHandler = {
         validate: () => ({ valid: true, errors: [] }),
-        execute: jest.fn().mockResolvedValue(['a', 'b', 'c']),
+        execute: jest.fn().mockResolvedValue(mockOutput(['a', 'b', 'c'])),
       };
       handlerRegistry.register('test_node', arrayHandler);
 
@@ -2048,10 +2055,12 @@ describe('ExecutionEngineService', () => {
       // Trigger outputs data with a key named "$var" (edge case)
       const conflictHandler: NodeHandler = {
         validate: () => ({ valid: true, errors: [] }),
-        execute: jest.fn().mockResolvedValue({
-          $var: { token: 'overridden' },
-          name: 'Bob',
-        }),
+        execute: jest.fn().mockResolvedValue(
+          mockOutput({
+            $var: { token: 'overridden' },
+            name: 'Bob',
+          }),
+        ),
       };
       handlerRegistry.register('test_node', conflictHandler);
 
@@ -2140,14 +2149,9 @@ describe('ExecutionEngineService', () => {
     ];
 
     let captureSpy: jest.Mock<
-      Promise<unknown>,
-      [unknown, Record<string, unknown>, ExecutionContextLike]
+      Promise<NodeHandlerOutput>,
+      [unknown, Record<string, unknown>, ExecutionContext]
     >;
-
-    type ExecutionContextLike = {
-      rawConfig?: Readonly<Record<string, unknown>>;
-      [key: string]: unknown;
-    };
 
     beforeEach(() => {
       mockNodeRepo.findBy.mockResolvedValue([triggerNode, exprNode]);
@@ -2157,15 +2161,17 @@ describe('ExecutionEngineService', () => {
         validate: () => ({ valid: true, errors: [] }),
         execute: jest
           .fn()
-          .mockResolvedValue({ name: 'Alice', greeting: 'Hi there' }),
+          .mockResolvedValue(
+            mockOutput({ name: 'Alice', greeting: 'Hi there' }),
+          ),
       });
 
       captureSpy = jest
         .fn<
-          Promise<unknown>,
-          [unknown, Record<string, unknown>, ExecutionContextLike]
+          Promise<NodeHandlerOutput>,
+          [unknown, Record<string, unknown>, ExecutionContext]
         >()
-        .mockResolvedValue({ ok: true });
+        .mockResolvedValue(mockOutput({ ok: true }));
       handlerRegistry.register('template', {
         validate: () => ({ valid: true, errors: [] }),
         execute: captureSpy,
@@ -2197,14 +2203,14 @@ describe('ExecutionEngineService', () => {
     it('freezes rawConfig — mutation attempts at top level throw in strict mode', async () => {
       let mutationError: unknown = null;
       captureSpy.mockImplementationOnce(
-        async (_input, _config, ctx: ExecutionContextLike) => {
+        async (_input, _config, ctx: ExecutionContext) => {
           try {
             // Cast away Readonly to simulate misbehaving handler.
             (ctx.rawConfig as Record<string, unknown>).subject = 'hacked';
           } catch (err) {
             mutationError = err;
           }
-          return { ok: true };
+          return mockOutput({ ok: true });
         },
       );
 
@@ -2260,7 +2266,10 @@ describe('ExecutionEngineService', () => {
       mockNodeRepo.findBy.mockResolvedValue([aiNode]);
       mockEdgeRepo.findBy.mockResolvedValue([]);
 
-      const processSpy = jest.fn(async () => ({
+      const processSpy = jest.fn<
+        Promise<NodeHandlerOutput>,
+        [string, Record<string, unknown>]
+      >(async () => ({
         config: { mode: 'multi_turn' },
         output: { messages: [], message: '', turnCount: 1 },
         meta: { interactionType: 'ai_conversation' },
@@ -2308,7 +2317,7 @@ describe('ExecutionEngineService', () => {
       await flushPromises();
 
       expect(processSpy).toHaveBeenCalledTimes(1);
-      const stateArg = processSpy.mock.calls[0][1] as Record<string, unknown>;
+      const stateArg = processSpy.mock.calls[0][1];
       const snapshot = stateArg.rawConfig as
         | Record<string, unknown>
         | undefined;
@@ -2330,18 +2339,20 @@ describe('ExecutionEngineService', () => {
         execute: jest.fn(async () => {
           switchCallCount++;
           if (switchCallCount === 1) {
-            return { port: 'case1', data: { iteration: 1 } };
+            return mockOutput({ iteration: 1 }, { port: 'case1' });
           }
-          return { port: 'case2', data: { iteration: 2 } };
+          return mockOutput({ iteration: 2 }, { port: 'case2' });
         }),
       };
 
       const passHandler: NodeHandler = {
         validate: () => ({ valid: true, errors: [] }),
-        execute: jest.fn(async (input: unknown) => ({
-          processed: true,
-          input,
-        })),
+        execute: jest.fn(async (input: unknown) =>
+          mockOutput({
+            processed: true,
+            input,
+          }),
+        ),
       };
 
       handlerRegistry.register('cyclic_pass', passHandler);
@@ -2432,7 +2443,7 @@ describe('ExecutionEngineService', () => {
       // A -> B -> A (always loops back, no exit)
       const alwaysOutputHandler: NodeHandler = {
         validate: () => ({ valid: true, errors: [] }),
-        execute: jest.fn(async () => ({ value: 'data' })),
+        execute: jest.fn(async () => mockOutput({ value: 'data' })),
       };
       handlerRegistry.register('infinite_node', alwaysOutputHandler);
 
@@ -2520,17 +2531,19 @@ describe('ExecutionEngineService', () => {
         execute: jest.fn(async () => {
           bCallCount++;
           if (bCallCount < 5) {
-            return { port: 'loop', data: { count: bCallCount } };
+            return mockOutput({ count: bCallCount }, { port: 'loop' });
           }
-          return { port: 'exit', data: { count: bCallCount } };
+          return mockOutput({ count: bCallCount }, { port: 'exit' });
         }),
       };
       const passHandler: NodeHandler = {
         validate: () => ({ valid: true, errors: [] }),
-        execute: jest.fn(async (input: unknown) => ({
-          processed: true,
-          input,
-        })),
+        execute: jest.fn(async (input: unknown) =>
+          mockOutput({
+            processed: true,
+            input,
+          }),
+        ),
       };
 
       handlerRegistry.register('loop_switch', loopHandler);
@@ -2636,7 +2649,7 @@ describe('ExecutionEngineService', () => {
         validate: () => ({ valid: true, errors: [] }),
         execute: jest.fn(async (input: unknown) => {
           aInputs.push(input);
-          return { fromA: true, input };
+          return mockOutput({ fromA: true, input });
         }),
       };
 
@@ -2646,15 +2659,17 @@ describe('ExecutionEngineService', () => {
         execute: jest.fn(async () => {
           switchCount++;
           if (switchCount === 1) {
-            return { port: 'case1', data: { loop: true } };
+            return mockOutput({ loop: true }, { port: 'case1' });
           }
-          return { port: 'case2', data: { done: true } };
+          return mockOutput({ done: true }, { port: 'case2' });
         }),
       };
 
       const endHandler: NodeHandler = {
         validate: () => ({ valid: true, errors: [] }),
-        execute: jest.fn(async (input: unknown) => ({ end: true, input })),
+        execute: jest.fn(async (input: unknown) =>
+          mockOutput({ end: true, input }),
+        ),
       };
 
       handlerRegistry.register('start_input_test', startHandler);
@@ -2745,7 +2760,9 @@ describe('ExecutionEngineService', () => {
       mockNodeRepo.findBy.mockResolvedValue(mockNodes);
       mockEdgeRepo.findBy.mockResolvedValue(mockEdges);
 
-      (mockHandler.execute as jest.Mock).mockResolvedValue({ ok: true });
+      (mockHandler.execute as jest.Mock).mockResolvedValue(
+        mockOutput({ ok: true }),
+      );
       handlerRegistry.register('test_node', mockHandler);
 
       await service.execute(workflowId, { data: 'test' });
@@ -2764,14 +2781,18 @@ describe('ExecutionEngineService', () => {
       // A selects port1, so B executes and C does NOT
       const routerHandler: NodeHandler = {
         validate: () => ({ valid: true, errors: [] }),
-        execute: jest.fn(async () => ({
-          port: 'port1',
-          data: { routed: true },
-        })),
+        execute: jest.fn(async () =>
+          mockOutput({
+            port: 'port1',
+            data: { routed: true },
+          }),
+        ),
       };
       const leafHandler: NodeHandler = {
         validate: () => ({ valid: true, errors: [] }),
-        execute: jest.fn(async (input: unknown) => ({ received: true, input })),
+        execute: jest.fn(async (input: unknown) =>
+          mockOutput({ received: true, input }),
+        ),
       };
       handlerRegistry.register('port_router', routerHandler);
       handlerRegistry.register('port_leaf', leafHandler);
@@ -2864,7 +2885,7 @@ describe('ExecutionEngineService', () => {
       };
       const receiverHandler: NodeHandler = {
         validate: () => ({ valid: true, errors: [] }),
-        execute: jest.fn(async (input: unknown) => ({ seen: input })),
+        execute: jest.fn(async (input: unknown) => mockOutput({ seen: input })),
       };
       handlerRegistry.register('ctl_emitter', emitterHandler);
       handlerRegistry.register('ctl_receiver', receiverHandler);
@@ -2927,10 +2948,12 @@ describe('ExecutionEngineService', () => {
       // A -> B(disabled) -> C — C should never execute
       const passHandler: NodeHandler = {
         validate: () => ({ valid: true, errors: [] }),
-        execute: jest.fn(async (input: unknown) => ({
-          processed: true,
-          input,
-        })),
+        execute: jest.fn(async (input: unknown) =>
+          mockOutput({
+            processed: true,
+            input,
+          }),
+        ),
       };
       handlerRegistry.register('reach_pass', passHandler);
 
@@ -3005,15 +3028,19 @@ describe('ExecutionEngineService', () => {
       // Router selects port2: P and Q execute, X and Y do NOT
       const triggerHandler: NodeHandler = {
         validate: () => ({ valid: true, errors: [] }),
-        execute: jest.fn(async () => ({ triggered: true })),
+        execute: jest.fn(async () => mockOutput({ triggered: true })),
       };
       const routerHandler: NodeHandler = {
         validate: () => ({ valid: true, errors: [] }),
-        execute: jest.fn(async () => ({ port: 'port2', data: { branch: 2 } })),
+        execute: jest.fn(async () =>
+          mockOutput({ port: 'port2', data: { branch: 2 } }),
+        ),
       };
       const branchHandler: NodeHandler = {
         validate: () => ({ valid: true, errors: [] }),
-        execute: jest.fn(async (input: unknown) => ({ done: true, input })),
+        execute: jest.fn(async (input: unknown) =>
+          mockOutput({ done: true, input }),
+        ),
       };
       handlerRegistry.register('iso_trigger', triggerHandler);
       handlerRegistry.register('iso_router', routerHandler);
@@ -3173,7 +3200,7 @@ describe('ExecutionEngineService', () => {
         execute: jest.fn(async (input: unknown) => {
           bodyCalls.push(input);
           const item = input as Record<string, unknown> | null;
-          return { doubled: ((item?.n as number) ?? 0) * 2 };
+          return mockOutput({ doubled: ((item?.n as number) ?? 0) * 2 });
         }),
       };
       handlerRegistry.register('body_node', bodyHandler);
@@ -3183,16 +3210,18 @@ describe('ExecutionEngineService', () => {
         validate: () => ({ valid: true, errors: [] }),
         execute: jest.fn(async (input: unknown) => {
           sinkCalls.push(input);
-          return { received: input };
+          return mockOutput({ received: input });
         }),
       };
       handlerRegistry.register('sink_node', sinkHandler);
 
       const triggerHandler: NodeHandler = {
         validate: () => ({ valid: true, errors: [] }),
-        execute: jest.fn(async () => ({
-          items: [{ n: 1 }, { n: 2 }, { n: 3 }],
-        })),
+        execute: jest.fn(async () =>
+          mockOutput({
+            items: [{ n: 1 }, { n: 2 }, { n: 3 }],
+          }),
+        ),
       };
       handlerRegistry.register('source_node', triggerHandler);
 
@@ -3309,7 +3338,7 @@ describe('ExecutionEngineService', () => {
         validate: () => ({ valid: true, errors: [] }),
         execute: jest.fn(async () => {
           counter++;
-          return { count: counter };
+          return mockOutput({ count: counter });
         }),
       };
       handlerRegistry.register('body_node', bodyHandler);
@@ -3319,14 +3348,14 @@ describe('ExecutionEngineService', () => {
         validate: () => ({ valid: true, errors: [] }),
         execute: jest.fn(async (input: unknown) => {
           sinkCalls.push(input);
-          return { done: true };
+          return mockOutput({ done: true });
         }),
       };
       handlerRegistry.register('sink_node', sinkHandler);
 
       const triggerHandler: NodeHandler = {
         validate: () => ({ valid: true, errors: [] }),
-        execute: jest.fn(async () => ({})),
+        execute: jest.fn(async () => mockOutput({})),
       };
       handlerRegistry.register('source_node', triggerHandler);
 
@@ -3537,7 +3566,7 @@ describe('ExecutionEngineService', () => {
           validate: () => ({ valid: true, errors: [] }),
           execute: jest.fn(async () => {
             bodyCount++;
-            return { iter: bodyCount };
+            return mockOutput({ iter: bodyCount });
           }),
         };
         handlerRegistry.register('body_node', bodyHandler);
@@ -3547,14 +3576,14 @@ describe('ExecutionEngineService', () => {
           validate: () => ({ valid: true, errors: [] }),
           execute: jest.fn(async (input: unknown) => {
             sinkCalls.push(input);
-            return { ok: true };
+            return mockOutput({ ok: true });
           }),
         };
         handlerRegistry.register('sink_node', sinkHandler);
 
         triggerHandler = {
           validate: () => ({ valid: true, errors: [] }),
-          execute: jest.fn(async () => ({ n: 3 })),
+          execute: jest.fn(async () => mockOutput({ n: 3 })),
         };
         handlerRegistry.register('source_node', triggerHandler);
       });
@@ -3601,7 +3630,7 @@ describe('ExecutionEngineService', () => {
               ctx.structuredOutputCache?.['loop']?.config?.count;
             capturedEngineCount =
               ctx.engineResolvedConfigCache?.['loop']?.count;
-            return { ok: true };
+            return mockOutput({ ok: true });
           },
         );
         handlerRegistry.register('sink_node', sinkHandler);
@@ -3663,7 +3692,7 @@ describe('ExecutionEngineService', () => {
     it('produces empty array when ForEach array is empty', async () => {
       const bodyHandler: NodeHandler = {
         validate: () => ({ valid: true, errors: [] }),
-        execute: jest.fn(async () => ({ ran: true })),
+        execute: jest.fn(async () => mockOutput({ ran: true })),
       };
       handlerRegistry.register('body_node', bodyHandler);
 
@@ -3672,14 +3701,14 @@ describe('ExecutionEngineService', () => {
         validate: () => ({ valid: true, errors: [] }),
         execute: jest.fn(async (input: unknown) => {
           sinkCalls.push(input);
-          return { ok: true };
+          return mockOutput({ ok: true });
         }),
       };
       handlerRegistry.register('sink_node', sinkHandler);
 
       const triggerHandler: NodeHandler = {
         validate: () => ({ valid: true, errors: [] }),
-        execute: jest.fn(async () => ({ items: [] })),
+        execute: jest.fn(async () => mockOutput({ items: [] })),
       };
       handlerRegistry.register('source_node', triggerHandler);
 
@@ -3799,7 +3828,7 @@ describe('ExecutionEngineService', () => {
           if (bodyCalls === 2) {
             throw new Error('boom');
           }
-          return { ok: bodyCalls };
+          return mockOutput({ ok: bodyCalls });
         }),
       };
       handlerRegistry.register('body_node', bodyHandler);
@@ -3809,14 +3838,14 @@ describe('ExecutionEngineService', () => {
         validate: () => ({ valid: true, errors: [] }),
         execute: jest.fn(async (input: unknown) => {
           sinkCalls.push(input);
-          return { ok: true };
+          return mockOutput({ ok: true });
         }),
       };
       handlerRegistry.register('sink_node', sinkHandler);
 
       const triggerHandler: NodeHandler = {
         validate: () => ({ valid: true, errors: [] }),
-        execute: jest.fn(async () => ({ items: [1, 2, 3] })),
+        execute: jest.fn(async () => mockOutput({ items: [1, 2, 3] })),
       };
       handlerRegistry.register('source_node', triggerHandler);
 
@@ -3934,7 +3963,7 @@ describe('ExecutionEngineService', () => {
         execute: jest.fn(async () => {
           bodyCalls++;
           if (bodyCalls === 2) throw new Error('boom');
-          return { ok: bodyCalls };
+          return mockOutput({ ok: bodyCalls });
         }),
       };
       handlerRegistry.register('body_node', bodyHandler);
@@ -3944,14 +3973,14 @@ describe('ExecutionEngineService', () => {
         validate: () => ({ valid: true, errors: [] }),
         execute: jest.fn(async (input: unknown) => {
           sinkCalls.push(input);
-          return { ok: true };
+          return mockOutput({ ok: true });
         }),
       };
       handlerRegistry.register('sink_node', sinkHandler);
 
       const triggerHandler: NodeHandler = {
         validate: () => ({ valid: true, errors: [] }),
-        execute: jest.fn(async () => ({ items: [1, 2, 3] })),
+        execute: jest.fn(async () => mockOutput({ items: [1, 2, 3] })),
       };
       handlerRegistry.register('source_node', triggerHandler);
 
@@ -4055,13 +4084,13 @@ describe('ExecutionEngineService', () => {
     it('fails execution when container has no emit edge', async () => {
       const bodyHandler: NodeHandler = {
         validate: () => ({ valid: true, errors: [] }),
-        execute: jest.fn(async () => ({ ran: true })),
+        execute: jest.fn(async () => mockOutput({ ran: true })),
       };
       handlerRegistry.register('body_node', bodyHandler);
 
       const triggerHandler: NodeHandler = {
         validate: () => ({ valid: true, errors: [] }),
-        execute: jest.fn(async () => ({ items: [1, 2] })),
+        execute: jest.fn(async () => mockOutput({ items: [1, 2] })),
       };
       handlerRegistry.register('source_node', triggerHandler);
 
@@ -4147,14 +4176,14 @@ describe('ExecutionEngineService', () => {
     it('fails execution when container has multiple emit edges', async () => {
       const bodyHandler: NodeHandler = {
         validate: () => ({ valid: true, errors: [] }),
-        execute: jest.fn(async () => ({ ran: true })),
+        execute: jest.fn(async () => mockOutput({ ran: true })),
       };
       handlerRegistry.register('body_node', bodyHandler);
       handlerRegistry.register('body_node_2', bodyHandler);
 
       const triggerHandler: NodeHandler = {
         validate: () => ({ valid: true, errors: [] }),
-        execute: jest.fn(async () => ({ items: [1] })),
+        execute: jest.fn(async () => mockOutput({ items: [1] })),
       };
       handlerRegistry.register('source_node', triggerHandler);
 
@@ -4281,7 +4310,7 @@ describe('ExecutionEngineService', () => {
           bodyCalls.push(input);
           const item = input as Record<string, unknown> | null;
           const n = (item?.n as number) ?? 0;
-          return { squared: n * n };
+          return mockOutput({ squared: n * n });
         }),
       };
       handlerRegistry.register('body_node', bodyHandler);
@@ -4291,16 +4320,18 @@ describe('ExecutionEngineService', () => {
         validate: () => ({ valid: true, errors: [] }),
         execute: jest.fn(async (input: unknown) => {
           sinkCalls.push(input);
-          return { received: input };
+          return mockOutput({ received: input });
         }),
       };
       handlerRegistry.register('sink_node', sinkHandler);
 
       const triggerHandler: NodeHandler = {
         validate: () => ({ valid: true, errors: [] }),
-        execute: jest.fn(async () => ({
-          items: [{ n: 2 }, { n: 3 }, { n: 4 }],
-        })),
+        execute: jest.fn(async () =>
+          mockOutput({
+            items: [{ n: 2 }, { n: 3 }, { n: 4 }],
+          }),
+        ),
       };
       handlerRegistry.register('source_node', triggerHandler);
 
@@ -4436,7 +4467,7 @@ describe('ExecutionEngineService', () => {
         validate: () => ({ valid: true, errors: [] }),
         execute: jest.fn(async (input: unknown) => {
           executionOrder.push('branch');
-          return { branchOutput: true, input };
+          return mockOutput({ branchOutput: true, input });
         }),
       };
       const mergeHandler: NodeHandler = {
@@ -4602,16 +4633,18 @@ describe('ExecutionEngineService', () => {
       const doneReceived: unknown[] = [];
       const branchHandler: NodeHandler = {
         validate: () => ({ valid: true, errors: [] }),
-        execute: jest.fn(async (input: unknown) => ({
-          branchResult: true,
-          fromInput: input,
-        })),
+        execute: jest.fn(async (input: unknown) =>
+          mockOutput({
+            branchResult: true,
+            fromInput: input,
+          }),
+        ),
       };
       const sinkHandler: NodeHandler = {
         validate: () => ({ valid: true, errors: [] }),
         execute: jest.fn(async (input: unknown) => {
           doneReceived.push(input);
-          return { sink: true };
+          return mockOutput({ sink: true });
         }),
       };
       const parallelHandler: NodeHandler = {
@@ -4765,7 +4798,7 @@ describe('ExecutionEngineService', () => {
         validate: () => ({ valid: true, errors: [] }),
         execute: jest.fn(async () => {
           branchCalls.push(branchCalls.length);
-          return { ok: true };
+          return mockOutput({ ok: true });
         }),
       };
       // Use a handler that echoes raw branchCount (mirrors the real
@@ -4891,7 +4924,7 @@ describe('ExecutionEngineService', () => {
       // 2-16 itself), then assert the engine's view matches.
       const branchHandler: NodeHandler = {
         validate: () => ({ valid: true, errors: [] }),
-        execute: jest.fn(async () => ({ ok: true })),
+        execute: jest.fn(async () => mockOutput({ ok: true })),
       };
       const parallelHandler: NodeHandler = {
         validate: () => ({ valid: true, errors: [] }),
@@ -5402,9 +5435,11 @@ describe('buildAiMessageDebugFromResumeState — null/mutation guards', () => {
   });
 
   it('shallow-copies llmCalls so later mutation of resumeState cannot retroactively change a buffered emit', () => {
-    const llmCalls = [
-      { requestPayload: { a: 1 }, responsePayload: {}, durationMs: 10 },
-    ];
+    const llmCalls: Array<{
+      requestPayload: Record<string, unknown>;
+      responsePayload: Record<string, unknown>;
+      durationMs: number;
+    }> = [{ requestPayload: { a: 1 }, responsePayload: {}, durationMs: 10 }];
     const state = {
       turnDebugHistory: [{ turnIndex: 1, llmCalls, totalDurationMs: 10 }],
     };

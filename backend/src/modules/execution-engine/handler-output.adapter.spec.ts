@@ -3,6 +3,36 @@ import {
   toEngineFlatShape,
   wrapBareAsNodeHandlerOutput,
 } from './handler-output.adapter';
+import {
+  NodeHandler,
+  ValidationResult,
+  ExecutionContext,
+} from '../../nodes/core/node-handler.interface';
+
+// INFO #2 / D-1 — 컴파일 차단 회귀 테스트.
+// `NodeHandler.execute` 의 반환 타입이 strict `Promise<NodeHandlerOutput>` 임을
+// 컴파일 시점에 검증한다. 향후 인터페이스가 다시 `| Promise<unknown>` 으로
+// 느슨해지면 `@ts-expect-error` 가 사라져 컴파일 에러가 발생하므로, 본 회귀가
+// drift 차단 1차 방어선으로 동작한다.
+//
+// 본 클래스는 의도적으로 비-canonical shape (`output` 누락) 을 반환한다.
+// `NodeHandler` 인터페이스가 strict 인 한 `@ts-expect-error` 마커가 유효해야 한다.
+class _BadReturnShapeHandler implements NodeHandler {
+  validate(_config: Record<string, unknown>): ValidationResult {
+    return { valid: true, errors: [] };
+  }
+
+  // @ts-expect-error — 의도적인 비-canonical 반환. NodeHandler.execute 가
+  // `Promise<NodeHandlerOutput>` 으로 narrowing 된 후엔 `output` 누락이
+  // 컴파일 에러로 차단되어야 한다.
+  async execute(
+    _input: unknown,
+    _config: Record<string, unknown>,
+    _context: ExecutionContext,
+  ): Promise<{ processed: boolean }> {
+    return { processed: true };
+  }
+}
 
 describe('adaptHandlerReturn', () => {
   describe('canonical NodeHandlerOutput shape', () => {
@@ -61,11 +91,8 @@ describe('adaptHandlerReturn', () => {
         output: { ok: true },
       });
       const cfg = result.config;
-      // 일반 필드는 그대로 통과
       expect(cfg.model).toBe('gpt-4');
-      // top-level credential 마스킹
       expect(cfg.apiKey).toBe('****7890');
-      // 중첩 credential 마스킹
       const headers = cfg.headers as Record<string, string>;
       expect(headers.Authorization).toBe('****cdef');
       expect(headers['x-trace-id']).toBe('trace-1');
@@ -88,36 +115,49 @@ describe('adaptHandlerReturn', () => {
     });
   });
 
-  describe('production-strict mode (NODE_ENV=production)', () => {
-    const prevEnv = process.env.NODE_ENV;
-    beforeEach(() => {
-      process.env.NODE_ENV = 'production';
-    });
-    afterEach(() => {
-      process.env.NODE_ENV = prevEnv;
-    });
-
-    it('throws when a handler returns a bare object in production', () => {
+  // INFO #2 — strict regardless of NODE_ENV. lenient fallback removed; any
+  // non-canonical return throws. Tests that used to be guarded by
+  // `NODE_ENV=production` now run unconditionally.
+  describe('strict throw on non-canonical return', () => {
+    it('throws on a bare object', () => {
       expect(() => adaptHandlerReturn({ foo: 1 })).toThrow(
         /NodeHandlerOutput contract/,
       );
     });
 
-    it('throws when a handler returns null in production', () => {
+    it('throws on null', () => {
       expect(() => adaptHandlerReturn(null)).toThrow(/contract/);
     });
 
-    it('throws when a handler returns a primitive in production', () => {
+    it('throws on undefined', () => {
+      expect(() => adaptHandlerReturn(undefined)).toThrow(/contract/);
+    });
+
+    it('throws on a primitive', () => {
       expect(() => adaptHandlerReturn(42)).toThrow(/contract/);
     });
 
-    it('throws when a handler returns legacy port-selector in production', () => {
+    it('throws on an array', () => {
+      expect(() => adaptHandlerReturn([1, 2])).toThrow(/contract/);
+    });
+
+    it('throws on legacy port-selector shape', () => {
       expect(() => adaptHandlerReturn({ port: 'x', data: { y: 1 } })).toThrow(
         /contract/,
       );
     });
 
-    it('still passes canonical shape through in production', () => {
+    it('throws on legacy bare waiting shape (status without config/output)', () => {
+      expect(() =>
+        adaptHandlerReturn({
+          type: 'ai_conversation',
+          status: 'waiting_for_input',
+          _resumeState: { messages: [] },
+        }),
+      ).toThrow(/contract/);
+    });
+
+    it('passes canonical shape through (regression for production-strict path)', () => {
       const raw = {
         config: { url: 'https://x' },
         output: { response: 'ok' },
@@ -126,11 +166,7 @@ describe('adaptHandlerReturn', () => {
       expect(adaptHandlerReturn(raw)).toEqual(raw);
     });
 
-    it('passes conversation waiting shape (ai_agent / info_extractor) through in production', () => {
-      // Regression for the production-strict throw that fired on the legacy
-      // bare waiting shape. Both multi-turn handlers now return canonical
-      // shape with output.{messages,message,turnCount,maxTurns,partial?}
-      // and meta.interactionType === 'ai_conversation'.
+    it('passes conversation waiting canonical shape (ai_agent / info_extractor)', () => {
       const aiAgentWaiting = {
         config: { mode: 'multi_turn', maxTurns: 0, maxToolCalls: 100 },
         output: {
@@ -180,7 +216,7 @@ describe('adaptHandlerReturn', () => {
   });
 
   describe('wrapBareAsNodeHandlerOutput (exported test helper)', () => {
-    it('wraps bare objects identically to the non-strict branch', () => {
+    it('wraps bare objects', () => {
       expect(wrapBareAsNodeHandlerOutput({ a: 1 })).toEqual({
         config: {},
         output: { a: 1 },
@@ -200,77 +236,38 @@ describe('adaptHandlerReturn', () => {
       expect(adapted._resumeState).toBe(state);
     });
 
-    it('is callable in production mode (bypasses strict guard)', () => {
-      const prevEnv = process.env.NODE_ENV;
-      process.env.NODE_ENV = 'production';
-      try {
-        expect(wrapBareAsNodeHandlerOutput({ foo: 1 })).toEqual({
-          config: {},
-          output: { foo: 1 },
-        });
-      } finally {
-        process.env.NODE_ENV = prevEnv;
-      }
-    });
-  });
-
-  describe('legacy bare-object coercion', () => {
-    it('wraps a bare object as { config: {}, output: raw }', () => {
-      const raw = { foo: 1 };
-      expect(adaptHandlerReturn(raw)).toEqual({ config: {}, output: raw });
-    });
-
-    it('wraps null/undefined output directly', () => {
-      expect(adaptHandlerReturn(null)).toEqual({ config: {}, output: null });
-      expect(adaptHandlerReturn(undefined)).toEqual({
+    it('handles null / undefined / primitive / array', () => {
+      expect(wrapBareAsNodeHandlerOutput(null)).toEqual({
+        config: {},
+        output: null,
+      });
+      expect(wrapBareAsNodeHandlerOutput(undefined)).toEqual({
         config: {},
         output: undefined,
       });
-    });
-
-    it('wraps primitives / arrays', () => {
-      expect(adaptHandlerReturn(42)).toEqual({ config: {}, output: 42 });
-      expect(adaptHandlerReturn([1, 2])).toEqual({
+      expect(wrapBareAsNodeHandlerOutput(42)).toEqual({
+        config: {},
+        output: 42,
+      });
+      expect(wrapBareAsNodeHandlerOutput([1, 2])).toEqual({
         config: {},
         output: [1, 2],
       });
     });
 
-    it('lifts top-level status / port from legacy bare objects', () => {
-      expect(
-        adaptHandlerReturn({
-          foo: 'x',
-          status: 'waiting_for_input',
-          port: 'true',
-        }),
-      ).toEqual({
-        config: {},
-        output: { foo: 'x', status: 'waiting_for_input', port: 'true' },
-        status: 'waiting_for_input',
-        port: 'true',
-      });
-    });
-
-    it('lifts _resumeState when handler returns the legacy bare waiting shape', () => {
-      const state = { messages: [], partialResult: {} };
-      const raw = {
-        type: 'ai_conversation',
-        status: 'waiting_for_input',
-        config: { mode: 'multi_turn' },
-        _resumeState: state,
-      };
-      const adapted = adaptHandlerReturn(raw);
-      expect(adapted._resumeState).toBe(state);
-      expect(adapted.status).toBe('waiting_for_input');
-    });
-
     it('ignores non-object _resumeState', () => {
-      const adapted = adaptHandlerReturn({ any: 1, _resumeState: 'bad' });
+      const adapted = wrapBareAsNodeHandlerOutput({
+        any: 1,
+        _resumeState: 'bad',
+      });
       expect(adapted._resumeState).toBeUndefined();
     });
 
     it('ignores _resumeState arrays (arrays are never resume state)', () => {
-      const adapted = adaptHandlerReturn({ any: 1, _resumeState: [1, 2] });
+      const adapted = wrapBareAsNodeHandlerOutput({
+        any: 1,
+        _resumeState: [1, 2],
+      });
       expect(adapted._resumeState).toBeUndefined();
     });
   });
@@ -350,18 +347,10 @@ describe('toEngineFlatShape', () => {
       output: { _resumeState: outputState, foo: 1 },
       _resumeState: topState,
     });
-    // Existing field on output wins so handlers that deliberately stash
-    // debugging state inside `output` are not stomped on.
     expect((flat as Record<string, unknown>)._resumeState).toBe(outputState);
   });
 
   describe('control-field override (port/status are authoritative from handler)', () => {
-    // Regression: when a handler forwards an upstream object as `output`
-    // (e.g. switch does `output: input` after a form resume), the object
-    // carries inherited `port: "out"` / `status: "resumed"` control fields.
-    // The handler's declared `port`/`status` must override — otherwise the
-    // downstream port-routing sees the stale inherited port and filters
-    // every outgoing edge.
     it('overrides inherited port from output object with adapted.port', () => {
       const flat = toEngineFlatShape({
         config: {},
@@ -385,8 +374,6 @@ describe('toEngineFlatShape', () => {
         config: {},
         output: { interaction: {}, port: 'out' },
       });
-      // Without a handler-declared port, a pass-through handler can still
-      // forward whatever port metadata rode in on the input.
       expect((flat as Record<string, unknown>).port).toBe('out');
     });
 

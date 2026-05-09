@@ -7,6 +7,9 @@ function makeContext(rawConfig?: Record<string, unknown>): ExecutionContext {
     workflowId: 'wf-1',
     variables: {},
     nodeOutputCache: {},
+    structuredOutputCache: {},
+    engineResolvedConfigCache: {},
+    recursionDepth: 0,
     ...(rawConfig ? { rawConfig: Object.freeze({ ...rawConfig }) } : {}),
   };
 }
@@ -19,6 +22,9 @@ describe('ManualTriggerHandler', () => {
     workflowId: 'wf-1',
     variables: {},
     nodeOutputCache: {},
+    structuredOutputCache: {},
+    engineResolvedConfigCache: {},
+    recursionDepth: 0,
   };
 
   beforeEach(() => {
@@ -71,7 +77,7 @@ describe('ManualTriggerHandler', () => {
         { parameters: { name: 'Alice', count: 3 } },
         { parameters: [{ name: 'name', type: 'string' }] },
         mockContext,
-      )) as {
+      )) as unknown as {
         config: unknown;
         output: { parameters: Record<string, unknown> };
       };
@@ -90,7 +96,7 @@ describe('ManualTriggerHandler', () => {
         },
         { parameters: [{ name: 'orderId', type: 'string' }] },
         mockContext,
-      )) as {
+      )) as unknown as {
         output: {
           parameters: Record<string, unknown>;
           body: unknown;
@@ -106,7 +112,11 @@ describe('ManualTriggerHandler', () => {
     });
 
     it('returns parameters: {} when input is null/undefined', async () => {
-      const result = (await handler.execute(null, {}, mockContext)) as {
+      const result = (await handler.execute(
+        null,
+        {},
+        mockContext,
+      )) as unknown as {
         output: { parameters: Record<string, unknown> };
       };
       expect(result.output.parameters).toEqual({});
@@ -118,7 +128,7 @@ describe('ManualTriggerHandler', () => {
         { parameters: { x: 'y' } },
         { parameters: schema },
         mockContext,
-      )) as { config: { parameters: unknown } };
+      )) as unknown as { config: { parameters: unknown } };
       expect(result.config.parameters).toEqual(schema);
     });
 
@@ -136,7 +146,7 @@ describe('ManualTriggerHandler', () => {
         { parameters: { date: '2026-05-08' } },
         { parameters: evaluatedSchema },
         makeContext({ parameters: rawSchema }),
-      )) as { config: { parameters: unknown } };
+      )) as unknown as { config: { parameters: unknown } };
       expect(result.config.parameters).toEqual(rawSchema);
     });
   });

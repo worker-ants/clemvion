@@ -13,6 +13,9 @@ describe('SplitHandler', () => {
     workflowId: 'wf-1',
     variables: {},
     nodeOutputCache: {},
+    structuredOutputCache: {},
+    engineResolvedConfigCache: {},
+    recursionDepth: 0,
   };
 
   describe('validate', () => {
@@ -142,7 +145,7 @@ describe('SplitHandler', () => {
           ...context,
           rawConfig: Object.freeze({ fieldPath: '{{ $input.items }}' }),
         },
-      )) as { config: { fieldPath: unknown }; output: unknown[] };
+      )) as unknown as { config: { fieldPath: unknown }; output: unknown[] };
 
       expect(result.config.fieldPath).toBe('{{ $input.items }}');
       expect(result.output).toEqual([

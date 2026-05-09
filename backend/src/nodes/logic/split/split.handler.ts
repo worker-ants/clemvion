@@ -1,5 +1,6 @@
 import {
   NodeHandler,
+  NodeHandlerOutput,
   ValidationResult,
   ExecutionContext,
 } from '../../core/node-handler.interface.js';
@@ -31,7 +32,7 @@ export class SplitHandler implements NodeHandler {
     input: unknown,
     config: Record<string, unknown>,
     context: ExecutionContext,
-  ): Promise<unknown> {
+  ): Promise<NodeHandlerOutput> {
     const { fieldPath } = config as unknown as SplitConfig;
     // CONVENTIONS Principle 7 — config echoes raw fieldPath (`{{ ... }}`
     // template preserved); resolveFieldValue still operates on the

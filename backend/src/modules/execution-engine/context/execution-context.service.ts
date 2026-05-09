@@ -14,7 +14,7 @@ type MutableExecutionContext = Omit<
   ExecutionContext,
   'engineResolvedConfigCache'
 > & {
-  engineResolvedConfigCache?: Record<string, Record<string, unknown>>;
+  engineResolvedConfigCache: Record<string, Record<string, unknown>>;
 };
 
 /**
@@ -51,9 +51,6 @@ export class ExecutionContextService {
   ): void {
     const context = this.contexts.get(executionId);
     if (!context) return;
-    if (!context.structuredOutputCache) {
-      context.structuredOutputCache = {};
-    }
     context.structuredOutputCache[nodeId] = adapted;
   }
 
@@ -75,13 +72,6 @@ export class ExecutionContextService {
       | MutableExecutionContext
       | undefined;
     if (!context) return;
-    // `createContext` initialises the slot to `{}`, so the runtime guard
-    // here is for hypothetical legacy contexts deserialised without it
-    // (e.g. when this layer is moved to Redis). Cheap to keep; defends
-    // against future plumbing regressions.
-    if (!context.engineResolvedConfigCache) {
-      context.engineResolvedConfigCache = {};
-    }
     context.engineResolvedConfigCache[nodeId] = { ...resolvedConfig };
   }
 
@@ -121,9 +111,6 @@ export class ExecutionContextService {
     // canonical shape moments earlier. Strict contract enforcement belongs at
     // the single handler-return boundary in execution-engine.service.ts, not
     // here.
-    if (!context.structuredOutputCache) {
-      context.structuredOutputCache = {};
-    }
     const existing = context.structuredOutputCache[nodeId];
     const isCanonical =
       typeof output === 'object' &&

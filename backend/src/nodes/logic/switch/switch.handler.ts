@@ -1,5 +1,6 @@
 import {
   NodeHandler,
+  NodeHandlerOutput,
   ValidationResult,
   ExecutionContext,
 } from '../../core/node-handler.interface.js';
@@ -73,7 +74,7 @@ export class SwitchHandler implements NodeHandler {
     input: unknown,
     config: Record<string, unknown>,
     context: ExecutionContext,
-  ): Promise<unknown> {
+  ): Promise<NodeHandlerOutput> {
     const { mode, switchValue, cases, hasDefault, strictComparison } =
       config as unknown as SwitchConfig;
     const resolvedMode: SwitchMode = mode ?? 'value';

@@ -32,6 +32,9 @@ function ctx(overrides: Partial<ExecutionContext> = {}): ExecutionContext {
     nodeExecutionId: 'ne-1',
     variables: { __workspaceId: 'ws-1' },
     nodeOutputCache: {},
+    structuredOutputCache: {},
+    engineResolvedConfigCache: {},
+    recursionDepth: 0,
     ...overrides,
   };
 }

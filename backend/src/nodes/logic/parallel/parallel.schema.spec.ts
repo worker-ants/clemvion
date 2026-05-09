@@ -181,6 +181,9 @@ describe('Parallel node', () => {
       workflowId: 'wf-1',
       variables: {},
       nodeOutputCache: {},
+      structuredOutputCache: {},
+      engineResolvedConfigCache: {},
+      recursionDepth: 0,
     };
 
     it('branchCount만큼 branch_N 포트를 모두 활성화', async () => {

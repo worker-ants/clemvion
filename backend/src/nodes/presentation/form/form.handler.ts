@@ -1,6 +1,7 @@
 import {
   ExecutionContext,
   NodeHandler,
+  NodeHandlerOutput,
   ValidationResult,
 } from '../../core/node-handler.interface.js';
 import { evaluateMetadataBlockingErrors } from '../../core/metadata-validation.js';
@@ -25,7 +26,7 @@ export class FormHandler implements NodeHandler {
     _input: unknown,
     config: Record<string, unknown>,
     context: ExecutionContext,
-  ): Promise<unknown> {
+  ): Promise<NodeHandlerOutput> {
     // Initial execution: transition to waiting_for_input. The engine's
     // waitForFormSubmission() fills `output.interaction.{type,data,receivedAt}`
     // and flips `status` to `'resumed'` once the user submits the form

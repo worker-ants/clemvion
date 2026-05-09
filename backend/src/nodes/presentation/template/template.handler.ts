@@ -1,6 +1,7 @@
 import {
   ExecutionContext,
   NodeHandler,
+  NodeHandlerOutput,
   ValidationResult,
 } from '../../core/node-handler.interface.js';
 import { evaluateMetadataBlockingErrors } from '../../core/metadata-validation.js';
@@ -35,7 +36,7 @@ export class TemplateHandler implements NodeHandler {
     _input: unknown,
     config: Record<string, unknown>,
     context: ExecutionContext,
-  ): Promise<unknown> {
+  ): Promise<NodeHandlerOutput> {
     const content = typeof config.template === 'string' ? config.template : '';
     const outputFormat = (config.outputFormat as string) ?? 'text';
 

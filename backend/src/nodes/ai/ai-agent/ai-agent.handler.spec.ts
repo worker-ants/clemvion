@@ -54,6 +54,9 @@ describe('AiAgentHandler', () => {
     workflowId: 'wf-1',
     variables: { __workspaceId: 'ws-1' },
     nodeOutputCache: {},
+    structuredOutputCache: {},
+    engineResolvedConfigCache: {},
+    recursionDepth: 0,
   };
 
   describe('validate', () => {
@@ -126,7 +129,7 @@ describe('AiAgentHandler', () => {
       );
 
       expect(mockLlmService.chat).toHaveBeenCalled();
-      const r = result as Record<string, unknown>;
+      const r = result as unknown as Record<string, unknown>;
       const out = r.output as Record<string, unknown>;
       const res = out.result as Record<string, unknown>;
       expect(res.response).toBe('Hello! I am an AI assistant.');
@@ -231,7 +234,7 @@ describe('AiAgentHandler', () => {
           knowledgeBases: ['kb-1'],
         },
         baseContext,
-      )) as Record<string, unknown>;
+      )) as unknown as Record<string, unknown>;
 
       expect(mockRagService.search).toHaveBeenCalledWith(
         'refund window',
@@ -248,7 +251,7 @@ describe('AiAgentHandler', () => {
       const toolPayload = JSON.parse(toolMsg.content);
       expect(toolPayload.results[0].source).toBe('refund.md');
 
-      const meta = (result.meta ?? {}) as Record<string, unknown>;
+      const meta = (result.meta ?? {}) as unknown as Record<string, unknown>;
       expect(meta.toolCalls).toBe(1);
       expect((meta.ragSources as unknown[]).length).toBe(1);
       const diag = meta.ragDiagnostics as Record<string, unknown>;
@@ -305,10 +308,10 @@ describe('AiAgentHandler', () => {
           knowledgeBases: ['kb-a', 'kb-b'],
         },
         baseContext,
-      )) as Record<string, unknown>;
+      )) as unknown as Record<string, unknown>;
 
       expect(mockRagService.search).toHaveBeenCalledTimes(2);
-      const meta = (result.meta ?? {}) as Record<string, unknown>;
+      const meta = (result.meta ?? {}) as unknown as Record<string, unknown>;
       expect(meta.toolCalls).toBe(2);
       const diag = meta.ragDiagnostics as Record<string, unknown>;
       expect(diag.searchedKbCount).toBe(2);
@@ -370,10 +373,10 @@ describe('AiAgentHandler', () => {
           maxToolCalls: 5,
         },
         baseContext,
-      )) as Record<string, unknown>;
+      )) as unknown as Record<string, unknown>;
 
       expect(mockRagService.search).toHaveBeenCalledTimes(2);
-      const meta = (result.meta ?? {}) as Record<string, unknown>;
+      const meta = (result.meta ?? {}) as unknown as Record<string, unknown>;
       const diag = meta.ragDiagnostics as Record<string, unknown>;
       expect(diag.queriesUsed as string[]).toEqual(['first', 'refined']);
     });
@@ -403,11 +406,11 @@ describe('AiAgentHandler', () => {
           maxToolCalls: 2,
         },
         baseContext,
-      )) as Record<string, unknown>;
+      )) as unknown as Record<string, unknown>;
 
       // chat invoked: initial + 2 loop iterations (until count == max), then exits.
       expect(mockLlmService.chat).toHaveBeenCalledTimes(3);
-      const meta = (result.meta ?? {}) as Record<string, unknown>;
+      const meta = (result.meta ?? {}) as unknown as Record<string, unknown>;
       expect(meta.toolCalls).toBe(2);
     });
 
@@ -525,7 +528,7 @@ describe('AiAgentHandler', () => {
           maxToolCalls: 2,
         },
         baseContext,
-      )) as Record<string, unknown>;
+      )) as unknown as Record<string, unknown>;
 
       // 잔여 한도 2 만큼만 실제 검색 수행
       expect(mockRagService.search).toHaveBeenCalledTimes(2);
@@ -545,12 +548,12 @@ describe('AiAgentHandler', () => {
 
       const budgetMsg = toolMsgs.find((m) => m.toolCallId === 'tc-3');
       expect(budgetMsg).toBeDefined();
-      const budgetBody = JSON.parse(budgetMsg!.content) as {
+      const budgetBody = JSON.parse(budgetMsg!.content) as unknown as {
         error?: string;
       };
       expect(budgetBody.error).toBe('tool_call_budget_exceeded');
 
-      const meta = (result.meta ?? {}) as Record<string, unknown>;
+      const meta = (result.meta ?? {}) as unknown as Record<string, unknown>;
       expect(meta.toolCalls).toBe(2);
     });
 
@@ -603,11 +606,11 @@ describe('AiAgentHandler', () => {
           knowledgeBases: ['kb-1'],
         },
         baseContext,
-      )) as Record<string, unknown>;
+      )) as unknown as Record<string, unknown>;
 
       expect(mockRagService.search).toHaveBeenCalledTimes(2);
 
-      const meta = (result.meta ?? {}) as Record<string, unknown>;
+      const meta = (result.meta ?? {}) as unknown as Record<string, unknown>;
       const sources = meta.ragSources as Array<{ chunkId: string }>;
       // Same chunkId returned by both parallel calls → deduped.
       expect(sources).toHaveLength(1);
@@ -671,10 +674,10 @@ describe('AiAgentHandler', () => {
           knowledgeBases: ['kb-1'],
         },
         baseContext,
-      )) as Record<string, unknown>;
+      )) as unknown as Record<string, unknown>;
 
       // 성공 호출의 ragSources 가 누적됨
-      const meta = (result.meta ?? {}) as Record<string, unknown>;
+      const meta = (result.meta ?? {}) as unknown as Record<string, unknown>;
       const sources = meta.ragSources as Array<{ chunkId: string }>;
       expect(sources).toHaveLength(1);
       expect(sources[0].chunkId).toBe('c-ok');
@@ -690,7 +693,9 @@ describe('AiAgentHandler', () => {
       ).filter((m) => m.role === 'tool');
       const failMsg = toolMsgs.find((m) => m.toolCallId === 'tc-bad');
       expect(failMsg).toBeDefined();
-      const failBody = JSON.parse(failMsg!.content) as { error?: string };
+      const failBody = JSON.parse(failMsg!.content) as unknown as {
+        error?: string;
+      };
       expect(failBody.error).toBe('search_failed');
 
       // 양쪽 호출 모두 toolCalls 카운트 + 진단에 누적되어야 함.
@@ -810,7 +815,7 @@ describe('AiAgentHandler', () => {
         baseContext,
       );
 
-      const r = result as Record<string, unknown>;
+      const r = result as unknown as Record<string, unknown>;
       const out = r.output as Record<string, unknown>;
       const res = out.result as Record<string, unknown>;
       expect(res.response).toEqual({ answer: '42' });
@@ -833,7 +838,7 @@ describe('AiAgentHandler', () => {
         baseContext,
       );
 
-      const r = result as Record<string, unknown>;
+      const r = result as unknown as Record<string, unknown>;
       const out = r.output as Record<string, unknown>;
       const res = out.result as Record<string, unknown>;
       expect(res.response).toBe('not valid json {{{');
@@ -846,7 +851,7 @@ describe('AiAgentHandler', () => {
         baseContext,
       );
 
-      const r = result as Record<string, unknown>;
+      const r = result as unknown as Record<string, unknown>;
       const out = r.output as Record<string, unknown>;
       const res = out.result as Record<string, unknown>;
       expect(res.response).toBeDefined();
@@ -873,7 +878,7 @@ describe('AiAgentHandler', () => {
 
       expect(mockLlmService.chat).not.toHaveBeenCalled();
 
-      const output = result as Record<string, unknown>;
+      const output = result as unknown as Record<string, unknown>;
       expect(output.status).toBe('waiting_for_input');
       // Canonical NodeHandlerOutput shape — top-level type/conversationConfig
       // are no longer present (CONVENTIONS §4.3 + Principle 0).
@@ -916,7 +921,7 @@ describe('AiAgentHandler', () => {
 
       expect(mockLlmService.chat).not.toHaveBeenCalled();
 
-      const output = result as Record<string, unknown>;
+      const output = result as unknown as Record<string, unknown>;
       expect(output.status).toBe('waiting_for_input');
       const conv = output.output as Record<string, unknown>;
       expect(conv.turnCount).toBe(0);
@@ -958,7 +963,7 @@ describe('AiAgentHandler', () => {
       );
 
       expect(mockRagService.search).not.toHaveBeenCalled();
-      const output = result as Record<string, unknown>;
+      const output = result as unknown as Record<string, unknown>;
       const state = output._resumeState as Record<string, unknown>;
       expect((state.ragSources as unknown[]).length).toBe(0);
     });
@@ -1492,8 +1497,8 @@ describe('AiAgentHandler', () => {
           userPrompt: 'Hi!',
         },
         baseContext,
-      )) as Record<string, unknown>;
-      const meta = (result.meta ?? {}) as Record<string, unknown>;
+      )) as unknown as Record<string, unknown>;
+      const meta = (result.meta ?? {}) as unknown as Record<string, unknown>;
       const turnDebug = meta.turnDebug as Array<Record<string, unknown>>;
       expect(turnDebug).toHaveLength(1);
       expect(turnDebug[0].ragSources).toEqual([]);
@@ -1543,9 +1548,9 @@ describe('AiAgentHandler', () => {
           knowledgeBases: ['kb-1'],
         },
         baseContext,
-      )) as Record<string, unknown>;
+      )) as unknown as Record<string, unknown>;
 
-      const meta = (result.meta ?? {}) as Record<string, unknown>;
+      const meta = (result.meta ?? {}) as unknown as Record<string, unknown>;
       const turnDebug = meta.turnDebug as Array<Record<string, unknown>>;
       expect(turnDebug).toHaveLength(1);
       expect(turnDebug[0].turnIndex).toBe(1);
@@ -1580,7 +1585,7 @@ describe('AiAgentHandler', () => {
         },
       );
 
-      const r = result as Record<string, unknown>;
+      const r = result as unknown as Record<string, unknown>;
       const out = r.output as Record<string, unknown>;
       const res = out.result as Record<string, unknown>;
       expect(res.response).toBe('Hello!');
@@ -1629,7 +1634,7 @@ describe('AiAgentHandler', () => {
         [],
         rawConfig,
       );
-      const r = result as Record<string, unknown>;
+      const r = result as unknown as Record<string, unknown>;
       const config = r.config as Record<string, unknown>;
       // raw model template is preserved (not engine-resolved)
       expect(config.model).toBe('{{ vars.model }}');
@@ -1666,10 +1671,8 @@ describe('AiAgentHandler', () => {
           conditions: [],
         },
       );
-      const config = (result as Record<string, unknown>).config as Record<
-        string,
-        unknown
-      >;
+      const config = (result as unknown as Record<string, unknown>)
+        .config as Record<string, unknown>;
       expect(config.knowledgeBases).toBeUndefined();
       expect(config.conditions).toBeUndefined();
     });
@@ -1688,7 +1691,7 @@ describe('AiAgentHandler', () => {
           ragSources: [],
         },
       );
-      const r = result as Record<string, unknown>;
+      const r = result as unknown as Record<string, unknown>;
       const config = r.config as Record<string, unknown>;
       expect(config.mode).toBe('multi_turn');
       expect(config.model).toBe('gpt-4o');
@@ -1945,7 +1948,7 @@ describe('AiAgentHandler', () => {
         {},
         conditionConfig,
         baseContext,
-      )) as Record<string, unknown>;
+      )) as unknown as Record<string, unknown>;
 
       expect(result.port).toBe('a1b2c3d4-refund');
       expect(result.status).toBe('ended');
@@ -1991,7 +1994,7 @@ describe('AiAgentHandler', () => {
         // engine-resolved per-call config (templates already replaced)
         { ...conditionConfig, systemPrompt: 'You are Refund Bot' },
         ctxWithRaw,
-      )) as Record<string, unknown>;
+      )) as unknown as Record<string, unknown>;
 
       const config = result.config as Record<string, unknown>;
       expect(config.systemPrompt).toBe('You are {{ vars.persona }}');
@@ -2014,7 +2017,7 @@ describe('AiAgentHandler', () => {
         {},
         conditionConfig,
         baseContext,
-      )) as Record<string, unknown>;
+      )) as unknown as Record<string, unknown>;
 
       // a1b2c3d4-refund is first in conditions array (index 0)
       expect(result.port).toBe('a1b2c3d4-refund');
@@ -2025,7 +2028,7 @@ describe('AiAgentHandler', () => {
         {},
         conditionConfig,
         baseContext,
-      )) as Record<string, unknown>;
+      )) as unknown as Record<string, unknown>;
 
       // Default mock returns no toolCalls, so should go to the normal
       // `out` port (single-turn unified shape).
@@ -2107,7 +2110,7 @@ describe('AiAgentHandler', () => {
           ],
         },
         baseContext,
-      )) as Record<string, unknown>;
+      )) as unknown as Record<string, unknown>;
 
       const state = result._resumeState as Record<string, unknown>;
       expect(state.conditions).toBeDefined();
@@ -2137,7 +2140,7 @@ describe('AiAgentHandler', () => {
         },
       );
 
-      const r = result as Record<string, unknown>;
+      const r = result as unknown as Record<string, unknown>;
       const out = r.output as Record<string, unknown>;
       const res = out.result as Record<string, unknown>;
       expect(res.endReason).toBe('condition');
@@ -2152,7 +2155,7 @@ describe('AiAgentHandler', () => {
         ragSources: [],
       });
 
-      const r = result as Record<string, unknown>;
+      const r = result as unknown as Record<string, unknown>;
       const out = r.output as Record<string, unknown>;
       const res = out.result as Record<string, unknown>;
       expect(res.endReason).toBe('error');
@@ -2346,7 +2349,9 @@ describe('AiAgentHandler', () => {
       // tool_call_completed payload 의 error 필드, logger.warn 에만 보존된다.
       expect(toolMsg?.content).not.toContain('KB DOWN');
       expect(toolMsg?.content).toContain('search_failed');
-      const toolBody = JSON.parse(toolMsg!.content) as { message?: string };
+      const toolBody = JSON.parse(toolMsg!.content) as unknown as {
+        message?: string;
+      };
       expect(toolBody.message).toMatch(/일시적으로/);
 
       // turnDebug carries the error
@@ -2369,10 +2374,8 @@ describe('AiAgentHandler', () => {
       });
 
       // Final assistant response is preserved (turn recovered)
-      const out = (result as Record<string, unknown>).output as Record<
-        string,
-        unknown
-      >;
+      const out = (result as unknown as Record<string, unknown>)
+        .output as Record<string, unknown>;
       const res = out.result as Record<string, unknown>;
       expect(res.response).toBe('죄송합니다. 검색에 실패했습니다.');
     });
@@ -2592,5 +2595,8 @@ describe('AiAgentHandler', () => {
  */
 function readSingleTurnMeta(_handler: AiAgentHandler) {
   return (result: unknown) =>
-    ((result as Record<string, unknown>).meta ?? {}) as Record<string, unknown>;
+    ((result as Record<string, unknown>).meta ?? {}) as unknown as Record<
+      string,
+      unknown
+    >;
 }

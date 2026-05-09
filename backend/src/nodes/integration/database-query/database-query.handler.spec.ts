@@ -36,6 +36,9 @@ function ctx(): ExecutionContext {
     nodeExecutionId: 'ne-1',
     variables: { __workspaceId: 'ws-1' },
     nodeOutputCache: {},
+    structuredOutputCache: {},
+    engineResolvedConfigCache: {},
+    recursionDepth: 0,
   };
 }
 
@@ -151,7 +154,7 @@ describe('DatabaseQueryHandler', () => {
           parameters: [18],
         },
         ctx(),
-      )) as {
+      )) as unknown as {
         config: { query: string };
         output: { rows: unknown[]; rowCount: number };
         meta: { durationMs: number };
@@ -214,7 +217,7 @@ describe('DatabaseQueryHandler', () => {
         null,
         { integrationId: 'int-1', query: 'SELEC 1' },
         ctx(),
-      )) as {
+      )) as unknown as {
         port: string;
         output: { error: { code: string; message: string } };
       };
@@ -258,7 +261,7 @@ describe('DatabaseQueryHandler', () => {
           parameters: ['v'],
         },
         ctx(),
-      )) as {
+      )) as unknown as {
         port: string;
         output: { rows: unknown[]; rowCount: number; fields: unknown[] };
       };
@@ -303,7 +306,7 @@ describe('DatabaseQueryHandler', () => {
           queryType: 'insert',
         },
         ctx(),
-      )) as {
+      )) as unknown as {
         port: string;
         output: { rows: unknown[]; rowCount: number; insertId: number };
       };
@@ -338,7 +341,7 @@ describe('DatabaseQueryHandler', () => {
         null,
         { integrationId: 'int-1', query: 'SELEC 1' },
         ctx(),
-      )) as {
+      )) as unknown as {
         port: string;
         output: { error: { message: string } };
       };

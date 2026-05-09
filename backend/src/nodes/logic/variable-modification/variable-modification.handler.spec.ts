@@ -12,6 +12,9 @@ describe('VariableModificationHandler', () => {
       workflowId: 'wf-1',
       variables: {},
       nodeOutputCache: {},
+      structuredOutputCache: {},
+      engineResolvedConfigCache: {},
+      recursionDepth: 0,
     };
   });
 
@@ -104,7 +107,7 @@ describe('VariableModificationHandler', () => {
           modifications: [{ variable: 'x', operation: 'set', value: 1 }],
         },
         context,
-      )) as { output: unknown };
+      )) as unknown as { output: unknown };
       expect(result.output).toEqual({ hello: 'world' });
     });
 
@@ -114,7 +117,7 @@ describe('VariableModificationHandler', () => {
         null,
         { modifications },
         context,
-      )) as { config: { modifications: unknown } };
+      )) as unknown as { config: { modifications: unknown } };
       expect(result.config.modifications).toEqual(modifications);
     });
 
@@ -398,7 +401,7 @@ describe('VariableModificationHandler', () => {
           ...context,
           rawConfig: Object.freeze({ modifications: rawMods }),
         },
-      )) as { config: { modifications: unknown } };
+      )) as unknown as { config: { modifications: unknown } };
 
       expect(result.config.modifications).toEqual(rawMods);
       expect(context.variables.counter).toBe(5);

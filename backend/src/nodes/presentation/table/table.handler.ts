@@ -1,6 +1,7 @@
 import {
   ExecutionContext,
   NodeHandler,
+  NodeHandlerOutput,
   ValidationResult,
 } from '../../core/node-handler.interface.js';
 import { evaluateMetadataBlockingErrors } from '../../core/metadata-validation.js';
@@ -46,7 +47,7 @@ export class TableHandler implements NodeHandler {
     input: unknown,
     config: Record<string, unknown>,
     context: ExecutionContext,
-  ): Promise<unknown> {
+  ): Promise<NodeHandlerOutput> {
     const mode: TableMode = ((config.mode as string) ?? 'dynamic') as TableMode;
     // `columns` default is `[]` per schema — fall back so `for (const col of columns)`
     // never dereferences undefined.

@@ -234,6 +234,9 @@ describe('ExpressionResolverService', () => {
           n1: { statusCode: 200, body: { data: 'test' } },
           n2: { transformed: true },
         },
+        structuredOutputCache: {},
+        engineResolvedConfigCache: {},
+        recursionDepth: 0,
       };
 
       const ctx = service.buildExpressionContext(
@@ -260,6 +263,9 @@ describe('ExpressionResolverService', () => {
         workflowId: 'wf-1',
         variables: {},
         nodeOutputCache: {},
+        structuredOutputCache: {},
+        engineResolvedConfigCache: {},
+        recursionDepth: 0,
         loopContext: { index: 2, count: 5, isFirst: false, isLast: false },
         itemContext: {
           item: { name: 'item2' },
@@ -288,6 +294,9 @@ describe('ExpressionResolverService', () => {
         workflowId: 'wf-1',
         variables: {},
         nodeOutputCache: {},
+        structuredOutputCache: {},
+        engineResolvedConfigCache: {},
+        recursionDepth: 0,
       };
 
       const ctx = service.buildExpressionContext(null, execContext, nodeMap);
@@ -321,6 +330,7 @@ describe('ExpressionResolverService', () => {
           // to expression resolution.
           n1: { count: 3 },
         },
+        recursionDepth: 0,
       };
 
       const ctx = service.buildExpressionContext({}, execContext, nodeMap);
@@ -343,6 +353,9 @@ describe('ExpressionResolverService', () => {
         workflowId: 'wf-1',
         variables: {},
         nodeOutputCache: {},
+        structuredOutputCache: {},
+        engineResolvedConfigCache: {},
+        recursionDepth: 0,
       };
       const ctx = service.buildExpressionContext({}, execContext, nodeMap);
 
@@ -358,6 +371,9 @@ describe('ExpressionResolverService', () => {
         workflowId: 'wf-1',
         variables: {},
         nodeOutputCache: {},
+        structuredOutputCache: {},
+        engineResolvedConfigCache: {},
+        recursionDepth: 0,
       };
       const ctx = service.buildExpressionContext(
         { parameters: { orderId: 'abc', amount: 1000 }, body: {} },
@@ -380,6 +396,9 @@ describe('ExpressionResolverService', () => {
         nodeOutputCache: {
           n1: { port: 'success', data: { users: [{ id: 1 }] } },
         },
+        structuredOutputCache: {},
+        engineResolvedConfigCache: {},
+        recursionDepth: 0,
       };
 
       const exprContext = service.buildExpressionContext(
@@ -410,6 +429,9 @@ describe('ExpressionResolverService', () => {
           n1: { status: 200 },
           n2: { status: 404 },
         },
+        structuredOutputCache: {},
+        engineResolvedConfigCache: {},
+        recursionDepth: 0,
       };
 
       const ctx = service.buildExpressionContext({}, execContext, nodeMap);
@@ -433,6 +455,9 @@ describe('ExpressionResolverService', () => {
         nodeOutputCache: {
           n1: { result: 'data' },
         },
+        structuredOutputCache: {},
+        engineResolvedConfigCache: {},
+        recursionDepth: 0,
       };
 
       const ctx = service.buildExpressionContext({}, execContext, nodeMap);
@@ -460,6 +485,9 @@ describe('ExpressionResolverService', () => {
           n1: { status: 200 },
           n2: { status: 404 },
         },
+        structuredOutputCache: {},
+        engineResolvedConfigCache: {},
+        recursionDepth: 0,
       };
 
       const exprContext = service.buildExpressionContext(
@@ -486,6 +514,9 @@ describe('ExpressionResolverService', () => {
         nodeOutputCache: {
           n1: { result: 42 },
         },
+        structuredOutputCache: {},
+        engineResolvedConfigCache: {},
+        recursionDepth: 0,
       };
 
       const exprContext = service.buildExpressionContext(

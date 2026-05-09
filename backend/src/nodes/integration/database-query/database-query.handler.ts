@@ -9,6 +9,7 @@ import { createHash } from 'crypto';
 import {
   ExecutionContext,
   NodeHandler,
+  NodeHandlerOutput,
   ValidationResult,
 } from '../../core/node-handler.interface.js';
 import { evaluateMetadataBlockingErrors } from '../../core/metadata-validation.js';
@@ -93,7 +94,7 @@ export class DatabaseQueryHandler
     _input: unknown,
     config: Record<string, unknown>,
     context: ExecutionContext,
-  ): Promise<unknown> {
+  ): Promise<NodeHandlerOutput> {
     const integrationId = config.integrationId as string;
     const query = config.query as string;
     const parameters = parseParameters(config.parameters);
