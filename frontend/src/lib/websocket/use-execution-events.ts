@@ -229,11 +229,34 @@ export function useExecutionEvents({
         outputData: resolvedOutput,
       });
 
-      // Resolve interactionType from top-level or inside nodeOutput
+      // Resolve interactionType from top-level or inside nodeOutput.
+      //
+      // Defense-in-depth (Carousel buttons-disabled bug fix):
+      //  1. payload.interactionType — backend top-level emit (canonical)
+      //  2. nodeOutput.interactionType — legacy nested (AI multi-turn 등)
+      //  3. inferInteractionTypeFromNodeType(payload.waitingNodeType) — nodeType
+      //     기반 fallback (carousel/chart/table/template → 'buttons',
+      //     ai_agent/information_extractor → 'ai_conversation', form → 'form').
+      //     backend 가 (1)/(2) 모두 빠뜨려도 안전하게 분기하도록 보장.
       const nodeOutputObj = resolvedOutput as Record<string, unknown> | null;
       const interactionType =
         payload.interactionType ??
-        (nodeOutputObj?.interactionType as string | undefined);
+        (nodeOutputObj?.interactionType as string | undefined) ??
+        inferInteractionTypeFromNodeType(payload.waitingNodeType);
+
+      // 진단용: 위 3 fallback 모두 실패한 경우 production 에서도 noticeable
+      // 하게 warn — root cause 신속 격리. 사용자 환경에 부담 없는 log only.
+      if (!interactionType) {
+        console.warn(
+          "[handleWaitingForInput] interactionType extraction failed — buttons may render disabled",
+          {
+            waitingNodeId: payload.waitingNodeId,
+            waitingNodeType: payload.waitingNodeType,
+            payloadInteractionType: payload.interactionType,
+            nodeOutputInteractionType: nodeOutputObj?.interactionType,
+          },
+        );
+      }
 
       if (interactionType === "ai_conversation") {
         const convConfig = nodeOutputObj?.conversationConfig as {
@@ -816,15 +839,25 @@ export function useExecutionEvents({
           // backend 가 meta 를 빠뜨려도 카테고리/AI/Form 노드 타입으로
           // 정확히 hydrate 되도록 보장 (page.tsx 의 isWaitingButtons 등이
           // 정확히 true 가 되어 Preview 탭 버튼이 콜백을 받음).
+          //
+          // Defense-in-depth (Carousel buttons-disabled bug fix): REST
+          // `/executions/:id` 응답이 `nodeExecutions[].node` 객체를 nest 하지
+          // 않거나 (TypeORM eager load 누락 / select fields 제한 등) stale 한
+          // 경우를 대비해 row 자체의 nodeType / type 도 fallback 으로 시도.
+          // 어떤 응답 shape 라도 nodeType 만 한 번 잡히면 추론 가능.
           const envelopeOutput = isStructured
             ? (raw.output as Record<string, unknown> | undefined)
             : undefined;
+          const fallbackNodeType =
+            waitingNode.node?.type ??
+            (waitingNode as { nodeType?: string }).nodeType ??
+            (waitingNode as { type?: string }).type;
           const interactionType =
             (meta?.interactionType as string | undefined) ??
             (envelopeOutput?.interactionType as string | undefined) ??
             (raw.interactionType as string | undefined) ??
             (raw.type === "form" ? "form" : undefined) ??
-            inferInteractionTypeFromNodeType(waitingNode.node?.type);
+            inferInteractionTypeFromNodeType(fallbackNodeType);
 
           if (interactionType === "ai_conversation") {
             const convConfig = isStructured
