@@ -68,6 +68,12 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+    # Dockerfile 의 COPY 는 K8s/CI 이미지 빌드용으로 유지하고, compose 에서는
+    # 호스트 backend/migrations 를 그대로 노출시켜 새 V###__*.sql/.conf 추가 시
+    # 이미지 재빌드 없이 즉시 반영되도록 한다. Flyway 기본 location 이 /flyway/sql
+    # 이므로 별도 -locations 플래그 불필요. SQL 디렉터리에는 쓰지 않으므로 :ro.
+    volumes:
+      - ./backend/migrations:/flyway/sql:ro
     # 배열 형태: 셸 파싱을 거치지 않으므로 JDBC URL의 ':' / '=' 가 안전.
     command:
       - migrate
