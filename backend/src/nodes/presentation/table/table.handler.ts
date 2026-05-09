@@ -12,7 +12,7 @@ import { getNestedValue } from '../../core/nested-value.util.js';
 import {
   PRESENTATION_MAX_BYTES,
   truncateArrayForOutput,
-} from '../../integration/_base/truncate-body.util.js';
+} from '../../core/truncate-output.util.js';
 import { ButtonDef } from '../_shared/button.types.js';
 import { tableNodeMetadata } from './table.schema.js';
 
@@ -121,6 +121,12 @@ export class TableHandler implements NodeHandler {
       dataRows = dataRows.slice(0, pageSize);
     }
 
+    // Cap evaluated `rows` at the Presentation 1MB threshold BEFORE
+    // rendering so the HTML stays aligned with the surfaced rows array.
+    // Otherwise rendered would echo the full dataset's HTML even when rows
+    // are truncated, defeating the cap.
+    const cappedRows = truncateArrayForOutput(dataRows, PRESENTATION_MAX_BYTES);
+
     // Resolve label expressions (once, using first item context if available)
     const resolvedColumns = this.resolveColumnLabels(
       columns,
@@ -129,20 +135,22 @@ export class TableHandler implements NodeHandler {
       context,
     );
 
-    const rendered = this.renderHtml(resolvedColumns, columns, dataRows);
+    const rendered = this.renderHtml(
+      resolvedColumns,
+      columns,
+      cappedRows.value,
+    );
 
     // CONVENTIONS Principle 7 — config echoes raw column definitions
     // (per-column `field` / `label` may be `{{ ... }}` templates the engine
     // resolved before dispatch). evaluated rows + resolved column labels
     // live in output.
     const rawConfig = context.rawConfig ?? config;
-    // Cap evaluated `rows` at the Presentation 1MB threshold. `totalRows`
-    // intentionally reports the full dataset count (post pageSize / sort)
-    // so downstream observers can detect the size mismatch even when the
-    // truncation flag is absent.
-    const cappedRows = truncateArrayForOutput(dataRows, PRESENTATION_MAX_BYTES);
     const payload: Record<string, unknown> = {
       rows: cappedRows.value,
+      // `totalRows` reflects the full pre-cap dataset size (post pageSize /
+      // sort) so downstream observers can detect the cap even without the
+      // explicit `rowsTruncated` flag (`rows.length !== totalRows`).
       totalRows: dataRows.length,
       rendered,
       // Surface resolved (label-evaluated) columns on output for downstream

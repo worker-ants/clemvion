@@ -50,5 +50,6 @@
 
 ## 후속 작업
 
-- ai-review 1회 (전체 변경 대상) — 두 커밋 합산.
-- ai-review 결과 처리 후 본 문서를 `plan/complete/` 로 `git mv`.
+- ✅ ai-review 1회 — `review/2026-05-09_16-43-42/`. Critical 1건 + Warning 9건 + INFO 4건 모두 조치 (`RESOLUTION.md`).
+  - 주요 조치: `rendered` HTML cap 외부 생성 (CRIT 1) 수정, 헬퍼를 `nodes/core/truncate-output.util.ts` 로 이동, `RawAiAgentMultiTurnConfig` / `RawInformationExtractorMultiTurnConfig` typed interface 도입, `truncateArrayForOutput` 을 binary search 에서 element 단위 누적으로 전환.
+- ✅ 본 문서 `plan/complete/` 로 `git mv`.

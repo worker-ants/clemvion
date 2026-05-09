@@ -555,6 +555,42 @@ describe('InformationExtractorHandler', () => {
       };
     }
 
+    it('hydrateState round-trip preserves rawConfig (resumed turn surfaces raw echo)', async () => {
+      // Multi-turn resumes go: DB JSONB → engine.handleResume → handler.
+      // processMultiTurnMessage(state) → hydrateState(state) → ... → echo
+      // through `multiTurnConfigEcho`. The engine merges node.config into
+      // resumeState if absent (execution-engine.service.ts:~1838), but the
+      // handler must also propagate an explicitly-stored rawConfig field.
+      mockLlmService.chat.mockResolvedValue(
+        finalizeCall({ senderName: 'John', orderNumber: 'ORD-999' }),
+      );
+
+      const stateWithRawConfig = buildState({
+        rawConfig: {
+          mode: 'multi_turn',
+          model: '{{ vars.model }}',
+          outputSchema: multiTurnSchema,
+          instructions: '{{ vars.instructions }}',
+          examples: [],
+          inputField: '{{ $node["X"].output.message }}',
+          maxTurns: 7,
+          maxCollectionRetries: 2,
+        },
+      });
+
+      const rawResult = await handler.processMultiTurnMessage(
+        'ORD-999 입니다',
+        stateWithRawConfig,
+      );
+
+      const { config } = asNodeHandlerOutput(rawResult);
+      expect(config.model).toBe('{{ vars.model }}');
+      expect(config.instructions).toBe('{{ vars.instructions }}');
+      expect(config.inputField).toBe('{{ $node["X"].output.message }}');
+      expect(config.maxTurns).toBe(7);
+      expect(config.maxCollectionRetries).toBe(2);
+    });
+
     it('completes when remaining required fields are filled', async () => {
       mockLlmService.chat.mockResolvedValue(
         finalizeCall({ senderName: 'John', orderNumber: 'ORD-999' }),

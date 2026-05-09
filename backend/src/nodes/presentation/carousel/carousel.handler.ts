@@ -7,7 +7,7 @@ import { evaluateMetadataBlockingErrors } from '../../core/metadata-validation.j
 import {
   PRESENTATION_MAX_BYTES,
   truncateArrayForOutput,
-} from '../../integration/_base/truncate-body.util.js';
+} from '../../core/truncate-output.util.js';
 import { ButtonDef } from '../_shared/button.types.js';
 import { carouselNodeMetadata } from './carousel.schema.js';
 
@@ -147,16 +147,24 @@ export class CarouselHandler implements NodeHandler {
       );
     }
 
-    const rendered = this.renderHtml(items, layout);
+    // Cap evaluated `items` at the Presentation 1MB threshold BEFORE
+    // rendering so the HTML and the buttonItemMap stay aligned with the
+    // surfaced array. Otherwise rendered would inflate NodeExecution
+    // outputData JSONB independently of items, defeating the cap.
+    const cappedItems = truncateArrayForOutput(items, PRESENTATION_MAX_BYTES);
+    const rendered = this.renderHtml(cappedItems.value, layout);
 
-    // Collect all buttons: global + per-item
+    // Collect all buttons: global + per-item. Iterate the capped list so
+    // dropped items don't leave dangling button → index mappings (the index
+    // would point past `items.length` after truncation).
     const globalButtons = (config.buttons as ButtonDef[] | undefined) ?? [];
     const allButtons: ButtonDef[] = [...globalButtons];
     const buttonItemMap: Record<string, number> = {};
 
-    for (let i = 0; i < items.length; i++) {
-      if (items[i].buttons) {
-        for (const btn of items[i].buttons!) {
+    for (let i = 0; i < cappedItems.value.length; i++) {
+      const itemBtns = cappedItems.value[i].buttons;
+      if (itemBtns) {
+        for (const btn of itemBtns) {
           buttonItemMap[btn.id] = i;
           allButtons.push(btn);
         }
@@ -168,12 +176,6 @@ export class CarouselHandler implements NodeHandler {
     // may carry `{{ ... }}` templates that the engine resolved before
     // dispatch). evaluated rendered items live in output.
     const rawConfig = context.rawConfig ?? config;
-    // Cap evaluated `items` at the Presentation 1MB threshold. Runaway
-    // upstream data (e.g. 50k-row source) would otherwise inflate
-    // NodeExecution.outputData JSONB and WebSocket frames. The shape is
-    // preserved (still an array) so downstream ForEach / Map / `items[i]`
-    // access keeps working — just with the dropped tail and a flag.
-    const cappedItems = truncateArrayForOutput(items, PRESENTATION_MAX_BYTES);
     const payload: Record<string, unknown> = {
       items: cappedItems.value,
       rendered,

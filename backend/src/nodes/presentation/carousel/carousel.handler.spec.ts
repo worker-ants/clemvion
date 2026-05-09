@@ -483,5 +483,60 @@ describe('CarouselHandler', () => {
         Buffer.byteLength(JSON.stringify(echoed), 'utf8'),
       ).toBeLessThanOrEqual(1024 * 1024);
     });
+
+    it('truncates dynamic-mode items mapped from a runaway input source', async () => {
+      // Dynamic mode pulls items from input/source then maps via titleField.
+      // Verify that the cap fires on this path too (different code branch
+      // from the static mode test above).
+      const heavy = 'z'.repeat(200 * 1024);
+      const sourceArray = Array.from({ length: 6 }, (_, i) => ({
+        name: `Item-${i}`,
+        body: heavy,
+      }));
+
+      const result = (await handler.execute(
+        sourceArray,
+        {
+          mode: 'dynamic',
+          titleField: 'name',
+          descriptionField: 'body',
+        },
+        context,
+      )) as Record<string, unknown>;
+
+      expect(result.output.itemsTruncated).toBe(true);
+      expect(result.output.itemsTotalCount).toBe(6);
+      const echoed = result.output.items as Array<Record<string, unknown>>;
+      expect(Array.isArray(echoed)).toBe(true);
+      expect(echoed.length).toBeLessThan(6);
+    });
+
+    it('rendered HTML is computed from the capped items, not the full input', async () => {
+      // Regression for ai-review CRIT #1: rendered must reflect what was
+      // actually surfaced via output.items so downstream observers cannot
+      // see HTML for items that were dropped from the array.
+      const heavy = 'x'.repeat(200 * 1024);
+      const items = Array.from({ length: 6 }, (_, i) => ({
+        title: `Slide-${i}`,
+        description: heavy,
+      }));
+
+      const result = (await handler.execute(
+        null,
+        { mode: 'static', items },
+        context,
+      )) as Record<string, unknown>;
+
+      const echoed = result.output.items as Array<Record<string, unknown>>;
+      const rendered = result.output.rendered as string;
+      // Every echoed item's title shows up in rendered HTML…
+      for (const item of echoed) {
+        expect(rendered).toContain(item.title as string);
+      }
+      // …but dropped items (those past `echoed.length`) must NOT.
+      for (let i = echoed.length; i < items.length; i++) {
+        expect(rendered).not.toContain(`Slide-${i}`);
+      }
+    });
   });
 });
