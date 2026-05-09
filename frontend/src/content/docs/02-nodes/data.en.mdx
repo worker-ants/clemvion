@@ -123,5 +123,5 @@ You can mutate `$vars` freely during code execution, but the real workflow varia
 ## Tips & notes
 
 - Use Transform for simple reshaping and Code for complex logic — keeping them separated keeps things maintainable.
-- The division of labor between expressions and Code is discussed in [Expression basics](/docs/03-expression-language/basics) and the [cheatsheet](/docs/03-expression-language/cheatsheet).
+- The division of labor between expressions and Code is discussed in [Expression basics](/docs/04-expression-language/basics) and the [cheatsheet](/docs/04-expression-language/cheatsheet).
 - Power-user tip: the Code node runs in a sandbox that blocks `require`, file system, and network access. The default timeout is 30 seconds, configurable in node settings. For external API calls, split them out into an HTTP Request node.

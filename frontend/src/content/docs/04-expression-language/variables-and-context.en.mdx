@@ -138,5 +138,5 @@ Access the raw data provided by Webhook, Schedule, or Manual triggers.
 - Autocomplete uses the schema from the most recent run. In a workflow that hasn't run yet, suggestions are limited — we recommend running it once first.
 - Autocomplete only shows **ancestor nodes reachable from the current node and variables visible in this container scope**. Siblings in the other branch or nodes inside a different loop are filtered out.
 - Saved expressions that reference unreachable nodes, or use `$loop`, `$item`, `$itemIndex` outside a container, surface an **amber warning** below the field — catching likely blanks in production at design time.
-- Real-world patterns: [cheatsheet](/docs/03-expression-language/cheatsheet).
-- How to inspect inputs and outputs at run time: [Run results](/docs/04-run-and-debug/run-results).
+- Real-world patterns: [cheatsheet](/docs/04-expression-language/cheatsheet).
+- How to inspect inputs and outputs at run time: [Run results](/docs/05-run-and-debug/run-results).

@@ -73,7 +73,7 @@ Provider-level defaults are inherited as initial values by every AI node. Each n
 ## Tips & notes
 
 - Change the default provider with a single call to `PATCH /api/llm-configs/:id/set-default`. Existing AI nodes aren't affected — only newly created ones.
-- It's fine to leave a provider without embedding support as the default. Knowledge Bases pick the embedding model per collection, so there's no conflict. See [Knowledge Base](/docs/05-integrations-and-config/knowledge-base).
+- It's fine to leave a provider without embedding support as the default. Knowledge Bases pick the embedding model per collection, so there's no conflict. See [Knowledge Base](/docs/06-integrations-and-config/knowledge-base).
 - How to tune per-node parameters: [AI nodes](/docs/02-nodes/ai).
 - For saved configs, list models via `GET /api/llm-configs/:id/models`. Before saving (while still in the form), use `POST /api/llm-configs/preview-models` with `{ provider, apiKey, baseUrl? }` — the preview endpoint never persists the API key and only uses it for the current request.
 - For Azure OpenAI, the model ID must be the deployment name. Using the standard model ID returns 404.

@@ -1,7 +1,7 @@
 ---
 title: "MCP 서버 통합"
 title_en: "MCP server integration"
-section: "05-integrations-and-config"
+section: "06-integrations-and-config"
 order: 4
 summary: "외부 MCP 서버를 등록하고 AI Agent에 연결해서 LLM이 외부 도구·리소스를 호출하게 만드는 방법을 설명해요."
 summary_en: "Register an MCP server and wire it into the AI Agent so the LLM can call external tools and resources."
@@ -99,4 +99,4 @@ LLM이 도구를 호출하면 AI Agent가 통합의 자격 증명을 사용해 M
 - `includeResources` · `includePrompts` 가 켜져 있어도 서버가 해당 capability를 보고하지 않으면 메타 도구는 노출되지 않아요. 통합 상세의 capabilities 패널에서 서버 측 지원 여부를 확인해요.
 - 워크플로우 내부의 다른 노드를 LLM 도구로 노출하고 싶다면 캔버스의 **Tool Area**를 사용해요. 외부 시스템 도구는 MCP, 내부 노드는 Tool Area로 역할이 분리돼 있어요.
 - AI Agent의 조건 분기·KB·도구 일반 동작은 [AI 노드](/docs/02-nodes/ai)를 참고해요.
-- 통합 관리 화면 흐름과 권한 정책은 [통합 관리](/docs/05-integrations-and-config/integration-management)에 정리되어 있어요.
+- 통합 관리 화면 흐름과 권한 정책은 [통합 관리](/docs/06-integrations-and-config/integration-management)에 정리되어 있어요.

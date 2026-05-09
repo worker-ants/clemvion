@@ -8,12 +8,12 @@ A Knowledge Base is organized by **collection**. Each collection pins an embeddi
   { name: "Name", type: "string", required: "Required", description: "Collection name shown on the list card." },
   { name: "Description", type: "string", required: "Optional", description: "Short purpose. Helpful for team collaboration." },
   { name: "Embedding model", type: "LLM Config reference", required: "Required", description: "Pinned at creation. Changing it requires re-embedding everything." },
-  { name: "RAG mode", type: "`vector` / `graph`", required: "Optional", description: "Defaults to `vector`. `graph` adds entity/relation extraction on top of chunk embeddings and runs combined graph + vector search at query time. It costs more time and tokens but helps when the documents revolve around people, organizations, or events. Pinned at collection creation — to change modes, create a new collection." },
+  { name: "RAG mode", type: "`vector` (current) / `graph` (roadmap)", required: "Optional", description: "Defaults to `vector`. **`graph` mode is on the roadmap and not selectable in the current build.** See PRD 9 (Graph RAG) and `spec/5-system/10-graph-rag.md` for the planned rollout." },
   { name: "Chunk size", type: "integer (tokens)", required: "Optional", description: "Default 1000. Max tokens per chunk." },
   { name: "Chunk overlap", type: "integer (tokens)", required: "Optional", description: "Default 200. Overlap between adjacent chunks." }
 ]} />
 
-<Callout type="note">Only providers that support embeddings can be selected as the embedding model. Register a provider first — see [LLM configuration](/docs/05-integrations-and-config/llm-config).</Callout>
+<Callout type="note">Only providers that support embeddings can be selected as the embedding model. Register a provider first — see [LLM configuration](/docs/06-integrations-and-config/llm-config).</Callout>
 
 ## Creating a collection and uploading documents
 
@@ -40,18 +40,18 @@ Status badges appear both on the document list and on the collection card.
 
 Concurrent document processing is capped at 3 by default. Bulk uploads queue some items as `pending` until earlier ones finish.
 
-## Vector mode vs. Graph mode
+## Vector mode (current) · Graph mode (roadmap)
 
-When you create a collection, the `RAG mode` field decides the retrieval strategy. The mode shapes the ingestion pipeline and the query path, so it can't be changed after creation — to switch modes, make a new collection and re-upload the documents.
+A collection's `RAG mode` shapes the ingestion pipeline and the query path. It can't be changed after creation — to switch modes, create a new collection and re-upload the documents.
+
+<Callout type="warn">
+**Only `vector` mode is active today.** `graph` mode — combining entity/relation extraction with graph search — is on the roadmap. The graph option may appear disabled or hidden on the collection-creation screen. See PRD 9 (Graph RAG) and `spec/5-system/10-graph-rag.md` for the planned rollout.
+</Callout>
 
 <FieldTable rows={[
-  { name: "Vector (default)", type: "Embedding + cosine similarity", required: "-", description: "Each chunk is embedded and stored in the vector store; queries return the chunks with the highest cosine similarity. Fast and cheap, ideal for FAQs and general document search." },
-  { name: "Graph", type: "Embedding + entity/relation extraction", required: "-", description: "Alongside vector embeddings, an LLM extracts entities (people, organizations, concepts) and relations between them and stores them in the graph store. Query-time runs a combined graph traversal and vector search (chained search), giving richer context whenever relationships matter. Embedding plus extraction take more time and LLM cost." }
+  { name: "Vector (default · current)", type: "Embedding + cosine similarity", required: "-", description: "Each chunk is embedded and stored in the vector store; queries return the chunks with the highest cosine similarity. Fast and cheap, ideal for FAQs and general document search." },
+  { name: "Graph (roadmap)", type: "Embedding + entity/relation extraction", required: "-", description: "Once shipped, an LLM will extract entities (people, organizations, concepts) and relations from documents alongside vector embeddings, and queries will run a combined graph traversal and vector search (chained search) — designed to surface richer context whenever relationships matter." }
 ]} />
-
-<Callout type="tip">
-You can't mix the two modes inside a single collection. To use the same documents in both modes, create two collections and reference both from the AI Agent's `Knowledge Bases` field — collections sharing the same embedding model are batched into one query.
-</Callout>
 
 ## Referencing from an AI Agent
 
@@ -86,5 +86,5 @@ After execution, the AI Agent result carries RAG-source metadata so you can see 
 - Injected context is auto-truncated to fit within 50% of the model's context window, dropping the lowest-scoring chunks first — top results are always kept.
 - Document preview shows every generated chunk. If a chunk looks off, edit the source and hit `Re-embed`.
 - To switch embedding model, create a new collection and move documents over. Swapping the model on an existing collection triggers a full re-embed of every chunk.
-- Expressions and node-result basics: [Variables and context](/docs/03-expression-language/variables-and-context).
+- Expressions and node-result basics: [Variables and context](/docs/04-expression-language/variables-and-context).
 - Query/distance/error rules for RAG search live in `spec/5-system/9-rag-search.md`.

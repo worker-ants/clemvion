@@ -1,0 +1,148 @@
+This page walks the three-stage flow from the [Overview](/docs/03-workflow-editor/overview) end to end. We start from an empty workflow and send a single sentence — "Add an order-cancellation process" — and the Assistant carries us through clarify → propose plan → execute, ending with a 4-node automation.
+
+## What you'll build
+
+<FlowDiagram steps={[
+  { title: "Manual Trigger", sub: "orderId input" },
+  { title: "HTTP Request", sub: "fetch order" },
+  { title: "If/Else", sub: "cancellable?" },
+  { title: "Send Email", sub: "notify customer" },
+]} />
+
+The Assistant will produce the four-node flow above. Credentials for HTTP Request and Send Email are picked up automatically from existing entries in [Integrations](/docs/06-integrations-and-config/integration-management).
+
+## Prerequisites
+
+- A logged-in account with one workspace.
+- An LLM configuration registered. If none exists, the Assistant prompts you to add one before the first message — head to [LLM configuration](/docs/06-integrations-and-config/llm-config) to add an OpenAI or Anthropic key first.
+- (Optional) An HTTP integration for the order API and an SMTP integration registered in [Integrations](/docs/06-integrations-and-config/integration-management). The Assistant uses them for a more accurate plan.
+
+## Step 1 — Open a fresh workflow and the Assistant
+
+<Steps>
+<Step>Go to `Workflows` in the sidebar and click `[+ New Workflow]`. The editor opens with a single Manual Trigger on an otherwise empty canvas.</Step>
+<Step>Press `Cmd/Ctrl + /` anywhere on the canvas. A 360px Assistant panel slides in on the right with the "How can I help?" empty state.</Step>
+<Step>Either click the example "Add an order-cancellation process" or type the same sentence in the input and hit Enter.</Step>
+</Steps>
+
+<Callout type="tip">
+The example buttons fill the input on click, so you can tweak a word or two before sending if you'd like.
+</Callout>
+
+## Step 2 — Clarify
+
+Instead of jumping straight to nodes, the Assistant first inspects the current state and the available integrations.
+
+```
+🛠 list_integrations · get_current_workflow · list_workflows
+```
+
+Tool badges below the message tell you exactly which tools were called. Then the reply comes back with a few questions:
+
+```
+Sure — let's build that. A few quick questions:
+
+1) Where does the orderId come from? (Manual Trigger parameter? An external trigger?)
+2) Which API checks/cancels orders? Among your integrations I see "Order API (HTTP)".
+3) When cancellation isn't allowed, should we email the customer?
+```
+
+<Steps>
+<Step>Reply in the input. For example: "1) Manual Trigger `orderId` parameter, 2) use the Order API integration, 3) yes, email the customer if cancellation isn't allowed."</Step>
+</Steps>
+
+The canvas hasn't changed yet — the Assistant is preparing a plan card based on your answers.
+
+## Step 3 — Propose Plan
+
+Right after your reply, the Assistant returns a **plan card**:
+
+```
+🗂 Plan — Order cancellation flow
+
+Here's what I'd add. Approve to apply it on the canvas.
+
+◯ 1. Add an `orderId` (string) parameter to the Manual Trigger
+◯ 2. HTTP Request "Fetch order" — Order API integration, GET /orders/{orderId}
+◯ 3. If/Else "Cancellable?" — checks `canCancel` on the response
+◯ 4. true → HTTP Request "Cancel order"; false → Send Email "Cancellation declined"
+
+Open questions
+• Use the SMTP default sender? (currently ops@example.com)
+
+[ Approve & continue ]
+```
+
+<Steps>
+<Step>If there are open questions, answer them in the input. e.g. "Yes, use the default sender."</Step>
+<Step>Like the plan? Hit **Approve & continue** at the bottom of the card. Nothing on the canvas changes until you do.</Step>
+<Step>Want changes? Don't approve — just chat. e.g. "Replace Send Email with a Slack notification." The Assistant swaps the active card for a revised one.</Step>
+</Steps>
+
+<Callout type="note">
+The step checkboxes are read-only indicators. You don't tick them — they fill in automatically as the Execute stage runs.
+</Callout>
+
+## Step 4 — Execute
+
+Once you approve, the Assistant works through the steps one by one. Tool badges show what fired.
+
+```
+🛠 update_node · add_node · add_edge · add_node · add_edge · add_node · add_edge
+
+🗂 Plan — Order cancellation flow (3/4)
+
+✓ 1. Added `orderId` to Manual Trigger
+✓ 2. Added HTTP Request "Fetch order" + connection
+✓ 3. Added If/Else "Cancellable?" + connection
+◯ 4. Adding nodes for true/false branches…
+```
+
+<Steps>
+<Step>Watch the canvas: nodes appear one after another and edges get drawn. Keeping both the panel and the canvas in view makes it easy to follow along.</Step>
+<Step>When all steps finish, a green "Done" hint appears at the end of the card. The canvas now holds the complete four-node automation.</Step>
+<Step>Don't like part of it? `Ctrl+Z` reverts immediately — Assistant edits share the regular Undo stack.</Step>
+</Steps>
+
+## Step 5 — Run it yourself and review the result
+
+The Assistant doesn't trigger executions. **You** click Run and inspect the result.
+
+<Steps>
+<Step>Click `▶ Run` in the editor header. A modal asks for the Manual Trigger's `orderId` input.</Step>
+<Step>Enter a test order ID and run. The Run Results drawer slides in with per-node input and output.</Step>
+<Step>Something off? Hop back to the Assistant: "Take a look at the last run" or "Why did the If/Else go to false?" works.</Step>
+</Steps>
+
+## Step 6 — Diagnose and patch
+
+The Assistant fetches the latest run and walks through the failed node + its inputs.
+
+```
+🛠 get_workflow_executions · get_execution_details
+
+The If/Else condition reads `output.canCancel == true`, but the response in this run uses the field name `cancellable` instead. Want me to switch the condition to `output.cancellable`?
+
+[ Approve & continue ]
+```
+
+<Steps>
+<Step>Approve the patch plan and the If/Else condition updates immediately.</Step>
+<Step>Click `▶ Run` again to verify. Once the branch routes correctly, the workflow is done.</Step>
+</Steps>
+
+## Step 7 — Confirm session persistence
+
+A quick check on how the Assistant session is preserved.
+
+<Steps>
+<Step>Refresh the browser, or close and reopen the workflow.</Step>
+<Step>`Cmd/Ctrl + /` opens the panel again — the conversation you just had is still there. Below the panel header, a small gray title (auto-generated from your first message) names the session.</Step>
+<Step>Want a fresh thread? Click the `+` button in the panel header. The previous session is kept on the server, and the most recent session for the same workflow auto-restores next time.</Step>
+</Steps>
+
+## Where to go next
+
+- Revisit the [Overview](/docs/03-workflow-editor/overview) for the v1 limits and the common-error reference.
+- Inspect the [AI Agent node](/docs/02-nodes/ai) and [Integration nodes](/docs/02-nodes/integrations) the Assistant tends to assemble.
+- If expressions still feel new, skim [Expression basics](/docs/04-expression-language/basics) — chats with the Assistant get smoother once they're second nature.

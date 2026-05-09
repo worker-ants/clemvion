@@ -99,5 +99,5 @@ Displayed as `{workflowName or workflowId} · {mode}`. When a name is available 
 ## Tips & notes
 
 - When you invoke without an input mapping, the parent input is passed through whole. To forward only specific parameters, use `inputMapping`.
-- Results and logs of a sub-workflow are also visible in [Run results](/docs/04-run-and-debug/run-results).
+- Results and logs of a sub-workflow are also visible in [Run results](/docs/05-run-and-debug/run-results).
 - Power-user tip: in sync mode the sub-workflow executes inside the same run, so you can reference its results right from the parent with `{{ $node["Sub Workflow"].output.field }}`, and the run timeline stays a single continuous line — great for debugging.

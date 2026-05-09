@@ -23,24 +23,29 @@ export const DOCS = {
     integrations: "/docs/02-nodes/integrations",
     presentation: "/docs/02-nodes/presentation",
   },
+  workflowEditor: {
+    overview: "/docs/03-workflow-editor/overview",
+    walkthrough: "/docs/03-workflow-editor/walkthrough",
+  },
   expression: {
-    basics: "/docs/03-expression-language/basics",
-    variablesAndContext: "/docs/03-expression-language/variables-and-context",
-    cheatsheet: "/docs/03-expression-language/cheatsheet",
+    basics: "/docs/04-expression-language/basics",
+    variablesAndContext: "/docs/04-expression-language/variables-and-context",
+    cheatsheet: "/docs/04-expression-language/cheatsheet",
   },
   runAndDebug: {
-    runningAWorkflow: "/docs/04-run-and-debug/running-a-workflow",
-    runResults: "/docs/04-run-and-debug/run-results",
-    errorHandling: "/docs/04-run-and-debug/error-handling",
-    versionHistory: "/docs/04-run-and-debug/version-history",
+    runningAWorkflow: "/docs/05-run-and-debug/running-a-workflow",
+    runResults: "/docs/05-run-and-debug/run-results",
+    errorHandling: "/docs/05-run-and-debug/error-handling",
+    versionHistory: "/docs/05-run-and-debug/version-history",
   },
   integrationsAndConfig: {
     integrationManagement:
-      "/docs/05-integrations-and-config/integration-management",
-    llmConfig: "/docs/05-integrations-and-config/llm-config",
-    knowledgeBase: "/docs/05-integrations-and-config/knowledge-base",
+      "/docs/06-integrations-and-config/integration-management",
+    llmConfig: "/docs/06-integrations-and-config/llm-config",
+    knowledgeBase: "/docs/06-integrations-and-config/knowledge-base",
+    mcpServers: "/docs/06-integrations-and-config/mcp-servers",
   },
-  faq: "/docs/06-faq/faq",
+  faq: "/docs/07-faq/faq",
   // 공용 fallback
   fallbackRedirect: "/dashboard",
   // 섹션 경로 generator (내부 유틸)

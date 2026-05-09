@@ -77,6 +77,8 @@ code: ["backend/src/nodes/ai/ai-agent/ai-agent.schema.ts", "backend/src/nodes/ai
 {
   response: "…",
   condition: { id: "uuid-1", label: "환불 요청 감지", reason: "…" },
+  // Single Turn 출력은 입력 raw config 전체를 echo 해요 — 다운스트림에서 그대로 참조 가능
+  config: { mode: "single_turn", model: "gpt-4o", systemPrompt: "…", userPrompt: "{{ $input.message }}", knowledgeBases: ["faq-kb-id"], conditions: [...] },
   metadata: { model: "gpt-4o", totalTokens: 1600, toolCalls: 2, ragSources: [...] }
 }
 ```
@@ -84,6 +86,10 @@ code: ["backend/src/nodes/ai/ai-agent/ai-agent.schema.ts", "backend/src/nodes/ai
 
 <Callout type="warn">
 Multi Turn 모드에서 사용자 응답은 **무제한 대기**해요. 외부 cancel/종료가 아니면 타임아웃이 발생하지 않으니, 장시간 대기를 전제로 설계해요.
+</Callout>
+
+<Callout type="note">
+**Single Turn vs Multi Turn — `config` echo 차이.** Single Turn 출력은 입력한 raw config 전체(systemPrompt · userPrompt · maxTurns · conditions · knowledgeBases 등)를 그대로 echo 해요. Multi Turn 의 종료 출력(`user_ended` / `max_turns` / 조건 포트)은 현재 `config: { mode, model }` 까지만 echo 하고 나머지 필드는 생략돼요. 두 모드를 한 워크플로우에서 섞어 쓸 때 `$node["AI Agent"].config.systemPrompt` 같은 참조가 모드별로 다르게 동작할 수 있다는 점에 주의해 주세요. 전체 echo 통일은 진행 중인 후속 작업이에요 (`plan/in-progress/engine-raw-config-followups.md` Follow-up #1).
 </Callout>
 
 ## Text Classifier
@@ -198,9 +204,10 @@ Multi Turn 모드에서 `inputField`를 비워 두면 LLM을 호출하지 않고
 
 ## 팁 & 참고
 
+- 본 페이지는 **워크플로우 안에서 실행되는 AI Agent 노드**를 다뤄요. 캔버스 안에서 채팅으로 워크플로우 자체를 만들어 주는 [AI 어시스턴트](/docs/03-workflow-editor/overview)와는 별개의 기능이에요. 어시스턴트가 만드는 워크플로우 안에 AI Agent 노드가 포함될 수도 있어요.
 - 도구 등록은 캔버스의 **Tool Area**에 노드를 끌어다 놓으면 끝이에요. AI Agent가 해당 노드를 도구로 호출할 수 있게 되고, 조건 도구는 일반 도구와 이름이 겹치지 않도록 자동으로 분리돼요.
-- LLM 프로바이더 연동은 [LLM 설정](/docs/05-integrations-and-config/llm-config)에서, Knowledge Base 구성은 [지식 저장소](/docs/05-integrations-and-config/knowledge-base)에서 관리해요. MCP 서버 등록과 도구 노출 정책은 [MCP 서버 통합](/docs/05-integrations-and-config/mcp-servers)에서 관리해요.
-- Multi Turn 실행 이력은 Conversation Inspector로 턴별 요청/응답/토큰 사용량을 확인할 수 있어요. 자세한 동작은 [실행 결과](/docs/04-run-and-debug/run-results)를 참고해요.
+- LLM 프로바이더 연동은 [LLM 설정](/docs/06-integrations-and-config/llm-config)에서, Knowledge Base 구성은 [지식 저장소](/docs/06-integrations-and-config/knowledge-base)에서 관리해요. MCP 서버 등록과 도구 노출 정책은 [MCP 서버 통합](/docs/06-integrations-and-config/mcp-servers)에서 관리해요.
+- Multi Turn 실행 이력은 Conversation Inspector로 턴별 요청/응답/토큰 사용량을 확인할 수 있어요. 자세한 동작은 [실행 결과](/docs/05-run-and-debug/run-results)를 참고해요.
 - 파워유저 팁: 응답 형식을 `json`으로 지정하면 LLM이 정의한 출력 스키마에 맞춘 구조로 돌려줘요. 필드를 추가·제거·이름 변경할 때는 다운스트림 노드의 `{{ $node["AI Agent"].output.result.response.field }}` 참조 경로도 같이 점검해요.
 - 다운스트림 참조 경로 (신규, Principle 1.1/8):
   - AI Agent 응답 본문: `$node["AI Agent"].output.result.response`

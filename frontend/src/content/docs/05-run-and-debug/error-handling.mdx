@@ -1,7 +1,7 @@
 ---
 title: "에러 처리 정책"
 title_en: "Error handling policies"
-section: "04-run-and-debug"
+section: "05-run-and-debug"
 order: 3
 summary: "이 페이지에서는 노드가 실패했을 때 고를 수 있는 다섯 가지 에러 정책을 설명해요."
 summary_en: "The five error policies you can choose when a node fails."
@@ -138,6 +138,6 @@ interval = min(retryInterval * backoffMultiplier ^ attempt, maxInterval)
 ## 팁 & 참고
 
 - 워크플로우 단위 자동 재시도(Trigger/Schedule 기반) 설정은 워크플로우 설정에서 따로 지정해요. 최대 5회까지 가능해요.
-- 에러 코드 목록은 [실행 결과](/docs/04-run-and-debug/run-results)의 "에러 메시지 해석" 섹션을 참고해요.
+- 에러 코드 목록은 [실행 결과](/docs/05-run-and-debug/run-results)의 "에러 메시지 해석" 섹션을 참고해요.
 - 노드의 공통 설정과 에러 포트 동작 상세는 [Overview](/docs/02-nodes/overview)에 있어요.
-- 노드가 실패하지 않게 **입력을 미리 검증**하는 패턴은 [표현식 치트시트](/docs/03-expression-language/cheatsheet)의 `isEmpty`, `||` 기본값 예시를 참고해요.
+- 노드가 실패하지 않게 **입력을 미리 검증**하는 패턴은 [표현식 치트시트](/docs/04-expression-language/cheatsheet)의 `isEmpty`, `||` 기본값 예시를 참고해요.

@@ -1,7 +1,7 @@
 ---
 title: "표현식 치트시트"
 title_en: "Expression cheatsheet"
-section: "03-expression-language"
+section: "04-expression-language"
 order: 3
 summary: "이 페이지에서는 자주 쓰는 표현식 패턴을 모아서 빠르게 복사해 쓸 수 있게 정리했어요."
 summary_en: "Copy-paste-ready expression patterns for the most common needs."
@@ -62,6 +62,38 @@ code: ["packages/expression-engine/src/functions/"]
 <Example title="대소문자 변환과 공백 제거">
 ```ts
 {{ lowercase(trim($input.email)) }}
+{{ uppercase($input.code) }}
+```
+</Example>
+
+<Example title="포함 여부 · 접두사 · 접미사">
+```ts
+{{ contains($input.subject, "긴급") }}
+{{ startsWith($input.path, "/api/") }}
+{{ endsWith($input.fileName, ".pdf") }}
+```
+</Example>
+
+<Example title="치환 · 분할 · 부분 추출">
+```ts
+{{ replace($input.text, "old", "new") }}
+{{ replaceAll($input.csv, ",", " | ") }}
+{{ split($input.path, "/") }}
+{{ substring($input.summary, 0, 100) }}
+```
+</Example>
+
+<Example title="자릿수 맞추기 (zero-padding 등)">
+```ts
+{{ padStart(toString($input.day), 2, "0") }}
+{{ padEnd($input.label, 10, " ") }}
+```
+</Example>
+
+<Example title="문자열 · 배열 길이">
+```ts
+{{ length($input.title) }}
+{{ length($input.items) }}
 ```
 </Example>
 
@@ -91,6 +123,14 @@ code: ["packages/expression-engine/src/functions/"]
 ```ts
 {{ unique($input.categories) }}
 {{ compact($input.maybeValues) }}
+```
+</Example>
+
+<Example title="역순 · 1단계 평탄화 · 두 배열 이어붙이기">
+```ts
+{{ reverse($input.history) }}
+{{ flatten($input.groupedItems) }}
+{{ concat($input.list1, $input.list2) }}
 ```
 </Example>
 
@@ -130,11 +170,28 @@ code: ["packages/expression-engine/src/functions/"]
 ```
 </Example>
 
+<Example title="객체의 키 · 값 · 항목 순회 · 키 존재 확인">
+```ts
+{{ keys($input.flags) }}
+{{ values($input.scores) }}
+{{ entries($input.config) }}
+{{ hasKey($input, "userId") }}
+```
+</Example>
+
 ## 날짜 포맷
 
 <Example title="ISO 문자열을 사람이 읽는 형식으로">
 ```ts
 {{ formatDate($input.createdAt, "YYYY-MM-DD HH:mm") }}
+```
+</Example>
+
+<Example title="현재 시각 · 오늘 날짜 · 임의 문자열 파싱">
+```ts
+{{ now() }}
+{{ today() }}
+{{ parseDate($input.dateString) }}
 ```
 </Example>
 
@@ -168,6 +225,14 @@ report-{{ formatDate($now, "YYYY-MM-DD") }}.csv
 ```
 </Example>
 
+<Example title="올림 · 내림 · 임의 난수">
+```ts
+{{ ceil($input.itemCount / 10) }}
+{{ floor($input.score) }}
+{{ random() }}
+```
+</Example>
+
 <Example title="최솟값 · 최댓값 · 절대값">
 ```ts
 {{ min($input.a, $input.b, 100) }}
@@ -192,9 +257,18 @@ report-{{ formatDate($now, "YYYY-MM-DD") }}.csv
 ```
 </Example>
 
-<Example title="타입 확인">
+<Example title="문자열 · 숫자 · 불리언 변환">
+```ts
+{{ toString($input.id) }}
+{{ toNumber($input.priceStr) }}
+{{ toBoolean($input.flag) }}
+```
+</Example>
+
+<Example title="타입 확인 · null/undefined 검사">
 ```ts
 {{ typeOf($input.value) == "array" }}
+{{ isNull($input.optionalField) ? "(없음)" : $input.optionalField }}
 ```
 </Example>
 
@@ -221,6 +295,6 @@ https://api.example.com/users/{{ $input.userId }}/orders?from={{ formatDate($now
 
 ## 팁 & 참고
 
-- 전체 문법과 연산자 우선순위는 [표현식 기초](/docs/03-expression-language/basics)를 참고해요.
-- 참조 변수 목록은 [변수와 컨텍스트](/docs/03-expression-language/variables-and-context)에 정리되어 있어요.
-- 표현식이 실패하면 해당 노드가 **실행 실패**로 처리돼요. 복구 전략은 [에러 처리](/docs/04-run-and-debug/error-handling)에서 설명해요.
+- 전체 문법과 연산자 우선순위는 [표현식 기초](/docs/04-expression-language/basics)를 참고해요.
+- 참조 변수 목록은 [변수와 컨텍스트](/docs/04-expression-language/variables-and-context)에 정리되어 있어요.
+- 표현식이 실패하면 해당 노드가 **실행 실패**로 처리돼요. 복구 전략은 [에러 처리](/docs/05-run-and-debug/error-handling)에서 설명해요.
