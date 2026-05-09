@@ -135,6 +135,80 @@ describe("applyExecutionSnapshot — REST → store bridge (Carousel disabled st
     expect(useExecutionStore.getState().status).toBe("failed");
   });
 
+  // Carousel disabled stuck (Phase 3) — backend `findById` 가 Execution +
+  // NodeExecution 을 별도 SELECT 로 읽어 race window 에서 inconsistent
+  // snapshot (`Execution.status='running'` + `NodeExecution.status=
+  // 'waiting_for_input'`) 이 도착할 수 있다. 그 경우 local state (이전 WS
+  // waiting_for_input 이벤트로 set) 가 실제 backend 와 일치하므로 resume
+  // 분기를 skip 해야 한다 — 그렇지 않으면 buttons UI 가 wipe 되어 disabled
+  // stuck 회귀.
+  it("inconsistent snapshot (status=running + NodeExecution=waiting_for_input) 시 waiting state 보존", () => {
+    // 1) 먼저 WS waiting_for_input 이 set 한 것과 동일한 store 상태 시뮬레이션.
+    useExecutionStore.setState({
+      status: "waiting_for_input",
+      waitingNodeId: "carousel-node",
+      waitingInteractionType: "buttons",
+      waitingButtonConfig: { buttons: [{ id: "btn", type: "port" }] },
+    });
+
+    // 2) Inconsistent snapshot 이 뒤늦게 도착 (race: snapshot's findById ran
+    //    before engine's WAITING transaction committed for Execution row).
+    applyExecutionSnapshot(
+      createExec({
+        status: "running", // ← stale (실제 backend 는 waiting_for_input)
+        nodeExecutions: [
+          {
+            id: "ne-1",
+            executionId: "exec-1",
+            nodeId: "carousel-node",
+            nodeType: "carousel",
+            status: "waiting_for_input", // ← inconsistency: 한쪽은 running, 한쪽은 waiting
+            startedAt: "2026-04-01T00:00:00Z",
+            outputData: { config: {}, output: null, status: "waiting_for_input" },
+          },
+        ],
+      }),
+    );
+
+    // 3) Local waiting state 가 보존돼야 한다 — wipe 시 Carousel 버튼 disabled
+    //    stuck 회귀 (이 테스트가 그 회귀를 차단).
+    expect(useExecutionStore.getState().status).toBe("waiting_for_input");
+    expect(useExecutionStore.getState().waitingNodeId).toBe("carousel-node");
+    expect(useExecutionStore.getState().waitingInteractionType).toBe("buttons");
+  });
+
+  it("legitimate resume (모든 노드 완료, prevStatus=waiting) 은 resumeFromButtons 로 진입", () => {
+    // WS 단절 중 backend 에서 button 클릭이 이미 처리돼 resume 한 상태.
+    // snapshot 도착 시 모든 노드 completed/running 이고 waiting NodeExecution
+    // 이 없으므로 정상적으로 resume 처리되어야 한다.
+    useExecutionStore.setState({
+      status: "waiting_for_input",
+      waitingNodeId: "carousel-node",
+      waitingInteractionType: "buttons",
+    });
+
+    applyExecutionSnapshot(
+      createExec({
+        status: "running",
+        nodeExecutions: [
+          {
+            id: "ne-1",
+            executionId: "exec-1",
+            nodeId: "carousel-node",
+            nodeType: "carousel",
+            status: "completed", // ← 진짜 완료된 상태
+            startedAt: "2026-04-01T00:00:00Z",
+            durationMs: 100,
+          },
+        ],
+      }),
+    );
+
+    expect(useExecutionStore.getState().status).toBe("running");
+    expect(useExecutionStore.getState().waitingNodeId).toBeNull();
+    expect(useExecutionStore.getState().waitingInteractionType).toBeNull();
+  });
+
   it("동일 nodeId 의 다중 iteration row 는 모두 nodeResults 에 보존", () => {
     applyExecutionSnapshot(
       createExec({

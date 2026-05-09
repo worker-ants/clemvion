@@ -50,6 +50,7 @@ describe('ExecutionsService', () => {
   let executionRepo: {
     createQueryBuilder: jest.Mock;
     findOne: jest.Mock;
+    manager: { transaction: jest.Mock };
   };
   let nodeExecutionRepo: { find: jest.Mock };
   let executionNodeLogRepo: { find: jest.Mock };
@@ -79,10 +80,34 @@ describe('ExecutionsService', () => {
   };
 
   beforeEach(() => {
+    // findById 가 `executionRepository.manager.transaction(...)` 안에서 SELECT
+    // 두 개를 묶어 atomic snapshot 을 보장한다 (Carousel disabled stuck Phase
+    // 3 fix). transaction mock 은 callback 을 즉시 실행하면서 manager 로
+    // queryBuilder / find 호출을 기존 repo mock 으로 라우팅 — 호출 추적과
+    // 응답 shape 이 그대로 유지된다.
+    const transactionImpl = async (...args: unknown[]): Promise<unknown> => {
+      const cb = args.find((a) => typeof a === 'function') as (
+        m: unknown,
+      ) => Promise<unknown>;
+      const manager = {
+        createQueryBuilder: (..._a: unknown[]) =>
+          executionRepo.createQueryBuilder(),
+        find: (entity: unknown, opts: unknown) => {
+          // Route by entity name. `name` is the class name string.
+          const ctor = entity as { name?: string } | undefined;
+          if (ctor?.name === 'ExecutionNodeLog') {
+            return executionNodeLogRepo.find(opts);
+          }
+          return nodeExecutionRepo.find(opts);
+        },
+      };
+      return cb(manager);
+    };
     executionRepo = {
       createQueryBuilder: jest.fn(),
       findOne: jest.fn(),
-    };
+      manager: { transaction: jest.fn(transactionImpl) },
+    } as unknown as typeof executionRepo;
     nodeExecutionRepo = { find: jest.fn() };
     executionNodeLogRepo = { find: jest.fn().mockResolvedValue([]) };
     engine = { cancelWaitingExecution: jest.fn() };

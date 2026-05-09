@@ -78,58 +78,76 @@ export class ExecutionsService {
   }
 
   async findById(id: string): Promise<ExecutionDetailWithTrigger> {
-    // 안전 컬럼만 선택적으로 join — User.passwordHash 등 민감 필드 노출 방지.
-    // executor.email 도 라벨 산출에 불필요하므로 제외 (PII 최소화).
-    const execution = await this.executionRepository
-      .createQueryBuilder('e')
-      .leftJoinAndSelect('e.workflow', 'workflow')
-      .leftJoin('e.trigger', 'trigger')
-      .addSelect(['trigger.id', 'trigger.type', 'trigger.name'])
-      .leftJoin('e.executor', 'executor')
-      .addSelect(['executor.id', 'executor.name'])
-      .where('e.id = :id', { id })
-      .getOne();
-    if (!execution) {
-      throw new NotFoundException({
-        code: 'RESOURCE_NOT_FOUND',
-        message: 'Execution not found',
-      });
-    }
+    // Carousel disabled stuck (Phase 3 fix) — Execution + NodeExecution 두 개의
+    // SELECT 가 trxn 외부에서 별도로 실행되면, 그 사이에 엔진의
+    // `waitForButtonInteraction` 트랜잭션이 commit 할 때 snapshot 이
+    // **internally inconsistent** 해진다 (`Execution.status='running'` 인데
+    // `NodeExecution.status='waiting_for_input'`). frontend 의
+    // `applyExecutionSnapshot` 가 그 불일치를 resume 으로 오인해 waiting UI
+    // 를 wipe — Carousel 버튼이 콜백 없이 disabled 로 stuck.
+    //
+    // `REPEATABLE READ` 트랜잭션 안에서 두 SELECT 를 묶어, 동일 snapshot 시점
+    // 의 일관된 데이터만 응답한다. 단순 read 라 deadlock 위험 없음.
+    return this.executionRepository.manager.transaction(
+      'REPEATABLE READ',
+      async (manager): Promise<ExecutionDetailWithTrigger> => {
+        // 안전 컬럼만 선택적으로 join — User.passwordHash 등 민감 필드 노출
+        // 방지. executor.email 도 라벨 산출에 불필요하므로 제외 (PII 최소화).
+        const execution = await manager
+          .createQueryBuilder(Execution, 'e')
+          .leftJoinAndSelect('e.workflow', 'workflow')
+          .leftJoin('e.trigger', 'trigger')
+          .addSelect(['trigger.id', 'trigger.type', 'trigger.name'])
+          .leftJoin('e.executor', 'executor')
+          .addSelect(['executor.id', 'executor.name'])
+          .where('e.id = :id', { id })
+          .getOne();
+        if (!execution) {
+          throw new NotFoundException({
+            code: 'RESOURCE_NOT_FOUND',
+            message: 'Execution not found',
+          });
+        }
 
-    // nodeExecutions 와 executionPath 조회는 서로 독립적이므로 RTT 단축을
-    // 위해 병렬로 실행한다.
-    const [nodeExecutions, pathRows] = await Promise.all([
-      this.nodeExecutionRepository.find({
-        where: { executionId: id },
-        relations: ['node'],
-        order: { startedAt: 'ASC' },
-      }),
-      // executionPath 는 execution_node_log 의 (execution_id, id) 순서로
-      // 채운다. BIGSERIAL `id` 가 단조증가이므로 다중 인스턴스 환경에서도
-      // 단일 source of truth 를 유지한다.
-      this.executionNodeLogRepository.find({
-        where: { executionId: id },
-        order: { id: 'ASC' },
-        select: { nodeId: true },
-      }),
-    ]);
-    const executionPath = pathRows.map((r) => r.nodeId);
+        // nodeExecutions 와 executionPath 조회는 서로 독립적이므로 RTT 단축을
+        // 위해 병렬로 실행한다.
+        const [nodeExecutions, pathRows] = await Promise.all([
+          manager.find(NodeExecution, {
+            where: { executionId: id },
+            relations: ['node'],
+            order: { startedAt: 'ASC' },
+          }),
+          // executionPath 는 execution_node_log 의 (execution_id, id) 순서로
+          // 채운다. BIGSERIAL `id` 가 단조증가이므로 다중 인스턴스 환경에서도
+          // 단일 source of truth 를 유지한다.
+          manager.find(ExecutionNodeLog, {
+            where: { executionId: id },
+            order: { id: 'ASC' },
+            select: { nodeId: true },
+          }),
+        ]);
+        const executionPath = pathRows.map((r) => r.nodeId);
 
-    const parentName = execution.parentExecutionId
-      ? (
-          await loadParentWorkflowNames(this.executionRepository, [execution])
-        ).get(execution.parentExecutionId)
-      : null;
-    const trigger = deriveExecutionTrigger(execution, parentName);
+        const parentName = execution.parentExecutionId
+          ? (
+              await loadParentWorkflowNames(this.executionRepository, [
+                execution,
+              ])
+            ).get(execution.parentExecutionId)
+          : null;
+        const trigger = deriveExecutionTrigger(execution, parentName);
 
-    // 응답 직전 trigger/executor 관계 객체를 제거 (User 등 민감 정보 누출 방지).
-    return {
-      ...this.stripPrivateRelations(execution),
-      nodeExecutions,
-      triggerSource: trigger.source,
-      triggerLabel: trigger.label,
-      executionPath,
-    };
+        // 응답 직전 trigger/executor 관계 객체를 제거 (User 등 민감 정보 누출
+        // 방지).
+        return {
+          ...this.stripPrivateRelations(execution),
+          nodeExecutions,
+          triggerSource: trigger.source,
+          triggerLabel: trigger.label,
+          executionPath,
+        };
+      },
+    );
   }
 
   /**

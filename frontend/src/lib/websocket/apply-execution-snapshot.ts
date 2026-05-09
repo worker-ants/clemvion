@@ -111,6 +111,20 @@ export function applyExecutionSnapshot(
     return;
   }
   if (execution.status === "running" && prevStatus === "waiting_for_input") {
+    // Carousel disabled stuck (Phase 3) — backend `findById` 의 SELECT 가
+    // Execution / NodeExecution 두 번 분리 호출 (executions.service.ts) 라
+    // 그 사이에 엔진의 WAITING_FOR_INPUT 트랜잭션이 commit 하면
+    // `execution.status='running'` 인데 `nodeExecutions` 에는
+    // `waiting_for_input` row 가 존재하는 **inconsistent snapshot** 이 도착한다.
+    // 그 경우 local state 가 실제 backend 상태와 일치하므로 resume 분기를
+    // skip — 그렇지 않으면 buttons/form/AI 의 waiting UI 가 wipe 되어
+    // disabled stuck 회귀 (이 분기가 root cause).
+    const hasWaitingNode = execution.nodeExecutions?.some(
+      (ne) => ne.status === "waiting_for_input",
+    );
+    if (hasWaitingNode) {
+      return;
+    }
     // Execution already resumed before we joined — reconcile local state.
     const { waitingInteractionType: wit } = useExecutionStore.getState();
     if (wit === "ai_conversation") {
