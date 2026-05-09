@@ -276,4 +276,45 @@ describe('ContinuationBusService', () => {
       }
     });
   });
+
+  // onModuleInit 이전 (publisher 가 아직 미할당) 인 상태에서 호출되어도
+  // process crash 가 나지 않도록 보호하는 가드. NestJS 라이프사이클 race
+  // (다른 service.onModuleInit 이 본 service.onModuleInit 보다 먼저 실행되며
+  // continuationBus 메서드를 호출하는 케이스) 회귀 방지용.
+  describe('publisher 미초기화 가드 — race 방어', () => {
+    it('acquireLock 은 false 를 반환한다 (TypeError throw 없음)', async () => {
+      const ref = bus as unknown as { publisher?: unknown };
+      const original = ref.publisher;
+      ref.publisher = undefined;
+      try {
+        await expect(bus.acquireLock('early-lock', 60)).resolves.toBe(false);
+      } finally {
+        ref.publisher = original;
+      }
+    });
+
+    it('releaseLock 은 false 를 반환한다 (TypeError throw 없음)', async () => {
+      const ref = bus as unknown as { publisher?: unknown };
+      const original = ref.publisher;
+      ref.publisher = undefined;
+      try {
+        await expect(bus.releaseLock('early-lock')).resolves.toBe(false);
+      } finally {
+        ref.publisher = original;
+      }
+    });
+
+    it('publish 는 null 을 반환한다 (TypeError throw 없음)', async () => {
+      const ref = bus as unknown as { publisher?: unknown };
+      const original = ref.publisher;
+      ref.publisher = undefined;
+      try {
+        await expect(
+          bus.publish({ type: 'continue', executionId: 'exec-early' }),
+        ).resolves.toBeNull();
+      } finally {
+        ref.publisher = original;
+      }
+    });
+  });
 });
