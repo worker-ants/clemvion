@@ -1595,6 +1595,71 @@ describe('AiAgentHandler', () => {
       expect(meta.totalTokens).toBe(700);
       expect(meta.toolCalls).toBe(1);
     });
+
+    it('echoes rawConfig (systemPrompt / maxTurns / knowledgeBases / conditions) in output.config', () => {
+      const messages = [
+        { role: 'system' as const, content: 'System' },
+        { role: 'user' as const, content: 'Hi' },
+        { role: 'assistant' as const, content: 'Bye' },
+      ];
+      const rawConfig = {
+        mode: 'multi_turn' as const,
+        model: '{{ vars.model }}',
+        systemPrompt: 'You are {{ vars.persona }}',
+        maxTurns: 12,
+        maxToolCalls: 5,
+        knowledgeBases: ['kb-1', 'kb-2'],
+        conditions: [{ id: 'c1', label: 'Refund', prompt: 'Refund requested' }],
+      };
+      const result = handler.buildMultiTurnFinalOutput(
+        messages,
+        'Bye',
+        4,
+        'user_ended',
+        {
+          model: 'gpt-4o',
+          totalInputTokens: 100,
+          totalOutputTokens: 50,
+          toolCalls: 0,
+          ragSources: [],
+        },
+        undefined,
+        [],
+        rawConfig,
+      );
+      const r = result as Record<string, unknown>;
+      const config = r.config as Record<string, unknown>;
+      // raw model template is preserved (not engine-resolved)
+      expect(config.model).toBe('{{ vars.model }}');
+      expect(config.systemPrompt).toBe('You are {{ vars.persona }}');
+      expect(config.maxTurns).toBe(12);
+      expect(config.maxToolCalls).toBe(5);
+      expect(config.knowledgeBases).toEqual(['kb-1', 'kb-2']);
+      expect(config.conditions).toHaveLength(1);
+    });
+
+    it('falls back to fallbackModel when rawConfig is omitted', () => {
+      const result = handler.buildMultiTurnFinalOutput(
+        [],
+        '',
+        1,
+        'user_ended',
+        {
+          model: 'gpt-4o',
+          totalInputTokens: 0,
+          totalOutputTokens: 0,
+          toolCalls: 0,
+          ragSources: [],
+        },
+      );
+      const r = result as Record<string, unknown>;
+      const config = r.config as Record<string, unknown>;
+      expect(config.mode).toBe('multi_turn');
+      expect(config.model).toBe('gpt-4o');
+      // Optional raw-only fields are absent when rawConfig is missing.
+      expect(config.systemPrompt).toBeUndefined();
+      expect(config.maxTurns).toBeUndefined();
+    });
   });
 
   // ===== Conditions feature =====
@@ -1856,6 +1921,45 @@ describe('AiAgentHandler', () => {
       const condition = res.condition as Record<string, unknown>;
       expect(condition.id).toBe('a1b2c3d4-refund');
       expect(condition.label).toBe('Refund');
+    });
+
+    it('echoes raw conditions / systemPrompt in condition-triggered output.config', async () => {
+      mockLlmService.chat.mockResolvedValueOnce({
+        content: 'Routing to refund.',
+        toolCalls: [
+          {
+            id: 'tc-1',
+            name: 'cond_a1b2c3d4_refund',
+            arguments: '{"reason":"explicit"}',
+          },
+        ],
+        usage: { inputTokens: 10, outputTokens: 5, totalTokens: 15 },
+        model: 'gpt-4o',
+        finishReason: 'tool_calls',
+      });
+
+      // CONVENTIONS Principle 7 — when context.rawConfig carries the raw
+      // user-authored values (including templates), the condition-triggered
+      // output.config must echo them, not the engine-resolved snapshot.
+      const rawConditionConfig = {
+        ...conditionConfig,
+        systemPrompt: 'You are {{ vars.persona }}',
+      };
+      const ctxWithRaw = {
+        ...baseContext,
+        rawConfig: rawConditionConfig,
+      };
+
+      const result = (await handler.execute(
+        {},
+        // engine-resolved per-call config (templates already replaced)
+        { ...conditionConfig, systemPrompt: 'You are Refund Bot' },
+        ctxWithRaw,
+      )) as Record<string, unknown>;
+
+      const config = result.config as Record<string, unknown>;
+      expect(config.systemPrompt).toBe('You are {{ vars.persona }}');
+      expect(config.conditions).toEqual(rawConditionConfig.conditions);
     });
 
     it('should select first-defined condition when multiple conditions are called', async () => {

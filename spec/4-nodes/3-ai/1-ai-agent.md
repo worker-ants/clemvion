@@ -269,6 +269,8 @@ LLM 응답의 `toolCalls`를 순회할 때 다음 로직을 적용:
 
 ## 7. 출력 구조
 
+> **Config echo 정책 (CONVENTIONS Principle 7)**: 모든 종결 시점 (`out` / `{condition.id}` / `user_ended` / `max_turns` / `error`) 과 multi-turn 의 waiting / resumed waiting 시점에서 `output.config` 는 **유저가 입력한 raw 값** (template `{{ ... }}` 보존) 을 echo 한다 — 엔진이 dispatch 직전 평가한 값이 아니다. multi-turn resumed 턴에서도 `state.rawConfig` (engine 이 frozen snapshot 으로 운반) 를 통해 동일하게 raw 가 echo 된다. 후속 노드의 `$node["X"].config.{model, systemPrompt, userPrompt, maxTurns, maxToolCalls, knowledgeBases, conditions, responseFormat}` 는 수명 내내 raw 값을 본다.
+
 ### 7.1 Single Turn 모드 — 정상 완료 (`out` 포트)
 
 ```json

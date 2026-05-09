@@ -800,5 +800,102 @@ describe('InformationExtractorHandler', () => {
       expect(meta.interactionType).toBeUndefined();
       expect(typeof meta.durationMs).toBe('number');
     });
+
+    it('echoes rawConfig (model / instructions / inputField templates) when state carries it', () => {
+      const state = {
+        model: 'gpt-4o',
+        outputSchema: [
+          {
+            name: 'senderName',
+            type: 'string',
+            description: 'Name',
+            required: true,
+          },
+        ],
+        partialResult: { senderName: 'John' },
+        messages: [{ role: 'user', content: 'John' }],
+        turnCount: 2,
+        maxTurns: 10,
+        maxCollectionRetries: 3,
+        collectionRetryCount: 0,
+        totalInputTokens: 100,
+        totalOutputTokens: 30,
+        totalThinkingTokens: 0,
+        turnDebugHistory: [],
+        instructions: 'extract',
+        examples: [],
+        rawConfig: {
+          mode: 'multi_turn' as const,
+          model: '{{ vars.model }}',
+          outputSchema: [
+            {
+              name: 'senderName',
+              type: 'string',
+              description: 'Name',
+              required: true,
+            },
+          ],
+          instructions: '{{ vars.instructions }}',
+          examples: [{ input: 'a', output: { senderName: 'a' } }],
+          inputField: '{{ $node["X"].output.message }}',
+          maxTurns: 7,
+          maxCollectionRetries: 2,
+        },
+      };
+
+      const rawResult = handler.buildMultiTurnFinalOutput(
+        state as never,
+        'completed',
+      );
+
+      const { config } = asNodeHandlerOutput(rawResult);
+      expect(config.model).toBe('{{ vars.model }}');
+      expect(config.instructions).toBe('{{ vars.instructions }}');
+      expect(config.inputField).toBe('{{ $node["X"].output.message }}');
+      expect(config.maxTurns).toBe(7);
+      expect(config.maxCollectionRetries).toBe(2);
+      expect(config.examples).toEqual([
+        { input: 'a', output: { senderName: 'a' } },
+      ]);
+    });
+
+    it('falls back to evaluated state values when rawConfig is omitted', () => {
+      const state = {
+        model: 'gpt-4o',
+        outputSchema: [
+          {
+            name: 'senderName',
+            type: 'string',
+            description: 'Name',
+            required: true,
+          },
+        ],
+        partialResult: {},
+        messages: [],
+        turnCount: 0,
+        maxTurns: 9,
+        maxCollectionRetries: 4,
+        collectionRetryCount: 0,
+        totalInputTokens: 0,
+        totalOutputTokens: 0,
+        totalThinkingTokens: 0,
+        turnDebugHistory: [],
+        instructions: 'fallback-instructions',
+        examples: [],
+      };
+
+      const rawResult = handler.buildMultiTurnFinalOutput(
+        state as never,
+        'user_ended',
+      );
+
+      const { config } = asNodeHandlerOutput(rawResult);
+      expect(config.mode).toBe('multi_turn');
+      expect(config.model).toBe('gpt-4o');
+      expect(config.instructions).toBe('fallback-instructions');
+      expect(config.maxTurns).toBe(9);
+      expect(config.maxCollectionRetries).toBe(4);
+      expect(config.inputField).toBeUndefined();
+    });
   });
 });

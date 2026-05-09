@@ -622,6 +622,7 @@ export class AiAgentHandler implements NodeHandler {
               ragDiagnostics: turnRagAcc.getDiagnostics(),
             },
           ],
+          rawConfig,
         );
       }
 
@@ -1047,6 +1048,7 @@ export class AiAgentHandler implements NodeHandler {
           },
           { llmCalls, totalDurationMs: Date.now() - turnStartedAt },
           condTurnDebugHistory,
+          state.rawConfig as Record<string, unknown> | undefined,
         );
       }
 
@@ -1172,6 +1174,7 @@ export class AiAgentHandler implements NodeHandler {
         },
         { llmCalls, totalDurationMs: turnDurationMs },
         turnDebugHistory,
+        state.rawConfig as Record<string, unknown> | undefined,
       );
     }
 
@@ -1259,6 +1262,7 @@ export class AiAgentHandler implements NodeHandler {
       },
       undefined,
       (state.turnDebugHistory as unknown[]) ?? [],
+      state.rawConfig as Record<string, unknown> | undefined,
     );
   }
 
@@ -1281,13 +1285,14 @@ export class AiAgentHandler implements NodeHandler {
       totalDurationMs?: number;
     },
     turnDebugHistory?: unknown[],
+    rawConfig?: Record<string, unknown>,
   ): unknown {
     // CONVENTIONS §8 — wrap conversation result under `output.result.*`.
     // Tokens + tool-call counts go to `meta.*` (Principle 2). The legacy
     // `interactionType: 'ai_conversation'` marker moves to `meta.interactionType`
     // so the run-results UI's conversation Preview tab keeps rendering.
     return {
-      config: { mode: 'multi_turn' as const, model: metadata.model },
+      config: this.buildMultiTurnConfigEcho(rawConfig, metadata.model),
       output: {
         result: {
           response: lastResponse,
@@ -1336,12 +1341,13 @@ export class AiAgentHandler implements NodeHandler {
       totalDurationMs?: number;
     },
     turnDebugHistory?: unknown[],
+    rawConfig?: Record<string, unknown>,
   ): unknown {
     const lastMsg = messages[messages.length - 1];
     const lastResponse = lastMsg?.content ?? '';
 
     return {
-      config: { mode: 'multi_turn' as const, model: metadata.model },
+      config: this.buildMultiTurnConfigEcho(rawConfig, metadata.model),
       output: {
         result: {
           response: lastResponse,
@@ -1371,6 +1377,40 @@ export class AiAgentHandler implements NodeHandler {
       port: condition.id,
       status: 'ended',
     };
+  }
+
+  /**
+   * CONVENTIONS Principle 7 — multi-turn ended/condition echo. Surfaces the
+   * frozen rawConfig (engine merges it into both `context.rawConfig` and
+   * `state.rawConfig`) so downstream nodes see the user-authored templates,
+   * not engine-resolved values. Symmetric with the inline echoes at the
+   * initial / resumed waiting ticks.
+   */
+  private buildMultiTurnConfigEcho(
+    rawConfig: Record<string, unknown> | undefined,
+    fallbackModel: string,
+  ): Record<string, unknown> {
+    const raw = rawConfig ?? {};
+    const echo: Record<string, unknown> = {
+      mode: (raw.mode as string | undefined) ?? 'multi_turn',
+      model: (raw.model as string | undefined) ?? fallbackModel,
+    };
+    if (raw.systemPrompt !== undefined) echo.systemPrompt = raw.systemPrompt;
+    if (raw.userPrompt !== undefined) echo.userPrompt = raw.userPrompt;
+    if (raw.maxTurns !== undefined) echo.maxTurns = raw.maxTurns;
+    if (raw.maxToolCalls !== undefined) echo.maxToolCalls = raw.maxToolCalls;
+    if (raw.responseFormat !== undefined)
+      echo.responseFormat = raw.responseFormat;
+    if (raw.knowledgeBases !== undefined)
+      echo.knowledgeBases = raw.knowledgeBases;
+    if (
+      raw.conditions !== undefined &&
+      Array.isArray(raw.conditions) &&
+      (raw.conditions as unknown[]).length > 0
+    ) {
+      echo.conditions = raw.conditions;
+    }
+    return echo;
   }
 
   /**
