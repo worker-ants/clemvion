@@ -6,8 +6,8 @@ import {
   OnModuleInit,
   forwardRef,
 } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
+import { DataSource, Repository } from 'typeorm';
 import {
   Execution,
   ExecutionStatus,
@@ -56,6 +56,7 @@ import {
   NodeHandler,
   NodeHandlerOutput,
 } from '../../nodes/core/node-handler.interface';
+import { NODE_TYPES } from '../../nodes/core/node-types.constants';
 import {
   WebsocketService,
   ExecutionEventType,
@@ -96,6 +97,10 @@ interface ContainerBodyPlan {
   internalEdges: GraphEdge[];
   sortedNodeIds: string[];
   outgoingEdgeMap: Map<string, GraphEdge[]>;
+  // INFO #6 — `executeContainerBody` 가 매 iteration 마다 `new Map(allNodes)`
+  // 를 재생성하던 비용을 plan 단위로 1회 캐시한다 (ForEach 1,000 아이템 시
+  // 1,000회 → 1회).
+  nodeMap: Map<string, Node>;
 }
 
 /**
@@ -316,6 +321,30 @@ export type ExecuteOptions =
   | { executedBy?: never; triggerId: string }
   | { executedBy?: never; triggerId?: never };
 
+/**
+ * 워크플로우 실행 엔진의 단일 진입점.
+ *
+ * 책임 범위 (spec/5-system/4-execution-engine.md 참조):
+ *
+ *  - **그래프 순회**: 토폴로지 정렬 + back-edge 식별 → `runExecution` /
+ *    `executeInline` 의 while-loop dispatch.
+ *  - **노드 dispatch**: container (foreach/loop/map) / parallel / background /
+ *    blocking (form/buttons/ai_conversation) / standard 분기. Strategy 패턴은
+ *    NodeHandlerRegistry 가 type → handler 만 lookup 하고, 라이프사이클별
+ *    dispatch 는 본 서비스가 담당.
+ *  - **상태 머신**: PENDING → RUNNING → (WAITING_FOR_INPUT ↔ RUNNING)* → COMPLETED
+ *    / FAILED / CANCELLED. `updateExecutionStatus` 가 NodeExecution 변경과
+ *    함께 단일 트랜잭션으로 묶음 (§1.1, WARN #4).
+ *  - **이벤트 발행**: WebsocketService 를 canonical sink 로 emit (§4.4 — 추가
+ *    추상화 도입하지 않음).
+ *  - **분산 실행**: ContinuationBusService (Redis pub/sub) 가 사용자 입력 fan-out,
+ *    `execution_node_log` 테이블 (BIGSERIAL) 이 인스턴스 간 노드 순서 보장
+ *    (§7.4).
+ *  - **공개 API**: `execute` / `executeSync` / `executeAsync` / `executeInline` /
+ *    `continueExecution` / `continueButtonClick` / `continueAiConversation` /
+ *    `endAiConversation` / `cancelWaitingExecution`. 본 서비스는 ~4200줄로
+ *    크기가 크므로 PR-H/I 에서 점진적으로 책임 분해 예정.
+ */
 @Injectable()
 export class ExecutionEngineService
   implements OnModuleInit, OnApplicationBootstrap, WorkflowExecutor
@@ -334,6 +363,23 @@ export class ExecutionEngineService
       reject: (err: Error) => void;
     }
   >();
+
+  /**
+   * INFO #10 (Concurrency) — 실행 단위 LLM-default-config lookup 캐시.
+   * Key: `${executionId}:${workspaceId}` → cached `Promise<boolean>`.
+   *
+   * 이전 구현은 `context.variables['__hasDefaultLlmConfig:<wsId>']` 에 저장
+   * 했으나 parallel branch 가 `variables` 를 deep clone 한 뒤 (WARN #14) 부터
+   * 브랜치별로 독립 호출이 발생해 N+1 회피 효과가 약화됐다. 인스턴스 필드로
+   * 옮겨 모든 branch 가 같은 Promise 를 await 하도록 한다.
+   *
+   * Promise 자체를 저장하므로 동일 키에 대한 동시 호출이 한 번의 DB
+   * findDefault 만 발동시킨다 (single-flight).
+   *
+   * 정리: `runExecution` 의 finally 블록에서 같은 executionId prefix 의
+   * 항목을 일괄 삭제 (메모리 누수 차단).
+   */
+  private readonly llmDefaultConfigCache = new Map<string, Promise<boolean>>();
 
   /**
    * Sub-Workflow 재귀 호출 깊이 상한. WARN #9 (Security) — workflow A 가 자기
@@ -356,6 +402,8 @@ export class ExecutionEngineService
     private readonly workflowRepository: Repository<Workflow>,
     @InjectRepository(ExecutionNodeLog)
     private readonly executionNodeLogRepository: Repository<ExecutionNodeLog>,
+    @InjectDataSource()
+    private readonly dataSource: DataSource,
     private readonly handlerRegistry: NodeHandlerRegistry,
     private readonly componentRegistry: NodeComponentRegistry,
     private readonly contextService: ExecutionContextService,
@@ -390,6 +438,10 @@ export class ExecutionEngineService
    * 미루어 race 를 원천적으로 회피한다.
    */
   async onApplicationBootstrap(): Promise<void> {
+    // PR-G — `NodeHandlerRegistry.register` 가 이미 끝난 시점 (모든 모듈 init
+    // 완료 후) 에서 metadata 정합성 일괄 검증. 누락 시 명시적 throw 로 부팅
+    // 단계 차단 — silent skip 방지.
+    this.handlerRegistry.assertConsistency();
     await this.recoverStuckExecutions();
   }
 
@@ -650,46 +702,26 @@ export class ExecutionEngineService
       return cleanInput;
     }
 
-    // Pre-compute sorted-index map for back-edge jumps
+    // Pre-compute sorted-index map for back-edge jumps + edge lookups (CRIT #2).
     const sortedIndexMap = new Map<string, number>();
     for (let i = 0; i < sortedNodeIds.length; i++) {
       sortedIndexMap.set(sortedNodeIds[i], i);
     }
-    const backEdgeMap = new Map<
-      string,
-      Array<{ edge: GraphEdge; targetIndex: number }>
-    >();
-    for (const edge of backEdges) {
-      const targetIndex = sortedIndexMap.get(edge.targetNodeId);
-      if (targetIndex === undefined) continue;
-      const list = backEdgeMap.get(edge.sourceNodeId) ?? [];
-      list.push({ edge, targetIndex });
-      backEdgeMap.set(edge.sourceNodeId, list);
-    }
-
-    // Build outgoing-edge lookup for O(1) propagation + incoming-edge lookup
-    // for O(1) gatherNodeInput (avoids O(N×M) filter on every node execution).
-    const outgoingEdgeMap = new Map<string, GraphEdge[]>();
-    const incomingEdgeMap = new Map<string, GraphEdge[]>();
-    for (const edge of graphEdges) {
-      const outList = outgoingEdgeMap.get(edge.sourceNodeId) ?? [];
-      outList.push(edge);
-      outgoingEdgeMap.set(edge.sourceNodeId, outList);
-      const inList = incomingEdgeMap.get(edge.targetNodeId) ?? [];
-      inList.push(edge);
-      incomingEdgeMap.set(edge.targetNodeId, inList);
-    }
+    const { backEdgeMap, outgoingEdgeMap, incomingEdgeMap } =
+      this.buildEdgeIndexes(graphEdges, backEdges, sortedIndexMap);
 
     // Use target-only nodeMap for expression resolution.
     // $node references in the target workflow should resolve against the
     // target workflow's own nodes only, not the parent (source) workflow.
     const subNodeMap = new Map(subNodes.map((n) => [n.id, n]));
 
-    // Debug: log node labels and execution order
-    this.logger.log(
+    // Debug: log node labels and execution order. INFO #8 — 매 노드 실행마다
+    // O(N) `.map().join()` 비용을 프로덕션에서 회피. `logger.debug` 는 Nest
+    // 의 debug level (process.env.LOG_LEVEL='debug') 일 때만 직렬화된다.
+    this.logger.debug(
       `[executeInline] Target workflow nodes: ${subNodes.map((n) => `${n.label}(${n.type})`).join(', ')}`,
     );
-    this.logger.log(
+    this.logger.debug(
       `[executeInline] Sorted execution order (${sortedNodeIds.length} nodes): ${sortedNodeIds.map((id) => subNodeMap.get(id)?.label ?? id).join(' → ')}`,
     );
 
@@ -710,29 +742,15 @@ export class ExecutionEngineService
       100,
     );
     const nodeExecutionCount = new Map<string, number>();
-    // Seed reachability. The Background processor passes explicit entry ids
-    // (the targets of `background`-port edges); otherwise we use the standard
-    // trigger-first / no-incoming-edge fallback used for sub-workflows.
-    const reachable = new Set<string>();
-    const explicitEntryIds = options.entryNodeIds;
-    if (explicitEntryIds && explicitEntryIds.length > 0) {
-      for (const id of explicitEntryIds) {
-        if (subNodeMap.has(id)) reachable.add(id);
-      }
-    } else {
-      const nodesWithIncoming = new Set(
-        forwardEdges.map((e) => e.targetNodeId),
-      );
-      for (const id of sortedNodeIds) {
-        const node = subNodeMap.get(id);
-        if (node?.category === NodeCategory.TRIGGER) reachable.add(id);
-      }
-      if (reachable.size === 0) {
-        for (const id of sortedNodeIds) {
-          if (!nodesWithIncoming.has(id)) reachable.add(id);
-        }
-      }
-    }
+    // Seed reachability (CRIT #2 — runExecution 과 동일한 helper). Background
+    // processor 는 explicit entry ids (targets of `background`-port edges) 를
+    // 전달하고, 그 외에는 trigger-first / no-incoming-edge fallback 사용.
+    const reachable = this.seedInitialReachability(
+      sortedNodeIds,
+      subNodeMap,
+      forwardEdges,
+      options.entryNodeIds,
+    );
 
     // Retrieve execution meta for expression context
     const execution = await this.executionRepository.findOneBy({
@@ -766,34 +784,36 @@ export class ExecutionEngineService
           );
         }
 
-        // Skip disabled nodes (don't propagate reachability to downstream)
+        // Skip disabled nodes (don't propagate reachability to downstream).
+        // CRIT #2 — runExecution 과 동일한 helper 로 통일.
         if (node.isDisabled) {
-          const skipped = await this.createNodeExecution(
+          await this.handleDisabledNode(
             executionId,
             nodeId,
-            NodeExecutionStatus.SKIPPED,
-            context.parentNodeExecutionId,
+            node,
+            context,
+            executedNodes,
           );
-          this.websocketService.emitNodeEvent(
-            executionId,
-            nodeId,
-            NodeEventType.NODE_SKIPPED,
-            {
-              nodeExecutionId: skipped.id,
-              parentNodeExecutionId: context.parentNodeExecutionId,
-              status: NodeExecutionStatus.SKIPPED,
-              nodeType: node.type,
-              nodeLabel: node.label ?? node.type,
-              startedAt: skipped.startedAt?.toISOString?.(),
-            },
-          );
-          executedNodes.add(nodeId);
           pointer++;
           continue;
         }
 
-        // Skip trigger nodes in sub-workflows (they are entry points only)
-        if (node.type === 'manual_trigger') {
+        // Skip trigger nodes in sub-workflows (they are entry points only).
+        //
+        // WARN #17 (Architecture) — sub-workflow 의 trigger 는 `manual_trigger` 만
+        // 허용한다. webhook/schedule trigger 는 외부 이벤트 (HTTP / cron) 와
+        // 결합된 출처 분류 의미를 가지므로 부모 Execution 의 출처를 silently
+        // 덮어쓰면 안 된다. spec/4-nodes/2-flow/1-workflow.md (Workflow node)
+        // 의 box 참조. 다른 trigger 타입을 만나면 fail-fast.
+        if (node.category === NodeCategory.TRIGGER) {
+          if (node.type !== NODE_TYPES.MANUAL_TRIGGER) {
+            throw new Error(
+              `INVALID_SUB_WORKFLOW_TRIGGER: Sub-workflow can only contain "manual_trigger" entry points. ` +
+                `Found "${node.type}" (label="${node.label ?? node.type}"). ` +
+                `webhook_trigger / schedule_trigger 등은 외부 이벤트와 결합된 ` +
+                `출처 분류를 가지므로 sub-workflow 진입점으로 사용할 수 없다.`,
+            );
+          }
           executedNodes.add(nodeId);
           // Pass clean input through trigger node's output slot
           this.contextService.setNodeOutput(executionId, nodeId, cleanInput);
@@ -835,12 +855,12 @@ export class ExecutionEngineService
           },
         );
 
+        // PR-G — metadata flag dispatch (CRIT #3 시나리오 D). hard-coded
+        // node.type 분기를 NodeHandlerRegistry.getMetadata 의 kind 로 통일.
+        const dispatchKind = this.handlerRegistry.getMetadata(node.type).kind;
+
         // Container dispatch for sub-workflow inline execution.
-        if (
-          node.type === 'foreach' ||
-          node.type === 'loop' ||
-          node.type === 'map'
-        ) {
+        if (dispatchKind === 'container') {
           await this.runContainer(
             node,
             subNodes,
@@ -856,7 +876,7 @@ export class ExecutionEngineService
         }
 
         // Background dispatch — enqueue body subgraph and continue main flow.
-        if (node.type === 'background') {
+        if (dispatchKind === 'background') {
           await this.scheduleBackgroundBody(
             node,
             subEdges,
@@ -898,7 +918,11 @@ export class ExecutionEngineService
             this.logger.log(
               `[executeInline] BLOCKING: "${node.label}" is waiting_for_input (type=${node.type})`,
             );
-            if (node.type === 'form') {
+            const blocking = this.handlerRegistry.getMetadata(node.type);
+            if (
+              blocking.kind === 'blocking' &&
+              blocking.interaction === 'form'
+            ) {
               await this.waitForFormSubmission(
                 execution,
                 executionId,
@@ -1056,24 +1080,25 @@ export class ExecutionEngineService
       if (timeoutHandle) clearTimeout(timeoutHandle);
     }
 
-    const completed = await this.executionRepository.findOneBy({
-      id: savedExecution.id,
-    });
-
-    if (completed?.status === ExecutionStatus.FAILED) {
-      const errRecord = completed.error as Record<string, string> | null;
+    // INFO #19 — 성공 path 의 findOneBy 재조회 제거. runExecution 은 자신이 받은
+    // savedExecution 참조를 in-place mutation 하므로 (status / outputData /
+    // finishedAt / durationMs) 별도 SELECT 없이 in-memory 값을 그대로 사용한다.
+    // catch block 의 reloaded 재조회는 timeout TOCTOU 방어를 위해 유지한다 —
+    // runExecution 이 background 에서 완료했을 가능성을 DB 에서 확인해야 한다.
+    if (savedExecution.status === ExecutionStatus.FAILED) {
+      const errRecord = savedExecution.error as Record<string, string> | null;
       const errMsg: string = errRecord?.message ?? 'Unknown error';
       throw new Error(`Sub-workflow execution failed: ${errMsg}`);
     }
 
-    if (completed?.status === ExecutionStatus.CANCELLED) {
+    if (savedExecution.status === ExecutionStatus.CANCELLED) {
       throw new Error('Sub-workflow execution was cancelled');
     }
 
     return {
       executionId: savedExecution.id,
-      output: completed?.outputData ?? {},
-      status: completed?.status ?? ExecutionStatus.FAILED,
+      output: savedExecution.outputData ?? {},
+      status: savedExecution.status,
     };
   }
 
@@ -1164,33 +1189,11 @@ export class ExecutionEngineService
         sortedIndexMap.set(sortedNodeIds[i], i);
       }
 
-      // Build back-edge lookup: sourceNodeId -> [{ edge, targetIndex }]
-      // Used at runtime to jump the execution pointer back when a back-edge is activated.
-      const backEdgeMap = new Map<
-        string,
-        Array<{ edge: GraphEdge; targetIndex: number }>
-      >();
-      for (const edge of backEdges) {
-        const targetIndex = sortedIndexMap.get(edge.targetNodeId);
-        // Skip back-edges whose target is not in the sorted graph (defensive guard)
-        if (targetIndex === undefined) continue;
-        const list = backEdgeMap.get(edge.sourceNodeId) ?? [];
-        list.push({ edge, targetIndex });
-        backEdgeMap.set(edge.sourceNodeId, list);
-      }
-
-      // Build outgoing-edge lookup for O(1) propagation + incoming-edge lookup
-      // for O(1) gatherNodeInput (avoids O(N×M) filter on every node execution).
-      const outgoingEdgeMap = new Map<string, GraphEdge[]>();
-      const incomingEdgeMap = new Map<string, GraphEdge[]>();
-      for (const edge of graphEdges) {
-        const inList = incomingEdgeMap.get(edge.targetNodeId) ?? [];
-        inList.push(edge);
-        incomingEdgeMap.set(edge.targetNodeId, inList);
-        const list = outgoingEdgeMap.get(edge.sourceNodeId) ?? [];
-        list.push(edge);
-        outgoingEdgeMap.set(edge.sourceNodeId, list);
-      }
+      // CRIT #2 — executeInline 과 동일한 helper. back / outgoing / incoming
+      // edge lookup 을 한 곳에 빌드. Pointer 이동·O(1) gatherNodeInput·port
+      // routing 에 사용.
+      const { backEdgeMap, outgoingEdgeMap, incomingEdgeMap } =
+        this.buildEdgeIndexes(graphEdges, backEdges, sortedIndexMap);
 
       // 8. Create execution context (inject workspaceId for AI handlers)
       const workflow = await this.workflowRepository.findOneBy({
@@ -1224,22 +1227,13 @@ export class ExecutionEngineService
       // Keeping them in the set ensures downstream nodes see predecessor output.
       const executedNodes = new Set<string>();
       context._executedNodes = executedNodes;
-      // Track which nodes are reachable from the trigger through activated edges.
-      // Only reachable nodes are executed; unreachable branches are silently skipped.
-      // Seed with trigger nodes. If none exist, fall back to nodes with no incoming edges.
-      const reachable = new Set<string>();
-      const nodesWithIncoming = new Set(
-        forwardEdges.map((e) => e.targetNodeId),
+      // CRIT #2 — executeInline 과 동일한 helper. trigger-first / no-incoming
+      // fallback 으로 reachable seed.
+      const reachable = this.seedInitialReachability(
+        sortedNodeIds,
+        nodeMap,
+        forwardEdges,
       );
-      for (const id of sortedNodeIds) {
-        const node = nodeMap.get(id);
-        if (node?.category === NodeCategory.TRIGGER) reachable.add(id);
-      }
-      if (reachable.size === 0) {
-        for (const id of sortedNodeIds) {
-          if (!nodesWithIncoming.has(id)) reachable.add(id);
-        }
-      }
 
       let pointer = 0;
       while (pointer < sortedNodeIds.length) {
@@ -1267,28 +1261,16 @@ export class ExecutionEngineService
           );
         }
 
-        // Skip disabled nodes (don't propagate reachability to downstream)
+        // Skip disabled nodes (don't propagate reachability to downstream).
+        // CRIT #2 — executeInline 과 동일한 helper 로 통일.
         if (node.isDisabled) {
-          const skipped = await this.createNodeExecution(
+          await this.handleDisabledNode(
             executionId,
             nodeId,
-            NodeExecutionStatus.SKIPPED,
-            context.parentNodeExecutionId,
+            node,
+            context,
+            executedNodes,
           );
-          this.websocketService.emitNodeEvent(
-            executionId,
-            nodeId,
-            NodeEventType.NODE_SKIPPED,
-            {
-              nodeExecutionId: skipped.id,
-              parentNodeExecutionId: context.parentNodeExecutionId,
-              status: NodeExecutionStatus.SKIPPED,
-              nodeType: node.type,
-              nodeLabel: node.label ?? node.type,
-              startedAt: skipped.startedAt?.toISOString?.(),
-            },
-          );
-          executedNodes.add(nodeId);
           pointer++;
           continue;
         }
@@ -1317,14 +1299,13 @@ export class ExecutionEngineService
           },
         );
 
+        // PR-G — metadata flag dispatch (CRIT #3 시나리오 D).
+        const dispatchKind = this.handlerRegistry.getMetadata(node.type).kind;
+
         // Container dispatch: after the handler runs (which resolves config),
         // iterate the body subgraph and overwrite container output with the
         // collected results so `done`-port edges see the right value.
-        if (
-          node.type === 'foreach' ||
-          node.type === 'loop' ||
-          node.type === 'map'
-        ) {
+        if (dispatchKind === 'container') {
           await this.runContainer(
             node,
             nodes,
@@ -1340,7 +1321,7 @@ export class ExecutionEngineService
         }
 
         // Background dispatch — enqueue body subgraph and continue main flow.
-        if (node.type === 'background') {
+        if (dispatchKind === 'background') {
           await this.scheduleBackgroundBody(
             node,
             edges,
@@ -1355,7 +1336,7 @@ export class ExecutionEngineService
         // `port: string[]` return value is handled by the legacy sequential
         // propagateReachability path below, preserving existing semantics.
         if (
-          node.type === 'parallel' &&
+          dispatchKind === 'parallel' &&
           this.configService.get<string>('PARALLEL_ENGINE', 'off') === 'v1'
         ) {
           const nodeInput = this.gatherNodeInput(
@@ -1399,7 +1380,8 @@ export class ExecutionEngineService
           | undefined;
         const interactionType = this.getInteractionType(context, node.id);
         if (nodeOutput?.status === 'waiting_for_input') {
-          if (node.type === 'form') {
+          const blocking = this.handlerRegistry.getMetadata(node.type);
+          if (blocking.kind === 'blocking' && blocking.interaction === 'form') {
             await this.waitForFormSubmission(
               savedExecution,
               executionId,
@@ -1526,6 +1508,7 @@ export class ExecutionEngineService
     } finally {
       this.pendingContinuations.delete(executionId);
       this.contextService.deleteContext(executionId);
+      this.clearLlmDefaultConfigCache(executionId);
     }
   }
 
@@ -1581,12 +1564,6 @@ export class ExecutionEngineService
     node: Node,
     context: ExecutionContext,
   ): Promise<void> {
-    // Update execution status to waiting
-    await this.updateExecutionStatus(
-      savedExecution,
-      ExecutionStatus.WAITING_FOR_INPUT,
-    );
-
     // Emit waiting event so frontend can render the form. Prefer the
     // structured cache entry (new NodeHandlerOutput shape) so the frontend
     // can read the form declaration from `.config`; fall back to the flat
@@ -1614,8 +1591,13 @@ export class ExecutionEngineService
         nodeOutput as Record<string, unknown>,
         'form',
       );
-      await this.nodeExecutionRepository.save(nodeExec);
     }
+    // Atomic: Execution → WAITING_FOR_INPUT + NodeExecution save (WARN #4)
+    await this.updateExecutionStatus(
+      savedExecution,
+      ExecutionStatus.WAITING_FOR_INPUT,
+      nodeExec ?? undefined,
+    );
     this.websocketService.emitExecutionEvent(
       executionId,
       ExecutionEventType.EXECUTION_WAITING_FOR_INPUT,
@@ -1710,7 +1692,16 @@ export class ExecutionEngineService
       nodeExec.finishedAt = new Date();
       nodeExec.durationMs =
         nodeExec.finishedAt.getTime() - nodeExec.startedAt.getTime();
-      await this.nodeExecutionRepository.save(nodeExec);
+    }
+
+    // Atomic: NodeExecution COMPLETED + Execution RUNNING (WARN #4)
+    await this.updateExecutionStatus(
+      savedExecution,
+      ExecutionStatus.RUNNING,
+      nodeExec ?? undefined,
+    );
+
+    if (nodeExec) {
       this.websocketService.emitNodeEvent(
         executionId,
         node.id,
@@ -1732,9 +1723,6 @@ export class ExecutionEngineService
         },
       );
     }
-
-    // Transition back to RUNNING (resumed from form, not a fresh start)
-    await this.updateExecutionStatus(savedExecution, ExecutionStatus.RUNNING);
     this.websocketService.emitExecutionEvent(
       executionId,
       ExecutionEventType.EXECUTION_RESUMED,
@@ -1810,9 +1798,14 @@ export class ExecutionEngineService
   }
 
   /**
-   * Pause execution at an AI Agent node in multi-turn mode.
-   * Loops: emit AI response → wait for user message → process → repeat.
-   * Exits when user ends conversation or maxTurns is reached.
+   * Pause execution at an AI Agent / Information Extractor node in multi-turn
+   * mode. Loops: emit AI response → wait for user message → process → repeat.
+   * Exits when user ends conversation or handler returns terminal status.
+   *
+   * WARN #25 (Maintainability) — 본 메서드는 PR-H 에서 4개 sub-method 로 분해
+   * 됐다 ({@link emitAiWaitingForInput} / {@link handleAiMessageTurn} /
+   * {@link handleAiEndConversation} / {@link finalizeAiNode}). 본 메서드는
+   * orchestration (resumeState 준비 + while 루프) 만 담당.
    */
   private async waitForAiConversation(
     savedExecution: Execution,
@@ -1839,12 +1832,75 @@ export class ExecutionEngineService
       resumeState.rawConfig = Object.freeze({ ...(node.config ?? {}) });
     }
 
-    // Update execution status to waiting
-    await this.updateExecutionStatus(
+    const nodeExec = await this.nodeExecutionRepository.findOne({
+      where: { executionId, nodeId: node.id },
+      order: { startedAt: 'DESC' },
+    });
+
+    await this.emitAiWaitingForInput(
       savedExecution,
-      ExecutionStatus.WAITING_FOR_INPUT,
+      executionId,
+      node,
+      context,
+      nodeExec,
+      nodeOutput,
+      resumeState,
     );
 
+    // Conversation loop — exits when user ends OR handler returns terminal.
+    let conversationEnded = false;
+    while (!conversationEnded) {
+      // Wait for user message or end signal (no timeout — external cancel only)
+      const userData = await new Promise<unknown>((resolve, reject) => {
+        this.pendingContinuations.set(executionId, {
+          nodeId: node.id,
+          resolve,
+          reject,
+        });
+      });
+
+      const action = userData as Record<string, unknown>;
+
+      if (action.type === 'ai_end_conversation') {
+        this.handleAiEndConversation(executionId, node, resumeState);
+        conversationEnded = true;
+      } else if (action.type === 'ai_message') {
+        const turn = await this.handleAiMessageTurn(
+          executionId,
+          node,
+          action.message as string,
+          resumeState,
+          nodeExec,
+        );
+        resumeState = turn.resumeState;
+        conversationEnded = turn.ended;
+      }
+    }
+
+    await this.finalizeAiNode(
+      savedExecution,
+      executionId,
+      node,
+      context,
+      nodeExec,
+    );
+  }
+
+  /**
+   * PR-H — `waitForAiConversation` 분해. 첫 turn 에서 NodeExecution 을
+   * WAITING_FOR_INPUT 으로 atomic 전이 (WARN #4) + 클라이언트에 초기 waiting
+   * 이벤트 emit (`EXECUTION_WAITING_FOR_INPUT`) — turn 1 의 AI response 가
+   * 동봉된다.
+   */
+  private async emitAiWaitingForInput(
+    savedExecution: Execution,
+    executionId: string,
+    node: Node,
+    context: ExecutionContext,
+    nodeExec: NodeExecution | null,
+    nodeOutput: Record<string, unknown>,
+    resumeState: Record<string, unknown>,
+  ): Promise<void> {
     // Source-of-truth for the waiting payload is `structuredOutputCache` —
     // the canonical NodeHandlerOutput populated when the handler returned.
     const structured = context.structuredOutputCache?.[node.id];
@@ -1853,10 +1909,6 @@ export class ExecutionEngineService
       | undefined;
     const structuredConfig = structured?.config ?? undefined;
 
-    const nodeExec = await this.nodeExecutionRepository.findOne({
-      where: { executionId, nodeId: node.id },
-      order: { startedAt: 'DESC' },
-    });
     if (nodeExec) {
       nodeExec.status = NodeExecutionStatus.WAITING_FOR_INPUT;
       // Persist the canonical structured shape (config/output/meta/status)
@@ -1876,8 +1928,13 @@ export class ExecutionEngineService
         persistedOutput,
         'ai_conversation',
       );
-      await this.nodeExecutionRepository.save(nodeExec);
     }
+    // Atomic: Execution → WAITING_FOR_INPUT + NodeExecution save (WARN #4)
+    await this.updateExecutionStatus(
+      savedExecution,
+      ExecutionStatus.WAITING_FOR_INPUT,
+      nodeExec ?? undefined,
+    );
 
     const initialConv = buildConversationConfigFromOutput(structuredOutput);
 
@@ -1917,218 +1974,231 @@ export class ExecutionEngineService
         },
       },
     );
+  }
 
-    // Conversation loop
-    let conversationEnded = false;
-    while (!conversationEnded) {
-      // Wait for user message or end signal (no timeout — external cancel only)
-      const userData = await new Promise<unknown>((resolve, reject) => {
-        this.pendingContinuations.set(executionId, {
+  /**
+   * PR-H — 사용자 메시지 1회 turn 처리. 핸들러 (`processMultiTurnMessage`)
+   * 호출 → 결과 정규화 → 분기:
+   *  - waiting → AI_MESSAGE + 후속 EXECUTION_WAITING_FOR_INPUT emit, 다음 turn
+   *    을 위한 새 resumeState 반환 (`ended: false`)
+   *  - terminal → 종료 AI_MESSAGE emit + structured/flat cache 갱신, 같은
+   *    resumeState 반환 (`ended: true`)
+   *
+   * 핸들러는 `ResumableNodeHandler` 인터페이스 (`processMultiTurnMessage`
+   * 보유) 를 구현해야 한다. 미구현 시 명시적 throw (CRIT #4 — duck-typing 제거).
+   */
+  private async handleAiMessageTurn(
+    executionId: string,
+    node: Node,
+    message: string,
+    resumeState: Record<string, unknown>,
+    nodeExec: NodeExecution | null,
+  ): Promise<{ resumeState: Record<string, unknown>; ended: boolean }> {
+    // Process user message via the node's own handler (so both ai_agent
+    // and information_extractor can implement conversational extraction
+    // with their own domain logic).
+    // CRIT #4 — duck-typing 제거. ResumableNodeHandler 인터페이스로 narrow.
+    const handler = this.handlerRegistry.get(node.type);
+    if (!isResumableNodeHandler(handler)) {
+      throw new Error(
+        `Node type "${node.type}" cannot process multi-turn message: ` +
+          'handler does not implement ResumableNodeHandler interface',
+      );
+    }
+    const result = await handler.processMultiTurnMessage(message, resumeState);
+    const resultObj = result as Record<string, unknown>;
+
+    if (resultObj.status === 'waiting_for_input') {
+      // Run the canonical adapter once so production-strict validation
+      // is enforced and the structured cache stays consistent for the
+      // next emit cycle / REST polling reconciliation.
+      const adaptedNext = adaptHandlerReturn(result);
+      this.contextService.setStructuredOutput(
+        executionId,
+        node.id,
+        adaptedNext,
+      );
+      const flatNext = this.applyPortSelection(toEngineFlatShape(adaptedNext));
+      this.contextService.setNodeOutput(executionId, node.id, flatNext);
+
+      // Update state for next turn
+      const nextResumeState = adaptedNext._resumeState as Record<
+        string,
+        unknown
+      >;
+
+      const adaptedOutput = adaptedNext.output as
+        | Record<string, unknown>
+        | undefined;
+      const adaptedConfig = (adaptedNext.config ?? undefined) as
+        | Record<string, unknown>
+        | undefined;
+      const nextConv = buildConversationConfigFromOutput(adaptedOutput);
+
+      // Emit AI response event (filter system prompts from client).
+      // Shape mirrors the terminal-emit branch below so the frontend
+      // debug timeline (Response / Request / LLM Usage tabs) can match
+      // assistant messages to their LLM calls during live waiting too.
+      // The earlier flat fields (lastTurnRequest / lastTurnResponse /
+      // lastTurnDurationMs on resumeState) are intentionally not emitted —
+      // turnDebugHistory's last entry already carries the same data and
+      // additionally preserves the per-call sequence in tool loops.
+      this.websocketService.emitExecutionEvent(
+        executionId,
+        ExecutionEventType.AI_MESSAGE,
+        {
+          // Sub-Workflow 안에서 같은 nodeId 의 AI Agent 가 여러 번 도달
+          // 할 수 있으므로 nodeExecutionId 를 명시 — frontend store 가
+          // 정확한 row 에 message 를 라우팅한다.
+          nodeExecutionId: nodeExec?.id,
           nodeId: node.id,
-          resolve,
-          reject,
-        });
-      });
+          message: nextConv.message,
+          turnCount: nextConv.turnCount,
+          messages: nextConv.messages,
+          metadata: {
+            model: nextResumeState.model,
+            inputTokens: nextResumeState.totalInputTokens,
+            outputTokens: nextResumeState.totalOutputTokens,
+          },
+          ...buildAiMessageDebugFromResumeState(nextResumeState),
+        },
+      );
 
-      const action = userData as Record<string, unknown>;
+      // Emit waiting_for_input again
+      this.websocketService.emitExecutionEvent(
+        executionId,
+        ExecutionEventType.EXECUTION_WAITING_FOR_INPUT,
+        {
+          status: ExecutionStatus.WAITING_FOR_INPUT,
+          waitingNodeId: node.id,
+          waitingNodeType: node.type,
+          waitingNodeLabel: node.label ?? node.type,
+          nodeExecutionId: nodeExec?.id,
+          // sortByStartedAt 정합성 — store 가 prior NODE_STARTED 를
+          // 놓친 시나리오 대비 항상 동봉.
+          startedAt: nodeExec?.startedAt?.toISOString?.(),
+          nodeOutput: {
+            interactionType: 'ai_conversation',
+            // Pass through handler's echoed node config so the Config
+            // tab can render during the waiting state. Conversation
+            // handlers (AI Agent / Info Extractor multi-turn) add this.
+            ...(adaptedConfig && Object.keys(adaptedConfig).length > 0
+              ? { config: adaptedConfig }
+              : {}),
+            conversationConfig: nextConv,
+            // 진행 중에도 References / LLM Usage 탭이 동작하도록 누적
+            // 상태를 meta.* 로 노출. (turn 단위 ragSources 는 turnDebug[]
+            // 안에 들어 있어 References 탭이 메시지(턴)별로 그룹핑.)
+            meta: buildConversationMetaFromResumeState(nextResumeState),
+          },
+        },
+      );
 
-      if (action.type === 'ai_end_conversation') {
-        const endReason = 'user_ended';
-
-        // CRIT #4 — duck-typing 제거. ResumableNodeHandler 인터페이스로 narrow
-        // 하여 핸들러가 두 메서드를 구현하지 않으면 명시적 에러 발생.
-        const handler = this.handlerRegistry.get(node.type);
-        if (!isResumableNodeHandler(handler)) {
-          throw new Error(
-            `Node type "${node.type}" cannot end multi-turn conversation: ` +
-              'handler does not implement ResumableNodeHandler interface ' +
-              '(processMultiTurnMessage / endMultiTurnConversation)',
-          );
-        }
-
-        const finalOutput = handler.endMultiTurnConversation(
-          resumeState,
-          endReason,
-        );
-
-        // Normalize so that both the new NodeHandlerOutput shape (info
-        // extractor post Stage 1, which carries its own port/meta) and the
-        // legacy bare return (ai_agent) persist uniformly through the
-        // structured cache + port selector path.
-        const adaptedEnd = adaptHandlerReturn(finalOutput);
-        this.contextService.setStructuredOutput(
-          executionId,
-          node.id,
-          adaptedEnd,
-        );
-        const flatEnd = toEngineFlatShape(adaptedEnd);
-        const routedEnd = this.applyPortSelection(flatEnd);
-        this.contextService.setNodeOutput(executionId, node.id, routedEnd);
-        conversationEnded = true;
-      } else if (action.type === 'ai_message') {
-        // Process user message via the node's own handler (so both ai_agent
-        // and information_extractor can implement conversational extraction
-        // with their own domain logic).
-        // CRIT #4 — duck-typing 제거. ResumableNodeHandler 인터페이스로 narrow.
-        const handler = this.handlerRegistry.get(node.type);
-        if (!isResumableNodeHandler(handler)) {
-          throw new Error(
-            `Node type "${node.type}" cannot process multi-turn message: ` +
-              'handler does not implement ResumableNodeHandler interface',
-          );
-        }
-        const result = await handler.processMultiTurnMessage(
-          action.message as string,
-          resumeState,
-        );
-
-        const resultObj = result as Record<string, unknown>;
-
-        if (resultObj.status === 'waiting_for_input') {
-          // Run the canonical adapter once so production-strict validation
-          // is enforced and the structured cache stays consistent for the
-          // next emit cycle / REST polling reconciliation.
-          const adaptedNext = adaptHandlerReturn(result);
-          this.contextService.setStructuredOutput(
-            executionId,
-            node.id,
-            adaptedNext,
-          );
-          const flatNext = this.applyPortSelection(
-            toEngineFlatShape(adaptedNext),
-          );
-          this.contextService.setNodeOutput(executionId, node.id, flatNext);
-
-          // Update state for next turn
-          resumeState = adaptedNext._resumeState as Record<string, unknown>;
-
-          const adaptedOutput = adaptedNext.output as
-            | Record<string, unknown>
-            | undefined;
-          const adaptedConfig = (adaptedNext.config ?? undefined) as
-            | Record<string, unknown>
-            | undefined;
-          const nextConv = buildConversationConfigFromOutput(adaptedOutput);
-
-          // Emit AI response event (filter system prompts from client).
-          // Shape mirrors the terminal-emit branch below so the frontend
-          // debug timeline (Response / Request / LLM Usage tabs) can match
-          // assistant messages to their LLM calls during live waiting too.
-          // The earlier flat fields (lastTurnRequest / lastTurnResponse /
-          // lastTurnDurationMs on resumeState) are intentionally not emitted —
-          // turnDebugHistory's last entry already carries the same data and
-          // additionally preserves the per-call sequence in tool loops.
-          this.websocketService.emitExecutionEvent(
-            executionId,
-            ExecutionEventType.AI_MESSAGE,
-            {
-              // Sub-Workflow 안에서 같은 nodeId 의 AI Agent 가 여러 번 도달
-              // 할 수 있으므로 nodeExecutionId 를 명시 — frontend store 가
-              // 정확한 row 에 message 를 라우팅한다.
-              nodeExecutionId: nodeExec?.id,
-              nodeId: node.id,
-              message: nextConv.message,
-              turnCount: nextConv.turnCount,
-              messages: nextConv.messages,
-              metadata: {
-                model: resumeState.model,
-                inputTokens: resumeState.totalInputTokens,
-                outputTokens: resumeState.totalOutputTokens,
-              },
-              ...buildAiMessageDebugFromResumeState(resumeState),
-            },
-          );
-
-          // Emit waiting_for_input again
-          this.websocketService.emitExecutionEvent(
-            executionId,
-            ExecutionEventType.EXECUTION_WAITING_FOR_INPUT,
-            {
-              status: ExecutionStatus.WAITING_FOR_INPUT,
-              waitingNodeId: node.id,
-              waitingNodeType: node.type,
-              waitingNodeLabel: node.label ?? node.type,
-              nodeExecutionId: nodeExec?.id,
-              // sortByStartedAt 정합성 — store 가 prior NODE_STARTED 를
-              // 놓친 시나리오 대비 항상 동봉.
-              startedAt: nodeExec?.startedAt?.toISOString?.(),
-              nodeOutput: {
-                interactionType: 'ai_conversation',
-                // Pass through handler's echoed node config so the Config
-                // tab can render during the waiting state. Conversation
-                // handlers (AI Agent / Info Extractor multi-turn) add this.
-                ...(adaptedConfig && Object.keys(adaptedConfig).length > 0
-                  ? { config: adaptedConfig }
-                  : {}),
-                conversationConfig: nextConv,
-                // 진행 중에도 References / LLM Usage 탭이 동작하도록 누적
-                // 상태를 meta.* 로 노출. (turn 단위 ragSources 는 turnDebug[]
-                // 안에 들어 있어 References 탭이 메시지(턴)별로 그룹핑.)
-                meta: buildConversationMetaFromResumeState(resumeState),
-              },
-            },
-          );
-        } else {
-          // Terminal state — handlers always return canonical
-          // `{ config, output, meta, port, status:'ended' }` (built via
-          // buildMultiTurnFinalOutput / buildConditionOutput / buildErrorOutput).
-          // Route to port and emit the final AI_MESSAGE event.
-          const newOutput =
-            (resultObj.output as Record<string, unknown> | undefined) ?? {};
-          const newResult =
-            (newOutput.result as Record<string, unknown> | undefined) ?? {};
-          const sourceMessages = Array.isArray(newResult.messages)
-            ? (newResult.messages as Array<Record<string, unknown>>)
-            : [];
-          const condMessages = sourceMessages.filter(
-            (m) => m.role !== 'system',
-          );
-          const responseText = (newResult.response as string | undefined) ?? '';
-          const turnCount = newResult.turnCount as number | undefined;
-          const metaSource =
-            (resultObj.meta as Record<string, unknown> | undefined) ?? {};
-
-          // Shared shape with the waiting_for_input emit above — the helper
-          // reads `turnDebugHistory`; the terminal path stores the same array
-          // under `meta.turnDebug`, so we adapt the key in-line.
-          this.websocketService.emitExecutionEvent(
-            executionId,
-            ExecutionEventType.AI_MESSAGE,
-            {
-              // 종료 turn 도 nodeExecutionId 동봉 — Sub-Workflow nesting 에서
-              // 같은 nodeId 의 conversation 이 여러 row 일 수 있다.
-              nodeExecutionId: nodeExec?.id,
-              nodeId: node.id,
-              message: responseText,
-              turnCount,
-              messages: condMessages,
-              metadata: {
-                model: metaSource.model,
-                inputTokens: metaSource.inputTokens as number | undefined,
-                outputTokens: metaSource.outputTokens as number | undefined,
-              },
-              ...buildAiMessageDebugFromResumeState({
-                turnDebugHistory: metaSource.turnDebug,
-              }),
-            },
-          );
-
-          const adaptedConv = adaptHandlerReturn(resultObj);
-          this.contextService.setStructuredOutput(
-            executionId,
-            node.id,
-            adaptedConv,
-          );
-          const portRouted = this.applyPortSelection(
-            toEngineFlatShape(adaptedConv),
-          );
-          this.contextService.setNodeOutput(executionId, node.id, portRouted);
-          conversationEnded = true;
-        }
-      }
+      return { resumeState: nextResumeState, ended: false };
     }
 
-    // Update node execution to completed
+    // Terminal state — handlers always return canonical
+    // `{ config, output, meta, port, status:'ended' }` (built via
+    // buildMultiTurnFinalOutput / buildConditionOutput / buildErrorOutput).
+    // Route to port and emit the final AI_MESSAGE event.
+    const newOutput =
+      (resultObj.output as Record<string, unknown> | undefined) ?? {};
+    const newResult =
+      (newOutput.result as Record<string, unknown> | undefined) ?? {};
+    const sourceMessages = Array.isArray(newResult.messages)
+      ? (newResult.messages as Array<Record<string, unknown>>)
+      : [];
+    const condMessages = sourceMessages.filter((m) => m.role !== 'system');
+    const responseText = (newResult.response as string | undefined) ?? '';
+    const turnCount = newResult.turnCount as number | undefined;
+    const metaSource =
+      (resultObj.meta as Record<string, unknown> | undefined) ?? {};
+
+    // Shared shape with the waiting_for_input emit above — the helper
+    // reads `turnDebugHistory`; the terminal path stores the same array
+    // under `meta.turnDebug`, so we adapt the key in-line.
+    this.websocketService.emitExecutionEvent(
+      executionId,
+      ExecutionEventType.AI_MESSAGE,
+      {
+        // 종료 turn 도 nodeExecutionId 동봉 — Sub-Workflow nesting 에서
+        // 같은 nodeId 의 conversation 이 여러 row 일 수 있다.
+        nodeExecutionId: nodeExec?.id,
+        nodeId: node.id,
+        message: responseText,
+        turnCount,
+        messages: condMessages,
+        metadata: {
+          model: metaSource.model,
+          inputTokens: metaSource.inputTokens as number | undefined,
+          outputTokens: metaSource.outputTokens as number | undefined,
+        },
+        ...buildAiMessageDebugFromResumeState({
+          turnDebugHistory: metaSource.turnDebug,
+        }),
+      },
+    );
+
+    const adaptedConv = adaptHandlerReturn(resultObj);
+    this.contextService.setStructuredOutput(executionId, node.id, adaptedConv);
+    const portRouted = this.applyPortSelection(toEngineFlatShape(adaptedConv));
+    this.contextService.setNodeOutput(executionId, node.id, portRouted);
+    return { resumeState, ended: true };
+  }
+
+  /**
+   * PR-H — 사용자가 명시적으로 대화 종료 (`ai_end_conversation`) 했을 때.
+   * 핸들러의 `endMultiTurnConversation` 호출 → 결과 정규화 → cache 갱신.
+   * 핸들러는 `ResumableNodeHandler` 를 구현해야 한다 (CRIT #4).
+   */
+  private handleAiEndConversation(
+    executionId: string,
+    node: Node,
+    resumeState: Record<string, unknown>,
+  ): void {
+    const endReason = 'user_ended';
+
+    // CRIT #4 — duck-typing 제거. ResumableNodeHandler 인터페이스로 narrow
+    // 하여 핸들러가 두 메서드를 구현하지 않으면 명시적 에러 발생.
+    const handler = this.handlerRegistry.get(node.type);
+    if (!isResumableNodeHandler(handler)) {
+      throw new Error(
+        `Node type "${node.type}" cannot end multi-turn conversation: ` +
+          'handler does not implement ResumableNodeHandler interface ' +
+          '(processMultiTurnMessage / endMultiTurnConversation)',
+      );
+    }
+
+    const finalOutput = handler.endMultiTurnConversation(
+      resumeState,
+      endReason,
+    );
+
+    // Normalize so that both the new NodeHandlerOutput shape (info
+    // extractor post Stage 1, which carries its own port/meta) and the
+    // legacy bare return (ai_agent) persist uniformly through the
+    // structured cache + port selector path.
+    const adaptedEnd = adaptHandlerReturn(finalOutput);
+    this.contextService.setStructuredOutput(executionId, node.id, adaptedEnd);
+    const flatEnd = toEngineFlatShape(adaptedEnd);
+    const routedEnd = this.applyPortSelection(flatEnd);
+    this.contextService.setNodeOutput(executionId, node.id, routedEnd);
+  }
+
+  /**
+   * PR-H — conversation 종료 후 NodeExecution 을 COMPLETED 로 finalize
+   * + Execution 을 RUNNING 으로 atomic 전이 (WARN #4) + 클라이언트 emit
+   * (`NODE_COMPLETED` + `EXECUTION_RESUMED`).
+   *
+   * `_resumeState` 는 DB 저장 시 strip (WARN #6 — credential / 내부 state 노출 차단).
+   */
+  private async finalizeAiNode(
+    savedExecution: Execution,
+    executionId: string,
+    node: Node,
+    context: ExecutionContext,
+    nodeExec: NodeExecution | null,
+  ): Promise<void> {
     if (nodeExec) {
       nodeExec.status = NodeExecutionStatus.COMPLETED;
       // Persist the canonical structured cache. Terminal handler returns
@@ -2147,7 +2217,16 @@ export class ExecutionEngineService
       nodeExec.finishedAt = new Date();
       nodeExec.durationMs =
         nodeExec.finishedAt.getTime() - nodeExec.startedAt.getTime();
-      await this.nodeExecutionRepository.save(nodeExec);
+    }
+
+    // Atomic: NodeExecution COMPLETED + Execution RUNNING (WARN #4)
+    await this.updateExecutionStatus(
+      savedExecution,
+      ExecutionStatus.RUNNING,
+      nodeExec ?? undefined,
+    );
+
+    if (nodeExec) {
       this.websocketService.emitNodeEvent(
         executionId,
         node.id,
@@ -2167,9 +2246,6 @@ export class ExecutionEngineService
         },
       );
     }
-
-    // Transition back to RUNNING
-    await this.updateExecutionStatus(savedExecution, ExecutionStatus.RUNNING);
     this.websocketService.emitExecutionEvent(
       executionId,
       ExecutionEventType.EXECUTION_RESUMED,
@@ -2190,12 +2266,6 @@ export class ExecutionEngineService
 
     _graphEdges: GraphEdge[],
   ): Promise<void> {
-    // Update execution status to waiting
-    await this.updateExecutionStatus(
-      savedExecution,
-      ExecutionStatus.WAITING_FOR_INPUT,
-    );
-
     // Resolve buttonConfig up front so we can persist it on the node execution
     // before releasing control to the user. This means the REST polling
     // reconciler (which reads `nodeExecution.outputData` every 2s) sees the
@@ -2237,8 +2307,13 @@ export class ExecutionEngineService
         nodeOutputForEvent as Record<string, unknown>,
         'buttons',
       );
-      await this.nodeExecutionRepository.save(nodeExec);
     }
+    // Atomic: Execution → WAITING_FOR_INPUT + NodeExecution save (WARN #4)
+    await this.updateExecutionStatus(
+      savedExecution,
+      ExecutionStatus.WAITING_FOR_INPUT,
+      nodeExec ?? undefined,
+    );
 
     // Emit waiting event so frontend can render buttons
     this.websocketService.emitExecutionEvent(
@@ -2471,7 +2546,16 @@ export class ExecutionEngineService
       nodeExec.finishedAt = new Date();
       nodeExec.durationMs =
         nodeExec.finishedAt.getTime() - nodeExec.startedAt.getTime();
-      await this.nodeExecutionRepository.save(nodeExec);
+    }
+
+    // Atomic: NodeExecution COMPLETED + Execution RUNNING (WARN #4)
+    await this.updateExecutionStatus(
+      savedExecution,
+      ExecutionStatus.RUNNING,
+      nodeExec ?? undefined,
+    );
+
+    if (nodeExec) {
       this.websocketService.emitNodeEvent(
         executionId,
         node.id,
@@ -2491,9 +2575,6 @@ export class ExecutionEngineService
         },
       );
     }
-
-    // Transition back to RUNNING
-    await this.updateExecutionStatus(savedExecution, ExecutionStatus.RUNNING);
     this.websocketService.emitExecutionEvent(
       executionId,
       ExecutionEventType.EXECUTION_RESUMED,
@@ -2501,6 +2582,33 @@ export class ExecutionEngineService
     );
   }
 
+  /**
+   * 단일 노드의 핸들러를 실행하고 결과를 컨텍스트 / DB / WS 로 전파한다.
+   *
+   * 책임 (`runExecution` / `executeInline` / `executeContainerBody` 가 호출):
+   *
+   *  1. NodeExecution 생성 (RUNNING) + `NODE_STARTED` emit
+   *  2. 노드 config 의 expression 평가 → resolvedConfig
+   *  3. handler.validate (필요 시) — INVALID_NODE_CONFIG throw
+   *  4. handler.execute(input, resolvedConfig, context) 를 retry 정책과 함께 호출
+   *  5. 반환값을 `adaptHandlerReturn` 으로 canonical NodeHandlerOutput 정규화
+   *     (credential 자동 마스킹 — INFO #5)
+   *  6. nodeOutputCache / structuredOutputCache 갱신, NodeExecution finalize,
+   *     `NODE_COMPLETED` emit
+   *  7. error 시 ErrorPolicyHandler 위임 → SKIP / FAIL / STOP_WORKFLOW
+   *
+   * @param executionId    부모 Execution UUID (NodeExecution 귀속, WS 채널)
+   * @param node           실행할 노드 entity (type, config, label, category)
+   * @param nodeInput      gatherNodeInput 으로 수집된 입력 (이전 노드 출력 합집합)
+   * @param context        ExecutionContext — variables / nodeOutputCache / itemContext / ...
+   * @param executedNodes  본 실행에서 이미 완료된 노드 id 집합 (중복 실행 차단)
+   * @param nodeMap        $node expression 해석용 (target workflow 한정)
+   * @param executionMeta  startedAt / mode (replay / live)
+   *
+   * blocking 노드 (form/buttons/ai_conversation) 의 waiting 진입은 본 메서드가
+   * 아니라 호출 측 (waitForFormSubmission / waitForButtonInteraction /
+   * waitForAiConversation) 가 별도로 다룬다.
+   */
   private async executeNode(
     executionId: string,
     node: Node,
@@ -2565,7 +2673,7 @@ export class ExecutionEngineService
 
       // Resolve expressions in config
       let resolvedConfig: Record<string, unknown>;
-      let nodeContext = context;
+      let exprContextForNode: Record<string, unknown> | undefined;
       if (nodeMap) {
         const exprContext = this.expressionResolver.buildExpressionContext(
           nodeInput,
@@ -2579,7 +2687,7 @@ export class ExecutionEngineService
         // This must run after buildExpressionContext() which populates
         // the built-in $-prefixed variables that take precedence.
         if (
-          node.type === 'template' &&
+          node.type === NODE_TYPES.TEMPLATE &&
           typeof nodeInput === 'object' &&
           nodeInput !== null &&
           !Array.isArray(nodeInput)
@@ -2599,31 +2707,28 @@ export class ExecutionEngineService
           node.type,
         );
 
-        // Store expression context for handlers that need per-item evaluation (e.g. Table)
-        // Use a shallow copy to avoid mutating the shared context object
-        nodeContext = { ...context, expressionContext: exprContext };
+        exprContextForNode = exprContext;
       } else {
         resolvedConfig = node.config;
       }
 
-      // ENG-RC-* — 핸들러가 `NodeHandlerOutput.config` 를 echo 할 때 사용할
-      // **원본(pre-evaluation) config** 를 노출. shallow Object.freeze 로
-      // top-level mutation 을 차단한다 (CONVENTIONS Principle 7). 중첩 객체는
-      // freeze 되지 않으므로 핸들러는 rawConfig 를 read-only 로 다루어야 한다
-      // (필요 시 structuredClone 으로 복제). expression 미사용 필드는 raw 와
-      // resolved 가 동일하므로 본 변경의 영향이 없다.
-      // Spec: 4-execution-engine.md §5.5 / §6.1.
-      nodeContext = {
-        ...nodeContext,
+      // INFO #7 — 3개로 분리돼 있던 nodeContext 스프레드를 단일 spread 로 병합
+      // (중간 객체 2개 생성 제거).
+      //
+      // 포함되는 필드:
+      // - `expressionContext` — 핸들러가 per-item 평가를 다시 수행할 때 사용 (Table 등)
+      // - `rawConfig` — ENG-RC-* / CONVENTIONS Principle 7. 핸들러가 NodeHandlerOutput.config
+      //   echo 시 사용할 **원본(pre-evaluation) config**. shallow `Object.freeze` 로
+      //   top-level mutation 차단 (중첩 객체는 read-only 로 다루어야 함; 필요 시
+      //   structuredClone 복제). spec: 4-execution-engine.md §5.5 / §6.1
+      // - `nodeId` / `nodeExecutionId` — 핸들러가 부수효과를 행/노드에 귀속 (IntegrationUsageLog,
+      //   AI Agent tool_call_* WS 이벤트 키 등)
+      const nodeContext: ExecutionContext = {
+        ...context,
+        ...(exprContextForNode
+          ? { expressionContext: exprContextForNode }
+          : {}),
         rawConfig: Object.freeze({ ...(node.config ?? {}) }),
-      };
-
-      // Thread the current NodeExecution id + logical node id into the
-      // context so handlers can attribute side-effects (e.g.
-      // IntegrationUsageLog) to the row and emit WS events keyed by the
-      // graph node (AI Agent's tool_call_*).
-      nodeContext = {
-        ...nodeContext,
         nodeId: node.id,
         nodeExecutionId: nodeExecution.id,
       };
@@ -2868,14 +2973,28 @@ export class ExecutionEngineService
     workspaceId: string,
     context: ExecutionContext,
   ): Promise<boolean> {
-    const cacheKey = `__hasDefaultLlmConfig:${workspaceId}`;
-    const cached = context.variables?.[cacheKey];
-    if (typeof cached === 'boolean') return cached;
-    const hasDefault = await this.llmService.hasDefaultLlmConfig(workspaceId);
-    if (context.variables) {
-      context.variables[cacheKey] = hasDefault;
+    // INFO #10 — 인스턴스 필드 캐시 (executionId:workspaceId) 로 parallel
+    // 브랜치 간 single-flight 보장. context.variables 캐시 (deep clone 영향)
+    // 의 한계 회피.
+    const cacheKey = `${context.executionId}:${workspaceId}`;
+    const existing = this.llmDefaultConfigCache.get(cacheKey);
+    if (existing) return existing;
+    const promise = this.llmService.hasDefaultLlmConfig(workspaceId);
+    this.llmDefaultConfigCache.set(cacheKey, promise);
+    return promise;
+  }
+
+  /**
+   * INFO #10 — `runExecution` 의 finally 에서 호출. 본 실행에 속한 캐시 항목
+   * 을 일괄 정리하여 장기 메모리 누수를 차단한다.
+   */
+  private clearLlmDefaultConfigCache(executionId: string): void {
+    const prefix = `${executionId}:`;
+    for (const key of this.llmDefaultConfigCache.keys()) {
+      if (key.startsWith(prefix)) {
+        this.llmDefaultConfigCache.delete(key);
+      }
     }
-    return hasDefault;
   }
 
   private async executeWithRetry(
@@ -3109,6 +3228,122 @@ export class ExecutionEngineService
   }
 
   /**
+   * CRIT #2 — disabled 노드 SKIPPED 처리 공통화. NodeExecution 생성 → SKIPPED
+   * mark → WS emit → executedNodes 등록까지 양 경로가 정확히 동일했다.
+   */
+  private async handleDisabledNode(
+    executionId: string,
+    nodeId: string,
+    node: Node,
+    context: ExecutionContext,
+    executedNodes: Set<string>,
+  ): Promise<void> {
+    const skipped = await this.createNodeExecution(
+      executionId,
+      nodeId,
+      NodeExecutionStatus.SKIPPED,
+      context.parentNodeExecutionId,
+    );
+    this.websocketService.emitNodeEvent(
+      executionId,
+      nodeId,
+      NodeEventType.NODE_SKIPPED,
+      {
+        nodeExecutionId: skipped.id,
+        parentNodeExecutionId: context.parentNodeExecutionId,
+        status: NodeExecutionStatus.SKIPPED,
+        nodeType: node.type,
+        nodeLabel: node.label ?? node.type,
+        startedAt: skipped.startedAt?.toISOString?.(),
+      },
+    );
+    executedNodes.add(nodeId);
+  }
+
+  /**
+   * CRIT #2 (Architecture) — `executeInline` 과 `runExecution` 의 그래프 순회
+   * 셋업이 거의 동일하게 중복되어 있어 한쪽 버그 수정이 다른 쪽에 적용되지
+   * 않는 위험이 있었다. 본 helper 는 두 경로가 공통으로 필요한 edge lookup
+   * 맵 (back / outgoing / incoming) 을 한 번에 빌드한다.
+   *
+   * 기존 동작과 100% 동등 — 단순히 데이터 빌드 로직을 한 곳에 모은 것.
+   */
+  private buildEdgeIndexes(
+    graphEdges: GraphEdge[],
+    backEdges: GraphEdge[],
+    sortedIndexMap: Map<string, number>,
+  ): {
+    backEdgeMap: Map<string, Array<{ edge: GraphEdge; targetIndex: number }>>;
+    outgoingEdgeMap: Map<string, GraphEdge[]>;
+    incomingEdgeMap: Map<string, GraphEdge[]>;
+  } {
+    const backEdgeMap = new Map<
+      string,
+      Array<{ edge: GraphEdge; targetIndex: number }>
+    >();
+    for (const edge of backEdges) {
+      const targetIndex = sortedIndexMap.get(edge.targetNodeId);
+      // Skip back-edges whose target is not in the sorted graph (defensive).
+      if (targetIndex === undefined) continue;
+      const list = backEdgeMap.get(edge.sourceNodeId) ?? [];
+      list.push({ edge, targetIndex });
+      backEdgeMap.set(edge.sourceNodeId, list);
+    }
+
+    const outgoingEdgeMap = new Map<string, GraphEdge[]>();
+    const incomingEdgeMap = new Map<string, GraphEdge[]>();
+    for (const edge of graphEdges) {
+      const outList = outgoingEdgeMap.get(edge.sourceNodeId) ?? [];
+      outList.push(edge);
+      outgoingEdgeMap.set(edge.sourceNodeId, outList);
+      const inList = incomingEdgeMap.get(edge.targetNodeId) ?? [];
+      inList.push(edge);
+      incomingEdgeMap.set(edge.targetNodeId, inList);
+    }
+
+    return { backEdgeMap, outgoingEdgeMap, incomingEdgeMap };
+  }
+
+  /**
+   * CRIT #2 — 그래프 순회의 reachability 초기 시드 셋업. 두 entry 정책을
+   * 지원한다:
+   *   - **explicitEntryIds** (Background subgraph): 호출자가 명시한 진입점
+   *     만 seed. 다른 노드는 단방향 edge propagation 으로 도달.
+   *   - **trigger-first / no-incoming fallback**: TRIGGER category 노드를
+   *     seed. 없으면 indegree=0 인 노드를 seed (sub-workflow / 일반 실행).
+   *
+   * `executeInline` / `runExecution` 양쪽이 거의 동일한 로직을 갖고 있던 것을
+   * 일치화. 동작 변경 없음.
+   */
+  private seedInitialReachability(
+    sortedNodeIds: string[],
+    nodeMap: Map<string, Node>,
+    forwardEdges: GraphEdge[],
+    explicitEntryIds?: string[],
+  ): Set<string> {
+    const reachable = new Set<string>();
+    if (explicitEntryIds && explicitEntryIds.length > 0) {
+      for (const id of explicitEntryIds) {
+        if (nodeMap.has(id)) reachable.add(id);
+      }
+      return reachable;
+    }
+    for (const id of sortedNodeIds) {
+      const node = nodeMap.get(id);
+      if (node?.category === NodeCategory.TRIGGER) reachable.add(id);
+    }
+    if (reachable.size === 0) {
+      const nodesWithIncoming = new Set(
+        forwardEdges.map((e) => e.targetNodeId),
+      );
+      for (const id of sortedNodeIds) {
+        if (!nodesWithIncoming.has(id)) reachable.add(id);
+      }
+    }
+    return reachable;
+  }
+
+  /**
    * After a node executes, propagate reachability to downstream nodes
    * through edges whose sourcePort matches the node's _selectedPort.
    * If the node has no _selectedPort, all outgoing edges are activated.
@@ -3145,7 +3380,6 @@ export class ExecutionEngineService
   private async executeContainerBody(
     containerNode: Node,
     plan: ContainerBodyPlan,
-    allNodes: Node[],
     context: ExecutionContext,
     executionId: string,
     executedNodes: Set<string>,
@@ -3159,11 +3393,11 @@ export class ExecutionEngineService
       internalEdges,
       sortedNodeIds,
       outgoingEdgeMap,
+      nodeMap,
     } = plan;
     if (sortedNodeIds.length === 0) {
       return undefined;
     }
-    const nodeMap = new Map(allNodes.map((n) => [n.id, n]));
 
     // Seed reachability: body entry nodes OR (if none via port) children
     // with no incoming internal edge.
@@ -3390,6 +3624,7 @@ export class ExecutionEngineService
       internalEdges,
       sortedNodeIds,
       outgoingEdgeMap,
+      nodeMap: new Map(allNodes.map((n) => [n.id, n])),
     };
   }
 
@@ -3601,19 +3836,20 @@ export class ExecutionEngineService
       }
 
       // Reject disallowed child types inside this branch body.
+      // PR-G — metadata flag (CRIT #3). buttons / ai_conversation 은 runtime
+      // interactionType (handler 가 결정) 이라 정적 reject 불가 — handler 가
+      // status:'waiting_for_input' 반환 시 위 PARALLEL_INVALID_CHILD 가
+      // executeParallelBranchBody 에서 재차 차단한다.
       for (const id of bodyNodeIds) {
         const node = nodeMap.get(id);
         if (!node) continue;
-        if (node.type === 'parallel') {
+        const childKind = this.handlerRegistry.getMetadata(node.type);
+        if (childKind.kind === 'parallel') {
           throw new Error(
             `PARALLEL_NESTED_NOT_SUPPORTED: Parallel node "${parallelNode.label ?? parallelNode.type}" body contains nested Parallel node "${node.label ?? node.type}". Nested Parallel is reserved for a later phase.`,
           );
         }
-        if (
-          node.type === 'form' ||
-          node.type === 'buttons' ||
-          node.type === 'ai_conversation'
-        ) {
+        if (childKind.kind === 'blocking') {
           throw new Error(
             `PARALLEL_INVALID_CHILD: Blocking node "${node.label ?? node.type}" inside Parallel node "${parallelNode.label ?? parallelNode.type}" is not supported.`,
           );
@@ -3742,13 +3978,14 @@ export class ExecutionEngineService
         executionMeta,
       );
 
+      // PR-G — metadata flag dispatch (CRIT #3 시나리오 D).
+      const branchDispatchKind = this.handlerRegistry.getMetadata(
+        node.type,
+      ).kind;
+
       // Container dispatch inside a branch body — mirrors the main loop so
       // ForEach/Loop/Map inside a Parallel branch still iterates its body.
-      if (
-        node.type === 'foreach' ||
-        node.type === 'loop' ||
-        node.type === 'map'
-      ) {
+      if (branchDispatchKind === 'container') {
         await this.runContainer(
           node,
           allNodes,
@@ -3763,7 +4000,7 @@ export class ExecutionEngineService
       // Background inside a branch just enqueues its body; the main flow
       // (this branch) continues without waiting, which matches the top-level
       // Background contract.
-      if (node.type === 'background') {
+      if (branchDispatchKind === 'background') {
         await this.scheduleBackgroundBody(
           node,
           allEdges,
@@ -4079,7 +4316,6 @@ export class ExecutionEngineService
       return this.executeContainerBody(
         containerNode,
         plan,
-        allNodes,
         context,
         executionId,
         executedNodes,
@@ -4184,13 +4420,37 @@ export class ExecutionEngineService
     );
   }
 
+  /**
+   * 상태 전이를 NodeExecution 변경과 함께 단일 트랜잭션으로 묶어 실행한다.
+   *
+   * WARN #4 (DB) — RUNNING ↔ WAITING_FOR_INPUT 전이 시 Execution 과 NodeExecution
+   * 의 두 save 사이 crash window 가 존재해 상태 불일치가 발생할 수 있다. 동일
+   * 트랜잭션으로 묶어 둘 다 commit 되거나 둘 다 rollback 되도록 보장한다.
+   * (spec/5-system/4-execution-engine.md §1.1)
+   *
+   * `linkedNodeExec` 가 주어지면 호출 측이 in-memory 로 mutation 한 NodeExecution
+   * 을 동일 트랜잭션 안에서 함께 저장한다. 주어지지 않으면 Execution save 만
+   * 수행 (transaction overhead 회피).
+   *
+   * WebSocket emit 은 본 헬퍼 호출 후 (트랜잭션 commit 후) 수행해야 한다 — 그렇지
+   * 않으면 rollback 된 상태를 클라이언트가 잠시 관측할 수 있다.
+   */
   private async updateExecutionStatus(
     execution: Execution,
     newStatus: ExecutionStatus,
+    linkedNodeExec?: NodeExecution,
   ): Promise<void> {
     assertTransition(execution.status, newStatus);
-    execution.status = newStatus;
-    await this.executionRepository.save(execution);
+    if (linkedNodeExec) {
+      await this.dataSource.transaction(async (manager) => {
+        execution.status = newStatus;
+        await manager.save(Execution, execution);
+        await manager.save(NodeExecution, linkedNodeExec);
+      });
+    } else {
+      execution.status = newStatus;
+      await this.executionRepository.save(execution);
+    }
   }
 
   private async createNodeExecution(

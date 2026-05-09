@@ -1,10 +1,11 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { getRepositoryToken } from '@nestjs/typeorm';
+import { getDataSourceToken, getRepositoryToken } from '@nestjs/typeorm';
 import { getQueueToken } from '@nestjs/bullmq';
 import { BACKGROUND_EXECUTION_QUEUE } from './queues/background-execution.queue';
 import {
   ExecutionEngineService,
   buildAiMessageDebugFromResumeState,
+  buildConversationConfigFromOutput,
   buildConversationMetaFromResumeState,
 } from './execution-engine.service';
 import { NodeHandlerRegistry } from '../../nodes/core/node-handler.registry';
@@ -223,6 +224,33 @@ describe('ExecutionEngineService', () => {
         {
           provide: getRepositoryToken(ExecutionNodeLog),
           useValue: mockExecutionNodeLogRepo,
+        },
+        {
+          // WARN #4 — `updateExecutionStatus(execution, status, linkedNodeExec)`
+          // 가 `dataSource.transaction()` 으로 Execution + NodeExecution 두
+          // save 를 묶는다. 테스트에서는 in-memory 로 callback 즉시 실행 +
+          // manager.save(EntityClass, entity) 를 기존 mock 레포로 라우팅 해
+          // 호출 추적을 그대로 유지한다.
+          provide: getDataSourceToken(),
+          useValue: {
+            transaction: jest.fn(
+              async (cb: (manager: unknown) => Promise<unknown>) => {
+                const manager = {
+                  save: jest.fn(async (target: unknown, entity?: unknown) => {
+                    // `manager.save(EntityClass, entity)` 형태만 사용.
+                    if (target === Execution) {
+                      return mockExecutionRepo.save(entity);
+                    }
+                    if (target === NodeExecution) {
+                      return mockNodeExecutionRepo.save(entity);
+                    }
+                    return entity;
+                  }),
+                };
+                return cb(manager);
+              },
+            ),
+          },
         },
         {
           // 분산 메시지 fan-out 을 in-memory 로 시뮬레이트 — `publish(msg)`
@@ -456,6 +484,71 @@ describe('ExecutionEngineService', () => {
       // executeInline 경로에서도 rawConfig 가 주입되어야 함
       expect(ctxArg.rawConfig).toBeDefined();
       expect(ctxArg.rawConfig?.content).toBe('Hello {{ name }}');
+    });
+
+    // WARN #17 (Architecture) — sub-workflow 의 trigger 는 manual_trigger 만 허용.
+    // 다른 trigger 타입 (webhook/schedule) 이 진입점에 있으면 silent skip 이
+    // 아니라 명시적 throw 한다 (spec/4-nodes/2-flow/1-workflow.md 박스 참조).
+    it('throws INVALID_SUB_WORKFLOW_TRIGGER when sub-workflow contains non-manual trigger', async () => {
+      const subTriggerNode: Partial<Node> = {
+        id: 'webhook-trigger-in-sub',
+        workflowId,
+        type: 'webhook_trigger',
+        category: NodeCategory.TRIGGER,
+        label: 'Webhook',
+        config: {},
+        isDisabled: false,
+      };
+      mockNodeRepo.findBy.mockResolvedValue([subTriggerNode]);
+      mockEdgeRepo.findBy.mockResolvedValue([]);
+
+      const context = contextService.createContext(executionId, workflowId);
+
+      await expect(
+        service.executeInline(
+          workflowId,
+          {},
+          {
+            executionId,
+            context,
+            executedNodes: new Set<string>(),
+            recursionDepth: 1,
+            parentNodeExecutionId: 'parent-x',
+          },
+        ),
+      ).rejects.toThrow(/INVALID_SUB_WORKFLOW_TRIGGER/);
+    });
+
+    it('passes manual_trigger through pass-through (input forwarded as output)', async () => {
+      const manualTriggerNode: Partial<Node> = {
+        id: 'manual-trigger-in-sub',
+        workflowId,
+        type: 'manual_trigger',
+        category: NodeCategory.TRIGGER,
+        label: 'Manual',
+        config: {},
+        isDisabled: false,
+      };
+      mockNodeRepo.findBy.mockResolvedValue([manualTriggerNode]);
+      mockEdgeRepo.findBy.mockResolvedValue([]);
+
+      const context = contextService.createContext(executionId, workflowId);
+
+      // throw 하지 않아야 함 — manual_trigger 는 정상 pass-through.
+      // 반환값은 마지막 노드 (= manual_trigger 자체) 의 output 인 입력 그대로.
+      await expect(
+        service.executeInline(
+          workflowId,
+          { passed: 'through' },
+          {
+            executionId,
+            context,
+            executedNodes: new Set<string>(),
+            recursionDepth: 1,
+            parentNodeExecutionId: 'parent-y',
+          },
+        ),
+      ).resolves.toEqual({ passed: 'through' });
     });
   });
 
@@ -792,11 +885,28 @@ describe('ExecutionEngineService', () => {
         ).rejects.toThrow('Workflow not found: nonexistent-wf');
       });
 
+      // INFO #19 — runExecution 은 savedExecution 참조를 in-place mutation 하므로
+      // 테스트는 runExecution 을 spy 하여 in-memory 상태를 직접 set 한다.
+      // (이전 패턴은 mockExecutionRepo.findOneBy 로 post-execution 재조회를
+      // 가로챘으나, INFO #19 적용으로 success path 의 findOneBy 가 제거됐다.)
+      const stubRunExecution = (
+        mutator: (execution: Record<string, unknown>) => void,
+      ) =>
+        jest
+          .spyOn(
+            service as unknown as {
+              runExecution: (...args: unknown[]) => Promise<unknown>;
+            },
+            'runExecution',
+          )
+          .mockImplementation(async (execution: unknown) => {
+            mutator(execution as Record<string, unknown>);
+          });
+
       it('returns SubWorkflowResult shape on COMPLETED', async () => {
-        mockExecutionRepo.findOneBy.mockResolvedValue({
-          id: executionId,
-          status: ExecutionStatus.COMPLETED,
-          outputData: { final: 'value' },
+        const spy = stubRunExecution((execution) => {
+          execution.status = ExecutionStatus.COMPLETED;
+          execution.outputData = { final: 'value' };
         });
         const result = await service.executeSync(
           workflowId,
@@ -806,27 +916,72 @@ describe('ExecutionEngineService', () => {
         expect(result.executionId).toBe(executionId);
         expect(result.output).toEqual({ final: 'value' });
         expect(result.status).toBe(ExecutionStatus.COMPLETED);
+        spy.mockRestore();
       });
 
       it('throws when sub-workflow status is FAILED', async () => {
-        mockExecutionRepo.findOneBy.mockResolvedValue({
-          id: executionId,
-          status: ExecutionStatus.FAILED,
-          error: { message: 'inner failure' },
+        const spy = stubRunExecution((execution) => {
+          execution.status = ExecutionStatus.FAILED;
+          execution.error = { message: 'inner failure' };
         });
         await expect(
           service.executeSync(workflowId, {}, { timeoutMs: 0 }),
         ).rejects.toThrow('Sub-workflow execution failed: inner failure');
+        spy.mockRestore();
       });
 
       it('throws when sub-workflow status is CANCELLED', async () => {
-        mockExecutionRepo.findOneBy.mockResolvedValue({
-          id: executionId,
-          status: ExecutionStatus.CANCELLED,
+        const spy = stubRunExecution((execution) => {
+          execution.status = ExecutionStatus.CANCELLED;
         });
         await expect(
           service.executeSync(workflowId, {}, { timeoutMs: 0 }),
         ).rejects.toThrow('Sub-workflow execution was cancelled');
+        spy.mockRestore();
+      });
+
+      // CRIT #5 — timeout 경로 보강. graph traversal 이 hang 됐을 때
+      // executeSync 가 (1) Promise.race 의 timeout 가지로 reject 되고,
+      // (2) 후처리 catch 블록이 reloaded execution 을 FAILED 로 마킹해
+      // 영구 stuck 상태가 남지 않는지 확인한다.
+      it('times out when runExecution hangs and marks execution FAILED', async () => {
+        // runExecution 을 영구 hang 으로 모킹 — 외부 timeout 만 reject 한다.
+        const runExecutionSpy = jest
+          .spyOn(
+            service as unknown as {
+              runExecution: (...args: unknown[]) => Promise<unknown>;
+            },
+            'runExecution',
+          )
+          .mockImplementation(() => new Promise<unknown>(() => undefined));
+
+        // catch 블록의 reloaded.status 가 RUNNING (즉 COMPLETED/FAILED 가
+        // 아닌 상태) 이어야 FAILED 로 전환되는 path 가 검증된다.
+        mockExecutionRepo.findOneBy.mockResolvedValueOnce({
+          id: executionId,
+          status: ExecutionStatus.RUNNING,
+          startedAt: new Date(Date.now() - 100),
+        });
+        mockExecutionRepo.save.mockClear();
+
+        await expect(
+          service.executeSync(workflowId, {}, { timeoutMs: 50 }),
+        ).rejects.toThrow(/timed out after 50ms/);
+
+        // catch 블록에서 reloaded 를 FAILED 로 다시 save 한다.
+        const failedSaveCall = mockExecutionRepo.save.mock.calls.find(
+          ([entity]) =>
+            (entity as { status?: ExecutionStatus }).status ===
+            ExecutionStatus.FAILED,
+        );
+        expect(failedSaveCall).toBeDefined();
+        const failedEntity = failedSaveCall?.[0] as {
+          status: ExecutionStatus;
+          error: { message: string };
+        };
+        expect(failedEntity.error.message).toMatch(/timed out after 50ms/);
+
+        runExecutionSpy.mockRestore();
       });
     });
 
@@ -1297,7 +1452,12 @@ describe('ExecutionEngineService', () => {
       (mockHandler.execute as jest.Mock).mockResolvedValue({ processed: true });
       mockNodeRepo.findBy.mockResolvedValue(formNodes);
       mockEdgeRepo.findBy.mockResolvedValue(formEdges);
-      handlerRegistry.register('form', formHandler);
+      // PR-G — metadata 동봉 등록. 엔진의 dispatch 가 `kind === 'blocking' &&
+      // interaction === 'form'` 으로 form 노드를 식별한다.
+      handlerRegistry.register('form', formHandler, {
+        kind: 'blocking',
+        interaction: 'form',
+      });
     });
 
     it('should pause at Form node and emit waiting_for_input event', async () => {
@@ -1661,6 +1821,72 @@ describe('ExecutionEngineService', () => {
       expect(payload.llmCalls as unknown[]).toHaveLength(3);
       expect(payload.durationMs).toBe(120);
     });
+
+    // WARN #21 — endAiConversation 종료 흐름 전체 테스트.
+    //
+    // 시나리오:
+    //  1. AI handler 가 첫 turn 에서 `waiting_for_input` 으로 진입
+    //  2. 사용자가 endAiConversation 호출 → bus 가 `ai_end_conversation` publish
+    //  3. continuation handler 가 pending Promise 를 'end' 로 resolve
+    //  4. 엔진이 handler.endMultiTurnConversation() 호출 → `ended` status + port
+    //  5. NodeExecution 가 COMPLETED 로 finalize, EXECUTION_COMPLETED emit
+    //
+    // 회귀 위험: PR-H 의 waitForAiConversation 분해 시 본 흐름이 깨지면
+    // 사용자가 대화를 종료할 수 없게 된다 — 이 테스트가 안전망 역할.
+    it('end-to-end: endAiConversation drives handler.endMultiTurnConversation and finalizes node + execution', async () => {
+      const handler = makeAiAgentHandler(() => ({
+        // unused — endAiConversation path skips processMultiTurnMessage
+        config: { mode: 'multi_turn' },
+        output: {},
+        meta: {},
+        port: 'ended',
+        status: 'ended',
+      }));
+      handlerRegistry.register('ai_agent', handler);
+
+      await service.execute(workflowId, {});
+      await flushPromises();
+
+      // waiting state 진입 확인
+      const waitingCalls =
+        mockWebsocketService.emitExecutionEvent.mock.calls.filter(
+          (call: unknown[]) =>
+            call[1] === 'execution.waiting_for_input' &&
+            (call[2] as { waitingNodeId?: string })?.waitingNodeId ===
+              'node-agent',
+        );
+      expect(waitingCalls.length).toBeGreaterThanOrEqual(1);
+
+      mockWebsocketService.emitExecutionEvent.mockClear();
+      mockWebsocketService.emitNodeEvent.mockClear();
+
+      // 사용자 종료
+      service.endAiConversation(executionId);
+      await flushPromises();
+
+      // (a) handler.endMultiTurnConversation 호출됨
+      expect(handler.endMultiTurnConversation).toHaveBeenCalledTimes(1);
+      // (b) processMultiTurnMessage 는 호출되지 않음 — end path 는 별도 경로
+      expect(handler.processMultiTurnMessage).not.toHaveBeenCalled();
+
+      // (c) NODE_COMPLETED 가 ai_agent 노드에 대해 emit
+      const nodeCompletedCalls =
+        mockWebsocketService.emitNodeEvent.mock.calls.filter(
+          (call: unknown[]) => call[2] === 'execution.node.completed',
+        );
+      expect(nodeCompletedCalls.length).toBeGreaterThanOrEqual(1);
+      const completedNodeIds = nodeCompletedCalls.map(
+        (call) => (call as unknown[])[1] as string,
+      );
+      expect(completedNodeIds).toContain('node-agent');
+
+      // (d) EXECUTION_COMPLETED 가 emit (단일 노드 워크플로우라 종료까지 흐름)
+      const executionCompletedCalls =
+        mockWebsocketService.emitExecutionEvent.mock.calls.filter(
+          (call: unknown[]) => call[1] === 'execution.completed',
+        );
+      expect(executionCompletedCalls.length).toBeGreaterThanOrEqual(1);
+    });
   });
 
   describe('Template node expression resolution', () => {
@@ -1744,9 +1970,11 @@ describe('ExecutionEngineService', () => {
     it('should resolve $var, $node, and input-data references in template config', async () => {
       // Inject variable into execution context
 
-      const contextService: ExecutionContextService = (service as any)[
-        'contextService'
-      ];
+      // INFO #15 — `(service as any)` 패턴 제거. 같은 file 의 다른 spy 들과 동일한
+      // `as unknown as { ... }` 형태로 통일 (private 멤버 접근의 안전한 캐스팅).
+      const contextService = (
+        service as unknown as { contextService: ExecutionContextService }
+      ).contextService;
       const origCreate = contextService.createContext.bind(contextService);
       jest
         .spyOn(contextService, 'createContext')
@@ -1811,9 +2039,11 @@ describe('ExecutionEngineService', () => {
       };
       handlerRegistry.register('test_node', conflictHandler);
 
-      const contextService: ExecutionContextService = (service as any)[
-        'contextService'
-      ];
+      // INFO #15 — `(service as any)` 패턴 제거. 같은 file 의 다른 spy 들과 동일한
+      // `as unknown as { ... }` 형태로 통일 (private 멤버 접근의 안전한 캐스팅).
+      const contextService = (
+        service as unknown as { contextService: ExecutionContextService }
+      ).contextService;
       const origCreate = contextService.createContext.bind(contextService);
       jest
         .spyOn(contextService, 'createContext')
@@ -2909,9 +3139,15 @@ describe('ExecutionEngineService', () => {
     beforeEach(() => {
       // Test modules don't invoke onModuleInit, so register real container
       // handlers used by the pointer loop here.
-      handlerRegistry.register('foreach', new ForEachHandler());
-      handlerRegistry.register('loop', new LoopHandler());
-      handlerRegistry.register('map', new MapHandler());
+      // PR-G — metadata 동봉. 엔진의 dispatch 가 `kind === 'container'` 로
+      // 식별하므로 NodeComponentRegistry 부팅을 우회하는 테스트는 직접 명시.
+      handlerRegistry.register('foreach', new ForEachHandler(), {
+        kind: 'container',
+      });
+      handlerRegistry.register('loop', new LoopHandler(), {
+        kind: 'container',
+      });
+      handlerRegistry.register('map', new MapHandler(), { kind: 'container' });
     });
 
     it('executes ForEach body once per item and puts collected results on done port', async () => {
@@ -3034,7 +3270,9 @@ describe('ExecutionEngineService', () => {
       mockEdgeRepo.findBy.mockResolvedValue(edges);
 
       await service.execute(workflowId, {});
-      await new Promise((r) => setTimeout(r, 200));
+      // WARN #24 — `setTimeout(r, 200)` 의 timing 의존성을 제거. flushPromises
+      // 는 setImmediate 로 microtask + I/O 큐를 1 tick drain 한다.
+      await flushPromises();
 
       // Body ran once per item
       expect(bodyHandler.execute).toHaveBeenCalledTimes(3);
@@ -3166,7 +3404,9 @@ describe('ExecutionEngineService', () => {
       mockEdgeRepo.findBy.mockResolvedValue(edges);
 
       await service.execute(workflowId, {});
-      await new Promise((r) => setTimeout(r, 200));
+      // WARN #24 — `setTimeout(r, 200)` 의 timing 의존성을 제거. flushPromises
+      // 는 setImmediate 로 microtask + I/O 큐를 1 tick drain 한다.
+      await flushPromises();
 
       expect(bodyHandler.execute).toHaveBeenCalledTimes(4);
       // Stage 5: loop finalises as `{ iterations, count }`.
@@ -3517,7 +3757,9 @@ describe('ExecutionEngineService', () => {
       mockEdgeRepo.findBy.mockResolvedValue(edges);
 
       await service.execute(workflowId, {});
-      await new Promise((r) => setTimeout(r, 200));
+      // WARN #24 — `setTimeout(r, 200)` 의 timing 의존성을 제거. flushPromises
+      // 는 setImmediate 로 microtask + I/O 큐를 1 tick drain 한다.
+      await flushPromises();
 
       expect(bodyHandler.execute).not.toHaveBeenCalled();
       // Stage 5: empty foreach still emits the `{ items, count }` envelope.
@@ -3869,7 +4111,9 @@ describe('ExecutionEngineService', () => {
       mockEdgeRepo.findBy.mockResolvedValue(edges);
 
       await service.execute(workflowId, {});
-      await new Promise((r) => setTimeout(r, 200));
+      // WARN #24 — `setTimeout(r, 200)` 의 timing 의존성을 제거. flushPromises
+      // 는 setImmediate 로 microtask + I/O 큐를 1 tick drain 한다.
+      await flushPromises();
 
       // Execution should be marked failed with the emit-missing message
       const saveCalls = mockExecutionRepo.save.mock.calls;
@@ -3997,7 +4241,9 @@ describe('ExecutionEngineService', () => {
       mockEdgeRepo.findBy.mockResolvedValue(edges);
 
       await service.execute(workflowId, {});
-      await new Promise((r) => setTimeout(r, 200));
+      // WARN #24 — `setTimeout(r, 200)` 의 timing 의존성을 제거. flushPromises
+      // 는 setImmediate 로 microtask + I/O 큐를 1 tick drain 한다.
+      await flushPromises();
 
       const saveCalls = mockExecutionRepo.save.mock.calls;
       const failed = saveCalls.find(
@@ -4132,7 +4378,9 @@ describe('ExecutionEngineService', () => {
       mockEdgeRepo.findBy.mockResolvedValue(edges);
 
       await service.execute(workflowId, {});
-      await new Promise((r) => setTimeout(r, 200));
+      // WARN #24 — `setTimeout(r, 200)` 의 timing 의존성을 제거. flushPromises
+      // 는 setImmediate 로 microtask + I/O 큐를 1 tick drain 한다.
+      await flushPromises();
 
       expect(bodyHandler.execute).toHaveBeenCalledTimes(3);
       expect(bodyCalls).toEqual([{ n: 2 }, { n: 3 }, { n: 4 }]);
@@ -4194,7 +4442,10 @@ describe('ExecutionEngineService', () => {
         })),
       };
 
-      handlerRegistry.register('parallel', parallelHandler);
+      // PR-G — metadata 동봉 (kind: 'parallel') 으로 dispatch 식별.
+      handlerRegistry.register('parallel', parallelHandler, {
+        kind: 'parallel',
+      });
       handlerRegistry.register('branch_node', branchHandler);
       handlerRegistry.register('merge', mergeHandler);
 
@@ -4356,7 +4607,10 @@ describe('ExecutionEngineService', () => {
         })),
       };
 
-      handlerRegistry.register('parallel', parallelHandler);
+      // PR-G — metadata 동봉 (kind: 'parallel') 으로 dispatch 식별.
+      handlerRegistry.register('parallel', parallelHandler, {
+        kind: 'parallel',
+      });
       handlerRegistry.register('branch_node', branchHandler);
       handlerRegistry.register('sink_node', sinkHandler);
 
@@ -4528,7 +4782,10 @@ describe('ExecutionEngineService', () => {
         ),
       };
 
-      handlerRegistry.register('parallel', parallelHandler);
+      // PR-G — metadata 동봉 (kind: 'parallel') 으로 dispatch 식별.
+      handlerRegistry.register('parallel', parallelHandler, {
+        kind: 'parallel',
+      });
       handlerRegistry.register('branch_node', branchHandler);
 
       const nodes: Partial<Node>[] = [
@@ -4644,7 +4901,10 @@ describe('ExecutionEngineService', () => {
         ),
       };
 
-      handlerRegistry.register('parallel', parallelHandler);
+      // PR-G — metadata 동봉 (kind: 'parallel') 으로 dispatch 식별.
+      handlerRegistry.register('parallel', parallelHandler, {
+        kind: 'parallel',
+      });
       handlerRegistry.register('branch_node', branchHandler);
 
       // {{20}} should clamp to 16 — wire 16 branches.
@@ -5028,7 +5288,96 @@ describe('buildAiMessageDebugFromResumeState', () => {
     expect(debug.llmCalls).toBeUndefined();
     expect(debug.durationMs).toBe(50);
   });
+});
 
+// WARN #22 — 단위 테스트 신설.
+//
+// `buildConversationConfigFromOutput` 은 핸들러 출력 (handler 의 raw output)
+// 을 WS `execution.waiting_for_input` payload 의 `conversationConfig` 으로
+// 변환한다. spec/5-system/4-execution-engine.md §1.3 의 multi-turn 컨트랙트
+// 일부로, system 메시지 필터링 / partial 필드 선택적 전파 등 비자명한 변환을
+// 포함한다.
+describe('buildConversationConfigFromOutput', () => {
+  it('returns defaults when output is undefined', () => {
+    const conv = buildConversationConfigFromOutput(undefined);
+    expect(conv).toEqual({
+      message: '',
+      turnCount: 0,
+      messages: [],
+    });
+  });
+
+  it('returns defaults when output is empty', () => {
+    const conv = buildConversationConfigFromOutput({});
+    expect(conv).toEqual({
+      message: '',
+      turnCount: 0,
+      messages: [],
+    });
+  });
+
+  it('echoes message and turnCount from output', () => {
+    const conv = buildConversationConfigFromOutput({
+      message: 'hello',
+      turnCount: 3,
+    });
+    expect(conv.message).toBe('hello');
+    expect(conv.turnCount).toBe(3);
+  });
+
+  it('filters system role messages (CONVENTIONS — system 메시지는 client 미노출)', () => {
+    const conv = buildConversationConfigFromOutput({
+      messages: [
+        { role: 'system', content: 'You are helpful' },
+        { role: 'user', content: 'hi' },
+        { role: 'assistant', content: 'hello' },
+        { role: 'system', content: 'reset' },
+      ],
+    });
+    expect(conv.messages).toEqual([
+      { role: 'user', content: 'hi' },
+      { role: 'assistant', content: 'hello' },
+    ]);
+  });
+
+  it('includes maxTurns only when present', () => {
+    const withMax = buildConversationConfigFromOutput({ maxTurns: 5 });
+    expect(withMax.maxTurns).toBe(5);
+    const without = buildConversationConfigFromOutput({});
+    expect(without).not.toHaveProperty('maxTurns');
+  });
+
+  it('propagates partial.extracted / missingFields / collectionRetryCount only when present', () => {
+    const conv = buildConversationConfigFromOutput({
+      partial: {
+        extracted: { name: 'Alice' },
+        missingFields: ['email'],
+        collectionRetryCount: 2,
+      },
+    });
+    expect(conv.extracted).toEqual({ name: 'Alice' });
+    expect(conv.missingFields).toEqual(['email']);
+    expect(conv.collectionRetryCount).toBe(2);
+  });
+
+  it('omits partial fields when undefined (no key pollution)', () => {
+    const conv = buildConversationConfigFromOutput({
+      partial: { extracted: { name: 'Bob' } },
+    });
+    expect(conv.extracted).toEqual({ name: 'Bob' });
+    expect(conv).not.toHaveProperty('missingFields');
+    expect(conv).not.toHaveProperty('collectionRetryCount');
+  });
+
+  it('handles missing partial gracefully', () => {
+    const conv = buildConversationConfigFromOutput({ message: 'hi' });
+    expect(conv.message).toBe('hi');
+    expect(conv).not.toHaveProperty('extracted');
+    expect(conv).not.toHaveProperty('missingFields');
+  });
+});
+
+describe('buildAiMessageDebugFromResumeState — null/mutation guards', () => {
   it('returns empty object when turnDebugHistory is null', () => {
     const debug = buildAiMessageDebugFromResumeState({
       turnDebugHistory: null,
