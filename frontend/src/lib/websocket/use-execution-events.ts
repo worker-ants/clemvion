@@ -698,16 +698,23 @@ export function useExecutionEvents({
           // snapshot can race the subscribe→incremental path), the store
           // already holds a terminal status for this node. Don't let the
           // snapshot's older row overwrite it back to "running".
+          //
+          // 가드는 nodeStatuses 의 status 다운그레이드만 차단한다 — Loop
+          // body 의 같은 nodeId 가 여러 NodeExecution row (iter 1/2/3) 로
+          // 들어올 때 첫 row 후 currentStatus="completed" 가 되어 후속 iter
+          // 의 addNodeResult 까지 차단되면 timeline 정렬이 깨지는 회귀가
+          // 발생한다 (handleNodeStarted 와 동일 패턴, hotfix #5). row add
+          // 는 새 nodeExecutionId 면 항상 진행.
           const currentStatus = useExecutionStore
             .getState()
             .nodeStatuses.get(ne.nodeId)?.status;
-          if (!shouldUpdateStatus(currentStatus, incomingStatus)) continue;
-
-          updateNodeStatus(ne.nodeId, {
-            status: incomingStatus,
-            duration: ne.durationMs ?? undefined,
-            error: ne.error?.message,
-          });
+          if (shouldUpdateStatus(currentStatus, incomingStatus)) {
+            updateNodeStatus(ne.nodeId, {
+              status: incomingStatus,
+              duration: ne.durationMs ?? undefined,
+              error: ne.error?.message,
+            });
+          }
 
           addNodeResult({
             nodeExecutionId: ne.id,
