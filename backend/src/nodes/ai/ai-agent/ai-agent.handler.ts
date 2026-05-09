@@ -94,6 +94,23 @@ interface ConditionDef {
   prompt: string;
 }
 
+// Shape of the user-authored multi-turn config as it appears on
+// `context.rawConfig` / `state.rawConfig` after the engine freezes
+// `node.config`. All fields optional — partial configs may exist (e.g.
+// no conditions / no KB) and pre-Phase-1 state rows omit rawConfig
+// entirely. Used by buildMultiTurnConfigEcho to narrow `unknown` casts.
+interface RawAiAgentMultiTurnConfig {
+  mode?: string;
+  model?: string;
+  systemPrompt?: string;
+  userPrompt?: string;
+  responseFormat?: string;
+  maxTurns?: number;
+  maxToolCalls?: number;
+  knowledgeBases?: string[];
+  conditions?: ConditionDef[];
+}
+
 interface ConditionClassification {
   providerToolCalls: Array<{ provider: AgentToolProvider; call: ToolCall }>;
   conditionToolCalls: ToolCall[];
@@ -1379,21 +1396,21 @@ export class AiAgentHandler implements NodeHandler {
     };
   }
 
-  /**
-   * CONVENTIONS Principle 7 — multi-turn ended/condition echo. Surfaces the
-   * frozen rawConfig (engine merges it into both `context.rawConfig` and
-   * `state.rawConfig`) so downstream nodes see the user-authored templates,
-   * not engine-resolved values. Symmetric with the inline echoes at the
-   * initial / resumed waiting ticks.
-   */
+  // CONVENTIONS Principle 7 — multi-turn ended/condition echo. Surfaces the
+  // frozen rawConfig (engine merges it into both `context.rawConfig` and
+  // `state.rawConfig`) symmetric with the inline echoes at the initial /
+  // resumed waiting ticks. Empty arrays are excluded uniformly across
+  // `knowledgeBases` and `conditions` to match the waiting-tick echo
+  // (line ~870 / ~1213) — surfacing `[]` would mislead downstream nodes
+  // into treating "no entries configured" as "configured but empty".
   private buildMultiTurnConfigEcho(
     rawConfig: Record<string, unknown> | undefined,
     fallbackModel: string,
   ): Record<string, unknown> {
-    const raw = rawConfig ?? {};
+    const raw = (rawConfig ?? {}) as RawAiAgentMultiTurnConfig;
     const echo: Record<string, unknown> = {
-      mode: (raw.mode as string | undefined) ?? 'multi_turn',
-      model: (raw.model as string | undefined) ?? fallbackModel,
+      mode: raw.mode ?? 'multi_turn',
+      model: raw.model ?? fallbackModel,
     };
     if (raw.systemPrompt !== undefined) echo.systemPrompt = raw.systemPrompt;
     if (raw.userPrompt !== undefined) echo.userPrompt = raw.userPrompt;
@@ -1401,13 +1418,10 @@ export class AiAgentHandler implements NodeHandler {
     if (raw.maxToolCalls !== undefined) echo.maxToolCalls = raw.maxToolCalls;
     if (raw.responseFormat !== undefined)
       echo.responseFormat = raw.responseFormat;
-    if (raw.knowledgeBases !== undefined)
+    if (Array.isArray(raw.knowledgeBases) && raw.knowledgeBases.length > 0) {
       echo.knowledgeBases = raw.knowledgeBases;
-    if (
-      raw.conditions !== undefined &&
-      Array.isArray(raw.conditions) &&
-      (raw.conditions as unknown[]).length > 0
-    ) {
+    }
+    if (Array.isArray(raw.conditions) && raw.conditions.length > 0) {
       echo.conditions = raw.conditions;
     }
     return echo;

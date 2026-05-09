@@ -2,7 +2,7 @@ import {
   PRESENTATION_MAX_BYTES,
   truncateArrayForOutput,
   truncateBodyForOutput,
-} from './truncate-body.util.js';
+} from './truncate-output.util.js';
 
 describe('truncateBodyForOutput', () => {
   it('passes through small strings unchanged', () => {

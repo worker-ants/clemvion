@@ -61,6 +61,21 @@ interface TurnDebugEntry {
   totalDurationMs: number;
 }
 
+// Shape of the user-authored multi-turn config as it appears on
+// `context.rawConfig` / `state.rawConfig` after the engine freezes
+// `node.config`. All fields optional — pre-Phase-1 state rows omit
+// rawConfig entirely. Used by multiTurnConfigEcho to narrow `unknown`.
+interface RawInformationExtractorMultiTurnConfig {
+  mode?: string;
+  model?: string;
+  outputSchema?: OutputField[];
+  instructions?: string;
+  examples?: Example[];
+  inputField?: string;
+  maxTurns?: number;
+  maxCollectionRetries?: number;
+}
+
 interface MultiTurnState {
   llmConfigId?: string;
   model: string;
@@ -831,20 +846,18 @@ export class InformationExtractorHandler implements NodeHandler {
     // `state.rawConfig`) so downstream nodes see user-authored templates,
     // not engine-resolved values. Falls back to evaluated state values when
     // a legacy state row was persisted before rawConfig plumbing existed.
-    const raw = state.rawConfig ?? {};
+    const raw = (state.rawConfig ??
+      {}) as RawInformationExtractorMultiTurnConfig;
     return defined({
-      mode: (raw.mode as string | undefined) ?? 'multi_turn',
-      model: (raw.model as string | undefined) ?? state.model,
-      schema:
-        (raw.outputSchema as OutputField[] | undefined) ?? state.outputSchema,
-      instructions:
-        (raw.instructions as string | undefined) ?? state.instructions,
-      examples: (raw.examples as Example[] | undefined) ?? state.examples,
-      inputField: raw.inputField as string | undefined,
-      maxTurns: (raw.maxTurns as number | undefined) ?? state.maxTurns,
+      mode: raw.mode ?? 'multi_turn',
+      model: raw.model ?? state.model,
+      schema: raw.outputSchema ?? state.outputSchema,
+      instructions: raw.instructions ?? state.instructions,
+      examples: raw.examples ?? state.examples,
+      inputField: raw.inputField,
+      maxTurns: raw.maxTurns ?? state.maxTurns,
       maxCollectionRetries:
-        (raw.maxCollectionRetries as number | undefined) ??
-        state.maxCollectionRetries,
+        raw.maxCollectionRetries ?? state.maxCollectionRetries,
     });
   }
 

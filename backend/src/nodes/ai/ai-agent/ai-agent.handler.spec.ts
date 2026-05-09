@@ -1596,7 +1596,7 @@ describe('AiAgentHandler', () => {
       expect(meta.toolCalls).toBe(1);
     });
 
-    it('echoes rawConfig (systemPrompt / maxTurns / knowledgeBases / conditions) in output.config', () => {
+    it('echoes rawConfig (systemPrompt / userPrompt / responseFormat / maxTurns / knowledgeBases / conditions) in output.config', () => {
       const messages = [
         { role: 'system' as const, content: 'System' },
         { role: 'user' as const, content: 'Hi' },
@@ -1606,6 +1606,8 @@ describe('AiAgentHandler', () => {
         mode: 'multi_turn' as const,
         model: '{{ vars.model }}',
         systemPrompt: 'You are {{ vars.persona }}',
+        userPrompt: '{{ $input.message }}',
+        responseFormat: 'json' as const,
         maxTurns: 12,
         maxToolCalls: 5,
         knowledgeBases: ['kb-1', 'kb-2'],
@@ -1632,10 +1634,44 @@ describe('AiAgentHandler', () => {
       // raw model template is preserved (not engine-resolved)
       expect(config.model).toBe('{{ vars.model }}');
       expect(config.systemPrompt).toBe('You are {{ vars.persona }}');
+      expect(config.userPrompt).toBe('{{ $input.message }}');
+      expect(config.responseFormat).toBe('json');
       expect(config.maxTurns).toBe(12);
       expect(config.maxToolCalls).toBe(5);
       expect(config.knowledgeBases).toEqual(['kb-1', 'kb-2']);
       expect(config.conditions).toHaveLength(1);
+    });
+
+    it('omits empty knowledgeBases / conditions arrays (symmetric with waiting echo)', () => {
+      const result = handler.buildMultiTurnFinalOutput(
+        [],
+        '',
+        1,
+        'user_ended',
+        {
+          model: 'gpt-4o',
+          totalInputTokens: 0,
+          totalOutputTokens: 0,
+          toolCalls: 0,
+          ragSources: [],
+        },
+        undefined,
+        [],
+        // Empty arrays must not surface — same guard as the initial /
+        // resumed waiting tick echoes (`Array.isArray(...) && length > 0`).
+        {
+          mode: 'multi_turn',
+          model: 'gpt-4o',
+          knowledgeBases: [],
+          conditions: [],
+        },
+      );
+      const config = (result as Record<string, unknown>).config as Record<
+        string,
+        unknown
+      >;
+      expect(config.knowledgeBases).toBeUndefined();
+      expect(config.conditions).toBeUndefined();
     });
 
     it('falls back to fallbackModel when rawConfig is omitted', () => {

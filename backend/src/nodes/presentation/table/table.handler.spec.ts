@@ -805,5 +805,38 @@ describe('TableHandler', () => {
         Buffer.byteLength(JSON.stringify(rows), 'utf8'),
       ).toBeLessThanOrEqual(1024 * 1024);
     });
+
+    it('rendered HTML is generated from the capped rows, not the full dataset', async () => {
+      // Regression for ai-review CRIT #1: a downstream node reading
+      // `output.rendered` must not see HTML for rows that were dropped
+      // from `output.rows` — otherwise the cap leaks via rendered.
+      const heavy = 'q'.repeat(200 * 1024);
+      const sourceRows = Array.from({ length: 6 }, (_, i) => ({
+        idx: `row-${i}`,
+        blob: heavy,
+      }));
+
+      const result = (await handler.execute(
+        sourceRows,
+        {
+          mode: 'dynamic',
+          columns: [
+            { field: 'idx', label: 'Idx' },
+            { field: 'blob', label: 'Blob' },
+          ],
+        },
+        context,
+      )) as Record<string, unknown>;
+
+      const out = result.output as Record<string, unknown>;
+      const rows = out.rows as Array<Record<string, unknown>>;
+      const rendered = out.rendered as string;
+      for (const row of rows) {
+        expect(rendered).toContain(row.idx as string);
+      }
+      for (let i = rows.length; i < sourceRows.length; i++) {
+        expect(rendered).not.toContain(`row-${i}`);
+      }
+    });
   });
 });

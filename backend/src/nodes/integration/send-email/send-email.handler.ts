@@ -11,7 +11,7 @@ import {
   IntegrationHandlerBase,
   toLogError,
 } from '../_base/integration-handler-base.js';
-import { truncateBodyForOutput } from '../_base/truncate-body.util.js';
+import { truncateBodyForOutput } from '../../core/truncate-output.util.js';
 import { IntegrationsService } from '../../../modules/integrations/integrations.service.js';
 import {
   maskEmailForErrorDetails,

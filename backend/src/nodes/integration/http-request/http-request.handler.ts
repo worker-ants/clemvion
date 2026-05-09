@@ -9,7 +9,7 @@ import {
   IntegrationHandlerBase,
   toLogError,
 } from '../_base/integration-handler-base.js';
-import { truncateBodyForOutput } from '../_base/truncate-body.util.js';
+import { truncateBodyForOutput } from '../../core/truncate-output.util.js';
 import { sanitizeResponseHeaders } from '../_base/sanitize-response-headers.util.js';
 import { IntegrationsService } from '../../../modules/integrations/integrations.service.js';
 import { assertSafeOutboundUrl } from './http-safety.js';
