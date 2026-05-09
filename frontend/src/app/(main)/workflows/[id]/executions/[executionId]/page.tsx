@@ -42,6 +42,7 @@ import {
 import type { NodeResult } from "@/lib/stores/execution-store";
 import { useExecutionStore } from "@/lib/stores/execution-store";
 import { useExecutionEvents } from "@/lib/websocket/use-execution-events";
+import { applyExecutionSnapshot } from "@/lib/websocket/apply-execution-snapshot";
 import { useExecutionInteractionCommands } from "@/lib/websocket/use-execution-interaction-commands";
 
 function NodeStatusIcon({ status }: { status: string }) {
@@ -123,6 +124,22 @@ export default function ExecutionDetailPage({
         : 2000;
     },
   });
+
+  // REST → store bridge (Carousel buttons-disabled stuck 버그 fix).
+  //
+  // 이전: executionQuery.data 는 summary card / node list 표시용으로만
+  // 사용되고 useExecutionStore 와 분리. WS 가 끊기면 store 의 waiting state
+  // (waitingNodeId / waitingInteractionType) 가 영영 update 안 되어
+  // Preview 탭 buttons 가 disabled stuck.
+  //
+  // 변경: REST 폴링 결과도 같은 applyExecutionSnapshot 으로 store 에
+  // hydrate. WS 가 정상 동작하면 양쪽이 동일 state 를 set (idempotent),
+  // WS 가 실패하면 REST 가 fallback (2s 마다 store 갱신).
+  useEffect(() => {
+    if (executionQuery.data) {
+      applyExecutionSnapshot(executionQuery.data);
+    }
+  }, [executionQuery.data]);
 
   // Fetch adjacent executions for prev/next navigation
   const adjacentQuery = useQuery({
