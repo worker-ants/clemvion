@@ -468,7 +468,7 @@ describe('ExecutionEngineService', () => {
     let where: jest.Mock;
     let setMethod: jest.Mock;
     let update: jest.Mock;
-    let mockBus: { acquireLock: jest.Mock };
+    let mockBus: { acquireLock: jest.Mock; releaseLock: jest.Mock };
 
     beforeEach(() => {
       updateExecuted = jest.fn().mockResolvedValue({ affected: 2 });
@@ -482,6 +482,7 @@ describe('ExecutionEngineService', () => {
       mockBus = (service as unknown as { continuationBus: typeof mockBus })
         .continuationBus;
       mockBus.acquireLock.mockResolvedValue(true);
+      mockBus.releaseLock.mockResolvedValue(true);
     });
 
     it('SET NX lock 획득 후 stale (>30분) WAITING_FOR_INPUT 만 FAILED 처리', async () => {
@@ -534,13 +535,31 @@ describe('ExecutionEngineService', () => {
       expect(update).not.toHaveBeenCalled();
     });
 
-    it('onApplicationBootstrap 이 recovery 를 트리거한다', async () => {
+    it('onApplicationBootstrap 이 recovery 를 트리거하고 lock 을 해제한다', async () => {
       mockBus.acquireLock.mockClear();
-      mockBus.acquireLock.mockResolvedValue(true);
+      mockBus.releaseLock.mockClear();
       await service.onApplicationBootstrap();
 
       expect(mockBus.acquireLock).toHaveBeenCalledWith('exec:recover:lock', 60);
       expect(update).toHaveBeenCalled();
+      // lock 누수 회귀 가드 — recovery 가 끝나면 반드시 release.
+      expect(mockBus.releaseLock).toHaveBeenCalledWith('exec:recover:lock');
+    });
+
+    // DB 오류 시 lock 누수 방지 검증 — try/finally 의 finally 가 동작해
+    // releaseLock 이 호출되어야 한다. 오류 자체는 호출자에게 전파된다.
+    it('DB 오류가 발생해도 lock 을 해제하고 오류를 전파한다', async () => {
+      updateExecuted.mockRejectedValueOnce(new Error('db down'));
+      mockBus.acquireLock.mockResolvedValueOnce(true);
+      mockBus.releaseLock.mockClear();
+
+      await expect(
+        (
+          service as unknown as { recoverStuckExecutions: () => Promise<void> }
+        ).recoverStuckExecutions(),
+      ).rejects.toThrow('db down');
+
+      expect(mockBus.releaseLock).toHaveBeenCalledWith('exec:recover:lock');
     });
   });
 

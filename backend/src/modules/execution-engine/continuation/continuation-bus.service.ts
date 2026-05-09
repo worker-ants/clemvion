@@ -53,11 +53,20 @@ export const RECOVERY_LOCK_KEY = 'exec:recover:lock';
  * pub/sub 모드는 connection 분리 필수 — 동일 connection 으로 publish 할 수
  * 없다 (subscribe 후 connection 은 read-only command 만 받음).
  */
+/**
+ * 라이프사이클 race 가드 정책: `publisher` / `subscriber` 는 `onModuleInit`
+ * 에서 비로소 할당되므로 타입을 `Redis | undefined` 로 선언한다. 같은 모듈
+ * 내 다른 service 의 `onModuleInit` 이 본 service 보다 먼저 실행되며 public
+ * API (`publish` / `acquireLock` / `releaseLock`) 를 호출하는 경우에도
+ * process crash 가 나지 않도록 진입부에서 publisher 가드를 둔다. subscriber
+ * 는 외부에 노출되지 않고 `onModuleInit` 내부에서만 사용되므로 별도 가드를
+ * 두지 않는다.
+ */
 @Injectable()
 export class ContinuationBusService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(ContinuationBusService.name);
-  private publisher!: Redis;
-  private subscriber!: Redis;
+  private publisher?: Redis;
+  private subscriber?: Redis;
   private readonly handlers = new Map<
     ContinuationType,
     (msg: ContinuationMessage) => void
@@ -87,22 +96,28 @@ export class ContinuationBusService implements OnModuleInit, OnModuleDestroy {
       ...(password ? { password } : {}),
       ...(tlsEnabled ? { tls: {} } : {}),
     };
-    this.publisher = new Redis(opts);
-    this.subscriber = new Redis(opts);
+    // 로컬 변수로 setup 한 뒤 마지막에 this 에 할당한다 — subscribe 가 끝나기
+    // 전 외부 호출자에게 publisher 가 노출되지 않게 함 (race 회피). 타입
+    // 시스템에도 await 사이 narrowing 이 풀리지 않는다.
+    const publisher = new Redis(opts);
+    const subscriber = new Redis(opts);
 
     // ioredis 의 'error' 이벤트는 unhandled 일 경우 process crash 를 유발한다.
     // 명시적으로 listener 를 달아 로깅으로 처리하고 계속 진행한다.
-    this.publisher.on('error', (err: Error) => {
+    publisher.on('error', (err: Error) => {
       this.logger.error(`Redis publisher error: ${err.message}`);
     });
-    this.subscriber.on('error', (err: Error) => {
+    subscriber.on('error', (err: Error) => {
       this.logger.error(`Redis subscriber error: ${err.message}`);
     });
 
-    this.subscriber.on('message', (_channel: string, raw: string) => {
+    subscriber.on('message', (_channel: string, raw: string) => {
       this.dispatch(raw);
     });
-    await this.subscriber.subscribe(CONTINUATION_CHANNEL);
+    await subscriber.subscribe(CONTINUATION_CHANNEL);
+
+    this.publisher = publisher;
+    this.subscriber = subscriber;
     this.subscribed = true;
   }
 
@@ -121,22 +136,29 @@ export class ContinuationBusService implements OnModuleInit, OnModuleDestroy {
    * 호출자가 awaiting 하지 않더라도 publish 실패가 silent 로 사라지지
    * 않도록 본 메서드 내부에서 catch + 로깅을 수행한다. 호출자는 수신 보장은
    * 하지 못하지만, 적어도 운영 로그로 Redis 장애를 인지할 수 있다.
+   *
+   * publisher 가 미초기화 (`onModuleInit` 이전 호출) 인 경우에도 throw 대신
+   * `null` 반환 + `logger.error` 로 기록한다 — 라이프사이클 race 방어.
    */
   async publish(msg: ContinuationMessage): Promise<number | null> {
-    if (!this.publisher) {
-      // onModuleInit 이전 호출 — 다른 service 의 라이프사이클 hook 이 본
-      // service 보다 먼저 실행되며 publish 를 시도한 경우. silent crash 대신
-      // 명시적 에러 로그 + null 반환으로 운영 가시성 보장.
+    const publisher = this.publisher;
+    if (!publisher) {
       this.logger.error(
-        `Continuation publish 실패 (${msg.type} / ${msg.executionId}): Redis publisher 미초기화 — onApplicationBootstrap 이후에 호출하세요.`,
+        `Continuation publish 실패 (${ContinuationBusService.sanitizeForLog(
+          msg.type,
+        )} / ${ContinuationBusService.sanitizeForLog(
+          msg.executionId,
+        )}): Redis publisher 미초기화 — onApplicationBootstrap 이후에 호출하세요.`,
       );
       return null;
     }
-    const task = this.publisher
+    const task = publisher
       .publish(CONTINUATION_CHANNEL, JSON.stringify(msg))
       .catch((err: unknown) => {
         this.logger.error(
-          `Continuation publish 실패 (${msg.type} / ${msg.executionId}): ${
+          `Continuation publish 실패 (${ContinuationBusService.sanitizeForLog(
+            msg.type,
+          )} / ${ContinuationBusService.sanitizeForLog(msg.executionId)}): ${
             err instanceof Error ? err.message : String(err)
           }`,
         );
@@ -167,17 +189,21 @@ export class ContinuationBusService implements OnModuleInit, OnModuleDestroy {
    * lock 의 owner 식별자로 `process.pid` 대신 `hostname + UUID` 를 사용한다 —
    * 컨테이너 환경에서 모든 인스턴스가 PID 1 을 갖는 경우에도 고유성 보장.
    *
-   * @returns 획득 성공 시 true, 다른 인스턴스가 이미 보유 시 false.
+   * @returns 획득 성공 시 true. 다른 인스턴스가 이미 보유 / Redis 오류 /
+   *          publisher 미초기화 (라이프사이클 race) 시 false.
    */
   async acquireLock(key: string, ttlSeconds: number): Promise<boolean> {
-    if (!this.publisher) {
+    const publisher = this.publisher;
+    if (!publisher) {
       this.logger.error(
-        `acquireLock(${key}) 실패: Redis publisher 미초기화 — onApplicationBootstrap 이후에 호출하세요.`,
+        `acquireLock(${ContinuationBusService.sanitizeForLog(
+          key,
+        )}) 실패: Redis publisher 미초기화 — onApplicationBootstrap 이후에 호출하세요.`,
       );
       return false;
     }
     try {
-      const result = await this.publisher.set(
+      const result = await publisher.set(
         key,
         this.lockToken,
         'EX',
@@ -187,7 +213,7 @@ export class ContinuationBusService implements OnModuleInit, OnModuleDestroy {
       return result === 'OK';
     } catch (err) {
       this.logger.error(
-        `acquireLock(${key}) 실패: ${
+        `acquireLock(${ContinuationBusService.sanitizeForLog(key)}) 실패: ${
           err instanceof Error ? err.message : String(err)
         }`,
       );
@@ -199,22 +225,32 @@ export class ContinuationBusService implements OnModuleInit, OnModuleDestroy {
    * 본 인스턴스가 보유 중인 lock 을 명시적으로 해제. Lua script 로 owner
    * 검증 후 DEL — token 일치 시에만 삭제해 다른 인스턴스가 잡고 있는 lock
    * 을 잘못 해제하지 않는다.
+   *
+   * 본 메서드는 best-effort 동작 — TTL expire 가 fallback 이므로 Redis 오류는
+   * `logger.warn` 으로 기록한다. 단, publisher 미초기화는 acquireLock 과 동일
+   * 라이프사이클 race 결함이므로 동일 severity (`logger.error`) 로 기록한다.
+   *
+   * @returns owner 일치 시 true. 불일치 / Redis 오류 / publisher 미초기화
+   *          (라이프사이클 race) 시 false.
    */
   async releaseLock(key: string): Promise<boolean> {
-    if (!this.publisher) {
-      this.logger.warn(
-        `releaseLock(${key}) 실패: Redis publisher 미초기화 — onApplicationBootstrap 이후에 호출하세요.`,
+    const publisher = this.publisher;
+    if (!publisher) {
+      this.logger.error(
+        `releaseLock(${ContinuationBusService.sanitizeForLog(
+          key,
+        )}) 실패: Redis publisher 미초기화 — onApplicationBootstrap 이후에 호출하세요.`,
       );
       return false;
     }
     const script =
       "if redis.call('get', KEYS[1]) == ARGV[1] then return redis.call('del', KEYS[1]) else return 0 end";
     try {
-      const result = await this.publisher.eval(script, 1, key, this.lockToken);
+      const result = await publisher.eval(script, 1, key, this.lockToken);
       return result === 1;
     } catch (err) {
       this.logger.warn(
-        `releaseLock(${key}) 실패: ${
+        `releaseLock(${ContinuationBusService.sanitizeForLog(key)}) 실패: ${
           err instanceof Error ? err.message : String(err)
         }`,
       );
@@ -225,6 +261,18 @@ export class ContinuationBusService implements OnModuleInit, OnModuleDestroy {
   /** 테스트 / observability 용 — subscribe 완료 여부. */
   isSubscribed(): boolean {
     return this.subscribed;
+  }
+
+  /**
+   * 로그 인젝션 방어 — 외부 출처일 가능성이 있는 값을 운영 로그에 남길 때
+   * 제어문자 (`\x00-\x1F`, `\x7F`) 를 공백으로 치환하고 길이를 제한한다.
+   * Redis pub/sub 채널은 외부 publish 가 가능하므로 메시지 필드 (`type`,
+   * `executionId`) 와 lock key 모두 본 헬퍼를 거쳐 로깅한다.
+   */
+  private static sanitizeForLog(value: unknown, maxLength = 200): string {
+    const str = typeof value === 'string' ? value : String(value);
+    // eslint-disable-next-line no-control-regex
+    return str.slice(0, maxLength).replace(/[\x00-\x1F\x7F]/g, ' ');
   }
 
   private dispatch(raw: string): void {
@@ -240,10 +288,11 @@ export class ContinuationBusService implements OnModuleInit, OnModuleDestroy {
       return;
     }
     if (!msg || typeof msg.type !== 'string' || !msg.executionId) {
-      // 로그 인젝션 방지 — 제어문자 strip 후 표시.
-      // eslint-disable-next-line no-control-regex
-      const safe = raw.slice(0, 200).replace(/[\x00-\x1F\x7F]/g, ' ');
-      this.logger.warn(`Continuation bus 메시지 형식이 올바르지 않음: ${safe}`);
+      this.logger.warn(
+        `Continuation bus 메시지 형식이 올바르지 않음: ${ContinuationBusService.sanitizeForLog(
+          raw,
+        )}`,
+      );
       return;
     }
     const handler = this.handlers.get(msg.type);
@@ -252,9 +301,11 @@ export class ContinuationBusService implements OnModuleInit, OnModuleDestroy {
       handler(msg);
     } catch (error) {
       this.logger.error(
-        `Continuation handler (${msg.type}) 에러 — execution=${
-          msg.executionId
-        }: ${error instanceof Error ? error.message : String(error)}`,
+        `Continuation handler (${ContinuationBusService.sanitizeForLog(
+          msg.type,
+        )}) 에러 — execution=${ContinuationBusService.sanitizeForLog(
+          msg.executionId,
+        )}: ${error instanceof Error ? error.message : String(error)}`,
       );
     }
   }
