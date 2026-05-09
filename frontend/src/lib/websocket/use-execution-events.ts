@@ -326,6 +326,10 @@ export function useExecutionEvents({
   const handleAiMessage = useCallback(
     (data: unknown) => {
       const payload = data as {
+        // Sub-Workflow nesting 에서 같은 nodeId 의 AI Agent 가 여러 row 일
+        // 수 있으므로 nodeExecutionId 로 명시 라우팅 (backend 가 동봉).
+        // 옛 payload 와의 호환을 위해 optional.
+        nodeExecutionId?: string;
         nodeId?: string;
         message?: string;
         turnCount?: number;

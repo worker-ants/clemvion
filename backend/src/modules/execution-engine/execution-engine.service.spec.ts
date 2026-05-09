@@ -1543,6 +1543,9 @@ describe('ExecutionEngineService', () => {
         // turn-total (totalDurationMs), not the per-call llmCall.durationMs (90)
         durationMs: 120,
       });
+      // Sub-Workflow nesting 에서 같은 nodeId 의 AI Agent 가 여러 row 일 수
+      // 있으므로 nodeExecutionId 동봉 필수 (timeline 회귀 점검 #2).
+      expect(payload).toHaveProperty('nodeExecutionId');
       expect(payload.llmCalls).toEqual([llmCall]);
 
       // Dead fields removed in this branch alignment — guard against
