@@ -45,6 +45,18 @@ vi.mock("../../node-definitions", () => ({
 
 vi.mock("../../api/executions", () => ({}));
 
+// Mock sonner toast — Fix D 회귀 fix 검증용. toast 호출 / dismiss 추적.
+// vi.hoisted 로 vi.mock 의 hoisting 시점에서 접근 가능하도록 한다.
+const { mockToast } = vi.hoisted(() => ({
+  mockToast: {
+    warning: vi.fn(),
+    dismiss: vi.fn(),
+  },
+}));
+vi.mock("sonner", () => ({
+  toast: mockToast,
+}));
+
 /**
  * Pulls the handler the hook registered for `eventName` out of the mock
  * client's `.on` call list. Tests use this to fire simulated WS events.
@@ -1638,6 +1650,86 @@ describe("useExecutionEvents", () => {
         toolCallId: "c1",
         content: "get_weather",
       });
+    });
+  });
+
+  // Fix D 회귀 fix — snapshotReceived 기반 toast 신호.
+  // 이전 isConnected 기반 toast 가 WS singleton 의 기존 연결 상태를 무시하여
+  // 페이지 navigation 마다 false positive 발화. 새 신호 (handleSnapshot 이
+  // 받았는지) 로 정확도 향상.
+  describe("WS toast — snapshotReceived signal (Fix D 회귀)", () => {
+    beforeEach(() => {
+      mockToast.warning.mockClear();
+      mockToast.dismiss.mockClear();
+      vi.useFakeTimers();
+    });
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it("snapshot 수신 시 즉시 toast dismiss + 이후 timer 발화 안 함", async () => {
+      renderHook(() => useExecutionEvents({ executionId: "exec-1" }));
+
+      // 초기 mount — snapshotReceived=false → 10초 timer 가 시작됨.
+      expect(mockToast.warning).not.toHaveBeenCalled();
+
+      // WS snapshot 도착 시뮬.
+      const snapshotHandler = getHandler("execution.snapshot");
+      snapshotHandler({
+        executionId: "exec-1",
+        execution: createMockExecution({ status: "running" }),
+      });
+
+      // dismiss 호출 (snapshotReceived → true 의 effect).
+      // React state update 가 다음 microtask 에 propagate.
+      await vi.runOnlyPendingTimersAsync();
+      expect(mockToast.dismiss).toHaveBeenCalledWith("ws-connection-warning");
+
+      // 이제 10초 타이머가 발화해도 toast 가 뜨지 않아야 함 (effect 가 cleanup
+      // 됐기 때문에).
+      vi.advanceTimersByTime(15000);
+      expect(mockToast.warning).not.toHaveBeenCalled();
+    });
+
+    it("snapshot 안 도착 + 10초 경과 시 toast 발화", async () => {
+      renderHook(() => useExecutionEvents({ executionId: "exec-1" }));
+      expect(mockToast.warning).not.toHaveBeenCalled();
+
+      // 9초 → 아직 발화 안 함.
+      vi.advanceTimersByTime(9000);
+      expect(mockToast.warning).not.toHaveBeenCalled();
+
+      // 11초 → 발화.
+      vi.advanceTimersByTime(2000);
+      expect(mockToast.warning).toHaveBeenCalledWith(
+        expect.stringContaining("실시간 업데이트"),
+        expect.objectContaining({ id: "ws-connection-warning" }),
+      );
+    });
+
+    it("executionId 변경 시 snapshotReceived reset → 새 timer 시작", async () => {
+      const { rerender } = renderHook(
+        ({ id }: { id: string }) => useExecutionEvents({ executionId: id }),
+        { initialProps: { id: "exec-1" } },
+      );
+
+      // exec-1 의 snapshot 도착 → snapshotReceived=true.
+      const snapshotHandler = getHandler("execution.snapshot");
+      snapshotHandler({
+        executionId: "exec-1",
+        execution: createMockExecution({ id: "exec-1" }),
+      });
+      await vi.runOnlyPendingTimersAsync();
+      mockToast.warning.mockClear();
+      mockToast.dismiss.mockClear();
+
+      // exec-2 로 navigate — render-time prop change reset 이 snapshotReceived
+      // 를 false 로 되돌려 새 timer 시작.
+      rerender({ id: "exec-2" });
+      expect(mockToast.warning).not.toHaveBeenCalled();
+
+      vi.advanceTimersByTime(11000);
+      expect(mockToast.warning).toHaveBeenCalled();
     });
   });
 });

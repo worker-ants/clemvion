@@ -46,6 +46,21 @@ export function useExecutionEvents({
   executionId,
 }: UseExecutionEventsOptions): UseExecutionEventsReturn {
   const [isConnected, setIsConnected] = useState(false);
+  // snapshotReceived: WS `execution.snapshot` 이 처음 도착했는지. WS handshake
+  // 완료 (isConnected) 보다 더 정확한 "real-time data 수신" 신호 — backend 가
+  // subscribe 즉시 발송하는 snapshot 이 도착해야 비로소 진짜 events 흐름이
+  // 보장된다. Fix D toast 의 false positive 차단을 위해 isConnected 대신 본
+  // 신호를 사용. executionId 변경 / disconnect 시 reset.
+  const [snapshotReceived, setSnapshotReceived] = useState(false);
+  // React 19 권장 패턴 — render-time prop-change reset (useEffect+setState 대신).
+  // executionId 가 새 값으로 바뀌면 snapshotReceived 를 즉시 false 로 reset
+  // 해 새 execution 의 snapshot 을 기다린다. set-state-in-effect lint rule 충돌
+  // 회피.
+  const [prevExecutionId, setPrevExecutionId] = useState(executionId);
+  if (prevExecutionId !== executionId) {
+    setPrevExecutionId(executionId);
+    setSnapshotReceived(false);
+  }
   const cancelledRef = useRef(false);
 
   const {
@@ -636,9 +651,13 @@ export function useExecutionEvents({
       })();
     }
 
-    // Track connection state
+    // Track connection state. disconnect 시 snapshotReceived 도 reset —
+    // 재연결 후 새 snapshot 을 기다려야 "real-time data 수신" 다시 보장.
     const onConnect = () => setIsConnected(true);
-    const onDisconnect = () => setIsConnected(false);
+    const onDisconnect = () => {
+      setIsConnected(false);
+      setSnapshotReceived(false);
+    };
 
     client.on("connect", onConnect);
     client.on("disconnect", onDisconnect);
@@ -677,6 +696,12 @@ export function useExecutionEvents({
         payload?.execution,
         () => cancelledRef.current,
       );
+      // WS 로 처음 snapshot 수신 = 진짜 real-time event 흐름 보장 시점.
+      // Fix D toast 의 트리거 신호. setter 가 idempotent 하므로 매 snapshot
+      // 마다 호출해도 안전 (React 가 같은 값에 bail-out).
+      // 주의: REST polling 의 applyExecutionSnapshot (page.tsx 에서 직접 호출)
+      // 은 이 setter 를 호출하지 않음 — REST 는 real-time 이 아니라 fallback.
+      setSnapshotReceived(true);
     };
 
     client.on("execution.snapshot", handleSnapshot);
@@ -757,17 +782,30 @@ export function useExecutionEvents({
     updateConversationConfig,
   ]);
 
-  // Carousel disabled stuck 버그 fix — Fix D: WS 연결 상태 UX feedback.
+  // Fix D 회귀 fix — WS 연결 상태 UX feedback (snapshotReceived 기반).
   //
-  // executionId 가 set 됐는데 5초 안에 WS connect 안 되면 toast 로 사용자에게
-  // 알림 (REST polling 이 fallback 으로 진행 중임을 명시). connect 되면 자동
-  // 해제. 의도된 동작:
-  //  - 정상 환경: 5초 안에 connect → toast 미발생
-  //  - 일시 지연: 5초 후 toast → 곧이어 connect → 자동 dismiss (id dedup)
-  //  - 영구 실패: 5초 후 toast 유지 + REST polling 으로 워크플로 진행
+  // 이전 버전은 `isConnected` (WS handshake) 를 신호로 사용했으나, WS singleton
+  // 이 페이지 navigation 간 재사용되어 이미 connect 된 상태일 때 connect event
+  // 가 재발화하지 않아 isConnected 가 영구히 false → false positive toast.
+  //
+  // 새 신호: `snapshotReceived` — backend 가 subscribe 즉시 발송하는
+  // `execution.snapshot` 을 받았는지. 이 시점부터 실제 real-time event 흐름이
+  // 보장된다 (subscribe race window 도 자연 해소 — backend 가 missed events 를
+  // snapshot 으로 보상).
+  //
+  // Threshold 5s → 10s — 느린 dev / cold-start 환경 친화. 영구 실패 (e.g.,
+  // backend down) 는 10초 후에도 정상 감지.
+  //
+  // 의도된 동작:
+  //  - 정상: 1초 안에 snapshot 도착 → toast 미발생
+  //  - 페이지 재방문: singleton 이 이미 connect 됐어도 새 채널 subscribe + snapshot
+  //    수신 사이클을 거쳐 → 1초 안에 다시 set → toast 미발생
+  //  - WS 영구 실패: 10초 후 toast 유지 + REST polling 이 store hydrate (Fix A)
+  //  - WS 일시 disconnect → 재연결: snapshotReceived reset → 재연결 + 새 snapshot
+  //    수신 시 자동 dismiss
   useEffect(() => {
     if (!executionId) return;
-    if (isConnected) {
+    if (snapshotReceived) {
       toast.dismiss("ws-connection-warning");
       return;
     }
@@ -776,9 +814,9 @@ export function useExecutionEvents({
         "실시간 업데이트 연결이 지연되고 있습니다. 폴링으로 진행됩니다.",
         { duration: Infinity, id: "ws-connection-warning" },
       );
-    }, 5000);
+    }, 10000);
     return () => clearTimeout(warnTimer);
-  }, [executionId, isConnected]);
+  }, [executionId, snapshotReceived]);
 
   return { isConnected };
 }
