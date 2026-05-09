@@ -93,6 +93,28 @@ export function refreshAccessToken(): Promise<string | null> {
   return refreshPromise;
 }
 
+/**
+ * Carousel disabled stuck 버그 fix — WS auth race 차단.
+ *
+ * `getAccessToken()` 은 **현재 메모리의 token 을 즉시 반환** 하지만, AuthProvider
+ * 가 session restore 중이거나 401 interceptor 가 refresh 중인 시점에는 stale
+ * token 일 수 있다. WS `client.connect(token)` 직전 본 함수를 호출하면:
+ *   - pending refresh 가 있으면 await 후 fresh token 반환
+ *   - 없으면 즉시 현재 token 반환 (overhead 0)
+ *
+ * 이로써 WS 가 stale token 으로 connect → backend 401 reject → 영구 실패하는
+ * race window 를 차단한다. 일반 axios 호출은 401 interceptor 로 자동 retry
+ * 되지만 WS 는 그 메커니즘이 없으므로 connect 직전 보호 필요.
+ */
+export async function ensureFreshAccessToken(): Promise<string | null> {
+  if (refreshPromise) {
+    // refresh 진행 중 — 그 결과를 await. doRefresh 가 setAccessToken 으로
+    // 메모리에 새 token 저장하므로 await 후 getAccessToken 이 fresh 반환.
+    await refreshPromise;
+  }
+  return getAccessToken();
+}
+
 // Response interceptor: handle 401 and auto-refresh
 apiClient.interceptors.response.use(
   (response) => response,
