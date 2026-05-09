@@ -64,7 +64,9 @@
 4. 실행 히스토리에서 서브 워크플로우 노드가 부모 노드 다음에 자연스럽게 표시됨
 5. `$node` expression 참조가 부모/서브 워크플로우 간에 상호 호환
 6. 대상 워크플로우의 최종 출력을 `out` 포트로 전달
-7. 서브 워크플로우의 trigger 노드는 자동 스킵 (입력 데이터를 그대로 전달)
+7. 서브 워크플로우의 trigger 노드는 **`manual_trigger` 만 허용** — 자동 스킵 (입력 데이터를 그대로 전달)
+
+> **제약 (sub-workflow trigger 타입)**: `executeInline` 은 진입점 trigger 가 `manual_trigger` 인 경우만 pass-through 처리한다. `webhook_trigger` / `schedule_trigger` 등 다른 trigger 타입이 sub-workflow 의 진입점에 존재하면 엔진이 명시적 throw 한다 (silent skip 금지). 이유: webhook/schedule trigger 는 외부 이벤트 (HTTP 요청 / cron 발화) 와 결합된 출처 분류 의미를 가지며 (`§6.1.1 트리거 입력 파라미터 seeding` 참조), 부모 Execution 의 출처를 덮어쓰면 안 된다. 향후 다른 trigger 타입을 sub-workflow 에 허용하려면 본 spec 의 출처 분류 규칙부터 재정의 필요.
 
 #### 비동기(Async) 모드
 1. `inputMapping`에 따라 입력 데이터 구성 (미지정 시 부모 입력을 그대로 전달)

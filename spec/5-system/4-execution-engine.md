@@ -40,6 +40,8 @@ pending → running ──┤                     └─ cancelled
 | waiting_for_input | running | 사용자 폼 제출, 버튼 클릭, 또는 AI 대화 메시지 수신/대화 종료 (실행 재개) |
 | waiting_for_input | cancelled | 사용자 취소 또는 타임아웃 |
 
+> **원자성 보장**: `running ↔ waiting_for_input` 전이는 짝이 되는 `NodeExecution` 상태 변경 (`waiting_for_input` / `completed`) 과 **단일 DB 트랜잭션** 으로 묶여 commit / rollback 된다. 서버가 두 save 사이에 크래시해도 `Execution` 과 `NodeExecution` 의 상태 불일치가 발생하지 않는다 (구현: `ExecutionEngineService.updateExecutionStatus` 의 `linkedNodeExec` 파라미터). WebSocket 이벤트 발행은 트랜잭션 commit 후 수행한다.
+
 ### 1.3 블로킹/재개 컨트랙트 (NodeHandlerOutput `status`)
 
 개별 노드는 `NodeHandlerOutput.status` 로 엔진 흐름 제어 디렉티브를 표현한다. 공통 블로킹/재개 컨트랙트 (CONVENTIONS Principle 4):
@@ -324,6 +326,19 @@ $loop.count = 10              $item.index = 1
 | 스케일 아웃 | Worker 프로세스를 추가하여 처리량 증가 |
 | 큐 파티셔닝 | 워크스페이스별 큐 분리 가능 (멀티테넌트 격리) |
 | 우선순위 큐 | 수동 실행 > 트리거 실행 > 스케줄 실행 |
+
+### 4.4 이벤트 발행 sink — `WebsocketService` 단일 sink 정책
+
+> **결정**: 실행 엔진의 외부 이벤트 발행 (`NODE_STARTED` / `NODE_COMPLETED` / `EXECUTION_*` / `AI_MESSAGE` 등) sink 는 **`WebsocketService` 가 canonical** 이며, 별도 추상화 (`IExecutionEventEmitter` 같은 인터페이스 / Nest `EventEmitter2`) 를 도입하지 않는다.
+
+근거:
+
+- **단일 sink** — 본 시스템에서 외부 이벤트 소비자는 WebSocket 클라이언트 1종 뿐. 다중 sink 가 가시화되기 전까지 추상화는 YAGNI.
+- **분산은 Continuation Bus (§7.4) 가 담당** — 인스턴스 간 fan-out 은 Redis pub/sub 채널 `execution:continuation` 이 처리하므로, 이벤트 발행 추상화와 분산 동작은 직교.
+- **순환 의존 처리** — `ExecutionEngineService ↔ WebsocketService` 의 순환은 NestJS 표준 패턴인 `forwardRef(() => WebsocketService)` 로 해결. 이는 Nest 권장 패턴이며 회피해야 할 안티패턴이 아님.
+- **테스트 격리** — Spec 테스트에서는 `Partial<WebsocketService>` mock 으로 충분. 추상화 인터페이스를 위한 별도 noop 구현체 불필요.
+
+> 향후 외부 sink (Webhook 콜백, 텔레메트리 export 등) 가 실제로 추가될 때 본 결정을 재검토한다.
 
 ---
 
