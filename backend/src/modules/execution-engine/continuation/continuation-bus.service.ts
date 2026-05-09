@@ -123,6 +123,15 @@ export class ContinuationBusService implements OnModuleInit, OnModuleDestroy {
    * 하지 못하지만, 적어도 운영 로그로 Redis 장애를 인지할 수 있다.
    */
   async publish(msg: ContinuationMessage): Promise<number | null> {
+    if (!this.publisher) {
+      // onModuleInit 이전 호출 — 다른 service 의 라이프사이클 hook 이 본
+      // service 보다 먼저 실행되며 publish 를 시도한 경우. silent crash 대신
+      // 명시적 에러 로그 + null 반환으로 운영 가시성 보장.
+      this.logger.error(
+        `Continuation publish 실패 (${msg.type} / ${msg.executionId}): Redis publisher 미초기화 — onApplicationBootstrap 이후에 호출하세요.`,
+      );
+      return null;
+    }
     const task = this.publisher
       .publish(CONTINUATION_CHANNEL, JSON.stringify(msg))
       .catch((err: unknown) => {
@@ -161,6 +170,12 @@ export class ContinuationBusService implements OnModuleInit, OnModuleDestroy {
    * @returns 획득 성공 시 true, 다른 인스턴스가 이미 보유 시 false.
    */
   async acquireLock(key: string, ttlSeconds: number): Promise<boolean> {
+    if (!this.publisher) {
+      this.logger.error(
+        `acquireLock(${key}) 실패: Redis publisher 미초기화 — onApplicationBootstrap 이후에 호출하세요.`,
+      );
+      return false;
+    }
     try {
       const result = await this.publisher.set(
         key,
@@ -186,6 +201,12 @@ export class ContinuationBusService implements OnModuleInit, OnModuleDestroy {
    * 을 잘못 해제하지 않는다.
    */
   async releaseLock(key: string): Promise<boolean> {
+    if (!this.publisher) {
+      this.logger.warn(
+        `releaseLock(${key}) 실패: Redis publisher 미초기화 — onApplicationBootstrap 이후에 호출하세요.`,
+      );
+      return false;
+    }
     const script =
       "if redis.call('get', KEYS[1]) == ARGV[1] then return redis.call('del', KEYS[1]) else return 0 end";
     try {

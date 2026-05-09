@@ -2,6 +2,7 @@ import {
   Inject,
   Injectable,
   Logger,
+  OnApplicationBootstrap,
   OnModuleInit,
   forwardRef,
 } from '@nestjs/common';
@@ -316,7 +317,9 @@ export type ExecuteOptions =
   | { executedBy?: never; triggerId?: never };
 
 @Injectable()
-export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
+export class ExecutionEngineService
+  implements OnModuleInit, OnApplicationBootstrap, WorkflowExecutor
+{
   private readonly logger = new Logger(ExecutionEngineService.name);
 
   /**
@@ -374,9 +377,19 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
     private readonly continuationBus: ContinuationBusService,
   ) {}
 
-  async onModuleInit() {
+  onModuleInit(): void {
     this.registerHandlers();
     this.registerContinuationHandlers();
+  }
+
+  /**
+   * `recoverStuckExecutions` 는 같은 모듈의 `ContinuationBusService.publisher`
+   * 가 초기화된 뒤에야 분산 lock 을 잡을 수 있다. NestJS 는 같은 모듈 내
+   * providers 의 `onModuleInit` 호출 순서를 등록 순서로만 보장하므로,
+   * `OnApplicationBootstrap` (모든 모듈의 `onModuleInit` 완료 후) 단계로
+   * 미루어 race 를 원천적으로 회피한다.
+   */
+  async onApplicationBootstrap(): Promise<void> {
     await this.recoverStuckExecutions();
   }
 

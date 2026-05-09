@@ -520,6 +520,28 @@ describe('ExecutionEngineService', () => {
       expect(mockBus.acquireLock).toHaveBeenCalledTimes(1);
       expect(update).not.toHaveBeenCalled();
     });
+
+    // ContinuationBusService.publisher 미초기화 race 회귀 방지 — recovery 는
+    // onModuleInit 이 아니라 onApplicationBootstrap 에서 실행되어야 한다.
+    // 같은 모듈 내 providers 의 onModuleInit 호출 순서가 등록 순서로만
+    // 보장되므로, ContinuationBusService 의 publisher 초기화가 끝났음이
+    // 보장되는 onApplicationBootstrap 으로 미룬다.
+    it('onModuleInit 은 recovery 를 트리거하지 않는다', () => {
+      mockBus.acquireLock.mockClear();
+      service.onModuleInit();
+
+      expect(mockBus.acquireLock).not.toHaveBeenCalled();
+      expect(update).not.toHaveBeenCalled();
+    });
+
+    it('onApplicationBootstrap 이 recovery 를 트리거한다', async () => {
+      mockBus.acquireLock.mockClear();
+      mockBus.acquireLock.mockResolvedValue(true);
+      await service.onApplicationBootstrap();
+
+      expect(mockBus.acquireLock).toHaveBeenCalledWith('exec:recover:lock', 60);
+      expect(update).toHaveBeenCalled();
+    });
   });
 
   // PR-B (WARN #15) — 5개 continuation 진입점이 ContinuationBusService.publish
