@@ -1476,6 +1476,10 @@ describe('ExecutionEngineService', () => {
           waitingNodeId: 'node-form',
           waitingNodeType: 'form',
           startedAt: expect.any(String),
+          // Carousel buttons-disabled bug fix (2026-05-09) — 3 waiting emit
+          // (Buttons / Form / AI) 모두 top-level interactionType 일관화.
+          // frontend handleWaitingForInput 의 첫 fallback 만으로 정확히 분기.
+          interactionType: 'form',
         }),
       );
 
@@ -1856,6 +1860,18 @@ describe('ExecutionEngineService', () => {
               'node-agent',
         );
       expect(waitingCalls.length).toBeGreaterThanOrEqual(1);
+
+      // Carousel buttons-disabled bug fix (2026-05-09) — 3 waiting emit
+      // (Buttons / Form / AI) 모두 top-level interactionType 일관화.
+      // AI 의 nested interactionType 은 backward compat 으로 유지.
+      const aiWaitingPayload = waitingCalls[0]?.[2] as Record<string, unknown>;
+      expect(aiWaitingPayload).toMatchObject({
+        interactionType: 'ai_conversation',
+      });
+      expect(
+        (aiWaitingPayload?.nodeOutput as Record<string, unknown> | undefined)
+          ?.interactionType,
+      ).toBe('ai_conversation');
 
       mockWebsocketService.emitExecutionEvent.mockClear();
       mockWebsocketService.emitNodeEvent.mockClear();

@@ -1611,6 +1611,11 @@ export class ExecutionEngineService
         // 시나리오에서도 row 의 startedAt 을 채울 수 있도록 항상 동봉한다 —
         // 누락 시 sortByStartedAt 이 해당 row 를 timeline 마지막으로 보냄.
         startedAt: nodeExec?.startedAt?.toISOString?.(),
+        // 3 waiting emit (Buttons / Form / AI) 모두 top-level interactionType
+        // 을 명시 — frontend 의 handleWaitingForInput 가 첫 fallback (즉
+        // payload.interactionType) 만으로 정확히 분기하도록 일관화. (Carousel
+        // 버튼 disabled stuck 버그의 defense-in-depth.)
+        interactionType: 'form',
         nodeOutput,
       },
     );
@@ -1950,6 +1955,11 @@ export class ExecutionEngineService
         // 프론트엔드 store 가 NODE_STARTED 를 놓친 경우에도 row 의 startedAt
         // 을 채울 수 있도록 동봉 (sortByStartedAt 정렬 정합성 보장).
         startedAt: nodeExec?.startedAt?.toISOString?.(),
+        // 3 waiting emit (Buttons / Form / AI) 모두 top-level interactionType
+        // 명시 — frontend 의 handleWaitingForInput 가 첫 fallback 만으로 정확히
+        // 분기하도록 일관화. nodeOutput.interactionType 도 backward compat 으로
+        // 유지 (snapshot reconcile 의 nested 읽기 / 기존 e2e assertion 안전 보존).
+        interactionType: 'ai_conversation',
         nodeOutput: {
           interactionType: 'ai_conversation',
           ...(structuredConfig && Object.keys(structuredConfig).length > 0
@@ -2077,6 +2087,9 @@ export class ExecutionEngineService
           // sortByStartedAt 정합성 — store 가 prior NODE_STARTED 를
           // 놓친 시나리오 대비 항상 동봉.
           startedAt: nodeExec?.startedAt?.toISOString?.(),
+          // top-level interactionType — emitAiWaitingForInput 와 동일 shape
+          // 유지 (multi-turn 후속 waiting emit). nested 도 backward compat 유지.
+          interactionType: 'ai_conversation',
           nodeOutput: {
             interactionType: 'ai_conversation',
             // Pass through handler's echoed node config so the Config
