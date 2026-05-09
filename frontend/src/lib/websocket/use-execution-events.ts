@@ -526,6 +526,7 @@ export function useExecutionEvents({
         output?: Record<string, unknown>;
         input?: unknown;
         interactionData?: unknown;
+        startedAt?: string;
         finishedAt?: string;
         timestamp?: string;
       };
@@ -557,7 +558,9 @@ export function useExecutionEvents({
           duration: payload.duration,
           outputData: payload.output ?? null,
           inputData: payload.input ?? existing?.inputData,
-          startedAt: existing?.startedAt,
+          // backend 가 payload.startedAt 을 동봉. NODE_STARTED race miss 시
+          // existing 매칭 실패해도 timeline 정렬에 정확한 startedAt 사용.
+          startedAt: payload.startedAt ?? existing?.startedAt,
         });
       }
     },
@@ -574,6 +577,7 @@ export function useExecutionEvents({
         nodeType?: string;
         nodeLabel?: string;
         input?: unknown;
+        startedAt?: string;
         finishedAt?: string;
         timestamp?: string;
       };
@@ -602,7 +606,7 @@ export function useExecutionEvents({
           error: payload.error,
           outputData: null,
           inputData: payload.input ?? existing?.inputData,
-          startedAt: existing?.startedAt,
+          startedAt: payload.startedAt ?? existing?.startedAt,
         });
       }
     },
@@ -617,9 +621,15 @@ export function useExecutionEvents({
         nodeId?: string;
         nodeType?: string;
         nodeLabel?: string;
+        startedAt?: string;
       };
       if (payload.nodeId) {
         updateNodeStatus(payload.nodeId, { status: "skipped" });
+        const existing = useExecutionStore.getState().nodeResults.find((r) =>
+          payload.nodeExecutionId
+            ? r.nodeExecutionId === payload.nodeExecutionId
+            : !r.nodeExecutionId && r.nodeId === payload.nodeId,
+        );
         addNodeResult({
           nodeExecutionId: sanitizeUuid(payload.nodeExecutionId),
           parentNodeExecutionId: sanitizeUuid(payload.parentNodeExecutionId),
@@ -629,6 +639,7 @@ export function useExecutionEvents({
           nodeCategory: getCategoryForType(payload.nodeType ?? "unknown"),
           status: "skipped",
           outputData: null,
+          startedAt: payload.startedAt ?? existing?.startedAt,
         });
       }
     },

@@ -384,6 +384,57 @@ describe("useExecutionEvents", () => {
     expect(results[0].error).toBe("Timeout");
   });
 
+  // PR-B hotfix #6 — backend 가 NODE_COMPLETED/FAILED/SKIPPED payload 에
+  // startedAt 을 동봉하도록 일관성 강화. NODE_STARTED race miss / 재연결
+  // 등으로 store 에 prior row 가 없는 시나리오에서도 row 의 startedAt 이
+  // 누락되지 않아 sortByStartedAt 정렬이 정상 동작.
+  it("uses payload.startedAt when NODE_COMPLETED arrives without a prior NODE_STARTED row", () => {
+    useExecutionStore.getState().startExecution("exec-1");
+    renderHook(() => useExecutionEvents({ executionId: "exec-1" }));
+
+    const onCalls = (mockClient.on as Mock).mock.calls;
+    const completedHandler = onCalls.find(
+      (c: unknown[]) => c[0] === "execution.node.completed",
+    )?.[1] as (data: unknown) => void;
+
+    completedHandler({
+      nodeExecutionId: "164fd9d1-5f54-4789-8277-4e210f1969e8",
+      nodeId: "node-1",
+      nodeType: "transform",
+      nodeLabel: "변환",
+      duration: 5,
+      output: { ok: true },
+      startedAt: "2026-05-09T00:20:38.972Z",
+    });
+
+    const results = useExecutionStore.getState().nodeResults;
+    expect(results).toHaveLength(1);
+    expect(results[0].startedAt).toBe("2026-05-09T00:20:38.972Z");
+  });
+
+  it("uses payload.startedAt when NODE_FAILED arrives without a prior row (race miss)", () => {
+    useExecutionStore.getState().startExecution("exec-1");
+    renderHook(() => useExecutionEvents({ executionId: "exec-1" }));
+
+    const onCalls = (mockClient.on as Mock).mock.calls;
+    const failedHandler = onCalls.find(
+      (c: unknown[]) => c[0] === "execution.node.failed",
+    )?.[1] as (data: unknown) => void;
+
+    failedHandler({
+      nodeExecutionId: "85f48254-e3f1-44e5-80ae-1fc3c1e990ed",
+      nodeId: "node-x",
+      nodeType: "http_request",
+      nodeLabel: "Fetch",
+      error: "Timeout",
+      startedAt: "2026-05-09T00:20:39.100Z",
+    });
+
+    const results = useExecutionStore.getState().nodeResults;
+    expect(results).toHaveLength(1);
+    expect(results[0].startedAt).toBe("2026-05-09T00:20:39.100Z");
+  });
+
   it("binds the execution.snapshot handler", () => {
     renderHook(() => useExecutionEvents({ executionId: "exec-1" }));
     expect(getHandler("execution.snapshot")).toBeDefined();

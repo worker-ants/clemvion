@@ -1141,12 +1141,18 @@ describe('ExecutionEngineService', () => {
         expect.objectContaining({ status: 'running' }),
       );
 
-      // Check first node completed
+      // Check first node completed — payload 가 startedAt (ISO) 도 동봉해야
+      // 한다. NODE_STARTED race miss 시에도 frontend store row 의 startedAt
+      // 이 누락되지 않도록 NODE_* 모든 이벤트에 startedAt 동봉 (timeline
+      // 회귀 hotfix #6).
       expect(mockWebsocketService.emitNodeEvent).toHaveBeenCalledWith(
         executionId,
         'node-1',
         'execution.node.completed',
-        expect.objectContaining({ status: 'completed' }),
+        expect.objectContaining({
+          status: 'completed',
+          startedAt: expect.any(String),
+        }),
       );
     });
 
