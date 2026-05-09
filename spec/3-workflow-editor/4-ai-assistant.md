@@ -2,6 +2,8 @@
 
 > 관련 문서: [PRD 워크플로우 에디터 §10](../../prd/2-workflow-editor.md#10-ai-assistant-ed-ai-) · [PRD AI 플랫폼 §3.6](../../prd/6-phase2-ai.md) · [Spec 캔버스 §1 레이아웃](./0-canvas.md) · [Spec 노드 공통](./1-node-common.md) · [Spec 실행/디버깅](./3-execution.md) · [Spec LLM 클라이언트](../5-system/7-llm-client.md) · [Spec 데이터 모델 §2.20~2.21](../1-data-model.md#220-assistantsession) · [Spec WebSocket](../5-system/6-websocket-protocol.md)
 
+> **구현 상태**: ✅ 구현 완료 — backend `backend/src/modules/workflow-assistant/` (controller·session·stream service·prompts·tools·entities), frontend `frontend/src/components/editor/assistant-panel/` + `frontend/src/lib/stores/assistant-store.ts` + `assistant-editor-bridge.ts` 모두 활성. v1 범위는 §1.2 참조.
+
 ---
 
 ## 1. 개요

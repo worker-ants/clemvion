@@ -40,7 +40,7 @@ PR-B 자체 ai-review (2026-05-09_00-05-34) 후속 25/35건도 `e360ca0a refacto
 
 - **CRIT #2** — `runExecution` / `executeInline` ~200줄 중복 추출. 안전한 추출은 며칠 작업급.
 - **CRIT #3** — OCP 위반 node type 문자열 분기 → Strategy 패턴 / NodeHandler 메타데이터. 26개 핸들러 영향.
-- **WARN #25** — `waitForAiConversation` 280줄 분해 (`emitWaitingForInput` / `handleAiMessage` / `handleAiEndConversation` / `finalizeAiNode`). 현재 위치 `execution-engine.service.ts` L1804-2090 부근, 약 280줄로 plan 진술 그대로.
+- **WARN #25** — `waitForAiConversation` 분해 (`emitWaitingForInput` / `handleAiMessage` / `handleAiEndConversation` / `finalizeAiNode`). **2026-05-09 재확인: `execution-engine.service.ts` L1804-2166, 약 363줄** (이전 plan 의 280줄 진술은 그동안의 코드 추가로 stale — 분해 작업 규모가 커진 셈).
 - ~~**WARN #15** — `pendingContinuations` Map → Redis pub/sub~~ (PR-B 완료. Map 자체는 resolver 보관용으로 유지, 이벤트만 분산)
 - **WARN #16** — `forwardRef(WebsocketService)` → `IExecutionEventEmitter` 추상화. **2026-05-09 확인: `execution-engine.service.ts:361` 에 `forwardRef(() => WebsocketService)` 그대로 잔존**.
 - **WARN #17 (Arch)** — `executeInline` 의 `manual_trigger` 외 트리거 타입 처리. spec 결정 필요.
@@ -51,7 +51,7 @@ PR-B 자체 ai-review (2026-05-09_00-05-34) 후속 25/35건도 `e360ca0a refacto
 - **WARN #12** — `planContainerBody` filter 결과 캐시. ForEach/Loop/Map 컨테이너 한정.
 - **WARN #21** — `endAiConversation` 종료 흐름 전체 테스트 (큰 fixture).
 - **WARN #22** — `buildConversationConfigFromOutput` 단위 테스트.
-- **WARN #24** — container runtime `setTimeout(r, 200)` → `flushPromises()` 통일. **2026-05-09 확인: `execution-engine.service.spec.ts` 등에 5 곳 잔존** (별도 commit `d0910d5f` 의 W4 는 동일 기호의 *다른 review* 항목으로, 본 항목과 별개).
+- **WARN #24** — container runtime `setTimeout(r, 200)` → `flushPromises()` 통일. **2026-05-09 재확인: `execution-engine.service.spec.ts` 6 곳 잔존** (line 2996, 3128, 3479, 3831, 3959, 4094 — 직전 진술의 5 곳에서 1 곳 추가 검출. 별도 commit `d0910d5f` 의 W4 는 동일 기호의 *다른 review* 항목으로, 본 항목과 별개).
 
 ### P3 — INFO 일괄 정리
 

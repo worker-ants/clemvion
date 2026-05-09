@@ -9,7 +9,7 @@
 ## Follow-up 1 — AI Agent multi-turn helper rawConfig plumbing
 
 **현황** (2026-05-09 재확인):
-- `backend/src/nodes/ai/ai-agent/ai-agent.handler.ts` 의 `buildMultiTurnFinalOutput` (line 1290 부근) / `buildConditionOutput` (line 1344 부근) 가 `config: { mode, model }` 만 echo. 다른 echo 지점 (line 735 single-turn / line 855 initial waiting / line 1188 resumed) 은 이미 `state.rawConfig` 또는 `context.rawConfig` 에서 systemPrompt / userPrompt / maxTurns / conditions / knowledgeBases 등 raw 전체 echo. **호출자 사이트 4 곳** (`buildMultiTurnFinalOutput` 2 + `buildConditionOutput` 2).
+- `backend/src/nodes/ai/ai-agent/ai-agent.handler.ts` 의 `buildMultiTurnFinalOutput` (L1265) / `buildConditionOutput` (L1320) 가 `config: { mode, model }` 만 echo. 다른 echo 지점 (line 735 single-turn / line 855 initial waiting / line 1188 resumed) 은 이미 `state.rawConfig` 또는 `context.rawConfig` 에서 systemPrompt / userPrompt / maxTurns / conditions / knowledgeBases 등 raw 전체 echo. **호출자 사이트 4 곳** (`buildMultiTurnFinalOutput` 2 + `buildConditionOutput` 2).
 - `backend/src/nodes/ai/information-extractor/information-extractor.handler.ts:813` 부근의 `multiTurnConfigEcho` 가 `state.{model, outputSchema, instructions, examples, maxTurns, maxCollectionRetries}` 를 echo — state 안의 평가된 필드 사용. raw 가 아님.
 
 **왜 follow-up 인가**:

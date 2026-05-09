@@ -2,7 +2,7 @@
 
 > 관련 문서: [제품 개요](./0-overview.md) · [워크플로우 에디터 §10](./2-workflow-editor.md#10-ai-assistant-ed-ai-) · [노드 시스템](./3-node-system.md#5-ai-노드) · [통합/연동](./4-integration.md#3-knowledge-base) · [내비게이션](./1-navigation.md#37-config--llm) · [Spec AI 노드](../spec/4-nodes/3-ai/0-common.md) · [Spec Knowledge Base](../spec/2-navigation/5-knowledge-base.md) · [Spec LLM Config](../spec/2-navigation/6-config.md) · [Spec AI Assistant](../spec/3-workflow-editor/4-ai-assistant.md)
 
-> **구현 상태**: 3.1~3.5의 AI 기능은 모두 **구현 완료(✅)**다. 3.6 **Workflow AI Assistant**는 로드맵(❌)이며, 상세 요구사항은 [PRD 2 §10](./2-workflow-editor.md#10-ai-assistant-ed-ai-)에 정의되어 있다. 팀 워크스페이스·RBAC·2FA는 별도 로드맵 항목으로 현재 백엔드 모듈만 존재한다.
+> **구현 상태**: 3.1~3.6의 AI 기능은 모두 **구현 완료(✅)** 다. 상세 요구사항은 [PRD 2 §10](./2-workflow-editor.md#10-ai-assistant-ed-ai-)에 정의되어 있다.
 
 ---
 
@@ -28,7 +28,7 @@
 | **AI 노드 3종** | ✅ | AI Agent, Text Classifier, Information Extractor |
 | **지식 저장소** | ✅ | 컬렉션 관리, 문서 업로드, 벡터 임베딩, RAG 검색 |
 | **AI Agent 고급** | ✅ | Tool Area (도구 호출), Knowledge Base 연동 |
-| **Workflow AI Assistant (§3.6)** | ❌ 로드맵 | 에디터 내 채팅형 AI로 워크플로우 자동 구성/수정 |
+| **Workflow AI Assistant (§3.6)** | ✅ 구현 완료 | 에디터 내 채팅형 AI로 워크플로우 자동 구성/수정 |
 
 ### 2.2 본 문서 범위 밖
 
@@ -130,7 +130,7 @@
 
 ### 3.6 Workflow AI Assistant
 
-> **구현 상태**: ❌ 로드맵 · 상세 요구사항: [PRD 2 §10](./2-workflow-editor.md#10-ai-assistant-ed-ai-) (`ED-AI-*`) · 상세 스펙: [Spec 3-workflow-editor/4](../spec/3-workflow-editor/4-ai-assistant.md)
+> **구현 상태**: ✅ 구현 완료 · 상세 요구사항: [PRD 2 §10](./2-workflow-editor.md#10-ai-assistant-ed-ai-) (`ED-AI-*`) · 상세 스펙: [Spec 3-workflow-editor/4](../spec/3-workflow-editor/4-ai-assistant.md)
 
 워크플로우 에디터에 내장된 채팅형 AI 에이전트로, 사용자의 자연어 요청을 받아 노드·엣지를 자동 구성·수정한다. 단순 지시뿐 아니라 "주문 취소 프로세스 추가" 같은 모호한 요구를 **Clarify → Plan → Execute** 대화 루프로 구체화한다. 실행(`Run`) 은 사용자가 수행하되, Assistant 는 실행 결과(노드별 입출력·에러·타임라인) 를 읽기 전용 탐색 도구로 조회해 실패 원인을 진단하고 해당 노드 수정을 제안한다 ([PRD 2 §10.9](./2-workflow-editor.md#109-실행-결과-조회-진단수정)).
 
