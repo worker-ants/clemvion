@@ -216,4 +216,4 @@ PR-B-doc → PR-A → PR-D → PR-C → PR-E → PR-F → PR-G → PR-H → PR-I
 
 ### 본 plan 의 위치
 
-위 두 deferred 항목이 별도 PR 로 트래킹될 때까지 본 문서는 `plan/in-progress/` 에 유지. 두 deferred 항목이 별도 plan 으로 이관되거나 처리 완료되면 `git mv` 로 `plan/complete/` 이동.
+두 deferred 항목 (INFO #1+#2, INFO #14) 은 `plan/in-progress/handler-return-type-unification.md` 로 이관 완료 (2026-05-09). 본 plan 은 archive 로 `plan/complete/` 이동.
