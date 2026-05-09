@@ -8,9 +8,9 @@
 
 ## Follow-up 1 — AI Agent multi-turn helper rawConfig plumbing
 
-**현황**:
-- `backend/src/nodes/ai/ai-agent/ai-agent.handler.ts` 의 `buildMultiTurnFinalOutput` (line 1265) / `buildConditionOutput` (line 1320) 가 `config: { mode, model }` 만 echo. 다른 echo 지점은 이미 `state.rawConfig` 또는 `context.rawConfig` 에서 systemPrompt / userPrompt / maxTurns / conditions / knowledgeBases 등 raw 전체 echo.
-- `backend/src/nodes/ai/information-extractor/information-extractor.handler.ts:806` 의 `multiTurnConfigEcho` 가 `state.{model, outputSchema, instructions, examples, maxTurns, maxCollectionRetries}` 를 echo — state 안의 평가된 필드 사용. raw 가 아님.
+**현황** (2026-05-09 재확인):
+- `backend/src/nodes/ai/ai-agent/ai-agent.handler.ts` 의 `buildMultiTurnFinalOutput` (line 1290 부근) / `buildConditionOutput` (line 1344 부근) 가 `config: { mode, model }` 만 echo. 다른 echo 지점 (line 735 single-turn / line 855 initial waiting / line 1188 resumed) 은 이미 `state.rawConfig` 또는 `context.rawConfig` 에서 systemPrompt / userPrompt / maxTurns / conditions / knowledgeBases 등 raw 전체 echo. **호출자 사이트 4 곳** (`buildMultiTurnFinalOutput` 2 + `buildConditionOutput` 2).
+- `backend/src/nodes/ai/information-extractor/information-extractor.handler.ts:813` 부근의 `multiTurnConfigEcho` 가 `state.{model, outputSchema, instructions, examples, maxTurns, maxCollectionRetries}` 를 echo — state 안의 평가된 필드 사용. raw 가 아님.
 
 **왜 follow-up 인가**:
 - helper 시그니처에 `rawConfig` plumbing 시 multi-turn waiting → resumed → ended 의 nodeOutputCache 라이프사이클이 어느 시점의 echo 를 expose 하는지 분석 필요.
@@ -27,9 +27,9 @@
 
 ## Follow-up 2 — Carousel / Table output 256KB cap
 
-**현황**:
-- `backend/src/nodes/integration/_base/truncate-body.util.ts` 의 `truncateBodyForOutput(value, maxBytes = 256 * 1024)` 헬퍼가 Send Email · HTTP Request 에 적용됨 (Phase 2).
-- Carousel / Table 핸들러는 cap 미적용 — 거대한 items / rows 가 그대로 echo 될 수 있다.
+**현황** (2026-05-09 재확인):
+- `backend/src/nodes/integration/_base/truncate-body.util.ts:38` 의 `truncateBodyForOutput(value, maxBytes = 256 * 1024)` 헬퍼가 Send Email (`send-email.handler.ts:106`) · HTTP Request (`http-request.handler.ts:160`) 에 적용됨 (Phase 2). 그 외 호출처 없음.
+- Carousel / Table 핸들러는 cap 미적용 — 거대한 items / rows 가 그대로 echo 될 수 있다 (확인됨).
 
 **왜 follow-up 인가**:
 - 현재 cap 미적용 상태에서도 동작 영향 없음 (NodeExecution.outputData JSONB 크기 한계 도달 전엔 무해).
