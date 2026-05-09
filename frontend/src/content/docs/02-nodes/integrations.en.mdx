@@ -45,6 +45,10 @@ Every integration node exposes an `integrationId` field that points to an Integr
 - `success` — HTTP 2xx response
 - `error` — 4xx/5xx or network failure
 
+<Callout type="note">
+The response body is capped at **256KB**. If it overflows, the body is truncated and `bodyTruncated: true` is added to the output. For large responses, prefer paginating or narrowing fields server-side, or post-process via a Code node.
+</Callout>
+
 ### Example
 
 <Example title="Call an external API with a Bearer token">
@@ -147,6 +151,10 @@ Pre-flight errors (`INTEGRATION_INCOMPLETE`, `INVALID_PARAMETERS`, `INTEGRATION_
 
 - `out` — delivery result
 
+<Callout type="note">
+The echoed `body` field in the output is capped at **256KB**. If it overflows, the body is truncated and `bodyTruncated: true` is added. The actual mail sent over SMTP is unaffected — only the echo body used by downstream nodes carries the cap.
+</Callout>
+
 ### Example
 
 <Example title="Send a welcome email">
@@ -199,6 +207,6 @@ When the referenced Integration is deleted, a `⚠ Missing integration` badge ap
 
 ## Tips & notes
 
-- Adding integrations and managing their status is covered in [Integration management](/docs/05-integrations-and-config/integration-management).
+- Adding integrations and managing their status is covered in [Integration management](/docs/06-integrations-and-config/integration-management).
 - Each call is logged in the Usage log at run time. `status`, `durationMs`, and `error.code` help trace failure causes.
 - Power-user tip: HTTP Request headers follow **Integration default headers < node-specified headers** (last wins). When the Integration has a `base_url`, node URLs like `/users/123` are joined automatically.

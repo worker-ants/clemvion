@@ -1,0 +1,159 @@
+---
+title: "AI 어시스턴트 직접 써 보기"
+title_en: "AI Assistant — hands-on walkthrough"
+section: "03-workflow-editor"
+order: 2
+summary: "빈 워크플로우에서 자연어 한 줄로 4-노드 자동화를 만들어 보는 단계별 시연이에요."
+summary_en: "Build a 4-node workflow from a single natural-language prompt, step by step."
+spec: ["spec/3-workflow-editor/4-ai-assistant.md", "spec/3-workflow-editor/0-canvas.md"]
+code: ["frontend/src/components/editor/assistant-panel/assistant-panel.tsx", "frontend/src/components/editor/assistant-panel/plan-card.tsx", "frontend/src/lib/stores/assistant-store.ts"]
+---
+
+이 페이지에서는 어시스턴트의 [개요](/docs/03-workflow-editor/overview)에서 본 3단계 흐름을 실제로 따라 해 봐요. 빈 워크플로우에 "주문 취소 프로세스 추가해줘" 라고 한 줄 보내면, 어시스턴트가 명확화 → 계획 → 실행 단계로 4-노드 자동화를 완성해요.
+
+## 만들 워크플로우 미리보기
+
+<FlowDiagram steps={[
+  { title: "Manual Trigger", sub: "주문 ID 입력" },
+  { title: "HTTP Request", sub: "주문 조회" },
+  { title: "If/Else", sub: "취소 가능?" },
+  { title: "Send Email", sub: "고객 안내" },
+]} />
+
+실제 어시스턴트가 만드는 결과는 위 4-노드 흐름이에요. HTTP Request 와 Send Email 의 자격 증명은 사전에 [통합](/docs/06-integrations-and-config/integration-management) 에 등록해 둔 것을 어시스턴트가 자동으로 끌어다 써요.
+
+## 준비물
+
+- 로그인된 계정과 워크스페이스가 하나 있어요.
+- LLM 설정이 등록돼 있어요. 없으면 어시스턴트가 첫 메시지 전에 안내하므로 [LLM 설정](/docs/06-integrations-and-config/llm-config)에서 OpenAI 또는 Anthropic 키를 먼저 추가해요.
+- (옵션) 주문 조회용 HTTP API 통합과 SMTP 통합이 [통합 화면](/docs/06-integrations-and-config/integration-management)에 등록돼 있으면 어시스턴트가 더 정확한 계획을 세워요.
+
+## 1단계 — 새 워크플로우 만들고 어시스턴트 열기
+
+<Steps>
+<Step>사이드바의 `Workflows` 에 들어가 `[+ New Workflow]` 를 눌러요. 빈 캔버스에 Manual Trigger 한 개만 놓인 상태로 에디터가 열려요.</Step>
+<Step>캔버스 어디서든 `Cmd/Ctrl + /` 를 눌러요. 우측에 360px 어시스턴트 패널이 펼쳐지고 "무엇을 도와드릴까요?" 빈 화면 안내가 나와요.</Step>
+<Step>예시 버튼 중 "주문 취소 프로세스 추가해줘" 를 누르거나 직접 입력창에 같은 문장을 적어 Enter 로 보내요.</Step>
+</Steps>
+
+<Callout type="tip">
+빈 화면의 예시 버튼은 한 번 누르면 입력창에 문장이 채워지니, 살짝 다듬어 보내고 싶으면 그 위에서 단어만 바꿔 보내요.
+</Callout>
+
+## 2단계 — Clarify (명확화)
+
+요청을 보내면 어시스턴트가 곧장 노드를 만들지 않고, 먼저 워크플로우 상태와 사용 가능한 통합을 살펴봐요.
+
+```
+🛠 list_integrations · get_current_workflow · list_workflows
+```
+
+메시지 아래 작은 배지로 어떤 도구를 사용했는지 보여줘요. 그리고 다음과 같이 되묻는 답이 와요.
+
+```
+주문 취소 프로세스를 만들어 드릴게요. 몇 가지만 확인할게요.
+
+1) 주문 ID 는 어디서 받나요? (Manual Trigger 의 입력 파라미터로 받을지, 외부에서 들어올지)
+2) 어떤 API로 주문 상태를 조회·변경하나요? 등록된 통합 중에서는 "Order API (HTTP)" 가 보여요.
+3) 취소가 안 되는 경우 사용자에게 안내 메일을 보낼까요?
+```
+
+<Steps>
+<Step>입력창에 답을 적어 보내요. 예: "1) Manual Trigger 의 `orderId` 파라미터로 받고, 2) Order API 통합을 써 줘, 3) 취소 불가 시 메일로 안내."</Step>
+</Steps>
+
+이 단계에서는 캔버스가 그대로예요. 어시스턴트는 사용자의 답을 바탕으로 다음 단계 카드를 준비해요.
+
+## 3단계 — Propose Plan (계획 제안)
+
+답변을 받자마자 어시스턴트가 **계획 카드**를 메시지로 보내요. 카드는 다음처럼 보여요.
+
+```
+🗂 실행 계획 — 주문 취소 프로세스
+
+추가할 노드와 연결을 정리했어요. 승인하시면 캔버스에 반영할게요.
+
+◯ 1. Manual Trigger 에 `orderId` (string) 파라미터 추가
+◯ 2. HTTP Request "주문 조회" — Order API 통합으로 GET /orders/{orderId}
+◯ 3. If/Else "취소 가능?" — 응답의 `canCancel` 필드 검사
+◯ 4. true 분기에 HTTP Request "주문 취소" 추가, false 분기에 Send Email "취소 불가 안내" 추가
+
+답변이 필요한 항목
+• 메일 발신자 주소는 SMTP 통합의 기본값을 써도 될까요? (현재 등록값: ops@example.com)
+
+[ 계획대로 진행 ]
+```
+
+<Steps>
+<Step>오픈된 질문이 있으면 입력창에 답해요. 예: "응, 기본 발신자로 진행해 줘."</Step>
+<Step>계획이 마음에 들면 카드 하단의 **계획대로 진행** 버튼을 눌러요. 누르기 전에는 캔버스가 그대로예요.</Step>
+<Step>계획을 바꾸고 싶으면 승인 대신 채팅으로 "Send Email 말고 Slack 알림으로 바꿔 줘" 처럼 보내요. 어시스턴트가 새 카드로 교체해서 다시 보여줘요.</Step>
+</Steps>
+
+<Callout type="note">
+계획 카드의 단계 체크박스는 보기용이에요. 사용자가 직접 체크하지는 않아요. ✓ 표시는 다음 단계에서 실행이 진행될 때 자동으로 채워져요.
+</Callout>
+
+## 4단계 — Execute (실행)
+
+승인 버튼을 누르면 어시스턴트가 단계를 하나씩 실행해요. 메시지 아래에 실행한 도구 배지가 떠요.
+
+```
+🛠 update_node · add_node · add_edge · add_node · add_edge · add_node · add_edge
+
+🗂 실행 계획 — 주문 취소 프로세스 (3/4)
+
+✓ 1. Manual Trigger 에 `orderId` 파라미터 추가
+✓ 2. HTTP Request "주문 조회" 추가 + 연결
+✓ 3. If/Else "취소 가능?" 추가 + 연결
+◯ 4. true/false 분기 노드 추가
+```
+
+<Steps>
+<Step>캔버스를 보면 노드가 하나씩 등장하고 연결선이 그어져요. 패널과 캔버스를 같이 보면 진행 상황을 실시간으로 따라가기 좋아요.</Step>
+<Step>모든 단계가 끝나면 카드 끝에 초록색 "작업을 완료했어요" 안내가 떠요. 캔버스에는 4-노드 자동화가 완성돼 있어요.</Step>
+<Step>마음에 들지 않는 부분이 있으면 즉시 `Ctrl+Z` 로 되돌릴 수 있어요. 어시스턴트의 편집은 일반 편집과 같은 Undo 스택을 써요.</Step>
+</Steps>
+
+## 5단계 — 직접 실행하고 결과 확인
+
+어시스턴트는 실행을 대신 트리거하지 않아요. **사용자가** 워크플로우를 돌려서 결과를 봐요.
+
+<Steps>
+<Step>에디터 헤더의 `▶ Run` 버튼을 눌러요. Manual Trigger 의 `orderId` 입력창이 모달로 떠요.</Step>
+<Step>테스트 주문 ID 를 넣고 실행해요. Run Results 드로어가 하단에 펼쳐져 노드별 입출력을 보여줘요.</Step>
+<Step>결과가 기대와 다르면 어시스턴트로 돌아와 "방금 실행 결과 봐 줘" 또는 "If/Else 분기에서 왜 false 로 갔어?" 처럼 물어요.</Step>
+</Steps>
+
+## 6단계 — 진단·수정
+
+어시스턴트가 최근 실행을 조회해 실패한 노드와 입출력을 살펴봐요.
+
+```
+🛠 get_workflow_executions · get_execution_details
+
+If/Else 의 조건이 `output.canCancel == true` 로 적혀 있는데, 이번 응답에는 해당 필드가 `cancellable` 로 와 있었어요. 조건을 `output.cancellable` 로 바꿀까요?
+
+[ 계획대로 진행 ]
+```
+
+<Steps>
+<Step>어시스턴트가 제안한 패치 계획을 승인하면 If/Else 조건이 즉시 갱신돼요.</Step>
+<Step>다시 `▶ Run` 으로 실행해 결과를 확인해요. 의도대로 분기되면 워크플로우 완성이에요.</Step>
+</Steps>
+
+## 7단계 — 세션 영속성 확인
+
+마지막으로 어시스턴트가 만든 세션이 어떻게 보존되는지 짧게 확인해 볼게요.
+
+<Steps>
+<Step>브라우저를 새로고침하거나 워크플로우를 닫았다 다시 열어요.</Step>
+<Step>`Cmd/Ctrl + /` 로 어시스턴트 패널을 다시 열면, 방금까지 나눈 대화가 그대로 보존돼 있어요. 패널 헤더 아래 작은 글씨에 자동 생성된 세션 제목 ("주문 취소 프로세스 추가해줘…" 같은) 이 보여요.</Step>
+<Step>새 작업을 시작하고 싶으면 패널 우상단의 `+` 버튼으로 새 세션을 만들어요. 이전 세션은 서버에 보관되며, 같은 워크플로우의 가장 최근 세션이 다음에 자동으로 복원돼요.</Step>
+</Steps>
+
+## 다음으로
+
+- 개념과 한계를 한 번에 정리한 [개요](/docs/03-workflow-editor/overview) 로 돌아가 v1 한계와 자주 만나는 오류를 확인해요.
+- AI 어시스턴트가 만들어 주는 워크플로우 안에 들어가는 [AI Agent 노드](/docs/02-nodes/ai)와 [통합 노드](/docs/02-nodes/integrations) 를 살펴봐요.
+- 표현식이 익숙하지 않다면 [표현식 기본](/docs/04-expression-language/basics) 을 한 번 훑어 두면 어시스턴트와의 대화가 더 매끄러워요.

@@ -66,6 +66,8 @@ Conditions are exposed to the LLM as special tools (`cond_*`). When the LLM call
 {
   response: "…",
   condition: { id: "uuid-1", label: "Refund request detected", reason: "…" },
+  // Single Turn output echoes the full raw config so downstream nodes can read every field
+  config: { mode: "single_turn", model: "gpt-4o", systemPrompt: "…", userPrompt: "{{ $input.message }}", knowledgeBases: ["faq-kb-id"], conditions: [...] },
   metadata: { model: "gpt-4o", totalTokens: 1600, toolCalls: 2, ragSources: [...] }
 }
 ```
@@ -73,6 +75,10 @@ Conditions are exposed to the LLM as special tools (`cond_*`). When the LLM call
 
 <Callout type="warn">
 In Multi Turn mode, user responses are **awaited indefinitely**. No timeout fires unless something external cancels or ends the run — design for long-lived waits.
+</Callout>
+
+<Callout type="note">
+**Single Turn vs. Multi Turn — `config` echo differences.** Single Turn output echoes the full raw config (systemPrompt, userPrompt, maxTurns, conditions, knowledgeBases, …) verbatim. Multi Turn terminal outputs (`user_ended`, `max_turns`, condition ports) currently echo only `config: { mode, model }` and omit the rest. If you mix both modes in one workflow, expressions like `$node["AI Agent"].config.systemPrompt` may behave differently per mode. Unifying the echo is a tracked follow-up (`plan/in-progress/engine-raw-config-followups.md`, Follow-up #1).
 </Callout>
 
 ## Text Classifier
@@ -187,9 +193,10 @@ In Multi Turn mode, leaving `inputField` empty skips the initial LLM call and wa
 
 ## Tips & notes
 
+- This page covers the **AI Agent node that runs inside a workflow**. The in-editor [AI Assistant](/docs/03-workflow-editor/overview) is a separate feature — a chat companion that builds workflows for you. Workflows the Assistant generates may contain AI Agent nodes.
 - Registering a tool is as simple as dropping the node into the canvas **Tool Area**. The AI Agent picks it up as a callable tool, and condition tools are auto-separated so their names don't clash with regular ones.
-- LLM provider connections are managed under [LLM config](/docs/05-integrations-and-config/llm-config); Knowledge Base setup lives in [Knowledge Base](/docs/05-integrations-and-config/knowledge-base); MCP server registration and tool-exposure policy is in [MCP server integration](/docs/05-integrations-and-config/mcp-servers).
-- Multi Turn execution history is inspectable per turn (request/response/token usage) via the Conversation Inspector. Details: [Run results](/docs/04-run-and-debug/run-results).
+- LLM provider connections are managed under [LLM config](/docs/06-integrations-and-config/llm-config); Knowledge Base setup lives in [Knowledge Base](/docs/06-integrations-and-config/knowledge-base); MCP server registration and tool-exposure policy is in [MCP server integration](/docs/06-integrations-and-config/mcp-servers).
+- Multi Turn execution history is inspectable per turn (request/response/token usage) via the Conversation Inspector. Details: [Run results](/docs/05-run-and-debug/run-results).
 - Power-user tip: when `responseFormat=json`, the LLM returns a structure matching your schema. If you add, remove, or rename fields, also check downstream `{{ $node["AI Agent"].output.result.response.field }}` references.
 - Downstream reference paths (Principle 1.1/8):
   - AI Agent response body: `$node["AI Agent"].output.result.response`

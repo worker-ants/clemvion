@@ -1,0 +1,125 @@
+This page explains what the in-editor **AI Assistant** is, how to open and close it, and how the conversation flow turns natural-language requests into nodes and edges. A hands-on tour where the Assistant builds a 4-node workflow from a single sentence is in [Walkthrough](/docs/03-workflow-editor/walkthrough).
+
+## In one sentence
+
+The AI Assistant is a **chat companion that places nodes and edges on the canvas in response to natural-language requests**. Even fuzzy asks like "add an order-cancellation process" are handled in three stages — clarify → propose plan → execute — with explicit checkpoints for you to step in.
+
+## Where it lives and how to open it
+
+- **Location**: docked 360px panel on the right side of the workflow editor. It shares the slot with the node settings panel: opening the Assistant deselects any node, and closing it lets you bring settings back.
+- **Shortcut**: `Cmd/Ctrl + /` toggles the Assistant panel. Works anywhere on the canvas.
+- **Default state**: closed. The first time you open the panel, you'll see the empty-state intro.
+
+<Callout type="note">There's no toolbar button on purpose — the shortcut is meant to be the universal way in.</Callout>
+
+### Empty-state intro
+
+When the panel is empty, you see:
+
+- Title: "How can I help?"
+- Subtitle: "Describe the workflow you want in plain language and I'll build it with you."
+- Four example prompt buttons — clicking one fills the input automatically.
+  - "Add an order-cancellation process"
+  - "Add an Authorization header to the HTTP node"
+  - "Review the current workflow and suggest improvements"
+  - One more (an arrange/cleanup example)
+
+## The three-stage loop
+
+Every request flows through these three stages. Simple requests skip parts of the loop; ambiguous or high-impact requests pass through all three.
+
+<FlowDiagram steps={[
+  { title: "Clarify", sub: "explore · ask" },
+  { title: "Propose Plan", sub: "plan card · approval" },
+  { title: "Execute", sub: "edit nodes/edges" },
+]} />
+
+<FieldTable rows={[
+  { name: "① Clarify", required: false, type: "explore + question", description: "When a request is fuzzy, the Assistant inspects the canvas, related workflows, and integrations, then asks you for the missing context. The canvas does not change.", default: "-" },
+  { name: "② Propose Plan", required: false, type: "plan card + approval", description: "When two or more nodes are involved or domain decisions are needed, the Assistant lays out the steps in a checkable plan card. Nothing is applied until you approve.", default: "-" },
+  { name: "③ Execute", required: false, type: "canvas mutations", description: "Carries out the approved plan: add, connect, update, or delete nodes. Changes apply immediately and are reversible with `Ctrl+Z`.", default: "-" }
+]} />
+
+### Plan card UX
+
+In stage ②, the plan card has the following parts:
+
+- **Title** and **summary** — what's about to happen, in one or two lines.
+- **Step checkboxes** — each step starts as ◯ (pending), turns ✓ (done, green) as it runs, or ⚠ (red) on failure.
+- **Open questions** — when a decision is left to you, an amber callout lists the questions. **Reply in the regular message input at the bottom**; there's no separate answer form.
+- **"Approve & continue" button** — kicks off stage ③. Until you click it, nothing on the canvas changes.
+
+<Callout type="tip">
+If part of the plan looks off, don't hit Approve — just chat back like "drop X and add Y instead." The Assistant replaces the active plan card with a revised one.
+</Callout>
+
+## What tools the Assistant can call
+
+While processing a request, the Assistant calls tools that show up as small badges under each message — so you can always see what it actually did.
+
+<FieldTable rows={[
+  { name: "Explore (read-only)", required: false, type: "no canvas changes", description: "Inspect the current workflow, search and read other workflows, list integrations and knowledge bases, look up node schemas, fetch recent run results. None of these mutate the canvas.", default: "-" },
+  { name: "Edit (canvas mutations)", required: false, type: "Undo-able", description: "Add / update / remove nodes and edges. Every edit lands in the same Undo stack as your manual edits, so `Ctrl+Z` reverses them.", default: "-" },
+  { name: "Plan / control", required: false, type: "flow control", description: "Used to present or clear an active plan card and to signal the end of a turn.", default: "-" }
+]} />
+
+<Callout type="note">
+The Assistant **never executes the workflow on its own**. The `Run` button is always yours. It can read the results of a run you've triggered and propose fixes from there.
+</Callout>
+
+## Sessions and persistence
+
+The Assistant keeps **one chat session per workflow**. Sessions are stored on the server, so refreshing the page or signing in from another device picks up where you left off.
+
+- **Auto-create** — the first message creates the session. Use the `+` button in an empty panel to start a fresh session at any time.
+- **Auto title** — the first user message becomes the session title (small gray text below the panel header).
+- **History** — up to 50 recent sessions per workflow are retained. v1 doesn't expose a session-switcher inside the panel, so to revisit an older session you either click `+` to start a new one or let the most recent one auto-restore.
+- **Per user** — sessions aren't shared with teammates. Other members of a team workspace each get their own.
+
+## Model selection
+
+The **Model** dropdown at the top of the panel lets you change the LLM provider mid-session. The default is the highest-priority LLM config registered in your workspace. The new selection takes effect on your next message. Configure providers under [LLM configuration](/docs/06-integrations-and-config/llm-config).
+
+## Diagnosing runs and applying fixes
+
+The Assistant can't trigger executions, but it can **read the results of runs you trigger** and point you at the broken node.
+
+<Steps>
+<Step>After a run, ask the Assistant something like "Why did it fail?" or "Check the Lead Router result."</Step>
+<Step>The Assistant looks up recent runs and the timeline of the relevant one, reading the failed node and its upstream input/output. (Sensitive fields are masked.)</Step>
+<Step>If it can identify the cause, it proposes a fix as a plan card. Approve to patch the node config.</Step>
+<Step>Click `Run` again to verify.</Step>
+</Steps>
+
+## v1 limits
+
+<Callout type="warn">
+The items below are out of scope for v1. Rollout timing tracks the spec and PRD updates and will expand over time.
+</Callout>
+
+<FieldTable rows={[
+  { name: "Editing across workflows", required: false, type: "one session = one workflow", description: "A session is bound to a single workflow. To work on multiple workflows, open the Assistant inside each.", default: "-" },
+  { name: "Direct execution from Assistant", required: false, type: "user clicks Run", description: "By design, only the user triggers `Run`. This avoids surprise executions while the Assistant is editing.", default: "-" },
+  { name: "Azure OpenAI streaming", required: false, type: "not supported in v1", description: "Streaming is verified for OpenAI, Anthropic, Google AI, and Local providers. Selecting Azure surfaces an unavailable notice in the Assistant.", default: "-" },
+  { name: "Sharing sessions with the team", required: false, type: "personal sessions", description: "Session sharing is gated on richer team RBAC and is on the roadmap.", default: "-" },
+  { name: "Offline use", required: false, type: "online required", description: "The Assistant streams from the LLM provider in real time. The panel still opens offline but messages can't be sent.", default: "-" }
+]} />
+
+## Common errors
+
+| Situation | What you see | What to do |
+| --- | --- | --- |
+| No LLM config registered | "Please register an LLM configuration first." with a link to settings | Click through to [LLM configuration](/docs/06-integrations-and-config/llm-config) and register an OpenAI/Anthropic/etc. provider |
+| Selected LLM config deleted | "We can't find the selected LLM config — please pick another." | Pick another from the model dropdown, or fall back to the workspace default |
+| Provider rate-limited | Red error bubble — "Try again in a moment." | Wait briefly, then resend or click "Continue" to resume the same flow |
+| Slow / timed-out response | "The response is taking longer than expected. Retry?" | Click retry or send a new message |
+| Tool call failed | Red badge below the message with code + short description | The Assistant retries on the next turn. If it keeps failing, edit the node yourself or steer it differently |
+| Tool-call budget exceeded | A "Continue" button appears above the input | Click it to extend the same flow into the next turn |
+| Session expired or deleted externally | "Session expired — starting a new conversation." | A new session is created automatically; just keep typing |
+
+## Tips & notes
+
+- For an end-to-end demo, follow the [Walkthrough](/docs/03-workflow-editor/walkthrough) — natural language to a 4-node workflow, step by step.
+- The AI Assistant and the [AI Agent node](/docs/02-nodes/ai) are different things. **The Assistant is an in-editor helper**; **the AI Agent node is an LLM call running inside a workflow**. The Assistant may include AI Agent nodes in the workflows it builds.
+- Edits made by the Assistant share the same Undo stack as your own. If you don't like a change, hit `Ctrl+Z` and tell the Assistant what to do differently.
+- Tool badges always show under the message, so when in doubt about what the Assistant just did, check the badges.

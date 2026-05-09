@@ -110,5 +110,5 @@ code: ["backend/src/nodes/flow/workflow/workflow.schema.ts"]
 ## 팁 & 참고
 
 - 입력 매핑 없이 호출하면 부모 입력이 통째로 서브 워크플로우로 넘어가요. 필요한 파라미터만 명시적으로 넘기고 싶다면 `inputMapping`을 사용해요.
-- 서브 워크플로우의 실행 결과와 로그는 [실행 결과](/docs/04-run-and-debug/run-results)에서 함께 확인할 수 있어요.
+- 서브 워크플로우의 실행 결과와 로그는 [실행 결과](/docs/05-run-and-debug/run-results)에서 함께 확인할 수 있어요.
 - 파워유저 팁: Sync 모드에서는 서브 워크플로우가 같은 실행 안에서 돌아가요. 덕분에 부모 쪽에서 `{{ $node["서브 워크플로우"].output.field }}` 처럼 서브 결과를 바로 참조할 수 있고, 실행 타임라인도 한 줄로 이어져 디버깅이 편해요.

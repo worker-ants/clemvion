@@ -56,6 +56,10 @@ code: ["backend/src/nodes/integration/http-request/http-request.schema.ts", "bac
 - `success` — HTTP 2xx 응답일 때
 - `error` — 4xx/5xx 또는 네트워크 오류일 때
 
+<Callout type="note">
+응답 본문은 **256KB 제한**이 걸려 있어요. 초과하면 본문이 잘리고 출력에 `bodyTruncated: true` 플래그가 추가돼요. 큰 응답을 다뤄야 하면 서버 쪽에서 페이지네이션·필드 선택을 줄여 호출하거나, Code 노드로 후처리하는 편이 안전해요.
+</Callout>
+
 ### 예시
 
 <Example title="외부 API 호출 + Bearer 토큰 인증">
@@ -158,6 +162,10 @@ Integration의 `auth_type`에 따라 헤더/쿼리가 자동 주입돼요. api_k
 
 - `out` — 발송 결과
 
+<Callout type="note">
+출력에 echo 되는 본문(`body`)은 **256KB 제한**이 걸려 있어요. 초과하면 본문이 잘리고 출력에 `bodyTruncated: true` 가 함께 표시돼요. 실제 발송된 메일 본문에는 영향이 없고, 후속 노드에서 사용할 echo 본문만 cap 이 적용돼요.
+</Callout>
+
 ### 예시
 
 <Example title="환영 메일 발송">
@@ -210,6 +218,6 @@ Integration이 삭제되면 캔버스 요약에 `⚠ Missing integration` 배지
 
 ## 팁 & 참고
 
-- Integration 추가와 상태 관리는 [통합 관리](/docs/05-integrations-and-config/integration-management)에서 다뤄요.
+- Integration 추가와 상태 관리는 [통합 관리](/docs/06-integrations-and-config/integration-management)에서 다뤄요.
 - 실행 시 각 호출 결과는 Usage 로그에 기록돼요. `status`, `durationMs`, `error.code`를 통해 실패 원인을 추적할 수 있어요.
 - 파워유저 팁: HTTP Request 헤더는 **통합(연동) 기본 헤더 < 노드에서 지정한 헤더** 순서로 덮어써요. 통합에 `base_url`이 설정돼 있으면 노드 URL을 `/users/123` 같은 상대 경로로 써도 자동으로 결합돼요.

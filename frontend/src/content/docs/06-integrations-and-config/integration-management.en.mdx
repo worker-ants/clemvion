@@ -12,7 +12,7 @@ Supported service types:
   { name: "Email (SMTP)", type: "SMTP", required: "Optional", description: "SMTP credentials for sending email." },
   { name: "Webhook (Outbound)", type: "URL + Signing Secret", required: "Optional", description: "Call an external endpoint. Optional HMAC signing." },
   { name: "Google / GitHub", type: "OAuth2 · PAT", required: "Optional", description: "OAuth popup flow or Personal Access Token." },
-  { name: "MCP Server", type: "Bearer · API Key · OAuth · None", required: "Optional", description: "A Model Context Protocol server. Connects to an AI Agent so the LLM can call the server's external tools and resources. See [MCP server integration](/docs/05-integrations-and-config/mcp-servers) for the registration and connection flow." }
+  { name: "MCP Server", type: "Bearer · API Key · OAuth · None", required: "Optional", description: "A Model Context Protocol server. Connects to an AI Agent so the LLM can call the server's external tools and resources. See [MCP server integration](/docs/06-integrations-and-config/mcp-servers) for the registration and connection flow." }
 ]} />
 
 <Callout type="note">Inbound webhook URLs are not created here. For running a workflow from a webhook, see [Trigger nodes](/docs/02-nodes/triggers).</Callout>
@@ -85,5 +85,5 @@ Send Email works the same way. The SMTP integration's `default_from` becomes the
 - For non-OAuth integrations, `Rotate credentials` only overwrites the existing secret after the new value passes the connection test. On failure, the existing credential is untouched.
 - To register multiple accounts for the same service, add separate integrations with different aliases. Aliases must be unique within a workspace.
 - An integration in use cannot be deleted. First switch the node's `integrationId` to another integration or remove the node.
-- To expose external tools and resources to the LLM from an AI Agent, register an MCP server integration and wire it into the AI Agent node's `MCP Servers` field. See [MCP server integration](/docs/05-integrations-and-config/mcp-servers).
+- To expose external tools and resources to the LLM from an AI Agent, register an MCP server integration and wire it into the AI Agent node's `MCP Servers` field. See [MCP server integration](/docs/06-integrations-and-config/mcp-servers).
 - Detailed status-transition rules are in `spec/2-navigation/4-integration.md`.

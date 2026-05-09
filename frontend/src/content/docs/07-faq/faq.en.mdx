@@ -1,0 +1,92 @@
+This page gathers frequently asked questions in one place. Each answer links to a more detailed page where relevant.
+
+## Q1. Where is workflow and execution data stored?
+
+Workflow structure, node configuration, and execution history live in the product's managed database. Uploaded assets like Form-node attachments go to object storage; Knowledge Base embeddings land in a vector store. In self-hosted deployments the same roles are filled by local infrastructure.
+
+## Q2. How do I diagnose a failed run?
+
+When you run a workflow, the **Run Results drawer** opens at the bottom. Failed nodes are outlined red; clicking one auto-selects the `Error` tab with the error message, stack, and the input that triggered it. For deeper dives, see [Run results](/docs/05-run-and-debug/run-results) and [Error handling](/docs/05-run-and-debug/error-handling).
+
+## Q3. I'm seeing `undefined is not an object` in an expression.
+
+This means the previous node's output shape differs from expectations. Double-check that the **entire access path** exists, e.g. `{{ $input.data.title }}`. For safety, use a ternary: `{{ $input.data ? $input.data.title : "default" }}`. Syntax and function list: [Expression cheatsheet](/docs/04-expression-language/cheatsheet).
+
+## Q4. I want to temporarily disable a node.
+
+Select the node, right-click → **Disable**, or use the settings-panel toggle. Disabled nodes are `skipped` at run time, and their input does not pass through to the output. Connections are kept, so flipping it back on restores the flow.
+
+## Q5. When should I use Manual Trigger vs. Webhook?
+
+<FieldTable rows={[
+  {name: "Manual Trigger", required: false, type: "Manual run", description: "Run from the editor's Run button or an internal API call. Good for tests and one-off work.", default: "-"},
+  {name: "Webhook", required: false, type: "External event", description: "Receive HTTP POST events from services like GitHub or Stripe and run. Once the URL is public, anyone with it can invoke.", default: "-"},
+  {name: "Schedule", required: false, type: "Periodic", description: "Run on a cron expression. Great for reports, cleanup jobs, and recurring tasks.", default: "-"}
+]} />
+
+## Q6. How much do LLM AI nodes cost?
+
+Cost follows the provider's **per-token billing** (OpenAI, Anthropic, ...). The product only routes the calls. You can see usage in the Statistics menu under **LLM token usage**. To save cost, keep prompts short and use structured nodes like Text Classifier where applicable.
+
+## Q7. Is it safe to run the same workflow in parallel?
+
+Yes. The execution engine is a **queue-based worker pool**, so multiple runs progress in parallel. Each run has its own `executionId` and context. External-resource contention (e.g. two runs updating the same row via Database Query, or both writing to the same external API via HTTP Request) is **not** auto-serialized by the product — handle conflict cases explicitly inside your workflow with the external system's transactions, unique keys, or optimistic locks (e.g. comparing a `version` field).
+
+## Q8. Is there a cap on concurrent executions?
+
+In SaaS, the plan defines a **concurrent execution cap** and a per-minute rate. In self-hosted, scale out by adding worker instances. Requests over the cap queue as `pending` and move to `running` in turn.
+
+## Q9. How do I stop a running workflow?
+
+During a run, the header Run button becomes `Stop`. Clicking it records the run as `cancelled`. Remember: already-called external APIs can't be undone. If recovery matters, wire compensating logic into an `error` port ahead of time.
+
+## Q10. Can I roll back to an earlier version?
+
+Yes. From the editor header's `⋮` menu, open **Version History** for the list of snapshots. Restore to a point or diff two versions. Full flow: [Version history](/docs/05-run-and-debug/version-history).
+
+## Q11. Where do I create API keys for external callers?
+
+Under the sidebar's `Authentication` menu. You can issue API Keys, Bearer Tokens, and Basic Auth, and scope them to a specific workflow's Webhook trigger. Details: [Integration management](/docs/06-integrations-and-config/integration-management).
+
+## Q12. I want to move a workflow to another account.
+
+Use **Export (JSON)** from the workflow list's more menu. Import the received JSON in the other account to restore structure and configuration. For security, Integration credentials (API keys, etc.) are not included — reconnect them on the receiving side.
+
+## Q13. My node needs more than 30 seconds.
+
+The default node timeout is **30 seconds**. Nodes with a `timeout` field — e.g. HTTP Request — let you raise it in settings. For genuinely long tasks, delegate to an external job queue or use an async pattern where a Webhook receives the final result.
+
+## Q14. Can I write loops in an expression?
+
+The expression language is **read-only and infinite-loop-free** by design. For iteration, use Logic container nodes like `Loop`, `ForEach`, or `Map`. Complex transforms are safer in a Transform or Code node.
+
+## Q15. Are personal data and team data kept separate?
+
+Workflows are isolated per **workspace**. A personal workspace is auto-created on signup; team workspaces extend that with role-based access (RBAC). Check which workspace you're in via the user section at the bottom of the sidebar.
+
+## Q16. What's the difference between the Authentication and LLM Config menus?
+
+They cover opposite directions. **Authentication** issues and manages the auth methods (API Key, Bearer Token, Basic Auth) that **external callers** use to invoke your triggers or API. **LLM Config** stores the LLM providers (OpenAI, Anthropic, local, …) your AI nodes **call out to**, along with default models and parameters. "Incoming requests" and "outgoing calls" are different flows, which is why the menus are split. See [Managing integrations](/docs/06-integrations-and-config/integration-management) and [LLM configuration](/docs/06-integrations-and-config/llm-config) for the full flows.
+
+## Q17. How do I choose between Knowledge Base Vector mode and Graph mode?
+
+**Vector** is the default — chunk embeddings plus cosine-similarity retrieval, which is fast and cheap and is enough for most FAQ and document search. **Graph mode** also runs an LLM over each document to extract **entities and relations**, and queries combine graph traversal with vector search. It excels when the answer hinges on relationships between people, organizations, or events, but ingestion costs more time and tokens. The mode is fixed at collection creation; to switch, create a new collection and move documents over. See [Knowledge Base — Vector mode vs Graph mode](/docs/06-integrations-and-config/knowledge-base) for the full comparison.
+
+## Q18. How do I let an AI Agent call an external tool — e.g. an internal search engine?
+
+For **workflow-internal nodes**, drop them onto the canvas's Tool Area. For **external systems** (internal search, Slack, GitHub, etc.), connect them via an **MCP server**. Register the server under `/integrations`, then add it to the AI Agent's `MCP Servers` field. The LLM will then call the server's tools automatically. See [MCP server integration](/docs/06-integrations-and-config/mcp-servers).
+
+## Q19. What's the difference between the AI Assistant and the AI Agent node?
+
+They sound similar but live in different places and play different roles.
+
+- The **AI Assistant** is an **in-editor chat companion**. Open it with `Cmd/Ctrl + /` and ask in natural language; it adds and edits nodes on the canvas for you. It's the feature you use to *build* a workflow. Full guide: [AI Assistant overview](/docs/03-workflow-editor/overview).
+- The **AI Agent node** is an **LLM call that runs inside a workflow**. You drop it on the canvas and configure the system prompt, user prompt, RAG, and tools — at run time it calls the LLM and produces an answer. It's a *part* of a workflow. Field reference: [AI nodes](/docs/02-nodes/ai).
+
+The two are complementary: workflows the Assistant builds for you may include AI Agent nodes.
+
+## Tips & notes
+
+- If your question isn't here, start with the [Run & debug](/docs/05-run-and-debug/running-a-workflow) section — most operational issues are covered there.
+- For expression issues, follow [Expression basics](/docs/04-expression-language/basics) → [Variables and context](/docs/04-expression-language/variables-and-context).
+- Power-user tip: the execution engine respects node dependencies and iterates via container nodes (Loop, ForEach, Map). When flow gets complex, the timeline in the run results is your best debugging friend — check per-node input and output.

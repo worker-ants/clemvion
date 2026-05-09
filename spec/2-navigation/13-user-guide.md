@@ -25,20 +25,24 @@
 │   ├── ai                 # AI 노드
 │   ├── integrations       # Integration 노드
 │   └── presentation       # Presentation 노드
-├── 03-expression-language/
+├── 03-workflow-editor/
+│   ├── overview           # AI 어시스턴트 개요 (UI · 대화 루프 · 도구 · 세션 · v1 한계 · 오류)
+│   └── walkthrough        # AI 어시스턴트 직접 써 보기 (자연어 → 4-노드 워크플로우)
+├── 04-expression-language/
 │   ├── basics             # 표현식 기본
 │   ├── variables-and-context  # 변수·컨텍스트
 │   └── cheatsheet         # 요약 치트시트
-├── 04-run-and-debug/
+├── 05-run-and-debug/
 │   ├── running-a-workflow # 실행 방법
 │   ├── run-results        # 실행 이력 조회
 │   ├── error-handling     # 에러 정책
 │   └── version-history    # 버전 히스토리
-├── 05-integrations-and-config/
+├── 06-integrations-and-config/
 │   ├── integration-management  # 통합 관리
 │   ├── llm-config             # LLM 설정
-│   └── knowledge-base         # 지식 저장소
-└── 06-faq/
+│   ├── knowledge-base         # 지식 저장소
+│   └── mcp-servers            # MCP 서버 통합 (AI Agent 도구 호출용)
+└── 07-faq/
     └── faq
 ```
 

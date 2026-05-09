@@ -169,7 +169,10 @@ Inside the body you can reference `$item`, `$itemIndex`, `$item.isFirst`, `$item
   {name: "strictComparison", required: false, type: "boolean", description: "Strict type comparison mode.", default: "false"}
 ]} />
 
-Output ports are `match` (items that satisfy the conditions) and `unmatched` (items that don't).
+### Ports
+
+- `match` — array of items that satisfy the conditions.
+- `unmatched` — array of items that don't. Even with zero matches the array is emitted as `[]`, so both ports are always active.
 
 ### Example
 
@@ -396,6 +399,6 @@ After a server restart, BullMQ's default retry policy re-attempts pending backgr
 
 ## Tips & notes
 
-- How to work with arrays and objects inside expressions is covered in the [Expression cheatsheet](/docs/03-expression-language/cheatsheet).
-- Variable scope and `$var` usage live in [Variables and context](/docs/03-expression-language/variables-and-context).
+- How to work with arrays and objects inside expressions is covered in the [Expression cheatsheet](/docs/04-expression-language/cheatsheet).
+- Variable scope and `$var` usage live in [Variables and context](/docs/04-expression-language/variables-and-context).
 - Power-user tip: ForEach returns an array of the iterated items themselves; Map returns an array of transformed items. Reach for ForEach when you're doing side-effectful work per item, Map when your goal is the transformed array.

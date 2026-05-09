@@ -48,9 +48,41 @@ Hello, {{ $input.firstName }} {{ $input.lastName }}!
 ```
 </Example>
 
-<Example title="Lowercase and trim">
+<Example title="Lowercase, uppercase, trim">
 ```ts
 {{ lowercase(trim($input.email)) }}
+{{ uppercase($input.code) }}
+```
+</Example>
+
+<Example title="Contains · prefix · suffix">
+```ts
+{{ contains($input.subject, "URGENT") }}
+{{ startsWith($input.path, "/api/") }}
+{{ endsWith($input.fileName, ".pdf") }}
+```
+</Example>
+
+<Example title="Replace · split · substring">
+```ts
+{{ replace($input.text, "old", "new") }}
+{{ replaceAll($input.csv, ",", " | ") }}
+{{ split($input.path, "/") }}
+{{ substring($input.summary, 0, 100) }}
+```
+</Example>
+
+<Example title="Padding (zero-padding etc.)">
+```ts
+{{ padStart(toString($input.day), 2, "0") }}
+{{ padEnd($input.label, 10, " ") }}
+```
+</Example>
+
+<Example title="String / array length">
+```ts
+{{ length($input.title) }}
+{{ length($input.items) }}
 ```
 </Example>
 
@@ -83,6 +115,14 @@ Hello, {{ $input.firstName }} {{ $input.lastName }}!
 ```
 </Example>
 
+<Example title="Reverse · single-level flatten · concat two arrays">
+```ts
+{{ reverse($input.history) }}
+{{ flatten($input.groupedItems) }}
+{{ concat($input.list1, $input.list2) }}
+```
+</Example>
+
 ## Field defaults · safe access
 
 <Example title="Null-safe access (ternary)">
@@ -110,11 +150,28 @@ Hello, {{ $input.firstName }} {{ $input.lastName }}!
 ```
 </Example>
 
+<Example title="Object keys · values · entries · key existence">
+```ts
+{{ keys($input.flags) }}
+{{ values($input.scores) }}
+{{ entries($input.config) }}
+{{ hasKey($input, "userId") }}
+```
+</Example>
+
 ## Date formatting
 
 <Example title="ISO string → human-readable">
 ```ts
 {{ formatDate($input.createdAt, "YYYY-MM-DD HH:mm") }}
+```
+</Example>
+
+<Example title="Current time · today's date · parse arbitrary string">
+```ts
+{{ now() }}
+{{ today() }}
+{{ parseDate($input.dateString) }}
 ```
 </Example>
 
@@ -148,6 +205,14 @@ report-{{ formatDate($now, "YYYY-MM-DD") }}.csv
 ```
 </Example>
 
+<Example title="Ceil · floor · random">
+```ts
+{{ ceil($input.itemCount / 10) }}
+{{ floor($input.score) }}
+{{ random() }}
+```
+</Example>
+
 <Example title="Min · max · abs">
 ```ts
 {{ min($input.a, $input.b, 100) }}
@@ -172,9 +237,18 @@ report-{{ formatDate($now, "YYYY-MM-DD") }}.csv
 ```
 </Example>
 
-<Example title="Check a type">
+<Example title="To string · number · boolean">
+```ts
+{{ toString($input.id) }}
+{{ toNumber($input.priceStr) }}
+{{ toBoolean($input.flag) }}
+```
+</Example>
+
+<Example title="Check a type · null/undefined check">
 ```ts
 {{ typeOf($input.value) == "array" }}
+{{ isNull($input.optionalField) ? "(missing)" : $input.optionalField }}
 ```
 </Example>
 
@@ -201,6 +275,6 @@ Execution ID: {{ $execution.id }}
 
 ## Tips & notes
 
-- Full syntax and operator precedence: [Expression basics](/docs/03-expression-language/basics).
-- List of reference variables: [Variables and context](/docs/03-expression-language/variables-and-context).
-- When an expression fails, the node fails. Recovery strategies: [Error handling](/docs/04-run-and-debug/error-handling).
+- Full syntax and operator precedence: [Expression basics](/docs/04-expression-language/basics).
+- List of reference variables: [Variables and context](/docs/04-expression-language/variables-and-context).
+- When an expression fails, the node fails. Recovery strategies: [Error handling](/docs/05-run-and-debug/error-handling).
