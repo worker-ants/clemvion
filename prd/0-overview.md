@@ -69,29 +69,28 @@ Clemvion은 AI 에이전트와 노코드 워크플로우 빌더를 통합한 실
 |------|-----------|
 | **내비게이션** | 대시보드, 워크플로우 목록, 트리거 목록, 스케줄, 통합, Knowledge Base, LLM 설정, 인증 설정, 통계, 사용자 매뉴얼(/docs), 사용자 프로필 |
 | **워크플로우 에디터** | 캔버스 기반 노드 편집, 엣지 연결, 실행·디버깅, 버전 히스토리 |
-| **노드 시스템** | Trigger(Manual), Logic(If/Else·Switch·Loop·ForEach·Map·Split·Merge·Parallel·Variable Decl/Mod), Flow(Workflow), AI(AI Agent·Text Classifier·Information Extractor), Integration(HTTP·Database·Send Email), Data(Transform·Code), Presentation(Carousel·Chart·Form·Table·Template) |
+| **노드 시스템** | Trigger(Manual), Logic(If/Else·Switch·Loop·ForEach·Map·Filter·Split·Merge·Parallel·Background·Variable Decl/Mod), Flow(Workflow), AI(AI Agent·Text Classifier·Information Extractor), Integration(HTTP·Database·Send Email), Data(Transform·Code), Presentation(Carousel·Chart·Form·Table·Template) |
 | **AI 플랫폼** | LLM Config(프로바이더·모델·API Key), Knowledge Base(문서 업로드·임베딩·RAG 검색) |
-| **시스템** | 인증/인가(개인 워크스페이스), REST API, 에러 처리, 표현식 엔진(`{{ }}`), 실행 엔진(Redis 큐 + 워커 풀), WebSocket 실시간 상태, Webhook 수신, 실행 이력 |
+| **Workflow AI Assistant** | 에디터 내 채팅형 AI로 자연어 요청 → 노드·엣지 자동 구성. Clarify → Plan → Execute 3단계 대화 루프, SSE 스트리밍, 세션 영속. 상세: [PRD 2 §10](./2-workflow-editor.md#10-ai-assistant-ed-ai-), [PRD 6 §3.6](./6-phase2-ai.md#36-workflow-ai-assistant). |
+| **팀 워크스페이스·RBAC** | 데이터 모델(`Workspace.type = personal \| team`, `WorkspaceMember.role`) + 백엔드 모듈(`backend/src/modules/workspaces`) + 프런트엔드 UI(워크스페이스 전환, 멤버 초대·역할·소유권 이전). 회원가입 시 개인 워크스페이스가 자동 생성되고 `X-Workspace-Id`는 서버가 자동 매핑한다. |
+| **시스템** | 인증/인가(개인·팀 워크스페이스), REST API, 에러 처리, 표현식 엔진(`{{ }}`), 실행 엔진(Redis 큐 + 워커 풀, 분산 continuation bus), WebSocket 실시간 상태, Webhook 수신, 실행 이력 |
 
 ### 6.2 백엔드만 존재 / 부분 구현 (🚧)
 
 | 영역 | 상태 |
 |------|------|
 | **Parallel 노드 (P1)** | `PARALLEL_ENGINE=v1` 환경변수로 활성화하면 `ParallelExecutor`가 `p-limit` + `Promise.allSettled`로 분기를 동시 실행한다(off 시 기존 순차 동작). branchCount(2~16), maxConcurrency(0=무제한, 1~16) 지원. 분기 내 블로킹 노드·back-edge·중첩 Parallel은 금지. Merge `wait_all` 조합으로 결과 합산 가능. P2에서 중첩 Parallel과 waitAll=false를 추가할 예정이다. |
-| **팀 워크스페이스·RBAC** | 데이터 모델(`Workspace.type = personal \| team`, `WorkspaceMember.role`)과 백엔드 모듈(`backend/src/modules/workspaces`)은 존재하지만, 프런트엔드 UI(전환·멤버 초대)는 아직 활성화되지 않았다. 회원가입 시 개인 워크스페이스가 자동 생성되고 `X-Workspace-Id`는 서버가 자동 매핑한다. |
-| **조직 레벨 Integration 공유** | 팀 워크스페이스 UI와 함께 연계될 예정이다. |
+| **조직 레벨 Integration 공유** | 팀 워크스페이스 단위 Integration 공유는 후속 단계에서 도입 예정이다. |
 
 ### 6.3 로드맵 / 미구현 (❌)
 
 | 영역 | 내용 |
 |------|------|
-| **Workflow AI Assistant** | 에디터 내 채팅형 AI로 자연어 요청 → 노드·엣지 자동 구성. Clarify → Plan → Execute 3단계 대화 루프, SSE 스트리밍, 세션 영속. 상세: [PRD 2 §10](./2-workflow-editor.md#10-ai-assistant-ed-ai-), [PRD 6 §3.6](./6-phase2-ai.md#36-workflow-ai-assistant). |
 | **Graph RAG** | 기존 vector RAG 위에 entity/relation 그래프 검색을 더한 모드. KB 생성 시 모드를 선택해 점진 도입. 상세: [PRD 9](./9-graph-rag.md). |
-| **Logic 확장 노드** | Parallel P2(중첩 Parallel, waitAll=false). Background 노드는 구현 완료. |
+| **Logic 확장 노드** | Parallel P2(중첩 Parallel, waitAll=false). |
 | **마켓플레이스** | 워크플로우 템플릿·AI Agent 프리셋·Integration 플러그인·커스텀 노드 게시 기능. |
 | **배포 자동화 확장** | 공식 Docker/Kubernetes 배포 가이드, 셀프 호스팅 번들. |
 | **확장 SDK** | 노드 플러그인 SDK, 외부 커스텀 노드 개발/게시. |
-| **문서 내 검색** | `/docs`의 검색 UI. 콘텐츠 규모가 커지면 도입한다. |
 
 ---
 
@@ -139,7 +138,7 @@ spec/
 ├── 2-navigation/          — 내비게이션 화면별 상세 스펙
 │   └── 10-auth-flow.md    — 인증 UI 플로우 (로그인/가입/비밀번호 재설정)
 ├── 3-workflow-editor/     — 에디터 상세 스펙
-│   └── 4-ai-assistant.md  — Workflow AI Assistant 상세 (로드맵)
+│   └── 4-ai-assistant.md  — Workflow AI Assistant 상세
 ├── 4-nodes/               — 노드별 상세 스펙
 │   ├── 0-overview.md      — 노드 아키텍처/목록 개요
 │   ├── 1-logic/           — Logic 카테고리 (12 노드 + 0-common.md)

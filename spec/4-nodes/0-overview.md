@@ -149,7 +149,7 @@ backend/src/nodes/
 | `foreach` | ForEach | 🔁 **컨테이너** | 1+`emit` | 2 (body/done) | 대상 배열, 에러 정책 |
 | `parallel` | Parallel | ⚡ | 1 | N | 분기 수 |
 | `merge` | Merge | 🔗 | N | 1 | 병합 전략 |
-| `background` | Background | 🌙 **컨테이너** | 1 | 2 (main/bg) | 알림 설정 · _🚧 미구현 (spec-only; frontend/backend 핸들러 없음)_ |
+| `background` | Background | 🌙 **컨테이너** | 1 | 2 (main/bg) | 알림 설정 |
 
 ### 2.2 Flow 노드 (1종)
 
