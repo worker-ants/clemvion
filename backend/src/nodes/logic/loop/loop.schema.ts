@@ -140,6 +140,7 @@ export const loopNodeMetadata: NodeComponentMetadata = {
   icon: 'Repeat',
   color: '#3B82F6',
   isContainer: true,
+  executionMetadata: { kind: 'container' },
   // SSOT for warnings (frontend canvas + backend handler.validate).
   // Mirror points:
   //  - frontend `loopSummary` warning ("Count not set")

@@ -170,6 +170,7 @@ export const workflowNodeMetadata: NodeComponentMetadata = {
   description: 'Call another workflow',
   icon: 'Workflow',
   color: '#8B5CF6',
+  executionMetadata: { kind: 'standard' },
   // SSOT for warnings (frontend canvas + backend handler.validate).
   // Mirror points:
   //  - frontend `workflowSummary` warning ("Workflow not selected")

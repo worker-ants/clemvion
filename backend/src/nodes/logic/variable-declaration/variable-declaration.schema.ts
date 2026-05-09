@@ -105,6 +105,7 @@ export const variableDeclarationNodeMetadata: NodeComponentMetadata = {
   description: 'Declare variables',
   icon: 'Variable',
   color: '#3B82F6',
+  executionMetadata: { kind: 'standard' },
   // SSOT for warnings (frontend canvas + backend handler.validate).
   // Mirror points:
   //  - frontend `variableDeclarationSummary` warning ("No variables defined" —

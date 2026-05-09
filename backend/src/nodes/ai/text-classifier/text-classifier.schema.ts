@@ -181,6 +181,7 @@ export const textClassifierNodeMetadata: NodeComponentMetadata = {
   description: 'Classify text into categories',
   icon: 'Tags',
   color: '#10B981',
+  executionMetadata: { kind: 'standard' },
   isDynamicPorts: true,
   dynamicPorts: {
     kind: 'classifier-categories',

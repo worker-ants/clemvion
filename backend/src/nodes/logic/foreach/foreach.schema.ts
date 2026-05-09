@@ -66,6 +66,7 @@ export const foreachNodeMetadata: NodeComponentMetadata = {
   icon: 'ListOrdered',
   color: '#3B82F6',
   isContainer: true,
+  executionMetadata: { kind: 'container' },
   // SSOT for warnings (frontend canvas + backend handler.validate).
   // Mirror points:
   //  - frontend `foreachSummary` warning ("Array field not set")

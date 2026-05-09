@@ -135,6 +135,7 @@ export const templateNodeMetadata: NodeComponentMetadata = {
   description: 'Render templates',
   icon: 'FileText',
   color: '#EC4899',
+  executionMetadata: { kind: 'standard' },
   isDynamicPorts: true,
   dynamicPorts: {
     kind: 'presentation-buttons',

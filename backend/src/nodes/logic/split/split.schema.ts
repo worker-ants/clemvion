@@ -57,6 +57,7 @@ export const splitNodeMetadata: NodeComponentMetadata = {
   description: 'Split array items',
   icon: 'Split',
   color: '#3B82F6',
+  executionMetadata: { kind: 'standard' },
   // `summaryTemplate.warnWhen` retained for backward compat — `warningRules`
   // is the new SSOT.
   summaryTemplate: {

@@ -130,6 +130,7 @@ export const variableModificationNodeMetadata: NodeComponentMetadata = {
   description: 'Modify variables',
   icon: 'PenLine',
   color: '#3B82F6',
+  executionMetadata: { kind: 'standard' },
   // SSOT for warnings (frontend canvas + backend handler.validate).
   // Mirror points:
   //  - frontend `variableModificationSummary` warning ("Variable not selected"

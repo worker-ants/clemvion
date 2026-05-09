@@ -162,6 +162,7 @@ export const formNodeMetadata: NodeComponentMetadata = {
   description: 'User input form',
   icon: 'FileInput',
   color: '#EC4899',
+  executionMetadata: { kind: 'blocking', interaction: 'form' },
   // SSOT for warnings (frontend canvas + backend handler.validate).
   // Mirror points:
   //  - frontend `formSummary` warning (no fields)

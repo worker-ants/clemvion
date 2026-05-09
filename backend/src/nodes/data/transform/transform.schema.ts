@@ -222,6 +222,7 @@ export const transformNodeMetadata: NodeComponentMetadata = {
   description: 'Transform data',
   icon: 'ArrowRightLeft',
   color: '#06B6D4',
+  executionMetadata: { kind: 'standard' },
   // `summaryTemplate.warnWhen` retained for backward compat — `warningRules`
   // is the new SSOT.
   summaryTemplate: {

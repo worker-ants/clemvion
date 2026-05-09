@@ -66,6 +66,7 @@ export const mapNodeMetadata: NodeComponentMetadata = {
   icon: 'Map',
   color: '#3B82F6',
   isContainer: true,
+  executionMetadata: { kind: 'container' },
   // `summaryTemplate.warnWhen` retained for backward compat — `warningRules`
   // is the new SSOT.
   summaryTemplate: {
