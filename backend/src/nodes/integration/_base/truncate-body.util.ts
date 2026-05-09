@@ -10,6 +10,14 @@ export interface TruncatedBody {
 }
 
 const DEFAULT_MAX_BYTES = 256 * 1024;
+/**
+ * Cap for Presentation node array fields (Carousel `items`, Table `rows`).
+ * 4× the integration-handler cap because Presentation nodes are user-visible
+ * surfaces — a single user-authored carousel with rich items legitimately
+ * exceeds 256KB, but ≥1MB is a runaway-data signal rather than expected
+ * payload. Keeps DB JSONB rows and WebSocket frames bounded.
+ */
+export const PRESENTATION_MAX_BYTES = 1024 * 1024;
 
 /**
  * Cap an arbitrary body value at `maxBytes` UTF-8 bytes for inclusion on
@@ -78,6 +86,70 @@ export function truncateBodyForOutput(
   // Numbers / booleans / bigints — return as-is (their string forms are
   // bounded; truncation isn't meaningful).
   return { value, truncated: false };
+}
+
+/**
+ * Shape-preserving array cap for Presentation node outputs (Carousel `items`,
+ * Table `rows`). Drops elements from the tail until the JSON-serialized
+ * payload fits within `maxBytes`. Unlike {@link truncateBodyForOutput}, this
+ * always returns an array so downstream programmatic access
+ * (`$node["X"].output.items[i]`, ForEach/Map iteration) keeps working — just
+ * with fewer entries and a `*Truncated: true` flag from the caller.
+ *
+ * Decided 2026-05-09: 1MB cap (b) for Presentation nodes
+ * (`plan/in-progress/engine-raw-config-followups.md` Follow-up 2).
+ */
+export interface TruncatedArray<T> {
+  value: T[];
+  truncated: boolean;
+  /** Element count before truncation — surfaced so downstream observers can
+   * compute `droppedCount = originalLength - value.length`. */
+  originalLength: number;
+}
+
+export function truncateArrayForOutput<T>(
+  arr: T[],
+  maxBytes: number = PRESENTATION_MAX_BYTES,
+): TruncatedArray<T> {
+  if (!Array.isArray(arr)) {
+    return { value: [] as T[], truncated: false, originalLength: 0 };
+  }
+  if (arr.length === 0) {
+    return { value: arr, truncated: false, originalLength: 0 };
+  }
+  const measure = (slice: T[]): number => {
+    let serialized: string | undefined;
+    try {
+      serialized = JSON.stringify(slice);
+    } catch {
+      // Cyclic / unserializable element — treat as oversize so the binary
+      // search lands on the largest still-serializable prefix.
+      return Number.POSITIVE_INFINITY;
+    }
+    return serialized === undefined
+      ? Number.POSITIVE_INFINITY
+      : Buffer.byteLength(serialized, 'utf8');
+  };
+  if (measure(arr) <= maxBytes) {
+    return { value: arr, truncated: false, originalLength: arr.length };
+  }
+  // Binary search the largest prefix length that fits the byte budget.
+  let lo = 0;
+  let hi = arr.length;
+  while (lo < hi) {
+    // Ceiling midpoint so the loop converges on the largest fitting prefix.
+    const mid = Math.floor((lo + hi + 1) / 2);
+    if (measure(arr.slice(0, mid)) <= maxBytes) {
+      lo = mid;
+    } else {
+      hi = mid - 1;
+    }
+  }
+  return {
+    value: arr.slice(0, lo),
+    truncated: true,
+    originalLength: arr.length,
+  };
 }
 
 function capString(input: string, maxBytes: number): TruncatedBody {

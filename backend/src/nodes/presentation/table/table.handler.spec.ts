@@ -746,4 +746,64 @@ describe('TableHandler', () => {
       expect(out.columns).toEqual(evaluatedColumns);
     });
   });
+
+  describe('output cap (PRESENTATION_MAX_BYTES = 1MB)', () => {
+    it('passes through rows unchanged when payload is under 1MB', async () => {
+      const result = (await handler.execute(
+        [
+          { name: 'Alice', age: 30 },
+          { name: 'Bob', age: 25 },
+        ],
+        {
+          mode: 'dynamic',
+          columns: [
+            { field: 'name', label: 'Name' },
+            { field: 'age', label: 'Age' },
+          ],
+        },
+        context,
+      )) as Record<string, unknown>;
+
+      const out = result.output as Record<string, unknown>;
+      expect((out.rows as unknown[]).length).toBe(2);
+      expect(out.rowsTruncated).toBeUndefined();
+      expect(out.rowsTotalCount).toBeUndefined();
+      // totalRows always reflects the post-pageSize/sort dataset count.
+      expect(out.totalRows).toBe(2);
+    });
+
+    it('truncates rows and surfaces rowsTruncated flag when payload exceeds 1MB', async () => {
+      const heavy = 'y'.repeat(200 * 1024);
+      const sourceRows = Array.from({ length: 6 }, (_, i) => ({
+        idx: i,
+        blob: heavy,
+      }));
+
+      const result = (await handler.execute(
+        sourceRows,
+        {
+          mode: 'dynamic',
+          columns: [
+            { field: 'idx', label: 'Idx' },
+            { field: 'blob', label: 'Blob' },
+          ],
+        },
+        context,
+      )) as Record<string, unknown>;
+
+      const out = result.output as Record<string, unknown>;
+      expect(out.rowsTruncated).toBe(true);
+      expect(out.rowsTotalCount).toBe(6);
+      // totalRows reflects the full dataset size (pre-cap) so observers see
+      // the mismatch even without diffing rows.length.
+      expect(out.totalRows).toBe(6);
+      const rows = out.rows as Array<Record<string, unknown>>;
+      expect(Array.isArray(rows)).toBe(true);
+      expect(rows.length).toBeLessThan(6);
+      expect(rows.length).toBeGreaterThan(0);
+      expect(
+        Buffer.byteLength(JSON.stringify(rows), 'utf8'),
+      ).toBeLessThanOrEqual(1024 * 1024);
+    });
+  });
 });
