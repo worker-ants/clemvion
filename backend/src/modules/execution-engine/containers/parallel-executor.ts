@@ -71,6 +71,19 @@ export class ParallelExecutor {
             // 넘어 쓰면 last-write-wins 비결정성 발생. structuredClone 으로
             // deep clone 하여 브랜치 간 격리.
             variables: structuredClone(context.variables),
+            // INFO #9 (Concurrency) — `nodeOutputCache` / `structuredOutputCache` 의
+            // **shallow copy**. 현재 spec 상 parallel 의 각 branch 는 배타적 노드
+            // 집합 (서로 다른 nodeId 들) 을 갖도록 강제되므로 (planParallelBody +
+            // CONTAINER_INVALID_CHILD 검증) 같은 키 충돌은 발생할 수 없지만,
+            // 향후 sub-workflow 가 branch 안에서 부모와 같은 nodeId 를 가질
+            // 가능성에 대비해 top-level reference 를 분리해 last-write-wins 를
+            // 컴파일 타임 차단한다. 값 객체는 여전히 공유 (deep clone 비용 회피)
+            // — branch 가 cache 값의 내부를 mutate 하면 안 된다는 invariant 는
+            // node-handler.interface.ts 의 ExecutionContext JSDoc 에 명시.
+            nodeOutputCache: { ...context.nodeOutputCache },
+            structuredOutputCache: context.structuredOutputCache
+              ? { ...context.structuredOutputCache }
+              : undefined,
             itemContext: undefined,
             loopContext: undefined,
           };

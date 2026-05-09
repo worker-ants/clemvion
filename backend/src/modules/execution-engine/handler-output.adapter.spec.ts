@@ -45,6 +45,47 @@ describe('adaptHandlerReturn', () => {
       });
       expect(result._resumeState).toBe(resumeState);
     });
+
+    // INFO #5 (Security) — boundary 자동 마스킹.
+    it('masks credential-like keys in echoed config', () => {
+      const result = adaptHandlerReturn({
+        config: {
+          model: 'gpt-4',
+          apiKey: 'sk-secret-1234567890',
+          headers: {
+            Authorization: 'Bearer xyz-token-abcdef',
+            'x-trace-id': 'trace-1',
+          },
+          nested: { password: 'p@ssw0rd', other: 'public' },
+        },
+        output: { ok: true },
+      });
+      const cfg = result.config;
+      // 일반 필드는 그대로 통과
+      expect(cfg.model).toBe('gpt-4');
+      // top-level credential 마스킹
+      expect(cfg.apiKey).toBe('****7890');
+      // 중첩 credential 마스킹
+      const headers = cfg.headers as Record<string, string>;
+      expect(headers.Authorization).toBe('****cdef');
+      expect(headers['x-trace-id']).toBe('trace-1');
+      const nested = cfg.nested as Record<string, string>;
+      expect(nested.password).toBe('****w0rd');
+      expect(nested.other).toBe('public');
+    });
+
+    it('masks non-string credential values as ****', () => {
+      const result = adaptHandlerReturn({
+        config: {
+          token: { complex: 'object' },
+          secret: 12345,
+        },
+        output: {},
+      });
+      const cfg = result.config;
+      expect(cfg.token).toBe('****');
+      expect(cfg.secret).toBe('****');
+    });
   });
 
   describe('production-strict mode (NODE_ENV=production)', () => {
