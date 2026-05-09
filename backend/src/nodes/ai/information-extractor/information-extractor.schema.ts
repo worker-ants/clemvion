@@ -253,6 +253,7 @@ export const informationExtractorNodeMetadata: NodeComponentMetadata = {
   description: 'Extract structured data from text',
   icon: 'FileSearch',
   color: '#10B981',
+  executionMetadata: { kind: 'standard' },
   isDynamicPorts: true,
   dynamicPorts: {
     kind: 'info-extractor-mode',

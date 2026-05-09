@@ -144,6 +144,7 @@ export const filterNodeMetadata: NodeComponentMetadata = {
   description: 'Filter array by conditions',
   icon: 'Filter',
   color: '#3B82F6',
+  executionMetadata: { kind: 'standard' },
   // SSOT for warnings (frontend canvas + backend handler.validate).
   // Mirror points:
   //  - frontend `filterSummary` warning ("Input field not set")

@@ -146,6 +146,7 @@ export const databaseQueryNodeMetadata: NodeComponentMetadata = {
   description: 'Execute SQL queries',
   icon: 'Database',
   color: '#F97316',
+  executionMetadata: { kind: 'standard' },
   // SSOT for warnings (frontend canvas + backend handler.validate).
   // Mirror points:
   //  - frontend `databaseQuerySummary` warning ("Query not set")

@@ -211,6 +211,7 @@ export const httpRequestNodeMetadata: NodeComponentMetadata = {
   description: 'Make HTTP requests',
   icon: 'Globe',
   color: '#F97316',
+  executionMetadata: { kind: 'standard' },
   // `summaryTemplate.warnWhen` retained for backward compat — `warningRules`
   // is the new SSOT.
   summaryTemplate: {

@@ -175,6 +175,7 @@ export const switchNodeMetadata: NodeComponentMetadata = {
   description: 'Multi-path branching',
   icon: 'Route',
   color: '#3B82F6',
+  executionMetadata: { kind: 'standard' },
   isDynamicPorts: true,
   dynamicPorts: { kind: 'switch-cases' },
   // `summaryTemplate.warnWhen` retained for backward compat — `warningRules`

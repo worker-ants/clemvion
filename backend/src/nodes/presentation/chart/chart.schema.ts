@@ -139,6 +139,7 @@ export const chartMetadata: NodeComponentMetadata = {
   description: 'Visualize as chart',
   icon: 'BarChart3',
   color: '#EC4899',
+  executionMetadata: { kind: 'standard' },
   isContainer: false,
   isDynamicPorts: true,
   dynamicPorts: {

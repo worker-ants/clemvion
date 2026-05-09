@@ -125,6 +125,7 @@ export const parallelNodeMetadata: NodeComponentMetadata = {
     'Fan-out input to N branches. PARALLEL_ENGINE=v1 일 때 각 분기가 동시 실행되며, 그렇지 않으면 토폴로지 순서로 순차 진행됩니다.',
   icon: 'Split',
   color: '#3B82F6',
+  executionMetadata: { kind: 'parallel' },
   isDynamicPorts: true,
   dynamicPorts: { kind: 'parallel-branches' },
   summaryTemplate: '{{branchCount}} branches',

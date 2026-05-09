@@ -71,6 +71,7 @@ export const mergeNodeMetadata: NodeComponentMetadata = {
   description: 'Combine inputs',
   icon: 'Merge',
   color: '#3B82F6',
+  executionMetadata: { kind: 'standard' },
   // SSOT for warnings (frontend canvas + backend handler.validate).
   // Mirror points:
   //  - frontend `mergeSummary` warnings ("Strategy not set"). NOTE: the

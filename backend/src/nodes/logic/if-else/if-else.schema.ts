@@ -143,6 +143,7 @@ export const ifElseMetadata: NodeComponentMetadata = {
   description: 'Conditional branching',
   icon: 'GitBranch',
   color: '#3B82F6',
+  executionMetadata: { kind: 'standard' },
   // SSOT for warnings (frontend canvas + backend handler.validate).
   // Mirror points:
   //  - frontend `ifElseSummary` warning ("Condition not set" — fires when

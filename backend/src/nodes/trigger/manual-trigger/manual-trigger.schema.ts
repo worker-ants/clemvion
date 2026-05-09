@@ -74,4 +74,5 @@ export const manualTriggerMetadata: NodeComponentMetadata = {
   description: 'Start point for manual workflow execution',
   icon: 'Zap',
   color: '#F59E0B',
+  executionMetadata: { kind: 'trigger' },
 };

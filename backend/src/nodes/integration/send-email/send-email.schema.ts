@@ -218,6 +218,7 @@ export const sendEmailNodeMetadata: NodeComponentMetadata = {
   description: 'Send emails via SMTP',
   icon: 'Mail',
   color: '#F97316',
+  executionMetadata: { kind: 'standard' },
   // SSOT for warnings (frontend canvas + backend handler.validate).
   // Mirror points:
   //  - frontend `sendEmailSummary` warning ("Recipient not set" — covered

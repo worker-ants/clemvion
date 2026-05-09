@@ -65,4 +65,5 @@ export const backgroundNodeMetadata: NodeComponentMetadata = {
     'Run downstream branch in background without blocking the main flow',
   icon: 'Layers',
   color: '#8B5CF6',
+  executionMetadata: { kind: 'background' },
 };

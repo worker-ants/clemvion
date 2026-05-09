@@ -97,6 +97,7 @@ export const codeNodeMetadata: NodeComponentMetadata = {
   description: 'Run JavaScript code',
   icon: 'Code',
   color: '#06B6D4',
+  executionMetadata: { kind: 'standard' },
   // SSOT for warnings (frontend canvas + backend handler.validate).
   // Mirror points:
   //  - frontend `codeSummary` warning ("Code not written")

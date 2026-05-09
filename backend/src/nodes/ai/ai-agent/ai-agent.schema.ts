@@ -459,6 +459,7 @@ export const aiAgentNodeMetadata: NodeComponentMetadata = {
   description: 'Chat with LLM using KB search and MCP server tools',
   icon: 'Brain',
   color: '#10B981',
+  executionMetadata: { kind: 'standard' },
   isDynamicPorts: true,
   dynamicPorts: {
     kind: 'ai-agent-conditional',
