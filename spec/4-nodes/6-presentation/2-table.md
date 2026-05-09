@@ -74,7 +74,7 @@ column의 `field`/`label`에서 `{{ }}` 표현식을 사용할 때 다음 변수
 
 ## 4. 출력 형식
 
-[공통 §4 출력 포맷](./0-common.md#4-출력-포맷-principle-11--43--45) 참조. `output` 에는 per-row 필터링/표현식 평가의 런타임 결과인 `rows`, 그 페이지 길이 `totalRows`, 렌더링된 HTML `rendered` 만 담는다.
+[공통 §4 출력 포맷](./0-common.md#4-출력-포맷-principle-11--43--45) 참조. `output` 에는 per-row 필터링/표현식 평가의 런타임 결과인 `rows`, 그 페이지 길이 `totalRows`, 렌더링된 HTML `rendered` 만 담는다. `output.rows` 는 [공통 §4 의 1MB cap](./0-common.md#4-출력-포맷-principle-11--43--45) 적용 대상이며 초과 시 `output.rowsTruncated: true` + `output.rowsTotalCount` (잘리기 전 행 수) 가 함께 포함된다. `totalRows` 는 cap 적용 전 전체 데이터셋 크기 (pageSize / sort 적용 후) 를 그대로 노출하므로, `rows.length !== totalRows` 만으로도 잘림을 감지할 수 있다.
 
 ```json
 {

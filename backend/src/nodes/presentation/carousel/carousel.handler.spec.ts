@@ -436,4 +436,52 @@ describe('CarouselHandler', () => {
       expect(result.output.rendered as string).toContain('&#39;');
     });
   });
+
+  describe('output cap (PRESENTATION_MAX_BYTES = 1MB)', () => {
+    it('passes through items unchanged when total payload is under 1MB', async () => {
+      const result = (await handler.execute(
+        null,
+        {
+          mode: 'static',
+          items: [
+            { title: 'A', description: 'short' },
+            { title: 'B', description: 'short' },
+          ],
+        },
+        context,
+      )) as Record<string, unknown>;
+
+      const items = result.output.items as Array<Record<string, unknown>>;
+      expect(items).toHaveLength(2);
+      expect(result.output.itemsTruncated).toBeUndefined();
+      expect(result.output.itemsTotalCount).toBeUndefined();
+    });
+
+    it('truncates items array and surfaces itemsTruncated flag when payload exceeds 1MB', async () => {
+      // Each item ~200KB → 6 items ≈ 1.2MB > 1MB cap; cap drops the tail
+      // and itemsTruncated must surface so downstream observers detect
+      // missing data without diff'ing array lengths.
+      const heavy = 'x'.repeat(200 * 1024);
+      const items = Array.from({ length: 6 }, (_, i) => ({
+        title: `T${i}`,
+        description: heavy,
+      }));
+
+      const result = (await handler.execute(
+        null,
+        { mode: 'static', items },
+        context,
+      )) as Record<string, unknown>;
+
+      expect(result.output.itemsTruncated).toBe(true);
+      expect(result.output.itemsTotalCount).toBe(6);
+      const echoed = result.output.items as Array<Record<string, unknown>>;
+      expect(Array.isArray(echoed)).toBe(true);
+      expect(echoed.length).toBeLessThan(6);
+      expect(echoed.length).toBeGreaterThan(0);
+      expect(
+        Buffer.byteLength(JSON.stringify(echoed), 'utf8'),
+      ).toBeLessThanOrEqual(1024 * 1024);
+    });
+  });
 });

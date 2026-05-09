@@ -9,6 +9,10 @@ import {
   ExpressionContext as EngineContext,
 } from '@workflow/expression-engine';
 import { getNestedValue } from '../../core/nested-value.util.js';
+import {
+  PRESENTATION_MAX_BYTES,
+  truncateArrayForOutput,
+} from '../../integration/_base/truncate-body.util.js';
 import { ButtonDef } from '../_shared/button.types.js';
 import { tableNodeMetadata } from './table.schema.js';
 
@@ -132,14 +136,23 @@ export class TableHandler implements NodeHandler {
     // resolved before dispatch). evaluated rows + resolved column labels
     // live in output.
     const rawConfig = context.rawConfig ?? config;
+    // Cap evaluated `rows` at the Presentation 1MB threshold. `totalRows`
+    // intentionally reports the full dataset count (post pageSize / sort)
+    // so downstream observers can detect the size mismatch even when the
+    // truncation flag is absent.
+    const cappedRows = truncateArrayForOutput(dataRows, PRESENTATION_MAX_BYTES);
     const payload: Record<string, unknown> = {
-      rows: dataRows,
+      rows: cappedRows.value,
       totalRows: dataRows.length,
       rendered,
       // Surface resolved (label-evaluated) columns on output for downstream
       // nodes that want the post-evaluation view.
       columns: resolvedColumns,
     };
+    if (cappedRows.truncated) {
+      payload.rowsTruncated = true;
+      payload.rowsTotalCount = cappedRows.originalLength;
+    }
     const configEcho: Record<string, unknown> = {
       mode: rawConfig.mode ?? mode,
       columns: rawConfig.columns ?? columns,

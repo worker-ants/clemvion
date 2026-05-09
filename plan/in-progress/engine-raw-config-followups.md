@@ -22,26 +22,33 @@
 - `spec/4-nodes/3-ai/1-ai-agent.md` §7 머리 — Principle 7 raw echo 정책 명시.
 - `spec/4-nodes/3-ai/3-information-extractor.md` §5 머리 — single/multi-turn waiting/ended 모두 raw echo 명시.
 
-## Follow-up 2 — Carousel / Table output 256KB cap
+## Follow-up 2 — Carousel / Table output 1MB cap — ✅ 완료 (2026-05-09)
 
-**현황** (2026-05-09 재확인):
-- `backend/src/nodes/integration/_base/truncate-body.util.ts:38` 의 `truncateBodyForOutput(value, maxBytes = 256 * 1024)` 헬퍼가 Send Email (`send-email.handler.ts:106`) · HTTP Request (`http-request.handler.ts:160`) 에 적용됨 (Phase 2). 그 외 호출처 없음.
-- Carousel / Table 핸들러는 cap 미적용 — 거대한 items / rows 가 그대로 echo 될 수 있다 (확인됨).
+**정책 결정**: (b) Presentation 노드는 1MB cap 적용 (사용자 가시 surface — integration 의 256KB 보다 4× 큰 한계 허용). 초과 시 array 형태 유지하면서 tail 부터 element 단위로 잘라낸 뒤 `*Truncated: true` + `*TotalCount` 플래그로 표면화.
 
-**왜 follow-up 인가**:
-- 현재 cap 미적용 상태에서도 동작 영향 없음 (NodeExecution.outputData JSONB 크기 한계 도달 전엔 무해).
-- 256KB cap 정책 자체가 Send Email · HTTP Request 의 wire-body 보호 목적으로 설계됨 — Presentation 노드에 그대로 적용할지는 별도 정책 결정 필요 (cap 시 사용자 경험 — items 가 잘리는 게 적절한가? bodyTruncated 표시는 Presentation UI 의 어디에?).
+**조치**:
+- `backend/src/nodes/integration/_base/truncate-body.util.ts` 에 `PRESENTATION_MAX_BYTES = 1024 * 1024` 상수와 `truncateArrayForOutput<T>(arr, maxBytes)` shape-preserving helper 추가 (binary-search tail-drop, cyclic element 안전 처리).
+- `backend/src/nodes/presentation/carousel/carousel.handler.ts` — `payload.items` 에 `truncateArrayForOutput` 적용, 초과 시 `payload.itemsTruncated: true` + `payload.itemsTotalCount` 추가.
+- `backend/src/nodes/presentation/table/table.handler.ts` — `payload.rows` 에 동일 패턴 적용 (`rowsTruncated` / `rowsTotalCount`). `totalRows` 는 cap 적용 전 전체 데이터셋 크기를 그대로 노출 (다운스트림 mismatch 감지 보조).
 
-**작업 범위**:
-1. Carousel / Table 의 output cap 정책 결정 (256KB 동일? 더 큰 한계? 안 적용?).
-2. 결정 시 `truncateBodyForOutput` 재사용해 적용 + UI 안내 (bodyTruncated 또는 items count vs rendered count 차이 표기).
-3. spec/4-nodes/6-presentation/* 갱신.
+**테스트 보강**:
+- `truncate-body.util.spec.ts` — `truncateArrayForOutput` 6 케이스 (under-cap pass-through / empty / tail-drop / shape preservation / non-array / cyclic).
+- `carousel.handler.spec.ts` — 1MB 미만 pass + 초과 truncation 2 케이스.
+- `table.handler.spec.ts` — 1MB 미만 pass + 초과 truncation 2 케이스 (`totalRows` ≠ `rows.length` 검증).
+- TEST WORKFLOW: backend lint clean, 2919 unit tests green, build green.
 
-**완료 기준**: cap 정책 결정 → 적용 (또는 명시적 미적용 spec 한 줄), 회귀 0.
+**Spec 갱신**:
+- `spec/4-nodes/6-presentation/0-common.md` §4 — 1MB cap + truncation 시 array 형태 유지 + `rendered` 는 cap 대상 아님 + integration 256KB 와의 비교 명시.
+- `1-carousel.md` §4, `2-table.md` §4 — output 절에 truncation flag 한 줄씩 추가.
 
 ## 우선순위
 
-| Follow-up | 우선순위 | 추정 |
+| Follow-up | 우선순위 | 상태 |
 | --- | --- | --- |
-| #1 AI Agent helper plumbing | 중 — 일관성 향상, 회귀 위험 중 | 별도 PR 1건 |
-| #2 Carousel/Table cap | 저 — 정책 결정 선행 | 별도 PR 1건 또는 spec-only 결정 |
+| #1 AI Agent helper plumbing | 중 — 일관성 향상, 회귀 위험 중 | ✅ 완료 (commit `808c4c35`) |
+| #2 Carousel/Table cap | 저 — 정책 결정 선행 | ✅ 완료 (1MB cap 적용) |
+
+## 후속 작업
+
+- ai-review 1회 (전체 변경 대상) — 두 커밋 합산.
+- ai-review 결과 처리 후 본 문서를 `plan/complete/` 로 `git mv`.

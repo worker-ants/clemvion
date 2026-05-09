@@ -4,6 +4,10 @@ import {
   ValidationResult,
 } from '../../core/node-handler.interface.js';
 import { evaluateMetadataBlockingErrors } from '../../core/metadata-validation.js';
+import {
+  PRESENTATION_MAX_BYTES,
+  truncateArrayForOutput,
+} from '../../integration/_base/truncate-body.util.js';
 import { ButtonDef } from '../_shared/button.types.js';
 import { carouselNodeMetadata } from './carousel.schema.js';
 
@@ -164,7 +168,20 @@ export class CarouselHandler implements NodeHandler {
     // may carry `{{ ... }}` templates that the engine resolved before
     // dispatch). evaluated rendered items live in output.
     const rawConfig = context.rawConfig ?? config;
-    const payload: Record<string, unknown> = { items, rendered };
+    // Cap evaluated `items` at the Presentation 1MB threshold. Runaway
+    // upstream data (e.g. 50k-row source) would otherwise inflate
+    // NodeExecution.outputData JSONB and WebSocket frames. The shape is
+    // preserved (still an array) so downstream ForEach / Map / `items[i]`
+    // access keeps working — just with the dropped tail and a flag.
+    const cappedItems = truncateArrayForOutput(items, PRESENTATION_MAX_BYTES);
+    const payload: Record<string, unknown> = {
+      items: cappedItems.value,
+      rendered,
+    };
+    if (cappedItems.truncated) {
+      payload.itemsTruncated = true;
+      payload.itemsTotalCount = cappedItems.originalLength;
+    }
     const configEcho: Record<string, unknown> = {
       layout: rawConfig.layout ?? layout,
       mode: rawConfig.mode ?? mode,

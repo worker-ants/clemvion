@@ -82,6 +82,7 @@ Presentation 노드 출력은 다음 원칙을 따른다:
 
 - `output` 에는 **런타임 생성값** (items / rows / data / rendered 등) 만 담는다. layout / mode / titleField / pageSize / chartType 등 **리터럴 config 값은 echo 하지 않는다**. 후속 노드/UI 는 `$node["X"].config.*` 에서 읽는다.
 - 노드 판별용 `type: 'carousel' | 'table' | 'chart' | 'form' | 'template'` 래퍼는 사용하지 않는다 (Principle 1.1.4).
+- **Output size cap (1MB)**: Carousel `output.items` / Table `output.rows` 는 각각 직렬화 후 **1MB (`PRESENTATION_MAX_BYTES = 1024 × 1024`)** 까지 보존하고, 초과 시 tail 부터 element 단위로 잘라낸 뒤 `output.{itemsTruncated|rowsTruncated}: true` 와 `output.{itemsTotalCount|rowsTotalCount}` (잘리기 전 element 개수) 를 표면화한다. 잘린 결과도 **여전히 array 형태**로 유지되므로 다운스트림 ForEach / Map / `output.items[i]` 접근은 동작한다 (단순히 `length` 가 짧아질 뿐). `rendered` HTML 은 cap 대상이 아니다 — 사용자 가시 영역이라 자르면 UX 가 깨지고, 일반적으로 items/rows 와 비슷한 크기이므로 items/rows 가 잘리면 자동으로 함께 작아진다. integration 노드의 256KB cap (`truncateBodyForOutput`) 보다 4× 큰 한계 — Presentation 은 사용자 가시 surface 라 정상 사용시 거대해질 수 있는 반면, 1MB 초과는 runaway 데이터 신호로 간주한다.
 
 ### 4.1 Waiting (Blocking 모드 진입)
 
