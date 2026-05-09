@@ -1,15 +1,20 @@
 "use client";
 
 import { useEffect, useRef, useState, useCallback } from "react";
+import { toast } from "sonner";
 import { getWsClient } from "./ws-client";
 import {
   useExecutionStore,
-  NodeExecutionStatus,
   type ConversationItem,
 } from "../stores/execution-store";
-import { getAccessToken } from "../api/client";
-import { ExecutionData, NodeExecutionData } from "../api/executions";
-import { getNodeDefinition } from "../node-definitions";
+import { ensureFreshAccessToken, getAccessToken } from "../api/client";
+import { ExecutionData } from "../api/executions";
+import {
+  applyExecutionSnapshot,
+  getCategoryForType,
+  inferInteractionTypeFromNodeType,
+  shouldUpdateStatus,
+} from "./apply-execution-snapshot";
 import {
   messagesToConversationItems,
   toolStatusMapFromItems,
@@ -24,54 +29,6 @@ interface UseExecutionEventsReturn {
   isConnected: boolean;
 }
 
-function mapNodeStatus(
-  status: NodeExecutionData["status"],
-): NodeExecutionStatus {
-  switch (status) {
-    case "running":
-      return "running";
-    case "completed":
-      return "completed";
-    case "failed":
-      return "failed";
-    case "skipped":
-      return "skipped";
-    case "waiting_for_input":
-      return "waiting_for_input";
-    default:
-      return "pending";
-  }
-}
-
-function getCategoryForType(nodeType: string): string {
-  return getNodeDefinition(nodeType)?.category ?? "unknown";
-}
-
-/**
- * snapshot reconcile 의 마지막 안전망 — backend 가 envelope `meta.interactionType`
- * 을 빠뜨려도 nodeType 으로 분기를 유추해 store 의 waitingInteractionType 을
- * 정확히 set 한다. 누락 시 page.tsx 의 `isWaitingButtons` 가 false 로 떨어져
- * Preview 탭의 버튼이 콜백 없이 disabled 로 그려지는 회귀가 발생한다.
- */
-function inferInteractionTypeFromNodeType(
-  nodeType: string | undefined,
-): "form" | "buttons" | "ai_conversation" | undefined {
-  if (!nodeType) return undefined;
-  if (nodeType === "form") return "form";
-  if (
-    nodeType === "carousel" ||
-    nodeType === "chart" ||
-    nodeType === "table" ||
-    nodeType === "template"
-  ) {
-    return "buttons";
-  }
-  if (nodeType === "ai_agent" || nodeType === "information_extractor") {
-    return "ai_conversation";
-  }
-  return undefined;
-}
-
 const UUID_REGEX =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -83,24 +40,6 @@ const UUID_REGEX =
  */
 function sanitizeUuid(v: unknown): string | undefined {
   return typeof v === "string" && UUID_REGEX.test(v) ? v : undefined;
-}
-
-// Higher priority = more terminal. Prevents stale WS events from overwriting.
-const STATUS_PRIORITY: Record<string, number> = {
-  pending: 0,
-  running: 1,
-  waiting_for_input: 2,
-  completed: 3,
-  failed: 3,
-  skipped: 3,
-};
-
-function shouldUpdateStatus(
-  current: NodeExecutionStatus | undefined,
-  incoming: NodeExecutionStatus,
-): boolean {
-  if (!current) return true;
-  return (STATUS_PRIORITY[incoming] ?? 0) >= (STATUS_PRIORITY[current] ?? 0);
 }
 
 export function useExecutionEvents({
@@ -676,15 +615,26 @@ export function useExecutionEvents({
   useEffect(() => {
     if (!executionId) return;
 
-    const token = getAccessToken();
-    if (!token) return;
-
     cancelledRef.current = false;
-
     const client = getWsClient();
 
-    // Connect if not already connected
-    client.connect(token);
+    // Carousel disabled stuck 버그 fix — connect 시점에 stale token 으로
+    // backend 가 reject 해 영구 실패하던 race window 차단.
+    //
+    // 1) 즉시 사용 가능한 token 이 있으면 그것으로 connect 시도. 만약 stale
+    //    이라면 ws-client.ts 의 connect_error 핸들러가 refresh + 재연결.
+    // 2) token 자체가 없으면 (AuthProvider 가 session restore 중) pending
+    //    refresh 를 await 후 재시도 (별도 비동기 path).
+    const initialToken = getAccessToken();
+    if (initialToken) {
+      client.connect(initialToken);
+    } else {
+      void (async () => {
+        const refreshed = await ensureFreshAccessToken();
+        if (cancelledRef.current || !refreshed) return;
+        client.connect(refreshed);
+      })();
+    }
 
     // Track connection state
     const onConnect = () => setIsConnected(true);
@@ -716,167 +666,17 @@ export function useExecutionEvents({
     // (and again on reconnect). Carries the full Execution + NodeExecution
     // graph — same shape as the old REST `GET /executions/:id` response —
     // so timeline/detail state can be rebuilt from WS alone.
+    //
+    // Carousel buttons-disabled stuck 버그 fix — handleSnapshot 의 inline
+    // 로직을 `applyExecutionSnapshot` helper 로 추출. WS event handler 와
+    // page.tsx 의 REST polling effect 양쪽이 같은 함수를 호출하여 single
+    // source of truth 보장 + WS 가 실패해도 REST 가 store 를 hydrate.
     const handleSnapshot = (data: unknown) => {
       const payload = data as { execution?: ExecutionData } | null;
-      const execution = payload?.execution;
-      if (!execution || cancelledRef.current) return;
-
-      if (execution.nodeExecutions) {
-        const sorted = [...execution.nodeExecutions].sort((a, b) => {
-          const aStarted = a.startedAt ?? "";
-          const bStarted = b.startedAt ?? "";
-          return aStarted < bStarted ? -1 : aStarted > bStarted ? 1 : 0;
-        });
-        for (const ne of sorted) {
-          const nodeType = ne.node?.type ?? "unknown";
-          const nodeLabel = ne.node?.label ?? ne.nodeId;
-          const incomingStatus = mapNodeStatus(ne.status);
-
-          // When a node.completed event arrives before the snapshot (the
-          // snapshot can race the subscribe→incremental path), the store
-          // already holds a terminal status for this node. Don't let the
-          // snapshot's older row overwrite it back to "running".
-          //
-          // 가드는 nodeStatuses 의 status 다운그레이드만 차단한다 — Loop
-          // body 의 같은 nodeId 가 여러 NodeExecution row (iter 1/2/3) 로
-          // 들어올 때 첫 row 후 currentStatus="completed" 가 되어 후속 iter
-          // 의 addNodeResult 까지 차단되면 timeline 정렬이 깨지는 회귀가
-          // 발생한다 (handleNodeStarted 와 동일 패턴, hotfix #5). row add
-          // 는 새 nodeExecutionId 면 항상 진행.
-          const currentStatus = useExecutionStore
-            .getState()
-            .nodeStatuses.get(ne.nodeId)?.status;
-          if (shouldUpdateStatus(currentStatus, incomingStatus)) {
-            updateNodeStatus(ne.nodeId, {
-              status: incomingStatus,
-              duration: ne.durationMs ?? undefined,
-              error: ne.error?.message,
-            });
-          }
-
-          addNodeResult({
-            nodeExecutionId: ne.id,
-            parentNodeExecutionId: ne.parentNodeExecutionId ?? undefined,
-            nodeId: ne.nodeId,
-            nodeLabel,
-            nodeType,
-            nodeCategory: getCategoryForType(nodeType),
-            status: incomingStatus,
-            duration: ne.durationMs ?? undefined,
-            error: ne.error?.message,
-            outputData: ne.outputData,
-            inputData: ne.inputData,
-            startedAt: ne.startedAt,
-          });
-        }
-      }
-
-      const { status: prevStatus } = useExecutionStore.getState();
-
-      if (execution.status === "completed") {
-        completeExecution();
-        return;
-      }
-      if (execution.status === "failed") {
-        failExecution(execution.error?.message);
-        return;
-      }
-      if (execution.status === "cancelled") {
-        failExecution("Execution cancelled");
-        return;
-      }
-      if (
-        execution.status === "running" &&
-        prevStatus === "waiting_for_input"
-      ) {
-        // Execution already resumed before we joined — reconcile local state.
-        const { waitingInteractionType: wit } = useExecutionStore.getState();
-        if (wit === "ai_conversation") {
-          resumeFromConversation();
-        } else if (wit === "buttons") {
-          resumeFromButtons();
-        } else {
-          resumeFromForm();
-        }
-        return;
-      }
-      if (execution.status === "running" && prevStatus === "idle") {
-        // Page opened mid-execution: store still shows idle because the
-        // execution.started event fired before we were listening. Promote
-        // to running without clearing the just-populated timeline.
-        useExecutionStore.setState({
-          executionId: execution.id,
-          status: "running",
-          startedAt: execution.startedAt ?? new Date().toISOString(),
-        });
-        return;
-      }
-      if (execution.status === "waiting_for_input") {
-        const { waitingNodeId: currentWaiting } =
-          useExecutionStore.getState();
-        const waitingNode = execution.nodeExecutions?.find(
-          (ne) => ne.status === "waiting_for_input",
-        );
-        if (currentWaiting && currentWaiting === waitingNode?.nodeId) return;
-        if (waitingNode?.outputData) {
-          const raw = waitingNode.outputData as Record<string, unknown>;
-
-          // Structured shape: `{ config, output, status, meta: { interactionType } }`
-          // Legacy flat:      `{ type: 'form', formConfig, interactionType, buttonConfig, conversationConfig, ... }`
-          const isStructured =
-            raw != null &&
-            typeof raw === "object" &&
-            "config" in raw &&
-            "output" in raw;
-
-          const meta = isStructured
-            ? (raw.meta as Record<string, unknown> | undefined)
-            : undefined;
-
-          // 추출 우선 순위: envelope.meta.interactionType (정식) → envelope
-          // .output.interactionType (legacy nested) → top-level (legacy flat)
-          // → raw.type==='form' → nodeType 기반 fallback. 마지막 fallback 은
-          // backend 가 meta 를 빠뜨려도 카테고리/AI/Form 노드 타입으로
-          // 정확히 hydrate 되도록 보장 (page.tsx 의 isWaitingButtons 등이
-          // 정확히 true 가 되어 Preview 탭 버튼이 콜백을 받음).
-          //
-          // Defense-in-depth (Carousel buttons-disabled bug fix): REST
-          // `/executions/:id` 응답이 `nodeExecutions[].node` 객체를 nest 하지
-          // 않거나 (TypeORM eager load 누락 / select fields 제한 등) stale 한
-          // 경우를 대비해 row 자체의 nodeType / type 도 fallback 으로 시도.
-          // 어떤 응답 shape 라도 nodeType 만 한 번 잡히면 추론 가능.
-          const envelopeOutput = isStructured
-            ? (raw.output as Record<string, unknown> | undefined)
-            : undefined;
-          const fallbackNodeType =
-            waitingNode.node?.type ??
-            (waitingNode as { nodeType?: string }).nodeType ??
-            (waitingNode as { type?: string }).type;
-          const interactionType =
-            (meta?.interactionType as string | undefined) ??
-            (envelopeOutput?.interactionType as string | undefined) ??
-            (raw.interactionType as string | undefined) ??
-            (raw.type === "form" ? "form" : undefined) ??
-            inferInteractionTypeFromNodeType(fallbackNodeType);
-
-          if (interactionType === "ai_conversation") {
-            const convConfig = isStructured
-              ? (raw.config as Record<string, unknown> | undefined)
-              : (raw.conversationConfig as Record<string, unknown> | undefined);
-            pauseForConversation(waitingNode.nodeId, convConfig ?? null);
-          } else if (interactionType === "buttons") {
-            const btnConfig = isStructured
-              ? (raw.config as Record<string, unknown> | undefined)
-              : (raw.buttonConfig as Record<string, unknown> | undefined);
-            pauseForButtons(waitingNode.nodeId, btnConfig ?? null);
-          } else if (interactionType === "form") {
-            const formConfig = isStructured
-              ? (raw.config as Record<string, unknown> | undefined)
-              : (raw.formConfig as Record<string, unknown> | undefined);
-            pauseForForm(waitingNode.nodeId, formConfig ?? null);
-          }
-        }
-      }
+      applyExecutionSnapshot(
+        payload?.execution,
+        () => cancelledRef.current,
+      );
     };
 
     client.on("execution.snapshot", handleSnapshot);
@@ -887,8 +687,14 @@ export function useExecutionEvents({
         if (!cancelledRef.current) {
           client.subscribe(channel);
         }
-      } catch {
-        // Connection still pending — reconnect handler will retry.
+      } catch (err) {
+        // WS subscribe 실패 — REST polling 이 fallback 으로 store 를 hydrate
+        // 하므로 사용자 워크플로 실행은 계속 진행 (Fix A: REST → store bridge).
+        // 진단 가시성을 위해 warn log — 향후 회귀 시 root cause 신속 격리.
+        console.warn(
+          "[useExecutionEvents] WS subscribe failed — REST polling will hydrate store as fallback",
+          err,
+        );
       }
     };
 
@@ -950,6 +756,29 @@ export function useExecutionEvents({
     resumeFromConversation,
     updateConversationConfig,
   ]);
+
+  // Carousel disabled stuck 버그 fix — Fix D: WS 연결 상태 UX feedback.
+  //
+  // executionId 가 set 됐는데 5초 안에 WS connect 안 되면 toast 로 사용자에게
+  // 알림 (REST polling 이 fallback 으로 진행 중임을 명시). connect 되면 자동
+  // 해제. 의도된 동작:
+  //  - 정상 환경: 5초 안에 connect → toast 미발생
+  //  - 일시 지연: 5초 후 toast → 곧이어 connect → 자동 dismiss (id dedup)
+  //  - 영구 실패: 5초 후 toast 유지 + REST polling 으로 워크플로 진행
+  useEffect(() => {
+    if (!executionId) return;
+    if (isConnected) {
+      toast.dismiss("ws-connection-warning");
+      return;
+    }
+    const warnTimer = setTimeout(() => {
+      toast.warning(
+        "실시간 업데이트 연결이 지연되고 있습니다. 폴링으로 진행됩니다.",
+        { duration: Infinity, id: "ws-connection-warning" },
+      );
+    }, 5000);
+    return () => clearTimeout(warnTimer);
+  }, [executionId, isConnected]);
 
   return { isConnected };
 }
