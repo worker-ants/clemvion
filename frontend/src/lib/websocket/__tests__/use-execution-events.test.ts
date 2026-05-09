@@ -716,6 +716,74 @@ describe("useExecutionEvents", () => {
     expect(useExecutionStore.getState().waitingButtonConfig).toEqual(btnConfig);
   });
 
+  // Carousel buttons-disabled bug fix (2026-05-09) — handleSnapshot 의
+  // 마지막 fallback 강화. REST `/executions/:id` 응답이 `nodeExecutions[].node`
+  // 객체를 nest 하지 않거나 (TypeORM eager load 누락 / select fields 제한 등),
+  // 대신 row 자체에 `nodeType` 필드만 있는 경우에도 buttons 분기 가능해야 한다.
+  it("infers buttons interaction from waitingNode.nodeType when node object is missing", () => {
+    const btnConfig = {
+      buttons: [{ id: "b1", label: "Logic 노드 테스트", type: "port" }],
+    };
+    useExecutionStore.getState().startExecution("exec-1");
+    renderHook(() => useExecutionEvents({ executionId: "exec-1" }));
+
+    emitSnapshot(
+      createMockExecution({
+        status: "waiting_for_input",
+        nodeExecutions: [
+          {
+            id: "ne-1",
+            executionId: "exec-1",
+            nodeId: "carousel-node",
+            // node 객체 누락 — REST API 가 relation 을 eager load 하지 않은
+            // 시나리오. 대신 nodeType 가 row 자체에 있다 (응답 shape 변형).
+            nodeType: "carousel",
+            status: "waiting_for_input",
+            durationMs: null,
+            error: null,
+            startedAt: "2026-04-01T00:00:00Z",
+            finishedAt: null,
+            outputData: {
+              config: btnConfig,
+              output: null,
+              status: "waiting_for_input",
+            },
+          },
+        ],
+      }),
+    );
+
+    expect(useExecutionStore.getState().waitingInteractionType).toBe("buttons");
+    expect(useExecutionStore.getState().waitingButtonConfig).toEqual(btnConfig);
+  });
+
+  // Carousel buttons-disabled bug fix — handleWaitingForInput 의 nodeType
+  // fallback. backend 가 (가설 1 의 race window 또는 향후 회귀로) WS payload 의
+  // top-level `interactionType` 과 `nodeOutput.interactionType` 을 모두 누락
+  // 했다고 가정. `payload.waitingNodeType: 'carousel'` 만 있어도 정확히
+  // 'buttons' 분기로 흘러가야 한다.
+  it("infers buttons interaction from payload.waitingNodeType when interactionType is missing", () => {
+    useExecutionStore.getState().startExecution("exec-1");
+    renderHook(() => useExecutionEvents({ executionId: "exec-1" }));
+
+    const handler = getHandler("execution.waiting_for_input");
+    handler({
+      waitingNodeId: "carousel-node",
+      waitingNodeType: "carousel",
+      waitingNodeLabel: "카테고리 선택",
+      nodeExecutionId: "ne-1",
+      startedAt: "2026-04-01T00:00:00Z",
+      // interactionType / buttonConfig 모두 누락 — backend 가 payload 를
+      // 빠뜨린 시나리오를 시뮬.
+      nodeOutput: {
+        // nodeOutput 자체에도 interactionType 명시 없음.
+      },
+    });
+
+    expect(useExecutionStore.getState().waitingInteractionType).toBe("buttons");
+    expect(useExecutionStore.getState().waitingNodeId).toBe("carousel-node");
+  });
+
   // Loop body 가 같은 nodeId 의 여러 NodeExecution row (iter 1/2/3) 를
   // 가질 때 snapshot reconcile 이 nodeStatuses 가드로 후속 iter row 의
   // addNodeResult 까지 차단하던 회귀 가드 (PR-B hotfix #5 — handleNodeStarted
