@@ -1,4 +1,5 @@
 import { io, Socket } from "socket.io-client";
+import { refreshAccessToken } from "../api/client";
 
 const WS_URL = process.env.NEXT_PUBLIC_WS_URL || "http://localhost:3001";
 
@@ -37,16 +38,38 @@ export function createWsClient(): WsClient {
       reconnectionDelayMax: 30000,
     });
 
-    socket.on("connect", () => {
-      // Connection established
-    });
-
     socket.on("error", (err: unknown) => {
       console.error("[ws] Server error:", err);
     });
 
-    socket.on("connect_error", (err: Error) => {
+    // Carousel disabled stuck 버그 fix — 첫 connect_error 시 일단 token refresh
+    // + 명시적 재연결 한 번 시도. socket.io 자체 reconnect 는 같은 stale token
+    // 으로 무한 재시도하므로 auth race 시 영구 실패한다. 첫 실패 message 가
+    // "Unauthorized" / "401" 등이 아닐 수도 있어 (browser 가 "WebSocket is
+    // closed before the connection is established" 같은 generic 메시지를
+    // 보내는 경우 다수) 메시지 패턴 검사보다 첫 실패 1회는 무조건 refresh +
+    // 재연결 시도 — 가장 흔한 root cause (auth race) 차단.
+    //
+    // refreshAttempted flag 가 무한 loop 방지. 정상 connect 되면 reset 해
+    // 다음 disconnect 후 새 세션에서 다시 시도 가능.
+    let refreshAttempted = false;
+    socket.on("connect", () => {
+      refreshAttempted = false;
+    });
+    socket.on("connect_error", async (err: Error) => {
       console.error("[ws] Connection error:", err.message);
+      if (refreshAttempted) return;
+      refreshAttempted = true;
+      try {
+        const newToken = await refreshAccessToken();
+        if (newToken && socket) {
+          // socket.io 의 auth payload 를 새 token 으로 갱신 후 명시적 재연결.
+          (socket.auth as { token: string }).token = newToken;
+          socket.connect();
+        }
+      } catch (refreshErr) {
+        console.error("[ws] Token refresh failed:", refreshErr);
+      }
     });
   };
 
