@@ -1,5 +1,6 @@
 import {
   NodeHandler,
+  NodeHandlerOutput,
   ValidationResult,
   ExecutionContext,
 } from '../../core/node-handler.interface.js';
@@ -42,7 +43,7 @@ export class MapHandler implements NodeHandler {
     input: unknown,
     config: Record<string, unknown>,
     context: ExecutionContext,
-  ): Promise<unknown> {
+  ): Promise<NodeHandlerOutput> {
     const { inputField } = config as unknown as MapConfig;
 
     const resolved = resolveFieldValue(input, inputField);

@@ -1,5 +1,6 @@
 import {
   NodeHandler,
+  NodeHandlerOutput,
   ValidationResult,
   ExecutionContext,
 } from '../../core/node-handler.interface.js';
@@ -38,7 +39,7 @@ export class VariableModificationHandler implements NodeHandler {
     input: unknown,
     config: Record<string, unknown>,
     context: ExecutionContext,
-  ): Promise<unknown> {
+  ): Promise<NodeHandlerOutput> {
     const { modifications } = config as unknown as VariableModificationConfig;
 
     for (const mod of modifications) {

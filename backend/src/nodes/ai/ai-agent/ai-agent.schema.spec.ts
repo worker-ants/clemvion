@@ -32,7 +32,7 @@ describe('aiAgentNodeConfigSchema', () => {
     // auto-form 의 applyClearFields 로 자동 제거되어야 한다. visibleWhen 만으로는
     // 화면에서 숨겨질 뿐 config 값은 남아 backend 가 의도치 않은 첫 LLM 호출을
     // trigger 한다.
-    const jsonSchema = z.toJSONSchema(aiAgentNodeConfigSchema) as {
+    const jsonSchema = z.toJSONSchema(aiAgentNodeConfigSchema) as unknown as {
       properties?: { mode?: { ui?: { clearFields?: string[] } } };
     };
     const clearFields = jsonSchema.properties?.mode?.ui?.clearFields ?? [];
@@ -53,7 +53,7 @@ describe('aiAgentNodeConfigSchema', () => {
   });
 
   it('surfaces `ui` metadata on fields in JSON Schema output', () => {
-    const jsonSchema = z.toJSONSchema(aiAgentNodeConfigSchema) as {
+    const jsonSchema = z.toJSONSchema(aiAgentNodeConfigSchema) as unknown as {
       properties?: Record<string, { ui?: Record<string, unknown> }>;
     };
     expect(jsonSchema.properties?.mode?.ui).toMatchObject({

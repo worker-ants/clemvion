@@ -9,6 +9,8 @@ describe('ParallelExecutor', () => {
     variables: {},
     nodeOutputCache: {},
     structuredOutputCache: {},
+    engineResolvedConfigCache: {},
+    recursionDepth: 0,
     itemContext: { item: 'stale', index: 99, isFirst: false, isLast: false },
     loopContext: { index: 99, count: 99, isFirst: false, isLast: false },
   };

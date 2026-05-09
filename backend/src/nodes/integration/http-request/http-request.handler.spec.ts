@@ -7,6 +7,9 @@ function makeContext(rawConfig?: Record<string, unknown>): ExecutionContext {
     workflowId: 'wf-1',
     variables: {},
     nodeOutputCache: {},
+    structuredOutputCache: {},
+    engineResolvedConfigCache: {},
+    recursionDepth: 0,
     ...(rawConfig ? { rawConfig: Object.freeze({ ...rawConfig }) } : {}),
   };
 }
@@ -18,6 +21,9 @@ describe('HttpRequestHandler', () => {
     workflowId: 'wf-1',
     variables: {},
     nodeOutputCache: {},
+    structuredOutputCache: {},
+    engineResolvedConfigCache: {},
+    recursionDepth: 0,
   };
 
   beforeEach(() => {
@@ -113,7 +119,7 @@ describe('HttpRequestHandler', () => {
           responseType: 'text',
         },
         context,
-      )) as { config: { url: string } };
+      )) as unknown as { config: { url: string } };
 
       expect(result.config.url).not.toContain('secret');
       expect(result.config.url).not.toContain('p4ss');
@@ -132,12 +138,10 @@ describe('HttpRequestHandler', () => {
         null,
         { method: 'GET', url: 'https://api.example.com/data' },
         context,
-      )) as {
+      )) as unknown as {
         port: string;
-        data: {
-          response: unknown;
-          meta: { statusCode: number; duration: number };
-        };
+        output: { response: unknown };
+        meta: { statusCode: number; duration: number };
       };
 
       expect(result.port).toBe('success');
@@ -158,9 +162,10 @@ describe('HttpRequestHandler', () => {
         null,
         { method: 'GET', url: 'https://api.example.com/missing' },
         context,
-      )) as {
+      )) as unknown as {
         port: string;
-        data: { response: unknown; meta: { statusCode: number } };
+        output: { response: unknown };
+        meta: { statusCode: number };
       };
 
       expect(result.port).toBe('error');
@@ -174,9 +179,10 @@ describe('HttpRequestHandler', () => {
         null,
         { method: 'GET', url: 'https://api.example.com/fail' },
         context,
-      )) as {
+      )) as unknown as {
         port: string;
-        data: { response: { error: string }; meta: { statusCode: number } };
+        output: { response: { error: string } };
+        meta: { statusCode: number };
       };
 
       expect(result.port).toBe('error');
@@ -460,7 +466,7 @@ describe('HttpRequestHandler', () => {
           responseType: 'text',
         },
         context,
-      )) as { port: string; data: { response: unknown } };
+      )) as unknown as { port: string; output: { response: unknown } };
 
       expect(result.port).toBe('success');
       expect(result.output.response).toBe('plain text response');
@@ -474,6 +480,9 @@ describe('HttpRequestHandler', () => {
       nodeExecutionId: 'ne-1',
       variables: { __workspaceId: 'ws-1' },
       nodeOutputCache: {},
+      structuredOutputCache: {},
+      engineResolvedConfigCache: {},
+      recursionDepth: 0,
     };
 
     function makeService(
@@ -792,7 +801,7 @@ describe('HttpRequestHandler', () => {
         null,
         evaluated,
         makeContext(rawConfig),
-      )) as {
+      )) as unknown as {
         config: { url: string; body: unknown; method: string };
         output: {
           requestBody: unknown;
@@ -825,7 +834,9 @@ describe('HttpRequestHandler', () => {
         null,
         { method: 'GET', url: 'https://api.example.com/x' },
         makeContext(),
-      )) as { output: { requestBody?: unknown; requestBodyType: string } };
+      )) as unknown as {
+        output: { requestBody?: unknown; requestBodyType: string };
+      };
 
       expect(result.output.requestBody).toBeUndefined();
       // requestBodyType uses the evaluated default ('json') even when no
@@ -854,7 +865,9 @@ describe('HttpRequestHandler', () => {
           bodyType: 'json',
         },
         makeContext(),
-      )) as { output: { requestBody?: unknown; requestBodyType: string } };
+      )) as unknown as {
+        output: { requestBody?: unknown; requestBodyType: string };
+      };
 
       // `truncateBodyForOutput(null) → { value: null, truncated: false }`,
       // so `null` is emitted explicitly; `undefined` would be omitted.
@@ -879,7 +892,7 @@ describe('HttpRequestHandler', () => {
           body: { name: 'alice', age: 30 },
         },
         makeContext(),
-      )) as {
+      )) as unknown as {
         output: { requestBody: unknown; requestBodyType: string };
       };
 
@@ -908,7 +921,7 @@ describe('HttpRequestHandler', () => {
           body: { field: 'value' },
         },
         makeContext(),
-      )) as {
+      )) as unknown as {
         output: {
           requestBody: Record<string, string>;
           requestBodyType: string;
@@ -936,7 +949,7 @@ describe('HttpRequestHandler', () => {
         null,
         { method: 'GET', url: 'https://api.example.com/x' },
         makeContext(),
-      )) as { output: { responseHeaders: Record<string, string> } };
+      )) as unknown as { output: { responseHeaders: Record<string, string> } };
 
       expect(result.output.responseHeaders['content-type']).toBe(
         'application/json',
@@ -966,7 +979,7 @@ describe('HttpRequestHandler', () => {
           bodyType: 'raw',
         },
         makeContext(),
-      )) as {
+      )) as unknown as {
         output: { requestBody: string; bodyTruncated?: boolean };
       };
 
@@ -995,7 +1008,7 @@ describe('HttpRequestHandler', () => {
           bodyType: 'json',
         },
         makeContext(),
-      )) as {
+      )) as unknown as {
         port: string;
         output: {
           requestBody: unknown;
@@ -1024,7 +1037,7 @@ describe('HttpRequestHandler', () => {
           bodyType: 'json',
         },
         makeContext(),
-      )) as {
+      )) as unknown as {
         port: string;
         output: {
           requestBody: unknown;

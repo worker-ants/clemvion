@@ -4,6 +4,7 @@ import {
 } from '@workflow/expression-engine';
 import {
   NodeHandler,
+  NodeHandlerOutput,
   ValidationResult,
   ExecutionContext,
 } from '../../core/node-handler.interface.js';
@@ -60,7 +61,7 @@ export class FilterHandler implements NodeHandler {
     input: unknown,
     config: Record<string, unknown>,
     context: ExecutionContext,
-  ): Promise<unknown> {
+  ): Promise<NodeHandlerOutput> {
     const {
       inputField,
       conditions,

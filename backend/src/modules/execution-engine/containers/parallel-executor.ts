@@ -81,9 +81,7 @@ export class ParallelExecutor {
             // — branch 가 cache 값의 내부를 mutate 하면 안 된다는 invariant 는
             // node-handler.interface.ts 의 ExecutionContext JSDoc 에 명시.
             nodeOutputCache: { ...context.nodeOutputCache },
-            structuredOutputCache: context.structuredOutputCache
-              ? { ...context.structuredOutputCache }
-              : undefined,
+            structuredOutputCache: { ...context.structuredOutputCache },
             itemContext: undefined,
             loopContext: undefined,
           };

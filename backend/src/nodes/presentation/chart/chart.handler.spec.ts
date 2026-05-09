@@ -12,6 +12,9 @@ describe('ChartHandler', () => {
       workflowId: 'test-wf-1',
       variables: {},
       nodeOutputCache: {},
+      structuredOutputCache: {},
+      engineResolvedConfigCache: {},
+      recursionDepth: 0,
     };
   });
 
@@ -130,7 +133,11 @@ describe('ChartHandler', () => {
           { category: 'A', value: 10 },
           { category: 'B', value: 20 },
         ];
-        const result = (await handler.execute(input, config, context)) as {
+        const result = (await handler.execute(
+          input,
+          config,
+          context,
+        )) as unknown as {
           output: { data: unknown[] };
         };
         expect(result.output.data).toMatchObject([
@@ -141,7 +148,11 @@ describe('ChartHandler', () => {
 
       it('should wrap non-array input in array', async () => {
         const input = { category: 'A', value: 5 };
-        const result = (await handler.execute(input, config, context)) as {
+        const result = (await handler.execute(
+          input,
+          config,
+          context,
+        )) as unknown as {
           output: { data: unknown[] };
         };
         expect(result.output.data).toMatchObject([{ x: 'A', y: 5 }]);
@@ -158,7 +169,7 @@ describe('ChartHandler', () => {
             ],
           },
           context,
-        )) as { output: { data: unknown[] } };
+        )) as unknown as { output: { data: unknown[] } };
         expect(result.output.data).toMatchObject([
           { x: 'X', y: 1 },
           { x: 'Y', y: 2 },
@@ -173,7 +184,7 @@ describe('ChartHandler', () => {
             dataSource: { category: 'Z', value: 9 },
           },
           context,
-        )) as { output: { data: unknown[] } };
+        )) as unknown as { output: { data: unknown[] } };
         expect(result.output.data).toMatchObject([{ x: 'Z', y: 9 }]);
       });
 
@@ -188,7 +199,7 @@ describe('ChartHandler', () => {
           input,
           { ...config, dataField: 'stats' },
           context,
-        )) as { output: { data: unknown[] } };
+        )) as unknown as { output: { data: unknown[] } };
         expect(result.output.data).toMatchObject([
           { x: 'A', y: 1 },
           { x: 'B', y: 2 },
@@ -201,7 +212,7 @@ describe('ChartHandler', () => {
           input,
           { ...config, dataField: 'stats' },
           context,
-        )) as { output: { data: unknown[] } };
+        )) as unknown as { output: { data: unknown[] } };
         expect(result.output.data).toMatchObject([]);
       });
 
@@ -211,7 +222,7 @@ describe('ChartHandler', () => {
           input,
           { ...config, dataSource: null },
           context,
-        )) as { output: { data: unknown[] } };
+        )) as unknown as { output: { data: unknown[] } };
         expect(result.output.data).toMatchObject([{ x: 'A', y: 1 }]);
       });
     });
@@ -223,7 +234,7 @@ describe('ChartHandler', () => {
           input,
           { chartType: 'pie', xAxis: { field: 'category' } },
           context,
-        )) as { output: { data: Record<string, unknown>[] } };
+        )) as unknown as { output: { data: Record<string, unknown>[] } };
         expect(result.output.data[0]).toEqual({ x: 'A' });
         expect(result.output.data[0].y).toBeUndefined();
       });
@@ -244,7 +255,7 @@ describe('ChartHandler', () => {
             yAxis: { field: 'value', aggregation: 'sum' },
           },
           context,
-        )) as { output: { data: { x: unknown; y: number }[] } };
+        )) as unknown as { output: { data: { x: unknown; y: number }[] } };
         expect(result.output.data).toMatchObject([
           { x: 'A', y: 6 },
           { x: 'B', y: 10 },
@@ -259,7 +270,7 @@ describe('ChartHandler', () => {
             yAxis: { field: 'value', aggregation: 'avg' },
           },
           context,
-        )) as { output: { data: { x: unknown; y: number }[] } };
+        )) as unknown as { output: { data: { x: unknown; y: number }[] } };
         expect(result.output.data).toMatchObject([
           { x: 'A', y: 3 },
           { x: 'B', y: 10 },
@@ -274,7 +285,7 @@ describe('ChartHandler', () => {
             yAxis: { field: 'value', aggregation: 'count' },
           },
           context,
-        )) as { output: { data: { x: unknown; y: number }[] } };
+        )) as unknown as { output: { data: { x: unknown; y: number }[] } };
         expect(result.output.data).toMatchObject([
           { x: 'A', y: 2 },
           { x: 'B', y: 1 },
@@ -289,7 +300,7 @@ describe('ChartHandler', () => {
             yAxis: { field: 'value', aggregation: 'min' },
           },
           context,
-        )) as { output: { data: { x: unknown; y: number }[] } };
+        )) as unknown as { output: { data: { x: unknown; y: number }[] } };
         expect(result.output.data).toMatchObject([
           { x: 'A', y: 2 },
           { x: 'B', y: 10 },
@@ -304,7 +315,7 @@ describe('ChartHandler', () => {
             yAxis: { field: 'value', aggregation: 'max' },
           },
           context,
-        )) as { output: { data: { x: unknown; y: number }[] } };
+        )) as unknown as { output: { data: { x: unknown; y: number }[] } };
         expect(result.output.data).toMatchObject([
           { x: 'A', y: 4 },
           { x: 'B', y: 10 },
@@ -319,7 +330,7 @@ describe('ChartHandler', () => {
             yAxis: { field: 'value', aggregation: 'unknown' },
           },
           context,
-        )) as { output: { data: { x: unknown; y: number }[] } };
+        )) as unknown as { output: { data: { x: unknown; y: number }[] } };
         expect(result.output.data).toMatchObject([
           { x: 'A', y: 6 },
           { x: 'B', y: 10 },
@@ -337,7 +348,7 @@ describe('ChartHandler', () => {
             yAxis: { field: 'value', aggregation: 'sum' },
           },
           context,
-        )) as { output: { data: { x: unknown; y: number }[] } };
+        )) as unknown as { output: { data: { x: unknown; y: number }[] } };
         expect(result.output.data[0]).toEqual({ x: 'A', y: 5 });
       });
     });
@@ -352,7 +363,7 @@ describe('ChartHandler', () => {
             buttons: [{ id: 'b1', label: 'Next', type: 'port' }],
           },
           context,
-        )) as {
+        )) as unknown as {
           status: string;
           meta: Record<string, unknown>;
           config: Record<string, unknown>;
@@ -367,7 +378,7 @@ describe('ChartHandler', () => {
           [{ category: 'A', value: 1 }],
           { ...config, buttons: [] },
           context,
-        )) as { status?: string };
+        )) as unknown as { status?: string };
         expect(result.status).toBeUndefined();
       });
 
@@ -376,7 +387,7 @@ describe('ChartHandler', () => {
           [{ category: 'A', value: 1 }],
           { ...config, buttons: 'nope' },
           context,
-        )) as { status?: string };
+        )) as unknown as { status?: string };
         expect(result.status).toBeUndefined();
       });
     });
@@ -387,7 +398,7 @@ describe('ChartHandler', () => {
           [{ category: 'A', value: 1 }],
           { ...config, title: 'My Chart' },
           context,
-        )) as {
+        )) as unknown as {
           output: Record<string, unknown>;
           config: Record<string, unknown>;
         };
@@ -408,7 +419,7 @@ describe('ChartHandler', () => {
           [{ category: 'A', value: 1 }],
           config,
           context,
-        )) as { config: Record<string, unknown> };
+        )) as unknown as { config: Record<string, unknown> };
         expect(result.config).toMatchObject({
           chartType: 'bar',
           xAxis: { field: 'category' },
@@ -419,7 +430,11 @@ describe('ChartHandler', () => {
 
     describe('edge cases', () => {
       it('should handle empty array input', async () => {
-        const result = (await handler.execute([], config, context)) as {
+        const result = (await handler.execute(
+          [],
+          config,
+          context,
+        )) as unknown as {
           output: { data: unknown[] };
         };
         expect(result.output.data).toMatchObject([]);

@@ -12,6 +12,9 @@ describe('ForEachHandler', () => {
       workflowId: 'wf-1',
       variables: {},
       nodeOutputCache: {},
+      structuredOutputCache: {},
+      engineResolvedConfigCache: {},
+      recursionDepth: 0,
     };
   });
 
@@ -85,7 +88,7 @@ describe('ForEachHandler', () => {
         input,
         { arrayField: 'items' },
         context,
-      )) as { output: unknown[] };
+      )) as unknown as { output: unknown[] };
       expect(result.output).toEqual([1, 2, 3]);
     });
 
@@ -95,7 +98,7 @@ describe('ForEachHandler', () => {
         input,
         { arrayField: 'data.list' },
         context,
-      )) as { output: unknown[] };
+      )) as unknown as { output: unknown[] };
       expect(result.output).toEqual(['a', 'b']);
     });
 
@@ -104,7 +107,7 @@ describe('ForEachHandler', () => {
         null,
         { arrayField: [10, 20, 30] },
         context,
-      )) as { output: unknown[] };
+      )) as unknown as { output: unknown[] };
       expect(result.output).toEqual([10, 20, 30]);
     });
 
@@ -113,7 +116,7 @@ describe('ForEachHandler', () => {
         { items: 'not-array' },
         { arrayField: 'items' },
         context,
-      )) as { output: unknown[] };
+      )) as unknown as { output: unknown[] };
       expect(result.output).toEqual([]);
     });
 
@@ -122,7 +125,7 @@ describe('ForEachHandler', () => {
         { other: [] },
         { arrayField: 'items' },
         context,
-      )) as { output: unknown[] };
+      )) as unknown as { output: unknown[] };
       expect(result.output).toEqual([]);
     });
 
@@ -131,7 +134,7 @@ describe('ForEachHandler', () => {
         { items: [] },
         { arrayField: 'items' },
         context,
-      )) as { output: unknown[] };
+      )) as unknown as { output: unknown[] };
       expect(result.output).toEqual([]);
     });
 
@@ -140,7 +143,7 @@ describe('ForEachHandler', () => {
         null,
         { arrayField: 'items' },
         context,
-      )) as { output: unknown[] };
+      )) as unknown as { output: unknown[] };
       expect(result.output).toEqual([]);
     });
 
@@ -149,7 +152,7 @@ describe('ForEachHandler', () => {
         { items: [1] },
         { arrayField: 'items' },
         context,
-      )) as { config: { arrayField: unknown } };
+      )) as unknown as { config: { arrayField: unknown } };
       expect(result.config.arrayField).toBe('items');
     });
 
@@ -162,7 +165,7 @@ describe('ForEachHandler', () => {
           ...context,
           rawConfig: Object.freeze({ arrayField: '{{ $input.items }}' }),
         },
-      )) as { config: { arrayField: unknown }; output: unknown };
+      )) as unknown as { config: { arrayField: unknown }; output: unknown };
       expect(result.config.arrayField).toBe('{{ $input.items }}');
       expect(result.output).toEqual([1, 2]);
     });

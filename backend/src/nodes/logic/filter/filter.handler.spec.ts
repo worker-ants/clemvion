@@ -1,7 +1,12 @@
 import { FilterHandler } from './filter.handler.js';
 import { ExecutionContext } from '../../core/node-handler.interface.js';
 
-type FilterResult = { match: unknown[]; unmatched: unknown[] };
+type FilterResult = {
+  config: Record<string, unknown>;
+  output: { match: unknown[]; unmatched: unknown[] };
+  meta?: Record<string, unknown>;
+  port?: string | string[];
+};
 
 describe('FilterHandler', () => {
   let handler: FilterHandler;
@@ -14,6 +19,9 @@ describe('FilterHandler', () => {
       workflowId: 'test-wf-1',
       variables: {},
       nodeOutputCache: {},
+      structuredOutputCache: {},
+      engineResolvedConfigCache: {},
+      recursionDepth: 0,
     };
   });
 
@@ -21,7 +29,11 @@ describe('FilterHandler', () => {
     input: unknown,
     config: Record<string, unknown>,
   ): Promise<FilterResult> {
-    return (await handler.execute(input, config, context)) as FilterResult;
+    return (await handler.execute(
+      input,
+      config,
+      context,
+    )) as unknown as FilterResult;
   }
 
   describe('validate', () => {
@@ -1016,7 +1028,7 @@ describe('FilterHandler', () => {
           combineMode: 'and',
         },
         ctxWithVars,
-      )) as FilterResult;
+      )) as unknown as FilterResult;
 
       expect(result.output.match).toEqual([20, 30]);
     });
@@ -1104,7 +1116,9 @@ describe('FilterHandler', () => {
             strictComparison: false,
           }),
         },
-      )) as { config: { inputField: unknown; conditions: unknown[] } };
+      )) as unknown as {
+        config: { inputField: unknown; conditions: unknown[] };
+      };
 
       expect(result.config.inputField).toBe('{{ $input.items }}');
       expect((result.config.conditions[0] as { value: unknown }).value).toBe(

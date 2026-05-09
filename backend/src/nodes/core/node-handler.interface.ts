@@ -7,12 +7,17 @@ export interface ExecutionContext {
    * use this when emitting WS events that must be addressable by the static
    * graph node (e.g. AI Agent's tool_call_started/completed).
    *
-   * Set by the engine before each handler call. May be absent in legacy
-   * resume state captured before this field existed; consumers should
-   * fall back to `''` and skip the side-effect rather than throw.
+   * 엔진이 dispatch 직전 항상 주입한다. `?` 표기는 핸들러를 `executeNode`
+   * 경유 없이 직접 unit test 하는 fixture 가 생략을 허용하기 위함.
+   * Legacy resume state captured before this field existed 의 경우에도
+   * absent 가능 — consumers should fall back to `''` and skip the
+   * side-effect rather than throw.
    */
   nodeId?: string;
-  /** Current NodeExecution row id — set by the engine before each handler call. */
+  /**
+   * Current NodeExecution row id — 엔진이 dispatch 직전 항상 주입한다.
+   * `?` 표기는 핸들러를 직접 unit test 하는 fixture 가 생략을 허용하기 위함.
+   */
   nodeExecutionId?: string;
   variables: Record<string, unknown>;
   nodeOutputCache: Record<string, unknown>;
@@ -20,10 +25,14 @@ export interface ExecutionContext {
    * Per-node {@link NodeHandlerOutput} view. Populated in parallel with
    * `nodeOutputCache` by the engine after each handler call. Expression
    * resolver reads from this cache to expose `$node[X].config / .output /
-   * .meta / .port / .status`. Optional for backward compatibility with
-   * existing test fixtures that don't pre-populate it.
+   * .meta / .port / .status`.
+   *
+   * `ExecutionContextService.createContext` 가 항상 `{}` 로 초기화하므로
+   * non-optional. 핸들러는 거의 읽지 않으며 (engine / expression resolver
+   * 가 주 소비자), 직접 unit test 시 `makeExecutionContext()` 헬퍼가
+   * default `{}` 를 제공한다.
    */
-  structuredOutputCache?: Record<string, NodeHandlerOutput>;
+  structuredOutputCache: Record<string, NodeHandlerOutput>;
   /**
    * Per-node fully resolved (expression-evaluated) config snapshot. Populated
    * by the engine right after expression resolution, before handler invocation.
@@ -43,8 +52,10 @@ export interface ExecutionContext {
    * Marked `Readonly` at both layers so handlers cannot mutate the cache
    * (compile-time block in TS-strict; engine writes through the dedicated
    * setter on `ExecutionContextService`).
+   *
+   * `createContext` 가 항상 `{}` 로 초기화하므로 non-optional.
    */
-  readonly engineResolvedConfigCache?: Readonly<
+  readonly engineResolvedConfigCache: Readonly<
     Record<string, Readonly<Record<string, unknown>>>
   >;
   loopContext?: {
@@ -73,9 +84,17 @@ export interface ExecutionContext {
    *
    * 상세: PRD `ENG-RC-*`, Spec `4-execution-engine.md` §5.5 / §6.1,
    * CONVENTIONS Principle 7.
+   *
+   * 엔진이 dispatch 직전 항상 주입한다. `?` 표기는 핸들러를 `executeNode`
+   * 경유 없이 직접 unit test 하는 fixture 가 생략을 허용하기 위함 — 24개
+   * 프로덕션 핸들러는 `context.rawConfig ?? config` 폴백 패턴을 사용한다.
    */
   rawConfig?: Readonly<Record<string, unknown>>;
-  recursionDepth?: number;
+  /**
+   * `createContext` 가 항상 `0` 으로 초기화하므로 non-optional. Sub-workflow
+   * inline execution 진입 시마다 1씩 증가하여 무한 재귀를 방지한다.
+   */
+  recursionDepth: number;
   /**
    * When set, the engine will persist every NodeExecution created under this
    * context with `parent_node_execution_id = this value`. Stamped by
@@ -85,7 +104,12 @@ export interface ExecutionContext {
    * sibling nodes don't inherit it.
    */
   parentNodeExecutionId?: string;
-  /** Runtime state injected by ExecutionEngineService for sub-workflow inline execution */
+  /**
+   * 엔진 내부 상태 — sub-workflow inline execution 경로 (`runExecution` 의
+   * `executeInline` branch) 에서만 set. `_` prefix 가 internal 신호.
+   * `WorkflowHandler` 만 정당하게 읽으며 (sub-workflow bridge), 다른
+   * 핸들러는 접근하지 않아야 한다.
+   */
   _executedNodes?: Set<string>;
 }
 
@@ -166,7 +190,7 @@ export interface NodeHandler {
     input: unknown,
     config: Record<string, unknown>,
     context: ExecutionContext,
-  ): Promise<NodeHandlerOutput> | Promise<unknown>;
+  ): Promise<NodeHandlerOutput>;
 }
 
 /**

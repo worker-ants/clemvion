@@ -12,6 +12,9 @@ describe('VariableDeclarationHandler', () => {
       workflowId: 'test-wf-1',
       variables: {},
       nodeOutputCache: {},
+      structuredOutputCache: {},
+      engineResolvedConfigCache: {},
+      recursionDepth: 0,
     };
   });
 
@@ -253,7 +256,7 @@ describe('VariableDeclarationHandler', () => {
           ...context,
           rawConfig: Object.freeze({ variables: rawVariables }),
         },
-      )) as { config: { variables: unknown } };
+      )) as unknown as { config: { variables: unknown } };
 
       expect(result.config.variables).toEqual(rawVariables);
       // Evaluated value still flows into context.variables for runtime use.

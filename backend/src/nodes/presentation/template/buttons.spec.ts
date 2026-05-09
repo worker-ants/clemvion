@@ -12,6 +12,9 @@ describe('TemplateHandler - Buttons', () => {
     workflowId: 'wf-1',
     variables: {},
     nodeOutputCache: {},
+    structuredOutputCache: {},
+    engineResolvedConfigCache: {},
+    recursionDepth: 0,
   };
 
   describe('validate with buttons', () => {
@@ -39,7 +42,7 @@ describe('TemplateHandler - Buttons', () => {
         {},
         { template: '<p>Hello</p>', buttons },
         context,
-      )) as Record<string, unknown>;
+      )) as unknown as Record<string, unknown>;
 
       expect(result.output.type).toBeUndefined();
       expect(result.status).toBe('waiting_for_input');
@@ -52,7 +55,7 @@ describe('TemplateHandler - Buttons', () => {
         {},
         { template: '<p>Hello</p>' },
         context,
-      )) as Record<string, unknown>;
+      )) as unknown as Record<string, unknown>;
 
       expect(result.output.type).toBeUndefined();
       expect(result.status).toBeUndefined();

@@ -1,5 +1,6 @@
 import {
   NodeHandler,
+  NodeHandlerOutput,
   ExecutionContext,
   ValidationResult,
 } from '../../core/node-handler.interface';
@@ -46,7 +47,7 @@ export class TextClassifierHandler implements NodeHandler {
     input: unknown,
     config: Record<string, unknown>,
     context: ExecutionContext,
-  ): Promise<unknown> {
+  ): Promise<NodeHandlerOutput> {
     const llmConfigId = config.llmConfigId as string | undefined;
     const model = config.model as string | undefined;
     const inputField = config.inputField as string;

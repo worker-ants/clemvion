@@ -12,6 +12,9 @@ describe('CarouselHandler', () => {
     workflowId: 'wf-1',
     variables: {},
     nodeOutputCache: {},
+    structuredOutputCache: {},
+    engineResolvedConfigCache: {},
+    recursionDepth: 0,
   };
 
   describe('validate', () => {
@@ -171,7 +174,7 @@ describe('CarouselHandler', () => {
           layout: 'card',
         },
         context,
-      )) as Record<string, unknown>;
+      )) as unknown as Record<string, unknown>;
 
       expect(result.output.type).toBeUndefined();
       expect(result.config.layout).toBe('card');
@@ -199,7 +202,7 @@ describe('CarouselHandler', () => {
           layout: 'card',
         },
         context,
-      )) as Record<string, unknown>;
+      )) as unknown as Record<string, unknown>;
 
       const items = result.output.items as Array<Record<string, unknown>>;
       expect(items[0].image).toBeUndefined();
@@ -213,7 +216,7 @@ describe('CarouselHandler', () => {
           items: [{ title: 'Only Title' }],
         },
         context,
-      )) as Record<string, unknown>;
+      )) as unknown as Record<string, unknown>;
 
       const items = result.output.items as Array<Record<string, unknown>>;
       expect(items[0]).toEqual({
@@ -228,7 +231,7 @@ describe('CarouselHandler', () => {
         null,
         { mode: 'static' },
         context,
-      )) as Record<string, unknown>;
+      )) as unknown as Record<string, unknown>;
 
       const items = result.output.items as Array<Record<string, unknown>>;
       expect(items).toHaveLength(0);
@@ -250,7 +253,7 @@ describe('CarouselHandler', () => {
           layout: 'image',
         },
         context,
-      )) as Record<string, unknown>;
+      )) as unknown as Record<string, unknown>;
 
       expect(result.output.type).toBeUndefined();
       expect(result.config.layout).toBe('image');
@@ -272,7 +275,7 @@ describe('CarouselHandler', () => {
         input,
         { titleField: 't', maxItems: 2 },
         context,
-      )) as Record<string, unknown>;
+      )) as unknown as Record<string, unknown>;
 
       const items = result.output.items as Array<Record<string, unknown>>;
       expect(items).toHaveLength(2);
@@ -283,7 +286,7 @@ describe('CarouselHandler', () => {
         { name: 'Single' },
         { titleField: 'name' },
         context,
-      )) as Record<string, unknown>;
+      )) as unknown as Record<string, unknown>;
 
       const items = result.output.items as Array<Record<string, unknown>>;
       expect(items).toHaveLength(1);
@@ -295,7 +298,7 @@ describe('CarouselHandler', () => {
         [{ other: 'value' }],
         { titleField: 'name' },
         context,
-      )) as Record<string, unknown>;
+      )) as unknown as Record<string, unknown>;
 
       const items = result.output.items as Array<Record<string, unknown>>;
       expect(items[0].title).toBe('');
@@ -306,7 +309,7 @@ describe('CarouselHandler', () => {
         null,
         { titleField: 'name' },
         context,
-      )) as Record<string, unknown>;
+      )) as unknown as Record<string, unknown>;
 
       const items = result.output.items as Array<Record<string, unknown>>;
       expect(items).toHaveLength(0);
@@ -317,7 +320,7 @@ describe('CarouselHandler', () => {
         [{ count: 42, active: true }],
         { titleField: 'count', descriptionField: 'active' },
         context,
-      )) as Record<string, unknown>;
+      )) as unknown as Record<string, unknown>;
 
       const items = result.output.items as Array<Record<string, unknown>>;
       expect(items[0].title).toBe('42');
@@ -330,7 +333,7 @@ describe('CarouselHandler', () => {
         [{ name: 'Test' }],
         { titleField: 'name' },
         context,
-      )) as Record<string, unknown>;
+      )) as unknown as Record<string, unknown>;
 
       expect(result.output.type).toBeUndefined();
       const items = result.output.items as Array<Record<string, unknown>>;
@@ -343,7 +346,7 @@ describe('CarouselHandler', () => {
         null,
         { mode: 'static', items: [{ title: 'X' }] },
         context,
-      )) as Record<string, unknown>;
+      )) as unknown as Record<string, unknown>;
 
       expect(result.config.layout).toBe('card');
       expect(result.output.layout).toBeUndefined();
@@ -354,7 +357,7 @@ describe('CarouselHandler', () => {
         null,
         { mode: 'static', items: [{ title: 'X' }], layout: 'minimal' },
         context,
-      )) as Record<string, unknown>;
+      )) as unknown as Record<string, unknown>;
 
       expect(result.config.layout).toBe('minimal');
       expect(result.output.layout).toBeUndefined();
@@ -370,7 +373,7 @@ describe('CarouselHandler', () => {
           layout: 'card',
         },
         context,
-      )) as Record<string, unknown>;
+      )) as unknown as Record<string, unknown>;
 
       expect(result.output.rendered).toBeDefined();
       expect(typeof result.output.rendered).toBe('string');
@@ -386,7 +389,7 @@ describe('CarouselHandler', () => {
           items: [{ title: '<script>alert("xss")</script>' }],
         },
         context,
-      )) as Record<string, unknown>;
+      )) as unknown as Record<string, unknown>;
 
       expect(result.output.rendered as string).not.toContain('<script>');
       expect(result.output.rendered as string).toContain('&lt;script&gt;');
@@ -400,7 +403,7 @@ describe('CarouselHandler', () => {
           items: [{ title: 'XSS', image: 'javascript:alert(1)' }],
         },
         context,
-      )) as Record<string, unknown>;
+      )) as unknown as Record<string, unknown>;
 
       const items = result.output.items as Array<Record<string, unknown>>;
       expect(items[0].image).toBeUndefined();
@@ -415,7 +418,7 @@ describe('CarouselHandler', () => {
           items: [{ title: 'Test', image: 'http://img.png" onload="xss()' }],
         },
         context,
-      )) as Record<string, unknown>;
+      )) as unknown as Record<string, unknown>;
 
       const rendered = result.output.rendered as string;
       expect(rendered).toContain('&quot;');
@@ -431,7 +434,7 @@ describe('CarouselHandler', () => {
           items: [{ title: "it's a test" }],
         },
         context,
-      )) as Record<string, unknown>;
+      )) as unknown as Record<string, unknown>;
 
       expect(result.output.rendered as string).toContain('&#39;');
     });
@@ -449,7 +452,7 @@ describe('CarouselHandler', () => {
           ],
         },
         context,
-      )) as Record<string, unknown>;
+      )) as unknown as Record<string, unknown>;
 
       const items = result.output.items as Array<Record<string, unknown>>;
       expect(items).toHaveLength(2);
@@ -471,7 +474,7 @@ describe('CarouselHandler', () => {
         null,
         { mode: 'static', items },
         context,
-      )) as Record<string, unknown>;
+      )) as unknown as Record<string, unknown>;
 
       expect(result.output.itemsTruncated).toBe(true);
       expect(result.output.itemsTotalCount).toBe(6);
@@ -502,7 +505,7 @@ describe('CarouselHandler', () => {
           descriptionField: 'body',
         },
         context,
-      )) as Record<string, unknown>;
+      )) as unknown as Record<string, unknown>;
 
       expect(result.output.itemsTruncated).toBe(true);
       expect(result.output.itemsTotalCount).toBe(6);
@@ -525,7 +528,7 @@ describe('CarouselHandler', () => {
         null,
         { mode: 'static', items },
         context,
-      )) as Record<string, unknown>;
+      )) as unknown as Record<string, unknown>;
 
       const echoed = result.output.items as Array<Record<string, unknown>>;
       const rendered = result.output.rendered as string;

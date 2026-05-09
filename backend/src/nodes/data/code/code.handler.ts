@@ -2,6 +2,7 @@ import vm from 'node:vm';
 import {
   ExecutionContext,
   NodeHandler,
+  NodeHandlerOutput,
   ValidationResult,
 } from '../../core/node-handler.interface.js';
 import { evaluateMetadataBlockingErrors } from '../../core/metadata-validation.js';
@@ -106,7 +107,7 @@ export class CodeHandler implements NodeHandler {
     input: unknown,
     config: Record<string, unknown>,
     context: ExecutionContext,
-  ): Promise<unknown> {
+  ): Promise<NodeHandlerOutput> {
     const code = config.code as string;
     const timeoutSec =
       typeof config.timeout === 'number' ? config.timeout : DEFAULT_TIMEOUT_SEC;
@@ -204,7 +205,7 @@ export class CodeHandler implements NodeHandler {
     errorCode: string,
     logs: string[],
     overrideMessage?: string,
-  ): unknown {
+  ): NodeHandlerOutput {
     const message =
       overrideMessage ??
       (error instanceof Error ? error.message : String(error));

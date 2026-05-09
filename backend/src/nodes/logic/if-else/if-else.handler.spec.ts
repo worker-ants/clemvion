@@ -12,6 +12,9 @@ describe('IfElseHandler', () => {
       workflowId: 'test-wf-1',
       variables: {},
       nodeOutputCache: {},
+      structuredOutputCache: {},
+      engineResolvedConfigCache: {},
+      recursionDepth: 0,
     };
   });
 
@@ -462,7 +465,7 @@ describe('IfElseHandler', () => {
             combineMode: 'and',
           }),
         },
-      )) as { config: { conditions: unknown }; port: string };
+      )) as unknown as { config: { conditions: unknown }; port: string };
 
       expect(result.port).toBe('true');
       expect(result.config.conditions).toEqual(rawConditions);

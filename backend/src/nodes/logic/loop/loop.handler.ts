@@ -1,5 +1,6 @@
 import {
   NodeHandler,
+  NodeHandlerOutput,
   ValidationResult,
   ExecutionContext,
 } from '../../core/node-handler.interface.js';
@@ -27,7 +28,7 @@ export class LoopHandler implements NodeHandler {
     _input: unknown,
     config: Record<string, unknown>,
     context: ExecutionContext,
-  ): Promise<unknown> {
+  ): Promise<NodeHandlerOutput> {
     // CONVENTIONS Principle 7 — config echoes raw count / maxIterations
     // (`{{ ... }}` templates preserved). `output: null` stays so the engine
     // overrides with iteration results (Principle 9 — container contract).

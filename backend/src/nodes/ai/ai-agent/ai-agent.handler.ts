@@ -1,6 +1,7 @@
 import { Logger } from '@nestjs/common';
 import {
   NodeHandler,
+  NodeHandlerOutput,
   ExecutionContext,
   ValidationResult,
   ResumableNodeHandlerOutput,
@@ -460,7 +461,7 @@ export class AiAgentHandler implements NodeHandler {
     input: unknown,
     config: Record<string, unknown>,
     context: ExecutionContext,
-  ): Promise<unknown> {
+  ): Promise<NodeHandlerOutput> {
     const mode = (config.mode as string) || 'single_turn';
 
     try {
@@ -498,7 +499,7 @@ export class AiAgentHandler implements NodeHandler {
     _input: unknown,
     config: Record<string, unknown>,
     context: ExecutionContext,
-  ): Promise<unknown> {
+  ): Promise<NodeHandlerOutput> {
     const llmConfigId = config.llmConfigId as string | undefined;
     const model = config.model as string | undefined;
     const systemPrompt = (config.systemPrompt as string) || '';
@@ -804,7 +805,7 @@ export class AiAgentHandler implements NodeHandler {
     _input: unknown,
     config: Record<string, unknown>,
     context: ExecutionContext,
-  ): Promise<unknown> {
+  ): Promise<NodeHandlerOutput> {
     const llmConfigId = config.llmConfigId as string | undefined;
     const model = config.model as string | undefined;
     const systemPrompt = (config.systemPrompt as string) || '';
@@ -1303,7 +1304,7 @@ export class AiAgentHandler implements NodeHandler {
     },
     turnDebugHistory?: unknown[],
     rawConfig?: Record<string, unknown>,
-  ): unknown {
+  ): NodeHandlerOutput {
     // CONVENTIONS §8 — wrap conversation result under `output.result.*`.
     // Tokens + tool-call counts go to `meta.*` (Principle 2). The legacy
     // `interactionType: 'ai_conversation'` marker moves to `meta.interactionType`
@@ -1359,7 +1360,7 @@ export class AiAgentHandler implements NodeHandler {
     },
     turnDebugHistory?: unknown[],
     rawConfig?: Record<string, unknown>,
-  ): unknown {
+  ): NodeHandlerOutput {
     const lastMsg = messages[messages.length - 1];
     const lastResponse = lastMsg?.content ?? '';
 

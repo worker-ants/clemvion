@@ -12,6 +12,9 @@ describe('ChartHandler - Buttons', () => {
     workflowId: 'wf-1',
     variables: {},
     nodeOutputCache: {},
+    structuredOutputCache: {},
+    engineResolvedConfigCache: {},
+    recursionDepth: 0,
   };
 
   describe('validate with buttons', () => {
@@ -48,7 +51,7 @@ describe('ChartHandler - Buttons', () => {
           buttons,
         },
         context,
-      )) as Record<string, unknown>;
+      )) as unknown as Record<string, unknown>;
 
       expect(result.output.type).toBeUndefined();
       expect(result.status).toBe('waiting_for_input');
@@ -65,7 +68,7 @@ describe('ChartHandler - Buttons', () => {
           yAxis: { field: 'revenue' },
         },
         context,
-      )) as Record<string, unknown>;
+      )) as unknown as Record<string, unknown>;
 
       expect(result.output.type).toBeUndefined();
       expect(result.status).toBeUndefined();

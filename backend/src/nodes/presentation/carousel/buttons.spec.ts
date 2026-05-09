@@ -12,6 +12,9 @@ describe('CarouselHandler - Buttons', () => {
     workflowId: 'wf-1',
     variables: {},
     nodeOutputCache: {},
+    structuredOutputCache: {},
+    engineResolvedConfigCache: {},
+    recursionDepth: 0,
   };
 
   describe('validate with buttons', () => {
@@ -72,7 +75,7 @@ describe('CarouselHandler - Buttons', () => {
           buttons,
         },
         context,
-      )) as Record<string, unknown>;
+      )) as unknown as Record<string, unknown>;
 
       expect(result.output.type).toBeUndefined();
       expect(result.status).toBe('waiting_for_input');
@@ -90,7 +93,7 @@ describe('CarouselHandler - Buttons', () => {
         [{ name: 'Item 1' }],
         { titleField: 'name', buttons: [] },
         context,
-      )) as Record<string, unknown>;
+      )) as unknown as Record<string, unknown>;
 
       expect(result.output.type).toBeUndefined();
       expect(result.status).toBeUndefined();
@@ -102,7 +105,7 @@ describe('CarouselHandler - Buttons', () => {
         [{ name: 'Item 1' }],
         { titleField: 'name' },
         context,
-      )) as Record<string, unknown>;
+      )) as unknown as Record<string, unknown>;
 
       expect(result.output.type).toBeUndefined();
       expect(result.status).toBeUndefined();

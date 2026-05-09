@@ -12,6 +12,9 @@ describe('CodeHandler', () => {
       workflowId: 'wf-1',
       variables: {},
       nodeOutputCache: {},
+      structuredOutputCache: {},
+      engineResolvedConfigCache: {},
+      recursionDepth: 0,
     };
   });
 
@@ -67,7 +70,7 @@ describe('CodeHandler', () => {
         { value: 5 },
         { code: 'return $input.value * 2;' },
         context,
-      )) as { output: unknown; meta: Record<string, unknown> };
+      )) as unknown as { output: unknown; meta: Record<string, unknown> };
       expect(result.output).toBe(10);
       expect(result.meta).toMatchObject({ success: true });
     });
@@ -78,7 +81,7 @@ describe('CodeHandler', () => {
         null,
         { code: 'return $vars.greeting + " world";' },
         context,
-      )) as { output: unknown };
+      )) as unknown as { output: unknown };
       expect(result.output).toBe('hello world');
     });
 
@@ -89,7 +92,7 @@ describe('CodeHandler', () => {
           code: 'return { eid: $execution.executionId, wid: $execution.workflowId };',
         },
         context,
-      )) as { output: Record<string, string> };
+      )) as unknown as { output: Record<string, string> };
       expect(result.output).toEqual({ eid: 'exec-1', wid: 'wf-1' });
     });
 
@@ -98,7 +101,7 @@ describe('CodeHandler', () => {
         null,
         { code: 'return Promise.resolve(42);' },
         context,
-      )) as { output: unknown };
+      )) as unknown as { output: unknown };
       expect(result.output).toBe(42);
     });
 
@@ -107,7 +110,7 @@ describe('CodeHandler', () => {
         null,
         { code: 'const v = await Promise.resolve(7); return v + 1;' },
         context,
-      )) as { output: unknown };
+      )) as unknown as { output: unknown };
       expect(result.output).toBe(8);
     });
 
@@ -116,7 +119,7 @@ describe('CodeHandler', () => {
         null,
         { code: 'throw new Error("boom");' },
         context,
-      )) as {
+      )) as unknown as {
         output: unknown;
         meta: { success: boolean; error?: string; errorCode?: string };
       };
@@ -137,7 +140,7 @@ describe('CodeHandler', () => {
         null,
         { code: 'this is ( not valid js' },
         context,
-      )) as {
+      )) as unknown as {
         output: unknown;
         meta: { success: boolean; error?: string; errorCode?: string };
       };
@@ -156,7 +159,7 @@ describe('CodeHandler', () => {
         null,
         { code: 'const x = 1;' },
         context,
-      )) as { output: unknown; meta: { success: boolean } };
+      )) as unknown as { output: unknown; meta: { success: boolean } };
       expect(result.output).toBeUndefined();
       expect(result.meta.success).toBe(true);
     });
@@ -166,7 +169,7 @@ describe('CodeHandler', () => {
         null,
         { code: 'return 1;', language: 'javascript' },
         context,
-      )) as { config: { language: string } };
+      )) as unknown as { config: { language: string } };
       expect(result.config.language).toBe('javascript');
     });
 
@@ -175,7 +178,7 @@ describe('CodeHandler', () => {
         null,
         { code: 'return 1;' },
         context,
-      )) as { config: { language: string } };
+      )) as unknown as { config: { language: string } };
       expect(result.config.language).toBe('javascript');
     });
 
@@ -184,7 +187,10 @@ describe('CodeHandler', () => {
         null,
         { code: 'throw new Error("x");', language: 'javascript' },
         context,
-      )) as { config: { language: string }; meta: { success: boolean } };
+      )) as unknown as {
+        config: { language: string };
+        meta: { success: boolean };
+      };
       expect(result.config.language).toBe('javascript');
       expect(result.meta.success).toBe(false);
     });
@@ -203,7 +209,11 @@ describe('CodeHandler', () => {
       ['Reflect', 'return Reflect.get({}, "x");'],
       ['Proxy', 'return new Proxy({}, {});'],
     ])('should block access to %s', async (_name, code) => {
-      const result = (await handler.execute(null, { code }, context)) as {
+      const result = (await handler.execute(
+        null,
+        { code },
+        context,
+      )) as unknown as {
         meta: { success: boolean; error?: string };
       };
       expect(result.meta.success).toBe(false);
@@ -215,7 +225,7 @@ describe('CodeHandler', () => {
         null,
         { code: 'return typeof globalThis;' },
         context,
-      )) as { output: string };
+      )) as unknown as { output: string };
       expect(result.output).toBe('undefined');
     });
 
@@ -224,7 +234,7 @@ describe('CodeHandler', () => {
         null,
         { code: 'return import("fs");' },
         context,
-      )) as { meta: { success: boolean } };
+      )) as unknown as { meta: { success: boolean } };
       expect(result.meta.success).toBe(false);
     });
 
@@ -233,7 +243,7 @@ describe('CodeHandler', () => {
         null,
         { code: 'return eval("1+1");' },
         context,
-      )) as { meta: { success: boolean } };
+      )) as unknown as { meta: { success: boolean } };
       expect(result.meta.success).toBe(false);
     });
 
@@ -242,7 +252,7 @@ describe('CodeHandler', () => {
         null,
         { code: 'return new Function("return 1")();' },
         context,
-      )) as { meta: { success: boolean } };
+      )) as unknown as { meta: { success: boolean } };
       expect(result.meta.success).toBe(false);
     });
 
@@ -258,7 +268,7 @@ describe('CodeHandler', () => {
           `,
         },
         context,
-      )) as { output: { a: number; pi: number; d: number } };
+      )) as unknown as { output: { a: number; pi: number; d: number } };
       expect(result.output.a).toBe(1);
       expect(result.output.pi).toBeCloseTo(Math.PI);
       expect(result.output.d).toBe(1970);
@@ -269,7 +279,7 @@ describe('CodeHandler', () => {
         null,
         { code: 'console.log("hello", 1); return 1;' },
         context,
-      )) as { meta: { logs: string[] } };
+      )) as unknown as { meta: { logs: string[] } };
       expect(result.meta.logs).toEqual(['[log] hello 1']);
     });
 
@@ -280,7 +290,7 @@ describe('CodeHandler', () => {
           code: 'for (let i = 0; i < 250; i++) console.log(i); return 1;',
         },
         context,
-      )) as { meta: { logs: string[] } };
+      )) as unknown as { meta: { logs: string[] } };
       expect(result.meta.logs).toHaveLength(100);
     });
   });
@@ -291,7 +301,7 @@ describe('CodeHandler', () => {
         null,
         { code: 'while (true) {}', timeout: 1 },
         context,
-      )) as {
+      )) as unknown as {
         output: unknown;
         meta: { success: boolean; errorCode?: string; error?: string };
       };
@@ -313,7 +323,7 @@ describe('CodeHandler', () => {
           timeout: 1,
         },
         context,
-      )) as {
+      )) as unknown as {
         output: unknown;
         meta: { success: boolean; errorCode?: string; error?: string };
       };
@@ -336,7 +346,7 @@ describe('CodeHandler', () => {
         null,
         { code: '$vars.counter = 42; $vars.added = "new"; return $vars;' },
         context,
-      )) as { meta: { success: boolean } };
+      )) as unknown as { meta: { success: boolean } };
       expect(result.meta.success).toBe(true);
       expect(context.variables).toEqual({ counter: 42, added: 'new' });
     });

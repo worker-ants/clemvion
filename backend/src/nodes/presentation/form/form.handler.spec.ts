@@ -12,6 +12,9 @@ describe('FormHandler', () => {
       workflowId: 'wf-1',
       variables: {},
       nodeOutputCache: {},
+      structuredOutputCache: {},
+      engineResolvedConfigCache: {},
+      recursionDepth: 0,
     };
   });
 
@@ -61,14 +64,22 @@ describe('FormHandler', () => {
     };
 
     it('returns status waiting_for_input', async () => {
-      const result = (await handler.execute(null, baseConfig, context)) as {
+      const result = (await handler.execute(
+        null,
+        baseConfig,
+        context,
+      )) as unknown as {
         status: string;
       };
       expect(result.status).toBe('waiting_for_input');
     });
 
     it('includes interactionType + durationMs in meta', async () => {
-      const result = (await handler.execute(null, baseConfig, context)) as {
+      const result = (await handler.execute(
+        null,
+        baseConfig,
+        context,
+      )) as unknown as {
         meta: Record<string, unknown>;
       };
       expect(result.meta).toMatchObject({
@@ -78,14 +89,22 @@ describe('FormHandler', () => {
     });
 
     it('echoes the full config back', async () => {
-      const result = (await handler.execute(null, baseConfig, context)) as {
+      const result = (await handler.execute(
+        null,
+        baseConfig,
+        context,
+      )) as unknown as {
         config: Record<string, unknown>;
       };
       expect(result.config).toEqual(baseConfig);
     });
 
     it('returns empty object output (Principle 4.3 — waiting form has no runtime value)', async () => {
-      const result = (await handler.execute(null, baseConfig, context)) as {
+      const result = (await handler.execute(
+        null,
+        baseConfig,
+        context,
+      )) as unknown as {
         output: unknown;
       };
       expect(result.output).toEqual({});
@@ -96,7 +115,7 @@ describe('FormHandler', () => {
         { some: 'input' },
         baseConfig,
         context,
-      )) as { status: string; config: Record<string, unknown> };
+      )) as unknown as { status: string; config: Record<string, unknown> };
       expect(result.status).toBe('waiting_for_input');
       expect(result.config).toEqual(baseConfig);
     });
