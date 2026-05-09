@@ -771,6 +771,7 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
               status: NodeExecutionStatus.SKIPPED,
               nodeType: node.type,
               nodeLabel: node.label ?? node.type,
+              startedAt: skipped.startedAt?.toISOString?.(),
             },
           );
           executedNodes.add(nodeId);
@@ -1271,6 +1272,7 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
               status: NodeExecutionStatus.SKIPPED,
               nodeType: node.type,
               nodeLabel: node.label ?? node.type,
+              startedAt: skipped.startedAt?.toISOString?.(),
             },
           );
           executedNodes.add(nodeId);
@@ -1709,6 +1711,10 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
           nodeLabel: node.label ?? node.type,
           output: nodeExec.outputData,
           input: nodeExec.inputData,
+          // ws 의 NODE_STARTED race miss 시에도 store row 의 startedAt 이
+          // 누락되지 않도록 모든 NODE_* 이벤트에 startedAt 동봉 (timeline
+          // sortByStartedAt 정합성).
+          startedAt: nodeExec.startedAt?.toISOString?.(),
           finishedAt: nodeExec.finishedAt?.toISOString?.(),
         },
       );
@@ -2136,6 +2142,7 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
           output: nodeExec.outputData,
           input: nodeExec.inputData,
           interactionData: nodeExec.interactionData,
+          startedAt: nodeExec.startedAt?.toISOString?.(),
           finishedAt: nodeExec.finishedAt?.toISOString?.(),
         },
       );
@@ -2459,6 +2466,7 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
           output: nodeExec.outputData,
           input: nodeExec.inputData,
           interactionData: nodeExec.interactionData,
+          startedAt: nodeExec.startedAt?.toISOString?.(),
           finishedAt: nodeExec.finishedAt?.toISOString?.(),
         },
       );
@@ -2665,6 +2673,7 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
             nodeLabel: node.label ?? node.type,
             output: nodeExecution.outputData,
             input: nodeExecution.inputData,
+            startedAt: nodeExecution.startedAt?.toISOString?.(),
             finishedAt: nodeExecution.finishedAt?.toISOString?.(),
           },
         );
@@ -2709,6 +2718,7 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
               nodeLabel: node.label ?? node.type,
               error: nodeExecution.error.message,
               input: nodeExecution.inputData,
+              startedAt: nodeExecution.startedAt?.toISOString?.(),
               finishedAt: nodeExecution.finishedAt?.toISOString?.(),
             },
           );
@@ -2773,6 +2783,7 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
               nodeType: node.type,
               nodeLabel: node.label ?? node.type,
               input: nodeExecution.inputData,
+              startedAt: nodeExecution.startedAt?.toISOString?.(),
               finishedAt: nodeExecution.finishedAt?.toISOString?.(),
             },
           );
@@ -3172,6 +3183,7 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
             status: NodeExecutionStatus.SKIPPED,
             nodeType: node.type,
             nodeLabel: node.label ?? node.type,
+            startedAt: skipped.startedAt?.toISOString?.(),
           },
         );
         executedNodes.add(nodeId);
@@ -3685,6 +3697,7 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
             status: NodeExecutionStatus.SKIPPED,
             nodeType: node.type,
             nodeLabel: node.label ?? node.type,
+            startedAt: skipped.startedAt?.toISOString?.(),
           },
         );
         executedNodes.add(nodeId);
@@ -4020,6 +4033,7 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
           nodeType: containerNode.type,
           nodeLabel: containerNode.label ?? containerNode.type,
           input: nodeExec?.inputData,
+          startedAt: nodeExec?.startedAt?.toISOString?.(),
           finishedAt: nodeExec?.finishedAt?.toISOString?.(),
         },
       );
