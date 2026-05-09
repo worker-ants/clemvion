@@ -143,6 +143,23 @@ export interface ResumableNodeHandlerOutput extends NodeHandlerOutput {
   status: 'waiting_for_input';
 }
 
+/**
+ * 모든 노드 타입이 구현하는 단일 핸들러 컨트랙트 (spec/5-system/4-execution-engine.md §5.1).
+ *
+ *  - **validate(config)** — 노드 정의의 정적 유효성 검사. 엔진은 `executeNode`
+ *    진입 직후 호출해 INVALID_NODE_CONFIG 를 fail-fast 한다. 사용자 입력
+ *    의존성 (예: `{{ ... }}` 참조) 은 expression resolution 후 별도 점검.
+ *  - **execute(input, config, context)** — 실제 노드 실행. config 는 expression
+ *    평가가 끝난 값 (raw 가 필요하면 `context.rawConfig` 사용). 반환값은
+ *    canonical {@link NodeHandlerOutput} (config / output / meta? / port? /
+ *    status?) 이어야 하며, `adaptHandlerReturn` 가 production strict mode 에서
+ *    contract 위반을 throw 한다.
+ *
+ * Multi-turn 대화형 노드는 추가로 {@link ResumableNodeHandler} 를 구현한다.
+ *
+ * 신규 핸들러 작성 시 {@link CONVENTIONS} (`user_memo/node-specs-improvement/CONVENTIONS.md`)
+ * Principle 1~11 을 우선 검토한다.
+ */
 export interface NodeHandler {
   validate(config: Record<string, unknown>): ValidationResult;
   execute(

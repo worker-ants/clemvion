@@ -42,7 +42,13 @@ export class NodeComponentRegistry {
         throw new Error(`Duplicate node component registration: ${type}`);
       }
       this.components.set(type, component);
-      this.handlerRegistry.register(type, component.createHandler(deps));
+      // PR-G — `executionMetadata` 를 함께 등록해 엔진의 dispatch 가
+      // hard-coded 문자열 분기 대신 metadata flag 를 보도록 한다.
+      this.handlerRegistry.register(
+        type,
+        component.createHandler(deps),
+        component.metadata.executionMetadata,
+      );
     }
     this.logger.log(`Registered ${components.length} node components`);
   }
