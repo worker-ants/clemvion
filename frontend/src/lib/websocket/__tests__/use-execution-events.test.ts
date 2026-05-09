@@ -273,6 +273,94 @@ describe("useExecutionEvents", () => {
     expect(results[0].nodeType).toBe("http_request");
   });
 
+  // Loop body 의 같은 nodeId 가 N번 실행될 때 후속 iter 의 NODE_STARTED 가
+  // out-of-order guard 에 막혀 store add 가 차단되면 row 의 startedAt 이
+  // 누락되어 sortByStartedAt 이 timeline 끝으로 sink 시키는 회귀 가드 (PR-B
+  // hotfix #4 — Loop iter timeline 순서 회귀).
+  it("preserves startedAt for every iteration of the same nodeId (Loop body)", async () => {
+    useExecutionStore.getState().startExecution("exec-1");
+    renderHook(() => useExecutionEvents({ executionId: "exec-1" }));
+
+    const onCalls = (mockClient.on as Mock).mock.calls;
+    const startedHandler = onCalls.find(
+      (c: unknown[]) => c[0] === "execution.node.started",
+    )?.[1] as (data: unknown) => void;
+    const completedHandler = onCalls.find(
+      (c: unknown[]) => c[0] === "execution.node.completed",
+    )?.[1] as (data: unknown) => void;
+
+    const fire = (
+      nodeExecId: string,
+      startedAt: string,
+      label: "iter1" | "iter2" | "iter3",
+    ) => {
+      startedHandler({
+        nodeExecutionId: nodeExecId,
+        nodeId: "loop-body",
+        nodeType: "transform",
+        nodeLabel: "반복 브릿지",
+        startedAt,
+      });
+      completedHandler({
+        nodeExecutionId: nodeExecId,
+        nodeId: "loop-body",
+        nodeType: "transform",
+        nodeLabel: "반복 브릿지",
+        duration: 4,
+        output: { iter: label },
+      });
+    };
+
+    // sanitizeUuid 가 UUID format 만 통과하므로 실제 UUID 사용.
+    const ITER1 = "164fd9d1-5f54-4789-8277-4e210f1969e8";
+    const ITER2 = "85f48254-e3f1-44e5-80ae-1fc3c1e990ed";
+    const ITER3 = "e2606475-733b-4b92-b72e-e8e41dad9fa0";
+    const DONE = "3c3390ae-5995-43d0-bd54-041a7fa0f9c9";
+
+    fire(ITER1, "2026-05-09T00:20:38.972Z", "iter1");
+    fire(ITER2, "2026-05-09T00:20:38.982Z", "iter2");
+    fire(ITER3, "2026-05-09T00:20:38.990Z", "iter3");
+
+    // done port 의 후속 노드 (다른 nodeId).
+    startedHandler({
+      nodeExecutionId: DONE,
+      nodeId: "result-display",
+      nodeType: "template",
+      nodeLabel: "반복문 결과 표시",
+      startedAt: "2026-05-09T00:20:38.999Z",
+    });
+    completedHandler({
+      nodeExecutionId: DONE,
+      nodeId: "result-display",
+      nodeType: "template",
+      nodeLabel: "반복문 결과 표시",
+      duration: 4,
+    });
+
+    const results = useExecutionStore.getState().nodeResults;
+    // iter 별 row 가 모두 보존되어야 한다 (총 4개: iter 1/2/3 + 결과 표시).
+    expect(results).toHaveLength(4);
+
+    // 모든 row 의 startedAt 이 set 되어 있어야 한다 — undefined 회귀 차단.
+    for (const r of results) {
+      expect(r.startedAt).toBeTruthy();
+    }
+
+    // sortByStartedAt 결과가 backend 의 ASC 순서를 그대로 따라야 한다.
+    expect(results.map((r) => r.nodeExecutionId)).toEqual([
+      ITER1,
+      ITER2,
+      ITER3,
+      DONE,
+    ]);
+
+    // nodeStatuses 의 status 다운그레이드 차단 의도는 보존: 마지막 NODE_COMPLETED
+    // 가 통과해서 "completed" 로 남아야 한다.
+    expect(
+      useExecutionStore.getState().nodeStatuses.get("loop-body")?.status,
+    ).toBe("completed");
+  });
+
   it("adds node results from node.failed WS event", async () => {
     useExecutionStore.getState().startExecution("exec-1");
 

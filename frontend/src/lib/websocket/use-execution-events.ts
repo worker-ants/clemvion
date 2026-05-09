@@ -485,12 +485,17 @@ export function useExecutionEvents({
         startedAt?: string;
       };
       if (payload.nodeId) {
-        // Guard against out-of-order events (e.g., completed arriving before started)
+        // out-of-order guard 는 nodeStatuses 의 status 다운그레이드만 차단한다.
+        // Loop body 의 후속 iter / 재시도는 같은 nodeId 의 새 NodeExecution
+        // row (별개 nodeExecutionId) 이므로 store row add 는 guard 와 무관하게
+        // 항상 진행되어야 한다. 그렇지 않으면 후속 iter row 의 startedAt 이
+        // 누락되어 sortByStartedAt 이 timeline 끝으로 sink 시킨다 — Loop
+        // 결과의 timeline 순서가 깨지는 회귀 (iter 1 → done → iter 2 → iter 3).
         const existing =
           useExecutionStore.getState().nodeStatuses.get(payload.nodeId);
-        if (!shouldUpdateStatus(existing?.status, "running")) return;
-
-        updateNodeStatus(payload.nodeId, { status: "running" });
+        if (shouldUpdateStatus(existing?.status, "running")) {
+          updateNodeStatus(payload.nodeId, { status: "running" });
+        }
         addNodeResult({
           nodeExecutionId: sanitizeUuid(payload.nodeExecutionId),
           parentNodeExecutionId: sanitizeUuid(payload.parentNodeExecutionId),
