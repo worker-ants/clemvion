@@ -1,4 +1,5 @@
 import { NodeHandlerOutput } from '../../nodes/core/node-handler.interface.js';
+import { maskSensitiveFields } from '../../common/utils/mask-sensitive-fields.util';
 
 /**
  * Normalize an opaque handler return into {@link NodeHandlerOutput}.
@@ -34,7 +35,15 @@ export function adaptHandlerReturn(raw: unknown): NodeHandlerOutput {
   if (isNewShape(raw)) {
     const r = raw;
     return {
-      config: r.config ?? {},
+      // INFO #5 (Security) — `config` 는 핸들러가 echo 한 raw config 다 (CONVENTIONS
+      // Principle 7). JSDoc 상 credential 은 핸들러가 strip 하도록 명시돼 있으나
+      // 런타임 강제가 없어 실수 leak 위험이 있었다. `maskSensitiveFields` 로
+      // boundary 에서 자동 마스킹 — DB 저장 / WS emit / 표현식 echo 모두 안전.
+      // (값 자체가 민감하지 않은 키는 영향 없음 — 키 이름 화이트리스트 매칭.)
+      config: (maskSensitiveFields(r.config ?? {}) ?? {}) as Record<
+        string,
+        unknown
+      >,
       output: r.output,
       ...(r.meta !== undefined ? { meta: r.meta } : {}),
       ...(r.port !== undefined ? { port: r.port } : {}),
