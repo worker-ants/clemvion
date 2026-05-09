@@ -45,8 +45,8 @@ ERROR [ContinuationBusService] acquireLock(exec:recover:lock) 실패: Cannot rea
 
 ### 5. 마무리
 
-- [ ] 본 plan 문서를 `plan/complete/` 로 `git mv`.
-- [ ] memory 갱신 — 본 사례에서 일반화할 만한 항목 (NestJS 같은 모듈 내 onModuleInit 순서 의존 금지) 이 있으면 `feedback` / `project` 메모로 추가.
+- [x] 본 plan 문서를 `plan/complete/` 로 `git mv`.
+- [x] memory 갱신 — NestJS 같은 모듈 내 `onModuleInit` 순서 의존 금지 패턴을 `feedback` 메모로 추가.
 
 ## 변경하지 않는 것
 
