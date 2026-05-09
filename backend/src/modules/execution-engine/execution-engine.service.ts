@@ -2009,6 +2009,10 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
             executionId,
             ExecutionEventType.AI_MESSAGE,
             {
+              // Sub-Workflow 안에서 같은 nodeId 의 AI Agent 가 여러 번 도달
+              // 할 수 있으므로 nodeExecutionId 를 명시 — frontend store 가
+              // 정확한 row 에 message 를 라우팅한다.
+              nodeExecutionId: nodeExec?.id,
               nodeId: node.id,
               message: nextConv.message,
               turnCount: nextConv.turnCount,
@@ -2078,6 +2082,9 @@ export class ExecutionEngineService implements OnModuleInit, WorkflowExecutor {
             executionId,
             ExecutionEventType.AI_MESSAGE,
             {
+              // 종료 turn 도 nodeExecutionId 동봉 — Sub-Workflow nesting 에서
+              // 같은 nodeId 의 conversation 이 여러 row 일 수 있다.
+              nodeExecutionId: nodeExec?.id,
               nodeId: node.id,
               message: responseText,
               turnCount,
