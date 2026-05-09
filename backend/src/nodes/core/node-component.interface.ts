@@ -7,6 +7,7 @@ import {
   NodeHandlerOutput,
   ValidationResult,
 } from './node-handler.interface';
+import { NodeTypeMetadata } from './node-type-metadata';
 import { LlmService } from '../../modules/llm/llm.service';
 import { RagSearchService } from '../../modules/knowledge-base/search/rag-search.service';
 import { KnowledgeBaseService } from '../../modules/knowledge-base/knowledge-base.service';
@@ -21,6 +22,7 @@ export type {
   NodeHandlerOutput,
   ValidationResult,
 };
+export type { NodeTypeMetadata };
 // Re-export so node component authors can import everything from one path.
 export type { WarningRule, WarningSeverity } from '@workflow/node-summary';
 
@@ -85,6 +87,18 @@ export interface NodeComponentMetadata {
   description: string;
   icon: string;
   color: string;
+  /**
+   * Engine dispatch metadata. **모든 NodeComponent 가 명시 필수** —
+   * `kind: 'standard'` 도 생략 불가 (CRIT #3 시나리오 D).
+   *
+   * 본 필드를 통해 엔진은 hard-coded 문자열 분기 (`node.type === 'foreach'` 등)
+   * 없이 `kind` flag 만으로 dispatch 한다. 새 노드 모듈은 NodeHandler 외에
+   * 본 필드만 선언하면 자동 등록되며, registry 의 부팅 검증이 일관성을
+   * 보장한다 (NodeHandlerRegistry.assertConsistency).
+   *
+   * 참조: `node-type-metadata.ts`, spec/5-system/4-execution-engine.md §3, §4.4.
+   */
+  executionMetadata: NodeTypeMetadata;
   isContainer?: boolean;
   /** True when output ports are generated dynamically at runtime (e.g. switch cases, carousel buttons). */
   isDynamicPorts?: boolean;
