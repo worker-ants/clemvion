@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { ExecutionContext } from '../../../nodes/core/node-handler.interface';
 
-const DEFAULT_MAX_ITERATIONS = 1000;
+export const DEFAULT_MAX_ITERATIONS = 1000;
 
 export interface LoopConfig {
   count: number;

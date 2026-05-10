@@ -29,7 +29,10 @@ import { buildGraph, GraphEdge } from './graph/graph-builder';
 import { topologicalSort } from './graph/topological-sort';
 import { identifyBackEdges } from './graph/back-edge-identifier';
 import { ForEachExecutor } from './containers/foreach-executor';
-import { LoopExecutor } from './containers/loop-executor';
+import {
+  DEFAULT_MAX_ITERATIONS as LOOP_DEFAULT_MAX_ITERATIONS,
+  LoopExecutor,
+} from './containers/loop-executor';
 import {
   ParallelExecutor,
   ParallelErrorPolicy,
@@ -4389,9 +4392,19 @@ export class ExecutionEngineService
         foreachOutput.skipped = collected.skipped;
       }
       structuredOutput = foreachOutput;
+      // Phase 2 (C — spec/4-nodes/1-logic/9-foreach.md §5.2): expose runtime
+      // metric `meta.iterations` (Container metric, Principle 2 — meta is
+      // execution metrics, not config echoes). This is the body launch count
+      // and matches `output.items.length` (skip-policy `null` placeholders
+      // are still counted, since the body did run for those indices).
+      // Additive / non-breaking; coexists with Phase 1 D `meta.skippedCount`.
+      const foreachMeta: Record<string, unknown> = {
+        iterations: collected.items.length,
+      };
       if (collected.skippedCount > 0) {
-        structuredMeta = { skippedCount: collected.skippedCount };
+        foreachMeta.skippedCount = collected.skippedCount;
       }
+      structuredMeta = foreachMeta;
     } else if (containerNode.type === 'map') {
       const handlerOutput = structured?.output;
       const array = Array.isArray(handlerOutput) ? handlerOutput : [];
@@ -4443,6 +4456,23 @@ export class ExecutionEngineService
       const iterations = collected.map((r) => r.output);
       // CONVENTIONS §9.2 — `loop` finalises as `{ iterations, count }`.
       structuredOutput = { iterations, count: iterations.length };
+      // Phase 2 (C — spec/4-nodes/1-logic/3-loop.md §5.2): expose runtime
+      // metrics via `meta.*` (Principle 2 — meta carries execution metrics,
+      // not config echoes). `iterations` is the actually executed count
+      // (matches `output.iterations.length` today; will diverge once
+      // `breakCondition`/early-error paths land — P1 deferred).
+      // `maxIterationsReached` flags termination by the safety cap so
+      // observability dashboards can distinguish "ran to completion" from
+      // "hit the limit". With `breakCondition` dormant the only way to
+      // reach the cap without throwing is `count === maxIterations` and
+      // running every iteration; we still emit the flag so the contract is
+      // additive-stable when the dormant path activates.
+      const effectiveMaxIterations =
+        maxIterations ?? LOOP_DEFAULT_MAX_ITERATIONS;
+      structuredMeta = {
+        iterations: iterations.length,
+        maxIterationsReached: iterations.length >= effectiveMaxIterations,
+      };
     } else {
       return;
     }

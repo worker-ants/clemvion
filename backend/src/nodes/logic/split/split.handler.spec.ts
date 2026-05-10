@@ -61,6 +61,7 @@ describe('SplitHandler', () => {
           ],
           count: 2,
         },
+        meta: { itemCount: 2, fellBackToEmpty: false },
       });
     });
 
@@ -73,6 +74,7 @@ describe('SplitHandler', () => {
       expect(result).toEqual({
         config: { fieldPath: 'items' },
         output: { items: [], count: 0 },
+        meta: { itemCount: 0, fellBackToEmpty: true },
       });
     });
 
@@ -85,6 +87,7 @@ describe('SplitHandler', () => {
       expect(result).toEqual({
         config: { fieldPath: 'items' },
         output: { items: [], count: 0 },
+        meta: { itemCount: 0, fellBackToEmpty: true },
       });
     });
 
@@ -106,6 +109,7 @@ describe('SplitHandler', () => {
           ],
           count: 2,
         },
+        meta: { itemCount: 2, fellBackToEmpty: false },
       });
     });
 
@@ -125,6 +129,7 @@ describe('SplitHandler', () => {
           ],
           count: 3,
         },
+        meta: { itemCount: 3, fellBackToEmpty: false },
       });
     });
 
@@ -143,10 +148,12 @@ describe('SplitHandler', () => {
           ],
           count: 2,
         },
+        meta: { itemCount: 2, fellBackToEmpty: false },
       });
     });
 
     it('returns empty output for an empty array', async () => {
+      // Empty array is a real array — fellBackToEmpty must remain false.
       const result = await handler.execute(
         { items: [] },
         { fieldPath: 'items' },
@@ -155,6 +162,7 @@ describe('SplitHandler', () => {
       expect(result).toEqual({
         config: { fieldPath: 'items' },
         output: { items: [], count: 0 },
+        meta: { itemCount: 0, fellBackToEmpty: false },
       });
     });
   });
@@ -172,6 +180,7 @@ describe('SplitHandler', () => {
       )) as unknown as {
         config: { fieldPath: unknown };
         output: { items: unknown[]; count: number };
+        meta: { itemCount: number; fellBackToEmpty: boolean };
       };
 
       expect(result.config.fieldPath).toBe('{{ $input.items }}');
@@ -182,6 +191,41 @@ describe('SplitHandler', () => {
         ],
         count: 2,
       });
+      expect(result.meta).toEqual({ itemCount: 2, fellBackToEmpty: false });
+    });
+  });
+
+  // CONVENTIONS Principle 2 — meta exposes execution metrics.
+  describe('meta metrics (Principle 2)', () => {
+    it('emits itemCount = output.count and fellBackToEmpty = false on normal arrays', async () => {
+      const result = await handler.execute(
+        { items: [1, 2, 3, 4] },
+        { fieldPath: 'items' },
+        context,
+      );
+      expect(result.meta).toEqual({ itemCount: 4, fellBackToEmpty: false });
+      const output = result.output as { count: number };
+      expect((result.meta as { itemCount: number }).itemCount).toBe(
+        output.count,
+      );
+    });
+
+    it('emits fellBackToEmpty = true when the target is undefined (Principle 10 fallback)', async () => {
+      const result = await handler.execute(
+        {},
+        { fieldPath: 'missing' },
+        context,
+      );
+      expect(result.meta).toEqual({ itemCount: 0, fellBackToEmpty: true });
+    });
+
+    it('emits fellBackToEmpty = false for an empty (but real) array — distinguishes empty-input vs fallback', async () => {
+      const result = await handler.execute(
+        { items: [] },
+        { fieldPath: 'items' },
+        context,
+      );
+      expect(result.meta).toEqual({ itemCount: 0, fellBackToEmpty: false });
     });
   });
 });

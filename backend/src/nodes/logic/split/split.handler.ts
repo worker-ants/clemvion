@@ -45,9 +45,11 @@ export class SplitHandler implements NodeHandler {
     if (!Array.isArray(arrayValue)) {
       // CONVENTIONS Principle 9 — `{ <컬렉션>, count }` 형태.
       // CONVENTIONS Principle 10 — null/undefined / 비배열 → 빈 배열 fallback.
+      // CONVENTIONS Principle 2 — meta 로 fallback 발동 + itemCount 가시화.
       return Promise.resolve({
         config: baseConfig,
         output: { items: [] as SplitItem[], count: 0 },
+        meta: { itemCount: 0, fellBackToEmpty: true },
       });
     }
 
@@ -61,6 +63,7 @@ export class SplitHandler implements NodeHandler {
     return Promise.resolve({
       config: baseConfig,
       output: { items, count: items.length },
+      meta: { itemCount: items.length, fellBackToEmpty: false },
     });
   }
 }

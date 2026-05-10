@@ -263,4 +263,84 @@ describe('VariableDeclarationHandler', () => {
       expect(context.variables.today).toBe('2026-05-08');
     });
   });
+
+  // Phase 2 (C) — meta observability fields. Principle 2 (meta는 실행 메트릭).
+  describe('meta observability', () => {
+    it('reports newly declared variables in meta.declared', async () => {
+      const result = await handler.execute(
+        {},
+        {
+          variables: [
+            { name: 'counter', type: 'number', defaultValue: 0 },
+            { name: 'label', type: 'string', defaultValue: 'hi' },
+          ],
+        },
+        context,
+      );
+
+      expect(result.meta).toBeDefined();
+      expect(result.meta?.declared).toEqual(['counter', 'label']);
+      expect(result.meta?.skipped).toEqual([]);
+      expect(result.meta?.coercionWarnings).toEqual([]);
+    });
+
+    it('reports already-existing variables in meta.skipped', async () => {
+      context.variables['counter'] = 42;
+
+      const result = await handler.execute(
+        {},
+        {
+          variables: [
+            { name: 'counter', type: 'number', defaultValue: 0 },
+            { name: 'fresh', type: 'string', defaultValue: 'new' },
+          ],
+        },
+        context,
+      );
+
+      expect(result.meta?.declared).toEqual(['fresh']);
+      expect(result.meta?.skipped).toEqual(['counter']);
+      // skipped variable retains its original value (silent skip).
+      expect(context.variables['counter']).toBe(42);
+    });
+
+    it('reports failed number coercion in meta.coercionWarnings', async () => {
+      const result = await handler.execute(
+        {},
+        {
+          variables: [
+            { name: 'broken', type: 'number', defaultValue: 'abc' },
+            { name: 'ok', type: 'number', defaultValue: 7 },
+          ],
+        },
+        context,
+      );
+
+      expect(result.meta?.declared).toEqual(['broken', 'ok']);
+      expect(result.meta?.coercionWarnings).toEqual([
+        {
+          name: 'broken',
+          attemptedType: 'number',
+          error: expect.stringContaining('number'),
+        },
+      ]);
+      // coerce failure stores null silently (still considered declared).
+      expect(context.variables['broken']).toBeNull();
+      expect(context.variables['ok']).toBe(7);
+    });
+
+    it('does NOT warn when defaultValue is omitted (raw=null path)', async () => {
+      // `defaultValue ?? null` → coerce(null, ...) returns null by design.
+      // This is the explicit null-init contract, not a coercion failure.
+      const result = await handler.execute(
+        {},
+        { variables: [{ name: 'x', type: 'number' }] },
+        context,
+      );
+
+      expect(result.meta?.declared).toEqual(['x']);
+      expect(result.meta?.coercionWarnings).toEqual([]);
+      expect(context.variables['x']).toBeNull();
+    });
+  });
 });

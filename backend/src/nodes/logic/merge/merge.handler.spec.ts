@@ -255,5 +255,161 @@ describe('MergeHandler', () => {
         expect(result.output).toMatchObject([]);
       });
     });
+
+    describe('meta — execution metrics (Principle 2)', () => {
+      it('exposes inputCount / strategy / outputFormat / skippedKeys / dormantFields with defaults', async () => {
+        const input = { nodeA: { a: 1 }, nodeB: { b: 2 } };
+        const result = await handler.execute(input, baseConfig, context);
+        expect(result.meta).toEqual({
+          inputCount: 2,
+          strategy: 'wait_all',
+          outputFormat: 'array',
+          skippedKeys: [],
+          dormantFields: [],
+        });
+      });
+
+      it('echoes resolved defaults in meta when config is empty', async () => {
+        const input = { nodeA: 'a', nodeB: 'b' };
+        const result = await handler.execute(input, {}, context);
+        expect(result.meta).toMatchObject({
+          inputCount: 2,
+          strategy: 'wait_all',
+          outputFormat: 'array',
+          skippedKeys: [],
+          dormantFields: [],
+        });
+      });
+
+      it('reports inputCount=1 for strategy=first (post-slicing count)', async () => {
+        const input = { a_node: 'first', b_node: 'second', c_node: 'third' };
+        const config = { strategy: 'first', outputFormat: 'array' };
+        const result = await handler.execute(input, config, context);
+        expect(result.meta).toMatchObject({
+          inputCount: 1,
+          strategy: 'first',
+          outputFormat: 'array',
+        });
+      });
+
+      it('reports skippedKeys for merge_object prototype pollution drops', async () => {
+        const input = {
+          nodeA: { safe: 1, __proto__: { polluted: true } },
+          nodeB: { constructor: 'bad', prototype: 'bad', valid: 2 },
+        };
+        const config = { strategy: 'wait_all', outputFormat: 'merge_object' };
+        const result = await handler.execute(input, config, context);
+        expect(result.meta).toMatchObject({
+          inputCount: 2,
+          strategy: 'wait_all',
+          outputFormat: 'merge_object',
+        });
+        // sorted alphabetically — dedup across inputs
+        expect(result.meta?.skippedKeys).toEqual(['constructor', 'prototype']);
+        // Note: __proto__ as object literal key is not an own property in
+        // modern JS engines so it doesn't surface via Object.entries —
+        // pollution is still blocked by the safe-key guard. constructor /
+        // prototype keys ARE own properties and surface here.
+      });
+
+      it('exposes empty skippedKeys for merge_object with clean inputs', async () => {
+        const input = { nodeA: { a: 1 }, nodeB: { b: 2 } };
+        const config = { strategy: 'wait_all', outputFormat: 'merge_object' };
+        const result = await handler.execute(input, config, context);
+        expect(result.meta?.skippedKeys).toEqual([]);
+      });
+
+      it('exposes empty skippedKeys for indexed format', async () => {
+        const input = { nodeA: 1, nodeB: 2 };
+        const config = { strategy: 'wait_all', outputFormat: 'indexed' };
+        const result = await handler.execute(input, config, context);
+        expect(result.meta?.skippedKeys).toEqual([]);
+      });
+
+      it('reports timeout in dormantFields when timeout > 0 (P1 dormant)', async () => {
+        const input = { nodeA: 1 };
+        const config = {
+          strategy: 'wait_all',
+          outputFormat: 'array',
+          timeout: 60,
+        };
+        const result = await handler.execute(input, config, context);
+        expect(result.meta?.dormantFields).toEqual(['timeout']);
+      });
+
+      it('omits timeout from dormantFields when timeout === 0', async () => {
+        const input = { nodeA: 1 };
+        const config = {
+          strategy: 'wait_all',
+          outputFormat: 'array',
+          timeout: 0,
+        };
+        const result = await handler.execute(input, config, context);
+        expect(result.meta?.dormantFields).toEqual([]);
+      });
+
+      it('reports partialOnTimeout in dormantFields when true (P1 dormant)', async () => {
+        const input = { nodeA: 1 };
+        const config = {
+          strategy: 'wait_all',
+          outputFormat: 'array',
+          partialOnTimeout: true,
+        };
+        const result = await handler.execute(input, config, context);
+        expect(result.meta?.dormantFields).toEqual(['partialOnTimeout']);
+      });
+
+      it('reports both dormant fields together when both configured', async () => {
+        const input = { nodeA: 1 };
+        const config = {
+          strategy: 'wait_all',
+          outputFormat: 'array',
+          timeout: 30,
+          partialOnTimeout: true,
+        };
+        const result = await handler.execute(input, config, context);
+        expect(result.meta?.dormantFields).toEqual([
+          'timeout',
+          'partialOnTimeout',
+        ]);
+      });
+
+      it('reports inputCount=0 for empty input (preserves invariant)', async () => {
+        const result = await handler.execute([], baseConfig, context);
+        expect(result.meta).toMatchObject({
+          inputCount: 0,
+          strategy: 'wait_all',
+          outputFormat: 'array',
+          skippedKeys: [],
+          dormantFields: [],
+        });
+      });
+    });
+
+    describe('5-field invariant (CONVENTIONS Principle 11)', () => {
+      it('returns only canonical fields (config / output / meta), no port / status', async () => {
+        const input = { nodeA: 1, nodeB: 2 };
+        const result = await handler.execute(input, baseConfig, context);
+        // Required fields
+        expect(result).toHaveProperty('config');
+        expect(result).toHaveProperty('output');
+        expect(result).toHaveProperty('meta');
+        // No port / status (merge has no branching / flow-control)
+        expect(result.port).toBeUndefined();
+        expect(result.status).toBeUndefined();
+        // No leaked top-level keys outside the 5-field model
+        const allowed = new Set([
+          'config',
+          'output',
+          'meta',
+          'port',
+          'status',
+          '_resumeState',
+        ]);
+        for (const key of Object.keys(result)) {
+          expect(allowed.has(key)).toBe(true);
+        }
+      });
+    });
   });
 });

@@ -71,8 +71,19 @@ export class FilterHandler implements NodeHandler {
 
     const array = resolveFieldValue(input, inputField);
 
-    if (!Array.isArray(array)) {
+    // CONVENTIONS Principle 10 — null / undefined → `[]` fallback so
+    // upstream "missing array" doesn't fail the workflow. Non-null
+    // non-array values (string / number / object) keep the strict throw
+    // since they signal a configuration mistake (wrong inputField path).
+    let fellBackToEmpty = false;
+    let items: unknown[];
+    if (array === null || array === undefined) {
+      fellBackToEmpty = true;
+      items = [];
+    } else if (!Array.isArray(array)) {
       throw new Error('Filter inputField does not resolve to an array');
+    } else {
+      items = array as unknown[];
     }
 
     const baseCtx = (context.expressionContext ?? {}) as EngineContext;
@@ -82,9 +93,16 @@ export class FilterHandler implements NodeHandler {
     // resolved string. `null` marks invalid/oversized patterns so we don't
     // retry compilation each iteration.
     const regexCache = new Map<string, RegExp | null>();
+    // Insertion-ordered set of pattern strings that failed to compile or
+    // exceeded MAX_REGEX_LENGTH — surfaced via `meta.invalidRegexPatterns`
+    // so users can detect silent-`false` regex behaviour.
+    const invalidRegexPatterns = new Set<string>();
     const getRegex = (pattern: unknown): RegExp | undefined => {
       if (typeof pattern !== 'string') return undefined;
-      if (pattern.length > MAX_REGEX_LENGTH) return undefined;
+      if (pattern.length > MAX_REGEX_LENGTH) {
+        invalidRegexPatterns.add(pattern);
+        return undefined;
+      }
       if (regexCache.has(pattern)) {
         // `null` marks a previously-failed compile so we don't retry it.
         return regexCache.get(pattern) ?? undefined;
@@ -95,14 +113,13 @@ export class FilterHandler implements NodeHandler {
         return r;
       } catch {
         regexCache.set(pattern, null);
+        invalidRegexPatterns.add(pattern);
         return undefined;
       }
     };
 
     const match: unknown[] = [];
     const unmatched: unknown[] = [];
-
-    const items = array as unknown[];
     for (let index = 0; index < items.length; index++) {
       const item: unknown = items[index];
 
@@ -159,6 +176,19 @@ export class FilterHandler implements NodeHandler {
         strictComparison: rawConfig.strictComparison ?? false,
       },
       output: { match, unmatched },
+      // CONVENTIONS Principle 2 — execution metrics. Counts are O(1) so
+      // downstream expressions can branch on size without re-scanning the
+      // arrays via `.length`. `fellBackToEmpty` distinguishes "real empty
+      // input" from "null/undefined fallback" (Principle 10).
+      // `invalidRegexPatterns` surfaces silent regex failures (compile
+      // error / length cap) to make pattern mistakes diagnosable.
+      meta: {
+        matchedCount: match.length,
+        unmatchedCount: unmatched.length,
+        totalCount: match.length + unmatched.length,
+        fellBackToEmpty,
+        invalidRegexPatterns: Array.from(invalidRegexPatterns),
+      },
     });
   }
 

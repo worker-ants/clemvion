@@ -93,15 +93,24 @@ export class SwitchHandler implements NodeHandler {
     // to primitives before this handler is invoked, so we use the value
     // directly — no additional path lookup. Treating it as a path was a bug
     // (see plan/switch-node-input-lucky-dove).
-    const matchedCase =
+    const matchedIndex =
       resolvedMode === 'expression'
-        ? cases.find(
+        ? cases.findIndex(
             (c) =>
               c.condition !== undefined &&
               c.condition !== null &&
               evaluateCondition(input, c.condition, { strict }),
           )
-        : this.matchByValue(switchValue, cases, strict);
+        : this.matchByValueIndex(switchValue, cases, strict);
+    const matchedCase = matchedIndex >= 0 ? cases[matchedIndex] : undefined;
+
+    // CONVENTIONS Principle 2 — meta carries execution metrics.
+    // `resolvedValue` is the new canonical name for the evaluated switchValue
+    // (mode=value); `value` is retained for one release as a deprecated alias.
+    const valueMeta =
+      resolvedMode === 'value'
+        ? { resolvedValue: switchValue, value: switchValue }
+        : {};
 
     if (matchedCase) {
       return {
@@ -110,7 +119,9 @@ export class SwitchHandler implements NodeHandler {
         meta: {
           mode: resolvedMode,
           matchedCase: matchedCase.id,
-          ...(resolvedMode === 'value' ? { value: switchValue } : {}),
+          matchedCaseLabel: matchedCase.label,
+          matchedCaseIndex: matchedIndex,
+          ...valueMeta,
         },
         port: matchedCase.id,
       };
@@ -123,7 +134,9 @@ export class SwitchHandler implements NodeHandler {
         meta: {
           mode: resolvedMode,
           matchedCase: 'default',
-          ...(resolvedMode === 'value' ? { value: switchValue } : {}),
+          matchedCaseLabel: undefined,
+          matchedCaseIndex: -1,
+          ...valueMeta,
         },
         port: 'default',
       };
@@ -132,12 +145,12 @@ export class SwitchHandler implements NodeHandler {
     throw new Error('No matching case found and no default case configured');
   }
 
-  private matchByValue(
+  private matchByValueIndex(
     switchValue: unknown,
     cases: SwitchCase[],
     strict: boolean,
-  ): SwitchCase | undefined {
-    return cases.find((c) => {
+  ): number {
+    return cases.findIndex((c) => {
       const caseValue = this.coerceCaseValue(c.value, c.valueType);
       if (strict) {
         return caseValue === switchValue;

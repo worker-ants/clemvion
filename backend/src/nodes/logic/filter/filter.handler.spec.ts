@@ -1,10 +1,19 @@
 import { FilterHandler } from './filter.handler.js';
 import { ExecutionContext } from '../../core/node-handler.interface.js';
 
+type FilterMeta = {
+  matchedCount: number;
+  unmatchedCount: number;
+  totalCount: number;
+  fellBackToEmpty: boolean;
+  invalidRegexPatterns: string[];
+  durationMs?: number;
+};
+
 type FilterResult = {
   config: Record<string, unknown>;
   output: { match: unknown[]; unmatched: unknown[] };
-  meta?: Record<string, unknown>;
+  meta: FilterMeta;
   port?: string | string[];
 };
 
@@ -256,7 +265,10 @@ describe('FilterHandler', () => {
       expect(result.output.match).toMatchObject([items[0], items[2]]);
     });
 
-    it('should throw error for non-array input', async () => {
+    it('should throw error for non-array input (primitive string)', async () => {
+      // Non-null primitive that resolves to a string keeps the strict throw —
+      // signals a wrong inputField path / config mistake. Only null/undefined
+      // is forgiven (Principle 10 fallback).
       await expect(
         execFilter(
           { items: 'not-an-array' },
@@ -269,10 +281,13 @@ describe('FilterHandler', () => {
       ).rejects.toThrow('does not resolve to an array');
     });
 
-    it('should throw error when inputField path is missing', async () => {
+    it('should throw error for non-array input (number / object)', async () => {
+      // Defensive: number / plain object also stays in the throw branch so
+      // misconfigured inputField paths surface loudly instead of silently
+      // emitting empty `match` / `unmatched`.
       await expect(
         execFilter(
-          { other: [] },
+          { items: 42 },
           {
             inputField: 'items',
             conditions: [{ field: 'x', operator: 'eq', value: 1 }],
@@ -280,6 +295,40 @@ describe('FilterHandler', () => {
           },
         ),
       ).rejects.toThrow('does not resolve to an array');
+
+      await expect(
+        execFilter(
+          { items: { not: 'array' } },
+          {
+            inputField: 'items',
+            conditions: [{ field: 'x', operator: 'eq', value: 1 }],
+            combineMode: 'and',
+          },
+        ),
+      ).rejects.toThrow('does not resolve to an array');
+    });
+
+    it('should fall back to `[]` when inputField path is missing (Principle 10)', async () => {
+      // Missing path → getNestedValue returns `undefined` → empty fallback
+      // with `meta.fellBackToEmpty: true`.
+      const result = await execFilter(
+        { other: [] },
+        {
+          inputField: 'items',
+          conditions: [{ field: 'x', operator: 'eq', value: 1 }],
+          combineMode: 'and',
+        },
+      );
+
+      expect(result.output.match).toEqual([]);
+      expect(result.output.unmatched).toEqual([]);
+      expect(result.meta).toMatchObject({
+        matchedCount: 0,
+        unmatchedCount: 0,
+        totalCount: 0,
+        fellBackToEmpty: true,
+        invalidRegexPatterns: [],
+      });
     });
 
     it('should return empty arrays for empty input array', async () => {
@@ -1124,6 +1173,169 @@ describe('FilterHandler', () => {
       expect((result.config.conditions[0] as { value: unknown }).value).toBe(
         '{{ $threshold }}',
       );
+    });
+  });
+
+  // CONVENTIONS Principle 2 — execution metrics surfaced via `meta`.
+  // user_memo/node-specs-improvement/logic/filter.md §3 P0/P1 follow-up.
+  describe('meta metrics (matchedCount / unmatchedCount / totalCount / fellBackToEmpty / invalidRegexPatterns)', () => {
+    const items = [
+      { name: 'Alice', age: 30, status: 'active' },
+      { name: 'Bob', age: 17, status: 'inactive' },
+      { name: 'Charlie', age: 25, status: 'active' },
+      { name: 'Diana', age: 15, status: 'active' },
+    ];
+
+    it('emits accurate matched / unmatched / total counts on a real array', async () => {
+      const result = await execFilter(
+        { items },
+        {
+          inputField: 'items',
+          conditions: [{ field: 'status', operator: 'eq', value: 'active' }],
+          combineMode: 'and',
+        },
+      );
+
+      expect(result.meta).toEqual({
+        matchedCount: 3,
+        unmatchedCount: 1,
+        totalCount: 4,
+        fellBackToEmpty: false,
+        invalidRegexPatterns: [],
+      });
+    });
+
+    it('emits zero counts and `fellBackToEmpty: false` for an empty (real) input array', async () => {
+      // Empty array is a real array — fellBackToEmpty stays false to
+      // distinguish "no items" from "no array at all".
+      const result = await execFilter(
+        { items: [] },
+        {
+          inputField: 'items',
+          conditions: [{ field: 'status', operator: 'eq', value: 'active' }],
+          combineMode: 'and',
+        },
+      );
+
+      expect(result.meta).toEqual({
+        matchedCount: 0,
+        unmatchedCount: 0,
+        totalCount: 0,
+        fellBackToEmpty: false,
+        invalidRegexPatterns: [],
+      });
+    });
+
+    it('emits `fellBackToEmpty: true` when the resolved value is null (Principle 10)', async () => {
+      const result = await execFilter(
+        { items: null },
+        {
+          inputField: 'items',
+          conditions: [{ field: 'x', operator: 'eq', value: 1 }],
+          combineMode: 'and',
+        },
+      );
+
+      expect(result.output.match).toEqual([]);
+      expect(result.output.unmatched).toEqual([]);
+      expect(result.meta).toEqual({
+        matchedCount: 0,
+        unmatchedCount: 0,
+        totalCount: 0,
+        fellBackToEmpty: true,
+        invalidRegexPatterns: [],
+      });
+    });
+
+    it('emits `fellBackToEmpty: true` when inputField resolves to undefined', async () => {
+      // `{ items: undefined }` and "key absent" are both observed as
+      // undefined by getNestedValue → unified fallback path.
+      const result = await execFilter(
+        {},
+        {
+          inputField: 'items',
+          conditions: [{ field: 'x', operator: 'eq', value: 1 }],
+          combineMode: 'and',
+        },
+      );
+
+      expect(result.meta.fellBackToEmpty).toBe(true);
+      expect(result.meta.totalCount).toBe(0);
+    });
+
+    it('preserves totalCount === matchedCount + unmatchedCount invariant', async () => {
+      const result = await execFilter(
+        { items },
+        {
+          inputField: 'items',
+          conditions: [{ field: 'age', operator: 'gt', value: 18 }],
+          combineMode: 'and',
+        },
+      );
+
+      expect(result.meta.totalCount).toBe(
+        result.meta.matchedCount + result.meta.unmatchedCount,
+      );
+      expect(result.meta.totalCount).toBe(items.length);
+    });
+
+    it('reports invalid regex patterns (compile failure)', async () => {
+      const result = await execFilter(
+        { items: [{ name: 'test' }] },
+        {
+          inputField: 'items',
+          conditions: [{ field: 'name', operator: 'regex', value: '[invalid' }],
+          combineMode: 'and',
+        },
+      );
+
+      expect(result.meta.invalidRegexPatterns).toEqual(['[invalid']);
+      expect(result.output.match).toHaveLength(0);
+    });
+
+    it('reports invalid regex patterns (length cap exceeded)', async () => {
+      const longPattern = 'a'.repeat(201);
+      const result = await execFilter(
+        { items: [{ name: 'aaa' }] },
+        {
+          inputField: 'items',
+          conditions: [
+            { field: 'name', operator: 'regex', value: longPattern },
+          ],
+          combineMode: 'and',
+        },
+      );
+
+      expect(result.meta.invalidRegexPatterns).toEqual([longPattern]);
+    });
+
+    it('deduplicates repeated invalid patterns across items', async () => {
+      // Same broken pattern triggered N times must surface once.
+      const result = await execFilter(
+        {},
+        {
+          inputField: [{ name: 'a' }, { name: 'b' }, { name: 'c' }],
+          conditions: [
+            { field: '{{ $item.name }}', operator: 'regex', value: '[bad' },
+          ],
+          combineMode: 'and',
+        },
+      );
+
+      expect(result.meta.invalidRegexPatterns).toEqual(['[bad']);
+    });
+
+    it('emits empty `invalidRegexPatterns` when all regex compile cleanly', async () => {
+      const result = await execFilter(
+        { items },
+        {
+          inputField: 'items',
+          conditions: [{ field: 'name', operator: 'regex', value: '^[A-C]' }],
+          combineMode: 'and',
+        },
+      );
+
+      expect(result.meta.invalidRegexPatterns).toEqual([]);
     });
   });
 });

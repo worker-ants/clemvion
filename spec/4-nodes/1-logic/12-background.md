@@ -101,6 +101,11 @@
     "maxDurationMs": 300000
   },
   "output": { "event": "user_signup", "userId": "u_1" },
+  "meta": {
+    "durationMs": 0,
+    "backgroundRunId": "8f3c6b1a-0d2e-4a7e-9c1d-2f0e5a8b1234",
+    "forkedAt": "2026-05-10T05:04:37.123Z"
+  },
   "port": "main"
 }
 ```
@@ -111,22 +116,19 @@
 | `config.notifyOnFailure` | boolean | config echo | 본문 실패 시 알림 여부 (default `false`) |
 | `config.maxDurationMs` | number | config echo | 본문 최대 실행 시간 ms (default `300000`, `0` = 무제한) |
 | `output` | (input 전체) | runtime — pass-through | input 데이터 그대로 (변형 없음). [0-common §10](./0-common.md#10-pass-through-노드-규약) |
+| `meta.durationMs` | number | runtime — handler 측정 | 핸들러 자체의 즉시 처리 시간 (ms). fire-and-forget 이므로 보통 0~수 ms. 백그라운드 본문 실행 시간 아님 (CONVENTIONS Principle 2) |
+| `meta.backgroundRunId` | string (UUID v4) | runtime — handler 생성 | 워크플로우 실행 내에서 백그라운드 서브그래프 run 을 식별. 향후 모니터링 API 의 조회 키 |
+| `meta.forkedAt` | ISO8601 string | runtime — handler 측정 | fork 시점 타임스탬프 (handler entry 시각). enqueue 직후 시점과 거의 동일 |
+| `meta.jobId?` | string | (optional) runtime — engine stamp | 실제 BullMQ job ID. 핸들러는 큐 시스템에 무지하므로 발행하지 않으며, `ExecutionEngineService.scheduleBackgroundBody()` 가 큐 add 후 NodeExecution.outputData 로 stamp 하는 향후 확장 지점. 현재 핸들러 출력에는 부재 |
 | `port` | `'main'` | handler return | 항상 `main` (handler 는 `background` 포트를 활성화하지 않음) |
-
-> ⚠ **미구현 (P0)**: 현재 `background.handler.ts` 는 `meta` 필드를 반환하지 않는다. [개선안 logic/background.md §3](../../../user_memo/node-specs-improvement/logic/background.md#3-제안된-output-구조) 은 다음 4개 필드 추가를 제안한다 — 코드 반영 시까지 다운스트림에서 사용할 수 없다:
->
-> | 제안 필드 | 타입 | 의미 |
-> |-----------|------|------|
-> | `meta.durationMs` | number | 핸들러 자체 enqueue 처리 시간 (엔진이 모든 노드에 공통 주입). 백그라운드 본문 실행 시간 아님 |
-> | `meta.backgroundRunId` | string | 워크플로우 실행 내에서 백그라운드 서브그래프 run 을 식별. 모니터링 API 의 키 |
-> | `meta.forkedAt` | ISO8601 | enqueue 시각 |
-> | `meta.jobId` | string | BullMQ job ID. 큐 대시보드에서 추적 |
 
 **Expression 접근 예**:
 - `$node["X"].output.event` → `"user_signup"` (pass-through)
 - `$node["X"].port` → `"main"`
 - `$node["X"].config.maxDurationMs` → `300000`
-- `$node["X"].meta.backgroundRunId` → P0 미구현 (예정 시 본문 모니터링 API 키)
+- `$node["X"].meta.backgroundRunId` → `"8f3c6b1a-..."` (모니터링 API 키)
+- `$node["X"].meta.forkedAt` → `"2026-05-10T05:04:37.123Z"`
+- `$node["X"].meta.durationMs` → `0` (handler-side fire-and-forget 처리 시간)
 
 ### 5.2 Case: 본문 진입 (port `background`, fire-and-forget)
 
@@ -152,7 +154,7 @@
 
 - `$node["X"].output` → `main` 케이스의 input pass-through. 본문 마지막 노드의 결과 아님.
 - `$node["<본문 노드>"].output` → 메인 흐름 expression 평가 시 **참조 불가** (별도 ExecutionContext).
-- 본문 실행 상태를 메인 후속 노드에서 관측하려면 P0 제안의 `meta.backgroundRunId` 를 키로 모니터링 API 를 별도 호출해야 한다 (미구현).
+- 본문 실행 상태를 메인 후속 노드에서 관측하려면 `meta.backgroundRunId` (§5.1) 을 키로 모니터링 API 를 별도 호출해야 한다 (모니터링 API 자체는 미구현).
 
 **기다려야 하는 분기는 `parallel` 사용**: Background 는 fire-and-forget 전용이며, 결과를 메인 흐름에 합류시켜야 하면 [Parallel 노드](./10-parallel.md) 의 `branches` 분기를 사용한다.
 

@@ -8,6 +8,21 @@ export const backgroundNodeOutputSchema = z
   .object({
     config: z.record(z.string(), z.unknown()).optional(),
     output: z.unknown().optional(),
+    // Phase 2 (C — spec/4-nodes/1-logic/12-background.md §5.1): expose fork
+    // metrics via `meta.*` (CONVENTIONS Principle 2 — meta carries execution
+    // metrics, not config echoes). `jobId` is reserved for the engine-side
+    // queue stamp (BullMQ) and stays optional — the handler itself emits
+    // `durationMs` / `backgroundRunId` / `forkedAt`.
+    meta: z
+      .object({
+        durationMs: z.number().optional(),
+        backgroundRunId: z.string().optional(),
+        forkedAt: z.string().optional(),
+        jobId: z.string().optional(),
+      })
+      .partial()
+      .passthrough()
+      .optional(),
     port: z.literal('main').optional(),
     status: z.string().optional(),
   })

@@ -70,9 +70,10 @@
 
 1. `input` 을 `unknown[]` 로 정규화 (§4.1).
 2. `strategy === 'first'` 이면 정규화 배열의 첫 항목만 남기고 (`[inputs[0]]`), 그 외 (`wait_all` / `append`) 는 전체 배열을 사용.
-3. `outputFormat` 에 따라 결과를 포맷 (§4.2).
-4. `timeout > 0` 이거나 `partialOnTimeout === true` 이면 **warn 로그**를 남기되 결과에는 영향 없음 (P1 dormant).
+3. `outputFormat` 에 따라 결과를 포맷 (§4.2). `merge_object` 에서 prototype-pollution 으로 drop 된 키는 별도로 수집한다 (정렬·중복 제거 → `meta.skippedKeys`).
+4. `timeout > 0` 이거나 `partialOnTimeout === true` 이면 **warn 로그**를 남기되 결과에는 영향 없음 (P1 dormant). 해당 필드는 `meta.dormantFields` 에 누적된다.
 5. `config` 는 `context.rawConfig` 의 `strategy` / `outputFormat` 을 echo (Principle 7). `timeout` / `partialOnTimeout` 은 dormant 라 echo 하지 않는다.
+6. `meta` 에 `inputCount` / `strategy` / `outputFormat` / `skippedKeys` / `dormantFields` 를 채워 반환 (Principle 2). `durationMs` 는 엔진이 주입.
 
 ### 4.1 입력 정규화 (Principle 10)
 
@@ -108,7 +109,12 @@
   },
   "output": [{ "a": 1 }, { "b": 2 }],
   "meta": {
-    "durationMs": 0
+    "durationMs": 0,
+    "inputCount": 2,
+    "strategy": "wait_all",
+    "outputFormat": "array",
+    "skippedKeys": [],
+    "dormantFields": []
   }
 }
 ```
@@ -119,6 +125,11 @@
 | `config.outputFormat` | `'array'` / `'merge_object'` / `'indexed'` | config echo | 출력 형식 (default `array`) |
 | `output` | `unknown[]` / `Record<string, unknown>` | runtime — `outputFormat` 별 분기 | 병합 결과. shape 은 §4.2 |
 | `meta.durationMs` | number | engine inject | 실행 시간 (ms) |
+| `meta.inputCount` | number | runtime | 실제 병합된 입력 수. `strategy: 'first'` 일 때는 1 (정규화 + slicing 후 길이) |
+| `meta.strategy` | `'wait_all'` / `'first'` / `'append'` | runtime — resolved | 적용된 전략 (default 폴백 후 값). config echo 와 의미 동일하나 meta 측에서도 분기 키로 사용 가능 |
+| `meta.outputFormat` | `'array'` / `'merge_object'` / `'indexed'` | runtime — resolved | 적용된 출력 형식 (default 폴백 후 값) |
+| `meta.skippedKeys` | `string[]` | runtime — `merge_object` 한정 | prototype pollution 방지로 drop 된 키 (정렬·중복 제거). 다른 outputFormat 에서는 항상 `[]` |
+| `meta.dormantFields` | `string[]` | runtime | P1 에서 dormant 처리된 config 필드 목록. `timeout > 0` 이면 `'timeout'`, `partialOnTimeout === true` 이면 `'partialOnTimeout'` 포함. 활성 상태가 아니면 `[]` |
 
 > **shape 가변성 주의**: `output` 의 타입 자체가 `outputFormat` 에 따라 달라진다 (`array` → 배열 / `merge_object` · `indexed` → 객체). 후속 노드가 안전하게 분기하려면 `$node["X"].config.outputFormat` 을 키로 사용한다.
 
@@ -136,10 +147,17 @@
 ```json
 {
   "config": { "strategy": "wait_all", "outputFormat": "merge_object" },
-  "output": { "a": 1, "b": 3, "c": 4 }
+  "output": { "a": 1, "b": 3, "c": 4 },
+  "meta": {
+    "inputCount": 2,
+    "strategy": "wait_all",
+    "outputFormat": "merge_object",
+    "skippedKeys": [],
+    "dormantFields": []
+  }
 }
 ```
-> Input `{ nodeA: { a: 1, b: 2 }, nodeB: { b: 3, c: 4 } }` 기준. `__proto__` / `constructor` / `prototype` 키를 가진 입력은 silent drop (P0 개선안: `meta.skippedKeys` 로 가시화 예정 — 현재는 미구현).
+> Input `{ nodeA: { a: 1, b: 2 }, nodeB: { b: 3, c: 4 } }` 기준. `__proto__` / `constructor` / `prototype` 키를 가진 입력은 drop 되고 dropped 된 키는 `meta.skippedKeys` 에 정렬·중복 제거된 형태로 노출된다 (Principle 3 — silent failure 해소).
 
 **`indexed`** — `in_<i>` 키로 인덱스 부여
 ```json
@@ -162,9 +180,13 @@
 - `$node["X"].output[0]` → 첫 번째 입력 (`outputFormat: array`)
 - `$node["X"].output.a` → merge 된 키 값 (`outputFormat: merge_object`)
 - `$node["X"].output.in_0` → 첫 번째 입력 (`outputFormat: indexed`)
-- `$node["X"].config.outputFormat` → shape 판별용
+- `$node["X"].config.outputFormat` → shape 판별용 (config echo)
+- `$node["X"].meta.outputFormat` → shape 판별용 (meta echo, 동일한 값)
+- `$node["X"].meta.inputCount` → 실제 병합된 입력 수
+- `$node["X"].meta.skippedKeys` → `merge_object` 에서 drop 된 키 목록
+- `$node["X"].meta.dormantFields` → P1 에서 dormant 처리된 config 필드 목록 (`timeout` / `partialOnTimeout`)
 
-> ⚠ **미구현 (P0 — additive)**: [user_memo logic/merge.md §3](../../../user_memo/node-specs-improvement/logic/merge.md#3-제안된-output-구조) 의 `meta.inputCount` / `meta.strategy` / `meta.outputFormat` / `meta.skippedKeys` / `meta.dormantFields` 추가 제안은 핸들러 미반영. 코드 반영 시까지 후속 노드는 `$node["X"].config.*` 와 `output` 의 길이 (`Array.isArray(output) ? output.length : Object.keys(output).length`) 로 대체 판별한다. `meta.durationMs` 는 엔진이 모든 노드에 공통 주입한다.
+> `meta.durationMs` 는 엔진이 모든 노드에 공통 주입한다. 그 외 위 meta 필드는 핸들러가 직접 채우며 (CONVENTIONS Principle 2), `meta.skippedKeys` / `meta.dormantFields` 는 비활성 상태에서도 항상 `[]` 로 노출되어 후속 노드의 옵셔널 가드를 단순화한다.
 
 ## 6. 에러 코드
 

@@ -40,10 +40,36 @@ export class VariableDeclarationHandler implements NodeHandler {
   ): Promise<NodeHandlerOutput> {
     const { variables } = config as unknown as VariableDeclarationConfig;
 
+    // Phase 2 (C) — meta observability fields. Principle 2 (meta는 실행 메트릭).
+    // Additive / non-breaking: downstream still reads `$var.<name>` for values.
+    const declared: string[] = [];
+    const skipped: string[] = [];
+    const coercionWarnings: Array<{
+      name: string;
+      attemptedType: string;
+      error?: string;
+    }> = [];
+
     for (const variable of variables) {
-      if (context.variables[variable.name] === undefined) {
-        const raw = variable.defaultValue ?? null;
-        context.variables[variable.name] = coerceToType(raw, variable.type);
+      if (context.variables[variable.name] !== undefined) {
+        skipped.push(variable.name);
+        continue;
+      }
+
+      const raw = variable.defaultValue ?? null;
+      const coerced = coerceToType(raw, variable.type);
+      context.variables[variable.name] = coerced;
+      declared.push(variable.name);
+
+      // Detect silent null fallback: user provided a non-null defaultValue
+      // but `coerceToType` collapsed to null (e.g. `Number('abc') → NaN`,
+      // failed JSON.parse → null branches in coerce-type.ts).
+      if (raw !== null && coerced === null) {
+        coercionWarnings.push({
+          name: variable.name,
+          attemptedType: variable.type,
+          error: `Failed to coerce defaultValue to '${variable.type}' — stored null`,
+        });
       }
     }
 
@@ -55,6 +81,11 @@ export class VariableDeclarationHandler implements NodeHandler {
     return Promise.resolve({
       config: { variables: rawConfig.variables },
       output: input,
+      meta: {
+        declared,
+        skipped,
+        coercionWarnings,
+      },
     });
   }
 }
