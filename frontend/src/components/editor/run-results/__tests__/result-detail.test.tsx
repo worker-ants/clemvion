@@ -225,9 +225,8 @@ describe("ResultDetail", () => {
           nodeType: "template",
           nodeCategory: "presentation",
           outputData: {
-            type: "template",
-            format: "text",
-            content: "Score: 95, User: Alice",
+            config: { outputFormat: "text" },
+            output: { rendered: "Score: 95, User: Alice" },
           },
         })}
         {...defaultProps}

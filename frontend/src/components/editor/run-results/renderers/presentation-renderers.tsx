@@ -157,13 +157,21 @@ function TableContent({ data }: { data: Record<string, unknown> }) {
 
 interface CarouselContentProps {
   data: Record<string, unknown>;
+  config?: Record<string, unknown>;
   selectedButtonId?: string;
   onPortButtonClick?: (buttonId: string) => void;
   onLinkButtonClick?: (url: string) => void;
 }
 
-function CarouselContent({ data, selectedButtonId, onPortButtonClick, onLinkButtonClick }: CarouselContentProps) {
-  const items = data.items as
+function CarouselContent({ data, config, selectedButtonId, onPortButtonClick, onLinkButtonClick }: CarouselContentProps) {
+  // dynamic 모드: backend 가 `output.items` 채움.
+  // static 모드: backend 가 `output: {}` 반환 — 슬라이드 정의는 `config.items` (Principle 1.1 직교).
+  const items = ((data.items as
+    | Array<{ title?: string; description?: string; image?: string; buttons?: Array<{ id: string; label: string; type?: string; url?: string; style?: string }> }>
+    | undefined) ??
+    (config?.items as
+      | Array<{ title?: string; description?: string; image?: string; buttons?: Array<{ id: string; label: string; type?: string; url?: string; style?: string }> }>
+      | undefined)) as
     | Array<{ title?: string; description?: string; image?: string; buttons?: Array<{ id: string; label: string; type?: string; url?: string; style?: string }> }>
     | undefined;
 
@@ -238,18 +246,17 @@ function CarouselContent({ data, selectedButtonId, onPortButtonClick, onLinkButt
   );
 }
 
-function ChartContent({ data }: { data: Record<string, unknown> }) {
-  if (data.rendered && typeof data.rendered === "string") {
-    return (
-      <div
-        className="overflow-auto"
-        dangerouslySetInnerHTML={{ __html: sanitizeHtml(data.rendered) }}
-      />
-    );
-  }
-
-  const chartType = (data.chartType as string) ?? "bar";
-  const title = data.title as string | undefined;
+function ChartContent({
+  data,
+  config,
+}: {
+  data: Record<string, unknown>;
+  config?: Record<string, unknown>;
+}) {
+  // 차트 시각화는 client-side recharts 로 렌더링 (Principle 1.1 직교 — chartType/title 은 config 리터럴).
+  // backend `output.rendered` (SVG snapshot) 의존은 폐기됨 — `output.data` (런타임 집계) + `config.{chartType, title}` 로 재구성.
+  const chartType = (config?.chartType as string) ?? "bar";
+  const title = config?.title as string | undefined;
   const points = Array.isArray(data.data) ? (data.data as Array<Record<string, unknown>>) : [];
 
   if (points.length === 0) return <JsonContent data={data} />;
@@ -323,10 +330,19 @@ function ChartContent({ data }: { data: Record<string, unknown> }) {
   );
 }
 
-function TemplateContent({ data, previewOnly = false }: { data: Record<string, unknown>; previewOnly?: boolean }) {
-  // Backend returns { type, format, content }
-  const outputFormat = (data.format ?? data.outputFormat) as string | undefined;
-  const content = (data.content ?? data.rendered) as string | undefined;
+function TemplateContent({
+  data,
+  config,
+  previewOnly = false,
+}: {
+  data: Record<string, unknown>;
+  config?: Record<string, unknown>;
+  previewOnly?: boolean;
+}) {
+  // Principle 1.1 직교: outputFormat 은 config 리터럴, rendered 는 expression resolver 평가 결과.
+  // 옛 `data.format` / `data.content` 잔재는 폐기됨 (Principle 1.1.4, presentation 0-common §4).
+  const outputFormat = config?.outputFormat as string | undefined;
+  const content = data.rendered as string | undefined;
 
   if (!content) return <JsonContent data={data} />;
 
@@ -475,7 +491,7 @@ export function PresentationContent({
 
   // Template already includes its own debug data section
   if (result.nodeType === "template") {
-    return <TemplateContent data={data} previewOnly={previewOnly} />;
+    return <TemplateContent data={data} config={envelopeConfig} previewOnly={previewOnly} />;
   }
 
   let preview: React.ReactNode;
@@ -487,6 +503,7 @@ export function PresentationContent({
       preview = (
         <CarouselContent
           data={data}
+          config={envelopeConfig}
           selectedButtonId={selectedButtonId}
           onPortButtonClick={onPortButtonClick}
           onLinkButtonClick={onLinkButtonClick}
@@ -494,7 +511,7 @@ export function PresentationContent({
       );
       break;
     case "chart":
-      preview = <ChartContent data={data} />;
+      preview = <ChartContent data={data} config={envelopeConfig} />;
       break;
     case "form":
       preview = <FormSubmittedContent data={data} />;

@@ -15,9 +15,8 @@ function makeResult(overrides: Partial<NodeResult> = {}): NodeResult {
     status: "completed",
     duration: 3,
     outputData: {
-      type: "template",
-      format: "text",
-      content: "Hello World",
+      config: { outputFormat: "text" },
+      output: { rendered: "Hello World" },
     },
     ...overrides,
   };
@@ -42,9 +41,8 @@ describe("PresentationContent", () => {
         <PresentationContent
           result={makeResult({
             outputData: {
-              type: "template",
-              format: "text",
-              content: "Score: 95, User: Alice",
+              config: { outputFormat: "text" },
+              output: { rendered: "Score: 95, User: Alice" },
             },
           })}
         />,
@@ -59,9 +57,8 @@ describe("PresentationContent", () => {
         <PresentationContent
           result={makeResult({
             outputData: {
-              type: "template",
-              format: "html",
-              content: "<h1>Title</h1><p>Paragraph</p>",
+              config: { outputFormat: "html" },
+              output: { rendered: "<h1>Title</h1><p>Paragraph</p>" },
             },
           })}
         />,
@@ -77,9 +74,8 @@ describe("PresentationContent", () => {
         <PresentationContent
           result={makeResult({
             outputData: {
-              type: "template",
-              format: "markdown",
-              content: "# Heading",
+              config: { outputFormat: "markdown" },
+              output: { rendered: "# Heading" },
             },
           })}
         />,
@@ -94,41 +90,40 @@ describe("PresentationContent", () => {
         <PresentationContent
           result={makeResult({
             outputData: {
-              type: "template",
-              format: "text",
-              content: "Hello",
+              config: { outputFormat: "text" },
+              output: { rendered: "Hello" },
             },
           })}
         />,
       );
 
       expect(screen.getByText("Output Data")).toBeDefined();
-      expect(screen.getByText(/"content": "Hello"/)).toBeDefined();
+      expect(screen.getByText(/"rendered": "Hello"/)).toBeDefined();
     });
 
-    it("falls back to JsonContent when content is missing", () => {
+    it("falls back to JsonContent when rendered is missing", () => {
       render(
         <PresentationContent
           result={makeResult({
             outputData: {
-              type: "template",
-              format: "html",
+              config: { outputFormat: "html" },
+              output: { foo: "bar" },
             },
           })}
         />,
       );
 
-      // When content is missing, it should render JSON fallback
-      expect(screen.getByText(/"type": "template"/)).toBeDefined();
+      // rendered 가 없으면 TemplateContent 가 JsonContent 로 fallback (data = output)
+      expect(screen.getByText(/"foo": "bar"/)).toBeDefined();
     });
 
-    it("defaults to text format when format is not specified", () => {
+    it("defaults to text format when outputFormat is not specified", () => {
       render(
         <PresentationContent
           result={makeResult({
             outputData: {
-              type: "template",
-              content: "Plain text",
+              config: {},
+              output: { rendered: "Plain text" },
             },
           })}
         />,
