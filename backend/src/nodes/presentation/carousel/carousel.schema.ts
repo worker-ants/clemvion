@@ -80,11 +80,17 @@ const itemDefSchema = z
   .passthrough();
 
 /**
- * Carousel runtime output: each item has title/description/image and
- * optional buttons. When any button is configured the engine decorates
+ * Carousel runtime output:
+ *   - static  mode → `output` carries no runtime array; slides live in
+ *                    `config.items` (CONVENTIONS Principle 1.1 — config ↔
+ *                    output orthogonality, Principle 4.3 — waiting shape).
+ *   - dynamic mode → `output.items` carries the runtime-mapped slides
+ *                    (`source` resolve + field mapping + cap).
+ * When any button is configured the engine decorates
  * `output.interaction.{type, data, receivedAt}` on click (same shape as
- * Form/Table buttons). Static schema is sufficient — no dynamic projection
- * from config is needed.
+ * Form/Table buttons). HTML snapshot (`output.rendered`) is intentionally
+ * NOT part of the schema — the frontend reconstructs the carousel from
+ * `config` + `items` (Principle 1 — output holds business results only).
  */
 export const carouselNodeOutputSchema = z
   .object({
@@ -105,6 +111,7 @@ export const carouselNodeOutputSchema = z
       .optional(),
     output: z
       .object({
+        // Dynamic-mode runtime items. Static mode never populates this.
         items: z
           .array(
             z
@@ -117,7 +124,8 @@ export const carouselNodeOutputSchema = z
               .passthrough(),
           )
           .optional(),
-        rendered: z.string().optional(),
+        itemsTruncated: z.boolean().optional(),
+        itemsTotalCount: z.number().optional(),
         interaction: z
           .object({
             type: z.string().optional(),

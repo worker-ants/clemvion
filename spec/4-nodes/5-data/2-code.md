@@ -92,14 +92,12 @@ JavaScript 코드를 작성하여 자유로운 데이터 처리를 수행한다.
 | `error` | Error | data | false | 런타임 에러 — `output.error.{code, message, details?}` |
 
 > Code 노드는 동적 포트가 없다.
->
-> ⚠ **현 구현 (2026-05 기준)**: 핸들러는 정상 케이스에서 `port` 를 생략 → 엔진 기본 포트 `'out'` 으로 라우팅된다. 본 스펙은 [user_memo 개선안 data/code.md](../../../user_memo/node-specs-improvement/data/code.md) Option A 의 권고에 따라 `'success'` 포트를 명시한다 — 핸들러가 `port: 'success'` 를 반환하고 schema `outputs[]` 에 `success` 가 등록되도록 정렬할 예정. 정렬 전까지 다운스트림은 `port !== 'error'` 로 정상 분기를 식별한다.
 
 ## 4. 실행 로직
 
 1. 핸들러는 입력을 `$input` 에, `context.variables` 의 deep clone 을 `$vars` 에 바인딩한다 (§4.5).
 2. 사용자 `code` 를 `(async () => { "use strict"; <code> })()` 로 래핑하여 `vm.Script` 로 컴파일한다.
-   - 컴파일 실패 → `port: 'error'` + `output.error.code = CODE_EXECUTION_FAILED` (legacy `CODE_SYNTAX_ERROR`).
+   - 컴파일 실패 → **pre-flight throw** (`handler.validate` 단계에서 검출, §6 참조).
 3. `vm.createContext` 로 격리 context 를 만들어 `runInContext` 로 실행. 이중 타임아웃을 적용한다 (§7.2).
 4. 정상 종료 → 사용자 `return` 값을 `output` 에 그대로 담고 `port: 'success'` 를 반환 (§5.1).
 5. 런타임 throw / 타임아웃 → `port: 'error'` + `output.error` 표준 봉투 (§5.3, [CONVENTIONS Principle 3.2](../../../user_memo/node-specs-improvement/CONVENTIONS.md#32-outputerror-표준-형태)).
@@ -189,8 +187,6 @@ config: `{ "language": "javascript", "code": "return $input.value * 2;" }`, inpu
 
 > `output` 이 `undefined` 이면 JSON 예시에서 생략 (Principle 11). 후속 노드에서 `$node["X"].output` 은 `undefined` 로 평가된다.
 
-> ⚠ **현 구현 (2026-05 기준)**: §3.2 의 P0 항목과 동일 — 핸들러는 정상 케이스에서 `port` 를 반환하지 않는다 (`{ config, output, meta }` 만). 후속 노드 라우팅은 엔진 기본 포트 `'out'` 으로 흐른다. 본 스펙의 `port: 'success'` 는 forward-looking 형태이며, schema `outputs[]` 정렬과 함께 핸들러를 갱신할 예정. 정렬 전까지 `meta.success === true` 또는 `port !== 'error'` 로 정상 분기를 식별한다.
-
 ### 5.3 Case: 런타임 에러 (port `error`)
 
 #### 5.3.1 사용자 코드 내 throw
@@ -199,7 +195,11 @@ config: `{ "code": "throw new Error('boom');" }`
 
 ```json
 {
-  "config": { "language": "javascript" },
+  "config": {
+    "language": "javascript",
+    "code": "throw new Error('boom');",
+    "timeout": 30
+  },
   "output": {
     "error": {
       "code": "CODE_EXECUTION_FAILED",
@@ -213,9 +213,6 @@ config: `{ "code": "throw new Error('boom');" }`
   "meta": {
     "durationMs": 5,
     "success": false,
-    "error": "boom",
-    "errorCode": "CODE_RUNTIME_ERROR",
-    "stack": "Error: boom\n    at code-node.js:3:7",
     "logs": []
   },
   "port": "error"
@@ -228,7 +225,11 @@ config: `{ "code": "while (true) {}", "timeout": 1 }` (또는 `await new Promise
 
 ```json
 {
-  "config": { "language": "javascript" },
+  "config": {
+    "language": "javascript",
+    "code": "while (true) {}",
+    "timeout": 1
+  },
   "output": {
     "error": {
       "code": "CODE_TIMEOUT",
@@ -242,8 +243,6 @@ config: `{ "code": "while (true) {}", "timeout": 1 }` (또는 `await new Promise
   "meta": {
     "durationMs": 1000,
     "success": false,
-    "error": "Code execution timed out",
-    "errorCode": "EXECUTION_TIMEOUT",
     "logs": []
   },
   "port": "error"
@@ -254,24 +253,23 @@ config: `{ "code": "while (true) {}", "timeout": 1 }` (또는 `await new Promise
 
 | 필드 | 타입 | 출처 | 설명 |
 |------|------|------|------|
-| `config.language` | `'javascript'` | config echo | 에러 케이스에서는 핸들러가 `language` 만 echo (코드 본문은 reproduce 가능하므로 메모리 절약). [개선안 §3](../../../user_memo/node-specs-improvement/data/code.md#3-제안된-output-구조) |
+| `config.language` | `'javascript'` | config echo (Principle 7) | 사용자가 선택한 언어 (default `javascript`) |
+| `config.code` | string | config echo | 사용자 코드 본문 raw — 정상 케이스와 동일하게 echo (CONVENTIONS Principle 7) |
+| `config.timeout` | number? | config echo | 사용자가 설정한 타임아웃 초 |
 | `output.error.code` | string | handler return | 정규화된 에러 코드 — `CODE_TIMEOUT` / `CODE_EXECUTION_FAILED` (CONVENTIONS Principle 3.2 — `UPPER_SNAKE_CASE`) |
 | `output.error.message` | string | handler return | 사람이 읽는 에러 메시지 (로그/디버깅용 원문) |
-| `output.error.details.legacyCode` | string | handler return | Phase 2 마이그레이션을 위한 legacy 코드 (`CODE_RUNTIME_ERROR` / `CODE_SYNTAX_ERROR` / `EXECUTION_TIMEOUT`) — 다음 메이저 릴리스에서 제거 예정 |
+| `output.error.details.legacyCode` | string | handler return | 내부 분류용 legacy 코드 (`CODE_RUNTIME_ERROR` / `EXECUTION_TIMEOUT`). 후속 노드는 `output.error.code` 사용 |
 | `output.error.details.stack` | string? | handler return | 스택 트레이스. **`NODE_ENV !== 'production'` 일 때만 노출** (프로덕션에서는 내부 파일 경로 노출 방지로 생략) |
 | `meta.durationMs` | number | engine inject | 실행 시간 (ms) — 타임아웃 케이스에서는 timeout 값에 근사 |
 | `meta.success` | `false` | handler return | 실패 표시. CONVENTIONS Principle 2 의 Code 계열 권장 필드 |
-| `meta.error` | string | handler return (legacy) | `output.error.message` 와 동일. **deprecated** — 후속 노드는 `output.error.message` 사용 권장 |
-| `meta.errorCode` | string | handler return (legacy) | `output.error.details.legacyCode` 와 동일. **deprecated** — 후속 노드는 `output.error.code` 사용 권장 |
-| `meta.stack` | string? | handler return (legacy) | `output.error.details.stack` 와 동일. **deprecated** |
 | `meta.logs` | string[] | handler return | console 캡처. 에러 발생 직전까지의 로그 보존 |
 | `port` | `'error'` | handler return | 런타임 에러 분기 |
 
 **Expression 접근 예** (런타임 throw):
 - `$node["X"].output.error.code` → `"CODE_EXECUTION_FAILED"`
 - `$node["X"].output.error.message` → `"boom"`
+- `$node["X"].output.error.details.legacyCode` → `"CODE_RUNTIME_ERROR"`
 - `$node["X"].port` → `"error"`
-- `$node["X"].meta.errorCode` → `"CODE_RUNTIME_ERROR"` (legacy, deprecated)
 
 > **에러 코드 정규화 매핑** (handler.failure):
 >
@@ -280,8 +278,6 @@ config: `{ "code": "while (true) {}", "timeout": 1 }` (또는 `await new Promise
 > | `EXECUTION_TIMEOUT` | `CODE_TIMEOUT` |
 > | `CODE_RUNTIME_ERROR` | `CODE_EXECUTION_FAILED` |
 > | `EXECUTION_MEMORY_EXCEEDED` (로드맵) | `CODE_MEMORY_LIMIT` |
-
-> ⚠ **마이그레이션 (Phase 2 진행 중)**: `meta.error` / `meta.errorCode` / `meta.stack` 은 한 메이저 릴리스간 deprecated alias 로 유지된다. 신규 워크플로우는 `output.error.{code, message, details.stack}` 만 사용한다 ([개선안 §4 마이그레이션](../../../user_memo/node-specs-improvement/data/code.md#4-마이그레이션-영향도) 참조).
 
 ## 6. 에러 코드 (Pre-flight throw)
 
@@ -293,11 +289,9 @@ config: `{ "code": "while (true) {}", "timeout": 1 }` (또는 `await new Promise
 | `code` 가 string 타입이 아님 | `code is required and must be a string` | handler.validate (zod default `''` 우회한 raw fixture 가드) |
 | `timeout` 이 `[1, 120]` 밖 | `timeout must be a number between 1 and 120 seconds` | handler.validate (`validateCodeConfig`) |
 | `language` 가 `javascript` 외 | (zod enum) `Invalid enum value. Expected 'javascript', received '...'` | schema parse 시점 |
-| **`code` 컴파일 실패** (`vm.Script` 구문 오류) | `Unexpected identifier ...` 등 V8 SyntaxError 메시지 | handler.execute 직전 (사용자 코드를 한 번도 실행하지 못한 상태) |
+| **`code` 컴파일 실패** (`vm.Script` 구문 오류) | `code has a syntax error: <V8 SyntaxError 메시지>` | handler.validate (사용자 코드를 한 번도 실행하지 못한 상태) |
 
 > Pre-flight throw 는 사용자 코드를 단 한 번도 실행하지 못한 상태이므로 `error` 포트가 아닌 throw 로 처리한다 (Data 공통 §4.1, 개선안 [`data/code.md`](../../../user_memo/node-specs-improvement/data/code.md) §5.근거). 캔버스 배지 / 실행 시작 직전 검증으로 즉시 노출된다.
->
-> ⚠ **현 구현 (2026-05 기준)**: 핸들러는 `vm.Script` 컴파일 실패를 throw 하지 않고 `port: 'error'` + `output.error.code: 'CODE_EXECUTION_FAILED'` (legacy `CODE_SYNTAX_ERROR`) 로 반환한다. 본 스펙은 forward-looking 형태이며, [개선안 §3](../../../user_memo/node-specs-improvement/data/code.md#3-제안된-output-구조) 의 Phase 3 cleanup 단계에서 throw 로 정렬할 예정이다. 정렬 전까지 후속 노드는 `output.error.details.legacyCode === 'CODE_SYNTAX_ERROR'` 로 식별 가능.
 
 ## 7. 샌드박싱
 

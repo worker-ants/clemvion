@@ -83,7 +83,7 @@ export const httpRequestNodeOutputSchema = z
     meta: z
       .object({
         statusCode: z.number().optional(),
-        duration: z.number().optional(),
+        durationMs: z.number().optional(),
       })
       .partial()
       .passthrough()

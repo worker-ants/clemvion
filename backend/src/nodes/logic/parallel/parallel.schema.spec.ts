@@ -186,13 +186,16 @@ describe('Parallel node', () => {
       recursionDepth: 0,
     };
 
-    it('branchCount만큼 branch_N 포트를 모두 활성화', async () => {
+    it('branchCount만큼 branch_N 포트를 모두 활성화 + output: null (Principle 9 컨테이너 컨트랙트)', async () => {
       const result = await handler.execute(
         { hello: 'world' },
         { branchCount: 3 },
         ctx,
       );
-      expect(result.output).toEqual({ hello: 'world' });
+      // CONVENTIONS Principle 9: 컨테이너 핸들러는 시작 시점에 `output: null`
+      // 을 반환하고, 엔진이 완료 시점에 `{ branches: [...] }` 로 오버라이트한다
+      // (loop/foreach/map 과 동일 패턴).
+      expect(result.output).toBeNull();
       expect(result.port).toEqual(['branch_0', 'branch_1', 'branch_2']);
     });
 

@@ -36,7 +36,7 @@
 {
   "config": { /* 노드별 raw 설정 echo */ },
   "output": { /* 노드별 평가 결과 */ },
-  "meta": { "statusCode": 200, "duration": 150 },
+  "meta": { "statusCode": 200, "durationMs": 150 },
   "port": "success"
 }
 ```
@@ -108,7 +108,7 @@ Integration 노드는 모두 [CONVENTIONS Principle 0](../../../user_memo/node-s
 | `database_query` | `meta.durationMs` (이미 동일) | `meta.durationMs` |
 | `send_email` | `meta.durationMs` (이미 동일) | `meta.durationMs` |
 
-> ⚠ **Breaking change (2026-05-10)**: `http_request` 의 `meta.duration` → `meta.durationMs`. 기존 expression `$node["X"].meta.duration` 을 사용하는 워크플로우는 정정 필요. 코드 측 `meta.duration` 도 동일 정책으로 정정 (P0).
+> ⚠ **Breaking change (2026-05-10)**: `http_request` 의 `meta.duration` → `meta.durationMs`. 기존 expression `$node["X"].meta.duration` 을 사용하는 워크플로우는 정정 필요. 코드 측 `meta.duration` 정정 완료.
 
 ## 7. 출력 구조 색인
 

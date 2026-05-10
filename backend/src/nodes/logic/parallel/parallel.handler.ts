@@ -27,7 +27,7 @@ export class ParallelHandler implements NodeHandler {
 
   // eslint-disable-next-line @typescript-eslint/require-await
   async execute(
-    input: unknown,
+    _input: unknown,
     config: Record<string, unknown>,
     context: ExecutionContext,
   ): Promise<NodeHandlerOutput> {
@@ -44,6 +44,10 @@ export class ParallelHandler implements NodeHandler {
     // (numeric / boolean) so raw and evaluated are identical in the
     // common case; rawConfig is still used for consistency + so future
     // expression-templated fields (if added) auto-flow through.
+    //
+    // CONVENTIONS Principle 9 (container handler / engine override):
+    // `output: null` mirrors loop/foreach/map. The engine overrides on
+    // completion with `{ branches: [...] }` (allSettled-shaped entries).
     const rawConfig = context.rawConfig ?? config;
     return {
       config: {
@@ -51,7 +55,7 @@ export class ParallelHandler implements NodeHandler {
         maxConcurrency: rawConfig.maxConcurrency,
         waitAll: rawConfig.waitAll,
       },
-      output: input,
+      output: null,
       port: ports,
     };
   }

@@ -14,6 +14,8 @@ export const codeNodeOutputSchema = z
     config: z
       .object({
         language: z.enum(['javascript']).optional(),
+        code: z.string().optional(),
+        timeout: z.number().optional(),
       })
       .partial()
       .passthrough()
@@ -23,9 +25,6 @@ export const codeNodeOutputSchema = z
       .object({
         success: z.boolean().optional(),
         logs: z.array(z.string()).optional(),
-        error: z.string().optional(),
-        errorCode: z.string().optional(),
-        stack: z.string().optional(),
       })
       .partial()
       .passthrough()
@@ -60,7 +59,10 @@ export type CodeConfig = z.infer<typeof codeNodeConfigSchema>;
 
 export const codeNodePorts: NodePorts = {
   inputs: [{ id: 'in', label: 'Input', type: 'data' }],
-  outputs: [{ id: 'out', label: 'Output', type: 'data' }],
+  outputs: [
+    { id: 'success', label: 'Success', type: 'data' },
+    { id: 'error', label: 'Error', type: 'data' },
+  ],
 };
 
 /**

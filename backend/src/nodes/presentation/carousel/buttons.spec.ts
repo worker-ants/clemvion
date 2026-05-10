@@ -81,11 +81,16 @@ describe('CarouselHandler - Buttons', () => {
       expect(result.status).toBe('waiting_for_input');
       expect(result.meta?.interactionType).toBe('buttons');
       expect(result.config.buttonConfig).toEqual({ buttons });
-      // Layout literal is in config only (Principle 1.1); runtime items/rendered stay in output.
+      // Dynamic mode (no `mode` → defaults to dynamic) surfaces runtime
+      // items in `output.items` per Principle 4.3. Static mode would leave
+      // output empty (covered in carousel.handler.spec.ts).
       expect(result.output.items).toBeDefined();
       expect(result.output.layout).toBeUndefined();
       expect(result.config.layout).toBeDefined();
-      expect(result.output.rendered).toBeDefined();
+      // `output.rendered` HTML snapshot has been removed (Principle 1 —
+      // output holds business results only; frontend reconstructs from
+      // config + items).
+      expect(result.output.rendered).toBeUndefined();
     });
 
     it('should return normal output when buttons array is empty', async () => {

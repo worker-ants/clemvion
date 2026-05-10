@@ -88,9 +88,7 @@
 | `meta.itemCount` | number | handler return | 처리된 항목 수 (실행 메트릭, Principle 2). `output.count` 와 동일 값이지만 Principle 2 분리 원칙에 따라 `meta` 에도 표기 |
 | `meta.fellBackToEmpty` | boolean | handler return | 입력이 비배열이라 빈 배열 fallback 이 발동했는지 (Principle 10 진단용) |
 
-> ⚠ **미구현 (P0)**: 현재 `split.handler.ts` 는 `output` 을 **단순 배열** (`SplitItem[]`) 으로 반환하며 `meta` 를 반환하지 않는다. 위 `output: { items, count }` 래핑과 `meta.itemCount` / `meta.fellBackToEmpty` 는 [user_memo 개선안 logic/split.md](../../../user_memo/node-specs-improvement/logic/split.md) 의 P0 제안 (CONVENTIONS §9.2 대칭성). 마이그레이션 시 expression 경로가 `output[i]` → `output.items[i]`, `output.length` → `output.count` 로 변경되는 **breaking change** 다. `meta.durationMs` 는 엔진 공통 inject 이므로 핸들러 변경 없이 채워진다.
-
-**Expression 접근 예** (목표 구조):
+**Expression 접근 예**:
 - `$node["S"].output.items[0].value` → `{ "sku": "X1" }`
 - `$node["S"].output.items[0].index` → `0`
 - `$node["S"].output.count` → `2`

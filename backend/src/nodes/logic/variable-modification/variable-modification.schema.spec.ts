@@ -71,14 +71,17 @@ describe('validateVariableModificationConfig (imperative)', () => {
     );
   });
 
-  it('rejects schema-only operations (set_field/delete_field)', () => {
-    // The schema enum allows these but the handler whitelist rejects them —
-    // we mirror the handler so handler.validate parity is preserved.
-    expect(
-      validateVariableModificationConfig({
-        modifications: [{ variable: 'x', operation: 'set_field' }],
-      }).some((e) => e.startsWith('modifications[0].operation')),
-    ).toBe(true);
+  it('rejects legacy operations removed from the enum (set_field/delete_field)', () => {
+    // `set_field` / `delete_field` were removed from `modOperationSchema`
+    // because the handler never implemented them. Keep them explicitly
+    // rejected here to catch accidental re-introduction.
+    for (const op of ['set_field', 'delete_field']) {
+      expect(
+        validateVariableModificationConfig({
+          modifications: [{ variable: 'x', operation: op }],
+        }).some((e) => e.startsWith('modifications[0].operation')),
+      ).toBe(true);
+    }
   });
 });
 

@@ -148,12 +148,12 @@ export class CarouselHandler implements NodeHandler {
       );
     }
 
-    // Cap evaluated `items` at the Presentation 1MB threshold BEFORE
-    // rendering so the HTML and the buttonItemMap stay aligned with the
-    // surfaced array. Otherwise rendered would inflate NodeExecution
-    // outputData JSONB independently of items, defeating the cap.
+    // Cap evaluated `items` at the Presentation 1MB threshold so the
+    // surfaced array stays bounded and the buttonItemMap below references
+    // only items that are actually present in the output (truncation drops
+    // the tail elements and would otherwise leave dangling button → index
+    // mappings).
     const cappedItems = truncateArrayForOutput(items, PRESENTATION_MAX_BYTES);
-    const rendered = this.renderHtml(cappedItems.value, layout);
 
     // Collect all buttons: global + per-item. Iterate the capped list so
     // dropped items don't leave dangling button → index mappings (the index
@@ -175,16 +175,10 @@ export class CarouselHandler implements NodeHandler {
     // CONVENTIONS Principle 7 — config echoes raw user-entered settings
     // (per-item title / description / image, button labels, titleField etc.
     // may carry `{{ ... }}` templates that the engine resolved before
-    // dispatch). evaluated rendered items live in output.
+    // dispatch). Runtime-evaluated dynamic items live in `output.items`;
+    // static literal items live solely in `config.items` (Principle 1.1
+    // config↔output orthogonality).
     const rawConfig = context.rawConfig ?? config;
-    const payload: Record<string, unknown> = {
-      items: cappedItems.value,
-      rendered,
-    };
-    if (cappedItems.truncated) {
-      payload.itemsTruncated = true;
-      payload.itemsTotalCount = cappedItems.originalLength;
-    }
     const configEcho: Record<string, unknown> = {
       layout: rawConfig.layout ?? layout,
       mode: rawConfig.mode ?? mode,
@@ -198,6 +192,26 @@ export class CarouselHandler implements NodeHandler {
       configEcho.buttons = rawConfig.buttons;
     if (Array.isArray(rawConfig.itemButtons))
       configEcho.itemButtons = rawConfig.itemButtons;
+
+    // Build the output payload with static/dynamic split per CONVENTIONS
+    // Principle 1.1 (config↔output orthogonality) + Principle 4.3 (waiting
+    // shape):
+    //   - static  → items live in `config.items`; `output` carries no
+    //               runtime-derived array (use `{}` or `{ itemsTruncated }`
+    //               surface for cap signalling).
+    //   - dynamic → `source` + field mapping is runtime-derived → surface
+    //               the resolved `items` array in `output.items`.
+    // `output.rendered` HTML snapshot is removed: the frontend reconstructs
+    // the carousel from `config` + `items` (CONVENTIONS Principle 1 — output
+    // holds business results only, not presentation artefacts).
+    const payload: Record<string, unknown> = {};
+    if (mode === 'dynamic') {
+      payload.items = cappedItems.value;
+    }
+    if (cappedItems.truncated) {
+      payload.itemsTruncated = true;
+      payload.itemsTotalCount = cappedItems.originalLength;
+    }
 
     if (allButtons.length > 0) {
       return Promise.resolve({
@@ -216,41 +230,5 @@ export class CarouselHandler implements NodeHandler {
     }
 
     return Promise.resolve({ config: configEcho, output: payload });
-  }
-
-  private renderHtml(
-    items: Array<{
-      title: string;
-      description: string;
-      image?: string;
-      buttons?: ButtonDef[];
-    }>,
-    layout: string,
-  ): string {
-    const itemsHtml = items
-      .map(
-        (item) =>
-          `<div class="carousel-item">` +
-          (item.image
-            ? `<img src="${this.escapeHtml(item.image)}" alt="${this.escapeHtml(item.title)}" />`
-            : '') +
-          `<h3>${this.escapeHtml(item.title)}</h3>` +
-          `<p>${this.escapeHtml(item.description)}</p>` +
-          `</div>`,
-      )
-      .join('');
-
-    return `<div class="carousel carousel-${this.escapeHtml(layout)}">${itemsHtml}</div>`;
-  }
-
-  private escapeHtml(text: string): string {
-    const map: Record<string, string> = {
-      '&': '&amp;',
-      '<': '&lt;',
-      '>': '&gt;',
-      '"': '&quot;',
-      "'": '&#39;',
-    };
-    return text.replace(/[&<>"']/g, (ch) => map[ch]);
   }
 }

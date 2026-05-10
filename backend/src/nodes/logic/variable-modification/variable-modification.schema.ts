@@ -11,8 +11,6 @@ export const modOperationSchema = z.enum([
   'append',
   'push',
   'pop',
-  'set_field',
-  'delete_field',
 ]);
 
 export const modDefSchema = z
@@ -89,9 +87,9 @@ export const variableModificationNodePorts: NodePorts = {
  * `warningRules` below.
  */
 export function validateVariableModificationConfig(config: unknown): string[] {
-  // Mirror the handler's whitelist exactly. Note `set_field` /
-  // `delete_field` are valid in the schema enum but the handler rejects
-  // them — we mirror the handler so handler.validate parity is preserved.
+  // Mirror the handler's whitelist exactly. The schema enum
+  // (`modOperationSchema`) and handler `applyModification` switch share
+  // this same 6-operation set — keep all three in sync.
   const VALID_OPERATIONS = new Set([
     'set',
     'increment',
