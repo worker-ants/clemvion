@@ -48,6 +48,10 @@ export class TextClassifierHandler implements NodeHandler {
     config: Record<string, unknown>,
     context: ExecutionContext,
   ): Promise<NodeHandlerOutput> {
+    // CONVENTIONS Principle 2 — meta.durationMs 는 핸들러 책임. execute()
+    // 진입 직후 stamp 하여 resolveConfig·프롬프트 빌드까지 포함한 전체 소요
+    // 시간을 측정 (성공/에러/fallback 모든 경로 동일 기준).
+    const executeStartedAt = Date.now();
     const llmConfigId = config.llmConfigId as string | undefined;
     const model = config.model as string | undefined;
     const inputField = config.inputField as string;
@@ -124,17 +128,23 @@ export class TextClassifierHandler implements NodeHandler {
       result = await this.llmService.chat(llmConfig, requestPayload);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      // CONVENTIONS §7 — truncate originalInput so long user prompts /
-      // PII don't land full-length in error envelope details.
+      // CONVENTIONS §7 — truncate originalInput in the error envelope so long
+      // user prompts / PII don't land full-length in `output.error.details`.
+      // `output.originalInput` (top-level) intentionally carries the full
+      // resolved text — same shape as the success path's
+      // `output.result.originalInput` so downstream nodes can re-inspect the
+      // exact LLM input regardless of which port fired.
       const truncatedInput = truncateForErrorDetails(inputField, 500);
-      // CONVENTIONS Principle 2 — meta MUST carry execution metrics in every
-      // case (success / fallback / error). Error path now mirrors the
-      // success path's meta shape so the spec §5.3 contract holds and
-      // `$node[X].meta.*` expressions resolve uniformly across ports.
-      // `requestPayload.model` already encodes the resolved model id
-      // (`config.model || llmConfig.defaultModel`), so we reuse it here to
-      // avoid divergence with the actual attempted call.
-      const errorDurationMs = Date.now() - callStartedAt;
+      // CONVENTIONS Principle 2 — meta carries execution metrics in every
+      // case (success / fallback / error). Token fields are 0-defaulted on
+      // error so `$node[X].meta.{inputTokens,outputTokens,totalTokens}`
+      // expressions stay numeric and don't fall through to `undefined` in
+      // downstream arithmetic. `meta.durationMs` is the per-call duration
+      // from `callStartedAt` (LLM throw boundary); `llmCalls[0].durationMs`
+      // currently equals it (single attempt) but the two are separate
+      // semantic axes — `meta.durationMs` may diverge once retry/timeout
+      // logic lands.
+      const llmCallDurationMs = Date.now() - callStartedAt;
       return {
         config: configEcho,
         output: {
@@ -146,13 +156,16 @@ export class TextClassifierHandler implements NodeHandler {
           originalInput: inputField,
         },
         meta: {
-          durationMs: errorDurationMs,
+          durationMs: Date.now() - executeStartedAt,
           model: requestPayload.model,
+          inputTokens: 0,
+          outputTokens: 0,
+          totalTokens: 0,
           llmCalls: [
             {
               requestPayload,
               responsePayload: null,
-              durationMs: errorDurationMs,
+              durationMs: llmCallDurationMs,
             },
           ],
         },
@@ -167,6 +180,11 @@ export class TextClassifierHandler implements NodeHandler {
         durationMs: Date.now() - callStartedAt,
       },
     ];
+    // Compute success-path durationMs at the same boundary (just after the
+    // LLM call returned, before result post-processing) so its semantics
+    // match the error path — both fields equal "time until LLM call
+    // resolved" plus the small fixed pre-LLM setup cost.
+    const successDurationMs = Date.now() - executeStartedAt;
 
     if (multiLabel) {
       return this.processMultiLabelResult(
@@ -177,6 +195,7 @@ export class TextClassifierHandler implements NodeHandler {
         includeEvidence,
         llmCalls,
         configEcho,
+        successDurationMs,
       );
     }
     return this.processSingleLabelResult(
@@ -187,6 +206,7 @@ export class TextClassifierHandler implements NodeHandler {
       includeEvidence,
       llmCalls,
       configEcho,
+      successDurationMs,
     );
   }
 
@@ -324,6 +344,7 @@ Respond ONLY with the JSON object, no additional text.`;
       durationMs: number;
     }>,
     configEcho: Record<string, unknown>,
+    durationMs: number,
   ) {
     const NONE = TextClassifierHandler.NONE_SENTINEL;
     let category = '';
@@ -370,6 +391,7 @@ Respond ONLY with the JSON object, no additional text.`;
         },
       },
       meta: {
+        durationMs,
         model: result.model,
         inputTokens: result.usage?.inputTokens ?? 0,
         outputTokens: result.usage?.outputTokens ?? 0,
@@ -393,6 +415,7 @@ Respond ONLY with the JSON object, no additional text.`;
       durationMs: number;
     }>,
     configEcho: Record<string, unknown>,
+    durationMs: number,
   ) {
     let matchedCategories: {
       name: string;
@@ -451,6 +474,7 @@ Respond ONLY with the JSON object, no additional text.`;
         },
       },
       meta: {
+        durationMs,
         model: result.model,
         inputTokens: result.usage?.inputTokens ?? 0,
         outputTokens: result.usage?.outputTokens ?? 0,
