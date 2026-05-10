@@ -3133,20 +3133,33 @@ export class ExecutionEngineService
    * If a handler returned { port, data, ... }, convert to { ...data, _selectedPort }
    * so downstream routing can filter edges by port.
    * Extra root-level fields (e.g. expression, value) are preserved for the execution record.
+   *
+   * **Array guard**: 5필드 모델(`{config, output, port, ...}`)에서 user 가
+   * `output: { data: [array] }` 처럼 `data` 키 (배열) 를 직접 사용하는 경우,
+   * `toEngineFlatShape` 가 envelope 의 `output` 키를 spread 해 `{ data: [array],
+   * port }` 형태로 만든다. 그러면 본 함수가 legacy `{port, data}` envelope 으로
+   * 오인하고 `{...data}` 로 array 를 인덱스 키로 spread (`{0: ..., 1: ...}`).
+   * 그 결과 다음 노드 input 이 깨진 객체로 도착해 `dataField='data'` 추출이 실패.
+   * 따라서 **`data` 가 plain object 일 때만 unwrap**, array/primitive 는 `data`
+   * 키 그대로 보존하고 `port → _selectedPort` 만 변환.
    */
   private applyPortSelection(output: unknown): unknown {
     if (
       output &&
       typeof output === 'object' &&
+      !Array.isArray(output) &&
       'port' in output &&
       'data' in output
     ) {
       const { port, data, ...extra } = output as Record<string, unknown>;
-      const base =
-        data && typeof data === 'object'
-          ? (data as Record<string, unknown>)
-          : {};
-      return { ...base, ...extra, _selectedPort: port };
+      // Legacy {port, data} envelope: data 가 plain object 일 때만 unwrap.
+      if (data && typeof data === 'object' && !Array.isArray(data)) {
+        const base = data as Record<string, unknown>;
+        return { ...base, ...extra, _selectedPort: port };
+      }
+      // data 가 array / primitive / null: unwrap 시 array spread 가 발생해
+      // next input 이 `{0:..., 1:...}` 로 깨지므로 키 보존.
+      return { ...extra, data, _selectedPort: port };
     }
     return output;
   }
