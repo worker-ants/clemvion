@@ -60,12 +60,27 @@ export class IfElseHandler implements NodeHandler {
     // strings preserved). Engine populates `rawConfig`; fallback to evaluated
     // config keeps unit tests that bypass the engine working.
     const rawConfig = (context.rawConfig ?? config) as unknown as IfElseConfig;
+    // CONVENTIONS Principle 2 — meta carries execution metrics. `conditionResult`
+    // lets downstream expressions read the boolean directly without parsing
+    // `port`; `matchedConditions` exposes per-condition results for `or` mode
+    // debugging. `meta.durationMs` is injected by the engine, not here
+    // (sibling switch handler follows the same pattern). Spec §5.1 / §5.2.
     return Promise.resolve({
       config: {
         conditions: rawConfig.conditions,
         combineMode: rawConfig.combineMode ?? 'and',
       },
       output: input,
+      meta: {
+        conditionResult: passed,
+        matchedConditions: results.map((result, index) => ({
+          index,
+          field: conditions[index]?.field,
+          operator: conditions[index]?.operator,
+          value: conditions[index]?.value,
+          result,
+        })),
+      },
       port: passed ? 'true' : 'false',
     });
   }

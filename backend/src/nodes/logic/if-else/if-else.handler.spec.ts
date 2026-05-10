@@ -83,6 +83,18 @@ describe('IfElseHandler', () => {
       expect(result).toMatchObject({
         port: 'true',
         output: { status: 'active' },
+        meta: {
+          conditionResult: true,
+          matchedConditions: [
+            {
+              index: 0,
+              field: 'status',
+              operator: 'eq',
+              value: 'active',
+              result: true,
+            },
+          ],
+        },
       });
     });
 
@@ -98,6 +110,18 @@ describe('IfElseHandler', () => {
       expect(result).toMatchObject({
         port: 'false',
         output: { status: 'inactive' },
+        meta: {
+          conditionResult: false,
+          matchedConditions: [
+            {
+              index: 0,
+              field: 'status',
+              operator: 'eq',
+              value: 'active',
+              result: false,
+            },
+          ],
+        },
       });
     });
 
@@ -344,9 +368,31 @@ describe('IfElseHandler', () => {
         },
         context,
       );
+      // `or` mode still evaluates every condition, so `matchedConditions`
+      // surfaces both per-condition results for downstream debugging
+      // (CONVENTIONS Principle 2; spec §5.1).
       expect(result).toMatchObject({
         port: 'true',
         output: { age: 15, status: 'active' },
+        meta: {
+          conditionResult: true,
+          matchedConditions: [
+            {
+              index: 0,
+              field: 'age',
+              operator: 'gt',
+              value: 18,
+              result: false,
+            },
+            {
+              index: 1,
+              field: 'status',
+              operator: 'eq',
+              value: 'active',
+              result: true,
+            },
+          ],
+        },
       });
     });
 

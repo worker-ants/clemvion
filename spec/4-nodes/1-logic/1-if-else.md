@@ -99,12 +99,12 @@
 | `meta.matchedConditions` | Array | handler return | 각 조건의 평가 결과 (`combineMode='or'` 디버깅용) |
 | `port` | `'true'` | handler return | 조건 만족 분기 |
 
-> ⚠ **미구현 (P0)**: 현재 `if-else.handler.ts` 는 `meta` 필드를 반환하지 않는다. 위 `meta.conditionResult` / `meta.matchedConditions` 는 [user_memo 개선안 logic/if_else.md](../../../user_memo/node-specs-improvement/logic/if_else.md) 의 P0 제안. 코드 반영 시까지 다운스트림은 `port === 'true'` 문자열 비교를 임시로 사용한다. `meta.durationMs` 는 엔진이 모든 노드에 공통 주입하는 값으로, 별도 핸들러 변경 없이 채워진다.
+> `meta.durationMs` 는 엔진이 모든 노드에 공통 주입하는 값으로, 핸들러는 별도로 채우지 않는다.
 
 **Expression 접근 예**:
 - `$node["X"].output.user.age` → 25 (pass-through)
 - `$node["X"].port` → `"true"`
-- `$node["X"].meta.conditionResult` → `true` (구현 후)
+- `$node["X"].meta.conditionResult` → `true`
 
 ### 5.2 Case: 조건 불만족 (port `false`)
 
@@ -132,7 +132,7 @@
 |------|------|------|------|
 | `config.*` | (§5.1과 동일) | config echo | |
 | `output` | (input 전체) | runtime — pass-through | input 데이터 그대로 |
-| `meta.conditionResult` | boolean | handler return | `false` (P0 미구현) |
+| `meta.conditionResult` | boolean | handler return | `false` |
 | `port` | `'false'` | handler return | 조건 불만족 분기 |
 
 **Expression 접근 예**:
