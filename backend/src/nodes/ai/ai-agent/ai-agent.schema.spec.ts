@@ -80,61 +80,84 @@ describe('aiAgentNodeConfigSchema', () => {
 describe('aiAgentNodeOutputSchema', () => {
   // The autocomplete-hint schema is permissive — real handler returns must
   // parse successfully, and parseless fields (unknown keys) must pass through.
-  it('accepts a single-turn success return', () => {
+  // Phase 1 (D) — fixtures now describe the inner `output` namespace of the
+  // canonical 5-field NodeHandlerOutput. Single-turn / multi-turn ended /
+  // condition all expose `output.result.*`; errors expose `output.error.*`;
+  // multi-turn waiting/resumed expose `output.messages` (+ optional
+  // `output.interaction`).
+  it('accepts a single-turn success `output.result.*` return', () => {
     const fixture = {
-      response: 'Hello from the agent',
-      metadata: {
-        model: 'gpt-4o',
-        inputTokens: 10,
-        outputTokens: 5,
-        totalTokens: 15,
-        toolCalls: 0,
-        ragSources: [],
+      result: {
+        response: 'Hello from the agent',
+        endReason: 'out',
+        turnCount: 1,
       },
     };
     const result = aiAgentNodeOutputSchema.safeParse(fixture);
     expect(result.success).toBe(true);
   });
 
-  it('accepts a multi-turn waiting return', () => {
+  it('accepts a multi-turn waiting `output.messages` return', () => {
     const fixture = {
-      status: 'waiting_for_input',
-      interactionType: 'ai_conversation',
-      conversationConfig: {
-        message: '',
-        messages: [],
-        turnCount: 0,
-        maxTurns: 20,
+      messages: [],
+      message: '',
+      turnCount: 0,
+      maxTurns: 20,
+    };
+    const result = aiAgentNodeOutputSchema.safeParse(fixture);
+    expect(result.success).toBe(true);
+  });
+
+  it('accepts a multi-turn final `output.result.*` return with endReason', () => {
+    const fixture = {
+      result: {
+        response: 'Goodbye',
+        messages: [{ role: 'assistant', content: 'Goodbye' }],
+        turnCount: 3,
+        endReason: 'user_ended',
       },
     };
     const result = aiAgentNodeOutputSchema.safeParse(fixture);
     expect(result.success).toBe(true);
   });
 
-  it('accepts a multi-turn final return with endReason', () => {
+  it('accepts condition-route `output.result.condition.*` output', () => {
     const fixture = {
-      interactionType: 'ai_conversation',
-      response: 'Goodbye',
-      messages: [{ role: 'assistant', content: 'Goodbye' }],
-      turnCount: 3,
-      endReason: 'user_ended',
-      metadata: {
-        model: 'gpt-4o',
-        totalTokens: 100,
+      result: {
+        response: 'Routing to refund handler',
+        endReason: 'condition',
+        turnCount: 1,
+        condition: {
+          id: 'refund',
+          label: 'Refund',
+          reason: 'user asked for refund',
+        },
       },
     };
     const result = aiAgentNodeOutputSchema.safeParse(fixture);
     expect(result.success).toBe(true);
   });
 
-  it('accepts condition-route output', () => {
+  it('accepts an `output.error.*` return', () => {
     const fixture = {
-      condition: {
-        id: 'refund',
-        label: 'Refund',
-        reason: 'user asked for refund',
+      error: {
+        code: 'LLM_CALL_FAILED',
+        message: 'OpenAI API returned 503 after 3 retries',
+        details: { provider: 'openai', statusCode: 503 },
       },
-      response: 'Routing to refund handler',
+    };
+    const result = aiAgentNodeOutputSchema.safeParse(fixture);
+    expect(result.success).toBe(true);
+  });
+
+  it('accepts a multi-turn resumed `output.interaction.*` snapshot', () => {
+    const fixture = {
+      messages: [{ role: 'user', content: '환불 문의입니다' }],
+      interaction: {
+        type: 'message_received',
+        data: { content: '환불 문의입니다', role: 'user' },
+        receivedAt: '2026-05-10T06:42:01.123Z',
+      },
     };
     const result = aiAgentNodeOutputSchema.safeParse(fixture);
     expect(result.success).toBe(true);
@@ -142,7 +165,7 @@ describe('aiAgentNodeOutputSchema', () => {
 
   it('preserves unknown keys via passthrough', () => {
     const fixture = {
-      response: 'x',
+      result: { response: 'x' },
       futureField: { arbitrary: true },
     };
     const result = aiAgentNodeOutputSchema.safeParse(fixture);
@@ -152,10 +175,11 @@ describe('aiAgentNodeOutputSchema', () => {
     }
   });
 
-  it('rejects metadata with wrong numeric field type', () => {
+  it('rejects result with wrong type for turnCount', () => {
+    // Type guard: the autocomplete schema still rejects obvious mismatches
+    // on the few stable fields it enumerates (turnCount must be a number).
     const fixture = {
-      response: 'x',
-      metadata: { model: 'gpt-4o', inputTokens: 'not-a-number' },
+      result: { response: 'x', turnCount: 'not-a-number' },
     };
     const result = aiAgentNodeOutputSchema.safeParse(fixture);
     expect(result.success).toBe(false);

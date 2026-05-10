@@ -291,11 +291,7 @@ LLM 응답의 `toolCalls`를 순회할 때 다음 로직을 적용:
 > | §7.8 | multi_turn | 최대 턴 도달 | `max_turns` | `ended` |
 > | §7.9 | multi_turn | 오류 | `error` | `ended` |
 >
-> **Config echo 정책 (CONVENTIONS Principle 7)**: 모든 종결 시점 (`out` / `{condition.id}` / `user_ended` / `max_turns` / `error`) 과 multi-turn 의 waiting / resumed 시점에서 `output.config` 는 **유저가 입력한 raw 값** (template `{{ ... }}` 보존) 을 echo 한다 — 엔진이 dispatch 직전 평가한 값이 아니다. multi-turn 의 후속 turn 에서도 `state.rawConfig` (engine 이 frozen snapshot 으로 운반) 를 통해 동일하게 raw 가 echo 된다. 후속 노드의 `$node["X"].config.{mode, model, systemPrompt, userPrompt, maxTurns, maxToolCalls, knowledgeBases, conditions, responseFormat}` 는 수명 내내 raw 값을 본다. credential (`llmConfigId` 가 가리키는 provider secret 등) 은 `maskSensitiveFields` 에 의해 자동 마스킹 (`adaptHandlerReturn` boundary).
->
-> ⚠ **Breaking change (2026-05-09 Phase 1+follow-up)**: 이전에는 multi-turn ended / condition-trigger 출력의 `config.model` 이 엔진 평가 후 모델 식별자 (예: `"gpt-4o"`) 였다. 이제 `rawConfig.model` 이 template (`"{{ vars.model }}"`) 이면 그 template 그대로 echo 된다. 다운스트림 노드가 `$node["X"].config.model` 을 LLM 식별·로깅 용도로 쓴다면 evaluated 값은 `meta.model` 에서 읽어야 한다. (single-turn / waiting tick 은 Phase 1 시점부터 이미 raw echo — 본 follow-up 으로 ended/condition 경로가 동일 정책에 맞춰 통일됨.)
->
-> ⚠ **Breaking change (2026-05-10 Principle 11 정합)**: 이전 포맷의 top-level `output.response` / `output.metadata.*` / `output._turnDebugHistory` / `output.data.*` (condition wrapper) 는 모두 폐지됐다. 개정된 매핑은 아래 §7.* 와 [user_memo 개선안 §4.1](../../../user_memo/node-specs-improvement/ai/ai_agent.md#41-expression-경로-비교표) 참조.
+> **Config echo 정책 (CONVENTIONS Principle 7)**: 모든 종결 시점 (`out` / `{condition.id}` / `user_ended` / `max_turns` / `error`) 과 multi-turn 의 waiting / resumed 시점에서 `output.config` 는 **유저가 입력한 raw 값** (template `{{ ... }}` 보존) 을 echo 한다 — 엔진이 dispatch 직전 평가한 값이 아니다. multi-turn 의 후속 turn 에서도 `state.rawConfig` (engine 이 frozen snapshot 으로 운반) 를 통해 동일하게 raw 가 echo 된다. 후속 노드의 `$node["X"].config.{mode, model, systemPrompt, userPrompt, maxTurns, maxToolCalls, knowledgeBases, conditions, responseFormat}` 는 수명 내내 raw 값을 본다. multi-turn ended / condition-trigger 출력의 `config.model` 도 `rawConfig.model` 이 template 이면 그대로 echo — 다운스트림이 LLM 식별·로깅용으로 evaluated 값을 원하면 `meta.model` 에서 읽는다. credential (`llmConfigId` 가 가리키는 provider secret 등) 은 `maskSensitiveFields` 에 의해 자동 마스킹 (`adaptHandlerReturn` boundary).
 
 ### 7.1 Single Turn 모드 — 정상 완료 (`out` 포트)
 

@@ -330,51 +330,65 @@ export type AiAgentConfig = z.infer<typeof aiAgentNodeConfigSchema>;
  * AUTOCOMPLETE HINT SCHEMA — not used for runtime validation.
  *
  * Serialised via `z.toJSONSchema()` and sent to the frontend where it drives
- * `$node["X"].output.<field>` suggestions. The AI Agent handler returns a
- * legacy bare object (no `config/output` wrapper) so this schema describes a
- * FLAT output — contrast with `information-extractor` whose handler returns
- * `{ port, data: { config, output, meta } }` and surfaces a NESTED schema.
+ * `$node["X"].output.<field>` suggestions. The AI Agent handler returns the
+ * canonical 5-field NodeHandlerOutput (`config`/`output`/`meta`/`port`/
+ * `status`) per CONVENTIONS Principle 0; this schema describes the inner
+ * `output` namespace and is a superset of every mode's shape:
  *
- * The schema is a superset of every mode's return shape (single-turn, multi-
- * turn waiting, multi-turn final, condition route) and is intentionally
- * permissive (`.passthrough()` + `.optional()`) — we only need to enumerate
- * stable keys for autocomplete, not reject runtime data.
+ *  - Single-turn `out` / multi-turn ended / condition / error → `output.result.*`
+ *  - Single-turn / multi-turn `error` → `output.error.*`
+ *  - Multi-turn waiting / resumed → `output.messages` + `output.interaction?`
+ *
+ * Intentionally permissive (`.passthrough()` + `.optional()`) — we only need
+ * to enumerate stable keys for autocomplete, not reject runtime data.
+ * Top-level engine wrapper keys (`config`/`meta`/`port`/`status`) are exposed
+ * by the engine through `$node["X"].config` / `.meta` / etc., not via this
+ * schema.
  */
 export const aiAgentNodeOutputSchema = z
   .object({
-    response: z.unknown().optional(),
-    interactionType: z.string().optional(),
-    status: z.string().optional(),
-    messages: z.array(z.unknown()).optional(),
-    turnCount: z.number().optional(),
-    endReason: z.string().optional(),
-    conversationConfig: z
+    // Terminal results live under `output.result.*` (single-turn `out`,
+    // multi-turn ended/condition).
+    result: z
       .object({
-        message: z.string(),
-        messages: z.array(z.unknown()),
+        response: z.unknown(),
+        endReason: z.string(),
         turnCount: z.number(),
-        maxTurns: z.number(),
+        messages: z.array(z.unknown()),
+        condition: z
+          .object({
+            id: z.string(),
+            label: z.string(),
+            reason: z.string(),
+          })
+          .partial()
+          .optional(),
       })
       .partial()
       .passthrough()
       .optional(),
-    condition: z
+    // Error results live under `output.error.*` (Principle 11 LLM wrapper).
+    error: z
       .object({
-        id: z.string(),
-        label: z.string(),
-        reason: z.string(),
+        code: z.string(),
+        message: z.string(),
+        details: z.record(z.string(), z.unknown()).optional(),
       })
       .partial()
+      .passthrough()
       .optional(),
-    metadata: z
+    // Multi-turn `waiting_for_input` / `resumed` snapshots carry the
+    // accumulated chat under `output.messages` and (on resume) the user
+    // interaction payload under `output.interaction`.
+    messages: z.array(z.unknown()).optional(),
+    message: z.string().optional(),
+    turnCount: z.number().optional(),
+    maxTurns: z.number().optional(),
+    interaction: z
       .object({
-        model: z.string(),
-        inputTokens: z.number(),
-        outputTokens: z.number(),
-        totalTokens: z.number(),
-        thinkingTokens: z.number(),
-        toolCalls: z.number(),
-        ragSources: z.array(z.unknown()),
+        type: z.string(),
+        data: z.record(z.string(), z.unknown()),
+        receivedAt: z.string(),
       })
       .partial()
       .passthrough()

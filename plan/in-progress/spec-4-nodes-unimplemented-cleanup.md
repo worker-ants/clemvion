@@ -61,15 +61,17 @@ A 13건 + D 17건 중 같은 노드 항목은 묶어서 처리. 노드별 변경
 
 ### 1.3 AI 노드
 
-| 노드 | 변경 (A + D) |
-|---|---|
-| `ai_agent` | A: multi-turn `buildMultiTurnFinalOutput` 의 `port: 'out'` hardcode 제거 → 종결 사유별 정확한 port (`<cond_id>` / `user_ended` / `max_turns` / `error`) |
-| `ai_agent` | D: `output.response` → `output.result.response` (single-turn 정상) |
-| `ai_agent` | D: `output.metadata.{model, inputTokens, outputTokens, totalTokens, thinkingTokens, toolCalls, ragSources, mcpDiagnostics}` → `meta.*` |
-| `ai_agent` | D: `output._turnDebugHistory` → `meta.turnDebug` |
-| `ai_agent` | D: `output.data.*` (condition wrapper) 폐지 → 평탄화된 `output.result.*` |
-| `ai_agent` | D: multi-turn ended/condition `config.model` echo 를 raw template 으로 통일 (이미 single/waiting 은 raw, follow-up 으로 ended/condition 도 동일 정책) |
-| `info_extractor` | D: `output.output.extracted` → `output.result.extracted` (이중 wrapper 제거) + 다른 multi-turn 필드들도 `output.result.{endReason, turnCount, messages}` 로 평탄화 |
+| 노드 | 변경 (A + D) | 상태 |
+|---|---|---|
+| `ai_agent` | A: multi-turn `buildMultiTurnFinalOutput` 의 `port: 'out'` hardcode 제거 → 종결 사유별 정확한 port (`<cond_id>` / `user_ended` / `max_turns` / `error`) | ✅ 완료 (2026-05-10) — `multiTurnPortForEndReason` 매핑 도입, `buildConditionOutput` 은 동적 `{condition.id}` 포트 유지. 기존 `processMultiTurnMessage` max_turns / `endMultiTurnConversation` user_ended 경로 모두 신규 매핑 사용 |
+| `ai_agent` | D: `output.response` → `output.result.response` (single-turn 정상) | ✅ 이미 적용됨 (single_turn 핸들러 return 이 `output.result.response` 형태) |
+| `ai_agent` | D: `output.metadata.{model, inputTokens, outputTokens, totalTokens, thinkingTokens, toolCalls, ragSources, mcpDiagnostics}` → `meta.*` | ✅ 이미 적용됨 (handler 모든 return 경로에서 `meta.*` 로 분리 완료) |
+| `ai_agent` | D: `output._turnDebugHistory` → `meta.turnDebug` | ✅ 이미 적용됨 (`meta.turnDebug` 로 통일) |
+| `ai_agent` | D: `output.data.*` (condition wrapper) 폐지 → 평탄화된 `output.result.*` | ✅ 이미 적용됨 (`buildConditionOutput` 이 `output.result.{response,messages,turnCount,endReason,condition}` 평탄화) |
+| `ai_agent` | D: multi-turn ended/condition `config.model` echo 를 raw template 으로 통일 (이미 single/waiting 은 raw, follow-up 으로 ended/condition 도 동일 정책) | ✅ 이미 적용됨 (`buildMultiTurnConfigEcho` 가 `state.rawConfig.model` raw echo) — 본 Phase 에서 spec breaking-change 마커 제거 |
+| `ai_agent` | Spec 마커 정리 (Principle 11 정합 / multi-turn config.model breaking change) | ✅ 완료 (2026-05-10) — `spec/4-nodes/3-ai/1-ai-agent.md` §7 의 두 ⚠ 박스 제거, raw echo 정책은 본문에 흡수 |
+| `ai_agent` | autocomplete-hint `aiAgentNodeOutputSchema` 5필드 정합 | ✅ 완료 (2026-05-10) — `output.result.*` / `output.error.*` / `output.{messages,interaction,…}` 으로 갱신, schema spec fixture 도 신 모델로 정정 |
+| `info_extractor` | D: `output.output.extracted` → `output.result.extracted` (이중 wrapper 제거) + 다른 multi-turn 필드들도 `output.result.{endReason, turnCount, messages}` 로 평탄화 | ⏳ 본 Phase 1 의 ai_agent 내 변경과 별개 — 후속 작업 |
 
 ### 1.4 Integration 노드
 
