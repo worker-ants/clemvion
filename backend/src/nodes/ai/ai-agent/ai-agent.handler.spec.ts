@@ -1153,6 +1153,9 @@ describe('AiAgentHandler', () => {
       const r = result as Record<string, unknown>;
       // Stage 5: terminal multi-turn emits unified shape with status:'ended'.
       expect(r.status).toBe('ended');
+      // Phase 1 (A) — multi-turn `max_turns` routes to the dedicated
+      // `max_turns` port (no longer the legacy `out` hardcode).
+      expect(r.port).toBe('max_turns');
       const out = r.output as Record<string, unknown>;
       const res = out.result as Record<string, unknown>;
       expect(res.response).toBe('Goodbye!');
@@ -1592,6 +1595,10 @@ describe('AiAgentHandler', () => {
       expect(res.turnCount).toBe(3);
       expect(res.endReason).toBe('user_ended');
       expect(res.messages as unknown[]).toHaveLength(3);
+
+      // Phase 1 (A) — port routes per endReason (no longer hardcoded `out`).
+      expect(r.port).toBe('user_ended');
+      expect(r.status).toBe('ended');
 
       const meta = r.meta as Record<string, unknown>;
       expect(meta.model).toBe('gpt-4o');
@@ -2118,35 +2125,101 @@ describe('AiAgentHandler', () => {
     });
   });
 
-  describe('buildMultiTurnFinalOutput with port', () => {
-    it('should support condition endReason', () => {
-      const messages = [
-        { role: 'system' as const, content: 'System' },
-        { role: 'user' as const, content: 'Hi' },
-        { role: 'assistant' as const, content: 'Hello!' },
-      ];
+  describe('endMultiTurnConversation', () => {
+    it('routes user_ended through buildMultiTurnFinalOutput to the user_ended port', () => {
+      // Engine entry point used when the user clicks "End conversation"
+      // (`execution.end_conversation`). Per spec §3.2 + §7.7 this must
+      // emit `port:'user_ended'`, NOT the legacy hardcoded `out`.
+      const state = {
+        messages: [
+          { role: 'system', content: 'sys' },
+          { role: 'user', content: 'hi' },
+          { role: 'assistant', content: 'last response' },
+        ],
+        turnCount: 3,
+        model: 'gpt-4o',
+        totalInputTokens: 100,
+        totalOutputTokens: 50,
+        totalThinkingTokens: 0,
+        toolCalls: 0,
+        ragSources: [],
+        ragLastDiagnostics: undefined,
+        turnDebugHistory: [],
+        rawConfig: {
+          mode: 'multi_turn',
+          model: '{{ vars.model }}',
+          systemPrompt: 'You are {{ vars.persona }}',
+          maxTurns: 12,
+        },
+      };
+      const result = handler.endMultiTurnConversation(state, 'user_ended');
+      const r = result as Record<string, unknown>;
+      expect(r.port).toBe('user_ended');
+      expect(r.status).toBe('ended');
+      const res = (r.output as Record<string, unknown>).result as Record<
+        string,
+        unknown
+      >;
+      expect(res.endReason).toBe('user_ended');
+      expect(res.response).toBe('last response');
+      expect(res.turnCount).toBe(3);
+      // raw config echo (Phase 1 D — model template preserved)
+      const config = r.config as Record<string, unknown>;
+      expect(config.model).toBe('{{ vars.model }}');
+      expect(config.systemPrompt).toBe('You are {{ vars.persona }}');
+      expect(config.maxTurns).toBe(12);
+    });
+  });
 
+  describe('buildMultiTurnFinalOutput with port', () => {
+    // Phase 1 (A) — multi-turn termination routes to per-reason ports
+    // (`user_ended` / `max_turns` / `error`) instead of the legacy `out`
+    // hardcode. `condition` matching uses `buildConditionOutput` which
+    // sets `port` to the dynamic `{condition.id}` value; if `condition`
+    // ever reaches this builder it falls back defensively to `error`.
+    it('routes user_ended endReason to the user_ended port', () => {
       const result = handler.buildMultiTurnFinalOutput(
-        messages,
-        'Hello!',
-        3,
-        'condition',
+        [],
+        '',
+        1,
+        'user_ended',
         {
           model: 'gpt-4o',
-          totalInputTokens: 500,
-          totalOutputTokens: 200,
-          toolCalls: 1,
+          totalInputTokens: 0,
+          totalOutputTokens: 0,
+          toolCalls: 0,
           ragSources: [],
         },
       );
-
       const r = result as unknown as Record<string, unknown>;
-      const out = r.output as Record<string, unknown>;
-      const res = out.result as Record<string, unknown>;
-      expect(res.endReason).toBe('condition');
+      expect(r.port).toBe('user_ended');
+      expect(r.status).toBe('ended');
+      const res = (r.output as Record<string, unknown>).result as Record<
+        string,
+        unknown
+      >;
+      expect(res.endReason).toBe('user_ended');
     });
 
-    it('should support error endReason', () => {
+    it('routes max_turns endReason to the max_turns port', () => {
+      const result = handler.buildMultiTurnFinalOutput([], '', 1, 'max_turns', {
+        model: 'gpt-4o',
+        totalInputTokens: 0,
+        totalOutputTokens: 0,
+        toolCalls: 0,
+        ragSources: [],
+      });
+      const r = result as unknown as Record<string, unknown>;
+      expect(r.port).toBe('max_turns');
+      expect(r.status).toBe('ended');
+      const res = (r.output as Record<string, unknown>).result as Record<
+        string,
+        unknown
+      >;
+      expect(res.endReason).toBe('max_turns');
+    });
+
+    it('routes error endReason to the error port', () => {
       const result = handler.buildMultiTurnFinalOutput([], '', 1, 'error', {
         model: 'gpt-4o',
         totalInputTokens: 0,
@@ -2154,11 +2227,36 @@ describe('AiAgentHandler', () => {
         toolCalls: 0,
         ragSources: [],
       });
-
       const r = result as unknown as Record<string, unknown>;
-      const out = r.output as Record<string, unknown>;
-      const res = out.result as Record<string, unknown>;
+      expect(r.port).toBe('error');
+      expect(r.status).toBe('ended');
+      const res = (r.output as Record<string, unknown>).result as Record<
+        string,
+        unknown
+      >;
       expect(res.endReason).toBe('error');
+    });
+
+    it('falls back to error port if condition leaks into buildMultiTurnFinalOutput', () => {
+      // Defensive: condition matching should always go through
+      // buildConditionOutput which routes to the dynamic {condition.id}
+      // port. If a future engine path mistakenly forwards 'condition'
+      // here, surface it as `error` rather than a silent mis-route to
+      // a non-existent port.
+      const result = handler.buildMultiTurnFinalOutput([], '', 1, 'condition', {
+        model: 'gpt-4o',
+        totalInputTokens: 0,
+        totalOutputTokens: 0,
+        toolCalls: 0,
+        ragSources: [],
+      });
+      const r = result as unknown as Record<string, unknown>;
+      expect(r.port).toBe('error');
+      const res = (r.output as Record<string, unknown>).result as Record<
+        string,
+        unknown
+      >;
+      expect(res.endReason).toBe('condition');
     });
   });
 

@@ -1309,6 +1309,16 @@ export class AiAgentHandler implements NodeHandler {
     // Tokens + tool-call counts go to `meta.*` (Principle 2). The legacy
     // `interactionType: 'ai_conversation'` marker moves to `meta.interactionType`
     // so the run-results UI's conversation Preview tab keeps rendering.
+    //
+    // Port routing per spec §3.2 (Multi Turn 출력 포트):
+    //  - `user_ended` → `user_ended`
+    //  - `max_turns` → `max_turns`
+    //  - `error` → `error`
+    //  - `condition` → caller must use `buildConditionOutput` so that the
+    //     dynamic `{condition.id}` port is set; if it ever leaks here we
+    //     fall back to `error` (defensive — there is no generic `out` port
+    //     in multi-turn mode).
+    const port = AiAgentHandler.multiTurnPortForEndReason(endReason);
     return {
       config: this.buildMultiTurnConfigEcho(rawConfig, metadata.model),
       output: {
@@ -1332,9 +1342,35 @@ export class AiAgentHandler implements NodeHandler {
         ragDiagnostics: metadata.ragDiagnostics,
         turnDebug: turnDebugHistory ?? [],
       },
-      port: 'out',
+      port,
       status: 'ended',
     };
+  }
+
+  /**
+   * Map a multi-turn `endReason` to the corresponding output port id per
+   * spec §3.2. Centralised so {@link buildMultiTurnFinalOutput} and any
+   * future error-routing helper share a single source of truth.
+   *
+   * `condition` should never reach this function — `buildConditionOutput`
+   * routes to the dynamic `{condition.id}` port instead. We map it to
+   * `error` defensively so a programming mistake surfaces as an error
+   * rather than a silent mis-route.
+   */
+  private static multiTurnPortForEndReason(
+    endReason: 'user_ended' | 'max_turns' | 'condition' | 'error',
+  ): string {
+    switch (endReason) {
+      case 'user_ended':
+        return 'user_ended';
+      case 'max_turns':
+        return 'max_turns';
+      case 'error':
+        return 'error';
+      case 'condition':
+      default:
+        return 'error';
+    }
   }
 
   /**
