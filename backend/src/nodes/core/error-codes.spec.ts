@@ -25,6 +25,10 @@ describe('ErrorCode enum', () => {
     expect(ErrorCode.CODE_EXECUTION_FAILED).toBeDefined();
     expect(ErrorCode.CODE_TIMEOUT).toBeDefined();
     expect(ErrorCode.SUB_WORKFLOW_FAILED).toBeDefined();
+    // Sub-workflow specific codes added in Phase 1 A-3.
+    expect(ErrorCode.SUB_WORKFLOW_NOT_FOUND).toBeDefined();
+    expect(ErrorCode.SUB_WORKFLOW_TIMEOUT).toBeDefined();
+    expect(ErrorCode.SUB_WORKFLOW_QUEUE_FAILED).toBeDefined();
   });
 });
 

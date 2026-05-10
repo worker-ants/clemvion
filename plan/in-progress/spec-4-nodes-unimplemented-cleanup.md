@@ -81,12 +81,12 @@ A 13건 + D 17건 중 같은 노드 항목은 묶어서 처리. 노드별 변경
 
 ### 1.5 Flow 노드
 
-| 노드 | 변경 (A + D) |
-|---|---|
-| `workflow` | A: schema 의 `target` / `source` 와 handler 의 `paramName` / `expression` 키 일치 (한쪽으로 통일 — `paramName`/`expression` 추천 — 핸들러 truth) |
-| `workflow` | A: async `output: { executionId, workflowId, status: 'started' }` (workflowId / status 추가) + `meta.status` → top-level `status` 이동 |
-| `workflow` | A: 에러 코드 세분화 (`SUB_WORKFLOW_NOT_FOUND` / `SUB_WORKFLOW_TIMEOUT` / `SUB_WORKFLOW_QUEUE_FAILED` / `SUB_WORKFLOW_FAILED` 기본) |
-| `workflow` | D: sync 결과 `output: { result: <sub_workflow_output>, ... }` 1단 래핑 |
+| 노드 | 변경 (A + D) | 상태 |
+|---|---|---|
+| `workflow` | A: schema 의 `target` / `source` 와 handler 의 `paramName` / `expression` 키 일치 (한쪽으로 통일 — `paramName`/`expression` 추천 — 핸들러 truth) | ✅ 완료 (2026-05-10) |
+| `workflow` | A: async `output: { executionId, workflowId, status: 'started' }` (workflowId / status 추가) + `meta.status` → top-level `status` 이동 | ✅ 완료 (2026-05-10) |
+| `workflow` | A: 에러 코드 세분화 (`SUB_WORKFLOW_NOT_FOUND` / `SUB_WORKFLOW_TIMEOUT` / `SUB_WORKFLOW_QUEUE_FAILED` / `SUB_WORKFLOW_FAILED` 기본) | ✅ 완료 (2026-05-10) — `workflow.handler.ts` 의 `mapSubWorkflowError` 가 executor 메시지를 4가지 코드로 세분화. `error-codes.ts` 에 신규 3개 추가. |
+| `workflow` | D: sync 결과 `output: { result: <sub_workflow_output>, ... }` 1단 래핑 | ✅ 완료 (2026-05-10) |
 
 ### 1.6 Trigger 노드
 

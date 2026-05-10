@@ -6,22 +6,22 @@ import {
 
 export const mappingDefSchema = z
   .object({
-    target: z
+    paramName: z
       .string()
       .default('')
       .meta({
         ui: {
-          label: 'Target',
+          label: 'Parameter Name',
           widget: 'text',
           placeholder: 'param1',
         },
       }),
-    source: z
+    expression: z
       .string()
       .default('')
       .meta({
         ui: {
-          label: 'Source',
+          label: 'Expression',
           widget: 'expression',
           placeholder: '{{ $input.data }}',
         },
@@ -32,12 +32,18 @@ export const mappingDefSchema = z
 /**
  * Sub-Workflow output is the invoked workflow's final output (sync mode) or
  * a tracking envelope (async mode). Since the nested workflow can be any
- * user-defined workflow, the concrete shape is unknowable from this node's
- * config alone — Tier 3 per node-jazzy-liskov plan.
+ * user-defined workflow, the concrete shape of the sync result is unknowable
+ * from this node's config alone — Tier 3 per node-jazzy-liskov plan.
  *
- *  - sync  → `output: <nested workflow final output>` (unknown shape)
- *  - async → `output: { executionId: string }` + `meta.status: 'started'`
+ *  - sync  → `output: { result: <nested workflow final output> }` (1-level wrap)
+ *  - async → `output: { executionId, workflowId, status: 'started' }` + top-level `status: 'started'`
  *  - error → `output: { error: { code, message, details? } }` + `port: 'error'`
+ *
+ * Error codes (CONVENTIONS §3.2):
+ *  - `SUB_WORKFLOW_NOT_FOUND` — target workflow does not exist
+ *  - `SUB_WORKFLOW_TIMEOUT` — sync execution exceeded timeout
+ *  - `SUB_WORKFLOW_QUEUE_FAILED` — async enqueue failed
+ *  - `SUB_WORKFLOW_FAILED` — generic runtime failure (default)
  */
 export const workflowNodeOutputSchema = z
   .object({
