@@ -69,7 +69,7 @@ code: ["backend/src/modules/executions"]
   { name: "Webhook", type: "웹훅", description: "외부 시스템이 HTTPS로 호출하면 실행돼요. 페이로드는 `$trigger.body`로 들어와요. 이벤트 기반 자동화에 써요. `$execution.mode` 값은 `webhook`이에요." }
 ]} />
 
-<Callout type="note">에디터에서 `Run`을 누르면 트리거 종류와 상관없이 항상 `manual` 모드로 실행돼요. Webhook 페이로드 시뮬레이션이 필요하다면 `Run with Input`에서 JSON을 직접 넣어 주세요.</Callout>
+<Callout type="note">에디터에서 `Run`을 누르면 트리거 종류와 상관없이 항상 `manual` 모드로 실행돼요. Webhook 페이로드 시뮬레이션이 필요하다면 `Run with Input`에서 JSON을 직접 넣어요.</Callout>
 
 ## 실행 상태 확인
 
@@ -81,7 +81,7 @@ code: ["backend/src/modules/executions"]
 
 - 현재 실행 중인 노드: 파란 펄스 테두리
 - 완료된 노드: 초록 체크 + 소요 시간
-- 엣지: 데이터 흐름 애니메이션
+- 연결선: 데이터 흐름 애니메이션
 - 분기 노드: 실제 실행된 경로만 진하게, 미실행 경로는 흐릿하게
 
 하단의 **Run Results 드로어**가 자동으로 펼쳐지며, 각 노드의 입력·출력·상태가 타임라인으로 나타나요. 자세한 내용은 [실행 결과](/docs/05-run-and-debug/run-results)에서 다뤄요.

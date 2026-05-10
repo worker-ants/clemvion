@@ -13,7 +13,7 @@ code: ["backend/src/nodes/ai/ai-agent/ai-agent.schema.ts", "backend/src/nodes/ai
 
 ## AI Agent
 
-### 언제 써요
+### 언제 쓰나요?
 
 - LLM에 프롬프트를 보내 **답변 생성**, **RAG 기반 질의**, **도구 호출**을 수행하고 싶을 때 써요.
 - **Multi Turn** 모드를 켜면 사용자와 대화형으로 주고받는 블로킹 실행을 할 수 있어요.
@@ -32,7 +32,7 @@ code: ["backend/src/nodes/ai/ai-agent/ai-agent.schema.ts", "backend/src/nodes/ai
   {name: "knowledgeBases", required: false, type: "UUID[]", description: "RAG에 참조할 Knowledge Base 목록이에요.", default: "[]"},
   {name: "ragTopK", required: false, type: "integer", description: "RAG 검색 결과 수예요.", default: "5"},
   {name: "ragThreshold", required: false, type: "float", description: "RAG 유사도 임계값이에요 (0~1).", default: "0.7"},
-  {name: "mcpServers", required: false, type: "McpServerRef[]", description: "AI Agent에 연결할 MCP(Model Context Protocol) 서버 목록이에요. 각 항목은 `integrationId`(필수)와 `enabledTools`·`includeResources`·`includePrompts`·`toolOverrides` 옵션을 가져요. 등록한 서버의 도구가 LLM에게 자동 노출돼요.", default: "[]"},
+  {name: "mcpServers", required: false, type: "McpServerRef[]", description: "AI Agent에 연결할 MCP(Model Context Protocol) 서버 목록이에요. 각 항목은 `integrationId`(필수)와 `enabledTools`·`includeResources`·`includePrompts`·`toolOverrides` 옵션을 포함해요. 등록한 서버의 도구가 LLM에게 자동 노출돼요.", default: "[]"},
   {name: "conditions", required: false, type: "ConditionDef[]", description: "조건 목록이에요. 각 조건은 `id`, `label`, `prompt`를 가지며, 각 조건마다 동적 출력 포트가 생겨요.", default: "[]"},
   {name: "temperature", required: false, type: "float", description: "LLMConfig 기본값을 재정의해요.", default: "-"},
   {name: "maxTokens", required: false, type: "integer", description: "최대 토큰 수예요.", default: "-"},
@@ -89,12 +89,12 @@ Multi Turn 모드에서 사용자 응답은 **무제한 대기**해요. 외부 c
 </Callout>
 
 <Callout type="note">
-**Single Turn vs Multi Turn — `config` echo 차이.** Single Turn 출력은 입력한 raw config 전체(systemPrompt · userPrompt · maxTurns · conditions · knowledgeBases 등)를 그대로 echo 해요. Multi Turn 의 종료 출력(`user_ended` / `max_turns` / 조건 포트)은 현재 `config: { mode, model }` 까지만 echo 하고 나머지 필드는 생략돼요. 두 모드를 한 워크플로우에서 섞어 쓸 때 `$node["AI Agent"].config.systemPrompt` 같은 참조가 모드별로 다르게 동작할 수 있다는 점에 주의해 주세요. 전체 echo 통일은 진행 중인 후속 작업이에요 (`plan/in-progress/engine-raw-config-followups.md` Follow-up #1).
+**Single Turn vs Multi Turn — `config` echo 차이.** Single Turn 출력은 입력한 raw config 전체(systemPrompt · userPrompt · maxTurns · conditions · knowledgeBases 등)를 그대로 echo 해요. Multi Turn 의 종료 출력(`user_ended` / `max_turns` / 조건 포트)은 현재 `config: { mode, model }` 까지만 echo 하고 나머지 필드는 생략돼요. 두 모드를 한 워크플로우에서 섞어 쓸 때 `$node["AI Agent"].config.systemPrompt` 같은 참조가 모드별로 다르게 동작할 수 있다는 점에 주의해요. 전체 echo 통일은 후속 작업으로 예정돼 있어요.
 </Callout>
 
 ## Text Classifier
 
-### 언제 써요
+### 언제 쓰나요?
 
 - 입력 텍스트를 **미리 정의한 카테고리**로 분류하고 싶을 때 써요.
 - 카테고리별로 서로 다른 후속 노드로 라우팅하고 싶을 때 유용해요.
@@ -105,7 +105,7 @@ Multi Turn 모드에서 사용자 응답은 **무제한 대기**해요. 외부 c
   {name: "llmConfigId", required: false, type: "UUID", description: "사용할 LLM 프로바이더 설정이에요.", default: "-"},
   {name: "model", required: false, type: "string", description: "모델 ID예요.", default: "-"},
   {name: "inputField", required: false, type: "expression", description: "분류할 텍스트 필드 표현식이에요.", default: "-"},
-  {name: "categories", required: true, type: "CategoryDef[]", description: "분류 카테고리 목록이에요. 각 항목은 `name`, `description`, `examples`를 가져요.", default: "[]"},
+  {name: "categories", required: true, type: "CategoryDef[]", description: "분류 카테고리 목록이에요. 각 항목은 `name`, `description`, `examples`를 포함해요.", default: "[]"},
   {name: "instructions", required: false, type: "string", description: "추가 분류 지시사항이에요.", default: "-"},
   {name: "includeConfidence", required: false, type: "boolean", description: "신뢰도 점수를 출력에 포함해요.", default: "false"},
   {name: "multiLabel", required: false, type: "boolean", description: "true면 여러 카테고리를 동시에 선택할 수 있어요.", default: "false"}
@@ -144,7 +144,7 @@ Multi Turn 모드에서 사용자 응답은 **무제한 대기**해요. 외부 c
 
 ## Information Extractor
 
-### 언제 써요
+### 언제 쓰나요?
 
 - 비정형 텍스트(이메일, 메시지 등)에서 **정해진 스키마**의 값을 뽑아 구조화된 JSON으로 만들고 싶을 때 써요.
 - Multi Turn 모드를 켜면 필요한 필드가 채워질 때까지 **사용자와 대화하며** 값을 수집할 수 있어요.
@@ -155,7 +155,7 @@ Multi Turn 모드에서 사용자 응답은 **무제한 대기**해요. 외부 c
   {name: "llmConfigId", required: false, type: "UUID", description: "사용할 LLM 프로바이더 설정이에요.", default: "-"},
   {name: "model", required: false, type: "string", description: "모델 ID예요.", default: "-"},
   {name: "inputField", required: false, type: "expression", description: "추출 대상 텍스트 필드예요. `multi_turn`일 때는 설정 UI에서 숨겨져요.", default: "-"},
-  {name: "outputSchema", required: true, type: "FieldDef[]", description: "추출할 필드 정의 배열이에요. 각 항목은 `name`, `type`, `description`, `required`, `enumValues`를 가져요.", default: "[]"},
+  {name: "outputSchema", required: true, type: "FieldDef[]", description: "추출할 필드 정의 배열이에요. 각 항목은 `name`, `type`, `description`, `required`, `enumValues`를 포함해요.", default: "[]"},
   {name: "examples", required: false, type: "ExampleDef[]", description: "Few-shot 예시(입력 텍스트와 기대 출력)예요.", default: "[]"},
   {name: "instructions", required: false, type: "string", description: "추가 추출 지시사항이에요.", default: "-"},
   {name: "mode", required: true, type: "`single_turn` / `multi_turn`", description: "추출 모드예요.", default: "single_turn"},
