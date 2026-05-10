@@ -32,15 +32,15 @@
 | 7 | Requirement | `waiting_for_input` 필터 버튼 미구현 (스펙 §2.3 명시) | `executions/page.tsx` `FILTER_BUTTONS` | `{ label: "Waiting", value: "waiting_for_input" }` 추가 |
 | 8 | Requirement | API Error와 Not Found 상태 미구분 — 두 경우 모두 "Execution not found." 표시 | `[executionId]/page.tsx` | `isError` 분기를 별도 처리하여 에러 원인별 메시지 구분 |
 | 9 | Requirement / Bug | `currentIndex === -1` 시 `items[0]` 반환 버그 — 잘못된 prev/next 탐색 | `[executionId]/page.tsx` L137-143 | `if (currentIndex === -1) return { prev: null, next: null };` 즉시 추가 |
-| 10 | Requirement | Spec 내부 불일치 — §2.1 ASCII art `Trigger` 컬럼이 §2.4 테이블 정의에 누락 | `spec/2-navigation/6-execution-history.md` §2.1, §2.4 | §2.4에 `Trigger` 컬럼 추가 또는 §2.1에서 제거 |
+| 10 | Requirement | Spec 내부 불일치 — §2.1 ASCII art `Trigger` 컬럼이 §2.4 테이블 정의에 누락 | `spec/2-navigation/14-execution-history.md` §2.1, §2.4 | §2.4에 `Trigger` 컬럼 추가 또는 §2.1에서 제거 |
 | 11 | Requirement | Timeline 노드 클릭 시 `nodeDetailTab` 초기화 미흡 (에러 없는 노드로 이동 후에도 Error 탭 유지) | `[executionId]/page.tsx` `onNodeClick` | `onNodeClick`에서 스펙 §3.3 기준으로 `nodeDetailTab` 초기화 |
 | 12 | Architecture / Maintainability | `STATUS_*` 상수, `formatDuration`이 두 파일에 복제 — 상태 추가 시 양쪽 동기화 필요 | `executions/page.tsx` L22-65, `[executionId]/page.tsx` L22-65 | `src/lib/constants/execution-status.ts`로 추출 |
 | 13 | Architecture | API 응답 정규화 로직 (`(data as any).data ?? data`)이 각 queryFn에 분산, 캐스팅 방식 불일치 | `[executionId]/page.tsx` L105-124, `executions/page.tsx` L152-156 | axios interceptor 또는 API 클라이언트에서 단일 unwrapping 처리 |
 | 14 | Architecture | 인접 실행 탐색 로직이 프론트엔드에 위치 (`limit:100` 전체 로드 후 `findIndex`) — 100건 초과 시 기능 파괴 | `[executionId]/page.tsx` L115-143 | 백엔드에 `/api/executions/:id/adjacent` API 추가, 스펙 §3.6 반영 |
 | 15 | Architecture | `NodeResultsTab` props 과다 (6개) — `selectedNodeId`, `nodeDetailTab`이 부모에 불필요하게 위치 | `[executionId]/page.tsx` L295-305 | 두 상태를 `NodeResultsTab` 내부로 이동 |
 | 16 | API Contract | Carousel 버튼 포트 출력 형식에서 `clickedBy` 필드 제거 — Breaking Change | `spec/4-nodes/6-presentation-nodes.md` 버튼 포트 출력 형식 | `clickedBy` 유지 + `selectedItem` 추가(non-breaking) 또는 마이그레이션 가이드 명시 |
-| 17 | API Contract | 실제 API 응답 래핑이 스펙 계약과 불일치 | `spec/2-navigation/6-execution-history.md` §5 | 백엔드 응답 형식 스펙대로 통일 또는 API 클라이언트에서 단일 정규화 |
-| 18 | API Contract | prev/next 탐색 전용 엔드포인트 스펙 미정의 | `spec/2-navigation/6-execution-history.md` §3.6 | 스펙에 adjacent API 추가 |
+| 17 | API Contract | 실제 API 응답 래핑이 스펙 계약과 불일치 | `spec/2-navigation/14-execution-history.md` §5 | 백엔드 응답 형식 스펙대로 통일 또는 API 클라이언트에서 단일 정규화 |
+| 18 | API Contract | prev/next 탐색 전용 엔드포인트 스펙 미정의 | `spec/2-navigation/14-execution-history.md` §3.6 | 스펙에 adjacent API 추가 |
 | 19 | Testing | 로딩/에러/not-found 상태 테스트 완전 부재 | `execution-detail-page.test.tsx`, `execution-list-page.test.tsx` | skeleton, API 실패, not-found 분기별 테스트 추가 |
 | 20 | Testing | 핵심 인터랙티브 기능(정렬, 필터, 페이지네이션, Prev/Next) 테스트 없음 | `execution-list-page.test.tsx`, `execution-detail-page.test.tsx` | 각 기능 단위 테스트 추가 |
 | 21 | Testing | `waiting_for_input` 필터 버튼 누락 감지 테스트 없음 | `execution-list-page.test.tsx` | 필터 버튼 목록 검증 테스트 추가 |

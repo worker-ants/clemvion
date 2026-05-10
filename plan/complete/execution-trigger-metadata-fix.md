@@ -7,7 +7,7 @@
 원인은 백엔드 `ExecutionEngineService.execute()` 시그니처가 `(workflowId, input?, executedBy?)` 로 한정되어 **`triggerId` 를 받을 수 없다는 점**. 결과적으로 `ScheduleRunnerService.process()` (cron 자동 실행) 와 `HooksService.handleWebhook()` (웹훅) 이 호출할 때 `Execution.triggerId === NULL` 로 저장되고, `deriveExecutionTrigger()` 가 `unknown` 을 반환했다.
 
 스펙 정합:
-- `spec/2-navigation/6-execution-history.md §2.4` 의 분류 규칙 (subworkflow > manual > schedule > webhook > unknown) 은 이미 `deriveExecutionTrigger()` 에 구현돼 있음.
+- `spec/2-navigation/14-execution-history.md §2.4` 의 분류 규칙 (subworkflow > manual > schedule > webhook > unknown) 은 이미 `deriveExecutionTrigger()` 에 구현돼 있음.
 - 응답 DTO `ExecutionDto` 도 이미 `triggerSource`/`triggerLabel` 을 노출.
 - 누락된 것은 **저장 시 trigger_id 채우기** 한 가지.
 
@@ -29,7 +29,7 @@
   - [x] `workflows.controller.spec.ts`, `schedules.service.spec.ts` — 시그니처 변경에 맞춰 mock 인자 갱신
 - [x] 스펙 문서 갱신
   - [x] `spec/5-system/4-execution-engine.md §6.1.1` — `execute()` 시그니처 옵션 객체화 반영
-  - [x] `spec/5-system/5-webhook.md §7` — webhook 처리 흐름에 `{ triggerId: trigger.id }` 명시
+  - [x] `spec/5-system/12-webhook.md §7` — webhook 처리 흐름에 `{ triggerId: trigger.id }` 명시
   - [x] `spec/2-navigation/3-schedule.md` — §5 "실행 출처 기록 규약" 추가
 - [x] TEST WORKFLOW (lint → unit → build). e2e 는 본 작업 무관 환경 문제(uuid ESM)로 사전 실패 — 별도 작업 필요
 - [x] REVIEW WORKFLOW

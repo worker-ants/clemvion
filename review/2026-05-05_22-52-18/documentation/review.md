@@ -51,7 +51,7 @@
 
 ## 요약
 
-스펙 문서(`4-execution-engine.md`, `5-webhook.md`) 업데이트는 `ExecuteOptions` 타입 정의, 트리거 유형별 호출 방식, cross-reference 까지 포괄적으로 갱신되어 완성도가 높다. 주요 문제는 **플랜 문서 체크박스가 구현 완료 후에도 미체크 상태**라는 관리 규약 위반이며, `WorkflowExecutor` 인터페이스와 `spec/2-navigation/3-schedule.md` 갱신 여부는 추가 확인이 필요하다.
+스펙 문서(`4-execution-engine.md`, `12-webhook.md`) 업데이트는 `ExecuteOptions` 타입 정의, 트리거 유형별 호출 방식, cross-reference 까지 포괄적으로 갱신되어 완성도가 높다. 주요 문제는 **플랜 문서 체크박스가 구현 완료 후에도 미체크 상태**라는 관리 규약 위반이며, `WorkflowExecutor` 인터페이스와 `spec/2-navigation/3-schedule.md` 갱신 여부는 추가 확인이 필요하다.
 
 ## 위험도
 

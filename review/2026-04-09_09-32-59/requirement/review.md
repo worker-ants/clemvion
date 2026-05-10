@@ -17,7 +17,7 @@
 **[WARNING]** 스펙 §2.1 다이어그램의 Trigger 열이 구현에 없음
 - 위치: `executions/page.tsx` — 테이블 컬럼 정의
 - 상세: 스펙 §2.1 화면 구성 다이어그램은 `Status | Started At | Duration | Trigger` 4열을 보여주지만, §2.4 테이블 스펙은 `Status | Started At | Duration | Nodes`로 정의. 구현은 §2.4를 따르며 Trigger 열은 없음. 스펙 내 불일치이므로 의도 확인 필요. Trigger 열이 필요하다면 누락, 불필요하다면 §2.1 다이어그램 수정 필요.
-- 제안: `spec/2-navigation/6-execution-history.md` §2.1 다이어그램을 §2.4 테이블 정의와 일치하도록 수정
+- 제안: `spec/2-navigation/14-execution-history.md` §2.1 다이어그램을 §2.4 테이블 정의와 일치하도록 수정
 
 ---
 

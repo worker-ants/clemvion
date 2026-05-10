@@ -10,21 +10,21 @@
 ---
 
 **[WARNING] API 응답 래핑 불일치 — 실제 계약과 스펙 간 괴리**
-- 위치: `spec/2-navigation/6-execution-history.md` §5 + 리뷰 파일들(maintainability, side_effect, security)
+- 위치: `spec/2-navigation/14-execution-history.md` §5 + 리뷰 파일들(maintainability, side_effect, security)
 - 상세: 스펙은 `{ data: [...], pagination: {...} }` 형태를 명시하나, 실제 구현(`[executionId]/page.tsx`, `executions/page.tsx`)에서 `(data as any).data ?? data` 패턴이 반복 등장함. 이는 API가 때로 응답을 `{ data: T }` 래핑, 때로 `T` 직접 반환한다는 의미로, 스펙에 정의된 계약이 실제 런타임과 불일치함.
 - 제안: 백엔드 응답 형식을 스펙대로 통일하거나, API 클라이언트 레이어(axios interceptor 또는 `executionsApi`)에서 한 곳에서만 정규화 처리
 
 ---
 
 **[WARNING] 이전/다음 실행 탐색 전용 엔드포인트 미정의**
-- 위치: `spec/2-navigation/6-execution-history.md` §5, §3.6
+- 위치: `spec/2-navigation/14-execution-history.md` §5, §3.6
 - 상세: §3.6에서 "같은 워크플로우의 시간 순서 기준으로 이전/다음 실행으로 이동"을 요구사항으로 명시하나, §5 API 엔드포인트 목록에 adjacent 전용 API가 없음. 프런트엔드는 이를 `limit: 100`으로 전체 목록을 가져와 클라이언트에서 탐색하는 방식으로 우회하고 있어, 100건 초과 시 기능이 깨짐.
 - 제안: `GET /api/executions/:id/adjacent` 또는 `GET /api/executions/workflow/:workflowId?cursor=:id&limit=1` 형태의 커서 기반 API를 스펙에 추가
 
 ---
 
 **[WARNING] `waiting_for_input` 상태가 필터 API에는 유효하나 UI에서 누락**
-- 위치: `spec/2-navigation/6-execution-history.md` §2.3, requirement 리뷰
+- 위치: `spec/2-navigation/14-execution-history.md` §2.3, requirement 리뷰
 - 상세: 스펙 §2.3에서 `waiting_for_input` 필터를 명시하고 API의 `status` 파라미터로도 유효하나, 구현된 `FILTER_BUTTONS` 배열에 해당 항목이 없음. API 계약상 유효한 파라미터가 UI에서 노출되지 않아 사용자 접근 불가.
 - 제안: `{ label: "Waiting", value: "waiting_for_input" }` 항목을 필터 버튼에 추가하여 스펙과 일치시킴
 

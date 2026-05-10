@@ -1,6 +1,6 @@
 # PRD: AI & 지식 저장소
 
-> 관련 문서: [제품 개요](./0-overview.md) · [워크플로우 에디터 §10](./2-workflow-editor.md#10-ai-assistant-ed-ai-) · [노드 시스템](./3-node-system.md#5-ai-노드) · [통합/연동](./4-integration.md#3-knowledge-base) · [내비게이션](./1-navigation.md#37-config--llm) · [Spec AI 노드](../spec/4-nodes/3-ai/0-common.md) · [Spec Knowledge Base](../spec/2-navigation/5-knowledge-base.md) · [Spec LLM Config](../spec/2-navigation/6-config.md) · [Spec AI Assistant](../spec/3-workflow-editor/4-ai-assistant.md)
+> 관련 문서: [제품 개요](./0-overview.md) · [워크플로우 에디터 §10](./2-workflow-editor.md#10-ai-assistant-ed-ai-) · [노드 시스템](./3-node-system.md#6-ai-노드-3종) · [통합/연동](./4-integration.md#3-knowledge-base-지식-저장소) · [내비게이션](./1-navigation.md#37-config--llm-llm-설정) · [Spec AI 노드](../spec/4-nodes/3-ai/0-common.md) · [Spec Knowledge Base](../spec/2-navigation/5-knowledge-base.md) · [Spec LLM Config](../spec/2-navigation/6-config.md) · [Spec AI Assistant](../spec/3-workflow-editor/4-ai-assistant.md)
 
 > **구현 상태**: 3.1~3.6의 AI 기능은 모두 **구현 완료(✅)** 다. 상세 요구사항은 [PRD 2 §10](./2-workflow-editor.md#10-ai-assistant-ed-ai-)에 정의되어 있다.
 

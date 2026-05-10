@@ -28,7 +28,7 @@
 ### 스펙 / PRD
 - `spec/4-nodes/4-integration-nodes.md`의 §4 Slack 섹션 및 §10.4 Slack 핸들러 계약 삭제
 - `spec/4-nodes/6-presentation-nodes.md`의 §6 PDF 섹션 및 §8.6 PDF Run Results 항목 삭제
-- `spec/4-nodes/0-overview.md`, `spec/1-data-model.md`, `spec/3-workflow-editor/0-canvas.md`, `spec/3-workflow-editor/1-node-common.md`, `spec/5-system/4-execution-engine.md`, `spec/5-system/5-webhook.md`, `spec/2-navigation/{0-dashboard,4-integration,6-execution-history,8-marketplace,9-user-profile}.md` 및 `prd/{0-overview,1-navigation,3-node-system,4-integration,8-webhook}.md`에서 Slack/PDF 관련 행·예시·참조 제거 또는 대체
+- `spec/4-nodes/0-overview.md`, `spec/1-data-model.md`, `spec/3-workflow-editor/0-canvas.md`, `spec/3-workflow-editor/1-node-common.md`, `spec/5-system/4-execution-engine.md`, `spec/5-system/12-webhook.md`, `spec/2-navigation/{0-dashboard,4-integration,14-execution-history,8-marketplace,9-user-profile}.md` 및 `prd/{0-overview,1-navigation,3-node-system,4-integration,8-webhook}.md`에서 Slack/PDF 관련 행·예시·참조 제거 또는 대체
 
 ## 유지된 항목 (의도적)
 

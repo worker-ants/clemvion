@@ -1,6 +1,6 @@
 # Spec: AI 노드 공통 규약
 
-> 관련 문서: [PRD 노드 시스템](../../../prd/3-node-system.md#5-ai-노드) · [PRD Graph RAG](../../../prd/9-graph-rag.md) · [Spec 노드 개요](../0-overview.md) · [Spec Knowledge Base](../../2-navigation/5-knowledge-base.md) · [Spec RAG 검색](../../5-system/9-rag-search.md) · [Spec Graph RAG](../../5-system/10-graph-rag.md) · [Spec LLM Config](../../2-navigation/6-config.md) · [Spec MCP Client](../../5-system/11-mcp-client.md)
+> 관련 문서: [PRD 노드 시스템](../../../prd/3-node-system.md#6-ai-노드-3종) · [PRD Graph RAG](../../../prd/9-graph-rag.md) · [Spec 노드 개요](../0-overview.md) · [Spec Knowledge Base](../../2-navigation/5-knowledge-base.md) · [Spec RAG 검색](../../5-system/9-rag-search.md) · [Spec Graph RAG](../../5-system/10-graph-rag.md) · [Spec LLM Config](../../2-navigation/6-config.md) · [Spec MCP Client](../../5-system/11-mcp-client.md)
 
 본 문서는 AI 카테고리 노드 전체에 공통되는 규약을 정의한다. 노드별 동작·설정은 각 노드 문서를 참조한다.
 

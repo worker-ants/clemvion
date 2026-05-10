@@ -1,6 +1,6 @@
 # Spec: 마켓플레이스 화면
 
-> 관련 문서: [PRD 내비게이션](../../prd/1-navigation.md#39-marketplace) · [PRD 통합/연동](../../prd/4-integration.md#4-marketplace) · [Spec 레이아웃](./0-layout.md)
+> 관련 문서: [PRD 내비게이션](../../prd/1-navigation.md#39-marketplace-마켓플레이스) · [PRD 통합/연동](../../prd/4-integration.md#4-marketplace-마켓플레이스) · [Spec 레이아웃](./_layout.md)
 
 ---
 

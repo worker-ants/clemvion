@@ -37,14 +37,14 @@
 ---
 
 **[INFO] 실행 내역 API에 인증/인가 명시 부재**
-- 위치: `spec/2-navigation/6-execution-history.md` — API 엔드포인트 섹션
+- 위치: `spec/2-navigation/14-execution-history.md` — API 엔드포인트 섹션
 - 상세: `/api/executions/workflow/:workflowId` 및 `/api/executions/:id` 엔드포인트에 대한 인증/인가 요구사항이 스펙에 명시되지 않음. 워크플로우 실행 데이터는 민감한 비즈니스 데이터를 포함할 수 있어 소유권 검증이 필수적임.
 - 제안: 스펙에 "워크스페이스 소유권 검증 필수" 조건을 명시. 다른 워크스페이스의 실행 ID를 직접 조회할 수 없도록 백엔드에서 `workspaceId` 기반 필터링 강제 적용 여부 확인
 
 ---
 
 **[INFO] `adjacentQuery` limit:100 정보 과다 노출**
-- 위치: `spec/2-navigation/6-execution-history.md` — 이전/다음 실행 네비게이션
+- 위치: `spec/2-navigation/14-execution-history.md` — 이전/다음 실행 네비게이션
 - 상세: prev/next 탐색을 위해 실행 목록 100건을 일괄 조회하면, 클라이언트가 필요 이상으로 많은 실행 데이터를 수신함. 각 실행 레코드에 `inputData`, `outputData`가 포함될 경우 민감 데이터의 불필요한 전송이 발생.
 - 제안: adjacent 전용 API(`/executions/:id/adjacent`)에서는 `id`와 `status`만 반환하도록 응답 필드를 제한
 

@@ -106,9 +106,9 @@ export class FilterHandler implements NodeHandler {
     for (let index = 0; index < items.length; index++) {
       const item: unknown = items[index];
 
-      // Per-item expression context (spec/4-nodes/1-logic-nodes.md §8 line
-      // 405): bind `$item` / `$itemIndex` so condition expressions resolve
-      // against the current array element.
+      // Per-item expression context (spec/4-nodes/1-logic/8-filter.md §4):
+      // bind `$item` / `$itemIndex` so condition expressions resolve against
+      // the current array element.
       const itemCtx: EngineContext = {
         ...baseCtx,
         $item: item,

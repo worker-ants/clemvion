@@ -17,7 +17,7 @@
 - store action(`pauseForForm`, `pauseForButtons`, `pauseForConversation`)에서 `selectedResultNodeId`를 원자적으로 설정하므로 중복 불필요
 
 ### SPEC 불일치 수정
-- `spec/2-navigation/6-execution-history.md` §2.1: 와이어프레임의 `Trigger` 열 → `Nodes`로, `[Waiting]` 필터 버튼 추가
+- `spec/2-navigation/14-execution-history.md` §2.1: 와이어프레임의 `Trigger` 열 → `Nodes`로, `[Waiting]` 필터 버튼 추가
 - `spec/4-nodes/6-presentation-nodes.md` §1.1: `source` 필드 "dynamic 모드 시 필수" → "선택" (하위호환)
 
 ## 의도적 미조치

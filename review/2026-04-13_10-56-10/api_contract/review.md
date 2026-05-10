@@ -18,7 +18,7 @@
 
 **[WARNING] `400 Bad Request` 에러 응답 형식 불일치**
 - 위치: `hooks.service.ts:L95`, `workflows.controller.ts:L138`
-- 상세: 두 엔드포인트 모두 `{ code, message, errors[] }` 구조를 사용하지만 `code` 값이 서로 다름(`INVALID_WEBHOOK_PAYLOAD` vs `INVALID_TRIGGER_PARAMETERS`). NestJS 기본 400 응답(`{ statusCode, message }`)과도 형식이 다르며, spec의 `5-webhook.md §5.2`에 명시된 응답 형식(`{ statusCode, message, errors }`)과도 불일치(`code` 필드 추가됨).
+- 상세: 두 엔드포인트 모두 `{ code, message, errors[] }` 구조를 사용하지만 `code` 값이 서로 다름(`INVALID_WEBHOOK_PAYLOAD` vs `INVALID_TRIGGER_PARAMETERS`). NestJS 기본 400 응답(`{ statusCode, message }`)과도 형식이 다르며, spec의 `12-webhook.md §5.2`에 명시된 응답 형식(`{ statusCode, message, errors }`)과도 불일치(`code` 필드 추가됨).
 - 제안: 공통 error-response interceptor 또는 factory를 만들어 `{ code, message, errors }` 형식을 전 API에 통일. 스펙 문서도 `code` 필드를 포함하도록 갱신.
 
 ---

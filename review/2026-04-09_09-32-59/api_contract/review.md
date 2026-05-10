@@ -17,7 +17,7 @@
 ---
 
 **[INFO] `GET /api/executions/workflow/:workflowId`의 adjacent 탐색 한계가 API 계약에 미반영**
-- 위치: `spec/2-navigation/6-execution-history.md` §3.6, §5
+- 위치: `spec/2-navigation/14-execution-history.md` §3.6, §5
 - 상세: 이전/다음 실행 네비게이션은 현재 `limit: 100`으로 전체 목록을 클라이언트에서 탐색하는 방식. API 스펙에는 이 한계(100건 초과 시 네비게이션 불가)가 명시되어 있지 않으며, 향후 `/executions/:id/adjacent` 엔드포인트 추가 시 기존 클라이언트 코드와의 계약 변경이 필요.
 - 제안: 스펙 §3.6에 현재 구현 한계를 명시하거나, 처음부터 cursor 기반 API를 설계.
 

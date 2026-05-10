@@ -28,7 +28,7 @@
 
 - **[INFO]** `plan/in-progress/execution-trigger-metadata-fix.md` 체크박스 미갱신
   - 위치: plan 문서의 스펙 갱신 항목
-  - 상세: `spec/5-system/4-execution-engine.md §6.1.1`과 `spec/5-system/5-webhook.md §7`이 이번 변경에서 실제로 업데이트되었음에도 plan 문서의 체크박스(`[ ]`)가 체크되지 않았다.
+  - 상세: `spec/5-system/4-execution-engine.md §6.1.1`과 `spec/5-system/12-webhook.md §7`이 이번 변경에서 실제로 업데이트되었음에도 plan 문서의 체크박스(`[ ]`)가 체크되지 않았다.
   - 제안: 완료된 항목을 `[x]`로 표시하고, 남은 항목(TEST WORKFLOW, REVIEW WORKFLOW, `spec/2-navigation/3-schedule.md` 등)이 실제 미완인지 확인 후 plan 상태를 정확히 반영한다.
 
 - **[INFO]** `instrumentation.ts` 변경은 순수 포매팅으로 아키텍처 영향 없음

@@ -51,4 +51,4 @@
 
 [공통 §3 컨테이너 노드 패턴](./0-common.md#3-컨테이너-노드-패턴-loop--map--foreach) 참조. 실행 시각화는 헤더에 현재 항목 인덱스를 표시한다 (예: "Item 2/5").
 
-> **결과 배열 인덱스 유지 및 중첩 컨테이너 스코프**: [실행 엔진 §3.2](../../5-system/4-execution-engine.md#32-foreach-실행) 및 [§3.4](../../5-system/4-execution-engine.md#34-중첩-컨테이너-스코프) 참조.
+> **결과 배열 인덱스 유지 및 중첩 컨테이너 스코프**: [실행 엔진 §3.2](../../5-system/4-execution-engine.md#32-foreach--map-실행) 및 [§3.4](../../5-system/4-execution-engine.md#34-중첩-컨테이너-스코프) 참조.
