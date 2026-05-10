@@ -11,11 +11,11 @@ code: ["backend/src/modules/mcp/mcp-client.service.ts", "backend/src/modules/mcp
 
 이 페이지에서는 외부 **MCP(Model Context Protocol) 서버**를 워크스페이스 통합으로 등록하고, AI Agent 노드에 연결해 LLM이 그 서버의 도구·리소스·프롬프트를 직접 호출하도록 만드는 방법을 설명해요.
 
-## MCP가 뭐고 언제 써요
+## MCP는 무엇이고 언제 쓰나요?
 
 MCP는 LLM이 외부 시스템의 **도구(tools)** · **리소스(resources)** · **프롬프트(prompts)** 를 표준 방식으로 호출할 수 있도록 정의한 프로토콜이에요. 워크플로우 안에 노드를 끌어다 놓는 일반 도구(Tool Area)와의 차이는 **도구 자체가 외부 시스템에 있다**는 점이에요.
 
-언제 적합한가요.
+언제 적합한가요?
 
 - 사내 위키·검색 엔진처럼 **외부에서 운영되는 도구 모음**을 한 번에 LLM에게 노출하고 싶을 때.
 - Slack 검색, GitHub 이슈 조회, 사내 결재 시스템 같은 도구를 **여러 워크플로우의 AI Agent에서 재사용**하고 싶을 때.

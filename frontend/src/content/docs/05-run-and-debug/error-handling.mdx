@@ -100,7 +100,7 @@ interval = min(retryInterval * backoffMultiplier ^ attempt, maxInterval)
 에러 발생 시 에러 데이터를 노드의 **error 포트**로 보내고, 연결된 다음 노드가 에러 데이터를 입력으로 받아 복구 흐름을 이어가게 해요.
 
 - 정책을 선택하면 노드 우하단에 빨간 원(●) **error 포트**가 동적으로 생겨요.
-- error 포트에 엣지가 연결되어 있지 않으면 `ERROR_PORT_FALLBACK` 로그와 함께 Stop Workflow로 폴백돼요.
+- error 포트에 연결선이 연결되어 있지 않으면 `ERROR_PORT_FALLBACK` 로그와 함께 Stop Workflow로 폴백돼요.
 - `NodeExecution.status`는 `failed`로 기록되지만, **Execution 전체는 계속 진행**돼요.
 
 에러 포트로 전달되는 데이터 구조예요.

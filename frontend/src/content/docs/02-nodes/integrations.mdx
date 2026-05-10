@@ -29,7 +29,7 @@ code: ["backend/src/nodes/integration/http-request/http-request.schema.ts", "bac
 
 ## HTTP Request
 
-### 언제 써요
+### 언제 쓰나요?
 
 - 임의의 **HTTP API를 호출**하고 싶을 때 써요.
 - Integration을 참조하면 인증 헤더가 자동으로 주입돼요. 인증 없이도 호출할 수 있어요.
@@ -90,7 +90,7 @@ Integration의 `auth_type`에 따라 헤더/쿼리가 자동 주입돼요. api_k
 
 ## Database Query
 
-### 언제 써요
+### 언제 쓰나요?
 
 - PostgreSQL 또는 MySQL에 **SQL을 직접 실행**하고 싶을 때 써요.
 - SELECT로 데이터를 읽거나, INSERT/UPDATE/DELETE로 조작할 수 있어요.
@@ -140,7 +140,7 @@ Integration의 `auth_type`에 따라 헤더/쿼리가 자동 주입돼요. api_k
 
 ## Send Email
 
-### 언제 써요
+### 언제 쓰나요?
 
 - **SMTP**를 통해 이메일을 발송하고 싶을 때 써요.
 - To/CC/BCC, 제목, 본문(텍스트·HTML), 첨부를 지원해요.
@@ -155,7 +155,7 @@ Integration의 `auth_type`에 따라 헤더/쿼리가 자동 주입돼요. api_k
   {name: "subject", required: true, type: "expression", description: "메일 제목이에요.", default: "-"},
   {name: "body", required: true, type: "expression", description: "메일 본문이에요.", default: "-"},
   {name: "bodyType", required: false, type: "`text` / `html`", description: "본문 형식이에요.", default: "text"},
-  {name: "attachments", required: false, type: "Attachment[]", description: "첨부 목록이에요. 각 항목은 `filename`, `content`(Base64 또는 URL)를 가져요.", default: "[]"}
+  {name: "attachments", required: false, type: "Attachment[]", description: "첨부 목록이에요. 각 항목은 `filename`, `content`(Base64 또는 URL)를 포함해요.", default: "[]"}
 ]} />
 
 ### 포트
