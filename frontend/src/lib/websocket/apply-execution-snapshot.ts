@@ -98,6 +98,30 @@ export function applyExecutionSnapshot(
 
   const { status: prevStatus } = useExecutionStore.getState();
 
+  // ── Inconsistent-snapshot reconciliation (양방향 defense) ────────────────
+  // Backend 의 status 업데이트 트랜잭션 commit 과 snapshot publish 사이의 race
+  // 로 인해 `execution.status='running'` 이지만 `nodeExecutions` 에
+  // `waiting_for_input` row 가 존재하는 inconsistent snapshot 이 도착할 수 있다.
+  // 이전 fix(31209d37) 의 단방향 defense 는 `prevStatus==='waiting_for_input'`
+  // 일 때만 동작 — `prevStatus==='running'` 또는 `'pending'` 에서 첫 snapshot
+  // 이 inconsistent 면 waiting UI 가 hydration 되지 않고 'Running' 으로 stuck.
+  //
+  // 양방향 reconcile: 노드의 진실을 우선해 effective execution.status 를
+  // 'waiting_for_input' 으로 격상. terminal status (completed/failed/cancelled)
+  // 는 절대 reconcile 하지 않는다 (terminal 진입 후엔 nodeExec 가 stale 이라
+  // 트리거하면 안 됨).
+  const isTerminal =
+    execution.status === "completed" ||
+    execution.status === "failed" ||
+    execution.status === "cancelled";
+  const reconcileToWaiting =
+    !isTerminal &&
+    execution.status !== "waiting_for_input" &&
+    execution.nodeExecutions?.some((ne) => ne.status === "waiting_for_input");
+  const effectiveExecutionStatus = reconcileToWaiting
+    ? ("waiting_for_input" as const)
+    : execution.status;
+
   if (execution.status === "completed") {
     completeExecution();
     return;
@@ -136,10 +160,15 @@ export function applyExecutionSnapshot(
     }
     return;
   }
-  if (execution.status === "running" && prevStatus === "idle") {
+  if (
+    execution.status === "running" &&
+    prevStatus === "idle" &&
+    !reconcileToWaiting
+  ) {
     // Page opened mid-execution: store still shows idle because the
     // execution.started event fired before we were listening. Promote
     // to running without clearing the just-populated timeline.
+    // (reconcileToWaiting 시는 아래 메인 waiting 분기에서 hydration)
     useExecutionStore.setState({
       executionId: execution.id,
       status: "running",
@@ -147,7 +176,7 @@ export function applyExecutionSnapshot(
     });
     return;
   }
-  if (execution.status === "waiting_for_input") {
+  if (effectiveExecutionStatus === "waiting_for_input") {
     const { waitingNodeId: currentWaiting } = useExecutionStore.getState();
     const waitingNode = execution.nodeExecutions?.find(
       (ne) => ne.status === "waiting_for_input",
