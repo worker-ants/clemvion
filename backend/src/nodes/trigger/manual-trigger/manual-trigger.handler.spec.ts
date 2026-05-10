@@ -85,9 +85,10 @@ describe('ManualTriggerHandler', () => {
       expect(result.output.parameters).toEqual({ name: 'Alice', count: 3 });
     });
 
-    it('preserves webhook-style sibling fields (body, headers, query, method)', async () => {
+    it('groups webhook transport fields under output.request and tags meta.source: webhook', async () => {
       const result = (await handler.execute(
         {
+          __triggerSource: 'webhook',
           parameters: { orderId: 'abc' },
           body: { raw: true },
           headers: { 'x-source': 'github' },
@@ -99,16 +100,110 @@ describe('ManualTriggerHandler', () => {
       )) as unknown as {
         output: {
           parameters: Record<string, unknown>;
-          body: unknown;
-          headers: unknown;
-          query: unknown;
-          method: string;
+          request: {
+            method: string;
+            headers: Record<string, string>;
+            query: Record<string, string>;
+            body: unknown;
+          };
+          // Flat webhook transport fields must NOT spread on output anymore
+          body?: unknown;
+          headers?: unknown;
+          query?: unknown;
+          method?: unknown;
         };
+        meta: { source: string };
       };
 
       expect(result.output.parameters).toEqual({ orderId: 'abc' });
-      expect(result.output.body).toEqual({ raw: true });
-      expect(result.output.method).toBe('POST');
+      expect(result.output.request).toEqual({
+        method: 'POST',
+        headers: { 'x-source': 'github' },
+        query: { q: '1' },
+        body: { raw: true },
+      });
+      expect(result.output.body).toBeUndefined();
+      expect(result.output.headers).toBeUndefined();
+      expect(result.output.query).toBeUndefined();
+      expect(result.output.method).toBeUndefined();
+      expect(result.meta.source).toBe('webhook');
+    });
+
+    it('detects webhook by transport-shape when __triggerSource is absent', async () => {
+      // Backward-resilient detection — if an adapter forgets to stamp the
+      // marker but the input clearly carries HTTP transport fields, treat it
+      // as a webhook so output.request is still produced.
+      const result = (await handler.execute(
+        {
+          parameters: { orderId: 'abc' },
+          body: { raw: true },
+          headers: { 'x-source': 'github' },
+          query: {},
+          method: 'POST',
+        },
+        { parameters: [{ name: 'orderId', type: 'string' }] },
+        mockContext,
+      )) as unknown as {
+        output: {
+          parameters: Record<string, unknown>;
+          request: { method: string; body: unknown };
+        };
+        meta: { source: string };
+      };
+      expect(result.output.request.method).toBe('POST');
+      expect(result.output.request.body).toEqual({ raw: true });
+      expect(result.meta.source).toBe('webhook');
+    });
+
+    it('emits meta.source: schedule when __triggerSource is schedule', async () => {
+      const result = (await handler.execute(
+        { __triggerSource: 'schedule', parameters: { foo: 1 } },
+        {},
+        mockContext,
+      )) as unknown as {
+        output: { parameters: Record<string, unknown>; request?: unknown };
+        meta: { source: string };
+      };
+      expect(result.output.parameters).toEqual({ foo: 1 });
+      expect(result.output.request).toBeUndefined();
+      expect(result.meta.source).toBe('schedule');
+    });
+
+    it('emits meta.source: manual when __triggerSource is manual', async () => {
+      const result = (await handler.execute(
+        { __triggerSource: 'manual', parameters: { foo: 1 } },
+        {},
+        mockContext,
+      )) as unknown as {
+        output: { parameters: Record<string, unknown>; request?: unknown };
+        meta: { source: string };
+      };
+      expect(result.output.request).toBeUndefined();
+      expect(result.meta.source).toBe('manual');
+    });
+
+    it('defaults meta.source to manual when no marker and no transport fields', async () => {
+      const result = (await handler.execute(
+        { parameters: { foo: 1 } },
+        {},
+        mockContext,
+      )) as unknown as {
+        output: { parameters: Record<string, unknown>; request?: unknown };
+        meta: { source: string };
+      };
+      expect(result.meta.source).toBe('manual');
+      expect(result.output.request).toBeUndefined();
+    });
+
+    it('does not leak the __triggerSource marker onto output', async () => {
+      const result = (await handler.execute(
+        { __triggerSource: 'webhook', parameters: {}, method: 'GET' },
+        {},
+        mockContext,
+      )) as unknown as {
+        output: Record<string, unknown>;
+      };
+      expect(result.output.__triggerSource).toBeUndefined();
     });
 
     it('returns parameters: {} when input is null/undefined', async () => {
@@ -118,8 +213,10 @@ describe('ManualTriggerHandler', () => {
         mockContext,
       )) as unknown as {
         output: { parameters: Record<string, unknown> };
+        meta: { source: string };
       };
       expect(result.output.parameters).toEqual({});
+      expect(result.meta.source).toBe('manual');
     });
 
     it('echoes declared schema under config.parameters', async () => {

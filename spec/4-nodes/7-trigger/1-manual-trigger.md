@@ -52,7 +52,7 @@
 
 Manual Trigger는 워크플로우 **진입점**이므로 입력 포트를 갖지 않는다 (`inputs: []`). [Trigger 공통 §3.1](./0-common.md#31-입력-부재) 참조.
 
-`execute(input, config, context)` 에 주입되는 `input` 은 어댑터가 전달하는 외부 진입 데이터다 — Manual: `{ parameters }`, Webhook: `{ parameters, body, headers, query, method }`, Schedule: `{ parameters }`.
+`execute(input, config, context)` 에 주입되는 `input` 은 어댑터가 전달하는 외부 진입 데이터다 — Manual: `{ parameters }`, Webhook: `{ parameters, body, headers, query, method }`, Schedule: `{ parameters }`. 추가로 어댑터는 `__triggerSource: 'manual' | 'webhook' | 'schedule'` 마커를 동봉하여 핸들러가 `meta.source` 를 결정론적으로 채울 수 있게 한다 (마커는 핸들러가 output 노출 전 제거).
 
 ### 3.2 출력 포트
 
@@ -64,21 +64,20 @@ Manual Trigger는 워크플로우 **진입점**이므로 입력 포트를 갖지
 
 ## 4. 실행 로직
 
-1. **사전 해석 (어댑터 단계)**: 엔진의 트리거 어댑터(`resolveTriggerParameters`)가 어댑터별 원시 값을 `config.parameters` 스키마로 검증·default 적용·타입 coerce 하여 `input.parameters` 로 전달한다. required 누락은 이 단계에서 400 또는 즉시 실패로 끝난다.
+1. **사전 해석 (어댑터 단계)**: 엔진의 트리거 어댑터(`resolveTriggerParameters`)가 어댑터별 원시 값을 `config.parameters` 스키마로 검증·default 적용·타입 coerce 하여 `input.parameters` 로 전달한다. required 누락은 이 단계에서 400 또는 즉시 실패로 끝난다. 어댑터는 함께 `input.__triggerSource: 'manual' | 'webhook' | 'schedule'` 마커도 동봉한다.
 2. **핸들러 진입**: `input.parameters` 가 객체이면 그대로 채택, 아니면 `{}` 로 fallback (CONVENTIONS Principle 10).
 3. **config echo**: `context.rawConfig?.parameters ?? []` 를 `config.parameters` 로 echo (Principle 7 — `defaultValue` 의 `{{ }}` 템플릿 보존).
-4. **output 구성**: `output.parameters = resolvedParameters`. 추가로 어댑터가 함께 전달한 형제 키(`body`/`headers`/`query`/`method` 등 webhook 컨텍스트)는 `output` 최상위에 spread merge.
-5. **즉시 완료**: 외부 호출 없음 → `meta` / `port` / `status` 미설정. 엔진이 기본 포트 `out` 으로 라우팅.
-
-> ⚠ **개선 예정 (P1)**: webhook 어댑터가 전달하는 `body`/`headers`/`query`/`method` 가 현재 `output` 최상위에 평탄 병합되어 사용자 정의 파라미터 이름과 충돌 여지가 있다. [user_memo 개선안 §3.2](../../../user_memo/node-specs-improvement/trigger/manual_trigger.md#32-before--after) 는 `output.request.{method,headers,query,body}` 로 묶고 `meta.source: 'manual'|'webhook'|'schedule'` 추가를 제안한다. 본 spec 의 §5.1 은 현재 핸들러 동작을 기술한다.
+4. **트리거 출처 결정**: `input.__triggerSource` 마커 우선. 마커가 없으면 `body`/`headers`/`query`/`method` 중 하나라도 존재하면 `'webhook'`, 그 외는 `'manual'` 로 fallback.
+5. **output 구성**: `output.parameters = resolvedParameters`. webhook 출처일 때만 `output.request: { method, headers, query, body }` 로 transport 컨텍스트를 묶어 노출 (Manual / Schedule 어댑터에서는 `output.request` 자체 생략). 마커(`__triggerSource`) 는 output 으로 새지 않도록 핸들러가 제거.
+6. **meta 채움**: `meta.source: 'manual' | 'webhook' | 'schedule'` (CONVENTIONS Principle 2 — 실행 컨텍스트). `port` / `status` 는 미설정 — 엔진이 기본 포트 `out` 으로 라우팅.
 
 ## 5. 출력 구조
 
 > CONVENTIONS Principle 11 포맷. JSON 예시는 `undefined` 필드 생략, 5필드 (`config`/`output`/`meta?`/`port?`/`status?`) 외 top-level 키 금지.
 >
-> Manual Trigger는 비-블로킹 즉시 완료 노드이며 핸들러 단계에서 에러 포트가 없다 (검증 실패는 어댑터 단계의 pre-flight throw). 따라서 단일 정상 케이스(§5.1)만 존재한다.
+> Manual Trigger는 비-블로킹 즉시 완료 노드이며 핸들러 단계에서 에러 포트가 없다 (검증 실패는 어댑터 단계의 pre-flight throw). 정상 케이스는 어댑터 종류에 따라 두 가지 shape 으로 갈린다 — Manual / Schedule 은 `output: { parameters }` (§5.1), Webhook 은 추가로 `output.request: {...}` 가 채워짐 (§5.2). 두 케이스 모두 `meta.source` 를 통해 출처 식별 가능.
 
-### 5.1 Case: 정상 (port `out`)
+### 5.1 Case: Manual / Schedule 어댑터 (port `out`)
 
 ```json
 {
@@ -90,7 +89,8 @@ Manual Trigger는 워크플로우 **진입점**이므로 입력 포트를 갖지
   },
   "output": {
     "parameters": { "orderId": "abc-123", "count": 3 }
-  }
+  },
+  "meta": { "source": "manual" }
 }
 ```
 
@@ -98,10 +98,11 @@ Manual Trigger는 워크플로우 **진입점**이므로 입력 포트를 갖지
 |------|------|------|------|
 | `config.parameters` | `TriggerParameterDefinition[]` | config echo (Principle 7) | 사용자가 UI 에서 정의한 raw 스키마 — `defaultValue` 의 `{{ }}` 템플릿 보존 |
 | `output.parameters` | `Record<string, unknown>` | runtime — adapter resolved | 어댑터가 입력 + `defaultValue` 병합으로 해석한 런타임 값. `config.parameters` 의 echo 가 **아님** (Principle 1.1 직교) |
+| `meta.source` | `'manual' \| 'webhook' \| 'schedule'` | runtime — adapter marker | 어떤 어댑터로 실행됐는지 (CONVENTIONS Principle 2). schedule 어댑터는 `"schedule"` |
 
-**Webhook 어댑터에서의 추가 spread (현재 동작)**:
+### 5.2 Case: Webhook 어댑터 (port `out`)
 
-webhook 진입 시 어댑터가 `input` 으로 `{ parameters, body, headers, query, method }` 를 전달하면, 핸들러는 `parameters` 외 나머지 키를 `output` 최상위에 spread merge 한다:
+webhook 진입 시 어댑터가 `input` 으로 `{ __triggerSource: 'webhook', parameters, body, headers, query, method }` 를 전달하면, 핸들러는 transport 4필드를 `output.request` 아래로 묶어 노출하고 `meta.source: 'webhook'` 을 부여한다:
 
 ```json
 {
@@ -112,29 +113,34 @@ webhook 진입 시 어댑터가 `input` 으로 `{ parameters, body, headers, que
   },
   "output": {
     "parameters": { "orderId": "abc-123" },
-    "body":    { "raw": true },
-    "headers": { "x-source": "github" },
-    "query":   { "q": "1" },
-    "method":  "POST"
-  }
+    "request": {
+      "method":  "POST",
+      "headers": { "x-source": "github" },
+      "query":   { "q": "1" },
+      "body":    { "raw": true }
+    }
+  },
+  "meta": { "source": "webhook" }
 }
 ```
 
 | 필드 | 타입 | 출처 | 설명 |
 |------|------|------|------|
-| `output.body` | object | runtime — webhook adapter | webhook HTTP body. Manual/Schedule 어댑터에서는 부재 |
-| `output.headers` | object | runtime — webhook adapter | webhook HTTP headers |
-| `output.query` | object | runtime — webhook adapter | webhook URL query string parsed |
-| `output.method` | string | runtime — webhook adapter | webhook HTTP method |
+| `output.request` | object | runtime — webhook adapter | webhook transport 컨텍스트 묶음. Manual / Schedule 어댑터에서는 **`output.request` 자체가 생략**됨 |
+| `output.request.method` | string | runtime — webhook adapter | HTTP method |
+| `output.request.headers` | object | runtime — webhook adapter | HTTP headers (소문자 키) |
+| `output.request.query` | object | runtime — webhook adapter | URL query string parsed |
+| `output.request.body` | unknown | runtime — webhook adapter | HTTP body. content-type 에 따라 object / string / Buffer |
 
-> ⚠ 위 4개 필드는 어댑터 종류에 따라 **존재 여부가 달라진다**. 다운스트림 expression 은 `$node["Manual Trigger"].output.body` 등으로 접근하되 부재 가능성을 고려해야 한다. [user_memo 개선안 §3.2](../../../user_memo/node-specs-improvement/trigger/manual_trigger.md#32-before--after) 의 `output.request.*` 묶음 + `meta.source` 도입이 P1 후속 과제.
+> `request` 는 webhook 어댑터에서만 등장하므로 다운스트림 expression 은 `$node["Manual Trigger"].output.request?.method` 와 같이 부재 가능성을 고려한다. 어댑터 종류 분기는 `meta.source` 로 한다.
 
 **Expression 접근 예**:
 - `$node["Manual Trigger"].output.parameters.orderId` → `"abc-123"`
 - `$input.parameters.orderId` → `"abc-123"` (단축 — 다운스트림 첫 노드 한정)
 - `$params.orderId` → `"abc-123"` (단축 — `$input.parameters` 별칭)
 - `$node["Manual Trigger"].config.parameters[0].name` → `"orderId"` (스키마 정의)
-- `$node["Manual Trigger"].output.method` → `"POST"` (webhook 한정)
+- `$node["Manual Trigger"].output.request.method` → `"POST"` (webhook 한정)
+- `$node["Manual Trigger"].meta.source` → `"manual"` / `"webhook"` / `"schedule"`
 
 ## 6. 에러 코드
 

@@ -92,10 +92,13 @@ export class HooksService {
       throw err;
     }
 
-    // 5. Execute workflow
+    // 5. Execute workflow. The `__triggerSource` marker is stamped here so
+    //    the Manual Trigger handler can record `meta.source: 'webhook'` and
+    //    group `body`/`headers`/`query`/`method` under `output.request.*`
+    //    instead of spreading them at the top level (CONVENTIONS Principle 1).
     const executionId = await this.executionEngineService.execute(
       trigger.workflowId,
-      { parameters, ...input },
+      { __triggerSource: 'webhook', parameters, ...input },
       { triggerId: trigger.id },
     );
 
