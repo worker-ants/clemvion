@@ -133,17 +133,17 @@
 
 ## 6. 컨테이너 내부 엣지 규칙
 
-컨테이너 노드(Loop, ForEach, Map, Background[🚧 미구현]) 내부의 자식 노드 간 엣지에 적용되는 규칙.
+컨테이너 노드(Loop, ForEach, Map) 내부의 자식 노드 간 엣지에 적용되는 규칙. Background 는 컨테이너 박스를 렌더링하지 않고 `background` 포트 엣지로 본문을 식별하는 평면 모델을 채택했다 ([PRD 3 §4.11 ND-BG-05 대안 구현](../../prd/3-node-system.md#411-background)) — 본 절의 컨테이너 규칙은 Background 에 적용되지 않는다.
 
 ### 6.1 진입점과 출력 수집
 
 | 규칙 | 설명 |
 |------|------|
-| 진입점 | 컨테이너의 `body`(Background는 `background`) 포트 → 컨테이너 내부의 첫 번째 자식 노드로 연결 |
+| 진입점 | 컨테이너의 `body` 포트 → 컨테이너 내부의 첫 번째 자식 노드로 연결 |
 | 출력 수집 (`emit` 포트) | Loop/ForEach/Map은 body 자식 중 **정확히 1개**가 컨테이너의 `emit` 입력 포트로 연결되어야 함. 매 반복의 emit source 노드 출력이 수집 대상 |
 | 검증 | emit 없음 → `CONTAINER_MISSING_EMIT`, 2개 이상 → `CONTAINER_MULTIPLE_EMIT`. 실행 시 엔진이 upfront 검증 |
 | Loop / Map / ForEach | emit source 출력을 배열로 수집 → `done` 포트로 전달. ForEach는 `errorPolicy`에 따라 스킵/계속 항목에 `{_skipped, error}` 삽입 |
-| Background _(🚧 미구현)_ | 리프 노드 출력은 메인 흐름에 영향 없음 (독립 실행). 도입 시 emit 모델 미적용, pass-through |
+| Background | 컨테이너 모델 미적용. `background` 포트로 본문 진입점을 가리키고, 본문 노드들은 평면 그래프에 존재 — 메인 흐름과 같은 캔버스에 배치되며 emit 모델을 쓰지 않는다 ([Spec 실행 엔진 §3.3](../5-system/4-execution-engine.md#33-background-실행)) |
 
 ### 6.2 경계 규칙
 

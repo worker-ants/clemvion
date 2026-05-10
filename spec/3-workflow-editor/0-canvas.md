@@ -350,7 +350,7 @@
 
 #### 5.3.3 컨테이너 노드 요약
 
-컨테이너 노드(Loop, ForEach, Map, Background[🚧 미구현])는 헤더 바의 사용자 레이블 우측에 요약을 표시한다:
+컨테이너 노드(Loop, ForEach, Map)는 헤더 바의 사용자 레이블 우측에 요약을 표시한다. Background 는 컨테이너 박스 없이 평면으로 렌더링되므로 일반 노드 본체의 요약 영역(§5.3.1)을 사용한다.
 
 ```
 ┌─────────────────────────────────────────────────┐
@@ -377,7 +377,7 @@
 | ForEach | `{배열필드}` + 에러정책 | `$input.items · skip errors` |
 | Parallel | `{N} branches` | `3 branches` |
 | Merge | `{N} inputs · {전략}` | `3 inputs · wait_all` |
-| Background _(🚧 미구현)_ | 알림 채널 | `notify: in_app, email` |
+| Background | 알림 채널 | `notify: in_app, email` |
 | Workflow | `{워크플로우 이름} · {모드}` | `Data Pipeline · sync` |
 | AI Agent | `{모델} · {N} tools · {N} KB` | `gpt-4o · 2 tools · 1 KB` |
 | Text Classifier | `{모델} · {N} categories` | `gpt-4o-mini · 3 categories` |
@@ -540,7 +540,7 @@
 
 ## 11. 컨테이너 노드
 
-Loop, ForEach, Map, Background[🚧 미구현] 노드는 **컨테이너**로 렌더링된다. 내부에 자식 노드를 배치할 수 있는 그룹이다. Loop/ForEach/Map은 body/emit/done 포트 모델 + emit 기반 결과 수집을 공유하고, Background는 spec-only로 도입 예정.
+Loop, ForEach, Map 노드는 **컨테이너**로 렌더링된다. 내부에 자식 노드를 배치할 수 있는 그룹이며 body/emit/done 포트 모델 + emit 기반 결과 수집을 공유한다. Background 는 PRD 3 §4.11 ND-BG-05 의 대안 구현 결정에 따라 컨테이너 박스를 사용하지 않고 일반 다중 출력 포트 노드로 평면 렌더링한다 — 본문은 `background` 포트 엣지로 시각적으로 분기가 드러나며, 메인과 같은 캔버스 그래프 안에 평면적으로 존재한다.
 
 ### 11.1 시각적 표현
 
@@ -659,7 +659,7 @@ Loop, ForEach, Map, Background[🚧 미구현] 노드는 **컨테이너**로 렌
 
 ## 12. AI Agent Tool Area
 
-> ⚠ **재작성 예정 (현재 제거됨)** — 본 섹션의 Tool Area 시각·인터랙션은 현재 비활성이며, AI Agent 의 도구 연결 config 필드(`toolNodeIds` / `toolOverrides`)도 스키마에서 제거됐다. 캔버스에서 AI Agent 노드 우측 점선 영역 및 드래그/드롭 인터랙션을 노출하지 않는다. 새 도구 연결 디자인이 결정될 때 갱신한다. 자세한 사유와 백엔드 영향은 `spec/4-nodes/3-ai/1-ai-agent.md` §1 박스 + `plan/complete/ai-agent-tool-connection-rewrite.md` 참조.
+> ⚠ **재작성 예정 (현재 제거됨)** — 본 섹션의 Tool Area 시각·인터랙션은 현재 비활성이며, AI Agent 의 도구 연결 config 필드(`toolNodeIds` / `toolOverrides`)도 스키마에서 제거됐다. 캔버스에서 AI Agent 노드 우측 점선 영역 및 드래그/드롭 인터랙션을 노출하지 않는다. 새 도구 연결 디자인이 결정될 때 갱신한다. 자세한 사유와 백엔드 영향은 `spec/4-nodes/3-ai/1-ai-agent.md` §1 박스 + 이전 제거 작업의 history (`plan/complete/ai-agent-tool-connection-rewrite.md`) 참조. **재작성 작업은 [`plan/in-progress/ai-agent-tool-connection-rewrite.md`](../../plan/in-progress/ai-agent-tool-connection-rewrite.md) 에서 추적**.
 
 AI Agent 노드에 연결된 도구 노드를 시각적으로 관리하는 전용 영역.
 

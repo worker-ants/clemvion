@@ -42,7 +42,7 @@
 | ForEach (**컨테이너**) | 2 | 2 (+error) | 입력: `in`, `emit`(보라색, body 결과 수집). 출력: `body` (각 항목 진입점), `done` (수집된 배열) |
 | Parallel | 1 | N (동적) | `branch_0`, `branch_1`, ... |
 | Merge | N (동적) | 1 | `out` |
-| Background (**컨테이너**, 🚧 미구현) | 1 | 2 (+error) | `main` (즉시 진행), `background` (백그라운드 본문 → 내부 노드) |
+| Background | 1 | 2 (+error) | `main` (즉시 진행), `background` (백그라운드 본문 진입점 — 컨테이너 박스 없이 평면으로 렌더링. PRD 3 §4.11 ND-BG-05 대안 구현) |
 | Workflow | 1 | 1 | `out` |
 | AI Agent | 1 | 1 | `out` |
 | Text Classifier | 1 | N (동적) | `class_0`, `class_1`, ..., (카테고리별) |

@@ -124,7 +124,7 @@ User ──┬── Workspace (1:N)
 | config | JSONB | 노드별 설정 값 |
 | is_disabled | Boolean | 비활성 여부 |
 | description | String? | 메모/설명 |
-| container_id | UUID? | FK → Node. 컨테이너 노드(Loop/ForEach/Map/Background[🚧 미구현]) 내부에 배치된 경우. 엣지 연결/삭제로 자동 동기화(§11.2.1 canvas 스펙 참조) |
+| container_id | UUID? | FK → Node. 컨테이너 노드(Loop/ForEach/Map) 내부에 배치된 경우. 엣지 연결/삭제로 자동 동기화(§11.2.1 canvas 스펙 참조). Background 는 컨테이너 멤버십을 사용하지 않고 `background` 포트 엣지로 본문을 식별한다 ([PRD 3 §4.11 ND-BG-05 대안 구현](../prd/3-node-system.md#411-background) / [Spec 실행 엔진 §3.3](./5-system/4-execution-engine.md#33-background-실행)) |
 | tool_owner_id | UUID? | FK → Node. AI Agent의 Tool Area에 등록된 경우 |
 | created_at | Timestamp | 생성 시각 |
 | updated_at | Timestamp | 수정 시각 |
