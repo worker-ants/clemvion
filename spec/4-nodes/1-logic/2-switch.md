@@ -118,6 +118,9 @@ mode=expression 으로 전환 시 각 case 의 `Value` 입력이 `Condition` (co
     "durationMs": 0,
     "mode": "value",
     "matchedCase": "case_admin",
+    "matchedCaseLabel": "Admin",
+    "matchedCaseIndex": 0,
+    "resolvedValue": "admin",
     "value": "admin"
   },
   "port": "case_admin"
@@ -127,20 +130,25 @@ mode=expression 으로 전환 시 각 case 의 `Value` 입력이 `Condition` (co
 | 필드 | 타입 | 출처 | 설명 |
 |------|------|------|------|
 | `config.mode` | `'value'` / `'expression'` | config echo (Principle 7) | 매칭 모드 (기본 `value`) |
-| `config.switchValue` | unknown | config echo (Principle 7) | **raw** 형태 — 사용자가 `{{ $input.user.role }}` 로 입력했다면 그대로 보존. 평가된 값은 `meta.value` 에 위치 (Principle 1.1) |
+| `config.switchValue` | unknown | config echo (Principle 7) | **raw** 형태 — 사용자가 `{{ $input.user.role }}` 로 입력했다면 그대로 보존. 평가된 값은 `meta.resolvedValue` 에 위치 (Principle 1.1) |
 | `config.cases` | CaseDef[] | config echo | 사용자가 입력한 raw 케이스 목록. 각 case 의 `value`/`condition` 도 raw 형태 보존 |
 | `output` | (input 전체) | runtime — pass-through | input 데이터 그대로 (변형 없음). Principle 1.1.4 — `output.view`/`output.type` 등 판별자 사용 금지 |
 | `meta.durationMs` | number | engine inject | 실행 시간 (ms). 엔진이 모든 노드에 공통 주입 |
 | `meta.mode` | `'value'` / `'expression'` | handler return | resolved mode (config 기본값 적용 후) |
 | `meta.matchedCase` | string | handler return | 매칭된 case 의 id |
-| `meta.value` | unknown | handler return | mode=value 일 때만 — 평가된 `switchValue` (expression resolver 가 해석한 primitive). mode=expression 에서는 생략 |
+| `meta.matchedCaseLabel` | string \| undefined | handler return | 매칭된 case 의 `label` (UI/로그용). label 미설정 시 `undefined` |
+| `meta.matchedCaseIndex` | number | handler return | `config.cases` 배열 내 매칭된 인덱스 (0-based). default 폴백 시 `-1` |
+| `meta.resolvedValue` | unknown | handler return | mode=value 일 때만 — 평가된 `switchValue` (expression resolver 가 해석한 primitive). mode=expression 에서는 생략 |
+| `meta.value` | unknown | handler return | **deprecated alias** of `meta.resolvedValue` — 한 릴리스간 유지 후 제거 예정. 신규 코드는 `resolvedValue` 를 사용 |
 | `port` | `<case.id>` | handler return | 매칭된 case 의 동적 포트 ID |
 
 **Expression 접근 예**:
 - `$node["X"].output.user.name` → `"Alice"` (pass-through)
 - `$node["X"].port` → `"case_admin"`
 - `$node["X"].meta.matchedCase` → `"case_admin"`
-- `$node["X"].meta.value` → `"admin"` (resolved switchValue, mode=value 시)
+- `$node["X"].meta.matchedCaseLabel` → `"Admin"`
+- `$node["X"].meta.matchedCaseIndex` → `0`
+- `$node["X"].meta.resolvedValue` → `"admin"` (resolved switchValue, mode=value 시)
 - `$node["X"].config.switchValue` → `"{{ $input.user.role }}"` (raw template, Principle 7)
 
 ### 5.2 Case: 매칭 실패 + default 폴백 (port `default`)
@@ -161,6 +169,8 @@ mode=expression 으로 전환 시 각 case 의 `Value` 입력이 `Condition` (co
     "durationMs": 0,
     "mode": "value",
     "matchedCase": "default",
+    "matchedCaseIndex": -1,
+    "resolvedValue": "viewer",
     "value": "viewer"
   },
   "port": "default"
@@ -172,19 +182,22 @@ mode=expression 으로 전환 시 각 case 의 `Value` 입력이 `Condition` (co
 | `config.*` | (§5.1과 동일 + `hasDefault`) | config echo | `hasDefault: true` 도 echo |
 | `output` | (input 전체) | runtime — pass-through | input 데이터 그대로 |
 | `meta.matchedCase` | `'default'` | handler return | 매칭 실패 시 고정 문자열 `'default'` |
-| `meta.value` | unknown | handler return | mode=value 시 평가된 `switchValue` (default 폴백이어도 보존) |
+| `meta.matchedCaseLabel` | `undefined` | handler return | default 폴백 시 항상 `undefined` (전용 label 없음) |
+| `meta.matchedCaseIndex` | `-1` | handler return | default 폴백 sentinel |
+| `meta.resolvedValue` | unknown | handler return | mode=value 시 평가된 `switchValue` (default 폴백이어도 보존) |
+| `meta.value` | unknown | handler return | **deprecated alias** of `meta.resolvedValue` — 한 릴리스간 유지 |
 | `port` | `'default'` | handler return | 정적 default 포트 |
 
 **Expression 접근 예**:
 - `$node["X"].output.user.name` → `"Charlie"` (pass-through)
 - `$node["X"].port` → `"default"`
 - `$node["X"].meta.matchedCase` → `"default"`
+- `$node["X"].meta.matchedCaseIndex` → `-1`
 
-> ⚠ **미구현 (P0/P1)** — [개선안 logic/switch.md](../../../user_memo/node-specs-improvement/logic/switch.md) §3 의 후속 정비안:
-> - **P0 (additive)**: `meta.matchedCaseLabel` (매칭된 case 의 `label` 을 UI/로그에서 활용). `meta.durationMs` 는 엔진 inject 로 이미 채워지므로 핸들러 변경 불필요.
-> - **P1 (renaming)**: `meta.value` → `meta.resolvedValue` 로 이름 변경 (의미 명확화). 단, 기존 필드는 한 릴리스 동안 deprecated alias 로 유지.
-> - **P1 (schema cleanup)**: `config.strictComparison` 은 schema 에 정의되어 있고 핸들러도 사용하지만, 개선안에서는 dead-field 가능성을 검토 중 — 현 구현 (`switch.handler.ts:81,143-149`) 에서는 실제로 동작하므로 본 spec 의 §1 표에 그대로 유지.
+> **후속 정비안** — [개선안 logic/switch.md](../../../user_memo/node-specs-improvement/logic/switch.md) §3 잔여 항목:
+> - **P1 (schema cleanup)**: `config.strictComparison` 은 schema 에 정의되어 있고 핸들러도 사용하지만, 개선안에서는 dead-field 가능성을 검토 중 — 현 구현 (`switch.handler.ts`) 에서는 실제로 동작하므로 본 spec 의 §1 표에 그대로 유지.
 > - **P1 (reserved word)**: 프런트엔드 case id 입력 검증에 `['default', 'out', 'error']` reserved list 추가. schema regex (`/^[a-zA-Z0-9_-]+$/`) 만으로는 문법 매칭만 가능, 의미 충돌 차단은 별도 layer 필요.
+> - **P1 (alias removal)**: `meta.value` deprecated alias 는 한 릴리스 후 제거 (소비처 마이그레이션 완료 후).
 > - **P2**: 매칭 실패 + `hasDefault=false` 의 throw 동작은 "비즈니스 로직 실패가 아닌 설정 실패" 로 분류되어 throw 유지 (Principle 3.1 Pre-flight 카테고리에 가까움).
 
 ## 6. 에러 코드

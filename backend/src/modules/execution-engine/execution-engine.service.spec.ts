@@ -3206,12 +3206,22 @@ describe('ExecutionEngineService', () => {
       handlerRegistry.register('body_node', bodyHandler);
 
       const sinkCalls: unknown[] = [];
+      let capturedForeachStructured:
+        | {
+            config?: unknown;
+            output?: unknown;
+            meta?: Record<string, unknown>;
+          }
+        | undefined;
       const sinkHandler: NodeHandler = {
         validate: () => ({ valid: true, errors: [] }),
-        execute: jest.fn(async (input: unknown) => {
-          sinkCalls.push(input);
-          return mockOutput({ received: input });
-        }),
+        execute: jest.fn(
+          async (input: unknown, _cfg: unknown, ctx: ExecutionContext) => {
+            sinkCalls.push(input);
+            capturedForeachStructured = ctx.structuredOutputCache?.['foreach'];
+            return mockOutput({ received: input });
+          },
+        ),
       };
       handlerRegistry.register('sink_node', sinkHandler);
 
@@ -3330,6 +3340,13 @@ describe('ExecutionEngineService', () => {
         count: 3,
         items: [{ doubled: 2 }, { doubled: 4 }, { doubled: 6 }],
       });
+      // Phase 2 (C — spec/4-nodes/1-logic/9-foreach.md §5.2): runtime metric
+      // `meta.iterations` exposes the actually executed body count
+      // (= output.items.length, including skip-placeholder slots).
+      // Principle 2 — meta carries execution metrics, not config echoes.
+      expect(capturedForeachStructured?.meta).toEqual(
+        expect.objectContaining({ iterations: 3 }),
+      );
     });
 
     it('executes Loop body N times', async () => {
@@ -3344,12 +3361,22 @@ describe('ExecutionEngineService', () => {
       handlerRegistry.register('body_node', bodyHandler);
 
       const sinkCalls: unknown[] = [];
+      let capturedLoopStructured:
+        | {
+            config?: unknown;
+            output?: unknown;
+            meta?: Record<string, unknown>;
+          }
+        | undefined;
       const sinkHandler: NodeHandler = {
         validate: () => ({ valid: true, errors: [] }),
-        execute: jest.fn(async (input: unknown) => {
-          sinkCalls.push(input);
-          return mockOutput({ done: true });
-        }),
+        execute: jest.fn(
+          async (input: unknown, _cfg: unknown, ctx: ExecutionContext) => {
+            sinkCalls.push(input);
+            capturedLoopStructured = ctx.structuredOutputCache?.['loop'];
+            return mockOutput({ done: true });
+          },
+        ),
       };
       handlerRegistry.register('sink_node', sinkHandler);
 
@@ -3461,6 +3488,156 @@ describe('ExecutionEngineService', () => {
           iterations: [{ count: 1 }, { count: 2 }, { count: 3 }, { count: 4 }],
         },
       ]);
+      // Phase 2 (C — spec/4-nodes/1-logic/3-loop.md §5.2): runtime metrics
+      // surface on `meta.*` (Principle 2). `iterations` mirrors actual
+      // executed reps; `maxIterationsReached=false` since count (4) is
+      // well below the default cap (1000).
+      expect(capturedLoopStructured?.meta).toEqual(
+        expect.objectContaining({
+          iterations: 4,
+          maxIterationsReached: false,
+        }),
+      );
+    });
+
+    it('flags maxIterationsReached when count equals maxIterations cap', async () => {
+      let counter = 0;
+      const bodyHandler: NodeHandler = {
+        validate: () => ({ valid: true, errors: [] }),
+        execute: jest.fn(async () => {
+          counter++;
+          return mockOutput({ count: counter });
+        }),
+      };
+      handlerRegistry.register('body_node', bodyHandler);
+
+      let capturedLoopStructured:
+        | {
+            config?: unknown;
+            output?: unknown;
+            meta?: Record<string, unknown>;
+          }
+        | undefined;
+      const sinkHandler: NodeHandler = {
+        validate: () => ({ valid: true, errors: [] }),
+        execute: jest.fn(
+          async (_input: unknown, _cfg: unknown, ctx: ExecutionContext) => {
+            capturedLoopStructured = ctx.structuredOutputCache?.['loop'];
+            return mockOutput({ done: true });
+          },
+        ),
+      };
+      handlerRegistry.register('sink_node', sinkHandler);
+
+      const triggerHandler: NodeHandler = {
+        validate: () => ({ valid: true, errors: [] }),
+        execute: jest.fn(async () => mockOutput({})),
+      };
+      handlerRegistry.register('source_node', triggerHandler);
+
+      // count === maxIterations: with breakCondition dormant, the loop
+      // runs to completion AND hits the cap simultaneously — the only
+      // currently observable code path that surfaces
+      // `maxIterationsReached: true` (P1 break/early-exit deferred).
+      const nodes: Partial<Node>[] = [
+        {
+          id: 'source',
+          workflowId,
+          type: 'source_node',
+          category: NodeCategory.TRIGGER,
+          label: 'source',
+          config: {},
+          isDisabled: false,
+          containerId: null,
+          toolOwnerId: null,
+        },
+        {
+          id: 'loop',
+          workflowId,
+          type: 'loop',
+          category: NodeCategory.LOGIC,
+          label: 'loop',
+          config: { count: 3, maxIterations: 3 },
+          isDisabled: false,
+          containerId: null,
+          toolOwnerId: null,
+        },
+        {
+          id: 'body',
+          workflowId,
+          type: 'body_node',
+          category: NodeCategory.LOGIC,
+          label: 'body',
+          config: {},
+          isDisabled: false,
+          containerId: 'loop',
+          toolOwnerId: null,
+        },
+        {
+          id: 'sink',
+          workflowId,
+          type: 'sink_node',
+          category: NodeCategory.LOGIC,
+          label: 'sink',
+          config: {},
+          isDisabled: false,
+          containerId: null,
+          toolOwnerId: null,
+        },
+      ];
+
+      const edges: Partial<Edge>[] = [
+        {
+          id: 'e-src-loop',
+          workflowId,
+          sourceNodeId: 'source',
+          sourcePort: 'out',
+          targetNodeId: 'loop',
+          targetPort: 'in',
+          type: EdgeType.DATA,
+        },
+        {
+          id: 'e-loop-body',
+          workflowId,
+          sourceNodeId: 'loop',
+          sourcePort: 'body',
+          targetNodeId: 'body',
+          targetPort: 'in',
+          type: EdgeType.DATA,
+        },
+        {
+          id: 'e-body-emit-loop',
+          workflowId,
+          sourceNodeId: 'body',
+          sourcePort: 'out',
+          targetNodeId: 'loop',
+          targetPort: 'emit',
+          type: EdgeType.DATA,
+        },
+        {
+          id: 'e-loop-sink',
+          workflowId,
+          sourceNodeId: 'loop',
+          sourcePort: 'done',
+          targetNodeId: 'sink',
+          targetPort: 'in',
+          type: EdgeType.DATA,
+        },
+      ];
+
+      mockNodeRepo.findBy.mockResolvedValue(nodes);
+      mockEdgeRepo.findBy.mockResolvedValue(edges);
+
+      await service.execute(workflowId, {});
+      await flushPromises();
+
+      expect(bodyHandler.execute).toHaveBeenCalledTimes(3);
+      expect(capturedLoopStructured?.meta).toEqual(
+        expect.objectContaining({
+          iterations: 3,
+          maxIterationsReached: true,
+        }),
+      );
     });
 
     // engine-config-bug — Phase 3 raw-echo 리팩터링 이후 핸들러가 echo 한
@@ -3697,12 +3874,22 @@ describe('ExecutionEngineService', () => {
       handlerRegistry.register('body_node', bodyHandler);
 
       const sinkCalls: unknown[] = [];
+      let capturedForeachStructured:
+        | {
+            config?: unknown;
+            output?: unknown;
+            meta?: Record<string, unknown>;
+          }
+        | undefined;
       const sinkHandler: NodeHandler = {
         validate: () => ({ valid: true, errors: [] }),
-        execute: jest.fn(async (input: unknown) => {
-          sinkCalls.push(input);
-          return mockOutput({ ok: true });
-        }),
+        execute: jest.fn(
+          async (input: unknown, _cfg: unknown, ctx: ExecutionContext) => {
+            sinkCalls.push(input);
+            capturedForeachStructured = ctx.structuredOutputCache?.['foreach'];
+            return mockOutput({ ok: true });
+          },
+        ),
       };
       handlerRegistry.register('sink_node', sinkHandler);
 
@@ -3809,6 +3996,10 @@ describe('ExecutionEngineService', () => {
       expect(bodyHandler.execute).not.toHaveBeenCalled();
       // Stage 5: empty foreach still emits the `{ items, count }` envelope.
       expect(sinkCalls[0]).toEqual({ count: 0, items: [] });
+      // Phase 2 (C): meta.iterations reflects 0 body executions for empty input.
+      expect(capturedForeachStructured?.meta).toEqual(
+        expect.objectContaining({ iterations: 0 }),
+      );
     });
 
     // engine-config-bug — Phase 3 raw-echo refactor에서 foreach 핸들러는
@@ -3834,12 +4025,22 @@ describe('ExecutionEngineService', () => {
       handlerRegistry.register('body_node', bodyHandler);
 
       const sinkCalls: unknown[] = [];
+      let capturedForeachStructured:
+        | {
+            config?: unknown;
+            output?: unknown;
+            meta?: Record<string, unknown>;
+          }
+        | undefined;
       const sinkHandler: NodeHandler = {
         validate: () => ({ valid: true, errors: [] }),
-        execute: jest.fn(async (input: unknown) => {
-          sinkCalls.push(input);
-          return mockOutput({ ok: true });
-        }),
+        execute: jest.fn(
+          async (input: unknown, _cfg: unknown, ctx: ExecutionContext) => {
+            sinkCalls.push(input);
+            capturedForeachStructured = ctx.structuredOutputCache?.['fe'];
+            return mockOutput({ ok: true });
+          },
+        ),
       };
       handlerRegistry.register('sink_node', sinkHandler);
 
@@ -3962,6 +4163,13 @@ describe('ExecutionEngineService', () => {
       expect(sinkPayload.skipped).toEqual([
         { index: 1, error: { code: 'Error', message: 'boom' } },
       ]);
+      // Phase 2 (C — spec/4-nodes/1-logic/9-foreach.md §5.2): meta.iterations
+      // counts every body launch (skip placeholder slots included), so the
+      // metric matches `output.items.length`. `meta.skippedCount` (Phase 1 D)
+      // continues to mirror `output.skipped.length`.
+      expect(capturedForeachStructured?.meta).toEqual(
+        expect.objectContaining({ iterations: 3, skippedCount: 1 }),
+      );
     });
 
     // Companion case for `errorPolicy: 'continue'` — same observable
@@ -3981,12 +4189,22 @@ describe('ExecutionEngineService', () => {
       handlerRegistry.register('body_node', bodyHandler);
 
       const sinkCalls: unknown[] = [];
+      let capturedForeachStructured:
+        | {
+            config?: unknown;
+            output?: unknown;
+            meta?: Record<string, unknown>;
+          }
+        | undefined;
       const sinkHandler: NodeHandler = {
         validate: () => ({ valid: true, errors: [] }),
-        execute: jest.fn(async (input: unknown) => {
-          sinkCalls.push(input);
-          return mockOutput({ ok: true });
-        }),
+        execute: jest.fn(
+          async (input: unknown, _cfg: unknown, ctx: ExecutionContext) => {
+            sinkCalls.push(input);
+            capturedForeachStructured = ctx.structuredOutputCache?.['fe'];
+            return mockOutput({ ok: true });
+          },
+        ),
       };
       handlerRegistry.register('sink_node', sinkHandler);
 
@@ -4103,6 +4321,11 @@ describe('ExecutionEngineService', () => {
       expect(sinkPayload.skipped).toEqual([
         { index: 1, error: { code: 'Error', message: 'boom' } },
       ]);
+      // Phase 2 (C): same meta contract as `errorPolicy: 'skip'` — iterations
+      // counts every launched body (3) and skippedCount mirrors skipped.length.
+      expect(capturedForeachStructured?.meta).toEqual(
+        expect.objectContaining({ iterations: 3, skippedCount: 1 }),
+      );
     });
 
     it('fails execution when container has no emit edge', async () => {

@@ -100,7 +100,13 @@
   },
   "output": { "user": { "id": 7, "name": "Alice" } },
   "meta": {
-    "durationMs": 1
+    "durationMs": 1,
+    "modifications": [
+      { "variable": "counter", "operation": "increment", "applied": true },
+      { "variable": "log",     "operation": "append",    "applied": true }
+    ],
+    "coercionWarnings": [],
+    "createdVariables": []
   }
 }
 ```
@@ -110,14 +116,12 @@
 | `config.modifications` | ModDef[] | config echo (Principle 7) | 사용자가 입력한 raw 수정 목록 — `value` 의 `{{ }}` 표현식은 평가 전 형태로 보존 (`backend/src/nodes/logic/variable-modification/variable-modification.handler.ts` 가 `context.rawConfig.modifications` 를 echo) |
 | `output` | (input 전체) | runtime — pass-through | input 데이터 그대로 (변형 없음). side-effect 는 `context.variables` 로만 발생 |
 | `meta.durationMs` | number | engine inject | 실행 시간 (ms). 모든 노드 공통 |
+| `meta.modifications` | `Array<{ variable: string, operation: string, applied: boolean }>` | handler | 적용된 modification 목록. `variable` 누락이나 `pop` on non-array 등 no-op 인 경우 `applied=false` (CONVENTIONS Principle 2 — 실행 메트릭) |
+| `meta.coercionWarnings` | `Array<{ variable: string, operation: string, fromType: string, error?: string }>` | handler | 비-매칭 타입 fallback (`increment` on non-number → `0`, `append` on non-string → `''`, `push` / `pop` on non-array) 이 발생한 항목. 변수 미존재 (initial create) 는 경고 대상이 아니다 |
+| `meta.createdVariables` | `string[]` | handler | 본 modification 에서 선언 없이 처음 생성된 변수 이름 (사용자 오탈자 감지) |
 | `port` | (생략) | — | 단일 출력 노드이므로 `undefined` (CONVENTIONS Principle 5) |
 | `status` | (생략) | — | 비-블로킹 노드이므로 `undefined` |
 
-> ⚠ **미구현 (P1)**: 현재 `variable-modification.handler.ts` 는 `meta` 에 `durationMs` 외 추가 필드를 반환하지 않는다. 아래 [user_memo 개선안 §3](../../../user_memo/node-specs-improvement/logic/variable_modification.md#3-제안된-output-구조) 의 P1 추가 메트릭은 코드 반영 시까지 표기만 유지:
-> - `meta.modifications: Array<{ variable, operation, previousValue, newValue }>` — 적용된 각 변경의 before/after (디버깅·감사 추적). `variable_declaration.meta.declaredVariables` 와 대칭.
-> - `meta.coercionWarnings: Array<{ index, variable, operation, reason }>` — 비-매칭 타입 fallback (`increment` on non-number → `0`, `append` on non-string → `''`, `push` on non-array → 덮어쓰기) 가 발생한 항목.
-> - `meta.createdVariables: string[]` — 선언 없이 이 노드가 처음 생성한 변수 이름 (사용자 오탈자 감지).
->
 > `meta.durationMs` 는 엔진이 모든 노드에 공통 주입하는 값으로, 별도 핸들러 변경 없이 채워진다.
 
 **Expression 접근 예** (위 예시의 노드 이름이 `"X"` 일 때):
@@ -125,7 +129,8 @@
 - `$node["X"].config.modifications[0].value` → `"{{ $delta }}"` (raw — 평가 전 표현식 보존)
 - `$var.counter` → 평가된 `$delta` 만큼 증가된 값 (예: `5`)
 - `$var.log` → `"...processing done"` (이전 값 + `" done"`)
-- `$node["X"].meta.modifications` → `[{ variable, operation, previousValue, newValue }, ...]` (P1 구현 후)
+- `$node["X"].meta.modifications[0].applied` → `true` (해당 변경이 실제 반영됨)
+- `$node["X"].meta.coercionWarnings.length` → `0` (타입 mismatch fallback 미발생)
 
 ## 6. 에러 코드
 

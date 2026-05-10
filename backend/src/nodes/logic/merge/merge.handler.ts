@@ -101,22 +101,53 @@ export class MergeHandler implements NodeHandler {
     }
 
     const inputs = this.normalizeInputs(input);
-    const formatted =
-      strategy === 'first'
-        ? this.formatOutput([inputs[0]], outputFormat)
-        : this.formatOutput(inputs, outputFormat);
+    const effectiveInputs = strategy === 'first' ? [inputs[0]] : inputs;
+    const { output: formatted, skippedKeys } = this.formatOutput(
+      effectiveInputs,
+      outputFormat,
+    );
+
+    // CONVENTIONS Principle 2 — meta carries execution metrics.
+    //  - inputCount: number of effective merged inputs (post strategy slicing,
+    //    so `first` reports 1). Lets downstream nodes know fan-in size without
+    //    re-deriving it from `output` (whose shape varies by outputFormat).
+    //  - strategy / outputFormat: echo the resolved values (defaults applied)
+    //    so downstream branches can key on meta without falling back to config.
+    //  - skippedKeys: prototype-pollution drops surfaced for merge_object
+    //    (Principle 3 — silent failure 해소). Always present (empty array for
+    //    other formats) so consumers don't need conditional guards.
+    //  - dormantFields: P1-dormant config fields (`timeout` > 0,
+    //    `partialOnTimeout=true`) that were configured but have no runtime
+    //    effect until the Phase P2 fan-in barrier ships. Mirrors the warn log.
+    //    Always present (empty array when none) for consumer simplicity.
+    // `meta.durationMs` is injected by the engine, not here.
 
     // CONVENTIONS Principle 7 — config echoes raw strategy / outputFormat.
     // merge config fields are bounded enums (no `{{ ... }}` templates), so
     // raw === evaluated in the common case; rawConfig is still used for
     // consistency.
     const rawConfig = (context.rawConfig ?? config) as unknown as MergeConfig;
+    const dormantFields: string[] = [];
+    if (typeof timeout === 'number' && timeout > 0) {
+      dormantFields.push('timeout');
+    }
+    if (partialOnTimeout === true) {
+      dormantFields.push('partialOnTimeout');
+    }
+
     return {
       config: {
         strategy: rawConfig.strategy ?? DEFAULT_STRATEGY,
         outputFormat: rawConfig.outputFormat ?? DEFAULT_OUTPUT_FORMAT,
       },
       output: formatted,
+      meta: {
+        inputCount: effectiveInputs.length,
+        strategy,
+        outputFormat,
+        skippedKeys,
+        dormantFields,
+      },
     };
   }
 
@@ -134,35 +165,47 @@ export class MergeHandler implements NodeHandler {
     return [input];
   }
 
-  private formatOutput(inputs: unknown[], outputFormat: string): unknown {
+  private formatOutput(
+    inputs: unknown[],
+    outputFormat: string,
+  ): { output: unknown; skippedKeys: string[] } {
     switch (outputFormat) {
       case 'array':
-        return inputs;
+        return { output: inputs, skippedKeys: [] };
       case 'merge_object': {
         const merged = Object.create(null) as Record<string, unknown>;
         const blockedKeys = new Set(['__proto__', 'constructor', 'prototype']);
+        // Use Set to dedupe — same blocked key may appear in multiple inputs
+        // and we only need one entry per dropped key in meta.skippedKeys.
+        const skipped = new Set<string>();
         for (const item of inputs) {
           if (typeof item === 'object' && item !== null) {
+            // Use Object.getOwnPropertyNames to also detect __proto__ when set
+            // as an own property (literal object syntax doesn't create it as
+            // own, but Object.defineProperty / Object.assign with computed key
+            // can). Object.entries skips non-enumerable, so we mirror that.
             for (const [key, value] of Object.entries(
               item as Record<string, unknown>,
             )) {
-              if (!blockedKeys.has(key)) {
+              if (blockedKeys.has(key)) {
+                skipped.add(key);
+              } else {
                 merged[key] = value;
               }
             }
           }
         }
-        return merged;
+        return { output: merged, skippedKeys: Array.from(skipped).sort() };
       }
       case 'indexed': {
         const indexed: Record<string, unknown> = {};
         for (let i = 0; i < inputs.length; i++) {
           indexed[`in_${i}`] = inputs[i];
         }
-        return indexed;
+        return { output: indexed, skippedKeys: [] };
       }
       default:
-        return inputs;
+        return { output: inputs, skippedKeys: [] };
     }
   }
 }

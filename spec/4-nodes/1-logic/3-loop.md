@@ -125,6 +125,10 @@ body 내부에서 다음 변수에 접근 가능:
       "body emit result 1",
       "body emit result 2"
     ]
+  },
+  "meta": {
+    "iterations": 3,
+    "maxIterationsReached": false
   }
 }
 ```
@@ -133,13 +137,11 @@ body 내부에서 다음 변수에 접근 가능:
 |------|------|------|------|
 | `config.*` | (§5.1과 동일) | config echo | 핸들러가 반환한 raw config 가 보존됨 (엔진 오버라이트는 `output` 만 영향) |
 | `output.iterations` | unknown[] | **engine override** (Principle 9.2) | 각 반복의 emit 노드 출력을 인덱스 순서로 수집한 배열. 길이 = 실제 실행된 반복 수 |
+| `meta.iterations` | number | **engine inject** (Principle 2) | 실제 실행된 반복 수. 정상 완료 시 `config.count` 와 같지만 `breakCondition` (P1) / 에러로 조기 종료 시 작아질 수 있는 **런타임 메트릭**. `output.iterations.length` 와 동일 값 — `output` 은 결과 배열, `meta` 는 메트릭 축으로 분리되어 있음 |
+| `meta.maxIterationsReached` | boolean | engine inject (Principle 2) | 반복이 `config.maxIterations` (또는 default `1000`) 캡에 도달하여 종료되었는지 여부. `breakCondition` 미구현(P1) 상태에서는 `count === maxIterations` 로 한도까지 정상 완료한 경우에만 `true` 가 된다 (한도 초과 시점에는 `MAX_ITERATIONS_EXCEEDED` throw — §6) |
+| `meta.durationMs` | number | engine inject (CONVENTIONS Principle 2 공통) | 컨테이너 전체 소요 시간 (ms) |
 
-> CONVENTIONS Principle 1.1 (config ↔ output 직교) 준수를 위해 `output.count` 는 **제공하지 않는다** — 정상 완료 시 `config.count` 와 동일하고, 조기 종료 시에는 `output.iterations.length` 가 사실상의 실행 횟수다. 다운스트림은 항상 `output.iterations.length` 를 사용한다.
->
-> ⚠ **미구현 (P1) — `meta.*` 옵저버빌리티 도입 (Phase 2)**: user_memo 개선안([logic/loop.md §3](../../../user_memo/node-specs-improvement/logic/loop.md))은 다음 메트릭 추가를 제안한다:
-> - `meta.iterations` (실제 실행된 반복 수, breakCondition / 에러로 조기 종료 시 `config.count` 와 다를 수 있는 런타임 메트릭, Principle 2 Container 행)
-> - `meta.maxIterationsReached` (boolean) — maxIterations 도달로 종료된 경우 표시
-> - `meta.durationMs` (엔진 공통 inject)
+> CONVENTIONS Principle 1.1 (config ↔ output 직교) 준수를 위해 `output.count` 는 **제공하지 않는다** — 정상 완료 시 `config.count` 와 동일하고, 조기 종료 시에는 `output.iterations.length` 가 사실상의 실행 횟수다. 다운스트림은 항상 `output.iterations.length` 또는 `meta.iterations` 를 사용한다.
 
 **Expression 접근 예** (현재 엔진 동작 기준):
 - `$node["Loop"].output.iterations[0]` → `"body emit result 0"`

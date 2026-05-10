@@ -157,8 +157,8 @@ spec/4-nodes/ 의 해당 ⚠ 미구현 (P0/P1) 마커 제거.
 | `variable_modification` | `meta.modifications[]`, `meta.coercionWarnings[]`, `meta.createdVariables[]` |
 | `split` | `meta.itemCount`, `meta.fellBackToEmpty` |
 | `filter` | `meta.matchedCount`, `meta.unmatchedCount`, `meta.totalCount`, `meta.fellBackToEmpty`, `meta.invalidRegexPatterns[]` + `null`/`undefined` 입력 `[]` fallback (Principle 10) |
-| `map` | 시작 시점 `output: null` 통일 (loop/foreach 와 일관) |
-| `foreach` | `meta.iterations` (Container 메트릭) |
+| `map` | ✅ 작업 불필요 (2026-05-10) — 코드 정독 결과 본 항목은 잘못된 전제. ForEach 핸들러가 `output: items[]` (배열) 를 반환하고 엔진(`execution-engine.service.ts:4362, 4399`) 의 `runContainerInner` 가 `structured?.output` 을 읽어 `ForEachExecutor` 의 `array` 입력으로 사용한다. Loop 만 `output: null` 인 이유는 Loop 가 배열이 아닌 `count` (config) 로 반복하기 때문. Map 은 ForEach 와 동일하게 `items[]` 를 반환해야 하며 (`map.handler.ts:58`) 현재 구현이 이미 그렇다. spec/4-nodes/1-logic/7-map.md §5.1·§5.7 도 `output: items[]` 로 정확히 기술됨 — `⚠ 미구현 (C/P1)` 마커 없음. 본 행은 plan 작성 시 ForEach 의 동작을 잘못 가정한 것이며, 코드/spec 변경 없음 |
+| `foreach` | `meta.iterations` (Container 메트릭) — ✅ 완료 (2026-05-10) — 엔진 finalize(`execution-engine.service.ts:4361~`) 가 `meta.iterations = output.items.length` 주입 (skip placeholder 슬롯 포함, body 실행 횟수). 통합 테스트 4 케이스(success/empty/skip/continue) 모두 `meta.iterations` 검증 추가. spec §5.7 의 ⚠ 미구현 (P1) 마커 제거 |
 | `merge` | `meta.inputCount`, `meta.strategy`, `meta.outputFormat`, `meta.skippedKeys[]`, `meta.dormantFields[]` |
 | `background` | `meta.durationMs`, `meta.backgroundRunId`, `meta.forkedAt`, `meta.jobId` |
 
@@ -176,7 +176,7 @@ feat(nodes/logic): C — 메타메트릭 추가 (10 노드)
 switch/loop/variable_declaration/variable_modification/split/filter/map/foreach/merge/background 핸들러에 meta.* 옵저버빌리티 필드 추가. Principle 2 (meta는 실행 메트릭) 정합.
 
 filter: null/undefined 입력 [] fallback (Principle 10) + meta.fellBackToEmpty 가시화.
-map: 시작 시점 output: null 통일 (loop/foreach 와 일관).
+map: 항목 제외 — 본 행은 ForEach 의 동작을 잘못 가정한 것 (ForEach 핸들러도 `output: items[]` 반환, 엔진이 그것을 executor 입력으로 사용). 현재 Map 구현이 이미 ForEach 와 일관됨. 코드/spec 변경 없음.
 
 비-breaking (additive). spec/4-nodes/1-logic/ 의 ⚠ 미구현 (C) 마커 제거.
 ```

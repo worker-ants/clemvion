@@ -584,6 +584,118 @@ describe('SwitchHandler', () => {
     });
   });
 
+  // Phase 2 (C) — additive meta metrics.
+  // CONVENTIONS Principle 2 — meta is execution metrics. Adds:
+  //   meta.matchedCaseLabel, meta.matchedCaseIndex, meta.resolvedValue
+  // (`meta.value` retained one release as deprecated alias).
+  describe('meta metrics: matchedCaseLabel / matchedCaseIndex / resolvedValue', () => {
+    it('exposes label + index of the matched case (mode=value)', async () => {
+      const result = (await handler.execute(
+        {},
+        {
+          switchValue: '양식',
+          cases: [
+            { id: 'case_korean', label: '한식 선택', value: '한식' },
+            { id: 'case_western', label: '양식 선택', value: '양식' },
+            { id: 'case_chinese', label: '중식 선택', value: '중식' },
+          ],
+          hasDefault: true,
+        },
+        context,
+      )) as unknown as { meta: Record<string, unknown> };
+      expect(result.meta).toMatchObject({
+        mode: 'value',
+        matchedCase: 'case_western',
+        matchedCaseLabel: '양식 선택',
+        matchedCaseIndex: 1,
+        resolvedValue: '양식',
+        value: '양식', // deprecated alias preserved one release
+      });
+    });
+
+    it('exposes resolvedValue as deprecated `value` alias (same primitive)', async () => {
+      const result = (await handler.execute(
+        {},
+        {
+          switchValue: 42,
+          cases: [{ id: 'num', value: 42 }],
+          hasDefault: true,
+        },
+        context,
+      )) as unknown as { meta: { resolvedValue: unknown; value: unknown } };
+      expect(result.meta.resolvedValue).toBe(42);
+      expect(result.meta.value).toBe(42);
+    });
+
+    it('omits matchedCaseLabel when matched case has no label', async () => {
+      const result = (await handler.execute(
+        {},
+        {
+          switchValue: 'x',
+          cases: [{ id: 'unlabeled', value: 'x' }],
+          hasDefault: true,
+        },
+        context,
+      )) as unknown as { meta: Record<string, unknown> };
+      expect(result.meta.matchedCase).toBe('unlabeled');
+      expect(result.meta.matchedCaseLabel).toBeUndefined();
+      expect(result.meta.matchedCaseIndex).toBe(0);
+    });
+
+    it('default fallback sets matchedCaseIndex=-1 and matchedCaseLabel=undefined', async () => {
+      const result = (await handler.execute(
+        {},
+        {
+          switchValue: 'missing',
+          cases: [
+            { id: 'a', label: 'A', value: 'a' },
+            { id: 'b', label: 'B', value: 'b' },
+          ],
+          hasDefault: true,
+        },
+        context,
+      )) as unknown as { port: string; meta: Record<string, unknown> };
+      expect(result.port).toBe('default');
+      expect(result.meta).toMatchObject({
+        matchedCase: 'default',
+        matchedCaseIndex: -1,
+        resolvedValue: 'missing',
+      });
+      expect(result.meta.matchedCaseLabel).toBeUndefined();
+    });
+
+    it('exposes index in expression mode but no resolvedValue', async () => {
+      const result = (await handler.execute(
+        { user: { age: 20, role: 'admin' } },
+        {
+          mode: 'expression',
+          cases: [
+            {
+              id: 'minor',
+              label: 'Minor',
+              condition: { field: 'user.age', operator: 'lt', value: 18 },
+            },
+            {
+              id: 'adult_admin',
+              label: 'Adult Admin',
+              condition: { field: 'user.role', operator: 'eq', value: 'admin' },
+            },
+          ],
+          hasDefault: true,
+        },
+        context,
+      )) as unknown as { meta: Record<string, unknown> };
+      expect(result.meta).toMatchObject({
+        mode: 'expression',
+        matchedCase: 'adult_admin',
+        matchedCaseLabel: 'Adult Admin',
+        matchedCaseIndex: 1,
+      });
+      expect(result.meta.resolvedValue).toBeUndefined();
+      expect(result.meta.value).toBeUndefined();
+    });
+  });
+
   // ENG-RC-* — Phase 3 raw-echo migration.
   describe('config echoes rawConfig over evaluated config', () => {
     it('preserves `{{ ... }}` switchValue template', async () => {

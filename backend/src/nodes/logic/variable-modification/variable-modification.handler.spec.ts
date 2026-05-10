@@ -407,4 +407,165 @@ describe('VariableModificationHandler', () => {
       expect(context.variables.counter).toBe(5);
     });
   });
+
+  // Phase 2 (C) — meta metrics for debugging / audit.
+  describe('meta metrics', () => {
+    it('records each modification as applied with variable + operation', async () => {
+      context.variables.count = 5;
+      const result = (await handler.execute(
+        null,
+        {
+          modifications: [
+            { variable: 'count', operation: 'increment', value: 1 },
+            { variable: 'msg', operation: 'set', value: 'hi' },
+          ],
+        },
+        context,
+      )) as unknown as { meta: { modifications: unknown } };
+      expect(result.meta.modifications).toEqual([
+        { variable: 'count', operation: 'increment', applied: true },
+        { variable: 'msg', operation: 'set', applied: true },
+      ]);
+    });
+
+    it('reports createdVariables for set on missing variable', async () => {
+      const result = (await handler.execute(
+        null,
+        {
+          modifications: [{ variable: 'fresh', operation: 'set', value: 1 }],
+        },
+        context,
+      )) as unknown as { meta: { createdVariables: string[] } };
+      expect(result.meta.createdVariables).toEqual(['fresh']);
+    });
+
+    it('does not list createdVariables when the variable already exists', async () => {
+      context.variables.existing = 'old';
+      const result = (await handler.execute(
+        null,
+        {
+          modifications: [
+            { variable: 'existing', operation: 'set', value: 'new' },
+          ],
+        },
+        context,
+      )) as unknown as { meta: { createdVariables: string[] } };
+      expect(result.meta.createdVariables).toEqual([]);
+    });
+
+    it('reports createdVariables for increment / append / push on missing variable', async () => {
+      const result = (await handler.execute(
+        null,
+        {
+          modifications: [
+            { variable: 'a', operation: 'increment', value: 1 },
+            { variable: 'b', operation: 'append', value: 'x' },
+            { variable: 'c', operation: 'push', value: 1 },
+          ],
+        },
+        context,
+      )) as unknown as { meta: { createdVariables: string[] } };
+      expect(result.meta.createdVariables).toEqual(['a', 'b', 'c']);
+    });
+
+    it('records coercionWarnings on type-mismatch fallback (increment on string)', async () => {
+      context.variables.count = 'not-a-number';
+      const result = (await handler.execute(
+        null,
+        {
+          modifications: [
+            { variable: 'count', operation: 'increment', value: 2 },
+          ],
+        },
+        context,
+      )) as unknown as { meta: { coercionWarnings: unknown[] } };
+      expect(result.meta.coercionWarnings).toEqual([
+        { variable: 'count', operation: 'increment', fromType: 'string' },
+      ]);
+    });
+
+    it('records coercionWarnings on append over non-string', async () => {
+      context.variables.msg = 42;
+      const result = (await handler.execute(
+        null,
+        {
+          modifications: [{ variable: 'msg', operation: 'append', value: 'x' }],
+        },
+        context,
+      )) as unknown as { meta: { coercionWarnings: unknown[] } };
+      expect(result.meta.coercionWarnings).toEqual([
+        { variable: 'msg', operation: 'append', fromType: 'number' },
+      ]);
+    });
+
+    it('records coercionWarnings on push over non-array', async () => {
+      context.variables.list = 'not-array';
+      const result = (await handler.execute(
+        null,
+        {
+          modifications: [{ variable: 'list', operation: 'push', value: 1 }],
+        },
+        context,
+      )) as unknown as { meta: { coercionWarnings: unknown[] } };
+      expect(result.meta.coercionWarnings).toEqual([
+        { variable: 'list', operation: 'push', fromType: 'string' },
+      ]);
+    });
+
+    it('records coercionWarnings on pop over non-array (and marks not coerced as no-op)', async () => {
+      context.variables.list = 'not-array';
+      const result = (await handler.execute(
+        null,
+        {
+          modifications: [{ variable: 'list', operation: 'pop' }],
+        },
+        context,
+      )) as unknown as {
+        meta: {
+          coercionWarnings: unknown[];
+          modifications: Array<{ applied: boolean }>;
+        };
+      };
+      expect(result.meta.coercionWarnings).toEqual([
+        { variable: 'list', operation: 'pop', fromType: 'string' },
+      ]);
+      // pop on non-array is a no-op — applied=false (CONVENTIONS Principle 2).
+      expect(result.meta.modifications[0].applied).toBe(false);
+    });
+
+    it('does NOT emit a coercionWarning when the variable is missing (initial create)', async () => {
+      const result = (await handler.execute(
+        null,
+        {
+          modifications: [
+            { variable: 'count', operation: 'increment', value: 5 },
+          ],
+        },
+        context,
+      )) as unknown as { meta: { coercionWarnings: unknown[] } };
+      expect(result.meta.coercionWarnings).toEqual([]);
+    });
+
+    it('returns empty meta arrays when nothing notable occurs', async () => {
+      context.variables.n = 1;
+      const result = (await handler.execute(
+        null,
+        {
+          modifications: [{ variable: 'n', operation: 'increment', value: 1 }],
+        },
+        context,
+      )) as unknown as {
+        meta: {
+          modifications: unknown[];
+          coercionWarnings: unknown[];
+          createdVariables: string[];
+        };
+      };
+      expect(result.meta.coercionWarnings).toEqual([]);
+      expect(result.meta.createdVariables).toEqual([]);
+      expect(result.meta.modifications).toEqual([
+        { variable: 'n', operation: 'increment', applied: true },
+      ]);
+    });
+  });
 });
