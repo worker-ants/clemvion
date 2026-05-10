@@ -145,6 +145,8 @@
 - `$node["X"].config.workflowId` → `"wf_uuid_1234"` (대상 워크플로우 정의 ID)
 - `$node["X"].port` → `undefined` (= 기본 `'out'`)
 
+> ℹ️ **이중 중첩 케이스**: 서브 워크플로우의 최종 노드 output 자체에 `result` 키가 있으면 접근 경로가 `output.result.result` 가 된다. 의도된 동작 — 1단 래핑은 항상 일정하게 적용된다. 위 예시도 sub_workflow output 이 `{ result: 'success', data: [1,2,3] }` 인 경우라 `output.result.result === 'success'` 이다.
+
 ### 5.2 Case: Async 정상 (port `out`)
 
 ```json
@@ -194,7 +196,7 @@
   },
   "output": {
     "error": {
-      "code": "SUB_WORKFLOW_FAILED",
+      "code": "SUB_WORKFLOW_NOT_FOUND",
       "message": "Workflow not found: wf_uuid_9999",
       "details": {
         "workflowId": "wf_uuid_9999",

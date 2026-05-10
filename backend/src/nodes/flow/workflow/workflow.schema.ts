@@ -56,13 +56,10 @@ export const workflowNodeOutputSchema = z
       .passthrough()
       .optional(),
     output: z.unknown().optional(),
-    meta: z
-      .object({
-        status: z.string().optional(),
-      })
-      .partial()
-      .passthrough()
-      .optional(),
+    // `meta` reserved for engine-injected metrics (e.g. `durationMs`).
+    // Async progress markers live on the top-level `status` field instead
+    // of `meta.status`, so we do not declare a `status` shape here.
+    meta: z.object({}).partial().passthrough().optional(),
     port: z.enum(['out', 'error']).optional(),
     status: z.string().optional(),
   })

@@ -85,6 +85,10 @@ code: ["backend/src/nodes/flow/workflow/workflow.schema.ts"]
   "workflowId": "…",
   "status": "started"
 }
+
+// 표현식 접근 예
+// $node["X"].output.executionId  → "9f2c-…-…"
+// $node["X"].status              → "started"  (top-level status)
 ```
 </Example>
 

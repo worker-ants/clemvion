@@ -25,7 +25,9 @@ describe('ErrorCode enum', () => {
     expect(ErrorCode.CODE_EXECUTION_FAILED).toBeDefined();
     expect(ErrorCode.CODE_TIMEOUT).toBeDefined();
     expect(ErrorCode.SUB_WORKFLOW_FAILED).toBeDefined();
-    // Sub-workflow specific codes added in Phase 1 A-3.
+    // Sub-workflow failure-mode subdivision: missing target / timeout /
+    // queue enqueue failure are mapped from executor messages so workflow
+    // authors can branch on cause.
     expect(ErrorCode.SUB_WORKFLOW_NOT_FOUND).toBeDefined();
     expect(ErrorCode.SUB_WORKFLOW_TIMEOUT).toBeDefined();
     expect(ErrorCode.SUB_WORKFLOW_QUEUE_FAILED).toBeDefined();

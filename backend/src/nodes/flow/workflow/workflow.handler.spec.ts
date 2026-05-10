@@ -119,7 +119,7 @@ describe('WorkflowHandler', () => {
       mode: 'sync' as const,
     };
 
-    it('should call executeInline and wrap sub-workflow output under output.result (D-1)', async () => {
+    it('should call executeInline and wrap sub-workflow output under output.result', async () => {
       const subOutput = { result: 'success', data: [1, 2, 3] };
       mockExecutor.executeInline.mockResolvedValue(subOutput);
 
@@ -129,8 +129,8 @@ describe('WorkflowHandler', () => {
         context,
       );
 
-      // D-1: sync result is wrapped one level under output.result so the
-      // shape stays uniform regardless of the sub-workflow's final output.
+      // Sync result is wrapped one level under output.result so the shape
+      // stays uniform regardless of the sub-workflow's final output.
       expect((result as { output: unknown }).output).toEqual({
         result: subOutput,
       });
@@ -217,7 +217,7 @@ describe('WorkflowHandler', () => {
       mode: 'async' as const,
     };
 
-    it('should call executeAsync and return execution info (A-2)', async () => {
+    it('should call executeAsync and return execution info', async () => {
       mockExecutor.executeAsync.mockResolvedValue('sub-exec-async-1');
 
       const result = await handler.execute(
@@ -226,8 +226,9 @@ describe('WorkflowHandler', () => {
         context,
       );
 
-      // A-2: async output is enriched with workflowId + status, and the
-      // top-level `status` field is set (replacing the old `meta.status`).
+      // Async output exposes the full envelope (executionId for the new
+      // sub-execution, workflowId echo, status) and surfaces queue-progress
+      // on the top-level `status` slot rather than under `meta`.
       expect(result).toMatchObject({
         config: { workflowId: 'sub-wf-1', mode: 'async' },
         output: {
@@ -237,7 +238,7 @@ describe('WorkflowHandler', () => {
         },
         status: 'started',
       });
-      // The previous `meta.status: 'started'` is no longer emitted.
+      // No `meta` is emitted — async progress lives on top-level `status`.
       expect((result as { meta?: unknown }).meta).toBeUndefined();
       expect(mockExecutor.executeAsync).toHaveBeenCalledWith(
         'sub-wf-1',
@@ -289,7 +290,7 @@ describe('WorkflowHandler', () => {
         context,
       );
 
-      // D-1 wrap: output.result holds the sub-workflow output.
+      // Sync wrap: output.result holds the sub-workflow output.
       expect((result as { output: unknown }).output).toEqual({
         result: { ok: true },
       });
@@ -391,7 +392,7 @@ describe('WorkflowHandler', () => {
     });
   });
 
-  describe('execute - error propagation (A-3 code mapping)', () => {
+  describe('execute - error propagation (code mapping)', () => {
     type ErrorResult = {
       port: string;
       output: {
@@ -458,6 +459,23 @@ describe('WorkflowHandler', () => {
       expect(result.output.error.message).toContain('timed out');
     });
 
+    it('maps "timed out" → SUB_WORKFLOW_TIMEOUT (async path symmetry)', async () => {
+      // Async path also routes through buildSubWorkflowError, so a "timed
+      // out" message there should produce the same code as in sync.
+      mockExecutor.executeAsync.mockRejectedValue(
+        new Error('Sub-workflow execution timed out after 300000ms'),
+      );
+
+      const result = (await handler.execute(
+        {},
+        { workflowId: 'sub-wf-1', mode: 'async' },
+        context,
+      )) as unknown as ErrorResult;
+      expect(result.port).toBe('error');
+      expect(result.output.error.code).toBe(ErrorCode.SUB_WORKFLOW_TIMEOUT);
+      expect(result.output.error.details).toMatchObject({ mode: 'async' });
+    });
+
     it('maps queue enqueue failures → SUB_WORKFLOW_QUEUE_FAILED (async path)', async () => {
       mockExecutor.executeAsync.mockRejectedValue(
         new Error('Queue enqueue failed: connection refused'),
@@ -472,6 +490,26 @@ describe('WorkflowHandler', () => {
       expect(result.output.error.code).toBe(
         ErrorCode.SUB_WORKFLOW_QUEUE_FAILED,
       );
+    });
+
+    it('maps queue enqueue failures → SUB_WORKFLOW_QUEUE_FAILED (sync path symmetry)', async () => {
+      // QUEUE_FAILED is semantically tied to async dispatch but the sync
+      // path's buildSubWorkflowError shares the same mapper, so symmetric
+      // coverage protects against accidental code-path divergence.
+      mockExecutor.executeInline.mockRejectedValue(
+        new Error('Queue enqueue failed: redis offline'),
+      );
+
+      const result = (await handler.execute(
+        {},
+        { workflowId: 'sub-wf-1', mode: 'sync' },
+        context,
+      )) as unknown as ErrorResult;
+      expect(result.port).toBe('error');
+      expect(result.output.error.code).toBe(
+        ErrorCode.SUB_WORKFLOW_QUEUE_FAILED,
+      );
+      expect(result.output.error.details).toMatchObject({ mode: 'sync' });
     });
 
     it('falls back to SUB_WORKFLOW_FAILED for generic runtime errors', async () => {
@@ -494,6 +532,37 @@ describe('WorkflowHandler', () => {
         mode: 'sync',
       });
     });
+
+    it('handles non-Error rejections (string / object) without throwing', async () => {
+      // Defensive: callers may `throw 'plain string'` or `throw { code: 'x' }`.
+      // The handler should still emit a structured envelope.
+      mockExecutor.executeInline.mockRejectedValue('plain string error');
+
+      const result = (await handler.execute(
+        {},
+        { workflowId: 'sub-wf-1', mode: 'sync' },
+        context,
+      )) as unknown as ErrorResult;
+      expect(result.port).toBe('error');
+      expect(result.output.error.code).toBe(ErrorCode.SUB_WORKFLOW_FAILED);
+      expect(result.output.error.message).toBe('plain string error');
+    });
+
+    it('truncates very long error messages before emitting them', async () => {
+      const longMessage = `boom: ${'x'.repeat(2000)}`;
+      mockExecutor.executeInline.mockRejectedValue(new Error(longMessage));
+
+      const result = (await handler.execute(
+        {},
+        { workflowId: 'sub-wf-1', mode: 'sync' },
+        context,
+      )) as unknown as ErrorResult;
+      // `truncateForErrorDetails` caps at 500 chars + suffix.
+      expect(result.output.error.message.length).toBeLessThan(
+        longMessage.length,
+      );
+      expect(result.output.error.message).toContain('chars truncated');
+    });
   });
 
   describe('mapSubWorkflowError (unit)', () => {
@@ -506,12 +575,24 @@ describe('WorkflowHandler', () => {
       );
     });
 
-    it('detects timeout messages by either "timed out" or "timeout"', () => {
+    it('matches the executor\'s "timed out" phrasing for SUB_WORKFLOW_TIMEOUT', () => {
       expect(mapSubWorkflowError('execution timed out after 300000ms')).toBe(
         ErrorCode.SUB_WORKFLOW_TIMEOUT,
       );
+      expect(
+        mapSubWorkflowError('Sub-workflow execution timed out after 5s'),
+      ).toBe(ErrorCode.SUB_WORKFLOW_TIMEOUT);
+    });
+
+    it('does NOT promote inner-node "timeout" messages to SUB_WORKFLOW_TIMEOUT', () => {
+      // Tighten match: avoid reclassifying unrelated inner-node errors that
+      // happen to mention "timeout" (e.g. a DB driver error inside a
+      // sub-workflow node).
+      expect(
+        mapSubWorkflowError('PostgreSQL connection timeout after 5s'),
+      ).toBe(ErrorCode.SUB_WORKFLOW_FAILED);
       expect(mapSubWorkflowError('Sub-workflow timeout exceeded')).toBe(
-        ErrorCode.SUB_WORKFLOW_TIMEOUT,
+        ErrorCode.SUB_WORKFLOW_FAILED,
       );
     });
 
@@ -524,6 +605,11 @@ describe('WorkflowHandler', () => {
       );
       // "queue" alone (without a failure marker) does not promote to QUEUE_FAILED.
       expect(mapSubWorkflowError('queue is full and idle')).toBe(
+        ErrorCode.SUB_WORKFLOW_FAILED,
+      );
+      // Boundary: "queue error occurred" lacks the failure markers we look
+      // for, so it stays as the generic fallback. Documented intentionally.
+      expect(mapSubWorkflowError('queue error occurred')).toBe(
         ErrorCode.SUB_WORKFLOW_FAILED,
       );
     });
