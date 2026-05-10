@@ -1,6 +1,35 @@
 import { TextClassifierHandler } from './text-classifier.handler';
 import { ExecutionContext } from '../../core/node-handler.interface';
 
+// Shared assertion for the error-path meta contract (CONVENTIONS Principle 2,
+// spec §5.3). Single-label and multi-label modes share the exact catch-block
+// implementation, so both call this to avoid drift if the meta keys evolve.
+function assertErrorMeta(
+  meta: Record<string, unknown>,
+  expectedModel: string,
+): void {
+  expect(typeof meta.durationMs).toBe('number');
+  expect(meta.durationMs).toEqual(expect.any(Number));
+  expect(meta.durationMs).toBeGreaterThanOrEqual(0);
+  expect(meta.model).toBe(expectedModel);
+  expect(meta.inputTokens).toBe(0);
+  expect(meta.outputTokens).toBe(0);
+  expect(meta.totalTokens).toBe(0);
+  expect(Array.isArray(meta.llmCalls)).toBe(true);
+  const llmCalls = meta.llmCalls as Array<Record<string, unknown>>;
+  expect(llmCalls).toHaveLength(1);
+  expect(llmCalls[0].requestPayload).toBeDefined();
+  expect(llmCalls[0].responsePayload).toBeNull();
+  expect(typeof llmCalls[0].durationMs).toBe('number');
+  // meta.durationMs ≥ llmCalls[0].durationMs because the former measures the
+  // whole execute() span (resolveConfig + prompt build + call) while the
+  // latter measures the LLM call alone — semantic axes are distinct even
+  // though both are populated by the same throw boundary.
+  expect(meta.durationMs).toBeGreaterThanOrEqual(
+    llmCalls[0].durationMs as number,
+  );
+}
+
 describe('TextClassifierHandler', () => {
   let handler: TextClassifierHandler;
   let mockLlmService: Record<string, jest.Mock>;
@@ -226,6 +255,12 @@ describe('TextClassifierHandler', () => {
       expect(metadata.inputTokens).toBe(50);
       expect(metadata.outputTokens).toBe(10);
       expect(metadata.totalTokens).toBe(60);
+      // CONVENTIONS Principle 2 — meta.durationMs is now handler-returned
+      // for the success path too (was previously omitted, contradicting
+      // spec §5.1).
+      expect(typeof metadata.durationMs).toBe('number');
+      expect(metadata.durationMs).toEqual(expect.any(Number));
+      expect(metadata.durationMs).toBeGreaterThanOrEqual(0);
     });
 
     it('should include originalInput in output', async () => {
@@ -308,9 +343,10 @@ describe('TextClassifierHandler', () => {
     it('should include execution metrics in meta on LLM failure (Principle 2)', async () => {
       // CONVENTIONS Principle 2 — meta.durationMs MUST be present in every
       // case (success / fallback / error). Error case must also expose
-      // meta.model (model that was attempted) and meta.llmCalls (call trace
-      // with responsePayload: null) so debugging surfaces match the success
-      // path.
+      // meta.model (model that was attempted), token zero-defaults (so
+      // downstream arithmetic doesn't fall through to undefined), and
+      // meta.llmCalls (call trace with responsePayload: null) so debugging
+      // surfaces match the success path.
       mockLlmService.chat.mockRejectedValueOnce(new Error('API timeout'));
       const result = (await handler.execute(
         {},
@@ -318,25 +354,21 @@ describe('TextClassifierHandler', () => {
         createContext(),
       )) as unknown as Record<string, unknown>;
       expect((result as any).port).toBe('error');
-      const meta = result.meta as Record<string, unknown>;
-      expect(typeof meta.durationMs).toBe('number');
-      expect(meta.durationMs as number).toBeGreaterThanOrEqual(0);
-      expect(meta.model).toBe('gpt-4o-mini');
-      expect(Array.isArray(meta.llmCalls)).toBe(true);
-      const llmCalls = meta.llmCalls as Array<Record<string, unknown>>;
-      expect(llmCalls).toHaveLength(1);
-      expect(llmCalls[0].responsePayload).toBeNull();
-      expect(typeof llmCalls[0].durationMs).toBe('number');
-      expect(llmCalls[0].requestPayload).toBeDefined();
+      assertErrorMeta(result.meta as Record<string, unknown>, 'gpt-4o-mini');
+      // Negative assertion — the legacy `output._llmCalls` mirror was
+      // dropped so the error envelope matches spec §5.3 (only `output.error`
+      // + `output.originalInput` at the top level). Catches future drift.
+      const data = result.output as Record<string, unknown>;
+      expect(data).not.toHaveProperty('_llmCalls');
+      expect(data.originalInput).toBe('I need a refund');
     });
 
     it('should fall back model from llmConfig.defaultModel when config.model is unset (error path)', async () => {
       mockLlmService.chat.mockRejectedValueOnce(new Error('boom'));
-      const { model: _omit, ...configWithoutModel } = baseConfig as Record<
+      const { model: _, ...configWithoutModel } = baseConfig as Record<
         string,
         unknown
       > & { model?: string };
-      void _omit;
       const result = (await handler.execute(
         {},
         configWithoutModel,
@@ -785,6 +817,9 @@ describe('TextClassifierHandler', () => {
     });
 
     it('should include execution metrics in meta on LLM failure (multi-label, Principle 2)', async () => {
+      // Multi-label shares the catch-block implementation with single-label.
+      // We exercise the multi-label config to confirm the contract holds in
+      // both modes (no early-return short-circuit by mode).
       mockLlmService.chat.mockRejectedValueOnce(new Error('Rate limited'));
       const result = (await handler.execute(
         {},
@@ -792,15 +827,27 @@ describe('TextClassifierHandler', () => {
         createContext(),
       )) as unknown as Record<string, unknown>;
       expect((result as any).port).toBe('error');
+      assertErrorMeta(result.meta as Record<string, unknown>, 'gpt-4o-mini');
+      const data = result.output as Record<string, unknown>;
+      expect(data).not.toHaveProperty('_llmCalls');
+      expect(data.originalInput).toBe(
+        'I need a refund and the app is crashing',
+      );
+    });
+
+    it('should fall back model from llmConfig.defaultModel when config.model is unset (multi-label error path)', async () => {
+      mockLlmService.chat.mockRejectedValueOnce(new Error('boom'));
+      const { model: _, ...configWithoutModel } = multiLabelConfig as Record<
+        string,
+        unknown
+      > & { model?: string };
+      const result = (await handler.execute(
+        {},
+        configWithoutModel,
+        createContext(),
+      )) as unknown as Record<string, unknown>;
       const meta = result.meta as Record<string, unknown>;
-      expect(typeof meta.durationMs).toBe('number');
-      expect(meta.durationMs as number).toBeGreaterThanOrEqual(0);
       expect(meta.model).toBe('gpt-4o-mini');
-      expect(Array.isArray(meta.llmCalls)).toBe(true);
-      const llmCalls = meta.llmCalls as Array<Record<string, unknown>>;
-      expect(llmCalls).toHaveLength(1);
-      expect(llmCalls[0].responsePayload).toBeNull();
-      expect(typeof llmCalls[0].durationMs).toBe('number');
     });
 
     it('should include multiLabel: true in config output', async () => {
@@ -833,6 +880,8 @@ describe('TextClassifierHandler', () => {
       expect(metadata.inputTokens).toBe(55);
       expect(metadata.outputTokens).toBe(15);
       expect(metadata.totalTokens).toBe(70);
+      expect(typeof metadata.durationMs).toBe('number');
+      expect(metadata.durationMs).toBeGreaterThanOrEqual(0);
     });
 
     describe('includeEvidence', () => {

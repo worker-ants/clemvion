@@ -158,7 +158,7 @@ LLM 을 사용하여 입력 텍스트를 미리 정의된 카테고리로 분류
 | `output.result.confidence` | number? | handler return | `includeConfidence: true` 일 때만 포함. `0` 도 정상 값 (falsy 처리 금지) |
 | `output.result.evidence` | string[]? | handler return | `includeEvidence: true` 일 때만 포함. 매칭 실패 또는 LLM 미반환 시 빈 배열 `[]`. 최대 20 항목, 각 항목 ≤200 자 |
 | `output.result.originalInput` | String | handler return | LLM 에 투입된 resolved 입력 (디버깅용; `config.inputField` 의 raw 와 직교) |
-| `meta.durationMs` | number | engine inject | 실행 시간 (ms) |
+| `meta.durationMs` | number | handler return | `execute()` 진입부터 LLM 호출 resolve 직후까지의 소요 시간 (ms). 모든 case 동일 측정 기준 (Principle 2) |
 | `meta.model` | String | handler return | 실제 호출된 모델 ID |
 | `meta.{inputTokens, outputTokens, totalTokens}` | number | handler return | 토큰 사용량 |
 | `meta.thinkingTokens` | number? | handler return | 모델이 보고할 때만 |
@@ -290,8 +290,11 @@ LLM 을 사용하여 입력 텍스트를 미리 정의된 카테고리로 분류
     "originalInput": "환불 요청드립니다"
   },
   "meta": {
-    "durationMs": 5020,
+    "durationMs": 5021,
     "model": "gpt-4o-mini",
+    "inputTokens": 0,
+    "outputTokens": 0,
+    "totalTokens": 0,
     "llmCalls": [
       { "requestPayload": {}, "responsePayload": null, "durationMs": 5020 }
     ]
@@ -303,10 +306,12 @@ LLM 을 사용하여 입력 텍스트를 미리 정의된 카테고리로 분류
 | 필드 | 타입 | 출처 | 설명 |
 |------|------|------|------|
 | `output.error.code` | String | handler return | `UPPER_SNAKE_CASE`. 본 노드의 예약어: `LLM_CALL_FAILED` (네트워크/타임아웃/5xx), `LLM_RATE_LIMITED` (429), `LLM_RESPONSE_INVALID` (JSON 파싱 + substring fallback 모두 실패 — 현재 핸들러는 substring fallback 으로 회복하므로 이 코드는 reserved) |
-| `output.error.message` | String | handler return | 사람이 읽는 메시지 (provider 원문 보존, 국제화 없음) |
-| `output.error.details.originalInput` | String | handler return | LLM 에 투입된 입력. `truncateForErrorDetails` 로 500 자 cap (PII / 대용량 방지) |
-| `meta.durationMs` | number | handler return | 에러 발생 전까지 소요된 시간 (ms). LLM 호출 throw 직전 측정 |
+| `output.error.message` | String | handler return | 사람이 읽는 메시지 (provider 원문 보존, 국제화 없음). 다운스트림에서 사용자에게 노출 시 sanitize 책임은 호출자 |
+| `output.error.details.originalInput` | String | handler return | LLM 에 투입된 입력. `truncateForErrorDetails` 로 500 자 cap (에러 envelope 의 PII / 대용량 방지). `output.originalInput` (full) 과는 별개 — error details 만 truncate |
+| `output.originalInput` | String | handler return | LLM 에 투입된 resolved 원문 (truncation 없음). 성공 case 의 `output.result.originalInput` 와 동일 의미 — 재진입/디버깅 시 원문 재확인용 |
+| `meta.durationMs` | number | handler return | `execute()` 진입부터 catch 블록 진입 직전까지의 소요 시간 (ms). 성공 경로와 동일 측정 기준 (Principle 2) |
 | `meta.model` | String | handler return | 호출 시도된 모델 ID (`config.model` 또는 `llmConfig.defaultModel`) |
+| `meta.{inputTokens, outputTokens, totalTokens}` | number | handler return | 에러 시 LLM 응답 미수신 → 모두 `0`. 표현식이 `undefined` 로 falling through 하지 않도록 명시 0 default |
 | `meta.llmCalls` | Array | handler return | 실패한 호출의 trace (`responsePayload: null`, `durationMs` 동봉). 디버깅에 핵심 |
 | `port` | `'error'` | handler return | 에러 분기 |
 

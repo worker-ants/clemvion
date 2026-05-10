@@ -1,0 +1,93 @@
+{
+  "timestamp": "2026-05-10T14:20:17.481902",
+  "files": [
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/backend/src/nodes/ai/text-classifier/text-classifier.handler.spec.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/backend/src/nodes/ai/text-classifier/text-classifier.handler.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/plan/in-progress/spec-4-nodes-unimplemented-cleanup.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "/Volumes/project/private/idea-workflow/spec/4-nodes/3-ai/2-text-classifier.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    }
+  ],
+  "total_elapsed_seconds": 201.39,
+  "agents": [
+    {
+      "name": "database",
+      "status": "success",
+      "elapsed_seconds": 13.31
+    },
+    {
+      "name": "api_contract",
+      "status": "success",
+      "elapsed_seconds": 44.78
+    },
+    {
+      "name": "dependency",
+      "status": "success",
+      "elapsed_seconds": 50.18
+    },
+    {
+      "name": "scope",
+      "status": "success",
+      "elapsed_seconds": 54.7
+    },
+    {
+      "name": "concurrency",
+      "status": "success",
+      "elapsed_seconds": 56.02
+    },
+    {
+      "name": "performance",
+      "status": "success",
+      "elapsed_seconds": 59.76
+    },
+    {
+      "name": "side_effect",
+      "status": "success",
+      "elapsed_seconds": 74.0
+    },
+    {
+      "name": "maintainability",
+      "status": "success",
+      "elapsed_seconds": 74.31
+    },
+    {
+      "name": "documentation",
+      "status": "success",
+      "elapsed_seconds": 76.3
+    },
+    {
+      "name": "architecture",
+      "status": "success",
+      "elapsed_seconds": 77.96
+    },
+    {
+      "name": "security",
+      "status": "success",
+      "elapsed_seconds": 84.9
+    },
+    {
+      "name": "requirement",
+      "status": "success",
+      "elapsed_seconds": 89.98
+    },
+    {
+      "name": "testing",
+      "status": "success",
+      "elapsed_seconds": 98.46
+    }
+  ]
+}
