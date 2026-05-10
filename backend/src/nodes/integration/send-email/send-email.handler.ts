@@ -1,4 +1,5 @@
 import { createTransport, type Transporter } from 'nodemailer';
+import type Mail from 'nodemailer/lib/mailer';
 import { createHash } from 'crypto';
 import {
   ExecutionContext,
@@ -83,6 +84,7 @@ export class SendEmailHandler
     const subject = config.subject as string;
     const body = config.body as string;
     const bodyType = (config.bodyType as string) ?? 'text';
+    const attachments = mapAttachmentsForNodemailer(config.attachments);
 
     // CONVENTIONS Principle 7 — `config` echo is the **raw** template the
     // workflow author entered (`{{ ... }}` preserved). evaluated bodies are
@@ -151,6 +153,13 @@ export class SendEmailHandler
         bcc: bcc.length > 0 ? bcc : undefined,
         subject,
         ...(bodyType === 'html' ? { html: body } : { text: body }),
+        ...(attachments.length > 0 ? { attachments } : {}),
+        // 보안 방어선 — 사용자 입력으로 임의 파일 시스템 / URL 접근이
+        // 발생하지 않도록 nodemailer 단에서 차단. 스키마에서 `path` 를
+        // 노출하지 않는 것과 mapAttachmentsForNodemailer 가 path/href 를
+        // strip 하는 것에 더해 다중 방어 (defense in depth).
+        disableFileAccess: true,
+        disableUrlAccess: true,
       })) as {
         messageId?: string;
         accepted?: string[];
@@ -321,6 +330,51 @@ function missingSmtpFields(creds: Partial<SmtpCredentials>): string[] {
   return required.filter(
     (k) => creds[k] === undefined || creds[k] === null || creds[k] === '',
   );
+}
+
+/**
+ * Map the `config.attachments` array (validated by `attachmentSchema` in
+ * send-email.schema.ts) to nodemailer's `Attachment[]` shape.
+ *
+ * Security boundary — only an explicit allow-list of safe properties is
+ * forwarded. Crucially `path` (local file read) and `href` (URL fetch) are
+ * **not** part of the schema and are stripped here as a second defence even
+ * if a future schema change accidentally introduces them. Combined with the
+ * `disableFileAccess: true` / `disableUrlAccess: true` flags on `sendMail`,
+ * sandbox the attachment surface so a malicious workflow author cannot use
+ * an SMTP send to exfiltrate `/etc/passwd` or similar.
+ *
+ * Empty / non-array input returns `[]` — silent no-op preserved for
+ * non-breaking migration (Phase 4 § "비-breaking" note).
+ */
+function mapAttachmentsForNodemailer(value: unknown): Mail.Attachment[] {
+  if (!Array.isArray(value)) return [];
+  const out: Mail.Attachment[] = [];
+  for (const raw of value) {
+    if (!raw || typeof raw !== 'object') continue;
+    const item = raw as Record<string, unknown>;
+    const att: Mail.Attachment = {};
+    if (typeof item.filename === 'string' && item.filename.length > 0) {
+      att.filename = item.filename;
+    }
+    if (typeof item.content === 'string') {
+      att.content = item.content;
+    }
+    if (typeof item.contentType === 'string' && item.contentType.length > 0) {
+      att.contentType = item.contentType;
+    }
+    if (typeof item.encoding === 'string' && item.encoding.length > 0) {
+      att.encoding = item.encoding;
+    }
+    if (typeof item.cid === 'string' && item.cid.length > 0) {
+      att.cid = item.cid;
+    }
+    // Skip entries that have neither a filename nor any content — they would
+    // be useless to nodemailer and a no-op at best, mis-encoded at worst.
+    if (att.filename === undefined && att.content === undefined) continue;
+    out.push(att);
+  }
+  return out;
 }
 
 function hashCredentials(creds: SmtpCredentials): string {

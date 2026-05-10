@@ -21,12 +21,15 @@ SMTP를 통해 이메일을 발송하는 **Integration 노드**. Integration 엔
 
 **Attachment 구조:**
 
-| 필드 | 타입 | 설명 |
-|------|------|------|
-| filename | String | 파일명 |
-| content | String (Base64 또는 URL, 표현식) | 파일 내용 또는 다운로드 URL |
+| 필드 | 타입 | 필수 | 설명 |
+|------|------|------|------|
+| filename | String | ✓ | 파일명 |
+| content | String (Base64 또는 plain text, 표현식) | ✓ | 파일 내용. `encoding='base64'` 와 함께 쓰면 바이너리 첨부 |
+| contentType | String | | MIME 타입. 미지정 시 `filename` 으로부터 추론 |
+| encoding | String | | content 의 인코딩 (예: `base64`, `hex`) |
+| cid | String | | HTML 본문에서 인라인 이미지로 참조할 Content-ID |
 
-> ⚠ **미구현 (P1)**: `bcc` 정규화는 `execute()` 가 수행하지만, 현재 `attachments` 는 schema/UI 에는 노출되어 있으나 `nodemailer` 호출에 전달되지 않는다 — silent no-op. 단기적으로는 빈 배열을 권장하며, 장기적으로는 핸들러가 `nodemailer` 의 `attachments` 옵션으로 전달하도록 보강한다 (개선안 [send_email.md §3](../../../user_memo/node-specs-improvement/integration/send_email.md#3-제안된-output-구조) `bcc / attachments 구현 결함` 항목).
+> **보안**: nodemailer 의 `path` / `href` 옵션은 의도적으로 노출하지 않는다. 사용자 입력으로 임의 로컬 파일 (`/etc/passwd` 등) 또는 외부 URL 접근이 발생할 수 있어, `disableFileAccess: true` / `disableUrlAccess: true` 를 sendMail 옵션에 부여하고 핸들러도 `path` / `href` 키를 strip 한다.
 
 > Source of truth: `backend/src/nodes/integration/send-email/send-email.schema.ts` (export `sendEmailNodeConfigSchema` / `sendEmailNodeMetadata`).
 
@@ -54,7 +57,7 @@ SMTP를 통해 이메일을 발송하는 **Integration 노드**. Integration 엔
 - Integration 드롭다운은 `serviceType='email'` 로 필터링됨 ([공통 §2](./0-common.md#2-integration-선택-ui))
 - To / CC / BCC: 칩 입력 (배열) — 표현식 지원
 - Body: text / html 탭 전환. html 시 리치 에디터 옵션 제공
-- Attachments 는 향후 활성화 (§1 P1 노트 참조)
+- Attachments 는 활성. 항목당 `filename` + `content` 필수, `contentType` / `encoding` / `cid` 는 선택
 
 ## 3. 포트
 
@@ -126,7 +129,7 @@ SMTP를 통해 이메일을 발송하는 **Integration 노드**. Integration 엔
 | `config.to` / `cc` / `bcc` | string \| string[] | config echo | 사용자가 입력한 **raw** 형태 (표현식 보존). 정규화 결과는 echo 하지 않음 |
 | `config.subject` / `body` | string | config echo | raw 템플릿 (`{{ }}` 보존) |
 | `config.bodyType` | `'text'` / `'html'` | config echo | 본문 포맷 |
-| `config.attachments` | Attachment[] | config echo | 사용자가 입력한 raw — 현재 발송에는 미사용 (§1 P1) |
+| `config.attachments` | Attachment[] | config echo | 사용자가 입력한 raw. `filename` / `content` / `contentType` / `encoding` / `cid` 만 nodemailer 로 전달되며, `path` / `href` 등 파일·URL 접근 옵션은 서버에서 strip + `disableFileAccess` / `disableUrlAccess` 로 차단 |
 | `output.messageId` | string | nodemailer | SMTP 가 부여한 Message-ID. **Principle 8 권장 위치** |
 | `output.accepted` | string[] | nodemailer | 서버가 수락한 수신자 목록 |
 | `output.rejected` | string[] | nodemailer | 서버가 거부한 수신자 목록 (부분 거부 시 비어있지 않음 — success 유지) |

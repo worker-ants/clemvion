@@ -353,6 +353,82 @@ describe('SendEmailHandler', () => {
       expect(out.output.body).toBe('Welcome Alice!');
     });
 
+    // -----------------------------------------------------------------
+    // Phase 4 (C) — attachments forwarded to nodemailer
+    // -----------------------------------------------------------------
+    it('forwards config.attachments to nodemailer.sendMail', async () => {
+      const { service } = makeService();
+      const handler = new SendEmailHandler(service as never);
+      const cfg = {
+        ...baseConfig,
+        attachments: [
+          { filename: 'a.pdf', content: 'BASE64==', encoding: 'base64' },
+          { filename: 'b.txt', content: 'plain text' },
+        ],
+      };
+      await handler.execute(null, cfg, makeContext(cfg));
+      const call = sendMailMock.mock.calls[0]?.[0] as {
+        attachments?: Array<{
+          filename?: string;
+          content?: string;
+          encoding?: string;
+        }>;
+        disableFileAccess?: boolean;
+        disableUrlAccess?: boolean;
+      };
+      expect(call.attachments).toEqual([
+        { filename: 'a.pdf', content: 'BASE64==', encoding: 'base64' },
+        { filename: 'b.txt', content: 'plain text' },
+      ]);
+      // Defence-in-depth flags must be set on every send.
+      expect(call.disableFileAccess).toBe(true);
+      expect(call.disableUrlAccess).toBe(true);
+    });
+
+    it('omits attachments key when the array is empty (silent no-op preserved)', async () => {
+      const { service } = makeService();
+      const handler = new SendEmailHandler(service as never);
+      await handler.execute(
+        null,
+        { ...baseConfig, attachments: [] },
+        makeContext(),
+      );
+      const call = sendMailMock.mock.calls[0]?.[0] as {
+        attachments?: unknown;
+        disableFileAccess?: boolean;
+      };
+      expect(call.attachments).toBeUndefined();
+      // Even with no attachments, sandbox flags are still asserted.
+      expect(call.disableFileAccess).toBe(true);
+    });
+
+    it('strips unsafe path/href fields from attachment items (security)', async () => {
+      const { service } = makeService();
+      const handler = new SendEmailHandler(service as never);
+      const cfg = {
+        ...baseConfig,
+        attachments: [
+          {
+            filename: 'evil.txt',
+            content: 'ok',
+            // Attacker-controlled fields that must NEVER reach nodemailer.
+            path: '/etc/passwd',
+            href: 'http://evil.example.com/secret',
+          },
+        ],
+      };
+      await handler.execute(null, cfg, makeContext(cfg));
+      const call = sendMailMock.mock.calls[0]?.[0] as {
+        attachments?: Array<Record<string, unknown>>;
+      };
+      expect(call.attachments).toHaveLength(1);
+      const att = call.attachments![0];
+      expect(att.filename).toBe('evil.txt');
+      expect(att.content).toBe('ok');
+      expect(att.path).toBeUndefined();
+      expect(att.href).toBeUndefined();
+    });
+
     it('caps oversized bodies at 256KB and sets bodyTruncated', async () => {
       const { service } = makeService();
       const handler = new SendEmailHandler(service as never);

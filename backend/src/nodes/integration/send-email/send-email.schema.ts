@@ -4,11 +4,31 @@ import {
   NodePorts,
 } from '../../core/node-component.interface';
 
+// Send Email attachment shape (Phase 4 / C — nodemailer 전달 구현).
+//
+// 보안 주의 — `path` 는 의도적으로 스키마에 포함하지 않는다. nodemailer 의
+// `path` 옵션은 로컬 파일 시스템에서 파일을 읽어 첨부하기 때문에, 사용자
+// 입력으로 노출되면 `/etc/passwd` 같은 임의 경로 노출 (path traversal /
+// arbitrary file read) 로 이어질 수 있다. 핸들러도 매핑 단계에서 `path` 를
+// 제거하고, 추가 방어선으로 `disableFileAccess: true` 를 sendMail 옵션에
+// 부여한다 (`mapAttachmentsForNodemailer` 참조).
 const attachmentSchema = z.object({
   filename: z.string().meta({ ui: { label: 'Filename', widget: 'text' } }),
   content: z
     .string()
     .meta({ ui: { label: 'Content / URL', widget: 'expression' } }),
+  contentType: z
+    .string()
+    .optional()
+    .meta({ ui: { label: 'Content-Type', widget: 'text' } }),
+  encoding: z
+    .string()
+    .optional()
+    .meta({ ui: { label: 'Encoding', widget: 'text' } }),
+  cid: z
+    .string()
+    .optional()
+    .meta({ ui: { label: 'Inline CID', widget: 'text' } }),
 });
 
 /**
