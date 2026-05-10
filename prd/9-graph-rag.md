@@ -1,6 +1,6 @@
 # PRD: Graph RAG
 
-> 관련 문서: [제품 개요](./0-overview.md) · [AI & 지식 저장소](./6-phase2-ai.md#35-knowledge-base) · [통합/연동 §3 Knowledge Base](./4-integration.md#3-knowledge-base) · [Spec Graph RAG](../spec/5-system/10-graph-rag.md) · [Spec RAG 검색](../spec/5-system/9-rag-search.md) · [Spec Knowledge Base 화면](../spec/2-navigation/5-knowledge-base.md)
+> 관련 문서: [제품 개요](./0-overview.md) · [AI & 지식 저장소](./6-phase2-ai.md#35-knowledge-base) · [통합/연동 §3 Knowledge Base](./4-integration.md#3-knowledge-base-지식-저장소) · [Spec Graph RAG](../spec/5-system/10-graph-rag.md) · [Spec RAG 검색](../spec/5-system/9-rag-search.md) · [Spec Knowledge Base 화면](../spec/2-navigation/5-knowledge-base.md)
 
 > **구현 상태**: ❌ 로드맵. 본 PRD 의 모든 요구사항은 아직 미구현이다. 기존 vector 기반 RAG 는 완료되어 있으며, Graph RAG 는 그 위에 모드 옵션으로 점진 도입한다.
 

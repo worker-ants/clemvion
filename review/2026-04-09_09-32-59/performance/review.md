@@ -7,7 +7,7 @@
 **[WARNING] `adjacentQuery`: prev/next 탐색을 위해 최대 100건 전체 로드**
 - 위치: `[executionId]/page.tsx` — `adjacentQuery` queryFn (L115~133)
 - 상세: prev/next ID 2개만 필요한데 `limit: 100`으로 전체 목록 페이로드를 받아 클라이언트에서 `findIndex` 탐색. 실행 이력이 100건 초과 시 탐색 자체가 실패(기능 버그 겸 성능 이슈). 또한 이 쿼리는 페이지 진입마다 실행 상세 쿼리와 병렬 실행되어 불필요한 네트워크 대역을 소비함.
-- 제안: `GET /api/executions/:id/adjacent` 전용 엔드포인트 추가(백엔드 커서 기반) 또는 `created_at` 기준 `limit:1&before=X`, `limit:1&after=X` 쿼리 두 번으로 대체. 이미 `spec/2-navigation/6-execution-history.md §3.6`에서 인접 탐색 기능이 명시되어 있으므로 API 스펙 추가가 권장됨.
+- 제안: `GET /api/executions/:id/adjacent` 전용 엔드포인트 추가(백엔드 커서 기반) 또는 `created_at` 기준 `limit:1&before=X`, `limit:1&after=X` 쿼리 두 번으로 대체. 이미 `spec/2-navigation/14-execution-history.md §3.6`에서 인접 탐색 기능이 명시되어 있으므로 API 스펙 추가가 권장됨.
 
 ---
 

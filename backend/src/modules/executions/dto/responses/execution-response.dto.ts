@@ -21,7 +21,7 @@ export class ExecutionDto {
 
   /**
    * 실행 출처 분류 — 우선순위: subworkflow > manual > schedule > webhook > unknown.
-   * 자세한 판정 규칙은 spec/2-navigation/6-execution-history.md 의 "Trigger 출처 분류" 표 참조.
+   * 자세한 판정 규칙은 spec/2-navigation/14-execution-history.md 의 "Trigger 출처 분류" 표 참조.
    */
   @ApiProperty({ enum: EXECUTION_TRIGGER_SOURCES, example: 'manual' })
   triggerSource: ExecutionTriggerSource;

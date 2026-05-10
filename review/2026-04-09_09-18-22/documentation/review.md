@@ -2,15 +2,15 @@
 
 ---
 
-**[INFO]** 스펙 문서(`6-execution-history.md`) 신규 추가는 완성도가 높음
-- 위치: `spec/2-navigation/6-execution-history.md`
+**[INFO]** 스펙 문서(`14-execution-history.md`) 신규 추가는 완성도가 높음
+- 위치: `spec/2-navigation/14-execution-history.md`
 - 상세: 페이지 구성, 헤더, 필터, 테이블, 정렬, 페이지네이션, 빈 상태, 로딩 상태, API 엔드포인트, 반응형, 라우팅까지 체계적으로 기술되어 있음. 관련 문서 링크도 적절히 연결됨.
 - 제안: 특이사항 없음
 
 ---
 
-**[INFO]** `waiting_for_input` 필터가 스펙(`6-execution-history.md` §2.3)에 추가되었으나, 구현의 `FILTER_BUTTONS`에는 누락
-- 위치: `spec/2-navigation/6-execution-history.md:45` — `| Waiting | waiting_for_input | 입력 대기 중인 것만 |`
+**[INFO]** `waiting_for_input` 필터가 스펙(`14-execution-history.md` §2.3)에 추가되었으나, 구현의 `FILTER_BUTTONS`에는 누락
+- 위치: `spec/2-navigation/14-execution-history.md:45` — `| Waiting | waiting_for_input | 입력 대기 중인 것만 |`
 - 상세: 스펙 문서와 구현 코드 간 불일치. requirement 리뷰어도 동일 이슈를 [WARNING]으로 지적함. 문서화 관점에서는 스펙이 정확하므로 구현이 스펙을 따라야 함.
 - 제안: 구현(`FILTER_BUTTONS`)에 `{ label: "Waiting", value: "waiting_for_input" }` 추가
 
@@ -53,7 +53,7 @@
 
 ### 요약
 
-이번 변경에서 추가/수정된 스펙 문서들은 전반적으로 완성도가 높고 체계적으로 작성되어 있다. 신규 `6-execution-history.md`는 화면 구성부터 API 스펙, 라우팅까지 누락 없이 기술되어 있으며, `6-presentation-nodes.md`와 `4-execution-engine.md`의 업데이트도 새 기능(`itemButtons`, `_selectedPort` 처리)을 충실히 반영하고 있다. 주요 문서화 개선 포인트는 (1) 스펙에 추가된 `waiting_for_input` 필터와 구현 코드 간 불일치, (2) `_selectedPort` 처리 설명의 중복 기술, (3) `itemButtons`와 `ItemDef.buttons`의 관계 명확화 수준이며, 모두 INFO 수준으로 즉각적인 위험은 없다.
+이번 변경에서 추가/수정된 스펙 문서들은 전반적으로 완성도가 높고 체계적으로 작성되어 있다. 신규 `14-execution-history.md`는 화면 구성부터 API 스펙, 라우팅까지 누락 없이 기술되어 있으며, `6-presentation-nodes.md`와 `4-execution-engine.md`의 업데이트도 새 기능(`itemButtons`, `_selectedPort` 처리)을 충실히 반영하고 있다. 주요 문서화 개선 포인트는 (1) 스펙에 추가된 `waiting_for_input` 필터와 구현 코드 간 불일치, (2) `_selectedPort` 처리 설명의 중복 기술, (3) `itemButtons`와 `ItemDef.buttons`의 관계 명확화 수준이며, 모두 INFO 수준으로 즉각적인 위험은 없다.
 
 ### 위험도
 

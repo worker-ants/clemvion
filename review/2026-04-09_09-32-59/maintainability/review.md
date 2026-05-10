@@ -31,7 +31,7 @@
 ---
 
 **[INFO] `adjacentQuery`의 `limit: 100` 제약이 스펙과 코드 양쪽에 문서화 불일치**
-- 위치: `spec/2-navigation/6-execution-history.md` §3.6, `[executionId]/page.tsx:118`
+- 위치: `spec/2-navigation/14-execution-history.md` §3.6, `[executionId]/page.tsx:118`
 - 상세: 스펙 §3.6에서는 "같은 워크플로우의 시간 순서 기준으로 이전/다음 실행으로 이동"이라고만 명시하며 100건 제한을 언급하지 않는다. 구현에서는 `limit: 100`이 하드코딩되어 있어 스펙-구현 간 암묵적 차이가 존재한다. 스펙을 보고 유지보수하는 개발자가 이 제약을 인지하지 못할 위험이 있다.
 - 제안: 스펙 §3.6에 현재 구현 방식의 제약(`limit: 100`으로 조회, 100건 초과 시 네비게이션 실패)을 명시하거나, Known Limitations 섹션 추가
 
@@ -44,8 +44,8 @@
 
 ---
 
-**[INFO] `spec/2-navigation/6-execution-history.md` §2.3 필터와 화면 구성도 불일치**
-- 위치: `spec/2-navigation/6-execution-history.md` §2.1 (화면 구성도), §2.3 (필터 표)
+**[INFO] `spec/2-navigation/14-execution-history.md` §2.3 필터와 화면 구성도 불일치**
+- 위치: `spec/2-navigation/14-execution-history.md` §2.1 (화면 구성도), §2.3 (필터 표)
 - 상세: 화면 구성도에는 `[All] [Completed] [Failed] [Running] [Cancelled]` 5개 버튼만 표시되어 있으나 §2.3 필터 표에는 `Waiting` (`waiting_for_input`)이 추가되어 있다. 스펙 내 자기 불일치가 존재하며, `requirement/review.md`가 코드에서 누락으로 지적한 바 있다.
 - 제안: 화면 구성도에 `[Waiting]` 버튼 추가
 

@@ -1196,7 +1196,7 @@ describe('ExecutionEngineService', () => {
   describe('execute() — trigger metadata persistence', () => {
     // 트리거 출처(수동/스케줄/웹훅)를 Execution 행의 executedBy/triggerId 컬럼에
     // 정확히 기록해야 "최근 실행" 화면이 출처를 schedule/webhook 으로 분류할 수 있다
-    // (deriveExecutionTrigger 헬퍼 + spec/2-navigation/6-execution-history.md §2.4).
+    // (deriveExecutionTrigger 헬퍼 + spec/2-navigation/14-execution-history.md §2.4).
 
     it('persists executedBy when options.executedBy is provided (manual run)', async () => {
       await service.execute(workflowId, { data: 'test' }, { executedBy: 'u1' });

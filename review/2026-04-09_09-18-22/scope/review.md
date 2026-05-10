@@ -17,7 +17,7 @@
 ---
 
 **[NONE]** 나머지 변경들은 모두 의도된 범위 내
-- `spec/2-navigation/6-execution-history.md` 신규 작성 — 실행 내역 페이지 구현의 직접적인 스펙 문서화
+- `spec/2-navigation/14-execution-history.md` 신규 작성 — 실행 내역 페이지 구현의 직접적인 스펙 문서화
 - `spec/2-navigation/0-dashboard.md` 수정 — 행 클릭 동작 설명 갱신 및 상호 참조 링크 추가로 최소한의 변경
 - `spec/5-system/3-error-handling.md` 수정 — Skip Node 정책의 에러 정보 보존 동작 한 줄 명시
 - `review/2026-04-09_06-29-35/**` — `ai-review` 스킬 실행 결과물로 정상 산출물
@@ -26,7 +26,7 @@
 
 ## 요약
 
-변경의 주된 범위인 실행 내역 페이지(목록/상세) 구현과 그에 따른 스펙 문서화(`6-execution-history.md`, `0-dashboard.md`)는 의도된 범위에 충실하다. 다만 `spec/4-nodes/6-presentation-nodes.md`와 `spec/5-system/4-execution-engine.md`의 변경은 Carousel 아이템 버튼(`itemButtons`, `source`) 기능이라는 별개 기능 범위의 스펙 문서화로, 실행 내역 기능 구현 리뷰에 혼재되어 있다. 기능 구현 파일 자체는 이번 리뷰 대상에 포함되지 않아 실질적 위험은 낮으나, PR 범위 관리 측면에서 두 기능을 명확히 구분하는 것이 권장된다.
+변경의 주된 범위인 실행 내역 페이지(목록/상세) 구현과 그에 따른 스펙 문서화(`14-execution-history.md`, `0-dashboard.md`)는 의도된 범위에 충실하다. 다만 `spec/4-nodes/6-presentation-nodes.md`와 `spec/5-system/4-execution-engine.md`의 변경은 Carousel 아이템 버튼(`itemButtons`, `source`) 기능이라는 별개 기능 범위의 스펙 문서화로, 실행 내역 기능 구현 리뷰에 혼재되어 있다. 기능 구현 파일 자체는 이번 리뷰 대상에 포함되지 않아 실질적 위험은 낮으나, PR 범위 관리 측면에서 두 기능을 명확히 구분하는 것이 권장된다.
 
 ## 위험도
 

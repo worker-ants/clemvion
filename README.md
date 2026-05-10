@@ -222,6 +222,19 @@ npm run dev
 | 테스트 | `npm run test` | `npm run test` |
 | 테스트 (E2E) | - | `npm run test:e2e` |
 
+### 문서 링크 검증
+
+`prd/`, `spec/` 의 markdown 내부 링크와 `frontend/src/content/docs/**.mdx` frontmatter `spec:` 항목 정합성을 확인한다.
+
+```bash
+python3 scripts/check-doc-links.py
+```
+
+- 종료 코드: 깨진 항목이 있으면 `1`, 모두 정상이면 `0`
+- 의존성 없음 (Python 3 표준 라이브러리만 사용)
+- 검사 항목: 파일 경로 존재 여부, anchor (`#section`) 가 대상 파일 헤딩 슬러그에 매칭되는지, MDX `spec:` 배열의 모든 경로 존재 여부
+- PR 머지 전 또는 spec/PRD 헤딩을 변경한 후 한 번씩 돌려서 cross-reference 깨짐을 잡는 용도
+
 ## Docker / Kubernetes 배포
 
 > 로컬 dev 풀스택 기동은 `docker compose --profile app up` 으로 대체할 수 있습니다 (위 「1. 인프라 실행」의 모드 B 참고). 아래 절차는 **프로덕션 이미지 빌드/배포** 용입니다.

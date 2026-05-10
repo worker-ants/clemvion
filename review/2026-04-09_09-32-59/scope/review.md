@@ -9,7 +9,7 @@
 
 ---
 
-**[INFO]** `spec/2-navigation/6-execution-history.md` — 스펙 문서 신규 작성 범위 적절
+**[INFO]** `spec/2-navigation/14-execution-history.md` — 스펙 문서 신규 작성 범위 적절
 - 위치: 전체 파일 (349줄)
 - 상세: 실행 내역 기능 구현에 대응하는 스펙 문서가 누락되어 있어 신규 작성됨. 변경 범위 내의 정상 작업.
 

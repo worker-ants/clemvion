@@ -1,6 +1,6 @@
 # Spec: Presentation 노드 공통 규약
 
-> 관련 문서: [PRD Presentation 노드](../../../prd/3-node-system.md#8-presentation-노드-6종) · [Spec 노드 개요](../0-overview.md) · [Spec 노드 공통](../../3-workflow-editor/1-node-common.md) · [Spec 실행 엔진](../../5-system/4-execution-engine.md) · [Spec 실행/디버깅 §10 Run Results Drawer](../../3-workflow-editor/3-execution.md#10-run-results-drawer)
+> 관련 문서: [PRD Presentation 노드](../../../prd/3-node-system.md#9-presentation-노드-6종) · [Spec 노드 개요](../0-overview.md) · [Spec 노드 공통](../../3-workflow-editor/1-node-common.md) · [Spec 실행 엔진](../../5-system/4-execution-engine.md) · [Spec 실행/디버깅 §10 Run Results Drawer](../../3-workflow-editor/3-execution.md#10-run-results-drawer)
 
 본 문서는 Presentation 카테고리 노드 전체에 공통되는 규약을 정의한다. 노드별 동작·설정은 각 노드 문서를 참조한다.
 

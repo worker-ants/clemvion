@@ -1,6 +1,6 @@
 # PRD: 내비게이션 구조
 
-> 관련 문서: [제품 개요](./0-overview.md) · [통합/연동](./4-integration.md) · [Spec 레이아웃](../spec/2-navigation/0-layout.md)
+> 관련 문서: [제품 개요](./0-overview.md) · [통합/연동](./4-integration.md) · [Spec 레이아웃](../spec/2-navigation/_layout.md)
 
 ---
 

@@ -11,7 +11,7 @@
 
 **[WARNING] `spec/2-navigation/3-schedule.md` 업데이트 누락**
 - 위치: `plan/in-progress/execution-trigger-metadata-fix.md` 작업 항목
-- 상세: plan 문서에 "spec/2-navigation/3-schedule.md (해당 시) — cron 자동 실행 시 triggerId 채움 명시"가 체크 항목으로 명시되어 있으나, 해당 스펙 파일 변경이 diff에 포함되지 않았다. `4-execution-engine.md`와 `5-webhook.md`는 갱신됐지만 schedule 스펙이 불일치 상태로 남을 수 있다.
+- 상세: plan 문서에 "spec/2-navigation/3-schedule.md (해당 시) — cron 자동 실행 시 triggerId 채움 명시"가 체크 항목으로 명시되어 있으나, 해당 스펙 파일 변경이 diff에 포함되지 않았다. `4-execution-engine.md`와 `12-webhook.md`는 갱신됐지만 schedule 스펙이 불일치 상태로 남을 수 있다.
 - 제안: `spec/2-navigation/3-schedule.md`에 `ScheduleRunnerService.process()`가 `{ triggerId: schedule.triggerId }`를 전달하는 흐름 명시, 또는 해당 파일이 존재하지 않아 불필요하다면 plan 항목에서 명시적으로 제거
 
 ---

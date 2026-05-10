@@ -1,6 +1,6 @@
 # Spec: 엣지 연결 규칙
 
-> 관련 문서: [PRD 워크플로우 에디터](../../prd/2-workflow-editor.md#33-엣지-연결) · [Spec 캔버스](./0-canvas.md) · [Spec 노드 공통](./1-node-common.md) · [데이터 모델 - Edge](../1-data-model.md#26-edge)
+> 관련 문서: [PRD 워크플로우 에디터](../../prd/2-workflow-editor.md#33-엣지-연결) · [Spec 캔버스](./0-canvas.md) · [Spec 노드 공통](./1-node-common.md) · [데이터 모델 - Edge](../1-data-model.md#27-edge)
 
 ---
 

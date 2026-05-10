@@ -38,14 +38,14 @@
 ---
 
 **[INFO]** 실행 내역 스펙과 구현 간 `waiting_for_input` 필터 불일치가 문서에 미반영
-- 위치: `spec/2-navigation/6-execution-history.md` — §2.3 필터 테이블
+- 위치: `spec/2-navigation/14-execution-history.md` — §2.3 필터 테이블
 - 상세: 스펙에 `Waiting` 필터가 정의되어 있으나, requirement 리뷰에서 해당 필터 버튼이 구현에 누락된 것으로 확인됨. 스펙 자체에 "구현 확인 필요" 또는 TODO 표시가 없어 신규 개발자가 구현 완료로 오해할 수 있음
 - 제안: 구현 누락 사항은 RESOLUTION.md에 조치 기록 후 스펙과의 동기화 확인 필요
 
 ---
 
 **[INFO]** `execution-history.md` 3.5절의 API Error 상태가 구현에 미반영
-- 위치: `spec/2-navigation/6-execution-history.md` — §3.5
+- 위치: `spec/2-navigation/14-execution-history.md` — §3.5
 - 상세: 스펙에 "API Error → 'Failed to load execution. Please try again.' + Back 버튼" 처리가 정의되어 있으나, requirement 리뷰에서 `executionQuery.isError` 처리가 구현에 없다고 확인됨. 스펙이 구현보다 앞서 있어 문서 신뢰성 저하
 - 제안: RESOLUTION.md에 미구현 사항으로 기록
 
@@ -53,7 +53,7 @@
 
 ### 요약
 
-Spec 문서들은 전반적으로 구조화가 잘 되어 있고, 새로 추가된 `6-execution-history.md`는 API 응답 형식·UI 모형·라우팅까지 포함한 충실한 문서다. 주요 문서화 이슈는 `presentation-nodes.md`에 집중되어 있으며, `buttonConfig.buttonItemMap`의 스키마 미정의, `source` 필드의 필수/선택 불일치, Static `ItemDef.buttons`와 Dynamic `itemButtons` 간 관계 미명시가 구현 시 혼란을 야기할 수 있다. 에러 처리 스펙과 실행 엔진 스펙의 추가분은 소규모이나 기존 정의와의 참조 연결이 부족하다. 스펙이 현재 구현보다 앞서 있는 항목(`waiting_for_input` 필터, API Error 처리)이 있으므로 RESOLUTION.md와의 동기화가 필요하다.
+Spec 문서들은 전반적으로 구조화가 잘 되어 있고, 새로 추가된 `14-execution-history.md`는 API 응답 형식·UI 모형·라우팅까지 포함한 충실한 문서다. 주요 문서화 이슈는 `presentation-nodes.md`에 집중되어 있으며, `buttonConfig.buttonItemMap`의 스키마 미정의, `source` 필드의 필수/선택 불일치, Static `ItemDef.buttons`와 Dynamic `itemButtons` 간 관계 미명시가 구현 시 혼란을 야기할 수 있다. 에러 처리 스펙과 실행 엔진 스펙의 추가분은 소규모이나 기존 정의와의 참조 연결이 부족하다. 스펙이 현재 구현보다 앞서 있는 항목(`waiting_for_input` 필터, API Error 처리)이 있으므로 RESOLUTION.md와의 동기화가 필요하다.
 
 ### 위험도
 

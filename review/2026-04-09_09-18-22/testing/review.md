@@ -68,7 +68,7 @@
 
 **[WARNING] `waiting_for_input` 필터 버튼 누락이 스펙 요구사항이나 테스트도 없음**
 - 위치: requirement/review.md에서 [WARNING]으로 지적, `execution-list-page.test.tsx`
-- 상세: spec `2-navigation/6-execution-history.md §2.3`에 "Waiting" 필터가 명시되어 있으나 현재 `FILTER_BUTTONS` 배열에 없다. 필터 버튼 렌더링 테스트도 없어 이 누락이 테스트로 감지되지 않는다.
+- 상세: spec `2-navigation/14-execution-history.md §2.3`에 "Waiting" 필터가 명시되어 있으나 현재 `FILTER_BUTTONS` 배열에 없다. 필터 버튼 렌더링 테스트도 없어 이 누락이 테스트로 감지되지 않는다.
 - 제안: `it("renders all filter buttons including Waiting", ...)` 테스트 추가로 스펙 준수 여부를 검증
 
 ---
@@ -109,7 +109,7 @@
 ---
 
 **[INFO] 스펙 변경사항(spec 파일)에 대응하는 테스트 없음**
-- 위치: `spec/2-navigation/6-execution-history.md`, `spec/4-nodes/6-presentation-nodes.md`, `spec/5-system/3-error-handling.md`, `spec/5-system/4-execution-engine.md`
+- 위치: `spec/2-navigation/14-execution-history.md`, `spec/4-nodes/6-presentation-nodes.md`, `spec/5-system/3-error-handling.md`, `spec/5-system/4-execution-engine.md`
 - 상세: 이번 변경에서 다수의 신규 스펙이 추가되었다 — `waiting_for_input` 필터, adjacent 네비게이션, `currentIndex === -1` 처리, `_selectedPort` 메타데이터 strip, Carousel `itemButtons` 등. 이에 대응하는 테스트 코드 추가 계획이 없다.
 - 제안: 각 스펙 항목에 대한 테스트를 작성하여 구현이 스펙을 준수하는지 검증
 

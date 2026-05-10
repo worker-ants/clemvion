@@ -37,8 +37,8 @@
 
 ---
 
-**[INFO] Spec 변경(`6-execution-history.md`)에 정의된 `waiting_for_input` 필터가 구현에서 누락됨**
-- 위치: `spec/2-navigation/6-execution-history.md §2.3`, `executions/page.tsx:101-107`
+**[INFO] Spec 변경(`14-execution-history.md`)에 정의된 `waiting_for_input` 필터가 구현에서 누락됨**
+- 위치: `spec/2-navigation/14-execution-history.md §2.3`, `executions/page.tsx:101-107`
 - 상세: Spec은 `Waiting` 필터(`waiting_for_input`)를 필터 버튼 목록에 포함하고 있으나, 구현에서는 해당 항목이 없음. Spec → 구현 동기화 체계가 없어 스펙 변경이 구현에 반영되지 않는 아키텍처적 프로세스 문제. Spec이 단일 진실 공급원(Single Source of Truth) 역할을 하고 있지 않음.
 - 제안: 단기적으로 `FILTER_BUTTONS` 배열에 `{ label: "Waiting", value: "waiting_for_input" }` 추가. 중장기적으로 상태 목록을 공유 상수로 정의하고 필터 버튼을 이로부터 자동 생성하는 방식 고려.
 

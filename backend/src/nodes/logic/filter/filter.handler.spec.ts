@@ -761,7 +761,7 @@ describe('FilterHandler', () => {
   });
 
   describe('per-item expression resolution and item-self sentinel', () => {
-    // spec/4-nodes/1-logic-nodes.md §8 line 367, 405:
+    // spec/4-nodes/1-logic/8-filter.md §1 (config) + §4 (실행 컨텍스트 변수):
     // - `field` is an Expression (`{{ $item.status }}` etc.)
     // - `$item` is bound to the current array item during evaluation.
     // Combined with the C sentinel: empty/$item field means "item itself".

@@ -1,6 +1,6 @@
 # Spec: 에러 페이지 / 빈 상태 UI
 
-> 관련 문서: [Spec 레이아웃](./0-layout.md) · [Spec 아키텍처 개요](../0-overview.md) · [Spec 에러 처리](../5-system/3-error-handling.md)
+> 관련 문서: [Spec 레이아웃](./_layout.md) · [Spec 아키텍처 개요](../0-overview.md) · [Spec 에러 처리](../5-system/3-error-handling.md)
 
 ---
 

@@ -1,6 +1,6 @@
 # PRD: Webhook 트리거
 
-> 관련 문서: [제품 개요](./0-overview.md) · [통합/연동](./4-integration.md) · [Spec Webhook](../spec/5-system/5-webhook.md) · [Spec 트리거 목록](../spec/2-navigation/2-trigger-list.md)
+> 관련 문서: [제품 개요](./0-overview.md) · [통합/연동](./4-integration.md) · [Spec Webhook](../spec/5-system/12-webhook.md) · [Spec 트리거 목록](../spec/2-navigation/2-trigger-list.md)
 
 ---
 

@@ -1,6 +1,6 @@
 # PRD: 워크플로우 실행 내역
 
-> 관련 문서: [제품 개요](./0-overview.md) · [내비게이션](./1-navigation.md) · [Spec 대시보드](../spec/2-navigation/0-dashboard.md) · [Spec 실행 내역](../spec/2-navigation/6-execution-history.md)
+> 관련 문서: [제품 개요](./0-overview.md) · [내비게이션](./1-navigation.md) · [Spec 대시보드](../spec/2-navigation/0-dashboard.md) · [Spec 실행 내역](../spec/2-navigation/14-execution-history.md)
 
 ---
 

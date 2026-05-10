@@ -1,6 +1,6 @@
 # Spec: 사용자 프로필/설정 화면
 
-> 관련 문서: [PRD 내비게이션](../../prd/1-navigation.md#310-user-profile) · [Spec 레이아웃](./0-layout.md) · [Spec 인증/인가](../5-system/1-auth.md) · [데이터 모델 - User](../1-data-model.md#21-user) · [데이터 모델 - Workspace](../1-data-model.md#22-workspace)
+> 관련 문서: [PRD 내비게이션](../../prd/1-navigation.md#311-user-profile-사용자-프로필) · [Spec 레이아웃](./_layout.md) · [Spec 인증/인가](../5-system/1-auth.md) · [데이터 모델 - User](../1-data-model.md#21-user) · [데이터 모델 - Workspace](../1-data-model.md#22-workspace)
 
 ---
 

@@ -1,6 +1,6 @@
 # Spec: Trigger 노드 공통 규약
 
-> 관련 문서: [PRD 노드 시스템](../../../prd/3-node-system.md#3-trigger-노드) · [Spec 노드 개요](../0-overview.md) · [Spec 노드 공통](../../3-workflow-editor/1-node-common.md) · [Spec 실행 엔진](../../5-system/4-execution-engine.md)
+> 관련 문서: [PRD 노드 시스템](../../../prd/3-node-system.md#3-trigger-노드-1종) · [Spec 노드 개요](../0-overview.md) · [Spec 노드 공통](../../3-workflow-editor/1-node-common.md) · [Spec 실행 엔진](../../5-system/4-execution-engine.md)
 
 본 문서는 Trigger 카테고리 노드 전체에 공통되는 규약을 정의한다. 노드별 동작·설정은 각 노드 문서를 참조한다.
 

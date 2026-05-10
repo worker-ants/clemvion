@@ -1,6 +1,6 @@
 # Spec: User Guide (`/docs`)
 
-> 관련 문서: [PRD 내비게이션](../../prd/1-navigation.md) · [Spec 레이아웃](./0-layout.md) · [Spec 노드 공통](../3-workflow-editor/1-node-common.md) · [Spec 캔버스](../3-workflow-editor/0-canvas.md)
+> 관련 문서: [PRD 내비게이션](../../prd/1-navigation.md) · [Spec 레이아웃](./_layout.md) · [Spec 노드 공통](../3-workflow-editor/1-node-common.md) · [Spec 캔버스](../3-workflow-editor/0-canvas.md)
 
 ---
 
