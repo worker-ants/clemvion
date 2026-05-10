@@ -12,8 +12,15 @@ export const ErrorCode = {
   HTTP_5XX: 'HTTP_5XX',
   HTTP_TIMEOUT: 'HTTP_TIMEOUT',
   // Database
+  // `DB_QUERY_FAILED` is the fallback / generic SQL execution failure.
+  // The other three are mapped from driver-specific error codes
+  // (PostgreSQL SQLSTATE / MySQL error code strings) so workflow authors
+  // can branch on retry-worthy connection issues vs permanent constraint
+  // / permission failures. See `database-query.handler.ts#mapDbError`.
   DB_QUERY_FAILED: 'DB_QUERY_FAILED',
-  DB_CONNECTION_FAILED: 'DB_CONNECTION_FAILED',
+  DB_CONNECTION_ERROR: 'DB_CONNECTION_ERROR',
+  DB_CONSTRAINT_VIOLATION: 'DB_CONSTRAINT_VIOLATION',
+  DB_PERMISSION_DENIED: 'DB_PERMISSION_DENIED',
   // Email
   EMAIL_SEND_FAILED: 'EMAIL_SEND_FAILED',
   // LLM

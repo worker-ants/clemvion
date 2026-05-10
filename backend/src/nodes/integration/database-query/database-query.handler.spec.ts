@@ -219,14 +219,141 @@ describe('DatabaseQueryHandler', () => {
         ctx(),
       )) as unknown as {
         port: string;
-        output: { error: { code: string; message: string } };
+        output: {
+          error: {
+            code: string;
+            message: string;
+            details?: { driverCode?: string };
+          };
+        };
       };
       expect(out.port).toBe('error');
+      expect(out.output.error.code).toBe('DB_QUERY_FAILED');
       expect(out.output.error.message).toBe('syntax error');
+      // Plain `Error` carries no driver code → `details` omitted (Principle 11)
+      expect(out.output.error.details).toBeUndefined();
       expect(releaseMock).toHaveBeenCalled();
       expect(logUsage).toHaveBeenCalledWith(
         expect.objectContaining({ status: 'failed' }),
       );
+      await handler.shutdown();
+    });
+
+    it('maps PostgreSQL SQLSTATE 23505 (unique violation) to DB_CONSTRAINT_VIOLATION', async () => {
+      const { service } = makeService();
+      const pgErr = Object.assign(
+        new Error(
+          'duplicate key value violates unique constraint "users_pkey"',
+        ),
+        { code: '23505', constraint: 'users_pkey' },
+      );
+      queryMock.mockRejectedValue(pgErr);
+      const handler = new DatabaseQueryHandler(service as never);
+      const out = (await handler.execute(
+        null,
+        {
+          integrationId: 'int-1',
+          query: 'INSERT INTO users(id) VALUES ($1)',
+          parameters: ['u_1'],
+        },
+        ctx(),
+      )) as unknown as {
+        port: string;
+        output: {
+          error: {
+            code: string;
+            message: string;
+            details?: { driverCode?: string };
+          };
+        };
+      };
+      expect(out.port).toBe('error');
+      expect(out.output.error.code).toBe('DB_CONSTRAINT_VIOLATION');
+      expect(out.output.error.details?.driverCode).toBe('23505');
+      await handler.shutdown();
+    });
+
+    it('maps PostgreSQL SQLSTATE 23503 (FK violation) to DB_CONSTRAINT_VIOLATION', async () => {
+      const { service } = makeService();
+      queryMock.mockRejectedValue(
+        Object.assign(new Error('foreign key violation'), { code: '23503' }),
+      );
+      const handler = new DatabaseQueryHandler(service as never);
+      const out = (await handler.execute(
+        null,
+        { integrationId: 'int-1', query: 'INSERT INTO posts ...' },
+        ctx(),
+      )) as unknown as {
+        port: string;
+        output: { error: { code: string; details?: { driverCode?: string } } };
+      };
+      expect(out.output.error.code).toBe('DB_CONSTRAINT_VIOLATION');
+      expect(out.output.error.details?.driverCode).toBe('23503');
+      await handler.shutdown();
+    });
+
+    it('maps PostgreSQL SQLSTATE 42501 (permission) to DB_PERMISSION_DENIED', async () => {
+      const { service } = makeService();
+      queryMock.mockRejectedValue(
+        Object.assign(new Error('permission denied for table secret_table'), {
+          code: '42501',
+        }),
+      );
+      const handler = new DatabaseQueryHandler(service as never);
+      const out = (await handler.execute(
+        null,
+        { integrationId: 'int-1', query: 'SELECT * FROM secret_table' },
+        ctx(),
+      )) as unknown as {
+        port: string;
+        output: { error: { code: string; details?: { driverCode?: string } } };
+      };
+      expect(out.output.error.code).toBe('DB_PERMISSION_DENIED');
+      expect(out.output.error.details?.driverCode).toBe('42501');
+      await handler.shutdown();
+    });
+
+    it('maps PostgreSQL SQLSTATE 42601 (syntax) to DB_QUERY_FAILED with driverCode', async () => {
+      const { service } = makeService();
+      queryMock.mockRejectedValue(
+        Object.assign(new Error('syntax error at or near "SELEC"'), {
+          code: '42601',
+        }),
+      );
+      const handler = new DatabaseQueryHandler(service as never);
+      const out = (await handler.execute(
+        null,
+        { integrationId: 'int-1', query: 'SELEC 1' },
+        ctx(),
+      )) as unknown as {
+        port: string;
+        output: { error: { code: string; details?: { driverCode?: string } } };
+      };
+      expect(out.output.error.code).toBe('DB_QUERY_FAILED');
+      expect(out.output.error.details?.driverCode).toBe('42601');
+      await handler.shutdown();
+    });
+
+    it('maps connect-time ECONNRESET to DB_CONNECTION_ERROR', async () => {
+      const { service } = makeService();
+      // Pool.connect() rejects with a node ErrnoException (`code` is the
+      // Node-style errno like ECONNRESET / ETIMEDOUT, not SQLSTATE).
+      connectMock.mockRejectedValue(
+        Object.assign(new Error('Connection terminated unexpectedly'), {
+          code: 'ECONNRESET',
+        }),
+      );
+      const handler = new DatabaseQueryHandler(service as never);
+      const out = (await handler.execute(
+        null,
+        { integrationId: 'int-1', query: 'SELECT 1' },
+        ctx(),
+      )) as unknown as {
+        port: string;
+        output: { error: { code: string; details?: { driverCode?: string } } };
+      };
+      expect(out.output.error.code).toBe('DB_CONNECTION_ERROR');
+      expect(out.output.error.details?.driverCode).toBe('ECONNRESET');
       await handler.shutdown();
     });
 
@@ -343,10 +470,168 @@ describe('DatabaseQueryHandler', () => {
         ctx(),
       )) as unknown as {
         port: string;
-        output: { error: { message: string } };
+        output: { error: { code: string; message: string } };
       };
       expect(out.port).toBe('error');
+      expect(out.output.error.code).toBe('DB_QUERY_FAILED');
       expect(out.output.error.message).toBe('ER_PARSE_ERROR');
+      await handler.shutdown();
+    });
+
+    it('maps MySQL ER_DUP_ENTRY to DB_CONSTRAINT_VIOLATION', async () => {
+      const { service } = makeService({
+        integration: {
+          id: 'int-1',
+          name: 'MySql',
+          serviceType: 'database',
+          status: 'connected',
+          credentials: {
+            driver: 'mysql',
+            host: 'h',
+            port: 3306,
+            database: 'd',
+            username: 'u',
+            password: 'p',
+            ssl: 'disable',
+          },
+        },
+      });
+      mysqlQueryMock.mockRejectedValue(
+        Object.assign(new Error("Duplicate entry 'u_1' for key 'PRIMARY'"), {
+          code: 'ER_DUP_ENTRY',
+          errno: 1062,
+          sqlState: '23000',
+        }),
+      );
+      const handler = new DatabaseQueryHandler(service as never);
+      const out = (await handler.execute(
+        null,
+        { integrationId: 'int-1', query: 'INSERT ...' },
+        ctx(),
+      )) as unknown as {
+        port: string;
+        output: { error: { code: string; details?: { driverCode?: string } } };
+      };
+      expect(out.output.error.code).toBe('DB_CONSTRAINT_VIOLATION');
+      expect(out.output.error.details?.driverCode).toBe('ER_DUP_ENTRY');
+      await handler.shutdown();
+    });
+
+    it('maps MySQL PROTOCOL_CONNECTION_LOST to DB_CONNECTION_ERROR', async () => {
+      const { service } = makeService({
+        integration: {
+          id: 'int-1',
+          name: 'MySql',
+          serviceType: 'database',
+          status: 'connected',
+          credentials: {
+            driver: 'mysql',
+            host: 'h',
+            port: 3306,
+            database: 'd',
+            username: 'u',
+            password: 'p',
+            ssl: 'disable',
+          },
+        },
+      });
+      mysqlQueryMock.mockRejectedValue(
+        Object.assign(new Error('Connection lost'), {
+          code: 'PROTOCOL_CONNECTION_LOST',
+        }),
+      );
+      const handler = new DatabaseQueryHandler(service as never);
+      const out = (await handler.execute(
+        null,
+        { integrationId: 'int-1', query: 'SELECT 1' },
+        ctx(),
+      )) as unknown as {
+        port: string;
+        output: { error: { code: string; details?: { driverCode?: string } } };
+      };
+      expect(out.output.error.code).toBe('DB_CONNECTION_ERROR');
+      expect(out.output.error.details?.driverCode).toBe(
+        'PROTOCOL_CONNECTION_LOST',
+      );
+      await handler.shutdown();
+    });
+
+    it('maps MySQL ER_TABLEACCESS_DENIED_ERROR to DB_PERMISSION_DENIED', async () => {
+      const { service } = makeService({
+        integration: {
+          id: 'int-1',
+          name: 'MySql',
+          serviceType: 'database',
+          status: 'connected',
+          credentials: {
+            driver: 'mysql',
+            host: 'h',
+            port: 3306,
+            database: 'd',
+            username: 'u',
+            password: 'p',
+            ssl: 'disable',
+          },
+        },
+      });
+      mysqlQueryMock.mockRejectedValue(
+        Object.assign(
+          new Error("SELECT command denied to user 'u'@'h' for table 'secret'"),
+          { code: 'ER_TABLEACCESS_DENIED_ERROR' },
+        ),
+      );
+      const handler = new DatabaseQueryHandler(service as never);
+      const out = (await handler.execute(
+        null,
+        { integrationId: 'int-1', query: 'SELECT * FROM secret' },
+        ctx(),
+      )) as unknown as {
+        port: string;
+        output: { error: { code: string; details?: { driverCode?: string } } };
+      };
+      expect(out.output.error.code).toBe('DB_PERMISSION_DENIED');
+      expect(out.output.error.details?.driverCode).toBe(
+        'ER_TABLEACCESS_DENIED_ERROR',
+      );
+      await handler.shutdown();
+    });
+
+    it('maps MySQL ER_ACCESS_DENIED_ERROR (auth fail at connect) to DB_CONNECTION_ERROR', async () => {
+      const { service } = makeService({
+        integration: {
+          id: 'int-1',
+          name: 'MySql',
+          serviceType: 'database',
+          status: 'connected',
+          credentials: {
+            driver: 'mysql',
+            host: 'h',
+            port: 3306,
+            database: 'd',
+            username: 'u',
+            password: 'p',
+            ssl: 'disable',
+          },
+        },
+      });
+      mysqlQueryMock.mockRejectedValue(
+        Object.assign(new Error("Access denied for user 'u'@'h'"), {
+          code: 'ER_ACCESS_DENIED_ERROR',
+        }),
+      );
+      const handler = new DatabaseQueryHandler(service as never);
+      const out = (await handler.execute(
+        null,
+        { integrationId: 'int-1', query: 'SELECT 1' },
+        ctx(),
+      )) as unknown as {
+        port: string;
+        output: { error: { code: string; details?: { driverCode?: string } } };
+      };
+      expect(out.output.error.code).toBe('DB_CONNECTION_ERROR');
+      expect(out.output.error.details?.driverCode).toBe(
+        'ER_ACCESS_DENIED_ERROR',
+      );
       await handler.shutdown();
     });
 
