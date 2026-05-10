@@ -250,3 +250,12 @@ spec/4-nodes/ 의 해당 ⚠ 미구현 (C) 마커 제거.
 
 - 🎯 B 6건: 정책 결정 후 별도 plan
 - ai_agent 일반 도구 연결 재설계: 별도 design doc + plan
+- **WorkflowExecutor typed error hierarchy** (Phase 1 workflow A-3 후속):
+  현재 `workflow.handler.ts` 의 `mapSubWorkflowError` 는 executor 가 던지는
+  `Error.message` 문자열을 패턴 매칭(`'workflow not found'`, `'timed out'`,
+  `'queue' + failure markers`) 으로 코드 분류한다. executor 가 메시지 문구를
+  바꾸면 분류가 조용히 `SUB_WORKFLOW_FAILED` 로 퇴보한다. `WorkflowExecutor`
+  인터페이스에 `WorkflowNotFoundError` / `WorkflowTimeoutError` /
+  `WorkflowQueueError` 등 구조화된 에러 타입을 도입하고, 핸들러를
+  `instanceof` 분기로 전환하면 컴파일 시점에 매핑이 보장된다. `error-codes.ts`
+  ErrorCode 도메인별 분리 (`workflow-error-codes.ts` 등) 도 같이 검토.

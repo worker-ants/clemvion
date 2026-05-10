@@ -74,6 +74,10 @@ One input `in` and one output `out`. In sync mode the sub-workflow's final outpu
   "workflowId": "…",
   "status": "started"
 }
+
+// Expression access
+// $node["X"].output.executionId  → "9f2c-…-…"
+// $node["X"].status              → "started"  (top-level status)
 ```
 </Example>
 

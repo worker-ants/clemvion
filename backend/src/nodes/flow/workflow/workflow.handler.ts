@@ -5,7 +5,11 @@ import {
   ExecutionContext,
 } from '../../core/node-handler.interface.js';
 import { evaluateMetadataBlockingErrors } from '../../core/metadata-validation.js';
-import { ErrorCode, ErrorCodeValue } from '../../core/error-codes.js';
+import {
+  ErrorCode,
+  ErrorCodeValue,
+  truncateForErrorDetails,
+} from '../../core/error-codes.js';
 import { WorkflowExecutor } from '../../core/workflow-executor.interface.js';
 import { workflowNodeMetadata } from './workflow.schema.js';
 
@@ -136,10 +140,12 @@ export class WorkflowHandler implements NodeHandler {
           parentNodeExecutionId: context.nodeExecutionId,
         },
       );
-      // D-1 — sync result is wrapped one level under `output.result` so
-      // every sync termination follows the same shape regardless of the
+      // Sync result is wrapped one level under `output.result` so every
+      // sync termination follows the same shape regardless of the
       // sub-workflow's final node output. Downstream nodes access via
-      // `$node["X"].output.result.<sub_path>`.
+      // `$node["X"].output.result.<sub_path>`. Note: if the inner workflow
+      // itself emits a `result` key, the access path becomes
+      // `output.result.result` — an intentional double-nest, not a bug.
       return {
         config: configEcho,
         output: { result: inlineResult },
@@ -154,11 +160,10 @@ export class WorkflowHandler implements NodeHandler {
    * not a pre-flight one, so it routes to the `error` port with a
    * standardized envelope rather than propagating the exception.
    *
-   * A-3 — error code is mapped from the executor's thrown message:
-   *  - `Workflow not found` → `SUB_WORKFLOW_NOT_FOUND`
-   *  - `timed out` / `timeout` → `SUB_WORKFLOW_TIMEOUT`
-   *  - queue enqueue failure → `SUB_WORKFLOW_QUEUE_FAILED`
-   *  - default                  → `SUB_WORKFLOW_FAILED`
+   * Error code is mapped from the executor's thrown message; see
+   * {@link mapSubWorkflowError}. The user-visible message is truncated to
+   * keep error envelopes within reasonable size and to limit accidental
+   * leaks of long internal stack frames or PII.
    */
   private buildSubWorkflowError(
     configEcho: Record<string, unknown>,
@@ -174,14 +179,15 @@ export class WorkflowHandler implements NodeHandler {
     };
     port: 'error';
   } {
-    const message = err instanceof Error ? err.message : String(err);
-    const code = mapSubWorkflowError(message);
+    const rawMessage = err instanceof Error ? err.message : String(err);
+    const code = mapSubWorkflowError(rawMessage);
+    const safeMessage = truncateForErrorDetails(rawMessage) ?? '';
     return {
       config: configEcho,
       output: {
         error: {
           code,
-          message,
+          message: safeMessage,
           details: {
             workflowId: configEcho.workflowId,
             mode: configEcho.mode,
@@ -195,9 +201,15 @@ export class WorkflowHandler implements NodeHandler {
 
 /**
  * Map a sub-workflow executor error message to a CONVENTIONS §3.2 error code.
- * Exported for unit testing — the executor today throws plain `Error` with a
- * descriptive message; we pattern-match on that message until the executor
- * exposes a structured error type.
+ * Exported for unit testing — the executor today throws plain `Error` with
+ * descriptive messages; we pattern-match on the message text until the
+ * executor exposes a structured error type.
+ *
+ * TODO: replace with `instanceof WorkflowNotFoundError` / `WorkflowTimeoutError`
+ * branches once `WorkflowExecutor` ships a typed error hierarchy. Tracked in
+ * `plan/in-progress/spec-4-nodes-unimplemented-cleanup.md`.
+ *
+ * @internal
  */
 export function mapSubWorkflowError(message: string): ErrorCodeValue {
   // Case-insensitive — Node's stock errors use mixed casing across paths.
@@ -205,7 +217,12 @@ export function mapSubWorkflowError(message: string): ErrorCodeValue {
   if (lower.includes('workflow not found')) {
     return ErrorCode.SUB_WORKFLOW_NOT_FOUND;
   }
-  if (lower.includes('timed out') || lower.includes('timeout')) {
+  // Match only the executor's actual phrasing
+  // (`Sub-workflow execution timed out after Nms`). The bare token
+  // "timeout" is intentionally rejected so unrelated inner-node errors
+  // (e.g. "PostgreSQL connection timeout") do not get reclassified as
+  // sub-workflow timeouts.
+  if (lower.includes('timed out')) {
     return ErrorCode.SUB_WORKFLOW_TIMEOUT;
   }
   if (

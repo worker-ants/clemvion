@@ -33,10 +33,11 @@ export const ErrorCode = {
   CODE_EXECUTION_FAILED: 'CODE_EXECUTION_FAILED',
   CODE_TIMEOUT: 'CODE_TIMEOUT',
   // Workflow / sub-workflow
-  // SUB_WORKFLOW_FAILED is the generic fallback. The other three are
-  // mapped from executor error messages (`Workflow not found`, timeout,
-  // queue enqueue failure) so workflow authors can branch on cause.
-  // See `workflow.handler.ts#mapSubWorkflowError`.
+  // SUB_WORKFLOW_FAILED is the generic fallback. The other three express
+  // distinct failure modes so workflow authors can branch on cause: a
+  // missing target workflow, a synchronous timeout, or an async-queue
+  // enqueue failure. The Sub-Workflow handler picks the right code based
+  // on the executor's thrown message.
   SUB_WORKFLOW_FAILED: 'SUB_WORKFLOW_FAILED',
   SUB_WORKFLOW_NOT_FOUND: 'SUB_WORKFLOW_NOT_FOUND',
   SUB_WORKFLOW_TIMEOUT: 'SUB_WORKFLOW_TIMEOUT',
