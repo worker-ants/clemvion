@@ -25,7 +25,7 @@ code: ["backend/src/nodes/flow/workflow/workflow.schema.ts"]
   {name: "workflowId", required: true, type: "UUID 또는 expression", description: "호출할 대상 워크플로우 ID예요. 드롭다운으로 선택하면 자동 입력되고, 직접 UUID나 표현식으로 넣을 수도 있어요.", default: "-"},
   {name: "workflowName", required: false, type: "string", description: "드롭다운에서 선택한 이름이에요. 캔버스 요약에 표시돼요. 직접 UUID를 입력하면 자동으로 비워져요.", default: "-"},
   {name: "mode", required: true, type: "`sync` / `async`", description: "동기 또는 비동기 호출 방식이에요.", default: "sync"},
-  {name: "inputMapping", required: false, type: "MappingDef[]", description: "입력 파라미터 매핑이에요. 미지정 시 부모 입력을 그대로 전달해요. 각 항목은 `target`(파라미터 이름)과 `source`(표현식)를 가져요.", default: "[]"},
+  {name: "inputMapping", required: false, type: "MappingDef[]", description: "입력 파라미터 매핑이에요. 미지정 시 부모 입력을 그대로 전달해요. 각 항목은 `paramName`(파라미터 이름)과 `expression`(표현식)을 가져요.", default: "[]"},
   {name: "timeout", required: false, type: "integer(초)", description: "동기 호출 시 타임아웃이에요. `0`은 무제한 대기예요. `mode=sync`일 때만 의미가 있어요.", default: "300"}
 ]} />
 
@@ -39,7 +39,7 @@ code: ["backend/src/nodes/flow/workflow/workflow.schema.ts"]
 2. 대상 워크플로우의 노드/연결선을 로드해 **부모 Execution 안에서 인라인으로 실행**해요.
 3. 서브 워크플로우 노드들은 부모의 `executionId`, 노드 결과 캐시, 노드 맵을 공유해요.
 4. 실행 히스토리에서 서브 워크플로우 노드가 부모 노드 바로 뒤에 이어서 보여요.
-5. 서브 워크플로우의 최종 출력이 `out` 포트로 나가요.
+5. 서브 워크플로우의 최종 출력이 `output.result` 로 1단 래핑되어 `out` 포트로 나가요. 다운스트림은 `{{ $node["서브 워크플로우"].output.result.<field> }}` 로 접근해요.
 6. 서브 워크플로우의 trigger 노드는 자동으로 스킵되고, 입력 데이터를 그대로 통과시켜요.
 
 ### Async 모드 동작
@@ -60,8 +60,8 @@ code: ["backend/src/nodes/flow/workflow/workflow.schema.ts"]
   "workflowName": "Data Pipeline",
   "mode": "sync",
   "inputMapping": [
-    { "target": "userId", "source": "{{ $input.user.id }}" },
-    { "target": "event",  "source": "{{ $input.type }}" }
+    { "paramName": "userId", "expression": "{{ $input.user.id }}" },
+    { "paramName": "event",  "expression": "{{ $input.type }}" }
   ],
   "timeout": 300
 }
@@ -75,7 +75,7 @@ code: ["backend/src/nodes/flow/workflow/workflow.schema.ts"]
   "workflowId": "{{ $var.notifyWorkflowId }}",
   "mode": "async",
   "inputMapping": [
-    { "target": "channel", "source": "{{ $input.channel }}" }
+    { "paramName": "channel", "expression": "{{ $input.channel }}" }
   ]
 }
 
@@ -111,4 +111,4 @@ code: ["backend/src/nodes/flow/workflow/workflow.schema.ts"]
 
 - 입력 매핑 없이 호출하면 부모 입력이 통째로 서브 워크플로우로 넘어가요. 필요한 파라미터만 명시적으로 넘기고 싶다면 `inputMapping`을 사용해요.
 - 서브 워크플로우의 실행 결과와 로그는 [실행 결과](/docs/05-run-and-debug/run-results)에서 함께 확인할 수 있어요.
-- 파워유저 팁: Sync 모드에서는 서브 워크플로우가 같은 실행 안에서 돌아가요. 덕분에 부모 쪽에서 `{{ $node["서브 워크플로우"].output.field }}` 처럼 서브 결과를 바로 참조할 수 있고, 실행 타임라인도 한 줄로 이어져 디버깅이 편해요.
+- 파워유저 팁: Sync 모드에서는 서브 워크플로우가 같은 실행 안에서 돌아가요. 덕분에 부모 쪽에서 `{{ $node["서브 워크플로우"].output.result.<field> }}` 처럼 서브 결과를 바로 참조할 수 있고, 실행 타임라인도 한 줄로 이어져 디버깅이 편해요.

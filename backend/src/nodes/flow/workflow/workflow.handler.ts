@@ -5,6 +5,7 @@ import {
   ExecutionContext,
 } from '../../core/node-handler.interface.js';
 import { evaluateMetadataBlockingErrors } from '../../core/metadata-validation.js';
+import { ErrorCode, ErrorCodeValue } from '../../core/error-codes.js';
 import { WorkflowExecutor } from '../../core/workflow-executor.interface.js';
 import { workflowNodeMetadata } from './workflow.schema.js';
 
@@ -100,8 +101,12 @@ export class WorkflowHandler implements NodeHandler {
 
         return {
           config: configEcho,
-          output: { executionId: subExecutionId },
-          meta: { status: 'started' },
+          output: {
+            executionId: subExecutionId,
+            workflowId,
+            status: 'started',
+          },
+          status: 'started',
         };
       } catch (err) {
         return this.buildSubWorkflowError(configEcho, err);
@@ -131,9 +136,13 @@ export class WorkflowHandler implements NodeHandler {
           parentNodeExecutionId: context.nodeExecutionId,
         },
       );
+      // D-1 — sync result is wrapped one level under `output.result` so
+      // every sync termination follows the same shape regardless of the
+      // sub-workflow's final node output. Downstream nodes access via
+      // `$node["X"].output.result.<sub_path>`.
       return {
         config: configEcho,
-        output: inlineResult,
+        output: { result: inlineResult },
       };
     } catch (err) {
       return this.buildSubWorkflowError(configEcho, err);
@@ -144,6 +153,12 @@ export class WorkflowHandler implements NodeHandler {
    * CONVENTIONS §3.2 — a sub-workflow runtime failure is a runtime error,
    * not a pre-flight one, so it routes to the `error` port with a
    * standardized envelope rather than propagating the exception.
+   *
+   * A-3 — error code is mapped from the executor's thrown message:
+   *  - `Workflow not found` → `SUB_WORKFLOW_NOT_FOUND`
+   *  - `timed out` / `timeout` → `SUB_WORKFLOW_TIMEOUT`
+   *  - queue enqueue failure → `SUB_WORKFLOW_QUEUE_FAILED`
+   *  - default                  → `SUB_WORKFLOW_FAILED`
    */
   private buildSubWorkflowError(
     configEcho: Record<string, unknown>,
@@ -152,7 +167,7 @@ export class WorkflowHandler implements NodeHandler {
     config: Record<string, unknown>;
     output: {
       error: {
-        code: string;
+        code: ErrorCodeValue;
         message: string;
         details?: Record<string, unknown>;
       };
@@ -160,11 +175,12 @@ export class WorkflowHandler implements NodeHandler {
     port: 'error';
   } {
     const message = err instanceof Error ? err.message : String(err);
+    const code = mapSubWorkflowError(message);
     return {
       config: configEcho,
       output: {
         error: {
-          code: 'SUB_WORKFLOW_FAILED',
+          code,
           message,
           details: {
             workflowId: configEcho.workflowId,
@@ -175,4 +191,30 @@ export class WorkflowHandler implements NodeHandler {
       port: 'error',
     };
   }
+}
+
+/**
+ * Map a sub-workflow executor error message to a CONVENTIONS §3.2 error code.
+ * Exported for unit testing — the executor today throws plain `Error` with a
+ * descriptive message; we pattern-match on that message until the executor
+ * exposes a structured error type.
+ */
+export function mapSubWorkflowError(message: string): ErrorCodeValue {
+  // Case-insensitive — Node's stock errors use mixed casing across paths.
+  const lower = message.toLowerCase();
+  if (lower.includes('workflow not found')) {
+    return ErrorCode.SUB_WORKFLOW_NOT_FOUND;
+  }
+  if (lower.includes('timed out') || lower.includes('timeout')) {
+    return ErrorCode.SUB_WORKFLOW_TIMEOUT;
+  }
+  if (
+    lower.includes('queue') &&
+    (lower.includes('failed') ||
+      lower.includes('enqueue') ||
+      lower.includes('reject'))
+  ) {
+    return ErrorCode.SUB_WORKFLOW_QUEUE_FAILED;
+  }
+  return ErrorCode.SUB_WORKFLOW_FAILED;
 }

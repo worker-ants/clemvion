@@ -14,7 +14,7 @@ This page explains how to call another workflow as a sub-workflow using the **Wo
   {name: "workflowId", required: true, type: "UUID or expression", description: "ID of the target workflow. Auto-filled when picked from the dropdown; you can also type a UUID or expression.", default: "-"},
   {name: "workflowName", required: false, type: "string", description: "The name picked from the dropdown. Shown in the canvas summary. Cleared automatically if you type a UUID directly.", default: "-"},
   {name: "mode", required: true, type: "`sync` / `async`", description: "Synchronous or asynchronous invocation.", default: "sync"},
-  {name: "inputMapping", required: false, type: "MappingDef[]", description: "Input-parameter mapping. When empty, the parent input passes through as-is. Each entry has `target` (parameter name) and `source` (expression).", default: "[]"},
+  {name: "inputMapping", required: false, type: "MappingDef[]", description: "Input-parameter mapping. When empty, the parent input passes through as-is. Each entry has `paramName` (parameter name) and `expression` (the expression to evaluate).", default: "[]"},
   {name: "timeout", required: false, type: "integer (seconds)", description: "Timeout for synchronous calls. `0` means wait forever. Only meaningful when `mode=sync`.", default: "300"}
 ]} />
 
@@ -28,7 +28,7 @@ One input `in` and one output `out`. In sync mode the sub-workflow's final outpu
 2. Load the target workflow's nodes and connections and **run them inline inside the parent Execution**.
 3. Sub-workflow nodes share the parent's `executionId`, node-result cache, and node map.
 4. In the run history, sub-workflow nodes appear right after the parent node on the timeline.
-5. The sub-workflow's final output leaves through the `out` port.
+5. The sub-workflow's final output is wrapped one level under `output.result` and leaves through the `out` port. Downstream nodes access fields via `{{ $node["Sub Workflow"].output.result.<field> }}`.
 6. The sub-workflow's trigger node is auto-skipped and simply passes the input data along.
 
 ### Async mode behavior
@@ -49,8 +49,8 @@ One input `in` and one output `out`. In sync mode the sub-workflow's final outpu
   "workflowName": "Data Pipeline",
   "mode": "sync",
   "inputMapping": [
-    { "target": "userId", "source": "{{ $input.user.id }}" },
-    { "target": "event",  "source": "{{ $input.type }}" }
+    { "paramName": "userId", "expression": "{{ $input.user.id }}" },
+    { "paramName": "event",  "expression": "{{ $input.type }}" }
   ],
   "timeout": 300
 }
@@ -64,7 +64,7 @@ One input `in` and one output `out`. In sync mode the sub-workflow's final outpu
   "workflowId": "{{ $var.notifyWorkflowId }}",
   "mode": "async",
   "inputMapping": [
-    { "target": "channel", "source": "{{ $input.channel }}" }
+    { "paramName": "channel", "expression": "{{ $input.channel }}" }
   ]
 }
 
@@ -100,4 +100,4 @@ Displayed as `{workflowName or workflowId} · {mode}`. When a name is available 
 
 - When you invoke without an input mapping, the parent input is passed through whole. To forward only specific parameters, use `inputMapping`.
 - Results and logs of a sub-workflow are also visible in [Run results](/docs/05-run-and-debug/run-results).
-- Power-user tip: in sync mode the sub-workflow executes inside the same run, so you can reference its results right from the parent with `{{ $node["Sub Workflow"].output.field }}`, and the run timeline stays a single continuous line — great for debugging.
+- Power-user tip: in sync mode the sub-workflow executes inside the same run, so you can reference its results right from the parent with `{{ $node["Sub Workflow"].output.result.<field> }}`, and the run timeline stays a single continuous line — great for debugging.

@@ -1,6 +1,7 @@
-import { WorkflowHandler } from './workflow.handler.js';
+import { WorkflowHandler, mapSubWorkflowError } from './workflow.handler.js';
 import { ExecutionContext } from '../../core/node-handler.interface.js';
 import { WorkflowExecutor } from '../../core/workflow-executor.interface.js';
+import { ErrorCode } from '../../core/error-codes.js';
 
 describe('WorkflowHandler', () => {
   let handler: WorkflowHandler;
@@ -118,7 +119,7 @@ describe('WorkflowHandler', () => {
       mode: 'sync' as const,
     };
 
-    it('should call executeInline and return sub-workflow output', async () => {
+    it('should call executeInline and wrap sub-workflow output under output.result (D-1)', async () => {
       const subOutput = { result: 'success', data: [1, 2, 3] };
       mockExecutor.executeInline.mockResolvedValue(subOutput);
 
@@ -128,7 +129,11 @@ describe('WorkflowHandler', () => {
         context,
       );
 
-      expect((result as { output: unknown }).output).toEqual(subOutput);
+      // D-1: sync result is wrapped one level under output.result so the
+      // shape stays uniform regardless of the sub-workflow's final output.
+      expect((result as { output: unknown }).output).toEqual({
+        result: subOutput,
+      });
       expect(mockExecutor.executeInline).toHaveBeenCalledWith(
         'sub-wf-1',
         { input: 'data' },
@@ -140,6 +145,14 @@ describe('WorkflowHandler', () => {
           parentNodeExecutionId: context.nodeExecutionId,
         },
       );
+    });
+
+    it('wraps even primitive / null sub-workflow outputs under output.result', async () => {
+      mockExecutor.executeInline.mockResolvedValue(null);
+
+      const result = await handler.execute({}, syncConfig, context);
+
+      expect((result as { output: unknown }).output).toEqual({ result: null });
     });
 
     it("should pass the workflow node's own nodeExecutionId as parentNodeExecutionId for children", async () => {
@@ -171,7 +184,8 @@ describe('WorkflowHandler', () => {
         output: { error: { code: string; message: string } };
       };
       expect(result.port).toBe('error');
-      expect(result.output.error.code).toBe('SUB_WORKFLOW_FAILED');
+      // Generic runtime failure → default code.
+      expect(result.output.error.code).toBe(ErrorCode.SUB_WORKFLOW_FAILED);
       expect(result.output.error.message).toContain('Expression error');
     });
 
@@ -203,7 +217,7 @@ describe('WorkflowHandler', () => {
       mode: 'async' as const,
     };
 
-    it('should call executeAsync and return execution info', async () => {
+    it('should call executeAsync and return execution info (A-2)', async () => {
       mockExecutor.executeAsync.mockResolvedValue('sub-exec-async-1');
 
       const result = await handler.execute(
@@ -212,11 +226,19 @@ describe('WorkflowHandler', () => {
         context,
       );
 
+      // A-2: async output is enriched with workflowId + status, and the
+      // top-level `status` field is set (replacing the old `meta.status`).
       expect(result).toMatchObject({
         config: { workflowId: 'sub-wf-1', mode: 'async' },
-        output: { executionId: 'sub-exec-async-1' },
-        meta: { status: 'started' },
+        output: {
+          executionId: 'sub-exec-async-1',
+          workflowId: 'sub-wf-1',
+          status: 'started',
+        },
+        status: 'started',
       });
+      // The previous `meta.status: 'started'` is no longer emitted.
+      expect((result as { meta?: unknown }).meta).toBeUndefined();
       expect(mockExecutor.executeAsync).toHaveBeenCalledWith(
         'sub-wf-1',
         { data: 'test' },
@@ -267,7 +289,10 @@ describe('WorkflowHandler', () => {
         context,
       );
 
-      expect((result as { output: unknown }).output).toEqual({ ok: true });
+      // D-1 wrap: output.result holds the sub-workflow output.
+      expect((result as { output: unknown }).output).toEqual({
+        result: { ok: true },
+      });
       expect(mockExecutor.executeInline).toHaveBeenCalledWith(
         'sub-wf-1',
         {},
@@ -366,11 +391,22 @@ describe('WorkflowHandler', () => {
     });
   });
 
-  describe('execute - error propagation', () => {
+  describe('execute - error propagation (A-3 code mapping)', () => {
+    type ErrorResult = {
+      port: string;
+      output: {
+        error: {
+          code: string;
+          message: string;
+          details?: Record<string, unknown>;
+        };
+      };
+    };
+
     // Post Stage 4 follow-up: sub-workflow runtime failures route to the
     // `error` port with CONVENTIONS §3.2 `output.error` envelope instead
     // of throwing.
-    it('routes to error port on async executeAsync failure', async () => {
+    it('maps "Workflow not found" → SUB_WORKFLOW_NOT_FOUND (async path)', async () => {
       mockExecutor.executeAsync.mockRejectedValue(
         new Error('Workflow not found: sub-wf-1'),
       );
@@ -379,18 +415,9 @@ describe('WorkflowHandler', () => {
         {},
         { workflowId: 'sub-wf-1', mode: 'async' },
         context,
-      )) as unknown as {
-        port: string;
-        output: {
-          error: {
-            code: string;
-            message: string;
-            details?: Record<string, unknown>;
-          };
-        };
-      };
+      )) as unknown as ErrorResult;
       expect(result.port).toBe('error');
-      expect(result.output.error.code).toBe('SUB_WORKFLOW_FAILED');
+      expect(result.output.error.code).toBe(ErrorCode.SUB_WORKFLOW_NOT_FOUND);
       expect(result.output.error.message).toContain('Workflow not found');
       expect(result.output.error.details).toMatchObject({
         workflowId: 'sub-wf-1',
@@ -398,7 +425,56 @@ describe('WorkflowHandler', () => {
       });
     });
 
-    it('routes to error port on inline executeInline failure', async () => {
+    it('maps "Workflow not found" → SUB_WORKFLOW_NOT_FOUND (sync path)', async () => {
+      mockExecutor.executeInline.mockRejectedValue(
+        new Error('Workflow not found: sub-wf-9999'),
+      );
+
+      const result = (await handler.execute(
+        {},
+        { workflowId: 'sub-wf-9999', mode: 'sync' },
+        context,
+      )) as unknown as ErrorResult;
+      expect(result.port).toBe('error');
+      expect(result.output.error.code).toBe(ErrorCode.SUB_WORKFLOW_NOT_FOUND);
+      expect(result.output.error.details).toMatchObject({
+        workflowId: 'sub-wf-9999',
+        mode: 'sync',
+      });
+    });
+
+    it('maps "timed out" → SUB_WORKFLOW_TIMEOUT (sync path)', async () => {
+      mockExecutor.executeInline.mockRejectedValue(
+        new Error('Sub-workflow execution timed out after 300000ms'),
+      );
+
+      const result = (await handler.execute(
+        {},
+        { workflowId: 'sub-wf-1', mode: 'sync' },
+        context,
+      )) as unknown as ErrorResult;
+      expect(result.port).toBe('error');
+      expect(result.output.error.code).toBe(ErrorCode.SUB_WORKFLOW_TIMEOUT);
+      expect(result.output.error.message).toContain('timed out');
+    });
+
+    it('maps queue enqueue failures → SUB_WORKFLOW_QUEUE_FAILED (async path)', async () => {
+      mockExecutor.executeAsync.mockRejectedValue(
+        new Error('Queue enqueue failed: connection refused'),
+      );
+
+      const result = (await handler.execute(
+        {},
+        { workflowId: 'sub-wf-1', mode: 'async' },
+        context,
+      )) as unknown as ErrorResult;
+      expect(result.port).toBe('error');
+      expect(result.output.error.code).toBe(
+        ErrorCode.SUB_WORKFLOW_QUEUE_FAILED,
+      );
+    });
+
+    it('falls back to SUB_WORKFLOW_FAILED for generic runtime errors', async () => {
       mockExecutor.executeInline.mockRejectedValue(
         new Error('Node "Transform" exceeded maximum iteration count'),
       );
@@ -407,18 +483,9 @@ describe('WorkflowHandler', () => {
         {},
         { workflowId: 'sub-wf-1', mode: 'sync' },
         context,
-      )) as unknown as {
-        port: string;
-        output: {
-          error: {
-            code: string;
-            message: string;
-            details?: Record<string, unknown>;
-          };
-        };
-      };
+      )) as unknown as ErrorResult;
       expect(result.port).toBe('error');
-      expect(result.output.error.code).toBe('SUB_WORKFLOW_FAILED');
+      expect(result.output.error.code).toBe(ErrorCode.SUB_WORKFLOW_FAILED);
       expect(result.output.error.message).toContain(
         'exceeded maximum iteration count',
       );
@@ -426,6 +493,46 @@ describe('WorkflowHandler', () => {
         workflowId: 'sub-wf-1',
         mode: 'sync',
       });
+    });
+  });
+
+  describe('mapSubWorkflowError (unit)', () => {
+    it('matches case-insensitively for "Workflow not found"', () => {
+      expect(mapSubWorkflowError('WORKFLOW NOT FOUND: x')).toBe(
+        ErrorCode.SUB_WORKFLOW_NOT_FOUND,
+      );
+      expect(mapSubWorkflowError('workflow not found: x')).toBe(
+        ErrorCode.SUB_WORKFLOW_NOT_FOUND,
+      );
+    });
+
+    it('detects timeout messages by either "timed out" or "timeout"', () => {
+      expect(mapSubWorkflowError('execution timed out after 300000ms')).toBe(
+        ErrorCode.SUB_WORKFLOW_TIMEOUT,
+      );
+      expect(mapSubWorkflowError('Sub-workflow timeout exceeded')).toBe(
+        ErrorCode.SUB_WORKFLOW_TIMEOUT,
+      );
+    });
+
+    it('detects queue failures only when both "queue" and a failure marker are present', () => {
+      expect(
+        mapSubWorkflowError('Queue enqueue failed: connection refused'),
+      ).toBe(ErrorCode.SUB_WORKFLOW_QUEUE_FAILED);
+      expect(mapSubWorkflowError('queue rejected the job')).toBe(
+        ErrorCode.SUB_WORKFLOW_QUEUE_FAILED,
+      );
+      // "queue" alone (without a failure marker) does not promote to QUEUE_FAILED.
+      expect(mapSubWorkflowError('queue is full and idle')).toBe(
+        ErrorCode.SUB_WORKFLOW_FAILED,
+      );
+    });
+
+    it('returns SUB_WORKFLOW_FAILED for unknown messages', () => {
+      expect(mapSubWorkflowError('something else broke')).toBe(
+        ErrorCode.SUB_WORKFLOW_FAILED,
+      );
+      expect(mapSubWorkflowError('')).toBe(ErrorCode.SUB_WORKFLOW_FAILED);
     });
   });
 });

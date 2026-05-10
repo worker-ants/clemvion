@@ -33,7 +33,14 @@ export const ErrorCode = {
   CODE_EXECUTION_FAILED: 'CODE_EXECUTION_FAILED',
   CODE_TIMEOUT: 'CODE_TIMEOUT',
   // Workflow / sub-workflow
+  // SUB_WORKFLOW_FAILED is the generic fallback. The other three are
+  // mapped from executor error messages (`Workflow not found`, timeout,
+  // queue enqueue failure) so workflow authors can branch on cause.
+  // See `workflow.handler.ts#mapSubWorkflowError`.
   SUB_WORKFLOW_FAILED: 'SUB_WORKFLOW_FAILED',
+  SUB_WORKFLOW_NOT_FOUND: 'SUB_WORKFLOW_NOT_FOUND',
+  SUB_WORKFLOW_TIMEOUT: 'SUB_WORKFLOW_TIMEOUT',
+  SUB_WORKFLOW_QUEUE_FAILED: 'SUB_WORKFLOW_QUEUE_FAILED',
   // Interaction / blocking — user-cancellation & timeout on presentation
   // or AI-conversation waits. Presentation node engine paths raise these
   // when a `waitFor*` promise is rejected externally.
