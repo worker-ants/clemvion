@@ -2866,6 +2866,90 @@ describe('ExecutionEngineService', () => {
       expect(bInput).toEqual({ routed: true });
     });
 
+    // Regression: 5필드 모델 마이그레이션 후, user 의 `output: { data: [array] }`
+    // (예: Code 노드가 `return { data: [...] }`) + 명시적 `port` 가 결합되면
+    // toEngineFlatShape 가 `{ data: [array], port }` 를 만들고 applyPortSelection
+    // 의 legacy `{port, data}` unwrap 이 array 를 spread 해 next input 이
+    // `{0: ..., 1: ..., _selectedPort}` 로 깨졌다. 본 테스트는 array data 보존.
+    it('should preserve data array key when handler emits { data: [...], port }', async () => {
+      const codeStyleHandler: NodeHandler = {
+        validate: () => ({ valid: true, errors: [] }),
+        execute: jest.fn(async () => ({
+          config: { code: 'return { data: [...] }' },
+          output: {
+            data: [
+              { label: '1월', value: 450 },
+              { label: '2월', value: 520 },
+            ],
+          },
+          port: 'success',
+        })),
+      };
+      const chartStyleHandler: NodeHandler = {
+        validate: () => ({ valid: true, errors: [] }),
+        execute: jest.fn(async (input: unknown) =>
+          mockOutput({ seen: input }),
+        ),
+      };
+      handlerRegistry.register('code_style', codeStyleHandler);
+      handlerRegistry.register('chart_style', chartStyleHandler);
+
+      const nodes: Partial<Node>[] = [
+        {
+          id: 'node-code',
+          workflowId,
+          type: 'code_style',
+          category: NodeCategory.DATA,
+          label: 'Code',
+          config: {},
+          isDisabled: false,
+          containerId: undefined,
+          toolOwnerId: undefined,
+        },
+        {
+          id: 'node-chart',
+          workflowId,
+          type: 'chart_style',
+          category: NodeCategory.PRESENTATION,
+          label: 'Chart',
+          config: {},
+          isDisabled: false,
+          containerId: undefined,
+          toolOwnerId: undefined,
+        },
+      ];
+      const edges: Partial<Edge>[] = [
+        {
+          id: 'e-code-chart',
+          workflowId,
+          sourceNodeId: 'node-code',
+          sourcePort: 'success',
+          targetNodeId: 'node-chart',
+          targetPort: 'in',
+          type: EdgeType.DATA,
+        },
+      ];
+
+      mockNodeRepo.findBy.mockResolvedValue(nodes);
+      mockEdgeRepo.findBy.mockResolvedValue(edges);
+
+      await service.execute(workflowId, {});
+      await flushPromises();
+
+      const chartInput = (chartStyleHandler.execute as jest.Mock).mock
+        .calls[0][0] as Record<string, unknown>;
+      // data 키와 array 가 그대로 보존 — `{0: ..., 1: ...}` spread 안 됨
+      expect(chartInput).toEqual({
+        data: [
+          { label: '1월', value: 450 },
+          { label: '2월', value: 520 },
+        ],
+      });
+      expect(Array.isArray(chartInput.data)).toBe(true);
+      expect(chartInput).not.toHaveProperty('0');
+      expect(chartInput).not.toHaveProperty('_selectedPort');
+    });
+
     it('should strip port / status / _resumeState control fields from downstream input', async () => {
       // Regression: form/ai_agent style handlers emit canonical output with
       // top-level port/status/_resumeState control fields. When that output
