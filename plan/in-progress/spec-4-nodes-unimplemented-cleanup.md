@@ -76,8 +76,8 @@ A 13건 + D 17건 중 같은 노드 항목은 묶어서 처리. 노드별 변경
 | 노드 | 변경 (A + D) |
 |---|---|
 | `http_request` | A + D: `meta.duration` → `meta.durationMs` (코드 측 정정, spec 결정 §6.1) |
-| `database_query` | A: 에러 코드 세분화 (`DB_CONNECTION_ERROR` / `DB_CONSTRAINT_VIOLATION` / `DB_PERMISSION_DENIED` / `DB_QUERY_FAILED` 기본) — driver error code 매핑 추가 + `output.error.details.driverCode` |
-| `database_query` | D: 옛 `'QUERY_FAILED'` alias 제거 → `'DB_QUERY_FAILED'` 만 사용 |
+| `database_query` | A: 에러 코드 세분화 (`DB_CONNECTION_ERROR` / `DB_CONSTRAINT_VIOLATION` / `DB_PERMISSION_DENIED` / `DB_QUERY_FAILED` 기본) — driver error code 매핑 추가 + `output.error.details.driverCode` — ✅ 완료 (2026-05-10) — `mapDbError` (handler.ts) 가 pg SQLSTATE / mysql `ER_*` / Node errno 를 4-enum 으로 분류 + driverCode echo. `error-codes.ts` 의 `DB_CONNECTION_FAILED` 도 spec 합치되게 `DB_CONNECTION_ERROR` 로 재정의 (사용처 없어 단순 rename). spec §5.3 / §6.2 마커 제거 + §5.3.4 권한 부족 케이스 신규 |
+| `database_query` | D: 옛 `'QUERY_FAILED'` alias 제거 → `'DB_QUERY_FAILED'` 만 사용 — ✅ 완료 (2026-05-10) — 코드에는 alias 가 없었고 spec §5.3 의 alias 노트만 제거됨 |
 
 ### 1.5 Flow 노드
 

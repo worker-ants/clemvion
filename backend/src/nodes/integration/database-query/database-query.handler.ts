@@ -170,14 +170,18 @@ export class DatabaseQueryHandler
         durationMs,
         error: toLogError(err),
       }).catch(() => {});
+      const driver = creds.driver ?? 'postgres';
+      const errorEnvelope =
+        err instanceof IntegrationError
+          ? {
+              code: err.code,
+              message: err.message,
+            }
+          : mapDbError(err, driver);
       return {
         config: configEcho,
         output: {
-          error: {
-            code:
-              err instanceof IntegrationError ? err.code : 'DB_QUERY_FAILED',
-            message: err instanceof Error ? err.message : String(err),
-          },
+          error: errorEnvelope,
         },
         meta: { durationMs },
         port: 'error',
@@ -414,4 +418,155 @@ function hashCredentials(creds: DbCredentials): string {
     creds.ssl,
   ].join('|');
   return createHash('sha256').update(fingerprint).digest('hex');
+}
+
+/**
+ * Driver-error → `output.error.code` mapping.
+ *
+ * Both `pg` (`DatabaseError.code` = SQLSTATE 5-char) and `mysql2`
+ * (`QueryError.code` = `ER_*` / Node `ERRNO` like `ECONNRESET`) attach a
+ * `code` string to the thrown Error. We map those into the four canonical
+ * `DB_*` codes so workflow authors can branch without substring matching
+ * the human-readable message:
+ *
+ *   - `DB_CONNECTION_ERROR`     — retry-worthy (reconnect / new pool)
+ *   - `DB_CONSTRAINT_VIOLATION` — permanent (data shape problem)
+ *   - `DB_PERMISSION_DENIED`    — permanent (privilege problem)
+ *   - `DB_QUERY_FAILED`         — fallback for everything else
+ *
+ * `details.driverCode` is the original driver string (e.g. `"23505"` or
+ * `"ER_DUP_ENTRY"`) so operators can still drill in to the precise reason.
+ * If the driver provided no `code` (plain `Error`), `details` is omitted
+ * entirely — CONVENTIONS Principle 11 (undefined fields elided).
+ */
+export function mapDbError(
+  err: unknown,
+  driver: 'postgres' | 'mysql',
+): { code: string; message: string; details?: { driverCode: string } } {
+  const message = err instanceof Error ? err.message : String(err);
+  const driverCode = extractDriverCode(err);
+  const code = classifyDbError(driverCode, driver);
+  if (driverCode === undefined) {
+    return { code, message };
+  }
+  return { code, message, details: { driverCode } };
+}
+
+function extractDriverCode(err: unknown): string | undefined {
+  if (err === null || typeof err !== 'object') return undefined;
+  const raw = (err as { code?: unknown }).code;
+  return typeof raw === 'string' && raw.length > 0 ? raw : undefined;
+}
+
+/**
+ * Node-side errno / mysql2 internal codes shared across both drivers
+ * (PostgreSQL surfaces these via `pg`'s `Connection` stream errors).
+ */
+const CONNECTION_ERRNOS = new Set([
+  'ECONNRESET',
+  'ECONNREFUSED',
+  'ETIMEDOUT',
+  'ENOTFOUND',
+  'EHOSTUNREACH',
+  'ENETUNREACH',
+  'EAI_AGAIN',
+  'EPIPE',
+  'PROTOCOL_CONNECTION_LOST',
+  'PROTOCOL_SEQUENCE_TIMEOUT',
+  'PROTOCOL_PACKETS_OUT_OF_ORDER',
+]);
+
+const MYSQL_CONNECTION_CODES = new Set([
+  'PROTOCOL_CONNECTION_LOST',
+  'PROTOCOL_SEQUENCE_TIMEOUT',
+  'PROTOCOL_PACKETS_OUT_OF_ORDER',
+  // ER_ACCESS_DENIED_ERROR fires at handshake / connect time — bucket as
+  // connection rather than permission so retry policies that rotate
+  // credentials trigger correctly.
+  'ER_ACCESS_DENIED_ERROR',
+  'ER_CON_COUNT_ERROR',
+  'ER_HOST_NOT_PRIVILEGED',
+  'ER_HOST_IS_BLOCKED',
+  'ER_TOO_MANY_USER_CONNECTIONS',
+]);
+
+const MYSQL_CONSTRAINT_CODES = new Set([
+  'ER_DUP_ENTRY',
+  'ER_DUP_KEY',
+  'ER_DUP_UNIQUE',
+  'ER_NO_REFERENCED_ROW',
+  'ER_NO_REFERENCED_ROW_2',
+  'ER_ROW_IS_REFERENCED',
+  'ER_ROW_IS_REFERENCED_2',
+  'ER_BAD_NULL_ERROR',
+  'ER_CHECK_CONSTRAINT_VIOLATED',
+  'ER_FOREIGN_DUPLICATE_KEY',
+  'ER_FOREIGN_DUPLICATE_KEY_WITH_CHILD_INFO',
+  'ER_FOREIGN_DUPLICATE_KEY_WITHOUT_CHILD_INFO',
+]);
+
+const MYSQL_PERMISSION_CODES = new Set([
+  'ER_TABLEACCESS_DENIED_ERROR',
+  'ER_COLUMNACCESS_DENIED_ERROR',
+  'ER_DBACCESS_DENIED_ERROR',
+  'ER_PROCACCESS_DENIED_ERROR',
+  'ER_SPECIFIC_ACCESS_DENIED_ERROR',
+  'ER_KILL_DENIED_ERROR',
+]);
+
+function classifyDbError(
+  driverCode: string | undefined,
+  driver: 'postgres' | 'mysql',
+):
+  | 'DB_QUERY_FAILED'
+  | 'DB_CONNECTION_ERROR'
+  | 'DB_CONSTRAINT_VIOLATION'
+  | 'DB_PERMISSION_DENIED' {
+  if (!driverCode) return 'DB_QUERY_FAILED';
+
+  // Node-style errno (lowercase E… on either driver) — connection issues.
+  if (CONNECTION_ERRNOS.has(driverCode)) return 'DB_CONNECTION_ERROR';
+
+  if (driver === 'postgres') {
+    return classifyPostgresSqlState(driverCode);
+  }
+  return classifyMysqlCode(driverCode);
+}
+
+function classifyPostgresSqlState(
+  code: string,
+):
+  | 'DB_QUERY_FAILED'
+  | 'DB_CONNECTION_ERROR'
+  | 'DB_CONSTRAINT_VIOLATION'
+  | 'DB_PERMISSION_DENIED' {
+  // PostgreSQL SQLSTATE is a 5-char string. The first 2 chars name the
+  // class; we special-case the few classes that map cleanly to our enum.
+  // https://www.postgresql.org/docs/current/errcodes-appendix.html
+  if (code.length !== 5) return 'DB_QUERY_FAILED';
+  // 42501 = insufficient_privilege — checked before the class-23 fallback
+  // because pg's "42" class otherwise maps to syntax/schema (DB_QUERY_FAILED).
+  if (code === '42501') return 'DB_PERMISSION_DENIED';
+  const klass = code.slice(0, 2);
+  if (klass === '23') return 'DB_CONSTRAINT_VIOLATION';
+  if (klass === '08') return 'DB_CONNECTION_ERROR'; // connection_exception
+  if (klass === '28') return 'DB_PERMISSION_DENIED'; // invalid_authorization_specification
+  if (klass === '57') {
+    // operator_intervention — admin_shutdown / cannot_connect_now etc.
+    return 'DB_CONNECTION_ERROR';
+  }
+  return 'DB_QUERY_FAILED';
+}
+
+function classifyMysqlCode(
+  code: string,
+):
+  | 'DB_QUERY_FAILED'
+  | 'DB_CONNECTION_ERROR'
+  | 'DB_CONSTRAINT_VIOLATION'
+  | 'DB_PERMISSION_DENIED' {
+  if (MYSQL_CONNECTION_CODES.has(code)) return 'DB_CONNECTION_ERROR';
+  if (MYSQL_CONSTRAINT_CODES.has(code)) return 'DB_CONSTRAINT_VIOLATION';
+  if (MYSQL_PERMISSION_CODES.has(code)) return 'DB_PERMISSION_DENIED';
+  return 'DB_QUERY_FAILED';
 }
