@@ -47,7 +47,7 @@ A 13건 + D 17건 중 같은 노드 항목은 묶어서 처리. 노드별 변경
 | `variable_modification` | A: schema enum의 `set_field` / `delete_field` 제거 (handler 미구현 항목) |
 | `split` | D: `output: SplitItem[]` → `output: { items: SplitItem[], count: number }` 래핑 |
 | `loop` | D: `output.count` 제거 (config.count echo 위반 → 다운스트림은 `output.iterations.length` 사용) |
-| `foreach` | D: errorPolicy=skip 결과를 `output.items` 와 `output.skipped: [{index, error}]` 로 분리 + `meta.skippedCount` |
+| `foreach` | D: errorPolicy=skip 결과를 `output.items` 와 `output.skipped: [{index, error}]` 로 분리 + `meta.skippedCount` — ✅ 완료 (2026-05-10) — `ForEachExecutor` 가 `{ items, skipped, skippedCount }` 분리 반환(`foreach-executor.ts`), 엔진(`execution-engine.service.ts:4357`) 가 foreach finalise 를 `{ items, count, skipped? }` + `meta.skippedCount?` 로 오버라이트. 실패 인덱스 `items[i] = null` placeholder. Map 은 `_skipped` 인라인 형태 유지 (engine 측에서 재조립). 신규 unit (`foreach-executor.spec.ts`) + 통합(`execution-engine.service.spec.ts`) 정정. spec §5.2/§5.3/§5.7/§6 + 0-common §4 정정 |
 | `parallel` | D: `output.branches[i]` → `{ status: 'fulfilled'\|'rejected', value?, error? }` 표준화 + `output.count` 제거 + 시작 시점 `output: null` |
 
 ### 1.2 Data 노드

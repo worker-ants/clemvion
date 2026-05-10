@@ -3943,13 +3943,25 @@ describe('ExecutionEngineService', () => {
 
       // Body called for all 3 items — second one threw, but skip continued.
       expect(bodyHandler.execute).toHaveBeenCalledTimes(3);
-      // Sink received the collected items: 1st OK, 2nd skipped placeholder, 3rd OK.
+      // Phase 1 (D — spec/4-nodes/1-logic/9-foreach.md §5.3): foreach now
+      // separates skipped iterations into `output.skipped[]` and leaves a
+      // `null` placeholder in `output.items[index]` so success/skip slots
+      // still line up with the input array index.
       expect(sinkCalls).toHaveLength(1);
-      const collected = (sinkCalls[0] as { items: unknown[] }).items;
-      expect(collected).toHaveLength(3);
-      expect(collected[0]).toEqual({ ok: 1 });
-      expect((collected[1] as { _skipped?: boolean })._skipped).toBe(true);
-      expect(collected[2]).toEqual({ ok: 3 });
+      const sinkPayload = sinkCalls[0] as {
+        items: unknown[];
+        skipped?: Array<{
+          index: number;
+          error: { code: string; message: string };
+        }>;
+      };
+      expect(sinkPayload.items).toHaveLength(3);
+      expect(sinkPayload.items[0]).toEqual({ ok: 1 });
+      expect(sinkPayload.items[1]).toBeNull();
+      expect(sinkPayload.items[2]).toEqual({ ok: 3 });
+      expect(sinkPayload.skipped).toEqual([
+        { index: 1, error: { code: 'Error', message: 'boom' } },
+      ]);
     });
 
     // Companion case for `errorPolicy: 'continue'` — same observable
@@ -4076,9 +4088,21 @@ describe('ExecutionEngineService', () => {
       await flushPromises();
 
       expect(bodyHandler.execute).toHaveBeenCalledTimes(3);
-      const collected = (sinkCalls[0] as { items: unknown[] }).items;
-      expect(collected).toHaveLength(3);
-      expect((collected[1] as { _skipped?: boolean })._skipped).toBe(true);
+      // Phase 1 (D): same separation contract as `errorPolicy: 'skip'` —
+      // skipped slot becomes `null` in `output.items` and detail moves to
+      // `output.skipped[]`.
+      const sinkPayload = sinkCalls[0] as {
+        items: unknown[];
+        skipped?: Array<{
+          index: number;
+          error: { code: string; message: string };
+        }>;
+      };
+      expect(sinkPayload.items).toHaveLength(3);
+      expect(sinkPayload.items[1]).toBeNull();
+      expect(sinkPayload.skipped).toEqual([
+        { index: 1, error: { code: 'Error', message: 'boom' } },
+      ]);
     });
 
     it('fails execution when container has no emit edge', async () => {
