@@ -12,7 +12,7 @@
 
 다음 순서로 plan을 소화하면 의존성 충돌이 적다.
 
-1. **`prd-spec-sync.md`** — 실제 구현이 끝났는데 PRD/Spec이 ❌·🚧로 남아있는 항목부터 정합화한다 (그래야 이후 plan의 baseline이 정확해진다).
+1. ~~**`prd-spec-sync.md`**~~ ✅ 완료 (2026-05-11, `plan/complete/prd-spec-sync.md`) — Graph RAG ❌→✅, NF-OB-05 cron ✅, EH-NAV-04 ✅, Background spec 4문서 정합화, 매뉴얼 (knowledge-base.mdx 한·영) 정합화.
 2. **`ai-agent-tool-connection-rewrite.md`** — AI Agent 도구 연결은 의도적으로 제거되어 재설계 대기 중. 사용자 가치 큼, 다른 plan과 독립적.
 3. **`logic-node-followups.md`** — Loop breakCondition, If/Else operator, Variable meta 등 Logic 노드의 잔여 P0/P1 항목을 한 PR 단위로 묶는다.
 4. **`parallel-p2.md`** — 중첩 Parallel, `waitAll: false`, `errorPolicy` schema 노출. `logic-node-followups`와 별개로 진행 가능.
@@ -76,15 +76,18 @@
 |----------|------|-----------|
 | **PRD 5 NF-A11Y-03 macOS VoiceOver 수동 검증** | 🚧 자동화 ✅, 수동 체크리스트 사용자 수행 대기 | `accessibility-voiceover-validation.md` |
 
-### E. PRD/Spec ↔ 코드 정합성 정리 (실제로는 구현 끝)
+### E. PRD/Spec ↔ 코드 정합성 정리 (실제로는 구현 끝) — ✅ 완료 (2026-05-11)
 
-| 항목 | 코드 상태 | PRD/Spec 표기 | 처리 plan |
-|------|-----------|---------------|-----------|
-| **PRD 9 Graph RAG 전체 (KB-GR-MD/EX/DM/SR/PA/UI/OB-*)** | ✅ backend P0~P2까지 구현 (`backend/src/modules/knowledge-base/graph/*`, frontend `entity-list.tsx` / `relation-list.tsx` / `graph-3d-renderer.tsx`, V025~V027 마이그레이션) | ❌ 로드맵 | `prd-spec-sync.md` |
-| **PRD 5 NF-OB-05 알림 평가 cron** | ✅ `AlertsEvaluatorService`가 BullMQ `*/5 * * * *` repeatable로 활성 | 🚧 주기 평가 cron 후속 | `prd-spec-sync.md` |
-| **PRD 7 EH-NAV-04 AI Assistant 실행 read-only 도구** | 🚧 검증 필요 — `workflow-assistant/tools/explore-tools.service.ts`, `tool-definitions.ts`에 키워드 존재 | ❌ | `prd-spec-sync.md` (검증 후 분기) |
-| **Spec 5-system/4-execution-engine §3.3 Background "🚧 spec-only"** | ✅ 평면 구현(ND-BG-05 대안)으로 ✅ | 🚧 미구현 표기 잔존 | `prd-spec-sync.md` |
-| **Spec 1-data-model.md / 3-workflow-editor/0-canvas.md / 2-edge.md Background 컨테이너 표기** | (대안 구현으로 컨테이너 미적용 결정) | 🚧 미구현 표기가 의미 혼동 야기 | `prd-spec-sync.md` |
+본 카테고리는 `plan/complete/prd-spec-sync.md` 에서 모두 처리됨. 결과:
+
+| 항목 | 처리 결과 |
+|------|-----------|
+| **PRD 9 Graph RAG 전체** | ❌ 로드맵 → ✅ P0~P2 구현 완료 (KB-GR-MD/EX/DM/SR/PA/UI/OB-* 모든 ID 에 상태 컬럼 추가). `prd/9-graph-rag.md` §2.1·§3·§6·§7 + `prd/0-overview.md` §6.1 갱신 |
+| **PRD 5 NF-OB-05 알림 cron** | 🚧 → ✅ (5분 BullMQ repeatable + cooldown 명시) |
+| **PRD 7 EH-NAV-04 AI Assistant read-only 도구** | ❌ → ✅ (`get_workflow_executions` / `get_execution_details` 가 ED-AI-35~38 모두 충족) |
+| **Spec Background 노드 (5문서)** | 5-system/4-execution-engine §3.3, 1-data-model.md, 3-workflow-editor/0-canvas.md (3건), 1-node-common.md, 2-edge.md 모두 "🚧 미구현" 제거 + 평면 구현(ND-BG-05) 으로 통일 |
+| **AI Agent Tool Area spec 박스** | 재작성 plan(`ai-agent-tool-connection-rewrite.md`) 와 상호 링크 추가 |
+| **사용자 매뉴얼** | `frontend/src/content/docs/06-integrations-and-config/knowledge-base.mdx` 한·영 — Graph 모드 "로드맵" 안내 → 실제 사용법 + 검색 파라미터 + Entity/Relation 관리 가이드로 재작성 |
 
 ---
 
@@ -93,7 +96,6 @@
 ```
 plan/in-progress/
 ├── 0-unimplemented-overview.md        ← 본 문서 (인덱스)
-├── prd-spec-sync.md                   ← Graph RAG·Alert cron·Background spec 등 정합화
 ├── ai-agent-tool-connection-rewrite.md ← AI Agent 일반 도구 연결 재설계
 ├── logic-node-followups.md            ← Loop break / If-Else op / meta 필드 / Merge timeout
 ├── parallel-p2.md                     ← 중첩 Parallel·waitAll=false·errorPolicy 노출
@@ -105,6 +107,9 @@ plan/in-progress/
 ├── llm-provider-followups.md          ← Azure OpenAI / Local LLM 스트리밍
 ├── self-hosting-deployment.md         ← Docker Compose 풀 번들·Helm·가이드 문서
 └── marketplace-and-plugin-sdk.md      ← 마켓플레이스 전체 + 노드 플러그인 SDK
+
+plan/complete/
+└── prd-spec-sync.md                   ← §E "PRD/Spec ↔ 코드 정합성 정리" 완료 (2026-05-11)
 ```
 
 각 plan 문서는 다음 구조를 따른다:

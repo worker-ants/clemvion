@@ -160,7 +160,7 @@ pending → running ──┤
 
 ### 2.2 컨테이너 내부 독립 정렬
 
-컨테이너 노드(Loop, ForEach, Map, Background[🚧 미구현]) 내부의 자식 노드는 독립적으로 토폴로지 정렬한다.
+컨테이너 노드(Loop, ForEach, Map) 내부의 자식 노드는 독립적으로 토폴로지 정렬한다. Background 는 컨테이너 멤버십(`container_id`) 모델을 사용하지 않고 `background` 포트 엣지로 본문을 식별한다 — §3.3 참조.
 
 - 컨테이너 실행 시점에 내부 노드의 실행 순서를 별도 산출
 - 내부 그래프는 글로벌 DAG 사이클 검사에서 제외 (반복 구조 허용)
@@ -265,22 +265,26 @@ $loop.count = 10              $item.index = 1
 
 ### 3.3 Background 실행
 
-> **🚧 구현 상태 — 미구현 (spec-only)**: Background 노드는 아직 엔진에 구현되지 않았다. `runContainer` / `executeContainerBody` (§3.1/§3.2)는 Loop·ForEach·Map만 dispatch 대상으로 다루고 있고, 별도 Worker 태스크 시작이나 background NodeExecution 플래그도 아직 없다. 도입 시 본 절의 규칙을 따르며, `planContainerBody` + emit 포트 모델을 공유하되 **sync wait 없이 pass-through** + **비동기 실행 파이프라인** + **알림 전송 hook**을 추가한다.
+> **✅ 구현 완료 (평면 구조 — PRD 3 §4.11 ND-BG-05 대안 구현)**: Background 는 컨테이너 멤버십(`container_id`) 모델을 사용하지 않는다. 대신 `background` 포트 엣지로 본문 진입점을 식별하고, 별도 BullMQ `background-execution` 큐 + 워커로 비동기 실행한다.
+
+흐름:
 
 ```
 1. main 포트로 입력 데이터를 즉시 pass-through (메인 흐름 계속)
-2. 별도 Worker 태스크로 컨테이너 내부 노드 그래프를 비동기 실행
-   - 새로운 NodeExecution 세트 생성 (background=true 플래그)
-3. 백그라운드 완료/실패 시 설정에 따라 알림
-4. 타임아웃 초과 시 강제 종료
+2. 핸들러 실행 직후 ExecutionEngineService 의 scheduleBackgroundBody() 가
+   현재 컨텍스트 스냅샷(variables 얕은 복사 + rawConfig)을 담아 본문 진입점들을
+   `background-execution` 큐로 enqueue
+3. 워커는 executeBackgroundSubgraph() 에서 background 포트 엣지로부터 forward-reachable
+   한 서브그래프를 격리된 컨텍스트로 실행 (parentNodeExecutionId 그룹핑)
+4. 백그라운드 완료/실패 시 설정에 따라 알림 — NotificationsService 통해
 ```
 
-- 메인 Execution과 동일한 execution_id를 공유
+- 메인 Execution과 동일한 `execution_id`를 공유. 본문 노드의 `parentNodeExecutionId` 가 Background 노드 자신의 NodeExecution id 를 가리킨다
 - 백그라운드 실패가 메인 흐름의 Execution 상태에 영향을 주지 않음
 - 백그라운드 실패 시 `notifyOnError=true`이면 `notifyChannels`에 따라 알림 전송:
   - `in_app`: Notification 엔티티 생성 (`type: background_failed`, 실행 시작 사용자에게)
   - `email`: 실행 시작 사용자 이메일로 실패 알림 발송
-- Execution 상세 화면에서 Background 실행 결과를 별도 섹션으로 표시 (성공/실패 불문)
+- Execution 상세 화면에서 Background 실행 결과를 별도 섹션으로 표시 (성공/실패 불문). 본문 실행 모니터링 API 는 `plan/in-progress/background-monitoring-api.md` 에서 별도 추적
 
 ---
 

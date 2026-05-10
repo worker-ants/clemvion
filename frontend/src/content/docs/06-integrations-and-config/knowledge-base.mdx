@@ -19,7 +19,7 @@ code: ["backend/src/modules/knowledge-base/knowledge-base.controller.ts", "backe
   { name: "이름", type: "string", required: "필수", description: "컬렉션 이름. 목록 카드에 표시돼요." },
   { name: "설명", type: "string", required: "선택", description: "용도를 적어두면 협업할 때 편해요." },
   { name: "임베딩 모델", type: "LLM Config 참조", required: "필수", description: "컬렉션 생성 시 고정. 변경하려면 전체 재임베딩이 필요해요." },
-  { name: "RAG 모드", type: "`vector` (현재) / `graph` (로드맵)", required: "선택", description: "기본 `vector`. **`graph` 모드는 로드맵 단계로, 현재는 컬렉션 생성 시 선택할 수 없어요.** 일반 출시는 추후 안내해요." },
+  { name: "RAG 모드", type: "`vector` / `graph`", required: "선택", description: "기본 `vector`. `graph` 모드는 LLM 으로 문서에서 entity·relation 을 추출해 지식 그래프를 만들고, 검색 시 vector seed + 그래프 확장을 함께 수행해요. 모드는 생성 후 변경 불가." },
   { name: "청크 크기", type: "integer (토큰)", required: "선택", description: "기본 1000. 문서 분할 기준 최대 토큰 수." },
   { name: "청크 오버랩", type: "integer (토큰)", required: "선택", description: "기본 200. 인접 청크 간 겹치는 토큰." }
 ]} />
@@ -51,18 +51,34 @@ code: ["backend/src/modules/knowledge-base/knowledge-base.controller.ts", "backe
 
 동시에 처리되는 문서 수는 기본 3건으로 제한돼요. 대량 업로드 시에도 일부는 `pending` 으로 대기했다가 차례로 처리돼요.
 
-## Vector 모드 (현재) · Graph 모드 (로드맵)
+## Vector 모드 · Graph 모드
 
 컬렉션의 `RAG 모드`는 문서 처리 파이프라인과 검색 방식을 정해요. 모드는 컬렉션 생성 후에 바꿀 수 없으므로, 모드를 변경하려면 새 컬렉션을 만들어 문서를 다시 업로드해요.
 
-<Callout type="warn">
-**현재 활성화된 모드는 `vector` 뿐이에요.** `graph` 모드는 entity·relation 추출과 그래프 검색을 결합한 차세대 RAG 로 로드맵 단계예요. 컬렉션 생성 화면에서 graph 옵션은 비활성 상태로 노출되거나 숨겨질 수 있어요. 일반 출시는 추후 안내해요.
-</Callout>
+<FieldTable rows={[
+  { name: "Vector (기본)", type: "임베딩 + 코사인 유사도", required: "-", description: "각 청크를 임베딩해 벡터 저장소에 저장하고, 질의 시 코사인 유사도가 높은 청크를 돌려줘요. 빠르고 비용이 낮아요. 일반 FAQ·문서 검색에 적합해요." },
+  { name: "Graph", type: "임베딩 + entity·relation 추출", required: "-", description: "벡터 임베딩이 끝나면 LLM 으로 문서에서 entity(인물·조직·개념·위치·이벤트) 와 relation(관계) 을 자동 추출해 KB 안에 지식 그래프를 만들어요. 질의 시에는 vector top-K 로 seed chunk 를 모은 뒤, seed chunk 가 언급한 entity 에서 1~`maxHops` 만큼 그래프를 확장해 추가 chunk 를 회수하고 rerank 해요(Hybrid). 관계가 중요한 답변에 더 풍부한 컨텍스트를 줘요." }
+]} />
+
+<Callout type="note">Graph 모드 KB 는 추가 LLM 호출이 일어나요. 컬렉션 상세에서 추출 진행률 / entity·relation 수 / 누적 토큰 사용량을 실시간으로 볼 수 있고, 추출에 사용할 LLM 은 `Extraction LLM Config` 에서 별도 지정해요(미지정 시 워크스페이스 default).</Callout>
+
+### Graph 모드 KB 의 검색 파라미터
 
 <FieldTable rows={[
-  { name: "Vector (기본·현재)", type: "임베딩 + 코사인 유사도", required: "-", description: "각 청크를 임베딩해 벡터 저장소에 저장하고, 질의 시 코사인 유사도가 높은 청크를 돌려줘요. 빠르고 비용이 낮아요. 일반 FAQ·문서 검색에 적합해요." },
-  { name: "Graph (로드맵)", type: "임베딩 + entity·relation 추출", required: "-", description: "출시 시점에는 벡터 임베딩과 함께 LLM 으로 문서에서 entity(인물·조직·개념) 와 relation(관계) 을 추출해 그래프 저장소에 저장하고, 질의 시 그래프 탐색과 벡터 검색을 함께 수행(chained search) 할 예정이에요. 관계가 중요한 답변에 더 풍부한 컨텍스트를 제공할 목적으로 설계되고 있어요." }
+  { name: "maxHops", type: "1 또는 2", required: "선택", description: "기본 1. seed chunk 의 entity 에서 그래프를 확장할 최대 깊이." },
+  { name: "vectorSeedTopK", type: "integer", required: "선택", description: "기본 5. 1단계에서 회수할 vector 유사도 상위 chunk 수." },
+  { name: "expandedChunkLimit", type: "integer", required: "선택", description: "기본 15. seed + expansion 으로 모이는 총 chunk 상한." }
 ]} />
+
+`AI Agent` 노드의 KB 연결 UI 는 모드와 무관하게 동일해요(`ragTopK` / `ragThreshold`만). graph 파라미터는 KB 단위에서만 제어돼요.
+
+### Entity / Relation 관리
+
+Graph 모드 KB 의 상세 화면에는 **Entity**, **Relation**, **Graph** 탭이 추가돼요.
+
+- Entity / Relation 탭: 추출된 항목을 검색·정렬·삭제할 수 있어요. LLM 추출이 부정확한 항목을 정리하면 다음 검색부터 반영돼요.
+- Graph 탭: 추출된 그래프를 3D / 2D 로 시각화해요. 줌하거나 노드를 호버하면 해당 entity 가 등장한 chunk 미리보기가 떠요.
+- 추출 결과가 마음에 안 들거나 prompt 를 바꿔 다시 만들고 싶으면 KB 상세의 `Re-extract` 액션으로 전체 또는 문서 단위 재추출을 트리거할 수 있어요.
 
 ## AI Agent에서 참조하기
 

@@ -8,7 +8,7 @@ A Knowledge Base is organized by **collection**. Each collection pins an embeddi
   { name: "Name", type: "string", required: "Required", description: "Collection name shown on the list card." },
   { name: "Description", type: "string", required: "Optional", description: "Short purpose. Helpful for team collaboration." },
   { name: "Embedding model", type: "LLM Config reference", required: "Required", description: "Pinned at creation. Changing it requires re-embedding everything." },
-  { name: "RAG mode", type: "`vector` (current) / `graph` (roadmap)", required: "Optional", description: "Defaults to `vector`. **`graph` mode is on the roadmap and not selectable in the current build.** See PRD 9 (Graph RAG) and `spec/5-system/10-graph-rag.md` for the planned rollout." },
+  { name: "RAG mode", type: "`vector` / `graph`", required: "Optional", description: "Defaults to `vector`. `graph` mode extracts entities and relations from documents with an LLM, builds a knowledge graph inside the KB, and combines vector seed + graph expansion at query time. Mode is fixed at creation time." },
   { name: "Chunk size", type: "integer (tokens)", required: "Optional", description: "Default 1000. Max tokens per chunk." },
   { name: "Chunk overlap", type: "integer (tokens)", required: "Optional", description: "Default 200. Overlap between adjacent chunks." }
 ]} />
@@ -40,18 +40,34 @@ Status badges appear both on the document list and on the collection card.
 
 Concurrent document processing is capped at 3 by default. Bulk uploads queue some items as `pending` until earlier ones finish.
 
-## Vector mode (current) · Graph mode (roadmap)
+## Vector mode · Graph mode
 
 A collection's `RAG mode` shapes the ingestion pipeline and the query path. It can't be changed after creation — to switch modes, create a new collection and re-upload the documents.
 
-<Callout type="warn">
-**Only `vector` mode is active today.** `graph` mode — combining entity/relation extraction with graph search — is on the roadmap. The graph option may appear disabled or hidden on the collection-creation screen. See PRD 9 (Graph RAG) and `spec/5-system/10-graph-rag.md` for the planned rollout.
-</Callout>
+<FieldTable rows={[
+  { name: "Vector (default)", type: "Embedding + cosine similarity", required: "-", description: "Each chunk is embedded and stored in the vector store; queries return the chunks with the highest cosine similarity. Fast and cheap, ideal for FAQs and general document search." },
+  { name: "Graph", type: "Embedding + entity/relation extraction", required: "-", description: "After embedding finishes, an LLM automatically extracts entities (person, organization, concept, location, event) and relations from documents, building a knowledge graph inside the KB. At query time, vector top-K seed chunks are collected, the graph is expanded from entities mentioned in those chunks up to `maxHops`, additional chunks are pulled back and reranked (Hybrid). Surfaces richer context when relationships matter." }
+]} />
+
+<Callout type="note">Graph mode KBs incur extra LLM calls. The collection detail page shows real-time extraction progress, entity/relation counts, and cumulative token usage. The LLM used for extraction is selected via `Extraction LLM Config` (defaults to the workspace default).</Callout>
+
+### Graph mode KB search parameters
 
 <FieldTable rows={[
-  { name: "Vector (default · current)", type: "Embedding + cosine similarity", required: "-", description: "Each chunk is embedded and stored in the vector store; queries return the chunks with the highest cosine similarity. Fast and cheap, ideal for FAQs and general document search." },
-  { name: "Graph (roadmap)", type: "Embedding + entity/relation extraction", required: "-", description: "Once shipped, an LLM will extract entities (people, organizations, concepts) and relations from documents alongside vector embeddings, and queries will run a combined graph traversal and vector search (chained search) — designed to surface richer context whenever relationships matter." }
+  { name: "maxHops", type: "1 or 2", required: "Optional", description: "Default 1. Max depth to expand the graph from seed-chunk entities." },
+  { name: "vectorSeedTopK", type: "integer", required: "Optional", description: "Default 5. Number of top-similarity chunks retrieved in stage 1." },
+  { name: "expandedChunkLimit", type: "integer", required: "Optional", description: "Default 15. Cap on total chunks (seed + expansion)." }
 ]} />
+
+The `AI Agent` node's KB connection UI is identical regardless of mode (`ragTopK` / `ragThreshold` only). Graph parameters are controlled per KB.
+
+### Managing entities / relations
+
+Graph mode KBs add **Entity**, **Relation**, and **Graph** tabs on the collection detail page.
+
+- Entity / Relation tabs: search, sort, and delete extracted items. Cleaning up imprecise LLM extractions takes effect on the next query.
+- Graph tab: visualizes the extracted graph in 3D / 2D. Zoom in or hover a node to preview the chunks where that entity appears.
+- If extraction results look off or you want to re-run with a new prompt, use the `Re-extract` action on the collection detail page to trigger full or per-document re-extraction.
 
 ## Referencing from an AI Agent
 
