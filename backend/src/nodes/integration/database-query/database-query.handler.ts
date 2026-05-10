@@ -1,3 +1,4 @@
+import { Logger } from '@nestjs/common';
 import { Pool, PoolClient } from 'pg';
 import {
   createPool as mysqlCreatePool,
@@ -16,6 +17,7 @@ import { evaluateMetadataBlockingErrors } from '../../core/metadata-validation.j
 import {
   IntegrationError,
   IntegrationHandlerBase,
+  sanitizeMessage,
   toLogError,
 } from '../_base/integration-handler-base.js';
 import { IntegrationsService } from '../../../modules/integrations/integrations.service.js';
@@ -45,6 +47,7 @@ export const ALLOWED_QUERY_TYPES = [
 
 const POOL_MAX_CONNECTIONS = 5;
 const POOL_IDLE_TIMEOUT_MS = 30_000;
+const logger = new Logger('DatabaseQueryHandler');
 
 export class DatabaseQueryHandler
   extends IntegrationHandlerBase
@@ -134,8 +137,8 @@ export class DatabaseQueryHandler
       );
     }
 
+    const driver = creds.driver ?? 'postgres';
     try {
-      const driver = creds.driver ?? 'postgres';
       const result =
         driver === 'mysql'
           ? await this.executeMysql(
@@ -170,12 +173,16 @@ export class DatabaseQueryHandler
         durationMs,
         error: toLogError(err),
       }).catch(() => {});
-      const driver = creds.driver ?? 'postgres';
+      // `IntegrationError` branch is defensive — `resolveIntegration` /
+      // `missingDbFields` throw outside the try block, and the executors
+      // only surface driver-native errors. We keep the instanceof check
+      // so any future driver wrapper that re-raises an `IntegrationError`
+      // still routes its `code` through unchanged.
       const errorEnvelope =
         err instanceof IntegrationError
           ? {
               code: err.code,
-              message: err.message,
+              message: sanitizeMessage(err.message),
             }
           : mapDbError(err, driver);
       return {
@@ -291,9 +298,16 @@ export class DatabaseQueryHandler
       max: POOL_MAX_CONNECTIONS,
       idleTimeoutMillis: POOL_IDLE_TIMEOUT_MS,
     });
-    // Prevent unhandled error events from crashing the process when an idle
-    // client encounters a network issue.
-    pool.on('error', () => {});
+    // Prevent unhandled error events from crashing the process when an
+    // idle client encounters a network issue. We still log so TLS expiry,
+    // forced disconnects from the DB side, etc. show up in operator
+    // logs (the next `pool.connect()` call will surface the same root
+    // cause to the workflow as `DB_CONNECTION_ERROR` via `mapDbError`).
+    pool.on('error', (err) => {
+      logger.warn(
+        `pg pool idle client error (integration ${integrationId}): ${sanitizeMessage(err.message)}`,
+      );
+    });
     this.pools.set(integrationId, { driver: 'postgres', pool, credsHash });
     return pool;
   }
@@ -421,6 +435,17 @@ function hashCredentials(creds: DbCredentials): string {
 }
 
 /**
+ * Subset of `ErrorCode` strings that `mapDbError` may emit. Narrower than
+ * `string` so the consumer sees the union directly in autocomplete /
+ * exhaustive switch statements.
+ */
+type DbRuntimeErrorCode =
+  | 'DB_QUERY_FAILED'
+  | 'DB_CONNECTION_ERROR'
+  | 'DB_CONSTRAINT_VIOLATION'
+  | 'DB_PERMISSION_DENIED';
+
+/**
  * Driver-error → `output.error.code` mapping.
  *
  * Both `pg` (`DatabaseError.code` = SQLSTATE 5-char) and `mysql2`
@@ -429,21 +454,37 @@ function hashCredentials(creds: DbCredentials): string {
  * `DB_*` codes so workflow authors can branch without substring matching
  * the human-readable message:
  *
- *   - `DB_CONNECTION_ERROR`     — retry-worthy (reconnect / new pool)
+ *   - `DB_CONNECTION_ERROR`     — retry-worthy (reconnect / new pool /
+ *                                  rotate credentials)
  *   - `DB_CONSTRAINT_VIOLATION` — permanent (data shape problem)
- *   - `DB_PERMISSION_DENIED`    — permanent (privilege problem)
- *   - `DB_QUERY_FAILED`         — fallback for everything else
+ *   - `DB_PERMISSION_DENIED`    — permanent (privilege problem on an
+ *                                  authenticated session)
+ *   - `DB_QUERY_FAILED`         — fallback for everything else (syntax,
+ *                                  bad column/table, type mismatch)
  *
  * `details.driverCode` is the original driver string (e.g. `"23505"` or
  * `"ER_DUP_ENTRY"`) so operators can still drill in to the precise reason.
  * If the driver provided no `code` (plain `Error`), `details` is omitted
  * entirely — CONVENTIONS Principle 11 (undefined fields elided).
+ *
+ * The `message` is run through `sanitizeMessage` so password / Bearer /
+ * long-token fragments that drivers occasionally include in their error
+ * text never reach `output.error.message` (spec §5.3, §6.2).
+ *
+ * Internal to this handler — not exported. If another integration ever
+ * needs DB-style error classification, lift this into
+ * `_base/db-error-classifier.ts`.
  */
-export function mapDbError(
+function mapDbError(
   err: unknown,
   driver: 'postgres' | 'mysql',
-): { code: string; message: string; details?: { driverCode: string } } {
-  const message = err instanceof Error ? err.message : String(err);
+): {
+  code: DbRuntimeErrorCode;
+  message: string;
+  details?: { driverCode: string };
+} {
+  const rawMessage = err instanceof Error ? err.message : String(err);
+  const message = sanitizeMessage(rawMessage);
   const driverCode = extractDriverCode(err);
   const code = classifyDbError(driverCode, driver);
   if (driverCode === undefined) {
@@ -459,8 +500,12 @@ function extractDriverCode(err: unknown): string | undefined {
 }
 
 /**
- * Node-side errno / mysql2 internal codes shared across both drivers
- * (PostgreSQL surfaces these via `pg`'s `Connection` stream errors).
+ * Node-side errno + mysql2 protocol-level codes that always indicate a
+ * transport failure — checked first by `classifyDbError` so any driver
+ * surfacing one of these short-circuits to `DB_CONNECTION_ERROR` before
+ * the per-driver Sets are consulted. The mysql2 `PROTOCOL_*` codes also
+ * appear here (rather than in `MYSQL_CONNECTION_CODES`) to avoid dead
+ * entries — the shared check fires first.
  */
 const CONNECTION_ERRNOS = new Set([
   'ECONNRESET',
@@ -476,13 +521,14 @@ const CONNECTION_ERRNOS = new Set([
   'PROTOCOL_PACKETS_OUT_OF_ORDER',
 ]);
 
+/**
+ * MySQL-specific connection / handshake / quota codes. Authentication
+ * failure at handshake (`ER_ACCESS_DENIED_ERROR`) is bucketed here rather
+ * than under permissions so retry policies that rotate credentials fire —
+ * runtime privilege failures on an already-authenticated session use
+ * `MYSQL_PERMISSION_CODES` below.
+ */
 const MYSQL_CONNECTION_CODES = new Set([
-  'PROTOCOL_CONNECTION_LOST',
-  'PROTOCOL_SEQUENCE_TIMEOUT',
-  'PROTOCOL_PACKETS_OUT_OF_ORDER',
-  // ER_ACCESS_DENIED_ERROR fires at handshake / connect time — bucket as
-  // connection rather than permission so retry policies that rotate
-  // credentials trigger correctly.
   'ER_ACCESS_DENIED_ERROR',
   'ER_CON_COUNT_ERROR',
   'ER_HOST_NOT_PRIVILEGED',
@@ -490,6 +536,10 @@ const MYSQL_CONNECTION_CODES = new Set([
   'ER_TOO_MANY_USER_CONNECTIONS',
 ]);
 
+/**
+ * MySQL constraint-violation codes — unique / FK / NOT NULL / CHECK / dup.
+ * Mirrors PostgreSQL SQLSTATE class 23 in semantics.
+ */
 const MYSQL_CONSTRAINT_CODES = new Set([
   'ER_DUP_ENTRY',
   'ER_DUP_KEY',
@@ -505,6 +555,11 @@ const MYSQL_CONSTRAINT_CODES = new Set([
   'ER_FOREIGN_DUPLICATE_KEY_WITHOUT_CHILD_INFO',
 ]);
 
+/**
+ * MySQL permission codes — privilege denied on an authenticated session
+ * (table / column / DB / proc / kill). Distinct from
+ * `MYSQL_CONNECTION_CODES.ER_ACCESS_DENIED_ERROR` which fires at handshake.
+ */
 const MYSQL_PERMISSION_CODES = new Set([
   'ER_TABLEACCESS_DENIED_ERROR',
   'ER_COLUMNACCESS_DENIED_ERROR',
@@ -517,14 +572,11 @@ const MYSQL_PERMISSION_CODES = new Set([
 function classifyDbError(
   driverCode: string | undefined,
   driver: 'postgres' | 'mysql',
-):
-  | 'DB_QUERY_FAILED'
-  | 'DB_CONNECTION_ERROR'
-  | 'DB_CONSTRAINT_VIOLATION'
-  | 'DB_PERMISSION_DENIED' {
+): DbRuntimeErrorCode {
   if (!driverCode) return 'DB_QUERY_FAILED';
 
-  // Node-style errno (lowercase E… on either driver) — connection issues.
+  // Node-style errno (uppercase E… on either driver) + mysql2 protocol
+  // codes — connection issues.
   if (CONNECTION_ERRNOS.has(driverCode)) return 'DB_CONNECTION_ERROR';
 
   if (driver === 'postgres') {
@@ -533,38 +585,32 @@ function classifyDbError(
   return classifyMysqlCode(driverCode);
 }
 
-function classifyPostgresSqlState(
-  code: string,
-):
-  | 'DB_QUERY_FAILED'
-  | 'DB_CONNECTION_ERROR'
-  | 'DB_CONSTRAINT_VIOLATION'
-  | 'DB_PERMISSION_DENIED' {
+function classifyPostgresSqlState(code: string): DbRuntimeErrorCode {
   // PostgreSQL SQLSTATE is a 5-char string. The first 2 chars name the
-  // class; we special-case the few classes that map cleanly to our enum.
+  // class; we special-case the classes that map cleanly to our enum.
   // https://www.postgresql.org/docs/current/errcodes-appendix.html
   if (code.length !== 5) return 'DB_QUERY_FAILED';
-  // 42501 = insufficient_privilege — checked before the class-23 fallback
-  // because pg's "42" class otherwise maps to syntax/schema (DB_QUERY_FAILED).
+  // 42501 = insufficient_privilege — must precede the generic class
+  // switch below because class 42 (syntax_error_or_access_rule_violation)
+  // otherwise routes to DB_QUERY_FAILED.
   if (code === '42501') return 'DB_PERMISSION_DENIED';
   const klass = code.slice(0, 2);
   if (klass === '23') return 'DB_CONSTRAINT_VIOLATION';
-  if (klass === '08') return 'DB_CONNECTION_ERROR'; // connection_exception
-  if (klass === '28') return 'DB_PERMISSION_DENIED'; // invalid_authorization_specification
-  if (klass === '57') {
-    // operator_intervention — admin_shutdown / cannot_connect_now etc.
-    return 'DB_CONNECTION_ERROR';
-  }
+  // Class 08 (connection_exception) and class 28
+  // (invalid_authorization_specification) both fire at connect /
+  // handshake. We bucket 28 with connection rather than permission for
+  // cross-driver symmetry with mysql2's `ER_ACCESS_DENIED_ERROR` (also
+  // handshake-time → DB_CONNECTION_ERROR), so workflows that retry on
+  // credential rotation behave the same on either driver.
+  if (klass === '08' || klass === '28') return 'DB_CONNECTION_ERROR';
+  // Class 53 (insufficient_resources, e.g. too_many_connections) and
+  // class 57 (operator_intervention, e.g. admin_shutdown / cannot_connect_now)
+  // are retry-worthy transport-level failures.
+  if (klass === '53' || klass === '57') return 'DB_CONNECTION_ERROR';
   return 'DB_QUERY_FAILED';
 }
 
-function classifyMysqlCode(
-  code: string,
-):
-  | 'DB_QUERY_FAILED'
-  | 'DB_CONNECTION_ERROR'
-  | 'DB_CONSTRAINT_VIOLATION'
-  | 'DB_PERMISSION_DENIED' {
+function classifyMysqlCode(code: string): DbRuntimeErrorCode {
   if (MYSQL_CONNECTION_CODES.has(code)) return 'DB_CONNECTION_ERROR';
   if (MYSQL_CONSTRAINT_CODES.has(code)) return 'DB_CONSTRAINT_VIOLATION';
   if (MYSQL_PERMISSION_CODES.has(code)) return 'DB_PERMISSION_DENIED';
