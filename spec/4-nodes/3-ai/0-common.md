@@ -109,3 +109,27 @@ KB / MCP / 일반 provider 도구 호출이 발생한 노드는 `meta.ragSources
 | AI Agent | `{mode} · {model}`. Tool Area에 등록된 도구 수가 있으면 `· {N} tools`, Knowledge Base 연결 시 `· {N} KB`, MCP 서버가 있으면 `· {N} MCP`, 조건이 있으면 `· {N} cond` 추가. mode가 `multi_turn`이면 `Multi Turn` 표기, `single_turn`이면 생략 | `gpt-4o · 2 tools · 1 KB · 1 MCP · 3 cond` (single) / `Multi Turn · gpt-4o · 1 KB · 2 MCP · 2 cond` (multi) |
 | Text Classifier | `{model} · {N} categories` (카테고리 수) | `gpt-4o-mini · 3 categories` |
 | Info Extractor | `{model} · {N} fields` (outputSchema 필드 수). mode가 `multi_turn`이면 `Multi Turn` 접두어 추가 | `claude-sonnet · 4 fields` (single) / `Multi Turn · claude-sonnet · 4 fields` (multi) |
+
+---
+
+## 9. 출력 구조 색인
+
+각 AI 노드의 출력 구조 케이스 색인. 각 노드 문서의 §X (출력 구조 섹션) 로 링크. AI 노드는 정상/조건/에러/waiting/resumed/ended 등 가장 다양한 케이스를 갖는다.
+
+| 노드 | 정상 | 분기 (조건/클래스) | 에러 | Waiting / Resumed | 종결 (ended) |
+|------|------|---------------------|------|---------------------|----------------|
+| [ai_agent (single)](./1-ai-agent.md#7-출력-구조) | §7.1 (`out`) | §7.2 (`<cond_id>`) | §7.3 (`error`) | — | — |
+| [ai_agent (multi)](./1-ai-agent.md#7-출력-구조) | — | §7.6 (`<cond_id>`) | §7.9 (`error`) | §7.4 (`waiting_for_input`) / §7.5 (`resumed` transient) | §7.7 (`user_ended`) / §7.8 (`max_turns`) |
+| [text_classifier](./2-text-classifier.md#5-출력-구조) | §5.1 (`out`) | §5.2 (`class_<i>`) | §5.3 (`error`) | — | — |
+| [info_extractor (single)](./3-information-extractor.md#5-출력-구조) | §5.1 (`out`) | — | §5.3 (`error`) | — | — |
+| [info_extractor (multi)](./3-information-extractor.md#5-출력-구조) | — | — | §5.3 (`error`) | (Waiting/Resumed) | §5.6 (`completed` / `user_ended` / `max_turns` / `max_retries`) |
+
+> AI 노드의 출력 구조는 [공통 §5 응답 형식 규약 (Principle 11)](#5-응답-형식-규약-principle-11) 의 `output.result.*` / `output.error.*` / `output.interaction.*` wrapper 컨트랙트를 따른다.
+
+## 10. CHANGELOG
+
+| 일자 | 변경 |
+|------|------|
+| 2026-05-10 | ai_agent §7 출력 구조 7 sub-cases (§7.1~§7.9) 로 재구성 — 옛 §7.4 condition (multi) → §7.6, 옛 §7.5/7.6/7.7 (user_ended/max_turns/error multi) → §7.7/§7.8/§7.9. waiting/resumed 명시적 sub-section (§7.4/§7.5). §9 색인 갱신 |
+| 2026-05-10 | §9 출력 구조 색인 신설. 노드 문서의 §5/§7 출력 구조 5필드 모델로 정합화 (Principle 0~11 적용). 기존 §1~§8 anchor 보존 |
+| 2026-05-09 | ai_agent multi-turn ended/condition 경로의 `config.model` echo 정책을 raw template echo 로 통일 (`spec/4-nodes/3-ai/1-ai-agent.md §7` 머리 노트 참조) |

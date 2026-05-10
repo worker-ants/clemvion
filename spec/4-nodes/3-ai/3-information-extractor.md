@@ -1,43 +1,45 @@
 # Spec: Information Extractor
 
-> 관련 문서: [AI 공통 규약](./0-common.md) · [Spec 노드 개요](../0-overview.md) · [Spec LLM Config](../../2-navigation/6-config.md)
+> 관련 문서: [AI 공통 규약](./0-common.md) · [Spec 노드 개요](../0-overview.md) · [Spec LLM Config](../../2-navigation/6-config.md) · [Spec 표현식 언어](../../5-system/5-expression-language.md) · [CONVENTIONS](../../../user_memo/node-specs-improvement/CONVENTIONS.md)
 
-LLM을 사용하여 비정형 텍스트에서 구조화된 정보 추출.
+LLM 을 사용해 비정형 텍스트에서 `outputSchema` 에 정의된 구조화 필드를 추출한다. **Single Turn**(1 회 LLM 호출 + JSON 응답) 과 **Multi Turn**(블로킹 대화로 부족한 필드 보강 — `finalize_extraction` tool 호출 종결) 모드를 제공한다. AI 카테고리 3 노드는 `output.result.*` / `output.error.*` / `output.interaction.*` wrapper 컨트랙트를 공유한다 ([공통 §5](./0-common.md#5-응답-형식-규약-principle-11)).
 
 ---
 
 ## 1. 설정 (config)
 
-| 필드 | 타입 | 설명 |
-|------|------|------|
-| llmConfigId | UUID | 사용할 LLM 프로바이더 설정. [공통 §1](./0-common.md#1-llm-모델config-선택) |
-| model | String | 모델 ID |
-| inputField | Expression | 추출 대상 텍스트 필드 |
-| outputSchema | FieldDef[] | 추출할 필드 정의 |
-| examples | ExampleDef[] | Few-shot 예시 (선택) |
-| instructions | String? | 추가 추출 지시사항 |
-| mode | Enum | `single_turn` (기본) / `multi_turn`. multi-turn 차단 동작은 [공통 §4](./0-common.md#4-multi-turn-차단-모드) |
-| maxTurns | Number? | `multi_turn`에서 최대 대화 턴 수. 0 = 제한 없음 (기본 10) |
-| maxCollectionRetries | Number? | `multi_turn`에서 LLM이 `_missingFields: []`로 완료를 보고했지만 실제로 필수 필드가 비어 있을 때 재리포트를 요청하는 최대 횟수. 0 = 무제한 (기본 3). 초과 시 `error` 포트로 라우팅. "Retry Settings" 섹션에서 설정 |
+| 필드 | 타입 | 필수 | 기본값 | 설명 |
+|------|------|------|--------|------|
+| llmConfigId | UUID? |  |  | 사용할 LLM 프로바이더 설정. [공통 §1](./0-common.md#1-llm-모델config-선택) |
+| model | String? |  | (LLMConfig 기본값) | 모델 ID (프로바이더별) |
+| inputField | Expression? | (single 필수) |  | 추출 대상 텍스트 필드. `single_turn` 일 때 warningRule 강제. `multi_turn` 일 때는 비어있으면 첫 LLM 호출을 생략하고 곧바로 사용자 입력을 대기 |
+| outputSchema | FieldDef[] | ✓ | `[]` | 추출할 필드 정의. 빈 배열일 때 warningRule 발생 |
+| examples | ExampleDef[] |  | `[]` | Few-shot 예시 |
+| instructions | String? |  | `''` | 추가 추출 지시사항 (system prompt 에 주입) |
+| mode | `single_turn` / `multi_turn` | ✓ | `single_turn` | 실행 모드. `multi_turn` 차단 동작은 [공통 §4](./0-common.md#4-multi-turn-차단-모드) |
+| maxTurns | Integer? |  | `10` | `multi_turn` 의 최대 대화 턴 수. `0` = 무제한 |
+| maxCollectionRetries | Integer? |  | `3` | `multi_turn` 에서 LLM 이 `finalize_extraction` 을 호출했지만 required 필드가 비어있을 때 재질의를 강제하는 횟수. `0` = 무제한. 초과 시 `error` 포트 + `output.error.code: 'MAX_COLLECTION_RETRIES_EXCEEDED'` |
 
-> `multi_turn` 모드에서 사용자 응답은 무제한 대기합니다. (외부 cancel 외에는 타임아웃이 발생하지 않습니다.)
+> Source of truth: `backend/src/nodes/ai/information-extractor/information-extractor.schema.ts` (export `informationExtractorNodeConfigSchema`)
+>
+> `multi_turn` 모드에서 사용자 응답은 무제한 대기한다 (외부 cancel 외에는 타임아웃이 발생하지 않음).
 
-**FieldDef 구조:**
+**FieldDef 구조** (`outputSchema[i]`):
 
-| 필드 | 타입 | 설명 |
-|------|------|------|
-| name | String | 필드 이름 |
-| type | Enum | string / number / boolean / array / object |
-| description | String | 필드 설명 (LLM에게 제공) |
-| required | Boolean | 필수 여부. 설정 UI에서 체크박스로 토글 (기본 true) |
-| enumValues | String[]? | 허용 값 목록 (있을 경우) |
+| 필드 | 타입 | 필수 | 기본값 | 설명 |
+|------|------|------|--------|------|
+| name | String | ✓ |  | 필드 이름 (LLM 응답 JSON 의 키) |
+| type | `string` / `number` / `boolean` / `array` / `object` | ✓ |  | 필드 타입. JSON Schema 로 변환되어 LLM 에 전달 |
+| description | String | ✓ |  | LLM 에게 제공되는 필드 설명 |
+| required | Boolean |  | `true` | 필수 여부. `multi_turn` 에서 `false` 인 필드는 누락되어도 종결 가능 |
+| enumValues | String[]? |  |  | 허용 값 목록. JSON Schema 의 `enum` 으로 변환 (null 허용) |
 
-**ExampleDef 구조:**
+**ExampleDef 구조** (`examples[i]`):
 
 | 필드 | 타입 | 설명 |
 |------|------|------|
 | input | String | 예시 입력 텍스트 |
-| output | Object | 예시 추출 결과 |
+| output | Object | 예시 추출 결과 (스키마와 동일한 키 구성) |
 
 ## 2. 설정 UI
 
@@ -47,9 +49,9 @@ LLM을 사용하여 비정형 텍스트에서 구조화된 정보 추출.
 │  ──────────────────────────────────────  │
 │                                          │
 │  LLM Provider: [Anthropic ▼]            │
-│  Model:        [claude-sonnet-4-6 ▼]  │
+│  Model:        [claude-sonnet-4-6 ▼]    │
 │                                          │
-│  Input: [{{ $input.emailBody }}]         │
+│  Input Field: [{{ $input.emailBody }}]   │  (single_turn 시만 표시)
 │                                          │
 │  ── Output Schema ──                     │
 │  ┌──────────────────────────────────────┐│
@@ -57,7 +59,7 @@ LLM을 사용하여 비정형 텍스트에서 구조화된 정보 추출.
 │  │ "발신자 이름"                         ││
 │  ├──────────────────────────────────────┤│
 │  │ orderNumber   String   ✅ Required   ││
-│  │ "주문 번호 (ORD-XXXXX 형식)"         ││
+│  │ "주문번호 (ORD-XXXXX)"                ││
 │  ├──────────────────────────────────────┤│
 │  │ issueType     String   ✅ Required   ││
 │  │ "문제 유형" [refund, exchange, ...]  ││
@@ -69,71 +71,93 @@ LLM을 사용하여 비정형 텍스트에서 구조화된 정보 추출.
 │                                          │
 │  ── Examples (Few-shot) ──               │
 │  [+ Add Example]                         │
+│                                          │
+│  Instructions: [_____________________]   │
+│                                          │
+│  ── Mode ──                              │
+│  ● Single Turn   ○ Multi Turn            │
+│                                          │
+│  ── Multi Turn Settings ── (mode=multi_turn 시) │
+│  Max Turns:               [10__]         │
+│  Max Collection Retries:  [3___]         │
 └──────────────────────────────────────────┘
 ```
 
 ## 3. 포트
-- 입력: `in` (1개)
-- 출력 (모드별 동적):
-  - **single_turn**:
-    - `out` (정적) — 정상 완료 시 (데이터 타입)
-    - `error` (정적) — LLM API 오류, JSON 파싱 재시도 소진 시 (에러 타입)
-  - **multi_turn**:
-    - `completed` — 모든 필수 필드가 수집되어 자연 완료 (데이터 타입)
-    - `user_ended` — 사용자가 대화 종료 (데이터 타입)
-    - `max_turns` — `maxTurns` 도달 (데이터 타입)
-    - `error` — LLM API 오류, 또는 `maxCollectionRetries` 초과 (`endReason: 'max_retries'`) (에러 타입)
+
+### 3.1 입력 포트
+
+| id | label | type | dynamic | 설명 |
+|------|-------|------|---------|------|
+| `in` | Input | data | false | 추출 대상 데이터 (`inputField` expression 의 평가 컨텍스트) |
+
+### 3.2 출력 포트 — `mode` 에 따라 동적
+
+`isDynamicPorts: true`, `dynamicPorts.kind: 'info-extractor-mode'`. 프런트엔드 `resolveDynamicPorts` 가 `config.mode` 를 보고 다음 포트 셋을 산출한다.
+
+**Single Turn (`mode === 'single_turn'`):**
+
+| id | label | type | dynamic | 설명 |
+|------|-------|------|---------|------|
+| `out` | Output | data | true (mode-derived) | 추출 성공 시 결과 라우팅 |
+| `error` | Error | error | true (mode-derived) | LLM 호출 실패 / JSON 파싱 재시도 소진 시 |
+
+**Multi Turn (`mode === 'multi_turn'`):**
+
+| id | label | type | dynamic | 설명 |
+|------|-------|------|---------|------|
+| `completed` | Completed | data | true (mode-derived) | 모든 required 필드가 채워져 자연 완료 |
+| `user_ended` | User Ended | data | true (mode-derived) | 사용자가 `execution.end_conversation` 으로 명시 종료 |
+| `max_turns` | Max Turns | data | true (mode-derived) | `turnCount >= maxTurns` (`maxTurns > 0` 일 때) |
+| `error` | Error | error | true (mode-derived) | LLM 호출 실패 또는 `MAX_COLLECTION_RETRIES_EXCEEDED` |
+
+> 동적 출력 포트는 `mode` 변경 시 즉시 재계산된다. 사용자가 정의하는 추출 필드(`outputSchema`) 는 포트가 아니라 결과 객체의 키가 된다. `out` / `completed` / `user_ended` / `max_turns` / `error` 는 [CONVENTIONS Principle 6](../../../user_memo/node-specs-improvement/CONVENTIONS.md#principle-6--동적-포트-id-네이밍) 의 시스템 포트 예약어이므로 사용자가 충돌하는 ID 를 설정할 수 없다.
 
 ## 4. 실행 로직
 
-**Single Turn (기본)**
-1. outputSchema를 JSON Schema로 변환
-2. 추출 프롬프트 구성 (스키마 + 예시 + 지시사항)
-3. LLM 호출 (JSON 응답 형식 강제) — LLM API 호출 실패 시 `error` 포트 + `output.error.code: 'LLM_CALL_FAILED'`
-4. 응답 파싱 및 스키마 검증
-5. 검증 통과 시 추출 결과를 `output.result.extracted` 에 담고 `out` 포트로 라우팅
-6. 검증 실패 시 재시도 (최대 2회). 재시도 소진 시 `error` 포트 + `output.error.code: 'LLM_RESPONSE_INVALID'`
+### 4.1 Single Turn (`mode === 'single_turn'`)
 
-**Multi Turn**
-1. `inputField`가 비어있으면 LLM을 호출하지 않고 system prompt만 준비한 뒤 바로 사용자 입력을 대기(`turnCount: 0`). 값이 있으면 그 값을 첫 user 메시지로 LLM에 전달한다. 설정 UI는 `multi_turn`일 때 Input Field 항목을 숨겨 이 UX를 강제한다.
-2. LLM은 `finalize_extraction` 도구를 호출해 수집이 완료되었음을 알리거나, content-only 응답으로 후속 질문을 제시한다. 도구 인자에는 스키마에 정의된 모든 추출 필드가 포함되어야 한다.
-3. 도구 인자를 파싱하여 `partialResult`에 누적. LLM이 `null`을 반환한 필드는 기존 값을 보존.
-4. **재수집 판정**: 도구 호출이 왔지만 실제로 required 필드가 비어 있는 경우:
-   - `collectionRetryCount`를 1 증가시키고, `tool` role 의 피드백 메시지를 대화 스레드에 append 하여 누락 필드를 알린다
-   - 동일 턴 내에서 LLM을 다시 호출 (재시도 루프). 각 iteration 의 LLM 트레이스는 `meta.turnDebug[turnIndex].llmCalls` 에 누적
-   - `maxCollectionRetries`(0 제외)를 초과하면 **error 포트** + `output.error.code: 'MAX_COLLECTION_RETRIES_EXCEEDED'`
-5. 종료 조건 평가:
-   - 모든 `required: true` 필드가 채워졌으면 → `completed` 포트 (`endReason: 'completed'`)
-   - `turnCount >= maxTurns` (0이 아닐 때) → `max_turns` 포트 (`endReason: 'max_turns'`)
-   - 사용자가 대화 종료 → `user_ended` 포트 (`endReason: 'user_ended'`)
-   - 재수집 한도 초과 → `error` 포트 (`endReason: 'max_retries'`)
-6. 종료 조건을 만족하지 않으면 `status: 'waiting_for_input'` 반환. waiting 시 `output` 에는 런타임 계산 값만 담는다 (Principle 1.1): `messages` 와 `partial.{extracted, missingFields, collectionRetryCount}`. `maxTurns` / `maxCollectionRetries` / `schema` 등 리터럴 설정값은 `output` 에 echo 하지 않으며 후속 노드 / UI 는 `$node["X"].config.*` 를 참조한다.
-7. 프론트엔드는 AI Agent multi-turn과 동일한 `ConversationInspector` UI로 대화를 렌더하고, Output 탭에서 `ExtractedFieldsCard`로 수집된 필드를 구조화해 보여준다.
+1. `outputSchema` 를 JSON Schema 로 변환 (`buildJsonSchema(schema, multiTurn=false)`). 각 필드는 `[type, 'null']` union 으로 선언되어 LLM 이 미수집 필드를 `null` 로 표현 가능.
+2. system prompt 구성 — schema 설명 + `instructions` + `examples` + "JSON 으로만 응답" 지시.
+3. `evaluatedConfig.inputField` 를 user message 로, `responseFormat: 'json'` + `jsonSchema` 옵션과 함께 LLM 호출 (`LlmService.chat`).
+4. LLM 호출이 throw 하면 즉시 `error` 포트 + `output.error.code: 'LLM_CALL_FAILED'` (§5.3 참조).
+5. 응답 content 를 JSON.parse. 성공 → 추출 결과를 `output.result.extracted` 에 담고 `out` 포트로 라우팅 (§5.1).
+6. JSON.parse 실패 시 최대 2 회 재시도 (총 3 attempt). 모두 실패 시 `error` 포트 + `output.error.code: 'LLM_RESPONSE_INVALID'` (§5.3).
 
-## 5. 출력 구조 (Principle 11 포맷)
+### 4.2 Multi Turn (`mode === 'multi_turn'`)
 
-LLM 3 노드는 `output.result.*` / `output.error.*` / `output.interaction.*` wrapper 를 공유한다 ([공통 §5](./0-common.md#5-응답-형식-규약-principle-11)). Information Extractor 의 **결과 wrapper 1차 필드**:
+`finalize_extraction` tool 을 LLM 에 노출하고, LLM 이 모든 필드를 모은 시점에 tool call 을 트리거하면 종결한다. 자세한 system prompt 정책은 backend handler 의 `buildMultiTurnSystemPrompt` 참조.
 
-| 필드 | 위치 | 설명 |
-| --- | --- | --- |
-| `output.result.extracted` | 성공 | schema 에 정의된 모든 필드. 미수집 required 필드는 `null` |
-| `output.result.endReason` | 성공 | `'out'`(single) / `'completed'`(multi) / `'user_ended'` / `'max_turns'` |
-| `output.result.turnCount` | 성공 | single 은 항상 1, multi 는 실제 진행한 턴 수 |
-| `output.result.messages` | 성공 (multi) | 누적 대화 스냅샷 |
-| `output.result.originalInput` | 성공 (single) | LLM 에 투입된 실제 입력 |
-| `output.error.code` | 에러 | `LLM_CALL_FAILED` / `LLM_RATE_LIMITED` / `LLM_RESPONSE_INVALID` / `MAX_COLLECTION_RETRIES_EXCEEDED` |
-| `output.error.message` | 에러 | 사람이 읽는 원문 메시지 |
-| `output.error.details` | 에러? | 노드별 부가 정보 (attempts, originalInput, missingFields 등) |
-| `meta.durationMs` | 필수 | 실행 소요 시간 |
-| `meta.{model, inputTokens, outputTokens, totalTokens, thinkingTokens}` | 필수 | 모델 / 토큰 사용량 |
-| `meta.collectionRetryCount` | multi | 재수집 누적 횟수 |
-| `meta.turnDebug` | 필수 | `[{ turnIndex, llmCalls, totalDurationMs, toolCalls?, ragSources?, ragDiagnostics? }, ...]` 디버그 트레이스. `toolCalls` 는 해당 턴에서 실행된 provider tool 의 status / durationMs / error 메타, `ragSources` / `ragDiagnostics` 는 해당 턴에서 호출된 KB tool 결과 delta — 노드 전체 누적은 `meta.ragSources` / `meta.ragDiagnostics` 를 사용 |
+1. **첫 턴 진입**:
+   - `inputField` 가 비어 있으면 LLM 호출을 건너뛰고 `turnCount: 0` 으로 즉시 `waiting_for_input` 반환 (§5.4). 사용자가 첫 메시지를 보낼 때까지 대기.
+   - `inputField` 에 값이 있으면 그 값을 첫 user 메시지로 LLM 호출.
+2. **턴 처리** (`runTurnWithCollectionRetries`):
+   - LLM 응답이 `finalize_extraction` tool call 을 포함하면 args 를 파싱해 `partialResult` 와 merge (`null`/`undefined` 는 기존값 보존). 모든 required 가 채워졌으면 `completed`, 부족하면 `tool` role 메시지로 누락 필드를 알리고 `collectionRetryCount += 1` 후 동일 턴 내 재호출.
+   - `collectionRetryCount > maxCollectionRetries` (0 제외) → `forcedEnd: 'max_retries'` (§5.6 max_retries — `error` 포트 + `output.error.code: 'MAX_COLLECTION_RETRIES_EXCEEDED'`).
+   - tool call 없이 content 만 있으면 followup 질문으로 간주, `waiting_for_input` 반환 (§5.4).
+3. **종결 판정** (각 턴 끝):
+   - `forcedEnd` 가 있으면 그 사유로 종결.
+   - 모든 required 충족 → `completed` 포트 (`endReason: 'completed'`).
+   - `turnCount >= maxTurns` (`maxTurns > 0`) → `max_turns` 포트.
+4. **`processMultiTurnMessage(userMessage, _resumeState)`** — engine 이 사용자 메시지 수신 시 호출. 메시지를 대화에 append 후 (2)~(3) 반복.
+5. **`endMultiTurnConversation(_resumeState, endReason)`** — engine 이 사용자가 명시 종료(`execution.end_conversation`) 또는 timeout 등을 만났을 때 호출. `endReason` 에 따라 `user_ended` / `max_turns` / `error` 포트로 라우팅 (§5.6).
+6. **재개 스냅샷** ([공통 §4](./0-common.md#4-multi-turn-차단-모드), [Stage 2 resume](../../../user_memo/node-specs-improvement/CONVENTIONS.md#44-resumed-상태의-output-내용)): 사용자 메시지를 받아 재개되었으나 종결 조건에 도달하지 않은 경우, 다음 `waiting_for_input` 으로 수렴하기 직전 `status: 'resumed'` + `output.interaction.{type, data, receivedAt}` 스냅샷이 1 회 emit 된다 (§5.5).
 
-> 멀티턴에서 `max_retries` 로 종료 시에는 `output.error` 와 `output.result` 가 **병존**한다. 에러지만 부분 수집 결과가 있어 후속 노드가 활용할 수 있도록 둘 다 보존한다. `output.error` 존재 여부로 에러/정상을 판단한다.
+> Source of truth: `backend/src/nodes/ai/information-extractor/information-extractor.handler.ts`. 시스템 프롬프트 / tool 정의는 동일 파일의 `buildMultiTurnSystemPrompt` / `buildFinalizationTool`.
 
-> **Config echo 정책 (CONVENTIONS Principle 7)**: single-turn / multi-turn waiting / multi-turn ended (`completed`·`max_turns`·`user_ended`·`error`·`max_retries`) 의 모든 종결 시점에서 `output.config` 는 **유저가 입력한 raw 값** (template `{{ ... }}` 보존) 을 echo 한다. 엔진이 dispatch 직전 평가한 값이 아니다. 멀티턴 첫 턴 이후의 resumed 턴에서도 동일 — 엔진이 `state.rawConfig` 로 frozen snapshot 을 운반하므로 후속 노드의 `$node["X"].config.{model, schema, instructions, examples, inputField, maxTurns, maxCollectionRetries}` 는 수명 내내 raw 값을 본다.
+## 5. 출력 구조
 
-### 5.1 Case: Single Turn 성공
+> CONVENTIONS Principle 11 포맷. JSON 예시는 `undefined` 필드 생략, 5필드 (`config`/`output`/`meta?`/`port?`/`status?`) 외 top-level key 금지 (단 multi-turn waiting/resumed 는 Principle 4 에 따라 internal `_resumeState` 를 함께 운반 — expression 레이어에는 노출되지 않음).
+>
+> AI 3 노드 공통 wrapper: `output.result.*` / `output.error.{code, message, details?}` / `output.interaction.{type, data, receivedAt}` ([공통 §5](./0-common.md#5-응답-형식-규약-principle-11)). 옛 `output.output.extracted.*` 이중 중첩 포맷은 폐기 (Principle 8).
+>
+> **Config echo 정책 (Principle 7)**: 모든 종결·waiting·resumed 시점에서 `config` 는 사용자가 입력한 raw 값 (template `{{ ... }}` 보존) 을 echo 한다. multi-turn resumed 턴에서는 engine 이 `state.rawConfig` (frozen snapshot) 를 통해 동일 raw 값을 운반한다. 후속 노드는 `$node["X"].config.{mode, model, schema, instructions, examples, inputField, maxTurns, maxCollectionRetries}` 로 raw 를 읽고, 평가된 모델 식별자는 `meta.model` 에서 읽는다.
+>
+> **케이스 색인** ([공통 §9](./0-common.md#9-출력-구조-색인) 와 정합):
+> - **Single**: §5.1 (정상 — `out`) · §5.3 (에러)
+> - **Multi**: §5.4 (`waiting_for_input`) · §5.5 (`resumed`) · §5.6 (종결 4종 — `completed` / `user_ended` / `max_turns` / `max_retries`. multi-turn LLM 호출 실패도 `error` 포트로 §5.3 와 동일한 envelope 으로 라우팅됨)
+
+### 5.1 Case: Single Turn 정상 (port `out`)
 
 ```json
 {
@@ -145,7 +169,10 @@ LLM 3 노드는 `output.result.*` / `output.error.*` / `output.interaction.*` wr
       { "name": "orderNumber", "type": "string", "description": "주문번호", "required": true },
       { "name": "issueType", "type": "string", "description": "문제 유형", "required": true },
       { "name": "amount", "type": "number", "description": "금액", "required": false }
-    ]
+    ],
+    "instructions": "",
+    "examples": [],
+    "inputField": "{{ $input.emailBody }}"
   },
   "output": {
     "result": {
@@ -167,18 +194,265 @@ LLM 3 노드는 `output.result.*` / `output.error.*` / `output.interaction.*` wr
     "outputTokens": 80,
     "totalTokens": 530,
     "thinkingTokens": 0,
-    "turnDebug": [{ "turnIndex": 1, "llmCalls": [/* … */], "totalDurationMs": 810 }]
+    "turnDebug": [
+      { "turnIndex": 1, "llmCalls": [{ "requestPayload": {}, "responsePayload": {}, "durationMs": 810 }], "totalDurationMs": 810 }
+    ]
   },
   "port": "out",
   "status": "ended"
 }
 ```
 
-### 5.2 Case: Multi Turn 완료 (`completed`)
+| 필드 | 타입 | 출처 | 설명 |
+|------|------|------|------|
+| `config.mode` | `'single_turn'` | config echo (Principle 7) | 실행 모드 |
+| `config.model` | string | config echo — raw | 사용자 입력 raw 값 (`{{ }}` 보존). evaluated 식별자는 `meta.model` |
+| `config.schema` | FieldDef[] | config echo (= raw `outputSchema`) | 추출 스키마 정의 (raw) |
+| `config.instructions` | string | config echo — raw | 추가 지시 raw 텍스트 |
+| `config.examples` | ExampleDef[] | config echo — raw | few-shot 예시 raw |
+| `config.inputField` | string | config echo — raw | 입력 표현식 raw |
+| `output.result.extracted` | `Record<string, unknown>` | handler — runtime | LLM 이 추출한 필드. `outputSchema` 전 필드를 포함하며 미수집은 `null` |
+| `output.result.endReason` | `'out'` | handler — runtime | single 정상 종료 사유 |
+| `output.result.turnCount` | number | handler — runtime | single 은 항상 `1` |
+| `output.result.originalInput` | string | handler — runtime | LLM 에 투입한 실제 입력 (디버그 / 후속 노드 참조) |
+| `meta.durationMs` | number | handler / engine | 총 실행 시간 (ms) |
+| `meta.model` | string | LLM response | 실제 호출된 모델 식별자 |
+| `meta.{inputTokens, outputTokens, totalTokens, thinkingTokens}` | number | LLM usage | 토큰 회계 ([공통 §6](./0-common.md#6-토큰-회계-meta)) |
+| `meta.turnDebug` | Array | handler — runtime | 턴별 LLM 호출 트레이스 (single 은 1 항목) |
+| `port` | `'out'` | handler return | 정상 출력 |
+| `status` | `'ended'` | handler return | 종결 상태 |
+
+**Expression 접근 예**:
+- `$node["X"].output.result.extracted.senderName` → `"김철수"`
+- `$node["X"].output.result.extracted.amount` → `29900` (또는 `null`)
+- `$node["X"].config.schema` → 사용자가 입력한 raw `outputSchema`
+- `$node["X"].meta.totalTokens` → `530`
+- `$node["X"].port` → `"out"`
+
+### 5.3 Case: 에러 (port `error`)
+
+`error` 포트는 single-turn 의 LLM 호출 실패 / JSON 파싱 재시도 소진, multi-turn 의 LLM 호출 실패 (`max_retries` 는 §5.6) 가 모두 라우팅된다. multi-turn 의 mid-conversation 실패에서는 `output.error` 와 함께 `output.result` 가 부분 수집 결과로 병존한다 ([공통 §5](./0-common.md#5-응답-형식-규약-principle-11)).
 
 ```json
 {
-  "config": { "mode": "multi_turn", "schema": [...], "maxTurns": 10, "maxCollectionRetries": 3 },
+  "config": {
+    "mode": "single_turn",
+    "model": "claude-sonnet-4-6",
+    "schema": [/* … */],
+    "instructions": "",
+    "examples": [],
+    "inputField": "{{ $input.emailBody }}"
+  },
+  "output": {
+    "error": {
+      "code": "LLM_RESPONSE_INVALID",
+      "message": "Failed to parse JSON after 3 attempts",
+      "details": {
+        "attempts": 3,
+        "originalInput": "환불 요청합니다…",
+        "lastResponse": "..."
+      }
+    }
+  },
+  "meta": {
+    "durationMs": 3200,
+    "model": "claude-sonnet-4-6",
+    "turnDebug": [{ "turnIndex": 1, "llmCalls": [{}, {}, {}], "totalDurationMs": 3200 }]
+  },
+  "port": "error",
+  "status": "ended"
+}
+```
+
+| 필드 | 타입 | 출처 | 설명 |
+|------|------|------|------|
+| `config.*` | (§5.1과 동일) | config echo | raw 값 |
+| `output.error.code` | string | handler — runtime | 아래 `code` 예약어 표 참조 |
+| `output.error.message` | string | handler — runtime | 사람이 읽는 원문 메시지 (i18n 없음) |
+| `output.error.details` | object? | handler — runtime | 노드별 부가 정보 (`attempts` / `originalInput` / `lastResponse` / `turnCount` / `collectionRetryCount` 등) |
+| `output.result` | object? | handler — runtime | **multi-turn LLM_CALL_FAILED 한정** — `extracted` / `endReason: 'error'` / `turnCount` / `messages` 부분 수집 결과 보존 |
+| `meta.durationMs` | number | handler / engine | 실행 시간 |
+| `meta.model` | string? | LLM response | 호출이 일부라도 성공했을 때만 |
+| `meta.collectionRetryCount` | number? | handler — runtime | multi-turn 에러 시 누적값 |
+| `meta.turnDebug` | Array | handler — runtime | 턴별 트레이스 |
+| `port` | `'error'` | handler return | 에러 라우팅 |
+| `status` | `'ended'` | handler return | 종결 상태 |
+
+**`output.error.code` 예약어**:
+
+| code | 발생 조건 |
+|------|-----------|
+| `LLM_CALL_FAILED` | provider 네트워크 / 타임아웃 / 5xx / 기타 throw |
+| `LLM_RATE_LIMITED` | 429 (provider 가 별도 분류 시) |
+| `LLM_RESPONSE_INVALID` | single-turn JSON 파싱이 모든 재시도(기본 3 attempt) 실패 |
+| `MAX_COLLECTION_RETRIES_EXCEEDED` | multi-turn `collectionRetryCount > maxCollectionRetries` 초과 (§5.6 max_retries) |
+
+> **multi-turn `LLM_CALL_FAILED`**: 대화 도중 LLM 호출이 실패하면 `output.error` (LLM_CALL_FAILED) + `output.result` (부분 추출) 가 함께 emit 된다. 후속 노드는 `output.error` 존재 여부로 정상 / 에러를 판단하고, 부분 결과는 `output.result.extracted` 에서 회수한다. multi-turn `MAX_COLLECTION_RETRIES_EXCEEDED` 는 §5.6 (max_retries) 와 동일한 envelope 이지만 분류상 "재시도 한도 초과로 인한 종결" 이므로 그쪽에서 상세 기술.
+
+**Expression 접근 예**:
+- `$node["X"].output.error.code` → `"LLM_RESPONSE_INVALID"` 등
+- `$node["X"].output.error.details.originalInput` → 디버그용 원문
+- `$node["X"].output.result?.extracted` → multi-turn 에러 시 부분 결과 (single-turn 에러는 undefined)
+- `$node["X"].port` → `"error"`
+
+### 5.4 Case: Multi Turn 대기 (`status: 'waiting_for_input'`)
+
+handler 가 `output: { messages, partial?, ... }` 런타임 필드와 `_resumeState` (internal) 를 함께 반환하고, engine 이 실행을 일시 중단한 상태. `output` 에는 **이 턴 시점의 런타임 값만** 담긴다 (Principle 1.1 / 4.3) — `maxTurns`·`maxCollectionRetries`·`schema` 등 리터럴 config 는 echo 하지 않으며, UI / 후속 노드는 `$node["X"].config.*` 를 직접 참조한다.
+
+```json
+{
+  "config": {
+    "schema": [/* … */],
+    "mode": "multi_turn",
+    "maxCollectionRetries": 3
+  },
+  "output": {
+    "messages": [
+      { "role": "system", "content": "You are engaged in a multi-turn conversation…" },
+      { "role": "user", "content": "환불 요청합니다." },
+      { "role": "assistant", "content": "주문번호를 알려주세요." }
+    ],
+    "message": "주문번호를 알려주세요.",
+    "turnCount": 1,
+    "maxTurns": 10,
+    "partial": {
+      "extracted": { "senderName": "김철수", "orderNumber": null, "issueType": "refund", "amount": null },
+      "missingFields": ["orderNumber"],
+      "collectionRetryCount": 0
+    }
+  },
+  "meta": {
+    "interactionType": "ai_conversation"
+  },
+  "status": "waiting_for_input"
+}
+```
+
+| 필드 | 타입 | 출처 | 설명 |
+|------|------|------|------|
+| `config.schema` | FieldDef[] | config echo | 대기 시점의 스키마 raw |
+| `config.mode` | `'multi_turn'` | config echo | |
+| `config.maxCollectionRetries` | number | config echo | 대기 UI 진행률 표시용 (`output.partial.collectionRetryCount` 와 비교) |
+| `output.messages` | `ChatMessage[]` | handler — runtime | 누적 대화 (system + user + assistant + tool). `ai_agent` 와 동일 구조 |
+| `output.message` | string | handler — runtime | 가장 최근 assistant followup. WS 페이로드 구성 편의용 |
+| `output.turnCount` | number | handler — runtime | 현재까지 진행된 턴 수 (`maxTurns` 와 비교 가능) |
+| `output.maxTurns` | number | handler — runtime snapshot | 대기 UI 진행률 표시용으로 함께 노출되는 turn budget 스냅샷 (raw 는 `config.maxTurns`) |
+| `output.partial.extracted` | `Record<string, unknown>` | handler — runtime | 스키마 전 필드 기준의 현재 스냅샷. 미수집은 `null` |
+| `output.partial.missingFields` | `string[]` | handler — runtime | 아직 채워지지 않은 required 필드 이름 |
+| `output.partial.collectionRetryCount` | number | handler — runtime | 누적 재질의 횟수 (UI 진행률용) |
+| `meta.interactionType` | `'ai_conversation'` | handler — runtime | engine WS 페이로드 분류용 메타. 종결 시점에는 사용하지 않음 |
+| `status` | `'waiting_for_input'` | handler return | 엔진 일시 중단 트리거 |
+| `_resumeState` | object | handler internal | 다음 턴 처리에 필요한 internal state. expression 레이어에 노출되지 않음 (autocomplete/resolver 에서 숨김) |
+
+**Expression 접근 예**:
+- `$node["X"].output.messages[-1].content` → 마지막 assistant 메시지
+- `$node["X"].output.partial.missingFields` → 누락 필드 목록
+- `$node["X"].config.maxTurns` → raw 한도값 (Principle 1.1)
+- `$node["X"].status` → `"waiting_for_input"`
+
+### 5.5 Case: Multi Turn 재개 (`status: 'resumed'`)
+
+사용자 메시지를 받아 다음 턴을 처리한 직후 종결 조건에 도달하지 않은 경우, 다음 `waiting_for_input` 으로 수렴하기 직전에 1 회 emit 되는 observability-only 스냅샷. 그래프 엣지 라우팅을 발생시키지 않고 run history / timeline 에만 기록된다 ([공통 §4](./0-common.md#4-multi-turn-차단-모드), CONVENTIONS §4.4 / §4.5).
+
+```json
+{
+  "config": {
+    "schema": [/* … */],
+    "mode": "multi_turn",
+    "maxCollectionRetries": 3
+  },
+  "output": {
+    "messages": [
+      { "role": "system", "content": "..." },
+      { "role": "user", "content": "환불 요청합니다." },
+      { "role": "assistant", "content": "주문번호를 알려주세요." },
+      { "role": "user", "content": "ORD-12345 입니다" }
+    ],
+    "partial": {
+      "extracted": { "senderName": "김철수", "orderNumber": null, "issueType": "refund", "amount": null },
+      "missingFields": ["orderNumber"],
+      "collectionRetryCount": 0
+    },
+    "interaction": {
+      "type": "message_received",
+      "data": { "content": "ORD-12345 입니다", "role": "user" },
+      "receivedAt": "2026-04-19T06:45:12.480Z"
+    }
+  },
+  "meta": {
+    "durationMs": 0,
+    "interactionType": "ai_conversation"
+  },
+  "status": "resumed"
+}
+```
+
+| 필드 | 타입 | 출처 | 설명 |
+|------|------|------|------|
+| `config.*` | (§5.4와 동일) | config echo | 대기 시점과 동일 raw |
+| `output.messages` | `ChatMessage[]` | handler — runtime | 사용자 메시지 append 직후 누적 |
+| `output.partial` | object | handler — runtime | 직전 대기 시점의 스냅샷 유지 (이 시점에는 새 LLM 호출 결과가 아직 없음) |
+| `output.interaction.type` | `'message_received'` | handler — runtime | resume 트리거 종류 ([CONVENTIONS §4.5](../../../user_memo/node-specs-improvement/CONVENTIONS.md#45-interactiondata-payload-규격)) |
+| `output.interaction.data.content` | string | handler — runtime | 사용자가 입력한 메시지 본문 |
+| `output.interaction.data.role` | `'user'` | handler — runtime | 고정 |
+| `output.interaction.receivedAt` | ISO8601 string | engine | 메시지 수신 시각 |
+| `meta.durationMs` | number | engine inject | resumed 스냅샷은 별도 LLM 호출이 없으므로 보통 0 |
+| `meta.interactionType` | `'ai_conversation'` | handler — runtime | 대기 / 재개 공통 분류 메타 |
+| `status` | `'resumed'` | handler return | observability transient — 그래프 라우팅 없음 |
+| `_resumeState` | object | handler internal | 다음 턴 처리에 필요한 internal state |
+
+**Expression 접근 예**:
+- `$node["X"].output.interaction.data.content` → `"ORD-12345 입니다"`
+- `$node["X"].output.interaction.receivedAt` → ISO8601
+- `$node["X"].status` → `"resumed"`
+
+### 5.6 Case: Multi Turn 종결 (4 종)
+
+multi-turn 의 4 가지 종결 사유. **공통 envelope** (`endReason` / `port` / `status` 만 다름):
+
+```jsonc
+{
+  "config": { /* multiTurnConfigEcho — raw mode/model/schema/instructions/examples/inputField/maxTurns/maxCollectionRetries */ },
+  "output": {
+    "result": {
+      "extracted": { /* outputSchema 전 필드, 미수집은 null */ },
+      "endReason": "<completed|user_ended|max_turns|max_retries>",
+      "turnCount": <number>,
+      "messages": [/* 누적 대화 */]
+    }
+    // max_retries 의 경우 output.error 가 result 와 병존 (아래 참조)
+  },
+  "meta": {
+    "durationMs": <number>,
+    "model": "claude-sonnet-4-6",
+    "inputTokens": <number>,
+    "outputTokens": <number>,
+    "totalTokens": <number>,
+    "thinkingTokens": <number>,
+    "collectionRetryCount": <number>,
+    "turnDebug": [/* … */]
+  },
+  "port": "<completed|user_ended|max_turns|error>",
+  "status": "ended"
+}
+```
+
+#### 5.6.1 `completed` (port `completed`)
+
+모든 required 필드가 채워져 LLM 의 `finalize_extraction` tool call 이 성공한 자연 완료.
+
+```json
+{
+  "config": {
+    "mode": "multi_turn",
+    "model": "claude-sonnet-4-6",
+    "schema": [/* … */],
+    "instructions": "",
+    "examples": [],
+    "inputField": "{{ $input.emailBody }}",
+    "maxTurns": 10,
+    "maxCollectionRetries": 3
+  },
   "output": {
     "result": {
       "extracted": {
@@ -207,97 +481,86 @@ LLM 3 노드는 `output.result.*` / `output.error.*` / `output.interaction.*` wr
 }
 ```
 
-### 5.3 Case: Multi Turn 대기 (`waiting_for_input`)
+#### 5.6.2 `user_ended` (port `user_ended`)
+
+사용자가 `execution.end_conversation` 명령으로 명시 종료. `extracted` 는 수집된 만큼만 보존되고, 미수집은 `null`.
 
 ```json
 {
-  "config": { "mode": "multi_turn", "schema": [...], "maxTurns": 10, "maxCollectionRetries": 3 },
+  "config": { "mode": "multi_turn", "schema": [/* … */], "maxTurns": 10, "maxCollectionRetries": 3 },
   "output": {
-    "messages": [{ "role": "assistant", "content": "주문번호를 알려주세요" }],
-    "partial": {
+    "result": {
       "extracted": { "senderName": "김철수", "orderNumber": null, "issueType": null, "amount": null },
-      "missingFields": ["orderNumber", "issueType"],
-      "collectionRetryCount": 0
+      "endReason": "user_ended",
+      "turnCount": 2,
+      "messages": [/* … */]
     }
   },
   "meta": {
-    "durationMs": 1500,
+    "durationMs": 4200,
     "model": "claude-sonnet-4-6",
-    "inputTokens": 100,
-    "outputTokens": 20,
-    "totalTokens": 120,
+    "inputTokens": 600,
+    "outputTokens": 90,
+    "totalTokens": 690,
     "thinkingTokens": 0,
+    "collectionRetryCount": 0,
     "turnDebug": [/* … */]
   },
-  "status": "waiting_for_input"
-}
-```
-
-> Waiting output 에는 런타임 값만 담는다 (Principle 1.1 / 4.3). `maxTurns`·`maxCollectionRetries`·`schema` 는 `config.*` 에서 읽는다. 노드 판별용 `type` / `interactionType` / `view` 래퍼는 사용하지 않는다 (Principle 1.1.4).
-
-### 5.4 Case: Multi Turn 재개 (`resumed`, Stage 2 에서 구현)
-
-사용자 메시지 수신 직후 종료 조건에 미도달 시 1회 emit 되는 observability-only 스냅샷. Stage 2 의 공통 resume 컨트랙트에서 도입된다.
-
-```json
-{
-  "output": {
-    "messages": [/* 사용자 메시지 append 직후 누적 */],
-    "partial": { /* 직전 대기 시점 스냅샷 */ },
-    "interaction": {
-      "type": "message_received",
-      "data": { "content": "ORD-12345 입니다", "role": "user" },
-      "receivedAt": "2026-04-19T06:45:12.480Z"
-    }
-  },
-  "status": "resumed"
-}
-```
-
-### 5.5 Case: Single Turn 에러 (LLM 호출/파싱 실패)
-
-```json
-{
-  "config": { "mode": "single_turn", "schema": [...] },
-  "output": {
-    "error": {
-      "code": "LLM_RESPONSE_INVALID",
-      "message": "Failed to parse JSON after 3 attempts",
-      "details": {
-        "attempts": 3,
-        "originalInput": "환불 요청합니다…",
-        "lastResponse": "…"
-      }
-    }
-  },
-  "meta": {
-    "durationMs": 3200,
-    "model": "claude-sonnet-4-6",
-    "turnDebug": [/* … */]
-  },
-  "port": "error",
+  "port": "user_ended",
   "status": "ended"
 }
 ```
 
-### 5.6 Case: Multi Turn 에러 (`max_retries`)
+#### 5.6.3 `max_turns` (port `max_turns`)
+
+`turnCount >= maxTurns` (`maxTurns > 0`) 도달.
 
 ```json
 {
-  "config": { "mode": "multi_turn", "schema": [...], "maxCollectionRetries": 3 },
+  "config": { "mode": "multi_turn", "schema": [/* … */], "maxTurns": 5, "maxCollectionRetries": 3 },
+  "output": {
+    "result": {
+      "extracted": { "senderName": "김철수", "orderNumber": null, "issueType": "refund", "amount": null },
+      "endReason": "max_turns",
+      "turnCount": 5,
+      "messages": [/* … */]
+    }
+  },
+  "meta": {
+    "durationMs": 7320,
+    "model": "claude-sonnet-4-6",
+    "inputTokens": 800,
+    "outputTokens": 240,
+    "totalTokens": 1040,
+    "thinkingTokens": 0,
+    "collectionRetryCount": 1,
+    "turnDebug": [/* … */]
+  },
+  "port": "max_turns",
+  "status": "ended"
+}
+```
+
+#### 5.6.4 `max_retries` (port `error`)
+
+`collectionRetryCount > maxCollectionRetries` 초과. `error` 포트로 라우팅되며 **`output.error` 와 `output.result` 가 병존** — 부분 수집 결과를 후속 노드가 활용할 수 있도록 둘 다 보존한다 ([공통 §5](./0-common.md#5-응답-형식-규약-principle-11)).
+
+```json
+{
+  "config": { "mode": "multi_turn", "schema": [/* … */], "maxTurns": 10, "maxCollectionRetries": 3 },
   "output": {
     "error": {
       "code": "MAX_COLLECTION_RETRIES_EXCEEDED",
-      "message": "LLM attempted finalize_extraction 3 times with missing required fields",
+      "message": "LLM attempted finalize_extraction 4 times with missing required fields",
       "details": {
-        "extracted": { "senderName": "김철수", "orderNumber": null },
+        "extracted": { "senderName": "김철수", "orderNumber": null, "issueType": "refund", "amount": null },
         "missingFields": ["orderNumber"],
         "turnCount": 3,
         "collectionRetryCount": 3
       }
     },
     "result": {
-      "extracted": { "senderName": "김철수", "orderNumber": null },
+      "extracted": { "senderName": "김철수", "orderNumber": null, "issueType": "refund", "amount": null },
       "endReason": "max_retries",
       "turnCount": 3,
       "messages": [/* … */]
@@ -309,6 +572,7 @@ LLM 3 노드는 `output.result.*` / `output.error.*` / `output.interaction.*` wr
     "inputTokens": 500,
     "outputTokens": 150,
     "totalTokens": 650,
+    "thinkingTokens": 0,
     "collectionRetryCount": 3,
     "turnDebug": [/* … */]
   },
@@ -317,4 +581,57 @@ LLM 3 노드는 `output.result.*` / `output.error.*` / `output.interaction.*` wr
 }
 ```
 
-다운스트림 노드는 `$node["Info Extractor"].output.result.extracted.<필드명>` 으로 추출 결과에 접근하고, `$node["Info Extractor"].output.error?.code` 로 에러 분기를 수행한다.
+**5.6 공통 필드**:
+
+| 필드 | 타입 | 출처 | 설명 |
+|------|------|------|------|
+| `config.*` | (raw multiTurnConfigEcho) | config echo (Principle 7) | engine 이 운반한 `state.rawConfig` 에서 echo |
+| `output.result.extracted` | `Record<string, unknown>` | handler — runtime | 스키마 전 필드, 미수집은 `null` |
+| `output.result.endReason` | `'completed'` / `'user_ended'` / `'max_turns'` / `'max_retries'` | handler — runtime | 종결 사유 |
+| `output.result.turnCount` | number | handler — runtime | 실제 진행 턴 수 |
+| `output.result.messages` | `ChatMessage[]` | handler — runtime | 누적 대화 |
+| `output.error` | object | handler — runtime | **`max_retries` 한정**. multi-turn LLM_CALL_FAILED 도 같은 envelope (§5.3 참조) |
+| `meta.durationMs` | number | handler / engine | 누적 실행 시간 |
+| `meta.model` | string | handler — runtime | LLM 호출에 사용된 모델 |
+| `meta.{inputTokens, outputTokens, totalTokens, thinkingTokens}` | number | LLM usage 누적 | turn 별 합산 |
+| `meta.collectionRetryCount` | number | handler — runtime | 재질의 누적 |
+| `meta.turnDebug` | Array | handler — runtime | turn 별 LLM 트레이스. delta 합 = `meta.{ragSources, ragDiagnostics, mcpDiagnostics}` 누적 ([공통 §7](./0-common.md#7-진단-누적-provider-tool)) |
+| `port` | `'completed'` / `'user_ended'` / `'max_turns'` / `'error'` | handler — `portForEndReason` | endReason → port 매핑 |
+| `status` | `'ended'` | handler return | |
+
+**Expression 접근 예**:
+- `$node["X"].output.result.extracted.orderNumber` → `"ORD-12345"` 또는 `null`
+- `$node["X"].output.result.endReason` → `"completed"` / `"user_ended"` / `"max_turns"` / `"max_retries"`
+- `$node["X"].output.error?.code === "MAX_COLLECTION_RETRIES_EXCEEDED"` → max_retries 분기 판정
+- `$node["X"].port` → `"completed"` / `"user_ended"` / `"max_turns"` / `"error"`
+- `$node["X"].meta.collectionRetryCount` → `3`
+
+## 6. 에러 코드
+
+`output.error.code` 예약어 (Principle 3.2 표준 envelope `{code, message, details?}`):
+
+| code | 발생 조건 | 포트 | 분류 |
+|------|-----------|------|------|
+| `LLM_CALL_FAILED` | provider 네트워크 / 타임아웃 / 5xx / 기타 throw | `error` | runtime — single 즉시 / multi 는 `result` 병존 |
+| `LLM_RATE_LIMITED` | 429 (provider 가 별도 분류 시) | `error` | runtime |
+| `LLM_RESPONSE_INVALID` | single-turn JSON 파싱이 모든 재시도(기본 3 attempt) 실패 | `error` | runtime |
+| `MAX_COLLECTION_RETRIES_EXCEEDED` | multi-turn `collectionRetryCount > maxCollectionRetries` 초과 | `error` | runtime — `result` 와 병존 (§5.6 max_retries) |
+
+Pre-flight 검증 (CONVENTIONS Principle 3.1 — throw):
+
+| 발생 조건 | 메시지 | 시점 |
+|-----------|--------|------|
+| `model` & `llmConfigId` 모두 누락 | `LLM 프로바이더가 설정되지 않았습니다.` ([AI_NO_LLM_PROVIDER_MESSAGE](../../../backend/src/nodes/ai/llm-provider-rule.ts)) | warningRule (캔버스 배지) + handler.validate |
+| `outputSchema` 가 빈 배열 | `하나 이상의 추출 필드를 정의해야 합니다.` | warningRule + handler.validate |
+| `mode === 'single_turn'` 인데 `inputField` 가 비어있음 | `Single Turn 모드에서는 Input Field 를 입력해야 합니다.` | warningRule (캔버스 배지) |
+| `outputSchema[i].name` / `outputSchema[i].type` 누락 | `Field {i+1}: name is required` / `type is required` | handler.validate |
+| `mode === 'multi_turn'` 인데 `maxTurns` 가 음수 / 비숫자 | `maxTurns must be 0 (unlimited) or a positive integer` | handler.validate |
+
+## 7. 캔버스 요약
+
+[공통 §8](./0-common.md#8-캔버스-요약) — `Info Extractor` 행 인용.
+
+`{model} · {N} fields` (outputSchema 필드 수). `mode === 'multi_turn'` 이면 `Multi Turn` 접두어 추가.
+
+- single 예: `claude-sonnet-4-6 · 4 fields`
+- multi 예: `Multi Turn · claude-sonnet-4-6 · 4 fields`

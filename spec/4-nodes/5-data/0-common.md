@@ -34,3 +34,39 @@ Code 노드는 [노드 실행 샌드박싱 정책](../0-overview.md#5-노드-실
 |------|-----------|------|
 | Transform | `{N} operations` (operations 배열의 길이) | `3 operations` |
 | Code | `{language} · {N} lines` (코드 줄 수) | `JavaScript · 12 lines` |
+
+---
+
+## 4. 5필드 공통 규약 (Data 카테고리)
+
+Data 노드는 모두 [CONVENTIONS Principle 0](../../../user_memo/node-specs-improvement/CONVENTIONS.md) 의 5필드 invariant `{ config, output, meta?, port?, status? }` 를 따른다. 카테고리 특이 사용 패턴:
+
+| 필드 | Data 카테고리에서의 사용 패턴 |
+|------|--------------------------------|
+| `config` | 사용자 입력 raw echo (Principle 7). `code.code` 필드는 보안 차원에서 echo하되 길이 제한 없음 (사용자 본인이 작성한 코드). `transform.operations[]` 의 expression 템플릿 보존 |
+| `output` | **계산 결과**. `transform`: 변환 결과 (단일 객체 또는 배열). `code`: 사용자 코드의 `return` 값 |
+| `meta` | 실행 메트릭만 (Principle 2). `meta.durationMs` (공통). `code` 노드: `meta.{success: boolean, logs?: string[], error?: {code,message}, errorCode?: string, exitReason?}` |
+| `port` | `transform`: `undefined` (단일 출력). `code`: `'success'` / `'error'` (런타임 에러 분기) |
+| `status` | Data 노드는 모두 비-블로킹 → `undefined` |
+
+### 4.1 에러 컨트랙트 (CONVENTIONS Principle 3)
+
+| 노드 | Pre-flight 에러 (throw) | Runtime 에러 (`port: 'error'`) |
+|------|--------------------------|----------------------------------|
+| `transform` | config 검증 실패 (operation 형식 오류, 표현식 문법 오류). **runtime 에러 포트 없음** — operation 실행 실패는 throw | (없음) |
+| `code` | 코드 컴파일 실패 (구문 오류) | 런타임 throw, 타임아웃, 메모리 초과 → `output.error.{code, message, details?}` + `port: 'error'` |
+
+> Transform은 expression 평가 실패도 pre-flight throw로 처리한다 (사용자가 캔버스에서 즉시 알 수 있도록). Code는 사용자 작성 임의 코드의 throw가 정상 시나리오의 일부이므로 runtime 에러 포트로 분기.
+
+## 5. 출력 구조 색인
+
+| 노드 | 정상 케이스 | 에러 케이스 | Pre-flight throw |
+|------|-------------|-------------|---------------------|
+| [transform](./1-transform.md#5-출력-구조) | §5.1 | — | §5.8 (config·expression 오류) |
+| [code](./2-code.md#5-출력-구조) | §5.1 (`success` port) | §5.3 (`error` port) | §5.8 (코드 컴파일 실패) |
+
+## 6. CHANGELOG
+
+| 일자 | 변경 |
+|------|------|
+| 2026-05-10 | §4 5필드 공통 규약 / §5 출력 구조 색인 신설. 노드 문서 §5 출력 구조 5필드 모델로 정합화 (Principle 0~11 적용) |
