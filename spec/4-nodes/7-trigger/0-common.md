@@ -46,3 +46,37 @@ interface TriggerParameterDefinition {
 | 노드 | 요약 포맷 | 예시 |
 |------|-----------|------|
 | Manual Trigger | 파라미터 개수 | `Parameters: 2` 또는 `(none)` |
+
+---
+
+## 3. 5필드 공통 규약 (Trigger 카테고리)
+
+Trigger 노드는 모두 [CONVENTIONS Principle 0](../../../user_memo/node-specs-improvement/CONVENTIONS.md) 의 5필드 invariant `{ config, output, meta?, port?, status? }` 를 따른다. 카테고리 특이 사용 패턴:
+
+| 필드 | Trigger 카테고리에서의 사용 패턴 |
+|------|----------------------------------|
+| `config` | 사용자 입력 raw echo. Manual Trigger는 `config.parameters` 가 `TriggerParameterDefinition[]` 스키마 그대로 echo (값이 아닌 schema) |
+| `output` | **수집된 파라미터 값**. Manual Trigger: `output: $params` (= `$input.parameters`). 즉 `config.parameters` 는 schema, `output` 은 evaluated 값 — 직교 (Principle 1.1) |
+| `meta` | 실행 메트릭만. `meta.durationMs` (보통 0 — Trigger는 외부 호출 없음). `meta.triggerSource: 'manual' \| 'webhook' \| 'schedule'` (P1 미구현) |
+| `port` | Trigger 노드는 단일 출력 → `undefined` 또는 `'out'` (메타데이터에 정의된 정적 포트) |
+| `status` | Trigger는 비-블로킹 즉시 완료 → `undefined` |
+
+### 3.1 입력 부재
+
+Trigger 노드는 워크플로 진입점이므로 **입력 포트가 없다** (`inputs: []`). `execute(input, config, context)` 호출 시 `input` 은 항상 외부 진입 데이터 (Manual: `{parameters}`, Webhook: `{parameters, body, headers, query, method}`, Schedule: `{parameters}`) 로 엔진이 주입.
+
+### 3.2 trigger 종류별 동일 컨트랙트
+
+§1 의 표대로 Manual / Webhook / Schedule 세 트리거는 **`config.parameters` 스키마와 `output` evaluated 값이 동일 형태**다. 차이는 값 수집 방식과 검증 시점뿐. 따라서 다운스트림 노드는 트리거 종류에 의존하지 않고 `$node["X"].output.<paramName>` 또는 `$params.<paramName>` 로 동일하게 접근.
+
+## 4. 출력 구조 색인
+
+| 노드 | 정상 케이스 |
+|------|-------------|
+| [manual_trigger](./1-manual-trigger.md#5-출력-구조) | §5.1 |
+
+## 5. CHANGELOG
+
+| 일자 | 변경 |
+|------|------|
+| 2026-05-10 | §3 5필드 공통 규약 / §4 출력 구조 색인 신설. 노드 문서 §5 출력 구조 5필드 모델로 정합화 (Principle 0~11 적용) |

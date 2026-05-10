@@ -141,3 +141,74 @@ If/Else, Switch, Filter, AI Agent 조건 도구 등에서 **동적으로 추가/
 | Parallel | `{N} branches` | `3 branches` |
 | Merge | `{N} inputs · {strategy}` | `3 inputs · wait_all` |
 | Background | `notifyOnFailure`/`maxDurationMs` 요약. 알림이 꺼져 있으면 시간만 표시 | `notify on fail · 5m` |
+
+---
+
+## 9. 5필드 공통 규약 (Logic 카테고리)
+
+Logic 노드는 모두 [CONVENTIONS Principle 0](../../../user_memo/node-specs-improvement/CONVENTIONS.md) 의 5필드 invariant `{ config, output, meta?, port?, status? }` 를 따른다. 카테고리 특이 사용 패턴:
+
+| 필드 | Logic 카테고리에서의 사용 패턴 |
+|------|----------------------------------|
+| `config` | 사용자 입력 raw echo (Principle 7). `conditions[]` 등 표현식 `{{ }}` 보존. credentials/sensitive 필드는 Logic 카테고리에 해당 없음 |
+| `output` | 분기 노드(if_else, switch, filter)·변수 노드(var_decl, var_mod)·배경(background main) 은 **input pass-through** (§10). 컨테이너 노드(loop, foreach, map, parallel)는 핸들러가 `output: items` (또는 `null`) 반환 → 엔진이 `{ <컬렉션>, count }` 로 오버라이트 (§5, Principle 9). 데이터 노드(split, merge)는 계산 결과 |
+| `meta` | 실행 메트릭만 (Principle 2). 컨테이너: `meta.iterations? / branches? / matchedCount?`. 분기: `meta.conditionResult? / matchedConditions?` (P0 미구현 가능). 모든 노드 공통: `meta.durationMs` (엔진 inject) |
+| `port` | 분기 노드는 `'true'` / `'false'` / 동적 case ID. 컨테이너는 `'done'`. 일반 노드는 `undefined` (단일 출력) |
+| `status` | Logic 노드는 모두 비-블로킹이므로 일반적으로 `undefined`. background 만 `'background_running'` 등 가능 |
+
+### 9.1 컨테이너 노드 핸들러 ↔ 엔진 오버라이트 컨트랙트
+
+Loop / ForEach / Map / Parallel 핸들러는 다음 두 시점에 두 가지 다른 출력을 낸다:
+
+1. **시작 시점 (body 진입 직전)**: `output: items[]` 반환. 엔진은 이 배열을 body iteration 입력으로 분배.
+2. **완료 시점 (모든 iteration 종료 후)**: 핸들러는 `null` 또는 미반환. **엔진이 `{ <컬렉션>: [...], count: N }` 으로 `output` 을 덮어쓴다** (Principle 9).
+
+| 노드 | 컬렉션 키 | 시작 시점 output | 완료 시점 output (엔진 오버라이트) |
+|------|-----------|--------------------|----------------------------------------|
+| `loop` | `iterations` | (없음 — Loop는 입력 분배 안 함) | `{ iterations: [...], count }` |
+| `foreach` | `items` | `items[]` (body 입력 분배) | `{ items: [...], count }` |
+| `map` | `mapped` | `items[]` | `{ mapped: [...], count }` |
+| `parallel` | `branches` | (없음 — 분기별 빈 입력) | `{ branches: [...], count }` |
+
+다운스트림 노드는 `done` 포트 이후에 항상 `{ <컬렉션>, count }` 형태를 본다.
+
+## 10. Pass-through 노드 규약
+
+다음 5종 Logic 노드는 `output = input` (변형 없음) **pass-through 컨트랙트**를 갖는다:
+
+| 노드 | 분기 방식 | 부가 정보 위치 |
+|------|-----------|---------------|
+| `if_else` | `port: 'true' \| 'false'` | `meta.conditionResult`, `meta.matchedConditions` (P0 미구현) |
+| `switch` | `port: <case_id> \| 'default'` | `meta.matchedCaseIndex`, `meta.matchedValue` (P0 미구현) |
+| `variable_declaration` | 단일 출력 | `meta.declaredVariables[]` (P1 미구현) |
+| `variable_modification` | 단일 출력 | `meta.modifications[]` (P1 미구현) |
+| `background` (main 포트) | `main` (즉시) / `bg` (background 진입 시) | `meta.backgroundRunId` |
+
+**왜 pass-through 인가**: 위 노드의 "비즈니스 결과물" (Principle 1) 은 input 자체가 아니라 **분기된 데이터 흐름**이다. input 을 변형 없이 흘려보내고 분기/메타정보만 `port`·`meta` 에 담는 것이 다른 노드들의 데이터 변형 컨트랙트(map, transform 등)와 명확히 구분된다.
+
+> 출처: [INCONSISTENCY_MATRIX 축6 채택안](../../../user_memo/node-specs-improvement/INCONSISTENCY_MATRIX.md). user_memo 의 `meta.*` 추가 제안은 P0/P1 으로 노드 문서에서 미구현 마킹.
+
+## 11. 출력 구조 색인
+
+각 Logic 노드의 출력 구조 케이스 색인. 각 노드 문서의 §5 로 링크.
+
+| 노드 | 정상 / 분기 케이스 | 컨테이너 케이스 (Principle 9) | 비고 |
+|------|-------------------|---------------------------------|------|
+| [if_else](./1-if-else.md#5-출력-구조) | §5.1 (`true`) / §5.2 (`false`) | — | Pass-through |
+| [switch](./2-switch.md#5-출력-구조) | §5.1 (`<case_id>`) / §5.2 (`default`) | — | Pass-through, 동적 포트 |
+| [loop](./3-loop.md#5-출력-구조) | §5.1 (시작 — `body`) / §5.2 (`done`) | §5.7 `{iterations, count}` | 컨테이너 |
+| [variable_declaration](./4-variable-declaration.md#5-출력-구조) | §5.1 (단일) | — | Pass-through |
+| [variable_modification](./5-variable-modification.md#5-출력-구조) | §5.1 (단일) | — | Pass-through |
+| [split](./6-split.md#5-출력-구조) | §5.1 (단일) | — | 데이터 노드 |
+| [map](./7-map.md#5-출력-구조) | §5.1 (시작) / §5.2 (`done`) | §5.7 `{mapped, count}` | 컨테이너 |
+| [filter](./8-filter.md#5-출력-구조) | §5.1 (`match` + `unmatched` 동시 활성화) | — | 분기 (양쪽 포트 동시) |
+| [foreach](./9-foreach.md#5-출력-구조) | §5.1 (시작) / §5.2 (`done`) | §5.7 `{items, count}` | 컨테이너 |
+| [parallel](./10-parallel.md#5-출력-구조) | §5.1 (시작 — N분기) / §5.2 (`done`) | §5.7 `{branches, count}` | 컨테이너 |
+| [merge](./11-merge.md#5-출력-구조) | §5.1 (단일) | — | 데이터 노드 |
+| [background](./12-background.md#5-출력-구조) | §5.1 (`main`) / §5.2 (`bg`) | §5.7 (변형) | 컨테이너 (fire-and-forget) |
+
+## 12. CHANGELOG
+
+| 일자 | 변경 |
+|------|------|
+| 2026-05-10 | §9 5필드 공통 규약 / §10 Pass-through 노드 규약 / §11 출력 구조 색인 신설. 노드 문서 §5 출력 구조 5필드 모델로 정합화 (Principle 0~11 적용). 기존 §1~§8 anchor 보존 |

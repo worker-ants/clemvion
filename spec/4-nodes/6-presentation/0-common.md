@@ -201,3 +201,44 @@ CONVENTIONS §4.5 의 `interaction` 규격:
 | 빈 결과 | "Empty output" 메시지 |
 | **버튼 대기 중** (`waiting_for_input`) | 렌더링된 콘텐츠 아래 **버튼 바** 표시. Carousel §6.1 버튼 대기와 동일한 인터랙션 |
 | **버튼 클릭 후** | Carousel §6.1 버튼 클릭 후와 동일 |
+
+---
+
+## 7. 5필드 공통 규약 (Presentation 카테고리)
+
+Presentation 노드는 모두 [CONVENTIONS Principle 0](../../../user_memo/node-specs-improvement/CONVENTIONS.md) 의 5필드 invariant `{ config, output, meta?, port?, status? }` 를 따른다. 카테고리 특이 사용 패턴 (§4 의 출력 포맷과 정합):
+
+| 필드 | Presentation 카테고리에서의 사용 패턴 |
+|------|----------------------------------------|
+| `config` | 사용자 입력 raw echo (Principle 7). 리터럴 설정값(`title`, `layout`, `chartType`, `columns[*].field`, `format` 등)은 모두 `config` 만 — `output` 에 echo 금지 (Principle 1.1) |
+| `output` | **런타임 생성값만** (§4): Carousel `items` (dynamic), Table `rows`, Chart `data`, Template `rendered`, Form `{}` (빈 객체). 1MB cap 적용 (§4) |
+| `meta` | 실행 메트릭만 (Principle 2). `meta.durationMs` (공통). Carousel/Table 의 `itemsTruncated`/`rowsTruncated` 같은 cap 정보는 `output` 에 두는 것이 다운스트림 가시성 측면에서 적절 — §4 정책 |
+| `port` | 비-블로킹: `undefined` 또는 `'out'`. 블로킹(버튼 설정 시): `<button.id>` (글로벌) / `<button.id>__item_<idx>` (per-item, Carousel) / `'continue'` (link 전용 시) |
+| `status` | 비-블로킹: `undefined`. 블로킹: `'waiting_for_input'` (대기) / `'resumed'` (재개) — §4.1, §4.2 |
+
+### 7.1 동적 포트 명명 규칙 (Principle 6)
+
+| 노드 | 포트 ID 형태 | 매핑 |
+|------|--------------|------|
+| Carousel/Table/Chart/Template (글로벌 버튼) | `<button.id>` (UUID v4) | `config.buttons[i].id` 그대로 |
+| Carousel (per-item 버튼) | `<itemButton.id>__item_<idx>` (런타임) | 라우팅 시 접미사 제거 → 원본 `itemButton.id` 포트로 매핑 |
+| link 전용 시 | `'continue'` | 자동 생성 |
+
+## 8. 출력 구조 색인
+
+| 노드 | Waiting | Resumed | 비고 |
+|------|---------|---------|------|
+| [carousel](./1-carousel.md#5-출력-구조) | §5.4 | §5.5 | static `output: {}` / dynamic `output: { items }` |
+| [table](./2-table.md#5-출력-구조) | §5.4 | §5.5 | `output: { rows, totalRows, rendered }` |
+| [chart](./3-chart.md#5-출력-구조) | §5.4 | §5.5 | `output: { data, rendered }` |
+| [form](./4-form.md#5-출력-구조) | §5.4 | §5.5 | `output: {}` (빈 객체 + waiting 시) → `output: { interaction }` |
+| [template](./5-template.md#5-출력-구조) | §5.4 | §5.5 | `output: { rendered }` |
+
+> 모든 Presentation 노드는 비-블로킹 모드 (버튼·필드 미설정) 시 §5.1 (`out` 포트로 단일 출력) 만 가질 수 있다. 노드별 문서에서 비-블로킹 케이스 보유 여부 명시.
+
+## 9. CHANGELOG
+
+| 일자 | 변경 |
+|------|------|
+| 2026-05-10 | §7 5필드 공통 규약 / §8 출력 구조 색인 신설. 노드 문서 §5 출력 구조 5필드 모델로 정합화 (Principle 0~11 적용). 기존 §1~§6 anchor 보존 |
+| 2026-04-19 | §4 출력 포맷에서 `output.type` 판별자, `output.submittedData`, `output.previousOutput`, `output.format/content` 폐기. CONVENTIONS Principle 1.1.4 적용 |

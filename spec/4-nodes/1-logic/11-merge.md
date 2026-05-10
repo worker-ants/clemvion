@@ -1,38 +1,185 @@
 # Spec: Merge
 
-> 관련 문서: [Logic 공통 규약](./0-common.md) · [Spec 노드 개요](../0-overview.md)
+> 관련 문서: [Logic 공통 규약](./0-common.md) · [Spec 노드 개요](../0-overview.md) · [Spec 표현식 언어](../../5-system/5-expression-language.md) · [CONVENTIONS](../../../user_memo/node-specs-improvement/CONVENTIONS.md)
 
-여러 입력 경로의 데이터를 하나로 합침.
+여러 입력 경로의 데이터를 하나로 합치는 **데이터 노드**. `strategy` 와 `outputFormat` 의 조합으로 결과 형태를 결정한다. Phase P1 순차 엔진 기준 모든 predecessor 가 이미 해소된 뒤 실행되므로 별도의 fan-in barrier 는 적용되지 않는다.
 
-> **P1 참고**: `timeout`과 `partialOnTimeout` 필드는 스키마에 존재하지만 P1에서는 동작하지 않는다(설정 시 경고 로그만 출력). 실제 타임아웃 기능은 P2에서 활성화 예정.
+> **P1 한정 동작**:
+> - `timeout` / `partialOnTimeout` 은 schema 에는 존재하나 P1 에서는 dormant — 0이 아닌 값을 설정하면 핸들러가 warn 로그만 출력한다. 실제 barrier 는 P2 에서 활성화 예정.
+> - `strategy: 'first'` 는 "먼저 도착한 입력" 이 아니라 **predecessor 키 정렬 후 첫 번째** 값을 반환한다 (Phase P1 한정).
 
 ---
 
 ## 1. 설정 (config)
 
-| 필드 | 타입 | 설명 |
-|------|------|------|
-| strategy | Enum | 병합 전략 (기본: `wait_all`) |
-| outputFormat | Enum | 출력 형식 (기본: `array`) |
-| timeout | Integer | 입력 대기 타임아웃 (초 단위, 기본: 300). `0 = no timeout` (무제한 대기). **P1에서는 미동작 (경고 로그만 출력)** |
-| partialOnTimeout | Boolean | 타임아웃 시 부분 병합 수행 여부 (기본: false). true 시 도착한 입력만으로 병합 수행. false 시 에러 처리 정책에 따름 (`MERGE_TIMEOUT` 에러). `timeout = 0`인 경우 적용되지 않음. **P1에서는 미동작** |
+| 필드 | 타입 | 필수 | 기본값 | 설명 |
+|------|------|------|--------|------|
+| strategy | `wait_all` / `first` / `append` | ✓ | `wait_all` | 병합 전략. §3.1 표 참조 |
+| outputFormat | `array` / `merge_object` / `indexed` | ✓ | `array` | 출력 형식. §3.2 표 참조 |
+| timeout | Integer (≥ 0) | | `300` | 입력 대기 타임아웃 (초). `0 = no timeout`. **P1 dormant** |
+| partialOnTimeout | Boolean | | `false` | 타임아웃 시 부분 병합 수행 여부. **P1 dormant** |
 
-**병합 전략:**
+> Source of truth: `backend/src/nodes/logic/merge/merge.schema.ts` (export `mergeNodeConfigSchema`).
 
-| 전략 | 설명 |
-|------|------|
-| `wait_all` | 모든 입력이 도착할 때까지 대기 후 합침 |
-| `first` | 가장 먼저 도착한 입력만 통과 |
-| `append` | 도착 순서대로 배열에 추가, 모든 입력 도착 후 출력 |
+### 1.1 병합 전략 (`strategy`)
 
-**출력 형식:**
+| 값 | 설명 |
+|----|------|
+| `wait_all` | 모든 입력이 도착한 뒤 전체 병합 (기본) |
+| `first` | 첫 번째 입력만 통과. **P1 한정**: 입력 객체의 키를 정렬한 뒤 첫 항목을 사용 (실제 도착 순서 아님) |
+| `append` | 도착 순서대로 누적. P1 에서는 `wait_all` 과 동일하게 모든 입력을 그대로 누적 |
 
-| 형식 | 설명 |
-|------|------|
-| `array` | 각 입력을 배열 요소로 합침 `[input0, input1, ...]` |
-| `merge_object` | 객체를 shallow merge `{...input0, ...input1}` |
-| `indexed` | 인덱스 키로 합침 `{ "in_0": input0, "in_1": input1 }` |
+### 1.2 출력 형식 (`outputFormat`)
 
-## 2. 포트
-- 입력: `in` (1개, 다중 엣지 수신 가능)
-- 출력: `out` (1개)
+| 값 | output shape |
+|----|--------------|
+| `array` | `unknown[]` — 각 입력을 배열 요소로 |
+| `merge_object` | `Record<string, unknown>` — 객체 입력들을 shallow merge. 비객체 입력은 무시. `__proto__` / `constructor` / `prototype` 키는 prototype pollution 방지를 위해 drop |
+| `indexed` | `Record<string, unknown>` — `{ in_0, in_1, ... }` 형태로 인덱스 키 부여 |
+
+> 출력 shape 이 `outputFormat` 에 따라 달라지는 것은 merge 의 본질적 기능이다. 후속 노드는 `$node["X"].config.outputFormat` 으로 shape 를 식별한다.
+
+## 2. 설정 UI
+
+```
+┌──────────────────────────────────────┐
+│  Strategy        [wait_all ▼]        │
+│  Output Format   [array ▼]           │
+│  Timeout (s)     [300]               │
+│  ☐ Partial on Timeout                │
+└──────────────────────────────────────┘
+```
+
+## 3. 포트
+
+### 3.1 입력 포트
+
+| id | label | type | dynamic | 설명 |
+|------|-------|------|---------|------|
+| `in` | Input | data | false | 다중 엣지 수신 가능. 엔진은 predecessor 노드별 결과를 객체(`{ <nodeId>: value }`) 또는 배열로 모아 전달 |
+
+### 3.2 출력 포트
+
+| id | label | type | dynamic | 설명 |
+|------|-------|------|---------|------|
+| `out` | Output | data | false | 병합 결과 단일 출력 (`port` 미설정 — Principle 5) |
+
+> Merge 는 동적 포트가 없다. 분기 / 에러 포트도 없다.
+
+## 4. 실행 로직
+
+1. `input` 을 `unknown[]` 로 정규화 (§4.1).
+2. `strategy === 'first'` 이면 정규화 배열의 첫 항목만 남기고 (`[inputs[0]]`), 그 외 (`wait_all` / `append`) 는 전체 배열을 사용.
+3. `outputFormat` 에 따라 결과를 포맷 (§4.2).
+4. `timeout > 0` 이거나 `partialOnTimeout === true` 이면 **warn 로그**를 남기되 결과에는 영향 없음 (P1 dormant).
+5. `config` 는 `context.rawConfig` 의 `strategy` / `outputFormat` 을 echo (Principle 7). `timeout` / `partialOnTimeout` 은 dormant 라 echo 하지 않는다.
+
+### 4.1 입력 정규화 (Principle 10)
+
+| 입력 형태 | 정규화 결과 |
+|-----------|--------------|
+| `Array` | 그대로 사용 |
+| `Object`(non-null) | `Object.keys(input).sort()` 순으로 값 배열화 (deterministic) |
+| `null` / `undefined` / primitive | `[input]` 으로 wrap (throw 하지 않음) |
+| `{}` (빈 객체) | `[]` |
+| `[]` (빈 배열) | `[]` |
+
+### 4.2 outputFormat 별 포맷
+
+| outputFormat | 동작 |
+|--------------|------|
+| `array` | 정규화된 배열을 그대로 반환 |
+| `merge_object` | `Object.create(null)` 위에 객체 입력만 shallow merge. 후순위 키가 선순위 키를 덮어씀. `__proto__` / `constructor` / `prototype` 키는 drop. 비객체 항목은 skip |
+| `indexed` | `{ in_0: inputs[0], in_1: inputs[1], ... }` 로 변환 |
+
+## 5. 출력 구조
+
+> CONVENTIONS Principle 11 포맷. JSON 예시는 `undefined` 필드 생략, 5필드 (`config`/`output`/`meta?`/`port?`/`status?`) 외 top-level 키 금지.
+>
+> Merge 는 단일 출력 데이터 노드이므로 §5.1 정상 케이스만 존재한다. 에러 포트는 없으며 (Principle 3.3 의 에러 포트 보유 노드가 아님), 모든 검증 실패는 pre-flight (config 검증) 단계에서 throw 된다.
+
+### 5.1 Case: 정상 (단일 출력 — `out`)
+
+```json
+{
+  "config": {
+    "strategy": "wait_all",
+    "outputFormat": "array"
+  },
+  "output": [{ "a": 1 }, { "b": 2 }],
+  "meta": {
+    "durationMs": 0
+  }
+}
+```
+
+| 필드 | 타입 | 출처 | 설명 |
+|------|------|------|------|
+| `config.strategy` | `'wait_all'` / `'first'` / `'append'` | config echo (Principle 7) | 사용자가 설정한 전략 (default `wait_all`) |
+| `config.outputFormat` | `'array'` / `'merge_object'` / `'indexed'` | config echo | 출력 형식 (default `array`) |
+| `output` | `unknown[]` / `Record<string, unknown>` | runtime — `outputFormat` 별 분기 | 병합 결과. shape 은 §4.2 |
+| `meta.durationMs` | number | engine inject | 실행 시간 (ms) |
+
+> **shape 가변성 주의**: `output` 의 타입 자체가 `outputFormat` 에 따라 달라진다 (`array` → 배열 / `merge_object` · `indexed` → 객체). 후속 노드가 안전하게 분기하려면 `$node["X"].config.outputFormat` 을 키로 사용한다.
+
+#### 5.1.1 outputFormat 별 output 예시
+
+**`array`** — 정규화 배열을 그대로 노출
+```json
+{
+  "config": { "strategy": "wait_all", "outputFormat": "array" },
+  "output": [{ "a": 1 }, { "b": 2 }]
+}
+```
+
+**`merge_object`** — 객체 입력 shallow merge, 후순위가 선순위 덮어씀
+```json
+{
+  "config": { "strategy": "wait_all", "outputFormat": "merge_object" },
+  "output": { "a": 1, "b": 3, "c": 4 }
+}
+```
+> Input `{ nodeA: { a: 1, b: 2 }, nodeB: { b: 3, c: 4 } }` 기준. `__proto__` / `constructor` / `prototype` 키를 가진 입력은 silent drop (P0 개선안: `meta.skippedKeys` 로 가시화 예정 — 현재는 미구현).
+
+**`indexed`** — `in_<i>` 키로 인덱스 부여
+```json
+{
+  "config": { "strategy": "wait_all", "outputFormat": "indexed" },
+  "output": { "in_0": "first", "in_1": "second" }
+}
+```
+> P1 개선안([user_memo logic/merge.md §3](../../../user_memo/node-specs-improvement/logic/merge.md#3-제안된-output-구조))은 `{ items: [{ index, value }], count }` 로의 breaking 전환을 제안하나, 현재 코드는 `in_<i>` 키 형태를 유지한다. 다운스트림은 `$node["X"].output.in_0` 등으로 접근.
+
+**`strategy: 'first'`** — 정규화 배열의 첫 항목만 남기고 outputFormat 적용
+```json
+{
+  "config": { "strategy": "first", "outputFormat": "array" },
+  "output": ["first"]
+}
+```
+
+**Expression 접근 예**:
+- `$node["X"].output[0]` → 첫 번째 입력 (`outputFormat: array`)
+- `$node["X"].output.a` → merge 된 키 값 (`outputFormat: merge_object`)
+- `$node["X"].output.in_0` → 첫 번째 입력 (`outputFormat: indexed`)
+- `$node["X"].config.outputFormat` → shape 판별용
+
+> ⚠ **미구현 (P0 — additive)**: [user_memo logic/merge.md §3](../../../user_memo/node-specs-improvement/logic/merge.md#3-제안된-output-구조) 의 `meta.inputCount` / `meta.strategy` / `meta.outputFormat` / `meta.skippedKeys` / `meta.dormantFields` 추가 제안은 핸들러 미반영. 코드 반영 시까지 후속 노드는 `$node["X"].config.*` 와 `output` 의 길이 (`Array.isArray(output) ? output.length : Object.keys(output).length`) 로 대체 판별한다. `meta.durationMs` 는 엔진이 모든 노드에 공통 주입한다.
+
+## 6. 에러 코드
+
+Merge 는 **runtime 에러 포트를 갖지 않는다**. 모든 검증 실패는 pre-flight (config 검증) 단계에서 throw 된다 (CONVENTIONS Principle 3.1):
+
+| 발생 조건 | 메시지 | 시점 |
+|-----------|--------|------|
+| `strategy` 누락 / 빈 값 | `Merge strategy 를 선택해야 합니다.` | warningRule (캔버스 배지) + handler.validate (`evaluateMetadataBlockingErrors`) |
+| `strategy` enum 미일치 | `strategy must be one of: wait_all, first, append` | handler.validate |
+| `outputFormat` enum 미일치 | `outputFormat must be one of: array, merge_object, indexed` | handler.validate |
+| `timeout` 이 음수 또는 number 아님 | `timeout must be a non-negative number (0 = no timeout)` | handler.validate |
+| `partialOnTimeout` 이 boolean 아님 | `partialOnTimeout must be a boolean` | handler.validate |
+
+> **Phase P2 예정**: `timeout` 이 활성화되면 `MERGE_TIMEOUT` 코드와 함께 `error` 포트 / `output.error` 가 추가될 가능성이 있다. 현 P1 에서는 미구현.
+
+## 7. 캔버스 요약
+
+[공통 §8](./0-common.md#8-캔버스-요약) — `Merge` 행 인용 (`{N} inputs · {strategy}`).

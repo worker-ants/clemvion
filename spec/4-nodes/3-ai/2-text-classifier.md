@@ -1,34 +1,38 @@
 # Spec: Text Classifier
 
-> 관련 문서: [AI 공통 규약](./0-common.md) · [Spec 노드 개요](../0-overview.md) · [Spec LLM Config](../../2-navigation/6-config.md)
+> 관련 문서: [AI 공통 규약](./0-common.md) · [Spec 노드 개요](../0-overview.md) · [Spec LLM Config](../../2-navigation/6-config.md) · [CONVENTIONS](../../../user_memo/node-specs-improvement/CONVENTIONS.md)
 
-LLM을 사용하여 입력 텍스트를 미리 정의된 카테고리로 분류. Single-label (기본) 또는 Multi-label 모드를 지원.
+LLM 을 사용하여 입력 텍스트를 미리 정의된 카테고리로 분류한다. **Single-label** (정확히 한 카테고리 또는 매칭 없음) 또는 **Multi-label** (해당하는 모든 카테고리 동시 활성화) 모드를 지원한다.
 
 ---
 
 ## 1. 설정 (config)
 
-| 필드 | 타입 | 설명 |
-|------|------|------|
-| llmConfigId | UUID | 사용할 LLM 프로바이더 설정. [공통 §1](./0-common.md#1-llm-모델config-선택) |
-| model | String | 모델 ID |
-| inputField | Expression | 분류할 텍스트 필드 |
-| categories | CategoryDef[] | 분류 카테고리 목록 |
-| instructions | String? | 추가 분류 지시사항 |
-| includeConfidence | Boolean | 신뢰도 점수 포함 여부 (기본: false) |
-| includeEvidence | Boolean | 분류 근거(입력에서 발췌한 단어/문장) 포함 여부 (기본: false) |
-| multiLabel | Boolean | Multi-label 분류 모드 (기본: false) |
+| 필드 | 타입 | 필수 | 기본값 | 설명 |
+|------|------|------|--------|------|
+| llmConfigId | UUID | | — | 사용할 LLM 프로바이더 설정. [공통 §1](./0-common.md#1-llm-모델config-선택) |
+| model | String | | — | 모델 ID (프로바이더별) |
+| inputField | Expression | ✓ | — | 분류할 텍스트 필드 (`{{ ... }}` 표현식 지원) |
+| categories | CategoryDef[] | ✓ | `[]` | 분류 카테고리 목록. 1 개 이상 필요 |
+| instructions | String | | — | 추가 분류 지시사항 (LLM 시스템 프롬프트에 합쳐짐) |
+| includeConfidence | Boolean | | `false` | 신뢰도 점수 포함 여부 |
+| includeEvidence | Boolean | | `false` | 분류 근거(입력에서 발췌한 단어/문장) 포함 여부 |
+| multiLabel | Boolean | | `false` | Multi-label 분류 모드 |
+
+> `llmConfigId` 와 `model` 은 schema 상 optional 이지만, 둘 다 비어 있으면 `text_classifier:no-llm-provider` warningRule 이 발화하여 검증 실패한다.
 
 **CategoryDef 구조:**
 
-| 필드 | 타입 | 설명 |
-|------|------|------|
-| id | String? | 카테고리 안정 id. 출력 포트 핸들 (`source_port`) 로 사용. 누락 시 `class_${i}` fallback. 형식: `[a-zA-Z0-9_-]+`, 최대 64자. **설정 UI 에 노출되지 않으며 (hidden) AI Assistant 가 자동 지정**. 카테고리 간 id 중복 금지 (resolver dedupe 가 두 번째 포트를 silent 로 떨어뜨려 핸들러 라우팅과 어긋남). |
-| name | String | 카테고리 이름 (출력 포트 라벨). `__none__`은 예약어로 사용 불가 |
-| description | String | 카테고리 설명 (LLM에게 제공) |
-| examples | String[] | 예시 텍스트 목록 |
+| 필드 | 타입 | 필수 | 설명 |
+|------|------|------|------|
+| id | String? | | 카테고리 안정 id. 출력 포트 핸들(`source_port`)로 사용. 누락·공백·invalid slug 시 `class_${i}` index fallback. 형식: `[a-zA-Z0-9_-]+`, 최대 64자. **설정 UI 에 노출되지 않으며 (hidden) AI Assistant 가 자동 지정**. 카테고리 간 id 중복 금지 — schema validation 차단 |
+| name | String | ✓ | 카테고리 이름 (LLM enum 값 + 출력 포트 라벨). `__none__` 은 예약어로 사용 불가 |
+| description | String | | 카테고리 설명 (LLM 프롬프트에 포함) |
+| examples | String[] | | 예시 텍스트 목록 (프롬프트에 포함) |
 
-> ⚠ **마이그레이션 주의**: 기존 워크플로우의 카테고리에 후속으로 `id` 를 추가하면 출력 포트 id 가 `class_${i}` → 사용자 지정 id 로 바뀐다. 그 카테고리에 연결된 기존 엣지(`source_port: class_0` 등)는 dangling 상태가 되므로 엣지를 수동 재연결해야 한다. 신규 카테고리에는 처음부터 `id` 를 지정해 두면 안전.
+> ⚠ **마이그레이션 주의**: 기존 워크플로의 카테고리에 후속으로 `id` 를 추가하면 출력 포트 id 가 `class_${i}` → 사용자 지정 id 로 바뀐다. 그 카테고리에 연결된 기존 엣지(`source_port: class_0` 등)는 dangling 상태가 되므로 엣지를 수동 재연결해야 한다. 신규 카테고리에는 처음부터 `id` 를 지정해 두면 안전.
+
+> Source of truth: `backend/src/nodes/ai/text-classifier/text-classifier.schema.ts` (export `textClassifierNodeConfigSchema` / `validateTextClassifierConfig`).
 
 ## 2. 설정 UI
 
@@ -40,10 +44,15 @@ LLM을 사용하여 입력 텍스트를 미리 정의된 카테고리로 분류.
 │  LLM Provider: [OpenAI ▼]               │
 │  Model:        [gpt-4o-mini ▼]          │
 │                                          │
-│  Input: [{{ $input.text }}]              │
+│  Input Field: [{{ $input.text }}]        │
 │                                          │
-│  □ Include confidence score              │
-│  □ Include classification evidence       │
+│  Instructions:                           │
+│  ┌──────────────────────────────────────┐│
+│  │ (선택) 추가 분류 가이드              ││
+│  └──────────────────────────────────────┘│
+│                                          │
+│  □ Include Confidence                    │
+│  □ Include Evidence                      │
 │  □ Multi-label Classification            │
 │                                          │
 │  ── Categories ──                        │
@@ -60,68 +69,270 @@ LLM을 사용하여 입력 텍스트를 미리 정의된 카테고리로 분류.
 │  │    Desc: "일반 문의, 기능 요청"       ││
 │  └──────────────────────────────────────┘│
 │  [+ Add Category]                        │
-│                                          │
 └──────────────────────────────────────────┘
 ```
 
 ## 3. 포트
-- 입력: `in` (1개)
-- 출력:
-  - `<category.id>` 또는 `class_${i}` (카테고리별 동적 포트) — 데이터 타입. `category.id` 가 지정되어 있으면 그 값을 그대로 사용, 누락 시 인덱스 기반 fallback (`class_0`, `class_1`, ...). resolver/handler 모두 동일 규칙으로 발급한다.
-  - `fallback` (정적) — 어떤 카테고리에도 매칭되지 않을 때
-  - `error` (정적) — LLM API 오류, 타임아웃 등 발생 시 (에러 타입)
+
+### 3.1 입력 포트
+
+| id | label | type | dynamic | 설명 |
+|------|-------|------|---------|------|
+| `in` | Input | data | false | 평가 대상 데이터 (1개 필수) |
+
+### 3.2 출력 포트
+
+| id | label | type | dynamic | 설명 |
+|------|-------|------|---------|------|
+| `<category.id>` 또는 `class_${i}` | `<category.name>` | data | **true** | 카테고리별 동적 포트. `category.id` 가 지정되어 있으면 그 값을 그대로 사용, 누락·공백·invalid slug 시 인덱스 기반 fallback (`class_0`, `class_1`, …). resolver/handler 모두 동일 규칙으로 발급 (CONVENTIONS Principle 6) |
+| `fallback` | Fallback | data | false | 어떤 카테고리에도 매칭되지 않을 때 (single: LLM 이 `__none__` 반환 또는 매칭 실패 / multi: 빈 배열) |
+| `error` | Error | error | false | LLM API 오류, 타임아웃, rate limit 등 발생 시 |
+
+> Multi-label 모드에서는 매칭된 카테고리 포트들이 동시에 활성화되어 `port: string[]` (fan-out, CONVENTIONS Principle 5) 로 반환된다. Single-label 모드에서는 항상 단일 포트(`port: string`).
+
+> 사용자 카테고리 이름·id 가 시스템 예약어 (`out`, `error`, `default`, `done`, `user_ended`, `max_turns`, `completed`, `fallback`, `continue`, `__none__`) 와 충돌하면 schema 가 거부한다.
 
 ## 4. 실행 로직
 
-### 4.1 Single-label 모드 (기본)
-1. 카테고리 정보를 포함한 분류 프롬프트 구성
-2. JSON schema enum에 `__none__` 센티널을 포함하여 LLM이 해당 없음을 명시적으로 표현 가능
-3. LLM 호출 (실패 시 `error` 포트로 라우팅)
-4. 응답에서 분류 결과 파싱
-5. 해당 카테고리의 출력 포트로 데이터 전달
-   - LLM이 `__none__`을 반환하거나 매칭 실패 시 → `fallback` 포트
-
-### 4.2 Multi-label 모드 (multiLabel: true)
-1. 해당하는 모든 카테고리를 선택하도록 프롬프트 구성
-2. LLM 호출 (실패 시 `error` 포트로 라우팅)
-3. 응답에서 카테고리 배열 파싱
-4. 매칭된 모든 카테고리의 출력 포트를 동시에 활성화
-   - 매칭 없음 (빈 배열) → `fallback` 포트
+1. `categories` 배열로 LLM 시스템 프롬프트와 JSON Schema 를 구성한다 (모드별 분기).
+   - **Single-label**: `enum = [...categoryNames, '__none__']` — LLM 이 매칭 없음을 명시적으로 표현 가능
+   - **Multi-label**: `categories: { type: 'array', items: { name: enum, … } }` — 매칭 없음은 빈 배열로 표현
+2. `includeConfidence` / `includeEvidence` 가 `true` 이면 응답 스키마에 `confidence: number` / `evidence: string[]` 을 추가하고 시스템 프롬프트에 해당 필드 설명을 주입한다.
+3. `LlmService.chat` 호출. 실패 시 §5.3 (`error` 포트, `LLM_CALL_FAILED`).
+4. JSON 응답을 파싱. 파싱 실패 시 카테고리 이름의 substring 매칭으로 fallback 한다 (review W-2: 텍스트 fallback 도 custom id 라우팅 유지).
+5. 모드별 결과 처리:
+   - **Single-label**: 매칭 실패(`category` 미반환·`__none__`·미정의 카테고리) → §5.1 fallback case (`port: 'fallback'`, `result.category: null`). 매칭 성공 → §5.1 정상 case (`port: '<category.id>'` 또는 `class_${i}`).
+   - **Multi-label**: 매칭된 카테고리들에 대해 §5.2 정상 case (`port: ['class_0', 'class_1', …]`). 매칭 없음 → §5.2 fallback case (`port: 'fallback'`, `result.categories: []`).
+6. `evidence` 는 `sanitizeEvidence` 로 검증한다: non-string 항목 제거, 최대 20개 항목, 각 항목 최대 200자 (DoS 방지).
 
 ## 5. 출력 구조
 
-LLM 3개 노드 공통 규약([공통 §5](./0-common.md#5-응답-형식-규약-principle-11), CONVENTIONS §8)에 따라 도메인 결과는 `output.result.*` wrapper 하위에 둔다.
+> CONVENTIONS Principle 11 포맷. JSON 예시는 `undefined` 필드 생략, 5필드 (`config`/`output`/`meta?`/`port?`/`status?`) 외 top-level 키 금지.
+>
+> LLM 3 노드 공통 규약 ([공통 §5](./0-common.md#5-응답-형식-규약-principle-11)) 에 따라 도메인 결과는 `output.result.*` wrapper 하위에 둔다. 에러는 `output.error.{code, message, details?}` 표준 shape (Principle 3.2). 토큰/모델 메트릭은 `meta.*` (Principle 2).
 
-### 5.1 Single-label 모드
-
-```json
-{
-  "result": {
-    "category": "Billing",
-    "confidence": 0.95,
-    "evidence": ["환불"],
-    "originalInput": "환불 요청드립니다"
-  }
-}
-```
-
-- `category`는 매칭 실패 시 `null`
-- `confidence` 는 `includeConfidence: true` 일 때만 포함
-- `evidence` 는 `includeEvidence: true` 일 때만 포함. 매칭 실패(`category: null`) 또는 LLM이 비워서 반환한 경우 빈 배열 `[]`
-
-### 5.2 Multi-label 모드
+### 5.1 Case: Single-label 모드 (`<category.id>` 또는 `fallback` 포트)
 
 ```json
 {
-  "result": {
+  "config": {
     "categories": [
-      { "name": "Billing", "confidence": 0.95, "evidence": ["환불"] },
-      { "name": "General", "confidence": 0.7, "evidence": ["요청"] }
+      { "name": "Billing", "description": "Payment" },
+      { "name": "Tech", "description": "Technical" }
     ],
-    "originalInput": "환불 요청드립니다"
-  }
+    "inputField": "{{ $input.text }}",
+    "multiLabel": false,
+    "model": "gpt-4o-mini",
+    "instructions": ""
+  },
+  "output": {
+    "result": {
+      "category": "Billing",
+      "confidence": 0.95,
+      "evidence": ["환불"],
+      "originalInput": "환불 요청드립니다"
+    }
+  },
+  "meta": {
+    "durationMs": 420,
+    "model": "gpt-4o-mini",
+    "inputTokens": 50,
+    "outputTokens": 10,
+    "totalTokens": 60,
+    "thinkingTokens": 0,
+    "llmCalls": [
+      { "requestPayload": {}, "responsePayload": {}, "durationMs": 420 }
+    ]
+  },
+  "port": "class_0"
 }
 ```
 
-- `categories`는 매칭 없음 시 빈 배열 `[]`
-- 각 항목의 `confidence`/`evidence` 는 각각 `includeConfidence`/`includeEvidence` 가 `true` 일 때만 포함
+| 필드 | 타입 | 출처 | 설명 |
+|------|------|------|------|
+| `config.categories` | CategoryDef[] | config echo (Principle 7) | 사용자가 입력한 raw 카테고리 정의 (id 포함, 누락 가능) |
+| `config.inputField` | String | config echo | raw expression (`{{ }}` 보존) |
+| `config.multiLabel` | Boolean | config echo | `false` |
+| `config.model` / `config.llmConfigId` / `config.instructions` | String? | config echo | 설정된 경우만 echo |
+| `output.result.category` | String \| null | handler return | 매칭된 카테고리 `name`. 매칭 실패 시 `null` (`port: 'fallback'`) |
+| `output.result.confidence` | number? | handler return | `includeConfidence: true` 일 때만 포함. `0` 도 정상 값 (falsy 처리 금지) |
+| `output.result.evidence` | string[]? | handler return | `includeEvidence: true` 일 때만 포함. 매칭 실패 또는 LLM 미반환 시 빈 배열 `[]`. 최대 20 항목, 각 항목 ≤200 자 |
+| `output.result.originalInput` | String | handler return | LLM 에 투입된 resolved 입력 (디버깅용; `config.inputField` 의 raw 와 직교) |
+| `meta.durationMs` | number | engine inject | 실행 시간 (ms) |
+| `meta.model` | String | handler return | 실제 호출된 모델 ID |
+| `meta.{inputTokens, outputTokens, totalTokens}` | number | handler return | 토큰 사용량 |
+| `meta.thinkingTokens` | number? | handler return | 모델이 보고할 때만 |
+| `meta.llmCalls` | Array | handler return | LLM 호출 디버그 트레이스 (`requestPayload` / `responsePayload` / `durationMs`) |
+| `port` | String | handler return | 매칭 성공 시 `<category.id>` 또는 `class_${i}`. 매칭 실패 시 `'fallback'` |
+
+**Fallback 변형** (port `fallback`):
+
+```json
+{
+  "config": { "categories": [...], "inputField": "...", "multiLabel": false },
+  "output": {
+    "result": {
+      "category": null,
+      "confidence": 0.1,
+      "evidence": [],
+      "originalInput": "Random off-topic text"
+    }
+  },
+  "meta": {
+    "durationMs": 380,
+    "model": "gpt-4o-mini",
+    "inputTokens": 50,
+    "outputTokens": 10,
+    "totalTokens": 60,
+    "llmCalls": [/* … */]
+  },
+  "port": "fallback"
+}
+```
+
+**Expression 접근 예**:
+- `$node["Intent"].output.result.category` → `"Billing"` 또는 `null`
+- `$node["Intent"].output.result.confidence` → `0.95`
+- `$node["Intent"].port` → `"class_0"` / `"fallback"` / `"<custom.id>"`
+- `$node["Intent"].meta.totalTokens` → `60`
+
+### 5.2 Case: Multi-label 모드 (`class_<i>` fan-out 또는 `fallback`)
+
+```json
+{
+  "config": {
+    "categories": [
+      { "name": "Billing", "description": "Payment" },
+      { "name": "Tech", "description": "Technical" },
+      { "name": "General", "description": "General" }
+    ],
+    "inputField": "{{ $input.text }}",
+    "multiLabel": true,
+    "model": "gpt-4o-mini"
+  },
+  "output": {
+    "result": {
+      "categories": [
+        { "name": "Billing", "confidence": 0.9, "evidence": ["환불"] },
+        { "name": "Tech", "confidence": 0.85, "evidence": ["크래시"] }
+      ],
+      "originalInput": "환불 요청과 앱 크래시 동시 발생"
+    }
+  },
+  "meta": {
+    "durationMs": 510,
+    "model": "gpt-4o-mini",
+    "inputTokens": 50,
+    "outputTokens": 20,
+    "totalTokens": 70,
+    "llmCalls": [/* … */]
+  },
+  "port": ["class_0", "class_1"]
+}
+```
+
+| 필드 | 타입 | 출처 | 설명 |
+|------|------|------|------|
+| `config.multiLabel` | Boolean | config echo | `true` |
+| `output.result.categories` | Array<{name, confidence?, evidence?}> | handler return | 매칭된 카테고리 배열. LLM 응답에서 등록되지 않은 이름은 필터링됨. 매칭 없음 시 `[]` |
+| `output.result.categories[i].name` | String | handler return | 카테고리 이름 |
+| `output.result.categories[i].confidence` | number? | handler return | `includeConfidence: true` 일 때만 |
+| `output.result.categories[i].evidence` | string[]? | handler return | `includeEvidence: true` 일 때만. JSON 파싱 실패의 substring fallback 시 `[]` |
+| `output.result.originalInput` | String | handler return | LLM 에 투입된 resolved 입력 |
+| `port` | string[] \| `'fallback'` | handler return | 매칭된 카테고리들의 포트 id 배열 (Principle 5 fan-out). 매칭 없음 시 `'fallback'` |
+
+**Fallback 변형** (port `fallback`):
+
+```json
+{
+  "config": { "categories": [...], "inputField": "...", "multiLabel": true },
+  "output": {
+    "result": {
+      "categories": [],
+      "originalInput": "Random off-topic text"
+    }
+  },
+  "meta": {
+    "durationMs": 370,
+    "model": "gpt-4o-mini",
+    "inputTokens": 50,
+    "outputTokens": 10,
+    "totalTokens": 60,
+    "llmCalls": [/* … */]
+  },
+  "port": "fallback"
+}
+```
+
+**Expression 접근 예**:
+- `$node["Intent"].output.result.categories` → `[{ name: "Billing", confidence: 0.9 }, …]`
+- `$node["Intent"].output.result.categories[0].name` → `"Billing"`
+- `$node["Intent"].port` → `["class_0", "class_1"]` (배열) 또는 `"fallback"`
+
+### 5.3 Case: 에러 (`error` 포트)
+
+```json
+{
+  "config": {
+    "categories": [...],
+    "inputField": "{{ $input.text }}",
+    "multiLabel": false,
+    "model": "gpt-4o-mini"
+  },
+  "output": {
+    "error": {
+      "code": "LLM_CALL_FAILED",
+      "message": "OpenAI API timeout after 5020ms",
+      "details": {
+        "originalInput": "환불 요청드립니다 …(truncated)"
+      }
+    }
+  },
+  "meta": {
+    "llmCalls": [
+      { "requestPayload": {}, "responsePayload": null, "durationMs": 5020 }
+    ]
+  },
+  "port": "error"
+}
+```
+
+| 필드 | 타입 | 출처 | 설명 |
+|------|------|------|------|
+| `output.error.code` | String | handler return | `UPPER_SNAKE_CASE`. 본 노드의 예약어: `LLM_CALL_FAILED` (네트워크/타임아웃/5xx), `LLM_RATE_LIMITED` (429), `LLM_RESPONSE_INVALID` (JSON 파싱 + substring fallback 모두 실패 — 현재 핸들러는 substring fallback 으로 회복하므로 이 코드는 reserved) |
+| `output.error.message` | String | handler return | 사람이 읽는 메시지 (provider 원문 보존, 국제화 없음) |
+| `output.error.details.originalInput` | String | handler return | LLM 에 투입된 입력. `truncateForErrorDetails` 로 500 자 cap (PII / 대용량 방지) |
+| `meta.llmCalls` | Array | handler return | 실패한 호출의 trace (`responsePayload: null`). 디버깅에 핵심 |
+| `port` | `'error'` | handler return | 에러 분기 |
+
+> ⚠ **현재 구현 미스 (P1)**: 에러 case 의 `meta` 가 빈 객체(`{}`) 로 반환된다 — `meta.durationMs` / `meta.model` / `meta.llmCalls` 누락. CONVENTIONS Principle 2 는 모든 case 에서 `meta.durationMs` 보장을 요구하며, 개선안 §3 Case 5 는 위 형식 (durationMs/model/llmCalls 포함) 을 명세한다. 본 spec 은 **목표 형태** 를 기술 — 핸들러 반영은 후속 작업. 현 시점 다운스트림은 `output.error` 존재 여부로만 분기하고 `meta.*` 는 비어 있을 수 있음을 가정해야 한다.
+
+> 본 핸들러는 JSON 파싱 실패 시 substring fallback 으로 회복하므로 `LLM_RESPONSE_INVALID` 는 발화하지 않는다. fallback 매칭에도 실패하면 §5.1 fallback case (`port: 'fallback'`, `category: null`) 로 정상 종료된다. `error` 포트는 LLM API 호출 자체의 throw 만 라우팅한다.
+
+**Expression 접근 예**:
+- `$node["Intent"].output.error.code` → `"LLM_CALL_FAILED"`
+- `$node["Intent"].output.error.message` → 원문 메시지
+- `$node["Intent"].port` → `"error"`
+
+## 6. 에러 코드
+
+| 코드 | 의미 | 발생 조건 | 시점 |
+|------|------|-----------|------|
+| `LLM_CALL_FAILED` | LLM provider 호출 실패 | 네트워크 / 타임아웃 / 5xx / SDK throw | runtime (`error` 포트) |
+| `LLM_RATE_LIMITED` | provider 429 | rate limit (현재 핸들러는 `LLM_CALL_FAILED` 로 통합 — reserved) | runtime |
+| `LLM_RESPONSE_INVALID` | 응답 형식 오류 | JSON 파싱 실패 + substring fallback 도 실패 (현재 핸들러는 fallback 으로 회복하므로 미발화 — reserved) | runtime |
+
+**Pre-flight 검증** (CONVENTIONS Principle 3.1, schema warningRules + `validateTextClassifierConfig`):
+
+| 발생 조건 | 메시지 | 시점 |
+|-----------|--------|------|
+| `model` 과 `llmConfigId` 모두 미설정 | `AI_NO_LLM_PROVIDER_MESSAGE` | warningRule (캔버스 배지) + handler.validate |
+| `categories` 가 빈 배열 | `하나 이상의 카테고리를 추가해야 합니다.` | warningRule + handler.validate |
+| `inputField` 가 빈 문자열 | `Input Field 를 입력해야 합니다.` | warningRule + handler.validate |
+| `categories[i].name` 누락 | `Category {i+1}: name is required` | `validateTextClassifierConfig` |
+| `categories[i].name === '__none__'` | `Category {i+1}: "__none__" is a reserved name` | `validateTextClassifierConfig` |
+| `categories[i].id` 중복 | `Category {i+1}: duplicate id "<id>" — each category must have a unique id` | `validateTextClassifierConfig` (resolver dedupe → silent 오분류 방지, review W-4) |
+
+## 7. 캔버스 요약
+
+[공통 §8](./0-common.md#8-캔버스-요약) — `Text Classifier` 행 인용. 포맷: `{model} · {N} categories` (예: `gpt-4o-mini · 3 categories`).
