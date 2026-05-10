@@ -4353,6 +4353,7 @@ export class ExecutionEngineService
       containerNode,
     );
     let structuredOutput: Record<string, unknown>;
+    let structuredMeta: Record<string, unknown> | undefined;
 
     if (containerNode.type === 'foreach') {
       const handlerOutput = structured?.output;
@@ -4374,10 +4375,23 @@ export class ExecutionEngineService
       // CONVENTIONS §9.2 — `foreach` finalises as `{ items, count }` so
       // downstream expressions can uniformly read `output.items[i]` / .count
       // across container kinds.
-      structuredOutput = {
-        items: collected,
-        count: Array.isArray(collected) ? collected.length : 0,
+      //
+      // Phase 1 (D — spec/4-nodes/1-logic/9-foreach.md §5.3): on
+      // `errorPolicy = 'skip' | 'continue'` the executor separates failed
+      // iterations into `skipped: [{ index, error }]`. `items[index]` is left
+      // as a `null` placeholder so success/skip slots still align by index
+      // with the input array. `meta.skippedCount` mirrors `skipped.length`.
+      const foreachOutput: Record<string, unknown> = {
+        items: collected.items,
+        count: collected.items.length,
       };
+      if (collected.skipped.length > 0) {
+        foreachOutput.skipped = collected.skipped;
+      }
+      structuredOutput = foreachOutput;
+      if (collected.skippedCount > 0) {
+        structuredMeta = { skippedCount: collected.skippedCount };
+      }
     } else if (containerNode.type === 'map') {
       const handlerOutput = structured?.output;
       const array = Array.isArray(handlerOutput) ? handlerOutput : [];
@@ -4396,9 +4410,19 @@ export class ExecutionEngineService
         runIter,
       );
       // CONVENTIONS §9.2 — `map` finalises as `{ mapped, count }`.
+      //
+      // Map keeps the legacy inline `_skipped` marker shape (per
+      // spec/4-nodes/1-logic/7-map.md §5.4) since Map's intent is "uniform
+      // type transformation array" where downstream typically iterates
+      // mapped[i] regardless of skip status. Reconstruct the inline marker
+      // from the executor's separated struct.
+      const mapped: unknown[] = [...collected.items];
+      for (const entry of collected.skipped) {
+        mapped[entry.index] = { _skipped: true, error: entry.error };
+      }
       structuredOutput = {
-        mapped: collected,
-        count: Array.isArray(collected) ? collected.length : 0,
+        mapped,
+        count: mapped.length,
       };
     } else if (containerNode.type === 'loop') {
       const count = coerceContainerNumber(
@@ -4423,9 +4447,20 @@ export class ExecutionEngineService
       return;
     }
 
+    // Merge container-side `meta.*` (e.g. foreach `skippedCount`) with any
+    // pre-existing structured meta (engine-injected `durationMs`, prior
+    // handler-stage meta, etc.). Container-side keys take precedence on
+    // conflict — they describe the just-finalised iteration semantics.
+    const prevStructuredMeta = structured?.meta;
+    const mergedMeta =
+      prevStructuredMeta || structuredMeta
+        ? { ...(prevStructuredMeta ?? {}), ...(structuredMeta ?? {}) }
+        : undefined;
+
     this.contextService.setStructuredOutput(executionId, containerNode.id, {
       config: echoConfig,
       output: structuredOutput,
+      ...(mergedMeta !== undefined ? { meta: mergedMeta } : {}),
     });
     this.contextService.setNodeOutput(
       executionId,
