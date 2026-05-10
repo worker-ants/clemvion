@@ -43,16 +43,24 @@ export class SplitHandler implements NodeHandler {
     const arrayValue = resolveFieldValue(input, fieldPath);
 
     if (!Array.isArray(arrayValue)) {
-      return Promise.resolve({ config: baseConfig, output: [] as SplitItem[] });
+      // CONVENTIONS Principle 9 — `{ <컬렉션>, count }` 형태.
+      // CONVENTIONS Principle 10 — null/undefined / 비배열 → 빈 배열 fallback.
+      return Promise.resolve({
+        config: baseConfig,
+        output: { items: [] as SplitItem[], count: 0 },
+      });
     }
 
-    const output: SplitItem[] = (arrayValue as unknown[]).map(
+    const items: SplitItem[] = (arrayValue as unknown[]).map(
       (value, index) => ({
         index,
         value,
       }),
     );
 
-    return Promise.resolve({ config: baseConfig, output });
+    return Promise.resolve({
+      config: baseConfig,
+      output: { items, count: items.length },
+    });
   }
 }

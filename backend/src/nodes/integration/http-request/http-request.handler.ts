@@ -310,7 +310,7 @@ export class HttpRequestHandler
       }
       clearTimeout(timeoutId);
 
-      const duration = Date.now() - start;
+      const durationMs = Date.now() - start;
 
       let responseData: unknown;
       if (responseType === 'json') {
@@ -321,13 +321,13 @@ export class HttpRequestHandler
         responseData = await res.text();
       }
 
-      const meta = { statusCode: res.status, duration };
+      const meta = { statusCode: res.status, durationMs };
 
       if (integrationId && authentication === 'integration') {
         await this.logUsage(context, {
           integrationId,
           status: res.ok ? 'success' : 'failed',
-          durationMs: duration,
+          durationMs,
           error: res.ok
             ? null
             : { code: `HTTP_${res.status}`, message: res.statusText },
@@ -374,13 +374,13 @@ export class HttpRequestHandler
       };
     } catch (error: unknown) {
       clearTimeout(timeoutId);
-      const duration = Date.now() - start;
+      const durationMs = Date.now() - start;
       const message = error instanceof Error ? error.message : String(error);
       if (integrationId && authentication === 'integration') {
         await this.logUsage(context, {
           integrationId,
           status: 'failed',
-          durationMs: duration,
+          durationMs,
           error: { code: 'HTTP_TRANSPORT_FAILED', message },
         });
       }
@@ -399,7 +399,7 @@ export class HttpRequestHandler
             details: { url: sanitizeUrlCredentials(url), method },
           },
         },
-        meta: { statusCode: 0, duration },
+        meta: { statusCode: 0, durationMs },
         port: 'error',
       };
     }

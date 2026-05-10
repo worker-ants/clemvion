@@ -141,13 +141,13 @@ describe('HttpRequestHandler', () => {
       )) as unknown as {
         port: string;
         output: { response: unknown };
-        meta: { statusCode: number; duration: number };
+        meta: { statusCode: number; durationMs: number };
       };
 
       expect(result.port).toBe('success');
       expect(result.output.response).toEqual({ data: 'test' });
       expect(result.meta.statusCode).toBe(200);
-      expect(typeof result.meta.duration).toBe('number');
+      expect(typeof result.meta.durationMs).toBe('number');
     });
 
     it('should return error port on non-2xx response', async () => {

@@ -31,8 +31,6 @@
 | `push` | array | 배열 끝에 `value` 추가 (**in-place mutation**) | 현재 값이 array 가 아니면 `[value]` 로 덮어쓰기 |
 | `pop` | array | 배열 끝 요소 제거 (**in-place mutation**) | 현재 값이 array 가 아니면 무시 (mutation 없음) |
 
-> ⚠ **Schema-handler 불일치 (P0 미구현)**: `backend/src/nodes/logic/variable-modification/variable-modification.schema.ts` 의 `modOperationSchema` enum 에는 `set_field` / `delete_field` 가 포함되어 있으나 핸들러 `applyModification` switch 에는 분기가 없어 [`validateVariableModificationConfig`](../../../backend/src/nodes/logic/variable-modification/variable-modification.schema.ts) 의 `VALID_OPERATIONS` 화이트리스트에서 reject 된다. [user_memo 개선안 §3 P0 (A) 안](../../../user_memo/node-specs-improvement/logic/variable_modification.md#3-제안된-output-구조) — schema enum 에서 두 연산 제거 권장.
-
 > ⚠ **In-place mutation 주의**: `push` / `pop` 은 동일 배열 참조를 변경한다. 다른 노드의 `output` 또는 다른 변수가 같은 배열 참조를 보유하면 조용히 함께 변경되므로 디버깅이 어렵다. 안전한 변경이 필요하면 `set` 으로 새 배열을 할당한다.
 
 > Source of truth: `backend/src/nodes/logic/variable-modification/variable-modification.schema.ts` (export `variableModificationNodeConfigSchema`). UI 메타데이터 / warningRules / `validateVariableModificationConfig` 는 frontend canvas 와 backend `handler.validate` 가 공유하는 SSOT.
@@ -138,10 +136,8 @@ Variable Modification 은 **runtime 에러 포트를 갖지 않는다**. 모든 
 | `modifications` 가 빈 배열 | `최소 1개 이상의 변경을 추가해야 합니다.` | warningRule (캔버스 배지) + handler.validate |
 | `modifications[0].variable` 가 빈 문자열 | `첫 번째 변경의 대상 변수를 선택해야 합니다.` | warningRule (캔버스 배지) |
 | `modifications[i].variable` 누락 또는 비-string | `modifications[i].variable is required and must be a string` | handler.validate (`validateVariableModificationConfig`) |
-| `modifications[i].operation` 가 화이트리스트 미일치 (`set_field` / `delete_field` / 임의 문자열 포함) | `modifications[i].operation must be one of: set, increment, decrement, append, push, pop` | handler.validate |
+| `modifications[i].operation` 가 화이트리스트 미일치 (임의 문자열) | `modifications[i].operation must be one of: set, increment, decrement, append, push, pop` | handler.validate |
 | `modifications` 가 배열이 아님 | `modifications must be an array` | handler.validate |
-
-> ⚠ **미구현 (P0)**: schema enum (`modOperationSchema`) 의 `set_field` / `delete_field` 가 핸들러 화이트리스트에는 없어 silent reject 된다. [user_memo 개선안 §3 P0 (A) 안](../../../user_memo/node-specs-improvement/logic/variable_modification.md#3-제안된-output-구조) 은 schema enum 에서 두 연산 제거 권장. 현재 `validateVariableModificationConfig` 가 핸들러 화이트리스트와 enum 의 차이를 흡수하고 있어 사용자가 두 연산을 설정해도 명확한 에러 메시지로 전달된다.
 
 ## 7. 캔버스 요약
 

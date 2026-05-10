@@ -157,8 +157,8 @@ describe('CarouselHandler', () => {
   });
 
   describe('execute', () => {
-    // Static mode
-    it('should use static items directly from config', async () => {
+    // ── Static mode (Principle 1.1 / 4.3 — items live in config.items only) ──
+    it('static mode: items live in config.items, output stays empty', async () => {
       const result = (await handler.execute(
         null,
         {
@@ -176,39 +176,19 @@ describe('CarouselHandler', () => {
         context,
       )) as unknown as Record<string, unknown>;
 
-      expect(result.output.type).toBeUndefined();
+      // Principle 1.1: literal slides are NOT echoed into output.
+      expect(result.output.items).toBeUndefined();
+      // Principle 1 (no presentation artefact in output):
+      expect(result.output.rendered).toBeUndefined();
+      // Layout literal is config-only (Principle 1.1):
       expect(result.config.layout).toBe('card');
-
-      const items = result.output.items as Array<Record<string, unknown>>;
-      expect(items).toHaveLength(2);
-      expect(items[0]).toEqual({
-        title: 'Slide 1',
-        description: 'Desc 1',
-        image: 'http://img1.png',
-      });
-      expect(items[1]).toEqual({
-        title: 'Slide 2',
-        description: 'Desc 2',
-        image: undefined,
-      });
+      // Raw items round-trip through config echo:
+      const cfgItems = result.config.items as Array<Record<string, unknown>>;
+      expect(cfgItems).toHaveLength(2);
+      expect(cfgItems[0].title).toBe('Slide 1');
     });
 
-    it('should normalize empty image to undefined in static mode', async () => {
-      const result = (await handler.execute(
-        null,
-        {
-          mode: 'static',
-          items: [{ title: 'A', description: '', image: '' }],
-          layout: 'card',
-        },
-        context,
-      )) as unknown as Record<string, unknown>;
-
-      const items = result.output.items as Array<Record<string, unknown>>;
-      expect(items[0].image).toBeUndefined();
-    });
-
-    it('should handle missing optional fields in static mode', async () => {
+    it('static mode (non-blocking): output is `{}` when no buttons configured', async () => {
       const result = (await handler.execute(
         null,
         {
@@ -218,27 +198,22 @@ describe('CarouselHandler', () => {
         context,
       )) as unknown as Record<string, unknown>;
 
-      const items = result.output.items as Array<Record<string, unknown>>;
-      expect(items[0]).toEqual({
-        title: 'Only Title',
-        description: '',
-        image: undefined,
-      });
+      expect(result.output).toEqual({});
+      expect(result.status).toBeUndefined();
     });
 
-    it('should handle missing items gracefully in static mode', async () => {
+    it('static mode: handles missing items gracefully (output stays empty)', async () => {
       const result = (await handler.execute(
         null,
         { mode: 'static' },
         context,
       )) as unknown as Record<string, unknown>;
 
-      const items = result.output.items as Array<Record<string, unknown>>;
-      expect(items).toHaveLength(0);
+      expect(result.output).toEqual({});
     });
 
-    // Dynamic mode
-    it('should map fields from input array in dynamic mode', async () => {
+    // ── Dynamic mode (Principle 4.3 — runtime items surface via output.items) ──
+    it('dynamic mode: maps fields from input array into output.items', async () => {
       const input = [
         { name: 'Item A', summary: 'Sum A', thumb: 'http://a.png' },
         { name: 'Item B', summary: 'Sum B', thumb: 'http://b.png' },
@@ -255,7 +230,7 @@ describe('CarouselHandler', () => {
         context,
       )) as unknown as Record<string, unknown>;
 
-      expect(result.output.type).toBeUndefined();
+      expect(result.output.rendered).toBeUndefined();
       expect(result.config.layout).toBe('image');
 
       const items = result.output.items as Array<Record<string, unknown>>;
@@ -267,7 +242,7 @@ describe('CarouselHandler', () => {
       });
     });
 
-    it('should limit items by maxItems in dynamic mode', async () => {
+    it('dynamic mode: limits items by maxItems', async () => {
       const input = Array.from({ length: 5 }, (_, i) => ({
         t: `Title ${i}`,
       }));
@@ -281,7 +256,7 @@ describe('CarouselHandler', () => {
       expect(items).toHaveLength(2);
     });
 
-    it('should wrap single input in array for dynamic mode', async () => {
+    it('dynamic mode: wraps single input in array', async () => {
       const result = (await handler.execute(
         { name: 'Single' },
         { titleField: 'name' },
@@ -293,7 +268,7 @@ describe('CarouselHandler', () => {
       expect(items[0].title).toBe('Single');
     });
 
-    it('should handle missing fields gracefully in dynamic mode', async () => {
+    it('dynamic mode: handles missing fields gracefully', async () => {
       const result = (await handler.execute(
         [{ other: 'value' }],
         { titleField: 'name' },
@@ -304,7 +279,7 @@ describe('CarouselHandler', () => {
       expect(items[0].title).toBe('');
     });
 
-    it('should handle null input in dynamic mode', async () => {
+    it('dynamic mode: handles null input', async () => {
       const result = (await handler.execute(
         null,
         { titleField: 'name' },
@@ -315,7 +290,7 @@ describe('CarouselHandler', () => {
       expect(items).toHaveLength(0);
     });
 
-    it('should convert non-string field values in dynamic mode', async () => {
+    it('dynamic mode: converts non-string field values', async () => {
       const result = (await handler.execute(
         [{ count: 42, active: true }],
         { titleField: 'count', descriptionField: 'active' },
@@ -327,21 +302,35 @@ describe('CarouselHandler', () => {
       expect(items[0].description).toBe('true');
     });
 
+    it('dynamic mode: sanitizes javascript: URLs in image fields', async () => {
+      const result = (await handler.execute(
+        [{ name: 'XSS', img: 'javascript:alert(1)' }],
+        {
+          mode: 'dynamic',
+          titleField: 'name',
+          imageField: 'img',
+        },
+        context,
+      )) as unknown as Record<string, unknown>;
+
+      const items = result.output.items as Array<Record<string, unknown>>;
+      expect(items[0].image).toBeUndefined();
+    });
+
     // Backward compatibility
-    it('should default to dynamic mode when mode is absent', async () => {
+    it('defaults to dynamic mode when mode is absent', async () => {
       const result = (await handler.execute(
         [{ name: 'Test' }],
         { titleField: 'name' },
         context,
       )) as unknown as Record<string, unknown>;
 
-      expect(result.output.type).toBeUndefined();
       const items = result.output.items as Array<Record<string, unknown>>;
       expect(items[0].title).toBe('Test');
     });
 
     // Layout (config only — Principle 1.1)
-    it('should default layout to card in config', async () => {
+    it('defaults layout to card in config', async () => {
       const result = (await handler.execute(
         null,
         { mode: 'static', items: [{ title: 'X' }] },
@@ -352,7 +341,7 @@ describe('CarouselHandler', () => {
       expect(result.output.layout).toBeUndefined();
     });
 
-    it('should use specified layout (in config, not output)', async () => {
+    it('uses specified layout (in config, not output)', async () => {
       const result = (await handler.execute(
         null,
         { mode: 'static', items: [{ title: 'X' }], layout: 'minimal' },
@@ -363,8 +352,8 @@ describe('CarouselHandler', () => {
       expect(result.output.layout).toBeUndefined();
     });
 
-    // Rendered HTML
-    it('should include rendered HTML in output', async () => {
+    // ── output.rendered removal (Principle 1) ──
+    it('does NOT include rendered HTML in output (static)', async () => {
       const result = (await handler.execute(
         null,
         {
@@ -375,73 +364,26 @@ describe('CarouselHandler', () => {
         context,
       )) as unknown as Record<string, unknown>;
 
-      expect(result.output.rendered).toBeDefined();
-      expect(typeof result.output.rendered).toBe('string');
-      expect(result.output.rendered as string).toContain('carousel');
-      expect(result.output.rendered as string).toContain('Hello');
+      expect(result.output.rendered).toBeUndefined();
     });
 
-    it('should escape HTML in rendered output', async () => {
+    it('does NOT include rendered HTML in output (dynamic)', async () => {
       const result = (await handler.execute(
-        null,
-        {
-          mode: 'static',
-          items: [{ title: '<script>alert("xss")</script>' }],
-        },
+        [{ name: 'Hello' }],
+        { mode: 'dynamic', titleField: 'name' },
         context,
       )) as unknown as Record<string, unknown>;
 
-      expect(result.output.rendered as string).not.toContain('<script>');
-      expect(result.output.rendered as string).toContain('&lt;script&gt;');
-    });
-
-    it('should sanitize javascript: URLs in image fields', async () => {
-      const result = (await handler.execute(
-        null,
-        {
-          mode: 'static',
-          items: [{ title: 'XSS', image: 'javascript:alert(1)' }],
-        },
-        context,
-      )) as unknown as Record<string, unknown>;
-
-      const items = result.output.items as Array<Record<string, unknown>>;
-      expect(items[0].image).toBeUndefined();
-      expect(result.output.rendered as string).not.toContain('javascript:');
-    });
-
-    it('should escape double quotes in image attributes', async () => {
-      const result = (await handler.execute(
-        null,
-        {
-          mode: 'static',
-          items: [{ title: 'Test', image: 'http://img.png" onload="xss()' }],
-        },
-        context,
-      )) as unknown as Record<string, unknown>;
-
-      const rendered = result.output.rendered as string;
-      expect(rendered).toContain('&quot;');
-      // The " is escaped to &quot; preventing attribute breakout
-      expect(rendered).not.toContain('src="http://img.png" onload');
-    });
-
-    it('should escape single quotes in rendered output', async () => {
-      const result = (await handler.execute(
-        null,
-        {
-          mode: 'static',
-          items: [{ title: "it's a test" }],
-        },
-        context,
-      )) as unknown as Record<string, unknown>;
-
-      expect(result.output.rendered as string).toContain('&#39;');
+      expect(result.output.rendered).toBeUndefined();
     });
   });
 
   describe('output cap (PRESENTATION_MAX_BYTES = 1MB)', () => {
-    it('passes through items unchanged when total payload is under 1MB', async () => {
+    it("static mode: cap on items doesn't bleed into output (output stays `{}`)", async () => {
+      // Static-mode items live in `config.items`, so the runtime cap on the
+      // evaluated array does not surface in output. The cap still runs to
+      // keep the buttonItemMap aligned to the surfaced item count, but the
+      // static non-blocking output is empty.
       const result = (await handler.execute(
         null,
         {
@@ -454,43 +396,33 @@ describe('CarouselHandler', () => {
         context,
       )) as unknown as Record<string, unknown>;
 
+      expect(result.output).toEqual({});
+    });
+
+    it('dynamic mode: passes through items unchanged when total payload is under 1MB', async () => {
+      const result = (await handler.execute(
+        [
+          { n: 'A', d: 'short' },
+          { n: 'B', d: 'short' },
+        ],
+        {
+          mode: 'dynamic',
+          titleField: 'n',
+          descriptionField: 'd',
+        },
+        context,
+      )) as unknown as Record<string, unknown>;
+
       const items = result.output.items as Array<Record<string, unknown>>;
       expect(items).toHaveLength(2);
       expect(result.output.itemsTruncated).toBeUndefined();
       expect(result.output.itemsTotalCount).toBeUndefined();
     });
 
-    it('truncates items array and surfaces itemsTruncated flag when payload exceeds 1MB', async () => {
+    it('dynamic mode: truncates items array and surfaces itemsTruncated flag when payload exceeds 1MB', async () => {
       // Each item ~200KB → 6 items ≈ 1.2MB > 1MB cap; cap drops the tail
       // and itemsTruncated must surface so downstream observers detect
       // missing data without diff'ing array lengths.
-      const heavy = 'x'.repeat(200 * 1024);
-      const items = Array.from({ length: 6 }, (_, i) => ({
-        title: `T${i}`,
-        description: heavy,
-      }));
-
-      const result = (await handler.execute(
-        null,
-        { mode: 'static', items },
-        context,
-      )) as unknown as Record<string, unknown>;
-
-      expect(result.output.itemsTruncated).toBe(true);
-      expect(result.output.itemsTotalCount).toBe(6);
-      const echoed = result.output.items as Array<Record<string, unknown>>;
-      expect(Array.isArray(echoed)).toBe(true);
-      expect(echoed.length).toBeLessThan(6);
-      expect(echoed.length).toBeGreaterThan(0);
-      expect(
-        Buffer.byteLength(JSON.stringify(echoed), 'utf8'),
-      ).toBeLessThanOrEqual(1024 * 1024);
-    });
-
-    it('truncates dynamic-mode items mapped from a runaway input source', async () => {
-      // Dynamic mode pulls items from input/source then maps via titleField.
-      // Verify that the cap fires on this path too (different code branch
-      // from the static mode test above).
       const heavy = 'z'.repeat(200 * 1024);
       const sourceArray = Array.from({ length: 6 }, (_, i) => ({
         name: `Item-${i}`,
@@ -512,34 +444,10 @@ describe('CarouselHandler', () => {
       const echoed = result.output.items as Array<Record<string, unknown>>;
       expect(Array.isArray(echoed)).toBe(true);
       expect(echoed.length).toBeLessThan(6);
-    });
-
-    it('rendered HTML is computed from the capped items, not the full input', async () => {
-      // Regression for ai-review CRIT #1: rendered must reflect what was
-      // actually surfaced via output.items so downstream observers cannot
-      // see HTML for items that were dropped from the array.
-      const heavy = 'x'.repeat(200 * 1024);
-      const items = Array.from({ length: 6 }, (_, i) => ({
-        title: `Slide-${i}`,
-        description: heavy,
-      }));
-
-      const result = (await handler.execute(
-        null,
-        { mode: 'static', items },
-        context,
-      )) as unknown as Record<string, unknown>;
-
-      const echoed = result.output.items as Array<Record<string, unknown>>;
-      const rendered = result.output.rendered as string;
-      // Every echoed item's title shows up in rendered HTML…
-      for (const item of echoed) {
-        expect(rendered).toContain(item.title as string);
-      }
-      // …but dropped items (those past `echoed.length`) must NOT.
-      for (let i = echoed.length; i < items.length; i++) {
-        expect(rendered).not.toContain(`Slide-${i}`);
-      }
+      expect(echoed.length).toBeGreaterThan(0);
+      expect(
+        Buffer.byteLength(JSON.stringify(echoed), 'utf8'),
+      ).toBeLessThanOrEqual(1024 * 1024);
     });
   });
 });

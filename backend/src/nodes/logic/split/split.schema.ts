@@ -14,14 +14,18 @@ export const splitNodeOutputSchema = z
       .passthrough()
       .optional(),
     output: z
-      .array(
-        z
-          .object({
-            index: z.number(),
-            value: z.unknown(),
-          })
-          .passthrough(),
-      )
+      .object({
+        items: z.array(
+          z
+            .object({
+              index: z.number(),
+              value: z.unknown(),
+            })
+            .passthrough(),
+        ),
+        count: z.number(),
+      })
+      .passthrough()
       .optional(),
     port: z.string().optional(),
     status: z.string().optional(),

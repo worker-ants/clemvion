@@ -89,6 +89,10 @@ function buildSandbox(
   };
 }
 
+function wrapUserCode(code: string): string {
+  return `(async () => {\n"use strict";\n${code}\n})()`;
+}
+
 export class CodeHandler implements NodeHandler {
   metadata = codeNodeMetadata;
 
@@ -99,6 +103,20 @@ export class CodeHandler implements NodeHandler {
     const errors = [...evaluateMetadataBlockingErrors(this.metadata, config)];
     if (config.code !== undefined && typeof config.code !== 'string') {
       errors.push('code is required and must be a string');
+    }
+    // CONVENTIONS Principle 3.1 — vm.Script compile failure is a pre-flight
+    // error: the user code never started executing, so it must surface as a
+    // validate-time error (engine throws INVALID_NODE_CONFIG) rather than
+    // routing to the runtime `error` port. Only run the syntax check when
+    // there is non-empty user code present (other code-related errors above
+    // already cover empty/missing/non-string cases).
+    if (typeof config.code === 'string' && config.code.length > 0) {
+      try {
+        new vm.Script(wrapUserCode(config.code), { filename: 'code-node.js' });
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        errors.push(`code has a syntax error: ${message}`);
+      }
     }
     return { valid: errors.length === 0, errors };
   }
@@ -126,14 +144,19 @@ export class CodeHandler implements NodeHandler {
       codeGeneration: { strings: false, wasm: false },
     });
 
-    const wrapped = `(async () => {\n"use strict";\n${code}\n})()`;
-
+    // Compile errors are screened in validate() (pre-flight throw, Principle
+    // 3.1). If they slip through (handler invoked outside the engine path),
+    // re-throw rather than masquerading as a runtime error — keeps the
+    // contract single-meaning.
     let script: vm.Script;
     try {
-      script = new vm.Script(wrapped, { filename: 'code-node.js' });
+      script = new vm.Script(wrapUserCode(code), { filename: 'code-node.js' });
     } catch (error) {
-      return this.failure(config, error, 'CODE_SYNTAX_ERROR', logs);
+      const message = error instanceof Error ? error.message : String(error);
+      throw new Error(`code has a syntax error: ${message}`);
     }
+
+    const rawConfigForEcho = context.rawConfig ?? config;
 
     let runPromise: Promise<unknown>;
     try {
@@ -145,14 +168,14 @@ export class CodeHandler implements NodeHandler {
       const err = error as CodeExecutionError;
       if (err?.code === 'ERR_SCRIPT_EXECUTION_TIMEOUT') {
         return this.failure(
-          config,
+          rawConfigForEcho,
           err,
           'EXECUTION_TIMEOUT',
           logs,
           'Code execution timed out',
         );
       }
-      return this.failure(config, err, 'CODE_RUNTIME_ERROR', logs);
+      return this.failure(rawConfigForEcho, err, 'CODE_RUNTIME_ERROR', logs);
     }
 
     let timeoutHandle: NodeJS.Timeout | undefined;
@@ -173,15 +196,15 @@ export class CodeHandler implements NodeHandler {
       // CONVENTIONS Principle 7 — config echoes raw `code` source + language
       // (the `code` field is widget:'code' but its content may include
       // `{{ ... }}` templates that the engine resolved before dispatch).
-      const rawConfig = context.rawConfig ?? config;
       return {
         config: {
-          code: rawConfig.code,
-          language: rawConfig.language ?? 'javascript',
-          timeout: rawConfig.timeout,
+          code: rawConfigForEcho.code,
+          language: rawConfigForEcho.language ?? 'javascript',
+          timeout: rawConfigForEcho.timeout,
         },
         output: result,
         meta: { success: true, logs },
+        port: 'success',
       };
     } catch (error) {
       const err = error as CodeExecutionError;
@@ -189,7 +212,7 @@ export class CodeHandler implements NodeHandler {
         err?.code === 'EXECUTION_TIMEOUT' ||
         err?.code === 'ERR_SCRIPT_EXECUTION_TIMEOUT';
       return this.failure(
-        config,
+        rawConfigForEcho,
         err,
         isTimeout ? 'EXECUTION_TIMEOUT' : 'CODE_RUNTIME_ERROR',
         logs,
@@ -200,7 +223,7 @@ export class CodeHandler implements NodeHandler {
   }
 
   private failure(
-    config: Record<string, unknown>,
+    config: Readonly<Record<string, unknown>>,
     error: unknown,
     errorCode: string,
     logs: string[],
@@ -215,23 +238,27 @@ export class CodeHandler implements NodeHandler {
     // in production; keep them on `meta` for server-side debugging only
     // (log ingestion pipeline, not rendered by the run-results UI).
     const exposeStack = process.env.NODE_ENV !== 'production';
-    // CONVENTIONS §3.2 — runtime failure routes to the `error` port with a
-    // standardized envelope. `meta.success` / `meta.error` / `meta.errorCode`
-    // are retained for the run-results "Logs" tab (pre-Stage-7 convention);
-    // downstream consumers should prefer `output.error.code` going forward.
-    // The two coexist intentionally for one release so observability
-    // dashboards keying on `meta.errorCode` keep working.
+    // CONVENTIONS §3.2 — runtime failure routes to the `error` port with the
+    // standardized envelope. Legacy `meta.error` / `meta.errorCode` /
+    // `meta.stack` aliases were removed in Phase 1 (D); downstream consumers
+    // read `output.error.{code, message, details.stack}` exclusively now.
     const normalizedCode =
       errorCode === 'EXECUTION_TIMEOUT'
         ? 'CODE_TIMEOUT'
-        : errorCode === 'CODE_RUNTIME_ERROR' ||
-            errorCode === 'CODE_SYNTAX_ERROR'
+        : errorCode === 'CODE_RUNTIME_ERROR'
           ? 'CODE_EXECUTION_FAILED'
           : errorCode;
     const outputDetails: Record<string, unknown> = { legacyCode: errorCode };
     if (exposeStack && stack) outputDetails.stack = stack;
+    // CONVENTIONS Principle 7 — error path echoes raw config (including
+    // `code` body) just like the success path. No memory cap is applied
+    // because `code` is bounded upstream by editor/UI.
     return {
-      config: { language: config.language ?? 'javascript' },
+      config: {
+        code: config.code,
+        language: config.language ?? 'javascript',
+        timeout: config.timeout,
+      },
       output: {
         error: {
           code: normalizedCode,
@@ -241,9 +268,6 @@ export class CodeHandler implements NodeHandler {
       },
       meta: {
         success: false,
-        error: message,
-        errorCode,
-        ...(stack ? { stack } : {}),
         logs,
       },
       port: 'error',

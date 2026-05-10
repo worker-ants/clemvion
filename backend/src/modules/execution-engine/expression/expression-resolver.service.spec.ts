@@ -317,12 +317,14 @@ describe('ExpressionResolverService', () => {
         executionId: 'exec-1',
         workflowId: 'wf-1',
         variables: {},
-        nodeOutputCache: { n1: { iterations: [], count: 0 } },
+        nodeOutputCache: { n1: { iterations: [] } },
         structuredOutputCache: {
           n1: {
             // raw echo per Principle 7 — `{{3}}` template, NOT 3
             config: { count: '{{3}}' },
-            output: { iterations: [], count: 0 },
+            // CONVENTIONS Principle 1.1 — loop output is `{ iterations }` only
+            // (no `count` — downstream uses `iterations.length`).
+            output: { iterations: [] },
           },
         },
         engineResolvedConfigCache: {

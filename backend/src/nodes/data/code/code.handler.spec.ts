@@ -62,17 +62,36 @@ describe('CodeHandler', () => {
         false,
       );
     });
+
+    it('should reject syntactically invalid code (pre-flight, CONVENTIONS 3.1)', () => {
+      const result = handler.validate({ code: 'this is ( not valid js' });
+      expect(result.valid).toBe(false);
+      expect(result.errors.some((e) => e.includes('syntax error'))).toBe(true);
+    });
+
+    it('should not run syntax check when code is empty (other rule fires first)', () => {
+      // Empty code triggers `code:no-code`, but the syntax check should not
+      // also fire — empty string is valid as a vm.Script body.
+      const result = handler.validate({ code: '' });
+      expect(result.valid).toBe(false);
+      expect(result.errors.some((e) => e.includes('syntax error'))).toBe(false);
+    });
   });
 
   describe('execute — basic', () => {
-    it('should run simple synchronous code and return output', async () => {
+    it('should run simple synchronous code and return output with port `success`', async () => {
       const result = (await handler.execute(
         { value: 5 },
         { code: 'return $input.value * 2;' },
         context,
-      )) as unknown as { output: unknown; meta: Record<string, unknown> };
+      )) as unknown as {
+        output: unknown;
+        meta: Record<string, unknown>;
+        port?: string;
+      };
       expect(result.output).toBe(10);
       expect(result.meta).toMatchObject({ success: true });
+      expect(result.port).toBe('success');
     });
 
     it('should expose $vars from context variables', async () => {
@@ -114,44 +133,41 @@ describe('CodeHandler', () => {
       expect(result.output).toBe(8);
     });
 
-    it('should capture runtime errors with CODE_RUNTIME_ERROR code', async () => {
+    it('should capture runtime errors with `error` port + normalized output.error.code', async () => {
       const result = (await handler.execute(
         null,
         { code: 'throw new Error("boom");' },
         context,
       )) as unknown as {
-        output: unknown;
-        meta: { success: boolean; error?: string; errorCode?: string };
+        output: { error: { code: string; message: string } };
+        meta: { success: boolean };
+        port?: string;
       };
-      expect(
-        (result as { output: Record<string, unknown> }).output.error,
-      ).toBeDefined();
-      expect((result as { port?: string }).port).toBe('error');
+      expect(result.output.error).toBeDefined();
+      expect(result.port).toBe('error');
       expect(result.meta.success).toBe(false);
-      expect(result.meta.error).toContain('boom');
-      expect(result.meta.errorCode).toBe('CODE_RUNTIME_ERROR');
-      // Normalized public-facing code (CONVENTIONS §3.2).
-      const r = result as { output: { error: { code: string } } };
-      expect(r.output.error.code).toBe('CODE_EXECUTION_FAILED');
+      // CONVENTIONS §3.2 — `output.error.code` is the canonical surface.
+      expect(result.output.error.code).toBe('CODE_EXECUTION_FAILED');
+      expect(result.output.error.message).toContain('boom');
     });
 
-    it('should capture syntax errors with CODE_SYNTAX_ERROR code', async () => {
+    it('should NOT emit deprecated meta.error / meta.errorCode / meta.stack aliases', async () => {
       const result = (await handler.execute(
         null,
-        { code: 'this is ( not valid js' },
+        { code: 'throw new Error("boom");' },
         context,
-      )) as unknown as {
-        output: unknown;
-        meta: { success: boolean; error?: string; errorCode?: string };
-      };
-      expect(
-        (result as { output: Record<string, unknown> }).output.error,
-      ).toBeDefined();
-      expect((result as { port?: string }).port).toBe('error');
-      expect(result.meta.success).toBe(false);
-      expect(result.meta.errorCode).toBe('CODE_SYNTAX_ERROR');
-      const r = result as { output: { error: { code: string } } };
-      expect(r.output.error.code).toBe('CODE_EXECUTION_FAILED');
+      )) as unknown as { meta: Record<string, unknown> };
+      expect(result.meta).not.toHaveProperty('error');
+      expect(result.meta).not.toHaveProperty('errorCode');
+      expect(result.meta).not.toHaveProperty('stack');
+    });
+
+    it('should throw at execute() if syntax-invalid code reaches the handler (pre-flight invariant)', async () => {
+      // Engine path screens this in validate(); if it slips through, execute()
+      // throws rather than masquerading as a runtime error.
+      await expect(
+        handler.execute(null, { code: 'this is ( not valid js' }, context),
+      ).rejects.toThrow(/syntax error/);
     });
 
     it('should return undefined output when code returns nothing', async () => {
@@ -164,13 +180,14 @@ describe('CodeHandler', () => {
       expect(result.meta.success).toBe(true);
     });
 
-    it('should echo configured language in config', async () => {
+    it('should echo configured language and code body in config (success)', async () => {
       const result = (await handler.execute(
         null,
         { code: 'return 1;', language: 'javascript' },
         context,
-      )) as unknown as { config: { language: string } };
+      )) as unknown as { config: { language: string; code?: string } };
       expect(result.config.language).toBe('javascript');
+      expect(result.config.code).toBe('return 1;');
     });
 
     it('should default language to javascript', async () => {
@@ -182,16 +199,17 @@ describe('CodeHandler', () => {
       expect(result.config.language).toBe('javascript');
     });
 
-    it('should echo configured language on error path too', async () => {
+    it('should echo configured language AND code body on error path (CONVENTIONS Principle 7)', async () => {
       const result = (await handler.execute(
         null,
         { code: 'throw new Error("x");', language: 'javascript' },
         context,
       )) as unknown as {
-        config: { language: string };
+        config: { language: string; code?: string };
         meta: { success: boolean };
       };
       expect(result.config.language).toBe('javascript');
+      expect(result.config.code).toBe('throw new Error("x");');
       expect(result.meta.success).toBe(false);
     });
   });
@@ -214,10 +232,11 @@ describe('CodeHandler', () => {
         { code },
         context,
       )) as unknown as {
-        meta: { success: boolean; error?: string };
+        meta: { success: boolean };
+        output: { error?: { message: string } };
       };
       expect(result.meta.success).toBe(false);
-      expect(result.meta.error).toBeDefined();
+      expect(result.output.error?.message).toBeDefined();
     });
 
     it('should shadow globalThis so it exposes no dangerous globals', async () => {
@@ -302,17 +321,14 @@ describe('CodeHandler', () => {
         { code: 'while (true) {}', timeout: 1 },
         context,
       )) as unknown as {
-        output: unknown;
-        meta: { success: boolean; errorCode?: string; error?: string };
+        output: { error: { code: string } };
+        meta: { success: boolean };
+        port?: string;
       };
-      expect(
-        (result as { output: Record<string, unknown> }).output.error,
-      ).toBeDefined();
-      expect((result as { port?: string }).port).toBe('error');
+      expect(result.output.error).toBeDefined();
+      expect(result.port).toBe('error');
       expect(result.meta.success).toBe(false);
-      expect(result.meta.errorCode).toBe('EXECUTION_TIMEOUT');
-      const r = result as { output: { error: { code: string } } };
-      expect(r.output.error.code).toBe('CODE_TIMEOUT');
+      expect(result.output.error.code).toBe('CODE_TIMEOUT');
     }, 10_000);
 
     it('should timeout async code that never resolves', async () => {
@@ -324,18 +340,15 @@ describe('CodeHandler', () => {
         },
         context,
       )) as unknown as {
-        output: unknown;
-        meta: { success: boolean; errorCode?: string; error?: string };
+        output: { error: { code: string; message: string } };
+        meta: { success: boolean };
+        port?: string;
       };
-      expect(
-        (result as { output: Record<string, unknown> }).output.error,
-      ).toBeDefined();
-      expect((result as { port?: string }).port).toBe('error');
+      expect(result.output.error).toBeDefined();
+      expect(result.port).toBe('error');
       expect(result.meta.success).toBe(false);
-      expect(result.meta.errorCode).toBe('EXECUTION_TIMEOUT');
-      expect(result.meta.error).toContain('timed out');
-      const r = result as { output: { error: { code: string } } };
-      expect(r.output.error.code).toBe('CODE_TIMEOUT');
+      expect(result.output.error.message).toContain('timed out');
+      expect(result.output.error.code).toBe('CODE_TIMEOUT');
     }, 10_000);
   });
 

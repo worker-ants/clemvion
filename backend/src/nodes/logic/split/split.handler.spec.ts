@@ -54,14 +54,17 @@ describe('SplitHandler', () => {
       );
       expect(result).toEqual({
         config: { fieldPath: [{ id: 1 }, { id: 2 }] },
-        output: [
-          { index: 0, value: { id: 1 } },
-          { index: 1, value: { id: 2 } },
-        ],
+        output: {
+          items: [
+            { index: 0, value: { id: 1 } },
+            { index: 1, value: { id: 2 } },
+          ],
+          count: 2,
+        },
       });
     });
 
-    it('returns an empty array when the target value is not an array', async () => {
+    it('returns an empty items collection when the target value is not an array', async () => {
       const result = await handler.execute(
         { id: 1, items: 'not-an-array' },
         { fieldPath: 'items' },
@@ -69,7 +72,19 @@ describe('SplitHandler', () => {
       );
       expect(result).toEqual({
         config: { fieldPath: 'items' },
-        output: [],
+        output: { items: [], count: 0 },
+      });
+    });
+
+    it('returns an empty items collection when the target value is null/undefined (Principle 10)', async () => {
+      const result = await handler.execute(
+        { items: null },
+        { fieldPath: 'items' },
+        context,
+      );
+      expect(result).toEqual({
+        config: { fieldPath: 'items' },
+        output: { items: [], count: 0 },
       });
     });
 
@@ -84,10 +99,13 @@ describe('SplitHandler', () => {
       );
       expect(result).toEqual({
         config: { fieldPath: 'items' },
-        output: [
-          { index: 0, value: { name: 'a' } },
-          { index: 1, value: { name: 'b' } },
-        ],
+        output: {
+          items: [
+            { index: 0, value: { name: 'a' } },
+            { index: 1, value: { name: 'b' } },
+          ],
+          count: 2,
+        },
       });
     });
 
@@ -99,11 +117,14 @@ describe('SplitHandler', () => {
       );
       expect(result).toEqual({
         config: { fieldPath: 'items' },
-        output: [
-          { index: 0, value: 'a' },
-          { index: 1, value: 'b' },
-          { index: 2, value: 'c' },
-        ],
+        output: {
+          items: [
+            { index: 0, value: 'a' },
+            { index: 1, value: 'b' },
+            { index: 2, value: 'c' },
+          ],
+          count: 3,
+        },
       });
     });
 
@@ -115,10 +136,13 @@ describe('SplitHandler', () => {
       );
       expect(result).toEqual({
         config: { fieldPath: 'order.items' },
-        output: [
-          { index: 0, value: { sku: 'X1' } },
-          { index: 1, value: { sku: 'X2' } },
-        ],
+        output: {
+          items: [
+            { index: 0, value: { sku: 'X1' } },
+            { index: 1, value: { sku: 'X2' } },
+          ],
+          count: 2,
+        },
       });
     });
 
@@ -130,7 +154,7 @@ describe('SplitHandler', () => {
       );
       expect(result).toEqual({
         config: { fieldPath: 'items' },
-        output: [],
+        output: { items: [], count: 0 },
       });
     });
   });
@@ -145,13 +169,19 @@ describe('SplitHandler', () => {
           ...context,
           rawConfig: Object.freeze({ fieldPath: '{{ $input.items }}' }),
         },
-      )) as unknown as { config: { fieldPath: unknown }; output: unknown[] };
+      )) as unknown as {
+        config: { fieldPath: unknown };
+        output: { items: unknown[]; count: number };
+      };
 
       expect(result.config.fieldPath).toBe('{{ $input.items }}');
-      expect(result.output).toEqual([
-        { index: 0, value: 'a' },
-        { index: 1, value: 'b' },
-      ]);
+      expect(result.output).toEqual({
+        items: [
+          { index: 0, value: 'a' },
+          { index: 1, value: 'b' },
+        ],
+        count: 2,
+      });
     });
   });
 });

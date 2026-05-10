@@ -2,7 +2,7 @@
 
 > 관련 문서: [Logic 공통 규약](./0-common.md) · [Spec 노드 개요](../0-overview.md) · [Spec 실행 엔진](../../5-system/4-execution-engine.md) · [Spec 표현식 언어](../../5-system/5-expression-language.md) · [CONVENTIONS](../../../user_memo/node-specs-improvement/CONVENTIONS.md)
 
-지정된 횟수만큼 내부 노드 그룹(`body` 서브그래프)을 반복 실행하는 **컨테이너 노드**. 핸들러는 `output: null` 을 반환하고, 엔진이 모든 반복 종료 후 `{ iterations, count }` 로 `output` 을 오버라이트한다 (Logic 공통 §9.1, CONVENTIONS Principle 9). 컨테이너 공통 패턴은 [공통 §3](./0-common.md#3-컨테이너-노드-패턴-loop--map--foreach) 참조.
+지정된 횟수만큼 내부 노드 그룹(`body` 서브그래프)을 반복 실행하는 **컨테이너 노드**. 핸들러는 `output: null` 을 반환하고, 엔진이 모든 반복 종료 후 `{ iterations }` 로 `output` 을 오버라이트한다 (Logic 공통 §9.1, CONVENTIONS Principle 9). 컨테이너 공통 패턴은 [공통 §3](./0-common.md#3-컨테이너-노드-패턴-loop--map--foreach) 참조.
 
 ---
 
@@ -67,7 +67,7 @@
 5. **반복 간 입력 전달**: i 번째 반복의 body 입력은 (i-1) 번째 반복의 emit 출력. 첫 반복(i=0)의 입력은 `undefined` ([user_memo 개선안 §2 항목 5](../../../user_memo/node-specs-improvement/logic/loop.md)).
 6. **breakCondition 검사** (P1 미구현): 매 반복 종료 후 평가하여 true 면 조기 종료.
 7. **maxIterations 가드**: 반복 인덱스 i 가 `maxIterations` 에 도달하면 `MAX_ITERATIONS_EXCEEDED` throw.
-8. **완료 시점 (엔진 오버라이트)**: `collected.map(r => r.output)` 로 `iterations` 배열 생성 → 엔진이 `{ iterations, count: iterations.length }` 로 `output` 을 덮어쓴다 (§5.2, §5.7). 다운스트림은 `done` 포트로 라우팅.
+8. **완료 시점 (엔진 오버라이트)**: `collected.map(r => r.output)` 로 `iterations` 배열 생성 → 엔진이 `{ iterations }` 로 `output` 을 덮어쓴다 (§5.2, §5.7). 다운스트림은 `done` 포트로 라우팅. 반복 횟수가 필요하면 `output.iterations.length` 를 사용한다 (CONVENTIONS Principle 1.1 — config↔output 직교).
 
 ### 4.1 실행 컨텍스트 변수 (`$loop.*`)
 
@@ -124,8 +124,7 @@ body 내부에서 다음 변수에 접근 가능:
       "body emit result 0",
       "body emit result 1",
       "body emit result 2"
-    ],
-    "count": 3
+    ]
   }
 }
 ```
@@ -134,20 +133,17 @@ body 내부에서 다음 변수에 접근 가능:
 |------|------|------|------|
 | `config.*` | (§5.1과 동일) | config echo | 핸들러가 반환한 raw config 가 보존됨 (엔진 오버라이트는 `output` 만 영향) |
 | `output.iterations` | unknown[] | **engine override** (Principle 9.2) | 각 반복의 emit 노드 출력을 인덱스 순서로 수집한 배열. 길이 = 실제 실행된 반복 수 |
-| `output.count` | number | engine override | `iterations.length` 와 동일. ⚠ 미구현 항목 — §5.7 참조 |
 
-> ⚠ **미구현 (P1) — `output.count` 제거 + `meta.iterations` 도입**: 현재 엔진(`execution-engine.service.ts:4421`)은 `{ iterations, count: iterations.length }` 로 오버라이트하지만, `count` 는 정상 완료 시 `config.count` 와 동일하므로 **Principle 1.1 (config ↔ output 직교성)** 위반이다. user_memo 개선안([logic/loop.md §3](../../../user_memo/node-specs-improvement/logic/loop.md))은 다음 변경을 제안한다:
-> - `output.count` **제거** → `output: { iterations: [...] }` 만 노출
-> - `meta.iterations` **신설** (실제 실행된 반복 수, breakCondition / 에러로 조기 종료 시 `config.count` 와 다를 수 있는 런타임 메트릭, Principle 2 Container 행)
+> CONVENTIONS Principle 1.1 (config ↔ output 직교) 준수를 위해 `output.count` 는 **제공하지 않는다** — 정상 완료 시 `config.count` 와 동일하고, 조기 종료 시에는 `output.iterations.length` 가 사실상의 실행 횟수다. 다운스트림은 항상 `output.iterations.length` 를 사용한다.
+>
+> ⚠ **미구현 (P1) — `meta.*` 옵저버빌리티 도입 (Phase 2)**: user_memo 개선안([logic/loop.md §3](../../../user_memo/node-specs-improvement/logic/loop.md))은 다음 메트릭 추가를 제안한다:
+> - `meta.iterations` (실제 실행된 반복 수, breakCondition / 에러로 조기 종료 시 `config.count` 와 다를 수 있는 런타임 메트릭, Principle 2 Container 행)
 > - `meta.maxIterationsReached` (boolean) — maxIterations 도달로 종료된 경우 표시
 > - `meta.durationMs` (엔진 공통 inject)
->
-> 코드 반영 시까지 다운스트림은 `output.count` 또는 `output.iterations.length` 를 임시로 사용한다.
 
 **Expression 접근 예** (현재 엔진 동작 기준):
 - `$node["Loop"].output.iterations[0]` → `"body emit result 0"`
 - `$node["Loop"].output.iterations.length` → `3`
-- `$node["Loop"].output.count` → `3` (P1 미구현 — 향후 제거 예정)
 - `$node["Loop"].config.count` → `"10"` (raw, 사용자 설정값)
 
 ### 5.7 Case: 엔진 오버라이트 컨트랙트 (Principle 9)
@@ -158,7 +154,7 @@ body 내부에서 다음 변수에 접근 가능:
 |------|------|---------------|------|
 | 시작 (§5.1) | `LoopHandler` | `null` | Principle 9.1 — 엔진에 오버라이트 의도 신호 |
 | 반복 중 | `LoopExecutor` | (body 노드들이 자체 output 을 가짐) | `$node["Loop"].output` 는 아직 `null` — 다운스트림이 `done` 이후에만 의미 있는 값 본다 |
-| 완료 (§5.2) | engine | `{ iterations: [...], count: N }` | Principle 9.2 — 컨테이너 컬렉션 키 = `iterations` |
+| 완료 (§5.2) | engine | `{ iterations: [...] }` | Principle 9.2 — 컨테이너 컬렉션 키 = `iterations`. 횟수는 `iterations.length` (Principle 1.1 직교) |
 
 > 핸들러가 `output: null` 이외의 값을 반환하면 엔진은 오버라이트하지 않는다 (Principle 9.1). Loop 핸들러는 항상 `null` 을 반환하므로 이 분기는 발생하지 않는다.
 >
