@@ -286,9 +286,12 @@ LLM 을 사용하여 입력 텍스트를 미리 정의된 카테고리로 분류
       "details": {
         "originalInput": "환불 요청드립니다 …(truncated)"
       }
-    }
+    },
+    "originalInput": "환불 요청드립니다"
   },
   "meta": {
+    "durationMs": 5020,
+    "model": "gpt-4o-mini",
     "llmCalls": [
       { "requestPayload": {}, "responsePayload": null, "durationMs": 5020 }
     ]
@@ -302,10 +305,10 @@ LLM 을 사용하여 입력 텍스트를 미리 정의된 카테고리로 분류
 | `output.error.code` | String | handler return | `UPPER_SNAKE_CASE`. 본 노드의 예약어: `LLM_CALL_FAILED` (네트워크/타임아웃/5xx), `LLM_RATE_LIMITED` (429), `LLM_RESPONSE_INVALID` (JSON 파싱 + substring fallback 모두 실패 — 현재 핸들러는 substring fallback 으로 회복하므로 이 코드는 reserved) |
 | `output.error.message` | String | handler return | 사람이 읽는 메시지 (provider 원문 보존, 국제화 없음) |
 | `output.error.details.originalInput` | String | handler return | LLM 에 투입된 입력. `truncateForErrorDetails` 로 500 자 cap (PII / 대용량 방지) |
-| `meta.llmCalls` | Array | handler return | 실패한 호출의 trace (`responsePayload: null`). 디버깅에 핵심 |
+| `meta.durationMs` | number | handler return | 에러 발생 전까지 소요된 시간 (ms). LLM 호출 throw 직전 측정 |
+| `meta.model` | String | handler return | 호출 시도된 모델 ID (`config.model` 또는 `llmConfig.defaultModel`) |
+| `meta.llmCalls` | Array | handler return | 실패한 호출의 trace (`responsePayload: null`, `durationMs` 동봉). 디버깅에 핵심 |
 | `port` | `'error'` | handler return | 에러 분기 |
-
-> ⚠ **현재 구현 미스 (P1)**: 에러 case 의 `meta` 가 빈 객체(`{}`) 로 반환된다 — `meta.durationMs` / `meta.model` / `meta.llmCalls` 누락. CONVENTIONS Principle 2 는 모든 case 에서 `meta.durationMs` 보장을 요구하며, 개선안 §3 Case 5 는 위 형식 (durationMs/model/llmCalls 포함) 을 명세한다. 본 spec 은 **목표 형태** 를 기술 — 핸들러 반영은 후속 작업. 현 시점 다운스트림은 `output.error` 존재 여부로만 분기하고 `meta.*` 는 비어 있을 수 있음을 가정해야 한다.
 
 > 본 핸들러는 JSON 파싱 실패 시 substring fallback 으로 회복하므로 `LLM_RESPONSE_INVALID` 는 발화하지 않는다. fallback 매칭에도 실패하면 §5.1 fallback case (`port: 'fallback'`, `category: null`) 로 정상 종료된다. `error` 포트는 LLM API 호출 자체의 throw 만 라우팅한다.
 

@@ -205,7 +205,7 @@ feat(nodes/data): C — transform meta.operationsApplied/Skipped 추가
 
 | 노드 | 추가 |
 |---|---|
-| `text_classifier` | 에러 케이스 `meta.{durationMs, model, llmCalls}` 채우기 |
+| `text_classifier` | ✅ 완료 (2026-05-10) — 에러 케이스 `meta.{durationMs, model, llmCalls}` 채우기. `requestPayload.model` 재사용으로 실제 시도 모델 ID 와 정합. `meta.llmCalls[0].responsePayload: null` + `durationMs` 동봉. 스펙 §5.3 ⚠ 미구현 박스 제거 + JSON 예시 보강(`originalInput` / `meta.durationMs` / `meta.model`). 신규 unit (`should include execution metrics in meta on LLM failure (Principle 2)` × single+multi-label, `should fall back model from llmConfig.defaultModel`) — 87 tests pass. |
 | `send_email` | `attachments` 필드 nodemailer 전달 구현 (현재 silent no-op) |
 | `workflow` | sync 모드 `meta.durationMs` 등 메트릭 주입 |
 

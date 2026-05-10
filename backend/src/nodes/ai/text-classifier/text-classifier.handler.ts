@@ -127,6 +127,14 @@ export class TextClassifierHandler implements NodeHandler {
       // CONVENTIONS §7 — truncate originalInput so long user prompts /
       // PII don't land full-length in error envelope details.
       const truncatedInput = truncateForErrorDetails(inputField, 500);
+      // CONVENTIONS Principle 2 — meta MUST carry execution metrics in every
+      // case (success / fallback / error). Error path now mirrors the
+      // success path's meta shape so the spec §5.3 contract holds and
+      // `$node[X].meta.*` expressions resolve uniformly across ports.
+      // `requestPayload.model` already encodes the resolved model id
+      // (`config.model || llmConfig.defaultModel`), so we reuse it here to
+      // avoid divergence with the actual attempted call.
+      const errorDurationMs = Date.now() - callStartedAt;
       return {
         config: configEcho,
         output: {
@@ -136,15 +144,18 @@ export class TextClassifierHandler implements NodeHandler {
             details: { originalInput: truncatedInput },
           },
           originalInput: inputField,
-          _llmCalls: [
+        },
+        meta: {
+          durationMs: errorDurationMs,
+          model: requestPayload.model,
+          llmCalls: [
             {
               requestPayload,
               responsePayload: null,
-              durationMs: Date.now() - callStartedAt,
+              durationMs: errorDurationMs,
             },
           ],
         },
-        meta: {},
         port: 'error',
       };
     }

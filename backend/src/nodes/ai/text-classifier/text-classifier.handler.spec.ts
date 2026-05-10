@@ -305,6 +305,48 @@ describe('TextClassifierHandler', () => {
       expect(err.message).toBe('API timeout');
     });
 
+    it('should include execution metrics in meta on LLM failure (Principle 2)', async () => {
+      // CONVENTIONS Principle 2 — meta.durationMs MUST be present in every
+      // case (success / fallback / error). Error case must also expose
+      // meta.model (model that was attempted) and meta.llmCalls (call trace
+      // with responsePayload: null) so debugging surfaces match the success
+      // path.
+      mockLlmService.chat.mockRejectedValueOnce(new Error('API timeout'));
+      const result = (await handler.execute(
+        {},
+        { ...baseConfig, model: 'gpt-4o-mini' },
+        createContext(),
+      )) as unknown as Record<string, unknown>;
+      expect((result as any).port).toBe('error');
+      const meta = result.meta as Record<string, unknown>;
+      expect(typeof meta.durationMs).toBe('number');
+      expect(meta.durationMs as number).toBeGreaterThanOrEqual(0);
+      expect(meta.model).toBe('gpt-4o-mini');
+      expect(Array.isArray(meta.llmCalls)).toBe(true);
+      const llmCalls = meta.llmCalls as Array<Record<string, unknown>>;
+      expect(llmCalls).toHaveLength(1);
+      expect(llmCalls[0].responsePayload).toBeNull();
+      expect(typeof llmCalls[0].durationMs).toBe('number');
+      expect(llmCalls[0].requestPayload).toBeDefined();
+    });
+
+    it('should fall back model from llmConfig.defaultModel when config.model is unset (error path)', async () => {
+      mockLlmService.chat.mockRejectedValueOnce(new Error('boom'));
+      const { model: _omit, ...configWithoutModel } = baseConfig as Record<
+        string,
+        unknown
+      > & { model?: string };
+      void _omit;
+      const result = (await handler.execute(
+        {},
+        configWithoutModel,
+        createContext(),
+      )) as unknown as Record<string, unknown>;
+      const meta = result.meta as Record<string, unknown>;
+      // resolveConfig() mock returns { defaultModel: 'gpt-4o-mini' }.
+      expect(meta.model).toBe('gpt-4o-mini');
+    });
+
     it('should include fallback instruction in system prompt', async () => {
       await handler.execute({}, baseConfig, createContext());
       const chatCall = mockLlmService.chat.mock.calls[0][1];
@@ -740,6 +782,25 @@ describe('TextClassifierHandler', () => {
       const err = data.error as Record<string, unknown>;
       expect(err.code).toBe('LLM_CALL_FAILED');
       expect(err.message).toBe('Rate limited');
+    });
+
+    it('should include execution metrics in meta on LLM failure (multi-label, Principle 2)', async () => {
+      mockLlmService.chat.mockRejectedValueOnce(new Error('Rate limited'));
+      const result = (await handler.execute(
+        {},
+        { ...multiLabelConfig, model: 'gpt-4o-mini' },
+        createContext(),
+      )) as unknown as Record<string, unknown>;
+      expect((result as any).port).toBe('error');
+      const meta = result.meta as Record<string, unknown>;
+      expect(typeof meta.durationMs).toBe('number');
+      expect(meta.durationMs as number).toBeGreaterThanOrEqual(0);
+      expect(meta.model).toBe('gpt-4o-mini');
+      expect(Array.isArray(meta.llmCalls)).toBe(true);
+      const llmCalls = meta.llmCalls as Array<Record<string, unknown>>;
+      expect(llmCalls).toHaveLength(1);
+      expect(llmCalls[0].responsePayload).toBeNull();
+      expect(typeof llmCalls[0].durationMs).toBe('number');
     });
 
     it('should include multiLabel: true in config output', async () => {
