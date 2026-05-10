@@ -151,7 +151,9 @@
     "items": [1, 2, 3]
   },
   "meta": {
-    "durationMs": 3
+    "durationMs": 3,
+    "operationsApplied": 4,
+    "operationsSkipped": 0
   }
 }
 ```
@@ -161,16 +163,18 @@
 | `config.operations` | Operation[] | config echo (Principle 7) | 사용자가 입력한 raw 연산 목록 — 표현식 `{{ }}` 보존 |
 | `output` | object | runtime — 변환 결과 | input 에 모든 op 를 순차 적용한 최종 객체. 루트 키는 input + operations 에 따라 가변. 후속 노드는 `$node["X"].output.<변형된 필드>` 로 직접 접근 (Principle 8 예외 — 변형 결과를 root 에 둠) |
 | `meta.durationMs` | number | engine inject | 핸들러 실행 시간 (ms). Principle 2 공통 필드 |
+| `meta.operationsApplied` | number | runtime — 핸들러 카운트 | 실제 변형이 발생한 op 수. `applied + skipped === config.operations.length` |
+| `meta.operationsSkipped` | number | runtime — 핸들러 카운트 | 필드 부재 / 타입 불일치 / `divide` operand=0 / 유효하지 않은 dayjs 입력 / JSON 파싱 실패 / 길이 초과 regex 등으로 silent no-op 처리된 op 수 |
 | `port` | `undefined` | — | 단일 출력 (Principle 5 — 기본 단일 출력의 대표 사례) |
 | `status` | `undefined` | — | 일반 완료 (비-블로킹 노드, Data 공통 §4) |
-
-> ⚠ **미구현 (P0)**: 현재 `transform.handler.ts` 는 `meta` 필드를 반환하지 않는다. `meta.durationMs` 는 엔진이 모든 노드에 공통 주입하는 값으로 별도 핸들러 변경 없이 채워진다. 추가로 [user_memo 개선안 data/transform.md](../../../user_memo/node-specs-improvement/data/transform.md) §3 은 `meta.operationsApplied: number` (실제 변형 발생 op 수) / `meta.operationsSkipped: number` (no-op 처리된 op 수, `applied + skipped === config.operations.length`) 추가를 P0 로 제안한다. 코드 반영 시까지 다운스트림은 두 필드를 참조하지 않아야 한다.
 
 **Expression 접근 예** (변형 결과는 root 직접 접근):
 - `$node["X"].output.user.name` → `"ALICE"`
 - `$node["X"].output.items[0]` → `1`
 - `$node["X"].config.operations.length` → `4` (raw 연산 정의 개수)
 - `$node["X"].meta.durationMs` → `3` (engine inject)
+- `$node["X"].meta.operationsApplied` → `4` (runtime — 실제 변형 발생 op 수)
+- `$node["X"].meta.operationsSkipped` → `0` (runtime — silent no-op 처리된 op 수)
 
 ### 5.8 Case: Pre-flight throw (config·표현식 검증 실패)
 

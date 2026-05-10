@@ -136,8 +136,16 @@ export class TransformHandler implements NodeHandler {
     const operations = config.operations as TransformOperation[];
     let data = structuredClone(input) as Record<string, unknown>;
 
+    // CONVENTIONS Principle 2 — meta는 실행 메트릭. 각 operation이 실제 변형을
+    // 일으켰는지(applied) vs silent no-op 처리됐는지(skipped) 추적한다.
+    let operationsApplied = 0;
+    let operationsSkipped = 0;
+
     for (const op of operations) {
-      data = this.applyOperation(data, op);
+      const result = this.applyOperation(data, op);
+      data = result.data;
+      if (result.applied) operationsApplied++;
+      else operationsSkipped++;
     }
 
     // CONVENTIONS Principle 7 — config echoes raw operations (per-op `field`
@@ -150,13 +158,17 @@ export class TransformHandler implements NodeHandler {
     return Promise.resolve({
       config: { operations: rawConfig.operations ?? operations },
       output: data,
+      meta: {
+        operationsApplied,
+        operationsSkipped,
+      },
     });
   }
 
   private applyOperation(
     data: Record<string, unknown>,
     op: TransformOperation,
-  ): Record<string, unknown> {
+  ): { data: Record<string, unknown>; applied: boolean } {
     switch (op.type) {
       case 'rename_field':
         return this.renameField(data, op);
@@ -181,65 +193,72 @@ export class TransformHandler implements NodeHandler {
       case 'object_omit':
         return this.objectOmit(data, op);
       default:
-        return data;
+        return { data, applied: false };
     }
   }
 
   private renameField(
     data: Record<string, unknown>,
     op: { from: string; to: string },
-  ): Record<string, unknown> {
-    if (!hasNestedValue(data, op.from)) return data;
+  ): { data: Record<string, unknown>; applied: boolean } {
+    if (!hasNestedValue(data, op.from)) return { data, applied: false };
     const value = getNestedValue(data, op.from);
     setNestedValue(data, op.to, value);
     delNestedValue(data, op.from);
-    return data;
+    return { data, applied: true };
   }
 
   private removeField(
     data: Record<string, unknown>,
     op: { field: string },
-  ): Record<string, unknown> {
+  ): { data: Record<string, unknown>; applied: boolean } {
+    if (!hasNestedValue(data, op.field)) return { data, applied: false };
     delNestedValue(data, op.field);
-    return data;
+    return { data, applied: true };
   }
 
   private setField(
     data: Record<string, unknown>,
     op: { field: string; value: unknown },
-  ): Record<string, unknown> {
+  ): { data: Record<string, unknown>; applied: boolean } {
     setNestedValue(data, op.field, op.value);
-    return data;
+    // setNestedValue가 prototype pollution 차단으로 무시한 경우에도 applied로
+    // 카운트한다 — 사용자가 의도한 변형 시도이고, no-op 분류는 "필드/타입 부재"
+    // 케이스에 한정한다 (Principle 2 — 실행 메트릭으로서의 의미 보존).
+    return { data, applied: true };
   }
 
   private typeConvert(
     data: Record<string, unknown>,
     op: { field: string; targetType: string },
-  ): Record<string, unknown> {
-    if (!hasNestedValue(data, op.field)) return data;
+  ): { data: Record<string, unknown>; applied: boolean } {
+    if (!hasNestedValue(data, op.field)) return { data, applied: false };
     const value = getNestedValue(data, op.field);
 
     switch (op.targetType) {
       case 'string':
         setNestedValue(data, op.field, String(value));
-        break;
+        return { data, applied: true };
       case 'number':
         setNestedValue(data, op.field, Number(value));
-        break;
+        return { data, applied: true };
       case 'boolean':
         setNestedValue(data, op.field, Boolean(value));
-        break;
+        return { data, applied: true };
       case 'array': {
-        if (Array.isArray(value)) return data;
+        if (Array.isArray(value)) return { data, applied: false };
         if (typeof value === 'string') {
           try {
             const parsed: unknown = JSON.parse(value);
-            if (Array.isArray(parsed)) setNestedValue(data, op.field, parsed);
+            if (Array.isArray(parsed)) {
+              setNestedValue(data, op.field, parsed);
+              return { data, applied: true };
+            }
           } catch {
             // keep original
           }
         }
-        break;
+        return { data, applied: false };
       }
       case 'object': {
         if (
@@ -247,7 +266,7 @@ export class TransformHandler implements NodeHandler {
           typeof value === 'object' &&
           !Array.isArray(value)
         )
-          return data;
+          return { data, applied: false };
         if (typeof value === 'string') {
           try {
             const parsed: unknown = JSON.parse(value);
@@ -255,37 +274,43 @@ export class TransformHandler implements NodeHandler {
               parsed !== null &&
               typeof parsed === 'object' &&
               !Array.isArray(parsed)
-            )
+            ) {
               setNestedValue(data, op.field, parsed);
+              return { data, applied: true };
+            }
           } catch {
             // keep original
           }
         }
-        break;
+        return { data, applied: false };
       }
     }
 
-    return data;
+    return { data, applied: false };
   }
 
   private stringOp(
     data: Record<string, unknown>,
     op: { field: string; operation: string; args?: unknown },
-  ): Record<string, unknown> {
-    if (!hasNestedValue(data, op.field)) return data;
+  ): { data: Record<string, unknown>; applied: boolean } {
+    if (!hasNestedValue(data, op.field)) return { data, applied: false };
 
     const raw = getNestedValue(data, op.field);
     let value: unknown = raw;
+    let applied = false;
 
     switch (op.operation) {
       case 'trim':
         value = String(raw).trim();
+        applied = true;
         break;
       case 'uppercase':
         value = String(raw).toUpperCase();
+        applied = true;
         break;
       case 'lowercase':
         value = String(raw).toLowerCase();
+        applied = true;
         break;
       case 'replace': {
         const args = op.args as
@@ -301,11 +326,15 @@ export class TransformHandler implements NodeHandler {
         const all = args.all !== false;
         if (args.regex) {
           const re = safeCompileRegex(args.search, all ? 'g' : '');
-          if (re) value = str.replace(re, args.replacement);
+          if (re) {
+            value = str.replace(re, args.replacement);
+            applied = true;
+          }
         } else {
           value = all
             ? str.replaceAll(args.search, args.replacement)
             : str.replace(args.search, args.replacement);
+          applied = true;
         }
         break;
       }
@@ -313,6 +342,7 @@ export class TransformHandler implements NodeHandler {
         const args = op.args as { separator: string } | undefined;
         if (!args || typeof args.separator !== 'string') break;
         value = String(raw).split(args.separator);
+        applied = true;
         break;
       }
       case 'join': {
@@ -320,67 +350,78 @@ export class TransformHandler implements NodeHandler {
         const args = op.args as { separator: string } | undefined;
         const sep = args?.separator ?? ',';
         value = raw.join(sep);
+        applied = true;
         break;
       }
     }
 
-    setNestedValue(data, op.field, value);
-    return data;
+    if (applied) setNestedValue(data, op.field, value);
+    return { data, applied };
   }
 
   private mathOp(
     data: Record<string, unknown>,
     op: { field: string; operation: string; operand?: number },
-  ): Record<string, unknown> {
-    if (!hasNestedValue(data, op.field)) return data;
+  ): { data: Record<string, unknown>; applied: boolean } {
+    if (!hasNestedValue(data, op.field)) return { data, applied: false };
 
     let value = Number(getNestedValue(data, op.field));
     const operand = op.operand ?? 0;
+    let applied = false;
 
     switch (op.operation) {
       case 'add':
         value = value + operand;
+        applied = true;
         break;
       case 'subtract':
         value = value - operand;
+        applied = true;
         break;
       case 'multiply':
         value = value * operand;
+        applied = true;
         break;
       case 'divide':
-        if (operand !== 0) value = value / operand;
+        if (operand !== 0) {
+          value = value / operand;
+          applied = true;
+        }
         break;
       case 'round':
         value = Math.round(value);
+        applied = true;
         break;
       case 'ceil':
         value = Math.ceil(value);
+        applied = true;
         break;
       case 'floor':
         value = Math.floor(value);
+        applied = true;
         break;
     }
 
-    setNestedValue(data, op.field, value);
-    return data;
+    if (applied) setNestedValue(data, op.field, value);
+    return { data, applied };
   }
 
   private dateOp(
     data: Record<string, unknown>,
     op: { field: string; operation: string; args?: unknown },
-  ): Record<string, unknown> {
-    if (!hasNestedValue(data, op.field)) return data;
+  ): { data: Record<string, unknown>; applied: boolean } {
+    if (!hasNestedValue(data, op.field)) return { data, applied: false };
 
     const raw = getNestedValue(data, op.field);
     const d = dayjs(raw as string | number | Date);
-    if (!d.isValid()) return data;
+    if (!d.isValid()) return { data, applied: false };
 
     switch (op.operation) {
       case 'format': {
         const args = op.args as { pattern?: string } | undefined;
-        if (!args?.pattern) return data;
+        if (!args?.pattern) return { data, applied: false };
         setNestedValue(data, op.field, d.format(args.pattern));
-        break;
+        return { data, applied: true };
       }
       case 'add':
       case 'subtract': {
@@ -393,13 +434,13 @@ export class TransformHandler implements NodeHandler {
           !args.unit ||
           !DATE_UNITS.includes(args.unit)
         )
-          return data;
+          return { data, applied: false };
         const result =
           op.operation === 'add'
             ? d.add(args.amount, args.unit)
             : d.subtract(args.amount, args.unit);
         setNestedValue(data, op.field, result.toISOString());
-        break;
+        return { data, applied: true };
       }
       case 'diff': {
         const args = op.args as
@@ -410,40 +451,40 @@ export class TransformHandler implements NodeHandler {
           !args.unit ||
           !DATE_UNITS.includes(args.unit)
         )
-          return data;
+          return { data, applied: false };
         const compare = dayjs(
           getNestedValue(data, args.compareField) as string | number | Date,
         );
-        if (!compare.isValid()) return data;
+        if (!compare.isValid()) return { data, applied: false };
         setNestedValue(data, op.field, d.diff(compare, args.unit));
-        break;
+        return { data, applied: true };
       }
     }
 
-    return data;
+    return { data, applied: false };
   }
 
   private arrayFilter(
     data: Record<string, unknown>,
     op: { field: string; condition: Condition },
-  ): Record<string, unknown> {
+  ): { data: Record<string, unknown>; applied: boolean } {
     const arr = getNestedValue(data, op.field);
-    if (!Array.isArray(arr)) return data;
+    if (!Array.isArray(arr)) return { data, applied: false };
 
     const compiled = compileRegexCache([op.condition]);
     const filtered = arr.filter((item) =>
       evaluateCondition(item, op.condition, false, compiled.get(0)),
     );
     setNestedValue(data, op.field, filtered);
-    return data;
+    return { data, applied: true };
   }
 
   private arraySort(
     data: Record<string, unknown>,
     op: { field: string; sortBy?: string; order: 'asc' | 'desc' },
-  ): Record<string, unknown> {
+  ): { data: Record<string, unknown>; applied: boolean } {
     const arr = getNestedValue(data, op.field);
-    if (!Array.isArray(arr)) return data;
+    if (!Array.isArray(arr)) return { data, applied: false };
 
     const sorted = [...(arr as unknown[])].sort((a, b) => {
       const av: unknown = op.sortBy ? getNestedValue(a, op.sortBy) : a;
@@ -459,24 +500,24 @@ export class TransformHandler implements NodeHandler {
 
     if (op.order === 'desc') sorted.reverse();
     setNestedValue(data, op.field, sorted);
-    return data;
+    return { data, applied: true };
   }
 
   private objectPick(
     data: Record<string, unknown>,
     op: { field?: string; keys: string[] },
-  ): Record<string, unknown> {
+  ): { data: Record<string, unknown>; applied: boolean } {
     if (!op.field) {
       const picked: Record<string, unknown> = {};
       for (const key of op.keys) {
         if (key in data) picked[key] = data[key];
       }
-      return picked;
+      return { data: picked, applied: true };
     }
 
     const target = getNestedValue(data, op.field);
     if (target === null || typeof target !== 'object' || Array.isArray(target))
-      return data;
+      return { data, applied: false };
 
     const src = target as Record<string, unknown>;
     const picked: Record<string, unknown> = {};
@@ -484,13 +525,13 @@ export class TransformHandler implements NodeHandler {
       if (key in src) picked[key] = src[key];
     }
     setNestedValue(data, op.field, picked);
-    return data;
+    return { data, applied: true };
   }
 
   private objectOmit(
     data: Record<string, unknown>,
     op: { field?: string; keys: string[] },
-  ): Record<string, unknown> {
+  ): { data: Record<string, unknown>; applied: boolean } {
     const omitKey = (obj: Record<string, unknown>, k: string) => {
       if (BLOCKED_OBJECT_KEYS.has(k)) return;
       delete obj[k];
@@ -498,16 +539,16 @@ export class TransformHandler implements NodeHandler {
 
     if (!op.field) {
       for (const key of op.keys) omitKey(data, key);
-      return data;
+      return { data, applied: true };
     }
 
     const target = getNestedValue(data, op.field);
     if (target === null || typeof target !== 'object' || Array.isArray(target))
-      return data;
+      return { data, applied: false };
 
     const src = { ...(target as Record<string, unknown>) };
     for (const key of op.keys) omitKey(src, key);
     setNestedValue(data, op.field, src);
-    return data;
+    return { data, applied: true };
   }
 }

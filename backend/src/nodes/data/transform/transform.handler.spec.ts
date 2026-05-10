@@ -821,6 +821,137 @@ describe('TransformHandler', () => {
     });
   });
 
+  describe('execute - meta.operationsApplied / operationsSkipped', () => {
+    it('should count all operations as applied for a normal chain', async () => {
+      const result = (await handler.execute(
+        { name: '  John  ', age: '25' },
+        {
+          operations: [
+            { type: 'string_op', field: 'name', operation: 'trim' },
+            { type: 'type_convert', field: 'age', targetType: 'number' },
+            { type: 'set_field', field: 'active', value: true },
+            { type: 'math_op', field: 'age', operation: 'add', operand: 1 },
+          ],
+        },
+        context,
+      )) as unknown as { meta: Record<string, number> };
+      expect(result.meta.operationsApplied).toBe(4);
+      expect(result.meta.operationsSkipped).toBe(0);
+    });
+
+    it('should count silent no-ops as skipped (mixed case)', async () => {
+      const result = (await handler.execute(
+        { val: 10, text: 'hello', d: 'not-a-date', raw: 'not-json' },
+        {
+          operations: [
+            // applied — math add succeeds
+            { type: 'math_op', field: 'val', operation: 'add', operand: 5 },
+            // skipped — divide-by-zero
+            { type: 'math_op', field: 'val', operation: 'divide', operand: 0 },
+            // skipped — field missing
+            { type: 'string_op', field: 'missing', operation: 'trim' },
+            // skipped — invalid dayjs input
+            {
+              type: 'date_op',
+              field: 'd',
+              operation: 'format',
+              args: { pattern: 'YYYY-MM-DD' },
+            },
+            // skipped — JSON.parse fails
+            { type: 'type_convert', field: 'raw', targetType: 'array' },
+            // applied — string trim runs
+            { type: 'string_op', field: 'text', operation: 'trim' },
+          ],
+        },
+        context,
+      )) as unknown as {
+        output: Record<string, unknown>;
+        meta: Record<string, number>;
+      };
+      expect(result.meta.operationsApplied).toBe(2);
+      expect(result.meta.operationsSkipped).toBe(4);
+      // applied + skipped === operations.length
+      expect(
+        result.meta.operationsApplied + result.meta.operationsSkipped,
+      ).toBe(6);
+      // sanity: applied ops actually mutated, skipped ops kept original
+      expect(result.output.val).toBe(15);
+      expect(result.output.text).toBe('hello');
+      expect(result.output.d).toBe('not-a-date');
+      expect(result.output.raw).toBe('not-json');
+    });
+
+    it('should count no-op when array_filter target is not an array', async () => {
+      const result = (await handler.execute(
+        { items: 'not-array', other: 1 },
+        {
+          operations: [
+            {
+              type: 'array_filter',
+              field: 'items',
+              condition: { field: 'a', operator: 'eq', value: 1 },
+            },
+            {
+              type: 'array_sort',
+              field: 'items',
+              order: 'asc',
+            },
+          ],
+        },
+        context,
+      )) as unknown as { meta: Record<string, number> };
+      expect(result.meta.operationsApplied).toBe(0);
+      expect(result.meta.operationsSkipped).toBe(2);
+    });
+
+    it('should count no-op when regex pattern is too long (ReDoS guard)', async () => {
+      const longPattern = 'a'.repeat(300);
+      const result = (await handler.execute(
+        { text: 'aaa' },
+        {
+          operations: [
+            {
+              type: 'string_op',
+              field: 'text',
+              operation: 'replace',
+              args: {
+                search: longPattern,
+                replacement: 'X',
+                regex: true,
+              },
+            },
+          ],
+        },
+        context,
+      )) as unknown as { meta: Record<string, number> };
+      expect(result.meta.operationsApplied).toBe(0);
+      expect(result.meta.operationsSkipped).toBe(1);
+    });
+
+    it('should return zero counts for empty-result-but-applied operations', async () => {
+      // array_filter with all items rejected — still applied (mutated to [])
+      const result = (await handler.execute(
+        { items: [{ v: 1 }, { v: 2 }] },
+        {
+          operations: [
+            {
+              type: 'array_filter',
+              field: 'items',
+              condition: { field: 'v', operator: 'gt', value: 100 },
+            },
+          ],
+        },
+        context,
+      )) as unknown as {
+        output: Record<string, unknown>;
+        meta: Record<string, number>;
+      };
+      expect(result.output.items).toEqual([]);
+      expect(result.meta.operationsApplied).toBe(1);
+      expect(result.meta.operationsSkipped).toBe(0);
+    });
+  });
+
   describe('execute - integration chain', () => {
     it('should filter → sort → pick', async () => {
       const result = (await handler.execute(
