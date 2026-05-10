@@ -134,6 +134,13 @@ describe('WorkflowHandler', () => {
       expect((result as { output: unknown }).output).toEqual({
         result: subOutput,
       });
+      // CONVENTIONS Principle 2 — sync inline execution emits durationMs
+      // metric (handler-measured, since engine does not see sub-workflow
+      // boundary). Value is non-negative; we don't assert exact ms.
+      const meta = (result as { meta?: { durationMs?: number } }).meta;
+      expect(meta).toBeDefined();
+      expect(typeof meta?.durationMs).toBe('number');
+      expect(meta?.durationMs).toBeGreaterThanOrEqual(0);
       expect(mockExecutor.executeInline).toHaveBeenCalledWith(
         'sub-wf-1',
         { input: 'data' },

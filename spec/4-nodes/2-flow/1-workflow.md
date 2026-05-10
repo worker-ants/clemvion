@@ -134,10 +134,8 @@
 | `config.inputMapping` | MappingDef[] | config echo | 사용자가 입력한 raw 매핑 — `expression` 의 `{{ }}` 템플릿 보존 |
 | `config.timeout` | number | config echo | 타임아웃 (초) |
 | `output.result` | (서브 워크플로우 출력) | runtime — `executeInline` 반환값 | **서브 워크플로우의 최종 노드 출력이 1단 래핑되어 담긴다.** 키 구조는 호출된 워크플로우에 전적으로 의존 (`workflow.schema.ts` 의 `workflowNodeOutputSchema` 가 Tier 3 unknown 으로 표시) |
-| `meta.durationMs` | number | engine inject | inline 실행 소요 시간 (ms) |
+| `meta.durationMs` | number | handler inject | inline 실행 소요 시간 (ms) — `executeInline` 호출 직전부터 반환까지의 wall-clock |
 | `port` | (생략 = `'out'`) | handler return | 단일 성공 출력 (Principle 5) |
-
-> ⚠ **미구현 (P1)**: 현재 핸들러는 sync `meta` 를 비워 둔다 (`durationMs` 등 메트릭 미주입). 위 예시의 `meta.durationMs: 0` 은 엔진이 모든 노드에 공통 주입하려는 값으로, 본 노드에도 적용 예정. Phase 4 정비 항목 (`spec-4-nodes-unimplemented-cleanup.md`).
 
 **Expression 접근 예**:
 - `$node["X"].output.result.data` → `[1, 2, 3]` (서브 워크플로우 최종 출력의 필드 — 1단 래핑)

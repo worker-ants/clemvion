@@ -125,6 +125,12 @@ export class WorkflowHandler implements NodeHandler {
       throw new Error('Inline execution requires _executedNodes in context');
     }
 
+    // CONVENTIONS Principle 2 — `meta` carries execution metrics. We
+    // measure inline run duration here (handler-side) since the engine
+    // does not see the sub-workflow boundary. Wall-clock ms via Date.now
+    // is intentionally good-enough — sub-millisecond precision is not
+    // meaningful when the inline call runs through the full executor.
+    const startedAt = Date.now();
     try {
       const inlineResult = await this.executionEngine.executeInline(
         workflowId,
@@ -140,6 +146,7 @@ export class WorkflowHandler implements NodeHandler {
           parentNodeExecutionId: context.nodeExecutionId,
         },
       );
+      const durationMs = Date.now() - startedAt;
       // Sync result is wrapped one level under `output.result` so every
       // sync termination follows the same shape regardless of the
       // sub-workflow's final node output. Downstream nodes access via
@@ -149,6 +156,7 @@ export class WorkflowHandler implements NodeHandler {
       return {
         config: configEcho,
         output: { result: inlineResult },
+        meta: { durationMs },
       };
     } catch (err) {
       return this.buildSubWorkflowError(configEcho, err);
