@@ -246,7 +246,15 @@ export class WorkflowsController {
       throw err;
     }
 
-    const executionInput = { ...(body?.input ?? {}), parameters };
+    // Stamp the trigger-source marker so the Manual Trigger handler can
+    // record `meta.source: 'manual'` deterministically (CONVENTIONS
+    // Principle 2). The marker is stripped by the handler before the
+    // structured output is exposed to expression resolvers.
+    const executionInput = {
+      ...(body?.input ?? {}),
+      __triggerSource: 'manual' as const,
+      parameters,
+    };
     const executionId = await this.executionEngineService.execute(
       id,
       executionInput,

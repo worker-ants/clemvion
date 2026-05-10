@@ -13,9 +13,49 @@ interface ManualTriggerConfig {
   parameters?: TriggerParameterDefinition[];
 }
 
+/**
+ * Internal marker that adapters (webhook / schedule / manual) stamp onto the
+ * engine input so the handler can record `meta.source` deterministically. The
+ * `__` prefix marks it as engine-internal — the handler strips it before
+ * exposing the output, and downstream expression resolvers never see it.
+ */
+type TriggerSource = 'manual' | 'webhook' | 'schedule';
+export const TRIGGER_SOURCE_INPUT_KEY = '__triggerSource';
+
 interface ManualTriggerInput {
   parameters?: Record<string, unknown>;
+  __triggerSource?: TriggerSource;
+  body?: unknown;
+  headers?: unknown;
+  query?: unknown;
+  method?: unknown;
   [key: string]: unknown;
+}
+
+const TRANSPORT_KEYS = ['body', 'headers', 'query', 'method'] as const;
+
+function isPlainRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function detectTriggerSource(
+  input: ManualTriggerInput | undefined,
+): TriggerSource {
+  // 1. Explicit marker stamped by the adapter wins.
+  const marker = input?.__triggerSource;
+  if (marker === 'manual' || marker === 'webhook' || marker === 'schedule') {
+    return marker;
+  }
+  // 2. Backward-resilient detection: if input carries any HTTP transport
+  //    field (body / headers / query / method) the adapter must be webhook.
+  //    Manual / schedule adapters only ever pass `{ parameters }`.
+  if (input && TRANSPORT_KEYS.some((k) => k in input)) {
+    return 'webhook';
+  }
+  // 3. Default to manual — schedule adapters that omit the marker are
+  //    indistinguishable from manual at this layer; the marker should
+  //    always be set, so this is just a safety net.
+  return 'manual';
 }
 
 /**
@@ -27,9 +67,18 @@ interface ManualTriggerInput {
  * that missing-required fields can be reported as 400 responses without
  * creating an Execution record.
  *
- * The handler's job at execute time is to surface the already-resolved
- * `parameters` object on its structured output so downstream expressions
- * (`$input.parameters.*`, `$params.*`) resolve predictably.
+ * The handler's job at execute time is to:
+ * 1. Surface the already-resolved `parameters` object on `output.parameters`
+ *    so downstream expressions (`$input.parameters.*`, `$params.*`) resolve
+ *    predictably.
+ * 2. Group webhook HTTP transport fields under `output.request.{method,
+ *    headers, query, body}` so they don't collide with user-defined parameter
+ *    names at the top level.
+ * 3. Tag `meta.source: 'manual' | 'webhook' | 'schedule'` (CONVENTIONS
+ *    Principle 2 — execution metadata) for debugging/branching downstream.
+ *
+ * Source detection prefers the explicit `__triggerSource` marker stamped by
+ * the adapter, with HTTP transport-shape detection as a fallback.
  */
 export class ManualTriggerHandler implements NodeHandler {
   metadata = manualTriggerMetadata;
@@ -62,27 +111,35 @@ export class ManualTriggerHandler implements NodeHandler {
     const rawConfig = (context.rawConfig ?? config) as ManualTriggerConfig;
     const rawParameters = rawConfig.parameters ?? [];
 
-    const typedInput =
-      input && typeof input === 'object' && !Array.isArray(input)
-        ? (input as ManualTriggerInput)
-        : undefined;
+    const typedInput = isPlainRecord(input)
+      ? (input as ManualTriggerInput)
+      : undefined;
 
-    const resolvedParameters =
-      typedInput?.parameters &&
-      typeof typedInput.parameters === 'object' &&
-      !Array.isArray(typedInput.parameters)
-        ? typedInput.parameters
-        : {};
+    const resolvedParameters = isPlainRecord(typedInput?.parameters)
+      ? typedInput.parameters
+      : {};
 
-    const { parameters: _omit, ...rest } = typedInput ?? {};
-    void _omit;
+    const source = detectTriggerSource(typedInput);
+
+    // Build output. `parameters` is always present (Principle 10 — null/empty
+    // input fallback to {}). `request` is only emitted when the webhook
+    // adapter actually populated one of the transport fields, to avoid
+    // surfacing an empty `{ method: undefined, ... }` shape on manual /
+    // schedule executions.
+    const output: Record<string, unknown> = { parameters: resolvedParameters };
+    if (source === 'webhook' && typedInput) {
+      output.request = {
+        method: typedInput.method,
+        headers: typedInput.headers,
+        query: typedInput.query,
+        body: typedInput.body,
+      };
+    }
 
     return Promise.resolve({
       config: { parameters: rawParameters },
-      output: {
-        parameters: resolvedParameters,
-        ...rest,
-      },
+      output,
+      meta: { source },
     });
   }
 }

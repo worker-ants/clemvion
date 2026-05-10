@@ -106,6 +106,7 @@ describe('HooksService', () => {
     expect(executeMock).toHaveBeenCalledWith(
       'wf1',
       {
+        __triggerSource: 'webhook',
         parameters: { orderId: 'o1', amount: 1500 },
         body: input.body,
         headers: input.headers,

@@ -80,7 +80,7 @@ describe('SchedulesService.runNow', () => {
     const executeMock = engine.execute;
     expect(executeMock).toHaveBeenCalledWith(
       'wf1',
-      { parameters: { region: 'kr' } },
+      { __triggerSource: 'schedule', parameters: { region: 'kr' } },
       { executedBy: 'user-1' },
     );
   });

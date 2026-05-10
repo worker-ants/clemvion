@@ -203,9 +203,12 @@ export class SchedulesService {
         schedule,
         workflowId,
       );
+    // `runNow` runs a Schedule definition on demand — the input still carries
+    // schedule-resolved parameters (`$schedule`/`$now` evaluated), so the
+    // trigger source is `'schedule'` even though the executor is a user.
     const executionId = await this.executionEngineService.execute(
       workflowId,
-      { parameters },
+      { __triggerSource: 'schedule', parameters },
       { executedBy: userId },
     );
     return { executionId };
