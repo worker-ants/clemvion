@@ -243,4 +243,109 @@ describe("applyExecutionSnapshot — REST → store bridge (Carousel disabled st
       "ne-iter-2",
     ]);
   });
+
+  // Inconsistent snapshot 양방향 reconciliation (Phase 1).
+  // 이전 31209d37 의 단방향 defense 는 prevStatus='waiting_for_input' 일 때만
+  // resume 차단. prevStatus='running' / 'pending' 에서 첫 snapshot 이
+  // inconsistent (exec.running + node.waiting) 로 도착하면 waiting UI 가
+  // hydration 되지 않아 'Running' 으로 stuck — 본 테스트가 reconciliation
+  // 으로 정상 hydration 됨을 검증.
+  it("inconsistent snapshot (prevStatus=running) 은 reconcile 로 waiting 진입", () => {
+    useExecutionStore.setState({
+      executionId: "exec-1",
+      status: "running",
+      waitingNodeId: null,
+      waitingInteractionType: null,
+      waitingButtonConfig: null,
+    });
+
+    applyExecutionSnapshot(
+      createExec({
+        status: "running", // stale: 실제 backend 는 waiting
+        nodeExecutions: [
+          {
+            id: "ne-1",
+            executionId: "exec-1",
+            nodeId: "carousel-node",
+            nodeType: "carousel",
+            status: "waiting_for_input",
+            startedAt: "2026-04-01T00:00:00Z",
+            outputData: {
+              config: { items: [{ title: "Slide 1" }] },
+              output: {},
+              status: "waiting_for_input",
+              meta: { interactionType: "buttons" },
+            },
+          },
+        ],
+      }),
+    );
+
+    // reconcile 결과 — store.status 가 waiting 으로 격상되고 waiting hydration 됨.
+    expect(useExecutionStore.getState().status).toBe("waiting_for_input");
+    expect(useExecutionStore.getState().waitingNodeId).toBe("carousel-node");
+    expect(useExecutionStore.getState().waitingInteractionType).toBe("buttons");
+  });
+
+  it("inconsistent snapshot (prevStatus=idle, 첫 진입) 도 reconcile 로 waiting 진입", () => {
+    useExecutionStore.setState({
+      executionId: null,
+      status: "idle",
+      waitingNodeId: null,
+      waitingInteractionType: null,
+      waitingButtonConfig: null,
+    });
+
+    applyExecutionSnapshot(
+      createExec({
+        status: "running", // stale
+        nodeExecutions: [
+          {
+            id: "ne-1",
+            executionId: "exec-1",
+            nodeId: "carousel-node",
+            nodeType: "carousel",
+            status: "waiting_for_input",
+            startedAt: "2026-04-01T00:00:00Z",
+            outputData: {
+              config: {},
+              output: {},
+              status: "waiting_for_input",
+              meta: { interactionType: "buttons" },
+            },
+          },
+        ],
+      }),
+    );
+
+    // 'running + idle' 분기로 빠지지 않고 메인 waiting 분기에서 hydration.
+    expect(useExecutionStore.getState().status).toBe("waiting_for_input");
+    expect(useExecutionStore.getState().waitingNodeId).toBe("carousel-node");
+    expect(useExecutionStore.getState().waitingInteractionType).toBe("buttons");
+  });
+
+  it("terminal status (completed) 는 reconcile 안 함 — node 가 stale 이라도", () => {
+    useExecutionStore.setState({ status: "running" });
+
+    applyExecutionSnapshot(
+      createExec({
+        status: "completed", // terminal
+        nodeExecutions: [
+          {
+            id: "ne-1",
+            executionId: "exec-1",
+            nodeId: "carousel-node",
+            nodeType: "carousel",
+            // 비정상 stale (terminal 후엔 waiting 일 수 없음)
+            status: "waiting_for_input",
+            startedAt: "2026-04-01T00:00:00Z",
+          },
+        ],
+      }),
+    );
+
+    // terminal 은 reconcile 무시 — completeExecution 진입.
+    expect(useExecutionStore.getState().status).toBe("completed");
+    expect(useExecutionStore.getState().waitingNodeId).toBeNull();
+  });
 });
