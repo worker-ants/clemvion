@@ -6,9 +6,20 @@ import { DocumentChunk } from '../entities/document-chunk.entity';
 import { KnowledgeBase } from '../entities/knowledge-base.entity';
 import { S3Service } from '../../../common/services/s3.service';
 import { LlmService } from '../../llm/llm.service';
+import { sanitizeLlmErrorMessage } from '../../llm/utils/sanitize-error.util';
 import { WebsocketService } from '../../websocket/websocket.service';
 import { parseDocument } from '../parsers/parser.factory';
 import { chunkText } from '../chunking/text-chunker';
+import {
+  isRetryableLlmError,
+  retryWithBackoff,
+} from '../utils/retry-with-backoff.util';
+
+// 한 batch (20 청크) 임베딩에 적용할 timeout. provider socket hang 방지.
+const EMBED_TIMEOUT_MS = 60_000;
+// 자동 재시도 횟수 + 지수 백오프 base. baseDelayMs * 4^i → 1s, 4s, 16s.
+const EMBED_MAX_RETRIES = 3;
+const EMBED_BASE_DELAY_MS = 1_000;
 
 @Injectable()
 export class EmbeddingService {
@@ -31,20 +42,71 @@ export class EmbeddingService {
   // 동시 실행 상한은 BullMQ DocumentEmbeddingProcessor 의 worker concurrency 가
   // 담당 (다중 인스턴스 환경에서도 Redis 가 분산 동시성을 제공).
   // 본 메서드는 큐 워커 또는 테스트에서 직접 호출되는 단일 작업 처리 진입점.
+  //
+  // 재시도 정책 (spec/5-system/8-embedding-pipeline.md "Retry & Failure"):
+  // - 1차 시도에서 LLM timeout / 5xx / network 같은 일시 오류 발생 시 1s / 4s / 16s 백오프로 최대 3회 자동 재시도
+  // - 재시도가 발생한 attempt 마다 `embedding_status='error'` + `embedding_retry_count++` + WS `document:embedding_retry`
+  // - 모든 재시도 소진 또는 비재시도성 오류 (401/403/422/차원 mismatch 등) 발생 시 `embedding_status='failed'` 로 최종 전환 + WS `document:embedding_failed`
+  // - 성공 시 `embedding_status='completed'`, `embedding_retry_count=0`, `embedding_error_message=NULL` 로 리셋
+  // - 2차 시도 이상에서는 chunk 상태 idempotency 보장을 위해 `reEmbed=true` 강제 (chunk 삭제 후 다시 처리)
   async processDocument(documentId: string, reEmbed = false): Promise<void> {
+    // attemptIndex: 0 = 1차 시도. retryWithBackoff 의 onAttempt 가 실패 직후 호출되며
+    // idx+1 로 다음 시도 번호를 세팅한다. doProcess 는 2차+ attempt 에서 reEmbed=true 를 강제해
+    // 부분 INSERT 된 chunk 를 깨끗히 정리 (idempotency 보장).
+    let attemptIndex = 0;
     try {
-      await this.doProcess(documentId, reEmbed);
+      await retryWithBackoff(
+        () => this.doProcess(documentId, reEmbed || attemptIndex > 0),
+        {
+          maxRetries: EMBED_MAX_RETRIES,
+          baseDelayMs: EMBED_BASE_DELAY_MS,
+          isRetryable: isRetryableLlmError,
+          onAttempt: async (idx, err) => {
+            attemptIndex = idx + 1;
+            const retryable = isRetryableLlmError(err);
+            const willRetry = retryable && idx < EMBED_MAX_RETRIES;
+            const safe = sanitizeLlmErrorMessage(
+              err instanceof Error ? err.message : String(err),
+            );
+            this.logger.warn(
+              `Embedding attempt ${idx + 1} failed for document ${documentId}` +
+                (willRetry ? ' — scheduling retry' : ' — final failure') +
+                `: ${safe}`,
+            );
+            // 일시 오류 단계: status='error' (재시도 진행 중). 최종 실패는 catch 에서 'failed' 로 덮어쓴다.
+            await this.documentRepository.update(documentId, {
+              embeddingStatus: 'error',
+              embeddingErrorMessage: safe,
+              embeddingLastAttemptedAt: new Date(),
+            });
+            await this.documentRepository.increment(
+              { id: documentId },
+              'embeddingRetryCount',
+              1,
+            );
+            if (willRetry) {
+              this.emitEvent(documentId, 'document:embedding_retry', {
+                attempt: idx + 1,
+                maxAttempts: EMBED_MAX_RETRIES + 1,
+                error: safe,
+              });
+            }
+          },
+        },
+      );
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Unknown error';
+      const raw = error instanceof Error ? error.message : String(error);
+      const safe = sanitizeLlmErrorMessage(raw);
       this.logger.error(
-        `Embedding failed for document ${documentId}: ${message}`,
+        `Embedding failed permanently for document ${documentId}: ${raw}`,
       );
       await this.documentRepository.update(documentId, {
-        embeddingStatus: 'error',
-        metadata: { error: message },
+        embeddingStatus: 'failed',
+        embeddingErrorMessage: safe,
+        embeddingLastAttemptedAt: new Date(),
       });
-      this.emitEvent(documentId, 'document:embedding_error', {
-        error: message,
+      this.emitEvent(documentId, 'document:embedding_failed', {
+        error: safe,
       });
     }
   }
@@ -64,15 +126,16 @@ export class EmbeddingService {
       throw new Error(`Knowledge base ${doc.knowledgeBaseId} not found`);
     }
 
-    // Update status
+    // Update status — 재시도 진입 시점에도 processing 으로 reset.
     await this.documentRepository.update(documentId, {
       embeddingStatus: 'processing',
+      embeddingLastAttemptedAt: new Date(),
     });
     this.emitEvent(documentId, 'document:embedding_started', {
       knowledgeBaseId: kb.id,
     });
 
-    // Delete existing chunks if re-embedding
+    // Delete existing chunks if re-embedding (수동 재실행 또는 2차+ 재시도 attempt).
     if (reEmbed) {
       await this.chunkRepository.delete({ documentId });
     }
@@ -86,6 +149,8 @@ export class EmbeddingService {
       await this.documentRepository.update(documentId, {
         embeddingStatus: 'completed',
         chunkCount: 0,
+        embeddingRetryCount: 0,
+        embeddingErrorMessage: null,
       });
       this.emitEvent(documentId, 'document:embedding_completed', {
         chunkCount: 0,
@@ -103,6 +168,8 @@ export class EmbeddingService {
       await this.documentRepository.update(documentId, {
         embeddingStatus: 'completed',
         chunkCount: 0,
+        embeddingRetryCount: 0,
+        embeddingErrorMessage: null,
       });
       this.emitEvent(documentId, 'document:embedding_completed', {
         chunkCount: 0,
@@ -122,9 +189,8 @@ export class EmbeddingService {
     //
     // 메모리 효율: 모든 임베딩을 누적 후 한 번에 INSERT 하던 방식을 batch 단위 즉시
     // INSERT 로 바꿔, 메모리 보유량을 batch(20개 청크) × dim 으로 일정하게 유지한다.
-    // 부분 실패 시 chunk 가 일부만 저장될 수 있으나, document.embedding_status 가
-    // 'error' 로 표시되고 사용자가 reEmbed=true 로 재실행하면 모든 chunk 가 깨끗히
-    // 정리된다 (processDocument 시작부에서 reEmbed=true 면 chunk 전체 삭제).
+    // 부분 실패 시 chunk 가 일부만 저장될 수 있으나, 2차 attempt 부터 reEmbed=true 가
+    // 강제되어 chunk 가 깨끗히 정리되므로 idempotent.
     const batchSize = 20;
     let expectedDim: number | null = kb.embeddingDimension;
     let dimensionPersisted = kb.embeddingDimension != null;
@@ -136,6 +202,7 @@ export class EmbeddingService {
         llmConfig,
         texts,
         kb.embeddingModel,
+        { timeoutMs: EMBED_TIMEOUT_MS },
       );
 
       for (const v of embeddings) {
@@ -199,10 +266,12 @@ export class EmbeddingService {
       });
     }
 
-    // 7. Update document status
+    // 7. Update document status — 성공 시 retry/error 메타데이터 리셋.
     await this.documentRepository.update(documentId, {
       embeddingStatus: 'completed',
       chunkCount: chunks.length,
+      embeddingRetryCount: 0,
+      embeddingErrorMessage: null,
     });
 
     this.emitEvent(documentId, 'document:embedding_completed', {

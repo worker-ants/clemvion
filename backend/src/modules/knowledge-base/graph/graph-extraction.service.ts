@@ -15,12 +15,23 @@ import {
 } from './graph-extraction.prompt';
 import { ENTITY_TYPES } from '../entities/entity.entity';
 import { KbStatsHelper } from './kb-stats.helper';
+import {
+  isRetryableLlmError,
+  retryWithBackoff,
+} from '../utils/retry-with-backoff.util';
 
 const MAX_CHUNK_CHARS = 8_000; // chunk 본문이 매우 길면 LLM 호출 토큰 폭발 방지 차원에서 잘라낸다.
 
 // 청크 LLM 호출 동시성 상한. concurrency 너무 높으면 LLM rate limit 충돌, 낮으면 처리 시간 N배.
 // EmbeddingService 의 batch(20) 처리량 대비 절충선으로 3 채택.
 const CHUNK_LLM_CONCURRENCY = 3;
+
+// 청크별 LLM 호출에 적용할 timeout. JSON schema 응답이라 embedding 보다 길게.
+const GRAPH_CHUNK_TIMEOUT_MS = 90_000;
+
+// 자동 재시도 설정 — 임베딩과 동일 (baseDelayMs * 4^i → 1s, 4s, 16s).
+const GRAPH_MAX_RETRIES = 3;
+const GRAPH_BASE_DELAY_MS = 1_000;
 
 // LLM 출력 길이 제한 — 악의적/오작동 LLM 이 거대 문자열을 반환할 때 스토리지 DoS 방지.
 const MAX_NAME_LEN = 200;
@@ -50,6 +61,12 @@ function safeSlice(value: string | null | undefined, max: number): string {
  *
  * vector 모드 KB 의 문서가 들어오면 즉시 skip (GraphExtractionProcessor 에서 큐잉되지
  * 않지만 방어적으로 한 번 더 검증).
+ *
+ * 재시도 정책 (spec/5-system/10-graph-rag.md "Retry & Failure"):
+ * - 문서 단위로 retryWithBackoff 1s / 4s / 16s 백오프 3회 (timeout / 5xx / network 일시 오류)
+ * - chunk_entity 재진입 안전성은 try 진입부의 DELETE 로 idempotent 보장
+ * - 재시도 진행 중: graph_extraction_status='error' + graph_retry_count++ + WS document:graph_retry
+ * - 재시도 소진 / 비재시도성 오류: graph_extraction_status='failed' + WS document:graph_failed
  */
 @Injectable()
 export class GraphExtractionService {
@@ -94,94 +111,146 @@ export class GraphExtractionService {
     }
 
     try {
-      await this.documentRepository.update(documentId, {
-        graphExtractionStatus: 'processing',
-      });
-      this.emitEvent(documentId, 'document:graph_started', {
-        knowledgeBaseId: kb.id,
-      });
-
-      // 재추출 안전성을 위해 본 문서의 기존 chunk_entity 매핑을 먼저 제거.
-      // entity / relation 자체는 KB 단위 dedup 이라 다른 문서의 매핑이 살아있을 수 있으므로 보존.
-      await this.dataSource.query(
-        `DELETE FROM chunk_entity WHERE chunk_id IN (
-           SELECT id FROM document_chunk WHERE document_id = $1
-         )`,
-        [documentId],
-      );
-
-      const chunks = await this.chunkRepository.find({
-        where: { documentId },
-        order: { chunkIndex: 'ASC' },
-      });
-      if (chunks.length === 0) {
-        await this.documentRepository.update(documentId, {
-          graphExtractionStatus: 'completed',
-        });
-        this.emitEvent(documentId, 'document:graph_completed', {
-          entityDelta: 0,
-          relationDelta: 0,
-        });
-        return;
-      }
-
-      const llmConfig = await this.llmService.resolveConfig(
-        kb.extractionLlmConfigId ?? undefined,
-        kb.workspaceId,
-      );
-
-      let totalEntityDelta = 0;
-      let totalRelationDelta = 0;
-      // 청크별 LLM 호출은 서로 독립이라 p-limit 으로 동시 실행. concurrency 는
-      // CHUNK_LLM_CONCURRENCY 로 제한해 LLM rate limit 보호.
-      const limit = pLimit(CHUNK_LLM_CONCURRENCY);
-      let processed = 0;
-      const tasks = chunks.map((chunk) =>
-        limit(async () => {
-          const result = await this.callLlmForChunk(llmConfig, chunk);
-          const { entitiesInserted, relationsInserted } =
-            await this.persistExtraction(kb.id, chunk.id, result);
-          totalEntityDelta += entitiesInserted;
-          totalRelationDelta += relationsInserted;
-
-          processed += 1;
-          const progress = Math.round((processed / chunks.length) * 100);
-          this.emitEvent(documentId, 'document:graph_progress', {
-            progress,
-            entityDelta: entitiesInserted,
-            relationDelta: relationsInserted,
+      await retryWithBackoff(() => this.doExtract(documentId, kb.id), {
+        maxRetries: GRAPH_MAX_RETRIES,
+        baseDelayMs: GRAPH_BASE_DELAY_MS,
+        isRetryable: isRetryableLlmError,
+        onAttempt: async (idx, err) => {
+          const retryable = isRetryableLlmError(err);
+          const willRetry = retryable && idx < GRAPH_MAX_RETRIES;
+          const safe = sanitizeLlmErrorMessage(
+            err instanceof Error ? err.message : String(err),
+          );
+          this.logger.warn(
+            `Graph extraction attempt ${idx + 1} failed for document ${documentId}` +
+              (willRetry ? ' — scheduling retry' : ' — final failure') +
+              `: ${safe}`,
+          );
+          await this.documentRepository.update(documentId, {
+            graphExtractionStatus: 'error',
+            graphErrorMessage: safe,
+            graphLastAttemptedAt: new Date(),
           });
-        }),
-      );
-      await Promise.all(tasks);
-
-      // KB 캐시 컬럼 갱신 (실제 카운트로 다시 계산해 drift 방지)
-      await this.kbStats.refresh(kb.id);
-
-      await this.documentRepository.update(documentId, {
-        graphExtractionStatus: 'completed',
-      });
-      this.emitEvent(documentId, 'document:graph_completed', {
-        entityDelta: totalEntityDelta,
-        relationDelta: totalRelationDelta,
+          await this.documentRepository.increment(
+            { id: documentId },
+            'graphRetryCount',
+            1,
+          );
+          if (willRetry) {
+            this.emitEvent(documentId, 'document:graph_retry', {
+              attempt: idx + 1,
+              maxAttempts: GRAPH_MAX_RETRIES + 1,
+              error: safe,
+            });
+          }
+        },
       });
     } catch (err) {
       const rawMessage = err instanceof Error ? err.message : String(err);
-      // 전체 로그에는 원문 메시지를 남겨 진단에 활용하되, document.metadata 와 WebSocket
-      // 페이로드는 사용자/외부에 노출되므로 sanitize 한 메시지를 저장해 내부 URL·키
-      // 같은 정보가 새지 않게 한다.
       const safeMessage = sanitizeLlmErrorMessage(rawMessage);
       this.logger.error(
-        `Graph extraction failed for document ${documentId}: ${rawMessage}`,
+        `Graph extraction failed permanently for document ${documentId}: ${rawMessage}`,
       );
       await this.documentRepository.update(documentId, {
-        graphExtractionStatus: 'error',
-        metadata: { ...doc.metadata, graphExtractionError: safeMessage },
+        graphExtractionStatus: 'failed',
+        graphErrorMessage: safeMessage,
+        graphLastAttemptedAt: new Date(),
       });
-      this.emitEvent(documentId, 'document:graph_error', {
+      this.emitEvent(documentId, 'document:graph_failed', {
         error: safeMessage,
       });
     }
+  }
+
+  // 본 추출 본체 — retryWithBackoff 안에서 idempotent 하게 호출됨.
+  // (앞 단계의 chunk_entity DELETE 가 매 attempt 마다 수행되어 부분 실패 후에도
+  //  같은 KB·entity dedup INSERT 가 안전하게 누적됨.)
+  private async doExtract(
+    documentId: string,
+    knowledgeBaseId: string,
+  ): Promise<void> {
+    await this.documentRepository.update(documentId, {
+      graphExtractionStatus: 'processing',
+      graphLastAttemptedAt: new Date(),
+    });
+    this.emitEvent(documentId, 'document:graph_started', {
+      knowledgeBaseId,
+    });
+
+    // 재추출 안전성을 위해 본 문서의 기존 chunk_entity 매핑을 먼저 제거.
+    // entity / relation 자체는 KB 단위 dedup 이라 다른 문서의 매핑이 살아있을 수 있으므로 보존.
+    await this.dataSource.query(
+      `DELETE FROM chunk_entity WHERE chunk_id IN (
+         SELECT id FROM document_chunk WHERE document_id = $1
+       )`,
+      [documentId],
+    );
+
+    const chunks = await this.chunkRepository.find({
+      where: { documentId },
+      order: { chunkIndex: 'ASC' },
+    });
+    if (chunks.length === 0) {
+      await this.documentRepository.update(documentId, {
+        graphExtractionStatus: 'completed',
+        graphRetryCount: 0,
+        graphErrorMessage: null,
+      });
+      this.emitEvent(documentId, 'document:graph_completed', {
+        entityDelta: 0,
+        relationDelta: 0,
+      });
+      return;
+    }
+
+    const kb = await this.kbRepository.findOne({
+      where: { id: knowledgeBaseId },
+    });
+    if (!kb) {
+      throw new Error(
+        `Knowledge base ${knowledgeBaseId} not found for document ${documentId}`,
+      );
+    }
+    const llmConfig = await this.llmService.resolveConfig(
+      kb.extractionLlmConfigId ?? undefined,
+      kb.workspaceId,
+    );
+
+    let totalEntityDelta = 0;
+    let totalRelationDelta = 0;
+    const limit = pLimit(CHUNK_LLM_CONCURRENCY);
+    let processed = 0;
+    const tasks = chunks.map((chunk) =>
+      limit(async () => {
+        const result = await this.callLlmForChunk(llmConfig, chunk);
+        const { entitiesInserted, relationsInserted } =
+          await this.persistExtraction(kb.id, chunk.id, result);
+        totalEntityDelta += entitiesInserted;
+        totalRelationDelta += relationsInserted;
+
+        processed += 1;
+        const progress = Math.round((processed / chunks.length) * 100);
+        this.emitEvent(documentId, 'document:graph_progress', {
+          progress,
+          entityDelta: entitiesInserted,
+          relationDelta: relationsInserted,
+        });
+      }),
+    );
+    await Promise.all(tasks);
+
+    // KB 캐시 컬럼 갱신 (실제 카운트로 다시 계산해 drift 방지)
+    await this.kbStats.refresh(kb.id);
+
+    await this.documentRepository.update(documentId, {
+      graphExtractionStatus: 'completed',
+      graphRetryCount: 0,
+      graphErrorMessage: null,
+    });
+    this.emitEvent(documentId, 'document:graph_completed', {
+      entityDelta: totalEntityDelta,
+      relationDelta: totalRelationDelta,
+    });
   }
 
   private async callLlmForChunk(
@@ -193,19 +262,24 @@ export class GraphExtractionService {
         ? chunk.content.slice(0, MAX_CHUNK_CHARS)
         : chunk.content;
 
-    const result = await this.llmService.chat(llmConfig, {
-      model: llmConfig.defaultModel,
-      messages: [
-        { role: 'system', content: GRAPH_EXTRACTION_SYSTEM_PROMPT },
-        { role: 'user', content },
-      ],
-      responseFormat: 'json',
-      jsonSchema: GRAPH_EXTRACTION_JSON_SCHEMA as unknown as Record<
-        string,
-        unknown
-      >,
-      temperature: 0,
-    });
+    const result = await this.llmService.chat(
+      llmConfig,
+      {
+        model: llmConfig.defaultModel,
+        messages: [
+          { role: 'system', content: GRAPH_EXTRACTION_SYSTEM_PROMPT },
+          { role: 'user', content },
+        ],
+        responseFormat: 'json',
+        jsonSchema: GRAPH_EXTRACTION_JSON_SCHEMA as unknown as Record<
+          string,
+          unknown
+        >,
+        temperature: 0,
+      },
+      undefined,
+      { timeoutMs: GRAPH_CHUNK_TIMEOUT_MS },
+    );
 
     if (!result.content) {
       return { entities: [], relations: [] };

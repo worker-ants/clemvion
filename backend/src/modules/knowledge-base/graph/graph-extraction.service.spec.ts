@@ -25,6 +25,7 @@ describe('GraphExtractionService', () => {
     mockDocRepo = {
       findOne: jest.fn(),
       update: jest.fn().mockResolvedValue(undefined),
+      increment: jest.fn().mockResolvedValue(undefined),
     };
     mockChunkRepo = {
       find: jest.fn().mockResolvedValue([]),
@@ -150,8 +151,11 @@ describe('GraphExtractionService', () => {
     );
     expect(entityInserts.length).toBe(2);
     expect(relationInserts.length).toBe(1);
+    // 성공 시 retry 메타데이터가 리셋된 상태로 'completed' 마킹
     expect(mockDocRepo.update).toHaveBeenCalledWith('d1', {
       graphExtractionStatus: 'completed',
+      graphRetryCount: 0,
+      graphErrorMessage: null,
     });
   });
 
@@ -181,6 +185,8 @@ describe('GraphExtractionService', () => {
     // (외부 throw 가 없어 'error' 가 아니라 'completed')
     expect(mockDocRepo.update).toHaveBeenCalledWith('d1', {
       graphExtractionStatus: 'completed',
+      graphRetryCount: 0,
+      graphErrorMessage: null,
     });
     const entityInserts = lastTxQueries.filter((q) =>
       q.sql.startsWith('INSERT INTO entity'),
