@@ -342,7 +342,9 @@ LIMIT $5;        -- ragTopK
 | `document:graph_started` | `{ documentId, knowledgeBaseId }` | 추출 시작 |
 | `document:graph_progress` | `{ documentId, progress: number, entityDelta: number, relationDelta: number }` | chunk 처리마다 |
 | `document:graph_completed` | `{ documentId, entityCount, relationCount }` | 완료 |
-| `document:graph_error` | `{ documentId, error: string }` | 실패 |
+| `document:graph_error` | `{ documentId, error: string }` | 일시 오류 발생 (자동 재시도 예정 또는 사후 `graph_failed` 이 따라옴) |
+| `document:graph_retry` | `{ documentId, attempt: number, maxAttempts: number, error: string }` | 일시 오류 후 재시도 큐잉 직전 |
+| `document:graph_failed` | `{ documentId, error: string }` | 재시도 모두 소진 또는 비재시도성 오류로 최종 실패 |
 | `kb:graph_stats_updated` | `{ knowledgeBaseId, entityCount, relationCount }` | KB 단위 통계 변동 시 (캐시 컬럼 갱신과 동기) |
 
 ---
@@ -351,11 +353,20 @@ LIMIT $5;        -- ragTopK
 
 | 상황 | 처리 |
 |------|------|
-| 추출 LLM 호출 실패 | `Document.graph_extraction_status = 'error'`, metadata 에 사유 기록. KB 검색은 해당 문서를 vector-only fallback 으로 계속 회수 |
-| 추출 응답 JSON 파싱 실패 | 최대 2회 재시도, 소진 시 chunk 단위 skip + warn |
+| 추출 LLM 호출 일시 실패 (timeout / 5xx / network / 429) | `Document.graph_extraction_status = 'error'`, `graph_retry_count++`, `graph_error_message` 갱신, WS `document:graph_retry`. 1s/4s/16s 백오프로 최대 3회 자동 재시도 |
+| 추출 LLM 호출 영구 실패 (재시도 소진 또는 4xx) | `Document.graph_extraction_status = 'failed'`, WS `document:graph_failed`. 사용자 액션 (단건 `/re-extract` 또는 일괄 `/retry-failed`) 까지 유지 |
+| 추출 응답 JSON 파싱 실패 | chunk 단위 silent skip + warn (LLM 응답 형식 문제는 재시도해도 동일하므로 비재시도) |
 | relation 의 head/tail 가 응답 entities 에 없음 | 해당 relation drop + warn (LLM 환각) |
 | graph 모드 KB 인데 entity_count = 0 (추출 미완료/실패) | 검색이 vector-only 흐름으로 자동 fallback (빈 그래프 expansion = vector top-K 와 동일) |
 | `re-extract` 동시 호출 | DB 컬럼 (`reextract_status`) atomic compare-and-swap 으로 차단, 409 `KB_REEXTRACT_IN_PROGRESS` |
+| 워커 정상 종료 후 `processing` 상태에서 멈춤 | `StuckDocumentRecoveryService` 가 부팅 시점에 `graph_last_attempted_at < NOW() - 10min` 인 문서를 회수해 큐 재 add |
+
+### 7.1 Retry & Failure 정책 상세
+
+- LLM `chat()` 호출에 `{ timeoutMs: 90_000 }` 적용 — 청크 응답 hang 시 90s 안에 즉시 reject.
+- 문서 단위 `retryWithBackoff(maxRetries=3, baseDelayMs=1_000)` (1s → 4s → 16s).
+- chunk_entity 정리 (`DELETE FROM chunk_entity WHERE chunk_id IN ...`) 가 추출 진입부에 있어 idempotent — 재시도 시 dedup INSERT 가 안전하게 누적됨.
+- 청크 단위 LLM 재시도는 별도 적용하지 않음 (문서 단위 재시도로 단순화 — LLM 비용 vs 코드 복잡도 트레이드오프). 후속 PR 에서 정밀화 검토.
 
 > **원칙**: 그래프 검색이 어떠한 이유로든 빈 결과를 만들 경우, vector seed 결과만으로 응답을 구성한다 (graceful degradation).
 

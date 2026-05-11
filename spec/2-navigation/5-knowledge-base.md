@@ -34,7 +34,7 @@
 | 컬렉션 이름 | 클릭 시 컬렉션 상세 화면으로 이동 |
 | 문서 수 | 포함된 문서 개수 |
 | 청크 수 | 생성된 벡터 청크 총 개수 |
-| 임베딩 상태 | Ready(✅) / Processing(🔄 + 진행률) / Error(❌) |
+| 임베딩 상태 | Ready(✅) / Processing(🔄) / Retrying(🔄 회전·warning, 자동 재시도 중) / Failed(❌, 최종 실패 — 재시도 버튼 필요) |
 | 더보기(⋮) | 설정, 삭제 |
 
 ### 2.2 컬렉션 생성
@@ -94,8 +94,16 @@
 | 파일 이름 | 클릭 시 미리보기 패널 |
 | 파일 유형 | MD / PDF / TXT / CSV |
 | 파일 크기 | 표시 |
-| 임베딩 상태 | Ready / Processing / Error |
+| 임베딩 상태 | Ready / Processing / Retrying (in-flight 자동 재시도) / Failed (최종 실패). `embedding_retry_count > 0` 일 때 hover tooltip 으로 `embedding_error_message` + 재시도 카운트 노출 |
+| 그래프 추출 상태 | graph 모드 KB 일 때만 추가 표시. 의미는 임베딩과 동일 |
 | 더보기(⋮) | 미리보기, 재임베딩, 삭제 |
+
+### 2.4.1 진행 박스 (KB 상세 상단)
+
+- **임베딩 진행 박스** (vector / graph 무관): "완료 {completed} / 전체 {total}" + 실패가 있으면 "{failed} 실패" + RoleGate(editor) 의 [실패 문서 재시도] 버튼. 5s polling (진행 중) / 1분 polling (완료된 상태).
+- **그래프 추출 박스** (graph 모드 KB 만): "{extracted}개 문서 추출 완료 / {total}" + "{failed} 실패" + [실패 문서 재시도] 버튼 + entity/relation 카운트. 동일 polling 정책.
+- 버튼 클릭 → ConfirmModal → `POST /api/knowledge-bases/:id/retry-failed { scope: 'embedding'|'graph' }`. 응답 시 toast 로 "{embedding}개 임베딩 · {graph}개 그래프 추출을 재시도해요".
+- 백엔드의 `document:embedding_retry`·`graph_retry`·`*_failed`·`*_completed` 이벤트를 `useKbEvents` 가 수신해 즉시 React Query 캐시 invalidate. WS 단절 시 polling fallback.
 
 ### 2.5 문서 업로드
 
