@@ -47,6 +47,7 @@ describe('EmbeddingService - dimension consistency', () => {
     mockDocRepo = {
       findOne: jest.fn(),
       update: jest.fn().mockResolvedValue(undefined),
+      increment: jest.fn().mockResolvedValue(undefined),
     };
     mockKbRepo = {
       findOne: jest.fn(),
@@ -162,18 +163,18 @@ describe('EmbeddingService - dimension consistency', () => {
 
     await service.processDocument('d1');
 
+    // dimension mismatch 는 비재시도성 오류 → retryWithBackoff 가 1회 시도 후 즉시 throw → 'failed'
+    // 메시지는 sanitizeLlmErrorMessage 가 일반 폴백으로 치환 (도메인 에러는 spec/RESOLUTION 참조)
     expect(mockDocRepo.update).toHaveBeenCalledWith(
       'd1',
       expect.objectContaining({
-        embeddingStatus: 'error',
-        metadata: expect.objectContaining({
-          error: expect.stringContaining('dimension mismatch'),
-        }),
+        embeddingStatus: 'failed',
+        embeddingErrorMessage: expect.any(String),
       }),
     );
   });
 
-  it('marks document as error when embedding vector is empty', async () => {
+  it('marks document as failed when embedding vector is empty (non-retryable)', async () => {
     mockDocRepo.findOne.mockResolvedValue({
       id: 'd1',
       knowledgeBaseId: 'kb-1',
@@ -195,7 +196,8 @@ describe('EmbeddingService - dimension consistency', () => {
     expect(mockDocRepo.update).toHaveBeenCalledWith(
       'd1',
       expect.objectContaining({
-        embeddingStatus: 'error',
+        embeddingStatus: 'failed',
+        embeddingErrorMessage: expect.any(String),
       }),
     );
   });
@@ -233,11 +235,104 @@ describe('EmbeddingService - dimension consistency', () => {
     expect(mockDocRepo.update).toHaveBeenCalledWith(
       'd1',
       expect.objectContaining({
-        embeddingStatus: 'error',
-        metadata: expect.objectContaining({
-          error: expect.stringContaining('dimension mismatch'),
-        }),
+        embeddingStatus: 'failed',
+        embeddingErrorMessage: expect.any(String),
       }),
     );
+  });
+
+  describe('retry & failure', () => {
+    beforeEach(() => {
+      jest.useFakeTimers();
+    });
+    afterEach(() => {
+      jest.useRealTimers();
+    });
+
+    function setupHappyKb() {
+      mockDocRepo.findOne.mockResolvedValue({
+        id: 'd1',
+        knowledgeBaseId: 'kb-1',
+        fileUrl: 's3://x',
+        fileType: 'txt',
+      });
+      mockKbRepo.findOne.mockResolvedValue({
+        id: 'kb-1',
+        workspaceId: 'ws-1',
+        embeddingModel: 'text-embedding-3-small',
+        embeddingDimension: null,
+        chunkSize: 1000,
+        chunkOverlap: 200,
+      });
+    }
+
+    it('첫 시도 timeout 후 2차에서 성공 → completed + retry_count 리셋', async () => {
+      setupHappyKb();
+      mockLlm.embed
+        .mockRejectedValueOnce(new Error('Request timed out after 60000ms'))
+        .mockResolvedValueOnce([
+          [0.1, 0.2, 0.3],
+          [0.4, 0.5, 0.6],
+        ]);
+
+      const promise = service.processDocument('d1');
+      // 백오프 1s 대기
+      await jest.advanceTimersByTimeAsync(1000);
+      await promise;
+
+      expect(mockDocRepo.increment).toHaveBeenCalledWith(
+        { id: 'd1' },
+        'embeddingRetryCount',
+        1,
+      );
+      // 마지막 update 는 completed 로 retry_count 리셋
+      const completedCalls = mockDocRepo.update.mock.calls.filter(
+        (c) => c[1]?.embeddingStatus === 'completed',
+      );
+      expect(completedCalls.length).toBeGreaterThan(0);
+      expect(completedCalls[completedCalls.length - 1][1]).toEqual(
+        expect.objectContaining({
+          embeddingStatus: 'completed',
+          embeddingRetryCount: 0,
+          embeddingErrorMessage: null,
+        }),
+      );
+      // retry 이벤트 emit 검증
+      const retryEvents = mockWs.emitExecutionEvent.mock.calls.filter(
+        (c) => c[1] === 'document:embedding_retry',
+      );
+      expect(retryEvents.length).toBe(1);
+    });
+
+    it('timeout 3회 연속 → failed + document:embedding_failed 이벤트', async () => {
+      setupHappyKb();
+      const err = new Error('Request timed out after 60000ms');
+      mockLlm.embed.mockRejectedValue(err);
+
+      const promise = service.processDocument('d1');
+      // 1s + 4s + 16s 백오프 처리
+      await jest.advanceTimersByTimeAsync(1000);
+      await jest.advanceTimersByTimeAsync(4000);
+      await jest.advanceTimersByTimeAsync(16000);
+      await promise;
+
+      const failedCalls = mockDocRepo.update.mock.calls.filter(
+        (c) => c[1]?.embeddingStatus === 'failed',
+      );
+      expect(failedCalls.length).toBe(1);
+      expect(failedCalls[0][1]).toEqual(
+        expect.objectContaining({
+          embeddingStatus: 'failed',
+          // sanitize 가 timed-out → "Connection timed out..." 로 치환
+          embeddingErrorMessage: expect.stringContaining('timed out'),
+        }),
+      );
+      const failedEvents = mockWs.emitExecutionEvent.mock.calls.filter(
+        (c) => c[1] === 'document:embedding_failed',
+      );
+      expect(failedEvents.length).toBe(1);
+      // 4회 시도 동안 increment 4회 (initial fail + 3 retries 모두 onAttempt)
+      expect(mockDocRepo.increment).toHaveBeenCalledTimes(4);
+    });
   });
 });

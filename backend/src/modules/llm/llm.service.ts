@@ -77,9 +77,17 @@ export class LlmService {
     config: LlmConfig,
     params: ChatParams,
     context?: LlmCallContext,
+    opts?: { timeoutMs?: number },
   ): Promise<ChatResult> {
     const client = this.createClient(config);
-    const result = await this.withRetry(() => client.chat(params));
+    const result = await this.withRetry(() =>
+      opts?.timeoutMs && opts.timeoutMs > 0
+        ? // LLMClient.chat 은 아직 AbortSignal 을 받지 않으므로 race 만 적용
+          // (후속 PR 에서 인터페이스 확장 시 signal 도 전달). 백그라운드 소켓은
+          // provider HTTP 클라이언트가 자체 keep-alive 풀로 GC.
+          withTimeout(() => client.chat(params), opts.timeoutMs)
+        : client.chat(params),
+    );
     // 사용량 기록은 fire-and-forget — 실패해도 호출 결과에 영향 없음.
     // workspaceId는 LlmConfig에서 자동 채워지므로 컨텍스트 누락에 무관하게 집계됨.
     void this.usageLogService.record({
@@ -151,6 +159,7 @@ export class LlmService {
     config: LlmConfig,
     texts: string[],
     model?: string,
+    opts?: { timeoutMs?: number },
   ): Promise<number[][]> {
     const client = this.createClient(config);
     // Batch embed in chunks of 20
@@ -158,7 +167,12 @@ export class LlmService {
     const allEmbeddings: number[][] = [];
     for (let i = 0; i < texts.length; i += batchSize) {
       const batch = texts.slice(i, i + batchSize);
-      const embeddings = await this.withRetry(() => client.embed(batch, model));
+      // batch 단위로 timeout 적용 — 한 batch 가 hang 되면 race 로 즉시 reject.
+      const embeddings = await this.withRetry(() =>
+        opts?.timeoutMs && opts.timeoutMs > 0
+          ? withTimeout(() => client.embed(batch, model), opts.timeoutMs)
+          : client.embed(batch, model),
+      );
       allEmbeddings.push(...embeddings);
     }
     return allEmbeddings;
