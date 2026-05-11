@@ -31,9 +31,9 @@
 ## 작업 체크리스트
 
 ### 문서
-- [ ] `spec/5-system/1-auth.md` §2.3, §4.1, §5 갱신
-- [ ] `spec/1-data-model.md` refresh_token 확장 + login_history 추가
-- [ ] `spec/2-navigation/9-user-profile.md` 세션 페이지 항목 추가
+- [x] `spec/5-system/1-auth.md` §2.3, §4.1, §4.3, §5 갱신
+- [x] `spec/1-data-model.md` 2.18.1 RefreshToken + 2.18.2 LoginHistory + 인덱스
+- [x] `spec/2-navigation/9-user-profile.md` 보안 설정·API 표 갱신
 - [ ] backend Swagger doc (컨트롤러 데코레이터로 자동 반영)
 
 ### Backend

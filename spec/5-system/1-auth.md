@@ -72,10 +72,15 @@
 
 | 항목 | 설명 |
 |------|------|
+| 세션 단위 | `family_id` — refresh 회전 시 row가 갱신되더라도 동일 family는 하나의 "디바이스 세션" |
 | 동시 세션 | 기본 5개 (관리자 설정 가능) |
 | 초과 시 | 가장 오래된 세션 자동 종료 |
 | 비활동 만료 | 30일간 미사용 시 Refresh Token 무효화 |
-| 강제 종료 | 사용자가 활성 세션 목록에서 개별 종료 가능 |
+| 강제 종료 | 사용자가 활성 세션 목록에서 개별 종료 가능 (family 전체 revoke) |
+| 강제 종료 재인증 | 비밀번호 재확인 필수. OAuth-only 사용자는 2FA TOTP 또는 이메일 OTP 로 대체 |
+| 현재 세션 식별 | 서버가 요청의 refresh-token 쿠키 해시를 조회해 `isCurrent` 플래그로 응답 — raw token은 JS로 노출하지 않음 |
+| 메타데이터 | 발급 시점의 IP·User-Agent·디바이스 라벨 및 마지막 사용 시각을 RefreshToken 에 기록 |
+| 클라이언트 IP | Cloudflare 무료 플랜 호환: `CF-Connecting-IP` 헤더를 1순위, `X-Forwarded-For` 첫 IP, `req.ip` 순으로 추출 |
 
 ### 2.4 토큰 갱신 플로우
 
@@ -139,7 +144,7 @@
 
 | 카테고리 | 액션 |
 |----------|------|
-| 인증 | login, logout, login_failed, password_change, 2fa_enable/disable |
+| 인증 (워크스페이스 컨텍스트) | password_change, 2fa_enable/disable |
 | 워크스페이스 | workspace.create, workspace.update, workspace.delete |
 | 멤버 | member.invite, member.role_change, member.remove |
 | 워크플로우 | workflow.create, workflow.update, workflow.delete, workflow.execute |
@@ -148,11 +153,28 @@
 | Integration | integration.create, integration.update, integration.delete |
 | 설정 | auth_config.*, llm_config.* |
 
+> 워크스페이스 컨텍스트가 없는 인증 이벤트(login, logout, login_failed 등)는 AuditLog 가 아닌 §4.3 **LoginHistory** 에 기록된다.
+
 ### 4.2 조회
 
 - 관리자(Admin+)만 조회 가능
 - 기간, 사용자, 액션 유형으로 필터링
 - 최근 90일 보관 (설정 가능)
+
+### 4.3 로그인 이력 (LoginHistory)
+
+사용자 단위 인증 이벤트는 별도 테이블 `login_history` 에 보관한다 (데이터 모델 §2.18.2). 사용자가 본인의 이력만 조회할 수 있다.
+
+| 이벤트 | 설명 |
+|--------|------|
+| login_success | 비밀번호 또는 OAuth 로그인 성공 |
+| login_failed | 비밀번호 불일치·계정 잠금·이메일 미인증 등 실패 |
+| totp_failed | 2FA 코드 검증 실패 |
+| logout | 사용자가 `/auth/logout` 호출 → 호출 디바이스 family 전체 revoke |
+| session_revoked | 사용자가 활성 세션 목록에서 다른 family 강제 종료 |
+| token_reuse_detected | revoke된 refresh token 재사용 감지 → family 전체 revoke |
+
+보존: **180일** 경과 row 는 일일 배치(`@Cron('0 3 * * *')`)로 자동 삭제. 조회는 사용자 본인만 가능하며 워크스페이스 관리자에게는 노출되지 않는다.
 
 ---
 
@@ -162,10 +184,12 @@
 |--------|------|------|
 | POST | /api/auth/register | 회원가입 |
 | POST | /api/auth/login | 로그인 |
-| POST | /api/auth/logout | 로그아웃 |
+| POST | /api/auth/logout | 로그아웃 (호출 디바이스 family 전체 revoke) |
 | POST | /api/auth/refresh | 토큰 갱신 |
 | POST | /api/auth/forgot-password | 비밀번호 재설정 요청 |
 | POST | /api/auth/reset-password | 비밀번호 재설정 |
 | GET | /api/auth/oauth/:provider | OAuth 시작 |
 | GET | /api/auth/oauth/:provider/callback | OAuth 콜백 |
 | GET | /api/audit-logs | 감사 로그 조회 (Admin+) |
+
+사용자 본인 세션·이력 관리 엔드포인트는 [사용자 프로필 spec §6.1](../2-navigation/9-user-profile.md#61-사용자워크스페이스-api) 에 정의 (`/api/users/me/sessions`, `/api/users/me/login-history`).
