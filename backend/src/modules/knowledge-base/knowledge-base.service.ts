@@ -314,20 +314,27 @@ export class KnowledgeBaseService {
     entityCount: number;
     relationCount: number;
     extractedDocumentCount: number;
+    failedDocumentCount: number;
+    pendingDocumentCount: number;
     totalDocumentCount: number;
     reextractStatus: 'idle' | 'in_progress';
   }> {
     const kb = await this.findById(id, workspaceId);
     this.assertGraphMode(kb);
 
+    // pending = pending|processing|error (모두 "최종 실패 전 진행 중" 으로 묶음)
     const rows = await this.dataSource.query<
       {
         extracted: number;
+        failed: number;
+        pending: number;
         total: number;
       }[]
     >(
       `SELECT
          COUNT(*) FILTER (WHERE graph_extraction_status = 'completed')::int AS extracted,
+         COUNT(*) FILTER (WHERE graph_extraction_status = 'failed')::int AS failed,
+         COUNT(*) FILTER (WHERE graph_extraction_status IN ('pending','processing','error'))::int AS pending,
          COUNT(*)::int AS total
        FROM document WHERE knowledge_base_id = $1`,
       [id],
@@ -336,6 +343,8 @@ export class KnowledgeBaseService {
       entityCount: kb.entityCount,
       relationCount: kb.relationCount,
       extractedDocumentCount: rows[0]?.extracted ?? 0,
+      failedDocumentCount: rows[0]?.failed ?? 0,
+      pendingDocumentCount: rows[0]?.pending ?? 0,
       totalDocumentCount: rows[0]?.total ?? 0,
       reextractStatus: kb.reextractStatus,
     };
