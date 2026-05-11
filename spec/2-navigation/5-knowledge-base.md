@@ -1,6 +1,6 @@
 # Spec: 지식 저장소 화면
 
-> 관련 문서: [PRD 내비게이션](../../prd/1-navigation.md#35-knowledge-base-지식-저장소) · [PRD 통합/연동](../../prd/4-integration.md#3-knowledge-base-지식-저장소) · [PRD Graph RAG](../../prd/9-graph-rag.md) · [Spec 레이아웃](./_layout.md) · [Spec Graph RAG](../5-system/10-graph-rag.md) · [데이터 모델 - KnowledgeBase](../1-data-model.md#211-knowledgebase)
+> 관련 문서: [PRD 내비게이션](./_product-overview.md#35-knowledge-base-지식-저장소) · [PRD 통합/연동](../4-nodes/4-integration/_product-overview.md#3-knowledge-base-지식-저장소) · [PRD Graph RAG](../5-system/10-graph-rag.md) · [Spec 레이아웃](./_layout.md) · [Spec Graph RAG](../5-system/10-graph-rag.md) · [데이터 모델 - KnowledgeBase](../1-data-model.md#211-knowledgebase)
 
 ---
 

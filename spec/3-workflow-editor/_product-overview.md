@@ -1,6 +1,6 @@
 # PRD: 워크플로우 에디터
 
-> 관련 문서: [제품 개요](./0-overview.md) · [노드 시스템](./3-node-system.md) · [AI 플랫폼](./6-phase2-ai.md) · [Spec 캔버스](../spec/3-workflow-editor/0-canvas.md) · [Spec 실행/디버깅](../spec/3-workflow-editor/3-execution.md) · [Spec AI Assistant](../spec/3-workflow-editor/4-ai-assistant.md)
+> 관련 문서: [제품 개요](../0-overview.md) · [노드 시스템](../4-nodes/_product-overview.md) · [AI 플랫폼](../4-nodes/3-ai/_product-overview.md) · [Spec 캔버스](./0-canvas.md) · [Spec 실행/디버깅](./3-execution.md) · [Spec AI Assistant](./4-ai-assistant.md)
 
 ---
 
@@ -146,9 +146,9 @@
 
 ## 10. AI Assistant (ED-AI-*)
 
-> 상세: [Spec AI Assistant](../spec/3-workflow-editor/4-ai-assistant.md) · 관련 [AI 플랫폼 §3.6](./6-phase2-ai.md#36-workflow-ai-assistant) · 사용자 가이드: [AI 어시스턴트 개요](../frontend/src/content/docs/03-workflow-editor/overview.mdx) · [Hands-on Walkthrough](../frontend/src/content/docs/03-workflow-editor/walkthrough.mdx)
+> 상세: [Spec AI Assistant](./4-ai-assistant.md) · 관련 [AI 플랫폼 §3.6](../4-nodes/3-ai/_product-overview.md#36-workflow-ai-assistant) · 사용자 가이드: [AI 어시스턴트 개요](../frontend/src/content/docs/03-workflow-editor/overview.mdx) · [Hands-on Walkthrough](../frontend/src/content/docs/03-workflow-editor/walkthrough.mdx)
 
-워크플로우 에디터에 내장된 채팅형 AI 에이전트(**Workflow AI Assistant**)가 사용자의 자연어 요구사항을 받아 노드·엣지를 자동으로 생성·수정한다. 단순 지시("HTTP 헤더 추가")뿐 아니라 모호하고 큰 요청("주문 취소 프로세스 추가")도 대화로 구체화해 완성한다. LLM은 [LLM Config](./6-phase2-ai.md#31-llm-프로바이더-관리)에 등록된 모델을 사용한다.
+워크플로우 에디터에 내장된 채팅형 AI 에이전트(**Workflow AI Assistant**)가 사용자의 자연어 요구사항을 받아 노드·엣지를 자동으로 생성·수정한다. 단순 지시("HTTP 헤더 추가")뿐 아니라 모호하고 큰 요청("주문 취소 프로세스 추가")도 대화로 구체화해 완성한다. LLM은 [LLM Config](../4-nodes/3-ai/_product-overview.md#31-llm-프로바이더-관리)에 등록된 모델을 사용한다.
 
 ### 10.1 패널/접근성
 
@@ -222,7 +222,7 @@
 
 | ID | 요구사항 | 기준 |
 |----|----------|------|
-| ED-AI-32 | 단일 턴 LLM 호출 타임아웃 | [NF-AI-01](./6-phase2-ai.md#5-비기능-요구사항)에 따라 120초 |
+| ED-AI-32 | 단일 턴 LLM 호출 타임아웃 | [NF-AI-01](../4-nodes/3-ai/_product-overview.md#5-비기능-요구사항)에 따라 120초 |
 | ED-AI-33 | 한 턴당 tool-call 상한 | 16회. 초과 시 Assistant가 자동 종료 후 재시도 유도 |
 | ED-AI-34 | 토큰 사용량은 기존 `llm_usage_log`에 `workflow_id`·`workspace_id`와 함께 기록 | 필수 |
 

@@ -1,6 +1,6 @@
 # Spec: 스케줄 관리 화면
 
-> 관련 문서: [PRD 내비게이션](../../prd/1-navigation.md#33-schedule-스케줄) · [Spec 레이아웃](./_layout.md) · [데이터 모델 - Schedule](../1-data-model.md#29-schedule)
+> 관련 문서: [PRD 내비게이션](./_product-overview.md#33-schedule-스케줄) · [Spec 레이아웃](./_layout.md) · [데이터 모델 - Schedule](../1-data-model.md#29-schedule)
 
 ---
 
