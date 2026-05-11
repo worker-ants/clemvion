@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Controller,
   Get,
   Post,
@@ -48,7 +49,9 @@ import {
 } from './dto/embedding-probe.dto';
 import {
   DocumentDto,
+  KbEmbeddingStatsDto,
   KbReEmbedAcceptedDto,
+  KbRetryFailedAcceptedDto,
   KnowledgeBaseDto,
   RagSearchResultDto,
   ReEmbedAcceptedDto,
@@ -203,6 +206,66 @@ export class KnowledgeBaseController {
       documentCount,
       chainedGraphExtraction,
     } satisfies KbReEmbedAcceptedDto;
+  }
+
+  @Get(':id/embedding-stats')
+  @ApiOperation({
+    summary: '지식 베이스 임베딩 진행 통계',
+    description:
+      'KB 의 문서를 embedding_status 별로 집계해 완료/실패/진행 카운트를 반환합니다. ' +
+      'vector / graph 모드 무관하게 사용 가능합니다.',
+  })
+  @ApiParam({ name: 'id', description: '지식 베이스 UUID', format: 'uuid' })
+  @ApiOkWrappedResponse(KbEmbeddingStatsDto, {
+    description: '임베딩 진행 통계',
+  })
+  @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
+  @ApiNotFoundResponse({ description: '해당 지식 베이스를 찾을 수 없음' })
+  async embeddingStats(
+    @Param('id', ParseUUIDPipe) id: string,
+    @WorkspaceId() workspaceId: string,
+  ): Promise<KbEmbeddingStatsDto> {
+    return this.kbService.getEmbeddingStats(id, workspaceId);
+  }
+
+  @Post(':id/retry-failed')
+  @HttpCode(HttpStatus.ACCEPTED)
+  @Roles('editor')
+  @Throttle({ default: { limit: 3, ttl: 60_000 } })
+  @ApiOperation({
+    summary: '실패한 문서 일괄 재시도',
+    description:
+      '임베딩 또는 그래프 추출이 `failed` 상태로 끝난 문서들을 한 번에 재큐잉합니다. ' +
+      'scope=embedding 은 embedding_status=failed, scope=graph 는 graph_extraction_status=failed, ' +
+      'scope=all 은 둘 다 처리합니다. 재시도 카운터와 마지막 오류 메시지는 큐잉 직전 리셋됩니다. ' +
+      'KB 전체 잠금(reembed_status / reextract_status)에는 영향이 없습니다.',
+  })
+  @ApiParam({ name: 'id', description: '지식 베이스 UUID', format: 'uuid' })
+  @ApiAcceptedWrappedResponse(KbRetryFailedAcceptedDto, {
+    description: '실패 문서 재시도 큐잉 완료',
+  })
+  @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
+  @ApiForbiddenResponse({ description: 'editor 이상 권한 필요' })
+  @ApiNotFoundResponse({ description: '해당 지식 베이스를 찾을 수 없음' })
+  async retryFailed(
+    @Param('id', ParseUUIDPipe) id: string,
+    @WorkspaceId() workspaceId: string,
+    @Body() body: { scope?: 'embedding' | 'graph' | 'all' },
+  ): Promise<KbRetryFailedAcceptedDto> {
+    const scope = body?.scope ?? 'all';
+    if (!['embedding', 'graph', 'all'].includes(scope)) {
+      throw new BadRequestException({
+        code: 'INVALID_RETRY_SCOPE',
+        message: "scope must be 'embedding', 'graph', or 'all'",
+      });
+    }
+    const { embeddingRequeued, graphRequeued } =
+      await this.kbService.retryFailedDocuments(id, workspaceId, scope);
+    return {
+      message: 'Retry of failed documents started',
+      embeddingRequeued,
+      graphRequeued,
+    } satisfies KbRetryFailedAcceptedDto;
   }
 
   @Delete(':id')
