@@ -1,8 +1,8 @@
 # Flyway-based DB migration image. Build context must be the repo root.
-#   docker build -f backend/migrations/Dockerfile -t idea-workflow/migrate .
+#   docker build -f backend/migrations/Dockerfile -t clemvion/migrate .
 #
 # Usage (k8s Job or local):
-#   docker run --rm idea-workflow/migrate \
+#   docker run --rm clemvion/migrate \
 #     migrate \
 #     -url=jdbc:postgresql://<host>:5432/<db> \
 #     -user=<user> \

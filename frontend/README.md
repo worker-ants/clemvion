@@ -121,7 +121,7 @@ You can check out [the Next.js GitHub repository](https://github.com/vercel/next
 docker build -f frontend/Dockerfile \
   --build-arg NEXT_PUBLIC_API_URL=https://api.example.com/api \
   --build-arg NEXT_PUBLIC_WS_URL=https://api.example.com \
-  -t idea-workflow/frontend .
+  -t clemvion/frontend .
 ```
 
 ### 환경변수

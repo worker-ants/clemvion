@@ -1,6 +1,6 @@
 # Clemvion - Backend
 
-NestJS 기반 백엔드 API 서버입니다. Docker 이미지 태그(`idea-workflow/backend`)는 인프라 자산이므로 그대로 유지됩니다.
+NestJS 기반 백엔드 API 서버입니다.
 
 ## 실행
 
@@ -39,7 +39,7 @@ npm run start:dev
 
 ```bash
 # repo 루트에서
-docker build -f backend/Dockerfile -t idea-workflow/backend .
+docker build -f backend/Dockerfile -t clemvion/backend .
 ```
 
 - 컨테이너 포트: `EXPOSE 3011` (실제 바인딩은 `APP_PORT` env로 제어, k8s에서 override 가능)

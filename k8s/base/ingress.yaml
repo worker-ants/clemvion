@@ -17,9 +17,9 @@
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: idea-workflow-frontend
+  name: clemvion-frontend
   labels:
-    app.kubernetes.io/name: idea-workflow
+    app.kubernetes.io/name: clemvion
     app.kubernetes.io/component: frontend
   annotations:
     # haproxytech/kubernetes-ingress
@@ -31,7 +31,7 @@ spec:
   tls:
     - hosts:
         - app.example.com
-      secretName: idea-workflow-frontend-tls
+      secretName: clemvion-frontend-tls
   rules:
     - host: app.example.com
       http:
@@ -47,9 +47,9 @@ spec:
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: idea-workflow-backend
+  name: clemvion-backend
   labels:
-    app.kubernetes.io/name: idea-workflow
+    app.kubernetes.io/name: clemvion
     app.kubernetes.io/component: backend
   annotations:
     # haproxytech/kubernetes-ingress
@@ -63,7 +63,7 @@ spec:
   tls:
     - hosts:
         - api.example.com
-      secretName: idea-workflow-backend-tls
+      secretName: clemvion-backend-tls
   rules:
     - host: api.example.com
       http:
