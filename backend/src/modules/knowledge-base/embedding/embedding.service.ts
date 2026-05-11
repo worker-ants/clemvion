@@ -301,11 +301,12 @@ export class EmbeddingService {
     payload: Record<string, unknown>,
   ): void {
     try {
-      // Use workspace-level channel for KB events
-      this.websocketService.emitExecutionEvent(
-        `kb:${documentId}`,
-        event as never,
-        { documentId, ...payload },
+      // `kb:${documentId}` 채널로 직접 broadcast (V038 fix — 기존 emitExecutionEvent 는
+      // 채널을 `execution:` prefix 로 변환해 frontend 의 `kb:` subscribe 와 매칭 안 됐음).
+      this.websocketService.emitKbEvent(
+        documentId,
+        event as Parameters<typeof this.websocketService.emitKbEvent>[1],
+        payload,
       );
     } catch {
       // WebSocket emission is best-effort

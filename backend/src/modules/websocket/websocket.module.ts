@@ -5,6 +5,7 @@ import { WebsocketGateway } from './websocket.gateway';
 import { WebsocketService } from './websocket.service';
 import { ExecutionEngineModule } from '../execution-engine/execution-engine.module';
 import { ExecutionsModule } from '../executions/executions.module';
+import { KnowledgeBaseModule } from '../knowledge-base/knowledge-base.module';
 
 @Module({
   imports: [
@@ -20,6 +21,9 @@ import { ExecutionsModule } from '../executions/executions.module';
     }),
     forwardRef(() => ExecutionEngineModule),
     forwardRef(() => ExecutionsModule),
+    // Gateway 가 kb:${documentId} subscribe 시 KnowledgeBaseService.verifyDocumentOwnership 호출 —
+    // KB ↔ WS 양방향 의존이라 forwardRef 필요 (KB Module 가 이미 WebsocketModule 를 forwardRef import).
+    forwardRef(() => KnowledgeBaseModule),
   ],
   providers: [WebsocketGateway, WebsocketService],
   exports: [WebsocketService],

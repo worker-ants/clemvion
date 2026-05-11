@@ -93,6 +93,24 @@ function sanitizePayloadForWs(value: unknown, depth = 0): unknown {
   return result;
 }
 
+/**
+ * Knowledge Base 도메인 이벤트 — frontend `useKbEvents` 가 구독하는 12개 이벤트.
+ * 채널 명명규약: `kb:${documentId}`. (execution: 채널과 구분)
+ */
+export type KbEventType =
+  | 'document:embedding_started'
+  | 'document:embedding_progress'
+  | 'document:embedding_completed'
+  | 'document:embedding_error'
+  | 'document:embedding_retry'
+  | 'document:embedding_failed'
+  | 'document:graph_started'
+  | 'document:graph_progress'
+  | 'document:graph_completed'
+  | 'document:graph_error'
+  | 'document:graph_retry'
+  | 'document:graph_failed';
+
 @Injectable()
 export class WebsocketService {
   constructor(private readonly gateway: WebsocketGateway) {}
@@ -106,6 +124,26 @@ export class WebsocketService {
     const sanitizedPayload = sanitizePayloadForWs(payload);
     this.gateway.broadcastToChannel(channel, eventType, {
       executionId,
+      ...((sanitizedPayload && typeof sanitizedPayload === 'object'
+        ? sanitizedPayload
+        : { data: sanitizedPayload }) as Record<string, unknown>),
+      timestamp: new Date().toISOString(),
+    });
+  }
+
+  /**
+   * KB 도메인 이벤트 발송. EmbeddingService / GraphExtractionService 가 문서 처리 진행/완료/실패
+   * 시 호출. 채널 prefix 는 `kb:` 그대로 — `execution:` 으로 변환되지 않는다 (V038 fix).
+   */
+  emitKbEvent(
+    documentId: string,
+    eventType: KbEventType,
+    payload: Record<string, unknown>,
+  ): void {
+    const channel = `kb:${documentId}`;
+    const sanitizedPayload = sanitizePayloadForWs(payload);
+    this.gateway.broadcastToChannel(channel, eventType, {
+      documentId,
       ...((sanitizedPayload && typeof sanitizedPayload === 'object'
         ? sanitizedPayload
         : { data: sanitizedPayload }) as Record<string, unknown>),

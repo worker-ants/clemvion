@@ -13,11 +13,18 @@ import { JwtService } from '@nestjs/jwt';
 import { Public } from '../../common/decorators';
 import { ExecutionEngineService } from '../execution-engine/execution-engine.service';
 import { ExecutionsService } from '../executions/executions.service';
+import { KnowledgeBaseService } from '../knowledge-base/knowledge-base.service';
 import { ExecutionEventType } from './websocket.service';
 
 const MAX_SUBSCRIPTIONS_PER_CONNECTION = 20;
 
-const VALID_CHANNEL_PREFIXES = ['execution:', 'workflow:', 'notifications:'];
+// 'kb:' = Knowledge Base 문서 처리 진행 채널 (kb:${documentId})
+const VALID_CHANNEL_PREFIXES = [
+  'execution:',
+  'workflow:',
+  'notifications:',
+  'kb:',
+];
 
 function isValidChannel(channel: string): boolean {
   return VALID_CHANNEL_PREFIXES.some((prefix) => channel.startsWith(prefix));
@@ -47,6 +54,8 @@ export class WebsocketGateway
     private readonly executionEngineService: ExecutionEngineService,
     @Inject(forwardRef(() => ExecutionsService))
     private readonly executionsService: ExecutionsService,
+    @Inject(forwardRef(() => KnowledgeBaseService))
+    private readonly knowledgeBaseService: KnowledgeBaseService,
   ) {}
 
   handleConnection(client: Socket): void {
@@ -94,13 +103,13 @@ export class WebsocketGateway
   }
 
   @SubscribeMessage('subscribe')
-  handleSubscribe(
+  async handleSubscribe(
     @MessageBody() data: { channel: string },
     @ConnectedSocket() client: Socket,
-  ): {
+  ): Promise<{
     event: string;
     data: { success: boolean; channel?: string; error?: string };
-  } {
+  }> {
     const { channel } = data;
 
     if (!channel || !isValidChannel(channel)) {
@@ -126,6 +135,23 @@ export class WebsocketGateway
           error: `Maximum subscriptions (${MAX_SUBSCRIPTIONS_PER_CONNECTION}) reached`,
         },
       };
+    }
+
+    // `kb:${documentId}` 채널은 가입자 workspace 의 문서만 구독 허용.
+    // documentId UUID 추측으로 타 workspace 의 임베딩/그래프 진행 이벤트를 엿보는 것을 차단.
+    if (channel.startsWith('kb:')) {
+      const enriched = client as Socket & { workspaceId?: string };
+      const workspaceId = enriched.workspaceId ?? '';
+      const documentId = channel.slice('kb:'.length);
+      const allowed = await this.knowledgeBaseService
+        .verifyDocumentOwnership(documentId, workspaceId)
+        .catch(() => false);
+      if (!allowed) {
+        return {
+          event: 'subscribed',
+          data: { success: false, error: 'Not authorized for this document' },
+        };
+      }
     }
 
     // Detect first-time subscription so we only send the snapshot once. A

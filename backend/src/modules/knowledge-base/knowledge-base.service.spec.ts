@@ -736,6 +736,37 @@ describe('KnowledgeBaseService', () => {
     });
   });
 
+  describe('verifyDocumentOwnership', () => {
+    it('같은 workspace 의 문서 → true', async () => {
+      mockDataSource.query.mockResolvedValueOnce([{ id: 'd1' }]);
+      const result = await service.verifyDocumentOwnership('d1', 'ws-1');
+      expect(result).toBe(true);
+      expect(mockDataSource.query).toHaveBeenCalledWith(
+        expect.stringMatching(
+          /SELECT[\s\S]*FROM document[\s\S]*JOIN knowledge_base/,
+        ),
+        ['d1', 'ws-1'],
+      );
+    });
+
+    it('다른 workspace 의 문서 / 미존재 → false', async () => {
+      mockDataSource.query.mockResolvedValueOnce([]);
+      const result = await service.verifyDocumentOwnership(
+        'd-victim',
+        'ws-attacker',
+      );
+      expect(result).toBe(false);
+    });
+
+    it('빈 documentId / workspaceId 는 SELECT 없이 false', async () => {
+      const a = await service.verifyDocumentOwnership('', 'ws-1');
+      const b = await service.verifyDocumentOwnership('d1', '');
+      expect(a).toBe(false);
+      expect(b).toBe(false);
+      expect(mockDataSource.query).not.toHaveBeenCalled();
+    });
+  });
+
   describe('retryFailedDocuments', () => {
     it("scope='embedding': failed 문서만 UPDATE + addBulk", async () => {
       mockKbRepo.findOne.mockResolvedValue({

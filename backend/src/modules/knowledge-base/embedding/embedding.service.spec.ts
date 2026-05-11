@@ -68,6 +68,7 @@ describe('EmbeddingService - dimension consistency', () => {
     };
     mockWs = {
       emitExecutionEvent: jest.fn(),
+      emitKbEvent: jest.fn(),
     };
 
     mockDataSource = {
@@ -302,7 +303,7 @@ describe('EmbeddingService - dimension consistency', () => {
         }),
       );
       // retry 이벤트 emit 검증
-      const retryEvents = mockWs.emitExecutionEvent.mock.calls.filter(
+      const retryEvents = mockWs.emitKbEvent.mock.calls.filter(
         (c) => c[1] === 'document:embedding_retry',
       );
       expect(retryEvents.length).toBe(1);
@@ -331,7 +332,7 @@ describe('EmbeddingService - dimension consistency', () => {
           embeddingErrorMessage: expect.stringContaining('timed out'),
         }),
       );
-      const failedEvents = mockWs.emitExecutionEvent.mock.calls.filter(
+      const failedEvents = mockWs.emitKbEvent.mock.calls.filter(
         (c) => c[1] === 'document:embedding_failed',
       );
       expect(failedEvents.length).toBe(1);

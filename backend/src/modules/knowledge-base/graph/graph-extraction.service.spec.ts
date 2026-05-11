@@ -44,6 +44,7 @@ describe('GraphExtractionService', () => {
     };
     mockWs = {
       emitExecutionEvent: jest.fn(),
+      emitKbEvent: jest.fn(),
     };
 
     const txManager = {
@@ -254,7 +255,7 @@ describe('GraphExtractionService', () => {
           graphErrorMessage: null,
         }),
       );
-      const retryEvents = mockWs.emitExecutionEvent.mock.calls.filter(
+      const retryEvents = mockWs.emitKbEvent.mock.calls.filter(
         (c) => c[1] === 'document:graph_retry',
       );
       expect(retryEvents.length).toBe(1);
@@ -275,7 +276,7 @@ describe('GraphExtractionService', () => {
         (c) => c[1]?.graphExtractionStatus === 'failed',
       );
       expect(failedCalls.length).toBe(1);
-      const failedEvents = mockWs.emitExecutionEvent.mock.calls.filter(
+      const failedEvents = mockWs.emitKbEvent.mock.calls.filter(
         (c) => c[1] === 'document:graph_failed',
       );
       expect(failedEvents.length).toBe(1);
