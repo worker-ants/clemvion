@@ -116,9 +116,60 @@ export class DocumentDto {
 
   @ApiProperty({
     example: 'completed',
-    enum: ['pending', 'processing', 'completed', 'failed'],
+    enum: ['pending', 'processing', 'completed', 'error', 'failed'],
+    description:
+      "'error' = in-flight 재시도 중 일시 오류, 'failed' = 최대 재시도 소진 또는 비재시도성 오류로 인한 최종 실패",
   })
   embeddingStatus: string;
+
+  @ApiProperty({
+    example: 0,
+    description: '임베딩 재시도 누적 횟수 (성공 시 0 으로 리셋)',
+  })
+  embeddingRetryCount: number;
+
+  @ApiPropertyOptional({
+    nullable: true,
+    format: 'date-time',
+    description: '마지막 임베딩 시도 시각',
+  })
+  embeddingLastAttemptedAt?: string | null;
+
+  @ApiPropertyOptional({
+    nullable: true,
+    description: '마지막 임베딩 오류 메시지 (성공 시 NULL)',
+  })
+  embeddingErrorMessage?: string | null;
+
+  @ApiPropertyOptional({
+    nullable: true,
+    enum: ['pending', 'processing', 'completed', 'error', 'failed'],
+    description:
+      "graph 모드 KB 의 그래프 추출 진행 상태. vector 모드 문서는 NULL. 'error'·'failed' 의미는 embeddingStatus 와 동일.",
+  })
+  graphExtractionStatus?:
+    | 'pending'
+    | 'processing'
+    | 'completed'
+    | 'error'
+    | 'failed'
+    | null;
+
+  @ApiProperty({ example: 0, description: '그래프 추출 재시도 누적 횟수' })
+  graphRetryCount: number;
+
+  @ApiPropertyOptional({
+    nullable: true,
+    format: 'date-time',
+    description: '마지막 그래프 추출 시도 시각',
+  })
+  graphLastAttemptedAt?: string | null;
+
+  @ApiPropertyOptional({
+    nullable: true,
+    description: '마지막 그래프 추출 오류 메시지',
+  })
+  graphErrorMessage?: string | null;
 
   @ApiProperty({ example: 12 })
   chunkCount: number;
@@ -336,6 +387,20 @@ export class KbGraphStatsDto {
   })
   extractedDocumentCount: number;
 
+  @ApiProperty({
+    example: 1,
+    description:
+      '그래프 추출이 최종 실패한 문서 수 (graph_extraction_status = failed). UI 에서 재시도 버튼 활성화 조건.',
+  })
+  failedDocumentCount: number;
+
+  @ApiProperty({
+    example: 1,
+    description:
+      '아직 추출이 진행 중이거나 일시 오류 상태인 문서 수 (pending / processing / error)',
+  })
+  pendingDocumentCount: number;
+
   @ApiProperty({ example: 7, description: 'KB 의 총 문서 수' })
   totalDocumentCount: number;
 
@@ -345,4 +410,47 @@ export class KbGraphStatsDto {
     description: 'KB 전체 재추출 잠금 상태',
   })
   reextractStatus: 'idle' | 'in_progress';
+}
+
+/** KB 임베딩 진행 통계 응답 */
+export class KbEmbeddingStatsDto {
+  @ApiProperty({
+    example: 5,
+    description: 'embedding_status = completed 문서 수',
+  })
+  completedDocumentCount: number;
+
+  @ApiProperty({
+    example: 1,
+    description: 'embedding_status = failed 문서 수 (최종 실패)',
+  })
+  failedDocumentCount: number;
+
+  @ApiProperty({
+    example: 1,
+    description: 'pending / processing / error 문서 수 (진행 중 + 일시 오류)',
+  })
+  pendingDocumentCount: number;
+
+  @ApiProperty({ example: 7, description: 'KB 의 총 문서 수' })
+  totalDocumentCount: number;
+
+  @ApiProperty({
+    example: 'idle',
+    enum: ['idle', 'in_progress'],
+    description: 'KB 전체 재임베딩 잠금 상태',
+  })
+  reembedStatus: 'idle' | 'in_progress';
+}
+
+/** retry-failed 응답 */
+export class KbRetryFailedAcceptedDto {
+  @ApiProperty({ example: 'Retry of failed documents started' })
+  message: string;
+
+  @ApiProperty({ example: 2, description: '임베딩 재큐잉된 문서 수' })
+  embeddingRequeued: number;
+
+  @ApiProperty({ example: 1, description: '그래프 추출 재큐잉된 문서 수' })
+  graphRequeued: number;
 }

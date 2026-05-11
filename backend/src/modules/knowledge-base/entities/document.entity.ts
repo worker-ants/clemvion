@@ -9,6 +9,20 @@ import {
 } from 'typeorm';
 import { KnowledgeBase } from './knowledge-base.entity';
 
+export type EmbeddingStatus =
+  | 'pending'
+  | 'processing'
+  | 'completed'
+  | 'error'
+  | 'failed';
+
+export type GraphExtractionStatus =
+  | 'pending'
+  | 'processing'
+  | 'completed'
+  | 'error'
+  | 'failed';
+
 @Entity('document')
 export class Document {
   @PrimaryGeneratedColumn('uuid')
@@ -35,23 +49,46 @@ export class Document {
   @Column({ name: 'file_size', type: 'int', default: 0 })
   fileSize: number;
 
+  // 'error' = in-flight retry 중 일시 오류, 'failed' = 최종 실패.
   @Column({ name: 'embedding_status', length: 20, default: 'pending' })
-  embeddingStatus: string;
+  embeddingStatus: EmbeddingStatus;
+
+  @Column({ name: 'embedding_retry_count', type: 'int', default: 0 })
+  embeddingRetryCount: number;
+
+  @Column({
+    name: 'embedding_last_attempted_at',
+    type: 'timestamptz',
+    nullable: true,
+  })
+  embeddingLastAttemptedAt: Date | null;
+
+  @Column({ name: 'embedding_error_message', type: 'text', nullable: true })
+  embeddingErrorMessage: string | null;
 
   // graph 모드 KB 문서의 그래프 추출 진행 상태. vector 모드 문서에는 NULL.
   // graph 모드 KB 에 새 문서가 들어오면 EmbeddingService 가 graph_extraction_status 를
   // 'pending' 으로 set 한 뒤 graph-extraction 큐로 dispatch.
+  // 'error' = in-flight retry 중 일시 오류, 'failed' = 최종 실패.
   @Column({
     name: 'graph_extraction_status',
     type: 'text',
     nullable: true,
   })
-  graphExtractionStatus:
-    | 'pending'
-    | 'processing'
-    | 'completed'
-    | 'error'
-    | null;
+  graphExtractionStatus: GraphExtractionStatus | null;
+
+  @Column({ name: 'graph_retry_count', type: 'int', default: 0 })
+  graphRetryCount: number;
+
+  @Column({
+    name: 'graph_last_attempted_at',
+    type: 'timestamptz',
+    nullable: true,
+  })
+  graphLastAttemptedAt: Date | null;
+
+  @Column({ name: 'graph_error_message', type: 'text', nullable: true })
+  graphErrorMessage: string | null;
 
   @Column({ name: 'chunk_count', type: 'int', default: 0 })
   chunkCount: number;
