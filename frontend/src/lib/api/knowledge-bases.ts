@@ -26,6 +26,16 @@ export interface KnowledgeBaseData {
   updatedAt: string;
 }
 
+// 'error' = in-flight 재시도 중 일시 오류, 'failed' = 최대 재시도 소진 또는 비재시도성 오류로 인한 최종 실패
+export type DocumentEmbeddingStatus =
+  | "pending"
+  | "processing"
+  | "completed"
+  | "error"
+  | "failed";
+
+export type DocumentGraphExtractionStatus = DocumentEmbeddingStatus;
+
 export interface DocumentData {
   id: string;
   knowledgeBaseId: string;
@@ -33,8 +43,14 @@ export interface DocumentData {
   fileType: string;
   fileUrl: string;
   fileSize: number;
-  embeddingStatus: "pending" | "processing" | "completed" | "error";
-  graphExtractionStatus: "pending" | "processing" | "completed" | "error";
+  embeddingStatus: DocumentEmbeddingStatus;
+  embeddingRetryCount?: number;
+  embeddingLastAttemptedAt?: string | null;
+  embeddingErrorMessage?: string | null;
+  graphExtractionStatus: DocumentGraphExtractionStatus | null;
+  graphRetryCount?: number;
+  graphLastAttemptedAt?: string | null;
+  graphErrorMessage?: string | null;
   chunkCount: number;
   tags: string[];
   metadata: Record<string, unknown>;
@@ -46,8 +62,18 @@ export interface KbGraphStats {
   entityCount: number;
   relationCount: number;
   extractedDocumentCount: number;
+  failedDocumentCount: number;
+  pendingDocumentCount: number;
   totalDocumentCount: number;
   reextractStatus: "idle" | "in_progress";
+}
+
+export interface KbEmbeddingStats {
+  completedDocumentCount: number;
+  failedDocumentCount: number;
+  pendingDocumentCount: number;
+  totalDocumentCount: number;
+  reembedStatus: "idle" | "in_progress";
 }
 
 export type EntityType =
@@ -239,6 +265,32 @@ export const knowledgeBasesApi = {
       `/knowledge-bases/${kbId}/graph/stats`,
     );
     return unwrap<KbGraphStats>(response);
+  },
+
+  async getEmbeddingStats(kbId: string): Promise<KbEmbeddingStats> {
+    const response = await apiClient.get(
+      `/knowledge-bases/${kbId}/embedding-stats`,
+    );
+    return unwrap<KbEmbeddingStats>(response);
+  },
+
+  async retryFailed(
+    kbId: string,
+    scope: "embedding" | "graph" | "all" = "all",
+  ): Promise<{
+    message: string;
+    embeddingRequeued: number;
+    graphRequeued: number;
+  }> {
+    const response = await apiClient.post(
+      `/knowledge-bases/${kbId}/retry-failed`,
+      { scope },
+    );
+    return unwrap<{
+      message: string;
+      embeddingRequeued: number;
+      graphRequeued: number;
+    }>(response);
   },
 
   async getEntities(
