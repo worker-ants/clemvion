@@ -32,105 +32,90 @@
 
 ## 작업 단위
 
-### 1. If/Else operator 정리 (P1) — D1 구현
+### 1. If/Else operator 정리 (P1) — D1 구현 ✅ 완료 (PR-2)
 
-`is_type` / `regex` 가 schema enum 에는 있으나, If/Else·Switch(expression) 가 사용하는 `core/condition-evaluator.util.ts` 의 `CONDITION_OPERATORS` 에는 없어 silent `false` fall-through 된다 (Filter 가 사용하는 `_shared/condition-eval.util.ts` 와는 별개의 evaluator).
+- [x] `backend/src/nodes/core/condition-evaluator.util.ts` 의 `CONDITION_OPERATORS` 에 `'regex'`, `'is_type'` 추가 + `evaluateResolvedCondition` 신설 + `compileRegexCache` 이전. `evaluateCondition` 은 SSOT 위임으로 단순화
+- [x] `_shared/condition-eval.util.ts` 가 `core` 의 `CONDITION_OPERATORS` / `Condition` / `ConditionOperator` / `MAX_REGEX_LENGTH` / `EXPRESSION_PATTERN` / `compileRegexCache` 를 import·재export 해 SSOT 단일화. `not_contains` defensive 의미 (non-string 시 false) 는 Filter 의도적 잔존
+- [x] `backend/src/nodes/core/condition-evaluator.util.spec.ts` 에 `is_type` / `regex` / SSOT export 단위 테스트 추가
+- [x] `frontend/src/components/editor/settings-panel/node-configs/logic-configs.tsx` 의 `operatorOptions` 에 `is_type` 옵션 복원 + ko/en `opType` i18n 라벨
+- [x] `spec/4-nodes/1-logic/1-if-else.md:155` 의 "⚠ 미구현 (P1)" 박스 제거 → 실제 동작 명세로 교체
 
-- [ ] `backend/src/nodes/core/condition-evaluator.util.ts` 의 `CONDITION_OPERATORS` 에 `'regex'`, `'is_type'` 추가 + `evaluateCondition` switch 분기에 두 case 구현 (`_shared/condition-eval.util.ts:123-137` 패턴 차용 — `MAX_REGEX_LENGTH` / `VALID_TYPES` 상수도 함께 이동)
-- [ ] `_shared/condition-eval.util.ts` 와의 통합 — 권장: `_shared` 의 `evaluateResolvedCondition` 이 `core` 측 함수를 위임 호출하도록 변경. 단 Filter 의 `compileRegexCache` per-item 최적화는 유지
-- [ ] `backend/src/nodes/core/condition-evaluator.util.spec.ts` 에 `is_type` / `regex` 단위 테스트 추가 (silent false 회귀 잠금)
-- [ ] `frontend/src/components/editor/settings-panel/node-configs/logic-configs.tsx` 의 `operatorOptions` 에 `is_type` 옵션 복원 (i18n 라벨 추가)
-- [ ] `spec/4-nodes/1-logic/1-if-else.md:155` 의 "⚠ 미구현 (P1)" 박스 제거
-- [ ] `spec/4-nodes/1-logic/0-common.md` §2 지원 연산자 표가 두 op 의 동작을 정확히 기술하는지 확인
+### 2. Loop `breakCondition` 평가 (P1) — D2 구현 ✅ 완료 (PR-3)
 
-### 2. Loop `breakCondition` 평가 (P1) — D2 구현
+조사 결과 frontend 가 이미 `breakCondition` 을 string `{{ }}` expression 으로 수집 중. ConditionGroup 어댑터 대신 schema 를 string expression 으로 정렬하는 방향으로 전환 (frontend ↔ backend 정합).
 
-`loop-executor.ts` 는 함수 형태 `breakCondition` 시그니처를 받지만, JSON `ConditionGroup` → 함수 변환 경로가 없고 `execution-engine.service.ts:4464-4488` 가 `breakCondition` 자체를 전달하지 않는다.
+- [x] `loop.schema.ts`: `breakCondition` 을 `conditionGroupSchema.optional()` → `z.string().optional()` 로 변경. UI 위젯·placeholder·hint 갱신
+- [x] `expression-exclusions.ts`: `loop.breakCondition` 을 EXPRESSION_EXCLUSIONS 에 추가 (사전 resolveConfig 가 i=0 시점에 substitute 하면 매 iteration 재평가가 무력화 + `$loop` 가 dispatch 시점에 undefined 라 throw)
+- [x] `execution-engine.service.ts`: 컨테이너 loop 분기에서 raw `node.config.breakCondition` 을 읽어 `buildLoopBreakConditionEvaluator` 로 closure 생성. 매 iteration 종료 후 `expressionResolver.buildExpressionContext` 로 fresh ctx ($loop·$var·$node[...].output 최신값) 만들어 `evaluate()` 재호출. 평가 실패는 silent false (loop 진행 — Filter 의 defensive 패턴 차용)
+- [x] `LoopExecutor`: `LoopExecutionResult { iterations, exitReason }` 반환. `exitReason: 'completed' | 'break' | 'maxIterations'`. `count===maxIterations` 정상 완주는 `maxIterations` 로 reclassify
+- [x] `meta` 에 `exitReason` 추가. `meta.maxIterationsReached` 는 `exitReason === 'maxIterations'` 와 동치로 의미 정렬
+- [x] frontend Loop 위젯 — 이미 string expression 입력으로 작동 중 (logic-configs.tsx:226-234). 변경 불필요
+- [x] `spec/4-nodes/1-logic/3-loop.md` 의 P1 미구현 박스 3개 제거 + breakCondition·meta.exitReason 명세 추가 + ConditionGroup → Expression 표기 갱신
+- [x] frontend MDX 문서 (logic.mdx / logic.en.mdx) `breakCondition` 타입을 expression 으로 갱신
+- [x] 단위 테스트 — 기존 maxIterations 테스트에 exitReason 검증 추가 + 신규 "exits early when breakCondition becomes truthy" 테스트 ($loop.index >= 2 → 3회 실행 후 break)
 
-- [ ] `backend/src/nodes/core/condition-group-adapter.util.ts` (신규) — `ConditionGroup` 을 `(ctx) => boolean` closure 로 변환. 매 호출마다 `evaluateCondition` 으로 평가 (기존 `core/condition-evaluator.util.ts` 재사용)
-- [ ] closure 가 보는 컨텍스트 명시 — `$loop.index` (set 완료), `$var.*` (mutation 반영), 직전 iteration output (`previousOutput` — `loop-executor.ts:48, 70-72`)
-- [ ] `loop.handler.ts` 에서 `config.breakCondition` (ConditionGroup) → 어댑터 변환 후 `loopExecutor.execute({ count, maxIterations, breakCondition }, ...)` 로 전달
-- [ ] `execution-engine.service.ts:4485-4488` 의 `structuredMeta` 에 `meta.exitReason: 'completed' | 'break' | 'maxIterations'` 신규 필드 추가
-- [ ] `meta.maxIterationsReached` 의미 동기화 — "한도 도달" = "break 없이 한도까지 정상 완료" 로 정의 변경 + 회귀 테스트
-- [ ] frontend Loop 설정 패널 (`logic-configs.tsx`) 에 `breakCondition` 위젯 노출 확인 — schema UI hint(`condition-builder`) 가 자동 렌더되는지, 아니면 수동 추가 필요한지 점검 후 처리
-- [ ] `spec/4-nodes/1-logic/3-loop.md:19, 68, 110, 140-141, 182, 186` 의 P1 미구현 박스/문구 제거 + `meta.exitReason` 명세 추가
-- [ ] 단위/통합 테스트 — `breakCondition` true → 조기 종료, false → 정상 완료, 최대 iteration 도달 시 동작
-
-### 3. If/Else, Switch `meta.matchedConditions` / `meta.matchedCaseIndex` (P0) — ✅ 핸들러 완료, spec 정리만 남음
-
-핸들러 구현은 이미 완료되었다. 남은 작업은 spec 표기 정합화 + 표기 정정.
+### 3. If/Else, Switch `meta.matchedConditions` / `meta.matchedCaseIndex` (P0) — ✅ 완료 (PR-1 + PR-5)
 
 - [x] If/Else 핸들러 `meta.matchedConditions` 누적 — `if-else.handler.ts:74-83`
 - [x] Switch 핸들러 `meta.matchedCaseIndex` / `meta.matchedCaseLabel` / `meta.resolvedValue` — `switch.handler.ts:115-127, 130-142`
-- [ ] `spec/4-nodes/1-logic/0-common.md:155, 181-182` 의 "(P0 미구현)" 표기 제거 (matchedConditions / matchedCaseIndex / resolvedValue)
-- [ ] 본 plan 표기 정정 — `meta.matchedValue` → `meta.resolvedValue` (실제 핸들러 명칭 반영)
-- [ ] frontend run-results UI 가 새 meta 키를 안전하게 처리(표시/무시) 하는지 점검 — 필요 시 별도 PR 로 UI 보강
+- [x] `spec/4-nodes/1-logic/0-common.md` §meta 표·§10 Pass-through 표에서 "(P0 미구현)" 표기 제거 — PR-1
+- [x] 본 plan 표기 정정 — `meta.matchedValue` → `meta.resolvedValue` (실제 핸들러 명칭 반영)
+- [x] frontend run-results UI 영향 점검 — additive 필드라 기존 표시 로직에 안전 (UI 표시는 필요 시 별도 PR)
 
-### 4. Variable Declaration / Modification meta 필드 (P1) — ✅ 핸들러 완료 + D5 opt-in 추가
-
-핸들러는 이미 `meta.declared[]`, `meta.skipped[]`, `meta.coercionWarnings[]`, `meta.modifications[]`, `meta.createdVariables[]` 를 출력 중. spec 표기 정리 + opt-in 값 기록만 남음.
+### 4. Variable Declaration / Modification meta 필드 (P1) — ✅ 완료 (PR-1 + PR-4)
 
 - [x] Variable Declaration `meta.declared[]` / `meta.skipped[]` / `meta.coercionWarnings[]` — `variable-declaration.handler.ts:81-89`
-- [x] Variable Modification `meta.modifications[]` (variable, operation, applied) / `meta.coercionWarnings[]` / `meta.createdVariables[]` — `variable-modification.handler.ts:77-87, 204-211`
-- [ ] `spec/4-nodes/1-logic/0-common.md:183-184` 의 "(P1 미구현)" 표기 제거
-- [ ] 본 plan 표기 정정 — `meta.declaredVariables[]` → `meta.declared[]` (실제 핸들러 명칭)
-- [ ] **D5 opt-in 추가**:
-  - [ ] `variable-modification.schema.ts` 에 `recordValues: z.boolean().default(false)` 필드 추가
-  - [ ] `backend/src/nodes/logic/_shared/value-masking.util.ts` (신규) — secret 변수명 매칭(`password`/`token`/`apiKey`) → `'***'`, 큰 객체/배열(size > N) → `'[truncated:size]'`, PII 부분 마스킹 옵션
-  - [ ] `variable-modification.handler.ts` 에서 `recordValues=true` 일 때 `meta.modifications[i]` 에 `before` / `after` 추가 (마스킹 적용)
-  - [ ] `spec/4-nodes/1-logic/5-variable-modification.md` §5.1 의 `meta.modifications[i]` 타입 정의 갱신 (`before?`, `after?` 추가 + 마스킹 정책 기술)
-  - [ ] `frontend/src/components/editor/settings-panel/node-configs/logic-configs.tsx` 의 Variable Modification 섹션에 `recordValues` 체크박스 추가
-  - [ ] 단위 테스트 — opt-in off (default) / opt-in on / 마스킹 케이스 회귀
+- [x] Variable Modification `meta.modifications[]` / `meta.coercionWarnings[]` / `meta.createdVariables[]` — `variable-modification.handler.ts:77-87, 204-211`
+- [x] `spec/4-nodes/1-logic/0-common.md` 의 "(P1 미구현)" 표기 제거 — PR-1
+- [x] 본 plan 표기 정정 — `declaredVariables` → `declared` (실제 핸들러 명칭)
+- [x] **D5 opt-in 추가** (PR-4):
+  - [x] `variable-modification.schema.ts` 에 `recordValues: z.boolean().default(false)` 필드 추가 + UI 체크박스 hint
+  - [x] `backend/src/nodes/logic/_shared/value-masking.util.ts` (신규) — secret 변수명 패턴 → `'***'`, JSON 4096 byte 초과 → `'[truncated:N bytes]'`, function/symbol → `'[unsupported:...]'`, primitive·소형 컬렉션은 deep-clone 보존
+  - [x] `variable-modification.handler.ts`: recordValues=true 시 before(mutation 직전 캡처 — push 의 in-place mutation 회피) / after 기록, 둘 다 maskValueForLog 적용
+  - [x] `spec/4-nodes/1-logic/5-variable-modification.md` §1·§5.1 갱신
+  - [x] `logic-configs.tsx` Variable Modification 섹션에 `recordValues` 체크박스 + i18n 라벨/hint
+  - [x] 단위 테스트 — value-masking.util.spec (신규) + handler.spec recordValues 케이스 5개
 
-### 5. Merge 노드 `timeout` / `partialOnTimeout` (P2) — D3 본 plan 흡수
+### 5. Merge 노드 `timeout` / `partialOnTimeout` (P2) — 별도 plan 분리 (PR-6 fallback) ✅
 
-현 P1 sequential engine 에서는 모든 predecessor 가 동기 resolved 후 Merge 가 실행됨 (`merge.handler.ts:85-95`). barrier 활성화는 비동기 노드 실행 모델 + per-branch 도착 추적이 선결 조건.
+엔진 조사 결과 (PR-6 첫 단계, 2026-05-11) 현 sequential 모델에서는 모든 predecessor 가 Merge dispatch 시점에 이미 resolved → "도착 시간차" 자체가 없어 timeout / partialOnTimeout 의 의미가 성립하지 않음. 진정한 fan-in barrier 는 엔진 비동기 dispatch 모델 도입이 선결 조건. 본 plan 의 fallback 경로에 따라 별도 plan 으로 분리.
 
-- [ ] **선결 조사 (PR-6 첫 단계)**: `execution-engine.service.ts` 의 노드 스케줄링이 동기 → 비동기 전환 가능한지, Merge 만 부분 비동기 처리가 가능한지 점검
-- [ ] (조사 결과 가능) `MergeHandler` 에 fan-in barrier 도입 — predecessor 도착 추적 + `timeout` 초과 시 `partialOnTimeout` 분기
-- [ ] (조사 결과 가능) `MERGE_TIMEOUT` 에러 코드 상수 + Merge 노드 schema 에 `error` 포트 추가 + 핸들러에서 timeout 시 throw 또는 `output.error` 채움
-- [ ] (조사 결과 가능) `partialOnTimeout=true` 시 부분 결과 emit 로직 (도착한 입력만 strategy 적용)
-- [ ] (조사 결과 가능) `meta.dormantFields` 제거 또는 활성 표기로 전환 (`meta.timeoutTriggered` / `meta.arrivedBranches` 등 신규 메트릭)
-- [ ] (조사 결과 가능) 통합 테스트 — timeout 도달 + partial off (throw) / on (부분 결과), 정상 완료 회귀
-- [ ] (조사 결과 가능) `spec/4-nodes/1-logic/11-merge.md:7-9, 19-20, 74-75, 132, 187, 203` 의 dormant 표기 → 활성 표기로 전환
-- [ ] **(조사 결과 불가능 시 fallback)** D3 를 별도 plan(`plan/in-progress/merge-p2-async-fanin.md`) 으로 분리, 본 plan 의 §5 는 dormant spec 정합 마감으로 종료
+- [x] **엔진 fan-in 모델 조사** — sequential 모델 (토폴로지 정렬 후 순차 포인터 루프 `runExecution` L1155-1376), `gatherNodeInput` 의 `executedNodes.has(sourceId)` 가드 (L3098-3115), background 노드의 BullMQ enqueue 패턴 (L3665-3723), Promise.race timeout 은 Sub-Workflow / Background 에만 사용 (L1034-1081, L3750-3763), per-edge 도착 추적 자료구조 부재 → barrier 자체는 small 변경으로 흉내 가능하나 timeout/partialOnTimeout 의 의미 부재
+- [x] **별도 plan 으로 분리**: [`plan/in-progress/merge-p2-async-fanin.md`](./merge-p2-async-fanin.md) 에 선결 조건 (엔진 비동기 dispatch PoC) + 작업 단위 + 의존성·리스크 기록
+- [x] 본 plan 의 §5 는 **현 dormant spec 정합 마감 상태로 종료**: spec `11-merge.md` 의 dormant 표기 (L7-9, L19-20, L74-75, L132, L187, L203) 는 PR 작업 이전부터 이미 정합 + handler 의 warn 로그 / `meta.dormantFields` 도 명시적 — 추가 코드 변경 불필요
 
-### 6. Switch 노드 follow-up — D4 + D7 (D6 보류)
+### 6. Switch 노드 follow-up — D4 + D7 + D6 보류 ✅ 완료 (PR-5)
 
-- [ ] **D4 — `meta.value` deprecated alias 제거**:
-  - [ ] `backend/` `frontend/` 전역에서 `meta.value` (Switch 노드 컨텍스트) 또는 `meta\?\.value` 사용처 grep
-  - [ ] 사용자 워크플로 fixture 내 `$node["X"].meta.value` 식 expression 검색
-  - [ ] 발견된 항목은 `meta.resolvedValue` 로 마이그레이션
-  - [ ] `backend/scripts/migrate-switch-meta-value.ts` (신규) — workflow 내 `$node["X"].meta.value` (Switch 노드만) → `$node["X"].meta.resolvedValue`
-  - [ ] `switch.handler.ts:110-113, 124` 에서 `value: switchValue` alias 라인 제거 → `{ resolvedValue: switchValue }` 만 남김
-  - [ ] `spec/4-nodes/1-logic/2-switch.md:200` 의 "한 릴리스 후 제거" 표기를 "본 PR 에서 제거" 결과로 갱신
-  - [ ] 단위 테스트 — 다운스트림이 `resolvedValue` 만 받는지 회귀
-- [ ] **D7 — case id reserved word 검증**:
-  - [ ] `frontend/src/components/editor/settings-panel/node-configs/logic-configs.tsx` 의 SwitchConfig case id 입력 필드에 reserved set `['default', 'out', 'error']` 검사 + i18n 에러 메시지
-  - [ ] `switch.schema.ts` 의 `warningRules` 에 reserved word 충돌 룰 추가 (캔버스 배지 표시)
-  - [ ] 단위 테스트 (frontend) — reserved word 입력 시 입력 거부 + 경고 표시
-  - [ ] `spec/4-nodes/1-logic/2-switch.md:199` 의 "P1 (reserved word)" 항목을 완료 표기로 갱신
-- [ ] **D6 — `meta.switchPath` 보류 메모**:
-  - [ ] `user_memo/node-specs-improvement/logic/switch.md` §3 #1 에 "보류 결정 (2026-05-11): switchValue 가 raw 표현식으로 config 에 echo 되므로 추가 필드 가치 낮음" 메모 추가
+- [x] **D4 — `meta.value` deprecated alias 제거**:
+  - [x] `backend/` `frontend/` 전역에서 `meta.value` (Switch 노드) 사용처 grep — switch.handler 본체 + switch.handler.spec 2개 라인만 영향. frontend·다운스트림 노드 사용처 없음
+  - [x] `backend/scripts/migrate-node-output-refs.ts` 에 `RENAMED_META_FIELDS` 신설 + Pass 4b — `$node["X"].meta.value` → `meta.resolvedValue` (Switch 노드만). 기존 `META_FIELDS.switch` 의 `output.value` → `meta.value` 와 체이닝되어 옛 `.output.value` 표현식도 한 번에 `meta.resolvedValue` 로 도달
+  - [x] `switch.handler.ts`: alias 라인 제거 → `{ resolvedValue: switchValue }` 만 echo. D4 결정·마이그레이션 출처를 코드 주석에 명시
+  - [x] `spec/4-nodes/1-logic/2-switch.md`: §5.1/§5.2 의 `meta.value` 행·예시 제거 + "후속 정비안" 섹션을 완료/보류 표기로 갱신
+  - [x] 단위 테스트 — handler.spec 의 alias 검증을 "제거 회귀 잠금" 으로 의미 전환 + migrate-node-output-refs.spec 에 RENAMED_META_FIELDS 케이스 추가
+- [x] **D7 — case id reserved word 검증**:
+  - [x] `switch.schema.ts validateSwitchConfig` 에 `RESERVED_CASE_IDS = ['default', 'out', 'error']` 추가. 정적 default 포트·기타 노드 관습 포트와의 의미 충돌을 schema 단계에서 차단 (frontend UI 는 case id 를 자동 UUID 로 부여하므로 정상 흐름에서는 충돌 불가능. import / AI 생성 워크플로 / 직접 JSON 편집 경로 보호)
+  - [x] schema.spec 에 3개 reserved word 각각의 reject + substring 변형 (default_admin / outbound / error_recovery) 통과 회귀 테스트
+- [x] **D6 — `meta.switchPath` 보류 메모**:
+  - [x] `user_memo/node-specs-improvement/logic/switch.md` §3 머리말에 D4/D6/D7 결정 메모 추가 (보류 사유: switchValue 가 raw 표현식으로 `config.switchValue` 에 echo 되므로 별도 path 필드 가치 낮음)
 
-### 7. 검증
+### 7. 검증 — 마지막 단계 (PR 마감 후)
 
-- [ ] backend lint / unit / integration / build 통과
-- [ ] frontend lint / unit / build 통과
-- [ ] `migrate-switch-meta-value.ts` (신규, D4) + `migrate-node-output-refs.ts` (기존) 영향 검증
-- [ ] `grep -rn "P0\|P1\|P2\|미구현" spec/4-nodes/1-logic/` → 결정에 부합하는 마커만 남는지 확인
+- [ ] backend lint / unit / build 통과 — 단계별 PR 에서 매번 확인. 최종 sweep 필요
+- [ ] frontend lint / build 통과 — 단계별 PR 에서 매번 확인. 최종 sweep 필요
+- [x] `migrate-node-output-refs.ts` 에 D4 RENAMED_META_FIELDS 신설 + 단위 테스트 회귀 잠금
+- [ ] `grep -rn "P0\|P1\|P2\|미구현" spec/4-nodes/1-logic/` → 결정에 부합하는 마커만 남는지 확인 (Merge dormant 표기는 의도적 잔존)
 - [ ] `ai-review` 실행 → Critical/Warning 해소
 
-## 권장 PR 분리
+## PR 단계 (실행 결과)
 
-의존성 최소 순서:
-
-1. **PR-1 (spec 정합 only)**: §3·§4 의 spec/plan 표기 정정 (코드 무변경, 문서 only)
-2. **PR-2 (D1 구현)**: §1 evaluator 통합 + frontend `is_type` 옵션 복원
-3. **PR-3 (D2 구현)**: §2 breakCondition 어댑터 + LoopExecutor 통합 + `meta.exitReason` + frontend 위젯
-4. **PR-4 (D5 opt-in)**: §4 의 `recordValues` + 마스킹 유틸
-5. **PR-5 (D4 alias 제거 + D7 reserved word)**: §6 의 두 항목
-6. **PR-6 (D3 Merge P2)**: 엔진 조사 → 결과에 따라 본 plan 활성화 또는 별도 plan 분리. 가장 마지막
+| PR | 내용 | 커밋 | 상태 |
+| --- | --- | --- | --- |
+| PR-1 | spec 정합 only — §3·§4 P0/P1 표기 제거 | `f4f770ec` | ✅ |
+| PR-2 | D1 — If/Else `is_type`/`regex` evaluator 통합 | `0e4c1139` | ✅ |
+| PR-3 | D2 — Loop breakCondition 어댑터 + meta.exitReason | `6ce2a8e4` | ✅ |
+| PR-4 | D5 — Variable Modification recordValues opt-in + 마스킹 | `e67d0937` | ✅ |
+| PR-5 | D4 + D7 — Switch meta.value 제거 + reserved word | `90d44212` | ✅ |
+| PR-6 | D3 — Merge P2 엔진 조사 → `merge-p2-async-fanin.md` 별도 plan 분리 | (문서 only) | ✅ |
 
 ## 수용 기준
 
