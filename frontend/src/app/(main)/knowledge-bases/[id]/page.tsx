@@ -12,6 +12,12 @@ import {
 } from "@/lib/api/knowledge-bases";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { ConfirmModal } from "@/components/ui/confirm-modal";
 import {
   Dialog,
@@ -789,10 +795,49 @@ export default function KnowledgeBaseDetailPage({
                             {formatFileSize(doc.fileSize)}
                           </td>
                           <td className="px-4 py-3">
-                            <Badge variant={status.variant}>
-                              <span className="mr-1">{status.icon}</span>
-                              {t(status.labelKey)}
-                            </Badge>
+                            {(doc.embeddingRetryCount ?? 0) > 0 ||
+                            doc.embeddingErrorMessage ? (
+                              <TooltipProvider delayDuration={200}>
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <span className="inline-block cursor-help">
+                                      <Badge variant={status.variant}>
+                                        <span className="mr-1">
+                                          {status.icon}
+                                        </span>
+                                        {t(status.labelKey)}
+                                      </Badge>
+                                    </span>
+                                  </TooltipTrigger>
+                                  <TooltipContent
+                                    side="top"
+                                    className="max-w-xs"
+                                  >
+                                    {(doc.embeddingRetryCount ?? 0) > 0 && (
+                                      <div className="text-xs font-medium">
+                                        {t("knowledgeBases.retryAttemptInfo", {
+                                          count:
+                                            doc.embeddingRetryCount ?? 0,
+                                        })}
+                                      </div>
+                                    )}
+                                    {doc.embeddingErrorMessage && (
+                                      <div className="mt-1 text-xs">
+                                        <span className="font-medium">
+                                          {t("knowledgeBases.lastError")}:
+                                        </span>{" "}
+                                        {doc.embeddingErrorMessage}
+                                      </div>
+                                    )}
+                                  </TooltipContent>
+                                </Tooltip>
+                              </TooltipProvider>
+                            ) : (
+                              <Badge variant={status.variant}>
+                                <span className="mr-1">{status.icon}</span>
+                                {t(status.labelKey)}
+                              </Badge>
+                            )}
                           </td>
                           <td className="px-4 py-3">{doc.chunkCount}</td>
                           <td className="px-4 py-3">

@@ -29,9 +29,17 @@ const CHUNK_LLM_CONCURRENCY = 3;
 // 청크별 LLM 호출에 적용할 timeout. JSON schema 응답이라 embedding 보다 길게.
 const GRAPH_CHUNK_TIMEOUT_MS = 90_000;
 
-// 자동 재시도 설정 — 임베딩과 동일 (baseDelayMs * 4^i → 1s, 4s, 16s).
+// 자동 재시도 설정 — 임베딩과 동일 (baseDelayMs * 4^i → 1s, 4s, 16s + ±30% jitter).
 const GRAPH_MAX_RETRIES = 3;
 const GRAPH_BASE_DELAY_MS = 1_000;
+// error_message 컬럼 길이 cap — provider 비정상 응답 시 스토리지 폭발 방지.
+const ERROR_MESSAGE_MAX_LEN = 2_000;
+
+function capErrorMessage(message: string): string {
+  return message.length > ERROR_MESSAGE_MAX_LEN
+    ? message.slice(0, ERROR_MESSAGE_MAX_LEN)
+    : message;
+}
 
 // LLM 출력 길이 제한 — 악의적/오작동 LLM 이 거대 문자열을 반환할 때 스토리지 DoS 방지.
 const MAX_NAME_LEN = 200;
@@ -111,43 +119,44 @@ export class GraphExtractionService {
     }
 
     try {
-      await retryWithBackoff(() => this.doExtract(documentId, kb.id), {
+      await retryWithBackoff(() => this.doExtract(documentId, kb), {
         maxRetries: GRAPH_MAX_RETRIES,
         baseDelayMs: GRAPH_BASE_DELAY_MS,
         isRetryable: isRetryableLlmError,
-        onAttempt: async (idx, err) => {
-          const retryable = isRetryableLlmError(err);
-          const willRetry = retryable && idx < GRAPH_MAX_RETRIES;
-          const safe = sanitizeLlmErrorMessage(
-            err instanceof Error ? err.message : String(err),
+        onAttempt: async (idx, err, willRetry) => {
+          const safe = capErrorMessage(
+            sanitizeLlmErrorMessage(
+              err instanceof Error ? err.message : String(err),
+            ),
           );
           this.logger.warn(
             `Graph extraction attempt ${idx + 1} failed for document ${documentId}` +
               (willRetry ? ' — scheduling retry' : ' — final failure') +
               `: ${safe}`,
           );
-          await this.documentRepository.update(documentId, {
-            graphExtractionStatus: 'error',
-            graphErrorMessage: safe,
-            graphLastAttemptedAt: new Date(),
-          });
           await this.documentRepository.increment(
             { id: documentId },
             'graphRetryCount',
             1,
           );
           if (willRetry) {
+            await this.documentRepository.update(documentId, {
+              graphExtractionStatus: 'error',
+              graphErrorMessage: safe,
+              graphLastAttemptedAt: new Date(),
+            });
             this.emitEvent(documentId, 'document:graph_retry', {
               attempt: idx + 1,
               maxAttempts: GRAPH_MAX_RETRIES + 1,
               error: safe,
             });
           }
+          // willRetry=false: outer catch 가 곧 'failed' 로 단일 UPDATE → 이중 DB 쓰기 회피
         },
       });
     } catch (err) {
       const rawMessage = err instanceof Error ? err.message : String(err);
-      const safeMessage = sanitizeLlmErrorMessage(rawMessage);
+      const safeMessage = capErrorMessage(sanitizeLlmErrorMessage(rawMessage));
       this.logger.error(
         `Graph extraction failed permanently for document ${documentId}: ${rawMessage}`,
       );
@@ -165,16 +174,17 @@ export class GraphExtractionService {
   // 본 추출 본체 — retryWithBackoff 안에서 idempotent 하게 호출됨.
   // (앞 단계의 chunk_entity DELETE 가 매 attempt 마다 수행되어 부분 실패 후에도
   //  같은 KB·entity dedup INSERT 가 안전하게 누적됨.)
+  // KB 객체는 외부에서 한 번 fetch 한 결과를 주입받아 재시도마다 추가 SELECT 를 피한다.
   private async doExtract(
     documentId: string,
-    knowledgeBaseId: string,
+    kb: KnowledgeBase,
   ): Promise<void> {
     await this.documentRepository.update(documentId, {
       graphExtractionStatus: 'processing',
       graphLastAttemptedAt: new Date(),
     });
     this.emitEvent(documentId, 'document:graph_started', {
-      knowledgeBaseId,
+      knowledgeBaseId: kb.id,
     });
 
     // 재추출 안전성을 위해 본 문서의 기존 chunk_entity 매핑을 먼저 제거.
@@ -203,14 +213,6 @@ export class GraphExtractionService {
       return;
     }
 
-    const kb = await this.kbRepository.findOne({
-      where: { id: knowledgeBaseId },
-    });
-    if (!kb) {
-      throw new Error(
-        `Knowledge base ${knowledgeBaseId} not found for document ${documentId}`,
-      );
-    }
     const llmConfig = await this.llmService.resolveConfig(
       kb.extractionLlmConfigId ?? undefined,
       kb.workspaceId,
@@ -278,7 +280,9 @@ export class GraphExtractionService {
         temperature: 0,
       },
       undefined,
-      { timeoutMs: GRAPH_CHUNK_TIMEOUT_MS },
+      // disableInnerRetry: 외부 retryWithBackoff 가 재시도를 통제하므로 LlmService 내부의
+      // rate-limit-only withRetry 와 겹쳐 LLM 호출이 비선형 증폭되는 것을 막는다.
+      { timeoutMs: GRAPH_CHUNK_TIMEOUT_MS, disableInnerRetry: true },
     );
 
     if (!result.content) {

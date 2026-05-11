@@ -194,6 +194,116 @@ describe('GraphExtractionService', () => {
     expect(entityInserts.length).toBe(0);
   });
 
+  describe('retry & failure', () => {
+    let randomSpy: jest.SpyInstance;
+    beforeEach(() => {
+      jest.useFakeTimers();
+      randomSpy = jest.spyOn(Math, 'random').mockReturnValue(0);
+    });
+    afterEach(() => {
+      randomSpy.mockRestore();
+      jest.useRealTimers();
+    });
+
+    function setupGraphKb() {
+      mockDocRepo.findOne.mockResolvedValue({
+        id: 'd1',
+        knowledgeBaseId: 'kb-1',
+        metadata: {},
+      });
+      mockKbRepo.findOne.mockResolvedValue({
+        id: 'kb-1',
+        workspaceId: 'ws-1',
+        ragMode: 'graph',
+        extractionLlmConfigId: null,
+      });
+      mockChunkRepo.find.mockResolvedValue([{ id: 'c1', content: 'x' }]);
+    }
+
+    it('첫 시도 timeout 후 2차에서 성공 → completed + retry_count 리셋', async () => {
+      setupGraphKb();
+      mockLlm.chat
+        .mockRejectedValueOnce(new Error('Request timed out after 90000ms'))
+        .mockResolvedValueOnce({
+          content: JSON.stringify({
+            entities: [{ name: 'a', displayName: 'A', type: 'concept' }],
+            relations: [],
+          }),
+          usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 },
+          model: 'gpt-4o-mini',
+          finishReason: 'stop',
+        });
+
+      const promise = service.extractDocument('d1');
+      await jest.advanceTimersByTimeAsync(2_000); // 1s backoff + jitter 여유
+      await promise;
+
+      expect(mockDocRepo.increment).toHaveBeenCalledWith(
+        { id: 'd1' },
+        'graphRetryCount',
+        1,
+      );
+      const completedCalls = mockDocRepo.update.mock.calls.filter(
+        (c) => c[1]?.graphExtractionStatus === 'completed',
+      );
+      expect(completedCalls.length).toBeGreaterThan(0);
+      expect(completedCalls[completedCalls.length - 1][1]).toEqual(
+        expect.objectContaining({
+          graphExtractionStatus: 'completed',
+          graphRetryCount: 0,
+          graphErrorMessage: null,
+        }),
+      );
+      const retryEvents = mockWs.emitExecutionEvent.mock.calls.filter(
+        (c) => c[1] === 'document:graph_retry',
+      );
+      expect(retryEvents.length).toBe(1);
+    });
+
+    it('timeout 3회 연속 → failed + document:graph_failed', async () => {
+      setupGraphKb();
+      mockLlm.chat.mockRejectedValue(new Error('Request timed out'));
+
+      const promise = service.extractDocument('d1');
+      // backoff 1s + 4s + 16s (+ jitter 여유)
+      await jest.advanceTimersByTimeAsync(2_000);
+      await jest.advanceTimersByTimeAsync(6_000);
+      await jest.advanceTimersByTimeAsync(22_000);
+      await promise;
+
+      const failedCalls = mockDocRepo.update.mock.calls.filter(
+        (c) => c[1]?.graphExtractionStatus === 'failed',
+      );
+      expect(failedCalls.length).toBe(1);
+      const failedEvents = mockWs.emitExecutionEvent.mock.calls.filter(
+        (c) => c[1] === 'document:graph_failed',
+      );
+      expect(failedEvents.length).toBe(1);
+    });
+
+    it('chunk_entity 정리 — 매 attempt 진입 시 idempotency 보장', async () => {
+      setupGraphKb();
+      mockLlm.chat
+        .mockRejectedValueOnce(new Error('Request timed out'))
+        .mockResolvedValueOnce({
+          content: JSON.stringify({ entities: [], relations: [] }),
+          usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 },
+          model: 'gpt-4o-mini',
+          finishReason: 'stop',
+        });
+
+      const promise = service.extractDocument('d1');
+      await jest.advanceTimersByTimeAsync(2_000);
+      await promise;
+
+      // 1차 + 2차 = 2회 DELETE FROM chunk_entity
+      const deletes = mockDataSource.query.mock.calls.filter((c) =>
+        String(c[0]).startsWith('DELETE FROM chunk_entity'),
+      );
+      expect(deletes.length).toBe(2);
+    });
+  });
+
   it('drops relations that reference entities outside the response', async () => {
     mockDocRepo.findOne.mockResolvedValue({
       id: 'd1',

@@ -1,0 +1,213 @@
+{
+  "timestamp": "2026-05-11T10:38:02.707652",
+  "files": [
+    {
+      "file_path": "/Volumes/project/private/clemvion/backend/migrations/V037__kb_retry_failed_status.conf",
+      "change_type": "Review",
+      "file_extension": "conf"
+    },
+    {
+      "file_path": "/Volumes/project/private/clemvion/backend/migrations/V037__kb_retry_failed_status.sql",
+      "change_type": "Review",
+      "file_extension": "sql"
+    },
+    {
+      "file_path": "/Volumes/project/private/clemvion/backend/src/modules/knowledge-base/dto/responses/knowledge-base-response.dto.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/clemvion/backend/src/modules/knowledge-base/embedding/embedding.service.spec.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/clemvion/backend/src/modules/knowledge-base/embedding/embedding.service.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/clemvion/backend/src/modules/knowledge-base/entities/document.entity.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/clemvion/backend/src/modules/knowledge-base/graph/graph-extraction.service.spec.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/clemvion/backend/src/modules/knowledge-base/graph/graph-extraction.service.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/clemvion/backend/src/modules/knowledge-base/knowledge-base.controller.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/clemvion/backend/src/modules/knowledge-base/knowledge-base.module.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/clemvion/backend/src/modules/knowledge-base/knowledge-base.service.spec.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/clemvion/backend/src/modules/knowledge-base/knowledge-base.service.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/clemvion/backend/src/modules/knowledge-base/queues/stuck-document-recovery.service.spec.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/clemvion/backend/src/modules/knowledge-base/queues/stuck-document-recovery.service.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/clemvion/backend/src/modules/knowledge-base/utils/retry-with-backoff.util.spec.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/clemvion/backend/src/modules/knowledge-base/utils/retry-with-backoff.util.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/clemvion/backend/src/modules/llm/llm.service.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/clemvion/frontend/src/app/(main)/knowledge-bases/[id]/page.tsx",
+      "change_type": "Review",
+      "file_extension": "tsx"
+    },
+    {
+      "file_path": "/Volumes/project/private/clemvion/frontend/src/lib/api/knowledge-bases.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/clemvion/frontend/src/lib/i18n/dict/en.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/clemvion/frontend/src/lib/i18n/dict/ko.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/clemvion/frontend/src/lib/websocket/use-kb-events.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/clemvion/plan/in-progress/rag-kb-retry-failure-recovery.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "/Volumes/project/private/clemvion/prd/9-graph-rag.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "/Volumes/project/private/clemvion/spec/1-data-model.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "/Volumes/project/private/clemvion/spec/2-navigation/5-knowledge-base.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "/Volumes/project/private/clemvion/spec/5-system/10-graph-rag.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "/Volumes/project/private/clemvion/spec/5-system/8-embedding-pipeline.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    }
+  ],
+  "total_elapsed_seconds": 434.92,
+  "agents": [
+    {
+      "name": "maintainability",
+      "status": "success",
+      "elapsed_seconds": 47.31
+    },
+    {
+      "name": "documentation",
+      "status": "success",
+      "elapsed_seconds": 60.53
+    },
+    {
+      "name": "api_contract",
+      "status": "success",
+      "elapsed_seconds": 83.28
+    },
+    {
+      "name": "dependency",
+      "status": "success",
+      "elapsed_seconds": 85.72
+    },
+    {
+      "name": "testing",
+      "status": "success",
+      "elapsed_seconds": 90.89
+    },
+    {
+      "name": "architecture",
+      "status": "success",
+      "elapsed_seconds": 91.97
+    },
+    {
+      "name": "database",
+      "status": "success",
+      "elapsed_seconds": 92.21
+    },
+    {
+      "name": "security",
+      "status": "success",
+      "elapsed_seconds": 98.27
+    },
+    {
+      "name": "scope",
+      "status": "success",
+      "elapsed_seconds": 111.74
+    },
+    {
+      "name": "performance",
+      "status": "success",
+      "elapsed_seconds": 114.71
+    },
+    {
+      "name": "side_effect",
+      "status": "success",
+      "elapsed_seconds": 122.44
+    },
+    {
+      "name": "concurrency",
+      "status": "success",
+      "elapsed_seconds": 161.2
+    },
+    {
+      "name": "requirement",
+      "status": "success",
+      "elapsed_seconds": 216.78
+    }
+  ]
+}

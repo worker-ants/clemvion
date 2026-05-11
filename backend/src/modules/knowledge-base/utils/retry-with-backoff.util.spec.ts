@@ -24,7 +24,7 @@ describe('retryWithBackoff', () => {
     expect(onAttempt).not.toHaveBeenCalled();
   });
 
-  it('재시도성 오류는 백오프 1s / 4s / 16s 로 3회 재시도', async () => {
+  it('재시도성 오류는 백오프 1s / 4s / 16s 로 3회 재시도 (jitter 0 고정)', async () => {
     const err = new Error('Request timed out after 60000ms');
     const fn = jest
       .fn<Promise<string>, []>()
@@ -38,6 +38,7 @@ describe('retryWithBackoff', () => {
       maxRetries: 3,
       baseDelayMs: 1000,
       onAttempt,
+      randomFn: () => 0, // jitter 비활성 — 1.0x 곱
     });
 
     // 1차 시도 (즉시)
@@ -64,6 +65,63 @@ describe('retryWithBackoff', () => {
     expect(onAttempt.mock.calls[2][0]).toBe(2);
   });
 
+  it('jitter random=1 이면 backoff 가 1.3x 로 늘어남', async () => {
+    const err = new Error('Request timed out');
+    const fn = jest
+      .fn<Promise<string>, []>()
+      .mockRejectedValueOnce(err)
+      .mockResolvedValueOnce('ok');
+
+    const promise = retryWithBackoff(fn, {
+      maxRetries: 3,
+      baseDelayMs: 1000,
+      randomFn: () => 1, // 최대 jitter — 1300ms 까지 늘어남
+    });
+
+    // 1300ms 직전엔 두 번째 호출 안 됨
+    await jest.advanceTimersByTimeAsync(1299);
+    expect(fn).toHaveBeenCalledTimes(1);
+    await jest.advanceTimersByTimeAsync(1);
+    expect(fn).toHaveBeenCalledTimes(2);
+    await expect(promise).resolves.toBe('ok');
+  });
+
+  it('maxRetries=0 이면 fn 이 1회만 호출되고 즉시 throw', async () => {
+    const err = new Error('Request timed out');
+    const fn = jest.fn<Promise<string>, []>().mockRejectedValue(err);
+    const onAttempt = jest.fn();
+
+    await expect(
+      retryWithBackoff(fn, {
+        maxRetries: 0,
+        baseDelayMs: 1000,
+        onAttempt,
+      }),
+    ).rejects.toThrow('Request timed out');
+    expect(fn).toHaveBeenCalledTimes(1);
+    expect(onAttempt).toHaveBeenCalledTimes(1);
+  });
+
+  it('onAttempt 가 throw 해도 재시도는 계속 진행 (부수효과 실패는 흡수)', async () => {
+    const err = new Error('Request timed out');
+    const fn = jest
+      .fn<Promise<string>, []>()
+      .mockRejectedValueOnce(err)
+      .mockResolvedValueOnce('ok');
+    const onAttempt = jest.fn().mockRejectedValue(new Error('DB write failed'));
+
+    const promise = retryWithBackoff(fn, {
+      maxRetries: 3,
+      baseDelayMs: 1000,
+      onAttempt,
+      randomFn: () => 0,
+    });
+    await jest.advanceTimersByTimeAsync(1000);
+    await expect(promise).resolves.toBe('ok');
+    expect(fn).toHaveBeenCalledTimes(2);
+    expect(onAttempt).toHaveBeenCalledTimes(1);
+  });
+
   it('재시도 모두 실패하면 마지막 오류를 throw', async () => {
     const err = new Error('Request timed out after 60000ms');
     const fn = jest.fn<Promise<string>, []>().mockRejectedValue(err);
@@ -71,6 +129,7 @@ describe('retryWithBackoff', () => {
     const promise = retryWithBackoff(fn, {
       maxRetries: 3,
       baseDelayMs: 1000,
+      randomFn: () => 0,
     });
     promise.catch(() => undefined); // unhandled rejection 방지
 
@@ -113,6 +172,7 @@ describe('retryWithBackoff', () => {
       maxRetries: 3,
       baseDelayMs: 1000,
       onAttempt,
+      randomFn: () => 0,
     });
 
     await jest.advanceTimersByTimeAsync(1000);
@@ -128,6 +188,7 @@ describe('isRetryableLlmError', () => {
     ['ECONNRESET', true],
     ['ETIMEDOUT', true],
     ['getaddrinfo EAI_AGAIN api.openai.com', true],
+    ['getaddrinfo ENOTFOUND api.openai.com', false], // ENOTFOUND 는 패턴 미포함 (의도적 — DNS 영구 실패 분리)
     ['429 Too Many Requests', true],
     ['Rate limit reached', true],
     ['HTTP 500 Internal Server Error', true],
@@ -141,6 +202,7 @@ describe('isRetryableLlmError', () => {
   it.each([
     ['401 Unauthorized', false],
     ['403 Forbidden', false],
+    ['404 Not Found', false],
     ['422 Unprocessable Entity', false],
     ['Embedding dimension mismatch for KB kb-1: expected 1536, got 3', false],
     ['Embedding vector is empty', false],

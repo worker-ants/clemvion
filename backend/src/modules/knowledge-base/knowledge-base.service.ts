@@ -403,12 +403,15 @@ export class KnowledgeBaseService {
   // 큐잉 직전 해당 문서들의 retry_count·error_message 를 리셋하고 status 를 'pending' 으로
   // 되돌린다. `isKbBatch=false` 로 둬 KB 전체 잠금 (reembed_status / reextract_status) 은
   // 건드리지 않는다 (부분 재시도는 가벼운 작업).
+  // - 100건 단위 chunking 으로 Redis/BullMQ 순간 부하 완화.
+  // - addBulk 실패 시 해당 chunk 의 문서를 'failed' 로 롤백 (UPDATE 와 큐 add 비원자성 보완).
   async retryFailedDocuments(
     id: string,
     workspaceId: string,
     scope: 'embedding' | 'graph' | 'all',
   ): Promise<{ embeddingRequeued: number; graphRequeued: number }> {
     const kb = await this.findById(id, workspaceId);
+    const CHUNK_SIZE = 100;
 
     let embeddingRequeued = 0;
     let graphRequeued = 0;
@@ -424,18 +427,34 @@ export class KnowledgeBaseService {
         [id],
       );
       embeddingRequeued = rows.length;
-      if (rows.length > 0) {
-        await this.embeddingQueue.addBulk(
-          rows.map((r) => ({
-            name: 'embed',
-            data: {
-              documentId: r.id,
-              knowledgeBaseId: id,
-              ragMode: kb.ragMode,
-              reEmbed: true,
-            },
-          })),
-        );
+      for (let i = 0; i < rows.length; i += CHUNK_SIZE) {
+        const slice = rows.slice(i, i + CHUNK_SIZE);
+        try {
+          await this.embeddingQueue.addBulk(
+            slice.map((r) => ({
+              name: 'embed',
+              data: {
+                documentId: r.id,
+                knowledgeBaseId: id,
+                ragMode: kb.ragMode,
+                reEmbed: true,
+              },
+            })),
+          );
+        } catch (err) {
+          // 큐 add 실패 시 해당 chunk 의 문서들을 'failed' 로 되돌려 다음 사용자 재시도 가능 상태로 유지.
+          const ids = slice.map((r) => r.id);
+          await this.dataSource.query(
+            `UPDATE document SET embedding_status = 'failed' WHERE id = ANY($1::uuid[])`,
+            [ids],
+          );
+          embeddingRequeued -= slice.length;
+          const msg = err instanceof Error ? err.message : String(err);
+          this.logger.error(
+            `Retry embedding addBulk failed for ${ids.length} docs, rolled back to 'failed': ${msg}`,
+          );
+          throw err;
+        }
       }
     }
 
@@ -453,16 +472,31 @@ export class KnowledgeBaseService {
           [id],
         );
         graphRequeued = rows.length;
-        if (rows.length > 0) {
-          await this.graphQueue.addBulk(
-            rows.map((r) => ({
-              name: 'extract',
-              data: {
-                documentId: r.id,
-                knowledgeBaseId: id,
-              },
-            })),
-          );
+        for (let i = 0; i < rows.length; i += CHUNK_SIZE) {
+          const slice = rows.slice(i, i + CHUNK_SIZE);
+          try {
+            await this.graphQueue.addBulk(
+              slice.map((r) => ({
+                name: 'extract',
+                data: {
+                  documentId: r.id,
+                  knowledgeBaseId: id,
+                },
+              })),
+            );
+          } catch (err) {
+            const ids = slice.map((r) => r.id);
+            await this.dataSource.query(
+              `UPDATE document SET graph_extraction_status = 'failed' WHERE id = ANY($1::uuid[])`,
+              [ids],
+            );
+            graphRequeued -= slice.length;
+            const msg = err instanceof Error ? err.message : String(err);
+            this.logger.error(
+              `Retry graph addBulk failed for ${ids.length} docs, rolled back to 'failed': ${msg}`,
+            );
+            throw err;
+          }
         }
       }
     }

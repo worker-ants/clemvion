@@ -17,9 +17,17 @@ import {
 
 // 한 batch (20 청크) 임베딩에 적용할 timeout. provider socket hang 방지.
 const EMBED_TIMEOUT_MS = 60_000;
-// 자동 재시도 횟수 + 지수 백오프 base. baseDelayMs * 4^i → 1s, 4s, 16s.
+// 자동 재시도 횟수 + 지수 백오프 base. baseDelayMs * 4^i → 1s, 4s, 16s (+ ±30% jitter).
 const EMBED_MAX_RETRIES = 3;
 const EMBED_BASE_DELAY_MS = 1_000;
+// error_message 컬럼에 저장할 최대 길이. provider 가 비정상 거대 응답을 반환해도 스토리지 폭발 방지.
+const ERROR_MESSAGE_MAX_LEN = 2_000;
+
+function capErrorMessage(message: string): string {
+  return message.length > ERROR_MESSAGE_MAX_LEN
+    ? message.slice(0, ERROR_MESSAGE_MAX_LEN)
+    : message;
+}
 
 @Injectable()
 export class EmbeddingService {
@@ -61,42 +69,44 @@ export class EmbeddingService {
           maxRetries: EMBED_MAX_RETRIES,
           baseDelayMs: EMBED_BASE_DELAY_MS,
           isRetryable: isRetryableLlmError,
-          onAttempt: async (idx, err) => {
+          onAttempt: async (idx, err, willRetry) => {
             attemptIndex = idx + 1;
-            const retryable = isRetryableLlmError(err);
-            const willRetry = retryable && idx < EMBED_MAX_RETRIES;
-            const safe = sanitizeLlmErrorMessage(
-              err instanceof Error ? err.message : String(err),
+            const safe = capErrorMessage(
+              sanitizeLlmErrorMessage(
+                err instanceof Error ? err.message : String(err),
+              ),
             );
             this.logger.warn(
               `Embedding attempt ${idx + 1} failed for document ${documentId}` +
                 (willRetry ? ' — scheduling retry' : ' — final failure') +
                 `: ${safe}`,
             );
-            // 일시 오류 단계: status='error' (재시도 진행 중). 최종 실패는 catch 에서 'failed' 로 덮어쓴다.
-            await this.documentRepository.update(documentId, {
-              embeddingStatus: 'error',
-              embeddingErrorMessage: safe,
-              embeddingLastAttemptedAt: new Date(),
-            });
+            // retry_count 는 모든 attempt 실패마다 누적 (사용자 진단용).
             await this.documentRepository.increment(
               { id: documentId },
               'embeddingRetryCount',
               1,
             );
             if (willRetry) {
+              // 일시 오류 단계: status='error' + retry 이벤트 emit. 최종 실패는 outer catch 에서 'failed'.
+              await this.documentRepository.update(documentId, {
+                embeddingStatus: 'error',
+                embeddingErrorMessage: safe,
+                embeddingLastAttemptedAt: new Date(),
+              });
               this.emitEvent(documentId, 'document:embedding_retry', {
                 attempt: idx + 1,
                 maxAttempts: EMBED_MAX_RETRIES + 1,
                 error: safe,
               });
             }
+            // willRetry=false: outer catch 가 곧 'failed' 로 단일 UPDATE → 이중 DB 쓰기 회피
           },
         },
       );
     } catch (error) {
       const raw = error instanceof Error ? error.message : String(error);
-      const safe = sanitizeLlmErrorMessage(raw);
+      const safe = capErrorMessage(sanitizeLlmErrorMessage(raw));
       this.logger.error(
         `Embedding failed permanently for document ${documentId}: ${raw}`,
       );
@@ -202,7 +212,9 @@ export class EmbeddingService {
         llmConfig,
         texts,
         kb.embeddingModel,
-        { timeoutMs: EMBED_TIMEOUT_MS },
+        // disableInnerRetry: 외부 retryWithBackoff 가 재시도를 통제하므로 LlmService 내부의
+        // rate-limit-only withRetry 와 겹쳐 호출이 비선형 증폭되는 것을 막는다.
+        { timeoutMs: EMBED_TIMEOUT_MS, disableInnerRetry: true },
       );
 
       for (const v of embeddings) {

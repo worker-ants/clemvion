@@ -342,7 +342,7 @@ LIMIT $5;        -- ragTopK
 | `document:graph_started` | `{ documentId, knowledgeBaseId }` | 추출 시작 |
 | `document:graph_progress` | `{ documentId, progress: number, entityDelta: number, relationDelta: number }` | chunk 처리마다 |
 | `document:graph_completed` | `{ documentId, entityCount, relationCount }` | 완료 |
-| `document:graph_error` | `{ documentId, error: string }` | 일시 오류 발생 (자동 재시도 예정 또는 사후 `graph_failed` 이 따라옴) |
+| `document:graph_error` | `{ documentId, error: string }` | **(의미 변경, 2026-05-11)** in-flight 일시 오류 — `document:graph_retry` 또는 `graph_failed` 가 곧 따라온다. **영구 실패 신호로 사용하지 말 것** (이전 동작은 `graph_failed` 로 이관됨) |
 | `document:graph_retry` | `{ documentId, attempt: number, maxAttempts: number, error: string }` | 일시 오류 후 재시도 큐잉 직전 |
 | `document:graph_failed` | `{ documentId, error: string }` | 재시도 모두 소진 또는 비재시도성 오류로 최종 실패 |
 | `kb:graph_stats_updated` | `{ knowledgeBaseId, entityCount, relationCount }` | KB 단위 통계 변동 시 (캐시 컬럼 갱신과 동기) |

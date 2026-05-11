@@ -662,4 +662,194 @@ describe('KnowledgeBaseService', () => {
       expect(mockDocRepo.remove).toHaveBeenCalled();
     });
   });
+
+  describe('getEmbeddingStats', () => {
+    it('완료/실패/진행/총 카운트를 SQL 결과에서 매핑', async () => {
+      mockKbRepo.findOne.mockResolvedValue({
+        id: 'kb-1',
+        workspaceId: 'ws-1',
+        reembedStatus: 'idle',
+      });
+      mockDataSource.query.mockResolvedValueOnce([
+        { completed: 5, failed: 2, pending: 1, total: 8 },
+      ]);
+
+      const result = await service.getEmbeddingStats('kb-1', 'ws-1');
+
+      expect(result).toEqual({
+        completedDocumentCount: 5,
+        failedDocumentCount: 2,
+        pendingDocumentCount: 1,
+        totalDocumentCount: 8,
+        reembedStatus: 'idle',
+      });
+      expect(mockDataSource.query).toHaveBeenCalledWith(
+        expect.stringMatching(
+          /COUNT\(\*\) FILTER \(WHERE embedding_status = 'completed'\)/,
+        ),
+        ['kb-1'],
+      );
+    });
+
+    it('빈 KB 면 모든 카운트가 0', async () => {
+      mockKbRepo.findOne.mockResolvedValue({
+        id: 'kb-1',
+        workspaceId: 'ws-1',
+        reembedStatus: 'idle',
+      });
+      mockDataSource.query.mockResolvedValueOnce([]);
+
+      const result = await service.getEmbeddingStats('kb-1', 'ws-1');
+
+      expect(result.completedDocumentCount).toBe(0);
+      expect(result.failedDocumentCount).toBe(0);
+      expect(result.pendingDocumentCount).toBe(0);
+      expect(result.totalDocumentCount).toBe(0);
+    });
+  });
+
+  describe('getGraphStats', () => {
+    it('failed/pending/extracted 카운트를 함께 반환', async () => {
+      mockKbRepo.findOne.mockResolvedValue({
+        id: 'kb-1',
+        workspaceId: 'ws-1',
+        ragMode: 'graph',
+        entityCount: 100,
+        relationCount: 50,
+        reextractStatus: 'idle',
+      });
+      mockDataSource.query.mockResolvedValueOnce([
+        { extracted: 4, failed: 1, pending: 1, total: 6 },
+      ]);
+
+      const result = await service.getGraphStats('kb-1', 'ws-1');
+
+      expect(result).toEqual({
+        entityCount: 100,
+        relationCount: 50,
+        extractedDocumentCount: 4,
+        failedDocumentCount: 1,
+        pendingDocumentCount: 1,
+        totalDocumentCount: 6,
+        reextractStatus: 'idle',
+      });
+    });
+  });
+
+  describe('retryFailedDocuments', () => {
+    it("scope='embedding': failed 문서만 UPDATE + addBulk", async () => {
+      mockKbRepo.findOne.mockResolvedValue({
+        id: 'kb-1',
+        workspaceId: 'ws-1',
+        ragMode: 'vector',
+      });
+      mockDataSource.query.mockResolvedValueOnce([{ id: 'd1' }, { id: 'd2' }]);
+
+      const result = await service.retryFailedDocuments(
+        'kb-1',
+        'ws-1',
+        'embedding',
+      );
+
+      expect(result).toEqual({ embeddingRequeued: 2, graphRequeued: 0 });
+      expect(mockDataSource.query).toHaveBeenCalledTimes(1);
+      expect(mockEmbeddingQueue.addBulk).toHaveBeenCalledWith([
+        {
+          name: 'embed',
+          data: {
+            documentId: 'd1',
+            knowledgeBaseId: 'kb-1',
+            ragMode: 'vector',
+            reEmbed: true,
+          },
+        },
+        {
+          name: 'embed',
+          data: {
+            documentId: 'd2',
+            knowledgeBaseId: 'kb-1',
+            ragMode: 'vector',
+            reEmbed: true,
+          },
+        },
+      ]);
+      expect(mockGraphQueue.addBulk).not.toHaveBeenCalled();
+    });
+
+    it("scope='graph' on vector mode: 0건 반환, 큐 호출 없음", async () => {
+      mockKbRepo.findOne.mockResolvedValue({
+        id: 'kb-1',
+        workspaceId: 'ws-1',
+        ragMode: 'vector',
+      });
+
+      const result = await service.retryFailedDocuments(
+        'kb-1',
+        'ws-1',
+        'graph',
+      );
+
+      expect(result).toEqual({ embeddingRequeued: 0, graphRequeued: 0 });
+      expect(mockGraphQueue.addBulk).not.toHaveBeenCalled();
+      expect(mockEmbeddingQueue.addBulk).not.toHaveBeenCalled();
+    });
+
+    it("scope='all' on graph mode: 둘 다 처리", async () => {
+      mockKbRepo.findOne.mockResolvedValue({
+        id: 'kb-1',
+        workspaceId: 'ws-1',
+        ragMode: 'graph',
+      });
+      mockDataSource.query
+        .mockResolvedValueOnce([{ id: 'd1' }]) // embedding 1건
+        .mockResolvedValueOnce([{ id: 'd2' }, { id: 'd3' }]); // graph 2건
+
+      const result = await service.retryFailedDocuments('kb-1', 'ws-1', 'all');
+
+      expect(result).toEqual({ embeddingRequeued: 1, graphRequeued: 2 });
+      expect(mockEmbeddingQueue.addBulk).toHaveBeenCalledTimes(1);
+      expect(mockGraphQueue.addBulk).toHaveBeenCalledTimes(1);
+    });
+
+    it('대상 없으면 큐 호출 없이 0건 반환', async () => {
+      mockKbRepo.findOne.mockResolvedValue({
+        id: 'kb-1',
+        workspaceId: 'ws-1',
+        ragMode: 'vector',
+      });
+      mockDataSource.query.mockResolvedValue([]);
+
+      const result = await service.retryFailedDocuments('kb-1', 'ws-1', 'all');
+
+      expect(result).toEqual({ embeddingRequeued: 0, graphRequeued: 0 });
+      expect(mockEmbeddingQueue.addBulk).not.toHaveBeenCalled();
+      expect(mockGraphQueue.addBulk).not.toHaveBeenCalled();
+    });
+
+    it('addBulk 실패 시 해당 chunk 를 failed 로 롤백 후 throw', async () => {
+      mockKbRepo.findOne.mockResolvedValue({
+        id: 'kb-1',
+        workspaceId: 'ws-1',
+        ragMode: 'vector',
+      });
+      mockDataSource.query.mockResolvedValueOnce([{ id: 'd1' }, { id: 'd2' }]);
+      mockEmbeddingQueue.addBulk.mockRejectedValueOnce(
+        new Error('Redis connection refused'),
+      );
+
+      await expect(
+        service.retryFailedDocuments('kb-1', 'ws-1', 'embedding'),
+      ).rejects.toThrow('Redis connection refused');
+
+      // 마지막 dataSource.query 호출이 rollback UPDATE
+      const lastCall =
+        mockDataSource.query.mock.calls[
+          mockDataSource.query.mock.calls.length - 1
+        ];
+      expect(lastCall[0]).toMatch(
+        /UPDATE document SET embedding_status = 'failed' WHERE id = ANY/,
+      );
+      expect(lastCall[1]).toEqual([['d1', 'd2']]);
+    });
+  });
 });

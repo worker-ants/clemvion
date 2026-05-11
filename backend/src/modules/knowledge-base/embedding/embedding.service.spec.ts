@@ -242,10 +242,14 @@ describe('EmbeddingService - dimension consistency', () => {
   });
 
   describe('retry & failure', () => {
+    let randomSpy: jest.SpyInstance;
     beforeEach(() => {
       jest.useFakeTimers();
+      // jitter 비활성: 백오프 시간 결정론적으로 1s / 4s / 16s 가 되도록 Math.random=0 고정.
+      randomSpy = jest.spyOn(Math, 'random').mockReturnValue(0);
     });
     afterEach(() => {
+      randomSpy.mockRestore();
       jest.useRealTimers();
     });
 

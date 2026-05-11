@@ -8,13 +8,13 @@ import { GRAPH_EXTRACTION_QUEUE } from './graph-extraction.queue';
 describe('StuckDocumentRecoveryService', () => {
   let service: StuckDocumentRecoveryService;
   let queryMock: jest.Mock;
-  let embeddingQueueAdd: jest.Mock;
-  let graphQueueAdd: jest.Mock;
+  let embeddingAddBulk: jest.Mock;
+  let graphAddBulk: jest.Mock;
 
   beforeEach(async () => {
     queryMock = jest.fn().mockResolvedValue([]);
-    embeddingQueueAdd = jest.fn().mockResolvedValue(undefined);
-    graphQueueAdd = jest.fn().mockResolvedValue(undefined);
+    embeddingAddBulk = jest.fn().mockResolvedValue(undefined);
+    graphAddBulk = jest.fn().mockResolvedValue(undefined);
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -22,79 +22,86 @@ describe('StuckDocumentRecoveryService', () => {
         { provide: DataSource, useValue: { query: queryMock } },
         {
           provide: getQueueToken(DOCUMENT_EMBEDDING_QUEUE),
-          useValue: { add: embeddingQueueAdd },
+          useValue: { addBulk: embeddingAddBulk },
         },
         {
           provide: getQueueToken(GRAPH_EXTRACTION_QUEUE),
-          useValue: { add: graphQueueAdd },
+          useValue: { addBulk: graphAddBulk },
         },
       ],
     }).compile();
     service = module.get(StuckDocumentRecoveryService);
   });
 
-  it('processing 인 stuck 임베딩 문서를 pending 으로 회수 + 큐 add', async () => {
+  it('embedding stuck 문서를 단일 UPDATE...RETURNING 으로 회수 후 addBulk 일괄 큐잉', async () => {
     queryMock
-      // 첫 SELECT (embedding)
       .mockResolvedValueOnce([
         { id: 'd1', knowledge_base_id: 'kb-1', rag_mode: 'vector' },
+        { id: 'd2', knowledge_base_id: 'kb-1', rag_mode: 'vector' },
       ])
-      // UPDATE
-      .mockResolvedValueOnce([])
-      // 두 번째 SELECT (graph) — 비어있음
-      .mockResolvedValueOnce([]);
+      .mockResolvedValueOnce([]); // graph SELECT 비어있음
 
     await service.onApplicationBootstrap();
 
-    expect(queryMock).toHaveBeenCalledTimes(3);
-    expect(embeddingQueueAdd).toHaveBeenCalledTimes(1);
-    expect(embeddingQueueAdd).toHaveBeenCalledWith(
-      'embed',
-      expect.objectContaining({
-        documentId: 'd1',
-        knowledgeBaseId: 'kb-1',
-        ragMode: 'vector',
-        reEmbed: true,
-      }),
-    );
+    expect(queryMock).toHaveBeenCalledTimes(2);
+    expect(embeddingAddBulk).toHaveBeenCalledTimes(1);
+    expect(embeddingAddBulk).toHaveBeenCalledWith([
+      {
+        name: 'embed',
+        data: {
+          documentId: 'd1',
+          knowledgeBaseId: 'kb-1',
+          ragMode: 'vector',
+          reEmbed: true,
+        },
+      },
+      {
+        name: 'embed',
+        data: {
+          documentId: 'd2',
+          knowledgeBaseId: 'kb-1',
+          ragMode: 'vector',
+          reEmbed: true,
+        },
+      },
+    ]);
   });
 
-  it('processing 인 stuck 그래프 추출 문서를 pending 으로 회수 + 큐 add', async () => {
+  it('graph stuck 문서를 단일 UPDATE...RETURNING + addBulk 로 회수', async () => {
     queryMock
       .mockResolvedValueOnce([]) // embedding 비어있음
-      .mockResolvedValueOnce([{ id: 'd2', knowledge_base_id: 'kb-2' }])
-      .mockResolvedValueOnce([]); // UPDATE
+      .mockResolvedValueOnce([{ id: 'd2', knowledge_base_id: 'kb-2' }]);
 
     await service.onApplicationBootstrap();
 
-    expect(graphQueueAdd).toHaveBeenCalledTimes(1);
-    expect(graphQueueAdd).toHaveBeenCalledWith(
-      'extract',
-      expect.objectContaining({
-        documentId: 'd2',
-        knowledgeBaseId: 'kb-2',
-      }),
-    );
+    expect(graphAddBulk).toHaveBeenCalledTimes(1);
+    expect(graphAddBulk).toHaveBeenCalledWith([
+      {
+        name: 'extract',
+        data: { documentId: 'd2', knowledgeBaseId: 'kb-2' },
+      },
+    ]);
   });
 
   it('회수 대상 없으면 큐 add 없이 종료', async () => {
     queryMock.mockResolvedValue([]);
     await service.onApplicationBootstrap();
-    expect(embeddingQueueAdd).not.toHaveBeenCalled();
-    expect(graphQueueAdd).not.toHaveBeenCalled();
+    expect(embeddingAddBulk).not.toHaveBeenCalled();
+    expect(graphAddBulk).not.toHaveBeenCalled();
   });
 
   it('한 회수 단계가 throw 해도 다른 단계는 계속 진행', async () => {
     queryMock
       .mockRejectedValueOnce(new Error('PG connection refused')) // embedding SELECT 실패
-      .mockResolvedValueOnce([{ id: 'd3', knowledge_base_id: 'kb-3' }]) // graph SELECT 성공
-      .mockResolvedValueOnce([]); // graph UPDATE
+      .mockResolvedValueOnce([{ id: 'd3', knowledge_base_id: 'kb-3' }]); // graph 정상
 
     await service.onApplicationBootstrap();
 
-    expect(graphQueueAdd).toHaveBeenCalledWith(
-      'extract',
-      expect.objectContaining({ documentId: 'd3' }),
-    );
+    expect(graphAddBulk).toHaveBeenCalledWith([
+      {
+        name: 'extract',
+        data: { documentId: 'd3', knowledgeBaseId: 'kb-3' },
+      },
+    ]);
   });
 });

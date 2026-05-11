@@ -15,11 +15,12 @@
 
 ## PR 단위 (백워드 호환)
 
-- [ ] **PR1 — 데이터 모델**: `V037__kb_retry_failed_status.sql`, `document.entity.ts`, DocumentResponseDto
-- [ ] **PR2 — Backend 코어**: `retry-with-backoff.util.ts`, LLM `timeoutMs`, EmbeddingService/GraphExtractionService 재시도, WS 신규 이벤트, 유닛 테스트
-- [ ] **PR3 — 회복·재시도 API**: `StuckDocumentRecoveryService` (OnApplicationBootstrap), `POST /knowledge-bases/:id/retry-failed`, `GET /knowledge-bases/:id/embedding-stats`, `getGraphStats` 확장
-- [ ] **PR4 — Frontend**: 타입·i18n·STATUS_CONFIG·진행 박스·`use-kb-events`
-- [ ] **PR5 — 문서**: PRD/Spec 5건 갱신
+- [x] **PR1 — 데이터 모델**: `V037__kb_retry_failed_status.sql`, `document.entity.ts`, DocumentResponseDto
+- [x] **PR2 — Backend 코어**: `retry-with-backoff.util.ts`, LLM `timeoutMs`, EmbeddingService/GraphExtractionService 재시도, WS 신규 이벤트, 유닛 테스트
+- [x] **PR3 — 회복·재시도 API**: `StuckDocumentRecoveryService` (OnApplicationBootstrap), `POST /knowledge-bases/:id/retry-failed`, `GET /knowledge-bases/:id/embedding-stats`, `getGraphStats` 확장
+- [x] **PR4 — Frontend**: 타입·i18n·STATUS_CONFIG·진행 박스·`use-kb-events`
+- [x] **PR5 — 문서**: PRD/Spec 5건 갱신
+- [x] **Review 후속 조치**: V037 NOT VALID + V038 partial index, retry jitter / 이중 retry 방지 / willRetry / KB 객체 전달 / error_message cap / Stuck UPDATE...RETURNING + addBulk / RetryFailedBodyDto + chunking + rollback / tooltip / 신규 테스트 / WS 의미 spec 보강
 
 ## 핵심 결정사항
 
