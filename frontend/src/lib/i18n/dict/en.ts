@@ -1615,6 +1615,8 @@ export const en: Dict = {
     statusProcessing: "Processing",
     statusPending: "Pending",
     statusError: "Error",
+    statusRetrying: "Retrying",
+    statusFailed: "Failed",
     model: "Model",
     chunk: "Chunk",
     overlap: "Overlap",
@@ -1679,8 +1681,23 @@ export const en: Dict = {
     vectorBadge: "VECTOR",
     graphBuildStatus: "Graph build status",
     graphExtractedDocs: "{{count}} document(s) extracted",
+    graphFailedDocs: "{{count}} failed",
     graphEntities: "Entities",
     graphRelations: "Relations",
+    embeddingProgressTitle: "Embedding progress",
+    embeddingCompletedDocs: "{{count}} document(s) completed",
+    embeddingFailedDocs: "{{count}} failed",
+    kbRetryFailed: "Retry failed documents",
+    kbRetryFailedConfirmTitle: "Retry failed documents?",
+    kbRetryFailedConfirmEmbedding:
+      "Documents whose embedding ultimately failed will be requeued. Retry counters reset to zero.",
+    kbRetryFailedConfirmGraph:
+      "Documents whose graph extraction ultimately failed will be requeued. This incurs LLM costs.",
+    kbRetryFailedStarted:
+      "Retrying {{embedding}} embedding and {{graph}} graph-extraction document(s)",
+    kbRetryFailedFailed: "Failed to start retry of failed documents",
+    retryAttemptInfo: "Retry {{count}}/3",
+    lastError: "Last error",
     kbReExtractAll: "Re-extract entire graph",
     kbReExtractConfirmTitle: "Re-extract entire graph",
     kbReExtractConfirmMessage:

@@ -8,6 +8,7 @@ import {
   type KnowledgeBaseData,
   type DocumentData,
   type KbGraphStats,
+  type KbEmbeddingStats,
 } from "@/lib/api/knowledge-bases";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -33,6 +34,7 @@ import { EntityList } from "@/components/knowledge-base/entity-list";
 import { RelationList } from "@/components/knowledge-base/relation-list";
 import { GraphVisualization } from "@/components/knowledge-base/graph-visualization";
 import { llmConfigsApi, type LlmConfigData } from "@/lib/api/llm-configs";
+import { useKbEvents } from "@/lib/websocket/use-kb-events";
 import { RoleGate } from "@/components/auth/role-gate";
 import { toast } from "sonner";
 import {
@@ -49,9 +51,15 @@ import {
 } from "lucide-react";
 import { useT, type TranslationKey } from "@/lib/i18n";
 
+// 'error' = in-flight 재시도 중 일시 오류 (자동으로 다시 시도됨)
+// 'failed' = 최대 재시도 소진 또는 비재시도성 오류로 인한 최종 실패 (사용자 액션 필요)
 const STATUS_CONFIG: Record<
   string,
-  { icon: React.ReactNode; labelKey: TranslationKey; variant: "success" | "warning" | "destructive" | "outline" }
+  {
+    icon: React.ReactNode;
+    labelKey: TranslationKey;
+    variant: "success" | "warning" | "destructive" | "outline";
+  }
 > = {
   completed: {
     icon: <CheckCircle className="h-3 w-3" />,
@@ -69,8 +77,14 @@ const STATUS_CONFIG: Record<
     variant: "outline",
   },
   error: {
+    // 일시 오류 — 자동 재시도 중 (회전 아이콘으로 "다시 시도하고 있음" 의미 강조)
+    icon: <Loader2 className="h-3 w-3 animate-spin" />,
+    labelKey: "knowledgeBases.statusRetrying",
+    variant: "warning",
+  },
+  failed: {
     icon: <XCircle className="h-3 w-3" />,
-    labelKey: "knowledgeBases.statusError",
+    labelKey: "knowledgeBases.statusFailed",
     variant: "destructive",
   },
 };
@@ -123,6 +137,13 @@ export default function KnowledgeBaseDetailPage({
   });
   const documents: DocumentData[] = docsData?.data ?? docsData ?? [];
 
+  // WS 이벤트 구독 — backend EmbeddingService/GraphExtractionService 의 retry/failed/progress
+  // 이벤트가 들어오면 즉시 캐시 invalidate. 5s polling 은 fallback.
+  useKbEvents(
+    id,
+    documents.map((d) => d.id),
+  );
+
   // settings 다이얼로그가 열렸을 때만 LLMConfig 목록을 fetch (임베딩/추출 select 둘 다 사용).
   const { data: llmConfigsRes } = useQuery({
     queryKey: ["llm-configs"],
@@ -139,7 +160,7 @@ export default function KnowledgeBaseDetailPage({
   })();
 
   // graph 모드 KB 의 추출 진행 상태 / 통계. 5초 polling 으로 추출 진행을 따라간다.
-  // 추출이 끝나면 reextractStatus 가 idle 로 떨어지므로 사용자 액션 시점 외 polling 필요 없음.
+  // 단, 모든 문서가 completed/failed 로 정착된 상태에서는 1분 polling 으로 완화.
   const isGraphMode = kb?.ragMode === "graph";
   const { data: graphStats } = useQuery<KbGraphStats>({
     queryKey: ["kb-graph-stats", id],
@@ -148,10 +169,23 @@ export default function KnowledgeBaseDetailPage({
     refetchInterval: (query) => {
       const data = query.state.data as KbGraphStats | undefined;
       if (!data) return 5_000;
-      // 추출 진행 중이거나 일부 문서가 아직 처리 중이면 짧은 간격, 아니면 1분.
+      // pending = 'pending'|'processing'|'error' (in-flight 재시도 포함). 0 이면 더 폴링 안 함.
       const stillProcessing =
-        data.reextractStatus === "in_progress" ||
-        data.extractedDocumentCount < data.totalDocumentCount;
+        data.reextractStatus === "in_progress" || data.pendingDocumentCount > 0;
+      return stillProcessing ? 5_000 : 60_000;
+    },
+  });
+
+  // 임베딩 진행 통계 (vector/graph 모드 무관). graph 통계와 동일 패턴.
+  const { data: embeddingStats } = useQuery<KbEmbeddingStats>({
+    queryKey: ["kb-embedding-stats", id],
+    queryFn: () => knowledgeBasesApi.getEmbeddingStats(id),
+    enabled: !!kb,
+    refetchInterval: (query) => {
+      const data = query.state.data as KbEmbeddingStats | undefined;
+      if (!data) return 5_000;
+      const stillProcessing =
+        data.reembedStatus === "in_progress" || data.pendingDocumentCount > 0;
       return stillProcessing ? 5_000 : 60_000;
     },
   });
@@ -224,6 +258,28 @@ export default function KnowledgeBaseDetailPage({
       setShowKbReEmbedConfirm(false);
     },
     onError: () => toast.error(t("knowledgeBases.kbReembedFailed")),
+  });
+
+  const [retryFailedScope, setRetryFailedScope] = useState<
+    "embedding" | "graph" | null
+  >(null);
+  const retryFailedMutation = useMutation({
+    mutationFn: (scope: "embedding" | "graph") =>
+      knowledgeBasesApi.retryFailed(id, scope),
+    onSuccess: ({ embeddingRequeued, graphRequeued }) => {
+      queryClient.invalidateQueries({ queryKey: ["kb-documents", id] });
+      queryClient.invalidateQueries({ queryKey: ["kb-graph-stats", id] });
+      queryClient.invalidateQueries({ queryKey: ["kb-embedding-stats", id] });
+      queryClient.invalidateQueries({ queryKey: ["knowledge-base", id] });
+      toast.success(
+        t("knowledgeBases.kbRetryFailedStarted", {
+          embedding: embeddingRequeued,
+          graph: graphRequeued,
+        }),
+      );
+      setRetryFailedScope(null);
+    },
+    onError: () => toast.error(t("knowledgeBases.kbRetryFailedFailed")),
   });
 
   const kbReExtractMutation = useMutation({
@@ -432,6 +488,55 @@ export default function KnowledgeBaseDetailPage({
         <span>{t("knowledgeBases.documentsCount", { count: kb?.documentCount ?? 0 })}</span>
       </div>
 
+      {embeddingStats && (
+        <div className="rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--muted)/0.3)] p-4">
+          <div className="mb-2 text-sm font-medium">
+            {t("knowledgeBases.embeddingProgressTitle")}
+          </div>
+          <div className="flex flex-wrap items-center gap-4 text-sm">
+            <span className="flex items-center gap-2">
+              {embeddingStats.pendingDocumentCount === 0 &&
+              embeddingStats.failedDocumentCount === 0 ? (
+                <CheckCircle className="h-4 w-4 text-[hsl(var(--success,142_71%_45%))]" />
+              ) : embeddingStats.pendingDocumentCount > 0 ? (
+                <Loader2 className="h-4 w-4 animate-spin text-[hsl(var(--muted-foreground))]" />
+              ) : (
+                <XCircle className="h-4 w-4 text-[hsl(var(--destructive))]" />
+              )}
+              {t("knowledgeBases.embeddingCompletedDocs", {
+                count: embeddingStats.completedDocumentCount,
+              })}{" "}
+              / {embeddingStats.totalDocumentCount}
+            </span>
+            {embeddingStats.failedDocumentCount > 0 && (
+              <>
+                <span className="font-mono text-[hsl(var(--destructive))]">
+                  {t("knowledgeBases.embeddingFailedDocs", {
+                    count: embeddingStats.failedDocumentCount,
+                  })}
+                </span>
+                <RoleGate minRole="editor">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => setRetryFailedScope("embedding")}
+                    disabled={retryFailedMutation.isPending}
+                  >
+                    <RefreshCw className="mr-1 h-3 w-3" />
+                    {t("knowledgeBases.kbRetryFailed")}
+                  </Button>
+                </RoleGate>
+              </>
+            )}
+            {embeddingStats.reembedStatus === "in_progress" && (
+              <span className="text-xs text-[hsl(var(--muted-foreground))]">
+                {t("knowledgeBases.statusProcessing")}
+              </span>
+            )}
+          </div>
+        </div>
+      )}
+
       {isGraphMode && graphStats && (
         <div className="rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--muted)/0.3)] p-4">
           <div className="mb-2 text-sm font-medium">
@@ -439,17 +544,39 @@ export default function KnowledgeBaseDetailPage({
           </div>
           <div className="flex flex-wrap items-center gap-4 text-sm">
             <span className="flex items-center gap-2">
-              {graphStats.extractedDocumentCount ===
-              graphStats.totalDocumentCount ? (
+              {graphStats.pendingDocumentCount === 0 &&
+              graphStats.failedDocumentCount === 0 ? (
                 <CheckCircle className="h-4 w-4 text-[hsl(var(--success,142_71%_45%))]" />
-              ) : (
+              ) : graphStats.pendingDocumentCount > 0 ? (
                 <Loader2 className="h-4 w-4 animate-spin text-[hsl(var(--muted-foreground))]" />
+              ) : (
+                <XCircle className="h-4 w-4 text-[hsl(var(--destructive))]" />
               )}
               {t("knowledgeBases.graphExtractedDocs", {
                 count: graphStats.extractedDocumentCount,
               })}{" "}
               / {graphStats.totalDocumentCount}
             </span>
+            {graphStats.failedDocumentCount > 0 && (
+              <>
+                <span className="font-mono text-[hsl(var(--destructive))]">
+                  {t("knowledgeBases.graphFailedDocs", {
+                    count: graphStats.failedDocumentCount,
+                  })}
+                </span>
+                <RoleGate minRole="editor">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => setRetryFailedScope("graph")}
+                    disabled={retryFailedMutation.isPending}
+                  >
+                    <RefreshCw className="mr-1 h-3 w-3" />
+                    {t("knowledgeBases.kbRetryFailed")}
+                  </Button>
+                </RoleGate>
+              </>
+            )}
             <span className="font-mono">
               {graphStats.entityCount} {t("knowledgeBases.graphEntities")} ·{" "}
               {graphStats.relationCount} {t("knowledgeBases.graphRelations")}
@@ -531,6 +658,23 @@ export default function KnowledgeBaseDetailPage({
         onCancel={() => setShowKbReEmbedConfirm(false)}
         onConfirm={() => kbReEmbedMutation.mutate()}
         pending={kbReEmbedMutation.isPending}
+      />
+
+      <ConfirmModal
+        open={retryFailedScope !== null}
+        title={t("knowledgeBases.kbRetryFailedConfirmTitle")}
+        message={
+          retryFailedScope === "graph"
+            ? t("knowledgeBases.kbRetryFailedConfirmGraph")
+            : t("knowledgeBases.kbRetryFailedConfirmEmbedding")
+        }
+        confirmLabel={t("knowledgeBases.kbRetryFailed")}
+        cancelLabel={t("common.cancel")}
+        onCancel={() => setRetryFailedScope(null)}
+        onConfirm={() => {
+          if (retryFailedScope) retryFailedMutation.mutate(retryFailedScope);
+        }}
+        pending={retryFailedMutation.isPending}
       />
 
       <ConfirmModal

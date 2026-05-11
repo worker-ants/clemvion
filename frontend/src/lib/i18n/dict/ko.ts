@@ -1611,6 +1611,8 @@ export const ko = {
     statusProcessing: "처리 중",
     statusPending: "대기 중",
     statusError: "오류",
+    statusRetrying: "재시도 중",
+    statusFailed: "실패",
     model: "모델",
     chunk: "청크",
     overlap: "오버랩",
@@ -1674,8 +1676,23 @@ export const ko = {
     vectorBadge: "VECTOR",
     graphBuildStatus: "그래프 추출 상태",
     graphExtractedDocs: "{{count}}개 문서 추출 완료",
+    graphFailedDocs: "{{count}}개 실패",
     graphEntities: "Entity",
     graphRelations: "Relation",
+    embeddingProgressTitle: "임베딩 진행 상태",
+    embeddingCompletedDocs: "{{count}}개 문서 완료",
+    embeddingFailedDocs: "{{count}}개 실패",
+    kbRetryFailed: "실패 문서 재시도",
+    kbRetryFailedConfirmTitle: "실패한 문서를 다시 처리할까요?",
+    kbRetryFailedConfirmEmbedding:
+      "임베딩이 최종 실패한 문서들을 다시 큐에 넣어요. 재시도 카운터가 초기화돼요.",
+    kbRetryFailedConfirmGraph:
+      "그래프 추출이 최종 실패한 문서들을 다시 큐에 넣어요. LLM 호출 비용이 발생해요.",
+    kbRetryFailedStarted:
+      "{{embedding}}개 임베딩 · {{graph}}개 그래프 추출을 재시도해요",
+    kbRetryFailedFailed: "실패 문서 재시도 시작에 실패했어요",
+    retryAttemptInfo: "재시도 {{count}}/3",
+    lastError: "마지막 오류",
     kbReExtractAll: "그래프 전체 재추출",
     kbReExtractConfirmTitle: "그래프 전체 재추출",
     kbReExtractConfirmMessage:
