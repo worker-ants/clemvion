@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import axios from "axios";
+import Link from "next/link";
 import { apiClient } from "@/lib/api/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -14,7 +15,7 @@ import {
   CardContent,
 } from "@/components/ui/card";
 import { toast } from "sonner";
-import { Loader2, Save } from "lucide-react";
+import { Loader2, Save, ShieldCheck, History } from "lucide-react";
 import { useThemeStore } from "@/lib/stores/theme-store";
 import { useLocaleStore } from "@/lib/stores/locale-store";
 import { useT } from "@/lib/i18n";
@@ -285,6 +286,43 @@ export default function ProfilePage() {
               <option value="en">{t("profile.languageEnglish")}</option>
             </select>
           </div>
+        </CardContent>
+      </Card>
+
+      {/* Security */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-lg">
+            {t("profile.tabs.security")}
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="grid gap-3 sm:grid-cols-2">
+          <Link
+            href="/profile/security"
+            className="flex items-center gap-3 rounded-md border border-[hsl(var(--border))] p-4 transition-colors hover:bg-[hsl(var(--accent))]"
+          >
+            <ShieldCheck className="h-5 w-5 text-[hsl(var(--muted-foreground))]" />
+            <div>
+              <p className="font-medium">
+                {t("profile.security.twoFactor")}
+              </p>
+              <p className="text-sm text-[hsl(var(--muted-foreground))]">
+                {t("profile.security.twoFactorDescription")}
+              </p>
+            </div>
+          </Link>
+          <Link
+            href="/profile/sessions"
+            className="flex items-center gap-3 rounded-md border border-[hsl(var(--border))] p-4 transition-colors hover:bg-[hsl(var(--accent))]"
+          >
+            <History className="h-5 w-5 text-[hsl(var(--muted-foreground))]" />
+            <div>
+              <p className="font-medium">{t("profile.sessions.pageTitle")}</p>
+              <p className="text-sm text-[hsl(var(--muted-foreground))]">
+                {t("profile.sessions.pageDescription")}
+              </p>
+            </div>
+          </Link>
         </CardContent>
       </Card>
 
