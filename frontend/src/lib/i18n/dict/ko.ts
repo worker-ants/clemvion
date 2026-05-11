@@ -963,6 +963,7 @@ export const ko = {
       opNotEmpty: "비어 있지 않음",
       opRegex: "정규식 일치",
       opNull: "null",
+      opType: "타입 일치",
       addCondition: "조건 추가",
       mode: "모드",
       modeValueMatch: "값 일치",

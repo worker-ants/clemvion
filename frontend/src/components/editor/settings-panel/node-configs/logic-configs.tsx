@@ -24,6 +24,7 @@ function operatorOptions(t: TFunction) {
     { value: "is_not_empty", label: t("nodeConfigs.logic.opNotEmpty") },
     { value: "regex", label: t("nodeConfigs.logic.opRegex") },
     { value: "is_null", label: t("nodeConfigs.logic.opNull") },
+    { value: "is_type", label: t("nodeConfigs.logic.opType") },
   ];
 }
 
