@@ -27,6 +27,7 @@ export function useKbEvents(
   const queryClient = useQueryClient();
   const lastInvalidateAtRef = useRef<number>(0);
   const channelsRef = useRef<string[]>([]);
+  const cleanupAckRef = useRef<(() => void) | null>(null);
 
   // 1초 throttle — WS 이벤트가 폭발적으로 들어와도 invalidate 빈도를 제한해 네트워크 부하 완화.
   const scheduleInvalidate = () => {
@@ -93,12 +94,31 @@ export function useKbEvents(
         // 2) channel subscribe — 문서마다 별도 채널 (backend `kb:${documentId}` 명명규약)
         const channels = documentIds.map((docId) => `kb:${docId}`);
         channelsRef.current = channels;
+
+        // subscribe ack 진단 로깅 — backend 가 channel prefix 거부 / 권한 검증 실패 시
+        // success: false 로 응답한다. console.warn 으로 진단 가능 (polling fallback 도
+        // 같이 동작하므로 사용자 영향은 없음).
+        const ackHandler = (ack: unknown) => {
+          if (
+            typeof ack === "object" &&
+            ack !== null &&
+            "success" in ack &&
+            (ack as { success: boolean }).success === false
+          ) {
+            console.warn("[useKbEvents] subscribe rejected:", ack);
+          }
+        };
+        ws.on("subscribed", ackHandler);
+
         for (const ch of channels) ws.subscribe(ch);
 
         // 3) event listener — KB 이벤트 12종 모두 동일 handler.
         for (const name of KB_EVENT_NAMES) ws.on(name, handler);
+
+        // cleanup 단계에서 ackHandler 도 함께 off — closure 로 ref 캡처.
+        cleanupAckRef.current = () => ws.off("subscribed", ackHandler);
       } catch {
-        // best-effort: WS 가 안 붙어도 페이지의 5s polling 으로 fallback.
+        // best-effort: WS 가 안 붙어도 페이지의 10s polling 으로 fallback.
       }
     })();
 
@@ -107,6 +127,8 @@ export function useKbEvents(
       for (const name of KB_EVENT_NAMES) ws.off(name, handler);
       for (const ch of channelsRef.current) ws.unsubscribe(ch);
       channelsRef.current = [];
+      cleanupAckRef.current?.();
+      cleanupAckRef.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [knowledgeBaseId, documentIds.join(",")]);

@@ -4,6 +4,7 @@ import { Socket } from 'socket.io';
 import { WebsocketGateway } from './websocket.gateway';
 import { ExecutionEngineService } from '../execution-engine/execution-engine.service';
 import { ExecutionsService } from '../executions/executions.service';
+import { KnowledgeBaseService } from '../knowledge-base/knowledge-base.service';
 
 function createMockSocket(overrides: Record<string, unknown> = {}): {
   socket: Socket;
@@ -58,6 +59,13 @@ describe('WebsocketGateway', () => {
             verifyOwnership: jest.fn().mockResolvedValue(undefined),
           },
         },
+        {
+          provide: KnowledgeBaseService,
+          useValue: {
+            // 기본 통과 — 거부 케이스는 별도 테스트에서 override
+            verifyDocumentOwnership: jest.fn().mockResolvedValue(true),
+          },
+        },
       ],
     }).compile();
 
@@ -87,11 +95,11 @@ describe('WebsocketGateway', () => {
   });
 
   describe('handleSubscribe', () => {
-    it('should reject invalid channel', () => {
+    it('should reject invalid channel', async () => {
       const { socket } = createMockSocket({ id: 'client-1' });
       getSubscriptions().set('client-1', new Set());
 
-      const result = gateway.handleSubscribe(
+      const result = await gateway.handleSubscribe(
         { channel: 'invalid:123' },
         socket,
       );
@@ -99,17 +107,72 @@ describe('WebsocketGateway', () => {
       expect(result.data.error).toBe('Invalid channel');
     });
 
-    it('should accept valid execution channel', () => {
+    it('should accept valid execution channel', async () => {
       const { socket, join } = createMockSocket({ id: 'client-1' });
       getSubscriptions().set('client-1', new Set());
 
-      const result = gateway.handleSubscribe(
+      const result = await gateway.handleSubscribe(
         { channel: 'execution:exec-123' },
         socket,
       );
       expect(result.data.success).toBe(true);
       expect(result.data.channel).toBe('execution:exec-123');
       expect(join).toHaveBeenCalledWith('execution:exec-123');
+    });
+
+    it('should accept kb channel when ownership verified', async () => {
+      const { socket, join } = createMockSocket({ id: 'client-1' });
+      (socket as Socket & { workspaceId?: string }).workspaceId = 'ws-1';
+      getSubscriptions().set('client-1', new Set());
+
+      const result = await gateway.handleSubscribe(
+        { channel: 'kb:doc-abc' },
+        socket,
+      );
+      expect(result.data.success).toBe(true);
+      expect(result.data.channel).toBe('kb:doc-abc');
+      expect(join).toHaveBeenCalledWith('kb:doc-abc');
+      const kbService = module.get(KnowledgeBaseService);
+      expect(kbService.verifyDocumentOwnership).toHaveBeenCalledWith(
+        'doc-abc',
+        'ws-1',
+      );
+    });
+
+    it('should reject kb channel when ownership check fails (cross-workspace)', async () => {
+      const { socket, join } = createMockSocket({ id: 'client-1' });
+      (socket as Socket & { workspaceId?: string }).workspaceId = 'ws-attacker';
+      getSubscriptions().set('client-1', new Set());
+      const kbService = module.get(KnowledgeBaseService);
+      (kbService.verifyDocumentOwnership as jest.Mock).mockResolvedValueOnce(
+        false,
+      );
+
+      const result = await gateway.handleSubscribe(
+        { channel: 'kb:doc-victim' },
+        socket,
+      );
+      expect(result.data.success).toBe(false);
+      expect(result.data.error).toBe('Not authorized for this document');
+      expect(join).not.toHaveBeenCalled();
+    });
+
+    it('should reject kb channel when verifyDocumentOwnership throws', async () => {
+      const { socket, join } = createMockSocket({ id: 'client-1' });
+      (socket as Socket & { workspaceId?: string }).workspaceId = 'ws-1';
+      getSubscriptions().set('client-1', new Set());
+      const kbService = module.get(KnowledgeBaseService);
+      (kbService.verifyDocumentOwnership as jest.Mock).mockRejectedValueOnce(
+        new Error('PG connection refused'),
+      );
+
+      const result = await gateway.handleSubscribe(
+        { channel: 'kb:doc-abc' },
+        socket,
+      );
+      expect(result.data.success).toBe(false);
+      expect(result.data.error).toBe('Not authorized for this document');
+      expect(join).not.toHaveBeenCalled();
     });
 
     it('should emit execution.snapshot to the subscribing client when execution exists', async () => {
@@ -125,7 +188,7 @@ describe('WebsocketGateway', () => {
       const findByIdMock = jest.mocked(module.get(ExecutionsService).findById);
       findByIdMock.mockResolvedValue(fakeExecution as never);
 
-      gateway.handleSubscribe({ channel: 'execution:exec-abc' }, socket);
+      await gateway.handleSubscribe({ channel: 'execution:exec-abc' }, socket);
 
       // emitExecutionSnapshot is fire-and-forget — wait a macrotask so the
       // awaited findById resolves and the emit side-effect lands.
@@ -149,14 +212,14 @@ describe('WebsocketGateway', () => {
       const findByIdMock = jest.mocked(module.get(ExecutionsService).findById);
       findByIdMock.mockResolvedValue({ id: 'exec-abc' } as never);
 
-      gateway.handleSubscribe({ channel: 'execution:exec-abc' }, socket);
+      await gateway.handleSubscribe({ channel: 'execution:exec-abc' }, socket);
       await new Promise((resolve) => setImmediate(resolve));
 
       expect(findByIdMock).not.toHaveBeenCalled();
       expect(emit).not.toHaveBeenCalled();
     });
 
-    it('should reject when max subscriptions reached', () => {
+    it('should reject when max subscriptions reached', async () => {
       const { socket } = createMockSocket({ id: 'client-1' });
       const subs = new Set<string>();
       for (let i = 0; i < 20; i++) {
@@ -164,7 +227,7 @@ describe('WebsocketGateway', () => {
       }
       getSubscriptions().set('client-1', subs);
 
-      const result = gateway.handleSubscribe(
+      const result = await gateway.handleSubscribe(
         { channel: 'execution:exec-new' },
         socket,
       );

@@ -454,10 +454,11 @@ export class GraphExtractionService {
     payload: Record<string, unknown>,
   ): void {
     try {
-      this.websocketService.emitExecutionEvent(
-        `kb:${documentId}`,
-        event as never,
-        { documentId, ...payload },
+      // `kb:${documentId}` 채널로 직접 broadcast (V038 fix).
+      this.websocketService.emitKbEvent(
+        documentId,
+        event as Parameters<typeof this.websocketService.emitKbEvent>[1],
+        payload,
       );
     } catch {
       // best-effort

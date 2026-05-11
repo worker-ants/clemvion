@@ -504,6 +504,30 @@ export class KnowledgeBaseService {
     return { embeddingRequeued, graphRequeued };
   }
 
+  /**
+   * WS `kb:${documentId}` 채널 subscribe 권한 검증 — Gateway.handleSubscribe 가 호출.
+   * 가입자 workspace 의 KB 에 속한 문서만 가입 가능 — 타 workspace 문서 id 추측 공격 차단.
+   *
+   * 단일 SELECT 로 결합 검증 (knowledge_base 와 JOIN). 미일치 / 미존재 모두 false 반환 —
+   * Gateway 는 success: false 로 ack 하고 socket.io 가 채널 join 을 막는다.
+   * 호출 비용: 페이지 진입 시 N 개 문서 → N 회. KB 페이지 한 번 진입에 한정되므로 가벼움.
+   */
+  async verifyDocumentOwnership(
+    documentId: string,
+    workspaceId: string,
+  ): Promise<boolean> {
+    if (!documentId || !workspaceId) return false;
+    const rows = await this.dataSource.query<{ id: string }[]>(
+      `SELECT d.id
+         FROM document d
+         JOIN knowledge_base kb ON kb.id = d.knowledge_base_id
+        WHERE d.id = $1 AND kb.workspace_id = $2
+        LIMIT 1`,
+      [documentId, workspaceId],
+    );
+    return rows.length > 0;
+  }
+
   // 모델 변경 등으로 KB 전체 재임베딩이 필요할 때 호출.
   // - reembed_status 를 atomic compare-and-swap (idle → in_progress) 으로 잠금
   //   (race-free; 다른 요청이 in_progress 면 0행 RETURNING 으로 409 ConflictException)

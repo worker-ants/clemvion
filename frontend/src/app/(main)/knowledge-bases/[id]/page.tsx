@@ -137,9 +137,23 @@ export default function KnowledgeBaseDetailPage({
     },
   });
 
+  // kb-documents 는 WS 가 캐시 invalidate 를 트리거하지만, WS 단절 / 신규 업로드 직후
+  // useKbEvents 가 새 documentId 채널을 구독하기 전 race 같은 케이스를 대비해 polling fallback.
+  // 진행 중일 때만 10s, 모두 정착되면 120s 로 완화. (kb-embedding-stats / kb-graph-stats 와 동일 패턴)
   const { data: docsData, isLoading: docsLoading } = useQuery({
     queryKey: ["kb-documents", id],
     queryFn: () => knowledgeBasesApi.getDocuments(id),
+    refetchInterval: () => {
+      const stats = queryClient.getQueryData<KbEmbeddingStats>([
+        "kb-embedding-stats",
+        id,
+      ]);
+      const stillProcessing =
+        !stats ||
+        stats.reembedStatus === "in_progress" ||
+        stats.pendingDocumentCount > 0;
+      return stillProcessing ? 10_000 : 120_000;
+    },
   });
   const documents: DocumentData[] = docsData?.data ?? docsData ?? [];
 
