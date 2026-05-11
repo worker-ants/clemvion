@@ -9,6 +9,8 @@ export type ListStatusFilter =
   | "expired"
   | "error";
 
+export type CredentialsStatus = "ok" | "needs_reauth";
+
 export interface IntegrationDto {
   id: string;
   workspaceId: string;
@@ -19,6 +21,7 @@ export interface IntegrationDto {
   scope: IntegrationScope;
   status: IntegrationStatus;
   statusReason: string | null;
+  credentialsStatus: CredentialsStatus;
   tokenExpiresAt: string | null;
   lastUsedAt: string | null;
   lastRotatedAt: string | null;

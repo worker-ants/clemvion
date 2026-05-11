@@ -4,8 +4,12 @@ import {
   ConflictException,
   ForbiddenException,
 } from '@nestjs/common';
-import { IntegrationsService } from './integrations.service';
+import {
+  IntegrationsService,
+  IntegrationCredentialsUnreadableError,
+} from './integrations.service';
 import type { Integration } from './entities/integration.entity';
+import { UNREADABLE_KEY } from './services/credentials-transformer';
 
 type Mock = jest.Mock;
 
@@ -626,6 +630,72 @@ describe('IntegrationsService', () => {
       expect(result.summary.totalCalls).toBe(15);
       expect(result.summary.successRate).toBeCloseTo(13 / 15);
       expect(result.summary.dailyCounts).toHaveLength(2);
+    });
+  });
+
+  // -----------------------------------------------------------------
+  // unreadable credentials (graceful degradation)
+  // -----------------------------------------------------------------
+  describe('unreadable credentials', () => {
+    const sentinel = { [UNREADABLE_KEY]: true } as unknown as Record<
+      string,
+      unknown
+    >;
+
+    it('findById surfaces the row with needs_reauth instead of throwing', async () => {
+      integrationRepo.findOne.mockResolvedValue(
+        makeIntegration({ credentials: sentinel }),
+      );
+      const result = await service.findById('int-1', 'ws-1');
+      expect(result.credentialsStatus).toBe('needs_reauth');
+      expect(result.status).toBe('error');
+      expect(result.statusReason).toBe('credentials_unreadable');
+      expect(result.credentials).toEqual({});
+      // Sentinel internals must never leak to the DTO.
+      expect((result.credentials as Record<string, unknown>)[UNREADABLE_KEY]).toBeUndefined();
+    });
+
+    it('findAll returns both healthy and broken rows with correct statuses', async () => {
+      const healthy = makeIntegration({ id: 'int-ok' });
+      const broken = makeIntegration({
+        id: 'int-broken',
+        credentials: sentinel,
+      });
+      const qb = makeQueryBuilder({ count: 2, many: [healthy, broken] });
+      integrationRepo.createQueryBuilder.mockReturnValue(qb);
+
+      const page = await service.findAll('ws-1', {});
+      expect(page.data).toHaveLength(2);
+      const ok = page.data.find((d) => d.id === 'int-ok')!;
+      const bad = page.data.find((d) => d.id === 'int-broken')!;
+      expect(ok.credentialsStatus).toBe('ok');
+      expect(bad.credentialsStatus).toBe('needs_reauth');
+      expect(bad.status).toBe('error');
+      expect(bad.statusReason).toBe('credentials_unreadable');
+    });
+
+    it('treats unreadable lastError as null in the DTO', async () => {
+      integrationRepo.findOne.mockResolvedValue(
+        makeIntegration({
+          lastError: sentinel as unknown as Record<string, unknown>,
+        }),
+      );
+      const result = await service.findById('int-1', 'ws-1');
+      expect(result.lastError).toBeNull();
+    });
+
+    it('getForExecution throws IntegrationCredentialsUnreadableError', async () => {
+      integrationRepo.findOne.mockResolvedValue(
+        makeIntegration({ credentials: sentinel }),
+      );
+      await expect(service.getForExecution('int-1', 'ws-1')).rejects.toThrow(
+        IntegrationCredentialsUnreadableError,
+      );
+    });
+
+    it('healthy rows expose credentialsStatus: ok', async () => {
+      const result = await service.findById('int-1', 'ws-1');
+      expect(result.credentialsStatus).toBe('ok');
     });
   });
 
