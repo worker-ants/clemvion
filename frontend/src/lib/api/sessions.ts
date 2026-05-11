@@ -54,9 +54,11 @@ export const sessionsApi = {
     familyId: string,
     payload: RevokeSessionPayload,
   ): Promise<SessionDto[]> => {
-    const res = await apiClient.delete<{ data: SessionDto[] }>(
-      `/users/me/sessions/${encodeURIComponent(familyId)}`,
-      { data: payload },
+    // POST 사용 — 일부 CDN/프록시가 DELETE 의 request body 를 제거할 수 있어
+    // 자격증명을 안전하게 전달할 수 없다.
+    const res = await apiClient.post<{ data: SessionDto[] }>(
+      `/users/me/sessions/${encodeURIComponent(familyId)}/revoke`,
+      payload,
     );
     return res.data.data;
   },

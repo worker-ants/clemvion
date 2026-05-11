@@ -19,13 +19,11 @@ import { MailService } from '../mail/mail.service';
 import { validatePasswordStrength } from '../../common/utils/password.util';
 import { LoginHistoryService } from './login-history.service';
 import { deriveDeviceLabel } from './utils/device-label';
+import type { AuthContext } from './types/auth-context';
 
 const BCRYPT_ROUNDS = 12;
 
-export interface AuthContext {
-  ip?: string | null;
-  userAgent?: string | null;
-}
+export type { AuthContext };
 
 @Injectable()
 export class AuthService {
@@ -126,7 +124,7 @@ export class AuthService {
       undefined,
       ctx,
     );
-    await this.loginHistory.record({
+    void this.loginHistory.record({
       userId: userByToken.id,
       email: userByToken.email,
       event: 'login_success',
@@ -150,7 +148,7 @@ export class AuthService {
   > {
     const user = await this.usersService.findByEmail(dto.email);
     if (!user) {
-      await this.loginHistory.record({
+      void this.loginHistory.record({
         userId: null,
         email: dto.email,
         event: 'login_failed',
@@ -166,7 +164,7 @@ export class AuthService {
 
     // Check lock
     if (await this.usersService.isLocked(user)) {
-      await this.loginHistory.record({
+      void this.loginHistory.record({
         userId: user.id,
         email: user.email,
         event: 'login_failed',
@@ -181,7 +179,7 @@ export class AuthService {
     }
 
     if (!user.emailVerified) {
-      await this.loginHistory.record({
+      void this.loginHistory.record({
         userId: user.id,
         email: user.email,
         event: 'login_failed',
@@ -196,7 +194,7 @@ export class AuthService {
     }
 
     if (!user.passwordHash) {
-      await this.loginHistory.record({
+      void this.loginHistory.record({
         userId: user.id,
         email: user.email,
         event: 'login_failed',
@@ -213,7 +211,7 @@ export class AuthService {
     const isValid = await bcrypt.compare(dto.password, user.passwordHash);
     if (!isValid) {
       await this.usersService.incrementLoginAttempts(user.id);
-      await this.loginHistory.record({
+      void this.loginHistory.record({
         userId: user.id,
         email: user.email,
         event: 'login_failed',
@@ -244,7 +242,7 @@ export class AuthService {
       undefined,
       ctx,
     );
-    await this.loginHistory.record({
+    void this.loginHistory.record({
       userId: user.id,
       email: user.email,
       event: 'login_success',
@@ -288,7 +286,7 @@ export class AuthService {
     }
     const ok = await verifier(user, code);
     if (!ok) {
-      await this.loginHistory.record({
+      void this.loginHistory.record({
         userId: user.id,
         email: user.email,
         event: 'totp_failed',
@@ -307,7 +305,7 @@ export class AuthService {
       undefined,
       ctx,
     );
-    await this.loginHistory.record({
+    void this.loginHistory.record({
       userId: user.id,
       email: user.email,
       event: 'login_success',
@@ -332,7 +330,7 @@ export class AuthService {
       );
       const user = stored.user;
       if (user) {
-        await this.loginHistory.record({
+        void this.loginHistory.record({
           userId: user.id,
           email: user.email,
           event: 'logout',
@@ -372,7 +370,7 @@ export class AuthService {
         { isRevoked: true },
       );
       if (stored.user) {
-        await this.loginHistory.record({
+        void this.loginHistory.record({
           userId: stored.user.id,
           email: stored.user.email,
           event: 'token_reuse_detected',
@@ -489,7 +487,7 @@ export class AuthService {
     ctx: AuthContext = {},
   ): Promise<{ accessToken: string; refreshToken: string }> {
     const tokens = await this.generateTokens(user, rememberMe, undefined, ctx);
-    await this.loginHistory.record({
+    void this.loginHistory.record({
       userId: user.id,
       email: user.email,
       event: 'login_success',
