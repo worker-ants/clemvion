@@ -9,4 +9,8 @@ export const EXPRESSION_EXCLUSIONS: Record<string, Set<string>> = {
   table: new Set(['columns']),
   // conditions contain field paths relative to each array item, not expressions
   filter: new Set(['conditions']),
+  // breakCondition re-evaluates per iteration (sees current $loop / $var /
+  // $node[...]). Pre-resolving at dispatch time would lock it to i=0 (and
+  // throw because $loop is undefined before the first iteration runs).
+  loop: new Set(['breakCondition']),
 };
