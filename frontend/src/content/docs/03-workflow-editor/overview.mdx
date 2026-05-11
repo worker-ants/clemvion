@@ -111,7 +111,6 @@ AI 어시스턴트는 **자연어 요청을 받아 노드와 연결선을 직접
 <FieldTable rows={[
   { name: "여러 워크플로우 동시 편집", required: false, type: "한 세션 = 한 워크플로우", description: "한 세션은 단일 워크플로우에 묶여 있어요. 여러 워크플로우에 걸친 편집이 필요하면 각 워크플로우의 어시스턴트를 따로 열어요.", default: "-" },
   { name: "어시스턴트가 직접 실행", required: false, type: "사용자가 Run", description: "실행 트리거는 항상 사용자가 직접 누르도록 했어요. 의도치 않은 실행을 막기 위한 결정이에요.", default: "-" },
-  { name: "Azure OpenAI 스트리밍", required: false, type: "v1 미지원", description: "현재는 OpenAI·Anthropic·Google AI·Local 의 스트리밍만 검증됐어요. Azure 모델을 선택하면 어시스턴트가 사용 불가 안내를 띄워요.", default: "-" },
   { name: "팀 단위 세션 공유", required: false, type: "개인 세션", description: "팀 RBAC 가 더 풍부해진 다음에 공유 기능을 검토할 예정이에요.", default: "-" },
   { name: "오프라인 작업", required: false, type: "온라인 필수", description: "어시스턴트는 LLM 프로바이더와 실시간 통신해요. 네트워크가 끊기면 패널은 열리지만 메시지는 보낼 수 없어요.", default: "-" }
 ]} />
