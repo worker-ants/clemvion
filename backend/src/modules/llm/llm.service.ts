@@ -77,17 +77,21 @@ export class LlmService {
     config: LlmConfig,
     params: ChatParams,
     context?: LlmCallContext,
-    opts?: { timeoutMs?: number },
+    opts?: { timeoutMs?: number; disableInnerRetry?: boolean },
   ): Promise<ChatResult> {
     const client = this.createClient(config);
-    const result = await this.withRetry(() =>
+    // disableInnerRetry: 호출자가 외부에서 retryWithBackoff 같은 자체 재시도 layer 를 가진 경우
+    // 내부 rate-limit 재시도 (withRetry) 와 겹쳐 호출 횟수가 비선형 증폭되는 것을 막는다.
+    const run = () =>
       opts?.timeoutMs && opts.timeoutMs > 0
         ? // LLMClient.chat 은 아직 AbortSignal 을 받지 않으므로 race 만 적용
           // (후속 PR 에서 인터페이스 확장 시 signal 도 전달). 백그라운드 소켓은
           // provider HTTP 클라이언트가 자체 keep-alive 풀로 GC.
           withTimeout(() => client.chat(params), opts.timeoutMs)
-        : client.chat(params),
-    );
+        : client.chat(params);
+    const result = await (opts?.disableInnerRetry
+      ? run()
+      : this.withRetry(run));
     // 사용량 기록은 fire-and-forget — 실패해도 호출 결과에 영향 없음.
     // workspaceId는 LlmConfig에서 자동 채워지므로 컨텍스트 누락에 무관하게 집계됨.
     void this.usageLogService.record({
@@ -159,7 +163,7 @@ export class LlmService {
     config: LlmConfig,
     texts: string[],
     model?: string,
-    opts?: { timeoutMs?: number },
+    opts?: { timeoutMs?: number; disableInnerRetry?: boolean },
   ): Promise<number[][]> {
     const client = this.createClient(config);
     // Batch embed in chunks of 20
@@ -168,11 +172,13 @@ export class LlmService {
     for (let i = 0; i < texts.length; i += batchSize) {
       const batch = texts.slice(i, i + batchSize);
       // batch 단위로 timeout 적용 — 한 batch 가 hang 되면 race 로 즉시 reject.
-      const embeddings = await this.withRetry(() =>
+      const run = () =>
         opts?.timeoutMs && opts.timeoutMs > 0
           ? withTimeout(() => client.embed(batch, model), opts.timeoutMs)
-          : client.embed(batch, model),
-      );
+          : client.embed(batch, model);
+      const embeddings = await (opts?.disableInnerRetry
+        ? run()
+        : this.withRetry(run));
       allEmbeddings.push(...embeddings);
     }
     return allEmbeddings;

@@ -23,9 +23,12 @@ import {
  *
  * 동작:
  *   - `embedding_last_attempted_at < NOW() - 10min AND embedding_status = 'processing'`
- *     인 문서를 `pending` 으로 되돌려 `document-embedding` 큐에 add (retry_count 보존)
- *   - graph 도 동일하게 `graph_last_attempted_at`·`graph_extraction_status` 기준
- *   - `last_attempted_at` 이 NULL 인 레거시 데이터는 회수 대상에서 제외 (false-positive 방지)
+ *     인 문서를 한 번의 UPDATE ... RETURNING 으로 `pending` 으로 전환 + 회수 대상 id 배열을
+ *     동시 회수. 이 후 한 번의 `queue.addBulk` 로 일괄 add 한다 (N+1 회피).
+ *   - 다중 인스턴스 부팅 시 동시 실행 안전성: PostgreSQL UPDATE 는 row-level lock 을 사용하므로
+ *     두 인스턴스 중 하나만 행을 set 하고 다른 쪽은 RETURNING 결과가 비어 큐잉 자체가 일어나지 않는다.
+ *   - graph 도 동일 패턴.
+ *   - `last_attempted_at` 이 NULL 인 레거시 데이터는 회수 대상에서 제외 (false-positive 방지).
  *
  * 10분 임계 산정:
  *   - BullMQ stalledInterval(30s) × 2 + 부팅 지연 + 마진. 너무 짧으면 정상 임베딩 중인
@@ -63,19 +66,21 @@ export class StuckDocumentRecoveryService implements OnApplicationBootstrap {
   }
 
   private async recoverStuckEmbedding(): Promise<void> {
-    // SELECT ... FOR UPDATE 없이도 안전 — 다중 인스턴스가 부팅 시점에 같은 SQL 을 돌려도
-    // UPDATE 가 행을 'pending' 으로 단일 전환하고, BullMQ 가 job 의 jobId(uuid) 충돌을
-    // 명시적으로 처리하지 않으므로 producer 측에서 명시적 jobId 를 두지 않는다.
-    // race 발생 시 같은 문서가 두 번 큐잉되어도 worker 단계에서 idempotent (reEmbed=true).
+    // UPDATE ... RETURNING 으로 SELECT + UPDATE 를 원자적으로 결합.
+    // 다중 인스턴스가 동시에 돌려도 단일 row 의 status='processing' 가드가 mutual exclusion 역할.
+    // RETURNING 으로 실제 전환된 행만 회수해 이중 큐잉을 차단한다.
     const rows = await this.dataSource.query<
       { id: string; knowledge_base_id: string; rag_mode: 'vector' | 'graph' }[]
     >(
-      `SELECT d.id, d.knowledge_base_id, kb.rag_mode
-         FROM document d
-         JOIN knowledge_base kb ON kb.id = d.knowledge_base_id
-        WHERE d.embedding_status = 'processing'
+      `UPDATE document d
+          SET embedding_status = 'pending',
+              embedding_error_message = COALESCE(embedding_error_message, 'Recovered from stuck processing state at boot')
+         FROM knowledge_base kb
+        WHERE d.knowledge_base_id = kb.id
+          AND d.embedding_status = 'processing'
           AND d.embedding_last_attempted_at IS NOT NULL
-          AND d.embedding_last_attempted_at < NOW() - ($1::text || ' ms')::interval`,
+          AND d.embedding_last_attempted_at < NOW() - ($1::text || ' ms')::interval
+        RETURNING d.id, d.knowledge_base_id, kb.rag_mode`,
       [String(this.STUCK_THRESHOLD_MS)],
     );
 
@@ -84,32 +89,31 @@ export class StuckDocumentRecoveryService implements OnApplicationBootstrap {
       `Recovering ${rows.length} stuck embedding document(s) (>10min in 'processing')`,
     );
 
-    for (const row of rows) {
-      await this.dataSource.query(
-        `UPDATE document
-            SET embedding_status = 'pending',
-                embedding_error_message = COALESCE(embedding_error_message, 'Recovered from stuck processing state at boot')
-          WHERE id = $1 AND embedding_status = 'processing'`,
-        [row.id],
-      );
-      await this.embeddingQueue.add('embed', {
-        documentId: row.id,
-        knowledgeBaseId: row.knowledge_base_id,
-        ragMode: row.rag_mode,
-        reEmbed: true, // chunk idempotent 보장
-      });
-    }
+    // addBulk 단일 호출로 BullMQ 부하 최소화.
+    await this.embeddingQueue.addBulk(
+      rows.map((row) => ({
+        name: 'embed',
+        data: {
+          documentId: row.id,
+          knowledgeBaseId: row.knowledge_base_id,
+          ragMode: row.rag_mode,
+          reEmbed: true, // chunk idempotent 보장
+        },
+      })),
+    );
   }
 
   private async recoverStuckGraphExtraction(): Promise<void> {
     const rows = await this.dataSource.query<
       { id: string; knowledge_base_id: string }[]
     >(
-      `SELECT id, knowledge_base_id
-         FROM document
+      `UPDATE document
+          SET graph_extraction_status = 'pending',
+              graph_error_message = COALESCE(graph_error_message, 'Recovered from stuck processing state at boot')
         WHERE graph_extraction_status = 'processing'
           AND graph_last_attempted_at IS NOT NULL
-          AND graph_last_attempted_at < NOW() - ($1::text || ' ms')::interval`,
+          AND graph_last_attempted_at < NOW() - ($1::text || ' ms')::interval
+        RETURNING id, knowledge_base_id`,
       [String(this.STUCK_THRESHOLD_MS)],
     );
 
@@ -118,18 +122,14 @@ export class StuckDocumentRecoveryService implements OnApplicationBootstrap {
       `Recovering ${rows.length} stuck graph-extraction document(s) (>10min in 'processing')`,
     );
 
-    for (const row of rows) {
-      await this.dataSource.query(
-        `UPDATE document
-            SET graph_extraction_status = 'pending',
-                graph_error_message = COALESCE(graph_error_message, 'Recovered from stuck processing state at boot')
-          WHERE id = $1 AND graph_extraction_status = 'processing'`,
-        [row.id],
-      );
-      await this.graphQueue.add('extract', {
-        documentId: row.id,
-        knowledgeBaseId: row.knowledge_base_id,
-      });
-    }
+    await this.graphQueue.addBulk(
+      rows.map((row) => ({
+        name: 'extract',
+        data: {
+          documentId: row.id,
+          knowledgeBaseId: row.knowledge_base_id,
+        },
+      })),
+    );
   }
 }

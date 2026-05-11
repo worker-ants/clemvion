@@ -1,5 +1,4 @@
 import {
-  BadRequestException,
   Controller,
   Get,
   Post,
@@ -47,6 +46,7 @@ import {
   EmbeddingProbeDto,
   EmbeddingProbeResultDto,
 } from './dto/embedding-probe.dto';
+import { RetryFailedBodyDto } from './dto/retry-failed.dto';
 import {
   DocumentDto,
   KbEmbeddingStatsDto,
@@ -241,6 +241,7 @@ export class KnowledgeBaseController {
       'KB 전체 잠금(reembed_status / reextract_status)에는 영향이 없습니다.',
   })
   @ApiParam({ name: 'id', description: '지식 베이스 UUID', format: 'uuid' })
+  @ApiBody({ type: RetryFailedBodyDto })
   @ApiAcceptedWrappedResponse(KbRetryFailedAcceptedDto, {
     description: '실패 문서 재시도 큐잉 완료',
   })
@@ -250,15 +251,9 @@ export class KnowledgeBaseController {
   async retryFailed(
     @Param('id', ParseUUIDPipe) id: string,
     @WorkspaceId() workspaceId: string,
-    @Body() body: { scope?: 'embedding' | 'graph' | 'all' },
+    @Body() body: RetryFailedBodyDto,
   ): Promise<KbRetryFailedAcceptedDto> {
     const scope = body?.scope ?? 'all';
-    if (!['embedding', 'graph', 'all'].includes(scope)) {
-      throw new BadRequestException({
-        code: 'INVALID_RETRY_SCOPE',
-        message: "scope must be 'embedding', 'graph', or 'all'",
-      });
-    }
     const { embeddingRequeued, graphRequeued } =
       await this.kbService.retryFailedDocuments(id, workspaceId, scope);
     return {
