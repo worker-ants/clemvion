@@ -1,6 +1,6 @@
 apiVersion: v1
 kind: Namespace
 metadata:
-  name: idea-workflow
+  name: clemvion
   labels:
-    app.kubernetes.io/name: idea-workflow
+    app.kubernetes.io/name: clemvion

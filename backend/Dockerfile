@@ -1,5 +1,5 @@
 # Build context must be the repo root so that ../packages/* are reachable.
-#   docker build -f backend/Dockerfile -t idea-workflow/backend .
+#   docker build -f backend/Dockerfile -t clemvion/backend .
 
 # ---------- deps: install all deps (incl. native compile for bcrypt) ----------
 # node:24-alpine ships with npm 11.x, which matches the npm version used to

@@ -3,12 +3,12 @@ kind: Service
 metadata:
   name: backend
   labels:
-    app.kubernetes.io/name: idea-workflow
+    app.kubernetes.io/name: clemvion
     app.kubernetes.io/component: backend
 spec:
   type: ClusterIP
   selector:
-    app.kubernetes.io/name: idea-workflow
+    app.kubernetes.io/name: clemvion
     app.kubernetes.io/component: backend
   ports:
     - name: http

@@ -2,7 +2,7 @@
 #   docker build -f frontend/Dockerfile \
 #     --build-arg NEXT_PUBLIC_API_URL=https://api.example.com/api \
 #     --build-arg NEXT_PUBLIC_WS_URL=https://api.example.com \
-#     -t idea-workflow/frontend .
+#     -t clemvion/frontend .
 
 # ---------- deps ----------
 # node:24-alpine ships with npm 11.x, which matches the npm version used to

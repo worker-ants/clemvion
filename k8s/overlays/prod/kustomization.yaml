@@ -1,7 +1,7 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 
-namespace: idea-workflow
+namespace: clemvion
 
 resources:
   - ../../base
@@ -9,21 +9,21 @@ resources:
   # 실제 동기화 대상에서는 base/secret.example.yaml 을 제외하거나 SealedSecret 으로 교체.
 
 images:
-  - name: idea-workflow/backend
+  - name: clemvion/backend
     newTag: prod
-  - name: idea-workflow/frontend
+  - name: clemvion/frontend
     newTag: prod
-  - name: idea-workflow/migrate
+  - name: clemvion/migrate
     newTag: prod
 
 patches:
   - patch: |
       - op: replace
         path: /data/APP_URL
-        value: "https://api.idea-workflow.example.com"
+        value: "https://api.clemvion.example.com"
       - op: replace
         path: /data/FRONTEND_URL
-        value: "https://app.idea-workflow.example.com"
+        value: "https://app.clemvion.example.com"
       - op: replace
         path: /data/DB_HOST
         value: "REPLACE_ME.rds.amazonaws.com"
@@ -42,23 +42,23 @@ patches:
   - patch: |
       - op: replace
         path: /spec/rules/0/host
-        value: "app.idea-workflow.example.com"
+        value: "app.clemvion.example.com"
       - op: replace
         path: /spec/tls/0/hosts/0
-        value: "app.idea-workflow.example.com"
+        value: "app.clemvion.example.com"
     target:
       kind: Ingress
-      name: idea-workflow-frontend
+      name: clemvion-frontend
   - patch: |
       - op: replace
         path: /spec/rules/0/host
-        value: "api.idea-workflow.example.com"
+        value: "api.clemvion.example.com"
       - op: replace
         path: /spec/tls/0/hosts/0
-        value: "api.idea-workflow.example.com"
+        value: "api.clemvion.example.com"
     target:
       kind: Ingress
-      name: idea-workflow-backend
+      name: clemvion-backend
   # backend HPA 권장 (별도 도입 시):
   # - HPA 또는 KEDA 로 CPU/메모리 또는 BullMQ 큐 길이 기반 스케일링.
 

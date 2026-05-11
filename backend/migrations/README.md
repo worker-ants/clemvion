@@ -19,10 +19,10 @@ V<번호>__<설명>.sql
 
 ```bash
 # 빌드 (repo 루트에서)
-docker build -f backend/migrations/Dockerfile -t idea-workflow/migrate .
+docker build -f backend/migrations/Dockerfile -t clemvion/migrate .
 
 # 적용
-docker run --rm idea-workflow/migrate \
+docker run --rm clemvion/migrate \
   migrate \
   -url=jdbc:postgresql://<host>:5432/<db> \
   -user=<user> \
@@ -36,7 +36,7 @@ Kubernetes에서는 동일 이미지를 Job(또는 Deployment의 init container)
 ## 현재 상태 확인
 
 ```bash
-docker run --rm idea-workflow/migrate info -url=... -user=... -password=...
+docker run --rm clemvion/migrate info -url=... -user=... -password=...
 ```
 
 `flyway_schema_history` 테이블에서 적용 이력을 추적합니다.
@@ -136,11 +136,11 @@ Dockerfile 에서 `*.conf` 도 함께 COPY 되어야 합니다 (이미 V022 도�
 
 ```bash
 # 1) 현재 적용된 마이그레이션과 새 파일 checksum 일치시키기
-docker run --rm idea-workflow/migrate repair -url=... -user=... -password=...
+docker run --rm clemvion/migrate repair -url=... -user=... -password=...
 
 # 2) 일반 마이그 실행 — V031/V032/V033 가 새로 적용됨.
 #    이전 V022/V030 가 만든 인덱스가 이미 존재하므로 IF NOT EXISTS 로 no-op.
-docker run --rm idea-workflow/migrate migrate -url=... -user=... -password=...
+docker run --rm clemvion/migrate migrate -url=... -user=... -password=...
 ```
 
 신규 환경은 `repair` 불필요 — 처음부터 split 형태로 적용된다.

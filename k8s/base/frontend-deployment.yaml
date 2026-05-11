@@ -3,7 +3,7 @@ kind: Deployment
 metadata:
   name: frontend
   labels:
-    app.kubernetes.io/name: idea-workflow
+    app.kubernetes.io/name: clemvion
     app.kubernetes.io/component: frontend
 spec:
   replicas: 2
@@ -14,12 +14,12 @@ spec:
       maxUnavailable: 0
   selector:
     matchLabels:
-      app.kubernetes.io/name: idea-workflow
+      app.kubernetes.io/name: clemvion
       app.kubernetes.io/component: frontend
   template:
     metadata:
       labels:
-        app.kubernetes.io/name: idea-workflow
+        app.kubernetes.io/name: clemvion
         app.kubernetes.io/component: frontend
     spec:
       securityContext:
@@ -28,7 +28,7 @@ spec:
         runAsGroup: 1000
       containers:
         - name: frontend
-          image: idea-workflow/frontend:latest
+          image: clemvion/frontend:latest
           imagePullPolicy: IfNotPresent
           ports:
             - name: http

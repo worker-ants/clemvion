@@ -2,14 +2,14 @@
 #
 # 운영 패턴:
 # - ArgoCD 사용 시: PreSync hook + sync-wave로 backend Deployment 보다 먼저 실행.
-# - 수동 적용 시: kubectl apply 전에 기존 Job 삭제 (`kubectl delete job db-migrate -n idea-workflow`).
+# - 수동 적용 시: kubectl apply 전에 기존 Job 삭제 (`kubectl delete job db-migrate -n clemvion`).
 #   Job spec은 immutable 이라 동일 이름 재적용이 거부됨. ttlSecondsAfterFinished=300 으로 자동 정리.
 apiVersion: batch/v1
 kind: Job
 metadata:
   name: db-migrate
   labels:
-    app.kubernetes.io/name: idea-workflow
+    app.kubernetes.io/name: clemvion
     app.kubernetes.io/component: migrate
   annotations:
     argocd.argoproj.io/hook: PreSync
@@ -21,13 +21,13 @@ spec:
   template:
     metadata:
       labels:
-        app.kubernetes.io/name: idea-workflow
+        app.kubernetes.io/name: clemvion
         app.kubernetes.io/component: migrate
     spec:
       restartPolicy: OnFailure
       containers:
         - name: flyway
-          image: idea-workflow/migrate:latest
+          image: clemvion/migrate:latest
           imagePullPolicy: IfNotPresent
           envFrom:
             - configMapRef:

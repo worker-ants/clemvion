@@ -1,7 +1,7 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 
-namespace: idea-workflow
+namespace: clemvion
 
 resources:
   - ../../base
@@ -11,11 +11,11 @@ resources:
 
 # 환경별 이미지 태그 (CI 가 빌드 후 newTag 갱신 PR 을 보내도록).
 images:
-  - name: idea-workflow/backend
+  - name: clemvion/backend
     newTag: staging
-  - name: idea-workflow/frontend
+  - name: clemvion/frontend
     newTag: staging
-  - name: idea-workflow/migrate
+  - name: clemvion/migrate
     newTag: staging
 
 # 외부 RDS / ElastiCache / S3 endpoint 로 교정.
@@ -23,10 +23,10 @@ patches:
   - patch: |
       - op: replace
         path: /data/APP_URL
-        value: "https://api.staging.idea-workflow.example.com"
+        value: "https://api.staging.clemvion.example.com"
       - op: replace
         path: /data/FRONTEND_URL
-        value: "https://app.staging.idea-workflow.example.com"
+        value: "https://app.staging.clemvion.example.com"
       - op: replace
         path: /data/DB_HOST
         value: "REPLACE_ME.rds.amazonaws.com"
@@ -42,23 +42,23 @@ patches:
   - patch: |
       - op: replace
         path: /spec/rules/0/host
-        value: "app.staging.idea-workflow.example.com"
+        value: "app.staging.clemvion.example.com"
       - op: replace
         path: /spec/tls/0/hosts/0
-        value: "app.staging.idea-workflow.example.com"
+        value: "app.staging.clemvion.example.com"
     target:
       kind: Ingress
-      name: idea-workflow-frontend
+      name: clemvion-frontend
   - patch: |
       - op: replace
         path: /spec/rules/0/host
-        value: "api.staging.idea-workflow.example.com"
+        value: "api.staging.clemvion.example.com"
       - op: replace
         path: /spec/tls/0/hosts/0
-        value: "api.staging.idea-workflow.example.com"
+        value: "api.staging.clemvion.example.com"
     target:
       kind: Ingress
-      name: idea-workflow-backend
+      name: clemvion-backend
 
 replicas:
   - name: backend
