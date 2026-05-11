@@ -81,7 +81,9 @@ export function encryptJson(value: unknown): string {
   // sentinel marker would permanently destroy any chance of recovering the
   // row when the operator restores the original key.
   if (isUnreadableCredentials(value)) {
-    const original = (value as Record<string, unknown>)[UNREADABLE_ORIGINAL_KEY];
+    const original = (value as Record<string, unknown>)[
+      UNREADABLE_ORIGINAL_KEY
+    ];
     if (typeof original === 'string') return original;
     // Defensive: fallback to plain JSON if the original was non-string (e.g.
     // a JSONB object). Loss of the sentinel marker on this rare path is
