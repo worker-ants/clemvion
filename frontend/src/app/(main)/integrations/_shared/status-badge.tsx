@@ -11,6 +11,13 @@ export interface StatusView {
 export function computeStatus(integration: IntegrationDto): StatusView {
   const expiresSoon = isExpiringSoon(integration.tokenExpiresAt);
 
+  if (integration.credentialsStatus === "needs_reauth") {
+    return {
+      label: "Reconnection required",
+      dotClassName: "bg-amber-500",
+      tone: "warn",
+    };
+  }
   if (integration.status === "error") {
     return {
       label: "Error",

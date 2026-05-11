@@ -31,6 +31,7 @@ import {
   maskCredentials,
   validateCredentials,
 } from './services/service-registry';
+import { isUnreadableCredentials } from './services/credentials-transformer';
 import {
   ConnectionPreview,
   McpTestConnectionService,
@@ -98,9 +99,29 @@ export interface IntegrationUsageWorkflow {
   nodes: IntegrationUsageNode[];
 }
 
+export type CredentialsStatus = 'ok' | 'needs_reauth';
+
 export type PublicIntegration = Omit<Integration, 'credentials'> & {
   credentials: Record<string, unknown>;
+  credentialsStatus: CredentialsStatus;
 };
+
+/**
+ * Thrown when execution-engine code paths try to use an integration whose
+ * stored credentials cannot be decrypted (key rotation / corruption). The
+ * caller must surface this to the user as a 400 with a reconnect hint rather
+ * than attempt the outbound call with empty credentials.
+ */
+export class IntegrationCredentialsUnreadableError extends BadRequestException {
+  constructor(integrationId: string) {
+    super({
+      code: 'INTEGRATION_CREDENTIALS_UNREADABLE',
+      message:
+        'Integration credentials could not be decrypted — reconnect required',
+      integrationId,
+    });
+  }
+}
 
 @Injectable()
 export class IntegrationsService {
@@ -478,6 +499,14 @@ export class IntegrationsService {
     workspaceId: string,
   ): Promise<IntegrationTestResult> {
     const entity = await this.requireEntity(id, workspaceId);
+    if (isUnreadableCredentials(entity.credentials)) {
+      return {
+        success: false,
+        code: 'INTEGRATION_CREDENTIALS_UNREADABLE',
+        message:
+          'Credentials cannot be decrypted with the current key. Reconnect to rebuild this integration.',
+      };
+    }
     return this.dispatchTest(
       entity.serviceType,
       entity.authType,
@@ -579,7 +608,13 @@ export class IntegrationsService {
       });
     }
 
-    const merged = { ...entity.credentials, ...body.credentials };
+    // If the existing row's credentials cannot be decrypted (key rotation),
+    // start from a clean slate — merging in the sentinel marker would persist
+    // it through re-encryption and defeat the rotation.
+    const baseCreds = isUnreadableCredentials(entity.credentials)
+      ? {}
+      : entity.credentials;
+    const merged = { ...baseCreds, ...body.credentials };
     const errors = validateCredentials(
       entity.serviceType,
       entity.authType,
@@ -765,7 +800,11 @@ export class IntegrationsService {
    * the result as secret material and avoid logging it.
    */
   async getForExecution(id: string, workspaceId: string): Promise<Integration> {
-    return this.requireEntity(id, workspaceId);
+    const entity = await this.requireEntity(id, workspaceId);
+    if (isUnreadableCredentials(entity.credentials)) {
+      throw new IntegrationCredentialsUnreadableError(entity.id);
+    }
+    return entity;
   }
 
   // ---------------------------------------------------------------
@@ -789,6 +828,19 @@ export class IntegrationsService {
   }
 
   private toPublic(entity: Integration): PublicIntegration {
+    if (isUnreadableCredentials(entity.credentials)) {
+      // Single corrupted row must not leak the sentinel marker into the API
+      // response and must surface as a reconnect prompt rather than a
+      // half-broken "connected" card.
+      return {
+        ...entity,
+        credentials: {},
+        lastError: isUnreadableCredentials(entity.lastError) ? null : entity.lastError,
+        status: 'error',
+        statusReason: 'credentials_unreadable',
+        credentialsStatus: 'needs_reauth',
+      };
+    }
     return {
       ...entity,
       credentials: maskCredentials(
@@ -796,6 +848,8 @@ export class IntegrationsService {
         entity.serviceType,
         entity.authType,
       ),
+      lastError: isUnreadableCredentials(entity.lastError) ? null : entity.lastError,
+      credentialsStatus: 'ok',
     };
   }
 

@@ -41,6 +41,13 @@ export class IntegrationDto {
   @ApiPropertyOptional({ nullable: true })
   statusReason?: string | null;
 
+  /**
+   * 자격 증명 복호화 상태. `needs_reauth`는 저장된 envelope을 현재 키로
+   * 복호화하지 못한 행이며, UI는 재인증 흐름을 노출해야 한다.
+   */
+  @ApiProperty({ enum: ['ok', 'needs_reauth'], example: 'ok' })
+  credentialsStatus: 'ok' | 'needs_reauth';
+
   /** 마지막 확인 시각 */
   @ApiPropertyOptional({ format: 'date-time', nullable: true })
   lastCheckedAt?: string | null;
