@@ -1008,6 +1008,8 @@ export const ko = {
       opDeleteField: "필드 삭제",
       opValuePlaceholder: "값 또는 {{ 표현식 }}",
       addModification: "변경 사항 추가",
+      recordValues: "변경 전/후 값 기록",
+      recordValuesHint: "meta.modifications에 before/after 스냅샷을 추가해요. 비밀번호·토큰·apiKey 등 secret 패턴은 자동 마스킹돼요.",
       fieldPath: "필드 경로",
       fieldPathPlaceholderItems: "{{ $input.items }}",
       fieldPathHintItems: "[{ index, value }] 항목으로 정규화할 배열 필드",

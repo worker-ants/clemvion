@@ -1012,6 +1012,8 @@ export const en: Dict = {
       opDeleteField: "Delete Field",
       opValuePlaceholder: "Value or {{ expression }}",
       addModification: "Add Modification",
+      recordValues: "Record values in meta",
+      recordValuesHint: "Adds before/after snapshots to meta.modifications. Secret-named variables (password / token / apiKey ...) are automatically masked.",
       fieldPath: "Field Path",
       fieldPathPlaceholderItems: "{{ $input.items }}",
       fieldPathHintItems: "Array field to normalize into [{ index, value }] items",

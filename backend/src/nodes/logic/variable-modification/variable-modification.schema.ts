@@ -47,6 +47,7 @@ export const variableModificationNodeOutputSchema = z
     config: z
       .object({
         modifications: z.array(modDefSchema).optional(),
+        recordValues: z.boolean().optional(),
       })
       .partial()
       .passthrough()
@@ -67,6 +68,25 @@ export const variableModificationNodeConfigSchema = z
           label: 'Modifications',
           widget: 'field-array',
           itemLabel: 'Modification',
+        },
+      }),
+    /**
+     * When `true`, each `meta.modifications[i]` entry is augmented with
+     * `before` / `after` snapshots of the variable value, with sensitive
+     * keys masked via `maskValueForLog`. Default `false` because the
+     * snapshots can be large for collection variables and may include user
+     * data that should not surface in run logs by default.
+     *
+     * Spec: 4-nodes/1-logic/5-variable-modification.md §5.1.
+     */
+    recordValues: z
+      .boolean()
+      .default(false)
+      .meta({
+        ui: {
+          label: 'Record values in meta',
+          widget: 'checkbox',
+          hint: 'Include before/after snapshots in meta.modifications (masked). Off by default.',
         },
       }),
   })

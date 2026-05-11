@@ -11,6 +11,7 @@
 | 필드 | 타입 | 필수 | 기본값 | 설명 |
 |------|------|------|--------|------|
 | modifications | ModDef[] | ✓ | `[]` | 적용할 변수 수정 목록. 순서대로 적용 (앞 수정의 결과가 뒤 수정의 입력) |
+| recordValues | Boolean | | `false` | `true` 이면 `meta.modifications[i]` 에 `before` / `after` 스냅샷이 추가된다 (마스킹 적용). default `false` — 큰 컬렉션 변수는 run log 부피를 키우고 사용자 데이터가 의도치 않게 노출될 수 있으므로 명시적 opt-in 필요 |
 
 ### 1.1 ModDef 구조
 
@@ -116,7 +117,7 @@
 | `config.modifications` | ModDef[] | config echo (Principle 7) | 사용자가 입력한 raw 수정 목록 — `value` 의 `{{ }}` 표현식은 평가 전 형태로 보존 (`backend/src/nodes/logic/variable-modification/variable-modification.handler.ts` 가 `context.rawConfig.modifications` 를 echo) |
 | `output` | (input 전체) | runtime — pass-through | input 데이터 그대로 (변형 없음). side-effect 는 `context.variables` 로만 발생 |
 | `meta.durationMs` | number | engine inject | 실행 시간 (ms). 모든 노드 공통 |
-| `meta.modifications` | `Array<{ variable: string, operation: string, applied: boolean }>` | handler | 적용된 modification 목록. `variable` 누락이나 `pop` on non-array 등 no-op 인 경우 `applied=false` (CONVENTIONS Principle 2 — 실행 메트릭) |
+| `meta.modifications` | `Array<{ variable: string, operation: string, applied: boolean, before?: unknown, after?: unknown }>` | handler | 적용된 modification 목록. `variable` 누락이나 `pop` on non-array 등 no-op 인 경우 `applied=false` (CONVENTIONS Principle 2 — 실행 메트릭). `config.recordValues=true` 일 때만 `before`/`after` 가 추가되며, 다음 마스킹 정책이 적용된다 (`backend/src/nodes/logic/_shared/value-masking.util.ts`): (1) 변수명이 secret 패턴 (`password`/`token`/`apiKey` 등) 매칭 시 `'***'`, (2) JSON 직렬화 4096 byte 초과 시 `'[truncated:N bytes]'`, (3) 함수/심볼은 `'[unsupported:...]'`, (4) 그 외 primitive·소형 컬렉션은 deep-clone 으로 보존 (이후 mutation 무관). default `false` |
 | `meta.coercionWarnings` | `Array<{ variable: string, operation: string, fromType: string, error?: string }>` | handler | 비-매칭 타입 fallback (`increment` on non-number → `0`, `append` on non-string → `''`, `push` / `pop` on non-array) 이 발생한 항목. 변수 미존재 (initial create) 는 경고 대상이 아니다 |
 | `meta.createdVariables` | `string[]` | handler | 본 modification 에서 선언 없이 처음 생성된 변수 이름 (사용자 오탈자 감지) |
 | `port` | (생략) | — | 단일 출력 노드이므로 `undefined` (CONVENTIONS Principle 5) |
