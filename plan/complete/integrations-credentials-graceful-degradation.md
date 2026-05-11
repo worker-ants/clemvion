@@ -25,8 +25,8 @@
 - [x] `npm test -- credentials-transformer integrations.service` green.
 - [x] backend typecheck pass (`npm run typecheck` 또는 `npm run build`의 ts 단계).
 - [x] frontend typecheck pass.
-- [ ] 수동 회귀: `/integrations` 정상 행만 있을 때 200 + 정상 카드. (수동 — 실행 환경 필요)
-- [ ] 수동 손상 재현: 일부러 잘못된 envelope으로 row 갱신 후 `/integrations` 200 + 손상 카드는 "재인증 필요" 표시. (수동)
+- [x] 수동 회귀: `/integrations` 정상 행만 있을 때 200 + 정상 카드. (사용자 검증 완료, 2026-05-12)
+- [x] 수동 손상 재현: 일부러 잘못된 envelope으로 row 갱신 후 `/integrations` 200 + 손상 카드는 "재인증 필요" 표시. (사용자 검증 완료, 2026-05-12)
 
 ## 완료 시
 
