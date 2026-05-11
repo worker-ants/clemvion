@@ -1,6 +1,6 @@
 # Spec: Transform
 
-> 관련 문서: [Data 공통 규약](./0-common.md) · [Spec 노드 개요](../0-overview.md) · [Filter 노드](../1-logic/8-filter.md) · [Spec 표현식 언어](../../5-system/5-expression-language.md) · [CONVENTIONS](../../../user_memo/node-specs-improvement/CONVENTIONS.md)
+> 관련 문서: [Data 공통 규약](./0-common.md) · [Spec 노드 개요](../0-overview.md) · [Filter 노드](../1-logic/8-filter.md) · [Spec 표현식 언어](../../5-system/5-expression-language.md) · [CONVENTIONS](../../conventions/node-output.md)
 
 입력 데이터에 변환 연산(operations)을 순차적으로 적용하여 출력하는 **순수 데이터 변형 노드**. operation 체인은 핸들러 프로세스 내부에서 외부 I/O 없이 실행된다 (Data 공통 §2). 코딩 없이 시각적 빌더 UI를 통해 데이터를 재구조화할 수 있다.
 

@@ -1,6 +1,6 @@
 # Spec: Workflow (Sub-Workflow)
 
-> 관련 문서: [Flow 공통 규약](./0-common.md) · [Spec 노드 개요](../0-overview.md) · [Spec 표현식 언어](../../5-system/5-expression-language.md) · [Spec 실행 엔진](../../5-system/4-execution-engine.md) · [Spec 에러 핸들링](../../5-system/3-error-handling.md) · [CONVENTIONS](../../../user_memo/node-specs-improvement/CONVENTIONS.md)
+> 관련 문서: [Flow 공통 규약](./0-common.md) · [Spec 노드 개요](../0-overview.md) · [Spec 표현식 언어](../../5-system/5-expression-language.md) · [Spec 실행 엔진](../../5-system/4-execution-engine.md) · [Spec 에러 핸들링](../../5-system/3-error-handling.md) · [CONVENTIONS](../../conventions/node-output.md)
 
 다른 워크플로우를 서브 워크플로우로 호출하여 재사용성·모듈화를 지원하는 **flow 노드**. 동기(`sync`) 모드는 부모 Execution 안에서 인라인 실행되며 서브 워크플로우의 최종 출력을 그대로 받는다. 비동기(`async`) 모드는 별도 Execution 으로 큐에 등록하고 즉시 추적 ID 를 반환한다.
 

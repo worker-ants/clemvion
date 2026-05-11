@@ -1,6 +1,6 @@
 # Spec: If/Else
 
-> 관련 문서: [Logic 공통 규약](./0-common.md) · [Spec 노드 개요](../0-overview.md) · [Spec 표현식 언어](../../5-system/5-expression-language.md) · [CONVENTIONS](../../../user_memo/node-specs-improvement/CONVENTIONS.md)
+> 관련 문서: [Logic 공통 규약](./0-common.md) · [Spec 노드 개요](../0-overview.md) · [Spec 표현식 언어](../../5-system/5-expression-language.md) · [CONVENTIONS](../../conventions/node-output.md)
 
 조건식을 평가하여 `true` / `false` 두 포트로 분기하는 **pass-through 노드**. 입력은 변형 없이 선택된 포트로 그대로 전달된다 (Logic 공통 §Pass-through 규약).
 

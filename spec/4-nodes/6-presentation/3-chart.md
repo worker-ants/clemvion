@@ -1,6 +1,6 @@
 # Spec: Chart
 
-> 관련 문서: [Presentation 공통 규약](./0-common.md) · [Spec 노드 개요](../0-overview.md) · [CONVENTIONS](../../../user_memo/node-specs-improvement/CONVENTIONS.md)
+> 관련 문서: [Presentation 공통 규약](./0-common.md) · [Spec 노드 개요](../0-overview.md) · [CONVENTIONS](../../conventions/node-output.md)
 
 입력 데이터 배열을 `xAxis` 기준으로 버킷팅하고 `yAxis.aggregation` 으로 집계하여 `{ x, y }` 포인트 배열로 변환한다. bar / line / area / pie / donut 등 시각화 차트로 렌더링된다. 글로벌 버튼이 하나라도 설정되면 **Blocking Mode** 로 진입한다 (per-item 버튼 미지원).
 

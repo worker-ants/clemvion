@@ -1,6 +1,6 @@
 # Spec: Database Query
 
-> 관련 문서: [Integration 공통 규약](./0-common.md) · [Spec 노드 개요](../0-overview.md) · [Spec 실행 엔진 §10](../../5-system/4-execution-engine.md#10-integration-handler-계약) · [CONVENTIONS](../../../user_memo/node-specs-improvement/CONVENTIONS.md)
+> 관련 문서: [Integration 공통 규약](./0-common.md) · [Spec 노드 개요](../0-overview.md) · [Spec 실행 엔진 §10](../../5-system/4-execution-engine.md#10-integration-handler-계약) · [CONVENTIONS](../../conventions/node-output.md)
 
 SQL 쿼리를 실행하여 외부 데이터베이스에서 데이터를 조회하거나 조작한다. PostgreSQL / MySQL 드라이버를 모두 지원하며, 실행 결과는 `success` 포트, 런타임 실패(구문 오류, 커넥션 drop, 제약 위반 등)는 `error` 포트로 분기된다.
 

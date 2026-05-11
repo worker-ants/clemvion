@@ -1,6 +1,6 @@
 # Spec: Merge
 
-> 관련 문서: [Logic 공통 규약](./0-common.md) · [Spec 노드 개요](../0-overview.md) · [Spec 표현식 언어](../../5-system/5-expression-language.md) · [CONVENTIONS](../../../user_memo/node-specs-improvement/CONVENTIONS.md)
+> 관련 문서: [Logic 공통 규약](./0-common.md) · [Spec 노드 개요](../0-overview.md) · [Spec 표현식 언어](../../5-system/5-expression-language.md) · [CONVENTIONS](../../conventions/node-output.md)
 
 여러 입력 경로의 데이터를 하나로 합치는 **데이터 노드**. `strategy` 와 `outputFormat` 의 조합으로 결과 형태를 결정한다. Phase P1 순차 엔진 기준 모든 predecessor 가 이미 해소된 뒤 실행되므로 별도의 fan-in barrier 는 적용되지 않는다.
 
@@ -166,7 +166,7 @@
   "output": { "in_0": "first", "in_1": "second" }
 }
 ```
-> P1 개선안([user_memo logic/merge.md §3](../../../user_memo/node-specs-improvement/logic/merge.md#3-제안된-output-구조))은 `{ items: [{ index, value }], count }` 로의 breaking 전환을 제안하나, 현재 코드는 `in_<i>` 키 형태를 유지한다. 다운스트림은 `$node["X"].output.in_0` 등으로 접근.
+> P1 개선안([아카이브 logic/merge.md §3](../../../plan/complete/archive/from-user-memo/node-specs-improvement/logic/merge.md#3-제안된-output-구조))은 `{ items: [{ index, value }], count }` 로의 breaking 전환을 제안하나, 현재 코드는 `in_<i>` 키 형태를 유지한다. 다운스트림은 `$node["X"].output.in_0` 등으로 접근.
 
 **`strategy: 'first'`** — 정규화 배열의 첫 항목만 남기고 outputFormat 적용
 ```json

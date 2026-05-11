@@ -1,6 +1,6 @@
 # Spec: Text Classifier
 
-> 관련 문서: [AI 공통 규약](./0-common.md) · [Spec 노드 개요](../0-overview.md) · [Spec LLM Config](../../2-navigation/6-config.md) · [CONVENTIONS](../../../user_memo/node-specs-improvement/CONVENTIONS.md)
+> 관련 문서: [AI 공통 규약](./0-common.md) · [Spec 노드 개요](../0-overview.md) · [Spec LLM Config](../../2-navigation/6-config.md) · [CONVENTIONS](../../conventions/node-output.md)
 
 LLM 을 사용하여 입력 텍스트를 미리 정의된 카테고리로 분류한다. **Single-label** (정확히 한 카테고리 또는 매칭 없음) 또는 **Multi-label** (해당하는 모든 카테고리 동시 활성화) 모드를 지원한다.
 

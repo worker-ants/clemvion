@@ -39,7 +39,7 @@ Code 노드는 [노드 실행 샌드박싱 정책](../0-overview.md#5-노드-실
 
 ## 4. 5필드 공통 규약 (Data 카테고리)
 
-Data 노드는 모두 [CONVENTIONS Principle 0](../../../user_memo/node-specs-improvement/CONVENTIONS.md) 의 5필드 invariant `{ config, output, meta?, port?, status? }` 를 따른다. 카테고리 특이 사용 패턴:
+Data 노드는 모두 [CONVENTIONS Principle 0](../../conventions/node-output.md) 의 5필드 invariant `{ config, output, meta?, port?, status? }` 를 따른다. 카테고리 특이 사용 패턴:
 
 | 필드 | Data 카테고리에서의 사용 패턴 |
 |------|--------------------------------|

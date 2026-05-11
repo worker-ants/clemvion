@@ -1,6 +1,6 @@
 # Spec: Map
 
-> 관련 문서: [Logic 공통 규약](./0-common.md) · [Spec 노드 개요](../0-overview.md) · [ForEach 노드](./9-foreach.md) · [Spec 실행 엔진](../../5-system/4-execution-engine.md) · [Spec 표현식 언어](../../5-system/5-expression-language.md) · [CONVENTIONS](../../../user_memo/node-specs-improvement/CONVENTIONS.md)
+> 관련 문서: [Logic 공통 규약](./0-common.md) · [Spec 노드 개요](../0-overview.md) · [ForEach 노드](./9-foreach.md) · [Spec 실행 엔진](../../5-system/4-execution-engine.md) · [Spec 표현식 언어](../../5-system/5-expression-language.md) · [CONVENTIONS](../../conventions/node-output.md)
 
 배열의 각 항목에 대해 body 서브그래프를 실행하고, 각 반복의 `emit` 포트 출력을 모아 새 배열을 생성하는 **컨테이너 노드** (`executionMetadata.kind = 'container'`). ForEach 와 동일한 실행 모델·executor (`ForEachExecutor`) 를 공유하지만 시맨틱은 "결과 수집 (transform)" 으로 특화되어 있다 — 컬렉션 키도 ForEach 의 `items` 와 달리 **`mapped`** 를 사용한다 ([공통 §5](./0-common.md#5-반복분기-출력-구조-conventions-92)). 컨테이너 패턴 일반은 [공통 §3](./0-common.md#3-컨테이너-노드-패턴-loop--map--foreach) 참조.
 

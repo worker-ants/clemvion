@@ -1,6 +1,6 @@
 # Spec: HTTP Request
 
-> 관련 문서: [Integration 공통 규약](./0-common.md) · [Spec 노드 개요](../0-overview.md) · [Spec 실행 엔진 §10](../../5-system/4-execution-engine.md#10-integration-handler-계약) · [CONVENTIONS](../../../user_memo/node-specs-improvement/CONVENTIONS.md)
+> 관련 문서: [Integration 공통 규약](./0-common.md) · [Spec 노드 개요](../0-overview.md) · [Spec 실행 엔진 §10](../../5-system/4-execution-engine.md#10-integration-handler-계약) · [CONVENTIONS](../../conventions/node-output.md)
 
 범용 HTTP 요청 노드. 인증 없이 사용하거나 Integration 을 참조해 인증 헤더/쿼리/`base_url` 을 자동 주입한다. 응답은 `success` / `error` 두 포트로 라우팅된다 (Principle 3 — runtime 실패는 `port:'error'` + `output.error`).
 
@@ -311,7 +311,7 @@ CONVENTIONS Principle 3.2 의 표준 envelope `output.error.{code, message, deta
 | `authentication='integration'` & redirect 5홉 초과 | `SSRF_BLOCKED: redirect chain exceeded 5 hops` | handler.execute |
 | `authentication='integration'` & 프로토콜이 `http`/`https` 외 | `SSRF_BLOCKED: protocol "..." is not allowed` | handler.execute |
 
-> SSRF 차단은 현재 throw 경로다. user_memo 개선안(`HTTP_SSRF_BLOCKED` 코드로 `error` 포트 라우팅 전환)은 P1 후보 — 본 spec 의 정책은 **throw 유지**이며, 변경 시 [공통 §6.1](./0-common.md#61-metaduration-vs-metadurationms-명명-통일) 와 같은 방식으로 별도 항목 추가 후 반영한다.
+> SSRF 차단은 현재 throw 경로다. 아카이브 개선안(`HTTP_SSRF_BLOCKED` 코드로 `error` 포트 라우팅 전환)은 P1 후보 — 본 spec 의 정책은 **throw 유지**이며, 변경 시 [공통 §6.1](./0-common.md#61-metaduration-vs-metadurationms-명명-통일) 와 같은 방식으로 별도 항목 추가 후 반영한다.
 
 ## 6. 에러 코드
 

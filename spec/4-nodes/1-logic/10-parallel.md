@@ -1,6 +1,6 @@
 # Spec: Parallel
 
-> 관련 문서: [Logic 공통 규약](./0-common.md) · [Spec 노드 개요](../0-overview.md) · [Spec 실행 엔진](../../5-system/4-execution-engine.md) · [CONVENTIONS](../../../user_memo/node-specs-improvement/CONVENTIONS.md)
+> 관련 문서: [Logic 공통 규약](./0-common.md) · [Spec 노드 개요](../0-overview.md) · [Spec 실행 엔진](../../5-system/4-execution-engine.md) · [CONVENTIONS](../../conventions/node-output.md)
 
 입력을 동일하게 받는 N개의 분기를 동시에(병렬로) 실행하는 **컨테이너 노드** (`executionMetadata.kind = 'parallel'`). 핸들러는 `branch_0` ~ `branch_{N-1}` 동적 출력 포트를 fan-out 활성화하고, 모든 분기가 종료된 후 엔진이 `done` 포트로 `{ branches: [...] }` 결과를 내보낸다. `branches[i]` 는 `Promise.allSettled` 모델을 따른다 — `{ status: 'fulfilled', value }` 또는 `{ status: 'rejected', error: { code, message } }` (CONVENTIONS Principle 9, [공통 §9.1](./0-common.md#91-컨테이너-노드-핸들러--엔진-오버라이트-컨트랙트)).
 
@@ -19,9 +19,9 @@
 
 > Source of truth: `backend/src/nodes/logic/parallel/parallel.schema.ts` (export `parallelNodeConfigSchema`)
 >
-> ⚠ **미구현 (P1)**: `errorPolicy` 는 `ParallelExecutor` 에는 구현되어 있으나 현재 `parallelNodeConfigSchema` 에는 노출되지 않았다 ([user_memo 개선안 logic/parallel.md §2 항목 6](../../../user_memo/node-specs-improvement/logic/parallel.md#2-식별된-불일치)). schema 노출 시까지 다운스트림은 기본값(`stop`)으로 동작한다.
+> ⚠ **미구현 (P1)**: `errorPolicy` 는 `ParallelExecutor` 에는 구현되어 있으나 현재 `parallelNodeConfigSchema` 에는 노출되지 않았다 ([아카이브 개선안 logic/parallel.md §2 항목 6](../../../plan/complete/archive/from-user-memo/node-specs-improvement/logic/parallel.md#2-식별된-불일치)). schema 노출 시까지 다운스트림은 기본값(`stop`)으로 동작한다.
 >
-> ⚠ **미구현 (P1)**: `waitAll: false` 는 schema 에 노출되어 있으나 엔진 단계에서 무시된다. user_memo 개선안은 schema 제거 또는 validate 단계 reject 를 제안한다 ([logic/parallel.md §3](../../../user_memo/node-specs-improvement/logic/parallel.md#3-제안된-output-구조)).
+> ⚠ **미구현 (P1)**: `waitAll: false` 는 schema 에 노출되어 있으나 엔진 단계에서 무시된다. 아카이브 개선안은 schema 제거 또는 validate 단계 reject 를 제안한다 ([logic/parallel.md §3](../../../plan/complete/archive/from-user-memo/node-specs-improvement/logic/parallel.md#3-제안된-output-구조)).
 
 ## 2. 설정 UI
 

@@ -88,7 +88,7 @@ Integration 노드에서 연결된 Integration이 삭제된 경우 `⚠ Missing 
 
 ## 6. 5필드 공통 규약 (Integration 카테고리)
 
-Integration 노드는 모두 [CONVENTIONS Principle 0](../../../user_memo/node-specs-improvement/CONVENTIONS.md) 의 5필드 invariant `{ config, output, meta?, port?, status? }` 를 따른다. 카테고리 특이 사용 패턴 (§3 의 형식과 동일):
+Integration 노드는 모두 [CONVENTIONS Principle 0](../../conventions/node-output.md) 의 5필드 invariant `{ config, output, meta?, port?, status? }` 를 따른다. 카테고리 특이 사용 패턴 (§3 의 형식과 동일):
 
 | 필드 | Integration 카테고리에서의 사용 패턴 |
 |------|----------------------------------------|

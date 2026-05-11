@@ -1,6 +1,6 @@
 # Spec: Variable Modification
 
-> 관련 문서: [Logic 공통 규약](./0-common.md) · [Spec 노드 개요](../0-overview.md) · [Spec 표현식 언어](../../5-system/5-expression-language.md) · [CONVENTIONS](../../../user_memo/node-specs-improvement/CONVENTIONS.md)
+> 관련 문서: [Logic 공통 규약](./0-common.md) · [Spec 노드 개요](../0-overview.md) · [Spec 표현식 언어](../../5-system/5-expression-language.md) · [CONVENTIONS](../../conventions/node-output.md)
 
 워크플로우 변수 저장소 (`$var.*`) 의 값을 수정하는 **pass-through + side-effect 노드**. `modifications[]` 배열을 순서대로 적용한 뒤 입력은 변형 없이 단일 `out` 포트로 그대로 전달된다 (Logic 공통 §10 Pass-through 규약). UI 라벨은 "Set Variable".
 
