@@ -1,0 +1,183 @@
+{
+  "timestamp": "2026-05-11T12:13:07.245122",
+  "files": [
+    {
+      "file_path": "/Volumes/project/private/clemvion/README.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "/Volumes/project/private/clemvion/backend/Dockerfile",
+      "change_type": "Review",
+      "file_extension": ""
+    },
+    {
+      "file_path": "/Volumes/project/private/clemvion/backend/README.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "/Volumes/project/private/clemvion/backend/migrations/Dockerfile",
+      "change_type": "Review",
+      "file_extension": ""
+    },
+    {
+      "file_path": "/Volumes/project/private/clemvion/backend/migrations/README.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "/Volumes/project/private/clemvion/frontend/Dockerfile",
+      "change_type": "Review",
+      "file_extension": ""
+    },
+    {
+      "file_path": "/Volumes/project/private/clemvion/frontend/README.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "/Volumes/project/private/clemvion/k8s/README.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "/Volumes/project/private/clemvion/k8s/base/backend-deployment.yaml",
+      "change_type": "Review",
+      "file_extension": "yaml"
+    },
+    {
+      "file_path": "/Volumes/project/private/clemvion/k8s/base/backend-service.yaml",
+      "change_type": "Review",
+      "file_extension": "yaml"
+    },
+    {
+      "file_path": "/Volumes/project/private/clemvion/k8s/base/configmap.yaml",
+      "change_type": "Review",
+      "file_extension": "yaml"
+    },
+    {
+      "file_path": "/Volumes/project/private/clemvion/k8s/base/frontend-deployment.yaml",
+      "change_type": "Review",
+      "file_extension": "yaml"
+    },
+    {
+      "file_path": "/Volumes/project/private/clemvion/k8s/base/frontend-service.yaml",
+      "change_type": "Review",
+      "file_extension": "yaml"
+    },
+    {
+      "file_path": "/Volumes/project/private/clemvion/k8s/base/ingress.yaml",
+      "change_type": "Review",
+      "file_extension": "yaml"
+    },
+    {
+      "file_path": "/Volumes/project/private/clemvion/k8s/base/kustomization.yaml",
+      "change_type": "Review",
+      "file_extension": "yaml"
+    },
+    {
+      "file_path": "/Volumes/project/private/clemvion/k8s/base/migrate-job.yaml",
+      "change_type": "Review",
+      "file_extension": "yaml"
+    },
+    {
+      "file_path": "/Volumes/project/private/clemvion/k8s/base/namespace.yaml",
+      "change_type": "Review",
+      "file_extension": "yaml"
+    },
+    {
+      "file_path": "/Volumes/project/private/clemvion/k8s/base/secret.example.yaml",
+      "change_type": "Review",
+      "file_extension": "yaml"
+    },
+    {
+      "file_path": "/Volumes/project/private/clemvion/k8s/overlays/local/kustomization.yaml",
+      "change_type": "Review",
+      "file_extension": "yaml"
+    },
+    {
+      "file_path": "/Volumes/project/private/clemvion/k8s/overlays/prod/kustomization.yaml",
+      "change_type": "Review",
+      "file_extension": "yaml"
+    },
+    {
+      "file_path": "/Volumes/project/private/clemvion/k8s/overlays/staging/kustomization.yaml",
+      "change_type": "Review",
+      "file_extension": "yaml"
+    },
+    {
+      "file_path": "/Volumes/project/private/clemvion/plan/in-progress/k8s-clemvion-rename.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    }
+  ],
+  "total_elapsed_seconds": 257.2,
+  "agents": [
+    {
+      "name": "concurrency",
+      "status": "success",
+      "elapsed_seconds": 9.81
+    },
+    {
+      "name": "api_contract",
+      "status": "success",
+      "elapsed_seconds": 12.63
+    },
+    {
+      "name": "database",
+      "status": "success",
+      "elapsed_seconds": 33.5
+    },
+    {
+      "name": "maintainability",
+      "status": "success",
+      "elapsed_seconds": 35.66
+    },
+    {
+      "name": "documentation",
+      "status": "success",
+      "elapsed_seconds": 41.22
+    },
+    {
+      "name": "requirement",
+      "status": "success",
+      "elapsed_seconds": 52.35
+    },
+    {
+      "name": "dependency",
+      "status": "success",
+      "elapsed_seconds": 57.29
+    },
+    {
+      "name": "performance",
+      "status": "success",
+      "elapsed_seconds": 61.23
+    },
+    {
+      "name": "security",
+      "status": "success",
+      "elapsed_seconds": 61.9
+    },
+    {
+      "name": "testing",
+      "status": "success",
+      "elapsed_seconds": 64.17
+    },
+    {
+      "name": "scope",
+      "status": "success",
+      "elapsed_seconds": 68.39
+    },
+    {
+      "name": "side_effect",
+      "status": "success",
+      "elapsed_seconds": 70.83
+    },
+    {
+      "name": "architecture",
+      "status": "success",
+      "elapsed_seconds": 75.41
+    }
+  ]
+}

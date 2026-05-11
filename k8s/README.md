@@ -67,6 +67,28 @@ kubectl apply -k k8s/overlays/staging
 # 또는 ArgoCD Application 의 path 를 k8s/overlays/staging 으로 지정
 ```
 
+### 기존 클러스터 업그레이드 (`idea-workflow` → `clemvion` 전환)
+
+이전 버전 매니페스트가 적용된 클러스터에 본 매니페스트를 그대로 `apply` 하면 다음 세 가지가 동시에 깨집니다. **반드시 아래 순서를 선행**하세요.
+
+| # | 항목 | 이유 | 선행 조치 |
+| --- | --- | --- | --- |
+| 1 | **DB 이름** | `DB_DATABASE` 가 `idea_workflow` → `workflow` 로 바뀜 (docker-compose 와 정합). backend·migrate Job 모두 즉시 연결 실패. | DB 에서 `ALTER DATABASE idea_workflow RENAME TO workflow;` 선행. 또는 overlay patch 로 `DB_DATABASE: idea_workflow` 를 한 차례 유지하다가 별도 마이그레이션으로 전환. |
+| 2 | **Deployment selector** | `spec.selector.matchLabels.app.kubernetes.io/name` 은 immutable 필드. 라벨이 `idea-workflow` → `clemvion` 으로 바뀌어 `kubectl apply` 가 거부됩니다. | `kubectl -n idea-workflow delete deployment backend frontend` 선행 후 `apply -k`. ArgoCD 사용 시 Application 에 `Replace=true` sync option. (다운타임 발생) |
+| 3 | **TLS Secret** | Ingress 가 `clemvion-{frontend,backend}-tls` 를 참조. 기존 Secret 은 `idea-workflow-…-tls` 라 매칭 실패. | 기존 Secret 을 `kubectl get secret idea-workflow-frontend-tls -o yaml \| sed 's/idea-workflow-/clemvion-/g' \| kubectl apply -f -` 로 복사하거나, cert-manager `Certificate` CR 의 `secretName` 을 선행 갱신. |
+
+배포 검증 후 정리:
+
+```bash
+# 구 Ingress·namespace 정리 (PVC 등 stateful 자원이 남아있다면 이전 후 삭제)
+kubectl delete ingress idea-workflow-frontend idea-workflow-backend -n idea-workflow
+kubectl delete namespace idea-workflow
+```
+
+OTEL 대시보드·알람의 서비스명 필터도 `idea-workflow-backend` → `clemvion-backend` 로 동시 갱신해야 히스토리가 끊기지 않습니다. CI 파이프라인의 `kustomize edit set image …` 인자도 `clemvion/*` 로 함께 갱신.
+
+> 신규 클러스터에서 처음 배포한다면 위 절차는 모두 불필요합니다.
+
 ## 주요 설계 결정
 
 ### 매니페스트 형식 — Kustomize
