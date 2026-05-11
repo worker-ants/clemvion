@@ -17,8 +17,15 @@ import { UsersService } from '../users/users.service';
 import { WorkspacesService } from '../workspaces/workspaces.service';
 import { MailService } from '../mail/mail.service';
 import { validatePasswordStrength } from '../../common/utils/password.util';
+import { LoginHistoryService } from './login-history.service';
+import { deriveDeviceLabel } from './utils/device-label';
 
 const BCRYPT_ROUNDS = 12;
+
+export interface AuthContext {
+  ip?: string | null;
+  userAgent?: string | null;
+}
 
 @Injectable()
 export class AuthService {
@@ -31,6 +38,7 @@ export class AuthService {
     @InjectRepository(RefreshToken)
     private readonly refreshTokenRepository: Repository<RefreshToken>,
     private readonly dataSource: DataSource,
+    private readonly loginHistory: LoginHistoryService,
   ) {}
 
   // ========== REGISTER ==========
@@ -72,7 +80,10 @@ export class AuthService {
   }
 
   // ========== VERIFY EMAIL ==========
-  async verifyEmail(token: string): Promise<{
+  async verifyEmail(
+    token: string,
+    ctx: AuthContext = {},
+  ): Promise<{
     accessToken: string;
     refreshToken: string;
   }> {
@@ -109,20 +120,44 @@ export class AuthService {
       );
     });
 
-    return this.generateTokens(userByToken);
+    const tokens = await this.generateTokens(
+      userByToken,
+      false,
+      undefined,
+      ctx,
+    );
+    await this.loginHistory.record({
+      userId: userByToken.id,
+      email: userByToken.email,
+      event: 'login_success',
+      ip: ctx.ip ?? null,
+      userAgent: ctx.userAgent ?? null,
+    });
+    return tokens;
   }
 
   // ========== LOGIN ==========
-  async login(dto: {
-    email: string;
-    password: string;
-    rememberMe?: boolean;
-  }): Promise<
+  async login(
+    dto: {
+      email: string;
+      password: string;
+      rememberMe?: boolean;
+    },
+    ctx: AuthContext = {},
+  ): Promise<
     | { accessToken: string; refreshToken: string }
     | { requiresTotp: true; challengeToken: string }
   > {
     const user = await this.usersService.findByEmail(dto.email);
     if (!user) {
+      await this.loginHistory.record({
+        userId: null,
+        email: dto.email,
+        event: 'login_failed',
+        ip: ctx.ip ?? null,
+        userAgent: ctx.userAgent ?? null,
+        failureReason: 'USER_NOT_FOUND',
+      });
       throw new UnauthorizedException({
         code: 'LOGIN_FAILED',
         message: 'Invalid email or password',
@@ -131,6 +166,14 @@ export class AuthService {
 
     // Check lock
     if (await this.usersService.isLocked(user)) {
+      await this.loginHistory.record({
+        userId: user.id,
+        email: user.email,
+        event: 'login_failed',
+        ip: ctx.ip ?? null,
+        userAgent: ctx.userAgent ?? null,
+        failureReason: 'ACCOUNT_LOCKED',
+      });
       throw new UnauthorizedException({
         code: 'ACCOUNT_LOCKED',
         message: 'Account locked. Try again in 10 minutes.',
@@ -138,6 +181,14 @@ export class AuthService {
     }
 
     if (!user.emailVerified) {
+      await this.loginHistory.record({
+        userId: user.id,
+        email: user.email,
+        event: 'login_failed',
+        ip: ctx.ip ?? null,
+        userAgent: ctx.userAgent ?? null,
+        failureReason: 'EMAIL_NOT_VERIFIED',
+      });
       throw new UnauthorizedException({
         code: 'LOGIN_FAILED',
         message: 'Please verify your email before logging in',
@@ -145,6 +196,14 @@ export class AuthService {
     }
 
     if (!user.passwordHash) {
+      await this.loginHistory.record({
+        userId: user.id,
+        email: user.email,
+        event: 'login_failed',
+        ip: ctx.ip ?? null,
+        userAgent: ctx.userAgent ?? null,
+        failureReason: 'PASSWORD_NOT_SET',
+      });
       throw new UnauthorizedException({
         code: 'LOGIN_FAILED',
         message: 'Invalid email or password',
@@ -154,6 +213,14 @@ export class AuthService {
     const isValid = await bcrypt.compare(dto.password, user.passwordHash);
     if (!isValid) {
       await this.usersService.incrementLoginAttempts(user.id);
+      await this.loginHistory.record({
+        userId: user.id,
+        email: user.email,
+        event: 'login_failed',
+        ip: ctx.ip ?? null,
+        userAgent: ctx.userAgent ?? null,
+        failureReason: 'INVALID_PASSWORD',
+      });
       throw new UnauthorizedException({
         code: 'LOGIN_FAILED',
         message: 'Invalid email or password',
@@ -171,7 +238,20 @@ export class AuthService {
       return { requiresTotp: true, challengeToken };
     }
 
-    return this.generateTokens(user, dto.rememberMe);
+    const tokens = await this.generateTokens(
+      user,
+      dto.rememberMe,
+      undefined,
+      ctx,
+    );
+    await this.loginHistory.record({
+      userId: user.id,
+      email: user.email,
+      event: 'login_success',
+      ip: ctx.ip ?? null,
+      userAgent: ctx.userAgent ?? null,
+    });
+    return tokens;
   }
 
   /**
@@ -182,6 +262,7 @@ export class AuthService {
     challengeToken: string,
     code: string,
     verifier: (user: User, code: string) => Promise<boolean>,
+    ctx: AuthContext = {},
   ): Promise<{ accessToken: string; refreshToken: string }> {
     let payload: { sub: string; mfa_challenge?: boolean; rememberMe?: boolean };
     try {
@@ -207,19 +288,41 @@ export class AuthService {
     }
     const ok = await verifier(user, code);
     if (!ok) {
+      await this.loginHistory.record({
+        userId: user.id,
+        email: user.email,
+        event: 'totp_failed',
+        ip: ctx.ip ?? null,
+        userAgent: ctx.userAgent ?? null,
+        failureReason: 'TOTP_INVALID',
+      });
       throw new UnauthorizedException({
         code: 'TOTP_INVALID',
         message: '인증 코드가 올바르지 않아요.',
       });
     }
-    return this.generateTokens(user, !!payload.rememberMe);
+    const tokens = await this.generateTokens(
+      user,
+      !!payload.rememberMe,
+      undefined,
+      ctx,
+    );
+    await this.loginHistory.record({
+      userId: user.id,
+      email: user.email,
+      event: 'login_success',
+      ip: ctx.ip ?? null,
+      userAgent: ctx.userAgent ?? null,
+    });
+    return tokens;
   }
 
   // ========== LOGOUT ==========
-  async logout(refreshToken: string): Promise<void> {
+  async logout(refreshToken: string, ctx: AuthContext = {}): Promise<void> {
     const tokenHash = this.hashToken(refreshToken);
     const stored = await this.refreshTokenRepository.findOne({
       where: { tokenHash },
+      relations: ['user'],
     });
     if (stored) {
       // Revoke entire family
@@ -227,11 +330,25 @@ export class AuthService {
         { familyId: stored.familyId },
         { isRevoked: true },
       );
+      const user = stored.user;
+      if (user) {
+        await this.loginHistory.record({
+          userId: user.id,
+          email: user.email,
+          event: 'logout',
+          ip: ctx.ip ?? null,
+          userAgent: ctx.userAgent ?? null,
+          familyId: stored.familyId,
+        });
+      }
     }
   }
 
   // ========== REFRESH ==========
-  async refresh(refreshToken: string): Promise<{
+  async refresh(
+    refreshToken: string,
+    ctx: AuthContext = {},
+  ): Promise<{
     accessToken: string;
     refreshToken: string;
   }> {
@@ -254,6 +371,16 @@ export class AuthService {
         { familyId: stored.familyId },
         { isRevoked: true },
       );
+      if (stored.user) {
+        await this.loginHistory.record({
+          userId: stored.user.id,
+          email: stored.user.email,
+          event: 'token_reuse_detected',
+          ip: ctx.ip ?? null,
+          userAgent: ctx.userAgent ?? null,
+          familyId: stored.familyId,
+        });
+      }
       throw new UnauthorizedException({
         code: 'TOKEN_INVALID',
         message: 'Refresh token reuse detected. All sessions revoked.',
@@ -267,12 +394,17 @@ export class AuthService {
       });
     }
 
-    // Revoke current token
-    await this.refreshTokenRepository.update(stored.id, { isRevoked: true });
+    // Mark the rotated token as revoked AND stamp its last_used metadata so the
+    // user sees an accurate "last activity" in /profile/sessions.
+    await this.refreshTokenRepository.update(stored.id, {
+      isRevoked: true,
+      lastUsedAt: new Date(),
+      lastUsedIp: ctx.ip ?? null,
+    });
 
     // Issue new tokens in same family
     const user = stored.user;
-    return this.generateTokens(user, false, stored.familyId);
+    return this.generateTokens(user, false, stored.familyId, ctx);
   }
 
   // ========== FORGOT PASSWORD ==========
@@ -354,14 +486,24 @@ export class AuthService {
   async issueTokensForOauthUser(
     user: User,
     rememberMe: boolean,
+    ctx: AuthContext = {},
   ): Promise<{ accessToken: string; refreshToken: string }> {
-    return this.generateTokens(user, rememberMe);
+    const tokens = await this.generateTokens(user, rememberMe, undefined, ctx);
+    await this.loginHistory.record({
+      userId: user.id,
+      email: user.email,
+      event: 'login_success',
+      ip: ctx.ip ?? null,
+      userAgent: ctx.userAgent ?? null,
+    });
+    return tokens;
   }
 
   private async generateTokens(
     user: User,
     rememberMe = false,
     familyId?: string,
+    ctx: AuthContext = {},
   ): Promise<{ accessToken: string; refreshToken: string }> {
     const workspace =
       await this.workspacesService.findOrCreatePersonalWorkspace(
@@ -392,11 +534,15 @@ export class AuthService {
       Date.now() + refreshExpDays * 24 * 60 * 60 * 1000,
     );
 
+    const userAgent = ctx.userAgent ?? null;
     const refreshTokenEntity = this.refreshTokenRepository.create({
       userId: user.id,
       tokenHash,
       familyId: familyId ?? uuidv4(),
       expiresAt,
+      ipAddress: ctx.ip ?? null,
+      userAgent,
+      deviceLabel: userAgent ? deriveDeviceLabel(userAgent) : null,
     });
     await this.refreshTokenRepository.save(refreshTokenEntity);
 

@@ -32,6 +32,7 @@ import { Notification } from './modules/notifications/entities/notification.enti
 import { AuditLog } from './modules/audit-logs/entities/audit-log.entity';
 import { RefreshToken } from './modules/auth/entities/refresh-token.entity';
 import { AuthOAuthState } from './modules/auth/entities/auth-oauth-state.entity';
+import { LoginHistory } from './modules/auth/entities/login-history.entity';
 import { LlmConfig } from './modules/llm-config/entities/llm-config.entity';
 import { LlmUsageLog } from './modules/llm/entities/llm-usage-log.entity';
 import { KnowledgeBase } from './modules/knowledge-base/entities/knowledge-base.entity';
@@ -69,6 +70,7 @@ const REQUIRED_ENTITIES = [
   AuditLog,
   RefreshToken,
   AuthOAuthState,
+  LoginHistory,
   LlmConfig,
   LlmUsageLog,
   KnowledgeBase,

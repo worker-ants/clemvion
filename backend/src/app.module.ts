@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
+import { ScheduleModule } from '@nestjs/schedule';
 import { APP_FILTER, APP_GUARD, APP_INTERCEPTOR, APP_PIPE } from '@nestjs/core';
 import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
 import { BullModule } from '@nestjs/bullmq';
@@ -73,6 +74,7 @@ import { Notification } from './modules/notifications/entities/notification.enti
 import { AuditLog } from './modules/audit-logs/entities/audit-log.entity';
 import { RefreshToken } from './modules/auth/entities/refresh-token.entity';
 import { AuthOAuthState } from './modules/auth/entities/auth-oauth-state.entity';
+import { LoginHistory } from './modules/auth/entities/login-history.entity';
 import { LlmConfig } from './modules/llm-config/entities/llm-config.entity';
 import { LlmUsageLog } from './modules/llm/entities/llm-usage-log.entity';
 import { KnowledgeBase } from './modules/knowledge-base/entities/knowledge-base.entity';
@@ -116,6 +118,7 @@ export const ROOT_ENTITIES = [
   AuditLog,
   RefreshToken,
   AuthOAuthState,
+  LoginHistory,
   LlmConfig,
   LlmUsageLog,
   KnowledgeBase,
@@ -177,6 +180,9 @@ export const ROOT_ENTITIES = [
     ThrottlerModule.forRoot({
       throttlers: [{ name: 'default', ttl: 60000, limit: 100 }],
     }),
+
+    // Scheduled jobs (login_history pruner 등)
+    ScheduleModule.forRoot(),
 
     // Feature Modules
     HealthModule,

@@ -56,9 +56,18 @@ import { VerifyEmailDto } from './dto/verify-email.dto';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
 import { CheckEmailDto } from './dto/check-email.dto';
+import { extractClientIp } from './utils/client-ip';
 
 // Express types used directly to avoid isolatedModules + emitDecoratorMetadata issue
 import Express from 'express';
+
+function authContextFromRequest(req: Express.Request) {
+  const headers = req.headers ?? {};
+  return {
+    ip: extractClientIp(req),
+    userAgent: headers['user-agent'] ?? null,
+  };
+}
 
 const OAUTH_PROVIDER_ENUM = AUTH_OAUTH_PROVIDERS.reduce<Record<string, string>>(
   (acc, p) => {
@@ -126,9 +135,13 @@ export class AuthController {
   })
   async verifyEmail(
     @Body() dto: VerifyEmailDto,
+    @Req() req: Express.Request,
     @Res({ passthrough: true }) res: Express.Response,
   ) {
-    const result = await this.authService.verifyEmail(dto.token);
+    const result = await this.authService.verifyEmail(
+      dto.token,
+      authContextFromRequest(req),
+    );
     this.setRefreshTokenCookie(res, result.refreshToken);
     return { data: { accessToken: result.accessToken } };
   }
@@ -150,9 +163,13 @@ export class AuthController {
   })
   async login(
     @Body() dto: LoginDto,
+    @Req() req: Express.Request,
     @Res({ passthrough: true }) res: Express.Response,
   ) {
-    const result = await this.authService.login(dto);
+    const result = await this.authService.login(
+      dto,
+      authContextFromRequest(req),
+    );
     if ('requiresTotp' in result) {
       return {
         data: {
@@ -179,12 +196,14 @@ export class AuthController {
   })
   async loginTotp(
     @Body() dto: LoginTotpDto,
+    @Req() req: Express.Request,
     @Res({ passthrough: true }) res: Express.Response,
   ) {
     const result = await this.authService.loginWithTotp(
       dto.challengeToken,
       dto.code,
       (user, code) => this.totpService.verifyForLogin(user, code),
+      authContextFromRequest(req),
     );
     this.setRefreshTokenCookie(res, result.refreshToken, false);
     return { data: { accessToken: result.accessToken } };
@@ -283,7 +302,7 @@ export class AuthController {
     const refreshToken = (req as unknown as { cookies: Record<string, string> })
       .cookies?.refreshToken;
     if (refreshToken) {
-      await this.authService.logout(refreshToken);
+      await this.authService.logout(refreshToken, authContextFromRequest(req));
     }
     res.clearCookie('refreshToken', {
       path: '/',
@@ -315,7 +334,10 @@ export class AuthController {
     if (!token) {
       throw new UnauthorizedException('No refresh token provided');
     }
-    const result = await this.authService.refresh(token);
+    const result = await this.authService.refresh(
+      token,
+      authContextFromRequest(req),
+    );
     this.setRefreshTokenCookie(res, result.refreshToken);
     return { data: { accessToken: result.accessToken } };
   }
@@ -430,6 +452,7 @@ export class AuthController {
     @Query('code') code: string | undefined,
     @Query('state') state: string | undefined,
     @Query('error') providerError: string | undefined,
+    @Req() req: Express.Request,
     @Res() res: Express.Response,
   ) {
     const frontendUrl = this.frontendUrl;
@@ -450,6 +473,7 @@ export class AuthController {
         provider,
         code,
         state,
+        authContextFromRequest(req),
       );
       this.setRefreshTokenCookie(res, result.refreshToken, result.rememberMe);
       return res.redirect(

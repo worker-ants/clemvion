@@ -232,6 +232,7 @@ describe('AuthOauthService', () => {
       expect(authService.issueTokensForOauthUser).toHaveBeenCalledWith(
         baseUser,
         false,
+        expect.any(Object),
       );
       expect(usersService.create).not.toHaveBeenCalled();
       expect(workspacesService.createPersonalWorkspace).not.toHaveBeenCalled();
@@ -297,6 +298,7 @@ describe('AuthOauthService', () => {
       expect(authService.issueTokensForOauthUser).toHaveBeenCalledWith(
         baseUser,
         true,
+        expect.any(Object),
       );
     });
   });
