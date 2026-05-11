@@ -34,4 +34,19 @@ export class RefreshToken {
 
   @CreateDateColumn({ name: 'created_at', type: 'timestamptz' })
   createdAt: Date;
+
+  @Column({ name: 'device_label', type: 'text', nullable: true })
+  deviceLabel: string | null;
+
+  @Column({ name: 'user_agent', type: 'text', nullable: true })
+  userAgent: string | null;
+
+  @Column({ name: 'ip_address', type: 'varchar', length: 45, nullable: true })
+  ipAddress: string | null;
+
+  @Column({ name: 'last_used_at', type: 'timestamptz', nullable: true })
+  lastUsedAt: Date | null;
+
+  @Column({ name: 'last_used_ip', type: 'varchar', length: 45, nullable: true })
+  lastUsedIp: string | null;
 }
