@@ -3,7 +3,6 @@ import {
   NodeComponentMetadata,
   NodePorts,
 } from '../../core/node-component.interface';
-import { conditionGroupSchema } from '../if-else/if-else.schema';
 
 /**
  * Loop handler returns `output: null` at execute tick — iteration state
@@ -50,13 +49,17 @@ export const loopNodeConfigSchema = z
           hint: 'Safety cap on loop iterations',
         },
       }),
-    breakCondition: conditionGroupSchema.optional().meta({
-      ui: {
-        label: 'Break Condition',
-        widget: 'condition-builder',
-        hint: 'Exit loop when condition is met',
-      },
-    }),
+    breakCondition: z
+      .string()
+      .optional()
+      .meta({
+        ui: {
+          label: 'Break Condition',
+          widget: 'expression',
+          placeholder: '{{ $loop.index >= 5 }}',
+          hint: 'Boolean expression — loop exits when truthy. Re-evaluated after every iteration.',
+        },
+      }),
   })
   .passthrough();
 export type LoopConfig = z.infer<typeof loopNodeConfigSchema>;

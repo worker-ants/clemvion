@@ -95,7 +95,7 @@ code: ["backend/src/nodes/logic/if-else/if-else.schema.ts", "backend/src/nodes/l
 <FieldTable rows={[
   {name: "count", required: true, type: "expression", description: "반복 횟수예요. 정수 리터럴이나 표현식 모두 가능해요.", default: "1"},
   {name: "maxIterations", required: false, type: "integer", description: "안전 상한이에요. 초과 시 에러로 중단해요.", default: "1000"},
-  {name: "breakCondition", required: false, type: "ConditionGroup", description: "이 조건이 충족되면 반복을 조기 종료해요.", default: "-"}
+  {name: "breakCondition", required: false, type: "expression", description: "Boolean 표현식이에요. 매 반복 종료 후 평가해서 truthy면 즉시 종료하고 meta.exitReason='break'로 기록해요. 예: {{ $loop.index >= 5 }}", default: "-"}
 ]} />
 
 Loop는 컨테이너 노드예요. 입력은 `in`, `emit` 두 개, 출력은 `body`, `done` 두 개를 포함해요. body 안에서 반복을 수행하고, 반복 결과는 `emit`에 연결된 노드의 출력을 수집해 배열로 `done`에 모아요.

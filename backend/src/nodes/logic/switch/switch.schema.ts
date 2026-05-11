@@ -123,12 +123,21 @@ export const switchNodePorts: NodePorts = {
  * Imperative escape hatch — per-case validation needs array iteration the
  * mini-DSL can't express:
  *  - duplicate id detection (Set tracking)
+ *  - reserved port name collision check
  *  - per-case `condition` required when mode === 'expression'
  *  - per-case `valueType` enum whitelist
  * Single-field "is switchValue set?" / "is cases empty?" checks live in
  * `warningRules` below so they fire the canvas badge.
  */
 const VALID_CASE_VALUE_TYPES = new Set(['string', 'number', 'boolean']);
+/**
+ * Port ids reserved by the engine / spec — case ids that match one of these
+ * collide with the static `default` fallthrough port and the conventional
+ * `out` / `error` port names used by other node categories. The schema regex
+ * only checks slug syntax; this set blocks the semantic collision (D7 of
+ * logic-node-followups).
+ */
+const RESERVED_CASE_IDS = new Set(['default', 'out', 'error']);
 export function validateSwitchConfig(config: unknown): string[] {
   const c = (config ?? {}) as Record<string, unknown>;
   const errors: string[] = [];
@@ -143,6 +152,10 @@ export function validateSwitchConfig(config: unknown): string[] {
         errors.push(`cases[${i}].id is required and must be a string`);
       } else if (seenIds.has(item.id)) {
         errors.push(`cases[${i}].id '${item.id}' is duplicated`);
+      } else if (RESERVED_CASE_IDS.has(item.id)) {
+        errors.push(
+          `cases[${i}].id '${item.id}' is a reserved port name (default / out / error)`,
+        );
       } else {
         seenIds.add(item.id);
       }

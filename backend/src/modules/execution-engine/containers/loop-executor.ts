@@ -3,8 +3,18 @@ import { ExecutionContext } from '../../../nodes/core/node-handler.interface';
 
 export const DEFAULT_MAX_ITERATIONS = 1000;
 
+export type LoopExitReason = 'completed' | 'break' | 'maxIterations';
+
 export interface LoopConfig {
   count: number;
+  /**
+   * Optional per-iteration predicate. Evaluated **after** each body iteration
+   * runs (CONVENTIONS: spec/4-nodes/1-logic/3-loop.md §6); a `true` return
+   * triggers early exit with `exitReason='break'`. Engine builds the closure
+   * from `node.config.breakCondition` (a `{{ ... }}` boolean expression) so
+   * `$loop.index`, `$var.*`, and `$node[...].output` see the **current**
+   * iteration state.
+   */
   breakCondition?: (context: ExecutionContext) => boolean;
   maxIterations?: number;
 }
@@ -12,6 +22,17 @@ export interface LoopConfig {
 export interface LoopIterationResult {
   index: number;
   output: unknown;
+}
+
+export interface LoopExecutionResult {
+  iterations: LoopIterationResult[];
+  /**
+   * How the loop terminated. `'break'` requires a configured
+   * `breakCondition` that returned `true`; `'maxIterations'` is set when the
+   * planned `count` happens to equal the safety cap and every iteration
+   * ran. Otherwise `'completed'`.
+   */
+  exitReason: LoopExitReason;
 }
 
 /**
@@ -25,7 +46,7 @@ export class LoopExecutor {
    * @param config - Loop configuration (count, break condition, max iterations)
    * @param context - The current execution context (will be mutated with loopContext)
    * @param executeBody - Function that executes the container body and returns leaf node outputs
-   * @returns Array of iteration results
+   * @returns Iteration results plus the exit reason
    */
   async execute(
     config: LoopConfig,
@@ -34,7 +55,7 @@ export class LoopExecutor {
       input: unknown,
       context: ExecutionContext,
     ) => Promise<unknown>,
-  ): Promise<LoopIterationResult[]> {
+  ): Promise<LoopExecutionResult> {
     const maxIterations = config.maxIterations ?? DEFAULT_MAX_ITERATIONS;
     const count = config.count;
 
@@ -46,6 +67,7 @@ export class LoopExecutor {
 
     const results: LoopIterationResult[] = [];
     let previousOutput: unknown = undefined;
+    let exitReason: LoopExitReason = 'completed';
 
     // Save prior loopContext so nested Loop containers restore outer state
     // when they finish instead of wiping it.
@@ -71,16 +93,24 @@ export class LoopExecutor {
         results.push({ index: i, output });
         previousOutput = output;
 
-        // Check break condition
+        // Check break condition (post-iteration per spec §6).
         if (config.breakCondition && config.breakCondition(context)) {
+          exitReason = 'break';
           break;
         }
+      }
+
+      // If the loop ran to completion AND the planned count equals the
+      // safety cap, classify as `maxIterations` so observability tools can
+      // distinguish it from a natural completion.
+      if (exitReason === 'completed' && results.length >= maxIterations) {
+        exitReason = 'maxIterations';
       }
     } finally {
       context.loopContext = prevLoopContext;
     }
 
-    return results;
+    return { iterations: results, exitReason };
   }
 
   /**

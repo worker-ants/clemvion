@@ -29,10 +29,7 @@ import { buildGraph, GraphEdge } from './graph/graph-builder';
 import { topologicalSort } from './graph/topological-sort';
 import { identifyBackEdges } from './graph/back-edge-identifier';
 import { ForEachExecutor } from './containers/foreach-executor';
-import {
-  DEFAULT_MAX_ITERATIONS as LOOP_DEFAULT_MAX_ITERATIONS,
-  LoopExecutor,
-} from './containers/loop-executor';
+import { LoopExecutor } from './containers/loop-executor';
 import {
   ParallelExecutor,
   ParallelErrorPolicy,
@@ -47,6 +44,7 @@ import {
   ErrorPolicyConfig,
 } from './error/error-policy.handler';
 import { ExpressionResolverService } from './expression/expression-resolver.service';
+import { evaluate } from '@workflow/expression-engine';
 import {
   coerceContainerBoolean,
   coerceContainerNumber,
@@ -4099,6 +4097,52 @@ export class ExecutionEngineService
     return node.config ?? {};
   }
 
+  /**
+   * Build a per-iteration `breakCondition` closure for {@link LoopExecutor}.
+   *
+   * The expression `template` (raw `{{ ... }}` string) is **re-evaluated**
+   * every iteration with a freshly built expression context, so it sees the
+   * current `$loop.index`, `$var.*` mutations from body nodes, and
+   * `$node[...].output` for nodes that ran inside the body. Truthy result →
+   * loop exits early with `meta.exitReason='break'`.
+   *
+   * Evaluation errors (undefined variables, type mismatches, syntax) are
+   * swallowed and treated as `false` — same defensive policy Filter uses
+   * for per-item expression failures (`filter.handler.ts:217-223`). The
+   * loop continues; users diagnose silent failures via run logs.
+   *
+   * Spec: `4-nodes/1-logic/3-loop.md` §6 (post-iteration evaluation).
+   */
+  private buildLoopBreakConditionEvaluator(
+    template: string,
+    parentContext: ExecutionContext,
+    allNodes: Node[],
+    executionMeta: { startedAt?: string; mode?: string },
+  ): (context: ExecutionContext) => boolean {
+    const nodeMap = new Map(allNodes.map((node) => [node.id, node]));
+    return (context: ExecutionContext) => {
+      const exprContext = this.expressionResolver.buildExpressionContext(
+        // Loop body has no per-iteration `$input` (body re-uses
+        // previousOutput internally), so we pass the parent's `$input`
+        // unchanged — users typically reference `$loop.*`, `$var.*`, or
+        // `$node[...].output` here, not `$input`.
+        parentContext.expressionContext?.$input ?? null,
+        context,
+        nodeMap,
+        executionMeta,
+      );
+      try {
+        const result = evaluate(template, exprContext);
+        return Boolean(result);
+      } catch (err) {
+        this.logger.debug(
+          `Loop breakCondition evaluation failed (treated as false): ${err instanceof Error ? err.message : String(err)}`,
+        );
+        return false;
+      }
+    };
+  }
+
   private async runParallel(
     parallelNode: Node,
     allNodes: Node[],
@@ -4461,30 +4505,42 @@ export class ExecutionEngineService
         'maxIterations',
         'loop',
       );
+      // breakCondition is a `{{ ... }}` boolean expression (frontend ships it
+      // as a string). The engine's pre-dispatch resolveConfig would substitute
+      // it once with the *initial* loop context (i=0), losing per-iteration
+      // reactivity, so we read the **raw** template here and re-resolve every
+      // iteration via `expressionResolver.buildExpressionContext` — that's
+      // what gives `$loop.index` / `$var.*` / `$node[...].output` their fresh
+      // values per tick (spec/4-nodes/1-logic/3-loop.md §6).
+      const rawConfig = containerNode.config ?? {};
+      const rawBreakExpr = rawConfig.breakCondition;
+      const breakCondition =
+        typeof rawBreakExpr === 'string' && rawBreakExpr.trim().length > 0
+          ? this.buildLoopBreakConditionEvaluator(
+              rawBreakExpr,
+              context,
+              allNodes,
+              executionMeta,
+            )
+          : undefined;
       const collected = await this.loopExecutor.execute(
-        { count, maxIterations },
+        { count, maxIterations, breakCondition },
         context,
         runIter,
       );
-      const iterations = collected.map((r) => r.output);
+      const iterations = collected.iterations.map((r) => r.output);
       // CONVENTIONS §9.2 — `loop` finalises as `{ iterations, count }`.
       structuredOutput = { iterations, count: iterations.length };
       // Phase 2 (C — spec/4-nodes/1-logic/3-loop.md §5.2): expose runtime
-      // metrics via `meta.*` (Principle 2 — meta carries execution metrics,
-      // not config echoes). `iterations` is the actually executed count
-      // (matches `output.iterations.length` today; will diverge once
-      // `breakCondition`/early-error paths land — P1 deferred).
-      // `maxIterationsReached` flags termination by the safety cap so
-      // observability dashboards can distinguish "ran to completion" from
-      // "hit the limit". With `breakCondition` dormant the only way to
-      // reach the cap without throwing is `count === maxIterations` and
-      // running every iteration; we still emit the flag so the contract is
-      // additive-stable when the dormant path activates.
-      const effectiveMaxIterations =
-        maxIterations ?? LOOP_DEFAULT_MAX_ITERATIONS;
+      // metrics via `meta.*` (Principle 2). `meta.exitReason` distinguishes
+      // natural completion from early break / safety-cap termination so
+      // observability tools can flag loops that terminated unexpectedly.
+      // `meta.maxIterationsReached` is retained for back-compat — true iff
+      // the loop ran to its safety cap without breaking.
       structuredMeta = {
         iterations: iterations.length,
-        maxIterationsReached: iterations.length >= effectiveMaxIterations,
+        maxIterationsReached: collected.exitReason === 'maxIterations',
+        exitReason: collected.exitReason,
       };
     } else {
       return;

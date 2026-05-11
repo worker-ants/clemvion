@@ -2887,9 +2887,7 @@ describe('ExecutionEngineService', () => {
       };
       const chartStyleHandler: NodeHandler = {
         validate: () => ({ valid: true, errors: [] }),
-        execute: jest.fn(async (input: unknown) =>
-          mockOutput({ seen: input }),
-        ),
+        execute: jest.fn(async (input: unknown) => mockOutput({ seen: input })),
       };
       handlerRegistry.register('code_style', codeStyleHandler);
       handlerRegistry.register('chart_style', chartStyleHandler);
@@ -3575,11 +3573,13 @@ describe('ExecutionEngineService', () => {
       // Phase 2 (C — spec/4-nodes/1-logic/3-loop.md §5.2): runtime metrics
       // surface on `meta.*` (Principle 2). `iterations` mirrors actual
       // executed reps; `maxIterationsReached=false` since count (4) is
-      // well below the default cap (1000).
+      // well below the default cap (1000). `exitReason='completed'` since
+      // no breakCondition fired and the cap wasn't hit.
       expect(capturedLoopStructured?.meta).toEqual(
         expect.objectContaining({
           iterations: 4,
           maxIterationsReached: false,
+          exitReason: 'completed',
         }),
       );
     });
@@ -3619,10 +3619,10 @@ describe('ExecutionEngineService', () => {
       };
       handlerRegistry.register('source_node', triggerHandler);
 
-      // count === maxIterations: with breakCondition dormant, the loop
-      // runs to completion AND hits the cap simultaneously — the only
-      // currently observable code path that surfaces
-      // `maxIterationsReached: true` (P1 break/early-exit deferred).
+      // count === maxIterations: the loop runs every iteration without an
+      // early break, so the executor classifies the exit as 'maxIterations'
+      // and the engine surfaces `maxIterationsReached: true` alongside
+      // `exitReason: 'maxIterations'`.
       const nodes: Partial<Node>[] = [
         {
           id: 'source',
@@ -3720,6 +3720,152 @@ describe('ExecutionEngineService', () => {
         expect.objectContaining({
           iterations: 3,
           maxIterationsReached: true,
+          exitReason: 'maxIterations',
+        }),
+      );
+    });
+
+    it('exits early when breakCondition becomes truthy and reports exitReason="break"', async () => {
+      // Asserts: the engine reads the raw `{{ ... }}` breakCondition from
+      // node.config (not from the pre-resolved engineResolvedConfig — that
+      // would lock $loop.index to 0), and re-evaluates it after every
+      // iteration with a fresh expression context. When the predicate
+      // returns truthy, LoopExecutor breaks and exitReason flips to 'break'.
+      const bodyHandler: NodeHandler = {
+        validate: () => ({ valid: true, errors: [] }),
+        execute: jest.fn(async (_input: unknown, _cfg: unknown, ctx) =>
+          mockOutput({ index: ctx.loopContext?.index }),
+        ),
+      };
+      handlerRegistry.register('body_node', bodyHandler);
+
+      let capturedLoopStructured:
+        | {
+            config?: unknown;
+            output?: unknown;
+            meta?: Record<string, unknown>;
+          }
+        | undefined;
+      const sinkHandler: NodeHandler = {
+        validate: () => ({ valid: true, errors: [] }),
+        execute: jest.fn(
+          async (_input: unknown, _cfg: unknown, ctx: ExecutionContext) => {
+            capturedLoopStructured = ctx.structuredOutputCache?.['loop'];
+            return mockOutput({ done: true });
+          },
+        ),
+      };
+      handlerRegistry.register('sink_node', sinkHandler);
+
+      const triggerHandler: NodeHandler = {
+        validate: () => ({ valid: true, errors: [] }),
+        execute: jest.fn(async () => mockOutput({})),
+      };
+      handlerRegistry.register('source_node', triggerHandler);
+
+      const nodes: Partial<Node>[] = [
+        {
+          id: 'source',
+          workflowId,
+          type: 'source_node',
+          category: NodeCategory.TRIGGER,
+          label: 'source',
+          config: {},
+          isDisabled: false,
+          containerId: null,
+          toolOwnerId: null,
+        },
+        {
+          id: 'loop',
+          workflowId,
+          type: 'loop',
+          category: NodeCategory.LOGIC,
+          label: 'loop',
+          // count=10 but breakCondition fires once $loop.index >= 2 (i.e.
+          // after the 3rd iteration runs and we're checking post-body).
+          config: { count: 10, breakCondition: '{{ $loop.index >= 2 }}' },
+          isDisabled: false,
+          containerId: null,
+          toolOwnerId: null,
+        },
+        {
+          id: 'body',
+          workflowId,
+          type: 'body_node',
+          category: NodeCategory.LOGIC,
+          label: 'body',
+          config: {},
+          isDisabled: false,
+          containerId: 'loop',
+          toolOwnerId: null,
+        },
+        {
+          id: 'sink',
+          workflowId,
+          type: 'sink_node',
+          category: NodeCategory.LOGIC,
+          label: 'sink',
+          config: {},
+          isDisabled: false,
+          containerId: null,
+          toolOwnerId: null,
+        },
+      ];
+
+      const edges: Partial<Edge>[] = [
+        {
+          id: 'e-src-loop',
+          workflowId,
+          sourceNodeId: 'source',
+          sourcePort: 'out',
+          targetNodeId: 'loop',
+          targetPort: 'in',
+          type: EdgeType.DATA,
+        },
+        {
+          id: 'e-loop-body',
+          workflowId,
+          sourceNodeId: 'loop',
+          sourcePort: 'body',
+          targetNodeId: 'body',
+          targetPort: 'in',
+          type: EdgeType.DATA,
+        },
+        {
+          id: 'e-body-emit-loop',
+          workflowId,
+          sourceNodeId: 'body',
+          sourcePort: 'out',
+          targetNodeId: 'loop',
+          targetPort: 'emit',
+          type: EdgeType.DATA,
+        },
+        {
+          id: 'e-loop-sink',
+          workflowId,
+          sourceNodeId: 'loop',
+          sourcePort: 'done',
+          targetNodeId: 'sink',
+          targetPort: 'in',
+          type: EdgeType.DATA,
+        },
+      ];
+
+      mockNodeRepo.findBy.mockResolvedValue(nodes);
+      mockEdgeRepo.findBy.mockResolvedValue(edges);
+
+      await service.execute(workflowId, {});
+      await flushPromises();
+
+      // breakCondition `$loop.index >= 2` becomes truthy at the END of
+      // iteration index=2 (post-body check). So the body runs for indices
+      // 0, 1, 2 → 3 invocations, then breaks before index=3.
+      expect(bodyHandler.execute).toHaveBeenCalledTimes(3);
+      expect(capturedLoopStructured?.meta).toEqual(
+        expect.objectContaining({
+          iterations: 3,
+          maxIterationsReached: false,
+          exitReason: 'break',
         }),
       );
     });

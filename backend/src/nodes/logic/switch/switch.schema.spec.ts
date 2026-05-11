@@ -241,6 +241,33 @@ describe('Switch node schema', () => {
         'cases[0].condition is required when mode is "expression"',
       );
     });
+
+    it.each(['default', 'out', 'error'])(
+      'rejects reserved case id "%s" — would collide with engine port (D7)',
+      (reserved) => {
+        const errors = validateSwitchConfig({
+          cases: [{ id: reserved }],
+        });
+        expect(errors).toContain(
+          `cases[0].id '${reserved}' is a reserved port name (default / out / error)`,
+        );
+      },
+    );
+
+    it('does NOT reject reserved id substrings (e.g. "default_admin")', () => {
+      // The reserved set is a strict whole-token match, not a substring
+      // check — case ids that merely contain "default" / "out" / "error"
+      // remain valid (e.g. user-defined `default_role`, `outbound`).
+      expect(
+        validateSwitchConfig({
+          cases: [
+            { id: 'default_admin' },
+            { id: 'outbound' },
+            { id: 'error_recovery' },
+          ],
+        }),
+      ).toEqual([]);
+    });
   });
 
   describe('evaluateMetadataBlockingErrors integration (switch)', () => {
