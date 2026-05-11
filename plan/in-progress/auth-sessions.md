@@ -37,7 +37,7 @@
 - [ ] backend Swagger doc (컨트롤러 데코레이터로 자동 반영)
 
 ### Backend
-- [ ] V039 마이그레이션 (refresh_token 5컬럼 + login_history 테이블)
+- [x] V040 마이그레이션 (refresh_token 5컬럼 + login_history 테이블)
 - [ ] `refresh-token.entity.ts` 컬럼 추가
 - [ ] `login-history.entity.ts` 신규
 - [ ] `utils/client-ip.ts` + spec (CF-Connecting-IP 우선)

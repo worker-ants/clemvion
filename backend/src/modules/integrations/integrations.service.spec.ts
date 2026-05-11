@@ -652,7 +652,7 @@ describe('IntegrationsService', () => {
       expect(result.statusReason).toBe('credentials_unreadable');
       expect(result.credentials).toEqual({});
       // Sentinel internals must never leak to the DTO.
-      expect((result.credentials as Record<string, unknown>)[UNREADABLE_KEY]).toBeUndefined();
+      expect(result.credentials[UNREADABLE_KEY]).toBeUndefined();
     });
 
     it('findAll returns both healthy and broken rows with correct statuses', async () => {

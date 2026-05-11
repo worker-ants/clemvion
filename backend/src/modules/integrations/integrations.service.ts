@@ -835,7 +835,9 @@ export class IntegrationsService {
       return {
         ...entity,
         credentials: {},
-        lastError: isUnreadableCredentials(entity.lastError) ? null : entity.lastError,
+        lastError: isUnreadableCredentials(entity.lastError)
+          ? null
+          : entity.lastError,
         status: 'error',
         statusReason: 'credentials_unreadable',
         credentialsStatus: 'needs_reauth',
@@ -848,7 +850,9 @@ export class IntegrationsService {
         entity.serviceType,
         entity.authType,
       ),
-      lastError: isUnreadableCredentials(entity.lastError) ? null : entity.lastError,
+      lastError: isUnreadableCredentials(entity.lastError)
+        ? null
+        : entity.lastError,
       credentialsStatus: 'ok',
     };
   }
