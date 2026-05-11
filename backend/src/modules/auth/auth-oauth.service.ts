@@ -124,6 +124,7 @@ export class AuthOauthService {
     provider: string,
     code: string,
     state: string,
+    ctx: { ip?: string | null; userAgent?: string | null } = {},
   ): Promise<OauthCallbackResult> {
     this.assertProvider(provider);
 
@@ -153,6 +154,7 @@ export class AuthOauthService {
     const tokens = await this.authService.issueTokensForOauthUser(
       user,
       record.rememberMe,
+      ctx,
     );
     return { ...tokens, rememberMe: record.rememberMe };
   }

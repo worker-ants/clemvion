@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { LoginHistoryEvent } from '../../entities/login-history.entity';
+import type { LoginHistoryEvent } from '../../entities/login-history.entity';
 
 /** 로그인 이력 한 건 */
 export class LoginHistoryItemDto {

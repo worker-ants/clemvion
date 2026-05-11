@@ -15,6 +15,7 @@ import { UsersService } from '../users/users.service';
 import { WorkspacesService } from '../workspaces/workspaces.service';
 import { MailService } from '../mail/mail.service';
 import { User } from '../users/entities/user.entity';
+import { LoginHistoryService } from './login-history.service';
 
 describe('AuthService', () => {
   let service: AuthService;
@@ -124,6 +125,17 @@ describe('AuthService', () => {
               }),
           },
         },
+        {
+          provide: LoginHistoryService,
+          useValue: {
+            record: jest.fn().mockResolvedValue(undefined),
+            findForUser: jest.fn().mockResolvedValue({
+              data: [],
+              nextCursor: null,
+            }),
+            pruneOlderThanRetention: jest.fn().mockResolvedValue(0),
+          },
+        },
       ],
     }).compile();
 
@@ -210,6 +222,9 @@ describe('AuthService', () => {
         password: 'Test123!@#',
       });
 
+      if ('requiresTotp' in result) {
+        throw new Error('expected token result, got 2FA challenge');
+      }
       expect(result.accessToken).toBe('mock-access-token');
       expect(result.refreshToken).toBeDefined();
       expect(usersService.resetLoginAttempts).toHaveBeenCalled();
@@ -430,6 +445,9 @@ describe('AuthService', () => {
         password: 'Test123!@#',
       });
 
+      if ('requiresTotp' in result) {
+        throw new Error('expected token result, got 2FA challenge');
+      }
       expect(result.accessToken).toBe('mock-access-token');
       expect(
         workspacesService.findOrCreatePersonalWorkspace,

@@ -84,7 +84,10 @@ describe('AuthController', () => {
 
       const result = await controller.refresh(req, mockRes as never);
 
-      expect(authService.refresh).toHaveBeenCalledWith('valid-token');
+      expect(authService.refresh).toHaveBeenCalledWith(
+        'valid-token',
+        expect.objectContaining({ ip: null, userAgent: null }),
+      );
       expect(result).toEqual({
         data: { accessToken: 'new-access' },
       });
@@ -172,6 +175,7 @@ describe('AuthController', () => {
         'code-1',
         'state-1',
         undefined,
+        {} as never,
         mockRes as never,
       );
       expect(mockRes.cookie).toHaveBeenCalledWith(
@@ -190,6 +194,7 @@ describe('AuthController', () => {
         undefined,
         undefined,
         undefined,
+        {} as never,
         mockRes as never,
       );
       expect(mockRes.redirect).toHaveBeenCalledWith(
@@ -203,6 +208,7 @@ describe('AuthController', () => {
         undefined,
         undefined,
         'access_denied',
+        {} as never,
         mockRes as never,
       );
       expect(mockRes.redirect).toHaveBeenCalledWith(
@@ -220,6 +226,7 @@ describe('AuthController', () => {
         'c',
         's',
         undefined,
+        {} as never,
         mockRes as never,
       );
       expect(mockRes.redirect).toHaveBeenCalledWith(
@@ -237,6 +244,7 @@ describe('AuthController', () => {
         'c',
         's',
         undefined,
+        {} as never,
         mockRes as never,
       );
       expect(mockRes.redirect).toHaveBeenCalledWith(
@@ -251,6 +259,7 @@ describe('AuthController', () => {
         'c',
         's',
         undefined,
+        {} as never,
         mockRes as never,
       );
       expect(mockRes.redirect).toHaveBeenCalledWith(

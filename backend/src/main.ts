@@ -37,12 +37,15 @@ async function bootstrap() {
   const app = await NestFactory.create(AppModule);
   const configService = app.get(ConfigService);
 
-  // Remove x-powered-by header (security)
-  (
-    app.getHttpAdapter().getInstance() as {
-      disable: (header: string) => void;
-    }
-  ).disable('x-powered-by');
+  // Cloudflare(또는 단일 reverse proxy) 뒤에서 동작하므로 X-Forwarded-* 를
+  // 신뢰해 정확한 req.ip 를 얻는다. CF-Connecting-IP 는 별도 헬퍼
+  // (auth/utils/client-ip) 에서 1순위로 처리한다.
+  const expressInstance = app.getHttpAdapter().getInstance() as {
+    disable: (header: string) => void;
+    set: (key: string, value: unknown) => void;
+  };
+  expressInstance.set('trust proxy', true);
+  expressInstance.disable('x-powered-by');
 
   // Cookie parser
   app.use(cookieParser());
@@ -78,6 +81,7 @@ async function bootstrap() {
       'access-token',
     )
     .addTag('Auth', '회원가입, 로그인, 토큰 갱신 등 인증 관련 API')
+    .addTag('Sessions', '활성 세션 조회·강제 종료, 로그인 이력 조회')
     .addTag('Users', '사용자 프로필')
     .addTag('Workspaces', '팀 워크스페이스, 멤버 및 초대 관리')
     .addTag('Workflows', '워크플로우 CRUD 및 실행/복제/내보내기/가져오기')
