@@ -1,26 +1,30 @@
+import {
+  CONDITION_OPERATORS,
+  type Condition as CoreCondition,
+  type ConditionOperator as CoreConditionOperator,
+  EXPRESSION_PATTERN as CORE_EXPRESSION_PATTERN,
+  MAX_REGEX_LENGTH as CORE_MAX_REGEX_LENGTH,
+  compileRegexCache as coreCompileRegexCache,
+} from '../../core/condition-evaluator.util.js';
 import { getNestedValue } from '../../core/nested-value.util.js';
 
-export const VALID_OPERATORS = [
-  'eq',
-  'neq',
-  'gt',
-  'gte',
-  'lt',
-  'lte',
-  'contains',
-  'not_contains',
-  'starts_with',
-  'ends_with',
-  'is_empty',
-  'is_not_empty',
-  'regex',
-  'is_null',
-  'is_type',
-] as const;
-
-export type ConditionOperator = (typeof VALID_OPERATORS)[number];
+/**
+ * Operator list re-exported from {@link CONDITION_OPERATORS} so the runtime
+ * value matches the core SSOT. Filter / Transform consumers reference this
+ * to validate authored conditions; adding a new operator only requires
+ * editing `core/condition-evaluator.util.ts`.
+ */
+export const VALID_OPERATORS = CONDITION_OPERATORS;
+export type ConditionOperator = CoreConditionOperator;
 
 export const VALID_OPERATORS_STR = VALID_OPERATORS.join(', ');
+
+export const MAX_REGEX_LENGTH = CORE_MAX_REGEX_LENGTH;
+export const EXPRESSION_PATTERN = CORE_EXPRESSION_PATTERN;
+
+export type Condition = CoreCondition;
+
+export const compileRegexCache = coreCompileRegexCache;
 
 const VALID_TYPES = new Set([
   'string',
@@ -32,43 +36,20 @@ const VALID_TYPES = new Set([
   'undefined',
 ]);
 
-export const MAX_REGEX_LENGTH = 200;
-
-export const EXPRESSION_PATTERN = /\{\{/;
-
-export interface Condition {
-  field: string;
-  operator: ConditionOperator;
-  value: unknown;
-}
-
-export function compileRegexCache(
-  conditions: Condition[],
-): Map<number, RegExp> {
-  const cache = new Map<number, RegExp>();
-  for (let i = 0; i < conditions.length; i++) {
-    const cond = conditions[i];
-    if (cond.operator === 'regex' && typeof cond.value === 'string') {
-      if (cond.value.length > MAX_REGEX_LENGTH) continue;
-      try {
-        cache.set(i, new RegExp(cond.value));
-      } catch {
-        // Invalid regex — evaluation returns false
-      }
-    }
-  }
-  return cache;
-}
-
 /**
  * Evaluate the comparison operator against an already-resolved fieldValue.
  *
- * Used by callers that have already extracted the field value (e.g. Filter,
- * which performs per-item expression resolution and item-self sentinel
- * handling outside the shared evaluator). Keeping the operator semantics
- * here lets all condition-evaluating nodes share a single source of truth
- * for `eq`/`gt`/`regex`/etc. without coupling to a `path → fieldValue`
- * lookup pattern that not every caller needs.
+ * Used by Filter (after per-item expression resolution) and Transform's
+ * array_filter. Operator semantics mostly mirror the core evaluator, with
+ * one deliberate divergence: `not_contains` returns `false` (instead of
+ * `true`) when either operand is non-string. This preserves Filter's
+ * "symmetric with contains" stance — non-comparable operands should not
+ * silently slip through `not_contains` (`filter.handler.spec.ts:440-456`).
+ *
+ * Operator additions should land in `core/condition-evaluator.util.ts`
+ * first, then this function gets a matching `case` only if the semantic
+ * differs from core; otherwise the per-item Filter loop can keep calling
+ * the core evaluator directly.
  */
 export function evaluateResolvedCondition(
   fieldValue: unknown,
@@ -95,6 +76,8 @@ export function evaluateResolvedCondition(
         ? fieldValue.includes(compareValue)
         : false;
     case 'not_contains':
+      // Defensive divergence from core: non-string operands fail rather than
+      // silently passing `not_contains`. See module docstring.
       return typeof fieldValue === 'string' && typeof compareValue === 'string'
         ? !fieldValue.includes(compareValue)
         : false;

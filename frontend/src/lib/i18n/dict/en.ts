@@ -967,6 +967,7 @@ export const en: Dict = {
       opNotEmpty: "Is Not Empty",
       opRegex: "Regex Match",
       opNull: "Is Null",
+      opType: "Is Type",
       addCondition: "Add Condition",
       mode: "Mode",
       modeValueMatch: "Value Match",
