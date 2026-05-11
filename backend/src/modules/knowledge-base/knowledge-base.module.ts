@@ -22,6 +22,7 @@ import { DOCUMENT_EMBEDDING_QUEUE } from './queues/document-embedding.queue';
 import { DocumentEmbeddingProcessor } from './queues/document-embedding.processor';
 import { GRAPH_EXTRACTION_QUEUE } from './queues/graph-extraction.queue';
 import { GraphExtractionProcessor } from './queues/graph-extraction.processor';
+import { StuckDocumentRecoveryService } from './queues/stuck-document-recovery.service';
 
 @Module({
   imports: [
@@ -49,6 +50,7 @@ import { GraphExtractionProcessor } from './queues/graph-extraction.processor';
     S3Service,
     DocumentEmbeddingProcessor,
     GraphExtractionProcessor,
+    StuckDocumentRecoveryService,
   ],
   exports: [KnowledgeBaseService, RagSearchService, EmbeddingService],
 })

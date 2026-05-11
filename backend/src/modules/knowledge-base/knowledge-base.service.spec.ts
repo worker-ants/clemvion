@@ -250,7 +250,9 @@ describe('KnowledgeBaseService', () => {
       );
       expect(mockDataSource.query).toHaveBeenNthCalledWith(
         3,
-        expect.stringMatching(/UPDATE document SET graph_extraction_status/),
+        expect.stringMatching(
+          /UPDATE document\s+SET graph_extraction_status = 'pending'[\s\S]*graph_retry_count = 0/,
+        ),
         ['kb-1'],
       );
       expect(mockGraphQueue.addBulk).toHaveBeenCalledWith([
@@ -310,6 +312,8 @@ describe('KnowledgeBaseService', () => {
 
       expect(mockDocRepo.update).toHaveBeenCalledWith('d1', {
         graphExtractionStatus: 'pending',
+        graphRetryCount: 0,
+        graphErrorMessage: null,
       });
       expect(mockGraphQueue.add).toHaveBeenCalledWith('extract', {
         documentId: 'd1',

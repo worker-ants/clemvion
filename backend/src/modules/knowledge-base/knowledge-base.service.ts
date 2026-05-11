@@ -244,9 +244,13 @@ export class KnowledgeBaseService {
       await manager.query(`DELETE FROM entity WHERE knowledge_base_id = $1`, [
         id,
       ]);
-      // 3) 모든 문서 graph_extraction_status 를 'pending' 으로 reset
+      // 3) 모든 문서 graph_extraction_status 를 'pending' 으로 reset + retry 메타 리셋
       await manager.query(
-        `UPDATE document SET graph_extraction_status = 'pending' WHERE knowledge_base_id = $1`,
+        `UPDATE document
+            SET graph_extraction_status = 'pending',
+                graph_retry_count = 0,
+                graph_error_message = NULL
+          WHERE knowledge_base_id = $1`,
         [id],
       );
       // 4) 문서 ID 회수 (트랜잭션 후 큐잉용)
@@ -300,6 +304,8 @@ export class KnowledgeBaseService {
 
     await this.documentRepository.update(doc.id, {
       graphExtractionStatus: 'pending',
+      graphRetryCount: 0,
+      graphErrorMessage: null,
     });
     await this.graphQueue.add('extract', {
       documentId: doc.id,
@@ -350,6 +356,120 @@ export class KnowledgeBaseService {
     };
   }
 
+  // KB 의 임베딩 진행 통계. vector / graph 모드 무관하게 사용.
+  // pending = pending|processing|error (모두 "최종 실패 전 진행/일시 오류" 으로 묶음)
+  async getEmbeddingStats(
+    id: string,
+    workspaceId: string,
+  ): Promise<{
+    completedDocumentCount: number;
+    failedDocumentCount: number;
+    pendingDocumentCount: number;
+    totalDocumentCount: number;
+    reembedStatus: 'idle' | 'in_progress';
+  }> {
+    const kb = await this.findById(id, workspaceId);
+
+    const rows = await this.dataSource.query<
+      {
+        completed: number;
+        failed: number;
+        pending: number;
+        total: number;
+      }[]
+    >(
+      `SELECT
+         COUNT(*) FILTER (WHERE embedding_status = 'completed')::int AS completed,
+         COUNT(*) FILTER (WHERE embedding_status = 'failed')::int AS failed,
+         COUNT(*) FILTER (WHERE embedding_status IN ('pending','processing','error'))::int AS pending,
+         COUNT(*)::int AS total
+       FROM document WHERE knowledge_base_id = $1`,
+      [id],
+    );
+    return {
+      completedDocumentCount: rows[0]?.completed ?? 0,
+      failedDocumentCount: rows[0]?.failed ?? 0,
+      pendingDocumentCount: rows[0]?.pending ?? 0,
+      totalDocumentCount: rows[0]?.total ?? 0,
+      reembedStatus: kb.reembedStatus,
+    };
+  }
+
+  // 실패한 (`status = 'failed'`) 문서들을 모아 한 번에 재큐잉. 사용자가 KB 진행 박스의
+  // "실패 문서 재시도" 버튼을 누를 때 호출된다.
+  //   - scope='embedding' : embedding_status='failed' 문서만 재임베딩 큐로 add
+  //   - scope='graph'     : graph_extraction_status='failed' 문서만 graph 큐로 add
+  //   - scope='all'       : 둘 다
+  // 큐잉 직전 해당 문서들의 retry_count·error_message 를 리셋하고 status 를 'pending' 으로
+  // 되돌린다. `isKbBatch=false` 로 둬 KB 전체 잠금 (reembed_status / reextract_status) 은
+  // 건드리지 않는다 (부분 재시도는 가벼운 작업).
+  async retryFailedDocuments(
+    id: string,
+    workspaceId: string,
+    scope: 'embedding' | 'graph' | 'all',
+  ): Promise<{ embeddingRequeued: number; graphRequeued: number }> {
+    const kb = await this.findById(id, workspaceId);
+
+    let embeddingRequeued = 0;
+    let graphRequeued = 0;
+
+    if (scope === 'embedding' || scope === 'all') {
+      const rows = await this.dataSource.query<{ id: string }[]>(
+        `UPDATE document
+            SET embedding_status = 'pending',
+                embedding_retry_count = 0,
+                embedding_error_message = NULL
+          WHERE knowledge_base_id = $1 AND embedding_status = 'failed'
+          RETURNING id`,
+        [id],
+      );
+      embeddingRequeued = rows.length;
+      if (rows.length > 0) {
+        await this.embeddingQueue.addBulk(
+          rows.map((r) => ({
+            name: 'embed',
+            data: {
+              documentId: r.id,
+              knowledgeBaseId: id,
+              ragMode: kb.ragMode,
+              reEmbed: true,
+            },
+          })),
+        );
+      }
+    }
+
+    if (scope === 'graph' || scope === 'all') {
+      if (kb.ragMode !== 'graph') {
+        // vector 모드 KB 에 graph scope 요청은 즉시 0건 반환 (에러 throw 하지 않음 — 'all' 호환).
+      } else {
+        const rows = await this.dataSource.query<{ id: string }[]>(
+          `UPDATE document
+              SET graph_extraction_status = 'pending',
+                  graph_retry_count = 0,
+                  graph_error_message = NULL
+            WHERE knowledge_base_id = $1 AND graph_extraction_status = 'failed'
+            RETURNING id`,
+          [id],
+        );
+        graphRequeued = rows.length;
+        if (rows.length > 0) {
+          await this.graphQueue.addBulk(
+            rows.map((r) => ({
+              name: 'extract',
+              data: {
+                documentId: r.id,
+                knowledgeBaseId: id,
+              },
+            })),
+          );
+        }
+      }
+    }
+
+    return { embeddingRequeued, graphRequeued };
+  }
+
   // 모델 변경 등으로 KB 전체 재임베딩이 필요할 때 호출.
   // - reembed_status 를 atomic compare-and-swap (idle → in_progress) 으로 잠금
   //   (race-free; 다른 요청이 in_progress 면 0행 RETURNING 으로 409 ConflictException)
@@ -376,6 +496,16 @@ export class KnowledgeBaseService {
         message: 'A KB re-embedding is already in progress',
       });
     }
+
+    // 모든 문서의 retry / error 메타데이터 리셋 (재시도 카운트 0 부터 다시 시작).
+    await this.dataSource.query(
+      `UPDATE document
+          SET embedding_status = 'pending',
+              embedding_retry_count = 0,
+              embedding_error_message = NULL
+        WHERE knowledge_base_id = $1`,
+      [id],
+    );
 
     const docs = await this.documentRepository.find({
       where: { knowledgeBaseId: id },
