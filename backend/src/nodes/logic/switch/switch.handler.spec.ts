@@ -211,7 +211,11 @@ describe('SwitchHandler', () => {
       expect(result).toMatchObject({
         port: 'case_korean',
         output: inputIgnored,
-        meta: { mode: 'value', matchedCase: 'case_korean', value: '한식' },
+        meta: {
+          mode: 'value',
+          matchedCase: 'case_korean',
+          resolvedValue: '한식',
+        },
       });
     });
 
@@ -587,7 +591,9 @@ describe('SwitchHandler', () => {
   // Phase 2 (C) — additive meta metrics.
   // CONVENTIONS Principle 2 — meta is execution metrics. Adds:
   //   meta.matchedCaseLabel, meta.matchedCaseIndex, meta.resolvedValue
-  // (`meta.value` retained one release as deprecated alias).
+  // The deprecated `meta.value` alias was removed in D4 of
+  // logic-node-followups; workflows referencing it are migrated by
+  // backend/scripts/migrate-node-output-refs.ts (RENAMED_META_FIELDS.switch).
   describe('meta metrics: matchedCaseLabel / matchedCaseIndex / resolvedValue', () => {
     it('exposes label + index of the matched case (mode=value)', async () => {
       const result = (await handler.execute(
@@ -609,11 +615,12 @@ describe('SwitchHandler', () => {
         matchedCaseLabel: '양식 선택',
         matchedCaseIndex: 1,
         resolvedValue: '양식',
-        value: '양식', // deprecated alias preserved one release
       });
+      // D4: deprecated `meta.value` alias removed.
+      expect(result.meta).not.toHaveProperty('value');
     });
 
-    it('exposes resolvedValue as deprecated `value` alias (same primitive)', async () => {
+    it('does not emit the removed `meta.value` alias (D4)', async () => {
       const result = (await handler.execute(
         {},
         {
@@ -622,9 +629,9 @@ describe('SwitchHandler', () => {
           hasDefault: true,
         },
         context,
-      )) as unknown as { meta: { resolvedValue: unknown; value: unknown } };
+      )) as unknown as { meta: Record<string, unknown> };
       expect(result.meta.resolvedValue).toBe(42);
-      expect(result.meta.value).toBe(42);
+      expect(result.meta).not.toHaveProperty('value');
     });
 
     it('omits matchedCaseLabel when matched case has no label', async () => {
@@ -692,7 +699,7 @@ describe('SwitchHandler', () => {
         matchedCaseIndex: 1,
       });
       expect(result.meta.resolvedValue).toBeUndefined();
-      expect(result.meta.value).toBeUndefined();
+      expect(result.meta).not.toHaveProperty('value');
     });
   });
 

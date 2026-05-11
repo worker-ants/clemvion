@@ -44,6 +44,11 @@
 
 ## 3. 제안된 Output 구조
 
+> **D4 / D6 / D7 결정 (2026-05-11, plan/in-progress/logic-node-followups.md):**
+> - **D4 — `meta.value` → `meta.resolvedValue` 단독화**: 핸들러에서 deprecated alias 제거 완료. 기존 워크플로 표현식은 `backend/scripts/migrate-node-output-refs.ts` 의 `RENAMED_META_FIELDS.switch` 가 자동 rewrite.
+> - **D7 — case id reserved word 검증**: backend `validateSwitchConfig` 에 `['default', 'out', 'error']` 거부 룰 추가 (스키마 단계 차단 — frontend UI 는 case id 를 자동 UUID 로 부여하므로 의도적 충돌은 import / AI 생성 워크플로 경로에서 발생).
+> - **D6 — `meta.switchPath` 추가 보류**: switchValue 가 raw 표현식 그대로 `config.switchValue` 에 echo 되므로 별도 path 전용 필드의 가치 낮음. `meta.expression` 옛 필드는 이미 제거되었고 신설하지 않는다.
+
 ### Before
 
 ```json

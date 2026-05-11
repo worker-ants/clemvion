@@ -120,8 +120,7 @@ mode=expression 으로 전환 시 각 case 의 `Value` 입력이 `Condition` (co
     "matchedCase": "case_admin",
     "matchedCaseLabel": "Admin",
     "matchedCaseIndex": 0,
-    "resolvedValue": "admin",
-    "value": "admin"
+    "resolvedValue": "admin"
   },
   "port": "case_admin"
 }
@@ -139,8 +138,9 @@ mode=expression 으로 전환 시 각 case 의 `Value` 입력이 `Condition` (co
 | `meta.matchedCaseLabel` | string \| undefined | handler return | 매칭된 case 의 `label` (UI/로그용). label 미설정 시 `undefined` |
 | `meta.matchedCaseIndex` | number | handler return | `config.cases` 배열 내 매칭된 인덱스 (0-based). default 폴백 시 `-1` |
 | `meta.resolvedValue` | unknown | handler return | mode=value 일 때만 — 평가된 `switchValue` (expression resolver 가 해석한 primitive). mode=expression 에서는 생략 |
-| `meta.value` | unknown | handler return | **deprecated alias** of `meta.resolvedValue` — 한 릴리스간 유지 후 제거 예정. 신규 코드는 `resolvedValue` 를 사용 |
 | `port` | `<case.id>` | handler return | 매칭된 case 의 동적 포트 ID |
+
+> 옛 `meta.value` deprecated alias 는 D4 (logic-node-followups) 에서 제거되었다. 기존 워크플로 표현식은 `backend/scripts/migrate-node-output-refs.ts` 의 `RENAMED_META_FIELDS.switch` 마이그레이션으로 `meta.resolvedValue` 로 자동 rewrite 된다.
 
 **Expression 접근 예**:
 - `$node["X"].output.user.name` → `"Alice"` (pass-through)
@@ -170,8 +170,7 @@ mode=expression 으로 전환 시 각 case 의 `Value` 입력이 `Condition` (co
     "mode": "value",
     "matchedCase": "default",
     "matchedCaseIndex": -1,
-    "resolvedValue": "viewer",
-    "value": "viewer"
+    "resolvedValue": "viewer"
   },
   "port": "default"
 }
@@ -185,7 +184,6 @@ mode=expression 으로 전환 시 각 case 의 `Value` 입력이 `Condition` (co
 | `meta.matchedCaseLabel` | `undefined` | handler return | default 폴백 시 항상 `undefined` (전용 label 없음) |
 | `meta.matchedCaseIndex` | `-1` | handler return | default 폴백 sentinel |
 | `meta.resolvedValue` | unknown | handler return | mode=value 시 평가된 `switchValue` (default 폴백이어도 보존) |
-| `meta.value` | unknown | handler return | **deprecated alias** of `meta.resolvedValue` — 한 릴리스간 유지 |
 | `port` | `'default'` | handler return | 정적 default 포트 |
 
 **Expression 접근 예**:
@@ -195,10 +193,11 @@ mode=expression 으로 전환 시 각 case 의 `Value` 입력이 `Condition` (co
 - `$node["X"].meta.matchedCaseIndex` → `-1`
 
 > **후속 정비안** — [개선안 logic/switch.md](../../../user_memo/node-specs-improvement/logic/switch.md) §3 잔여 항목:
-> - **P1 (schema cleanup)**: `config.strictComparison` 은 schema 에 정의되어 있고 핸들러도 사용하지만, 개선안에서는 dead-field 가능성을 검토 중 — 현 구현 (`switch.handler.ts`) 에서는 실제로 동작하므로 본 spec 의 §1 표에 그대로 유지.
-> - **P1 (reserved word)**: 프런트엔드 case id 입력 검증에 `['default', 'out', 'error']` reserved list 추가. schema regex (`/^[a-zA-Z0-9_-]+$/`) 만으로는 문법 매칭만 가능, 의미 충돌 차단은 별도 layer 필요.
-> - **P1 (alias removal)**: `meta.value` deprecated alias 는 한 릴리스 후 제거 (소비처 마이그레이션 완료 후).
-> - **P2**: 매칭 실패 + `hasDefault=false` 의 throw 동작은 "비즈니스 로직 실패가 아닌 설정 실패" 로 분류되어 throw 유지 (Principle 3.1 Pre-flight 카테고리에 가까움).
+> - **(완료)** `meta.value` deprecated alias 제거 — D4 (logic-node-followups). 마이그레이션 스크립트(`backend/scripts/migrate-node-output-refs.ts` `RENAMED_META_FIELDS.switch`) 가 기존 워크플로 표현식을 `meta.resolvedValue` 로 자동 rewrite.
+> - **(완료)** case id reserved word 검증 — D7. `['default', 'out', 'error']` 를 frontend case id 입력에서 reject (warningRule + 단위 테스트). schema regex 는 문법만 검증하고 의미 충돌은 frontend layer 가 차단.
+> - **(보류)** `meta.switchPath` 추가 (개선안 §3 #1) — switchValue 가 raw 표현식으로 `config` 에 echo 되므로 별도 필드 가치 낮음 (D6).
+> - **유지** `config.strictComparison` — 개선안에서는 dead-field 가능성 검토했으나 현 구현이 실제로 사용 중. 그대로 유지.
+> - **P2** 매칭 실패 + `hasDefault=false` 의 throw 동작은 "비즈니스 로직 실패가 아닌 설정 실패" 로 분류되어 throw 유지 (Principle 3.1 Pre-flight 카테고리).
 
 ## 6. 에러 코드
 

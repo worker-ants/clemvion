@@ -11,6 +11,7 @@ import {
   META_FIELDS,
   RESULT_FIELDS,
   RENAMED_OUTPUT_FIELDS,
+  RENAMED_META_FIELDS,
 } from '../../scripts/migrate-node-output-refs';
 
 function typeMap(entries: Record<string, string>): Map<string, string> {
@@ -337,6 +338,55 @@ describe('rewriteExpression', () => {
             labels,
           );
           expect(result).toBe(`{{ $node["N"].output.${to} }}`);
+        }
+      }
+    });
+  });
+
+  describe('RENAMED_META_FIELDS coverage (D4 — Switch meta.value alias)', () => {
+    it('rewrites $node["S"].meta.value → meta.resolvedValue for switch', () => {
+      const labels = typeMap({ S: 'switch' });
+      const { result, hits } = rewriteExpression(
+        '{{ $node["S"].meta.value }}',
+        labels,
+      );
+      expect(result).toBe('{{ $node["S"].meta.resolvedValue }}');
+      expect(hits).toHaveLength(1);
+      expect(hits[0].reason).toMatch(
+        /meta\.value renamed to meta\.resolvedValue/,
+      );
+    });
+
+    it('does not touch meta.value on non-switch nodes', () => {
+      const labels = typeMap({ X: 'http_request' });
+      const before = '{{ $node["X"].meta.value }}';
+      const { result, hits } = rewriteExpression(before, labels);
+      expect(result).toBe(before);
+      expect(hits).toHaveLength(0);
+    });
+
+    it('chains output.value → meta.value → meta.resolvedValue for legacy switch refs', () => {
+      // Pass 4 (META_FIELDS.switch includes "value") rewrites
+      // .output.value → .meta.value, then pass 4b applies the rename to
+      // .meta.resolvedValue. End-to-end this means a workflow stuck on the
+      // pre-meta-channel path also lands on the canonical name.
+      const labels = typeMap({ S: 'switch' });
+      const { result } = rewriteExpression(
+        '{{ $node["S"].output.value }}',
+        labels,
+      );
+      expect(result).toBe('{{ $node["S"].meta.resolvedValue }}');
+    });
+
+    it('applies every configured RENAMED_META_FIELDS entry', () => {
+      for (const [nodeType, renames] of Object.entries(RENAMED_META_FIELDS)) {
+        const labels = typeMap({ N: nodeType });
+        for (const [from, to] of renames) {
+          const { result } = rewriteExpression(
+            `{{ $node["N"].meta.${from} }}`,
+            labels,
+          );
+          expect(result).toBe(`{{ $node["N"].meta.${to} }}`);
         }
       }
     });
