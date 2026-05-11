@@ -1,6 +1,6 @@
 # Spec: Loop
 
-> 관련 문서: [Logic 공통 규약](./0-common.md) · [Spec 노드 개요](../0-overview.md) · [Spec 실행 엔진](../../5-system/4-execution-engine.md) · [Spec 표현식 언어](../../5-system/5-expression-language.md) · [CONVENTIONS](../../../user_memo/node-specs-improvement/CONVENTIONS.md)
+> 관련 문서: [Logic 공통 규약](./0-common.md) · [Spec 노드 개요](../0-overview.md) · [Spec 실행 엔진](../../5-system/4-execution-engine.md) · [Spec 표현식 언어](../../5-system/5-expression-language.md) · [CONVENTIONS](../../conventions/node-output.md)
 
 지정된 횟수만큼 내부 노드 그룹(`body` 서브그래프)을 반복 실행하는 **컨테이너 노드**. 핸들러는 `output: null` 을 반환하고, 엔진이 모든 반복 종료 후 `{ iterations }` 로 `output` 을 오버라이트한다 (Logic 공통 §9.1, CONVENTIONS Principle 9). 컨테이너 공통 패턴은 [공통 §3](./0-common.md#3-컨테이너-노드-패턴-loop--map--foreach) 참조.
 
@@ -61,7 +61,7 @@
 2. **count 평가**: 엔진이 `engineResolvedConfig.count` 를 정수로 강제 변환 (`coerceContainerNumber`). `count > maxIterations` 시 즉시 `MAX_ITERATIONS_EXCEEDED` throw (§6).
 3. **반복 실행**: `LoopExecutor.execute` 가 0 ~ `count - 1` 인덱스로 body 서브그래프를 순차 실행. 매 반복마다 `context.loopContext = { index, count, isFirst, isLast }` 를 바인딩.
 4. **emit 수집**: 각 반복에서 `emit` 포트에 연결된 body 노드의 출력을 `LoopIterationResult { index, output }` 으로 수집.
-5. **반복 간 입력 전달**: i 번째 반복의 body 입력은 (i-1) 번째 반복의 emit 출력. 첫 반복(i=0)의 입력은 `undefined` ([user_memo 개선안 §2 항목 5](../../../user_memo/node-specs-improvement/logic/loop.md)).
+5. **반복 간 입력 전달**: i 번째 반복의 body 입력은 (i-1) 번째 반복의 emit 출력. 첫 반복(i=0)의 입력은 `undefined` ([아카이브 개선안 §2 항목 5](../../../plan/complete/archive/from-user-memo/node-specs-improvement/logic/loop.md)).
 6. **breakCondition 검사**: 매 반복 종료 후 (body 실행 직후) `engine` 이 `config.breakCondition` 표현식을 freshly built `expressionContext` (현재 `$loop.*`, `$var.*`, body 노드들의 최신 `$node[...].output` 반영) 와 함께 `evaluate()` 한다. truthy 면 즉시 조기 종료 + `meta.exitReason='break'`. 평가 에러는 silent false (loop 진행).
 7. **maxIterations 가드**: 반복 인덱스 i 가 `maxIterations` 에 도달하면 `MAX_ITERATIONS_EXCEEDED` throw.
 8. **완료 시점 (엔진 오버라이트)**: `collected.map(r => r.output)` 로 `iterations` 배열 생성 → 엔진이 `{ iterations }` 로 `output` 을 덮어쓴다 (§5.2, §5.7). 다운스트림은 `done` 포트로 라우팅. 반복 횟수가 필요하면 `output.iterations.length` 를 사용한다 (CONVENTIONS Principle 1.1 — config↔output 직교).

@@ -146,7 +146,7 @@ If/Else, Switch, Filter, AI Agent 조건 도구 등에서 **동적으로 추가/
 
 ## 9. 5필드 공통 규약 (Logic 카테고리)
 
-Logic 노드는 모두 [CONVENTIONS Principle 0](../../../user_memo/node-specs-improvement/CONVENTIONS.md) 의 5필드 invariant `{ config, output, meta?, port?, status? }` 를 따른다. 카테고리 특이 사용 패턴:
+Logic 노드는 모두 [CONVENTIONS Principle 0](../../conventions/node-output.md) 의 5필드 invariant `{ config, output, meta?, port?, status? }` 를 따른다. 카테고리 특이 사용 패턴:
 
 | 필드 | Logic 카테고리에서의 사용 패턴 |
 |------|----------------------------------|
@@ -186,7 +186,7 @@ Loop / ForEach / Map / Parallel 핸들러는 다음 두 시점에 두 가지 다
 
 **왜 pass-through 인가**: 위 노드의 "비즈니스 결과물" (Principle 1) 은 input 자체가 아니라 **분기된 데이터 흐름**이다. input 을 변형 없이 흘려보내고 분기/메타정보만 `port`·`meta` 에 담는 것이 다른 노드들의 데이터 변형 컨트랙트(map, transform 등)와 명확히 구분된다.
 
-> 출처: [INCONSISTENCY_MATRIX 축6 채택안](../../../user_memo/node-specs-improvement/INCONSISTENCY_MATRIX.md). user_memo 의 `meta.*` 추가 제안은 위 표대로 모두 핸들러에 반영 완료(2026-05-11). Switch `meta.value` 는 deprecated alias 로 유지되었으나 본 plan 결정(D4)에 따라 `meta.resolvedValue` 단독으로 정리된다.
+> 출처: [INCONSISTENCY_MATRIX 축6 채택안](../../../plan/complete/archive/from-user-memo/node-specs-improvement/INCONSISTENCY_MATRIX.md). 아카이브 의 `meta.*` 추가 제안은 위 표대로 모두 핸들러에 반영 완료(2026-05-11). Switch `meta.value` 는 deprecated alias 로 유지되었으나 본 plan 결정(D4)에 따라 `meta.resolvedValue` 단독으로 정리된다.
 
 ## 11. 출력 구조 색인
 

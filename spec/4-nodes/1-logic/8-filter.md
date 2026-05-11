@@ -1,6 +1,6 @@
 # Spec: Filter
 
-> 관련 문서: [Logic 공통 규약](./0-common.md) · [Spec 노드 개요](../0-overview.md) · [Transform 노드](../5-data/1-transform.md) · [Spec 표현식 언어](../../5-system/5-expression-language.md) · [CONVENTIONS](../../../user_memo/node-specs-improvement/CONVENTIONS.md)
+> 관련 문서: [Logic 공통 규약](./0-common.md) · [Spec 노드 개요](../0-overview.md) · [Transform 노드](../5-data/1-transform.md) · [Spec 표현식 언어](../../5-system/5-expression-language.md) · [CONVENTIONS](../../conventions/node-output.md)
 
 배열을 조건에 따라 두 그룹으로 분리하는 **분기 노드**. 입력 배열의 각 항목을 조건으로 평가하여, 매칭 항목은 `match` 포트로, 비매칭 항목은 `unmatched` 포트로 동시에 분배한다.
 

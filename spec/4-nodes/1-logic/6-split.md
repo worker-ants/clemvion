@@ -1,6 +1,6 @@
 # Spec: Split
 
-> 관련 문서: [Logic 공통 규약](./0-common.md) · [Spec 노드 개요](../0-overview.md) · [ForEach 노드](./9-foreach.md) · [Spec 표현식 언어](../../5-system/5-expression-language.md) · [CONVENTIONS](../../../user_memo/node-specs-improvement/CONVENTIONS.md)
+> 관련 문서: [Logic 공통 규약](./0-common.md) · [Spec 노드 개요](../0-overview.md) · [ForEach 노드](./9-foreach.md) · [Spec 표현식 언어](../../5-system/5-expression-language.md) · [CONVENTIONS](../../conventions/node-output.md)
 
 배열 데이터를 `{ index, value }` 형태로 정규화하여 단일 출력 포트(`out`)로 일괄 내보내는 **데이터 노드**. 분기 노드가 아니며 컨테이너도 아니므로 `port` / 컨테이너 오버라이트 컨트랙트는 사용하지 않는다. 각 항목에 대한 반복 실행이 필요하면 [ForEach 노드](./9-foreach.md)와 조합한다.
 

@@ -1,6 +1,6 @@
 # Spec: Send Email
 
-> 관련 문서: [Integration 공통 규약](./0-common.md) · [Spec 노드 개요](../0-overview.md) · [Spec 표현식 언어](../../5-system/5-expression-language.md) · [Spec 실행 엔진 §10](../../5-system/4-execution-engine.md#10-integration-handler-계약) · [CONVENTIONS](../../../user_memo/node-specs-improvement/CONVENTIONS.md)
+> 관련 문서: [Integration 공통 규약](./0-common.md) · [Spec 노드 개요](../0-overview.md) · [Spec 표현식 언어](../../5-system/5-expression-language.md) · [Spec 실행 엔진 §10](../../5-system/4-execution-engine.md#10-integration-handler-계약) · [CONVENTIONS](../../conventions/node-output.md)
 
 SMTP를 통해 이메일을 발송하는 **Integration 노드**. Integration 엔티티의 SMTP 자격증명 (`host`/`port`/`secure`/`username`/`password`/`default_from`) 을 사용해 발송하며, runtime 전송 실패는 `error` 포트로 라우팅된다 (CONVENTIONS Principle 3.1).
 
@@ -219,7 +219,7 @@ SMTP를 통해 이메일을 발송하는 **Integration 노드**. Integration 엔
 
 ### 5.4 Case: Integration stub (DI 미주입, 비-error)
 
-엔진이 `integrationsService` 를 주입하지 않은 환경(단위 테스트 / 부팅 단계 등) 에서만 발생. 외부 호출 없이 즉시 반환되며, **`output: null` 이 아닌** `status: 'requires_integration'` 로 식별된다 (Container 오버라이트 신호 [Principle 9](../../../user_memo/node-specs-improvement/CONVENTIONS.md#principle-9--container-노드의-output-오버라이트-컨트랙트) 와 구별).
+엔진이 `integrationsService` 를 주입하지 않은 환경(단위 테스트 / 부팅 단계 등) 에서만 발생. 외부 호출 없이 즉시 반환되며, **`output: null` 이 아닌** `status: 'requires_integration'` 로 식별된다 (Container 오버라이트 신호 [Principle 9](../../conventions/node-output.md#principle-9--container-노드의-output-오버라이트-컨트랙트) 와 구별).
 
 ```json
 {
@@ -266,7 +266,7 @@ SMTP를 통해 이메일을 발송하는 **Integration 노드**. Integration 엔
 | `to` 정규화 결과가 빈 배열 | `No valid recipients after normalizing the \`to\` field` | `execute()` (validate 통과 후 trim/공백 제거 결과) |
 | `__workspaceId` 누락 | `Missing workspace context — handler cannot resolve the integration` | `resolveIntegration` (엔진 환경 문제) |
 
-> ⚠ **개선안 항목 (P1, [send_email.md §3](../../../user_memo/node-specs-improvement/integration/send_email.md#3-제안된-output-구조))**: `to` 정규화 결과가 빈 배열인 케이스 (`EMAIL_NO_RECIPIENTS`) 는 본질적으로 runtime 표현식 평가 결과이므로 `error` 포트로 라우팅되는 편이 일관적이다. 현재는 throw — spec 변경 시 §5.3 enum 으로 이동하고 본 §5.8 행에서 제거한다.
+> ⚠ **개선안 항목 (P1, [send_email.md §3](../../../plan/complete/archive/from-user-memo/node-specs-improvement/integration/send_email.md#3-제안된-output-구조))**: `to` 정규화 결과가 빈 배열인 케이스 (`EMAIL_NO_RECIPIENTS`) 는 본질적으로 runtime 표현식 평가 결과이므로 `error` 포트로 라우팅되는 편이 일관적이다. 현재는 throw — spec 변경 시 §5.3 enum 으로 이동하고 본 §5.8 행에서 제거한다.
 
 ## 6. 에러 코드
 

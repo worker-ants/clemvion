@@ -1,6 +1,6 @@
 # Spec: Variable Declaration
 
-> 관련 문서: [Logic 공통 규약](./0-common.md) · [Spec 노드 개요](../0-overview.md) · [Spec 표현식 언어](../../5-system/5-expression-language.md) · [CONVENTIONS](../../../user_memo/node-specs-improvement/CONVENTIONS.md)
+> 관련 문서: [Logic 공통 규약](./0-common.md) · [Spec 노드 개요](../0-overview.md) · [Spec 표현식 언어](../../5-system/5-expression-language.md) · [CONVENTIONS](../../conventions/node-output.md)
 
 워크플로우 실행 컨텍스트(`context.variables`) 에 변수를 등록하는 **pass-through 노드**. 입력은 변형 없이 단일 출력 포트로 그대로 전달되며, 변수 등록은 `context.variables` 에 대한 side-effect 로 수행된다 (Logic 공통 §10 Pass-through 규약). 등록된 값은 후속 노드의 표현식에서 `{{ $var.<name> }}` 으로 참조한다.
 

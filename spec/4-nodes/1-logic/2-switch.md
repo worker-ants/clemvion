@@ -1,6 +1,6 @@
 # Spec: Switch
 
-> 관련 문서: [Logic 공통 규약](./0-common.md) · [Spec 노드 개요](../0-overview.md) · [Spec 표현식 언어](../../5-system/5-expression-language.md) · [CONVENTIONS](../../../user_memo/node-specs-improvement/CONVENTIONS.md)
+> 관련 문서: [Logic 공통 규약](./0-common.md) · [Spec 노드 개요](../0-overview.md) · [Spec 표현식 언어](../../5-system/5-expression-language.md) · [CONVENTIONS](../../conventions/node-output.md)
 
 입력 값(`switchValue`) 또는 케이스별 조건식을 평가하여 N+1 개 포트 (cases + default) 중 하나로 분기하는 **pass-through 노드**. 입력은 변형 없이 매칭된 케이스 포트로 그대로 전달된다 (Logic 공통 §10 Pass-through 규약). 케이스 포트는 동적이며 `config.cases[].id` 가 그대로 포트 ID 로 사용된다 (Logic 공통 §7 / CONVENTIONS Principle 6).
 
@@ -192,7 +192,7 @@ mode=expression 으로 전환 시 각 case 의 `Value` 입력이 `Condition` (co
 - `$node["X"].meta.matchedCase` → `"default"`
 - `$node["X"].meta.matchedCaseIndex` → `-1`
 
-> **후속 정비안** — [개선안 logic/switch.md](../../../user_memo/node-specs-improvement/logic/switch.md) §3 잔여 항목:
+> **후속 정비안** — [개선안 logic/switch.md](../../../plan/complete/archive/from-user-memo/node-specs-improvement/logic/switch.md) §3 잔여 항목:
 > - **(완료)** `meta.value` deprecated alias 제거 — D4 (logic-node-followups). 마이그레이션 스크립트(`backend/scripts/migrate-node-output-refs.ts` `RENAMED_META_FIELDS.switch`) 가 기존 워크플로 표현식을 `meta.resolvedValue` 로 자동 rewrite.
 > - **(완료)** case id reserved word 검증 — D7. `['default', 'out', 'error']` 를 frontend case id 입력에서 reject (warningRule + 단위 테스트). schema regex 는 문법만 검증하고 의미 충돌은 frontend layer 가 차단.
 > - **(보류)** `meta.switchPath` 추가 (개선안 §3 #1) — switchValue 가 raw 표현식으로 `config` 에 echo 되므로 별도 필드 가치 낮음 (D6).

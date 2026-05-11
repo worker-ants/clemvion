@@ -1,6 +1,6 @@
 # Spec: Table
 
-> 관련 문서: [Presentation 공통 규약](./0-common.md) · [Spec 노드 개요](../0-overview.md) · [Spec 표현식 언어](../../5-system/5-expression-language.md) · [CONVENTIONS](../../../user_memo/node-specs-improvement/CONVENTIONS.md)
+> 관련 문서: [Presentation 공통 규약](./0-common.md) · [Spec 노드 개요](../0-overview.md) · [Spec 표현식 언어](../../5-system/5-expression-language.md) · [CONVENTIONS](../../conventions/node-output.md)
 
 데이터를 표 형태로 구조화하여 렌더링하는 **Presentation 노드**. **Static** 모드는 `rows` 를 직접 정의하고(셀 값에 표현식 사용 가능), **Dynamic** 모드는 `dataSource` 배열의 각 항목에서 `columns[*].field` 를 매핑하여 행을 생성한다. 정렬·페이지네이션·HTML 렌더링·1MB cap 을 지원한다. 글로벌 `buttons` 가 하나라도 있으면 Blocking Mode 로 전이한다.
 

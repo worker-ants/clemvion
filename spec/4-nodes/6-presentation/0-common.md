@@ -206,7 +206,7 @@ CONVENTIONS §4.5 의 `interaction` 규격:
 
 ## 7. 5필드 공통 규약 (Presentation 카테고리)
 
-Presentation 노드는 모두 [CONVENTIONS Principle 0](../../../user_memo/node-specs-improvement/CONVENTIONS.md) 의 5필드 invariant `{ config, output, meta?, port?, status? }` 를 따른다. 카테고리 특이 사용 패턴 (§4 의 출력 포맷과 정합):
+Presentation 노드는 모두 [CONVENTIONS Principle 0](../../conventions/node-output.md) 의 5필드 invariant `{ config, output, meta?, port?, status? }` 를 따른다. 카테고리 특이 사용 패턴 (§4 의 출력 포맷과 정합):
 
 | 필드 | Presentation 카테고리에서의 사용 패턴 |
 |------|----------------------------------------|

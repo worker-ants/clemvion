@@ -1,6 +1,6 @@
 # Spec: Carousel
 
-> 관련 문서: [Presentation 공통 규약](./0-common.md) · [Spec 노드 개요](../0-overview.md) · [Spec 표현식 언어](../../5-system/5-expression-language.md) · [CONVENTIONS](../../../user_memo/node-specs-improvement/CONVENTIONS.md)
+> 관련 문서: [Presentation 공통 규약](./0-common.md) · [Spec 노드 개요](../0-overview.md) · [Spec 표현식 언어](../../5-system/5-expression-language.md) · [CONVENTIONS](../../conventions/node-output.md)
 
 데이터를 캐러셀(슬라이드) 형태로 구조화하여 시각적으로 렌더링하는 **블로킹 가능 프레젠테이션 노드**. **Static** 모드는 슬라이드를 직접 정의(리터럴 config)하고, **Dynamic** 모드는 `source` 표현식의 결과 배열을 `titleField` / `descriptionField` / `imageField` 로 매핑해 런타임 생성한다. 글로벌 / per-item 버튼이 하나라도 정의되면 Blocking Mode 로 진입한다.
 

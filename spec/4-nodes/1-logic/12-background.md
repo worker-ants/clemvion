@@ -1,6 +1,6 @@
 # Spec: Background
 
-> 관련 문서: [Logic 공통 규약](./0-common.md) · [Spec 노드 개요](../0-overview.md) · [Spec 실행 엔진](../../5-system/4-execution-engine.md) · [CONVENTIONS](../../../user_memo/node-specs-improvement/CONVENTIONS.md)
+> 관련 문서: [Logic 공통 규약](./0-common.md) · [Spec 노드 개요](../0-overview.md) · [Spec 실행 엔진](../../5-system/4-execution-engine.md) · [CONVENTIONS](../../conventions/node-output.md)
 
 `background` 출력 포트로 연결된 서브그래프를 BullMQ 큐로 떼어내 비동기 실행하고, 메인 흐름은 `main` 포트로 즉시 통과시키는 **fire-and-forget 특수 컨테이너 노드**. 본문 결과·실패는 메인 흐름에 영향을 주지 않는다 (격리).
 

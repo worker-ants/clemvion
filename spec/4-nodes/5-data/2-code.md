@@ -1,6 +1,6 @@
 # Spec: Code
 
-> 관련 문서: [Data 공통 규약](./0-common.md) · [Spec 노드 개요](../0-overview.md) · [노드 실행 샌드박싱](../0-overview.md#5-노드-실행-샌드박싱) · [Spec 표현식 언어](../../5-system/5-expression-language.md) · [CONVENTIONS](../../../user_memo/node-specs-improvement/CONVENTIONS.md)
+> 관련 문서: [Data 공통 규약](./0-common.md) · [Spec 노드 개요](../0-overview.md) · [노드 실행 샌드박싱](../0-overview.md#5-노드-실행-샌드박싱) · [Spec 표현식 언어](../../5-system/5-expression-language.md) · [CONVENTIONS](../../conventions/node-output.md)
 
 JavaScript 코드를 작성하여 자유로운 데이터 처리를 수행한다. Transform 노드로 표현하기 어려운 복잡한 로직(분기·재귀·복합 변환·해시 등)에 사용한다. 사용자 코드의 throw / 타임아웃은 정상 시나리오의 일부로 간주하여 **runtime 에러 포트(`error`)** 로 분기한다 (Data 공통 §4.1).
 
@@ -100,7 +100,7 @@ JavaScript 코드를 작성하여 자유로운 데이터 처리를 수행한다.
    - 컴파일 실패 → **pre-flight throw** (`handler.validate` 단계에서 검출, §6 참조).
 3. `vm.createContext` 로 격리 context 를 만들어 `runInContext` 로 실행. 이중 타임아웃을 적용한다 (§7.2).
 4. 정상 종료 → 사용자 `return` 값을 `output` 에 그대로 담고 `port: 'success'` 를 반환 (§5.1).
-5. 런타임 throw / 타임아웃 → `port: 'error'` + `output.error` 표준 봉투 (§5.3, [CONVENTIONS Principle 3.2](../../../user_memo/node-specs-improvement/CONVENTIONS.md#32-outputerror-표준-형태)).
+5. 런타임 throw / 타임아웃 → `port: 'error'` + `output.error` 표준 봉투 (§5.3, [CONVENTIONS Principle 3.2](../../conventions/node-output.md#32-outputerror-표준-형태)).
 6. 정상 종료 시 `varsClone` 을 `context.variables` 에 **원자적으로 전체 덮어쓰기** (§4.5). 실행 throw 시 원본 보존(롤백).
 
 ### 4.1 코드 작성 규칙
@@ -155,7 +155,7 @@ config: `{ "language": "javascript", "code": "return $input.value * 2;" }`, inpu
 | `config.timeout` | number? | config echo | 사용자가 설정한 타임아웃 초. 미설정 시 default `30` |
 | `output` | any | runtime — 사용자 `return` 값 | primitive (`42`) / object / array / `undefined` (return 없음) 모두 가능. **shape 은 사용자 코드가 결정**한다 (Principle 8 의 `output.result` 래핑은 적용하지 않음 — 개선안 §5 근거) |
 | `meta.durationMs` | number | engine inject | 실행 시간 (ms) |
-| `meta.success` | `true` | handler return | Code 노드 전용 편의 필드 ([CONVENTIONS Principle 2](../../../user_memo/node-specs-improvement/CONVENTIONS.md#principle-2--meta-는-실행-메트릭만-담는다)) |
+| `meta.success` | `true` | handler return | Code 노드 전용 편의 필드 ([CONVENTIONS Principle 2](../../conventions/node-output.md#principle-2--meta-는-실행-메트릭만-담는다)) |
 | `meta.logs` | string[] | handler return | `console.log/warn/error` 캡처. `[level] payload` 형식, 최대 100줄 |
 | `port` | `'success'` | handler return | 정상 종료 분기 |
 
@@ -291,7 +291,7 @@ config: `{ "code": "while (true) {}", "timeout": 1 }` (또는 `await new Promise
 | `language` 가 `javascript` 외 | (zod enum) `Invalid enum value. Expected 'javascript', received '...'` | schema parse 시점 |
 | **`code` 컴파일 실패** (`vm.Script` 구문 오류) | `code has a syntax error: <V8 SyntaxError 메시지>` | handler.validate (사용자 코드를 한 번도 실행하지 못한 상태) |
 
-> Pre-flight throw 는 사용자 코드를 단 한 번도 실행하지 못한 상태이므로 `error` 포트가 아닌 throw 로 처리한다 (Data 공통 §4.1, 개선안 [`data/code.md`](../../../user_memo/node-specs-improvement/data/code.md) §5.근거). 캔버스 배지 / 실행 시작 직전 검증으로 즉시 노출된다.
+> Pre-flight throw 는 사용자 코드를 단 한 번도 실행하지 못한 상태이므로 `error` 포트가 아닌 throw 로 처리한다 (Data 공통 §4.1, 개선안 [`data/code.md`](../../../plan/complete/archive/from-user-memo/node-specs-improvement/data/code.md) §5.근거). 캔버스 배지 / 실행 시작 직전 검증으로 즉시 노출된다.
 
 ## 7. 샌드박싱
 

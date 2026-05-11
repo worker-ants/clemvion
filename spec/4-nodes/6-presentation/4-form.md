@@ -1,6 +1,6 @@
 # Spec: Form (Human-in-the-loop)
 
-> 관련 문서: [Presentation 공통 규약](./0-common.md) · [Spec 노드 개요](../0-overview.md) · [Spec 실행 엔진](../../5-system/4-execution-engine.md) · [CONVENTIONS](../../../user_memo/node-specs-improvement/CONVENTIONS.md)
+> 관련 문서: [Presentation 공통 규약](./0-common.md) · [Spec 노드 개요](../0-overview.md) · [Spec 실행 엔진](../../5-system/4-execution-engine.md) · [CONVENTIONS](../../conventions/node-output.md)
 
 워크플로우 실행 중간에 사용자 입력을 받는 **Human-in-the-loop blocking 노드**. 실행을 일시 정지하고, 폼 UI 를 통해 사용자 입력을 수집한 뒤 실행을 재개한다. ButtonDef 를 사용하지 않으며 자체 `FormField` 구조를 갖는다.
 
@@ -221,7 +221,7 @@
 | `port` | `'out'` | engine | 단일 출력 포트 |
 | `status` | `'resumed'` | engine | 사용자 입력 수신 후 통일 상태 (Principle 4.1) |
 
-> **금지 필드 / 이전 포맷 폐기**: `status: 'submitted'` (→ `'resumed'`), `output.submittedData` (→ `output.interaction.data`), `output.type: 'form'` (판별자 폐기), `output.view` (래퍼 폐기). [공통 §4](./0-common.md#4-출력-포맷-principle-11--43--45) / [Principle 4.2](../../../user_memo/node-specs-improvement/CONVENTIONS.md) 와 일치.
+> **금지 필드 / 이전 포맷 폐기**: `status: 'submitted'` (→ `'resumed'`), `output.submittedData` (→ `output.interaction.data`), `output.type: 'form'` (판별자 폐기), `output.view` (래퍼 폐기). [공통 §4](./0-common.md#4-출력-포맷-principle-11--43--45) / [Principle 4.2](../../conventions/node-output.md) 와 일치.
 
 **Expression 접근 예** (resumed 시점):
 - `$node["F"].output.interaction.data.approval` → `"approved"`
