@@ -76,7 +76,8 @@
 |------|------|
 | 비밀번호 변경 | 현재 비밀번호 확인 → 새 비밀번호 입력 |
 | 2FA 설정 | TOTP 기반. QR 코드 표시 → 인증 앱으로 스캔 → 확인 코드 입력 |
-| 활성 세션 | 현재 로그인된 기기/브라우저 목록. 타 세션 강제 종료 가능 |
+| 활성 세션 | `/profile/sessions` 페이지. 현재 로그인된 기기/브라우저 목록(family 단위), "현재" 세션 배지 표시. 다른 세션 개별 종료 또는 일괄 종료 (비밀번호 재확인 필수). 상세: [인증 spec §2.3](../5-system/1-auth.md#23-세션-정책) |
+| 로그인 이력 | `/profile/sessions` 페이지의 이력 탭. 성공·실패·강제 종료 등 이벤트를 시간순으로 표시 (본인만 조회). 보존 180일. 상세: [인증 spec §4.3](../5-system/1-auth.md#43-로그인-이력-loginhistory) |
 
 ---
 
@@ -211,8 +212,10 @@
 | POST | /api/users/me/change-password | 비밀번호 변경 |
 | POST | /api/users/me/enable-2fa | 2FA 활성화 시작 |
 | POST | /api/users/me/confirm-2fa | 2FA 확인 코드 검증 |
-| GET | /api/users/me/sessions | 활성 세션 목록 |
-| DELETE | /api/users/me/sessions/:id | 세션 강제 종료 |
+| GET | /api/users/me/sessions | 활성 세션 목록 (family 단위, isCurrent 플래그 포함) |
+| DELETE | /api/users/me/sessions/:familyId | 단일 세션 강제 종료 (family 전체 revoke, 비밀번호/TOTP 재인증) |
+| POST | /api/users/me/sessions/revoke-others | 현재 세션 제외 일괄 종료 (비밀번호/TOTP 재인증) |
+| GET | /api/users/me/login-history | 본인 로그인 이력 (커서 페이징, 180일 보존) |
 | GET | /api/workspaces | 내 워크스페이스 목록 |
 | POST | /api/workspaces | 팀 워크스페이스 생성 (요청자가 owner) |
 | PATCH | /api/workspaces/:id | 워크스페이스 이름 변경 (Admin+) |
