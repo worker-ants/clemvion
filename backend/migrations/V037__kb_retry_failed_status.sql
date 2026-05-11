@@ -9,13 +9,15 @@
 --   3) 기존 'error' (실질적 영구 실패) → 'failed' 일괄 변환
 --   4) KB batch finalize / 실패 문서 조회 가속용 인덱스 (stuck 회수용 partial index 포함)
 --
--- 주의 (V001 잔존 제약 제거):
---   V001 의 document.embedding_status 컬럼은 인라인 CHECK 로 정의돼 PostgreSQL 이
---   'document_embedding_status_check' 라는 자동 이름을 부여했다. 이 제약은 옛 값
---   집합('pending','processing','completed','error') 만 허용하므로, 본 마이그레이션의
---   "'error' → 'failed' UPDATE" 가 23514 위반으로 실패한다. 따라서 UPDATE 이전에
---   DROP CONSTRAINT IF EXISTS 로 옛 제약을 안전하게 제거한다. 신규 제약
---   chk_doc_embedding_status 가 상위 집합을 강제하므로 무결성은 보존된다.
+-- 주의 (옛 CHECK 제약 ordering):
+--   두 status 컬럼 모두 'error' → 'failed' UPDATE 보다 먼저 옛 CHECK 를 DROP 해야 한다.
+--   그렇지 않으면 옛 제약이 'failed' 를 거부해 23514 위반이 발생한다.
+--   - embedding_status: V001 의 인라인 CHECK 는 자동 이름 'document_embedding_status_check'
+--     로 만들어졌고 옛 값 집합만 허용한다. UPDATE 직전에 드롭하며, 신규 제약은 다른 이름
+--     (chk_doc_embedding_status) 으로 추가한다.
+--   - graph_extraction_status: V025 의 'chk_doc_graph_extraction_status' 는 옛 값 집합만
+--     허용한다. UPDATE 직전에 드롭하고 동일 이름으로 'failed' 포함 새 정의를 재생성한다.
+--   양쪽 모두 신규 제약이 옛 값 범위의 상위 집합을 강제하므로 데이터 무결성은 보존된다.
 --
 -- 배포 안전성:
 --   - 모든 ALTER TABLE / UPDATE 가 ACCESS EXCLUSIVE 또는 SHARE ROW EXCLUSIVE 락을 짧게 점유.
@@ -75,12 +77,15 @@ ALTER TABLE document
 ALTER TABLE document VALIDATE CONSTRAINT chk_doc_embedding_status;
 
 -- 3) graph_extraction_status: 기존 CHECK 교체 + 'error' → 'failed' 변환
+--    V025 의 chk_doc_graph_extraction_status 는 'failed' 를 허용하지 않으므로 UPDATE 이전에
+--    먼저 드롭한다. 'failed' 를 포함한 새 정의는 UPDATE 이후 동일 이름으로 재생성한다.
+--    embedding_status 측(step 2) 과 동일한 DROP → UPDATE → ADD → VALIDATE 순서다.
+ALTER TABLE document
+  DROP CONSTRAINT IF EXISTS chk_doc_graph_extraction_status;
+
 UPDATE document
   SET graph_extraction_status = 'failed'
   WHERE graph_extraction_status = 'error';
-
-ALTER TABLE document
-  DROP CONSTRAINT IF EXISTS chk_doc_graph_extraction_status;
 
 ALTER TABLE document
   ADD CONSTRAINT chk_doc_graph_extraction_status
