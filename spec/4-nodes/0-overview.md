@@ -1,6 +1,6 @@
 # Spec: 노드 시스템 설계 개요
 
-> 관련 문서: [PRD 노드 시스템](../../prd/3-node-system.md) · [Spec 노드 공통](../3-workflow-editor/1-node-common.md) · [Trigger 노드](./7-trigger/0-common.md) · [Logic 노드](./1-logic/0-common.md) · [Flow 노드](./2-flow/0-common.md) · [AI 노드](./3-ai/0-common.md) · [Integration 노드](./4-integration/0-common.md) · [Data 노드](./5-data/0-common.md) · [Presentation 노드](./6-presentation/0-common.md)
+> 관련 문서: [PRD 노드 시스템](./_product-overview.md) · [Spec 노드 공통](../3-workflow-editor/1-node-common.md) · [Trigger 노드](./7-trigger/0-common.md) · [Logic 노드](./1-logic/0-common.md) · [Flow 노드](./2-flow/0-common.md) · [AI 노드](./3-ai/0-common.md) · [Integration 노드](./4-integration/0-common.md) · [Data 노드](./5-data/0-common.md) · [Presentation 노드](./6-presentation/0-common.md)
 
 ---
 

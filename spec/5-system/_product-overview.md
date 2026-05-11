@@ -1,6 +1,6 @@
 # PRD: 비기능 요구사항
 
-> 관련 문서: [제품 개요](./0-overview.md) · [Spec 인증/인가](../spec/5-system/1-auth.md) · [Spec API 규칙](../spec/5-system/2-api-convention.md) · [Spec 에러 처리](../spec/5-system/3-error-handling.md)
+> 관련 문서: [제품 개요](../0-overview.md) · [Spec 인증/인가](./1-auth.md) · [Spec API 규칙](./2-api-convention.md) · [Spec 에러 처리](./3-error-handling.md)
 
 ---
 

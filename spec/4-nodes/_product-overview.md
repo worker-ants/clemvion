@@ -1,6 +1,6 @@
 # PRD: 노드 시스템
 
-> 관련 문서: [제품 개요](./0-overview.md) · [워크플로우 에디터](./2-workflow-editor.md) · [Spec 노드 개요](../spec/4-nodes/0-overview.md) · [Spec Logic 노드](../spec/4-nodes/1-logic/0-common.md) · [Spec Flow 노드](../spec/4-nodes/2-flow/1-workflow.md) · [Spec AI 노드](../spec/4-nodes/3-ai/0-common.md) · [Spec Integration 노드](../spec/4-nodes/4-integration/0-common.md) · [Spec Data 노드](../spec/4-nodes/5-data/0-common.md) · [Spec Presentation 노드](../spec/4-nodes/6-presentation/0-common.md)
+> 관련 문서: [제품 개요](../0-overview.md) · [워크플로우 에디터](../3-workflow-editor/_product-overview.md) · [Spec 노드 개요](./0-overview.md) · [Spec Logic 노드](./1-logic/0-common.md) · [Spec Flow 노드](./2-flow/1-workflow.md) · [Spec AI 노드](./3-ai/0-common.md) · [Spec Integration 노드](./4-integration/0-common.md) · [Spec Data 노드](./5-data/0-common.md) · [Spec Presentation 노드](./6-presentation/0-common.md)
 
 ---
 
@@ -376,7 +376,7 @@
 
 ## 11. 노드 핸들러 실행 컨텍스트 (Engine Contract)
 
-> 상세: [Spec 실행 엔진 §5–§6](../spec/5-system/4-execution-engine.md), [CONVENTIONS Principle 7](../user_memo/node-specs-improvement/CONVENTIONS.md)
+> 상세: [Spec 실행 엔진 §5–§6](../5-system/4-execution-engine.md), [CONVENTIONS Principle 7](../conventions/node-output.md)
 
 엔진과 노드 핸들러 사이의 계약. 워크플로 작성자가 입력한 **expression(`{{ ... }}`) 의 평가 전·후 두 값** 을 핸들러가 모두 활용할 수 있도록 명시한다. `config` echo 는 **원본(평가 전)**, `output.*` 는 **평가 결과** 라는 직교성을 보장하기 위한 요구사항이다.
 
@@ -391,5 +391,5 @@
 - 기존 워크플로의 `$node["X"].config.<expression-field>` 표현식이 평가된 값을 읽고 있다면 마이그레이션 후 원본 템플릿이 반환됨 (breaking — release note 필요).
 - 본 변경 이전에 저장된 `NodeExecution.outputData` 의 historical record 는 그대로 보존(백필 X) 하되, UI 의 실행 이력 표시에는 "기록 시점의 config 형태" 라는 안내가 필요할 수 있다.
 - API 클라이언트(외부 통합) 에서 응답 DTO 의 `config` 를 evaluated 로 가정한 코드는 영향 받음 — Phase 5(Swagger 검증) 에서 식별 후 CHANGELOG 반영.
-- **Replay 정책**: 본 버전에는 진정한 replay (재실행) 기능이 미구현. 향후 도입 시 **View** (저장된 evaluated 단순 조회 — 외부 부수효과 없음) 와 **Re-run** (현재 워크플로 정의의 raw config 를 재평가해 새 Execution 시작 — 외부 부수효과 재트리거) 두 모드로 분리한다. Multi-turn resume 은 replay 가 아닌 같은 실행의 다음 turn 진행. 자세한 정책은 [Spec 실행 엔진 §6.3](../spec/5-system/4-execution-engine.md#63-재실행조회-정책-replay-policy) 참조.
+- **Replay 정책**: 본 버전에는 진정한 replay (재실행) 기능이 미구현. 향후 도입 시 **View** (저장된 evaluated 단순 조회 — 외부 부수효과 없음) 와 **Re-run** (현재 워크플로 정의의 raw config 를 재평가해 새 Execution 시작 — 외부 부수효과 재트리거) 두 모드로 분리한다. Multi-turn resume 은 replay 가 아닌 같은 실행의 다음 turn 진행. 자세한 정책은 [Spec 실행 엔진 §6.3](../5-system/4-execution-engine.md#63-재실행조회-정책-replay-policy) 참조.
 

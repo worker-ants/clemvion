@@ -1,6 +1,6 @@
 # Spec: Manual Trigger
 
-> 관련 문서: [Trigger 공통 규약](./0-common.md) · [Spec 노드 개요](../0-overview.md) · [PRD 노드 시스템](../../../prd/3-node-system.md#3-trigger-노드-1종) · [Spec 실행 엔진](../../5-system/4-execution-engine.md) · [CONVENTIONS](../../conventions/node-output.md)
+> 관련 문서: [Trigger 공통 규약](./0-common.md) · [Spec 노드 개요](../0-overview.md) · [PRD 노드 시스템](../_product-overview.md#3-trigger-노드-1종) · [Spec 실행 엔진](../../5-system/4-execution-engine.md) · [CONVENTIONS](../../conventions/node-output.md)
 
 워크플로우의 **시작 노드(진입점)**. 사용자가 정의한 파라미터 스키마(`config.parameters`)를 기준으로, 실행 어댑터(Run 버튼/HTTP API)가 전달한 원시 입력을 해석·검증하여 `output.parameters` 로 노출한다. 워크플로우당 정확히 1개 존재하며 자동 생성·삭제 불가. 입력 포트가 없는 비-블로킹 즉시 완료 노드.
 

@@ -1,8 +1,8 @@
 # PRD: AI & 지식 저장소
 
-> 관련 문서: [제품 개요](./0-overview.md) · [워크플로우 에디터 §10](./2-workflow-editor.md#10-ai-assistant-ed-ai-) · [노드 시스템](./3-node-system.md#6-ai-노드-3종) · [통합/연동](./4-integration.md#3-knowledge-base-지식-저장소) · [내비게이션](./1-navigation.md#37-config--llm-llm-설정) · [Spec AI 노드](../spec/4-nodes/3-ai/0-common.md) · [Spec Knowledge Base](../spec/2-navigation/5-knowledge-base.md) · [Spec LLM Config](../spec/2-navigation/6-config.md) · [Spec AI Assistant](../spec/3-workflow-editor/4-ai-assistant.md)
+> 관련 문서: [제품 개요](../../0-overview.md) · [워크플로우 에디터 §10](../../3-workflow-editor/_product-overview.md#10-ai-assistant-ed-ai-) · [노드 시스템](../_product-overview.md#6-ai-노드-3종) · [통합/연동](../4-integration/_product-overview.md#3-knowledge-base-지식-저장소) · [내비게이션](../../2-navigation/_product-overview.md#37-config--llm-llm-설정) · [Spec AI 노드](./0-common.md) · [Spec Knowledge Base](../../2-navigation/5-knowledge-base.md) · [Spec LLM Config](../../2-navigation/6-config.md) · [Spec AI Assistant](../../3-workflow-editor/4-ai-assistant.md)
 
-> **구현 상태**: 3.1~3.6의 AI 기능은 모두 **구현 완료(✅)** 다. 상세 요구사항은 [PRD 2 §10](./2-workflow-editor.md#10-ai-assistant-ed-ai-)에 정의되어 있다.
+> **구현 상태**: 3.1~3.6의 AI 기능은 모두 **구현 완료(✅)** 다. 상세 요구사항은 [PRD 2 §10](../../3-workflow-editor/_product-overview.md#10-ai-assistant-ed-ai-)에 정의되어 있다.
 
 ---
 
@@ -32,7 +32,7 @@
 
 ### 2.2 본 문서 범위 밖
 
-팀 워크스페이스, RBAC, 2FA, 추가 Integration 노드. 현재 상태는 [제품 개요 §6.2](./0-overview.md) 참조.
+팀 워크스페이스, RBAC, 2FA, 추가 Integration 노드. 현재 상태는 [제품 개요 §6.2](../../0-overview.md) 참조.
 
 ---
 
@@ -52,7 +52,7 @@
 
 ### 3.2 AI Agent 노드
 
-> 상세: [PRD 노드 시스템 §5.1](./3-node-system.md), [Spec AI Agent](../spec/4-nodes/3-ai/1-ai-agent.md)
+> 상세: [PRD 노드 시스템 §5.1](../_product-overview.md), [Spec AI Agent](./1-ai-agent.md)
 
 > ⚠ **재작성 예정 (현재 제거됨)** — `ND-AG-06`, `ND-AG-10`, `ND-AG-21` 의 도구 연결 입력 경로(`toolNodeIds` / `toolOverrides`)는 config 스키마에서 **제거**됐다. 새 도구 연결 디자인이 결정될 때까지 비활성. 조건(`cond_*`) / KB(`kb_*`) / MCP(`mcp_*`) 도구 호출은 정상 동작. 자세한 사유·복원 절차: `plan/complete/ai-agent-tool-connection-rewrite.md`.
 
@@ -81,11 +81,11 @@
 | ND-AG-21 | 조건과 일반 도구 동시 호출 시 일반 도구 우선 실행 — LLM이 하나의 응답에서 조건 도구와 일반 도구를 함께 호출한 경우, 일반 도구를 먼저 실행하고 결과를 LLM에 전달하여 재평가한다 (조건은 재평가 후 최종 결정) _(제거됨 — 일반 도구 입력 경로 부재로 시나리오 미발생)_ | 필수 |
 | ND-AG-22 | 복수 조건 동시 호출 시 첫 번째 우선 — LLM이 여러 조건 도구를 동시에 호출한 경우, 조건 목록에서 먼저 정의된 조건을 선택한다 | 필수 |
 | ND-AG-23 | Single Turn 모드의 포트 구조 — 조건 포트 + 기본 `out` 포트 + `error` 포트. 조건 0개 시 `out` + `error` | 필수 |
-| ND-AG-24 | Multi Turn 모드의 포트 구조 — 조건 포트 + `user_ended` + `max_turns` + `error` (`out` 없음). 조건 0개 시 `out` + `error` 제공 (하위 호환). 상세: [Spec AI Agent 포트](../spec/4-nodes/3-ai/1-ai-agent.md#3-포트) | 필수 |
+| ND-AG-24 | Multi Turn 모드의 포트 구조 — 조건 포트 + `user_ended` + `max_turns` + `error` (`out` 없음). 조건 0개 시 `out` + `error` 제공 (하위 호환). 상세: [Spec AI Agent 포트](./1-ai-agent.md#3-포트) | 필수 |
 
 ### 3.3 Text Classifier 노드
 
-> 상세: [PRD 노드 시스템 §5.2](./3-node-system.md), [Spec Text Classifier](../spec/4-nodes/3-ai/2-text-classifier.md)
+> 상세: [PRD 노드 시스템 §5.2](../_product-overview.md), [Spec Text Classifier](./2-text-classifier.md)
 
 | ID | 요구사항 | 우선순위 |
 |----|----------|----------|
@@ -98,7 +98,7 @@
 
 ### 3.4 Information Extractor 노드
 
-> 상세: [PRD 노드 시스템 §5.3](./3-node-system.md), [Spec Information Extractor](../spec/4-nodes/3-ai/3-information-extractor.md)
+> 상세: [PRD 노드 시스템 §5.3](../_product-overview.md), [Spec Information Extractor](./3-information-extractor.md)
 
 | ID | 요구사항 | 우선순위 |
 |----|----------|----------|
@@ -111,14 +111,14 @@
 
 ### 3.5 Knowledge Base
 
-> 상세: [PRD 통합/연동 §3](./4-integration.md), [Spec Knowledge Base](../spec/2-navigation/5-knowledge-base.md). Graph RAG 검색 모드는 [PRD 9 Graph RAG](./9-graph-rag.md) 에 별도 정의.
+> 상세: [PRD 통합/연동 §3](../4-integration/_product-overview.md), [Spec Knowledge Base](../../2-navigation/5-knowledge-base.md). Graph RAG 검색 모드는 [PRD 9 Graph RAG](../../5-system/10-graph-rag.md) 에 별도 정의.
 
 | ID | 요구사항 | 우선순위 |
 |----|----------|----------|
 | KB-DC-01 | Knowledge Base 컬렉션 생성/관리 | 필수 |
 | KB-DC-02 | 문서 업로드 (txt, md, pdf, csv) | 필수 |
 | KB-DC-03 | 문서 검색 및 미리보기 | 필수 |
-| KB-MD-01 | 검색 모드 (`vector` / `graph`) 선택 — 생성 시에만 결정 (불변). graph 상세: [PRD 9](./9-graph-rag.md) | 필수 |
+| KB-MD-01 | 검색 모드 (`vector` / `graph`) 선택 — 생성 시에만 결정 (불변). graph 상세: [PRD 9](../../5-system/10-graph-rag.md) | 필수 |
 | KB-VE-01 | 문서 업로드 시 자동 벡터 임베딩 생성 | 필수 |
 | KB-VE-02 | 임베딩 모델 선택 (LLM Config 연동) | 필수 |
 | KB-VE-03 | 문서 수정 시 자동 재임베딩 | 필수 |
@@ -130,17 +130,17 @@
 
 ### 3.6 Workflow AI Assistant
 
-> **구현 상태**: ✅ 구현 완료 · 상세 요구사항: [PRD 2 §10](./2-workflow-editor.md#10-ai-assistant-ed-ai-) (`ED-AI-*`) · 상세 스펙: [Spec 3-workflow-editor/4](../spec/3-workflow-editor/4-ai-assistant.md) · 사용자 가이드: [AI 어시스턴트 개요](../frontend/src/content/docs/03-workflow-editor/overview.mdx) · [Hands-on Walkthrough](../frontend/src/content/docs/03-workflow-editor/walkthrough.mdx)
+> **구현 상태**: ✅ 구현 완료 · 상세 요구사항: [PRD 2 §10](../../3-workflow-editor/_product-overview.md#10-ai-assistant-ed-ai-) (`ED-AI-*`) · 상세 스펙: [Spec 3-workflow-editor/4](../../3-workflow-editor/4-ai-assistant.md) · 사용자 가이드: [AI 어시스턴트 개요](../frontend/src/content/docs/03-workflow-editor/overview.mdx) · [Hands-on Walkthrough](../frontend/src/content/docs/03-workflow-editor/walkthrough.mdx)
 
-워크플로우 에디터에 내장된 채팅형 AI 에이전트로, 사용자의 자연어 요청을 받아 노드·엣지를 자동 구성·수정한다. 단순 지시뿐 아니라 "주문 취소 프로세스 추가" 같은 모호한 요구를 **Clarify → Plan → Execute** 대화 루프로 구체화한다. 실행(`Run`) 은 사용자가 수행하되, Assistant 는 실행 결과(노드별 입출력·에러·타임라인) 를 읽기 전용 탐색 도구로 조회해 실패 원인을 진단하고 해당 노드 수정을 제안한다 ([PRD 2 §10.9](./2-workflow-editor.md#109-실행-결과-조회-진단수정)).
+워크플로우 에디터에 내장된 채팅형 AI 에이전트로, 사용자의 자연어 요청을 받아 노드·엣지를 자동 구성·수정한다. 단순 지시뿐 아니라 "주문 취소 프로세스 추가" 같은 모호한 요구를 **Clarify → Plan → Execute** 대화 루프로 구체화한다. 실행(`Run`) 은 사용자가 수행하되, Assistant 는 실행 결과(노드별 입출력·에러·타임라인) 를 읽기 전용 탐색 도구로 조회해 실패 원인을 진단하고 해당 노드 수정을 제안한다 ([PRD 2 §10.9](../../3-workflow-editor/_product-overview.md#109-실행-결과-조회-진단수정)).
 
 | 목표 | 설명 |
 |------|------|
 | 사용자 가치 | 비개발자도 자연어 한 줄로 초기 워크플로우 초안을 얻고, 실행 후 실패·오동작을 대화로 진단·수정 |
 | 제품 차별화 | Planner-first UX (질문·계획 제안 후 실행)로 LLM의 섣부른 편집 방지 |
-| 기존 자산 재사용 | LLM Config (§3.1), [LLM Client 스트리밍](../spec/5-system/7-llm-client.md#8-스트리밍-streaming), editor-store Undo 스택, [실행 내역 REST API](./7-execution-history.md) |
+| 기존 자산 재사용 | LLM Config (§3.1), [LLM Client 스트리밍](../../5-system/7-llm-client.md#8-스트리밍-streaming), editor-store Undo 스택, [실행 내역 REST API](../../2-navigation/14-execution-history.md) |
 
-상세 요구사항은 [PRD 2 §10.1~§10.9](./2-workflow-editor.md#10-ai-assistant-ed-ai-) 참조.
+상세 요구사항은 [PRD 2 §10.1~§10.9](../../3-workflow-editor/_product-overview.md#10-ai-assistant-ed-ai-) 참조.
 
 ---
 

@@ -1,6 +1,6 @@
 # Spec: 전체 레이아웃
 
-> 관련 문서: [PRD 내비게이션](../../prd/1-navigation.md) · [Spec 아키텍처 개요](../0-overview.md)
+> 관련 문서: [PRD 내비게이션](./_product-overview.md) · [Spec 아키텍처 개요](../0-overview.md)
 
 ---
 

@@ -1,6 +1,6 @@
 # PRD: 통합/연동
 
-> 관련 문서: [제품 개요](./0-overview.md) · [내비게이션](./1-navigation.md) · [노드 시스템](./3-node-system.md) · [Spec 통합 화면](../spec/2-navigation/4-integration.md) · [Spec Knowledge Base](../spec/2-navigation/5-knowledge-base.md) · [Spec 마켓플레이스](../spec/2-navigation/8-marketplace.md)
+> 관련 문서: [제품 개요](../../0-overview.md) · [내비게이션](../../2-navigation/_product-overview.md) · [노드 시스템](../_product-overview.md) · [Spec 통합 화면](../../2-navigation/4-integration.md) · [Spec Knowledge Base](../../2-navigation/5-knowledge-base.md) · [Spec 마켓플레이스](../../2-navigation/8-marketplace.md)
 
 ---
 
@@ -67,7 +67,7 @@
 
 ### 2.6 지원 서비스
 
-> 워크플로우 내에서 Integration을 노드로 사용하는 방법은 [PRD 노드 시스템 §7 Integration 노드](./3-node-system.md#7-integration-노드-3종)를 참조한다.
+> 워크플로우 내에서 Integration을 노드로 사용하는 방법은 [PRD 노드 시스템 §7 Integration 노드](../_product-overview.md#7-integration-노드-3종)를 참조한다.
 
 | ID | 요구사항 | 우선순위 |
 |----|----------|----------|
@@ -106,7 +106,7 @@
 |----|----------|----------|
 | KB-MD-01 | KB 생성 시 검색 모드를 `vector` (default) / `graph` 중 선택 | 필수 |
 | KB-MD-02 | 검색 모드는 **생성 시에만 결정, 사후 변경 불가** (모드 전환은 새 KB 생성으로 대체) | 필수 |
-| KB-MD-03 | `graph` 모드는 vector seed → 그래프 확장 → rerank 의 Hybrid 흐름. 상세는 [PRD Graph RAG](./9-graph-rag.md) | 필수 |
+| KB-MD-03 | `graph` 모드는 vector seed → 그래프 확장 → rerank 의 Hybrid 흐름. 상세는 [PRD Graph RAG](../../5-system/10-graph-rag.md) | 필수 |
 
 ### 3.3 벡터 임베딩
 

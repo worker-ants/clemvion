@@ -1,6 +1,6 @@
 # Spec: 트리거 목록 화면
 
-> 관련 문서: [PRD 내비게이션](../../prd/1-navigation.md#32-trigger-list-트리거-목록) · [Spec 레이아웃](./_layout.md) · [데이터 모델 - Trigger](../1-data-model.md#28-trigger)
+> 관련 문서: [PRD 내비게이션](./_product-overview.md#32-trigger-list-트리거-목록) · [Spec 레이아웃](./_layout.md) · [데이터 모델 - Trigger](../1-data-model.md#28-trigger)
 
 ---
 
