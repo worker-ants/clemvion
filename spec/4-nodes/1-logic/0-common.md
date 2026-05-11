@@ -152,7 +152,7 @@ Logic 노드는 모두 [CONVENTIONS Principle 0](../../../user_memo/node-specs-i
 |------|----------------------------------|
 | `config` | 사용자 입력 raw echo (Principle 7). `conditions[]` 등 표현식 `{{ }}` 보존. credentials/sensitive 필드는 Logic 카테고리에 해당 없음 |
 | `output` | 분기 노드(if_else, switch, filter)·변수 노드(var_decl, var_mod)·배경(background main) 은 **input pass-through** (§10). 컨테이너 노드(loop, foreach, map, parallel)는 핸들러가 `output: items` (또는 `null`) 반환 → 엔진이 `{ <컬렉션>, count }` 로 오버라이트 (§5, Principle 9). 데이터 노드(split, merge)는 계산 결과 |
-| `meta` | 실행 메트릭만 (Principle 2). 컨테이너: `meta.iterations? / branches? / matchedCount?`. 분기: `meta.conditionResult? / matchedConditions?` (P0 미구현 가능). 모든 노드 공통: `meta.durationMs` (엔진 inject) |
+| `meta` | 실행 메트릭만 (Principle 2). 컨테이너: `meta.iterations? / branches? / matchedCount?`. 분기: `meta.conditionResult? / matchedConditions?`. 모든 노드 공통: `meta.durationMs` (엔진 inject) |
 | `port` | 분기 노드는 `'true'` / `'false'` / 동적 case ID. 컨테이너는 `'done'`. 일반 노드는 `undefined` (단일 출력) |
 | `status` | Logic 노드는 모두 비-블로킹이므로 일반적으로 `undefined`. background 만 `'background_running'` 등 가능 |
 
@@ -178,15 +178,15 @@ Loop / ForEach / Map / Parallel 핸들러는 다음 두 시점에 두 가지 다
 
 | 노드 | 분기 방식 | 부가 정보 위치 |
 |------|-----------|---------------|
-| `if_else` | `port: 'true' \| 'false'` | `meta.conditionResult`, `meta.matchedConditions` (P0 미구현) |
-| `switch` | `port: <case_id> \| 'default'` | `meta.matchedCaseIndex`, `meta.matchedValue` (P0 미구현) |
-| `variable_declaration` | 단일 출력 | `meta.declaredVariables[]` (P1 미구현) |
-| `variable_modification` | 단일 출력 | `meta.modifications[]` (P1 미구현) |
+| `if_else` | `port: 'true' \| 'false'` | `meta.conditionResult`, `meta.matchedConditions` |
+| `switch` | `port: <case_id> \| 'default'` | `meta.matchedCase`, `meta.matchedCaseLabel`, `meta.matchedCaseIndex`, `meta.resolvedValue` |
+| `variable_declaration` | 단일 출력 | `meta.declared[]`, `meta.skipped[]`, `meta.coercionWarnings[]` |
+| `variable_modification` | 단일 출력 | `meta.modifications[]`, `meta.coercionWarnings[]`, `meta.createdVariables[]` |
 | `background` (main 포트) | `main` (즉시) / `bg` (background 진입 시) | `meta.backgroundRunId` |
 
 **왜 pass-through 인가**: 위 노드의 "비즈니스 결과물" (Principle 1) 은 input 자체가 아니라 **분기된 데이터 흐름**이다. input 을 변형 없이 흘려보내고 분기/메타정보만 `port`·`meta` 에 담는 것이 다른 노드들의 데이터 변형 컨트랙트(map, transform 등)와 명확히 구분된다.
 
-> 출처: [INCONSISTENCY_MATRIX 축6 채택안](../../../user_memo/node-specs-improvement/INCONSISTENCY_MATRIX.md). user_memo 의 `meta.*` 추가 제안은 P0/P1 으로 노드 문서에서 미구현 마킹.
+> 출처: [INCONSISTENCY_MATRIX 축6 채택안](../../../user_memo/node-specs-improvement/INCONSISTENCY_MATRIX.md). user_memo 의 `meta.*` 추가 제안은 위 표대로 모두 핸들러에 반영 완료(2026-05-11). Switch `meta.value` 는 deprecated alias 로 유지되었으나 본 plan 결정(D4)에 따라 `meta.resolvedValue` 단독으로 정리된다.
 
 ## 11. 출력 구조 색인
 

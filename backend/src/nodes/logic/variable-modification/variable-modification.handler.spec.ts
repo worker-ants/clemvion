@@ -567,5 +567,125 @@ describe('VariableModificationHandler', () => {
         { variable: 'n', operation: 'increment', applied: true },
       ]);
     });
+
+    describe('recordValues opt-in (D5)', () => {
+      it('omits before/after by default', async () => {
+        context.variables.counter = 5;
+        const result = (await handler.execute(
+          null,
+          {
+            modifications: [
+              { variable: 'counter', operation: 'increment', value: 1 },
+            ],
+          },
+          context,
+        )) as unknown as {
+          meta: {
+            modifications: Array<Record<string, unknown>>;
+          };
+        };
+        const entry = result.meta.modifications[0];
+        expect(entry).toEqual({
+          variable: 'counter',
+          operation: 'increment',
+          applied: true,
+        });
+        expect(entry).not.toHaveProperty('before');
+        expect(entry).not.toHaveProperty('after');
+      });
+
+      it('records masked before/after when recordValues=true', async () => {
+        context.variables.counter = 5;
+        const result = (await handler.execute(
+          null,
+          {
+            modifications: [
+              { variable: 'counter', operation: 'increment', value: 1 },
+            ],
+            recordValues: true,
+          },
+          context,
+        )) as unknown as {
+          config: { recordValues?: boolean };
+          meta: {
+            modifications: Array<Record<string, unknown>>;
+          };
+        };
+        expect(result.config.recordValues).toBe(true);
+        expect(result.meta.modifications[0]).toMatchObject({
+          variable: 'counter',
+          operation: 'increment',
+          applied: true,
+          before: 5,
+          after: 6,
+        });
+      });
+
+      it('masks secret-named variable values to "***"', async () => {
+        context.variables.password = 'old-pw';
+        const result = (await handler.execute(
+          null,
+          {
+            modifications: [
+              { variable: 'password', operation: 'set', value: 'new-pw' },
+            ],
+            recordValues: true,
+          },
+          context,
+        )) as unknown as {
+          meta: { modifications: Array<Record<string, unknown>> };
+        };
+        expect(result.meta.modifications[0]).toMatchObject({
+          variable: 'password',
+          before: '***',
+          after: '***',
+        });
+      });
+
+      it('captures the pre-mutation value for in-place push', async () => {
+        context.variables.list = [1, 2];
+        const result = (await handler.execute(
+          null,
+          {
+            modifications: [{ variable: 'list', operation: 'push', value: 3 }],
+            recordValues: true,
+          },
+          context,
+        )) as unknown as {
+          meta: { modifications: Array<Record<string, unknown>> };
+        };
+        // Before snapshot must be the deep-cloned pre-push state (deep
+        // clone is essential — push mutates `current` in place, so a
+        // shallow reference would shift to the post-push state).
+        expect(result.meta.modifications[0]).toMatchObject({
+          variable: 'list',
+          operation: 'push',
+          before: [1, 2],
+          after: [1, 2, 3],
+        });
+      });
+
+      it('truncates oversized object snapshots', async () => {
+        const big = {
+          items: Array.from({ length: 1000 }, (_, i) => `item-${i}-padding`),
+        };
+        context.variables.payload = big;
+        const result = (await handler.execute(
+          null,
+          {
+            modifications: [
+              { variable: 'payload', operation: 'set', value: big },
+            ],
+            recordValues: true,
+          },
+          context,
+        )) as unknown as {
+          meta: { modifications: Array<Record<string, unknown>> };
+        };
+        const entry = result.meta.modifications[0];
+        expect(typeof entry.before).toBe('string');
+        expect(entry.before as string).toMatch(/^\[truncated:\d+ bytes\]$/);
+      });
+    });
   });
 });

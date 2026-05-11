@@ -175,6 +175,22 @@ export const RENAMED_OUTPUT_FIELDS: Record<
   form: [['submittedData', 'interaction.data']],
 };
 
+/**
+ * Fields that were renamed inside `meta` (same nesting, new key). Applied
+ * after the structural passes. The shape is `meta.<from>` → `meta.<to>` —
+ * scoped per node type so unrelated nodes that happen to expose `meta.<from>`
+ * keep working.
+ */
+export const RENAMED_META_FIELDS: Record<
+  string,
+  ReadonlyArray<readonly [string, string]>
+> = {
+  // D4 (logic-node-followups): `meta.value` was kept as a deprecated alias
+  // when the canonical field was renamed to `meta.resolvedValue`. The alias
+  // is now removed; rewrite any lingering references.
+  switch: [['value', 'resolvedValue']],
+};
+
 interface WorkflowNode {
   id: string;
   type: string;
@@ -380,6 +396,31 @@ export function rewriteExpression(
         }
       }
       return match;
+    },
+  );
+
+  // Pass 4b: `$node["X"].meta.<from>` → `$node["X"].meta.<to>` per
+  // RENAMED_META_FIELDS. Idempotent because the regex only fires on the
+  // legacy key.
+  current = current.replace(
+    /\$node\[(?:"([^"]+)"|'([^']+)')\]\.meta\.([A-Za-z_][A-Za-z0-9_]*)/g,
+    (match, dbl, sgl, field) => {
+      const label = (dbl ?? sgl) as string;
+      const type = nodeTypeByLabel.get(label);
+      if (!type) return match;
+      const renames = RENAMED_META_FIELDS[type];
+      if (!renames) return match;
+      const rename = renames.find(([from]) => from === field);
+      if (!rename) return match;
+      const [from, to] = rename;
+      const replacement = match.replace(`.meta.${from}`, `.meta.${to}`);
+      hits.push({
+        field,
+        reason: `${type}: meta.${from} renamed to meta.${to}`,
+        before: match,
+        after: replacement,
+      });
+      return replacement;
     },
   );
 

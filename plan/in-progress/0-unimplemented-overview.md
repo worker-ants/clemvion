@@ -14,8 +14,9 @@
 
 1. ~~**`prd-spec-sync.md`**~~ ✅ 완료 (2026-05-11, `plan/complete/prd-spec-sync.md`) — Graph RAG ❌→✅, NF-OB-05 cron ✅, EH-NAV-04 ✅, Background spec 4문서 정합화, 매뉴얼 (knowledge-base.mdx 한·영) 정합화.
 2. **`ai-agent-tool-connection-rewrite.md`** — AI Agent 도구 연결은 의도적으로 제거되어 재설계 대기 중. 사용자 가치 큼, 다른 plan과 독립적.
-3. **`logic-node-followups.md`** — Loop breakCondition, If/Else operator, Variable meta 등 Logic 노드의 잔여 P0/P1 항목을 한 PR 단위로 묶는다.
+3. ~~**`logic-node-followups.md`**~~ ✅ 완료 (2026-05-11, `plan/complete/logic-node-followups.md`) — D1 If/Else `is_type`/`regex` evaluator 통합 ✅, D2 Loop breakCondition + meta.exitReason ✅, D3 Merge P2 → 별도 plan (`merge-p2-async-fanin.md`) 분리 ✅, D4 Switch `meta.value` alias 제거 + 마이그레이션 ✅, D5 Variable Modification recordValues opt-in + 마스킹 유틸 ✅, D6 보류 ✅, D7 case id reserved word 검증 ✅. spec/4-nodes/1-logic 의 P0/P1 미구현 표기 모두 정리 (Merge dormant 표기는 별도 plan 분리에 따른 의도적 잔존).
 4. **`parallel-p2.md`** — 중첩 Parallel, `waitAll: false`, `errorPolicy` schema 노출. `logic-node-followups`와 별개로 진행 가능.
+4-1. **`merge-p2-async-fanin.md`** (신규) — Merge `timeout` / `partialOnTimeout` P2 활성화. `logic-node-followups` D3 의 fallback 분리 — 엔진 비동기 dispatch 모델 도입 PoC 가 선결 조건.
 5. **`background-monitoring-api.md`** — Background 노드는 ✅ 구현됐으나 `meta.backgroundRunId` 모니터링 API는 미구현.
 6. **`replay-rerun.md`** — Re-run (재실행) 정책 도입.
 7. **`team-workspace-followups.md`** — 공유 워크플로우 표시 + 미가입자 초대 토큰.
@@ -42,11 +43,11 @@
 | **PRD 2 §4 ED-PL-05 마켓 커스텀 노드 팔레트 표시** | (마켓 의존) | `marketplace-and-plugin-sdk.md` |
 | **PRD 3 §6.1 ND-AG-06/10/21 AI Agent 도구 연결** | 🚧 의도적 제거, 재작성 예정 | `ai-agent-tool-connection-rewrite.md` |
 | **PRD 3 §4.9 ND-PL-03 Parallel 결과 합산 / 중첩 Parallel / waitAll=false** | 🚧 P2 예정 | `parallel-p2.md` |
-| **Spec 4-nodes/1-logic/3-loop §1 / §6 breakCondition** | 🚧 P1 미구현 | `logic-node-followups.md` |
-| **Spec 4-nodes/1-logic/1-if-else `is_type` / `regex` 연산자** | 🚧 P1 silent fall-through | `logic-node-followups.md` |
-| **Spec 4-nodes/1-logic/0-common If/Else, Switch `meta.matchedConditions` / `meta.matchedCaseIndex`** | 🚧 P0 미구현 | `logic-node-followups.md` |
-| **Spec 4-nodes/1-logic/0-common Variable Decl/Mod `meta.declaredVariables` / `meta.modifications`** | 🚧 P1 미구현 | `logic-node-followups.md` |
-| **Spec 4-nodes/1-logic/11-merge `timeout` / `partialOnTimeout`** | 🚧 P2 dormant | `logic-node-followups.md` |
+| **Spec 4-nodes/1-logic/3-loop §1 / §6 breakCondition** | ✅ 활성화 (D2, meta.exitReason 추가) | `complete/logic-node-followups.md` |
+| **Spec 4-nodes/1-logic/1-if-else `is_type` / `regex` 연산자** | ✅ 구현 (D1, evaluator 통합) | `complete/logic-node-followups.md` |
+| **Spec 4-nodes/1-logic/0-common If/Else, Switch `meta.matchedConditions` / `meta.matchedCaseIndex`** | ✅ 핸들러 구현 + spec 정합 (PR-1) | `complete/logic-node-followups.md` |
+| **Spec 4-nodes/1-logic/0-common Variable Decl/Mod meta** | ✅ 핸들러 구현 + recordValues opt-in (D5) | `complete/logic-node-followups.md` |
+| **Spec 4-nodes/1-logic/11-merge `timeout` / `partialOnTimeout`** | 🚧 P2 dormant (엔진 비동기 모델 선결) | `merge-p2-async-fanin.md` |
 | **Spec 4-nodes/1-logic/12-background 모니터링 API** | ❌ 미구현 (`meta.backgroundRunId` 키만 발급) | `background-monitoring-api.md` |
 | **Spec 5-system/4-execution-engine §6.3 Re-run** | 🚧 미구현 (future PRD) | `replay-rerun.md` |
 | **PRD 1 §3.11 NAV-UP-05 미가입자 초대 토큰** | 🚧 후속 (가입 사용자 추가만 ✅) | `team-workspace-followups.md` |
@@ -99,7 +100,7 @@
 plan/in-progress/
 ├── 0-unimplemented-overview.md        ← 본 문서 (인덱스)
 ├── ai-agent-tool-connection-rewrite.md ← AI Agent 일반 도구 연결 재설계
-├── logic-node-followups.md            ← Loop break / If-Else op / meta 필드 / Merge timeout
+├── merge-p2-async-fanin.md            ← Merge timeout/partialOnTimeout — 엔진 비동기 모델 선결
 ├── parallel-p2.md                     ← 중첩 Parallel·waitAll=false·errorPolicy 노출
 ├── background-monitoring-api.md       ← meta.backgroundRunId 모니터링 API
 ├── replay-rerun.md                    ← Re-run 재실행 기능 도입
@@ -111,7 +112,8 @@ plan/in-progress/
 
 plan/complete/
 ├── prd-spec-sync.md                   ← §E "PRD/Spec ↔ 코드 정합성 정리" 완료 (2026-05-11)
-└── llm-provider-followups.md          ← §C "LLM Provider 확장" 완료 (2026-05-11)
+├── llm-provider-followups.md          ← §C "LLM Provider 확장" 완료 (2026-05-11)
+└── logic-node-followups.md            ← Logic 노드 잔여 P0/P1 (D1·D2·D4·D5·D7) 완료, D3 → merge-p2-async-fanin.md 분리 (2026-05-11)
 ```
 
 각 plan 문서는 다음 구조를 따른다:

@@ -24,6 +24,7 @@ function operatorOptions(t: TFunction) {
     { value: "is_not_empty", label: t("nodeConfigs.logic.opNotEmpty") },
     { value: "regex", label: t("nodeConfigs.logic.opRegex") },
     { value: "is_null", label: t("nodeConfigs.logic.opNull") },
+    { value: "is_type", label: t("nodeConfigs.logic.opType") },
   ];
 }
 
@@ -358,6 +359,14 @@ export function VariableModificationConfig({ config, onChange }: { config: Confi
       <Button variant="outline" size="sm" className="h-7 text-xs" onClick={addMod}>
         <Plus size={12} className="mr-1" /> {t("nodeConfigs.logic.addModification")}
       </Button>
+      <CheckboxField
+        label={t("nodeConfigs.logic.recordValues")}
+        checked={(config.recordValues as boolean) ?? false}
+        onChange={(v) => onChange({ ...config, recordValues: v })}
+      />
+      <span className="text-[10px] text-[hsl(var(--muted-foreground))]">
+        {t("nodeConfigs.logic.recordValuesHint")}
+      </span>
     </div>
   );
 }

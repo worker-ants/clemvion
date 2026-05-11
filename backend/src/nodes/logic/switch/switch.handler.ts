@@ -104,13 +104,13 @@ export class SwitchHandler implements NodeHandler {
         : this.matchByValueIndex(switchValue, cases, strict);
     const matchedCase = matchedIndex >= 0 ? cases[matchedIndex] : undefined;
 
-    // CONVENTIONS Principle 2 — meta carries execution metrics.
-    // `resolvedValue` is the new canonical name for the evaluated switchValue
-    // (mode=value); `value` is retained for one release as a deprecated alias.
+    // CONVENTIONS Principle 2 — meta carries execution metrics. The canonical
+    // name for the evaluated switchValue is `resolvedValue`. The legacy
+    // `meta.value` alias was removed (D4 of logic-node-followups); workflows
+    // referencing `$node["X"].meta.value` are auto-rewritten by
+    // backend/scripts/migrate-node-output-refs.ts (RENAMED_META_FIELDS.switch).
     const valueMeta =
-      resolvedMode === 'value'
-        ? { resolvedValue: switchValue, value: switchValue }
-        : {};
+      resolvedMode === 'value' ? { resolvedValue: switchValue } : {};
 
     if (matchedCase) {
       return {
