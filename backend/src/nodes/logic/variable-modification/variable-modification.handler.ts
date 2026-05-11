@@ -5,6 +5,7 @@ import {
   ExecutionContext,
 } from '../../core/node-handler.interface.js';
 import { evaluateMetadataBlockingErrors } from '../../core/metadata-validation.js';
+import { maskValueForLog } from '../_shared/value-masking.util.js';
 import { variableModificationNodeMetadata } from './variable-modification.schema.js';
 
 interface Modification {
@@ -15,12 +16,20 @@ interface Modification {
 
 interface VariableModificationConfig {
   modifications: Modification[];
+  recordValues?: boolean;
 }
 
 interface AppliedModificationMeta {
   variable: string;
   operation: string;
   applied: boolean;
+  /**
+   * Variable value before this modification, masked per the value-masking
+   * policy. Present only when `config.recordValues === true` (opt-in).
+   */
+  before?: unknown;
+  /** Variable value after this modification, masked. opt-in. */
+  after?: unknown;
 }
 
 interface CoercionWarningMeta {
@@ -53,7 +62,8 @@ export class VariableModificationHandler implements NodeHandler {
     config: Record<string, unknown>,
     context: ExecutionContext,
   ): Promise<NodeHandlerOutput> {
-    const { modifications } = config as unknown as VariableModificationConfig;
+    const { modifications, recordValues } =
+      config as unknown as VariableModificationConfig;
 
     const appliedMods: AppliedModificationMeta[] = [];
     const coercionWarnings: CoercionWarningMeta[] = [];
@@ -66,6 +76,7 @@ export class VariableModificationHandler implements NodeHandler {
         appliedMods,
         coercionWarnings,
         createdVariables,
+        recordValues === true,
       );
     }
 
@@ -75,7 +86,10 @@ export class VariableModificationHandler implements NodeHandler {
     const rawConfig = (context.rawConfig ??
       config) as unknown as VariableModificationConfig;
     return Promise.resolve({
-      config: { modifications: rawConfig.modifications },
+      config: {
+        modifications: rawConfig.modifications,
+        ...(recordValues === true ? { recordValues: true } : {}),
+      },
       output: input,
       // CONVENTIONS Principle 2 — meta surfaces execution metrics for
       // debugging / audit (additive, non-breaking).
@@ -93,6 +107,7 @@ export class VariableModificationHandler implements NodeHandler {
     appliedMods: AppliedModificationMeta[],
     coercionWarnings: CoercionWarningMeta[],
     createdVariables: string[],
+    recordValues: boolean,
   ): void {
     // Guard: missing/non-string variable (defense-in-depth — validate()
     // should have caught this, but execute() is invoked for raw fixtures
@@ -112,6 +127,12 @@ export class VariableModificationHandler implements NodeHandler {
     );
     const current = context.variables[mod.variable];
     const currentType = current === null ? 'null' : typeof current;
+    // Snapshot the pre-mutation value when opt-in is enabled. Captured
+    // BEFORE the switch so push/pop's in-place mutations don't shift the
+    // recorded "before" to the post-mutation state.
+    const beforeSnapshot = recordValues
+      ? maskValueForLog(mod.variable, current)
+      : undefined;
     let applied = true;
     let createdNew = false;
 
@@ -201,11 +222,19 @@ export class VariableModificationHandler implements NodeHandler {
         break;
     }
 
-    appliedMods.push({
+    const entry: AppliedModificationMeta = {
       variable: mod.variable,
       operation: mod.operation,
       applied,
-    });
+    };
+    if (recordValues) {
+      entry.before = beforeSnapshot;
+      entry.after = maskValueForLog(
+        mod.variable,
+        context.variables[mod.variable],
+      );
+    }
+    appliedMods.push(entry);
     if (applied && createdNew) {
       createdVariables.push(mod.variable);
     }

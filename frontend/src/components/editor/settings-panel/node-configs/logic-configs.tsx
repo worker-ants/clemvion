@@ -359,6 +359,14 @@ export function VariableModificationConfig({ config, onChange }: { config: Confi
       <Button variant="outline" size="sm" className="h-7 text-xs" onClick={addMod}>
         <Plus size={12} className="mr-1" /> {t("nodeConfigs.logic.addModification")}
       </Button>
+      <CheckboxField
+        label={t("nodeConfigs.logic.recordValues")}
+        checked={(config.recordValues as boolean) ?? false}
+        onChange={(v) => onChange({ ...config, recordValues: v })}
+      />
+      <span className="text-[10px] text-[hsl(var(--muted-foreground))]">
+        {t("nodeConfigs.logic.recordValuesHint")}
+      </span>
     </div>
   );
 }
