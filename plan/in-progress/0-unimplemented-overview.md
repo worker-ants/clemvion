@@ -21,7 +21,7 @@
 7. **`team-workspace-followups.md`** — 공유 워크플로우 표시 + 미가입자 초대 토큰.
 8. **`2fa-webauthn.md`** — WebAuthn 2FA.
 9. **`accessibility-voiceover-validation.md`** — macOS VoiceOver 수동 검증.
-10. **`llm-provider-followups.md`** — Azure OpenAI 스트리밍, Local LLM 검증.
+10. ~~**`llm-provider-followups.md`**~~ ✅ 완료 (2026-05-11, `plan/complete/llm-provider-followups.md`) — Azure OpenAI 스트리밍 ✅ / Local LLM (Ollama·vLLM) 검증 ✅. `AzureOpenAIClient`·`LocalClient` 가 `OpenAIClient.stream()` 을 상속하여 자동 지원. spec 2종(7-llm-client.md §8.2, 4-ai-assistant.md §1.2/§11/§13/§15) 🚧·❌→✅, PRD 0 §6.1, 매뉴얼 4종(llm-config.mdx 한·영 + overview.mdx 한·영) 정합화.
 11. **`self-hosting-deployment.md`** — Docker Compose 셀프 호스팅 풀 번들, Helm Chart, 운영·보안 가이드.
 12. **`marketplace-and-plugin-sdk.md`** — 마켓플레이스 + 커스텀 노드 SDK (가장 큰 미구현 덩어리).
 
@@ -63,12 +63,14 @@
 | **PRD 5 NF-DP-03 Kubernetes Helm Chart** | ❌ | `self-hosting-deployment.md` |
 | **PRD 5 NF-DP-06 셀프 호스팅 설치/운영 문서** | ❌ | `self-hosting-deployment.md` |
 
-### C. LLM Provider 확장
+### C. LLM Provider 확장 — ✅ 완료 (2026-05-11)
 
-| Spec 항목 | 상태 | 처리 plan |
-|-----------|------|-----------|
-| **Spec 3-workflow-editor/4 §27 Azure OpenAI 스트리밍** | 🚧 v1 제외, 후속 작업 | `llm-provider-followups.md` |
-| **Spec 5-system/7 §LLM Client Local (Ollama/vLLM) 스트리밍** | 🚧 OpenAI 호환 자동 지원 가능, MVP 범위 밖 | `llm-provider-followups.md` |
+본 카테고리는 `plan/complete/llm-provider-followups.md` 에서 모두 처리됨. 결과:
+
+| Spec 항목 | 처리 결과 |
+|-----------|-----------|
+| **Spec 3-workflow-editor/4 §11 Azure OpenAI 스트리밍** | 🚧 → ✅ (`AzureOpenAIClient extends OpenAIClient` 상속으로 자동 지원, deployment name + `api-version` 매핑) |
+| **Spec 5-system/7 §8.2 LLM Client Local (Ollama/vLLM) 스트리밍** | 🚧 → ✅ (`LocalClient extends OpenAIClient` 로 OpenAI 호환 엔드포인트 자동 지원. Ollama 11434 / vLLM OpenAI-compat 모드 검증 완료) |
 
 ### D. 접근성
 
@@ -104,12 +106,12 @@ plan/in-progress/
 ├── team-workspace-followups.md        ← 공유 워크플로우 표시 + 미가입자 초대 토큰
 ├── 2fa-webauthn.md                    ← WebAuthn 2FA 추가
 ├── accessibility-voiceover-validation.md ← macOS VoiceOver 수동 체크리스트
-├── llm-provider-followups.md          ← Azure OpenAI / Local LLM 스트리밍
 ├── self-hosting-deployment.md         ← Docker Compose 풀 번들·Helm·가이드 문서
 └── marketplace-and-plugin-sdk.md      ← 마켓플레이스 전체 + 노드 플러그인 SDK
 
 plan/complete/
-└── prd-spec-sync.md                   ← §E "PRD/Spec ↔ 코드 정합성 정리" 완료 (2026-05-11)
+├── prd-spec-sync.md                   ← §E "PRD/Spec ↔ 코드 정합성 정리" 완료 (2026-05-11)
+└── llm-provider-followups.md          ← §C "LLM Provider 확장" 완료 (2026-05-11)
 ```
 
 각 plan 문서는 다음 구조를 따른다:

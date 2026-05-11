@@ -100,7 +100,6 @@ The items below are out of scope for v1. Rollout timing tracks the spec and PRD 
 <FieldTable rows={[
   { name: "Editing across workflows", required: false, type: "one session = one workflow", description: "A session is bound to a single workflow. To work on multiple workflows, open the Assistant inside each.", default: "-" },
   { name: "Direct execution from Assistant", required: false, type: "user clicks Run", description: "By design, only the user triggers `Run`. This avoids surprise executions while the Assistant is editing.", default: "-" },
-  { name: "Azure OpenAI streaming", required: false, type: "not supported in v1", description: "Streaming is verified for OpenAI, Anthropic, Google AI, and Local providers. Selecting Azure surfaces an unavailable notice in the Assistant.", default: "-" },
   { name: "Sharing sessions with the team", required: false, type: "personal sessions", description: "Session sharing is gated on richer team RBAC and is on the roadmap.", default: "-" },
   { name: "Offline use", required: false, type: "online required", description: "The Assistant streams from the LLM provider in real time. The panel still opens offline but messages can't be sent.", default: "-" }
 ]} />

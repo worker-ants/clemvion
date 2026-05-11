@@ -14,6 +14,20 @@ The LLM client abstraction layer normalizes provider differences, so AI nodes ca
 
 <Callout type="note">Anthropic doesn't offer embeddings. If you plan to use Knowledge Base, also register an OpenAI / Google AI / Azure / Local provider.</Callout>
 
+## Streaming support
+
+Token-level streaming in the Workflow AI Assistant and AI Agent works with every v1 provider.
+
+<FieldTable rows={[
+  { name: "OpenAI", type: "✅", required: "-", description: "Built on `chat.completions.create({ stream: true })`." },
+  { name: "Anthropic", type: "✅", required: "-", description: "Built on `messages.stream()` — accumulates `content_block_delta`." },
+  { name: "Google AI", type: "✅", required: "-", description: "Uses `ChatSession.sendMessageStream` or `generateContentStream`." },
+  { name: "Azure OpenAI", type: "✅", required: "-", description: "Reuses the OpenAI SDK streaming SSE format. Only the `api-version` header differs; the response payload is identical." },
+  { name: "Local (Ollama/vLLM)", type: "✅", required: "-", description: "Automatic when the endpoint is OpenAI-compatible. Verified against Ollama 11434 and vLLM `--api-server` OpenAI-compat mode." }
+]} />
+
+<Callout type="note">The Local provider only supports the OpenAI-compatible API mode. Ollama exposes `/v1/chat/completions` out of the box. For vLLM, start the server with `python -m vllm.entrypoints.openai.api_server` to surface the same path. Leave the API Key blank when the endpoint doesn't require one.</Callout>
+
 ## Adding a provider
 
 Click `[+ Add Provider]` at the top-right of `/llm-configs`. Required fields vary slightly by provider.
