@@ -12,11 +12,9 @@
 |------|------|------|--------|------|
 | count | Expression \| Integer | ✓ | `'1'` | 반복 횟수. 정수 리터럴(`10`), 숫자 문자열(`"10"`), 또는 표현식(`{{ $input.count }}`) 허용. 표현식은 엔진 평가 시 정수로 해석되어야 한다 |
 | maxIterations | Integer | | `1000` | 최대 반복 제한 (안전 캡). [공통 §6](./0-common.md#6-리소스-제한). `count` 가 이 값을 초과하면 `MAX_ITERATIONS_EXCEEDED` throw |
-| breakCondition | ConditionGroup? | | `undefined` | Break 조건 (선택). 구조는 [공통 §1](./0-common.md#1-conditiongroup-구조). **현재 엔진에서 자동 평가되지 않음** (§6 미구현 마커 참조) |
+| breakCondition | Expression? | | `undefined` | Boolean 표현식 (선택). 매 반복 종료 직후 평가되어 truthy 면 조기 종료 (§6 step 6, `meta.exitReason='break'`). `$loop.index`, `$var.*`, `$node[...].output` 등을 참조 가능. 평가 실패는 silent false (loop 진행 — `execution-engine.service.ts` 의 `buildLoopBreakConditionEvaluator` 가 `evaluate()` 호출을 try/catch 로 감쌈) |
 
 > Source of truth: `backend/src/nodes/logic/loop/loop.schema.ts` (export `loopNodeConfigSchema`, `validateLoopConfig`)
-
-> ⚠ **미구현 (P1)**: `breakCondition` 필드는 schema 에 정의되어 있으나 `LoopExecutor` 가 사용자 정의 ConditionGroup 을 실제로 평가하지 않는다 (`loop-executor.ts` 의 `breakCondition` 파라미터는 함수 타입으로 노출되지만 엔진의 노드 실행 경로에서는 호출되지 않음). 사용자가 설정해도 동작하지 않으므로 schema 제거 또는 엔진 구현이 필요하다 ([user_memo 개선안 logic/loop.md §2 항목 4](../../../user_memo/node-specs-improvement/logic/loop.md)).
 
 ## 2. 설정 UI
 
@@ -32,10 +30,9 @@
 │  │ 1000                             ││
 │  └──────────────────────────────────┘│
 │                                      │
-│  Break Condition (optional, P1)      │
+│  Break Condition (optional)          │
 │  ┌──────────────────────────────────┐│
-│  │ {{ $input.done }} [equals ▼]    ││
-│  │ true                        [×] ││
+│  │ {{ $loop.index >= 5 }}           ││
 │  └──────────────────────────────────┘│
 └──────────────────────────────────────┘
 ```
@@ -65,7 +62,7 @@
 3. **반복 실행**: `LoopExecutor.execute` 가 0 ~ `count - 1` 인덱스로 body 서브그래프를 순차 실행. 매 반복마다 `context.loopContext = { index, count, isFirst, isLast }` 를 바인딩.
 4. **emit 수집**: 각 반복에서 `emit` 포트에 연결된 body 노드의 출력을 `LoopIterationResult { index, output }` 으로 수집.
 5. **반복 간 입력 전달**: i 번째 반복의 body 입력은 (i-1) 번째 반복의 emit 출력. 첫 반복(i=0)의 입력은 `undefined` ([user_memo 개선안 §2 항목 5](../../../user_memo/node-specs-improvement/logic/loop.md)).
-6. **breakCondition 검사** (P1 미구현): 매 반복 종료 후 평가하여 true 면 조기 종료.
+6. **breakCondition 검사**: 매 반복 종료 후 (body 실행 직후) `engine` 이 `config.breakCondition` 표현식을 freshly built `expressionContext` (현재 `$loop.*`, `$var.*`, body 노드들의 최신 `$node[...].output` 반영) 와 함께 `evaluate()` 한다. truthy 면 즉시 조기 종료 + `meta.exitReason='break'`. 평가 에러는 silent false (loop 진행).
 7. **maxIterations 가드**: 반복 인덱스 i 가 `maxIterations` 에 도달하면 `MAX_ITERATIONS_EXCEEDED` throw.
 8. **완료 시점 (엔진 오버라이트)**: `collected.map(r => r.output)` 로 `iterations` 배열 생성 → 엔진이 `{ iterations }` 로 `output` 을 덮어쓴다 (§5.2, §5.7). 다운스트림은 `done` 포트로 라우팅. 반복 횟수가 필요하면 `output.iterations.length` 를 사용한다 (CONVENTIONS Principle 1.1 — config↔output 직교).
 
@@ -107,7 +104,7 @@ body 내부에서 다음 변수에 접근 가능:
 | `config.maxIterations` | number | config echo | raw 값 또는 default `1000` |
 | `output` | `null` | handler return | **엔진 오버라이트 시그널** (Principle 9.1). 엔진이 §5.2 로 덮어쓴다 |
 
-> 핸들러는 `breakCondition` 을 echo 하지 않는다 — 현재 미구현 필드이므로 다운스트림 노출 의미 없음 (§1 P1 마커).
+> 핸들러는 `breakCondition` 을 echo 하지 않는다 — 컨테이너 실행 컨트랙트(§4)의 일부로 엔진이 직접 평가하며, 다운스트림이 raw 표현식을 받을 의미가 없다 (사용자가 `$node["Loop"].config` 로 표현식을 다시 평가할 일이 없다는 뜻).
 >
 > Loop 은 입력 분배가 없는 횟수 기반 컨테이너이므로 §5.1 시점에 body iteration 입력은 `undefined` (첫 반복) 또는 이전 반복의 emit 출력 (§4.5).
 
@@ -128,7 +125,8 @@ body 내부에서 다음 변수에 접근 가능:
   },
   "meta": {
     "iterations": 3,
-    "maxIterationsReached": false
+    "maxIterationsReached": false,
+    "exitReason": "completed"
   }
 }
 ```
@@ -137,8 +135,9 @@ body 내부에서 다음 변수에 접근 가능:
 |------|------|------|------|
 | `config.*` | (§5.1과 동일) | config echo | 핸들러가 반환한 raw config 가 보존됨 (엔진 오버라이트는 `output` 만 영향) |
 | `output.iterations` | unknown[] | **engine override** (Principle 9.2) | 각 반복의 emit 노드 출력을 인덱스 순서로 수집한 배열. 길이 = 실제 실행된 반복 수 |
-| `meta.iterations` | number | **engine inject** (Principle 2) | 실제 실행된 반복 수. 정상 완료 시 `config.count` 와 같지만 `breakCondition` (P1) / 에러로 조기 종료 시 작아질 수 있는 **런타임 메트릭**. `output.iterations.length` 와 동일 값 — `output` 은 결과 배열, `meta` 는 메트릭 축으로 분리되어 있음 |
-| `meta.maxIterationsReached` | boolean | engine inject (Principle 2) | 반복이 `config.maxIterations` (또는 default `1000`) 캡에 도달하여 종료되었는지 여부. `breakCondition` 미구현(P1) 상태에서는 `count === maxIterations` 로 한도까지 정상 완료한 경우에만 `true` 가 된다 (한도 초과 시점에는 `MAX_ITERATIONS_EXCEEDED` throw — §6) |
+| `meta.iterations` | number | **engine inject** (Principle 2) | 실제 실행된 반복 수. 정상 완료 시 `config.count` 와 같지만 `breakCondition` 이 truthy 가 되어 조기 종료된 경우 작아진다. `output.iterations.length` 와 동일 값 — `output` 은 결과 배열, `meta` 는 메트릭 축으로 분리되어 있음 |
+| `meta.maxIterationsReached` | boolean | engine inject (Principle 2) | `meta.exitReason === 'maxIterations'` 인 경우에만 `true`. 즉 break 없이 한도까지 정상 완료한 경우. 한도 초과 시점은 `MAX_ITERATIONS_EXCEEDED` throw 로 처리되므로 (§6) 이 플래그는 항상 "break 없는 정상 한도 완료" 만을 가리킨다 |
+| `meta.exitReason` | `'completed' \| 'break' \| 'maxIterations'` | engine inject (Principle 2) | 종료 원인. `'break'` 는 `config.breakCondition` 이 truthy 평가되어 조기 종료된 경우, `'maxIterations'` 는 `config.count === config.maxIterations` 로 한도까지 정상 완료된 경우, 그 외는 `'completed'` |
 | `meta.durationMs` | number | engine inject (CONVENTIONS Principle 2 공통) | 컨테이너 전체 소요 시간 (ms) |
 
 > CONVENTIONS Principle 1.1 (config ↔ output 직교) 준수를 위해 `output.count` 는 **제공하지 않는다** — 정상 완료 시 `config.count` 와 동일하고, 조기 종료 시에는 `output.iterations.length` 가 사실상의 실행 횟수다. 다운스트림은 항상 `output.iterations.length` 또는 `meta.iterations` 를 사용한다.
@@ -179,10 +178,8 @@ Loop 은 **runtime 에러 포트를 갖지 않는다**. 모든 검증 실패는 
 | `emit` 포트에 body 노드 2개 이상 연결 | `CONTAINER_MULTIPLE_EMIT: Container "<label>" has <N> nodes wired to its "emit" port. Only one emit source is allowed.` | engine pre-flight |
 | `emit` 의 source 가 body child 가 아님 | `CONTAINER_MISSING_EMIT: ... that node isn't a body child of this container. ...` | engine pre-flight |
 
-> ⚠ **미구현 (P1) — `breakCondition` 미평가**: schema 의 `breakCondition` 필드는 엔진의 `LoopExecutor` 에서 사용자 정의 ConditionGroup 으로 평가되지 않는다 (`loop-executor.ts` 의 함수 시그니처는 받지만 호출 경로 없음). user_memo 개선안은 schema 제거 또는 엔진 구현을 제안한다.
-
 ## 7. 캔버스 요약
 
-[공통 §8](./0-common.md#8-캔버스-요약) — `Loop` 행 인용. 형식: `{count}x` (예: `10x`). breakCondition 이 설정되어 있으면 `· break condition` 추가 (P1 미구현이지만 캔버스 표시는 schema 기반).
+[공통 §8](./0-common.md#8-캔버스-요약) — `Loop` 행 인용. 형식: `{count}x` (예: `10x`). breakCondition 이 설정되어 있으면 `· break condition` 추가.
 
 실행 중 컨테이너 헤더에는 현재 진행 인덱스를 표시한다 (예: `Iteration 3/10`, [공통 §3](./0-common.md#3-컨테이너-노드-패턴-loop--map--foreach)).

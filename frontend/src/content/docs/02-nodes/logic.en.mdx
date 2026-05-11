@@ -84,7 +84,7 @@ Case port IDs are pinned as UUID v4, so renaming labels or reordering cases keep
 <FieldTable rows={[
   {name: "count", required: true, type: "expression", description: "Iteration count. Accepts integer literals or expressions.", default: "1"},
   {name: "maxIterations", required: false, type: "integer", description: "Safety cap. Exceeding it aborts the run with an error.", default: "1000"},
-  {name: "breakCondition", required: false, type: "ConditionGroup", description: "Ends the loop early once this condition is met.", default: "-"}
+  {name: "breakCondition", required: false, type: "expression", description: "Boolean expression re-evaluated after every iteration; a truthy result exits the loop immediately and sets meta.exitReason='break'. Example: {{ $loop.index >= 5 }}", default: "-"}
 ]} />
 
 Loop is a container node. It has two input ports (`in`, `emit`) and two output ports (`body`, `done`). Iteration runs inside `body`; the output of the node wired to `emit` is collected into an array on `done`.
