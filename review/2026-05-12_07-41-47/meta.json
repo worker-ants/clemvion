@@ -1,0 +1,298 @@
+{
+  "timestamp": "2026-05-12T07:52:33.929787",
+  "files": [
+    {
+      "file_path": "/Volumes/project/private/clemvion_tmp/backend/migrations/V040__auth_session_metadata_and_login_history.sql",
+      "change_type": "Review",
+      "file_extension": "sql"
+    },
+    {
+      "file_path": "/Volumes/project/private/clemvion_tmp/backend/package-lock.json",
+      "change_type": "Review",
+      "file_extension": "json"
+    },
+    {
+      "file_path": "/Volumes/project/private/clemvion_tmp/backend/package.json",
+      "change_type": "Review",
+      "file_extension": "json"
+    },
+    {
+      "file_path": "/Volumes/project/private/clemvion_tmp/backend/src/app.module.spec.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/clemvion_tmp/backend/src/app.module.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/clemvion_tmp/backend/src/main.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/clemvion_tmp/backend/src/modules/auth/auth-oauth.service.spec.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/clemvion_tmp/backend/src/modules/auth/auth-oauth.service.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/clemvion_tmp/backend/src/modules/auth/auth.controller.spec.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/clemvion_tmp/backend/src/modules/auth/auth.controller.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/clemvion_tmp/backend/src/modules/auth/auth.module.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/clemvion_tmp/backend/src/modules/auth/auth.service.spec.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/clemvion_tmp/backend/src/modules/auth/auth.service.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/clemvion_tmp/backend/src/modules/auth/dto/requests/revoke-session.dto.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/clemvion_tmp/backend/src/modules/auth/dto/responses/login-history.dto.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/clemvion_tmp/backend/src/modules/auth/dto/responses/session.dto.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/clemvion_tmp/backend/src/modules/auth/entities/login-history.entity.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/clemvion_tmp/backend/src/modules/auth/entities/refresh-token.entity.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/clemvion_tmp/backend/src/modules/auth/jobs/login-history-pruner.service.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/clemvion_tmp/backend/src/modules/auth/login-history.service.spec.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/clemvion_tmp/backend/src/modules/auth/login-history.service.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/clemvion_tmp/backend/src/modules/auth/sessions.controller.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/clemvion_tmp/backend/src/modules/auth/sessions.service.spec.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/clemvion_tmp/backend/src/modules/auth/sessions.service.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/clemvion_tmp/backend/src/modules/auth/utils/client-ip.spec.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/clemvion_tmp/backend/src/modules/auth/utils/client-ip.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/clemvion_tmp/backend/src/modules/auth/utils/device-label.spec.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/clemvion_tmp/backend/src/modules/auth/utils/device-label.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/clemvion_tmp/backend/src/modules/integrations/integrations.service.spec.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/clemvion_tmp/backend/src/modules/integrations/integrations.service.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/clemvion_tmp/backend/src/modules/integrations/services/credentials-transformer.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/clemvion_tmp/frontend/src/app/(main)/profile/page.tsx",
+      "change_type": "Review",
+      "file_extension": "tsx"
+    },
+    {
+      "file_path": "/Volumes/project/private/clemvion_tmp/frontend/src/app/(main)/profile/sessions/components/login-history-list.tsx",
+      "change_type": "Review",
+      "file_extension": "tsx"
+    },
+    {
+      "file_path": "/Volumes/project/private/clemvion_tmp/frontend/src/app/(main)/profile/sessions/components/revoke-confirm-dialog.tsx",
+      "change_type": "Review",
+      "file_extension": "tsx"
+    },
+    {
+      "file_path": "/Volumes/project/private/clemvion_tmp/frontend/src/app/(main)/profile/sessions/components/session-row.tsx",
+      "change_type": "Review",
+      "file_extension": "tsx"
+    },
+    {
+      "file_path": "/Volumes/project/private/clemvion_tmp/frontend/src/app/(main)/profile/sessions/page.tsx",
+      "change_type": "Review",
+      "file_extension": "tsx"
+    },
+    {
+      "file_path": "/Volumes/project/private/clemvion_tmp/frontend/src/app/(main)/profile/sessions/sessions-panel.tsx",
+      "change_type": "Review",
+      "file_extension": "tsx"
+    },
+    {
+      "file_path": "/Volumes/project/private/clemvion_tmp/frontend/src/lib/api/sessions.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/clemvion_tmp/frontend/src/lib/i18n/dict/en.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/clemvion_tmp/frontend/src/lib/i18n/dict/ko.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/clemvion_tmp/plan/in-progress/auth-sessions.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "/Volumes/project/private/clemvion_tmp/plan/in-progress/candidate-picker-test-regression.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "/Volumes/project/private/clemvion_tmp/spec/1-data-model.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "/Volumes/project/private/clemvion_tmp/spec/2-navigation/9-user-profile.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "/Volumes/project/private/clemvion_tmp/spec/5-system/1-auth.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    }
+  ],
+  "total_elapsed_seconds": 646.68,
+  "agents": [
+    {
+      "name": "maintainability",
+      "status": "success",
+      "elapsed_seconds": 51.95
+    },
+    {
+      "name": "dependency",
+      "status": "success",
+      "elapsed_seconds": 54.62
+    },
+    {
+      "name": "scope",
+      "status": "success",
+      "elapsed_seconds": 69.32
+    },
+    {
+      "name": "concurrency",
+      "status": "success",
+      "elapsed_seconds": 69.59
+    },
+    {
+      "name": "documentation",
+      "status": "success",
+      "elapsed_seconds": 80.23
+    },
+    {
+      "name": "performance",
+      "status": "success",
+      "elapsed_seconds": 91.54
+    },
+    {
+      "name": "testing",
+      "status": "success",
+      "elapsed_seconds": 92.64
+    },
+    {
+      "name": "architecture",
+      "status": "success",
+      "elapsed_seconds": 93.11
+    },
+    {
+      "name": "database",
+      "status": "success",
+      "elapsed_seconds": 100.46
+    },
+    {
+      "name": "api_contract",
+      "status": "success",
+      "elapsed_seconds": 105.93
+    },
+    {
+      "name": "side_effect",
+      "status": "success",
+      "elapsed_seconds": 129.8
+    },
+    {
+      "name": "security",
+      "status": "success",
+      "elapsed_seconds": 142.88
+    },
+    {
+      "name": "requirement",
+      "status": "success",
+      "elapsed_seconds": 148.79
+    }
+  ]
+}

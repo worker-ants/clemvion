@@ -52,3 +52,6 @@ CREATE INDEX idx_login_history_user_created
     ON login_history (user_id, created_at DESC);
 CREATE INDEX idx_login_history_email_created
     ON login_history (email, created_at DESC);
+-- pruner 가 created_at < cutoff 만으로 스캔하므로 단독 인덱스가 효율적.
+CREATE INDEX idx_login_history_created
+    ON login_history (created_at);

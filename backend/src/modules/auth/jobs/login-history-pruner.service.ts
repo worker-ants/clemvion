@@ -1,10 +1,14 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { Cron, CronExpression } from '@nestjs/schedule';
+import { Cron } from '@nestjs/schedule';
 import { LoginHistoryService } from '../login-history.service';
 
 /**
- * 매일 새벽 3시(서버 로컬 타임존)에 180일을 넘긴 login_history 행을 삭제한다.
- * 보존 기간 정책은 LoginHistoryService 내부에 캡슐화되어 있다.
+ * 매일 새벽 3시(Asia/Seoul) 에 180일을 넘긴 login_history 행을 삭제한다.
+ *
+ * - 명시적 timezone — 서버 로컬 타임존 변동(EC2 이전·CI 머신 등) 으로 인한 시각 표류 차단.
+ * - 단일 인스턴스 가정 — 멀티 인스턴스 배포 시 분산 락(Redis SETNX 등) 으로 중복 실행을 막아야 한다.
+ *   현재는 단일 backend 프로세스라 미적용 (후속 plan 으로 분리).
+ * - 배치 LIMIT — pruner 자체가 한 번에 너무 많은 row 를 삭제하지 않도록 service 가 배치 루프로 처리.
  */
 @Injectable()
 export class LoginHistoryPrunerService {
@@ -12,7 +16,7 @@ export class LoginHistoryPrunerService {
 
   constructor(private readonly loginHistory: LoginHistoryService) {}
 
-  @Cron(CronExpression.EVERY_DAY_AT_3AM)
+  @Cron('0 3 * * *', { timeZone: 'Asia/Seoul' })
   async prune(): Promise<void> {
     try {
       const removed = await this.loginHistory.pruneOlderThanRetention();

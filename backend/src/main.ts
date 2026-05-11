@@ -37,14 +37,16 @@ async function bootstrap() {
   const app = await NestFactory.create(AppModule);
   const configService = app.get(ConfigService);
 
-  // Cloudflare(또는 단일 reverse proxy) 뒤에서 동작하므로 X-Forwarded-* 를
-  // 신뢰해 정확한 req.ip 를 얻는다. CF-Connecting-IP 는 별도 헬퍼
-  // (auth/utils/client-ip) 에서 1순위로 처리한다.
+  // Cloudflare(또는 단일 reverse proxy) 한 단계 뒤에서 동작하므로 hop 1 만
+  // 신뢰한다. `true` 로 두면 임의의 X-Forwarded-For 헤더가 그대로 받아들여져
+  // ThrottlerGuard 등 req.ip 기반 로직이 우회된다. CF-Connecting-IP 는 별도
+  // 헬퍼(auth/utils/client-ip) 에서 1순위로 추출하며, origin 단에서
+  // Cloudflare IP 대역 외 직접 접근을 차단하는 게 본 설정의 전제 조건이다.
   const expressInstance = app.getHttpAdapter().getInstance() as {
     disable: (header: string) => void;
     set: (key: string, value: unknown) => void;
   };
-  expressInstance.set('trust proxy', true);
+  expressInstance.set('trust proxy', 1);
   expressInstance.disable('x-powered-by');
 
   // Cookie parser

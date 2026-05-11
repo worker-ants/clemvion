@@ -53,14 +53,15 @@ export function SessionsPanel() {
     queryFn: () => sessionsApi.listSessions(),
   });
 
+  const [reauthOverride, setReauthOverride] = useState<ReauthMode | null>(null);
+
   const reauthMode: ReauthMode = useMemo(() => {
-    // The /users/me payload doesn't expose passwordHash for safety, so we
-    // infer "has password" from twoFactorEnabled and a hasPassword hint when
-    // available. As a conservative default we offer password input — if the
-    // server rejects with REAUTH_NOT_AVAILABLE the dialog surfaces it inline.
+    if (reauthOverride) return reauthOverride;
+    // /users/me 는 보안상 passwordHash 를 노출하지 않으므로 2FA 활성 여부로 1차 추정.
+    // 서버가 REAUTH_NOT_AVAILABLE (HTTP 403) 을 돌려주면 unavailable 로 전환한다.
     const has2fa = !!user?.twoFactorEnabled;
     return has2fa ? "totp" : "password";
-  }, [user?.twoFactorEnabled]);
+  }, [reauthOverride, user?.twoFactorEnabled]);
 
   const revokeMutation = useMutation<
     SessionDto[],
@@ -81,13 +82,10 @@ export function SessionsPanel() {
           : t("profile.sessions.sessionRevokedToast"),
       );
       setDialog({ open: false });
+      setReauthOverride(null);
     },
-    onError: (err) => {
-      // We rethrow so the dialog can render an inline error too.
-      const message = axiosMessage(err, t("profile.sessions.revokeFailedToast"));
-      toast.error(message);
-      throw err instanceof Error ? err : new Error(message);
-    },
+    // onError 에서는 toast 만 띄우고 mutation 결과를 컨슈머(handleConfirm) 가 처리하도록
+    // re-throw 하지 않는다. handleConfirm 의 try/catch 에서 인라인 에러 표시.
   });
 
   function openRevokeSingle(familyId: string) {
@@ -100,14 +98,27 @@ export function SessionsPanel() {
 
   async function handleConfirm(payload: RevokeSessionPayload) {
     if (!dialog.open) return;
-    if (dialog.scope === "single") {
-      await revokeMutation.mutateAsync({
-        scope: "single",
-        familyId: dialog.familyId,
-        payload,
-      });
-    } else {
-      await revokeMutation.mutateAsync({ scope: "all", payload });
+    try {
+      if (dialog.scope === "single") {
+        await revokeMutation.mutateAsync({
+          scope: "single",
+          familyId: dialog.familyId,
+          payload,
+        });
+      } else {
+        await revokeMutation.mutateAsync({ scope: "all", payload });
+      }
+    } catch (err) {
+      // 서버가 REAUTH_NOT_AVAILABLE (403) 을 돌려주면 다이얼로그를
+      // "재인증 불가" 모드로 전환해 다음 시도에 사용자에게 명확히 안내한다.
+      if (axios.isAxiosError(err) && err.response?.status === 403) {
+        const code = err.response.data?.error?.code ?? err.response.data?.code;
+        if (code === "REAUTH_NOT_AVAILABLE") {
+          setReauthOverride("unavailable");
+        }
+      }
+      toast.error(axiosMessage(err, t("profile.sessions.revokeFailedToast")));
+      throw err instanceof Error ? err : new Error(String(err));
     }
   }
 

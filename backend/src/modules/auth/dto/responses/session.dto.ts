@@ -17,7 +17,8 @@ export class SessionDto {
   deviceLabel: string | null;
 
   @ApiProperty({
-    description: '발급 시점 클라이언트 IP (CF-Connecting-IP 우선)',
+    description:
+      '마지막 활동 IP. 발급 이후 refresh 가 한 번도 없었다면 발급 시점 IP. (CF-Connecting-IP 우선 추출)',
     nullable: true,
     example: '203.0.113.7',
   })

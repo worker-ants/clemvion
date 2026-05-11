@@ -2,14 +2,15 @@ import {
   BadRequestException,
   Body,
   Controller,
-  Delete,
   Get,
   HttpCode,
   HttpStatus,
   Param,
+  ParseUUIDPipe,
   Post,
   Query,
   Req,
+  UseGuards,
 } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 import {
@@ -23,24 +24,28 @@ import {
   ApiQuery,
   ApiParam,
 } from '@nestjs/swagger';
-import {
-  ApiOkWrappedResponse,
-  ApiCreatedWrappedResponse,
-} from '../../common/swagger';
+import { ApiOkWrappedResponse } from '../../common/swagger';
 import { CurrentUser } from '../../common/decorators';
 import type { JwtPayload } from '../../common/decorators';
+import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { SessionsService } from './sessions.service';
 import { LoginHistoryService } from './login-history.service';
 import { RevokeSessionDto } from './dto/requests/revoke-session.dto';
 import { SessionDto, SessionListDto } from './dto/responses/session.dto';
 import { LoginHistoryPageDto } from './dto/responses/login-history.dto';
 import { extractClientIp } from './utils/client-ip';
-import { deriveDeviceLabel } from './utils/device-label';
 
 import Express from 'express';
 
+/**
+ * URL 네임스페이스 메모
+ *   /api/users/me/sessions 와 /api/users/me/login-history 는 spec(user-profile §6.1) 의
+ *   요구 경로. 본 컨트롤러는 RefreshToken 의존성 때문에 `auth` 모듈에 두지만,
+ *   URL 만 users 네임스페이스에 맞춰 매핑한다.
+ */
 @ApiTags('Sessions')
 @ApiBearerAuth('access-token')
+@UseGuards(JwtAuthGuard)
 @Controller('users/me')
 export class SessionsController {
   constructor(
@@ -69,19 +74,21 @@ export class SessionsController {
     return { data: sessions };
   }
 
-  @Delete('sessions/:familyId')
+  @Post('sessions/:familyId/revoke')
   @HttpCode(HttpStatus.OK)
   @Throttle({ default: { ttl: 60_000, limit: 10 } })
   @ApiOperation({
     summary: '단일 세션 강제 종료',
     description:
-      '지정한 family 의 모든 refresh-token 을 무효화합니다. 본인 인증(비밀번호 또는 TOTP) 필수.',
+      '지정한 family 의 모든 refresh-token 을 무효화합니다. 본인 인증(비밀번호 또는 TOTP) 필수. DELETE 대신 POST 를 사용해 일부 CDN/프록시가 DELETE 바디를 제거하는 호환성 이슈를 피합니다.',
   })
   @ApiParam({ name: 'familyId', format: 'uuid' })
   @ApiOkWrappedResponse(SessionListDto, {
     description: '종료 완료 후 갱신된 세션 목록',
   })
-  @ApiBadRequestResponse({ description: '본인 인증 누락' })
+  @ApiBadRequestResponse({
+    description: '본인 인증 누락 또는 현재 세션 self-revoke 시도',
+  })
   @ApiUnauthorizedResponse({ description: '비밀번호/TOTP 불일치' })
   @ApiForbiddenResponse({
     description: '재인증 수단 부재 (OAuth-only + 2FA 미설정)',
@@ -91,15 +98,21 @@ export class SessionsController {
   })
   async revokeSession(
     @CurrentUser() user: JwtPayload,
-    @Param('familyId') familyId: string,
+    @Param('familyId', new ParseUUIDPipe()) familyId: string,
     @Body() dto: RevokeSessionDto,
     @Req() req: Express.Request,
   ): Promise<{ data: SessionDto[] }> {
-    await this.sessionsService.revokeFamily(user.sub, familyId, dto, {
-      ip: extractClientIp(req),
-      userAgent: req.headers['user-agent'] ?? null,
-    });
     const refreshToken = readRefreshTokenCookie(req);
+    await this.sessionsService.revokeFamily(
+      user.sub,
+      familyId,
+      dto,
+      {
+        ip: extractClientIp(req),
+        userAgent: getUserAgent(req),
+      },
+      refreshToken,
+    );
     const sessions = await this.sessionsService.listActiveSessions(
       user.sub,
       refreshToken,
@@ -115,7 +128,7 @@ export class SessionsController {
     description:
       '현재 요청을 보낸 세션(refresh-token 쿠키와 매칭되는 family) 을 제외한 모든 활성 세션을 종료합니다.',
   })
-  @ApiCreatedWrappedResponse(SessionListDto, {
+  @ApiOkWrappedResponse(SessionListDto, {
     description: '종료 후 갱신된 세션 목록 (현재 세션만 남음)',
   })
   @ApiBadRequestResponse({
@@ -141,7 +154,7 @@ export class SessionsController {
       dto,
       {
         ip: extractClientIp(req),
-        userAgent: req.headers['user-agent'] ?? null,
+        userAgent: getUserAgent(req),
       },
     );
     const sessions = await this.sessionsService.listActiveSessions(
@@ -163,7 +176,8 @@ export class SessionsController {
     name: 'cursor',
     required: false,
     type: String,
-    description: '이전 페이지 마지막 항목의 ISO timestamp',
+    description:
+      '이전 페이지 마지막 항목의 ISO timestamp + id (예: 2026-05-12T03:14:00.000Z|uuid)',
   })
   @ApiOkWrappedResponse(LoginHistoryPageDto, {
     description: '로그인 이력 페이지',
@@ -185,20 +199,7 @@ export class SessionsController {
       cursor,
       limit: safeLimit,
     });
-
-    return {
-      data: {
-        data: page.data.map((row) => ({
-          id: row.id,
-          event: row.event,
-          ipAddress: row.ipAddress,
-          deviceLabel: row.deviceLabel ?? deriveDeviceLabel(row.userAgent),
-          failureReason: row.failureReason,
-          createdAt: row.createdAt.toISOString(),
-        })),
-        nextCursor: page.nextCursor,
-      },
-    };
+    return { data: page };
   }
 }
 
@@ -207,4 +208,10 @@ function readRefreshTokenCookie(req: Express.Request): string | null {
     .cookies;
   const value = cookies?.refreshToken;
   return typeof value === 'string' && value.length > 0 ? value : null;
+}
+
+function getUserAgent(req: Express.Request): string | null {
+  const headers = req.headers ?? {};
+  const ua = headers['user-agent'];
+  return typeof ua === 'string' && ua.length > 0 ? ua : null;
 }

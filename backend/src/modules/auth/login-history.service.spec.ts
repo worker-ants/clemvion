@@ -3,35 +3,64 @@ import { getRepositoryToken } from '@nestjs/typeorm';
 import { LoginHistory } from './entities/login-history.entity';
 import { LoginHistoryService } from './login-history.service';
 
+interface SelectQB {
+  where: jest.Mock;
+  andWhere: jest.Mock;
+  orderBy: jest.Mock;
+  addOrderBy: jest.Mock;
+  take: jest.Mock;
+  select: jest.Mock;
+  limit: jest.Mock;
+  getMany: jest.Mock;
+  getQuery: jest.Mock;
+  getParameters: jest.Mock;
+}
+
+interface DeleteQB {
+  delete: jest.Mock;
+  from: jest.Mock;
+  where: jest.Mock;
+  setParameters: jest.Mock;
+  execute: jest.Mock;
+}
+
 describe('LoginHistoryService', () => {
   let service: LoginHistoryService;
+  let selectQb: SelectQB;
+  let deleteQb: DeleteQB;
   let repo: {
     create: jest.Mock;
     save: jest.Mock;
-    delete: jest.Mock;
     createQueryBuilder: jest.Mock;
-  };
-  let queryBuilder: {
-    where: jest.Mock;
-    andWhere: jest.Mock;
-    orderBy: jest.Mock;
-    take: jest.Mock;
-    getMany: jest.Mock;
   };
 
   beforeEach(async () => {
-    queryBuilder = {
+    selectQb = {
       where: jest.fn().mockReturnThis(),
       andWhere: jest.fn().mockReturnThis(),
       orderBy: jest.fn().mockReturnThis(),
+      addOrderBy: jest.fn().mockReturnThis(),
       take: jest.fn().mockReturnThis(),
+      select: jest.fn().mockReturnThis(),
+      limit: jest.fn().mockReturnThis(),
       getMany: jest.fn().mockResolvedValue([]),
+      getQuery: jest.fn().mockReturnValue('SELECT lh.id FROM login_history lh'),
+      getParameters: jest.fn().mockReturnValue({ cutoff: new Date() }),
+    };
+    deleteQb = {
+      delete: jest.fn().mockReturnThis(),
+      from: jest.fn().mockReturnThis(),
+      where: jest.fn().mockReturnThis(),
+      setParameters: jest.fn().mockReturnThis(),
+      execute: jest.fn().mockResolvedValue({ affected: 0 }),
     };
     repo = {
       create: jest.fn().mockImplementation((data) => data),
       save: jest.fn().mockResolvedValue(undefined),
-      delete: jest.fn().mockResolvedValue({ affected: 0 }),
-      createQueryBuilder: jest.fn().mockReturnValue(queryBuilder),
+      createQueryBuilder: jest.fn().mockImplementation((alias?: string) =>
+        // delete 쿼리는 alias 없이, select 는 alias 'lh' 로 호출
+        alias ? selectQb : deleteQb,
+      ),
     };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -59,7 +88,6 @@ describe('LoginHistoryService', () => {
           email: 'a@b.c',
           event: 'login_success',
           deviceLabel: 'Chrome on macOS',
-          userAgent: expect.any(String),
         }),
       );
       expect(repo.save).toHaveBeenCalled();
@@ -91,55 +119,70 @@ describe('LoginHistoryService', () => {
 
   describe('findForUser', () => {
     it('returns one page with no cursor when rows ≤ limit', async () => {
-      const now = new Date('2026-05-12T00:00:00Z');
-      queryBuilder.getMany.mockResolvedValue([
-        makeRow({ id: '1', createdAt: now }),
+      selectQb.getMany.mockResolvedValue([
+        makeRow({ id: '1', createdAt: new Date('2026-05-12T00:00:00Z') }),
       ]);
       const page = await service.findForUser({ userId: 'u', limit: 10 });
       expect(page.data).toHaveLength(1);
       expect(page.nextCursor).toBeNull();
     });
 
-    it('returns nextCursor when more rows exist', async () => {
-      const dates = [
-        new Date('2026-05-12T00:00:00Z'),
-        new Date('2026-05-11T00:00:00Z'),
-        new Date('2026-05-10T00:00:00Z'),
+    it('returns composite cursor when more rows exist', async () => {
+      const rows = [
+        makeRow({ id: 'r1', createdAt: new Date('2026-05-12T00:00:00Z') }),
+        makeRow({ id: 'r2', createdAt: new Date('2026-05-11T00:00:00Z') }),
+        makeRow({ id: 'r3', createdAt: new Date('2026-05-10T00:00:00Z') }),
       ];
-      queryBuilder.getMany.mockResolvedValue(
-        dates.map((createdAt, i) => makeRow({ id: String(i), createdAt })),
-      );
+      selectQb.getMany.mockResolvedValue(rows);
       const page = await service.findForUser({ userId: 'u', limit: 2 });
       expect(page.data).toHaveLength(2);
-      expect(page.nextCursor).toBe(dates[1].toISOString());
+      expect(page.nextCursor).toBe(
+        `${rows[1].createdAt.toISOString()}|${rows[1].id}`,
+      );
     });
 
-    it('applies cursor filter when provided', async () => {
+    it('applies composite cursor filter when provided', async () => {
       await service.findForUser({
         userId: 'u',
-        cursor: '2026-05-01T00:00:00.000Z',
+        cursor: '2026-05-01T00:00:00.000Z|cursor-id',
         limit: 5,
       });
-      expect(queryBuilder.andWhere).toHaveBeenCalledWith(
-        'lh.created_at < :cursor',
-        expect.objectContaining({ cursor: expect.any(Date) }),
+      expect(selectQb.andWhere).toHaveBeenCalledWith(
+        '(lh.created_at, lh.id) < (:cursorTs, :cursorId)',
+        expect.objectContaining({
+          cursorTs: expect.any(Date),
+          cursorId: 'cursor-id',
+        }),
       );
     });
 
     it('caps limit at 100', async () => {
       await service.findForUser({ userId: 'u', limit: 9999 });
-      expect(queryBuilder.take).toHaveBeenCalledWith(101); // 100 + 1
+      expect(selectQb.take).toHaveBeenCalledWith(101); // 100 + 1
+    });
+
+    it('ignores malformed cursor and returns first page', async () => {
+      await service.findForUser({ userId: 'u', cursor: 'not-a-cursor' });
+      expect(selectQb.andWhere).not.toHaveBeenCalled();
     });
   });
 
   describe('pruneOlderThanRetention', () => {
-    it('deletes rows older than 180 days and returns affected count', async () => {
-      repo.delete.mockResolvedValueOnce({ affected: 7 });
-      const now = new Date('2026-05-12T00:00:00Z');
-      const result = await service.pruneOlderThanRetention(now);
-      expect(result).toBe(7);
-      const arg = repo.delete.mock.calls[0][0] as { createdAt: unknown };
-      expect(arg.createdAt).toBeDefined();
+    it('returns 0 when no rows are older than retention', async () => {
+      deleteQb.execute.mockResolvedValueOnce({ affected: 0 });
+      const removed = await service.pruneOlderThanRetention();
+      expect(removed).toBe(0);
+      expect(deleteQb.execute).toHaveBeenCalledTimes(1);
+    });
+
+    it('sums batches and stops when a batch returns < PRUNE_BATCH', async () => {
+      deleteQb.execute
+        .mockResolvedValueOnce({ affected: 1000 })
+        .mockResolvedValueOnce({ affected: 1000 })
+        .mockResolvedValueOnce({ affected: 250 });
+      const removed = await service.pruneOlderThanRetention();
+      expect(removed).toBe(2250);
+      expect(deleteQb.execute).toHaveBeenCalledTimes(3);
     });
   });
 });

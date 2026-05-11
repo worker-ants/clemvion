@@ -317,6 +317,18 @@ describe('AuthService', () => {
         { familyId: 'family-1' },
         { isRevoked: true },
       );
+      // reuse 감지는 보안 이벤트로 LoginHistory 에 반드시 기록되어야 한다.
+      const loginHistoryRecord = (
+        service as unknown as {
+          loginHistory: { record: jest.Mock };
+        }
+      ).loginHistory.record;
+      expect(loginHistoryRecord).toHaveBeenCalledWith(
+        expect.objectContaining({
+          event: 'token_reuse_detected',
+          familyId: 'family-1',
+        }),
+      );
     });
   });
 
