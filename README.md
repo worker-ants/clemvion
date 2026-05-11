@@ -6,7 +6,7 @@ AI가 엮고, 실행하고, 성장시키는 워크플로우 시스템.
 
 브랜드 스토리·비주얼 가이드: [`prd/brand.md`](./prd/brand.md).
 
-> 참고: 저장소·디렉터리는 `clemvion-` 등 인프라 표기 그대로 유지됩니다. Docker 이미지 태그·Kubernetes 매니페스트·문서·UI·이메일·Swagger·인증·OTEL·스토리지 키 등 사용자 노출 영역과 빌드/배포 자산은 모두 `clemvion` 으로 통일되어 있습니다.
+> 참고: git 저장소 URL 과 코드 디렉터리(`backend/`, `frontend/`) 는 인프라 자산으로 그대로 유지됩니다. Docker 이미지 태그(`clemvion/*`), Kubernetes 매니페스트, 문서·UI·이메일·Swagger·인증·OTEL·스토리지 키 등 빌드/배포 자산과 사용자 노출 영역은 모두 `clemvion` 으로 통일되어 있습니다.
 
 ## 주요 기능
 
@@ -131,6 +131,7 @@ docker compose --profile app up
 - 소스코드는 host bind-mount 로 라이브 편집됩니다 (`./backend`, `./frontend` 그대로 반영).
 - `dist`, `.next`, `node_modules` 는 named volume(`backend_node_modules`, `backend_dist`, `frontend_node_modules`, `frontend_next`)으로 host 와 격리되어 macOS native 모듈(예: bcrypt)이 컨테이너로 새지 않습니다.
 - 컨테이너에 의존성을 추가할 때는 `docker compose exec backend npm install <pkg>` 로 컨테이너 안에서 실행하고, named volume 재시드가 필요하면 `docker volume rm clemvion_backend_node_modules` 후 `docker compose --profile app up --build`.
+  - 이전 버전(`idea-workflow_*`) 볼륨이 남아 있다면 한 번에 정리: `docker volume ls -q --filter name=^idea-workflow_ | xargs -r docker volume rm`.
 - `packages/expression-engine`·`packages/node-summary` 는 이미지에 baked-in. 변경 시 `docker compose build backend frontend` 로 재빌드.
 - 마이그레이션만 재실행: `docker compose --profile app run --rm migrate`.
 
