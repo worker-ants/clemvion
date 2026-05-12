@@ -196,14 +196,32 @@ describe('WorkflowsService', () => {
       );
     });
 
-    it("ownership='all' does not consult workspace type (no DB hit)", async () => {
+    it("ownership='all' does not consult workspace type and does not add created_by predicate", async () => {
       mockWorkspacesService.findById.mockClear();
+      mockQueryBuilder.andWhere.mockClear();
       await service.findAll(
         'ws-uuid-1',
         { page: 1, limit: 20, ownership: 'all' },
         'user-uuid-1',
       );
       expect(mockWorkspacesService.findById).not.toHaveBeenCalled();
+      expect(mockQueryBuilder.andWhere).not.toHaveBeenCalledWith(
+        expect.stringContaining('created_by'),
+        expect.anything(),
+      );
+    });
+
+    it('propagates workspacesService.findById rejection (does not swallow)', async () => {
+      mockWorkspacesService.findById.mockRejectedValueOnce(
+        new Error('ws-lookup-failed'),
+      );
+      await expect(
+        service.findAll(
+          'ws-uuid-1',
+          { page: 1, limit: 20, ownership: 'mine' },
+          'user-uuid-1',
+        ),
+      ).rejects.toThrow('ws-lookup-failed');
     });
   });
 

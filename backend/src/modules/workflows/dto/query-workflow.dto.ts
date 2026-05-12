@@ -3,6 +3,10 @@ import { Transform } from 'class-transformer';
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { PaginationQueryDto } from '../../../common/dto/pagination.dto';
 
+// ownership 허용 값. validator·swagger·TypeScript 모두 이 한 곳을 본다.
+export const OWNERSHIP_VALUES = ['mine', 'shared', 'all'] as const;
+export type Ownership = (typeof OWNERSHIP_VALUES)[number];
+
 export class QueryWorkflowDto extends PaginationQueryDto {
   /** 상태 필터 (active: 활성, inactive: 비활성) */
   @ApiPropertyOptional({
@@ -46,10 +50,10 @@ export class QueryWorkflowDto extends PaginationQueryDto {
   @ApiPropertyOptional({
     description:
       '소유 필터 (팀 워크스페이스 전용). mine=내 워크플로, shared=다른 멤버 워크플로, all=전체.',
-    enum: ['mine', 'shared', 'all'],
+    enum: OWNERSHIP_VALUES,
     example: 'all',
   })
   @IsOptional()
-  @IsIn(['mine', 'shared', 'all'])
-  ownership?: 'mine' | 'shared' | 'all';
+  @IsIn(OWNERSHIP_VALUES)
+  ownership?: Ownership;
 }

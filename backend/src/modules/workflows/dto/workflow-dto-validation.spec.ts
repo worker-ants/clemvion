@@ -3,6 +3,7 @@ import { plainToInstance } from 'class-transformer';
 import { CreateWorkflowDto } from './create-workflow.dto';
 import { UpdateWorkflowDto } from './update-workflow.dto';
 import { SaveCanvasDto } from './save-canvas.dto';
+import { QueryWorkflowDto } from './query-workflow.dto';
 import { NodeCategory } from '../../nodes/entities/node.entity';
 
 const VALID_UUID = '550e8400-e29b-41d4-a716-446655440000';
@@ -136,5 +137,29 @@ describe('SaveCanvasDto.changeSummary', () => {
     });
     const errors = await validate(dto, VALIDATE_OPTIONS);
     expect(errors.some((e) => e.property === 'changeSummary')).toBe(true);
+  });
+});
+
+describe('QueryWorkflowDto (ownership)', () => {
+  it('accepts mine | shared | all', async () => {
+    for (const value of ['mine', 'shared', 'all'] as const) {
+      const dto = plainToInstance(QueryWorkflowDto, { ownership: value });
+      const errors = await validate(dto, VALIDATE_OPTIONS);
+      expect(errors).toEqual([]);
+    }
+  });
+
+  it('accepts an omitted ownership (defaults to undefined → all in service)', async () => {
+    const dto = plainToInstance(QueryWorkflowDto, {});
+    const errors = await validate(dto, VALIDATE_OPTIONS);
+    expect(errors).toEqual([]);
+  });
+
+  it('rejects unknown ownership value with IsIn error', async () => {
+    const dto = plainToInstance(QueryWorkflowDto, { ownership: 'everyone' });
+    const errors = await validate(dto, VALIDATE_OPTIONS);
+    expect(
+      errors.some((e) => e.property === 'ownership' && e.constraints?.isIn),
+    ).toBe(true);
   });
 });

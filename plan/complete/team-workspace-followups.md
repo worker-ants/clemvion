@@ -91,7 +91,14 @@
 
 ### 4. REVIEW
 
-- [x] `ai-review` 두 차례 실행: `review/2026-05-12_13-15-14` (backend, commit `e697daef` → 조치 `2323643e`), `review/2026-05-12_14-05-07` (frontend, commit `48863b94` → 조치 `eacb6b12`). 잔여 마무리(소유 필터·매뉴얼) 에 대한 3차 ai-review 는 본 plan 완료 직전 1회 추가 수행 후 RESOLUTION 첨부.
+- [x] `ai-review` 세 차례 실행:
+  - `review/2026-05-12_13-15-14` (backend, commit `e697daef` → 조치 `2323643e`)
+  - `review/2026-05-12_14-05-07` (frontend, commit `48863b94` → 조치 `eacb6b12`)
+  - `review/2026-05-12_17-09-09` (소유 필터 + 매뉴얼, commit `8b865cc8` → 조치 + RESOLUTION 본 commit)
+
+## Follow-up
+
+- 인프라 정비 + e2e 시나리오 — `plan/in-progress/team-workspace-e2e.md`
 
 ## 수용 기준
 

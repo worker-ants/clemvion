@@ -182,3 +182,57 @@ describe('WorkflowsController (canvas + version endpoints)', () => {
     );
   });
 });
+
+describe('WorkflowsController (findAll — ownership wiring)', () => {
+  let controller: WorkflowsController;
+  let workflowsService: jest.Mocked<WorkflowsService>;
+
+  const user: JwtPayload = {
+    sub: 'user-42',
+    email: 'a@b',
+  } as unknown as JwtPayload;
+
+  beforeEach(async () => {
+    const moduleRef = await Test.createTestingModule({
+      controllers: [WorkflowsController],
+      providers: [
+        {
+          provide: WorkflowsService,
+          useValue: {
+            findAll: jest.fn().mockResolvedValue({
+              data: [],
+              pagination: { page: 1, limit: 20, totalItems: 0, totalPages: 0 },
+            }),
+          },
+        },
+        { provide: ExecutionEngineService, useValue: {} },
+        { provide: getRepositoryToken(Node), useValue: {} },
+      ],
+    }).compile();
+
+    controller = moduleRef.get(WorkflowsController);
+    workflowsService = moduleRef.get(WorkflowsService);
+  });
+
+  it('passes user.sub as the third argument to service.findAll', async () => {
+    await controller.findAll(user, 'ws-1', { page: 1, limit: 20 });
+    expect(workflowsService.findAll).toHaveBeenCalledWith(
+      'ws-1',
+      { page: 1, limit: 20 },
+      'user-42',
+    );
+  });
+
+  it('forwards ownership query value untouched', async () => {
+    await controller.findAll(user, 'ws-1', {
+      page: 1,
+      limit: 20,
+      ownership: 'mine',
+    });
+    expect(workflowsService.findAll).toHaveBeenCalledWith(
+      'ws-1',
+      expect.objectContaining({ ownership: 'mine' }),
+      'user-42',
+    );
+  });
+});
