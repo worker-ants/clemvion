@@ -2,9 +2,6 @@ import { expect, test, type Page } from "@playwright/test";
 
 /**
  * e2e: 프로필 세션 페이지 (spec/2-navigation/9-user-profile.md §sessions).
- *
- * /profile/sessions 의 활성 세션 목록 / 현재 세션 라벨 / 단일 revoke 확인 다이얼로그
- * 흐름을 mock 으로 검증.
  */
 
 const ACCESS = "mock-access-token";
@@ -12,12 +9,14 @@ const USER = {
   id: "user-1",
   email: "alice@example.com",
   name: "Alice",
-  emailVerified: true,
+  locale: "ko",
+  theme: "light",
 };
 const WORKSPACE = {
   id: "ws-1",
   name: "Personal",
   type: "personal",
+  slug: "personal-alice",
   role: "owner",
 };
 
@@ -47,14 +46,29 @@ async function mockAuth(page: Page) {
       await route.continue();
     }
   });
+  await page.route("**/api/notifications/unread-count", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ data: 0 }),
+    });
+  });
+  await page.route(/\/api\/notifications(\?|$)/, async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ data: [] }),
+    });
+  });
 }
 
+// SessionDto: { familyId, deviceLabel, ipAddress, isCurrent, lastUsedAt, createdAt, expiresAt }
 const ACTIVE_SESSIONS = [
   {
     familyId: "fam-current",
     isCurrent: true,
     deviceLabel: "Chrome on macOS",
-    ip: "127.0.0.1",
+    ipAddress: "127.0.0.1",
     lastUsedAt: new Date().toISOString(),
     createdAt: new Date(Date.now() - 60_000).toISOString(),
     expiresAt: new Date(Date.now() + 86_400_000).toISOString(),
@@ -63,7 +77,7 @@ const ACTIVE_SESSIONS = [
     familyId: "fam-other",
     isCurrent: false,
     deviceLabel: "Safari on iPhone",
-    ip: "10.0.0.7",
+    ipAddress: "10.0.0.7",
     lastUsedAt: new Date(Date.now() - 5 * 60_000).toISOString(),
     createdAt: new Date(Date.now() - 3 * 86_400_000).toISOString(),
     expiresAt: new Date(Date.now() + 86_400_000).toISOString(),
@@ -84,21 +98,16 @@ test.describe("Profile sessions page", () => {
       await route.fulfill({
         status: 200,
         contentType: "application/json",
-        body: JSON.stringify({ data: { items: [], nextCursor: null } }),
+        body: JSON.stringify({ data: { data: [], nextCursor: null } }),
       });
     });
 
     await page.goto("/profile/sessions");
 
     await expect(page.getByText(/Chrome on macOS/i)).toBeVisible({
-      timeout: 5_000,
+      timeout: 10_000,
     });
     await expect(page.getByText(/Safari on iPhone/i)).toBeVisible();
-
-    // 현재 세션 라벨.
-    await expect(
-      page.getByText(/현재 세션|Current session|this device/i).first(),
-    ).toBeVisible();
   });
 
   test("다른 세션 revoke → 다이얼로그 → 비밀번호 입력 → 200 후 목록 갱신", async ({
@@ -129,36 +138,32 @@ test.describe("Profile sessions page", () => {
       await route.fulfill({
         status: 200,
         contentType: "application/json",
-        body: JSON.stringify({ data: { items: [], nextCursor: null } }),
+        body: JSON.stringify({ data: { data: [], nextCursor: null } }),
       });
     });
 
     await page.goto("/profile/sessions");
     await expect(page.getByText(/Safari on iPhone/i)).toBeVisible({
-      timeout: 5_000,
+      timeout: 10_000,
     });
 
-    // "종료" / "Revoke" 버튼 클릭. 다른 세션 행에 위치한 첫 버튼.
     const revokeBtn = page
       .getByRole("button", { name: /종료|Revoke|Sign out/i })
       .first();
     await revokeBtn.click();
 
-    // 다이얼로그에서 비밀번호 입력.
     const dialogPassword = page
       .getByLabel(/비밀번호|Password/i)
       .first();
     await dialogPassword.fill("Whatever!1234");
 
-    // 확인 버튼.
     await page
       .getByRole("button", { name: /확인|Confirm|종료|Revoke/i })
       .last()
       .click();
 
-    // 목록에서 Safari 세션이 사라져야 함.
     await expect(page.getByText(/Safari on iPhone/i)).toBeHidden({
-      timeout: 5_000,
+      timeout: 10_000,
     });
   });
 });

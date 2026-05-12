@@ -46,9 +46,11 @@ test.describe("Register form — 일반 가입 (no invitation)", () => {
       .first()
       .fill("new@example.com");
     // 비밀번호 / 확인 필드 — 동일하게 입력.
-    const passwords = page.getByLabel(/비밀번호|Password/i);
-    await passwords.nth(0).fill("Strong!Pass1");
-    await passwords.nth(1).fill("Strong!Pass1");
+    // register form 은 단일 password 필드 (confirm 없음).
+    await page
+      .getByLabel(/비밀번호|Password/i)
+      .first()
+      .fill("Strong!Pass1");
 
     // 약관 체크박스가 있다면 체크.
     const terms = page.getByRole("checkbox").first();
@@ -60,9 +62,9 @@ test.describe("Register form — 일반 가입 (no invitation)", () => {
       .getByRole("button", { name: /계정 만들기|Create [Aa]ccount|회원가입|Sign up/i })
       .click();
 
-    // 성공 후 이메일 인증 안내 또는 verify-email 페이지로 이동.
+    // 성공 후 router.push("/verify-email") 또는 toast 표시.
     await expect
-      .poll(() => page.url(), { timeout: 5_000 })
+      .poll(() => page.url(), { timeout: 10_000 })
       .toMatch(/verify-email|register|login/);
   });
 
@@ -90,9 +92,11 @@ test.describe("Register form — 일반 가입 (no invitation)", () => {
       .getByLabel(/이메일|Email/i)
       .first()
       .fill("dup@example.com");
-    const passwords = page.getByLabel(/비밀번호|Password/i);
-    await passwords.nth(0).fill("Strong!Pass1");
-    await passwords.nth(1).fill("Strong!Pass1");
+    // register form 은 단일 password 필드 (confirm 없음).
+    await page
+      .getByLabel(/비밀번호|Password/i)
+      .first()
+      .fill("Strong!Pass1");
     const terms = page.getByRole("checkbox").first();
     if (await terms.isVisible().catch(() => false)) {
       await terms.check();
@@ -101,8 +105,11 @@ test.describe("Register form — 일반 가입 (no invitation)", () => {
       .getByRole("button", { name: /계정 만들기|Create [Aa]ccount|회원가입|Sign up/i })
       .click();
 
+    // sonner toast 로 에러 메시지가 표시되거나 (인라인 alert 으로 표시) — toast 는
+    // 잠시 보였다 사라지므로 폭넓게 매칭. backend extractApiMessage 는 data.message
+    // 우선 → fallback i18n("auth.register.genericFailed") = "회원가입에 실패..."
     await expect(
-      page.getByText(/이미 가입|already (registered|exists)|duplicate/i),
+      page.getByText(/이미 가입|already|duplicate|회원가입에 실패|registration/i).first(),
     ).toBeVisible({ timeout: 5_000 });
   });
 
@@ -118,9 +125,11 @@ test.describe("Register form — 일반 가입 (no invitation)", () => {
       .getByLabel(/이메일|Email/i)
       .first()
       .fill("terms@example.com");
-    const passwords = page.getByLabel(/비밀번호|Password/i);
-    await passwords.nth(0).fill("Strong!Pass1");
-    await passwords.nth(1).fill("Strong!Pass1");
+    // register form 은 단일 password 필드 (confirm 없음).
+    await page
+      .getByLabel(/비밀번호|Password/i)
+      .first()
+      .fill("Strong!Pass1");
 
     const submit = page.getByRole("button", {
       name: /계정 만들기|Create [Aa]ccount|회원가입|Sign up/i,

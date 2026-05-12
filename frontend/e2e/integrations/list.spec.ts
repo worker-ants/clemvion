@@ -1,11 +1,9 @@
 import { expect, test, type Page } from "@playwright/test";
 
 /**
- * e2e: /integrations 목록 페이지.
+ * e2e: /integrations 목록 페이지 (spec/2-navigation/4-integration.md).
  *
- * spec/2-navigation/4-integration.md. backend 의 마스킹·암호화는
- * backend/test/integration-credentials.e2e-spec.ts 가 담당. UI 에서는 카드 목록과
- * 신규 생성 진입점이 표시되는지만 확인.
+ * 응답 shape: backend PaginatedResponseDto = `{ data: [...], pagination: {...} }`.
  */
 
 const ACCESS = "mock-access-token";
@@ -13,12 +11,14 @@ const USER = {
   id: "user-1",
   email: "alice@example.com",
   name: "Alice",
-  emailVerified: true,
+  locale: "ko",
+  theme: "light",
 };
 const WORKSPACE = {
   id: "ws-1",
   name: "Personal",
   type: "personal",
+  slug: "personal-alice",
   role: "owner",
 };
 
@@ -48,15 +48,38 @@ async function mockAuth(page: Page) {
       await route.continue();
     }
   });
+  await page.route("**/api/notifications/unread-count", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ data: 0 }),
+    });
+  });
+  await page.route(/\/api\/notifications(\?|$)/, async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ data: [] }),
+    });
+  });
+  await page.route("**/api/integrations/services", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ data: [] }),
+    });
+  });
 }
 
-function integrationFixture(items: Array<{
+interface IntegrationFixture {
   id: string;
   serviceType: string;
   name: string;
-}>) {
+}
+
+function integrationsResponseBody(items: IntegrationFixture[]) {
   return {
-    items: items.map((i) => ({
+    data: items.map((i) => ({
       id: i.id,
       serviceType: i.serviceType,
       name: i.name,
@@ -68,9 +91,12 @@ function integrationFixture(items: Array<{
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     })),
-    total: items.length,
-    page: 1,
-    pageSize: 20,
+    pagination: {
+      page: 1,
+      limit: 20,
+      totalItems: items.length,
+      totalPages: 1,
+    },
   };
 }
 
@@ -81,26 +107,19 @@ test.describe("Integrations list page", () => {
       await route.fulfill({
         status: 200,
         contentType: "application/json",
-        body: JSON.stringify({
-          data: integrationFixture([
+        body: JSON.stringify(
+          integrationsResponseBody([
             { id: "i-1", serviceType: "http", name: "API Backend" },
             { id: "i-2", serviceType: "github", name: "Source Repo" },
           ]),
-        }),
-      });
-    });
-    await page.route("**/api/integrations/services", async (route) => {
-      await route.fulfill({
-        status: 200,
-        contentType: "application/json",
-        body: JSON.stringify({ data: [] }),
+        ),
       });
     });
 
     await page.goto("/integrations");
 
     await expect(page.getByText(/API Backend/i)).toBeVisible({
-      timeout: 5_000,
+      timeout: 10_000,
     });
     await expect(page.getByText(/Source Repo/i)).toBeVisible();
   });
@@ -111,14 +130,7 @@ test.describe("Integrations list page", () => {
       await route.fulfill({
         status: 200,
         contentType: "application/json",
-        body: JSON.stringify({ data: integrationFixture([]) }),
-      });
-    });
-    await page.route("**/api/integrations/services", async (route) => {
-      await route.fulfill({
-        status: 200,
-        contentType: "application/json",
-        body: JSON.stringify({ data: [] }),
+        body: JSON.stringify(integrationsResponseBody([])),
       });
     });
 
@@ -126,6 +138,6 @@ test.describe("Integrations list page", () => {
 
     await expect(
       page.getByText(/통합|Integration|연동/i).first(),
-    ).toBeVisible({ timeout: 5_000 });
+    ).toBeVisible({ timeout: 10_000 });
   });
 });

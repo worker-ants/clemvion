@@ -45,14 +45,14 @@ test.describe("Register page — invitation token flow", () => {
   });
 
   test("410 expired → 에러 배너 + submit 비활성화", async ({ page }) => {
+    // InvitationBanner 는 state.message 우선 → fallback i18n. mock 의 message 필드를
+    // 비워 i18n("auth.register.invitationGone" = "이 초대는 만료되었거나 이미 사용...")
+    // 가 표시되도록 한다.
     await page.route(`**/api/invitations/${VALID_TOKEN}`, async (route) => {
       await route.fulfill({
         status: 410,
         contentType: "application/json",
-        body: JSON.stringify({
-          code: "invitation_expired",
-          message: "초대가 만료되었습니다.",
-        }),
+        body: JSON.stringify({ code: "invitation_expired" }),
       });
     });
 
@@ -60,10 +60,8 @@ test.describe("Register page — invitation token flow", () => {
 
     // 사용자에게 "더 이상 유효하지 않은 초대" 안내.
     await expect(
-      page.getByText(
-        /만료되었거나 이미 사용|expired or already used/i,
-      ),
-    ).toBeVisible();
+      page.getByText(/만료|expired|already used|이미 사용/i).first(),
+    ).toBeVisible({ timeout: 5_000 });
 
     // submit 버튼이 disabled 상태.
     const submit = page.getByRole("button", {

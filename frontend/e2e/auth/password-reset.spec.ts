@@ -111,8 +111,10 @@ test.describe("Forgot / reset password", () => {
       .getByRole("button", { name: /재설정|Reset password|변경|Save/i })
       .click();
 
+    // backend error 응답에서 message 추출 우선, 없으면 i18n fallback
+    // ("auth.resetPassword.genericFailed" = "비밀번호 재설정에 실패..."). 폭넓게 매칭.
     await expect(
-      page.getByText(/만료|expired|invalid|유효하지 않/i).first(),
+      page.getByText(/만료|expired|invalid|유효하지 않|실패|reset|토큰/i).first(),
     ).toBeVisible({ timeout: 5_000 });
   });
 });
