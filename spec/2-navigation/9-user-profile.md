@@ -128,13 +128,28 @@
 
 | 액션 | 권한 | 설명 |
 |------|------|------|
-| 초대 | Admin+ | 이메일로 초대 토큰 발송. 수신자는 수락 페이지에서 합류 |
-| 초대 취소 | Admin+ | 대기 중인 초대 토큰 폐기 |
+| 초대 | Admin+ | 이메일로 초대 토큰 발송. 수신자는 수락 페이지에서 합류. 토큰·만료·이메일 일치 정책은 §4.1.1 참고 |
+| 초대 재발송 | Admin+ | 대기 중 초대의 토큰을 새로 발급(기존 토큰 invalidate)하고 이메일 재전송. 만료 시계도 재발급 시점부터 다시 7일 |
+| 초대 취소 | Admin+ | 대기 중인 초대 토큰 폐기 (`acceptedAt IS NULL` 인 row 만) |
 | 역할 변경 | Admin+ (Owner 역할 부여/박탈은 별도 양도 흐름) | 드롭다운으로 역할 변경 |
 | 제거 | Admin+ | 멤버 제거 (확인 다이얼로그) |
 | 나가기 | 본인 | 자가 탈퇴. 유일한 owner는 차단 — 먼저 다른 owner를 지정하거나 삭제로 이동 |
 | 워크스페이스 삭제 | Owner | 이름 재입력 확인 → 멤버·초대·워크스페이스 순으로 트랜잭션 삭제 |
 | Owner 이양 | Owner | 같은 워크스페이스의 비-owner 멤버 중 한 명을 선택. 새 owner 의 이메일을 재입력 확인 → 트랜잭션 내에서 두 멤버 role 동시 swap (대상 → owner, 기존 owner → admin) + `workspace.ownerId` 동기화 |
+
+#### 4.1.1 초대 토큰 정책
+
+| 항목 | 값 |
+|------|-----|
+| 토큰 길이 | 64자 url-safe random (`crypto.randomBytes(48)` base64url 인코딩) |
+| 만료 | 발급 시점부터 **7일** |
+| 사용 횟수 | **1회 사용** — accept 또는 재발송 시 즉시 invalidate |
+| 이메일 일치 검증 | accept 시 **로그인 사용자 이메일 = 토큰의 초대 이메일** 강제. 불일치 시 400 (`invitation_email_mismatch`) |
+| 가입 흐름 | 미가입자는 `?invitationToken=...` 쿼리로 회원가입 페이지 진입. 이메일이 prefill + readOnly 로 고정되어 다른 이메일로 가입 자체가 불가. 가입 성공 트랜잭션 내에서 자동 accept |
+| 발송 채널 | 시스템 SMTP (`backend/src/modules/mail/`). 워크스페이스 SMTP Integration 은 사용하지 않음 |
+| 대기 중 초대 UI | 만료일 표시 + [재발송] / [취소] 액션. 대기 중 한 이메일에 대해 다중 초대 누적 금지 — 같은 이메일로 다시 초대 시 기존 토큰을 무효화하고 신규 발급 |
+
+상세 흐름·API 는 [Spec 인증/인가 §1.5](../5-system/1-auth.md#15-초대-토큰-흐름) 참고.
 
 ### 4.2 역할 권한 매트릭스
 
@@ -227,9 +242,11 @@
 | PATCH | /api/workspaces/:id/members/:memberId | 역할 변경 (Admin+) |
 | DELETE | /api/workspaces/:id/members/:memberId | 멤버 제거 (Admin+ / 자가 탈퇴 시 leave로 위임) |
 | GET | /api/workspaces/:id/invitations | 대기 중인 초대 목록 (Admin+) |
-| POST | /api/workspaces/:id/invitations | 미가입자 초대 토큰 발송 (Admin+) |
-| DELETE | /api/workspaces/:id/invitations/:invitationId | 초대 취소 (Admin+) |
-| POST | /api/workspaces/invitations/accept | 초대 수락 (본인 이메일과 매칭되는 토큰) |
+| POST | /api/workspaces/:id/invitations | 미가입자 초대 토큰 발송 (Admin+). 같은 이메일에 대기 중 초대가 있으면 기존 토큰 invalidate 후 신규 발급 |
+| POST | /api/workspaces/:id/invitations/:invitationId/resend | 초대 재발송 (Admin+). 기존 토큰 invalidate + 신규 토큰 발급 + 만료 시계 재시작 |
+| DELETE | /api/workspaces/:id/invitations/:invitationId | 초대 취소 (Admin+, `acceptedAt IS NULL` 만 허용) |
+| GET | /api/invitations/:token | 초대 토큰 메타 조회 (인증 불요, 가입 페이지 prefill 용). 워크스페이스 이름·초대자 이름·이메일·만료 응답. 만료·invalidated 토큰은 410 |
+| POST | /api/workspaces/invitations/accept | 초대 수락 (로그인 필수, 본인 이메일 = 토큰 이메일 강제) |
 
 ### 6.2 알림 API
 
