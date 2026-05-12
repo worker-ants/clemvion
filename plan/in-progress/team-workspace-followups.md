@@ -40,12 +40,12 @@
 
 **확정**: 공유 정의 = **팀 워크스페이스 전체**. 팀 워크스페이스 활성 시 모든 워크플로에 👥 Team 배지. 같은 팀 안의 작성자 단위 세분화는 §2.3 소유 필터(`내 / 공유 / 전체`)가 담당. spec 본문·Rationale 박제 완료 (`spec/2-navigation/1-workflow-list.md`).
 
-- [x] spec `2-navigation/1-workflow-list.md` §2.1·§2.3·Rationale 갱신 (2026-05-12)
+- [x] spec `2-navigation/1-workflow-list.md` §2.1·§2.3·§3 API·Rationale 갱신 (2026-05-12)
 - [x] frontend `workflow-list` 컴포넌트에 Team 배지 (workspace.type==='team' 활성 시 모든 워크플로) + i18n (2026-05-12)
-- [ ] 소유 필터 (내/공유/전체) — 구현 보류: backend `GET /workflows` 응답에 `createdBy` 필드 + (optional) `ownership` 쿼리 파라미터 추가 필요. 별도 후속 plan 으로 분리 권장
-- [x] 단위 테스트 — 1241 vitest tests passing
-- [ ] e2e (개인 → 팀 워크스페이스 전환 시 배지 노출 변화) — playwright 인프라 정비 후
-- [ ] `spec/2-navigation/_product-overview.md` §3.1 NAV-WF-07 상태 ✅로 갱신 (소유 필터까지 완료 시)
+- [x] 소유 필터 (내/공유/전체) — backend `GET /workflows?ownership=` 추가 + frontend 팀 워크스페이스 전용 버튼 그룹 + 단위 테스트 4건 (mine/shared/personal-ignore/all-noop) (2026-05-12)
+- [x] 단위 테스트 — 1250 vitest tests passing
+- [ ] e2e (개인 → 팀 워크스페이스 전환 시 배지·소유 필터 노출 변화) — **`plan/in-progress/team-workspace-e2e.md` 로 위임** (인프라 정비 비용 큼)
+- [x] `spec/2-navigation/_product-overview.md` §3.1 NAV-WF-07 상태 ✅로 갱신 (2026-05-12)
 
 ### 2. NAV-UP-05 미가입자 초대 토큰
 
@@ -82,16 +82,16 @@
   - register with invitationToken: 이메일 불일치 reject / 트랜잭션 롤백 / 자동 워크스페이스 생성 미발화 / 자동 로그인 토큰 발급
   - 재발송: 기존 토큰 invalidate + 새 토큰 발급 확인
   - invite: 대기 중 동일 이메일은 덮어쓰기 (충돌 reject 아님)
-- [ ] e2e — 초대 → 메일 수신 (개발 `console` transport) → 가입 → 자동 멤버 등록 (백엔드 e2e 인프라 정비 후. 현재 e2e 스위트는 인프라 의존으로 skipped)
-- [ ] `spec/2-navigation/_product-overview.md` §3.11 NAV-UP-05 상태 갱신 (frontend·전체 e2e 완료 시 `(가입 사용자 이메일 추가 · 미가입자 초대 토큰은 후속)` 부분 제거)
+- [ ] e2e — 초대 → 메일 수신 (개발 `console` transport) → 가입 → 자동 멤버 등록 — **`plan/in-progress/team-workspace-e2e.md` 로 위임**
+- [x] `spec/2-navigation/_product-overview.md` §3.11 NAV-UP-05 상태 갱신 — "(가입 사용자 이메일 추가 · 미가입자 초대 토큰은 후속)" 표기 제거하고 ✅ (2026-05-12)
 
 ### 3. 매뉴얼
 
-- [ ] `frontend/src/content/docs/` 의 워크스페이스/팀 가이드 페이지 갱신 (공유 워크플로 표시 + 초대 토큰)
+- [x] `frontend/src/content/docs/08-workspace-and-team/workspaces-and-members.{ko,en}.mdx` 신규 — 개인/팀 차이·역할·초대(가입자/미가입자)·재발송/취소·만료·Team 배지·소유 필터·Owner 이양/삭제. `registry.SECTION_LABELS` 도 정합성 정리 (2026-05-12)
 
 ### 4. REVIEW
 
-- [ ] `ai-review` 실행 → Security (토큰 길이·만료·1회 사용·이메일 일치 강제·rate limit), Side Effect (이메일 발송), API Contract (RBAC), Concurrency (동시 accept 경쟁) 중심
+- [x] `ai-review` 두 차례 실행: `review/2026-05-12_13-15-14` (backend, commit `e697daef` → 조치 `2323643e`), `review/2026-05-12_14-05-07` (frontend, commit `48863b94` → 조치 `eacb6b12`). 잔여 마무리(소유 필터·매뉴얼) 에 대한 3차 ai-review 는 본 plan 완료 직전 1회 추가 수행 후 RESOLUTION 첨부.
 
 ## 수용 기준
 

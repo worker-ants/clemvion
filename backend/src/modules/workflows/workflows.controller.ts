@@ -70,17 +70,18 @@ export class WorkflowsController {
   @ApiOperation({
     summary: '워크플로우 목록 조회',
     description:
-      '현재 워크스페이스의 워크플로우 목록을 페이지네이션/검색/태그/폴더 필터로 조회합니다.',
+      '현재 워크스페이스의 워크플로우 목록을 페이지네이션/검색/태그/폴더/소유 필터로 조회합니다. `ownership` 은 팀 워크스페이스에서만 의미가 있고, 개인 워크스페이스에서는 서버가 무시합니다.',
   })
   @ApiOkPaginatedResponse(WorkflowDto, {
     description: '워크플로우 목록 (페이지네이션 포함)',
   })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
   async findAll(
+    @CurrentUser() user: JwtPayload,
     @WorkspaceId() workspaceId: string,
     @Query() query: QueryWorkflowDto,
   ) {
-    return this.workflowsService.findAll(workspaceId, query);
+    return this.workflowsService.findAll(workspaceId, query, user.sub);
   }
 
   @Get(':id')

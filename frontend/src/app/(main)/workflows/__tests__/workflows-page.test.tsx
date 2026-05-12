@@ -3,6 +3,7 @@ import { render, screen, act, cleanup } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useLocaleStore } from "@/lib/stores/locale-store";
+import { useWorkspaceStore } from "@/lib/stores/workspace-store";
 
 // next/navigation mock — must be hoisted via vi.mock
 const mockPush = vi.fn();
@@ -139,5 +140,112 @@ describe("WorkflowsPage — pagination", () => {
     await renderPage();
     expect(await screen.findByText("Legacy")).toBeInTheDocument();
     expect(screen.queryByRole("navigation")).not.toBeInTheDocument();
+  });
+});
+
+describe("WorkflowsPage — ownership filter (NAV-WF-07)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    currentSearchParams = new URLSearchParams();
+    useLocaleStore.setState({ locale: "en" });
+    useWorkspaceStore.setState({
+      workspaces: [],
+      currentWorkspaceId: null,
+      loaded: true,
+    });
+    cleanup();
+  });
+
+  it("hides ownership filter group in personal workspace", async () => {
+    useWorkspaceStore.setState({
+      workspaces: [
+        {
+          id: "ws-1",
+          name: "Personal",
+          type: "personal",
+          slug: "personal-1",
+          role: "owner",
+        },
+      ],
+      currentWorkspaceId: "ws-1",
+      loaded: true,
+    });
+    setListResponse({
+      data: [{ id: "wf-0", name: "Mine", isActive: true, tags: [] }],
+      pagination: { page: 1, limit: 10, totalItems: 1, totalPages: 1 },
+    });
+    await renderPage();
+    await screen.findByText("Mine");
+    expect(
+      screen.queryByRole("group", { name: /Ownership filter/i }),
+    ).toBeNull();
+  });
+
+  it("renders ownership filter and sends ?ownership=mine when 'Mine' is clicked in team workspace", async () => {
+    useWorkspaceStore.setState({
+      workspaces: [
+        {
+          id: "ws-1",
+          name: "Team Alpha",
+          type: "team",
+          slug: "team-alpha",
+          role: "editor",
+        },
+      ],
+      currentWorkspaceId: "ws-1",
+      loaded: true,
+    });
+    setListResponse({
+      data: [{ id: "wf-0", name: "Doc", isActive: true, tags: [] }],
+      pagination: { page: 1, limit: 10, totalItems: 1, totalPages: 1 },
+    });
+    await renderPage();
+    await screen.findByText("Doc");
+
+    const group = screen.getByRole("group", { name: /Ownership filter/i });
+    expect(group).toBeInTheDocument();
+
+    const { workflowsApi } = await import("@/lib/api/workflows");
+    const listSpy = workflowsApi.list as unknown as ReturnType<typeof vi.fn>;
+    listSpy.mockClear();
+
+    await userEvent.click(
+      screen.getByRole("button", { name: /^Mine$/ }),
+    );
+
+    await vi.waitFor(() => expect(listSpy).toHaveBeenCalled());
+    // The most recent invocation should carry ownership=mine.
+    const lastParams = listSpy.mock.calls.at(-1)?.[0] as
+      | Record<string, string>
+      | undefined;
+    expect(lastParams?.ownership).toBe("mine");
+  });
+
+  it("omits ownership param when 'All' is selected (default state)", async () => {
+    useWorkspaceStore.setState({
+      workspaces: [
+        {
+          id: "ws-1",
+          name: "Team Alpha",
+          type: "team",
+          slug: "team-alpha",
+          role: "editor",
+        },
+      ],
+      currentWorkspaceId: "ws-1",
+      loaded: true,
+    });
+    setListResponse({
+      data: [],
+      pagination: { page: 1, limit: 10, totalItems: 0, totalPages: 0 },
+    });
+    await renderPage();
+
+    const { workflowsApi } = await import("@/lib/api/workflows");
+    const listSpy = workflowsApi.list as unknown as ReturnType<typeof vi.fn>;
+    const firstCallParams = listSpy.mock.calls[0]?.[0] as
+      | Record<string, string>
+      | undefined;
+    expect(firstCallParams?.ownership).toBeUndefined();
   });
 });

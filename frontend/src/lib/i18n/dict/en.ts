@@ -626,6 +626,12 @@ export const en: Dict = {
       inactive: "Inactive",
       draft: "Draft",
     },
+    ownership: {
+      aria: "Ownership filter",
+      all: "All",
+      mine: "Mine",
+      shared: "Shared",
+    },
     columns: {
       name: "Name",
       status: "Status",
