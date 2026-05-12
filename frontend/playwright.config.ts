@@ -20,6 +20,16 @@ export default defineConfig({
     trace: "retain-on-failure",
     screenshot: "only-on-failure",
   },
+  // CI 또는 컨테이너 환경에서 dev server 자동 기동. 로컬에서는 이미 떠 있는 서버
+  // 재사용. PLAYWRIGHT_NO_WEBSERVER=1 로 강제 비활성 가능 (별도 babysit 시).
+  webServer: process.env.PLAYWRIGHT_NO_WEBSERVER
+    ? undefined
+    : {
+        command: "npm run dev",
+        url: process.env.PLAYWRIGHT_BASE_URL ?? "http://localhost:3000",
+        reuseExistingServer: !process.env.CI,
+        timeout: 180_000,
+      },
   projects: [
     {
       name: "chromium",

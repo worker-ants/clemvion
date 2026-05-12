@@ -8,6 +8,16 @@ import {
 } from '@nestjs/common';
 import { Response } from 'express';
 import { v4 as uuidv4 } from 'uuid';
+import { QueryFailedError } from 'typeorm';
+
+/** Postgres SQLSTATE 23505 = unique_violation. */
+function isUniqueViolation(err: unknown): boolean {
+  if (!(err instanceof QueryFailedError)) return false;
+  const driverError = (
+    err as QueryFailedError & { driverError?: { code?: string } }
+  ).driverError;
+  return driverError?.code === '23505';
+}
 
 @Catch()
 export class GlobalExceptionFilter implements ExceptionFilter {
@@ -36,6 +46,12 @@ export class GlobalExceptionFilter implements ExceptionFilter {
         code = this.getCodeFromStatus(status);
         message = exception.message;
       }
+    } else if (isUniqueViolation(exception)) {
+      // race window 에서의 unique constraint 위반은 클라이언트에게 409 가 옳다.
+      // (애플리케이션 단의 사전 체크 후 동시 두 요청이 모두 통과한 케이스 등)
+      status = HttpStatus.CONFLICT;
+      code = 'RESOURCE_CONFLICT';
+      message = 'Resource already exists or has been modified concurrently.';
     } else if (exception instanceof Error) {
       this.logger.error(
         `Unhandled exception: ${exception.message}`,

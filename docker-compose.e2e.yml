@@ -94,6 +94,8 @@ services:
     environment:
       NODE_ENV: test
       APP_PORT: "3011"
+      APP_URL: http://backend-e2e:3011
+      FRONTEND_URL: http://localhost:3012
       DB_HOST: postgres
       DB_PORT: "5432"
       DB_USERNAME: clemvion
@@ -106,7 +108,13 @@ services:
       S3_SECRET_KEY: clemvion-e2e
       S3_BUCKET: workflow-storage
       MAIL_TRANSPORT: console
-      # 다른 필수 env(JWT secret 등)는 e2e plan Step 2 에서 보강.
+      # e2e 전용 임시 secret. 운영 절대 사용 금지.
+      JWT_SECRET: clemvion-e2e-jwt-secret-do-not-use-in-prod-x9y8z7
+      JWT_ACCESS_EXPIRATION: "900"
+      JWT_REFRESH_EXPIRATION: "604800"
+      ENCRYPTION_KEY: 0123456789abcdef0123456789abcdef
+      INTEGRATION_ENCRYPTION_KEY: 0123456789abcdef0123456789abcdef
+      OAUTH_STUB_MODE: "true"
     depends_on:
       postgres:
         condition: service_healthy
@@ -155,7 +163,9 @@ services:
         condition: service_healthy
     profiles: ["test"]
 
-  # frontend playwright. plan Step 3 에서 frontend test:e2e script 추가 후 동작.
+  # frontend playwright. 본 spec 들은 page.route 로 backend 호출을 mock 해 backend
+  # 의존성이 없다 (backend e2e 가 별도로 통신 정합성을 보장). dev 서버는
+  # playwright.config 의 webServer 가 자동으로 띄운다.
   playwright-runner:
     image: mcr.microsoft.com/playwright:v1.47.0-jammy
     working_dir: /app/frontend
@@ -165,10 +175,8 @@ services:
     command:
       - sh
       - -c
-      - "npm ci && npx playwright install --with-deps chromium && npm run test:e2e"
+      - "npm ci && npx playwright install --with-deps chromium && npm run e2e"
     environment:
-      E2E_BACKEND_URL: http://backend-e2e:3011
-    depends_on:
-      backend-e2e:
-        condition: service_healthy
+      CI: "true"
+      PLAYWRIGHT_BASE_URL: http://localhost:3000
     profiles: ["test"]

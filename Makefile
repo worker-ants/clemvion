@@ -20,17 +20,16 @@ e2e-up:
 e2e-down:
 	$(COMPOSE_E2E) down -v --remove-orphans
 
-# `--exit-code-from` 가 지정한 서비스의 종료 코드를 전체 `up` 의 종료 코드로 전파.
-# 실패하더라도 후속 e2e-down 이 실행되도록 `; STATUS=$$?` 패턴 사용.
+# 인프라+backend 를 `up --wait` 로 띄운 뒤 runner 만 `run --rm` 으로 1-shot 실행.
+# `--abort-on-container-exit` 패턴은 Docker Desktop 의 network race 와 충돌하는
+# 사례가 있어 분리. 실패하더라도 후속 e2e-down 이 실행되도록 `; STATUS=$$?` 패턴 사용.
 e2e-test:
-	$(COMPOSE_E2E) --profile test up \
-	  --abort-on-container-exit \
-	  --exit-code-from backend-e2e-runner \
-	  backend-e2e-runner; STATUS=$$?; \
+	$(COMPOSE_E2E) up -d --wait backend-e2e
+	$(COMPOSE_E2E) run --rm backend-e2e-runner; STATUS=$$?; \
 	$(MAKE) e2e-down; exit $$STATUS
 
 e2e-test-full:
-	$(COMPOSE_E2E) --profile test up \
-	  --abort-on-container-exit \
-	  --exit-code-from playwright-runner; STATUS=$$?; \
+	$(COMPOSE_E2E) up -d --wait backend-e2e
+	$(COMPOSE_E2E) run --rm backend-e2e-runner && \
+	  $(COMPOSE_E2E) run --rm playwright-runner; STATUS=$$?; \
 	$(MAKE) e2e-down; exit $$STATUS
