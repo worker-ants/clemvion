@@ -90,6 +90,28 @@ services:
       - -connectRetries=20
     restart: "no"
 
+  # checksum mismatch 등으로 `migrate` 가 validation 에서 멈췄을 때 수동으로 호출하는
+  # 복구 서비스. `flyway_schema_history` 의 checksum 을 현재 파일 기준으로 재기록한 뒤
+  # 다시 `docker compose up migrate` 로 정상 마이그를 재개한다. 정상 부팅 흐름에서는
+  # 호출되지 않아야 하므로 backend 의 depends_on 에 포함시키지 않는다.
+  migrate-repair:
+    profiles: ["app"]
+    build:
+      context: .
+      dockerfile: backend/migrations/Dockerfile
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ./backend/migrations:/flyway/sql:ro
+    command:
+      - repair
+      - -url=jdbc:postgresql://postgres:5432/${POSTGRES_DB}
+      - -user=${POSTGRES_USER}
+      - -password=${POSTGRES_PASSWORD}
+      - -connectRetries=20
+    restart: "no"
+
   backend:
     profiles: ["app"]
     build:
