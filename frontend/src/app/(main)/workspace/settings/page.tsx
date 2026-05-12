@@ -305,9 +305,8 @@ function MembersTab({ workspaceId }: MembersTabProps) {
       });
     },
     onError: (err: unknown) => {
-      const msg =
-        err instanceof Error ? err.message : t("workspace.inviteFailed");
-      toast.error(msg);
+      const parsed = parseApiError(err);
+      toast.error(parsed.message ?? t("workspace.inviteFailed"));
     },
   });
 
@@ -321,11 +320,8 @@ function MembersTab({ workspaceId }: MembersTabProps) {
       });
     },
     onError: (err: unknown) => {
-      const msg =
-        err instanceof Error
-          ? err.message
-          : t("workspace.cancelInviteFailed");
-      toast.error(msg);
+      const parsed = parseApiError(err);
+      toast.error(parsed.message ?? t("workspace.cancelInviteFailed"));
     },
   });
 
@@ -339,9 +335,8 @@ function MembersTab({ workspaceId }: MembersTabProps) {
       });
     },
     onError: (err: unknown) => {
-      const msg =
-        err instanceof Error ? err.message : t("workspace.resendInviteFailed");
-      toast.error(msg);
+      const parsed = parseApiError(err);
+      toast.error(parsed.message ?? t("workspace.resendInviteFailed"));
     },
   });
 
@@ -465,12 +460,18 @@ function MembersTab({ workspaceId }: MembersTabProps) {
             ) : (
               <ul className="divide-y divide-[hsl(var(--border))]">
                 {invitationsQuery.data.map((inv) => {
-                  // react-hooks/purity 가 본문에서 Date.now() 호출을 금지하므로
-                  // dataUpdatedAt(쿼리 fetch 시점)을 기준으로 만료를 판정한다.
-                  // invalidate 후 재페치되면 자연스럽게 최신 시점으로 비교된다.
+                  // Date.now() 는 매 렌더마다 달라져 결과가 불안정하므로
+                  // React Query 의 dataUpdatedAt(쿼리 fetch 시점)을 기준으로
+                  // 만료를 판정한다. invalidate 후 재페치되면 자연스럽게 최신
+                  // 시점으로 비교된다.
                   const expired =
                     new Date(inv.expiresAt).getTime() <
                     invitationsQuery.dataUpdatedAt;
+                  const itemBusy =
+                    (resendMutation.isPending &&
+                      resendMutation.variables === inv.id) ||
+                    (revokeMutation.isPending &&
+                      revokeMutation.variables === inv.id);
                   return (
                     <li
                       key={inv.id}
@@ -501,7 +502,7 @@ function MembersTab({ workspaceId }: MembersTabProps) {
                         <Button
                           variant="ghost"
                           size="sm"
-                          disabled={resendMutation.isPending}
+                          disabled={itemBusy}
                           onClick={() => resendMutation.mutate(inv.id)}
                         >
                           {t("workspace.inviteResend")}
@@ -509,7 +510,7 @@ function MembersTab({ workspaceId }: MembersTabProps) {
                         <Button
                           variant="ghost"
                           size="sm"
-                          disabled={revokeMutation.isPending}
+                          disabled={itemBusy}
                           onClick={() => revokeMutation.mutate(inv.id)}
                         >
                           {t("workspace.inviteRevoke")}

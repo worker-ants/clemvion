@@ -614,6 +614,8 @@ export const ko = {
     newWorkflow: "새 워크플로우",
     untitled: "제목 없음",
     search: "워크플로우 검색",
+    // teamBadge 는 의도적으로 영문 유지 — 화면 좁은 곳에 들어가는 짧은 라벨이고
+    // 한국어 UI 의 다른 워크스페이스 라벨(예: "팀")과 시각적으로 구분이 잘 된다.
     teamBadge: "Team",
     teamBadgeAria: "팀 워크스페이스의 공유 워크플로우",
     filter: {

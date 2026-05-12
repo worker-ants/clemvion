@@ -96,6 +96,11 @@ export const workspacesApi = {
     );
     return data.data;
   },
+  /**
+   * 대기 중 초대를 재발송한다. 기존 토큰은 즉시 무효화되고, 새 토큰이 발급되며,
+   * 만료 시계가 발송 시점부터 다시 7일로 재시작된다.
+   * spec/5-system/1-auth.md §1.5.1
+   */
   resendInvitation: async (
     workspaceId: string,
     invitationId: string,
@@ -123,28 +128,6 @@ export const workspacesApi = {
   },
 };
 
-/**
- * 공개(인증 불요) 초대 토큰 메타 조회. 회원가입 페이지가 `?invitationToken=...` 처리 시
- * 이메일·워크스페이스 이름·초대자 이름을 prefill 하기 위해 사용한다.
- *
- * spec/2-navigation/10-auth-flow.md §2.6, spec/5-system/1-auth.md §1.5
- */
-export const invitationsApi = {
-  getByToken: async (token: string): Promise<InvitationMeta> => {
-    const { data } = await apiClient.get(
-      `/invitations/${encodeURIComponent(token)}`,
-    );
-    return data.data;
-  },
-};
-
-export interface InvitationMeta {
-  workspaceName: string;
-  invitedByName: string | null;
-  email: string;
-  role: Exclude<WorkspaceRole, "owner">;
-  expiresAt: string;
-}
 
 export interface WorkspaceInvitationSummary {
   id: string;
