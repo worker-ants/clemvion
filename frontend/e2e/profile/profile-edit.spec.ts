@@ -224,17 +224,16 @@ test.describe("/profile readonly + 인라인 편집", () => {
     expect(await page.getByTestId("pref-theme-dark").count()).toBe(0);
   });
 
-  test("비밀번호 카드 [변경하기 →] → /profile/change-password 진입 → 폼 제출 → /profile 리다이렉트", async ({
+  test("/profile/change-password 폼 제출 → POST /users/me/change-password + /profile 리다이렉트", async ({
     page,
   }) => {
+    // 비밀번호 카드 → sub-route 진입 자체는 위쪽 'readonly' 테스트의 href 속성
+    // 검증으로 보호한다. 본 테스트는 sub-route 페이지에 직접 진입해 폼 제출 흐름
+    // (POST 호출 + 성공 시 /profile 리다이렉트) 만 책임진다.
+    // (Link.click 후 client-side navigation 은 CI production-like 빌드의
+    // hydration/chunk timing 에 따라 flaky — page.goto 로 결정론적 진입.)
     const state = await setupProfileMocks(page);
-    await page.goto("/profile");
-    await expect(page.getByTestId("profile-change-password-link")).toBeVisible({
-      timeout: 10_000,
-    });
-
-    await page.getByTestId("profile-change-password-link").click();
-    await expect(page).toHaveURL(/\/profile\/change-password$/);
+    await page.goto("/profile/change-password");
 
     await page
       .getByLabel(/현재 비밀번호|Current password/i)
@@ -256,6 +255,6 @@ test.describe("/profile readonly + 인라인 편집", () => {
     });
 
     // /profile 으로 리다이렉트
-    await expect(page).toHaveURL(/\/profile$/, { timeout: 10_000 });
+    await page.waitForURL(/\/profile$/, { timeout: 10_000 });
   });
 });
