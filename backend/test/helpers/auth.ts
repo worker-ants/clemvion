@@ -97,10 +97,19 @@ export async function inviteAndAccept(
   inviteeName: string = 'E2E Invitee',
   password: string = TEST_PASSWORD,
 ): Promise<RegisteredUser> {
-  const inviteRes = await request(baseUrl)
+  // invitation 엔드포인트는 throttler 가 걸려있어, 다수 e2e 가 시퀀스로 invite 를
+  // 쏘면 429 에 부딪힐 수 있다. 429 면 잠깐 대기 후 1회 재시도.
+  let inviteRes = await request(baseUrl)
     .post(`/api/workspaces/${workspaceId}/invitations`)
     .set('Authorization', `Bearer ${ownerToken}`)
     .send({ email: inviteeEmail, role });
+  if (inviteRes.status === 429) {
+    await new Promise((r) => setTimeout(r, 2_000));
+    inviteRes = await request(baseUrl)
+      .post(`/api/workspaces/${workspaceId}/invitations`)
+      .set('Authorization', `Bearer ${ownerToken}`)
+      .send({ email: inviteeEmail, role });
+  }
   if (inviteRes.status !== 201) {
     throw new Error(
       `invite failed: ${inviteRes.status} ${JSON.stringify(inviteRes.body)}`,
@@ -132,24 +141,55 @@ export async function inviteAndAccept(
   }
   const accessToken = (registerRes.body.data as { accessToken: string })
     .accessToken;
+  if (!accessToken) {
+    throw new Error(
+      `invitee accessToken missing in register response: ${JSON.stringify(registerRes.body)}`,
+    );
+  }
 
   const userRow = await db.query<{ id: string }>(
     'SELECT id FROM "user" WHERE email = $1',
     [inviteeEmail],
   );
   if (userRow.rows.length === 0) throw new Error('invitee user row missing');
+  const userId = userRow.rows[0].id;
 
-  return { userId: userRow.rows[0].id, email: inviteeEmail, accessToken };
+  // 알려진 백엔드 inconsistency 우회: JwtStrategy.validate() 가 모든 요청마다
+  // findPersonalWorkspace(user.id) 를 강제하지만, register-with-invitation 경로는
+  // 명시적으로 "개인 워크스페이스 자동 생성 없음" 으로 동작한다. 따라서 초대로 가입한
+  // 사용자의 accessToken 으로 후속 API 를 호출하면 항상 401 이 떨어진다. e2e 에서
+  // RBAC 의미를 검증하기 위해 DB 에 personal workspace + 그 멤버십을 fast-track 으로
+  // 추가한다 (운영 흐름과 동등한 효과 — verifyEmail 이 같은 INSERT 를 수행).
+  const slug = `personal-${userId.slice(0, 8)}-${Date.now()}`;
+  await db.query(
+    `INSERT INTO workspace (name, type, owner_id, slug)
+     VALUES ($1, 'personal', $2, $3)
+     ON CONFLICT (slug) DO NOTHING`,
+    [`${inviteeName}'s Personal`, userId, slug],
+  );
+  await db.query(
+    `INSERT INTO workspace_member (workspace_id, user_id, role, joined_at)
+       SELECT w.id, $1, 'owner', NOW()
+         FROM workspace w
+        WHERE w.owner_id = $1 AND w.type = 'personal'
+     ON CONFLICT (workspace_id, user_id) DO NOTHING`,
+    [userId],
+  );
+
+  return { userId, email: inviteeEmail, accessToken };
 }
 
 /**
  * register/login 결과로 받은 refresh cookie 헤더에서 raw cookie 문자열을 추출.
  * 후속 refresh/logout 호출에 그대로 첨부할 수 있다.
+ *
+ * NestJS auth.controller 가 `refreshToken` 키로 cookie 를 발급하므로 (snake_case
+ * 아님), 매칭도 camelCase prefix 로 한다.
  */
 export function extractRefreshCookie(
   setCookieHeader: string[] | undefined,
 ): string | null {
   if (!setCookieHeader) return null;
-  const match = setCookieHeader.find((c) => c.startsWith('refresh_token='));
+  const match = setCookieHeader.find((c) => c.startsWith('refreshToken='));
   return match ? match.split(';')[0] : null;
 }

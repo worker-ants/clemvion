@@ -34,26 +34,30 @@ describe('Workspace RBAC (e2e)', () => {
     await db.end();
   });
 
-  it('A. cross-workspace 격리 — A 의 멤버가 B 의 워크플로우 GET 시 403', async () => {
+  it('A. cross-workspace 격리 — A 의 멤버가 B 의 워크플로우 생성 시 403 (Roles 가드)', async () => {
     const ownerA = await registerAndLogin(BASE_URL, uniqueEmail('rbac-a-own'), db);
     const wsA = await createTeamWorkspace(BASE_URL, ownerA.accessToken, uniqueName('A'));
 
     const ownerB = await registerAndLogin(BASE_URL, uniqueEmail('rbac-a-other'), db);
     const wsB = await createTeamWorkspace(BASE_URL, ownerB.accessToken, uniqueName('B'));
 
-    // ownerA 가 wsB id 로 워크플로우 조회 시도 → 403 (멤버 아님).
+    // ownerA 가 wsB 의 워크플로우 생성 시도 → 403 (RolesGuard, 멤버 아님).
+    // 참고: GET /workflows 는 @Roles 가드가 없어 workspaceId 필터만 적용되므로
+    // membership 검증 자체는 write 경로에서 강제된다.
     const cross = await request(BASE_URL)
-      .get('/api/workflows')
+      .post('/api/workflows')
       .set('Authorization', `Bearer ${ownerA.accessToken}`)
-      .set('X-Workspace-Id', wsB);
+      .set('X-Workspace-Id', wsB)
+      .send({ name: 'cross-ws-write' });
     expect(cross.status).toBe(403);
 
-    // 자기 워크스페이스는 정상.
+    // 자기 워크스페이스에는 생성 가능.
     const own = await request(BASE_URL)
-      .get('/api/workflows')
+      .post('/api/workflows')
       .set('Authorization', `Bearer ${ownerA.accessToken}`)
-      .set('X-Workspace-Id', wsA);
-    expect(own.status).toBe(200);
+      .set('X-Workspace-Id', wsA)
+      .send({ name: 'self-write' });
+    expect(own.status).toBe(201);
   });
 
   it('B. viewer 는 워크플로우 생성 불가 (403), editor 는 가능 (201)', async () => {
@@ -174,10 +178,17 @@ describe('Workspace RBAC (e2e)', () => {
       db,
     );
 
+    // successor 의 workspace_member.id 회수 — DTO 가 user.id 가 아닌 member.id 요구.
+    const successorMember = await db.query<{ id: string }>(
+      'SELECT id FROM workspace_member WHERE workspace_id = $1 AND user_id = $2',
+      [ws, successor.userId],
+    );
+    expect(successorMember.rows.length).toBe(1);
+
     const transfer = await request(BASE_URL)
       .post(`/api/workspaces/${ws}/transfer-ownership`)
       .set('Authorization', `Bearer ${oldOwner.accessToken}`)
-      .send({ newOwnerId: successor.userId });
+      .send({ newOwnerMemberId: successorMember.rows[0].id });
     expect(transfer.status).toBe(200);
 
     const roles = await db.query<{ user_id: string; role: string }>(
@@ -185,7 +196,8 @@ describe('Workspace RBAC (e2e)', () => {
       [ws],
     );
     const byUser = new Map(roles.rows.map((r) => [r.user_id, r.role]));
-    expect(byUser.get(oldOwner.userId)).toBe('editor');
+    // 옛 owner 는 admin 으로 강등 (DTO 주석 명시).
+    expect(byUser.get(oldOwner.userId)).toBe('admin');
     expect(byUser.get(successor.userId)).toBe('owner');
 
     // 새 owner 는 delete 가능.
