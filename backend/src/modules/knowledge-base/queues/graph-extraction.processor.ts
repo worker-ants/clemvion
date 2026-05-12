@@ -8,8 +8,8 @@ import {
 } from './graph-extraction.queue';
 import { GraphExtractionService } from '../graph/graph-extraction.service';
 import {
-  InvalidJobPayloadError,
   assertDocumentIdPayload,
+  logInvalidJobPayload,
 } from './job-payload.util';
 
 /**
@@ -47,12 +47,7 @@ export class GraphExtractionProcessor extends WorkerHost {
     try {
       documentId = assertDocumentIdPayload(job, 'GraphExtractionProcessor');
     } catch (err) {
-      if (err instanceof InvalidJobPayloadError) {
-        this.logger.error(
-          `Dropping invalid graph extraction job ${job.id ?? '<no-id>'}: ${err.reason} ` +
-            `(debug=${JSON.stringify(err.debug)})`,
-        );
-      }
+      logInvalidJobPayload(this.logger, 'graph extraction', job, err);
       throw err;
     }
     await this.extractionService.extractDocument(documentId);

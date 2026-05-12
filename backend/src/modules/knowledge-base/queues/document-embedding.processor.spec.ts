@@ -84,6 +84,16 @@ describe('DocumentEmbeddingProcessor', () => {
     expect(mockEmbeddingService.processDocument).not.toHaveBeenCalled();
   });
 
+  it('throws when documentId is whitespace only', async () => {
+    await expect(
+      processor.process({
+        id: 'job-w',
+        data: { documentId: '   ' },
+      } as never),
+    ).rejects.toThrow(InvalidJobPayloadError);
+    expect(mockEmbeddingService.processDocument).not.toHaveBeenCalled();
+  });
+
   it('skips finalize and graph chain when payload is non-batch + vector', async () => {
     await processor.onCompleted({
       data: {
@@ -107,6 +117,82 @@ describe('DocumentEmbeddingProcessor', () => {
         ragMode: 'vector',
       },
     } as never);
+    expect(mockDataSource.query).toHaveBeenCalledWith(
+      expect.stringMatching(/SET reembed_status = 'idle'/),
+      ['kb-1'],
+    );
+  });
+
+  it('chains graph extraction when ragMode=graph in payload (no DB lookup)', async () => {
+    await processor.onCompleted({
+      data: {
+        documentId: 'd1',
+        knowledgeBaseId: 'kb-1',
+        ragMode: 'graph',
+      },
+    } as never);
+    expect(mockDataSource.query).not.toHaveBeenCalled(); // payload 에 ragMode 있어 DB 조회 skip
+    expect(mockGraphQueue.add).toHaveBeenCalledWith('extract', {
+      documentId: 'd1',
+      knowledgeBaseId: 'kb-1',
+      isKbBatch: false,
+    });
+  });
+
+  it('chains graph extraction with isKbBatch=true through to graphQueue', async () => {
+    mockDataSource.query.mockResolvedValueOnce([]); // finalize UPDATE
+    await processor.onCompleted({
+      data: {
+        documentId: 'd1',
+        knowledgeBaseId: 'kb-1',
+        isKbBatch: true,
+        ragMode: 'graph',
+      },
+    } as never);
+    expect(mockGraphQueue.add).toHaveBeenCalledWith('extract', {
+      documentId: 'd1',
+      knowledgeBaseId: 'kb-1',
+      isKbBatch: true,
+    });
+  });
+
+  it('falls back to DB lookup when ragMode/knowledgeBaseId are missing', async () => {
+    mockDataSource.query.mockResolvedValueOnce([
+      { rag_mode: 'graph', knowledge_base_id: 'kb-from-db' },
+    ]);
+    await processor.onCompleted({ data: { documentId: 'd1' } } as never);
+    expect(mockDataSource.query).toHaveBeenCalledWith(
+      expect.stringContaining('SELECT kb.rag_mode'),
+      ['d1'],
+    );
+    expect(mockGraphQueue.add).toHaveBeenCalledWith('extract', {
+      documentId: 'd1',
+      knowledgeBaseId: 'kb-from-db',
+      isKbBatch: false,
+    });
+  });
+
+  it('does not chain when DB fallback returns vector ragMode', async () => {
+    mockDataSource.query.mockResolvedValueOnce([
+      { rag_mode: 'vector', knowledge_base_id: 'kb-from-db' },
+    ]);
+    await processor.onCompleted({ data: { documentId: 'd1' } } as never);
+    expect(mockGraphQueue.add).not.toHaveBeenCalled();
+  });
+
+  it('onFailed: skips finalize for non-batch jobs', async () => {
+    await processor.onFailed({
+      data: { documentId: 'd1', knowledgeBaseId: 'kb-1' },
+    } as never);
+    expect(mockDataSource.query).not.toHaveBeenCalled();
+  });
+
+  it('onFailed: runs the same atomic finalize for batch child', async () => {
+    mockDataSource.query.mockResolvedValueOnce([]);
+    await processor.onFailed({
+      data: { documentId: 'd1', knowledgeBaseId: 'kb-1', isKbBatch: true },
+    } as never);
+    expect(mockDataSource.query).toHaveBeenCalledTimes(1);
     expect(mockDataSource.query).toHaveBeenCalledWith(
       expect.stringMatching(/SET reembed_status = 'idle'/),
       ['kb-1'],

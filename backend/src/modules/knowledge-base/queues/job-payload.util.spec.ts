@@ -1,6 +1,8 @@
+import { UnrecoverableError } from 'bullmq';
 import {
   assertDocumentIdPayload,
   InvalidJobPayloadError,
+  isValidDocumentId,
 } from './job-payload.util';
 
 describe('assertDocumentIdPayload', () => {
@@ -71,5 +73,24 @@ describe('assertDocumentIdPayload', () => {
     expect((captured as InvalidJobPayloadError).debug.documentIdType).toBe(
       'number',
     );
+  });
+
+  it('inherits UnrecoverableError so BullMQ skips retries', () => {
+    const err = new InvalidJobPayloadError('reason', {});
+    expect(err).toBeInstanceOf(UnrecoverableError);
+  });
+});
+
+describe('isValidDocumentId', () => {
+  it.each([
+    ['valid uuid', 'd-uuid-1', true],
+    ['undefined', undefined, false],
+    ['null', null, false],
+    ['empty string', '', false],
+    ['whitespace only', '   ', false],
+    ['number', 42, false],
+    ['object', {}, false],
+  ])('treats %s as %s', (_label, input, expected) => {
+    expect(isValidDocumentId(input)).toBe(expected);
   });
 });

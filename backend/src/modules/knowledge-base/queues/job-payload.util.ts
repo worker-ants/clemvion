@@ -1,37 +1,52 @@
+import type { Logger } from '@nestjs/common';
 import type { Job } from 'bullmq';
+import { UnrecoverableError } from 'bullmq';
 
 /**
  * BullMQ job payload 검증 실패 시 throw 되는 에러.
  *
+ * `UnrecoverableError` 를 상속하므로 BullMQ 가 attempts 와 무관하게 즉시 `failed`
+ * 큐로 옮긴다 — 큐 설정(defaultJobOptions.attempts) 이 향후 늘어나도 손상 job 의
+ * 재시도 폭주를 코드 수준에서 막는다.
+ *
  * processor 의 catch 가 이 타입을 식별해 jobId/timestamp/payloadKeys 같은 디버그
- * 컨텍스트를 함께 로깅한다. 큐는 `defaultJobOptions` 가 비어 있어 BullMQ 기본
- * attempts=1 — throw 한 번에 곧장 `failed` 큐로 이동해 재시도 폭주를 막는다.
+ * 컨텍스트를 함께 로깅한다.
  */
-export class InvalidJobPayloadError extends Error {
+export class InvalidJobPayloadError extends UnrecoverableError {
+  public readonly debug: Record<string, unknown>;
+
   constructor(
     public readonly reason: string,
-    public readonly debug: Record<string, unknown>,
+    debug: Record<string, unknown>,
   ) {
     super(`Invalid job payload: ${reason}`);
     this.name = 'InvalidJobPayloadError';
+    this.debug = debug;
   }
 }
 
 /**
- * 손상/레거시 job 의 payload 에서 documentId 가 빠진 경우를 service 진입 전에
- * 차단한다. `undefined` / `null` / 빈 문자열 / 공백만 / non-string 을 모두 거부.
+ * documentId 가 BullMQ 큐 진입에 사용 가능한 형태인지 검증.
  *
- * 정상 흐름에서는 모든 producer 가 DB UUID 를 채워 enqueue 하므로 도달하지 않으나,
- * Redis 에 누적된 손상 job 또는 알 수 없는 외부 producer 가 만든 job 이 worker
- * 부팅 직후 service 의 `update(documentId=undefined, …)` 를 TypeORM "Empty
- * criteria(s)" 로 폭발시키던 회귀를 차단한다.
+ * 다음을 모두 차단: `undefined` / `null` / 빈 문자열 / 공백만(`'   '`) / non-string.
+ * processor·service·cleanup 스크립트가 동일 기준을 공유하기 위한 단일 진실 소스.
+ */
+export function isValidDocumentId(value: unknown): value is string {
+  return typeof value === 'string' && value.trim() !== '';
+}
+
+/**
+ * 손상/레거시 job 의 payload 를 service 진입 전에 차단한다. 정상 producer 는 항상
+ * DB UUID 를 채우므로 도달하지 않으나, Redis 에 누적된 손상 job 이 부팅 직후
+ * `documentRepository.update(undefined, …)` 를 TypeORM "Empty criteria(s)" 로
+ * 폭발시키던 회귀를 차단한다.
  */
 export function assertDocumentIdPayload<T extends { documentId?: unknown }>(
   job: Job<T>,
   context: string,
 ): string {
   const documentId = job.data?.documentId;
-  if (typeof documentId !== 'string' || documentId.trim() === '') {
+  if (!isValidDocumentId(documentId)) {
     throw new InvalidJobPayloadError(
       `${context}: documentId is missing or not a string`,
       {
@@ -45,4 +60,22 @@ export function assertDocumentIdPayload<T extends { documentId?: unknown }>(
     );
   }
   return documentId;
+}
+
+/**
+ * `InvalidJobPayloadError` 일 때만 진단 컨텍스트를 한 줄로 출력한다. 두 processor 가
+ * 동일 패턴으로 호출하므로 helper 로 추출.
+ */
+export function logInvalidJobPayload(
+  logger: Logger,
+  jobType: string,
+  job: Job<{ documentId?: unknown }>,
+  err: unknown,
+): void {
+  if (err instanceof InvalidJobPayloadError) {
+    logger.error(
+      `Dropping invalid ${jobType} job ${job.id ?? '<no-id>'}: ${err.reason} ` +
+        `(debug=${JSON.stringify(err.debug)})`,
+    );
+  }
 }

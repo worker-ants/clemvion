@@ -91,16 +91,20 @@ describe('GraphExtractionService', () => {
     service = module.get(GraphExtractionService);
   });
 
-  it('returns early without touching the repository when documentId is undefined', async () => {
-    await service.extractDocument(undefined as unknown as string);
-    expect(mockDocRepo.findOne).not.toHaveBeenCalled();
-    expect(mockDocRepo.update).not.toHaveBeenCalled();
-  });
-
-  it('returns early on empty documentId', async () => {
-    await service.extractDocument('');
-    expect(mockDocRepo.findOne).not.toHaveBeenCalled();
-  });
+  it.each([
+    ['undefined', undefined as unknown as string],
+    ['null', null as unknown as string],
+    ['empty string', ''],
+    ['whitespace only', '   '],
+  ])(
+    'returns early without touching the repository when documentId is %s',
+    async (_label, input) => {
+      await service.extractDocument(input);
+      expect(mockDocRepo.findOne).not.toHaveBeenCalled();
+      expect(mockDocRepo.update).not.toHaveBeenCalled();
+      expect(mockDocRepo.increment).not.toHaveBeenCalled();
+    },
+  );
 
   it('skips when KB rag_mode is vector', async () => {
     mockDocRepo.findOne.mockResolvedValue({
