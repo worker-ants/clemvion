@@ -35,6 +35,26 @@ function startOauth(provider: OAuthProvider) {
   window.location.href = `${API_BASE_URL}/auth/oauth/${provider}?mode=register`;
 }
 
+/**
+ * 백엔드 응답은 GlobalExceptionFilter 가 `{error: {code, message, ...}}` 로 wrap 한다.
+ * 일부 컨트롤러는 평탄한 `{code, message}` 도 반환할 수 있어 양쪽을 모두 탐색한다.
+ */
+type ApiErrorBody = {
+  code?: string;
+  message?: string;
+  error?: { code?: string; message?: string };
+};
+
+function extractApiCode(err: AxiosError<ApiErrorBody>): string | undefined {
+  const data = err.response?.data;
+  return data?.code ?? data?.error?.code;
+}
+
+function extractApiMessage(err: AxiosError<ApiErrorBody>): string | undefined {
+  const data = err.response?.data;
+  return data?.message ?? data?.error?.message;
+}
+
 interface RegisterFormProps {
   enabledProviders?: OAuthProvider[];
   /** spec/2-navigation/10-auth-flow.md §2.6 — 메일 링크로 들어왔을 때만 채워진다. */
@@ -88,14 +108,11 @@ function RegisterFormInner({
         if (!cancelled) setInvitationState({ kind: "ready", meta });
       } catch (err) {
         if (cancelled) return;
-        const error = err as AxiosError<{
-          message?: string;
-          code?: string;
-        }>;
+        const error = err as AxiosError<ApiErrorBody>;
         setInvitationState({
           kind: "error",
           status: error.response?.status,
-          message: error.response?.data?.message,
+          message: extractApiMessage(error),
         });
       }
     })();
@@ -182,12 +199,12 @@ function RegisterFormInner({
         router.push("/verify-email");
       }
     } catch (err) {
-      const error = err as AxiosError<{ message?: string; code?: string }>;
-      const code = error.response?.data?.code;
+      const error = err as AxiosError<ApiErrorBody>;
+      const code = extractApiCode(error);
       const message =
         code === INVITATION_ERROR.EMAIL_MISMATCH
           ? t("auth.register.invitationEmailMismatch")
-          : error.response?.data?.message ?? t("auth.register.genericFailed");
+          : extractApiMessage(error) ?? t("auth.register.genericFailed");
       toast.error(message);
     } finally {
       setIsLoading(false);
