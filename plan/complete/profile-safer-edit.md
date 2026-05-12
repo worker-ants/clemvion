@@ -55,15 +55,15 @@ frontend 수정:
 - [x] `cd frontend && npx vitest run` — 1276/1277 (사전 회귀 1건은 `executions-list-test-regression.md` 로 분리, 본 변경과 무관)
 - [x] `cd frontend && npm run build` — 통과
 - [x] `/profile` playwright e2e 시나리오 추가 — `frontend/e2e/profile/profile-edit.spec.ts` 신규 4 케이스 (디폴트 readonly · 이름 편집→diff→확정→PATCH · 환경설정 [취소]→PATCH 미호출 · 비밀번호 sub-route 진입→POST→리다이렉트). 4/4 통과.
-- [ ] backend e2e — backend 변경 없음 → 대상 아님
-- [ ] 수동 확인 (dev server) — 다음 작업 (별도 검증 단계)
+- [x] backend e2e — backend 변경 없음 → 대상 아님 (N/A)
+- [x] 수동 확인 (dev server) — 사이드바 진입 readonly · Network 탭 PATCH 격리 · 테마 라이브 프리뷰 후 [취소] 원복 모두 정상 (2026-05-13)
 
 ### Phase 4 — 마무리 ✅ (라이프사이클 이동 대기)
 
 - [x] ai-review 실행 — `review/2026-05-13_08-07-24/` (13개 에이전트 병렬 리뷰)
 - [x] `review/2026-05-13_08-07-24/RESOLUTION.md` 작성 — CRITICAL 1 + WARN 11 + INFO 11 처리, 보류 8건 사유 명시
 - [x] 조치 후 TEST WORKFLOW 재통과 (lint·vitest·build 모두 통과)
-- [ ] 본 plan 의 Phase 3 잔여 항목(playwright e2e, 수동 확인) 완료 후 `git mv plan/in-progress/profile-safer-edit.md plan/complete/profile-safer-edit.md`
+- [x] 모든 항목 완료 — `git mv plan/in-progress/profile-safer-edit.md plan/complete/profile-safer-edit.md`
 
 ## 후속 follow-up (별도 plan)
 
