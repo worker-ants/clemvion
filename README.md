@@ -236,6 +236,24 @@ python3 scripts/check-doc-links.py
 - 검사 항목: 파일 경로 존재 여부, anchor (`#section`) 가 대상 파일 헤딩 슬러그에 매칭되는지, MDX `spec:` 배열의 모든 경로 존재 여부
 - PR 머지 전 또는 spec/PRD 헤딩을 변경한 후 한 번씩 돌려서 cross-reference 깨짐을 잡는 용도
 
+### 운영 스크립트 (backend/scripts)
+
+NestJS 앱을 부팅하지 않고 단발성 도구만 실행하는 스크립트들. 모두 `ts-node` (devDependencies) 로 실행한다.
+
+#### BullMQ 손상 job 정리
+
+`document-embedding` · `graph-extraction` 큐에 누적된 손상 job (payload 에 `documentId` 가 비어있는 레거시·외부 inject) 을 1회 청소한다. 정상 producer 는 항상 DB UUID 를 채워 enqueue 하므로 false-positive 가 없다.
+
+```bash
+# dry-run — 후보만 출력, 삭제 없음
+npx ts-node backend/scripts/cleanup-invalid-queue-jobs.ts
+
+# apply — 손상 job 만 remove()
+npx ts-node backend/scripts/cleanup-invalid-queue-jobs.ts --apply
+```
+
+운영 절차: ① 워커 정지 또는 큐 pause (active job TOCTOU 방지) → ② dry-run 결과 검토 (jobId / name / timestamp / payloadKeys) → ③ `--apply` 실행 → ④ 워커 재기동. BullMQ Queue 만 `REDIS_HOST` / `REDIS_PORT` 환경변수로 직접 인스턴스화하므로 `@Processor` 워커가 활성화되지 않고 DB 자격증명도 로드되지 않는다.
+
 ## Docker / Kubernetes 배포
 
 > 로컬 dev 풀스택 기동은 `docker compose --profile app up` 으로 대체할 수 있습니다 (위 「1. 인프라 실행」의 모드 B 참고). 아래 절차는 **프로덕션 이미지 빌드/배포** 용입니다.
