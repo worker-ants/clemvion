@@ -1,12 +1,14 @@
 import {
+  BadRequestException,
   ConflictException,
   ForbiddenException,
+  GoneException,
   Injectable,
-  NotFoundException,
   Logger,
+  NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { LessThan, Repository } from 'typeorm';
+import { DataSource, EntityManager, LessThan, Repository } from 'typeorm';
 import { randomBytes } from 'crypto';
 import {
   InvitationRole,
@@ -20,15 +22,27 @@ import { MailService } from '../mail/mail.service';
 const INVITATION_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 const ADMIN_ROLES = new Set<string>(['owner', 'admin']);
 
+export interface InvitationMeta {
+  workspaceName: string;
+  invitedByName: string | null;
+  email: string;
+  role: InvitationRole;
+  expiresAt: Date;
+}
+
+function generateToken(): string {
+  // 48 random bytes → 64-char base64url string. Matches spec/5-system/1-auth.md §1.5.1.
+  return randomBytes(48).toString('base64url');
+}
+
 /**
  * Manages pending workspace invitations for users who may not yet have accounts.
- * The flow:
- *   1. Admin calls invite() with email + role → row created, email dispatched
- *   2. Invitee clicks the link, signs up if needed, then calls accept(token)
- *   3. accept() validates expiry, creates WorkspaceMember, marks row accepted
+ * Spec: spec/5-system/1-auth.md §1.5, spec/2-navigation/9-user-profile.md §4.1.1
  *
- * Sibling to {@link WorkspacesService.addMemberByEmail} which only handles
- * users that *already* exist in the system.
+ * Per-(workspace, email) pending row is **single** (enforced by partial UNIQUE
+ * idx_workspace_invitation_pending_unique). Re-inviting the same email or
+ * resending overwrites the same row — the previous token becomes invalid as
+ * soon as the column is replaced.
  */
 @Injectable()
 export class WorkspaceInvitationsService {
@@ -44,6 +58,7 @@ export class WorkspaceInvitationsService {
     @InjectRepository(User)
     private readonly userRepository: Repository<User>,
     private readonly mailService: MailService,
+    private readonly dataSource: DataSource,
   ) {}
 
   /** Admin+ invites an email address to a team workspace. */
@@ -87,50 +102,147 @@ export class WorkspaceInvitationsService {
       }
     }
 
+    // Spec policy: same (workspace, email) pending → invalidate old token + reissue.
+    // We update the existing row (partial UNIQUE keeps it singular) so the previous
+    // token stops working immediately.
     const pending = await this.invitationRepository.findOne({
       where: { workspaceId, email: normalized, acceptedAt: null as never },
     });
+
+    const token = generateToken();
+    const expiresAt = new Date(Date.now() + INVITATION_TTL_MS);
+    let saved: WorkspaceInvitation;
     if (pending) {
-      throw new ConflictException({
-        code: 'INVITATION_ALREADY_PENDING',
-        message: '이미 발송된 미수락 초대가 있습니다.',
-      });
-    }
-
-    const token = randomBytes(24).toString('hex');
-    const invitation = this.invitationRepository.create({
-      workspaceId,
-      email: normalized,
-      role,
-      token,
-      invitedBy: requesterId,
-      expiresAt: new Date(Date.now() + INVITATION_TTL_MS),
-    });
-    const saved = await this.invitationRepository.save(invitation);
-
-    try {
-      await this.mailService.sendWorkspaceInvitationEmail(
-        normalized,
-        workspace.name,
+      pending.token = token;
+      pending.role = role;
+      pending.invitedBy = requesterId;
+      pending.expiresAt = expiresAt;
+      saved = await this.invitationRepository.save(pending);
+    } else {
+      const invitation = this.invitationRepository.create({
+        workspaceId,
+        email: normalized,
+        role,
         token,
-      );
-    } catch (err) {
-      // Mail failure shouldn't roll back the invitation row — admin can
-      // resend or surface the link manually. Log loudly so the operator
-      // knows to investigate the mail transport.
-      this.logger.error(
-        `Failed to send invitation email to ${normalized}: ${
-          err instanceof Error ? err.message : String(err)
-        }`,
-      );
+        invitedBy: requesterId,
+        expiresAt,
+      });
+      saved = await this.invitationRepository.save(invitation);
     }
+
+    const inviter = await this.userRepository.findOne({
+      where: { id: requesterId },
+    });
+    await this.dispatchEmail(
+      normalized,
+      workspace.name,
+      inviter?.name ?? null,
+      token,
+    );
 
     return saved;
   }
 
   /**
+   * Admin+ resends a pending invitation. Issues a fresh token (old one becomes
+   * invalid) and resets the expiry clock from now.
+   */
+  async resend(
+    workspaceId: string,
+    invitationId: string,
+    requesterId: string,
+  ): Promise<WorkspaceInvitation> {
+    await this.assertAdmin(workspaceId, requesterId);
+
+    const invitation = await this.invitationRepository.findOne({
+      where: { id: invitationId, workspaceId },
+    });
+    if (!invitation) {
+      throw new NotFoundException({
+        code: 'INVITATION_NOT_FOUND',
+        message: '초대를 찾을 수 없습니다.',
+      });
+    }
+    if (invitation.acceptedAt) {
+      throw new ConflictException({
+        code: 'INVITATION_ALREADY_ACCEPTED',
+        message: '이미 수락된 초대는 재발송할 수 없습니다.',
+      });
+    }
+
+    invitation.token = generateToken();
+    invitation.expiresAt = new Date(Date.now() + INVITATION_TTL_MS);
+    invitation.invitedBy = requesterId;
+    const saved = await this.invitationRepository.save(invitation);
+
+    const workspace = await this.workspaceRepository.findOne({
+      where: { id: workspaceId },
+    });
+    const inviter = await this.userRepository.findOne({
+      where: { id: requesterId },
+    });
+    await this.dispatchEmail(
+      invitation.email,
+      workspace?.name ?? '',
+      inviter?.name ?? null,
+      saved.token,
+    );
+
+    return saved;
+  }
+
+  /**
+   * Public token lookup for the registration page (no auth). Returns the
+   * minimum metadata needed to prefill the sign-up form. Expired / consumed
+   * tokens raise GoneException(410) so the frontend can show a clear message.
+   */
+  async getMetaByToken(token: string): Promise<InvitationMeta> {
+    const invitation = await this.invitationRepository.findOne({
+      where: { token },
+    });
+    if (!invitation) {
+      throw new NotFoundException({
+        code: 'invitation_not_found',
+        message: '초대 토큰이 유효하지 않습니다.',
+      });
+    }
+    if (invitation.acceptedAt) {
+      throw new GoneException({
+        code: 'invitation_already_used',
+        message: '이미 사용된 초대입니다.',
+      });
+    }
+    if (invitation.expiresAt.getTime() < Date.now()) {
+      throw new GoneException({
+        code: 'invitation_expired',
+        message: '초대가 만료되었습니다.',
+      });
+    }
+
+    const [workspace, inviter] = await Promise.all([
+      this.workspaceRepository.findOne({
+        where: { id: invitation.workspaceId },
+      }),
+      invitation.invitedBy
+        ? this.userRepository.findOne({ where: { id: invitation.invitedBy } })
+        : Promise.resolve(null),
+    ]);
+
+    return {
+      workspaceName: workspace?.name ?? '',
+      invitedByName: inviter?.name ?? null,
+      email: invitation.email,
+      role: invitation.role,
+      expiresAt: invitation.expiresAt,
+    };
+  }
+
+  /**
    * Accept an invitation. Caller must be an authenticated user whose email
    * matches the invitation's email (case-insensitive).
+   *
+   * Single transaction with a guarded UPDATE on accepted_at so a concurrent
+   * second accept call observes the row already consumed (returns 410).
    */
   async accept(
     token: string,
@@ -141,19 +253,19 @@ export class WorkspaceInvitationsService {
     });
     if (!invitation) {
       throw new NotFoundException({
-        code: 'INVITATION_NOT_FOUND',
+        code: 'invitation_not_found',
         message: '초대 토큰이 유효하지 않습니다.',
       });
     }
     if (invitation.acceptedAt) {
-      throw new ConflictException({
-        code: 'INVITATION_ALREADY_ACCEPTED',
+      throw new GoneException({
+        code: 'invitation_already_used',
         message: '이미 사용된 초대입니다.',
       });
     }
     if (invitation.expiresAt.getTime() < Date.now()) {
-      throw new ConflictException({
-        code: 'INVITATION_EXPIRED',
+      throw new GoneException({
+        code: 'invitation_expired',
         message: '초대가 만료되었습니다.',
       });
     }
@@ -166,30 +278,65 @@ export class WorkspaceInvitationsService {
       });
     }
     if (user.email.toLowerCase() !== invitation.email) {
-      throw new ForbiddenException({
-        code: 'INVITATION_EMAIL_MISMATCH',
+      throw new BadRequestException({
+        code: 'invitation_email_mismatch',
         message: '초대 이메일과 로그인 이메일이 일치하지 않습니다.',
       });
     }
 
-    const existingMember = await this.memberRepository.findOne({
-      where: { workspaceId: invitation.workspaceId, userId },
-    });
-    if (!existingMember) {
-      const member = this.memberRepository.create({
-        workspaceId: invitation.workspaceId,
+    return this.dataSource.transaction(async (manager) =>
+      this.applyAccept(
+        manager,
+        invitation.id,
+        invitation.workspaceId,
+        invitation.role,
         userId,
-        role: invitation.role,
-        joinedAt: new Date(),
+      ),
+    );
+  }
+
+  /**
+   * Used by AuthService during invitationToken-driven sign-up. Caller is
+   * responsible for creating the User row in the same transaction; we just add
+   * the membership and stamp the invitation as consumed.
+   *
+   * Email comparison is the caller's responsibility (sign-up uses the token's
+   * email as the source of truth).
+   */
+  async consumeForRegistration(
+    manager: EntityManager,
+    token: string,
+    userId: string,
+  ): Promise<{ workspaceId: string; role: InvitationRole; email: string }> {
+    const invitationRepo = manager.getRepository(WorkspaceInvitation);
+    const invitation = await invitationRepo.findOne({ where: { token } });
+    if (!invitation) {
+      throw new NotFoundException({
+        code: 'invitation_not_found',
+        message: '초대 토큰이 유효하지 않습니다.',
       });
-      await this.memberRepository.save(member);
+    }
+    if (invitation.acceptedAt) {
+      throw new GoneException({
+        code: 'invitation_already_used',
+        message: '이미 사용된 초대입니다.',
+      });
+    }
+    if (invitation.expiresAt.getTime() < Date.now()) {
+      throw new GoneException({
+        code: 'invitation_expired',
+        message: '초대가 만료되었습니다.',
+      });
     }
 
-    invitation.acceptedAt = new Date();
-    invitation.acceptedBy = userId;
-    await this.invitationRepository.save(invitation);
-
-    return { workspaceId: invitation.workspaceId, role: invitation.role };
+    const consumed = await this.applyAccept(
+      manager,
+      invitation.id,
+      invitation.workspaceId,
+      invitation.role,
+      userId,
+    );
+    return { ...consumed, email: invitation.email };
   }
 
   /** Admin+ lists pending invitations for a workspace. */
@@ -239,6 +386,71 @@ export class WorkspaceInvitationsService {
       expiresAt: LessThan(now),
     });
     return result.affected ?? 0;
+  }
+
+  private async applyAccept(
+    manager: EntityManager,
+    invitationId: string,
+    workspaceId: string,
+    role: InvitationRole,
+    userId: string,
+  ): Promise<{ workspaceId: string; role: InvitationRole }> {
+    const invitationRepo = manager.getRepository(WorkspaceInvitation);
+    const memberRepo = manager.getRepository(WorkspaceMember);
+
+    // Atomic consume — second concurrent caller sees affected=0 and races out.
+    const update = await invitationRepo
+      .createQueryBuilder()
+      .update(WorkspaceInvitation)
+      .set({ acceptedAt: () => 'NOW()', acceptedBy: userId })
+      .where('id = :id AND accepted_at IS NULL', { id: invitationId })
+      .execute();
+    if (!update.affected) {
+      throw new GoneException({
+        code: 'invitation_already_used',
+        message: '이미 사용된 초대입니다.',
+      });
+    }
+
+    const existingMember = await memberRepo.findOne({
+      where: { workspaceId, userId },
+    });
+    if (!existingMember) {
+      const member = memberRepo.create({
+        workspaceId,
+        userId,
+        role,
+        joinedAt: new Date(),
+      });
+      await memberRepo.save(member);
+    }
+
+    return { workspaceId, role };
+  }
+
+  private async dispatchEmail(
+    email: string,
+    workspaceName: string,
+    invitedByName: string | null,
+    token: string,
+  ): Promise<void> {
+    try {
+      await this.mailService.sendWorkspaceInvitationEmail(
+        email,
+        workspaceName,
+        invitedByName,
+        token,
+      );
+    } catch (err) {
+      // Mail failure shouldn't roll back the invitation row — admin can
+      // resend or surface the link manually. Log loudly so the operator
+      // knows to investigate the mail transport.
+      this.logger.error(
+        `Failed to send invitation email to ${email}: ${
+          err instanceof Error ? err.message : String(err)
+        }`,
+      );
+    }
   }
 
   private async assertAdmin(

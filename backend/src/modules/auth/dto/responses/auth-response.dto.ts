@@ -43,6 +43,19 @@ export class AuthMessageDto {
   message: string;
 }
 
+/** 회원가입 응답. 초대 토큰 가입은 accessToken 이 동봉된 자동 로그인 형태. */
+export class RegisterResultDto {
+  @ApiProperty()
+  message: string;
+
+  @ApiProperty({
+    required: false,
+    description:
+      '초대 토큰으로 가입한 경우 즉시 발급되는 Access Token. 일반 가입은 누락(이메일 인증 후 발급).',
+  })
+  accessToken?: string;
+}
+
 /** 이메일 사용 가능 여부 */
 export class CheckEmailResultDto {
   @ApiProperty({ description: 'true면 해당 이메일로 가입 가능' })

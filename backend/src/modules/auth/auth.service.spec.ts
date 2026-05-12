@@ -13,6 +13,7 @@ import { AuthService } from './auth.service';
 import { RefreshToken } from './entities/refresh-token.entity';
 import { UsersService } from '../users/users.service';
 import { WorkspacesService } from '../workspaces/workspaces.service';
+import { WorkspaceInvitationsService } from '../workspaces/workspace-invitations.service';
 import { MailService } from '../mail/mail.service';
 import { User } from '../users/entities/user.entity';
 import { LoginHistoryService } from './login-history.service';
@@ -21,6 +22,7 @@ describe('AuthService', () => {
   let service: AuthService;
   let usersService: jest.Mocked<UsersService>;
   let workspacesService: jest.Mocked<WorkspacesService>;
+  let invitationsService: jest.Mocked<WorkspaceInvitationsService>;
   let mailService: jest.Mocked<MailService>;
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   let jwtService: jest.Mocked<JwtService>;
@@ -96,7 +98,15 @@ describe('AuthService', () => {
             findOrCreatePersonalWorkspace: jest.fn().mockResolvedValue({
               id: 'ws-uuid-1',
             }),
+            listForUser: jest.fn().mockResolvedValue([]),
             getMemberRole: jest.fn().mockResolvedValue('owner'),
+          },
+        },
+        {
+          provide: WorkspaceInvitationsService,
+          useValue: {
+            getMetaByToken: jest.fn(),
+            consumeForRegistration: jest.fn(),
           },
         },
         {
@@ -142,6 +152,7 @@ describe('AuthService', () => {
     service = module.get<AuthService>(AuthService);
     usersService = module.get(UsersService);
     workspacesService = module.get(WorkspacesService);
+    invitationsService = module.get(WorkspaceInvitationsService);
     mailService = module.get(MailService);
     jwtService = module.get(JwtService);
     refreshTokenRepo = module.get(getRepositoryToken(RefreshToken));
@@ -206,6 +217,132 @@ describe('AuthService', () => {
           password: 'alllowercase',
         }),
       ).rejects.toThrow(BadRequestException);
+    });
+  });
+
+  describe('register (with invitationToken)', () => {
+    function stubInvitationFriendlyDataSource() {
+      mockDataSource.transaction.mockImplementation(
+        async (cb: (manager: unknown) => Promise<unknown>) => {
+          const mockManager = {
+            getRepository: jest.fn().mockReturnValue({
+              create: jest.fn().mockImplementation((data) => data),
+              save: jest.fn().mockImplementation((data) =>
+                Promise.resolve({
+                  ...data,
+                  id: 'user-uuid-new',
+                  emailVerified: true,
+                }),
+              ),
+              update: jest.fn().mockResolvedValue(undefined),
+            }),
+          };
+          return cb(mockManager);
+        },
+      );
+    }
+
+    beforeEach(() => {
+      stubInvitationFriendlyDataSource();
+      // Invitation-token sign-ups land into the team workspace; no personal
+      // workspace exists yet, but they ARE a member, so resolveTokenWorkspaceContext
+      // should pick that one.
+      workspacesService.findPersonalWorkspace.mockResolvedValue(null);
+      workspacesService.listForUser.mockResolvedValue([
+        {
+          id: 'team-ws-1',
+          name: 'Team',
+          role: 'editor',
+        } as never,
+      ]);
+    });
+
+    it('rejects when invitation email does not match register email', async () => {
+      usersService.emailExists.mockResolvedValue(false);
+      invitationsService.getMetaByToken.mockResolvedValue({
+        workspaceName: 'Team',
+        invitedByName: 'Alice',
+        email: 'invited@example.com',
+        role: 'editor',
+        expiresAt: new Date(Date.now() + 60_000),
+      });
+
+      await expect(
+        service.register({
+          name: 'Test',
+          email: 'someone-else@example.com',
+          password: 'Test123!@#',
+          invitationToken: 'a'.repeat(64),
+        }),
+      ).rejects.toThrow(BadRequestException);
+
+      expect(usersService.create).not.toHaveBeenCalled();
+      expect(mailService.sendVerificationEmail).not.toHaveBeenCalled();
+    });
+
+    it('creates user inside transaction, consumes invitation, auto-logs in, no verification email', async () => {
+      usersService.emailExists.mockResolvedValue(false);
+      invitationsService.getMetaByToken.mockResolvedValue({
+        workspaceName: 'Team',
+        invitedByName: 'Alice',
+        email: 'invited@example.com',
+        role: 'editor',
+        expiresAt: new Date(Date.now() + 60_000),
+      });
+      invitationsService.consumeForRegistration.mockResolvedValue({
+        workspaceId: 'team-ws-1',
+        role: 'editor',
+        email: 'invited@example.com',
+      });
+
+      const result = await service.register({
+        name: 'Invitee',
+        email: 'invited@example.com',
+        password: 'Test123!@#',
+        invitationToken: 'a'.repeat(64),
+      });
+
+      if (!('accessToken' in result)) {
+        throw new Error('expected accessToken in invitation-flow response');
+      }
+      expect(result.accessToken).toBe('mock-access-token');
+      expect(result.refreshToken).toBeDefined();
+
+      // Verification email must NOT be sent (token proves email ownership).
+      expect(mailService.sendVerificationEmail).not.toHaveBeenCalled();
+      // usersService.create (which is the no-invitation path) is bypassed.
+      expect(usersService.create).not.toHaveBeenCalled();
+      // Transaction wrapped the user creation + invitation consumption.
+      expect(mockDataSource.transaction).toHaveBeenCalled();
+      expect(invitationsService.consumeForRegistration).toHaveBeenCalledWith(
+        expect.anything(),
+        'a'.repeat(64),
+        'user-uuid-new',
+      );
+      // No personal workspace was created — generateTokens used the existing
+      // team membership.
+      expect(
+        workspacesService.findOrCreatePersonalWorkspace,
+      ).not.toHaveBeenCalled();
+      expect(workspacesService.createPersonalWorkspace).not.toHaveBeenCalled();
+    });
+
+    it('propagates GoneException when token is already consumed (transaction rolls back)', async () => {
+      usersService.emailExists.mockResolvedValue(false);
+      invitationsService.getMetaByToken.mockRejectedValue(
+        Object.assign(new Error('used'), { status: 410 }),
+      );
+
+      await expect(
+        service.register({
+          name: 'Test',
+          email: 'invited@example.com',
+          password: 'Test123!@#',
+          invitationToken: 'a'.repeat(64),
+        }),
+      ).rejects.toBeDefined();
+
+      expect(usersService.create).not.toHaveBeenCalled();
     });
   });
 
@@ -440,17 +577,19 @@ describe('AuthService', () => {
   });
 
   describe('generateTokens (via login)', () => {
-    it('should create workspace if none exists when logging in', async () => {
+    it('should create personal workspace as fallback when user has no memberships', async () => {
       const hash = await bcrypt.hash('Test123!@#', 12);
       usersService.findByEmail.mockResolvedValue({
         ...mockUser,
         passwordHash: hash,
       } as User);
 
+      // resolveTokenWorkspaceContext order: findPersonalWorkspace → listForUser → fallback create.
+      workspacesService.findPersonalWorkspace.mockResolvedValue(null);
+      workspacesService.listForUser.mockResolvedValue([]);
       workspacesService.findOrCreatePersonalWorkspace.mockResolvedValue({
         id: 'new-ws-uuid',
       } as never);
-      workspacesService.getMemberRole.mockResolvedValue('owner');
 
       const result = await service.login({
         email: 'test@example.com',
@@ -464,6 +603,35 @@ describe('AuthService', () => {
       expect(
         workspacesService.findOrCreatePersonalWorkspace,
       ).toHaveBeenCalledWith('user-uuid-1', 'Test User', 'test@example.com');
+    });
+
+    it('uses existing membership over creating a personal workspace', async () => {
+      const hash = await bcrypt.hash('Test123!@#', 12);
+      usersService.findByEmail.mockResolvedValue({
+        ...mockUser,
+        passwordHash: hash,
+      } as User);
+
+      // Invitation-token sign-up scenario: no personal workspace, but a team
+      // membership exists — generateTokens must not auto-create personal.
+      workspacesService.findPersonalWorkspace.mockResolvedValue(null);
+      workspacesService.listForUser.mockResolvedValue([
+        { id: 'team-ws-1', name: 'Team', role: 'editor' } as never,
+      ]);
+
+      const result = await service.login({
+        email: 'test@example.com',
+        password: 'Test123!@#',
+      });
+
+      if ('requiresTotp' in result) {
+        throw new Error('expected token result, got 2FA challenge');
+      }
+      expect(result.accessToken).toBe('mock-access-token');
+      expect(
+        workspacesService.findOrCreatePersonalWorkspace,
+      ).not.toHaveBeenCalled();
+      expect(workspacesService.createPersonalWorkspace).not.toHaveBeenCalled();
     });
   });
 

@@ -15,6 +15,7 @@ import { User } from '../users/entities/user.entity';
 import { RefreshToken } from './entities/refresh-token.entity';
 import { UsersService } from '../users/users.service';
 import { WorkspacesService } from '../workspaces/workspaces.service';
+import { WorkspaceInvitationsService } from '../workspaces/workspace-invitations.service';
 import { MailService } from '../mail/mail.service';
 import { validatePasswordStrength } from '../../common/utils/password.util';
 import { LoginHistoryService } from './login-history.service';
@@ -32,6 +33,7 @@ export class AuthService {
     private readonly configService: ConfigService,
     private readonly usersService: UsersService,
     private readonly workspacesService: WorkspacesService,
+    private readonly invitationsService: WorkspaceInvitationsService,
     private readonly mailService: MailService,
     @InjectRepository(RefreshToken)
     private readonly refreshTokenRepository: Repository<RefreshToken>,
@@ -40,11 +42,18 @@ export class AuthService {
   ) {}
 
   // ========== REGISTER ==========
-  async register(dto: {
-    name: string;
-    email: string;
-    password: string;
-  }): Promise<{ message: string }> {
+  async register(
+    dto: {
+      name: string;
+      email: string;
+      password: string;
+      invitationToken?: string;
+    },
+    ctx: AuthContext = {},
+  ): Promise<
+    | { message: string }
+    | { message: string; accessToken: string; refreshToken: string }
+  > {
     const exists = await this.usersService.emailExists(dto.email);
     if (exists) {
       throw new ConflictException({
@@ -54,6 +63,10 @@ export class AuthService {
     }
 
     validatePasswordStrength(dto.password);
+
+    if (dto.invitationToken) {
+      return this.registerWithInvitation(dto, dto.invitationToken, ctx);
+    }
 
     const passwordHash = await bcrypt.hash(dto.password, BCRYPT_ROUNDS);
     const emailVerifyToken = uuidv4();
@@ -75,6 +88,72 @@ export class AuthService {
     );
 
     return { message: 'Registration successful. Please verify your email.' };
+  }
+
+  /**
+   * Sign-up via an invitation token. The token is the proof of email
+   * ownership, so we skip the verification mail and auto-login. User row +
+   * workspace membership + invitation.acceptedAt all live in one transaction
+   * so a partial failure rolls back the whole thing (spec/5-system/1-auth.md §1.5.2).
+   *
+   * No personal workspace is auto-created — the invited team workspace is the
+   * user's first context (spec/2-navigation/10-auth-flow.md §6.1).
+   */
+  private async registerWithInvitation(
+    dto: { name: string; email: string; password: string },
+    invitationToken: string,
+    ctx: AuthContext,
+  ): Promise<{
+    message: string;
+    accessToken: string;
+    refreshToken: string;
+  }> {
+    const meta = await this.invitationsService.getMetaByToken(invitationToken);
+    if (meta.email.toLowerCase() !== dto.email.trim().toLowerCase()) {
+      throw new BadRequestException({
+        code: 'invitation_email_mismatch',
+        message: '초대 이메일과 가입 이메일이 일치하지 않습니다.',
+      });
+    }
+
+    const passwordHash = await bcrypt.hash(dto.password, BCRYPT_ROUNDS);
+
+    const savedUser = await this.dataSource.transaction(async (manager) => {
+      const userRepo = manager.getRepository(User);
+      const newUser = userRepo.create({
+        name: dto.name,
+        email: dto.email.trim().toLowerCase(),
+        passwordHash,
+        emailVerified: true,
+      });
+      const saved = await userRepo.save(newUser);
+
+      // consumeForRegistration enforces token validity + adds the membership.
+      // Email match was already enforced above; the token's email is the
+      // source of truth for the workspace association.
+      await this.invitationsService.consumeForRegistration(
+        manager,
+        invitationToken,
+        saved.id,
+      );
+
+      return saved;
+    });
+
+    const tokens = await this.generateTokens(savedUser, false, undefined, ctx);
+    void this.loginHistory.record({
+      userId: savedUser.id,
+      email: savedUser.email,
+      event: 'login_success',
+      ip: ctx.ip ?? null,
+      userAgent: ctx.userAgent ?? null,
+    });
+
+    return {
+      message: 'Registration successful.',
+      accessToken: tokens.accessToken,
+      refreshToken: tokens.refreshToken,
+    };
   }
 
   // ========== VERIFY EMAIL ==========
@@ -503,21 +582,13 @@ export class AuthService {
     familyId?: string,
     ctx: AuthContext = {},
   ): Promise<{ accessToken: string; refreshToken: string }> {
-    const workspace =
-      await this.workspacesService.findOrCreatePersonalWorkspace(
-        user.id,
-        user.name,
-        user.email,
-      );
-    const role =
-      (await this.workspacesService.getMemberRole(workspace.id, user.id)) ??
-      'owner';
+    const context = await this.resolveTokenWorkspaceContext(user);
 
     const accessPayload = {
       sub: user.id,
       email: user.email,
-      workspaceId: workspace.id,
-      role,
+      workspaceId: context.workspaceId,
+      role: context.role,
     };
 
     const accessToken = this.jwtService.sign(accessPayload, {
@@ -545,6 +616,46 @@ export class AuthService {
     await this.refreshTokenRepository.save(refreshTokenEntity);
 
     return { accessToken, refreshToken: rawRefreshToken };
+  }
+
+  /**
+   * Resolve which workspace this token's `workspaceId` claim should point at.
+   * Order:
+   *   1. The user's personal workspace if one exists (legacy users stay sticky).
+   *   2. Otherwise the first workspace they're a member of (invitation-token
+   *      sign-ups land here — their only membership is the team that invited
+   *      them, so no personal workspace gets auto-created).
+   *   3. Otherwise create the personal workspace (true cold-start fallback).
+   *
+   * This is the choke point that keeps spec/2-navigation/10-auth-flow.md §6.1
+   * honest — `invitationToken` sign-ups must NOT trigger a personal workspace.
+   */
+  private async resolveTokenWorkspaceContext(
+    user: User,
+  ): Promise<{ workspaceId: string; role: string }> {
+    const personal = await this.workspacesService.findPersonalWorkspace(
+      user.id,
+    );
+    if (personal) {
+      const role =
+        (await this.workspacesService.getMemberRole(personal.id, user.id)) ??
+        'owner';
+      return { workspaceId: personal.id, role };
+    }
+
+    const memberships = await this.workspacesService.listForUser(user.id);
+    if (memberships.length > 0) {
+      const first = memberships[0];
+      return { workspaceId: first.id, role: first.role };
+    }
+
+    const workspace =
+      await this.workspacesService.findOrCreatePersonalWorkspace(
+        user.id,
+        user.name,
+        user.email,
+      );
+    return { workspaceId: workspace.id, role: 'owner' };
   }
 
   private hashToken(token: string): string {

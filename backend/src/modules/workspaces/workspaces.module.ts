@@ -6,6 +6,7 @@ import { WorkspaceInvitation } from './entities/workspace-invitation.entity';
 import { User } from '../users/entities/user.entity';
 import { WorkspacesService } from './workspaces.service';
 import { WorkspacesController } from './workspaces.controller';
+import { InvitationsController } from './invitations.controller';
 import { WorkspaceInvitationsService } from './workspace-invitations.service';
 import { MailModule } from '../mail/mail.module';
 import { AuditLogsModule } from '../audit-logs/audit-logs.module';
@@ -25,7 +26,7 @@ import { AuditLogsModule } from '../audit-logs/audit-logs.module';
     MailModule,
     AuditLogsModule,
   ],
-  controllers: [WorkspacesController],
+  controllers: [WorkspacesController, InvitationsController],
   providers: [WorkspacesService, WorkspaceInvitationsService],
   exports: [WorkspacesService, WorkspaceInvitationsService],
 })
