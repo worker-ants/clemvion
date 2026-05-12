@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll } from '@jest/globals';
+import crypto from 'node:crypto';
 import { Client } from 'pg';
 import request from 'supertest';
 
@@ -184,7 +185,7 @@ describe('Auth flow (e2e)', () => {
     );
     expect(refreshCookie).not.toBeNull();
 
-    // 2) forgot-password → DB 에 reset 토큰 기록.
+    // 2) forgot-password → DB 에 reset 토큰 hash 기록.
     await request(BASE_URL)
       .post('/api/auth/forgot-password')
       .send({ email })
@@ -196,14 +197,26 @@ describe('Auth flow (e2e)', () => {
     );
     expect(resetRow.rows[0].password_reset_token).not.toBeNull();
 
-    // 3) reset-password 로 비밀번호 교체.
+    // 3) reset-password — DB 에는 sha256(raw) hash 만 저장. 원본 token 은 메일로만
+    //    전달되므로 e2e 에서 회수 불가. 우회: 자체 raw token 발급 후 hash 를 DB 에
+    //    직접 주입해 backend 가 정상 매칭하도록 만든다.
+    const rawToken = crypto.randomUUID();
+    const hashedToken = crypto
+      .createHash('sha256')
+      .update(rawToken)
+      .digest('hex');
+    await db.query(
+      `UPDATE "user"
+         SET password_reset_token = $1,
+             password_reset_expires_at = NOW() + INTERVAL '30 minutes'
+       WHERE email = $2`,
+      [hashedToken, email],
+    );
+
     const newPassword = 'NewPass!4567';
     const resetRes = await request(BASE_URL)
       .post('/api/auth/reset-password')
-      .send({
-        token: resetRow.rows[0].password_reset_token,
-        newPassword,
-      });
+      .send({ token: rawToken, newPassword });
     expect(resetRes.status).toBe(200);
 
     // 4) 옛 비밀번호 → 실패.

@@ -213,7 +213,9 @@ describe('Session revocation (e2e)', () => {
       .set('Authorization', `Bearer ${accessTokenA}`)
       .set('Cookie', cookieA);
     expect(hist.status).toBe(200);
-    const items = hist.body.data.items as Array<{ event: string }>;
+    // LoginHistoryPageDto = { data: LoginHistoryItem[], nextCursor: string | null }
+    // 외부 wrapping 까지 합치면 res.body.data.data 가 배열.
+    const items = hist.body.data.data as Array<{ event: string }>;
     expect(items.length).toBeGreaterThanOrEqual(2); // 두 번 로그인 했음
     expect(items.every((i) => typeof i.event === 'string')).toBe(true);
     expect(items.some((i) => i.event === 'login_success')).toBe(true);

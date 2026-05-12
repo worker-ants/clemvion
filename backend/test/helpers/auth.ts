@@ -97,18 +97,20 @@ export async function inviteAndAccept(
   inviteeName: string = 'E2E Invitee',
   password: string = TEST_PASSWORD,
 ): Promise<RegisteredUser> {
-  // invitation 엔드포인트는 throttler 가 걸려있어, 다수 e2e 가 시퀀스로 invite 를
-  // 쏘면 429 에 부딪힐 수 있다. 429 면 잠깐 대기 후 1회 재시도.
-  let inviteRes = await request(baseUrl)
-    .post(`/api/workspaces/${workspaceId}/invitations`)
-    .set('Authorization', `Bearer ${ownerToken}`)
-    .send({ email: inviteeEmail, role });
-  if (inviteRes.status === 429) {
-    await new Promise((r) => setTimeout(r, 2_000));
-    inviteRes = await request(baseUrl)
+  // invitation 엔드포인트는 1분당 10건 throttler 가 걸려있어, e2e suite 들의
+  // 누적 invitation 이 한도를 넘으면 429 가 나온다. 최대 3회 backoff 재시도로
+  // throttle window 가 회전하길 기다린다 (총 최대 ~30s 대기).
+  const inviteOnce = () =>
+    request(baseUrl)
       .post(`/api/workspaces/${workspaceId}/invitations`)
       .set('Authorization', `Bearer ${ownerToken}`)
       .send({ email: inviteeEmail, role });
+
+  let inviteRes = await inviteOnce();
+  const backoffs = [3_000, 8_000, 20_000];
+  for (let i = 0; i < backoffs.length && inviteRes.status === 429; i++) {
+    await new Promise((r) => setTimeout(r, backoffs[i]));
+    inviteRes = await inviteOnce();
   }
   if (inviteRes.status !== 201) {
     throw new Error(
