@@ -44,6 +44,69 @@
 | 백업 코드 | 10개 일회용 복구 코드 생성 및 다운로드 |
 | 비활성화 | 현재 코드 입력 후 비활성화 |
 
+### 1.5 초대 토큰 흐름
+
+팀 워크스페이스 Admin+ 가 **미가입자** 를 이메일로 초대하기 위한 토큰 기반 흐름. 가입 사용자 즉시 추가는 별도 API (`POST /api/workspaces/:id/members`) 를 사용한다 — 본 섹션은 미가입자 시나리오만 다룬다.
+
+#### 1.5.1 토큰 정책
+
+| 항목 | 값 | 비고 |
+|------|-----|------|
+| 토큰 생성 | `crypto.randomBytes(48)` → base64url (64자) | 추측 불가 |
+| 저장 형태 | DB 에는 토큰 자체를 저장 (`WorkspaceInvitation.token`, UNIQUE) | URL 조회 시 즉시 lookup |
+| 만료 | 발급 시점 + **7일** | 산업 표준. 만료 시 410 응답 |
+| 사용 횟수 | **1회** — accept 트랜잭션에서 `acceptedAt` 갱신 시 동시에 사용 처리 | 동시 accept 경쟁은 `UPDATE … WHERE accepted_at IS NULL RETURNING …` 로 직렬화 |
+| 재발송 | 기존 토큰 invalidate(만료 처리) + 신규 토큰 발급 + 만료 시계 재시작 | 한 초대 row 는 항상 0~1개의 유효 토큰만 보유 |
+| 동일 이메일 중복 초대 | 새 발송이 들어오면 기존 대기 중 토큰 invalidate 후 신규 발급 | 다중 토큰이 동시에 살아있지 않도록 |
+| **이메일 일치 강제** | accept·가입 시 `토큰.email == 로그인/가입 사용자 이메일` 강제. 불일치 시 400 | 토큰 누출 시 임의 사용자가 임의 워크스페이스에 진입하는 위협 차단 |
+| 발송 채널 | 시스템 SMTP (`backend/src/modules/mail/`) 만 사용. 워크스페이스 SMTP Integration 은 **사용하지 않음** | 운영 단순화. 자세한 근거는 [Rationale §1.5.B](#rationale) |
+| Rate Limit | 워크스페이스·invited_by 단위 분당 N회 (구현 시 결정) | 이메일 폭격 방지 |
+
+#### 1.5.2 흐름 (미가입자 가입 경로)
+
+```
+1. Admin+ 가 POST /api/v1/workspaces/:id/invitations { email, role }
+   → 토큰 생성, expiresAt = NOW() + 7d, 이메일 발송
+2. 수신자가 메일의 링크 클릭 → 프론트엔드 가입 페이지 `/auth/register?invitationToken={token}`
+3. 프론트엔드: GET /api/invitations/:token 로 메타 prefetch
+   → 응답: { workspaceName, invitedByName, email, expiresAt, role }
+   → 이메일 입력란을 prefill + readOnly 로 고정
+4. 사용자가 비밀번호·이름 입력 후 가입 제출
+   → POST /api/auth/register { name, password, invitationToken }
+   → 서버 검증:
+     a. 토큰 유효성 (존재·미만료·미사용)
+     b. 토큰의 email 과 가입 요청 본문에 동봉된 email (또는 토큰에서 유도) 일치
+     c. 일치 → User 생성 + WorkspaceMember 추가 + invitation.acceptedAt 갱신
+        세 작업은 단일 트랜잭션 내에서 처리 (실패 시 전체 롤백)
+     d. 불일치/만료 → 400 + 가입 자체 거부 (User row 생성 안 함)
+5. 가입 성공 → 자동 로그인 → 초대된 워크스페이스로 컨텍스트 진입
+   ※ 6.1 의 "개인 워크스페이스 자동 생성" 트리거는 **발화하지 않음**
+```
+
+#### 1.5.3 흐름 (이미 가입한 사용자가 다른 워크스페이스에 초대된 경우)
+
+```
+1. 메일 링크 클릭 → 프론트엔드가 토큰 메타 조회
+2. 로그인되어 있고 본인 이메일과 토큰 이메일이 일치 → 수락 페이지에 [수락] 버튼 노출
+3. POST /api/workspaces/invitations/accept { token }
+   → 서버 검증: 토큰 유효 + 본인 이메일 = 토큰 이메일
+   → WorkspaceMember 추가 + acceptedAt 갱신 (단일 트랜잭션)
+4. 응답 후 프론트엔드가 해당 워크스페이스로 컨텍스트 전환
+```
+
+토큰 이메일과 로그인 사용자의 이메일이 다르면 수락 페이지에서 "이 초대는 {토큰.email} 에게 발송되었습니다. 해당 계정으로 로그인하세요" 안내 + 로그아웃 버튼만 노출한다.
+
+#### 1.5.4 에러 응답
+
+| 상황 | HTTP | 코드 |
+|------|------|------|
+| 토큰 없음·잘못된 형식 | 404 | `invitation_not_found` |
+| 만료 | 410 | `invitation_expired` |
+| 이미 사용됨 | 410 | `invitation_already_used` |
+| 이메일 불일치 (accept 또는 register) | 400 | `invitation_email_mismatch` |
+| 권한 부족 (발송·재발송·취소) | 403 | `forbidden` |
+| Rate limit 초과 | 429 | `rate_limited` |
+
 ---
 
 ## 2. 세션 관리
@@ -191,5 +254,40 @@
 | GET | /api/auth/oauth/:provider | OAuth 시작 |
 | GET | /api/auth/oauth/:provider/callback | OAuth 콜백 |
 | GET | /api/audit-logs | 감사 로그 조회 (Admin+) |
+| GET | /api/invitations/:token | 초대 토큰 메타 조회 (인증 불요, 가입 페이지 prefill). 만료·invalidated 토큰은 410 |
 
 사용자 본인 세션·이력 관리 엔드포인트는 [사용자 프로필 spec §6.1](../2-navigation/9-user-profile.md#61-사용자워크스페이스-api) 에 정의 (`/api/users/me/sessions`, `/api/users/me/login-history`).
+
+초대 발송·재발송·취소·수락 엔드포인트는 [사용자 프로필 spec §6.1](../2-navigation/9-user-profile.md#61-사용자워크스페이스-api) 에 정의 (`/api/workspaces/:id/invitations`, `/api/workspaces/invitations/accept`).
+
+`POST /api/auth/register` 는 본문에 `invitationToken?` 을 받아 [§1.5.2 흐름](#152-흐름-미가입자-가입-경로) 의 트랜잭션을 수행한다.
+
+---
+
+## Rationale
+
+### 1.5.A — 가입 시 이메일 일치 강제
+
+토큰 이메일 ≠ 가입/로그인 사용자 이메일인 경우의 처리로 세 옵션을 검토했다:
+
+- **이메일 일치 강제 (선택)** — 다르면 가입·accept 모두 차단.
+- 토큰만 무효화, 가입은 허용 — 가입은 끝나지만 워크스페이스 멤버는 안 됨. UX 가 모호.
+- 검증 없이 자동 accept — 토큰 누출 시 임의 워크스페이스 진입 가능.
+
+이메일 일치 강제를 채택한 이유:
+
+- 토큰은 (긴 random 이지만) URL·메일 경유로 유출 가능. 일치 검증이 없으면 누출 토큰 단독으로 워크스페이스 진입이 가능해 권한 escalate 위협이 큼.
+- 가입 페이지에서 이메일을 prefill + readOnly 로 고정하면 정상 사용자에게는 UX 마찰이 거의 없음 (이메일을 "고를" 필요가 사라짐).
+- 다른 이메일로 가입하고 싶은 경우는 일반 회원가입 경로(`/auth/register`, `invitationToken` 없음) 를 따로 거치게 되므로 안내가 단순함.
+
+### 1.5.B — 초대 메일 SMTP: 시스템 전역 사용
+
+`backend/src/modules/mail/` 는 현재 시스템 전역 SMTP 만 지원한다. 워크스페이스 단위 SMTP Integration 을 초대 메일에도 사용할지 검토했지만, 다음 이유로 시스템 SMTP 만 사용한다:
+
+- 초대는 "워크스페이스에 진입하기 전" 단계의 시스템 인입 행위에 가깝다. 워크스페이스의 비즈니스 SMTP 가 끊겨도 초대 흐름은 계속 동작해야 함.
+- 워크스페이스 SMTP Integration 은 워크스페이스 내부 워크플로의 알림·메일 발송 용도로 설계되었으며, 초대 같은 시스템 메시지를 그쪽으로 흘리면 책임 경계가 흐려진다.
+- 운영·디버깅이 단일 채널로 단순해진다 — 초대 메일 누락 원인을 추적할 때 시스템 SMTP 로그만 보면 됨.
+
+### 1.5.C — 토큰 만료 7일
+
+7일은 산업 표준이면서, "주말 끼고 가입" 같은 사용자 행동도 충분히 흡수한다. 더 짧으면 (예: 24~48시간) 재발송이 잦아져 운영 부담이 늘고, 더 길면 (14일+) 토큰 누출 시 노출 기간이 길어진다. 재발송 시 만료 시계는 새 토큰 발급 시점부터 다시 7일이므로, 특수 케이스는 재발송으로 해결한다.

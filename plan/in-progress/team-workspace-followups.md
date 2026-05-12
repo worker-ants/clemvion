@@ -1,6 +1,6 @@
 # 팀 워크스페이스 잔여 후속
 
-> 작성일: 2026-05-11
+> 작성일: 2026-05-11 · 결정 확정: 2026-05-12
 > 상위 인덱스: [`0-unimplemented-overview.md`](./0-unimplemented-overview.md) §A
 > 선행 plan: `plan/complete/feature-roadmap/04-team-workspace-ui.md`, `05-rbac-enforcement.md`, `07-org-integration-sharing.md`
 
@@ -8,17 +8,29 @@
 
 팀 워크스페이스 본체·RBAC·조직 Integration 공유는 ✅. 다음 두 항목이 후속으로 남아 있다:
 
-- **PRD 1 §3.1 NAV-WF-07** — "팀 워크스페이스에서 공유된 워크플로우 구분 표시" (🚧 백엔드만 존재, UI 미노출)
-- **PRD 1 §3.11 NAV-UP-05** — 팀 워크스페이스 멤버 관리. 가입 사용자 이메일 추가는 ✅, **미가입자 초대 토큰** 은 후속
+- **NAV-WF-07** (`spec/2-navigation/_product-overview.md` §3.1) — "팀 워크스페이스에서 공유된 워크플로우 구분 표시" (🚧 백엔드만 존재, UI 미노출)
+- **NAV-UP-05** (`spec/2-navigation/_product-overview.md` §3.11) — 팀 워크스페이스 멤버 관리. 가입 사용자 이메일 추가는 ✅, **미가입자 초대 토큰** 은 후속
+
+## 확정된 결정 (2026-05-12)
+
+| # | 항목 | 결정 |
+| - | --- | --- |
+| 1 | NAV-WF-07 공유 정의 | **팀 워크스페이스 전체** — 팀 워크스페이스의 모든 워크플로를 'Shared' 로 표시. 같은 팀 안의 "내 것/남의 것" 구분은 §2.3 소유 필터가 담당 |
+| 2 | 초대 메일 SMTP | **시스템 SMTP 만** — `backend/src/modules/mail/` 그대로. 워크스페이스 SMTP Integration 미사용 |
+| 3 | 가입 시 이메일 검증 | **일치 강제** — 토큰 이메일 ≠ 가입/로그인 이메일이면 가입·accept 차단. 가입 페이지에서 이메일 prefill + readOnly 로 UX 마찰 완화 |
+| 4 | 초대 토큰 만료 | **7일** (default). 재발송 시 만료 시계 재시작 |
+
+근거는 `spec/2-navigation/1-workflow-list.md#rationale`, `spec/5-system/1-auth.md#rationale` 참고.
 
 ## 관련 문서
 
-- `prd/1-navigation.md` §3.1 NAV-WF-07, §3.11 NAV-UP-05
-- `prd/0-overview.md` §6.1 (팀 워크스페이스·RBAC ✅)
-- `spec/2-navigation/1-workflow-list.md` (공유 표시 위치)
-- `spec/2-navigation/9-user-profile.md` (멤버 관리 UI)
-- `spec/5-system/1-auth.md` (인증·초대 흐름)
-- 코드: `backend/src/modules/workspaces/`, `frontend/src/components/workspace*/`
+- `spec/2-navigation/_product-overview.md` §3.1 NAV-WF-07, §3.11 NAV-UP-05 (구현 완료 후 ✅ 상태 갱신 예정)
+- `spec/0-overview.md` 또는 영역 overview 의 팀 워크스페이스·RBAC 섹션
+- `spec/2-navigation/1-workflow-list.md` (공유 표시 위치 · §2.1·§2.3 · Rationale §1)
+- `spec/2-navigation/9-user-profile.md` (멤버 관리 UI · §4.1·§4.1.1·§6.1)
+- `spec/2-navigation/10-auth-flow.md` (가입 흐름의 `?invitationToken=…` 처리 · §2.6·§6.1)
+- `spec/5-system/1-auth.md` (초대 토큰 흐름 · §1.5)
+- 코드: `backend/src/modules/workspaces/`, `backend/src/modules/mail/`, `frontend/src/components/workspace*/`
 
 ## 작업 단위
 
@@ -26,29 +38,50 @@
 
 워크스페이스 격리는 백엔드에 이미 적용됨 (X-Workspace-Id 자동 매핑, 워크스페이스 멤버만 워크플로 조회). UI 에서 "공유된 워크플로우" 임을 시각적으로 구분하는 기능이 미노출.
 
-- [ ] **결정**: "공유" 의 정의를 사용자 질의로 명확화 — (a) 팀 워크스페이스 안의 모든 워크플로 = 공유 / (b) 다른 멤버가 만들었거나 다른 멤버에게 명시적으로 공유한 것만 = 공유
-- [ ] (a) 결정 시: 팀 워크스페이스 활성 시 전체 목록에 "Team" 배지 표시 (개인 워크스페이스 워크플로와 구분)
-- [ ] (b) 결정 시: 워크플로의 작성자 vs. 현재 사용자 비교 + 명시적 sharedWith 컬럼 (마이그레이션 필요)
-- [ ] frontend `workflow-list` 컴포넌트에 배지·필터 추가 + i18n
-- [ ] 단위 테스트 + e2e
-- [ ] `prd/1-navigation.md` §3.1 NAV-WF-07 상태 ✅로 갱신
-- [ ] spec `2-navigation/1-workflow-list.md` 에 공유 표시 영역 정의
+**확정**: 공유 정의 = **팀 워크스페이스 전체**. 팀 워크스페이스 활성 시 모든 워크플로에 👥 Team 배지. 같은 팀 안의 작성자 단위 세분화는 §2.3 소유 필터(`내 / 공유 / 전체`)가 담당. spec 본문·Rationale 박제 완료 (`spec/2-navigation/1-workflow-list.md`).
+
+- [x] spec `2-navigation/1-workflow-list.md` §2.1·§2.3·Rationale 갱신 (2026-05-12)
+- [ ] frontend `workflow-list` 컴포넌트에 Team 배지 + 소유 필터 추가 + i18n
+- [ ] 단위 테스트 (배지 노출 조건 · 필터 동작)
+- [ ] e2e (개인 → 팀 워크스페이스 전환 시 배지·필터 노출 변화)
+- [ ] `spec/2-navigation/_product-overview.md` §3.1 NAV-WF-07 상태 ✅로 갱신 (구현 완료 시)
 
 ### 2. NAV-UP-05 미가입자 초대 토큰
 
 현재는 가입 사용자 이메일을 직접 추가만 가능. 미가입자(아직 회원가입 안 한 이메일) 에게 초대 토큰을 발급하고, 토큰 링크로 가입 후 자동 워크스페이스 가입 흐름을 구현.
 
-- [ ] 데이터 모델 — `WorkspaceInvitation` 엔티티 (`workspace_id`, `email`, `role`, `token` (랜덤 32+B), `expires_at`, `invited_by`, `accepted_at?`)
-- [ ] 마이그레이션 추가
-- [ ] 백엔드 API — `POST /api/v1/workspaces/:id/invitations` (Editor+ → 토큰 생성 + 이메일 발송), `GET /api/v1/invitations/:token` (토큰 검증), `POST /api/v1/invitations/:token/accept` (가입 후 호출, 멤버로 등록)
-- [ ] 토큰 만료 (기본 7일) + 1회 사용 + 재발송 기능
-- [ ] 이메일 템플릿 — 가입 링크 + 워크스페이스 이름 + 초대자 이름. SMTP 설정 우선순위는 mail 모듈의 기본 흐름 따름
-- [ ] frontend — 멤버 관리 화면에 "초대" 버튼 + 이메일 입력 + 역할 선택 + 토큰 발송 상태 표시. 회원가입 페이지에서 `?invitationToken=...` 쿼리 처리 (가입 후 자동 accept 호출)
-- [ ] 가입자가 가입한 다음 자동으로 워크스페이스에 가입되는 흐름 구현
-- [ ] 단위/통합 테스트 (만료 / 재발송 / 잘못된 토큰 / 이미 사용된 토큰 / 역할 부여)
-- [ ] `prd/1-navigation.md` §3.11 NAV-UP-05 상태 갱신 (`(가입 사용자 이메일 추가 · 미가입자 초대 토큰은 후속)` 부분 제거)
-- [ ] spec `5-system/1-auth.md` 에 초대 토큰 흐름 추가
-- [ ] spec `2-navigation/9-user-profile.md` 멤버 관리 화면 갱신
+**확정 정책** — spec 본문에 박제 완료:
+
+- 토큰 길이 64자 base64url (`crypto.randomBytes(48)`), 만료 **7일**, **1회 사용**, 재발송 시 기존 토큰 invalidate + 만료 재시작
+- 이메일 일치 **강제** — 토큰의 email ≠ 로그인/가입 사용자 email 이면 가입·accept 모두 차단 (400 `invitation_email_mismatch`)
+- 발송 채널 = **시스템 SMTP 만** (`backend/src/modules/mail/`). 워크스페이스 SMTP Integration 미사용
+- 가입 페이지 prefill: `GET /api/invitations/:token` 으로 메타 prefetch → 이메일을 prefill + readOnly 로 고정
+- 가입 트랜잭션: User 생성 + WorkspaceMember 추가 + `invitation.acceptedAt` 갱신을 단일 트랜잭션으로 처리. 초대 토큰 가입 경로에서는 §6.1 의 개인 워크스페이스 자동 생성을 **발화하지 않음**
+
+체크리스트:
+
+- [x] spec `5-system/1-auth.md` §1.5 초대 토큰 흐름 + Rationale (2026-05-12)
+- [x] spec `2-navigation/9-user-profile.md` §4.1·§4.1.1·§6.1 갱신 (재발송 API 추가) (2026-05-12)
+- [x] spec `2-navigation/10-auth-flow.md` §2.6·§6.1·§8 갱신 (`?invitationToken=…` 처리 + 자동 워크스페이스 생성 분기) (2026-05-12)
+- [ ] 데이터 모델 — `WorkspaceInvitation` 엔티티 (`workspace_id`, `email`, `role`, `token`(64자 base64url, UNIQUE), `expires_at`, `invited_by`, `accepted_at?`, `accepted_by?`) — 이미 존재. 인덱스/제약 점검 (예: 대기 중 토큰의 `(workspaceId, email)` UNIQUE on `acceptedAt IS NULL`)
+- [ ] 마이그레이션 — 인덱스/제약 변경 시
+- [ ] 백엔드 API
+  - `POST /api/v1/workspaces/:id/invitations` (Admin+)
+  - `POST /api/v1/workspaces/:id/invitations/:invitationId/resend` (Admin+)
+  - `DELETE /api/v1/workspaces/:id/invitations/:invitationId` (Admin+)
+  - `GET /api/v1/invitations/:token` (인증 불요, prefill용)
+  - `POST /api/v1/workspaces/invitations/accept` (로그인 사용자, 이메일 일치 강제)
+  - `POST /api/v1/auth/register` 본문에 `invitationToken?` 받아 트랜잭션 처리
+- [ ] Rate limit — 워크스페이스·invited_by 단위 분당 N회
+- [ ] 이메일 템플릿 — 가입 링크 + 워크스페이스 이름 + 초대자 이름. **시스템 SMTP** 로 발송
+- [ ] frontend — 멤버 관리 화면에 "초대" 버튼 + 이메일·역할 입력 + 대기 중 초대 목록(만료 표시 / 재발송 / 취소)
+- [ ] frontend — 회원가입 페이지에서 `?invitationToken=…` 처리 (메타 prefetch → 이메일 prefill+readOnly → 초대 워크스페이스로 진입)
+- [ ] 단위 테스트 (백엔드)
+  - accept: 이메일 불일치 reject / 만료 reject / 중복 사용 reject / 정상 흐름 통과
+  - register with invitationToken: 이메일 불일치 reject / 트랜잭션 롤백 / 자동 워크스페이스 생성 미발화
+  - 재발송: 기존 토큰 invalidate 확인
+- [ ] e2e — 초대 → 메일 수신 (개발 `console` transport) → 가입 → 자동 멤버 등록
+- [ ] `spec/2-navigation/_product-overview.md` §3.11 NAV-UP-05 상태 갱신 (구현 완료 시 `(가입 사용자 이메일 추가 · 미가입자 초대 토큰은 후속)` 부분 제거)
 
 ### 3. 매뉴얼
 
@@ -56,7 +89,7 @@
 
 ### 4. REVIEW
 
-- [ ] `ai-review` 실행 → Security (토큰 길이·만료·1회 사용·rate limit), Side Effect (이메일 발송), API Contract (RBAC) 중심
+- [ ] `ai-review` 실행 → Security (토큰 길이·만료·1회 사용·이메일 일치 강제·rate limit), Side Effect (이메일 발송), API Contract (RBAC), Concurrency (동시 accept 경쟁) 중심
 
 ## 수용 기준
 
@@ -68,6 +101,8 @@
 ## 의존성·리스크
 
 - **의존**: 없음. 팀 워크스페이스 본체와 RBAC 가 이미 ✅
-- **리스크**:
-  - 초대 이메일 발송에 워크스페이스 SMTP Integration 사용 시 — 어떤 SMTP를 default 로 쓸지 결정 (시스템 SMTP vs. 워크스페이스 별 설정)
-  - 토큰 누출 시 권한 escalate — 1회 사용 + 짧은 만료 + 가입 시 이메일 일치 검증 필수
+- **리스크 / 대응**:
+  - 토큰 누출 시 권한 escalate → 1회 사용 + 7일 만료 + **이메일 일치 강제** 로 대응 (확정)
+  - 동시 accept 경쟁 → `UPDATE … WHERE accepted_at IS NULL RETURNING …` 로 직렬화
+  - 이메일 폭격 → 워크스페이스·invited_by 단위 rate limit 필수
+  - UX 마찰 (이메일 일치 강제) → 가입 페이지에서 이메일 prefill + readOnly 로 완화 (사용자가 이메일을 "고를" 필요 없음)

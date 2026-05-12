@@ -76,10 +76,24 @@
 
 ```
 1. 입력 검증 (클라이언트)
-2. POST /api/auth/register
-3. 성공 → 이메일 인증 안내 화면으로 이동
-4. 실패 → 인라인 에러 표시 (이메일 중복 등)
+2. POST /api/auth/register { name, email, password, invitationToken? }
+3. 성공 → 이메일 인증 안내 화면으로 이동 (단, invitationToken 흐름은 §2.6 분기 참고)
+4. 실패 → 인라인 에러 표시 (이메일 중복, 토큰 만료/이메일 불일치 등)
 ```
+
+### 2.6 초대 토큰을 통한 가입 (`?invitationToken=…`)
+
+미가입자가 메일 링크를 클릭하면 회원가입 페이지는 `?invitationToken=…` 쿼리를 받아 다음 처리를 수행한다:
+
+| 단계 | 처리 |
+|------|------|
+| 1. 토큰 메타 prefetch | `GET /api/invitations/:token` 로 워크스페이스 이름·초대자·이메일·만료 조회. 401/410 등 실패 → 에러 화면으로 라우팅 |
+| 2. 이메일 prefill + readOnly | 응답의 `email` 을 입력란에 채우고 readOnly 로 고정. 다른 이메일로 가입 자체 차단 |
+| 3. 헤더 안내 | "**{workspace}** 에 초대받으셨어요" + 초대자 이름 노출 |
+| 4. 가입 제출 | `POST /api/auth/register { name, password, invitationToken }` — 이메일은 토큰에서 서버가 신뢰 |
+| 5. 트랜잭션 처리 | 서버에서 [Spec 인증/인가 §1.5.2](../5-system/1-auth.md#152-흐름-미가입자-가입-경로) 의 단일 트랜잭션 (User 생성 + WorkspaceMember 추가 + invitation.acceptedAt) 수행. 실패 시 전체 롤백 |
+| 6. 가입 성공 후 | 이메일 인증 안내 화면 대신 **초대된 워크스페이스로 컨텍스트 진입** (§6.1 의 개인 워크스페이스 자동 생성은 발화하지 않음) |
+| 7. 에러 분기 | `invitation_email_mismatch` (서버가 거의 차단하지만 안전망), `invitation_expired`, `invitation_already_used` → "이 초대는 더 이상 유효하지 않아요. 워크스페이스 관리자에게 재발송을 요청하세요" 안내 |
 
 ### 2.5 이메일 인증 안내 화면
 
@@ -327,8 +341,10 @@
 
 | 경로 | 조건 |
 |------|------|
-| 이메일 회원가입 | 이메일 인증 완료 시 |
+| 이메일 회원가입 | 이메일 인증 완료 시 **(단, `invitationToken` 으로 가입한 경우 제외 — 초대된 워크스페이스로 진입)** |
 | OAuth 소셜 로그인 (최초) | 신규 사용자 자동 가입 시 |
+
+> 초대 토큰으로 가입한 사용자는 초대된 팀 워크스페이스에 곧바로 멤버로 추가되므로 별도의 개인 워크스페이스를 자동 생성하지 않는다. 이후 사용자가 개인 워크스페이스를 원하면 워크스페이스 관리 화면에서 직접 만들 수 있다.
 
 ### 6.2 생성 규칙
 
@@ -371,7 +387,8 @@
 
 | 메서드 | 경로 | 설명 |
 |--------|------|------|
-| POST | /api/auth/register | 회원가입 |
+| POST | /api/auth/register | 회원가입 (본문에 `invitationToken?` 동봉 시 [§2.6](#26-초대-토큰을-통한-가입-invitationtoken) 흐름) |
+| GET | /api/invitations/:token | 초대 토큰 메타 조회 (가입 페이지 prefill 용, 인증 불요) |
 | POST | /api/auth/verify-email | 이메일 인증 확인 (쿼리: token) |
 | POST | /api/auth/resend-verification | 인증 이메일 재발송 |
 | POST | /api/auth/login | 로그인 |
