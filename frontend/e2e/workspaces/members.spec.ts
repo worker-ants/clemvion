@@ -100,8 +100,14 @@ test.describe("Workspace members page", () => {
 
     await page.goto("/workspace/settings");
 
+    // 페이지의 default tab 은 overview. 멤버 보려면 멤버 탭 클릭 필요.
+    await page
+      .getByRole("tab", { name: /멤버|Members|구성원/i })
+      .first()
+      .click();
+
     await expect(page.getByText(/owner@example.com/i)).toBeVisible({
-      timeout: 5_000,
+      timeout: 10_000,
     });
     await expect(page.getByText(/editor@example.com/i)).toBeVisible();
     await expect(page.getByText(/viewer@example.com/i)).toBeVisible();
@@ -148,6 +154,12 @@ test.describe("Workspace members page", () => {
     );
 
     await page.goto("/workspace/settings");
+
+    // 멤버 탭 활성화.
+    await page
+      .getByRole("tab", { name: /멤버|Members|구성원/i })
+      .first()
+      .click();
 
     const inviteBtn = page
       .getByRole("button", { name: /초대|Invite/i })
