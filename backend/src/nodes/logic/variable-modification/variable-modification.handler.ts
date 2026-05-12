@@ -121,10 +121,7 @@ export class VariableModificationHandler implements NodeHandler {
       return;
     }
 
-    const hadVariable = Object.prototype.hasOwnProperty.call(
-      context.variables,
-      mod.variable,
-    );
+    const hadVariable = Object.hasOwn(context.variables, mod.variable);
     const current = context.variables[mod.variable];
     const currentType = current === null ? 'null' : typeof current;
     // Snapshot the pre-mutation value when opt-in is enabled. Captured

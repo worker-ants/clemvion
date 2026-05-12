@@ -7,6 +7,10 @@ import {
   GraphExtractionJob,
 } from './graph-extraction.queue';
 import { GraphExtractionService } from '../graph/graph-extraction.service';
+import {
+  InvalidJobPayloadError,
+  assertDocumentIdPayload,
+} from './job-payload.util';
 
 /**
  * graph-extraction 큐 워커.
@@ -39,7 +43,18 @@ export class GraphExtractionProcessor extends WorkerHost {
   }
 
   async process(job: Job<GraphExtractionJob>): Promise<void> {
-    const { documentId } = job.data;
+    let documentId: string;
+    try {
+      documentId = assertDocumentIdPayload(job, 'GraphExtractionProcessor');
+    } catch (err) {
+      if (err instanceof InvalidJobPayloadError) {
+        this.logger.error(
+          `Dropping invalid graph extraction job ${job.id ?? '<no-id>'}: ${err.reason} ` +
+            `(debug=${JSON.stringify(err.debug)})`,
+        );
+      }
+      throw err;
+    }
     await this.extractionService.extractDocument(documentId);
   }
 

@@ -43,13 +43,6 @@ describe('Workflow CRUD (e2e)', () => {
     await db.end();
   });
 
-  function authReq() {
-    return {
-      authHeader: { Authorization: `Bearer ${ownerToken}` },
-      wsHeader: { 'X-Workspace-Id': workspaceId },
-    };
-  }
-
   it('A. create → list 에 포함 / Manual Trigger 노드 자동 생성', async () => {
     const name = uniqueName('wf-a');
     const createRes = await request(BASE_URL)
@@ -66,8 +59,9 @@ describe('Workflow CRUD (e2e)', () => {
       .set('Authorization', `Bearer ${ownerToken}`)
       .set('X-Workspace-Id', workspaceId);
     expect(listRes.status).toBe(200);
-    const items = (listRes.body.data as { items?: Array<{ id: string }> }).items
-      ?? (listRes.body.data as Array<{ id: string }>);
+    const items =
+      (listRes.body.data as { items?: Array<{ id: string }> }).items ??
+      (listRes.body.data as Array<{ id: string }>);
     const ids = items.map((w: { id: string }) => w.id);
     expect(ids).toContain(id);
 
@@ -186,7 +180,9 @@ describe('Workflow CRUD (e2e)', () => {
         .send({ description: 'v3' }),
     ]);
     // 동시 PATCH 가 충돌 없이 모두 200 — last-write-wins 정책.
-    expect([r1.status, r2.status, r3.status].every((s) => s === 200)).toBe(true);
+    expect([r1.status, r2.status, r3.status].every((s) => s === 200)).toBe(
+      true,
+    );
 
     const final = await request(BASE_URL)
       .get(`/api/workflows/${id}`)

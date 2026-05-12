@@ -39,7 +39,10 @@ describe('Integration credentials (e2e)', () => {
     await db.end();
   });
 
-  async function createHttpApiKey(name: string, apiKey: string): Promise<string> {
+  async function createHttpApiKey(
+    name: string,
+    apiKey: string,
+  ): Promise<string> {
     const res = await request(BASE_URL)
       .post('/api/integrations')
       .set('Authorization', `Bearer ${token}`)
@@ -61,7 +64,10 @@ describe('Integration credentials (e2e)', () => {
   }
 
   it('A. create 응답에서 credentials.value 는 raw 가 아닌 마스킹된 값', async () => {
-    const id = await createHttpApiKey(uniqueName('inkey-a'), 'sk-very-secret-1234');
+    const id = await createHttpApiKey(
+      uniqueName('inkey-a'),
+      'sk-very-secret-1234',
+    );
 
     const get = await request(BASE_URL)
       .get(`/api/integrations/${id}`)
@@ -69,7 +75,7 @@ describe('Integration credentials (e2e)', () => {
       .set('X-Workspace-Id', workspaceId);
     expect(get.status).toBe(200);
     const creds = get.body.data.credentials as Record<string, unknown>;
-    const value = String(creds.value ?? '');
+    const value = typeof creds.value === 'string' ? creds.value : '';
     expect(value).not.toBe('sk-very-secret-1234');
     expect(value.length).toBeGreaterThan(0); // 마스킹된 형태이지만 비어있지 않아야 함
   });
@@ -89,7 +95,11 @@ describe('Integration credentials (e2e)', () => {
   it('C. cross-workspace 격리 — 다른 워크스페이스 owner 가 GET 시 404/403', async () => {
     const id = await createHttpApiKey(uniqueName('inkey-c'), 'sk-c');
 
-    const intruder = await registerAndLogin(BASE_URL, uniqueEmail('integ-x'), db);
+    const intruder = await registerAndLogin(
+      BASE_URL,
+      uniqueEmail('integ-x'),
+      db,
+    );
     const otherWs = await createTeamWorkspace(
       BASE_URL,
       intruder.accessToken,
@@ -140,7 +150,11 @@ describe('Integration credentials (e2e)', () => {
   it('F. list 에서 자기 워크스페이스 통합만 보임', async () => {
     const myId = await createHttpApiKey(uniqueName('inkey-f-mine'), 'sk-mine');
 
-    const intruder = await registerAndLogin(BASE_URL, uniqueEmail('integ-f'), db);
+    const intruder = await registerAndLogin(
+      BASE_URL,
+      uniqueEmail('integ-f'),
+      db,
+    );
     const otherWs = await createTeamWorkspace(
       BASE_URL,
       intruder.accessToken,
@@ -169,9 +183,9 @@ describe('Integration credentials (e2e)', () => {
       .set('Authorization', `Bearer ${token}`)
       .set('X-Workspace-Id', workspaceId);
     expect(myList.status).toBe(200);
-    const items = (myList.body.data as { items?: Array<{ id: string; name: string }> })
-      .items
-      ?? (myList.body.data as Array<{ id: string; name: string }>);
+    const items =
+      (myList.body.data as { items?: Array<{ id: string; name: string }> })
+        .items ?? (myList.body.data as Array<{ id: string; name: string }>);
     const names = items.map((i) => i.name);
     expect(items.some((i) => i.id === myId)).toBe(true);
     expect(names).not.toContain('other-side');

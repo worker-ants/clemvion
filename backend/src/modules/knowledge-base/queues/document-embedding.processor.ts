@@ -16,6 +16,10 @@ import {
   GraphExtractionJob,
 } from './graph-extraction.queue';
 import { EmbeddingService } from '../embedding/embedding.service';
+import {
+  InvalidJobPayloadError,
+  assertDocumentIdPayload,
+} from './job-payload.util';
 
 /**
  * 문서 임베딩 큐의 워커.
@@ -43,7 +47,19 @@ export class DocumentEmbeddingProcessor extends WorkerHost {
   }
 
   async process(job: Job<DocumentEmbeddingJob>): Promise<void> {
-    const { documentId, reEmbed } = job.data;
+    let documentId: string;
+    try {
+      documentId = assertDocumentIdPayload(job, 'DocumentEmbeddingProcessor');
+    } catch (err) {
+      if (err instanceof InvalidJobPayloadError) {
+        this.logger.error(
+          `Dropping invalid embedding job ${job.id ?? '<no-id>'}: ${err.reason} ` +
+            `(debug=${JSON.stringify(err.debug)})`,
+        );
+      }
+      throw err;
+    }
+    const { reEmbed } = job.data;
     await this.embeddingService.processDocument(documentId, reEmbed ?? false);
   }
 

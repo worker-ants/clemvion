@@ -58,6 +58,17 @@ export class EmbeddingService {
   // - 성공 시 `embedding_status='completed'`, `embedding_retry_count=0`, `embedding_error_message=NULL` 로 리셋
   // - 2차 시도 이상에서는 chunk 상태 idempotency 보장을 위해 `reEmbed=true` 강제 (chunk 삭제 후 다시 처리)
   async processDocument(documentId: string, reEmbed = false): Promise<void> {
+    // 외부 직접 호출(테스트/컨트롤러)에서 documentId 가 falsy 한 경우 사전 차단.
+    // 정상 흐름은 DocumentEmbeddingProcessor 가 assertDocumentIdPayload 로 이미 검증.
+    // 미차단 시 아래 update(criteria=undefined) 가 TypeORM "Empty criteria(s)" 로
+    // 거부되고 catch 블록이 다시 같은 update 를 호출해 2차 에러가 발생한다.
+    if (!documentId || typeof documentId !== 'string') {
+      this.logger.error(
+        `processDocument called with invalid documentId: ${String(documentId)} ` +
+          `(typeof=${typeof documentId})`,
+      );
+      return;
+    }
     // attemptIndex: 0 = 1차 시도. retryWithBackoff 의 onAttempt 가 실패 직후 호출되며
     // idx+1 로 다음 시도 번호를 세팅한다. doProcess 는 2차+ attempt 에서 reEmbed=true 를 강제해
     // 부분 INSERT 된 chunk 를 깨끗히 정리 (idempotency 보장).
