@@ -125,42 +125,31 @@ Clemvion은 AI 에이전트와 노코드 워크플로우 빌더를 통합한 실
 
 ### 8. 문서 맵
 
-본 spec/ 트리는 docs-consolidation(2026-05-12)으로 옛 `prd/`·`memory/`·`user_memo/` 를 흡수해 **제품의 단일 진실(single source of truth)** 로 통합되었다. 각 영역의 `_product-overview.md` 는 흡수된 제품 정의(이전 PRD)이며, 상세 spec 은 동일 폴더 내 0~N 번호 문서가 담는다.
+본 spec/ 트리는 docs-consolidation(2026-05-12)으로 옛 `prd/`·`memory/`·`user_memo/` 를 흡수해 **제품의 단일 진실(single source of truth)** 로 통합되었다.
 
-```
-spec/
-├── 0-overview.md          ← 본 문서 (제품 정의 + 시스템 아키텍처)
-├── 1-data-model.md        — 핵심 엔티티 정의
-├── 6-brand.md             — 브랜드 가이드 (구 prd/brand.md)
-├── conventions/
-│   ├── node-output.md     — 노드 Output 규약 (Principle 0~11, 구 CONVENTIONS.md)
-│   └── swagger.md         — Swagger 문서화 패턴
-├── 2-navigation/          — 내비게이션 화면별 상세 스펙
-│   ├── _layout.md         — 공통 레이아웃
-│   ├── _product-overview.md  — 제품 정의 (구 prd/1-navigation.md)
-│   └── 0-dashboard.md ~ 14-execution-history.md
-├── 3-workflow-editor/     — 워크플로우 에디터
-│   ├── _product-overview.md  — 제품 정의 (구 prd/2-workflow-editor.md)
-│   ├── 0-canvas.md / 1-node-common.md / 2-edge.md / 3-execution.md
-│   └── 4-ai-assistant.md  — Workflow AI Assistant 상세 + Rationale
-├── 4-nodes/               — 노드별 상세 스펙
-│   ├── _product-overview.md  — 노드 시스템 제품 정의 (구 prd/3-node-system.md)
-│   ├── 0-overview.md      — 노드 아키텍처/목록 개요
-│   ├── 1-logic/ ~ 7-trigger/
-│   │   ├── 0-common.md
-│   │   └── (카테고리별 노드 spec)
-│   ├── 3-ai/_product-overview.md         — 구 prd/6-phase2-ai.md
-│   └── 4-integration/_product-overview.md — 구 prd/4-integration.md
-└── 5-system/              — 시스템 공통 스펙
-    ├── _product-overview.md  — 비기능 요구사항 (구 prd/5-non-functional.md)
-    ├── 1-auth.md ~ 12-webhook.md
-    └── (10-graph-rag.md, 12-webhook.md, 14-execution-history.md 는 구 prd/{7,8,9} 의 Overview 섹션을 포함)
-```
+| 영역 | 위치 | 진입 문서 |
+| --- | --- | --- |
+| 제품 개요 + 시스템 아키텍처 | `spec/0-overview.md` | 본 문서 |
+| 데이터 모델 | `spec/1-data-model.md` | 핵심 엔티티 정의 |
+| 브랜드 가이드 | `spec/6-brand.md` | — |
+| 정식 규약 | `spec/conventions/` | 노드 Output 규약, Swagger 패턴 등 |
+| 내비게이션 화면 | `spec/2-navigation/` | `_product-overview.md` + 화면별 문서 |
+| 워크플로우 에디터 | `spec/3-workflow-editor/` | `_product-overview.md` + 캔버스·노드 공통·엣지·실행·AI Assistant |
+| 노드 시스템 | `spec/4-nodes/` | `_product-overview.md` + `0-overview.md` + 카테고리별 폴더 (`1-logic/` ~ `7-trigger/`) |
+| 시스템 공통 | `spec/5-system/` | `_product-overview.md` + 영역별 spec (인증·API 규칙·실행 엔진·LLM Client·임베딩·RAG·Graph RAG·MCP·Webhook 등) |
+
+문서 컨벤션:
+- **`_product-overview.md`** — 다중 spec 파일을 가진 영역의 제품 정의(옛 PRD). 영역의 사용자 가치·요구사항·요구사항 ID.
+- **`_layout.md`** — 영역 공통 레이아웃 (현재는 `2-navigation/` 만 사용).
+- **`0-overview.md` / `0-common.md`** — 영역·카테고리 내부의 기술 아키텍처·공통 규약.
+- **`N-name.md`** — 정렬된 상세 spec. 본문 끝에 `## Rationale` 섹션으로 결정 근거 inline. 단일 spec 파일 영역(예: webhook, graph-rag)은 본문 상단에 `## Overview (제품 정의)` 섹션을 직접 둔다.
 
 별도 보관소:
 - `plan/in-progress/` · `plan/complete/` — 작업 추적 라이프사이클
 - `plan/complete/archive/from-memory/` — 옛 `memory/` 의 1회성 분석·진행 로그
 - `plan/complete/archive/from-user-memo/` — 옛 `user_memo/` 의 초기 기획·노드 개선안
+
+> 구체 파일 목록은 본 문서가 박제하지 않는다. 폴더 구조는 `ls spec/` 또는 IDE 트리에서 확인한다.
 
 ---
 
