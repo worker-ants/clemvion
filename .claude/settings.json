@@ -2,6 +2,10 @@
   "plugins": [
     ".claude/skills/code-review-agents"
   ],
+  "statusLine": {
+    "type": "command",
+    "command": "bash .claude/statusline.sh"
+  },
   "hooks": {
     "PostToolUse": [
     ]
