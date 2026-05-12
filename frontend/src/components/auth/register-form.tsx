@@ -11,7 +11,11 @@ import { toast } from "sonner";
 import { authApi } from "@/lib/api/auth";
 import { setAccessToken } from "@/lib/api/client";
 import type { OAuthProvider } from "@/lib/api/auth-providers";
-import { invitationsApi, type InvitationMeta } from "@/lib/api/workspaces";
+import {
+  invitationsApi,
+  INVITATION_ERROR,
+  type InvitationMeta,
+} from "@/lib/api/invitations";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -41,7 +45,13 @@ type InvitationState =
   | { kind: "none" }
   | { kind: "loading" }
   | { kind: "ready"; meta: InvitationMeta }
-  | { kind: "error"; message: string };
+  | {
+      kind: "error";
+      /** HTTP status (410=만료/사용됨, 404=없음). 다른 경우 undefined. */
+      status?: number;
+      /** 서버가 내려준 raw message (없으면 status 별 i18n key 로 폴백). */
+      message?: string;
+    };
 
 function RegisterFormInner({
   enabledProviders = [],
@@ -67,6 +77,9 @@ function RegisterFormInner({
   const showOauth = showGoogle || showGithub;
 
   useEffect(() => {
+    // effect deps 에 `t` 를 넣지 않는 것이 의도적이다 — `useT` 는 locale 변경 시
+    // 새 reference 를 돌려주므로, deps 에 포함되면 locale 토글이 토큰 재페치를
+    // 유발한다. status 만 저장하고 텍스트 변환은 렌더 시점(banner)에서.
     if (!invitationToken) return;
     let cancelled = false;
     (async () => {
@@ -79,23 +92,17 @@ function RegisterFormInner({
           message?: string;
           code?: string;
         }>;
-        const status = error.response?.status;
-        // 410 = 만료/사용됨, 404 = 존재하지 않음. 둘 다 가입 페이지에서는
-        // "이 초대는 더 이상 유효하지 않아요" 안내로 묶어서 보여준다.
-        const message =
-          status === 410
-            ? t("auth.register.invitationGone")
-            : status === 404
-              ? t("auth.register.invitationNotFound")
-              : error.response?.data?.message ??
-                t("auth.register.invitationFetchFailed");
-        setInvitationState({ kind: "error", message });
+        setInvitationState({
+          kind: "error",
+          status: error.response?.status,
+          message: error.response?.data?.message,
+        });
       }
     })();
     return () => {
       cancelled = true;
     };
-  }, [invitationToken, t]);
+  }, [invitationToken]);
 
   // defined inside component so validation messages pick up the current locale via t()
   const registerSchema = useMemo(
@@ -178,7 +185,7 @@ function RegisterFormInner({
       const error = err as AxiosError<{ message?: string; code?: string }>;
       const code = error.response?.data?.code;
       const message =
-        code === "invitation_email_mismatch"
+        code === INVITATION_ERROR.EMAIL_MISMATCH
           ? t("auth.register.invitationEmailMismatch")
           : error.response?.data?.message ?? t("auth.register.genericFailed");
       toast.error(message);
@@ -187,41 +194,12 @@ function RegisterFormInner({
     }
   }
 
-  // 초대 토큰 메타가 도착하지 않았거나 실패한 경우 상단에 안내 카드.
-  const invitationBanner = (() => {
-    if (invitationState.kind === "loading") {
-      return (
-        <p className="rounded-md border border-[hsl(var(--border))] bg-[hsl(var(--muted))] px-3 py-2 text-sm text-[hsl(var(--muted-foreground))]">
-          {t("auth.register.invitationLoading")}
-        </p>
-      );
-    }
-    if (invitationState.kind === "error") {
-      return (
-        <p className="rounded-md border border-[hsl(var(--destructive))] bg-[hsl(var(--destructive)/.08)] px-3 py-2 text-sm text-[hsl(var(--destructive))]">
-          {invitationState.message}
-        </p>
-      );
-    }
-    if (invitationState.kind === "ready") {
-      const { workspaceName, invitedByName } = invitationState.meta;
-      return (
-        <div className="rounded-md border border-[hsl(var(--border))] bg-[hsl(var(--muted))] px-3 py-2 text-sm">
-          <p className="font-medium">
-            {t("auth.register.invitationHeader", { workspace: workspaceName })}
-          </p>
-          {invitedByName && (
-            <p className="text-xs text-[hsl(var(--muted-foreground))]">
-              {t("auth.register.invitationFrom", { name: invitedByName })}
-            </p>
-          )}
-        </div>
-      );
-    }
-    return null;
-  })();
-
   const emailReadOnly = invitationState.kind === "ready";
+  // submit 가능 여부: 일반 가입 OK / 초대 흐름에서는 ready 상태일 때만 허용.
+  const submitDisabled =
+    isLoading ||
+    invitationState.kind === "loading" ||
+    invitationState.kind === "error";
 
   return (
     <Card>
@@ -230,9 +208,8 @@ function RegisterFormInner({
         <CardDescription>{t("auth.register.subtitleCta")}</CardDescription>
       </CardHeader>
       <CardContent>
-        {invitationBanner && (
-          <div className="mb-4">{invitationBanner}</div>
-        )}
+        <InvitationBanner state={invitationState} />
+
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
           <div className="space-y-2">
             <Label htmlFor="name">{t("auth.register.name")}</Label>
@@ -381,7 +358,11 @@ function RegisterFormInner({
             </p>
           )}
 
-          <Button type="submit" className="w-full" disabled={isLoading}>
+          <Button
+            type="submit"
+            className="w-full"
+            disabled={submitDisabled}
+          >
             {isLoading ? t("auth.register.creatingAccount") : t("auth.register.createAccount")}
           </Button>
         </form>
@@ -436,6 +417,65 @@ function RegisterFormInner({
         </p>
       </CardContent>
     </Card>
+  );
+}
+
+/**
+ * 초대 토큰 흐름의 안내 배너. loading 동안 placeholder, error 시 raw 메시지/
+ * status 별 i18n 텍스트, ready 시 워크스페이스·초대자 안내.
+ *
+ * effect 의 deps 에 `t` 를 넣지 않으려고 status 만 state 에 보관하므로 변환은
+ * 여기서 렌더 시점에 처리한다.
+ */
+function InvitationBanner({ state }: { state: InvitationState }) {
+  const t = useT();
+  if (state.kind === "none") return null;
+
+  if (state.kind === "loading") {
+    return (
+      <div className="mb-4">
+        <p className="rounded-md border border-[hsl(var(--border))] bg-[hsl(var(--muted))] px-3 py-2 text-sm text-[hsl(var(--muted-foreground))]">
+          {t("auth.register.invitationLoading")}
+        </p>
+      </div>
+    );
+  }
+
+  if (state.kind === "error") {
+    const message =
+      state.message ??
+      (state.status === 410
+        ? t("auth.register.invitationGone")
+        : state.status === 404
+          ? t("auth.register.invitationNotFound")
+          : t("auth.register.invitationFetchFailed"));
+    return (
+      <div className="mb-4">
+        <p
+          role="alert"
+          className="rounded-md border border-[hsl(var(--destructive))] bg-[hsl(var(--destructive)/.08)] px-3 py-2 text-sm text-[hsl(var(--destructive))]"
+        >
+          {message}
+        </p>
+      </div>
+    );
+  }
+
+  // ready
+  const { workspaceName, invitedByName } = state.meta;
+  return (
+    <div className="mb-4">
+      <div className="rounded-md border border-[hsl(var(--border))] bg-[hsl(var(--muted))] px-3 py-2 text-sm">
+        <p className="font-medium">
+          {t("auth.register.invitationHeader", { workspace: workspaceName })}
+        </p>
+        {invitedByName && (
+          <p className="text-xs text-[hsl(var(--muted-foreground))]">
+            {t("auth.register.invitationFrom", { name: invitedByName })}
+          </p>
+        )}
+      </div>
+    </div>
   );
 }
 
