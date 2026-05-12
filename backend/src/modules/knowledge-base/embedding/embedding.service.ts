@@ -14,6 +14,7 @@ import {
   isRetryableLlmError,
   retryWithBackoff,
 } from '../utils/retry-with-backoff.util';
+import { isValidDocumentId } from '../queues/job-payload.util';
 
 // 한 batch (20 청크) 임베딩에 적용할 timeout. provider socket hang 방지.
 const EMBED_TIMEOUT_MS = 60_000;
@@ -58,11 +59,8 @@ export class EmbeddingService {
   // - 성공 시 `embedding_status='completed'`, `embedding_retry_count=0`, `embedding_error_message=NULL` 로 리셋
   // - 2차 시도 이상에서는 chunk 상태 idempotency 보장을 위해 `reEmbed=true` 강제 (chunk 삭제 후 다시 처리)
   async processDocument(documentId: string, reEmbed = false): Promise<void> {
-    // 외부 직접 호출(테스트/컨트롤러)에서 documentId 가 falsy 한 경우 사전 차단.
-    // 정상 흐름은 DocumentEmbeddingProcessor 가 assertDocumentIdPayload 로 이미 검증.
-    // 미차단 시 아래 update(criteria=undefined) 가 TypeORM "Empty criteria(s)" 로
-    // 거부되고 catch 블록이 다시 같은 update 를 호출해 2차 에러가 발생한다.
-    if (!documentId || typeof documentId !== 'string') {
+    // 큐 워커 경로에서는 processor 가 검증. 본 가드는 직접 호출 경로(테스트/스크립트) 방어용.
+    if (!isValidDocumentId(documentId)) {
       this.logger.error(
         `processDocument called with invalid documentId: ${String(documentId)} ` +
           `(typeof=${typeof documentId})`,

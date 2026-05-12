@@ -36,8 +36,17 @@ import { StuckDocumentRecoveryService } from './queues/stuck-document-recovery.s
     ]),
     LlmModule,
     forwardRef(() => WebsocketModule),
-    BullModule.registerQueue({ name: DOCUMENT_EMBEDDING_QUEUE }),
-    BullModule.registerQueue({ name: GRAPH_EXTRACTION_QUEUE }),
+    // attempts=1 명시 — service 내부 retryWithBackoff 가 일시 오류를 책임지므로
+    // BullMQ 의 외부 retry 는 사용하지 않는다. 손상 payload 도 UnrecoverableError 와
+    // 함께 즉시 failed 큐로 이동.
+    BullModule.registerQueue({
+      name: DOCUMENT_EMBEDDING_QUEUE,
+      defaultJobOptions: { attempts: 1 },
+    }),
+    BullModule.registerQueue({
+      name: GRAPH_EXTRACTION_QUEUE,
+      defaultJobOptions: { attempts: 1 },
+    }),
   ],
   controllers: [KnowledgeBaseController, GraphController],
   providers: [

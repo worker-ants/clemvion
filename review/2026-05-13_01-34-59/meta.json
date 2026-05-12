@@ -1,0 +1,148 @@
+{
+  "timestamp": "2026-05-13T01:38:44.536545",
+  "files": [
+    {
+      "file_path": "/Volumes/project/private/clemvion/backend/scripts/cleanup-invalid-queue-jobs.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/clemvion/backend/src/modules/knowledge-base/embedding/embedding.service.spec.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/clemvion/backend/src/modules/knowledge-base/embedding/embedding.service.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/clemvion/backend/src/modules/knowledge-base/graph/graph-extraction.service.spec.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/clemvion/backend/src/modules/knowledge-base/graph/graph-extraction.service.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/clemvion/backend/src/modules/knowledge-base/queues/document-embedding.processor.spec.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/clemvion/backend/src/modules/knowledge-base/queues/document-embedding.processor.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/clemvion/backend/src/modules/knowledge-base/queues/graph-extraction.processor.spec.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/clemvion/backend/src/modules/knowledge-base/queues/graph-extraction.processor.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/clemvion/backend/src/modules/knowledge-base/queues/job-payload.util.spec.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/clemvion/backend/src/modules/knowledge-base/queues/job-payload.util.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/clemvion/backend/src/nodes/logic/variable-modification/variable-modification.handler.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/clemvion/backend/test/integration-credentials.e2e-spec.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/clemvion/backend/test/workflow-crud.e2e-spec.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/clemvion/plan/in-progress/queue-payload-guard.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    }
+  ],
+  "total_elapsed_seconds": 224.83,
+  "agents": [
+    {
+      "name": "api_contract",
+      "status": "success",
+      "elapsed_seconds": 22.75
+    },
+    {
+      "name": "scope",
+      "status": "success",
+      "elapsed_seconds": 38.63
+    },
+    {
+      "name": "dependency",
+      "status": "success",
+      "elapsed_seconds": 45.39
+    },
+    {
+      "name": "documentation",
+      "status": "success",
+      "elapsed_seconds": 54.13
+    },
+    {
+      "name": "concurrency",
+      "status": "success",
+      "elapsed_seconds": 62.27
+    },
+    {
+      "name": "security",
+      "status": "success",
+      "elapsed_seconds": 64.39
+    },
+    {
+      "name": "performance",
+      "status": "success",
+      "elapsed_seconds": 69.61
+    },
+    {
+      "name": "architecture",
+      "status": "success",
+      "elapsed_seconds": 76.69
+    },
+    {
+      "name": "testing",
+      "status": "success",
+      "elapsed_seconds": 78.25
+    },
+    {
+      "name": "database",
+      "status": "success",
+      "elapsed_seconds": 78.92
+    },
+    {
+      "name": "maintainability",
+      "status": "success",
+      "elapsed_seconds": 85.39
+    },
+    {
+      "name": "requirement",
+      "status": "success",
+      "elapsed_seconds": 110.67
+    },
+    {
+      "name": "side_effect",
+      "status": "success",
+      "elapsed_seconds": 123.68
+    }
+  ]
+}

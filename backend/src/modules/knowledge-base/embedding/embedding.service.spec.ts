@@ -90,18 +90,20 @@ describe('EmbeddingService - dimension consistency', () => {
     service = module.get(EmbeddingService);
   });
 
-  it('returns early without touching the repository when documentId is undefined', async () => {
-    await service.processDocument(undefined as unknown as string);
-    expect(mockDocRepo.findOne).not.toHaveBeenCalled();
-    expect(mockDocRepo.update).not.toHaveBeenCalled();
-    expect(mockDocRepo.increment).not.toHaveBeenCalled();
-  });
-
-  it('returns early on empty documentId', async () => {
-    await service.processDocument('');
-    expect(mockDocRepo.findOne).not.toHaveBeenCalled();
-    expect(mockDocRepo.update).not.toHaveBeenCalled();
-  });
+  it.each([
+    ['undefined', undefined as unknown as string],
+    ['null', null as unknown as string],
+    ['empty string', ''],
+    ['whitespace only', '   '],
+  ])(
+    'returns early without touching the repository when documentId is %s',
+    async (_label, input) => {
+      await service.processDocument(input);
+      expect(mockDocRepo.findOne).not.toHaveBeenCalled();
+      expect(mockDocRepo.update).not.toHaveBeenCalled();
+      expect(mockDocRepo.increment).not.toHaveBeenCalled();
+    },
+  );
 
   it('persists embedding_dimension when KB has none yet', async () => {
     mockDocRepo.findOne.mockResolvedValue({

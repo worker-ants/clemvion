@@ -95,4 +95,14 @@ describe('GraphExtractionProcessor', () => {
     ).rejects.toThrow(/documentId is missing/);
     expect(mockExtractionService.extractDocument).not.toHaveBeenCalled();
   });
+
+  it('throws when documentId is whitespace only', async () => {
+    await expect(
+      processor.process({
+        id: 'job-w',
+        data: { documentId: '   ', knowledgeBaseId: 'kb-1' },
+      } as never),
+    ).rejects.toThrow(InvalidJobPayloadError);
+    expect(mockExtractionService.extractDocument).not.toHaveBeenCalled();
+  });
 });

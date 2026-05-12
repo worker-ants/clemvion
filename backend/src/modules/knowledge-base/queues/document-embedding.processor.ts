@@ -17,8 +17,8 @@ import {
 } from './graph-extraction.queue';
 import { EmbeddingService } from '../embedding/embedding.service';
 import {
-  InvalidJobPayloadError,
   assertDocumentIdPayload,
+  logInvalidJobPayload,
 } from './job-payload.util';
 
 /**
@@ -51,12 +51,7 @@ export class DocumentEmbeddingProcessor extends WorkerHost {
     try {
       documentId = assertDocumentIdPayload(job, 'DocumentEmbeddingProcessor');
     } catch (err) {
-      if (err instanceof InvalidJobPayloadError) {
-        this.logger.error(
-          `Dropping invalid embedding job ${job.id ?? '<no-id>'}: ${err.reason} ` +
-            `(debug=${JSON.stringify(err.debug)})`,
-        );
-      }
+      logInvalidJobPayload(this.logger, 'embedding', job, err);
       throw err;
     }
     const { reEmbed } = job.data;
