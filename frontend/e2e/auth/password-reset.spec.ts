@@ -78,8 +78,10 @@ test.describe("Forgot / reset password", () => {
       .getByRole("button", { name: /재설정|Reset password|변경|Save/i })
       .click();
 
+    // reset-password form 은 toast 후 setTimeout 3000ms → router.push("/login").
+    // 폴링은 그 이상으로 충분히 대기.
     await expect
-      .poll(() => page.url(), { timeout: 5_000 })
+      .poll(() => page.url(), { timeout: 10_000 })
       .toMatch(/\/login/);
   });
 
