@@ -1,33 +1,29 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import axios from "axios";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Loader2, Pencil } from "lucide-react";
 import { apiClient } from "@/lib/api/client";
+import { axiosMessage } from "@/lib/api/errors";
+import {
+  USER_PROFILE_QUERY_KEY,
+  type ServerTheme,
+} from "@/lib/api/users";
 import { useThemeStore } from "@/lib/stores/theme-store";
 import { useLocaleStore } from "@/lib/stores/locale-store";
 import { isLocale, type Locale } from "@/lib/i18n/types";
 import { useT } from "@/lib/i18n";
 import { ConfirmDiffDialog, type DiffEntry } from "./confirm-diff-dialog";
 
-type ServerTheme = "light" | "dark";
-
 interface ProfilePreferencesCardProps {
   user: { locale: Locale; theme: ServerTheme };
 }
 
-function axiosMessage(err: unknown, fallback: string): string {
-  if (axios.isAxiosError(err)) {
-    return err.response?.data?.message ?? err.message ?? fallback;
-  }
-  if (err instanceof Error) return err.message || fallback;
-  return fallback;
-}
+type PreferencesPatch = Partial<{ theme: ServerTheme; locale: Locale }>;
 
 export function ProfilePreferencesCard({ user }: ProfilePreferencesCardProps) {
   const t = useT();
@@ -39,31 +35,31 @@ export function ProfilePreferencesCard({ user }: ProfilePreferencesCardProps) {
   const [tempTheme, setTempTheme] = useState<ServerTheme>(user.theme);
   const [tempLocale, setTempLocale] = useState<Locale>(user.locale);
   const [showDiff, setShowDiff] = useState(false);
+  // diff 모달이 열린 시점의 payload 스냅샷. 모달 열린 사이 사용자가 추가 조작해도
+  // 모달에 표시한 값과 PATCH 가 일치하도록 한다.
+  const confirmedPatchRef = useRef<PreferencesPatch>({});
 
-  // user.theme/locale 이 외부 변경(다른 탭, refetch)으로 갱신되면 view 모드일 때만 동기화.
-  // edit 모드 도중에는 사용자의 임시 선택을 덮어쓰지 않는다.
-  useEffect(() => {
-    if (mode === "view") {
-      setTempTheme(user.theme);
-      setTempLocale(user.locale);
-    }
-  }, [user.theme, user.locale, mode]);
+  // view 모드에서는 user.theme/locale 을 직접 표시하므로 tempTheme/Locale 이 stale
+  // 해도 무방. edit 모드 진입 시 handleEdit() 가 user 값으로 동기화한다 (반대로,
+  // edit 도중 외부 갱신으로 사용자의 임시 선택이 덮이는 일을 방지하기 위해 useEffect 동기화는 두지 않는다).
 
   const dirty = tempTheme !== user.theme || tempLocale !== user.locale;
 
   const mutation = useMutation({
-    mutationFn: async (patch: Partial<{ theme: ServerTheme; locale: Locale }>) => {
+    mutationFn: async (patch: PreferencesPatch) => {
       await apiClient.patch("/users/me", patch);
     },
     onSuccess: (_data, patch) => {
-      queryClient.invalidateQueries({ queryKey: ["user-profile"] });
-      if (patch.theme) setThemeStore(patch.theme);
-      if (patch.locale) setLocaleStore(patch.locale);
+      queryClient.invalidateQueries({ queryKey: USER_PROFILE_QUERY_KEY });
+      if (patch.theme !== undefined) setThemeStore(patch.theme);
+      if (patch.locale !== undefined) setLocaleStore(patch.locale);
       toast.success(t("profile.saved"));
       setShowDiff(false);
       setMode("view");
     },
     onError: (err) => {
+      // 에러 시 diff 모달을 닫고 편집 모드를 유지해 사용자가 재시도하기 좋게 한다.
+      setShowDiff(false);
       toast.error(axiosMessage(err, t("profile.saveFailed")));
     },
   });
@@ -92,15 +88,30 @@ export function ProfilePreferencesCard({ user }: ProfilePreferencesCardProps) {
       handleCancel();
       return;
     }
+    confirmedPatchRef.current = buildPatch();
     setShowDiff(true);
   }
 
-  const themeLabel = (val: ServerTheme): string =>
-    val === "dark" ? t("profile.themeDark") : t("profile.themeLight");
-  const localeLabel = (val: Locale): string =>
-    val === "ko" ? t("profile.languageKorean") : t("profile.languageEnglish");
+  function handleDiffClose() {
+    // spec §2.0: 모달 닫힘 시 라이브 프리뷰 원복 (사용자가 시각적으로 변경한
+    // theme 가 모달 dismiss 만으로 사라지지 않으면 의도와 어긋난다).
+    setThemeStore(user.theme);
+    setShowDiff(false);
+  }
+
+  function buildPatch(): PreferencesPatch {
+    const p: PreferencesPatch = {};
+    if (tempTheme !== user.theme) p.theme = tempTheme;
+    if (tempLocale !== user.locale) p.locale = tempLocale;
+    return p;
+  }
 
   const diff: DiffEntry[] = useMemo(() => {
+    const themeLabel = (val: ServerTheme): string =>
+      val === "dark" ? t("profile.themeDark") : t("profile.themeLight");
+    const localeLabel = (val: Locale): string =>
+      val === "ko" ? t("profile.languageKorean") : t("profile.languageEnglish");
+
     const entries: DiffEntry[] = [];
     if (tempTheme !== user.theme) {
       entries.push({
@@ -117,18 +128,14 @@ export function ProfilePreferencesCard({ user }: ProfilePreferencesCardProps) {
       });
     }
     return entries;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tempTheme, tempLocale, user.theme, user.locale, t]);
 
-  const patchPayload = useMemo(() => {
-    const p: Partial<{ theme: ServerTheme; locale: Locale }> = {};
-    if (tempTheme !== user.theme) p.theme = tempTheme;
-    if (tempLocale !== user.locale) p.locale = tempLocale;
-    return p;
-  }, [tempTheme, tempLocale, user.theme, user.locale]);
-
-  const displayedTheme = mode === "edit" ? tempTheme : user.theme;
-  const displayedLocale = mode === "edit" ? tempLocale : user.locale;
+  const themeReadonlyLabel =
+    user.theme === "dark" ? t("profile.themeDark") : t("profile.themeLight");
+  const localeReadonlyLabel =
+    user.locale === "ko"
+      ? t("profile.languageKorean")
+      : t("profile.languageEnglish");
 
   return (
     <>
@@ -175,7 +182,7 @@ export function ProfilePreferencesCard({ user }: ProfilePreferencesCardProps) {
             <Label>{t("profile.theme")}</Label>
             {mode === "view" ? (
               <p className="mt-1 text-sm" data-testid="pref-theme-readonly">
-                {themeLabel(displayedTheme)}
+                {themeReadonlyLabel}
               </p>
             ) : (
               <div className="mt-1 flex gap-2">
@@ -206,7 +213,7 @@ export function ProfilePreferencesCard({ user }: ProfilePreferencesCardProps) {
                 className="mt-1 text-sm"
                 data-testid="pref-language-readonly"
               >
-                {localeLabel(displayedLocale)}
+                {localeReadonlyLabel}
               </p>
             ) : (
               <select
@@ -230,9 +237,9 @@ export function ProfilePreferencesCard({ user }: ProfilePreferencesCardProps) {
       <ConfirmDiffDialog
         open={showDiff}
         changes={diff}
-        onClose={() => setShowDiff(false)}
+        onClose={handleDiffClose}
         onConfirm={async () => {
-          await mutation.mutateAsync(patchPayload);
+          await mutation.mutateAsync(confirmedPatchRef.current);
         }}
       />
     </>

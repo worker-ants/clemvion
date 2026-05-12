@@ -1,7 +1,20 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import type React from "react";
+
+vi.mock("@/lib/i18n", async () => {
+  const { ko } = await import("@/lib/i18n/dict/ko");
+  const tFromKo = (key: string): string => {
+    const parts = key.split(".");
+    let cur: unknown = ko;
+    for (const p of parts) {
+      if (!cur || typeof cur !== "object") return key;
+      cur = (cur as Record<string, unknown>)[p];
+    }
+    return typeof cur === "string" ? cur : key;
+  };
+  return { useT: () => tFromKo, useLocale: () => "ko" as const };
+});
 
 vi.mock("@/lib/api/client", () => ({
   apiClient: {
@@ -73,7 +86,7 @@ describe("ProfileInfoCard", () => {
     expect(screen.queryByRole("textbox")).toBeNull();
   });
 
-  it("opens diff dialog with before/after when name changes and [저장] is clicked", () => {
+  it("opens diff dialog with before/after when name changes", () => {
     renderCard({ name: "Gehrig", email: "g@example.com" });
     fireEvent.click(screen.getByTestId("profile-info-edit"));
     fireEvent.change(screen.getByRole("textbox"), {
@@ -86,24 +99,37 @@ describe("ProfileInfoCard", () => {
     );
   });
 
-  it("calls PATCH /users/me { name } when the diff is confirmed", async () => {
+  it("calls PATCH /users/me { name } trimmed when the diff is confirmed", async () => {
+    renderCard({ name: "Gehrig", email: "g@example.com" });
+    fireEvent.click(screen.getByTestId("profile-info-edit"));
+    fireEvent.change(screen.getByRole("textbox"), {
+      target: { value: "  Gehrig Kim  " },
+    });
+    fireEvent.click(screen.getByTestId("profile-info-save"));
+    fireEvent.click(screen.getByTestId("diff-confirm"));
+    await waitFor(() => {
+      expect(apiClient.patch).toHaveBeenCalledWith("/users/me", {
+        name: "Gehrig Kim",
+      });
+      expect(toast.success).toHaveBeenCalled();
+    });
+  });
+
+  it("shows an error toast and keeps edit mode when PATCH rejects", async () => {
+    (apiClient.patch as ReturnType<typeof vi.fn>).mockRejectedValueOnce(
+      new Error("server down"),
+    );
     renderCard({ name: "Gehrig", email: "g@example.com" });
     fireEvent.click(screen.getByTestId("profile-info-edit"));
     fireEvent.change(screen.getByRole("textbox"), {
       target: { value: "Gehrig Kim" },
     });
     fireEvent.click(screen.getByTestId("profile-info-save"));
-    fireEvent.click(
-      screen.getAllByRole("button", { name: /저장|save/i })[1] ??
-        screen.getByRole("button", { name: /저장|save/i }),
-    );
+    fireEvent.click(screen.getByTestId("diff-confirm"));
     await waitFor(() => {
-      expect(apiClient.patch).toHaveBeenCalledWith("/users/me", {
-        name: "Gehrig Kim",
-      });
+      expect(toast.error).toHaveBeenCalled();
     });
-    await waitFor(() => {
-      expect(toast.success).toHaveBeenCalled();
-    });
+    // mode 가 edit 으로 유지되어 input 이 그대로 보인다 (사용자가 재시도 가능)
+    expect(screen.getByRole("textbox")).toBeInTheDocument();
   });
 });

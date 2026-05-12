@@ -39,6 +39,9 @@ export function ConfirmDiffDialog({
     setPending(true);
     try {
       await onConfirm();
+    } catch {
+      // 호출자(부모)가 toast/inline 에러 처리를 담당한다. 본 dialog 는 reject 를
+      // swallow 해 React event handler 의 unhandled rejection 을 차단한다.
     } finally {
       setPending(false);
     }
@@ -85,10 +88,19 @@ export function ConfirmDiffDialog({
         </ul>
 
         <DialogFooter>
-          <Button variant="outline" onClick={onClose} disabled={isPending}>
+          <Button
+            variant="outline"
+            onClick={onClose}
+            disabled={isPending}
+            data-testid="diff-cancel"
+          >
             {t("common.cancel")}
           </Button>
-          <Button onClick={handleConfirm} disabled={isPending}>
+          <Button
+            onClick={handleConfirm}
+            disabled={isPending}
+            data-testid="diff-confirm"
+          >
             {isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
             {t("common.save")}
           </Button>

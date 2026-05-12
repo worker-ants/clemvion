@@ -301,6 +301,7 @@ export const en: Dict = {
     saveFailed: "Failed to update profile",
     noChanges: "No changes to save",
     enterNewPassword: "Please enter a new password",
+    enterConfirmPassword: "Please confirm the new password",
     enterCurrentPassword: "Please enter your current password",
     passwordsDoNotMatch: "Passwords do not match",
     edit: "Edit",

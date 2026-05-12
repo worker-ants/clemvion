@@ -7,6 +7,20 @@ const { setThemeStoreMock, setLocaleStoreMock } = vi.hoisted(() => ({
   setLocaleStoreMock: vi.fn(),
 }));
 
+vi.mock("@/lib/i18n", async () => {
+  const { ko } = await import("@/lib/i18n/dict/ko");
+  const tFromKo = (key: string): string => {
+    const parts = key.split(".");
+    let cur: unknown = ko;
+    for (const p of parts) {
+      if (!cur || typeof cur !== "object") return key;
+      cur = (cur as Record<string, unknown>)[p];
+    }
+    return typeof cur === "string" ? cur : key;
+  };
+  return { useT: () => tFromKo, useLocale: () => "ko" as const };
+});
+
 vi.mock("@/lib/api/client", () => ({
   apiClient: {
     patch: vi.fn().mockResolvedValue({ data: {} }),
@@ -68,8 +82,12 @@ beforeEach(() => {
 describe("ProfilePreferencesCard", () => {
   it("renders readonly view with current theme/locale labels", () => {
     renderCard({ locale: "ko", theme: "light" });
-    expect(screen.getByTestId("pref-theme-readonly")).toHaveTextContent(/라이트|light/i);
-    expect(screen.getByTestId("pref-language-readonly")).toHaveTextContent(/한국어|korean/i);
+    expect(screen.getByTestId("pref-theme-readonly")).toHaveTextContent(
+      /라이트|light/i,
+    );
+    expect(screen.getByTestId("pref-language-readonly")).toHaveTextContent(
+      /한국어|korean/i,
+    );
     expect(screen.getByTestId("profile-pref-edit")).toBeInTheDocument();
   });
 
@@ -98,6 +116,16 @@ describe("ProfilePreferencesCard", () => {
     expect(screen.queryByTestId("pref-theme-dark")).toBeNull();
   });
 
+  it("diff 모달 [취소] 시에도 theme store 가 user.theme 으로 원복된다 (spec §2.0)", () => {
+    renderCard({ locale: "ko", theme: "light" });
+    fireEvent.click(screen.getByTestId("profile-pref-edit"));
+    fireEvent.click(screen.getByTestId("pref-theme-dark"));
+    fireEvent.click(screen.getByTestId("profile-pref-save"));
+    setThemeStoreMock.mockClear();
+    fireEvent.click(screen.getByTestId("diff-cancel"));
+    expect(setThemeStoreMock).toHaveBeenLastCalledWith("light");
+  });
+
   it("변경 없이 [저장] 시 noChanges 토스트 후 view 복귀", () => {
     renderCard();
     fireEvent.click(screen.getByTestId("profile-pref-edit"));
@@ -106,21 +134,49 @@ describe("ProfilePreferencesCard", () => {
     expect(screen.queryByTestId("pref-theme-dark")).toBeNull();
   });
 
-  it("변경 후 [저장] → diff 모달 → [확정] 시 PATCH /users/me 가 dirty 항목만 보낸다", async () => {
+  it("변경 후 [저장] → diff → [확정] 시 PATCH /users/me 가 dirty 항목만 보낸다", async () => {
     renderCard({ locale: "ko", theme: "light" });
     fireEvent.click(screen.getByTestId("profile-pref-edit"));
     fireEvent.click(screen.getByTestId("pref-theme-dark"));
     fireEvent.click(screen.getByTestId("profile-pref-save"));
     expect(screen.getByTestId("diff-after-테마")).toBeInTheDocument();
-    fireEvent.click(
-      screen.getAllByRole("button", { name: /저장|save/i })[1] ??
-        screen.getByRole("button", { name: /저장|save/i }),
-    );
+    fireEvent.click(screen.getByTestId("diff-confirm"));
     await waitFor(() => {
-      expect(apiClient.patch).toHaveBeenCalledWith("/users/me", { theme: "dark" });
-    });
-    await waitFor(() => {
+      expect(apiClient.patch).toHaveBeenCalledWith("/users/me", {
+        theme: "dark",
+      });
       expect(toast.success).toHaveBeenCalled();
     });
+  });
+
+  it("locale 변경 → 확정 시 setLocaleStore 가 새 locale 로 호출된다", async () => {
+    renderCard({ locale: "ko", theme: "light" });
+    fireEvent.click(screen.getByTestId("profile-pref-edit"));
+    fireEvent.change(screen.getByTestId("pref-language-select"), {
+      target: { value: "en" },
+    });
+    fireEvent.click(screen.getByTestId("profile-pref-save"));
+    fireEvent.click(screen.getByTestId("diff-confirm"));
+    await waitFor(() => {
+      expect(apiClient.patch).toHaveBeenCalledWith("/users/me", {
+        locale: "en",
+      });
+      expect(setLocaleStoreMock).toHaveBeenCalledWith("en");
+    });
+  });
+
+  it("PATCH 실패 시 error 토스트 후 편집 모드 유지", async () => {
+    (apiClient.patch as ReturnType<typeof vi.fn>).mockRejectedValueOnce(
+      new Error("oops"),
+    );
+    renderCard({ locale: "ko", theme: "light" });
+    fireEvent.click(screen.getByTestId("profile-pref-edit"));
+    fireEvent.click(screen.getByTestId("pref-theme-dark"));
+    fireEvent.click(screen.getByTestId("profile-pref-save"));
+    fireEvent.click(screen.getByTestId("diff-confirm"));
+    await waitFor(() => {
+      expect(toast.error).toHaveBeenCalled();
+    });
+    expect(screen.getByTestId("pref-theme-dark")).toBeInTheDocument();
   });
 });

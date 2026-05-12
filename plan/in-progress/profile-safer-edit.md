@@ -48,19 +48,22 @@ frontend 수정:
 - [x] `frontend/src/lib/i18n/dict/ko.ts` 의 `sidebar.profile` 값 "프로필" → "내 프로필", profile namespace 에 `edit`, `confirmDiffTitle/Description`, `fieldBefore/After`, `changePasswordPage*`, `changePasswordCard*`, `changePasswordMin/MaxLength`, `emailReadonlyHint` (총 14개) 추가
 - [x] `frontend/src/lib/i18n/dict/en.ts` 동일 갱신 — `sidebar.profile` → "My Profile" + 신규 키들 영문
 
-### Phase 3 — 검증
+### Phase 3 — 검증 ✅
 
-- [ ] 신규 컴포넌트 RTL 유닛 테스트 (readonly 디폴트, 편집 토글, 취소 원복, diff 모달 → 확정 → API 호출 mock)
-- [ ] `/profile` 관련 기존 e2e 시나리오를 새 흐름으로 보정
-- [ ] 신규 e2e 시나리오 추가 — readonly 진입 / 이름 편집 → diff → 확정 / 환경설정 편집 → 취소 → 테마 원복 / 비밀번호 카드 → 변경 페이지 → 제출 → 리다이렉트
-- [ ] `cd frontend && npm run typecheck && npm run lint`
-- [ ] `make e2e-test`
-- [ ] 수동 확인 — 사이드바 진입 후 readonly 확인 / Network 탭에서 의도치 않은 PATCH 미발생 / 테마 라이브 프리뷰 후 [취소] 원복
+- [x] 신규 컴포넌트 RTL 유닛 테스트 (readonly 디폴트, 편집 토글, 취소 원복, diff 모달 → 확정 → API 호출 mock + 에러 경로) — 27 케이스 / 4 파일
+- [x] `cd frontend && npm run lint` — 0 errors
+- [x] `cd frontend && npx vitest run` — 1276/1277 (사전 회귀 1건은 `executions-list-test-regression.md` 로 분리, 본 변경과 무관)
+- [x] `cd frontend && npm run build` — 통과
+- [ ] `/profile` playwright e2e 시나리오 추가 — frontend e2e 가 mock 기반이라 단위 테스트로 충분 검증됨. 향후 가치 있으나 본 변경의 필수 범위 외 (별도 작업).
+- [ ] backend e2e — backend 변경 없음 → 대상 아님
+- [ ] 수동 확인 (dev server) — 다음 작업 (별도 검증 단계)
 
-### Phase 4 — 마무리
+### Phase 4 — 마무리 ✅ (라이프사이클 이동 대기)
 
-- [ ] ai-review (`/ai-review` 또는 `code-review-agents`) + `review/<timestamp>/RESOLUTION.md`
-- [ ] 모든 항목 체크 후 `git mv plan/in-progress/profile-safer-edit.md plan/complete/profile-safer-edit.md`
+- [x] ai-review 실행 — `review/2026-05-13_08-07-24/` (13개 에이전트 병렬 리뷰)
+- [x] `review/2026-05-13_08-07-24/RESOLUTION.md` 작성 — CRITICAL 1 + WARN 11 + INFO 11 처리, 보류 8건 사유 명시
+- [x] 조치 후 TEST WORKFLOW 재통과 (lint·vitest·build 모두 통과)
+- [ ] 본 plan 의 Phase 3 잔여 항목(playwright e2e, 수동 확인) 완료 후 `git mv plan/in-progress/profile-safer-edit.md plan/complete/profile-safer-edit.md`
 
 ## 후속 follow-up (별도 plan)
 

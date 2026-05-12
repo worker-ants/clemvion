@@ -15,10 +15,12 @@ import { useThemeStore } from "@/lib/stores/theme-store";
 import { useLocaleStore } from "@/lib/stores/locale-store";
 import { useT } from "@/lib/i18n";
 import { isLocale, type Locale } from "@/lib/i18n/types";
+import {
+  USER_PROFILE_QUERY_KEY,
+  type ServerTheme,
+} from "@/lib/api/users";
 import { ProfileInfoCard } from "./components/profile-info-card";
 import { ProfilePreferencesCard } from "./components/profile-preferences-card";
-
-type ServerTheme = "light" | "dark";
 
 interface UserProfile {
   id: string;
@@ -35,11 +37,12 @@ export default function ProfilePage() {
   const setLocaleStore = useLocaleStore((s) => s.setLocale);
 
   const { data: user, isLoading, isError } = useQuery<UserProfile>({
-    queryKey: ["user-profile"],
+    queryKey: USER_PROFILE_QUERY_KEY,
     queryFn: async () => {
       const res = await apiClient.get("/users/me");
       return res.data.data ?? res.data;
     },
+    staleTime: 5 * 60 * 1000,
   });
 
   // 첫 로드 시 server 값을 client store 에 동기화. 카드 안의 라이브 프리뷰는
