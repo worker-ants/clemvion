@@ -8,7 +8,13 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { DataSource, EntityManager, LessThan, Repository } from 'typeorm';
+import {
+  DataSource,
+  EntityManager,
+  LessThan,
+  QueryFailedError,
+  Repository,
+} from 'typeorm';
 import { randomBytes } from 'crypto';
 import {
   InvitationRole,
@@ -76,13 +82,13 @@ export class WorkspaceInvitationsService {
     });
     if (!workspace) {
       throw new NotFoundException({
-        code: 'WORKSPACE_NOT_FOUND',
+        code: 'workspace_not_found',
         message: '워크스페이스를 찾을 수 없습니다.',
       });
     }
     if (workspace.type !== 'team') {
       throw new ForbiddenException({
-        code: 'WORKSPACE_TYPE_MISMATCH',
+        code: 'workspace_type_mismatch',
         message: '팀 워크스페이스에서만 초대할 수 있습니다.',
       });
     }
@@ -96,38 +102,53 @@ export class WorkspaceInvitationsService {
       });
       if (existingMember) {
         throw new ConflictException({
-          code: 'ALREADY_A_MEMBER',
+          code: 'already_a_member',
           message: '이미 워크스페이스 멤버입니다.',
         });
       }
     }
 
-    // Spec policy: same (workspace, email) pending → invalidate old token + reissue.
-    // We update the existing row (partial UNIQUE keeps it singular) so the previous
-    // token stops working immediately.
-    const pending = await this.invitationRepository.findOne({
-      where: { workspaceId, email: normalized, acceptedAt: null as never },
-    });
-
     const token = generateToken();
     const expiresAt = new Date(Date.now() + INVITATION_TTL_MS);
+
+    // Wrap pending-lookup + write in a transaction so two concurrent invites
+    // for the same (workspace, email) don't race past the partial-UNIQUE
+    // constraint. If a parallel INSERT wins between our findOne and save the
+    // QueryFailedError gets remapped to a clean ConflictException instead of
+    // bubbling up as a 500.
     let saved: WorkspaceInvitation;
-    if (pending) {
-      pending.token = token;
-      pending.role = role;
-      pending.invitedBy = requesterId;
-      pending.expiresAt = expiresAt;
-      saved = await this.invitationRepository.save(pending);
-    } else {
-      const invitation = this.invitationRepository.create({
-        workspaceId,
-        email: normalized,
-        role,
-        token,
-        invitedBy: requesterId,
-        expiresAt,
+    try {
+      saved = await this.dataSource.transaction(async (manager) => {
+        const invitationRepo = manager.getRepository(WorkspaceInvitation);
+        const pending = await invitationRepo.findOne({
+          where: { workspaceId, email: normalized, acceptedAt: null as never },
+        });
+        if (pending) {
+          pending.token = token;
+          pending.role = role;
+          pending.invitedBy = requesterId;
+          pending.expiresAt = expiresAt;
+          return invitationRepo.save(pending);
+        }
+        const invitation = invitationRepo.create({
+          workspaceId,
+          email: normalized,
+          role,
+          token,
+          invitedBy: requesterId,
+          expiresAt,
+        });
+        return invitationRepo.save(invitation);
       });
-      saved = await this.invitationRepository.save(invitation);
+    } catch (err) {
+      if (isUniqueViolation(err)) {
+        throw new ConflictException({
+          code: 'invitation_already_pending',
+          message:
+            '동일 이메일의 초대가 동시에 발송됐어요. 잠시 후 다시 시도해 주세요.',
+        });
+      }
+      throw err;
     }
 
     const inviter = await this.userRepository.findOne({
@@ -159,13 +180,13 @@ export class WorkspaceInvitationsService {
     });
     if (!invitation) {
       throw new NotFoundException({
-        code: 'INVITATION_NOT_FOUND',
+        code: 'invitation_not_found',
         message: '초대를 찾을 수 없습니다.',
       });
     }
     if (invitation.acceptedAt) {
       throw new ConflictException({
-        code: 'INVITATION_ALREADY_ACCEPTED',
+        code: 'invitation_already_accepted',
         message: '이미 수락된 초대는 재발송할 수 없습니다.',
       });
     }
@@ -175,15 +196,19 @@ export class WorkspaceInvitationsService {
     invitation.invitedBy = requesterId;
     const saved = await this.invitationRepository.save(invitation);
 
-    const workspace = await this.workspaceRepository.findOne({
-      where: { id: workspaceId },
-    });
-    const inviter = await this.userRepository.findOne({
-      where: { id: requesterId },
-    });
+    const [workspace, inviter] = await Promise.all([
+      this.workspaceRepository.findOne({ where: { id: workspaceId } }),
+      this.userRepository.findOne({ where: { id: requesterId } }),
+    ]);
+    if (!workspace) {
+      throw new NotFoundException({
+        code: 'workspace_not_found',
+        message: '워크스페이스를 찾을 수 없습니다.',
+      });
+    }
     await this.dispatchEmail(
       invitation.email,
-      workspace?.name ?? '',
+      workspace.name,
       inviter?.name ?? null,
       saved.token,
     );
@@ -200,24 +225,7 @@ export class WorkspaceInvitationsService {
     const invitation = await this.invitationRepository.findOne({
       where: { token },
     });
-    if (!invitation) {
-      throw new NotFoundException({
-        code: 'invitation_not_found',
-        message: '초대 토큰이 유효하지 않습니다.',
-      });
-    }
-    if (invitation.acceptedAt) {
-      throw new GoneException({
-        code: 'invitation_already_used',
-        message: '이미 사용된 초대입니다.',
-      });
-    }
-    if (invitation.expiresAt.getTime() < Date.now()) {
-      throw new GoneException({
-        code: 'invitation_expired',
-        message: '초대가 만료되었습니다.',
-      });
-    }
+    this.assertTokenUsable(invitation);
 
     const [workspace, inviter] = await Promise.all([
       this.workspaceRepository.findOne({
@@ -227,9 +235,17 @@ export class WorkspaceInvitationsService {
         ? this.userRepository.findOne({ where: { id: invitation.invitedBy } })
         : Promise.resolve(null),
     ]);
+    if (!workspace) {
+      // Defensive: workspace deleted while invitation still pending. Surface as
+      // 404 rather than returning a meaningless empty workspaceName.
+      throw new NotFoundException({
+        code: 'workspace_not_found',
+        message: '초대된 워크스페이스가 더 이상 존재하지 않습니다.',
+      });
+    }
 
     return {
-      workspaceName: workspace?.name ?? '',
+      workspaceName: workspace.name,
       invitedByName: inviter?.name ?? null,
       email: invitation.email,
       role: invitation.role,
@@ -251,29 +267,12 @@ export class WorkspaceInvitationsService {
     const invitation = await this.invitationRepository.findOne({
       where: { token },
     });
-    if (!invitation) {
-      throw new NotFoundException({
-        code: 'invitation_not_found',
-        message: '초대 토큰이 유효하지 않습니다.',
-      });
-    }
-    if (invitation.acceptedAt) {
-      throw new GoneException({
-        code: 'invitation_already_used',
-        message: '이미 사용된 초대입니다.',
-      });
-    }
-    if (invitation.expiresAt.getTime() < Date.now()) {
-      throw new GoneException({
-        code: 'invitation_expired',
-        message: '초대가 만료되었습니다.',
-      });
-    }
+    this.assertTokenUsable(invitation);
 
     const user = await this.userRepository.findOne({ where: { id: userId } });
     if (!user) {
       throw new NotFoundException({
-        code: 'USER_NOT_FOUND',
+        code: 'user_not_found',
         message: '사용자를 찾을 수 없습니다.',
       });
     }
@@ -310,24 +309,7 @@ export class WorkspaceInvitationsService {
   ): Promise<{ workspaceId: string; role: InvitationRole; email: string }> {
     const invitationRepo = manager.getRepository(WorkspaceInvitation);
     const invitation = await invitationRepo.findOne({ where: { token } });
-    if (!invitation) {
-      throw new NotFoundException({
-        code: 'invitation_not_found',
-        message: '초대 토큰이 유효하지 않습니다.',
-      });
-    }
-    if (invitation.acceptedAt) {
-      throw new GoneException({
-        code: 'invitation_already_used',
-        message: '이미 사용된 초대입니다.',
-      });
-    }
-    if (invitation.expiresAt.getTime() < Date.now()) {
-      throw new GoneException({
-        code: 'invitation_expired',
-        message: '초대가 만료되었습니다.',
-      });
-    }
+    this.assertTokenUsable(invitation);
 
     const consumed = await this.applyAccept(
       manager,
@@ -363,13 +345,13 @@ export class WorkspaceInvitationsService {
     });
     if (!invitation) {
       throw new NotFoundException({
-        code: 'INVITATION_NOT_FOUND',
+        code: 'invitation_not_found',
         message: '초대를 찾을 수 없습니다.',
       });
     }
     if (invitation.acceptedAt) {
       throw new ConflictException({
-        code: 'INVITATION_ALREADY_ACCEPTED',
+        code: 'invitation_already_accepted',
         message: '이미 수락된 초대는 취소할 수 없습니다.',
       });
     }
@@ -453,6 +435,34 @@ export class WorkspaceInvitationsService {
     }
   }
 
+  /**
+   * Asserts the invitation row is usable for accept / consume / metadata
+   * lookup. Centralizes the 404 / 410 / 410 mapping that was previously
+   * duplicated in three call sites.
+   */
+  private assertTokenUsable(
+    invitation: WorkspaceInvitation | null,
+  ): asserts invitation is WorkspaceInvitation {
+    if (!invitation) {
+      throw new NotFoundException({
+        code: 'invitation_not_found',
+        message: '초대 토큰이 유효하지 않습니다.',
+      });
+    }
+    if (invitation.acceptedAt) {
+      throw new GoneException({
+        code: 'invitation_already_used',
+        message: '이미 사용된 초대입니다.',
+      });
+    }
+    if (invitation.expiresAt.getTime() < Date.now()) {
+      throw new GoneException({
+        code: 'invitation_expired',
+        message: '초대가 만료되었습니다.',
+      });
+    }
+  }
+
   private async assertAdmin(
     workspaceId: string,
     userId: string,
@@ -462,9 +472,22 @@ export class WorkspaceInvitationsService {
     });
     if (!member || !ADMIN_ROLES.has(member.role)) {
       throw new ForbiddenException({
-        code: 'ADMIN_REQUIRED',
+        code: 'admin_required',
         message: 'Admin 이상의 권한이 필요합니다.',
       });
     }
   }
+}
+
+/**
+ * Returns true if `err` is a Postgres unique-violation error. We can't rely on
+ * a typed error class because the driver returns a generic QueryFailedError
+ * whose driverError carries the SQLSTATE in a `code` field (`23505`).
+ */
+function isUniqueViolation(err: unknown): boolean {
+  if (!(err instanceof QueryFailedError)) return false;
+  const driverError = (
+    err as QueryFailedError & { driverError?: { code?: string } }
+  ).driverError;
+  return driverError?.code === '23505';
 }

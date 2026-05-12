@@ -1,4 +1,4 @@
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 /** 액세스 토큰 본문 */
 export class AccessTokenDto {
@@ -48,10 +48,9 @@ export class RegisterResultDto {
   @ApiProperty()
   message: string;
 
-  @ApiProperty({
-    required: false,
+  @ApiPropertyOptional({
     description:
-      '초대 토큰으로 가입한 경우 즉시 발급되는 Access Token. 일반 가입은 누락(이메일 인증 후 발급).',
+      '초대 토큰으로 가입한 경우 즉시 발급되는 Access Token. 일반 가입은 누락(이메일 인증 후 발급). 동시에 Refresh Token 이 httpOnly 쿠키로 셋된다.',
   })
   accessToken?: string;
 }

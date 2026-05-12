@@ -117,8 +117,14 @@ export class MailService {
     invitedByName: string | null,
     token: string,
   ): Promise<void> {
-    const acceptUrl = `${this.frontendUrl}/invitations/${encodeURIComponent(token)}`;
-    this.logger.debug(`[DEV] Workspace invitation for ${email}: ${acceptUrl}`);
+    // spec/5-system/1-auth.md §1.5.2 — 메일 링크는 회원가입 페이지로 직행한다.
+    // 기가입자는 가입 페이지에서 로그인 상태/이메일 일치를 감지해 accept 흐름으로 분기.
+    const acceptUrl = `${this.frontendUrl}/auth/register?invitationToken=${encodeURIComponent(token)}`;
+
+    if (this.transport === MAIL_TRANSPORT_CONSOLE) {
+      // 토큰 URL 은 console transport (개발) 에서만 로그에 남긴다 — 운영 로그 집계 시스템에 토큰 누출 방지.
+      this.logger.debug(`Workspace invitation for ${email}: ${acceptUrl}`);
+    }
 
     try {
       await this.mailerService.sendMail({
