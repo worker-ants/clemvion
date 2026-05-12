@@ -3,11 +3,7 @@ import { Client } from 'pg';
 import request from 'supertest';
 
 import { createDbClient, uniqueEmail, uniqueName } from './helpers/db';
-import {
-  registerAndLogin,
-  createTeamWorkspace,
-  inviteAndAccept,
-} from './helpers/auth';
+import { registerAndLogin, createTeamWorkspace } from './helpers/auth';
 
 /**
  * e2e: Workflow AI Assistant 세션 관리 — spec/3-workflow-editor/4-ai-assistant.md.
@@ -124,13 +120,19 @@ describe('Workflow Assistant sessions (e2e)', () => {
   });
 
   it('E. RBAC — viewer 는 세션 생성 불가 (403)', async () => {
-    const viewer = await inviteAndAccept(
+    // invite 엔드포인트는 throttler(60s/10) 가 강력해서 본 suite 가 마지막 차례에
+    // 돌면 누적 invite 가 bucket 을 비우지 못한다. RBAC 단언만 필요하므로 viewer
+    // 멤버십을 DB 에 직접 INSERT 해 throttler 를 우회한다.
+    const viewer = await registerAndLogin(
       BASE_URL,
-      token,
-      workspaceId,
       uniqueEmail('asst-viewer'),
-      'viewer',
       db,
+    );
+    await db.query(
+      `INSERT INTO workspace_member (workspace_id, user_id, role, joined_at)
+       VALUES ($1, $2, 'viewer', NOW())
+       ON CONFLICT (workspace_id, user_id) DO UPDATE SET role = 'viewer'`,
+      [workspaceId, viewer.userId],
     );
 
     const res = await request(BASE_URL)
