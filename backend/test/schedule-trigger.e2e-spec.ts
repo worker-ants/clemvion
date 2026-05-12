@@ -98,10 +98,9 @@ describe('Schedule trigger (e2e)', () => {
     expect(res.body.data.nextRunAt).toBeDefined();
 
     // schedule 행 + 동반된 trigger 행 확인.
-    const sched = await db.query(
-      'SELECT id FROM schedule WHERE id = $1',
-      [scheduleId],
-    );
+    const sched = await db.query('SELECT id FROM schedule WHERE id = $1', [
+      scheduleId,
+    ]);
     expect(sched.rows.length).toBe(1);
     const trig = await db.query<{ type: string; is_active: boolean }>(
       `SELECT type, is_active FROM trigger
@@ -177,10 +176,9 @@ describe('Schedule trigger (e2e)', () => {
       .set(authHeaders());
     expect(del.status).toBe(204);
 
-    const afterSched = await db.query(
-      'SELECT id FROM schedule WHERE id = $1',
-      [scheduleId],
-    );
+    const afterSched = await db.query('SELECT id FROM schedule WHERE id = $1', [
+      scheduleId,
+    ]);
     expect(afterSched.rows.length).toBe(0);
   });
 });

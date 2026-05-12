@@ -41,7 +41,10 @@ describe('Knowledge Base (e2e)', () => {
     } as const;
   }
 
-  async function createKb(name: string, ragMode: 'vector' | 'graph' = 'vector'): Promise<string> {
+  async function createKb(
+    name: string,
+    ragMode: 'vector' | 'graph' = 'vector',
+  ): Promise<string> {
     const res = await request(BASE_URL)
       .post('/api/knowledge-bases')
       .set(authHeaders())
@@ -58,8 +61,9 @@ describe('Knowledge Base (e2e)', () => {
       .get('/api/knowledge-bases')
       .set(authHeaders());
     expect(list.status).toBe(200);
-    const items = (list.body.data as { items?: Array<{ id: string }> }).items
-      ?? (list.body.data as Array<{ id: string }>);
+    const items =
+      (list.body.data as { items?: Array<{ id: string }> }).items ??
+      (list.body.data as Array<{ id: string }>);
     expect(items.some((i) => i.id === id)).toBe(true);
 
     const get = await request(BASE_URL)
@@ -112,10 +116,9 @@ describe('Knowledge Base (e2e)', () => {
       .set(authHeaders());
     expect(get.status).toBe(404);
 
-    const row = await db.query(
-      'SELECT id FROM knowledge_base WHERE id = $1',
-      [id],
-    );
+    const row = await db.query('SELECT id FROM knowledge_base WHERE id = $1', [
+      id,
+    ]);
     expect(row.rows.length).toBe(0);
   });
 

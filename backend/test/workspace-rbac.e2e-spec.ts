@@ -35,11 +35,27 @@ describe('Workspace RBAC (e2e)', () => {
   });
 
   it('A. cross-workspace 격리 — A 의 멤버가 B 의 워크플로우 생성 시 403 (Roles 가드)', async () => {
-    const ownerA = await registerAndLogin(BASE_URL, uniqueEmail('rbac-a-own'), db);
-    const wsA = await createTeamWorkspace(BASE_URL, ownerA.accessToken, uniqueName('A'));
+    const ownerA = await registerAndLogin(
+      BASE_URL,
+      uniqueEmail('rbac-a-own'),
+      db,
+    );
+    const wsA = await createTeamWorkspace(
+      BASE_URL,
+      ownerA.accessToken,
+      uniqueName('A'),
+    );
 
-    const ownerB = await registerAndLogin(BASE_URL, uniqueEmail('rbac-a-other'), db);
-    const wsB = await createTeamWorkspace(BASE_URL, ownerB.accessToken, uniqueName('B'));
+    const ownerB = await registerAndLogin(
+      BASE_URL,
+      uniqueEmail('rbac-a-other'),
+      db,
+    );
+    const wsB = await createTeamWorkspace(
+      BASE_URL,
+      ownerB.accessToken,
+      uniqueName('B'),
+    );
 
     // ownerA 가 wsB 의 워크플로우 생성 시도 → 403 (RolesGuard, 멤버 아님).
     // 참고: GET /workflows 는 @Roles 가드가 없어 workspaceId 필터만 적용되므로
@@ -61,8 +77,16 @@ describe('Workspace RBAC (e2e)', () => {
   });
 
   it('B. viewer 는 워크플로우 생성 불가 (403), editor 는 가능 (201)', async () => {
-    const owner = await registerAndLogin(BASE_URL, uniqueEmail('rbac-b-own'), db);
-    const ws = await createTeamWorkspace(BASE_URL, owner.accessToken, uniqueName('B'));
+    const owner = await registerAndLogin(
+      BASE_URL,
+      uniqueEmail('rbac-b-own'),
+      db,
+    );
+    const ws = await createTeamWorkspace(
+      BASE_URL,
+      owner.accessToken,
+      uniqueName('B'),
+    );
 
     const viewer = await inviteAndAccept(
       BASE_URL,
@@ -106,8 +130,16 @@ describe('Workspace RBAC (e2e)', () => {
   });
 
   it('C. editor 는 워크스페이스 삭제 불가 — 403 OWNER_REQUIRED', async () => {
-    const owner = await registerAndLogin(BASE_URL, uniqueEmail('rbac-c-own'), db);
-    const ws = await createTeamWorkspace(BASE_URL, owner.accessToken, uniqueName('C'));
+    const owner = await registerAndLogin(
+      BASE_URL,
+      uniqueEmail('rbac-c-own'),
+      db,
+    );
+    const ws = await createTeamWorkspace(
+      BASE_URL,
+      owner.accessToken,
+      uniqueName('C'),
+    );
     const editor = await inviteAndAccept(
       BASE_URL,
       owner.accessToken,
@@ -132,8 +164,16 @@ describe('Workspace RBAC (e2e)', () => {
   });
 
   it('D. owner 역할을 멤버 추가 / 변경으로 부여할 수 없음 — 403 CANNOT_ASSIGN_OWNER', async () => {
-    const owner = await registerAndLogin(BASE_URL, uniqueEmail('rbac-d-own'), db);
-    const ws = await createTeamWorkspace(BASE_URL, owner.accessToken, uniqueName('D'));
+    const owner = await registerAndLogin(
+      BASE_URL,
+      uniqueEmail('rbac-d-own'),
+      db,
+    );
+    const ws = await createTeamWorkspace(
+      BASE_URL,
+      owner.accessToken,
+      uniqueName('D'),
+    );
     const member = await inviteAndAccept(
       BASE_URL,
       owner.accessToken,
@@ -167,8 +207,16 @@ describe('Workspace RBAC (e2e)', () => {
   });
 
   it('E. transfer-ownership — 옛 owner 는 editor 로 강등, 새 owner 가 워크스페이스 삭제 가능', async () => {
-    const oldOwner = await registerAndLogin(BASE_URL, uniqueEmail('rbac-e-old'), db);
-    const ws = await createTeamWorkspace(BASE_URL, oldOwner.accessToken, uniqueName('E'));
+    const oldOwner = await registerAndLogin(
+      BASE_URL,
+      uniqueEmail('rbac-e-old'),
+      db,
+    );
+    const ws = await createTeamWorkspace(
+      BASE_URL,
+      oldOwner.accessToken,
+      uniqueName('E'),
+    );
     const successor = await inviteAndAccept(
       BASE_URL,
       oldOwner.accessToken,
@@ -215,8 +263,16 @@ describe('Workspace RBAC (e2e)', () => {
   });
 
   it('F. sole owner 는 leave 불가 — 403 SOLE_OWNER_CANNOT_LEAVE', async () => {
-    const owner = await registerAndLogin(BASE_URL, uniqueEmail('rbac-f-own'), db);
-    const ws = await createTeamWorkspace(BASE_URL, owner.accessToken, uniqueName('F'));
+    const owner = await registerAndLogin(
+      BASE_URL,
+      uniqueEmail('rbac-f-own'),
+      db,
+    );
+    const ws = await createTeamWorkspace(
+      BASE_URL,
+      owner.accessToken,
+      uniqueName('F'),
+    );
 
     const leave = await request(BASE_URL)
       .post(`/api/workspaces/${ws}/leave`)

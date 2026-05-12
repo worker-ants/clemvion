@@ -25,7 +25,11 @@ describe('Workflow Assistant sessions (e2e)', () => {
     await db.connect();
     const owner = await registerAndLogin(BASE_URL, uniqueEmail('asst'), db);
     token = owner.accessToken;
-    workspaceId = await createTeamWorkspace(BASE_URL, token, uniqueName('ASST'));
+    workspaceId = await createTeamWorkspace(
+      BASE_URL,
+      token,
+      uniqueName('ASST'),
+    );
 
     const wf = await request(BASE_URL)
       .post('/api/workflows')
@@ -60,8 +64,9 @@ describe('Workflow Assistant sessions (e2e)', () => {
       .set(authHeaders())
       .query({ workflowId });
     expect(list.status).toBe(200);
-    const items = (list.body.data as { items?: Array<{ id: string }> }).items
-      ?? (list.body.data as Array<{ id: string }>);
+    const items =
+      (list.body.data as { items?: Array<{ id: string }> }).items ??
+      (list.body.data as Array<{ id: string }>);
     expect(items.some((i) => i.id === sessionId)).toBe(true);
   });
 
@@ -105,7 +110,11 @@ describe('Workflow Assistant sessions (e2e)', () => {
       .send({ workflowId });
     const sessionId = create.body.data.id;
 
-    const intruder = await registerAndLogin(BASE_URL, uniqueEmail('asst-x'), db);
+    const intruder = await registerAndLogin(
+      BASE_URL,
+      uniqueEmail('asst-x'),
+      db,
+    );
     const otherWs = await createTeamWorkspace(
       BASE_URL,
       intruder.accessToken,

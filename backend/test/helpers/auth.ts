@@ -56,7 +56,8 @@ export async function registerAndLogin(
     'SELECT id FROM "user" WHERE email = $1',
     [email],
   );
-  if (userRow.rows.length === 0) throw new Error('user row missing after login');
+  if (userRow.rows.length === 0)
+    throw new Error('user row missing after login');
 
   return { userId: userRow.rows[0].id, email, accessToken };
 }
@@ -127,15 +128,13 @@ export async function inviteAndAccept(
   );
   if (tokenRow.rows.length === 0) throw new Error('invitation row not found');
 
-  const registerRes = await request(baseUrl)
-    .post('/api/auth/register')
-    .send({
-      name: inviteeName,
-      email: inviteeEmail,
-      password,
-      termsAccepted: true,
-      invitationToken: tokenRow.rows[0].token,
-    });
+  const registerRes = await request(baseUrl).post('/api/auth/register').send({
+    name: inviteeName,
+    email: inviteeEmail,
+    password,
+    termsAccepted: true,
+    invitationToken: tokenRow.rows[0].token,
+  });
   if (registerRes.status !== 201) {
     throw new Error(
       `invitee register failed: ${registerRes.status} ${JSON.stringify(registerRes.body)}`,
