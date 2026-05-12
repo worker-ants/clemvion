@@ -48,7 +48,7 @@
 | `workflows/list.spec.ts` | 목록 렌더 + 필터(소유/전체) / 검색 / "새 워크플로우" 클릭 → 에디터 이동 / 빈 상태 안내 | spec/2-navigation/1-workflow-list |
 | `profile/sessions.spec.ts` | 활성 세션 목록 / 현재 세션 라벨 / revoke 다이얼로그 → 확인 → 목록 갱신 / 이력 탭 / revoke all | 최근 profile-sessions 작업 |
 
-### Phase 2 — P1 important (후속, 본 plan 의 추적 대상이지만 별도 PR 권장)
+### Phase 2 — P1 important (본 plan 에서 함께 처리됨)
 
 **Backend:**
 - `webhook-trigger.e2e-spec.ts` — POST /api/hooks/:path → 202 + executionId / inactive → 410 / HMAC 실패 → 401 / parameter 추출 검증
@@ -60,10 +60,14 @@
 - `auth/password-reset.spec.ts` — 요청 → 안내 / 토큰으로 reset 폼 / 만료 토큰 에러
 - `integrations/list.spec.ts` — credential 목록 / OAuth 시작 버튼 / 카드 삭제 확인
 
-### Phase 3 — P2 nice-to-have (별도 plan 권장)
+### Phase 3 — P2 nice-to-have (본 plan 에서 함께 처리됨)
 
-- knowledge-base 업로드 + 임베딩 (실 인프라 시간 비용 큼)
-- AI Assistant 스트리밍 대화 (SSE mock 복잡도)
+처리 완료:
+- `knowledge-base.e2e-spec.ts` — CRUD·격리·ragMode 불변. 임베딩 자체는 unit 이 담당
+- `workflow-assistant.e2e-spec.ts` — 세션 CRUD·RBAC·격리. SSE 스트리밍은 unit 담당
+
+후속 (별도 plan):
+- 실 LLM 호출 의존 (KB 업로드 → 임베딩 큐 → RAG 검색 end-to-end, AI Assistant SSE 대화)
 - marketplace, statistics, version-history (변경 빈도 낮음, unit 으로 충분)
 
 ## 파일 조직
@@ -151,10 +155,51 @@ export async function inviteAndAccept(base: string, owner: token, ws, inviteeEma
 
 ## 비-범위 (이번 작업 X)
 
-- Phase 2/3 시나리오 — 별도 plan 으로 분리
+- 실 LLM 의존 시나리오 (KB embedding pipeline end-to-end, AI Assistant SSE 대화)
 - 기존 `app.e2e-spec.ts` 의 helpers 리팩토 — 동작 보장 우선, 별도 작업
 - e2e 환경의 성능 튜닝(BullMQ 워커 수 등) — 현재 CI 시간이 임계 도달하면 그때 검토
 - coverage 도구 도입 (e2e coverage 측정은 부담 큼)
+
+## 작업 결과 요약
+
+### Backend e2e (`backend/test/`)
+| 파일 | 시나리오 수 |
+| --- | ---: |
+| `app.e2e-spec.ts` (기존) | 5 |
+| `auth.e2e-spec.ts` (P1) | 7 |
+| `workspace-rbac.e2e-spec.ts` (P1) | 6 |
+| `workflow-crud.e2e-spec.ts` (P1) | 6 |
+| `workflow-execution.e2e-spec.ts` (P1) | 5 |
+| `session-revocation.e2e-spec.ts` (P1) | 5 |
+| `webhook-trigger.e2e-spec.ts` (P2) | 5 |
+| `integration-credentials.e2e-spec.ts` (P2) | 6 |
+| `schedule-trigger.e2e-spec.ts` (P2) | 6 |
+| `knowledge-base.e2e-spec.ts` (P3) | 6 |
+| `workflow-assistant.e2e-spec.ts` (P3) | 6 |
+| **신규 시나리오 합계** | **58** |
+
+헬퍼: `backend/test/helpers/{auth,db}.ts` 도입으로 spec 당 setup 4-5줄.
+
+### Frontend playwright (`frontend/e2e/`)
+| 파일 | 케이스 수 |
+| --- | ---: |
+| `team/register-invitation.spec.ts` (기존) | 4 |
+| `a11y/smoke.spec.ts` (기존) | (a11y) |
+| `auth/login.spec.ts` (P1) | 4 |
+| `auth/register.spec.ts` (P1) | 3 |
+| `workflows/list.spec.ts` (P1) | 3 |
+| `profile/sessions.spec.ts` (P1) | 2 |
+| `auth/password-reset.spec.ts` (P2) | 3 |
+| `workspaces/members.spec.ts` (P2) | 2 |
+| `integrations/list.spec.ts` (P2) | 2 |
+| **신규 케이스 합계** | **19** |
+
+### CI / Infra 변경
+
+- `jest-e2e.json` regex (`.e2e-spec.ts$`) 와 `playwright.config.ts` testMatch (`**/*.spec.ts`)
+  로 신규 파일이 자동 discovery — 추가 설정 변경 0.
+- `.github/workflows/e2e.yml` 도 그대로. CI 시간 증가 예상: backend ~10-20s,
+  frontend ~30-60s (mock 기반이라 빠름).
 
 ## 핵심 파일
 
