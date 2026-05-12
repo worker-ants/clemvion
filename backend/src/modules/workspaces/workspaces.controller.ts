@@ -3,17 +3,20 @@ import {
   Controller,
   Delete,
   Get,
+  HttpCode,
   Param,
   ParseUUIDPipe,
   Patch,
   Post,
   UseGuards,
 } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
 import {
   ApiBadRequestResponse,
   ApiBearerAuth,
   ApiConflictResponse,
   ApiForbiddenResponse,
+  ApiGoneResponse,
   ApiNoContentResponse,
   ApiNotFoundResponse,
   ApiOperation,
@@ -231,7 +234,7 @@ export class WorkspacesController {
   @ApiOperation({
     summary: '이메일로 멤버 추가',
     description:
-      '이미 가입된 사용자만 즉시 추가할 수 있어요. 미가입자 초대 토큰 흐름은 후속에서 추가됩니다.',
+      '이미 가입된 사용자를 즉시 멤버로 추가합니다. 미가입자에게는 `POST /workspaces/:id/invitations` 의 초대 토큰 흐름을 사용하세요.',
   })
   @ApiParam({ name: 'id', description: '워크스페이스 UUID', format: 'uuid' })
   @ApiCreatedWrappedResponse(MemberRoleDto, { description: '추가된 멤버 정보' })
@@ -337,20 +340,22 @@ export class WorkspacesController {
   }
 
   @Post(':id/invitations')
+  // Email-bombing 방지. 같은 워크스페이스에서 분당 10건까지 허용.
+  @Throttle({ default: { ttl: 60_000, limit: 10 } })
   @ApiOperation({
     summary: '미가입자 초대(Admin+)',
     description:
-      '이메일로 초대 토큰을 발송합니다. 수신자는 가입 후 또는 같은 이메일로 로그인한 상태에서 토큰을 사용해 수락할 수 있어요.',
+      '이메일로 초대 토큰을 발송합니다. 동일 이메일의 대기 중 초대가 있으면 기존 토큰을 무효화하고 새 토큰으로 재발급합니다.',
   })
   @ApiParam({ name: 'id', description: '워크스페이스 UUID', format: 'uuid' })
   @ApiCreatedWrappedResponse(InvitationCreatedDto, {
-    description: '생성된 초대',
+    description: '생성된(또는 갱신된) 초대',
   })
   @ApiBadRequestResponse({ description: '입력값 검증 실패' })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
   @ApiForbiddenResponse({ description: '초대 권한 부족 (Admin+)' })
   @ApiNotFoundResponse({ description: '해당 워크스페이스를 찾을 수 없음' })
-  @ApiConflictResponse({ description: '동일 이메일의 대기 초대가 이미 존재' })
+  @ApiConflictResponse({ description: '이미 워크스페이스 멤버인 이메일' })
   async createInvitation(
     @CurrentUser() user: JwtPayload,
     @Param('id', new ParseUUIDPipe()) workspaceId: string,
@@ -360,6 +365,49 @@ export class WorkspacesController {
       workspaceId,
       dto.email,
       dto.role,
+      user.sub,
+    );
+    return {
+      data: {
+        id: invitation.id,
+        email: invitation.email,
+        role: invitation.role,
+        expiresAt: invitation.expiresAt,
+      },
+    };
+  }
+
+  @Post(':id/invitations/:invitationId/resend')
+  @HttpCode(200)
+  @Throttle({ default: { ttl: 60_000, limit: 10 } })
+  @ApiOperation({
+    summary: '초대 재발송(Admin+)',
+    description:
+      '대기 중인 초대의 토큰을 새로 발급(기존 토큰 즉시 무효)하고 메일을 재전송합니다. 만료 시계도 발송 시점부터 다시 7일 동안 유효합니다.',
+  })
+  @ApiParam({ name: 'id', description: '워크스페이스 UUID', format: 'uuid' })
+  @ApiParam({
+    name: 'invitationId',
+    description: '초대 UUID',
+    format: 'uuid',
+  })
+  @ApiOkWrappedResponse(InvitationCreatedDto, {
+    description: '갱신된 초대 정보',
+  })
+  @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
+  @ApiForbiddenResponse({ description: '재발송 권한 부족 (Admin+)' })
+  @ApiNotFoundResponse({ description: '초대 또는 워크스페이스를 찾을 수 없음' })
+  @ApiConflictResponse({
+    description: '이미 수락된 초대는 재발송할 수 없음',
+  })
+  async resendInvitation(
+    @CurrentUser() user: JwtPayload,
+    @Param('id', new ParseUUIDPipe()) workspaceId: string,
+    @Param('invitationId', new ParseUUIDPipe()) invitationId: string,
+  ) {
+    const invitation = await this.invitationsService.resend(
+      workspaceId,
+      invitationId,
       user.sub,
     );
     return {
@@ -400,14 +448,18 @@ export class WorkspacesController {
   @ApiOperation({
     summary: '초대 수락',
     description:
-      '본인 이메일과 일치하는 초대 토큰을 사용해 워크스페이스에 합류합니다.',
+      '본인 이메일과 일치하는 초대 토큰을 사용해 워크스페이스에 합류합니다. 토큰 만료/이미 사용 시 410, 이메일 불일치 시 400을 반환합니다.',
   })
   @ApiOkWrappedResponse(InvitationAcceptResultDto, {
     description: '초대 수락 결과 (합류한 워크스페이스 정보)',
   })
   @ApiBadRequestResponse({
-    description: '토큰 유효하지 않음·만료·이메일 불일치',
+    description: '이메일 불일치 (invitation_email_mismatch)',
   })
+  @ApiGoneResponse({
+    description: '만료 또는 이미 사용된 초대',
+  })
+  @ApiNotFoundResponse({ description: '존재하지 않는 토큰' })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
   async acceptInvitation(
     @CurrentUser() user: JwtPayload,

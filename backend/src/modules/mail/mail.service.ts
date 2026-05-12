@@ -104,23 +104,28 @@ export class MailService {
 
   /**
    * Send a workspace invitation email. The link points at the frontend's
-   * accept-invitation route, which prompts sign-up for new users or auto-links
-   * the workspace for already-authenticated users with the matching email.
+   * invitation landing route, which fetches metadata, prefills the sign-up
+   * form (or shows an accept button for already-authenticated users with the
+   * matching email).
+   *
+   * `invitedByName` is optional — when present the email surfaces who sent
+   * the invite so the recipient can recognize it as legitimate.
    */
   async sendWorkspaceInvitationEmail(
     email: string,
     workspaceName: string,
+    invitedByName: string | null,
     token: string,
   ): Promise<void> {
-    const acceptUrl = `${this.frontendUrl}/invitations/accept?token=${encodeURIComponent(token)}`;
+    const acceptUrl = `${this.frontendUrl}/invitations/${encodeURIComponent(token)}`;
     this.logger.debug(`[DEV] Workspace invitation for ${email}: ${acceptUrl}`);
 
     try {
       await this.mailerService.sendMail({
         to: email,
         subject: `Clemvion - "${workspaceName}" 워크스페이스 초대`,
-        html: this.buildInvitationHtml(workspaceName, acceptUrl),
-        text: this.buildInvitationText(workspaceName, acceptUrl),
+        html: this.buildInvitationHtml(workspaceName, invitedByName, acceptUrl),
+        text: this.buildInvitationText(workspaceName, invitedByName, acceptUrl),
       });
       this.logger.log(`Invitation email sent to ${email} for ${workspaceName}`);
     } catch (error) {
@@ -134,9 +139,13 @@ export class MailService {
 
   private buildInvitationHtml(
     workspaceName: string,
+    invitedByName: string | null,
     acceptUrl: string,
   ): string {
     const safeWorkspace = this.escapeHtml(workspaceName);
+    const inviterLine = invitedByName
+      ? `<p style="margin:0 0 16px;font-size:14px;color:#555;"><strong>${this.escapeHtml(invitedByName)}</strong>님이 보낸 초대예요.</p>`
+      : '';
     return `
 <!DOCTYPE html>
 <html lang="ko">
@@ -148,6 +157,7 @@ export class MailService {
         <tr><td>
           <h1 style="margin:0 0 24px;font-size:24px;color:#111;">Clemvion</h1>
           <p style="margin:0 0 16px;font-size:16px;color:#333;"><strong>${safeWorkspace}</strong> 워크스페이스에 초대되었습니다.</p>
+          ${inviterLine}
           <p style="margin:0 0 24px;font-size:14px;color:#555;">아래 버튼을 클릭하여 초대를 수락해 주세요. 가입되어 있지 않다면 가입 후 자동으로 멤버가 됩니다.</p>
           <table cellpadding="0" cellspacing="0" style="margin:0 0 24px;">
             <tr><td style="background:#111;border-radius:6px;padding:12px 32px;">
@@ -167,9 +177,13 @@ export class MailService {
 
   private buildInvitationText(
     workspaceName: string,
+    invitedByName: string | null,
     acceptUrl: string,
   ): string {
-    return `${workspaceName} 워크스페이스에 초대되었습니다.\n\n아래 링크에서 초대를 수락해 주세요:\n\n${acceptUrl}\n\n이 링크는 7일 동안 유효합니다.`;
+    const inviterLine = invitedByName
+      ? `\n${invitedByName}님이 보낸 초대예요.`
+      : '';
+    return `${workspaceName} 워크스페이스에 초대되었습니다.${inviterLine}\n\n아래 링크에서 초대를 수락해 주세요:\n\n${acceptUrl}\n\n이 링크는 7일 동안 유효합니다.`;
   }
 
   /**

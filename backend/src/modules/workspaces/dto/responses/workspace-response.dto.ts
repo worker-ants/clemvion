@@ -113,3 +113,21 @@ export class InvitationCreatedDto {
   @ApiProperty({ format: 'date-time' })
   expiresAt: string;
 }
+
+/** 초대 토큰의 공개 메타 (회원가입 페이지 prefill 용) */
+export class InvitationMetaDto {
+  @ApiProperty()
+  workspaceName: string;
+
+  @ApiProperty({ nullable: true })
+  invitedByName: string | null;
+
+  @ApiProperty({ format: 'email' })
+  email: string;
+
+  @ApiProperty({ enum: ['admin', 'editor', 'viewer'] })
+  role: string;
+
+  @ApiProperty({ format: 'date-time' })
+  expiresAt: string;
+}

@@ -36,6 +36,7 @@ import {
   AuthMessageDto,
   CheckEmailResultDto,
   OauthProvidersDto,
+  RegisterResultDto,
   TotpDisableResultDto,
   TotpSetupDto,
   TotpVerifyDto,
@@ -105,17 +106,32 @@ export class AuthController {
   @ApiOperation({
     summary: '회원가입',
     description:
-      '신규 사용자를 등록하고 이메일 검증 메일을 발송합니다. 비밀번호는 강도 요건(8자 이상, 3종 이상 문자)을 통과해야 합니다.',
+      '신규 사용자를 등록합니다. 비밀번호는 강도 요건(8자 이상, 3종 이상 문자)을 통과해야 합니다. `invitationToken` 동봉 시: 토큰의 이메일과 가입 이메일이 일치해야 하며, 이메일 인증 없이 즉시 가입·자동 로그인됩니다 (개인 워크스페이스 자동 생성 없음).',
   })
-  @ApiCreatedWrappedResponse(AuthMessageDto, {
-    description: '등록 성공 (이메일 검증 메일 발송)',
+  @ApiCreatedWrappedResponse(RegisterResultDto, {
+    description:
+      '등록 성공. 일반 가입은 이메일 검증 메일 발송 후 `message`만 반환. 초대 토큰 가입은 `accessToken` 동봉 + Refresh Token 쿠키 발급.',
   })
   @ApiBadRequestResponse({
-    description: '입력값 검증 실패 또는 비밀번호 강도 미달',
+    description: '입력값 검증 실패, 비밀번호 강도 미달, 초대 이메일 불일치',
   })
   @ApiConflictResponse({ description: '이미 가입된 이메일' })
-  async register(@Body() dto: RegisterDto) {
-    return this.authService.register(dto);
+  async register(
+    @Body() dto: RegisterDto,
+    @Req() req: Express.Request,
+    @Res({ passthrough: true }) res: Express.Response,
+  ) {
+    const result = await this.authService.register(
+      dto,
+      authContextFromRequest(req),
+    );
+    if ('accessToken' in result) {
+      this.setRefreshTokenCookie(res, result.refreshToken);
+      return {
+        data: { message: result.message, accessToken: result.accessToken },
+      };
+    }
+    return { data: { message: result.message } };
   }
 
   @Public()
