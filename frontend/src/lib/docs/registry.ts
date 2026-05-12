@@ -68,10 +68,12 @@ export interface LoadOptions {
 const SECTION_LABELS: Record<string, string> = {
   "01-getting-started": "시작하기",
   "02-nodes": "노드 가이드",
-  "03-expression-language": "표현식 언어",
-  "04-run-and-debug": "실행과 디버깅",
-  "05-integrations-and-config": "통합과 설정",
-  "06-faq": "자주 묻는 질문",
+  "03-workflow-editor": "워크플로우 에디터",
+  "04-expression-language": "표현식 언어",
+  "05-run-and-debug": "실행과 디버깅",
+  "06-integrations-and-config": "통합과 설정",
+  "07-faq": "자주 묻는 질문",
+  "08-workspace-and-team": "워크스페이스와 팀",
 };
 
 export function stripNumberPrefix(segment: string): string {

@@ -55,7 +55,7 @@
 | 필터 항목 | 옵션 | 비고 |
 |-----------|------|------|
 | 상태 | 전체 / Active / Inactive | 상시 노출 |
-| 소유 | 내 워크플로우 / 공유된 워크플로우 / 전체 | **팀 워크스페이스 활성 시에만 노출**. "공유된 워크플로우" = `createdBy ≠ 현재 사용자`. 개인 워크스페이스에서는 필터 자체가 사라진다 |
+| 소유 | 내 워크플로우 / 공유된 워크플로우 / 전체 | **팀 워크스페이스 활성 시에만 노출**. "공유된 워크플로우" = `createdBy ≠ 현재 사용자`. 개인 워크스페이스에서는 필터 자체가 사라진다. UI 의 세 옵션은 서버 `GET /api/workflows?ownership=` 의 `mine` / `shared` / `all` 에 1:1 매핑된다 — 개인 워크스페이스 컨텍스트에서는 클라이언트가 파라미터를 보내지 않고, 받더라도 서버는 무시한다 |
 | 태그 | 태그 멀티 선택 | 상시 노출 |
 | 폴더 | 폴더 선택 (있을 경우) | 상시 노출 |
 
@@ -97,7 +97,7 @@
 
 | 메서드 | 경로 | 설명 |
 |--------|------|------|
-| GET | /api/workflows | 목록 조회 (쿼리: search, status, tag, sort, order, page, limit). 페이지네이션 응답 형식은 [API 규약 §5.2](../5-system/2-api-convention.md#52-목록-응답) 준수 |
+| GET | /api/workflows | 목록 조회 (쿼리: search, status, tag, sort, order, page, limit, ownership). 페이지네이션 응답 형식은 [API 규약 §5.2](../5-system/2-api-convention.md#52-목록-응답) 준수. `ownership` 은 팀 워크스페이스 컨텍스트에서만 의미가 있으며 (`mine` / `shared` / `all`, default `all`), 개인 워크스페이스에서는 서버가 무시한다 (= `all` 처럼 동작) |
 | POST | /api/workflows | 새 워크플로우 생성 |
 | PATCH | /api/workflows/:id | 워크플로우 수정 (이름, 상태 등) |
 | POST | /api/workflows/:id/duplicate | 워크플로우 복제 |

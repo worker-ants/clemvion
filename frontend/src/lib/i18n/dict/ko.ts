@@ -624,6 +624,12 @@ export const ko = {
       inactive: "비활성",
       draft: "초안",
     },
+    ownership: {
+      aria: "소유 필터",
+      all: "전체",
+      mine: "내 워크플로우",
+      shared: "공유된 워크플로우",
+    },
     columns: {
       name: "이름",
       status: "상태",

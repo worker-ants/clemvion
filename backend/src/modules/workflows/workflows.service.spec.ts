@@ -13,6 +13,7 @@ import { Edge } from '../edges/entities/edge.entity';
 import { WorkflowVersionsService } from '../workflow-versions/workflow-versions.service';
 import { NodeComponentRegistry } from '../../nodes/core/node-component.registry';
 import { LlmConfigService } from '../llm-config/llm-config.service';
+import { WorkspacesService } from '../workspaces/workspaces.service';
 
 describe('WorkflowsService', () => {
   let service: WorkflowsService;
@@ -97,6 +98,10 @@ describe('WorkflowsService', () => {
     findDefault: jest.fn().mockResolvedValue(null),
   };
 
+  const mockWorkspacesService = {
+    findById: jest.fn().mockResolvedValue({ id: 'ws-uuid-1', type: 'team' }),
+  };
+
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -111,6 +116,7 @@ describe('WorkflowsService', () => {
         },
         { provide: NodeComponentRegistry, useValue: mockRegistry },
         { provide: LlmConfigService, useValue: mockLlmConfigService },
+        { provide: WorkspacesService, useValue: mockWorkspacesService },
       ],
     }).compile();
 
@@ -128,10 +134,76 @@ describe('WorkflowsService', () => {
 
   describe('findAll', () => {
     it('should return paginated workflows', async () => {
-      const result = await service.findAll('ws-uuid-1', { page: 1, limit: 20 });
+      const result = await service.findAll(
+        'ws-uuid-1',
+        { page: 1, limit: 20 },
+        'user-uuid-1',
+      );
       expect(result.data).toHaveLength(1);
       expect(result.pagination.totalItems).toBe(1);
       expect(result.pagination.page).toBe(1);
+    });
+
+    it("ownership='mine' adds created_by = userId predicate in team workspace", async () => {
+      mockWorkspacesService.findById.mockResolvedValueOnce({
+        id: 'ws-uuid-1',
+        type: 'team',
+      });
+      await service.findAll(
+        'ws-uuid-1',
+        { page: 1, limit: 20, ownership: 'mine' },
+        'user-uuid-1',
+      );
+      expect(mockQueryBuilder.andWhere).toHaveBeenCalledWith(
+        'w.created_by = :userId',
+        { userId: 'user-uuid-1' },
+      );
+    });
+
+    it("ownership='shared' adds created_by != userId predicate in team workspace", async () => {
+      mockWorkspacesService.findById.mockResolvedValueOnce({
+        id: 'ws-uuid-1',
+        type: 'team',
+      });
+      await service.findAll(
+        'ws-uuid-1',
+        { page: 1, limit: 20, ownership: 'shared' },
+        'user-uuid-1',
+      );
+      expect(mockQueryBuilder.andWhere).toHaveBeenCalledWith(
+        'w.created_by != :userId',
+        { userId: 'user-uuid-1' },
+      );
+    });
+
+    it('ownership is ignored in personal workspace even when set', async () => {
+      mockWorkspacesService.findById.mockResolvedValueOnce({
+        id: 'ws-uuid-1',
+        type: 'personal',
+      });
+      await service.findAll(
+        'ws-uuid-1',
+        { page: 1, limit: 20, ownership: 'mine' },
+        'user-uuid-1',
+      );
+      expect(mockQueryBuilder.andWhere).not.toHaveBeenCalledWith(
+        'w.created_by = :userId',
+        expect.anything(),
+      );
+      expect(mockQueryBuilder.andWhere).not.toHaveBeenCalledWith(
+        'w.created_by != :userId',
+        expect.anything(),
+      );
+    });
+
+    it("ownership='all' does not consult workspace type (no DB hit)", async () => {
+      mockWorkspacesService.findById.mockClear();
+      await service.findAll(
+        'ws-uuid-1',
+        { page: 1, limit: 20, ownership: 'all' },
+        'user-uuid-1',
+      );
+      expect(mockWorkspacesService.findById).not.toHaveBeenCalled();
     });
   });
 

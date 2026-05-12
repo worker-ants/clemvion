@@ -33,6 +33,7 @@ import { cn } from "@/lib/utils/cn";
 import { useT, type TranslationKey } from "@/lib/i18n";
 
 type FilterStatus = "all" | "active" | "inactive";
+type Ownership = "all" | "mine" | "shared";
 
 const PAGE_SIZE = 10;
 
@@ -44,6 +45,9 @@ export default function WorkflowsPage() {
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [filter, setFilter] = useState<FilterStatus>("all");
+  // spec/2-navigation/1-workflow-list.md §2.3 — 팀 워크스페이스에서만 의미가 있는
+  // 소유 필터. `mine` / `shared` / `all` 3 옵션을 그대로 `?ownership=` 으로 매핑.
+  const [ownership, setOwnership] = useState<Ownership>("all");
   const { page, setPage } = usePageParam();
   // spec/2-navigation/1-workflow-list.md §2.1 + Rationale §1 — 팀 워크스페이스에 속한
   // 모든 워크플로우는 "Shared" 로 본다. 개인 워크스페이스에서는 배지를 표시하지 않는다.
@@ -87,7 +91,7 @@ export default function WorkflowsPage() {
     items: WorkflowData[];
     total: number;
   }>({
-    queryKey: ["workflows", debouncedSearch, filter, page],
+    queryKey: ["workflows", debouncedSearch, filter, ownership, page],
     queryFn: async () => {
       const params: Record<string, string> = {
         page: String(page),
@@ -96,6 +100,11 @@ export default function WorkflowsPage() {
       if (debouncedSearch) params.search = debouncedSearch;
       if (filter === "active") params.isActive = "true";
       if (filter === "inactive") params.isActive = "false";
+      // 개인 워크스페이스에서는 ownership 자체가 UI 비노출이라 `all` 로 묶인다.
+      // 명시적으로 `all` 인 경우 파라미터를 보내지 않아 backend 가 기본값(전체)로 처리.
+      if (isTeamWorkspace && ownership !== "all") {
+        params.ownership = ownership;
+      }
 
       const { data } = await workflowsApi.list(params);
       const { items, totalItems } = normalizePagedResponse<WorkflowData>(
@@ -257,6 +266,12 @@ export default function WorkflowsPage() {
     { labelKey: "workflows.filter.inactive", value: "inactive" },
   ];
 
+  const ownershipButtons: { labelKey: TranslationKey; value: Ownership }[] = [
+    { labelKey: "workflows.ownership.all", value: "all" },
+    { labelKey: "workflows.ownership.mine", value: "mine" },
+    { labelKey: "workflows.ownership.shared", value: "shared" },
+  ];
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -316,6 +331,27 @@ export default function WorkflowsPage() {
             </Button>
           ))}
         </div>
+        {isTeamWorkspace && (
+          <div
+            className="flex gap-1"
+            role="group"
+            aria-label={t("workflows.ownership.aria")}
+          >
+            {ownershipButtons.map((ob) => (
+              <Button
+                key={ob.value}
+                variant={ownership === ob.value ? "default" : "outline"}
+                size="sm"
+                onClick={() => {
+                  setOwnership(ob.value);
+                  setPage(1);
+                }}
+              >
+                {t(ob.labelKey)}
+              </Button>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Workflow List */}

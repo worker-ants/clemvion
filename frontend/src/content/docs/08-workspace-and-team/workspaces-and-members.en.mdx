@@ -1,0 +1,83 @@
+---
+title: "Workspaces and members"
+title_en: "Workspaces and members"
+section: "08-workspace-and-team"
+order: 1
+summary: "Personal vs team workspaces, member invitations, and the shared-workflow badge — all in one place."
+summary_en: "Personal vs team workspaces, member invitations, and the shared-workflow badge — all in one place."
+spec: ["spec/2-navigation/9-user-profile.md", "spec/2-navigation/1-workflow-list.md", "spec/5-system/1-auth.md"]
+code: []
+---
+
+A workspace is the unit that bundles your workflows, integrations, and knowledge bases. You can have a **personal workspace** (just you) or a **team workspace** (multiple members), and you can switch any time from the sidebar's user menu.
+
+## Personal vs team
+
+| | Personal workspace | Team workspace |
+| --- | ------------------ | --------------- |
+| Members | 1 (you) | Many |
+| Auto-created | Yes — on first sign-up + email verification | Created manually |
+| Member management | Not applicable | Admin+ invites / changes roles / removes |
+| Shared-workflow badge | None | `Team` badge on every workflow |
+| Owner transfer / delete | Not applicable (leaving = deleting your account) | Owner can transfer or delete |
+
+> Users who sign up via an invitation token **do not get a personal workspace auto-created**. The invited team workspace is their first context. They can create a personal workspace later from the workspace management screen.
+
+## Creating a team workspace
+
+1. Click your avatar in the sidebar → `+ New workspace` in the workspace section.
+2. Pick a name. You'll automatically be the **Owner**.
+3. The workspace switches over and the sidebar menus refresh to match.
+
+## Roles (RBAC)
+
+| Role | Summary |
+| ---- | ------- |
+| **Owner** | All permissions + workspace delete · ownership transfer |
+| **Admin** | Invite/remove members, change settings, full resource CRUD |
+| **Editor** | Workflows/triggers/schedules CRUD + execution |
+| **Viewer** | Read-only on all resources |
+
+See [`spec/2-navigation/9-user-profile.md` §4.2](/docs/spec) for the full matrix.
+
+## Inviting members
+
+Use the `[email@…] [Role ▼] [Invite]` form on the **Workspace settings → Members** tab. Two paths:
+
+- **Already signed up** — They're added as a member immediately, and notified.
+- **Not yet signed up** — A 7-day invitation token is emailed. The moment they finish signing up, they're auto-joined to the workspace.
+
+The pending-invitations list shows expiry time. Each row supports:
+
+- `Resend` — Invalidates the existing token immediately and emails a fresh one. The expiry clock restarts from the new send time.
+- `Revoke` — Discards a pending invitation. Already-accepted invitations cannot be revoked.
+
+> Re-inviting the same email auto-invalidates the existing token and issues a new one — there's never more than one live token per (workspace, email).
+
+## What the invited person sees
+
+The `Accept invitation` button in the email opens the sign-up page with `?invitationToken=…`.
+
+- **Not signed up yet**: The email field is prefilled and locked (you cannot register under a different email — this is an intentional safeguard against permission escalation via leaked tokens). Just set a password and name, and on submit you're signed up, joined to the workspace, and routed to the dashboard. **No email-verification step** — the token itself proves ownership.
+- **Already signed up**: If the logged-in email matches the token's email, you'll see an `[Accept]` button. If it doesn't match, you'll get a "log in as `{tokenEmail}` to accept" prompt.
+- **Expired / consumed token**: A banner explains what happened. Ask the workspace Admin to resend.
+
+## Shared workflows (Team badge)
+
+When you switch to a team workspace, every workflow in the list gets a `👥 Team` badge. The badge is a visual cue that "this workflow is visible and editable by other members of the same team." Personal workspaces don't show the badge.
+
+### Ownership filter
+
+In team workspaces, an additional `All / Mine / Shared` button group appears next to the search box. It lets you slice the list by author within the same team. The group is hidden in personal workspaces.
+
+## Leaving · deleting
+
+- **Leave** (Danger zone tab) — Removes only your own membership. Blocked if you're the sole Owner — use [Transfer ownership] or [Delete workspace] first.
+- **Transfer ownership** — Pick a non-Owner member to receive the role. Both members' roles swap atomically (target → Owner, you → Admin).
+- **Delete workspace** — Owner-only. Re-enter the workspace name to confirm; members, invitations, and the workspace itself are removed in one transaction.
+
+## See also
+
+- Authentication & session policy — [Spec: Auth](/docs/spec)
+- Member management screen spec — [`spec/2-navigation/9-user-profile.md` §4.1](/docs/spec)
+- Invitation token flow — [`spec/5-system/1-auth.md` §1.5](/docs/spec)

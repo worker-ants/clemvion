@@ -18,6 +18,7 @@ import { PaginatedResponseDto } from '../../common/dto/paginated-response.dto';
 import { WorkflowVersionsService } from '../workflow-versions/workflow-versions.service';
 import { NodeComponentRegistry } from '../../nodes/core/node-component.registry';
 import { LlmConfigService } from '../llm-config/llm-config.service';
+import { WorkspacesService } from '../workspaces/workspaces.service';
 
 const MANUAL_TRIGGER_TYPE = 'manual_trigger';
 const MANUAL_TRIGGER_DEFAULT_POSITION = { x: 250, y: 300 };
@@ -45,11 +46,13 @@ export class WorkflowsService {
     private readonly workflowVersionsService: WorkflowVersionsService,
     private readonly registry: NodeComponentRegistry,
     private readonly llmConfigService: LlmConfigService,
+    private readonly workspacesService: WorkspacesService,
   ) {}
 
   async findAll(
     workspaceId: string,
     query: QueryWorkflowDto,
+    userId: string,
   ): Promise<PaginatedResponseDto<Workflow>> {
     const {
       page = 1,
@@ -60,6 +63,7 @@ export class WorkflowsService {
       status,
       tag,
       folderId,
+      ownership,
     } = query;
 
     const qb = this.workflowRepository
@@ -79,6 +83,19 @@ export class WorkflowsService {
     }
     if (folderId) {
       qb.andWhere('w.folder_id = :folderId', { folderId });
+    }
+
+    // Ownership 필터는 팀 워크스페이스에서만 의미가 있다. 개인 워크스페이스에서
+    // mine/shared 가 들어오면 서버가 무시한다 (= all 처럼 동작). spec/2-navigation/1-workflow-list.md §2.3
+    if (ownership === 'mine' || ownership === 'shared') {
+      const workspace = await this.workspacesService.findById(workspaceId);
+      if (workspace?.type === 'team') {
+        if (ownership === 'mine') {
+          qb.andWhere('w.created_by = :userId', { userId });
+        } else {
+          qb.andWhere('w.created_by != :userId', { userId });
+        }
+      }
     }
 
     const sortColumn = this.getSortColumn(sort);
