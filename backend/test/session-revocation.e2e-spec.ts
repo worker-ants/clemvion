@@ -183,9 +183,9 @@ describe('Session revocation (e2e)', () => {
       .get('/api/users/me/sessions')
       .set('Authorization', `Bearer ${accessTokenA}`)
       .set('Cookie', cookieA);
-    expect(
-      (before.body.data as Array<unknown>).length,
-    ).toBeGreaterThanOrEqual(3);
+    expect((before.body.data as Array<unknown>).length).toBeGreaterThanOrEqual(
+      3,
+    );
 
     const revokeOthers = await request(BASE_URL)
       .post('/api/users/me/sessions/revoke-others')

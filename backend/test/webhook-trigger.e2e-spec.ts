@@ -30,7 +30,11 @@ describe('Webhook trigger (e2e)', () => {
     await db.connect();
     const owner = await registerAndLogin(BASE_URL, uniqueEmail('hook'), db);
     token = owner.accessToken;
-    workspaceId = await createTeamWorkspace(BASE_URL, token, uniqueName('HOOK'));
+    workspaceId = await createTeamWorkspace(
+      BASE_URL,
+      token,
+      uniqueName('HOOK'),
+    );
 
     const wf = await request(BASE_URL)
       .post('/api/workflows')
@@ -74,7 +78,9 @@ describe('Webhook trigger (e2e)', () => {
       .post(`/api/hooks/${path}`)
       .send({ payload: 'hello' });
     expect(res.status).toBe(202);
-    expect((res.body.data as { executionId: string }).executionId).toBeDefined();
+    expect(
+      (res.body.data as { executionId: string }).executionId,
+    ).toBeDefined();
   });
 
   it('B. 미존재 endpointPath → 404 TRIGGER_NOT_FOUND', async () => {
@@ -97,9 +103,7 @@ describe('Webhook trigger (e2e)', () => {
       .send({ isActive: false })
       .expect(200);
 
-    const res = await request(BASE_URL)
-      .post(`/api/hooks/${path}`)
-      .send({});
+    const res = await request(BASE_URL).post(`/api/hooks/${path}`).send({});
     expect(res.status).toBe(410);
     expect(res.body.error.code).toBe('TRIGGER_INACTIVE');
   });

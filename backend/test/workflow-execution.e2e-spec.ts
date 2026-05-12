@@ -91,7 +91,8 @@ describe('Workflow Execution (e2e)', () => {
     const final = await pollExecution(
       executionId,
       { Authorization: `Bearer ${ownerToken}` },
-      (s) => TERMINAL_STATUSES.includes(s as (typeof TERMINAL_STATUSES)[number]),
+      (s) =>
+        TERMINAL_STATUSES.includes(s as (typeof TERMINAL_STATUSES)[number]),
       15_000,
     );
     expect(TERMINAL_STATUSES).toContain(final.status);
@@ -109,7 +110,8 @@ describe('Workflow Execution (e2e)', () => {
     await pollExecution(
       executionId,
       { Authorization: `Bearer ${ownerToken}` },
-      (s) => TERMINAL_STATUSES.includes(s as (typeof TERMINAL_STATUSES)[number]),
+      (s) =>
+        TERMINAL_STATUSES.includes(s as (typeof TERMINAL_STATUSES)[number]),
       15_000,
     );
 
@@ -135,7 +137,11 @@ describe('Workflow Execution (e2e)', () => {
     const executionId = execA.body.executionId;
 
     // 다른 owner / 워크스페이스 준비.
-    const intruder = await registerAndLogin(BASE_URL, uniqueEmail('wfexec-x'), db);
+    const intruder = await registerAndLogin(
+      BASE_URL,
+      uniqueEmail('wfexec-x'),
+      db,
+    );
     const otherWs = await createTeamWorkspace(
       BASE_URL,
       intruder.accessToken,
@@ -164,7 +170,8 @@ describe('Workflow Execution (e2e)', () => {
     await pollExecution(
       executionId,
       { Authorization: `Bearer ${ownerToken}` },
-      (s) => TERMINAL_STATUSES.includes(s as (typeof TERMINAL_STATUSES)[number]),
+      (s) =>
+        TERMINAL_STATUSES.includes(s as (typeof TERMINAL_STATUSES)[number]),
       15_000,
     );
 
@@ -199,13 +206,15 @@ describe('Workflow Execution (e2e)', () => {
       pollExecution(
         r1.body.data.executionId,
         { Authorization: `Bearer ${ownerToken}` },
-        (s) => TERMINAL_STATUSES.includes(s as (typeof TERMINAL_STATUSES)[number]),
+        (s) =>
+          TERMINAL_STATUSES.includes(s as (typeof TERMINAL_STATUSES)[number]),
         15_000,
       ),
       pollExecution(
         r2.body.data.executionId,
         { Authorization: `Bearer ${ownerToken}` },
-        (s) => TERMINAL_STATUSES.includes(s as (typeof TERMINAL_STATUSES)[number]),
+        (s) =>
+          TERMINAL_STATUSES.includes(s as (typeof TERMINAL_STATUSES)[number]),
         15_000,
       ),
     ]);
