@@ -95,6 +95,18 @@ export class GraphExtractionService {
   ) {}
 
   async extractDocument(documentId: string): Promise<void> {
+    // 외부 직접 호출(테스트/컨트롤러)에서 documentId 가 falsy 한 경우 사전 차단.
+    // 정상 흐름은 GraphExtractionProcessor 가 assertDocumentIdPayload 로 이미 검증.
+    // 미차단 시 아래 findOne({ where: { id: undefined } }) 가 위험한 WHERE 절을
+    // 만들거나 catch 의 update(criteria=undefined) 가 TypeORM "Empty criteria(s)" 로
+    // 거부되어 2차 에러가 발생한다.
+    if (!documentId || typeof documentId !== 'string') {
+      this.logger.error(
+        `extractDocument called with invalid documentId: ${String(documentId)} ` +
+          `(typeof=${typeof documentId})`,
+      );
+      return;
+    }
     const doc = await this.documentRepository.findOne({
       where: { id: documentId },
     });

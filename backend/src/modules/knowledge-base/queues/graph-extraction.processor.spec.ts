@@ -2,6 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { DataSource } from 'typeorm';
 import { GraphExtractionProcessor } from './graph-extraction.processor';
 import { GraphExtractionService } from '../graph/graph-extraction.service';
+import { InvalidJobPayloadError } from './job-payload.util';
 
 describe('GraphExtractionProcessor', () => {
   let processor: GraphExtractionProcessor;
@@ -73,5 +74,25 @@ describe('GraphExtractionProcessor', () => {
       expect.stringMatching(/SET reextract_status = 'idle'/),
       ['kb-1'],
     );
+  });
+
+  it('throws InvalidJobPayloadError when documentId is missing', async () => {
+    await expect(
+      processor.process({
+        id: 'job-x',
+        data: { knowledgeBaseId: 'kb-1' },
+      } as never),
+    ).rejects.toThrow(InvalidJobPayloadError);
+    expect(mockExtractionService.extractDocument).not.toHaveBeenCalled();
+  });
+
+  it('throws when documentId is empty', async () => {
+    await expect(
+      processor.process({
+        id: 'job-y',
+        data: { documentId: '', knowledgeBaseId: 'kb-1' },
+      } as never),
+    ).rejects.toThrow(/documentId is missing/);
+    expect(mockExtractionService.extractDocument).not.toHaveBeenCalled();
   });
 });
