@@ -1,8 +1,7 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import axios from "axios";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -10,6 +9,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Loader2, Pencil } from "lucide-react";
 import { apiClient } from "@/lib/api/client";
+import { axiosMessage } from "@/lib/api/errors";
+import { USER_PROFILE_QUERY_KEY } from "@/lib/api/users";
 import { useT } from "@/lib/i18n";
 import { ConfirmDiffDialog, type DiffEntry } from "./confirm-diff-dialog";
 
@@ -30,20 +31,15 @@ function getInitials(name: string, email: string): string {
   return (email ?? "").charAt(0).toUpperCase() || "?";
 }
 
-function axiosMessage(err: unknown, fallback: string): string {
-  if (axios.isAxiosError(err)) {
-    return err.response?.data?.message ?? err.message ?? fallback;
-  }
-  if (err instanceof Error) return err.message || fallback;
-  return fallback;
-}
-
 export function ProfileInfoCard({ user }: ProfileInfoCardProps) {
   const t = useT();
   const queryClient = useQueryClient();
   const [mode, setMode] = useState<"view" | "edit">("view");
   const [name, setName] = useState(user.name ?? "");
   const [showDiff, setShowDiff] = useState(false);
+  // diff 모달이 열린 시점에 확정될 payload 를 스냅샷으로 캡처해, 모달 열린 사이
+  // 사용자가 input 을 추가로 만지더라도 모달이 보여준 값과 PATCH 가 일치하도록 한다.
+  const confirmedNameRef = useRef<string>("");
 
   const dirty = (name ?? "").trim() !== (user.name ?? "").trim();
 
@@ -52,12 +48,14 @@ export function ProfileInfoCard({ user }: ProfileInfoCardProps) {
       await apiClient.patch("/users/me", patch);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["user-profile"] });
+      queryClient.invalidateQueries({ queryKey: USER_PROFILE_QUERY_KEY });
       toast.success(t("profile.saved"));
       setShowDiff(false);
       setMode("view");
     },
     onError: (err) => {
+      // 에러 시 diff 모달을 닫고 편집 모드를 유지해 사용자가 재시도하기 좋게 한다.
+      setShowDiff(false);
       toast.error(axiosMessage(err, t("profile.saveFailed")));
     },
   });
@@ -78,13 +76,14 @@ export function ProfileInfoCard({ user }: ProfileInfoCardProps) {
       setMode("view");
       return;
     }
+    confirmedNameRef.current = name.trim();
     setShowDiff(true);
   }
 
   const diff: DiffEntry[] = useMemo(
     () =>
       dirty
-        ? [{ label: t("profile.name"), before: user.name ?? "", after: name }]
+        ? [{ label: t("profile.name"), before: user.name ?? "", after: name.trim() }]
         : [],
     [dirty, user.name, name, t],
   );
@@ -175,7 +174,7 @@ export function ProfileInfoCard({ user }: ProfileInfoCardProps) {
         changes={diff}
         onClose={() => setShowDiff(false)}
         onConfirm={async () => {
-          await mutation.mutateAsync({ name });
+          await mutation.mutateAsync({ name: confirmedNameRef.current });
         }}
       />
     </>

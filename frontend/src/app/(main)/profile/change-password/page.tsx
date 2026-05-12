@@ -5,9 +5,9 @@ import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
-import axios from "axios";
 import { toast } from "sonner";
 import { apiClient } from "@/lib/api/client";
+import { axiosMessage } from "@/lib/api/errors";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -21,12 +21,10 @@ import {
 import { Loader2 } from "lucide-react";
 import { useT, useLocale } from "@/lib/i18n";
 
-function axiosMessage(err: unknown, fallback: string): string {
-  if (axios.isAxiosError(err)) {
-    return err.response?.data?.message ?? err.message ?? fallback;
-  }
-  if (err instanceof Error) return err.message || fallback;
-  return fallback;
+interface FormValues {
+  currentPassword: string;
+  newPassword: string;
+  confirmPassword: string;
 }
 
 function ChangePasswordPageInner() {
@@ -46,7 +44,7 @@ function ChangePasswordPageInner() {
             .string()
             .min(8, t("profile.changePasswordMinLength"))
             .max(100, t("profile.changePasswordMaxLength")),
-          confirmPassword: z.string().min(1, t("profile.enterNewPassword")),
+          confirmPassword: z.string().min(1, t("profile.enterConfirmPassword")),
         })
         .refine((data) => data.newPassword === data.confirmPassword, {
           message: t("profile.passwordsDoNotMatch"),
@@ -54,8 +52,6 @@ function ChangePasswordPageInner() {
         }),
     [t],
   );
-
-  type FormValues = z.infer<typeof schema>;
 
   const {
     register,
@@ -77,11 +73,11 @@ function ChangePasswordPageInner() {
         currentPassword: data.currentPassword,
         newPassword: data.newPassword,
       });
+      setIsPending(false);
       toast.success(t("profile.changePasswordSuccess"));
       router.push("/profile");
     } catch (err) {
       toast.error(axiosMessage(err, t("profile.saveFailed")));
-    } finally {
       setIsPending(false);
     }
   }
@@ -192,6 +188,8 @@ function ChangePasswordPageInner() {
 }
 
 export default function ChangePasswordPage() {
+  // locale 변경 시 강제 리마운트 — useMemo 안의 zod 스키마가 새 locale 의 t() 로
+  // 검증 메시지를 다시 빌드하도록. 기존 폼 입력값 초기화는 의도된 부수효과.
   const locale = useLocale();
   return <ChangePasswordPageInner key={locale} />;
 }

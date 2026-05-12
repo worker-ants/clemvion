@@ -297,6 +297,7 @@ export const ko = {
     saveFailed: "프로필 업데이트에 실패했어요",
     noChanges: "변경된 내용이 없어요",
     enterNewPassword: "새 비밀번호를 입력해 주세요",
+    enterConfirmPassword: "새 비밀번호 확인을 입력해 주세요",
     enterCurrentPassword: "현재 비밀번호를 입력해 주세요",
     passwordsDoNotMatch: "비밀번호가 일치하지 않습니다",
     edit: "편집",
