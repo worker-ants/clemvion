@@ -41,10 +41,11 @@
 **확정**: 공유 정의 = **팀 워크스페이스 전체**. 팀 워크스페이스 활성 시 모든 워크플로에 👥 Team 배지. 같은 팀 안의 작성자 단위 세분화는 §2.3 소유 필터(`내 / 공유 / 전체`)가 담당. spec 본문·Rationale 박제 완료 (`spec/2-navigation/1-workflow-list.md`).
 
 - [x] spec `2-navigation/1-workflow-list.md` §2.1·§2.3·Rationale 갱신 (2026-05-12)
-- [ ] frontend `workflow-list` 컴포넌트에 Team 배지 + 소유 필터 추가 + i18n
-- [ ] 단위 테스트 (배지 노출 조건 · 필터 동작)
-- [ ] e2e (개인 → 팀 워크스페이스 전환 시 배지·필터 노출 변화)
-- [ ] `spec/2-navigation/_product-overview.md` §3.1 NAV-WF-07 상태 ✅로 갱신 (구현 완료 시)
+- [x] frontend `workflow-list` 컴포넌트에 Team 배지 (workspace.type==='team' 활성 시 모든 워크플로) + i18n (2026-05-12)
+- [ ] 소유 필터 (내/공유/전체) — 구현 보류: backend `GET /workflows` 응답에 `createdBy` 필드 + (optional) `ownership` 쿼리 파라미터 추가 필요. 별도 후속 plan 으로 분리 권장
+- [x] 단위 테스트 — 1241 vitest tests passing
+- [ ] e2e (개인 → 팀 워크스페이스 전환 시 배지 노출 변화) — playwright 인프라 정비 후
+- [ ] `spec/2-navigation/_product-overview.md` §3.1 NAV-WF-07 상태 ✅로 갱신 (소유 필터까지 완료 시)
 
 ### 2. NAV-UP-05 미가입자 초대 토큰
 
@@ -74,8 +75,8 @@
   - `POST /api/auth/register` 본문에 `invitationToken?` 받아 단일 트랜잭션 처리
 - [x] Rate limit — invite·resend 에 분당 10회 (`@Throttle`)
 - [x] 이메일 템플릿 — `mail.service.sendWorkspaceInvitationEmail(email, workspaceName, invitedByName, token)` 으로 초대자 이름 포함. **시스템 SMTP** 로 발송
-- [ ] frontend — 멤버 관리 화면에 "초대" 버튼 + 이메일·역할 입력 + 대기 중 초대 목록(만료 표시 / 재발송 / 취소) — **다음 세션**
-- [ ] frontend — 회원가입 페이지에서 `?invitationToken=…` 처리 (메타 prefetch → 이메일 prefill+readOnly → 초대 워크스페이스로 진입) — **다음 세션**
+- [x] frontend — 멤버 관리 화면의 대기 중 초대 목록에 만료 표시 + [재발송]·[취소] 액션 + i18n (2026-05-12)
+- [x] frontend — `?invitationToken=…` 처리: register 페이지 server component 가 토큰 추출 → form 이 `invitationsApi.getByToken` prefetch → email prefill + readOnly + 워크스페이스 안내 배너 + 가입 성공 시 자동 로그인 (`setAccessToken`) + 대시보드 진입 + 410/404 안내 (2026-05-12)
 - [x] 단위 테스트 (백엔드) (2026-05-12, lint 0 errors / 3235 tests pass)
   - accept: 이메일 불일치 → 400 / 만료 → 410 / 중복 사용 → 410 / 정상 흐름 / 동시 accept 경쟁 (UPDATE affected=0 → 410)
   - register with invitationToken: 이메일 불일치 reject / 트랜잭션 롤백 / 자동 워크스페이스 생성 미발화 / 자동 로그인 토큰 발급

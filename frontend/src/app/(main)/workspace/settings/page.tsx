@@ -329,6 +329,22 @@ function MembersTab({ workspaceId }: MembersTabProps) {
     },
   });
 
+  const resendMutation = useMutation({
+    mutationFn: (invitationId: string) =>
+      workspacesApi.resendInvitation(workspaceId, invitationId),
+    onSuccess: () => {
+      toast.success(t("workspace.inviteResent"));
+      queryClient.invalidateQueries({
+        queryKey: ["workspaces", "invitations", workspaceId],
+      });
+    },
+    onError: (err: unknown) => {
+      const msg =
+        err instanceof Error ? err.message : t("workspace.resendInviteFailed");
+      toast.error(msg);
+    },
+  });
+
   const updateRoleMutation = useMutation({
     mutationFn: ({
       memberId,
@@ -448,31 +464,60 @@ function MembersTab({ workspaceId }: MembersTabProps) {
               </p>
             ) : (
               <ul className="divide-y divide-[hsl(var(--border))]">
-                {invitationsQuery.data.map((inv) => (
-                  <li
-                    key={inv.id}
-                    className="flex items-center justify-between gap-3 py-2 text-sm"
-                  >
-                    <div className="flex min-w-0 flex-col">
-                      <span className="truncate font-medium">{inv.email}</span>
-                      <span className="text-xs text-[hsl(var(--muted-foreground))]">
-                        <Badge variant="outline" className="mr-2">
-                          {t(roleLabelKey(inv.role))}
-                        </Badge>
-                        {t("workspace.inviteExpiresAt", {
-                          date: formatDate(inv.expiresAt, "datetime"),
-                        })}
-                      </span>
-                    </div>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => revokeMutation.mutate(inv.id)}
+                {invitationsQuery.data.map((inv) => {
+                  // react-hooks/purity 가 본문에서 Date.now() 호출을 금지하므로
+                  // dataUpdatedAt(쿼리 fetch 시점)을 기준으로 만료를 판정한다.
+                  // invalidate 후 재페치되면 자연스럽게 최신 시점으로 비교된다.
+                  const expired =
+                    new Date(inv.expiresAt).getTime() <
+                    invitationsQuery.dataUpdatedAt;
+                  return (
+                    <li
+                      key={inv.id}
+                      className="flex items-center justify-between gap-3 py-2 text-sm"
                     >
-                      {t("workspace.inviteRevoke")}
-                    </Button>
-                  </li>
-                ))}
+                      <div className="flex min-w-0 flex-col">
+                        <span className="truncate font-medium">
+                          {inv.email}
+                        </span>
+                        <span className="text-xs text-[hsl(var(--muted-foreground))]">
+                          <Badge variant="outline" className="mr-2">
+                            {t(roleLabelKey(inv.role))}
+                          </Badge>
+                          {expired ? (
+                            <span className="text-[hsl(var(--destructive))]">
+                              {t("workspace.inviteExpired", {
+                                date: formatDate(inv.expiresAt, "datetime"),
+                              })}
+                            </span>
+                          ) : (
+                            t("workspace.inviteExpiresAt", {
+                              date: formatDate(inv.expiresAt, "datetime"),
+                            })
+                          )}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          disabled={resendMutation.isPending}
+                          onClick={() => resendMutation.mutate(inv.id)}
+                        >
+                          {t("workspace.inviteResend")}
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          disabled={revokeMutation.isPending}
+                          onClick={() => revokeMutation.mutate(inv.id)}
+                        >
+                          {t("workspace.inviteRevoke")}
+                        </Button>
+                      </div>
+                    </li>
+                  );
+                })}
               </ul>
             )}
           </CardContent>

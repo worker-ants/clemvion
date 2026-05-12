@@ -5,6 +5,17 @@ export interface RegisterData {
   email: string;
   password: string;
   termsAccepted: boolean;
+  /**
+   * 미가입자 초대 토큰. 동봉 시 서버는 이메일 일치 강제 + 즉시 가입·자동 로그인.
+   * spec/5-system/1-auth.md §1.5.2
+   */
+  invitationToken?: string;
+}
+
+export interface RegisterResultData {
+  message: string;
+  /** 초대 토큰 가입 시에만 동봉 — 일반 가입은 누락. */
+  accessToken?: string;
 }
 
 export interface LoginData {
@@ -19,7 +30,7 @@ export type LoginResponseData =
 
 export const authApi = {
   register: (data: RegisterData) =>
-    apiClient.post<{ message: string }>("/auth/register", data),
+    apiClient.post<{ data: RegisterResultData }>("/auth/register", data),
 
   verifyEmail: (token: string) =>
     apiClient.post<{ data: { accessToken: string } }>("/auth/verify-email", { token }),
