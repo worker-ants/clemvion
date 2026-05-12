@@ -1,6 +1,8 @@
 import {
+  Equals,
   IsEmail,
   IsString,
+  Length,
   MinLength,
   MaxLength,
   IsBoolean,
@@ -50,6 +52,7 @@ export class RegisterDto {
     example: true,
   })
   @IsBoolean()
+  @Equals(true, { message: '이용약관에 동의해야 가입할 수 있습니다.' })
   termsAccepted: boolean;
 
   /**
@@ -60,10 +63,11 @@ export class RegisterDto {
    */
   @ApiPropertyOptional({
     description:
-      '미가입자 초대 토큰. 동봉 시 토큰 이메일과 가입 이메일이 일치해야 하며, 이메일 인증 없이 즉시 가입·자동 로그인됩니다.',
+      '미가입자 초대 토큰. 동봉 시 토큰 이메일과 가입 이메일이 일치해야 하며, 이메일 인증 없이 즉시 가입·자동 로그인됩니다. 토큰은 base64url 64자.',
   })
   @IsOptional()
   @IsString()
-  @MinLength(16)
+  // 64자 base64url 토큰 길이에 일치. 향후 인코딩 변경 여지를 위해 128자까지 허용.
+  @Length(64, 128)
   invitationToken?: string;
 }

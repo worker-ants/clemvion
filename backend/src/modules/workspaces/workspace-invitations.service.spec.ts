@@ -272,6 +272,47 @@ describe('WorkspaceInvitationsService', () => {
         result.token,
       );
     });
+
+    it('throws NotFoundException when the workspace was deleted in flight', async () => {
+      memberRepo.findOne.mockResolvedValueOnce({ role: 'admin' });
+      invitationRepo.findOne.mockResolvedValueOnce({
+        id: 'inv-1',
+        token: 'old',
+        email: 'b@x.com',
+        role: 'editor',
+        invitedBy: null,
+        acceptedAt: null,
+        expiresAt: new Date(Date.now() + 60_000),
+        workspaceId: 'ws-1',
+      });
+      workspaceRepo.findOne.mockResolvedValueOnce(null);
+      userRepo.findOne.mockResolvedValueOnce(null);
+      await expect(
+        service.resend('ws-1', 'inv-1', 'user-1'),
+      ).rejects.toBeInstanceOf(NotFoundException);
+    });
+
+    it('still returns saved row when mail dispatch fails', async () => {
+      memberRepo.findOne.mockResolvedValueOnce({ role: 'admin' });
+      invitationRepo.findOne.mockResolvedValueOnce({
+        id: 'inv-1',
+        token: 'old',
+        email: 'b@x.com',
+        role: 'editor',
+        invitedBy: null,
+        acceptedAt: null,
+        expiresAt: new Date(Date.now() + 60_000),
+        workspaceId: 'ws-1',
+      });
+      workspaceRepo.findOne.mockResolvedValueOnce({ id: 'ws-1', name: 'Team' });
+      userRepo.findOne.mockResolvedValueOnce({ id: 'user-1', name: 'Alice' });
+      mailService.sendWorkspaceInvitationEmail.mockRejectedValueOnce(
+        new Error('smtp down'),
+      );
+      const result = await service.resend('ws-1', 'inv-1', 'user-1');
+      expect(result.token).not.toBe('old');
+      expect(invitationRepo.save).toHaveBeenCalled();
+    });
   });
 
   describe('getMetaByToken', () => {
@@ -341,6 +382,22 @@ describe('WorkspaceInvitationsService', () => {
 
       const meta = await service.getMetaByToken('t');
       expect(meta.invitedByName).toBeNull();
+    });
+
+    it('throws NotFoundException when workspace has been deleted', async () => {
+      invitationRepo.findOne.mockResolvedValueOnce({
+        token: 't',
+        email: 'a@x.com',
+        role: 'editor',
+        workspaceId: 'ws-1',
+        invitedBy: null,
+        acceptedAt: null,
+        expiresAt: new Date(Date.now() + 60_000),
+      });
+      workspaceRepo.findOne.mockResolvedValueOnce(null);
+      await expect(service.getMetaByToken('t')).rejects.toBeInstanceOf(
+        NotFoundException,
+      );
     });
   });
 

@@ -63,25 +63,26 @@
 - [x] spec `5-system/1-auth.md` §1.5 초대 토큰 흐름 + Rationale (2026-05-12)
 - [x] spec `2-navigation/9-user-profile.md` §4.1·§4.1.1·§6.1 갱신 (재발송 API 추가) (2026-05-12)
 - [x] spec `2-navigation/10-auth-flow.md` §2.6·§6.1·§8 갱신 (`?invitationToken=…` 처리 + 자동 워크스페이스 생성 분기) (2026-05-12)
-- [ ] 데이터 모델 — `WorkspaceInvitation` 엔티티 (`workspace_id`, `email`, `role`, `token`(64자 base64url, UNIQUE), `expires_at`, `invited_by`, `accepted_at?`, `accepted_by?`) — 이미 존재. 인덱스/제약 점검 (예: 대기 중 토큰의 `(workspaceId, email)` UNIQUE on `acceptedAt IS NULL`)
-- [ ] 마이그레이션 — 인덱스/제약 변경 시
-- [ ] 백엔드 API
-  - `POST /api/v1/workspaces/:id/invitations` (Admin+)
-  - `POST /api/v1/workspaces/:id/invitations/:invitationId/resend` (Admin+)
-  - `DELETE /api/v1/workspaces/:id/invitations/:invitationId` (Admin+)
-  - `GET /api/v1/invitations/:token` (인증 불요, prefill용)
-  - `POST /api/v1/workspaces/invitations/accept` (로그인 사용자, 이메일 일치 강제)
-  - `POST /api/v1/auth/register` 본문에 `invitationToken?` 받아 트랜잭션 처리
-- [ ] Rate limit — 워크스페이스·invited_by 단위 분당 N회
-- [ ] 이메일 템플릿 — 가입 링크 + 워크스페이스 이름 + 초대자 이름. **시스템 SMTP** 로 발송
-- [ ] frontend — 멤버 관리 화면에 "초대" 버튼 + 이메일·역할 입력 + 대기 중 초대 목록(만료 표시 / 재발송 / 취소)
-- [ ] frontend — 회원가입 페이지에서 `?invitationToken=…` 처리 (메타 prefetch → 이메일 prefill+readOnly → 초대 워크스페이스로 진입)
-- [ ] 단위 테스트 (백엔드)
-  - accept: 이메일 불일치 reject / 만료 reject / 중복 사용 reject / 정상 흐름 통과
-  - register with invitationToken: 이메일 불일치 reject / 트랜잭션 롤백 / 자동 워크스페이스 생성 미발화
-  - 재발송: 기존 토큰 invalidate 확인
-- [ ] e2e — 초대 → 메일 수신 (개발 `console` transport) → 가입 → 자동 멤버 등록
-- [ ] `spec/2-navigation/_product-overview.md` §3.11 NAV-UP-05 상태 갱신 (구현 완료 시 `(가입 사용자 이메일 추가 · 미가입자 초대 토큰은 후속)` 부분 제거)
+- [x] 데이터 모델 — `WorkspaceInvitation` 엔티티 점검 완료. partial UNIQUE on `(workspace_id, email) WHERE accepted_at IS NULL` 가 마이그레이션 V017 에 이미 존재 → 정책상 `invite()` 가 대기 row 를 invalidate+overwrite 하는 방식으로 충돌 없이 단일 토큰을 유지. (2026-05-12)
+- [x] 마이그레이션 — V017 위에 변경 없음 (정책을 row 갱신 방식으로 흡수)
+- [x] 백엔드 API (2026-05-12, commit `e697daef`)
+  - `POST /api/workspaces/:id/invitations` (Admin+)
+  - `POST /api/workspaces/:id/invitations/:invitationId/resend` (Admin+)
+  - `DELETE /api/workspaces/:id/invitations/:invitationId` (Admin+)
+  - `GET /api/invitations/:token` (@Public, prefill용)
+  - `POST /api/workspaces/invitations/accept` (로그인 사용자, 이메일 일치 강제)
+  - `POST /api/auth/register` 본문에 `invitationToken?` 받아 단일 트랜잭션 처리
+- [x] Rate limit — invite·resend 에 분당 10회 (`@Throttle`)
+- [x] 이메일 템플릿 — `mail.service.sendWorkspaceInvitationEmail(email, workspaceName, invitedByName, token)` 으로 초대자 이름 포함. **시스템 SMTP** 로 발송
+- [ ] frontend — 멤버 관리 화면에 "초대" 버튼 + 이메일·역할 입력 + 대기 중 초대 목록(만료 표시 / 재발송 / 취소) — **다음 세션**
+- [ ] frontend — 회원가입 페이지에서 `?invitationToken=…` 처리 (메타 prefetch → 이메일 prefill+readOnly → 초대 워크스페이스로 진입) — **다음 세션**
+- [x] 단위 테스트 (백엔드) (2026-05-12, lint 0 errors / 3235 tests pass)
+  - accept: 이메일 불일치 → 400 / 만료 → 410 / 중복 사용 → 410 / 정상 흐름 / 동시 accept 경쟁 (UPDATE affected=0 → 410)
+  - register with invitationToken: 이메일 불일치 reject / 트랜잭션 롤백 / 자동 워크스페이스 생성 미발화 / 자동 로그인 토큰 발급
+  - 재발송: 기존 토큰 invalidate + 새 토큰 발급 확인
+  - invite: 대기 중 동일 이메일은 덮어쓰기 (충돌 reject 아님)
+- [ ] e2e — 초대 → 메일 수신 (개발 `console` transport) → 가입 → 자동 멤버 등록 (백엔드 e2e 인프라 정비 후. 현재 e2e 스위트는 인프라 의존으로 skipped)
+- [ ] `spec/2-navigation/_product-overview.md` §3.11 NAV-UP-05 상태 갱신 (frontend·전체 e2e 완료 시 `(가입 사용자 이메일 추가 · 미가입자 초대 토큰은 후속)` 부분 제거)
 
 ### 3. 매뉴얼
 

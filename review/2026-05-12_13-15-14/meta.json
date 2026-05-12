@@ -1,0 +1,133 @@
+{
+  "timestamp": "2026-05-12T13:21:02.934651",
+  "files": [
+    {
+      "file_path": "/Volumes/project/private/clemvion/backend/src/modules/auth/auth.controller.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/clemvion/backend/src/modules/auth/auth.service.spec.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/clemvion/backend/src/modules/auth/auth.service.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/clemvion/backend/src/modules/auth/dto/register.dto.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/clemvion/backend/src/modules/auth/dto/responses/auth-response.dto.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/clemvion/backend/src/modules/mail/mail.service.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/clemvion/backend/src/modules/workspaces/dto/responses/workspace-response.dto.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/clemvion/backend/src/modules/workspaces/invitations.controller.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/clemvion/backend/src/modules/workspaces/workspace-invitations.service.spec.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/clemvion/backend/src/modules/workspaces/workspace-invitations.service.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/clemvion/backend/src/modules/workspaces/workspaces.controller.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/clemvion/backend/src/modules/workspaces/workspaces.module.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    }
+  ],
+  "total_elapsed_seconds": 348.67,
+  "agents": [
+    {
+      "name": "testing",
+      "status": "success",
+      "elapsed_seconds": 44.07
+    },
+    {
+      "name": "dependency",
+      "status": "success",
+      "elapsed_seconds": 58.5
+    },
+    {
+      "name": "side_effect",
+      "status": "success",
+      "elapsed_seconds": 60.04
+    },
+    {
+      "name": "performance",
+      "status": "success",
+      "elapsed_seconds": 61.46
+    },
+    {
+      "name": "concurrency",
+      "status": "success",
+      "elapsed_seconds": 78.79
+    },
+    {
+      "name": "maintainability",
+      "status": "success",
+      "elapsed_seconds": 80.35
+    },
+    {
+      "name": "documentation",
+      "status": "success",
+      "elapsed_seconds": 86.49
+    },
+    {
+      "name": "database",
+      "status": "success",
+      "elapsed_seconds": 86.9
+    },
+    {
+      "name": "scope",
+      "status": "success",
+      "elapsed_seconds": 90.73
+    },
+    {
+      "name": "api_contract",
+      "status": "success",
+      "elapsed_seconds": 92.74
+    },
+    {
+      "name": "architecture",
+      "status": "success",
+      "elapsed_seconds": 98.69
+    },
+    {
+      "name": "security",
+      "status": "success",
+      "elapsed_seconds": 114.83
+    },
+    {
+      "name": "requirement",
+      "status": "success",
+      "elapsed_seconds": 222.31
+    }
+  ]
+}

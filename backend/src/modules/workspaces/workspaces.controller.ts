@@ -22,8 +22,12 @@ import {
   ApiOperation,
   ApiParam,
   ApiTags,
+  ApiTooManyRequestsResponse,
   ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
+
+// 초대 발송·재발송 폭격 방지. 운영 중 조정 시 한 곳만 고치면 됨.
+const INVITATION_THROTTLE = { default: { ttl: 60_000, limit: 10 } };
 import {
   ApiCreatedWrappedResponse,
   ApiOkWrappedArrayResponse,
@@ -341,7 +345,7 @@ export class WorkspacesController {
 
   @Post(':id/invitations')
   // Email-bombing 방지. 같은 워크스페이스에서 분당 10건까지 허용.
-  @Throttle({ default: { ttl: 60_000, limit: 10 } })
+  @Throttle(INVITATION_THROTTLE)
   @ApiOperation({
     summary: '미가입자 초대(Admin+)',
     description:
@@ -356,6 +360,9 @@ export class WorkspacesController {
   @ApiForbiddenResponse({ description: '초대 권한 부족 (Admin+)' })
   @ApiNotFoundResponse({ description: '해당 워크스페이스를 찾을 수 없음' })
   @ApiConflictResponse({ description: '이미 워크스페이스 멤버인 이메일' })
+  @ApiTooManyRequestsResponse({
+    description: '요청 빈도 초과 (분당 10건)',
+  })
   async createInvitation(
     @CurrentUser() user: JwtPayload,
     @Param('id', new ParseUUIDPipe()) workspaceId: string,
@@ -379,7 +386,7 @@ export class WorkspacesController {
 
   @Post(':id/invitations/:invitationId/resend')
   @HttpCode(200)
-  @Throttle({ default: { ttl: 60_000, limit: 10 } })
+  @Throttle(INVITATION_THROTTLE)
   @ApiOperation({
     summary: '초대 재발송(Admin+)',
     description:
@@ -399,6 +406,9 @@ export class WorkspacesController {
   @ApiNotFoundResponse({ description: '초대 또는 워크스페이스를 찾을 수 없음' })
   @ApiConflictResponse({
     description: '이미 수락된 초대는 재발송할 수 없음',
+  })
+  @ApiTooManyRequestsResponse({
+    description: '요청 빈도 초과 (분당 10건)',
   })
   async resendInvitation(
     @CurrentUser() user: JwtPayload,
