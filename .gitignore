@@ -15,3 +15,4 @@ dist/
 
 # Claude CLI runtime artifacts
 .claude/scheduled_tasks.lock
+.claude/worktrees/
