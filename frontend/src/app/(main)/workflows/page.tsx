@@ -19,9 +19,11 @@ import {
 import { toast } from "sonner";
 import { workflowsApi, type WorkflowData } from "@/lib/api/workflows";
 import { normalizePagedResponse } from "@/lib/api/paginated";
+import { useWorkspaceStore } from "@/lib/stores/workspace-store";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { Users } from "lucide-react";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Pagination } from "@/components/ui/pagination";
 import { RoleGate } from "@/components/auth/role-gate";
@@ -43,6 +45,12 @@ export default function WorkflowsPage() {
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [filter, setFilter] = useState<FilterStatus>("all");
   const { page, setPage } = usePageParam();
+  // spec/2-navigation/1-workflow-list.md §2.1 + Rationale §1 — 팀 워크스페이스에 속한
+  // 모든 워크플로우는 "Shared" 로 본다. 개인 워크스페이스에서는 배지를 표시하지 않는다.
+  const currentWorkspace = useWorkspaceStore((s) =>
+    s.workspaces.find((w) => w.id === s.currentWorkspaceId),
+  );
+  const isTeamWorkspace = currentWorkspace?.type === "team";
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -383,14 +391,26 @@ export default function WorkflowsPage() {
                       </button>
                     </td>
                     <td className="px-4 py-3">
-                      <button
-                        className="font-medium hover:underline text-left"
-                        onClick={() =>
-                          router.push(`/workflows/${workflow.id}`)
-                        }
-                      >
-                        {workflow.name}
-                      </button>
+                      <div className="flex items-center gap-2">
+                        <button
+                          className="font-medium hover:underline text-left"
+                          onClick={() =>
+                            router.push(`/workflows/${workflow.id}`)
+                          }
+                        >
+                          {workflow.name}
+                        </button>
+                        {isTeamWorkspace && (
+                          <Badge
+                            variant="outline"
+                            className="gap-1"
+                            aria-label={t("workflows.teamBadgeAria")}
+                          >
+                            <Users className="h-3 w-3" aria-hidden />
+                            {t("workflows.teamBadge")}
+                          </Badge>
+                        )}
+                      </div>
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex flex-wrap gap-1">
