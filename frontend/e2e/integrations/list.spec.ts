@@ -23,6 +23,15 @@ const WORKSPACE = {
 };
 
 async function mockAuth(page: Page) {
+  // proxy.ts 가 has_session cookie 없으면 server-side 로 /login redirect.
+  await page.context().addCookies([
+    {
+      name: "has_session",
+      value: "1",
+      domain: "localhost",
+      path: "/",
+    },
+  ]);
   await page.route("**/api/auth/refresh", async (route) => {
     await route.fulfill({
       status: 200,
