@@ -55,6 +55,17 @@ export default function WorkflowsPage() {
     s.workspaces.find((w) => w.id === s.currentWorkspaceId),
   );
   const isTeamWorkspace = currentWorkspace?.type === "team";
+
+  // 워크스페이스를 전환하면 ownership 을 'all' 로 리셋한다. effect 내 setState 룰
+  // (react-hooks/set-state-in-effect) 를 피하려고 store subscribe 콜백으로 처리 —
+  // 변경 알림은 React render 가 아닌 외부 store 의 이벤트라 패턴상 정당하다.
+  useEffect(() => {
+    return useWorkspaceStore.subscribe((next, prev) => {
+      if (next.currentWorkspaceId !== prev.currentWorkspaceId) {
+        setOwnership("all");
+      }
+    });
+  }, []);
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -369,12 +380,16 @@ export default function WorkflowsPage() {
           icon={Workflow}
           title={t("workflows.noneFound")}
           description={
-            debouncedSearch || filter !== "all"
+            debouncedSearch ||
+            filter !== "all" ||
+            (isTeamWorkspace && ownership !== "all")
               ? t("workflows.adjustFiltersHint")
               : t("workflows.firstWorkflowHint")
           }
           action={
-            !debouncedSearch && filter === "all" ? (
+            !debouncedSearch &&
+            filter === "all" &&
+            !(isTeamWorkspace && ownership !== "all") ? (
               <Button
                 onClick={() => createMutation.mutate()}
                 disabled={createMutation.isPending}

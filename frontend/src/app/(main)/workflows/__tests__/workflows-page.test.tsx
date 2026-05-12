@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { render, screen, act, cleanup } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -55,6 +55,13 @@ describe("WorkflowsPage — pagination", () => {
     vi.clearAllMocks();
     currentSearchParams = new URLSearchParams();
     useLocaleStore.setState({ locale: "en" });
+    // ownership describe 가 store 에 팀 워크스페이스를 셋업하므로, 이 describe
+    // 시작 시점에 명시적으로 빈 상태로 초기화해 테스트 간 누수를 차단한다.
+    useWorkspaceStore.setState({
+      workspaces: [],
+      currentWorkspaceId: null,
+      loaded: true,
+    });
     cleanup();
   });
 
@@ -154,6 +161,17 @@ describe("WorkflowsPage — ownership filter (NAV-WF-07)", () => {
       loaded: true,
     });
     cleanup();
+  });
+
+  // 마지막 it 가 끝난 뒤에도 DOM 이 남으면 후속 test file 로 잔류해 false-positive
+  // duplicate-text 매칭이 발생할 수 있어 명시적으로 cleanup.
+  afterEach(() => {
+    cleanup();
+    useWorkspaceStore.setState({
+      workspaces: [],
+      currentWorkspaceId: null,
+      loaded: true,
+    });
   });
 
   it("hides ownership filter group in personal workspace", async () => {
