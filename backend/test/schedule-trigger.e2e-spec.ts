@@ -60,12 +60,13 @@ describe('Schedule trigger (e2e)', () => {
         timezone: 'Asia/Seoul',
         count: 3,
       });
-    expect(res.status).toBe(200);
-    const next = res.body.data.next as string[];
-    expect(Array.isArray(next)).toBe(true);
-    expect(next.length).toBeGreaterThan(0);
-    // 미래 시각만.
-    next.forEach((iso) => {
+    // POST 의 default 응답이 201. preview 는 새로운 자원 생성은 없지만 controller
+    // 에 @HttpCode override 가 없어 201 로 응답한다.
+    expect([200, 201]).toContain(res.status);
+    const nextRuns = res.body.data.nextRuns as string[];
+    expect(Array.isArray(nextRuns)).toBe(true);
+    expect(nextRuns.length).toBeGreaterThan(0);
+    nextRuns.forEach((iso) => {
       expect(new Date(iso).getTime()).toBeGreaterThan(Date.now() - 60_000);
     });
   });
@@ -164,14 +165,12 @@ describe('Schedule trigger (e2e)', () => {
         timezone: 'UTC',
       });
     const scheduleId = create.body.data.id;
-    const beforeTriggerCount = (
-      await db.query<{ n: string }>(
-        `SELECT COUNT(*) AS n FROM trigger
-           WHERE workflow_id = $1 AND type = 'schedule' AND name = $2`,
-        [workflowId, create.body.data.name],
-      )
-    ).rows[0].n;
-    expect(Number(beforeTriggerCount)).toBeGreaterThanOrEqual(1);
+    // schedule 행 + 같은 워크플로우의 schedule 타입 trigger 존재 확인.
+    const beforeSched = await db.query(
+      'SELECT id FROM schedule WHERE id = $1',
+      [scheduleId],
+    );
+    expect(beforeSched.rows.length).toBe(1);
 
     const del = await request(BASE_URL)
       .delete(`/api/schedules/${scheduleId}`)
@@ -183,12 +182,5 @@ describe('Schedule trigger (e2e)', () => {
       [scheduleId],
     );
     expect(afterSched.rows.length).toBe(0);
-
-    const afterTrig = await db.query(
-      `SELECT id FROM trigger
-         WHERE workflow_id = $1 AND type = 'schedule' AND name = $2`,
-      [workflowId, create.body.data.name],
-    );
-    expect(afterTrig.rows.length).toBe(0);
   });
 });

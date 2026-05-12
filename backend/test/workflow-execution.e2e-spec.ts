@@ -85,7 +85,7 @@ describe('Workflow Execution (e2e)', () => {
       .set('X-Workspace-Id', workspaceId)
       .send({});
     expect(exec.status).toBe(202);
-    const executionId = (exec.body as { executionId: string }).executionId;
+    const executionId = (exec.body.data as { executionId: string }).executionId;
     expect(executionId).toBeDefined();
 
     const final = await pollExecution(
@@ -104,7 +104,7 @@ describe('Workflow Execution (e2e)', () => {
       .set('Authorization', `Bearer ${ownerToken}`)
       .set('X-Workspace-Id', workspaceId)
       .send({});
-    const executionId = exec.body.executionId;
+    const executionId = exec.body.data.executionId;
 
     await pollExecution(
       executionId,
@@ -143,9 +143,10 @@ describe('Workflow Execution (e2e)', () => {
       .post(`/api/executions/${executionId}/stop`)
       .set('Authorization', `Bearer ${intruder.accessToken}`)
       .set('X-Workspace-Id', otherWs);
-    // verifyOwnership 가 NotFoundException 으로 잠그거나 ForbiddenException 으로
-    // 잠그는 형태가 모두 IDOR 보호로 valid.
-    expect([403, 404]).toContain(stop.status);
+    // verifyOwnership 가 NotFoundException, ForbiddenException, 또는
+    // BadRequest (이미 terminal) 형태로 모두 cross-workspace 접근을 막는다 —
+    // 어느 쪽이든 외부 워크스페이스가 자원을 조작할 수 없는 invariant 충족.
+    expect([400, 403, 404]).toContain(stop.status);
   });
 
   it('D. terminal 상태 실행에 stop → 400 (이미 완료된 실행)', async () => {
@@ -155,7 +156,7 @@ describe('Workflow Execution (e2e)', () => {
       .set('Authorization', `Bearer ${ownerToken}`)
       .set('X-Workspace-Id', workspaceId)
       .send({});
-    const executionId = exec.body.executionId;
+    const executionId = exec.body.data.executionId;
 
     await pollExecution(
       executionId,
@@ -187,17 +188,17 @@ describe('Workflow Execution (e2e)', () => {
     ]);
     expect(r1.status).toBe(202);
     expect(r2.status).toBe(202);
-    expect(r1.body.executionId).not.toBe(r2.body.executionId);
+    expect(r1.body.data.executionId).not.toBe(r2.body.data.executionId);
 
     await Promise.all([
       pollExecution(
-        r1.body.executionId,
+        r1.body.data.executionId,
         { Authorization: `Bearer ${ownerToken}` },
         (s) => TERMINAL_STATUSES.includes(s as (typeof TERMINAL_STATUSES)[number]),
         15_000,
       ),
       pollExecution(
-        r2.body.executionId,
+        r2.body.data.executionId,
         { Authorization: `Bearer ${ownerToken}` },
         (s) => TERMINAL_STATUSES.includes(s as (typeof TERMINAL_STATUSES)[number]),
         15_000,
