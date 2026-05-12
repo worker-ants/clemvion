@@ -1,0 +1,8 @@
+version: 2
+updates:
+  # GitHub Actions workflow 의 액션 버전을 주 단위로 점검해 동일 deprecation
+  # 사고를 사전 PR 로 차단한다.
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
