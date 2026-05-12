@@ -35,18 +35,18 @@
 - [x] `spec/2-navigation/_layout.md` line 101 — 메뉴 라벨 "프로필 편집" → "내 프로필" + 설명 갱신 (디폴트 readonly · sub-route 분리 명시 + 9-user-profile.md §2 링크)
 - [x] 다른 spec 에서 `/profile` 단일 Save 흐름 전제 문장 grep — `spec/5-system/_product-overview.md` line 71 의 `/profile/alerts` 는 별도 페이지 언급으로 무관. 영향 없음.
 
-### Phase 2 — 구현 (developer)
+### Phase 2 — 구현 (developer) ✅
 
 frontend 신규:
-- [ ] `frontend/src/app/(main)/profile/components/confirm-diff-dialog.tsx`
-- [ ] `frontend/src/app/(main)/profile/components/profile-info-card.tsx`
-- [ ] `frontend/src/app/(main)/profile/components/profile-preferences-card.tsx`
-- [ ] `frontend/src/app/(main)/profile/change-password/page.tsx`
+- [x] `frontend/src/app/(main)/profile/components/confirm-diff-dialog.tsx` + `__tests__/confirm-diff-dialog.test.tsx` (4 케이스)
+- [x] `frontend/src/app/(main)/profile/components/profile-info-card.tsx` + `__tests__/profile-info-card.test.tsx` (6 케이스)
+- [x] `frontend/src/app/(main)/profile/components/profile-preferences-card.tsx` + `__tests__/profile-preferences-card.test.tsx` (6 케이스, theme 라이브 프리뷰 임시 state 격리 검증 포함)
+- [x] `frontend/src/app/(main)/profile/change-password/page.tsx` + `__tests__/change-password.test.tsx` (5 케이스, react-hook-form + zod)
 
 frontend 수정:
-- [ ] `frontend/src/app/(main)/profile/page.tsx` — readonly + 신규 카드 조립, 단일 Save 버튼 삭제, 비밀번호 카드 → 안내+Link
-- [ ] `frontend/src/lib/i18n/dict/ko.ts`, `en.ts` — `profile.edit`, `profile.editCancel`, `profile.confirmDiffTitle`, `profile.confirmDiffDescription`, `profile.fieldBefore`, `profile.fieldAfter`, `profile.changePasswordPageTitle`, `profile.changePasswordPageDescription` 등 추가
-- [ ] 사이드바 팝업 메뉴 라벨 i18n 키 (`sidebar.profileEdit` → 신규 키 또는 값 교체) — spec §1.2 갱신과 일치
+- [x] `frontend/src/app/(main)/profile/page.tsx` — readonly + 신규 카드 조립, 단일 Save 버튼 삭제, 비밀번호 카드 → KeyRound 아이콘 + Link
+- [x] `frontend/src/lib/i18n/dict/ko.ts` 의 `sidebar.profile` 값 "프로필" → "내 프로필", profile namespace 에 `edit`, `confirmDiffTitle/Description`, `fieldBefore/After`, `changePasswordPage*`, `changePasswordCard*`, `changePasswordMin/MaxLength`, `emailReadonlyHint` (총 14개) 추가
+- [x] `frontend/src/lib/i18n/dict/en.ts` 동일 갱신 — `sidebar.profile` → "My Profile" + 신규 키들 영문
 
 ### Phase 3 — 검증
 
