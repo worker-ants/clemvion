@@ -54,7 +54,7 @@ frontend 수정:
 - [x] `cd frontend && npm run lint` — 0 errors
 - [x] `cd frontend && npx vitest run` — 1276/1277 (사전 회귀 1건은 `executions-list-test-regression.md` 로 분리, 본 변경과 무관)
 - [x] `cd frontend && npm run build` — 통과
-- [ ] `/profile` playwright e2e 시나리오 추가 — frontend e2e 가 mock 기반이라 단위 테스트로 충분 검증됨. 향후 가치 있으나 본 변경의 필수 범위 외 (별도 작업).
+- [x] `/profile` playwright e2e 시나리오 추가 — `frontend/e2e/profile/profile-edit.spec.ts` 신규 4 케이스 (디폴트 readonly · 이름 편집→diff→확정→PATCH · 환경설정 [취소]→PATCH 미호출 · 비밀번호 sub-route 진입→POST→리다이렉트). 4/4 통과.
 - [ ] backend e2e — backend 변경 없음 → 대상 아님
 - [ ] 수동 확인 (dev server) — 다음 작업 (별도 검증 단계)
 
