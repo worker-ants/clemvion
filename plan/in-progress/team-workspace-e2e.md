@@ -14,11 +14,29 @@
 
 ## 작업 단위
 
-### 1. docker-compose `app` profile 정비
+### 1. docker-compose.e2e.yml + Makefile (2026-05-12 완료)
 
-- `docker-compose.yml` (또는 별도 `docker-compose.e2e.yml`) 에 e2e 전용 profile 추가. 최소 구성: Postgres + Redis + backend (env: `NODE_ENV=test`, `MAIL_TRANSPORT=console`, 임시 DB schema).
-- Flyway migration 자동 실행으로 schema 초기화 (기존 `migrate-repair` 서비스 패턴 참고).
-- backend 컨테이너의 health-check + 종료 후 cleanup.
+설계 결정 (사용자 합의):
+- 별도 `docker-compose.e2e.yml` 신규 (기존 `docker-compose.yml` 은 손대지 않음).
+- `name: clemvion-e2e` top-level 키로 project 격리 → `-p` 플래그 불필요. named volume·컨테이너·network 가 자동 분리.
+- 호스트 포트 매핑 없음 → dev 가 5432/6379/9000/3011 등을 점유 중이어도 무관.
+- ephemeral (named volume 없음) — 매 실행 깨끗한 DB.
+- 서비스 6 + runner 2: postgres / redis / minio / createbuckets / migrate / backend-e2e + (profile=test) backend-e2e-runner / playwright-runner.
+- backend-e2e 는 `target=runner` (production-like), NODE_ENV 만 test override. healthcheck = `wget /api/health` (alpine 기본).
+- backend-e2e-runner 는 `target=deps` + 호스트 `./backend` mount + anonymous `node_modules` volume — dev dep + src 양쪽 보유.
+- runner 들은 `profiles: ["test"]` 라 `make e2e-up` 으로는 안 뜨고, `make e2e-test` 에서만 기동.
+
+`Makefile` 타겟 (루트, 신규):
+- `make e2e-up` — `docker compose -f docker-compose.e2e.yml up -d --wait backend-e2e`
+- `make e2e-down` — `down -v --remove-orphans`
+- `make e2e-test` — `--profile test --exit-code-from backend-e2e-runner backend-e2e-runner` 후 자동 down (exit code 전파)
+- `make e2e-test-full` — `--profile test --exit-code-from playwright-runner` 로 playwright 까지
+
+산출물:
+- [x] `docker-compose.e2e.yml` (2026-05-12)
+- [x] `Makefile` 루트 신규 (2026-05-12)
+
+후속 Step 들이 의존하는 hostname (`backend-e2e`), DB name (`clemvion_e2e`), env (`MAIL_TRANSPORT=console`) 모두 박제됨.
 
 ### 2. backend e2e — `backend/test/app.e2e-spec.ts` 교체
 

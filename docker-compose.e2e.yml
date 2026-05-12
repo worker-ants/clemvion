@@ -1,0 +1,174 @@
+# clemvion e2e 전용 인프라.
+#
+# 실행:
+#   make e2e-up       # 인프라 + backend-e2e 까지 백그라운드 기동
+#   make e2e-test     # backend e2e (supertest) 1-shot
+#   make e2e-test-full# backend + playwright 까지
+#   make e2e-down     # 정리 (volume·orphan 모두)
+#
+# `name:` 으로 project 가 `clemvion-e2e` 로 박제되어 있어, 기본 `docker compose up`
+# (= docker-compose.yml, project=clemvion) 의 dev 인프라와 named volume·컨테이너
+# 이름·network 가 자동으로 격리된다. 호스트 포트도 노출하지 않아 dev 가 5432/6379
+# 등을 점유 중이어도 충돌이 발생하지 않는다.
+#
+# 영속화 없음(ephemeral) — 매 실행마다 깨끗한 schema 가 보장된다.
+# runner 서비스는 `profiles: ["test"]` 로 분리되어 `make e2e-up` 만으로는 안 뜬다.
+
+name: clemvion-e2e
+
+services:
+  # ---------------- Infra ----------------
+  postgres:
+    image: pgvector/pgvector:${POSTGRES_VERSION:-pg18}
+    environment:
+      POSTGRES_DB: clemvion_e2e
+      POSTGRES_USER: clemvion
+      POSTGRES_PASSWORD: clemvion-e2e
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U clemvion"]
+      interval: 3s
+      timeout: 3s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 3s
+      timeout: 3s
+      retries: 10
+
+  minio:
+    image: minio/minio:latest
+    environment:
+      MINIO_ROOT_USER: clemvion
+      MINIO_ROOT_PASSWORD: clemvion-e2e
+    command: server /data --console-address ":9001"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 3s
+      timeout: 3s
+      retries: 10
+
+  createbuckets:
+    image: minio/mc:latest
+    depends_on:
+      minio:
+        condition: service_healthy
+    # 비밀번호의 셸 메타문자 우회를 위해 환경변수 주입 + $$ 이스케이프 (dev compose 와 동일 패턴).
+    environment:
+      MC_USER: clemvion
+      MC_PASS: clemvion-e2e
+    entrypoint: >
+      /bin/sh -c "
+      mc alias set local http://minio:9000 \"$$MC_USER\" \"$$MC_PASS\";
+      mc mb local/workflow-storage --ignore-existing;
+      exit 0;
+      "
+
+  migrate:
+    build:
+      context: .
+      dockerfile: backend/migrations/Dockerfile
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ./backend/migrations:/flyway/sql:ro
+    command:
+      - migrate
+      - -url=jdbc:postgresql://postgres:5432/clemvion_e2e
+      - -user=clemvion
+      - -password=clemvion-e2e
+      - -baselineOnMigrate=true
+      - -connectRetries=20
+    restart: "no"
+
+  # ---------------- Backend under test ----------------
+  # production-like image (target=runner). NODE_ENV 만 test 로 override.
+  backend-e2e:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+      target: runner
+    environment:
+      NODE_ENV: test
+      APP_PORT: "3011"
+      DB_HOST: postgres
+      DB_PORT: "5432"
+      DB_USERNAME: clemvion
+      DB_PASSWORD: clemvion-e2e
+      DB_DATABASE: clemvion_e2e
+      REDIS_HOST: redis
+      REDIS_PORT: "6379"
+      S3_ENDPOINT: http://minio:9000
+      S3_ACCESS_KEY: clemvion
+      S3_SECRET_KEY: clemvion-e2e
+      S3_BUCKET: workflow-storage
+      MAIL_TRANSPORT: console
+      # 다른 필수 env(JWT secret 등)는 e2e plan Step 2 에서 보강.
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+      createbuckets:
+        condition: service_completed_successfully
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      # global prefix 가 적용되어 실제 경로는 /api/health. alpine 베이스에 wget 기본 포함.
+      test: ["CMD", "wget", "-qO-", "http://localhost:3011/api/health"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  # ---------------- Runners (profile=test) ----------------
+  # `make e2e-up` 으로는 안 뜨고, `make e2e-test` / `e2e-test-full` 에서만 기동.
+  # 같은 docker network 안이라 hostname `backend-e2e` 로 접근.
+
+  # backend e2e (supertest / HTTP). dev dep + src 가 필요해 deps stage + 호스트 mount.
+  backend-e2e-runner:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+      target: deps
+    working_dir: /app/backend
+    command: ["npm", "run", "test:e2e"]
+    environment:
+      E2E_BASE_URL: http://backend-e2e:3011
+      DB_HOST: postgres
+      DB_PORT: "5432"
+      DB_USERNAME: clemvion
+      DB_PASSWORD: clemvion-e2e
+      DB_DATABASE: clemvion_e2e
+    volumes:
+      # 호스트 backend 소스를 그대로 사용. node_modules 는 anonymous volume 으로
+      # 가려서 deps stage 가 설치한 dev dep 가 호스트의 (잠재적으로 부재한) node_modules
+      # 로 덮어씌워지지 않도록 한다.
+      - ./backend:/app/backend
+      - /app/backend/node_modules
+    depends_on:
+      backend-e2e:
+        condition: service_healthy
+    profiles: ["test"]
+
+  # frontend playwright. plan Step 3 에서 frontend test:e2e script 추가 후 동작.
+  playwright-runner:
+    image: mcr.microsoft.com/playwright:v1.47.0-jammy
+    working_dir: /app/frontend
+    volumes:
+      - ./frontend:/app/frontend
+      - /app/frontend/node_modules
+    command:
+      - sh
+      - -c
+      - "npm ci && npx playwright install --with-deps chromium && npm run test:e2e"
+    environment:
+      E2E_BACKEND_URL: http://backend-e2e:3011
+    depends_on:
+      backend-e2e:
+        condition: service_healthy
+    profiles: ["test"]
