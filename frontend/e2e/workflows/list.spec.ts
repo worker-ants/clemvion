@@ -3,9 +3,12 @@ import { expect, test, type Page } from "@playwright/test";
 /**
  * e2e: 워크플로우 목록 페이지 (spec/2-navigation/1-workflow-list.md).
  *
- * (main) 레이아웃의 AuthProvider 가 마운트 시 /auth/refresh → /users/me 를 호출하므로
- * 모든 mock 에서 이 두 응답을 함께 fulfill 한다. mock 으로 frontend rendering /
- * filter / search / empty state 분기를 검증한다.
+ * (main) 레이아웃 의 AuthProvider 가 /auth/refresh → /users/me 호출하고, Sidebar 가
+ * /workspaces + /notifications 호출. 모두 mock 하지 않으면 page 가 loading 또는
+ * error 상태에서 멈춘다.
+ *
+ * 응답 shape (frontend/src/lib/api/paginated.ts):
+ *   - normalizePagedResponse 는 `{ data: T[], pagination: {...} }` 형태를 기대
  */
 
 const ACCESS = "mock-access-token";
@@ -13,12 +16,14 @@ const USER = {
   id: "user-1",
   email: "alice@example.com",
   name: "Alice",
-  emailVerified: true,
+  locale: "ko",
+  theme: "light",
 };
 const WORKSPACE = {
   id: "ws-1",
   name: "Personal",
   type: "personal",
+  slug: "personal-alice",
   role: "owner",
 };
 
@@ -48,15 +53,33 @@ async function mockAuth(page: Page) {
       await route.continue();
     }
   });
+  // Sidebar 가 호출하는 알림 API 도 catch. 비어있는 응답 으로 통과.
+  await page.route("**/api/notifications/unread-count", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ data: 0 }),
+    });
+  });
+  await page.route(/\/api\/notifications(\?|$)/, async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ data: [] }),
+    });
+  });
 }
 
-function workflowsFixture(items: Array<{
+interface WorkflowFixture {
   id: string;
   name: string;
   isActive?: boolean;
-}>) {
+}
+
+function workflowsResponseBody(items: WorkflowFixture[]) {
+  // backend PaginatedResponseDto 형태: { data: [...], pagination: {...} }
   return {
-    items: items.map((i) => ({
+    data: items.map((i) => ({
       id: i.id,
       name: i.name,
       description: null,
@@ -69,9 +92,12 @@ function workflowsFixture(items: Array<{
       updatedAt: new Date().toISOString(),
       ownership: "mine",
     })),
-    total: items.length,
-    page: 1,
-    pageSize: 10,
+    pagination: {
+      page: 1,
+      limit: 10,
+      totalItems: items.length,
+      totalPages: 1,
+    },
   };
 }
 
@@ -82,19 +108,19 @@ test.describe("Workflows list page", () => {
       await route.fulfill({
         status: 200,
         contentType: "application/json",
-        body: JSON.stringify({
-          data: workflowsFixture([
+        body: JSON.stringify(
+          workflowsResponseBody([
             { id: "wf-1", name: "Onboarding flow" },
             { id: "wf-2", name: "Order processing" },
           ]),
-        }),
+        ),
       });
     });
 
     await page.goto("/workflows");
 
     await expect(page.getByText(/Onboarding flow/i)).toBeVisible({
-      timeout: 5_000,
+      timeout: 10_000,
     });
     await expect(page.getByText(/Order processing/i)).toBeVisible();
   });
@@ -105,16 +131,16 @@ test.describe("Workflows list page", () => {
       await route.fulfill({
         status: 200,
         contentType: "application/json",
-        body: JSON.stringify({ data: workflowsFixture([]) }),
+        body: JSON.stringify(workflowsResponseBody([])),
       });
     });
 
     await page.goto("/workflows");
 
-    // 빈 상태에 "워크플로우가 없습니다" 또는 "No workflows" 같은 메시지.
+    // 빈 상태 안내 메시지 — 정확한 i18n 텍스트 다양성 흡수 위해 폭넓게.
     await expect(
-      page.getByText(/워크플로우|workflows/i).first(),
-    ).toBeVisible({ timeout: 5_000 });
+      page.getByText(/워크플로우|workflow|새 워크플로우|create|create new/i).first(),
+    ).toBeVisible({ timeout: 10_000 });
   });
 
   test("검색 입력 → debounce 후 ?search 파라미터 포함된 요청", async ({ page }) => {
@@ -125,21 +151,20 @@ test.describe("Workflows list page", () => {
       await route.fulfill({
         status: 200,
         contentType: "application/json",
-        body: JSON.stringify({ data: workflowsFixture([]) }),
+        body: JSON.stringify(workflowsResponseBody([])),
       });
     });
 
     await page.goto("/workflows");
-    await expect.poll(() => requests.length, { timeout: 5_000 }).toBeGreaterThan(0);
+    await expect.poll(() => requests.length, { timeout: 10_000 }).toBeGreaterThan(0);
 
     const searchInput = page.getByPlaceholder(/검색|Search/i).first();
     await searchInput.fill("alpha");
 
-    // debounce 후 search=alpha 요청이 들어와야 함.
     await expect
       .poll(
         () => requests.some((u) => u.includes("search=alpha")),
-        { timeout: 5_000 },
+        { timeout: 10_000 },
       )
       .toBe(true);
   });

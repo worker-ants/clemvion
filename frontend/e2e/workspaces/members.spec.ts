@@ -13,12 +13,14 @@ const USER = {
   id: "user-owner",
   email: "owner@example.com",
   name: "Owner",
-  emailVerified: true,
+  locale: "ko",
+  theme: "light",
 };
 const WORKSPACE = {
   id: "ws-team",
   name: "E2E Team",
   type: "team",
+  slug: "e2e-team",
   role: "owner",
 };
 const MEMBERS = [
@@ -53,6 +55,20 @@ async function mockAuth(page: Page) {
       await route.continue();
     }
   });
+  await page.route("**/api/notifications/unread-count", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ data: 0 }),
+    });
+  });
+  await page.route(/\/api\/notifications(\?|$)/, async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ data: [] }),
+    });
+  });
 }
 
 test.describe("Workspace members page", () => {
@@ -69,7 +85,7 @@ test.describe("Workspace members page", () => {
       await route.fulfill({
         status: 200,
         contentType: "application/json",
-        body: JSON.stringify({ data: { items: [], total: 0, page: 1, pageSize: 20 } }),
+        body: JSON.stringify({ data: [] }),
       });
     });
 
@@ -101,9 +117,7 @@ test.describe("Workspace members page", () => {
           await route.fulfill({
             status: 200,
             contentType: "application/json",
-            body: JSON.stringify({
-              data: { items: [], total: 0, page: 1, pageSize: 20 },
-            }),
+            body: JSON.stringify({ data: [] }),
           });
         } else if (method === "POST") {
           await route.fulfill({

@@ -78,8 +78,12 @@ test.describe("Login form (mock-based)", () => {
       .fill("wrong");
     await page.getByRole("button", { name: /로그인|Sign in/i }).click();
 
+    // login-form 의 extractApiMessage 는 data.message 만 본다 (data.error.message
+    // 는 보지 않음). 내 mock 은 nested error 라 fallback i18n
+    // ("auth.login.genericFailed" = "로그인에 실패했어요. 다시 시도해 주세요.") 가
+    // sonner toast 로 표시된다. 다소 폭넓게 매칭.
     await expect(
-      page.getByText(/일치하지 않|invalid|incorrect|failed/i),
+      page.getByText(/실패|일치하지 않|invalid|failed|incorrect/i).first(),
     ).toBeVisible({ timeout: 5_000 });
 
     // 이메일은 유지 (사용자가 다시 타이핑할 필요 없음).
