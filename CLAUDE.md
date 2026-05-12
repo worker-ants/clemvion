@@ -12,49 +12,31 @@
 
 ```text
 ./ (Root)
-  ├── spec/                     # 제품의 단일 진실 (single source of truth)
-  │   ├── 0-overview.md         # 제품 정의 + 시스템 아키텍처 (구 prd/0 흡수)
-  │   ├── 1-data-model.md       # 핵심 엔티티
-  │   ├── 6-brand.md            # 브랜드 가이드
-  │   ├── conventions/          # 정식 규약
-  │   │   ├── node-output.md    # 노드 Output 규약 (구 user_memo CONVENTIONS)
-  │   │   └── swagger.md        # Swagger 패턴
-  │   ├── 2-navigation/         # 내비게이션 화면별 스펙
-  │   │   ├── _layout.md
-  │   │   ├── _product-overview.md  # 영역 제품 정의 (구 prd/1)
-  │   │   └── *.md
-  │   ├── 3-workflow-editor/    # 에디터 스펙
-  │   │   ├── _product-overview.md  # 구 prd/2
-  │   │   └── *.md (Rationale 섹션은 본문 끝)
-  │   ├── 4-nodes/              # 노드별 스펙
-  │   │   ├── _product-overview.md  # 구 prd/3
-  │   │   ├── 0-overview.md     # 노드 아키텍처/목록
-  │   │   └── 1-logic/ ~ 7-trigger/  # 각 카테고리에 _product-overview.md (3-ai, 4-integration) 또는 0-common.md
-  │   └── 5-system/             # 시스템 공통 스펙
-  │       ├── _product-overview.md  # 비기능 요구사항 (구 prd/5)
-  │       └── *.md
-  ├── plan/                     # 작업 추적 라이프사이클
-  │   ├── in-progress/          # 처리할 항목이 남은 plan (새 plan 의 기본 위치)
-  │   └── complete/             # 모든 항목 완료된 plan (역사)
-  │       └── archive/          # spec 흡수에서 제외된 1회성·역사 문서
-  │           ├── from-memory/  # 구 memory/ 의 폐기 분석·진행 로그
-  │           └── from-user-memo/  # 구 user_memo/ 의 초기 기획·노드 개선안
-  ├── review/                   # 코드 리뷰 (시점별 디렉토리)
-  │   └── <timestamp>/
-  │       ├── */*.md            # 분야별 전문가 리뷰
-  │       ├── SUMMARY.md        # 통합 요약 (ai-review 생성)
-  │       └── RESOLUTION.md     # 이슈 조치 내역 (developer 작성)
-  ├── frontend/                 # 클라이언트 (Next.js)
-  │   ├── package.json
-  │   ├── .env
-  │   └── src/
-  └── backend/                  # 서버 (Nest.js)
-      ├── package.json
-      ├── .env
-      └── src/
+  ├── spec/        # 제품의 단일 진실 (single source of truth). 상세 트리는 spec/0-overview.md §8 참고
+  ├── plan/        # 작업 추적 라이프사이클 (in-progress/ ↔ complete/)
+  ├── review/      # 코드 리뷰 산출물 (시점별 디렉토리)
+  ├── frontend/    # 클라이언트 (Next.js)
+  └── backend/     # 서버 (Nest.js)
 ```
 
-> 옛 `prd/`, `memory/`, `user_memo/` 폴더는 docs-consolidation 으로 모두 spec/ 또는 plan/complete/archive/ 로 흡수되었다.
+### 명명 컨벤션
+
+각 폴더 안에서 따르는 규칙. **현재 파일 목록을 여기에 박제하지 않는다** — 그건 spec/0-overview.md 와 코드 트리가 책임진다.
+
+| 위치 | 패턴 | 의미 |
+| --- | --- | --- |
+| `spec/<영역>/_product-overview.md` | 언더스코어 prefix | 영역의 제품 정의(옛 PRD). 다중 spec 파일을 가진 영역에 둔다 |
+| `spec/<영역>/_layout.md` | 언더스코어 prefix | 영역 공통 레이아웃·횡단 규약 (예: 내비게이션 공통) |
+| `spec/<영역>/0-overview.md` | `0-` prefix | 영역 안의 기술 아키텍처 개요 (제품 정의와 별개) |
+| `spec/<영역>/N-name.md` | 숫자 prefix | 정렬 보장된 상세 spec 문서. 본문 끝에 `## Rationale` 섹션을 권장 |
+| `spec/<영역>/0-common.md` | `0-common` | 카테고리 공통 규약 (예: 노드 카테고리별) |
+| `spec/conventions/*.md` | 평문 | 정식 규약(노드 Output, Swagger 등). 다른 spec 에서 참조 |
+| `plan/in-progress/<name>.md` | 평문 | 처리할 항목이 남은 plan. 새 plan 은 항상 여기 |
+| `plan/complete/<name>.md` | 평문 | 모든 항목 완료된 plan. `in-progress/` 에서 `git mv` |
+| `plan/complete/archive/from-*/` | 고정 경로 | 옛 `memory/`·`user_memo/` 의 1회성·역사 문서 보관. 신규 생성 금지 |
+| `review/<timestamp>/` | ISO 형식 | 코드 리뷰 세션. `SUMMARY.md`·`RESOLUTION.md` + 분야별 `*/review.md` |
+
+> 옛 `prd/`, `memory/`, `user_memo/` 폴더는 docs-consolidation(2026-05-12) 으로 모두 `spec/` 또는 `plan/complete/archive/` 로 흡수되었다. 신규 문서를 옛 경로 컨벤션으로 만들지 않는다.
 
 ## 개발 방법론
 
