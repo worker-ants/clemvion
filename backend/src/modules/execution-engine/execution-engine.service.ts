@@ -75,6 +75,7 @@ import { RagSearchService } from '../knowledge-base/search/rag-search.service';
 import { KnowledgeBaseService } from '../knowledge-base/knowledge-base.service';
 import { IntegrationsService } from '../integrations/integrations.service';
 import { McpClientService } from '../mcp/mcp-client.service';
+import { Cafe24ApiClient } from '../../nodes/integration/cafe24/cafe24-api.client';
 import {
   BACKGROUND_EXECUTION_QUEUE,
   BackgroundExecutionJob,
@@ -418,6 +419,7 @@ export class ExecutionEngineService
     private readonly knowledgeBaseService: KnowledgeBaseService,
     private readonly integrationsService: IntegrationsService,
     private readonly mcpClientService: McpClientService,
+    private readonly cafe24ApiClient: Cafe24ApiClient,
     private readonly foreachExecutor: ForEachExecutor,
     private readonly loopExecutor: LoopExecutor,
     private readonly parallelExecutor: ParallelExecutor,
@@ -598,6 +600,7 @@ export class ExecutionEngineService
       mcpClientService: this.mcpClientService,
       workflowExecutor: this,
       websocketService: this.websocketService,
+      cafe24ApiClient: this.cafe24ApiClient,
     });
   }
 

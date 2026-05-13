@@ -270,6 +270,9 @@ export interface HandlerDependencies {
   /** Optional — handlers that emit live debug WS events (e.g. AI Agent's
    *  tool_call_started/completed) consume it. Other handlers ignore. */
   websocketService?: WebsocketService;
+  /** Optional — only the cafe24 node consumes it. Wired by
+   *  ExecutionEngineService.registerHandlers (see spec/4-nodes/4-integration/4-cafe24.md). */
+  cafe24ApiClient?: import('../integration/cafe24/cafe24-api.client').Cafe24ApiClient;
 }
 
 /**
