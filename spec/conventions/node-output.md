@@ -115,7 +115,7 @@
 
 ### 3.3. 에러 포트 보유 노드
 
-반드시 `error` 포트를 갖는 노드: `http_request`, `database_query`, `send_email`, `ai_agent`, `information_extractor`, `text_classifier`, `code`, `workflow` (sub-workflow 실패 시).
+반드시 `error` 포트를 갖는 노드: `http_request`, `database_query`, `send_email`, `cafe24`, `ai_agent`, `information_extractor`, `text_classifier`, `code`, `workflow` (sub-workflow 실패 시).
 `transform` 은 pre-flight(config) 검증만 수행 → throw.
 
 ---

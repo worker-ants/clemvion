@@ -1,0 +1,102 @@
+import type { Cafe24OperationMetadata } from './types.js';
+
+export const promotionOperations: Cafe24OperationMetadata[] = [
+  {
+    id: 'coupon_list',
+    label: '쿠폰 목록 조회',
+    description: 'List coupons available in the mall.',
+    scopeType: 'read',
+    method: 'GET',
+    path: 'coupons',
+    requiredFields: ['shop_no'],
+    fields: {
+      shop_no: { type: 'number', location: 'query', default: 1 },
+      coupon_type: { type: 'string', location: 'query' },
+      issue_type: {
+        type: 'enum',
+        location: 'query',
+        enum: ['M', 'D', 'O', 'A', 'R'],
+        description:
+          'M=manual, D=download, O=auto-give, A=action, R=re-engagement',
+      },
+    },
+    responseShape: 'list',
+    paginated: true,
+  },
+  {
+    id: 'coupon_get',
+    label: '쿠폰 단건 조회',
+    description: 'Get a single coupon by coupon_no.',
+    scopeType: 'read',
+    method: 'GET',
+    path: 'coupons/{coupon_no}',
+    requiredFields: ['coupon_no'],
+    fields: {
+      coupon_no: { type: 'string', location: 'path' },
+      shop_no: { type: 'number', location: 'query', default: 1 },
+    },
+    responseShape: 'single',
+  },
+  {
+    id: 'coupon_create',
+    label: '쿠폰 생성',
+    description: 'Create a new coupon.',
+    scopeType: 'write',
+    method: 'POST',
+    path: 'coupons',
+    requiredFields: ['coupon_name', 'benefit_type', 'benefit_amount'],
+    fields: {
+      shop_no: { type: 'number', location: 'body', default: 1 },
+      coupon_name: { type: 'string', location: 'body' },
+      benefit_type: {
+        type: 'enum',
+        location: 'body',
+        enum: ['A', 'B', 'C', 'D'],
+        description: 'A=discount price, B=discount %, C=shipping, D=points',
+      },
+      benefit_amount: { type: 'string', location: 'body' },
+      issue_type: {
+        type: 'enum',
+        location: 'body',
+        enum: ['M', 'D', 'O', 'A', 'R'],
+      },
+      issued_count: { type: 'number', location: 'body' },
+    },
+    responseShape: 'single',
+  },
+  {
+    id: 'coupon_issue',
+    label: '쿠폰 발급',
+    description: 'Issue a coupon to specified members.',
+    scopeType: 'write',
+    method: 'POST',
+    path: 'coupons/{coupon_no}/issues',
+    requiredFields: ['coupon_no', 'issued_member_scope'],
+    fields: {
+      coupon_no: { type: 'string', location: 'path' },
+      shop_no: { type: 'number', location: 'body', default: 1 },
+      issued_member_scope: {
+        type: 'enum',
+        location: 'body',
+        enum: ['A', 'M', 'G'],
+        description: 'A=all, M=specific members, G=group',
+      },
+      member_ids: { type: 'array', location: 'body' },
+      group_no: { type: 'number', location: 'body' },
+    },
+    responseShape: 'single',
+  },
+  {
+    id: 'coupon_delete',
+    label: '쿠폰 삭제',
+    description: 'Delete a coupon by coupon_no.',
+    scopeType: 'write',
+    method: 'DELETE',
+    path: 'coupons/{coupon_no}',
+    requiredFields: ['coupon_no'],
+    fields: {
+      coupon_no: { type: 'string', location: 'path' },
+    },
+    responseShape: 'single',
+  },
+];

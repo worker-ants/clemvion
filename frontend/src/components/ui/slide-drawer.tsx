@@ -83,9 +83,11 @@ export function SlideDrawer({
           aria-modal="true"
           aria-labelledby={titleId}
           aria-hidden={!open}
-          // @ts-expect-error inert 는 React 19 에서 ARIA 표준 prop 이지만 타입
-          // 정의가 아직 lagging — boolean 그대로 전달.
-          inert={!open ? "" : undefined}
+          // React 19+ treats `inert` as a real boolean attribute — passing
+          // `""` triggers the "Received an empty string for a boolean
+          // attribute" warning. Use `true` to opt the closed-state subtree
+          // out of focus/AT, omit (undefined → attribute absent) otherwise.
+          inert={!open || undefined}
           className={cn(
             "fixed right-0 top-0 z-50 h-full w-full max-w-lg transform border-l border-[hsl(var(--border))] bg-[hsl(var(--background))] shadow-xl transition-transform duration-300 ease-in-out",
             open ? "translate-x-0" : "translate-x-full",

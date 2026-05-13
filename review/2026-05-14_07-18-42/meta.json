@@ -1,0 +1,303 @@
+{
+  "timestamp": "2026-05-14T07:22:47.445443",
+  "files": [
+    {
+      "file_path": "/Volumes/project/private/clemvion/.claude/worktrees/cafe24-integration-a3f5e2/frontend/src/components/editor/settings-panel/node-configs/override-registry.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/clemvion/.claude/worktrees/cafe24-integration-a3f5e2/frontend/src/components/integrations/mcp-server-selector.tsx",
+      "change_type": "Review",
+      "file_extension": "tsx"
+    },
+    {
+      "file_path": "/Volumes/project/private/clemvion/.claude/worktrees/cafe24-integration-a3f5e2/frontend/src/content/docs/06-integrations-and-config/cafe24.en.mdx",
+      "change_type": "Review",
+      "file_extension": "mdx"
+    },
+    {
+      "file_path": "/Volumes/project/private/clemvion/.claude/worktrees/cafe24-integration-a3f5e2/frontend/src/content/docs/06-integrations-and-config/cafe24.mdx",
+      "change_type": "Review",
+      "file_extension": "mdx"
+    },
+    {
+      "file_path": "/Volumes/project/private/clemvion/.claude/worktrees/cafe24-integration-a3f5e2/frontend/src/lib/api/integrations.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/clemvion/.claude/worktrees/cafe24-integration-a3f5e2/frontend/src/lib/integrations/mcp-capable-service-types.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/clemvion/.claude/worktrees/cafe24-integration-a3f5e2/plan/complete/cafe24-implementation.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "/Volumes/project/private/clemvion/.claude/worktrees/cafe24-integration-a3f5e2/plan/in-progress/spec-update-send-email-port.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "/Volumes/project/private/clemvion/.claude/worktrees/cafe24-integration-a3f5e2/review/2026-05-14_01-29-47/RESOLUTION.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "/Volumes/project/private/clemvion/.claude/worktrees/cafe24-integration-a3f5e2/review/2026-05-14_01-29-47/SUMMARY.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "/Volumes/project/private/clemvion/.claude/worktrees/cafe24-integration-a3f5e2/review/2026-05-14_01-29-47/api_contract/review.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "/Volumes/project/private/clemvion/.claude/worktrees/cafe24-integration-a3f5e2/review/2026-05-14_01-29-47/architecture/review.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "/Volumes/project/private/clemvion/.claude/worktrees/cafe24-integration-a3f5e2/review/2026-05-14_01-29-47/concurrency/review.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "/Volumes/project/private/clemvion/.claude/worktrees/cafe24-integration-a3f5e2/review/2026-05-14_01-29-47/database/review.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "/Volumes/project/private/clemvion/.claude/worktrees/cafe24-integration-a3f5e2/review/2026-05-14_01-29-47/dependency/review.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "/Volumes/project/private/clemvion/.claude/worktrees/cafe24-integration-a3f5e2/review/2026-05-14_01-29-47/documentation/review.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "/Volumes/project/private/clemvion/.claude/worktrees/cafe24-integration-a3f5e2/review/2026-05-14_01-29-47/maintainability/review.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "/Volumes/project/private/clemvion/.claude/worktrees/cafe24-integration-a3f5e2/review/2026-05-14_01-29-47/meta.json",
+      "change_type": "Review",
+      "file_extension": "json"
+    },
+    {
+      "file_path": "/Volumes/project/private/clemvion/.claude/worktrees/cafe24-integration-a3f5e2/review/2026-05-14_01-29-47/performance/review.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "/Volumes/project/private/clemvion/.claude/worktrees/cafe24-integration-a3f5e2/review/2026-05-14_01-29-47/requirement/review.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "/Volumes/project/private/clemvion/.claude/worktrees/cafe24-integration-a3f5e2/review/2026-05-14_01-29-47/scope/review.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "/Volumes/project/private/clemvion/.claude/worktrees/cafe24-integration-a3f5e2/review/2026-05-14_01-29-47/security/review.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "/Volumes/project/private/clemvion/.claude/worktrees/cafe24-integration-a3f5e2/review/2026-05-14_01-29-47/side_effect/review.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "/Volumes/project/private/clemvion/.claude/worktrees/cafe24-integration-a3f5e2/review/2026-05-14_01-29-47/testing/review.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "/Volumes/project/private/clemvion/.claude/worktrees/cafe24-integration-a3f5e2/review/2026-05-14_01-33-42/SUMMARY.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "/Volumes/project/private/clemvion/.claude/worktrees/cafe24-integration-a3f5e2/review/2026-05-14_01-33-42/api_contract/review.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "/Volumes/project/private/clemvion/.claude/worktrees/cafe24-integration-a3f5e2/review/2026-05-14_01-33-42/architecture/review.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "/Volumes/project/private/clemvion/.claude/worktrees/cafe24-integration-a3f5e2/review/2026-05-14_01-33-42/concurrency/review.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "/Volumes/project/private/clemvion/.claude/worktrees/cafe24-integration-a3f5e2/review/2026-05-14_01-33-42/database/review.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "/Volumes/project/private/clemvion/.claude/worktrees/cafe24-integration-a3f5e2/review/2026-05-14_01-33-42/dependency/review.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "/Volumes/project/private/clemvion/.claude/worktrees/cafe24-integration-a3f5e2/review/2026-05-14_01-33-42/documentation/review.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "/Volumes/project/private/clemvion/.claude/worktrees/cafe24-integration-a3f5e2/review/2026-05-14_01-33-42/maintainability/review.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "/Volumes/project/private/clemvion/.claude/worktrees/cafe24-integration-a3f5e2/review/2026-05-14_01-33-42/meta.json",
+      "change_type": "Review",
+      "file_extension": "json"
+    },
+    {
+      "file_path": "/Volumes/project/private/clemvion/.claude/worktrees/cafe24-integration-a3f5e2/review/2026-05-14_01-33-42/performance/review.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "/Volumes/project/private/clemvion/.claude/worktrees/cafe24-integration-a3f5e2/review/2026-05-14_01-33-42/requirement/review.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "/Volumes/project/private/clemvion/.claude/worktrees/cafe24-integration-a3f5e2/review/2026-05-14_01-33-42/scope/review.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "/Volumes/project/private/clemvion/.claude/worktrees/cafe24-integration-a3f5e2/review/2026-05-14_01-33-42/security/review.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "/Volumes/project/private/clemvion/.claude/worktrees/cafe24-integration-a3f5e2/review/2026-05-14_01-33-42/side_effect/review.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "/Volumes/project/private/clemvion/.claude/worktrees/cafe24-integration-a3f5e2/review/2026-05-14_01-33-42/testing/review.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "/Volumes/project/private/clemvion/.claude/worktrees/cafe24-integration-a3f5e2/review/consistency/2026-05-14_00-12-59/SUMMARY.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "/Volumes/project/private/clemvion/.claude/worktrees/cafe24-integration-a3f5e2/review/consistency/2026-05-14_00-12-59/convention_compliance/review.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "/Volumes/project/private/clemvion/.claude/worktrees/cafe24-integration-a3f5e2/review/consistency/2026-05-14_00-12-59/cross_spec/review.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "/Volumes/project/private/clemvion/.claude/worktrees/cafe24-integration-a3f5e2/review/consistency/2026-05-14_00-12-59/meta.json",
+      "change_type": "Review",
+      "file_extension": "json"
+    },
+    {
+      "file_path": "/Volumes/project/private/clemvion/.claude/worktrees/cafe24-integration-a3f5e2/review/consistency/2026-05-14_00-12-59/naming_collision/review.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "/Volumes/project/private/clemvion/.claude/worktrees/cafe24-integration-a3f5e2/review/consistency/2026-05-14_00-12-59/plan_coherence/review.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "/Volumes/project/private/clemvion/.claude/worktrees/cafe24-integration-a3f5e2/review/consistency/2026-05-14_00-12-59/rationale_continuity/review.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    }
+  ],
+  "total_elapsed_seconds": 244.99,
+  "agents": [
+    {
+      "name": "dependency",
+      "status": "success",
+      "elapsed_seconds": 46.48
+    },
+    {
+      "name": "database",
+      "status": "success",
+      "elapsed_seconds": 46.96
+    },
+    {
+      "name": "concurrency",
+      "status": "success",
+      "elapsed_seconds": 49.85
+    },
+    {
+      "name": "architecture",
+      "status": "success",
+      "elapsed_seconds": 51.75
+    },
+    {
+      "name": "performance",
+      "status": "success",
+      "elapsed_seconds": 62.15
+    },
+    {
+      "name": "api_contract",
+      "status": "success",
+      "elapsed_seconds": 62.89
+    },
+    {
+      "name": "testing",
+      "status": "success",
+      "elapsed_seconds": 64.76
+    },
+    {
+      "name": "documentation",
+      "status": "success",
+      "elapsed_seconds": 68.12
+    },
+    {
+      "name": "side_effect",
+      "status": "success",
+      "elapsed_seconds": 68.94
+    },
+    {
+      "name": "requirement",
+      "status": "success",
+      "elapsed_seconds": 69.64
+    },
+    {
+      "name": "maintainability",
+      "status": "success",
+      "elapsed_seconds": 72.95
+    },
+    {
+      "name": "scope",
+      "status": "success",
+      "elapsed_seconds": 76.23
+    },
+    {
+      "name": "security",
+      "status": "success",
+      "elapsed_seconds": 89.96
+    }
+  ]
+}

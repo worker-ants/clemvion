@@ -9,6 +9,7 @@ import {
 import { Workspace } from '../../workspaces/entities/workspace.entity';
 import { User } from '../../users/entities/user.entity';
 import { Integration } from './integration.entity';
+import { encryptedJsonTransformer } from '../services/credentials-transformer';
 
 export type OAuthStateMode = 'new' | 'reauthorize' | 'request_scopes';
 
@@ -68,6 +69,24 @@ export class IntegrationOAuthState {
 
   @Column({ type: 'varchar', length: 20, nullable: true })
   scope: string | null;
+
+  /**
+   * Provider-specific begin-time metadata. AES-256-GCM encrypted at rest
+   * (same transformer as Integration.credentials and
+   * IntegrationOAuthPreview.credentials) — required to keep private-app
+   * OAuth client credentials out of DB dumps / replication streams / slow
+   * query logs during the 10-minute state TTL. Cleared together with the
+   * rest of the state row (TTL or DELETE-RETURNING on callback
+   * consumption). Shape is provider-defined; consumers cast to a narrow
+   * type at the service-layer boundary.
+   */
+  @Column({
+    name: 'provider_meta',
+    type: 'jsonb',
+    nullable: true,
+    transformer: encryptedJsonTransformer,
+  })
+  providerMeta: Record<string, unknown> | null;
 
   @Column({ name: 'expires_at', type: 'timestamptz' })
   expiresAt: Date;

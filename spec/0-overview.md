@@ -97,6 +97,8 @@ Clemvion은 AI 에이전트와 노코드 워크플로우 빌더를 통합한 실
 | **마켓플레이스** | 워크플로우 템플릿·AI Agent 프리셋·Integration 플러그인·커스텀 노드 게시 기능. |
 | **배포 자동화 확장** | 공식 Docker/Kubernetes 배포 가이드, 셀프 호스팅 번들. |
 | **확장 SDK** | 노드 플러그인 SDK, 외부 커스텀 노드 개발/게시. |
+| **Cafe24 통합** | spec 완료(2026-05-13). 워크플로 `cafe24` 노드 + AI Agent Internal MCP Bridge 양방향 노출. 18 카테고리 메타데이터 기반 단일 노드. 후속 implementation 진행 예정 ([Spec Cafe24 노드](./4-nodes/4-integration/4-cafe24.md) · [Spec 통합 §5.8](./2-navigation/4-integration.md#58-cafe24)). |
+| **Internal MCP Bridge 패턴 확장** | Cafe24 이후 Shopify·Naver Smartstore 등 first-party 이커머스 통합을 같은 [Spec MCP Client §2.3](./5-system/11-mcp-client.md#23-internal-bridge) 패턴으로 추가. |
 
 ---
 
