@@ -22,6 +22,7 @@ import { LlmModule } from '../llm/llm.module';
 import { KnowledgeBaseModule } from '../knowledge-base/knowledge-base.module';
 import { IntegrationsModule } from '../integrations/integrations.module';
 import { McpModule } from '../mcp/mcp.module';
+import { Cafe24Module } from '../../nodes/integration/cafe24/cafe24.module';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { BACKGROUND_EXECUTION_QUEUE } from './queues/background-execution.queue';
 import { BackgroundExecutionProcessor } from './queues/background-execution.processor';
@@ -42,6 +43,7 @@ import { ContinuationBusService } from './continuation/continuation-bus.service'
     LlmModule,
     KnowledgeBaseModule,
     IntegrationsModule,
+    Cafe24Module,
     McpModule,
     NotificationsModule,
     BullModule.registerQueue({ name: BACKGROUND_EXECUTION_QUEUE }),

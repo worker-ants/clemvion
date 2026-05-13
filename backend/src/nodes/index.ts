@@ -24,6 +24,7 @@ import { informationExtractorNodeComponent } from './ai/information-extractor';
 import { httpRequestNodeComponent } from './integration/http-request';
 import { databaseQueryNodeComponent } from './integration/database-query';
 import { sendEmailNodeComponent } from './integration/send-email';
+import { cafe24NodeComponent } from './integration/cafe24';
 
 import { transformNodeComponent } from './data/transform';
 import { codeNodeComponent } from './data/code';
@@ -59,6 +60,7 @@ export const ALL_NODE_COMPONENTS: NodeComponent[] = [
   httpRequestNodeComponent,
   databaseQueryNodeComponent,
   sendEmailNodeComponent,
+  cafe24NodeComponent,
 
   transformNodeComponent,
   codeNodeComponent,

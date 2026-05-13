@@ -46,8 +46,117 @@ export interface ServiceDefinition {
   authVariants: AuthVariant[];
   scopes?: ScopeOption[];
   /** OAuth provider identifier, if any variant is oauth2 */
-  oauthProvider?: 'google' | 'github';
+  oauthProvider?: 'google' | 'github' | 'cafe24';
 }
+
+/**
+ * Cafe24 — Korean e-commerce SaaS. Same Integration drives both the
+ * `cafe24` node and the AI Agent MCP tool surface (Internal Bridge,
+ * spec/5-system/11-mcp-client.md §2.3). OAuth flow is mall_id-dependent
+ * — see spec/2-navigation/4-integration.md §3.2 / §5.8 / §10.3.
+ */
+const CAFE24_OAUTH_FIELDS: CredentialField[] = [
+  {
+    key: 'mall_id',
+    label: 'Mall ID',
+    type: 'string',
+    required: true,
+    placeholder: 'myshop',
+    description:
+      'Cafe24 쇼핑몰 식별자. base URL `https://{mall_id}.cafe24api.com` 의 prefix',
+  },
+  {
+    key: 'app_type',
+    label: 'App Type',
+    type: 'enum',
+    required: true,
+    enum: ['public', 'private'] as const,
+    default: 'public',
+    description:
+      'public=Cafe24 앱스토어 앱 (서버 env client_id/secret) / private=사용자 자체 발급',
+  },
+  {
+    key: 'client_id',
+    label: 'Client ID',
+    type: 'string',
+    required: false,
+    description: 'app_type=private 한정 — 자체 발급 앱의 OAuth client_id',
+  },
+  {
+    key: 'client_secret',
+    label: 'Client Secret',
+    type: 'string',
+    required: false,
+    secret: true,
+    description: 'app_type=private 한정 — 자체 발급 앱의 OAuth client_secret',
+  },
+  {
+    key: 'access_token',
+    label: 'Access Token',
+    type: 'string',
+    // System-managed — populated by the OAuth callback handler, never
+    // typed in by the user. Marked `required: false` so the Step 2 form
+    // doesn't gate the [Connect with Cafe24] button on pre-existing
+    // values.
+    required: false,
+    secret: true,
+  },
+  {
+    key: 'refresh_token',
+    label: 'Refresh Token',
+    type: 'string',
+    required: false,
+    secret: true,
+  },
+  {
+    key: 'cafe24_operator_id',
+    label: 'Operator',
+    type: 'string',
+    required: false,
+    description:
+      'Cafe24 응답 body 의 `user_id` 매핑 — 내부 User.id 와 명명 충돌 회피 (OAuth 콜백에서 자동 채워짐)',
+  },
+];
+
+const CAFE24_SCOPES: ScopeOption[] = [
+  // Core ecommerce categories (recommended)
+  { value: 'mall.read_product', label: '상품 조회', recommended: true },
+  { value: 'mall.write_product', label: '상품 수정', recommended: true },
+  { value: 'mall.read_order', label: '주문 조회', recommended: true },
+  { value: 'mall.write_order', label: '주문 수정', recommended: true },
+  { value: 'mall.read_customer', label: '회원 조회', recommended: true },
+  { value: 'mall.write_customer', label: '회원 수정' },
+  { value: 'mall.read_category', label: '카테고리 조회' },
+  { value: 'mall.write_category', label: '카테고리 수정' },
+  { value: 'mall.read_promotion', label: '프로모션 조회' },
+  { value: 'mall.write_promotion', label: '프로모션 수정' },
+  { value: 'mall.read_mileage', label: '적립금 조회' },
+  { value: 'mall.write_mileage', label: '적립금 수정' },
+  { value: 'mall.read_shipping', label: '배송 조회' },
+  { value: 'mall.write_shipping', label: '배송 수정' },
+  { value: 'mall.read_salesreport', label: '매출 통계 조회' },
+  { value: 'mall.read_translation', label: '번역 조회' },
+  { value: 'mall.write_translation', label: '번역 수정' },
+  { value: 'mall.read_notification', label: '알림 조회' },
+  { value: 'mall.write_notification', label: '알림 발송' },
+  // Less common — kept under the "고급" toggle in the UI
+  { value: 'mall.read_application', label: '앱 관리 조회' },
+  { value: 'mall.write_application', label: '앱 관리 수정' },
+  { value: 'mall.read_store', label: '상점 정보 조회' },
+  { value: 'mall.write_store', label: '상점 정보 수정' },
+  { value: 'mall.read_design', label: '디자인 조회' },
+  { value: 'mall.write_design', label: '디자인 수정' },
+  { value: 'mall.read_community', label: '게시판 조회' },
+  { value: 'mall.write_community', label: '게시판 수정' },
+  { value: 'mall.read_collection', label: '판매분류 조회' },
+  { value: 'mall.write_collection', label: '판매분류 수정' },
+  { value: 'mall.read_supply', label: '공급사 조회' },
+  { value: 'mall.write_supply', label: '공급사 수정' },
+  { value: 'mall.read_personal', label: '개인화 조회' },
+  { value: 'mall.write_personal', label: '개인화 수정' },
+  { value: 'mall.read_privacy', label: '개인정보 조회' },
+  { value: 'mall.write_privacy', label: '개인정보 수정' },
+];
 
 const HTTP_COMMON: CredentialField[] = [
   {
@@ -401,6 +510,19 @@ export const SERVICE_REGISTRY: ServiceDefinition[] = [
     type: 'mcp',
     name: 'MCP Server',
     authVariants: buildMcpAuthVariants(),
+  },
+  {
+    type: 'cafe24',
+    name: 'Cafe24',
+    oauthProvider: 'cafe24',
+    authVariants: [
+      {
+        authType: 'oauth2',
+        label: 'OAuth 2.0',
+        fields: CAFE24_OAUTH_FIELDS,
+      },
+    ],
+    scopes: CAFE24_SCOPES,
   },
   {
     type: 'webhook',

@@ -15,22 +15,50 @@ import {
 } from './entities/integration-oauth-state.entity';
 import { IntegrationOAuthPreview } from './entities/integration-oauth-preview.entity';
 import { findService } from './services/service-registry';
+import { decryptJson } from './services/credentials-transformer';
 
 const STATE_TTL_MS = 10 * 60 * 1000;
 const PREVIEW_TTL_MS = 10 * 60 * 1000;
 
-export const ALLOWED_OAUTH_PROVIDERS = ['google', 'github'] as const;
+export const ALLOWED_OAUTH_PROVIDERS = ['google', 'github', 'cafe24'] as const;
 export type OAuthProvider = (typeof ALLOWED_OAUTH_PROVIDERS)[number];
 
-const AUTHORIZE_URLS: Record<OAuthProvider, string> = {
+/**
+ * Static authorize URLs for providers that have a single global authorize
+ * endpoint. Cafe24 is mall_id-dependent — `cafe24AuthorizeUrl(mallId)`.
+ */
+const STATIC_AUTHORIZE_URLS: Record<'google' | 'github', string> = {
   google: 'https://accounts.google.com/o/oauth2/v2/auth',
   github: 'https://github.com/login/oauth/authorize',
 };
 
-const TOKEN_URLS: Record<OAuthProvider, string> = {
+const STATIC_TOKEN_URLS: Record<'google' | 'github', string> = {
   google: 'https://oauth2.googleapis.com/token',
   github: 'https://github.com/login/oauth/access_token',
 };
+
+const CAFE24_MALL_ID_PATTERN = /^[a-z0-9-]{3,50}$/;
+
+function cafe24AuthorizeUrl(mallId: string): string {
+  return `https://${mallId}.cafe24api.com/api/v2/oauth/authorize`;
+}
+
+function cafe24TokenUrl(mallId: string): string {
+  return `https://${mallId}.cafe24api.com/api/v2/oauth/token`;
+}
+
+/**
+ * Begin-time metadata for cafe24 OAuth (also persisted on the state row's
+ * `provider_meta` JSONB column until callback consumption). Public apps may
+ * omit `client_id`/`client_secret` (env-provided); private apps must supply
+ * both — the values exist on the wire only for the state TTL (10 min).
+ */
+export interface Cafe24BeginMeta {
+  mall_id: string;
+  app_type: 'public' | 'private';
+  client_id?: string;
+  client_secret?: string;
+}
 
 export interface BeginParams {
   workspaceId: string;
@@ -41,6 +69,8 @@ export interface BeginParams {
   integrationId?: string;
   integrationName?: string;
   scope?: 'personal' | 'organization';
+  /** Provider-specific begin-time metadata. Currently used by cafe24. */
+  providerMeta?: Cafe24BeginMeta | Record<string, unknown>;
 }
 
 export interface BeginResult {
@@ -90,13 +120,70 @@ export class IntegrationOAuthService {
       });
     }
 
-    const clientIdKey = `${service.oauthProvider.toUpperCase()}_CLIENT_ID`;
-    const clientId = process.env[clientIdKey];
-    if (!clientId) {
-      throw new InternalServerErrorException({
-        code: 'OAUTH_CONFIG_MISSING',
-        message: `OAuth client ID (${clientIdKey}) is not configured`,
-      });
+    // Resolve client_id + cafe24-specific begin metadata up front. Cafe24
+    // private apps supply client_id/secret via body; public apps and all
+    // other providers read from env. mall_id validation is enforced here so
+    // an invalid value never reaches the state row.
+    let clientId: string;
+    let providerMeta: Record<string, unknown> | null = null;
+    let authorizeBaseUrl: string;
+    if (service.oauthProvider === 'cafe24') {
+      const meta = (params.providerMeta ?? {}) as Partial<Cafe24BeginMeta>;
+      if (!meta.mall_id || !CAFE24_MALL_ID_PATTERN.test(meta.mall_id)) {
+        throw new BadRequestException({
+          code: 'CAFE24_INVALID_MALL_ID',
+          message:
+            'mall_id is required and must match /^[a-z0-9-]{3,50}$/ — Cafe24 mall identifier format',
+        });
+      }
+      if (meta.app_type !== 'public' && meta.app_type !== 'private') {
+        throw new BadRequestException({
+          code: 'CAFE24_INVALID_APP_TYPE',
+          message: "app_type must be 'public' or 'private' for cafe24",
+        });
+      }
+      if (meta.app_type === 'private') {
+        if (!meta.client_id || !meta.client_secret) {
+          throw new BadRequestException({
+            code: 'CAFE24_PRIVATE_APP_CREDENTIALS_REQUIRED',
+            message:
+              'app_type=private requires client_id and client_secret in the begin body',
+          });
+        }
+        clientId = meta.client_id;
+      } else {
+        const envClientId = process.env.CAFE24_CLIENT_ID;
+        if (!envClientId) {
+          throw new InternalServerErrorException({
+            code: 'OAUTH_CONFIG_MISSING',
+            message:
+              'CAFE24_CLIENT_ID env is not configured — required for public-app OAuth flow',
+          });
+        }
+        clientId = envClientId;
+      }
+      providerMeta = {
+        mall_id: meta.mall_id,
+        app_type: meta.app_type,
+        ...(meta.app_type === 'private'
+          ? {
+              client_id: meta.client_id,
+              client_secret: meta.client_secret,
+            }
+          : {}),
+      };
+      authorizeBaseUrl = cafe24AuthorizeUrl(meta.mall_id);
+    } else {
+      const clientIdKey = `${service.oauthProvider.toUpperCase()}_CLIENT_ID`;
+      const envClientId = process.env[clientIdKey];
+      if (!envClientId) {
+        throw new InternalServerErrorException({
+          code: 'OAUTH_CONFIG_MISSING',
+          message: `OAuth client ID (${clientIdKey}) is not configured`,
+        });
+      }
+      clientId = envClientId;
+      authorizeBaseUrl = STATIC_AUTHORIZE_URLS[service.oauthProvider];
     }
 
     // Fire-and-forget purge of expired records.
@@ -114,6 +201,7 @@ export class IntegrationOAuthService {
       requestedScopes: params.scopes,
       integrationName: params.integrationName ?? null,
       scope: params.scope ?? null,
+      providerMeta,
       expiresAt: new Date(Date.now() + STATE_TTL_MS),
     });
     await this.stateRepository.save(record);
@@ -129,7 +217,7 @@ export class IntegrationOAuthService {
     });
 
     return {
-      authUrl: `${AUTHORIZE_URLS[service.oauthProvider]}?${urlParams.toString()}`,
+      authUrl: `${authorizeBaseUrl}?${urlParams.toString()}`,
       state,
     };
   }
@@ -176,6 +264,27 @@ export class IntegrationOAuthService {
       });
     }
     const record = consumed[0];
+
+    // Column transformers (`encryptedJsonTransformer`) only run for entity
+    // round-trips, not for `dataSource.query` raw SQL. Run the same
+    // decrypt step manually so `record.providerMeta` is a plain object
+    // (or null) — otherwise cafe24 callbacks would receive an
+    // `"enc:v1:…"` envelope string and silently misinterpret it. We also
+    // normalise `requested_scopes` (snake_case from raw SQL) onto the
+    // entity field so the rest of the method can read it uniformly.
+    if (record.providerMeta !== null && record.providerMeta !== undefined) {
+      const decrypted = decryptJson<Record<string, unknown>>(
+        record.providerMeta,
+      );
+      record.providerMeta = decrypted ?? null;
+    }
+    const rawRow = record as unknown as Record<string, unknown>;
+    if (
+      Array.isArray(rawRow.requested_scopes) &&
+      !Array.isArray(record.requestedScopes)
+    ) {
+      record.requestedScopes = rawRow.requested_scopes as string[];
+    }
     if (record.provider !== provider) {
       throw new BadRequestException({
         code: 'OAUTH_STATE_MISMATCH',
@@ -193,15 +302,31 @@ export class IntegrationOAuthService {
       provider,
       query.code,
       record.requestedScopes,
+      record.providerMeta ?? null,
     );
 
-    const credentials = {
+    const credentials: Record<string, unknown> = {
       access_token: exchange.accessToken,
       refresh_token: exchange.refreshToken,
       scopes: exchange.scopes,
       provider,
       ...exchange.providerMeta,
     };
+
+    // Cafe24-specific: persist mall_id / app_type (+ private-app credentials)
+    // into the integration credentials so subsequent token refresh and API
+    // calls can rebuild the mall_id-dependent endpoints without ever
+    // re-asking the user. The state row's provider_meta is consumed here
+    // and never written back to the DB beyond this credential payload.
+    if (provider === 'cafe24' && record.providerMeta) {
+      const pm = record.providerMeta as Partial<Cafe24BeginMeta>;
+      if (pm.mall_id) credentials.mall_id = pm.mall_id;
+      if (pm.app_type) credentials.app_type = pm.app_type;
+      if (pm.app_type === 'private') {
+        if (pm.client_id) credentials.client_id = pm.client_id;
+        if (pm.client_secret) credentials.client_secret = pm.client_secret;
+      }
+    }
 
     if (record.mode === 'new') {
       const previewToken = `tmp_${randomBytes(16).toString('hex')}`;
@@ -329,20 +454,77 @@ export class IntegrationOAuthService {
     provider: OAuthProvider,
     code: string,
     requestedScopes: string[],
+    providerMeta: Record<string, unknown> | null,
   ): Promise<TokenExchangeResult> {
-    if (process.env.OAUTH_STUB_MODE === 'true') {
-      return stubTokenResult(provider, requestedScopes);
+    if (
+      process.env.OAUTH_STUB_MODE === 'true' &&
+      process.env.NODE_ENV !== 'production'
+    ) {
+      return stubTokenResult(provider, requestedScopes, providerMeta);
+    }
+    if (
+      process.env.OAUTH_STUB_MODE === 'true' &&
+      process.env.NODE_ENV === 'production'
+    ) {
+      this.logger.error(
+        'OAUTH_STUB_MODE is set in production — ignoring. Stub mode must never run with real users; fix the deployment configuration.',
+      );
     }
 
-    const clientIdKey = `${provider.toUpperCase()}_CLIENT_ID`;
-    const clientSecretKey = `${provider.toUpperCase()}_CLIENT_SECRET`;
-    const clientId = process.env[clientIdKey];
-    const clientSecret = process.env[clientSecretKey];
-    if (!clientId || !clientSecret) {
-      throw new InternalServerErrorException({
-        code: 'OAUTH_CONFIG_MISSING',
-        message: `OAuth credentials (${clientIdKey}, ${clientSecretKey}) are not configured`,
-      });
+    // Resolve client_id / client_secret / token URL with provider-specific
+    // rules. Cafe24: mall_id-dependent URL + per-mall private-app creds may
+    // come from the state row's provider_meta (private) or env (public).
+    let clientId: string;
+    let clientSecret: string;
+    let tokenUrl: string;
+    let isCafe24 = false;
+    if (provider === 'cafe24') {
+      isCafe24 = true;
+      const pm = (providerMeta ?? {}) as Partial<Cafe24BeginMeta>;
+      if (!pm.mall_id) {
+        throw new BadRequestException({
+          code: 'CAFE24_INVALID_MALL_ID',
+          message: 'mall_id missing on OAuth state — cannot build token URL',
+        });
+      }
+      if (pm.app_type === 'private') {
+        if (!pm.client_id || !pm.client_secret) {
+          throw new BadRequestException({
+            code: 'CAFE24_PRIVATE_APP_CREDENTIALS_REQUIRED',
+            message:
+              'private app credentials missing on OAuth state — cannot exchange code',
+          });
+        }
+        clientId = pm.client_id;
+        clientSecret = pm.client_secret;
+      } else {
+        const envId = process.env.CAFE24_CLIENT_ID;
+        const envSecret = process.env.CAFE24_CLIENT_SECRET;
+        if (!envId || !envSecret) {
+          throw new InternalServerErrorException({
+            code: 'OAUTH_CONFIG_MISSING',
+            message:
+              'CAFE24_CLIENT_ID / CAFE24_CLIENT_SECRET env not configured',
+          });
+        }
+        clientId = envId;
+        clientSecret = envSecret;
+      }
+      tokenUrl = cafe24TokenUrl(pm.mall_id);
+    } else {
+      const clientIdKey = `${provider.toUpperCase()}_CLIENT_ID`;
+      const clientSecretKey = `${provider.toUpperCase()}_CLIENT_SECRET`;
+      const envId = process.env[clientIdKey];
+      const envSecret = process.env[clientSecretKey];
+      if (!envId || !envSecret) {
+        throw new InternalServerErrorException({
+          code: 'OAUTH_CONFIG_MISSING',
+          message: `OAuth credentials (${clientIdKey}, ${clientSecretKey}) are not configured`,
+        });
+      }
+      clientId = envId;
+      clientSecret = envSecret;
+      tokenUrl = STATIC_TOKEN_URLS[provider];
     }
 
     const appUrl = process.env.APP_URL || 'http://localhost:3011';
@@ -355,12 +537,20 @@ export class IntegrationOAuthService {
       grant_type: 'authorization_code',
     });
 
-    const response = await fetch(TOKEN_URLS[provider], {
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/x-www-form-urlencoded',
+      Accept: 'application/json',
+    };
+    // Cafe24 accepts client credentials via HTTP Basic in addition to the
+    // form body — using both keeps us robust against header-only or
+    // body-only enforcement on the provider side.
+    if (isCafe24) {
+      headers.Authorization = `Basic ${Buffer.from(`${clientId}:${clientSecret}`).toString('base64')}`;
+    }
+
+    const response = await fetch(tokenUrl, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/x-www-form-urlencoded',
-        Accept: 'application/json',
-      },
+      headers,
       body: form.toString(),
     });
 
@@ -442,6 +632,18 @@ function normalizeTokenResponse(
   if (provider === 'github') {
     providerMeta.login = readString(data, 'login');
   }
+  if (provider === 'cafe24') {
+    // Cafe24 token response carries `user_id` (operator account). We rename
+    // it to `cafe24_operator_id` in stored credentials to avoid confusion
+    // with internal `User.id` (UUID) — see spec/2-navigation/4-integration.md §5.8.
+    const operator = readString(data, 'user_id');
+    if (operator) providerMeta.cafe24_operator_id = operator;
+    // Cafe24 echoes mall_id in the token response — capture as a sanity
+    // check, even though credentials.mall_id is already populated from the
+    // state's provider_meta in handleCallback.
+    const mallId = readString(data, 'mall_id');
+    if (mallId) providerMeta.cafe24_response_mall_id = mallId;
+  }
 
   return {
     accessToken,
@@ -455,13 +657,26 @@ function normalizeTokenResponse(
 function stubTokenResult(
   provider: OAuthProvider,
   requestedScopes: string[],
+  beginMeta: Record<string, unknown> | null,
 ): TokenExchangeResult {
+  const providerMeta: Record<string, unknown> = { stub: true };
+  if (provider === 'cafe24') {
+    providerMeta.cafe24_operator_id = `stub-operator-${randomBytes(4).toString('hex')}`;
+    const pmMall =
+      beginMeta && typeof beginMeta.mall_id === 'string'
+        ? beginMeta.mall_id
+        : null;
+    if (pmMall) providerMeta.cafe24_response_mall_id = pmMall;
+  }
   return {
     accessToken: `stub-${provider}-${randomBytes(8).toString('hex')}`,
     refreshToken: `stub-refresh-${randomBytes(8).toString('hex')}`,
     scopes: requestedScopes,
-    tokenExpiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
-    providerMeta: { stub: true },
+    tokenExpiresAt: new Date(
+      Date.now() +
+        (provider === 'cafe24' ? 2 * 60 * 60 * 1000 : 30 * 24 * 60 * 60 * 1000),
+    ),
+    providerMeta,
   };
 }
 

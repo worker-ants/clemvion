@@ -7,8 +7,10 @@ import {
   ArrayUnique,
   IsNotEmpty,
   IsInt,
+  Matches,
   Max,
   MaxLength,
+  MinLength,
   Min,
 } from 'class-validator';
 import { Type, Transform } from 'class-transformer';
@@ -235,6 +237,70 @@ export class OAuthBeginDto {
   @IsOptional()
   @IsIn(['personal', 'organization'])
   scope?: 'personal' | 'organization';
+
+  /**
+   * Cafe24 한정: 쇼핑몰 식별자 (`https://{mall_id}.cafe24api.com`).
+   * Validation `/^[a-z0-9-]{3,50}$/` — SSRF 방어 + Cafe24 mall_id 규약.
+   */
+  @ApiPropertyOptional({
+    description:
+      'Cafe24 mall_id (base/authorize URL 의 일부). cafe24 한정 필수',
+    example: 'myshop',
+    pattern: '^[a-z0-9-]{3,50}$',
+  })
+  @IsOptional()
+  @IsString()
+  @MinLength(3)
+  @MaxLength(50)
+  // Pattern enforces SSRF defence: mall_id is interpolated directly into
+  // https://{mall_id}.cafe24api.com, so reject anything outside the
+  // Cafe24 mall identifier alphabet. Mirrors the regex in
+  // IntegrationOAuthService.CAFE24_MALL_ID_PATTERN.
+  @Matches(/^[a-z0-9-]{3,50}$/, {
+    message:
+      'mallId must match /^[a-z0-9-]{3,50}$/ — lowercase letters, digits, and hyphens only',
+  })
+  mallId?: string;
+
+  /** Cafe24 한정: 앱 발급 형태 (public=앱스토어 / private=자체) */
+  @ApiPropertyOptional({
+    description: 'Cafe24 앱 발급 형태. cafe24 한정 필수',
+    enum: ['public', 'private'],
+    example: 'public',
+  })
+  @IsOptional()
+  @IsIn(['public', 'private'])
+  appType?: 'public' | 'private';
+
+  /** Cafe24 private 앱 한정: OAuth client_id (사용자 자체 발급) */
+  @ApiPropertyOptional({
+    description: 'Cafe24 private 앱의 OAuth client_id (app_type=private 한정)',
+    maxLength: 128,
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(128)
+  // Printable ASCII only — defence against CRLF / control-char injection
+  // into the eventual HTTP Basic auth header (Authorization: Basic …).
+  @Matches(/^[\x20-\x7E]+$/, {
+    message: 'clientId must contain only printable ASCII characters',
+  })
+  clientId?: string;
+
+  /** Cafe24 private 앱 한정: OAuth client_secret */
+  @ApiPropertyOptional({
+    description:
+      'Cafe24 private 앱의 OAuth client_secret (app_type=private 한정)',
+    maxLength: 256,
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(256)
+  // Same printable-ASCII guard as clientId — header injection defence.
+  @Matches(/^[\x20-\x7E]+$/, {
+    message: 'clientSecret must contain only printable ASCII characters',
+  })
+  clientSecret?: string;
 }
 
 export class UpdateIntegrationDto {

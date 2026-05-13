@@ -168,6 +168,14 @@ export const integrationsApi = {
     integrationId?: string;
     integrationName?: string;
     scope?: IntegrationScope;
+    // Cafe24-only fields — backend ignores them for other services.
+    // mall_id is part of the base URL, so it must be supplied before the
+    // authorize popup opens. Public apps read client_id/secret from server
+    // env; private apps pass them in here for the state-row TTL.
+    mallId?: string;
+    appType?: "public" | "private";
+    clientId?: string;
+    clientSecret?: string;
   }): Promise<{ authUrl: string; state: string }> {
     const { data } = await apiClient.post("/integrations/oauth/begin", body);
     return unwrap<{ authUrl: string; state: string }>(data);
