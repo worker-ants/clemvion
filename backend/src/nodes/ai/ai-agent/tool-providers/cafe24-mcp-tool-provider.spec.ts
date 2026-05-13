@@ -266,5 +266,20 @@ describe('Cafe24McpToolProvider', () => {
       await provider.cleanup({ executionId: 'exec-1' });
       expect(provider.matches('mcp_abcdef12__product_list')).toBe(false);
     });
+
+    it('cleanup() without executionId is a no-op (other sessions stay alive)', async () => {
+      integrationsService.getForExecution.mockResolvedValue(makeIntegration());
+      await provider.buildTools({
+        config: { mcpServers: [{ integrationId: 'abcdef1234567890' }] },
+        workspaceId: 'ws-1',
+        executionId: 'exec-A',
+      });
+      // No executionId — must NOT tear down exec-A.
+      await provider.cleanup({});
+      expect(provider.matches('mcp_abcdef12__product_list')).toBe(true);
+      // __resetForTesting drops everything (tests can use this).
+      provider.__resetForTesting();
+      expect(provider.matches('mcp_abcdef12__product_list')).toBe(false);
+    });
   });
 });

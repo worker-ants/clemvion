@@ -7,8 +7,10 @@ import {
   ArrayUnique,
   IsNotEmpty,
   IsInt,
+  Matches,
   Max,
   MaxLength,
+  MinLength,
   Min,
 } from 'class-validator';
 import { Type, Transform } from 'class-transformer';
@@ -248,7 +250,16 @@ export class OAuthBeginDto {
   })
   @IsOptional()
   @IsString()
+  @MinLength(3)
   @MaxLength(50)
+  // Pattern enforces SSRF defence: mall_id is interpolated directly into
+  // https://{mall_id}.cafe24api.com, so reject anything outside the
+  // Cafe24 mall identifier alphabet. Mirrors the regex in
+  // IntegrationOAuthService.CAFE24_MALL_ID_PATTERN.
+  @Matches(/^[a-z0-9-]{3,50}$/, {
+    message:
+      'mallId must match /^[a-z0-9-]{3,50}$/ — lowercase letters, digits, and hyphens only',
+  })
   mallId?: string;
 
   /** Cafe24 한정: 앱 발급 형태 (public=앱스토어 / private=자체) */
@@ -269,6 +280,11 @@ export class OAuthBeginDto {
   @IsOptional()
   @IsString()
   @MaxLength(128)
+  // Printable ASCII only — defence against CRLF / control-char injection
+  // into the eventual HTTP Basic auth header (Authorization: Basic …).
+  @Matches(/^[\x20-\x7E]+$/, {
+    message: 'clientId must contain only printable ASCII characters',
+  })
   clientId?: string;
 
   /** Cafe24 private 앱 한정: OAuth client_secret */
@@ -280,6 +296,10 @@ export class OAuthBeginDto {
   @IsOptional()
   @IsString()
   @MaxLength(256)
+  // Same printable-ASCII guard as clientId — header injection defence.
+  @Matches(/^[\x20-\x7E]+$/, {
+    message: 'clientSecret must contain only printable ASCII characters',
+  })
   clientSecret?: string;
 }
 

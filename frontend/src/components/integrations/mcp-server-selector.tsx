@@ -2,6 +2,7 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { integrationsApi, type IntegrationDto } from "@/lib/api/integrations";
+import { MCP_CAPABLE_SERVICE_TYPES } from "@/lib/integrations/mcp-capable-service-types";
 import { Plus, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useState } from "react";
@@ -70,7 +71,7 @@ export function McpServerSelector({ value, onChange }: Props) {
     queryKey: ["integrations", "mcp-capable"],
     queryFn: () =>
       integrationsApi.list({
-        serviceType: ["mcp", "cafe24"],
+        serviceType: [...MCP_CAPABLE_SERVICE_TYPES],
         limit: MCP_LIST_LIMIT,
       }),
     staleTime: 30_000,

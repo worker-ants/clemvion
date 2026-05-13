@@ -194,7 +194,11 @@ describe('Cafe24ApiClient', () => {
       });
 
       expect(sleepMock).toHaveBeenCalledTimes(1);
-      expect(sleepMock.mock.calls[0][0]).toBe(7000);
+      // 7s base from X-Cafe24-Time-Remain + up to 500ms thundering-herd
+      // jitter; expect the sleep to lie in [7000, 7500).
+      const sleptMs = sleepMock.mock.calls[0][0] as number;
+      expect(sleptMs).toBeGreaterThanOrEqual(7000);
+      expect(sleptMs).toBeLessThan(7500);
       expect(fetchMock).toHaveBeenCalledTimes(2);
       expect(res.status).toBe(200);
       expect(res.retries).toBe(1);

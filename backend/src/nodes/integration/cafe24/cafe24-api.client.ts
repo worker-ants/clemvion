@@ -375,17 +375,22 @@ export class Cafe24ApiClient {
     const respHeaders = readHeaderMap(response.headers);
     const callMeta = parseRateLimitHeaders(respHeaders);
 
-    // Rate-limited — retry per spec policy.
+    // Rate-limited — retry per spec policy with random jitter so multiple
+    // concurrent callers sharing the same Integration don't all wake up
+    // at the same instant and hammer the server in lockstep (thundering
+    // herd → another 429 → another batched retry).
     if (response.status === 429 && attempt < MAX_RATE_LIMIT_RETRIES) {
-      const sleepSec = Math.max(
+      const baseSec = Math.max(
         callMeta.callRemain ?? 0,
         callMeta.timeRemain ?? 0,
         1,
       );
+      const jitterMs = Math.floor(Math.random() * 500);
+      const sleepMs = baseSec * 1000 + jitterMs;
       this.logger.debug(
-        `Cafe24 429 (attempt ${attempt + 1}) — sleeping ${sleepSec}s for mall=${mallId}`,
+        `Cafe24 429 (attempt ${attempt + 1}) — sleeping ${baseSec}s (+${jitterMs}ms jitter) for mall=${mallId}`,
       );
-      await this.sleepImpl(sleepSec * 1000);
+      await this.sleepImpl(sleepMs);
       return this.executeWithRateLimit(
         integration,
         mallId,
@@ -446,10 +451,11 @@ function defaultSleep(ms: number): Promise<void> {
   return new Promise((res) => setTimeout(res, ms));
 }
 
-// globalThis.fetch is typed as `any` in our @types setup; cast once to
-// silence the unsafe-argument lint without spreading disables.
-const defaultFetch: typeof fetch = (input, init) =>
-  globalThis.fetch(input, init);
+// Direct alias of the global `fetch`. `globalThis.fetch` is typed as
+// `any` in our @types setup, so going through it triggers unsafe-argument
+// lint warnings; the bare `fetch` identifier resolves through TypeScript's
+// own DOM/Node `lib` declarations and is typed as `typeof fetch` cleanly.
+const defaultFetch: typeof fetch = fetch;
 
 /**
  * Coerce a query parameter value to a string without ever producing the

@@ -324,14 +324,37 @@ export class Cafe24McpToolProvider implements AgentToolProvider {
     return Promise.resolve();
   }
 
+  /**
+   * Test-only convenience — clears every per-execution state. Production
+   * code MUST always pass an `executionId` to `cleanup()` so a stray
+   * `cleanup({})` cannot tear down concurrent AI Agent sessions belonging
+   * to other users (`CAFE24_MCP_NO_SESSION` would surface on their next
+   * tool call).
+   */
+  __resetForTesting(): void {
+    if (process.env.NODE_ENV === 'production') {
+      throw new Error(
+        '__resetForTesting must not be called in production — use cleanup({ executionId })',
+      );
+    }
+    for (const state of this.executionState.values()) {
+      for (const sid of state.sidToIntegration.keys())
+        this.ownedSids.delete(sid);
+    }
+    this.executionState.clear();
+  }
+
   private cleanupInternal(ctx: ProviderCleanupCtx): void {
     if (!ctx.executionId) {
-      // Cleanup all — used by tests.
-      for (const state of this.executionState.values()) {
-        for (const sid of state.sidToIntegration.keys())
-          this.ownedSids.delete(sid);
-      }
-      this.executionState.clear();
+      // Whole-provider wipe is a test-only path now — production callers
+      // (AiAgentHandler) always supply the executionId of the AI Agent
+      // node that is winding down. Silently ignoring a missing
+      // executionId would erase other in-flight sessions and break their
+      // tool calls, so we no-op instead. Tests that need a clean slate
+      // should use __resetForTesting().
+      this.logger.debug(
+        'cleanup() called without executionId — no-op (use __resetForTesting in tests)',
+      );
       return;
     }
     const state = this.executionState.get(ctx.executionId);
