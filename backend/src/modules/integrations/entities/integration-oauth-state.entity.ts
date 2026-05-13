@@ -9,6 +9,7 @@ import {
 import { Workspace } from '../../workspaces/entities/workspace.entity';
 import { User } from '../../users/entities/user.entity';
 import { Integration } from './integration.entity';
+import { encryptedJsonTransformer } from '../services/credentials-transformer';
 
 export type OAuthStateMode = 'new' | 'reauthorize' | 'request_scopes';
 
@@ -70,16 +71,20 @@ export class IntegrationOAuthState {
   scope: string | null;
 
   /**
-   * Provider-specific begin-time metadata.
-   * Cafe24: { mall_id, app_type, client_id?, client_secret? } — required to
-   * build the mall_id-dependent token exchange URL on callback. Cleared
-   * together with the rest of the state row (TTL 10min, or DELETE-RETURNING
-   * on callback consumption).
+   * Provider-specific begin-time metadata. AES-256-GCM encrypted at rest
+   * (same transformer as Integration.credentials and
+   * IntegrationOAuthPreview.credentials) — required to keep private-app
+   * OAuth client credentials out of DB dumps / replication streams / slow
+   * query logs during the 10-minute state TTL. Cleared together with the
+   * rest of the state row (TTL or DELETE-RETURNING on callback
+   * consumption). Shape is provider-defined; consumers cast to a narrow
+   * type at the service-layer boundary.
    */
   @Column({
     name: 'provider_meta',
     type: 'jsonb',
     nullable: true,
+    transformer: encryptedJsonTransformer,
   })
   providerMeta: Record<string, unknown> | null;
 

@@ -1,0 +1,123 @@
+{
+  "timestamp": "2026-05-14T01:33:46.860788",
+  "files": [
+    {
+      "file_path": "/Volumes/project/private/clemvion/.claude/worktrees/cafe24-integration-a3f5e2/frontend/src/lib/api/integrations.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/clemvion/.claude/worktrees/cafe24-integration-a3f5e2/plan/complete/cafe24-implementation.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "/Volumes/project/private/clemvion/.claude/worktrees/cafe24-integration-a3f5e2/plan/in-progress/spec-update-send-email-port.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "/Volumes/project/private/clemvion/.claude/worktrees/cafe24-integration-a3f5e2/review/consistency/2026-05-14_00-12-59/SUMMARY.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "/Volumes/project/private/clemvion/.claude/worktrees/cafe24-integration-a3f5e2/review/consistency/2026-05-14_00-12-59/convention_compliance/review.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "/Volumes/project/private/clemvion/.claude/worktrees/cafe24-integration-a3f5e2/review/consistency/2026-05-14_00-12-59/cross_spec/review.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "/Volumes/project/private/clemvion/.claude/worktrees/cafe24-integration-a3f5e2/review/consistency/2026-05-14_00-12-59/meta.json",
+      "change_type": "Review",
+      "file_extension": "json"
+    },
+    {
+      "file_path": "/Volumes/project/private/clemvion/.claude/worktrees/cafe24-integration-a3f5e2/review/consistency/2026-05-14_00-12-59/naming_collision/review.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "/Volumes/project/private/clemvion/.claude/worktrees/cafe24-integration-a3f5e2/review/consistency/2026-05-14_00-12-59/plan_coherence/review.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "/Volumes/project/private/clemvion/.claude/worktrees/cafe24-integration-a3f5e2/review/consistency/2026-05-14_00-12-59/rationale_continuity/review.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    }
+  ],
+  "total_elapsed_seconds": 4.47,
+  "agents": [
+    {
+      "name": "architecture",
+      "status": "success",
+      "elapsed_seconds": 2.34
+    },
+    {
+      "name": "scope",
+      "status": "success",
+      "elapsed_seconds": 2.34
+    },
+    {
+      "name": "documentation",
+      "status": "success",
+      "elapsed_seconds": 2.36
+    },
+    {
+      "name": "api_contract",
+      "status": "success",
+      "elapsed_seconds": 2.38
+    },
+    {
+      "name": "security",
+      "status": "success",
+      "elapsed_seconds": 2.45
+    },
+    {
+      "name": "requirement",
+      "status": "success",
+      "elapsed_seconds": 2.44
+    },
+    {
+      "name": "dependency",
+      "status": "success",
+      "elapsed_seconds": 2.42
+    },
+    {
+      "name": "side_effect",
+      "status": "success",
+      "elapsed_seconds": 2.44
+    },
+    {
+      "name": "database",
+      "status": "success",
+      "elapsed_seconds": 2.44
+    },
+    {
+      "name": "maintainability",
+      "status": "success",
+      "elapsed_seconds": 2.45
+    },
+    {
+      "name": "testing",
+      "status": "success",
+      "elapsed_seconds": 2.46
+    },
+    {
+      "name": "concurrency",
+      "status": "success",
+      "elapsed_seconds": 2.44
+    },
+    {
+      "name": "performance",
+      "status": "success",
+      "elapsed_seconds": 2.74
+    }
+  ]
+}

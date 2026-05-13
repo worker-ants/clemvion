@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { IntegrationsService } from '../../integrations/integrations.service';
 import { ListIntegrationsQueryDto } from '../../integrations/dto/integration.dto';
+import { MCP_CAPABLE_SERVICE_TYPES } from '../../integrations/services/mcp-capable-service-types';
 import { LlmConfigService } from '../../llm-config/llm-config.service';
 import { KnowledgeBaseService } from '../../knowledge-base/knowledge-base.service';
 import { PaginationQueryDto } from '../../../common/dto/pagination.dto';
@@ -163,7 +164,7 @@ export class CandidateLookupService {
       page: 1,
       limit: MAX_CANDIDATES,
       status: 'connected',
-      serviceType: ['mcp', 'cafe24'],
+      serviceType: [...MCP_CAPABLE_SERVICE_TYPES],
     };
     const result = await this.integrations.findAll(workspaceId, query);
     return result.data.slice(0, MAX_CANDIDATES).map((i) => ({

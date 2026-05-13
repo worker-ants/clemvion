@@ -267,9 +267,34 @@ const CAFE24_RESOURCES: ReadonlyArray<{ value: string; label: string }> = [
   { value: "translation", label: "Translation (번역)" },
 ];
 
+function normalizeCafe24Fields(
+  raw: unknown,
+): Array<{ key: string; value: string }> {
+  // The handler reads `config.fields` as a flat object (Record<string,
+  // unknown>), but the UI maintains a list of {key, value} pairs for
+  // ergonomic editing. Accept both shapes so the panel doesn't crash on
+  // its second render — the prior version would do `.map()` against the
+  // object form after the first edit and throw at runtime.
+  if (Array.isArray(raw)) {
+    return raw
+      .filter(
+        (e): e is { key: string; value: string } =>
+          !!e && typeof e === "object" && "key" in e && "value" in e,
+      )
+      .map((e) => ({ key: String(e.key), value: String(e.value ?? "") }));
+  }
+  if (raw && typeof raw === "object") {
+    return Object.entries(raw as Record<string, unknown>).map(([k, v]) => ({
+      key: k,
+      value: v === undefined || v === null ? "" : String(v),
+    }));
+  }
+  return [];
+}
+
 export function Cafe24Config({ config, onChange }: { config: Config; onChange: OnChange }) {
   const t = useT();
-  const fields = (config.fields as Array<{ key: string; value: string }>) ?? [];
+  const fields = normalizeCafe24Fields(config.fields);
   const pagination = (config.pagination as { limit?: number; offset?: number } | undefined) ?? {};
 
   return (
