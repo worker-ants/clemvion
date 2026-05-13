@@ -155,16 +155,23 @@ export class CandidateLookupService {
   private async lookupMcpServers(
     workspaceId: string,
   ): Promise<CandidateEntry[]> {
+    // MCP-capable Integration: external HTTP transport (`service_type='mcp'`)
+    // + Internal Bridge transports (currently `'cafe24'`). The AI Agent
+    // mcpServers widget accepts both — spec/5-system/11-mcp-client.md §2.3
+    // / spec/2-navigation/4-integration.md §14.2.
     const query: ListIntegrationsQueryDto = {
       page: 1,
       limit: MAX_CANDIDATES,
       status: 'connected',
-      serviceType: ['mcp'],
+      serviceType: ['mcp', 'cafe24'],
     };
     const result = await this.integrations.findAll(workspaceId, query);
     return result.data.slice(0, MAX_CANDIDATES).map((i) => ({
       id: i.id,
       label: i.name,
+      // Surface service_type so the picker can group/badge external
+      // vs Internal Bridge entries.
+      sublabel: i.serviceType,
     }));
   }
 

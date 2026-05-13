@@ -58,6 +58,7 @@ export const SUPPORTED_INTEGRATION_SERVICE_TYPES = [
   'email',
   'http',
   'database',
+  'cafe24',
 ] as const;
 
 export type IntegrationServiceType =
