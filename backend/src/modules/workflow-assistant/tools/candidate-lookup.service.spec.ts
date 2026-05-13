@@ -149,12 +149,12 @@ describe('CandidateLookupService', () => {
   });
 
   describe('mcp-server-selector', () => {
-    it('looks up workspace integrations of service_type=mcp and maps to {id, label}', async () => {
+    it('looks up MCP-capable integrations (service_type IN ("mcp","cafe24")) and maps to {id, label, sublabel}', async () => {
       const { service, mocks } = makeService();
       mocks.integrations.findAll.mockResolvedValue({
         data: [
           { id: 'int-mcp-1', name: 'GitHub MCP', serviceType: 'mcp' },
-          { id: 'int-mcp-2', name: 'Linear MCP', serviceType: 'mcp' },
+          { id: 'int-cafe24-1', name: 'My Shop', serviceType: 'cafe24' },
         ],
       });
       const out = await service.fillCandidates('ws-1', 'wf-1', [
@@ -170,12 +170,12 @@ describe('CandidateLookupService', () => {
         'ws-1',
         expect.objectContaining({
           status: 'connected',
-          serviceType: ['mcp'],
+          serviceType: ['mcp', 'cafe24'],
         }),
       );
       expect(out[0].candidates).toEqual([
-        { id: 'int-mcp-1', label: 'GitHub MCP' },
-        { id: 'int-mcp-2', label: 'Linear MCP' },
+        { id: 'int-mcp-1', label: 'GitHub MCP', sublabel: 'mcp' },
+        { id: 'int-cafe24-1', label: 'My Shop', sublabel: 'cafe24' },
       ]);
     });
 
