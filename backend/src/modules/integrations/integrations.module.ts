@@ -19,6 +19,7 @@ import {
   IntegrationExpiryScannerService,
   INTEGRATION_EXPIRY_QUEUE,
 } from './integration-expiry-scanner.service';
+import { Cafe24ApiClient } from '../../nodes/integration/cafe24/cafe24-api.client';
 
 @Module({
   imports: [
@@ -45,7 +46,8 @@ import {
     IntegrationsService,
     IntegrationOAuthService,
     IntegrationExpiryScannerService,
+    Cafe24ApiClient,
   ],
-  exports: [IntegrationsService],
+  exports: [IntegrationsService, Cafe24ApiClient],
 })
 export class IntegrationsModule {}
