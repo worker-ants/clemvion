@@ -1,8 +1,12 @@
 #!/usr/bin/env python3
 """
-Code Review Agents Orchestrator for Claude Code
-Runs 13 role-based AI reviewer agents in parallel after Write/Edit tool executions.
-Executes in background via os.fork() to avoid blocking the main process.
+Code Review Agents Orchestrator for Claude Code.
+
+Runs 13 role-based AI reviewer agents in parallel after Write/Edit tool executions
+(hook mode) or against a git diff / commit / range / branch / file set (CLI mode).
+The actual parallel-execution machinery lives in `lib/` so other skills
+(e.g. consistency-checker) can reuse it; this file holds only the code-review-specific
+input collection (git diff / file content) and prompt assembly.
 """
 
 import argparse
@@ -11,11 +15,15 @@ import os
 import subprocess
 import sys
 import time
-from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
-from pathlib import Path
+
+# Make sibling lib package importable when invoked as a standalone script.
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from lib import agent_runner, session, summary  # noqa: E402
 
 DEBUG_LOG_FILE = "/tmp/code-review-agents-log.txt"
+debug_log = session.make_debug_logger(DEBUG_LOG_FILE)
 
 # Binary file extensions to skip by default
 BINARY_EXTENSIONS = {
@@ -54,16 +62,6 @@ ALL_AGENTS = [
     "concurrency",
     "api_contract",
 ]
-
-
-def debug_log(message):
-    """Append debug message to log file with timestamp."""
-    try:
-        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")[:-3]
-        with open(DEBUG_LOG_FILE, "a") as f:
-            f.write(f"[{timestamp}] {message}\n")
-    except Exception:
-        pass
 
 
 def is_binary_file(file_path):
@@ -300,11 +298,7 @@ def build_files_section(change_infos, max_file_size, max_total_size=0):
 
 
 def build_agent_prompt(agent_name, change_infos, prompt_dir, max_file_size, max_prompt_size=0):
-    """Build prompt for an agent by reading template and substituting {files_section}.
-
-    Args:
-        max_prompt_size: Max total prompt size. 0 = unlimited.
-    """
+    """Build prompt for an agent by reading template and substituting {files_section}."""
     template_path = os.path.join(prompt_dir, "agents", f"{agent_name}.md")
 
     try:
@@ -328,156 +322,29 @@ def build_agent_prompt(agent_name, change_infos, prompt_dir, max_file_size, max_
 
 
 # ---------------------------------------------------------------------------
-# Agent runners
+# Summary preparation (code-review specific)
 # ---------------------------------------------------------------------------
 
 
-def run_single_agent(agent_name, prompt, model, output_dir, timeout):
-    """Run a single review agent via claude -p (stdin) and save output."""
-    start_time = time.time()
-    agent_dir = os.path.join(output_dir, agent_name)
-    os.makedirs(agent_dir, exist_ok=True)
-    output_file = os.path.join(agent_dir, "review.md")
-
-    try:
-        result = subprocess.run(
-            ["claude", "-p", "--model", model],
-            input=prompt,
-            capture_output=True,
-            text=True,
-            timeout=timeout,
-        )
-        elapsed = time.time() - start_time
-        output = result.stdout.strip()
-
-        if result.returncode != 0:
-            debug_log(f"Agent {agent_name} exited with code {result.returncode}: {result.stderr}")
-            output = output or f"Error: agent exited with code {result.returncode}\n{result.stderr}"
-
-        with open(output_file, "w", encoding="utf-8") as f:
-            f.write(output)
-
-        debug_log(f"Agent {agent_name} completed in {elapsed:.1f}s")
-        return {
-            "agent": agent_name,
-            "status": "success",
-            "elapsed": round(elapsed, 2),
-            "output": output,
-        }
-
-    except subprocess.TimeoutExpired:
-        elapsed = time.time() - start_time
-        debug_log(f"Agent {agent_name} timed out after {timeout}s")
-        timeout_msg = f"Review timed out after {timeout} seconds."
-        with open(output_file, "w", encoding="utf-8") as f:
-            f.write(timeout_msg)
-        return {
-            "agent": agent_name,
-            "status": "timeout",
-            "elapsed": round(elapsed, 2),
-            "output": timeout_msg,
-        }
-
-    except Exception as e:
-        elapsed = time.time() - start_time
-        debug_log(f"Agent {agent_name} error: {e}")
-        error_msg = f"Error: {e}"
-        try:
-            with open(output_file, "w", encoding="utf-8") as f:
-                f.write(error_msg)
-        except Exception:
-            pass
-        return {
-            "agent": agent_name,
-            "status": "error",
-            "elapsed": round(elapsed, 2),
-            "output": error_msg,
-        }
-
-
-def run_all_agents_parallel(change_infos, config, session_dir):
-    """Run all review agents in parallel using ThreadPoolExecutor."""
-    prompt_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "prompts")
-    results = []
-
-    with ThreadPoolExecutor(max_workers=len(config["agents"])) as executor:
-        futures = {}
-        for agent_name in config["agents"]:
-            prompt = build_agent_prompt(
-                agent_name, change_infos, prompt_dir,
-                config["max_file_size"], config["max_prompt_size"],
-            )
-            if prompt is None:
-                results.append({
-                    "agent": agent_name,
-                    "status": "error",
-                    "elapsed": 0,
-                    "output": "Failed to load prompt template.",
-                })
-                continue
-
-            future = executor.submit(
-                run_single_agent,
-                agent_name,
-                prompt,
-                config["model"],
-                session_dir,
-                config["timeout"],
-            )
-            futures[future] = agent_name
-
-        for future in as_completed(futures):
-            try:
-                result = future.result()
-                results.append(result)
-            except Exception as e:
-                agent_name = futures[future]
-                debug_log(f"Future error for {agent_name}: {e}")
-                results.append({
-                    "agent": agent_name,
-                    "status": "error",
-                    "elapsed": 0,
-                    "output": f"Error: {e}",
-                })
-
-    return results
-
-
-def run_summary_agent(results, session_dir, config, change_infos):
-    """Run the summary agent to consolidate all review results."""
-    prompt_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "prompts")
-    summary_template_path = os.path.join(prompt_dir, "summary.md")
-
-    try:
-        with open(summary_template_path, "r", encoding="utf-8") as f:
-            summary_template = f.read()
-    except Exception as e:
-        debug_log(f"Failed to read summary template: {e}")
-        return None
-
-    # Build file info
+def build_summary_substitutions(results, change_infos, max_summary_size, template_size):
+    """Build {files_info} and {review_results} for the summary template, respecting size budget."""
     files_info = ""
     for i, ci in enumerate(change_infos, 1):
         files_info += f"- 파일 {i}: {ci['file_path']} ({ci['change_type']}, {ci['file_extension']})\n"
-
-    # Build review results section with budget control
-    max_summary_size = config.get("max_summary_size", 0)
 
     reviews_text = ""
     for r in results:
         reviews_text += f"\n## {r['agent']} Review (status: {r['status']}, {r['elapsed']}s)\n\n"
         reviews_text += r.get("output", "No output") + "\n"
 
-    # Apply summary size budget
     if max_summary_size > 0:
-        base_size = len(summary_template) + len(files_info)
+        base_size = template_size + len(files_info)
         reviews_budget = max(max_summary_size - base_size, max_summary_size // 2)
 
         if len(reviews_text) > reviews_budget:
             debug_log(
-                f"run_summary_agent: reviews_text={len(reviews_text)} exceeds budget={reviews_budget}, truncating"
+                f"build_summary_substitutions: reviews_text={len(reviews_text)} exceeds budget={reviews_budget}, truncating"
             )
-            # Distribute budget equally among agents
             per_agent_budget = reviews_budget // max(len(results), 1)
             truncated_parts = []
             for r in results:
@@ -489,62 +356,7 @@ def run_summary_agent(results, session_dir, config, change_infos):
                 truncated_parts.append(header + output + "\n")
             reviews_text = "".join(truncated_parts)
 
-    prompt = summary_template.replace("{files_info}", files_info)
-    prompt = prompt.replace("{review_results}", reviews_text)
-
-    debug_log(f"run_summary_agent: prompt_size={len(prompt)}, budget={max_summary_size}")
-
-    try:
-        result = subprocess.run(
-            ["claude", "-p", "--model", config["model"]],
-            input=prompt,
-            capture_output=True,
-            text=True,
-            timeout=config["timeout"],
-        )
-        output = result.stdout.strip()
-
-        summary_file = os.path.join(session_dir, "SUMMARY.md")
-        with open(summary_file, "w", encoding="utf-8") as f:
-            f.write(output)
-
-        debug_log("Summary agent completed")
-        return output
-
-    except Exception as e:
-        debug_log(f"Summary agent error: {e}")
-        return None
-
-
-def save_metadata(session_dir, results, change_infos, total_elapsed):
-    """Save review session metadata to meta.json."""
-    meta = {
-        "timestamp": datetime.now().isoformat(),
-        "files": [
-            {
-                "file_path": ci["file_path"],
-                "change_type": ci["change_type"],
-                "file_extension": ci["file_extension"],
-            }
-            for ci in change_infos
-        ],
-        "total_elapsed_seconds": round(total_elapsed, 2),
-        "agents": [],
-    }
-
-    for r in results:
-        meta["agents"].append({
-            "name": r["agent"],
-            "status": r["status"],
-            "elapsed_seconds": r["elapsed"],
-        })
-
-    meta_file = os.path.join(session_dir, "meta.json")
-    try:
-        with open(meta_file, "w", encoding="utf-8") as f:
-            json.dump(meta, f, indent=2, ensure_ascii=False)
-    except Exception as e:
-        debug_log(f"Failed to save metadata: {e}")
+    return {"files_info": files_info, "review_results": reviews_text}
 
 
 # ---------------------------------------------------------------------------
@@ -556,33 +368,24 @@ def get_git_diff_files(staged_only=False):
     """Get list of changed files from git diff."""
     files = []
     try:
-        # Staged changes
         result = subprocess.run(
             ["git", "diff", "--cached", "--name-only"],
-            capture_output=True,
-            text=True,
-            timeout=10,
+            capture_output=True, text=True, timeout=10,
         )
         if result.returncode == 0:
             files.extend(result.stdout.strip().splitlines())
 
         if not staged_only:
-            # Unstaged changes
             result = subprocess.run(
                 ["git", "diff", "--name-only"],
-                capture_output=True,
-                text=True,
-                timeout=10,
+                capture_output=True, text=True, timeout=10,
             )
             if result.returncode == 0:
                 files.extend(result.stdout.strip().splitlines())
 
-            # Untracked files
             result = subprocess.run(
                 ["git", "ls-files", "--others", "--exclude-standard"],
-                capture_output=True,
-                text=True,
-                timeout=10,
+                capture_output=True, text=True, timeout=10,
             )
             if result.returncode == 0:
                 files.extend(result.stdout.strip().splitlines())
@@ -590,7 +393,6 @@ def get_git_diff_files(staged_only=False):
     except Exception as e:
         debug_log(f"git diff failed: {e}")
 
-    # Deduplicate and filter empty strings
     return list(dict.fromkeys(f for f in files if f))
 
 
@@ -599,20 +401,15 @@ def get_git_diff_content(file_path):
     try:
         result = subprocess.run(
             ["git", "diff", "--no-color", file_path],
-            capture_output=True,
-            text=True,
-            timeout=10,
+            capture_output=True, text=True, timeout=10,
         )
         diff = result.stdout.strip()
         if diff:
             return diff
 
-        # Try staged diff
         result = subprocess.run(
             ["git", "diff", "--cached", "--no-color", file_path],
-            capture_output=True,
-            text=True,
-            timeout=10,
+            capture_output=True, text=True, timeout=10,
         )
         return result.stdout.strip()
     except Exception:
@@ -624,9 +421,7 @@ def get_git_commit_files(commit_hash):
     try:
         result = subprocess.run(
             ["git", "diff-tree", "--no-commit-id", "--name-only", "-r", commit_hash],
-            capture_output=True,
-            text=True,
-            timeout=10,
+            capture_output=True, text=True, timeout=10,
         )
         if result.returncode == 0:
             return [f for f in result.stdout.strip().splitlines() if f]
@@ -654,9 +449,7 @@ def get_git_range_files(range_spec):
     try:
         result = subprocess.run(
             ["git", "diff", "--name-only", range_spec],
-            capture_output=True,
-            text=True,
-            timeout=10,
+            capture_output=True, text=True, timeout=10,
         )
         if result.returncode == 0:
             return [f for f in result.stdout.strip().splitlines() if f]
@@ -684,9 +477,7 @@ def get_git_branch_diff_files(branch):
     try:
         result = subprocess.run(
             ["git", "diff", "--name-only", f"{branch}...HEAD"],
-            capture_output=True,
-            text=True,
-            timeout=10,
+            capture_output=True, text=True, timeout=10,
         )
         if result.returncode == 0:
             return [f for f in result.stdout.strip().splitlines() if f]
@@ -714,9 +505,7 @@ def get_file_at_commit(commit_hash, file_path):
     try:
         result = subprocess.run(
             ["git", "show", f"{commit_hash}:{file_path}"],
-            capture_output=True,
-            text=True,
-            timeout=10,
+            capture_output=True, text=True, timeout=10,
         )
         if result.returncode == 0:
             return result.stdout
@@ -726,14 +515,9 @@ def get_file_at_commit(commit_hash, file_path):
 
 
 def get_directory_files(dir_path):
-    """Get all reviewable files under a directory.
-
-    Uses 'git ls-files' when inside a git repository to respect .gitignore,
-    falls back to os.walk (excluding hidden dirs and binary files) otherwise.
-    """
+    """Get all reviewable files under a directory."""
     dir_path = os.path.abspath(dir_path)
 
-    # Try git ls-files first (respects .gitignore automatically)
     try:
         result = subprocess.run(
             ["git", "ls-files", "--cached", "--others", "--exclude-standard"],
@@ -755,10 +539,8 @@ def get_directory_files(dir_path):
     except Exception as e:
         debug_log(f"git ls-files failed, falling back to os.walk: {e}")
 
-    # Fallback: os.walk (for non-git directories)
     files = []
     for root, dirs, filenames in os.walk(dir_path):
-        # Skip hidden directories
         dirs[:] = [d for d in dirs if not d.startswith(".")]
         for fname in filenames:
             if fname.startswith("."):
@@ -776,18 +558,11 @@ def get_directory_files(dir_path):
 
 
 def build_cli_change_info(file_path, diff_content=None, file_content=None):
-    """Build change_info dict for CLI mode from a file path.
-
-    Args:
-        file_path: Path to the file.
-        diff_content: Pre-computed diff content. If None, uses git diff.
-        file_content: Pre-computed file content. If None, reads from disk.
-    """
+    """Build change_info dict for CLI mode from a file path."""
     file_path = os.path.abspath(file_path)
     _, ext = os.path.splitext(file_path)
     file_extension = ext.lstrip(".").lower() if ext else ""
 
-    # Read full file content
     if file_content is not None:
         full_file_content = file_content
     else:
@@ -799,7 +574,6 @@ def build_cli_change_info(file_path, diff_content=None, file_content=None):
         except Exception as e:
             debug_log(f"Failed to read file {file_path}: {e}")
 
-    # Get diff as the "changed code"
     if diff_content is None:
         diff_content = get_git_diff_content(file_path)
     code = diff_content if diff_content else full_file_content
@@ -820,16 +594,9 @@ def build_cli_change_info(file_path, diff_content=None, file_content=None):
 
 
 def run_review_session(change_infos, config):
-    """Run a review session for all files and return the session directory.
-
-    Args:
-        change_infos: List of change_info dicts (one per file).
-        config: Configuration dict.
-    """
-    # Create session directory (timestamp only, no filename)
-    timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-    session_dir = os.path.join(config["output_dir"], timestamp)
-    os.makedirs(session_dir, exist_ok=True)
+    """Run a review session for all files and return the session directory."""
+    session_dir = session.create_session_dir(config["output_dir"])
+    prompt_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "prompts")
 
     file_paths = [ci["file_path"] for ci in change_infos]
     debug_log(f"Starting code review session: {session_dir}")
@@ -838,16 +605,51 @@ def run_review_session(change_infos, config):
 
     total_start = time.time()
 
-    # Run all agents in parallel (each agent receives ALL files at once)
-    results = run_all_agents_parallel(change_infos, config, session_dir)
+    def prompt_for(agent_name):
+        return build_agent_prompt(
+            agent_name, change_infos, prompt_dir,
+            config["max_file_size"], config["max_prompt_size"],
+        )
 
-    # Run summary agent
-    run_summary_agent(results, session_dir, config, change_infos)
+    results = agent_runner.run_agents_parallel(
+        config["agents"], prompt_for,
+        config["model"], session_dir, config["timeout"], log=debug_log,
+    )
+
+    summary_template_path = os.path.join(prompt_dir, "summary.md")
+    try:
+        with open(summary_template_path, "r", encoding="utf-8") as f:
+            summary_template_size = len(f.read())
+    except Exception:
+        summary_template_size = 0
+
+    substitutions = build_summary_substitutions(
+        results, change_infos, config.get("max_summary_size", 0), summary_template_size,
+    )
+    summary.run_summary(
+        summary_template_path, substitutions,
+        config["model"], session_dir, config["timeout"], log=debug_log,
+    )
 
     total_elapsed = time.time() - total_start
 
-    # Save metadata
-    save_metadata(session_dir, results, change_infos, total_elapsed)
+    meta = {
+        "timestamp": datetime.now().isoformat(),
+        "files": [
+            {
+                "file_path": ci["file_path"],
+                "change_type": ci["change_type"],
+                "file_extension": ci["file_extension"],
+            }
+            for ci in change_infos
+        ],
+        "total_elapsed_seconds": round(total_elapsed, 2),
+        "agents": [
+            {"name": r["agent"], "status": r["status"], "elapsed_seconds": r["elapsed"]}
+            for r in results
+        ],
+    }
+    session.save_metadata(session_dir, meta)
 
     debug_log(f"Code review session completed in {total_elapsed:.1f}s: {session_dir}")
     return session_dir
@@ -910,7 +712,6 @@ def main_cli(args):
         if args.staged:
             print("Reviewing staged changes...")
 
-    # Filter by skip extensions, binary files, and validate existence
     filtered_files = []
     for f in files:
         _, ext = os.path.splitext(f)
@@ -921,7 +722,6 @@ def main_cli(args):
         if is_binary_ext(f):
             debug_log(f"Skipping binary file (extension): {f}")
             continue
-        # For commit/range/branch mode, file may not exist on disk
         if not args.commit and not args.range and not args.branch:
             if not os.path.isfile(f):
                 debug_log(f"File not found, skipping: {f}")
@@ -935,7 +735,6 @@ def main_cli(args):
         print("No reviewable files found.")
         sys.exit(0)
 
-    # Build change_infos for ALL files first
     print(f"Collecting {len(filtered_files)} file(s)...")
     all_change_infos = []
     for file_path in filtered_files:
@@ -945,7 +744,6 @@ def main_cli(args):
             build_cli_change_info(file_path, diff_content=diff, file_content=content)
         )
 
-    # Split into batches and run each as a separate session
     batch_size = config["batch_size"]
     batches = [
         all_change_infos[i:i + batch_size]
@@ -985,11 +783,9 @@ def main_cli(args):
 def main_hook():
     """Hook entry point for PostToolUse events."""
     try:
-        # Check if review is disabled
         if os.environ.get("DISABLE_CODE_REVIEW", "0") == "1":
             sys.exit(0)
 
-        # Read input from stdin
         try:
             raw_input = sys.stdin.read()
             input_data = json.loads(raw_input)
@@ -1001,10 +797,8 @@ def main_hook():
         if tool_name not in ("Write", "Edit"):
             sys.exit(0)
 
-        # Load config
         config = load_config()
 
-        # Check skip extensions and binary files
         file_path = input_data.get("tool_input", {}).get("file_path", "")
         if file_path:
             _, ext = os.path.splitext(file_path)
@@ -1016,28 +810,22 @@ def main_hook():
                 debug_log(f"Skipping binary file: {file_path}")
                 sys.exit(0)
 
-        # Extract change info
         change_info = extract_change_info(input_data)
         if change_info is None:
             debug_log("No change info extracted")
             sys.exit(0)
 
-        # Fork to background
+        # Fork to background so the hook returns immediately.
         pid = os.fork()
         if pid > 0:
-            # Parent process exits immediately
             sys.exit(0)
 
-        # Child process continues in background
-        # Detach from parent
         os.setsid()
-
         run_review_session([change_info], config)
 
     except Exception as e:
         debug_log(f"Fatal error in orchestrator: {e}")
 
-    # Always exit cleanly
     os._exit(0)
 
 
@@ -1065,7 +853,6 @@ def main():
     parser.add_argument("files", nargs="*",
                         help="Files or directories to review (CLI mode only)")
 
-    # Only parse known args; if --cli not present, run as hook
     args, _ = parser.parse_known_args()
 
     if args.cli:
