@@ -112,7 +112,7 @@ export class SessionsService {
       { isRevoked: true },
     );
 
-    void this.loginHistory.record({
+    await this.loginHistory.record({
       userId,
       email: user.email,
       event: 'session_revoked',
@@ -159,7 +159,7 @@ export class SessionsService {
     if (revoked > 0) {
       // bulk revoke 는 단일 familyId 가 없으므로 familyId=null 로 기록.
       // failureReason 은 "실패 원인" 의미라 성공 이벤트엔 사용하지 않는다.
-      void this.loginHistory.record({
+      await this.loginHistory.record({
         userId,
         email: user.email,
         event: 'session_revoked',
