@@ -12,11 +12,12 @@
 
 ```text
 ./ (Root)
-  ├── spec/        # 제품의 단일 진실 (single source of truth). 상세 트리는 spec/0-overview.md §8 참고
-  ├── plan/        # 작업 추적 라이프사이클 (in-progress/ ↔ complete/)
-  ├── review/      # 코드 리뷰 산출물 (시점별 디렉토리)
-  ├── frontend/    # 클라이언트 (Next.js)
-  └── backend/     # 서버 (Nest.js)
+  ├── spec/                  # 제품의 단일 진실 (single source of truth). 상세 트리는 spec/0-overview.md §8 참고
+  ├── plan/                  # 작업 추적 라이프사이클 (in-progress/ ↔ complete/)
+  ├── review/                # 코드 리뷰 / 일관성 검토 산출물 (시점별 디렉토리)
+  ├── frontend/              # 클라이언트 (Next.js)
+  ├── backend/               # 서버 (Nest.js)
+  └── .claude/worktrees/     # 모든 신규 작업이 일어나는 git worktree 들 (main 워크트리는 통합용)
 ```
 
 ### 명명 컨벤션
@@ -35,6 +36,8 @@
 | `plan/complete/<name>.md` | 평문 | 모든 항목 완료된 plan. `in-progress/` 에서 `git mv` |
 | `plan/complete/archive/from-*/` | 고정 경로 | 옛 `memory/`·`user_memo/` 의 1회성·역사 문서 보관. 신규 생성 금지 |
 | `review/<timestamp>/` | ISO 형식 | 코드 리뷰 세션. `SUMMARY.md`·`RESOLUTION.md` + 분야별 `*/review.md` |
+| `review/consistency/<timestamp>/` | 고정 prefix | consistency-checker 세션. `SUMMARY.md` + 5 checker 별 `*/review.md` + `meta.json` |
+| `.claude/worktrees/<task_name>-<slug>/` | `<task_name>-<slug>` | 신규 작업이 일어나는 worktree. `task_name` 은 요청에 맞는 의미 있는 단어, `slug` 는 호출자가 부여하는 식별자 |
 
 > 옛 `prd/`, `memory/`, `user_memo/` 폴더는 docs-consolidation(2026-05-12) 으로 모두 `spec/` 또는 `plan/complete/archive/` 로 흡수되었다. 신규 문서를 옛 경로 컨벤션으로 만들지 않는다.
 
@@ -52,9 +55,10 @@
 | 기술 명세 (스펙) | `spec/<영역>/*.md` 본문 |
 | 아키텍처 결정의 배경·근거 (옛 ADR/memory) | 해당 spec 문서 끝의 `## Rationale` 섹션 |
 | 정식 규약 (옛 user_memo CONVENTIONS) | `spec/conventions/<name>.md` |
-| 진행 중 작업 추적 | `plan/in-progress/<name>.md` |
+| 진행 중 작업 추적 | `plan/in-progress/<name>.md` (frontmatter 에 `worktree` 명시) |
 | 완료된 작업 추적 | `plan/complete/<name>.md` (`git mv`로 이동) |
 | 코드 리뷰 산출물 | `review/<timestamp>/{SUMMARY,RESOLUTION,...}.md` |
+| 일관성 검토 산출물 | `review/consistency/<timestamp>/{SUMMARY,meta.json,<checker>/review.md}` |
 | 1회성 분석·역사 문서 | `plan/complete/archive/from-*/` 만 보관, 신규 생성 금지 |
 
 ### 작업 시 점검 (절대 누락 금지)
@@ -75,6 +79,47 @@
 - **상태 갱신 시점**: 작업 단계가 끝날 때마다 plan 문서를 갱신하고, 모든 항목이 완료된 순간에 `complete/`로 이동한다. 새로운 후속 항목이 발견되면 다시 `in-progress/`로 되돌린다.
 - **분류 기준**: 미체크 체크박스(`[ ]`), "TODO", "남은 작업", "다음 단계", "결정 필요", 미해결 follow-up 항목이 하나라도 있으면 `in-progress/` 다.
 - **인입 참조**: `review/**` 처럼 시점 기록 성격의 문서는 옛 경로를 그대로 둔다(역사 기록). `spec/` 등 살아있는 문서의 plan 링크는 이동과 동시에 갱신한다.
+- **frontmatter 메타데이터**: `plan/in-progress/<name>.md` 상단에 다음 frontmatter 를 둔다. 동시 작업 추적과 worktree 충돌 검출(consistency-checker 의 `plan_coherence` checker)에 사용된다.
+
+  ```markdown
+  ---
+  worktree: <task_name>-<slug>     # 이 plan 이 살아있는 worktree 디렉토리 이름
+  started: 2026-05-13              # ISO 날짜
+  owner: <역할/이름>                 # planner / developer / 사용자 본인 등
+  ---
+  ```
+
+  `complete/` 로 옮긴 후에는 frontmatter 를 그대로 두어 history 가 보존되도록 한다.
+
+## Worktree 기반 작업 정책
+
+병렬 작업이 일상이므로, **모든 신규 작업(spec 개정 · 구현 · 리뷰 조치)은 별도 worktree 에서 진행한다**. main 워크트리는 통합/릴리스 운영용으로만 사용한다.
+
+### 명명 규칙
+
+`.claude/worktrees/<task_name>-<slug>/`
+
+- `task_name` — 요청에 맞는 의미 있는 단어 (kebab-case). 예: `nav-redesign`, `auth-refactor`, `webhook-spec-draft`, `skill-rework`. 사람이 한눈에 무슨 작업인지 알아볼 수 있는 단어를 고른다.
+- `slug` — 호출자가 부여하는 식별자 (자동 생성된 짧은 코드, 충돌 회피용). 예: `c41f58`, `7ab3d2`.
+
+전체 예시: `.claude/worktrees/skill-rework-c41f58`, `.claude/worktrees/auth-refactor-7ab3d2`.
+
+### 운영 규칙
+
+- **진입 시 강제**: 모든 skill (`project-planner` · `developer`) 의 0단계는 "현재 worktree 확인". main 워크트리에서 진입하면 작업을 거부하고 worktree 생성을 안내한다.
+- **수명 = PR 단위**: 작업이 PR 로 merge 되면 즉시 `git worktree remove` 로 정리한다. 사용 끝난 worktree 를 누적시키지 않는다.
+- **plan 과 worktree 의 결속**: 새 plan 을 만들 때 frontmatter 의 `worktree` 필드에 현재 worktree 이름을 기록한다. 동일 worktree 안에서 여러 plan 이 진행되어도 무방하다.
+- **공유 자원 직렬화**: 같은 `spec/` 파일이나 동일 코드 영역을 두 worktree 가 동시에 수정 중이면, plan/in-progress 에 그 사실을 명시적으로 기록하고 작업을 직렬화한다. `consistency-checker` 의 `plan_coherence` 가 이 충돌을 사전 검출한다.
+- **hotfix 예외**: 긴급 hotfix 는 main 에서 직접 작업할 수 있으나, commit message 에 `[hotfix-on-main]` 을 표기한다.
+
+### 신규 worktree 생성 명령 예
+
+```bash
+git worktree add .claude/worktrees/<task_name>-<slug> -b <branch_name>
+cd .claude/worktrees/<task_name>-<slug>
+```
+
+`branch_name` 은 일반적으로 `claude/<task_name>-<slug>` 또는 작업 의도에 맞는 feature 브랜치명을 사용한다.
 
 ## Skill 체계 (역할 분담)
 
@@ -84,11 +129,13 @@
 | ---- | ----- | --------- | --------- |
 | 기획자 | [`project-planner`](.claude/skills/project-planner/SKILL.md) | 제품 정의·스펙(spec)의 신규 작성·개정. `spec/` 본문·Overview·Rationale 모두 다룬다. **구현 금지** | `spec/**`, `plan/**` |
 | 개발자 | [`developer`](.claude/skills/developer/SKILL.md) | 스펙 기반의 구현·리팩토링·테스트 작성·빌드·품질 검증. **기획 금지** | `frontend/**`, `backend/**`, `plan/**`, `review/**/RESOLUTION.md`. `spec/` 은 **read-only** — 수정 필요 시 `project-planner` 로 위임 |
-| 코드 리뷰어 | [`code-review-agents`](.claude/skills/code-review-agents/SKILL.md) (`ai-review`) | 다각도 코드 리뷰 실행. `review/**/SUMMARY.md` 생성 | `review/**` (SUMMARY 와 각 에이전트 출력) |
+| 일관성 검토자 | [`consistency-checker`](.claude/skills/consistency-checker/SKILL.md) (`/consistency-check`) | spec/plan/구현 착수 **직전** 다른 문서와의 위배 사전 검출. Critical 발견 시 호출자를 차단. | `review/consistency/**` |
+| 코드 리뷰어 | [`code-review-agents`](.claude/skills/code-review-agents/SKILL.md) (`/ai-review`) | **사후** 다각도 코드 리뷰 실행. `review/<timestamp>/SUMMARY.md` 생성 | `review/**` (SUMMARY 와 각 에이전트 출력) |
 
 - `spec/` 을 다루면 `project-planner` 로 진입한다.
 - 코드베이스(`frontend/`·`backend/`)를 다루면 `developer` 로 진입한다.
 - 구현 중 스펙 수정이 필요해지면 `developer` 는 작업을 멈추고 `project-planner` 호출 또는 사용자에게 위임한다.
+- `project-planner` 는 `spec/` 에 쓰기 **직전** 에 `consistency-checker --spec` 을 의무 호출하고, Critical 발견 시 차단한다. `developer` 는 구현 착수 **직전** 에 `consistency-checker --impl-prep` 를 의무 호출한다.
 
 ## 프로젝트 스펙 문서
 
