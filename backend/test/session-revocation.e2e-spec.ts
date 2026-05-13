@@ -205,6 +205,11 @@ describe('Session revocation (e2e)', () => {
     expect(refreshB.status).toBe(401);
   });
 
+  // regression: void → await race (fix-login-history-race).
+  // AuthService.login() 이 loginHistory.record() 를 fire-and-forget 으로 두면, 직후
+  // 호출되는 GET /api/users/me/login-history 가 두 번째 INSERT commit 보다 먼저 SELECT
+  // 를 띄워 첫 번째 row 만 보이는 race 가 재현된다. 본 테스트는 setupUser 가 같은 사용자로
+  // 2회 로그인한 직후 정확히 ≥ 2 건이 노출되는지 확인해 race 재발을 차단한다.
   it('E. login-history 가 login_success 이벤트를 시간 역순으로 노출', async () => {
     const { cookieA, accessTokenA } = await setupUser('sess-e');
 
