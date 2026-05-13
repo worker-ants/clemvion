@@ -16,6 +16,10 @@ PR #5 의 `spec/data-flow/file-storage.md`·`spec/data-flow/execution.md` 작성
 - [x] **§2.13 정정** — `spec/1-data-model.md` 의 Execution 테이블에서 `execution_path UUID[]` 행 제거. 신규 §2.13.1 `ExecutionNodeLog` 추가. 인덱스 전략 표에 `(execution_id, id)` 추가. 본문 하단 Rationale 섹션 신설 — V035/V036 migration 인용.
 - [x] **plan 노트 생성** — 본 문서.
 - [~] **data-flow cross-link 갱신** — skip. 본 worktree base 가 main 이라 PR #5 의 `spec/data-flow/` 가 존재하지 않음. PR #5 머지 후 별도 follow-up.
+- [x] **잔존 broken refs 11건 일괄 정정** — `check-doc-links.py` 가 baseline 으로 보고하던 11건(docs-consolidation 2026-05-12 잔존)을 동일 PR 안에서 해소. 세 그룹:
+  - Group A (1건): `spec/2-navigation/14-execution-history.md` 의 옛 `./2-workflow-editor.md` 참조를 `../3-workflow-editor/_product-overview.md` 로 정정.
+  - Group B (4건): `spec/3-workflow-editor/_product-overview.md` 와 `spec/4-nodes/3-ai/_product-overview.md` 의 `../frontend/...` 상대 깊이를 `../../frontend/...` / `../../../frontend/...` 로 정정.
+  - Group C (6건): 5개 MDX (`first-workflow`, `ui-tour`, `what-is-this`, `overview`, `integration-management`) 의 frontmatter `spec:` 배열에서 옛 `prd/*.md` 항목을 매핑된 `spec/*.md` 로 교체 (`spec/0-overview.md`·`spec/2-navigation/_product-overview.md`·`spec/3-workflow-editor/_product-overview.md`·`spec/2-navigation/4-integration.md`·`spec/4-nodes/3-ai/_product-overview.md`). 매핑 결과가 기존 항목과 중복되는 2건은 중복 제거.
 
 ## 결정·근거
 
@@ -28,7 +32,7 @@ PR #5 의 `spec/data-flow/file-storage.md`·`spec/data-flow/execution.md` 작성
 - `grep -n "execution_path" spec/1-data-model.md` → V036 DROP / Rationale 맥락에서만 등장 (옛 컬럼 행 row 는 0)
 - `grep -n "knowledge-base/{kbId}" spec/0-overview.md` → 0 hit
 - `grep -n "kb/{kbId}" spec/0-overview.md` → 1+ hit
-- `python3 scripts/check-doc-links.py` → 신규 BROKEN 0 (baseline 11 유지)
+- `python3 scripts/check-doc-links.py` → `OK: 0 broken refs across 79 markdown files + frontend MDX frontmatter.` (baseline 11 → 0)
 
 ## 후속
 
