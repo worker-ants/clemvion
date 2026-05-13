@@ -259,16 +259,24 @@ Clemvion은 AI 에이전트와 노코드 워크플로우 빌더를 통합한 실
 
 ```
 {bucket}/
-  {workspaceId}/
-    forms/          # Form 노드 파일 업로드
+  kb/                              # Knowledge Base 원본 문서 (구현됨)
+    {kbId}/
+      {documentId}/
+        {sanitizedFilename}
+  {workspaceId}/                   # Form/Avatar 영역 (계획)
+    forms/                         # Form 노드 파일 업로드
       {executionId}/
         {fileId}_{originalName}
-    knowledge-base/ # Knowledge Base 원본 문서
-      {kbId}/
-        {documentId}_{originalName}
-    avatars/        # 프로필 이미지
+    avatars/                       # 프로필 이미지
       {userId}.{ext}
 ```
+
+| 영역 | 키 패턴 | 상태 | 코드 |
+|------|---------|------|------|
+| Knowledge Base 원본 문서 | `kb/{kbId}/{documentId}/{sanitizedFilename}` | 구현됨 | `backend/src/modules/knowledge-base/knowledge-base.service.ts:723` |
+| Form 노드 업로드 / Avatar | `{workspaceId}/forms/...`, `{workspaceId}/avatars/...` | 계획 (코드 미구현) | — |
+
+> KB 원본 키는 `workspaceId` 를 prefix 로 두지 않는다. `kbId` 자체가 workspace 에 종속되므로 (KB 메타데이터의 FK) 키 공간이 겹치지 않으며, 키 길이가 짧아 S3 list/delete 비용이 낮다. 버킷 이름은 `S3_BUCKET` 환경변수 (기본 `workflow-storage`, `backend/.env.example:55`) 로 지정한다.
 
 ### 2.8 DB 마이그레이션 (Flyway)
 
