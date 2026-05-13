@@ -65,12 +65,20 @@ predecessor_plan: plan/complete/cafe24-integration.md
 
 ## Phase 3. Backend — OAuth provider for Cafe24
 
-- [ ] `backend/src/integrations/cafe24/cafe24-oauth.provider.ts`
-- [ ] `/api/integrations/oauth/begin` 의 `service='cafe24'` 분기 — body 의 `mall_id`/`app_type`/`client_id?`/`client_secret?` 검증, `oauth_preview` 저장
-- [ ] `/api/integrations/oauth/callback/cafe24` — token 교환 (mall_id 의존 endpoint), `cafe24_operator_id` 매핑 (Cafe24 응답의 `user_id` 값)
-- [ ] Refresh 흐름 — §10.5 의 원자 갱신 (access/refresh/expires_at/token_expires_at 한 트랜잭션)
-- [ ] mall_id validation `/^[a-z0-9-]{3,50}$/`
-- [ ] preview_token 흐름 (`mode='new'`) + reauthorize + request-scopes
+- [x] **In-place 확장 전략 채택**: 별도 `Cafe24OAuthService` 신설 대신 기존 `IntegrationOAuthService` 에 cafe24 분기 추가 — 코드 중복 최소화, controller 분기 불필요
+- [x] V041 마이그레이션 — `integration_oauth_state.provider_meta JSONB?` 컬럼 추가
+- [x] `IntegrationOAuthState` entity 갱신 — `providerMeta: Record<string, unknown> | null`
+- [x] `OAuthBeginDto` 확장 — `mallId`, `appType`, `clientId`, `clientSecret` (cafe24 한정 optional 필드)
+- [x] `service-registry` 의 `oauthProvider` 타입 `'google' | 'github' | 'cafe24'` 확장 + Cafe24 ServiceDefinition (`CAFE24_OAUTH_FIELDS` + `CAFE24_SCOPES` 18 카테고리)
+- [x] `IntegrationOAuthService.begin()` cafe24 분기 — mall_id validation `/^[a-z0-9-]{3,50}$/`, app_type 검증, private 앱 시 client_id/secret 필수, public 앱은 env, state.providerMeta 에 저장, authorize URL mall_id 의존
+- [x] `IntegrationOAuthService.handleCallback()` 갱신 — exchangeCodeForToken 에 state.providerMeta 전달, cafe24 callback 시 credentials 에 mall_id/app_type/(private 한정 client_id/secret) 자동 포함
+- [x] `exchangeCodeForToken()` cafe24 분기 — token URL mall_id 의존, client_id/secret 우선순위 (private→state, public→env), Basic auth 헤더 (Cafe24 권장)
+- [x] `normalizeTokenResponse()` cafe24 분기 — `data.user_id` → `cafe24_operator_id` 매핑 (User.id 와 명명 충돌 회피), data.mall_id sanity check
+- [x] `stubTokenResult()` cafe24 분기 — TTL 2시간 (Cafe24 access_token 유효 기간)
+- [x] `IntegrationsController.oauthBegin` — body 의 cafe24 한정 필드를 providerMeta 로 전달
+- [x] 단위 테스트 10건 통과 (`integration-oauth.service.cafe24.spec.ts`): mall_id validation 4건 / app_type 검증 / private 필수 / public env 미설정 / happy path (public·private) / handleCallback 의 preview credentials 포함 검증 (public·private)
+- [x] 회귀: 기존 OAuth 18 tests 통과, 전체 integrations module 121/121 tests 통과
+- [ ] Refresh 흐름 — Phase 4 의 `Cafe24ApiClient` 에서 호출 직전 만료 검사 + refresh 처리 (단일 wrapper 통과 원칙)
 
 ## Phase 4. Backend — Cafe24ApiClient (rate-limit-aware wrapper)
 

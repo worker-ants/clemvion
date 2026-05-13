@@ -235,6 +235,50 @@ export class OAuthBeginDto {
   @IsOptional()
   @IsIn(['personal', 'organization'])
   scope?: 'personal' | 'organization';
+
+  /**
+   * Cafe24 한정: 쇼핑몰 식별자 (`https://{mall_id}.cafe24api.com`).
+   * Validation `/^[a-z0-9-]{3,50}$/` — SSRF 방어 + Cafe24 mall_id 규약.
+   */
+  @ApiPropertyOptional({
+    description: 'Cafe24 mall_id (base/authorize URL 의 일부). cafe24 한정 필수',
+    example: 'myshop',
+    pattern: '^[a-z0-9-]{3,50}$',
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(50)
+  mallId?: string;
+
+  /** Cafe24 한정: 앱 발급 형태 (public=앱스토어 / private=자체) */
+  @ApiPropertyOptional({
+    description: 'Cafe24 앱 발급 형태. cafe24 한정 필수',
+    enum: ['public', 'private'],
+    example: 'public',
+  })
+  @IsOptional()
+  @IsIn(['public', 'private'])
+  appType?: 'public' | 'private';
+
+  /** Cafe24 private 앱 한정: OAuth client_id (사용자 자체 발급) */
+  @ApiPropertyOptional({
+    description: 'Cafe24 private 앱의 OAuth client_id (app_type=private 한정)',
+    maxLength: 128,
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(128)
+  clientId?: string;
+
+  /** Cafe24 private 앱 한정: OAuth client_secret */
+  @ApiPropertyOptional({
+    description: 'Cafe24 private 앱의 OAuth client_secret (app_type=private 한정)',
+    maxLength: 256,
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(256)
+  clientSecret?: string;
 }
 
 export class UpdateIntegrationDto {

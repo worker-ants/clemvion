@@ -158,6 +158,19 @@ export class IntegrationsController {
     @Body() body: OAuthBeginDto,
   ) {
     const mode = body.mode === 'request-scopes' ? 'request_scopes' : body.mode;
+    const providerMeta =
+      body.service === 'cafe24'
+        ? {
+            mall_id: body.mallId,
+            app_type: body.appType,
+            ...(body.appType === 'private'
+              ? {
+                  client_id: body.clientId,
+                  client_secret: body.clientSecret,
+                }
+              : {}),
+          }
+        : undefined;
     return this.oauthService.begin({
       workspaceId,
       userId: user.sub,
@@ -167,6 +180,7 @@ export class IntegrationsController {
       integrationId: body.integrationId,
       integrationName: body.integrationName,
       scope: body.scope,
+      providerMeta,
     });
   }
 

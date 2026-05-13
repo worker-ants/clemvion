@@ -69,6 +69,20 @@ export class IntegrationOAuthState {
   @Column({ type: 'varchar', length: 20, nullable: true })
   scope: string | null;
 
+  /**
+   * Provider-specific begin-time metadata.
+   * Cafe24: { mall_id, app_type, client_id?, client_secret? } — required to
+   * build the mall_id-dependent token exchange URL on callback. Cleared
+   * together with the rest of the state row (TTL 10min, or DELETE-RETURNING
+   * on callback consumption).
+   */
+  @Column({
+    name: 'provider_meta',
+    type: 'jsonb',
+    nullable: true,
+  })
+  providerMeta: Record<string, unknown> | null;
+
   @Column({ name: 'expires_at', type: 'timestamptz' })
   expiresAt: Date;
 
