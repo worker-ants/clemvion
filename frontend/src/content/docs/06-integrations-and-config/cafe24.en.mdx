@@ -23,7 +23,28 @@ This page walks you through registering a Korean e-commerce SaaS **Cafe24** mall
 
 `/integrations` → **+ Add Integration** → click the **🛒 Cafe24** card → routed to `/integrations/new?service=cafe24&step=auth`.
 
-### 2) Step 2 — pre-flight inputs
+### 2) (Private apps only) Create the app on Cafe24 Developers first
+
+To finish Step 2 with App Type = **Private** you need a `client_id` / `client_secret` from Cafe24 itself. Cafe24 has no explicit "public/private" toggle — **any app that isn't published to the App Store is automatically private** (only your own mall can install it).
+
+1. Sign in to https://developers.cafe24.com with the Cafe24 mall owner account.
+2. Top menu **`Apps`** → **`My Apps`** (a.k.a. "앱 관리").
+3. Click **`ADD PRODUCT` / `Create app`** → choose **`Web`**.
+4. Fill in:
+
+| Field | Value |
+|---|---|
+| **App Name (관리 상품명)** | Anything, e.g. `Clemvion Integration` |
+| **App URL** | `https://<your-deployment>` — this product's base URL |
+| **Redirect URI** | **`https://<your-deployment>/api/integrations/oauth/callback/cafe24`** — this backend's OAuth callback endpoint. Must match exactly |
+| **API Permissions (Scope)** | Tick the read/write categories your workflows will hit. Mirrors the Scope checkboxes on the Step 2 form |
+| Webhook settings | Optional, leave blank |
+
+5. The same page shows the freshly generated **`Client ID`** / **`Client Secret`** — copy both.
+
+> No App Store review is needed for self-distributed apps. When the OAuth popup our service opens hits your mall's authorize URL, Cafe24 shows an "Install this app?" consent screen and proceeds to token issuance the moment you accept.
+
+### 3) Step 2 — pre-flight inputs
 
 Unlike Google/GitHub, Cafe24's URL itself depends on `mall_id`, so you supply it before the OAuth popup opens.
 
@@ -36,7 +57,7 @@ Unlike Google/GitHub, Cafe24's URL itself depends on `mall_id`, so you supply it
 | **Client ID / Client Secret** | Shown only when App Type = Private. The OAuth credentials you got from your shop's admin |
 | **Scopes** | Per-category read/write checkboxes (e.g. `mall.read_product`, `mall.write_order`). At least one is required |
 
-### 3) [Connect with Cafe24]
+### 4) [Connect with Cafe24]
 
 A popup opens with Cafe24's consent screen. After consent the popup tells the parent window the result, the backend exchanges the token, and the integration is created.
 
