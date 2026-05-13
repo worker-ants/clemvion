@@ -34,6 +34,7 @@ describe('AuthService', () => {
     manager: { getRepository: jest.Mock };
   };
   let mockDataSource: { transaction: jest.Mock };
+  let loginHistoryService: { record: jest.Mock; findForUser: jest.Mock };
 
   const mockUser: Partial<User> = {
     id: 'user-uuid-1',
@@ -157,6 +158,7 @@ describe('AuthService', () => {
     jwtService = module.get(JwtService);
     refreshTokenRepo = module.get(getRepositoryToken(RefreshToken));
     mockDataSource = module.get(DataSource);
+    loginHistoryService = module.get(LoginHistoryService);
   });
 
   it('should be defined', () => {
@@ -419,6 +421,58 @@ describe('AuthService', () => {
         }),
       ).rejects.toThrow(UnauthorizedException);
     });
+
+    // regression: void → await race (fix-login-history-race).
+    // login() 응답이 loginHistory.record() 의 INSERT 완료를 기다리지 않으면, 곧바로 이어지는
+    // GET /api/users/me/login-history 가 새 row 를 못 보고 끝난다. 같은 핸들러 내에서
+    // sequencing 을 검증해 두면, 미래에 누군가 다시 `void` 로 되돌릴 때 즉시 잡힌다.
+    it('await contract: returns only after loginHistory.record resolves', async () => {
+      const hash = await bcrypt.hash('Test123!@#', 12);
+      usersService.findByEmail.mockResolvedValue({
+        ...mockUser,
+        passwordHash: hash,
+      } as User);
+
+      let recordResolved = false;
+      loginHistoryService.record.mockImplementationOnce(
+        () =>
+          new Promise<void>((resolve) => {
+            setTimeout(() => {
+              recordResolved = true;
+              resolve();
+            }, 30);
+          }),
+      );
+
+      await service.login({
+        email: 'test@example.com',
+        password: 'Test123!@#',
+      });
+      expect(recordResolved).toBe(true);
+    });
+
+    // 회귀 가드: 성공 경로에서 login_success 이벤트가 기록되는지 — 미래에 record 호출
+    // 자체가 사라지면 audit 가 조용히 깨지는 위험을 차단한다.
+    it('records login_success on successful login', async () => {
+      const hash = await bcrypt.hash('Test123!@#', 12);
+      usersService.findByEmail.mockResolvedValue({
+        ...mockUser,
+        passwordHash: hash,
+      } as User);
+
+      await service.login({
+        email: 'test@example.com',
+        password: 'Test123!@#',
+      });
+
+      expect(loginHistoryService.record).toHaveBeenCalledWith(
+        expect.objectContaining({
+          userId: mockUser.id,
+          email: mockUser.email,
+          event: 'login_success',
+        }),
+      );
+    });
   });
 
   describe('refresh', () => {
@@ -552,6 +606,15 @@ describe('AuthService', () => {
 
       expect(result.message).toContain('If an account exists');
       expect(mailService.sendPasswordResetEmail).not.toHaveBeenCalled();
+    });
+
+    // forgot-password 흐름은 로그인 이력 이벤트를 남기지 않는다 (spec/5-system/1-auth.md §4.3
+    // 의 이벤트 enum 에 forgot/reset 이 빠진 의도된 설계). 회귀로 "기록 누락처럼 보여" 잘못
+    // 채워 넣는 일이 없도록 명시한다.
+    it('does not record a login-history event', async () => {
+      usersService.findByEmail.mockResolvedValue(mockUser as User);
+      await service.forgotPassword('test@example.com');
+      expect(loginHistoryService.record).not.toHaveBeenCalled();
     });
   });
 

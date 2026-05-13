@@ -1,0 +1,93 @@
+{
+  "timestamp": "2026-05-13T16:50:15.605008",
+  "files": [
+    {
+      "file_path": "/Volumes/project/private/clemvion/.claude/worktrees/fix-login-history-e2e/backend/src/modules/auth/auth.service.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/clemvion/.claude/worktrees/fix-login-history-e2e/backend/src/modules/auth/login-history.service.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/clemvion/.claude/worktrees/fix-login-history-e2e/backend/src/modules/auth/sessions.service.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/clemvion/.claude/worktrees/fix-login-history-e2e/plan/in-progress/fix-login-history-race.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    }
+  ],
+  "total_elapsed_seconds": 143.69,
+  "agents": [
+    {
+      "name": "api_contract",
+      "status": "success",
+      "elapsed_seconds": 13.27
+    },
+    {
+      "name": "dependency",
+      "status": "success",
+      "elapsed_seconds": 28.45
+    },
+    {
+      "name": "maintainability",
+      "status": "success",
+      "elapsed_seconds": 30.0
+    },
+    {
+      "name": "scope",
+      "status": "success",
+      "elapsed_seconds": 33.04
+    },
+    {
+      "name": "requirement",
+      "status": "success",
+      "elapsed_seconds": 42.41
+    },
+    {
+      "name": "performance",
+      "status": "success",
+      "elapsed_seconds": 44.74
+    },
+    {
+      "name": "concurrency",
+      "status": "success",
+      "elapsed_seconds": 50.05
+    },
+    {
+      "name": "side_effect",
+      "status": "success",
+      "elapsed_seconds": 50.56
+    },
+    {
+      "name": "architecture",
+      "status": "success",
+      "elapsed_seconds": 52.05
+    },
+    {
+      "name": "testing",
+      "status": "success",
+      "elapsed_seconds": 55.37
+    },
+    {
+      "name": "database",
+      "status": "success",
+      "elapsed_seconds": 56.73
+    },
+    {
+      "name": "documentation",
+      "status": "success",
+      "elapsed_seconds": 65.89
+    },
+    {
+      "name": "security",
+      "status": "success",
+      "elapsed_seconds": 69.85
+    }
+  ]
+}
