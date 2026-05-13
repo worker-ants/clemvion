@@ -8,7 +8,17 @@ name: e2e
 on:
   push:
     branches: [main]
+    paths-ignore:
+      - 'spec/**'
+      - 'plan/**'
+      - 'review/**'
+      - '*.md'
   pull_request:
+    paths-ignore:
+      - 'spec/**'
+      - 'plan/**'
+      - 'review/**'
+      - '*.md'
 
 concurrency:
   group: e2e-${{ github.ref }}
