@@ -1,0 +1,48 @@
+# Flyway 마이그레이션 V번호 가드.
+#
+# 여러 PR 이 병렬로 진행될 때 같은 V번호 점유 / main 의 max(V) 보다 작거나
+# 같은 번호 / gap / .conf 페어 불일치를 PR 단계에서 fail-fast 로 검출한다.
+# 정책 본문은 `spec/conventions/migrations.md`.
+#
+# merge race (CI 통과 후 다른 PR 이 먼저 머지되어 base max 가 추월되는 경우)
+# 는 GitHub branch protection 의 "Require branches to be up to date before
+# merging" 으로 보완한다 — 작성자가 rebase 강제 → 본 워크플로 재실행 → 충돌
+# 검출. 자세한 설정 안내는 spec/conventions/migrations.md §충돌 검출 / 머지 race.
+
+name: migration-check
+
+on:
+  pull_request:
+    paths:
+      - 'backend/migrations/**'
+      - 'scripts/check-migration-versions.py'
+      - '.github/workflows/migration-check.yml'
+
+concurrency:
+  group: migration-check-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  guard:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      # base ref (보통 main) 와의 merge-base 를 계산하려면 전체 히스토리가 필요.
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      # ubuntu-latest 에 이미 python3 가 있지만, 명시적 setup 으로 다른
+      # workflow 와 actions 메이저 정책을 일관 유지한다 (v5/v6 라인).
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.x'
+
+      # base_ref 는 PR 컨텍스트에서만 채워진다. actions/checkout 이 origin
+      # 을 자동 설정하지만, base 브랜치 ref 를 fetch 해야 origin/<base> 로
+      # 비교할 수 있다.
+      - name: Fetch base ref
+        run: git fetch --no-tags --depth=0 origin "${{ github.base_ref }}"
+
+      - name: Check migration versions
+        run: python3 scripts/check-migration-versions.py --base "origin/${{ github.base_ref }}"
