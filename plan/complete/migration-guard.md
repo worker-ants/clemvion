@@ -36,4 +36,4 @@
 
 ## Follow-up
 
-- 작업·검증 완료 후 `plan/complete/` 로 `git mv`.
+- 작업·검증 완료 후 `plan/complete/` 로 `git mv`. ✅ 완료 (2026-05-13).
