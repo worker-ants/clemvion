@@ -45,8 +45,14 @@ predecessor_plan: plan/complete/cafe24-integration.md
 
 ## Phase 1. consistency-check --impl-prep (의무 호출)
 
-- [ ] `/consistency-check --impl-prep spec/4-nodes/4-integration/` 호출
-- [ ] Critical 발견 시 작업 중단, planner 위임
+- [x] `/consistency-check --impl-prep spec/4-nodes/4-integration/` 호출 — `review/consistency/2026-05-14_00-12-59/`
+- [x] Critical 1건 발견(send_email 포트명 불일치) — **cafe24 작업과 무관**. 별도 spec 정정 노트 `plan/in-progress/spec-update-send-email-port.md` 생성. cafe24 spec 은 이미 `'success'` 사용 일관이므로 본 작업 진행에 영향 없음
+- [x] Warning 5건 / Info 8건 확인:
+  - W2 (node-output-redesign Integration 완료 여부 불명) — Phase 2 컨텍스트에서 점검
+  - W3 (ai-agent-tool-connection-rewrite Phase 10 순서) — Phase 10 진입 전 재확인. 본 작업 mcpServers UI 가 먼저 머지됨을 양 plan 에 인지
+  - W4 (`config.fields` cafe24 vs form 명명 충돌) — Phase 9 frontend 구현 시 `nodeType` 분기 명시
+  - W5 (`application` 명명 혼동) — Phase 2 메타데이터에 JSDoc 경고 주석 추가
+  - I3 (`meta.callUsage` 단위 미검증) — 실 호출 응답 받은 후 spec 보정 필요 시 별도 노트
 
 ## Phase 2. Backend — 메타데이터 모듈 (18 카테고리)
 
