@@ -1,0 +1,83 @@
+# main 브랜치에 migration 변경이 push 될 때 동작하는 사후 안전망.
+#
+# 본 repo 는 무료 플랜의 private 저장소여서 GitHub branch protection 의
+# "Require branches to be up to date before merging" 옵션을 사용할 수 없다.
+# 따라서 머지 race (PR CI 통과 후 다른 PR 이 먼저 머지되어 base max(V) 가
+# 추월되는 케이스) 차단을 강제할 수 없다. 대신 다음 두 가지를 자동 수행해
+# race 가 main 에 도달하면 즉시 가시화한다.
+#
+#   1. sanity         — main 의 V번호 dup/gap/단조성/.conf 페어 전수검사.
+#                       위반 시 워크플로 fail 로 Actions 탭에 빨간불.
+#   2. nudge-open-prs — 열린 PR 중 backend/migrations/ 를 건드린 PR 에
+#                       "rebase + CI 재실행 필요" 코멘트 자동 게시.
+#
+# 정책 본문은 spec/conventions/migrations.md §6.2 / §6.3 / §7 대안 4.
+
+name: migration-recheck-on-main
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'backend/migrations/**'
+
+permissions:
+  contents: read
+  pull-requests: write    # nudge job 코멘트 게시용
+
+concurrency:
+  group: migration-recheck-on-main-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  sanity:
+    # check-migration-versions.py 를 --base HEAD~1 로 호출하면 직전 push 와
+    # 현재 main 의 차이만 새로 검사하면서 dup/gap/.conf 페어까지 함께 잡힌다.
+    # main 의 V번호가 깨졌으면 즉시 workflow fail.
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.x'
+
+      - name: Sanity check main migrations
+        run: python3 scripts/check-migration-versions.py --base HEAD~1
+
+  nudge-open-prs:
+    # main 에 migration 이 머지되면 열려있는 migration PR 들에 "rebase + 재CI"
+    # 알림 코멘트를 자동 게시. 머지를 막진 못하지만, 작성자가 race 가능성을
+    # 즉시 인지하도록 돕는다. 자동 rebase 는 시도하지 않는다 (충돌·예측불가
+    # 영향 회피).
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - name: Comment on open migration PRs
+        run: |
+          set -euo pipefail
+          repo="${{ github.repository }}"
+          sha="${{ github.sha }}"
+          short_sha="${sha:0:7}"
+
+          # 열린 PR 중 backend/migrations/ 하위 파일이 하나라도 포함된 PR 만 추출.
+          # gh pr list --json files 는 PR 별 변경 파일 목록을 반환한다.
+          mapfile -t prs < <(
+            gh pr list --repo "$repo" --state open --json number,files \
+              --jq '.[] | select([.files[].path | startswith("backend/migrations/")] | any) | .number'
+          )
+
+          if [ "${#prs[@]}" -eq 0 ]; then
+            echo "No open PRs touch backend/migrations/ — skipping nudge."
+            exit 0
+          fi
+
+          for n in "${prs[@]}"; do
+            echo "Nudging PR #${n}"
+            gh pr comment "$n" --repo "$repo" --body "⚠️ \`main\` 에 새 migration 이 머지되었습니다 (\`${short_sha}\`). 본 PR 의 V번호 충돌·gap 을 보장하려면 **머지 전 \`git rebase origin/main\` 후 \`migration-check\` 재실행**이 필요합니다. 자세한 규약은 [\`spec/conventions/migrations.md\` §6.2 / §6.3](../blob/main/spec/conventions/migrations.md) 참고."
+          done
