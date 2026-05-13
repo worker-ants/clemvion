@@ -41,10 +41,13 @@ export class Cafe24McpToolProvider implements AgentToolProvider {
   readonly key = 'cafe24-mcp';
   private readonly logger = new Logger(Cafe24McpToolProvider.name);
 
-  // Set of sids belonging to cafe24 Integrations registered via buildTools.
-  // Used by matches() so an external mcp_<sid>__ name doesn't accidentally
-  // route here. Execution-scoped state is stored on `executionState`.
-  private readonly ownedSids = new Set<string>();
+  // Reference-counted set of sids belonging to cafe24 Integrations
+  // registered via buildTools. Counted (not a plain Set) so two concurrent
+  // AI Agent executions binding the same Integration both keep the sid
+  // alive — one execution's cleanup() must not remove the sid while the
+  // other still relies on matches() returning true. count drops to 0 ⇒
+  // the entry is removed.
+  private readonly ownedSidCounts = new Map<string, number>();
 
   // executionId -> per-execution lookup tables (integrations + operations).
   // sidToOpMap: sid -> operation id -> { resource, operation } pair so that
@@ -71,7 +74,20 @@ export class Cafe24McpToolProvider implements AgentToolProvider {
   matches(toolName: string): boolean {
     if (!toolName.startsWith('mcp_')) return false;
     const sid = this.extractSid(toolName);
-    return sid !== null && this.ownedSids.has(sid);
+    return sid !== null && (this.ownedSidCounts.get(sid) ?? 0) > 0;
+  }
+
+  private retainSid(sid: string): void {
+    this.ownedSidCounts.set(sid, (this.ownedSidCounts.get(sid) ?? 0) + 1);
+  }
+
+  private releaseSid(sid: string): void {
+    const cur = this.ownedSidCounts.get(sid) ?? 0;
+    if (cur <= 1) {
+      this.ownedSidCounts.delete(sid);
+    } else {
+      this.ownedSidCounts.set(sid, cur - 1);
+    }
   }
 
   async buildTools(ctx: ProviderBuildCtx): Promise<ToolDef[]> {
@@ -128,9 +144,15 @@ export class Cafe24McpToolProvider implements AgentToolProvider {
           parameters: this.buildJsonSchema(operation),
         });
       }
+      // Only retain the sid for THIS execution if buildTools hasn't seen
+      // it on this execution before — buildTools may be invoked multiple
+      // times per `executionId` (e.g. multi-turn AI Agent resume), and
+      // we want one retain per (executionId, sid) pair so each cleanup()
+      // releases exactly once.
+      const newForThisExecution = !state.sidToIntegration.has(sid);
       state.sidToIntegration.set(sid, integration);
       state.sidToOpMap.set(sid, opMap);
-      this.ownedSids.add(sid);
+      if (newForThisExecution) this.retainSid(sid);
     }
 
     return tools;
@@ -337,10 +359,7 @@ export class Cafe24McpToolProvider implements AgentToolProvider {
         '__resetForTesting must not be called in production — use cleanup({ executionId })',
       );
     }
-    for (const state of this.executionState.values()) {
-      for (const sid of state.sidToIntegration.keys())
-        this.ownedSids.delete(sid);
-    }
+    this.ownedSidCounts.clear();
     this.executionState.clear();
   }
 
@@ -359,7 +378,10 @@ export class Cafe24McpToolProvider implements AgentToolProvider {
     }
     const state = this.executionState.get(ctx.executionId);
     if (!state) return;
-    for (const sid of state.sidToIntegration.keys()) this.ownedSids.delete(sid);
+    // Release one retain per (executionId, sid) — symmetric with the
+    // single retain in buildTools. Other executions that hold the same
+    // sid keep matches() returning true until their own cleanup runs.
+    for (const sid of state.sidToIntegration.keys()) this.releaseSid(sid);
     this.executionState.delete(ctx.executionId);
   }
 

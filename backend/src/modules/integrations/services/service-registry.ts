@@ -94,23 +94,27 @@ const CAFE24_OAUTH_FIELDS: CredentialField[] = [
     key: 'access_token',
     label: 'Access Token',
     type: 'string',
-    required: true,
+    // System-managed — populated by the OAuth callback handler, never
+    // typed in by the user. Marked `required: false` so the Step 2 form
+    // doesn't gate the [Connect with Cafe24] button on pre-existing
+    // values.
+    required: false,
     secret: true,
   },
   {
     key: 'refresh_token',
     label: 'Refresh Token',
     type: 'string',
-    required: true,
+    required: false,
     secret: true,
   },
   {
     key: 'cafe24_operator_id',
     label: 'Operator',
     type: 'string',
-    required: true,
+    required: false,
     description:
-      'Cafe24 응답 body 의 `user_id` 매핑 — 내부 User.id 와 명명 충돌 회피',
+      'Cafe24 응답 body 의 `user_id` 매핑 — 내부 User.id 와 명명 충돌 회피 (OAuth 콜백에서 자동 채워짐)',
   },
 ];
 

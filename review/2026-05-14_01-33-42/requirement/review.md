@@ -1,1 +1,0 @@
-You've hit your limit · resets 4:40am (Asia/Seoul)

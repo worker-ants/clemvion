@@ -181,6 +181,13 @@ describe('IntegrationOAuthService — Cafe24', () => {
         'https://priv-shop.cafe24api.com/api/v2/oauth/authorize',
       );
       expect(result.authUrl).toContain('client_id=priv-client-id');
+      // The private app secret must NEVER appear in the authorize URL —
+      // it only travels server-to-server during the token exchange step.
+      // Guards against accidental future regressions that might put it
+      // on the wire as a query parameter (browser history / Referer /
+      // proxy access logs would leak it otherwise).
+      expect(result.authUrl).not.toContain('client_secret');
+      expect(result.authUrl).not.toContain('priv-client-secret');
       const saved = stateRepo.save.mock.calls[0][0] as Record<string, unknown>;
       expect(saved.providerMeta).toEqual({
         mall_id: 'priv-shop',
