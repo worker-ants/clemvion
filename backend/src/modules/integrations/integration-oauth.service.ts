@@ -15,6 +15,7 @@ import {
 } from './entities/integration-oauth-state.entity';
 import { IntegrationOAuthPreview } from './entities/integration-oauth-preview.entity';
 import { findService } from './services/service-registry';
+import { decryptJson } from './services/credentials-transformer';
 
 const STATE_TTL_MS = 10 * 60 * 1000;
 const PREVIEW_TTL_MS = 10 * 60 * 1000;
@@ -263,6 +264,27 @@ export class IntegrationOAuthService {
       });
     }
     const record = consumed[0];
+
+    // Column transformers (`encryptedJsonTransformer`) only run for entity
+    // round-trips, not for `dataSource.query` raw SQL. Run the same
+    // decrypt step manually so `record.providerMeta` is a plain object
+    // (or null) — otherwise cafe24 callbacks would receive an
+    // `"enc:v1:…"` envelope string and silently misinterpret it. We also
+    // normalise `requested_scopes` (snake_case from raw SQL) onto the
+    // entity field so the rest of the method can read it uniformly.
+    if (record.providerMeta !== null && record.providerMeta !== undefined) {
+      const decrypted = decryptJson<Record<string, unknown>>(
+        record.providerMeta,
+      );
+      record.providerMeta = decrypted ?? null;
+    }
+    const rawRow = record as unknown as Record<string, unknown>;
+    if (
+      Array.isArray(rawRow.requested_scopes) &&
+      !Array.isArray(record.requestedScopes)
+    ) {
+      record.requestedScopes = rawRow.requested_scopes as string[];
+    }
     if (record.provider !== provider) {
       throw new BadRequestException({
         code: 'OAUTH_STATE_MISMATCH',
@@ -434,8 +456,19 @@ export class IntegrationOAuthService {
     requestedScopes: string[],
     providerMeta: Record<string, unknown> | null,
   ): Promise<TokenExchangeResult> {
-    if (process.env.OAUTH_STUB_MODE === 'true') {
+    if (
+      process.env.OAUTH_STUB_MODE === 'true' &&
+      process.env.NODE_ENV !== 'production'
+    ) {
       return stubTokenResult(provider, requestedScopes, providerMeta);
+    }
+    if (
+      process.env.OAUTH_STUB_MODE === 'true' &&
+      process.env.NODE_ENV === 'production'
+    ) {
+      this.logger.error(
+        'OAUTH_STUB_MODE is set in production — ignoring. Stub mode must never run with real users; fix the deployment configuration.',
+      );
     }
 
     // Resolve client_id / client_secret / token URL with provider-specific

@@ -4,6 +4,7 @@ title_en: "Cafe24 integration"
 section: "06-integrations-and-config"
 order: 5
 summary: "Register a Cafe24 mall as an integration and call any of its 18 Admin API categories from both the cafe24 workflow node and the AI Agent's MCP tool surface using the same credentials."
+summary_en: "Register a Cafe24 mall as an integration and call any of its 18 Admin API categories from both the cafe24 workflow node and the AI Agent's MCP tool surface using the same credentials."
 spec: ["spec/4-nodes/4-integration/4-cafe24.md", "spec/conventions/cafe24-api-metadata.md", "spec/2-navigation/4-integration.md", "spec/5-system/11-mcp-client.md"]
 code: ["backend/src/nodes/integration/cafe24/cafe24-api.client.ts", "backend/src/nodes/integration/cafe24/cafe24.handler.ts", "backend/src/nodes/ai/ai-agent/tool-providers/cafe24-mcp-tool-provider.ts", "backend/src/modules/integrations/integration-oauth.service.ts"]
 ---
@@ -84,7 +85,36 @@ Once a Cafe24 integration is added, the LLM sees tools named `mcp_<sid>__<resour
 |---|---|
 | `CAFE24_CLIENT_ID` | Public-app flow — the Cafe24 App Store app's client_id used by every Public-type integration on this deployment |
 | `CAFE24_CLIENT_SECRET` | Secret for the above. Never leaves the backend |
-| `OAUTH_STUB_MODE` | When `true`, OAuth exchange is stubbed (fake tokens) — local dev / unit tests only |
+| `OAUTH_STUB_MODE` | When `true`, OAuth exchange is stubbed (fake tokens) — local dev / unit tests only. Ignored in `NODE_ENV=production` |
+
+## Recommended OAuth scope presets
+
+| Category | scope value |
+|---|---|
+| Product | `mall.read_product` / `mall.write_product` |
+| Order | `mall.read_order` / `mall.write_order` |
+| Customer | `mall.read_customer` / `mall.write_customer` |
+| Category | `mall.read_category` / `mall.write_category` |
+| Promotion | `mall.read_promotion` / `mall.write_promotion` |
+| Mileage | `mall.read_mileage` / `mall.write_mileage` |
+| Shipping | `mall.read_shipping` / `mall.write_shipping` |
+| Salesreport | `mall.read_salesreport` (read only) |
+
+See the [official Cafe24 docs](https://developers.cafe24.com/docs/ko/api/admin/#api-index) for the full list across all 18 categories.
+
+## FAQ
+
+**Q. I mistyped the mall_id — how do I fix it?**
+Only the integration's display name (alias) can be edited after creation. Recreate the integration. An invalid mall_id is rejected at the OAuth begin step (`/^[a-z0-9-]{3,50}$/`).
+
+**Q. I get `OAUTH_CONFIG_MISSING` on the first Public-app authentication.**
+The server `CAFE24_CLIENT_ID` / `CAFE24_CLIENT_SECRET` env vars are not set. Ask your operator to configure them, or switch App Type to Private and paste your own app's credentials.
+
+**Q. The AI Agent throws `CAFE24_MCP_NO_SESSION` when calling a tool.**
+The AI Agent node's `mcpServers` list must include this Cafe24 integration. Re-add it on that node — adding the integration later than the AI Agent execution start triggers this error.
+
+**Q. Throughput feels slow under heavy use.**
+You've hit Cafe24's leaky-bucket quota and the backend is auto-backing off. `meta.callUsage` / `meta.callRemain` headers expose the current bucket state. If many workflows share the same integration, split usage across separate integrations to widen the quota.
 
 ## Related spec
 
