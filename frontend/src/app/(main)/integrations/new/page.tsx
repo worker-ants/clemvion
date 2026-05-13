@@ -618,7 +618,11 @@ function Cafe24ExtraFields({
           placeholder="myshop"
           value={mallId}
           onChange={(e) => set("mall_id", e.target.value.trim())}
-          pattern="^[a-z0-9-]{3,50}$"
+          // `-` is escaped because browsers compile the HTML5 `pattern`
+          // attribute with the ES2024 `v` flag, which rejects an
+          // unescaped hyphen inside a character class. Same semantic as
+          // the backend regex /^[a-z0-9-]{3,50}$/.
+          pattern="^[a-z0-9\-]{3,50}$"
         />
         <p className="mt-1 text-xs text-[hsl(var(--muted-foreground))]">
           Lower-case letters, digits, and hyphens, 3–50 chars. Forms the
