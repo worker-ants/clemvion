@@ -153,10 +153,7 @@ describe('IntegrationOAuthService — Cafe24', () => {
       );
       expect(result.state).toHaveLength(48);
       expect(stateRepo.save).toHaveBeenCalledTimes(1);
-      const saved = (stateRepo.save as Mock).mock.calls[0][0] as Record<
-        string,
-        unknown
-      >;
+      const saved = stateRepo.save.mock.calls[0][0] as Record<string, unknown>;
       expect(saved.provider).toBe('cafe24');
       expect(saved.serviceType).toBe('cafe24');
       expect(saved.providerMeta).toEqual({
@@ -184,10 +181,7 @@ describe('IntegrationOAuthService — Cafe24', () => {
         'https://priv-shop.cafe24api.com/api/v2/oauth/authorize',
       );
       expect(result.authUrl).toContain('client_id=priv-client-id');
-      const saved = (stateRepo.save as Mock).mock.calls[0][0] as Record<
-        string,
-        unknown
-      >;
+      const saved = stateRepo.save.mock.calls[0][0] as Record<string, unknown>;
       expect(saved.providerMeta).toEqual({
         mall_id: 'priv-shop',
         app_type: 'private',
@@ -233,7 +227,7 @@ describe('IntegrationOAuthService — Cafe24', () => {
       // Preview row contains the cafe24-specific credentials including
       // mall_id / app_type carried over from state.providerMeta.
       expect(previewRepo.save).toHaveBeenCalledTimes(1);
-      const previewArg = (previewRepo.save as Mock).mock.calls[0][0] as Record<
+      const previewArg = previewRepo.save.mock.calls[0][0] as Record<
         string,
         unknown
       >;
@@ -275,7 +269,7 @@ describe('IntegrationOAuthService — Cafe24', () => {
         state: 'state-token-2',
       });
 
-      const previewArg = (previewRepo.save as Mock).mock.calls[0][0] as Record<
+      const previewArg = previewRepo.save.mock.calls[0][0] as Record<
         string,
         unknown
       >;

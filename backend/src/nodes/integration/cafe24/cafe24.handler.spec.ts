@@ -11,9 +11,7 @@ import type { Integration } from '../../../modules/integrations/entities/integra
 
 type Mock = jest.Mock;
 
-function makeIntegration(
-  overrides: Partial<Integration> = {},
-): Integration {
+function makeIntegration(overrides: Partial<Integration> = {}): Integration {
   return {
     id: 'int-cafe24-1',
     workspaceId: 'ws-1',
@@ -258,7 +256,7 @@ describe('Cafe24Handler', () => {
       expect(meta.callLimit).toBe('5/40');
 
       // Config echo preserves raw input (Principle 7).
-      const cfg = result.config as Record<string, unknown>;
+      const cfg = result.config;
       expect(cfg.resource).toBe('product');
       expect(cfg.operation).toBe('product_list');
       expect(cfg.fields).toEqual({ shop_no: 1, display: 'T' });
@@ -312,7 +310,11 @@ describe('Cafe24Handler', () => {
           integrationId: 'id',
           resource: 'product',
           operation: 'product_update',
-          fields: { product_no: 1001, product_name: 'New name', price: '10000.00' },
+          fields: {
+            product_no: 1001,
+            product_name: 'New name',
+            price: '10000.00',
+          },
         },
         makeContext(),
       );
@@ -351,12 +353,17 @@ describe('Cafe24Handler', () => {
       );
 
       expect(result.port).toBe('error');
-      const out = result.output as { error: Record<string, unknown>; response: unknown };
+      const out = result.output as {
+        error: Record<string, unknown>;
+        response: unknown;
+      };
       expect(out.error.code).toBe('CAFE24_404');
-      expect((out.error.details as Record<string, unknown>).statusCode).toBe(404);
-      expect((out.error.details as Record<string, unknown>).cafe24ErrorCode).toBe(
-        '404',
+      expect((out.error.details as Record<string, unknown>).statusCode).toBe(
+        404,
       );
+      expect(
+        (out.error.details as Record<string, unknown>).cafe24ErrorCode,
+      ).toBe('404');
       expect(out.response).toEqual({
         error: { code: '404', message: 'Not Found' },
       });

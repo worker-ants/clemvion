@@ -18,16 +18,16 @@ describe('Cafe24 metadata', () => {
       for (const resource of CAFE24_RESOURCES) {
         const ops = CAFE24_OPERATIONS_BY_RESOURCE[resource];
         if (!ops || ops.length === 0) {
-          throw new Error(`${resource} resource must declare at least one operation`);
+          throw new Error(
+            `${resource} resource must declare at least one operation`,
+          );
         }
       }
     });
 
     it('operation ids are unique within each resource', () => {
       for (const resource of CAFE24_RESOURCES) {
-        const ids = CAFE24_OPERATIONS_BY_RESOURCE[resource].map(
-          (op) => op.id,
-        );
+        const ids = CAFE24_OPERATIONS_BY_RESOURCE[resource].map((op) => op.id);
         const seen = new Set<string>();
         for (const id of ids) {
           expect(seen.has(id)).toBe(false);
@@ -38,15 +38,12 @@ describe('Cafe24 metadata', () => {
 
     it('every path placeholder is declared in fields', () => {
       for (const { resource, operation } of listAllCafe24Operations()) {
-        const placeholders =
-          operation.path.match(/\{([a-zA-Z0-9_]+)\}/g) ?? [];
+        const placeholders = operation.path.match(/\{([a-zA-Z0-9_]+)\}/g) ?? [];
         for (const ph of placeholders) {
           const fieldName = ph.slice(1, -1);
           const label = `${resource}.${operation.id} placeholder ${ph}`;
           if (!operation.fields[fieldName]) {
-            throw new Error(
-              `${label} must have a matching field`,
-            );
+            throw new Error(`${label} must have a matching field`);
           }
           if (operation.fields[fieldName].location !== 'path') {
             throw new Error(`${label} field must be location='path'`);
@@ -114,10 +111,28 @@ describe('Cafe24 metadata', () => {
 
   describe('Core categories have CRUD coverage', () => {
     const expectations: Array<[string, string[]]> = [
-      ['product', ['product_list', 'product_get', 'product_create', 'product_update', 'product_delete']],
+      [
+        'product',
+        [
+          'product_list',
+          'product_get',
+          'product_create',
+          'product_update',
+          'product_delete',
+        ],
+      ],
       ['order', ['order_list', 'order_get']],
       ['customer', ['customer_list', 'customer_get', 'customer_update']],
-      ['category', ['category_list', 'category_get', 'category_create', 'category_update', 'category_delete']],
+      [
+        'category',
+        [
+          'category_list',
+          'category_get',
+          'category_create',
+          'category_update',
+          'category_delete',
+        ],
+      ],
       ['promotion', ['coupon_list', 'coupon_get', 'coupon_create']],
     ];
 

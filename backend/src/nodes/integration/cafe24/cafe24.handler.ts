@@ -30,6 +30,22 @@ import {
 const MALL_ID_PATTERN = /^[a-z0-9-]{3,50}$/;
 
 /**
+ * Coerce a path placeholder value to a safe string. Path placeholders only
+ * ever carry scalar ids (product_no, order_id, member_id, ...), so a
+ * non-scalar input is a configuration mistake — we surface it as the
+ * stringified form ({"a":1}) rather than '[object Object]' so the eventual
+ * 4xx from Cafe24 carries an actionable URL.
+ */
+function stringifyPathValue(value: unknown): string {
+  if (typeof value === 'string') return value;
+  if (typeof value === 'number' || typeof value === 'boolean') {
+    return String(value);
+  }
+  if (typeof value === 'bigint') return value.toString();
+  return JSON.stringify(value);
+}
+
+/**
  * Cafe24 node handler — drives every cafe24 Admin API call through the
  * Cafe24ApiClient using the metadata table. spec/4-nodes/4-integration/
  * 4-cafe24.md §4 (12-step flow) / §5 (output) / §6 (error codes).
@@ -55,13 +71,9 @@ export class Cafe24Handler
     if (!config.resource || typeof config.resource !== 'string') {
       errors.push('resource is required and must be a string');
     } else if (
-      !(CAFE24_RESOURCES as readonly string[]).includes(
-        config.resource as string,
-      )
+      !(CAFE24_RESOURCES as readonly string[]).includes(config.resource)
     ) {
-      errors.push(
-        `resource must be one of: ${CAFE24_RESOURCES.join(', ')}`,
-      );
+      errors.push(`resource must be one of: ${CAFE24_RESOURCES.join(', ')}`);
     }
     if (!config.operation || typeof config.operation !== 'string') {
       errors.push('operation is required and must be a string');
@@ -83,7 +95,7 @@ export class Cafe24Handler
     context: ExecutionContext,
   ): Promise<NodeHandlerOutput> {
     const started = Date.now();
-    const rawConfig = (context.rawConfig ?? config) as Record<string, unknown>;
+    const rawConfig = context.rawConfig ?? config;
     const echo = sanitizeConfigEcho({
       integrationId: rawConfig.integrationId,
       resource: rawConfig.resource,
@@ -117,7 +129,8 @@ export class Cafe24Handler
 
     // 2. Required field check — pre-flight.
     const missing = operation.requiredFields.filter(
-      (key) => fields[key] === undefined || fields[key] === null || fields[key] === '',
+      (key) =>
+        fields[key] === undefined || fields[key] === null || fields[key] === '',
     );
     if (missing.length > 0) {
       throw new IntegrationError(
@@ -274,7 +287,7 @@ export class Cafe24Handler
         case 'path':
           path = path.replace(
             new RegExp(`\\{${key}\\}`, 'g'),
-            encodeURIComponent(String(value)),
+            encodeURIComponent(stringifyPathValue(value)),
           );
           break;
         case 'query':
@@ -293,8 +306,7 @@ export class Cafe24Handler
       if (pagination.cursor !== undefined) query.cursor = pagination.cursor;
     }
 
-    const hasBody =
-      Object.keys(body).length > 0 && operation.method !== 'GET';
+    const hasBody = Object.keys(body).length > 0 && operation.method !== 'GET';
     return {
       path,
       query,

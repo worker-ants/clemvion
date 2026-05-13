@@ -241,7 +241,8 @@ export class OAuthBeginDto {
    * Validation `/^[a-z0-9-]{3,50}$/` — SSRF 방어 + Cafe24 mall_id 규약.
    */
   @ApiPropertyOptional({
-    description: 'Cafe24 mall_id (base/authorize URL 의 일부). cafe24 한정 필수',
+    description:
+      'Cafe24 mall_id (base/authorize URL 의 일부). cafe24 한정 필수',
     example: 'myshop',
     pattern: '^[a-z0-9-]{3,50}$',
   })
@@ -272,7 +273,8 @@ export class OAuthBeginDto {
 
   /** Cafe24 private 앱 한정: OAuth client_secret */
   @ApiPropertyOptional({
-    description: 'Cafe24 private 앱의 OAuth client_secret (app_type=private 한정)',
+    description:
+      'Cafe24 private 앱의 OAuth client_secret (app_type=private 한정)',
     maxLength: 256,
   })
   @IsOptional()

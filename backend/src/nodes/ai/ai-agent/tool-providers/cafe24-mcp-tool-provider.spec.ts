@@ -9,9 +9,7 @@ import type { ToolCall } from '../../../../modules/llm/interfaces/llm-client.int
 
 type Mock = jest.Mock;
 
-function makeIntegration(
-  overrides: Partial<Integration> = {},
-): Integration {
+function makeIntegration(overrides: Partial<Integration> = {}): Integration {
   return {
     id: 'abcdef1234567890',
     workspaceId: 'ws-1',
@@ -106,7 +104,11 @@ describe('Cafe24McpToolProvider', () => {
         ]),
       );
       // No other operations exposed.
-      expect(names.every((n) => n.endsWith('__product_list') || n.endsWith('__product_get'))).toBe(true);
+      expect(
+        names.every(
+          (n) => n.endsWith('__product_list') || n.endsWith('__product_get'),
+        ),
+      ).toBe(true);
     });
 
     it('skips non-cafe24 integrations (defers to McpToolProvider)', async () => {

@@ -55,7 +55,10 @@ export class Cafe24McpToolProvider implements AgentToolProvider {
       sidToIntegration: Map<string, Integration>;
       sidToOpMap: Map<
         string,
-        Map<string, { resource: Cafe24Resource; operation: Cafe24OperationMetadata }>
+        Map<
+          string,
+          { resource: Cafe24Resource; operation: Cafe24OperationMetadata }
+        >
       >;
     }
   >();
@@ -239,7 +242,7 @@ export class Cafe24McpToolProvider implements AgentToolProvider {
       if (spec.location === 'path') {
         path = path.replace(
           new RegExp(`\\{${k}\\}`, 'g'),
-          encodeURIComponent(String(v)),
+          encodeURIComponent(scalarToString(v)),
         );
       } else if (spec.location === 'query') {
         query[k] = v;
@@ -251,7 +254,7 @@ export class Cafe24McpToolProvider implements AgentToolProvider {
     const startedAt = Date.now();
     try {
       const result = await this.cafe24ApiClient.call(integration, {
-        method: operation.method as 'GET' | 'POST' | 'PUT' | 'DELETE',
+        method: operation.method,
         path,
         query,
         body:
@@ -316,11 +319,17 @@ export class Cafe24McpToolProvider implements AgentToolProvider {
     }
   }
 
-  async cleanup(ctx: ProviderCleanupCtx): Promise<void> {
+  cleanup(ctx: ProviderCleanupCtx): Promise<void> {
+    this.cleanupInternal(ctx);
+    return Promise.resolve();
+  }
+
+  private cleanupInternal(ctx: ProviderCleanupCtx): void {
     if (!ctx.executionId) {
       // Cleanup all — used by tests.
       for (const state of this.executionState.values()) {
-        for (const sid of state.sidToIntegration.keys()) this.ownedSids.delete(sid);
+        for (const sid of state.sidToIntegration.keys())
+          this.ownedSids.delete(sid);
       }
       this.executionState.clear();
       return;
@@ -339,7 +348,10 @@ export class Cafe24McpToolProvider implements AgentToolProvider {
     sidToIntegration: Map<string, Integration>;
     sidToOpMap: Map<
       string,
-      Map<string, { resource: Cafe24Resource; operation: Cafe24OperationMetadata }>
+      Map<
+        string,
+        { resource: Cafe24Resource; operation: Cafe24OperationMetadata }
+      >
     >;
   } {
     let s = this.executionState.get(executionId);
@@ -353,9 +365,7 @@ export class Cafe24McpToolProvider implements AgentToolProvider {
     return s;
   }
 
-  private extractMcpServers(
-    config: Record<string, unknown>,
-  ): Array<{
+  private extractMcpServers(config: Record<string, unknown>): Array<{
     integrationId?: string;
     enabledTools?: string[];
   }> {
@@ -389,7 +399,9 @@ export class Cafe24McpToolProvider implements AgentToolProvider {
     return (id: string) => set.has(id);
   }
 
-  private buildJsonSchema(op: Cafe24OperationMetadata): Record<string, unknown> {
+  private buildJsonSchema(
+    op: Cafe24OperationMetadata,
+  ): Record<string, unknown> {
     const properties: Record<string, unknown> = {};
     for (const [name, spec] of Object.entries(op.fields)) {
       const prop: Record<string, unknown> = {};
@@ -409,7 +421,8 @@ export class Cafe24McpToolProvider implements AgentToolProvider {
       if (spec.default !== undefined) prop.default = spec.default;
       properties[name] = prop;
     }
-    const required = op.requiredFields.length > 0 ? op.requiredFields : undefined;
+    const required =
+      op.requiredFields.length > 0 ? op.requiredFields : undefined;
     const schema: Record<string, unknown> = {
       type: 'object',
       properties,
@@ -446,6 +459,22 @@ export class Cafe24McpToolProvider implements AgentToolProvider {
   private errMsg(err: unknown): string {
     return err instanceof Error ? err.message : String(err);
   }
+}
+
+/**
+ * Coerce a tool-argument value to a path-safe scalar string. AI Agent
+ * argument objects can arrive as numbers, booleans, or even nested
+ * objects (LLM occasionally passes them) — we keep scalars verbatim and
+ * JSON-encode the rest so the eventual Cafe24 4xx carries an actionable
+ * URL rather than `[object Object]`.
+ */
+function scalarToString(value: unknown): string {
+  if (typeof value === 'string') return value;
+  if (typeof value === 'number' || typeof value === 'boolean') {
+    return String(value);
+  }
+  if (typeof value === 'bigint') return value.toString();
+  return JSON.stringify(value);
 }
 
 /**

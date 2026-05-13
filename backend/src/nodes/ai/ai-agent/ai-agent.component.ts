@@ -27,12 +27,19 @@ export const aiAgentNodeComponent: NodeComponent = {
     // (HandlerDependencies.cafe24ApiClient is optional).
     if (deps.cafe24ApiClient) {
       providers.push(
-        new Cafe24McpToolProvider(deps.integrationsService, deps.cafe24ApiClient),
+        new Cafe24McpToolProvider(
+          deps.integrationsService,
+          deps.cafe24ApiClient,
+        ),
       );
     }
     providers.push(
       new McpToolProvider(deps.mcpClientService, deps.integrationsService),
     );
-    return new AiAgentHandler(deps.llmService, providers, deps.websocketService);
+    return new AiAgentHandler(
+      deps.llmService,
+      providers,
+      deps.websocketService,
+    );
   },
 };

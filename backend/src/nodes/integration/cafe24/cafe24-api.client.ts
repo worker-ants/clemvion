@@ -139,9 +139,7 @@ export class Cafe24ApiClient {
     @InjectRepository(Integration)
     private readonly integrationRepository: Repository<Integration>,
     private readonly dataSource: DataSource,
-    private readonly fetchImpl: typeof fetch = globalThis.fetch.bind(
-      globalThis,
-    ),
+    private readonly fetchImpl: typeof fetch = defaultFetch,
     private readonly sleepImpl: (ms: number) => Promise<void> = defaultSleep,
   ) {}
 
@@ -162,7 +160,13 @@ export class Cafe24ApiClient {
         creds.access_token!;
       const mallId = creds.mall_id!;
 
-      return this.executeWithRateLimit(integration, mallId, accessToken, opts, 0);
+      return this.executeWithRateLimit(
+        integration,
+        mallId,
+        accessToken,
+        opts,
+        0,
+      );
     });
   }
 
@@ -236,11 +240,7 @@ export class Cafe24ApiClient {
     if (response.status === 401 || response.status === 403) {
       const body = await safeReadJson(response);
       await this.markAuthFailed(integration);
-      throw new Cafe24AuthFailedError(
-        response.status as 401 | 403,
-        creds.mall_id,
-        body,
-      );
+      throw new Cafe24AuthFailedError(response.status, creds.mall_id, body);
     }
     if (!response.ok) {
       const body = await safeReadJson(response);
@@ -269,8 +269,9 @@ export class Cafe24ApiClient {
       const updatedCreds: Cafe24Credentials = {
         ...((fresh.credentials ?? {}) as Cafe24Credentials),
         access_token: accessToken,
-        refresh_token: refreshToken ?? (fresh.credentials as Cafe24Credentials)
-          ?.refresh_token,
+        refresh_token:
+          refreshToken ??
+          (fresh.credentials as Cafe24Credentials)?.refresh_token,
         expires_at: expiresAt.toISOString(),
       };
       fresh.credentials = updatedCreds as unknown as Record<string, unknown>;
@@ -404,11 +405,7 @@ export class Cafe24ApiClient {
     if (response.status === 401 || response.status === 403) {
       const errBody = await safeReadJson(response);
       await this.markAuthFailed(integration);
-      throw new Cafe24AuthFailedError(
-        response.status as 401 | 403,
-        mallId,
-        errBody,
-      );
+      throw new Cafe24AuthFailedError(response.status, mallId, errBody);
     }
 
     const body = await safeReadJson(response);
@@ -434,7 +431,7 @@ export class Cafe24ApiClient {
     if (query) {
       for (const [k, v] of Object.entries(query)) {
         if (v === undefined || v === null) continue;
-        url.searchParams.append(k, String(v));
+        url.searchParams.append(k, stringifyQueryValue(v));
       }
     }
     return url.toString();
@@ -447,6 +444,25 @@ export class Cafe24ApiClient {
 
 function defaultSleep(ms: number): Promise<void> {
   return new Promise((res) => setTimeout(res, ms));
+}
+
+// globalThis.fetch is typed as `any` in our @types setup; cast once to
+// silence the unsafe-argument lint without spreading disables.
+const defaultFetch: typeof fetch = (input, init) =>
+  globalThis.fetch(input, init);
+
+/**
+ * Coerce a query parameter value to a string without ever producing the
+ * `[object Object]` default — Cafe24 only accepts scalar query params, so
+ * non-scalars are JSON-serialised explicitly.
+ */
+function stringifyQueryValue(value: unknown): string {
+  if (typeof value === 'string') return value;
+  if (typeof value === 'number' || typeof value === 'boolean') {
+    return String(value);
+  }
+  if (typeof value === 'bigint') return value.toString();
+  return JSON.stringify(value);
 }
 
 function readHeaderMap(h: Headers): Record<string, string> {
