@@ -6,6 +6,7 @@ import {
   Mail,
   Webhook,
   Plug,
+  ShoppingBag,
   type LucideIcon,
 } from "lucide-react";
 
@@ -17,6 +18,7 @@ export const SERVICE_ICONS: Record<string, LucideIcon> = {
   email: Mail,
   webhook: Webhook,
   mcp: Plug,
+  cafe24: ShoppingBag,
 };
 
 export function getServiceIcon(type: string): LucideIcon {

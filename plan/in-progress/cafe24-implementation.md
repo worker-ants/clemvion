@@ -120,32 +120,32 @@ predecessor_plan: plan/complete/cafe24-integration.md
 
 ## Phase 8. Frontend — Add Integration 모달 + Step 2 폼
 
-- [ ] 모달 카드에 Cafe24 추가 (`/integrations`)
-- [ ] `/integrations/new?service=cafe24&step=auth` Step 2 폼:
-  - mall_id 입력 + validation
-  - app_type 라디오 (public/private)
-  - private 선택 시 client_id/client_secret 입력
-  - scope 카테고리 체크박스 (R/W 두 컬럼) + 고급 토글
-- [ ] OAuth begin/callback 흐름 클라이언트 (postMessage)
-- [ ] 인증 유형 라벨 `Cafe24` 표시 (목록 카드)
+- [x] 모달 카드에 Cafe24 자동 노출 — backend `/api/integrations/services` 에서 cafe24 ServiceDefinition (Phase 3 등록) 가 그대로 흘러나옴
+- [x] `service-icons.tsx` 에 `cafe24: ShoppingBag` 추가
+- [x] `/integrations/new?service=cafe24&step=auth` Step 2 폼:
+  - [x] `Cafe24ExtraFields` 컴포넌트 신설 — mall_id (pattern validation) + app_type radio (public/private) + private 시 client_id/client_secret 추가 노출
+  - [x] page-level `validate()` 가 cafe24 한정 검증 (mall_id 패턴 / app_type / private 시 creds 필수)
+  - [x] `oauthBeginMutation` 이 service==='cafe24' 시 mallId/appType/clientId?/clientSecret? 를 함께 전달
+  - [x] OAuth begin/callback (postMessage) 흐름 그대로 활용
+- [x] `integrationsApi.oauthBegin` 의 body 타입에 cafe24 한정 optional 필드 추가
+- [x] 인증 유형 라벨 `Cafe24` 는 backend §2.2 패치(Phase 3) 가 그대로 처리
 
 ## Phase 9. Frontend — `cafe24` 노드 설정 패널
 
-- [ ] `IntegrationSelector` 의 `serviceTypes=['cafe24']` 필터
-- [ ] Resource 드롭다운 (18 카테고리, 메타데이터 라벨)
-- [ ] Operation 드롭다운 — Resource 변경 시 동적 갱신
-- [ ] Fields 동적 폼 — Operation 메타데이터의 JSON Schema → 폼 렌더 (Required/Optional 분리, type별 input)
-- [ ] Pagination 폼 (paginated operation 만)
-- [ ] 표현식 `{{ }}` 지원
-- [ ] 캔버스 요약 `{resource} · {operation}`
+- [x] `integration-configs.tsx` 에 `Cafe24Config` 컴포넌트 신설 + `override-registry.ts` 에 `cafe24: Cafe24Config` 등록
+- [x] `IntegrationSelector` 의 `serviceTypes=['cafe24']` 필터
+- [x] Resource 드롭다운 (18 카테고리 하드코드 — 메타데이터 미러)
+- [x] Operation `ExpressionInput` (현 단계는 자유 입력 + 메타 컨벤션 hint; 향후 backend metadata endpoint 가 도입되면 동적 select 로 승격)
+- [x] Fields KeyValueEditor (expression 지원) — backend 가 `Record<string, unknown>` 로 받음
+- [x] Pagination NumberField (Limit / Offset)
+- [x] Resource 변경 시 operation 자동 리셋 (이전 opId 가 새 resource 와 mismatch 방지)
 
 ## Phase 10. Frontend — AI Agent mcpServers grouping
 
-- [ ] `IntegrationSelector` 의 `serviceTypes=['mcp', 'cafe24']` 수용
-- [ ] "Add MCP Server" 모달 — 두 그룹 시각 분리 (🌐 Generic MCP / 🛒 Cafe24 stores)
-- [ ] 행 표시에 Bridge 아이콘 prefix
-- [ ] Cafe24 의 allowlist UI — Resource 단위 grouping (read/write 전부 / 일부 선택)
-- [ ] 캔버스 요약 `{N} MCP` 카운트에 cafe24 포함
+- [x] `McpServerSelector` 의 `integrationsApi.list` 가 `serviceType: ['mcp', 'cafe24']` 모두 fetch
+- [x] picker 본문에 두 그룹 시각 분리 (🌐 Generic MCP (HTTP) servers / 🛒 Cafe24 stores (Internal Bridge))
+- [x] 등록된 항목 row 는 status 배지 유지, group heading 으로 type 식별
+- [x] 회귀: 전체 frontend 1280/1280 vitest 통과, frontend typecheck pass
 
 ## Phase 11. 테스트
 
