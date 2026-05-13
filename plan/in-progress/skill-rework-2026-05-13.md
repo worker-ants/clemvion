@@ -25,7 +25,7 @@ owner: claude (skill 점검 세션)
 - [x] `lib/session.py` — `make_debug_logger`, `create_session_dir`, `save_metadata`, `truncate_to_budget`
 - [x] `lib/agent_runner.py` — `run_single_agent`, `run_agents_parallel` (도메인 무관)
 - [x] `lib/summary.py` — `render_template`, `run_summary`
-- [x] `code_review_orchestrator.py` 를 thin wrapper 로 재정리 (1079 → 729 lines, 동작·CLI·hook 호환 유지)
+- [x] `code_review_orchestrator.py` 를 thin wrapper 로 재정리 (1078 → 865 lines, 동작·CLI·hook 호환 유지)
 
 ### 2. consistency-checker skill 신설 ✅
 
