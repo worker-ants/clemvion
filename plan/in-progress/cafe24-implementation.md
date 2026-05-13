@@ -58,10 +58,10 @@ predecessor_plan: plan/complete/cafe24-integration.md
 
 `spec/conventions/cafe24-api-metadata.md` 의 형식대로.
 
-- [ ] `backend/src/nodes/integration/cafe24/metadata/index.ts` (종합 export + `Cafe24OperationMetadata` 타입)
-- [ ] 18개 resource 파일 (`store.ts`, `product.ts`, `order.ts`, `customer.ts`, `community.ts`, `design.ts`, `promotion.ts`, `application.ts`, `category.ts`, `collection.ts`, `supply.ts`, `shipping.ts`, `salesreport.ts`, `personal.ts`, `privacy.ts`, `mileage.ts`, `notification.ts`, `translation.ts`)
-- [ ] **현실적 우선순위**: Phase 1 출시 단계에서는 빈번히 사용되는 카테고리부터 — Product / Order / Customer / Category / Promotion 의 핵심 operation 셋부터 채우고, 나머지 카테고리는 list/get 의 기본 패턴만 등록. 신규 endpoint 추가는 컨벤션 §4 절차로 누구나 가능
-- [ ] 메타데이터 유효성 단위 테스트: id unique / path placeholder ↔ fields / requiredFields subset
+- [x] `types.ts` (`Cafe24OperationMetadata` 타입 + `CAFE24_RESOURCES` enum) + `index.ts` 종합 export
+- [x] 18개 resource 파일 (`store.ts`, `product.ts`, `order.ts`, `customer.ts`, `community.ts`, `design.ts`, `promotion.ts`, `application.ts` (JSDoc 경고), `category.ts`, `collection.ts`, `supply.ts`, `shipping.ts`, `salesreport.ts`, `personal.ts`, `privacy.ts`, `mileage.ts`, `notification.ts`, `translation.ts`)
+- [x] **현실적 우선순위 적용**: Product (CRUD + variants 2), Order (list/get/items/shipments/buyer/memos), Customer (list/get/update/group/memos), Category (CRUD + products), Promotion (CRUD + issue) 핵심 채우고, 나머지 13 카테고리는 list/get/typical actions 패턴
+- [x] 메타데이터 유효성 단위 테스트 (16 tests pass): id unique / path placeholder ↔ fields / requiredFields subset / enum type 검증 / 핵심 카테고리 CRUD 커버리지 / scope 매핑
 
 ## Phase 3. Backend — OAuth provider for Cafe24
 
