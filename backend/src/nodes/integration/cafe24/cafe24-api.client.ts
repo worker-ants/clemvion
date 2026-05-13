@@ -1,7 +1,19 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, Repository } from 'typeorm';
 import { Integration } from '../../../modules/integrations/entities/integration.entity.js';
+
+/**
+ * Optional DI tokens for swapping the network / sleep primitives in tests.
+ * Production never binds these — NestJS resolves them as `undefined` via
+ * `@Optional()` and the constructor falls back to `defaultFetch` /
+ * `defaultSleep`. Using a string token (not the constructor's TS `typeof
+ * fetch` reflection) is what stops `UnknownDependenciesException` —
+ * NestJS otherwise tries to look up a provider keyed on the bare
+ * `Function` metadata.
+ */
+export const CAFE24_FETCH_IMPL = 'CAFE24_FETCH_IMPL';
+export const CAFE24_SLEEP_IMPL = 'CAFE24_SLEEP_IMPL';
 
 /**
  * Cafe24 Admin API client wrapper.
@@ -134,14 +146,27 @@ function withIntegrationLock<T>(
 @Injectable()
 export class Cafe24ApiClient {
   private readonly logger = new Logger(Cafe24ApiClient.name);
+  private readonly fetchImpl: typeof fetch;
+  private readonly sleepImpl: (ms: number) => Promise<void>;
 
   constructor(
     @InjectRepository(Integration)
     private readonly integrationRepository: Repository<Integration>,
     private readonly dataSource: DataSource,
-    private readonly fetchImpl: typeof fetch = defaultFetch,
-    private readonly sleepImpl: (ms: number) => Promise<void> = defaultSleep,
-  ) {}
+    // `@Optional() @Inject(token)` keeps NestJS from trying to resolve
+    // `typeof fetch` / `Function` as a real provider. Bare default-value
+    // constructor params trip `UnknownDependenciesException` in the
+    // production DI graph (TS default values are invisible to the
+    // `design:paramtypes` reflection metadata). Tests construct the
+    // client directly with positional arguments and bypass DI entirely.
+    @Optional() @Inject(CAFE24_FETCH_IMPL) fetchImpl?: typeof fetch,
+    @Optional()
+    @Inject(CAFE24_SLEEP_IMPL)
+    sleepImpl?: (ms: number) => Promise<void>,
+  ) {
+    this.fetchImpl = fetchImpl ?? defaultFetch;
+    this.sleepImpl = sleepImpl ?? defaultSleep;
+  }
 
   async call(
     integration: Integration,
