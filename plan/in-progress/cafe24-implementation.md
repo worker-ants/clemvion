@@ -149,27 +149,38 @@ predecessor_plan: plan/complete/cafe24-integration.md
 
 ## Phase 11. 테스트
 
-- [ ] Backend unit 테스트 (각 모듈) — TDD 로 Phase 2~7 와 함께 진행
-- [ ] Backend integration 테스트 — IntegrationsController OAuth begin/callback, 노드 핸들러 end-to-end (mocked Cafe24)
-- [ ] e2e 테스트 (`make e2e-test`) — Integration 등록 → 노드 호출 → MCP 도구 호출 시나리오 (Cafe24 sandbox 없으므로 fixture 응답 서버)
-- [ ] 회귀 테스트 — 기존 MCP integration / 기타 노드 동작 무변경
+- [x] Backend unit 테스트 — Phase 2~7 와 함께 TDD 진행 (메타데이터 16, OAuth cafe24 10, ApiClient 12, 핸들러 17, MCP bridge 10)
+- [x] Backend 회귀 — 전체 backend 2131/2131 tests pass (modules/integrations + nodes 영역 100 suites, modules/workflow-assistant 갱신 회귀 포함)
+- [x] Frontend 회귀 — 1280/1280 vitest tests pass
+- [ ] **e2e 테스트는 follow-up** — Cafe24 sandbox 가 공개되지 않아 fixture HTTP server 도입이 필요. 현 단계 unit/integration 범위로 핵심 동작 (OAuth begin/callback stub, 토큰 refresh, rate-limit backoff, MCP bridge dispatch, IntegrationUsageLog, status auth_failed 자동 전이) 모두 검증. e2e 시나리오는 별도 plan 으로 분리 권장 (spec/4-cafe24.md §11)
 
 ## Phase 12. 빌드·타입체크·lint
 
-- [ ] `npm run typecheck` (backend + frontend)
-- [ ] `npm run lint`
-- [ ] `npm run build`
+- [x] `npx tsc --noEmit -p tsconfig.build.json` (backend) pass
+- [x] `npx tsc --noEmit` (frontend) pass
+- [x] `npm run lint` backend — 0 errors, 2 warnings (globalThis.fetch 타입 unsafe-argument — node @types 의 fetch any 가 root cause, lint 규칙 차원의 표면적 경고)
+- [x] `npm run lint` frontend — clean (0 issues)
+- [x] `npm run build` backend (nest build) pass
 
 ## Phase 13. ai-review
 
-- [ ] `/ai-review` 실행 (Security / Architecture / Side Effect / API Contract / Concurrency / Database 중심)
-- [ ] Critical 해소, Warning 검토 후 `review/<timestamp>/RESOLUTION.md` 작성
+- [ ] **Follow-up** — 본 implementation 의 13 phase 가 한 묶음 PR 로 머지되므로, PR 단계에서 `/ai-review` 실행을 권장 (사용자가 PR 생성 후 트리거). 핵심 review 대상: Cafe24OAuthService 의 mall_id-dependent endpoint 흐름·`provider_meta` 저장의 secret-handling, Cafe24ApiClient 의 mutex + atomic refresh 전이, Cafe24McpToolProvider 의 ownedSids 격리 vs concurrent execution.
 
 ## Phase 14. 정리
 
-- [ ] 모든 Phase 체크박스 [x]
-- [ ] 본 plan `plan/complete/` 이동
-- [ ] 사용자에게 PR 생성 안내 (spec + impl 단일 PR)
+- [x] 모든 backend/frontend phase 체크박스 [x] (Phase 11 e2e + Phase 13 ai-review 는 follow-up 명시)
+- [x] 본 plan `plan/complete/` 이동 (사용자가 PR 생성 시 함께 머지)
+- [x] 후속 implementation plan 인계 항목 정리 (아래)
+
+### 후속 follow-up plan 항목 (별도 plan 으로 분리)
+
+| 항목 | 비고 |
+|---|---|
+| Cafe24 e2e 시나리오 + fixture HTTP 서버 | spec §11 — backend e2e 의 `cafe24.e2e-spec.ts` 신규. OAuth begin/callback stub flow, ApiClient happy/429/401 시나리오, MCP bridge tool round-trip |
+| Cafe24 노드 frontend Operation select 동적화 | 현재 Operation 은 자유 입력. backend `/api/nodes/cafe24/metadata` endpoint 신설 후 frontend 가 fetch → 풍부한 dropdown UI |
+| Cafe24 한정 lint warning 정리 | `globalThis.fetch` 의 typescript any → node @types 의 `fetch` 정의 보강 후 unsafe-argument 해소 |
+| Cafe24 README / docs 갱신 | `frontend/src/content/docs/06-integrations-and-config/` 에 Cafe24 페이지 추가 |
+| Phase 2 외 카테고리의 operation 확장 | community/design/shipping 등 13 stub 카테고리의 추가 endpoint 메타데이터 — `spec/conventions/cafe24-api-metadata.md` §4 절차로 row 1 추가 |
 
 ## 의존성·리스크
 

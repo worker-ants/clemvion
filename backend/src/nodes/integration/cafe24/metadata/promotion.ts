@@ -16,7 +16,8 @@ export const promotionOperations: Cafe24OperationMetadata[] = [
         type: 'enum',
         location: 'query',
         enum: ['M', 'D', 'O', 'A', 'R'],
-        description: 'M=manual, D=download, O=auto-give, A=action, R=re-engagement',
+        description:
+          'M=manual, D=download, O=auto-give, A=action, R=re-engagement',
       },
     },
     responseShape: 'list',

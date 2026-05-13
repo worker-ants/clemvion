@@ -27,10 +27,7 @@ import { storeOperations } from './store.js';
 import { supplyOperations } from './supply.js';
 import { translationOperations } from './translation.js';
 
-import type {
-  Cafe24OperationMetadata,
-  Cafe24Resource,
-} from './types.js';
+import type { Cafe24OperationMetadata, Cafe24Resource } from './types.js';
 
 export * from './types.js';
 
@@ -66,10 +63,12 @@ export function findCafe24Operation(
   resource: string,
   operationId: string,
 ): Cafe24OperationMetadata | undefined {
-  const ops = (CAFE24_OPERATIONS_BY_RESOURCE as Record<
-    string,
-    readonly Cafe24OperationMetadata[] | undefined
-  >)[resource];
+  const ops = (
+    CAFE24_OPERATIONS_BY_RESOURCE as Record<
+      string,
+      readonly Cafe24OperationMetadata[] | undefined
+    >
+  )[resource];
   if (!ops) return undefined;
   return ops.find((op) => op.id === operationId);
 }

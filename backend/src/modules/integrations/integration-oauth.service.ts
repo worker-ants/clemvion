@@ -182,8 +182,7 @@ export class IntegrationOAuthService {
         });
       }
       clientId = envClientId;
-      authorizeBaseUrl =
-        STATIC_AUTHORIZE_URLS[service.oauthProvider as 'google' | 'github'];
+      authorizeBaseUrl = STATIC_AUTHORIZE_URLS[service.oauthProvider];
     }
 
     // Fire-and-forget purge of expired records.
@@ -492,7 +491,7 @@ export class IntegrationOAuthService {
       }
       clientId = envId;
       clientSecret = envSecret;
-      tokenUrl = STATIC_TOKEN_URLS[provider as 'google' | 'github'];
+      tokenUrl = STATIC_TOKEN_URLS[provider];
     }
 
     const appUrl = process.env.APP_URL || 'http://localhost:3011';
@@ -631,8 +630,8 @@ function stubTokenResult(
   if (provider === 'cafe24') {
     providerMeta.cafe24_operator_id = `stub-operator-${randomBytes(4).toString('hex')}`;
     const pmMall =
-      beginMeta && typeof (beginMeta as Record<string, unknown>).mall_id === 'string'
-        ? ((beginMeta as Record<string, unknown>).mall_id as string)
+      beginMeta && typeof beginMeta.mall_id === 'string'
+        ? beginMeta.mall_id
         : null;
     if (pmMall) providerMeta.cafe24_response_mall_id = pmMall;
   }
@@ -641,7 +640,8 @@ function stubTokenResult(
     refreshToken: `stub-refresh-${randomBytes(8).toString('hex')}`,
     scopes: requestedScopes,
     tokenExpiresAt: new Date(
-      Date.now() + (provider === 'cafe24' ? 2 * 60 * 60 * 1000 : 30 * 24 * 60 * 60 * 1000),
+      Date.now() +
+        (provider === 'cafe24' ? 2 * 60 * 60 * 1000 : 30 * 24 * 60 * 60 * 1000),
     ),
     providerMeta,
   };

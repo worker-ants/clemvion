@@ -10,9 +10,7 @@ import type { Integration } from '../../../modules/integrations/entities/integra
 
 type Mock = jest.Mock;
 
-function makeIntegration(
-  overrides: Partial<Integration> = {},
-): Integration {
+function makeIntegration(overrides: Partial<Integration> = {}): Integration {
   return {
     id: 'int-cafe24-1',
     workspaceId: 'ws-1',
@@ -308,13 +306,13 @@ describe('Cafe24ApiClient', () => {
       );
       const refreshInit = refreshCall[1] as RequestInit;
       expect(refreshInit.method).toBe('POST');
-      expect((refreshInit.headers as Record<string, string>).Authorization).toMatch(
-        /^Basic /,
-      );
+      expect(
+        (refreshInit.headers as Record<string, string>).Authorization,
+      ).toMatch(/^Basic /);
 
       // Atomic write inspected
       expect(savedIntegration).toBeDefined();
-      const newCreds = savedIntegration!.credentials as Record<string, unknown>;
+      const newCreds = savedIntegration!.credentials;
       expect(newCreds.access_token).toBe('new-access');
       expect(newCreds.refresh_token).toBe('new-refresh');
       expect(typeof newCreds.expires_at).toBe('string');

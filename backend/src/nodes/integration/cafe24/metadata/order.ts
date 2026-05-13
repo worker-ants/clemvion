@@ -70,7 +70,8 @@ export const orderOperations: Cafe24OperationMetadata[] = [
   {
     id: 'order_shipments_create',
     label: '주문 배송 정보 등록',
-    description: 'Register shipping info (carrier, tracking number) for order items.',
+    description:
+      'Register shipping info (carrier, tracking number) for order items.',
     scopeType: 'write',
     method: 'POST',
     path: 'orders/{order_id}/shipments',

@@ -10,7 +10,9 @@ import { CAFE24_RESOURCES } from './metadata/index';
  * spec/4-nodes/4-integration/4-cafe24.md.
  */
 
-const RESOURCE_ENUM = z.enum(CAFE24_RESOURCES as unknown as [string, ...string[]]);
+const RESOURCE_ENUM = z.enum(
+  CAFE24_RESOURCES as unknown as [string, ...string[]],
+);
 
 export const cafe24PaginationSchema = z
   .object({
@@ -34,7 +36,7 @@ export const cafe24NodeConfigSchema = z
         },
         integrationServiceType: 'cafe24',
       }),
-    resource: RESOURCE_ENUM.meta({
+    resource: RESOURCE_ENUM.optional().meta({
       ui: {
         label: 'Resource',
         widget: 'select',
@@ -43,7 +45,7 @@ export const cafe24NodeConfigSchema = z
     }),
     operation: z
       .string()
-      .min(1)
+      .optional()
       .meta({
         ui: { label: 'Operation', widget: 'select', order: 3 },
       }),
