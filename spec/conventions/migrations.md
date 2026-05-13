@@ -82,21 +82,26 @@ Flyway 의 `outOfOrder=true` 옵션은 옛 V번호가 늦게 들어와도 실행
 python3 scripts/check-migration-versions.py --base origin/main
 ```
 
-### 6.2 GitHub branch protection — "Require branches to be up to date before merging"
+### 6.2 머지 직전 rebase 규약 (운영 규약)
 
-PR CI 가 통과한 직후 다른 PR 이 먼저 머지되어 main 의 max(V) 가 추월되는 **merge race** 가 발생할 수 있다. 이는 GitHub 의 branch protection 옵션으로 차단한다.
+PR CI 가 통과한 직후 다른 PR 이 먼저 머지되어 main 의 max(V) 가 추월되는 **merge race** 가 발생할 수 있다. 본 repo 는 GitHub 무료 플랜의 private 저장소여서 branch protection 의 "Require branches to be up to date before merging" 옵션을 사용할 수 없으므로 (자세한 사유는 [§7 대안 4](#대안-4-github-branch-protection--require-branches-to-be-up-to-date)), race 차단을 다음 운영 규약으로 대체한다.
 
-**설정 경로**: Repository **Settings → Branches → Branch protection rules → main → Require branches to be up to date before merging** 활성화.
+**머지 직전 확인 (작성자 책임)**
 
-또는 `gh` CLI:
+1. `git fetch origin main && git rebase origin/main` 으로 base 를 최신화한다.
+2. push 후 `migration-check` 가 PR 의 latest commit 기준 green 인지 확인한다.
+3. 본 PR 에 `migration-recheck-on-main` 알림 코멘트가 게시되어 있다면, 무조건 위 1·2 단계를 다시 수행한다.
 
-```bash
-gh api -X PUT "repos/<owner>/<repo>/branches/main/protection" \
-  -f required_status_checks.strict=true \
-  -f required_status_checks.contexts[]="migration-check / guard"
-```
+이 규약은 [`/.github/PULL_REQUEST_TEMPLATE.md`](../../.github/PULL_REQUEST_TEMPLATE.md) 의 Migration checklist 와 짝을 이룬다 — 작성자는 체크박스를 통해 self-confirmation 한다.
 
-이 옵션이 켜져 있으면 머지 직전 base 가 main HEAD 와 일치해야 하므로, race 발생 시 작성자가 rebase 강제 → `migration-check` 재실행 → 충돌이 표면화된다.
+### 6.3 사후 안전망 — `migration-recheck-on-main`
+
+`backend/migrations/**` 가 main 에 push 될 때 (= migration PR 이 머지된 직후) [`/.github/workflows/migration-recheck-on-main.yml`](../../.github/workflows/migration-recheck-on-main.yml) 이 두 가지를 자동 수행한다.
+
+- **Post-merge sanity** — `python3 scripts/check-migration-versions.py --base HEAD~1` 를 main 에서 실행. dup / gap / 단조성 / `.conf` 페어 위반이 main 에 실제로 도달했으면 워크플로가 fail 하여 Actions 탭에 빨간불이 켜진다 (Slack/Email 알림이 연동되어 있으면 자동 통지).
+- **Auto-nudge** — 열린 PR 중 `backend/migrations/**` 파일이 변경 목록에 포함된 PR 들에 "rebase + CI 재실행 필요" 코멘트를 자동 게시. PR 작성자가 race 가능성을 즉시 인지하고 §6.2 규약을 수행하도록 nudge.
+
+두 작업 모두 머지 자체를 막진 못한다 — 무료 private 환경에서 가능한 최대 강도는 "즉시 가시화 + nudge" 다. 향후 유료 플랜으로 전환 시 [§7 대안 4](#대안-4-github-branch-protection--require-branches-to-be-up-to-date) 의 branch protection 을 §6.2 로 승격하고 본 절은 backup 으로 유지할 수 있다.
 
 ## 7. 폐기 대안 (Rationale)
 
@@ -121,9 +126,23 @@ gh api -X PUT "repos/<owner>/<repo>/branches/main/protection" \
 
 자동화 강도는 가장 높지만:
 
-- GitHub plan 의존성 + 셋업 비용이 작지 않다.
-- 본 repo 규모에서는 branch protection 의 "up-to-date" 옵션만으로도 race 가 충분히 차단된다 — race 빈도가 낮아 queue 의 추가 가치가 크지 않다.
+- GitHub plan 의존성 + 셋업 비용이 작지 않다 (private 저장소의 merge queue 는 유료 플랜 한정).
+- 본 repo 규모에서는 §6.2/§6.3 의 규약 + 사후 안전망만으로도 race 빈도 대비 비용 대비 효율이 더 낫다.
 - 향후 PR 동시성이 늘어 race 가 빈번해지면 재검토 후보로 둔다.
+
+### 대안 4: GitHub branch protection — "Require branches to be up to date"
+
+race 차단의 **정공법**이지만 본 repo 는 GitHub 무료 플랜의 private 저장소여서 다음 제약이 있다.
+
+- Settings → Branches → Branch protection rules 의 일부 옵션 (특히 required status checks / "up to date" 강제) 이 무료 private 에서 비활성화되어 있다.
+- `gh api -X PUT repos/<owner>/<repo>/branches/main/protection` CLI 역시 동일한 플랜 제약으로 실패한다.
+
+따라서 현재는 §6.2 (작성자 책임 규약) + §6.3 (`migration-recheck-on-main`) 으로 대체한다. 향후 유료 플랜으로 전환하면 다음 순서로 승격을 검토한다.
+
+1. Settings → Branches → main → "Require branches to be up to date before merging" 활성화.
+2. `migration-check / guard` 를 required status check 로 등록.
+3. §6.2 의 작성자 책임 규약을 자동화 차단으로 흡수.
+4. §6.3 의 `migration-recheck-on-main` 은 backup 으로 유지 — race 가 사후에라도 main 에 도달했을 때 가시화하는 역할은 branch protection 이 대체하지 못한다.
 
 ---
 
