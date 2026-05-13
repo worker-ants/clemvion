@@ -62,8 +62,14 @@ export class LoginHistoryService {
   ) {}
 
   /**
-   * 인증 이벤트를 기록. 실패해도 인증 흐름을 막아서는 안 되므로 예외는 삼킨다.
-   * 다만 ERROR 수준으로 로그를 남겨 모니터링에서 감지 가능하게 한다.
+   * 인증 이벤트를 기록. 실패해도 인증 흐름을 막아서는 안 되므로 예외는 삼킨다 (호출부에서
+   * `await` 해도 throw 하지 않음). 다만 ERROR 수준으로 로그를 남겨 모니터링에서 감지
+   * 가능하게 한다.
+   *
+   * **호출 규약**: 호출부는 반드시 `await` 한다. fire-and-forget(`void`) 은
+   * 다음 HTTP 요청(예: `/users/me/login-history` 조회) 이 INSERT 보다 먼저 SELECT 를
+   * 실행하는 race 를 만든다 — TypeORM 의 connection pool 이 read/write 를 다른
+   * connection 으로 띄우는 순간 새 row 가 안 보일 수 있다.
    */
   async record(input: LoginEventInput): Promise<void> {
     try {
