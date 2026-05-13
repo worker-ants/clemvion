@@ -63,7 +63,7 @@
 ### 검증
 - [x] backend lint + unit + e2e + build (e2e 는 skip 됨)
 - [x] frontend lint + unit + build (1 회귀는 `plan/in-progress/candidate-picker-test-regression.md` 로 분리)
-- [ ] CF-Connecting-IP curl 검증 — 운영 환경 적용 후 수행
+- [x] CF-Connecting-IP curl 검증 — 운영 환경 적용 후 수행 (2026-05-13 사용자 수동 검증 완료)
 - [x] ai-review + RESOLUTION.md (`review/2026-05-12_07-41-47/RESOLUTION.md`)
 
 ### 후속 follow-up (별도 plan)
