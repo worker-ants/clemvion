@@ -581,3 +581,15 @@ Run Results 드로어와 우측 설정 패널은 동시에 표시될 수 있다.
 ### 10.13 노드 결과 수집
 
 WebSocket `node.started`, `node.completed`, `node.failed`, `node.skipped` 이벤트에 `nodeType`, `nodeLabel`, `output` 필드가 포함된다. 클라이언트는 모든 노드 이벤트를 수신하여 타임라인에 추가한다. REST polling을 통해서도 node relation이 포함된 `NodeExecution` 데이터를 받아 동기화한다.
+
+### 10.14 Re-run 진입점
+
+Run Results 드로어 헤더 우측에 "Re-run" 버튼을 표시한다. 사용자가 워크플로 작성 컨텍스트에서 직전 실행을 빠르게 재실행할 수 있는 보조 진입점이며, 실행 상세 페이지의 진입점([Spec 실행 내역 §3.7](../2-navigation/14-execution-history.md#37-re-run-액션))과 동일한 모달을 띄운다.
+
+| 요소 | 표시 조건 | 동작 |
+| --- | --- | --- |
+| `[⟳ Re-run]` 버튼 | 드로어가 완료된 실행을 보여주고 있을 때 (status: `completed` / `failed` / `cancelled` / `waiting_for_input` 종료) | 권한 미충족 시 hidden (드로어는 작성 컨텍스트라 노이즈 줄임 — 실행 상세 페이지의 disabled 패턴과 다름). 클릭 시 [Spec Re-run §10.2 모달](../5-system/13-replay-rerun.md#102-re-run-모달) |
+| 진행 중 실행 | status: `running` / 진행 중 multi-turn | 버튼 hidden (Re-run 은 종료된 실행만 대상) |
+| 새 실행 시작 후 | 모달이 새 Execution ID 응답 수신 | 드로어를 reset 하고 새 실행 시작 시퀀스 (10.8 라이프사이클) 로 진입. 실행 상세 페이지로 이동하지 않고 현재 에디터에서 새 실행을 모니터링 |
+
+진입점이 두 곳이 되더라도 모달·정책·API 는 단일 source of truth ([Spec Re-run](../5-system/13-replay-rerun.md)) 를 따른다.

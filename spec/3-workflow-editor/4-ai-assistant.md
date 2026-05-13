@@ -262,6 +262,20 @@ interface ExecutionDetailsResponse {
 | `EXECUTION_NOT_FOUND` | id 가 존재하지 않거나 workspace 경계 밖 |
 | `EXECUTION_NOT_IN_SCOPE` | id 는 존재하지만 현재 세션 워크플로의 실행도, 그 직계 자식 실행도 아님 |
 
+#### 4.1.2 Re-run 비트리거 정책
+
+§4.1 의 두 read-only 실행 조회 도구는 **실행을 다시 트리거하지 않는다**. Assistant 가 호출할 수 있는 Re-run 도구 (`re_run_execution` 등) 는 본 spec 에 정의되지 않으며, [Spec Re-run §RR-PL-07](../5-system/13-replay-rerun.md#rr-pl-07--ai-assistant-비트리거-g1) 에서 명시적으로 차단된다.
+
+사용자가 Assistant 에게 "이 실행을 다시 돌려줘", "같은 입력으로 한 번 더" 같이 Re-run 의도를 표현하면 Assistant 는 다음 패턴으로 응답한다:
+
+1. `get_execution_details` 로 원본 실행 정보를 조회해 사용자에게 요약 제시 (status / 노드 통계 / 실패 원인 등)
+2. "Re-run 은 외부 부수효과 정책 (RR-PL-01) 에 따라 사용자가 실행 상세 페이지에서 직접 트리거해야 합니다 — `[⟳ Re-run]` 버튼 ([Spec 실행 내역 §3.7](../2-navigation/14-execution-history.md#37-re-run-액션)) 을 사용하세요" 안내
+3. 실행 상세 페이지로의 deep link 제공 — `/workflows/:workflowId/executions/:executionId`
+
+i18n 안내 키는 [Spec Re-run §10.4 i18n 키](../5-system/13-replay-rerun.md#104-i18n-키) 의 `history.rerun.assistantBlocked` 참조.
+
+향후 Trust 단계 (사용자가 명시적으로 "AI 에게 Re-run 권한 부여" 토글) 도입 후 G2 옵션이 별도 plan 에서 검토될 수 있으나 본 spec 의 범위 밖이다.
+
 ### 4.2 계획 도구 (Plan, no-op on canvas)
 
 | 도구 | 인자 | 반환 | 용도 |
