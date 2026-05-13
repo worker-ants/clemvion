@@ -53,7 +53,7 @@
 | 상태 아이콘 | 🟢 connected / 🟡 expiring(7일 이내)·expired / 🔴 error(reason) |
 | 서비스 아이콘 | 서비스 유형별 로고 |
 | 별칭 | 사용자가 지정한 이름 (`Integration.name`) |
-| 인증 유형 | auth_type을 대문자/공백 정리하여 표시 (`OAuth2`, `API Key`, `Bearer Token`, `Basic`, `Connection String`, `SMTP`, `Webhook Outbound`). `service_type='mcp'` 인 경우 `MCP Server` 로 별도 라벨 |
+| 인증 유형 | auth_type을 대문자/공백 정리하여 표시 (`OAuth2`, `API Key`, `Bearer Token`, `Basic`, `Connection String`, `SMTP`, `Webhook Outbound`). `service_type='mcp'` 인 경우 `MCP Server`, `service_type='cafe24'` 인 경우 `Cafe24` 로 별도 라벨 |
 | 상태 텍스트 | `Connected` / `Expires in Nd` / `Expired` / `Error: <reason>` |
 | Scope 섹션 | Organization / Personal 2개 섹션. 각 섹션 내 최신 생성순 정렬 |
 | 더보기(⋮) | 상세 열기, 연결 테스트, 재인증(OAuth), 삭제(차단 시 비활성) |
@@ -82,16 +82,18 @@
 │  Add Integration — Select a service     │
 │                                         │
 │  ┌─────────┐ ┌─────────┐ ┌─────────┐   │
-│  │ Google  │ │ GitHub  │ │  HTTP   │   │
+│  │ Google  │ │ GitHub  │ │ Cafe24  │   │
 │  └─────────┘ └─────────┘ └─────────┘   │
 │  ┌─────────┐ ┌─────────┐ ┌─────────┐   │
-│  │Database │ │  Email  │ │ Webhook │   │
+│  │  HTTP   │ │Database │ │  Email  │   │
 │  └─────────┘ └─────────┘ └─────────┘   │
-│  ┌─────────┐                            │
-│  │   MCP   │                            │
-│  └─────────┘                            │
+│  ┌─────────┐ ┌─────────┐                │
+│  │ Webhook │ │   MCP   │                │
+│  └─────────┘ └─────────┘                │
 └─────────────────────────────────────────┘
 ```
+
+> 정렬: first-party 서비스(Google/GitHub/Cafe24) → 범용(HTTP/Database/Email/Webhook) → 도구 확장(MCP).
 
 - 카드 클릭 시 `/integrations/new?service=<type>&step=auth` 로 라우팅. 모달은 자동 닫힘.
 - 모달은 목록 페이지 상단에서만 열림 (키보드 `N` 단축키 허용).
@@ -131,6 +133,33 @@ Step 2 auth     ──submit──▶ Step 3 test
 3. 신규 팝업(600×700)으로 OAuth authorize URL 오픈
 4. 팝업 콜백 페이지(`/api/integrations/oauth/callback/:provider`)가 토큰을 저장 후 `postMessage`로 부모창 알림
 5. 부모창은 Step 3로 자동 전이
+
+**OAuth2 흐름 (Cafe24)** — `mall_id` 가 base URL 의 일부이고 authorize URL 도 mall 별로 다르므로 폼 흐름이 Google/GitHub 와 다르다.
+
+1. **사전 입력** (OAuth 버튼 누르기 전 필수):
+   - `Mall ID` (예: `myshop` — `https://myshop.cafe24api.com` 의 hostname prefix). 형식: `/^[a-z0-9-]{3,50}$/` ([§5.8 credentials JSONB](#58-cafe24) validation rule).
+   - `App type` 라디오: **Public** (Cafe24 앱스토어 공개 앱, 우리 서버 env 의 client_id/secret 사용) / **Private** (사용자가 자기 쇼핑몰 관리자에서 비공개 앱을 만들고 client_id/secret 을 직접 입력).
+   - `App type = Private` 선택 시 `client_id`, `client_secret` 입력란이 폼에 추가 표시.
+2. **Scope 카테고리 프리셋** (체크박스, 카테고리 단위): Product (R/W), Order (R/W), Customer (R/W), Category (R/W), Promotion (R/W), Mileage (R/W), Shipping (R/W), Salesreport (R), Translation (R/W), Notification (R/W), 기타 카테고리는 "고급" 토글 아래. 각 체크박스가 Cafe24 scope (`mall.read_<category>` / `mall.write_<category>`) 와 매핑.
+3. **[Connect with Cafe24]** 클릭 → 백엔드 `POST /api/integrations/oauth/begin` 호출. body:
+   ```jsonc
+   {
+     "service": "cafe24",
+     "mode": "new",                  // 'new' | 'reauthorize' | 'request-scopes' — §10.2 분기 필수
+     "mall_id": "myshop",            // cafe24 한정 필수
+     "app_type": "public",           // cafe24 한정 필수: 'public' | 'private'
+     "client_id":     "...",         // app_type='private' 시 필수
+     "client_secret": "...",         // app_type='private' 시 필수
+     "scopes": ["mall.read_product", "mall.write_order", "..."],
+     "integrationId": "..."          // mode != 'new' 시 (reauthorize/request-scopes)
+   }
+   ```
+   응답으로 mall 별 authorize URL 수신.
+4. 신규 팝업(600×700)으로 `https://{mall_id}.cafe24api.com/api/v2/oauth/authorize?...` 오픈.
+5. 팝업 콜백 페이지(`/api/integrations/oauth/callback/cafe24`)가 토큰 저장 후 `postMessage` 로 부모창 알림.
+6. 부모창은 Step 3 로 자동 전이.
+
+> **사전 입력 → preview_token**: `app_type='private'` 의 `client_id`/`client_secret`, 그리고 `mall_id` 는 OAuth 시작 시점부터 우리 서버의 임시 저장소(`oauth_preview`, TTL 10분) 에 보관되어 콜백 처리에서 활용된다 — token 교환 endpoint (§10.3) 가 `mall_id` 의존이므로 callback 흐름이 이 값을 읽어야 한다.
 
 **비OAuth 흐름**
 - 모든 필드를 폼에 입력 후 `[Continue]`로 Step 3로 전이
@@ -426,6 +455,71 @@ AI Agent 노드가 활용하는 외부 [Model Context Protocol](https://modelcon
 
 테스트: `url`에 빈 본문으로 헤드 요청(`HEAD`), 허용 안 될 경우 `POST {}` → 2xx/3xx 기대.
 
+### 5.8 Cafe24
+
+한국 이커머스 SaaS Cafe24 의 Admin API ([공식 문서](https://developers.cafe24.com/docs/ko/api/admin/)) 통합. 하나의 Integration 이 (a) 워크플로의 [`cafe24` 노드](../4-nodes/4-integration/4-cafe24.md), (b) AI Agent 의 MCP 도구 ([§14.2 IntegrationSelector](#142-워크플로우-에디터)) 양쪽에서 사용된다.
+
+**기본 메타**
+
+| 필드 | 값 |
+|------|----|
+| `Integration.service_type` | `cafe24` |
+| `Integration.auth_type` | `oauth2` |
+| `Integration.scope` | `personal` / `organization` |
+
+**credentials JSONB 스키마**
+
+| 필드 | 타입 | 필수 | 비밀 | 설명 |
+|------|------|------|------|------|
+| `mall_id` | string | ✓ | × | Cafe24 쇼핑몰 식별자. base URL `https://{mall_id}.cafe24api.com/api/v2/admin/...` 구성. **Validation**: `/^[a-z0-9-]{3,50}$/` (소문자 영숫자·하이픈, 3~50자) — Cafe24 mall_id 자체 규약 + SSRF 방어 (다른 호스트 주입 차단) |
+| `app_type` | enum `public` \| `private` | ✓ | × | Cafe24 앱 발급 형태. `public` = Cafe24 앱스토어 등록 앱(우리 env client_id/secret), `private` = 사용자가 자기 쇼핑몰 관리자에서 만든 비공개 앱 |
+| `client_id` | string | `app_type='private'` 시 ✓ | × | Private 앱의 OAuth client_id |
+| `client_secret` | string | `app_type='private'` 시 ✓ | 🔒 | Private 앱의 OAuth client_secret |
+| `access_token` | string | ✓ | 🔒 | OAuth access token (2시간 유효) |
+| `refresh_token` | string | ✓ | 🔒 | OAuth refresh token (14일 유효) |
+| `scopes` | string[] | ✓ | × | 사용 권한 scope. `mall.read_<category>` / `mall.write_<category>` 형식 |
+| `expires_at` | ISO8601 | ✓ | × | `access_token` 만료 시각. `Integration.token_expires_at` 컬럼과 §10.5 의 원자 갱신 정책으로 동기화 |
+| `cafe24_operator_id` | string | ✓ | × | 토큰을 발급받은 Cafe24 운영자의 식별 (Cafe24 응답 body 의 `user_id` 값을 본 필드에 매핑 저장 — 내부 `User.id` UUID 와의 혼동 회피 위해 별도 명명) |
+
+> `mall_id` 는 base URL 의 일부이며 authorize URL 도 mall 별로 달라, OAuth begin 단계에서 사용자가 선행 입력해야 한다 (§3.2 Cafe24 흐름 참조).
+
+**OAuth 흐름의 차이점**
+
+- Google/GitHub 처럼 정적 authorize URL 이 아니라 `https://{mall_id}.cafe24api.com/api/v2/oauth/authorize?response_type=code&client_id=...&state=...&redirect_uri=...&scope=...` 로 mall 마다 다른 URL.
+- 토큰 교환 endpoint: `POST https://{mall_id}.cafe24api.com/api/v2/oauth/token` (Basic auth: `client_id:client_secret`).
+- Refresh: 동일 endpoint, `grant_type=refresh_token`. 자동 갱신은 §10.5 흐름 그대로.
+
+**Scope 권장 프리셋**
+
+| 카테고리 | scope 값 (R / W) |
+|---------|------------------|
+| Product | `mall.read_product` / `mall.write_product` |
+| Order | `mall.read_order` / `mall.write_order` |
+| Customer | `mall.read_customer` / `mall.write_customer` |
+| Category | `mall.read_category` / `mall.write_category` |
+| Promotion | `mall.read_promotion` / `mall.write_promotion` |
+| Mileage | `mall.read_mileage` / `mall.write_mileage` |
+| Shipping | `mall.read_shipping` / `mall.write_shipping` |
+| Sales report | `mall.read_salesreport` / — (write 없음) |
+| Translation | `mall.read_translation` / `mall.write_translation` |
+| Notification | `mall.read_notification` / `mall.write_notification` |
+| Application | `mall.read_application` / `mall.write_application` |
+| Store | `mall.read_store` / `mall.write_store` |
+| Design | `mall.read_design` / `mall.write_design` |
+| Community | `mall.read_community` / `mall.write_community` |
+| Collection | `mall.read_collection` / `mall.write_collection` |
+| Supply | `mall.read_supply` / `mall.write_supply` |
+| Personal | `mall.read_personal` / `mall.write_personal` |
+| Privacy | `mall.read_privacy` / `mall.write_privacy` |
+
+UI 는 카테고리 단위 체크박스(R / W 두 컬럼) + "고급" 토글 아래 개별 scope 추가 입력란.
+
+**테스트 방법**: 저장된 `access_token` 으로 `GET https://{mall_id}.cafe24api.com/api/v2/admin/store` 핑. 응답 200 + JSON 본문 확인.
+
+**Rate Limit 정책**: Cafe24 leaky bucket. 응답 헤더 `X-Cafe24-Call-Remain`(재개까지 초), `X-Cafe24-Call-Usage`(%), `X-Api-Call-Limit`(현재/상한) 을 backend `Cafe24ApiClient` wrapper 가 모니터링. 429 응답 시 `X-Cafe24-Call-Remain` 값만큼 sleep 후 최대 2회 재시도. 노드 호출 / AI Agent MCP 호출 모두 같은 wrapper 를 통과해 동일 프로세스 인스턴스 내 Integration 단위로 leaky bucket 공유 — 같은 Integration 을 동시에 헤비하게 쓰면 양쪽이 함께 대기한다. 멀티 인스턴스 환경의 직렬화는 보장되지 않음 ([Spec Cafe24 §4.1](../4-nodes/4-integration/4-cafe24.md#41-rate-limit-처리-상세) 참조).
+
+**AI Agent 노출**: `service_type='cafe24'` Integration 은 AI Agent 의 `mcpServers` 셀렉트에서도 선택 가능하며, 선택 시 백엔드의 `Cafe24McpBridge` 가 in-process `IMcpClient` 로 동작해 18 카테고리의 Resource × Operation 을 MCP tool 로 노출한다. 도구 이름·allowlist 규약은 [Spec MCP Client §5](../5-system/11-mcp-client.md#5-도구-노출-모델) 그대로. 상세는 [Cafe24 노드 spec §"AI Agent 노출"](../4-nodes/4-integration/4-cafe24.md#8-ai-agent-노출-internal-mcp-bridge).
+
 ---
 
 ## 6. 상태 전이
@@ -523,7 +617,7 @@ Please replace or remove these node references first.
 
 | 메서드 | 경로 | 설명 |
 |--------|------|------|
-| POST | `/api/integrations/oauth/begin` | OAuth 시작 — state 발급, authUrl 반환. body: `{ service, scopes[], mode: 'new'\|'reauthorize'\|'request-scopes', integrationId? }` |
+| POST | `/api/integrations/oauth/begin` | OAuth 시작 — state 발급, authUrl 반환. body: `{ service, scopes[], mode: 'new'\|'reauthorize'\|'request-scopes', integrationId? }`. **`service='cafe24'` 시 추가 필수 필드**: `mall_id`, `app_type: 'public'\|'private'`. `app_type='private'` 시 `client_id`, `client_secret` 추가 필수. body 의 cafe24 한정 필드들은 `oauth_preview` 임시 저장소(TTL 10분)에 함께 보관되어 callback (§10.2) 에서 token 교환에 사용된다 |
 | GET | `/api/integrations/oauth/callback/:provider` | OAuth 콜백 (§10) |
 | POST | `/api/integrations/preview-test` | 저장 전 인증 정보로 연결 테스트. body: `{ service, authType, credentials }` |
 | POST | `/api/integrations/:id/reauthorize` | OAuth 재인증 authUrl 발급 |
@@ -562,7 +656,7 @@ GET /api/integrations/oauth/callback/:provider
 
 | 파라미터 | 설명 |
 |----------|------|
-| `:provider` | OAuth 제공자 (`google`, `github`) |
+| `:provider` | OAuth 제공자 (`google`, `github`, `cafe24`) |
 | `code` | Authorization Code |
 | `state` | CSRF 방지 토큰 (서버 발급) |
 | `error` | OAuth 에러 코드 (거부 등) |
@@ -599,6 +693,9 @@ window.close();
 |----------|-----------|-----------------|---------|
 | Google | `https://oauth2.googleapis.com/token` | 사용자 체크박스 선택 결과 | ✓ |
 | GitHub | `https://github.com/login/oauth/access_token` | `repo`, `read:org` | ✗ |
+| Cafe24 | `https://{mall_id}.cafe24api.com/api/v2/oauth/token` | 사용자 체크박스(카테고리 R/W) 결과 | ✓ |
+
+> **Cafe24 한정**: Token URL 이 `mall_id` 의존 변수. `oauth/begin` 시점에 사용자가 입력한 `mall_id` 를 `oauth_preview` 임시 저장소에 함께 저장하여 callback 의 token 교환에서 사용한다 (§10.2 4단계의 `new`/`reauthorize`/`request-scopes` 분기에 모두 적용).
 
 ### 10.4 에러 매핑
 
@@ -613,12 +710,16 @@ window.close();
 
 - Refresh token 보유 시: 노드 실행 직전 만료 확인 → 만료됐으면 갱신 후 호출
 - 갱신 실패 시: 상태 `expired` + `integration_expired` 알림 생성 (§11)
+- **원자 갱신**: 토큰 갱신 성공 시 `credentials.access_token` / `credentials.refresh_token` / `credentials.expires_at` / `Integration.token_expires_at` 4개 필드를 **동일 트랜잭션 내 원자 UPDATE**. partial write 시 다음 노드 실행이 inconsistent token state 를 사용하는 race condition 방지.
+- **Cafe24 한정**: 갱신 endpoint 도 `https://{credentials.mall_id}.cafe24api.com/api/v2/oauth/token`. `mall_id` 누락 시 `INTEGRATION_INCOMPLETE` 로 즉시 실패.
 
 ---
 
 ## 11. 만료 스캐너 및 알림
 
 > `service_type='mcp'` Integration 은 OAuth refresh token 흐름이 아니므로 `token_expires_at` 가 항상 NULL → 본 §11 의 임계치 알림 흐름은 적용되지 않는다. MCP 인증 실패는 노드 실행 시점에 401/403 으로 감지되어 `error(auth_failed)` 로 격하되며, 사용자는 `Rotate credentials` 로 토큰을 교체한다 (상세 [Spec MCP Client §8](../5-system/11-mcp-client.md#8-에러-처리)).
+
+> `service_type='cafe24'` Integration 은 OAuth refresh token 을 보유하므로 본 §11 의 임계치 알림 흐름이 정상 적용된다. `token_expires_at` 가 만료 7일/3일/당일 임계에 도달하면 `integration_expired` 알림이 발사된다. Refresh 실패 시 §10.5 의 원자 갱신 정책이 partial write 를 방지하며, 갱신 실패한 토큰 셋은 그대로 expire 처리되어 사용자에게 reauthorize 권장.
 
 ### 11.1 스캐너 잡
 
@@ -717,11 +818,13 @@ Cron: 0 0 * * *   (워크스페이스 타임존 00:00)
 | `send_email` | 매 호출 (성공/실패 모두) |
 | `database_query` | 매 호출 (성공/실패 모두) |
 | `http_request` | `authentication === 'integration'`인 경우에만 기록 (None/Custom은 Usage 대상 아님) |
+| `cafe24` | 매 호출 (성공/실패 모두). AI Agent 의 `Cafe24McpBridge` 를 통한 호출도 동일 로그에 기록 — `node_execution_id` 는 호출 시점의 AI Agent NodeExecution. 메타도구는 미사용 ([Spec MCP Client §8.3 IntegrationUsageLog](../5-system/11-mcp-client.md#83-integrationusagelog)) |
 
 ### 14.2 워크플로우 에디터
 
-- 노드 설정 패널에서 Integration 선택은 `IntegrationSelector` 공용 드롭다운을 사용한다 — `serviceTypes` prop으로 목록을 필터(Send Email은 `email`, Database는 `database`, HTTP의 `authentication='integration'` 모드는 `http`, AI Agent 의 `mcpServers` 항목은 `mcp`).
-- AI Agent 노드는 Integration 노드와 달리 `mcpServers` 가 다중 선택 (multi-select) 이며, 서버별로 도구 allowlist·resource/prompt 노출 토글 UI 가 추가된다 ([Spec AI Agent](../4-nodes/3-ai/1-ai-agent.md), [Spec MCP Client §5.6](../5-system/11-mcp-client.md#56-도구-allowlist)).
+- 노드 설정 패널에서 Integration 선택은 `IntegrationSelector` 공용 드롭다운을 사용한다 — `serviceTypes` prop으로 목록을 필터(Send Email은 `email`, Database는 `database`, HTTP의 `authentication='integration'` 모드는 `http`, Cafe24 노드는 `cafe24`, AI Agent 의 `mcpServers` 항목은 `['mcp', 'cafe24']`).
+- AI Agent 의 `mcpServers` 셀렉트는 `service_type='mcp'` 와 `service_type='cafe24'` 를 모두 받는다 — 후자는 backend `Cafe24McpBridge` 가 in-process `IMcpClient` 로 동작 ([Spec MCP Client §2.3 Internal Bridge](../5-system/11-mcp-client.md#23-internal-bridge)). UI 는 두 그룹을 시각적으로 분리 표시 (`🌐 Generic MCP (HTTP) servers` / `🛒 Cafe24 stores (Internal Bridge)`).
+- AI Agent 노드는 Integration 노드와 달리 `mcpServers` 가 다중 선택 (multi-select) 이며, 서버별로 도구 allowlist·resource/prompt 노출 토글 UI 가 추가된다 — Cafe24 의 경우 도구 수가 많아(Resource × Operation = ~180) allowlist UI 가 Resource 단위 grouping 으로 노출된다 ([Spec AI Agent](../4-nodes/3-ai/1-ai-agent.md), [Spec MCP Client §5.6](../5-system/11-mcp-client.md#56-도구-allowlist)).
 - 연동 상태 배지를 함께 노출하며(§7.3), 해당 타입의 연동이 0건이면 `+ Create {Service} integration` CTA 링크를 select 아래에 표시(`/integrations/new?service=…&step=auth`).
 - 삭제된 integrationId가 저장돼 있으면 `{id앞8자}… (missing)` 옵션을 추가해 값 보존.
 

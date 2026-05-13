@@ -342,7 +342,7 @@ interface CandidateEntry {
 
 | widget | 조회 | 필터 |
 |--------|------|------|
-| `integration-selector` | `Integration` | `workspace_id` 일치 + `status='connected'`. 노드 스키마 meta 에 `integrationServiceType` 힌트가 있으면 해당 `service_type` 만, 없으면 전체 connected integration. |
+| `integration-selector` | `Integration` | `workspace_id` 일치 + `status='connected'`. 노드 스키마 meta 에 `integrationServiceType` 힌트가 있으면 해당 `service_type` 만 (string 단일값 또는 `string[]` 배열 — 배열이면 `service_type IN (...)` 쿼리), 없으면 전체 connected integration. AI Agent `mcpServers` widget 의 hint 는 `['mcp', 'cafe24']` ([Spec 통합 §14.2](../2-navigation/4-integration.md#142-워크플로우-에디터) — `serviceTypes` prop 화이트리스트의 single source of truth, Internal Bridge ([Spec MCP Client §2.3](../5-system/11-mcp-client.md#23-internal-bridge)) 적용 service_type 이 추가되면 동시 갱신). |
 | `llm-config-selector` | `LlmConfig` | `workspace_id` 일치. 최근 업데이트 순. |
 | `kb-selector` | `KnowledgeBase` | `workspace_id` 일치. 이름 오름차순. |
 | `workflow-selector` | `Workflow` | 같은 `workspace_id` **&&** `id != session.workflow_id` (현재 편집 중 워크플로 제외). 최근 업데이트 순. |

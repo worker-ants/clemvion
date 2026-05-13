@@ -75,6 +75,7 @@
 | INT-SV-02 | Database — PostgreSQL, MySQL 등 직접 쿼리 | 필수 |
 | INT-SV-03 | Email (SMTP) — 이메일 전송 | 필수 |
 | INT-SV-04 | Webhook — 외부 이벤트 수신 | 필수 |
+| INT-SV-05 | Cafe24 — 한국 이커머스 SaaS 의 Admin API (상품·주문·회원 등 18 카테고리). 같은 Integration 이 워크플로 노드와 AI Agent MCP 도구 양쪽에서 활용 ([Spec Cafe24 노드](./4-cafe24.md)) | 필수 |
 
 ### 2.7 조직 레벨 연동
 
