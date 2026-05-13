@@ -115,6 +115,8 @@ KB 도메인 외에는 라이프사이클이 정의되어 있지 않다. KB 의 
 1. spec §2.7 을 코드에 맞춰 `kb/<kbId>/<docId>/...` 로 수정 + workspace 격리는 DB 권한 + presigned URL
 2. 코드를 spec §2.7 에 맞춰 마이그레이션 (기존 객체 이동 + DB `file_url` 업데이트 배치)
 
+> **2026-05-13 갱신** — 옵션 1 채택으로 [`plan/complete/spec-consistency-fixes.md`](../../plan/complete/spec-consistency-fixes.md) 에서 해소됨. `spec/0-overview.md §2.7` 다이어그램이 코드 기준 (`kb/{kbId}/{documentId}/{sanitizedFilename}`) 으로 정정됐고, Form/Avatar 영역은 "계획" 상태로 분리 표기.
+
 ### `s3Service.delete` 실패가 warn 처리인 이유
 
 문서 row 가 DB 에서 사라진 뒤 S3 객체만 남는 것은 storage cost 누수일 뿐 데이터 정합성 깨짐은 아니다.

@@ -15,7 +15,7 @@ PR #5 의 `spec/data-flow/file-storage.md`·`spec/data-flow/execution.md` 작성
   - Form/Avatar 영역은 코드 측 upload 호출이 존재하지 않으므로 "계획" 상태로 분리 표기. `s3Service.upload` 호출 site 는 grep 결과 KB 한 곳뿐.
 - [x] **§2.13 정정** — `spec/1-data-model.md` 의 Execution 테이블에서 `execution_path UUID[]` 행 제거. 신규 §2.13.1 `ExecutionNodeLog` 추가. 인덱스 전략 표에 `(execution_id, id)` 추가. 본문 하단 Rationale 섹션 신설 — V035/V036 migration 인용.
 - [x] **plan 노트 생성** — 본 문서.
-- [~] **data-flow cross-link 갱신** — skip. 본 worktree base 가 main 이라 PR #5 의 `spec/data-flow/` 가 존재하지 않음. PR #5 머지 후 별도 follow-up.
+- [x] **data-flow cross-link 갱신** — PR #5 머지 후 plan-cleanup 후속 작업(2026-05-13) 에서 `spec/data-flow/file-storage.md` Rationale §S3 key 권장 문구 + `spec/data-flow/execution.md` Rationale §execution_path DROP 두 곳에 본 plan 으로 해소됐다는 cross-link 추가.
 - [x] **잔존 broken refs 11건 일괄 정정** — `check-doc-links.py` 가 baseline 으로 보고하던 11건(docs-consolidation 2026-05-12 잔존)을 동일 PR 안에서 해소. 세 그룹:
   - Group A (1건): `spec/2-navigation/14-execution-history.md` 의 옛 `./2-workflow-editor.md` 참조를 `../3-workflow-editor/_product-overview.md` 로 정정.
   - Group B (4건): `spec/3-workflow-editor/_product-overview.md` 와 `spec/4-nodes/3-ai/_product-overview.md` 의 `../frontend/...` 상대 깊이를 `../../frontend/...` / `../../../frontend/...` 로 정정.
@@ -36,4 +36,4 @@ PR #5 의 `spec/data-flow/file-storage.md`·`spec/data-flow/execution.md` 작성
 
 ## 후속
 
-- PR #5 (`worktree-agent-aba12ac1347e1d069`) 머지 후, `spec/data-flow/file-storage.md`·`spec/data-flow/execution.md` 의 Rationale 메모(있다면 "1-data-model 정합성은 후속 plan" 류) 를 "본 plan 에서 해소됨" 으로 한 줄 갱신. 본 plan 의 작업 자체는 끝이므로 본 항목 처리 후 `plan/complete/` 로 이동.
+- PR #5 머지 후 `spec/data-flow/file-storage.md`·`spec/data-flow/execution.md` Rationale 두 곳에 본 plan 해소 cross-link 추가 완료 (2026-05-13). 작업 closure → `plan/complete/` 로 이동.
