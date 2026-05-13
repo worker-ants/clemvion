@@ -42,7 +42,11 @@ jobs:
       # 을 자동 설정하지만, base 브랜치 ref 를 fetch 해야 origin/<base> 로
       # 비교할 수 있다.
       - name: Fetch base ref
-        run: git fetch --no-tags --depth=0 origin "${{ github.base_ref }}"
+        # actions/checkout@v5 의 fetch-depth: 0 이 전체 history 를 가져오지만,
+        # PR 컨텍스트에서 base 브랜치의 origin/<base> ref 가 항상 set 되어 있지
+        # 않을 수 있어 명시적으로 fetch. --depth 는 양의 정수만 허용하므로
+        # 옵션 자체를 제거해 전체 fetch (이미 unshallow 상태라 비용 미미).
+        run: git fetch --no-tags origin "${{ github.base_ref }}"
 
       - name: Check migration versions
         run: python3 scripts/check-migration-versions.py --base "origin/${{ github.base_ref }}"
