@@ -61,10 +61,18 @@ export function McpServerSelector({ value, onChange }: Props) {
   const safe = Array.isArray(value) ? value : [];
   const [pickerOpen, setPickerOpen] = useState(false);
 
+  // MCP-capable integrations cover external HTTP servers (service_type='mcp')
+  // and Internal Bridge integrations (currently service_type='cafe24'). Both
+  // expose their tools via the `mcp_<sid>__<tool>` naming scheme, so the
+  // AI Agent's mcpServers picker treats them as one homogeneous list. See
+  // spec/5-system/11-mcp-client.md §2.3 + spec/2-navigation/4-integration.md §14.2.
   const { data, isLoading, isError } = useQuery({
-    queryKey: ["integrations", "mcp"],
+    queryKey: ["integrations", "mcp-capable"],
     queryFn: () =>
-      integrationsApi.list({ serviceType: ["mcp"], limit: MCP_LIST_LIMIT }),
+      integrationsApi.list({
+        serviceType: ["mcp", "cafe24"],
+        limit: MCP_LIST_LIMIT,
+      }),
     staleTime: 30_000,
   });
 
@@ -178,20 +186,40 @@ export function McpServerSelector({ value, onChange }: Props) {
               All available MCP servers are already attached.
             </p>
           ) : (
-            <div className="space-y-0.5">
-              {available.map((i) => (
-                <button
-                  key={i.id}
-                  type="button"
-                  onClick={() => add(i.id)}
-                  className="flex w-full items-center gap-2 rounded px-1.5 py-1 text-left text-xs hover:bg-[hsl(var(--accent))]"
-                >
-                  <span className="truncate">{i.name}</span>
-                  <span className="ml-auto text-[9px] uppercase text-[hsl(var(--muted-foreground))]">
-                    {i.status}
-                  </span>
-                </button>
-              ))}
+            <div className="space-y-1.5">
+              {([
+                {
+                  key: "mcp",
+                  heading: "🌐 Generic MCP (HTTP) servers",
+                  items: available.filter((i) => i.serviceType === "mcp"),
+                },
+                {
+                  key: "cafe24",
+                  heading: "🛒 Cafe24 stores (Internal Bridge)",
+                  items: available.filter((i) => i.serviceType === "cafe24"),
+                },
+              ] as const).map((group) =>
+                group.items.length === 0 ? null : (
+                  <div key={group.key}>
+                    <div className="px-1 pb-0.5 text-[9px] font-medium uppercase tracking-wide text-[hsl(var(--muted-foreground))]">
+                      {group.heading}
+                    </div>
+                    {group.items.map((i) => (
+                      <button
+                        key={i.id}
+                        type="button"
+                        onClick={() => add(i.id)}
+                        className="flex w-full items-center gap-2 rounded px-1.5 py-1 text-left text-xs hover:bg-[hsl(var(--accent))]"
+                      >
+                        <span className="truncate">{i.name}</span>
+                        <span className="ml-auto text-[9px] uppercase text-[hsl(var(--muted-foreground))]">
+                          {i.status}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                ),
+              )}
             </div>
           )}
           <Button

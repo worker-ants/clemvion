@@ -127,12 +127,32 @@ export default function NewIntegrationPage() {
 
   const oauthBeginMutation = useMutation({
     mutationFn: async () => {
+      // Cafe24 needs mall_id + app_type (and private-app credentials) on
+      // the begin call so the backend can build the mall-specific
+      // authorize URL and persist them on the OAuth state row.
+      // spec/2-navigation/4-integration.md §3.2 / §9.2.
+      const cafe24Extra =
+        serviceType === "cafe24"
+          ? {
+              mallId: String(credentials.mall_id ?? "").trim(),
+              appType:
+                (credentials.app_type as "public" | "private" | undefined) ??
+                "public",
+              ...(credentials.app_type === "private"
+                ? {
+                    clientId: String(credentials.client_id ?? ""),
+                    clientSecret: String(credentials.client_secret ?? ""),
+                  }
+                : {}),
+            }
+          : {};
       return integrationsApi.oauthBegin({
         service: serviceType,
         scopes: selectedScopes,
         mode: "new",
         integrationName: name,
         scope,
+        ...cafe24Extra,
       });
     },
     onSuccess: ({ authUrl }) => {
@@ -210,6 +230,29 @@ export default function NewIntegrationPage() {
     if (!name.trim()) return t("integrations.nameRequired");
     const isOAuth = variant.authType === "oauth2";
     if (isOAuth) {
+      // Cafe24 begin-time validation — mirror backend OAuth begin checks
+      // so users hit them locally before the popup opens.
+      if (serviceType === "cafe24") {
+        const mallId = String(credentials.mall_id ?? "").trim();
+        if (!/^[a-z0-9-]{3,50}$/.test(mallId)) {
+          return "Mall ID must be 3-50 lowercase letters, digits, or hyphens.";
+        }
+        const appType = credentials.app_type as
+          | "public"
+          | "private"
+          | undefined;
+        if (appType !== "public" && appType !== "private") {
+          return "Cafe24 app type must be 'public' or 'private'.";
+        }
+        if (appType === "private") {
+          if (!String(credentials.client_id ?? "").trim()) {
+            return "Private apps require client_id.";
+          }
+          if (!String(credentials.client_secret ?? "").trim()) {
+            return "Private apps require client_secret.";
+          }
+        }
+      }
       if (selectedScopes.length === 0) return t("integrations.selectAtLeastOneScope");
       if (!previewToken) return t("integrations.completeOauth");
       return null;
@@ -463,6 +506,13 @@ function AuthStep({
         />
       )}
 
+      {variant?.authType === "oauth2" && service.type === "cafe24" && (
+        <Cafe24ExtraFields
+          credentials={credentials}
+          setCredentials={setCredentials}
+        />
+      )}
+
       {variant?.authType === "oauth2" && service.scopes.length > 0 && (
         <div>
           <Label>{t("integrations.oauthScopesLabel")}</Label>
@@ -532,6 +582,104 @@ function AuthStep({
       <div className="flex justify-end">
         <Button onClick={onContinue}>{t("integrations.continueBtn")}</Button>
       </div>
+    </div>
+  );
+}
+
+/**
+ * Cafe24-only extra fields for OAuth2 — Mall ID + App type (+ private-app
+ * client_id / client_secret). Stored on the same `credentials` map so the
+ * page-level oauthBegin handler can pluck them out at the call site.
+ * spec/2-navigation/4-integration.md §3.2 (OAuth2 Cafe24 흐름).
+ */
+function Cafe24ExtraFields({
+  credentials,
+  setCredentials,
+}: {
+  credentials: Record<string, unknown>;
+  setCredentials: (c: Record<string, unknown>) => void;
+}) {
+  const set = (key: string, value: unknown) =>
+    setCredentials({ ...credentials, [key]: value });
+  const mallId = String(credentials.mall_id ?? "");
+  const appType =
+    (credentials.app_type as "public" | "private" | undefined) ?? "public";
+  const clientId = String(credentials.client_id ?? "");
+  const clientSecret = String(credentials.client_secret ?? "");
+
+  return (
+    <div className="space-y-4 rounded-md border border-[hsl(var(--border))] bg-[hsl(var(--muted))]/20 p-4">
+      <div>
+        <Label htmlFor="cafe24-mall-id">
+          Mall ID <span className="text-red-500">*</span>
+        </Label>
+        <Input
+          id="cafe24-mall-id"
+          placeholder="myshop"
+          value={mallId}
+          onChange={(e) => set("mall_id", e.target.value.trim())}
+          pattern="^[a-z0-9-]{3,50}$"
+        />
+        <p className="mt-1 text-xs text-[hsl(var(--muted-foreground))]">
+          Lower-case letters, digits, and hyphens, 3–50 chars. Forms the
+          base URL <code>https://{"{mall_id}"}.cafe24api.com</code>.
+        </p>
+      </div>
+
+      <div>
+        <Label>
+          App Type <span className="text-red-500">*</span>
+        </Label>
+        <div className="inline-flex w-full rounded-lg border border-[hsl(var(--border))] p-1">
+          {(["public", "private"] as const).map((opt) => (
+            <button
+              key={opt}
+              type="button"
+              className={cn(
+                "flex-1 rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
+                appType === opt
+                  ? "bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))]"
+                  : "text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]",
+              )}
+              onClick={() => set("app_type", opt)}
+            >
+              {opt === "public" ? "Public (App Store)" : "Private (Self-issued)"}
+            </button>
+          ))}
+        </div>
+        <p className="mt-1 text-xs text-[hsl(var(--muted-foreground))]">
+          <strong>Public</strong> — official Cafe24 app store app (server-side
+          credentials). <strong>Private</strong> — paste the
+          client_id / client_secret from your shop&apos;s admin.
+        </p>
+      </div>
+
+      {appType === "private" && (
+        <>
+          <div>
+            <Label htmlFor="cafe24-client-id">
+              Client ID <span className="text-red-500">*</span>
+            </Label>
+            <Input
+              id="cafe24-client-id"
+              value={clientId}
+              onChange={(e) => set("client_id", e.target.value)}
+            />
+          </div>
+          <div>
+            <Label htmlFor="cafe24-client-secret">
+              Client Secret <span className="text-red-500">*</span>
+            </Label>
+            <Input
+              id="cafe24-client-secret"
+              type="password"
+              autoComplete="new-password"
+              value={clientSecret}
+              onChange={(e) => set("client_secret", e.target.value)}
+            />
+          </div>
+        </>
+      )}
     </div>
   );
 }
