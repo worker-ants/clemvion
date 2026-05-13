@@ -52,3 +52,13 @@ plan-cleanup 후속 작업에서 코드를 spot-check 한 결과 — **컴포넌
 (a) `useT` 의 `getServerSnapshot` 도 `useLocaleStore.getState().locale` 를 읽게 하거나, (b) 테스트 setup 에서 `act(() => useLocaleStore.setState({ locale: "ko" }))` + `await waitFor(() => screen.findByText(...))` 로 hydration 보장. `executions-list-test-regression.md` 와 같은 root cause 일 가능성이 높아 통합 수정 검토 권장.
 
 본 plan 은 owner 가 받는 시점까지 `in-progress/` 유지.
+
+## 해결 (2026-05-13)
+
+`executions-list-test-regression.md` 와 같은 root cause. `frontend/src/lib/i18n/index.ts:21, :37` 의 `useT` · `useLocale` 가 `useSyncExternalStore.getServerSnapshot` 으로 `() => DEFAULT_LOCALE` 을 넘기던 회귀를 store 읽기로 교체.
+
+- fix: `frontend/src/lib/i18n/index.ts`
+- regression guard: `frontend/src/lib/i18n/__tests__/useT.test.tsx` 에서 ko 첫 렌더 + locale flip 시나리오 박제.
+- 검증: `vitest run src/components/editor/assistant-panel/candidate-picker.test.tsx` 통과, 전체 vitest 1280/1280 pass.
+
+> 주: 본 plan 본문 §"의심 root cause" 가 `DEFAULT_LOCALE` 을 `"en"` 으로 잘못 기재했었음 — 실제 `frontend/src/lib/i18n/types.ts:4` 값은 `"ko"`. 그래서 ko 시나리오인데도 안내 박스가 안 보였던 원-증상 불일치로 혼란이 있었으나, 실은 Suspense 재마운트 경로에서 server snapshot 채택 시점이 mock 데이터 fetch resolve 전이라 `candidates === undefined` 로 안내 박스 분기가 건너뛰어진 동작이었다. fix 적용 후 정상화.

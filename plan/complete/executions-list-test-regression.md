@@ -49,3 +49,12 @@ plan-cleanup 후속 작업의 spot-check 결과:
 - (b) 테스트 setup 헬퍼 (`tests/setup-locale.ts` 신설) 로 `act` + `waitFor` 패턴 표준화 — i18n 구독 타이밍을 매번 보장
 
 본 plan 은 owner 가 받는 시점까지 `in-progress/` 유지.
+
+## 해결 (2026-05-13)
+
+가설 (a) 가 정확했음. `frontend/src/lib/i18n/index.ts:21, :37` 의 `useT` · `useLocale` 가 `useSyncExternalStore` 의 3번째 인자(`getServerSnapshot`) 로 `() => DEFAULT_LOCALE` (`"ko"` 하드코딩) 을 넘기고 있었고, Suspense throw 후 재마운트 경로에서 이 server snapshot 이 활성화되며 `useLocaleStore.setState({ locale: "en" })` 가 첫 렌더에 무시되는 동작이 재현됐다. 두 인자 모두 `() => useLocaleStore.getState().locale` 로 통일.
+
+- fix: `frontend/src/lib/i18n/index.ts`
+- regression guard: `frontend/src/lib/i18n/__tests__/useT.test.tsx` (en/ko 첫 렌더 + locale flip 3 케이스)
+- 검증: `vitest run src/app/(main)/workflows/[id]/executions/__tests__/execution-list-page.test.tsx src/components/editor/assistant-panel/candidate-picker.test.tsx` → 18/18 pass; 전체 vitest 1280/1280 pass.
+- 같은 fix 로 `candidate-picker-test-regression.md` 도 동시 해소.
