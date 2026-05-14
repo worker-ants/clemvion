@@ -13,6 +13,7 @@ import { NotificationsModule } from '../notifications/notifications.module';
 import { AuditLogsModule } from '../audit-logs/audit-logs.module';
 import { McpModule } from '../mcp/mcp.module';
 import { IntegrationsController } from './integrations.controller';
+import { ThirdPartyOAuthController } from './third-party-oauth.controller';
 import { IntegrationsService } from './integrations.service';
 import { IntegrationOAuthService } from './integration-oauth.service';
 import {
@@ -40,7 +41,7 @@ import {
     AuditLogsModule,
     McpModule,
   ],
-  controllers: [IntegrationsController],
+  controllers: [IntegrationsController, ThirdPartyOAuthController],
   providers: [
     IntegrationsService,
     IntegrationOAuthService,

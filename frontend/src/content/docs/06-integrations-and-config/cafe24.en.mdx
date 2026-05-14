@@ -35,8 +35,8 @@ To finish Step 2 with App Type = **Private** you need a `client_id` / `client_se
 | Field | Value |
 |---|---|
 | **App Name (관리 상품명)** | Anything, e.g. `Clemvion Integration` |
-| **App URL** | **`https://<your-deployment>/api/integrations/oauth/install/cafe24`** — the endpoint this service exposes for Cafe24's "Test Run" callback. Cafe24 calls this URL, the service verifies the HMAC, and starts the OAuth flow. |
-| **Redirect URI** | **`https://<your-deployment>/api/integrations/oauth/callback/cafe24`** — this backend's OAuth callback endpoint. **Cafe24 verifies this character-by-character** — trailing slash, `http` vs `https`, port, typos all matter. If you have multiple environments (local, staging, production), register every URL here so any environment's OAuth flow goes through the same app |
+| **App URL** | **`https://<your-deployment>/api/3rd-party/cafe24/install/<install_token>`** — the endpoint this service exposes for Cafe24's "Test Run" callback. The `<install_token>` is a 22-char value our integration setup screen issues for you. **Copy the full URL from the setup screen** rather than typing it. The path is kept short to fit Cafe24's 100-char limit on the App URL field. |
+| **Redirect URI** | **`https://<your-deployment>/api/3rd-party/cafe24/callback`** — this backend's OAuth callback endpoint. **Cafe24 verifies this character-by-character** — trailing slash, `http` vs `https`, port, typos all matter. If you have multiple environments (local, staging, production), register every URL here so any environment's OAuth flow goes through the same app |
 | **API Permissions (Scope)** | Tick the read/write categories your workflows will hit. Mirrors the Scope checkboxes on the Step 2 form |
 | Webhook settings | Optional, leave blank |
 
@@ -147,7 +147,7 @@ See the [official Cafe24 docs](https://developers.cafe24.com/docs/ko/api/admin/#
 The `redirect_uri` parameter this service sent does not exactly match any Redirect URI registered on the Cafe24 Developers app. Cafe24 compares the URL character-by-character — trailing slash (`…/cafe24` vs `…/cafe24/`), `http` vs `https`, host typos, and port specs all count. Fastest fix: copy the `redirect_uri=` query value out of the authorize URL that errored, and paste it verbatim into the app's Redirect URI field on Cafe24 Developers.
 
 **Q. How do I register callback URLs for multiple environments (local / staging / production)?**
-The Cafe24 app's Redirect URI field accepts multiple entries. Add the full `https://<env-host>/api/integrations/oauth/callback/cafe24` for every environment that will start an OAuth flow through this app.
+The Cafe24 app's Redirect URI field accepts multiple entries. Add the full `https://<env-host>/api/3rd-party/cafe24/callback` for every environment that will start an OAuth flow through this app.
 
 **Q. OAuth start fails with `invalid_scope: The scope added by Cafe24 Developers is invalid`.**
 Cafe24 requires **comma-delimited** scopes on `/oauth/authorize` (a deviation from RFC 6749 §3.3 which mandates space). This service already sends comma-delimited scopes, but if you still see `invalid_scope`, one of these is the cause:
@@ -165,7 +165,7 @@ Cafe24 requires **comma-delimited** scopes on `/oauth/authorize` (a deviation fr
 **Q. Can I register an integration while my service is still in development?**
 Yes. The **Private app** flow works without any App Store review. Note that unlike Public-app auth (which opens a popup), Private-app auth is *initiated by Cafe24* — you click "Test Run" in Cafe24 Developers, not a button in this service. Quick summary:
 
-1. Cafe24 Developers: create an app → set App URL to `https://<your-host>/api/integrations/oauth/install/cafe24` → set Redirect URI → enable scopes → copy client_id/secret.
+1. Cafe24 Developers: create an app → set App URL to the full value our setup screen issues (`https://<your-host>/api/3rd-party/cafe24/install/<install_token>`, copy the whole thing) → set Redirect URI → enable scopes → copy client_id/secret.
 2. This service: App Type = Private, fill Mall ID / Client ID / Secret / Scopes → [Connect with Cafe24].
 3. Cafe24 Developers: click **"Test Run"** on the app.
 4. Cafe24 calls the App URL → HMAC verified → OAuth consent screen → token issued → integration `connected`.

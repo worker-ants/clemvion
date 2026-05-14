@@ -228,9 +228,14 @@ describe('IntegrationOAuthService — Cafe24', () => {
       });
       const r = result as { appUrl: string; callbackUrl: string };
       // appUrl must include the install_token path segment so cafe24
+      // 새 namespace `/api/3rd-party/cafe24/install/<22자 base64url>` —
+      // spec/2-navigation/4-integration.md §9.2 Rationale "Cafe24 App URL
+      // 100자 한도 대응".
       // Developers can call our single-row lookup endpoint (V043).
-      expect(r.appUrl).toMatch(/\/oauth\/install\/cafe24\/[a-f0-9]{64}$/);
-      expect(r.callbackUrl).toContain('/oauth/callback/cafe24');
+      expect(r.appUrl).toMatch(
+        /\/api\/3rd-party\/cafe24\/install\/[A-Za-z0-9_-]{22}$/,
+      );
+      expect(r.callbackUrl).toContain('/api/3rd-party/cafe24/callback');
 
       // Integration saved with pending_install status and credentials embedded.
       expect(integrationRepo.save).toHaveBeenCalledTimes(1);
@@ -357,7 +362,8 @@ describe('IntegrationOAuthService — Cafe24', () => {
 
   describe('handleInstall — Cafe24 private app App URL', () => {
     const clientSecret = 'test-private-secret';
-    const INSTALL_TOKEN = 'a'.repeat(64);
+    // 16바이트 base64url = 22자 (spec/2-navigation/4-integration.md §9.2)
+    const INSTALL_TOKEN = 'AbCdEfGhIjKlMnOpQrStUv';
 
     function buildRawQuery(
       timestampSec: number,
