@@ -274,7 +274,20 @@ export class IntegrationsController {
     @Query('error') error: string | undefined,
     @Res() res: Response,
   ) {
-    const targetOrigin = process.env.FRONTEND_URL || process.env.APP_URL || '*';
+    // postMessage targetOrigin must not fall back to '*' — any opener
+    // tab could read previewToken / integrationId otherwise. FRONTEND_URL
+    // is the canonical setting; APP_URL is the backwards-compatible
+    // fallback. If neither is set we refuse to render the callback HTML
+    // so an env-misconfigured deploy fails closed instead of leaking the
+    // OAuth payload to whatever popup opener happens to be there.
+    const targetOrigin = process.env.FRONTEND_URL || process.env.APP_URL;
+    if (!targetOrigin) {
+      res.status(500).setHeader('Content-Type', 'text/html; charset=utf-8');
+      res.send(
+        '<p>OAuth callback misconfigured: FRONTEND_URL / APP_URL not set.</p>',
+      );
+      return;
+    }
 
     if (!(ALLOWED_OAUTH_PROVIDERS as readonly string[]).includes(provider)) {
       res.status(400).setHeader('Content-Type', 'text/html; charset=utf-8');
@@ -310,14 +323,22 @@ export class IntegrationsController {
       // If the failure happened after state consumption, the service attached
       // {integrationId, workspaceId, mode} to the error so we can surface the
       // diagnostic on the row (spec/2-navigation/4-integration.md §10.4).
+      // Defensive: markIntegrationCallbackError is best-effort by design
+      // (internal try/catch), but a future refactor that removes that guard
+      // must not be allowed to hang the popup — explicit .catch ensures the
+      // error HTML response still runs.
       const ctx = callbackContextOf(err);
       if (ctx?.integrationId && ctx.workspaceId) {
-        await this.oauthService.markIntegrationCallbackError(
-          ctx.integrationId,
-          ctx.workspaceId,
-          errorCode,
-          message,
-        );
+        await this.oauthService
+          .markIntegrationCallbackError(
+            ctx.integrationId,
+            ctx.workspaceId,
+            errorCode,
+            message,
+          )
+          .catch(() => {
+            /* swallow — never block HTML response */
+          });
       }
 
       res.setHeader('Content-Type', 'text/html; charset=utf-8');

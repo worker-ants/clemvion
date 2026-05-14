@@ -313,6 +313,55 @@ describe('IntegrationOAuthService', () => {
       const ctx = (error as { context?: unknown }).context;
       expect(ctx).toBeUndefined();
     });
+
+    it('attaches callback context on token exchange failure', async () => {
+      // Run without OAUTH_STUB_MODE so exchangeCodeForToken does a real fetch
+      // which we intercept globally to force a 401.
+      delete process.env.OAUTH_STUB_MODE;
+      process.env.GOOGLE_CLIENT_ID = 'cid';
+      process.env.GOOGLE_CLIENT_SECRET = 'csec';
+      const originalFetch = global.fetch;
+      (global as { fetch: jest.Mock }).fetch = jest.fn().mockResolvedValue({
+        ok: false,
+        status: 401,
+        text: async () => 'unauthorized',
+      });
+      try {
+        dataSource.query.mockResolvedValue([
+          {
+            provider: 'google',
+            serviceType: 'google',
+            mode: 'reauthorize',
+            workspaceId: 'ws-1',
+            userId: 'u-1',
+            requestedScopes: ['scope-1'],
+            integrationId: 'int-token-fail',
+            expiresAt: new Date(Date.now() + 60_000),
+          },
+        ]);
+        const error = await service
+          .handleCallback('google', { code: 'bad-code', state: 'abc' })
+          .catch((e: Error) => e);
+        expect(error).toBeInstanceOf(BadRequestException);
+        const ctx = (error as { context?: unknown }).context as
+          | { integrationId?: string; workspaceId?: string; mode?: string }
+          | undefined;
+        expect(ctx).toEqual({
+          integrationId: 'int-token-fail',
+          workspaceId: 'ws-1',
+          mode: 'reauthorize',
+        });
+        // Sanity: the underlying code was OAUTH_TOKEN_EXCHANGE_FAILED so the
+        // controller can transition `connected` rows to error(auth_failed).
+        const code = (error as { response?: { code?: string } }).response?.code;
+        expect(code).toBe('OAUTH_TOKEN_EXCHANGE_FAILED');
+      } finally {
+        global.fetch = originalFetch;
+        delete process.env.GOOGLE_CLIENT_ID;
+        delete process.env.GOOGLE_CLIENT_SECRET;
+        process.env.OAUTH_STUB_MODE = 'true';
+      }
+    });
   });
 
   describe('markIntegrationCallbackError (변경 0)', () => {

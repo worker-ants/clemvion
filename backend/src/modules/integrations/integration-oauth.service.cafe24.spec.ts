@@ -446,8 +446,12 @@ describe('IntegrationOAuthService — Cafe24', () => {
           scopes: [],
         },
         installToken: 'some-install-token',
-        statusReason: 'waiting',
-        lastError: { msg: 'old' },
+        statusReason: 'oauth_token_exchange_failed',
+        lastError: {
+          code: 'OAUTH_TOKEN_EXCHANGE_FAILED',
+          message: 'previous attempt',
+          at: '2026-05-13T00:00:00.000Z',
+        },
         tokenExpiresAt: null,
         lastRotatedAt: null,
       };
