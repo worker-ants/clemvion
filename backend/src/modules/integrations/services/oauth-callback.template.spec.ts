@@ -51,7 +51,7 @@ describe('renderCallbackHtml', () => {
     expect(html).toContain('postMessage');
   });
 
-  describe('auto-close delay (변경 0)', () => {
+  describe('auto-close delay', () => {
     it('closes immediately on success', () => {
       const html = renderCallbackHtml(
         {

@@ -2,7 +2,11 @@ import {
   BadRequestException,
   InternalServerErrorException,
 } from '@nestjs/common';
-import { IntegrationOAuthService } from './integration-oauth.service';
+import {
+  IntegrationOAuthService,
+  LAST_ERROR_MESSAGE_MAX_LEN,
+  sanitizeLastErrorMessage,
+} from './integration-oauth.service';
 
 type Mock = jest.Mock;
 
@@ -248,7 +252,7 @@ describe('IntegrationOAuthService', () => {
     });
   });
 
-  describe('handleCallback — failure observability (변경 0)', () => {
+  describe('handleCallback — failure observability', () => {
     // After OAuth state is consumed, any thrown exception must carry
     // { integrationId, workspaceId, mode } context so the controller can
     // surface the diagnostic on the integration row.
@@ -364,7 +368,166 @@ describe('IntegrationOAuthService', () => {
     });
   });
 
-  describe('markIntegrationCallbackError (변경 0)', () => {
+  describe('handleCallbackWithErrorCapture', () => {
+    // Service-side wrapper that runs handleCallback and, on a post-state-
+    // consumption failure, writes the diagnostic onto the row before
+    // re-throwing the same error.
+
+    it('returns the result transparently on success', async () => {
+      dataSource.query.mockResolvedValue([
+        {
+          provider: 'google',
+          serviceType: 'google',
+          mode: 'new',
+          workspaceId: 'ws-1',
+          userId: 'u-1',
+          requestedScopes: ['scope'],
+          integrationId: null,
+          expiresAt: new Date(Date.now() + 60_000),
+        },
+      ]);
+      const result = await service.handleCallbackWithErrorCapture('google', {
+        code: 'c',
+        state: 's',
+      });
+      expect(result.mode).toBe('new');
+    });
+
+    it('records callback error via markIntegrationCallbackError on post-state failure', async () => {
+      dataSource.query.mockResolvedValue([
+        {
+          provider: 'google',
+          serviceType: 'google',
+          mode: 'reauthorize',
+          workspaceId: 'ws-1',
+          userId: 'u-1',
+          requestedScopes: ['scope'],
+          integrationId: 'int-1',
+          expiresAt: new Date(Date.now() - 60_000),
+        },
+      ]);
+      const spy = jest.spyOn(service, 'markIntegrationCallbackError');
+      const err = await service
+        .handleCallbackWithErrorCapture('google', { code: 'c', state: 's' })
+        .catch((e: Error) => e);
+      expect(err).toBeInstanceOf(BadRequestException);
+      expect(spy).toHaveBeenCalledWith(
+        'int-1',
+        'ws-1',
+        'OAUTH_STATE_EXPIRED',
+        expect.stringContaining('expired'),
+      );
+      spy.mockRestore();
+    });
+
+    it('does NOT record when no callback context (pre-state-consumption mismatch)', async () => {
+      dataSource.query.mockResolvedValue([]); // DELETE…RETURNING 0 rows
+      const spy = jest.spyOn(service, 'markIntegrationCallbackError');
+      await service
+        .handleCallbackWithErrorCapture('google', { code: 'c', state: 's' })
+        .catch(() => undefined);
+      expect(spy).not.toHaveBeenCalled();
+      spy.mockRestore();
+    });
+
+    it('falls back to OAUTH_CALLBACK_FAILED when the error has no response.code', async () => {
+      const spy = jest.spyOn(service, 'markIntegrationCallbackError');
+      jest.spyOn(service, 'handleCallback').mockImplementation(async () => {
+        const raw = new Error('boom') as Error & {
+          context?: {
+            integrationId: string;
+            workspaceId: string;
+            mode: string;
+          };
+        };
+        raw.context = {
+          integrationId: 'int-2',
+          workspaceId: 'ws-1',
+          mode: 'reauthorize',
+        };
+        throw raw;
+      });
+      await service
+        .handleCallbackWithErrorCapture('google', { code: 'c', state: 's' })
+        .catch(() => undefined);
+      expect(spy).toHaveBeenCalledWith(
+        'int-2',
+        'ws-1',
+        'OAUTH_CALLBACK_FAILED',
+        'boom',
+      );
+      spy.mockRestore();
+    });
+
+    it('still re-throws even if recording itself rejects (defence-in-depth)', async () => {
+      dataSource.query.mockResolvedValue([
+        {
+          provider: 'google',
+          serviceType: 'google',
+          mode: 'reauthorize',
+          workspaceId: 'ws-1',
+          userId: 'u-1',
+          requestedScopes: ['scope'],
+          integrationId: 'int-3',
+          expiresAt: new Date(Date.now() - 60_000),
+        },
+      ]);
+      jest
+        .spyOn(service, 'markIntegrationCallbackError')
+        .mockRejectedValue(new Error('db down'));
+      const err = await service
+        .handleCallbackWithErrorCapture('google', { code: 'c', state: 's' })
+        .catch((e: Error) => e);
+      expect(err).toBeInstanceOf(BadRequestException);
+    });
+  });
+
+  describe('sanitizeLastErrorMessage', () => {
+    it('passes short benign messages through', () => {
+      expect(sanitizeLastErrorMessage('invalid_grant')).toBe('invalid_grant');
+    });
+
+    it('truncates to LAST_ERROR_MESSAGE_MAX_LEN with ellipsis', () => {
+      const long = 'a'.repeat(LAST_ERROR_MESSAGE_MAX_LEN + 50);
+      const out = sanitizeLastErrorMessage(long);
+      expect(out.length).toBe(LAST_ERROR_MESSAGE_MAX_LEN + 1); // +1 for '…'
+      expect(out.endsWith('…')).toBe(true);
+    });
+
+    it('masks Bearer tokens', () => {
+      expect(
+        sanitizeLastErrorMessage('failed: Bearer abc.def.ghi at line 2'),
+      ).toBe('failed: *** at line 2');
+    });
+
+    it('masks client_secret/access_token/refresh_token assignments', () => {
+      expect(
+        sanitizeLastErrorMessage(
+          'request body: client_secret=verySecret123 & grant_type=auth',
+        ),
+      ).toBe('request body: *** & grant_type=auth');
+      expect(sanitizeLastErrorMessage('access_token: ya29.a0AfH6 fail')).toBe(
+        '*** fail',
+      );
+      expect(
+        sanitizeLastErrorMessage('refresh_token=eyJxxx invalid_grant'),
+      ).toBe('*** invalid_grant');
+    });
+
+    it('masks Authorization header echoes', () => {
+      expect(
+        sanitizeLastErrorMessage(
+          'upstream returned 401 Authorization: Bearer abc',
+        ),
+      ).toBe('upstream returned 401 ***');
+    });
+
+    it('returns input unchanged for empty / non-string', () => {
+      expect(sanitizeLastErrorMessage('')).toBe('');
+    });
+  });
+
+  describe('markIntegrationCallbackError', () => {
     it('records last_error/status_reason on pending_install row while preserving status', async () => {
       const row = {
         id: 'int-1',
@@ -455,6 +618,31 @@ describe('IntegrationOAuthService', () => {
         ),
       ).resolves.toBeUndefined();
       expect(integrationRepo.save).not.toHaveBeenCalled();
+    });
+
+    it('runs sanitizeLastErrorMessage on the stored message', async () => {
+      const row = {
+        id: 'int-9',
+        workspaceId: 'ws-1',
+        status: 'pending_install',
+        statusReason: null,
+        lastError: null,
+      };
+      integrationRepo.findOne.mockResolvedValue(row);
+      await service.markIntegrationCallbackError(
+        'int-9',
+        'ws-1',
+        'OAUTH_TOKEN_EXCHANGE_FAILED',
+        'upstream returned 401: Bearer secret-token-123',
+      );
+      const saved = integrationRepo.save.mock.calls[0][0] as Record<
+        string,
+        unknown
+      >;
+      const lastError = saved.lastError as { message: string };
+      // Token masked.
+      expect(lastError.message).not.toContain('secret-token-123');
+      expect(lastError.message).toContain('***');
     });
 
     it('does not propagate DB errors from save', async () => {

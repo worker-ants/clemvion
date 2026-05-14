@@ -52,7 +52,6 @@ import {
   ALLOWED_OAUTH_PROVIDERS,
   Cafe24InstallQuery,
   IntegrationOAuthService,
-  callbackContextOf,
 } from './integration-oauth.service';
 
 /** install_token is issued as `randomBytes(32).toString('hex')` — exactly 64
@@ -160,6 +159,10 @@ export class IntegrationsController {
   })
   @ApiBadRequestResponse({ description: '입력값 검증 실패 또는 미지원 서비스' })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
+  @ApiConflictResponse({
+    description:
+      'CAFE24_PRIVATE_APP_ALREADY_CONNECTED — 동일 (workspaceId, mall_id, app_type=private) 의 connected 통합이 이미 존재. 기존 통합을 사용하거나 삭제 후 재등록.',
+  })
   async oauthBegin(
     @WorkspaceId() workspaceId: string,
     @CurrentUser() user: JwtPayload,
@@ -212,6 +215,18 @@ export class IntegrationsController {
       'Cafe24 Developers "테스트 실행" 시 Cafe24가 호출하는 App URL 엔드포인트. path 의 install_token 으로 pending_install Integration 을 단일 row 조회하고 HMAC 1회 검증 후 Cafe24 authorize URL 로 302 redirect 합니다.',
   })
   @ApiOkResponse({ description: '302 redirect to Cafe24 authorize URL' })
+  @ApiBadRequestResponse({
+    description:
+      'CAFE24_INSTALL_MISSING_PARAMS — mall_id/timestamp/hmac 누락. CAFE24_INSTALL_REPLAY — timestamp 가 ±5분 윈도우 밖.',
+  })
+  @ApiForbiddenResponse({
+    description:
+      'CAFE24_INSTALL_INVALID_HMAC — HMAC 검증 실패 또는 install_token 의 row 가 다른 mall_id 와 매칭.',
+  })
+  @ApiNotFoundResponse({
+    description:
+      'CAFE24_INSTALL_INVALID_TOKEN — install_token 형식 불일치(64-hex 아님) 또는 미존재(callback 성공/TTL 만료로 NULL).',
+  })
   async cafe24Install(
     @Param('installToken') installToken: string,
     @Query('mall_id') mallId: string | undefined,
@@ -282,28 +297,6 @@ export class IntegrationsController {
     }
   }
 
-  /**
-   * Legacy App URL — token-less path, deprecated by V043 / variant 2.
-   * Responds 410 Gone so external Cafe24 Developers registrations still
-   * pointing here see a clean signal. Permanent retirement tracked in
-   * plan/in-progress/cafe24-pending-polish.md as a follow-up.
-   */
-  @Public()
-  @Throttle({ default: { limit: 30, ttl: 60_000 } })
-  @Get('oauth/install/cafe24')
-  @ApiOperation({
-    summary: 'Cafe24 Private 앱 설치 진입점 (Deprecated — install_token 없음)',
-    description:
-      '옛 토큰 없는 라우트. 신규 등록자는 /oauth/install/cafe24/:installToken 을 사용해야 합니다.',
-  })
-  cafe24InstallLegacy(@Res() res: Response) {
-    res.status(410).json({
-      code: 'CAFE24_INSTALL_LEGACY_PATH',
-      message:
-        'This App URL is deprecated. Re-register your Cafe24 Private app using the new /oauth/install/cafe24/:installToken URL shown in the integration setup screen.',
-    });
-  }
-
   @Public()
   @Get('oauth/callback/:provider')
   @ApiOperation({
@@ -359,42 +352,20 @@ export class IntegrationsController {
     }
 
     try {
-      const result = await this.oauthService.handleCallback(provider, {
-        code,
-        state,
-        error,
-      });
+      // Service captures any callback-row diagnostic itself and re-throws —
+      // controller's job is just to render the HTML response.
+      const result = await this.oauthService.handleCallbackWithErrorCapture(
+        provider,
+        { code, state, error },
+      );
       res.setHeader('Content-Type', 'text/html; charset=utf-8');
       res.send(renderCallbackHtml({ status: 'success', result }, targetOrigin));
     } catch (err) {
       const e = err as {
         message?: string;
-        response?: { message?: string; code?: string };
+        response?: { message?: string };
       };
-      const errorCode = e.response?.code ?? 'OAUTH_CALLBACK_FAILED';
       const message = e.response?.message ?? e.message ?? 'OAuth failed';
-
-      // If the failure happened after state consumption, the service attached
-      // {integrationId, workspaceId, mode} to the error so we can surface the
-      // diagnostic on the row (spec/2-navigation/4-integration.md §10.4).
-      // Defensive: markIntegrationCallbackError is best-effort by design
-      // (internal try/catch), but a future refactor that removes that guard
-      // must not be allowed to hang the popup — explicit .catch ensures the
-      // error HTML response still runs.
-      const ctx = callbackContextOf(err);
-      if (ctx?.integrationId && ctx.workspaceId) {
-        await this.oauthService
-          .markIntegrationCallbackError(
-            ctx.integrationId,
-            ctx.workspaceId,
-            errorCode,
-            message,
-          )
-          .catch(() => {
-            /* swallow — never block HTML response */
-          });
-      }
-
       res.setHeader('Content-Type', 'text/html; charset=utf-8');
       res.send(
         renderCallbackHtml(
