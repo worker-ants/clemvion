@@ -364,6 +364,120 @@ describe('IntegrationOAuthService', () => {
     });
   });
 
+  describe('handleCallbackWithErrorCapture', () => {
+    // Service-side wrapper that runs handleCallback and, on a post-state-
+    // consumption failure, writes the diagnostic onto the row before
+    // re-throwing the same error.
+
+    it('returns the result transparently on success', async () => {
+      dataSource.query.mockResolvedValue([
+        {
+          provider: 'google',
+          serviceType: 'google',
+          mode: 'new',
+          workspaceId: 'ws-1',
+          userId: 'u-1',
+          requestedScopes: ['scope'],
+          integrationId: null,
+          expiresAt: new Date(Date.now() + 60_000),
+        },
+      ]);
+      const result = await service.handleCallbackWithErrorCapture('google', {
+        code: 'c',
+        state: 's',
+      });
+      expect(result.mode).toBe('new');
+    });
+
+    it('records callback error via markIntegrationCallbackError on post-state failure', async () => {
+      dataSource.query.mockResolvedValue([
+        {
+          provider: 'google',
+          serviceType: 'google',
+          mode: 'reauthorize',
+          workspaceId: 'ws-1',
+          userId: 'u-1',
+          requestedScopes: ['scope'],
+          integrationId: 'int-1',
+          expiresAt: new Date(Date.now() - 60_000),
+        },
+      ]);
+      const spy = jest.spyOn(service, 'markIntegrationCallbackError');
+      const err = await service
+        .handleCallbackWithErrorCapture('google', { code: 'c', state: 's' })
+        .catch((e: Error) => e);
+      expect(err).toBeInstanceOf(BadRequestException);
+      expect(spy).toHaveBeenCalledWith(
+        'int-1',
+        'ws-1',
+        'OAUTH_STATE_EXPIRED',
+        expect.stringContaining('expired'),
+      );
+      spy.mockRestore();
+    });
+
+    it('does NOT record when no callback context (pre-state-consumption mismatch)', async () => {
+      dataSource.query.mockResolvedValue([]); // DELETE…RETURNING 0 rows
+      const spy = jest.spyOn(service, 'markIntegrationCallbackError');
+      await service
+        .handleCallbackWithErrorCapture('google', { code: 'c', state: 's' })
+        .catch(() => undefined);
+      expect(spy).not.toHaveBeenCalled();
+      spy.mockRestore();
+    });
+
+    it('falls back to OAUTH_CALLBACK_FAILED when the error has no response.code', async () => {
+      const spy = jest.spyOn(service, 'markIntegrationCallbackError');
+      jest.spyOn(service, 'handleCallback').mockImplementation(async () => {
+        const raw = new Error('boom') as Error & {
+          context?: {
+            integrationId: string;
+            workspaceId: string;
+            mode: string;
+          };
+        };
+        raw.context = {
+          integrationId: 'int-2',
+          workspaceId: 'ws-1',
+          mode: 'reauthorize',
+        };
+        throw raw;
+      });
+      await service
+        .handleCallbackWithErrorCapture('google', { code: 'c', state: 's' })
+        .catch(() => undefined);
+      expect(spy).toHaveBeenCalledWith(
+        'int-2',
+        'ws-1',
+        'OAUTH_CALLBACK_FAILED',
+        'boom',
+      );
+      spy.mockRestore();
+    });
+
+    it('still re-throws even if recording itself rejects (defence-in-depth)', async () => {
+      dataSource.query.mockResolvedValue([
+        {
+          provider: 'google',
+          serviceType: 'google',
+          mode: 'reauthorize',
+          workspaceId: 'ws-1',
+          userId: 'u-1',
+          requestedScopes: ['scope'],
+          integrationId: 'int-3',
+          expiresAt: new Date(Date.now() - 60_000),
+        },
+      ]);
+      jest
+        .spyOn(service, 'markIntegrationCallbackError')
+        .mockRejectedValue(new Error('db down'));
+      const err = await service
+        .handleCallbackWithErrorCapture('google', { code: 'c', state: 's' })
+        .catch((e: Error) => e);
+      expect(err).toBeInstanceOf(BadRequestException);
+    });
+  });
+
   describe('markIntegrationCallbackError', () => {
     it('records last_error/status_reason on pending_install row while preserving status', async () => {
       const row = {

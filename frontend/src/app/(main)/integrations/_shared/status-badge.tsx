@@ -1,5 +1,15 @@
 import { cn } from "@/lib/utils/cn";
 import type { IntegrationDto } from "@/lib/api/integrations";
+import {
+  INSTALL_TIMEOUT_REASON,
+  isReauthorizeDisabled,
+  pickErrorMessage,
+} from "@/lib/integrations/reauthorize";
+
+// Re-export so existing `import { isReauthorizeDisabled } from "../_shared/status-badge"`
+// keep working through the transition. New code should import directly from
+// `@/lib/integrations/reauthorize`.
+export { isReauthorizeDisabled };
 
 export interface StatusView {
   label: string;
@@ -49,7 +59,7 @@ export function computeStatus(integration: IntegrationDto): StatusView {
       dotClassName: "bg-yellow-500",
       tone: "warn",
       detail:
-        integration.statusReason === "install_timeout"
+        integration.statusReason === INSTALL_TIMEOUT_REASON
           ? "Install timed out — delete and re-register"
           : undefined,
     };
@@ -63,42 +73,6 @@ export function computeStatus(integration: IntegrationDto): StatusView {
     };
   }
   return { label: "Connected", dotClassName: "bg-green-500", tone: "ok" };
-}
-
-/** Prefer the human-readable lastError.message; fall back to status_reason. */
-function pickErrorMessage(integration: IntegrationDto): string | undefined {
-  const lastError = integration.lastError as
-    | { message?: string }
-    | null
-    | undefined;
-  if (lastError && typeof lastError.message === "string" && lastError.message) {
-    return lastError.message;
-  }
-  return integration.statusReason ?? undefined;
-}
-
-/**
- * Whether the Reauthorize action is disabled for this integration. Cafe24
- * Private apps have no reauthorize entry point — re-auth must come from
- * Cafe24 Developers "테스트 실행". pending_install (any provider) and
- * expired+install_timeout also cannot be reauthorized.
- * Mirrors spec/2-navigation/4-integration.md §4.2 Reauthorize 비활성 조건.
- */
-export function isReauthorizeDisabled(integration: IntegrationDto): boolean {
-  if (integration.status === "pending_install") return true;
-  if (
-    integration.status === "expired" &&
-    integration.statusReason === "install_timeout"
-  ) {
-    return true;
-  }
-  if (
-    integration.serviceType === "cafe24" &&
-    integration.meta?.appType === "private"
-  ) {
-    return true;
-  }
-  return false;
 }
 
 export function isExpiringSoon(at: string | null | undefined): boolean {
