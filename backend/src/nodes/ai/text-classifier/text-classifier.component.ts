@@ -12,5 +12,6 @@ export const textClassifierNodeComponent: NodeComponent = {
   ports: textClassifierNodePorts,
   configSchema: textClassifierNodeConfigSchema,
   outputSchema: textClassifierNodeOutputSchema,
-  createHandler: (deps) => new TextClassifierHandler(deps.llmService),
+  createHandler: (deps) =>
+    new TextClassifierHandler(deps.llmService, deps.conversationThreadService),
 };
