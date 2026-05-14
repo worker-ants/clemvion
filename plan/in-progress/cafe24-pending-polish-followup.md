@@ -63,7 +63,7 @@ PR #18 (`claude/cafe24-pending-polish-7fdb7e` 브랜치) 에서 cafe24 private "
 
 ## 그룹 F — 문서 동기화
 
-- [ ] **§13 데이터 모델 요약에 `install_token` 누락 보완.** spec/2-navigation/4-integration.md §13. (이전 review W10)
+- [x] **§13 데이터 모델 요약에 `install_token` 누락 보완.** spec/2-navigation/4-integration.md §13. `install_token`/`install_token_issued_at`/`mall_id` 행 + 신규 인덱스 3종 행 추가 완료 (2026-05-15, cafe24-3rdparty-url-503aa0 PR). (이전 review W10)
 - [ ] **§6 mermaid `install_token` 보존 정책 명시.** callback 실패 시 install_token 유지 → 재시도 가능 (data-flow §1.2.1 에는 이미 명시). (이전 review I3)
 - [ ] **`spec/conventions/swagger.md §2-4` 실재 확인 및 cross-link 정정.** (이전 review I5)
 - [ ] **`(변경 N)` 마커 cleanup** (그룹 C 항목과 중복) — spec / 테스트 명칭에서 제거.

@@ -662,7 +662,7 @@ Please replace or remove these node references first.
 
 | 메서드 | 경로 | 설명 |
 |--------|------|------|
-| POST | `/api/integrations/oauth/begin` | OAuth 시작. body: `{ service, scopes[], mode, integrationId? }`. **Cafe24 Public**: `mall_id`, `app_type='public'` 추가 → `{ authUrl, state }` 반환 (popup 흐름). **Cafe24 Private**: `mall_id`, `app_type='private'`, `client_id`, `client_secret` 추가 → `{ mode:'cafe24_private_pending', integrationId, appUrl, callbackUrl }` 반환 (Integration `pending_install` 생성, popup 없음). ※ Cafe24 Private 응답의 `appUrl` 은 `${APP_URL}/api/3rd-party/cafe24/install/:installToken` 형식이다 — `installToken` 은 본 begin 호출이 발급한 **16바이트 base64url (22자, `^[A-Za-z0-9_-]{22}$`)** 로 Cafe24 Developers "앱 URL" 에 그대로 등록된다. ※ Cafe24 Private 흐름 진입 시 동일 `(workspaceId, mall_id, app_type='private')` 의 connected Integration 이 이미 존재하면 begin 자체가 `CAFE24_PRIVATE_APP_ALREADY_CONNECTED (409)` 으로 즉시 거부된다 — 사용자는 기존 통합을 사용하거나 삭제 후 재등록한다. |
+| POST | `/api/integrations/oauth/begin` | OAuth 시작. body: `{ service, scopes[], mode, integrationId? }`. **Cafe24 Public**: `mall_id`, `app_type='public'` 추가 → `{ authUrl, state }` 반환 (popup 흐름). **Cafe24 Private**: `mall_id`, `app_type='private'`, `client_id`, `client_secret` 추가 → `{ mode:'cafe24_private_pending', integrationId, appUrl, callbackUrl }` 반환 (Integration `pending_install` 생성, popup 없음). ※ Cafe24 Private 응답의 `appUrl` 은 `${APP_URL}/api/3rd-party/cafe24/install/:installToken` 형식이다 — `installToken` 은 본 begin 호출이 발급한 **16바이트 base64url (22자, `^[A-Za-z0-9_-]{22}$`)** 로 Cafe24 Developers "앱 URL" 에 그대로 등록된다. ※ Cafe24 Private 흐름 진입 시 동일 `(workspaceId, mall_id)` 의 cafe24 Integration 이 이미 존재하면 (`app_type` 무관 — public 이든 private 이든) begin 자체가 `CAFE24_PRIVATE_APP_ALREADY_CONNECTED (409)` 으로 즉시 거부된다. 한 workspace 안에서 같은 mall_id 의 cafe24 통합은 최대 1행 (`spec/1-data-model.md §3` partial UNIQUE 참조) — 사용자는 기존 통합을 사용하거나 삭제 후 재등록한다. |
 | GET | `/api/3rd-party/cafe24/install/:installToken` | Cafe24 Private 앱 App URL 엔드포인트. Cafe24 "테스트 실행" 시 Cafe24 가 호출. path 의 `:installToken` 은 oauth/begin 응답으로 받은 16바이트 base64url (22자, `^[A-Za-z0-9_-]{22}$`). 쿼리: `mall_id`, `timestamp`, `hmac` 등 Cafe24 표준 파라미터. **식별 절차**: `install_token` 으로 단일 row 조회 → 그 row 의 `client_secret` 으로 HMAC 1회 검증. 통과 시 OAuthState 생성 → Cafe24 authorize URL 로 `302 redirect`. 에러: `CAFE24_INSTALL_INVALID_TOKEN`(404, 토큰 미존재·이미 소비), `CAFE24_INSTALL_INVALID_HMAC`(403), `CAFE24_INSTALL_REPLAY`(400, timestamp ±5분 초과). |
 | GET | `/api/3rd-party/:provider/callback` | OAuth 콜백 (§10) — `:provider ∈ {cafe24, google, github}` |
 | POST | `/api/integrations/preview-test` | 저장 전 인증 정보로 연결 테스트. body: `{ service, authType, credentials }` |
@@ -690,7 +690,7 @@ Please replace or remove these node references first.
   - `CAFE24_INSTALL_INVALID_TOKEN` (404) — App URL 의 `install_token` 미존재 또는 callback 성공·TTL 만료로 이미 소거
   - `CAFE24_INSTALL_INVALID_HMAC` (403) — App URL HMAC 검증 실패
   - `CAFE24_INSTALL_REPLAY` (400) — App URL 의 timestamp 가 ±5분 윈도우 밖
-  - `CAFE24_PRIVATE_APP_ALREADY_CONNECTED` (409) — 동일 `(workspaceId, mall_id, app_type='private')` 에 이미 `connected` Integration 존재. swagger 규약(spec/conventions/swagger.md §2-4 — 중복/충돌은 409, `INTEGRATION_IN_USE(409)` 선례) 에 맞춤
+  - `CAFE24_PRIVATE_APP_ALREADY_CONNECTED` (409) — 동일 `(workspaceId, mall_id)` 에 이미 cafe24 Integration (`app_type` 무관 — public/private 모두) 이 존재. SQL UNIQUE 가 `service_type='cafe24'` 기준이므로 app_type 분리 보유 불가. swagger 규약(spec/conventions/swagger.md §2-4 — 중복/충돌은 409, `INTEGRATION_IN_USE(409)` 선례) 에 맞춤
 
 ---
 
@@ -711,7 +711,7 @@ GET /api/3rd-party/:provider/callback
 | `state` | CSRF 방지 토큰 (서버 발급) |
 | `error` | OAuth 에러 코드 (거부 등) |
 
-> **참고**: 이 엔드포인트는 통합 연동용 OAuth 콜백이며, 사용자 소셜 로그인 콜백(`/api/auth/oauth/:provider/callback`)과 **별개**다. Google Cloud Console / GitHub OAuth App 에는 두 redirect URI 가 모두 등록되어 있어야 한다 (통합 연동용은 본 PR 의 namespace 이전과 동시에 새 URI 로 갱신).
+> **참고**: 이 엔드포인트는 통합 연동용 OAuth 콜백이며, 사용자 소셜 로그인 콜백(`/api/auth/oauth/:provider/callback`)과 **별개**다. Google Cloud Console / GitHub OAuth App 에는 두 redirect URI 가 모두 등록되어 있어야 한다.
 
 ### 10.2 처리 플로우
 
@@ -838,9 +838,10 @@ Cron: 0 0 * * *   (워크스페이스 타임존 00:00)
 ## 13. 데이터 모델 영향 요약
 
 - Integration 엔티티에 `status_reason`, `last_used_at`, `last_rotated_at`, `last_error` 필드 추가 (데이터 모델 §2.10)
+- Integration 엔티티에 `install_token` (Cafe24 Private 흐름 식별 키, 16byte base64url 22자), `install_token_issued_at` (TTL 기준), `mall_id` (Cafe24 plain projection) 필드 추가 (데이터 모델 §2.10, V042–V045)
 - `credentials` JSONB 규약에 `scopes: string[]` 포함 (OAuth 한정)
 - 신규 `IntegrationUsageLog` 엔티티 추가 (§2.10.1) — 노드 실행 완료 시 실행 엔진이 1건 기록
-- 인덱스 추가: `(workspace_id, name) UNIQUE`, `(workspace_id, status)`, `(token_expires_at)`, `IntegrationUsageLog (integration_id, at DESC)`
+- 인덱스 추가: `(workspace_id, name) UNIQUE`, `(workspace_id, status)`, `(token_expires_at)`, `IntegrationUsageLog (integration_id, at DESC)`, `(install_token) WHERE install_token IS NOT NULL` (V043), `(workspace_id, mall_id) WHERE service_type='cafe24' AND mall_id IS NOT NULL UNIQUE` (V046)
 
 ---
 
