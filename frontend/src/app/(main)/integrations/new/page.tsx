@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { ArrowLeft, CheckCircle2, Loader2, XCircle } from "lucide-react";
+import { ArrowLeft, CheckCircle2, Copy, Loader2, XCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -117,6 +117,11 @@ export default function NewIntegrationPage() {
   const oauthTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [oauthWaiting, setOauthWaiting] = useState(false);
   const [oauthError, setOauthError] = useState<string | null>(null);
+  const [privatePending, setPrivatePending] = useState<{
+    integrationId: string;
+    appUrl: string;
+    callbackUrl: string;
+  } | null>(null);
 
   const clearOAuthTimeout = () => {
     if (oauthTimeoutRef.current) {
@@ -155,8 +160,18 @@ export default function NewIntegrationPage() {
         ...cafe24Extra,
       });
     },
-    onSuccess: ({ authUrl }) => {
-      popupRef.current = openOAuthPopup(authUrl);
+    onSuccess: (result) => {
+      if ("mode" in result && result.mode === "cafe24_private_pending") {
+        setPrivatePending({
+          integrationId: result.integrationId,
+          appUrl: result.appUrl,
+          callbackUrl: result.callbackUrl,
+        });
+        queryClient.invalidateQueries({ queryKey: ["integrations"] });
+        return;
+      }
+      if (!("authUrl" in result)) return;
+      popupRef.current = openOAuthPopup(result.authUrl);
       setOauthError(null);
       setOauthWaiting(true);
       clearOAuthTimeout();
@@ -315,7 +330,7 @@ export default function NewIntegrationPage() {
         </div>
       </div>
 
-      {step === "auth" && (
+      {step === "auth" && !privatePending && (
         <AuthStep
           service={service}
           variant={variant}
@@ -353,6 +368,15 @@ export default function NewIntegrationPage() {
             setTestError(null);
             goToStep("test");
           }}
+          t={t}
+        />
+      )}
+
+      {privatePending && (
+        <Cafe24PrivatePendingStep
+          appUrl={privatePending.appUrl}
+          callbackUrl={privatePending.callbackUrl}
+          integrationId={privatePending.integrationId}
           t={t}
         />
       )}
@@ -692,6 +716,96 @@ function Cafe24ExtraFields({
           </div>
         </>
       )}
+    </div>
+  );
+}
+
+function Cafe24PrivatePendingStep({
+  appUrl,
+  callbackUrl,
+  integrationId,
+  t,
+}: {
+  appUrl: string;
+  callbackUrl: string;
+  integrationId: string;
+  t: TFunction;
+}) {
+  const router = useRouter();
+  const [copiedField, setCopiedField] = useState<string | null>(null);
+
+  const copy = (value: string, field: string) => {
+    void navigator.clipboard.writeText(value);
+    setCopiedField(field);
+    setTimeout(() => setCopiedField(null), 2000);
+  };
+
+  return (
+    <div className="space-y-6 rounded-lg border border-[hsl(var(--border))] p-6">
+      <div>
+        <h2 className="text-lg font-semibold">
+          {t("integrations.cafe24PrivatePendingTitle")}
+        </h2>
+        <p className="mt-1 text-sm text-[hsl(var(--muted-foreground))]">
+          {t("integrations.cafe24PrivatePendingDesc")}
+        </p>
+      </div>
+
+      <div className="space-y-4">
+        <div>
+          <Label className="mb-1 block text-xs font-medium text-[hsl(var(--muted-foreground))]">
+            {t("integrations.cafe24AppUrlLabel")}
+          </Label>
+          <div className="flex items-center gap-2">
+            <code className="flex-1 overflow-x-auto rounded bg-[hsl(var(--muted))] px-3 py-2 text-xs">
+              {appUrl}
+            </code>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => copy(appUrl, "appUrl")}
+              className="shrink-0"
+            >
+              <Copy className="mr-1 h-3 w-3" />
+              {copiedField === "appUrl"
+                ? t("integrations.copied")
+                : "Copy"}
+            </Button>
+          </div>
+        </div>
+
+        <div>
+          <Label className="mb-1 block text-xs font-medium text-[hsl(var(--muted-foreground))]">
+            {t("integrations.cafe24CallbackUrlLabel")}
+          </Label>
+          <div className="flex items-center gap-2">
+            <code className="flex-1 overflow-x-auto rounded bg-[hsl(var(--muted))] px-3 py-2 text-xs">
+              {callbackUrl}
+            </code>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => copy(callbackUrl, "callbackUrl")}
+              className="shrink-0"
+            >
+              <Copy className="mr-1 h-3 w-3" />
+              {copiedField === "callbackUrl"
+                ? t("integrations.copied")
+                : "Copy"}
+            </Button>
+          </div>
+        </div>
+      </div>
+
+      <div className="rounded-md border border-blue-200 bg-blue-50 p-3 text-xs text-blue-900 dark:border-blue-800 dark:bg-blue-950/40 dark:text-blue-200">
+        {t("integrations.cafe24PrivatePendingSteps")}
+      </div>
+
+      <div className="flex justify-end">
+        <Button onClick={() => router.push(`/integrations/${integrationId}`)}>
+          {t("integrations.cafe24PrivatePendingViewList")}
+        </Button>
+      </div>
     </div>
   );
 }

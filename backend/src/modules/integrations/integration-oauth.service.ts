@@ -1,13 +1,14 @@
 import {
   Injectable,
   BadRequestException,
+  ForbiddenException,
   InternalServerErrorException,
   NotFoundException,
   Logger,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, LessThan, Repository } from 'typeorm';
-import { randomBytes } from 'crypto';
+import { createHmac, randomBytes, timingSafeEqual } from 'crypto';
 import { Integration } from './entities/integration.entity';
 import {
   IntegrationOAuthState,
@@ -73,9 +74,30 @@ export interface BeginParams {
   providerMeta?: Cafe24BeginMeta | Record<string, unknown>;
 }
 
-export interface BeginResult {
-  authUrl: string;
-  state: string;
+export type BeginResult =
+  | { authUrl: string; state: string }
+  | {
+      mode: 'cafe24_private_pending';
+      integrationId: string;
+      appUrl: string;
+      callbackUrl: string;
+    };
+
+/** Cafe24 App URL 호출 파라미터 (테스트 실행 시 Cafe24가 전송) */
+export interface Cafe24InstallQuery {
+  mall_id: string;
+  timestamp: string;
+  hmac: string;
+  shop_no?: string;
+  user_id?: string;
+  user_name?: string;
+  user_type?: string;
+  lang?: string;
+  nation?: string;
+  is_multi_shop?: string;
+  auth_config?: string;
+  /** Raw query string (HMAC 검증에 사용) */
+  rawQuery: string;
 }
 
 export interface CallbackResult {
@@ -150,7 +172,24 @@ export class IntegrationOAuthService {
               'app_type=private requires client_id and client_secret in the begin body',
           });
         }
-        clientId = meta.client_id;
+        // Private app: Cafe24 OAuth cannot be initiated by us — the flow
+        // starts from Cafe24 Developers' "테스트 실행". Only create a new
+        // pending_install Integration when mode='new'. reauthorize and
+        // request_scopes paths must go through the handleInstall flow instead.
+        if (params.mode !== 'new') {
+          throw new BadRequestException({
+            code: 'CAFE24_PRIVATE_APP_USE_TEST_RUN',
+            message:
+              'Private Cafe24 apps cannot be reauthorized via this endpoint — trigger "테스트 실행" on Cafe24 Developers to restart the install flow',
+          });
+        }
+        return this.createPrivatePendingIntegration(
+          params,
+          meta as Required<
+            Pick<Cafe24BeginMeta, 'mall_id' | 'client_id' | 'client_secret'>
+          > &
+            Cafe24BeginMeta,
+        );
       } else {
         const envClientId = process.env.CAFE24_CLIENT_ID;
         if (!envClientId) {
@@ -165,12 +204,6 @@ export class IntegrationOAuthService {
       providerMeta = {
         mall_id: meta.mall_id,
         app_type: meta.app_type,
-        ...(meta.app_type === 'private'
-          ? {
-              client_id: meta.client_id,
-              client_secret: meta.client_secret,
-            }
-          : {}),
       };
       authorizeBaseUrl = cafe24AuthorizeUrl(meta.mall_id);
     } else {
@@ -369,7 +402,10 @@ export class IntegrationOAuthService {
           message: 'Integration not found',
         });
       }
-      if (record.mode === 'reauthorize') {
+      if (
+        record.mode === 'reauthorize' ||
+        integration.status === 'pending_install'
+      ) {
         integration.credentials = credentials;
       } else {
         integration.credentials = {
@@ -383,6 +419,7 @@ export class IntegrationOAuthService {
       integration.lastError = null;
       integration.tokenExpiresAt = exchange.tokenExpiresAt;
       integration.lastRotatedAt = new Date();
+      integration.installToken = null;
       await repo.save(integration);
     });
 
@@ -590,6 +627,135 @@ export class IntegrationOAuthService {
   }
 
   // ---------------------------------------------------------------------
+  // Cafe24 Private App — pending_install flow
+  // ---------------------------------------------------------------------
+
+  private async createPrivatePendingIntegration(
+    params: BeginParams,
+    meta: Required<
+      Pick<Cafe24BeginMeta, 'mall_id' | 'client_id' | 'client_secret'>
+    > &
+      Cafe24BeginMeta,
+  ): Promise<BeginResult> {
+    const appUrl = process.env.APP_URL || 'http://localhost:3011';
+    const installToken = randomBytes(32).toString('hex');
+    const integration = this.integrationRepository.create({
+      workspaceId: params.workspaceId,
+      createdBy: params.userId,
+      serviceType: 'cafe24',
+      authType: 'oauth2',
+      name: params.integrationName || `${meta.mall_id} (Cafe24 Private)`,
+      scope: params.scope ?? 'personal',
+      status: 'pending_install',
+      installToken,
+      credentials: {
+        mall_id: meta.mall_id,
+        app_type: 'private',
+        client_id: meta.client_id,
+        client_secret: meta.client_secret,
+        scopes: params.scopes,
+      },
+    });
+    const saved = await this.integrationRepository.save(integration);
+    return {
+      mode: 'cafe24_private_pending',
+      integrationId: saved.id,
+      appUrl: `${appUrl}/api/integrations/oauth/install/cafe24`,
+      callbackUrl: `${appUrl}/api/integrations/oauth/callback/cafe24`,
+    };
+  }
+
+  /**
+   * Handles Cafe24 App URL calls from "테스트 실행".
+   * Verifies HMAC, finds the pending_install Integration, creates an
+   * OAuthState (mode=reconnect), and returns the Cafe24 authorize URL.
+   */
+  async handleInstall(query: Cafe24InstallQuery): Promise<string> {
+    const timestampSec = parseInt(query.timestamp, 10);
+    if (
+      isNaN(timestampSec) ||
+      Math.abs(Math.floor(Date.now() / 1000) - timestampSec) > 5 * 60
+    ) {
+      throw new BadRequestException({
+        code: 'CAFE24_INSTALL_REPLAY',
+        message: 'Request timestamp is outside the acceptable window (±5 min)',
+      });
+    }
+
+    // Find pending_install cafe24 integrations. Credentials are encrypted so
+    // mall_id cannot be filtered at the DB level; we filter + HMAC-verify in
+    // memory. Pre-compute the HMAC message once (rawQuery minus 'hmac', sorted)
+    // so each candidate only needs one createHmac call. Guard with .take(100).
+    const candidates = await this.integrationRepository
+      .createQueryBuilder('i')
+      .where("i.service_type = 'cafe24'")
+      .andWhere("i.status = 'pending_install'")
+      .take(100)
+      .getMany();
+
+    const hmacMessage = buildHmacMessage(query.rawQuery);
+    let target: Integration | null = null;
+    for (const candidate of candidates) {
+      const creds = candidate.credentials;
+      if (creds.mall_id !== query.mall_id) continue;
+      if (creds.app_type !== 'private') continue;
+      const secret = creds.client_secret;
+      if (typeof secret !== 'string') continue;
+      if (verifyHmacWithMessage(hmacMessage, secret, query.hmac)) {
+        target = candidate;
+        break;
+      }
+    }
+
+    if (!target) {
+      throw new ForbiddenException({
+        code: 'CAFE24_INSTALL_INVALID_HMAC',
+        message: 'HMAC verification failed — no matching pending integration',
+      });
+    }
+
+    const creds = target.credentials;
+    const clientId = creds.client_id as string;
+    const scopes = Array.isArray(creds.scopes)
+      ? (creds.scopes as string[])
+      : [];
+    const appBaseUrl = process.env.APP_URL || 'http://localhost:3011';
+    const redirectUri = `${appBaseUrl}/api/integrations/oauth/callback/cafe24`;
+
+    const state = randomBytes(24).toString('hex');
+    const providerMeta = {
+      mall_id: query.mall_id,
+      app_type: 'private',
+      client_id: clientId,
+      client_secret: creds.client_secret,
+    };
+    const stateRecord = this.stateRepository.create({
+      state,
+      workspaceId: target.workspaceId,
+      userId: target.createdBy,
+      provider: 'cafe24',
+      serviceType: 'cafe24',
+      mode: 'reauthorize',
+      integrationId: target.id,
+      requestedScopes: scopes,
+      integrationName: target.name,
+      scope: target.scope as 'personal' | 'organization',
+      providerMeta: providerMeta as unknown as Record<string, unknown>,
+      expiresAt: new Date(Date.now() + STATE_TTL_MS),
+    });
+    await this.stateRepository.save(stateRecord);
+
+    const urlParams = new URLSearchParams({
+      client_id: clientId,
+      redirect_uri: redirectUri,
+      scope: scopes.join(','),
+      state,
+      response_type: 'code',
+    });
+    return `${cafe24AuthorizeUrl(query.mall_id)}?${urlParams.toString()}`;
+  }
+
+  // ---------------------------------------------------------------------
   // Maintenance
   // ---------------------------------------------------------------------
 
@@ -703,4 +869,40 @@ function readString(obj: Record<string, unknown>, key: string): string | null {
 function readNumber(obj: Record<string, unknown>, key: string): number | null {
   const v = obj[key];
   return typeof v === 'number' && Number.isFinite(v) ? v : null;
+}
+
+/**
+ * Verifies the Cafe24 App URL HMAC signature.
+ *
+ * Algorithm (official Cafe24 sample — Java `validationCheckHmac`):
+ *   1. Remove `hmac` from params, sort remaining keys alphabetically
+ *   2. Rebuild as URL-encoded query string
+ *   3. HmacSHA256(client_secret, message) → Base64
+ *   4. Compare (timing-safe) with the received (URL-decoded) hmac value
+ *
+ * Split into buildHmacMessage + verifyHmacWithMessage so callers with multiple
+ * candidate secrets can compute the message once and reuse it per candidate.
+ */
+function buildHmacMessage(rawQuery: string): string {
+  const params = new URLSearchParams(rawQuery);
+  params.delete('hmac');
+  return [...params.entries()]
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([k, v]) => `${k}=${encodeURIComponent(v)}`)
+    .join('&');
+}
+
+function verifyHmacWithMessage(
+  message: string,
+  clientSecret: string,
+  receivedHmac: string,
+): boolean {
+  const computed = createHmac('sha256', clientSecret)
+    .update(message, 'utf8')
+    .digest('base64');
+  try {
+    return timingSafeEqual(Buffer.from(computed), Buffer.from(receivedHmac));
+  } catch {
+    return false;
+  }
 }

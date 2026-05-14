@@ -8,19 +8,23 @@ import {
 describe("localizedSectionLabel", () => {
   it("returns the Korean label for known section keys", () => {
     expect(localizedSectionLabel("01-getting-started", "ko")).toBe("시작하기");
-    expect(localizedSectionLabel("06-faq", "ko")).toBe("자주 묻는 질문");
+    expect(localizedSectionLabel("07-workspace-and-team", "ko")).toBe(
+      "워크스페이스와 팀",
+    );
+    expect(localizedSectionLabel("99-faq", "ko")).toBe("자주 묻는 질문");
   });
 
   it("returns the English label for known section keys", () => {
     expect(localizedSectionLabel("01-getting-started", "en")).toBe("Getting Started");
-    expect(localizedSectionLabel("05-integrations-and-config", "en")).toBe(
+    expect(localizedSectionLabel("06-integrations-and-config", "en")).toBe(
       "Integrations & Config",
     );
+    expect(localizedSectionLabel("99-faq", "en")).toBe("FAQ");
   });
 
   it("falls back to a humanized segment for unknown keys", () => {
-    expect(localizedSectionLabel("07-advanced-topics", "ko")).toBe("Advanced Topics");
-    expect(localizedSectionLabel("07-advanced-topics", "en")).toBe("Advanced Topics");
+    expect(localizedSectionLabel("97-future-section", "ko")).toBe("Future Section");
+    expect(localizedSectionLabel("97-future-section", "en")).toBe("Future Section");
   });
 });
 

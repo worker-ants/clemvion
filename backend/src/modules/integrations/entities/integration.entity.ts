@@ -13,7 +13,11 @@ import { Workspace } from '../../workspaces/entities/workspace.entity';
 import { User } from '../../users/entities/user.entity';
 import { encryptedJsonTransformer } from '../services/credentials-transformer';
 
-export type IntegrationStatus = 'connected' | 'expired' | 'error';
+export type IntegrationStatus =
+  | 'connected'
+  | 'expired'
+  | 'error'
+  | 'pending_install';
 
 @Entity('integration')
 @Unique('integration_workspace_name_unique', ['workspaceId', 'name'])
@@ -50,6 +54,9 @@ export class Integration {
 
   @Column({ length: 20, default: 'connected' })
   status: IntegrationStatus;
+
+  @Column({ name: 'install_token', type: 'varchar', length: 64, nullable: true })
+  installToken: string | null;
 
   @Column({
     name: 'status_reason',

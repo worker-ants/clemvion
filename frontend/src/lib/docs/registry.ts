@@ -64,7 +64,11 @@ export interface LoadOptions {
   includeDrafts?: boolean;
 }
 
-// 섹션 키(디렉터리명)별 한글 레이블. 새 섹션 디렉터리를 추가하면 여기에도 등록해요.
+// 섹션 키(디렉터리명)별 한글 레이블. 사이드바가 이 표를 사용한다.
+// 검색 인덱스는 `./locale.ts` 의 `SECTION_LABELS_BY_LOCALE` 를 쓰므로, 새 섹션을 추가할 때
+// 양쪽 모두에 등록해야 사이드바/검색 결과가 같은 라벨을 보여준다.
+// FAQ 가 항상 사이드바 맨 아래에 위치하도록 `99-faq` 프리픽스를 쓴다 — 자세한 규칙은
+// `spec/2-navigation/13-user-guide.md` §5.
 const SECTION_LABELS: Record<string, string> = {
   "01-getting-started": "시작하기",
   "02-nodes": "노드 가이드",
@@ -72,8 +76,8 @@ const SECTION_LABELS: Record<string, string> = {
   "04-expression-language": "표현식 언어",
   "05-run-and-debug": "실행과 디버깅",
   "06-integrations-and-config": "통합과 설정",
-  "07-faq": "자주 묻는 질문",
-  "08-workspace-and-team": "워크스페이스와 팀",
+  "07-workspace-and-team": "워크스페이스와 팀",
+  "99-faq": "자주 묻는 질문",
 };
 
 export function stripNumberPrefix(segment: string): string {

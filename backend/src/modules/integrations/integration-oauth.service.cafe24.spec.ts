@@ -1,7 +1,31 @@
-import { BadRequestException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException } from '@nestjs/common';
+import { createHmac } from 'crypto';
 import { IntegrationOAuthService } from './integration-oauth.service';
 
 type Mock = jest.Mock;
+
+function makeQueryBuilder(results: unknown[] = []) {
+  const qb: Record<string, Mock> = {
+    where: jest.fn(),
+    andWhere: jest.fn(),
+    take: jest.fn(),
+    getMany: jest.fn().mockResolvedValue(results),
+  };
+  qb.where.mockReturnValue(qb);
+  qb.andWhere.mockReturnValue(qb);
+  qb.take.mockReturnValue(qb);
+  return qb;
+}
+
+function computeTestHmac(rawQuery: string, secret: string): string {
+  const params = new URLSearchParams(rawQuery);
+  params.delete('hmac');
+  const message = [...params.entries()]
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([k, v]) => `${k}=${encodeURIComponent(v)}`)
+    .join('&');
+  return createHmac('sha256', secret).update(message, 'utf8').digest('base64');
+}
 
 function makeRepo(): Record<string, Mock> {
   return {
@@ -11,6 +35,7 @@ function makeRepo(): Record<string, Mock> {
       .mockImplementation((entity: unknown) => Promise.resolve(entity)),
     findOne: jest.fn().mockResolvedValue(null),
     delete: jest.fn().mockResolvedValue(undefined),
+    createQueryBuilder: jest.fn().mockImplementation(() => makeQueryBuilder()),
   };
 }
 
@@ -176,7 +201,11 @@ describe('IntegrationOAuthService — Cafe24', () => {
       });
     });
 
-    it('private app — persists client_id/secret on provider_meta', async () => {
+    it('private app — creates pending_install integration and returns pending result', async () => {
+      integrationRepo.save = jest
+        .fn()
+        .mockResolvedValue({ id: 'pending-integration-id' });
+
       const result = await service.begin({
         workspaceId: 'ws-1',
         userId: 'u-1',
@@ -191,24 +220,129 @@ describe('IntegrationOAuthService — Cafe24', () => {
         },
       });
 
-      expect(result.authUrl).toContain(
+      // New private-app flow: no popup — returns pending indicator instead.
+      expect(result).toMatchObject({
+        mode: 'cafe24_private_pending',
+        integrationId: 'pending-integration-id',
+      });
+      const r = result as { appUrl: string; callbackUrl: string };
+      expect(r.appUrl).toContain('/oauth/install/cafe24');
+      expect(r.callbackUrl).toContain('/oauth/callback/cafe24');
+
+      // Integration saved with pending_install status and credentials embedded.
+      expect(integrationRepo.save).toHaveBeenCalledTimes(1);
+      const created = integrationRepo.create.mock.calls[0][0] as Record<
+        string,
+        unknown
+      >;
+      expect(created.status).toBe('pending_install');
+      expect(created.serviceType).toBe('cafe24');
+      const creds = created.credentials as Record<string, unknown>;
+      expect(creds.client_id).toBe('priv-client-id');
+      expect(creds.client_secret).toBe('priv-client-secret');
+
+      // No state row yet (state is created later in handleInstall).
+      expect(stateRepo.save).not.toHaveBeenCalled();
+      // No authUrl — the browser never opens a popup for private apps.
+      expect((result as Record<string, unknown>).authUrl).toBeUndefined();
+    });
+  });
+
+  describe('handleInstall — Cafe24 private app App URL', () => {
+    const clientSecret = 'test-private-secret';
+
+    function buildRawQuery(timestampSec: number): string {
+      const base = `is_multi_shop=T&mall_id=priv-shop&timestamp=${timestampSec}&user_id=admin`;
+      const hmac = computeTestHmac(base, clientSecret);
+      return `${base}&hmac=${encodeURIComponent(hmac)}`;
+    }
+
+    function makePendingCandidate(overrides: Record<string, unknown> = {}) {
+      return {
+        id: 'integration-1',
+        workspaceId: 'ws-1',
+        createdBy: 'u-1',
+        name: 'priv-shop (Cafe24 Private)',
+        scope: 'personal',
+        credentials: {
+          mall_id: 'priv-shop',
+          app_type: 'private',
+          client_id: 'priv-client-id',
+          client_secret: clientSecret,
+          scopes: ['mall.read_product'],
+        },
+        ...overrides,
+      };
+    }
+
+    it('throws CAFE24_INSTALL_REPLAY when timestamp is older than 5 minutes', async () => {
+      const staleTs = Math.floor(Date.now() / 1000) - 400;
+      const rawQuery = buildRawQuery(staleTs);
+      const params = new URLSearchParams(rawQuery);
+
+      await expect(
+        service.handleInstall({
+          mall_id: 'priv-shop',
+          timestamp: String(staleTs),
+          hmac: params.get('hmac')!,
+          rawQuery,
+        }),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('throws CAFE24_INSTALL_INVALID_HMAC when no pending integration matches', async () => {
+      integrationRepo.createQueryBuilder = jest
+        .fn()
+        .mockReturnValue(makeQueryBuilder([]));
+
+      const validTs = Math.floor(Date.now() / 1000);
+      const rawQuery = buildRawQuery(validTs);
+      const params = new URLSearchParams(rawQuery);
+
+      await expect(
+        service.handleInstall({
+          mall_id: 'priv-shop',
+          timestamp: String(validTs),
+          hmac: params.get('hmac')!,
+          rawQuery,
+        }),
+      ).rejects.toThrow(ForbiddenException);
+    });
+
+    it('returns Cafe24 authorize URL for valid HMAC and matching pending integration', async () => {
+      const candidate = makePendingCandidate();
+      integrationRepo.createQueryBuilder = jest
+        .fn()
+        .mockReturnValue(makeQueryBuilder([candidate]));
+
+      const validTs = Math.floor(Date.now() / 1000);
+      const rawQuery = buildRawQuery(validTs);
+      const params = new URLSearchParams(rawQuery);
+      const hmac = params.get('hmac')!;
+
+      const authorizeUrl = await service.handleInstall({
+        mall_id: 'priv-shop',
+        timestamp: String(validTs),
+        hmac,
+        rawQuery,
+      });
+
+      expect(authorizeUrl).toContain(
         'https://priv-shop.cafe24api.com/api/v2/oauth/authorize',
       );
-      expect(result.authUrl).toContain('client_id=priv-client-id');
-      // The private app secret must NEVER appear in the authorize URL —
-      // it only travels server-to-server during the token exchange step.
-      // Guards against accidental future regressions that might put it
-      // on the wire as a query parameter (browser history / Referer /
-      // proxy access logs would leak it otherwise).
-      expect(result.authUrl).not.toContain('client_secret');
-      expect(result.authUrl).not.toContain('priv-client-secret');
-      const saved = stateRepo.save.mock.calls[0][0] as Record<string, unknown>;
-      expect(saved.providerMeta).toEqual({
-        mall_id: 'priv-shop',
-        app_type: 'private',
-        client_id: 'priv-client-id',
-        client_secret: 'priv-client-secret',
-      });
+      expect(authorizeUrl).toContain('client_id=priv-client-id');
+      // client_secret must NEVER leak into the authorize URL.
+      expect(authorizeUrl).not.toContain('client_secret');
+      expect(authorizeUrl).not.toContain(clientSecret);
+
+      expect(stateRepo.save).toHaveBeenCalledTimes(1);
+      const savedState = stateRepo.create.mock.calls[0][0] as Record<
+        string,
+        unknown
+      >;
+      expect(savedState.mode).toBe('reauthorize');
+      expect(savedState.integrationId).toBe('integration-1');
+      expect(savedState.provider).toBe('cafe24');
     });
   });
 
@@ -297,6 +431,70 @@ describe('IntegrationOAuthService — Cafe24', () => {
       const creds = previewArg.credentials as Record<string, unknown>;
       expect(creds.client_id).toBe('priv-id');
       expect(creds.client_secret).toBe('priv-secret');
+    });
+
+    it('pending_install integration — transitions to connected and clears installToken', async () => {
+      const pendingIntegration = {
+        id: 'pending-int-id',
+        workspaceId: 'ws-1',
+        status: 'pending_install',
+        credentials: {
+          mall_id: 'priv-shop',
+          app_type: 'private',
+          client_id: 'priv-id',
+          client_secret: 'priv-secret',
+          scopes: [],
+        },
+        installToken: 'some-install-token',
+        statusReason: 'waiting',
+        lastError: { msg: 'old' },
+        tokenExpiresAt: null,
+        lastRotatedAt: null,
+      };
+      integrationRepo.findOne = jest.fn().mockResolvedValue(pendingIntegration);
+
+      const stateRecord = {
+        id: 'state-3',
+        state: 'state-token-3',
+        workspaceId: 'ws-1',
+        userId: 'u-1',
+        provider: 'cafe24',
+        serviceType: 'cafe24',
+        mode: 'reauthorize',
+        integrationId: 'pending-int-id',
+        requestedScopes: ['mall.read_product'],
+        integrationName: 'priv-shop (Cafe24 Private)',
+        scope: 'personal',
+        providerMeta: {
+          mall_id: 'priv-shop',
+          app_type: 'private',
+          client_id: 'priv-id',
+          client_secret: 'priv-secret',
+        },
+        expiresAt: new Date(Date.now() + 60_000),
+        createdAt: new Date(),
+      };
+
+      dataSource.query.mockResolvedValueOnce([stateRecord]);
+
+      const result = await service.handleCallback('cafe24', {
+        code: 'authz-code',
+        state: 'state-token-3',
+      });
+
+      expect(result.mode).toBe('reauthorize');
+      expect(result.integrationId).toBe('pending-int-id');
+
+      // Integration must be saved with connected status and cleared installToken.
+      expect(integrationRepo.save).toHaveBeenCalledTimes(1);
+      const savedIntegration = integrationRepo.save.mock.calls[0][0] as Record<
+        string,
+        unknown
+      >;
+      expect(savedIntegration.status).toBe('connected');
+      expect(savedIntegration.installToken).toBeNull();
+      expect(savedIntegration.statusReason).toBeNull();
+      expect(savedIntegration.lastError).toBeNull();
     });
   });
 });

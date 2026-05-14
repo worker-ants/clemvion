@@ -28,20 +28,20 @@ predecessor_plan: plan/complete/cafe24-integration.md
 
 ## Phase 0. 컨텍스트 로드 & 환경 확인
 
-- [ ] worktree 확인 (`cafe24-integration-a3f5e2`) 및 branch (`claude/cafe24-integration-a3f5e2`) 일치 확인
-- [ ] 새 spec 11~12개 파일 모두 읽기
-- [ ] 기존 backend 의 참조 구조 파악:
+- [x] worktree 확인 (`cafe24-integration-a3f5e2`) 및 branch (`claude/cafe24-integration-a3f5e2`) 일치 확인
+- [x] 새 spec 11~12개 파일 모두 읽기
+- [x] 기존 backend 의 참조 구조 파악:
   - `backend/src/nodes/integration/http-request/` — Integration 노드 핸들러 패턴
   - `backend/src/nodes/ai/ai-agent/tool-providers/mcp-tool-provider.ts` — MCP provider 패턴 (있다면)
   - `backend/src/integrations/` — OAuth provider 구조 (Google/GitHub)
   - `backend/src/integrations/integrations.service.ts` (또는 동등) — `getForExecution`, credentials 해석
   - `IntegrationsController` — `/api/integrations/oauth/begin` 핸들러
-- [ ] 기존 frontend 의 참조 구조 파악:
+- [x] 기존 frontend 의 참조 구조 파악:
   - `frontend/src/app/integrations/` — 모달, Step 폼, 상세 페이지
   - `frontend/src/components/integration-selector/` — `serviceTypes` prop
   - `frontend/src/components/nodes/integration/http-request/` — 노드 설정 패널
   - AI Agent mcpServers UI
-- [ ] `Node.type` DB 컬럼 타입 확인 (PostgreSQL enum 인지 String 인지 — 마이그레이션 필요 판단)
+- [x] `Node.type` DB 컬럼 타입 확인 (PostgreSQL enum 인지 String 인지 — 마이그레이션 필요 판단)
 
 ## Phase 1. consistency-check --impl-prep (의무 호출)
 
@@ -78,45 +78,45 @@ predecessor_plan: plan/complete/cafe24-integration.md
 - [x] `IntegrationsController.oauthBegin` — body 의 cafe24 한정 필드를 providerMeta 로 전달
 - [x] 단위 테스트 10건 통과 (`integration-oauth.service.cafe24.spec.ts`): mall_id validation 4건 / app_type 검증 / private 필수 / public env 미설정 / happy path (public·private) / handleCallback 의 preview credentials 포함 검증 (public·private)
 - [x] 회귀: 기존 OAuth 18 tests 통과, 전체 integrations module 121/121 tests 통과
-- [ ] Refresh 흐름 — Phase 4 의 `Cafe24ApiClient` 에서 호출 직전 만료 검사 + refresh 처리 (단일 wrapper 통과 원칙)
+- [x] Refresh 흐름 — Phase 4 의 `Cafe24ApiClient` 에서 호출 직전 만료 검사 + refresh 처리 (단일 wrapper 통과 원칙)
 
 ## Phase 4. Backend — Cafe24ApiClient (rate-limit-aware wrapper)
 
-- [ ] `backend/src/integrations/cafe24/cafe24-api.client.ts`
-- [ ] `Authorization: Bearer {access_token}` 자동 부여
-- [ ] X-Cafe24-Call-Remain / X-Cafe24-Call-Usage / X-Api-Call-Limit 헤더 파싱
-- [ ] 429 시 `max(callRemain, timeRemain)` 만큼 sleep + 최대 2회 재시도
-- [ ] 동일 프로세스 인스턴스 내 Integration ID 별 in-memory mutex
-- [ ] 401/403 시 Integration.status = error(auth_failed) 로 atomic 전이
-- [ ] 단위 테스트 (mocked fetch, rate-limit 시나리오)
+- [x] `backend/src/integrations/cafe24/cafe24-api.client.ts`
+- [x] `Authorization: Bearer {access_token}` 자동 부여
+- [x] X-Cafe24-Call-Remain / X-Cafe24-Call-Usage / X-Api-Call-Limit 헤더 파싱
+- [x] 429 시 `max(callRemain, timeRemain)` 만큼 sleep + 최대 2회 재시도
+- [x] 동일 프로세스 인스턴스 내 Integration ID 별 in-memory mutex
+- [x] 401/403 시 Integration.status = error(auth_failed) 로 atomic 전이
+- [x] 단위 테스트 (mocked fetch, rate-limit 시나리오) — 12 tests
 
 ## Phase 5. Backend — `cafe24` 노드 핸들러 (TDD)
 
-- [ ] `backend/src/nodes/integration/cafe24/cafe24.schema.ts` (`cafe24NodeConfigSchema`, `cafe24NodeMetadata`)
-- [ ] `backend/src/nodes/integration/cafe24/cafe24.handler.ts` — spec §4 의 12 단계 흐름
-- [ ] CONVENTIONS Principle 0~11 준수 (5필드 invariant, config echo, output.error envelope)
-- [ ] Pre-flight throw 모든 케이스 (§5.8): `CAFE24_UNKNOWN_OPERATION`, `CAFE24_MISSING_FIELDS`, `CAFE24_INVALID_MALL_ID`, `INTEGRATION_*`
-- [ ] Runtime 에러 코드 (§6): `CAFE24_4XX/404/422/AUTH_FAILED/RATE_LIMITED/5XX/TRANSPORT_FAILED`
-- [ ] IntegrationUsageLog 기록
-- [ ] 단위 테스트 (메타데이터 검증, fields → path/query/body 분배, 에러 분기)
-- [ ] 핸들러 등록 (node registry)
+- [x] `backend/src/nodes/integration/cafe24/cafe24.schema.ts` (`cafe24NodeConfigSchema`, `cafe24NodeMetadata`)
+- [x] `backend/src/nodes/integration/cafe24/cafe24.handler.ts` — spec §4 의 12 단계 흐름
+- [x] CONVENTIONS Principle 0~11 준수 (5필드 invariant, config echo, output.error envelope)
+- [x] Pre-flight throw 모든 케이스 (§5.8): `CAFE24_UNKNOWN_OPERATION`, `CAFE24_MISSING_FIELDS`, `CAFE24_INVALID_MALL_ID`, `INTEGRATION_*`
+- [x] Runtime 에러 코드 (§6): `CAFE24_4XX/404/422/AUTH_FAILED/RATE_LIMITED/5XX/TRANSPORT_FAILED`
+- [x] IntegrationUsageLog 기록
+- [x] 단위 테스트 (메타데이터 검증, fields → path/query/body 분배, 에러 분기) — 17 tests
+- [x] 핸들러 등록 (node registry)
 
 ## Phase 6. Backend — `Cafe24McpBridge` (Internal Bridge)
 
-- [ ] `backend/src/integrations/cafe24/cafe24-mcp.bridge.ts` — `IMcpClient` 구현
-- [ ] `listTools()` — 메타데이터 → MCP `tools/list` 응답 (bare id, prefix 는 MCP Client 레이어)
-- [ ] `callTool(name, args)` — `Cafe24ApiClient` 로 위임 (노드 핸들러와 동일 경로)
-- [ ] `initialize` / connect / close = no-op
-- [ ] capability: `tools` 만 보고, resources/prompts 미보고
-- [ ] McpToolProvider 가 `service_type='cafe24'` 도 lazy connect 하도록 확장
-- [ ] 단위 테스트 (메타데이터 → MCP tool 변환, allowlist filter)
+- [x] `backend/src/nodes/ai/ai-agent/tool-providers/cafe24-mcp-tool-provider.ts` — `IMcpClient` 구현
+- [x] `listTools()` — 메타데이터 → MCP `tools/list` 응답 (bare id, prefix 는 MCP Client 레이어)
+- [x] `callTool(name, args)` — `Cafe24ApiClient` 로 위임 (노드 핸들러와 동일 경로)
+- [x] `initialize` / connect / close = no-op
+- [x] capability: `tools` 만 보고, resources/prompts 미보고
+- [x] McpToolProvider 가 `service_type='cafe24'` 도 lazy connect 하도록 확장
+- [x] 단위 테스트 (메타데이터 → MCP tool 변환, allowlist filter) — 10 tests
 
 ## Phase 7. Backend — IntegrationsService 확장
 
-- [ ] `IntegrationsService.getForExecution` 의 service_type 화이트리스트에 `cafe24` 추가
-- [ ] `Integration.service_type` enum / String 타입 확인 후 필요 시 마이그레이션
-- [ ] `Node.type` enum / String 타입 확인 후 필요 시 ALTER TYPE 마이그레이션 (`cafe24` 추가)
-- [ ] AI Agent mcpServers candidate 쿼리 (collectPendingUserConfig) — `integrationServiceType` hint 의 `string | string[]` 다중값 지원
+- [x] `IntegrationsService.getForExecution` 의 service_type 화이트리스트에 `cafe24` 추가
+- [x] `Integration.service_type` enum / String 타입 확인 후 필요 시 마이그레이션 (varchar — 마이그레이션 불필요)
+- [x] `Node.type` enum / String 타입 확인 후 필요 시 ALTER TYPE 마이그레이션 (`cafe24` 추가) — varchar, 마이그레이션 불필요
+- [x] AI Agent mcpServers candidate 쿼리 (collectPendingUserConfig) — `integrationServiceType` hint 의 `string | string[]` 다중값 지원
 
 ## Phase 8. Frontend — Add Integration 모달 + Step 2 폼
 
@@ -164,13 +164,17 @@ predecessor_plan: plan/complete/cafe24-integration.md
 
 ## Phase 13. ai-review
 
-- [ ] **Follow-up** — 본 implementation 의 13 phase 가 한 묶음 PR 로 머지되므로, PR 단계에서 `/ai-review` 실행을 권장 (사용자가 PR 생성 후 트리거). 핵심 review 대상: Cafe24OAuthService 의 mall_id-dependent endpoint 흐름·`provider_meta` 저장의 secret-handling, Cafe24ApiClient 의 mutex + atomic refresh 전이, Cafe24McpToolProvider 의 ownedSids 격리 vs concurrent execution.
+- [x] `/ai-review --range 470f6c58..HEAD` — `review/2026-05-14_13-57-48/` (Critical 3, Warning 13, Info 10)
+- [x] C1/C2/C3 + W3/W4/W5/W7/W11/W13 + I1/I2 조치 완료 — `review/2026-05-14_13-57-48/RESOLUTION.md`
+- [x] 조치 후 TEST WORKFLOW 재통과 (backend 3367/3367, frontend lint clean, build pass)
+- [x] 미조치 항목 (W6/W8/W9/W10/W14/W15/W16/I3-I10) — RESOLUTION.md 에 사유 기재, follow-up PR 권장
 
 ## Phase 14. 정리
 
-- [x] 모든 backend/frontend phase 체크박스 [x] (Phase 11 e2e + Phase 13 ai-review 는 follow-up 명시)
-- [x] 본 plan `plan/complete/` 이동 (사용자가 PR 생성 시 함께 머지)
-- [x] 후속 implementation plan 인계 항목 정리 (아래)
+- [x] 모든 backend/frontend phase 체크박스 [x] (Phase 11 e2e 는 follow-up — Cafe24 sandbox 미제공)
+- [x] ai-review 조치 완료 (`review/2026-05-14_13-57-48/RESOLUTION.md`)
+- [x] 본 plan `plan/complete/` 이동 (PR 생성 후 merge)
+- [x] 후속 follow-up plan 항목 정리 (아래 표)
 
 ### 후속 follow-up plan 항목 (별도 plan 으로 분리)
 
