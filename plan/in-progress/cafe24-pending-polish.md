@@ -6,6 +6,9 @@ owner: developer
 
 # Cafe24 Private "Pending install" 멈춤 — 관측성 보강 + 후속 정비
 
+> **상태 (2026-05-14)**: 변경 0~5 + ai-review 2 round 모두 처리 완료 → **PR #18** (https://github.com/worker-ants/clemvion/pull/18) 머지 대기 중. 본 plan 의 미체크 항목들은 ai-review 가 본 PR 범위 외로 미룬 cleanup·강화 항목이며, `plan/in-progress/cafe24-pending-polish-followup.md` 에 그룹별로 재정리되어 있다. PR #18 머지 후 본 plan 은 `plan/complete/` 로 이동, follow-up plan 이 후속 진입자의 작업 기준이 된다.
+
+
 ## Context
 
 Cafe24 private 모드 통합 연동에서 사용자가 Cafe24 Developers 의 "테스트 실행" 으로 OAuth 흐름을 진행했는데, 팝업이 닫힌 뒤에도 통합 상태가 `pending_install` 에 머무는 문제가 보고됐다. 새로고침으로도 회복되지 않으며, 백엔드 로그/DB 접근이 즉시 어려운 환경에서 원인을 좁히기 어렵다.
