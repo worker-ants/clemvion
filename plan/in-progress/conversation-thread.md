@@ -166,13 +166,28 @@ owner: developer
 
 ### v1 출하 잔여 항목
 
-모두 spec 의 v2 로드맵 (`spec/conventions/conversation-thread.md §7`) 에 명시:
-- W5: `$thread.text` lazy 평가 (성능 측정 후)
-- W8: Parallel + thread 정책 (use case 정의 후)
-- text_classifier / information_extractor push hook 구현 (v2 §1.4 변환 규칙 합의 후)
-- DB 컬럼 신설 (cross-node thread 조회 N+1 해소 시점)
-- Multi-thread (사용자 지정 key)
-- Token-aware cap (provider tokenizer)
+spec 의 v2 로드맵 (`spec/conventions/conversation-thread.md §7`) 에 명시.
+
+### Phase 21-22 — v2 후속 적용 ✅ (사용자 "판단 필요없는거 진행" 요청)
+
+- **Phase 21 ✅** — text_classifier + information_extractor push hook (commit `1f0bbf09`).
+  - 두 핸들러의 final assistant 위치에 `appendAiAssistantMessage` push.
+  - text_classifier: single→category, multi→`names.join(', ')` (spec §1.4).
+  - information_extractor: single-turn `out` 분기에 `JSON.stringify(extracted)`. multi-turn 종료 분기 push 는 follow-up (state-carried thread reference 패턴 필요).
+  - 7 신규 테스트 (4 + 3).
+- **Phase 22 ✅** — `$thread.text` lazy + memoized (commit `6eee2db8`).
+  - Object.defineProperty getter 옵션 A. `$thread.text` 사용 안 한 expression 은 render 안 함.
+  - 첫 access 시 cache, 이후 O(1).
+  - 1 신규 테스트.
+
+### Phase 23-24 — 별도 plan 으로 분리
+
+표면상 "판단 옵션 없음" 이지만 실제 운영·아키텍처 결정이 다수 — 본 plan 의 단순 follow-up 범위를 넘음:
+
+- **Phase 23 (Token-aware cap)** — Anthropic API `count_tokens` 호출 / OpenAI `tiktoken` 라이브러리 / Google 등 provider 별 tokenizer 통합. 정확 측정 vs heuristic(`chars/4`) trade-off, applyCap 비동기화, latency 영향 측정. 별도 plan 필요.
+- **Phase 24 (DB 컬럼 신설)** — `Execution.conversation_thread jsonb` 마이그레이션 + 실행 완료 hook + sanitize 정책 + 옛 row 처리 (null vs backfill) + 1MB 컬럼 한계 처리. 별도 plan 필요.
+
+두 phase 모두 v2 로드맵 §7 항목으로 spec 에 이미 정식 등재. 후속 작업자가 이 plan 을 출발점으로 별도 worktree 에서 진행.
 
 ## 핵심 설계 (요약)
 
