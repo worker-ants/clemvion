@@ -154,6 +154,81 @@ describe('IntegrationsService', () => {
         NotFoundException,
       );
     });
+
+    // -----------------------------------------------------------------
+    // meta.appType — safe-to-expose hints derived from credentials.
+    // FE uses this to decide Reauthorize button visibility for Cafe24
+    // Private apps without ever touching the encrypted credentials blob.
+    // -----------------------------------------------------------------
+    describe('meta.appType', () => {
+      it('returns "private" for Cafe24 Private rows', async () => {
+        integrationRepo.findOne.mockResolvedValue(
+          makeIntegration({
+            serviceType: 'cafe24',
+            authType: 'oauth2',
+            credentials: {
+              mall_id: 'myshop',
+              app_type: 'private',
+              client_id: 'cid',
+              client_secret: 'csec',
+            },
+          }),
+        );
+        const result = await service.findById('int-1', 'ws-1');
+        expect(result.meta).toEqual({ appType: 'private' });
+      });
+
+      it('returns "public" for Cafe24 Public rows', async () => {
+        integrationRepo.findOne.mockResolvedValue(
+          makeIntegration({
+            serviceType: 'cafe24',
+            authType: 'oauth2',
+            credentials: {
+              mall_id: 'myshop',
+              app_type: 'public',
+              access_token: 'tok',
+            },
+          }),
+        );
+        const result = await service.findById('int-1', 'ws-1');
+        expect(result.meta).toEqual({ appType: 'public' });
+      });
+
+      it('returns null for non-cafe24 service types', async () => {
+        // Default makeIntegration uses serviceType='google'.
+        const result = await service.findById('int-1', 'ws-1');
+        expect(result.meta).toEqual({ appType: null });
+      });
+
+      it('returns null when cafe24 credentials have unexpected app_type', async () => {
+        integrationRepo.findOne.mockResolvedValue(
+          makeIntegration({
+            serviceType: 'cafe24',
+            credentials: { mall_id: 'shop', app_type: 'bogus' },
+          }),
+        );
+        const result = await service.findById('int-1', 'ws-1');
+        expect(result.meta).toEqual({ appType: null });
+      });
+
+      it('returns null when credentials are unreadable (no decrypt → no peek)', async () => {
+        // Unreadable credentials sentinel — toPublic short-circuits to a
+        // reconnect-required row and meta must not leak any peek either.
+        integrationRepo.findOne.mockResolvedValue(
+          makeIntegration({
+            serviceType: 'cafe24',
+            credentials: { __unreadable: true } as unknown as Record<
+              string,
+              unknown
+            >,
+          }),
+        );
+        const result = await service.findById('int-1', 'ws-1');
+        expect(result.meta).toEqual({ appType: null });
+        // Sanity: status flips to error/needs_reauth on unreadable.
+        expect(result.credentialsStatus).toBe('needs_reauth');
+      });
+    });
   });
 
   // -----------------------------------------------------------------
