@@ -1625,7 +1625,7 @@ export const ko = {
     cafe24CallbackUrlLabel: "Redirect URI (Cafe24 Developers → 개발 정보에 등록)",
     cafe24PrivatePendingSteps:
       "① Cafe24 Developers → 내 앱 → 개발 정보에서 App URL 과 Redirect URI 를 위 값으로 등록하세요. ② 사용 권한(Scope) 이 요청한 scope 와 일치하는지 확인하세요. ③ 테스트 실행 버튼을 클릭하고 mall_id 를 입력하세요. 동의 후 통합이 활성화됩니다.",
-    cafe24PrivatePendingViewList: "통합 목록으로 이동",
+    cafe24PrivatePendingViewList: "통합 상세 보기",
     copied: "복사됨",
     waitingPopup: "제공자 팝업 응답을 기다리는 중…",
     oauthComplete: "OAuth 인증이 완료됐어요.",

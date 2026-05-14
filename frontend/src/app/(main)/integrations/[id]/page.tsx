@@ -366,7 +366,7 @@ function SecurityTab({
   const reauthorize = useMutation({
     mutationFn: () => integrationsApi.reauthorize(integration.id),
     onSuccess: (res) => {
-      if (res.authUrl) {
+      if ("authUrl" in res && res.authUrl) {
         openOAuthPopup(res.authUrl);
         toast.success(t("integrations.reauthorizeOpened"));
       } else {
@@ -537,7 +537,7 @@ function ScopeTab({
   const requestMutation = useMutation({
     mutationFn: () => integrationsApi.requestScopes(integration.id, selected),
     onSuccess: (res) => {
-      if (res.authUrl) {
+      if ("authUrl" in res && res.authUrl) {
         openOAuthPopup(res.authUrl);
         toast.success(t("integrations.scopeRequestOpened"));
       }

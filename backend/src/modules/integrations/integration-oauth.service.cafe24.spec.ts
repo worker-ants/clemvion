@@ -8,10 +8,12 @@ function makeQueryBuilder(results: unknown[] = []) {
   const qb: Record<string, Mock> = {
     where: jest.fn(),
     andWhere: jest.fn(),
+    take: jest.fn(),
     getMany: jest.fn().mockResolvedValue(results),
   };
   qb.where.mockReturnValue(qb);
   qb.andWhere.mockReturnValue(qb);
+  qb.take.mockReturnValue(qb);
   return qb;
 }
 
@@ -338,7 +340,7 @@ describe('IntegrationOAuthService — Cafe24', () => {
         string,
         unknown
       >;
-      expect(savedState.mode).toBe('reconnect');
+      expect(savedState.mode).toBe('reauthorize');
       expect(savedState.integrationId).toBe('integration-1');
       expect(savedState.provider).toBe('cafe24');
     });
@@ -429,6 +431,70 @@ describe('IntegrationOAuthService — Cafe24', () => {
       const creds = previewArg.credentials as Record<string, unknown>;
       expect(creds.client_id).toBe('priv-id');
       expect(creds.client_secret).toBe('priv-secret');
+    });
+
+    it('pending_install integration — transitions to connected and clears installToken', async () => {
+      const pendingIntegration = {
+        id: 'pending-int-id',
+        workspaceId: 'ws-1',
+        status: 'pending_install',
+        credentials: {
+          mall_id: 'priv-shop',
+          app_type: 'private',
+          client_id: 'priv-id',
+          client_secret: 'priv-secret',
+          scopes: [],
+        },
+        installToken: 'some-install-token',
+        statusReason: 'waiting',
+        lastError: { msg: 'old' },
+        tokenExpiresAt: null,
+        lastRotatedAt: null,
+      };
+      integrationRepo.findOne = jest.fn().mockResolvedValue(pendingIntegration);
+
+      const stateRecord = {
+        id: 'state-3',
+        state: 'state-token-3',
+        workspaceId: 'ws-1',
+        userId: 'u-1',
+        provider: 'cafe24',
+        serviceType: 'cafe24',
+        mode: 'reauthorize',
+        integrationId: 'pending-int-id',
+        requestedScopes: ['mall.read_product'],
+        integrationName: 'priv-shop (Cafe24 Private)',
+        scope: 'personal',
+        providerMeta: {
+          mall_id: 'priv-shop',
+          app_type: 'private',
+          client_id: 'priv-id',
+          client_secret: 'priv-secret',
+        },
+        expiresAt: new Date(Date.now() + 60_000),
+        createdAt: new Date(),
+      };
+
+      dataSource.query.mockResolvedValueOnce([stateRecord]);
+
+      const result = await service.handleCallback('cafe24', {
+        code: 'authz-code',
+        state: 'state-token-3',
+      });
+
+      expect(result.mode).toBe('reauthorize');
+      expect(result.integrationId).toBe('pending-int-id');
+
+      // Integration must be saved with connected status and cleared installToken.
+      expect(integrationRepo.save).toHaveBeenCalledTimes(1);
+      const savedIntegration = integrationRepo.save.mock.calls[0][0] as Record<
+        string,
+        unknown
+      >;
+      expect(savedIntegration.status).toBe('connected');
+      expect(savedIntegration.installToken).toBeNull();
+      expect(savedIntegration.statusReason).toBeNull();
+      expect(savedIntegration.lastError).toBeNull();
     });
   });
 });
