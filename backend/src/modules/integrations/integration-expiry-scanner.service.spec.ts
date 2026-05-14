@@ -211,24 +211,29 @@ describe('IntegrationExpiryScannerService.run', () => {
 });
 
 describe('IntegrationExpiryScannerService.expirePendingInstalls (변경 4)', () => {
-  it('transitions stale pending_install rows to expired(install_timeout) and clears install_token', async () => {
-    const integrationRepo = repo();
-    const stale = [
-      {
-        id: 'pending-stale-1',
-        status: 'pending_install',
-        statusReason: null,
-        installToken: 'token-a',
-      },
-      {
-        id: 'pending-stale-2',
-        status: 'pending_install',
-        statusReason: 'oauth_token_exchange_failed',
-        installToken: 'token-b',
-      },
-    ];
-    integrationRepo.find.mockResolvedValue(stale);
-    const scanner = new IntegrationExpiryScannerService(
+  let integrationRepo: Record<string, jest.Mock>;
+  let updateBuilder: Record<string, jest.Mock>;
+  let scanner: IntegrationExpiryScannerService;
+  let executeMock: jest.Mock;
+
+  beforeEach(() => {
+    executeMock = jest.fn().mockResolvedValue({ affected: 0 });
+    updateBuilder = {
+      update: jest.fn(),
+      set: jest.fn(),
+      where: jest.fn(),
+      andWhere: jest.fn(),
+      execute: executeMock,
+    };
+    updateBuilder.update.mockReturnValue(updateBuilder);
+    updateBuilder.set.mockReturnValue(updateBuilder);
+    updateBuilder.where.mockReturnValue(updateBuilder);
+    updateBuilder.andWhere.mockReturnValue(updateBuilder);
+    integrationRepo = {
+      ...repo(),
+      createQueryBuilder: jest.fn().mockReturnValue(updateBuilder),
+    };
+    scanner = new IntegrationExpiryScannerService(
       integrationRepo as never,
       repo() as never,
       repo() as never,
@@ -237,31 +242,95 @@ describe('IntegrationExpiryScannerService.expirePendingInstalls (변경 4)', () 
       { createMany: jest.fn() } as never,
       { upsertJobScheduler: jest.fn() } as never,
     );
-    const affected = await scanner.expirePendingInstalls(new Date());
-    expect(affected).toBe(2);
-    expect(integrationRepo.save).toHaveBeenCalledWith(stale);
-    for (const row of stale) {
-      expect(row.status).toBe('expired');
-      expect(row.statusReason).toBe('install_timeout');
-      expect(row.installToken).toBeNull();
-    }
   });
 
-  it('is a no-op when no pending_install rows are stale', async () => {
+  it('issues a single atomic UPDATE for stale pending_install rows (no find→save race)', async () => {
+    executeMock.mockResolvedValue({ affected: 2 });
+    const now = new Date('2026-05-14T12:00:00Z');
+    const affected = await scanner.expirePendingInstalls(now);
+    expect(affected).toBe(2);
+    // Bulk UPDATE — predicate is part of the WHERE clause so a concurrent
+    // callback that flips the row to `connected` between our read and write
+    // is not racy: only rows still pending_install at write time are touched.
+    expect(updateBuilder.set).toHaveBeenCalledWith({
+      status: 'expired',
+      statusReason: 'install_timeout',
+      installToken: null,
+    });
+    expect(updateBuilder.where).toHaveBeenCalledWith('status = :status', {
+      status: 'pending_install',
+    });
+    // Cutoff is exactly now - 24h (PENDING_INSTALL_TTL_HOURS).
+    const andWhereArgs = updateBuilder.andWhere.mock.calls[0];
+    expect(andWhereArgs[0]).toBe('created_at < :cutoff');
+    const cutoff: Date = andWhereArgs[1].cutoff;
+    expect(cutoff.getTime()).toBe(now.getTime() - 24 * 60 * 60 * 1000);
+  });
+
+  it('returns 0 when no pending_install rows are stale', async () => {
+    executeMock.mockResolvedValue({ affected: 0 });
+    const affected = await scanner.expirePendingInstalls(new Date());
+    expect(affected).toBe(0);
+  });
+
+  it('handles undefined `affected` (driver edge case) as 0', async () => {
+    executeMock.mockResolvedValue({});
+    const affected = await scanner.expirePendingInstalls(new Date());
+    expect(affected).toBe(0);
+  });
+});
+
+describe('IntegrationExpiryScannerService.process — error isolation (변경 4)', () => {
+  // Spec/data-flow/integration.md §1.4: one failed pass must not block the
+  // others. Verify the queue handler doesn't propagate so BullMQ won't keep
+  // retrying for a hopeless run (and we still get the next pass executed).
+  function makeScanner() {
     const integrationRepo = repo();
-    integrationRepo.find.mockResolvedValue([]);
+    const usageLogRepo = repo();
+    usageLogRepo.delete.mockResolvedValue({ affected: 0 });
+    integrationRepo.createQueryBuilder = jest.fn().mockReturnValue({
+      update: jest.fn().mockReturnThis(),
+      set: jest.fn().mockReturnThis(),
+      where: jest.fn().mockReturnThis(),
+      andWhere: jest.fn().mockReturnThis(),
+      execute: jest.fn().mockResolvedValue({ affected: 0 }),
+    });
     const scanner = new IntegrationExpiryScannerService(
       integrationRepo as never,
       repo() as never,
+      usageLogRepo as never,
       repo() as never,
-      repo() as never,
-      { findAdminUserIds: jest.fn() } as never,
-      { createMany: jest.fn() } as never,
+      { findAdminUserIds: jest.fn().mockResolvedValue([]) } as never,
+      { createMany: jest.fn().mockResolvedValue(undefined) } as never,
       { upsertJobScheduler: jest.fn() } as never,
     );
-    const affected = await scanner.expirePendingInstalls(new Date());
-    expect(affected).toBe(0);
-    expect(integrationRepo.save).not.toHaveBeenCalled();
+    return { scanner, integrationRepo, usageLogRepo };
+  }
+
+  it('runs pruneUsageLogs even when expirePendingInstalls throws', async () => {
+    const { scanner, usageLogRepo } = makeScanner();
+    jest
+      .spyOn(scanner, 'expirePendingInstalls')
+      .mockRejectedValue(new Error('boom'));
+    await scanner.process({
+      data: { triggeredAt: new Date().toISOString() },
+    } as never);
+    expect(usageLogRepo.delete).toHaveBeenCalled();
+  });
+
+  it('runs expirePendingInstalls even when run() throws', async () => {
+    const { scanner } = makeScanner();
+    const runSpy = jest
+      .spyOn(scanner, 'run')
+      .mockRejectedValue(new Error('boom'));
+    const expireSpy = jest
+      .spyOn(scanner, 'expirePendingInstalls')
+      .mockResolvedValue(0);
+    await scanner.process({
+      data: { triggeredAt: new Date().toISOString() },
+    } as never);
+    expect(runSpy).toHaveBeenCalled();
+    expect(expireSpy).toHaveBeenCalled();
   });
 });
 

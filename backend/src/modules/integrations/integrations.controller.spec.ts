@@ -34,6 +34,13 @@ function makeRes() {
       this.body = body;
       return this;
     }),
+    json: jest.fn().mockImplementation(function (
+      this: typeof res,
+      body: unknown,
+    ) {
+      this.body = body;
+      return this;
+    }),
     redirect: jest.fn(),
   };
   return res as unknown as Response & typeof res;
@@ -162,5 +169,135 @@ describe('IntegrationsController — oauthCallback error paths (변경 0)', () =
     expect(res.statusCode).toBe(500);
     // No HTML callback template renders → no postMessage payload leaks.
     expect(oauthService.handleCallback).not.toHaveBeenCalled();
+  });
+});
+
+describe('IntegrationsController — cafe24 install routes (변경 2)', () => {
+  let controller: IntegrationsController;
+  let oauthService: {
+    handleInstall: jest.Mock;
+    handleCallback: jest.Mock;
+    markIntegrationCallbackError: jest.Mock;
+  };
+  const validToken = 'a'.repeat(64);
+
+  beforeEach(() => {
+    oauthService = {
+      handleCallback: jest.fn(),
+      markIntegrationCallbackError: jest.fn(),
+      handleInstall: jest
+        .fn()
+        .mockResolvedValue(
+          'https://myshop.cafe24api.com/api/v2/oauth/authorize',
+        ),
+    };
+    controller = new IntegrationsController({} as never, oauthService as never);
+  });
+
+  it('rejects non-hex install_token with 404 CAFE24_INSTALL_INVALID_TOKEN before calling service', async () => {
+    const res = makeRes();
+    await controller.cafe24Install(
+      'not-a-hex-token',
+      'shop',
+      '1700000000',
+      'sig',
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      { url: '/cafe24?mall_id=shop' } as never,
+      res as never,
+    );
+    expect(res.statusCode).toBe(404);
+    expect((res.body as { code: string }).code).toBe(
+      'CAFE24_INSTALL_INVALID_TOKEN',
+    );
+    expect(oauthService.handleInstall).not.toHaveBeenCalled();
+  });
+
+  it('rejects short/long hex with 404 (length must be 64)', async () => {
+    const res = makeRes();
+    await controller.cafe24Install(
+      'a'.repeat(63),
+      'shop',
+      '1700000000',
+      'sig',
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      { url: '/cafe24?mall_id=shop' } as never,
+      res as never,
+    );
+    expect(res.statusCode).toBe(404);
+  });
+
+  it('returns 400 CAFE24_INSTALL_MISSING_PARAMS when mall_id missing', async () => {
+    const res = makeRes();
+    await controller.cafe24Install(
+      validToken,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      { url: '/cafe24/x' } as never,
+      res as never,
+    );
+    expect(res.statusCode).toBe(400);
+    expect((res.body as { code: string }).code).toBe(
+      'CAFE24_INSTALL_MISSING_PARAMS',
+    );
+  });
+
+  it('delegates valid input to handleInstall and 302-redirects to authorize URL', async () => {
+    const res = makeRes();
+    await controller.cafe24Install(
+      validToken,
+      'shop',
+      '1700000000',
+      'sig',
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      { url: '/api/integrations/oauth/install/cafe24/X?mall_id=shop' } as never,
+      res as never,
+    );
+    expect(oauthService.handleInstall).toHaveBeenCalledWith(
+      validToken,
+      expect.objectContaining({ mall_id: 'shop', hmac: 'sig' }),
+    );
+    expect(res.redirect).toHaveBeenCalledWith(
+      302,
+      'https://myshop.cafe24api.com/api/v2/oauth/authorize',
+    );
+  });
+
+  it('legacy /oauth/install/cafe24 returns 410 CAFE24_INSTALL_LEGACY_PATH', () => {
+    const res = makeRes();
+    controller.cafe24InstallLegacy(res as never);
+    expect(res.statusCode).toBe(410);
+    expect((res.body as { code: string }).code).toBe(
+      'CAFE24_INSTALL_LEGACY_PATH',
+    );
   });
 });

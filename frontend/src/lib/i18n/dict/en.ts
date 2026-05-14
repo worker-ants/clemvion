@@ -1634,6 +1634,10 @@ export const en: Dict = {
       "Waiting for Cafe24 Test Run to complete… (auto-refresh)",
     cafe24PrivatePendingTimedOut:
       "Still pending after 10 minutes. Reload this page to keep checking, or open the integration details.",
+    cafe24PrivatePendingExpired:
+      "Install timed out (24h). Delete this integration and register again to retry.",
+    cafe24PrivatePendingTerminal:
+      "This integration is no longer pending. Open the details for status and next steps.",
     cafe24PrivatePendingLastErrorLabel: "Last callback error",
     oauthPopupClosedNoResult:
       "OAuth popup closed without returning a result. Try again or reload this page.",

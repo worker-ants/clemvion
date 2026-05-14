@@ -1632,6 +1632,10 @@ export const ko = {
       "Cafe24 테스트 실행 완료를 기다리는 중… (자동 새로고침)",
     cafe24PrivatePendingTimedOut:
       "10분이 지나도 활성화되지 않았어요. 페이지를 새로고침해 다시 확인하거나 통합 상세를 여세요.",
+    cafe24PrivatePendingExpired:
+      "Install 이 24시간 안에 완료되지 않아 만료됐어요. 통합을 삭제하고 다시 등록해 주세요.",
+    cafe24PrivatePendingTerminal:
+      "이 통합은 더 이상 대기 상태가 아니에요. 상세 페이지에서 상태와 다음 단계를 확인하세요.",
     cafe24PrivatePendingLastErrorLabel: "마지막 콜백 오류",
     oauthPopupClosedNoResult:
       "OAuth 팝업이 결과 없이 닫혔어요. 다시 시도하거나 페이지를 새로고침 해주세요.",

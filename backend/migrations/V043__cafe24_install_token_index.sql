@@ -12,11 +12,17 @@
 -- 시 NULL 로 비워지므로 partial UNIQUE 인덱스 (WHERE install_token IS NOT
 -- NULL) 형태로 — NULL 행이 다수 존재해도 인덱스 크기에 영향 없음.
 --
+-- CONCURRENTLY: 운영 테이블 쓰기 락 회피. 트랜잭션 밖에서 실행되어야 하므로
+-- 동봉된 .conf 의 executeInTransaction=false 가 필수. 마이그레이션이 중간
+-- 실패하면 인덱스가 INVALID 상태로 남을 수 있어 — 그 경우 운영자가
+-- `REINDEX` 또는 수동 `DROP INDEX` 후 재실행한다.
+--
 -- spec: spec/1-data-model.md §3, spec/2-navigation/4-integration.md §9.2,
 --       spec/4-nodes/4-integration/4-cafe24.md §9.8.
-CREATE UNIQUE INDEX IF NOT EXISTS idx_integration_install_token
+-- COMMENT ON INDEX (transactional) is not allowed in the same Flyway
+-- migration as CREATE INDEX CONCURRENTLY (non-transactional). The
+-- documentation comment above already records the intent — DB-level
+-- COMMENT ON INDEX is omitted to keep the migration single-mode.
+CREATE UNIQUE INDEX CONCURRENTLY IF NOT EXISTS idx_integration_install_token
   ON integration (install_token)
   WHERE install_token IS NOT NULL;
-
-COMMENT ON INDEX idx_integration_install_token IS
-  'Cafe24 Private install flow: single-row lookup by install_token path segment. Partial (WHERE NOT NULL) so non-cafe24 rows do not bloat the index.';
