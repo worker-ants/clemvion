@@ -45,7 +45,7 @@ export const DOCS = {
     knowledgeBase: "/docs/06-integrations-and-config/knowledge-base",
     mcpServers: "/docs/06-integrations-and-config/mcp-servers",
   },
-  faq: "/docs/07-faq/faq",
+  faq: "/docs/99-faq/faq",
   // 공용 fallback
   fallbackRedirect: "/dashboard",
   // 섹션 경로 generator (내부 유틸)
