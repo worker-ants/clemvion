@@ -54,6 +54,24 @@ export class IntegrationDto {
   lastError?: Record<string, unknown> | null;
 
   /**
+   * Safe-to-expose hints derived from credentials. Frontend must use these
+   * instead of `credentials.*` for flow gating — only `meta.appType` is
+   * populated today, used to decide Reauthorize button visibility for
+   * Cafe24 Private apps (which have no reauthorize entry point).
+   */
+  @ApiProperty({
+    type: 'object',
+    properties: {
+      appType: {
+        type: 'string',
+        enum: ['public', 'private'],
+        nullable: true,
+      },
+    },
+  })
+  meta: { appType: 'public' | 'private' | null };
+
+  /**
    * 자격 증명 복호화 상태. `needs_reauth`는 저장된 envelope을 현재 키로
    * 복호화하지 못한 행이며, UI는 재인증 흐름을 노출해야 한다.
    */
