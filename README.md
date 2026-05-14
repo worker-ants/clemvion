@@ -319,8 +319,8 @@ kubectl apply -k k8s/overlays/staging    # 스테이징
 3. APIs & Services → Credentials → + CREATE CREDENTIALS → OAuth client ID
    - Application type: Web application
    - Authorized redirect URIs 에 두 개 모두 등록:
-   http://localhost:3011/api/auth/oauth/google/callback          ← 유저 로그인용 (이번 작업)
-   http://localhost:3011/api/integrations/oauth/callback/google  ← 통합(Integration)용 (기존)
+   http://localhost:3011/api/auth/oauth/google/callback   ← 유저 로그인용
+   http://localhost:3011/api/3rd-party/google/callback    ← 통합(Integration)용
    - 생성 후 Client ID / Client Secret 복사
 
 2. backend/.env 설정

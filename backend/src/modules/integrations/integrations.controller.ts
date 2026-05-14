@@ -7,14 +7,11 @@ import {
   Body,
   Param,
   Query,
-  Req,
   HttpCode,
   HttpStatus,
   ParseUUIDPipe,
-  Res,
   BadRequestException,
 } from '@nestjs/common';
-import type { Request } from 'express';
 import { Throttle } from '@nestjs/throttler';
 import { Roles } from '../../common/guards/roles.guard';
 import {
@@ -22,7 +19,6 @@ import {
   ApiBearerAuth,
   ApiOperation,
   ApiParam,
-  ApiOkResponse,
   ApiNoContentResponse,
   ApiBadRequestResponse,
   ApiUnauthorizedResponse,
@@ -30,7 +26,6 @@ import {
   ApiNotFoundResponse,
   ApiConflictResponse,
   ApiTooManyRequestsResponse,
-  ApiProduces,
 } from '@nestjs/swagger';
 import {
   ApiCreatedWrappedResponse,
@@ -46,20 +41,10 @@ import {
   ServiceCatalogDto,
   TestConnectionResultDto,
 } from './dto/responses/integration-response.dto';
-import type { Response } from 'express';
 import { IntegrationsService } from './integrations.service';
-import {
-  ALLOWED_OAUTH_PROVIDERS,
-  Cafe24InstallQuery,
-  IntegrationOAuthService,
-} from './integration-oauth.service';
-
-/** install_token is issued as `randomBytes(32).toString('hex')` — exactly 64
- * hex chars. Reject anything else at the controller boundary. */
-const INSTALL_TOKEN_PATTERN = /^[a-f0-9]{64}$/;
+import { IntegrationOAuthService } from './integration-oauth.service';
 import { CurrentUser, WorkspaceId } from '../../common/decorators';
 import type { JwtPayload } from '../../common/decorators';
-import { Public } from '../../common/decorators/public.decorator';
 import {
   ActivityQueryDto,
   CreateIntegrationDto,
@@ -72,7 +57,6 @@ import {
   UpdateScopeDto,
 } from './dto/integration.dto';
 import { findVariant } from './services/service-registry';
-import { renderCallbackHtml } from './services/oauth-callback.template';
 
 @ApiTags('Integrations')
 @ApiBearerAuth('access-token')
@@ -195,186 +179,11 @@ export class IntegrationsController {
     });
   }
 
-  /**
-   * Cafe24 Private app "테스트 실행" entry — Cafe24 calls our App URL with
-   * the install_token path segment we issued at oauth/begin. The token is
-   * the single-row identification key (V043 partial unique index); HMAC
-   * verification then runs once against that row's client_secret. See
-   * spec/2-navigation/4-integration.md §9.2.
-   *
-   * Rate limit is tight because the endpoint is public and the install_token
-   * — although 256-bit random — is exposed in URL path (logs / Referer).
-   * spec ## Rationale "CAFE24_INSTALL_INVALID_TOKEN(404) 의 보안 전제".
-   */
-  @Public()
-  @Throttle({ default: { limit: 30, ttl: 60_000 } })
-  @Get('oauth/install/cafe24/:installToken')
-  @ApiOperation({
-    summary: 'Cafe24 Private 앱 설치 진입점 (App URL — install_token)',
-    description:
-      'Cafe24 Developers "테스트 실행" 시 Cafe24가 호출하는 App URL 엔드포인트. path 의 install_token 으로 pending_install Integration 을 단일 row 조회하고 HMAC 1회 검증 후 Cafe24 authorize URL 로 302 redirect 합니다.',
-  })
-  @ApiOkResponse({ description: '302 redirect to Cafe24 authorize URL' })
-  @ApiBadRequestResponse({
-    description:
-      'CAFE24_INSTALL_MISSING_PARAMS — mall_id/timestamp/hmac 누락. CAFE24_INSTALL_REPLAY — timestamp 가 ±5분 윈도우 밖.',
-  })
-  @ApiForbiddenResponse({
-    description:
-      'CAFE24_INSTALL_INVALID_HMAC — HMAC 검증 실패 또는 install_token 의 row 가 다른 mall_id 와 매칭.',
-  })
-  @ApiNotFoundResponse({
-    description:
-      'CAFE24_INSTALL_INVALID_TOKEN — install_token 형식 불일치(64-hex 아님) 또는 미존재(callback 성공/TTL 만료로 NULL).',
-  })
-  async cafe24Install(
-    @Param('installToken') installToken: string,
-    @Query('mall_id') mallId: string | undefined,
-    @Query('timestamp') timestamp: string | undefined,
-    @Query('hmac') hmac: string | undefined,
-    @Query('shop_no') shopNo: string | undefined,
-    @Query('user_id') userId: string | undefined,
-    @Query('user_name') userName: string | undefined,
-    @Query('user_type') userType: string | undefined,
-    @Query('lang') lang: string | undefined,
-    @Query('nation') nation: string | undefined,
-    @Query('is_multi_shop') isMultiShop: string | undefined,
-    @Query('auth_config') authConfig: string | undefined,
-    @Req() req: Request,
-    @Res() res: Response,
-  ) {
-    // install_token format guard — we issue 32-byte hex (64 chars). Reject
-    // anything that doesn't match before it ever reaches the service /
-    // DB, so arbitrary-length user input never feeds the query.
-    if (!INSTALL_TOKEN_PATTERN.test(installToken)) {
-      res.status(404).json({
-        code: 'CAFE24_INSTALL_INVALID_TOKEN',
-        message: 'install_token format invalid',
-      });
-      return;
-    }
-    if (!mallId || !timestamp || !hmac) {
-      res.status(400).json({
-        code: 'CAFE24_INSTALL_MISSING_PARAMS',
-        message: 'mall_id, timestamp, hmac are required',
-      });
-      return;
-    }
-    const rawQuery = req.url.includes('?') ? req.url.split('?', 2)[1] : '';
-    const query: Cafe24InstallQuery = {
-      mall_id: mallId,
-      timestamp,
-      hmac,
-      shop_no: shopNo,
-      user_id: userId,
-      user_name: userName,
-      user_type: userType,
-      lang,
-      nation,
-      is_multi_shop: isMultiShop,
-      auth_config: authConfig,
-      rawQuery,
-    };
-    try {
-      const redirectUrl = await this.oauthService.handleInstall(
-        installToken,
-        query,
-      );
-      res.redirect(302, redirectUrl);
-    } catch (err) {
-      const e = err as {
-        status?: number;
-        response?: { code?: string; message?: string };
-        message?: string;
-      };
-      // Honour NestJS exception status (NotFoundException → 404,
-      // ForbiddenException → 403). Default 400 for the bare-BadRequest
-      // path. ai-review: 403→404 split must propagate to clients.
-      const status = e.status ?? 400;
-      const code = e.response?.code ?? 'CAFE24_INSTALL_FAILED';
-      const message = e.response?.message ?? e.message ?? 'Install failed';
-      res.status(status).json({ code, message });
-    }
-  }
-
-  @Public()
-  @Get('oauth/callback/:provider')
-  @ApiOperation({
-    summary: 'OAuth 콜백 처리',
-    description:
-      'OAuth provider가 리디렉션하는 콜백 엔드포인트입니다. 인증 불필요. 처리 후 결과를 담은 HTML 페이지를 반환하며 `postMessage`로 부모 창에 결과를 전달합니다.',
-  })
-  @ApiParam({
-    name: 'provider',
-    description: 'OAuth provider 식별자 (예: google, github)',
-    example: 'google',
-  })
-  @ApiProduces('text/html')
-  @ApiOkResponse({
-    description: 'OAuth 처리 결과 HTML 페이지',
-  })
-  @ApiBadRequestResponse({ description: '지원하지 않는 OAuth provider' })
-  async oauthCallback(
-    @Param('provider') provider: string,
-    @Query('code') code: string | undefined,
-    @Query('state') state: string | undefined,
-    @Query('error') error: string | undefined,
-    @Res() res: Response,
-  ) {
-    // postMessage targetOrigin must not fall back to '*' — any opener
-    // tab could read previewToken / integrationId otherwise. FRONTEND_URL
-    // is the canonical setting; APP_URL is the backwards-compatible
-    // fallback. If neither is set we refuse to render the callback HTML
-    // so an env-misconfigured deploy fails closed instead of leaking the
-    // OAuth payload to whatever popup opener happens to be there.
-    const targetOrigin = process.env.FRONTEND_URL || process.env.APP_URL;
-    if (!targetOrigin) {
-      res.status(500).setHeader('Content-Type', 'text/html; charset=utf-8');
-      res.send(
-        '<p>OAuth callback misconfigured: FRONTEND_URL / APP_URL not set.</p>',
-      );
-      return;
-    }
-
-    if (!(ALLOWED_OAUTH_PROVIDERS as readonly string[]).includes(provider)) {
-      res.status(400).setHeader('Content-Type', 'text/html; charset=utf-8');
-      res.send(
-        renderCallbackHtml(
-          {
-            status: 'error',
-            provider,
-            error: 'Unsupported OAuth provider',
-          },
-          targetOrigin,
-        ),
-      );
-      return;
-    }
-
-    try {
-      // Service captures any callback-row diagnostic itself and re-throws —
-      // controller's job is just to render the HTML response.
-      const result = await this.oauthService.handleCallbackWithErrorCapture(
-        provider,
-        { code, state, error },
-      );
-      res.setHeader('Content-Type', 'text/html; charset=utf-8');
-      res.send(renderCallbackHtml({ status: 'success', result }, targetOrigin));
-    } catch (err) {
-      const e = err as {
-        message?: string;
-        response?: { message?: string };
-      };
-      const message = e.response?.message ?? e.message ?? 'OAuth failed';
-      res.setHeader('Content-Type', 'text/html; charset=utf-8');
-      res.send(
-        renderCallbackHtml(
-          { status: 'error', provider, error: message },
-          targetOrigin,
-        ),
-      );
-    }
-  }
+  // NOTE: Cafe24 install (`POST oauth/begin` 발급 토큰으로 호출) + OAuth
+  // callback handlers 는 `ThirdPartyOAuthController` (`/api/3rd-party/...`)
+  // 로 이전됨. 사용자가 호출하는 통합 관리 API 만 본 controller 에 남는다.
+  // spec/2-navigation/4-integration.md §9.2 Rationale "Cafe24 App URL 100자
+  // 한도 대응" 참조.
 
   @Get(':id')
   @ApiOperation({
