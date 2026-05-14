@@ -12,22 +12,31 @@ export interface LocalizedDocFrontmatter {
   summary_en?: string;
 }
 
+// 섹션 키는 `src/content/docs/<dir>` 디렉터리명과 1:1 로 일치한다.
+// KO 라벨은 `./registry.ts` 의 `SECTION_LABELS` 와 동일하게 유지한다(검색 인덱스는 이 표,
+// 사이드바는 registry.ts 표를 사용하므로 둘이 어긋나면 두 화면이 다른 라벨을 보여준다).
+// FAQ 가 항상 사이드바 맨 아래에 위치하도록 `99-faq` 프리픽스를 쓴다 — 자세한 규칙은
+// `spec/2-navigation/13-user-guide.md` §5.
 const SECTION_LABELS_BY_LOCALE: Record<Locale, Record<string, string>> = {
   ko: {
     "01-getting-started": "시작하기",
     "02-nodes": "노드 가이드",
-    "03-expression-language": "표현식 언어",
-    "04-run-and-debug": "실행과 디버깅",
-    "05-integrations-and-config": "통합과 설정",
-    "06-faq": "자주 묻는 질문",
+    "03-workflow-editor": "워크플로우 에디터",
+    "04-expression-language": "표현식 언어",
+    "05-run-and-debug": "실행과 디버깅",
+    "06-integrations-and-config": "통합과 설정",
+    "07-workspace-and-team": "워크스페이스와 팀",
+    "99-faq": "자주 묻는 질문",
   },
   en: {
     "01-getting-started": "Getting Started",
     "02-nodes": "Node Guide",
-    "03-expression-language": "Expression Language",
-    "04-run-and-debug": "Run & Debug",
-    "05-integrations-and-config": "Integrations & Config",
-    "06-faq": "FAQ",
+    "03-workflow-editor": "Workflow Editor",
+    "04-expression-language": "Expression Language",
+    "05-run-and-debug": "Run & Debug",
+    "06-integrations-and-config": "Integrations & Config",
+    "07-workspace-and-team": "Workspace & Team",
+    "99-faq": "FAQ",
   },
 };
 
