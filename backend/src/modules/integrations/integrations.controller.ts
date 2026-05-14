@@ -30,6 +30,7 @@ import {
   ApiNotFoundResponse,
   ApiConflictResponse,
   ApiTooManyRequestsResponse,
+  ApiGoneResponse,
   ApiProduces,
 } from '@nestjs/swagger';
 import {
@@ -160,6 +161,10 @@ export class IntegrationsController {
   })
   @ApiBadRequestResponse({ description: '입력값 검증 실패 또는 미지원 서비스' })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
+  @ApiConflictResponse({
+    description:
+      'CAFE24_PRIVATE_APP_ALREADY_CONNECTED — 동일 (workspaceId, mall_id, app_type=private) 의 connected 통합이 이미 존재. 기존 통합을 사용하거나 삭제 후 재등록.',
+  })
   async oauthBegin(
     @WorkspaceId() workspaceId: string,
     @CurrentUser() user: JwtPayload,
@@ -212,6 +217,18 @@ export class IntegrationsController {
       'Cafe24 Developers "테스트 실행" 시 Cafe24가 호출하는 App URL 엔드포인트. path 의 install_token 으로 pending_install Integration 을 단일 row 조회하고 HMAC 1회 검증 후 Cafe24 authorize URL 로 302 redirect 합니다.',
   })
   @ApiOkResponse({ description: '302 redirect to Cafe24 authorize URL' })
+  @ApiBadRequestResponse({
+    description:
+      'CAFE24_INSTALL_MISSING_PARAMS — mall_id/timestamp/hmac 누락. CAFE24_INSTALL_REPLAY — timestamp 가 ±5분 윈도우 밖.',
+  })
+  @ApiForbiddenResponse({
+    description:
+      'CAFE24_INSTALL_INVALID_HMAC — HMAC 검증 실패 또는 install_token 의 row 가 다른 mall_id 와 매칭.',
+  })
+  @ApiNotFoundResponse({
+    description:
+      'CAFE24_INSTALL_INVALID_TOKEN — install_token 형식 불일치(64-hex 아님) 또는 미존재(callback 성공/TTL 만료로 NULL).',
+  })
   async cafe24Install(
     @Param('installToken') installToken: string,
     @Query('mall_id') mallId: string | undefined,
@@ -283,10 +300,12 @@ export class IntegrationsController {
   }
 
   /**
-   * Legacy App URL — token-less path, deprecated by V043 / variant 2.
-   * Responds 410 Gone so external Cafe24 Developers registrations still
-   * pointing here see a clean signal. Permanent retirement tracked in
-   * plan/in-progress/cafe24-pending-polish.md as a follow-up.
+   * Legacy App URL — token-less path, deprecated when the install_token
+   * path-segment route shipped (V043 partial unique index). Responds
+   * 410 Gone so external Cafe24 Developers registrations still pointing
+   * here see a clean signal. Permanent retirement is a follow-up: once
+   * we confirm no external app still uses this URL, the route can be
+   * removed entirely.
    */
   @Public()
   @Throttle({ default: { limit: 30, ttl: 60_000 } })
@@ -295,6 +314,10 @@ export class IntegrationsController {
     summary: 'Cafe24 Private 앱 설치 진입점 (Deprecated — install_token 없음)',
     description:
       '옛 토큰 없는 라우트. 신규 등록자는 /oauth/install/cafe24/:installToken 을 사용해야 합니다.',
+  })
+  @ApiGoneResponse({
+    description:
+      'CAFE24_INSTALL_LEGACY_PATH — 옛 토큰 없는 경로는 영구 사용 불가. integration 설정 화면에서 새 App URL 을 복사해 Cafe24 Developers 에 재등록한다.',
   })
   cafe24InstallLegacy(@Res() res: Response) {
     res.status(410).json({
