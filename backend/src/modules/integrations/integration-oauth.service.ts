@@ -424,6 +424,12 @@ export class IntegrationOAuthService {
       context ? attachCallbackContext(err, context) : err;
 
     if (record.provider !== provider) {
+      // TEMP DIAGNOSTIC (claude/cafe24-oauth-provider-mismatch-debug-b0604e):
+      // log the raw row to find why record.provider !== provider in production.
+      // Remove after the root cause is identified.
+      this.logger.warn(
+        `[oauth-state-mismatch-debug] url_provider=${JSON.stringify(provider)} record_provider=${JSON.stringify(record.provider)} record_keys=${JSON.stringify(Object.keys(record))} record_service_type=${JSON.stringify((record as unknown as Record<string, unknown>).service_type)} record_serviceType=${JSON.stringify((record as unknown as Record<string, unknown>).serviceType)} record_mode=${JSON.stringify(record.mode)} state_prefix=${JSON.stringify(String(query.state ?? '').slice(0, 8))}`,
+      );
       throw withContext(
         new BadRequestException({
           code: 'OAUTH_STATE_MISMATCH',
