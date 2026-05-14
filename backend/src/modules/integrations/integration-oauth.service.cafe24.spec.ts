@@ -33,6 +33,7 @@ function makeRepo(): Record<string, Mock> {
     save: jest
       .fn()
       .mockImplementation((entity: unknown) => Promise.resolve(entity)),
+    find: jest.fn().mockResolvedValue([]),
     findOne: jest.fn().mockResolvedValue(null),
     delete: jest.fn().mockResolvedValue(undefined),
     createQueryBuilder: jest.fn().mockImplementation(() => makeQueryBuilder()),
@@ -226,7 +227,9 @@ describe('IntegrationOAuthService — Cafe24', () => {
         integrationId: 'pending-integration-id',
       });
       const r = result as { appUrl: string; callbackUrl: string };
-      expect(r.appUrl).toContain('/oauth/install/cafe24');
+      // appUrl must include the install_token path segment so cafe24
+      // Developers can call our single-row lookup endpoint (V043).
+      expect(r.appUrl).toMatch(/\/oauth\/install\/cafe24\/[a-f0-9]{64}$/);
       expect(r.callbackUrl).toContain('/oauth/callback/cafe24');
 
       // Integration saved with pending_install status and credentials embedded.
@@ -248,22 +251,133 @@ describe('IntegrationOAuthService — Cafe24', () => {
     });
   });
 
-  describe('handleInstall — Cafe24 private app App URL', () => {
-    const clientSecret = 'test-private-secret';
+  describe('begin — private app duplicate prevention (변경 3)', () => {
+    function privateBeginParams() {
+      return {
+        workspaceId: 'ws-1',
+        userId: 'u-1',
+        service: 'cafe24',
+        scopes: ['mall.read_product'],
+        mode: 'new' as const,
+        providerMeta: {
+          mall_id: 'priv-shop',
+          app_type: 'private' as const,
+          client_id: 'cid',
+          client_secret: 'csec',
+        },
+      };
+    }
 
-    function buildRawQuery(timestampSec: number): string {
+    it('rejects with 409 when a connected private integration exists for the same mall_id', async () => {
+      integrationRepo.find = jest.fn().mockResolvedValue([
+        {
+          id: 'existing-connected',
+          workspaceId: 'ws-1',
+          status: 'connected',
+          serviceType: 'cafe24',
+          credentials: { mall_id: 'priv-shop', app_type: 'private' },
+        },
+      ]);
+      const error = await service
+        .begin(privateBeginParams())
+        .catch((e: Error) => e);
+      const response = (error as { response?: { code?: string } }).response;
+      expect(response?.code).toBe('CAFE24_PRIVATE_APP_ALREADY_CONNECTED');
+      // No row should be created — the duplicate guard fires before save.
+      expect(integrationRepo.save).not.toHaveBeenCalled();
+    });
+
+    it('reuses an existing pending_install row instead of creating a duplicate', async () => {
+      const existingPending = {
+        id: 'existing-pending',
+        workspaceId: 'ws-1',
+        status: 'pending_install',
+        serviceType: 'cafe24',
+        installToken: 'old-token',
+        credentials: {
+          mall_id: 'priv-shop',
+          app_type: 'private',
+          client_id: 'old-cid',
+          client_secret: 'old-csec',
+          scopes: [],
+        },
+        statusReason: 'oauth_token_exchange_failed',
+        lastError: { code: 'OAUTH_TOKEN_EXCHANGE_FAILED' },
+      };
+      integrationRepo.find = jest.fn().mockResolvedValue([existingPending]);
+
+      const result = await service.begin(privateBeginParams());
+      // The result must point at the SAME integration id (reused).
+      const r = result as { integrationId: string };
+      expect(r.integrationId).toBe('existing-pending');
+      // save called on the existing row, not a fresh create.
+      expect(integrationRepo.save).toHaveBeenCalledTimes(1);
+      const saved = integrationRepo.save.mock.calls[0][0] as Record<
+        string,
+        unknown
+      >;
+      expect(saved.id).toBe('existing-pending');
+      // Stale diagnostic cleared on reuse so the user starts from a clean slate.
+      expect(saved.statusReason).toBeNull();
+      expect(saved.lastError).toBeNull();
+      // Token refreshed.
+      expect(saved.installToken).not.toBe('old-token');
+      // Credentials replaced with new submission.
+      const creds = saved.credentials as Record<string, unknown>;
+      expect(creds.client_id).toBe('cid');
+      expect(creds.client_secret).toBe('csec');
+    });
+
+    it('creates a new row when no existing cafe24 private row matches the mall_id', async () => {
+      integrationRepo.find = jest.fn().mockResolvedValue([
+        // Different mall_id — does not collide.
+        {
+          id: 'other',
+          status: 'connected',
+          credentials: { mall_id: 'other-shop', app_type: 'private' },
+        },
+        // Same mall_id but public — does not collide.
+        {
+          id: 'public-row',
+          status: 'connected',
+          credentials: { mall_id: 'priv-shop', app_type: 'public' },
+        },
+      ]);
+      integrationRepo.save.mockImplementation((entity: unknown) =>
+        Promise.resolve({ ...(entity as object), id: 'new-id' }),
+      );
+
+      const result = await service.begin(privateBeginParams());
+      const r = result as { integrationId: string };
+      expect(r.integrationId).toBe('new-id');
+      // create was called (fresh row), not just save on existing.
+      expect(integrationRepo.create).toHaveBeenCalled();
+    });
+  });
+
+  describe('handleInstall — Cafe24 private app App URL (변경 2)', () => {
+    const clientSecret = 'test-private-secret';
+    const INSTALL_TOKEN = 'a'.repeat(64);
+
+    function buildRawQuery(
+      timestampSec: number,
+      secret = clientSecret,
+    ): string {
       const base = `is_multi_shop=T&mall_id=priv-shop&timestamp=${timestampSec}&user_id=admin`;
-      const hmac = computeTestHmac(base, clientSecret);
+      const hmac = computeTestHmac(base, secret);
       return `${base}&hmac=${encodeURIComponent(hmac)}`;
     }
 
-    function makePendingCandidate(overrides: Record<string, unknown> = {}) {
+    function makePendingRow(overrides: Record<string, unknown> = {}) {
       return {
         id: 'integration-1',
         workspaceId: 'ws-1',
         createdBy: 'u-1',
         name: 'priv-shop (Cafe24 Private)',
         scope: 'personal',
+        installToken: INSTALL_TOKEN,
+        status: 'pending_install',
+        serviceType: 'cafe24',
         credentials: {
           mall_id: 'priv-shop',
           app_type: 'private',
@@ -281,7 +395,7 @@ describe('IntegrationOAuthService — Cafe24', () => {
       const params = new URLSearchParams(rawQuery);
 
       await expect(
-        service.handleInstall({
+        service.handleInstall(INSTALL_TOKEN, {
           mall_id: 'priv-shop',
           timestamp: String(staleTs),
           hmac: params.get('hmac')!,
@@ -290,17 +404,35 @@ describe('IntegrationOAuthService — Cafe24', () => {
       ).rejects.toThrow(BadRequestException);
     });
 
-    it('throws CAFE24_INSTALL_INVALID_HMAC when no pending integration matches', async () => {
-      integrationRepo.createQueryBuilder = jest
-        .fn()
-        .mockReturnValue(makeQueryBuilder([]));
+    it('throws CAFE24_INSTALL_INVALID_TOKEN when install_token is unknown', async () => {
+      integrationRepo.findOne.mockResolvedValue(null);
 
       const validTs = Math.floor(Date.now() / 1000);
       const rawQuery = buildRawQuery(validTs);
       const params = new URLSearchParams(rawQuery);
 
+      const error = await service
+        .handleInstall(INSTALL_TOKEN, {
+          mall_id: 'priv-shop',
+          timestamp: String(validTs),
+          hmac: params.get('hmac')!,
+          rawQuery,
+        })
+        .catch((e: Error) => e);
+      const code = (error as { response?: { code?: string } }).response?.code;
+      expect(code).toBe('CAFE24_INSTALL_INVALID_TOKEN');
+    });
+
+    it('throws CAFE24_INSTALL_INVALID_HMAC when HMAC does not verify against the row', async () => {
+      integrationRepo.findOne.mockResolvedValue(makePendingRow());
+
+      const validTs = Math.floor(Date.now() / 1000);
+      // Compute HMAC with the WRONG secret to force a mismatch.
+      const rawQuery = buildRawQuery(validTs, 'attacker-controlled-secret');
+      const params = new URLSearchParams(rawQuery);
+
       await expect(
-        service.handleInstall({
+        service.handleInstall(INSTALL_TOKEN, {
           mall_id: 'priv-shop',
           timestamp: String(validTs),
           hmac: params.get('hmac')!,
@@ -309,21 +441,47 @@ describe('IntegrationOAuthService — Cafe24', () => {
       ).rejects.toThrow(ForbiddenException);
     });
 
-    it('returns Cafe24 authorize URL for valid HMAC and matching pending integration', async () => {
-      const candidate = makePendingCandidate();
-      integrationRepo.createQueryBuilder = jest
-        .fn()
-        .mockReturnValue(makeQueryBuilder([candidate]));
+    it('throws CAFE24_INSTALL_INVALID_HMAC when mall_id of the row does not match the query', async () => {
+      // install_token row exists but the caller's mall_id differs — defensive
+      // path; in practice install_token uniqueness should prevent this.
+      integrationRepo.findOne.mockResolvedValue(
+        makePendingRow({
+          credentials: {
+            mall_id: 'different-shop',
+            app_type: 'private',
+            client_id: 'priv-client-id',
+            client_secret: clientSecret,
+            scopes: [],
+          },
+        }),
+      );
+      const validTs = Math.floor(Date.now() / 1000);
+      const rawQuery = buildRawQuery(validTs);
+      const params = new URLSearchParams(rawQuery);
+
+      const error = await service
+        .handleInstall(INSTALL_TOKEN, {
+          mall_id: 'priv-shop',
+          timestamp: String(validTs),
+          hmac: params.get('hmac')!,
+          rawQuery,
+        })
+        .catch((e: Error) => e);
+      const code = (error as { response?: { code?: string } }).response?.code;
+      expect(code).toBe('CAFE24_INSTALL_INVALID_HMAC');
+    });
+
+    it('returns Cafe24 authorize URL for valid token + HMAC', async () => {
+      integrationRepo.findOne.mockResolvedValue(makePendingRow());
 
       const validTs = Math.floor(Date.now() / 1000);
       const rawQuery = buildRawQuery(validTs);
       const params = new URLSearchParams(rawQuery);
-      const hmac = params.get('hmac')!;
 
-      const authorizeUrl = await service.handleInstall({
+      const authorizeUrl = await service.handleInstall(INSTALL_TOKEN, {
         mall_id: 'priv-shop',
         timestamp: String(validTs),
-        hmac,
+        hmac: params.get('hmac')!,
         rawQuery,
       });
 
@@ -334,6 +492,15 @@ describe('IntegrationOAuthService — Cafe24', () => {
       // client_secret must NEVER leak into the authorize URL.
       expect(authorizeUrl).not.toContain('client_secret');
       expect(authorizeUrl).not.toContain(clientSecret);
+
+      // Single-row lookup, not the old in-memory scan.
+      expect(integrationRepo.findOne).toHaveBeenCalledWith({
+        where: {
+          installToken: INSTALL_TOKEN,
+          status: 'pending_install',
+          serviceType: 'cafe24',
+        },
+      });
 
       expect(stateRepo.save).toHaveBeenCalledTimes(1);
       const savedState = stateRepo.create.mock.calls[0][0] as Record<
@@ -446,8 +613,12 @@ describe('IntegrationOAuthService — Cafe24', () => {
           scopes: [],
         },
         installToken: 'some-install-token',
-        statusReason: 'waiting',
-        lastError: { msg: 'old' },
+        statusReason: 'oauth_token_exchange_failed',
+        lastError: {
+          code: 'OAUTH_TOKEN_EXCHANGE_FAILED',
+          message: 'previous attempt',
+          at: '2026-05-13T00:00:00.000Z',
+        },
         tokenExpiresAt: null,
         lastRotatedAt: null,
       };

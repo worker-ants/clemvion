@@ -19,11 +19,18 @@ export function computeStatus(integration: IntegrationDto): StatusView {
     };
   }
   if (integration.status === "pending_install") {
+    // If a callback failure was recorded, surface its diagnostic instead of
+    // the generic "complete test run" hint — the user needs to fix the
+    // reported error (e.g. invalid client_id) before re-running test in
+    // Cafe24 Developers. spec/2-navigation/4-integration.md §10.4
+    // lastError.message is human-friendlier when available; status_reason
+    // is the snake_case fallback.
+    const diagnostic = pickErrorMessage(integration);
     return {
       label: "Pending install",
       dotClassName: "bg-blue-400",
-      tone: "warn",
-      detail: "Complete Cafe24 Test Run to activate",
+      tone: diagnostic ? "err" : "warn",
+      detail: diagnostic ?? "Complete Cafe24 Test Run to activate",
     };
   }
   if (integration.status === "error") {
@@ -35,10 +42,16 @@ export function computeStatus(integration: IntegrationDto): StatusView {
     };
   }
   if (integration.status === "expired") {
+    // install_timeout is Cafe24-private-specific (변경 4): user must delete
+    // and re-register since there's no reauthorize entry point.
     return {
       label: "Expired",
       dotClassName: "bg-yellow-500",
       tone: "warn",
+      detail:
+        integration.statusReason === "install_timeout"
+          ? "Install timed out — delete and re-register"
+          : undefined,
     };
   }
   if (expiresSoon) {
@@ -50,6 +63,42 @@ export function computeStatus(integration: IntegrationDto): StatusView {
     };
   }
   return { label: "Connected", dotClassName: "bg-green-500", tone: "ok" };
+}
+
+/** Prefer the human-readable lastError.message; fall back to status_reason. */
+function pickErrorMessage(integration: IntegrationDto): string | undefined {
+  const lastError = integration.lastError as
+    | { message?: string }
+    | null
+    | undefined;
+  if (lastError && typeof lastError.message === "string" && lastError.message) {
+    return lastError.message;
+  }
+  return integration.statusReason ?? undefined;
+}
+
+/**
+ * Whether the Reauthorize action is disabled for this integration. Cafe24
+ * Private apps have no reauthorize entry point — re-auth must come from
+ * Cafe24 Developers "테스트 실행". pending_install (any provider) and
+ * expired+install_timeout also cannot be reauthorized.
+ * Mirrors spec/2-navigation/4-integration.md §4.2 Reauthorize 비활성 조건.
+ */
+export function isReauthorizeDisabled(integration: IntegrationDto): boolean {
+  if (integration.status === "pending_install") return true;
+  if (
+    integration.status === "expired" &&
+    integration.statusReason === "install_timeout"
+  ) {
+    return true;
+  }
+  if (
+    integration.serviceType === "cafe24" &&
+    integration.meta?.appType === "private"
+  ) {
+    return true;
+  }
+  return false;
 }
 
 export function isExpiringSoon(at: string | null | undefined): boolean {

@@ -1562,6 +1562,8 @@ export const ko = {
     reauthorizeSection: "재인증",
     reauthorizeHint: "새 창에서 제공자에 로그인해 토큰을 갱신해요.",
     reauthorizeBtn: "재인증",
+    reauthorizeDisabledHint:
+      "재인증 불가 — Cafe24 Private 앱은 Cafe24 Developers 에서 '테스트 실행'을 다시 누르세요. install_timeout 으로 만료된 통합은 삭제 후 재등록이 필요해요.",
     reauthorizeOpened: "재인증 창을 열었어요",
     integrationReset: "통합을 초기화했어요",
     reauthorizeFailedToast: "재인증을 시작하지 못했어요",
@@ -1626,6 +1628,17 @@ export const ko = {
     cafe24PrivatePendingSteps:
       "① Cafe24 Developers → 내 앱 → 개발 정보에서 App URL 과 Redirect URI 를 위 값으로 등록하세요. ② 사용 권한(Scope) 이 요청한 scope 와 일치하는지 확인하세요. ③ 테스트 실행 버튼을 클릭하고 mall_id 를 입력하세요. 동의 후 통합이 활성화됩니다.",
     cafe24PrivatePendingViewList: "통합 상세 보기",
+    cafe24PrivatePendingWaiting:
+      "Cafe24 테스트 실행 완료를 기다리는 중… (자동 새로고침)",
+    cafe24PrivatePendingTimedOut:
+      "10분이 지나도 활성화되지 않았어요. 페이지를 새로고침해 다시 확인하거나 통합 상세를 여세요.",
+    cafe24PrivatePendingExpired:
+      "Install 이 24시간 안에 완료되지 않아 만료됐어요. 통합을 삭제하고 다시 등록해 주세요.",
+    cafe24PrivatePendingTerminal:
+      "이 통합은 더 이상 대기 상태가 아니에요. 상세 페이지에서 상태와 다음 단계를 확인하세요.",
+    cafe24PrivatePendingLastErrorLabel: "마지막 콜백 오류",
+    oauthPopupClosedNoResult:
+      "OAuth 팝업이 결과 없이 닫혔어요. 다시 시도하거나 페이지를 새로고침 해주세요.",
     copied: "복사됨",
     waitingPopup: "제공자 팝업 응답을 기다리는 중…",
     oauthComplete: "OAuth 인증이 완료됐어요.",

@@ -218,6 +218,51 @@ export default function NewIntegrationPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Public-flow safety net: if the popup is closed (manually or after our
+  // callback HTML's delayed close) without ever firing the message handler
+  // — e.g. the user cancelled at the provider, blocked popups, or origin
+  // mismatch silently dropped postMessage — we'd otherwise sit in
+  // `oauthWaiting` until the 5-minute timeout. Poll popup.closed and bail
+  // out within 5s of close.
+  //
+  // Refs (not state) feed the closure to avoid stale reads: the success
+  // postMessage handler can fire BETWEEN our popup.closed observation and
+  // the deferred check, flipping oauthWaiting → false; we must see that
+  // latest value or we'd double-fire the error toast.
+  const oauthWaitingRef = useRef(oauthWaiting);
+  const previewTokenRef = useRef(previewToken);
+  useEffect(() => {
+    oauthWaitingRef.current = oauthWaiting;
+  }, [oauthWaiting]);
+  useEffect(() => {
+    previewTokenRef.current = previewToken;
+  }, [previewToken]);
+
+  useEffect(() => {
+    if (!oauthWaiting) return;
+    let bailTimer: ReturnType<typeof setTimeout> | null = null;
+    const interval = setInterval(() => {
+      const popup = popupRef.current;
+      if (popup && popup.closed) {
+        bailTimer = setTimeout(() => {
+          if (!oauthWaitingRef.current) return; // success handler already won
+          clearOAuthTimeout();
+          setOauthWaiting(false);
+          if (!previewTokenRef.current) {
+            setOauthError(t("integrations.oauthPopupClosedNoResult"));
+            toast.error(t("integrations.oauthPopupClosedNoResult"));
+          }
+        }, 1500);
+        clearInterval(interval);
+      }
+    }, 500);
+    return () => {
+      clearInterval(interval);
+      if (bailTimer) clearTimeout(bailTimer);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [oauthWaiting]);
+
   useEffect(() => {
     const isOAuth = variant?.authType === "oauth2";
     const hasUserInput =
@@ -720,6 +765,9 @@ function Cafe24ExtraFields({
   );
 }
 
+const PRIVATE_PENDING_POLL_MS = 3000;
+const PRIVATE_PENDING_TIMEOUT_MS = 10 * 60 * 1000;
+
 function Cafe24PrivatePendingStep({
   appUrl,
   callbackUrl,
@@ -732,13 +780,62 @@ function Cafe24PrivatePendingStep({
   t: TFunction;
 }) {
   const router = useRouter();
+  const queryClient = useQueryClient();
   const [copiedField, setCopiedField] = useState<string | null>(null);
+  const transitionedRef = useRef(false);
+  const [timedOut, setTimedOut] = useState(false);
 
   const copy = (value: string, field: string) => {
     void navigator.clipboard.writeText(value);
     setCopiedField(field);
     setTimeout(() => setCopiedField(null), 2000);
   };
+
+  // Poll the integration row to detect cafe24 "테스트 실행" completion. The
+  // popup that Cafe24 Developers opens has `window.opener = cafe24 tab`, so
+  // our existing oauth_callback postMessage listener never fires. Polling
+  // closes that gap. spec/2-navigation/4-integration.md ## Rationale
+  // "Cafe24 Private 앱의 callback 실패는 왜 status 를 보존하나"
+  const { data: poll } = useQuery({
+    queryKey: ["integrations", "get", integrationId],
+    queryFn: () => integrationsApi.get(integrationId),
+    refetchInterval: (q) => {
+      const row = q.state.data as { status?: string } | undefined;
+      if (!row) return PRIVATE_PENDING_POLL_MS;
+      if (row.status !== "pending_install") return false; // stop on terminal
+      return PRIVATE_PENDING_POLL_MS;
+    },
+    refetchOnWindowFocus: true,
+    enabled: !timedOut,
+  });
+
+  // 10-minute soft timeout. Effect-driven so Date.now() never runs in render
+  // (react-hooks/purity).
+  useEffect(() => {
+    const handle = setTimeout(
+      () => setTimedOut(true),
+      PRIVATE_PENDING_TIMEOUT_MS,
+    );
+    return () => clearTimeout(handle);
+  }, []);
+
+  useEffect(() => {
+    if (transitionedRef.current) return;
+    if (!poll) return;
+    if (poll.status === "connected") {
+      transitionedRef.current = true;
+      toast.success(t("integrations.oauthCompletedToast"));
+      void queryClient.invalidateQueries({ queryKey: ["integrations"] });
+      router.replace(`/integrations/${integrationId}`);
+    }
+  }, [poll, router, queryClient, integrationId, t]);
+
+  const lastErrorMessage =
+    poll?.status === "pending_install"
+      ? ((poll.lastError as { message?: string } | null)?.message ??
+        poll.statusReason ??
+        null)
+      : null;
 
   return (
     <div className="space-y-6 rounded-lg border border-[hsl(var(--border))] p-6">
@@ -797,9 +894,50 @@ function Cafe24PrivatePendingStep({
         </div>
       </div>
 
-      <div className="rounded-md border border-blue-200 bg-blue-50 p-3 text-xs text-blue-900 dark:border-blue-800 dark:bg-blue-950/40 dark:text-blue-200">
-        {t("integrations.cafe24PrivatePendingSteps")}
-      </div>
+      {lastErrorMessage ? (
+        <div
+          role="alert"
+          className="rounded-md border border-red-200 bg-red-50 p-3 text-xs text-red-900 dark:border-red-800 dark:bg-red-950/40 dark:text-red-200"
+        >
+          <strong>
+            {t("integrations.cafe24PrivatePendingLastErrorLabel")}:
+          </strong>{" "}
+          {lastErrorMessage}
+        </div>
+      ) : (
+        <div className="rounded-md border border-blue-200 bg-blue-50 p-3 text-xs text-blue-900 dark:border-blue-800 dark:bg-blue-950/40 dark:text-blue-200">
+          {t("integrations.cafe24PrivatePendingSteps")}
+        </div>
+      )}
+
+      {poll?.status === "pending_install" && !timedOut && (
+        <p className="flex items-center gap-2 text-xs text-[hsl(var(--muted-foreground))]">
+          <Loader2 className="h-3 w-3 animate-spin" />
+          {t("integrations.cafe24PrivatePendingWaiting")}
+        </p>
+      )}
+      {timedOut && (
+        <p className="text-xs text-amber-700 dark:text-amber-300">
+          {t("integrations.cafe24PrivatePendingTimedOut")}
+        </p>
+      )}
+      {/* Polling stops when status transitions out of pending_install — the
+       * user otherwise sees a silent UI. expired (TTL) and error both need
+       * an explicit "delete and re-register" hint since Cafe24 Private has
+       * no reauthorize entry point. */}
+      {poll &&
+        poll.status !== "pending_install" &&
+        poll.status !== "connected" && (
+          <p
+            role="status"
+            className="text-xs text-amber-700 dark:text-amber-300"
+          >
+            {poll.status === "expired" &&
+            poll.statusReason === "install_timeout"
+              ? t("integrations.cafe24PrivatePendingExpired")
+              : t("integrations.cafe24PrivatePendingTerminal")}
+          </p>
+        )}
 
       <div className="flex justify-end">
         <Button onClick={() => router.push(`/integrations/${integrationId}`)}>

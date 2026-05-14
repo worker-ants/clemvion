@@ -1,0 +1,125 @@
+---
+worktree: cafe24-pending-polish-7fdb7e
+started: 2026-05-14
+owner: developer
+---
+
+# Cafe24 Private "Pending install" 멈춤 — 관측성 보강 + 후속 정비
+
+> **상태 (2026-05-14)**: 변경 0~5 + ai-review 2 round 모두 처리 완료 → **PR #18** (https://github.com/worker-ants/clemvion/pull/18) 머지 대기 중. 본 plan 의 미체크 항목들은 ai-review 가 본 PR 범위 외로 미룬 cleanup·강화 항목이며, `plan/in-progress/cafe24-pending-polish-followup.md` 에 그룹별로 재정리되어 있다. PR #18 머지 후 본 plan 은 `plan/complete/` 로 이동, follow-up plan 이 후속 진입자의 작업 기준이 된다.
+
+
+## Context
+
+Cafe24 private 모드 통합 연동에서 사용자가 Cafe24 Developers 의 "테스트 실행" 으로 OAuth 흐름을 진행했는데, 팝업이 닫힌 뒤에도 통합 상태가 `pending_install` 에 머무는 문제가 보고됐다. 새로고침으로도 회복되지 않으며, 백엔드 로그/DB 접근이 즉시 어려운 환경에서 원인을 좁히기 어렵다.
+
+자세한 분석은 `/Users/gehrig/.claude/plans/cafe24-private-piped-pudding.md` 에 정리되어 있다. 진단 결과 다음이 확인됐다:
+
+- 팝업의 자동 닫힘은 `handleCallback` 진입만 보장하며, 내부 예외 (`OAUTH_TOKEN_EXCHANGE_FAILED` · `OAUTH_STATE_MISMATCH` · `OAUTH_STATE_EXPIRED` · `RESOURCE_NOT_FOUND` · 복호화 결함) 시에도 동일하게 닫힘 스크립트가 실행되어 시각적으로 구분이 안 됨.
+- `handleCallback` 은 실패 시 어떤 row 도 갱신하지 않아 UI 만으로는 원인 진단 불가.
+- Cafe24 가 띄운 팝업의 `window.opener` 는 Cafe24 탭이라 우리 FE 의 `postMessage` 리스너가 절대 발동하지 않음 → FE 폴링 부재가 별도 결함으로 존재.
+- `install_token` 컬럼이 식별 키로 활용되지 않고(`W1`), 중복 `pending_install` 방지 및 TTL 정리도 없음(`W3`/`W6`, AI review `review/2026-05-14_13-57-48/` 기록).
+
+본 plan 은 이 다섯 결함을 **한 PR** 로 해소한다. Private + Public 모드 공통 사항도 포함.
+
+---
+
+## 변경 0 — BE: callback 실패 관측성 (최우선)
+
+> 분기: `pending_install` 행 → status 보존 + last_error/status_reason 갱신. `connected` (reauthorize) 의 token exchange 실패 → 기존 정책대로 `error(auth_failed)` 전이 + last_error 기록 (§10.4 표). state mismatch/expired 등 state 단계 실패 → integrationId 식별 시 last_error 만 기록, status 보존.
+
+
+**왜 우선?** 현 사례의 정확한 분기 식별이 이 변경 없이는 영구히 추측에 머문다.
+
+- [x] `handleCallback` 의 실패 경로에 컨텍스트 첨부 (`attachCallbackContext` + `callbackContextOf`).
+- [x] `markIntegrationCallbackError(integrationId, workspaceId, code, message)` — pending_install 보존, connected+TOKEN_EXCHANGE_FAILED → error(auth_failed), 기타는 last_error 만.
+- [x] `integrations.controller.ts` 의 `oauthCallback` try/catch 에서 컨텍스트 추출 → 위 메서드 호출.
+- [x] 팝업 auto-close 지연 4초 (실패 시) / 성공 즉시.
+- [x] Frontend `status-badge` `pending_install` + statusReason 진단 메시지 노출.
+- [x] spec §6 / §10 갱신 (project-planner 위임 완료, BLOCK 해소).
+
+## 변경 1 — FE: pending step 폴링 + 목록 갱신 정책
+
+- [ ] FE: `expired AND status_reason='install_timeout'` 시 reauthorize 버튼 비활성 (cafe24 Private 전용).
+- [ ] FE: `service_type='cafe24' AND credentials.app_type='private'` 전체 케이스에서 reauthorize 비활성.
+- [ ] spec §9.1: Integration 응답에 `meta.appType: 'public' | 'private' | null` 필드 추가 (credentials 평문 노출 방지). FE 는 이 필드만 참조.
+- [ ] FE: `lastError.message` 가 있으면 status-badge 의 detail 로 우선 표시 (status_reason 폴백). 사람 친화 메시지.
+
+- [ ] `Cafe24PrivatePendingStep` 에 `useQuery({ queryKey: ["integrations", "get", integrationId], queryFn: integrationsApi.get, refetchInterval: 3000 if pending, refetchOnWindowFocus: true })` 추가.
+- [ ] `status === 'connected'` 관측 시: toast → `invalidateQueries(["integrations"])` → `router.replace(/integrations/${id})`.
+- [ ] `statusReason`/`lastError` 채워졌으면 UI 에 노출, 폴링 계속.
+- [ ] 10분 타임아웃 후 폴링 정지 + 안내 토스트.
+- [ ] Public 흐름의 `oauth_callback` 메시지 미수신 timeout 보완 (`new/page.tsx:194-219` 부근): popup `.closed` 폴링 + 5초 cutoff 토스트.
+- [ ] 통합 목록 `useQuery` 에 `refetchOnWindowFocus: true, staleTime: 0` 명시.
+
+## 변경 2 — BE W1: install_token 식별 키 승격 (Private 전용)
+
+- [ ] **선행 확인**: integration_oauth_state.provider_meta (V041 migration) 적용 여부 확인.
+- [ ] `createPrivatePendingIntegration` 의 `appUrl` 을 `${appUrl}/api/integrations/oauth/install/cafe24/${installToken}` 로 변경.
+- [ ] 컨트롤러 신규 라우트 `@Get('oauth/install/cafe24/:installToken')`.
+- [ ] `handleInstall(installToken, query)`: 단일 row 조회 → `client_secret` 으로 HMAC 1회 검증 → 통과 시 OAuthState 생성 + 302.
+- [ ] 기존 토큰 없는 `/oauth/install/cafe24` 라우트 410 Gone (`CAFE24_INSTALL_LEGACY_PATH`) 응답.
+- [ ] (후속) 레거시 경로 영구 폐기 시점 결정 — 운영 데이터·Cafe24 Developers 등록 URL 잔존 여부 확인 후 별도 PR. **기존 Private 앱 등록자 대상 App URL 재등록 안내 가이드** 작성도 본 항목 처리 시 함께.
+- [ ] (W6 보안) install_token URL path 로그 유출 방어: nginx access log 에서 installToken segment 마스킹 또는 query parameter 이동 검토.
+- [ ] (W7 보안) install endpoint IP 기반 rate limiting 추가 — token 존재 oracle enumeration 방어.
+- [ ] (W5 변경) install_token UNIQUE 제약 V0XX 추가 결정 (DB 레벨 보장 필요 시).
+- [ ] spec 갱신 적용 완료 (`spec/2-navigation/4-integration.md` §9.2 / §9.4 / §9.8 / data-flow §1.2.1 — project-planner 위임 완료, `review/consistency/2026-05-14_18-23-55/`).
+
+## 변경 3 — BE W3: 중복 `pending_install` 방지 (Private 전용)
+
+- [ ] `createPrivatePendingIntegration` 진입 시 동일 `(workspaceId, serviceType, mall_id, app_type='private', status='pending_install')` row 검색.
+- [ ] 찾으면 기존 row 의 `installToken` / credentials 새 값으로 교체 후 save (status·name 유지).
+- [ ] 동일 `(workspaceId, mall_id, app_type='private')` 에 `connected` 가 이미 있으면 `CAFE24_PRIVATE_APP_ALREADY_CONNECTED` **(409)** 반환 (swagger 규약 — spec §9.4).
+- [ ] TOCTOU race 방어: advisory lock (`pg_advisory_xact_lock(hash(workspace_id || mall_id))`) 또는 `mall_id` plain 컬럼 분리 후 partial UNIQUE 인덱스 — 구현 시점 결정.
+- [ ] mall_id O(N) decrypt 비용 검토: 동일 workspace + service_type='cafe24' 행이 많을 경우 `mall_id` 를 plain 컬럼으로 분리하는 옵션 비교 (`packages` 측정 자료 첨부).
+
+## 변경 4 — BE W6: pending_install TTL 정리 (Private 전용)
+
+- [ ] TTL 정책 결정: **24시간** (spec 에 명시).
+- [ ] 구현: `purgeExpired()` 확장 또는 1시간 주기 `@Cron`. `pending_install` + `createdAt < now - 24h` → `status='expired', statusReason='install_timeout', installToken=null`.
+- [ ] spec §6 상태 머신에 `pending_install → expired` 자동 전이 추가.
+- [ ] BullMQ 메시지 스키마 확장: `{ integrationId, reason: 'token_expiring' | 'pending_install_timeout' }`. **하위 호환**: consumer 에 `reason ?? 'token_expiring'` 기본값 처리. **배포 순서**: consumer 먼저 배포 → producer.
+- [ ] 두 쿼리 (token_expiring · pending_install_timeout) 독립 실행, 실패 격리. spec §11.1 또는 §1.4 에 한 줄 명시.
+- [ ] FE `status-badge.tsx` 의 `expired + status_reason='install_timeout'` 분기 추가 (변경 0 PR 에서 dead code 로 제거된 부분 복원).
+- [ ] TTL 경계 처리: install_token 조회 성공 + created_at 24h 초과 시 정상 처리 후 스캐너 정리 (spec 명시).
+
+## 변경 5 — 테스트 보강 (C3 follow-up)
+
+- [ ] `handleInstall` 단일 토큰 lookup happy/invalid/expired/HMAC fail/replay.
+- [ ] `handleCallback` happy path `pending_install → connected` (현재 전무).
+- [ ] `handleCallback` 실패 경로 (TOKEN_EXCHANGE_FAILED · STATE_MISMATCH · STATE_EXPIRED · RESOURCE_NOT_FOUND) 가 `markIntegrationCallbackError` 호출하는지.
+- [ ] `createPrivatePendingIntegration` 중복 reuse 경로.
+- [ ] E2E private: begin → install (HMAC fixture) → callback → connected.
+- [ ] E2E public: 성공 + 실패 (잘못된 code) 시 callback HTML 의 error 노출.
+- [ ] FE: pending polling 훅 status 전이 동작. Public popup closed-without-message 타임아웃.
+- [ ] 기존 e2e — `CAFE24_INSTALL_INVALID_HMAC(403)` 테스트 중 "토큰 미존재" 경로를 `CAFE24_INSTALL_INVALID_TOKEN(404)` 로 전환.
+- [ ] (W14) install_token 신규 흐름 4 케이스: (a) happy path / (b) NULL 전환 후 재호출 → 404 / (c) TTL 만료 후 NULL 확인 / (d) replay 방어. (e2e 작성 시도했으나 Docker 이미지 rebuild 환경 이슈로 본 PR 에 포함 안 함 — `backend/test/cafe24-private-install.e2e-spec.ts` draft 가 commit history e2 변경 직전 시점에 보존됨. 단위 테스트로 동일 케이스가 이미 커버되어 회귀 보호는 확보).
+- [ ] (Info 1-2) 외부 provider 에러 메시지 보안 처리: 길이 200자 제한 + 민감 패턴 필터링.
+- [ ] (W10 cleanup) 매직 스트링·숫자 상수화: `ERROR_CLOSE_DELAY_MS=4000`, `OAUTH_CALLBACK_FAILED`, `'install_timeout'`.
+- [ ] (W1 cleanup) `lastError` DTO 타입 구체화: `{ code, message, at }`.
+- [ ] (W2/W3 cleanup) `callbackContextOf` export 캡슐화 — service 내부 `handleCallbackWithErrorCapture` 메서드로 통합.
+
+## Consistency-check 결과 (2026-05-14_16-48-25)
+
+`review/consistency/2026-05-14_16-48-25/SUMMARY.md` — **BLOCK: YES**.
+
+- **Critical**: C1 (status enum 에 pending_install 부재), C2 (install_token 컬럼 미등재), C3 (변경 4 의 expired 전이가 spec 의 삭제 정의와 반대), C4 (변경 2 의 새 라우트가 §9.2 와 충돌).
+- **Warning**: W1 (callback 실패 시 pending_install 유지 정책 미기술 — 변경 0 의 코드와 직결), W6 (DTO enum 누락), 외 5건.
+
+조치: `plan/in-progress/spec-update-cafe24-pending-polish.md` 에 모든 spec 갱신 요구를 정리. **project-planner 에 위임 → spec 본문 반영 → consistency-check 재실행** 까지 마친 뒤 본 plan 의 구현 단계로 복귀.
+
+## 실행 순서
+
+0. **(BLOCK 해소)** project-planner 가 spec/1-data-model.md §2.10, spec/2-navigation/4-integration.md §2.2/§2.4/§3.2/§6/§9.2/§9.4/§10/§14.2, spec/data-flow/integration.md §3.2 를 갱신. 결과적으로 spec 의 OAuth callback 실패 정책·install_token 식별·pending_install→expired TTL 전이가 명문화된다. → 재 consistency-check.
+1. **변경 0** 부터: 가장 큰 진단 가치. 다음 재현 시 H1/H2/H4/H5 자동 식별 가능.
+2. **변경 1**: FE 폴링 — 변경 0 의 `last_error` 노출과 결합되어 UX 회복.
+3. **변경 2/3/4**: spec 개정 동반 (project-planner 위임 → consistency-check) → 구현.
+4. **변경 5**: 각 변경 단위로 테스트 작성 → 마지막에 보강.
+5. `/ai-review` 자체 수행, `review/<ts>/RESOLUTION.md` 작성.
+6. PR 머지 후 worktree 제거, 본 plan `complete/` 로 `git mv`.
+
+## 비포함
+
+- 백엔드 → FE 실시간 채널(SSE/WebSocket) 재설계.
+- AI review I1/I2 또는 이미 적용된 C1/C2/W4/W5/W7/W11/W13 재검토.
+- cafe24 외 provider 의 OAuth 흐름 자체.

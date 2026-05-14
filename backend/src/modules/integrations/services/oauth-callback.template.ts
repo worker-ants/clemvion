@@ -8,6 +8,12 @@
  * the string context.
  */
 
+/** Delay before the popup auto-closes on a FAILED callback. Gives the user
+ * a beat to read the error since this HTML body is their only feedback
+ * channel for Cafe24 Developers-opened popups (window.opener points at
+ * cafe24, not at us). Success closes immediately. */
+export const ERROR_CLOSE_DELAY_MS = 4000;
+
 export interface OAuthCallbackSuccess {
   status: 'success';
   result: {
@@ -77,6 +83,15 @@ export function renderCallbackHtml(
   const serialized = `"${jsonForScript(payload)}"`;
   const origin = `"${jsonForScript(targetOrigin)}"`;
 
+  // Success closes immediately. Failure delays close so the user has time
+  // to read the error message — popups opened by Cafe24 Developers (private
+  // app "테스트 실행") never reach our postMessage listener, so this HTML
+  // body is their only feedback channel.
+  const closeScript =
+    input.status === 'success'
+      ? 'window.close();'
+      : `setTimeout(function(){ window.close(); }, ${ERROR_CLOSE_DELAY_MS});`;
+
   return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Integration OAuth</title></head>
 <body style="font-family:system-ui,sans-serif;padding:20px">
 <p>${body}</p>
@@ -88,7 +103,7 @@ export function renderCallbackHtml(
       window.opener.postMessage(payload, target);
     }
   } catch (e) { /* ignore */ }
-  window.close();
+  ${closeScript}
 </script>
 </body></html>`;
 }

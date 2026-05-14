@@ -1564,6 +1564,8 @@ export const en: Dict = {
     reauthorizeSection: "Reauthorize",
     reauthorizeHint: "Open the provider in a new window to refresh tokens.",
     reauthorizeBtn: "Reauthorize",
+    reauthorizeDisabledHint:
+      "Reauthorize is unavailable for Cafe24 Private apps (use \"Test Run\" in Cafe24 Developers) or for integrations expired via install_timeout (delete and re-register).",
     reauthorizeOpened: "Reauthorization window opened",
     integrationReset: "Integration reset",
     reauthorizeFailedToast: "Failed to start reauthorization",
@@ -1628,6 +1630,17 @@ export const en: Dict = {
     cafe24PrivatePendingSteps:
       "① In Cafe24 Developers → My App → Development Info, set App URL and Redirect URI to the values above. ② Confirm that Permissions (Scope) match the scopes you requested. ③ Click Test Run and enter your mall ID. After consent, the integration activates.",
     cafe24PrivatePendingViewList: "View integration details",
+    cafe24PrivatePendingWaiting:
+      "Waiting for Cafe24 Test Run to complete… (auto-refresh)",
+    cafe24PrivatePendingTimedOut:
+      "Still pending after 10 minutes. Reload this page to keep checking, or open the integration details.",
+    cafe24PrivatePendingExpired:
+      "Install timed out (24h). Delete this integration and register again to retry.",
+    cafe24PrivatePendingTerminal:
+      "This integration is no longer pending. Open the details for status and next steps.",
+    cafe24PrivatePendingLastErrorLabel: "Last callback error",
+    oauthPopupClosedNoResult:
+      "OAuth popup closed without returning a result. Try again or reload this page.",
     copied: "Copied",
     waitingPopup: "Waiting for the provider popup…",
     oauthComplete: "OAuth authorization complete.",

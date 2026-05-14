@@ -15,6 +15,10 @@ export type OAuthBeginResult =
   | { authUrl: string; state: string }
   | { mode: "cafe24_private_pending"; integrationId: string; appUrl: string; callbackUrl: string };
 
+export interface IntegrationMeta {
+  appType: "public" | "private" | null;
+}
+
 export interface IntegrationDto {
   id: string;
   workspaceId: string;
@@ -29,7 +33,8 @@ export interface IntegrationDto {
   tokenExpiresAt: string | null;
   lastUsedAt: string | null;
   lastRotatedAt: string | null;
-  lastError: Record<string, unknown> | null;
+  lastError: { code?: string; message?: string; at?: string } | Record<string, unknown> | null;
+  meta: IntegrationMeta;
   createdBy: string;
   createdAt: string;
   updatedAt: string;

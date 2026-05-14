@@ -1,0 +1,168 @@
+{
+  "timestamp": "2026-05-14T21:45:57.038074",
+  "files": [
+    {
+      "file_path": "/Volumes/project/private/clemvion/.claude/worktrees/cafe24-pending-polish-7fdb7e/backend/migrations/V043__cafe24_install_token_index.sql",
+      "change_type": "Review",
+      "file_extension": "sql"
+    },
+    {
+      "file_path": "/Volumes/project/private/clemvion/.claude/worktrees/cafe24-pending-polish-7fdb7e/backend/src/modules/integrations/dto/responses/integration-response.dto.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/clemvion/.claude/worktrees/cafe24-pending-polish-7fdb7e/backend/src/modules/integrations/integration-expiry-scanner.service.spec.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/clemvion/.claude/worktrees/cafe24-pending-polish-7fdb7e/backend/src/modules/integrations/integration-expiry-scanner.service.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/clemvion/.claude/worktrees/cafe24-pending-polish-7fdb7e/backend/src/modules/integrations/integration-oauth.service.cafe24.spec.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/clemvion/.claude/worktrees/cafe24-pending-polish-7fdb7e/backend/src/modules/integrations/integration-oauth.service.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/clemvion/.claude/worktrees/cafe24-pending-polish-7fdb7e/backend/src/modules/integrations/integrations.controller.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/clemvion/.claude/worktrees/cafe24-pending-polish-7fdb7e/backend/src/modules/integrations/integrations.service.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/clemvion/.claude/worktrees/cafe24-pending-polish-7fdb7e/backend/src/modules/integrations/services/oauth-callback.template.spec.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/clemvion/.claude/worktrees/cafe24-pending-polish-7fdb7e/backend/src/modules/integrations/services/oauth-callback.template.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/clemvion/.claude/worktrees/cafe24-pending-polish-7fdb7e/frontend/src/app/(main)/integrations/[id]/page.tsx",
+      "change_type": "Review",
+      "file_extension": "tsx"
+    },
+    {
+      "file_path": "/Volumes/project/private/clemvion/.claude/worktrees/cafe24-pending-polish-7fdb7e/frontend/src/app/(main)/integrations/_shared/__tests__/status-badge.test.tsx",
+      "change_type": "Review",
+      "file_extension": "tsx"
+    },
+    {
+      "file_path": "/Volumes/project/private/clemvion/.claude/worktrees/cafe24-pending-polish-7fdb7e/frontend/src/app/(main)/integrations/_shared/status-badge.tsx",
+      "change_type": "Review",
+      "file_extension": "tsx"
+    },
+    {
+      "file_path": "/Volumes/project/private/clemvion/.claude/worktrees/cafe24-pending-polish-7fdb7e/frontend/src/app/(main)/integrations/new/page.tsx",
+      "change_type": "Review",
+      "file_extension": "tsx"
+    },
+    {
+      "file_path": "/Volumes/project/private/clemvion/.claude/worktrees/cafe24-pending-polish-7fdb7e/frontend/src/app/(main)/integrations/page.tsx",
+      "change_type": "Review",
+      "file_extension": "tsx"
+    },
+    {
+      "file_path": "/Volumes/project/private/clemvion/.claude/worktrees/cafe24-pending-polish-7fdb7e/frontend/src/lib/api/integrations.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/clemvion/.claude/worktrees/cafe24-pending-polish-7fdb7e/frontend/src/lib/i18n/dict/en.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/clemvion/.claude/worktrees/cafe24-pending-polish-7fdb7e/frontend/src/lib/i18n/dict/ko.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/clemvion/.claude/worktrees/cafe24-pending-polish-7fdb7e/plan/in-progress/cafe24-pending-polish.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    }
+  ],
+  "total_elapsed_seconds": 353.97,
+  "agents": [
+    {
+      "name": "maintainability",
+      "status": "success",
+      "elapsed_seconds": 37.45
+    },
+    {
+      "name": "dependency",
+      "status": "success",
+      "elapsed_seconds": 45.8
+    },
+    {
+      "name": "database",
+      "status": "success",
+      "elapsed_seconds": 64.63
+    },
+    {
+      "name": "api_contract",
+      "status": "success",
+      "elapsed_seconds": 76.62
+    },
+    {
+      "name": "concurrency",
+      "status": "success",
+      "elapsed_seconds": 77.6
+    },
+    {
+      "name": "scope",
+      "status": "success",
+      "elapsed_seconds": 82.52
+    },
+    {
+      "name": "architecture",
+      "status": "success",
+      "elapsed_seconds": 97.87
+    },
+    {
+      "name": "performance",
+      "status": "success",
+      "elapsed_seconds": 99.25
+    },
+    {
+      "name": "documentation",
+      "status": "success",
+      "elapsed_seconds": 101.1
+    },
+    {
+      "name": "testing",
+      "status": "success",
+      "elapsed_seconds": 104.88
+    },
+    {
+      "name": "side_effect",
+      "status": "success",
+      "elapsed_seconds": 140.63
+    },
+    {
+      "name": "security",
+      "status": "success",
+      "elapsed_seconds": 162.68
+    },
+    {
+      "name": "requirement",
+      "status": "success",
+      "elapsed_seconds": 178.03
+    }
+  ]
+}
