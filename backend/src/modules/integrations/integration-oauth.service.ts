@@ -131,12 +131,32 @@ export function attachCallbackContext<E extends Error>(
   return err;
 }
 
-export function callbackContextOf(err: unknown): CallbackContext | undefined {
+/**
+ * Read the diagnostic context off a thrown error, if present. Internal —
+ * the only consumer is `handleCallbackWithErrorCapture` below; callers
+ * outside the service should use that wrapper instead of reaching into
+ * error internals.
+ */
+function callbackContextOf(err: unknown): CallbackContext | undefined {
   if (err && typeof err === 'object' && 'context' in err) {
     return (err as { context?: CallbackContext }).context;
   }
   return undefined;
 }
+
+function readErrorCode(err: unknown): string {
+  const code = (err as { response?: { code?: string } })?.response?.code;
+  return typeof code === 'string' ? code : OAUTH_CALLBACK_FAILED;
+}
+
+function readErrorMessage(err: unknown): string {
+  const r =
+    (err as { response?: { message?: string }; message?: string }) ?? {};
+  return r.response?.message ?? r.message ?? 'OAuth failed';
+}
+
+/** Generic fallback code used when a thrown error has no NestJS response.code. */
+export const OAUTH_CALLBACK_FAILED = 'OAUTH_CALLBACK_FAILED';
 
 interface TokenExchangeResult {
   accessToken: string;
@@ -488,6 +508,42 @@ export class IntegrationOAuthService {
       provider,
       integrationId: record.integrationId,
     };
+  }
+
+  /**
+   * Public callback entry point — wraps `handleCallback` and, when it
+   * throws after the state row has been consumed, records the diagnostic
+   * onto the Integration row before re-throwing. The controller only needs
+   * to catch and render error HTML; it does not need to know about the
+   * callback context plumbing.
+   *
+   * spec/2-navigation/4-integration.md §10.4.
+   */
+  async handleCallbackWithErrorCapture(
+    provider: string,
+    query: { code?: string; state?: string; error?: string },
+  ): Promise<CallbackResult> {
+    try {
+      return await this.handleCallback(provider, query);
+    } catch (err) {
+      const ctx = callbackContextOf(err);
+      if (ctx?.integrationId && ctx.workspaceId) {
+        const errorCode = readErrorCode(err);
+        const message = readErrorMessage(err);
+        // Best-effort — markIntegrationCallbackError already has its own
+        // try/catch internally, the .catch here is defence-in-depth so a
+        // future refactor cannot block the caller from re-throwing.
+        await this.markIntegrationCallbackError(
+          ctx.integrationId,
+          ctx.workspaceId,
+          errorCode,
+          message,
+        ).catch(() => {
+          /* swallow — never block the original error from propagating */
+        });
+      }
+      throw err;
+    }
   }
 
   /**

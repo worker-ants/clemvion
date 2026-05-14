@@ -28,10 +28,8 @@ import {
   type UsageWorkflow,
 } from "@/lib/api/integrations";
 import { ServiceIcon, prettyAuthType } from "../_shared/service-icons";
-import {
-  StatusBadge,
-  isReauthorizeDisabled,
-} from "../_shared/status-badge";
+import { StatusBadge } from "../_shared/status-badge";
+import { isReauthorizeDisabled } from "@/lib/integrations/reauthorize";
 import { CredentialsForm } from "../_shared/credentials-form";
 import { useT, type TFunction, type TranslationKey } from "@/lib/i18n";
 
