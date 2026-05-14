@@ -2,6 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { getDataSourceToken, getRepositoryToken } from '@nestjs/typeorm';
 import { getQueueToken } from '@nestjs/bullmq';
 import { BACKGROUND_EXECUTION_QUEUE } from './queues/background-execution.queue';
+import { createEmptyConversationThread } from './conversation-thread/conversation-thread.types';
 import {
   ExecutionEngineService,
   buildAiMessageDebugFromResumeState,
@@ -1038,6 +1039,7 @@ describe('ExecutionEngineService', () => {
         variables: { keep: 'me' },
         nodeOutputCache: { 'node-1': { hello: 'world' } },
         expressionContext: { workspaceId: 'ws-1' },
+        conversationThread: createEmptyConversationThread(),
         config: { notifyOnFailure: false, maxDurationMs: 0 },
       };
 
@@ -1078,6 +1080,7 @@ describe('ExecutionEngineService', () => {
         variables: {},
         nodeOutputCache: {},
         expressionContext: {},
+        conversationThread: createEmptyConversationThread(),
         config: { notifyOnFailure: false, maxDurationMs: 50 },
       };
 
@@ -1103,6 +1106,7 @@ describe('ExecutionEngineService', () => {
         variables: {},
         nodeOutputCache: {},
         expressionContext: {},
+        conversationThread: createEmptyConversationThread(),
         config: { notifyOnFailure: false, maxDurationMs: 0 },
       });
 
@@ -1126,6 +1130,7 @@ describe('ExecutionEngineService', () => {
         variables: {},
         nodeOutputCache: {},
         expressionContext: {},
+        conversationThread: createEmptyConversationThread(),
         config: { notifyOnFailure: false, maxDurationMs: 0 },
       });
 
@@ -1161,6 +1166,7 @@ describe('ExecutionEngineService', () => {
         variables: {},
         nodeOutputCache: {},
         expressionContext: {},
+        conversationThread: createEmptyConversationThread(),
         config: { notifyOnFailure: false, maxDurationMs: 0 },
       });
 
@@ -1184,6 +1190,7 @@ describe('ExecutionEngineService', () => {
         variables: {},
         nodeOutputCache: { 'node-1': { from: 'main' } },
         expressionContext: {},
+        conversationThread: createEmptyConversationThread(),
         config: { notifyOnFailure: false, maxDurationMs: 0 },
       });
 
