@@ -19,11 +19,18 @@ export function computeStatus(integration: IntegrationDto): StatusView {
     };
   }
   if (integration.status === "pending_install") {
+    // If a callback failure was recorded, surface its diagnostic instead of
+    // the generic "complete test run" hint — the user needs to fix the
+    // reported error (e.g. invalid client_id) before re-running test in
+    // Cafe24 Developers. spec/2-navigation/4-integration.md §10.4
+    const detail = integration.statusReason
+      ? `Last error: ${integration.statusReason}`
+      : "Complete Cafe24 Test Run to activate";
     return {
       label: "Pending install",
       dotClassName: "bg-blue-400",
-      tone: "warn",
-      detail: "Complete Cafe24 Test Run to activate",
+      tone: integration.statusReason ? "err" : "warn",
+      detail,
     };
   }
   if (integration.status === "error") {
@@ -39,6 +46,10 @@ export function computeStatus(integration: IntegrationDto): StatusView {
       label: "Expired",
       dotClassName: "bg-yellow-500",
       tone: "warn",
+      detail:
+        integration.statusReason === "install_timeout"
+          ? "Install timed out — delete and re-register"
+          : undefined,
     };
   }
   if (expiresSoon) {
