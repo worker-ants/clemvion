@@ -127,36 +127,50 @@ sequenceDiagram
 
 ### 1.4 OAuth 만료 스캐너 (BullMQ `integration-expiry`)
 
+`integration-expiry` 큐 위에 **세 개의 독립 BullMQ 스케줄러**가 매일 00:00 UTC 에 각자 job 을 enqueue 한다. 각 job 은 자체 retry 정책 (`attempts: 3`, exponential backoff 60s)으로 BullMQ 가 재시도하며, 실패는 큐 메트릭에 그대로 노출된다.
+
+| Job name | Scheduler id | 역할 |
+| --- | --- | --- |
+| `connected-expiry` | `connected-expiry-daily` | `status='connected' AND token_expires_at < now+Δ` 행을 refresh 또는 `expired(token_expired)` 로 전이 |
+| `pending-install-ttl` | `pending-install-ttl-daily` | `status='pending_install' AND created_at < now-24h` 행을 `expired(install_timeout) + install_token=NULL` 로 전이 (Cafe24 Private 한정) |
+| `usage-log-prune` | `usage-log-prune-daily` | `integration_usage_log` 90일 보존 외 행 삭제 |
+
 ```mermaid
 sequenceDiagram
-  participant Cron as Cron sweep
+  participant CE as connected-expiry-daily (cron)
+  participant PT as pending-install-ttl-daily (cron)
+  participant UP as usage-log-prune-daily (cron)
   participant Q as integration-expiry queue
   participant Scan as IntegrationExpiryScanner
   participant Prov as OAuth Provider
   participant PG as Postgres
   participant Noti as NotificationsService
 
-  Cron->>PG: SELECT integration WHERE token_expires_at < now + Δ AND status='connected'
-  Cron->>PG: SELECT integration WHERE status='pending_install' AND created_at < now - INTERVAL '24h' AND install_token IS NOT NULL
-  loop each integration
-    Cron->>Q: queue.add({ integrationId, reason: 'token_expiring' | 'pending_install_timeout' })
-  end
-  Q-->>Scan: job
-  alt status='pending_install' 분기 (Cafe24 Private install TTL 만료)
-    Scan->>PG: UPDATE integration SET status='expired', status_reason='install_timeout', install_token=NULL
-    Scan->>Noti: notify integration_expired (선택 — 사용자에게 cafe24 측 설정 미완 안내)
-  else (refresh 흐름)
-    alt refresh_token 존재
-      Scan->>Prov: refresh token
-      Scan->>PG: UPDATE integration SET credentials=ENC(new), token_expires_at, last_rotated_at
-    else 만료 처리만
-      Scan->>PG: UPDATE integration SET status='expired', status_reason='token_expired'
-      Scan->>Noti: notify integration_expired
+  par Three parallel passes
+    CE->>Q: enqueue { name: 'connected-expiry', triggeredAt }
+    Q-->>Scan: connected-expiry job
+    Scan->>PG: SELECT integration WHERE token_expires_at < now+Δ AND status='connected'
+    loop each row
+      alt refresh_token 존재
+        Scan->>Prov: refresh token
+        Scan->>PG: UPDATE integration SET credentials=ENC(new), token_expires_at, last_rotated_at
+      else 만료 처리만
+        Scan->>PG: UPDATE integration SET status='expired', status_reason='token_expired'
+        Scan->>Noti: notify integration_expired
+      end
     end
+  and
+    PT->>Q: enqueue { name: 'pending-install-ttl', triggeredAt }
+    Q-->>Scan: pending-install-ttl job
+    Scan->>PG: UPDATE integration SET status='expired', status_reason='install_timeout', install_token=NULL<br/>WHERE status='pending_install' AND created_at < now - INTERVAL '24h'
+  and
+    UP->>Q: enqueue { name: 'usage-log-prune', triggeredAt }
+    Q-->>Scan: usage-log-prune job
+    Scan->>PG: DELETE FROM integration_usage_log WHERE at < now - INTERVAL '90 days'
   end
 ```
 
-스캐너 한 작업이 두 갈래를 모두 처리한다 — (a) `connected` 토큰 만료 임박 행은 refresh 또는 expired 전이 / (b) `pending_install` 24h 초과 행은 expired (`install_timeout`) 전이. 두 갈래는 별도 큐 메시지로 dispatch 되어 처리 로직이 분리된다 (`{ integrationId, reason: 'token_expiring' | 'pending_install_timeout' }`). **하위 호환**: 기존 소비자가 `reason` 미포함 메시지를 받던 경로가 있다면 `reason ?? 'token_expiring'` 으로 기본값 처리한다 — 본 개정 이전의 큐 잔존 메시지가 신규 소비자에서도 안전하게 처리되도록 보장.
+**격리 정책**: 각 job 은 별도 BullMQ 단위라 한 job 실패가 다른 job 의 실행을 막지 않는다. `process(job)` 핸들러는 `job.name` 으로 분기만 하며 에러는 그대로 throw — BullMQ 가 `attempts=3` 까지 retry 한 뒤 실패 처리. 영구 실패한 job 은 큐의 failed 리스트에 남아 30일간 보존되어 alerting 으로 픽업 가능. **마이그레이션**: 옛 단일 `integration-expiry-daily` 스케줄러는 `onModuleInit` 에서 `removeJobScheduler` 로 제거된다 (idempotent).
 
 ---
 
@@ -174,7 +188,7 @@ sequenceDiagram
 
 | 큐 | producer | consumer | payload |
 | --- | --- | --- | --- |
-| `integration-expiry` | `IntegrationExpiryScanner` cron sweep | 동일 module 내 processor | `{ integrationId, reason }` |
+| `integration-expiry` | `IntegrationExpiryScanner` 의 3개 일일 스케줄러 (`connected-expiry-daily` / `pending-install-ttl-daily` / `usage-log-prune-daily`) | 동일 module 내 processor — job.name 으로 분기 | `{ triggeredAt: ISO }` (per-job 단일 data shape) |
 
 ### 2.3 외부
 
