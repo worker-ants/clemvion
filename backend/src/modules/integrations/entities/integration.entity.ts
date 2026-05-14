@@ -55,7 +55,7 @@ export class Integration {
   @Column({ length: 20, default: 'connected' })
   status: IntegrationStatus;
 
-  @Column({ name: 'install_token', length: 64, nullable: true })
+  @Column({ name: 'install_token', type: 'varchar', length: 64, nullable: true })
   installToken: string | null;
 
   @Column({
