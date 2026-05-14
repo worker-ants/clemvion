@@ -1,5 +1,6 @@
 import { ForEachExecutor } from './foreach-executor';
 import { ExecutionContext } from '../../../nodes/core/node-handler.interface';
+import { createEmptyConversationThread } from '../conversation-thread/conversation-thread.types';
 
 describe('ForEachExecutor', () => {
   let executor: ForEachExecutor;
@@ -14,6 +15,7 @@ describe('ForEachExecutor', () => {
       nodeOutputCache: {},
       structuredOutputCache: {},
       engineResolvedConfigCache: {},
+      conversationThread: createEmptyConversationThread(),
       recursionDepth: 0,
     };
   });

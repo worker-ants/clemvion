@@ -1,5 +1,6 @@
 import { VariableDeclarationHandler } from './variable-declaration.handler.js';
 import { ExecutionContext } from '../../core/node-handler.interface.js';
+import { createEmptyConversationThread } from '../../../modules/execution-engine/conversation-thread/conversation-thread.types';
 
 describe('VariableDeclarationHandler', () => {
   let handler: VariableDeclarationHandler;
@@ -14,6 +15,7 @@ describe('VariableDeclarationHandler', () => {
       nodeOutputCache: {},
       structuredOutputCache: {},
       engineResolvedConfigCache: {},
+      conversationThread: createEmptyConversationThread(),
       recursionDepth: 0,
     };
   });

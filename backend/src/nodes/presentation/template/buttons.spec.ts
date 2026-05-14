@@ -1,4 +1,5 @@
 import { TemplateHandler } from './template.handler.js';
+import { createEmptyConversationThread } from '../../../modules/execution-engine/conversation-thread/conversation-thread.types';
 
 describe('TemplateHandler - Buttons', () => {
   let handler: TemplateHandler;
@@ -14,6 +15,7 @@ describe('TemplateHandler - Buttons', () => {
     nodeOutputCache: {},
     structuredOutputCache: {},
     engineResolvedConfigCache: {},
+    conversationThread: createEmptyConversationThread(),
     recursionDepth: 0,
   };
 

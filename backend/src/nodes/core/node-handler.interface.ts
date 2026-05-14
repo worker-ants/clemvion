@@ -105,6 +105,23 @@ export interface ExecutionContext {
    */
   parentNodeExecutionId?: string;
   /**
+   * Workflow 실행 동안 발생하는 사용자 인터랙션 (presentation 노드의 form
+   * 제출·버튼 클릭) 과 AI 대화 turn 의 시간순 누적. AI Agent 노드가 노드
+   * 설정 (`contextScope`) 으로 자동 주입받는다.
+   *
+   * `ExecutionContextService.createContext` 가 항상 빈 thread
+   * (`createEmptyConversationThread()`) 로 초기화하므로 non-optional —
+   * 핸들러는 항상 객체가 존재한다고 가정해도 안전하다.
+   *
+   * **Mutation 단일 진입점**: `ConversationThreadService.append*` 만 thread 를
+   * 변형한다. 핸들러가 `context.conversationThread.turns.push(...)` 같은
+   * 직접 mutation 을 수행하지 않는다 — opt-out 검사 / seq 부여 / totalChars
+   * 갱신이 service 에 집중되어 있다.
+   *
+   * 상세: `spec/conventions/conversation-thread.md`.
+   */
+  conversationThread: import('../../modules/execution-engine/conversation-thread/conversation-thread.types').ConversationThread;
+  /**
    * 엔진 내부 상태 — sub-workflow inline execution 경로 (`runExecution` 의
    * `executeInline` branch) 에서만 set. `_` prefix 가 internal 신호.
    * `WorkflowHandler` 만 정당하게 읽으며 (sub-workflow bridge), 다른

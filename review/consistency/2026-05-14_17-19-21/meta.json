@@ -1,0 +1,34 @@
+{
+  "timestamp": "2026-05-14T17:25:13.126195",
+  "mode": "구현 착수 전 검토 (--impl-prep, scope=spec/conventions/)",
+  "target_path": "spec/conventions/",
+  "blocked": false,
+  "total_elapsed_seconds": 351.56,
+  "checkers": [
+    {
+      "name": "plan_coherence",
+      "status": "success",
+      "elapsed_seconds": 155.37
+    },
+    {
+      "name": "rationale_continuity",
+      "status": "success",
+      "elapsed_seconds": 204.02
+    },
+    {
+      "name": "naming_collision",
+      "status": "success",
+      "elapsed_seconds": 231.49
+    },
+    {
+      "name": "cross_spec",
+      "status": "success",
+      "elapsed_seconds": 248.49
+    },
+    {
+      "name": "convention_compliance",
+      "status": "success",
+      "elapsed_seconds": 259.03
+    }
+  ]
+}

@@ -27,6 +27,7 @@ import { NotificationsModule } from '../notifications/notifications.module';
 import { BACKGROUND_EXECUTION_QUEUE } from './queues/background-execution.queue';
 import { BackgroundExecutionProcessor } from './queues/background-execution.processor';
 import { ContinuationBusService } from './continuation/continuation-bus.service';
+import { ConversationThreadService } from './conversation-thread/conversation-thread.service';
 
 @Module({
   imports: [
@@ -60,12 +61,14 @@ import { ContinuationBusService } from './continuation/continuation-bus.service'
     ParallelExecutor,
     BackgroundExecutionProcessor,
     ContinuationBusService,
+    ConversationThreadService,
   ],
   exports: [
     ExecutionEngineService,
     NodeHandlerRegistry,
     NodeComponentRegistry,
     ExpressionResolverService,
+    ConversationThreadService,
   ],
 })
 export class ExecutionEngineModule {}

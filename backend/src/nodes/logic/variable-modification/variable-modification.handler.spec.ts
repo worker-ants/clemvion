@@ -1,5 +1,6 @@
 import { VariableModificationHandler } from './variable-modification.handler.js';
 import { ExecutionContext } from '../../core/node-handler.interface.js';
+import { createEmptyConversationThread } from '../../../modules/execution-engine/conversation-thread/conversation-thread.types';
 
 describe('VariableModificationHandler', () => {
   let handler: VariableModificationHandler;
@@ -14,6 +15,7 @@ describe('VariableModificationHandler', () => {
       nodeOutputCache: {},
       structuredOutputCache: {},
       engineResolvedConfigCache: {},
+      conversationThread: createEmptyConversationThread(),
       recursionDepth: 0,
     };
   });

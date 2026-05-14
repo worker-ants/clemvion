@@ -1,5 +1,6 @@
 import { ManualTriggerHandler } from './manual-trigger.handler';
 import type { ExecutionContext } from '../../core/node-handler.interface';
+import { createEmptyConversationThread } from '../../../modules/execution-engine/conversation-thread/conversation-thread.types';
 
 function makeContext(rawConfig?: Record<string, unknown>): ExecutionContext {
   return {
@@ -9,6 +10,7 @@ function makeContext(rawConfig?: Record<string, unknown>): ExecutionContext {
     nodeOutputCache: {},
     structuredOutputCache: {},
     engineResolvedConfigCache: {},
+    conversationThread: createEmptyConversationThread(),
     recursionDepth: 0,
     ...(rawConfig ? { rawConfig: Object.freeze({ ...rawConfig }) } : {}),
   };
@@ -24,6 +26,7 @@ describe('ManualTriggerHandler', () => {
     nodeOutputCache: {},
     structuredOutputCache: {},
     engineResolvedConfigCache: {},
+    conversationThread: createEmptyConversationThread(),
     recursionDepth: 0,
   };
 

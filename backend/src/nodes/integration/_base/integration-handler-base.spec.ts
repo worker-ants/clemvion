@@ -6,6 +6,7 @@ import {
   toLogError,
 } from './integration-handler-base.js';
 import { ExecutionContext } from '../../core/node-handler.interface.js';
+import { createEmptyConversationThread } from '../../../modules/execution-engine/conversation-thread/conversation-thread.types';
 
 // Concrete subclass so we can exercise protected helpers from a test.
 class TestHandler extends IntegrationHandlerBase {
@@ -34,6 +35,7 @@ function ctx(overrides: Partial<ExecutionContext> = {}): ExecutionContext {
     nodeOutputCache: {},
     structuredOutputCache: {},
     engineResolvedConfigCache: {},
+    conversationThread: createEmptyConversationThread(),
     recursionDepth: 0,
     ...overrides,
   };
