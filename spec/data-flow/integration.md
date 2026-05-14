@@ -73,11 +73,11 @@ sequenceDiagram
 
   U->>FE: app_type=private + mall_id + client_id/secret 폼 제출
   FE->>Svc: POST /oauth/begin
-  Svc->>Svc: install_token = randomBytes(32).hex
+  Svc->>Svc: install_token = randomBytes(16).base64url  # 22자, 128-bit
   Svc->>PG: INSERT integration (status=pending_install, install_token, credentials ENC)
-  Svc-->>FE: { appUrl: .../install/cafe24/:installToken, callbackUrl: ... }
+  Svc-->>FE: { appUrl: .../3rd-party/cafe24/install/:installToken, callbackUrl: .../3rd-party/cafe24/callback }
   U->>CDev: appUrl/callbackUrl 등록 → "테스트 실행"
-  CDev->>Svc: GET /install/cafe24/:installToken?mall_id=...&hmac=...
+  CDev->>Svc: GET /3rd-party/cafe24/install/:installToken?mall_id=...&hmac=...
   Svc->>PG: SELECT integration WHERE install_token=:installToken AND status=pending_install
   Svc->>Svc: HMAC(client_secret, query) 1회 검증
   alt 검증 성공
