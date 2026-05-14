@@ -46,10 +46,6 @@ export function computeStatus(integration: IntegrationDto): StatusView {
       label: "Expired",
       dotClassName: "bg-yellow-500",
       tone: "warn",
-      detail:
-        integration.statusReason === "install_timeout"
-          ? "Install timed out — delete and re-register"
-          : undefined,
     };
   }
   if (expiresSoon) {
