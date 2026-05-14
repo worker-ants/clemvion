@@ -227,11 +227,11 @@ describe('IntegrationOAuthService — Cafe24', () => {
         integrationId: 'pending-integration-id',
       });
       const r = result as { appUrl: string; callbackUrl: string };
-      // appUrl must include the install_token path segment so cafe24
-      // 새 namespace `/api/3rd-party/cafe24/install/<22자 base64url>` —
+      // appUrl must include the install_token path segment so Cafe24 can
+      // hit our single-row lookup endpoint. New namespace
+      // /api/3rd-party/cafe24/install/<22-char base64url> — see
       // spec/2-navigation/4-integration.md §9.2 Rationale "Cafe24 App URL
       // 100자 한도 대응".
-      // Developers can call our single-row lookup endpoint (V043).
       expect(r.appUrl).toMatch(
         /\/api\/3rd-party\/cafe24\/install\/[A-Za-z0-9_-]{22}$/,
       );
