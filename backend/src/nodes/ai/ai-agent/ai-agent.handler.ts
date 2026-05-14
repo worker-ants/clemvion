@@ -33,6 +33,10 @@ import type {
   NodeRef,
   ThreadHolder,
 } from '../../../modules/execution-engine/conversation-thread/conversation-thread.service';
+import {
+  applyCap,
+  renderThreadAsSystemText,
+} from '../../../modules/execution-engine/conversation-thread/thread-renderer';
 
 /**
  * Per-tool execution metadata recorded into `meta.turnDebug[].toolCalls`. The
@@ -372,6 +376,157 @@ export class AiAgentHandler implements NodeHandler {
     }
   }
 
+  /**
+   * Inject the ConversationThread (excluding the current node's own turns)
+   * into the LLM chat. spec/conventions/conversation-thread.md §5.
+   *
+   * Returns the mutated messages + system prompt so the caller can hand
+   * them to llmService.chat, plus a debug snapshot for `meta.contextInjection`.
+   *
+   * Single-turn: invoke once immediately before the first chat.
+   * Multi-turn: invoke once during executeMultiTurn (the injected turns are
+   *   then carried in `_resumeState.messages` for every subsequent chat).
+   */
+  private injectThreadContext(args: {
+    target: ThreadHolder | undefined;
+    selfNodeId: string;
+    config: Record<string, unknown>;
+    messages: ChatMessage[];
+    finalSystemPrompt: string;
+  }): {
+    messages: ChatMessage[];
+    finalSystemPrompt: string;
+    injection: {
+      appliedScope: 'none' | 'thread' | 'lastN';
+      appliedMode: 'messages' | 'system_text';
+      injectedTurns: number;
+      droppedTurns: number;
+      totalInjectedChars: number;
+    };
+  } {
+    const noopMeta = {
+      appliedScope: 'none' as const,
+      appliedMode: 'messages' as const,
+      injectedTurns: 0,
+      droppedTurns: 0,
+      totalInjectedChars: 0,
+    };
+
+    const scope = args.config.contextScope as
+      | 'none'
+      | 'thread'
+      | 'lastN'
+      | undefined;
+    if (
+      !this.conversationThreadService ||
+      !args.target ||
+      !scope ||
+      scope === 'none'
+    ) {
+      return {
+        messages: args.messages,
+        finalSystemPrompt: args.finalSystemPrompt,
+        injection: noopMeta,
+      };
+    }
+
+    const allTurns = this.conversationThreadService.getThreadExcludingNode(
+      args.target,
+      args.selfNodeId,
+    );
+    if (allTurns.length === 0) {
+      return {
+        messages: args.messages,
+        finalSystemPrompt: args.finalSystemPrompt,
+        injection: { ...noopMeta, appliedScope: scope },
+      };
+    }
+
+    const scoped =
+      scope === 'lastN'
+        ? allTurns.slice(
+            -Math.max(1, (args.config.contextScopeN as number) ?? 20),
+          )
+        : allTurns;
+
+    // Cap (per spec §5.3 — char-based, last-resort safety).
+    const capped = applyCap(scoped);
+
+    const mode =
+      (args.config.contextInjectionMode as 'messages' | 'system_text') ??
+      'messages';
+
+    if (mode === 'system_text') {
+      const text = renderThreadAsSystemText(capped.turns);
+      const newSystemPrompt = args.finalSystemPrompt
+        ? `${args.finalSystemPrompt}\n\n${text}`
+        : text;
+      // Mirror the appended thread text into the messages array's system
+      // entry so callers don't need to re-sync the two surfaces.
+      const newMessages = args.messages.map((m) =>
+        m.role === 'system' ? { ...m, content: newSystemPrompt } : m,
+      );
+      return {
+        messages: newMessages,
+        finalSystemPrompt: newSystemPrompt,
+        injection: {
+          appliedScope: scope,
+          appliedMode: 'system_text',
+          injectedTurns: capped.turns.length,
+          droppedTurns: capped.droppedCount,
+          totalInjectedChars: capped.totalChars,
+        },
+      };
+    }
+
+    // 'messages' mode — prepend (after system) per spec §5.1 mapping.
+    const injected: ChatMessage[] = capped.turns.map((t) => {
+      switch (t.source) {
+        case 'presentation_user':
+          return {
+            role: 'user',
+            content: `[from ${t.nodeLabel}] ${t.text}`,
+          } as ChatMessage;
+        case 'ai_user':
+          return { role: 'user', content: t.text } as ChatMessage;
+        case 'ai_assistant':
+          return {
+            role: 'assistant',
+            content: t.text,
+            ...(t.toolCalls ? { toolCalls: t.toolCalls } : {}),
+          } as ChatMessage;
+        case 'ai_tool':
+          return {
+            role: 'tool',
+            content: t.text,
+            ...(t.toolCallId ? { toolCallId: t.toolCallId } : {}),
+          } as ChatMessage;
+        case 'system':
+          return { role: 'system', content: t.text } as ChatMessage;
+        default:
+          return { role: 'user', content: t.text } as ChatMessage;
+      }
+    });
+
+    // Insert injected turns after the leading system message (if any).
+    const systemIdx = args.messages.findIndex((m) => m.role === 'system');
+    const newMessages = [...args.messages];
+    const insertAt = systemIdx >= 0 ? systemIdx + 1 : 0;
+    newMessages.splice(insertAt, 0, ...injected);
+
+    return {
+      messages: newMessages,
+      finalSystemPrompt: args.finalSystemPrompt,
+      injection: {
+        appliedScope: scope,
+        appliedMode: 'messages',
+        injectedTurns: capped.turns.length,
+        droppedTurns: capped.droppedCount,
+        totalInjectedChars: capped.totalChars,
+      },
+    };
+  }
+
   /** Tool result push (opt-in via `state.includeToolTurns === true`). */
   private pushAiToolResultTurn(
     target: ThreadHolder | undefined,
@@ -647,7 +802,7 @@ export class AiAgentHandler implements NodeHandler {
     }
 
     // Build messages
-    const messages: ChatMessage[] = [];
+    let messages: ChatMessage[] = [];
     if (finalSystemPrompt) {
       messages.push({ role: 'system', content: finalSystemPrompt });
     }
@@ -661,6 +816,19 @@ export class AiAgentHandler implements NodeHandler {
         userPrompt,
       );
     }
+
+    // ConversationThread inject (spec §5) — single-turn runs once before
+    // the first chat. The helper updates both the system prompt and the
+    // messages array in lockstep.
+    const singleTurnInjection = this.injectThreadContext({
+      target: context,
+      selfNodeId: context.nodeId ?? '',
+      config,
+      messages,
+      finalSystemPrompt,
+    });
+    messages = singleTurnInjection.messages;
+    finalSystemPrompt = singleTurnInjection.finalSystemPrompt;
 
     const tools = await this.buildTools(
       config,
@@ -919,6 +1087,11 @@ export class AiAgentHandler implements NodeHandler {
         toolCalls: toolCallCount,
         ragSources: ragAcc.getSources(),
         ragDiagnostics: ragAcc.getDiagnostics(),
+        // ConversationThread injection debug echo (spec §5.3). Echo only
+        // when injection actually happened so noop runs keep the meta lean.
+        ...(singleTurnInjection.injection.appliedScope !== 'none'
+          ? { contextInjection: singleTurnInjection.injection }
+          : {}),
         turnDebug: [
           {
             turnIndex: 1,
@@ -979,10 +1152,25 @@ export class AiAgentHandler implements NodeHandler {
       finalSystemPrompt += this.buildConditionSystemPromptSuffix(conditions);
     }
 
-    const messages: ChatMessage[] = [];
+    let messages: ChatMessage[] = [];
     if (finalSystemPrompt) {
       messages.push({ role: 'system', content: finalSystemPrompt });
     }
+
+    // ConversationThread inject (spec §5) — multi-turn injects once during
+    // executeMultiTurn so the resulting `messages` carry the prepended
+    // turns into `_resumeState.messages` for every subsequent chat. Each
+    // future `processMultiTurnMessage` then just appends the new user/
+    // assistant pair without re-injecting.
+    const multiTurnInjection = this.injectThreadContext({
+      target: context,
+      selfNodeId: context.nodeId ?? '',
+      config,
+      messages,
+      finalSystemPrompt,
+    });
+    messages = multiTurnInjection.messages;
+    finalSystemPrompt = multiTurnInjection.finalSystemPrompt;
 
     const resolvedModel = model || llmConfig.defaultModel;
     const multiTurnStateBase = {
@@ -1042,7 +1230,16 @@ export class AiAgentHandler implements NodeHandler {
         turnCount: 0,
         maxTurns,
       },
-      meta: { interactionType: 'ai_conversation' },
+      meta: {
+        interactionType: 'ai_conversation',
+        // Echo the multi-turn first-turn injection so the run-results UI can
+        // show what the agent saw at the conversation's start. Subsequent
+        // turns do not re-inject (spec §5: prepended turns are carried in
+        // `_resumeState.messages`).
+        ...(multiTurnInjection.injection.appliedScope !== 'none'
+          ? { contextInjection: multiTurnInjection.injection }
+          : {}),
+      },
       status: 'waiting_for_input',
       _resumeState: {
         ...multiTurnStateBase,
