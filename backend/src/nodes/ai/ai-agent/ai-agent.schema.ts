@@ -5,6 +5,14 @@ import {
 } from '../../core/node-component.interface';
 import { AI_NO_LLM_PROVIDER_MESSAGE } from '../llm-provider-rule';
 
+/**
+ * Default for `contextScopeN` — the number of most recent ConversationThread
+ * turns to inject when `contextScope: 'lastN'`. Single source of truth used
+ * by both the schema default and the handler's runtime fallback so they can't
+ * drift out of sync (ai-review W#13).
+ */
+export const DEFAULT_CONTEXT_SCOPE_N = 20;
+
 const mcpServerRefSchema = z.object({
   integrationId: z
     .string()
@@ -277,9 +285,11 @@ export const aiAgentNodeConfigSchema = z
     // 값은 silently 통과한다 (핸들러가 읽지 않으므로 결과적으로 무시됨).
     // 재작성 시 새 입력 경로 디자인에 따라 신규 필드를 추가.
     // 자세한 사유·복원 절차는 plan/in-progress/ai-agent-tool-connection-rewrite.md.
-    // DEPRECATED — replaced by `contextScope` / `contextScopeN` below. Schema
-    // kept one cycle for backward compat (handler has never read it; safe noop).
-    // Removal scheduled with conversation-thread v2 work.
+    // DEPRECATED 2026-05-14 (conversation-thread v1) — replaced by
+    // `contextScope` / `contextScopeN` below. Schema kept one cycle for
+    // backward compat (handler has never read it; safe noop). Removal
+    // scheduled with conversation-thread v2 (tracked in
+    // `plan/in-progress/conversation-thread.md` follow-ups section).
     conversationHistory: z
       .enum(['none', 'last_n', 'full'])
       .default('none')
@@ -297,6 +307,7 @@ export const aiAgentNodeConfigSchema = z
           ],
         },
       }),
+    // DEPRECATED 2026-05-14 — see `conversationHistory` above.
     historyCount: z
       .number()
       .int()
@@ -335,7 +346,7 @@ export const aiAgentNodeConfigSchema = z
       .number()
       .int()
       .positive()
-      .default(20)
+      .default(DEFAULT_CONTEXT_SCOPE_N)
       .meta({
         ui: {
           label: 'Last N',

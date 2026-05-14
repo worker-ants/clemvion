@@ -79,6 +79,36 @@ describe('ConversationThreadService', () => {
       expect(thread.turns[0].source).toBe('presentation_user');
     });
 
+    it('pushes presentation_user turn for button_continue (W21)', () => {
+      const context = makeContext();
+      service.appendPresentationInteraction(context, {
+        node: makeNode({ id: 'tmpl', label: 'Template', type: 'template' }),
+        interaction: {
+          type: 'button_continue',
+          data: { buttonId: 'btn-1', buttonLabel: 'Open', url: 'https://x' },
+          receivedAt: '2026-05-14T10:00:01.000Z',
+        },
+      });
+      const thread = service.getThread(context);
+      expect(thread.turns[0].text).toBe(
+        'continued: [user-input]https://x[/user-input]',
+      );
+      expect(thread.turns[0].source).toBe('presentation_user');
+    });
+
+    it('pushes "continued" (no marker) when button_continue lacks url (W21)', () => {
+      const context = makeContext();
+      service.appendPresentationInteraction(context, {
+        node: makeNode({ type: 'template' }),
+        interaction: {
+          type: 'button_continue',
+          data: { buttonId: 'btn-1' },
+          receivedAt: '2026-05-14T10:00:01.000Z',
+        },
+      });
+      expect(service.getThread(context).turns[0].text).toBe('continued');
+    });
+
     it('skips when excludeFromConversationThread=true (silent opt-out)', () => {
       const context = makeContext();
       service.appendPresentationInteraction(context, {

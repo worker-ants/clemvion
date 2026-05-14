@@ -1,4 +1,5 @@
 import { ExecutionContextService } from './execution-context.service';
+import { DEFAULT_THREAD_ID } from '../conversation-thread/conversation-thread.types';
 
 describe('ExecutionContextService', () => {
   let service: ExecutionContextService;
@@ -15,7 +16,7 @@ describe('ExecutionContextService', () => {
     it('initializes an empty conversationThread', () => {
       const ctx = service.getContext(executionId)!;
       expect(ctx.conversationThread).toEqual({
-        id: 'default',
+        id: DEFAULT_THREAD_ID,
         nextSeq: 0,
         turns: [],
         totalChars: 0,

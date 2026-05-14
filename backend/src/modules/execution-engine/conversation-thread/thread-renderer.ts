@@ -131,9 +131,16 @@ export function renderThreadAsSystemText(turns: ConversationTurn[]): string {
   return lines.join('\n');
 }
 
+/**
+ * Result of `applyCap` — the kept (post-cap) turns plus diagnostics that the
+ * AI Agent handler echoes back via `meta.contextInjection`.
+ */
 export interface ApplyCapResult {
+  /** Turns that survived all 3 caps, in original chronological order. */
   turns: ConversationTurn[];
+  /** Number of turns evicted from the head by the count or char cap. */
   droppedCount: number;
+  /** Sum of `text.length` across the kept turns, after truncation. */
   totalChars: number;
 }
 
@@ -165,11 +172,15 @@ export function applyCap(turns: readonly ConversationTurn[]): ApplyCapResult {
 
   // 3. 합산 char cap — 오래된 것부터 추가 drop
   let totalChars = sumChars(kept);
-  while (totalChars > MAX_INJECTED_CHARS && kept.length > 0) {
-    const removed = kept[0];
-    kept = kept.slice(1);
-    totalChars -= removed.text.length;
-    dropped += 1;
+  // O(n) — 이전 구현은 매 iteration `kept.slice(1)` 호출로 O(n²) 였음.
+  if (totalChars > MAX_INJECTED_CHARS) {
+    let dropIdx = 0;
+    while (dropIdx < kept.length && totalChars > MAX_INJECTED_CHARS) {
+      totalChars -= kept[dropIdx].text.length;
+      dropIdx += 1;
+    }
+    dropped += dropIdx;
+    kept = kept.slice(dropIdx);
   }
 
   return { turns: kept, droppedCount: dropped, totalChars };

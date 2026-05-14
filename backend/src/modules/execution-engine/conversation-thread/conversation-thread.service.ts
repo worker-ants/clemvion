@@ -52,6 +52,15 @@ interface AppendBaseArgs {
 }
 
 /**
+ * Storage-side cap distinct from the LLM-injection caps in `thread-renderer`.
+ * Long-running executions or repeated user submissions could grow the thread
+ * unboundedly otherwise (LLM caps only limit what reaches the model). When
+ * exceeded the oldest turn is evicted and `nextSeq` keeps incrementing — turn
+ * `seq` values may have gaps but stay monotonically increasing.
+ */
+export const STORAGE_MAX_TURNS = 500;
+
+/**
  * ConversationThread mutation 단일 진입점. spec/conventions/conversation-thread.md.
  *
  * 핸들러는 thread.turns 를 직접 수정하지 않는다 — 모든 push 는 본 서비스의
@@ -158,7 +167,10 @@ export class ConversationThreadService {
 
     const thread = context.conversationThread;
     const seq = thread.nextSeq;
-    const turn: ConversationTurn = {
+    // Object.freeze enforces the post-push immutability invariant that
+    // background snapshot isolation (cloneThread §3.2) and tool-loop turn
+    // injection both rely on. Any later mutation throws in strict mode.
+    const turn: ConversationTurn = Object.freeze({
       seq,
       nodeId: args.node.id,
       nodeLabel: args.node.label || args.node.id,
@@ -169,10 +181,21 @@ export class ConversationThreadService {
       ...(args.data !== undefined ? { data: args.data } : {}),
       ...(args.toolCalls !== undefined ? { toolCalls: args.toolCalls } : {}),
       ...(args.toolCallId !== undefined ? { toolCallId: args.toolCallId } : {}),
-    };
+    }) as ConversationTurn;
     thread.turns.push(turn);
     thread.nextSeq = seq + 1;
     thread.totalChars += args.text.length;
+
+    // Storage cap: drop oldest turns to bound thread memory regardless of
+    // LLM-injection caps. We keep `nextSeq` monotonic (don't decrement) so
+    // surviving turn sequences stay consistent across the thread lifetime.
+    if (thread.turns.length > STORAGE_MAX_TURNS) {
+      const drop = thread.turns.length - STORAGE_MAX_TURNS;
+      const removed = thread.turns.splice(0, drop);
+      let removedChars = 0;
+      for (const r of removed) removedChars += r.text.length;
+      thread.totalChars -= removedChars;
+    }
   }
 
   private isOptedOut(node: NodeRef): boolean {

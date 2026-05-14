@@ -97,6 +97,43 @@ owner: developer
 ### Phase 11 — /ai-review ✅
 2026-05-14 commit (후속) — HIGH/WARNING 6건 즉시 조치: prompt injection 마커, BullMQ 하위 호환 fallback, cloneThread helper + 격리 invariant 4 테스트, WS snapshot copy, $thread.turns snapshot, 인라인 import → top-level. RESOLUTION.md 에 잔여 32건 follow-up 정리.
 
+### Phase 12-15 — 잔여 follow-up 일괄 (사용자 요청) ✅
+2026-05-14 단일 commit — 32 잔여 항목 중 합리적으로 본 worktree 안에서 처리 가능한 ~20건 적용:
+
+**Spec polish (Phase 12)**
+- `spec/4-nodes/6-presentation/0-common.md` §4.6 신설: presentation 5 노드 공통 `excludeFromConversationThread` 필드 (B2-W8)
+- `spec/conventions/conversation-thread.md` §2.5 신설: nextSeq 원자성 — single ExecutionContext 직렬 실행 보장 / Parallel·Redis 분산 시 별도 보장 필요 (B2-W17)
+- `conversation-thread.types.ts` totalChars JSDoc 정정 (W16)
+
+**코드 micro-fix (Phase 13)**
+- `STORAGE_MAX_TURNS = 500` storage cap — appendInternal 에서 oldest evict (W3 — DoS 방어)
+- `applyCap` step 3: O(n²) `kept.slice(1)` 루프 → 단일 dropIdx + slice = O(n) (W7)
+- `Object.freeze(turn)` — appendInternal 에서 immutability 런타임 강제 (Batch1 INFO#1)
+- `DEFAULT_CONTEXT_SCOPE_N = 20` 상수: schema + handler 공통 사용 (W13)
+- `mapTurnsToChatMessages` 분리: injectThreadContext 의 messages 모드 변환 → pure function (W14)
+- `DEFAULT_THREAD_ID` magic string 제거: `execution-context.service.spec.ts` 가 상수 import (Batch1 INFO#4)
+- `ConversationTurnToolCall` / `ApplyCapResult` JSDoc 추가 (Batch1 INFO#10/#11)
+- `conversationHistory` / `historyCount` deprecated 코멘트에 날짜 (W19)
+- `ai-agent.thread.spec.ts` Phase 번호 → spec section 참조 (W18)
+
+**신규 테스트 (Phase 14)**
+- `conversation-thread.service.spec.ts`: button_continue 두 케이스 (url 있음/없음) (W21)
+- `thread-renderer.spec.ts`: button_click empty fallback (I12)
+- `ai-agent.thread.spec.ts`: contextScopeN=0 경계 (W20), tool result text 검증 (I7)
+
+**공용 헬퍼 (Phase 15)**
+- `manual-trigger.handler.spec.ts`: mockContext literal → makeContext() 호출로 통일 (B2-W11)
+
+**미적용 (별도 phase 또는 v2 결정 필요)**
+- W4: nodes/ai → execution-engine 역방향 의존 — 코드 위치 이동 refactor 필요 (큼)
+- W5: $thread.text lazy getter — 성능 측정 후 결정
+- W8: Parallel 컨테이너 thread 정책 — use case 정의 후
+- W10: button resume 통합 테스트 — execution-engine.service.spec 의 button mock 시나리오 신설 필요 (큼) — Phase 8 e2e 시나리오와 함께
+- W11: turns readonly 강제 — 두 type (mutable internal / readonly external) 분리 필요 (refactor)
+- W15/B2-W10: 공유 createBaseExecutionContext 헬퍼 — 35+ spec 파일 점진 마이그레이션 (큼). 신규 spec 파일은 makeExecutionContext 사용 유도
+
+**검증**: 196 suites / 3430 tests green, lint clean, build clean. consistency-check Critical 0 (`review/consistency/2026-05-14_20-13-36/`).
+
 ## 핵심 설계 (요약)
 
 ### 데이터 모델

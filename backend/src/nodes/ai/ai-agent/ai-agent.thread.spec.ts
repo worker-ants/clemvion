@@ -1,11 +1,13 @@
 /**
  * Conversation Thread push behaviour for AI Agent (single + multi turn).
  *
- * Phase 4a verifies that the handler routes user / assistant turns through
+ * Verifies that the handler routes user / assistant turns through
  * ConversationThreadService.append* — the actual mutation logic is unit-
  * tested in ConversationThreadService.spec, and this file asserts the
- * handler's call sites + payloads (spec/conventions/conversation-thread.md
- * §2.2).
+ * handler's call sites + payloads.
+ *
+ * SoT: spec/conventions/conversation-thread.md §2.2 (push contract) +
+ *      §5 (auto-injection).
  */
 import { AiAgentHandler } from './ai-agent.handler';
 import { ConversationThreadService } from '../../../modules/execution-engine/conversation-thread/conversation-thread.service';
@@ -29,7 +31,7 @@ function makeContext(
   };
 }
 
-describe('AiAgentHandler — ConversationThread push (Phase 4a)', () => {
+describe('AiAgentHandler — ConversationThread push & inject', () => {
   let mockLlmService: Record<string, jest.Mock>;
   let conversationThreadService: ConversationThreadService;
   let handler: AiAgentHandler;
@@ -235,7 +237,7 @@ describe('AiAgentHandler — ConversationThread push (Phase 4a)', () => {
     });
   });
 
-  describe('inject (Phase 4b)', () => {
+  describe('inject (spec/conventions/conversation-thread.md §5)', () => {
     function seedThreadFromOtherNode(context: ExecutionContext): void {
       conversationThreadService.appendPresentationInteraction(context, {
         node: { id: 'form-1', label: 'Form', type: 'form' },
@@ -459,6 +461,12 @@ describe('AiAgentHandler — ConversationThread push (Phase 4a)', () => {
       ]);
       expect(turns[2].source).toBe('ai_tool');
       expect(turns[2].toolCallId).toBe('tc-1');
+      // I7 — verify the tool result content reaches the thread.
+      // Normal tool stubs are serialized as
+      // `{"result":"Tool <name> executed","arguments":"<json args>"}`.
+      expect(turns[2].text).toContain('Tool tool_foo executed');
+      // The tool args are JSON-escaped inside the outer JSON.stringify wrap.
+      expect(turns[2].text).toContain('arguments');
       expect(turns[3].source).toBe('ai_assistant');
       expect(turns[3].text).toBe('Done');
     });
@@ -495,6 +503,37 @@ describe('AiAgentHandler — ConversationThread push (Phase 4a)', () => {
       const turns = conversationThreadService.getThread(context).turns;
       expect(turns).toHaveLength(2);
       expect(turns.map((t) => t.source)).toEqual(['ai_user', 'ai_assistant']);
+    });
+
+    it('contextScopeN=0 clamps to 1 (W20 boundary — Math.max(1, 0))', async () => {
+      const context = makeContext();
+      seedThreadFromOtherNode(context);
+
+      await handler.execute(
+        undefined,
+        {
+          mode: 'single_turn',
+          model: 'gpt-4o',
+          userPrompt: 'q',
+          responseFormat: 'text',
+          maxToolCalls: 10,
+          contextScope: 'lastN',
+          contextScopeN: 0,
+          contextInjectionMode: 'messages',
+        },
+        context,
+      );
+
+      const llmCall = mockLlmService.chat.mock.calls[0][1] as {
+        messages: { role: string; content: string }[];
+      };
+      // 0 → clamped to 1 → exactly 1 injected turn (most recent) + userPrompt.
+      // (seed has 2 turns; we expect only the last to be injected.)
+      const injected = llmCall.messages.filter(
+        (m) =>
+          m.role === 'assistant' || (m.role === 'user' && m.content !== 'q'),
+      );
+      expect(injected).toHaveLength(1);
     });
 
     it('emits meta.contextInjection echo when scope is active', async () => {

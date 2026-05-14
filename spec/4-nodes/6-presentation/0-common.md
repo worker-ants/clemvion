@@ -124,6 +124,22 @@ CONVENTIONS §4.5 의 `interaction` 규격:
 
 ---
 
+## 4.6 Conversation Thread opt-out (공통)
+
+Presentation 5 노드 (Carousel / Table / Chart / Form / Template) 모두 공통으로
+다음 boolean config 필드를 가진다 — `output.interaction` 이 발화될 때
+[ConversationThread](../../conventions/conversation-thread.md) 에 자동 push
+되는 동작을 노드 단위로 끄기 위함.
+
+| 필드 | 타입 | 기본값 | 설명 |
+|------|------|--------|------|
+| excludeFromConversationThread | Boolean | `false` | `true` 면 본 노드의 user interaction (form 제출 / 버튼 클릭 / continue) 이 thread 에 push 되지 않는다. 디버그용 form, telemetry-only button 등 thread noise 가 되는 인터랙션을 명시 제외할 때 사용. UI 그룹: `Advanced > Conversation`. |
+
+> 본 필드는 schema 정의에 명시되지 않은 경우 default `false` 로 동작 — 기존
+> 워크플로우 영향 없음. AI 카테고리 노드의 동명 필드는 [공통 §10](../3-ai/0-common.md#10-conversation-context-자동-컨텍스트-주입) 참조.
+
+---
+
 ## 5. 캔버스 요약
 
 각 Presentation 노드가 캔버스에 표시하는 설정 요약 텍스트 포맷. ([캔버스 §5.3](../../3-workflow-editor/0-canvas.md#53-노드-설정-요약-configuration-summary) 참조)
