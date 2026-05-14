@@ -248,13 +248,4 @@ describe('IntegrationsController — cafe24 install routes', () => {
       'https://myshop.cafe24api.com/api/v2/oauth/authorize',
     );
   });
-
-  it('legacy /oauth/install/cafe24 returns 410 CAFE24_INSTALL_LEGACY_PATH', () => {
-    const res = makeRes();
-    controller.cafe24InstallLegacy(res as never);
-    expect(res.statusCode).toBe(410);
-    expect((res.body as { code: string }).code).toBe(
-      'CAFE24_INSTALL_LEGACY_PATH',
-    );
-  });
 });

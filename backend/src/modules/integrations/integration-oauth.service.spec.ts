@@ -2,7 +2,11 @@ import {
   BadRequestException,
   InternalServerErrorException,
 } from '@nestjs/common';
-import { IntegrationOAuthService } from './integration-oauth.service';
+import {
+  IntegrationOAuthService,
+  LAST_ERROR_MESSAGE_MAX_LEN,
+  sanitizeLastErrorMessage,
+} from './integration-oauth.service';
 
 type Mock = jest.Mock;
 
@@ -478,6 +482,51 @@ describe('IntegrationOAuthService', () => {
     });
   });
 
+  describe('sanitizeLastErrorMessage', () => {
+    it('passes short benign messages through', () => {
+      expect(sanitizeLastErrorMessage('invalid_grant')).toBe('invalid_grant');
+    });
+
+    it('truncates to LAST_ERROR_MESSAGE_MAX_LEN with ellipsis', () => {
+      const long = 'a'.repeat(LAST_ERROR_MESSAGE_MAX_LEN + 50);
+      const out = sanitizeLastErrorMessage(long);
+      expect(out.length).toBe(LAST_ERROR_MESSAGE_MAX_LEN + 1); // +1 for '…'
+      expect(out.endsWith('…')).toBe(true);
+    });
+
+    it('masks Bearer tokens', () => {
+      expect(
+        sanitizeLastErrorMessage('failed: Bearer abc.def.ghi at line 2'),
+      ).toBe('failed: *** at line 2');
+    });
+
+    it('masks client_secret/access_token/refresh_token assignments', () => {
+      expect(
+        sanitizeLastErrorMessage(
+          'request body: client_secret=verySecret123 & grant_type=auth',
+        ),
+      ).toBe('request body: *** & grant_type=auth');
+      expect(sanitizeLastErrorMessage('access_token: ya29.a0AfH6 fail')).toBe(
+        '*** fail',
+      );
+      expect(
+        sanitizeLastErrorMessage('refresh_token=eyJxxx invalid_grant'),
+      ).toBe('*** invalid_grant');
+    });
+
+    it('masks Authorization header echoes', () => {
+      expect(
+        sanitizeLastErrorMessage(
+          'upstream returned 401 Authorization: Bearer abc',
+        ),
+      ).toBe('upstream returned 401 ***');
+    });
+
+    it('returns input unchanged for empty / non-string', () => {
+      expect(sanitizeLastErrorMessage('')).toBe('');
+    });
+  });
+
   describe('markIntegrationCallbackError', () => {
     it('records last_error/status_reason on pending_install row while preserving status', async () => {
       const row = {
@@ -569,6 +618,31 @@ describe('IntegrationOAuthService', () => {
         ),
       ).resolves.toBeUndefined();
       expect(integrationRepo.save).not.toHaveBeenCalled();
+    });
+
+    it('runs sanitizeLastErrorMessage on the stored message', async () => {
+      const row = {
+        id: 'int-9',
+        workspaceId: 'ws-1',
+        status: 'pending_install',
+        statusReason: null,
+        lastError: null,
+      };
+      integrationRepo.findOne.mockResolvedValue(row);
+      await service.markIntegrationCallbackError(
+        'int-9',
+        'ws-1',
+        'OAUTH_TOKEN_EXCHANGE_FAILED',
+        'upstream returned 401: Bearer secret-token-123',
+      );
+      const saved = integrationRepo.save.mock.calls[0][0] as Record<
+        string,
+        unknown
+      >;
+      const lastError = saved.lastError as { message: string };
+      // Token masked.
+      expect(lastError.message).not.toContain('secret-token-123');
+      expect(lastError.message).toContain('***');
     });
 
     it('does not propagate DB errors from save', async () => {

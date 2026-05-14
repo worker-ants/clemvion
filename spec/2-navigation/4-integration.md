@@ -174,7 +174,7 @@ Step 2 auth     ──submit──▶ Step 3 test
        "scopes": ["mall.read_product", "..."]
      }
      ```
-   - 응답: `{ "mode": "cafe24_private_pending", "integrationId": "...", "appUrl": "https://<host>/api/integrations/oauth/install/cafe24/:installToken", "callbackUrl": "https://<host>/api/integrations/oauth/callback/cafe24" }`. `appUrl` 의 마지막 path segment 가 `install_token` (32바이트 hex) 이며, Cafe24 Developers 의 "앱 URL" 에 그대로 등록한다. 토큰 없는 옛 경로 (`/oauth/install/cafe24`) 는 410 Gone 으로 응답한다 — 운영 전환기에 옛 등록 URL 잔존을 감안한 완충.
+   - 응답: `{ "mode": "cafe24_private_pending", "integrationId": "...", "appUrl": "https://<host>/api/integrations/oauth/install/cafe24/:installToken", "callbackUrl": "https://<host>/api/integrations/oauth/callback/cafe24" }`. `appUrl` 의 마지막 path segment 가 `install_token` (32바이트 hex) 이며, Cafe24 Developers 의 "앱 URL" 에 그대로 등록한다.
    - Integration 이 `status=pending_install` 상태로 즉시 생성된다 (토큰 없음).
 2. **설정 안내 화면** 표시 (팝업 없음):
    - `App URL` 복사 버튼 — Cafe24 Developers 앱의 **앱 URL** 에 등록.
@@ -664,7 +664,6 @@ Please replace or remove these node references first.
 |--------|------|------|
 | POST | `/api/integrations/oauth/begin` | OAuth 시작. body: `{ service, scopes[], mode, integrationId? }`. **Cafe24 Public**: `mall_id`, `app_type='public'` 추가 → `{ authUrl, state }` 반환 (popup 흐름). **Cafe24 Private**: `mall_id`, `app_type='private'`, `client_id`, `client_secret` 추가 → `{ mode:'cafe24_private_pending', integrationId, appUrl, callbackUrl }` 반환 (Integration `pending_install` 생성, popup 없음). ※ Cafe24 Private 응답의 `appUrl` 은 `${APP_URL}/api/integrations/oauth/install/cafe24/:installToken` 형식이다 — `installToken` 은 본 begin 호출이 발급한 32바이트 hex 로 Cafe24 Developers "앱 URL" 에 그대로 등록된다. ※ Cafe24 Private 흐름 진입 시 동일 `(workspaceId, mall_id, app_type='private')` 의 connected Integration 이 이미 존재하면 begin 자체가 `CAFE24_PRIVATE_APP_ALREADY_CONNECTED (409)` 으로 즉시 거부된다 — 사용자는 기존 통합을 사용하거나 삭제 후 재등록한다. |
 | GET | `/api/integrations/oauth/install/cafe24/:installToken` | Cafe24 Private 앱 App URL 엔드포인트. Cafe24 "테스트 실행" 시 Cafe24 가 호출. path 의 `:installToken` 은 oauth/begin 응답으로 받은 32바이트 hex. 쿼리: `mall_id`, `timestamp`, `hmac` 등 Cafe24 표준 파라미터. **식별 절차**: `install_token` 으로 단일 row 조회 → 그 row 의 `client_secret` 으로 HMAC 1회 검증. 통과 시 OAuthState 생성 → Cafe24 authorize URL 로 `302 redirect`. 에러: `CAFE24_INSTALL_INVALID_TOKEN`(404, 토큰 미존재·이미 소비), `CAFE24_INSTALL_INVALID_HMAC`(403), `CAFE24_INSTALL_REPLAY`(400, timestamp ±5분 초과). |
-| GET | `/api/integrations/oauth/install/cafe24` | (Deprecated) 옛 토큰 없는 경로. `CAFE24_INSTALL_LEGACY_PATH`(410) 로 응답하며, 클라이언트(통합 생성 폼)는 새 토큰 포함 URL 만 발급한다. 운영 전환기 완충용 — 영구 폐기 시점은 `plan/in-progress/cafe24-pending-polish.md` 의 후속 항목 참조. |
 | GET | `/api/integrations/oauth/callback/:provider` | OAuth 콜백 (§10) |
 | POST | `/api/integrations/preview-test` | 저장 전 인증 정보로 연결 테스트. body: `{ service, authType, credentials }` |
 | POST | `/api/integrations/:id/reauthorize` | OAuth 재인증 authUrl 발급 |
@@ -691,7 +690,6 @@ Please replace or remove these node references first.
   - `CAFE24_INSTALL_INVALID_TOKEN` (404) — App URL 의 `install_token` 미존재 또는 callback 성공·TTL 만료로 이미 소거
   - `CAFE24_INSTALL_INVALID_HMAC` (403) — App URL HMAC 검증 실패
   - `CAFE24_INSTALL_REPLAY` (400) — App URL 의 timestamp 가 ±5분 윈도우 밖
-  - `CAFE24_INSTALL_LEGACY_PATH` (410) — 토큰 없는 옛 install 경로 호출
   - `CAFE24_PRIVATE_APP_ALREADY_CONNECTED` (409) — 동일 `(workspaceId, mall_id, app_type='private')` 에 이미 `connected` Integration 존재. swagger 규약(spec/conventions/swagger.md §2-4 — 중복/충돌은 409, `INTEGRATION_IN_USE(409)` 선례) 에 맞춤
 
 ---
@@ -915,7 +913,7 @@ Cafe24 Private 의 "테스트 실행" 흐름은 `pending_install` 행이 이미 
 
 ### install_token 을 App URL path 식별 키로 승격 (2026-05-14)
 
-원래 설계는 `GET /oauth/install/cafe24` 가 mall_id + HMAC 만 받고, 백엔드가 `pending_install` 행을 in-memory 로 100건 스캔하면서 mall_id 일치 candidates 의 client_secret 으로 HMAC 검증을 trial 했다. 두 가지 운영 위험이 누적됐다 — (a) 동일 mall_id 의 중복 `pending_install` 이 누적되면 HMAC 매칭이 비결정적이고 사용자가 보고 있는 행이 아닌 다른 행이 connected 처리될 수 있다 (W3 시나리오), (b) `pending_install` 수가 커지면 O(N) 매칭 비용. App URL path 에 `install_token` 을 박으면 단일 row 조회로 고정되고, 토큰 자체가 32바이트 random 이므로 추측 불가능한 식별자 역할도 겸한다. 옛 토큰 없는 경로는 즉시 폐기하지 않고 `410 Gone` 으로 응답해 운영 전환기 완충 — 영구 폐기 시점은 `plan/in-progress/cafe24-pending-polish.md` 의 후속 항목으로 추가 (운영 데이터·외부 등록 URL 잔존 여부 확인 후 결정).
+원래 설계는 `GET /oauth/install/cafe24` 가 mall_id + HMAC 만 받고, 백엔드가 `pending_install` 행을 in-memory 로 100건 스캔하면서 mall_id 일치 candidates 의 client_secret 으로 HMAC 검증을 trial 했다. 두 가지 운영 위험이 누적됐다 — (a) 동일 mall_id 의 중복 `pending_install` 이 누적되면 HMAC 매칭이 비결정적이고 사용자가 보고 있는 행이 아닌 다른 행이 connected 처리될 수 있다, (b) `pending_install` 수가 커지면 O(N) 매칭 비용. App URL path 에 `install_token` 을 박으면 단일 row 조회로 고정되고, 토큰 자체가 32바이트 random 이므로 추측 불가능한 식별자 역할도 겸한다. 옛 토큰 없는 경로는 별도 PR 로 즉시 제거됐다 (운영 등록자 0 인 시점에 정리 — 이후 등록자는 새 token-pathed URL 만 발급받는다).
 
 `install_token` 은 App URL path 에 공개 포함되는 식별자로 평문 저장 — credentials/last_error 암호화 정책 대상 아님.
 

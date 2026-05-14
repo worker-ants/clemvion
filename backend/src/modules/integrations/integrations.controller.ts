@@ -30,7 +30,6 @@ import {
   ApiNotFoundResponse,
   ApiConflictResponse,
   ApiTooManyRequestsResponse,
-  ApiGoneResponse,
   ApiProduces,
 } from '@nestjs/swagger';
 import {
@@ -296,34 +295,6 @@ export class IntegrationsController {
       const message = e.response?.message ?? e.message ?? 'Install failed';
       res.status(status).json({ code, message });
     }
-  }
-
-  /**
-   * Legacy App URL — token-less path, deprecated when the install_token
-   * path-segment route shipped (V043 partial unique index). Responds
-   * 410 Gone so external Cafe24 Developers registrations still pointing
-   * here see a clean signal. Permanent retirement is a follow-up: once
-   * we confirm no external app still uses this URL, the route can be
-   * removed entirely.
-   */
-  @Public()
-  @Throttle({ default: { limit: 30, ttl: 60_000 } })
-  @Get('oauth/install/cafe24')
-  @ApiOperation({
-    summary: 'Cafe24 Private 앱 설치 진입점 (Deprecated — install_token 없음)',
-    description:
-      '옛 토큰 없는 라우트. 신규 등록자는 /oauth/install/cafe24/:installToken 을 사용해야 합니다.',
-  })
-  @ApiGoneResponse({
-    description:
-      'CAFE24_INSTALL_LEGACY_PATH — 옛 토큰 없는 경로는 영구 사용 불가. integration 설정 화면에서 새 App URL 을 복사해 Cafe24 Developers 에 재등록한다.',
-  })
-  cafe24InstallLegacy(@Res() res: Response) {
-    res.status(410).json({
-      code: 'CAFE24_INSTALL_LEGACY_PATH',
-      message:
-        'This App URL is deprecated. Re-register your Cafe24 Private app using the new /oauth/install/cafe24/:installToken URL shown in the integration setup screen.',
-    });
   }
 
   @Public()

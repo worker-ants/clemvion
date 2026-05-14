@@ -158,6 +158,34 @@ function readErrorMessage(err: unknown): string {
 /** Generic fallback code used when a thrown error has no NestJS response.code. */
 export const OAUTH_CALLBACK_FAILED = 'OAUTH_CALLBACK_FAILED';
 
+/** Hard cap on lastError.message length to keep the JSONB column bounded
+ * and prevent ballooning from malicious / runaway provider responses. */
+export const LAST_ERROR_MESSAGE_MAX_LEN = 200;
+
+/** Patterns we mask before persisting lastError.message — provider errors
+ * occasionally echo back tokens or partial secrets, and we never want those
+ * to land in the DB even briefly. The match is conservative: regex hits
+ * replace the entire matched run with `***`. */
+const SECRET_LEAK_PATTERNS: ReadonlyArray<RegExp> = [
+  // OAuth-style bearer tokens
+  /\bBearer\s+[A-Za-z0-9._\-+/=]+/gi,
+  // Cafe24 token endpoints frequently include the secret in body / URL
+  /\b(client_secret|access_token|refresh_token|id_token|api_key|password|passwd|pwd)\s*[=:]\s*[^\s&'"]+/gi,
+  // Authorization header values
+  /\bAuthorization:\s*\S+/gi,
+];
+
+export function sanitizeLastErrorMessage(raw: string): string {
+  if (typeof raw !== 'string' || raw.length === 0) return raw;
+  let masked = raw;
+  for (const pattern of SECRET_LEAK_PATTERNS) {
+    masked = masked.replace(pattern, '***');
+  }
+  return masked.length > LAST_ERROR_MESSAGE_MAX_LEN
+    ? masked.slice(0, LAST_ERROR_MESSAGE_MAX_LEN) + '…'
+    : masked;
+}
+
 interface TokenExchangeResult {
   accessToken: string;
   refreshToken: string | null;
@@ -576,7 +604,7 @@ export class IntegrationOAuthService {
       }
       const lastError = {
         code: errorCode,
-        message: errorMessage,
+        message: sanitizeLastErrorMessage(errorMessage),
         at: new Date().toISOString(),
       };
       integration.lastError = lastError;
