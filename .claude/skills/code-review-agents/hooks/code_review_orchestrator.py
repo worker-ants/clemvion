@@ -104,7 +104,7 @@ def load_config():
         skip_extensions = set()
 
     return {
-        "output_dir": os.environ.get("REVIEW_OUTPUT_DIR", "./review"),
+        "output_dir": os.environ.get("REVIEW_OUTPUT_DIR", "./review/code"),
         "agents": agents,
         "max_file_size": int(os.environ.get("REVIEW_MAX_FILE_SIZE", "51200")),
         "max_prompt_size": int(os.environ.get("REVIEW_MAX_PROMPT_SIZE", "131072")),
