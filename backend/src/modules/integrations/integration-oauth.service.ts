@@ -377,11 +377,19 @@ export class IntegrationOAuthService {
 
     // Atomically consume the state row. DELETE … RETURNING guarantees a single
     // winner across concurrent callbacks.
-    const consumed = await this.dataSource.query<IntegrationOAuthState[]>(
-      'DELETE FROM integration_oauth_state WHERE state = $1 RETURNING *',
-      [query.state],
-    );
-    if (consumed.length === 0) {
+    //
+    // TypeORM 0.3.x 의 PostgresQueryRunner 는 **DELETE/UPDATE** 명령에 한해
+    // `[rowsArray, rowCount]` 튜플로 raw 결과를 반환하고, 그 외 명령은
+    // 단순 rows array 를 반환한다 (PostgresQueryRunner.query 의 switch
+    // 분기 참조). 따라서 DELETE … RETURNING 의 결과는 `result[0]` 으로
+    // rows array 를 꺼내 사용한다.
+    const queryResult = await this.dataSource.query<
+      [IntegrationOAuthState[], number]
+    >('DELETE FROM integration_oauth_state WHERE state = $1 RETURNING *', [
+      query.state,
+    ]);
+    const consumed = queryResult[0];
+    if (!consumed || consumed.length === 0) {
       throw new BadRequestException({
         code: 'OAUTH_STATE_MISMATCH',
         message: 'Invalid or already consumed OAuth state',
@@ -424,12 +432,6 @@ export class IntegrationOAuthService {
       context ? attachCallbackContext(err, context) : err;
 
     if (record.provider !== provider) {
-      // TEMP DIAGNOSTIC (claude/cafe24-oauth-provider-mismatch-debug-b0604e):
-      // log the raw row to find why record.provider !== provider in production.
-      // Remove after the root cause is identified.
-      this.logger.warn(
-        `[oauth-state-mismatch-debug] url_provider=${JSON.stringify(provider)} record_provider=${JSON.stringify(record.provider)} record_keys=${JSON.stringify(Object.keys(record))} record_service_type=${JSON.stringify((record as unknown as Record<string, unknown>).service_type)} record_serviceType=${JSON.stringify((record as unknown as Record<string, unknown>).serviceType)} record_mode=${JSON.stringify(record.mode)} state_prefix=${JSON.stringify(String(query.state ?? '').slice(0, 8))}`,
-      );
       throw withContext(
         new BadRequestException({
           code: 'OAUTH_STATE_MISMATCH',
@@ -661,11 +663,17 @@ export class IntegrationOAuthService {
     tokenExpiresAt: Date | null;
   }> {
     // DELETE … RETURNING for atomicity — only one consumer can win.
-    const consumed = await this.dataSource.query<IntegrationOAuthPreview[]>(
+    // TypeORM 0.3.x 의 PostgresQueryRunner 는 DELETE 결과를
+    // `[rowsArray, rowCount]` 튜플로 반환하므로 `result[0]` 으로
+    // rows array 를 꺼낸다 (handleCallback 의 state 소비와 동일 패턴).
+    const queryResult = await this.dataSource.query<
+      [IntegrationOAuthPreview[], number]
+    >(
       'DELETE FROM integration_oauth_preview WHERE preview_token = $1 RETURNING *',
       [previewToken],
     );
-    if (consumed.length === 0) {
+    const consumed = queryResult[0];
+    if (!consumed || consumed.length === 0) {
       throw new BadRequestException({
         code: 'OAUTH_PREVIEW_INVALID',
         message: 'OAuth preview token is invalid or already used',

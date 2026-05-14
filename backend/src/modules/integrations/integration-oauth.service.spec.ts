@@ -134,7 +134,7 @@ describe('IntegrationOAuthService', () => {
     });
 
     it('rejects already-consumed state', async () => {
-      dataSource.query.mockResolvedValue([]);
+      dataSource.query.mockResolvedValue([[], 0]);
       await expect(
         service.handleCallback('google', { code: 'x', state: 'y' }),
       ).rejects.toThrow(BadRequestException);
@@ -142,16 +142,19 @@ describe('IntegrationOAuthService', () => {
 
     it('rejects expired state', async () => {
       dataSource.query.mockResolvedValue([
-        {
-          provider: 'google',
-          serviceType: 'google',
-          mode: 'new',
-          workspaceId: 'ws-1',
-          userId: 'u-1',
-          requestedScopes: ['https://www.googleapis.com/auth/drive'],
-          integrationId: null,
-          expiresAt: new Date(Date.now() - 60_000),
-        },
+        [
+          {
+            provider: 'google',
+            serviceType: 'google',
+            mode: 'new',
+            workspaceId: 'ws-1',
+            userId: 'u-1',
+            requestedScopes: ['https://www.googleapis.com/auth/drive'],
+            integrationId: null,
+            expiresAt: new Date(Date.now() - 60_000),
+          },
+        ],
+        1,
       ]);
       await expect(
         service.handleCallback('google', { code: 'x', state: 'y' }),
@@ -160,16 +163,19 @@ describe('IntegrationOAuthService', () => {
 
     it('returns previewToken for new mode', async () => {
       dataSource.query.mockResolvedValue([
-        {
-          provider: 'google',
-          serviceType: 'google',
-          mode: 'new',
-          workspaceId: 'ws-1',
-          userId: 'u-1',
-          requestedScopes: ['https://www.googleapis.com/auth/drive'],
-          integrationId: null,
-          expiresAt: new Date(Date.now() + 60_000),
-        },
+        [
+          {
+            provider: 'google',
+            serviceType: 'google',
+            mode: 'new',
+            workspaceId: 'ws-1',
+            userId: 'u-1',
+            requestedScopes: ['https://www.googleapis.com/auth/drive'],
+            integrationId: null,
+            expiresAt: new Date(Date.now() + 60_000),
+          },
+        ],
+        1,
       ]);
       const result = await service.handleCallback('google', {
         code: 'code-xyz',
@@ -182,16 +188,19 @@ describe('IntegrationOAuthService', () => {
 
     it('updates integration for reauthorize mode', async () => {
       dataSource.query.mockResolvedValue([
-        {
-          provider: 'google',
-          serviceType: 'google',
-          mode: 'reauthorize',
-          workspaceId: 'ws-1',
-          userId: 'u-1',
-          requestedScopes: ['https://www.googleapis.com/auth/drive'],
-          integrationId: 'int-1',
-          expiresAt: new Date(Date.now() + 60_000),
-        },
+        [
+          {
+            provider: 'google',
+            serviceType: 'google',
+            mode: 'reauthorize',
+            workspaceId: 'ws-1',
+            userId: 'u-1',
+            requestedScopes: ['https://www.googleapis.com/auth/drive'],
+            integrationId: 'int-1',
+            expiresAt: new Date(Date.now() + 60_000),
+          },
+        ],
+        1,
       ]);
       integrationRepo.findOne.mockResolvedValue({
         id: 'int-1',
@@ -212,19 +221,22 @@ describe('IntegrationOAuthService', () => {
 
     it('merges scopes for request_scopes mode', async () => {
       dataSource.query.mockResolvedValue([
-        {
-          provider: 'google',
-          serviceType: 'google',
-          mode: 'request_scopes',
-          workspaceId: 'ws-1',
-          userId: 'u-1',
-          requestedScopes: [
-            'https://www.googleapis.com/auth/drive',
-            'https://www.googleapis.com/auth/gmail.send',
-          ],
-          integrationId: 'int-1',
-          expiresAt: new Date(Date.now() + 60_000),
-        },
+        [
+          {
+            provider: 'google',
+            serviceType: 'google',
+            mode: 'request_scopes',
+            workspaceId: 'ws-1',
+            userId: 'u-1',
+            requestedScopes: [
+              'https://www.googleapis.com/auth/drive',
+              'https://www.googleapis.com/auth/gmail.send',
+            ],
+            integrationId: 'int-1',
+            expiresAt: new Date(Date.now() + 60_000),
+          },
+        ],
+        1,
       ]);
       integrationRepo.findOne.mockResolvedValue({
         id: 'int-1',
@@ -259,16 +271,19 @@ describe('IntegrationOAuthService', () => {
 
     it('attaches callback context when state expired', async () => {
       dataSource.query.mockResolvedValue([
-        {
-          provider: 'google',
-          serviceType: 'google',
-          mode: 'reauthorize',
-          workspaceId: 'ws-1',
-          userId: 'u-1',
-          requestedScopes: ['scope-1'],
-          integrationId: 'int-42',
-          expiresAt: new Date(Date.now() - 60_000),
-        },
+        [
+          {
+            provider: 'google',
+            serviceType: 'google',
+            mode: 'reauthorize',
+            workspaceId: 'ws-1',
+            userId: 'u-1',
+            requestedScopes: ['scope-1'],
+            integrationId: 'int-42',
+            expiresAt: new Date(Date.now() - 60_000),
+          },
+        ],
+        1,
       ]);
       const error = await service
         .handleCallback('google', { code: 'code', state: 'abc' })
@@ -286,16 +301,19 @@ describe('IntegrationOAuthService', () => {
 
     it('attaches callback context when row is missing (resource_not_found)', async () => {
       dataSource.query.mockResolvedValue([
-        {
-          provider: 'google',
-          serviceType: 'google',
-          mode: 'reauthorize',
-          workspaceId: 'ws-1',
-          userId: 'u-1',
-          requestedScopes: ['scope-1'],
-          integrationId: 'int-vanished',
-          expiresAt: new Date(Date.now() + 60_000),
-        },
+        [
+          {
+            provider: 'google',
+            serviceType: 'google',
+            mode: 'reauthorize',
+            workspaceId: 'ws-1',
+            userId: 'u-1',
+            requestedScopes: ['scope-1'],
+            integrationId: 'int-vanished',
+            expiresAt: new Date(Date.now() + 60_000),
+          },
+        ],
+        1,
       ]);
       integrationRepo.findOne.mockResolvedValue(null);
       const error = await service
@@ -309,7 +327,7 @@ describe('IntegrationOAuthService', () => {
     });
 
     it('does NOT attach context for state-mismatch (pre-consumption — no integrationId known)', async () => {
-      dataSource.query.mockResolvedValue([]); // DELETE…RETURNING returned 0 rows
+      dataSource.query.mockResolvedValue([[], 0]); // DELETE…RETURNING returned 0 rows
       const error = await service
         .handleCallback('google', { code: 'code', state: 'abc' })
         .catch((e: Error) => e);
@@ -332,16 +350,19 @@ describe('IntegrationOAuthService', () => {
       });
       try {
         dataSource.query.mockResolvedValue([
-          {
-            provider: 'google',
-            serviceType: 'google',
-            mode: 'reauthorize',
-            workspaceId: 'ws-1',
-            userId: 'u-1',
-            requestedScopes: ['scope-1'],
-            integrationId: 'int-token-fail',
-            expiresAt: new Date(Date.now() + 60_000),
-          },
+          [
+            {
+              provider: 'google',
+              serviceType: 'google',
+              mode: 'reauthorize',
+              workspaceId: 'ws-1',
+              userId: 'u-1',
+              requestedScopes: ['scope-1'],
+              integrationId: 'int-token-fail',
+              expiresAt: new Date(Date.now() + 60_000),
+            },
+          ],
+          1,
         ]);
         const error = await service
           .handleCallback('google', { code: 'bad-code', state: 'abc' })
@@ -375,16 +396,19 @@ describe('IntegrationOAuthService', () => {
 
     it('returns the result transparently on success', async () => {
       dataSource.query.mockResolvedValue([
-        {
-          provider: 'google',
-          serviceType: 'google',
-          mode: 'new',
-          workspaceId: 'ws-1',
-          userId: 'u-1',
-          requestedScopes: ['scope'],
-          integrationId: null,
-          expiresAt: new Date(Date.now() + 60_000),
-        },
+        [
+          {
+            provider: 'google',
+            serviceType: 'google',
+            mode: 'new',
+            workspaceId: 'ws-1',
+            userId: 'u-1',
+            requestedScopes: ['scope'],
+            integrationId: null,
+            expiresAt: new Date(Date.now() + 60_000),
+          },
+        ],
+        1,
       ]);
       const result = await service.handleCallbackWithErrorCapture('google', {
         code: 'c',
@@ -395,16 +419,19 @@ describe('IntegrationOAuthService', () => {
 
     it('records callback error via markIntegrationCallbackError on post-state failure', async () => {
       dataSource.query.mockResolvedValue([
-        {
-          provider: 'google',
-          serviceType: 'google',
-          mode: 'reauthorize',
-          workspaceId: 'ws-1',
-          userId: 'u-1',
-          requestedScopes: ['scope'],
-          integrationId: 'int-1',
-          expiresAt: new Date(Date.now() - 60_000),
-        },
+        [
+          {
+            provider: 'google',
+            serviceType: 'google',
+            mode: 'reauthorize',
+            workspaceId: 'ws-1',
+            userId: 'u-1',
+            requestedScopes: ['scope'],
+            integrationId: 'int-1',
+            expiresAt: new Date(Date.now() - 60_000),
+          },
+        ],
+        1,
       ]);
       const spy = jest.spyOn(service, 'markIntegrationCallbackError');
       const err = await service
@@ -421,7 +448,7 @@ describe('IntegrationOAuthService', () => {
     });
 
     it('does NOT record when no callback context (pre-state-consumption mismatch)', async () => {
-      dataSource.query.mockResolvedValue([]); // DELETE…RETURNING 0 rows
+      dataSource.query.mockResolvedValue([[], 0]); // DELETE…RETURNING 0 rows
       const spy = jest.spyOn(service, 'markIntegrationCallbackError');
       await service
         .handleCallbackWithErrorCapture('google', { code: 'c', state: 's' })
@@ -461,16 +488,19 @@ describe('IntegrationOAuthService', () => {
 
     it('still re-throws even if recording itself rejects (defence-in-depth)', async () => {
       dataSource.query.mockResolvedValue([
-        {
-          provider: 'google',
-          serviceType: 'google',
-          mode: 'reauthorize',
-          workspaceId: 'ws-1',
-          userId: 'u-1',
-          requestedScopes: ['scope'],
-          integrationId: 'int-3',
-          expiresAt: new Date(Date.now() - 60_000),
-        },
+        [
+          {
+            provider: 'google',
+            serviceType: 'google',
+            mode: 'reauthorize',
+            workspaceId: 'ws-1',
+            userId: 'u-1',
+            requestedScopes: ['scope'],
+            integrationId: 'int-3',
+            expiresAt: new Date(Date.now() - 60_000),
+          },
+        ],
+        1,
       ]);
       jest
         .spyOn(service, 'markIntegrationCallbackError')
@@ -667,7 +697,7 @@ describe('IntegrationOAuthService', () => {
 
   describe('consumePreviewToken', () => {
     it('rejects unknown token', async () => {
-      dataSource.query.mockResolvedValue([]);
+      dataSource.query.mockResolvedValue([[], 0]);
       await expect(
         service.consumePreviewToken('tmp_x', 'ws-1', 'u-1'),
       ).rejects.toThrow(BadRequestException);
@@ -675,15 +705,18 @@ describe('IntegrationOAuthService', () => {
 
     it('rejects mismatched owner', async () => {
       dataSource.query.mockResolvedValue([
-        {
-          previewToken: 'tmp_x',
-          workspaceId: 'other',
-          userId: 'u-1',
-          serviceType: 'google',
-          credentials: { access_token: 't' },
-          tokenExpiresAt: null,
-          expiresAt: new Date(Date.now() + 60_000),
-        },
+        [
+          {
+            previewToken: 'tmp_x',
+            workspaceId: 'other',
+            userId: 'u-1',
+            serviceType: 'google',
+            credentials: { access_token: 't' },
+            tokenExpiresAt: null,
+            expiresAt: new Date(Date.now() + 60_000),
+          },
+        ],
+        1,
       ]);
       await expect(
         service.consumePreviewToken('tmp_x', 'ws-1', 'u-1'),
@@ -692,15 +725,18 @@ describe('IntegrationOAuthService', () => {
 
     it('rejects expired preview', async () => {
       dataSource.query.mockResolvedValue([
-        {
-          previewToken: 'tmp_x',
-          workspaceId: 'ws-1',
-          userId: 'u-1',
-          serviceType: 'google',
-          credentials: { access_token: 't' },
-          tokenExpiresAt: null,
-          expiresAt: new Date(Date.now() - 60_000),
-        },
+        [
+          {
+            previewToken: 'tmp_x',
+            workspaceId: 'ws-1',
+            userId: 'u-1',
+            serviceType: 'google',
+            credentials: { access_token: 't' },
+            tokenExpiresAt: null,
+            expiresAt: new Date(Date.now() - 60_000),
+          },
+        ],
+        1,
       ]);
       await expect(
         service.consumePreviewToken('tmp_x', 'ws-1', 'u-1'),
@@ -709,15 +745,18 @@ describe('IntegrationOAuthService', () => {
 
     it('returns credentials on success', async () => {
       dataSource.query.mockResolvedValue([
-        {
-          previewToken: 'tmp_x',
-          workspaceId: 'ws-1',
-          userId: 'u-1',
-          serviceType: 'google',
-          credentials: { access_token: 't' },
-          tokenExpiresAt: null,
-          expiresAt: new Date(Date.now() + 60_000),
-        },
+        [
+          {
+            previewToken: 'tmp_x',
+            workspaceId: 'ws-1',
+            userId: 'u-1',
+            serviceType: 'google',
+            credentials: { access_token: 't' },
+            tokenExpiresAt: null,
+            expiresAt: new Date(Date.now() + 60_000),
+          },
+        ],
+        1,
       ]);
       const result = await service.consumePreviewToken('tmp_x', 'ws-1', 'u-1');
       expect(result.serviceType).toBe('google');
@@ -726,15 +765,18 @@ describe('IntegrationOAuthService', () => {
 
     it('parses credentials when stored as a JSON string (normalized path)', async () => {
       dataSource.query.mockResolvedValue([
-        {
-          previewToken: 'tmp_x',
-          workspaceId: 'ws-1',
-          userId: 'u-1',
-          serviceType: 'google',
-          credentials: JSON.stringify({ access_token: 't-str' }),
-          tokenExpiresAt: null,
-          expiresAt: new Date(Date.now() + 60_000),
-        },
+        [
+          {
+            previewToken: 'tmp_x',
+            workspaceId: 'ws-1',
+            userId: 'u-1',
+            serviceType: 'google',
+            credentials: JSON.stringify({ access_token: 't-str' }),
+            tokenExpiresAt: null,
+            expiresAt: new Date(Date.now() + 60_000),
+          },
+        ],
+        1,
       ]);
       const result = await service.consumePreviewToken('tmp_x', 'ws-1', 'u-1');
       expect(result.credentials.access_token).toBe('t-str');
@@ -742,15 +784,18 @@ describe('IntegrationOAuthService', () => {
 
     it('rejects with BadRequest when credentials string is corrupt (not unhandled 500)', async () => {
       dataSource.query.mockResolvedValue([
-        {
-          previewToken: 'tmp_x',
-          workspaceId: 'ws-1',
-          userId: 'u-1',
-          serviceType: 'google',
-          credentials: '{ not-valid-json',
-          tokenExpiresAt: null,
-          expiresAt: new Date(Date.now() + 60_000),
-        },
+        [
+          {
+            previewToken: 'tmp_x',
+            workspaceId: 'ws-1',
+            userId: 'u-1',
+            serviceType: 'google',
+            credentials: '{ not-valid-json',
+            tokenExpiresAt: null,
+            expiresAt: new Date(Date.now() + 60_000),
+          },
+        ],
+        1,
       ]);
       await expect(
         service.consumePreviewToken('tmp_x', 'ws-1', 'u-1'),
