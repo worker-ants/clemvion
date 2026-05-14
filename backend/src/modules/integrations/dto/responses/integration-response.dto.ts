@@ -1,4 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import type { IntegrationStatus } from '../../entities/integration.entity';
 
 /** 통합(Integration) 응답 DTO. credentials 필드는 마스킹된 상태로 반환됩니다. */
 export class IntegrationDto {
@@ -30,16 +31,49 @@ export class IntegrationDto {
   @ApiProperty({ enum: ['personal', 'organization'], example: 'personal' })
   scope: string;
 
-  /** 상태 */
+  /**
+   * 상태. `pending_install` 은 Cafe24 Private 앱의 OAuth 미완료 상태이며
+   * 노드·AI Agent 에서 사용 불가 ([Spec §6](../../2-navigation/4-integration.md#6-상태-전이)).
+   */
   @ApiProperty({
-    enum: ['connected', 'expired', 'error'],
+    enum: ['connected', 'expired', 'error', 'pending_install'],
     example: 'connected',
   })
-  status: string;
+  status: IntegrationStatus;
 
-  /** 상태 사유 코드 */
+  /** 상태 사유 코드 (snake_case). pending_install + callback 실패 시 `oauth_token_exchange_failed` 등 진단 단서. */
   @ApiPropertyOptional({ nullable: true })
   statusReason?: string | null;
+
+  /** 마지막 에러 요약. callback / 노드 실행 실패의 진단 단서. */
+  @ApiPropertyOptional({
+    type: 'object',
+    nullable: true,
+    properties: {
+      code: { type: 'string', description: 'UPPER_SNAKE_CASE 에러 코드' },
+      message: { type: 'string', description: '사람 친화 메시지' },
+      at: { type: 'string', format: 'date-time' },
+    },
+  })
+  lastError?: { code?: string; message?: string; at?: string } | null;
+
+  /**
+   * Safe-to-expose hints derived from credentials. Frontend must use these
+   * instead of `credentials.*` for flow gating — only `meta.appType` is
+   * populated today, used to decide Reauthorize button visibility for
+   * Cafe24 Private apps (which have no reauthorize entry point).
+   */
+  @ApiProperty({
+    type: 'object',
+    properties: {
+      appType: {
+        type: 'string',
+        enum: ['public', 'private'],
+        nullable: true,
+      },
+    },
+  })
+  meta: { appType: 'public' | 'private' | null };
 
   /**
    * 자격 증명 복호화 상태. `needs_reauth`는 저장된 envelope을 현재 키로

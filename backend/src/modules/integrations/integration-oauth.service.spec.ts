@@ -248,6 +248,235 @@ describe('IntegrationOAuthService', () => {
     });
   });
 
+  describe('handleCallback — failure observability (변경 0)', () => {
+    // After OAuth state is consumed, any thrown exception must carry
+    // { integrationId, workspaceId, mode } context so the controller can
+    // surface the diagnostic on the integration row.
+
+    it('attaches callback context when state expired', async () => {
+      dataSource.query.mockResolvedValue([
+        {
+          provider: 'google',
+          serviceType: 'google',
+          mode: 'reauthorize',
+          workspaceId: 'ws-1',
+          userId: 'u-1',
+          requestedScopes: ['scope-1'],
+          integrationId: 'int-42',
+          expiresAt: new Date(Date.now() - 60_000),
+        },
+      ]);
+      const error = await service
+        .handleCallback('google', { code: 'code', state: 'abc' })
+        .catch((e: Error) => e);
+      expect(error).toBeInstanceOf(BadRequestException);
+      const ctx = (error as { context?: unknown }).context as
+        | { integrationId?: string; workspaceId?: string; mode?: string }
+        | undefined;
+      expect(ctx).toEqual({
+        integrationId: 'int-42',
+        workspaceId: 'ws-1',
+        mode: 'reauthorize',
+      });
+    });
+
+    it('attaches callback context when row is missing (resource_not_found)', async () => {
+      dataSource.query.mockResolvedValue([
+        {
+          provider: 'google',
+          serviceType: 'google',
+          mode: 'reauthorize',
+          workspaceId: 'ws-1',
+          userId: 'u-1',
+          requestedScopes: ['scope-1'],
+          integrationId: 'int-vanished',
+          expiresAt: new Date(Date.now() + 60_000),
+        },
+      ]);
+      integrationRepo.findOne.mockResolvedValue(null);
+      const error = await service
+        .handleCallback('google', { code: 'code', state: 'abc' })
+        .catch((e: Error) => e);
+      // findOne -> null inside transaction throws NotFoundException
+      const ctx = (error as { context?: unknown }).context as
+        | { integrationId?: string }
+        | undefined;
+      expect(ctx?.integrationId).toBe('int-vanished');
+    });
+
+    it('does NOT attach context for state-mismatch (pre-consumption — no integrationId known)', async () => {
+      dataSource.query.mockResolvedValue([]); // DELETE…RETURNING returned 0 rows
+      const error = await service
+        .handleCallback('google', { code: 'code', state: 'abc' })
+        .catch((e: Error) => e);
+      expect(error).toBeInstanceOf(BadRequestException);
+      const ctx = (error as { context?: unknown }).context;
+      expect(ctx).toBeUndefined();
+    });
+
+    it('attaches callback context on token exchange failure', async () => {
+      // Run without OAUTH_STUB_MODE so exchangeCodeForToken does a real fetch
+      // which we intercept globally to force a 401.
+      delete process.env.OAUTH_STUB_MODE;
+      process.env.GOOGLE_CLIENT_ID = 'cid';
+      process.env.GOOGLE_CLIENT_SECRET = 'csec';
+      const originalFetch = global.fetch;
+      (global as { fetch: jest.Mock }).fetch = jest.fn().mockResolvedValue({
+        ok: false,
+        status: 401,
+        text: async () => 'unauthorized',
+      });
+      try {
+        dataSource.query.mockResolvedValue([
+          {
+            provider: 'google',
+            serviceType: 'google',
+            mode: 'reauthorize',
+            workspaceId: 'ws-1',
+            userId: 'u-1',
+            requestedScopes: ['scope-1'],
+            integrationId: 'int-token-fail',
+            expiresAt: new Date(Date.now() + 60_000),
+          },
+        ]);
+        const error = await service
+          .handleCallback('google', { code: 'bad-code', state: 'abc' })
+          .catch((e: Error) => e);
+        expect(error).toBeInstanceOf(BadRequestException);
+        const ctx = (error as { context?: unknown }).context as
+          | { integrationId?: string; workspaceId?: string; mode?: string }
+          | undefined;
+        expect(ctx).toEqual({
+          integrationId: 'int-token-fail',
+          workspaceId: 'ws-1',
+          mode: 'reauthorize',
+        });
+        // Sanity: the underlying code was OAUTH_TOKEN_EXCHANGE_FAILED so the
+        // controller can transition `connected` rows to error(auth_failed).
+        const code = (error as { response?: { code?: string } }).response?.code;
+        expect(code).toBe('OAUTH_TOKEN_EXCHANGE_FAILED');
+      } finally {
+        global.fetch = originalFetch;
+        delete process.env.GOOGLE_CLIENT_ID;
+        delete process.env.GOOGLE_CLIENT_SECRET;
+        process.env.OAUTH_STUB_MODE = 'true';
+      }
+    });
+  });
+
+  describe('markIntegrationCallbackError (변경 0)', () => {
+    it('records last_error/status_reason on pending_install row while preserving status', async () => {
+      const row = {
+        id: 'int-1',
+        workspaceId: 'ws-1',
+        status: 'pending_install',
+        statusReason: null,
+        lastError: null,
+      };
+      integrationRepo.findOne.mockResolvedValue(row);
+      await service.markIntegrationCallbackError(
+        'int-1',
+        'ws-1',
+        'OAUTH_TOKEN_EXCHANGE_FAILED',
+        'Failed to exchange authorization code for access token',
+      );
+      expect(integrationRepo.save).toHaveBeenCalledTimes(1);
+      const saved = integrationRepo.save.mock.calls[0][0] as Record<
+        string,
+        unknown
+      >;
+      expect(saved.status).toBe('pending_install'); // preserved
+      expect(saved.statusReason).toBe('oauth_token_exchange_failed'); // snake_case
+      const lastError = saved.lastError as {
+        code: string;
+        message: string;
+        at: string;
+      };
+      expect(lastError.code).toBe('OAUTH_TOKEN_EXCHANGE_FAILED'); // UPPER_SNAKE_CASE in last_error
+      expect(lastError.message).toContain('exchange');
+      expect(typeof lastError.at).toBe('string');
+    });
+
+    it('transitions connected → error(auth_failed) on OAUTH_TOKEN_EXCHANGE_FAILED', async () => {
+      integrationRepo.findOne.mockResolvedValue({
+        id: 'int-2',
+        workspaceId: 'ws-1',
+        status: 'connected',
+        statusReason: null,
+        lastError: null,
+      });
+      await service.markIntegrationCallbackError(
+        'int-2',
+        'ws-1',
+        'OAUTH_TOKEN_EXCHANGE_FAILED',
+        'denied',
+      );
+      const saved = integrationRepo.save.mock.calls[0][0] as Record<
+        string,
+        unknown
+      >;
+      expect(saved.status).toBe('error');
+      expect(saved.statusReason).toBe('auth_failed');
+    });
+
+    it('preserves connected status on non-token-exchange errors (state expired)', async () => {
+      integrationRepo.findOne.mockResolvedValue({
+        id: 'int-3',
+        workspaceId: 'ws-1',
+        status: 'connected',
+        statusReason: null,
+        lastError: null,
+      });
+      await service.markIntegrationCallbackError(
+        'int-3',
+        'ws-1',
+        'OAUTH_STATE_EXPIRED',
+        'OAuth state has expired',
+      );
+      const saved = integrationRepo.save.mock.calls[0][0] as Record<
+        string,
+        unknown
+      >;
+      expect(saved.status).toBe('connected'); // preserved
+      expect(saved.statusReason).toBeNull(); // not overwritten for connected non-auth errors
+      expect((saved.lastError as { code: string }).code).toBe(
+        'OAUTH_STATE_EXPIRED',
+      );
+    });
+
+    it('silently swallows when integration row is missing', async () => {
+      integrationRepo.findOne.mockResolvedValue(null);
+      await expect(
+        service.markIntegrationCallbackError(
+          'gone',
+          'ws-1',
+          'OAUTH_TOKEN_EXCHANGE_FAILED',
+          'nope',
+        ),
+      ).resolves.toBeUndefined();
+      expect(integrationRepo.save).not.toHaveBeenCalled();
+    });
+
+    it('does not propagate DB errors from save', async () => {
+      integrationRepo.findOne.mockResolvedValue({
+        id: 'int-x',
+        workspaceId: 'ws-1',
+        status: 'pending_install',
+        statusReason: null,
+        lastError: null,
+      });
+      integrationRepo.save.mockRejectedValue(new Error('db down'));
+      await expect(
+        service.markIntegrationCallbackError(
+          'int-x',
+          'ws-1',
+          'OAUTH_TOKEN_EXCHANGE_FAILED',
+          'msg',
+        ),
+      ).resolves.toBeUndefined();
+    });
+  });
+
   describe('consumePreviewToken', () => {
     it('rejects unknown token', async () => {
       dataSource.query.mockResolvedValue([]);

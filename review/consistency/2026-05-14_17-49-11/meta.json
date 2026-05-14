@@ -1,0 +1,34 @@
+{
+  "timestamp": "2026-05-14T17:56:56.391265",
+  "mode": "spec draft 검토 (--spec)",
+  "target_path": "plan/in-progress/spec-draft-cafe24-pending-polish.md",
+  "blocked": false,
+  "total_elapsed_seconds": 464.43,
+  "checkers": [
+    {
+      "name": "naming_collision",
+      "status": "success",
+      "elapsed_seconds": 183.3
+    },
+    {
+      "name": "convention_compliance",
+      "status": "success",
+      "elapsed_seconds": 185.0
+    },
+    {
+      "name": "rationale_continuity",
+      "status": "success",
+      "elapsed_seconds": 217.4
+    },
+    {
+      "name": "plan_coherence",
+      "status": "success",
+      "elapsed_seconds": 230.3
+    },
+    {
+      "name": "cross_spec",
+      "status": "success",
+      "elapsed_seconds": 342.29
+    }
+  ]
+}

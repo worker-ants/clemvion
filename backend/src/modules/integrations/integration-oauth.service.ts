@@ -1,6 +1,7 @@
 import {
   Injectable,
   BadRequestException,
+  ConflictException,
   ForbiddenException,
   InternalServerErrorException,
   NotFoundException,
@@ -105,6 +106,36 @@ export interface CallbackResult {
   provider: string;
   integrationId?: string;
   previewToken?: string;
+}
+
+/**
+ * Diagnostic context attached to exceptions thrown from `handleCallback` after
+ * the OAuth state row has been consumed (i.e. once we know which Integration
+ * row this callback belongs to). The controller reads this back from the
+ * caught error and writes `last_error` / `status_reason` onto the row via
+ * `markIntegrationCallbackError`, so the user can see why their callback
+ * failed without DB / log access. Pre-consumption errors (state mismatch)
+ * have no integrationId to attach.
+ */
+export interface CallbackContext {
+  integrationId: string;
+  workspaceId: string;
+  mode: OAuthStateMode;
+}
+
+export function attachCallbackContext<E extends Error>(
+  err: E,
+  context: CallbackContext,
+): E {
+  (err as E & { context?: CallbackContext }).context = context;
+  return err;
+}
+
+export function callbackContextOf(err: unknown): CallbackContext | undefined {
+  if (err && typeof err === 'object' && 'context' in err) {
+    return (err as { context?: CallbackContext }).context;
+  }
+  return undefined;
 }
 
 interface TokenExchangeResult {
@@ -325,25 +356,48 @@ export class IntegrationOAuthService {
     ) {
       record.requestedScopes = rawRow.requested_scopes as string[];
     }
+    // Build the diagnostic context once — every post-state-consumption throw
+    // attaches this so the controller can surface the failure on the row
+    // (see `markIntegrationCallbackError`). Pre-consumption throws (state
+    // mismatch above) have no integrationId yet and intentionally omit it.
+    const context: CallbackContext | undefined = record.integrationId
+      ? {
+          integrationId: record.integrationId,
+          workspaceId: record.workspaceId,
+          mode: record.mode,
+        }
+      : undefined;
+    const withContext = <E extends Error>(err: E): E =>
+      context ? attachCallbackContext(err, context) : err;
+
     if (record.provider !== provider) {
-      throw new BadRequestException({
-        code: 'OAUTH_STATE_MISMATCH',
-        message: 'Provider mismatch for OAuth state',
-      });
+      throw withContext(
+        new BadRequestException({
+          code: 'OAUTH_STATE_MISMATCH',
+          message: 'Provider mismatch for OAuth state',
+        }),
+      );
     }
     if (new Date(record.expiresAt).getTime() < Date.now()) {
-      throw new BadRequestException({
-        code: 'OAUTH_STATE_EXPIRED',
-        message: 'OAuth state has expired',
-      });
+      throw withContext(
+        new BadRequestException({
+          code: 'OAUTH_STATE_EXPIRED',
+          message: 'OAuth state has expired',
+        }),
+      );
     }
 
-    const exchange = await this.exchangeCodeForToken(
-      provider,
-      query.code,
-      record.requestedScopes,
-      record.providerMeta ?? null,
-    );
+    let exchange: TokenExchangeResult;
+    try {
+      exchange = await this.exchangeCodeForToken(
+        provider,
+        query.code,
+        record.requestedScopes,
+        record.providerMeta ?? null,
+      );
+    } catch (err) {
+      throw withContext(err as Error);
+    }
 
     const credentials: Record<string, unknown> = {
       access_token: exchange.accessToken,
@@ -385,49 +439,109 @@ export class IntegrationOAuthService {
     }
 
     if (!record.integrationId) {
-      throw new BadRequestException({
-        code: 'OAUTH_STATE_INVALID',
-        message: 'OAuth state has no associated integration',
-      });
+      throw withContext(
+        new BadRequestException({
+          code: 'OAUTH_STATE_INVALID',
+          message: 'OAuth state has no associated integration',
+        }),
+      );
     }
 
-    await this.dataSource.transaction(async (manager) => {
-      const repo = manager.getRepository(Integration);
-      const integration = await repo.findOne({
-        where: { id: record.integrationId!, workspaceId: record.workspaceId },
-      });
-      if (!integration) {
-        throw new NotFoundException({
-          code: 'RESOURCE_NOT_FOUND',
-          message: 'Integration not found',
+    try {
+      await this.dataSource.transaction(async (manager) => {
+        const repo = manager.getRepository(Integration);
+        const integration = await repo.findOne({
+          where: { id: record.integrationId!, workspaceId: record.workspaceId },
         });
-      }
-      if (
-        record.mode === 'reauthorize' ||
-        integration.status === 'pending_install'
-      ) {
-        integration.credentials = credentials;
-      } else {
-        integration.credentials = {
-          ...integration.credentials,
-          ...credentials,
-          scopes: exchange.scopes,
-        };
-      }
-      integration.status = 'connected';
-      integration.statusReason = null;
-      integration.lastError = null;
-      integration.tokenExpiresAt = exchange.tokenExpiresAt;
-      integration.lastRotatedAt = new Date();
-      integration.installToken = null;
-      await repo.save(integration);
-    });
+        if (!integration) {
+          throw new NotFoundException({
+            code: 'RESOURCE_NOT_FOUND',
+            message: 'Integration not found',
+          });
+        }
+        if (
+          record.mode === 'reauthorize' ||
+          integration.status === 'pending_install'
+        ) {
+          integration.credentials = credentials;
+        } else {
+          integration.credentials = {
+            ...integration.credentials,
+            ...credentials,
+            scopes: exchange.scopes,
+          };
+        }
+        integration.status = 'connected';
+        integration.statusReason = null;
+        integration.lastError = null;
+        integration.tokenExpiresAt = exchange.tokenExpiresAt;
+        integration.lastRotatedAt = new Date();
+        integration.installToken = null;
+        await repo.save(integration);
+      });
+    } catch (err) {
+      throw withContext(err as Error);
+    }
 
     return {
       mode: record.mode,
       provider,
       integrationId: record.integrationId,
     };
+  }
+
+  /**
+   * Record a callback failure on the Integration row so the user can see the
+   * diagnostic in the UI without log / DB access. Best-effort — never throws,
+   * since this is itself an error-handling path. See spec/2-navigation/4-integration.md
+   * §10.4 for the status preservation rules.
+   *
+   * - `pending_install` rows keep their status; the caller can retry "테스트
+   *   실행" on Cafe24 after fixing credentials.
+   * - `connected` rows with code-exchange failure (OAUTH_TOKEN_EXCHANGE_FAILED)
+   *   transition to `error(auth_failed)` per the existing §10.4 policy.
+   * - All other `connected` failures (state mismatch / expired / not found)
+   *   leave status alone and only update `last_error`.
+   * - A vanished row (resource_not_found) is silently skipped.
+   */
+  async markIntegrationCallbackError(
+    integrationId: string,
+    workspaceId: string,
+    errorCode: string,
+    errorMessage: string,
+  ): Promise<void> {
+    try {
+      const integration = await this.integrationRepository.findOne({
+        where: { id: integrationId, workspaceId },
+      });
+      if (!integration) {
+        // Row was deleted or workspace mismatch — nothing to update.
+        return;
+      }
+      const lastError = {
+        code: errorCode,
+        message: errorMessage,
+        at: new Date().toISOString(),
+      };
+      integration.lastError = lastError;
+      if (integration.status === 'pending_install') {
+        // status preserved — user can retry via cafe24 "테스트 실행"
+        integration.statusReason = errorCode.toLowerCase();
+      } else if (
+        integration.status === 'connected' &&
+        errorCode === 'OAUTH_TOKEN_EXCHANGE_FAILED'
+      ) {
+        // §10.4: reauthorize code-exchange failure on a connected row
+        integration.status = 'error';
+        integration.statusReason = 'auth_failed';
+      }
+      // Otherwise (connected + non-token error): last_error only.
+      await this.integrationRepository.save(integration);
+    } catch (err) {
+      this.logger.warn(
+        `markIntegrationCallbackError(${integrationId}) failed: ${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
   }
 
   async consumePreviewToken(
@@ -638,39 +752,100 @@ export class IntegrationOAuthService {
       Cafe24BeginMeta,
   ): Promise<BeginResult> {
     const appUrl = process.env.APP_URL || 'http://localhost:3011';
+
+    // Duplicate-prevention scan (변경 3). mall_id is encrypted in JSONB so we
+    // cannot filter at the DB level — we pull the workspace's cafe24 rows
+    // (typical bound: <10) and compare in memory after the ORM decrypts.
+    // spec/2-navigation/4-integration.md ## Rationale "CAFE24_PRIVATE_APP_ALREADY_CONNECTED".
+    const existing = await this.integrationRepository.find({
+      where: {
+        workspaceId: params.workspaceId,
+        serviceType: 'cafe24',
+      },
+    });
+    const sameMall = existing.filter(
+      (row) =>
+        row.credentials?.mall_id === meta.mall_id &&
+        row.credentials?.app_type === 'private',
+    );
+    const alreadyConnected = sameMall.find((row) => row.status === 'connected');
+    if (alreadyConnected) {
+      throw new ConflictException({
+        code: 'CAFE24_PRIVATE_APP_ALREADY_CONNECTED',
+        message: `A Cafe24 Private integration for mall_id "${meta.mall_id}" already exists and is connected. Use the existing integration or delete it first.`,
+        integrationId: alreadyConnected.id,
+      });
+    }
+    const existingPending = sameMall.find(
+      (row) => row.status === 'pending_install',
+    );
+
     const installToken = randomBytes(32).toString('hex');
-    const integration = this.integrationRepository.create({
-      workspaceId: params.workspaceId,
-      createdBy: params.userId,
-      serviceType: 'cafe24',
-      authType: 'oauth2',
-      name: params.integrationName || `${meta.mall_id} (Cafe24 Private)`,
-      scope: params.scope ?? 'personal',
-      status: 'pending_install',
-      installToken,
-      credentials: {
+    let saved: Integration;
+    if (existingPending) {
+      // Reuse the existing row instead of accumulating duplicate pending
+      // rows (W3 from review/2026-05-14_16-48-25). New install_token +
+      // refreshed credentials; status / name preserved so the user's URL
+      // bookmarks etc. don't break.
+      existingPending.installToken = installToken;
+      existingPending.credentials = {
+        ...existingPending.credentials,
         mall_id: meta.mall_id,
         app_type: 'private',
         client_id: meta.client_id,
         client_secret: meta.client_secret,
         scopes: params.scopes,
-      },
-    });
-    const saved = await this.integrationRepository.save(integration);
+      };
+      existingPending.statusReason = null;
+      existingPending.lastError = null;
+      saved = await this.integrationRepository.save(existingPending);
+    } else {
+      const integration = this.integrationRepository.create({
+        workspaceId: params.workspaceId,
+        createdBy: params.userId,
+        serviceType: 'cafe24',
+        authType: 'oauth2',
+        name: params.integrationName || `${meta.mall_id} (Cafe24 Private)`,
+        scope: params.scope ?? 'personal',
+        status: 'pending_install',
+        installToken,
+        credentials: {
+          mall_id: meta.mall_id,
+          app_type: 'private',
+          client_id: meta.client_id,
+          client_secret: meta.client_secret,
+          scopes: params.scopes,
+        },
+      });
+      saved = await this.integrationRepository.save(integration);
+    }
+    // install_token 이 path segment 로 들어가 cafe24 Developers "테스트
+    // 실행" 시 단일 row 조회를 가능하게 한다. spec/2-navigation/4-integration.md
+    // §9.2 + Rationale "install_token 을 App URL path 식별 키로 승격".
     return {
       mode: 'cafe24_private_pending',
       integrationId: saved.id,
-      appUrl: `${appUrl}/api/integrations/oauth/install/cafe24`,
+      appUrl: `${appUrl}/api/integrations/oauth/install/cafe24/${installToken}`,
       callbackUrl: `${appUrl}/api/integrations/oauth/callback/cafe24`,
     };
   }
 
   /**
    * Handles Cafe24 App URL calls from "테스트 실행".
-   * Verifies HMAC, finds the pending_install Integration, creates an
-   * OAuthState (mode=reconnect), and returns the Cafe24 authorize URL.
+   *
+   * Identification: path segment `:installToken` indexes a single
+   * pending_install Integration row (V043 partial unique index). That row's
+   * `client_secret` then verifies the HMAC once — eliminating the old
+   * mall_id O(N) scan + trial HMAC pattern which was non-deterministic when
+   * the same mall had duplicate pending rows. spec/4-nodes/4-integration/4-cafe24.md §9.8.
+   *
+   * Order: ① timestamp window (cheap, DoS-resistant) → ② install_token
+   * single-row lookup → ③ HMAC verification (timing-safe).
    */
-  async handleInstall(query: Cafe24InstallQuery): Promise<string> {
+  async handleInstall(
+    installToken: string,
+    query: Cafe24InstallQuery,
+  ): Promise<string> {
     const timestampSec = parseInt(query.timestamp, 10);
     if (
       isNaN(timestampSec) ||
@@ -682,39 +857,56 @@ export class IntegrationOAuthService {
       });
     }
 
-    // Find pending_install cafe24 integrations. Credentials are encrypted so
-    // mall_id cannot be filtered at the DB level; we filter + HMAC-verify in
-    // memory. Pre-compute the HMAC message once (rawQuery minus 'hmac', sorted)
-    // so each candidate only needs one createHmac call. Guard with .take(100).
-    const candidates = await this.integrationRepository
-      .createQueryBuilder('i')
-      .where("i.service_type = 'cafe24'")
-      .andWhere("i.status = 'pending_install'")
-      .take(100)
-      .getMany();
-
-    const hmacMessage = buildHmacMessage(query.rawQuery);
-    let target: Integration | null = null;
-    for (const candidate of candidates) {
-      const creds = candidate.credentials;
-      if (creds.mall_id !== query.mall_id) continue;
-      if (creds.app_type !== 'private') continue;
-      const secret = creds.client_secret;
-      if (typeof secret !== 'string') continue;
-      if (verifyHmacWithMessage(hmacMessage, secret, query.hmac)) {
-        target = candidate;
-        break;
-      }
+    if (!installToken) {
+      throw new NotFoundException({
+        code: 'CAFE24_INSTALL_INVALID_TOKEN',
+        message: 'install_token is required',
+      });
     }
 
+    const target = await this.integrationRepository.findOne({
+      where: {
+        installToken,
+        status: 'pending_install',
+        serviceType: 'cafe24',
+      },
+    });
     if (!target) {
-      throw new ForbiddenException({
-        code: 'CAFE24_INSTALL_INVALID_HMAC',
-        message: 'HMAC verification failed — no matching pending integration',
+      // install_token unknown — either never issued, already consumed
+      // (callback success → NULL), or TTL-expired (V0XX scanner → NULL).
+      // The token is 256-bit random so this is not an enumeration oracle.
+      // spec/2-navigation/4-integration.md ## Rationale.
+      throw new NotFoundException({
+        code: 'CAFE24_INSTALL_INVALID_TOKEN',
+        message: 'install_token is not associated with a pending installation',
       });
     }
 
     const creds = target.credentials;
+    if (creds.mall_id !== query.mall_id || creds.app_type !== 'private') {
+      // Defensive: should not happen given the install_token uniqueness
+      // and the begin-time validation, but a token used against a different
+      // mall_id is treated like a bad HMAC (no info leak).
+      throw new ForbiddenException({
+        code: 'CAFE24_INSTALL_INVALID_HMAC',
+        message: 'HMAC verification failed',
+      });
+    }
+    const secret = creds.client_secret;
+    if (typeof secret !== 'string') {
+      throw new ForbiddenException({
+        code: 'CAFE24_INSTALL_INVALID_HMAC',
+        message: 'HMAC verification failed',
+      });
+    }
+    const hmacMessage = buildHmacMessage(query.rawQuery);
+    if (!verifyHmacWithMessage(hmacMessage, secret, query.hmac)) {
+      throw new ForbiddenException({
+        code: 'CAFE24_INSTALL_INVALID_HMAC',
+        message: 'HMAC verification failed',
+      });
+    }
+
     const clientId = creds.client_id as string;
     const scopes = Array.isArray(creds.scopes)
       ? (creds.scopes as string[])

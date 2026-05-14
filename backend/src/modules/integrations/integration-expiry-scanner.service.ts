@@ -18,6 +18,9 @@ export const INTEGRATION_EXPIRY_QUEUE = 'integration-expiry-scanner';
 /** Usage-log retention window (spec §2.10.1). */
 const USAGE_LOG_RETENTION_DAYS = 90;
 
+/** Cafe24 Private install TTL — spec/2-navigation/4-integration.md §6 / ## Rationale. */
+const PENDING_INSTALL_TTL_HOURS = 24;
+
 interface ExpiryJobData {
   triggeredAt: string;
 }
@@ -62,8 +65,63 @@ export class IntegrationExpiryScannerService
     this.logger.log(
       `Running integration expiry scan (${job.data.triggeredAt})`,
     );
-    await this.run(new Date());
-    await this.pruneUsageLogs(new Date());
+    // Two independent passes. Failures in one must not block the other —
+    // spec/data-flow/integration.md §1.4. variant 4: pending_install TTL.
+    await this.run(new Date()).catch((err) =>
+      this.logger.error(
+        `expiry run failed: ${err instanceof Error ? err.message : String(err)}`,
+      ),
+    );
+    await this.expirePendingInstalls(new Date()).catch((err) =>
+      this.logger.error(
+        `pending_install TTL sweep failed: ${err instanceof Error ? err.message : String(err)}`,
+      ),
+    );
+    await this.pruneUsageLogs(new Date()).catch((err) =>
+      this.logger.error(
+        `usage log prune failed: ${err instanceof Error ? err.message : String(err)}`,
+      ),
+    );
+  }
+
+  /**
+   * Sweep `pending_install` rows whose install_token was issued more than
+   * `PENDING_INSTALL_TTL_HOURS` (24h) ago and never reached `connected`.
+   * Transitions them to `expired(install_timeout)` and clears install_token
+   * so further App URL calls with that token cleanly 404. Manual delete
+   * remains the only path that removes the row — we keep history for audit.
+   *
+   * spec/2-navigation/4-integration.md §6 (pending_install → expired) +
+   * ## Rationale "install_token TTL 24h".
+   */
+  async expirePendingInstalls(now: Date): Promise<number> {
+    const cutoff = new Date(
+      now.getTime() - PENDING_INSTALL_TTL_HOURS * 60 * 60 * 1000,
+    );
+    // Single atomic bulk UPDATE — find→mutate→save would race against the
+    // Cafe24 callback path: a callback that flips the row to `connected`
+    // between our find and save would be silently overwritten back to
+    // `expired`. The WHERE clause locks in the predicate at the moment of
+    // the UPDATE, so only rows that are still pending_install AND past
+    // the cutoff are touched. spec/data-flow/integration.md §1.4.
+    const result = await this.integrationRepository
+      .createQueryBuilder()
+      .update()
+      .set({
+        status: 'expired',
+        statusReason: 'install_timeout',
+        installToken: null,
+      })
+      .where('status = :status', { status: 'pending_install' })
+      .andWhere('created_at < :cutoff', { cutoff })
+      .execute();
+    const affected = result.affected ?? 0;
+    if (affected > 0) {
+      this.logger.log(
+        `pending_install TTL sweep transitioned ${affected} row(s) to expired(install_timeout)`,
+      );
+    }
+    return affected;
   }
 
   /**
