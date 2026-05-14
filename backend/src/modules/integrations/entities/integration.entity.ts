@@ -63,6 +63,34 @@ export class Integration {
   })
   installToken: string | null;
 
+  /**
+   * Cafe24 Private install_token 발급 시각. TTL 스캐너 (`pending-install-ttl`
+   * job) 가 `now - 24h` 와 비교해 만료를 판단한다. install_token 갱신(begin
+   * 재호출로 인한 row 재사용) 시 함께 갱신. 옛 행에서는 NULL — 스캐너가
+   * `createdAt` 으로 fallback. V044 추가.
+   */
+  @Column({
+    name: 'install_token_issued_at',
+    type: 'timestamptz',
+    nullable: true,
+  })
+  installTokenIssuedAt: Date | null;
+
+  /**
+   * Cafe24 `mall_id` 의 plain projection. credentials JSONB 안의 동일
+   * 값을 plain 컬럼으로 복제 — `(workspace_id, mall_id)` 부분 UNIQUE 인덱스
+   * (V045) 가 중복 방지 SQL constraint 를 강제하고 O(1) 조회를 가능하게
+   * 한다. cafe24 외 service_type 에서는 항상 NULL. 옛 행은 NULL —
+   * 다음 ORM save 시 backfill.
+   */
+  @Column({
+    name: 'mall_id',
+    type: 'varchar',
+    length: 50,
+    nullable: true,
+  })
+  mallId: string | null;
+
   @Column({
     name: 'status_reason',
     type: 'varchar',
