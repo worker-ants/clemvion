@@ -390,6 +390,76 @@ describe('ExpressionResolverService', () => {
       );
       expect(ctx.$params).toEqual({ orderId: 'abc', amount: 1000 });
     });
+
+    it('exposes $thread.{turns,length,text} from conversationThread', () => {
+      const nodeMap = new Map<string, Node>();
+      const execContext: ExecutionContext = {
+        executionId: 'exec-1',
+        workflowId: 'wf-1',
+        variables: {},
+        nodeOutputCache: {},
+        structuredOutputCache: {},
+        engineResolvedConfigCache: {},
+        recursionDepth: 0,
+        conversationThread: {
+          id: 'default',
+          nextSeq: 2,
+          totalChars: 8,
+          turns: [
+            {
+              seq: 0,
+              nodeId: 'form-1',
+              nodeLabel: 'Form',
+              nodeType: 'form',
+              timestamp: '2026-05-14T10:00:00.000Z',
+              source: 'presentation_user',
+              text: 'name=Alice',
+            },
+            {
+              seq: 1,
+              nodeId: 'agent-1',
+              nodeLabel: 'Agent',
+              nodeType: 'ai_agent',
+              timestamp: '2026-05-14T10:00:01.000Z',
+              source: 'ai_assistant',
+              text: 'Hi Alice',
+            },
+          ],
+        },
+      };
+      const ctx = service.buildExpressionContext({}, execContext, nodeMap) as {
+        $thread?: { turns: unknown[]; length: number; text: string };
+      };
+      expect(ctx.$thread?.length).toBe(2);
+      expect(ctx.$thread?.turns).toHaveLength(2);
+      expect(ctx.$thread?.text).toContain('[Conversation Context');
+      expect(ctx.$thread?.text).toContain('name=Alice');
+      expect(ctx.$thread?.text).toContain('Hi Alice');
+    });
+
+    it('returns empty $thread.text when thread has no turns', () => {
+      const nodeMap = new Map<string, Node>();
+      const execContext: ExecutionContext = {
+        executionId: 'exec-1',
+        workflowId: 'wf-1',
+        variables: {},
+        nodeOutputCache: {},
+        structuredOutputCache: {},
+        engineResolvedConfigCache: {},
+        recursionDepth: 0,
+        conversationThread: {
+          id: 'default',
+          nextSeq: 0,
+          totalChars: 0,
+          turns: [],
+        },
+      };
+      const ctx = service.buildExpressionContext({}, execContext, nodeMap) as {
+        $thread?: { turns: unknown[]; length: number; text: string };
+      };
+      expect(ctx.$thread?.length).toBe(0);
+      expect(ctx.$thread?.text).toBe('');
+    });
   });
 
   describe('$node reference resolution', () => {
