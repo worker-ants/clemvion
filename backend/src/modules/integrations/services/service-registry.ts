@@ -119,12 +119,17 @@ const CAFE24_OAUTH_FIELDS: CredentialField[] = [
 ];
 
 const CAFE24_SCOPES: ScopeOption[] = [
-  // Core ecommerce categories (recommended)
+  // Default-recommended is intentionally minimal because Cafe24 enforces a
+  // *pre-registered scope whitelist* on the app side — if a requested scope
+  // is absent from the Cafe24 Developers app's permission settings, the
+  // *entire* OAuth call fails with `invalid_scope`. Defaulting to 1 scope
+  // lets the user verify their app's scope wiring incrementally instead of
+  // hitting an all-or-nothing rejection on first attempt.
   { value: 'mall.read_product', label: '상품 조회', recommended: true },
-  { value: 'mall.write_product', label: '상품 수정', recommended: true },
-  { value: 'mall.read_order', label: '주문 조회', recommended: true },
-  { value: 'mall.write_order', label: '주문 수정', recommended: true },
-  { value: 'mall.read_customer', label: '회원 조회', recommended: true },
+  { value: 'mall.write_product', label: '상품 수정' },
+  { value: 'mall.read_order', label: '주문 조회' },
+  { value: 'mall.write_order', label: '주문 수정' },
+  { value: 'mall.read_customer', label: '회원 조회' },
   { value: 'mall.write_customer', label: '회원 수정' },
   { value: 'mall.read_category', label: '카테고리 조회' },
   { value: 'mall.write_category', label: '카테고리 수정' },
