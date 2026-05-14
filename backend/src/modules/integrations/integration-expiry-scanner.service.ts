@@ -150,6 +150,12 @@ export class IntegrationExpiryScannerService
     // `expired`. The WHERE clause locks in the predicate at the moment of
     // the UPDATE, so only rows that are still pending_install AND past
     // the cutoff are touched. spec/data-flow/integration.md §1.4.
+    //
+    // TTL key is `install_token_issued_at` (V044) so a row reused via
+    // begin re-submission gets a fresh 24h window instead of inheriting
+    // the original `created_at`. Pre-V044 rows have NULL — fall back to
+    // `created_at` via COALESCE so they still expire on the legacy
+    // semantics during the transition.
     const result = await this.integrationRepository
       .createQueryBuilder()
       .update()
@@ -159,7 +165,9 @@ export class IntegrationExpiryScannerService
         installToken: null,
       })
       .where('status = :status', { status: 'pending_install' })
-      .andWhere('created_at < :cutoff', { cutoff })
+      .andWhere('COALESCE(install_token_issued_at, created_at) < :cutoff', {
+        cutoff,
+      })
       .execute();
     const affected = result.affected ?? 0;
     if (affected > 0) {
