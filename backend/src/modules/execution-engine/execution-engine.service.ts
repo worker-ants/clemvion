@@ -604,6 +604,7 @@ export class ExecutionEngineService
       workflowExecutor: this,
       websocketService: this.websocketService,
       cafe24ApiClient: this.cafe24ApiClient,
+      conversationThreadService: this.conversationThreadService,
     });
   }
 

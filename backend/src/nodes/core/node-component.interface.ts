@@ -273,6 +273,11 @@ export interface HandlerDependencies {
   /** Optional — only the cafe24 node consumes it. Wired by
    *  ExecutionEngineService.registerHandlers (see spec/4-nodes/4-integration/4-cafe24.md). */
   cafe24ApiClient?: import('../integration/cafe24/cafe24-api.client').Cafe24ApiClient;
+  /** AI handlers push user / assistant turns into the workflow-scoped
+   *  ConversationThread (spec/conventions/conversation-thread.md §2.2).
+   *  Other handlers ignore. Optional so legacy test fixtures that build
+   *  handler instances without the engine wiring still work. */
+  conversationThreadService?: import('../../modules/execution-engine/conversation-thread/conversation-thread.service').ConversationThreadService;
 }
 
 /**

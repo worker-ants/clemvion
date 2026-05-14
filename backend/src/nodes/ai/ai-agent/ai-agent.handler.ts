@@ -25,6 +25,14 @@ import {
   ToolCallStartedPayload,
   WebsocketService,
 } from '../../../modules/websocket/websocket.service';
+import type {
+  ConversationThread,
+  ConversationTurnToolCall,
+} from '../../../modules/execution-engine/conversation-thread/conversation-thread.types';
+import type {
+  NodeRef,
+  ThreadHolder,
+} from '../../../modules/execution-engine/conversation-thread/conversation-thread.service';
 
 /**
  * Per-tool execution metadata recorded into `meta.turnDebug[].toolCalls`. The
@@ -281,7 +289,103 @@ export class AiAgentHandler implements NodeHandler {
      * this — the handler runs unchanged otherwise.
      */
     private readonly websocketService?: WebsocketService,
+    /**
+     * Optional. When provided, the handler pushes user / assistant turns
+     * into the workflow-scoped ConversationThread (single mutation entrypoint
+     * per spec/conventions/conversation-thread.md §2.2) and auto-injects the
+     * thread on chat calls when `contextScope` is enabled.
+     *
+     * Test fixtures that exercise the handler in isolation may omit this;
+     * the handler then degrades to its original (no-thread) behaviour.
+     */
+    private readonly conversationThreadService?: import('../../../modules/execution-engine/conversation-thread/conversation-thread.service').ConversationThreadService,
   ) {}
+
+  /* ─── ConversationThread push helpers (spec §2.2) ─────────────────────── */
+
+  /**
+   * NodeRef from the engine-injected ExecutionContext (executeSingleTurn /
+   * executeMultiTurn first-turn path). Engine doesn't yet propagate
+   * label/type; fall back to nodeId for label and hard-code 'ai_agent' for
+   * type — sufficient for thread display until engine ships richer node
+   * metadata to handlers (v2).
+   */
+  private buildAiNodeRefFromContext(
+    context: ExecutionContext,
+    config: Record<string, unknown>,
+  ): NodeRef {
+    const id = context.nodeId ?? '';
+    return {
+      id,
+      label: id,
+      type: 'ai_agent',
+      config: context.rawConfig ?? config,
+    };
+  }
+
+  /**
+   * NodeRef from `state` carried across multi-turn resumes. `state.rawConfig`
+   * is the frozen snapshot taken at the first turn (engine `state.rawConfig`
+   * policy — `spec/5-system/4-execution-engine.md §6.1`).
+   */
+  private buildAiNodeRefFromState(state: Record<string, unknown>): NodeRef {
+    const id = (state.nodeId as string | undefined) ?? '';
+    return {
+      id,
+      label: id,
+      type: 'ai_agent',
+      config: (state.rawConfig as Record<string, unknown> | undefined) ?? {},
+    };
+  }
+
+  /** Thread reference carried in `state` from the first multi-turn turn. */
+  private threadHolderFromState(
+    state: Record<string, unknown>,
+  ): ThreadHolder | undefined {
+    const ref = state.conversationThreadRef as ConversationThread | undefined;
+    return ref ? { conversationThread: ref } : undefined;
+  }
+
+  /**
+   * Push a single user/assistant turn onto the thread. No-op when the
+   * service or thread reference is missing (test fixtures, legacy paths).
+   */
+  private pushAiThreadTurn(
+    target: ThreadHolder | undefined,
+    nodeRef: NodeRef,
+    source: 'ai_user' | 'ai_assistant',
+    content: string,
+    toolCalls?: ConversationTurnToolCall[],
+  ): void {
+    if (!this.conversationThreadService || !target) return;
+    if (source === 'ai_user') {
+      this.conversationThreadService.appendAiUserMessage(target, {
+        node: nodeRef,
+        content,
+      });
+    } else {
+      this.conversationThreadService.appendAiAssistantMessage(target, {
+        node: nodeRef,
+        content,
+        ...(toolCalls && toolCalls.length > 0 ? { toolCalls } : {}),
+      });
+    }
+  }
+
+  /** Tool result push (opt-in via `state.includeToolTurns === true`). */
+  private pushAiToolResultTurn(
+    target: ThreadHolder | undefined,
+    nodeRef: NodeRef,
+    toolCallId: string,
+    content: string,
+  ): void {
+    if (!this.conversationThreadService || !target) return;
+    this.conversationThreadService.appendAiToolResult(target, {
+      node: nodeRef,
+      toolCallId,
+      content,
+    });
+  }
 
   /**
    * Run a provider tool with telemetry: emit started/completed WS events,
@@ -549,6 +653,13 @@ export class AiAgentHandler implements NodeHandler {
     }
     if (userPrompt) {
       messages.push({ role: 'user', content: userPrompt });
+      // ConversationThread push (spec §2.2 — single-turn ai_user, 1회).
+      this.pushAiThreadTurn(
+        context,
+        this.buildAiNodeRefFromContext(context, config),
+        'ai_user',
+        userPrompt,
+      );
     }
 
     const tools = await this.buildTools(
@@ -610,6 +721,14 @@ export class AiAgentHandler implements NodeHandler {
           classification.matchedCondition.id,
         );
         messages.push({ role: 'assistant', content: result.content || '' });
+        // ConversationThread push (spec §2.2 — single-turn ai_assistant on
+        // condition route).
+        this.pushAiThreadTurn(
+          context,
+          this.buildAiNodeRefFromContext(context, config),
+          'ai_assistant',
+          result.content || '',
+        );
         return this.buildConditionOutput(
           classification.matchedCondition,
           reason,
@@ -750,6 +869,23 @@ export class AiAgentHandler implements NodeHandler {
     // response plus per-turn debug trace; tokens and tool-call counts move
     // to `meta.*` (Principle 2).
     const singleTurnDurationMs = Date.now() - singleTurnStartedAt;
+    // ConversationThread push (spec §2.2 — single-turn final ai_assistant,
+    // 1회). Stringify JSON-mode responses so the thread always carries a
+    // displayable text payload.
+    {
+      const finalText =
+        typeof response === 'string'
+          ? response
+          : response === undefined || response === null
+            ? ''
+            : JSON.stringify(response);
+      this.pushAiThreadTurn(
+        context,
+        this.buildAiNodeRefFromContext(context, config),
+        'ai_assistant',
+        finalText,
+      );
+    }
     return {
       config: {
         mode: 'single_turn' as const,
@@ -868,6 +1004,12 @@ export class AiAgentHandler implements NodeHandler {
       nodeId: context.nodeId,
       nodeExecutionId: context.nodeExecutionId,
       workflowId: context.workflowId,
+      // ConversationThread mutation 단일 진입점이 service.append* 인데,
+      // multi-turn 후속 turn 은 ExecutionContext 가 직접 주입되지 않으므로
+      // 첫 turn 시점의 thread reference 를 state 에 보관해 다음 turn 에서도
+      // 같은 thread 객체를 mutate 하도록 한다 (in-memory ExecutionContext
+      // 정책에 의존 — spec/conventions/conversation-thread.md §2.2 / §4).
+      conversationThreadRef: context.conversationThread,
     };
 
     const waitingResult: ResumableNodeHandlerOutput = {
@@ -963,6 +1105,13 @@ export class AiAgentHandler implements NodeHandler {
 
     // Add user message
     messages.push({ role: 'user', content: userMessage });
+    // ConversationThread push (spec §2.2 — multi-turn ai_user)
+    this.pushAiThreadTurn(
+      this.threadHolderFromState(state),
+      this.buildAiNodeRefFromState(state),
+      'ai_user',
+      userMessage,
+    );
 
     const llmConfigId = state.llmConfigId as string | undefined;
     const llmConfig = await this.llmService.resolveConfig(
@@ -1030,6 +1179,14 @@ export class AiAgentHandler implements NodeHandler {
           classification.matchedCondition.id,
         );
         messages.push({ role: 'assistant', content: result.content || '' });
+        // ConversationThread push (spec §2.2 — multi-turn ai_assistant on
+        // condition route).
+        this.pushAiThreadTurn(
+          this.threadHolderFromState(state),
+          this.buildAiNodeRefFromState(state),
+          'ai_assistant',
+          result.content || '',
+        );
 
         totalInputTokens += result.usage?.inputTokens ?? 0;
         totalOutputTokens += result.usage?.outputTokens ?? 0;
@@ -1152,6 +1309,15 @@ export class AiAgentHandler implements NodeHandler {
 
     const turnDurationMs = Date.now() - turnStartedAt;
     messages.push({ role: 'assistant', content: result.content || '' });
+    // ConversationThread push (spec §2.2 — multi-turn final assistant per
+    // turn). The thread accumulates one assistant turn per LLM round-trip;
+    // downstream AI Agent nodes with `contextScope` see the running history.
+    this.pushAiThreadTurn(
+      this.threadHolderFromState(state),
+      this.buildAiNodeRefFromState(state),
+      'ai_assistant',
+      result.content || '',
+    );
 
     totalInputTokens += result.usage?.inputTokens ?? 0;
     totalOutputTokens += result.usage?.outputTokens ?? 0;
