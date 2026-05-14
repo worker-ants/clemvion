@@ -98,23 +98,30 @@ export class IntegrationExpiryScannerService
     const cutoff = new Date(
       now.getTime() - PENDING_INSTALL_TTL_HOURS * 60 * 60 * 1000,
     );
-    const stale = await this.integrationRepository.find({
-      where: {
-        status: 'pending_install',
-        createdAt: LessThan(cutoff),
-      },
-    });
-    if (stale.length === 0) return 0;
-    for (const row of stale) {
-      row.status = 'expired';
-      row.statusReason = 'install_timeout';
-      row.installToken = null;
+    // Single atomic bulk UPDATE — find→mutate→save would race against the
+    // Cafe24 callback path: a callback that flips the row to `connected`
+    // between our find and save would be silently overwritten back to
+    // `expired`. The WHERE clause locks in the predicate at the moment of
+    // the UPDATE, so only rows that are still pending_install AND past
+    // the cutoff are touched. spec/data-flow/integration.md §1.4.
+    const result = await this.integrationRepository
+      .createQueryBuilder()
+      .update()
+      .set({
+        status: 'expired',
+        statusReason: 'install_timeout',
+        installToken: null,
+      })
+      .where('status = :status', { status: 'pending_install' })
+      .andWhere('created_at < :cutoff', { cutoff })
+      .execute();
+    const affected = result.affected ?? 0;
+    if (affected > 0) {
+      this.logger.log(
+        `pending_install TTL sweep transitioned ${affected} row(s) to expired(install_timeout)`,
+      );
     }
-    await this.integrationRepository.save(stale);
-    this.logger.log(
-      `pending_install TTL sweep transitioned ${stale.length} row(s) to expired(install_timeout)`,
-    );
-    return stale.length;
+    return affected;
   }
 
   /**

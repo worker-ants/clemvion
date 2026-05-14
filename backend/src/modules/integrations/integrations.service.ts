@@ -842,17 +842,17 @@ export class IntegrationsService {
   }
 
   private toPublic(entity: Integration): PublicIntegration {
-    const meta = this.buildIntegrationMeta(entity);
-    if (isUnreadableCredentials(entity.credentials)) {
+    const credsUnreadable = isUnreadableCredentials(entity.credentials);
+    const lastErrorUnreadable = isUnreadableCredentials(entity.lastError);
+    const meta = this.buildIntegrationMeta(entity, credsUnreadable);
+    if (credsUnreadable) {
       // Single corrupted row must not leak the sentinel marker into the API
       // response and must surface as a reconnect prompt rather than a
       // half-broken "connected" card.
       return {
         ...entity,
         credentials: {},
-        lastError: isUnreadableCredentials(entity.lastError)
-          ? null
-          : entity.lastError,
+        lastError: lastErrorUnreadable ? null : entity.lastError,
         status: 'error',
         statusReason: 'credentials_unreadable',
         credentialsStatus: 'needs_reauth',
@@ -866,9 +866,7 @@ export class IntegrationsService {
         entity.serviceType,
         entity.authType,
       ),
-      lastError: isUnreadableCredentials(entity.lastError)
-        ? null
-        : entity.lastError,
+      lastError: lastErrorUnreadable ? null : entity.lastError,
       credentialsStatus: 'ok',
       meta,
     };
@@ -878,12 +876,14 @@ export class IntegrationsService {
    * Build the safe-to-expose meta hints. Currently only cafe24 emits anything
    * (`appType`) — extracted so FE can decide flow gating (e.g. Reauthorize
    * button visibility) without ever touching the encrypted credentials blob.
+   * `credsUnreadable` lets the caller skip a duplicate
+   * `isUnreadableCredentials` call when it already has the result.
    */
-  private buildIntegrationMeta(entity: Integration): IntegrationMeta {
-    if (
-      entity.serviceType === 'cafe24' &&
-      !isUnreadableCredentials(entity.credentials)
-    ) {
+  private buildIntegrationMeta(
+    entity: Integration,
+    credsUnreadable: boolean = isUnreadableCredentials(entity.credentials),
+  ): IntegrationMeta {
+    if (entity.serviceType === 'cafe24' && !credsUnreadable) {
       const appType = entity.credentials?.app_type;
       if (appType === 'public' || appType === 'private') {
         return { appType };

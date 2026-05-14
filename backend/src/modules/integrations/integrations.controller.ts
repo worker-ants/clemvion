@@ -54,6 +54,10 @@ import {
   IntegrationOAuthService,
   callbackContextOf,
 } from './integration-oauth.service';
+
+/** install_token is issued as `randomBytes(32).toString('hex')` — exactly 64
+ * hex chars. Reject anything else at the controller boundary. */
+const INSTALL_TOKEN_PATTERN = /^[a-f0-9]{64}$/;
 import { CurrentUser, WorkspaceId } from '../../common/decorators';
 import type { JwtPayload } from '../../common/decorators';
 import { Public } from '../../common/decorators/public.decorator';
@@ -224,6 +228,16 @@ export class IntegrationsController {
     @Req() req: Request,
     @Res() res: Response,
   ) {
+    // install_token format guard — we issue 32-byte hex (64 chars). Reject
+    // anything that doesn't match before it ever reaches the service /
+    // DB, so arbitrary-length user input never feeds the query.
+    if (!INSTALL_TOKEN_PATTERN.test(installToken)) {
+      res.status(404).json({
+        code: 'CAFE24_INSTALL_INVALID_TOKEN',
+        message: 'install_token format invalid',
+      });
+      return;
+    }
     if (!mallId || !timestamp || !hmac) {
       res.status(400).json({
         code: 'CAFE24_INSTALL_MISSING_PARAMS',
@@ -258,6 +272,9 @@ export class IntegrationsController {
         response?: { code?: string; message?: string };
         message?: string;
       };
+      // Honour NestJS exception status (NotFoundException → 404,
+      // ForbiddenException → 403). Default 400 for the bare-BadRequest
+      // path. ai-review: 403→404 split must propagate to clients.
       const status = e.status ?? 400;
       const code = e.response?.code ?? 'CAFE24_INSTALL_FAILED';
       const message = e.response?.message ?? e.message ?? 'Install failed';

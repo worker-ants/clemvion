@@ -763,12 +763,12 @@ export class IntegrationOAuthService {
         serviceType: 'cafe24',
       },
     });
-    const samMall = existing.filter(
+    const sameMall = existing.filter(
       (row) =>
         row.credentials?.mall_id === meta.mall_id &&
         row.credentials?.app_type === 'private',
     );
-    const alreadyConnected = samMall.find((row) => row.status === 'connected');
+    const alreadyConnected = sameMall.find((row) => row.status === 'connected');
     if (alreadyConnected) {
       throw new ConflictException({
         code: 'CAFE24_PRIVATE_APP_ALREADY_CONNECTED',
@@ -776,7 +776,7 @@ export class IntegrationOAuthService {
         integrationId: alreadyConnected.id,
       });
     }
-    const existingPending = samMall.find(
+    const existingPending = sameMall.find(
       (row) => row.status === 'pending_install',
     );
 
@@ -857,7 +857,7 @@ export class IntegrationOAuthService {
       });
     }
 
-    if (!installToken || installToken.length === 0) {
+    if (!installToken) {
       throw new NotFoundException({
         code: 'CAFE24_INSTALL_INVALID_TOKEN',
         message: 'install_token is required',
