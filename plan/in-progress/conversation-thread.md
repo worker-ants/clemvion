@@ -86,7 +86,16 @@ owner: developer
   - ✅ Opt-out form interaction → thread 미포함 — `conversation-thread.service.spec.ts` + `ai-agent.thread.spec.ts`
 - [x] 별도 e2e 파일 (`backend/test/e2e/conversation-thread.e2e-spec.ts`) — **skip**: AI Agent 시나리오는 LLM 호출이 필수라 e2e 대상 외 (CLAUDE.md "LLM 호출이 필수인 흐름은 e2e 대상 아님. unit 으로 위임"). presentation 노드 thread push 만의 e2e 는 단위 테스트가 이미 충분.
 - [x] 최종 lint/build/test 통과
-- [ ] `/ai-review` 실행 (선택 — 본 plan 의 마무리로 사용자가 트리거 가능)
+- [x] `/ai-review` 실행 (Phase 11 — 2 batch HIGH 4건 + WARNING/INFO ~38건 → 핵심 6건 즉시 조치 + RESOLUTION.md, 잔여는 v1.1 follow-up)
+
+### Phase 9 — Spec follow-up (W1~W6) ✅
+2026-05-14 commit `739258c0` — Phase 8 의 impl-prep consistency-check WARNING 6건 + I1 일괄 정정 (text 변환·Anthropic system row·meta.contextInjection·legacy status 노트·step 분리·Principle 8.2 cleanup). §2.3 의 v1 적용 범위도 사실(ai_agent only)에 맞게 정정.
+
+### Phase 10 — Tool turn opt-in ✅
+2026-05-14 commit `848991e8` — `includeToolTurns: true` 시 tool-loop assistant + tool result push hook 8 위치 추가. default false 유지.
+
+### Phase 11 — /ai-review ✅
+2026-05-14 commit (후속) — HIGH/WARNING 6건 즉시 조치: prompt injection 마커, BullMQ 하위 호환 fallback, cloneThread helper + 격리 invariant 4 테스트, WS snapshot copy, $thread.turns snapshot, 인라인 import → top-level. RESOLUTION.md 에 잔여 32건 follow-up 정리.
 
 ## 핵심 설계 (요약)
 
