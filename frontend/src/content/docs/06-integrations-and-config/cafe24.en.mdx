@@ -17,17 +17,17 @@ This page walks you through registering a Korean e-commerce SaaS **Cafe24** mall
 - **All 18 Admin API categories** — Product, Order, Customer, Category, Promotion, Mileage, ... every endpoint of Cafe24 Admin API is reachable through a single metadata-driven node. Most operations are two dropdowns away (Resource → Operation).
 - **Natural-language AI calls** — through an in-process Internal MCP Bridge, the LLM can translate commands like *"give me last week's unshipped orders"* into the right endpoint call automatically.
 
-## Create the integration (`/integrations`)
+## Create the integration
 
 ### 1) Pick Cafe24 in the Add Integration modal
 
-`/integrations` → **+ Add Integration** → click the **🛒 Cafe24** card → routed to `/integrations/new?service=cafe24&step=auth`.
+Sidebar **Integrations** → **+ Add Integration** → click the **🛒 Cafe24** card → routed to the Cafe24 integration form.
 
 ### 2) (Private apps only) Create the app on Cafe24 Developers first
 
 To finish Step 2 with App Type = **Private** you need a `client_id` / `client_secret` from Cafe24 itself. Cafe24 has no explicit "public/private" toggle — **any app that isn't published to the App Store is automatically private** (only your own mall can install it).
 
-1. Sign in to https://developers.cafe24.com with the Cafe24 mall owner account.
+1. Sign in to [Cafe24 Developers](https://developers.cafe24.com) with the Cafe24 mall owner account.
 2. Top menu **`Apps`** → **`My Apps`** (a.k.a. "앱 관리").
 3. Click **`ADD PRODUCT` / `Create app`** → choose **`Web`**.
 4. Fill in:
@@ -67,7 +67,7 @@ Instead of a popup, you'll see an instruction screen with two values: **App URL*
 
 1. The service creates a `pending_install` integration immediately.
 2. Copy the displayed **App URL** and confirm it matches what's registered in your Cafe24 Developers app settings.
-3. On Cafe24 Developers (`https://developers.cafe24.com`), open the app and click **"Test Run" (테스트 실행)**.
+3. On [Cafe24 Developers](https://developers.cafe24.com), open the app and click **"Test Run" (테스트 실행)**.
 4. Cafe24 sends an HMAC-signed request to the App URL. This service verifies the signature and redirects to Cafe24's consent screen.
 5. After consent, the token is issued and the integration status transitions from `pending_install` → `connected`.
 
@@ -154,7 +154,7 @@ Cafe24 requires **comma-delimited** scopes on `/oauth/authorize` (a deviation fr
 
 1. **Missing pre-registration on the app (most common)** — Cafe24 only honors OAuth requests for scopes that are *pre-registered on the app*. If even one scope you ticked in the integration form is missing from the Cafe24 app's permission settings, the *entire* OAuth call is rejected.
 
-   - Sign in to https://developers.cafe24.com → **`Apps` → `My Apps`** → click the app
+   - Sign in to [Cafe24 Developers](https://developers.cafe24.com) → **`Apps` → `My Apps`** → click the app
    - Open **`App Information`** (or **`개발 정보`** in Korean UI) → scroll to the **`Permissions` / `Scope`** section
    - Tick **every** scope you selected in the integration form → save → retry [Connect with Cafe24]
 
