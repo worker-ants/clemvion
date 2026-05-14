@@ -41,6 +41,13 @@ export interface BackgroundExecutionJob {
   nodeOutputCache: Record<string, unknown>;
   /** Snapshot of context.expressionContext at enqueue time. */
   expressionContext: Record<string, unknown>;
+  /**
+   * Snapshot of context.conversationThread at enqueue time — turns 배열까지
+   * 새 인스턴스로 복사된다. 백그라운드 본문이 새 turn 을 push 해도 메인 흐름의
+   * thread 가 변형되지 않고, 그 반대도 마찬가지 (PRD 3 §4.11 ND-BG-05 격리
+   * 원칙 / spec/conventions/conversation-thread.md §3.2).
+   */
+  conversationThread: import('../conversation-thread/conversation-thread.types').ConversationThread;
   /** Background 노드 본문의 구성: 알림·타임아웃 정책. */
   config: {
     notifyOnFailure: boolean;

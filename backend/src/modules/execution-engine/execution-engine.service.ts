@@ -3745,6 +3745,16 @@ export class ExecutionEngineService
     // Snapshot relevant context. Shallow-clone is enough — the body
     // executes against these values, and any mutations the main flow makes
     // afterwards stay isolated to the main flow.
+    //
+    // For the conversationThread we additionally clone the `turns` array
+    // (not just the wrapper object) so the background body cannot reach
+    // through and push to the main flow's turn list. ConversationTurn
+    // objects themselves are immutable once pushed, so a deeper clone is
+    // unnecessary (spec/conventions/conversation-thread.md §3.2).
+    const threadSnapshot: typeof context.conversationThread = {
+      ...context.conversationThread,
+      turns: [...context.conversationThread.turns],
+    };
     const job: BackgroundExecutionJob = {
       executionId,
       parentNodeExecutionId,
@@ -3756,6 +3766,7 @@ export class ExecutionEngineService
       variables: { ...context.variables },
       nodeOutputCache: { ...context.nodeOutputCache },
       expressionContext: { ...(context.expressionContext ?? {}) },
+      conversationThread: threadSnapshot,
       config: {
         notifyOnFailure: config.notifyOnFailure === true,
         maxDurationMs:
@@ -3785,6 +3796,9 @@ export class ExecutionEngineService
     context.variables = { ...job.variables };
     context.nodeOutputCache = { ...job.nodeOutputCache };
     context.expressionContext = { ...job.expressionContext };
+    // Use the enqueue-time snapshot (already turns-cloned) — pushes from
+    // here onward stay inside the background subgraph (§3.2 isolation).
+    context.conversationThread = job.conversationThread;
 
     const run = this.executeInline(job.workflowId, job.input, {
       executionId: job.executionId,
