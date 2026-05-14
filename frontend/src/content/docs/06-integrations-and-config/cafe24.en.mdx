@@ -123,6 +123,13 @@ Once a Cafe24 integration is added, the LLM sees tools named `mcp_<sid>__<resour
 
 See the [official Cafe24 docs](https://developers.cafe24.com/docs/ko/api/admin/#api-index) for the full list across all 18 categories.
 
+## Related spec
+
+- Node spec: `spec/4-nodes/4-integration/4-cafe24.md`
+- Integration management screen: `spec/2-navigation/4-integration.md` §5.8 / §10.3
+- Internal MCP Bridge: `spec/5-system/11-mcp-client.md` §2.3
+- Metadata convention: `spec/conventions/cafe24-api-metadata.md`
+
 ## FAQ
 
 **Q. OAuth start fails with `invalid_request: The redirec_uri added by Cafe24 Developers is invalid`.**
@@ -158,10 +165,3 @@ The AI Agent node's `mcpServers` list must include this Cafe24 integration. Re-a
 
 **Q. Throughput feels slow under heavy use.**
 You've hit Cafe24's leaky-bucket quota and the backend is auto-backing off. `meta.callUsage` / `meta.callRemain` headers expose the current bucket state. If many workflows share the same integration, split usage across separate integrations to widen the quota.
-
-## Related spec
-
-- Node spec: `spec/4-nodes/4-integration/4-cafe24.md`
-- Integration management screen: `spec/2-navigation/4-integration.md` §5.8 / §10.3
-- Internal MCP Bridge: `spec/5-system/11-mcp-client.md` §2.3
-- Metadata convention: `spec/conventions/cafe24-api-metadata.md`

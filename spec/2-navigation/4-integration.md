@@ -156,6 +156,7 @@ Step 2 auth     ──submit──▶ Step 3 test
    ```
    응답으로 mall 별 authorize URL 수신.
 4. 신규 팝업(600×700)으로 `https://{mall_id}.cafe24api.com/api/v2/oauth/authorize?...` 오픈.
+   - **scope 인코딩** — Cafe24 는 RFC 6749 §3.3 의 공백 구분이 아닌 **콤마 구분**(`mall.read_product,mall.write_order`) scope 를 요구한다. 공백/`+` 으로 보내면 단일 scope 라도 `invalid_scope` 로 거부된다 (Cafe24 의 자체 규약 — `developers.cafe24.com` 공식 example 과 `cafe24-app/cafe24_app_sample` 의 `StoreToken.java#getCodeRedirectUrl` 가 모두 콤마 구분). 다른 OAuth provider (google, github) 는 공백 구분 유지.
 5. 팝업 콜백 페이지(`/api/integrations/oauth/callback/cafe24`)가 토큰 저장 후 `postMessage` 로 부모창 알림.
 6. 부모창은 Step 3 로 자동 전이.
 

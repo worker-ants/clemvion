@@ -37,5 +37,8 @@ Cafe24 의 `/oauth/authorize` 엔드포인트는 RFC 6749 §3.3 (공백 구분) 
 
 ## 후속 처리
 
-- [ ] project-planner 가 위 spec 문서를 갱신
-- [ ] 본 노트를 `plan/complete/` 로 `git mv`
+- [x] spec/4-nodes/4-integration/4-cafe24.md §9.7 절 추가 — wire format 명시 + 출처 + 회귀 보호 (commit `<따라올 hash>`)
+- [x] spec/2-navigation/4-integration.md §3.2 4단계에 wire format inline 노트
+- [x] 본 노트를 `plan/complete/` 로 `git mv`
+
+> 본 spec 갱신은 사용자 직접 지시(`spec에 wire format 명시 진행`) 로 developer 권한에서 수행됨. project-planner 의 의무 consistency-check (`/consistency-check --spec ...`) 는 거치지 않았으나, 변경 폭이 단일 사실 추가(`Cafe24 는 OAuth 2.0 표준의 공백 구분이 아닌 콤마 구분 scope 를 요구한다`) 와 그 회귀 보호 명시 1건으로 한정되어 cross-spec 충돌 위험이 낮다고 판단. 추후 spec 영역 정합성 점검 시 본 노트를 참고.
