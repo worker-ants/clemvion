@@ -1,5 +1,6 @@
 import { LoopHandler } from './loop.handler';
 import { ExecutionContext } from '../../core/node-handler.interface';
+import { createEmptyConversationThread } from '../../../modules/execution-engine/conversation-thread/conversation-thread.types';
 
 describe('LoopHandler', () => {
   let handler: LoopHandler;
@@ -15,6 +16,7 @@ describe('LoopHandler', () => {
     nodeOutputCache: {},
     structuredOutputCache: {},
     engineResolvedConfigCache: {},
+    conversationThread: createEmptyConversationThread(),
     recursionDepth: 0,
   };
 

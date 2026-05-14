@@ -1,5 +1,6 @@
 import { FilterHandler } from './filter.handler.js';
 import { ExecutionContext } from '../../core/node-handler.interface.js';
+import { createEmptyConversationThread } from '../../../modules/execution-engine/conversation-thread/conversation-thread.types';
 
 type FilterMeta = {
   matchedCount: number;
@@ -30,6 +31,7 @@ describe('FilterHandler', () => {
       nodeOutputCache: {},
       structuredOutputCache: {},
       engineResolvedConfigCache: {},
+      conversationThread: createEmptyConversationThread(),
       recursionDepth: 0,
     };
   });

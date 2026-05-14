@@ -1,4 +1,5 @@
 import { ExecutionContext } from '../../../nodes/core/node-handler.interface';
+import { createEmptyConversationThread } from '../conversation-thread/conversation-thread.types';
 
 export function makeExecutionContext(
   overrides: Partial<ExecutionContext> = {},
@@ -11,6 +12,7 @@ export function makeExecutionContext(
     structuredOutputCache: {},
     engineResolvedConfigCache: {},
     recursionDepth: 0,
+    conversationThread: createEmptyConversationThread(),
     ...overrides,
   };
 }

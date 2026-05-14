@@ -1,5 +1,6 @@
 import { IfElseHandler } from './if-else.handler.js';
 import { ExecutionContext } from '../../core/node-handler.interface.js';
+import { createEmptyConversationThread } from '../../../modules/execution-engine/conversation-thread/conversation-thread.types';
 
 describe('IfElseHandler', () => {
   let handler: IfElseHandler;
@@ -14,6 +15,7 @@ describe('IfElseHandler', () => {
       nodeOutputCache: {},
       structuredOutputCache: {},
       engineResolvedConfigCache: {},
+      conversationThread: createEmptyConversationThread(),
       recursionDepth: 0,
     };
   });

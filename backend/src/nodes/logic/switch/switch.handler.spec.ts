@@ -1,5 +1,6 @@
 import { SwitchHandler } from './switch.handler.js';
 import { ExecutionContext } from '../../core/node-handler.interface.js';
+import { createEmptyConversationThread } from '../../../modules/execution-engine/conversation-thread/conversation-thread.types';
 
 describe('SwitchHandler', () => {
   let handler: SwitchHandler;
@@ -14,6 +15,7 @@ describe('SwitchHandler', () => {
       nodeOutputCache: {},
       structuredOutputCache: {},
       engineResolvedConfigCache: {},
+      conversationThread: createEmptyConversationThread(),
       recursionDepth: 0,
     };
   });

@@ -1,6 +1,7 @@
 import { ExpressionResolverService } from './expression-resolver.service';
 import { ExecutionContext } from '../../../nodes/core/node-handler.interface';
 import { Node, NodeCategory } from '../../nodes/entities/node.entity';
+import { createEmptyConversationThread } from '../conversation-thread/conversation-thread.types';
 
 function makeNode(id: string, label: string, type = 'http_request'): Node {
   const node = new Node();
@@ -236,6 +237,7 @@ describe('ExpressionResolverService', () => {
         },
         structuredOutputCache: {},
         engineResolvedConfigCache: {},
+        conversationThread: createEmptyConversationThread(),
         recursionDepth: 0,
       };
 
@@ -265,6 +267,7 @@ describe('ExpressionResolverService', () => {
         nodeOutputCache: {},
         structuredOutputCache: {},
         engineResolvedConfigCache: {},
+        conversationThread: createEmptyConversationThread(),
         recursionDepth: 0,
         loopContext: { index: 2, count: 5, isFirst: false, isLast: false },
         itemContext: {
@@ -296,6 +299,7 @@ describe('ExpressionResolverService', () => {
         nodeOutputCache: {},
         structuredOutputCache: {},
         engineResolvedConfigCache: {},
+        conversationThread: createEmptyConversationThread(),
         recursionDepth: 0,
       };
 
@@ -357,6 +361,7 @@ describe('ExpressionResolverService', () => {
         nodeOutputCache: {},
         structuredOutputCache: {},
         engineResolvedConfigCache: {},
+        conversationThread: createEmptyConversationThread(),
         recursionDepth: 0,
       };
       const ctx = service.buildExpressionContext({}, execContext, nodeMap);
@@ -375,6 +380,7 @@ describe('ExpressionResolverService', () => {
         nodeOutputCache: {},
         structuredOutputCache: {},
         engineResolvedConfigCache: {},
+        conversationThread: createEmptyConversationThread(),
         recursionDepth: 0,
       };
       const ctx = service.buildExpressionContext(
@@ -400,6 +406,7 @@ describe('ExpressionResolverService', () => {
         },
         structuredOutputCache: {},
         engineResolvedConfigCache: {},
+        conversationThread: createEmptyConversationThread(),
         recursionDepth: 0,
       };
 
@@ -433,6 +440,7 @@ describe('ExpressionResolverService', () => {
         },
         structuredOutputCache: {},
         engineResolvedConfigCache: {},
+        conversationThread: createEmptyConversationThread(),
         recursionDepth: 0,
       };
 
@@ -459,6 +467,7 @@ describe('ExpressionResolverService', () => {
         },
         structuredOutputCache: {},
         engineResolvedConfigCache: {},
+        conversationThread: createEmptyConversationThread(),
         recursionDepth: 0,
       };
 
@@ -489,6 +498,7 @@ describe('ExpressionResolverService', () => {
         },
         structuredOutputCache: {},
         engineResolvedConfigCache: {},
+        conversationThread: createEmptyConversationThread(),
         recursionDepth: 0,
       };
 
@@ -518,6 +528,7 @@ describe('ExpressionResolverService', () => {
         },
         structuredOutputCache: {},
         engineResolvedConfigCache: {},
+        conversationThread: createEmptyConversationThread(),
         recursionDepth: 0,
       };
 

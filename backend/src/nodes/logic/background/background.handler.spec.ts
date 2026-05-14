@@ -1,5 +1,6 @@
 import { BackgroundHandler } from './background.handler.js';
 import { ExecutionContext } from '../../core/node-handler.interface.js';
+import { createEmptyConversationThread } from '../../../modules/execution-engine/conversation-thread/conversation-thread.types';
 
 describe('BackgroundHandler', () => {
   let handler: BackgroundHandler;
@@ -14,6 +15,7 @@ describe('BackgroundHandler', () => {
       nodeOutputCache: {},
       structuredOutputCache: {},
       engineResolvedConfigCache: {},
+      conversationThread: createEmptyConversationThread(),
       recursionDepth: 0,
     };
   });

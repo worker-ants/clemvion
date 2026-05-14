@@ -11,6 +11,18 @@ describe('ExecutionContextService', () => {
     service.createContext(executionId, workflowId);
   });
 
+  describe('createContext', () => {
+    it('initializes an empty conversationThread', () => {
+      const ctx = service.getContext(executionId)!;
+      expect(ctx.conversationThread).toEqual({
+        id: 'default',
+        nextSeq: 0,
+        turns: [],
+        totalChars: 0,
+      });
+    });
+  });
+
   describe('setNodeOutput — production strict mode (NodeHandlerOutput contract)', () => {
     const prevEnv = process.env.NODE_ENV;
     beforeEach(() => {
