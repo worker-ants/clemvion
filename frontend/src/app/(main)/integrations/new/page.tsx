@@ -516,6 +516,14 @@ function AuthStep({
       {variant?.authType === "oauth2" && service.scopes.length > 0 && (
         <div>
           <Label>{t("integrations.oauthScopesLabel")}</Label>
+          {service.type === "cafe24" && (
+            <div
+              role="note"
+              className="mb-2 rounded-md border border-amber-300 bg-amber-50 p-3 text-xs text-amber-900 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-200"
+            >
+              {t("integrations.cafe24ScopeWarning")}
+            </div>
+          )}
           <div className="space-y-2 rounded-md border border-[hsl(var(--border))] p-3">
             {service.scopes.map((s) => (
               <label

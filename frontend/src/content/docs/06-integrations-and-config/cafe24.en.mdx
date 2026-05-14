@@ -131,6 +131,21 @@ The `redirect_uri` parameter this service sent does not exactly match any Redire
 **Q. How do I register callback URLs for multiple environments (local / staging / production)?**
 The Cafe24 app's Redirect URI field accepts multiple entries. Add the full `https://<env-host>/api/integrations/oauth/callback/cafe24` for every environment that will start an OAuth flow through this app.
 
+**Q. OAuth start fails with `invalid_scope: The scope added by Cafe24 Developers is invalid`.**
+Cafe24 only honors OAuth requests for scopes that are **pre-registered on the app**. If even one scope you ticked in the integration form is missing from your Cafe24 app's permission settings, the *entire* OAuth call is rejected.
+
+Resolution:
+
+1. Sign in to https://developers.cafe24.com → **`Apps` → `My Apps`** → click the app
+2. Open **`App Information`** (or **`개발 정보`** in Korean UI) → scroll to the **`Permissions` / `Scope`** section
+3. Tick **every** scope you selected in the integration form → save
+4. Retry [Connect with Cafe24]
+
+> Tip: To narrow down which scope is missing, reduce the integration form selection to a single scope (e.g. `mall.read_product`) first. If it succeeds, add the rest one by one to find the failing one.
+
+**Q. Can I register an integration while my service is still in development?**
+Yes. You don't need to publish to the Cafe24 App Store — the **Private (self-issued) app** flow works end-to-end. Create an app on Cafe24 Developers from your own mall, tick every scope you plan to use in the app's permission settings, then pick App Type = Private in the integration form and paste your `client_id` / `client_secret`. No App Store review is required; the app installs straight into your own mall.
+
 **Q. I mistyped the mall_id — how do I fix it?**
 Only the integration's display name (alias) can be edited after creation. Recreate the integration. An invalid mall_id is rejected at the OAuth begin step (`/^[a-z0-9-]{3,50}$/`).
 

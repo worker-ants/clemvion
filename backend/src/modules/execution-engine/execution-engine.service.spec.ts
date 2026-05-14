@@ -23,6 +23,7 @@ import { RagSearchService } from '../knowledge-base/search/rag-search.service';
 import { KnowledgeBaseService } from '../knowledge-base/knowledge-base.service';
 import { IntegrationsService } from '../integrations/integrations.service';
 import { McpClientService } from '../mcp/mcp-client.service';
+import { Cafe24ApiClient } from '../../nodes/integration/cafe24/cafe24-api.client';
 import {
   Execution,
   ExecutionStatus,
@@ -328,6 +329,12 @@ describe('ExecutionEngineService', () => {
           provide: McpClientService,
           useValue: {
             connect: jest.fn(),
+          },
+        },
+        {
+          provide: Cafe24ApiClient,
+          useValue: {
+            request: jest.fn(),
           },
         },
         {
