@@ -1,6 +1,6 @@
 import { SplitHandler } from './split.handler';
 import { ExecutionContext } from '../../core/node-handler.interface';
-import { createEmptyConversationThread } from '../../../modules/execution-engine/conversation-thread/conversation-thread.types';
+import { createEmptyConversationThread } from '../../../shared/conversation-thread/conversation-thread.types';
 
 describe('SplitHandler', () => {
   let handler: SplitHandler;

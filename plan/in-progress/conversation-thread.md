@@ -136,10 +136,43 @@ owner: developer
 - **Phase 20 ✅** — spec/conventions/conversation-thread.md §7 v2 로드맵 보강: Parallel + thread 정책 (W8), `$thread.text` lazy 평가 (W5), service 모듈 위치 정리 (W4), Storage cap 정책 옵션 추가.
 
 **최종 미적용**:
-- W4 / W10 — 가치 대비 작업 큰 항목. v2 로드맵 또는 e2e phase 에서 처리.
+- W4 / W10 — 가치 대비 작업 큰 항목. v2 로드맵 또는 e2e phase 에서 처리. **(Phase 18-19 에서 적용 완료)**
 - W5 / W8 — spec 의 v2 로드맵에 정책 결정 항목으로 명시 완료.
 
 **최종 검증**: 196 suites / 3430 tests green, lint clean, build clean.
+
+### Phase 18 + 19 — 후속 추가 적용 (사용자 요청) ✅
+2026-05-14 단일 commit:
+
+**Phase 18 ✅ — Button resume 통합 테스트 (W10)**
+- `execution-engine.service.spec.ts` 의 "Form node blocking" describe 옆에 "Button (Carousel) node blocking" describe 신설.
+- carousel handler mock + buttonConfig + dynamic port (`btn-1`) edge.
+- 2 신규 테스트:
+  - button click resume 시 `appendPresentationInteraction` 가 button_click 페이로드로 호출되는지 spy 검증
+  - `EXECUTION_WAITING_FOR_INPUT` emit 의 `interactionType: 'buttons'` + `conversationThread` snapshot 동봉 검증
+- mockOutput 의 `meta.interactionType: 'buttons'` 가 `getInteractionType()` 의 분기에 필수임을 확인.
+
+**Phase 19 ✅ — Architecture refactor (W4)**
+- `backend/src/shared/conversation-thread/` 디렉토리 신설. types.ts + thread-renderer.ts + thread-renderer.spec.ts 를 git mv 로 이동.
+- 47 파일의 import path 일괄 갱신 (python 스크립트 + 1 수동):
+  - `modules/execution-engine/conversation-thread/{types,renderer}` → `shared/conversation-thread/{types,renderer}`
+  - `./conversation-thread/...` 형태 (engine root) → `../../shared/conversation-thread/...`
+  - `../conversation-thread/...` 형태 (engine subdir) → `../../../shared/conversation-thread/...`
+  - service.ts 의 `./conversation-thread.types` → `../../../shared/conversation-thread/conversation-thread.types`
+- service.ts 는 `execution-engine/conversation-thread/` 안에 유지 (NestJS Injectable + ExecutionContext 의존이라 layer-aware).
+- 의존 방향: `nodes/ai/ai-agent` → `shared/conversation-thread` (pure 유틸) + `execution-engine/conversation-thread` (DI service). nodes 가 execution-engine 의 service 에 의존하지만, service 는 더 이상 ai-agent 의 코드를 알 필요 없음 (handler 가 service 를 inject). 단방향 의존 유지.
+
+**최종 검증**: 196 suites / **3432 tests** green (3430 + 2 button), lint clean, build clean.
+
+### v1 출하 잔여 항목
+
+모두 spec 의 v2 로드맵 (`spec/conventions/conversation-thread.md §7`) 에 명시:
+- W5: `$thread.text` lazy 평가 (성능 측정 후)
+- W8: Parallel + thread 정책 (use case 정의 후)
+- text_classifier / information_extractor push hook 구현 (v2 §1.4 변환 규칙 합의 후)
+- DB 컬럼 신설 (cross-node thread 조회 N+1 해소 시점)
+- Multi-thread (사용자 지정 key)
+- Token-aware cap (provider tokenizer)
 
 ## 핵심 설계 (요약)
 

@@ -12,7 +12,7 @@
 import { AiAgentHandler } from './ai-agent.handler';
 import { ConversationThreadService } from '../../../modules/execution-engine/conversation-thread/conversation-thread.service';
 import { ExecutionContext } from '../../core/node-handler.interface';
-import { createEmptyConversationThread } from '../../../modules/execution-engine/conversation-thread/conversation-thread.types';
+import { createEmptyConversationThread } from '../../../shared/conversation-thread/conversation-thread.types';
 
 function makeContext(
   overrides: Partial<ExecutionContext> = {},

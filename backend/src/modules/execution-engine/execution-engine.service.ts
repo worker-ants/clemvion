@@ -26,8 +26,8 @@ import {
   RECOVERY_LOCK_KEY,
 } from './continuation/continuation-bus.service';
 import { ConversationThreadService } from './conversation-thread/conversation-thread.service';
-import { createEmptyConversationThread } from './conversation-thread/conversation-thread.types';
-import { cloneThread } from './conversation-thread/thread-renderer';
+import { createEmptyConversationThread } from '../../shared/conversation-thread/conversation-thread.types';
+import { cloneThread } from '../../shared/conversation-thread/thread-renderer';
 import { buildGraph, GraphEdge } from './graph/graph-builder';
 import { topologicalSort } from './graph/topological-sort';
 import { identifyBackEdges } from './graph/back-edge-identifier';

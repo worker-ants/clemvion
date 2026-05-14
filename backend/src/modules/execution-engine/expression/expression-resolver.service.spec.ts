@@ -1,7 +1,7 @@
 import { ExpressionResolverService } from './expression-resolver.service';
 import { ExecutionContext } from '../../../nodes/core/node-handler.interface';
 import { Node, NodeCategory } from '../../nodes/entities/node.entity';
-import { createEmptyConversationThread } from '../conversation-thread/conversation-thread.types';
+import { createEmptyConversationThread } from '../../../shared/conversation-thread/conversation-thread.types';
 
 function makeNode(id: string, label: string, type = 'http_request'): Node {
   const node = new Node();

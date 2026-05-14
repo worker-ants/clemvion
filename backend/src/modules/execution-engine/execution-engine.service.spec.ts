@@ -2,7 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { getDataSourceToken, getRepositoryToken } from '@nestjs/typeorm';
 import { getQueueToken } from '@nestjs/bullmq';
 import { BACKGROUND_EXECUTION_QUEUE } from './queues/background-execution.queue';
-import { createEmptyConversationThread } from './conversation-thread/conversation-thread.types';
+import { createEmptyConversationThread } from '../../shared/conversation-thread/conversation-thread.types';
 import {
   ExecutionEngineService,
   buildAiMessageDebugFromResumeState,
@@ -1685,6 +1685,170 @@ describe('ExecutionEngineService', () => {
         executionId,
         'execution.cancelled',
         expect.objectContaining({ status: 'cancelled' }),
+      );
+    });
+  });
+
+  describe('Button (Carousel) node blocking', () => {
+    // Mirror of "Form node blocking" (above) for the button-resume path.
+    // Verifies the engine hook (spec/conventions/conversation-thread.md §2.1)
+    // pushes a presentation_user turn to ConversationThread when the user
+    // clicks a port-typed button on a Carousel/Table/Chart/Template node.
+    const carouselNodes: Partial<Node>[] = [
+      {
+        id: 'node-start',
+        workflowId,
+        type: 'test_node',
+        category: NodeCategory.LOGIC,
+        config: {},
+        positionX: 0,
+        positionY: 0,
+        label: 'start',
+        isDisabled: false,
+      },
+      {
+        id: 'node-carousel',
+        workflowId,
+        type: 'carousel',
+        category: NodeCategory.PRESENTATION,
+        config: {},
+        positionX: 100,
+        positionY: 0,
+        label: 'carousel',
+        isDisabled: false,
+      },
+      {
+        id: 'node-end',
+        workflowId,
+        type: 'test_node',
+        category: NodeCategory.LOGIC,
+        config: {},
+        positionX: 200,
+        positionY: 0,
+        label: 'end',
+        isDisabled: false,
+      },
+    ];
+
+    const carouselEdges: Partial<Edge>[] = [
+      {
+        id: 'edge-1',
+        workflowId,
+        sourceNodeId: 'node-start',
+        sourcePort: 'out',
+        targetNodeId: 'node-carousel',
+        targetPort: 'in',
+        type: EdgeType.DATA,
+      },
+      // Button-typed dynamic port — sourcePort matches button.id so engine
+      // routes to `node-end` on click.
+      {
+        id: 'edge-2',
+        workflowId,
+        sourceNodeId: 'node-carousel',
+        sourcePort: 'btn-1',
+        targetNodeId: 'node-end',
+        targetPort: 'in',
+        type: EdgeType.DATA,
+      },
+    ];
+
+    const carouselHandler: NodeHandler = {
+      validate: () => ({ valid: true, errors: [] }),
+      execute: jest.fn(async () =>
+        mockOutput(
+          {
+            // Engine reads buttonConfig from nodeOutputCache as fallback —
+            // mockOutput puts the value here so waitForButtonInteraction
+            // can pick it up via the flat path.
+            buttonConfig: {
+              buttons: [
+                {
+                  id: 'btn-1',
+                  label: 'Approve',
+                  type: 'port' as const,
+                  style: 'primary' as const,
+                },
+              ],
+            },
+            items: [],
+          },
+          {
+            status: 'waiting_for_input',
+            // getInteractionType() reads `meta.interactionType` first.
+            // Without this the engine falls through neither the form nor
+            // button branch and runs to completion immediately.
+            meta: { interactionType: 'buttons' },
+          },
+        ),
+      ),
+    };
+
+    beforeEach(() => {
+      (mockHandler.execute as jest.Mock).mockResolvedValue(
+        mockOutput({ processed: true }),
+      );
+      mockNodeRepo.findBy.mockResolvedValue(carouselNodes);
+      mockEdgeRepo.findBy.mockResolvedValue(carouselEdges);
+      handlerRegistry.register('carousel', carouselHandler, {
+        kind: 'blocking',
+        interaction: 'buttons',
+      });
+    });
+
+    it('appends presentation_user turn (button_click) to ConversationThread on resume', async () => {
+      const conversationThreadService = (
+        service as unknown as {
+          conversationThreadService: ConversationThreadService;
+        }
+      ).conversationThreadService;
+      const appendSpy = jest.spyOn(
+        conversationThreadService,
+        'appendPresentationInteraction',
+      );
+
+      await service.execute(workflowId, { data: 'test' });
+      await flushPromises();
+      service.continueButtonClick(executionId, 'btn-1');
+      await flushPromises();
+
+      expect(appendSpy).toHaveBeenCalledTimes(1);
+      expect(appendSpy).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({
+          node: expect.objectContaining({
+            id: 'node-carousel',
+            type: 'carousel',
+          }),
+          interaction: expect.objectContaining({
+            type: 'button_click',
+            data: expect.objectContaining({
+              buttonId: 'btn-1',
+              buttonLabel: 'Approve',
+            }),
+            receivedAt: expect.any(String),
+          }),
+        }),
+      );
+    });
+
+    it('emits waiting_for_input with interactionType="buttons" + thread snapshot', async () => {
+      await service.execute(workflowId, { data: 'test' });
+      await flushPromises();
+
+      expect(mockWebsocketService.emitExecutionEvent).toHaveBeenCalledWith(
+        executionId,
+        'execution.waiting_for_input',
+        expect.objectContaining({
+          waitingNodeId: 'node-carousel',
+          waitingNodeType: 'carousel',
+          interactionType: 'buttons',
+          // Thread snapshot is included for live UI updates (spec §4.4.5).
+          conversationThread: expect.objectContaining({
+            id: 'default',
+            turns: expect.any(Array),
+          }),
+        }),
       );
     });
   });

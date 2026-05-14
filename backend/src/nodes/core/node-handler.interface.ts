@@ -1,4 +1,4 @@
-import type { ConversationThread } from '../../modules/execution-engine/conversation-thread/conversation-thread.types';
+import type { ConversationThread } from '../../shared/conversation-thread/conversation-thread.types';
 
 export interface ExecutionContext {
   executionId: string;

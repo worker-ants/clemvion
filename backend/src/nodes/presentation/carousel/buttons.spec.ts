@@ -1,5 +1,5 @@
 import { CarouselHandler } from './carousel.handler.js';
-import { createEmptyConversationThread } from '../../../modules/execution-engine/conversation-thread/conversation-thread.types';
+import { createEmptyConversationThread } from '../../../shared/conversation-thread/conversation-thread.types';
 
 describe('CarouselHandler - Buttons', () => {
   let handler: CarouselHandler;

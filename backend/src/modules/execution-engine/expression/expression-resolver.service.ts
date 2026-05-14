@@ -7,7 +7,7 @@ import {
 import { ExecutionContext } from '../../../nodes/core/node-handler.interface';
 import { Node } from '../../nodes/entities/node.entity';
 import { EXPRESSION_EXCLUSIONS } from './expression-exclusions';
-import { renderThreadAsSystemText } from '../conversation-thread/thread-renderer';
+import { renderThreadAsSystemText } from '../../../shared/conversation-thread/thread-renderer';
 
 const EXPRESSION_PATTERN = /\{\{/;
 const FULL_EXPRESSION_PATTERN = /^\s*\{\{(.+)\}\}\s*$/s;

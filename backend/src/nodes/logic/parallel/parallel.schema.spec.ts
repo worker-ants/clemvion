@@ -6,7 +6,7 @@ import {
   validateParallelConfig,
 } from './parallel.schema';
 import { evaluateMetadataBlockingErrors } from '../../core/metadata-validation';
-import { createEmptyConversationThread } from '../../../modules/execution-engine/conversation-thread/conversation-thread.types';
+import { createEmptyConversationThread } from '../../../shared/conversation-thread/conversation-thread.types';
 
 describe('Parallel node', () => {
   it('스키마 기본값: branchCount=2, maxConcurrency=0, waitAll=true', () => {

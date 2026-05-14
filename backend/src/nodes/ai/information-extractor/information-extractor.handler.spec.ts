@@ -1,7 +1,7 @@
 import { InformationExtractorHandler } from './information-extractor.handler';
 import { ExecutionContext } from '../../core/node-handler.interface';
 import { adaptHandlerReturn } from '../../../modules/execution-engine/handler-output.adapter';
-import { createEmptyConversationThread } from '../../../modules/execution-engine/conversation-thread/conversation-thread.types';
+import { createEmptyConversationThread } from '../../../shared/conversation-thread/conversation-thread.types';
 
 /**
  * Handler returns the unified NodeHandlerOutput shape

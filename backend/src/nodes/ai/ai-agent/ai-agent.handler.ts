@@ -31,7 +31,7 @@ import {
 import type {
   ConversationThread,
   ConversationTurnToolCall,
-} from '../../../modules/execution-engine/conversation-thread/conversation-thread.types';
+} from '../../../shared/conversation-thread/conversation-thread.types';
 import type {
   NodeRef,
   ThreadHolder,
@@ -39,7 +39,7 @@ import type {
 import {
   applyCap,
   renderThreadAsSystemText,
-} from '../../../modules/execution-engine/conversation-thread/thread-renderer';
+} from '../../../shared/conversation-thread/thread-renderer';
 
 /**
  * Per-tool execution metadata recorded into `meta.turnDebug[].toolCalls`. The
@@ -292,7 +292,7 @@ class RagAccumulatorGroup {
  * LLM can attribute the input back to the originating node.
  */
 function mapTurnsToChatMessages(
-  turns: readonly import('../../../modules/execution-engine/conversation-thread/conversation-thread.types').ConversationTurn[],
+  turns: readonly import('../../../shared/conversation-thread/conversation-thread.types').ConversationTurn[],
 ): ChatMessage[] {
   return turns.map((t): ChatMessage => {
     switch (t.source) {

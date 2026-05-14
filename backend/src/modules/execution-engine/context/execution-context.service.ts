@@ -4,7 +4,7 @@ import {
   NodeHandlerOutput,
 } from '../../../nodes/core/node-handler.interface';
 import { wrapBareAsNodeHandlerOutput } from '../handler-output.adapter';
-import { createEmptyConversationThread } from '../conversation-thread/conversation-thread.types';
+import { createEmptyConversationThread } from '../../../shared/conversation-thread/conversation-thread.types';
 
 /**
  * Engine-internal alias that drops the public `Readonly` qualifier on

@@ -1,4 +1,4 @@
-import type { ConversationThread } from '../conversation-thread/conversation-thread.types';
+import type { ConversationThread } from '../../../shared/conversation-thread/conversation-thread.types';
 
 /**
  * Background 노드의 자식 흐름을 비동기로 실행하기 위한 BullMQ 큐 이름.
