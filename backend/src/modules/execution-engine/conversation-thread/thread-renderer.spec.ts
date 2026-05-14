@@ -1,12 +1,17 @@
 import {
   applyCap,
+  cloneThread,
   MAX_INJECTED_CHARS,
   MAX_INJECTED_TURNS,
   MAX_TURN_TEXT_CHARS,
   renderInteractionText,
   renderThreadAsSystemText,
 } from './thread-renderer';
-import { ConversationTurn } from './conversation-thread.types';
+import {
+  ConversationThread,
+  ConversationTurn,
+  createEmptyConversationThread,
+} from './conversation-thread.types';
 
 function makeTurn(overrides: Partial<ConversationTurn> = {}): ConversationTurn {
   return {
@@ -23,12 +28,14 @@ function makeTurn(overrides: Partial<ConversationTurn> = {}): ConversationTurn {
 
 describe('renderInteractionText', () => {
   describe('form_submitted', () => {
-    it('renders flat key=value pairs joined by comma', () => {
+    it('renders flat key=value pairs joined by comma (wrapped in user-input marker)', () => {
       const text = renderInteractionText({
         type: 'form_submitted',
         data: { name: 'John', age: 30 },
       });
-      expect(text).toBe('name=John, age=30');
+      // Prompt-injection defense: form values are wrapped so the LLM can
+      // distinguish instructions from data.
+      expect(text).toBe('[user-input]name=John, age=30[/user-input]');
     });
 
     it('serializes nested objects/arrays via JSON', () => {
@@ -40,14 +47,16 @@ describe('renderInteractionText', () => {
       expect(text).toContain('meta={"x":1}');
     });
 
-    it('caps total length at 200 chars with ellipsis', () => {
+    it('caps total length at 200 chars with ellipsis (cap applies to inner content)', () => {
       const big = 'x'.repeat(500);
       const text = renderInteractionText({
         type: 'form_submitted',
         data: { huge: big },
       });
-      expect(text.length).toBeLessThanOrEqual(200 + 3);
-      expect(text.endsWith('...')).toBe(true);
+      // Inner content capped at 200+ellipsis; outer marker adds fixed overhead.
+      const innerLen = text.length - '[user-input][/user-input]'.length;
+      expect(innerLen).toBeLessThanOrEqual(200 + 3);
+      expect(text.endsWith('...[/user-input]')).toBe(true);
     });
 
     it('handles empty data as empty string', () => {
@@ -62,18 +71,18 @@ describe('renderInteractionText', () => {
           type: 'form_submitted',
           data: { a: null, b: undefined },
         }),
-      ).toBe('a=null, b=undefined');
+      ).toBe('[user-input]a=null, b=undefined[/user-input]');
     });
   });
 
   describe('button_click', () => {
-    it('uses buttonLabel when present', () => {
+    it('uses buttonLabel when present (wrapped in marker)', () => {
       expect(
         renderInteractionText({
           type: 'button_click',
           data: { buttonId: 'btn-1', buttonLabel: '동의' },
         }),
-      ).toBe('clicked: 동의');
+      ).toBe('clicked: [user-input]동의[/user-input]');
     });
 
     it('falls back to buttonId when label missing', () => {
@@ -82,18 +91,18 @@ describe('renderInteractionText', () => {
           type: 'button_click',
           data: { buttonId: 'btn-1' },
         }),
-      ).toBe('clicked: btn-1');
+      ).toBe('clicked: [user-input]btn-1[/user-input]');
     });
   });
 
   describe('button_continue', () => {
-    it('renders url when present', () => {
+    it('renders url when present (wrapped in marker)', () => {
       expect(
         renderInteractionText({
           type: 'button_continue',
           data: { buttonId: 'btn-1', buttonLabel: 'Open', url: 'https://x' },
         }),
-      ).toBe('continued: https://x');
+      ).toBe('continued: [user-input]https://x[/user-input]');
     });
 
     it('falls back to bare "continued" when url missing', () => {
@@ -164,6 +173,47 @@ describe('renderThreadAsSystemText', () => {
       makeTurn({ seq: 1, text: 'hello' }),
     ]);
     expect(out).toContain('hello');
+  });
+});
+
+describe('cloneThread (Background isolation §3.2)', () => {
+  function makeThread(turnCount = 2): ConversationThread {
+    const t = createEmptyConversationThread();
+    for (let i = 0; i < turnCount; i++) {
+      t.turns.push(makeTurn({ seq: i, text: `t${i}` }));
+      t.nextSeq = i + 1;
+      t.totalChars += 2;
+    }
+    return t;
+  }
+
+  it('produces a new wrapper object', () => {
+    const original = makeThread();
+    const clone = cloneThread(original);
+    expect(clone).not.toBe(original);
+  });
+
+  it('produces a new turns array (push to clone leaves original unchanged)', () => {
+    const original = makeThread();
+    const clone = cloneThread(original);
+    expect(clone.turns).not.toBe(original.turns);
+    clone.turns.push(makeTurn({ seq: 999, text: 'leaked' }));
+    expect(original.turns).toHaveLength(2);
+    expect(original.turns.find((t) => t.text === 'leaked')).toBeUndefined();
+  });
+
+  it('shares ConversationTurn objects (turns are immutable post-push, deeper clone unnecessary)', () => {
+    const original = makeThread();
+    const clone = cloneThread(original);
+    expect(clone.turns[0]).toBe(original.turns[0]);
+  });
+
+  it('preserves totalChars and id', () => {
+    const original = makeThread(3);
+    const clone = cloneThread(original);
+    expect(clone.id).toBe(original.id);
+    expect(clone.nextSeq).toBe(original.nextSeq);
+    expect(clone.totalChars).toBe(original.totalChars);
   });
 });
 

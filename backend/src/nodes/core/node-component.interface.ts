@@ -13,6 +13,7 @@ import { RagSearchService } from '../../modules/knowledge-base/search/rag-search
 import { KnowledgeBaseService } from '../../modules/knowledge-base/knowledge-base.service';
 import { IntegrationsService } from '../../modules/integrations/integrations.service';
 import { McpClientService } from '../../modules/mcp/mcp-client.service';
+import type { ConversationThreadService } from '../../modules/execution-engine/conversation-thread/conversation-thread.service';
 import { WorkflowExecutor } from './workflow-executor.interface';
 import { WebsocketService } from '../../modules/websocket/websocket.service';
 
@@ -277,7 +278,7 @@ export interface HandlerDependencies {
    *  ConversationThread (spec/conventions/conversation-thread.md §2.2).
    *  Other handlers ignore. Optional so legacy test fixtures that build
    *  handler instances without the engine wiring still work. */
-  conversationThreadService?: import('../../modules/execution-engine/conversation-thread/conversation-thread.service').ConversationThreadService;
+  conversationThreadService?: ConversationThreadService;
 }
 
 /**

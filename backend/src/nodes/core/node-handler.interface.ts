@@ -1,3 +1,5 @@
+import type { ConversationThread } from '../../modules/execution-engine/conversation-thread/conversation-thread.types';
+
 export interface ExecutionContext {
   executionId: string;
   workflowId: string;
@@ -120,7 +122,7 @@ export interface ExecutionContext {
    *
    * 상세: `spec/conventions/conversation-thread.md`.
    */
-  conversationThread: import('../../modules/execution-engine/conversation-thread/conversation-thread.types').ConversationThread;
+  conversationThread: ConversationThread;
   /**
    * 엔진 내부 상태 — sub-workflow inline execution 경로 (`runExecution` 의
    * `executeInline` branch) 에서만 set. `_` prefix 가 internal 신호.
