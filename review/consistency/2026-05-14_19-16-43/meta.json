@@ -1,0 +1,34 @@
+{
+  "timestamp": "2026-05-14T19:23:01.820896",
+  "mode": "spec draft 검토 (--spec)",
+  "target_path": "plan/in-progress/spec-draft-thread-followups.md",
+  "blocked": false,
+  "total_elapsed_seconds": 378.76,
+  "checkers": [
+    {
+      "name": "cross_spec",
+      "status": "success",
+      "elapsed_seconds": 169.66
+    },
+    {
+      "name": "naming_collision",
+      "status": "success",
+      "elapsed_seconds": 211.23
+    },
+    {
+      "name": "convention_compliance",
+      "status": "success",
+      "elapsed_seconds": 224.02
+    },
+    {
+      "name": "rationale_continuity",
+      "status": "success",
+      "elapsed_seconds": 248.18
+    },
+    {
+      "name": "plan_coherence",
+      "status": "success",
+      "elapsed_seconds": 315.53
+    }
+  ]
+}

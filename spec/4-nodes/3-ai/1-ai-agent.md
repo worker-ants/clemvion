@@ -251,12 +251,14 @@ LLM 응답의 `toolCalls`를 순회할 때 다음 로직을 적용:
 1. Knowledge Base / MCP 서버 setup:
    a. KB 도구(`kb_*`) 와 MCP 도구(`mcp_*`, 메타도구 포함)를 일반 도구·조건 도구와 함께 LLM 에 노출 — KB 검색은 [Spec RAG §2](../../5-system/9-rag-search.md#2-검색-호출-흐름-llm-tool-calling), MCP 는 [Spec MCP Client §7](../../5-system/11-mcp-client.md#7-실행-흐름-요약) 참조
    b. KB 검색은 LLM 의 능동 호출 시에만 실행되며 prefill 하지 않음
-1.5. **Conversation Thread 주입** (CONVENTIONS Conversation Thread §5):
+1.5. **Conversation Thread 주입** (CONVENTIONS Conversation Thread §5) — LLM 호출 **전**:
     - `contextScope ≠ 'none'` 일 때 `ConversationThreadService.getThreadExcludingNode(context, this.nodeId)` 로 자기 외 turn 을 가져온다
     - `contextInjectionMode='messages'` 면 messages 배열 앞에 prepend ([Spec Conversation Thread §5.1](../../conventions/conversation-thread.md#51-messages-모드-매핑) 매핑표)
     - `'system_text'` 면 systemPrompt 끝에 `thread-renderer` 결과 첨부
     - cap 적용 후 dropped turn 수를 `meta.contextInjection.droppedTurns` 로 노출
+1.7. **`ai_user` turn push** (spec/conventions/conversation-thread.md §2.2) — LLM 호출 **전**, `userPrompt` resolved 직후 1회.
 2. systemPrompt + userPrompt로 LLM 호출 (tools 파라미터에 위 도구들이 포함됨)
+2.5. **`ai_assistant` turn push** — LLM 응답 직후. 정상 종료 시 최종 `output.result.response` (json 모드는 `JSON.stringify`) 를 push. condition route 시에도 분기 직전 마지막 assistant 응답 push. tool-loop 중 assistant / tool result push 는 `includeToolTurns: true` 시에만.
 3. LLM이 도구 호출을 요청하면:
    a. `toolCalls`를 **조건 도구**(`cond_*`) / **KB 도구**(`kb_*`) / **MCP 도구**(`mcp_*`) / **일반 도구**(`tool_*`) 로 분류 — provider 의 `matches()` 가 우선 판정, 어디에도 매칭 안 되면 일반 도구로 분류
    b. **조건 도구만 존재:** 해당 조건 포트로 즉시 라우팅
@@ -399,6 +401,7 @@ LLM 응답의 `toolCalls`를 순회할 때 다음 로직을 적용:
 | `meta.ragDiagnostics` | object | RagAccumulator | KB 검색 진단 (`attempted`/`searchedKbCount`/`queriesUsed`/`resultCount`/`skipReason?`) |
 | `meta.mcpDiagnostics` | object? | McpDiagnostics | `mcpServers` 가 1개 이상이거나 LLM 이 MCP 도구를 1번 이상 호출한 경우만 포함. 필드: [MCP Client §6.2](../../5-system/11-mcp-client.md#62-진단-누적-mcpdiagnostics) |
 | `meta.turnDebug[]` | Array | handler return | 턴 단위 LLM 호출 트레이스. single 은 길이 1 — 멀티턴 출력 스키마와 일관성 유지 |
+| `meta.contextInjection` | object? | handler return | `contextScope ≠ 'none'` + thread non-empty 시에만 echo. `{ appliedScope, appliedMode, injectedTurns, droppedTurns, totalInjectedChars }` — 적용된 결과 (config echo 가 아님, Principle 2 정합). 상세: [Spec Conversation Thread §5.3](../../conventions/conversation-thread.md#53-cap-v1--char-기반) |
 | `port` | `"out"` | handler return | 정상 종료 분기 |
 | `status` | `"ended"` | handler return | 노드 실행 완료 |
 
