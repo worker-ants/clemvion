@@ -18,6 +18,14 @@ export function computeStatus(integration: IntegrationDto): StatusView {
       tone: "warn",
     };
   }
+  if (integration.status === "pending_install") {
+    return {
+      label: "Pending install",
+      dotClassName: "bg-blue-400",
+      tone: "warn",
+      detail: "Complete Cafe24 Test Run to activate",
+    };
+  }
   if (integration.status === "error") {
     return {
       label: "Error",
@@ -56,8 +64,9 @@ function daysUntil(at: string): number {
 }
 
 export function needsAttention(integration: IntegrationDto): boolean {
-  if (integration.status !== "connected") return true;
-  return isExpiringSoon(integration.tokenExpiresAt);
+  if (integration.status === "connected") return isExpiringSoon(integration.tokenExpiresAt);
+  if (integration.status === "pending_install") return false;
+  return true;
 }
 
 interface StatusBadgeProps {
