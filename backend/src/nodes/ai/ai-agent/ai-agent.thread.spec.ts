@@ -234,4 +234,213 @@ describe('AiAgentHandler — ConversationThread push (Phase 4a)', () => {
       );
     });
   });
+
+  describe('inject (Phase 4b)', () => {
+    function seedThreadFromOtherNode(context: ExecutionContext): void {
+      conversationThreadService.appendPresentationInteraction(context, {
+        node: { id: 'form-1', label: 'Form', type: 'form' },
+        interaction: {
+          type: 'form_submitted',
+          data: { name: 'Alice', email: 'alice@example.com' },
+          receivedAt: '2026-05-14T10:00:00.000Z',
+        },
+      });
+      conversationThreadService.appendAiAssistantMessage(context, {
+        node: { id: 'agent-prev', label: 'PrevAgent', type: 'ai_agent' },
+        content: 'Welcome Alice',
+      });
+    }
+
+    it("single-turn contextScope='thread' messages mode prepends turns from other nodes", async () => {
+      const context = makeContext();
+      seedThreadFromOtherNode(context);
+
+      await handler.execute(
+        undefined,
+        {
+          mode: 'single_turn',
+          model: 'gpt-4o',
+          systemPrompt: 'You are helpful',
+          userPrompt: 'How are you?',
+          responseFormat: 'text',
+          maxToolCalls: 10,
+          contextScope: 'thread',
+          contextInjectionMode: 'messages',
+        },
+        context,
+      );
+
+      const llmCall = mockLlmService.chat.mock.calls[0][1] as {
+        messages: { role: string; content: string }[];
+      };
+      // Order: system → injected (form_submitted as user, prev assistant) → userPrompt
+      expect(llmCall.messages[0].role).toBe('system');
+      expect(llmCall.messages[1].role).toBe('user');
+      expect(llmCall.messages[1].content).toContain('[from Form]');
+      expect(llmCall.messages[1].content).toContain('name=Alice');
+      expect(llmCall.messages[2].role).toBe('assistant');
+      expect(llmCall.messages[2].content).toBe('Welcome Alice');
+      expect(llmCall.messages[3].role).toBe('user');
+      expect(llmCall.messages[3].content).toBe('How are you?');
+    });
+
+    it("single-turn contextScope='thread' system_text mode appends to system prompt", async () => {
+      const context = makeContext();
+      seedThreadFromOtherNode(context);
+
+      await handler.execute(
+        undefined,
+        {
+          mode: 'single_turn',
+          model: 'gpt-4o',
+          systemPrompt: 'You are helpful',
+          userPrompt: 'Hi',
+          responseFormat: 'text',
+          maxToolCalls: 10,
+          contextScope: 'thread',
+          contextInjectionMode: 'system_text',
+        },
+        context,
+      );
+
+      const llmCall = mockLlmService.chat.mock.calls[0][1] as {
+        messages: { role: string; content: string }[];
+      };
+      expect(llmCall.messages[0].role).toBe('system');
+      expect(llmCall.messages[0].content).toContain('You are helpful');
+      expect(llmCall.messages[0].content).toContain(
+        '[Conversation Context — chronological]',
+      );
+      expect(llmCall.messages[0].content).toContain('name=Alice');
+      // No injected turns in messages array
+      expect(llmCall.messages[1].role).toBe('user');
+      expect(llmCall.messages[1].content).toBe('Hi');
+    });
+
+    it("contextScope='lastN' clamps injection to N most recent turns", async () => {
+      const context = makeContext();
+      // Seed 5 turns from other nodes
+      for (let i = 0; i < 5; i++) {
+        conversationThreadService.appendAiAssistantMessage(context, {
+          node: { id: `prev-${i}`, label: `Prev${i}`, type: 'ai_agent' },
+          content: `msg ${i}`,
+        });
+      }
+      await handler.execute(
+        undefined,
+        {
+          mode: 'single_turn',
+          model: 'gpt-4o',
+          userPrompt: 'q',
+          responseFormat: 'text',
+          maxToolCalls: 10,
+          contextScope: 'lastN',
+          contextScopeN: 2,
+          contextInjectionMode: 'messages',
+        },
+        context,
+      );
+      const llmCall = mockLlmService.chat.mock.calls[0][1] as {
+        messages: { role: string; content: string }[];
+      };
+      // userPrompt + 2 injected = expecting 3 messages (no system prompt set)
+      expect(
+        llmCall.messages.filter((m) => m.role === 'assistant'),
+      ).toHaveLength(2);
+      expect(llmCall.messages[0].content).toBe('msg 3');
+      expect(llmCall.messages[1].content).toBe('msg 4');
+    });
+
+    it('getThreadExcludingNode prevents self-history duplication', async () => {
+      const context = makeContext();
+      // Self push (executeSingleTurn appends ai_user then ai_assistant; the
+      // injection helper must exclude the agent's own turns so the next call
+      // doesn't see itself doubled).
+      await handler.execute(
+        undefined,
+        {
+          mode: 'single_turn',
+          model: 'gpt-4o',
+          userPrompt: 'first',
+          responseFormat: 'text',
+          maxToolCalls: 10,
+          contextScope: 'thread',
+          contextInjectionMode: 'messages',
+        },
+        context,
+      );
+      // Run again — second call should not see its first-call turns injected
+      // (self-exclusion). Only the first call's pushes are in the thread,
+      // which both have nodeId='agent-1' (self) → excluded.
+      mockLlmService.chat.mockClear();
+      await handler.execute(
+        undefined,
+        {
+          mode: 'single_turn',
+          model: 'gpt-4o',
+          userPrompt: 'second',
+          responseFormat: 'text',
+          maxToolCalls: 10,
+          contextScope: 'thread',
+          contextInjectionMode: 'messages',
+        },
+        context,
+      );
+      const llmCall = mockLlmService.chat.mock.calls[0][1] as {
+        messages: { role: string }[];
+      };
+      // Only the userPrompt (no injected self-turns) → length 1
+      expect(llmCall.messages).toHaveLength(1);
+      expect(llmCall.messages[0].role).toBe('user');
+    });
+
+    it("noop when contextScope='none' (no injection, no meta echo)", async () => {
+      const context = makeContext();
+      seedThreadFromOtherNode(context);
+      const result = await handler.execute(
+        undefined,
+        {
+          mode: 'single_turn',
+          model: 'gpt-4o',
+          userPrompt: 'hi',
+          responseFormat: 'text',
+          maxToolCalls: 10,
+          // contextScope omitted = default 'none'
+        },
+        context,
+      );
+      const llmCall = mockLlmService.chat.mock.calls[0][1] as {
+        messages: { role: string }[];
+      };
+      expect(llmCall.messages).toHaveLength(1); // userPrompt only
+      expect(
+        (result as { meta?: Record<string, unknown> }).meta,
+      ).not.toHaveProperty('contextInjection');
+    });
+
+    it('emits meta.contextInjection echo when scope is active', async () => {
+      const context = makeContext();
+      seedThreadFromOtherNode(context);
+      const result = await handler.execute(
+        undefined,
+        {
+          mode: 'single_turn',
+          model: 'gpt-4o',
+          userPrompt: 'hi',
+          responseFormat: 'text',
+          maxToolCalls: 10,
+          contextScope: 'thread',
+          contextInjectionMode: 'messages',
+        },
+        context,
+      );
+      const meta = (result as { meta: Record<string, unknown> }).meta;
+      expect(meta.contextInjection).toMatchObject({
+        appliedScope: 'thread',
+        appliedMode: 'messages',
+        injectedTurns: 2,
+        droppedTurns: 0,
+      });
+    });
+  });
 });
