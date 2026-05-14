@@ -13,7 +13,10 @@ import { Node } from '../nodes/entities/node.entity';
 import { Workflow } from '../workflows/entities/workflow.entity';
 import { WorkspacesService } from '../workspaces/workspaces.service';
 import { AuditLogsService } from '../audit-logs/audit-logs.service';
-import { IntegrationOAuthService } from './integration-oauth.service';
+import {
+  IntegrationOAuthService,
+  type BeginResult,
+} from './integration-oauth.service';
 import { PaginatedResponseDto } from '../../common/dto/paginated-response.dto';
 import {
   ListIntegrationsQueryDto,
@@ -663,7 +666,7 @@ export class IntegrationsService {
     userId: string,
     userRole: string | null,
     body: RequestScopesDto,
-  ): Promise<{ authUrl: string; state: string }> {
+  ): Promise<BeginResult> {
     const entity = await this.requireEntity(id, workspaceId);
 
     if (entity.authType !== 'oauth2') {
@@ -735,7 +738,7 @@ export class IntegrationsService {
     id: string,
     workspaceId: string,
     userId: string,
-  ): Promise<{ authUrl: string; state: string }> {
+  ): Promise<BeginResult> {
     const entity = await this.requireEntity(id, workspaceId);
     const service = findService(entity.serviceType);
 

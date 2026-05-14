@@ -42,7 +42,9 @@
 │   ├── llm-config             # LLM 설정
 │   ├── knowledge-base         # 지식 저장소
 │   └── mcp-servers            # MCP 서버 통합 (AI Agent 도구 호출용)
-└── 07-faq/
+├── 07-workspace-and-team/
+│   └── workspaces-and-members  # 개인·팀 워크스페이스, 멤버 초대, 공유 표시
+└── 99-faq/                     # 항상 사이드바 맨 아래 (§5 규칙)
     └── faq
 ```
 
@@ -84,6 +86,8 @@ code: ["backend/src/nodes/ai/**", "frontend/src/components/editor/settings-panel
 ## 5. 섹션 순서
 
 섹션 디렉터리명의 숫자 프리픽스(`01-`, `02-` ...)가 사이드바 표시 순서를 결정한다. 페이지 내 순서는 `order`로 결정한다.
+
+**FAQ 섹션은 항상 사이드바 맨 아래에 위치한다.** 신규 섹션이 자유롭게 `08-`, `09-` ... 로 늘어나더라도 FAQ 가 아래로 밀려나도록, FAQ 디렉터리는 `99-faq` 와 같이 충분히 큰 숫자 프리픽스를 사용한다. `registry.ts` 의 `SECTION_LABELS` 도 `99-faq` 키로 라벨을 등록한다.
 
 ## 6. 딥링크 규약
 

@@ -7,12 +7,14 @@ import {
   Body,
   Param,
   Query,
+  Req,
   HttpCode,
   HttpStatus,
   ParseUUIDPipe,
   Res,
   BadRequestException,
 } from '@nestjs/common';
+import type { Request } from 'express';
 import { Throttle } from '@nestjs/throttler';
 import { Roles } from '../../common/guards/roles.guard';
 import {
@@ -48,6 +50,7 @@ import type { Response } from 'express';
 import { IntegrationsService } from './integrations.service';
 import {
   ALLOWED_OAUTH_PROVIDERS,
+  Cafe24InstallQuery,
   IntegrationOAuthService,
 } from './integration-oauth.service';
 import { CurrentUser, WorkspaceId } from '../../common/decorators';
@@ -182,6 +185,68 @@ export class IntegrationsController {
       scope: body.scope,
       providerMeta,
     });
+  }
+
+  @Public()
+  @Throttle({ default: { limit: 30, ttl: 60_000 } })
+  @Get('oauth/install/cafe24')
+  @ApiOperation({
+    summary: 'Cafe24 Private 앱 설치 진입점 (App URL)',
+    description:
+      'Cafe24 Developers "테스트 실행" 시 Cafe24가 호출하는 App URL 엔드포인트. HMAC 검증 후 pending_install Integration을 찾아 Cafe24 authorize URL로 302 redirect합니다.',
+  })
+  @ApiOkResponse({ description: '302 redirect to Cafe24 authorize URL' })
+  async cafe24Install(
+    @Query('mall_id') mallId: string | undefined,
+    @Query('timestamp') timestamp: string | undefined,
+    @Query('hmac') hmac: string | undefined,
+    @Query('shop_no') shopNo: string | undefined,
+    @Query('user_id') userId: string | undefined,
+    @Query('user_name') userName: string | undefined,
+    @Query('user_type') userType: string | undefined,
+    @Query('lang') lang: string | undefined,
+    @Query('nation') nation: string | undefined,
+    @Query('is_multi_shop') isMultiShop: string | undefined,
+    @Query('auth_config') authConfig: string | undefined,
+    @Req() req: Request,
+    @Res() res: Response,
+  ) {
+    if (!mallId || !timestamp || !hmac) {
+      res.status(400).json({
+        code: 'CAFE24_INSTALL_MISSING_PARAMS',
+        message: 'mall_id, timestamp, hmac are required',
+      });
+      return;
+    }
+    const rawQuery = req.url.includes('?') ? req.url.split('?', 2)[1] : '';
+    const query: Cafe24InstallQuery = {
+      mall_id: mallId,
+      timestamp,
+      hmac,
+      shop_no: shopNo,
+      user_id: userId,
+      user_name: userName,
+      user_type: userType,
+      lang,
+      nation,
+      is_multi_shop: isMultiShop,
+      auth_config: authConfig,
+      rawQuery,
+    };
+    try {
+      const redirectUrl = await this.oauthService.handleInstall(query);
+      res.redirect(302, redirectUrl);
+    } catch (err) {
+      const e = err as {
+        status?: number;
+        response?: { code?: string; message?: string };
+        message?: string;
+      };
+      const status = e.status ?? 400;
+      const code = e.response?.code ?? 'CAFE24_INSTALL_FAILED';
+      const message = e.response?.message ?? e.message ?? 'Install failed';
+      res.status(status).json({ code, message });
+    }
   }
 
   @Public()
