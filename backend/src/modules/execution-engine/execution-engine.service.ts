@@ -25,6 +25,7 @@ import {
   ContinuationMessage,
   RECOVERY_LOCK_KEY,
 } from './continuation/continuation-bus.service';
+import { ConversationThreadService } from './conversation-thread/conversation-thread.service';
 import { buildGraph, GraphEdge } from './graph/graph-builder';
 import { topologicalSort } from './graph/topological-sort';
 import { identifyBackEdges } from './graph/back-edge-identifier';
@@ -427,6 +428,7 @@ export class ExecutionEngineService
     @InjectQueue(BACKGROUND_EXECUTION_QUEUE)
     private readonly backgroundQueue: Queue<BackgroundExecutionJob>,
     private readonly continuationBus: ContinuationBusService,
+    private readonly conversationThreadService: ConversationThreadService,
   ) {}
 
   onModuleInit(): void {
@@ -1690,6 +1692,22 @@ export class ExecutionEngineService
       node.id,
       toEngineFlatShape(updatedStructured),
     );
+    // Append the user interaction to the ConversationThread so downstream AI
+    // Agent nodes with `contextScope` can auto-inject it. Single mutation
+    // entrypoint per spec/conventions/conversation-thread.md §2.1.
+    this.conversationThreadService.appendPresentationInteraction(context, {
+      node: {
+        id: node.id,
+        label: node.label,
+        type: node.type,
+        config: node.config,
+      },
+      interaction: {
+        type: 'form_submitted',
+        data: interactionData,
+        receivedAt,
+      },
+    });
     // Keep `updatedOutput` alias for the rest of the function (DB save, emit).
     // Downstream consumers (frontend) receive the structured shape and can
     // unwrap via output-shape helper.
@@ -2553,6 +2571,18 @@ export class ExecutionEngineService
       node.id,
       updatedStructured,
     );
+    // Append the button interaction to the ConversationThread so downstream
+    // AI Agent nodes with `contextScope` can auto-inject it (single mutation
+    // entrypoint per spec/conventions/conversation-thread.md §2.1).
+    this.conversationThreadService.appendPresentationInteraction(context, {
+      node: {
+        id: node.id,
+        label: node.label,
+        type: node.type,
+        config: node.config,
+      },
+      interaction: structuredInteraction,
+    });
 
     // Update node execution to completed with interaction data
     if (nodeExec) {
