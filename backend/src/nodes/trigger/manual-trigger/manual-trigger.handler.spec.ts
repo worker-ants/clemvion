@@ -19,16 +19,9 @@ function makeContext(rawConfig?: Record<string, unknown>): ExecutionContext {
 describe('ManualTriggerHandler', () => {
   let handler: ManualTriggerHandler;
 
-  const mockContext: ExecutionContext = {
-    executionId: 'exec-1',
-    workflowId: 'wf-1',
-    variables: {},
-    nodeOutputCache: {},
-    structuredOutputCache: {},
-    engineResolvedConfigCache: {},
-    conversationThread: createEmptyConversationThread(),
-    recursionDepth: 0,
-  };
+  // Reuse the local makeContext factory rather than duplicating the literal
+  // — single update point when ExecutionContext gains a new required field.
+  const mockContext: ExecutionContext = makeContext();
 
   beforeEach(() => {
     handler = new ManualTriggerHandler();

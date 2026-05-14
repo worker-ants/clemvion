@@ -93,6 +93,17 @@ describe('renderInteractionText', () => {
         }),
       ).toBe('clicked: [user-input]btn-1[/user-input]');
     });
+
+    it('emits empty marker when both label and id missing (I12 fallback)', () => {
+      // Defensive: schema guarantees at least one, but the helper must not
+      // crash on a malformed payload.
+      expect(
+        renderInteractionText({
+          type: 'button_click',
+          data: {},
+        }),
+      ).toBe('clicked: ');
+    });
   });
 
   describe('button_continue', () => {

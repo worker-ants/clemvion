@@ -18,7 +18,10 @@ import {
   AgentToolResult,
   KbSearchDiagnostic,
 } from './tool-providers/agent-tool-provider.interface';
-import { aiAgentNodeMetadata } from './ai-agent.schema';
+import {
+  aiAgentNodeMetadata,
+  DEFAULT_CONTEXT_SCOPE_N,
+} from './ai-agent.schema';
 import {
   ExecutionEventType,
   ToolCallCompletedPayload,
@@ -279,6 +282,47 @@ class RagAccumulatorGroup {
   }
 }
 
+/**
+ * Map ConversationTurn → LLM ChatMessage (messages-mode injection,
+ * spec/conventions/conversation-thread.md §5.1). Pure function — extracted
+ * from `injectThreadContext` so unit tests can exercise the per-source
+ * mapping in isolation.
+ *
+ * `presentation_user` turns are prefixed with `[from <nodeLabel>]` so the
+ * LLM can attribute the input back to the originating node.
+ */
+function mapTurnsToChatMessages(
+  turns: readonly import('../../../modules/execution-engine/conversation-thread/conversation-thread.types').ConversationTurn[],
+): ChatMessage[] {
+  return turns.map((t): ChatMessage => {
+    switch (t.source) {
+      case 'presentation_user':
+        return {
+          role: 'user',
+          content: `[from ${t.nodeLabel}] ${t.text}`,
+        } as ChatMessage;
+      case 'ai_user':
+        return { role: 'user', content: t.text } as ChatMessage;
+      case 'ai_assistant':
+        return {
+          role: 'assistant',
+          content: t.text,
+          ...(t.toolCalls ? { toolCalls: t.toolCalls } : {}),
+        } as ChatMessage;
+      case 'ai_tool':
+        return {
+          role: 'tool',
+          content: t.text,
+          ...(t.toolCallId ? { toolCallId: t.toolCallId } : {}),
+        } as ChatMessage;
+      case 'system':
+        return { role: 'system', content: t.text } as ChatMessage;
+      default:
+        return { role: 'user', content: t.text } as ChatMessage;
+    }
+  });
+}
+
 export class AiAgentHandler implements NodeHandler {
   metadata = aiAgentNodeMetadata;
 
@@ -445,7 +489,10 @@ export class AiAgentHandler implements NodeHandler {
     const scoped =
       scope === 'lastN'
         ? allTurns.slice(
-            -Math.max(1, (args.config.contextScopeN as number) ?? 20),
+            -Math.max(
+              1,
+              (args.config.contextScopeN as number) ?? DEFAULT_CONTEXT_SCOPE_N,
+            ),
           )
         : allTurns;
 
@@ -480,33 +527,7 @@ export class AiAgentHandler implements NodeHandler {
     }
 
     // 'messages' mode — prepend (after system) per spec §5.1 mapping.
-    const injected: ChatMessage[] = capped.turns.map((t) => {
-      switch (t.source) {
-        case 'presentation_user':
-          return {
-            role: 'user',
-            content: `[from ${t.nodeLabel}] ${t.text}`,
-          } as ChatMessage;
-        case 'ai_user':
-          return { role: 'user', content: t.text } as ChatMessage;
-        case 'ai_assistant':
-          return {
-            role: 'assistant',
-            content: t.text,
-            ...(t.toolCalls ? { toolCalls: t.toolCalls } : {}),
-          } as ChatMessage;
-        case 'ai_tool':
-          return {
-            role: 'tool',
-            content: t.text,
-            ...(t.toolCallId ? { toolCallId: t.toolCallId } : {}),
-          } as ChatMessage;
-        case 'system':
-          return { role: 'system', content: t.text } as ChatMessage;
-        default:
-          return { role: 'user', content: t.text } as ChatMessage;
-      }
-    });
+    const injected: ChatMessage[] = mapTurnsToChatMessages(capped.turns);
 
     // Insert injected turns after the leading system message (if any).
     const systemIdx = args.messages.findIndex((m) => m.role === 'system');

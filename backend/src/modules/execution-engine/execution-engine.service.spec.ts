@@ -347,7 +347,8 @@ describe('ExecutionEngineService', () => {
         },
         // Stateless service — use the real implementation so engine hooks
         // (form/button resume) actually mutate the in-context thread, which
-        // lets future Phase 4 / 5 tests assert side-effects without re-mocking.
+        // lets future ConversationThread tests assert side-effects without
+        // re-mocking the service.
         ConversationThreadService,
       ],
     }).compile();
@@ -1559,7 +1560,8 @@ describe('ExecutionEngineService', () => {
       );
     });
 
-    // Phase 3 hook — form resume must push a presentation_user turn to the
+    // Engine hook (spec/conventions/conversation-thread.md §2.1) — form resume
+    // must push a presentation_user turn to the
     // ConversationThread so downstream AI Agent nodes can auto-inject it.
     // SoT: spec/conventions/conversation-thread.md §2.1.
     //

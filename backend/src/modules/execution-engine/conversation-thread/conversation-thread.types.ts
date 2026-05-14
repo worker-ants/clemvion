@@ -23,9 +23,18 @@ export type ConversationTurnSource =
   | 'ai_tool'
   | 'system';
 
+/**
+ * Provider tool invocation captured on an `ai_assistant` turn (when the LLM
+ * emits one or more tool_use entries). Mirrored 1:1 from the LLM provider's
+ * `toolCalls` so downstream cross-provider injection can drop unsupported
+ * fields without losing type safety.
+ */
 export interface ConversationTurnToolCall {
+  /** Provider-issued tool_use id — pairs with a later `ai_tool` turn's `toolCallId`. */
   id: string;
+  /** Tool name as advertised to the LLM (`kb_*`, `mcp_*`, `cond_*` etc). */
   name: string;
+  /** Raw JSON-string argument payload — the LLM's parsed call without re-serialization. */
   arguments: string;
 }
 
@@ -70,8 +79,11 @@ export interface ConversationThread {
   nextSeq: number;
   turns: ConversationTurn[];
   /**
-   * 누적 char 길이 캐시 (cap 빠른 경로 — `applyCap` 에서 사용). append 시
-   * 갱신.
+   * 누적 char 길이 캐시 — append 시점에 `text.length` 를 누적해 갱신한다.
+   * WebSocket payload / `meta.contextInjection.totalInjectedChars` 등 외부
+   * 소비처가 thread 크기를 O(1) 로 확인할 때 사용한다. `applyCap` 자체는
+   * `ConversationTurn[]` 만 받아 `sumChars` 로 다시 계산하므로 본 캐시는
+   * 사용하지 않는다 (각자 다른 컨텍스트 — append 누적 vs 주입 시점 cap).
    */
   totalChars: number;
 }
