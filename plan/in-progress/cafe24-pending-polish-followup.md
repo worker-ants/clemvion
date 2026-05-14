@@ -6,6 +6,15 @@ owner: developer (다음 진입자)
 
 # Cafe24 Pending Install 정비 — Follow-up
 
+## PR 진행 상황 (2026-05-14)
+
+- **PR #18** (cafe24 pending_install 정비 본진): https://github.com/worker-ants/clemvion/pull/18 — 머지 대기
+- **PR #19** (그룹 D + F 일부: swagger 데코레이터 + `(변경 N)` 마커 cleanup): https://github.com/worker-ants/clemvion/pull/19 — stacked on PR #18
+- **PR #20** (그룹 C: `callbackContextOf` 캡슐화 + reauthorize 유틸 분리): https://github.com/worker-ants/clemvion/pull/20 — stacked on PR #19
+- **PR #21** (그룹 E + 그룹 C item 4: `useCafe24PendingPolling` 훅 추출 + `buildIntegrationMeta` + 폴링 RTL 테스트): https://github.com/worker-ants/clemvion/pull/21 — stacked on PR #20
+
+stacked PR 들이라 머지 순서는 #18 → #19 → #20 → #21. 각 PR 의 base 가 이전 PR 의 브랜치이므로, 앞 PR 이 머지되면 다음 PR 의 base 가 자동으로 main 으로 바뀐다 (GitHub 기본 동작) — 또는 수동 rebase.
+
 ## Context
 
 PR #18 (`claude/cafe24-pending-polish-7fdb7e` 브랜치) 에서 cafe24 private "Pending install" 멈춤 사례 분석 → 변경 0~5 + ai-review 조치까지 일괄 처리했다. PR 본문의 핵심 사용자 가치는 모두 본 PR 에 포함된다.
