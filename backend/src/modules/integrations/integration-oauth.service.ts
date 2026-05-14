@@ -525,6 +525,18 @@ export class IntegrationOAuthService {
         integration.tokenExpiresAt = exchange.tokenExpiresAt;
         integration.lastRotatedAt = new Date();
         integration.installToken = null;
+        integration.installTokenIssuedAt = null;
+        // Backfill plain `mall_id` column for cafe24 rows if it's still
+        // NULL — pre-V045 rows pass through this connected path on next
+        // re-auth and get the plain projection set. New rows already have
+        // it set by createPrivatePendingIntegration / public-flow begin.
+        if (
+          provider === 'cafe24' &&
+          !integration.mallId &&
+          typeof credentials.mall_id === 'string'
+        ) {
+          integration.mallId = credentials.mall_id;
+        }
         await repo.save(integration);
       });
     } catch (err) {
@@ -837,21 +849,33 @@ export class IntegrationOAuthService {
   ): Promise<BeginResult> {
     const appUrl = process.env.APP_URL || 'http://localhost:3011';
 
-    // Duplicate-prevention scan. mall_id is encrypted in JSONB so we
-    // cannot filter at the DB level — we pull the workspace's cafe24 rows
-    // (typical bound: <10) and compare in memory after the ORM decrypts.
-    // spec/2-navigation/4-integration.md ## Rationale "CAFE24_PRIVATE_APP_ALREADY_CONNECTED".
+    // Duplicate-prevention via plain `mall_id` column (V045) — DB-level
+    // SQL filter + partial UNIQUE index. The pre-V045 in-memory scan over
+    // encrypted credentials JSONB had two problems we now close: O(N)
+    // decrypt cost and a TOCTOU race window between SELECT and INSERT
+    // (the partial UNIQUE makes the race an SQL constraint violation
+    // instead of a silently-duplicated row).
+    //
+    // We still need an in-memory check first to (a) distinguish
+    // connected→409 from pending→reuse, and (b) handle pre-V045 rows
+    // whose `mall_id` is still NULL (we fall back to credentials.mall_id
+    // for those). The UNIQUE index is the backstop for truly concurrent
+    // INSERTs that slip past both checks.
     const existing = await this.integrationRepository.find({
       where: {
         workspaceId: params.workspaceId,
         serviceType: 'cafe24',
       },
     });
-    const sameMall = existing.filter(
-      (row) =>
-        row.credentials?.mall_id === meta.mall_id &&
-        row.credentials?.app_type === 'private',
-    );
+    const sameMall = existing.filter((row) => {
+      const plainMall = row.mallId;
+      const credsMall = row.credentials?.mall_id;
+      const effectiveMallId = plainMall ?? credsMall;
+      return (
+        effectiveMallId === meta.mall_id &&
+        row.credentials?.app_type === 'private'
+      );
+    });
     const alreadyConnected = sameMall.find((row) => row.status === 'connected');
     if (alreadyConnected) {
       throw new ConflictException({
@@ -865,42 +889,69 @@ export class IntegrationOAuthService {
     );
 
     const installToken = randomBytes(32).toString('hex');
+    const installTokenIssuedAt = new Date();
     let saved: Integration;
-    if (existingPending) {
-      // Reuse the existing row instead of accumulating duplicate pending
-      // rows for the same mall. New install_token + refreshed credentials;
-      // status / name preserved so the user's URL bookmarks etc. don't break.
-      existingPending.installToken = installToken;
-      existingPending.credentials = {
-        ...existingPending.credentials,
-        mall_id: meta.mall_id,
-        app_type: 'private',
-        client_id: meta.client_id,
-        client_secret: meta.client_secret,
-        scopes: params.scopes,
-      };
-      existingPending.statusReason = null;
-      existingPending.lastError = null;
-      saved = await this.integrationRepository.save(existingPending);
-    } else {
-      const integration = this.integrationRepository.create({
-        workspaceId: params.workspaceId,
-        createdBy: params.userId,
-        serviceType: 'cafe24',
-        authType: 'oauth2',
-        name: params.integrationName || `${meta.mall_id} (Cafe24 Private)`,
-        scope: params.scope ?? 'personal',
-        status: 'pending_install',
-        installToken,
-        credentials: {
+    try {
+      if (existingPending) {
+        // Reuse the existing row instead of accumulating duplicate pending
+        // rows for the same mall. New install_token + refreshed credentials;
+        // status / name preserved. installTokenIssuedAt is reset so the TTL
+        // scanner doesn't immediately expire the new token (User Decision 3).
+        existingPending.installToken = installToken;
+        existingPending.installTokenIssuedAt = installTokenIssuedAt;
+        existingPending.mallId = meta.mall_id; // backfill plain column if still NULL
+        existingPending.credentials = {
+          ...existingPending.credentials,
           mall_id: meta.mall_id,
           app_type: 'private',
           client_id: meta.client_id,
           client_secret: meta.client_secret,
           scopes: params.scopes,
-        },
-      });
-      saved = await this.integrationRepository.save(integration);
+        };
+        existingPending.statusReason = null;
+        existingPending.lastError = null;
+        saved = await this.integrationRepository.save(existingPending);
+      } else {
+        const integration = this.integrationRepository.create({
+          workspaceId: params.workspaceId,
+          createdBy: params.userId,
+          serviceType: 'cafe24',
+          authType: 'oauth2',
+          name: params.integrationName || `${meta.mall_id} (Cafe24 Private)`,
+          scope: params.scope ?? 'personal',
+          status: 'pending_install',
+          installToken,
+          installTokenIssuedAt,
+          mallId: meta.mall_id,
+          credentials: {
+            mall_id: meta.mall_id,
+            app_type: 'private',
+            client_id: meta.client_id,
+            client_secret: meta.client_secret,
+            scopes: params.scopes,
+          },
+        });
+        saved = await this.integrationRepository.save(integration);
+      }
+    } catch (err) {
+      // Concurrent INSERT race: another request inserted the same
+      // (workspace_id, mall_id) just now. V045 partial UNIQUE caught it.
+      // Translate to the same 409 the in-memory check would have raised.
+      const pgCode = (err as { code?: string; driverError?: { code?: string } })
+        ?.driverError?.code;
+      const constraint = (
+        err as { constraint?: string; driverError?: { constraint?: string } }
+      )?.driverError?.constraint;
+      if (
+        pgCode === '23505' &&
+        constraint === 'idx_integration_cafe24_workspace_mall'
+      ) {
+        throw new ConflictException({
+          code: 'CAFE24_PRIVATE_APP_ALREADY_CONNECTED',
+          message: `A Cafe24 integration for mall_id "${meta.mall_id}" already exists in this workspace.`,
+        });
+      }
+      throw err;
     }
     // install_token 이 path segment 로 들어가 cafe24 Developers "테스트
     // 실행" 시 단일 row 조회를 가능하게 한다. spec/2-navigation/4-integration.md

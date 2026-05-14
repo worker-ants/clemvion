@@ -266,8 +266,13 @@ describe('IntegrationExpiryScannerService.expirePendingInstalls', () => {
       status: 'pending_install',
     });
     // Cutoff is exactly now - 24h (PENDING_INSTALL_TTL_HOURS).
+    // TTL key is `install_token_issued_at` (V044) with COALESCE fallback to
+    // `created_at` for pre-V044 rows — a row reused via begin re-submission
+    // gets a fresh 24h window instead of inheriting the original created_at.
     const andWhereArgs = updateBuilder.andWhere.mock.calls[0];
-    expect(andWhereArgs[0]).toBe('created_at < :cutoff');
+    expect(andWhereArgs[0]).toBe(
+      'COALESCE(install_token_issued_at, created_at) < :cutoff',
+    );
     const cutoff: Date = andWhereArgs[1].cutoff;
     expect(cutoff.getTime()).toBe(now.getTime() - 24 * 60 * 60 * 1000);
   });

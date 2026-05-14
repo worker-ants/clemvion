@@ -98,7 +98,7 @@ sequenceDiagram
   end
 ```
 
-`pending_install` 행은 일일 만료 스캐너 (`integration-expiry` 큐) 가 동일하게 처리한다 — `created_at < now - 24h AND status='pending_install'` 인 행을 `status='expired', status_reason='install_timeout', install_token=NULL` 로 전이.
+`pending_install` 행은 일일 만료 스캐너 (`integration-expiry` 큐) 가 동일하게 처리한다 — `COALESCE(install_token_issued_at, created_at) < now - 24h AND status='pending_install'` 인 행을 `status='expired', status_reason='install_timeout', install_token=NULL` 로 전이. 재사용 시 (변경 3, `createPrivatePendingIntegration` 의 기존 row 갱신 분기) `install_token_issued_at` 이 재발급 시점으로 갱신되므로 `created_at` 만 기준으로 했을 때 발생하던 "토큰 발급 직후 조기 만료" 회귀를 막는다. V044 이전 행은 `install_token_issued_at` NULL → `created_at` fallback 으로 옛 의미를 유지한다.
 
 ### 1.3 노드 실행에서 호출
 
@@ -132,7 +132,7 @@ sequenceDiagram
 | Job name | Scheduler id | 역할 |
 | --- | --- | --- |
 | `connected-expiry` | `connected-expiry-daily` | `status='connected' AND token_expires_at < now+Δ` 행을 refresh 또는 `expired(token_expired)` 로 전이 |
-| `pending-install-ttl` | `pending-install-ttl-daily` | `status='pending_install' AND created_at < now-24h` 행을 `expired(install_timeout) + install_token=NULL` 로 전이 (Cafe24 Private 한정) |
+| `pending-install-ttl` | `pending-install-ttl-daily` | `status='pending_install' AND COALESCE(install_token_issued_at, created_at) < now-24h` 행을 `expired(install_timeout) + install_token=NULL` 로 전이 (Cafe24 Private 한정). TTL 기준은 V044 의 `install_token_issued_at` 으로 — 재사용 시 토큰 재발급 시점에 갱신되어 조기 만료 회귀를 막는다. NULL 인 V044 이전 행은 `created_at` fallback. |
 | `usage-log-prune` | `usage-log-prune-daily` | `integration_usage_log` 90일 보존 외 행 삭제 |
 
 ```mermaid
@@ -162,7 +162,7 @@ sequenceDiagram
   and
     PT->>Q: enqueue { name: 'pending-install-ttl', triggeredAt }
     Q-->>Scan: pending-install-ttl job
-    Scan->>PG: UPDATE integration SET status='expired', status_reason='install_timeout', install_token=NULL<br/>WHERE status='pending_install' AND created_at < now - INTERVAL '24h'
+    Scan->>PG: UPDATE integration SET status='expired', status_reason='install_timeout', install_token=NULL<br/>WHERE status='pending_install' AND COALESCE(install_token_issued_at, created_at) < now - INTERVAL '24h'
   and
     UP->>Q: enqueue { name: 'usage-log-prune', triggeredAt }
     Q-->>Scan: usage-log-prune job
@@ -180,7 +180,7 @@ sequenceDiagram
 
 | Sink (table) | 흐름 | read/write 컬럼 | 인덱스 / 제약 |
 | --- | --- | --- | --- |
-| `integration` | 생성·갱신 | `workspace_id, service_type, name, auth_type, credentials (encrypted JSONB), scope, status, status_reason, install_token (Cafe24 private 전용), token_expires_at, last_used_at, last_rotated_at, last_error, created_by` | `(workspace_id, name) UNIQUE` (V008/V001), `(workspace_id, status)` 배지 카운트 + pending_install TTL 스캐너 조회 겸용, `(workspace_id, service_type)`, `(token_expires_at)` 스캐너용 (V009). `install_token` 컬럼은 V042 추가 |
+| `integration` | 생성·갱신 | `workspace_id, service_type, name, auth_type, credentials (encrypted JSONB), scope, status, status_reason, install_token (Cafe24 private 전용), install_token_issued_at (TTL 기준), mall_id (Cafe24 전용, plain), token_expires_at, last_used_at, last_rotated_at, last_error, created_by` | `(workspace_id, name) UNIQUE` (V008/V001), `(workspace_id, status)` 배지 카운트 + pending_install TTL 스캐너 조회 겸용, `(workspace_id, service_type)`, `(token_expires_at)` 스캐너용 (V009). `install_token` 컬럼 V042 + partial UNIQUE V043. `install_token_issued_at` V044 (TTL 기준 분리), `mall_id` plain + partial UNIQUE `(workspace_id, mall_id) WHERE service_type='cafe24' AND mall_id IS NOT NULL` V045. |
 | `integration_usage_log` | 노드 실행 후 | INSERT `integration_id, node_execution_id, workflow_id, status, error?, duration_ms, at` | V008 `(integration_id, at DESC)`. 보존 90일 일일 배치 정리 |
 | `integration_oauth_state` | OAuth start | INSERT `state, service_type, workspace_id, user_id, integration_id (reauthorize/private install 시), mode, requested_scopes, provider_meta (encrypted JSONB), expires_at = now+10m` | one-shot DELETE on callback. `state UNIQUE` (V009). `integration_id` FK → integration ON DELETE CASCADE (V009). `provider_meta` 컬럼 V041 추가 — cafe24 private 의 mall_id/client_id/client_secret 을 callback 까지 캐리. |
 

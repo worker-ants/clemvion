@@ -33,8 +33,8 @@ PR #18 (`claude/cafe24-pending-polish-7fdb7e` 브랜치) 에서 cafe24 private "
 
 ## 그룹 B — 데이터 모델·동시성 강화
 
-- [ ] **TTL 기준 분리.** 현행: `createdAt < now - 24h`. 재사용 시 (변경 3) installToken 만 갱신되고 createdAt 은 그대로라 신규 토큰 발급 직후에도 조기 만료 위험. `installTokenIssuedAt` 컬럼 (V0XX 마이그레이션) 추가 후 TTL 기준을 옮긴다. 또는 재사용 분기에서 createdAt 을 갱신한다 (간단). 트레이드오프 비교 후 결정. (ai-review W5)
-- [ ] **TOCTOU advisory lock 또는 `mall_id` plain 컬럼 분리.** 변경 3 의 begin 시점 중복 가드는 in-memory 비교 → 동시 폼 제출 race window 가 좁지만 존재. `pg_advisory_xact_lock(hashtext(workspaceId || mallId))` 적용 또는 `mall_id` plain 컬럼 분리 후 partial UNIQUE 인덱스. mall_id O(N) decrypt 비용 측정 결과와 함께 결정. (ai-review W4, I11)
+- [x] **TTL 기준 분리.** (`cafe24-data-model-strengthen` / PR #24) `install_token_issued_at` 컬럼을 V044 로 신설하고 스캐너 WHERE 절을 `COALESCE(install_token_issued_at, created_at) < cutoff` 로 옮겼다. 재사용 분기에서 `install_token` 재발급과 동시에 갱신되어 조기 만료 회귀 없음. NULL 인 V044 이전 행은 `created_at` fallback. (ai-review W5)
+- [x] **TOCTOU 동시성 방어 — `mall_id` plain 컬럼 + partial UNIQUE.** (`cafe24-data-model-strengthen` / PR #24) V045 로 `mall_id VARCHAR(50)` plain 컬럼 + 부분 UNIQUE `(workspace_id, mall_id) WHERE service_type='cafe24' AND mall_id IS NOT NULL` 추가. 동시 INSERT race 는 PG `23505` 위반으로 변환되어 `CAFE24_PRIVATE_APP_ALREADY_CONNECTED (409)` 로 일관 처리. in-memory 중복 가드는 `row.mallId ?? row.credentials?.mall_id` fallback 으로 V045 이전 행도 정확 비교. advisory lock 옵션은 unnecessary 로 폐기. (ai-review W4, I11)
 - [ ] **install_token DB UNIQUE 제약 V0XX 결정.** 부분 UNIQUE 인덱스가 V043 으로 이미 추가됨 — 별도 UNIQUE 제약은 deferred. 운영 시점에 필요성 재평가. (이전 review W13)
 
 ## 그룹 C — 코드 품질·아키텍처 정리
