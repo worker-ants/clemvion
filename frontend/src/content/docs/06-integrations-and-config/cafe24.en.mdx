@@ -132,14 +132,15 @@ The `redirect_uri` parameter this service sent does not exactly match any Redire
 The Cafe24 app's Redirect URI field accepts multiple entries. Add the full `https://<env-host>/api/integrations/oauth/callback/cafe24` for every environment that will start an OAuth flow through this app.
 
 **Q. OAuth start fails with `invalid_scope: The scope added by Cafe24 Developers is invalid`.**
-Cafe24 only honors OAuth requests for scopes that are **pre-registered on the app**. If even one scope you ticked in the integration form is missing from your Cafe24 app's permission settings, the *entire* OAuth call is rejected.
+Cafe24 requires **comma-delimited** scopes on `/oauth/authorize` (a deviation from RFC 6749 §3.3 which mandates space). This service already sends comma-delimited scopes, but if you still see `invalid_scope`, one of these is the cause:
 
-Resolution:
+1. **Missing pre-registration on the app (most common)** — Cafe24 only honors OAuth requests for scopes that are *pre-registered on the app*. If even one scope you ticked in the integration form is missing from the Cafe24 app's permission settings, the *entire* OAuth call is rejected.
 
-1. Sign in to https://developers.cafe24.com → **`Apps` → `My Apps`** → click the app
-2. Open **`App Information`** (or **`개발 정보`** in Korean UI) → scroll to the **`Permissions` / `Scope`** section
-3. Tick **every** scope you selected in the integration form → save
-4. Retry [Connect with Cafe24]
+   - Sign in to https://developers.cafe24.com → **`Apps` → `My Apps`** → click the app
+   - Open **`App Information`** (or **`개발 정보`** in Korean UI) → scroll to the **`Permissions` / `Scope`** section
+   - Tick **every** scope you selected in the integration form → save → retry [Connect with Cafe24]
+
+2. **App type mismatch** — a Front-store app requesting Admin scope (`mall.*`) or vice versa.
 
 > Tip: To narrow down which scope is missing, reduce the integration form selection to a single scope (e.g. `mall.read_product`) first. If it succeeds, add the rest one by one to find the failing one.
 

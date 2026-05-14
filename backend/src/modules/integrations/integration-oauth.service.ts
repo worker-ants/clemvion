@@ -208,10 +208,17 @@ export class IntegrationOAuthService {
 
     const appUrl = process.env.APP_URL || 'http://localhost:3011';
     const redirectUri = `${appUrl}/api/integrations/oauth/callback/${service.oauthProvider}`;
+    // Cafe24 deviates from RFC 6749 §3.3 (space-delimited) and requires
+    // comma-delimited scopes on /oauth/authorize. Sending space-delimited
+    // scopes is rejected with `invalid_scope` even for a single valid
+    // scope, because Cafe24's parser treats the whole string as one token.
+    // Sources: developers.cafe24.com /docs/...oauth/oauthcode examples and
+    // the official cafe24_app_sample StoreToken.java getCodeRedirectUrl.
+    const scopeSeparator = service.oauthProvider === 'cafe24' ? ',' : ' ';
     const urlParams = new URLSearchParams({
       client_id: clientId,
       redirect_uri: redirectUri,
-      scope: params.scopes.join(' '),
+      scope: params.scopes.join(scopeSeparator),
       state,
       response_type: 'code',
     });
