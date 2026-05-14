@@ -11,6 +11,10 @@ export type ListStatusFilter =
 
 export type CredentialsStatus = "ok" | "needs_reauth";
 
+export type OAuthBeginResult =
+  | { authUrl: string; state: string }
+  | { mode: "cafe24_private_pending"; integrationId: string; appUrl: string; callbackUrl: string };
+
 export interface IntegrationDto {
   id: string;
   workspaceId: string;
@@ -176,15 +180,9 @@ export const integrationsApi = {
     appType?: "public" | "private";
     clientId?: string;
     clientSecret?: string;
-  }): Promise<
-    | { authUrl: string; state: string }
-    | { mode: "cafe24_private_pending"; integrationId: string; appUrl: string; callbackUrl: string }
-  > {
+  }): Promise<OAuthBeginResult> {
     const { data } = await apiClient.post("/integrations/oauth/begin", body);
-    return unwrap<
-      | { authUrl: string; state: string }
-      | { mode: "cafe24_private_pending"; integrationId: string; appUrl: string; callbackUrl: string }
-    >(data);
+    return unwrap<OAuthBeginResult>(data);
   },
 
   async update(
@@ -214,20 +212,20 @@ export const integrationsApi = {
     return unwrap<IntegrationDto>(data);
   },
 
-  async reauthorize(id: string): Promise<{ authUrl: string; state: string }> {
+  async reauthorize(id: string): Promise<OAuthBeginResult> {
     const { data } = await apiClient.post(`/integrations/${id}/reauthorize`);
-    return unwrap<{ authUrl: string; state: string }>(data);
+    return unwrap<OAuthBeginResult>(data);
   },
 
   async requestScopes(
     id: string,
     scopes: string[],
-  ): Promise<{ authUrl: string; state: string }> {
+  ): Promise<OAuthBeginResult> {
     const { data } = await apiClient.post(
       `/integrations/${id}/request-scopes`,
       { scopes },
     );
-    return unwrap<{ authUrl: string; state: string }>(data);
+    return unwrap<OAuthBeginResult>(data);
   },
 
   async updateScope(

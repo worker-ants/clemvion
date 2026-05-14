@@ -1627,7 +1627,7 @@ export const en: Dict = {
     cafe24CallbackUrlLabel: "Redirect URI (register in Cafe24 Developers → Development Info)",
     cafe24PrivatePendingSteps:
       "① In Cafe24 Developers → My App → Development Info, set App URL and Redirect URI to the values above. ② Confirm that Permissions (Scope) match the scopes you requested. ③ Click Test Run and enter your mall ID. After consent, the integration activates.",
-    cafe24PrivatePendingViewList: "Go to integrations list",
+    cafe24PrivatePendingViewList: "View integration details",
     copied: "Copied",
     waitingPopup: "Waiting for the provider popup…",
     oauthComplete: "OAuth authorization complete.",

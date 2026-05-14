@@ -1,0 +1,148 @@
+{
+  "timestamp": "2026-05-14T14:04:35.333125",
+  "files": [
+    {
+      "file_path": "/Volumes/project/private/clemvion/.claude/worktrees/cafe24-integration-a3f5e2/backend/migrations/V042__cafe24_private_app_pending_install.sql",
+      "change_type": "Review",
+      "file_extension": "sql"
+    },
+    {
+      "file_path": "/Volumes/project/private/clemvion/.claude/worktrees/cafe24-integration-a3f5e2/backend/src/modules/integrations/entities/integration.entity.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/clemvion/.claude/worktrees/cafe24-integration-a3f5e2/backend/src/modules/integrations/integration-oauth.service.cafe24.spec.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/clemvion/.claude/worktrees/cafe24-integration-a3f5e2/backend/src/modules/integrations/integration-oauth.service.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/clemvion/.claude/worktrees/cafe24-integration-a3f5e2/backend/src/modules/integrations/integrations.controller.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/clemvion/.claude/worktrees/cafe24-integration-a3f5e2/backend/src/modules/integrations/integrations.service.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/clemvion/.claude/worktrees/cafe24-integration-a3f5e2/frontend/src/app/(main)/integrations/_shared/status-badge.tsx",
+      "change_type": "Review",
+      "file_extension": "tsx"
+    },
+    {
+      "file_path": "/Volumes/project/private/clemvion/.claude/worktrees/cafe24-integration-a3f5e2/frontend/src/app/(main)/integrations/new/page.tsx",
+      "change_type": "Review",
+      "file_extension": "tsx"
+    },
+    {
+      "file_path": "/Volumes/project/private/clemvion/.claude/worktrees/cafe24-integration-a3f5e2/frontend/src/content/docs/06-integrations-and-config/cafe24.en.mdx",
+      "change_type": "Review",
+      "file_extension": "mdx"
+    },
+    {
+      "file_path": "/Volumes/project/private/clemvion/.claude/worktrees/cafe24-integration-a3f5e2/frontend/src/content/docs/06-integrations-and-config/cafe24.mdx",
+      "change_type": "Review",
+      "file_extension": "mdx"
+    },
+    {
+      "file_path": "/Volumes/project/private/clemvion/.claude/worktrees/cafe24-integration-a3f5e2/frontend/src/lib/api/integrations.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/clemvion/.claude/worktrees/cafe24-integration-a3f5e2/frontend/src/lib/i18n/dict/en.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/clemvion/.claude/worktrees/cafe24-integration-a3f5e2/frontend/src/lib/i18n/dict/ko.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/clemvion/.claude/worktrees/cafe24-integration-a3f5e2/spec/2-navigation/4-integration.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "/Volumes/project/private/clemvion/.claude/worktrees/cafe24-integration-a3f5e2/spec/4-nodes/4-integration/4-cafe24.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    }
+  ],
+  "total_elapsed_seconds": 406.49,
+  "agents": [
+    {
+      "name": "maintainability",
+      "status": "success",
+      "elapsed_seconds": 48.47
+    },
+    {
+      "name": "dependency",
+      "status": "success",
+      "elapsed_seconds": 57.46
+    },
+    {
+      "name": "documentation",
+      "status": "success",
+      "elapsed_seconds": 60.74
+    },
+    {
+      "name": "concurrency",
+      "status": "success",
+      "elapsed_seconds": 71.35
+    },
+    {
+      "name": "performance",
+      "status": "success",
+      "elapsed_seconds": 80.09
+    },
+    {
+      "name": "database",
+      "status": "success",
+      "elapsed_seconds": 90.58
+    },
+    {
+      "name": "scope",
+      "status": "success",
+      "elapsed_seconds": 91.01
+    },
+    {
+      "name": "api_contract",
+      "status": "success",
+      "elapsed_seconds": 119.53
+    },
+    {
+      "name": "testing",
+      "status": "success",
+      "elapsed_seconds": 127.4
+    },
+    {
+      "name": "architecture",
+      "status": "success",
+      "elapsed_seconds": 141.55
+    },
+    {
+      "name": "requirement",
+      "status": "success",
+      "elapsed_seconds": 159.58
+    },
+    {
+      "name": "security",
+      "status": "success",
+      "elapsed_seconds": 201.58
+    },
+    {
+      "name": "side_effect",
+      "status": "success",
+      "elapsed_seconds": 226.13
+    }
+  ]
+}

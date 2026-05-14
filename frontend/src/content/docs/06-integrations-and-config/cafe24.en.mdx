@@ -114,6 +114,7 @@ Once a Cafe24 integration is added, the LLM sees tools named `mcp_<sid>__<resour
 
 | Variable | Use |
 |---|---|
+| `APP_URL` | Public base URL of this deployment (e.g. `https://your-service.com`). Used to build the App URL and Redirect URI shown to users for Private app setup. Default: `http://localhost:3011` |
 | `CAFE24_CLIENT_ID` | Public-app flow — the Cafe24 App Store app's client_id used by every Public-type integration on this deployment |
 | `CAFE24_CLIENT_SECRET` | Secret for the above. Never leaves the backend |
 | `OAUTH_STUB_MODE` | When `true`, OAuth exchange is stubbed (fake tokens) — local dev / unit tests only. Ignored in `NODE_ENV=production` |

@@ -188,6 +188,7 @@ export class IntegrationsController {
   }
 
   @Public()
+  @Throttle({ default: { limit: 30, ttl: 60_000 } })
   @Get('oauth/install/cafe24')
   @ApiOperation({
     summary: 'Cafe24 Private 앱 설치 진입점 (App URL)',

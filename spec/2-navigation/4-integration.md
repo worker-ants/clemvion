@@ -181,7 +181,7 @@ Step 2 auth     ──submit──▶ Step 3 test
 3. **Cafe24 "테스트 실행"** — Cafe24 가 App URL(`GET /api/integrations/oauth/install/cafe24`) 를 호출. 쿼리 파라미터: `mall_id`, `shop_no`, `user_id`, `user_name`, `user_type`, `lang`, `nation`, `timestamp`, `hmac` (HmacSHA256 서명, §9.5 참조).
 4. **App URL 처리** — 백엔드가 HMAC 을 검증하고, `mall_id` + `app_type=private` 로 `pending_install` Integration 을 조회한 뒤 OAuthState 를 생성하고 `https://{mall_id}.cafe24api.com/api/v2/oauth/authorize?...` 로 redirect.
 5. 쇼핑몰 관리자 **동의 화면** → 동의.
-6. Cafe24 가 callback(`/api/integrations/oauth/callback/cafe24`)으로 code+state 전달 → 토큰 교환 → Integration `status: pending_install → active`.
+6. Cafe24 가 callback(`/api/integrations/oauth/callback/cafe24`)으로 code+state 전달 → 토큰 교환 → Integration `status: pending_install → connected`.
 7. 사용자는 통합 목록에서 상태를 확인한다 (새로고침 또는 연결 상태 배지).
 
 > **mall_id** 는 base URL 의 일부이며 authorize URL 도 mall 별로 달라, OAuth begin 단계에서 사용자가 선행 입력해야 한다 (Public/Private 모두 동일).
@@ -650,7 +650,7 @@ Please replace or remove these node references first.
 | 메서드 | 경로 | 설명 |
 |--------|------|------|
 | POST | `/api/integrations/oauth/begin` | OAuth 시작. body: `{ service, scopes[], mode, integrationId? }`. **Cafe24 Public**: `mall_id`, `app_type='public'` 추가 → `{ authUrl, state }` 반환 (popup 흐름). **Cafe24 Private**: `mall_id`, `app_type='private'`, `client_id`, `client_secret` 추가 → `{ mode:'cafe24_private_pending', integrationId, appUrl, callbackUrl }` 반환 (Integration `pending_install` 생성, popup 없음). |
-| GET | `/api/integrations/oauth/install/cafe24` | Cafe24 Private 앱 App URL 엔드포인트. Cafe24 "테스트 실행" 시 Cafe24 가 호출. 쿼리: `mall_id`, `timestamp`, `hmac` 등 Cafe24 표준 파라미터. HMAC(HmacSHA256+Base64) 검증 → `pending_install` Integration 조회 → OAuthState 생성 → Cafe24 authorize URL 로 `302 redirect`. 에러: `CAFE24_INSTALL_INVALID_HMAC`(403), `CAFE24_INSTALL_NO_PENDING`(404), `CAFE24_INSTALL_REPLAY`(400). |
+| GET | `/api/integrations/oauth/install/cafe24` | Cafe24 Private 앱 App URL 엔드포인트. Cafe24 "테스트 실행" 시 Cafe24 가 호출. 쿼리: `mall_id`, `timestamp`, `hmac` 등 Cafe24 표준 파라미터. HMAC(HmacSHA256+Base64) 검증 → `pending_install` Integration 조회 → OAuthState 생성 → Cafe24 authorize URL 로 `302 redirect`. 에러: `CAFE24_INSTALL_INVALID_HMAC`(403, pending 미발견 포함 — 정보 노출 방지), `CAFE24_INSTALL_REPLAY`(400). |
 | GET | `/api/integrations/oauth/callback/:provider` | OAuth 콜백 (§10) |
 | POST | `/api/integrations/preview-test` | 저장 전 인증 정보로 연결 테스트. body: `{ service, authType, credentials }` |
 | POST | `/api/integrations/:id/reauthorize` | OAuth 재인증 authUrl 발급 |

@@ -382,7 +382,7 @@ Private 앱 연동 흐름 요약:
 2. 사용자가 Cafe24 Developers → 내 앱 → 개발 정보에 App URL·Redirect URI 등록 → 테스트 실행
 3. Cafe24 가 `GET /api/integrations/oauth/install/cafe24?mall_id=...&hmac=...` 로 App URL 호출
 4. 백엔드: HMAC 검증(§9.8) → OAuthState 생성 → Cafe24 authorize URL 로 redirect
-5. 동의 → callback → 토큰 교환 → Integration `pending_install → active`
+5. 동의 → callback → 토큰 교환 → Integration `pending_install → connected`
 
 ### 9.5 5필드 invariant 준수
 

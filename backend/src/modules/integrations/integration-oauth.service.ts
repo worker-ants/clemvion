@@ -173,12 +173,21 @@ export class IntegrationOAuthService {
           });
         }
         // Private app: Cafe24 OAuth cannot be initiated by us — the flow
-        // starts from Cafe24 Developers' "테스트 실행". Create a
-        // pending_install Integration immediately and return setup
-        // instructions (App URL + Redirect URI) instead of an authUrl popup.
+        // starts from Cafe24 Developers' "테스트 실행". Only create a new
+        // pending_install Integration when mode='new'. reauthorize and
+        // request_scopes paths must go through the handleInstall flow instead.
+        if (params.mode !== 'new') {
+          throw new BadRequestException({
+            code: 'CAFE24_PRIVATE_APP_USE_TEST_RUN',
+            message:
+              'Private Cafe24 apps cannot be reauthorized via this endpoint — trigger "테스트 실행" on Cafe24 Developers to restart the install flow',
+          });
+        }
         return this.createPrivatePendingIntegration(
           params,
-          meta as Required<Pick<Cafe24BeginMeta, 'mall_id' | 'client_id' | 'client_secret'>> &
+          meta as Required<
+            Pick<Cafe24BeginMeta, 'mall_id' | 'client_id' | 'client_secret'>
+          > &
             Cafe24BeginMeta,
         );
       } else {
@@ -673,14 +682,18 @@ export class IntegrationOAuthService {
       });
     }
 
-    // Find all pending_install cafe24 integrations with matching mall_id.
-    // TypeORM entity loading decrypts credentials via encryptedJsonTransformer.
+    // Find pending_install cafe24 integrations. Credentials are encrypted so
+    // mall_id cannot be filtered at the DB level; we filter + HMAC-verify in
+    // memory. Pre-compute the HMAC message once (rawQuery minus 'hmac', sorted)
+    // so each candidate only needs one createHmac call. Guard with .take(100).
     const candidates = await this.integrationRepository
       .createQueryBuilder('i')
       .where("i.service_type = 'cafe24'")
       .andWhere("i.status = 'pending_install'")
+      .take(100)
       .getMany();
 
+    const hmacMessage = buildHmacMessage(query.rawQuery);
     let target: Integration | null = null;
     for (const candidate of candidates) {
       const creds = candidate.credentials;
@@ -688,7 +701,7 @@ export class IntegrationOAuthService {
       if (creds.app_type !== 'private') continue;
       const secret = creds.client_secret;
       if (typeof secret !== 'string') continue;
-      if (verifyHmac(query.rawQuery, secret, query.hmac)) {
+      if (verifyHmacWithMessage(hmacMessage, secret, query.hmac)) {
         target = candidate;
         break;
       }
@@ -866,18 +879,24 @@ function readNumber(obj: Record<string, unknown>, key: string): number | null {
  *   2. Rebuild as URL-encoded query string
  *   3. HmacSHA256(client_secret, message) → Base64
  *   4. Compare (timing-safe) with the received (URL-decoded) hmac value
+ *
+ * Split into buildHmacMessage + verifyHmacWithMessage so callers with multiple
+ * candidate secrets can compute the message once and reuse it per candidate.
  */
-function verifyHmac(
-  rawQuery: string,
-  clientSecret: string,
-  receivedHmac: string,
-): boolean {
+function buildHmacMessage(rawQuery: string): string {
   const params = new URLSearchParams(rawQuery);
   params.delete('hmac');
-  const message = [...params.entries()]
+  return [...params.entries()]
     .sort(([a], [b]) => a.localeCompare(b))
     .map(([k, v]) => `${k}=${encodeURIComponent(v)}`)
     .join('&');
+}
+
+function verifyHmacWithMessage(
+  message: string,
+  clientSecret: string,
+  receivedHmac: string,
+): boolean {
   const computed = createHmac('sha256', clientSecret)
     .update(message, 'utf8')
     .digest('base64');
