@@ -104,9 +104,20 @@ export interface IntegrationUsageWorkflow {
 
 export type CredentialsStatus = 'ok' | 'needs_reauth';
 
+/**
+ * Safe-to-expose hints derived from credentials. Frontend must use these
+ * instead of poking at the encrypted `credentials` blob — e.g. for deciding
+ * whether the Reauthorize button is enabled (Cafe24 Private apps have no
+ * reauthorize entry point). Only Cafe24 currently emits anything here.
+ */
+export interface IntegrationMeta {
+  appType: 'public' | 'private' | null;
+}
+
 export type PublicIntegration = Omit<Integration, 'credentials'> & {
   credentials: Record<string, unknown>;
   credentialsStatus: CredentialsStatus;
+  meta: IntegrationMeta;
 };
 
 /**
@@ -831,6 +842,7 @@ export class IntegrationsService {
   }
 
   private toPublic(entity: Integration): PublicIntegration {
+    const meta = this.buildIntegrationMeta(entity);
     if (isUnreadableCredentials(entity.credentials)) {
       // Single corrupted row must not leak the sentinel marker into the API
       // response and must surface as a reconnect prompt rather than a
@@ -844,6 +856,7 @@ export class IntegrationsService {
         status: 'error',
         statusReason: 'credentials_unreadable',
         credentialsStatus: 'needs_reauth',
+        meta,
       };
     }
     return {
@@ -857,7 +870,26 @@ export class IntegrationsService {
         ? null
         : entity.lastError,
       credentialsStatus: 'ok',
+      meta,
     };
+  }
+
+  /**
+   * Build the safe-to-expose meta hints. Currently only cafe24 emits anything
+   * (`appType`) — extracted so FE can decide flow gating (e.g. Reauthorize
+   * button visibility) without ever touching the encrypted credentials blob.
+   */
+  private buildIntegrationMeta(entity: Integration): IntegrationMeta {
+    if (
+      entity.serviceType === 'cafe24' &&
+      !isUnreadableCredentials(entity.credentials)
+    ) {
+      const appType = entity.credentials?.app_type;
+      if (appType === 'public' || appType === 'private') {
+        return { appType };
+      }
+    }
+    return { appType: null };
   }
 
   private validateServiceAndAuth(serviceType: string, authType: string): void {

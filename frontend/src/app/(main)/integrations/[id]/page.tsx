@@ -28,7 +28,10 @@ import {
   type UsageWorkflow,
 } from "@/lib/api/integrations";
 import { ServiceIcon, prettyAuthType } from "../_shared/service-icons";
-import { StatusBadge } from "../_shared/status-badge";
+import {
+  StatusBadge,
+  isReauthorizeDisabled,
+} from "../_shared/status-badge";
 import { CredentialsForm } from "../_shared/credentials-form";
 import { useT, type TFunction, type TranslationKey } from "@/lib/i18n";
 
@@ -412,7 +415,12 @@ function SecurityTab({
           <Button
             variant="outline"
             onClick={() => reauthorize.mutate()}
-            disabled={reauthorize.isPending}
+            disabled={reauthorize.isPending || isReauthorizeDisabled(integration)}
+            title={
+              isReauthorizeDisabled(integration)
+                ? t("integrations.reauthorizeDisabledHint")
+                : undefined
+            }
           >
             {reauthorize.isPending ? (
               <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -421,6 +429,11 @@ function SecurityTab({
             )}
             {t("integrations.reauthorizeBtn")}
           </Button>
+          {isReauthorizeDisabled(integration) && (
+            <p className="text-xs text-[hsl(var(--muted-foreground))]">
+              {t("integrations.reauthorizeDisabledHint")}
+            </p>
+          )}
         </section>
       ) : (
         <section className="space-y-3">

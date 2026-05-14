@@ -105,6 +105,11 @@ export default function IntegrationsPage() {
         page,
         limit: PAGE_SIZE,
       }),
+    // Cafe24 Private rows transition to `connected` after the user completes
+    // "테스트 실행" in a separate tab — refetchOnWindowFocus brings the list
+    // up to date when the user returns. spec/2-navigation/4-integration.md §6
+    refetchOnWindowFocus: true,
+    staleTime: 0,
   });
 
   const integrations = useMemo(() => listData?.data ?? [], [listData]);
