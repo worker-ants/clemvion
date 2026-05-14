@@ -46,7 +46,7 @@ function makeRes() {
   return res as unknown as Response & typeof res;
 }
 
-describe('IntegrationsController — oauthCallback error paths (변경 0)', () => {
+describe('IntegrationsController — oauthCallback error paths', () => {
   let controller: IntegrationsController;
   let oauthService: jest.Mocked<
     Pick<
@@ -172,7 +172,7 @@ describe('IntegrationsController — oauthCallback error paths (변경 0)', () =
   });
 });
 
-describe('IntegrationsController — cafe24 install routes (변경 2)', () => {
+describe('IntegrationsController — cafe24 install routes', () => {
   let controller: IntegrationsController;
   let oauthService: {
     handleInstall: jest.Mock;

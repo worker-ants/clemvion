@@ -251,7 +251,7 @@ describe('IntegrationOAuthService — Cafe24', () => {
     });
   });
 
-  describe('begin — private app duplicate prevention (변경 3)', () => {
+  describe('begin — private app duplicate prevention', () => {
     function privateBeginParams() {
       return {
         workspaceId: 'ws-1',
@@ -355,7 +355,7 @@ describe('IntegrationOAuthService — Cafe24', () => {
     });
   });
 
-  describe('handleInstall — Cafe24 private app App URL (변경 2)', () => {
+  describe('handleInstall — Cafe24 private app App URL', () => {
     const clientSecret = 'test-private-secret';
     const INSTALL_TOKEN = 'a'.repeat(64);
 

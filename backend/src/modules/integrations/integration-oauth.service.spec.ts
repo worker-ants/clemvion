@@ -248,7 +248,7 @@ describe('IntegrationOAuthService', () => {
     });
   });
 
-  describe('handleCallback — failure observability (변경 0)', () => {
+  describe('handleCallback — failure observability', () => {
     // After OAuth state is consumed, any thrown exception must carry
     // { integrationId, workspaceId, mode } context so the controller can
     // surface the diagnostic on the integration row.
@@ -364,7 +364,7 @@ describe('IntegrationOAuthService', () => {
     });
   });
 
-  describe('markIntegrationCallbackError (변경 0)', () => {
+  describe('markIntegrationCallbackError', () => {
     it('records last_error/status_reason on pending_install row while preserving status', async () => {
       const row = {
         id: 'int-1',

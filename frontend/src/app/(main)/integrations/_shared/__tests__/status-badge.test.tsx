@@ -40,7 +40,7 @@ describe("computeStatus", () => {
     expect(view.detail).toBe("Complete Cafe24 Test Run to activate");
   });
 
-  it("surfaces the diagnostic detail when pending_install has a statusReason (변경 0)", () => {
+  it("surfaces the diagnostic detail when pending_install has a statusReason", () => {
     // Callback failure populated last_error/status_reason — UI must show the
     // diagnostic so the user can fix the underlying cause (e.g. wrong
     // client_id) and re-run "테스트 실행".
@@ -77,7 +77,7 @@ describe("computeStatus", () => {
     expect(computeStatus(row({ status: "expired" })).detail).toBeUndefined();
   });
 
-  it("surfaces install_timeout hint on expired Cafe24 Private rows (변경 4)", () => {
+  it("surfaces install_timeout hint on expired Cafe24 Private rows", () => {
     const view = computeStatus(
       row({ status: "expired", statusReason: "install_timeout" }),
     );
@@ -102,7 +102,7 @@ describe("isReauthorizeDisabled", () => {
     expect(isReauthorizeDisabled(row({ status: "pending_install" }))).toBe(true);
   });
 
-  it("disables for expired + install_timeout (변경 4)", () => {
+  it("disables for expired + install_timeout", () => {
     expect(
       isReauthorizeDisabled(
         row({ status: "expired", statusReason: "install_timeout" }),
