@@ -188,16 +188,28 @@ export class IntegrationsController {
     });
   }
 
+  /**
+   * Cafe24 Private app "테스트 실행" entry — Cafe24 calls our App URL with
+   * the install_token path segment we issued at oauth/begin. The token is
+   * the single-row identification key (V043 partial unique index); HMAC
+   * verification then runs once against that row's client_secret. See
+   * spec/2-navigation/4-integration.md §9.2.
+   *
+   * Rate limit is tight because the endpoint is public and the install_token
+   * — although 256-bit random — is exposed in URL path (logs / Referer).
+   * spec ## Rationale "CAFE24_INSTALL_INVALID_TOKEN(404) 의 보안 전제".
+   */
   @Public()
   @Throttle({ default: { limit: 30, ttl: 60_000 } })
-  @Get('oauth/install/cafe24')
+  @Get('oauth/install/cafe24/:installToken')
   @ApiOperation({
-    summary: 'Cafe24 Private 앱 설치 진입점 (App URL)',
+    summary: 'Cafe24 Private 앱 설치 진입점 (App URL — install_token)',
     description:
-      'Cafe24 Developers "테스트 실행" 시 Cafe24가 호출하는 App URL 엔드포인트. HMAC 검증 후 pending_install Integration을 찾아 Cafe24 authorize URL로 302 redirect합니다.',
+      'Cafe24 Developers "테스트 실행" 시 Cafe24가 호출하는 App URL 엔드포인트. path 의 install_token 으로 pending_install Integration 을 단일 row 조회하고 HMAC 1회 검증 후 Cafe24 authorize URL 로 302 redirect 합니다.',
   })
   @ApiOkResponse({ description: '302 redirect to Cafe24 authorize URL' })
   async cafe24Install(
+    @Param('installToken') installToken: string,
     @Query('mall_id') mallId: string | undefined,
     @Query('timestamp') timestamp: string | undefined,
     @Query('hmac') hmac: string | undefined,
@@ -235,7 +247,10 @@ export class IntegrationsController {
       rawQuery,
     };
     try {
-      const redirectUrl = await this.oauthService.handleInstall(query);
+      const redirectUrl = await this.oauthService.handleInstall(
+        installToken,
+        query,
+      );
       res.redirect(302, redirectUrl);
     } catch (err) {
       const e = err as {
@@ -248,6 +263,28 @@ export class IntegrationsController {
       const message = e.response?.message ?? e.message ?? 'Install failed';
       res.status(status).json({ code, message });
     }
+  }
+
+  /**
+   * Legacy App URL — token-less path, deprecated by V043 / variant 2.
+   * Responds 410 Gone so external Cafe24 Developers registrations still
+   * pointing here see a clean signal. Permanent retirement tracked in
+   * plan/in-progress/cafe24-pending-polish.md as a follow-up.
+   */
+  @Public()
+  @Throttle({ default: { limit: 30, ttl: 60_000 } })
+  @Get('oauth/install/cafe24')
+  @ApiOperation({
+    summary: 'Cafe24 Private 앱 설치 진입점 (Deprecated — install_token 없음)',
+    description:
+      '옛 토큰 없는 라우트. 신규 등록자는 /oauth/install/cafe24/:installToken 을 사용해야 합니다.',
+  })
+  cafe24InstallLegacy(@Res() res: Response) {
+    res.status(410).json({
+      code: 'CAFE24_INSTALL_LEGACY_PATH',
+      message:
+        'This App URL is deprecated. Re-register your Cafe24 Private app using the new /oauth/install/cafe24/:installToken URL shown in the integration setup screen.',
+    });
   }
 
   @Public()

@@ -210,6 +210,61 @@ describe('IntegrationExpiryScannerService.run', () => {
   });
 });
 
+describe('IntegrationExpiryScannerService.expirePendingInstalls (변경 4)', () => {
+  it('transitions stale pending_install rows to expired(install_timeout) and clears install_token', async () => {
+    const integrationRepo = repo();
+    const stale = [
+      {
+        id: 'pending-stale-1',
+        status: 'pending_install',
+        statusReason: null,
+        installToken: 'token-a',
+      },
+      {
+        id: 'pending-stale-2',
+        status: 'pending_install',
+        statusReason: 'oauth_token_exchange_failed',
+        installToken: 'token-b',
+      },
+    ];
+    integrationRepo.find.mockResolvedValue(stale);
+    const scanner = new IntegrationExpiryScannerService(
+      integrationRepo as never,
+      repo() as never,
+      repo() as never,
+      repo() as never,
+      { findAdminUserIds: jest.fn() } as never,
+      { createMany: jest.fn() } as never,
+      { upsertJobScheduler: jest.fn() } as never,
+    );
+    const affected = await scanner.expirePendingInstalls(new Date());
+    expect(affected).toBe(2);
+    expect(integrationRepo.save).toHaveBeenCalledWith(stale);
+    for (const row of stale) {
+      expect(row.status).toBe('expired');
+      expect(row.statusReason).toBe('install_timeout');
+      expect(row.installToken).toBeNull();
+    }
+  });
+
+  it('is a no-op when no pending_install rows are stale', async () => {
+    const integrationRepo = repo();
+    integrationRepo.find.mockResolvedValue([]);
+    const scanner = new IntegrationExpiryScannerService(
+      integrationRepo as never,
+      repo() as never,
+      repo() as never,
+      repo() as never,
+      { findAdminUserIds: jest.fn() } as never,
+      { createMany: jest.fn() } as never,
+      { upsertJobScheduler: jest.fn() } as never,
+    );
+    const affected = await scanner.expirePendingInstalls(new Date());
+    expect(affected).toBe(0);
+    expect(integrationRepo.save).not.toHaveBeenCalled();
+  });
+});
+
 describe('IntegrationExpiryScannerService.pruneUsageLogs', () => {
   it('deletes rows older than 90 days', async () => {
     const usageLogRepo = repo();
