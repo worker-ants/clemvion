@@ -53,7 +53,6 @@ import {
   ALLOWED_OAUTH_PROVIDERS,
   Cafe24InstallQuery,
   IntegrationOAuthService,
-  callbackContextOf,
 } from './integration-oauth.service';
 
 /** install_token is issued as `randomBytes(32).toString('hex')` — exactly 64
@@ -382,42 +381,20 @@ export class IntegrationsController {
     }
 
     try {
-      const result = await this.oauthService.handleCallback(provider, {
-        code,
-        state,
-        error,
-      });
+      // Service captures any callback-row diagnostic itself and re-throws —
+      // controller's job is just to render the HTML response.
+      const result = await this.oauthService.handleCallbackWithErrorCapture(
+        provider,
+        { code, state, error },
+      );
       res.setHeader('Content-Type', 'text/html; charset=utf-8');
       res.send(renderCallbackHtml({ status: 'success', result }, targetOrigin));
     } catch (err) {
       const e = err as {
         message?: string;
-        response?: { message?: string; code?: string };
+        response?: { message?: string };
       };
-      const errorCode = e.response?.code ?? 'OAUTH_CALLBACK_FAILED';
       const message = e.response?.message ?? e.message ?? 'OAuth failed';
-
-      // If the failure happened after state consumption, the service attached
-      // {integrationId, workspaceId, mode} to the error so we can surface the
-      // diagnostic on the row (spec/2-navigation/4-integration.md §10.4).
-      // Defensive: markIntegrationCallbackError is best-effort by design
-      // (internal try/catch), but a future refactor that removes that guard
-      // must not be allowed to hang the popup — explicit .catch ensures the
-      // error HTML response still runs.
-      const ctx = callbackContextOf(err);
-      if (ctx?.integrationId && ctx.workspaceId) {
-        await this.oauthService
-          .markIntegrationCallbackError(
-            ctx.integrationId,
-            ctx.workspaceId,
-            errorCode,
-            message,
-          )
-          .catch(() => {
-            /* swallow — never block HTML response */
-          });
-      }
-
       res.setHeader('Content-Type', 'text/html; charset=utf-8');
       res.send(
         renderCallbackHtml(
