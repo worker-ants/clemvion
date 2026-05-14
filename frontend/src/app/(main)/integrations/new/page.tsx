@@ -19,6 +19,7 @@ import {
 import { ServiceIcon } from "../_shared/service-icons";
 import { CredentialsForm } from "../_shared/credentials-form";
 import { useT, type TFunction } from "@/lib/i18n";
+import { useCafe24PendingPolling } from "@/lib/integrations/use-cafe24-pending-polling";
 
 interface OAuthCallbackPayload {
   type: "oauth_callback";
@@ -765,9 +766,6 @@ function Cafe24ExtraFields({
   );
 }
 
-const PRIVATE_PENDING_POLL_MS = 3000;
-const PRIVATE_PENDING_TIMEOUT_MS = 10 * 60 * 1000;
-
 function Cafe24PrivatePendingStep({
   appUrl,
   callbackUrl,
@@ -780,10 +778,7 @@ function Cafe24PrivatePendingStep({
   t: TFunction;
 }) {
   const router = useRouter();
-  const queryClient = useQueryClient();
   const [copiedField, setCopiedField] = useState<string | null>(null);
-  const transitionedRef = useRef(false);
-  const [timedOut, setTimedOut] = useState(false);
 
   const copy = (value: string, field: string) => {
     void navigator.clipboard.writeText(value);
@@ -791,51 +786,10 @@ function Cafe24PrivatePendingStep({
     setTimeout(() => setCopiedField(null), 2000);
   };
 
-  // Poll the integration row to detect cafe24 "테스트 실행" completion. The
-  // popup that Cafe24 Developers opens has `window.opener = cafe24 tab`, so
-  // our existing oauth_callback postMessage listener never fires. Polling
-  // closes that gap. spec/2-navigation/4-integration.md ## Rationale
-  // "Cafe24 Private 앱의 callback 실패는 왜 status 를 보존하나"
-  const { data: poll } = useQuery({
-    queryKey: ["integrations", "get", integrationId],
-    queryFn: () => integrationsApi.get(integrationId),
-    refetchInterval: (q) => {
-      const row = q.state.data as { status?: string } | undefined;
-      if (!row) return PRIVATE_PENDING_POLL_MS;
-      if (row.status !== "pending_install") return false; // stop on terminal
-      return PRIVATE_PENDING_POLL_MS;
-    },
-    refetchOnWindowFocus: true,
-    enabled: !timedOut,
-  });
-
-  // 10-minute soft timeout. Effect-driven so Date.now() never runs in render
-  // (react-hooks/purity).
-  useEffect(() => {
-    const handle = setTimeout(
-      () => setTimedOut(true),
-      PRIVATE_PENDING_TIMEOUT_MS,
-    );
-    return () => clearTimeout(handle);
-  }, []);
-
-  useEffect(() => {
-    if (transitionedRef.current) return;
-    if (!poll) return;
-    if (poll.status === "connected") {
-      transitionedRef.current = true;
-      toast.success(t("integrations.oauthCompletedToast"));
-      void queryClient.invalidateQueries({ queryKey: ["integrations"] });
-      router.replace(`/integrations/${integrationId}`);
-    }
-  }, [poll, router, queryClient, integrationId, t]);
-
-  const lastErrorMessage =
-    poll?.status === "pending_install"
-      ? ((poll.lastError as { message?: string } | null)?.message ??
-        poll.statusReason ??
-        null)
-      : null;
+  // Polling state machine extracted to a hook so it can be unit-tested
+  // independently of this presentational shell.
+  const { poll, timedOut, lastErrorMessage } =
+    useCafe24PendingPolling(integrationId);
 
   return (
     <div className="space-y-6 rounded-lg border border-[hsl(var(--border))] p-6">
