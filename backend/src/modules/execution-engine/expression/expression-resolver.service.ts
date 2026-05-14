@@ -121,13 +121,33 @@ export class ExpressionResolverService {
     // bodies that hold a reference). The wrapper and contained turn
     // objects stay shared (turns are immutable post-push).
     const snapshot = [...thread.turns];
-    return {
+    const view: {
+      turns: typeof snapshot;
+      length: number;
+      text?: string;
+    } = {
       turns: snapshot,
       length: snapshot.length,
-      // Lazy via getter would be ideal but `evaluate()` may serialize the
-      // object — pre-compute the text. Empty thread → empty string (matches
-      // renderer's noop branch).
-      text: renderThreadAsSystemText(snapshot),
+    };
+    // Lazy `text` — only renders when the expression actually reads
+    // `$thread.text`. Memoized on first access so repeated reads in the
+    // same turn (e.g. inside a Loop) stay O(1). spec/conventions/
+    // conversation-thread.md §7 (v2 lazy roadmap, option A).
+    let cached: string | undefined;
+    Object.defineProperty(view, 'text', {
+      enumerable: true,
+      configurable: false,
+      get(): string {
+        if (cached === undefined) {
+          cached = renderThreadAsSystemText(snapshot);
+        }
+        return cached;
+      },
+    });
+    return view as {
+      turns: typeof snapshot;
+      length: number;
+      text: string;
     };
   }
 
