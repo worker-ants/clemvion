@@ -39,11 +39,11 @@ spec / plan / 구현 착수 전 다관점 일관성 검토 (sub-agent 위임)
 
 ## 산출물
 
-- `review/consistency/<timestamp>/SUMMARY.md` — 통합 보고서 (BLOCK 결정 명시)
-- `review/consistency/<timestamp>/<checker>/review.md` — 5 checker 별 상세
-- `review/consistency/<timestamp>/_retry_state.json` — pending/success/fatal 상태
-- `review/consistency/<timestamp>/_prompts/<checker>.md` — orchestrator 가 만든 입력 페이로드
-- `review/consistency/<timestamp>/meta.json` — 모드·target·checker 명단
+- `review/consistency/<YYYY>/<MM>/<DD>/<hh>_<mm>_<ss>/SUMMARY.md` — 통합 보고서 (BLOCK 결정 명시)
+- `review/consistency/<YYYY>/<MM>/<DD>/<hh>_<mm>_<ss>/<checker>/review.md` — 5 checker 별 상세
+- `review/consistency/<YYYY>/<MM>/<DD>/<hh>_<mm>_<ss>/_retry_state.json` — pending/success/fatal 상태
+- `review/consistency/<YYYY>/<MM>/<DD>/<hh>_<mm>_<ss>/_prompts/<checker>.md` — orchestrator 가 만든 입력 페이로드
+- `review/consistency/<YYYY>/<MM>/<DD>/<hh>_<mm>_<ss>/meta.json` — 모드·target·checker 명단
 
 ## 환경변수
 

@@ -35,8 +35,10 @@
 | `plan/in-progress/<name>.md` | 평문 | 처리할 항목이 남은 plan. 새 plan 은 항상 여기 |
 | `plan/complete/<name>.md` | 평문 | 모든 항목 완료된 plan. `in-progress/` 에서 `git mv` |
 | `plan/complete/archive/from-*/` | 고정 경로 | 옛 `memory/`·`user_memo/` 의 1회성·역사 문서 보관. 신규 생성 금지 |
-| `review/<timestamp>/` | ISO 형식 | 코드 리뷰 세션. `SUMMARY.md`·`RESOLUTION.md` + 분야별 `*/review.md` |
-| `review/consistency/<timestamp>/` | 고정 prefix | consistency-checker 세션. `SUMMARY.md` + 5 checker 별 `*/review.md` + `meta.json` |
+| `review/code/<YYYY>/<MM>/<DD>/<hh>_<mm>_<ss>/` | nested ISO | 코드 리뷰 세션. `SUMMARY.md`·`RESOLUTION.md` + 분야별 `*/review.md` |
+| `review/consistency/<YYYY>/<MM>/<DD>/<hh>_<mm>_<ss>/` | nested ISO | consistency-checker 세션. `SUMMARY.md` + 5 checker 별 `*/review.md` + `meta.json` |
+
+> 옛 flat 경로(`review/<timestamp>/`, `review/consistency/<timestamp>/`) 의 누적된 데이터는 한 디렉토리 안 항목 수가 폭주해 `ls` 등 파일시스템 조회가 무거워지는 문제가 있어 nested 형식으로 전환했다. 기존 데이터는 사용자가 일괄 이동 예정이며, 새 세션부터 위 형식을 강제한다.
 | `.claude/worktrees/<task_name>-<slug>/` | `<task_name>-<slug>` | 신규 작업이 일어나는 worktree. `task_name` 은 요청에 맞는 의미 있는 단어, `slug` 는 호출자가 부여하는 식별자 |
 
 > 옛 `prd/`, `memory/`, `user_memo/` 폴더는 docs-consolidation(2026-05-12) 으로 모두 `spec/` 또는 `plan/complete/archive/` 로 흡수되었다. 신규 문서를 옛 경로 컨벤션으로 만들지 않는다.
@@ -57,8 +59,8 @@
 | 정식 규약 (옛 user_memo CONVENTIONS) | `spec/conventions/<name>.md` |
 | 진행 중 작업 추적 | `plan/in-progress/<name>.md` (frontmatter 에 `worktree` 명시) |
 | 완료된 작업 추적 | `plan/complete/<name>.md` (`git mv`로 이동) |
-| 코드 리뷰 산출물 | `review/<timestamp>/{SUMMARY,RESOLUTION,...}.md` |
-| 일관성 검토 산출물 | `review/consistency/<timestamp>/{SUMMARY,meta.json,<checker>/review.md}` |
+| 코드 리뷰 산출물 | `review/code/<YYYY>/<MM>/<DD>/<hh>_<mm>_<ss>/{SUMMARY,RESOLUTION,...}.md` |
+| 일관성 검토 산출물 | `review/consistency/<YYYY>/<MM>/<DD>/<hh>_<mm>_<ss>/{SUMMARY,meta.json,<checker>/review.md}` |
 | 1회성 분석·역사 문서 | `plan/complete/archive/from-*/` 만 보관, 신규 생성 금지 |
 
 ### 작업 시 점검 (절대 누락 금지)
@@ -130,7 +132,7 @@ cd .claude/worktrees/<task_name>-<slug>
 | 기획자 | [`project-planner`](.claude/skills/project-planner/SKILL.md) | 제품 정의·스펙(spec)의 신규 작성·개정. `spec/` 본문·Overview·Rationale 모두 다룬다. **구현 금지** | `spec/**`, `plan/**` |
 | 개발자 | [`developer`](.claude/skills/developer/SKILL.md) | 스펙 기반의 구현·리팩토링·테스트 작성·빌드·품질 검증. **기획 금지** | `frontend/**`, `backend/**`, `plan/**`, `review/**/RESOLUTION.md`. `spec/` 은 **read-only** — 수정 필요 시 `project-planner` 로 위임 |
 | 일관성 검토자 | [`consistency-checker`](.claude/skills/consistency-checker/SKILL.md) (`/consistency-check`) | spec/plan/구현 착수 **직전** 다른 문서와의 위배 사전 검출. Critical 발견 시 호출자를 차단. | `review/consistency/**` |
-| 코드 리뷰어 | [`code-review-agents`](.claude/skills/code-review-agents/SKILL.md) (`/ai-review`) | **사후** 다각도 코드 리뷰 실행. `review/<timestamp>/SUMMARY.md` 생성 | `review/**` (SUMMARY 와 각 에이전트 출력) |
+| 코드 리뷰어 | [`code-review-agents`](.claude/skills/code-review-agents/SKILL.md) (`/ai-review`) | **사후** 다각도 코드 리뷰 실행. `review/code/<YYYY>/<MM>/<DD>/<hh>_<mm>_<ss>/SUMMARY.md` 생성 | `review/**` (SUMMARY 와 각 에이전트 출력) |
 
 - `spec/` 을 다루면 `project-planner` 로 진입한다.
 - 코드베이스(`frontend/`·`backend/`)를 다루면 `developer` 로 진입한다.

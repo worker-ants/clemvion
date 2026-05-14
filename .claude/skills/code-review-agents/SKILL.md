@@ -33,9 +33,9 @@ python3 .claude/skills/code-review-agents/hooks/code_review_orchestrator.py --pr
 - `--staged`, `--commit <ref>`, `--range <a>..<b>`, `--branch <base>`, 파일/디렉토리 경로
 
 orchestrator 가 만드는 결과:
-- `review/<timestamp>/_prompts/<role>.md` — reviewer 별 입력 페이로드
-- `review/<timestamp>/_retry_state.json` — 재시도/상태 파일
-- `review/<timestamp>/meta.json` — 세션 메타데이터
+- `review/code/<YYYY>/<MM>/<DD>/<hh>_<mm>_<ss>/_prompts/<role>.md` — reviewer 별 입력 페이로드
+- `review/code/<YYYY>/<MM>/<DD>/<hh>_<mm>_<ss>/_retry_state.json` — 재시도/상태 파일
+- `review/code/<YYYY>/<MM>/<DD>/<hh>_<mm>_<ss>/meta.json` — 세션 메타데이터
 - stdout 마지막 줄(들) = 세션 디렉토리 절대경로 (batch 별로 한 줄씩)
 
 `/loop /ai-review` 로 호출됐다면 환경변수 `AI_REVIEW_LOOP=1` 을 전달해 `loop_mode=true` 로 초기화한다.
