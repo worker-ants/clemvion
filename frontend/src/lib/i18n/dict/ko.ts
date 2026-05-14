@@ -1618,6 +1618,15 @@ export const ko = {
     recommendedBadge: "권장",
     cafe24ScopeWarning:
       "Cafe24 는 앱 설정에 사전 등록된 권한만 OAuth 요청을 허용해요. 선택한 권한이 Cafe24 Developers → 내 앱 → 사용 권한(Scope) 에 모두 체크돼 있어야 하며, 하나라도 누락되면 OAuth 가 invalid_scope 로 거부돼요. 처음에는 1개만 켜고 동작을 확인한 뒤 점진적으로 늘리길 권해요.",
+    cafe24PrivatePendingTitle: "Cafe24 Developers 설정을 완료해 주세요",
+    cafe24PrivatePendingDesc:
+      "통합이 연결 대기 상태로 생성됐어요. Cafe24 Developers 에서 아래 URL 을 등록하고 테스트 실행을 완료하면 자동으로 활성화돼요.",
+    cafe24AppUrlLabel: "App URL (Cafe24 Developers → 개발 정보에 등록)",
+    cafe24CallbackUrlLabel: "Redirect URI (Cafe24 Developers → 개발 정보에 등록)",
+    cafe24PrivatePendingSteps:
+      "① Cafe24 Developers → 내 앱 → 개발 정보에서 App URL 과 Redirect URI 를 위 값으로 등록하세요. ② 사용 권한(Scope) 이 요청한 scope 와 일치하는지 확인하세요. ③ 테스트 실행 버튼을 클릭하고 mall_id 를 입력하세요. 동의 후 통합이 활성화됩니다.",
+    cafe24PrivatePendingViewList: "통합 목록으로 이동",
+    copied: "복사됨",
     waitingPopup: "제공자 팝업 응답을 기다리는 중…",
     oauthComplete: "OAuth 인증이 완료됐어요.",
     authorizePrompt: "제공자에서 이 통합을 승인해 주세요.",

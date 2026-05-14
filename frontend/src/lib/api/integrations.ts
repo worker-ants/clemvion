@@ -1,6 +1,6 @@
 import { apiClient } from "./client";
 
-export type IntegrationStatus = "connected" | "expired" | "error";
+export type IntegrationStatus = "connected" | "expired" | "error" | "pending_install";
 export type IntegrationScope = "personal" | "organization";
 export type ListStatusFilter =
   | "all"
@@ -176,9 +176,15 @@ export const integrationsApi = {
     appType?: "public" | "private";
     clientId?: string;
     clientSecret?: string;
-  }): Promise<{ authUrl: string; state: string }> {
+  }): Promise<
+    | { authUrl: string; state: string }
+    | { mode: "cafe24_private_pending"; integrationId: string; appUrl: string; callbackUrl: string }
+  > {
     const { data } = await apiClient.post("/integrations/oauth/begin", body);
-    return unwrap<{ authUrl: string; state: string }>(data);
+    return unwrap<
+      | { authUrl: string; state: string }
+      | { mode: "cafe24_private_pending"; integrationId: string; appUrl: string; callbackUrl: string }
+    >(data);
   },
 
   async update(

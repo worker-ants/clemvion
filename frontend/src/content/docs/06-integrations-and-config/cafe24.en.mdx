@@ -35,14 +35,14 @@ To finish Step 2 with App Type = **Private** you need a `client_id` / `client_se
 | Field | Value |
 |---|---|
 | **App Name (관리 상품명)** | Anything, e.g. `Clemvion Integration` |
-| **App URL** | `https://<your-deployment>` — this product's base URL |
+| **App URL** | **`https://<your-deployment>/api/integrations/oauth/install/cafe24`** — the endpoint this service exposes for Cafe24's "Test Run" callback. Cafe24 calls this URL, the service verifies the HMAC, and starts the OAuth flow. |
 | **Redirect URI** | **`https://<your-deployment>/api/integrations/oauth/callback/cafe24`** — this backend's OAuth callback endpoint. **Cafe24 verifies this character-by-character** — trailing slash, `http` vs `https`, port, typos all matter. If you have multiple environments (local, staging, production), register every URL here so any environment's OAuth flow goes through the same app |
 | **API Permissions (Scope)** | Tick the read/write categories your workflows will hit. Mirrors the Scope checkboxes on the Step 2 form |
 | Webhook settings | Optional, leave blank |
 
 5. The same page shows the freshly generated **`Client ID`** / **`Client Secret`** — copy both.
 
-> No App Store review is needed for self-distributed apps. When the OAuth popup our service opens hits your mall's authorize URL, Cafe24 shows an "Install this app?" consent screen and proceeds to token issuance the moment you accept.
+> **Important:** Private-app auth is not initiated by opening a popup from this service. Cafe24 calls *us* via the "Test Run" button. See Step 4 for the exact flow.
 
 ### 3) Step 2 — pre-flight inputs
 
@@ -57,9 +57,19 @@ Unlike Google/GitHub, Cafe24's URL itself depends on `mall_id`, so you supply it
 | **Client ID / Client Secret** | Shown only when App Type = Private. The OAuth credentials you got from your shop's admin |
 | **Scopes** | Per-category read/write checkboxes (e.g. `mall.read_product`, `mall.write_order`). At least one is required |
 
-### 4) [Connect with Cafe24]
+### 4) [Connect with Cafe24] — behaviour by app type
 
-A popup opens with Cafe24's consent screen. After consent the popup tells the parent window the result, the backend exchanges the token, and the integration is created.
+**Public app:**
+A popup opens with Cafe24's consent screen. After consent the popup posts the result back to the parent window, the backend exchanges the token, and the integration is created.
+
+**Private app:**
+Instead of a popup, you'll see an instruction screen with two values: **App URL** and **Redirect URI**. The flow is:
+
+1. The service creates a `pending_install` integration immediately.
+2. Copy the displayed **App URL** and confirm it matches what's registered in your Cafe24 Developers app settings.
+3. On Cafe24 Developers (`https://developers.cafe24.com`), open the app and click **"Test Run" (테스트 실행)**.
+4. Cafe24 sends an HMAC-signed request to the App URL. This service verifies the signature and redirects to Cafe24's consent screen.
+5. After consent, the token is issued and the integration status transitions from `pending_install` → `connected`.
 
 > Tokens auto-refresh. When `access_token` is within 60 seconds of expiring, the backend issues a refresh call to the mall-specific token URL just before the next node call. Repeated refresh failures flip the integration to `expired` and fire a notification.
 
@@ -152,7 +162,12 @@ Cafe24 requires **comma-delimited** scopes on `/oauth/authorize` (a deviation fr
 > Tip: To narrow down which scope is missing, reduce the integration form selection to a single scope (e.g. `mall.read_product`) first. If it succeeds, add the rest one by one to find the failing one.
 
 **Q. Can I register an integration while my service is still in development?**
-Yes. You don't need to publish to the Cafe24 App Store — the **Private (self-issued) app** flow works end-to-end. Create an app on Cafe24 Developers from your own mall, tick every scope you plan to use in the app's permission settings, then pick App Type = Private in the integration form and paste your `client_id` / `client_secret`. No App Store review is required; the app installs straight into your own mall.
+Yes. The **Private app** flow works without any App Store review. Note that unlike Public-app auth (which opens a popup), Private-app auth is *initiated by Cafe24* — you click "Test Run" in Cafe24 Developers, not a button in this service. Quick summary:
+
+1. Cafe24 Developers: create an app → set App URL to `https://<your-host>/api/integrations/oauth/install/cafe24` → set Redirect URI → enable scopes → copy client_id/secret.
+2. This service: App Type = Private, fill Mall ID / Client ID / Secret / Scopes → [Connect with Cafe24].
+3. Cafe24 Developers: click **"Test Run"** on the app.
+4. Cafe24 calls the App URL → HMAC verified → OAuth consent screen → token issued → integration `connected`.
 
 **Q. I mistyped the mall_id — how do I fix it?**
 Only the integration's display name (alias) can be edited after creation. Recreate the integration. An invalid mall_id is rejected at the OAuth begin step (`/^[a-z0-9-]{3,50}$/`).

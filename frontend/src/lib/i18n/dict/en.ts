@@ -1620,6 +1620,15 @@ export const en: Dict = {
     recommendedBadge: "Recommended",
     cafe24ScopeWarning:
       "Cafe24 only allows OAuth requests for scopes pre-registered on the app. Every scope you tick here must also be enabled at Cafe24 Developers → My App → Permissions (Scope) — if even one is missing, the OAuth call is rejected with invalid_scope. Start with a single scope and add more once it works.",
+    cafe24PrivatePendingTitle: "Complete the Cafe24 Developers setup",
+    cafe24PrivatePendingDesc:
+      "Your integration has been created in pending state. Once you register the URLs below in Cafe24 Developers and complete Test Run, it will activate automatically.",
+    cafe24AppUrlLabel: "App URL (register in Cafe24 Developers → Development Info)",
+    cafe24CallbackUrlLabel: "Redirect URI (register in Cafe24 Developers → Development Info)",
+    cafe24PrivatePendingSteps:
+      "① In Cafe24 Developers → My App → Development Info, set App URL and Redirect URI to the values above. ② Confirm that Permissions (Scope) match the scopes you requested. ③ Click Test Run and enter your mall ID. After consent, the integration activates.",
+    cafe24PrivatePendingViewList: "Go to integrations list",
+    copied: "Copied",
     waitingPopup: "Waiting for the provider popup…",
     oauthComplete: "OAuth authorization complete.",
     authorizePrompt: "Authorize this integration with the provider.",
