@@ -1618,6 +1618,8 @@ export const en: Dict = {
     authTypeLabel2: "Authentication Type",
     oauthScopesLabel: "OAuth Scopes",
     recommendedBadge: "Recommended",
+    cafe24ScopeWarning:
+      "Cafe24 only allows OAuth requests for scopes pre-registered on the app. Every scope you tick here must also be enabled at Cafe24 Developers → My App → Permissions (Scope) — if even one is missing, the OAuth call is rejected with invalid_scope. Start with a single scope and add more once it works.",
     waitingPopup: "Waiting for the provider popup…",
     oauthComplete: "OAuth authorization complete.",
     authorizePrompt: "Authorize this integration with the provider.",

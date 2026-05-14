@@ -1616,6 +1616,8 @@ export const ko = {
     authTypeLabel2: "인증 유형",
     oauthScopesLabel: "OAuth 권한",
     recommendedBadge: "권장",
+    cafe24ScopeWarning:
+      "Cafe24 는 앱 설정에 사전 등록된 권한만 OAuth 요청을 허용해요. 선택한 권한이 Cafe24 Developers → 내 앱 → 사용 권한(Scope) 에 모두 체크돼 있어야 하며, 하나라도 누락되면 OAuth 가 invalid_scope 로 거부돼요. 처음에는 1개만 켜고 동작을 확인한 뒤 점진적으로 늘리길 권해요.",
     waitingPopup: "제공자 팝업 응답을 기다리는 중…",
     oauthComplete: "OAuth 인증이 완료됐어요.",
     authorizePrompt: "제공자에서 이 통합을 승인해 주세요.",

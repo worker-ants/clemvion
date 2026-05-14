@@ -36,7 +36,7 @@ To finish Step 2 with App Type = **Private** you need a `client_id` / `client_se
 |---|---|
 | **App Name (관리 상품명)** | Anything, e.g. `Clemvion Integration` |
 | **App URL** | `https://<your-deployment>` — this product's base URL |
-| **Redirect URI** | **`https://<your-deployment>/api/integrations/oauth/callback/cafe24`** — this backend's OAuth callback endpoint. Must match exactly |
+| **Redirect URI** | **`https://<your-deployment>/api/integrations/oauth/callback/cafe24`** — this backend's OAuth callback endpoint. **Cafe24 verifies this character-by-character** — trailing slash, `http` vs `https`, port, typos all matter. If you have multiple environments (local, staging, production), register every URL here so any environment's OAuth flow goes through the same app |
 | **API Permissions (Scope)** | Tick the read/write categories your workflows will hit. Mirrors the Scope checkboxes on the Step 2 form |
 | Webhook settings | Optional, leave blank |
 
@@ -123,7 +123,36 @@ Once a Cafe24 integration is added, the LLM sees tools named `mcp_<sid>__<resour
 
 See the [official Cafe24 docs](https://developers.cafe24.com/docs/ko/api/admin/#api-index) for the full list across all 18 categories.
 
+## Related spec
+
+- Node spec: `spec/4-nodes/4-integration/4-cafe24.md`
+- Integration management screen: `spec/2-navigation/4-integration.md` §5.8 / §10.3
+- Internal MCP Bridge: `spec/5-system/11-mcp-client.md` §2.3
+- Metadata convention: `spec/conventions/cafe24-api-metadata.md`
+
 ## FAQ
+
+**Q. OAuth start fails with `invalid_request: The redirec_uri added by Cafe24 Developers is invalid`.**
+The `redirect_uri` parameter this service sent does not exactly match any Redirect URI registered on the Cafe24 Developers app. Cafe24 compares the URL character-by-character — trailing slash (`…/cafe24` vs `…/cafe24/`), `http` vs `https`, host typos, and port specs all count. Fastest fix: copy the `redirect_uri=` query value out of the authorize URL that errored, and paste it verbatim into the app's Redirect URI field on Cafe24 Developers.
+
+**Q. How do I register callback URLs for multiple environments (local / staging / production)?**
+The Cafe24 app's Redirect URI field accepts multiple entries. Add the full `https://<env-host>/api/integrations/oauth/callback/cafe24` for every environment that will start an OAuth flow through this app.
+
+**Q. OAuth start fails with `invalid_scope: The scope added by Cafe24 Developers is invalid`.**
+Cafe24 requires **comma-delimited** scopes on `/oauth/authorize` (a deviation from RFC 6749 §3.3 which mandates space). This service already sends comma-delimited scopes, but if you still see `invalid_scope`, one of these is the cause:
+
+1. **Missing pre-registration on the app (most common)** — Cafe24 only honors OAuth requests for scopes that are *pre-registered on the app*. If even one scope you ticked in the integration form is missing from the Cafe24 app's permission settings, the *entire* OAuth call is rejected.
+
+   - Sign in to https://developers.cafe24.com → **`Apps` → `My Apps`** → click the app
+   - Open **`App Information`** (or **`개발 정보`** in Korean UI) → scroll to the **`Permissions` / `Scope`** section
+   - Tick **every** scope you selected in the integration form → save → retry [Connect with Cafe24]
+
+2. **App type mismatch** — a Front-store app requesting Admin scope (`mall.*`) or vice versa.
+
+> Tip: To narrow down which scope is missing, reduce the integration form selection to a single scope (e.g. `mall.read_product`) first. If it succeeds, add the rest one by one to find the failing one.
+
+**Q. Can I register an integration while my service is still in development?**
+Yes. You don't need to publish to the Cafe24 App Store — the **Private (self-issued) app** flow works end-to-end. Create an app on Cafe24 Developers from your own mall, tick every scope you plan to use in the app's permission settings, then pick App Type = Private in the integration form and paste your `client_id` / `client_secret`. No App Store review is required; the app installs straight into your own mall.
 
 **Q. I mistyped the mall_id — how do I fix it?**
 Only the integration's display name (alias) can be edited after creation. Recreate the integration. An invalid mall_id is rejected at the OAuth begin step (`/^[a-z0-9-]{3,50}$/`).
@@ -136,10 +165,3 @@ The AI Agent node's `mcpServers` list must include this Cafe24 integration. Re-a
 
 **Q. Throughput feels slow under heavy use.**
 You've hit Cafe24's leaky-bucket quota and the backend is auto-backing off. `meta.callUsage` / `meta.callRemain` headers expose the current bucket state. If many workflows share the same integration, split usage across separate integrations to widen the quota.
-
-## Related spec
-
-- Node spec: `spec/4-nodes/4-integration/4-cafe24.md`
-- Integration management screen: `spec/2-navigation/4-integration.md` §5.8 / §10.3
-- Internal MCP Bridge: `spec/5-system/11-mcp-client.md` §2.3
-- Metadata convention: `spec/conventions/cafe24-api-metadata.md`

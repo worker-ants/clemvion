@@ -151,6 +151,20 @@ describe('IntegrationOAuthService — Cafe24', () => {
       expect(result.authUrl).toMatch(
         /^https:\/\/myshop\.cafe24api\.com\/api\/v2\/oauth\/authorize\?/,
       );
+      // Cafe24 deviates from RFC 6749 §3.3 and demands comma-delimited
+      // scopes (NOT space). Sending space ('+' after URL encoding) makes
+      // Cafe24 treat the whole string as a single token and reject even
+      // a 1-scope request with `invalid_scope`. Verify the wire format
+      // explicitly so a future "fix" reverting to .join(' ') is caught.
+      expect(result.authUrl).toContain(
+        'scope=mall.read_product%2Cmall.write_order',
+      );
+      expect(result.authUrl).not.toContain(
+        'mall.read_product+mall.write_order',
+      );
+      expect(result.authUrl).not.toContain(
+        'mall.read_product%20mall.write_order',
+      );
       expect(result.state).toHaveLength(48);
       expect(stateRepo.save).toHaveBeenCalledTimes(1);
       const saved = stateRepo.save.mock.calls[0][0] as Record<string, unknown>;
