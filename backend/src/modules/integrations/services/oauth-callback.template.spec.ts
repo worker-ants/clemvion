@@ -1,4 +1,8 @@
-import { htmlEscape, renderCallbackHtml } from './oauth-callback.template';
+import {
+  ERROR_CLOSE_DELAY_MS,
+  htmlEscape,
+  renderCallbackHtml,
+} from './oauth-callback.template';
 
 describe('htmlEscape', () => {
   it('escapes all five special characters', () => {
@@ -75,11 +79,10 @@ describe('renderCallbackHtml', () => {
         },
         'https://app.example.com',
       );
-      // Error path: delayed close (>=1000ms) — gives user time to read the
-      // failure reason before the popup auto-closes.
+      // Error path: delayed close with the exact configured delay.
       const match = html.match(/setTimeout\([^,]+,\s*(\d+)\s*\)/);
       expect(match).not.toBeNull();
-      expect(Number(match![1])).toBeGreaterThanOrEqual(1000);
+      expect(Number(match![1])).toBe(ERROR_CLOSE_DELAY_MS);
       expect(html).toContain('window.close()');
       // The error message must be visible in the body so users see it before
       // the timeout fires.

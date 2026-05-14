@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { computeStatus } from "../status-badge";
+import { computeStatus, isReauthorizeDisabled } from "../status-badge";
 import type { IntegrationDto } from "@/lib/api/integrations";
 
 function row(overrides: Partial<IntegrationDto>): IntegrationDto {
@@ -15,9 +15,10 @@ function row(overrides: Partial<IntegrationDto>): IntegrationDto {
     statusReason: null,
     credentialsStatus: "ok",
     lastError: null,
+    meta: { appType: null },
     tokenExpiresAt: null,
-    lastCheckedAt: null,
-    expiresAt: null,
+    lastUsedAt: null,
+    lastRotatedAt: null,
     createdBy: "u",
     createdAt: "2026-05-14T00:00:00Z",
     updatedAt: "2026-05-14T00:00:00Z",
@@ -74,5 +75,70 @@ describe("computeStatus", () => {
   it("returns Expired without bespoke detail", () => {
     expect(computeStatus(row({ status: "expired" })).label).toBe("Expired");
     expect(computeStatus(row({ status: "expired" })).detail).toBeUndefined();
+  });
+
+  it("surfaces install_timeout hint on expired Cafe24 Private rows (변경 4)", () => {
+    const view = computeStatus(
+      row({ status: "expired", statusReason: "install_timeout" }),
+    );
+    expect(view.label).toBe("Expired");
+    expect(view.detail).toContain("delete and re-register");
+  });
+
+  it("prefers lastError.message over status_reason for pending_install diagnostic", () => {
+    const view = computeStatus(
+      row({
+        status: "pending_install",
+        statusReason: "oauth_token_exchange_failed",
+        lastError: { message: "Failed to exchange code: invalid_grant" },
+      }),
+    );
+    expect(view.detail).toContain("invalid_grant");
+  });
+});
+
+describe("isReauthorizeDisabled", () => {
+  it("disables for pending_install rows", () => {
+    expect(isReauthorizeDisabled(row({ status: "pending_install" }))).toBe(true);
+  });
+
+  it("disables for expired + install_timeout (변경 4)", () => {
+    expect(
+      isReauthorizeDisabled(
+        row({ status: "expired", statusReason: "install_timeout" }),
+      ),
+    ).toBe(true);
+  });
+
+  it("disables for any Cafe24 Private integration regardless of status", () => {
+    expect(
+      isReauthorizeDisabled(
+        row({
+          status: "connected",
+          serviceType: "cafe24",
+          meta: { appType: "private" },
+        }),
+      ),
+    ).toBe(true);
+  });
+
+  it("does NOT disable for connected Cafe24 Public integrations", () => {
+    expect(
+      isReauthorizeDisabled(
+        row({
+          status: "connected",
+          serviceType: "cafe24",
+          meta: { appType: "public" },
+        }),
+      ),
+    ).toBe(false);
+  });
+
+  it("does NOT disable for a regular connected integration", () => {
+    expect(
+      isReauthorizeDisabled(
+        row({ status: "connected", serviceType: "google" }),
+      ),
+    ).toBe(false);
   });
 });
