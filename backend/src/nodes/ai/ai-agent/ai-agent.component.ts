@@ -40,6 +40,7 @@ export const aiAgentNodeComponent: NodeComponent = {
       deps.llmService,
       providers,
       deps.websocketService,
+      deps.conversationThreadService,
     );
   },
 };

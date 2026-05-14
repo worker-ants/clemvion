@@ -277,12 +277,16 @@ export const aiAgentNodeConfigSchema = z
     // 값은 silently 통과한다 (핸들러가 읽지 않으므로 결과적으로 무시됨).
     // 재작성 시 새 입력 경로 디자인에 따라 신규 필드를 추가.
     // 자세한 사유·복원 절차는 plan/in-progress/ai-agent-tool-connection-rewrite.md.
+    // DEPRECATED — replaced by `contextScope` / `contextScopeN` below. Schema
+    // kept one cycle for backward compat (handler has never read it; safe noop).
+    // Removal scheduled with conversation-thread v2 work.
     conversationHistory: z
       .enum(['none', 'last_n', 'full'])
       .default('none')
       .meta({
+        deprecated: true,
         ui: {
-          label: 'Conversation History',
+          label: 'Conversation History (deprecated — use Conversation Context)',
           widget: 'select',
           order: 35,
           group: 'Advanced',
@@ -298,12 +302,89 @@ export const aiAgentNodeConfigSchema = z
       .int()
       .optional()
       .meta({
+        deprecated: true,
         ui: {
-          label: 'History Count',
+          label: 'History Count (deprecated)',
           widget: 'number',
           order: 36,
           group: 'Advanced',
           visibleWhen: { field: 'conversationHistory', equals: 'last_n' },
+        },
+      }),
+
+    // ── Conversation Context (auto-injection from ConversationThread) ──
+    // SoT: spec/conventions/conversation-thread.md §5
+    //      spec/4-nodes/3-ai/0-common.md §10
+    contextScope: z
+      .enum(['none', 'thread', 'lastN'])
+      .default('none')
+      .meta({
+        ui: {
+          label: 'Conversation Context',
+          widget: 'select',
+          order: 37,
+          group: 'Conversation Context',
+          options: [
+            { value: 'none', label: 'None — system + user prompt only' },
+            { value: 'thread', label: 'Thread — inject full thread' },
+            { value: 'lastN', label: 'Last N — inject most recent N turns' },
+          ],
+        },
+      }),
+    contextScopeN: z
+      .number()
+      .int()
+      .positive()
+      .default(20)
+      .meta({
+        ui: {
+          label: 'Last N',
+          widget: 'number',
+          order: 38,
+          group: 'Conversation Context',
+          visibleWhen: { field: 'contextScope', equals: 'lastN' },
+        },
+      }),
+    contextInjectionMode: z
+      .enum(['messages', 'system_text'])
+      .default('messages')
+      .meta({
+        ui: {
+          label: 'Injection Mode',
+          widget: 'select',
+          order: 39,
+          group: 'Conversation Context',
+          options: [
+            { value: 'messages', label: 'Messages — prepend to LLM messages' },
+            {
+              value: 'system_text',
+              label: 'System Text — append to system prompt',
+            },
+          ],
+        },
+      }),
+    includeToolTurns: z
+      .boolean()
+      .default(false)
+      .meta({
+        ui: {
+          label: 'Include Tool Calls in Thread',
+          widget: 'checkbox',
+          order: 40,
+          group: 'Conversation Context',
+          hint: 'Push KB / MCP / condition tool turns to the thread (default: only the final assistant response).',
+        },
+      }),
+    excludeFromConversationThread: z
+      .boolean()
+      .default(false)
+      .meta({
+        ui: {
+          label: 'Exclude This Node from Thread',
+          widget: 'checkbox',
+          order: 41,
+          group: 'Conversation Context',
+          hint: 'Skip pushing this node’s user / assistant turns to the workflow thread (opt-out).',
         },
       }),
 

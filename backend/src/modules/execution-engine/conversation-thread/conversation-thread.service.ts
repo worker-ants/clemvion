@@ -1,11 +1,19 @@
 import { Injectable } from '@nestjs/common';
-import { ExecutionContext } from '../../../nodes/core/node-handler.interface';
 import {
+  ConversationThread,
   ConversationTurn,
   ConversationTurnSource,
   ConversationTurnToolCall,
 } from './conversation-thread.types';
 import { renderInteractionText } from './thread-renderer';
+
+/**
+ * ConversationThread mutation 의 호출 측은 보통 `ExecutionContext` 를 가지지만,
+ * AI Agent multi-turn 의 후속 turn 처럼 ExecutionContext 가 직접 주입되지
+ * 않고 `state` 만 받는 경로에서는 thread reference 만 별도로 보관해 전달한다.
+ * 두 호출 형태를 같은 메서드로 처리하기 위한 structural type.
+ */
+export type ThreadHolder = { conversationThread: ConversationThread };
 
 /**
  * 핸들러 / engine hook 가 ConversationThreadService 에 전달하는 노드 식별자.
@@ -54,7 +62,7 @@ interface AppendBaseArgs {
 @Injectable()
 export class ConversationThreadService {
   appendPresentationInteraction(
-    context: ExecutionContext,
+    context: ThreadHolder,
     args: { node: NodeRef; interaction: PresentationInteractionPayload },
   ): void {
     const { node, interaction } = args;
@@ -69,7 +77,7 @@ export class ConversationThreadService {
   }
 
   appendAiUserMessage(
-    context: ExecutionContext,
+    context: ThreadHolder,
     args: { node: NodeRef; content: string; timestamp?: string },
   ): void {
     this.appendInternal(context, {
@@ -81,7 +89,7 @@ export class ConversationThreadService {
   }
 
   appendAiAssistantMessage(
-    context: ExecutionContext,
+    context: ThreadHolder,
     args: {
       node: NodeRef;
       content: string;
@@ -103,7 +111,7 @@ export class ConversationThreadService {
    * `includeToolTurns: true` 설정 시에만 호출돼야 한다 (게이트는 호출 측 책임).
    */
   appendAiToolResult(
-    context: ExecutionContext,
+    context: ThreadHolder,
     args: {
       node: NodeRef;
       toolCallId: string;
@@ -121,9 +129,7 @@ export class ConversationThreadService {
   }
 
   /** Read-only snapshot. 외부 mutation 은 service 동작에 영향 없음. */
-  getThread(
-    context: ExecutionContext,
-  ): Readonly<ExecutionContext['conversationThread']> {
+  getThread(context: ThreadHolder): Readonly<ConversationThread> {
     return context.conversationThread;
   }
 
@@ -132,14 +138,14 @@ export class ConversationThreadService {
    * `messages` 모드 자동 주입에서 자체 messages 와 중복을 막기 위한 용도.
    */
   getThreadExcludingNode(
-    context: ExecutionContext,
+    context: ThreadHolder,
     nodeId: string,
   ): readonly ConversationTurn[] {
     return context.conversationThread.turns.filter((t) => t.nodeId !== nodeId);
   }
 
   /** 최근 N개 turn (시간순). N <= 0 또는 thread 비어있으면 빈 배열. */
-  lastN(context: ExecutionContext, n: number): readonly ConversationTurn[] {
+  lastN(context: ThreadHolder, n: number): readonly ConversationTurn[] {
     if (n <= 0) return [];
     const turns = context.conversationThread.turns;
     return turns.length <= n ? [...turns] : turns.slice(turns.length - n);
@@ -147,10 +153,7 @@ export class ConversationThreadService {
 
   /* ---------- internal ---------- */
 
-  private appendInternal(
-    context: ExecutionContext,
-    args: AppendBaseArgs,
-  ): void {
+  private appendInternal(context: ThreadHolder, args: AppendBaseArgs): void {
     if (this.isOptedOut(args.node)) return;
 
     const thread = context.conversationThread;

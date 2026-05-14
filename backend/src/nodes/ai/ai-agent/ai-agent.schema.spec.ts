@@ -20,6 +20,14 @@ describe('aiAgentNodeConfigSchema', () => {
     expect(result.maxToolCalls).toBe(10);
     expect(result.conversationHistory).toBe('none');
     expect(result.maxTurns).toBe(20);
+    // Conversation Context (spec/conventions/conversation-thread.md §5).
+    // Defaults preserve existing workflow behaviour: contextScope='none' so
+    // no auto-injection; opt-out flags off; tool turns excluded from thread.
+    expect(result.contextScope).toBe('none');
+    expect(result.contextScopeN).toBe(20);
+    expect(result.contextInjectionMode).toBe('messages');
+    expect(result.includeToolTurns).toBe(false);
+    expect(result.excludeFromConversationThread).toBe(false);
   });
 
   it('accepts multi_turn mode', () => {
