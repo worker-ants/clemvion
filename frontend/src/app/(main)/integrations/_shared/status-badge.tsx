@@ -42,7 +42,7 @@ export function computeStatus(integration: IntegrationDto): StatusView {
     };
   }
   if (integration.status === "expired") {
-    // install_timeout is Cafe24-private-specific (변경 4): user must delete
+    // install_timeout is Cafe24-private-specific: user must delete
     // and re-register since there's no reauthorize entry point.
     return {
       label: "Expired",

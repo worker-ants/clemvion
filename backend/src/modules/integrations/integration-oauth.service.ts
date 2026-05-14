@@ -753,7 +753,7 @@ export class IntegrationOAuthService {
   ): Promise<BeginResult> {
     const appUrl = process.env.APP_URL || 'http://localhost:3011';
 
-    // Duplicate-prevention scan (변경 3). mall_id is encrypted in JSONB so we
+    // Duplicate-prevention scan. mall_id is encrypted in JSONB so we
     // cannot filter at the DB level — we pull the workspace's cafe24 rows
     // (typical bound: <10) and compare in memory after the ORM decrypts.
     // spec/2-navigation/4-integration.md ## Rationale "CAFE24_PRIVATE_APP_ALREADY_CONNECTED".
@@ -784,9 +784,8 @@ export class IntegrationOAuthService {
     let saved: Integration;
     if (existingPending) {
       // Reuse the existing row instead of accumulating duplicate pending
-      // rows (W3 from review/2026-05-14_16-48-25). New install_token +
-      // refreshed credentials; status / name preserved so the user's URL
-      // bookmarks etc. don't break.
+      // rows for the same mall. New install_token + refreshed credentials;
+      // status / name preserved so the user's URL bookmarks etc. don't break.
       existingPending.installToken = installToken;
       existingPending.credentials = {
         ...existingPending.credentials,

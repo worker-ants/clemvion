@@ -210,7 +210,7 @@ describe('IntegrationExpiryScannerService.run', () => {
   });
 });
 
-describe('IntegrationExpiryScannerService.expirePendingInstalls (변경 4)', () => {
+describe('IntegrationExpiryScannerService.expirePendingInstalls', () => {
   let integrationRepo: Record<string, jest.Mock>;
   let updateBuilder: Record<string, jest.Mock>;
   let scanner: IntegrationExpiryScannerService;
@@ -280,7 +280,7 @@ describe('IntegrationExpiryScannerService.expirePendingInstalls (변경 4)', () 
   });
 });
 
-describe('IntegrationExpiryScannerService.process — error isolation (변경 4)', () => {
+describe('IntegrationExpiryScannerService.process — error isolation', () => {
   // Spec/data-flow/integration.md §1.4: one failed pass must not block the
   // others. Verify the queue handler doesn't propagate so BullMQ won't keep
   // retrying for a hopeless run (and we still get the next pass executed).
