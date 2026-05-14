@@ -21,9 +21,27 @@ const USAGE_LOG_RETENTION_DAYS = 90;
 /** Cafe24 Private install TTL — spec/2-navigation/4-integration.md §6 / ## Rationale. */
 const PENDING_INSTALL_TTL_HOURS = 24;
 
+/**
+ * Each pass runs as its own BullMQ job so failures are independently
+ * retried by BullMQ and visible in queue metrics. spec/data-flow/integration.md §1.4.
+ */
+export const JOB_CONNECTED_EXPIRY = 'connected-expiry';
+export const JOB_PENDING_INSTALL_TTL = 'pending-install-ttl';
+export const JOB_USAGE_LOG_PRUNE = 'usage-log-prune';
+
 interface ExpiryJobData {
   triggeredAt: string;
 }
+
+/** Common retry / cleanup policy for the daily passes. All three handlers
+ * are idempotent (status / created_at / retention age guards) so BullMQ
+ * retries on transient failures are safe. */
+const DAILY_PASS_OPTS = {
+  attempts: 3,
+  backoff: { type: 'exponential' as const, delay: 60_000 },
+  removeOnComplete: { age: 7 * 24 * 60 * 60 },
+  removeOnFail: { age: 30 * 24 * 60 * 60 },
+};
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -53,35 +71,63 @@ export class IntegrationExpiryScannerService
   }
 
   async onModuleInit(): Promise<void> {
-    await this.queue.upsertJobScheduler(
-      'integration-expiry-daily',
-      { pattern: '0 0 * * *', tz: 'UTC' },
-      { name: 'scan', data: { triggeredAt: new Date().toISOString() } },
+    // Drop the legacy single-job scheduler (idempotent — no-op on fresh
+    // deploys). Pre-existing 'integration-expiry-daily' would otherwise
+    // continue firing the un-routed 'scan' job name in parallel with the
+    // new per-pass schedulers below.
+    try {
+      await this.queue.removeJobScheduler('integration-expiry-daily');
+    } catch (err) {
+      this.logger.warn(
+        `failed to remove legacy scheduler 'integration-expiry-daily': ${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
+    const triggeredAt = new Date().toISOString();
+    const repeat = { pattern: '0 0 * * *', tz: 'UTC' };
+    await this.queue.upsertJobScheduler('connected-expiry-daily', repeat, {
+      name: JOB_CONNECTED_EXPIRY,
+      data: { triggeredAt },
+      opts: DAILY_PASS_OPTS,
+    });
+    await this.queue.upsertJobScheduler('pending-install-ttl-daily', repeat, {
+      name: JOB_PENDING_INSTALL_TTL,
+      data: { triggeredAt },
+      opts: DAILY_PASS_OPTS,
+    });
+    await this.queue.upsertJobScheduler('usage-log-prune-daily', repeat, {
+      name: JOB_USAGE_LOG_PRUNE,
+      data: { triggeredAt },
+      opts: DAILY_PASS_OPTS,
+    });
+    this.logger.log(
+      'Registered integration expiry schedulers: connected-expiry, pending-install-ttl, usage-log-prune (daily 00:00 UTC)',
     );
-    this.logger.log('Registered integration expiry scanner (daily 00:00 UTC)');
   }
 
+  /**
+   * Route by job name so each pass is its own BullMQ unit-of-work. Failures
+   * propagate (no `.catch(log)` swallow) so BullMQ retries per
+   * `DAILY_PASS_OPTS`. Unknown job names throw to make orphan schedulers
+   * visible in alerts. spec/data-flow/integration.md §1.4.
+   */
   async process(job: Job<ExpiryJobData>): Promise<void> {
-    this.logger.log(
-      `Running integration expiry scan (${job.data.triggeredAt})`,
-    );
-    // Two independent passes. Failures in one must not block the other —
-    // spec/data-flow/integration.md §1.4. variant 4: pending_install TTL.
-    await this.run(new Date()).catch((err) =>
-      this.logger.error(
-        `expiry run failed: ${err instanceof Error ? err.message : String(err)}`,
-      ),
-    );
-    await this.expirePendingInstalls(new Date()).catch((err) =>
-      this.logger.error(
-        `pending_install TTL sweep failed: ${err instanceof Error ? err.message : String(err)}`,
-      ),
-    );
-    await this.pruneUsageLogs(new Date()).catch((err) =>
-      this.logger.error(
-        `usage log prune failed: ${err instanceof Error ? err.message : String(err)}`,
-      ),
-    );
+    const ts = job.data?.triggeredAt;
+    this.logger.log(`Running ${job.name} (${ts ?? 'no-ts'})`);
+    switch (job.name) {
+      case JOB_CONNECTED_EXPIRY:
+        await this.run(new Date());
+        return;
+      case JOB_PENDING_INSTALL_TTL:
+        await this.expirePendingInstalls(new Date());
+        return;
+      case JOB_USAGE_LOG_PRUNE:
+        await this.pruneUsageLogs(new Date());
+        return;
+      default:
+        throw new Error(
+          `Unknown integration-expiry job: ${job.name} — check scheduler registrations in onModuleInit`,
+        );
+    }
   }
 
   /**

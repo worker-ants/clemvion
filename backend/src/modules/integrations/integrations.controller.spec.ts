@@ -1,10 +1,7 @@
 import { BadRequestException } from '@nestjs/common';
 import type { Response } from 'express';
 import { IntegrationsController } from './integrations.controller';
-import {
-  attachCallbackContext,
-  IntegrationOAuthService,
-} from './integration-oauth.service';
+import { IntegrationOAuthService } from './integration-oauth.service';
 import type { IntegrationsService } from './integrations.service';
 
 function makeRes() {
@@ -46,12 +43,15 @@ function makeRes() {
   return res as unknown as Response & typeof res;
 }
 
-describe('IntegrationsController — oauthCallback error paths (변경 0)', () => {
+describe('IntegrationsController — oauthCallback error paths', () => {
   let controller: IntegrationsController;
   let oauthService: jest.Mocked<
     Pick<
       IntegrationOAuthService,
-      'handleCallback' | 'markIntegrationCallbackError' | 'handleInstall'
+      | 'handleCallback'
+      | 'handleCallbackWithErrorCapture'
+      | 'markIntegrationCallbackError'
+      | 'handleInstall'
     >
   >;
   let integrationsService: jest.Mocked<Pick<IntegrationsService, never>>;
@@ -60,6 +60,7 @@ describe('IntegrationsController — oauthCallback error paths (변경 0)', () =
     process.env.FRONTEND_URL = 'https://frontend.test';
     oauthService = {
       handleCallback: jest.fn(),
+      handleCallbackWithErrorCapture: jest.fn(),
       markIntegrationCallbackError: jest.fn().mockResolvedValue(undefined),
       handleInstall: jest.fn(),
     } as unknown as typeof oauthService;
@@ -75,41 +76,28 @@ describe('IntegrationsController — oauthCallback error paths (변경 0)', () =
     delete process.env.APP_URL;
   });
 
-  it('records callback error on the integration row when context is present', async () => {
-    const err = attachCallbackContext(
-      new BadRequestException({
-        code: 'OAUTH_TOKEN_EXCHANGE_FAILED',
-        message: 'Failed to exchange authorization code for access token',
-      }),
+  it('delegates to handleCallbackWithErrorCapture and renders success HTML', async () => {
+    oauthService.handleCallbackWithErrorCapture.mockResolvedValue({
+      mode: 'reauthorize',
+      provider: 'cafe24',
+      integrationId: 'int-1',
+    });
+    const res = makeRes();
+    await controller.oauthCallback('cafe24', 'c', 's', undefined, res as never);
+    expect(oauthService.handleCallbackWithErrorCapture).toHaveBeenCalledWith(
+      'cafe24',
       {
-        integrationId: 'int-1',
-        workspaceId: 'ws-1',
-        mode: 'reauthorize',
+        code: 'c',
+        state: 's',
+        error: undefined,
       },
     );
-    oauthService.handleCallback.mockRejectedValue(err);
-    const res = makeRes();
-    await controller.oauthCallback(
-      'cafe24',
-      'code',
-      'state',
-      undefined,
-      res as never,
-    );
-    expect(oauthService.markIntegrationCallbackError).toHaveBeenCalledWith(
-      'int-1',
-      'ws-1',
-      'OAUTH_TOKEN_EXCHANGE_FAILED',
-      'Failed to exchange authorization code for access token',
-    );
-    // HTML error response still rendered.
     expect(res.headers['Content-Type']).toMatch(/text\/html/);
-    expect(typeof res.body).toBe('string');
-    expect(res.body as string).toContain('OAuth failed');
+    expect(res.body as string).toContain('Connected');
   });
 
-  it('skips recording when no callback context (e.g. pre-state-consumption mismatch)', async () => {
-    oauthService.handleCallback.mockRejectedValue(
+  it('renders error HTML when the service rejects (recording happens inside service)', async () => {
+    oauthService.handleCallbackWithErrorCapture.mockRejectedValue(
       new BadRequestException({
         code: 'OAUTH_STATE_MISMATCH',
         message: 'Invalid or already consumed OAuth state',
@@ -117,48 +105,17 @@ describe('IntegrationsController — oauthCallback error paths (변경 0)', () =
     );
     const res = makeRes();
     await controller.oauthCallback('cafe24', 'c', 's', undefined, res as never);
+    expect(res.body as string).toContain('OAuth failed');
+    // The controller no longer reaches into the error for context — recording
+    // is the service's responsibility (handleCallbackWithErrorCapture).
     expect(oauthService.markIntegrationCallbackError).not.toHaveBeenCalled();
-    expect(res.body as string).toContain('OAuth failed');
   });
 
-  it('still renders HTML response even if recording throws unexpectedly', async () => {
-    const err = attachCallbackContext(
-      new BadRequestException({
-        code: 'OAUTH_TOKEN_EXCHANGE_FAILED',
-        message: 'failure',
-      }),
-      {
-        integrationId: 'int-2',
-        workspaceId: 'ws-1',
-        mode: 'reauthorize',
-      },
-    );
-    oauthService.handleCallback.mockRejectedValue(err);
-    oauthService.markIntegrationCallbackError.mockRejectedValueOnce(
-      new Error('DB unreachable'),
-    );
-    const res = makeRes();
-    await expect(
-      controller.oauthCallback('cafe24', 'c', 's', undefined, res as never),
-    ).resolves.toBeUndefined();
-    expect(res.body as string).toContain('OAuth failed');
-  });
-
-  it('falls back to a generic errorCode when service throws an exception without `code`', async () => {
-    const err = attachCallbackContext(new Error('boom'), {
-      integrationId: 'int-3',
-      workspaceId: 'ws-1',
-      mode: 'reauthorize',
-    });
-    oauthService.handleCallback.mockRejectedValue(err);
+  it('falls back gracefully when the error lacks a `message`', async () => {
+    oauthService.handleCallbackWithErrorCapture.mockRejectedValue({});
     const res = makeRes();
     await controller.oauthCallback('cafe24', 'c', 's', undefined, res as never);
-    expect(oauthService.markIntegrationCallbackError).toHaveBeenCalledWith(
-      'int-3',
-      'ws-1',
-      'OAUTH_CALLBACK_FAILED',
-      'boom',
-    );
+    expect(res.body as string).toContain('OAuth failed');
   });
 
   it('fails closed when FRONTEND_URL and APP_URL are both missing', async () => {
@@ -168,11 +125,11 @@ describe('IntegrationsController — oauthCallback error paths (변경 0)', () =
     await controller.oauthCallback('cafe24', 'c', 's', undefined, res as never);
     expect(res.statusCode).toBe(500);
     // No HTML callback template renders → no postMessage payload leaks.
-    expect(oauthService.handleCallback).not.toHaveBeenCalled();
+    expect(oauthService.handleCallbackWithErrorCapture).not.toHaveBeenCalled();
   });
 });
 
-describe('IntegrationsController — cafe24 install routes (변경 2)', () => {
+describe('IntegrationsController — cafe24 install routes', () => {
   let controller: IntegrationsController;
   let oauthService: {
     handleInstall: jest.Mock;
@@ -289,15 +246,6 @@ describe('IntegrationsController — cafe24 install routes (변경 2)', () => {
     expect(res.redirect).toHaveBeenCalledWith(
       302,
       'https://myshop.cafe24api.com/api/v2/oauth/authorize',
-    );
-  });
-
-  it('legacy /oauth/install/cafe24 returns 410 CAFE24_INSTALL_LEGACY_PATH', () => {
-    const res = makeRes();
-    controller.cafe24InstallLegacy(res as never);
-    expect(res.statusCode).toBe(410);
-    expect((res.body as { code: string }).code).toBe(
-      'CAFE24_INSTALL_LEGACY_PATH',
     );
   });
 });

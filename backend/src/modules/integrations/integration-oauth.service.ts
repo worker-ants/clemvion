@@ -131,11 +131,59 @@ export function attachCallbackContext<E extends Error>(
   return err;
 }
 
-export function callbackContextOf(err: unknown): CallbackContext | undefined {
+/**
+ * Read the diagnostic context off a thrown error, if present. Internal —
+ * the only consumer is `handleCallbackWithErrorCapture` below; callers
+ * outside the service should use that wrapper instead of reaching into
+ * error internals.
+ */
+function callbackContextOf(err: unknown): CallbackContext | undefined {
   if (err && typeof err === 'object' && 'context' in err) {
     return (err as { context?: CallbackContext }).context;
   }
   return undefined;
+}
+
+function readErrorCode(err: unknown): string {
+  const code = (err as { response?: { code?: string } })?.response?.code;
+  return typeof code === 'string' ? code : OAUTH_CALLBACK_FAILED;
+}
+
+function readErrorMessage(err: unknown): string {
+  const r =
+    (err as { response?: { message?: string }; message?: string }) ?? {};
+  return r.response?.message ?? r.message ?? 'OAuth failed';
+}
+
+/** Generic fallback code used when a thrown error has no NestJS response.code. */
+export const OAUTH_CALLBACK_FAILED = 'OAUTH_CALLBACK_FAILED';
+
+/** Hard cap on lastError.message length to keep the JSONB column bounded
+ * and prevent ballooning from malicious / runaway provider responses. */
+export const LAST_ERROR_MESSAGE_MAX_LEN = 200;
+
+/** Patterns we mask before persisting lastError.message — provider errors
+ * occasionally echo back tokens or partial secrets, and we never want those
+ * to land in the DB even briefly. The match is conservative: regex hits
+ * replace the entire matched run with `***`. */
+const SECRET_LEAK_PATTERNS: ReadonlyArray<RegExp> = [
+  // OAuth-style bearer tokens
+  /\bBearer\s+[A-Za-z0-9._\-+/=]+/gi,
+  // Cafe24 token endpoints frequently include the secret in body / URL
+  /\b(client_secret|access_token|refresh_token|id_token|api_key|password|passwd|pwd)\s*[=:]\s*[^\s&'"]+/gi,
+  // Authorization header values
+  /\bAuthorization:\s*\S+/gi,
+];
+
+export function sanitizeLastErrorMessage(raw: string): string {
+  if (typeof raw !== 'string' || raw.length === 0) return raw;
+  let masked = raw;
+  for (const pattern of SECRET_LEAK_PATTERNS) {
+    masked = masked.replace(pattern, '***');
+  }
+  return masked.length > LAST_ERROR_MESSAGE_MAX_LEN
+    ? masked.slice(0, LAST_ERROR_MESSAGE_MAX_LEN) + '…'
+    : masked;
 }
 
 interface TokenExchangeResult {
@@ -491,6 +539,42 @@ export class IntegrationOAuthService {
   }
 
   /**
+   * Public callback entry point — wraps `handleCallback` and, when it
+   * throws after the state row has been consumed, records the diagnostic
+   * onto the Integration row before re-throwing. The controller only needs
+   * to catch and render error HTML; it does not need to know about the
+   * callback context plumbing.
+   *
+   * spec/2-navigation/4-integration.md §10.4.
+   */
+  async handleCallbackWithErrorCapture(
+    provider: string,
+    query: { code?: string; state?: string; error?: string },
+  ): Promise<CallbackResult> {
+    try {
+      return await this.handleCallback(provider, query);
+    } catch (err) {
+      const ctx = callbackContextOf(err);
+      if (ctx?.integrationId && ctx.workspaceId) {
+        const errorCode = readErrorCode(err);
+        const message = readErrorMessage(err);
+        // Best-effort — markIntegrationCallbackError already has its own
+        // try/catch internally, the .catch here is defence-in-depth so a
+        // future refactor cannot block the caller from re-throwing.
+        await this.markIntegrationCallbackError(
+          ctx.integrationId,
+          ctx.workspaceId,
+          errorCode,
+          message,
+        ).catch(() => {
+          /* swallow — never block the original error from propagating */
+        });
+      }
+      throw err;
+    }
+  }
+
+  /**
    * Record a callback failure on the Integration row so the user can see the
    * diagnostic in the UI without log / DB access. Best-effort — never throws,
    * since this is itself an error-handling path. See spec/2-navigation/4-integration.md
@@ -520,7 +604,7 @@ export class IntegrationOAuthService {
       }
       const lastError = {
         code: errorCode,
-        message: errorMessage,
+        message: sanitizeLastErrorMessage(errorMessage),
         at: new Date().toISOString(),
       };
       integration.lastError = lastError;
@@ -753,7 +837,7 @@ export class IntegrationOAuthService {
   ): Promise<BeginResult> {
     const appUrl = process.env.APP_URL || 'http://localhost:3011';
 
-    // Duplicate-prevention scan (변경 3). mall_id is encrypted in JSONB so we
+    // Duplicate-prevention scan. mall_id is encrypted in JSONB so we
     // cannot filter at the DB level — we pull the workspace's cafe24 rows
     // (typical bound: <10) and compare in memory after the ORM decrypts.
     // spec/2-navigation/4-integration.md ## Rationale "CAFE24_PRIVATE_APP_ALREADY_CONNECTED".
@@ -784,9 +868,8 @@ export class IntegrationOAuthService {
     let saved: Integration;
     if (existingPending) {
       // Reuse the existing row instead of accumulating duplicate pending
-      // rows (W3 from review/2026-05-14_16-48-25). New install_token +
-      // refreshed credentials; status / name preserved so the user's URL
-      // bookmarks etc. don't break.
+      // rows for the same mall. New install_token + refreshed credentials;
+      // status / name preserved so the user's URL bookmarks etc. don't break.
       existingPending.installToken = installToken;
       existingPending.credentials = {
         ...existingPending.credentials,

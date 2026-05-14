@@ -1,4 +1,9 @@
-import { IntegrationExpiryScannerService } from './integration-expiry-scanner.service';
+import {
+  IntegrationExpiryScannerService,
+  JOB_CONNECTED_EXPIRY,
+  JOB_PENDING_INSTALL_TTL,
+  JOB_USAGE_LOG_PRUNE,
+} from './integration-expiry-scanner.service';
 
 type Mock = jest.Mock;
 
@@ -210,7 +215,7 @@ describe('IntegrationExpiryScannerService.run', () => {
   });
 });
 
-describe('IntegrationExpiryScannerService.expirePendingInstalls (변경 4)', () => {
+describe('IntegrationExpiryScannerService.expirePendingInstalls', () => {
   let integrationRepo: Record<string, jest.Mock>;
   let updateBuilder: Record<string, jest.Mock>;
   let scanner: IntegrationExpiryScannerService;
@@ -280,10 +285,10 @@ describe('IntegrationExpiryScannerService.expirePendingInstalls (변경 4)', () 
   });
 });
 
-describe('IntegrationExpiryScannerService.process — error isolation (변경 4)', () => {
-  // Spec/data-flow/integration.md §1.4: one failed pass must not block the
-  // others. Verify the queue handler doesn't propagate so BullMQ won't keep
-  // retrying for a hopeless run (and we still get the next pass executed).
+describe('IntegrationExpiryScannerService.process — per-job routing', () => {
+  // spec/data-flow/integration.md §1.4: each pass is its own BullMQ job
+  // so failures are independently retried + visible in queue metrics.
+  // process(job) routes by name; failures propagate (no .catch).
   function makeScanner() {
     const integrationRepo = repo();
     const usageLogRepo = repo();
@@ -307,30 +312,75 @@ describe('IntegrationExpiryScannerService.process — error isolation (변경 4)
     return { scanner, integrationRepo, usageLogRepo };
   }
 
-  it('runs pruneUsageLogs even when expirePendingInstalls throws', async () => {
-    const { scanner, usageLogRepo } = makeScanner();
-    jest
-      .spyOn(scanner, 'expirePendingInstalls')
-      .mockRejectedValue(new Error('boom'));
-    await scanner.process({
-      data: { triggeredAt: new Date().toISOString() },
-    } as never);
-    expect(usageLogRepo.delete).toHaveBeenCalled();
-  });
-
-  it('runs expirePendingInstalls even when run() throws', async () => {
+  it('routes JOB_CONNECTED_EXPIRY → run()', async () => {
     const { scanner } = makeScanner();
-    const runSpy = jest
-      .spyOn(scanner, 'run')
-      .mockRejectedValue(new Error('boom'));
+    const runSpy = jest.spyOn(scanner, 'run').mockResolvedValue(0);
     const expireSpy = jest
       .spyOn(scanner, 'expirePendingInstalls')
       .mockResolvedValue(0);
+    const pruneSpy = jest.spyOn(scanner, 'pruneUsageLogs').mockResolvedValue(0);
     await scanner.process({
+      name: JOB_CONNECTED_EXPIRY,
       data: { triggeredAt: new Date().toISOString() },
     } as never);
     expect(runSpy).toHaveBeenCalled();
+    expect(expireSpy).not.toHaveBeenCalled();
+    expect(pruneSpy).not.toHaveBeenCalled();
+  });
+
+  it('routes JOB_PENDING_INSTALL_TTL → expirePendingInstalls()', async () => {
+    const { scanner } = makeScanner();
+    const runSpy = jest.spyOn(scanner, 'run').mockResolvedValue(0);
+    const expireSpy = jest
+      .spyOn(scanner, 'expirePendingInstalls')
+      .mockResolvedValue(0);
+    const pruneSpy = jest.spyOn(scanner, 'pruneUsageLogs').mockResolvedValue(0);
+    await scanner.process({
+      name: JOB_PENDING_INSTALL_TTL,
+      data: { triggeredAt: new Date().toISOString() },
+    } as never);
     expect(expireSpy).toHaveBeenCalled();
+    expect(runSpy).not.toHaveBeenCalled();
+    expect(pruneSpy).not.toHaveBeenCalled();
+  });
+
+  it('routes JOB_USAGE_LOG_PRUNE → pruneUsageLogs()', async () => {
+    const { scanner } = makeScanner();
+    const runSpy = jest.spyOn(scanner, 'run').mockResolvedValue(0);
+    const expireSpy = jest
+      .spyOn(scanner, 'expirePendingInstalls')
+      .mockResolvedValue(0);
+    const pruneSpy = jest.spyOn(scanner, 'pruneUsageLogs').mockResolvedValue(0);
+    await scanner.process({
+      name: JOB_USAGE_LOG_PRUNE,
+      data: { triggeredAt: new Date().toISOString() },
+    } as never);
+    expect(pruneSpy).toHaveBeenCalled();
+    expect(runSpy).not.toHaveBeenCalled();
+    expect(expireSpy).not.toHaveBeenCalled();
+  });
+
+  it('propagates failures so BullMQ retries (no .catch swallow)', async () => {
+    const { scanner } = makeScanner();
+    jest
+      .spyOn(scanner, 'expirePendingInstalls')
+      .mockRejectedValue(new Error('boom'));
+    await expect(
+      scanner.process({
+        name: JOB_PENDING_INSTALL_TTL,
+        data: { triggeredAt: new Date().toISOString() },
+      } as never),
+    ).rejects.toThrow('boom');
+  });
+
+  it('throws on unknown job name (visible scheduler drift)', async () => {
+    const { scanner } = makeScanner();
+    await expect(
+      scanner.process({
+        name: 'orphan-pass',
+        data: { triggeredAt: new Date().toISOString() },
+      } as never),
+    ).rejects.toThrow(/Unknown integration-expiry job/);
   });
 });
 
