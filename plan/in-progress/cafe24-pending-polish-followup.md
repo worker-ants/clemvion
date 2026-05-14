@@ -27,7 +27,7 @@ PR #18 (`claude/cafe24-pending-polish-7fdb7e` 브랜치) 에서 cafe24 private "
 
 ## 그룹 A — 운영 안전망 (별도 PR 로 분리, hotfix 가능성)
 
-- [ ] **레거시 `/oauth/install/cafe24` 영구 폐기 시점 결정.** 운영 데이터·외부 Cafe24 Developers 등록 URL 잔존 여부 확인 후, 410 Gone 라우트 자체를 제거하거나 더 명확한 hint 로 강화. **기존 Private 앱 등록자 대상 App URL 재등록 안내 가이드** 작성 (sales / docs 채널) 도 함께.
+- [x] ~~**레거시 `/oauth/install/cafe24` 영구 폐기 시점 결정.**~~ — **무효화 (2026-05-15, cafe24-3rdparty-url-503aa0 PR)**: namespace 자체가 `/api/integrations/oauth/` → `/api/3rd-party/cafe24/` 로 이전되며 옛 prefix 전체 (토큰 있/없 양쪽) 가 자연 404. 410 Gone hint 라우트는 코드에 존재한 적이 없음. 기존 Private 앱 등록자 대상 App URL 재등록 안내는 본 PR 의 운영 작업 체크리스트에 포함.
 - [ ] **`install_token` URL path 로그 유출 방어.** nginx access log 에서 `:installToken` segment 마스킹 또는 query parameter 이동 검토. (ai-review W6 / W11)
 - [ ] **install endpoint IP 기반 rate limiting 추가.** 현재 30 req/min throttle 적용 중이나, token oracle enumeration 방어를 위해 IP 기반 추가 layer 검토. (ai-review W7)
 
@@ -50,7 +50,7 @@ PR #18 (`claude/cafe24-pending-polish-7fdb7e` 브랜치) 에서 cafe24 private "
 ## 그룹 D — 보안·관측성
 
 - [ ] **`lastError.message` 길이 제한·민감 패턴 필터링.** `markIntegrationCallbackError` 저장 시 `message.slice(0, 200)` + 토큰 / 비밀번호 패턴 마스킹. (이전 review Info 1-2)
-- [ ] **신규 에러 코드 3종 `@ApiResponse` 데코레이터.** `CAFE24_INSTALL_INVALID_TOKEN(404)`, `CAFE24_INSTALL_LEGACY_PATH(410)`, `CAFE24_PRIVATE_APP_ALREADY_CONNECTED(409)` 를 swagger doc 에 명시. (ai-review I19)
+- [ ] **신규 에러 코드 2종 `@ApiResponse` 데코레이터.** `CAFE24_INSTALL_INVALID_TOKEN(404)`, `CAFE24_PRIVATE_APP_ALREADY_CONNECTED(409)` 를 swagger doc 에 명시. (ai-review I19. ~~`CAFE24_INSTALL_LEGACY_PATH(410)`~~ 은 2026-05-15 namespace 이전으로 무효화 — 옛 prefix 전체가 자연 404.)
 - [ ] **`process()` 에러 격리 정책 spec 명시.** 현재 `.catch(logger.error)` 로 BullMQ 재시도가 안 일어남 — 의도된 설계라면 spec/data-flow/integration.md §1.4 에 명문화 + Sentry / Datadog 연동 검토. (ai-review W7)
 - [ ] **`verifyHmacWithMessage` timing-safe 구현 확인.** `crypto.timingSafeEqual` 사용 여부 점검. (ai-review I15)
 
@@ -59,11 +59,11 @@ PR #18 (`claude/cafe24-pending-polish-7fdb7e` 브랜치) 에서 cafe24 private "
 - [ ] **`buildIntegrationMeta` 직접 단위 테스트.** cafe24 외 serviceType / unreadable credentials 경계 케이스. (ai-review batch 2 W14)
 - [ ] **FE `Cafe24PrivatePendingStep` RTL 테스트.** mock useQuery 로 pending_install → connected 전이 시뮬레이션 + `router.replace` 호출 검증 + 10분 timedOut 동작. (ai-review batch 2 W15)
 - [ ] **`callbackContextOf` 단독 단위 테스트.** null / primitive 등 엣지 케이스. (이전 review Info 6)
-- [ ] **e2e 보강.** `cafe24-private-install.e2e-spec.ts` 를 다시 작성 — 본 PR 에서는 Docker rebuild 환경 이슈로 제외됐으나, 단위 테스트 수준에서 모든 케이스 검증됨. e2e 추가 시: (a) happy path / (b) NULL 전환 후 재호출 → 404 / (c) TTL 만료 후 NULL 확인 / (d) replay 방어 / (e) legacy 410 / (f) 중복 begin 재사용. (이전 review W14)
+- [ ] **e2e 보강.** `cafe24-private-install.e2e-spec.ts` 를 다시 작성 — 본 PR 에서는 Docker rebuild 환경 이슈로 제외됐으나, 단위 테스트 수준에서 모든 케이스 검증됨. e2e 추가 시: (a) happy path / (b) NULL 전환 후 재호출 → 404 / (c) TTL 만료 후 NULL 확인 / (d) replay 방어 / (e) ~~legacy 410~~ → 옛 prefix 자연 404 (2026-05-15 이후) / (f) 중복 begin 재사용. (이전 review W14)
 
 ## 그룹 F — 문서 동기화
 
-- [ ] **§13 데이터 모델 요약에 `install_token` 누락 보완.** spec/2-navigation/4-integration.md §13. (이전 review W10)
+- [x] **§13 데이터 모델 요약에 `install_token` 누락 보완.** spec/2-navigation/4-integration.md §13. `install_token`/`install_token_issued_at`/`mall_id` 행 + 신규 인덱스 3종 행 추가 완료 (2026-05-15, cafe24-3rdparty-url-503aa0 PR). (이전 review W10)
 - [ ] **§6 mermaid `install_token` 보존 정책 명시.** callback 실패 시 install_token 유지 → 재시도 가능 (data-flow §1.2.1 에는 이미 명시). (이전 review I3)
 - [ ] **`spec/conventions/swagger.md §2-4` 실재 확인 및 cross-link 정정.** (이전 review I5)
 - [ ] **`(변경 N)` 마커 cleanup** (그룹 C 항목과 중복) — spec / 테스트 명칭에서 제거.

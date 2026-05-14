@@ -10,6 +10,11 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, LessThan, Repository } from 'typeorm';
 import { createHmac, randomBytes, timingSafeEqual } from 'crypto';
+import {
+  INSTALL_TOKEN_BYTES,
+  buildCafe24InstallUrl,
+  buildOauthCallbackUrl,
+} from './third-party-oauth.constants';
 import { Integration } from './entities/integration.entity';
 import {
   IntegrationOAuthState,
@@ -319,7 +324,7 @@ export class IntegrationOAuthService {
     await this.stateRepository.save(record);
 
     const appUrl = process.env.APP_URL || 'http://localhost:3011';
-    const redirectUri = `${appUrl}/api/integrations/oauth/callback/${service.oauthProvider}`;
+    const redirectUri = buildOauthCallbackUrl(appUrl, service.oauthProvider);
     // Cafe24 deviates from RFC 6749 §3.3 (space-delimited) and requires
     // comma-delimited scopes on /oauth/authorize. Sending space-delimited
     // scopes is rejected with `invalid_scope` even for a single valid
@@ -782,7 +787,7 @@ export class IntegrationOAuthService {
     }
 
     const appUrl = process.env.APP_URL || 'http://localhost:3011';
-    const redirectUri = `${appUrl}/api/integrations/oauth/callback/${provider}`;
+    const redirectUri = buildOauthCallbackUrl(appUrl, provider);
     const form = new URLSearchParams({
       client_id: clientId,
       client_secret: clientSecret,
@@ -888,7 +893,10 @@ export class IntegrationOAuthService {
       (row) => row.status === 'pending_install',
     );
 
-    const installToken = randomBytes(32).toString('hex');
+    // 16바이트 base64url (22자, 128-bit) — INSTALL_TOKEN_BYTES 상수에서
+    // 길이 정의. spec/2-navigation/4-integration.md §9.2 Rationale "Cafe24
+    // App URL 100자 한도 대응" 참조.
+    const installToken = randomBytes(INSTALL_TOKEN_BYTES).toString('base64url');
     const installTokenIssuedAt = new Date();
     let saved: Integration;
     try {
@@ -959,8 +967,8 @@ export class IntegrationOAuthService {
     return {
       mode: 'cafe24_private_pending',
       integrationId: saved.id,
-      appUrl: `${appUrl}/api/integrations/oauth/install/cafe24/${installToken}`,
-      callbackUrl: `${appUrl}/api/integrations/oauth/callback/cafe24`,
+      appUrl: buildCafe24InstallUrl(appUrl, installToken),
+      callbackUrl: buildOauthCallbackUrl(appUrl, 'cafe24'),
     };
   }
 
@@ -1008,8 +1016,9 @@ export class IntegrationOAuthService {
     if (!target) {
       // install_token unknown — either never issued, already consumed
       // (callback success → NULL), or TTL-expired (V0XX scanner → NULL).
-      // The token is 256-bit random so this is not an enumeration oracle.
-      // spec/2-navigation/4-integration.md ## Rationale.
+      // The token is 128-bit random base64url so this is not an
+      // enumeration oracle. spec/2-navigation/4-integration.md ## Rationale
+      // "CAFE24_INSTALL_INVALID_TOKEN(404) 의 보안 전제".
       throw new NotFoundException({
         code: 'CAFE24_INSTALL_INVALID_TOKEN',
         message: 'install_token is not associated with a pending installation',
@@ -1045,8 +1054,8 @@ export class IntegrationOAuthService {
     const scopes = Array.isArray(creds.scopes)
       ? (creds.scopes as string[])
       : [];
-    const appBaseUrl = process.env.APP_URL || 'http://localhost:3011';
-    const redirectUri = `${appBaseUrl}/api/integrations/oauth/callback/cafe24`;
+    const appUrl = process.env.APP_URL || 'http://localhost:3011';
+    const redirectUri = buildOauthCallbackUrl(appUrl, 'cafe24');
 
     const state = randomBytes(24).toString('hex');
     const providerMeta = {

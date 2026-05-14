@@ -1,0 +1,238 @@
+{
+  "timestamp": "2026-05-15T02:48:53.091471",
+  "files": [
+    {
+      "file_path": "/Volumes/project/private/clemvion/.claude/worktrees/cafe24-3rdparty-url-503aa0/README.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "/Volumes/project/private/clemvion/.claude/worktrees/cafe24-3rdparty-url-503aa0/backend/.env.example",
+      "change_type": "Review",
+      "file_extension": "example"
+    },
+    {
+      "file_path": "/Volumes/project/private/clemvion/.claude/worktrees/cafe24-3rdparty-url-503aa0/backend/example.env",
+      "change_type": "Review",
+      "file_extension": "env"
+    },
+    {
+      "file_path": "/Volumes/project/private/clemvion/.claude/worktrees/cafe24-3rdparty-url-503aa0/backend/src/modules/integrations/integration-oauth.service.cafe24.spec.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/clemvion/.claude/worktrees/cafe24-3rdparty-url-503aa0/backend/src/modules/integrations/integration-oauth.service.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/clemvion/.claude/worktrees/cafe24-3rdparty-url-503aa0/backend/src/modules/integrations/integrations.controller.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/clemvion/.claude/worktrees/cafe24-3rdparty-url-503aa0/backend/src/modules/integrations/integrations.module.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/clemvion/.claude/worktrees/cafe24-3rdparty-url-503aa0/backend/src/modules/integrations/third-party-oauth.controller.spec.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/clemvion/.claude/worktrees/cafe24-3rdparty-url-503aa0/backend/src/modules/integrations/third-party-oauth.controller.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/clemvion/.claude/worktrees/cafe24-3rdparty-url-503aa0/frontend/src/content/docs/06-integrations-and-config/cafe24.en.mdx",
+      "change_type": "Review",
+      "file_extension": "mdx"
+    },
+    {
+      "file_path": "/Volumes/project/private/clemvion/.claude/worktrees/cafe24-3rdparty-url-503aa0/frontend/src/content/docs/06-integrations-and-config/cafe24.mdx",
+      "change_type": "Review",
+      "file_extension": "mdx"
+    },
+    {
+      "file_path": "/Volumes/project/private/clemvion/.claude/worktrees/cafe24-3rdparty-url-503aa0/frontend/src/lib/i18n/dict/en.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/clemvion/.claude/worktrees/cafe24-3rdparty-url-503aa0/frontend/src/lib/i18n/dict/ko.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "/Volumes/project/private/clemvion/.claude/worktrees/cafe24-3rdparty-url-503aa0/plan/in-progress/cafe24-app-url-3rdparty-shorten.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "/Volumes/project/private/clemvion/.claude/worktrees/cafe24-3rdparty-url-503aa0/plan/in-progress/cafe24-pending-polish-followup.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "/Volumes/project/private/clemvion/.claude/worktrees/cafe24-3rdparty-url-503aa0/review/consistency/2026-05-15_02-07-22/SUMMARY.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "/Volumes/project/private/clemvion/.claude/worktrees/cafe24-3rdparty-url-503aa0/review/consistency/2026-05-15_02-07-22/convention_compliance/review.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "/Volumes/project/private/clemvion/.claude/worktrees/cafe24-3rdparty-url-503aa0/review/consistency/2026-05-15_02-07-22/cross_spec/review.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "/Volumes/project/private/clemvion/.claude/worktrees/cafe24-3rdparty-url-503aa0/review/consistency/2026-05-15_02-07-22/meta.json",
+      "change_type": "Review",
+      "file_extension": "json"
+    },
+    {
+      "file_path": "/Volumes/project/private/clemvion/.claude/worktrees/cafe24-3rdparty-url-503aa0/review/consistency/2026-05-15_02-07-22/naming_collision/review.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "/Volumes/project/private/clemvion/.claude/worktrees/cafe24-3rdparty-url-503aa0/review/consistency/2026-05-15_02-07-22/plan_coherence/review.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "/Volumes/project/private/clemvion/.claude/worktrees/cafe24-3rdparty-url-503aa0/review/consistency/2026-05-15_02-07-22/rationale_continuity/review.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "/Volumes/project/private/clemvion/.claude/worktrees/cafe24-3rdparty-url-503aa0/review/consistency/2026-05-15_02-20-10/SUMMARY.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "/Volumes/project/private/clemvion/.claude/worktrees/cafe24-3rdparty-url-503aa0/review/consistency/2026-05-15_02-20-10/convention_compliance/review.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "/Volumes/project/private/clemvion/.claude/worktrees/cafe24-3rdparty-url-503aa0/review/consistency/2026-05-15_02-20-10/cross_spec/review.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "/Volumes/project/private/clemvion/.claude/worktrees/cafe24-3rdparty-url-503aa0/review/consistency/2026-05-15_02-20-10/meta.json",
+      "change_type": "Review",
+      "file_extension": "json"
+    },
+    {
+      "file_path": "/Volumes/project/private/clemvion/.claude/worktrees/cafe24-3rdparty-url-503aa0/review/consistency/2026-05-15_02-20-10/naming_collision/review.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "/Volumes/project/private/clemvion/.claude/worktrees/cafe24-3rdparty-url-503aa0/review/consistency/2026-05-15_02-20-10/plan_coherence/review.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "/Volumes/project/private/clemvion/.claude/worktrees/cafe24-3rdparty-url-503aa0/review/consistency/2026-05-15_02-20-10/rationale_continuity/review.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "/Volumes/project/private/clemvion/.claude/worktrees/cafe24-3rdparty-url-503aa0/spec/1-data-model.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "/Volumes/project/private/clemvion/.claude/worktrees/cafe24-3rdparty-url-503aa0/spec/2-navigation/4-integration.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "/Volumes/project/private/clemvion/.claude/worktrees/cafe24-3rdparty-url-503aa0/spec/4-nodes/4-integration/4-cafe24.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "/Volumes/project/private/clemvion/.claude/worktrees/cafe24-3rdparty-url-503aa0/spec/data-flow/integration.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    }
+  ],
+  "total_elapsed_seconds": 297.46,
+  "agents": [
+    {
+      "name": "performance",
+      "status": "success",
+      "elapsed_seconds": 39.42
+    },
+    {
+      "name": "dependency",
+      "status": "success",
+      "elapsed_seconds": 40.81
+    },
+    {
+      "name": "database",
+      "status": "success",
+      "elapsed_seconds": 42.84
+    },
+    {
+      "name": "concurrency",
+      "status": "success",
+      "elapsed_seconds": 44.35
+    },
+    {
+      "name": "architecture",
+      "status": "success",
+      "elapsed_seconds": 72.9
+    },
+    {
+      "name": "testing",
+      "status": "success",
+      "elapsed_seconds": 74.36
+    },
+    {
+      "name": "api_contract",
+      "status": "success",
+      "elapsed_seconds": 75.99
+    },
+    {
+      "name": "scope",
+      "status": "success",
+      "elapsed_seconds": 77.06
+    },
+    {
+      "name": "documentation",
+      "status": "success",
+      "elapsed_seconds": 80.61
+    },
+    {
+      "name": "security",
+      "status": "success",
+      "elapsed_seconds": 102.83
+    },
+    {
+      "name": "side_effect",
+      "status": "success",
+      "elapsed_seconds": 104.75
+    },
+    {
+      "name": "maintainability",
+      "status": "success",
+      "elapsed_seconds": 114.38
+    },
+    {
+      "name": "requirement",
+      "status": "success",
+      "elapsed_seconds": 139.24
+    }
+  ]
+}

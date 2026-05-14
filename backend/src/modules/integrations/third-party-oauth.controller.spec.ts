@@ -1,8 +1,7 @@
 import { BadRequestException } from '@nestjs/common';
 import type { Response } from 'express';
-import { IntegrationsController } from './integrations.controller';
+import { ThirdPartyOAuthController } from './third-party-oauth.controller';
 import { IntegrationOAuthService } from './integration-oauth.service';
-import type { IntegrationsService } from './integrations.service';
 
 function makeRes() {
   const res = {
@@ -43,8 +42,8 @@ function makeRes() {
   return res as unknown as Response & typeof res;
 }
 
-describe('IntegrationsController — oauthCallback error paths', () => {
-  let controller: IntegrationsController;
+describe('ThirdPartyOAuthController — oauthCallback error paths', () => {
+  let controller: ThirdPartyOAuthController;
   let oauthService: jest.Mocked<
     Pick<
       IntegrationOAuthService,
@@ -54,7 +53,6 @@ describe('IntegrationsController — oauthCallback error paths', () => {
       | 'handleInstall'
     >
   >;
-  let integrationsService: jest.Mocked<Pick<IntegrationsService, never>>;
 
   beforeEach(() => {
     process.env.FRONTEND_URL = 'https://frontend.test';
@@ -64,11 +62,7 @@ describe('IntegrationsController — oauthCallback error paths', () => {
       markIntegrationCallbackError: jest.fn().mockResolvedValue(undefined),
       handleInstall: jest.fn(),
     } as unknown as typeof oauthService;
-    integrationsService = {} as typeof integrationsService;
-    controller = new IntegrationsController(
-      integrationsService as never,
-      oauthService as never,
-    );
+    controller = new ThirdPartyOAuthController(oauthService as never);
   });
 
   afterEach(() => {
@@ -127,16 +121,45 @@ describe('IntegrationsController — oauthCallback error paths', () => {
     // No HTML callback template renders → no postMessage payload leaks.
     expect(oauthService.handleCallbackWithErrorCapture).not.toHaveBeenCalled();
   });
+
+  it('falls back to APP_URL when FRONTEND_URL is unset', async () => {
+    delete process.env.FRONTEND_URL;
+    process.env.APP_URL = 'https://app.test';
+    oauthService.handleCallbackWithErrorCapture.mockResolvedValue({
+      mode: 'reauthorize',
+      provider: 'cafe24',
+      integrationId: 'int-1',
+    });
+    const res = makeRes();
+    await controller.oauthCallback('cafe24', 'c', 's', undefined, res as never);
+    expect(res.statusCode).toBe(200);
+    expect(res.body as string).toContain('Connected');
+  });
+
+  it('returns 400 with error HTML for unsupported providers', async () => {
+    const res = makeRes();
+    await controller.oauthCallback(
+      'unsupportedprovider',
+      undefined,
+      undefined,
+      undefined,
+      res as never,
+    );
+    expect(res.statusCode).toBe(400);
+    expect(res.body as string).toContain('Unsupported OAuth provider');
+    expect(oauthService.handleCallbackWithErrorCapture).not.toHaveBeenCalled();
+  });
 });
 
-describe('IntegrationsController — cafe24 install routes', () => {
-  let controller: IntegrationsController;
+describe('ThirdPartyOAuthController — cafe24 install routes', () => {
+  let controller: ThirdPartyOAuthController;
   let oauthService: {
     handleInstall: jest.Mock;
     handleCallback: jest.Mock;
     markIntegrationCallbackError: jest.Mock;
   };
-  const validToken = 'a'.repeat(64);
+  // 16-byte base64url = 22 chars. spec/2-navigation/4-integration.md §9.2.
+  const validToken = 'AbCdEfGhIjKlMnOpQrStUv';
 
   beforeEach(() => {
     oauthService = {
@@ -148,13 +171,14 @@ describe('IntegrationsController — cafe24 install routes', () => {
           'https://myshop.cafe24api.com/api/v2/oauth/authorize',
         ),
     };
-    controller = new IntegrationsController({} as never, oauthService as never);
+    controller = new ThirdPartyOAuthController(oauthService as never);
   });
 
-  it('rejects non-hex install_token with 404 CAFE24_INSTALL_INVALID_TOKEN before calling service', async () => {
+  it('rejects non-base64url install_token with 404 CAFE24_INSTALL_INVALID_TOKEN before calling service', async () => {
     const res = makeRes();
+    // 22자이지만 base64url 알파벳 밖 (`!` 포함)
     await controller.cafe24Install(
-      'not-a-hex-token',
+      '!nvalid!chars!22charlen!',
       'shop',
       '1700000000',
       'sig',
@@ -176,10 +200,52 @@ describe('IntegrationsController — cafe24 install routes', () => {
     expect(oauthService.handleInstall).not.toHaveBeenCalled();
   });
 
-  it('rejects short/long hex with 404 (length must be 64)', async () => {
+  it('rejects too-short base64url with 404 (length must be exactly 22)', async () => {
     const res = makeRes();
     await controller.cafe24Install(
-      'a'.repeat(63),
+      'A'.repeat(21),
+      'shop',
+      '1700000000',
+      'sig',
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      { url: '/cafe24?mall_id=shop' } as never,
+      res as never,
+    );
+    expect(res.statusCode).toBe(404);
+  });
+
+  it('rejects too-long base64url with 404 (length must be exactly 22)', async () => {
+    const res = makeRes();
+    await controller.cafe24Install(
+      'A'.repeat(23),
+      'shop',
+      '1700000000',
+      'sig',
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      { url: '/cafe24?mall_id=shop' } as never,
+      res as never,
+    );
+    expect(res.statusCode).toBe(404);
+  });
+
+  it('rejects old 64-hex tokens with 404 (legacy format must not be accepted)', async () => {
+    const res = makeRes();
+    await controller.cafe24Install(
+      'a'.repeat(64),
       'shop',
       '1700000000',
       'sig',
@@ -221,6 +287,112 @@ describe('IntegrationsController — cafe24 install routes', () => {
     );
   });
 
+  it('returns 400 CAFE24_INSTALL_MISSING_PARAMS when timestamp missing', async () => {
+    const res = makeRes();
+    await controller.cafe24Install(
+      validToken,
+      'shop',
+      undefined,
+      'sig',
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      { url: '/cafe24/x' } as never,
+      res as never,
+    );
+    expect(res.statusCode).toBe(400);
+    expect((res.body as { code: string }).code).toBe(
+      'CAFE24_INSTALL_MISSING_PARAMS',
+    );
+  });
+
+  it('returns 400 CAFE24_INSTALL_MISSING_PARAMS when hmac missing', async () => {
+    const res = makeRes();
+    await controller.cafe24Install(
+      validToken,
+      'shop',
+      '1700000000',
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      { url: '/cafe24/x' } as never,
+      res as never,
+    );
+    expect(res.statusCode).toBe(400);
+    expect((res.body as { code: string }).code).toBe(
+      'CAFE24_INSTALL_MISSING_PARAMS',
+    );
+  });
+
+  it('propagates service ForbiddenException status (403) to response', async () => {
+    const err = Object.assign(new Error('hmac fail'), {
+      status: 403,
+      response: { code: 'CAFE24_INSTALL_INVALID_HMAC', message: 'hmac fail' },
+    });
+    oauthService.handleInstall.mockRejectedValue(err);
+    const res = makeRes();
+    await controller.cafe24Install(
+      validToken,
+      'shop',
+      '1700000000',
+      'sig',
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      { url: '/cafe24?mall_id=shop' } as never,
+      res as never,
+    );
+    expect(res.statusCode).toBe(403);
+    expect((res.body as { code: string }).code).toBe(
+      'CAFE24_INSTALL_INVALID_HMAC',
+    );
+  });
+
+  it('propagates service NotFoundException status (404) to response', async () => {
+    const err = Object.assign(new Error('token gone'), {
+      status: 404,
+      response: { code: 'CAFE24_INSTALL_INVALID_TOKEN', message: 'token gone' },
+    });
+    oauthService.handleInstall.mockRejectedValue(err);
+    const res = makeRes();
+    await controller.cafe24Install(
+      validToken,
+      'shop',
+      '1700000000',
+      'sig',
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      { url: '/cafe24?mall_id=shop' } as never,
+      res as never,
+    );
+    expect(res.statusCode).toBe(404);
+    expect((res.body as { code: string }).code).toBe(
+      'CAFE24_INSTALL_INVALID_TOKEN',
+    );
+  });
+
   it('delegates valid input to handleInstall and 302-redirects to authorize URL', async () => {
     const res = makeRes();
     await controller.cafe24Install(
@@ -236,7 +408,7 @@ describe('IntegrationsController — cafe24 install routes', () => {
       undefined,
       undefined,
       undefined,
-      { url: '/api/integrations/oauth/install/cafe24/X?mall_id=shop' } as never,
+      { url: '/api/3rd-party/cafe24/install/X?mall_id=shop' } as never,
       res as never,
     );
     expect(oauthService.handleInstall).toHaveBeenCalledWith(
