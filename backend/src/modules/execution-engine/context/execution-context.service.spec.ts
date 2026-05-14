@@ -1,5 +1,5 @@
 import { ExecutionContextService } from './execution-context.service';
-import { DEFAULT_THREAD_ID } from '../conversation-thread/conversation-thread.types';
+import { DEFAULT_THREAD_ID } from '../../../shared/conversation-thread/conversation-thread.types';
 
 describe('ExecutionContextService', () => {
   let service: ExecutionContextService;

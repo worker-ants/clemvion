@@ -5,8 +5,8 @@ import {
   ConversationTurnSource,
   ConversationTurnToolCall,
   MutableConversationThread,
-} from './conversation-thread.types';
-import { renderInteractionText } from './thread-renderer';
+} from '../../../shared/conversation-thread/conversation-thread.types';
+import { renderInteractionText } from '../../../shared/conversation-thread/thread-renderer';
 
 /**
  * ConversationThread mutation 의 호출 측은 보통 `ExecutionContext` 를 가지지만,

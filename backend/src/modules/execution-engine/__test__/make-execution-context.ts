@@ -1,5 +1,5 @@
 import { ExecutionContext } from '../../../nodes/core/node-handler.interface';
-import { createEmptyConversationThread } from '../conversation-thread/conversation-thread.types';
+import { createEmptyConversationThread } from '../../../shared/conversation-thread/conversation-thread.types';
 
 /**
  * Canonical test factory for `ExecutionContext`. Use this in every spec that

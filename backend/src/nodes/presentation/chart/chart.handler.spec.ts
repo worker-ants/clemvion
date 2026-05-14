@@ -1,6 +1,6 @@
 import { ChartHandler } from './chart.handler.js';
 import { ExecutionContext } from '../../core/node-handler.interface.js';
-import { createEmptyConversationThread } from '../../../modules/execution-engine/conversation-thread/conversation-thread.types';
+import { createEmptyConversationThread } from '../../../shared/conversation-thread/conversation-thread.types';
 
 describe('ChartHandler', () => {
   let handler: ChartHandler;

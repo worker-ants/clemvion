@@ -1,6 +1,6 @@
 import { IfElseHandler } from './if-else.handler.js';
 import { ExecutionContext } from '../../core/node-handler.interface.js';
-import { createEmptyConversationThread } from '../../../modules/execution-engine/conversation-thread/conversation-thread.types';
+import { createEmptyConversationThread } from '../../../shared/conversation-thread/conversation-thread.types';
 
 describe('IfElseHandler', () => {
   let handler: IfElseHandler;

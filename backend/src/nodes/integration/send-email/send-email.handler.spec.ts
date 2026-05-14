@@ -1,6 +1,6 @@
 import { SendEmailHandler } from './send-email.handler.js';
 import { ExecutionContext } from '../../core/node-handler.interface.js';
-import { createEmptyConversationThread } from '../../../modules/execution-engine/conversation-thread/conversation-thread.types';
+import { createEmptyConversationThread } from '../../../shared/conversation-thread/conversation-thread.types';
 
 const sendMailMock = jest.fn();
 const closeMock = jest.fn();

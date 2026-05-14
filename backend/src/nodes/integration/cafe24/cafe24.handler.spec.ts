@@ -8,7 +8,7 @@ import {
 import { IntegrationError } from '../_base/integration-handler-base';
 import type { ExecutionContext } from '../../core/node-handler.interface';
 import type { Integration } from '../../../modules/integrations/entities/integration.entity';
-import { createEmptyConversationThread } from '../../../modules/execution-engine/conversation-thread/conversation-thread.types';
+import { createEmptyConversationThread } from '../../../shared/conversation-thread/conversation-thread.types';
 
 type Mock = jest.Mock;
 

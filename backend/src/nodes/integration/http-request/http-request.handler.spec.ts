@@ -1,6 +1,6 @@
 import { HttpRequestHandler } from './http-request.handler.js';
 import { ExecutionContext } from '../../core/node-handler.interface.js';
-import { createEmptyConversationThread } from '../../../modules/execution-engine/conversation-thread/conversation-thread.types';
+import { createEmptyConversationThread } from '../../../shared/conversation-thread/conversation-thread.types';
 
 function makeContext(rawConfig?: Record<string, unknown>): ExecutionContext {
   return {

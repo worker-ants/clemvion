@@ -10,7 +10,7 @@ import type {
   ProviderCleanupCtx,
 } from './tool-providers/agent-tool-provider.interface';
 import type { ExecutionContext } from '../../core/node-handler.interface';
-import { createEmptyConversationThread } from '../../../modules/execution-engine/conversation-thread/conversation-thread.types';
+import { createEmptyConversationThread } from '../../../shared/conversation-thread/conversation-thread.types';
 
 function makeMockLlmService() {
   return {

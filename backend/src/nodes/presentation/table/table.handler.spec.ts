@@ -1,5 +1,5 @@
 import { TableHandler } from './table.handler.js';
-import { createEmptyConversationThread } from '../../../modules/execution-engine/conversation-thread/conversation-thread.types';
+import { createEmptyConversationThread } from '../../../shared/conversation-thread/conversation-thread.types';
 
 describe('TableHandler', () => {
   let handler: TableHandler;

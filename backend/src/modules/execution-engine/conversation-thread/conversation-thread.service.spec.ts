@@ -5,7 +5,7 @@ import {
 import {
   ConversationThread,
   createEmptyConversationThread,
-} from './conversation-thread.types';
+} from '../../../shared/conversation-thread/conversation-thread.types';
 import { ExecutionContext } from '../../../nodes/core/node-handler.interface';
 
 function makeContext(thread?: ConversationThread): ExecutionContext {

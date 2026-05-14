@@ -1,6 +1,6 @@
 import { DatabaseQueryHandler } from './database-query.handler.js';
 import { ExecutionContext } from '../../core/node-handler.interface.js';
-import { createEmptyConversationThread } from '../../../modules/execution-engine/conversation-thread/conversation-thread.types';
+import { createEmptyConversationThread } from '../../../shared/conversation-thread/conversation-thread.types';
 
 const connectMock = jest.fn();
 const queryMock = jest.fn();

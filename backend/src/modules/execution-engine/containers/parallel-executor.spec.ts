@@ -1,6 +1,6 @@
 import { ParallelExecutor } from './parallel-executor';
 import { ExecutionContext } from '../../../nodes/core/node-handler.interface';
-import { createEmptyConversationThread } from '../conversation-thread/conversation-thread.types';
+import { createEmptyConversationThread } from '../../../shared/conversation-thread/conversation-thread.types';
 
 describe('ParallelExecutor', () => {
   let executor: ParallelExecutor;

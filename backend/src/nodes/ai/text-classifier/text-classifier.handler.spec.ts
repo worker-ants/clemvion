@@ -1,6 +1,6 @@
 import { TextClassifierHandler } from './text-classifier.handler';
 import { ExecutionContext } from '../../core/node-handler.interface';
-import { createEmptyConversationThread } from '../../../modules/execution-engine/conversation-thread/conversation-thread.types';
+import { createEmptyConversationThread } from '../../../shared/conversation-thread/conversation-thread.types';
 
 // Shared assertion for the error-path meta contract (CONVENTIONS Principle 2,
 // spec §5.3). Single-label and multi-label modes share the exact catch-block
