@@ -166,6 +166,7 @@
 | `$item` | Object/Any | ForEach 현재 항목 | `{{ $item.name }}` |
 | `$itemIndex` | Number | ForEach 현재 인덱스 | `{{ $itemIndex }}` |
 | `$trigger` | Object | 트리거 데이터 (webhook payload 등) | `{{ $trigger.body.event }}` |
+| `$thread` | Object | Conversation Thread 변수 — 사용자 인터랙션 + AI 대화 turn 누적. [§4.4](#44-thread-속성) | `{{ $thread.length }}` |
 
 ### 4.2 `$execution` 속성
 
@@ -184,6 +185,23 @@
 | `iteration` | Number | 현재 반복 횟수 (1-based) |
 | `isFirst` | Boolean | 첫 번째 반복 여부 |
 | `isLast` | Boolean | 마지막 반복 여부 |
+
+### 4.4 `$thread` 속성
+
+ConversationThread 의 readonly 뷰. AI Agent 노드의 `contextScope` 자동 주입과는 독립적으로 사용자가 명시 참조 가능 ([Spec Conversation Thread](../conventions/conversation-thread.md)).
+
+| 속성 | 타입 | 설명 |
+|------|------|------|
+| `turns` | Array | ConversationTurn[] readonly snapshot |
+| `length` | Number | turn 개수 |
+| `text` | String | system_text 렌더 결과 (모든 turn 헤더 + 본문) |
+
+> v1 은 단순 indexing 만 노출. `$thread.last(n)` / `$thread.byNode(name)` 같은 메서드 callable 은 v2 에서 추가 검토.
+
+예시:
+- `{{ $thread.length }}` — 누적 turn 개수
+- `{{ $thread.text }}` — 전체 thread 를 텍스트로 첨부 (예: `transform` 노드에서 가공)
+- `{{ $thread.turns[0].data.email }}` — 첫 turn 의 form 데이터 필드 (turn.source 가 `presentation_user` 일 때 유효)
 
 ---
 
