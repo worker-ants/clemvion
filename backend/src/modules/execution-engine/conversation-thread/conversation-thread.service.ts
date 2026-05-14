@@ -4,6 +4,7 @@ import {
   ConversationTurn,
   ConversationTurnSource,
   ConversationTurnToolCall,
+  MutableConversationThread,
 } from './conversation-thread.types';
 import { renderInteractionText } from './thread-renderer';
 
@@ -165,7 +166,10 @@ export class ConversationThreadService {
   private appendInternal(context: ThreadHolder, args: AppendBaseArgs): void {
     if (this.isOptedOut(args.node)) return;
 
-    const thread = context.conversationThread;
+    // External callers see ConversationThread (readonly turns); the service
+    // is the sole writer so we cast to the mutable view to push/splice.
+    // Spec/conventions/conversation-thread.md §2.4 — single mutation entry.
+    const thread = context.conversationThread as MutableConversationThread;
     const seq = thread.nextSeq;
     // Object.freeze enforces the post-push immutability invariant that
     // background snapshot isolation (cloneThread §3.2) and tool-loop turn

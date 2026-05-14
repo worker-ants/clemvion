@@ -124,15 +124,22 @@ owner: developer
 **공용 헬퍼 (Phase 15)**
 - `manual-trigger.handler.spec.ts`: mockContext literal → makeContext() 호출로 통일 (B2-W11)
 
-**미적용 (별도 phase 또는 v2 결정 필요)**
-- W4: nodes/ai → execution-engine 역방향 의존 — 코드 위치 이동 refactor 필요 (큼)
-- W5: $thread.text lazy getter — 성능 측정 후 결정
-- W8: Parallel 컨테이너 thread 정책 — use case 정의 후
-- W10: button resume 통합 테스트 — execution-engine.service.spec 의 button mock 시나리오 신설 필요 (큼) — Phase 8 e2e 시나리오와 함께
-- W11: turns readonly 강제 — 두 type (mutable internal / readonly external) 분리 필요 (refactor)
-- W15/B2-W10: 공유 createBaseExecutionContext 헬퍼 — 35+ spec 파일 점진 마이그레이션 (큼). 신규 spec 파일은 makeExecutionContext 사용 유도
-
 **검증**: 196 suites / 3430 tests green, lint clean, build clean. consistency-check Critical 0 (`review/consistency/2026-05-14_20-13-36/`).
+
+### Phase 16-20 — 잔여 follow-up 후속 (사용자 "이어서 해" 요청) ✅
+2026-05-14 단일 commit:
+
+- **Phase 16 ✅** — `ConversationThread.turns` 를 `ReadonlyArray<ConversationTurn>` 로 타입 강제 (W11). `MutableConversationThread` internal 뷰 신설 + service `appendInternal` 가 cast 로 push. 외부 컨슈머는 push 차단됨 (TypeScript level).
+- **Phase 17 ✅** — `makeExecutionContext` 헬퍼에 JSDoc 강화. `ai-agent.handler.spec.ts` 의 baseContext 마이그레이션 시범 (W15/B2-W10 일부). 35 spec 일괄 마이그레이션은 패턴 미묘차로 비효율 — 신규 spec 부터 사용 유도.
+- **Phase 18 미적용** — Button resume 통합 테스트 (W10). execution-engine.service.spec 의 button mock 시나리오 신설은 ~150 라인 work + handler metadata + buttonConfig 라우팅 mock 필요. 진정한 통합 검증은 e2e 영역. service 레벨 button push 로직은 conversation-thread.service.spec.ts 가 이미 검증.
+- **Phase 19 미적용** — Architecture refactor (W4). nodes/ai → execution-engine 의존은 NestJS DI 단방향이라 실제 순환 없음. types/renderer 의 shared/ 분리 가치는 작음 (모든 import 갱신 비용 큼). v2 로드맵에 명시.
+- **Phase 20 ✅** — spec/conventions/conversation-thread.md §7 v2 로드맵 보강: Parallel + thread 정책 (W8), `$thread.text` lazy 평가 (W5), service 모듈 위치 정리 (W4), Storage cap 정책 옵션 추가.
+
+**최종 미적용**:
+- W4 / W10 — 가치 대비 작업 큰 항목. v2 로드맵 또는 e2e phase 에서 처리.
+- W5 / W8 — spec 의 v2 로드맵에 정책 결정 항목으로 명시 완료.
+
+**최종 검증**: 196 suites / 3430 tests green, lint clean, build clean.
 
 ## 핵심 설계 (요약)
 
