@@ -18,6 +18,9 @@ export const INTEGRATION_EXPIRY_QUEUE = 'integration-expiry-scanner';
 /** Usage-log retention window (spec §2.10.1). */
 const USAGE_LOG_RETENTION_DAYS = 90;
 
+/** Cafe24 Private install TTL — spec/2-navigation/4-integration.md §6 / ## Rationale. */
+const PENDING_INSTALL_TTL_HOURS = 24;
+
 interface ExpiryJobData {
   triggeredAt: string;
 }
@@ -62,8 +65,56 @@ export class IntegrationExpiryScannerService
     this.logger.log(
       `Running integration expiry scan (${job.data.triggeredAt})`,
     );
-    await this.run(new Date());
-    await this.pruneUsageLogs(new Date());
+    // Two independent passes. Failures in one must not block the other —
+    // spec/data-flow/integration.md §1.4. variant 4: pending_install TTL.
+    await this.run(new Date()).catch((err) =>
+      this.logger.error(
+        `expiry run failed: ${err instanceof Error ? err.message : String(err)}`,
+      ),
+    );
+    await this.expirePendingInstalls(new Date()).catch((err) =>
+      this.logger.error(
+        `pending_install TTL sweep failed: ${err instanceof Error ? err.message : String(err)}`,
+      ),
+    );
+    await this.pruneUsageLogs(new Date()).catch((err) =>
+      this.logger.error(
+        `usage log prune failed: ${err instanceof Error ? err.message : String(err)}`,
+      ),
+    );
+  }
+
+  /**
+   * Sweep `pending_install` rows whose install_token was issued more than
+   * `PENDING_INSTALL_TTL_HOURS` (24h) ago and never reached `connected`.
+   * Transitions them to `expired(install_timeout)` and clears install_token
+   * so further App URL calls with that token cleanly 404. Manual delete
+   * remains the only path that removes the row — we keep history for audit.
+   *
+   * spec/2-navigation/4-integration.md §6 (pending_install → expired) +
+   * ## Rationale "install_token TTL 24h".
+   */
+  async expirePendingInstalls(now: Date): Promise<number> {
+    const cutoff = new Date(
+      now.getTime() - PENDING_INSTALL_TTL_HOURS * 60 * 60 * 1000,
+    );
+    const stale = await this.integrationRepository.find({
+      where: {
+        status: 'pending_install',
+        createdAt: LessThan(cutoff),
+      },
+    });
+    if (stale.length === 0) return 0;
+    for (const row of stale) {
+      row.status = 'expired';
+      row.statusReason = 'install_timeout';
+      row.installToken = null;
+    }
+    await this.integrationRepository.save(stale);
+    this.logger.log(
+      `pending_install TTL sweep transitioned ${stale.length} row(s) to expired(install_timeout)`,
+    );
+    return stale.length;
   }
 
   /**
