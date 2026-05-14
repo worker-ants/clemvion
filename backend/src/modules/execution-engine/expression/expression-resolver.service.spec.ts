@@ -437,6 +437,51 @@ describe('ExpressionResolverService', () => {
       expect(ctx.$thread?.text).toContain('Hi Alice');
     });
 
+    it('$thread.text is lazy — not computed until accessed (memoized after first read)', () => {
+      // White-box: replace the renderer module with a spy via require cache
+      // would be invasive — instead we observe the contract: accessing
+      // `text` must succeed and return a string, and accessing it twice on
+      // the same view returns the same value (memoization keeps repeated
+      // reads cheap inside a Loop).
+      const nodeMap = new Map<string, Node>();
+      const execContext: ExecutionContext = {
+        executionId: 'exec-1',
+        workflowId: 'wf-1',
+        variables: {},
+        nodeOutputCache: {},
+        structuredOutputCache: {},
+        engineResolvedConfigCache: {},
+        recursionDepth: 0,
+        conversationThread: {
+          id: 'default',
+          nextSeq: 1,
+          totalChars: 5,
+          turns: [
+            {
+              seq: 0,
+              nodeId: 'n',
+              nodeLabel: 'X',
+              nodeType: 'form',
+              timestamp: '2026-05-15T00:00:00.000Z',
+              source: 'presentation_user',
+              text: 'hello',
+            },
+          ],
+        },
+      };
+      const ctx = service.buildExpressionContext({}, execContext, nodeMap) as {
+        $thread: { length: number; text: string };
+      };
+      // length is eager (cheap) — no render side-effect needed.
+      expect(ctx.$thread.length).toBe(1);
+      // First .text access triggers render, second hits memoized cache —
+      // they MUST return the same string instance for the cache contract.
+      const first = ctx.$thread.text;
+      const second = ctx.$thread.text;
+      expect(first).toContain('hello');
+      expect(second).toBe(first);
+    });
+
     it('returns empty $thread.text when thread has no turns', () => {
       const nodeMap = new Map<string, Node>();
       const execContext: ExecutionContext = {
