@@ -527,6 +527,17 @@ export class AiAgentHandler implements NodeHandler {
     };
   }
 
+  /**
+   * Tool turn opt-in gate. `includeToolTurns: true` lets KB / MCP / condition
+   * tool-loop turns flow into the thread; default false keeps the thread
+   * lean (only final assistant per spec §2.2 / §2.4).
+   */
+  private isToolTurnsEnabled(
+    source: Record<string, unknown> | undefined,
+  ): boolean {
+    return source?.includeToolTurns === true;
+  }
+
   /** Tool result push (opt-in via `state.includeToolTurns === true`). */
   private pushAiToolResultTurn(
     target: ThreadHolder | undefined,
@@ -937,6 +948,16 @@ export class AiAgentHandler implements NodeHandler {
         content: result.content || '',
         toolCalls: result.toolCalls,
       });
+      // Tool-loop assistant push (opt-in via `includeToolTurns`).
+      if (this.isToolTurnsEnabled(config)) {
+        this.pushAiThreadTurn(
+          context,
+          this.buildAiNodeRefFromContext(context, config),
+          'ai_assistant',
+          result.content || '',
+          result.toolCalls as ConversationTurnToolCall[] | undefined,
+        );
+      }
 
       // Provider tool 호출은 같은 turn 내 Promise.all 로 병렬 실행 + budget
       // 부분 truncate 까지 일괄 처리하는 단일 진입점을 사용 (single-turn /
@@ -961,14 +982,23 @@ export class AiAgentHandler implements NodeHandler {
 
       for (const tc of classification.conditionToolCalls) {
         // Condition tool: send deferral message (does not count toward toolCallCount).
+        const condDeferralContent = JSON.stringify({
+          result:
+            '확인되었습니다. 도구 실행 결과를 참고하여 최종 판단해주세요.',
+        });
         messages.push({
           role: 'tool',
-          content: JSON.stringify({
-            result:
-              '확인되었습니다. 도구 실행 결과를 참고하여 최종 판단해주세요.',
-          }),
+          content: condDeferralContent,
           toolCallId: tc.id,
         });
+        if (this.isToolTurnsEnabled(config)) {
+          this.pushAiToolResultTurn(
+            context,
+            this.buildAiNodeRefFromContext(context, config),
+            tc.id,
+            condDeferralContent,
+          );
+        }
       }
 
       // 일반 도구도 maxToolCalls 합산 대상이므로 잔여 한도를 초과한 항목은
@@ -978,22 +1008,42 @@ export class AiAgentHandler implements NodeHandler {
       // 와 일치시킨다.
       for (const tc of classification.normalToolCalls) {
         if (toolCallCount >= maxToolCalls) {
+          const budgetContent = JSON.stringify({
+            error: 'tool_call_budget_exceeded',
+          });
           messages.push({
             role: 'tool',
-            content: JSON.stringify({ error: 'tool_call_budget_exceeded' }),
+            content: budgetContent,
             toolCallId: tc.id,
           });
+          if (this.isToolTurnsEnabled(config)) {
+            this.pushAiToolResultTurn(
+              context,
+              this.buildAiNodeRefFromContext(context, config),
+              tc.id,
+              budgetContent,
+            );
+          }
           continue;
         }
         toolCallCount++;
+        const normalContent = JSON.stringify({
+          result: `Tool ${tc.name} executed`,
+          arguments: tc.arguments,
+        });
         messages.push({
           role: 'tool',
-          content: JSON.stringify({
-            result: `Tool ${tc.name} executed`,
-            arguments: tc.arguments,
-          }),
+          content: normalContent,
           toolCallId: tc.id,
         });
+        if (this.isToolTurnsEnabled(config)) {
+          this.pushAiToolResultTurn(
+            context,
+            this.buildAiNodeRefFromContext(context, config),
+            tc.id,
+            normalContent,
+          );
+        }
       }
 
       const loopRequest = {
@@ -1429,6 +1479,21 @@ export class AiAgentHandler implements NodeHandler {
         content: result.content || '',
         toolCalls: result.toolCalls,
       });
+      // Tool-loop assistant push (multi-turn opt-in via state.rawConfig
+      // .includeToolTurns).
+      if (
+        this.isToolTurnsEnabled(
+          state.rawConfig as Record<string, unknown> | undefined,
+        )
+      ) {
+        this.pushAiThreadTurn(
+          this.threadHolderFromState(state),
+          this.buildAiNodeRefFromState(state),
+          'ai_assistant',
+          result.content || '',
+          result.toolCalls as ConversationTurnToolCall[] | undefined,
+        );
+      }
 
       // single-turn 과 동일하게 단일 진입점을 사용. resume state 는 새 turn 의
       // nodeId/nodeExecutionId 를 운반하지 않으므로 ?? '' fallback 만 다르다.
@@ -1452,34 +1517,75 @@ export class AiAgentHandler implements NodeHandler {
 
       for (const tc of classification.conditionToolCalls) {
         toolCallCount++;
+        const condDeferralContent = JSON.stringify({
+          result:
+            '확인되었습니다. 도구 실행 결과를 참고하여 최종 판단해주세요.',
+        });
         messages.push({
           role: 'tool',
-          content: JSON.stringify({
-            result:
-              '확인되었습니다. 도구 실행 결과를 참고하여 최종 판단해주세요.',
-          }),
+          content: condDeferralContent,
           toolCallId: tc.id,
         });
+        if (
+          this.isToolTurnsEnabled(
+            state.rawConfig as Record<string, unknown> | undefined,
+          )
+        ) {
+          this.pushAiToolResultTurn(
+            this.threadHolderFromState(state),
+            this.buildAiNodeRefFromState(state),
+            tc.id,
+            condDeferralContent,
+          );
+        }
       }
 
       for (const tc of classification.normalToolCalls) {
         if (toolCallCount >= maxToolCalls) {
+          const budgetContent = JSON.stringify({
+            error: 'tool_call_budget_exceeded',
+          });
           messages.push({
             role: 'tool',
-            content: JSON.stringify({ error: 'tool_call_budget_exceeded' }),
+            content: budgetContent,
             toolCallId: tc.id,
           });
+          if (
+            this.isToolTurnsEnabled(
+              state.rawConfig as Record<string, unknown> | undefined,
+            )
+          ) {
+            this.pushAiToolResultTurn(
+              this.threadHolderFromState(state),
+              this.buildAiNodeRefFromState(state),
+              tc.id,
+              budgetContent,
+            );
+          }
           continue;
         }
         toolCallCount++;
+        const normalContent = JSON.stringify({
+          result: `Tool ${tc.name} executed`,
+          arguments: tc.arguments,
+        });
         messages.push({
           role: 'tool',
-          content: JSON.stringify({
-            result: `Tool ${tc.name} executed`,
-            arguments: tc.arguments,
-          }),
+          content: normalContent,
           toolCallId: tc.id,
         });
+        if (
+          this.isToolTurnsEnabled(
+            state.rawConfig as Record<string, unknown> | undefined,
+          )
+        ) {
+          this.pushAiToolResultTurn(
+            this.threadHolderFromState(state),
+            this.buildAiNodeRefFromState(state),
+            tc.id,
+            normalContent,
+          );
+        }
       }
 
       const loopReq = {
