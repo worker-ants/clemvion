@@ -179,11 +179,10 @@ export class IntegrationsController {
     });
   }
 
-  // NOTE: Cafe24 install (`POST oauth/begin` 발급 토큰으로 호출) + OAuth
-  // callback handlers 는 `ThirdPartyOAuthController` (`/api/3rd-party/...`)
-  // 로 이전됨. 사용자가 호출하는 통합 관리 API 만 본 controller 에 남는다.
-  // spec/2-navigation/4-integration.md §9.2 Rationale "Cafe24 App URL 100자
-  // 한도 대응" 참조.
+  // 본 controller 는 사용자가 호출하는 통합 관리 API 전용. 3rd-party
+  // 가 호출하는 endpoints (Cafe24 install + OAuth callback) 는
+  // `ThirdPartyOAuthController` (`/api/3rd-party/...`) 가 담당.
+  // spec/2-navigation/4-integration.md §9.2.
 
   @Get(':id')
   @ApiOperation({

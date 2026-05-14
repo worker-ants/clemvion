@@ -121,6 +121,34 @@ describe('ThirdPartyOAuthController — oauthCallback error paths', () => {
     // No HTML callback template renders → no postMessage payload leaks.
     expect(oauthService.handleCallbackWithErrorCapture).not.toHaveBeenCalled();
   });
+
+  it('falls back to APP_URL when FRONTEND_URL is unset', async () => {
+    delete process.env.FRONTEND_URL;
+    process.env.APP_URL = 'https://app.test';
+    oauthService.handleCallbackWithErrorCapture.mockResolvedValue({
+      mode: 'reauthorize',
+      provider: 'cafe24',
+      integrationId: 'int-1',
+    });
+    const res = makeRes();
+    await controller.oauthCallback('cafe24', 'c', 's', undefined, res as never);
+    expect(res.statusCode).toBe(200);
+    expect(res.body as string).toContain('Connected');
+  });
+
+  it('returns 400 with error HTML for unsupported providers', async () => {
+    const res = makeRes();
+    await controller.oauthCallback(
+      'unsupportedprovider',
+      undefined,
+      undefined,
+      undefined,
+      res as never,
+    );
+    expect(res.statusCode).toBe(400);
+    expect(res.body as string).toContain('Unsupported OAuth provider');
+    expect(oauthService.handleCallbackWithErrorCapture).not.toHaveBeenCalled();
+  });
 });
 
 describe('ThirdPartyOAuthController — cafe24 install routes', () => {
@@ -130,7 +158,7 @@ describe('ThirdPartyOAuthController — cafe24 install routes', () => {
     handleCallback: jest.Mock;
     markIntegrationCallbackError: jest.Mock;
   };
-  // 16바이트 base64url = 22자. spec/2-navigation/4-integration.md §9.2.
+  // 16-byte base64url = 22 chars. spec/2-navigation/4-integration.md §9.2.
   const validToken = 'AbCdEfGhIjKlMnOpQrStUv';
 
   beforeEach(() => {
@@ -172,10 +200,31 @@ describe('ThirdPartyOAuthController — cafe24 install routes', () => {
     expect(oauthService.handleInstall).not.toHaveBeenCalled();
   });
 
-  it('rejects short/long base64url with 404 (length must be exactly 22)', async () => {
+  it('rejects too-short base64url with 404 (length must be exactly 22)', async () => {
     const res = makeRes();
     await controller.cafe24Install(
       'A'.repeat(21),
+      'shop',
+      '1700000000',
+      'sig',
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      { url: '/cafe24?mall_id=shop' } as never,
+      res as never,
+    );
+    expect(res.statusCode).toBe(404);
+  });
+
+  it('rejects too-long base64url with 404 (length must be exactly 22)', async () => {
+    const res = makeRes();
+    await controller.cafe24Install(
+      'A'.repeat(23),
       'shop',
       '1700000000',
       'sig',
@@ -235,6 +284,112 @@ describe('ThirdPartyOAuthController — cafe24 install routes', () => {
     expect(res.statusCode).toBe(400);
     expect((res.body as { code: string }).code).toBe(
       'CAFE24_INSTALL_MISSING_PARAMS',
+    );
+  });
+
+  it('returns 400 CAFE24_INSTALL_MISSING_PARAMS when timestamp missing', async () => {
+    const res = makeRes();
+    await controller.cafe24Install(
+      validToken,
+      'shop',
+      undefined,
+      'sig',
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      { url: '/cafe24/x' } as never,
+      res as never,
+    );
+    expect(res.statusCode).toBe(400);
+    expect((res.body as { code: string }).code).toBe(
+      'CAFE24_INSTALL_MISSING_PARAMS',
+    );
+  });
+
+  it('returns 400 CAFE24_INSTALL_MISSING_PARAMS when hmac missing', async () => {
+    const res = makeRes();
+    await controller.cafe24Install(
+      validToken,
+      'shop',
+      '1700000000',
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      { url: '/cafe24/x' } as never,
+      res as never,
+    );
+    expect(res.statusCode).toBe(400);
+    expect((res.body as { code: string }).code).toBe(
+      'CAFE24_INSTALL_MISSING_PARAMS',
+    );
+  });
+
+  it('propagates service ForbiddenException status (403) to response', async () => {
+    const err = Object.assign(new Error('hmac fail'), {
+      status: 403,
+      response: { code: 'CAFE24_INSTALL_INVALID_HMAC', message: 'hmac fail' },
+    });
+    oauthService.handleInstall.mockRejectedValue(err);
+    const res = makeRes();
+    await controller.cafe24Install(
+      validToken,
+      'shop',
+      '1700000000',
+      'sig',
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      { url: '/cafe24?mall_id=shop' } as never,
+      res as never,
+    );
+    expect(res.statusCode).toBe(403);
+    expect((res.body as { code: string }).code).toBe(
+      'CAFE24_INSTALL_INVALID_HMAC',
+    );
+  });
+
+  it('propagates service NotFoundException status (404) to response', async () => {
+    const err = Object.assign(new Error('token gone'), {
+      status: 404,
+      response: { code: 'CAFE24_INSTALL_INVALID_TOKEN', message: 'token gone' },
+    });
+    oauthService.handleInstall.mockRejectedValue(err);
+    const res = makeRes();
+    await controller.cafe24Install(
+      validToken,
+      'shop',
+      '1700000000',
+      'sig',
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      { url: '/cafe24?mall_id=shop' } as never,
+      res as never,
+    );
+    expect(res.statusCode).toBe(404);
+    expect((res.body as { code: string }).code).toBe(
+      'CAFE24_INSTALL_INVALID_TOKEN',
     );
   });
 

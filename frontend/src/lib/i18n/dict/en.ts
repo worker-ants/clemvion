@@ -1628,7 +1628,7 @@ export const en: Dict = {
     cafe24AppUrlLabel: "App URL (register in Cafe24 Developers → Development Info)",
     cafe24CallbackUrlLabel: "Redirect URI (register in Cafe24 Developers → Development Info)",
     cafe24PrivatePendingSteps:
-      "① In Cafe24 Developers → My App → Development Info, **copy the full URLs above** and paste them into App URL and Redirect URI (the App URL value includes the 22-char install_token at the end — paste the whole thing, don't trim). ② Confirm that Permissions (Scope) match the scopes you requested. ③ Click Test Run and enter your mall ID. After consent, the integration activates.",
+      "① In Cafe24 Developers → My App → Development Info, copy the full URLs above and paste them into App URL and Redirect URI (the App URL value includes the 22-char install_token at the end — paste the whole thing, don't trim). ② Confirm that Permissions (Scope) match the scopes you requested. ③ Click Test Run and enter your mall ID. After consent, the integration activates.",
     cafe24PrivatePendingViewList: "View integration details",
     cafe24PrivatePendingWaiting:
       "Waiting for Cafe24 Test Run to complete… (auto-refresh)",

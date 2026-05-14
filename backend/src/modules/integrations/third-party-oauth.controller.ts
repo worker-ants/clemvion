@@ -18,22 +18,23 @@ import {
   IntegrationOAuthService,
 } from './integration-oauth.service';
 import { renderCallbackHtml } from './services/oauth-callback.template';
-
-/**
- * install_token is `randomBytes(16).toString('base64url')` — exactly 22
- * base64url chars (16 bytes = 128-bit). spec/2-navigation/4-integration.md
- * §9.2. The 100-char Cafe24 App URL field forces the shorter token.
- */
-const INSTALL_TOKEN_PATTERN = /^[A-Za-z0-9_-]{22}$/;
+import {
+  INSTALL_TOKEN_PATTERN,
+  THIRD_PARTY_PREFIX,
+} from './third-party-oauth.constants';
 
 /**
  * 3rd-party 가 호출하는 OAuth endpoints (Cafe24 "테스트 실행" install +
  * provider callbacks). 사용자가 호출하는 통합 관리 API
  * (`/api/integrations/...`) 와 분리. spec/2-navigation/4-integration.md
  * §9.2 Rationale "Cafe24 App URL 100자 한도 대응".
+ *
+ * install_token 형식·URL 조립 헬퍼는 `third-party-oauth.constants.ts` 의
+ * 단일 진실 지점에서 정의 — 토큰 생성(서비스)·검증(본 컨트롤러)·appUrl
+ * 조립(서비스) 사이의 불일치를 컴파일 타임에 차단한다.
  */
 @ApiTags('Third-Party OAuth')
-@Controller('3rd-party')
+@Controller(THIRD_PARTY_PREFIX)
 export class ThirdPartyOAuthController {
   constructor(private readonly oauthService: IntegrationOAuthService) {}
 
@@ -139,11 +140,16 @@ export class ThirdPartyOAuthController {
   /**
    * Generic OAuth callback for all integration providers. Provider 마다 별도
    * controller 를 만들지 않고 :provider 파라메트릭 단일 핸들러로 유지 (현
-   * google/github/cafe24 3종 모두 동일 처리 흐름). spec §10.
+   * google/github/cafe24 3종 모두 동일 처리 흐름).
+   * spec/2-navigation/4-integration.md §10.
    *
    * ※ 사용자 소셜 로그인 콜백 (`/api/auth/oauth/:provider/callback`) 과 별개다.
+   *
+   * Throttle: state 검증으로 reflected abuse 는 차단되나, OAuth code 교환
+   * 호출의 외부 의존성 비용을 감안해 install 보다 약한 60 req/min 적용.
    */
   @Public()
+  @Throttle({ default: { limit: 60, ttl: 60_000 } })
   @Get(':provider/callback')
   @ApiOperation({
     summary: 'OAuth 콜백 처리 (통합 연동)',
