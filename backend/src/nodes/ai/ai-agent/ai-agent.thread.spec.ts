@@ -418,6 +418,85 @@ describe('AiAgentHandler — ConversationThread push (Phase 4a)', () => {
       ).not.toHaveProperty('contextInjection');
     });
 
+    it('includeToolTurns=true pushes tool-loop assistant + tool result turns', async () => {
+      const context = makeContext();
+      mockLlmService.chat
+        .mockResolvedValueOnce({
+          content: 'I will use a tool',
+          toolCalls: [{ id: 'tc-1', name: 'tool_foo', arguments: '{"q":"x"}' }],
+          usage: { inputTokens: 10, outputTokens: 5, totalTokens: 15 },
+          model: 'gpt-4o',
+          finishReason: 'tool_use',
+        })
+        .mockResolvedValueOnce({
+          content: 'Done',
+          usage: { inputTokens: 5, outputTokens: 3, totalTokens: 8 },
+          model: 'gpt-4o',
+          finishReason: 'stop',
+        });
+
+      await handler.execute(
+        undefined,
+        {
+          mode: 'single_turn',
+          model: 'gpt-4o',
+          userPrompt: 'do it',
+          responseFormat: 'text',
+          maxToolCalls: 5,
+          includeToolTurns: true,
+        },
+        context,
+      );
+
+      const turns = conversationThreadService.getThread(context).turns;
+      // ai_user (userPrompt) + ai_assistant (tool-loop, w/ toolCalls) +
+      // ai_tool (result) + ai_assistant (final) = 4 turns.
+      expect(turns).toHaveLength(4);
+      expect(turns[0].source).toBe('ai_user');
+      expect(turns[1].source).toBe('ai_assistant');
+      expect(turns[1].toolCalls).toEqual([
+        { id: 'tc-1', name: 'tool_foo', arguments: '{"q":"x"}' },
+      ]);
+      expect(turns[2].source).toBe('ai_tool');
+      expect(turns[2].toolCallId).toBe('tc-1');
+      expect(turns[3].source).toBe('ai_assistant');
+      expect(turns[3].text).toBe('Done');
+    });
+
+    it('default (includeToolTurns omitted) skips tool-loop turns', async () => {
+      const context = makeContext();
+      mockLlmService.chat
+        .mockResolvedValueOnce({
+          content: '',
+          toolCalls: [{ id: 'tc-1', name: 'tool_foo', arguments: '{}' }],
+          usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 },
+          model: 'gpt-4o',
+          finishReason: 'tool_use',
+        })
+        .mockResolvedValueOnce({
+          content: 'Done',
+          usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 },
+          model: 'gpt-4o',
+          finishReason: 'stop',
+        });
+
+      await handler.execute(
+        undefined,
+        {
+          mode: 'single_turn',
+          model: 'gpt-4o',
+          userPrompt: 'do it',
+          responseFormat: 'text',
+          maxToolCalls: 5,
+        },
+        context,
+      );
+
+      const turns = conversationThreadService.getThread(context).turns;
+      expect(turns).toHaveLength(2);
+      expect(turns.map((t) => t.source)).toEqual(['ai_user', 'ai_assistant']);
+    });
+
     it('emits meta.contextInjection echo when scope is active', async () => {
       const context = makeContext();
       seedThreadFromOtherNode(context);
