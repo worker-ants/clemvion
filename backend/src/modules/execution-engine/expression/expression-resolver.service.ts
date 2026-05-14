@@ -7,6 +7,7 @@ import {
 import { ExecutionContext } from '../../../nodes/core/node-handler.interface';
 import { Node } from '../../nodes/entities/node.entity';
 import { EXPRESSION_EXCLUSIONS } from './expression-exclusions';
+import { renderThreadAsSystemText } from '../conversation-thread/thread-renderer';
 
 const EXPRESSION_PATTERN = /\{\{/;
 const FULL_EXPRESSION_PATTERN = /^\s*\{\{(.+)\}\}\s*$/s;
@@ -98,6 +99,29 @@ export class ExpressionResolverService {
         : undefined,
       $item: executionContext.itemContext?.item,
       $itemIndex: executionContext.itemContext?.index,
+      // ConversationThread readonly view (spec/5-system/5-expression-language §4.4).
+      // v1 only exposes simple indexing — turns / length / pre-rendered text.
+      // `text` lazily renders via thread-renderer so consumers that don't
+      // touch it pay no cost.
+      $thread: this.buildThreadView(executionContext.conversationThread),
+    };
+  }
+
+  private buildThreadView(thread: ExecutionContext['conversationThread']):
+    | {
+        turns: ExecutionContext['conversationThread']['turns'];
+        length: number;
+        text: string;
+      }
+    | undefined {
+    if (!thread) return undefined;
+    return {
+      turns: thread.turns,
+      length: thread.turns.length,
+      // Lazy via getter would be ideal but `evaluate()` may serialize the
+      // object — pre-compute the text. Empty thread → empty string (matches
+      // renderer's noop branch).
+      text: renderThreadAsSystemText(thread.turns),
     };
   }
 
