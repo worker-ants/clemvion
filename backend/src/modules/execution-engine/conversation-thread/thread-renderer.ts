@@ -1,4 +1,19 @@
-import { ConversationTurn } from './conversation-thread.types';
+import {
+  ConversationThread,
+  ConversationTurn,
+} from './conversation-thread.types';
+
+/**
+ * Snapshot a ConversationThread so the caller can pass the result outside the
+ * mutation boundary (Background dispatch, WS emit) without leaking the live
+ * `turns` reference. ConversationTurn objects are immutable post-push so a
+ * deeper clone is unnecessary — only the wrapper + turns array are cloned.
+ *
+ * SoT: spec/conventions/conversation-thread.md §3.2 (Background isolation).
+ */
+export function cloneThread(thread: ConversationThread): ConversationThread {
+  return { ...thread, turns: [...thread.turns] };
+}
 
 /** spec/conventions/conversation-thread.md §5.3 */
 export const MAX_INJECTED_TURNS = 100;
@@ -23,6 +38,13 @@ export interface InteractionLike {
  * spec/conventions/conversation-thread.md §1.4 — `interaction.{type,data}` 를
  * 사람-읽기 가능한 한 줄 텍스트로 변환. ConversationThreadService 가
  * presentation interaction 을 thread 에 push 할 때 사용.
+ *
+ * **Prompt Injection 방어**: form / button 의 사용자 입력은 `[user-input]...[/]`
+ * 마커로 감싸 LLM 이 instruction 와 data 를 구분할 수 있게 한다. 마커 안의
+ * 같은 토큰 등장은 zero-width space (`U+200B`) 로 escape — 마커 자체를
+ * 가짜로 닫고 instruction 처럼 위장하는 공격 차단. `system_text` 모드에서
+ * `renderThreadAsSystemText` 를 거치는 turn 도 이 marker 가 보존되어 LLM
+ * 이 user-origin 텍스트를 식별 가능.
  */
 export function renderInteractionText(interaction: InteractionLike): string {
   const data = interaction.data ?? {};
@@ -32,24 +54,48 @@ export function renderInteractionText(interaction: InteractionLike): string {
       for (const [k, v] of Object.entries(data)) {
         parts.push(`${k}=${stringifyValue(v)}`);
       }
-      const text = parts.join(', ');
-      return text.length > FORM_TEXT_HARD_CAP
-        ? text.slice(0, FORM_TEXT_HARD_CAP) + '...'
-        : text;
+      const raw = parts.join(', ');
+      const capped =
+        raw.length > FORM_TEXT_HARD_CAP
+          ? raw.slice(0, FORM_TEXT_HARD_CAP) + '...'
+          : raw;
+      return wrapUserContent(capped);
     }
     case 'button_click': {
       const label = data.buttonLabel ?? data.buttonId ?? '';
-      return `clicked: ${stringifyValue(label)}`;
+      return `clicked: ${wrapUserContent(stringifyValue(label))}`;
     }
     case 'button_continue': {
       const url = data.url;
       return url !== undefined && url !== null
-        ? `continued: ${stringifyValue(url)}`
+        ? `continued: ${wrapUserContent(stringifyValue(url))}`
         : 'continued';
     }
     default:
       return '';
   }
+}
+
+const USER_CONTENT_OPEN = '[user-input]';
+const USER_CONTENT_CLOSE = '[/user-input]';
+/**
+ * Wrap untrusted user-origin text in identifiable markers. Escapes any literal
+ * occurrences of the markers in `text` by inserting a zero-width separator so
+ * an attacker can't close the wrapper early and inject instructions.
+ *
+ * SoT: spec/conventions/conversation-thread.md §5.2 (sanitization)
+ */
+function wrapUserContent(text: string): string {
+  if (!text) return text;
+  // U+200B zero-width space inserted between the literal bracket and `]` so
+  // a fake closing marker fails string-equality but stays visually identical.
+  const ZWSP = '​';
+  const escaped = text
+    .split(USER_CONTENT_OPEN)
+    .join(`[user-input${ZWSP}]`)
+    .split(USER_CONTENT_CLOSE)
+    .join(`[/user-input${ZWSP}]`);
+  return `${USER_CONTENT_OPEN}${escaped}${USER_CONTENT_CLOSE}`;
 }
 
 function stringifyValue(v: unknown): string {

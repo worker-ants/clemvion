@@ -115,13 +115,19 @@ export class ExpressionResolverService {
       }
     | undefined {
     if (!thread) return undefined;
+    // Snapshot the turns array — expressions are read-only by spec, but
+    // returning the live array would let later append() calls appear to
+    // mutate already-evaluated context objects (e.g. per-iteration loop
+    // bodies that hold a reference). The wrapper and contained turn
+    // objects stay shared (turns are immutable post-push).
+    const snapshot = [...thread.turns];
     return {
-      turns: thread.turns,
-      length: thread.turns.length,
+      turns: snapshot,
+      length: snapshot.length,
       // Lazy via getter would be ideal but `evaluate()` may serialize the
       // object — pre-compute the text. Empty thread → empty string (matches
       // renderer's noop branch).
-      text: renderThreadAsSystemText(thread.turns),
+      text: renderThreadAsSystemText(snapshot),
     };
   }
 

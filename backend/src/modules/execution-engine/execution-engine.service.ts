@@ -26,6 +26,8 @@ import {
   RECOVERY_LOCK_KEY,
 } from './continuation/continuation-bus.service';
 import { ConversationThreadService } from './conversation-thread/conversation-thread.service';
+import { createEmptyConversationThread } from './conversation-thread/conversation-thread.types';
+import { cloneThread } from './conversation-thread/thread-renderer';
 import { buildGraph, GraphEdge } from './graph/graph-builder';
 import { topologicalSort } from './graph/topological-sort';
 import { identifyBackEdges } from './graph/back-edge-identifier';
@@ -1628,7 +1630,7 @@ export class ExecutionEngineService
         // Live ConversationThread snapshot so UI can render the running
         // thread panel (spec/conventions/conversation-thread.md §4 +
         // spec/5-system/6-websocket-protocol.md §4.4.5).
-        conversationThread: context.conversationThread,
+        conversationThread: cloneThread(context.conversationThread),
       },
     );
 
@@ -1990,7 +1992,7 @@ export class ExecutionEngineService
         interactionType: 'ai_conversation',
         // Live thread snapshot for UI (spec/conventions/conversation-thread.md §4
         // + spec/5-system/6-websocket-protocol.md §4.4.5).
-        conversationThread: context.conversationThread,
+        conversationThread: cloneThread(context.conversationThread),
         nodeOutput: {
           interactionType: 'ai_conversation',
           ...(structuredConfig && Object.keys(structuredConfig).length > 0
@@ -2125,8 +2127,11 @@ export class ExecutionEngineService
           // ai_user/ai_assistant turn 이 push 된 직후 UI 가 확인할 수 있도록).
           // handleAiMessageTurn doesn't carry ExecutionContext, so we look it
           // up via contextService — single Map access.
-          conversationThread:
-            this.contextService.getContext(executionId)?.conversationThread,
+          conversationThread: (() => {
+            const t =
+              this.contextService.getContext(executionId)?.conversationThread;
+            return t ? cloneThread(t) : undefined;
+          })(),
           nodeOutput: {
             interactionType: 'ai_conversation',
             // Pass through handler's echoed node config so the Config
@@ -2386,7 +2391,7 @@ export class ExecutionEngineService
         startedAt: nodeExec?.startedAt?.toISOString?.(),
         interactionType: 'buttons',
         // Live thread snapshot for UI (button waiting tick).
-        conversationThread: context.conversationThread,
+        conversationThread: cloneThread(context.conversationThread),
         buttonConfig: {
           buttons,
           nodeOutput: nodeOutputForEvent,
@@ -3766,10 +3771,7 @@ export class ExecutionEngineService
     // through and push to the main flow's turn list. ConversationTurn
     // objects themselves are immutable once pushed, so a deeper clone is
     // unnecessary (spec/conventions/conversation-thread.md §3.2).
-    const threadSnapshot: typeof context.conversationThread = {
-      ...context.conversationThread,
-      turns: [...context.conversationThread.turns],
-    };
+    const threadSnapshot = cloneThread(context.conversationThread);
     const job: BackgroundExecutionJob = {
       executionId,
       parentNodeExecutionId,
@@ -3813,7 +3815,11 @@ export class ExecutionEngineService
     context.expressionContext = { ...job.expressionContext };
     // Use the enqueue-time snapshot (already turns-cloned) — pushes from
     // here onward stay inside the background subgraph (§3.2 isolation).
-    context.conversationThread = job.conversationThread;
+    // Backward-compat: jobs enqueued before the conversationThread field was
+    // added (legacy BullMQ payloads) lack the field; fall back to an empty
+    // thread instead of crashing on `undefined.turns`.
+    context.conversationThread =
+      job.conversationThread ?? createEmptyConversationThread();
 
     const run = this.executeInline(job.workflowId, job.input, {
       executionId: job.executionId,

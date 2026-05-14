@@ -57,7 +57,7 @@ describe('ConversationThreadService', () => {
       expect(turn.nodeId).toBe('node-1');
       expect(turn.nodeLabel).toBe('Form');
       expect(turn.nodeType).toBe('form');
-      expect(turn.text).toBe('name=Alice, age=30');
+      expect(turn.text).toBe('[user-input]name=Alice, age=30[/user-input]');
       expect(turn.timestamp).toBe('2026-05-14T10:00:00.000Z');
       expect(turn.data).toEqual({ name: 'Alice', age: 30 });
     });
@@ -73,7 +73,9 @@ describe('ConversationThreadService', () => {
         },
       });
       const thread = service.getThread(context);
-      expect(thread.turns[0].text).toBe('clicked: 동의');
+      expect(thread.turns[0].text).toBe(
+        'clicked: [user-input]동의[/user-input]',
+      );
       expect(thread.turns[0].source).toBe('presentation_user');
     });
 
